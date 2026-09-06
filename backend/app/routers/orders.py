@@ -29,7 +29,7 @@ from ..schemas.order import (
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentSetup,
-    RecordEntry, RecordValue, StepConfirm, StepRecord,
+    RecordEntry, RecordValue, StepConfirm, StepRecord, TransferInfo,
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
@@ -903,14 +903,41 @@ def step_record(
     )
 
 
+def _deal_step(db: Session, order, step_id: int, user: UserProfile):
+    """**Der Geldvorgang eines Moduls – und ob dieser Betrachter ihn sieht.**
+
+    Dreimal dieselbe Vorrede (Vorbereiten · Erstatten · Überweisen); ausgeschrieben wäre
+    sie dreimal dieselbe Chance, eine der beiden Prüfungen zu vergessen.
+    """
+    mine = _visible(db, order, user)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None or (mine is not None and step.id not in mine):
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    row = deal_svc.of_step(db, step.id)
+    if row is None:
+        raise HTTPException(status_code=404,
+                            detail="Dieses Modul hat keinen Geldvorgang.")
+    return step, row
+
+
 @router.post("/{object_id}/steps/{step_id}/deal/payment", response_model=PaymentSetup)
 def prepare_payment(
     object_id: int,
     step_id: int,
+    charge: Optional[int] = None,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
+
+    ►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ ``charge`` ist die
+    Zeile, an der geklickt wurde – ohne Angabe die älteste offene. Vorher kassierte der
+    Weg immer die älteste: standen zwei offen, war die zweite unbezahlbar, obwohl ihr Knopf
+    danebenstand.
 
     Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
     Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
@@ -930,23 +957,68 @@ def prepare_payment(
     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)
     – und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.
     """
-    order = orders_svc.get(db, object_id)
     # **Dieselbe eine Frage wie beim Lesen** (wie bei ``…/deal``): wer den Auftrag nicht
     # sieht, zahlt auch nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
-    mine = _visible(db, order, user)
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None or (mine is not None and step.id not in mine):
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    row = deal_svc.of_step(db, step.id)
-    if row is None:
-        raise HTTPException(status_code=404,
-                            detail="Dieses Modul hat keinen Geldvorgang.")
+    order = orders_svc.get(db, object_id)
+    _step, row = _deal_step(db, order, step_id, user)
     # ►►► **Dieselbe Tabelle, die den Knopf zeigt, lässt hier durch.** ◄◄◄ Eine eigene
     # Prüfung daneben wäre ein zweiter Massstab – und der bekäme die nächste Bedingung
     # nicht mit.
     deal_svc.assert_allowed(db, row, "pay_online", user)
-    return PaymentSetup(**stripe_pay.prepare(db, deal=row, order=order))
+    return PaymentSetup(**stripe_pay.prepare(db, deal=row, order=order, charge_id=charge))
+
+
+@router.post("/{object_id}/steps/{step_id}/deal/refund", response_model=OrderResponse)
+def refund_payment(
+    object_id: int,
+    step_id: int,
+    body: DealUpdate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """►►► **Geld zurück — über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄
+
+    *«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag
+    zurückerstatten.»* – Genau, und der Weg hängt daran, **wie** das Geld kam: bar und per
+    Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es längst gibt),
+    eine **Karte** erstattet der Dienst, der sie belastet hat.
+
+    **Gebucht wird auch hier nicht hier**: der Dienst meldet die Erstattung, und der
+    Webhook schreibt die negative Zeile – dieselbe Regel wie beim Einziehen, und aus
+    demselben Grund (wer den Browser schliesst, darf keine Buchung verschlucken).
+
+    **Personal-only**: eine Erstattung ist unsere Aussage über unser Konto. Der Kunde
+    fordert sie an, er löst sie nicht aus.
+    """
+    order = orders_svc.get(db, object_id)
+    step, row = _deal_step(db, order, step_id, user)
+    deal_svc.assert_allowed(db, row, "refund_online", user)
+    stripe_pay.refund(db, deal=row, entry_id=body.entry, amount=body.amount)
+    return _to_response(db, order, user)
+
+
+@router.get("/{object_id}/steps/{step_id}/deal/transfer", response_model=TransferInfo)
+def transfer_details(
+    object_id: int,
+    step_id: int,
+    entry: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung (#865).
+
+    Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
+    den Vorgang sieht – der Zahlende zuerst, denn er ist es, der überweist.
+
+    **Erst auf Klick**: der Code ist ein paar Kilobyte SVG, und er interessiert genau
+    dann, wenn jemand wirklich zahlen will.
+    """
+    order = orders_svc.get(db, object_id)
+    _step, row = _deal_step(db, order, step_id, user)
+    charge = next((e for e in deal_svc.open_charges(db, row) if e.id == entry), None)
+    if charge is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Zu dieser Rechnung gibt es nichts zu überweisen – sie ist beglichen "
+                   "oder gehört nicht zu diesem Vorgang.")
+    return TransferInfo(**deal_svc.transfer_info(db, row, charge))

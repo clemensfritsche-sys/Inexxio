@@ -133,6 +133,12 @@ _COLUMN_SAFETY_NET = (
     # kennt – dieselbe Ausfallklasse wie ``reverses_id`` darüber; der Fremdschlüssel bleibt
     # der Migration, das Netz zieht die **Spalte** nach.
     ("deal_entries", "charge_id", "BIGINT"),
+    # **Der Anteil und die Zahlungsart** (Migration 130, Testnotizen #865/#866). Der
+    # Anteil ist ``NOT NULL`` mit Vorgabe 100 – ein Vorgang ohne ihn rechnet alles ab, und
+    # genau das ist der Normalfall; die Zahlungsart ist ``NULL``-bar, weil jede Zahlung
+    # von vorher keine hat und eine geratene eine Behauptung wäre.
+    ("deals", "share", "NUMERIC(6,3) NOT NULL DEFAULT 100"),
+    ("deal_entries", "method", "VARCHAR(10)"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

@@ -2631,6 +2631,73 @@
 > «Alles» –, und die Messung gegen ihre eigene Bug-Form gegengeprüft (+87 px bei 375,
 > +142 px bei 320).
 
+> ►►► **EINE Rechnung je Modul — und die drei Wege zum Geld** (Testnotizen #859–#866,
+> Migration `130`, PROCESS_CORE §9.14). ◄◄◄ Acht Notizen, und die grösste war eine
+> **Modellfrage**, die der Nutzer gegen meinen Rat entschieden hat: *«Nur eine Rechnung
+> pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich einfach 2
+> Zahlungsmodule.»* Der Einwand dagegen war, die Regel könnte Szenarien verbauen — sie tut
+> es nicht, und der Grund ist, **was gezählt wird**: `live_charge` zählt eine *Forderung
+> nach aussen*, also **nicht** die Gegenbuchung, **nicht** die stornierte Zeile (genau das
+> ist der Ausweg) und **nicht** die Gutschrift (negativ = Minderung). Verboten ist die
+> zweite *offene* Forderung, nicht der zweite Vorgang.
+> **Und das System wurde dabei kleiner**: `_charge_for_payment` hatte drei Fälle, darunter
+> «mehrere offene → die Zahlung muss sagen, welche», mit einem Satz, der sie aufzählte.
+> Der Ast ist **unerreichbar** geworden und ist entfallen — ein Ast, den niemand erreicht,
+> ist von einem kaputten nicht zu unterscheiden; mit ihm `DealEmbed.open_invoices` und ein
+> Auswahlfeld im Formular.
+> **Der Anteil ist das Gegenstück** (`deals.share`, Prozent, Vorgabe 100): zwei Module
+> sehen dieselben Stücke, also dieselben Positionen — ohne ihn hätte jedes die **volle**
+> Summe zugesagt, zusammen das Doppelte, und «erst zahlen» ginge bei einer Anzahlung nie
+> auf. Gebunden wie die Währung, aus demselben Grund und über **dieselbe** Antwort: beides
+> steht in `ACTIONS[OFFER]`.
+> ►►► **Ein zweites Feld «gesperrt?» gibt es nicht mehr.** ◄◄◄ `currency_locked` hatte
+> **keinen** Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben
+> gab einer **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt
+> — gemessen im Browser, nicht überlegt. `can` ist Auskunft **und** Tor; ein zweiter Wert
+> daneben ist die Stelle, an der beide auseinanderlaufen.
+> **Drei Wege zum Geld, EINE Angabe an der Zahlung** (`deal_entries.method`): *bar* wird
+> erfasst, die *Karte* wird ausgeführt, die *Überweisung* löst der Zahlende selbst aus —
+> gebucht wird in jedem Fall dieselbe Zeile. **Die Karte tippt niemand ab** (sie kommt
+> über den Webhook, `MANUAL_METHODS` weist sie an der Menschentür ab), und die
+> **Überweisung ist gar keine Buchung, sondern eine Auskunft**: Bankverbindung,
+> RF-Referenz (ISO 11649) und die **Swiss QR-Rechnung** (`services/qrbill`, 31 Zeilen
+> Nutzlast, im Backend erzeugt — eine verrutschte Zeile sieht man einem QR nicht an).
+> **Die ehrliche Antwort auf «international gültig»**: einen weltweiten Standard gibt es
+> nicht. Wo die Swiss QR-Rechnung nicht gilt (fremde Währung, keine CH-IBAN), gibt es
+> **keinen** Code, sondern den **Grund** — ein QR, der in der App des Kunden einen Fehler
+> wirft, wäre schlimmer als keiner.
+> **Und alle drei stehen AN der Rechnung, die sie begleichen** (#859): die Knöpfe standen
+> **unter** der Liste, galten also dem Vorgang, und `stripe_pay.prepare` nahm
+> `open_charges[0]` — die zweite Rechnung war damit **unbezahlbar**, obwohl ihr Knopf
+> danebenstand. Ein Knopf **an** der Zeile beantwortet die Frage, indem er sie nicht stellt.
+> **Storno ODER Gutschrift — dieselbe Buchung, zwei Wörter** (#860): *«wenn bezahlt wurde,
+> dann kann ich ja quasi nicht mehr stornieren»* — richtig, dann heisst es **Gutschrift**,
+> und das Wort hängt an der Zahl, nicht an einem zweiten Verb (`reverse_word`, aus
+> `paid_on`). **Erstattet wird auf dem Weg, auf dem gezahlt wurde**: bar und per
+> Überweisung eine gewöhnliche negative Zahlung, eine **Karte** über den Dienst
+> (`refund_online`) — gebucht auch dort erst vom Webhook. Und eine Zahlung auf eine
+> inzwischen **stornierte** Rechnung wird trotzdem gebucht, nur **ohne Zuordnung**: sie
+> ist passiert. Der offene Betrag wird negativ, die Erstattung steht als Handlung da —
+> keine eigene Regel nötig.
+> **Die Oberfläche versteckt nichts mehr** (#863): *«ich mag diese Reiter-Ansicht nicht»* —
+> und die Meldung hat recht, weil der Vorgang **einer** ist. Die Leiste bleibt als
+> **Übersicht** (`ModuleSteps` ohne `onOpen` — dieselbe Bauart wie `ValueBar`: ohne
+> Handler ist alles Anzeige). Die Sorge, die zu den Reitern geführt hatte, ist eine Frage
+> der **Dichte** und wird dort beantwortet: **eine** Positionstabelle statt zweier (#862 —
+> derselbe Datensatz stand als Auskunft *und* als Formular da, und das Formular sagte
+> weniger), die Zahlungen **eingerückt unter ihrer Rechnung** (#861) und die Währung im
+> Angebot statt in der Kopfzeile (#864).
+> Wächter: 5 neue in `tests/test_deal_module.py`, 6 neue in `test_frontend_mirrors.py`,
+> dazu 6 auf die neue Regel gezogene — **22 Bug-Formen gegengeprüft, jede meldet**; *drei
+> waren dabei stumpf und liessen ihre eigene durch* (zweimal stand die gesuchte
+> Zeichenkette an zwei Stellen im Rumpf, einmal las ein Wächter Zeilen der **rohen** Datei
+> und zählte einen Kommentar als Abstand mit). Suite grün gegen die gewachsene Datenbank
+> **und** gegen ein Schema nur aus den Migrationen (je 527); Migration `130` von null ·
+> idempotent · downgrade · re-upgrade · über das Lifespan-Netz verifiziert. Gemessen in
+> Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
+> waagrechter Überlauf über sechs Zustände — und die Messung gegen ihre eigene Bug-Form
+> gegengeprüft (127.2 px bei einem unteilbaren Wort).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -2880,6 +2947,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Zahlungsformular **im ERP**, nicht auf einer fremden Seite; die Gegenpartei bezahlt über
   ihren eigenen, engen Zugang. Was das ERP weiss (Name · E-Mail · Rechnungsadresse), wird
   nicht noch einmal gefragt. Gebucht wird nur vom **Webhook**.
+- **Drei Wege zum Geld, eine Rechnung je Modul** (§9.14): *bar* wird erfasst, die *Karte*
+  ausgeführt, die *Überweisung* ist eine **Auskunft** – Bankverbindung, RF-Referenz und
+  die **Swiss QR-Rechnung**. Alle drei stehen **an** der Rechnung, die sie begleichen; je
+  Modul lebt höchstens eine, und der **Anteil** (`share`) macht die Anzahlung zum zweiten
+  Modul statt zur zweiten Rechnung.
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.

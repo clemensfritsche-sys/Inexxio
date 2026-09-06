@@ -40,9 +40,17 @@ import type { PaymentSetup } from '@/types';
  * und nicht «gebucht» – und lädt den Auftrag nach, damit die Zeile erscheint, sobald sie
  * da ist.
  */
-export function PayOnline({ orderObjectId, stepId, label, onDone, onClose }: {
+export function PayOnline({ orderObjectId, stepId, chargeId, label, onDone, onClose }: {
   orderObjectId: number;
   stepId: number;
+  /**
+   * ►►► **Welche Rechnung bezahlt wird** (Testnotiz #859). ◄◄◄
+   *
+   * Der Knopf steht **an** ihr, also nennt er sie. Ohne Angabe die älteste offene – so
+   * war es vorher **immer**, und damit war die zweite Rechnung unbezahlbar, obwohl ihr
+   * Knopf danebenstand.
+   */
+  chargeId?: number | null;
   /** Das Wort des Servers («Jetzt bezahlen») – die Karte hält keine eigene Konstante. */
   label: string;
   /** Der Auftrag soll neu geladen werden – die Zahlung kommt über den Webhook. */
@@ -60,11 +68,11 @@ export function PayOnline({ orderObjectId, stepId, label, onDone, onClose }: {
   // Absicht über den offenen Betrag und ändert an unserem Vorgang keine Zeile.
   useEffect(() => {
     let dead = false;
-    api.preparePayment(orderObjectId, stepId)
+    api.preparePayment(orderObjectId, stepId, chargeId)
       .then((s) => { if (!dead) setSetup(s); })
       .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
     return () => { dead = true; };
-  }, [orderObjectId, stepId]);
+  }, [orderObjectId, stepId, chargeId]);
 
   // **Das SDK kommt erst auf Klick** (`await import`) – dieselbe Regel wie beim Decoder
   // des Scanners: was niemand öffnet, kostet niemanden etwas.

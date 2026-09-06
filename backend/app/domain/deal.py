@@ -282,6 +282,170 @@ def prepaid(due_days: Optional[int]) -> bool:
     return due_days == PREPAID_DAYS
 
 
+# ---------------------------------------------------------------------------
+# ►►► EINE RECHNUNG JE MODUL — und der Anteil, der das erst möglich macht ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich
+# einfach 2 Zahlungsmodule … meistens hat man eine Vorauszahlung, dann eine
+# Leistungserbringung und dann wieder eine Restzahlung.»* (Testnotiz #866)
+#
+# **Der Grund ist die Zeit.** *Vorauszahlung → Leistung → Restzahlung* sind drei
+# **Zeitpunkte**, und die Zeit ist die Achse des Prozesses; ein Modul steht an *einem*
+# Punkt. Zwei Zahlungen zu zwei Zeitpunkten sind darum zwei Module – das erste vor der
+# Leistung (Zahlungsfrist 0, es hält den Prozess an), das zweite danach. Zwei Rechnungen
+# **an derselben Stelle** wären dagegen zwei Aussagen über einen Moment, der nur einmal
+# existiert.
+#
+# **Damit ist der Vorgang die Zusage, und die Rechnung ist ihr Beleg**: eine Zusage, eine
+# Rechnung. Was daran falsch ist, wird **storniert und neu gestellt** – der Weg dahin ist
+# derselbe, den die Buchhaltung ohnehin verlangt, und er lässt keinen Zustand ohne
+# Ausgang zurück (eine stornierte Rechnung zählt nicht mehr, also darf die nächste
+# entstehen).
+#
+# **Eine Minderung ist keine zweite Rechnung**, sondern eine **Gutschrift**: ein negativer
+# Betrag auf derselben Achse. Sie bleibt darum jederzeit möglich – Skonto, Teilretoure,
+# Kulanz. Die Regel sperrt genau eine Sache: eine **zweite positive Forderung**.
+#
+# ► **Und ohne den Anteil wäre der Zwei-Modul-Weg nur scheinbar gangbar.** Beide Module
+#   sehen dieselben Stücke, also dieselben Positionen – ein Anzahlungs-Modul hätte damit
+#   die **volle** Summe zugesagt, und «erst zahlen» ginge nie auf (``Balance.settled``
+#   fragt nach der Zusage). Der Anteil sagt, welchen Teil der Positionen *dieser* Vorgang
+#   abrechnet; die Positionspreise bleiben die wahren, und auf dem Beleg steht
+#   «Anzahlung 30 %».
+
+#: Der ganze Betrag – die Vorgabe, und der Normalfall.
+FULL_SHARE = Decimal("100")
+
+SHARE_LABEL = "Anteil"
+SHARE_HINT = ("Welcher Teil der Positionen wird hier abgerechnet? "
+              "100 % ist der ganze Betrag; 30 % ist die Anzahlung, deren Rest ein "
+              "zweites Zahlungs-Modul abrechnet.")
+
+
+def assert_share(value: Any) -> Decimal:
+    """**Ein Anteil in Prozent** – grösser als null, höchstens hundert.
+
+    Null wäre ein Vorgang über nichts, und über hundert Prozent verkauft niemand mehr,
+    als er hat: beides ist ein Tippfehler, und ein Tippfehler in einer Zusage ist teuer.
+    """
+    try:
+        share = Decimal(str(value)).quantize(Decimal("0.001"))
+    except (ArithmeticError, TypeError, ValueError):
+        raise ValueError(f"«{value}» ist kein Anteil.")
+    if not Decimal("0") < share <= FULL_SHARE:
+        raise ValueError("Ein Anteil liegt zwischen 0 und 100 Prozent.")
+    return share
+
+
+def share_text(value: Any) -> str:
+    """**Der Anteil, wie man ihn schreibt** – ohne die Nullen, die niemand tippt.
+
+    Gespeichert ist er auf drei Stellen genau (ein Drittel ist 33.333 %), angezeigt wird
+    er so kurz wie möglich: «100», nicht «100.000». Eine Zahl, die genauer aussieht, als
+    jemand sie gemeint hat, lädt dazu ein, sie für eine Angabe zu halten.
+    """
+    share = Decimal(str(value)) if value is not None else FULL_SHARE
+    return format(share.normalize(), "f")
+
+
+def share_of(total: Decimal, share: Optional[Decimal]) -> Decimal:
+    """Der Teil einer Summe – **die eine Rechenstelle**.
+
+    Ohne Angabe ist es der ganze Betrag: ein Vorgang ohne Anteil rechnet alles ab, und
+    das ist der Normalfall, den niemand einstellen soll.
+    """
+    if share is None or share == FULL_SHARE:
+        return total
+    return total * share / FULL_SHARE
+
+
+# ---------------------------------------------------------------------------
+# ►►► WIE BEZAHLT WURDE — drei Wege, und nur zwei tippt ein Mensch ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Im Grunde gibt es 3 Arten von Bezahlsystemen: Barzahlung, Zahlung per Karte und
+# Zahlung via Banküberweisung.»* (Testnotiz #865) – Genau drei, und sie sind **eine
+# Angabe an der Zahlung**, kein zweites Modell: gebucht wird in jedem Fall dieselbe Zeile.
+#
+# **«Zahlung erfassen» ist nicht «Barzahlung».** Es heisst *aufschreiben, was passiert
+# ist* – bei einer eingegangenen Überweisung genauso wie bei Bargeld. Den Knopf so zu
+# nennen wäre bei der Hälfte der Buchungen falsch; die Art gehört an die **Zeile**.
+#
+# **Die Karte tippt niemand ab** (dieselbe Regel wie bei einer Nummer, die wir vergeben):
+# sie entsteht beim Zahlungsdienst und kommt über den Webhook. Ein Mensch, der sie von
+# Hand wählt, behauptet eine Buchung, für die es keinen Beleg gibt.
+CASH = "cash"
+TRANSFER = "transfer"
+CARD = "card"
+
+METHODS: tuple[tuple[str, str], ...] = (
+    (CASH, "Bar"),
+    (TRANSFER, "Überweisung"),
+    (CARD, "Karte"),
+)
+
+#: Was ein **Mensch** erfassen darf. Die Karte schreibt allein der Webhook.
+MANUAL_METHODS: tuple[str, ...] = (CASH, TRANSFER)
+
+METHOD_LABEL = "Zahlungsart"
+
+
+def method_name(key: Optional[str]) -> Optional[str]:
+    """Das Wort zur Zahlungsart – **eine** Auflösung, oder ``None`` für Altbestand."""
+    return dict(METHODS).get(key or "")
+
+
+def assert_method(value: Any) -> Optional[str]:
+    """Eine **von Hand** erfasste Zahlungsart – oder ``None``.
+
+    Die Karte wird hier abgewiesen, nicht bloss ignoriert: ein Feld, das die Oberfläche
+    nicht anbietet, der Dienst aber annimmt, wäre die Hintertür zu einer Buchung, die
+    behauptet, ein Zahlungsdienst habe sie gemeldet.
+    """
+    if value in (None, ""):
+        return None
+    key = str(value)
+    if key not in MANUAL_METHODS:
+        raise ValueError(
+            f"«{key}» lässt sich nicht von Hand erfassen – "
+            f"möglich sind {', '.join(dict(METHODS)[m] for m in MANUAL_METHODS)}.")
+    return key
+
+
+# ---------------------------------------------------------------------------
+# ►►► STORNO ODER GUTSCHRIFT — dieselbe Zeile, zwei Lagen ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Wenn bezahlt wurde, dann wurde bezahlt, dann kann ich ja quasi nicht mehr
+# stornieren … ich kann bzw. soll können einen Betrag zurückerstatten.»* (Testnotiz #860)
+#
+# Technisch ist beides **dieselbe Gegenbuchung** (negative Forderung über den vollen
+# Betrag) – fachlich sind es zwei Lagen, und sie haben zwei Namen:
+#
+# * **unbezahlt** → *Stornorechnung*: die Forderung war falsch, sie wird zurückgenommen.
+# * **bezahlt**  → *Gutschrift*: die Forderung war richtig, das Geschäft ändert sich –
+#   und danach steht der offene Betrag **negativ**, also folgt die **Erstattung**.
+#
+# Ein zweites Verb wäre eine zweite Regel für eine Buchung, die in beiden Fällen gleich
+# aussieht; ein einziges Wort für beide wäre an der Hälfte der Belege falsch.
+STORNO_WORD = "Stornieren"
+CREDIT_WORD = "Gutschrift"
+#: Der Knopf, wo eine Rechnung schon steht: dann ist die nächste Zeile eine Minderung.
+CREDIT_ENTRY_WORD = "Gutschrift erfassen"
+#: Geld zurück – von Hand (bar, Überweisung) …
+REFUND_WORD = "Erstattung erfassen"
+#: … und über den Zahlungsdienst, der die Karte belastet hat.
+REFUND_ONLINE_WORD = "Online erstatten"
+#: Die dritte Bezahlart an einer offenen Rechnung: **Angaben**, keine Buchung.
+TRANSFER_WORD = "Überweisen"
+
+
+def reverse_word(paid: Decimal) -> str:
+    """**Wie die Gegenbuchung an DIESER Rechnung heisst** – die eine Lesestelle."""
+    return CREDIT_WORD if paid > 0 else STORNO_WORD
+
+
 @dataclass(frozen=True)
 class Direction:
     """**Ein Geldvorgang in EINER Richtung** – alles, was die beiden unterscheidet.

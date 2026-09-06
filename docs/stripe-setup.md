@@ -243,7 +243,8 @@ nicht (`DealEmbed.can` führt `pay_online` dann gar nicht).
 | Stripe Tax | Es berechnete eine Zahl, die wir nicht kennen. |
 | Customer Portal / Subscriptions | Wiederkehrende Aufträge werden eine **Schlaufe im Prozess** (PROCESS_CORE §13.7), kein Abo-Objekt beim Zahlungsdienst. |
 | `stripe_customer_id` & Co. | Die Id steht in `deal_entries.reference` — in derselben Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege. |
-| Ein eigener Erstattungs-Knopf | Der Dienst bietet ihn an. Ein zweiter Auslöser wäre ein zweiter Weg zu derselben Buchung — der Webhook fängt sie ohnehin. |
+| Ein zweiter Weg für die **Buchung** einer Erstattung | Den Knopf gibt es seit Testnotiz #860 (`refund_online` → `stripe_pay.refund`) — wer im Dashboard erstattet, müsste das ERP verlassen und dort die Zahlung wiederfinden, die hier eine Zeile mit einer Nummer ist. **Gebucht** wird trotzdem nur vom Webhook (`charge.refunded`): der Auslöser ist neu, die Quelle nicht. |
+| Eine Überweisung beim Dienst | Für **CHF** bietet er gar keine an, und wo er sie anbietet, kostet sie Gebühren für Geld, das sonst gratis ankommt. Genau deshalb überweist man — die **QR-Rechnung** (`services/qrbill`) ist eine Auskunft, keine Buchung. |
 
 ## Go-Live
 

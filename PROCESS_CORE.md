@@ -2552,6 +2552,115 @@ rendern); einer allein ist eine halbe Strasse.
 (`automatic_payment_methods`) — Karte, TWINT, was dort freigeschaltet ist. Eine Liste bei
 uns wäre die zweite Stelle, an der beim nächsten Freischalten jemand nichts sieht.
 
+### 9.14 Eine Rechnung je Modul — und die drei Wege zum Geld
+
+►►► **«Je Zahlungsmodul gibt es maximal eine Rechnung.»** ◄◄◄ (Testnotiz #866)
+
+*«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich einfach
+2 Zahlungsmodule.»* — Und das ist die richtige Modellierung, weil der Grund die **Zeit**
+ist: *Vorauszahlung → Leistung → Restzahlung* sind drei Zeitpunkte, und ein Modul steht an
+einem. Zwei Rechnungen an derselben Stelle wären zwei Aussagen über einen Moment, den es
+nur einmal gibt.
+
+**Die eine Lesestelle ist `deal.live_charge`**, und was sie zählt, ist genau das, was eine
+*Forderung nach aussen* ist:
+
+| nicht gezählt | warum |
+|---|---|
+| eine **Gegenbuchung** (`reverses_id`) | sie ist die Rücknahme einer Rechnung, nicht eine |
+| eine **stornierte** Zeile | genau das ist der Ausweg: was falsch ist, wird storniert und neu gestellt |
+| eine **Gutschrift** (negativ) | eine Minderung, keine zweite Rechnung — Skonto, Teilretoure und Kulanz bleiben möglich |
+
+**Damit ist die Regel keine Sackgasse**, und das ist der Punkt: sie verbietet die zweite
+*offene* Forderung, nicht den zweiten Vorgang. Der Knopf heisst darum «Gutschrift
+erfassen», sobald die Rechnung steht (`charge_word`), und `next_charge` fällt weg — eine
+Vorgabe für eine Buchung, die der Dienst abweist, wäre ein Angebot, das garantiert
+scheitert.
+
+**Und das System wurde dabei kleiner.** `_charge_for_payment` hatte drei Fälle, darunter
+«mehrere offene → die Zahlung muss sagen, welche», mit einem Satz, der sie aufzählte. Der
+Ast ist **unerreichbar geworden** und ist entfallen — ein Ast, den niemand erreicht, ist
+von einem kaputten nicht zu unterscheiden. Mit ihm ging `DealEmbed.open_invoices`.
+
+#### Der Anteil ist das Gegenstück
+
+`deals.share` (Prozent, Vorgabe 100) sagt, welchen Teil der Positionen **dieser** Vorgang
+abrechnet. Ohne ihn wäre die Zwei-Modul-Form nur scheinbar gangbar: beide Module sehen
+dieselben Stücke, also dieselben Positionen — jedes hätte die **volle** Summe zugesagt,
+zusammen das Doppelte, und «erst zahlen» (`Balance.settled`) ginge bei der Anzahlung nie
+auf.
+
+**Gebunden wie die Währung**, und aus demselben Grund: ab der Zusage liegt draussen eine
+Zusage über *diese* Zahl. Beides steht in `ACTIONS[OFFER]` — der Knopf fehlt danach von
+selbst, und `apply` weist ab.
+
+*Ein zweites Feld «gesperrt?» gibt es nicht mehr: `currency_locked` hatte **keinen**
+Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben gab einer
+**Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt (gemessen).
+`can` ist Auskunft **und** Tor; ein zweiter Wert daneben ist die Stelle, an der beide
+auseinanderlaufen.*
+
+#### Drei Wege, das Geld zu bekommen — und sie stehen an der Rechnung
+
+*«Im Grunde gibt es 3 Arten von Bezahlsystemen: Barzahlung, Zahlung per Karte und Zahlung
+via Banküberweisung.»* (#865) — Sie sind **eine Angabe an der Zahlung**
+(`deal_entries.method`), kein zweites Modell: gebucht wird in jedem Fall dieselbe Zeile.
+
+| Weg | was das System tut | wer löst aus |
+|---|---|---|
+| **bar** | `pay` — aufschreiben, was geschehen ist | ein Mensch |
+| **Karte** | `pay_online` — es geschehen lassen; gebucht wird vom Webhook | der Zahlende |
+| **Überweisung** | **nichts** — es ist eine **Auskunft** (§9.14a) | der Zahlende, im E-Banking |
+
+**Die Karte tippt niemand ab**: sie entsteht beim Zahlungsdienst und kommt über den
+Webhook — von Hand erfasst wäre sie eine Behauptung ohne Beleg. `dm.MANUAL_METHODS` neben
+`METHODS` (zwei Formen einer Regel), durchgesetzt an der **Menschentür** (`_pay`), nicht
+nur im Formular.
+
+►►► **Und alle drei stehen AN der Rechnung, die sie begleichen** (#859). ◄◄◄ *«Wie kann
+ich bestimmen, welche Rechnung ich bezahle?»* — Gar nicht: die Knöpfe standen **unter**
+der Liste, galten also dem Vorgang, und `stripe_pay.prepare` nahm `open_charges[0]`. Ein
+Knopf **an** der Zeile beantwortet die Frage, indem er sie nicht stellt.
+
+#### 9.14a Die QR-Rechnung — damit eine Überweisung nicht abgetippt wird
+
+**Die ehrliche Antwort auf «international gültig»: einen weltweiten Standard gibt es
+nicht.** Es gibt zwei, und einer deckt unseren Fall vollständig ab — die **Swiss
+QR-Rechnung** (Pflicht seit 10/2022, jede Schweizer Banking-App liest sie; CH/LI-IBAN,
+CHF oder EUR). Der **EPC-QR / GiroCode** für EUR an ausländische Konten ist dieselbe
+Mechanik mit anderer Nutzlast: später eine Datei mehr, kein Umbau.
+
+**Wo sie nicht gilt, gibt es sie nicht** — dann steht die Bankverbindung im Klartext da,
+mit dem **Grund** daneben (`qrbill.problem`). Ein QR, der in der App des Kunden einen
+Fehler wirft, wäre schlimmer als keiner.
+
+**Die Referenz ist die Creditor Reference** (`RF…`, ISO 11649) aus unserer
+Rechnungsnummer — strukturiert, international gültig und **ohne QR-IBAN**: die muss man
+bei der Bank bestellen, und ohne sie ist die schweizerische QR-Referenz gar nicht erlaubt.
+
+**Erzeugt wird sie im Backend**: die Nutzlast ist eine Liste von **einunddreissig Zeilen
+in fester Reihenfolge**, und eine zweite Fassung im Browser wäre die Stelle, an der beim
+nächsten Feld eine Zeile verrutscht — das sieht man einem QR nicht an.
+
+#### Storno oder Gutschrift — dieselbe Buchung, zwei Wörter
+
+*«Wenn bezahlt wurde, dann kann ich ja quasi nicht mehr stornieren.»* (#860) — Richtig:
+eine Rechnung, auf die Geld geflossen ist, nimmt man nicht zurück, man **schreibt sie
+gut**. Es ist dieselbe Gegenbuchung (§9.12, #823/#824); nur das **Wort** hängt an der
+Zahl, und der Server sagt es (`DealEntryOut.reverse_word` aus `paid_on`) — eine zweite
+Formel im Browser wiche ab und sähe trotzdem richtig aus.
+
+**Erstattet wird auf dem Weg, auf dem gezahlt wurde**: bar und per Überweisung ist die
+Erstattung eine gewöhnliche **negative Zahlung** (die es längst gibt); eine **Karte** gibt
+nur der Dienst zurück, der sie belastet hat (`refund_online` → `stripe_pay.refund`).
+Gebucht wird auch dort nicht dort: der Dienst meldet `charge.refunded`, und der Webhook
+schreibt die Zeile.
+
+**Und eine Zahlung auf eine inzwischen stornierte Rechnung wird trotzdem gebucht** — ohne
+Zuordnung. Sie ist passiert; ein Ereignis der Aussenwelt macht man nicht ungeschehen
+(§9.12, #842). Was daraus folgt, braucht keine eigene Regel: der offene Betrag wird
+negativ — *wir schulden* —, und die Erstattung steht als Handlung da.
+
 
 ## 10. Darstellung
 

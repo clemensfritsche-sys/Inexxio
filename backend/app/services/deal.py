@@ -47,7 +47,7 @@ from ..models import (
     ProcessStep, UserProfile,
 )
 from ..models.process_event import KIND_START, KIND_STEP
-from . import article_fields, lookup, sites
+from . import address, article_fields, lookup, people, qrbill, sites
 
 #: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
 #: ERP, und dort steht der ganze Auftrag.
@@ -80,10 +80,10 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: nichts – gebucht wird, wenn der Dienst es meldet. Wer beide zu einem Verb machte,
 #: bekäme einen Knopf, dessen Wirkung von einer Einstellung abhängt.
 ACTIONS: dict[str, tuple[str, ...]] = {
-    dm.OFFER: ("currency", "ask", "quote", "decline", "agree"),
-    dm.AGREED: ("revoke", "charge", "pay", "pay_online"),
-    dm.DONE: ("charge", "pay", "pay_online"),
-    dm.CANCELLED: ("charge", "pay", "pay_online"),
+    dm.OFFER: ("currency", "share", "ask", "quote", "decline", "agree"),
+    dm.AGREED: ("revoke", "charge", "pay", "pay_online", "refund_online"),
+    dm.DONE: ("charge", "pay", "pay_online", "refund_online"),
+    dm.CANCELLED: ("charge", "pay", "pay_online", "refund_online"),
 }
 
 #: ►►► **Was die GEGENPARTEI darf — es folgt aus der RICHTUNG.** ◄◄◄
@@ -158,6 +158,90 @@ def balance_of(db: Session, row: Deal) -> dm.Balance:
 # ``balance`` bleibt davon unberührt: es rechnet über die **Summen**. Hier geht es um
 # «worauf», nicht um «wie viel».
 
+def live_charge(db: Session, row: Deal) -> Optional[DealEntry]:
+    """►►► **DIE Rechnung dieses Moduls — oder ``None``.** ◄◄◄ (Testnotiz #866)
+
+    *«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich
+    einfach 2 Zahlungsmodule.»* – Und das ist die richtige Modellierung, weil der Grund
+    die **Zeit** ist: *Vorauszahlung → Leistung → Restzahlung* sind drei Zeitpunkte, ein
+    Modul steht an einem. Zwei Rechnungen an derselben Stelle wären zwei Aussagen über
+    einen Moment, den es nur einmal gibt.
+
+    **Die eine Lesestelle der Regel.** Gezählt wird, was eine *Forderung nach aussen* ist:
+
+    * eine **Gegenbuchung** (``reverses_id``) ist keine Rechnung, sondern ihre Rücknahme;
+    * eine **stornierte** Zeile ist keine mehr – genau das ist der Ausweg: was falsch ist,
+      wird storniert und neu gestellt, und danach darf die nächste entstehen;
+    * eine **Gutschrift** (negativ) ist eine Minderung, keine zweite Rechnung – Skonto,
+      Teilretoure und Kulanz bleiben jederzeit möglich.
+
+    Bleibt genau eine übrig: die Rechnung dieses Vorgangs.
+    """
+    entries = _entries(db, row.id)
+    undone = {e.reverses_id for e in entries if e.reverses_id is not None}
+    live = [e for e in entries
+            if e.kind == dm.CHARGE and e.reverses_id is None
+            and e.id not in undone and e.amount > 0]
+    return live[0] if live else None
+
+
+def paid_on(db: Session, row: Deal, charge: DealEntry) -> Decimal:
+    """Was auf **diese** Rechnung schon geflossen ist – die Grundlage des Wortes.
+
+    Eine bezahlte Rechnung nimmt man nicht «zurück», man schreibt sie **gut**
+    (Testnotiz #860); welches der beiden Wörter gilt, hängt an genau dieser Zahl.
+    """
+    return _paid_on(_entries(db, row.id), charge)
+
+
+def transfer_info(db: Session, row: Deal, charge: DealEntry) -> dict[str, Any]:
+    """►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄
+
+    Die dritte Bezahlart ist **keine Buchung**, sondern eine **Auskunft**: «Jetzt
+    bezahlen» löst etwas aus, «Zahlung erfassen» schreibt etwas auf – die Überweisung
+    braucht *Angaben*, damit der Zahlende sie selbst auslöst.
+
+    **Warum sie im Zahlungsdienst nicht vorkommt**, und das ist keine Lücke: für **CHF**
+    bietet er gar keine Überweisung an, und wo er sie anbietet, kostet sie Gebühren für
+    Geld, das sonst gratis ankommt. Genau deshalb überweist man.
+
+    **Bankverbindung im Klartext UND als QR** – nicht entweder-oder: der Code spart das
+    Abtippen, der Klartext ist der Weg, wenn die Kamera nicht mitspielt oder die Bank den
+    Code nicht kennt. Wo es keinen QR geben kann (fremde Währung, keine CH-IBAN), steht
+    der **Grund** daneben statt einer leeren Fläche.
+    """
+    company = sites.find_operator(db)
+    iban = getattr(company, "iban_encrypted", None)
+    number = charge.reference or str(charge.id)
+    amount = _open_of(_entries(db, row.id), charge)
+    creditor = {
+        "name": getattr(company, "company_name", "") or "",
+        "street": getattr(company, "street", None),
+        "street_nr": getattr(company, "street_nr", None),
+        "zip": getattr(company, "zip_code", None),
+        "city": getattr(company, "city", None),
+        "country": address.iso2(getattr(company, "country", None) or "CH"),
+    }
+    who = billing_of(db, row)
+    seat = who.get("address") or {}
+    debtor = {
+        "name": who.get("name") or "",
+        "street": seat.get("line1"), "street_nr": "",
+        "zip": seat.get("postal_code"), "city": seat.get("city"),
+        "country": seat.get("country"),
+    }
+    trouble = qrbill.problem(iban=iban, currency=row.currency, amount=amount)
+    code = None if trouble else qrbill.svg(qrbill.payload(
+        iban=iban or "", creditor=creditor, amount=amount,
+        currency=row.currency, debtor=debtor, number=number))
+    return {
+        "iban": iban, "creditor": creditor["name"],
+        "reference": qrbill.reference(number),
+        "amount": _money(amount, row.currency), "currency": row.currency,
+        "invoice": number, "qr": code, "problem": trouble,
+    }
+
+
 def open_charges(db: Session, row: Deal) -> list[DealEntry]:
     """**Die Rechnungen, auf die noch etwas offen ist** – älteste zuerst.
 
@@ -177,6 +261,55 @@ def open_of(db: Session, row: Deal, charge: DealEntry) -> Decimal:
     return _open_of(_entries(db, row.id), charge)
 
 
+def refundable(db: Session, row: Deal) -> list[DealEntry]:
+    """**Die Karten-Zahlungen, die man zurückgeben kann** – jüngste zuerst.
+
+    Nur eine **Karte**: bar und per Überweisung ist die Erstattung eine gewöhnliche
+    negative Zahlung, die ein Mensch erfasst (Testnotiz #860). Und nur eine **positive**:
+    eine Erstattung erstattet man nicht.
+
+    Ihre Referenz ist die Zahlungsabsicht (``pi_…``) – ohne sie fände der Dienst die
+    Belastung nicht, und der Knopf wäre eine Zusage, die er nicht halten kann.
+    """
+    return [e for e in reversed(_entries(db, row.id))
+            if e.kind == dm.PAYMENT and e.method == dm.CARD and e.amount > 0
+            and e.reference]
+
+
+def card_payment(db: Session, row: Deal, entry_id: Optional[int]) -> DealEntry:
+    """►►► **Welche Karten-Zahlung ist gemeint?** ◄◄◄ – oder ein Satz, warum keine.
+
+    Zwei Formen einer Regel, ein Namensstamm (wie ``pick_problem``/``unpickable``):
+    ``can`` beantwortet **ob** es hier überhaupt etwas zu erstatten gibt und zeigt darum
+    den Knopf, ``card_payment`` beantwortet **welche** und ist das Tor. Ohne Angabe die
+    **jüngste** – der Normalfall ist eine einzige Zahlung, und dann gibt es nichts zu
+    wählen.
+    """
+    rows = refundable(db, row)
+    if not rows:
+        raise HTTPException(
+            status_code=409,
+            detail=("Hier ist keine Karten-Zahlung erfasst. Bar und per Überweisung ist "
+                    "eine Erstattung eine gewöhnliche Zahlung mit negativem Betrag."),
+        )
+    if entry_id in (None, ""):
+        return rows[0]
+    found = next((e for e in rows if e.id == entry_id), None)
+    if found is None:
+        raise HTTPException(
+            status_code=400,
+            detail=("Diese Zahlung lässt sich nicht über den Zahlungsdienst erstatten – "
+                    "sie gehört zu einem anderen Vorgang oder kam nicht per Karte."),
+        )
+    return found
+
+
+def _paid_on(entries: list[DealEntry], charge: DealEntry) -> Decimal:
+    """Was auf diese Rechnung geflossen ist – **aus der schon geladenen Liste**."""
+    return sum((e.amount for e in entries
+                if e.kind == dm.PAYMENT and e.charge_id == charge.id), Decimal("0"))
+
+
 def _open_of(entries: list[DealEntry], charge: DealEntry) -> Decimal:
     paid = sum((e.amount for e in entries
                 if e.kind == dm.PAYMENT and e.charge_id == charge.id), Decimal("0"))
@@ -187,21 +320,22 @@ def _charge_for_payment(db: Session, row: Deal,
                         value: Any) -> Optional[DealEntry]:
     """**Auf welche Rechnung geht diese Zahlung?** – genannt, vorbelegt oder abgewiesen.
 
-    Drei Fälle, und keiner braucht eine Einstellung:
+    ►►► **Seit #866 hat die Frage genau EINE Antwort.** ◄◄◄ Es gibt je Modul höchstens
+    eine lebende Rechnung – also ist sie gemeint, und danach zu fragen wäre eine Frage
+    mit genau einer richtigen Antwort.
 
-    * **genau eine offene Rechnung** → sie ist es; danach zu fragen wäre eine Frage mit
-      genau einer richtigen Antwort.
-    * **mehrere** → die Zahlung muss sagen, welche. Der Satz **nennt sie**, damit niemand
-      raten muss, was zur Auswahl steht.
-    * **keine** → ``None``. Das ist kein Fehler: eine Erstattung oder eine Korrektur
-      (negativer Betrag) gehört zu einer Rechnung, die längst beglichen ist, und ``can``
-      lässt ``pay`` ohnehin erst zu, wenn etwas gefordert wurde.
+    *Hier stand eine dritte Möglichkeit («mehrere offene → die Zahlung muss sagen,
+    welche») samt einem Satz, der sie aufzählte. Sie ist mit der Regel entfallen, nicht
+    weggelassen: eine zweite lebende Rechnung kann gar nicht mehr entstehen, und ein Ast,
+    den niemand erreicht, ist von einem kaputten nicht zu unterscheiden.*
+
+    Bleibt **keine** – dann ``None``, und das ist kein Fehler: eine Erstattung oder eine
+    Korrektur gehört zu einer Rechnung, die längst beglichen ist.
 
     Ein **genannter** Wert wird streng geprüft: er muss eine Forderung *dieses* Vorgangs
     sein. Sonst hinge eine Zahlung an einem fremden Beleg, und die Zuordnung wäre eine
     Behauptung statt einer Angabe.
     """
-    rows = open_charges(db, row)
     if value not in (None, ""):
         try:
             wanted = int(value)
@@ -215,18 +349,7 @@ def _charge_for_payment(db: Session, row: Deal,
                 status_code=400,
                 detail="Diese Rechnung gehört nicht zu diesem Geldvorgang.")
         return found
-    if len(rows) == 1:
-        return rows[0]
-    if len(rows) > 1:
-        raise HTTPException(
-            status_code=400,
-            detail=("Es stehen mehrere Rechnungen offen – eine Zahlung gehört zu genau "
-                    "einer. Gemeint ist eine von: "
-                    + ", ".join(f"«{e.reference or e.id}»" for e in rows)
-                    + ". (Wer eine Überweisung über mehrere hat, storniert sie und "
-                      "stellt eine gemeinsame.)"),
-        )
-    return None
+    return live_charge(db, row)
 
 
 def process_lines(db: Session, order: Order) -> list[tuple[int, int]]:
@@ -438,6 +561,23 @@ def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
         and balance_of(db, row).open > 0
     ):
         stage.remove("pay_online")
+    # ►►► **Zurückerstatten geht nur, wo auch eingezogen wurde** (Testnotiz #860). ◄◄◄
+    #
+    # *«Ich kann bzw. soll können einen Betrag zurückerstatten.»* – Und der Weg dafür hängt
+    # daran, **wie** das Geld kam: bar und per Überweisung ist die Erstattung eine
+    # gewöhnliche negative Zahlung (die es längst gibt); eine **Karte** erstattet der
+    # Dienst, der sie belastet hat, und der Webhook bucht die Zeile wie jede andere.
+    #
+    # Dieselben zwei Bedingungen wie beim Einziehen (Richtung, eingerichteter Dienst) plus
+    # die eine, die es hier gibt: es muss eine **Karten-Zahlung** dastehen, die man
+    # zurückgeben kann. Ohne sie wäre es ein Knopf, den der Dienst mit «unbekannte
+    # Zahlung» abweist.
+    if "refund_online" in stage and not (
+        dm.of(row.direction).collects
+        and payment_service_ready()
+        and refundable(db, row)
+    ):
+        stage.remove("refund_online")
     if viewer is not None and viewer.role not in STAFF_ROLES:
         # Die Gegenpartei nennt ihren Preis oder sagt ab – und nur, solange sie
         # tatsächlich angefragt ist.
@@ -536,6 +676,44 @@ def _currency(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def _share(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Welchen Teil der Positionen rechnet dieser Vorgang ab?** (Testnotiz #866)
+
+    Er ist das Gegenstück zu «eine Rechnung je Modul»: *Vorauszahlung → Leistung →
+    Restzahlung* sind zwei Zahlungs-Module, **beide sehen dieselben Stücke** und damit
+    dieselben Positionen. Ohne Anteil hätte jedes die volle Summe zugesagt, «erst zahlen»
+    ginge nie auf, und auf dem Beleg stünde ein Preis, den niemand vereinbart hat.
+
+    **Die Positionspreise bleiben die wahren** – gerechnet wird nur die Summe. Eine
+    Anzahlung, die 30 % *in den Einzelpreis* schreibt, wäre ein Beleg, auf dem eine Welle
+    plötzlich 3'000 statt 10'000 kostet.
+
+    **Und die schon genannten Beträge ziehen mit**: ein Angebotsspiegel, dessen Zeilen
+    noch den alten Anteil tragen, wäre die zweite Wahrheit – dieselbe Regel wie überall.
+    Dass es **nach der Zusage** nicht mehr geht, sagt ``ACTIONS``.
+    """
+    try:
+        row.share = dm.assert_share(data.get("share"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    lines = [dict(q) for q in (row.quotes or [])]
+    for q in lines:
+        priced = q.get("lines") or []
+        if priced:
+            q["amount"] = cur.money(_offer_sum(priced, row), row.currency)
+    _write_quotes(row, lines)
+
+
+def _offer_sum(priced: list[dict[str, Any]], row: Deal) -> Decimal:
+    """**Der Angebotsbetrag** – Brutto-Summe der Positionen, mal Anteil.
+
+    Die eine Rechenstelle: sie stand an zwei Stellen (``_ask`` und ``_quote``), und der
+    Anteil hätte an genau einer davon vergessen werden können.
+    """
+    return dm.share_of(dm.gross_of(priced, row.currency), row.share)
+
+
 def _priced(db: Session, *, order: Order, step: ProcessStep, code: str,
             data: dict[str, Any]) -> list[dict[str, Any]]:
     """►►► **Die Positionen mit Preis und Satz** – die Nutzlast nennt nur Preis und Satz.
@@ -615,7 +793,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             detail=(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
                     f"nennen wir ihn, nicht der {dm.PARTY}."),
         )
-    fresh = ({"amount": cur.money(dm.gross_of(priced, row.currency), row.currency),
+    fresh = ({"amount": cur.money(_offer_sum(priced, row), row.currency),
               "lines": priced, "state": dm.QUOTED}
              if priced else {"amount": None, "lines": [], "state": dm.ASKED})
     lead, days = _days(data.get("lead_days")), _days(data.get("payment_days"))
@@ -654,7 +832,7 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # gilt, sagt dieselbe Angabe wie überall (``quoted_by``).
     priced = _priced(db, order=order, step=step, code=row.currency,
                      data=data) if flow.quoted_by == dm.BY_US else []
-    amount = dm.gross_of(priced, row.currency) if priced \
+    amount = _offer_sum(priced, row) if priced \
         else _amount(data.get("amount"), row.currency)
     # ►►► **Nur gesendete Felder wirken – auch für den Betrag.** ◄◄◄
     #
@@ -764,6 +942,24 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     value = given if given is not None else balance_of(db, row).next_charge
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Rechnung.")
+    # ►►► **EINE Rechnung je Modul** (Testnotiz #866) – durchgesetzt hier, angeboten in
+    # ``embed_data`` (``credit_only``): zwei Formen einer Regel, ein Namensstamm.
+    #
+    # Gesperrt ist genau **eine zweite positive Forderung**. Eine **Gutschrift** (negativ)
+    # bleibt jederzeit möglich – sie ist eine Minderung derselben Rechnung, keine zweite;
+    # und was falsch ist, wird **storniert und neu gestellt**, womit die Regel keinen
+    # Zustand ohne Ausgang hinterlässt.
+    live = live_charge(db, row)
+    if live is not None and value > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"Dieser Vorgang hat bereits die Rechnung «{live.reference or live.id}» – "
+                    f"je Zahlungs-Modul gibt es genau eine. Eine zweite gehört in ein "
+                    f"zweites Zahlungs-Modul (Vorauszahlung und Restzahlung sind zwei "
+                    f"Schritte im Prozess); was hier falsch ist, wird storniert und neu "
+                    f"gestellt, und eine Minderung ist eine Gutschrift mit negativem "
+                    f"Betrag."),
+        )
     booked = _day(data.get("booked_on")) or date.today()
     # ►►► **Eine Nummer, die WIR vergeben, tippt niemand ab** (Testnotiz #840). ◄◄◄
     #
@@ -837,6 +1033,17 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # einer **Einnahme** trägt aber auch sie unsere Nummer (sie referenziert unsere
     # Rechnung). Zwei Regeln für dieselbe Frage laufen genau so auseinander.
     flow = dm.of(row.direction)
+    # ►►► **WIE bezahlt wurde – bar, Überweisung, Karte** (Testnotiz #865). ◄◄◄
+    #
+    # «Zahlung erfassen» heisst *aufschreiben, was passiert ist* – und das ist bei einer
+    # eingegangenen Überweisung dasselbe wie bei Bargeld. Die Art gehört darum an die
+    # **Zeile**, nicht in den Namen des Knopfes. Die **Karte** weist ``assert_method`` ab:
+    # sie entsteht beim Zahlungsdienst, und von Hand erfasst wäre sie eine Behauptung über
+    # eine Belastung, für die es keinen Beleg gibt (``record_payment`` schreibt sie).
+    try:
+        method = dm.assert_method(data.get("method"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     db.add(DealEntry(
         deal_id=row.id, kind=dm.PAYMENT, amount=value,
         booked_on=_day(data.get("booked_on")) or date.today(),
@@ -844,6 +1051,7 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
                    else _text(data.get("reference"), 120)),
         note=_text(data.get("note"), 200),
         charge_id=charge.id if charge is not None else None,
+        method=method,
     ))
 
 
@@ -1135,7 +1343,8 @@ def of_reference(db: Session, reference: str) -> Optional[Deal]:
 def record_payment(db: Session, *, row: Deal, amount: Decimal,
                    reference: Optional[str] = None,
                    note: Optional[str] = None,
-                   charge_id: Optional[int] = None) -> DealEntry:
+                   charge_id: Optional[int] = None,
+                   method: Optional[str] = None) -> DealEntry:
     """**Eine Zeile Geld** – die Tür des Zahlungsdienstes.
 
     ►►► **Idempotent über die Referenz.** ◄◄◄ Ein Zahlungsdienst stellt dieselbe Meldung
@@ -1171,10 +1380,59 @@ def record_payment(db: Session, *, row: Deal, amount: Decimal,
         # Erstattung kennt ihre Zahlung, nicht die Rechnung; dort bleibt es ``None``, und
         # das ist ehrlicher als eine geratene Zuordnung.
         charge_id=charge_id,
+        # ►►► **Die Karte tippt niemand ab** (Testnotiz #865) – sie steht hier, weil der
+        # Dienst sie meldet. ``assert_method`` weist sie an der Menschentür ab; die beiden
+        # sind zwei Formen einer Regel, nicht zwei Regeln.
+        method=method,
     )
     db.add(entry)
     db.flush()
     return entry
+
+
+def billing_of(db: Session, deal: Deal) -> dict[str, Any]:
+    """**Was wir über den Zahlenden schon wissen** – Name, E-Mail, Rechnungsadresse.
+
+    Der Zahlende ist die Gegenpartei **dieses Vorgangs**, nicht der Betrachter: auch wenn
+    ein Mitarbeiter die Zahlung am Schalter auslöst, gehört die Rechnung dem Kunden.
+
+    ►►► **Zwei Leser, eine Auskunft.** ◄◄◄ Sie stand im Adapter des Zahlungsdienstes und
+    wurde dort gebraucht, um das Bezahlformular vorzufüllen. Die **QR-Rechnung** stellt
+    dieselbe Frage (wer überweist, und unter welcher Anschrift?) – zwei Fassungen davon
+    liefen beim ersten neuen Adressfeld auseinander. Sie gehört darum an den **Vorgang**,
+    den beide ohnehin in der Hand haben.
+
+    **Die Rechnungsadresse geht vor der Wohnadresse** – dafür ist sie da; steht keine da,
+    gilt die Hauptadresse. Und geliefert wird nur eine **vollständige**: Strasse, Ort und
+    PLZ gehören zusammen, und eine halbe Adresse wäre eine Vorbelegung, die das Formular
+    danach doch wieder erfragt – nur falsch.
+    """
+    empty: dict[str, Any] = {"name": None, "email": None, "address": None}
+    if deal.party_id is None:
+        return empty
+    u = db.query(UserProfile).filter(UserProfile.object_id == deal.party_id).first()
+    if u is None:
+        return empty
+    # **Eine Rechnungsadresse gilt als hinterlegt, sobald irgendein Feld davon steht** –
+    # sonst mischte sich die eine Hälfte mit der anderen zu einer Adresse, die es nirgends
+    # gibt.
+    own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1
+               or u.invoice_company)
+    named = " ".join(x for x in (u.invoice_first_name, u.invoice_last_name) if x).strip()
+    line1 = (u.invoice_address_line1 if own else u.address_line1) or ""
+    line2 = (u.invoice_address_line2 if own else u.address_line2) or ""
+    city = (u.invoice_city if own else u.city) or ""
+    zip_code = (u.invoice_postal_code if own else u.postal_code) or ""
+    country = (u.invoice_country if own else u.country) or u.country
+    full = bool(line1.strip() and city.strip() and zip_code.strip())
+    return {
+        "name": (named or u.invoice_company if own else None) or people.name(u),
+        "email": (u.invoice_email if own else None) or u.email,
+        "address": {
+            "line1": line1, "line2": line2 or None, "city": city,
+            "postal_code": zip_code, "country": address.iso2(country),
+        } if full else None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1417,6 +1675,18 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     won = internal or (row.party_id is not None and viewer is not None
                        and row.party_id == viewer.object_id)
     allowed = can(db, row, viewer)
+    #: **Die eine Rechnung dieses Moduls** – die Regel aus #866, einmal gelesen.
+    live = live_charge(db, row)
+    #: **Was sich über den Dienst zurückgeben lässt** – dieselbe Liste, die ``can``
+    #: befragt und ``card_payment`` als Tor benutzt. Eine zweite Bedingung hier wäre ein
+    #: zweiter Massstab, und der bekäme die nächste Regel nicht mit.
+    refund_ids = ({e.id for e in refundable(db, row)}
+                  if "refund_online" in allowed else set())
+    #: **Worauf man überweisen kann** – offen und uns zustehend. Die Frage ist nicht «wer
+    #: darf?» (überweisen darf jeder, es ist keine Handlung an unserem Vorgang), sondern
+    #: «trägt der Einzahlungsschein eine Bankverbindung, die es bei uns gibt?».
+    transferable_ids = ({e.id for e in open_charges(db, row)}
+                        if won and flow.collects else set())
     return {
         "direction": row.direction,
         "label": flow.label,
@@ -1450,9 +1720,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "currency": row.currency,
         "currency_label": cur.label(row.currency),
         "currency_decimals": cur.minor_units(row.currency),
-        # **Änderbar, solange nichts zugesagt ist** – ab der Zusage ist eine zweite Partei
-        # gebunden, und der Betrag lautet auf *diese* Währung.
-        "currency_locked": row.stage != dm.OFFER,
+        # **Änderbar, solange nichts zugesagt ist** – und das steht in ``can``, nicht in
+        # einem zweiten Feld daneben: dieselbe Liste zeigt den Knopf und weist ab.
         "currencies": [{"code": c, "label": cur.label(c)} for c in cur.CURRENCIES],
         # ►►► **Netto, Steuer und die Aufteilung – ABLEITUNGEN der Positionen.** ◄◄◄
         #
@@ -1463,7 +1732,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "net": _sums(row)["net"] if won else None,
         "tax": _sums(row)["tax"] if won else None,
         "vat_split": dm.vat_split(_priced_lines(row), row.currency) if won else [],
-        "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
         # **Das dritte Geld-Wort** – «erfassen» heisst aufschreiben, was geschehen ist;
         # dieses hier lässt es geschehen. Es reist mit, damit die Karte keine eigene
@@ -1491,6 +1759,22 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "term_free_label": dm.FREE_TERM_LABEL,
         "payment_term_label": dm.PAYMENT_TERM_LABEL,
         "lead_term_label": dm.LEAD_TERM_LABEL,
+        # ►►► **Der Anteil** (Testnotiz #866) – welchen Teil der Positionen dieser Vorgang
+        # abrechnet. Ohne ihn wäre die Zwei-Modul-Form («Anzahlung 30 %, Restzahlung
+        # 70 %») nur scheinbar gangbar: beide Module sehen dieselben Stücke.
+        "share": dm.share_text(row.share),
+        "share_label": dm.SHARE_LABEL,
+        "share_hint": dm.SHARE_HINT,
+        # **Wie bezahlt wurde** (#865) – die Liste dessen, was ein Mensch erfassen darf.
+        # Die Karte schreibt allein der Webhook, also steht sie hier nicht.
+        "methods": [{"key": k, "label": name} for k, name in dm.METHODS
+                    if k in dm.MANUAL_METHODS],
+        "method_label": dm.METHOD_LABEL,
+        # **Die dritte Bezahlart ist eine AUSKUNFT** (#865): Bankverbindung und QR-Code
+        # sagen dem Zahlenden, was er ins E-Banking tippt – gebucht wird dabei nichts.
+        "transfer_word": dm.TRANSFER_WORD,
+        "refund_word": dm.REFUND_WORD,
+        "refund_online_word": dm.REFUND_ONLINE_WORD,
         # **Die Freigabe-Liste ist die Konkurrenzliste** – sie geht eine Gegenpartei
         # nichts an, auch nicht die, die den Zuschlag hat.
         "allowed": _named(db, modules.parties_allowed(step.config)) if internal else [],
@@ -1530,22 +1814,23 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "paid": _money(money.paid, row.currency) if won else None,
         "open": _money(money.open, row.currency) if won else None,
         "uncharged": _money(money.uncharged, row.currency) if won else None,
-        "next_charge": _money(money.next_charge, row.currency) if won else None,
+        # ►►► **Eine Rechnung je Modul** (Testnotiz #866) – die zweite Form derselben
+        # Regel, die ``_charge`` durchsetzt: steht die Rechnung, ist die nächste Zeile
+        # eine **Gutschrift**, und der Knopf sagt es. Der Vorschlag fällt dabei weg – eine
+        # Vorgabe für eine Buchung, die der Dienst abweist, wäre ein Angebot, das
+        # garantiert scheitert.
+        "credit_only": bool(live) if won else False,
+        "charge_word": dm.CREDIT_ENTRY_WORD if live is not None else flow.charge_word,
+        "next_charge": (None if live is not None
+                        else _money(money.next_charge, row.currency)) if won else None,
         "next_payment": _money(money.next_payment, row.currency) if won else None,
         "settled": money.settled if won else False,
-        # ►►► **Welche Rechnungen offen sind** (Testnotiz #858). ◄◄◄
+        # ►►► **Eine Liste offener Rechnungen gibt es nicht mehr** (#859/#866). ◄◄◄
         #
-        # Eine Zahlung gehört zu genau einer – und **welche** offen sind, rechnet der
-        # Server, nicht der Browser: dieselbe Ableitung, die ``_pay`` als Tor benutzt
-        # (``open_charges``). Zwei Formeln für dieselbe Frage wichen ab, und die im
-        # Browser sähe trotzdem richtig aus.
-        #
-        # Steht genau eine da, gibt es nichts zu wählen; die Karte fragt dann gar nicht.
-        "open_invoices": [
-            {"id": e.id, "reference": e.reference,
-             "open": _money(_open_of(entries, e), row.currency)}
-            for e in (open_charges(db, row) if won else [])
-        ],
+        # Sie füllte ein Auswahlfeld «auf welche Rechnung geht diese Zahlung?». Seit je
+        # Modul höchstens **eine** lebt und der Zahlungs-Knopf **an ihrer Zeile** steht,
+        # nennt er sie – statt danach zu fragen. Was auf einer Rechnung offen ist, steht
+        # an ihr (``entries[].open``).
         "entries": [
             {
                 "id": e.id, "kind": e.kind, "amount": _money(e.amount, row.currency),
@@ -1567,6 +1852,27 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 "charge_id": e.charge_id,
                 "vat": list(e.vat or []),
                 "service_date": e.service_date,
+                # ►►► **Wie bezahlt wurde** (Testnotiz #865) – Schlüssel und Wort aus
+                # **einer** Auflösung. ``None`` heisst «nicht festgehalten», nicht «bar»:
+                # so steht jede Zahlung da, die es vor dieser Angabe schon gab.
+                "method": e.method,
+                "method_label": dm.method_name(e.method),
+                # ►►► **Storno ODER Gutschrift — dieselbe Zeile, zwei Lagen** (#860). ◄◄◄
+                # *«Wenn bezahlt wurde, dann kann ich ja quasi nicht mehr stornieren»* –
+                # richtig, dann heisst es **Gutschrift**, und danach folgt die Erstattung.
+                # Welches Wort gilt, hängt an der Zahl, nicht an einem zweiten Verb.
+                "reverse_word": (dm.reverse_word(_paid_on(entries, e))
+                                 if e.kind == dm.CHARGE else None),
+                # **Was auf DIESER Rechnung noch offen ist** – die Gruppe darunter zeigt
+                # ihre Zahlungen, und die Zahl daneben sagt, was davon fehlt.
+                "open": (_money(_open_of(entries, e), row.currency)
+                         if e.kind == dm.CHARGE else None),
+                # **Zurückgeben kann man, was über die Karte kam** – bar und Überweisung
+                # sind eine gewöhnliche negative Zahlung, und die gibt es längst.
+                "refundable": e.id in refund_ids,
+                # **Überweisen kann man auf eine offene Rechnung, die UNS zusteht** – der
+                # Einzahlungsschein trägt unsere Bankverbindung.
+                "transferable": e.id in transferable_ids,
             }
             # **Dieselbe Frage, dieselbe Antwort**: die Zeilen gehören dem, der den
             # Zuschlag hat – seine Rechnungen, seine Zahlungen. Er sieht sie, ein
@@ -1681,8 +1987,14 @@ def _money(value: Optional[Decimal], code: str) -> Optional[str]:
 # Ein Löschweg (früher ``void``) ist damit nicht «nicht mehr aufgerufen», sondern schlicht
 # nicht vorhanden – und ein Wächter kann es lesen, statt es zu glauben.
 HANDLERS = {
-    "currency": _currency,
+    "currency": _currency, "share": _share,
     "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
     "revoke": _revoke,
     "charge": _charge, "pay": _pay, REVERSE: _reverse,
 }
+# ►►► **``pay_online`` und ``refund_online`` stehen bewusst NICHT darin.** ◄◄◄
+#
+# Sie ändern den Vorgang nicht: die eine **löst** eine Zahlung aus, die andere gibt sie
+# zurück – gebucht wird beides erst, wenn der Zahlungsdienst es meldet. Sie haben darum
+# ihren eigenen Weg (``…/deal/payment``, ``…/deal/refund``) und trotzdem dieselbe Tür
+# (``assert_allowed``): ``can`` ist Auskunft **und** Tor, nicht zwei Massstäbe.

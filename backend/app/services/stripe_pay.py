@@ -72,8 +72,9 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings, payment_service_ready
 from ..domain import currency as cur
-from ..models import Deal, Order, UserProfile
-from . import address, deal as deal_svc, people
+from ..domain import deal as dm
+from ..models import Deal, Order
+from . import deal as deal_svc
 
 #: Was wir vom Zahlungsdienst hören wollen — und sonst nichts. Jede weitere Meldung wird
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
@@ -114,7 +115,8 @@ def _minor(amount: Decimal, code: str) -> int:
     return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def prepare(db: Session, *, deal: Deal, order: Order) -> dict[str, Any]:
+def prepare(db: Session, *, deal: Deal, order: Order,
+            charge_id: Optional[int] = None) -> dict[str, Any]:
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten.** ◄◄◄
 
     Zurück kommt, was **unsere** Karte zum Zeichnen braucht: das ``client_secret`` der
@@ -138,8 +140,14 @@ def prepare(db: Session, *, deal: Deal, order: Order) -> dict[str, Any]:
     #
     # Vorher war es der offene Betrag des **ganzen Vorgangs** – bei zwei offenen
     # Rechnungen also eine Zahlung, die auf zwei Belege zeigt, und genau die soll es nicht
-    # geben. Kassiert wird über die **älteste offene** (die Reihenfolge ist die der
-    # Buchung), und ihr Rest ist der Betrag; die zweite bezahlt man danach.
+    # geben.
+    #
+    # ►►► **Und WELCHE, sagt der Aufrufer** (Testnotiz #859). ◄◄◄ Hier stand
+    # ``charges[0]`` – die älteste offene. Damit war die zweite Rechnung **unbezahlbar**,
+    # obwohl ihr Knopf danebenstand: wer ihn drückte, bezahlte die erste. Eine
+    # Reihenfolge, die niemand angeordnet hat, ist keine Regel, sondern ein Zufall der
+    # Sortierung. Ohne Angabe bleibt sie die Vorgabe – bei genau einer offenen ist das die
+    # einzig mögliche Antwort.
     charges = deal_svc.open_charges(db, deal)
     if not charges:
         raise HTTPException(
@@ -147,7 +155,14 @@ def prepare(db: Session, *, deal: Deal, order: Order) -> dict[str, Any]:
             detail=("An diesem Vorgang ist keine Rechnung offen – man kassiert nicht, "
                     "was niemand gefordert hat."),
         )
-    charge = charges[0]
+    charge = next((c for c in charges if c.id == charge_id), None) if charge_id \
+        else charges[0]
+    if charge is None:
+        raise HTTPException(
+            status_code=409,
+            detail=("Auf diese Rechnung ist nichts mehr offen – sie ist beglichen oder "
+                    "storniert."),
+        )
     owed = deal_svc.open_of(db, deal, charge)
     code = cur.assert_code(deal.currency)
     number = charge.reference or str(charge.id)
@@ -186,59 +201,49 @@ def prepare(db: Session, *, deal: Deal, order: Order) -> dict[str, Any]:
         "currency": code,
         # **Wofür bezahlt wird** – die Karte nennt den Beleg, nicht nur eine Zahl.
         "invoice": number,
-        "billing": _billing(db, deal),
+        "billing": deal_svc.billing_of(db, deal),
     }
 
 
-def _billing(db: Session, deal: Deal) -> dict[str, Any]:
-    """**Was wir über den Zahlenden schon wissen** – Name, E-Mail, Rechnungsadresse.
+def refund(db: Session, *, deal: Deal, entry_id: Optional[int],
+           amount: Optional[str] = None) -> None:
+    """►►► **Geld zurück – auf dem Weg, auf dem es gekommen ist** (Testnotiz #860). ◄◄◄
 
-    Der Zahlende ist die Gegenpartei **dieses Vorgangs**, nicht der Betrachter: auch wenn
-    ein Mitarbeiter die Zahlung am Schalter auslöst, gehört die Rechnung dem Kunden.
+    *«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag
+    zurückerstatten.»* Bar und per Überweisung ist die Erstattung eine ganz gewöhnliche
+    **negative Zahlung** – die gibt es längst. Eine **Karte** kann nur der Dienst
+    zurückgeben, der sie belastet hat; ein Mensch kann sie nicht überweisen.
 
-    **Die Rechnungsadresse geht vor der Wohnadresse** – dafür ist sie da; steht keine da,
-    gilt die Hauptadresse. Und geliefert wird nur eine **vollständige**: Strasse, Ort und
-    PLZ gehören zusammen, und eine halbe Adresse wäre eine Vorbelegung, die das Formular
-    danach doch wieder erfragt – nur falsch.
+    *Hier stand eine Zeit lang die Begründung, warum es diese Funktion NICHT gibt («das
+    Dashboard kann es ja»). Sie war richtig, solange niemand danach fragte – ein Knopf
+    ohne Aufrufer ist toter Code. Jetzt gibt es den Aufrufer, und das Argument dreht sich
+    um: wer im Dashboard erstattet, muss das ERP verlassen und dort die Zahlung
+    wiederfinden, die hier eine Zeile mit einer Nummer ist.*
+
+    **Gebucht wird auch hier nichts.** Der Dienst meldet die Erstattung
+    (``charge.refunded``), und der Webhook schreibt die negative Zeile – dieselbe Regel wie
+    beim Einziehen, und aus demselben Grund: die Buchung folgt dem Geld, nicht dem Klick.
+
+    **Der Betrag ist optional**: ohne Angabe die ganze Zahlung. Eine Teilerstattung ist
+    dieselbe Handlung mit einer kleineren Zahl – kein zweites Verb.
     """
-    empty: dict[str, Any] = {"name": None, "email": None, "address": None}
-    if deal.party_id is None:
-        return empty
-    u = db.query(UserProfile).filter(UserProfile.object_id == deal.party_id).first()
-    if u is None:
-        return empty
-    # **Eine Rechnungsadresse gilt als hinterlegt, sobald irgendein Feld davon steht** –
-    # sonst mischte sich die eine Hälfte mit der anderen zu einer Adresse, die es nirgends
-    # gibt.
-    own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1
-               or u.invoice_company)
-    named = " ".join(x for x in (u.invoice_first_name, u.invoice_last_name) if x).strip()
-    line1 = (u.invoice_address_line1 if own else u.address_line1) or ""
-    line2 = (u.invoice_address_line2 if own else u.address_line2) or ""
-    city = (u.invoice_city if own else u.city) or ""
-    zip_code = (u.invoice_postal_code if own else u.postal_code) or ""
-    country = (u.invoice_country if own else u.country) or u.country
-    full = bool(line1.strip() and city.strip() and zip_code.strip())
-    return {
-        "name": (named or u.invoice_company if own else None) or people.name(u),
-        "email": (u.invoice_email if own else None) or u.email,
-        "address": {
-            "line1": line1, "line2": line2 or None, "city": city,
-            "postal_code": zip_code, "country": address.iso2(country),
-        } if full else None,
-    }
-
-
-# ►►► **Eine Erstattung wird im Dashboard des Dienstes ausgelöst, nicht hier.** ◄◄◄
-#
-# Hier stand eine ``refund``-Funktion – **ohne einen einzigen Aufrufer**. Sie hätte einen
-# eigenen Knopf, eine Betragseingabe und eine Fehlerbehandlung gebraucht, um etwas zu tun,
-# das der Dienst selbst schon anbietet; und «erstattet wird auf dem Weg, auf dem gezahlt
-# wurde» ist dort ohnehin die einzige Möglichkeit.
-#
-# **Der Rückweg ist trotzdem lückenlos**: wer die Erstattung auslöst, ist dem Webhook
-# gleich – ``charge.refunded`` bucht sie als negative Zahlung, mit eigener Referenz. Ein
-# zweiter Auslöser wäre ein zweiter Weg zu derselben Buchung.
+    stripe = _api()
+    entry = deal_svc.card_payment(db, deal, entry_id)
+    code = cur.assert_code(deal.currency)
+    back = cur.round_to(Decimal(str(amount)), code) if amount not in (None, "") \
+        else entry.amount
+    if not Decimal("0") < back <= entry.amount:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Erstattet werden kann höchstens, was gezahlt wurde – "
+                    f"{cur.money(entry.amount, code)} {code}."),
+        )
+    # **Die Referenz IST die Zahlungsabsicht** (``pi_…``): sie steht in derselben Spalte,
+    # in der bei einer Überweisung der Zahlungszweck steht – ein Feld, zwei Wege, keine
+    # ``stripe_*``-Spalte. Der Dienst findet über sie die Belastung selbst; wir müssen
+    # die ``ch_…`` gar nicht kennen.
+    stripe.Refund.create(payment_intent=str(entry.reference),
+                         amount=_minor(back, code))
 
 
 def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
@@ -292,7 +297,10 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
         # ►►► **Die Rechnung reist mit** (Testnotiz #858). ◄◄◄ Welche gemeint war, stand
         # beim Vorbereiten fest – sie hier erneut zu suchen hiesse raten, denn zwischen
         # der Zahlung und ihrer Meldung kann eine zweite Rechnung entstanden sein.
-        charge_id=_int_or_none((data.get("metadata") or {}).get("charge_id")),
+        charge_id=_still_open(db, row, (data.get("metadata") or {}).get("charge_id")),
+        # **Wie bezahlt wurde, weiss der Dienst** – und nur er: von Hand erfasst wäre die
+        # Karte eine Behauptung ohne Beleg (``dm.MANUAL_METHODS`` weist sie darum ab).
+        method=dm.CARD,
     )
     db.commit()
     return "paid"
@@ -318,6 +326,7 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
         # und die Idempotenz würfe sie weg.
         reference=f"{intent}:refund",
         note="Erstattung",
+        method=dm.CARD,
     )
     db.commit()
     return "refunded"
@@ -339,13 +348,29 @@ def _deal_of(db: Session, value: Any) -> Optional[Deal]:
         return None
 
 
-def _int_or_none(value: Any) -> Optional[int]:
-    """Eine Zahl aus den Metadaten – **tolerant**: hier wird gelesen, nicht geprüft.
+def _still_open(db: Session, row: Deal, value: Any) -> Optional[int]:
+    """►►► **Die Rechnung aus den Metadaten – falls es sie noch gibt.** ◄◄◄
 
     Metadaten sind Strings, und eine ältere Absicht (vor dieser Regel) trägt den Schlüssel
     gar nicht. Eine fehlende Zuordnung ist ehrlicher als eine geratene.
+
+    **Und sie kann inzwischen storniert sein.** Zwischen «Jetzt bezahlen» und der Meldung
+    des Dienstes liegen Minuten, in denen jemand die Rechnung zurücknehmen kann. Dann ist
+    die Zahlung **trotzdem passiert** – Geld ist auf dem Konto, und ein Ereignis der
+    Aussenwelt macht man nicht ungeschehen (#842). Gebucht wird sie darum in jedem Fall,
+    nur **ohne** Zuordnung: sie gehört keiner Rechnung, weil die, für die sie gedacht war,
+    nicht mehr steht.
+
+    Was daraus folgt, ist genau das Richtige und braucht keine eigene Regel: der offene
+    Betrag wird **negativ** – wir schulden –, und die Erstattung steht als Handlung da
+    (``refund_online``, Testnotiz #860). Eine Sperre im Webhook wäre die Alternative
+    gewesen, und sie wäre falsch: Geld, das wir nicht buchen, fehlt in der Buchhaltung
+    und niemandem fällt es auf.
     """
     try:
-        return None if value in (None, "") else int(value)
+        wanted = None if value in (None, "") else int(value)
     except (TypeError, ValueError):
         return None
+    if wanted is None:
+        return None
+    return wanted if any(c.id == wanted for c in deal_svc.open_charges(db, row)) else None

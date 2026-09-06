@@ -274,9 +274,16 @@ function SegmentMark({ seg, open, dimmed, hint, onPick }: {
  * einen Zahl, **und sie ist zugleich das Bedienelement**. Ein neues Modul mit Stufen
  * bekommt dieselbe Zeile, ohne eine Zeile Code dafür zu schreiben.
  *
- * **«Alles» ist die zweite Hälfte der Frage** und darum kein zweiter Mechanismus: derselbe
- * Zustand, ein anderer Wert. Wer vergleichen will, klappt alles auf; wer arbeitet, sieht
- * eine Stufe.
+ * ►►► **Und sie darf auch nur ZEIGEN** (Testnotiz #863). ◄◄◄
+ *
+ * *«Ich mag diese Reiter-Ansicht nicht, ich möchte alles auf einmal sehen untereinander.»*
+ * – Ohne `onOpen` ist sie genau das: eine **Übersicht**. Die Segmente sagen weiterhin, wie
+ * weit der Vorgang ist; nur versteckt die Leiste nichts mehr, also gibt es auch nichts zu
+ * öffnen (und darum keinen «Alles»-Schalter, der immer an wäre).
+ *
+ * Das ist dieselbe Bauart wie bei `ValueBar` selbst: **ohne Handler ist alles Anzeige.**
+ * Zwei Bauteile – eines zum Wechseln, eines zum Zeigen – wären zwei Fassungen derselben
+ * Leiste, und die zweite bliebe beim nächsten neuen Zustand stehen.
  */
 export type ModuleStep = {
   key: string;
@@ -308,9 +315,10 @@ const STEP_COLOR: Record<ModuleStep['state'], string> = {
 
 export function ModuleSteps({ steps, open, onOpen, allLabel = 'Alles' }: {
   steps: ModuleStep[];
-  /** Die offene Stufe – oder `ALL_STEPS`. */
-  open: string;
-  onOpen: (key: string) => void;
+  /** Die offene Stufe – oder `ALL_STEPS`. Ohne `onOpen` bedeutungslos. */
+  open?: string;
+  /** **Ohne Handler ist die Leiste eine Übersicht** – sie versteckt dann nichts (#863). */
+  onOpen?: (key: string) => void;
   allLabel?: string;
 }) {
   const all = open === ALL_STEPS;
@@ -324,11 +332,11 @@ export function ModuleSteps({ steps, open, onOpen, allLabel = 'Alles' }: {
           key: s.key, label: s.label, value: 1, color: STEP_COLOR[s.state],
           text: s.value || undefined, hint: s.hint,
         }))}
-        active={all ? null : open}
+        active={onOpen && !all ? open : null}
         dim={false}
         onPick={onOpen}
-        legendHint={(shown) => (shown ? 'Ist offen' : 'Diesen Schritt öffnen')}
-        trailing={(
+        legendHint={onOpen && ((shown) => (shown ? 'Ist offen' : 'Diesen Schritt öffnen'))}
+        trailing={onOpen && (
           <button type="button" aria-pressed={all}
             data-tip={all ? 'Nur den gewählten Schritt zeigen' : 'Alle Schritte zeigen'}
             className="flex items-center gap-1.5 text-[12.5px]"

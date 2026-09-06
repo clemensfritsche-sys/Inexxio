@@ -2454,8 +2454,81 @@
           "orders"
         ],
         "summary": "Prepare Payment",
-        "description": "►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄\n\nKein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim\nZahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird\nerst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser\ndes Zahlenden.\n\n**Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier\nkommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind\nzwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE\nFrage, und dieselbe Liste ist auch hier das **Tor**.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der\nKunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt\n``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt\n``404`` wie überall.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)\n– und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.",
+        "description": "►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄\n\n►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ ``charge`` ist die\nZeile, an der geklickt wurde – ohne Angabe die älteste offene. Vorher kassierte der\nWeg immer die älteste: standen zwei offen, war die zweite unbezahlbar, obwohl ihr Knopf\ndanebenstand.\n\nKein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim\nZahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird\nerst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser\ndes Zahlenden.\n\n**Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier\nkommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind\nzwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE\nFrage, und dieselbe Liste ist auch hier das **Tor**.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der\nKunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt\n``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt\n``404`` wie überall.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)\n– und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.",
         "operationId": "prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "charge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Charge"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/refund": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Refund Payment",
+        "description": "►►► **Geld zurück — über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄\n\n*«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag\nzurückerstatten.»* – Genau, und der Weg hängt daran, **wie** das Geld kam: bar und per\nÜberweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es längst gibt),\neine **Karte** erstattet der Dienst, der sie belastet hat.\n\n**Gebucht wird auch hier nicht hier**: der Dienst meldet die Erstattung, und der\nWebhook schreibt die negative Zeile – dieselbe Regel wie beim Einziehen, und aus\ndemselben Grund (wer den Browser schliesst, darf keine Buchung verschlucken).\n\n**Personal-only**: eine Erstattung ist unsere Aussage über unser Konto. Der Kunde\nfordert sie an, er löst sie nicht aus.",
+        "operationId": "refund_payment_api_v1_erp_orders__object_id__steps__step_id__deal_refund_post",
         "security": [
           {
             "HTTPBearer": []
@@ -2481,13 +2554,89 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DealUpdate"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentSetup"
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/transfer": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Transfer Details",
+        "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung (#865).\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Vorgang sieht – der Zahlende zuerst, denn er ist es, der überweist.\n\n**Erst auf Klick**: der Code ist ein paar Kilobyte SVG, und er interessiert genau\ndann, wenn jemand wirklich zahlen will.",
+        "operationId": "transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "entry",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferInfo"
                 }
               }
             }
@@ -4614,6 +4763,11 @@
             "title": "Payment Word",
             "default": ""
           },
+          "credit_only": {
+            "type": "boolean",
+            "title": "Credit Only",
+            "default": false
+          },
           "pay_online_word": {
             "type": "string",
             "title": "Pay Online Word",
@@ -4722,11 +4876,6 @@
             "type": "integer",
             "title": "Currency Decimals",
             "default": 2
-          },
-          "currency_locked": {
-            "type": "boolean",
-            "title": "Currency Locked",
-            "default": true
           },
           "currencies": {
             "items": {
@@ -4979,12 +5128,47 @@
             "title": "Settled",
             "default": false
           },
-          "open_invoices": {
+          "share": {
+            "type": "string",
+            "title": "Share",
+            "default": "100"
+          },
+          "share_label": {
+            "type": "string",
+            "title": "Share Label",
+            "default": ""
+          },
+          "share_hint": {
+            "type": "string",
+            "title": "Share Hint",
+            "default": ""
+          },
+          "methods": {
             "items": {
-              "$ref": "#/components/schemas/DealOpenInvoice"
+              "$ref": "#/components/schemas/DealMethod"
             },
             "type": "array",
-            "title": "Open Invoices"
+            "title": "Methods"
+          },
+          "method_label": {
+            "type": "string",
+            "title": "Method Label",
+            "default": ""
+          },
+          "transfer_word": {
+            "type": "string",
+            "title": "Transfer Word",
+            "default": ""
+          },
+          "refund_word": {
+            "type": "string",
+            "title": "Refund Word",
+            "default": ""
+          },
+          "refund_online_word": {
+            "type": "string",
+            "title": "Refund Online Word",
+            "default": ""
           },
           "entries": {
             "items": {
@@ -5108,6 +5292,60 @@
               }
             ],
             "title": "Charge Id"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "method_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method Label"
+          },
+          "reverse_word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverse Word"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "refundable": {
+            "type": "boolean",
+            "title": "Refundable",
+            "default": false
+          },
+          "transferable": {
+            "type": "boolean",
+            "title": "Transferable",
+            "default": false
           }
         },
         "type": "object",
@@ -5186,41 +5424,24 @@
         "title": "DealLine",
         "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\nDie **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die\nSache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei\ndem Partner, den es betrifft (``DealQuote.ref``)."
       },
-      "DealOpenInvoice": {
+      "DealMethod": {
         "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
+          "key": {
+            "type": "string",
+            "title": "Key"
           },
-          "reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference"
-          },
-          "open": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Open"
+          "label": {
+            "type": "string",
+            "title": "Label"
           }
         },
         "type": "object",
         "required": [
-          "id"
+          "key",
+          "label"
         ],
-        "title": "DealOpenInvoice",
-        "description": "Eine **offene Rechnung** – worauf eine Zahlung gehen kann (Testnotiz #858).\n\nGerechnet vom Server (``deal.open_charges``), nicht im Browser: es ist dieselbe\nAbleitung, die ``_pay`` als Tor benutzt, und zwei Formeln für eine Frage wichen ab –\ndie im Browser sähe trotzdem richtig aus."
+        "title": "DealMethod",
+        "description": "**Eine Zahlungsart, die ein Mensch erfassen darf** – Schlüssel und Wort.\n\nDieselbe Bauart wie ``vat_rates`` und ``payment_terms``: die Liste kommt vom Server,\ndamit die Karte keine zweite pflegt, die beim ersten neuen Weg auseinanderläuft."
       },
       "DealParty": {
         "properties": {
@@ -5575,6 +5796,28 @@
               }
             ],
             "title": "Currency"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
           }
         },
         "type": "object",
@@ -8433,6 +8676,73 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
+      },
+      "TransferInfo": {
+        "properties": {
+          "iban": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iban"
+          },
+          "creditor": {
+            "type": "string",
+            "title": "Creditor"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "invoice": {
+            "type": "string",
+            "title": "Invoice"
+          },
+          "qr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qr"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "creditor",
+          "reference",
+          "amount",
+          "currency",
+          "invoice"
+        ],
+        "title": "TransferInfo",
+        "description": "►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄\n\nDie dritte Bezahlart ist **keine Buchung, sondern eine Auskunft**: «Jetzt bezahlen»\nlöst etwas aus, «Zahlung erfassen» schreibt etwas auf – eine Überweisung braucht\n*Angaben*, damit der Zahlende sie selbst auslöst. Darum steht hier auch kein Verb.\n\n**Klartext UND Code, nicht entweder-oder**: der QR spart das Abtippen, die\nBankverbindung ist der Weg, wenn die Kamera nicht mitspielt. Wo es keinen Code geben\nkann, steht ``problem`` – ein Grund, keine leere Fläche."
       },
       "UnitChoices": {
         "properties": {

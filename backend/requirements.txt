@@ -19,5 +19,9 @@ pillow==11.0.0
 # STRIPE_SECRET_KEY wird das Modul nie importiert, und alles andere läuft unverändert:
 # eine Überweisung ist kein Fallback, sondern der B2B-Normalfall.
 stripe==11.2.0
+# segno: erzeugt die Matrix der **QR-Rechnung** (services/qrbill). Reines Python, keine
+# Systembibliothek – und **nur** die Matrix: Nutzlast, Schweizerkreuz und SVG schreiben
+# wir selbst, weil die einunddreissig Zeilen der Spezifikation unsere Sache sind.
+segno==1.6.1
 pytest==8.3.4
 pytest-asyncio==0.24.0

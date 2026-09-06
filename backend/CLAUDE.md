@@ -140,7 +140,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/admin/users | staff | Benutzerliste. **Deaktivieren gibt es nicht** (Testnotiz #755): wer das Unternehmen verlässt, wechselt die **Rolle** (`PATCH /erp/records/{object_id}`) – ein Mensch hört nicht auf zu existieren, und einkaufen darf er weiterhin |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
 | POST | /api/v1/contact | – | Kontaktformular |
-| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/deal/payment | user | **Eine Zahlung über den offenen Betrag vorbereiten** – für **unsere** Bezahlkarte: Geheimnis der Zahlungsabsicht, öffentlicher Schlüssel, Betrag und die Angaben, die im ERP längst stehen (Name · E-Mail · Rechnungsadresse). Kein Verb am Vorgang (sie ändert nichts): gebucht wird erst, wenn das Geld da ist, und das meldet der Webhook. **Auch für die Gegenpartei offen** – das ist der Sinn; das Tor ist dieselbe Liste wie der Knopf (`deal.assert_allowed(…, 'pay_online')`). Ohne eingerichteten Dienst **404**, und der Knopf erscheint dann gar nicht |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/deal/payment?charge= | user | **Eine Zahlung über EINE genannte Rechnung vorbereiten** (`charge`, Testnotiz #859 – ohne Angabe die älteste offene) – für **unsere** Bezahlkarte: Geheimnis der Zahlungsabsicht, öffentlicher Schlüssel, Betrag und die Angaben, die im ERP längst stehen (Name · E-Mail · Rechnungsadresse). Kein Verb am Vorgang (sie ändert nichts): gebucht wird erst, wenn das Geld da ist, und das meldet der Webhook. **Auch für die Gegenpartei offen** – das ist der Sinn; das Tor ist dieselbe Liste wie der Knopf (`deal.assert_allowed(…, 'pay_online')`). Ohne eingerichteten Dienst **404**, und der Knopf erscheint dann gar nicht |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/deal/refund | staff | **Eine Karten-Zahlung erstatten** (`entry`, optional `amount`) – über den Dienst, der sie eingezogen hat. Bar und per Überweisung ist die Erstattung eine gewöhnliche **negative Zahlung** und braucht diesen Weg nicht. **Gebucht wird auch hier nicht hier**: der Dienst meldet `charge.refunded`, und der Webhook schreibt die Zeile. **Personal-only** – eine Erstattung ist unsere Aussage über unser Konto |
+| GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/deal/transfer?entry= | user | **Wie man diese Rechnung überweist** (Testnotiz #865) – Bankverbindung, **RF-Referenz** (ISO 11649) und die **Swiss QR-Rechnung** als fertiges SVG. Eine **Auskunft**, keine Buchung: sie ändert nichts, und darum darf sie jeder sehen, der den Vorgang sieht – der Zahlende zuerst. **Erst auf Klick** (ein paar Kilobyte SVG); wo es keinen Code geben kann (fremde Währung, keine CH-IBAN), steht der **Grund** |
 | POST | /api/v1/payments/webhook | – | **Die eine Tür des Zahlungsdienstes.** Signaturgeprüft über den **rohen** Rumpf, schreibt **eine Zeile Geld am Geldvorgang** und sonst nichts (kein Auftrag, keine Freigabe, keine Stufe). Idempotent über die Referenz; fremde Ereignisse werden mit `200 {"status":"ignored"}` quittiert – ein Fehlercode brächte den Dienst nur dazu, sie endlos erneut zuzustellen |
 | GET/POST | /api/v1/feedback | user | Testnotizen der Oberfläche (JEDE Rolle; eigene bzw. alle für Personal) – nur Testumgebung, sonst 404 |
 | PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
@@ -549,6 +551,58 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > unterlegener Dritter sieht weiterhin nichts. **Buchen darf sie trotzdem nicht** – eine
 > Buchung ist unsere Aussage über unser Konto.
 > Wächter: `tests/test_deal_module.py` (4 neue) · `test_frontend_mirrors.py` (3 neue).
+
+> ►►► **EINE Rechnung je Modul — und die drei Wege zum Geld** (PROCESS_CORE §9.14,
+> Migration `130`). ◄◄◄
+> *«Je Zahlungsmodul gibt es maximal eine Rechnung. Habe ich Teilrechnungen, dann erstelle
+> ich einfach 2 Zahlungsmodule.»* (#866) – **`deal.live_charge` ist die eine Lesestelle**,
+> und was sie zählt, ist eine *Forderung nach aussen*: nicht die **Gegenbuchung**, nicht
+> die **stornierte** Zeile (genau das ist der Ausweg – storniert und neu gestellt), nicht
+> die **Gutschrift** (negativ = Minderung, keine zweite Rechnung). Damit ist die Regel
+> **keine Sackgasse**: sie verbietet die zweite *offene* Forderung, nicht den zweiten
+> Vorgang. `charge_word` wird zu «Gutschrift erfassen», `next_charge` fällt weg.
+> **Und das System wurde kleiner**: `_charge_for_payment` hatte drei Fälle, darunter
+> «mehrere offene → die Zahlung muss sagen, welche» – der Ast ist **unerreichbar**
+> geworden und ist entfallen (ein Ast, den niemand erreicht, ist von einem kaputten nicht
+> zu unterscheiden), mit ihm `DealEmbed.open_invoices`.
+> **Der Anteil ist das Gegenstück** (`deals.share`, Prozent, Vorgabe 100): zwei Module
+> sehen dieselben Stücke, also dieselben Positionen – ohne ihn hätte jedes die **volle**
+> Summe zugesagt, und `Balance.settled` ginge bei der Anzahlung nie auf. **Gebunden wie
+> die Währung**, und aus demselben Grund: beides steht in `ACTIONS[OFFER]`, der Knopf fehlt
+> danach von selbst und `apply` weist ab.
+> ►►► **Ein zweites Feld «gesperrt?» gibt es nicht mehr.** ◄◄◄ `currency_locked` hatte
+> **keinen** Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben gab
+> einer **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt
+> (gemessen). `can` ist Auskunft **und** Tor.
+> **Drei Wege zum Geld, und sie sind EINE Angabe an der Zahlung** (`deal_entries.method`:
+> bar · Überweisung · Karte): gebucht wird in jedem Fall dieselbe Zeile. **Die Karte tippt
+> niemand ab** – sie kommt über den Webhook; `dm.MANUAL_METHODS` neben `METHODS`,
+> durchgesetzt an der **Menschentür** (`_pay`). Die **Überweisung** ist gar keine Buchung,
+> sondern eine **Auskunft**: `deal.transfer_info` liefert Bankverbindung, RF-Referenz und
+> die **Swiss QR-Rechnung** (`services/qrbill`, `GET …/deal/transfer?entry=`).
+> **Und alle drei stehen AN der Rechnung** (#859): `stripe_pay.prepare` nahm
+> `open_charges[0]` – damit war die zweite Rechnung unbezahlbar, obwohl ihr Knopf
+> danebenstand. Sie nimmt jetzt die **genannte** (`charge_id`).
+> **Storno ODER Gutschrift** (#860): dieselbe Gegenbuchung, und das **Wort** hängt an der
+> Zahl (`DealEntryOut.reverse_word` aus `paid_on`) – was bezahlt ist, nimmt man nicht
+> zurück. **Erstattet wird auf dem Weg, auf dem gezahlt wurde**: bar und per Überweisung
+> eine gewöhnliche negative Zahlung, eine **Karte** über den Dienst (`refund_online` →
+> `stripe_pay.refund`; gebucht wird auch dort erst vom Webhook, `charge.refunded`).
+> `deal.refundable`/`card_payment` sind die zwei Formen dieser einen Regel.
+> **Eine Zahlung auf eine inzwischen stornierte Rechnung wird trotzdem gebucht** – ohne
+> Zuordnung (`stripe_pay._still_open`): sie ist passiert, und ein Ereignis der Aussenwelt
+> macht man nicht ungeschehen. Der offene Betrag wird negativ, und die Erstattung steht als
+> Handlung da – keine eigene Regel nötig.
+> **Die QR-Rechnung, ehrlich eingegrenzt**: einen **weltweiten** Standard gibt es nicht.
+> Gebaut ist die **Swiss QR-Rechnung** (CH/LI-IBAN, CHF oder EUR); wo sie nicht gilt, gibt
+> es **keinen** Code, sondern den **Grund** (`qrbill.problem`) – ein QR, der in der App des
+> Kunden einen Fehler wirft, wäre schlimmer als keiner. Die Nutzlast sind **31 Zeilen in
+> fester Reihenfolge**; eine zweite Fassung im Frontend wäre die Stelle, an der beim
+> nächsten Feld eine Zeile verrutscht.
+> Wächter: `tests/test_deal_module.py` (5 neue) · `test_frontend_mirrors.py` (6 neue) –
+> **jede Bug-Form gegengeprüft**; *drei waren dabei stumpf und liessen ihre eigene durch*
+> (zweimal war eine Zeichenkette an zwei Stellen im Rumpf, einmal las ein Wächter Zeilen
+> der **rohen** Datei und zählte einen Kommentar als Abstand mit).
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

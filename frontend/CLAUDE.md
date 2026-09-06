@@ -560,6 +560,48 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
 - **Das Mikro-Label ist ein Bauteil** (`fields.MICRO_LABEL`) – es stand als Inline-Stil an
   jeder Stelle, mit leicht verschiedenen Werten (11 ↔ 11.5 px, 600 ↔ 700, .05 ↔ .07 em).
   Genau die Form, in der eine Gestaltungsregel auseinanderläuft, ohne dass es auffällt.
+- ►►► **Keine Reiter — alles untereinander** (Testnotiz #863). ◄◄◄ *«Ich mag diese
+  Reiter-Ansicht nicht, ich möchte alles auf einmal sehen untereinander.»* Und die Meldung
+  hat recht, weil der Vorgang **einer** ist: das Angebot erklärt die Zusage, die Zusage
+  erklärt die Rechnung. `open`/`setOpen`/`shows`/`ALL_STEPS` sind entfallen; die
+  **Leiste bleibt als Übersicht** (`ModuleSteps` ohne `onOpen` – dieselbe Bauart wie
+  `ValueBar`: ohne Handler ist alles Anzeige). *Die Sorge aus der Vorrunde («bei vier
+  Buchungen zwei Bildschirme hoch») bleibt richtig – sie ist eine Frage der **Dichte**,
+  nicht des Versteckens, und die drei Antworten darauf stehen unten.*
+- ►►► **EINE Positionstabelle** (#862). ◄◄◄ *«Der Positions-Abschnitt ist doppelt.»* – Er
+  war es: `Goods` sagte, worum es geht, und `OurOffer` zeigte dieselben Zeilen noch einmal
+  mit Eingabefeldern (und **weniger**: kein Chevron, keine Spezifikation). Jetzt ist es
+  eine Tabelle, die tippen lässt, solange man anbieten darf. **Der Entwurf wohnt darum in
+  `DealWork`** – beide sehen ihn – und wird **je Artikel** gehalten (`Record<string,
+  PriceRow>`), nicht als Liste: eine Liste müsste nachgezogen werden, sobald der Prozess
+  eine Position dazustellt, und ein Nachziehen löscht getippte Preise.
+- ►►► **Die Zahlungen stehen eingerückt unter ihrer Rechnung** (#861). ◄◄◄ Sie standen
+  flach und chronologisch da, die Zugehörigkeit war ein «auf 100000801-1» am Zeilenende.
+  Eingerückt sagt es die **Form** (dieselbe Geste wie die Stückliste unter ihrer
+  Einzelinstanz, #724) – der Text daneben ist damit entfallen, und in einer engen Zeile
+  ist es genau der Platz, den das Datum braucht. **Was zu keiner Rechnung gehört,
+  verschwindet nicht**: eine Gruppe «Nicht zugeordnet» am Ende.
+- ►►► **Die Geld-Handlungen stehen AN der Rechnung** (#859, `EntryRow`). ◄◄◄ *«Wie kann
+  ich bestimmen, welche Rechnung ich bezahle?»* – Ein Knopf **an** der Zeile beantwortet
+  die Frage, indem er sie nicht stellt: Zahlung erfassen · Jetzt bezahlen · Überweisen ·
+  Stornieren/Gutschrift. Unten bleibt, was dem **Vorgang** gilt (die nächste Forderung,
+  die Gegenhandlung). Das Auswahlfeld «welche Rechnung?» im Formular ist damit weg.
+- **Storno oder Gutschrift sagt der Server** (`e.reverse_word`, #860): was bezahlt ist,
+  nimmt man nicht zurück, man schreibt es gut. Und **erstattet wird auf dem Weg, auf dem
+  gezahlt wurde** – `e.refundable` (nur eine Karte) gegen «Korrigieren» daneben, das die
+  gewöhnliche Erfassung mit dem negativen Betrag öffnet.
+- **Überweisen ist eine AUSKUNFT** (#865, `Transfer`): Bankverbindung, RF-Referenz und die
+  **QR-Rechnung** als fertiges SVG vom Server – erst auf Klick. Im Browser gebaut wären es
+  einunddreissig Zeilen ein zweites Mal, und eine verrutschte sieht man einem QR nicht an.
+  Wo es keinen Code geben kann, steht der **Grund** statt einer leeren Fläche.
+- **Wie bezahlt wurde, ist ein `Segmented`** (`d.methods`) – zwei Werte sind ein Schieber,
+  keine Auswahlliste; die **Karte** steht nicht darin (sie kommt über den Webhook).
+- ►►► **Währung und Anteil stehen im ANGEBOT** (#864/#866). ◄◄◄ Beides sind
+  **Entscheidungen** über das, was gleich hinausgeht – ein Auswahlfeld zwischen lauter
+  Auskünften (der Meta-Zeile) liest sich wie eine. Und beide hängen an **`can`**, nicht an
+  einem zweiten Feld: `share_locked`/`currency_locked` sind entfallen – gemessen gab
+  Ersteres einer **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie
+  abnimmt. Was feststeht, steht als Wert da (`Fixed`), nicht als gesperrtes Feld (#749).
 
 ## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das

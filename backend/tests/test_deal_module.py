@@ -823,6 +823,18 @@ def test_claim_and_money_are_two_axes_so_a_part_payment_needs_no_mode():
         money = svc.balance_of(db, svc.of_step(db, step.id))
         assert money.paid == Decimal("400.00") and money.open == Decimal("0.00")
 
+        # ►►► **Und der Weg zur vollen Rechnung ist der dokumentierte** (#866). ◄◄◄
+        #
+        # Eine zweite Rechnung gibt es an diesem Modul nicht – was falsch oder zu klein
+        # ist, wird **storniert und neu gestellt**. Genau dieser Weg ist die Zusicherung,
+        # dass die Regel keine Sackgasse ist: der Vorgang kommt hier heraus, und die
+        # gezahlten 400 bleiben stehen, weil eine Zahlung ein Ereignis ist.
+        first = svc.live_charge(db, svc.of_step(db, step.id))
+        svc.apply(db, order=order, step=step, action="reverse",
+                  payload={"entry": first.id})
+        assert svc.live_charge(db, svc.of_step(db, step.id)) is None, (
+            "Nach dem Storno steht die Rechnung noch – dann ist die Regel eine Falle."
+        )
         svc.apply(db, order=order, step=step, action="charge", payload={})
         money = svc.balance_of(db, svc.of_step(db, step.id))
         assert money.charged == Decimal("1200.00") and money.uncharged == Decimal("0.00")
@@ -1166,24 +1178,29 @@ def test_we_number_our_own_invoices_and_never_theirs():
     try:
         kunde = _party(db, "Meier AG", role="customer")
         lieferant = _party(db, "Härterei AG")
+        # ►►► **Unsere zwei Rechnungen kommen aus ZWEI Modulen** (#866). ◄◄◄ Je Modul
+        # gibt es genau eine – die Nummernserie gehört aber dem **Auftrag**, nicht dem
+        # Modul; genau das prüft dieser Wächter mit.
         art = _article(db, "Welle", steps=[
+            _money_step(direction="in", parties=[kunde], task="Art. 4711"),
             _money_step(direction="in", parties=[kunde], task="Art. 4711"),
             _money_step(direction="out", parties=[lieferant], task="Härten"),
         ])
         order, rows = _make(db, quantity=1, article=art)
         _agree(db, order=order, step=rows[0], party=kunde, amount="100.00")
-        _agree(db, order=order, step=rows[1], party=lieferant, amount="100.00")
+        _agree(db, order=order, step=rows[1], party=kunde, amount="100.00")
+        _agree(db, order=order, step=rows[2], party=lieferant, amount="100.00")
 
         # **Die fremde Rechnung ZUERST** – genau hier lag der Fehler: sie verbrauchte die
         # Zählung, und unsere erste eigene hiess «…-2». Eine Nummernserie mit Lücken ist
         # buchhalterisch keine.
-        svc.apply(db, order=order, step=rows[1], action="charge", payload={"amount": "10"})
+        svc.apply(db, order=order, step=rows[2], action="charge", payload={"amount": "10"})
         svc.apply(db, order=order, step=rows[0], action="charge", payload={"amount": "60"})
-        svc.apply(db, order=order, step=rows[0], action="charge", payload={"amount": "40"})
+        svc.apply(db, order=order, step=rows[1], action="charge", payload={"amount": "40"})
 
         ours = db.query(DealEntry).join(
             svc.Deal, DealEntry.deal_id == svc.Deal.id).filter(
-            svc.Deal.step_id == rows[0].id).order_by(DealEntry.id).all()
+            svc.Deal.step_id.in_([rows[0].id, rows[1].id])).order_by(DealEntry.id).all()
         # ►►► **Immer mit Suffix – auch die erste** (Testnotiz #827). ◄◄◄
         #
         # Früher fiel das «-1» der ersten nach aussen weg. Das war eine Sonderregel für
@@ -1194,7 +1211,7 @@ def test_we_number_our_own_invoices_and_never_theirs():
                                                f"{order.object_id}-2"]
         theirs = db.query(DealEntry).join(
             svc.Deal, DealEntry.deal_id == svc.Deal.id).filter(
-            svc.Deal.step_id == rows[1].id).one()
+            svc.Deal.step_id == rows[2].id).one()
         assert theirs.reference is None, (
             "Bei einer Ausgabe hat das System eine Nummer erfunden – die vergibt die "
             "Gegenpartei, und eine erfundene wäre eine Behauptung."
@@ -1949,7 +1966,14 @@ def test_a_currency_is_one_per_deal_and_freezes_with_the_agreement():
         embed = svc.embed_data(db, order=order, step=step, viewer=staff)
         assert embed["currency"] == "EUR"
         assert embed["currency_decimals"] == cur.minor_units("EUR") == 2
-        assert embed["currency_locked"] is True
+        # ►►► **«Noch änderbar?» steht in `can`, nicht in einem zweiten Feld.** ◄◄◄
+        # Hier stand ``embed["currency_locked"] is True`` – ein Wert, den die Oberfläche
+        # **nie gelesen** hat (sie fragt seit jeher ``can``). Ein Feld ohne Leser ist
+        # keine Reserve, sondern die zweite Wahrheit, die niemand vergleicht.
+        assert "currency" not in embed["can"], (
+            "Die Währung steht nach der Zusage noch zur Wahl – dieselbe Liste zeigt den "
+            "Knopf und weist ab."
+        )
         assert {c["code"] for c in embed["currencies"]} == set(cur.CURRENCIES)
     finally:
         db.rollback()
@@ -2073,8 +2097,12 @@ def test_the_service_date_comes_from_the_process_not_from_the_invoice_date():
         assert booked.service_date == arrived
 
         # (b) **Ein Mensch darf übersteuern** – er weiss von Teilleistungen.
+        #
+        # *Gebucht als **Gutschrift** (negativer Betrag): je Modul gibt es genau eine
+        # Rechnung (#866), eine Minderung ist davon ausgenommen. Für diese Frage ist es
+        # dieselbe Zeile – das Leistungsdatum hängt an der Buchung, nicht am Vorzeichen.*
         svc.apply(db, order=order, step=rows[1], action="charge",
-                  payload={"amount": "1.00", "service_date": "2026-01-31"}, actor=staff)
+                  payload={"amount": "-1.00", "service_date": "2026-01-31"}, actor=staff)
         db.flush()
         rows_out = (db.query(DealEntry)
                     .filter(DealEntry.deal_id == svc.of_step(db, rows[1].id).id,
@@ -2494,48 +2522,54 @@ def test_a_payment_belongs_to_exactly_one_invoice():
             "Die beglichene Rechnung steht weiter als offen da."
         )
 
-        # **Zwei offene** – jetzt muss die Zahlung es sagen, und der Satz nennt beide.
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "100.00"}, actor=_staff(db))
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "100.00"}, actor=_staff(db))
-        db.flush()
-        two = svc.open_charges(db, svc.of_step(db, step.id))
-        assert len(two) == 2
+        # ►►► **Zwei offene kann es nicht mehr geben** (#866) – und das ist die zweite
+        # Hälfte derselben Regel. ◄◄◄
+        #
+        # *Hier stand der Fall «mehrere offene → die Zahlung muss sagen, welche». Seit je
+        # Modul höchstens eine Rechnung lebt, ist er unerreichbar – geprüft wird darum,
+        # dass er unerreichbar **bleibt**: eine zweite positive Forderung wird abgewiesen.*
         with pytest.raises(HTTPException) as e:
-            svc.apply(db, order=order, step=step, action="pay",
+            svc.apply(db, order=order, step=step, action="charge",
                       payload={"amount": "100.00"}, actor=_staff(db))
-        assert e.value.status_code == 400
-        for entry in two:
-            assert str(entry.reference) in str(e.value.detail), (
-                "Der Satz nennt nicht, was zur Auswahl steht (b)."
-            )
+        assert e.value.status_code == 409, (
+            "Eine zweite Rechnung entsteht (b) – dann steht die Frage «welche?» wieder da."
+        )
 
-        # **Genannt** – und eine fremde wird abgewiesen (c).
-        foreign = svc.apply(db, order=order, step=other, action="charge",
-                            payload={"amount": "50.00"}, actor=_staff(db))
+        # **Eine fremde wird abgewiesen (c)** – die Zuordnung ist eine Angabe, keine
+        # Behauptung über einen fremden Beleg.
+        svc.apply(db, order=order, step=other, action="charge",
+                  payload={"amount": "50.00"}, actor=_staff(db))
         db.flush()
         alien = svc.open_charges(db, svc.of_step(db, other.id))[0]
-        assert foreign is not None or alien is not None
         with pytest.raises(HTTPException) as e:
             svc.apply(db, order=order, step=step, action="pay",
                       payload={"amount": "50.00", "charge_id": alien.id},
                       actor=_staff(db))
         assert e.value.status_code == 400 and "nicht zu diesem" in str(e.value.detail)
 
-        svc.apply(db, order=order, step=step, action="pay",
-                  payload={"amount": "100.00", "charge_id": two[1].id}, actor=_staff(db))
+        # **Storniert und neu gestellt** – der eine Weg zu einer anderen Rechnung, und
+        # die Zahlung darauf trifft sie ohne eine Angabe: es gibt nur diese eine.
+        svc.apply(db, order=order, step=step, action="reverse",
+                  payload={"entry": one[0].id}, actor=_staff(db))
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "200.00"}, actor=_staff(db))
         db.flush()
-        left = svc.open_charges(db, svc.of_step(db, step.id))
-        assert [e.id for e in left] == [two[0].id], (
-            "Die genannte Rechnung wurde nicht beglichen (b)."
+        fresh = svc.open_charges(db, svc.of_step(db, step.id))
+        assert len(fresh) == 1 and fresh[0].id != one[0].id
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "100.00"}, actor=_staff(db))
+        db.flush()
+        paid = [e for e in svc._entries(db, svc.of_step(db, step.id).id)
+                if e.kind == "payment"]
+        assert paid[-1].charge_id == fresh[0].id, (
+            "Die Zahlung trifft die neue Rechnung nicht (b)."
         )
 
         # **(d) `balance` bleibt eine Summenrechnung** – «worauf» ist eine andere Frage
         # als «wie viel»; die Zuordnung darf die vier Zahlen nicht verändern.
         money = svc.balance_of(db, svc.of_step(db, step.id))
-        assert money.charged == Decimal("300.00") and money.paid == Decimal("200.00")
-        assert money.open == Decimal("100.00")
+        assert money.charged == Decimal("200.00") and money.paid == Decimal("200.00")
+        assert money.open == Decimal("0.00")
     finally:
         db.rollback(); db.close()
 
@@ -2574,3 +2608,260 @@ def test_the_online_payment_names_the_invoice_it_settles():
     line = next(l for l in src.splitlines() if "description=" in l)
     assert "Rechnung {number}" in line, "Die Beschreibung nennt die Rechnung nicht (b)."
     assert line.count("order.object_id") == 1, "Die Auftragsnummer steht zweimal (c)."
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §9.12e – EINE Rechnung je Modul, und wie man trotzdem alles abbildet (#866)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_module_has_at_most_one_live_invoice():
+    """►►► **«Je Zahlungsmodul gibt es maximal eine Rechnung.»** (Testnotiz #866) ◄◄◄
+
+    *«Habe ich Teilrechnungen, dann erstelle ich einfach 2 Zahlungsmodule.»* – Und das ist
+    die richtige Modellierung, weil der Grund die **Zeit** ist: *Vorauszahlung → Leistung
+    → Restzahlung* sind drei Zeitpunkte, und ein Modul steht an einem. Zwei Rechnungen an
+    derselben Stelle wären zwei Aussagen über einen Moment, den es nur einmal gibt.
+
+    **Und die Regel ist keine Sackgasse** – das war der Einwand, und er ist beantwortet:
+
+    * eine **Gutschrift** (negativer Betrag) geht jederzeit – Skonto, Teilretoure, Kulanz;
+    * **stornieren und neu stellen** geht jederzeit – der Weg für jede falsche Rechnung;
+    * eine **zweite Rechnung** gehört in ein zweites Modul, und dafür gibt es den Anteil.
+
+    Bug-Formen: (a) eine zweite positive Forderung wird gebucht; (b) die Gutschrift wird
+    mit abgewiesen; (c) nach einem Storno geht es nicht weiter.
+    """
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        _agree(db, order=order, step=step, party=kunde, amount="1000.00")
+
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "400"})
+        db.flush()
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="charge",
+                      payload={"amount": "600"})
+        assert e.value.status_code == 409, "Eine zweite Rechnung entsteht (a)."
+        # **Der Satz nennt den Weg** – eine Ablehnung ohne Ausweg ist eine Sackgasse.
+        for hint in ("stornier", "Gutschrift", "zweites Zahlungs-Modul"):
+            assert hint in str(e.value.detail), (
+                f"Der Satz nennt «{hint}» nicht – wer abweist, sagt, wie es geht."
+            )
+
+        # (b) **Die Gutschrift bleibt.** Sie ist eine Minderung, keine zweite Rechnung.
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "-50"})
+        db.flush()
+        assert svc.balance_of(db, svc.of_step(db, step.id)).charged == Decimal("350.00")
+
+        # (c) **Storniert und neu gestellt** – der dokumentierte Ausweg.
+        live = svc.live_charge(db, svc.of_step(db, step.id))
+        assert live is not None and live.amount == Decimal("400.00"), (
+            "Die Gutschrift gilt als die eine Rechnung – dann kann man nie mehr stellen."
+        )
+        svc.apply(db, order=order, step=step, action="reverse", payload={"entry": live.id})
+        db.flush()
+        assert svc.live_charge(db, svc.of_step(db, step.id)) is None, (
+            "Nach dem Storno steht die Rechnung noch (c) – die Regel wäre eine Falle."
+        )
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "1000"})
+        db.flush()
+        assert svc.balance_of(db, svc.of_step(db, step.id)).charged == Decimal("950.00"), (
+            "400 − 400 + 1000 − 50: der Storno hebt auf, die Gutschrift mindert."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_two_modules_split_the_amount_by_share():
+    """►►► **Der Anteil ist das Gegenstück zu «eine Rechnung je Modul»** (#866). ◄◄◄
+
+    Anzahlung und Restzahlung sind **zwei Module** – und beide sehen dieselben Stücke,
+    also dieselben Positionen. Ohne Anteil sagte jedes die **volle** Summe zu: zusammen
+    das Doppelte, und «erst zahlen» (`settled`) ginge bei der Anzahlung nie auf.
+
+    Bug-Formen: (a) der Anteil wirkt nicht auf den Angebotsbetrag; (b) er ist nach der
+    Zusage noch änderbar – dann steht draussen eine Zusage über eine andere Zahl.
+    """
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde]),
+                                           _money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=2, article=art)
+        anzahlung, rest = rows[0], rows[1]
+        staff = _staff(db)
+
+        svc.apply(db, order=order, step=anzahlung, action="share",
+                  payload={"share": "30"}, actor=staff)
+        db.flush()
+        for step in (anzahlung, rest):
+            svc.apply(db, order=order, step=step, action="ask", payload={
+                "parties": [kunde.object_id], "lead_days": 5, "payment_days": 30,
+                "lines": [{"article": art.id, "price": "500.00", "vat": "0.00"}],
+            }, actor=staff)
+        db.flush()
+        # 2 Stück × 500.00, 0 % – der eine nimmt 30 %, der andere alles.
+        part = svc.of_step(db, anzahlung.id)
+        full = svc.of_step(db, rest.id)
+        assert part.quotes[0]["amount"] == "300.00", (
+            f"Der Anteil wirkt nicht (a): {part.quotes[0]['amount']}"
+        )
+        assert full.quotes[0]["amount"] == "1000.00"
+
+        # (b) **Ab der Zusage gebunden** – dieselbe Tabelle, die auch der Knopf liest.
+        svc.apply(db, order=order, step=anzahlung, action="agree",
+                  payload={"party": kunde.object_id}, actor=staff)
+        db.flush()
+        assert "share" not in svc.can(db, svc.of_step(db, anzahlung.id), staff)
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=anzahlung, action="share",
+                      payload={"share": "50"}, actor=staff)
+        assert e.value.status_code == 409, (
+            "Der Anteil lässt sich nach der Zusage ändern (b) – draussen liegt dann eine "
+            "Zusage über eine andere Zahl."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_an_invoice_names_what_it_is_paid_with_and_how():
+    """►►► **Bezahlt wird EINE genannte Rechnung — und die Art steht dabei** (#859/#865).
+
+    *«Wie kann ich bestimmen, welche Rechnung ich bezahle?»* – Der Weg dafür ist die
+    Angabe, nicht die Reihenfolge: `prepare` nahm `open_charges[0]`, also war die zweite
+    Rechnung unbezahlbar, obwohl ihr Knopf danebenstand.
+
+    **Und wie bezahlt wurde, ist eine Angabe an der Zahlung** – bar · Überweisung · Karte;
+    kein zweites Modell, dieselbe Zeile. **Die Karte tippt niemand ab**: sie entsteht beim
+    Zahlungsdienst und kommt über den Webhook.
+
+    Bug-Formen: (a) die Zahlungsart wird gar nicht gespeichert; (b) ein Mensch darf die
+    Karte behaupten; (c) eine erfundene Art geht durch.
+    """
+    from fastapi import HTTPException
+    from app.domain import deal as dm
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        _agree(db, order=order, step=step, party=kunde, amount="100.00")
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "100"})
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "40", "method": dm.TRANSFER})
+        db.flush()
+        paid = [e for e in svc._entries(db, svc.of_step(db, step.id).id)
+                if e.kind == dm.PAYMENT]
+        assert paid[-1].method == dm.TRANSFER, "Die Zahlungsart wird nicht gebucht (a)."
+        assert dm.method_name(dm.TRANSFER) and dm.method_name(None) is None, (
+            "«nicht festgehalten» ist nicht dasselbe wie «bar»."
+        )
+        for bad, why in ((dm.CARD, "b"), ("bitcoin", "c")):
+            with pytest.raises(HTTPException) as e:
+                svc.apply(db, order=order, step=step, action="pay",
+                          payload={"amount": "1", "method": bad})
+            assert e.value.status_code == 400, f"«{bad}» geht durch ({why})."
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_paid_invoice_is_credited_never_cancelled():
+    """►►► **Storno ODER Gutschrift — dieselbe Buchung, zwei Wörter** (Testnotiz #860).
+
+    *«Wenn bezahlt wurde, dann kann ich ja quasi nicht mehr stornieren.»* – Richtig: eine
+    Rechnung, auf die Geld geflossen ist, nimmt man nicht zurück, man **schreibt sie
+    gut**. Es ist dieselbe Gegenbuchung – nur das Wort hängt an der Zahl, und der Server
+    sagt es (`reverse_word`), damit die Karte es nicht selbst rechnet.
+
+    Bug-Formen: (a) das Wort hängt nicht an der Zahlung dieser Rechnung; (b) es wird im
+    Browser gerechnet (dann fehlt es in der Antwort).
+    """
+    from app.domain import deal as dm
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step, staff = rows[0], _staff(db)
+        _agree(db, order=order, step=step, party=kunde, amount="100.00", staff=staff)
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100"}, actor=staff)
+        db.flush()
+
+        def word():
+            embed = svc.embed_data(db, order=order, step=step, viewer=staff)
+            return next(e["reverse_word"] for e in embed["entries"]
+                        if e["kind"] == dm.CHARGE)
+
+        assert word() == dm.STORNO_WORD, (
+            "Eine unbezahlte Rechnung heisst nicht «stornieren» (a)."
+        )
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "40"}, actor=staff)
+        db.flush()
+        assert word() == dm.CREDIT_WORD, (
+            "Eine teilweise bezahlte Rechnung heisst weiter «stornieren» (a) – man nimmt "
+            "nicht zurück, worauf Geld geflossen ist."
+        )
+        assert dm.STORNO_WORD != dm.CREDIT_WORD
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_transfer_is_information_not_a_booking():
+    """►►► **Die dritte Bezahlart ist eine AUSKUNFT** (Testnotiz #865). ◄◄◄
+
+    *«Am besten einen international gültigen QR-Code, welcher vom Kunden gescannt werden
+    kann.»* – Einen **weltweiten** Standard gibt es nicht; für uns gilt die **Swiss
+    QR-Rechnung** (CH/LI-IBAN, CHF oder EUR), und die deckt unseren Fall vollständig ab.
+
+    **Wo sie nicht gilt, gibt es sie nicht** – dann steht die Bankverbindung im Klartext
+    da, mit dem **Grund** daneben: ein QR, der in der App des Kunden einen Fehler wirft,
+    wäre schlimmer als keiner.
+
+    Bug-Formen: (a) die Referenz trägt keine gültige Prüfziffer; (b) die Nutzlast hat
+    nicht 31 Zeilen; (c) eine fremde Währung liefert trotzdem einen Code.
+    """
+    from decimal import Decimal
+    from app.services import qrbill
+    ref = qrbill.reference("100000886-1")
+    assert ref.startswith("RF") and "-" not in ref
+    # ►►► **Die Prüfziffer rechnet man nach, man glaubt sie nicht.** ◄◄◄ Vier Zeichen ans
+    # Ende, Buchstaben zu Zahlen, Rest modulo 97 – ist er nicht 1, weist jede Bank sie ab.
+    moved = ref[4:] + ref[:4]
+    digits = "".join(str(int(c, 36)) if c.isalpha() else c for c in moved)
+    assert int(digits) % 97 == 1, f"«{ref}» hat keine gültige Prüfziffer (a)."
+
+    body = qrbill.payload(
+        iban="CH9300762011623852957", amount=Decimal("1284.50"), currency="CHF",
+        creditor={"name": "Inexxio AG", "street": "Bahnhofstrasse", "street_nr": "1",
+                  "zip": "8000", "city": "Zürich", "country": "CH"},
+        debtor=None, number="100000886-1")
+    assert body.split("\n")[:3] == ["SPC", "0200", "1"], "Der Kopf stimmt nicht (b)."
+    assert len(body.split("\n")) == 31, (
+        f"Die Nutzlast hat {len(body.split(chr(10)))} statt 31 Zeilen (b) – eine "
+        f"verrutschte Zeile sieht man einem QR nicht an."
+    )
+    assert body.split("\n")[-1] == "EPD" and "SCOR" in body
+
+    # (c) **Wo er nicht gilt, nennt er den Grund** – statt einer leeren Fläche.
+    assert qrbill.problem(iban="CH93 0076 2011 6238 5295 7", currency="CHF",
+                          amount=Decimal("10")) is None
+    for iban, code, why in (
+        (None, "CHF", "ohne IBAN"),
+        ("DE89370400440532013000", "EUR", "fremdes Land"),
+        ("CH9300762011623852957", "JPY", "fremde Währung"),
+    ):
+        assert qrbill.problem(iban=iban, currency=code, amount=Decimal("10")), (
+            f"«{why}» liefert trotzdem einen Code (c)."
+        )

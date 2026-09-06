@@ -29,6 +29,7 @@ import type {
   FeedbackUpdateInput,
   PlaceRef,
   PaymentSetup,
+  TransferInfo,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -359,8 +360,42 @@ class ApiClient {
    * Sie ändert am Vorgang **nichts**; gebucht wird erst, wenn das Geld da ist – und das
    * meldet der Webhook, nicht dieser Browser (`services/stripe_pay`).
    */
-  preparePayment(objectId: number, stepId: number): Promise<PaymentSetup> {
-    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/payment`, {});
+  preparePayment(objectId: number, stepId: number,
+                 chargeId?: number | null): Promise<PaymentSetup> {
+    // ►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ Ohne Angabe die
+    // älteste offene – bei genau einer ist das die einzig mögliche Antwort. Vorher gab es
+    // die Angabe gar nicht: der Knopf an der zweiten Rechnung bezahlte die erste.
+    const q = chargeId != null ? `?charge=${chargeId}` : '';
+    return this.post(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/payment${q}`, {});
+  }
+
+  /**
+   * ►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄
+   *
+   * Eine **Auskunft**, keine Buchung: Bankverbindung, Referenz und – wo er gilt – die
+   * **QR-Rechnung** als fertiges Bild. Erzeugt wird sie im Backend: die Nutzlast ist eine
+   * Liste von einunddreissig Zeilen in fester Reihenfolge, und eine zweite Fassung hier
+   * wäre die Stelle, an der beim nächsten Feld eine Zeile verrutscht.
+   *
+   * **Erst auf Klick** – der Code ist ein paar Kilobyte SVG.
+   */
+  dealTransfer(objectId: number, stepId: number, entryId: number): Promise<TransferInfo> {
+    return this.get(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/transfer?entry=${entryId}`);
+  }
+
+  /**
+   * ►►► **Geld zurück – über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄
+   *
+   * Nur für eine **Karten**-Zahlung: bar und per Überweisung ist die Erstattung eine
+   * gewöhnliche Zahlung mit negativem Betrag, die es längst gibt. Gebucht wird auch hier
+   * nicht hier – der Dienst meldet die Erstattung, und der Webhook schreibt die Zeile.
+   */
+  refundPayment(objectId: number, stepId: number,
+                entryId: number, amount?: string): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/refund`,
+      { action: 'refund_online', entry: entryId, ...(amount ? { amount } : {}) });
   }
 
   /**

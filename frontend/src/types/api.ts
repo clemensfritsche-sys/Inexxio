@@ -957,6 +957,11 @@ export interface paths {
          * Prepare Payment
          * @description ►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
          *
+         *     ►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ ``charge`` ist die
+         *     Zeile, an der geklickt wurde – ohne Angabe die älteste offene. Vorher kassierte der
+         *     Weg immer die älteste: standen zwei offen, war die zweite unbezahlbar, obwohl ihr Knopf
+         *     danebenstand.
+         *
          *     Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
          *     Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
          *     erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
@@ -976,6 +981,64 @@ export interface paths {
          *     – und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.
          */
         post: operations["prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund Payment
+         * @description ►►► **Geld zurück — über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄
+         *
+         *     *«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag
+         *     zurückerstatten.»* – Genau, und der Weg hängt daran, **wie** das Geld kam: bar und per
+         *     Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es längst gibt),
+         *     eine **Karte** erstattet der Dienst, der sie belastet hat.
+         *
+         *     **Gebucht wird auch hier nicht hier**: der Dienst meldet die Erstattung, und der
+         *     Webhook schreibt die negative Zeile – dieselbe Regel wie beim Einziehen, und aus
+         *     demselben Grund (wer den Browser schliesst, darf keine Buchung verschlucken).
+         *
+         *     **Personal-only**: eine Erstattung ist unsere Aussage über unser Konto. Der Kunde
+         *     fordert sie an, er löst sie nicht aus.
+         */
+        post: operations["refund_payment_api_v1_erp_orders__object_id__steps__step_id__deal_refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Transfer Details
+         * @description **Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung (#865).
+         *
+         *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
+         *     den Vorgang sieht – der Zahlende zuerst, denn er ist es, der überweist.
+         *
+         *     **Erst auf Klick**: der Code ist ein paar Kilobyte SVG, und er interessiert genau
+         *     dann, wenn jemand wirklich zahlen will.
+         */
+        get: operations["transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1768,6 +1831,11 @@ export interface components {
              */
             payment_word: string;
             /**
+             * Credit Only
+             * @default false
+             */
+            credit_only: boolean;
+            /**
              * Pay Online Word
              * @default
              */
@@ -1829,11 +1897,6 @@ export interface components {
              * @default 2
              */
             currency_decimals: number;
-            /**
-             * Currency Locked
-             * @default true
-             */
-            currency_locked: boolean;
             /** Currencies */
             currencies?: components["schemas"]["CurrencyOption"][];
             /**
@@ -1926,8 +1989,43 @@ export interface components {
              * @default false
              */
             settled: boolean;
-            /** Open Invoices */
-            open_invoices?: components["schemas"]["DealOpenInvoice"][];
+            /**
+             * Share
+             * @default 100
+             */
+            share: string;
+            /**
+             * Share Label
+             * @default
+             */
+            share_label: string;
+            /**
+             * Share Hint
+             * @default
+             */
+            share_hint: string;
+            /** Methods */
+            methods?: components["schemas"]["DealMethod"][];
+            /**
+             * Method Label
+             * @default
+             */
+            method_label: string;
+            /**
+             * Transfer Word
+             * @default
+             */
+            transfer_word: string;
+            /**
+             * Refund Word
+             * @default
+             */
+            refund_word: string;
+            /**
+             * Refund Online Word
+             * @default
+             */
+            refund_online_word: string;
             /** Entries */
             entries?: components["schemas"]["DealEntryOut"][];
         };
@@ -1971,6 +2069,24 @@ export interface components {
             reversed: boolean;
             /** Charge Id */
             charge_id?: number | null;
+            /** Method */
+            method?: string | null;
+            /** Method Label */
+            method_label?: string | null;
+            /** Reverse Word */
+            reverse_word?: string | null;
+            /** Open */
+            open?: string | null;
+            /**
+             * Refundable
+             * @default false
+             */
+            refundable: boolean;
+            /**
+             * Transferable
+             * @default false
+             */
+            transferable: boolean;
         };
         /**
          * DealLine
@@ -2008,20 +2124,17 @@ export interface components {
             vat: string;
         };
         /**
-         * DealOpenInvoice
-         * @description Eine **offene Rechnung** – worauf eine Zahlung gehen kann (Testnotiz #858).
+         * DealMethod
+         * @description **Eine Zahlungsart, die ein Mensch erfassen darf** – Schlüssel und Wort.
          *
-         *     Gerechnet vom Server (``deal.open_charges``), nicht im Browser: es ist dieselbe
-         *     Ableitung, die ``_pay`` als Tor benutzt, und zwei Formeln für eine Frage wichen ab –
-         *     die im Browser sähe trotzdem richtig aus.
+         *     Dieselbe Bauart wie ``vat_rates`` und ``payment_terms``: die Liste kommt vom Server,
+         *     damit die Karte keine zweite pflegt, die beim ersten neuen Weg auseinanderläuft.
          */
-        DealOpenInvoice: {
-            /** Id */
-            id: number;
-            /** Reference */
-            reference?: string | null;
-            /** Open */
-            open?: string | null;
+        DealMethod: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
         };
         /**
          * DealParty
@@ -2197,6 +2310,10 @@ export interface components {
             service_date?: string | null;
             /** Currency */
             currency?: string | null;
+            /** Share */
+            share?: string | null;
+            /** Method */
+            method?: string | null;
         };
         /**
          * DefinitionLine
@@ -3628,6 +3745,36 @@ export interface components {
             pos: number[];
             /** Company Object Id */
             company_object_id?: number | null;
+        };
+        /**
+         * TransferInfo
+         * @description ►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄
+         *
+         *     Die dritte Bezahlart ist **keine Buchung, sondern eine Auskunft**: «Jetzt bezahlen»
+         *     löst etwas aus, «Zahlung erfassen» schreibt etwas auf – eine Überweisung braucht
+         *     *Angaben*, damit der Zahlende sie selbst auslöst. Darum steht hier auch kein Verb.
+         *
+         *     **Klartext UND Code, nicht entweder-oder**: der QR spart das Abtippen, die
+         *     Bankverbindung ist der Weg, wenn die Kamera nicht mitspielt. Wo es keinen Code geben
+         *     kann, steht ``problem`` – ein Grund, keine leere Fläche.
+         */
+        TransferInfo: {
+            /** Iban */
+            iban?: string | null;
+            /** Creditor */
+            creditor: string;
+            /** Reference */
+            reference: string;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Invoice */
+            invoice: string;
+            /** Qr */
+            qr?: string | null;
+            /** Problem */
+            problem?: string | null;
         };
         /**
          * UnitChoices
@@ -5473,7 +5620,9 @@ export interface operations {
     };
     prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post: {
         parameters: {
-            query?: never;
+            query?: {
+                charge?: number | null;
+            };
             header?: never;
             path: {
                 object_id: number;
@@ -5490,6 +5639,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentSetup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_payment_api_v1_erp_orders__object_id__steps__step_id__deal_refund_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DealUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get: {
+        parameters: {
+            query: {
+                entry: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferInfo"];
                 };
             };
             /** @description Validation Error */

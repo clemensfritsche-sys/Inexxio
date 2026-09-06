@@ -191,20 +191,53 @@ class DealEntryOut(BaseModel):
     #:
     #: ``None`` bei einer Forderung – und bei den Zahlungen, die es vor dieser Regel gab.
     charge_id: Optional[int] = None
+    #: ►►► **Wie bezahlt wurde** – ``cash`` · ``transfer`` · ``card`` (Testnotiz #865).
+    #: ``None`` heisst «nicht festgehalten», nicht «bar».
+    method: Optional[str] = None
+    #: Das Wort dazu – **eine** Auflösung, damit die Karte keine zweite Liste pflegt.
+    method_label: Optional[str] = None
+    #: ►►► **Wie die Gegenbuchung an DIESER Rechnung heisst** (Testnotiz #860). ◄◄◄
+    #:
+    #: «Stornieren», solange nichts geflossen ist – **«Gutschrift»**, sobald bezahlt
+    #: wurde: *«wenn bezahlt wurde, dann kann ich ja quasi nicht mehr stornieren»*. Es ist
+    #: dieselbe Buchung, und darum kein zweites Verb; nur das Wort hängt an der Zahl.
+    reverse_word: Optional[str] = None
+    #: **Was auf DIESER Rechnung noch offen ist** – nur bei einer Forderung. Die Zahlungen
+    #: stehen als Gruppe darunter, und diese Zahl sagt, was davon fehlt.
+    open: Optional[str] = None
+    #: **Lässt sich diese Zahlung über den Dienst erstatten?** Nur eine Karten-Zahlung:
+    #: bar und per Überweisung ist die Erstattung eine gewöhnliche negative Zahlung.
+    refundable: bool = False
+    #: ►►► **Kann man auf diese Rechnung überweisen?** (Testnotiz #865) ◄◄◄
+    #:
+    #: Nur, wo das Geld **zu uns** fliesst und noch etwas offen ist: der Einzahlungsschein
+    #: trägt **unsere** Bankverbindung, und die eines Lieferanten steht nirgends bei uns.
+    #: Die Antwort steht hier, damit die Oberfläche sie nicht aus der Richtung erschliesst –
+    #: ein `if direction ===` wäre die erste Zeile, die beim nächsten Fall falsch liegt.
+    transferable: bool = False
 
 
-class DealOpenInvoice(BaseModel):
-    """Eine **offene Rechnung** – worauf eine Zahlung gehen kann (Testnotiz #858).
+class DealMethod(BaseModel):
+    """**Eine Zahlungsart, die ein Mensch erfassen darf** – Schlüssel und Wort.
 
-    Gerechnet vom Server (``deal.open_charges``), nicht im Browser: es ist dieselbe
-    Ableitung, die ``_pay`` als Tor benutzt, und zwei Formeln für eine Frage wichen ab –
-    die im Browser sähe trotzdem richtig aus.
+    Dieselbe Bauart wie ``vat_rates`` und ``payment_terms``: die Liste kommt vom Server,
+    damit die Karte keine zweite pflegt, die beim ersten neuen Weg auseinanderläuft.
     """
 
-    id: int
-    reference: Optional[str] = None
-    #: Was auf **dieser** Rechnung noch offen ist – die Vorgabe der Zahlung.
-    open: Optional[str] = None
+    key: str
+    label: str
+
+
+# ►►► **Eine Liste offener Rechnungen gibt es nicht mehr** (Testnotizen #859/#866). ◄◄◄
+#
+# Sie stand hier als ``DealOpenInvoice`` und füllte ein Auswahlfeld «auf welche Rechnung
+# geht diese Zahlung?». Zwei Runden haben ihr den Boden entzogen: seit **#866** lebt je
+# Modul höchstens eine Rechnung, und seit **#859** steht der Zahlungs-Knopf **an ihrer
+# Zeile** – er nennt sie, statt danach zu fragen. Was auf jeder Rechnung offen ist, sagt
+# ``DealEntryOut.open`` an der Zeile selbst.
+#
+# Ein Feld ohne Leser ist keine Reserve, sondern eine zweite Wahrheit, die niemand
+# vergleicht.
 
 
 class DealTerm(BaseModel):
@@ -242,6 +275,13 @@ class DealEmbed(BaseModel):
     party_word: str = ""
     charge_word: str = ""
     payment_word: str = ""
+    #: ►►► **Steht die eine Rechnung dieses Moduls schon?** (Testnotiz #866) ◄◄◄
+    #:
+    #: Dann ist die nächste Forderung nur noch eine **Gutschrift** – ``charge_word`` sagt
+    #: es im Wort, dieses Feld sagt es der Oberfläche: der Knopf bleibt, er ist nur nicht
+    #: mehr der Vorschlag. Zwei Formen einer Regel, gerechnet an **einer** Stelle
+    #: (``deal.live_charge``); im Browser gerechnet wäre es die zweite Formel.
+    credit_only: bool = False
     #: **Das dritte Geld-Wort**: «erfassen» heisst aufschreiben, was geschehen ist – dieses
     #: hier lässt es geschehen (``pay_online``). Ein Wort für beide wäre ein Knopf, dessen
     #: Wirkung man ihm nicht ansieht.
@@ -310,11 +350,16 @@ class DealEmbed(BaseModel):
     #: falsch ist: **JPY** und **KRW** haben null, **KWD** hat drei. Die Zahl reist mit,
     #: damit die Anzeige nicht rät.
     currency_decimals: int = 2
-    #: **Steht sie noch zur Wahl?** Ab der **Zusage** nicht mehr: draussen liegt eine
-    #: Zusage über *diese* Summe in *dieser* Währung. Es ist dieselbe Antwort wie
-    #: ``"currency" in can`` – hier als Wort, damit die Oberfläche das Feld **anzeigen**
-    #: und trotzdem sperren kann, statt es verschwinden zu lassen.
-    currency_locked: bool = True
+    # ►►► **Ein zweites Feld «gesperrt?» gibt es nicht** (Testnotizen #864/#866). ◄◄◄
+    #
+    # Hier stand ``currency_locked``, und daneben sollte ``share_locked`` entstehen: die
+    # Frage «darf man das noch ändern?» ein zweites Mal, neben ``can``. Beide sind
+    # entfallen – ``can`` ist **Auskunft und Tor**, und ein zweiter Wert daneben ist die
+    # Stelle, an der Knopf und Tür beim nächsten Verb auseinanderlaufen.
+    #
+    # *Gemessen war es schon falsch: ``currency_locked`` hatte **keinen** Leser (die
+    # Oberfläche fragte längst ``can``), und ``share_locked`` gab einer **Gegenpartei**
+    # ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt.*
     #: Der Katalog, aus dem gewählt wird. Eine **Aufzählung**, kein Datensatz – ein
     #: natives Auswahlfeld ist hier richtig.
     currencies: list[CurrencyOption] = Field(default_factory=list)
@@ -403,9 +448,23 @@ class DealEmbed(BaseModel):
     #: sie fragt nach der **Zusage**, nicht nach dem offenen Betrag: wer nichts
     #: berechnet hat, hat null offen, und das hiesse sonst «bezahlt».
     settled: bool = False
-    #: ►►► **Worauf eine Zahlung gehen kann** (Testnotiz #858). ◄◄◄ Steht genau eine da,
-    #: gibt es nichts zu wählen – die Karte fragt dann gar nicht.
-    open_invoices: list[DealOpenInvoice] = Field(default_factory=list)
+    # ─── Der Anteil, die Zahlungsarten und die dritte Bezahlart ──────────────────
+    #: ►►► **Welchen Teil der Positionen dieser Vorgang abrechnet** (#866) – in Prozent.
+    #:
+    #: Er ist die Voraussetzung dafür, dass «eine Rechnung je Modul» trägt: *Vorauszahlung
+    #: → Leistung → Restzahlung* sind zwei Module, beide sehen dieselben Stücke – ohne
+    #: Anteil hätte jedes die **volle** Summe zugesagt.
+    share: str = "100"
+    share_label: str = ""
+    share_hint: str = ""
+    #: **Womit ein Mensch bezahlen kann** – bar · Überweisung. Die Karte steht nicht darin:
+    #: sie kommt über den Webhook, und von Hand wäre sie eine Behauptung ohne Beleg.
+    methods: list[DealMethod] = Field(default_factory=list)
+    method_label: str = ""
+    #: Die drei Wörter der Geld-Zeile, die es vorher nicht gab.
+    transfer_word: str = ""
+    refund_word: str = ""
+    refund_online_word: str = ""
     entries: list[DealEntryOut] = Field(default_factory=list)
 
 
@@ -479,6 +538,15 @@ class DealUpdate(BaseModel):
     #: Nur **vor der Zusage**; danach führt ``can`` das Verb nicht mehr, und ``apply``
     #: weist es ab.
     currency: Optional[str] = None
+    #: ►►► **Welchen Teil der Positionen dieser Vorgang abrechnet** (``share``, #866).
+    #: ◄◄◄ In Prozent; 100 ist der ganze Betrag. Er ist das Gegenstück zu «eine Rechnung
+    #: je Modul»: eine Anzahlung ist ein **zweites Modul** mit einem anderen Anteil, und
+    #: ohne ihn hätte jedes von beiden die volle Summe zugesagt.
+    share: Optional[str] = None
+    #: ►►► **Wie bezahlt wurde** (``pay``) – bar · Überweisung (Testnotiz #865). ◄◄◄ Die
+    #: **Karte** weist der Dienst ab: sie entsteht beim Zahlungsdienst und kommt über den
+    #: Webhook; von Hand erfasst wäre sie eine Behauptung ohne Beleg.
+    method: Optional[str] = None
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
+from ..domain import deal as dm
 from .base import TimestampMixin
 
 
@@ -137,6 +138,20 @@ class Deal(Base, TimestampMixin):
         JSONB, nullable=True,
     )
 
+    #: ►►► **Welchen Teil der Positionen rechnet DIESER Vorgang ab?** (Testnotiz #866)
+    #:
+    #: In Prozent, Vorgabe 100 – der Normalfall, den niemand einstellen soll. Erst mit
+    #: ihm ist die Zwei-Modul-Form («Anzahlung 30 %, Restzahlung 70 %») überhaupt
+    #: gangbar: beide Module sehen dieselben Stücke, also dieselben Positionen, und ohne
+    #: Anteil hätte jedes die **volle** Summe zugesagt.
+    #:
+    #: **Kein Betrag** – der stünde beim Modellieren nicht fest und wäre bei der zweiten
+    #: Ausführung falsch. Ein *Anteil* ist dagegen eine Bedingung des Geschäfts und
+    #: überlebt jede Menge.
+    share: Mapped[Decimal] = mapped_column(
+        Numeric(6, 3), nullable=False, default=dm.FULL_SHARE, server_default="100",
+    )
+
 
 class DealEntry(Base, TimestampMixin):
     """**Eine Zeile Geld** – eine Forderung oder eine Zahlung.
@@ -218,6 +233,18 @@ class DealEntry(Base, TimestampMixin):
     #: es vor dieser Regel schon gab. Gelesen wird tolerant, geschrieben streng.
     charge_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("deal_entries.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    #: ►►► **WIE bezahlt wurde** – bar · Überweisung · Karte (Testnotiz #865). ◄◄◄
+    #:
+    #: Nur bei ``kind = payment``, und ``None`` heisst «nicht festgehalten» (so steht
+    #: jede Zeile da, die es vor dieser Angabe schon gab).
+    #:
+    #: **Kein zweites Modell**: gebucht wird in jedem Fall dieselbe Zeile – bei der einen
+    #: ruft ein Mensch, bei der anderen der Webhook. Ein Rahmen mit drei
+    #: Implementierungen wäre eine Abstraktion über einem Feld. Und **die Karte tippt
+    #: niemand ab** (``dm.MANUAL_METHODS``): sie behauptete sonst eine Belastung, für die
+    #: es keinen Beleg gibt.
+    method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
     #: ►►► **Die Steuer-Aufteilung dieses Belegs – EINGEFROREN.** ◄◄◄
     #:

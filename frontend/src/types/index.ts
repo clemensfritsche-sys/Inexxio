@@ -187,6 +187,12 @@ export type RecordValue = components['schemas']['RecordValue'];
  */
 export type PaymentSetup = components['schemas']['PaymentSetup'];
 export type PaymentBilling = components['schemas']['PaymentBilling'];
+/**
+ * **Wie man eine Rechnung überweist** (Testnotiz #865) – Bankverbindung, Referenz und die
+ * **QR-Rechnung** als fertiges Bild. Eine Auskunft, keine Buchung: «Jetzt bezahlen» löst
+ * etwas aus, eine Überweisung braucht *Angaben*, damit der Zahlende sie selbst auslöst.
+ */
+export type TransferInfo = components['schemas']['TransferInfo'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 /**
  * **Ein wählbarer Modultyp mit allem, was er deklariert** – Beschriftung, Farbfamilie

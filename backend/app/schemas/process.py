@@ -220,6 +220,34 @@ class PaymentSetup(BaseModel):
     billing: PaymentBilling
 
 
+class TransferInfo(BaseModel):
+    """►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄
+
+    Die dritte Bezahlart ist **keine Buchung, sondern eine Auskunft**: «Jetzt bezahlen»
+    löst etwas aus, «Zahlung erfassen» schreibt etwas auf – eine Überweisung braucht
+    *Angaben*, damit der Zahlende sie selbst auslöst. Darum steht hier auch kein Verb.
+
+    **Klartext UND Code, nicht entweder-oder**: der QR spart das Abtippen, die
+    Bankverbindung ist der Weg, wenn die Kamera nicht mitspielt. Wo es keinen Code geben
+    kann, steht ``problem`` – ein Grund, keine leere Fläche.
+    """
+
+    #: Unsere Kontonummer. ``None`` heisst «steht am Unternehmen nicht» – dann sagt es
+    #: ``problem``, und der Grund ist dieselbe Prüfung (``qrbill.problem``).
+    iban: Optional[str] = None
+    creditor: str
+    #: Die **Creditor Reference** (``RF…``, ISO 11649) aus der Rechnungsnummer – so kommt
+    #: die Zahlung mit unserem Beleg zurück, ohne QR-IBAN und ohne Abtippen.
+    reference: str
+    #: Schon gerundet und formatiert (``currency.money``) – die Karte rechnet nicht.
+    amount: str
+    currency: str
+    invoice: str
+    #: Die **Swiss QR-Rechnung** als fertiges SVG. ``None``, wenn ``problem`` gesetzt ist.
+    qr: Optional[str] = None
+    problem: Optional[str] = None
+
+
 class SpecEntry(BaseModel):
     """Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.
 

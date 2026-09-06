@@ -5443,19 +5443,25 @@ def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
     *Dieser Wächter prüfte selbst einmal die Form der alten Lösung («Weitere» muss
     vorkommen) und hätte damit die bessere verboten. Er fragt jetzt die Regel.*
 
+    ►►► **Und die Handlungen sind seit #859 auf zwei Orte verteilt.** ◄◄◄ Was **einer
+    Rechnung** gilt (bezahlen, überweisen, stornieren), steht an ihrer Zeile; was dem
+    **Vorgang** gilt (die nächste Forderung, die Gegenhandlung), darunter. Der Wächter
+    liest darum beide – die Regel ist nicht, *wo* ein Knopf steht, sondern dass er an
+    `can` hängt und einen Klick entfernt ist.
+
     Bug-Formen: (a) die Oberfläche rechnet die naheliegende Handlung selbst aus;
     (b) eine erlaubte Handlung steht wieder hinter einem zweiten Klick;
     (c) alle Knöpfe sehen gleich aus – dann gibt es keinen Vorschlag mehr.
     """
-    money = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                  "Money", kind="function")
-    assert "d.next_charge" in money and "d.next_payment" in money, (
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    money = _body(src, "Money", kind="function") + _body(src, "EntryRow", kind="function")
+    assert "d.next_charge" in money, (
         "Die naheliegende Handlung kommt nicht vom Server – eine zweite Formel hier "
         "wiche ab, und ihre Zahl sähe trotzdem richtig aus."
     )
     # (b) **Jede erlaubte Handlung ist EINEN Klick entfernt.** Sie hängt an `can` und an
     # nichts sonst – kein zweiter Zustand, der sie erst hervorholt.
-    for action in ("charge", "pay", "revoke"):
+    for action in ("charge", "pay", "revoke", "reverse"):
         assert f"may(d, active, '{action}')" in money, (
             f"«{action}» hängt nicht mehr allein an `can` – dann entscheidet etwas "
             f"anderes mit, ob man es sieht."
@@ -5470,7 +5476,8 @@ def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
     # *Die erste Fassung fragte nur, ob beide Klassennamen im Rumpf vorkommen – und war
     # damit schon durch den Papierkorb-Knopf der Buchungszeile erfüllt: sie liess ihre
     # eigene Bug-Form durch. Gefragt wird jetzt die **Wahl** selbst.*
-    choose = re.search(r"===\s*primary\s*\n?\s*\?\s*'([^']+)'\s*\n?\s*:\s*'([^']+)'", money)
+    choose = re.search(
+        r"d\.next_charge != null[^?]*\?\s*\n?\s*'([^']+)'\s*:\s*'([^']+)'", money)
     assert choose, (
         "Nichts unterscheidet den Vorschlag von den übrigen Handlungen – die Rangfolge "
         "ist verschwunden."
@@ -6185,8 +6192,10 @@ def test_a_payment_is_corrected_never_reversed_in_the_ui():
     Bug-Formen: (a) der Storno-Knopf steht wieder an jeder Zeile; (b) die Korrektur legt
     selbst etwas an, statt vorzubelegen; (c) die Vorbelegung ist nicht negativ.
     """
+    # ►►► **Die Zeile ist seit #859/#861 ein eigenes Bauteil** (`EntryRow`). ◄◄◄ Die
+    # Knöpfe stehen dort, wo sie wirken – an der Zeile, der sie gelten.
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    money = " ".join(_body(src, "Money", kind="function").split())
+    money = " ".join(_body(src, "EntryRow", kind="function").split())
     # ►►► **Gefragt wird das TOR, nicht das Vorkommen eines Wortes.** ◄◄◄
     #
     # Die erste Fassung prüfte, ob «e.kind === 'charge'» *irgendwo* im Rumpf steht – und
@@ -6196,15 +6205,14 @@ def test_a_payment_is_corrected_never_reversed_in_the_ui():
     assert "action: 'reverse'" in money, "Der Storno gibt es nicht mehr."
     gate = money[money.index("may(d, active, 'reverse')"):]
     gate = gate[:gate.index("&& (")]
-    assert "e.kind === 'charge'" in gate, (
+    assert "invoice &&" in money[:money.index("may(d, active, 'reverse')")][-40:], (
         "Der Storno steht wieder an jeder Zeile – eine Zahlung ist ein Ereignis, kein "
         "Beleg (#842)."
     )
-    assert "e.kind === 'payment'" in money, "Die Zahlung hat keine eigene Handlung (#842)."
     # (b) **Vorbelegen, nicht anlegen** – kein `onAction` an diesem Knopf.
-    button = money[money.index("e.kind === 'payment'"):]
+    button = money[money.index(f"!invoice && may(d, active, 'pay')"):]
     button = button[:button.index("</button>")]
-    assert "setForm('payment')" in button and "onAction(" not in button, (
+    assert "onPay(" in button and "onAction(" not in button, (
         "Die Korrektur bucht selbst – der Mensch entscheidet, ob es ein Erfassungsfehler "
         "oder eine Erstattung war."
     )
@@ -6305,26 +6313,42 @@ def test_the_price_stands_at_its_position_not_beside_it():
     **Und der Angebotsbetrag ist ihre Summe**, keine zweite Eingabe: eine getippte Zahl
     neben gepreisten Positionen gewinnt auch dann, wenn sie falsch ist.
 
+    ►►► **Und es ist DIESELBE Tabelle, in der die Position steht** (Testnotiz #862). ◄◄◄
+    *«Der Positions-Abschnitt ist doppelt.»* – Er war es: `Goods` sagte, worum es geht,
+    `OurOffer` zeigte dieselben Zeilen mit Eingabefeldern. Geprüft wird darum ab jetzt
+    `Goods` – und zusätzlich, dass **daneben keine zweite** Preistabelle steht.
+
     Bug-Formen: (a) ein einzelnes Betragsfeld statt Positionen; (b) der Satz kommt aus
-    einer Liste im Browser statt vom Server; (c) der Betrag wird mitgeschickt.
+    einer Liste im Browser statt vom Server; (c) der Betrag wird mitgeschickt;
+    (d) eine zweite Preistabelle steht wieder daneben.
     """
     src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
-    offer = _code(_component(src, "OurOffer"))
+    goods = _code(_component(src, "Goods"))
     # ►►► **Gemessen wird, was GERENDERT wird** – nicht, ob ein Name irgendwo vorkommt.
     #
     # Ein erster Anlauf fragte nach `value.rows.map`, und das steht auch im Helfer, der
     # eine Zeile ändert: die eigene Bug-Form (die Schleife im JSX herausnehmen) ging
     # durch. Geprüft wird darum der **Rumpf ab `return (`**.
-    drawn = offer[offer.index("return ("):]
-    assert "value.rows.map" in drawn, (
-        "Das eigene Angebot zeichnet keine Positionen mehr, sondern einen Betrag (a)."
+    # Auf **eine** Zeile normalisiert: wo ein Aufruf umbricht, ist eine Frage der
+    # Zeilenlänge und nicht der Regel.
+    drawn = " ".join(goods[goods.index("return ("):].split())
+    assert "items.map" in drawn, (
+        "Die Positionstabelle zeichnet keine Zeilen mehr, sondern einen Betrag (a)."
     )
     assert "d.vat_rates" in drawn, (
         "Die Steuersätze kommen nicht mehr vom Server – eine zweite Liste im Browser "
         "läuft beim ersten Satzwechsel auseinander (b)."
     )
-    assert "set(i, { price:" in drawn and "set(i, { vat:" in drawn, (
+    assert "onPrice(row.article, { price:" in drawn \
+        and "onPrice(row.article, { vat:" in drawn, (
         "Preis oder Satz gehören nicht mehr der Position (a)."
+    )
+    # (d) **Nur EINE Tabelle.** Der Angebotsblock darf die Zeilen nicht ein zweites Mal
+    # zeichnen – das war die gemeldete Doppelung.
+    offer = _code(_component(src, "OurOffer"))
+    assert "d.lines" not in offer and "rows" not in offer, (
+        "Der Angebotsblock zeichnet die Positionen wieder selbst – derselbe Datensatz in "
+        "zwei Tabellen, einmal als Auskunft und einmal als Formular (d)."
     )
     # (c) **Was hinausgeht, sind die Zeilen** – der Betrag ist ihre Summe, gerechnet dort,
     # wo gebucht wird.
@@ -6558,12 +6582,17 @@ def test_the_trade_modules_are_gone_from_both_sides():
         assert gone not in src, f"«{gone}» ist zurück – der Handels-Beleg mit ihm."
 
 
-def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
-    """►►► **Eine Währung je Vorgang – im Kopf, nicht an jeder Zahl.** ◄◄◄
+def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
+    """►►► **Eine Währung je Vorgang – EIN Bedienelement, nicht eine Spalte.** ◄◄◄
 
     Ein Beleg hat *eine* Währung (zwei wären zwei Belege), also ist sie eine Eigenschaft
     des Vorgangs und keine Spalte in der Tabelle: fünfzehnmal «CHF» neben fünfzehn Zahlen
     wäre Fläche statt Struktur.
+
+    ►►► **Sie steht im ANGEBOT** (Testnotiz #864). ◄◄◄ Sie stand in der Meta-Zeile, weil
+    sie für den ganzen Vorgang gilt – das stimmt, macht sie aber nicht zu einer Anzeige:
+    sie ist eine **Entscheidung**, und man trifft sie dort, wo man den Preis nennt. Ein
+    Auswahlfeld zwischen lauter Auskünften liest sich zudem wie eine.
 
     **Ob man sie noch wählen darf, sagt `can`** – dieselbe Tabelle, die auch das Tor ist.
     Und sie **verschwindet nicht**, wenn sie gebunden ist: sie wird zur Auskunft mit dem
@@ -6571,7 +6600,8 @@ def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
 
     Bug-Formen: (a) die Oberfläche fragt `stage` statt `can` – dann laufen Knopf und Tor
     beim nächsten Verb auseinander; (b) sie baut den Währungs-Katalog selbst;
-    (c) der gebundene Zustand rendert nichts.
+    (c) der gebundene Zustand rendert nichts; (d) sie steht wieder an mehr als einer
+    Stelle.
     """
     src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
     block = _component(src, "Currency")
@@ -6588,13 +6618,19 @@ def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
     assert "'CHF'" not in block and '"CHF"' not in block, (
         "Ein Währungs-Literal steht in der Oberfläche (b)."
     )
-    assert "return null" not in block and "{d.currency}" in block, (
+    assert "return null" not in block and "d.currency" in block, (
         "Der gebundene Zustand rendert nichts (c) – dann sagt die Karte nicht mehr, "
         "worin sie lautet. Sie verschwindet nicht, sie wird zur Auskunft."
     )
-    # **In der Meta-Zeile, und nur dort** – nicht an jeder Zahl.
-    head = _component(src, "Meta")
-    assert "<Currency" in head, "Die Währung steht nicht im Kopf des Vorgangs."
+    # **Im Angebot, und nur dort** – nicht an jeder Zahl, und nicht mehr im Kopf (#864).
+    assert "<Currency" in _component(src, "Offer"), (
+        "Die Währung steht nicht im Angebot (#864) – entschieden wird sie dort, wo man "
+        "den Preis nennt."
+    )
+    assert "<Currency" not in _component(src, "Meta"), (
+        "Die Währung steht wieder in der Meta-Zeile – zwischen lauter Auskünften liest "
+        "sich ein Bedienelement wie eine (#864)."
+    )
     assert src.count("<Currency") == 1, (
         "Die Währung steht an mehr als einer Stelle – dann ist sie eine Spalte geworden."
     )
@@ -6678,8 +6714,23 @@ def test_what_the_erp_already_knows_is_not_asked_again():
     # jemand den Fehler beschreibt, den er verhindern soll. (Gemessen: erste Fassung
     # scheiterte an ihrem eigenen «Kein ``receipt_email``».)
     svc = _read(BACKEND / "app" / "services" / "stripe_pay.py")
-    assert "def _billing(" in svc and '"billing": _billing(' in svc, (
+    assert '"billing": deal_svc.billing_of(' in svc, (
         "Der Dienst liefert die bekannten Angaben nicht mit (c)."
+    )
+    # ►►► **Und es gibt genau EINE Auskunft darüber** (Testnotiz #865). ◄◄◄
+    #
+    # Sie sass im Adapter des Zahlungsdienstes und wurde dort gebraucht, um das
+    # Bezahlformular vorzufüllen. Die **QR-Rechnung** stellt dieselbe Frage – wer
+    # überweist, und unter welcher Anschrift? Zwei Fassungen davon liefen beim ersten
+    # neuen Adressfeld auseinander; sie gehört darum an den Vorgang, den beide in der
+    # Hand haben. (d) wäre eine zweite Fassung daneben.
+    deal_src = _read(BACKEND / "app" / "services" / "deal.py")
+    assert "def billing_of(" in deal_src and "def _billing(" not in _code(svc), (
+        "Die Angaben über den Zahlenden werden zweimal hergeleitet (d) – beim nächsten "
+        "neuen Adressfeld sagen Bezahlkarte und Einzahlungsschein Verschiedenes."
+    )
+    assert "billing_of(db, row)" in _body(deal_src, "transfer_info"), (
+        "Der Einzahlungsschein leitet den Zahlenden selbst her (d)."
     )
     svc = _code(svc)
     assert "receipt_email" not in svc, (
@@ -6735,15 +6786,23 @@ def test_a_name_never_stands_without_its_object_number():
     Sichtweite. Ein Wächter für genau die gemeldete Zeile wäre bei der nächsten neuen
     Zeile stumm.
 
+    ►►► **Gemessen am CODE, nicht an der Prosa.** ◄◄◄ Die erste Fassung zählte Zeilen der
+    rohen Datei – und schlug an, sobald zwischen Name und Nummer ein Kommentar stand: die
+    beiden waren im **gerenderten** Bild direkt nebeneinander, im Editor zwölf Zeilen
+    auseinander. Ein Wächter, der eine Erklärung mitzählt, misst die falsche Sache.
+
     Bug-Form: an einer Namens-Anzeige fehlt der ``<ObjId>`` daneben.
     """
     src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
-    lines = src.splitlines()
+    lines = _code(src).splitlines()
     shown = [i for i, l in enumerate(lines)
              if re.search(r"\{[^{}]*\b\w+_name\b", l) and "//" not in l.split("{")[0]]
     assert shown, "Die Karte zeigt gar keinen Namen mehr – der Wächter prüft nichts."
+    # ±14 Zeilen: eine Namens-Anzeige und ihre Nummer stehen im **selben** JSX-Element,
+    # und das darf ein paar Zeilen tragen (Menge, Kürzung, ein Chevron). Enger gefasst
+    # meldete es eine Zeile, in der beide direkt nebeneinander stehen.
     for i in shown:
-        window = "\n".join(lines[max(0, i - 10):i + 10])
+        window = "\n".join(lines[max(0, i - 14):i + 14])
         assert "<ObjId" in window, (
             f"«{lines[i].strip()}» (Zeile {i + 1}) steht ohne seine Objektnummer – "
             f"ein Name allein ist keine Kennung (#853)."
@@ -6842,4 +6901,217 @@ def test_the_paying_card_names_the_invoice_it_settles():
     from app.schemas.process import PaymentSetup
     assert "invoice" in PaymentSetup.model_fields, (
         "Die Vorbereitung liefert die Rechnungsnummer nicht mit."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DIE GELD-ZEILE — an der Rechnung, nicht unter der Liste (#859–#865)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+DEAL_WORK = FRONTEND / "components" / "erp" / "deal-work.tsx"
+
+
+def test_the_card_shows_everything_at_once_and_hides_nothing():
+    """►►► **Keine Reiter — alles untereinander** (Testnotiz #863). ◄◄◄
+
+    *«Ich mag diese Reiter-Ansicht nicht, ich möchte alles auf einmal sehen
+    untereinander.»* – Und die Meldung hat recht, weil der Vorgang **einer** ist: das
+    Angebot erklärt die Zusage, die Zusage erklärt die Rechnung. Wer eine Rechnung
+    schreibt und nachsehen will, was zugesagt war, hatte zwei Klicks dazwischen.
+
+    **Die Leiste bleibt** – als Übersicht: sie sagt weiterhin in einem Bild, wie weit der
+    Vorgang ist. Was sie nicht mehr tut, ist etwas zu verstecken; ohne `onOpen` ist sie
+    Anzeige (dieselbe Bauart wie `ValueBar` selbst).
+
+    Bug-Formen: (a) ein Abschnitt hängt wieder an einem offenen Schlüssel; (b) die Leiste
+    schaltet wieder um; (c) sie ist ganz verschwunden – dann sagt nichts mehr, wie weit
+    der Vorgang ist.
+    """
+    src = _code(_read(DEAL_WORK))
+    card = _component(src, "DealWork")
+    for gone in ("ALL_STEPS", "shows(", "setOpen(", "headed("):
+        assert gone not in card, (
+            f"«{gone}»: die Karte versteckt wieder einen Abschnitt (a) – der Vorgang ist "
+            f"einer, und das Angebot erklärt die Rechnung."
+        )
+    assert "<ModuleSteps steps={steps} />" in card, (
+        "Die Stufen-Leiste ist weg (c) oder schaltet wieder um (b) – sie zeigt, wie weit "
+        "der Vorgang ist, und mehr soll sie nicht."
+    )
+    # **Und alle drei Abschnitte stehen wirklich da** – sonst prüfte der Wächter, dass
+    # nichts versteckt wird, an einer Karte, die gar nichts mehr zeigt.
+    for part in ("<Goods", "<Offer", "<Agreed", "<Money"):
+        assert part in card, f"«{part}» steht nicht mehr in der Karte."
+
+
+def test_the_positions_are_one_table_that_can_be_priced():
+    """►►► **EINE Positionstabelle** (Testnotiz #862). ◄◄◄
+
+    *«Der Positions-Abschnitt ist doppelt.»* – Er war es: oben stand, worum es geht, und
+    im Angebot noch einmal dieselben Zeilen, nur mit Eingabefeldern. Derselbe Datensatz
+    in zwei Tabellen, und die untere sagte **weniger** (kein Chevron, keine
+    Spezifikation).
+
+    **Der Entwurf gehört darum der Karte**, nicht dem Angebotsblock: beide sehen ihn.
+    Gehalten wird er je **Artikel** – als Liste müsste er nachgezogen werden, sobald der
+    Prozess eine Position dazustellt, und ein Nachziehen löscht getippte Preise.
+
+    Bug-Formen: (a) der Angebotsblock hat wieder eigene Zeilen; (b) der Entwurf steht
+    wieder im Angebot – dann kann die Tabelle ihn nicht zeigen; (c) er wird als Liste
+    gehalten und beim nächsten Rendern nachgezogen.
+    """
+    src = _code(_read(DEAL_WORK))
+    card = _component(src, "DealWork")
+    assert "useState<Record<string, PriceRow>>" in card, (
+        "Der Angebotsentwurf steht nicht in der Karte (b) – dann sieht ihn die "
+        "Positionstabelle nicht, und es gibt wieder zwei."
+    )
+    assert "rows={rows}" in card and "onPrice={setRow}" in card, (
+        "Die Positionstabelle bekommt den Entwurf nicht (b)."
+    )
+    offer = _component(src, "OurOffer")
+    assert "<input" not in offer and "PriceRow" not in offer, (
+        "Der Angebotsblock hat wieder eigene Preiszeilen (a) – das war die gemeldete "
+        "Doppelung."
+    )
+
+
+def test_the_money_actions_stand_at_the_invoice_they_belong_to():
+    """►►► **Welche Rechnung bezahle ich?** — der Knopf steht an ihr (Testnotiz #859).
+
+    *«Wie kann ich bestimmen, welche Rechnung ich bezahle?»* – Gar nicht: die Knöpfe
+    standen **unter** der Liste, galten also dem Vorgang, und kassiert wurde immer die
+    älteste offene. Ein Knopf **an** der Zeile beantwortet die Frage, indem er sie nicht
+    stellt – und die Karte nennt die Rechnung, die sie meint (`chargeId`).
+
+    Bug-Formen: (a) die Bezahlkarte nennt die Rechnung nicht; (b) das Formular fragt
+    wieder nach ihr; (c) die Handlungen stehen wieder alle unter der Liste.
+    """
+    src = _code(_read(DEAL_WORK))
+    money = _component(src, "Money")
+    # ►►► **Beide Leser einzeln** – ein blosses «kommt irgendwo vor» wäre schon durch den
+    # einen erfüllt, und der andere könnte still ausfallen (gemessen: die erste Fassung
+    # liess ihre eigene Bug-Form durch, weil `chargeId={e.id}` zweimal dasteht).
+    def _tag(where: str, opening: str) -> str:
+        cut = where[where.index(opening):]
+        return cut[:cut.index("/>")]
+
+    assert "chargeId={e.id}" in _tag(money, "<PayOnline"), (
+        "Die Bezahlkarte nennt die Rechnung nicht (a) – dann kassiert sie wieder die "
+        "älteste offene, egal an welchem Knopf jemand geklickt hat."
+    )
+    assert "chargeId={e.id}" in _tag(money, '<Entry kind="payment"'), (
+        "Die erfasste Zahlung nennt die Rechnung nicht (a) – dann entscheidet wieder der "
+        "Dienst, worauf sie geht."
+    )
+    entry = _component(src, "Entry")
+    assert "open_invoices" not in entry and "Rechnung</Label>" not in entry, (
+        "Das Formular fragt wieder, worauf die Zahlung geht (b) – die Frage ist "
+        "beantwortet, bevor es aufgeht."
+    )
+    row = _body(src, "EntryRow", kind="function")
+    for action in ("onPay(", "onPayOnline(", "onTransfer(", "action: 'reverse'"):
+        assert action in row, (
+            f"«{action}» steht nicht mehr an der Zeile (c) – dann gilt es wieder dem "
+            f"ganzen Vorgang."
+        )
+
+
+def test_payments_stand_indented_under_their_invoice():
+    """►►► **Die Zahlung gehört zu ihrer Rechnung** (Testnotiz #861). ◄◄◄
+
+    Sie standen als **flache** Liste da, chronologisch, und die Zugehörigkeit war ein
+    kleines «auf 100000801-1» am Zeilenende: bei zwei Rechnungen und vier Zahlungen
+    musste man Nummern vergleichen. Eingerückt sagt es die **Form** – dieselbe Geste wie
+    bei der Stückliste unter ihrer Einzelinstanz (#724).
+
+    **Was zu keiner gehört, verschwindet nicht**: Zahlungen aus der Zeit vor #858 tragen
+    keine Zuordnung, und eine Online-Zahlung auf eine inzwischen stornierte Rechnung
+    ebenso wenig. Geraten wird nichts, gezeigt schon.
+
+    Bug-Formen: (a) die Liste ist wieder flach; (b) eine Zahlung ohne Zuordnung fällt
+    heraus; (c) die Zugehörigkeit steht zusätzlich als Text – dieselbe Angabe zweimal.
+    """
+    src = _code(_read(DEAL_WORK))
+    money = _component(src, "Money")
+    assert "e.charge_id === id" in money and "e.reverses === id" in money, (
+        "Die Zeilen werden nicht mehr nach ihrer Rechnung gruppiert (a)."
+    )
+    assert "d.entries.map(" not in money, (
+        "Die Buchungen stehen wieder als flache Liste (a)."
+    )
+    assert "e.charge_id == null" in money and "Nicht zugeordnet" in money, (
+        "Eine Zahlung ohne Rechnung fällt aus der Ansicht (b) – geraten wird nichts, "
+        "gezeigt schon."
+    )
+    assert "auf {chargeRef" not in src and "function chargeRef" not in src, (
+        "Die Zugehörigkeit steht zusätzlich als Text (c) – die Einrückung sagt es, und "
+        "in einer engen Zeile kostet die zweite Angabe den Platz des Datums."
+    )
+
+
+def test_a_transfer_is_information_with_a_code_and_a_reason():
+    """►►► **Überweisen ist die dritte Bezahlart — und eine AUSKUNFT** (#865). ◄◄◄
+
+    *«Barzahlung, Zahlung per Karte und Zahlung via Banküberweisung»* – bar wird
+    **erfasst**, die Karte wird **ausgeführt**, und die Überweisung löst der Zahlende
+    selbst aus. Was er dafür braucht, sind Angaben: Bankverbindung, Referenz und – wo er
+    gilt – der QR-Code.
+
+    **Erzeugt wird er im Backend**: die Nutzlast ist eine Liste von einunddreissig Zeilen
+    in fester Reihenfolge, und eine zweite Fassung im Browser wäre die Stelle, an der beim
+    nächsten Feld eine Zeile verrutscht – das sieht man einem QR nicht an.
+
+    Bug-Formen: (a) der Code wird im Browser gebaut; (b) der Grund fehlt, wo es keinen
+    geben kann; (c) der Knopf steht überall statt nur dort, wo uns das Geld zusteht.
+    """
+    src = _code(_read(DEAL_WORK))
+    panel = _component(src, "Transfer")
+    assert "api.dealTransfer" in panel, "Die Auskunft kommt nicht vom Server (a)."
+    for own in ("segno", "SPC", "qrcode", "toDataURL"):
+        assert own not in _code(_read(DEAL_WORK)), (
+            f"«{own}»: der Code wird im Browser gebaut (a)."
+        )
+    # **Gefragt wird das Tor, nicht das Vorkommen**: `info.problem` steht zweimal da –
+    # als Bedingung und als Text. Ein blosses «kommt vor» wäre schon vom Text erfüllt.
+    assert "{info.problem && (" in panel, (
+        "Wo es keinen Code geben kann, steht kein Grund (b) – eine leere Fläche sagt "
+        "nicht, ob sie fehlt oder lädt."
+    )
+    assert "e.transferable" in _body(src, "EntryRow", kind="function"), (
+        "Der Knopf hängt nicht an der Angabe des Servers (c) – ein `if direction ===` "
+        "wäre die erste Zeile, die beim nächsten Fall falsch liegt."
+    )
+
+
+def test_the_share_is_the_counterpart_of_one_invoice_per_module():
+    """►►► **Der Anteil steht im Angebot, und er ist gebunden wie die Währung** (#866).
+
+    Anzahlung und Restzahlung sind **zwei Module**, und beide sehen dieselben Stücke.
+    Ohne Anteil sagte jedes die volle Summe zu. Er gehört darum dorthin, wo man das
+    Angebot schreibt – und ab der Zusage ist er gebunden, weil draussen eine Zusage über
+    *diese* Zahl liegt.
+
+    Bug-Formen: (a) er hängt an der Stufe statt an der Antwort des Servers; (b) das
+    gesperrte Feld bleibt ein Eingabefeld – ein gesperrtes Feld ist keine Lese-Anzeige
+    (#749); (c) er wird bei jeder Taste gesendet.
+    """
+    src = _code(_read(DEAL_WORK))
+    share = _component(src, "Share")
+    assert "may(d, active, 'share')" in share and "d.stage" not in share, (
+        "Der Anteil fragt die Stufe oder ein eigenes Feld (a) – dann ist es die zweite "
+        "Regel neben `can`, und eine Gegenpartei bekommt ein Eingabefeld für eine Zahl, "
+        "die der Dienst ihr nie abnimmt (gemessen)."
+    )
+    assert "<Fixed" in share, (
+        "Der gebundene Anteil steht als gesperrtes Eingabefeld da (b) – was feststeht, "
+        "steht als Wert da."
+    )
+    assert "onBlur={send}" in share and "onChange={(e) => setValue(" in share, (
+        "Der Anteil geht bei jeder Taste hinaus (c) – wer «33» tippen will, muss die «3» "
+        "schreiben dürfen."
+    )
+    assert "<Share" in _component(src, "Offer"), (
+        "Der Anteil steht nicht im Angebot – entschieden wird er dort, wo man den Preis "
+        "nennt."
     )
