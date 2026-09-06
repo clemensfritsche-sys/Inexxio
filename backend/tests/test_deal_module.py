@@ -2865,3 +2865,47 @@ def test_a_transfer_is_information_not_a_booking():
         assert qrbill.problem(iban=iban, currency=code, amount=Decimal("10")), (
             f"«{why}» liefert trotzdem einen Code (c)."
         )
+
+
+def test_a_refund_is_bounded_and_says_so_in_a_sentence():
+    """►►► **Erstattet wird über null und höchstens, was gezahlt wurde** (#860). ◄◄◄
+
+    Der Betrag ist **optional** – ohne Angabe die ganze Zahlung; eine Teilerstattung ist
+    dieselbe Handlung mit einer kleineren Zahl, kein zweites Verb.
+
+    **Und aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest
+    ein Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser*
+    Währung. Ein blosses ``Decimal(...)`` daneben wäre eine zweite Lesart – und bei einem
+    unlesbaren Wert eine Ablehnung **ohne Erklärung**: an der Tür ein 500 statt eines
+    Satzes (dieselbe Falle wie damals bei ``assert_vat``).
+
+    Bug-Formen: (a) ein unlesbarer Wert zerbricht in der Tiefe; (b) null oder ein
+    negativer Betrag geht durch; (c) mehr als gezahlt geht durch; (d) ein Komma wird als
+    Fehler gelesen.
+    """
+    from decimal import Decimal
+    from unittest.mock import MagicMock, patch
+    from fastapi import HTTPException
+    from app.models import Deal, DealEntry
+    from app.services import stripe_pay
+
+    deal = Deal(id=1, currency="CHF")
+    entry = DealEntry(id=9, kind="payment", amount=Decimal("100.00"), method="card",
+                      reference="pi_test")
+    api = MagicMock()
+    with patch.object(stripe_pay, "_api", return_value=api), \
+         patch.object(stripe_pay.deal_svc, "card_payment", return_value=entry):
+        for bad, why in (("acht Franken", "a"), ("-5", "b"), ("0", "b"), ("500", "c")):
+            with pytest.raises(HTTPException) as e:
+                stripe_pay.refund(None, deal=deal, entry_id=9, amount=bad)
+            assert e.value.status_code == 400, f"«{bad}» ({why}) – kein Satz, ein Fehler."
+            assert str(e.value.detail).strip(), f"«{bad}» ({why}) – Ablehnung ohne Grund."
+        # **Die gültigen Wege** – ohne Angabe alles, mit Angabe ein Teil, Komma inklusive.
+        for value, minor in ((None, 10000), ("40", 4000), ("40,50", 4050)):
+            api.reset_mock()
+            stripe_pay.refund(None, deal=deal, entry_id=9, amount=value)
+            kw = api.Refund.create.call_args.kwargs
+            assert kw["amount"] == minor, f"«{value}» (d): {kw['amount']} statt {minor}."
+            # **Die Referenz IST die Zahlungsabsicht** – der Dienst findet die Belastung
+            # selbst, und wir brauchen dafür keine ``stripe_*``-Spalte.
+            assert kw["payment_intent"] == "pi_test"

@@ -230,13 +230,24 @@ def refund(db: Session, *, deal: Deal, entry_id: Optional[int],
     stripe = _api()
     entry = deal_svc.card_payment(db, deal, entry_id)
     code = cur.assert_code(deal.currency)
-    back = cur.round_to(Decimal(str(amount)), code) if amount not in (None, "") \
-        else entry.amount
+    # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest ein
+    # Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser* Währung.
+    # Ein blosses ``Decimal(...)`` daneben wäre eine zweite Lesart – und bei einem
+    # unlesbaren Wert eine Ablehnung ohne Erklärung: an der Tür ein 500 statt eines Satzes.
+    try:
+        # ``allow_negative`` steht hier bewusst offen: die **Grenzen** nennt der Satz
+        # darunter, und er nennt beide. Ohne ihn käme bei «−5» die Erklärung einer
+        # *Zusage* zurück («die Richtung sagt, wohin das Geld fliesst») – richtig für ein
+        # Angebot, an einer Erstattung eine Antwort auf eine andere Frage.
+        named = dm.amount(amount, code, allow_negative=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    back = entry.amount if named is None else named
     if not Decimal("0") < back <= entry.amount:
         raise HTTPException(
             status_code=400,
-            detail=(f"Erstattet werden kann höchstens, was gezahlt wurde – "
-                    f"{cur.money(entry.amount, code)} {code}."),
+            detail=(f"Eine Erstattung liegt über null und höchstens bei dem, was gezahlt "
+                    f"wurde – {cur.money(entry.amount, code)} {code}."),
         )
     # **Die Referenz IST die Zahlungsabsicht** (``pi_…``): sie steht in derselben Spalte,
     # in der bei einer Überweisung der Zahlungszweck steht – ein Feld, zwei Wege, keine
