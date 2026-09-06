@@ -11,6 +11,7 @@ import {
   BEND, FLOW_GAP, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
 import { UnitNumber } from './unit-number';
+import { MODULE_CARD, MODULE_TITLE } from './module-ui';
 import {
   statusCfg, isPickable, IM_PROZESS, START_AFTER, START_BEFORE, END_BEFORE, statusLabel,
 } from '@/lib/process-status';
@@ -1042,15 +1043,25 @@ interface DragProps {
  * (`overflow: hidden`): das **schneidet die Blase weg**, denn sie ist ein `::after` dieses
  * Elements.
  */
-export function ModuleMark({ icon: Icon, tone, size = 32 }: {
-  icon: LucideIcon; tone: string; size?: number;
+export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)', size = 34 }: {
+  icon: LucideIcon; tone: string;
+  /**
+   * ►►► **Die Fläche unter dem Symbol.** ◄◄◄
+   *
+   * Sie war fest weiss – richtig, solange die Karte selbst **getönt** war: das Symbol sass
+   * als heller Ausschnitt darin. Seit die Karte weiss ist (`module-ui.MODULE_CARD`), wäre
+   * weiss auf weiss gar keine Marke mehr, und die Modulfarbe hätte im Bild keinen Ort.
+   * Sie sitzt jetzt hier – **die einzige Fläche, die ein Modul färbt**.
+   */
+  bg?: string;
+  size?: number;
 }) {
   return (
     <span
-      className="flex items-center justify-center rounded-md flex-none"
-      style={{ width: size, height: size, background: 'var(--bg-1)', color: tone }}
+      className="flex items-center justify-center rounded-ds-sm flex-none"
+      style={{ width: size, height: size, background: bg, color: tone }}
     >
-      <Icon size={Math.round(size * 0.53)} />
+      <Icon size={Math.round(size * 0.5)} />
     </span>
   );
 }
@@ -1108,14 +1119,25 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
   children?: ReactNode;
 }) {
   return (
+    // ►►► **Die Karte ist weiss — wie jeder Datensatz im Haus.** ◄◄◄
+    //
+    // Sie war getönt: Rahmen **und** Fläche in der Modulfarbe. Bei fünf Modulen
+    // untereinander standen damit fünf farbige Blöcke in der Spalte, und die ERP-Regel
+    // des Hauses lautet **Struktur vor Fläche** – Haarlinien und Weissraum, kein
+    // Farbfeld. Die Vorlage ist die Detail-Ansicht eines Artikels (`fields.SPEC.card`):
+    // dieselbe Fläche, derselbe Radius, derselbe leise Schatten.
+    //
+    // **Die Modulfarbe verschwindet dabei nicht, sie bekommt ihren Ort**: die Marke.
+    // Dort benennt sie das Modul, statt es zu übertönen – und der Rahmen nimmt sie
+    // weiterhin auf, wenn das Modul **dran** ist. Das ist die einzige Stelle, an der die
+    // Karte selbst Farbe trägt, und sie sagt damit genau eine Sache.
     <div className="rounded-ds-lg" {...body}
       style={{
-        border: `1px solid ${active ? tone.fg : tone.border}`,
-        background: tone.bg,
-        padding: '11px 14px',
+        ...MODULE_CARD,
+        borderColor: active ? tone.fg : 'var(--border-1)',
         ...(body?.style ?? {}),
       }}>
-      <div className="flex items-center gap-2.5"
+      <div className="flex items-center gap-3"
         // Fokussierbar, damit die Blase auch **ohne Hover** erscheint – auf dem
         // Touchgerät per Tipp, an der Tastatur per Tab. Wo der Kopf ohnehin aufklappt,
         // ist er längst fokussierbar; `head` steht darum danach und gewinnt.
@@ -1123,13 +1145,14 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
         {...(history ? { 'data-tip': history, 'data-tip-list': '' } : {})}
         {...head}>
         {lead}
-        <ModuleMark icon={icon} tone={tone.fg} />
-        <span className="text-sm font-semibold flex-1 min-w-0 truncate"
-          style={{ color: tone.fg }}>{label}</span>
+        <ModuleMark icon={icon} tone={tone.fg} bg={tone.bg} />
+        {/* **Der Name trägt die Display-Schrift des Hauses**, nicht die Modulfarbe: ein
+            Titel in einer Tönung liest sich als Zustand, und der steht woanders. */}
+        <span className="flex-1 min-w-0 truncate" style={MODULE_TITLE}>{label}</span>
         {trail}
       </div>
       {children && (
-        <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-1)' }}>
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-1)' }}>
           {children}
         </div>
       )}

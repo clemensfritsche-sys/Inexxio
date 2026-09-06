@@ -38,6 +38,20 @@ def _code(source: str) -> str:
     )
 
 
+def _at(source: str, head: str) -> int:
+    """Die Stelle, an der **genau dieser** Name steht — nicht der, der so anfaengt.
+
+    ``source.index("function Money")`` trifft auch ``function MoneyBar``: der Waechter
+    laese danach den Rumpf eines **anderen** Bauteils und schlueg aus einem Grund fehl,
+    der nichts mit ihm zu tun hat (gemessen, als neben ``Money`` eine ``MoneyBar``
+    entstand). Dieselbe Stumpfheit wie damals beim Teilen am ersten Vorkommen eines
+    Namens — nur eine Ebene frueher.
+    """
+    m = re.search(re.escape(head) + r"(?![A-Za-z0-9_$])", source)
+    assert m is not None, f"«{head}» steht nicht in der Datei."
+    return m.start()
+
+
 def _body(source: str, name: str, *, kind: str = "def") -> str:
     """Der Rumpf genau einer Funktion/Klasse – ohne die nächste mitzunehmen.
 
@@ -45,7 +59,7 @@ def _body(source: str, name: str, *, kind: str = "def") -> str:
     gemeint waren; der Test schlüge aus einem Grund fehl, der nichts mit ihm zu tun hat.
     """
     head = f"{kind} {name}"
-    start = source.index(head)
+    start = _at(source, head)
     rest = source[start + len(head):]
     # Python endet beim nächsten Top-Level-Konstrukt, TypeScript beim nächsten
     # ``export``/``function``. Dieselbe Absicht, zwei Sprachen – die Alternative wäre ein
@@ -71,7 +85,7 @@ def _component(source: str, name: str) -> str:
 
     Hier endet der Rumpf darum erst am nächsten Konstrukt **auf Spalte 0**.
     """
-    start = source.index(f"function {name}")
+    start = _at(source, f"function {name}")
     rest = source[start + len(f"function {name}"):]
     end = re.search(r"\n(?:export |function |interface |const |type |/\*\*)", rest)
     return rest[: end.start()] if end else rest
@@ -4922,18 +4936,28 @@ def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
     zweiten Weg.
     """
     src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
-    card = _component(src, "DealWork")
-    # Die beiden **Stufen** kennen kein Geld-Verb: sie sagen, was zugesagt ist.
-    stages = card[card.index("<Row label={d.stages[0]"):card.index("<Row last")]
-    for word in ("'charge'", "'pay'", "next_charge", "next_payment"):
-        assert word not in stages, (
-            f"{word} steht in einer Stufe – dann hängt Geld an einer Stufe, und die "
-            f"Reihenfolge Ware → Forderung → Geld ist eine Regel geworden (die "
-            f"Vorauszahlung bräuchte dann einen zweiten Weg)."
-        )
-    money_block = _body(src, "Money", kind="function")
+    # **Gefragt wird nach der REGEL, nicht nach der Form der alten Lösung.** Sie schnitt
+    # den Rumpf zwischen zwei wörtlichen `<Row …>`-Zeilen auf – die Kette aus Punkt und
+    # Linie, die es seit der Stufen-Leiste nicht mehr gibt. Ein Wächter, der eine
+    # bestimmte Zeile verlangt, verbietet die bessere Fassung.
+    for stage in ("Offer", "Agreed"):
+        block = _code(_body(src, stage, kind="function"))
+        for word in ("'charge'", "'pay'", "next_charge", "next_payment"):
+            assert word not in block, (
+                f"{word} steht in der Stufe «{stage}» – dann hängt Geld an einer Stufe, "
+                f"und die Reihenfolge Ware → Forderung → Geld ist eine Regel geworden "
+                f"(die Vorauszahlung bräuchte dann einen zweiten Weg)."
+            )
+    money_block = _code(_body(src, "Money", kind="function"))
     for word in ("'charge'", "'pay'"):
         assert word in money_block, f"{word} fehlt neben den Stufen."
+    # **Und das Geld ist kein Stufen-Schlüssel**: die Karte schaltet zwischen drei
+    # Abschnitten um, aber nur zwei davon sind Stufen (`DEAL_STAGE`).
+    keys = _body(src, "MONEY", kind="const")
+    assert "DEAL_STAGE" not in keys, (
+        "Der Geld-Abschnitt ist ein Stufen-Schlüssel geworden – dann ist er die vierte "
+        "Stufe, und «Abgeschlossen» war genau dieses Missverständnis (#829)."
+    )
 
 
 def test_the_runtime_choice_is_one_sentence_in_one_place():
@@ -5033,24 +5057,36 @@ def test_the_stock_bar_names_its_states_and_is_the_control():
         "Der Grund dieses Wächters ist entfallen: jeder Zustand hätte jetzt seinen "
         "eigenen Ton. Dann prüfe, ob die Beschriftung noch nötig ist."
     )
-    bar = _read(FRONTEND / "components" / "erp" / "stock-bar.tsx")
-    code = _code(bar)
-    # **Gefragt wird nach dem GERENDERTEN Wort, nicht nach seinem Vorkommen.** Die erste
-    # Fassung prüfte `"cfg.label" in code` – und war damit schon durch den Hover-Text
-    # erfüllt (`${s.quantity} × ${cfg.label}`), den es vorher auch gab. Sie liess also
-    # genau den Zustand durch, den sie verhindern soll: eine Leiste, die ihre Zustände
-    # nur im Hover nennt. Gemessen, nachgeschärft, erneut gegengeprüft.
-    mark = _body(bar, "StateMark", kind="function")
-    assert ">{cfg.label}</span>" in _code(mark).replace("\n", "").replace("  ", ""), (
+    bar = _code(_read(FRONTEND / "components" / "erp" / "stock-bar.tsx"))
+    # **Gefragt wird nach dem GERENDERTEN Wort, nicht nach seinem Vorkommen.** Eine
+    # frühere Fassung prüfte `"cfg.label" in code` – und war damit schon durch den
+    # Hover-Text erfüllt (`${s.quantity} × ${cfg.label}`), den es vorher auch gab. Sie
+    # liess also genau den Zustand durch, den sie verhindern soll: eine Leiste, die ihre
+    # Zustände nur im Hover nennt. Gemessen, nachgeschärft, erneut gegengeprüft.
+    #
+    # **Gerendert wird sie inzwischen eine Ebene tiefer** (`module-ui.SegmentMark`): die
+    # Frage «wie teilt sich ein Ganzes auf, und welchen Teil sehe ich mir an» ist nicht
+    # die des Bestands, und die Leiste steht darum einmal für alle. Der Wächter folgt
+    # ihr – die **Regel** ist dieselbe geblieben, nur ihre Adresse hat gewechselt.
+    kit = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    mark = _body(kit, "SegmentMark", kind="function")
+    assert ">{seg.label}</span>" in mark, (
         "Die Leiste schreibt ihre Zustände nicht hin – bei drei Tönen auf sechs Zustände "
         "ist die Farbe allein keine Auskunft, und ein Hover ist keine Anzeige (#789)."
     )
-    assert ">{state.quantity}</span>" in mark, (
-        "Die Leiste nennt die Menge je Zustand nicht (#789)."
+    assert ">{seg.text}</span>" in mark, (
+        "Die Leiste nennt die Menge je Segment nicht (#789)."
     )
-    assert "aria-pressed={active}" in code, (
+    assert "aria-pressed={open}" in mark, (
         "Die Beschriftung ist kein Bedienelement – dann ist sie eine Legende, und die "
         "Sektionen darunter kommen zurück."
+    )
+    # **Und der Bestand füllt beides auch wirklich.** Ohne diese Hälfte wäre die Leiste
+    # oben in Ordnung und hier trotzdem stumm: eine Ausprägung, die weder Wort noch
+    # Menge mitgibt, rendert nichts – und der Wächter sähe es nicht.
+    assert "label: cfg.label" in bar and "text: String(s.quantity)" in bar, (
+        "Der Bestand gibt Wort bzw. Menge nicht an die Leiste weiter – dann steht sie "
+        "leer da, obwohl sie beides zeigen könnte (#789)."
     )
     view = _read(FRONTEND / "components" / "erp" / "stock-view.tsx")
     vcode = _code(view)
@@ -5231,7 +5267,7 @@ def test_the_direction_is_a_symbol_not_a_permanent_word():
     dann sagt die Karte gar nicht mehr, in welche Richtung das Geld fliesst.
     """
     head = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                 "Head", kind="function")
+                 "Meta", kind="function")
     assert "{dir.label}" not in head and "dir.label}" not in head, (
         "Die Richtung steht wieder als Dauertext im Kopf (#797) – das Symbol daneben "
         "sagt dieselbe Sache."
@@ -5522,16 +5558,23 @@ def test_the_stage_label_sits_on_the_height_of_its_dot():
     Wort auf der Grundlinie seiner Zeile. Zwei Ränder, die sich zufällig treffen müssen,
     treffen sich beim ersten anderen Schriftgrad nicht mehr.
 
+    *Gemessen wurde die Regel damals an der Stufen-Kette des Geldvorgangs (`Row`, zwei
+    gleiche Höhen nebeneinander). Die Kette gibt es nicht mehr – Punkt und Wort stehen
+    heute in `module-ui.SegmentMark`, dem einen Bauteil, mit dem das Haus **jeden**
+    Anteil schreibt. Der Wächter folgt der Regel, nicht ihrer damaligen Form: eine
+    gemeinsame Zeile ist jetzt ein `flex`-Container, und das ist die einfachere Antwort
+    auf dieselbe Frage.*
+
     Bug-Form: die Ausrichtung hängt wieder an einem Abstand statt an einer gemeinsamen
-    Höhe.
+    Zeile.
     """
-    row = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                "Row", kind="function")
-    assert row.count("height: HEAD_H") >= 2, (
-        "Punkt und Beschriftung teilen keine gemeinsame Zeilenhöhe mehr – dann ist ihre "
-        "Ausrichtung wieder Zufall (#798)."
+    mark = _body(_code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx")),
+                 "SegmentMark", kind="function")
+    assert mark.count("flex items-center") >= 2, (
+        "Punkt und Beschriftung stehen nicht mehr in einer gemeinsamen, mittig "
+        "ausgerichteten Zeile – dann ist ihre Ausrichtung wieder Zufall (#798)."
     )
-    assert "marginTop" not in row, (
+    assert "marginTop" not in mark and "marginBottom" not in mark, (
         "Die Ausrichtung hängt wieder an einem Abstand – genau die Form, die beim "
         "nächsten Schriftgrad auseinanderfällt."
     )
@@ -6381,9 +6424,11 @@ def test_the_finish_button_is_absent_not_explained_away():
     assert "!(d.prepaid && !d.settled)" in flat, (
         "Der Abschluss-Knopf steht auch dann da, wenn die Sperre greift (b)."
     )
-    # **Die Sperre selbst bleibt sichtbar** – im Kopf, als Eigenschaft dieses Moduls.
+    # **Die Sperre selbst bleibt sichtbar** – in der Meta-Zeile, als Eigenschaft dieses
+    # Moduls. *Sie hiess einmal `Head`; seit der Kopf der Karte dem geteilten Rahmen
+    # gehört (`ModuleShell`), trägt sie nur noch, was über den ganzen Vorgang gilt.*
     head = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                            "Head"))
+                            "Meta"))
     assert "d.prepaid" in head, (
         "Nichts sagt mehr, warum es nicht weitergeht – der Knopf fehlt kommentarlos."
     )
@@ -6547,8 +6592,8 @@ def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
         "Der gebundene Zustand rendert nichts (c) – dann sagt die Karte nicht mehr, "
         "worin sie lautet. Sie verschwindet nicht, sie wird zur Auskunft."
     )
-    # **Im Kopf, und nur dort** – nicht an jeder Zahl.
-    head = _component(src, "Head")
+    # **In der Meta-Zeile, und nur dort** – nicht an jeder Zahl.
+    head = _component(src, "Meta")
     assert "<Currency" in head, "Die Währung steht nicht im Kopf des Vorgangs."
     assert src.count("<Currency") == 1, (
         "Die Währung steht an mehr als einer Stelle – dann ist sie eine Spalte geworden."

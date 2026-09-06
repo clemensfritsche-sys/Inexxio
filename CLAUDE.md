@@ -2563,6 +2563,74 @@
 > 320 px, **0 px** waagrechter Überlauf – und die Messung gegen ihre eigene Bug-Form
 > gegengeprüft (unteilbares Wort im Segment: +140 px bei 375, +195 px bei 320).
 
+> ►►► **Ein Modul sieht aus wie ein DATENSATZ — und die Bauteile dafür stehen einmal**
+> (`components/erp/module-ui.tsx`). ◄◄◄
+> Das Zahlungsmodul ist das **erste**, dessen Oberfläche im Design-System des Hauses
+> gebaut ist; alle weiteren folgen. Damit sie es nicht ein zweites Mal erfinden, ist
+> nichts davon im Modul gelandet: `MODULE_CARD` · `MODULE_TITLE` · `ModuleSection` ·
+> `ModuleMeta` · `ValueBar` · `ModuleSteps` · `ACT_H` · `MODULE_GRID` stehen als
+> **Bauteile** daneben, und die Karte selbst setzt `ModuleShell` – also erbt sie **jedes**
+> Modul, ohne eine Zeile dafür zu schreiben. **Es ist kein neues Design-System**: jede
+> Zahl kommt aus `styles/design-system/colors_and_type.css`, jede Regel steht in
+> `docs/design-system/README.md`; neu ist allein, dass sie **einmal** angewendet sind
+> statt an jeder Aufrufstelle mit leicht anderen Werten (die Lehre aus `MICRO_LABEL`).
+> **Die Karte ist weiss – wie jeder Datensatz.** Sie war getönt, Rahmen **und** Fläche in
+> der Modulfarbe: bei fünf Modulen untereinander standen fünf farbige Blöcke in der
+> Spalte, und die ERP-Regel des Hauses lautet **Struktur vor Fläche**. Die Vorlage ist die
+> Detail-Ansicht eines Artikels (`fields.SPEC.card`) – dieselbe Fläche, derselbe Radius,
+> derselbe leise Schatten. **Die Modulfarbe verschwindet dabei nicht, sie bekommt ihren
+> Ort**: die 34-px-Marke, wo sie das Modul *benennt* statt es zu übertönen, und der
+> Rahmen, wenn das Modul **dran** ist. Das ist die einzige Stelle, an der die Karte Farbe
+> trägt, und sie sagt damit genau eine Sache.
+> ►►► **Man wechselt zwischen den Schritten – oder sieht alles auf einmal.** ◄◄◄ Gemeldet
+> war genau das: *«es gibt diese drei Schritte … aber ich muss irgendwie zwischen den
+> Schritten hin- und herwechseln können oder alles auf einen Blick sehen.»* Die frühere
+> Kette aus Punkt und Linie sagte den Verlauf und **liess ihn nicht bedienen** – alle drei
+> standen immer offen untereinander, bei vier Buchungen war die Karte zwei Bildschirme
+> hoch. Die Antwort ist **EIN Zustand, kein zweiter Mechanismus**: er trägt den Schlüssel
+> eines Schritts **oder** `ALL_STEPS`. Vorgewählt ist, **wo gearbeitet wird** (vor der
+> Zusage das Angebot, danach das Geld); nachgezogen wird beim **Wechsel**, nicht bei jedem
+> Rendern, also bleibt dort, wer selbst umschaltet.
+> **Und es ist die Leiste des BESTANDS** (`ValueBar`, `StockBar` ist seither ihre
+> Ausprägung): «wie teilt sich ein Ganzes auf, und welchen Teil sehe ich mir an» ist nicht
+> die Frage des Bestands – die Stufen eines Moduls und die Aufteilung *bezahlt · offen ·
+> nicht berechnet* stellen sie ebenso. Ein neues Modul mit Schritten bekommt die Zeile
+> geschenkt. **`dim` unterscheidet die beiden Fälle**: beim Bestand treten die anderen
+> zurück (das ersetzt einen Filter), bei den Stufen nicht – dort trägt die **Farbe** den
+> Fortschritt, und gedämpft sehen «vorbei» und «steht noch aus» gleich aus (gemessen: die
+> halbe Leiste war dasselbe Blassgrau, *wie weit bin ich* war nicht mehr abzulesen).
+> **Ein Kopf, der nichts Neues sagt, ist Fläche**: steht genau ein Schritt offen, nennt ihn
+> die Leiste eine Zeile höher – fett, dunkler, unterstrichen –, also trägt der Abschnitt
+> darunter **keine** Überschrift. Erst bei «Alles» braucht es sie als Trennung.
+> **Drei Funde beim Messen, keiner beim Lesen.** (1) Im **echten** Kartenrahmen lief die
+> Positionszeile bei 320 px um **+17 px** über: Menge, Name, Nummer und Chevron standen als
+> vier Geschwister neben dem 164 px breiten, unteilbaren Preisblock, drei davon
+> `flex: none` – schrumpfen konnte allein der Name. Als **eine** Gruppe mit
+> `flex: 1 1 NAME_MIN` geht es auf, und der Umbruch entscheidet an der Breite der **Karte**
+> statt an der des Fensters; ein `flex-wrap` allein war der erste Versuch und war falsch
+> (es entscheidet an der *Inhalts*breite – der Preis stand damit auch bei 1440 px auf einer
+> eigenen Zeile), eine Medienabfrage wäre es ebenso gewesen: die Karte ist auch auf einem
+> grossen Schirm rund 460 px breit. Ohne die Untergrenze lief die Zeile zwar nicht über,
+> **nannte die Sache aber nicht mehr** (Name bei 320 px auf 0 px, #853).
+> (2) Ein **stornierter** Vorgang zeichnete die Zusage-Stufe als «steht noch aus» – man
+> kann nur **ab** der Zusage stornieren (`ACTIONS`), also war sie erreicht; *«die gegangenen
+> Stufen bleiben stehen»* steht wörtlich in `_revoke`. (3) Die Modulfarbe im Messstand war
+> **rot** – der Messstand reichte einen Modul*typ* an `moduleTone`, das einen Ton*namen*
+> erwartet: der Rückfall «Unbekanntes sieht kaputt aus» hat funktioniert, wie er soll.
+> **Sechs Wächter mussten mitziehen**, und drei davon prüften die **Form** der alten
+> Lösung statt der Regel (ein wörtliches `<Row label={d.stages[0]`, `function Row`,
+> `function StateMark`) – sie hätten damit die bessere Fassung verboten. Sie fragen jetzt:
+> stehen Geld-Verben in einer Stufe? · teilen Punkt und Wort eine Zeile? · nennt die Leiste
+> ihre Segmente im **gerenderten** Text? Drei weitere folgten einer Umbenennung
+> (`Head` → `Meta`: der Kopf der Karte gehört seit `ModuleShell` dem Rahmen, die Zeile
+> trägt nur noch, was über den ganzen Vorgang gilt).
+> **Gemessen, nicht behauptet:** 12 Bug-Formen gegengeprüft, jede meldet; Suite grün gegen
+> ein Schema nur aus den Migrationen (517). In Chromium an den **echten** Komponenten
+> (Karte **im** `ModuleShell`, nicht nachgestellt): 1440 · 1280 · 1024 · 834 · 375 · 320 px,
+> **0 px** waagrechter Überlauf über sechs Zustände – im gewählten Schritt **und** bei
+> «Alles» –, und die Messung gegen ihre eigene Bug-Form gegengeprüft (+87 px bei 375,
+> +142 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

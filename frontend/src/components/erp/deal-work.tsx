@@ -14,6 +14,10 @@ import {
   Label, MICRO_LABEL, TermField, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
+  ACT_H, ALL_STEPS, ModuleMeta, ModuleSection, ModuleSteps, ValueBar,
+  type BarSegment, type ModuleStep,
+} from '@/components/erp/module-ui';
+import {
   DEAL_PARTY, DEAL_STAGE, DEAL_TASK, QUOTE_STATE, dealDirection,
 } from '@/lib/modules';
 import { formatAmount, localDate } from '@/lib/utils';
@@ -166,21 +170,76 @@ export function DealWork({
   const cancelled = d.stage === DEAL_STAGE.cancelled;
   const agreed = d.stage !== DEAL_STAGE.offer;
 
+  // ►►► **Zwischen den Schritten wechseln — oder alles auf einen Blick.** ◄◄◄
+  //
+  // Gemeldet: *«es gibt diese drei Schritte … aber ich muss irgendwie zwischen den
+  // Schritten hin- und herwechseln können oder alles auf einen Blick sehen.»*
+  //
+  // Die Antwort ist **ein** Zustand, kein zweiter Mechanismus: er trägt entweder den
+  // Schlüssel einer Stufe oder `ALL_STEPS`. Wer arbeitet, sieht eine Stufe; wer
+  // vergleicht, klappt alles auf.
+  //
+  // **Vorgewählt ist, wo gearbeitet wird**: vor der Zusage das Angebot, danach das Geld –
+  // der bestätigte Auftrag ist ein Beleg, an dem man nichts tut. Nachgezogen wird beim
+  // **Wechsel** des Zustands, nicht bei jedem Rendern: wer selbst umschaltet, bleibt dort
+  // (dieselbe Bauart wie `defaultOpen` an der Modul-Karte, #727).
+  const [open, setOpen] = useState<string>(agreed ? MONEY : OFFER);
+  useEffect(() => { setOpen(agreed ? MONEY : OFFER); }, [agreed]);
+  const shows = (key: string) => open === ALL_STEPS || open === key;
+  // **Eine Überschrift braucht es nur, wenn mehrere Abschnitte untereinander stehen.**
+  // Ist genau einer offen, steht sein Name eine Zeile höher in der Leiste – fett,
+  // dunkler, unterstrichen. Ihn darunter als Versalien-Zeile zu wiederholen sagt dasselbe
+  // Wort ein zweites Mal, sechzig Pixel tiefer.
+  const headed = (label?: string | null) =>
+    (open === ALL_STEPS ? label ?? '' : undefined);
+  // Ohne Überschrift braucht der Abschnitt auch ihren Abstand nicht: die Leiste darüber
+  // bringt ihre eigene Luft mit, und zweimal Luft ist ein Loch.
+  const alone = open !== ALL_STEPS;
+
+  const steps: ModuleStep[] = [
+    {
+      key: OFFER, label: d.stages[0]?.label ?? '',
+      state: agreed ? 'past' : 'active',
+      value: d.quotes.length ? String(d.quotes.length) : '',
+      hint: 'Wer angefragt ist – und was er nennt',
+    },
+    {
+      // ►►► **Ein Storno macht die Zusage nicht ungeschehen** ◄◄◄ – *«die gegangenen
+      // Stufen bleiben stehen»* (`services/deal._revoke`), dieselbe Regel wie «die Linie
+      // sagt die Vergangenheit» am Prozessbild (§8.1a). Storniert werden kann nur ab der
+      // Zusage (`ACTIONS`), ein stornierter Vorgang **war** also zugesagt – ihn als
+      // «steht noch aus» zu zeichnen behauptete, es sei nie dazu gekommen.
+      key: AGREED, label: d.stages[1]?.label ?? '',
+      state: agreed ? 'past' : 'ahead',
+      value: agreed ? formatAmount(d.amount, d.currency_decimals) : '',
+      hint: 'Was zugesagt ist – mit wem, zu welchem Preis, zu welchen Bedingungen',
+    },
+    {
+      key: MONEY, label: d.money_label,
+      state: d.settled && Number(d.charged ?? 0) ? 'past' : agreed && !cancelled ? 'active' : 'ahead',
+      value: moneyValue(d),
+      hint: 'Was berechnet und was bezahlt ist',
+    },
+  ];
+
   return (
     <div className="flex flex-col">
-      <Head d={d} busy={busy} active={active} onAction={onAction} />
+      <Meta d={d} busy={busy} active={active} onAction={onAction} />
       <Goods d={d} />
+      <ModuleSteps steps={steps} open={open} onOpen={setOpen} />
 
-      <Row label={d.stages[0]?.label ?? ''} done={!!d.stages[0]?.done}
-        active={!!d.stages[0]?.active && !cancelled}>
-        <Offer d={d} busy={busy} active={active && !!d.stages[0]?.active}
-          onAction={onAction} />
-      </Row>
+      {shows(OFFER) && (
+        <ModuleSection title={headed(d.stages[0]?.label)} first={alone}>
+          <Offer d={d} busy={busy} active={active && !!d.stages[0]?.active}
+            onAction={onAction} />
+        </ModuleSection>
+      )}
 
-      <Row label={d.stages[1]?.label ?? ''} done={agreed && !cancelled}
-        active={!!d.stages[1]?.active && !cancelled}>
-        {agreed && <Agreed d={d} />}
-      </Row>
+      {shows(AGREED) && agreed && (
+        <ModuleSection title={headed(d.stages[1]?.label)} first={alone}>
+          <Agreed d={d} />
+        </ModuleSection>
+      )}
 
       {/* **Das Geld – eine Zeile, keine Stufe.** Sie steht dort, wo man sie erwartet
           (dritte Position), und ist ab der Zusage bedienbar; die Kette darüber sagt
@@ -196,11 +255,12 @@ export function DealWork({
 
           Die beiden Stufen behalten `active`: dort ist es richtig – man verhandelt nicht
           an einem Modul, das nicht dran ist. */}
-      <Row last label={d.money_label} done={!!d.settled && !!Number(d.charged ?? 0)}
-        active={agreed && !cancelled}>
-        {agreed && <Money d={d} busy={busy} onAction={onAction}
-          orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />}
-      </Row>
+      {shows(MONEY) && agreed && (
+        <ModuleSection title={headed(d.money_label)} first={alone}>
+          <Money d={d} busy={busy} onAction={onAction}
+            orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
+        </ModuleSection>
+      )}
 
       {cancelled && (
         <div className="flex items-center gap-1.5 mt-1 text-[12.5px]"
@@ -236,34 +296,37 @@ export function DealWork({
 }
 
 /**
- * **Eine Zeile der Kette** – Punkt, Linie, Beschriftung, Inhalt.
+ * ►►► **Die drei Schritte — als Schlüssel, nicht als Wort.** ◄◄◄
  *
- * Dieselbe Regel wie die Hauptachse, eine Ebene tiefer: kräftige Linie bis zur offenen
- * Stelle, Haarlinie danach. Ein Bauteil statt dreimal derselbe Aufbau – sonst laufen die
- * drei Zeilen beim ersten Eingriff auseinander.
+ * Wie sie *heissen*, sagt der Server (`stages[].label`, `money_label`) – das hängt an der
+ * Richtung. Was diese Karte braucht, ist die **Identität**: welcher Abschnitt gerade
+ * offen ist. Deutsche Wörter als Zustandswert wären an einem Vorgang der anderen Richtung
+ * still falsch.
  *
- * ►►► **Die Beschriftung steht auf Höhe ihres Punktes** (Testnotiz #798). ◄◄◄
- *
- * Punkt und Wort standen beide mit einem geratenen `marginTop` da – der eine 3 px, das
- * andere auf der Grundlinie seiner Zeilenhöhe. Zwei Ränder, die sich zufällig treffen
- * müssen, treffen sich beim ersten anderen Schriftgrad nicht mehr. Jetzt teilen sie
- * **eine** Zeilenhöhe (`HEAD_H`) und werden darin zentriert: die Ausrichtung ist eine
- * Eigenschaft der Zeile, keine zweier Abstände.
- *
- * **Und die aktive Zeile ist die lauteste.** Wo man steht, sagt die Karte ohne ein Wort
- * mehr: gefüllter Punkt in der Akzentfarbe, Beschriftung in Versalien und kräftig. Die
- * übrigen bleiben Struktur – keine Fläche, keine zweite Farbe.
+ * *Die frühere Kette aus Punkt und Linie (`Row`, #798) ist damit entfallen: sie sagte den
+ * Verlauf und liess ihn nicht bedienen – alle drei Stufen standen immer offen
+ * untereinander, und bei vier Buchungen war die Karte zwei Bildschirme hoch. Was sie
+ * konnte, kann die Stufen-Leiste (`module-ui.ModuleSteps`), und die kann zusätzlich das,
+ * was gefehlt hat: wechseln.*
  */
-const HEAD_H = 18;
+const OFFER = DEAL_STAGE.offer;
+const AGREED = DEAL_STAGE.agreed;
+/** **Das Geld ist KEINE Stufe** – darum steht hier kein `DEAL_STAGE`-Wert (#829). */
+const MONEY = 'money';
 
 /**
- * **Alle Knöpfe einer Angebotszeile sind exakt gleich hoch** (#810).
+ * **Die eine Zahl der Geld-Stufe** – der offene Betrag, sobald es einen gibt.
  *
- * Zwei Knöpfe nebeneinander, die sich um einen Pixel unterscheiden, lesen sich als
- * Rangfolge – gemeint ist aber «entweder das oder das». Die Höhe steht darum an **einer**
- * Stelle; die Breite eines Symbol-Knopfes gibt `.erp-actbtn-icon` vor (32 px, quadratisch).
+ * Solange nichts gefordert und nichts bezahlt ist, steht dort **nichts**: `0.00` wäre
+ * eine Aussage über eine Forderung, die es nicht gibt (dieselbe Unterscheidung wie
+ * «Bezahlt» ↔ «Nichts berechnet»). Und der Betrag steht ohne Vorzeichen – ob wir schulden
+ * oder etwas offen ist, sagt die Leiste eine Ebene tiefer mit ihrem eigenen Wort.
  */
-const ACT_H = 30;
+function moneyValue(d: Filled): string {
+  if (d.open == null) return '';
+  if (!Number(d.charged ?? 0) && !Number(d.paid ?? 0)) return '';
+  return formatAmount(Math.abs(Number(d.open)), d.currency_decimals);
+}
 
 /**
  * ►►► **Wie lange nach einer Online-Zahlung nachgefragt wird** (Testnotiz #857). ◄◄◄
@@ -276,45 +339,6 @@ const ACT_H = 30;
  */
 const WAIT_TRIES = 10;
 const WAIT_STEP = 1500;
-
-function Row({ label, done, active, last, children }: {
-  label: string; done?: boolean; active?: boolean;
-  last?: boolean; children?: React.ReactNode;
-}) {
-  return (
-    <div className="flex gap-2.5">
-      <div className="flex flex-col items-center" style={{ width: 14, flex: 'none' }}>
-        {/* Der Punkt sitzt in einer Box der Zeilenhöhe und ist darin zentriert – genau
-            so wie die Beschriftung daneben. */}
-        <span className="flex items-center justify-center"
-          style={{ height: HEAD_H, flex: 'none' }}>
-          <span style={{
-            width: 10, height: 10, borderRadius: 999, display: 'block',
-            background: done ? 'var(--fg-2)' : active ? 'var(--accent)' : 'transparent',
-            border: done || active ? 'none' : '1px solid var(--border-2)',
-          }} />
-        </span>
-        {!last && (
-          <div style={{
-            flex: 1, width: done ? 2 : 1, minHeight: 10,
-            background: done ? 'var(--fg-2)' : 'var(--border-2)',
-          }} />
-        )}
-      </div>
-      <div className="flex-1 min-w-0" style={{ paddingBottom: last ? 0 : 14 }}>
-        <div className="flex items-center" style={{ height: HEAD_H }}>
-          <span style={{
-            font: `${active ? 800 : 600} ${active ? 11.5 : 12.5}px var(--font-body)`,
-            letterSpacing: active ? '.07em' : undefined,
-            textTransform: active ? 'uppercase' : undefined,
-            color: active ? 'var(--accent-ink)' : done ? 'var(--fg-2)' : 'var(--fg-4)',
-          }}>{label}</span>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /**
  * **In welche Richtung — als SYMBOL, nicht als Dauertext** (#797/#799).
@@ -371,28 +395,33 @@ function Currency({ d, busy, active, onAction }: {
   );
 }
 
-function Head({ d, busy, active, onAction }: {
+/**
+ * ►►► **Die Meta-Zeile — was über den ganzen Vorgang gilt.** ◄◄◄
+ *
+ * Richtung, Währung, Termin, Sperre: vier Angaben, die zu keinem der drei Schritte
+ * gehören, weil sie für alle gelten. Sie stehen darum **leise** in einer Zeile unter dem
+ * Kopf – nicht als getönte Marke.
+ *
+ * *Die Richtung war einmal ein Chip in `--accent-soft` (#815).* Das war richtig, solange
+ * die Karte selbst getönt war und der Kopf nur ein Symbol trug: der Chip war die einzige
+ * Marke weit und breit. Seit die Karte **weiss** ist und oben eine echte Marke plus
+ * Display-Titel steht, wäre er die zweite – zwei getönte Flächen übereinander, von denen
+ * die untere die kleinere Aussage trägt. Symbol und Wort bleiben, die Fläche geht.
+ */
+function Meta({ d, busy, active, onAction }: {
   d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
 }) {
   const dir = dealDirection(d.direction);
   const Icon = dir.icon;
   return (
-    <div className="flex items-center gap-2 flex-wrap"
-      style={{ marginBottom: 8, paddingBottom: 7, borderBottom: '1px solid var(--border-1)' }}>
-      {/* **Symbol UND Wort** – zusammen eine Marke, nicht ein Symbol allein auf einer
-          eigenen Zeile. Solange der Satz «Was ist daran zu tun?» daneben stand, trug die
-          Zeile Inhalt; ohne ihn (#805) blieb ein 28-px-Quadrat auf voller Breite übrig,
-          und genau das war die Meldung: «nimmt zu viel Platz ein und ist nicht prominent
-          genug» (#815). Ein Wort, das dort steht, kostet keinen Platz mehr – es füllt den,
-          der ohnehin verbraucht wird. */}
-      <span className="flex items-center gap-1.5 rounded-ds-sm" data-tip={dir.hint}
-        style={{
-          padding: '3px 8px 3px 6px', flex: 'none', cursor: 'help',
-          background: 'var(--accent-soft)', color: 'var(--accent-ink)',
-        }}>
-        <Icon size={16} />
+    <ModuleMeta>
+      {/* **Symbol UND Wort** – das Symbol zeigt, was man tut, das Wort benennt es; auf
+          15 px ist ein Symbol allein nicht zu unterscheiden (#799/#845). */}
+      <span className="flex items-center gap-1.5" data-tip={dir.hint}
+        style={{ flex: 'none', cursor: 'help', color: 'var(--fg-2)' }}>
+        <Icon size={13} />
         <span style={{
-          font: '800 11px var(--font-body)', textTransform: 'uppercase',
+          font: '700 11px var(--font-body)', textTransform: 'uppercase',
           letterSpacing: '.07em',
         }}>{d.label}</span>
       </span>
@@ -422,7 +451,7 @@ function Head({ d, busy, active, onAction }: {
           <Lock size={11} /> Erst zahlen
         </span>
       )}
-    </div>
+    </ModuleMeta>
   );
 }
 
@@ -437,35 +466,66 @@ function Head({ d, busy, active, onAction }: {
  * Sie steht **erst auf Klick**: im Normalfall interessiert die Zeile, nicht das
  * Datenblatt – und bei zwei Artikeln stünden sonst zwölf Werte über dem Angebot.
  */
+/**
+ * **Wie schmal eine Sache noch benannt werden darf** – Menge, ein paar Zeichen Name und
+ * die Objektnummer. Sie ist zugleich die Ausgangsbreite, an der der Umbruch entscheidet.
+ */
+const NAME_MIN = 190;
+
 function Goods({ d }: { d: Filled }) {
   const [open, setOpen] = useState<number | null>(null);
+  // **Ohne Positionen gibt es den Abschnitt nicht** – eine Überschrift über einer leeren
+  // Fläche ist eine Auskunft, die nichts sagt. Bei Miete, Lohn oder einer Gebühr steht
+  // hier nichts, und das ist richtig: die Sache ist der Vorgang selbst.
   if (!d.lines.length) return null;
   return (
-    <div className="flex flex-col" style={{ marginBottom: 10 }}>
+    <ModuleSection title="Positionen" first>
       {d.lines.map((line, i) => {
         const spec = line.spec ?? [];
         const key = line.article_id ?? -(i + 1);
         const shown = open === key;
         return (
           <div key={key} className="flex flex-col">
-            <button type="button" className="flex items-center gap-2 py-1 text-left"
+            {/* ►►► **Was die Sache benennt, schrumpft ALS EINES.** ◄◄◄
+
+                Menge, Name, Nummer und Chevron standen als vier Geschwister neben dem
+                Preisblock, drei davon `flex: none` – schrumpfen konnte allein der Name,
+                und war er auf null, lief die Zeile über: gemessen **+17 px** bei 320 px
+                im echten Kartenrahmen. Als **eine** schrumpfende Gruppe geht es auf,
+                ohne dass eine Zahl weicht; gekappt wird der Name (#838).
+
+                **Und unter die Breite eines Namens schrumpft sie nicht**: mit
+                `flex: 1 1 NAME_MIN` steht die Untergrenze als *Ausgangsbreite* da, und
+                genau daran entscheidet der Umbruch – passt der Preisblock nicht mehr
+                daneben, rutscht **er** auf die zweite Zeile (`marginLeft: auto`, also
+                weiterhin rechts). Ohne sie schrumpfte der Name bei 320 px auf **0 px**:
+                die Zeile lief nicht über, aber sie nannte die Sache nicht mehr (#853).
+
+                *Eine Medienabfrage wäre hier falsch: die Karte ist auch auf einem
+                1440-px-Schirm rund 460 px breit – gefragt ist die Breite der **Karte**,
+                und die kennt allein der Umbruch selbst.* */}
+            <button type="button"
+              className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left"
               style={{ background: 'none', border: 0, padding: '4px 0' }}
               aria-expanded={shown}
               onClick={() => setOpen(shown ? null : key)}>
-              <span className="ix-tnum text-[12.5px] font-semibold"
-                style={{ color: 'var(--fg-1)', flex: 'none' }}>{line.quantity}×</span>
-              <span className="text-[12.5px] truncate" style={{ color: 'var(--fg-1)' }}>
-                {line.article_name || 'Ohne Artikel'}
+              <span className="flex items-center gap-2 min-w-0"
+                style={{ flex: `1 1 ${NAME_MIN}px` }}>
+                <span className="ix-tnum text-[12.5px] font-semibold"
+                  style={{ color: 'var(--fg-1)', flex: 'none' }}>{line.quantity}×</span>
+                <span className="text-[12.5px] truncate" style={{ color: 'var(--fg-1)' }}>
+                  {line.article_name || 'Ohne Artikel'}
+                </span>
+                {line.article_object_id != null && (
+                  <ObjId value={line.article_object_id} />
+                )}
+                {spec.length > 0 && (
+                  <ChevronDown size={13} style={{
+                    color: 'var(--fg-4)', flex: 'none',
+                    transform: shown ? 'rotate(180deg)' : undefined,
+                  }} />
+                )}
               </span>
-              {line.article_object_id != null && (
-                <ObjId value={line.article_object_id} />
-              )}
-              {spec.length > 0 && (
-                <ChevronDown size={13} style={{
-                  color: 'var(--fg-4)', flex: 'none',
-                  transform: shown ? 'rotate(180deg)' : undefined,
-                }} />
-              )}
               {/* ►►► **Der Preis steht an SEINER Position** (MWSTG Art. 26). ◄◄◄
 
                   Steuersatz und Einzelpreis gehören der **Sache**: sechs Wellen zu 8.1 %
@@ -475,9 +535,9 @@ function Goods({ d }: { d: Filled }) {
 
                   **Erst, wenn es einen gibt**: solange niemand einen Preis genannt hat,
                   steht hier nichts (eine 0.00 wäre eine Behauptung). */}
-              <span className="flex-1" style={{ minWidth: 0 }} />
               {line.price != null && (
-                <span className="flex items-center gap-2" style={{ flex: 'none' }}>
+                <span className="flex items-center gap-2"
+                  style={{ flex: 'none', marginLeft: 'auto' }}>
                   <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}
                     data-tip={`${line.vat} % ${d.vat_label}`}>{line.vat} %</span>
                   <span className="text-[12.5px] ix-tnum" style={{ color: 'var(--fg-3)' }}
@@ -507,7 +567,7 @@ function Goods({ d }: { d: Filled }) {
           </div>
         );
       })}
-    </div>
+    </ModuleSection>
   );
 }
 
@@ -600,7 +660,7 @@ function Offer({ d, busy, active, onAction }: {
   };
 
   return (
-    <div className="flex flex-col gap-2 mt-1.5">
+    <div className="flex flex-col gap-2">
       {d.quotes.map((q) => (
         <QuoteRow key={q.party_object_id} d={d} quote={q} busy={busy} active={active}
           onAction={onAction} />
@@ -655,7 +715,7 @@ function Offer({ d, busy, active, onAction }: {
           })}
           <OurOffer d={d} value={offer} onChange={setOffer} />
           <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
-            style={{ height: 32 }} disabled={busy || chosen.length === 0 || !ready}
+            style={{ height: ACT_H.inline }} disabled={busy || chosen.length === 0 || !ready}
             data-tip={chosen.length === 0 ? 'Niemand gewählt – eine Zeile anklicken.'
               : !ready ? 'Ohne Preis gibt es nichts anzubieten.' : undefined}
             onClick={() => send(chosen.map((o) => o.object_id))}>
@@ -949,7 +1009,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
               </div>
               <button type="button"
                 className="erp-actbtn erp-actbtn-primary erp-actbtn-icon"
-                style={{ height: ACT_H }}
+                style={{ height: ACT_H.inline }}
                 disabled={busy || (!d.we_quote && amount.trim() === '')
                   || lead === '' || days === ''}
                 aria-label="Offerte erfassen"
@@ -973,7 +1033,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
           {may(d, active, 'decline') && !declined && (
             <button type="button"
               className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
-              style={{ height: ACT_H }} disabled={busy}
+              style={{ height: ACT_H.inline }} disabled={busy}
               aria-label="Absage" data-tip="Absage · kommt nicht in Frage"
               onClick={() => onAction({ action: 'decline', party })}>
               <CircleSlash size={14} />
@@ -984,7 +1044,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
               Fläche; die beiden Symbol-Knöpfe daneben sind die Vorstufe. */}
           {may(d, active, 'agree') && !declined && (
             <button type="button" className="erp-actbtn erp-actbtn-primary"
-              style={{ height: ACT_H }} disabled={busy || !quote.amount}
+              style={{ height: ACT_H.inline }} disabled={busy || !quote.amount}
               data-tip={quote.amount ? undefined : 'Ohne Preis gibt es keine Zusage'}
               onClick={() => onAction({ action: 'agree', party })}>
               <Check size={13} /> {d.stages[0]?.verb}
@@ -1060,7 +1120,7 @@ function PartyRef({ value }: { value: string }) {
 function Agreed({ d }: { d: Filled }) {
   const split = d.vat_split ?? [];
   return (
-    <div className="flex flex-col gap-2.5 mt-1.5">
+    <div className="flex flex-col gap-2.5">
       {/* ►►► **Nummer und Name auf EINER Zeile** (Testnotiz #838) – der Name wird
           gekappt. `flex-wrap` schob ihn bei enger Spalte darunter, und dort las er sich
           wie eine zweite Angabe. */}
@@ -1147,6 +1207,60 @@ function Agreed({ d }: { d: Filled }) {
 }
 
 /**
+ * ►►► **Wie weit ist das Geld — als LEISTE, nicht als Zahlenkette.** ◄◄◄
+ *
+ * Hier stand ein Satz aus vier Zahlen: «Offen 2'572.63 CHF · 4'572.63 berechnet ·
+ * 2'000.00 bezahlt · von 4'572.63». Er ist vollständig und beantwortet die eigentliche
+ * Frage trotzdem nicht – *wie weit sind wir?* verlangt einen Vergleich, und den musste
+ * man im Kopf machen.
+ *
+ * Es ist **dieselbe Frage wie beim Bestand am Artikel**, nur mit Geld statt Stück: wie
+ * teilt sich ein Ganzes auf. Also dieselbe Leiste (`module-ui.ValueBar`) – Segmente nach
+ * Anteil, darunter Punkt · Wort · Betrag.
+ *
+ * **Aufgezählt wird kein einziger Zustand**: was es gibt, sagen die Zahlen. Ist nichts
+ * gefordert, steht dort nur *Nicht berechnet* – und damit sagt die Leiste von selbst, was
+ * früher ein Sonderfall im Text war («Nichts berechnet»). Ist alles bezahlt, bleibt
+ * *Bezahlt* übrig. Dieselbe Regel wie in der Bestandsleiste (#789).
+ *
+ * **Überzahlt ist ein Segment, kein Vorzeichen.** «Wir schulden» stand als eigener Satz
+ * da, weil ein negativer offener Betrag in eine Zahlenkette nicht passt; als **Anteil**
+ * passt er, und die Aussage ist dieselbe. Jeder Wert ist darum bei null gekappt – eine
+ * negative Breite gibt es nicht.
+ */
+function MoneyBar({ d }: { d: Filled }) {
+  const openAmount = Number(d.open ?? 0);
+  const charged = Number(d.charged ?? 0);
+  const paid = Number(d.paid ?? 0);
+  const overdue = d.entries.some((e) => e.overdue);
+  const segments: BarSegment[] = [
+    {
+      key: 'paid', label: 'Bezahlt', value: Math.max(0, Math.min(paid, charged)),
+      color: 'var(--success)', hint: 'Gefordert und beglichen',
+    },
+    {
+      key: 'open', label: d.open_word, value: Math.max(0, openAmount),
+      color: overdue ? 'var(--danger)' : 'var(--warning)',
+      hint: overdue
+        ? 'Gefordert, fällig und noch nicht bezahlt'
+        : 'Gefordert und noch nicht bezahlt',
+    },
+    {
+      key: 'over', label: 'Überzahlt', value: Math.max(0, -openAmount),
+      color: 'var(--info)', hint: 'Mehr bezahlt als gefordert – so viel schulden wir zurück',
+    },
+    {
+      key: 'rest', label: 'Nicht berechnet',
+      value: Math.max(0, Number(d.amount ?? 0) - charged),
+      color: 'var(--border-2)', hint: 'Zugesagt, aber noch nicht gefordert',
+    },
+  ]
+    .filter((s) => s.value > 0)
+    .map((s) => ({ ...s, text: formatAmount(s.value, d.currency_decimals) }));
+  return <ValueBar segments={segments} />;
+}
+
+/**
  * ►►► **Rechnung & Zahlung — zwei Achsen, EINE naheliegende Handlung.** ◄◄◄
  *
  * Forderung und Geld sind getrennt, und genau deshalb braucht keines der Szenarien einen
@@ -1209,9 +1323,6 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   // Ohne Zahlen gibt es nichts zu zeigen – so sieht es eine Gegenpartei.
   if (d.open == null) return null;
 
-  const openAmount = Number(d.open);
-  const nothingYet = !Number(d.charged ?? 0) && !Number(d.paid ?? 0);
-  const overdue = d.entries.some((e) => e.overdue);
   // **Die naheliegende Handlung**: erst fordern, dann kassieren.
   const primary = d.next_charge != null ? 'charge'
     : d.next_payment != null ? 'payment' : '';
@@ -1220,34 +1331,8 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
     ? 'erp-actbtn erp-actbtn-primary' : 'erp-actbtn erp-actbtn-neutral');
 
   return (
-    <div className="flex flex-col gap-2 mt-1.5">
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* **Punkt + Wort**, wie jeder Zustand im Haus – nicht als gefüllte Plakette. */}
-        <span style={{
-          width: 6, height: 6, borderRadius: 999, flex: 'none',
-          background: nothingYet ? 'var(--border-2)'
-            : openAmount === 0 ? 'var(--success)'
-            : overdue ? 'var(--danger)' : 'var(--warning)',
-        }} />
-        <span className="text-[12.5px]" style={{ color: 'var(--fg-2)' }}>
-          {/* **«Bezahlt» heisst «gefordert UND beglichen».** Ohne die Unterscheidung
-              stünde direkt nach der Zusage «Bezahlt» da – offen ist dort null, weil noch
-              nichts gefordert wurde. Dieselbe Zahl, eine ganz andere Aussage. */}
-          {nothingYet ? 'Nichts berechnet'
-            : openAmount === 0 ? 'Bezahlt'
-            : openAmount < 0 ? 'Wir schulden' : d.open_word}
-        </span>
-        {!nothingYet && openAmount !== 0 && (
-          <span className="ix-tnum text-[12.5px] font-semibold"
-            style={{ color: overdue ? 'var(--danger)' : 'var(--fg-1)' }}>
-            {formatAmount(Math.abs(openAmount), d.currency_decimals)} {d.currency}
-          </span>
-        )}
-        <span className="text-[12px] ix-tnum" style={{ color: 'var(--fg-4)' }}>
-          {formatAmount(d.charged, d.currency_decimals)} berechnet · {formatAmount(d.paid, d.currency_decimals)} bezahlt · von{' '}
-          {formatAmount(d.amount, d.currency_decimals)}
-        </span>
-      </div>
+    <div className="flex flex-col gap-2">
+      <MoneyBar d={d} />
 
       {d.entries.length > 0 && (
         <div className="flex flex-col">
@@ -1312,7 +1397,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
                 && !e.reversed && e.reverses == null && (
                 <button type="button"
                   className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
-                  style={{ height: 26 }}
+                  style={{ height: ACT_H.row }}
                   disabled={busy} aria-label="Rechnung stornieren"
                   data-tip="Stornieren – es entsteht eine Stornorechnung mit eigener Nummer; beide Zeilen bleiben stehen."
                   onClick={() => onAction({ action: 'reverse', entry: e.id })}>
@@ -1322,7 +1407,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               {may(d, active, 'pay') && e.kind === 'payment' && (
                 <button type="button"
                   className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
-                  style={{ height: 26 }}
+                  style={{ height: ACT_H.row }}
                   disabled={busy} aria-label="Zahlung korrigieren"
                   data-tip="Korrigieren – erfasst eine zweite Zahlung über den negativen Betrag. Das ist der Erfassungsfehler ebenso wie die Erstattung."
                   onClick={() => { setCorrect(negate(e.amount)); setForm('payment'); }}>
@@ -1337,7 +1422,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
       <div className="flex items-center gap-2 flex-wrap">
         {may(d, active, 'charge') && (
           <button type="button" className={tone('charge')} disabled={busy}
-            style={{ height: 30 }}
+            style={{ height: ACT_H.inline }}
             data-tip="Eine Forderung buchen – ein negativer Betrag ist die Gutschrift."
             onClick={() => { setCorrect(''); setForm(form === 'charge' ? '' : 'charge'); }}>
             <FileText size={13} /> {d.charge_word}
@@ -1345,7 +1430,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
         )}
         {may(d, active, 'pay') && (
           <button type="button" className={tone('payment')} disabled={busy}
-            style={{ height: 30 }}
+            style={{ height: ACT_H.inline }}
             data-tip="Geld buchen – ein negativer Betrag ist die Erstattung."
             onClick={() => { setCorrect(''); setForm(form === 'payment' ? '' : 'payment'); }}>
             <Wallet size={13} /> {d.payment_word}
@@ -1362,7 +1447,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
             statt auf einer fremden Seite, ist der Sinn der Sache. */}
         {may(d, active, 'pay_online') && (
           <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={busy}
-            style={{ height: 30 }}
+            style={{ height: ACT_H.inline }}
             data-tip="Jetzt online bezahlen – gebucht wird, sobald der Zahlungsdienst es bestätigt."
             onClick={() => { setForm(''); setPaying((p) => !p); }}>
             <CreditCard size={13} /> {d.pay_online_word}
@@ -1372,7 +1457,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
             trägt die Warnfarbe, nicht die Fläche: sichtbar, aber nie der Vorschlag. */}
         {may(d, active, 'revoke') && d.undo && (
           <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={busy}
-            style={{ height: 30 }}
+            style={{ height: ACT_H.inline }}
             onClick={() => onAction({ action: 'revoke' })}>
             <Undo2 size={13} /> {d.undo}
           </button>
@@ -1531,7 +1616,7 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
       </div>
       <div className="flex items-center gap-2">
         <button type="button" className="erp-actbtn erp-actbtn-primary"
-          style={{ height: 30 }} disabled={busy || amount.trim() === ''}
+          style={{ height: ACT_H.inline }} disabled={busy || amount.trim() === ''}
           onClick={() => onSubmit({
             action: kind === 'charge' ? 'charge' : 'pay', amount, reference: ref,
             // **Worauf sie geht** – auch bei genau einer: der Dienst leitete sie zwar
@@ -1545,7 +1630,7 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
           <Check size={13} /> Buchen
         </button>
         <button type="button" className="erp-actbtn erp-actbtn-neutral"
-          style={{ height: 30 }} onClick={onCancel}>Abbrechen</button>
+          style={{ height: ACT_H.inline }} onClick={onCancel}>Abbrechen</button>
       </div>
     </div>
   );

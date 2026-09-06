@@ -117,6 +117,12 @@ sie summierte auch Verschrottetes.
 Karte + Kopf + Werteraster kommen aus `fields.tsx` (`SPEC`, `SpecHead`, `SpecSection`,
 `ReadField`) – die Anatomie **jeder** Detail-Ansicht.
 
+**Und die Leiste selbst kommt aus `module-ui.ValueBar`**: `StockBar` ist ihre Ausprägung
+für Zustände von Einzelinstanzen und trägt nur noch, was wirklich am Bestand hängt – die
+Übersetzung eines Zustands in Farbe und Wort. Die Frage «wie teilt sich ein Ganzes auf,
+und welchen Teil sehe ich mir an» ist nicht die des Bestands; die Stufen eines Moduls
+stellen sie ebenso.
+
 ## Datenerfassung (`components/erp/capture-work.tsx`)
 Eine Zeile **je Instanz**, denn ein Vorgang ist eine Instanz (PROCESS_CORE §4.4): das
 Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnummer. Charge
@@ -242,23 +248,74 @@ berührt keine Kartennummer unseren Server. Das **Aussehen kommt aus unseren Tok
   **Gegenpartei hat ihn ebenso**: dass der Kunde bei uns bezahlt, ist der Sinn der Sache.
   Sein **Wort** kommt vom Server (`pay_online_word`).
 
+## Die Bauteile eines Moduls (`components/erp/module-ui.tsx`)
+> **Das Zahlungsmodul ist das erste in dieser Sprache – alle weiteren folgen.** Damit sie
+> es nicht ein zweites Mal erfinden, steht hier, was ein Modul *als Modul* ausmacht, und
+> nicht, was ein Geldvorgang ist.
+
+Es ist **kein neues Design-System**: jede Zahl kommt aus
+`styles/design-system/colors_and_type.css`, jede Regel steht in
+`docs/design-system/README.md`. Neu ist nur, dass sie **einmal** angewendet sind statt an
+jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
+
+| Bauteil | Was es ist |
+|---|---|
+| `MODULE_CARD` · `MODULE_TITLE` | Die Fläche und der Name – dieselbe Karte wie `SPEC.card` am Datensatz, nur mit der Polsterung einer schmalen Prozessspalte. Gesetzt wird sie in `ModuleShell`, also erbt sie **jedes** Modul. |
+| `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie. **Leerer Titel = kein Kopf** – steht der Name schon in der Stufen-Leiste darüber, sagt eine Überschrift darunter dasselbe Wort ein zweites Mal. |
+| `ModuleMeta` | Die leise Zeile für das, was über den ganzen Vorgang gilt (Richtung, Währung, Termin, Sperre). |
+| `ValueBar` | **Ein Anteil an einem Ganzen** – Leiste, Punkt, Wort, Zahl; die Beschriftung ist zugleich das Bedienelement. |
+| `ModuleSteps` · `ALL_STEPS` | Die Stufen eines Moduls **und** der Wechsel zwischen ihnen. |
+| `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
+
+- ►►► **Die Karte ist weiss – wie jeder Datensatz im Haus.** ◄◄◄ Sie war getönt, Rahmen
+  **und** Fläche in der Modulfarbe; bei fünf Modulen untereinander standen fünf farbige
+  Blöcke in der Spalte, und die ERP-Regel lautet **Struktur vor Fläche**. Die Modulfarbe
+  verschwindet nicht, sie bekommt einen **Ort**: die 34-px-Marke, wo sie das Modul
+  *benennt* statt es zu übertönen – und den Rahmen, wenn das Modul **dran** ist. Das ist
+  die einzige Stelle, an der die Karte Farbe trägt, und sie sagt damit genau eine Sache.
+- ►►► **Die Leiste steht EINMAL** – `StockBar` ist ihre Ausprägung für Zustände von
+  Einzelinstanzen. «Wie teilt sich ein Ganzes auf, und welchen Teil sehe ich mir an» ist
+  nicht die Frage des Bestands: die **Stufen** eines Moduls und die Aufteilung *bezahlt ·
+  offen · nicht berechnet* eines Geldvorgangs sind dieselbe Aussage mit anderen Segmenten.
+  Alle Regeln von dort gelten unverändert (Beschriftung gehört zur Leiste #789, Haarlinie
+  als `border` statt `gap`, kein Filter).
+- **`dim` unterscheidet die beiden Fälle.** Beim **Bestand** treten die anderen zurück –
+  das ersetzt einen Filter. Bei den **Stufen** nicht: dort trägt die Farbe den Fortschritt,
+  und gedämpft sehen «vorbei» und «steht noch aus» gleich aus (gemessen: die halbe Leiste
+  war dasselbe Blassgrau). Welche Stufe offen ist, sagt die Beschriftung ohnehin.
+- **Die Stufen-Wörter heissen `past · active · ahead`, bewusst nicht `done`/`open`:** das
+  sind die Wörter, mit denen ein *Modul* seine eigenen Stufen benennt (`DEAL_STAGE.done`)
+  bzw. die Leiste sagt, welcher Abschnitt **offen** ist. Ein Wort, das in derselben Datei
+  zwei Dinge meint, ist die Form, in der ein Vergleich still falsch wird.
+
 ## Zahlung (`components/erp/deal-work.tsx`)
-Der Geldvorgang an der Ausführungsstelle: **drei Zeilen** – `Angebot → Auftrag →
+Der Geldvorgang an der Ausführungsstelle: **drei Schritte** – `Angebot → Auftrag →
 Rechnung & Zahlung`, in **beide** Richtungen dieselben. Was Einnahme von Ausgabe
 unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `party_word`,
 `ask_verb`, `charge_word`, `money_label`, `stage_label`, `undo`) – die Karte braucht dafür
 **kein einziges `if` auf die Richtung**; ein Wächter zählt sie.
 
-- **Zwei Stufen, und die dritte Zeile ist KEINE.** Unumkehrbar sind zwei Dinge: nichts
+- **Zwei Stufen, und der dritte Schritt ist KEINE.** Unumkehrbar sind zwei Dinge: nichts
   zugesagt · zugesagt. «Abgeschlossen» stand einmal als dritte Stufe da und war genau das
-  Missverständnis – ein **Zustand** in einer Reihe von **Schritten**. Die dritte Zeile ist
+  Missverständnis – ein **Zustand** in einer Reihe von **Schritten**. Der dritte Schritt ist
   das **Geld**: eine Zahlung macht aus einem Angebot keine Zusage, sie ist reversibel, und
-  sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach. Sie steht dort, wo man
-  sie erwartet, und ist ab der Zusage bedienbar.
-- **Zeilen statt Modul-Karten**, kräftige Linie bis zur offenen Stelle, Haarlinie danach.
-  *Dieselbe Bildsprache trug einmal auch der Beschaffungs-Beleg – bewusst **ohne**
-  geteilten Code, «damit das Modul besteht, wenn Beschaffen/Verkauf gelöscht werden».
-  Genau das ist eingetreten, und hier musste dafür keine Zeile geändert werden.*
+  sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach. Er steht dort, wo man
+  ihn erwartet, und ist ab der Zusage bedienbar. Die Schlüssel dafür kommen aus
+  `DEAL_STAGE`; **`MONEY` bewusst nicht** – es ist keine Stufe.
+- ►►► **Man wechselt zwischen den Schritten – oder sieht alles auf einmal.** ◄◄◄
+  Gemeldet war genau das: *«es gibt diese drei Schritte … aber ich muss irgendwie zwischen
+  den Schritten hin- und herwechseln können oder alles auf einen Blick sehen.»* Die
+  frühere Kette aus Punkt und Linie sagte den Verlauf und **liess ihn nicht bedienen**:
+  alle drei standen immer offen untereinander, bei vier Buchungen war die Karte zwei
+  Bildschirme hoch, und was gerade dran war, musste man suchen.
+  **Die Antwort ist EIN Zustand, kein zweiter Mechanismus** (`ModuleSteps`): er trägt den
+  Schlüssel eines Schritts **oder** `ALL_STEPS`. Wer arbeitet, sieht einen; wer
+  vergleicht, klappt alles auf. **Vorgewählt ist, wo gearbeitet wird** – vor der Zusage
+  das Angebot, danach das Geld (der bestätigte Auftrag ist ein Beleg, an dem man nichts
+  tut); nachgezogen wird beim **Wechsel** des Zustands, nicht bei jedem Rendern, also
+  bleibt, wer selbst umschaltet, dort (dieselbe Bauart wie `defaultOpen`, #727).
+- **Es ist die Leiste des Bestands, mit Stufen statt Zuständen** – ein neues Modul mit
+  Schritten bekommt sie, ohne eine Zeile dafür zu schreiben.
 - **Der Angebotsspiegel ist der Kern der ersten Zeile** (`quotes`): je angefragter
   Gegenpartei eine Zeile mit Preis, Lieferfrist und Zahlungsfrist. **Wo niemand zugelassen
   ist, wird gesucht** (`ObjectSelect` + `api.searchDealParties`); wo genau einer steht, gibt
