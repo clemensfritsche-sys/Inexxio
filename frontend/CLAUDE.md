@@ -240,6 +240,15 @@ berührt keine Kartennummer unseren Server. Das **Aussehen kommt aus unseren Tok
   dann auch mit** (`payment_method_data.billing_details`). Die beiden Hälften gehören
   zusammen: wer nur die eine schreibt, bekommt eine Ablehnung, und zwar erst beim
   Bezahlen. Fehlt eine Angabe, fragt das Element sie.
+- **Die Felder tragen UNSERE Anatomie** (#892): `labels: 'above'`, 13 px, unsere
+  Polsterung – im Haus steht die Beschriftung über der Eingabe, nie schwebend darin.
+- **Die Rechnungsnummer steht nicht zweimal** (#891): die Karte klappt **unter** der Zeile
+  auf, an der die Nummer steht. Mitgeliefert wird sie weiterhin – sie geht beim
+  Zahlungsdienst in Beschreibung und Metadaten.
+- **Sie schliesst, wenn die Zahlung ankommt** (#893): sie blieb stehen, weil niemand sie
+  zumachte – `onDone` startete das Nachfragen, die Karte blieb an ihrer Rechnung. Jetzt
+  endet sie an derselben Bedingung wie das Nachfragen, und **nur** dann: läuft es aus, ohne
+  dass etwas kommt, bleibt sie stehen – sie hat ja nichts Falsches gesagt.
 - **Sie sagt «ausgeführt», nie «gebucht»**: die Zeile entsteht, wenn der Webhook sie
   meldet. Ein Satz, der eine Buchung behauptet, die noch nicht dasteht, ist beim nächsten
   Blick eine Lüge. Danach wird der Auftrag **nachgeladen** (`onPaid` → `reload`) – das ist
@@ -265,6 +274,7 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
 | `ModuleMeta` | Die leise Zeile für das, was über den ganzen Vorgang gilt (Richtung, Währung, Termin, Sperre). |
 | `ValueBar` | **Ein Anteil an einem Ganzen** – Leiste, Punkt, Wort, Zahl; die Beschriftung ist zugleich das Bedienelement. |
 | `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
+| `ActionButton` | ►►► **Ein Knopf ist ein Symbol, und beim Zeigen steht sein Name da** (#877–#896). ◄◄◄ Sieben Notizen, ein Satz – also **ein** Bauteil: Quadrat, Zeichen, Name in der Blase des Hauses, Name im `aria-label`, Grund dahinter. **Er wächst nicht mit**: die Geste der Modul-Palette (breiter werden und den Namen herausschieben) **schwingt** in einer dichten Zeile – der Knopf wird breiter, die Zeile bricht neu um, der Zeiger fällt vom Knopf, er klappt ein (gemessen 32 → 63 → 51 → 59 px in 800 ms). Die Blase ist `position: absolute` und `display: none`; sie verändert am Layout nichts. |
 
 - ►►► **Die Karte ist weiss – wie jeder Datensatz im Haus.** ◄◄◄ Sie war getönt, Rahmen
   **und** Fläche in der Modulfarbe; bei fünf Modulen untereinander standen fünf farbige
@@ -608,6 +618,42 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   sagte, welchen Teil der Positionen dieser Vorgang abrechnet. *«Ich checke diese Funktion
   nicht»*, und gebraucht wird sie nicht: **wer den Preis nennt, nennt ihn je Position**,
   also trägt ein zweites Modul schlicht seine eigenen Positionspreise.
+- ►►► **Jeder Knopf der Karte ist ein `ActionButton`** (#877–#896). ◄◄◄ *«Ein Icon und
+  beim Hover der Text dazu»* – siebenmal gemeldet, also die Form eines Knopfes im Haus und
+  nicht eine Eigenschaft dieser Zeile. Der **Name** steht zuerst in der Blase, ein Grund
+  dahinter; was dort stand, waren ganze Sätze statt des Wortes, nach dem gefragt war.
+- **Eine WAHL behält ihr Wort** (#877/#878): mit Symbol stehen die Fristen auf ihrer
+  **Inhaltsbreite** statt jede auf einem Drittel der Spalte – eingeklappt wären es drei
+  anonyme Quadrate, und man müsste auf jedes zeigen, um zu lesen, worunter man wählt. Ein
+  **Knopf** ist eine Handlung und hat keine Antwort, die dastehen müsste; eine Frist hat
+  eine. Das Symbol folgt aus der **Zahl** (0 = ohne Frist · n = Termin · frei = Eingabe).
+- **Die Währung steht bei den BETRÄGEN** (#876/#881): an jeder Zahl, die man abschreibt
+  (Angebotszeile · Vorschau · Total). Die Beschriftung über dem Auswahlfeld ist entfallen –
+  es zeigt geschlossen «CHF · Schweizer Franken» –, und ab der Zusage steht dort **gar
+  nichts** mehr. *Löst #864 ab: die Auskunft gibt es weiterhin, sie steht nur dort, wo die
+  Frage entsteht.*
+- **«0 Tage» heisst «Vorauszahlung»** (#885, `termText`) – gelesen aus **derselben Liste**,
+  aus der man sie wählt; was keine Liste kennt, ist die freie Eingabe («x Tage»).
+- **Aus einer Frist folgt ein Datum** (#884, `TermField preview`): die Eingabe bleibt «in x
+  Tagen», das Datum rechnet das System. Vorbelegt ist der Wert aus dem Angebot, änderbar
+  bleibt er – nachverhandelt wird auch am Telefon.
+- **EIN Datum je Geld-Zeile** (#890, `dateText`): «fällig in 30 Tagen» bzw. «überfällig
+  seit 17 Tagen», beide Daten im Hover. Ohne Fälligkeit bleibt das Buchungsdatum.
+- **Die Offerte wird gespeichert, nicht abgeschickt** (#879, `useAutosave`) – und erst,
+  wenn die Zeile **vollständig** ist: der Dienst weist eine halbe Offerte ab, und ein
+  Auto-Save beim ersten Tastendruck liefe gegen eine Meldung, die nur sagt, dass man noch
+  nicht fertig ist.
+- **«Zahlung erfassen» verschwindet an einer bezahlten Rechnung** (#894) – überzahlt bleibt
+  er, dann steht die Rückgabe an. Eine Ableitung aus derselben Zahl, die den Punkt daneben
+  färbt.
+- **Der Hover erklärt, statt zu wiederholen** (#882): «Was ist zu tun? 123456» sagte die
+  Frage plus den Wert, der daneben steht. Eine Blase, die den sichtbaren Text wiederholt,
+  ist die Stelle, an der man aufhört, Blasen zu lesen.
+- **Kleineres:** «Buchen» heisst, was es bucht (#887, vom Server); die Beschriftung
+  «Partner» am bestätigten Auftrag ist entfallen (#883); der **«Schliessen»-Knopf** im
+  Überweisen-Panel ist gelöscht (#889 – der Knopf, der es geöffnet hat, schliesst es);
+  das **Leistungsdatum** ist längst automatisch, und was fehlte, war der Satz, der das
+  sagt (#886 – Pflichtangabe nach MWSTG Art. 26 Bst. c, aus dem Prozess vorbelegt).
 - ►►► **Der Status steht an der RECHNUNG, nicht als Leiste darüber** (#875). ◄◄◄ `MoneyBar`
   war richtig, solange ein Vorgang mehrere Rechnungen tragen konnte; seit #866 gibt es je
   Modul **eine** – die Leiste fasste damit eine Zeile zusammen, die direkt darunter stand.

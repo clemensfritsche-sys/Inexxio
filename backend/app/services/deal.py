@@ -848,14 +848,39 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     (verhandelt wird auch am Telefon). Beides ist Pflicht: eine Zusage ohne Gegenpartei ist
     keine, und eine ohne Betrag ist eine, über die sich später niemand einig ist.
 
+    ►►► **Wo die POSITIONEN den Preis tragen, gibt es keine zweite Zahl.** ◄◄◄
+
+    Bei einer **Einnahme** nennen wir den Preis je Position, und der Betrag des Vorgangs
+    *ist* ihre Brutto-Summe (``gross_of``) – dieselbe Summe, aus der auch Netto, Steuer je
+    Satz und die Aufteilung einer Teilrechnung kommen (``vat_split``/``split_for``). Eine
+    daneben getippte Zahl wäre nicht bloss eine zweite Wahrheit über dieselbe Sache,
+    sondern eine, die den **Beleg widersprüchlich** macht: «Total 900» über einer
+    Aufstellung, die auf 1000 aufgeht. Sie wird darum **abgewiesen**, nicht still
+    verworfen – wer nachverhandelt, ändert den Preis dort, wo er steht.
+
+    Bei einer **Ausgabe** nennt die Gegenpartei eine Summe; dort ist der Betrag die
+    einzige Angabe, und ein Wert in der Nutzlast ist die Nachverhandlung.
+
     **Und hier frieren die Zeilen ein**: was zugesagt wurde, ändert sich nicht mehr
     dadurch, dass der Auftrag später Stücke verliert.
     """
-    flow = dm.of(row.direction)
     party = _target(row, data, actor)
     line = _quote_of(row, party) or {}
-    amount = _amount(data.get("amount"), row.currency) \
-        if data.get("amount") is not None else _amount(line.get("amount"), row.currency)
+    priced = [dict(x) for x in (line.get("lines") or []) if x.get("price") is not None]
+    given = _amount(data.get("amount"), row.currency) \
+        if data.get("amount") is not None else None
+    if priced:
+        amount = dm.gross_of(priced, row.currency)
+        if given is not None and given != amount:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Der Betrag dieses Vorgangs ist die Summe seiner Positionen "
+                        f"({cur.money(amount, row.currency)} {row.currency}) – eine "
+                        f"zweite Zahl daneben würde den Beleg widersprüchlich machen. "
+                        f"Wer nachverhandelt, ändert den Preis an der Position."),
+            )
+    else:
+        amount = given if given is not None else _amount(line.get("amount"), row.currency)
     if amount is None:
         raise HTTPException(
             status_code=400,
@@ -865,7 +890,14 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     _patch_quote(row, party, {"state": dm.CHOSEN})
     row.party_id = party
     row.amount = amount
-    row.due_days = _days(data.get("payment_days")) or _days(line.get("payment_days"))
+    # ►►► **Die Null ist eine Angabe** – auch hier. ◄◄◄
+    #
+    # Es stand ``_days(payload) or _days(line)``, und damit fiel eine **null** aus der
+    # Nutzlast durch: «Vorauszahlung» am Telefon vereinbart hiess `0`, `0 or X` ist `X`,
+    # und es galt still die Frist der Offerte. Dieselbe Falle, gegen die ``_assert_terms``
+    # ausdrücklich auf ``is None`` prüft – hier fehlte sie.
+    wanted = _days(data.get("payment_days"))
+    row.due_days = wanted if wanted is not None else _days(line.get("payment_days"))
     row.stage = dm.AGREED
     row.agreed_on = date.today()
     # **Und die Währung ist ab hier gebunden** – wie der Betrag und die Zeilen: draussen
@@ -876,7 +908,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # ihrem Steuersatz. Sonst bleiben es Artikel und Menge aus dem Prozess: bei einer
     # **Ausgabe** steht die Steuer auf **seiner** Rechnung, und eine hier erfundene wäre
     # eine Behauptung über ein fremdes Dokument.
-    row.agreed_lines = [dict(x) for x in (line.get("lines") or [])] \
+    row.agreed_lines = priced or [dict(x) for x in (line.get("lines") or [])] \
         or lines_of(db, order, row)
 
 

@@ -485,6 +485,19 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > erzwungen** – ein Mensch weiss von Teilleistungen, von denen der Log nichts weiss.
 > **Und «Vorgang abschliessen»** (#848): «Auftrag erledigt» meinte den falschen Auftrag –
 > es klang nach dem ERP-Datensatz, gemeint ist dieses Modul.
+> ►►► **Der Betrag der Zusage ist die SUMME seiner Positionen** – keine zweite Zahl. ◄◄◄
+> Wo **wir** den Preis je Position nennen, *ist* er ihre Brutto-Summe; `_agree` liess ihn
+> trotzdem frei übersteuern, und dann sagt derselbe Beleg zwei Dinge («Total 900» über
+> einer Aufstellung, die auf 1000 aufgeht – Netto, Steuer je Satz und die Aufteilung einer
+> Teilrechnung kommen alle aus den Positionen). Eine abweichende Zahl wird **abgewiesen**,
+> mit der richtigen im Satz: wer nachverhandelt, ändert den Preis dort, wo er steht. Bei
+> einer **Ausgabe** nennt die Gegenpartei eine Summe – dort ist der Betrag die einzige
+> Angabe, und die Nutzlast ist die Nachverhandlung.
+> ►►► **Und die Null ist eine Angabe — auch beim Zuschlag.** ◄◄◄ Hier stand
+> `row.due_days = _days(payload) or _days(line)`: eine **null** aus der Nutzlast ist aber
+> genau die Vorauszahlung, und `0 or X` ist `X` – wer «zahlbar sofort» vereinbarte, bekam
+> still die Frist der Offerte. Dieselbe Falle, gegen die `_assert_terms` ausdrücklich auf
+> `is None` prüft; hier fehlte sie (latent – die Oberfläche schickt heute keine Frist mit).
 > Wächter: `tests/test_deal_module.py`.
 
 > ►►► **Ein Betrag hat eine WÄHRUNG** (`domain/currency.py`, Migration `128`). ◄◄◄

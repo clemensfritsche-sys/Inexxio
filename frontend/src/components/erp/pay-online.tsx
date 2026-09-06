@@ -181,14 +181,15 @@ export function PayOnline({ orderObjectId, stepId, chargeId, label, onDone, onCl
             {setup.amount} {setup.currency}
           </span>
         )}
-        {/* ►►► **Wofür bezahlt wird** (Testnotiz #858). ◄◄◄ Kassiert wird über **eine**
-            Rechnung, nicht über einen Saldo – also nennt die Karte sie auch. Dieselbe
-            Nummer steht danach beim Zahlungsdienst in der Beschreibung und in den
-            Metadaten: ein Beleg, drei Leser. */}
-        {setup?.invoice && (
-          <span className="ix-tnum text-[12px] truncate" style={{ color: 'var(--fg-4)' }}
-            data-tip={`Rechnung ${setup.invoice}`}>Rechnung {setup.invoice}</span>
-        )}
+        {/* ►►► **Die Rechnungsnummer steht NICHT noch einmal hier** (Testnotiz #891). ◄◄◄
+            *«Ich frage mich, ob es diese Information hier nochmals braucht, denn die
+            Rechnung wird oben gerade direkt angezeigt.»* – Sie wird: die Karte klappt
+            **unter der Zeile** dieser Rechnung auf, und deren Nummer steht zwanzig Pixel
+            höher. Sie kam aus der Zeit, als der Knopf unter der Liste stand und man nicht
+            sah, welche gemeint ist – seit #859 beantwortet die **Stelle** die Frage.
+            *Mitgeliefert wird sie weiterhin* (`setup.invoice`): sie geht beim
+            Zahlungsdienst in Beschreibung und Metadaten, damit die Zahlung mit unserem
+            Beleg zurückkommt. */}
       </div>
 
       {/* Die Eingabefelder des Dienstes – in unserer Fläche, in unseren Farben. */}
@@ -229,6 +230,15 @@ function appearance() {
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
     theme: 'stripe' as const,
+    // ►►► **Die Beschriftung steht ÜBER dem Feld** (Testnotiz #892). ◄◄◄
+    //
+    // *«Das Design innerhalb des iframes soll condensed sein für die Eingabefelder, zudem
+    // Labels ‹above›.»* – Und das ist keine Geschmacksfrage, sondern dieselbe Anatomie wie
+    // jedes Feld daneben: im Haus steht die Beschriftung als kleine Zeile **über** der
+    // Eingabe (`fields.Label`), nie schwebend darin. Der Dienst kann genau das
+    // (`labels: 'above'`); die Vorgabe ist «floating», und damit sahen die drei Felder in
+    // der Karte anders aus als die drei Felder darüber.
+    labels: 'above' as const,
     variables: {
       colorPrimary: v('--accent', '#2C6E8F'),
       colorBackground: v('--bg-1', '#ffffff'),
@@ -236,7 +246,18 @@ function appearance() {
       colorDanger: v('--danger', '#b3261e'),
       fontFamily: v('--font-body', 'Inter, system-ui, sans-serif'),
       borderRadius: '8px',
-      spacingUnit: '4px',
+      // **Dichter** – dieselbe Schriftgrösse und dieselbe Polsterung wie `inputCls`
+      // (13 px, 6 px/10 px). Die Vorgaben des Dienstes sind eine Nummer grösser als
+      // unsere, und in einer 460 px schmalen Modulspalte fällt das sofort auf.
+      fontSizeBase: '13px',
+      spacingUnit: '3px',
+    },
+    rules: {
+      '.Input': { padding: '6px 10px', lineHeight: '1.35' },
+      '.Label': {
+        fontSize: '11.5px', fontWeight: '600', textTransform: 'uppercase',
+        letterSpacing: '.05em', color: v('--fg-3', '#6b6259'), marginBottom: '4px',
+      },
     },
   };
 }

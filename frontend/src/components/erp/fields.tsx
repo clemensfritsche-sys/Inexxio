@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarClock, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Pencil, Sparkles, ExternalLink, Zap, type LucideIcon } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-flow';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType } from '@/types';
@@ -944,29 +944,64 @@ const glyph: React.CSSProperties = {
   color: 'var(--fg-4)', pointerEvents: 'none',
 };
 
+/**
+ * **Eine Wahl aus wenigen Werten** – zwei bis vier Möglichkeiten nebeneinander, kein
+ * Auswahlfeld.
+ *
+ * ►►► **Mit Symbol wird sie kompakt — das Wort bleibt** (Testnotizen #877/#878). ◄◄◄
+ *
+ * *«Kann man hier so einen Button machen wie bei der Auswahl der Module – also ein Icon
+ * und beim Hover der Text dazu.»* – Gemeldet an den beiden Fristen: drei Blöcke à
+ * `flex: 1` in einer 460 px schmalen Modulspalte, doppelt (Liefer- **und** Zahlungsfrist),
+ * in 13 px/600. Das ist mehr Gewicht, als eine Frist verdient, und genau das ist behoben:
+ * mit Symbol stehen die Möglichkeiten **auf ihrer Inhaltsbreite** nebeneinander statt
+ * jede auf einem Drittel der Spalte.
+ *
+ * **Aber das Wort bleibt stehen**, und das ist die eine Abweichung vom Wortlaut der
+ * Notiz. Ein Knopf ist eine **Handlung** – er hat keine Antwort, die dastehen müsste, und
+ * wer wissen will, was er tut, zeigt darauf. Eine **Wahl** hat eine: «30 Tage» *ist* die
+ * Sache, und eingeklappt stünden dort drei anonyme Quadrate, von denen man jedes einzeln
+ * anzeigen müsste, um zu lesen, worunter man wählt – am schlimmsten in dem Zustand, in
+ * dem man am meisten Hilfe braucht: **bevor** man gewählt hat.
+ *
+ * **Ohne Symbole bleibt alles wie bisher** – nicht jede Aufzählung hat ein Bild
+ * (Bar ↔ Überweisung), und dort ist die gleichmässige Aufteilung richtig.
+ */
 export function Segmented({ label, value, onChange, options, required }: {
   label: string; value: string; onChange: (v: string) => void;
-  options: { value: string; label: string }[]; required?: boolean;
+  options: { value: string; label: string; icon?: LucideIcon }[];
+  required?: boolean;
 }) {
+  const tucked = options.some((o) => o.icon);
   return (
     <div>
       <Label required={required}>{label}</Label>
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {options.map((o) => {
           const active = value === o.value;
+          const Icon = o.icon;
           return (
             <button
               key={o.value}
               type="button"
               onClick={() => onChange(o.value)}
+              aria-label={o.label}
+              aria-pressed={active}
               style={{
-                flex: 1, padding: '7px 10px', fontSize: 13, fontWeight: 600,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                gap: 6,
+                // **Mit Symbol so breit wie ihr Inhalt** – ohne Symbol die gleichmässige
+                // Aufteilung von früher.
+                flex: tucked ? 'none' : 1,
+                padding: '6px 10px',
+                fontSize: 13, fontWeight: 600,
                 borderRadius: 8, cursor: 'pointer',
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
                 background: active ? 'var(--accent-soft)' : '#fff',
                 color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
               }}
             >
+              {Icon && <Icon size={14} style={{ flex: 'none' }} />}
               {o.label}
             </button>
           );
@@ -997,7 +1032,8 @@ const TERM_FREE = 'free';
  * kennt («0 Tage» ↔ «Vorauszahlung»). Geklemmt wird beim Verlassen, nicht beim Tippen –
  * wer eine 3 vor die 0 setzen will, muss die 0 erst schreiben dürfen.
  */
-export function TermField({ label, value, onChange, terms, freeMin, freeLabel, required }: {
+export function TermField({ label, value, onChange, terms, freeMin, freeLabel, required,
+  preview }: {
   label: string;
   /** Die Tageszahl als **String** – ein halb getipptes Feld hat keine Zahl. */
   value: string;
@@ -1006,6 +1042,15 @@ export function TermField({ label, value, onChange, terms, freeMin, freeLabel, r
   freeMin: number;
   freeLabel: string;
   required?: boolean;
+  /**
+   * ►►► **Was aus der Frist folgt** (Testnotiz #884). ◄◄◄
+   *
+   * *«Bei Datum muss man immer rechnen … eigentlich zu sagen in x Tagen.»* – Genau so ist
+   * es gebaut, man sah es nur nicht: aus der Lieferfrist wird der Termin (Zusagedatum +
+   * Frist), aus der Zahlungsfrist die Fälligkeit. Der **Aufrufer** rechnet es, weil nur er
+   * das Bezugsdatum kennt; das Feld zeigt es an. Ohne Angabe steht hier nichts.
+   */
+  preview?: string;
 }) {
   const preset = terms.find((t) => String(t.days) === value);
   // **Ein Zustand, keine zweite Wahrheit**: er sagt nur, dass jemand «Individuell»
@@ -1020,8 +1065,14 @@ export function TermField({ label, value, onChange, terms, freeMin, freeLabel, r
           setManual(v === TERM_FREE);
           onChange(v === TERM_FREE ? '' : v);
         }}
-        options={[...terms.map((t) => ({ value: String(t.days), label: t.label })),
-          { value: TERM_FREE, label: freeLabel }]} />
+        // ►►► **Das Symbol folgt aus der Zahl, nicht aus einer Tabelle** (#877/#878). ◄◄◄
+        // Null Tage heisst «ohne Frist» (Sofort · Vorauszahlung), jede andere Zahl ist ein
+        // Termin, und «Individuell» ist die Eingabe. Drei Zeichen für beliebig viele
+        // Werte – eine Zuordnung je Wort wäre die Stelle, an der der nächste übliche Wert
+        // ohne Symbol dasteht.
+        options={[...terms.map((t) => ({
+          value: String(t.days), label: t.label, icon: t.days === 0 ? Zap : CalendarClock,
+        })), { value: TERM_FREE, label: freeLabel, icon: Pencil }]} />
       {free && (
         <input className={`${inputCls} ix-tnum`} {...numericInputProps} value={value}
           aria-label={`${label} in Tagen`} placeholder={`ab ${freeMin} Tagen`}
@@ -1030,6 +1081,11 @@ export function TermField({ label, value, onChange, terms, freeMin, freeLabel, r
             if (value === '') return;
             onChange(String(Math.max(freeMin, Number(value))));
           }} />
+      )}
+      {preview && (
+        <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}>
+          {preview}
+        </span>
       )}
     </div>
   );

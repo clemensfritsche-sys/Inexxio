@@ -1232,7 +1232,20 @@ def test_the_palette_stands_where_the_next_module_would_go():
         "Die Palette steht nicht unmittelbar vor dem Ende-Objekt."
     )
     designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
-    assert "ix-palette" in designer and "ix-palette-name" in designer
+    # ►►► **Die Bewegung ist geteilt, die Gestalt nicht** (Runde #877–#896). ◄◄◄
+    # Sieben Testnotizen wollten genau diese Geste auch am Aktionsknopf – also steht sie
+    # jetzt EINMAL (`.ix-tuck`), und die Palette ist ihre getönte Ausprägung. Geprüft
+    # wird darum die **Regel**: die Palette ist ein Symbol-Knopf, der seinen Namen beim
+    # Zeigen ausklappt – nicht, wie die Klasse dafür heisst.
+    # ►►► **Gezählt, nicht gesucht.** ◄◄◄ Ein blosses «kommt vor» liesse seine eigene
+    # Bug-Form durch: es gibt zwei Palettenknöpfe (Modul und Erfassungspunkt), also bliebe
+    # der Name auch dann stehen, wenn einer von beiden ihn verliert.
+    names = designer.count("ix-palette-name")
+    buttons = len(re.findall(r'className="ix-palette(?:"| )', designer))
+    assert names and names == buttons, (
+        f"Ein Palettenknopf hat keinen Namen zum Ausklappen ({buttons} Knöpfe, "
+        f"{names} Namen)."
+    )
     css = _read(FRONTEND / "app" / "globals.css")
     assert ".ix-palette-name" in css, "Der Hover-Name der Palette hat keine Darstellung."
 
@@ -4823,11 +4836,22 @@ def test_an_icon_button_is_centred_by_its_class():
     assert ".erp-actbtn-icon" in css, (
         "Die Symbol-Ausprägung fehlt – dann setzt sie jede Aufrufstelle wieder inline."
     )
-    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    assert "erp-actbtn-icon" in work, (
-        "Der Vorgang baut seine Symbol-Knöpfe wieder selbst."
+    # ►►► **Und die Aufrufstelle schreibt die Klasse gar nicht mehr.** ◄◄◄ Seit sieben
+    # Notizen dieselbe Geste verlangten (#877–#896), gibt es **ein** Bauteil dafür
+    # (`module-ui.ActionButton`); die Modul-Karte nennt es, statt die Form zu wiederholen.
+    # Das ist dieselbe Regel eine Ebene weiter: wer die Klasse an dreissig Stellen
+    # schreibt, schreibt sie an der einunddreissigsten anders.
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    assert "erp-actbtn-icon" in ui, (
+        "Die Symbol-Form steht nicht mehr im Bauteil – dann setzt sie jede Aufrufstelle "
+        "wieder selbst."
     )
-    assert not re.search(r"erp-actbtn[^\"]*\"[^>]*style=\{\{[^}]*width:", work), (
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "erp-actbtn-icon" not in work, (
+        "Der Vorgang baut seine Symbol-Knöpfe wieder selbst, statt `ActionButton` zu "
+        "benutzen."
+    )
+    assert not re.search(r"erp-actbtn[^\"]*\"[^>]*style=\{\{[^}]*width:", work + ui), (
         "Eine Inline-Breite am Symbol-Knopf ist zurück – genau daran verschob sich das "
         "Symbol, statt zentriert zu sein."
     )
@@ -5739,9 +5763,10 @@ def test_the_buttons_of_a_quote_row_are_the_same_size():
     """
     row = _code(_body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
                       "QuoteRow", kind="function"))
-    icons = [ln for ln in row.splitlines() if "erp-actbtn-icon" in ln]
-    assert len(icons) >= 2, "Die beiden Symbol-Knöpfe sind nicht mehr da."
-    heights = re.findall(r"height:\s*([A-Za-z_0-9]+)", row)
+    # Seit #880 sind es `ActionButton` – die Form steht im Bauteil, die **Höhe** weiterhin
+    # an der Aufrufstelle, weil nur sie weiss, in welcher Zeile sie sitzt.
+    assert row.count("<ActionButton") >= 2, "Die beiden Symbol-Knöpfe sind nicht mehr da."
+    heights = re.findall(r"height=\{([A-Za-z_0-9]+)", row)
     assert heights and len(set(heights)) == 1, (
         f"Die Symbol-Knöpfe tragen verschiedene Höhen ({sorted(set(heights))}) – zwei "
         f"Zahlen für dieselbe Form treffen sich beim nächsten Eingriff nicht mehr."
@@ -6241,7 +6266,9 @@ def test_a_payment_is_corrected_never_reversed_in_the_ui():
     )
     # (b) **Vorbelegen, nicht anlegen** – kein `onAction` an diesem Knopf.
     button = money[money.index(f"!invoice && may(d, active, 'pay')"):]
-    button = button[:button.index("</button>")]
+    # Seit #888 ist es ein `ActionButton` und damit selbstschliessend – geprüft wird die
+    # Regel (vorbelegen statt buchen), nicht das Tag, das sie trägt.
+    button = button[:button.index("/>")]
     assert "onPay(" in button and "onAction(" not in button, (
         "Die Korrektur bucht selbst – der Mensch entscheidet, ob es ein Erfassungsfehler "
         "oder eine Erstattung war."
@@ -6306,7 +6333,10 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
     # `ix-tnum` vererbt sich, und es an jede Zeile zu schreiben wäre die Doppelung, die
     # bei der nächsten vergessen wird. Es sind zwei: die Abrechnung und die Bedingungen.
     for what, marker in (("Abrechnung", "{formatAmount(d.net, d.currency_decimals)}"),
-                         ("Zahlungsfrist", "{d.due_days} Tage"),
+                         # **Und die Frist heisst, wie sie heisst** (#885): «Vorauszahlung»
+                         # statt «0 Tage», gelesen aus derselben Liste, aus der man sie
+                         # wählt. Tabellarisch bleibt sie – es ist eine Zahl.
+                         ("Zahlungsfrist", "{termText(d.due_days, d.payment_terms)}"),
                          ("Zusagedatum", "{localDate(d.agreed_on)}")):
         assert marker in agreed, f"«{what}» steht nicht mehr im bestätigten Auftrag."
         before = agreed[max(0, agreed.index(marker) - 240):agreed.index(marker)]
@@ -6648,9 +6678,32 @@ def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
     assert "'CHF'" not in block and '"CHF"' not in block, (
         "Ein Währungs-Literal steht in der Oberfläche (b)."
     )
-    assert "return null" not in block and "d.currency" in block, (
-        "Der gebundene Zustand rendert nichts (c) – dann sagt die Karte nicht mehr, "
-        "worin sie lautet. Sie verschwindet nicht, sie wird zur Auskunft."
+    # ►►► **Steht sie fest, steht sie an den ZAHLEN** (Testnotizen #876/#881). ◄◄◄
+    #
+    # *«Kann man hier die Währung auch darstellen – also den Wert und die Währung dazu?
+    # Dann kann der eigene Abschnitt Währung entfallen.»* – Und damit ist die Regel aus
+    # #864 («verschwindet nicht, wird zur Auskunft») **abgelöst**, nicht gebrochen: die
+    # Auskunft gibt es weiterhin, sie steht nur dort, wo die Frage entsteht. Ein
+    # Lesefeld daneben wäre dieselbe Angabe ein zweites Mal.
+    #
+    # Bug-Form (c) ist darum die neue: sie steht **nirgends** – dann sagt die Karte nicht
+    # mehr, worin sie lautet.
+    for what, where in (("Angebotszeile", "QuoteRow"), ("bestätigter Auftrag", "Agreed"),
+                        ("Vorschau", "Sums")):
+        shown = " ".join(_component(src, where).split())
+        # Geprüft wird die **Nachbarschaft**: unmittelbar hinter der ausgegebenen Zahl
+        # steht ihr Code – ob er `d.currency` heisst oder als `code` hereingereicht wird,
+        # ist die Sache der Aufrufstelle.
+        assert re.search(r"formatAmount\([^)]*\)\}\s*\{(d\.currency|code)\}", shown), (
+            f"Der Betrag in «{what}» nennt seine Währung nicht (c) – seit #881 ist das "
+            f"die einzige Stelle, an der sie noch steht."
+        )
+    # **Und keine Beschriftung darüber** (#876): das Auswahlfeld zeigt geschlossen
+    # «CHF · Schweizer Franken», ein Wort davor wiederholt es. Benannt bleibt es für den,
+    # der die Karte hört.
+    assert "<Label>" not in block and "aria-label={CURRENCY_LABEL}" in block, (
+        "Die Beschriftung «Währung» steht wieder über dem Auswahlfeld (#876) – oder das "
+        "Feld hat gar keinen Namen mehr."
     )
     # **Im Angebot, und nur dort** – nicht an jeder Zahl, und nicht mehr im Kopf (#864).
     assert "<Currency" in _component(src, "Offer"), (
@@ -6921,10 +6974,24 @@ def test_the_paying_card_names_the_invoice_it_settles():
     Bug-Form: die Karte zeigt nur einen Betrag, und der Zahlende weiss nicht, was er
     damit begleicht.
     """
+    # ►►► **…und zwar EINMAL — sie steht an der Zeile, unter der die Karte aufgeht**
+    # (Testnotiz #891). ◄◄◄
+    #
+    # *«Ich frage mich, ob es diese Information hier nochmals braucht, denn die Rechnung
+    # wird oben gerade direkt angezeigt.»* – Sie wird: seit #859 steht der Knopf **an**
+    # ihrer Zeile, und die Karte klappt darunter auf. Die Nummer in der Karte stammt aus
+    # der Zeit, als der Knopf unter der Liste stand; heute beantwortet die **Stelle** die
+    # Frage. Die Regel bleibt («kassiert wird über eine Rechnung, nicht über einen
+    # Saldo») – geprüft wird sie dort, wo sie wirkt: an der **Vorbereitung**, die die
+    # Nummer an den Zahlungsdienst trägt.
     src = _read(FRONTEND / "components" / "erp" / "pay-online.tsx")
-    assert "setup.invoice" in _code(src), (
-        "Die Bezahlkarte nennt die Rechnung nicht – dann ist der Betrag eine Zahl ohne "
-        "Beleg."
+    assert "chargeId" in _code(src), (
+        "Die Bezahlkarte nennt die Rechnung nicht mehr – dann kassiert sie wieder einen "
+        "Saldo statt eines Belegs."
+    )
+    assert "Rechnung {setup.invoice}" not in _code(src), (
+        "Die Nummer steht wieder in der Karte (#891) – zwanzig Pixel unter derselben "
+        "Nummer an der Zeile, unter der sie aufgeht."
     )
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -7303,4 +7370,324 @@ def test_there_is_only_one_credit_button_and_it_belongs_to_an_invoice():
     assert "invoices.length === 0" not in money, (
         "Der unerreichbare Zahlungs-Knopf ist zurück (c) – ohne Forderung führt `can` "
         "kein `pay`, also ist die Bedingung nie wahr."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► #876 – #896 · ein Knopf ist ein Symbol, und eine Frist hat einen Namen
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_a_button_is_an_icon_and_says_its_name_on_hover():
+    """►►► **«Ein Icon und beim Hover der Text dazu» — EINMAL** (#877–#896). ◄◄◄
+
+    Sieben Testnotizen sagen denselben Satz. Also gibt es **ein** Bauteil dafür
+    (`module-ui.ActionButton`): Quadrat, Zeichen, Name in der Blase des Hauses, Name im
+    `aria-label`. Vorher stand dieselbe Form an sieben Aufrufstellen ausgeschrieben.
+
+    ►►► **Der NAME steht zuerst, der Grund dahinter.** ◄◄◄ Was in den Blasen stand, waren
+    ganze Sätze («Aufschreiben, was auf diese Rechnung geflossen ist») – also die
+    Begründung statt des Wortes, nach dem gefragt war.
+
+    ►►► **Und der Knopf wächst nicht mit — gemessen.** ◄◄◄ Der erste Anlauf teilte die
+    Geste der Modul-Palette (das Quadrat wird breiter und schiebt den Namen heraus). In
+    der Palette ist das stabil, in der dichten Geld-Zeile **schwingt** es: der breitere
+    Knopf lässt die Zeile neu umbrechen, der Zeiger fällt vom Knopf, er klappt ein, die
+    Zeile bricht zurück – gemessen 32 → 63 → 51 → 59 px in 800 ms, mit kippendem
+    `:hover`. Die Blase ist `position: absolute` und `display: none`; sie verändert am
+    Layout **nichts**.
+
+    Bug-Formen: (a) die Karte baut ihre Symbol-Knöpfe wieder selbst; (b) der Knopf sagt
+    seinen Namen nicht; (c) er verändert seine Breite beim Zeigen.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    button = " ".join(_body(ui, "ActionButton", kind="export function").split())
+    assert "erp-actbtn-icon" in button, (
+        "Die Symbol-Form steht nicht mehr im Bauteil – dann setzt sie jede Aufrufstelle "
+        "wieder selbst (a)."
+    )
+    assert "aria-label={label}" in button and "${label} – ${tip}" in button, (
+        "Der Knopf sagt seinen Namen nicht (b) – oder der Grund verdrängt ihn wieder."
+    )
+    # (c) **Keine wachsende Breite** – die Blase trägt das Wort, nicht die Geometrie.
+    css = _read(FRONTEND / "app" / "globals.css")
+    icon = css[css.index(".erp-actbtn-icon {"):]
+    assert "width" not in icon[: icon.index("}")].replace("width: 32px", ""), (
+        "Der Symbol-Knopf bekommt wieder eine zweite Breite (c)."
+    )
+    assert ".erp-actbtn-icon:hover" not in css, (
+        "Der Knopf verändert sich beim Zeigen (c) – gemessen schwingt er in einer "
+        "dichten Zeile unter dem Zeiger weg."
+    )
+    # (a) **Die Aufrufstelle nennt das Bauteil, nicht die Klasse.**
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "<ActionButton" in work and "erp-actbtn-icon" not in work, (
+        "Die Modul-Karte baut ihre Symbol-Knöpfe wieder von Hand (a)."
+    )
+
+
+def test_a_choice_keeps_the_word_it_has_chosen():
+    """►►► **Eine Wahl wird kompakt — das Wort bleibt** (Testnotizen #877/#878). ◄◄◄
+
+    Die beiden Fristen standen als drei Blöcke à `flex: 1` in einer 460 px schmalen
+    Modulspalte, doppelt (Liefer- **und** Zahlungsfrist). Mit Symbol stehen sie jetzt auf
+    ihrer **Inhaltsbreite** nebeneinander – das ist die Hälfte der Fläche.
+
+    **Aber das Wort bleibt**, und das ist die eine Abweichung vom Wortlaut der Notiz: ein
+    **Knopf** ist eine Handlung und hat keine Antwort, die dastehen müsste; eine **Wahl**
+    hat eine. Eingeklappt stünden dort drei anonyme Quadrate, von denen man jedes einzeln
+    anzeigen müsste, um zu lesen, worunter man wählt – am schlimmsten, **bevor** man
+    gewählt hat.
+
+    **Und das Symbol folgt aus der Zahl**, nicht aus einer Tabelle je Wort: null Tage
+    heisst «ohne Frist» (Sofort · Vorauszahlung), jede andere Zahl ist ein Termin, und
+    «Individuell» ist die Eingabe.
+
+    Bug-Formen: (a) die Wahl klappt ihre Wörter ein; (b) sie nimmt wieder ein Drittel der
+    Spalte je Möglichkeit; (c) das Symbol hängt an einem Wort statt an der Zahl.
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    seg = _component(fields, "Segmented")
+    assert "{o.label}" in seg and "max-width" not in seg and "ix-tuck" not in seg, (
+        "Die Wahl klappt ihre Wörter ein (a) – dann muss man auf jede zeigen, um zu "
+        "lesen, worunter man wählt."
+    )
+    assert "flex: tucked ? 'none' : 1" in seg, (
+        "Mit Symbol nimmt jede Möglichkeit wieder ein Drittel der Spalte (b)."
+    )
+    term = _component(fields, "TermField")
+    assert "t.days === 0 ? Zap" in term, (
+        "Das Symbol kommt nicht mehr aus der Zahl (c) – eine Zuordnung je Wort vergisst "
+        "den nächsten üblichen Wert."
+    )
+
+
+def test_a_term_says_its_name_and_the_date_it_produces():
+    """►►► **«0 Tage» heisst «Vorauszahlung» — und aus einer Frist folgt ein Datum**
+    (Testnotizen #884/#885). ◄◄◄
+
+    *«Wenn 0 Tage = Vorauszahlung, ansonsten x Tage»* – und das ist keine zweite
+    Formulierung, sondern **dieselbe Liste**: die üblichen Werte reisen mit ihren Namen
+    mit (`payment_terms`/`lead_terms`), weil man sie zum Auswählen braucht. Gelesen statt
+    ein zweites Mal geschrieben.
+
+    *«Bei Datum muss man immer rechnen»* – eben: die Eingabe bleibt «in x Tagen», und das
+    **Datum rechnet das System**. Es ist dasselbe, das nach der Zusage als Liefertermin im
+    Kopf steht (`_delivery` = Zusagedatum + Frist); ein eigenes Datumsfeld daneben wäre
+    die zweite Aussage über dieselbe Sache.
+
+    Bug-Formen: (a) eine nackte Tageszahl steht wieder in der Karte; (b) die Frist zeigt
+    nicht, was aus ihr folgt.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "function termText" in src, "Die Auflösung der Frist ist weg (a)."
+    # **Geprüft wird alles AUSSER der einen Auflösung selbst** – dort ist «x Tage» der
+    # richtige Rückfall für einen Wert, den keine Liste kennt (die freie Eingabe).
+    elsewhere = src.replace(_body(src, "termText", kind="function"), "")
+    assert not re.search(r"\{[\w.]*days\}\s*Tage", elsewhere), (
+        "Eine nackte Tageszahl steht wieder da (a) – «0 Tage» ist eine Ziffer, die man "
+        "erklären muss."
+    )
+    for where in ("Agreed", "QuoteRow"):
+        assert "termText(" in _component(src, where), (
+            f"«{where}» schreibt die Frist wieder selbst (a)."
+        )
+    # (b) **Die Vorschau** – der Aufrufer rechnet sie, weil nur er das Bezugsdatum kennt.
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "preview" in _component(fields, "TermField"), (
+        "`TermField` zeigt nicht mehr, was aus der Frist folgt (b)."
+    )
+    for where in ("OurOffer", "QuoteRow"):
+        assert "preview=" in _component(src, where), (
+            f"Die Lieferfrist in «{where}» nennt ihren Termin nicht (b)."
+        )
+
+
+def test_a_money_row_shows_one_date_and_hides_the_other_in_the_hover():
+    """►►► **Ein Datum je Zeile, und es sagt die Frist** (Testnotiz #890). ◄◄◄
+
+    *«Braucht es das erste Datum oder nur fällig? … intuitiver zu sagen: fällig in x
+    Tagen, und als Hover-Information das Datum.»* – In der Zeile standen beide Daten
+    nebeneinander («6.9.2026 · fällig 6.9.2026»); das sind zwei Zahlen, die man
+    vergleichen muss, um die eine Aussage zu bekommen, um die es geht.
+
+    Wo es keine Fälligkeit gibt (eine Zahlung), bleibt das Buchungsdatum: dort ist es die
+    ganze Aussage.
+
+    Bug-Formen: (a) beide Daten stehen wieder in der Zeile; (b) der Hover nennt sie nicht.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    row = " ".join(_component(src, "EntryRow").split())
+    assert "localDate(" not in row, (
+        "Die Zeile schreibt ihr Datum wieder selbst (a) – dann stehen beide da."
+    )
+    assert "dateText(e).text" in row and "dateText(e).tip" in row, (
+        "Zeile und Hover kommen nicht mehr aus derselben Ableitung (b)."
+    )
+    fn = " ".join(_body(src, "dateText", kind="function").split())
+    assert "fällig in" in fn and "überfällig seit" in fn and "Gebucht" in fn, (
+        "Die Ableitung nennt die Frist nicht – oder der Hover die beiden Daten (b)."
+    )
+
+
+def test_the_payment_button_goes_when_the_invoice_is_settled():
+    """►►► **«Braucht es diesen Button noch, wenn der Status grün ist?»** (#894). ◄◄◄
+
+    Nein: an einer ausgeglichenen Rechnung gibt es nichts mehr aufzuschreiben. **Überzahlt
+    bleibt er** (offen < 0) – dann steht die Rückgabe an, und die ist eine gewöhnliche
+    Zahlung mit negativem Betrag.
+
+    Eine Ableitung aus derselben Zahl, die den Punkt daneben färbt (`invoiceState`) – kein
+    zweiter Zustand und keine Rollenabfrage.
+
+    Bug-Form: der Knopf hängt wieder allein an `can` und steht an jeder Rechnung.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    row = " ".join(_component(src, "EntryRow").split())
+    gate = row[row.index("invoice && may(d, active, 'pay')"):]
+    gate = gate[: gate.index("<ActionButton")]
+    assert "Number(e.open ?? 0) !== 0" in gate, (
+        "«Zahlung erfassen» steht auch an einer bezahlten Rechnung (#894)."
+    )
+
+
+def test_an_offer_is_saved_not_submitted():
+    """►►► **Kein «Offerte erfassen» — es wird gespeichert** (Testnotiz #879). ◄◄◄
+
+    *«Kann man diesen Button weglassen und ihn gegen die Autosave-Funktion ersetzen?»* –
+    Ja, und es ist die **Hausregel**: im ERP wird nicht abgeschickt, sondern gespeichert
+    (`use-autosave`). Der Knopf war der einzige seiner Art in dieser Karte.
+
+    **Gespeichert wird erst, wenn die Zeile vollständig ist** – der Dienst weist eine
+    Offerte ohne Betrag oder ohne eine der beiden Fristen ab (`_assert_terms`); ein
+    Auto-Save beim ersten Tastendruck liefe gegen eine Fehlermeldung, die nur sagt, dass
+    man noch nicht fertig ist.
+
+    Bug-Formen: (a) der Knopf ist zurück; (b) es wird bei jedem Tastendruck gesendet.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    row = " ".join(_component(src, "QuoteRow").split())
+    assert "useAutosave(" in row, "Die Offerte wird nicht gespeichert, sondern gesendet (a)."
+    assert "action: 'quote'" in row, "Das Verb ist weg."
+    assert "aria-label=\"Offerte erfassen\"" not in row, "Der Knopf ist zurück (a)."
+    # (b) **Vollständig**, sonst gar nicht – dieselbe Bedingung, die vorher den Knopf sperrte.
+    assert "filled" in row and "changed" in row, (
+        "Es wird bei jedem Tastendruck gesendet (b) – gegen einen Dienst, der eine "
+        "halbe Offerte abweist."
+    )
+
+
+def test_the_paying_card_closes_when_the_payment_lands():
+    """►►► **«Diese Meldung verschwindet erst nach einem Refresh»** (Testnotiz #893). ◄◄◄
+
+    Sie stand still da, weil niemand sie zumachte: `onDone` startete das Nachfragen, aber
+    die Karte blieb an ihrer Rechnung stehen und zeigte weiter ihren Abschluss-Satz
+    («… sobald der Zahlungsdienst sie bestätigt hat»). Genau **dann**, wenn die Zeile
+    erscheint, ist der Satz überholt – also endet die Karte an derselben Bedingung, an der
+    auch das Nachfragen endet. Keine zweite Uhr, kein zweiter Zustand.
+
+    **Und nur dann**: läuft das Nachfragen aus, ohne dass etwas kommt, bleibt die Karte
+    stehen – sie hat ja nichts Falsches gesagt.
+
+    Bug-Form: die Karte schliesst nie, oder sie schliesst auch beim Auslaufen.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    money = " ".join(_component(src, "Money").split())
+    assert "if (d.paid !== wait.paid) setPaying(null);" in money, (
+        "Die Bezahlkarte schliesst nicht, wenn die Zahlung ankommt (#893) – oder sie "
+        "schliesst auch, wenn nichts kam."
+    )
+
+
+def test_an_information_panel_is_closed_by_the_button_that_opened_it():
+    """►►► **Kein «Schliessen»-Knopf im Überweisen-Panel** (Testnotiz #889). ◄◄◄
+
+    Der Knopf, der die Auskunft geöffnet hat, schliesst sie auch – er ist ein Schalter
+    (`onTransfer` setzt um). Ein zweiter Weg zum selben Ziel, drei Zentimeter tiefer, ist
+    genau die Doppelung, die das Haus sonst überall wegnimmt.
+
+    Bug-Form: der Knopf ist zurück – und mit ihm eine `onClose`-Prop, die nur ihn trägt.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    panel = _component(src, "Transfer")
+    assert "Schliessen" not in panel and "onClose" not in panel, (
+        "Das Überweisen-Panel schliesst sich wieder selbst (#889)."
+    )
+
+
+def test_a_hover_explains_instead_of_repeating_what_is_written():
+    """►►► **«Die Hover-Information ist scheisse»** (Testnotiz #882). ◄◄◄
+
+    Sie lautete «Was ist zu tun? 123456» – die Frage plus **denselben Wert, der einen
+    Zentimeter weiter links steht**. Eine Blase, die den sichtbaren Text wiederholt, ist
+    keine Auskunft; sie ist die Stelle, an der man aufhört, Blasen zu lesen. Erklärt wird
+    darum die **Angabe**: was für ein Wert das ist und wofür er da ist.
+
+    Bug-Form: der Wert steht wieder im Hinweis.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    ref = " ".join(_component(src, "PartyRef").split())
+    assert "DEAL_TASK_HINT" in ref, "Der Hinweis erklärt die Angabe nicht mehr (#882)."
+    assert "data-tip={`${DEAL_TASK} ${value}`}" not in ref, (
+        "Der Hover wiederholt den Wert, der daneben steht (#882)."
+    )
+
+
+def test_the_booking_form_names_what_it_books():
+    """►►► **«Buchen» sagt nicht, was gebucht wird** (Testnotiz #887). ◄◄◄
+
+    *«Zudem finde ich den Button ‹Buchen› nicht wirklich gut.»* – Es war eine erfundene
+    Vokabel: der Server nennt die Handlung längst («Rechnung erfassen» ↔ «Zahlung
+    erfassen»), und genau dieses Wort steht auf dem Knopf, der das Formular geöffnet hat.
+    Zwei Wörter für eine Handlung sind die Stelle, an der man sich fragt, ob es zwei sind.
+
+    Bug-Form: ein Wort in der Oberfläche statt des Wortes vom Server.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    entry = " ".join(_component(src, "Entry").split())
+    assert "Buchen" not in entry, "Die erfundene Vokabel ist zurück (#887)."
+    assert "d.charge_word : d.payment_word" in entry, (
+        "Der Knopf nennt nicht mehr, was er bucht – das Wort kommt vom Server."
+    )
+
+
+def test_the_confirmed_order_does_not_label_its_party():
+    """**Die Beschriftung «Partner» ist entfallen** (Testnotiz #883).
+
+    Eine Objektnummer mit einem Namen daneben, im Abschnitt «Auftrag», **ist** der
+    Partner – ein Wort davor sagt nichts, was die Zeile nicht schon sagt. Benannt bleibt
+    sie für den, der die Karte hört.
+
+    Bug-Form: das Wort steht wieder als Mikro-Label über bzw. vor der Zeile.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    agreed = " ".join(_component(src, "Agreed").split())
+    assert "MICRO_LABEL, flex: 'none' }}>{d.party_word}" not in agreed, (
+        "Die Beschriftung «Partner» ist zurück (#883)."
+    )
+    assert "aria-label={d.party_word}" in agreed, (
+        "Die Zeile hat gar keinen Namen mehr – dann fehlt sie dem, der die Karte hört."
+    )
+
+
+def test_the_payment_fields_look_like_every_other_field():
+    """►►► **Die Beschriftung steht ÜBER dem Feld, und es ist dicht** (Testnotiz #892). ◄◄◄
+
+    *«Das Design innerhalb des iframes soll condensed sein für die Eingabefelder, zudem
+    Labels ‹above›.»* – Und das ist keine Geschmacksfrage, sondern dieselbe Anatomie wie
+    jedes Feld daneben: im Haus steht die Beschriftung als kleine Zeile **über** der
+    Eingabe (`fields.Label`), nie schwebend darin. Die Vorgabe des Dienstes ist
+    «floating», und damit sahen die Felder in der Karte anders aus als die darüber.
+
+    Bug-Formen: (a) die Vorgabe gilt wieder; (b) eine feste Farbe steht daneben – dann ist
+    es die zweite Farbsprache, die das Haus gerade abgeschafft hat.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx"))
+    look = " ".join(_body(src, "appearance", kind="function").split())
+    assert "labels: 'above'" in look, "Die Beschriftung schwebt wieder im Feld (a)."
+    assert "fontSizeBase" in look and "'.Input'" in look, (
+        "Die Felder tragen wieder die Masse des Dienstes statt unsere (a)."
+    )
+    assert not re.search(r":\s*'#[0-9a-fA-F]{3,8}'", look.replace("v('--", "")), (
+        "Eine feste Farbe steht ohne Token daneben (b)."
     )

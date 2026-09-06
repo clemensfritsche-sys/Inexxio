@@ -792,6 +792,7 @@
    Aufrufstelle mehr `width`/`padding` von Hand setzen und es erneut verschieben. */
 .erp-actbtn-icon { width: 32px; padding: 0; gap: 0; }
 .erp-actbtn:disabled { opacity: .5; cursor: not-allowed; }
+
 .erp-actbtn-primary { background: var(--inexxio-black); color: #fff; box-shadow: var(--shadow-sm); }
 .erp-actbtn-primary:not(:disabled):hover { background: #26262A; }
 .erp-actbtn-danger { background: #fff; border-color: #f3c9c6; color: var(--danger); }
@@ -1000,6 +1001,13 @@
   opacity: 0;
   transition: max-width 0.16s ease, opacity 0.12s ease;
 }
+/* ►►► **Sie wächst nur, weil sie PLATZ hat** (Runde #877–#896). ◄◄◄
+   Dieselbe Geste stand eine Runde lang als geteilte Klasse auch an den Knöpfen der
+   Modul-Karte – und **schwingt dort**: der Knopf wird breiter, die dichte Geld-Zeile
+   bricht neu um, der Zeiger fällt vom Knopf, er klappt ein, die Zeile bricht zurück
+   (gemessen: 32 → 63 → 51 → 59 px, `:hover` kippt dabei hin und her). Die Palette steht
+   in einer eigenen, mittig gesetzten Zeile mit Luft – hier ist es stabil, und darum
+   bleibt es hier. Wo es eng ist, sagt das Wort die Blase (`data-tip`). */
 .ix-palette:hover, .ix-palette:focus-visible { width: auto; padding-inline: 11px; gap: 7px; }
 .ix-palette:hover .ix-palette-name,
 .ix-palette:focus-visible .ix-palette-name { max-width: 180px; opacity: 1; }

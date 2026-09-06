@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { MICRO_LABEL } from '@/components/erp/fields';
 
 /**
@@ -61,6 +62,59 @@ export const MODULE_TITLE: CSSProperties = {
  * eine Handlung, die eine Karte abschliesst.
  */
 export const ACT_H = { row: 26, inline: 30, main: 34 } as const;
+
+/**
+ * ►►► **Ein Knopf ist ein Symbol, und beim Zeigen steht sein Name da.** ◄◄◄
+ *
+ * Sieben Testnotizen sagen denselben Satz (#877/#878/#880/#887/#888/#895/#896):
+ * *«kann man hier so einen Button machen wie bei der Auswahl der Module – also ein Icon
+ * und beim Hover der Text dazu»*. Genau das ist dieses Bauteil, und es gibt es **einmal**:
+ * ein Quadrat mit dem Zeichen, der Name in der Blase des Hauses, der Name im
+ * `aria-label`. Vorher stand dieselbe Form an sieben Aufrufstellen ausgeschrieben – mit
+ * Höhen, Ausprägungen und Hinweisen, die schon leicht auseinanderliefen.
+ *
+ * ►►► **Warum der Knopf nicht mitwächst — gemessen, nicht geschätzt.** ◄◄◄
+ *
+ * Der erste Anlauf teilte die Geste der **Modul-Palette**, auf die der Nutzer zeigt: das
+ * Quadrat wird beim Zeigen breiter und schiebt den Namen heraus. In der Palette ist das
+ * stabil – sie steht in einer eigenen, mittig gesetzten Zeile mit Luft. In der **Geld-
+ * Zeile** ist es das nicht: sie ist dicht und bricht um, der breiter werdende Knopf lässt
+ * sie neu umbrechen, der Zeiger fällt vom Knopf, er klappt ein, die Zeile bricht zurück –
+ * gemessen **32 → 63 → 51 → 59 px** in 800 ms, mit kippendem `:hover`. Ein Bedienelement,
+ * das unter dem Zeiger wegläuft, ist keines.
+ *
+ * Die Blase des Hauses hat dieses Problem nicht: sie ist `position: absolute` und
+ * `display: none`, also verändert sie **nichts** am Layout (genau darum steht sie so in
+ * `globals.css`). Der Name gehört darum hinein – und **zuerst**: was hier stand, waren
+ * ganze Sätze («Aufschreiben, was auf diese Rechnung geflossen ist»), also die
+ * Begründung statt des Namens. Ein Grund ist willkommen, aber er kommt **nach** dem Wort,
+ * nach dem gefragt war.
+ */
+export function ActionButton({
+  icon: Icon, label, tone = 'neutral', height = ACT_H.row, tip, disabled, onClick,
+}: {
+  icon: LucideIcon;
+  /** Was der Knopf tut – das Wort in der Blase und im `aria-label`. */
+  label: string;
+  tone?: 'primary' | 'neutral' | 'danger';
+  height?: number;
+  /**
+   * Ein **Grund**, keine zweite Beschriftung – er steht hinter dem Namen. Meist der
+   * Satz, warum es gerade nicht geht, oder was die Handlung nach sich zieht.
+   */
+  tip?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" disabled={disabled} onClick={onClick}
+      className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon`}
+      style={{ height }} aria-label={label}
+      data-tip={tip ? `${label} – ${tip}` : label}>
+      <Icon size={13} />
+    </button>
+  );
+}
 
 /**
  * ►►► **Wie weit ist ein Schritt?** ◄◄◄ `past` – vorbei · `active` – dran · `ahead` –

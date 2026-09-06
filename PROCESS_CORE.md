@@ -2694,6 +2694,41 @@ Zuordnung. Sie ist passiert; ein Ereignis der Aussenwelt macht man nicht ungesch
 negativ — *wir schulden* —, und die Erstattung steht als Handlung da.
 
 
+### 9.14b Der Betrag der Zusage ist die Summe seiner Positionen
+
+►►► **Wo die POSITIONEN den Preis tragen, gibt es keine zweite Zahl.** ◄◄◄
+
+Bei einer **Einnahme** nennen wir den Preis je Position (§9.12, MWSTG Art. 26), und der
+Betrag des Vorgangs *ist* ihre Brutto-Summe (`gross_of`) — dieselbe Summe, aus der auch
+Netto, Steuer je Satz und die anteilige Aufteilung einer Teilrechnung kommen
+(`vat_split` / `split_for`). Der Zuschlag liess ihn trotzdem frei übersteuern, und damit
+konnte derselbe Beleg zwei Dinge sagen: «Total 900» über einer Aufstellung, die auf 1000
+aufgeht.
+
+Eine abweichende Zahl wird darum **abgewiesen** — mit der richtigen im Satz —, nicht still
+verworfen: eine stillschweigend ignorierte Angabe ist die unangenehmere Form, weil man ihr
+nicht ansieht, dass sie nichts getan hat. Wer nachverhandelt, ändert den Preis **an der
+Position**.
+
+Bei einer **Ausgabe** nennt die Gegenpartei eine Summe (ihre Steuer steht auf *ihrer*
+Rechnung); dort ist der Betrag die einzige Angabe, und ein Wert in der Nutzlast **ist** die
+Nachverhandlung.
+
+►►► **Und die Null ist eine Angabe — auch beim Zuschlag.** ◄◄◄ Die vereinbarte
+Zahlungsfrist wurde als `_days(payload) or _days(line)` gelesen. Eine **null** aus der
+Nutzlast ist aber genau die Vorauszahlung (§9.12, `PREPAID_DAYS`), und `0 or X` ist `X`:
+wer «zahlbar sofort» vereinbarte, bekam still die Frist der Offerte — und damit ein Modul,
+das ohne Zahlung abschliesst, obwohl Vorkasse verabredet war. Dieselbe Falle, gegen die
+`_assert_terms` ausdrücklich auf `is None` prüft.
+
+*Bewusst **nicht** getan: die vier Werte der Zusage (`party_id`, `amount`, `due_days`,
+`agreed_lines`) durch einen blossen **Zeiger** auf die gewählte Angebotszeile zu ersetzen.
+Sie sind keine Kopien **einer** Tatsache: `party_id` ist der Zeiger, und Betrag wie Frist
+dürfen bei der Zusage abweichen — verhandelt wird auch am Telefon. Ein Zeiger sagte damit
+weniger, nicht dasselbe: er überschriebe die Offerte mit der Zusage, und danach liesse sich
+nicht mehr sagen, was der Partner ursprünglich angeboten hat.*
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

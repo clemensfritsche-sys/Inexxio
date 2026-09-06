@@ -2779,6 +2779,118 @@
 > eigene Bug-Form gegengeprüft (+5.9 px bei 375, +60.9 px bei 320 mit einem unteilbaren
 > Wort; die alte QR-Fassung meldet −72 px).
 
+> ►►► **Testnotizen #876–#896 — ein Knopf ist ein Symbol, und eine Frist hat einen
+> Namen.** ◄◄◄ Einundzwanzig Notizen, und **sieben davon sagen wörtlich denselben Satz**:
+> *«kann man hier so einen Button machen wie bei der Auswahl der Module – also ein Icon
+> und beim Hover der Text dazu»* (#877/#878/#880/#887/#888/#895/#896). Also ist es keine
+> Eigenschaft einer Zeile, sondern die **Form eines Knopfes im Haus**: `ActionButton`
+> (`module-ui`) – Quadrat, Zeichen, Name in der Blase, Name im `aria-label`. Vorher stand
+> dieselbe Form an sieben Aufrufstellen ausgeschrieben, mit Höhen und Hinweisen, die schon
+> leicht auseinanderliefen.
+> ►►► **Und der Knopf wächst NICHT mit — gemessen, nicht geschätzt.** ◄◄◄ Der erste
+> Anlauf teilte die Geste der **Modul-Palette**, auf die der Nutzer zeigt (das Quadrat wird
+> beim Zeigen breiter und schiebt den Namen heraus). In der Palette ist das stabil – sie
+> steht in einer eigenen, mittig gesetzten Zeile mit Luft. In der **Geld-Zeile** ist es das
+> nicht: sie ist dicht und bricht um, der breiter werdende Knopf lässt sie neu umbrechen,
+> der Zeiger fällt vom Knopf, er klappt ein, die Zeile bricht zurück – **32 → 63 → 51 →
+> 59 px in 800 ms**, mit kippendem `:hover`. Ein Bedienelement, das unter dem Zeiger
+> wegläuft, ist keines. Die Blase des Hauses hat das Problem nicht (`position: absolute`,
+> `display: none` – sie verändert am Layout nichts), und was fehlte, war nur der **Name
+> darin**: es standen ganze Sätze da («Aufschreiben, was auf diese Rechnung geflossen
+> ist»), also die Begründung statt des Wortes, nach dem gefragt war. Jetzt steht der Name
+> zuerst, der Grund dahinter.
+> **Eine WAHL behält ihr Wort** (#877/#878, die eine Abweichung vom Wortlaut): ein Knopf
+> ist eine **Handlung** und hat keine Antwort, die dastehen müsste – eine Frist hat eine.
+> Eingeklappt stünden dort drei anonyme Quadrate, von denen man jedes einzeln anzeigen
+> müsste, um zu lesen, worunter man wählt, und zwar am schlimmsten **bevor** man gewählt
+> hat. Behoben ist trotzdem, was gemeint war: mit Symbol stehen die Möglichkeiten auf
+> ihrer **Inhaltsbreite** statt jede auf einem Drittel der Spalte (gemessen 80–134 px
+> statt 3 × ~150 px). **Das Symbol folgt dabei aus der Zahl**, nicht aus einer Tabelle je
+> Wort: null Tage = ohne Frist (`Zap`), jede andere Zahl = Termin (`CalendarClock`),
+> «Individuell» = Eingabe (`Pencil`).
+> **Die Währung steht bei den BETRÄGEN** (#876/#881): *«Kann man hier die Währung auch
+> darstellen … dann kann der eigene Abschnitt Währung entfallen.»* – Sie steht jetzt an
+> jeder Zahl, die man abschreibt (Angebotszeile · Vorschau · Total), die Beschriftung über
+> dem Auswahlfeld ist entfallen (es zeigt geschlossen «CHF · Schweizer Franken»), und ab
+> der Zusage steht dort **gar nichts** mehr. *Damit ist die Regel aus #864 («verschwindet
+> nicht, wird zur Auskunft») abgelöst, nicht gebrochen: die Auskunft gibt es weiterhin,
+> sie steht nur dort, wo die Frage entsteht.*
+> **«0 Tage» heisst «Vorauszahlung»** (#885) – gelesen aus **derselben Liste**, aus der
+> man sie wählt (`payment_terms`/`lead_terms` reisen ohnehin mit); ein Wert, den keine
+> Liste kennt, ist die freie Eingabe und heisst «x Tage».
+> **Aus einer Frist folgt ein Datum, und das rechnet das System** (#884): *«bei Datum muss
+> man immer rechnen»* – eben, darum bleibt die Eingabe «in x Tagen», und darunter steht,
+> was daraus wird. Die Frage «soll es überhaupt änderbar sein?» war schon beantwortet: der
+> Wert ist aus dem Angebot **vorbelegt** (`useEffect [remote]`), und der Termin ist eine
+> Ableitung (`_delivery` = Zusagedatum + Frist). Er bleibt änderbar – nachverhandelt wird
+> auch am Telefon.
+> **EIN Datum je Geld-Zeile** (#890): «6.9.2026 · fällig 6.9.2026» waren zwei Zahlen, die
+> man vergleichen muss, um die eine Aussage zu bekommen, um die es geht – jetzt steht dort
+> **«fällig in 30 Tagen»** bzw. «überfällig seit 17 Tagen», und die beiden Daten stehen im
+> Hover. Wo es keine Fälligkeit gibt (eine Zahlung), bleibt das Buchungsdatum.
+> **Die Offerte wird gespeichert, nicht abgeschickt** (#879, `useAutosave`) – die
+> Hausregel; der Knopf war der einzige seiner Art in dieser Karte. Gespeichert wird erst,
+> wenn die Zeile **vollständig** ist: der Dienst weist eine Offerte ohne Betrag oder ohne
+> eine der beiden Fristen ab, und ein Auto-Save beim ersten Tastendruck liefe gegen eine
+> Meldung, die nur sagt, dass man noch nicht fertig ist.
+> **Kleineres, jedes an einer Stelle:** «Zahlung erfassen» **verschwindet an einer
+> bezahlten Rechnung** (#894 – überzahlt bleibt er, dann steht die Rückgabe an; eine
+> Ableitung aus derselben Zahl, die den Punkt daneben färbt); der Hover an der
+> Bestellangabe **erklärt**, statt den Wert zu wiederholen, der daneben steht (#882);
+> «Buchen» heisst, was es bucht (#887 – das Wort kommt vom Server); die Beschriftung
+> «Partner» am bestätigten Auftrag ist entfallen (#883); der **«Schliessen»-Knopf** im
+> Überweisen-Panel ist gelöscht (#889 – der Knopf, der es geöffnet hat, schliesst es); die
+> Rechnungsnummer steht **nicht zweimal** (#891 – die Karte klappt unter der Zeile auf, an
+> der die Nummer steht); die Felder des Zahlungsdienstes tragen **unsere** Anatomie
+> (#892 – `labels: 'above'`, 13 px, unsere Polsterung); und die Bezahlkarte **schliesst**,
+> wenn die Zahlung ankommt (#893 – sie blieb stehen, weil niemand sie zumachte: `onDone`
+> startete das Nachfragen, aber die Karte blieb an ihrer Rechnung; jetzt endet sie an
+> derselben Bedingung wie das Nachfragen, und **nur** dann – läuft es aus, ohne dass etwas
+> kommt, bleibt sie stehen).
+> **Das Leistungsdatum ist längst automatisch** (#886) – *«Muss ich das wirklich hier
+> angeben? Brauche ich es überhaupt?»* **Brauchen ja**: auf einer Schweizer Rechnung ist
+> es Pflicht (MWSTG Art. 26 Bst. c) und **nicht** das Rechnungsdatum. **Angeben nein**: der
+> Server leitet es aus dem Prozess ab und füllt das Feld. Was fehlte, war der **Satz**, der
+> das sagt – er steht jetzt im Hover. Ein Feld bleibt es, weil ein Mensch von
+> Teilleistungen weiss, von denen der Log nichts weiss.
+>
+> ►►► **Die Vereinfachungen: eine umgesetzt, zwei beim Messen verworfen — und ein
+> stiller Fehler gefunden.** ◄◄◄ Sie stammen aus meiner eigenen Halbseiten-Übersicht;
+> beim Umsetzen hielten zwei von drei der Prüfung nicht stand, und das steht so hier,
+> weil eine ungeprüfte Vermutung beim nächsten Mal als Tatsache gelesen wird.
+> **(1) Umgesetzt: `deals.amount` ist keine zweite Wahrheit.** Wo **wir** den Preis je
+> Position nennen, *ist* der Betrag ihre Brutto-Summe – und `_agree` liess ihn trotzdem
+> frei übersteuern. Dann sagt derselbe Beleg zwei Dinge: «Total 900» über einer
+> Aufstellung, die auf 1000 aufgeht (Netto, Steuer je Satz und die Aufteilung einer
+> Teilrechnung kommen alle aus den Positionen). Eine abweichende Zahl wird jetzt
+> **abgewiesen** – mit der richtigen im Satz –, nicht still verworfen: wer nachverhandelt,
+> ändert den Preis dort, wo er steht. Die **Spalte bleibt**: bei einer *Ausgabe* nennt die
+> Gegenpartei eine Summe, und dort ist sie die einzige Angabe.
+> **(2) Verworfen: «ein Zeiger auf die Angebotszeile statt vier Kopien».** Gemessen am
+> Code sind die vier keine Kopien **einer** Tatsache: `party_id` *ist* der Zeiger, und
+> `amount`/`due_days` dürfen bei der Zusage abweichen – verhandelt wird auch am Telefon.
+> Ein Zeiger sagte damit **weniger**, nicht dasselbe: er überschriebe die Offerte mit der
+> Zusage, und danach liesse sich nicht mehr sagen, was er ursprünglich angeboten hat.
+> **Der Blick dorthin hat aber einen echten Fehler gefunden**: `row.due_days =
+> _days(payload) or _days(line)` verschluckt die **Null** – «Vorauszahlung» am Telefon
+> vereinbart ist `0`, und `0 or X` ist `X`. Dieselbe Falle, gegen die `_assert_terms`
+> ausdrücklich auf `is None` prüft. Latent (die Oberfläche schickt heute keine Frist mit),
+> behoben und mit einem Wächter festgehalten.
+> **(3) Verworfen: «`stage` ist fast abgeleitet».** Die Beobachtung stimmt – *offer →
+> agreed* heisst nichts anderes als «`agreed_on` ist gesetzt». Die Folgerung nicht: die
+> Spalte trägt zwei weitere Werte (`done`, `cancelled`), die aus nichts folgen, und
+> `agreed_on` ist ein **Datum**, kein Ja/Nein. Es fällt also keine Spalte weg, und eine
+> dritte Ableitung daneben wäre die zweite Regel, die diese Runde gerade abbaut.
+> Wächter: 12 neue in `test_frontend_mirrors.py`, 2 neue in `test_deal_module.py`, dazu 8
+> auf die neue Regel gezogene – **27 Bug-Formen gegengeprüft, jede meldet**; *eine war
+> dabei stumpf und liess ihre eigene durch* (sie fragte, **ob** die Palette einen
+> ausklappenden Namen hat, und es gibt zwei Palettenknöpfe – jetzt werden sie gezählt).
+> Suite grün gegen ein Schema nur aus den Migrationen (549); **keine Migration** in dieser
+> Runde. Gemessen in Chromium an den **echten** Komponenten (Karte im `ModuleShell`):
+> 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über sechs
+> Zustände – und die Messung gegen ihre eigene Bug-Form gegengeprüft (+87 px bei 375,
+> +142 px bei 320 mit einem unteilbaren Wort). Knopfbreite beim Zeigen: **Δ 0.00 px**.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

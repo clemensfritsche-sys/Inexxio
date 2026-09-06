@@ -2954,3 +2954,110 @@ def test_a_refund_is_bounded_and_says_so_in_a_sentence():
             # **Die Referenz IST die Zahlungsabsicht** – der Dienst findet die Belastung
             # selbst, und wir brauchen dafür keine ``stripe_*``-Spalte.
             assert kw["payment_intent"] == "pi_test"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DIE ZUSAGE — eine Zahl, und die Null ist eine Angabe
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_the_agreed_amount_is_the_sum_of_its_positions():
+    """►►► **Wo die POSITIONEN den Preis tragen, gibt es keine zweite Zahl.** ◄◄◄
+
+    Der Betrag des Vorgangs stand als eigene Spalte da und liess sich beim Zuschlag frei
+    übersteuern – auch dort, wo wir den Preis **je Position** genannt haben. Dann sagt
+    derselbe Beleg zwei Dinge: «Total 900» über einer Aufstellung, die auf 1000 aufgeht.
+    Netto, Steuer je Satz und die Aufteilung einer Teilrechnung kommen alle aus den
+    Positionen (``vat_split``/``split_for``) – der Betrag ist ihre Brutto-Summe, keine
+    Angabe daneben.
+
+    **Abgewiesen, nicht still verworfen**: wer nachverhandelt, ändert den Preis dort, wo
+    er steht. Eine stillschweigend ignorierte Zahl wäre die unangenehmere Form – man
+    sieht ihr nicht an, dass sie nichts getan hat.
+
+    Bei einer **Ausgabe** bleibt der Betrag die einzige Angabe (die Gegenpartei nennt eine
+    Summe, ihre Steuer steht auf ihrer Rechnung) – dort ist die Nutzlast die
+    Nachverhandlung.
+
+    Bug-Formen: (a) die getippte Zahl gewinnt gegen die Positionen; (b) sie wird still
+    verworfen; (c) die Regel greift auch dort, wo die Gegenpartei den Preis nennt.
+    """
+    from decimal import Decimal
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=2, article=art)
+        step, staff = rows[0], _staff(db)
+        svc.apply(db, order=order, step=step, action="ask", payload={
+            "parties": [kunde.object_id], "lead_days": 5, "payment_days": 30,
+            "lines": [{"article": art.id, "price": "100.00", "vat": "0.00"}],
+        }, actor=staff)
+        db.flush()
+
+        # (a)/(b) Eine abweichende Zahl wird **abgewiesen**, mit der richtigen im Satz.
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="agree",
+                      payload={"party": kunde.object_id, "amount": "150.00"}, actor=staff)
+        assert e.value.status_code == 400
+        assert "200.00" in str(e.value.detail), (
+            f"Die Ablehnung nennt die richtige Summe nicht: {e.value.detail}"
+        )
+
+        # Ohne Angabe (und mit der gleichen Zahl) geht es durch – und der Betrag ist die
+        # Brutto-Summe, nicht eine Kopie irgendeiner Eingabe.
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": kunde.object_id}, actor=staff)
+        db.flush()
+        row = svc.of_step(db, step.id)
+        assert row.amount == Decimal("200.00"), (
+            f"Der Betrag ist nicht die Summe: {row.amount}"
+        )
+        assert str(svc._sums(row)["net"]) == "200.00", (
+            "Netto und Betrag laufen auseinander – genau das sollte die Regel verhindern."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_prepaid_term_agreed_by_hand_is_not_swallowed():
+    """►►► **Die Null ist eine Angabe — auch beim Zuschlag.** ◄◄◄
+
+    Hier stand ``_days(payload) or _days(line)``. Eine **null** aus der Nutzlast ist aber
+    genau die Vorauszahlung (``dm.PREPAID_DAYS``), und ``0 or X`` ist ``X``: wer beim
+    Zuschlag «zahlbar sofort» vereinbarte, bekam still die Frist der Offerte – und damit
+    ein Modul, das ohne Zahlung abschliesst, obwohl Vorkasse verabredet war.
+
+    Dieselbe Falle, gegen die ``_assert_terms`` ausdrücklich auf ``is None`` prüft; hier
+    fehlte sie. Gefunden beim Lesen dieser Zeile, nicht beim Testen der Oberfläche – die
+    schickt heute gar keine Frist mit, also war der Fehler **latent**.
+
+    Bug-Form: die 0 fällt durch, und ``prepaid`` bleibt falsch.
+    """
+    from app.domain import deal as dm
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step, staff = rows[0], _staff(db)
+        svc.apply(db, order=order, step=step, action="ask", payload={
+            "parties": [kunde.object_id], "lead_days": 5, "payment_days": 30,
+            "lines": [{"article": art.id, "price": "100.00", "vat": "0.00"}],
+        }, actor=staff)
+        db.flush()
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": kunde.object_id, "payment_days": dm.PREPAID_DAYS},
+                  actor=staff)
+        db.flush()
+        row = svc.of_step(db, step.id)
+        assert row.due_days == 0, (
+            f"Die vereinbarte Null ist verschluckt worden ({row.due_days}) – die Offerte "
+            f"gewinnt gegen die Zusage."
+        )
+        assert dm.prepaid(row.due_days), "Vorauszahlung vereinbart, und sie gilt nicht."
+    finally:
+        db.rollback(); db.close()
