@@ -270,11 +270,11 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
 | Bauteil | Was es ist |
 |---|---|
 | `MODULE_CARD` · `MODULE_TITLE` | Die Fläche und der Name – dieselbe Karte wie `SPEC.card` am Datensatz, nur mit der Polsterung einer schmalen Prozessspalte. Gesetzt wird sie in `ModuleShell`, also erbt sie **jedes** Modul. |
-| `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie – mit **Punkt davor**, wenn er sagt, wie weit er ist (`state`: `past · active · ahead`). **Leerer Titel = kein Kopf.** |
+| `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie – mit **Punkt davor**, wenn er sagt, wie weit er ist (`state`: `past · active · ahead`). **Leerer Titel = kein Kopf.** ►►► **Die Status-Spalte steht immer, auch leer** (#899): ein Punkt rückt die Beschriftung um seine Breite ein, und nur *manche* Abschnitte sind ein Schritt – gemessen 18 px ↔ 33 px im selben Beleg. Ein Punkt für alle wäre die falsche Lösung: er behauptete einen Fortschritt, den ein Inhalts-Abschnitt nicht hat. |
 | `ModuleMeta` | Die leise Zeile für das, was über den ganzen Vorgang gilt (Richtung, Währung, Termin, Sperre). |
 | `ValueBar` | **Ein Anteil an einem Ganzen** – Leiste, Punkt, Wort, Zahl; die Beschriftung ist zugleich das Bedienelement. |
 | `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
-| `ActionButton` | ►►► **Ein Knopf ist ein Symbol, und beim Zeigen steht sein Name da** (#877–#896). ◄◄◄ Sieben Notizen, ein Satz – also **ein** Bauteil: Quadrat, Zeichen, Name in der Blase des Hauses, Name im `aria-label`, Grund dahinter. **Er wächst nicht mit**: die Geste der Modul-Palette (breiter werden und den Namen herausschieben) **schwingt** in einer dichten Zeile – der Knopf wird breiter, die Zeile bricht neu um, der Zeiger fällt vom Knopf, er klappt ein (gemessen 32 → 63 → 51 → 59 px in 800 ms). Die Blase ist `position: absolute` und `display: none`; sie verändert am Layout nichts. |
+| `ActionButton` · `Actions` | ►►► **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name DANEBEN auf** (#877–#896, #900). ◄◄◄ Acht Notizen, ein Satz – also **ein** Bauteil und **eine** Geste: `.ix-tuck` in `globals.css`, von der die Modul-Palette (`.ix-palette`) die getönte Ausprägung ist. Ein Anlauf lang stand der Name in der Blase, weil ein wachsender Knopf in einer **umbrechenden** Zeile schwingt (gemessen 32 → 63 → 51 → 59 px in 800 ms, mit kippendem `:hover`) – #900 hat das zu Recht zurückgewiesen: die Antwort ist nicht, die Geste aufzugeben, sondern **Platz** zu geben. `Actions` ist eine Zeile mit `flex-wrap: nowrap`; wo sie in einer umbrechenden Zeile steht, bekommt sie zusätzlich `flex: 1 1 100%` (eine eigene Zeile, **linksbündig** – rechts angeschlagen wanderte die Gruppe beim Aufklappen unter dem Zeiger weg). Gemessen dann: **148 px, acht Messungen lang unverändert**, bei 1440 · 375 · 320 px. Der **Grund** hängt an einer Hülle, nicht am Knopf: `.ix-tuck` ist `overflow: hidden`, und das schneidet ein `::after` weg (#790). |
 
 - ►►► **Die Karte ist weiss – wie jeder Datensatz im Haus.** ◄◄◄ Sie war getönt, Rahmen
   **und** Fläche in der Modulfarbe; bei fünf Modulen untereinander standen fünf farbige
@@ -304,11 +304,38 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
   zwei Dinge meint, ist die Form, in der ein Vergleich still falsch wird.
 
 ## Zahlung (`components/erp/deal-work.tsx`)
-Der Geldvorgang an der Ausführungsstelle: **drei Schritte** – `Angebot → Auftrag →
-Rechnung & Zahlung`, in **beide** Richtungen dieselben. Was Einnahme von Ausgabe
-unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `party_word`,
-`ask_verb`, `charge_word`, `money_label`, `stage_label`, `undo`) – die Karte braucht dafür
-**kein einziges `if` auf die Richtung**; ein Wächter zählt sie.
+►►► **Die Karte IST der Beleg — und sie WÄCHST** (Testnotiz #899). ◄◄◄ *Belegkopf ·
+Positionen · Bedingungen · Rückläufe · Rechnung & Zahlungen · Handlungen*, in **beide**
+Richtungen dasselbe. Was Einnahme von Ausgabe unterscheidet, **reist fertig mit**
+(`DealEmbed.label`, `stages[].label/verb`, `party_word`, `ask_verb`, `charge_word`,
+`money_label`, `stage_label`, `undo`) – die Karte braucht dafür **kein einziges `if` auf
+die Richtung**; ein Wächter zählt sie.
+
+- ►►► **Ein Dokument, kein Stapel von Blöcken.** ◄◄◄ Vorher war die Karte eine **Kette**:
+  Positionen, Abschnitt «Angebot», Abschnitt «Auftrag», Geld – und mit der Zusage kam ein
+  Block dazu (`Agreed`), der Partner, Summe und Fristen **noch einmal** zeigte, in anderer
+  Reihenfolge als oben. Jetzt ist es **ein** Beleg in der Ordnung, die ein Beleg hat:
+  **Kopf** (`DocHead` – Belegart · An <Partner> · Datum) → **Positionen** mit Summe
+  (`Goods` → `Totals`) → **Bedingungen** (`Terms` – Währung und die beiden Fristen) →
+  **Rückläufe** (`Offer` – der Angebotsspiegel) → **Rechnung & Zahlungen** (`Money`) →
+  **Handlungen** unter einer Haarlinie, wie die Unterschrift.
+- **Er wächst, statt umzuschalten**: der Kopf heisst nach der Zusage «Auftrag» statt
+  «Angebot» und nennt den Empfänger, die Preisspalte trägt die gebuchten Zahlen statt des
+  Entwurfs, die Bedingungen stehen als Auskunft statt als Feld, die Rückläufe klappen auf
+  **eine** Zeile zusammen, und darunter kommt das Geld dazu. *Ein späterer PDF-Export ist
+  damit dieselbe Komponente ohne Knöpfe.*
+- **Jede Beleg-Angabe steht an GENAU einem Ort** (Empfänger · Zusagedatum · Zahlungsfrist ·
+  Liefertermin · Steueraufteilung · Nettosumme) – gezählt, nicht behauptet. Und die
+  **Summe** gibt es einmal (`Totals`): Vorschau aus getippten Preisen und gebuchte Zahlen
+  des Servers sind dieselbe Aufstellung; zwei Bauteile wären zwei Schreibweisen für Netto,
+  Steuer und Total.
+- **Zusammengeklappt wird erst NACH dem Zuschlag** («1 von 2 Angeboten gewählt»): solange
+  verhandelt wird, versteckt der Beleg nichts. Danach sind die unterlegenen Zeilen der
+  **Nachweis**, warum so entschieden wurde – und der gehört auf Klick.
+- **Die Zahlungsfrist steht über der Lieferfrist** (#897) – im Beleg wie an der
+  Angebotszeile, und auch in deren **Anzeige**: sie ist die folgenreichere Angabe (aus ihr
+  kommt die Fälligkeit, und null heisst Vorauszahlung), und zwei Formulare für dieselben
+  zwei Fragen dürfen nicht anders herum fragen.
 
 - **Zwei Stufen, und der dritte Schritt ist KEINE.** Unumkehrbar sind zwei Dinge: nichts
   zugesagt · zugesagt. «Abgeschlossen» stand einmal als dritte Stufe da und war genau das
@@ -396,7 +423,7 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   nicht beim Tippen – wer eine 3 vor die 0 setzen will, muss die 0 schreiben dürfen), und
   **die Werte kommen vom Server** (`d.payment_terms`/`d.lead_terms`): eine zweite Liste im
   Browser liefe beim ersten neuen Regelwert auseinander. Dasselbe Bauteil im Angebot
-  (`OurOffer`) wie an der Angebotszeile (`QuoteRow`) – zwei Bauarten für dieselbe Frage
+  (`Terms`) wie an der Angebotszeile (`QuoteRow`) – zwei Bauarten für dieselbe Frage
   liefen beim nächsten üblichen Wert auseinander. Gemessen in Chromium: 1440 · 1280 · 1024 ·
   834 · 375 · 320 px, **0 px** waagrechter Überlauf (Bug-Form mit einem unteilbaren Wort:
   +140 px bei 375, +195 px bei 320 – die Messung ist nicht blind).
@@ -448,7 +475,7 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   `charge_ref_label` ↔ `payment_ref_label`). `null` heisst «wir nummerieren» – dann gibt es
   **kein Feld**; ein Platzhalter «automatisch» war ein Feld, das nichts aufnimmt. Wie es
   heisst, sagt der Server, nie ein `if` auf die Richtung.
-- **Was WIR anbieten, füllen wir vor dem Hinausgehen** (#837, `OurOffer` + `we_quote`):
+- **Was WIR anbieten, füllen wir vor dem Hinausgehen** (#837, `Terms` + `we_quote`):
   bei einer Einnahme nennen wir den Preis, und ein Angebot ohne Betrag ist keines. Es sind
   **dieselben drei Felder** wie an einer Angebotszeile, nur eine Ebene früher. Und die
   **Abwahl gilt für die Anfrage, die man gerade stellt** (#835) – sie fällt mit dem
@@ -514,7 +541,7 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   «Vorbelegung jeder neuen Position» (`ModuleDraft.vatRate`) und war damit eine
   Eigenschaft des **Moduls** – eine Vorlage, die für jeden künftigen Auftrag denselben
   Satz behauptet, obwohl er an der **Sache** hängt. Gefragt wird er je Position an der
-  Ausführungsstelle (`OurOffer`), und der Katalog reist mit dem **Vorgang**
+  Ausführungsstelle (`Goods`), und der Katalog reist mit dem **Vorgang**
   (`DealEmbed.vat_rates`). Mit ihm sind `DEFAULT_VAT`, `VAT_LABEL`, der
   `ModuleCatalog.vat_rates`-Weg und die ganze `vatRates`-Prop-Kette entfallen: ein
   Spiegel ohne Leser ist kein Spiegel, sondern eine zweite Wahrheit, die niemand
@@ -538,7 +565,7 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Modul derselben Art die Zeile.
 - ►►► **Der Preis steht an SEINER Position, und der Steuersatz daneben** (MWSTG Art. 26).
   ◄◄◄ Sie hängen an der **Sache**: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen
-  auf demselben Papier. Wo **wir** den Preis nennen (`we_quote`), fragt `OurOffer` je Zeile
+  auf demselben Papier. Wo **wir** den Preis nennen (`we_quote`), fragt `Goods` je Zeile
   *Preis netto* und *Satz*, und der Angebotsbetrag ist ihre **Brutto-Summe** – ein
   Betragsfeld daneben ist entfallen, es wäre nicht nur die zweite Aussage über dieselbe
   Sache, sondern eine, die der Dienst abweist. Der **Katalog kommt vom Server**
@@ -579,7 +606,7 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   zwei Bildschirme hoch») bleibt richtig – sie ist eine Frage der **Dichte**, nicht des
   Versteckens, und die drei Antworten darauf stehen unten.*
 - ►►► **EINE Positionstabelle** (#862). ◄◄◄ *«Der Positions-Abschnitt ist doppelt.»* – Er
-  war es: `Goods` sagte, worum es geht, und `OurOffer` zeigte dieselben Zeilen noch einmal
+  war es: `Goods` sagte, worum es geht, und der Angebotsblock zeigte dieselben Zeilen noch einmal
   mit Eingabefeldern (und **weniger**: kein Chevron, keine Spezifikation). Jetzt ist es
   eine Tabelle, die tippen lässt, solange man anbieten darf. **Der Entwurf wohnt darum in
   `DealWork`** – beide sehen ihn – und wird **je Artikel** gehalten (`Record<string,

@@ -381,6 +381,11 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > dem Storno; der Storno **behält seinen Weg**.
 > **Nur gesendete Felder wirken** (`DealUpdate.changes` → `exclude_unset`): wer den Betrag
 > ändert, verliert nicht die Notiz.
+> ►►► **Ein Feld heisst EINEN Namen** (Testnotiz #898): `PARTY_REFERENCE` hiess
+> «Beleg-/Zahlungsreferenz des Partners» und heisst jetzt **«Zahlungsreferenz des
+> Partners»**. Ein Schrägstrich zwischen zwei Wörtern ist keine Beschriftung, sondern die
+> Weigerung, sich zu entscheiden. Dass **eine** Angabe an zwei Zeilen-Arten steht (#850),
+> ist die Aussage der Regel und nicht die der Beschriftung.
 > **Die Nummer** ist `<Auftragsnummer>[-n]`, wo **wir** nummerieren – gezählt wird nur, was
 > `direction = in` ist: sonst verbraucht eine erfasste Lieferantenrechnung die Zählung, und
 > unsere erste eigene hiesse «…-2» (gemessen). **Kein Unique-Index** darüber: zwei

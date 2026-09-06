@@ -1240,14 +1240,21 @@ def test_the_palette_stands_where_the_next_module_would_go():
     # ►►► **Gezählt, nicht gesucht.** ◄◄◄ Ein blosses «kommt vor» liesse seine eigene
     # Bug-Form durch: es gibt zwei Palettenknöpfe (Modul und Erfassungspunkt), also bliebe
     # der Name auch dann stehen, wenn einer von beiden ihn verliert.
-    names = designer.count("ix-palette-name")
+    names = designer.count("ix-tuck-name")
     buttons = len(re.findall(r'className="ix-palette(?:"| )', designer))
     assert names and names == buttons, (
         f"Ein Palettenknopf hat keinen Namen zum Ausklappen ({buttons} Knöpfe, "
         f"{names} Namen)."
     )
     css = _read(FRONTEND / "app" / "globals.css")
-    assert ".ix-palette-name" in css, "Der Hover-Name der Palette hat keine Darstellung."
+    assert ".ix-tuck-name" in css, "Der Hover-Name der Palette hat keine Darstellung."
+    # **Die Geste ist geteilt, die Gestalt getrennt** (#900): `.ix-palette` trägt nur noch
+    # Grösse und Radius – die Bewegung steht einmal in `.ix-tuck` und gilt auch für den
+    # Aktionsknopf jeder Modul-Karte.
+    assert "ix-tuck" in designer, (
+        "Die Palette teilt die Geste nicht mehr – dann gibt es sie zweimal, und die "
+        "zweite läuft beim nächsten Mal davon."
+    )
 
 
 def test_the_module_colour_comes_from_the_registry():
@@ -2249,9 +2256,12 @@ def test_the_palette_symbol_is_centred():
     nullbreiten Kind. Zentral gelöst: es gibt genau einen Modul-Knopf.
     """
     css = _read(FRONTEND / "app" / "globals.css")
-    palette = css[css.index(".ix-palette {"):css.index(".ix-palette-sm")]
-    assert "gap: 0;" in palette, "Der Abstand gilt auch eingeklappt – das Symbol sitzt daneben."
-    assert "gap: 7px;" in css[css.index(".ix-palette:hover"):][:200], (
+    # *Die Geste heisst seit #900 `.ix-tuck` und gilt auch für den Aktionsknopf; die
+    # Palette ist ihre getönte Ausprägung. Die Regel ist dieselbe – gefragt wird sie dort,
+    # wo sie jetzt steht.*
+    tuck = css[css.index(".ix-tuck {"):css.index(".ix-tuck-name")]
+    assert "gap: 0;" in tuck, "Der Abstand gilt auch eingeklappt – das Symbol sitzt daneben."
+    assert "gap: 7px;" in css[css.index(".ix-tuck:hover"):][:260], (
         "Aufgeklappt fehlt der Abstand zum Namen."
     )
 
@@ -4964,7 +4974,7 @@ def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
     # den Rumpf zwischen zwei wörtlichen `<Row …>`-Zeilen auf – die Kette aus Punkt und
     # Linie, die es seit der Stufen-Leiste nicht mehr gibt. Ein Wächter, der eine
     # bestimmte Zeile verlangt, verbietet die bessere Fassung.
-    for stage in ("Offer", "Agreed"):
+    for stage in ("Offer", "Terms"):
         block = _code(_body(src, stage, kind="function"))
         for word in ("'charge'", "'pay'", "next_charge", "next_payment"):
             assert word not in block, (
@@ -5301,8 +5311,8 @@ def test_the_direction_is_a_symbol_not_a_permanent_word():
     Bug-Formen: (a) das Label wird wieder gerendert; (b) das Symbol trägt keinen Hover,
     dann sagt die Karte gar nicht mehr, in welche Richtung das Geld fliesst.
     """
-    head = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                 "Meta", kind="function")
+    head = _component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                      "DocHead")
     assert "{dir.label}" not in head and "dir.label}" not in head, (
         "Die Richtung steht wieder als Dauertext im Kopf (#797) – das Symbol daneben "
         "sagt dieselbe Sache."
@@ -5455,9 +5465,10 @@ def test_the_chosen_counterparty_keeps_its_number_and_name():
     assert "selected={null}" not in offer, (
         "Die frische Wahl wird weggeworfen – das Feld zeigt nach dem Klick nichts."
     )
-    agreed = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                   "Agreed", kind="function")
-    assert "d.party_object_id" in agreed and "d.party_name" in agreed, (
+    # *Sie stand einmal im Block «bestätigter Auftrag»; seit die Karte EIN Beleg ist
+    # (#899), steht der Empfänger dort, wo er auf jedem Beleg steht: im Kopf.*
+    head = _component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"), "DocHead")
+    assert "d.party_object_id" in head and "d.party_name" in head, (
         "Die zugesagte Gegenpartei steht nicht mit Nummer und Namen da."
     )
 
@@ -6075,8 +6086,11 @@ def test_the_closing_action_stands_at_the_end_of_the_card():
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     body = _body(src, "DealWork", kind="function")
-    assert "<Agreed" in body and "children" in body, "Die Karte hat ihre Teile verloren."
-    assert body.index("<Agreed") < body.index("<Money"), "Die Kette hat sich verdreht."
+    # *Der Block «bestätigter Auftrag» ist mit #899 in den Beleg aufgegangen; was in der
+    # Reihenfolge steht, ist jetzt der Abschnitt «Bedingungen». Die Regel ist dieselbe:
+    # der Abschluss steht **hinter** allem, was der Beleg zeigt.*
+    assert "<Terms" in body and "children" in body, "Die Karte hat ihre Teile verloren."
+    assert body.index("<Terms") < body.index("<Money"), "Die Kette hat sich verdreht."
     assert body.index("<Money") < body.rindex("children"), (
         "Der Modul-Abschluss steht wieder vor der Geld-Zeile – dann sieht es aus, als sei "
         "darunter nichts mehr."
@@ -6094,8 +6108,8 @@ def test_the_closing_action_stands_at_the_end_of_the_card():
     assert "d.prepaid && !d.settled" in body, (
         "Die Sperre steht nicht mehr dort, wo man weiterklicken würde."
     )
-    assert "children" not in _body(src, "Agreed", kind="function"), (
-        "Die Stufe «Auftrag» trägt den Abschluss wieder."
+    assert "children" not in _component(src, "Terms"), (
+        "Ein Abschnitt des Belegs trägt den Abschluss wieder."
     )
 
 
@@ -6294,13 +6308,22 @@ def test_what_we_offer_is_filled_before_it_goes_out():
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     offer = " ".join(_body(src, "Offer", kind="function").split())
-    assert "<OurOffer" in offer, "Die Felder für unser eigenes Angebot fehlen (#837)."
     assert "d.we_quote" in offer, "Die Oberfläche liest die Angabe des Servers nicht."
     assert "|| !ready" in offer, (
         "Der Knopf lässt ohne Betrag absenden – dann sieht der Kunde ein leeres Angebot."
     )
-    ours = " ".join(_body(src, "OurOffer", kind="function").split())
-    assert "if (!d.we_quote) return null;" in ours
+    # *Die Felder standen einmal als `OurOffer` unter dem Angebotsspiegel; seit die Karte
+    # EIN Beleg ist (#899), sind sie sein Abschnitt «Bedingungen». Die Regel ist
+    # dieselbe – gefragt wird sie dort, wo sie steht.*
+    card = " ".join(_component(src, "DealWork").split())
+    assert "d.we_quote && may(d, active, 'ask')" in card, (
+        "Ob **wir** die Bedingungen nennen dürfen, hängt nicht mehr an `we_quote` und "
+        "`can` – dann entscheidet etwas anderes mit (#837)."
+    )
+    ours = " ".join(_component(src, "Terms").split())
+    assert "<TermField" in ours and "editable && (" in ours, (
+        "Die Felder für unser eigenes Angebot fehlen (#837)."
+    )
     for bad in ("direction === 'in'", "direction === 'out'", "'Einnahme'", "'Ausgabe'"):
         assert bad not in offer and bad not in ours, (
             f"«{bad}» – die Karte wertet wieder die Richtung aus statt der Angabe."
@@ -6321,7 +6344,6 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
     Bug-Formen: (a) eine Zahl steht wieder in Fliesstext; (b) die Zeile bricht um.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    agreed = " ".join(_component(src, "Agreed").split())
     # ►►► **Gefragt ist, dass eine Zahl tabellarisch steht – nicht WIE sie gerahmt ist.**
     #
     # Der Wächter suchte `label="Betrag" … mono` und prüfte damit die Form der damaligen
@@ -6331,31 +6353,38 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
     # Behälter mit `ix-tnum`.
     # Geprüft wird der **Behälter**, in dem eine Zahl steht – nicht jede einzelne Zeile:
     # `ix-tnum` vererbt sich, und es an jede Zeile zu schreiben wäre die Doppelung, die
-    # bei der nächsten vergessen wird. Es sind zwei: die Abrechnung und die Bedingungen.
-    for what, marker in (("Abrechnung", "{formatAmount(d.net, d.currency_decimals)}"),
-                         # **Und die Frist heisst, wie sie heisst** (#885): «Vorauszahlung»
-                         # statt «0 Tage», gelesen aus derselben Liste, aus der man sie
-                         # wählt. Tabellarisch bleibt sie – es ist eine Zahl.
-                         ("Zahlungsfrist", "{termText(d.due_days, d.payment_terms)}"),
-                         ("Zusagedatum", "{localDate(d.agreed_on)}")):
-        assert marker in agreed, f"«{what}» steht nicht mehr im bestätigten Auftrag."
-        before = agreed[max(0, agreed.index(marker) - 240):agreed.index(marker)]
+    # bei der nächsten vergessen wird.
+    #
+    # ►►► **Seit #899 steht jede der drei an IHREM Ort im Beleg.** ◄◄◄ Der Block
+    # «bestätigter Auftrag» hat sie alle drei getragen und damit ein zweites Mal gezeigt,
+    # was oben schon stand. Die Regel gilt unverändert – gefragt wird sie dort, wo die
+    # Zahl jetzt steht.
+    for what, where, marker in (
+            ("Abrechnung", "Totals", "{formatAmount(net, decimals)}"),
+            # **Und die Frist heisst, wie sie heisst** (#885): «Vorauszahlung» statt
+            # «0 Tage», gelesen aus derselben Liste, aus der man sie wählt. Tabellarisch
+            # bleibt sie – es ist eine Zahl.
+            ("Zahlungsfrist", "Terms", "{termText(d.due_days, d.payment_terms)}"),
+            ("Zusagedatum", "DocHead", "{localDate(d.agreed_on)}")):
+        block = " ".join(_component(src, where).split())
+        assert marker in block, f"«{what}» steht nicht mehr in «{where}»."
+        before = block[max(0, block.index(marker) - 300):block.index(marker)]
         assert "ix-tnum" in before, (
             f"«{what}» steht in Fliesstext statt tabellarisch (#839)."
         )
     # **Nummer und Name auf EINER Zeile** (#838) – der Name wird gekappt, er bricht nicht um.
-    party = agreed[agreed.index("{d.party_word}"):agreed.index("Die Abrechnung")
-                   if "Die Abrechnung" in agreed else len(agreed)]
-    party = party[:party.index("</div>")]
+    head = " ".join(_component(src, "DocHead").split())
+    party = head[head.index("{d.party_word}"):]
+    party = party[:party.index("</ModuleMeta>")]
     assert "flex-wrap" not in party, (
         "Nummer und Name brechen um – dann liest sich der Name wie eine zweite Angabe (#838)."
     )
     assert "truncate" in party, "Der Name wird nicht gekappt, sondern gedrängt."
-    # ►►► **Die Positionen stehen NICHT noch einmal hier** (#847): sie stehen oben in
-    # `Goods`, seit die Zeile ihren Preis trägt. Eine zweite Aufzählung wäre dieselbe
-    # Angabe an zwei Orten.
-    assert "d.lines.map" not in agreed, (
-        "Der bestätigte Auftrag zählt die Positionen ein zweites Mal auf (#847)."
+    # ►►► **Die Positionen stehen NICHT noch einmal bei der Summe** (#847/#899): sie
+    # stehen in `Goods`, seit die Zeile ihren Preis trägt. Eine zweite Aufzählung wäre
+    # dieselbe Angabe an zwei Orten.
+    assert "d.lines" not in " ".join(_component(src, "Totals").split()), (
+        "Die Abrechnung zählt die Positionen ein zweites Mal auf (#847)."
     )
 
 
@@ -6405,10 +6434,12 @@ def test_the_price_stands_at_its_position_not_beside_it():
     )
     # (d) **Nur EINE Tabelle.** Der Angebotsblock darf die Zeilen nicht ein zweites Mal
     # zeichnen – das war die gemeldete Doppelung.
-    offer = _code(_component(src, "OurOffer"))
+    # *Der Angebotsblock heisst seit #899 `Terms` und trägt nur noch die Bedingungen –
+    # Währung und die beiden Fristen. Die Regel ist dieselbe: keine zweite Preistabelle.*
+    offer = _code(_component(src, "Terms"))
     assert "d.lines" not in offer and "rows" not in offer, (
-        "Der Angebotsblock zeichnet die Positionen wieder selbst – derselbe Datensatz in "
-        "zwei Tabellen, einmal als Auskunft und einmal als Formular (d)."
+        "Der Bedingungs-Abschnitt zeichnet die Positionen wieder selbst – derselbe "
+        "Datensatz in zwei Tabellen, einmal als Auskunft und einmal als Formular (d)."
     )
     # (c) **Was hinausgeht, sind die Zeilen** – der Betrag ist ihre Summe, gerechnet dort,
     # wo gebucht wird.
@@ -6512,7 +6543,7 @@ def test_the_finish_button_is_absent_not_explained_away():
     # Moduls. *Sie hiess einmal `Head`; seit der Kopf der Karte dem geteilten Rahmen
     # gehört (`ModuleShell`), trägt sie nur noch, was über den ganzen Vorgang gilt.*
     head = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                            "Meta"))
+                            "DocHead"))
     assert "d.prepaid" in head, (
         "Nichts sagt mehr, warum es nicht weitergeht – der Knopf fehlt kommentarlos."
     )
@@ -6688,8 +6719,7 @@ def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
     #
     # Bug-Form (c) ist darum die neue: sie steht **nirgends** – dann sagt die Karte nicht
     # mehr, worin sie lautet.
-    for what, where in (("Angebotszeile", "QuoteRow"), ("bestätigter Auftrag", "Agreed"),
-                        ("Vorschau", "Sums")):
+    for what, where in (("Angebotszeile", "QuoteRow"), ("Beleg-Summe", "Totals")):
         shown = " ".join(_component(src, where).split())
         # Geprüft wird die **Nachbarschaft**: unmittelbar hinter der ausgegebenen Zahl
         # steht ihr Code – ob er `d.currency` heisst oder als `code` hereingereicht wird,
@@ -6706,13 +6736,15 @@ def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
         "Feld hat gar keinen Namen mehr."
     )
     # **Im Angebot, und nur dort** – nicht an jeder Zahl, und nicht mehr im Kopf (#864).
-    assert "<Currency" in _component(src, "Offer"), (
-        "Die Währung steht nicht im Angebot (#864) – entschieden wird sie dort, wo man "
-        "den Preis nennt."
+    # *Sie steht seit #899 im Abschnitt «Bedingungen» – derselbe Ort, nur benannt: eine
+    # Währung ist eine Bedingung des Geschäfts, keine Spalte der Tabelle.*
+    assert "<Currency" in _component(src, "Terms"), (
+        "Die Währung steht nicht bei den Bedingungen (#864) – entschieden wird sie dort, "
+        "wo man den Preis und die Fristen nennt."
     )
-    assert "<Currency" not in _component(src, "Meta"), (
-        "Die Währung steht wieder in der Meta-Zeile – zwischen lauter Auskünften liest "
-        "sich ein Bedienelement wie eine (#864)."
+    assert "<Currency" not in _component(src, "DocHead"), (
+        "Die Währung steht wieder im Belegkopf – zwischen lauter Auskünften liest sich "
+        "ein Bedienelement wie eine (#864)."
     )
     assert src.count("<Currency") == 1, (
         "Die Währung steht an mehr als einer Stelle – dann ist sie eine Spalte geworden."
@@ -7035,15 +7067,40 @@ def test_the_card_shows_everything_at_once_and_hides_nothing():
             f"Leiste erneut (b) – der Vorgang ist einer, und der Verlauf steht an seinen "
             f"Abschnitten."
         )
-    # (c) **Jeder Abschnitt sagt, wie weit er ist** – und der aktive kommt aus den Daten,
-    # nicht aus einer festen Zeile: `state="past"` allein wäre eine Behauptung.
-    assert card.count("state=") >= 3 and "? 'past'" in card, (
+    # (c) **Der Verlauf steht am Abschnitt UND im Belegkopf** – und er kommt aus den
+    # Daten, nicht aus einer festen Zeile: `state="past"` allein wäre eine Behauptung.
+    #
+    # *Seit #899 ist die Karte ein Beleg, der wächst: die **Belegart** im Kopf sagt, wie
+    # weit es ist («Angebot» → «Auftrag»), und die beiden Abschnitte, die wirklich Stufen
+    # sind, tragen ihren Punkt. `Positionen` und `Bedingungen` sind Inhalt, kein Schritt –
+    # ein Punkt davor behauptete einen Fortschritt, den es dort nicht gibt.*
+    assert card.count("state=") >= 2 and "? 'past'" in card, (
         "Der Verlauf steht nirgends mehr (c) – dann ist die Karte eine Liste ohne Ort."
     )
-    # **Und alle drei Abschnitte stehen wirklich da** – sonst prüfte der Wächter, dass
-    # nichts versteckt wird, an einer Karte, die gar nichts mehr zeigt.
-    for part in ("<Goods", "<Offer", "<Agreed", "<Money"):
+    head = _component(src, "DocHead")
+    assert "stages[0]?.label" in head and "stages[1]?.label" in head, (
+        "Der Belegkopf sagt nicht mehr, was für ein Beleg das ist (c) – ein Papier, das "
+        "nicht sagt, ob es ein Angebot oder ein Auftrag ist, ist keines."
+    )
+    # **Und der Beleg steht wirklich da** – sonst prüfte der Wächter, dass nichts
+    # versteckt wird, an einer Karte, die gar nichts mehr zeigt.
+    for part in ("<DocHead", "<Goods", "<Terms", "<Offer", "<Money"):
         assert part in card, f"«{part}» steht nicht mehr in der Karte."
+    # ►►► **Und die Reihenfolge ist die eines Belegs** (#899). ◄◄◄ Kopf, worum es geht,
+    # zu welchen Bedingungen, was zurückkam, das Geld. Eine Karte, die dieselben Teile in
+    # anderer Folge zeigt, ist kein Beleg mehr, sondern eine Liste von Blöcken.
+    order = [card.index(p) for p in ("<DocHead", "<Goods", "<Terms", "<Offer", "<Money")]
+    assert order == sorted(order), (
+        "Die Ordnung des Belegs ist verdreht (#899) – Kopf, Positionen, Bedingungen, "
+        "Rückläufe, Geld."
+    )
+    # ►►► **Zusammengeklappt wird erst NACH dem Zuschlag** (#899). ◄◄◄ Der Beleg
+    # versteckt nichts, solange verhandelt wird; danach sind die unterlegenen Zeilen
+    # Historie und stehen auf einer Zeile, die man aufklappt.
+    assert "agreed && !shown" in _component(src, "Offer"), (
+        "Die Rückläufe klappen unabhängig vom Zuschlag zu – dann versteckt die Karte "
+        "wieder etwas, an dem gerade gearbeitet wird (a)."
+    )
 
 
 def test_the_positions_are_one_table_that_can_be_priced():
@@ -7071,10 +7128,10 @@ def test_the_positions_are_one_table_that_can_be_priced():
     assert "rows={rows}" in card and "onPrice={setRow}" in card, (
         "Die Positionstabelle bekommt den Entwurf nicht (b)."
     )
-    offer = _component(src, "OurOffer")
+    offer = _component(src, "Terms")
     assert "<input" not in offer and "PriceRow" not in offer, (
-        "Der Angebotsblock hat wieder eigene Preiszeilen (a) – das war die gemeldete "
-        "Doppelung."
+        "Der Bedingungs-Abschnitt hat wieder eigene Preiszeilen (a) – das war die "
+        "gemeldete Doppelung."
     )
 
 
@@ -7389,16 +7446,22 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
     ganze Sätze («Aufschreiben, was auf diese Rechnung geflossen ist») – also die
     Begründung statt des Wortes, nach dem gefragt war.
 
-    ►►► **Und der Knopf wächst nicht mit — gemessen.** ◄◄◄ Der erste Anlauf teilte die
-    Geste der Modul-Palette (das Quadrat wird breiter und schiebt den Namen heraus). In
-    der Palette ist das stabil, in der dichten Geld-Zeile **schwingt** es: der breitere
-    Knopf lässt die Zeile neu umbrechen, der Zeiger fällt vom Knopf, er klappt ein, die
-    Zeile bricht zurück – gemessen 32 → 63 → 51 → 59 px in 800 ms, mit kippendem
-    `:hover`. Die Blase ist `position: absolute` und `display: none`; sie verändert am
-    Layout **nichts**.
+    ►►► **Und der Name steht DANEBEN, nicht in einer Blase** (Testnotiz #900). ◄◄◄
+
+    Ein Anlauf lang stand er in der Hinweis-Blase – *«warum wurde das nicht so umgesetzt,
+    bitte fixen»*, und die Meldung hat recht: gefragt war die Geste der Modul-Palette, und
+    die klappt den Namen **neben** dem Symbol aus.
+
+    Der Grund für den Umweg war echt und ist es noch: in einer **umbrechenden** Zeile
+    schwingt ein wachsender Knopf – der breitere lässt die Zeile neu umbrechen, der Zeiger
+    fällt vom Knopf, er klappt ein, die Zeile bricht zurück (gemessen 32 → 63 → 51 → 59 px
+    in 800 ms). Die Antwort darauf ist aber nicht, die Geste aufzugeben, sondern dem Knopf
+    **Platz** zu geben: `Actions` ist eine Zeile mit `flex-wrap: nowrap`. Dort schiebt er
+    nur seine Nachbarn zur Seite und bleibt selbst unter dem Zeiger.
 
     Bug-Formen: (a) die Karte baut ihre Symbol-Knöpfe wieder selbst; (b) der Knopf sagt
-    seinen Namen nicht; (c) er verändert seine Breite beim Zeigen.
+    seinen Namen nicht daneben; (c) die Handlungs-Zeile bricht wieder um; (d) ein Knopf
+    steht ausserhalb von `Actions`.
     """
     ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
     button = " ".join(_body(ui, "ActionButton", kind="export function").split())
@@ -7406,23 +7469,49 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
         "Die Symbol-Form steht nicht mehr im Bauteil – dann setzt sie jede Aufrufstelle "
         "wieder selbst (a)."
     )
-    assert "aria-label={label}" in button and "${label} – ${tip}" in button, (
-        "Der Knopf sagt seinen Namen nicht (b) – oder der Grund verdrängt ihn wieder."
+    # (b) **Der Name klappt aus** – er steht als Kind im Knopf, nicht als Blase daneben.
+    assert "aria-label={label}" in button and 'className="ix-tuck-name">{label}' in button, (
+        "Der Knopf klappt seinen Namen nicht mehr aus (b) – genau das war die Meldung "
+        "#900."
     )
-    # (c) **Keine wachsende Breite** – die Blase trägt das Wort, nicht die Geometrie.
+    # **Der Grund hängt an einer HÜLLE.** `.ix-tuck` ist `overflow: hidden` (sonst böte
+    # der eingeklappte Name seitwärts zu scrollen an), und das schneidet ein `::after`
+    # weg – am Knopf selbst wäre die Blase unsichtbar (die Lehre aus #790).
+    assert "data-tip={tip}" in button.split("</button>")[1], (
+        "Der Grund hängt wieder am Knopf statt an der Hülle – hinter `overflow: hidden` "
+        "ist er unsichtbar."
+    )
     css = _read(FRONTEND / "app" / "globals.css")
-    icon = css[css.index(".erp-actbtn-icon {"):]
-    assert "width" not in icon[: icon.index("}")].replace("width: 32px", ""), (
-        "Der Symbol-Knopf bekommt wieder eine zweite Breite (c)."
+    # (c) **Die Zeile, in der er wächst, bricht nicht um** – das war die gemessene Ursache.
+    actions = css[css.index(".ix-actions {"):]
+    assert "flex-wrap: nowrap" in actions[: actions.index("}")], (
+        "Die Handlungs-Zeile bricht wieder um (c) – dann schwingt der Knopf unter dem "
+        "Zeiger weg."
     )
     assert ".erp-actbtn-icon:hover" not in css, (
-        "Der Knopf verändert sich beim Zeigen (c) – gemessen schwingt er in einer "
-        "dichten Zeile unter dem Zeiger weg."
+        "Der Symbol-Knopf bekommt eine zweite Geste neben `.ix-tuck` – dann gibt es sie "
+        "zweimal."
     )
     # (a) **Die Aufrufstelle nennt das Bauteil, nicht die Klasse.**
     work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     assert "<ActionButton" in work and "erp-actbtn-icon" not in work, (
         "Die Modul-Karte baut ihre Symbol-Knöpfe wieder von Hand (a)."
+    )
+    # (d) **Jeder ausklappende Knopf steht in einer solchen Zeile.** Gezählt, nicht
+    # gesucht: ein blosses «`<Actions>` kommt vor» liesse seine eigene Bug-Form durch –
+    # ein einzelner Knopf daneben in der umbrechenden Angaben-Zeile ist genau der Fall,
+    # der gemessen geschwungen hat.
+    row = _code(_component(work, "EntryRow"))
+    inner = row[row.index("<Actions"):row.index("</Actions>")]
+    assert row.count("<ActionButton") == inner.count("<ActionButton"), (
+        "Ein Symbol-Knopf steht ausserhalb der nicht umbrechenden Zeile (d)."
+    )
+    # **Und diese Zeile gehört sich selbst.** Gemessen bei 375 px: als letztes Kind der
+    # umbrechenden Angaben-Zeile brach **sie** um, sobald ein Knopf aufklappte – der Knopf
+    # sprang eine Zeile tiefer, der Zeiger verlor ihn, er klappte ein (32 → 66 → 32 → 57 →
+    # … px). Eine eigene Zeile kann nicht umbrechen.
+    assert "<Actions style={{ flex: '1 1 100%' }}>" in row, (
+        "Die Handlungs-Zeile teilt sich wieder eine umbrechende Zeile mit den Angaben (c)."
     )
 
 
@@ -7488,7 +7577,7 @@ def test_a_term_says_its_name_and_the_date_it_produces():
         "Eine nackte Tageszahl steht wieder da (a) – «0 Tage» ist eine Ziffer, die man "
         "erklären muss."
     )
-    for where in ("Agreed", "QuoteRow"):
+    for where in ("Terms", "QuoteRow"):
         assert "termText(" in _component(src, where), (
             f"«{where}» schreibt die Frist wieder selbst (a)."
         )
@@ -7497,7 +7586,7 @@ def test_a_term_says_its_name_and_the_date_it_produces():
     assert "preview" in _component(fields, "TermField"), (
         "`TermField` zeigt nicht mehr, was aus der Frist folgt (b)."
     )
-    for where in ("OurOffer", "QuoteRow"):
+    for where in ("Terms", "QuoteRow"):
         assert "preview=" in _component(src, where), (
             f"Die Lieferfrist in «{where}» nennt ihren Termin nicht (b)."
         )
@@ -7661,11 +7750,11 @@ def test_the_confirmed_order_does_not_label_its_party():
     Bug-Form: das Wort steht wieder als Mikro-Label über bzw. vor der Zeile.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    agreed = " ".join(_component(src, "Agreed").split())
-    assert "MICRO_LABEL, flex: 'none' }}>{d.party_word}" not in agreed, (
+    head = " ".join(_component(src, "DocHead").split())
+    assert "MICRO_LABEL, flex: 'none' }}>{d.party_word}" not in head, (
         "Die Beschriftung «Partner» ist zurück (#883)."
     )
-    assert "aria-label={d.party_word}" in agreed, (
+    assert "aria-label={d.party_word}" in head, (
         "Die Zeile hat gar keinen Namen mehr – dann fehlt sie dem, der die Karte hört."
     )
 
@@ -7690,4 +7779,195 @@ def test_the_payment_fields_look_like_every_other_field():
     )
     assert not re.search(r":\s*'#[0-9a-fA-F]{3,8}'", look.replace("v('--", "")), (
         "Eine feste Farbe steht ohne Token daneben (b)."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► Testnotizen #897–#901 — der Geldvorgang ist EIN Beleg
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_the_payment_term_stands_above_the_lead_time():
+    """►►► **Zahlungsfrist über Lieferfrist** (Testnotiz #897). ◄◄◄
+
+    *«Zahlungsfrist soll über Lieferfrist stehen.»* – Und der Grund trägt weiter als die
+    Reihenfolge: die Zahlungsfrist ist die folgenreichere Angabe. Aus ihr kommt die
+    Fälligkeit jeder Rechnung, und ist sie null, ist sie die **Vorauszahlung** – also die
+    Frage, ob überhaupt geliefert wird, bevor Geld da ist. Die Lieferfrist beantwortet
+    «wann», die Zahlungsfrist «wann und ob».
+
+    **An beiden Stellen dieselbe Folge**: im Formular des Belegs (`Terms`) und an der
+    Angebotszeile (`QuoteRow`) – auch in ihrer **Anzeige**. Zwei Formulare für dieselben
+    zwei Fragen dürfen nicht anders herum fragen; eine Zeile, die dieselben zwei Werte
+    anders herum aufzählt, liest sich als zwei verschiedene Angaben.
+
+    Bug-Formen: (a) die Lieferfrist steht wieder oben; (b) die Anzeige der Zeile
+    widerspricht ihrem Formular.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    for where in ("Terms", "QuoteRow"):
+        block = _component(src, where)
+        pay = block.index("d.payment_term_label")
+        lead = block.index("d.lead_term_label")
+        assert pay < lead, (
+            f"In «{where}» steht die Lieferfrist über der Zahlungsfrist (a) – die "
+            f"folgenreichere Angabe gehört nach oben (#897)."
+        )
+    # (b) **Auch die Anzeige der Zeile** – dort stehen die beiden Werte nebeneinander.
+    row = _component(src, "QuoteRow")
+    assert row.index("quote.payment_days != null") < row.index("quote.lead_days != null"), (
+        "Die Angebotszeile zeigt die beiden Fristen anders herum, als sie sie erfragt (b)."
+    )
+
+
+def test_the_partner_reference_has_one_name():
+    """►►► **Ein Feld heisst EINEN Namen** (Testnotiz #898). ◄◄◄
+
+    *«Hier nur Zahlungsreferenz des Partners schreiben, ohne Beleg.»* – Es hiess
+    «Beleg-/Zahlungsreferenz des Partners». Ein Schrägstrich zwischen zwei Wörtern ist
+    keine Beschriftung, sondern die Weigerung, sich zu entscheiden: er sagt «eines von
+    beidem, such dir aus welches».
+
+    Der Grund dafür war, dass **eine** Angabe an zwei Zeilen-Arten steht (#850) – das ist
+    aber die Aussage der Regel und nicht die der Beschriftung. Gemeint ist beide Male die
+    Nummer, unter der die Gegenpartei diesen Geldfluss führt.
+
+    Bug-Formen: (a) der Schrägstrich ist zurück; (b) die Beschriftung nennt gar nicht mehr,
+    wem die Nummer gehört – dann sieht sie aus wie unsere.
+    """
+    import sys
+
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm
+
+    assert "/" not in dm.PARTY_REFERENCE, (
+        f"«{dm.PARTY_REFERENCE}»: der Schrägstrich ist zurück (a) – ein Feld heisst "
+        f"einen Namen."
+    )
+    assert "Zahlungsreferenz" in dm.PARTY_REFERENCE, (
+        "Die Beschriftung nennt nicht mehr, was für eine Nummer das ist (#898)."
+    )
+    assert dm.PARTY.lower() in dm.PARTY_REFERENCE.lower(), (
+        "Die Beschriftung sagt nicht mehr, wem die Nummer gehört (b) – dann sieht sie "
+        "aus wie unsere, und die vergeben wir selbst (#840)."
+    )
+
+
+def test_a_document_says_each_of_its_facts_exactly_once():
+    """►►► **Die Karte IST der Beleg — und ein Beleg sagt nichts zweimal** (#899). ◄◄◄
+
+    *«Alle dargestellten Informationen bauen aufeinander auf – Anfrage / Auftrag /
+    Rechnung … man könnte es wie ein Dokument aufbauen und dann Schritt für Schritt
+    erweitern.»*
+
+    Vorher war die Karte eine **Kette** von Abschnitten, und mit der Zusage kam ein Block
+    dazu (`Agreed`), der Partner, Summe und Fristen **noch einmal** zeigte – ein zweiter
+    Beleg neben dem ersten. Jetzt hat jede Angabe **genau einen** Ort, und die Zusage
+    **erweitert** ihn, statt einen Block danebenzustellen.
+
+    Gezählt, nicht gesucht: dass eine Angabe irgendwo vorkommt, war auch vorher wahr – die
+    Regel ist, dass sie **nur dort** vorkommt.
+
+    Bug-Form: eine Beleg-Angabe steht wieder an zwei Stellen. Dann sagt die Karte dieselbe
+    Sache zweimal, und beim nächsten Umbau sagen die beiden Verschiedenes.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    for what, field, where in (
+            ("der Empfänger", "d.party_object_id", "DocHead"),
+            ("das Zusagedatum", "d.agreed_on", "DocHead"),
+            ("die Zahlungsfrist", "d.due_days", "Terms"),
+            ("der Liefertermin", "d.due_date", "Terms"),
+            ("die Steueraufteilung", "d.vat_split", "Goods"),
+            ("die Nettosumme", "d.net", "Goods")):
+        block = _component(src, where)
+        assert field in block, f"{what} steht nicht mehr in «{where}» (#899)."
+        assert src.count(field) == block.count(field), (
+            f"{what} steht ausserhalb von «{where}» ein zweites Mal – ein Beleg sagt "
+            f"nichts zweimal (#899)."
+        )
+    # **Und die Summe steht bei dem, woraus sie kommt**: die Vorschau aus den getippten
+    # Preisen und die gebuchte Summe des Servers sind **dieselbe** Aufstellung. Zwei
+    # Bauteile dafür wären zwei Schreibweisen für Netto, Steuer und Total.
+    assert src.count("function Totals") == 1 and "<Totals" in _component(src, "Sums"), (
+        "Vorschau und gebuchte Summe sind wieder zwei Bauteile – dann ändert man die "
+        "eine und die andere nicht (#899)."
+    )
+
+
+def test_the_payment_element_is_as_big_as_the_fields_beside_it():
+    """►►► **Die Felder des Dienstes sind so gross wie unsere** (Testnotiz #901). ◄◄◄
+
+    *«Zudem ist alles so klein geworden von der Schriftgrösse – ist das gewollt und im
+    Einklang mit dem restlichen UI/UX?»* – Nein. Die Grundschrift stand auf 13 px, und der
+    Kommentar daneben behauptete, das sei die von `inputCls`. `inputCls` trägt `text-sm`,
+    und das sind **14 px**.
+
+    Dazu fehlte, was #892 eigentlich verlangt hatte: `inputs: 'condensed'`. Die Dichte kam
+    stattdessen aus einer kleiner gedrehten Schrift – also aus der Angabe, die man nicht
+    dafür nimmt.
+
+    **Gespiegelt statt behauptet**: die Grösse wird aus `inputCls` **gelesen**. Wer dort
+    die Klasse ändert, bekommt hier eine Meldung statt eines Felds, das eine Nummer
+    daneben liegt.
+
+    Bug-Formen: (a) die Schrift ist wieder kleiner als daneben; (b) `condensed` fehlt;
+    (c) die Beschriftung weicht von `fields.Label` ab.
+    """
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    look = " ".join(_code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx")).split())
+    cls = re.search(r"export const inputCls = '([^']+)'", fields)
+    assert cls, "«inputCls» steht nicht mehr in `fields.tsx` – der Spiegel hat kein Original."
+    # Die drei Grössen, die im Haus überhaupt vorkommen. Eine vierte ist ein Fehler, kein
+    # stiller Rückfall: dann sagt der Wächter, dass er sie nicht kennt.
+    sizes = {"text-xs": "12px", "text-sm": "14px", "text-base": "16px"}
+    named = [c for c in cls.group(1).split() if c in sizes]
+    assert len(named) == 1, (
+        f"«inputCls» nennt keine bekannte Schriftgrösse ({cls.group(1)}) – dann lässt "
+        f"sich nicht mehr sagen, wie gross die Felder des Dienstes sein müssen."
+    )
+    assert f"fontSizeBase: '{sizes[named[0]]}'" in look, (
+        f"Die Felder des Zahlungsdienstes sind nicht so gross wie die daneben (a) – "
+        f"`inputCls` ist `{named[0]}`, also {sizes[named[0]]}."
+    )
+    assert "inputs: 'condensed'" in look, (
+        "«condensed» fehlt (b) – genau das war die Angabe, die #892 verlangt hat."
+    )
+    # (c) **Die Beschriftung ist buchstäblich `fields.Label`.**
+    label = _body(fields, "Label", kind="export function")
+    for what, value in (("Schriftgrösse", "fontSize: 11"), ("Fettung", "fontWeight: 600"),
+                        ("Sperrung", "letterSpacing: '0.05em'")):
+        assert value in label, f"`fields.Label` trägt die {what} nicht mehr."
+    for what, value in (("Schriftgrösse", "fontSize: '11px'"),
+                        ("Fettung", "fontWeight: '600'"),
+                        ("Sperrung", "letterSpacing: '.05em'")):
+        assert value in look, (
+            f"Die Beschriftung im Zahlungsformular weicht in der {what} von `fields."
+            f"Label` ab (c)."
+        )
+
+
+def test_the_section_heads_of_a_card_stand_on_one_edge():
+    """►►► **Die Status-Spalte steht immer, auch leer** (Testnotiz #899). ◄◄◄
+
+    Ein Punkt vor der Beschriftung rückt sie um seine Breite ein. In einer Karte, in der
+    nur **manche** Abschnitte ein Schritt sind – «Positionen» und «Bedingungen» sind
+    Inhalt, «Angebot» und «Rechnung & Zahlung» sind Schritte –, stünden die Überschriften
+    damit auf zwei verschiedenen Kanten. Gemessen: 18 px ↔ 33 px im selben Beleg.
+
+    Der Platz wird darum **reserviert**; was ihn füllt, sagt der Abschnitt. Ein Punkt für
+    alle wäre die andere Lösung und die falsche: er behauptete einen Fortschritt, den ein
+    Inhalts-Abschnitt gar nicht hat.
+
+    Bug-Form: der Punkt hängt wieder an `state` – dann verschiebt sich jede Überschrift
+    ohne Schritt.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    section = " ".join(_body(ui, "ModuleSection", kind="export function").split())
+    assert "{state && (" not in section, (
+        "Die Status-Spalte gibt es nur mit Schritt – dann rücken die Überschriften ohne "
+        "Schritt aus der Kante (#899)."
+    )
+    assert "state ? STEP_COLOR[state] : 'transparent'" in section, (
+        "Der reservierte Platz trägt keine Farbe mehr bzw. füllt sich nicht mehr aus dem "
+        "Zustand."
     )

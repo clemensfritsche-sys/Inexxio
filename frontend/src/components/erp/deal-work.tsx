@@ -14,7 +14,9 @@ import { PayOnline } from '@/components/erp/pay-online';
 import {
   Label, MICRO_LABEL, Segmented, TermField, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
-import { ACT_H, ActionButton, ModuleMeta, ModuleSection } from '@/components/erp/module-ui';
+import {
+  ACT_H, ActionButton, Actions, ModuleMeta, ModuleSection,
+} from '@/components/erp/module-ui';
 import {
   DEAL_PARTY, DEAL_STAGE, DEAL_TASK_HINT, QUOTE_STATE, dealDirection,
 } from '@/lib/modules';
@@ -22,12 +24,29 @@ import { useAutosave } from '@/lib/use-autosave';
 import { formatAmount, localDate } from '@/lib/utils';
 
 /**
- * ►►► **Der Geldvorgang an der Ausführungsstelle — drei Zeilen.** ◄◄◄
+ * ►►► **Der Geldvorgang an der Ausführungsstelle — EIN Beleg, der wächst.** ◄◄◄
  *
- * `Angebot → Auftrag → Rechnung & Zahlung`, in **beide** Richtungen dieselben. Was
- * Einnahme von Ausgabe unterscheidet, **reist fertig mit** (`label`, `stages[].label/verb`,
- * `party_word`, `ask_verb`, `charge_word`) – die Karte braucht dafür **kein einziges `if`
- * auf die Richtung**; ein Wächter zählt sie.
+ * *Belegkopf · Positionen · Bedingungen · Rückläufe · Rechnung & Zahlungen ·
+ * Handlungen* – in **beide** Richtungen dasselbe. Was Einnahme von Ausgabe unterscheidet,
+ * **reist fertig mit** (`label`, `stages[].label/verb`, `party_word`, `ask_verb`,
+ * `charge_word`) – die Karte braucht dafür **kein einziges `if` auf die Richtung**; ein
+ * Wächter zählt sie.
+ *
+ * ## Ein Dokument, kein Stapel von Blöcken (Testnotiz #899)
+ *
+ * Vorher war die Karte eine **Kette**: Positionen, dann der Abschnitt «Angebot», dann der
+ * Abschnitt «Auftrag», dann das Geld. Jeder Abschnitt trug seinen eigenen Kopf, und mit
+ * der Zusage kam ein Block dazu, der Partner, Summe und Fristen **noch einmal** zeigte –
+ * ein zweiter Beleg neben dem ersten.
+ *
+ * Jetzt ist es **ein** Beleg, und die Zusage **erweitert** ihn: der Kopf heisst danach
+ * «Auftrag» statt «Angebot» und nennt den Empfänger, die Preisspalte trägt die gebuchten
+ * Zahlen statt des Entwurfs, die Bedingungen stehen als Auskunft statt als Feld, die
+ * Rückläufe klappen auf eine Zeile zusammen, und darunter kommt das Geld dazu. Dieselben
+ * Zeilen, ein Zustand weiter.
+ *
+ * *Ein späterer PDF-Export ist damit dieselbe Ableitung ohne Knöpfe – nicht ein zweiter
+ * Beleg, der beim nächsten Feld auseinanderläuft.*
  *
  * ## Zwei Stufen, und die dritte Zeile ist KEINE
  *
@@ -273,7 +292,30 @@ export function DealWork({
 
   return (
     <div className="flex flex-col">
-      <Meta d={d} />
+      {/* ►►► **Die Karte IST der Beleg** (Testnotiz #899). ◄◄◄
+
+          *«Alle dargestellten Informationen bauen aufeinander auf – Anfrage / Auftrag /
+          Rechnung. Man könnte es wie ein Dokument aufbauen und dann Schritt für Schritt
+          erweitern … später beim PDF-Export ist dann jeder Schritt einfach um die
+          jeweiligen Informationen reduziert oder erweitert.»*
+
+          Genau so steht sie jetzt da, und zwar in der Ordnung, die ein Beleg seit
+          Jahrhunderten hat:
+
+          1. **Belegkopf** – was für ein Beleg das ist, an wen, seit wann.
+          2. **Positionen** – worum es geht, mit Preis, Satz und Summe.
+          3. **Bedingungen** – Währung und die beiden Fristen, aus denen Fälligkeit und
+             Liefertermin folgen.
+          4. **Rückläufe** – was die Gegenparteien geantwortet haben.
+          5. **Rechnung & Zahlungen**.
+          6. **Handlungen** – ganz am Ende, wie die Unterschrift.
+
+          Es **wächst**: vor der Zusage heisst der Kopf «Angebot» und die Rückläufe stehen
+          offen; nach der Zusage heisst er «Auftrag», nennt den Partner und das Datum, die
+          Rückläufe klappen auf eine Zeile zusammen, und darunter kommt das Geld dazu.
+          Ein späterer PDF-Export ist damit **dieselbe Komponente ohne Knöpfe** – kein
+          zweiter Beleg, der beim nächsten Feld auseinanderläuft. */}
+      <DocHead d={d} />
 
       {/* ►►► **EINE Positionstabelle** (Testnotiz #862). ◄◄◄
           *«Der Positions-Abschnitt ist doppelt.»* – Er war es: oben stand, worum es geht
@@ -286,24 +328,28 @@ export function DealWork({
           der Prozess – auch beim Eintippen. */}
       <Goods d={d} rows={rows} editable={pricing} onPrice={setRow} />
 
-      {/* **Der Punkt vor der Überschrift sagt, wie weit es ist** (#868) – Punkt + Wort,
-          von oben nach unten gelesen. */}
-      <ModuleSection title={d.stages[0]?.label ?? ''} first
-        state={agreed ? 'past' : 'active'}>
-        <Offer d={d} busy={busy} active={active && !!d.stages[0]?.active}
-          offer={offer} onOffer={setOffer} rows={rows} onSent={() => setPrices({})}
-          onAction={onAction} />
-      </ModuleSection>
+      {/* ►►► **Zu welchen Bedingungen** (Testnotizen #897/#899). ◄◄◄
+          Währung und die beiden Fristen standen an drei Orten – die Währung im Angebot,
+          die Fristen einmal in `OurOffer` und einmal an der Angebotszeile. Es ist **ein**
+          Abschnitt des Belegs, und er steht dort, wo er auf einem Beleg steht: unter der
+          Summe, über den Antworten. */}
+      <Terms d={d} busy={busy} active={active} editable={pricing}
+        value={offer} onChange={setOffer} onAction={onAction} />
 
-      {/* ►►► **Ein Storno macht die Zusage nicht ungeschehen** ◄◄◄ – *«die gegangenen
+      {/* **Der Punkt vor der Überschrift sagt, wie weit es ist** (#868) – Punkt + Wort,
+          von oben nach unten gelesen.
+
+          ►►► **Ein Storno macht die Zusage nicht ungeschehen** ◄◄◄ – *«die gegangenen
           Stufen bleiben stehen»* (`services/deal._revoke`), dieselbe Regel wie «die Linie
           sagt die Vergangenheit» am Prozessbild (§8.1a). Storniert werden kann nur ab der
-          Zusage (`ACTIONS`), ein stornierter Vorgang **war** also zugesagt. */}
-      {agreed && (
-        <ModuleSection title={d.stages[1]?.label ?? ''} state="past">
-          <Agreed d={d} />
-        </ModuleSection>
-      )}
+          Zusage (`ACTIONS`), ein stornierter Vorgang **war** also zugesagt – der Punkt
+          steht darum auf «vorbei», nicht auf «steht noch aus». */}
+      <ModuleSection title={d.stages[0]?.label ?? ''}
+        state={agreed ? 'past' : 'active'}>
+        <Offer d={d} busy={busy} active={active && !!d.stages[0]?.active}
+          agreed={agreed} rows={rows} offer={offer} onSent={() => setPrices({})}
+          onAction={onAction} />
+      </ModuleSection>
 
       {/* **Das Geld – eine Zeile, keine Stufe.** Sie steht dort, wo man sie erwartet
           (dritte Position), und ist ab der Zusage bedienbar; die Kette darüber sagt
@@ -365,8 +411,14 @@ export function DealWork({
           abschliessen», nicht zu «Zahlung erfassen». Beide stehen darum am Ende der
           Karte, in einer Zeile – die eine bringt den Vorgang ans Ziel, die andere nimmt
           ihn zurück. */}
+      {/* ►►► **Die Fusszeile eines Belegs** (Testnotiz #899). ◄◄◄ Handlungen stehen nicht
+          zwischen den Angaben, sondern unter dem Strich – dort, wo auf einem Papier die
+          Unterschrift steht. Die Haarlinie ist dieselbe wie über jedem Abschnitt, nur
+          eine Zeile tiefer; ohne sie schwebten zwei Knöpfe unter der letzten Zahl. */}
       {(may(d, active, 'revoke') && d.undo) || (agreed && active && !(d.prepaid && !d.settled)) ? (
-        <div className="flex items-center gap-2 flex-wrap mt-2">
+        <div className="flex items-center gap-2 flex-wrap" style={{
+          marginTop: 18, paddingTop: 12, borderTop: '1px solid var(--border-1)',
+        }}>
           {agreed && active && !(d.prepaid && !d.settled) && children}
           {may(d, active, 'revoke') && d.undo && (
             <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={busy}
@@ -509,65 +561,86 @@ function Fixed({ label, value, hint }: { label: string; value: string; hint?: st
 }
 
 /**
- * ►►► **Die Meta-Zeile — was über den ganzen Vorgang gilt.** ◄◄◄
+ * ►►► **Der Belegkopf — was das hier ist, an wen, und seit wann.** ◄◄◄
  *
- * Richtung, Währung, Termin, Sperre: vier Angaben, die zu keinem der drei Schritte
- * gehören, weil sie für alle gelten. Sie stehen darum **leise** in einer Zeile unter dem
- * Kopf – nicht als getönte Marke.
+ * *Hier stand eine `Meta`-Zeile: Richtung, Termin, Sperre – drei Auskünfte nebeneinander,
+ * die zu keinem Schritt gehörten.* Sie war richtig, solange die Karte eine Kette von
+ * Schritten war. Als **Beleg** (#899) fehlte ihr das Wichtigste: die **Belegart**. Ein
+ * Papier, das nicht sagt, ob es ein Angebot oder ein Auftrag ist, ist keines.
  *
- * *Die Richtung war einmal ein Chip in `--accent-soft` (#815).* Das war richtig, solange
- * die Karte selbst getönt war und der Kopf nur ein Symbol trug: der Chip war die einzige
- * Marke weit und breit. Seit die Karte **weiss** ist und oben eine echte Marke plus
- * Display-Titel steht, wäre er die zweite – zwei getönte Flächen übereinander, von denen
- * die untere die kleinere Aussage trägt. Symbol und Wort bleiben, die Fläche geht.
+ * ## Die Belegart IST der Fortschritt
+ *
+ * «Angebot» → «Auftrag» → (storniert) sind genau die Stufen, die der Server ohnehin
+ * benennt (`stages[].label`, `stage_label`). Sie hier als Titel zu führen, ersetzt keinen
+ * Mechanismus, es zeigt den vorhandenen an der Stelle, an der man ihn liest – und die
+ * Karte wächst damit, statt umzuschalten.
+ *
+ * ## Die Richtung bleibt ein SYMBOL
+ *
+ * «Einnahme»/«Ausgabe» als Dauertext stand einmal daneben und sagte dieselbe Sache
+ * zweimal (#797). Der Titel ist jetzt das laute Wort; die Richtung ist das Zeichen davor,
+ * mit ihrer Bedeutung im Hover – dieselbe Regel wie bei jedem Symbol im Haus.
+ *
+ * ## «An <Partner>» steht erst, wenn es einen gibt
+ *
+ * Vor der Zusage nennen die **Rückläufe** die Adressaten – es sind mehrere, und einen
+ * davon vorwegzunehmen wäre eine Behauptung. Mit der Zusage steht genau einer fest, und
+ * dann gehört er dorthin, wo auf jedem Beleg der Empfänger steht.
  */
-function Meta({ d }: { d: Filled }) {
+function DocHead({ d }: { d: Filled }) {
   const dir = dealDirection(d.direction);
   const Icon = dir.icon;
+  const cancelled = d.stage === DEAL_STAGE.cancelled;
+  const agreed = d.stage !== DEAL_STAGE.offer;
+  const kind = cancelled ? d.stage_label
+    : (agreed ? d.stages[1]?.label : d.stages[0]?.label) ?? d.label;
   return (
-    <ModuleMeta>
-      {/* **Symbol UND Wort** – das Symbol zeigt, was man tut, das Wort benennt es; auf
-          15 px ist ein Symbol allein nicht zu unterscheiden (#799/#845). */}
-      <span className="flex items-center gap-1.5" data-tip={dir.hint}
-        style={{ flex: 'none', cursor: 'help', color: 'var(--fg-2)' }}>
-        <Icon size={13} />
+    <>
+      <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 6 }}>
+        {/* **Das Symbol zeigt, was man tut** – Einkaufswagen ↔ Handschlag (#799/#845);
+            was es heisst, steht im Hover, nicht als zweites Wort daneben. */}
+        <span className="flex items-center" data-tip={dir.hint}
+          style={{ flex: 'none', cursor: 'help', color: 'var(--fg-3)' }}>
+          <Icon size={14} />
+        </span>
         <span style={{
-          font: '700 11px var(--font-body)', textTransform: 'uppercase',
-          letterSpacing: '.07em',
-        }}>{d.label}</span>
-      </span>
-      {/* ►►► **Der Liefertermin — und ob er vorbei ist** (#814). ◄◄◄
-          Ein Verzug ist kein Zustand, den jemand pflegt: er ist *Termin vorbei und noch
-          nicht erledigt*, dieselbe Ableitung wie «überfällig» bei einer Forderung. Was man
-          dann tun kann, gibt es alles schon – warten, stornieren, und das Geld läuft
-          davon unabhängig weiter. */}
-      {d.due_date && (
-        <span className="flex items-center gap-1 text-[12px]" style={{
-          color: d.late ? 'var(--danger)' : 'var(--fg-3)', flex: 'none',
-        }} data-tip={d.late
-          ? 'Der zugesagte Liefertermin ist vorbei und das Modul ist noch nicht erledigt.'
-          : 'Zugesagter Liefertermin – Zusagedatum plus Lieferfrist.'}>
-          {d.late ? <AlertTriangle size={12} /> : <CalendarClock size={12} />}
-          {d.late ? 'überfällig seit ' : 'Liefertermin '}{localDate(d.due_date)}
-        </span>
+          font: '800 14px var(--font-display)', letterSpacing: '-.01em',
+          color: cancelled ? 'var(--danger)' : 'var(--fg-1)',
+        }}>{kind}</span>
+        <span className="flex-1" style={{ minWidth: 0 }} />
+        {/* **Die Sperre ist eine Auskunft, keine Warnung.** Sie steht als Eigenschaft
+            dieses Moduls da, nicht als Fehler. */}
+        {d.prepaid && (
+          <span className="flex items-center gap-1 text-[12px]"
+            data-tip="Dieses Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist."
+            style={{ color: 'var(--fg-3)', flex: 'none' }}>
+            <Lock size={11} /> Erst zahlen
+          </span>
+        )}
+      </div>
+      {/* ►►► **Der Empfänger — Nummer und Name auf EINER Zeile** (#838/#883). ◄◄◄
+          Der Name wird gekappt; `flex-wrap` schob ihn bei enger Spalte darunter, und dort
+          las er sich wie eine zweite Angabe. Eine Beschriftung «Partner» davor sagt
+          nichts, was «An 100000123 Muster AG» nicht schon sagt – benannt bleibt die Zeile
+          für den, der die Karte hört. */}
+      {d.party_object_id != null && (
+        <ModuleMeta>
+          <span className="flex items-center gap-2" style={{ minWidth: 0, flex: '1 1 auto' }}
+            aria-label={d.party_word}>
+            <span style={{ flex: 'none' }}>An</span>
+            <ObjId value={d.party_object_id} />
+            <span className="truncate" style={{ color: 'var(--fg-2)', minWidth: 0 }}
+              data-tip={d.party_name || undefined}>{d.party_name}</span>
+          </span>
+          {d.agreed_on && (
+            <span className="ix-tnum" style={{ flex: 'none' }}
+              data-tip="Tag der Zusage – ab ihm laufen Liefer- und Zahlungsfrist.">
+              {localDate(d.agreed_on)}
+            </span>
+          )}
+        </ModuleMeta>
       )}
-      <span className="flex-1" style={{ minWidth: 0 }} />
-      {/* ►►► **Die Währung steht im ANGEBOT, nicht hier** (Testnotiz #864). ◄◄◄
-          Sie stand in dieser Zeile, weil sie für den ganzen Vorgang gilt – das stimmt,
-          macht sie aber nicht zu einer Anzeige: sie ist eine **Entscheidung**, und man
-          trifft sie dort, wo man den Preis nennt. Ein Auswahlfeld zwischen lauter
-          Auskünften liest sich zudem wie eine, und in einer Zeile, die nur sagt, wie die
-          Dinge stehen, sucht man keinen Schalter. */}
-      {/* **Die Sperre ist eine Auskunft, keine Warnung.** Sie steht als Eigenschaft
-          dieses Moduls da, nicht als Fehler. */}
-      {d.prepaid && (
-        <span className="flex items-center gap-1 text-[12px]"
-          data-tip="Dieses Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist."
-          style={{ color: 'var(--fg-3)', flex: 'none' }}>
-          <Lock size={11} /> Erst zahlen
-        </span>
-      )}
-    </ModuleMeta>
+    </>
   );
 }
 
@@ -619,9 +692,21 @@ function Goods({ d, rows, editable, onPrice }: {
     article_id: null, article_object_id: null, article_name: '', quantity: 1,
     spec: [], price: null, vat: d.vat_rate,
   }] : []);
-  if (!items.length) return null;
+  // ►►► **Was es kostet, steht bei dem, was es ist** (Testnotiz #899). ◄◄◄
+  //
+  // Die Summe stand einmal einen Abschnitt tiefer im bestätigten Auftrag – also getrennt
+  // von den Zahlen, aus denen sie kommt. Auf einem Beleg steht sie unter ihren Positionen,
+  // und hier ist es dieselbe Ableitung: vor der Zusage die **Vorschau** aus den getippten
+  // Preisen, danach die **gebuchten** Zahlen des Servers.
+  //
+  // **Ohne Positionen bleibt der Total allein**, und das ist kein Sonderfall: bei einer
+  // *Ausgabe* nennt die Gegenpartei den Preis, und die Steuer steht auf **ihrer** Rechnung
+  // – wir kennen sie erst, wenn wir sie erfassen. Miete, Lohn und Gebühr haben ohnehin
+  // keine Position; der Abschnitt heisst dann schlicht nach dem, was darin steht.
+  const summed = !editable && d.amount != null;
+  if (!items.length && !summed) return null;
   return (
-    <ModuleSection title="Positionen" first>
+    <ModuleSection title={items.length ? 'Positionen' : 'Betrag'}>
       {items.map((line, i) => {
         const spec = line.spec ?? [];
         const key = line.article_id ?? -(i + 1);
@@ -755,10 +840,13 @@ function Goods({ d, rows, editable, onPrice }: {
           steht unter den Zahlen, aus denen sie kommt, statt einen Bildschirm tiefer im
           Angebotsblock. */}
       {editable && (
-        <div className="flex items-end">
-          <Sums rows={rows} lines={d.lines} label={d.vat_label ?? 'MWST'}
-            decimals={d.currency_decimals} code={d.currency} />
-        </div>
+        <Sums rows={rows} lines={d.lines} label={d.vat_label ?? 'MWST'}
+          decimals={d.currency_decimals} code={d.currency} />
+      )}
+      {summed && (
+        <Totals net={d.net ?? null} splits={d.vat_split ?? []} total={d.amount ?? '0'}
+          label={d.vat_label ?? 'MWST'} decimals={d.currency_decimals}
+          code={d.currency} />
       )}
     </ModuleSection>
   );
@@ -774,18 +862,31 @@ function Goods({ d, rows, editable, onPrice }: {
  * **Steht in der Definition genau eine Gegenpartei, gibt es nichts zu wählen** (#793):
  * dann heisst der Knopf schlicht «Anbieten» bzw. «Anfragen» und fragt nicht nach dem
  * Kunden. Nur wo die Definition **niemanden** nennt, ist die Wahl eine echte Frage.
+ *
+ * ►►► **Nach dem Zuschlag sind es RÜCKLÄUFE — eine Zeile** (Testnotiz #899). ◄◄◄
+ *
+ * *«Ein Beleg + Rückläufe»* – der Beleg ist unser Angebot bzw. unsere Anfrage, und die
+ * Antworten der Gegenparteien stehen darunter. Solange verhandelt wird, ist das die
+ * Arbeitsfläche. **Danach ist es Vergangenheit**: wer den Zuschlag hat, steht im
+ * Belegkopf, und die unterlegenen Zeilen sind eine Auskunft, kein Bedienelement.
+ *
+ * Sie **verschwinden nicht** (der Vergleich ist der Nachweis, warum man so entschieden
+ * hat) – sie klappen auf **eine** Zeile zusammen, die sagt, wie viele es waren. Aufklappen
+ * ist ein Klick; die Zeile selbst ist der Schalter.
  */
-function Offer({ d, busy, active, offer, onOffer, rows, onSent, onAction }: {
+function Offer({ d, busy, active, agreed, offer, rows, onSent, onAction }: {
   d: Filled; busy?: boolean; active: boolean;
-  /** Die beiden Fristen des Angebots. Die **Preise** stehen in der Positionstabelle. */
+  /** Ist zugesagt? Dann sind die Zeilen Historie und stehen zusammengeklappt da. */
+  agreed: boolean;
+  /** Die beiden Fristen des Belegs (Abschnitt «Bedingungen») – hier nur für «vollständig?». */
   offer: { lead: string; days: string };
-  onOffer: (next: { lead: string; days: string }) => void;
   rows: PriceRow[];
   /** Der Entwurf ist hinaus – die getippten Preise dürfen fallen. */
   onSent: () => void;
   onAction: (body: Action) => void;
 }) {
   const [picked, setPicked] = useState<DealParty | null>(null);
+  const [shown, setShown] = useState(false);
   // ►►► **Gehalten wird die Wahl nur, BIS sie als Zeile dasteht** (#794 → #820). ◄◄◄
   //
   // Sie wird gehalten, weil das Feld sonst im Moment des Klicks leer dasteht – die Wahl
@@ -840,28 +941,39 @@ function Offer({ d, busy, active, offer, onOffer, rows, onSent, onAction }: {
       } : {}),
     });
     setDropped([]);
-    onOffer({ lead: '', days: '' });
     onSent();
   };
 
+  // ►►► **Zusammengeklappt sagt EINE Zeile, wie viele es waren** (#899). ◄◄◄
+  //
+  // Bei genau einem Angebot wäre «1 von 1 Angeboten gewählt» eine Rechnung über nichts –
+  // dort steht schlicht, was passiert ist.
+  const summary = d.quotes.length === 1
+    ? `${d.stages[0]?.label ?? 'Angebot'} angenommen`
+    : `1 von ${d.quotes.length} Angeboten gewählt`;
+  const folded = agreed && !shown;
+
   return (
     <div className="flex flex-col gap-2">
-      {/* ►►► **Die Währung gehört ins ANGEBOT** (#864). ◄◄◄
-          Sie ist eine Entscheidung über das, was man gleich hinausschickt – und ab der
-          Zusage gebunden, weil draussen dann eine Zusage über diesen Betrag in *dieser*
-          Währung liegt. *Der «Anteil» stand daneben und ist mit #867 entfallen; die
-          Beschriftung mit #876, und ab der Zusage steht hier gar nichts mehr – dann sagen
-          es die Beträge selbst (#881).* */}
-      <Currency d={d} busy={busy} active={active} onAction={onAction} />
+      {/* **Die Zeile ist der Schalter** – kein Knopf daneben, dieselbe Geste wie überall
+          im Haus, wo ein Klick eine Ansicht öffnet. */}
+      {agreed && d.quotes.length > 0 && (
+        <button type="button" className="flex items-center gap-1.5 text-[12.5px] self-start"
+          style={{ color: 'var(--fg-3)' }} aria-expanded={shown}
+          onClick={() => setShown(!shown)}>
+          <ChevronDown size={13} style={{
+            color: 'var(--fg-4)', flex: 'none',
+            transform: shown ? 'rotate(180deg)' : undefined,
+          }} />
+          {summary}
+        </button>
+      )}
 
-      {d.quotes.map((q) => (
+      {!folded && d.quotes.map((q) => (
         <QuoteRow key={q.party_object_id} d={d} quote={q} busy={busy} active={active}
           onAction={onAction} />
       ))}
 
-      {mayAsk && d.we_quote && free && (
-        <OurOffer d={d} value={offer} onChange={onOffer} />
-      )}
       {mayAsk && (free ? (
         // **Wo niemand zugelassen ist, wird gesucht** – dieselbe Bauart wie überall.
         <ObjectSelect<DealParty>
@@ -906,7 +1018,6 @@ function Offer({ d, busy, active, offer, onOffer, rows, onSent, onAction }: {
               </button>
             );
           })}
-          <OurOffer d={d} value={offer} onChange={onOffer} />
           <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
             style={{ height: ACT_H.inline }} disabled={busy || chosen.length === 0 || !ready}
             data-tip={chosen.length === 0 ? 'Niemand gewählt – eine Zeile anklicken.'
@@ -938,42 +1049,100 @@ function Offer({ d, busy, active, offer, onOffer, rows, onSent, onAction }: {
  */
 export type PriceRow = { article: number | null; price: string; vat: string };
 
-function OurOffer({ d, value, onChange }: {
-  d: Filled;
+/**
+ * ►►► **Die Bedingungen — Währung und die beiden Fristen, an EINER Stelle.** ◄◄◄
+ *
+ * *Hier stand `OurOffer`: zwei Fristen unter dem Angebotsspiegel, und die Währung stand
+ * eine Zeile darüber.* Als **Beleg** gelesen (#899) ist das derselbe Abschnitt: «zu
+ * welchen Bedingungen». Er steht darum unter der Summe und über den Antworten – genau
+ * dort, wo er auf einem Angebot steht.
+ *
+ * ►►► **Die Zahlungsfrist steht ÜBER der Lieferfrist** (Testnotiz #897). ◄◄◄
+ *
+ * Sie ist die folgenreichere der beiden: aus ihr kommt die Fälligkeit jeder Rechnung, und
+ * wenn sie null ist, ist sie die **Vorauszahlung** – also die Frage, ob überhaupt geliefert
+ * wird, bevor Geld da ist. Die Lieferfrist beantwortet «wann», die Zahlungsfrist «wann
+ * und ob». Was mehr entscheidet, steht oben.
+ *
+ * **Beide sind Pflicht** (#854/#855/#856), und ihre üblichen Werte haben Namen: «Sofort»
+ * bzw. «Vorauszahlung» statt einer 0, die aussieht wie eine Lücke. Der Dienst weist ein
+ * Angebot ohne sie ab (`_assert_terms`); dies ist die freundliche Hälfte.
+ *
+ * **Nach der Zusage stehen sie als Auskunft da** – die Frist, wie sie heisst, und der
+ * Liefertermin, den sie erzeugt hat. *Er stand einmal im Kopf der Karte; dort war er eine
+ * Auskunft zwischen anderen, hier ist er die Antwort auf die Frage, die eine Zeile höher
+ * steht.*
+ */
+function Terms({ d, busy, active, editable, value, onChange, onAction }: {
+  d: Filled; busy?: boolean; active: boolean;
+  /** Dürfen **wir** die Fristen nennen? Nur wo wir das Angebot schreiben (`we_quote`). */
+  editable: boolean;
   value: { lead: string; days: string };
   onChange: (next: { lead: string; days: string }) => void;
+  onAction: (body: Action) => void;
 }) {
-  if (!d.we_quote) return null;
+  const agreed = d.stage !== DEAL_STAGE.offer;
+  // **Ohne Inhalt gibt es den Abschnitt nicht** – eine Überschrift über einer leeren
+  // Fläche ist eine Auskunft, die nichts sagt. Bei einer *Ausgabe* vor der Zusage nennt
+  // die Gegenpartei die Fristen an **ihrer** Zeile; hier bleibt dann die Währung.
+  if (!may(d, active, 'currency') && !editable && !agreed) return null;
   return (
-    <div className="flex flex-col gap-2">
-      {/* ►►► **Die beiden Fristen sind PFLICHT — und ihre üblichen Werte haben Namen.**
-          ◄◄◄ (Testnotizen #854/#855/#856)
-
-          Sie standen als zwei nackte Felder «Tage» da, beide freiwillig. Das ist an drei
-          Stellen zu wenig: aus der **Lieferfrist** kommt der Termin, aus der
-          **Zahlungsfrist** die Fälligkeit jeder Rechnung – und, wenn sie null ist, die
-          **Vorauszahlung**. Ohne sie hat niemand über den Zeitpunkt gesprochen.
-
-          «Muss ich bei einer Software einfach 0 eintragen?» – ja, und genau darum steht
-          dort jetzt **«Sofort»**: eine 0 in einem Feld «Tage» sieht aus wie eine Lücke,
-          ein Wort ist eine Angabe. Dieselbe Frage beantwortet «Vorauszahlung» für die
-          Zahlungsfrist – und damit ist der frühere Schalter in der Modul-Definition
-          ersatzlos entfallen: **die Frist IST die Aussage.** */}
+    <ModuleSection title="Bedingungen">
       <div className="flex flex-col gap-2">
-        <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
-          value={value.lead} onChange={(v) => onChange({ ...value, lead: v })}
-          terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
-          freeLabel={d.term_free_label ?? 'Individuell'}
-          preview={value.lead === '' ? undefined
-            : `Liefertermin ab heute: ${localDate(inDays(Number(value.lead)))}`} />
-        <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
-          value={value.days} onChange={(v) => onChange({ ...value, days: v })}
-          terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
-          freeLabel={d.term_free_label ?? 'Individuell'} />
+        {/* ►►► **Die Währung ist eine Bedingung** (#864/#876/#881). ◄◄◄
+            Sie ist eine **Entscheidung** über das, was hinausgeht – und ab der Zusage
+            gebunden, weil draussen dann eine Zusage über diesen Betrag in *dieser*
+            Währung liegt. Danach steht hier nichts mehr: dann sagen es die Beträge
+            selbst. */}
+        <Currency d={d} busy={busy} active={active} onAction={onAction} />
+        {editable && (
+          <>
+            <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
+              value={value.days} onChange={(v) => onChange({ ...value, days: v })}
+              terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
+              freeLabel={d.term_free_label ?? 'Individuell'} />
+            <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
+              value={value.lead} onChange={(v) => onChange({ ...value, lead: v })}
+              terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
+              freeLabel={d.term_free_label ?? 'Individuell'}
+              preview={value.lead === '' ? undefined
+                : `Liefertermin ab heute: ${localDate(inDays(Number(value.lead)))}`} />
+          </>
+        )}
+        {!editable && agreed && (
+          <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[12px]">
+            {/* ►►► **«0 Tage» gibt es nicht — sie heisst «Vorauszahlung»** (#885). ◄◄◄
+                Gelesen aus derselben Liste, aus der sie gewählt wurde; ein Wert
+                ausserhalb davon ist die freie Eingabe und heisst «x Tage». */}
+            {d.due_days != null && (
+              <span className="flex items-center gap-1.5">
+                <span style={MICRO_LABEL}>{d.payment_term_label}</span>
+                <span className="ix-tnum" style={{ color: 'var(--fg-2)' }}>
+                  {termText(d.due_days, d.payment_terms)}</span>
+              </span>
+            )}
+            {/* ►►► **Der Liefertermin — und ob er vorbei ist** (#814). ◄◄◄
+                Ein Verzug ist kein Zustand, den jemand pflegt: er ist *Termin vorbei und
+                noch nicht erledigt*, dieselbe Ableitung wie «überfällig» bei einer
+                Forderung. Was man dann tun kann, gibt es alles schon – warten,
+                stornieren, und das Geld läuft davon unabhängig weiter. */}
+            {d.due_date && (
+              <span className="flex items-center gap-1.5" style={{
+                color: d.late ? 'var(--danger)' : undefined, cursor: 'help',
+              }} data-tip={d.late
+                ? 'Der zugesagte Liefertermin ist vorbei und das Modul ist noch nicht erledigt.'
+                : 'Zugesagter Liefertermin – Zusagedatum plus Lieferfrist.'}>
+                {d.late ? <AlertTriangle size={12} /> : <CalendarClock size={12} />}
+                <span style={MICRO_LABEL}>{d.late ? 'überfällig seit' : 'Liefertermin'}</span>
+                <span className="ix-tnum" style={{
+                  color: d.late ? 'var(--danger)' : 'var(--fg-2)',
+                }}>{localDate(d.due_date)}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
-      {/* **Die Summen stehen bei den Preisen**, aus denen sie kommen – also unter der
-          Positionstabelle (#862), nicht hier unter den Fristen. */}
-    </div>
+    </ModuleSection>
   );
 }
 
@@ -1005,19 +1174,89 @@ function Sums({ rows, lines, label, decimals, code }: {
     const net = Math.round(Number(r.price || 0) * qty * unit) / unit;
     buckets.set(r.vat, (buckets.get(r.vat) ?? 0) + net);
   });
-  let net = 0; let tax = 0;
+  let net = 0;
+  const splits: { rate: string; tax: number }[] = [];
   buckets.forEach((sum, rate) => {
-    net += sum; tax += Math.round(sum * Number(rate) * unit / 100) / unit;
+    net += sum;
+    splits.push({ rate, tax: Math.round(sum * Number(rate) * unit / 100) / unit });
   });
+  const tax = splits.reduce((n, s) => n + s.tax, 0);
   if (net === 0 && tax === 0) return null;
   return (
-    <div className="flex flex-col gap-0.5 text-[12px] ix-tnum"
-      style={{ marginLeft: 'auto', textAlign: 'right', paddingBottom: 2 }}>
-      <span style={{ color: 'var(--fg-4)' }}>Netto {formatAmount(net, decimals)}</span>
-      <span style={{ color: 'var(--fg-4)' }}>{label} {formatAmount(tax, decimals)}</span>
-      <span className="font-semibold" style={{ color: 'var(--fg-1)' }}>
-        {formatAmount(net + tax, decimals)} {code}
-      </span>
+    <Totals net={net} splits={splits} total={net + tax} label={label}
+      decimals={decimals} code={code} />
+  );
+}
+
+/**
+ * ►►► **Die Abrechnung — rechtsbündig, tabellarisch, mit einer Haarlinie.** ◄◄◄
+ *
+ * Zahlen werden von rechts gelesen, und der **Total** ist die eine Zahl, um die es geht:
+ * er trägt die Linie über sich und die einzige kräftige Schrift. Struktur vor Fläche –
+ * kein Kasten, keine zweite Farbe.
+ *
+ * **Es gibt sie einmal** (#899): die **Vorschau** aus den getippten Preisen und die
+ * **gebuchte** Summe des Servers sind dieselbe Aufstellung, und sie standen als zwei
+ * Bauteile in zwei Abschnitten – mit zwei Schreibweisen für Netto, Steuer und Total. Wer
+ * eine davon ändert, ändert die andere nicht.
+ *
+ * **Ohne Netto bleibt der Total allein**, und das ist kein Sonderfall: bei einer *Ausgabe*
+ * nennt die Gegenpartei den Preis, und die Steuer steht auf **ihrer** Rechnung – ein
+ * «Netto 0.00» daneben wäre eine Behauptung über eine Zahl, die wir nicht haben.
+ */
+function Totals({ net, splits, total, label, decimals, code }: {
+  net: number | string | null;
+  /** Je Steuersatz eine Zeile – zwei Sätze auf einem Beleg sind der Normalfall. */
+  splits: { rate: string; tax: number | string }[];
+  total: number | string;
+  label: string;
+  /** Die kleinste Einheit dieser Währung (ISO 4217) – auch die Vorschau rundet je Währung. */
+  decimals: number;
+  code: string;
+}) {
+  return (
+    // **Über die ganze Breite, Wort links, Zahl rechts** – die Ordnung, in der ein Beleg
+    // seine Summe schreibt. Ein kompakter Block am rechten Rand wäre in einer 460 px
+    // schmalen Karte enger als nötig, und die Zahlen stünden dann mitten in der Fläche
+    // statt an ihrer Kante.
+    <div style={{ minWidth: 0, paddingTop: 6 }}>
+      <div className="grid gap-x-4 text-[12.5px] ix-tnum"
+        style={{ gridTemplateColumns: '1fr max-content', rowGap: 2 }}>
+        {net != null && (
+          <>
+            <span style={{ color: 'var(--fg-4)' }}>Netto</span>
+            <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
+              {formatAmount(net, decimals)}</span>
+          </>
+        )}
+        {/* **Je Satz eine Zeile** – zwei Sätze auf einem Beleg sind der Normalfall
+            (sechs Wellen zu 8.1 %, eine Ausfuhr zu 0 %), und die Abrechnung verlangt sie
+            einzeln. Eine Summe «MWST» allein wäre für die Abrechnung wertlos. */}
+        {splits.map((v) => (
+          <Fragment key={v.rate}>
+            <span style={{ color: 'var(--fg-4)' }}>{label} {v.rate} %</span>
+            <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
+              {formatAmount(v.tax, decimals)}</span>
+          </Fragment>
+        ))}
+        {/* **Die Haarlinie geht über BEIDE Spalten** – als eigene Rasterzeile. An die
+            beiden Zellen geschrieben wäre sie zweimal unterbrochen: der Spaltenabstand
+            liegt dazwischen, und ein Strich mit einem Loch in der Mitte sieht nach einem
+            Fehler aus, nicht nach einer Summe. */}
+        {splits.length > 0 && (
+          <span style={{
+            gridColumn: '1 / -1', height: 1, marginTop: 3, marginBottom: 3,
+            background: 'var(--border-2)',
+          }} />
+        )}
+        <span className="font-semibold" style={{ color: 'var(--fg-1)' }}>Total</span>
+        {/* ►►► **Die eine Zahl, die ihre Währung MITSAGT.** ◄◄◄ Nicht jede Zeile – der
+            Beleg lautet auf eine Währung. Aber der Total ist die Zahl, die abgeschrieben,
+            zitiert und überwiesen wird; sie ohne ihren Code zu zeigen hiesse, sich auf
+            einen Blick nach oben zu verlassen. */}
+        <span className="font-semibold" style={{ color: 'var(--fg-1)', textAlign: 'right' }}>
+          {formatAmount(total, decimals)} {code}</span>
+      </div>
     </div>
   );
 }
@@ -1119,18 +1358,24 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
             Wort im Hover und ihr Symbol daneben. */}
         {/* **Und die Frist heisst, wie sie heisst** (#885): «Vorauszahlung» statt «0», aus
             derselben Liste, aus der man sie wählt. */}
-        {!declined && quote.lead_days != null && (
-          <span className="flex items-center gap-1 text-[12px] ix-tnum"
-            style={{ color: 'var(--fg-4)', flex: 'none' }}
-            data-tip={`${d.lead_term_label}: ${termText(quote.lead_days, d.lead_terms)}`}>
-            <CalendarClock size={11} />{termText(quote.lead_days, d.lead_terms)}
-          </span>
-        )}
+        {/* ►►► **Die Zahlungsfrist steht VOR der Lieferfrist** (Testnotiz #897). ◄◄◄
+            Dieselbe Reihenfolge wie im Abschnitt «Bedingungen» – sie ist die
+            folgenreichere Angabe (aus ihr kommt die Fälligkeit, und null heisst
+            Vorauszahlung), und eine Zeile, die dieselben zwei Werte anders herum
+            aufzählt als das Formular darüber, liest sich als zwei verschiedene
+            Angaben. */}
         {!declined && quote.payment_days != null && (
           <span className="flex items-center gap-1 text-[12px] ix-tnum"
             style={{ color: 'var(--fg-4)', flex: 'none' }}
             data-tip={`${d.payment_term_label}: ${termText(quote.payment_days, d.payment_terms)}`}>
             <Wallet size={11} />{termText(quote.payment_days, d.payment_terms)}
+          </span>
+        )}
+        {!declined && quote.lead_days != null && (
+          <span className="flex items-center gap-1 text-[12px] ix-tnum"
+            style={{ color: 'var(--fg-4)', flex: 'none' }}
+            data-tip={`${d.lead_term_label}: ${termText(quote.lead_days, d.lead_terms)}`}>
+            <CalendarClock size={11} />{termText(quote.lead_days, d.lead_terms)}
           </span>
         )}
         {declined && (
@@ -1182,18 +1427,21 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
                   Zusagedatum + Frist); vor der Zusage ist der Bezug **heute**, und genau
                   das sagt das Wort «ab heute». Ein eigenes Datumsfeld daneben wäre die
                   zweite Aussage über dieselbe Sache. */}
+              {/* **Zahlungsfrist über Lieferfrist** (#897) – dieselbe Reihenfolge wie
+                  im Abschnitt «Bedingungen»; zwei Formulare für dieselben zwei Fragen
+                  dürfen nicht anders herum fragen. */}
               <div style={{ flex: '1 1 100%', minWidth: 0 }}
                 className="flex flex-col gap-2">
+                <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
+                  value={days} onChange={setDays}
+                  terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
+                  freeLabel={d.term_free_label ?? 'Individuell'} />
                 <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
                   value={lead} onChange={setLead}
                   terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
                   freeLabel={d.term_free_label ?? 'Individuell'}
                   preview={lead === '' ? undefined
                     : `Liefertermin ab heute: ${localDate(inDays(Number(lead)))}`} />
-                <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
-                  value={days} onChange={setDays}
-                  terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
-                  freeLabel={d.term_free_label ?? 'Individuell'} />
               </div>
             </>
           )}
@@ -1202,16 +1450,18 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
               Modul-Palette, und in einer 460 px schmalen Spalte macht sie aus zwei
               Textknöpfen zwei Zeichen. Der Zuschlag bleibt die **naheliegende** Handlung:
               das sagt seine Fläche (`primary`), nicht seine Breite. */}
-          {may(d, active, 'decline') && !declined && (
-            <ActionButton icon={CircleSlash} label="Absage" height={ACT_H.inline}
-              disabled={busy} onClick={() => onAction({ action: 'decline', party })} />
-          )}
-          {may(d, active, 'agree') && !declined && (
-            <ActionButton icon={Check} label={d.stages[0]?.verb ?? 'Annehmen'}
-              tone="primary" height={ACT_H.inline} disabled={busy || !quote.amount}
-              tip={quote.amount ? undefined : 'Ohne Preis gibt es keine Zusage'}
-              onClick={() => onAction({ action: 'agree', party })} />
-          )}
+          <Actions>
+            {may(d, active, 'decline') && !declined && (
+              <ActionButton icon={CircleSlash} label="Absage" height={ACT_H.inline}
+                disabled={busy} onClick={() => onAction({ action: 'decline', party })} />
+            )}
+            {may(d, active, 'agree') && !declined && (
+              <ActionButton icon={Check} label={d.stages[0]?.verb ?? 'Annehmen'}
+                tone="primary" height={ACT_H.inline} disabled={busy || !quote.amount}
+                tip={quote.amount ? undefined : 'Ohne Preis gibt es keine Zusage'}
+                onClick={() => onAction({ action: 'agree', party })} />
+            )}
+          </Actions>
         </div>
       )}
     </div>
@@ -1264,127 +1514,28 @@ function PartyRef({ value }: { value: string }) {
   );
 }
 
-/**
- * ►►► **Der bestätigte Auftrag — WER, WAS ES KOSTET, ZU WELCHEN BEDINGUNGEN.** ◄◄◄
+/*
+ * ►►► **Den «bestätigten Auftrag» gibt es nicht mehr als Block** (Testnotiz #899). ◄◄◄
  *
- * Gemeldet war «schaut total beschissen aus. bitte komplett neu machen» (#847), und die
- * Meldung hatte recht: hier stand ein `auto-fit`-Raster aus vier gleich lauten Lesefeldern
- * – Partner, Betrag, Zahlungsfrist, Bestätigt –, das je nach Breite in eine, zwei oder
- * vier Spalten zerfiel. Alle vier gleich gross, keine Ordnung, und der **Betrag** – die
- * einzige Zahl, um die es geht – stand als drittes Kästchen von links.
+ * Hier stand `Agreed`: Partner, Abrechnung und Bedingungen in einem eigenen Abschnitt
+ * unter der Stufe «Auftrag». Er war die richtige Antwort auf #847 («schaut total
+ * beschissen aus») – aber er war ein **zweiter Beleg neben dem ersten**: derselbe
+ * Partner, dieselbe Summe, dieselben Fristen, nur eine Stufe später und in anderer
+ * Reihenfolge als oben.
  *
- * Die Ordnung ist jetzt die eines **Belegs**, weil es einer ist:
+ * *«Alle dargestellten Informationen bauen aufeinander auf … man könnte es wie ein
+ * Dokument aufbauen und dann Schritt für Schritt erweitern.»* – Genau das: seine drei
+ * Teile sind dorthin gegangen, wo sie auf einem Beleg stehen, und **nur** dorthin.
  *
- * 1. **Wer** – der Partner, eine Zeile, Nummer und Name.
- * 2. **Was es kostet** – rechtsbündig Netto · Steuer je Satz · Total, unter einer
- *    Haarlinie. Dieselbe Aufteilung, die auf der Rechnung steht (MWSTG Art. 26), und
- *    dieselbe Rechnung wie im Dienst: **je Satz auf der Summe** gerundet.
- * 3. **Zu welchen Bedingungen** – Zahlungsfrist und Zusagedatum, klein und daneben.
+ * * **Wer** → in den Belegkopf (`DocHead`, «An 100000123 Muster AG», mit dem Datum).
+ * * **Was es kostet** → unter seine Positionen (`Goods` → `Totals`) – dieselbe
+ *   Aufstellung, die vorher die Vorschau war, jetzt mit den gebuchten Zahlen.
+ * * **Zu welchen Bedingungen** → in den Abschnitt `Terms`, neben die Frist, aus der der
+ *   Termin kommt.
  *
- * ►►► **Die Positionen stehen NICHT noch einmal hier.** ◄◄◄ Sie stehen oben in `Goods`,
- * seit die Zeile ihren Preis und ihren Satz trägt – das ist die Position, und eine
- * zweite Aufzählung wäre dieselbe Angabe an zwei Orten. Hier steht nur die **Summe**.
- *
- * **Ohne Positionen bleibt der Total allein**, und das ist kein Sonderfall: bei einer
- * *Ausgabe* nennt die Gegenpartei den Preis, und die Steuer steht auf **ihrer** Rechnung
- * – wir kennen sie erst, wenn wir die Rechnung erfassen. Ein «Netto 0.00» daneben wäre
- * eine Behauptung über eine Zahl, die wir nicht haben.
+ * Die Karte **wächst** damit, statt einen Block dazuzuschalten: dieselben Zeilen tragen
+ * vor der Zusage einen Entwurf und danach die Zusage.
  */
-function Agreed({ d }: { d: Filled }) {
-  const split = d.vat_split ?? [];
-  return (
-    <div className="flex flex-col gap-2.5">
-      {/* ►►► **Nummer und Name auf EINER Zeile** (Testnotiz #838) – der Name wird
-          gekappt. `flex-wrap` schob ihn bei enger Spalte darunter, und dort las er sich
-          wie eine zweite Angabe. */}
-      {/* ►►► **Die Beschriftung «Partner» ist entfallen** (Testnotiz #883). ◄◄◄
-          Eine Objektnummer mit einem Namen daneben, im Abschnitt «Auftrag», ist der
-          Partner – ein Wort davor sagt nichts, was die Zeile nicht schon sagt. Benannt
-          bleibt sie für den, der die Karte hört (`aria-label`). */}
-      <div className="flex items-center gap-2 text-[12.5px]" style={{ minWidth: 0 }}
-        aria-label={d.party_word}>
-        {d.party_object_id ? (
-          <>
-            <ObjId value={d.party_object_id} />
-            <span className="truncate" style={{ color: 'var(--fg-1)', minWidth: 0 }}
-              data-tip={d.party_name || undefined}>{d.party_name}</span>
-          </>
-        ) : <span style={{ color: 'var(--fg-4)' }}>—</span>}
-      </div>
-
-      {/* ►►► **Die Abrechnung — rechtsbündig, tabellarisch, mit einer Haarlinie.** ◄◄◄
-          Zahlen werden von rechts gelesen, und der **Total** ist die eine Zahl, um die es
-          geht: er trägt die Linie über sich und die einzige kräftige Schrift. Struktur
-          vor Fläche – kein Kasten, keine zweite Farbe. */}
-      <div style={{ marginLeft: 'auto', minWidth: 0 }}>
-        <div className="grid gap-x-4 text-[12.5px] ix-tnum"
-          style={{ gridTemplateColumns: 'auto minmax(0, max-content)', rowGap: 2 }}>
-          {d.net != null && (
-            <>
-              <span style={{ color: 'var(--fg-4)' }}>Netto</span>
-              <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
-                {formatAmount(d.net, d.currency_decimals)}</span>
-            </>
-          )}
-          {/* **Je Satz eine Zeile** – zwei Sätze auf einem Beleg sind der Normalfall
-              (sechs Wellen zu 8.1 %, eine Ausfuhr zu 0 %), und die Abrechnung verlangt
-              sie einzeln. Eine Summe «MWST» allein wäre für die Abrechnung wertlos. */}
-          {split.map((v) => (
-            <Fragment key={v.rate}>
-              <span style={{ color: 'var(--fg-4)' }}>{d.vat_label} {v.rate} %</span>
-              <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
-                {formatAmount(v.tax, d.currency_decimals)}</span>
-            </Fragment>
-          ))}
-          {/* **Die Haarlinie geht über BEIDE Spalten** – als eigene Rasterzeile.
-              An die beiden Zellen geschrieben wäre sie zweimal unterbrochen: der
-              Spaltenabstand liegt dazwischen, und ein Strich mit einem Loch in der Mitte
-              sieht nach einem Fehler aus, nicht nach einer Summe. */}
-          {split.length > 0 && (
-            <span style={{
-              gridColumn: '1 / -1', height: 1, marginTop: 3, marginBottom: 3,
-              background: 'var(--border-2)',
-            }} />
-          )}
-          <span className="font-semibold" style={{ color: 'var(--fg-1)' }}>Total</span>
-          {/* ►►► **Die eine Zahl, die ihre Währung MITSAGT.** ◄◄◄ Nicht jede Zeile –
-              der Beleg lautet auf eine Währung, und sie steht im Kopf. Aber der Total
-              ist die Zahl, die abgeschrieben, zitiert und überwiesen wird; sie ohne
-              ihren Code zu zeigen hiesse, sich auf einen Blick nach oben zu verlassen. */}
-          <span className="font-semibold" style={{
-            color: 'var(--fg-1)', textAlign: 'right',
-          }}>{formatAmount(d.amount, d.currency_decimals)} {d.currency}</span>
-        </div>
-      </div>
-
-      {/* **Die Bedingungen** – klein und nebeneinander: sie sind Beiwerk zur Zahl, keine
-          gleichrangige vierte Kachel. */}
-      {(d.due_days != null || d.agreed_on) && (
-        <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[12px]">
-          {/* ►►► **«0 Tage» gibt es nicht — sie heisst «Vorauszahlung»** (#885). ◄◄◄
-              Gelesen aus derselben Liste, aus der sie gewählt wurde; ein Wert ausserhalb
-              davon ist die freie Eingabe und heisst «x Tage». */}
-          {d.due_days != null && (
-            <span className="flex items-center gap-1.5">
-              <span style={MICRO_LABEL}>{d.payment_term_label}</span>
-              <span className="ix-tnum" style={{ color: 'var(--fg-2)' }}>
-                {termText(d.due_days, d.payment_terms)}</span>
-            </span>
-          )}
-          {d.agreed_on && (
-            <span className="flex items-center gap-1.5">
-              <span style={MICRO_LABEL}>Bestätigt</span>
-              <span className="ix-tnum" style={{ color: 'var(--fg-2)' }}>
-                {localDate(d.agreed_on)}</span>
-            </span>
-          )}
-        </div>
-      )}
-      {/* ►►► **Kein Referenz-Feld** (#812) – die Rechnungsnummer erzeugt der Dienst
-          selbst, und was bei diesem Partner zu tun ist, steht an seiner Angebotszeile. */}
-    </div>
-  );
-}
 
 /**
  * ►►► **Wie weit eine Rechnung ist — ein Punkt AN IHR** (Testnotiz #875). ◄◄◄
@@ -1771,10 +1922,26 @@ function EntryRow({ d, e, sub, busy, active, panel, onAction, onPay, onPayOnline
         )}
 
         {/* ►►► **Jeder Knopf dieser Zeile klappt seinen Namen aus** (Testnotizen
-            #888/#895/#896). ◄◄◄ Dreimal derselbe Satz an drei Zeilen – Rechnung, bezahlte
-            Rechnung, Karten-Zahlung –, also ist es keine Eigenschaft der Zeile, sondern
-            die Form eines Knopfes im Haus (`ActionButton`). */}
+            #888/#895/#896/#900). ◄◄◄ Dreimal derselbe Satz an drei Zeilen – Rechnung,
+            bezahlte Rechnung, Karten-Zahlung –, also ist es keine Eigenschaft der Zeile,
+            sondern die Form eines Knopfes im Haus (`ActionButton`).
 
+            ►►► **Und sie stehen darum in EINER Zeile, die nicht umbricht.** ◄◄◄ Genau
+            daran scheiterte der erste Anlauf: die Angaben-Zeile ist `flex-wrap`, der
+            aufklappende Knopf liess sie neu umbrechen, der Zeiger fiel vom Knopf, er
+            klappte ein, die Zeile brach zurück – gemessen 32 → 63 → 51 → 59 px in 800 ms.
+            In `Actions` schiebt er nur seine Nachbarn zur Seite.
+
+            ►►► **Und die Gruppe bekommt eine EIGENE Zeile** (`flex: 1 1 100%`). ◄◄◄
+            Gemessen bei 375 px: als letztes Kind der umbrechenden Angaben-Zeile brach
+            **sie selbst** um, sobald ein Knopf aufklappte – der Knopf sprang eine Zeile
+            tiefer, der Zeiger verlor ihn, er klappte ein, die Gruppe sprang zurück
+            (32 → 66 → 32 → 57 → … px). Eine eigene Zeile kann nicht umbrechen; dieselbe
+            Form, die die Angebotszeile seit #752 hat (oben wer und wie viel, darunter die
+            Handlungen). **Linksbündig**, nicht `margin-left: auto`: rechts angeschlagen
+            wanderte die ganze Gruppe beim Aufklappen nach links – und mit ihr der Knopf
+            unter dem Zeiger. */}
+        <Actions style={{ flex: '1 1 100%' }}>
         {/* ►►► **Zahlung erfassen — an der Rechnung, die sie begleicht** (#859), und nur
             solange auf ihr etwas AUSSTEHT (#894). ◄◄◄
             *«Braucht es diesen Button noch, wenn der Status auf grün ist – bezahlt?»* –
@@ -1832,6 +1999,7 @@ function EntryRow({ d, e, sub, busy, active, panel, onAction, onPay, onPayOnline
               + 'Erfassungsfehler ebenso wie die Erstattung von Hand.'}
             onClick={() => onPay(e.charge_id ?? null, negate(e.amount))} />
         )}
+        </Actions>
       </div>
       {panel}
     </div>
@@ -2064,7 +2232,7 @@ function Entry({ kind, d, busy, preset, chargeId, onCancel, onSubmit }: {
           dem Knopf, der dieses Formular geöffnet hat. Zwei Wörter für eine Handlung sind
           die Stelle, an der man sich fragt, ob es zwei sind.
           Und zurück geht es mit demselben Zeichen, mit dem das Haus überall zurückgeht. */}
-      <div className="flex items-center gap-2">
+      <Actions>
         <ActionButton icon={Check} tone="primary" height={ACT_H.inline}
           label={kind === 'charge' ? d.charge_word : d.payment_word}
           disabled={busy || amount.trim() === ''}
@@ -2082,7 +2250,7 @@ function Entry({ kind, d, busy, preset, chargeId, onCancel, onSubmit }: {
           })} />
         <ActionButton icon={X} label="Abbrechen" height={ACT_H.inline}
           onClick={onCancel} />
-      </div>
+      </Actions>
     </div>
   );
 }

@@ -239,24 +239,42 @@ function appearance() {
     // (`labels: 'above'`); die Vorgabe ist «floating», und damit sahen die drei Felder in
     // der Karte anders aus als die drei Felder darüber.
     labels: 'above' as const,
+    // ►►► **«Condensed» war nie gesetzt** (Testnotiz #901). ◄◄◄
+    //
+    // #892 verlangte zweierlei – Beschriftung oben **und** dichte Felder –, und angekommen
+    // ist nur das erste: `labels` stand da, `inputs` nicht. Die Dichte kam stattdessen aus
+    // einer kleiner gedrehten Grundschrift, und das ist der Fehler unten.
+    inputs: 'condensed' as const,
     variables: {
       colorPrimary: v('--accent', '#2C6E8F'),
       colorBackground: v('--bg-1', '#ffffff'),
       colorText: v('--fg-1', '#181411'),
       colorDanger: v('--danger', '#b3261e'),
       fontFamily: v('--font-body', 'Inter, system-ui, sans-serif'),
-      borderRadius: '8px',
-      // **Dichter** – dieselbe Schriftgrösse und dieselbe Polsterung wie `inputCls`
-      // (13 px, 6 px/10 px). Die Vorgaben des Dienstes sind eine Nummer grösser als
-      // unsere, und in einer 460 px schmalen Modulspalte fällt das sofort auf.
-      fontSizeBase: '13px',
-      spacingUnit: '3px',
+      // `inputCls` ist `rounded-md` – 6 px, nicht 8. Ein Feld des Dienstes neben einem
+      // Feld des Hauses zeigt jede Abweichung sofort, weil sie **nebeneinander** stehen.
+      borderRadius: '6px',
+      // ►►► **Und die Schrift war eine Nummer ZU KLEIN** (Testnotiz #901). ◄◄◄
+      //
+      // *«Zudem ist alles so klein geworden von der Schriftgrösse – ist das gewollt und im
+      // Einklang mit dem restlichen UI/UX?»* – Nein, und der Kommentar hier behauptete das
+      // Gegenteil: er nannte `inputCls` mit «13 px». `inputCls` trägt `text-sm`, und das
+      // sind **14 px** bei 20 px Zeilenhöhe. Die Felder des Dienstes standen damit einen
+      // Punkt kleiner als die Felder daneben – gemessen, nicht geschätzt.
+      //
+      // Der **Rasterschritt** war derselbe Griff ins Blaue: 3 px ist keine Zahl des
+      // Hauses. Das Haus rechnet in 8 px, die Hälfte davon ist 4.
+      fontSizeBase: '14px',
+      spacingUnit: '4px',
     },
     rules: {
-      '.Input': { padding: '6px 10px', lineHeight: '1.35' },
+      // Dieselbe Polsterung und dieselbe Zeilenhöhe wie `inputCls` (`py-1.5 px-2.5`,
+      // `text-sm` = 14/20 px → 20 ÷ 14 = 1.43).
+      '.Input': { padding: '6px 10px', lineHeight: '1.43' },
+      // Buchstabengleich `fields.Label` – 11 px, 600, Versalien, .05em, `--fg-4`.
       '.Label': {
-        fontSize: '11.5px', fontWeight: '600', textTransform: 'uppercase',
-        letterSpacing: '.05em', color: v('--fg-3', '#6b6259'), marginBottom: '4px',
+        fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
+        letterSpacing: '.05em', color: v('--fg-4', '#8a8078'), marginBottom: '4px',
       },
     },
   };

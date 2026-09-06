@@ -2728,6 +2728,49 @@ dürfen bei der Zusage abweichen — verhandelt wird auch am Telefon. Ein Zeiger
 weniger, nicht dasselbe: er überschriebe die Offerte mit der Zusage, und danach liesse sich
 nicht mehr sagen, was der Partner ursprünglich angeboten hat.*
 
+### 9.14c Die Karte IST der Beleg — und sie wächst
+
+►►► **Ein Vorgang, ein Dokument.** ◄◄◄ (Testnotiz #899)
+
+Die Ausführungsstelle des Geldvorgangs war eine **Kette von Abschnitten**: Positionen ·
+Angebot · Auftrag · Geld. Mit der Zusage kam ein Block dazu, der Partner, Summe und
+Fristen **noch einmal** zeigte — ein zweiter Beleg neben dem ersten, in anderer
+Reihenfolge als der erste.
+
+Gemeint war nie ein zweiter Beleg, sondern **derselbe, einen Schritt weiter**. Also steht
+er in der Ordnung, die ein Beleg hat:
+
+| Abschnitt | Was darin steht |
+|---|---|
+| **Belegkopf** | Belegart (Angebot ↔ Auftrag ↔ storniert) · Richtung als Symbol · *An <Partner>* · Zusagedatum · die Sperre «Erst zahlen» |
+| **Positionen** | je Artikel eine Zeile mit Menge, Nummer, Satz, Preis — und darunter Netto, Steuer je Satz, Total |
+| **Bedingungen** | Währung, Zahlungsfrist, Lieferfrist bzw. der Termin, der daraus folgt |
+| **Rückläufe** | der Angebotsspiegel: wer was zu welcher Frist angeboten hat |
+| **Rechnung & Zahlungen** | die Geld-Zeilen (§9.14) |
+| **Handlungen** | unter einer Haarlinie, wie die Unterschrift |
+
+**Er wächst, statt umzuschalten.** Die Belegart im Kopf **ist** der Fortschritt; die
+Preisspalte trägt nach der Zusage die gebuchten Zahlen statt des Entwurfs, die Bedingungen
+stehen als Auskunft statt als Feld, die Rückläufe klappen auf **eine** Zeile zusammen, und
+darunter kommt das Geld dazu. Dieselben Zeilen, ein Zustand weiter — **ein späterer
+PDF-Export ist damit dieselbe Ableitung ohne Knöpfe**, nicht ein zweiter Beleg, der beim
+nächsten Feld ausläuft.
+
+**Die Regel, die es zusammenhält, ist zählbar**: jede Beleg-Angabe steht an **genau einem**
+Ort. Empfänger und Zusagedatum im Kopf, Zahlungsfrist und Liefertermin bei den Bedingungen,
+Steueraufteilung und Nettosumme bei den Positionen. Und die **Summe** gibt es einmal: die
+Vorschau aus getippten Preisen und die gebuchten Zahlen des Servers sind dieselbe
+Aufstellung — zwei Bauteile wären zwei Schreibweisen für Netto, Steuer und Total.
+
+**Zusammengeklappt wird erst NACH dem Zuschlag.** Solange verhandelt wird, versteckt der
+Beleg nichts. Danach sind die unterlegenen Zeilen der **Nachweis**, warum so entschieden
+wurde — er verschwindet nicht, er steht auf Klick.
+
+**Die Zahlungsfrist steht über der Lieferfrist** (#897) — im Beleg wie an der
+Angebotszeile, und auch in deren Anzeige. Sie ist die folgenreichere Angabe: aus ihr kommt
+die Fälligkeit, und null heisst Vorauszahlung. Zwei Formulare für dieselben zwei Fragen
+dürfen nicht anders herum fragen.
+
 
 ## 10. Darstellung
 

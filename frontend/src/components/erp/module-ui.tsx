@@ -73,47 +73,56 @@ export const ACT_H = { row: 26, inline: 30, main: 34 } as const;
  * `aria-label`. Vorher stand dieselbe Form an sieben Aufrufstellen ausgeschrieben – mit
  * Höhen, Ausprägungen und Hinweisen, die schon leicht auseinanderliefen.
  *
- * ►►► **Warum der Knopf nicht mitwächst — gemessen, nicht geschätzt.** ◄◄◄
+ * ►►► **Und er braucht PLATZ, sonst schwingt er — gemessen, nicht geschätzt.** ◄◄◄
  *
- * Der erste Anlauf teilte die Geste der **Modul-Palette**, auf die der Nutzer zeigt: das
- * Quadrat wird beim Zeigen breiter und schiebt den Namen heraus. In der Palette ist das
- * stabil – sie steht in einer eigenen, mittig gesetzten Zeile mit Luft. In der **Geld-
- * Zeile** ist es das nicht: sie ist dicht und bricht um, der breiter werdende Knopf lässt
- * sie neu umbrechen, der Zeiger fällt vom Knopf, er klappt ein, die Zeile bricht zurück –
- * gemessen **32 → 63 → 51 → 59 px** in 800 ms, mit kippendem `:hover`. Ein Bedienelement,
- * das unter dem Zeiger wegläuft, ist keines.
+ * Ein erster Anlauf setzte die Geste in die dichte, **umbrechende** Geld-Zeile: der Knopf
+ * wird breiter, die Zeile bricht neu um, der Zeiger fällt vom Knopf, er klappt ein, die
+ * Zeile bricht zurück – gemessen **32 → 63 → 51 → 59 px** in 800 ms, mit kippendem
+ * `:hover`. Ein Bedienelement, das unter dem Zeiger wegläuft, ist keines.
  *
- * Die Blase des Hauses hat dieses Problem nicht: sie ist `position: absolute` und
- * `display: none`, also verändert sie **nichts** am Layout (genau darum steht sie so in
- * `globals.css`). Der Name gehört darum hinein – und **zuerst**: was hier stand, waren
- * ganze Sätze («Aufschreiben, was auf diese Rechnung geflossen ist»), also die
- * Begründung statt des Namens. Ein Grund ist willkommen, aber er kommt **nach** dem Wort,
- * nach dem gefragt war.
+ * Daraus wurde nicht «dann eben eine Blase» (so stand es eine Runde lang, und #900 hat es
+ * zu Recht zurückgewiesen), sondern **`Actions`**: eine Zeile, die *nicht* umbricht.
+ * Dort schiebt der Knopf beim Aufklappen nur seine Nachbarn zur Seite und bleibt selbst,
+ * wo er ist.
+ *
+ * **Der Grund hängt an einer Hülle, nicht am Knopf**: `.ix-tuck` ist `overflow: hidden`
+ * (sonst böte der eingeklappte Name seitwärts zu scrollen an), und das schneidet ein
+ * `::after` weg – die Blase wäre unsichtbar (die Lehre aus #790).
  */
 export function ActionButton({
   icon: Icon, label, tone = 'neutral', height = ACT_H.row, tip, disabled, onClick,
 }: {
   icon: LucideIcon;
-  /** Was der Knopf tut – das Wort in der Blase und im `aria-label`. */
+  /** Was der Knopf tut – das Wort, das beim Zeigen daneben aufklappt, und das `aria-label`. */
   label: string;
   tone?: 'primary' | 'neutral' | 'danger';
   height?: number;
   /**
-   * Ein **Grund**, keine zweite Beschriftung – er steht hinter dem Namen. Meist der
+   * Ein **Grund**, keine zweite Beschriftung – er steht als Blase an der Hülle. Meist der
    * Satz, warum es gerade nicht geht, oder was die Handlung nach sich zieht.
    */
   tip?: string;
   disabled?: boolean;
   onClick: () => void;
 }) {
-  return (
+  const button = (
     <button type="button" disabled={disabled} onClick={onClick}
-      className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon`}
-      style={{ height }} aria-label={label}
-      data-tip={tip ? `${label} – ${tip}` : label}>
+      className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon ix-tuck`}
+      style={{ height }} aria-label={label}>
       <Icon size={13} />
+      <span className="ix-tuck-name">{label}</span>
     </button>
   );
+  return tip ? <span data-tip={tip} className="inline-flex">{button}</span> : button;
+}
+
+/**
+ * **Die Zeile, in der Handlungs-Knöpfe stehen.** Sie bricht **nicht** um – genau daran
+ * hing das Schwingen oben. Wer einen ausklappenden Knopf in eine umbrechende Zeile setzt,
+ * bekommt ihn nicht ruhig.
+ */
+export function Actions({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return <div className="ix-actions" style={style}>{children}</div>;
 }
 
 /**
@@ -176,11 +185,16 @@ export function ModuleSection({ title, state, right, children, first }: {
         <div className="flex items-center gap-2" style={{
           paddingBottom: 8, marginBottom: 12, borderBottom: '1px solid var(--border-1)',
         }}>
-          {state && (
-            <span aria-hidden className="rounded-full" style={{
-              width: 7, height: 7, flex: 'none', background: STEP_COLOR[state],
-            }} />
-          )}
+          {/* ►►► **Die Status-Spalte steht immer, auch leer.** ◄◄◄
+              Ein Punkt vor der Beschriftung rückt sie um seine Breite ein – und in einer
+              Karte, in der nur *manche* Abschnitte ein Schritt sind (die übrigen sind
+              Inhalt), stünden die Überschriften dann auf zwei verschiedenen Kanten.
+              Gemessen: 18 px ↔ 33 px im selben Beleg. Der Platz wird darum reserviert;
+              was ihn füllt, sagt der Abschnitt. */}
+          <span aria-hidden className="rounded-full" style={{
+            width: 7, height: 7, flex: 'none',
+            background: state ? STEP_COLOR[state] : 'transparent',
+          }} />
           <span style={{
             ...MICRO_LABEL, flex: 1, minWidth: 0,
             // **Wo man steht, ist die lauteste Zeile** – dieselbe Geste wie in der

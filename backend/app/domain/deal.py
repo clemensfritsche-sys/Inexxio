@@ -224,7 +224,16 @@ BY_PARTY = "party"
 #:
 #: Jetzt gilt einer für beide: **wo wir nummerieren, tippt niemand**, und wo die
 #: Gegenpartei nummeriert, ist es ihre Angabe – ihre Belegnummer, ihr Zahlungszweck.
-PARTY_REFERENCE = "Beleg-/Zahlungsreferenz des Partners"
+#:
+#: ►►► **Ein Feld heisst EINEN Namen** (Testnotiz #898). ◄◄◄
+#:
+#: Es hiess «Beleg-/Zahlungsreferenz des Partners» – ein Schrägstrich zwischen zwei
+#: Wörtern ist keine Beschriftung, sondern die Weigerung, sich zu entscheiden: er sagt
+#: «eines von beidem, such dir aus welches». Der Grund dafür war, dass **eine** Angabe
+#: an zwei Zeilen-Arten steht; genau das ist aber die Aussage der Regel und nicht die
+#: der Beschriftung. Gemeint ist beide Male die Nummer, unter der die Gegenpartei diesen
+#: Geldfluss führt – und das ist ihre **Zahlungsreferenz**.
+PARTY_REFERENCE = "Zahlungsreferenz des Partners"
 
 # ---------------------------------------------------------------------------
 # ►►► DIE BEIDEN FRISTEN — eine Zahl, und die üblichen Werte haben Namen ◄◄◄

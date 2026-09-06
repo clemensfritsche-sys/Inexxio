@@ -974,46 +974,73 @@
    daneben und nicht darunter wächst: eine feste Zelle hält das Layout still, der Name
    legt sich darüber. Ein wachsender Knopf bräche die Zeile um und wanderte unter dem
    Cursor weg (Testnotizen #502/#503/#624). */
-.ix-palette {
+/* ── Ein Knopf, der seinen Namen beim Zeigen ausklappt ────────────────────────
+   ►►► **«Nur das Icon sichtbar, und beim Hovern der Titel daneben»** (Testnotiz
+   #900, davor #877–#896). ◄◄◄ Der Nutzer zeigt auf die **Modul-Palette** – also gibt es
+   die Geste **einmal** und nicht zweimal: `.ix-palette` ist ihre getönte Ausprägung im
+   Prozess-Editor, `.erp-actbtn-icon` ihre in jeder Modul-Karte.
+
+   **Der Name kostet nichts, solange er eingeklappt ist**: `max-width: 0` hinter dem
+   `overflow: hidden` des Knopfes – ein unsichtbares Kind, das die Breite mitbestimmt,
+   böte sonst seitwärts zu scrollen an (dieselbe Regel wie bei der Hinweis-Blase).
+
+   ►►► **Und er braucht PLATZ, sonst schwingt er.** ◄◄◄ Ein erster Anlauf setzte ihn in
+   die dichte, umbrechende Geld-Zeile: der Knopf wird breiter, die Zeile bricht neu um,
+   der Zeiger fällt vom Knopf, er klappt ein, die Zeile bricht zurück (gemessen
+   32 → 63 → 51 → 59 px in 800 ms). Er gehört darum in eine **eigene Zeile, die nicht
+   umbricht** (`.ix-actions`) – dort schiebt er nur seine Nachbarn zur Seite und bleibt
+   selbst unter dem Zeiger.
+
+   **Der Grund gehört nicht hinein**: `overflow: hidden` schneidet ein `::after` weg, also
+   trägt ein gesperrter Knopf seine Begründung an einer **Hülle** (`<span data-tip>`). */
+.ix-tuck {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   /* **Kein Abstand, solange der Name eingeklappt ist** (Testnotiz #691). Der Name ist ein
      Flex-Kind mit `max-width: 0` – aber ein `gap` gilt auch zu einem nullbreiten Kind,
-     und damit sass das Symbol um die halbe Lücke links der Mitte. Er entsteht erst beim
-     Aufklappen, dort wo er gebraucht wird. Zentral: es gibt genau einen Modul-Knopf. */
+     und damit sässe das Symbol um die halbe Lücke links der Mitte. Er entsteht erst beim
+     Aufklappen, dort wo er gebraucht wird. */
   gap: 0;
-  width: 40px;
-  height: 40px;
   flex: none;
-  border-radius: var(--r-md);
-  border: 1px solid transparent;
   cursor: pointer;
-  transition: width 0.16s ease;
+  transition: width .16s ease, background .15s, border-color .15s, color .15s;
   overflow: hidden;
   white-space: nowrap;
 }
-.ix-palette-sm { width: 32px; height: 32px; }
-.ix-palette-name {
+/* Das Symbol ist der Knopf – es schrumpft nie mit. */
+.ix-tuck > svg { flex: none; }
+.ix-tuck-name {
   font: 600 12.5px var(--font-body);
   max-width: 0;
   opacity: 0;
   transition: max-width 0.16s ease, opacity 0.12s ease;
 }
-/* ►►► **Sie wächst nur, weil sie PLATZ hat** (Runde #877–#896). ◄◄◄
-   Dieselbe Geste stand eine Runde lang als geteilte Klasse auch an den Knöpfen der
-   Modul-Karte – und **schwingt dort**: der Knopf wird breiter, die dichte Geld-Zeile
-   bricht neu um, der Zeiger fällt vom Knopf, er klappt ein, die Zeile bricht zurück
-   (gemessen: 32 → 63 → 51 → 59 px, `:hover` kippt dabei hin und her). Die Palette steht
-   in einer eigenen, mittig gesetzten Zeile mit Luft – hier ist es stabil, und darum
-   bleibt es hier. Wo es eng ist, sagt das Wort die Blase (`data-tip`). */
-.ix-palette:hover, .ix-palette:focus-visible { width: auto; padding-inline: 11px; gap: 7px; }
-.ix-palette:hover .ix-palette-name,
-.ix-palette:focus-visible .ix-palette-name { max-width: 180px; opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  .ix-palette, .ix-palette-name { transition: none; }
+/* Ausgeklappt darf er **schrumpfen**: in einer schmalen Karte würde ein langer Name die
+   Zeile sonst über den Rand schieben, und seitwärts scrollen ist im ERP verboten. Der
+   Name läuft dann in das `overflow: hidden` des Knopfes – gekürzt, nie überstehend. */
+.ix-tuck:hover, .ix-tuck:focus-visible {
+  width: auto; padding-inline: 11px; gap: 7px; flex: 0 1 auto; min-width: 0;
 }
+.ix-tuck:hover .ix-tuck-name,
+.ix-tuck:focus-visible .ix-tuck-name { max-width: 180px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .ix-tuck, .ix-tuck-name { transition: none; }
+}
+/* **Die Zeile, in der ausklappende Knöpfe stehen dürfen.** Sie bricht **nicht** um –
+   genau daran hing das Schwingen. Ausgeklappt schiebt der Knopf seine Nachbarn zur
+   Seite, und das ist harmlos: er selbst bleibt, wo er ist. */
+.ix-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+
+/* Die getönte Ausprägung: die **Bewegung** steht oben, hier nur die Gestalt. */
+.ix-palette {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+}
+.ix-palette-sm { width: 32px; height: 32px; }
 
 /* ── Die aktuelle Stelle im Prozess ──────────────────────────────────────────
    Die wichtigste Frage an einem laufenden Auftrag ist «wo stehen die

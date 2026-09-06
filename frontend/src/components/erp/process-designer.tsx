@@ -214,13 +214,13 @@ function Palette({ catalog, onPick }: {
           <button
             key={m.key}
             type="button"
-            className="ix-palette"
+            className="ix-palette ix-tuck"
             style={{ background: tone.bg, color: tone.fg, borderColor: tone.border }}
             aria-label={`${m.label} hinzufügen`}
             onClick={() => onPick(m.key)}
           >
             <Icon size={17} />
-            <span className="ix-palette-name">{m.label}</span>
+            <span className="ix-tuck-name">{m.label}</span>
           </button>
         );
       })}
@@ -717,14 +717,14 @@ function ModuleFields({ module: m, types, onChange }: {
         {types.map((t) => {
           const Icon = CAPTURE_ICON[t.key] ?? CAPTURE_ICON.text;
           return (
-            <button key={t.key} type="button" className="ix-palette ix-palette-sm"
+            <button key={t.key} type="button" className="ix-palette ix-palette-sm ix-tuck"
               aria-label={`${t.label} hinzufügen`}
               onClick={() => onChange({
                 points: [...m.points, { label: '', type: t.key || defaultType, target: '',
                                         tolerance: '', unit: '' }],
               })}>
               <Icon size={14} />
-              <span className="ix-palette-name">{t.label}</span>
+              <span className="ix-tuck-name">{t.label}</span>
             </button>
           );
         })}

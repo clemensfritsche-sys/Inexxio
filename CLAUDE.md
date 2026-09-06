@@ -2891,6 +2891,94 @@
 > Zustände – und die Messung gegen ihre eigene Bug-Form gegengeprüft (+87 px bei 375,
 > +142 px bei 320 mit einem unteilbaren Wort). Knopfbreite beim Zeigen: **Δ 0.00 px**.
 
+> ►►► **Testnotizen #897–#901 — die Karte IST der Beleg, und sie WÄCHST** ◄◄◄
+> Fünf Notizen, und die grösste war eine Gestaltungsfrage mit einer Modellantwort:
+> *«Ich habe mir gedacht, ob wir die Informationen nicht nochmals deutlich besser
+> darstellen/strukturieren … alle dargestellten Informationen bauen aufeinander auf –
+> Anfrage / Auftrag / Rechnung … man könnte es wie ein Dokument aufbauen und dann Schritt
+> für Schritt erweitern … später beim PDF-Export ist dann jeder Schritt einfach um die
+> jeweiligen Informationen reduziert oder erweitert.»* (#899)
+> **Vorher war die Karte eine KETTE von Abschnitten**: Positionen · Angebot · Auftrag ·
+> Geld. Mit der Zusage kam ein Block dazu (`Agreed`), der Partner, Summe und Fristen
+> **noch einmal** zeigte – ein zweiter Beleg neben dem ersten, in anderer Reihenfolge als
+> oben. Jetzt ist es **ein** Beleg in der Ordnung, die ein Beleg seit Jahrhunderten hat:
+> **Belegkopf** (was für ein Beleg · an wen · seit wann) → **Positionen** mit Summe →
+> **Bedingungen** → **Rückläufe** → **Rechnung & Zahlungen** → **Handlungen** unter dem
+> Strich, wie die Unterschrift.
+> **Und er wächst, statt umzuschalten**: der Kopf heisst nach der Zusage «Auftrag» statt
+> «Angebot» und nennt den Empfänger, die Preisspalte trägt die gebuchten Zahlen statt des
+> Entwurfs, die Bedingungen stehen als Auskunft statt als Feld, die Rückläufe klappen auf
+> **eine** Zeile zusammen («1 von 2 Angeboten gewählt»), und darunter kommt das Geld dazu.
+> Dieselben Zeilen, ein Zustand weiter – **ein späterer PDF-Export ist damit dieselbe
+> Komponente ohne Knöpfe**, nicht ein zweiter Beleg, der beim nächsten Feld ausläuft.
+> **Die Regel dahinter ist zählbar, nicht behauptet**: jede Beleg-Angabe (Empfänger ·
+> Zusagedatum · Zahlungsfrist · Liefertermin · Steueraufteilung · Nettosumme) kommt in der
+> ganzen Datei **genau an einem Ort** vor; ein Wächter zählt es. Und die **Summe** gibt es
+> einmal (`Totals`) – Vorschau aus getippten Preisen und gebuchte Zahlen des Servers sind
+> dieselbe Aufstellung; zwei Bauteile wären zwei Schreibweisen für Netto, Steuer und Total.
+> **Zusammengeklappt wird erst NACH dem Zuschlag** – solange verhandelt wird, versteckt der
+> Beleg nichts; danach sind die unterlegenen Zeilen der **Nachweis**, warum so entschieden
+> wurde, und die gehört auf Klick, nicht auf den Bildschirm.
+> **Und die Überschriften stehen auf EINER Kante**: der Status-Punkt vor einer Beschriftung
+> rückt sie um seine Breite ein, und nur **manche** Abschnitte sind ein Schritt (Positionen
+> und Bedingungen sind Inhalt). Gemessen 18 px ↔ 33 px im selben Beleg; die Spalte wird
+> darum **reserviert**, auch leer. Ein Punkt für alle wäre die andere Lösung und die
+> falsche – er behauptete einen Fortschritt, den ein Inhalts-Abschnitt nicht hat.
+> ►►► **#900: der Knopf klappt seinen Namen aus — und die Zeile hält still** ◄◄◄
+> *«Du hast ja die Buttons alle angepasst, aber es ist nicht wie bei der Auswahl von
+> Prozessschrittmodulen … es soll ja nur das Icon sichtbar sein und beim Hovern wird
+> daneben der jeweilige Buttontitel angezeigt. Warum wurde das nicht so umgesetzt?»* –
+> **Zu Recht zurückgewiesen.** Die Vorrunde hatte den Namen in die Hinweis-Blase gelegt,
+> weil ein wachsender Knopf in der dichten Geld-Zeile **schwingt** (gemessen 32 → 63 → 51
+> → 59 px in 800 ms, mit kippendem `:hover`). Der Befund war richtig, die Folgerung
+> falsch: die Antwort ist nicht, die Geste aufzugeben, sondern dem Knopf **Platz** zu
+> geben.
+> Die Geste steht jetzt **einmal** im Haus (`.ix-tuck` in `globals.css`) – die
+> Modul-Palette ist ihre getönte Ausprägung (`.ix-palette`), der Aktionsknopf jeder
+> Modul-Karte ihre schlichte. Dazu **`Actions`**, eine Zeile mit `flex-wrap: nowrap`; in
+> der Geld-Zeile bekommt sie zusätzlich `flex: 1 1 100%`, also eine **eigene** Zeile.
+> **Genau das war der Rest des Fehlers, und er fiel erst beim Messen auf**: als letztes
+> Kind der umbrechenden Angaben-Zeile brach bei 375 px **die Gruppe** um, sobald ein Knopf
+> aufklappte – der Knopf sprang eine Zeile tiefer, der Zeiger verlor ihn, er klappte ein
+> (32 → 66 → 32 → 57 → …). Gemessen mit eigener Zeile: **148 px, acht Messungen lang
+> unverändert**, bei 1440 · 375 · 320 px, und die Bug-Form schwingt.
+> *Linksbündig, nicht `margin-left: auto`*: rechts angeschlagen wanderte die ganze Gruppe
+> beim Aufklappen nach links – und mit ihr der Knopf unter dem Zeiger. Der **Grund** hängt
+> an einer Hülle statt am Knopf: `.ix-tuck` ist `overflow: hidden` (sonst böte der
+> eingeklappte Name seitwärts zu scrollen an), und das schneidet ein `::after` weg – die
+> Lehre aus #790.
+> ►►► **#901: die Felder des Zahlungsdienstes waren eine Nummer zu klein** ◄◄◄
+> *«Ich dachte, das Stripe-Modul ist so designed … zudem ist alles so klein geworden von
+> der Schriftgrösse – ist das schon so gewollt und im Einklang mit dem restlichen
+> UI/UX?»* – Nein, und der Kommentar daneben behauptete das Gegenteil: er nannte
+> `inputCls` mit «13 px». `inputCls` trägt `text-sm`, und das sind **14 px** bei 20 px
+> Zeilenhöhe. Dazu fehlte, was #892 eigentlich verlangt hatte: **`inputs: 'condensed'`**
+> war nie gesetzt – die Dichte kam stattdessen aus der kleiner gedrehten Grundschrift,
+> also aus der Angabe, die man nicht dafür nimmt. Der Rasterschritt war derselbe Griff ins
+> Blaue (3 px ist keine Zahl des Hauses; es rechnet in 8, die Hälfte ist 4), und der Radius
+> stand auf 8 px statt der 6 px von `rounded-md`.
+> **Gespiegelt statt behauptet**: der Wächter **liest** die Grösse aus `inputCls` – wer
+> dort die Klasse ändert, bekommt eine Meldung statt eines Felds, das eine Nummer daneben
+> liegt. Ebenso ist die Beschriftung jetzt buchstäblich `fields.Label` (11 px · 600 ·
+> Versalien · .05em · `--fg-4`).
+> **#897 Die Zahlungsfrist steht über der Lieferfrist** – an **beiden** Stellen (Beleg und
+> Angebotszeile) und auch in deren **Anzeige**: sie ist die folgenreichere Angabe (aus ihr
+> kommt die Fälligkeit, und null heisst Vorauszahlung), und zwei Formulare für dieselben
+> zwei Fragen dürfen nicht anders herum fragen. **#898 Ein Feld heisst EINEN Namen**:
+> «Beleg-/Zahlungsreferenz des Partners» → **«Zahlungsreferenz des Partners»**; ein
+> Schrägstrich zwischen zwei Wörtern ist keine Beschriftung, sondern die Weigerung, sich zu
+> entscheiden.
+> Wächter: 5 neue in `test_frontend_mirrors.py`, 12 auf die neue Regel gezogene –
+> **23 Bug-Formen gegengeprüft, jede meldet**; *zwei waren beim ersten Anlauf stumpf und
+> liessen ihre eigene durch* (eine Bug-Form benannte eine Komponente um, und «`<Terms` kommt
+> vor» war durch `<TermsX` erfüllt; eine zweite setzte ihren Anker mit zu wenig Einrückung
+> und traf die falsche Komponente). Suite grün gegen ein Schema nur aus den Migrationen
+> (555); **keine Migration** in dieser Runde. Gemessen in Chromium an der **echten**
+> Komponente (Karte im `ModuleShell`): 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
+> waagrechter Überlauf über **acht** Beleg-Zustände – auch **beim Zeigen** auf einen
+> ausklappenden Knopf –, und die Messung gegen ihre eigene Bug-Form gegengeprüft
+> (+119 px bei 375, +174 px bei 320 mit einem unteilbaren Wort).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
