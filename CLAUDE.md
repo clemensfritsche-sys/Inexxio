@@ -2645,11 +2645,11 @@
 > Der Ast ist **unerreichbar** geworden und ist entfallen — ein Ast, den niemand erreicht,
 > ist von einem kaputten nicht zu unterscheiden; mit ihm `DealEmbed.open_invoices` und ein
 > Auswahlfeld im Formular.
-> **Der Anteil ist das Gegenstück** (`deals.share`, Prozent, Vorgabe 100): zwei Module
+> **Der Anteil war das Gegenstück** (`deals.share`, Prozent, Vorgabe 100): zwei Module
 > sehen dieselben Stücke, also dieselben Positionen — ohne ihn hätte jedes die **volle**
-> Summe zugesagt, zusammen das Doppelte, und «erst zahlen» ginge bei einer Anzahlung nie
-> auf. Gebunden wie die Währung, aus demselben Grund und über **dieselbe** Antwort: beides
-> steht in `ACTIONS[OFFER]`.
+> Summe zugesagt. *Er ist eine Runde später ersatzlos entfallen (#867, siehe unten): die
+> Aufteilung braucht ihn nicht, weil **wer den Preis nennt, ihn je Position nennt** – ein
+> zweites Modul trägt seine eigenen Positionspreise.*
 > ►►► **Ein zweites Feld «gesperrt?» gibt es nicht mehr.** ◄◄◄ `currency_locked` hatte
 > **keinen** Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben
 > gab einer **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt
@@ -2697,6 +2697,87 @@
 > Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
 > waagrechter Überlauf über sechs Zustände — und die Messung gegen ihre eigene Bug-Form
 > gegengeprüft (127.2 px bei einem unteilbaren Wort).
+
+> ►►► **Testnotizen #867–#875 — was niemand versteht, ist ein Begriff zu viel** ◄◄◄
+> Neun Notizen am Zahlungsmodul, und drei davon nehmen etwas **weg**, statt etwas zu bauen.
+> **(1) Der «Anteil» ist ersatzlos entfallen** (#867 — *«ich checke diese Funktion nicht»*).
+> Er kam in der Vorrunde als Gegenstück zu «eine Rechnung je Modul» (#866): die Anzahlung
+> als zweites Modul mit 30 %. **Gebraucht wird er nicht** — *wer den Preis nennt, nennt ihn
+> je Position*, also trägt die Anzahlung ihre eigenen Positionspreise und die Restzahlung
+> ihre. Das ist zugleich die **genauere** Antwort: ein Prozentsatz auf eine Summe verteilt
+> sich über alle Steuersätze, ein Preis je Position sagt, was er meint. Weg sind damit die
+> Vokabel (`FULL_SHARE`, `assert_share`, `share_of`), das Verb in `ACTIONS`, drei Felder in
+> `DealEmbed`, eines in `DealUpdate`, das Bauteil `Share` und der Netz-Eintrag; die
+> **Spalte** fällt im Folge-Deploy (Zwei-Deploy-Regel, `docs/backlog.md`).
+> **(2) Der Verlauf steht AN den Abschnitten, nicht als Leiste darüber** (#868 — *«kann man
+> diese Anzeige nicht vertikal machen … mir passt das da oben nicht»*). `ModuleSteps`
+> entstand als **Bedienelement** (man wechselte damit zwischen den Schritten); seit alles
+> untereinander steht (#863) hatte es keinen Handler mehr, und was blieb, war eine Zeile
+> mit denselben drei Wörtern wie die drei Abschnitte darunter. **Die Abschnitte SIND die
+> vertikale Fassung** — ein Punkt vor der Überschrift (`ModuleSection state`, Punkt + Wort,
+> die Anatomie jedes Status im Haus) sagt dasselbe an der Stelle, an der man den Namen
+> ohnehin liest. `ValueBar` bleibt, wo sie hingehört: bei einem **Anteil an einem Ganzen** —
+> drei Schritte sind keiner, und dass sie als drei **gleich breite** Segmente dastanden,
+> sagte es bereits.
+> **(3) Die Geld-Leiste ist weg, der Status steht an der Rechnung** (#875). `MoneyBar` war
+> richtig gedacht, solange ein Vorgang mehrere Rechnungen tragen konnte; **seit #866 gibt es
+> je Modul genau eine** — damit fasste sie eine Zeile zusammen, die direkt darunter stand.
+> Übrig bleibt **Punkt + Wort** an der Rechnung (*Bezahlt · Offen · Überfällig · Überzahlt*),
+> **abgeleitet** aus `open`/`overdue`, die ohnehin mitreisen; ein Zustandsfeld dafür wäre die
+> zweite Wahrheit neben der Zahl.
+> **(4) Zwei Knöpfe mit demselben Wort sind einer zu viel** (#874 — *«gibt es hier Buttons,
+> die doppelt sind bzw. in der Abfolge und der Logik keinen Sinn machen?»*). **«Gutschrift
+> erfassen»** stand am Vorgang, sobald die Rechnung stand — und an ihrer Zeile stand bereits
+> «Gutschrift» (`reverse_word`): derselbe Wortlaut, zwei Wirkungen (die eine nimmt *diese*
+> Rechnung zurück und gibt den Platz frei, die andere buchte eine **freistehende** negative
+> Forderung, die zu keinem Beleg gehörte und in der Liste als zweite Rechnung erschien). Was
+> für eine Korrektur vorgesehen ist, steht im Fehlersatz von `_charge` selbst: **stornieren
+> und neu stellen**. **«Zahlung erfassen»** am Vorgang war **unerreichbar** (`can` führt
+> `pay` erst mit einer gebuchten Forderung, #822 — und ohne Forderung ist die Liste leer).
+> Und **«Auftrag stornieren» ist keine Buchung**: es stand zwischen den beiden und steht
+> jetzt am **Ende der Karte**, neben dem Abschluss — die eine bringt den Vorgang ans Ziel,
+> die andere nimmt ihn zurück.
+> **(5) Die eigene IBAN wird nicht maskiert** (#870 — *«das System darf nicht auf einmal aus
+> dem Nichts Bankverbindungen zaubern»*). Es zauberte nichts: sie war gespeichert, kam aber
+> **maskiert** zurück und stand im Browser als **Platzhalter** — also genau dort, wo eine
+> Oberfläche sagt «hier ist nichts». Ein Unternehmen **mit** Bankverbindung sah damit aus wie
+> eines ohne. Sie ist **kein Geheimnis**: sie steht auf jeder Rechnung, die wir stellen, und
+> im QR-Code, den wir dem Zahlenden hinlegen — vor Admins zu verbergen, was wir jedem Kunden
+> schicken, verbirgt nichts und macht die Anzeige unwahr. `_mask_iban`/`iban_masked` sind
+> entfallen, das Feld trägt den Wert, und der Vorbehalt «nur senden, wenn neu eingegeben»
+> ebenso (er hätte ein absichtliches Löschen verschluckt). *Der Spaltenname
+> `iban_encrypted` bleibt und lügt: verschlüsselt wird dort nichts — eine Umbenennung ist
+> eine Migration und gehört nicht in eine Testnotizen-Runde.*
+> **(6) Der QR nimmt seine Grösse von der Stelle, an der er steht** (#872 — *«sehr
+> aussermittig»*). Er trug eine feste Kantenlänge (240 px) in einem 168 px breiten Kasten:
+> **72 px zu breit** (gemessen: Δ rechts −72 px), also ragte er heraus. Jetzt nennt das Bild
+> nur noch sein **Seitenverhältnis** und füllt seinen Kasten (gemessen: Δ 0.00 px links wie
+> rechts). Dazu die **Ruhezone im Code** statt im Layout — vier Module ringsum (ISO/IEC
+> 18004), in der `viewBox`, damit sie mitskaliert.
+> **(7) Kleineres, jedes an einer Stelle:** die Währung nennt sich **einmal** (#869 —
+> `currency.label` trägt den Code selbst, das `<option>` schrieb ihn davor: «CHF · CHF ·
+> Schweizer Franken»); die **RF-Referenz sagt, woher sie kommt** (#871 — sie leitet sich aus
+> der Rechnungsnummer ab, ohne Trennstrich, weil ISO 11649 nur Buchstaben und Ziffern kennt;
+> der Hinweis nannte die **Norm** statt der **Herkunft**, und genau daraus kam die
+> Rückfrage); und die **Beleg-Nummer wird nicht mehr bis zur Unkenntlichkeit gekappt**
+> («100…» — sie ist die Kennung der Zeile; sie schrumpft nur bis `REF_MIN`, darunter bricht
+> die Zeile um, dieselbe Lehre wie bei der Positionszeile #847).
+> **#873 ist NICHT umgesetzt und das ist eine Entscheidung** (Stripes Empfehlung, auf die
+> *Checkout Sessions API* umzusteigen): sie führt zurück zur **gehosteten Kasse**, die
+> §9.13 bewusst abgeschafft hat — *bezahlt wird BEI UNS*. «Adaptive Pricing», mit dem sie
+> beworben wird, ist genau das, was hier ausdrücklich **aus** bleibt: es rechnete unseren
+> Betrag mit fremdem Kurs erneut um (angezeigt 11.80, belastet 11.82). Das *Payment Element*
+> ist nicht veraltet; es ist die Bauform, bei der Fläche, Wörter und Betrag uns gehören und
+> **keine Kartennummer unseren Server berührt**.
+> Wächter: 6 neue in `test_frontend_mirrors.py`, 1 neuer in `test_deal_module.py`, 1 neuer
+> in `test_sites.py`, dazu 6 auf die neue Regel gezogene — **17 Bug-Formen gegengeprüft,
+> jede meldet**; *einer war dabei stumpf und las seine eigene Begründung mit* (sie nennt die
+> maskierte Nummer, um zu sagen, warum es sie nicht mehr gibt — er liest jetzt den **Code**).
+> Suite grün gegen ein Schema nur aus den Migrationen (535). Gemessen in Chromium an den
+> **echten** Komponenten (Karte **im** `ModuleShell`): 1440 · 1280 · 1024 · 834 · 375 ·
+> 320 px, **0 px** waagrechter Überlauf über acht Zustände — und die Messung gegen ihre
+> eigene Bug-Form gegengeprüft (+5.9 px bei 375, +60.9 px bei 320 mit einem unteilbaren
+> Wort; die alte QR-Fassung meldet −72 px).
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
@@ -2950,8 +3031,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Drei Wege zum Geld, eine Rechnung je Modul** (§9.14): *bar* wird erfasst, die *Karte*
   ausgeführt, die *Überweisung* ist eine **Auskunft** – Bankverbindung, RF-Referenz und
   die **Swiss QR-Rechnung**. Alle drei stehen **an** der Rechnung, die sie begleichen; je
-  Modul lebt höchstens eine, und der **Anteil** (`share`) macht die Anzahlung zum zweiten
-  Modul statt zur zweiten Rechnung.
+  Modul lebt höchstens eine, und die Anzahlung ist darum ein **zweites Modul** mit seinen
+  **eigenen Positionspreisen** (einen «Anteil» gibt es nicht, #867).
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.

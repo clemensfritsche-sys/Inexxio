@@ -2572,9 +2572,9 @@ nur einmal gibt.
 | eine **Gutschrift** (negativ) | eine Minderung, keine zweite Rechnung — Skonto, Teilretoure und Kulanz bleiben möglich |
 
 **Damit ist die Regel keine Sackgasse**, und das ist der Punkt: sie verbietet die zweite
-*offene* Forderung, nicht den zweiten Vorgang. Der Knopf heisst darum «Gutschrift
-erfassen», sobald die Rechnung steht (`charge_word`), und `next_charge` fällt weg — eine
-Vorgabe für eine Buchung, die der Dienst abweist, wäre ein Angebot, das garantiert
+*offene* Forderung, nicht den zweiten Vorgang. Steht die Rechnung, gibt es hier nichts
+mehr zu buchen — der Knopf **fehlt** (`credit_only`), und `next_charge` fällt mit ihm weg:
+eine Vorgabe für eine Buchung, die der Dienst abweist, wäre ein Angebot, das garantiert
 scheitert.
 
 **Und das System wurde dabei kleiner.** `_charge_for_payment` hatte drei Fälle, darunter
@@ -2582,23 +2582,42 @@ scheitert.
 Ast ist **unerreichbar geworden** und ist entfallen — ein Ast, den niemand erreicht, ist
 von einem kaputten nicht zu unterscheiden. Mit ihm ging `DealEmbed.open_invoices`.
 
-#### Der Anteil ist das Gegenstück
+#### Zwei Module tragen ihre eigenen Preise — einen «Anteil» gibt es nicht
 
-`deals.share` (Prozent, Vorgabe 100) sagt, welchen Teil der Positionen **dieser** Vorgang
-abrechnet. Ohne ihn wäre die Zwei-Modul-Form nur scheinbar gangbar: beide Module sehen
-dieselben Stücke, also dieselben Positionen — jedes hätte die **volle** Summe zugesagt,
-zusammen das Doppelte, und «erst zahlen» (`Balance.settled`) ginge bei der Anzahlung nie
-auf.
+Hier stand eine Runde lang `deals.share` (Prozent, Vorgabe 100): welchen Teil der
+Positionen **dieser** Vorgang abrechnet, gedacht als Gegenstück zur Zwei-Modul-Form. Er ist
+**ersatzlos entfallen** (Testnotiz #867 — *«ich checke diese Funktion nicht»*), und die
+Aufteilung braucht ihn nicht: **wer den Preis nennt, nennt ihn je Position**, also trägt
+die Anzahlung ihre eigenen Positionspreise und die Restzahlung ihre. Das ist zugleich die
+genauere Antwort — ein Prozentsatz auf eine Summe verteilt sich über alle Steuersätze, ein
+Preis je Position sagt, was er meint.
 
-**Gebunden wie die Währung**, und aus demselben Grund: ab der Zusage liegt draussen eine
-Zusage über *diese* Zahl. Beides steht in `ACTIONS[OFFER]` — der Knopf fehlt danach von
-selbst, und `apply` weist ab.
-
-*Ein zweites Feld «gesperrt?» gibt es nicht mehr: `currency_locked` hatte **keinen**
+*Ein zweites Feld «gesperrt?» gibt es ohnehin nicht: `currency_locked` hatte **keinen**
 Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben gab einer
 **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt (gemessen).
 `can` ist Auskunft **und** Tor; ein zweiter Wert daneben ist die Stelle, an der beide
 auseinanderlaufen.*
+
+#### Zwei Knöpfe mit demselben Wort sind einer zu viel
+
+*«Gibt es hier Buttons/Funktionen, die doppelt sind bzw. in der Abfolge und der Logik
+keinen Sinn machen?»* (#874) — Es gab zwei, und beide sind gefallen:
+
+* **«Gutschrift erfassen»** stand am Vorgang, sobald die eine Rechnung stand — und an
+  ihrer Zeile stand bereits «Gutschrift» (`reverse_word`). Dasselbe Wort, zwei Wirkungen:
+  der eine nimmt **diese Rechnung** zurück (mit Bezug, und er gibt den Platz für eine neue
+  frei), der andere buchte eine **freistehende** negative Forderung, die zu keinem Beleg
+  gehörte und in der Liste als zweite Rechnung erschien. Was für eine Korrektur vorgesehen
+  ist, steht im Fehlersatz von `_charge` selbst: **stornieren und neu stellen**; eine
+  Minderung ohne Rücknahme (Kulanz) ist die Gutschrift **an** der Rechnung.
+* **«Zahlung erfassen»** stand am Vorgang für den Fall «es gibt keine Rechnung» — den es
+  nicht gibt: `can` führt `pay` erst, wenn eine Forderung gebucht ist (§9.12/#822), und
+  ohne Forderung ist die Liste leer.
+
+**Und die Gegenhandlung des Vorgangs ist keine Buchung**: «Auftrag stornieren» (`revoke`)
+stand zwischen «Rechnung erfassen» und «Zahlung erfassen» und las sich als dritte Buchung.
+Sie steht jetzt am **Ende der Karte**, neben dem Modul-Abschluss — die eine bringt den
+Vorgang ans Ziel, die andere nimmt ihn zurück.
 
 #### Drei Wege, das Geld zu bekommen — und sie stehen an der Rechnung
 
@@ -2637,10 +2656,23 @@ Fehler wirft, wäre schlimmer als keiner.
 **Die Referenz ist die Creditor Reference** (`RF…`, ISO 11649) aus unserer
 Rechnungsnummer — strukturiert, international gültig und **ohne QR-IBAN**: die muss man
 bei der Bank bestellen, und ohne sie ist die schweizerische QR-Referenz gar nicht erlaubt.
+*Und sie sagt, woher sie kommt* (Testnotiz #871 — *«leitet sich diese von der
+Rechnungsnummer ab?»*): der Trennstrich fällt weg, weil ISO 11649 nur Buchstaben und
+Ziffern kennt (`100000886-1` → `RF…1000008861`) — ohne den Satz daneben sieht das nach
+einer erfundenen Zahl aus, und genau daraus entstand die Rückfrage.
 
 **Erzeugt wird sie im Backend**: die Nutzlast ist eine Liste von **einunddreissig Zeilen
 in fester Reihenfolge**, und eine zweite Fassung im Browser wäre die Stelle, an der beim
 nächsten Feld eine Zeile verrutscht — das sieht man einem QR nicht an.
+
+**Wie GROSS er ist, entscheidet die Stelle, an der er steht** (#872). Er trug eine feste
+Kantenlänge (240 px) und stand in einem 168 px breiten Kasten: 72 px zu breit, also ragte
+er heraus und sass sichtbar ausser der Mitte (gemessen: Δ rechts −72 px). Das Bild nennt
+jetzt nur noch sein **Seitenverhältnis** und füllt seinen Kasten — eine zweite Zahl im
+Backend, die zur Breite im Browser passen muss, geht beim ersten Umbau auseinander. **Die
+Ruhezone gehört dabei zum Code**, nicht zum Layout drumherum: vier Module ringsum
+(ISO/IEC 18004), in der `viewBox`, damit sie mitskaliert; als Polsterung im Browser wäre
+sie die zweite Stelle, an der jemand sie wegoptimiert.
 
 #### Storno oder Gutschrift — dieselbe Buchung, zwei Wörter
 

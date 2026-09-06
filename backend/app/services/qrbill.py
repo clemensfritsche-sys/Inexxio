@@ -98,13 +98,26 @@ def payload(*, iban: str, creditor: dict[str, Any], amount: Decimal, currency: s
     return "\n".join(lines)
 
 
-def svg(text: str, *, size: int = 240) -> str:
+def svg(text: str) -> str:
     """Der Code als **SVG** – mit dem Schweizerkreuz in der Mitte.
 
     Selbst gezeichnet statt aus der Bibliothek geholt: das Kreuz gehört zur Spezifikation
     (daran erkennt eine App, dass es eine QR-Rechnung ist), und die Fehlerkorrektur `M`
     ist genau dafür vorgeschrieben. Ein Bild ohne Kreuz wäre ein QR-Code, der zufällig
     dieselben Daten trägt.
+
+    ►►► **Wie GROSS er ist, entscheidet die Stelle, an der er steht** (Testnotiz #872).
+    ◄◄◄
+
+    Er trug einmal eine feste Kantenlänge (``size = 240``) und stand damit in einem
+    168 px breiten Kasten: 72 px zu breit, also ragte er heraus und sass sichtbar
+    ausser der Mitte. Eine zweite Zahl im Backend, die zur Breite im Browser passen
+    muss, geht beim ersten Umbau auseinander – und ein QR ohne Rand ist zudem einer,
+    den manche App nicht mehr liest.
+
+    Jetzt sagt das Bild nur noch sein **Seitenverhältnis** (``viewBox``, quadratisch)
+    und füllt seinen Kasten. ``display:block`` gehört dazu: als Inline-Element bekäme es
+    darunter die Grundlinien-Lücke, und schon stünde es wieder nicht mittig.
     """
     matrix = [list(row) for row in segno.make(text, error="m").matrix]
     n = len(matrix)
@@ -116,10 +129,17 @@ def svg(text: str, *, size: int = 240) -> str:
     box = max(3.0, n * 0.14)
     off = (n - box) / 2
     arm, thick = box * 0.6, box * 0.2
+    # **Die Ruhezone gehört zum Code**, nicht zum Layout drumherum: vier Module ringsum
+    # (ISO/IEC 18004), sonst liest ihn eine App auf einem farbigen Grund nicht mehr. Sie
+    # steht in der ``viewBox``, damit sie mitskaliert – als Polsterung im Browser wäre sie
+    # die zweite Stelle, an der jemand sie wegoptimiert.
+    quiet, span = 4, n + 8
     return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {n} {n}" '
-        f'width="{size}" height="{size}" role="img" aria-label="QR-Rechnung">'
-        f'<rect width="{n}" height="{n}" fill="#fff"/>'
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="{-quiet} {-quiet} {span} {span}" '
+        f'style="display:block;width:100%;height:auto" '
+        f'role="img" aria-label="QR-Rechnung">'
+        f'<rect x="{-quiet}" y="{-quiet}" width="{span}" height="{span}" fill="#fff"/>'
         f'<path d="{dots}" fill="#000"/>'
         f'<rect x="{off:.2f}" y="{off:.2f}" width="{box:.2f}" height="{box:.2f}" '
         f'fill="#000" stroke="#fff" stroke-width="{box * 0.06:.2f}"/>'

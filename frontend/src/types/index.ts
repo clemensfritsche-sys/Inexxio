@@ -265,8 +265,8 @@ export interface CompanySettings {
   phone: string | null;
   /** **Abgeleitet** (read-only): die Adresse, unter der diese Installation läuft (#309). */
   website: string;
+  /** Ausgeschrieben, nicht maskiert (#870) – sie steht auf jeder Rechnung, die wir stellen. */
   iban: string | null;
-  iban_masked: string | null;
   // Plattform-Konfiguration: gilt der EINEN Website, steht darum nur am Betreiber – und
   // nur, was auch einen Leser hat (Analytics-Skript bzw. die Adress-Suche).
   plausible_domain: string | null;

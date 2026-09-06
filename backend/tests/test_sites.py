@@ -209,6 +209,48 @@ def test_response_exposes_derived_role_not_a_stored_flag():
     assert "is_primary" not in fields, "kein gespeichertes Rang-Flag in der Antwort"
 
 
+def test_our_own_bank_account_is_not_masked():
+    """►►► **Die eigene IBAN steht ausgeschrieben da** (Testnotiz #870). ◄◄◄
+
+    *«Dieser Wert war nicht ausgefüllt, und trotzdem hatte das ERP eine Bankverbindung
+    anzugeben. Das System darf nicht auf einmal aus dem Nichts Bankverbindungen
+    zaubern.»* – Es zauberte nichts: die IBAN war gespeichert, sie kam nur **maskiert**
+    zurück («CH12 **** **** **** 8901») und stand im Browser als **Platzhalter**, also
+    genau dort, wo eine Oberfläche sagt «hier ist nichts». Ein Unternehmen mit
+    Bankverbindung sah damit aus wie eines ohne – und der QR-Einzahlungsschein daneben
+    wie erfunden.
+
+    **Sie ist kein Geheimnis**: sie steht auf jeder Rechnung, die wir stellen, und im
+    QR-Code, den wir dem Zahlenden hinlegen – gegenüber denselben Leuten, die sie hier
+    sehen. Maskiert wird, was der Empfänger nicht sehen *soll*; hier war es das, was er
+    sehen *muss*, um zu prüfen, ob es stimmt.
+
+    Bug-Formen: (a) das maskierte Feld ist zurück; (b) irgendwo wird wieder maskiert;
+    (c) der Wert erreicht die Antwort gar nicht (dann bleibt das Feld leer wie zuvor).
+    """
+    from app.schemas.admin import CompanySettingsResponse
+    from app.routers import admin
+
+    fields = CompanySettingsResponse.model_fields
+    assert "iban_masked" not in fields, (
+        "Die maskierte IBAN ist zurück (a) – dann sieht ein Unternehmen mit "
+        "Bankverbindung wieder aus wie eines ohne."
+    )
+    assert "iban" in fields, "Die Antwort nennt die Bankverbindung gar nicht mehr."
+    # **Gelesen wird der CODE, nicht die Prosa**: die Begründung nennt die maskierte
+    # Nummer, um zu sagen, warum es sie nicht mehr gibt – ein Wächter, der den Fliesstext
+    # mitliest, schlägt an, weil jemand den Fehler *beschreibt*.
+    body = _code(admin._company_response)
+    assert not hasattr(admin, "_mask_iban") and "****" not in body, (
+        "Es wird wieder maskiert (b)."
+    )
+    assert "resp.iban = company.iban_encrypted" in body, (
+        "Die IBAN erreicht die Antwort nicht (c) – das Modell heisst `iban_encrypted`, "
+        "das Schema `iban`; ohne die Zuweisung bleibt sie leer, und das Feld sieht "
+        "wieder aus wie ein nie ausgefülltes."
+    )
+
+
 # ─── Der Kern: das Ziel einer Bewegung ist SEIN Standort ─────────────────────────
 
 def test_migrations_090_and_091_are_repeatable():

@@ -802,8 +802,9 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     phone: (s.phone as string | null) ?? null,
     // Abgeleitet aus dem Deployment (read-only, #309) – keine Eingabe, kein Rückweg.
     website: (s.website as string) ?? '',
-    iban: null,
-    iban_masked: (s.iban_masked as string | null) ?? null,
+    // **Ausgeschrieben, nicht maskiert** (#870): sie stand als `iban_masked` daneben, und
+    // `iban` war immer `null` – ein Unternehmen mit Bankverbindung sah aus wie eines ohne.
+    iban: (s.iban as string | null) ?? null,
     plausible_domain: (s.plausible_domain as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
   };

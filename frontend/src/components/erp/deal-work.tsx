@@ -14,10 +14,7 @@ import { PayOnline } from '@/components/erp/pay-online';
 import {
   Label, MICRO_LABEL, Segmented, TermField, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
-import {
-  ACT_H, ModuleMeta, ModuleSection, ModuleSteps, ValueBar,
-  type BarSegment, type ModuleStep,
-} from '@/components/erp/module-ui';
+import { ACT_H, ModuleMeta, ModuleSection } from '@/components/erp/module-ui';
 import {
   DEAL_PARTY, DEAL_STAGE, DEAL_TASK, QUOTE_STATE, dealDirection,
 } from '@/lib/modules';
@@ -177,9 +174,13 @@ export function DealWork({
   // bestätigte Auftrag zeigt nur noch die Summe, und die Zahlungen stehen **eingerückt
   // unter ihrer Rechnung** (#861) statt als flache Liste.*
   //
-  // **Die Leiste bleibt** – als Übersicht ohne Handler (`ModuleSteps` ohne `onOpen`):
-  // sie sagt weiterhin in einem Bild, wie weit der Vorgang ist. Was sie nicht mehr tut,
-  // ist etwas zu verstecken.
+  // ►►► **Und der Verlauf steht AN den Abschnitten** (Testnotiz #868). ◄◄◄
+  //
+  // Die Leiste blieb eine Runde lang als Übersicht stehen (`ModuleSteps` ohne Handler) –
+  // *«mir passt das da oben nicht»*, und die Meldung hat wieder recht: sie trug dieselben
+  // drei Wörter wie die drei Abschnitte darunter, nur waagrecht und eine Zeile früher.
+  // Wo sie nichts mehr versteckt, sagt sie nur noch **wie weit** – und das gehört an die
+  // Überschrift, nicht über die Karte (`ModuleSection state`, Punkt + Wort).
 
   // ►►► **Der Angebotsentwurf wohnt hier, weil die Tabelle EINE ist** (#862). ◄◄◄
   //
@@ -208,36 +209,9 @@ export function DealWork({
   // Danach ist die Tabelle das, was sie immer war: die Auskunft, worum es geht.
   const pricing = d.we_quote && may(d, active, 'ask');
 
-  const steps: ModuleStep[] = [
-    {
-      key: OFFER, label: d.stages[0]?.label ?? '',
-      state: agreed ? 'past' : 'active',
-      value: d.quotes.length ? String(d.quotes.length) : '',
-      hint: 'Wer angefragt ist – und was er nennt',
-    },
-    {
-      // ►►► **Ein Storno macht die Zusage nicht ungeschehen** ◄◄◄ – *«die gegangenen
-      // Stufen bleiben stehen»* (`services/deal._revoke`), dieselbe Regel wie «die Linie
-      // sagt die Vergangenheit» am Prozessbild (§8.1a). Storniert werden kann nur ab der
-      // Zusage (`ACTIONS`), ein stornierter Vorgang **war** also zugesagt – ihn als
-      // «steht noch aus» zu zeichnen behauptete, es sei nie dazu gekommen.
-      key: AGREED, label: d.stages[1]?.label ?? '',
-      state: agreed ? 'past' : 'ahead',
-      value: agreed ? formatAmount(d.amount, d.currency_decimals) : '',
-      hint: 'Was zugesagt ist – mit wem, zu welchem Preis, zu welchen Bedingungen',
-    },
-    {
-      key: MONEY, label: d.money_label,
-      state: d.settled && Number(d.charged ?? 0) ? 'past' : agreed && !cancelled ? 'active' : 'ahead',
-      value: moneyValue(d),
-      hint: 'Was berechnet und was bezahlt ist',
-    },
-  ];
-
   return (
     <div className="flex flex-col">
       <Meta d={d} />
-      <ModuleSteps steps={steps} />
 
       {/* ►►► **EINE Positionstabelle** (Testnotiz #862). ◄◄◄
           *«Der Positions-Abschnitt ist doppelt.»* – Er war es: oben stand, worum es geht
@@ -250,14 +224,21 @@ export function DealWork({
           der Prozess – auch beim Eintippen. */}
       <Goods d={d} rows={rows} editable={pricing} onPrice={setRow} />
 
-      <ModuleSection title={d.stages[0]?.label ?? ''} first>
+      {/* **Der Punkt vor der Überschrift sagt, wie weit es ist** (#868) – Punkt + Wort,
+          von oben nach unten gelesen. */}
+      <ModuleSection title={d.stages[0]?.label ?? ''} first
+        state={agreed ? 'past' : 'active'}>
         <Offer d={d} busy={busy} active={active && !!d.stages[0]?.active}
           offer={offer} onOffer={setOffer} rows={rows} onSent={() => setPrices({})}
           onAction={onAction} />
       </ModuleSection>
 
+      {/* ►►► **Ein Storno macht die Zusage nicht ungeschehen** ◄◄◄ – *«die gegangenen
+          Stufen bleiben stehen»* (`services/deal._revoke`), dieselbe Regel wie «die Linie
+          sagt die Vergangenheit» am Prozessbild (§8.1a). Storniert werden kann nur ab der
+          Zusage (`ACTIONS`), ein stornierter Vorgang **war** also zugesagt. */}
       {agreed && (
-        <ModuleSection title={d.stages[1]?.label ?? ''}>
+        <ModuleSection title={d.stages[1]?.label ?? ''} state="past">
           <Agreed d={d} />
         </ModuleSection>
       )}
@@ -280,7 +261,9 @@ export function DealWork({
           Fläche ist eine Auskunft, die nichts sagt. So sieht es eine Gegenpartei, die
           nicht den Zuschlag hat: `open` kommt gar nicht erst mit. */}
       {agreed && d.open != null && (
-        <ModuleSection title={d.money_label}>
+        <ModuleSection title={d.money_label}
+          state={d.settled && Number(d.charged ?? 0) ? 'past'
+            : cancelled ? 'ahead' : 'active'}>
           <Money d={d} busy={busy} onAction={onAction}
             orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
         </ModuleSection>
@@ -312,45 +295,43 @@ export function DealWork({
           Der Knopf ist damit schlicht **nicht da**, solange die Sperre greift – dieselbe
           Form wie überall im Haus: ein Knopf, der nie etwas tun kann, ist kein Angebot.
           Der Server weist ebenso ab (`deal.assert_completable`). */}
-      {agreed && active && !(d.prepaid && !d.settled) && (
-        <div className="mt-2">{children}</div>
-      )}
+      {/* ►►► **Und die Gegenhandlung steht DANEBEN** (Testnotiz #874). ◄◄◄
+
+          «Auftrag stornieren» stand in der Geld-Zeile – zwischen «Rechnung erfassen» und
+          «Zahlung erfassen», also unter lauter Buchungen. Es ist aber keine Buchung,
+          sondern die Gegenhandlung des **ganzen Vorgangs**: das Gegenstück zu «Vorgang
+          abschliessen», nicht zu «Zahlung erfassen». Beide stehen darum am Ende der
+          Karte, in einer Zeile – die eine bringt den Vorgang ans Ziel, die andere nimmt
+          ihn zurück. */}
+      {(may(d, active, 'revoke') && d.undo) || (agreed && active && !(d.prepaid && !d.settled)) ? (
+        <div className="flex items-center gap-2 flex-wrap mt-2">
+          {agreed && active && !(d.prepaid && !d.settled) && children}
+          {may(d, active, 'revoke') && d.undo && (
+            <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={busy}
+              style={{ height: ACT_H.inline }}
+              data-tip="Nimmt die Zusage zurück – die gegangenen Stufen bleiben stehen."
+              onClick={() => onAction({ action: 'revoke' })}>
+              <Undo2 size={13} /> {d.undo}
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-/**
- * ►►► **Die drei Schritte — als Schlüssel, nicht als Wort.** ◄◄◄
+/*
+ * ►►► **Die drei Schritte brauchen keine Schlüssel mehr** (Testnotiz #868). ◄◄◄
  *
- * Wie sie *heissen*, sagt der Server (`stages[].label`, `money_label`) – das hängt an der
- * Richtung. Was diese Karte braucht, ist die **Identität**: welcher Abschnitt gerade
- * offen ist. Deutsche Wörter als Zustandswert wären an einem Vorgang der anderen Richtung
- * still falsch.
+ * Hier standen `OFFER`, `AGREED` und `MONEY` – die **Identität** der drei Schritte, mit
+ * der die Stufen-Leiste sagte, welcher offen ist. Es gibt sie nicht mehr: seit alles
+ * untereinander steht (#863) ist nichts zu wählen, und seit der Verlauf an den
+ * Überschriften steht (#868), ist nichts zu benennen. Die **Wörter** kamen ohnehin vom
+ * Server (`stages[].label`, `money_label`).
  *
- * *Die frühere Kette aus Punkt und Linie (`Row`, #798) ist damit entfallen: sie sagte den
- * Verlauf und liess ihn nicht bedienen – alle drei Stufen standen immer offen
- * untereinander, und bei vier Buchungen war die Karte zwei Bildschirme hoch. Was sie
- * konnte, kann die Stufen-Leiste (`module-ui.ModuleSteps`), und die kann zusätzlich das,
- * was gefehlt hat: wechseln.*
+ * Mit ihnen ist `moneyValue` entfallen – die eine Zahl der Geld-Stufe, also der Wert, den
+ * die Leiste rechts neben «Rechnung & Zahlung» trug.
  */
-const OFFER = DEAL_STAGE.offer;
-const AGREED = DEAL_STAGE.agreed;
-/** **Das Geld ist KEINE Stufe** – darum steht hier kein `DEAL_STAGE`-Wert (#829). */
-const MONEY = 'money';
-
-/**
- * **Die eine Zahl der Geld-Stufe** – der offene Betrag, sobald es einen gibt.
- *
- * Solange nichts gefordert und nichts bezahlt ist, steht dort **nichts**: `0.00` wäre
- * eine Aussage über eine Forderung, die es nicht gibt (dieselbe Unterscheidung wie
- * «Bezahlt» ↔ «Nichts berechnet»). Und der Betrag steht ohne Vorzeichen – ob wir schulden
- * oder etwas offen ist, sagt die Leiste eine Ebene tiefer mit ihrem eigenen Wort.
- */
-function moneyValue(d: Filled): string {
-  if (d.open == null) return '';
-  if (!Number(d.charged ?? 0) && !Number(d.paid ?? 0)) return '';
-  return formatAmount(Math.abs(Number(d.open)), d.currency_decimals);
-}
 
 /**
  * ►►► **Wie lange nach einer Online-Zahlung nachgefragt wird** (Testnotiz #857). ◄◄◄
@@ -407,63 +388,39 @@ function Currency({ d, busy, active, onAction }: {
     );
   }
   return (
-    <div style={{ width: 116 }}>
+    // **So breit, wie die Beschriftung ist** (#869): sie trägt den Code *und* den Namen
+    // («CHF · Schweizer Franken»), und ein natives Auswahlfeld zeigt geschlossen genau
+    // den Text der gewählten Zeile – zu schmal steht dort «CHF · Schw…», also der halbe
+    // Name statt einer Auskunft. Mehr als die Karte wird es nie (`maxWidth: 100%`).
+    <div style={{ width: 190, maxWidth: '100%' }}>
       <Label>{CURRENCY_LABEL}</Label>
       <select className={inputCls} aria-label={CURRENCY_LABEL} disabled={busy}
         value={d.currency}
         onChange={(e) => onAction({ action: 'currency', currency: e.target.value })}>
+        {/* ►►► **Die Beschriftung TRÄGT den Code schon** (Testnotiz #869). ◄◄◄
+            `currency.label` liefert «CHF · Schweizer Franken» – der Code davor ergab
+            «CHF · CHF · Schweizer Franken». Die Zusammensetzung gehört dem Server
+            (eine Stelle, ein Format); wer sie hier ein zweites Mal baut, sagt dieselbe
+            Angabe zweimal, sobald die eine sich ändert. */}
         {(d.currencies ?? []).map((c) => (
-          <option key={c.code} value={c.code}>{c.code} · {c.label}</option>
+          <option key={c.code} value={c.code}>{c.label}</option>
         ))}
       </select>
     </div>
   );
 }
 
-/**
- * ►►► **Welchen Teil rechnet dieses Modul ab?** (Testnotiz #866) ◄◄◄
+/*
+ * ►►► **Einen «Anteil» gibt es nicht** (Testnotiz #867). ◄◄◄
  *
- * *«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich
- * einfach 2 Zahlungsmodule.»* – Und genau dafür gibt es diese Zahl. Zwei Module sehen
- * **dieselben** Stücke und damit dieselben Positionen; ohne Anteil sagte jedes die
- * **volle** Summe zu, und «erst zahlen, dann liefern» ginge bei der Anzahlung nie auf.
- *
- * ►►► **Gebunden wie die Währung — und die Antwort ist `can`.** ◄◄◄ Ab der Zusage liegt
- * draussen eine Zusage über *diesen* Betrag; ob man ihn noch setzen darf, sagt dieselbe
- * Tabelle, die auch das **Tor** ist. Ein eigenes Feld daneben (`share_locked`) wäre die
- * zweite Antwort auf dieselbe Frage – gemessen war sie schon falsch: eine **Gegenpartei**
- * bekam ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt.
- *
- * **Übernommen wird beim Verlassen**, nicht bei jeder Taste: wer «33» tippen will, muss
- * die «3» schreiben dürfen, ohne dass dazwischen ein Vorgang auf 3 % steht.
+ * Hier stand `Share` – eine Prozentzahl, die sagte, welchen Teil der Positionen *dieser*
+ * Vorgang abrechnet. Gedacht war sie als Gegenstück zu «eine Rechnung je Modul» (#866):
+ * die Anzahlung als zweites Modul mit 30 %. *«Ich checke diese Funktion nicht.»* – und
+ * sie wird auch nicht gebraucht: **wer den Preis nennt, nennt ihn je Position**, und ein
+ * zweites Modul trägt schlicht seine eigenen Positionspreise. Eine Zahl, die man erklären
+ * muss, um ein Feld zu füllen, das man in derselben Tabelle direkt schreiben kann, ist ein
+ * Begriff zu viel.
  */
-const SHARE_MAX = 100;
-
-function Share({ d, busy, active, onAction }: {
-  d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
-}) {
-  const remote = d.share ?? String(SHARE_MAX);
-  const [value, setValue] = useState(remote);
-  useEffect(() => { setValue(remote); }, [remote]);
-  if (!may(d, active, 'share')) {
-    return <Fixed label={d.share_label} value={`${remote} %`} hint={d.share_hint} />;
-  }
-  const send = () => {
-    const clean = value.trim() === '' ? String(SHARE_MAX) : value.trim();
-    setValue(clean);
-    if (clean !== remote) onAction({ action: 'share', share: clean });
-  };
-  return (
-    <div style={{ width: 104 }}>
-      <Label>{d.share_label}</Label>
-      <input className={`${inputCls} ix-tnum`} {...numericInputProps} disabled={busy}
-        value={value} aria-label={d.share_label} data-tip={d.share_hint}
-        onChange={(e) => setValue(numericOnly(e.target.value))}
-        onBlur={send}
-        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
-    </div>
-  );
-}
 
 /**
  * **Eine Angabe, die feststeht** – Beschriftung und Wert, mit dem Grund im Hover.
@@ -821,13 +778,11 @@ function Offer({ d, busy, active, offer, onOffer, rows, onSent, onAction }: {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* ►►► **Währung und Anteil gehören ins ANGEBOT** (#864/#866). ◄◄◄
-          Beides sind Entscheidungen über das, was man gleich hinausschickt – und beide
-          sind ab der Zusage gebunden, weil draussen dann eine Zusage über *diesen* Betrag
-          in *dieser* Währung liegt. Sie stehen darum zusammen und zuoberst: was der
-          Vorgang abrechnet, bevor jemand einen Preis tippt. */}
+      {/* ►►► **Die Währung gehört ins ANGEBOT** (#864). ◄◄◄
+          Sie ist eine Entscheidung über das, was man gleich hinausschickt – und ab der
+          Zusage gebunden, weil draussen dann eine Zusage über diesen Betrag in *dieser*
+          Währung liegt. *Der «Anteil» stand daneben und ist mit #867 entfallen.* */}
       <div className="flex items-end gap-3 flex-wrap">
-        <Share d={d} busy={busy} active={active} onAction={onAction} />
         <Currency d={d} busy={busy} active={active} onAction={onAction} />
       </div>
 
@@ -1328,57 +1283,52 @@ function Agreed({ d }: { d: Filled }) {
 }
 
 /**
- * ►►► **Wie weit ist das Geld — als LEISTE, nicht als Zahlenkette.** ◄◄◄
+ * ►►► **Wie weit eine Rechnung ist — ein Punkt AN IHR** (Testnotiz #875). ◄◄◄
  *
- * Hier stand ein Satz aus vier Zahlen: «Offen 2'572.63 CHF · 4'572.63 berechnet ·
- * 2'000.00 bezahlt · von 4'572.63». Er ist vollständig und beantwortet die eigentliche
- * Frage trotzdem nicht – *wie weit sind wir?* verlangt einen Vergleich, und den musste
- * man im Kopf machen.
+ * *«Ich brauche diese Anzeige so nicht. Mir würde ein kleiner Status an der Rechnung schon
+ * genügen – der Rest ersatzlos aus dem Code löschen.»*
  *
- * Es ist **dieselbe Frage wie beim Bestand am Artikel**, nur mit Geld statt Stück: wie
- * teilt sich ein Ganzes auf. Also dieselbe Leiste (`module-ui.ValueBar`) – Segmente nach
- * Anteil, darunter Punkt · Wort · Betrag.
+ * Hier stand eine Leiste über der Liste (`MoneyBar`): *bezahlt · offen · überzahlt · nicht
+ * berechnet* als Anteile eines Ganzen. Sie war richtig gedacht, solange ein Vorgang
+ * mehrere Rechnungen tragen konnte – da war die Aufteilung eine eigene Aussage. **Seit
+ * #866 gibt es je Modul genau eine**, und damit sagt sie dasselbe wie die eine Zeile
+ * darunter, nur als Balken: eine Zusammenfassung von einem.
  *
- * **Aufgezählt wird kein einziger Zustand**: was es gibt, sagen die Zahlen. Ist nichts
- * gefordert, steht dort nur *Nicht berechnet* – und damit sagt die Leiste von selbst, was
- * früher ein Sonderfall im Text war («Nichts berechnet»). Ist alles bezahlt, bleibt
- * *Bezahlt* übrig. Dieselbe Regel wie in der Bestandsleiste (#789).
+ * Übrig bleibt, was die Frage wirklich beantwortet: **Punkt und Wort an der Rechnung** –
+ * dieselbe Anatomie, mit der das Haus jeden Status schreibt. Der Betrag steht daneben,
+ * wenn noch etwas offen ist; ist nichts mehr offen, heisst der Punkt schlicht «Bezahlt».
  *
- * **Überzahlt ist ein Segment, kein Vorzeichen.** «Wir schulden» stand als eigener Satz
- * da, weil ein negativer offener Betrag in eine Zahlenkette nicht passt; als **Anteil**
- * passt er, und die Aussage ist dieselbe. Jeder Wert ist darum bei null gekappt – eine
- * negative Breite gibt es nicht.
+ * **Abgeleitet, nicht gemeldet**: aus `open` und `overdue` dieser Zeile, die beide
+ * ohnehin mitreisen. Ein Zustandsfeld dafür wäre die zweite Wahrheit neben der Zahl.
  */
-function MoneyBar({ d }: { d: Filled }) {
-  const openAmount = Number(d.open ?? 0);
-  const charged = Number(d.charged ?? 0);
-  const paid = Number(d.paid ?? 0);
-  const overdue = d.entries.some((e) => e.overdue);
-  const segments: BarSegment[] = [
-    {
-      key: 'paid', label: 'Bezahlt', value: Math.max(0, Math.min(paid, charged)),
-      color: 'var(--success)', hint: 'Gefordert und beglichen',
-    },
-    {
-      key: 'open', label: d.open_word, value: Math.max(0, openAmount),
-      color: overdue ? 'var(--danger)' : 'var(--warning)',
-      hint: overdue
-        ? 'Gefordert, fällig und noch nicht bezahlt'
-        : 'Gefordert und noch nicht bezahlt',
-    },
-    {
-      key: 'over', label: 'Überzahlt', value: Math.max(0, -openAmount),
-      color: 'var(--info)', hint: 'Mehr bezahlt als gefordert – so viel schulden wir zurück',
-    },
-    {
-      key: 'rest', label: 'Nicht berechnet',
-      value: Math.max(0, Number(d.amount ?? 0) - charged),
-      color: 'var(--border-2)', hint: 'Zugesagt, aber noch nicht gefordert',
-    },
-  ]
-    .filter((s) => s.value > 0)
-    .map((s) => ({ ...s, text: formatAmount(s.value, d.currency_decimals) }));
-  return <ValueBar segments={segments} />;
+/**
+ * **Wie schmal eine Beleg-Nummer noch lesbar ist** – «100000887-1» in Tabellenziffern.
+ * Sie ist die Kennung der Zeile; darunter bricht die Zeile um, statt sie zu kappen.
+ */
+const REF_MIN = 96;
+
+type InvoiceState = { label: string; color: string; hint: string };
+
+function invoiceState(d: Filled, e: Filled['entries'][number]): InvoiceState | null {
+  if (e.kind !== 'charge' || e.reverses != null || e.open == null) return null;
+  const open = Number(e.open);
+  // **Storniert sagt die Zeile selbst** – ein zweiter Punkt daneben wäre dasselbe Wort.
+  if (e.reversed) return null;
+  if (open === 0) {
+    return {
+      label: 'Bezahlt', color: 'var(--success)',
+      hint: 'Gefordert und beglichen – auf dieser Rechnung ist nichts mehr offen.',
+    };
+  }
+  if (open < 0) {
+    return {
+      label: 'Überzahlt', color: 'var(--info)',
+      hint: 'Mehr bezahlt als gefordert – so viel ist zurückzugeben.',
+    };
+  }
+  return e.overdue
+    ? { label: 'Überfällig', color: 'var(--danger)', hint: 'Fällig und noch nicht bezahlt.' }
+    : { label: d.open_word, color: 'var(--warning)', hint: 'Gefordert und noch nicht bezahlt.' };
 }
 
 /**
@@ -1517,8 +1467,6 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
 
   return (
     <div className="flex flex-col gap-2">
-      <MoneyBar d={d} />
-
       {(invoices.length > 0 || loose.length > 0) && (
         <div className="flex flex-col">
           {invoices.map((inv) => (
@@ -1548,50 +1496,37 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
         </div>
       )}
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* ►►► **Die Rechnung ist die einzige Handlung, die HIER unten steht** (#859). ◄◄◄
-            Bezahlen, überweisen und stornieren gehören zu **einer** Rechnung, also stehen
-            sie an ihrer Zeile. Hier unten bleibt, was den ganzen Vorgang betrifft: die
-            nächste Forderung – und die Gegenhandlung.
+      {/* ►►► **Hier unten steht GENAU EINE Handlung** (Testnotizen #859/#874). ◄◄◄
 
-            **Wie der Knopf heisst, sagt der Server** (`charge_word`): steht die eine
-            Rechnung dieses Moduls schon (#866), heisst er «Gutschrift erfassen», denn das
-            ist dann die einzige Forderung, die noch entstehen kann. */}
-        {may(d, active, 'charge') && (
-          <button type="button"
-            className={`erp-actbtn ${d.next_charge != null && !d.credit_only
-              ? 'erp-actbtn-primary' : 'erp-actbtn-neutral'}`}
-            disabled={busy} style={{ height: ACT_H.inline }}
-            data-tip={d.credit_only
-              ? 'Dieses Modul hat seine Rechnung – eine Minderung ist eine Gutschrift mit '
-                + 'negativem Betrag. Eine zweite Rechnung gehört in ein zweites Modul.'
-              : 'Eine Forderung buchen – ein negativer Betrag ist die Gutschrift.'}
-            onClick={() => setForm(form?.kind === 'charge' ? null : { kind: 'charge' })}>
-            <FileText size={13} /> {d.charge_word}
-          </button>
-        )}
-        {/* **Die eine Gegenhandlung** – und ihr Wort kommt vom Server (`undo`). Sie
-            trägt die Warnfarbe, nicht die Fläche: sichtbar, aber nie der Vorschlag. */}
-        {may(d, active, 'revoke') && d.undo && (
-          <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={busy}
-            style={{ height: ACT_H.inline }}
-            onClick={() => onAction({ action: 'revoke' })}>
-            <Undo2 size={13} /> {d.undo}
-          </button>
-        )}
-        {/* **Ohne Rechnung kein Ziel** – eine Zahlung ohne Beleg gibt es nicht (#822),
-            und der Knopf an der Zeile ist der Weg. Steht ausnahmsweise **keine** Rechnung
-            da (eine Erstattung auf eine längst beglichene), bleibt dieser hier. */}
-        {may(d, active, 'pay') && invoices.length === 0 && (
-          <button type="button" className="erp-actbtn erp-actbtn-neutral" disabled={busy}
-            style={{ height: ACT_H.inline }}
-            data-tip="Geld buchen – ein negativer Betrag ist die Erstattung."
-            onClick={() => setForm(form?.kind === 'payment' ? null
-              : { kind: 'payment', charge: null })}>
-            <Wallet size={13} /> {d.payment_word}
-          </button>
-        )}
-      </div>
+          Bezahlen, überweisen und stornieren gehören zu **einer** Rechnung, also stehen sie
+          an ihrer Zeile. Übrig bleibt die **Rechnung selbst** – sie gehört keiner Zeile,
+          sie entsteht erst.
+
+          **Zwei Knöpfe sind dabei gefallen** (#874 – *«gibt es hier Buttons, die doppelt
+          sind bzw. in der Abfolge und der Logik keinen Sinn machen?»*):
+
+          * **«Gutschrift erfassen»** stand hier, sobald die eine Rechnung dieses Moduls
+            stand (#866) – und daneben, an ihrer Zeile, gab es bereits «Gutschrift»
+            (`reverse_word`). Zwei Knöpfe mit demselben Wort, zwei verschiedene Wirkungen:
+            der eine nimmt **diese Rechnung** zurück (mit Bezug, und er gibt den Platz für
+            eine neue frei), der andere buchte eine **freistehende** negative Forderung,
+            die zu keiner Rechnung gehörte und in der Liste als zweite Rechnung erschien.
+            Was #866 für eine Korrektur vorsieht, steht in seinem eigenen Fehlersatz:
+            **stornieren und neu stellen**. Eine Minderung ohne Rücknahme (Kulanz) ist die
+            Gutschrift an der Zeile.
+          * **«Zahlung erfassen»** stand hier für den Fall «es gibt keine Rechnung» – den
+            gibt es nicht: ``can`` führt ``pay`` erst, wenn eine Forderung gebucht ist
+            (#822), und ohne Forderung ist die Liste leer. Ein Ast, den niemand erreicht,
+            ist von einem kaputten nicht zu unterscheiden. */}
+      {may(d, active, 'charge') && !d.credit_only && (
+        <button type="button" className={`erp-actbtn self-start ${d.next_charge != null
+          ? 'erp-actbtn-primary' : 'erp-actbtn-neutral'}`}
+          disabled={busy} style={{ height: ACT_H.inline }}
+          data-tip="Eine Forderung buchen – ein negativer Betrag ist die Gutschrift."
+          onClick={() => setForm(form?.kind === 'charge' ? null : { kind: 'charge' })}>
+          <FileText size={13} /> {d.charge_word}
+        </button>
+      )}
 
       {/* Die Forderung gehört keiner Zeile – sie entsteht erst. */}
       {form?.kind === 'charge' && (
@@ -1652,6 +1587,7 @@ function EntryRow({ d, e, sub, busy, active, panel, onAction, onPay, onPayOnline
 }) {
   const invoice = e.kind === 'charge';
   const tip = taxTip(d, e);
+  const state = invoiceState(d, e);
   return (
     <div className="flex flex-col">
       <div className="flex items-center gap-2 py-1 text-[12.5px] flex-wrap"
@@ -1667,20 +1603,35 @@ function EntryRow({ d, e, sub, busy, active, panel, onAction, onPay, onPayOnline
         {/* **Die Referenz nimmt den Rest und wird gekappt, das Datum nicht.**
             Umgekehrt lief der Datumstext über seine eigene Box hinaus – gemessen
             380,1 px bei 375 px Fenster, und kein Element-Rahmen zeigte es. */}
+        {/* ►►► **Aber sie wird nicht bis zur Unkenntlichkeit gekappt.** ◄◄◄ Sie ist die
+            **Nummer des Belegs**, also seine Kennung – bei «100…» weiss niemand mehr,
+            welche Rechnung dasteht. Sie schrumpft darum nur bis `REF_MIN`; darunter
+            **bricht die Zeile um** (sie ist `flex-wrap`), statt die Identität
+            wegzuschneiden. Dieselbe Lehre wie bei der Positionszeile (#847): ohne
+            Untergrenze läuft nichts über und die Sache ist trotzdem nicht mehr benannt. */}
         {e.reference && (
           <span className="ix-tnum truncate flex-1" data-tip={e.reference}
-            style={{ color: 'var(--fg-3)', minWidth: 0 }}>{e.reference}</span>
+            style={{ color: 'var(--fg-3)', minWidth: REF_MIN }}>{e.reference}</span>
         )}
         {/* ►►► **«auf 100000801-1» steht nicht mehr da** (#861). ◄◄◄ Die Zuordnung sagt
             seit dieser Runde die **Einrückung**; sie zusätzlich auszuschreiben wäre
             dieselbe Angabe zweimal, und die zweite kostet in einer engen Zeile den Platz,
             den das Datum braucht. Wo sie **fehlt**, sagt es die Gruppe darüber. */}
-        {/* **Was auf DIESER Rechnung noch offen ist** – die Zahlungen stehen darunter,
-            und diese Zahl sagt, was davon fehlt. */}
-        {invoice && e.open != null && Number(e.open) !== 0 && (
-          <span className="ix-tnum text-[11.5px]" style={{ color: 'var(--fg-4)', flex: 'none' }}
-            data-tip={`${d.open_word} auf dieser Rechnung`}>
-            {d.open_word} {formatAmount(e.open, d.currency_decimals)}
+        {/* ►►► **Der kleine Status an der Rechnung** (Testnotiz #875). ◄◄◄ Punkt + Wort –
+            die Anatomie jedes Status im Haus –, und der Betrag daneben, solange noch
+            etwas offen ist. Er ersetzt die Leiste über der Liste: bei **einer** Rechnung
+            je Modul (#866) war sie die Zusammenfassung von einem. */}
+        {state && (
+          <span className="flex items-center gap-1.5 text-[11.5px]"
+            style={{ color: 'var(--fg-4)', flex: 'none', cursor: 'help' }}
+            data-tip={state.hint}>
+            <span aria-hidden className="rounded-full" style={{
+              width: 7, height: 7, flex: 'none', background: state.color,
+            }} />
+            {state.label}
+            {e.open != null && Number(e.open) !== 0 && (
+              <span className="ix-tnum">{formatAmount(e.open, d.currency_decimals)}</span>
+            )}
           </span>
         )}
         <span style={{ color: 'var(--fg-4)', flex: 'none' }}>
@@ -1825,8 +1776,17 @@ function Transfer({ orderObjectId, stepId, entryId, onClose }: {
           <div className="flex flex-col gap-2" style={{ flex: '1 1 200px', minWidth: 0 }}>
             <Fixed label="Empfänger" value={info.creditor} />
             {info.iban && <Fixed label="IBAN" value={info.iban} />}
+            {/* ►►► **Woher die Referenz kommt, steht dran** (Testnotiz #871). ◄◄◄
+                *«Leitet sich diese von der Rechnungsnummer ab oder nicht?»* – Ja, und
+                genau das war die Auskunft, die fehlte: der Hinweis nannte die Norm und
+                nicht die **Herkunft**, und die Rechnungsnummer stand in diesem Feld gar
+                nicht (der Trennstrich fällt weg, weil ISO 11649 nur Buchstaben und
+                Ziffern kennt – aus «100000886-1» wird «…1000008861», und ohne den Satz
+                sieht das nach einer erfundenen Zahl aus). */}
             <Fixed label="Referenz" value={info.reference}
-              hint="Strukturierte Referenz (ISO 11649) – so kommt die Zahlung mit unserem Beleg zurück." />
+              hint={`Creditor Reference (ISO 11649) aus der Rechnungsnummer ${info.invoice}`
+                + ' – ohne Trennstrich, mit zwei Prüfziffern. So kommt die Zahlung mit '
+                + 'unserem Beleg zurück, ohne dass jemand etwas abtippt.'} />
             <Fixed label="Betrag" value={`${info.amount} ${info.currency}`} />
           </div>
           {/* **Das Bild kommt fertig vom Server.** Es trägt keine Angabe aus einer

@@ -80,7 +80,7 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: nichts – gebucht wird, wenn der Dienst es meldet. Wer beide zu einem Verb machte,
 #: bekäme einen Knopf, dessen Wirkung von einer Einstellung abhängt.
 ACTIONS: dict[str, tuple[str, ...]] = {
-    dm.OFFER: ("currency", "share", "ask", "quote", "decline", "agree"),
+    dm.OFFER: ("currency", "ask", "quote", "decline", "agree"),
     dm.AGREED: ("revoke", "charge", "pay", "pay_online", "refund_online"),
     dm.DONE: ("charge", "pay", "pay_online", "refund_online"),
     dm.CANCELLED: ("charge", "pay", "pay_online", "refund_online"),
@@ -676,44 +676,6 @@ def _currency(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def _share(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Welchen Teil der Positionen rechnet dieser Vorgang ab?** (Testnotiz #866)
-
-    Er ist das Gegenstück zu «eine Rechnung je Modul»: *Vorauszahlung → Leistung →
-    Restzahlung* sind zwei Zahlungs-Module, **beide sehen dieselben Stücke** und damit
-    dieselben Positionen. Ohne Anteil hätte jedes die volle Summe zugesagt, «erst zahlen»
-    ginge nie auf, und auf dem Beleg stünde ein Preis, den niemand vereinbart hat.
-
-    **Die Positionspreise bleiben die wahren** – gerechnet wird nur die Summe. Eine
-    Anzahlung, die 30 % *in den Einzelpreis* schreibt, wäre ein Beleg, auf dem eine Welle
-    plötzlich 3'000 statt 10'000 kostet.
-
-    **Und die schon genannten Beträge ziehen mit**: ein Angebotsspiegel, dessen Zeilen
-    noch den alten Anteil tragen, wäre die zweite Wahrheit – dieselbe Regel wie überall.
-    Dass es **nach der Zusage** nicht mehr geht, sagt ``ACTIONS``.
-    """
-    try:
-        row.share = dm.assert_share(data.get("share"))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    lines = [dict(q) for q in (row.quotes or [])]
-    for q in lines:
-        priced = q.get("lines") or []
-        if priced:
-            q["amount"] = cur.money(_offer_sum(priced, row), row.currency)
-    _write_quotes(row, lines)
-
-
-def _offer_sum(priced: list[dict[str, Any]], row: Deal) -> Decimal:
-    """**Der Angebotsbetrag** – Brutto-Summe der Positionen, mal Anteil.
-
-    Die eine Rechenstelle: sie stand an zwei Stellen (``_ask`` und ``_quote``), und der
-    Anteil hätte an genau einer davon vergessen werden können.
-    """
-    return dm.share_of(dm.gross_of(priced, row.currency), row.share)
-
-
 def _priced(db: Session, *, order: Order, step: ProcessStep, code: str,
             data: dict[str, Any]) -> list[dict[str, Any]]:
     """►►► **Die Positionen mit Preis und Satz** – die Nutzlast nennt nur Preis und Satz.
@@ -793,7 +755,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             detail=(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
                     f"nennen wir ihn, nicht der {dm.PARTY}."),
         )
-    fresh = ({"amount": cur.money(_offer_sum(priced, row), row.currency),
+    fresh = ({"amount": cur.money(dm.gross_of(priced, row.currency), row.currency),
               "lines": priced, "state": dm.QUOTED}
              if priced else {"amount": None, "lines": [], "state": dm.ASKED})
     lead, days = _days(data.get("lead_days")), _days(data.get("payment_days"))
@@ -832,7 +794,7 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # gilt, sagt dieselbe Angabe wie überall (``quoted_by``).
     priced = _priced(db, order=order, step=step, code=row.currency,
                      data=data) if flow.quoted_by == dm.BY_US else []
-    amount = _offer_sum(priced, row) if priced \
+    amount = dm.gross_of(priced, row.currency) if priced \
         else _amount(data.get("amount"), row.currency)
     # ►►► **Nur gesendete Felder wirken – auch für den Betrag.** ◄◄◄
     #
@@ -1762,9 +1724,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # ►►► **Der Anteil** (Testnotiz #866) – welchen Teil der Positionen dieser Vorgang
         # abrechnet. Ohne ihn wäre die Zwei-Modul-Form («Anzahlung 30 %, Restzahlung
         # 70 %») nur scheinbar gangbar: beide Module sehen dieselben Stücke.
-        "share": dm.share_text(row.share),
-        "share_label": dm.SHARE_LABEL,
-        "share_hint": dm.SHARE_HINT,
         # **Wie bezahlt wurde** (#865) – die Liste dessen, was ein Mensch erfassen darf.
         # Die Karte schreibt allein der Webhook, also steht sie hier nicht.
         "methods": [{"key": k, "label": name} for k, name in dm.METHODS
@@ -1815,12 +1774,19 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "open": _money(money.open, row.currency) if won else None,
         "uncharged": _money(money.uncharged, row.currency) if won else None,
         # ►►► **Eine Rechnung je Modul** (Testnotiz #866) – die zweite Form derselben
-        # Regel, die ``_charge`` durchsetzt: steht die Rechnung, ist die nächste Zeile
-        # eine **Gutschrift**, und der Knopf sagt es. Der Vorschlag fällt dabei weg – eine
-        # Vorgabe für eine Buchung, die der Dienst abweist, wäre ein Angebot, das
-        # garantiert scheitert.
+        # Regel, die ``_charge`` durchsetzt: steht sie, gibt es hier nichts mehr zu
+        # buchen, und der Knopf **fehlt**. Der Vorschlag fällt mit ihm weg – eine Vorgabe
+        # für eine Buchung, die der Dienst abweist, wäre ein Angebot, das garantiert
+        # scheitert.
+        #
+        # *Er hiess in der Vorrunde «Gutschrift erfassen» und öffnete eine freistehende
+        # negative Forderung. Das war ein zweiter Knopf mit demselben Wort wie die
+        # Gutschrift **an der Rechnung** (``reverse_word``) – und ohne deren Bezug: die
+        # Zeile gehörte zu keinem Beleg und stand in der Liste als zweite Rechnung
+        # (Testnotiz #874). Was #866 für eine Korrektur vorsieht, steht in seinem eigenen
+        # Fehlersatz: **stornieren und neu stellen**.*
         "credit_only": bool(live) if won else False,
-        "charge_word": dm.CREDIT_ENTRY_WORD if live is not None else flow.charge_word,
+        "charge_word": flow.charge_word,
         "next_charge": (None if live is not None
                         else _money(money.next_charge, row.currency)) if won else None,
         "next_payment": _money(money.next_payment, row.currency) if won else None,
@@ -1987,7 +1953,7 @@ def _money(value: Optional[Decimal], code: str) -> Optional[str]:
 # Ein Löschweg (früher ``void``) ist damit nicht «nicht mehr aufgerufen», sondern schlicht
 # nicht vorhanden – und ein Wächter kann es lesen, statt es zu glauben.
 HANDLERS = {
-    "currency": _currency, "share": _share,
+    "currency": _currency,
     "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
     "revoke": _revoke,
     "charge": _charge, "pay": _pay, REVERSE: _reverse,

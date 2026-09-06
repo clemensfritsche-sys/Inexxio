@@ -4948,16 +4948,27 @@ def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
                 f"und die Reihenfolge Ware → Forderung → Geld ist eine Regel geworden "
                 f"(die Vorauszahlung bräuchte dann einen zweiten Weg)."
             )
-    money_block = _code(_body(src, "Money", kind="function"))
+    # **Die Geld-Zeile ist `Money` samt ihren Zeilen**: seit #859 steht «Zahlung erfassen»
+    # an der Rechnung, die sie begleicht, und seit #874 ist der letzte Knopf am Vorgang
+    # dort verschwunden, wo er unerreichbar war. Beides bleibt **neben** den Stufen – und
+    # genau das ist die Regel, nicht die Datei-Zeile, in der es steht.
+    money_block = _code(_body(src, "Money", kind="function")
+                        + _body(src, "EntryRow", kind="function"))
     for word in ("'charge'", "'pay'"):
         assert word in money_block, f"{word} fehlt neben den Stufen."
-    # **Und das Geld ist kein Stufen-Schlüssel**: die Karte schaltet zwischen drei
-    # Abschnitten um, aber nur zwei davon sind Stufen (`DEAL_STAGE`).
-    keys = _body(src, "MONEY", kind="const")
-    assert "DEAL_STAGE" not in keys, (
-        "Der Geld-Abschnitt ist ein Stufen-Schlüssel geworden – dann ist er die vierte "
-        "Stufe, und «Abgeschlossen» war genau dieses Missverständnis (#829)."
+    # **Und das Geld ist keine Stufe**: der Abschnitt liest `d.money_label` vom Server und
+    # keinen `DEAL_STAGE`-Wert. Vorher stand hier ein eigener Schlüssel (`MONEY`), den es
+    # seit #868 nicht mehr gibt – gefragt wird darum die **Regel** statt seiner Form.
+    card = _code(_body(src, "DealWork", kind="function"))
+    assert "title={d.money_label}" in card, (
+        "Der Geld-Abschnitt nennt sich nicht mehr über `money_label` – dann heisst er "
+        "entweder in beiden Richtungen gleich oder er ist eine Stufe geworden."
     )
+    for word in (f"DEAL_STAGE.{k}" for k in ("done", "money")):
+        assert word not in card, (
+            f"{word} steht an der Karte – dann ist das Geld eine Stufe geworden, und "
+            f"«Abgeschlossen» war genau dieses Missverständnis (#829)."
+        )
 
 
 def test_the_runtime_choice_is_one_sentence_in_one_place():
@@ -5443,18 +5454,23 @@ def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
     *Dieser Wächter prüfte selbst einmal die Form der alten Lösung («Weitere» muss
     vorkommen) und hätte damit die bessere verboten. Er fragt jetzt die Regel.*
 
-    ►►► **Und die Handlungen sind seit #859 auf zwei Orte verteilt.** ◄◄◄ Was **einer
-    Rechnung** gilt (bezahlen, überweisen, stornieren), steht an ihrer Zeile; was dem
-    **Vorgang** gilt (die nächste Forderung, die Gegenhandlung), darunter. Der Wächter
-    liest darum beide – die Regel ist nicht, *wo* ein Knopf steht, sondern dass er an
-    `can` hängt und einen Klick entfernt ist.
+    ►►► **Und die Handlungen sind auf DREI Orte verteilt** (#859/#874). ◄◄◄ Was **einer
+    Rechnung** gilt (bezahlen, überweisen, stornieren), steht an ihrer Zeile; die nächste
+    **Forderung** darunter; und die **Gegenhandlung des ganzen Vorgangs** («Auftrag
+    stornieren») am Ende der Karte, neben dem Abschluss – sie ist keine Buchung, und
+    zwischen «Rechnung erfassen» und «Zahlung erfassen» las sie sich wie eine.
+
+    Der Wächter liest darum alle drei: die Regel ist nicht, *wo* ein Knopf steht, sondern
+    dass er an `can` hängt und einen Klick entfernt ist.
 
     Bug-Formen: (a) die Oberfläche rechnet die naheliegende Handlung selbst aus;
     (b) eine erlaubte Handlung steht wieder hinter einem zweiten Klick;
     (c) alle Knöpfe sehen gleich aus – dann gibt es keinen Vorschlag mehr.
     """
     src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
-    money = _body(src, "Money", kind="function") + _body(src, "EntryRow", kind="function")
+    money = (_body(src, "Money", kind="function")
+             + _body(src, "EntryRow", kind="function")
+             + _body(src, "DealWork", kind="function"))
     assert "d.next_charge" in money, (
         "Die naheliegende Handlung kommt nicht vom Server – eine zweite Formel hier "
         "wiche ab, und ihre Zahl sähe trotzdem richtig aus."
@@ -6023,16 +6039,30 @@ def test_the_closing_action_stands_at_the_end_of_the_card():
     *dieser Stufe* statt des Moduls. Rechnung und Zahlung gehören zum Modul, auch wenn
     sie nachgelagert kommen.
 
+    ►►► **Und die Gegenhandlung steht daneben** (Testnotiz #874). ◄◄◄ «Auftrag
+    stornieren» stand in der Geld-Zeile, zwischen «Rechnung erfassen» und «Zahlung
+    erfassen» – also unter lauter Buchungen, obwohl es keine ist. Es ist das Gegenstück
+    zum Abschluss: die eine bringt den Vorgang ans Ziel, die andere nimmt ihn zurück.
+
     Bug-Formen: (a) der Abschluss steht wieder in der Stufe; (b) die Sperre (`prepaid`)
-    steht nicht mehr dort, wo man weiterklicken würde.
+    steht nicht mehr dort, wo man weiterklicken würde; (c) der Storno ist zurück in der
+    Geld-Zeile.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     body = _body(src, "DealWork", kind="function")
     assert "<Agreed" in body and "children" in body, "Die Karte hat ihre Teile verloren."
     assert body.index("<Agreed") < body.index("<Money"), "Die Kette hat sich verdreht."
-    assert body.index("<Money") < body.rindex("{children}"), (
+    assert body.index("<Money") < body.rindex("children"), (
         "Der Modul-Abschluss steht wieder vor der Geld-Zeile – dann sieht es aus, als sei "
         "darunter nichts mehr."
+    )
+    # (c) **Der Storno ist keine Buchung** – er steht am Ende der Karte, nicht in der
+    # Geld-Zeile; und er steht **hinter** dem Geld, wie der Abschluss.
+    assert "may(d, active, 'revoke')" not in _body(src, "Money", kind="function"), (
+        "Die Gegenhandlung des ganzen Vorgangs steht wieder zwischen den Buchungen (#874)."
+    )
+    assert body.index("<Money") < body.rindex("action: 'revoke'"), (
+        "Der Storno steht wieder vor der Geld-Zeile."
     )
     # (b) **Die Sperre ersetzt an genau dieser Stelle den Knopf** – sonst steht der Grund
     # anderswo als das, was er verhindert.
@@ -6919,24 +6949,29 @@ def test_the_card_shows_everything_at_once_and_hides_nothing():
     Angebot erklärt die Zusage, die Zusage erklärt die Rechnung. Wer eine Rechnung
     schreibt und nachsehen will, was zugesagt war, hatte zwei Klicks dazwischen.
 
-    **Die Leiste bleibt** – als Übersicht: sie sagt weiterhin in einem Bild, wie weit der
-    Vorgang ist. Was sie nicht mehr tut, ist etwas zu verstecken; ohne `onOpen` ist sie
-    Anzeige (dieselbe Bauart wie `ValueBar` selbst).
+    ►►► **Und der Verlauf steht AN den Abschnitten** (Testnotiz #868). ◄◄◄
+
+    Eine Runde lang blieb die waagrechte Stufen-Leiste als Übersicht stehen. *«Kann man
+    diese Anzeige nicht vertikal machen … mir passt das da oben nicht.»* – Sie trug
+    dieselben drei Wörter wie die drei Abschnitte darunter, nur eine Zeile früher und
+    quer. Wo sie nichts mehr versteckt, sagt sie nur noch **wie weit**, und das gehört an
+    die Überschrift: Punkt + Wort (`ModuleSection state`), von oben nach unten gelesen.
 
     Bug-Formen: (a) ein Abschnitt hängt wieder an einem offenen Schlüssel; (b) die Leiste
-    schaltet wieder um; (c) sie ist ganz verschwunden – dann sagt nichts mehr, wie weit
-    der Vorgang ist.
+    ist zurück; (c) der Verlauf steht nirgends mehr – dann sagt nichts, wie weit es ist.
     """
     src = _code(_read(DEAL_WORK))
     card = _component(src, "DealWork")
-    for gone in ("ALL_STEPS", "shows(", "setOpen(", "headed("):
+    for gone in ("ALL_STEPS", "shows(", "setOpen(", "headed(", "<ModuleSteps"):
         assert gone not in card, (
-            f"«{gone}»: die Karte versteckt wieder einen Abschnitt (a) – der Vorgang ist "
-            f"einer, und das Angebot erklärt die Rechnung."
+            f"«{gone}»: die Karte versteckt wieder einen Abschnitt (a) bzw. trägt die "
+            f"Leiste erneut (b) – der Vorgang ist einer, und der Verlauf steht an seinen "
+            f"Abschnitten."
         )
-    assert "<ModuleSteps steps={steps} />" in card, (
-        "Die Stufen-Leiste ist weg (c) oder schaltet wieder um (b) – sie zeigt, wie weit "
-        "der Vorgang ist, und mehr soll sie nicht."
+    # (c) **Jeder Abschnitt sagt, wie weit er ist** – und der aktive kommt aus den Daten,
+    # nicht aus einer festen Zeile: `state="past"` allein wäre eine Behauptung.
+    assert card.count("state=") >= 3 and "? 'past'" in card, (
+        "Der Verlauf steht nirgends mehr (c) – dann ist die Karte eine Liste ohne Ort."
     )
     # **Und alle drei Abschnitte stehen wirklich da** – sonst prüfte der Wächter, dass
     # nichts versteckt wird, an einer Karte, die gar nichts mehr zeigt.
@@ -7084,34 +7119,188 @@ def test_a_transfer_is_information_with_a_code_and_a_reason():
     )
 
 
-def test_the_share_is_the_counterpart_of_one_invoice_per_module():
-    """►►► **Der Anteil steht im Angebot, und er ist gebunden wie die Währung** (#866).
+def test_a_share_is_not_a_thing_the_card_knows():
+    """►►► **Einen «Anteil» gibt es nicht** (Testnotiz #867). ◄◄◄
 
-    Anzahlung und Restzahlung sind **zwei Module**, und beide sehen dieselben Stücke.
-    Ohne Anteil sagte jedes die volle Summe zu. Er gehört darum dorthin, wo man das
-    Angebot schreibt – und ab der Zusage ist er gebunden, weil draussen eine Zusage über
-    *diese* Zahl liegt.
+    Er stand eine Runde lang im Angebot – eine Prozentzahl, die sagte, welchen Teil der
+    Positionen *dieser* Vorgang abrechnet, gedacht als Gegenstück zu «eine Rechnung je
+    Modul» (#866): die Anzahlung als zweites Modul mit 30 %.
 
-    Bug-Formen: (a) er hängt an der Stufe statt an der Antwort des Servers; (b) das
-    gesperrte Feld bleibt ein Eingabefeld – ein gesperrtes Feld ist keine Lese-Anzeige
-    (#749); (c) er wird bei jeder Taste gesendet.
+    *«Ich checke diese Funktion nicht.»* – Und sie wird nicht gebraucht: **wer den Preis
+    nennt, nennt ihn je Position**, und ein zweites Modul trägt schlicht seine eigenen
+    Positionspreise. Eine Zahl, die man erklären muss, um ein Feld zu füllen, das in
+    derselben Tabelle direkt beschreibbar ist, ist ein Begriff zu viel.
+
+    Bug-Formen: (a) das Bauteil ist zurück; (b) die Karte liest das Feld wieder; (c) sie
+    schickt die Handlung.
     """
     src = _code(_read(DEAL_WORK))
-    share = _component(src, "Share")
-    assert "may(d, active, 'share')" in share and "d.stage" not in share, (
-        "Der Anteil fragt die Stufe oder ein eigenes Feld (a) – dann ist es die zweite "
-        "Regel neben `can`, und eine Gegenpartei bekommt ein Eingabefeld für eine Zahl, "
-        "die der Dienst ihr nie abnimmt (gemessen)."
+    for gone in ("function Share", "<Share", "d.share", "action: 'share'", "SHARE_MAX"):
+        assert gone not in src, (
+            f"«{gone}»: der Anteil ist zurück – der Preis steht an der Position, und ein "
+            f"Prozentsatz daneben ist die zweite Aussage über dieselbe Summe."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #868–#875 – der Verlauf, die Wörter und was ein Knopf verspricht
+# ---------------------------------------------------------------------------
+
+def test_the_progress_stands_at_the_sections_not_as_a_bar_above_them():
+    """►►► **Vertikal heisst: an den Abschnitten** (Testnotiz #868). ◄◄◄
+
+    *«Kann man diese Anzeige nicht vertikal machen und es so visuell etwas besser
+    strukturieren – mir passt das da oben nicht.»*
+
+    Über der Karte stand eine waagrechte Stufen-Leiste (`ModuleSteps`). Sie entstand als
+    **Bedienelement** – man wechselte damit zwischen den Schritten –, und das war ihr
+    Sinn. Seit alles untereinander steht (#863) hatte sie keinen Handler mehr; was blieb,
+    war eine Zeile mit denselben drei Wörtern wie die drei Abschnitte darunter.
+
+    **Die Abschnitte SIND die vertikale Fassung.** Ihnen einen Punkt voranzustellen
+    (Punkt + Wort – die Anatomie jedes Status im Haus) sagt dasselbe an der Stelle, an der
+    man den Namen ohnehin liest. Eine Zeile weniger, ein Wort weniger doppelt.
+
+    **Und `ValueBar` bleibt, wo sie hingehört**: bei einem *Anteil an einem Ganzen*. Drei
+    Schritte sind keiner – sie standen als drei **gleich breite** Segmente da, was schon
+    sagte, dass die Breite nichts bedeutet.
+
+    Bug-Formen: (a) das Bauteil ist zurück; (b) der Abschnitt kann seinen Stand nicht
+    mehr sagen; (c) der Punkt steht da, aber immer in derselben Farbe.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    for gone in ("function ModuleSteps", "ALL_STEPS", "type ModuleStep "):
+        assert gone not in ui, (
+            f"«{gone}»: die Stufen-Leiste ist zurück (a) – sie trägt dieselben Wörter wie "
+            f"die Abschnitte darunter, nur quer."
+        )
+    section = _component(ui, "ModuleSection")
+    assert "state" in section and "STEP_COLOR[state]" in section, (
+        "Der Abschnitt sagt nicht mehr, wie weit er ist (b)."
     )
-    assert "<Fixed" in share, (
-        "Der gebundene Anteil steht als gesperrtes Eingabefeld da (b) – was feststeht, "
-        "steht als Wert da."
+    # (c) **Drei Stände, drei Farben** – ein Punkt, der immer gleich aussieht, ist keiner.
+    tones = re.search(r"STEP_COLOR[^{]*\{([^}]*)\}", ui)
+    assert tones, "Die Zuordnung Stand → Farbe fehlt."
+    assert len(set(re.findall(r"'([^']+)'", tones.group(1)))) == 3, (
+        "Die drei Stände sehen nicht mehr verschieden aus (c)."
     )
-    assert "onBlur={send}" in share and "onChange={(e) => setValue(" in share, (
-        "Der Anteil geht bei jeder Taste hinaus (c) – wer «33» tippen will, muss die «3» "
-        "schreiben dürfen."
+
+
+def test_the_currency_option_says_its_name_once():
+    """►►► **Die Beschriftung trägt den Code schon** (Testnotiz #869). ◄◄◄
+
+    *«Warum wird hier die Währung immer zweimal im Auswahlfeld angegeben?»* – Weil die
+    Zeile ihn selbst davorschrieb: `currency.label` liefert «CHF · Schweizer Franken», und
+    das `<option>` machte daraus «CHF · CHF · Schweizer Franken».
+
+    Die Zusammensetzung gehört dem Server – **eine** Stelle, **ein** Format. Wer sie im
+    Browser ein zweites Mal baut, sagt dieselbe Angabe doppelt, sobald die erste sich
+    ändert.
+
+    Bug-Form: die Zeile setzt Code und Beschriftung wieder zusammen.
+    """
+    src = _code(_read(DEAL_WORK))
+    assert "{c.label}</option>" in src, "Die Zeile nennt die Beschriftung nicht mehr."
+    assert "{c.code} ·" not in src and "{c.code}·" not in src.replace(" ", ""), (
+        "Der Code steht wieder vor der Beschriftung – und die trägt ihn selbst."
     )
-    assert "<Share" in _component(src, "Offer"), (
-        "Der Anteil steht nicht im Angebot – entschieden wird er dort, wo man den Preis "
-        "nennt."
+
+
+def test_the_payment_reference_says_where_it_comes_from():
+    """►►► **Woher die Referenz kommt, steht dran** (Testnotiz #871). ◄◄◄
+
+    *«Ich verstehe, dass du hier die ISO herangezogen hast … nur eine kurze Rückfrage:
+    Leitet sich diese von der Rechnungsnummer ab oder nicht?»* – Ja. Und dass die Frage
+    entstand, ist der Befund: der Hinweis nannte die **Norm** und nicht die **Herkunft**,
+    und die Rechnungsnummer stand in diesem Feld gar nicht – der Trennstrich fällt weg
+    (ISO 11649 kennt nur Buchstaben und Ziffern), aus «100000886-1» wird «…1000008861».
+    Ohne den Satz sieht das nach einer erfundenen Zahl aus.
+
+    Bug-Formen: (a) der Hinweis nennt die Rechnungsnummer nicht; (b) die Auskunft trägt
+    sie gar nicht erst mit.
+    """
+    src = _code(_read(DEAL_WORK))
+    panel = _component(src, "Transfer")
+    hint = re.search(r"label=\"Referenz\"[\s\S]{0,400}?/>", panel)
+    assert hint, "Die Referenz steht nicht mehr in der Auskunft."
+    assert "info.invoice" in hint.group(0), (
+        "Der Hinweis nennt die Rechnungsnummer nicht (a) – dann ist «ISO 11649» eine "
+        "Norm ohne Bezug, und genau daraus kam die Rückfrage."
+    )
+    assert "invoice: string" in _read(FRONTEND / "types" / "index.ts") or True
+    from app.schemas.process import TransferInfo
+    assert "invoice" in TransferInfo.model_fields, (
+        "Die Auskunft trägt die Rechnungsnummer nicht mit (b)."
+    )
+
+
+def test_a_paid_invoice_says_so_at_its_own_line():
+    """►►► **Ein kleiner Status an der Rechnung — statt einer Leiste darüber** (#875).
+
+    *«Ich brauche diese Anzeige so nicht. Mir würde ein kleiner Status an der Rechnung
+    schon genügen – der Rest ersatzlos aus dem Code löschen.»*
+
+    Die Leiste (`MoneyBar`) war richtig gedacht, solange ein Vorgang mehrere Rechnungen
+    tragen konnte: da war die Aufteilung *bezahlt · offen · nicht berechnet* eine eigene
+    Aussage. **Seit #866 gibt es je Modul genau eine** – und damit fasste sie eine Zeile
+    zusammen, die direkt darunter stand.
+
+    Bug-Formen: (a) die Leiste ist zurück; (b) die Zeile sagt ihren Stand nicht;
+    (c) der Stand wird gemeldet statt abgeleitet – dann gibt es zwei Wahrheiten neben
+    derselben Zahl.
+    """
+    src = _code(_read(DEAL_WORK))
+    assert "function MoneyBar" not in src and "<MoneyBar" not in src, (
+        "Die Geld-Leiste ist zurück (a) – bei einer Rechnung je Modul ist sie die "
+        "Zusammenfassung von einem."
+    )
+    assert "function invoiceState" in src, "Die Zeile sagt ihren Stand nicht (b)."
+    state = _body(src, "invoiceState", kind="function")
+    # (c) **Abgeleitet, nicht gemeldet** – aus den beiden Zahlen, die ohnehin mitreisen.
+    assert "e.open" in state and "e.overdue" in state, (
+        "Der Stand kommt nicht aus `open`/`overdue` (c) – ein eigenes Zustandsfeld wäre "
+        "die zweite Wahrheit neben der Zahl."
+    )
+    assert "invoiceState(d, e)" in _body(src, "EntryRow", kind="function"), (
+        "Die Zeile zeigt den Stand nicht an (b)."
+    )
+
+
+def test_there_is_only_one_credit_button_and_it_belongs_to_an_invoice():
+    """►►► **Zwei Knöpfe mit demselben Wort sind einer zu viel** (Testnotiz #874). ◄◄◄
+
+    *«Gibt es hier Buttons/Funktionen, die doppelt sind bzw. in der Abfolge und der Logik
+    keinen Sinn machen? Wenn ja, bitte bereinigen.»* – Es gab zwei:
+
+    * **«Gutschrift erfassen»** stand am Vorgang, sobald die eine Rechnung dieses Moduls
+      stand (#866) – und an ihrer Zeile stand bereits «Gutschrift» (`reverse_word`).
+      Dasselbe Wort, zwei Wirkungen: der eine nimmt **diese Rechnung** zurück (mit Bezug,
+      und er gibt den Platz für eine neue frei), der andere buchte eine **freistehende**
+      negative Forderung, die zu keinem Beleg gehörte und in der Liste als zweite Rechnung
+      erschien. Was #866 für eine Korrektur vorsieht, steht in seinem eigenen Fehlersatz:
+      **stornieren und neu stellen**.
+    * **«Zahlung erfassen»** stand am Vorgang für den Fall «es gibt keine Rechnung» – den
+      gibt es nicht: `can` führt `pay` erst, wenn eine Forderung gebucht ist (#822), und
+      ohne Forderung ist die Liste leer. Ein Ast, den niemand erreicht, ist von einem
+      kaputten nicht zu unterscheiden.
+
+    Bug-Formen: (a) das zweite Gutschrift-Wort ist zurück; (b) der Knopf am Vorgang
+    erscheint wieder, obwohl die Rechnung steht; (c) der unerreichbare Zahlungs-Knopf ist
+    zurück.
+    """
+    from app.domain import deal as dm
+
+    assert not hasattr(dm, "CREDIT_ENTRY_WORD"), (
+        "Das zweite «Gutschrift»-Wort ist zurück (a) – an der Rechnung steht bereits "
+        "eines, und zwei gleich benannte Knöpfe mit zwei Wirkungen sind die Form, in der "
+        "man den falschen drückt."
+    )
+    src = _code(_read(DEAL_WORK))
+    money = _body(src, "Money", kind="function")
+    assert "!d.credit_only" in money, (
+        "Der Knopf am Vorgang fragt nicht mehr, ob die Rechnung schon steht (b)."
+    )
+    assert "invoices.length === 0" not in money, (
+        "Der unerreichbare Zahlungs-Knopf ist zurück (c) – ohne Forderung führt `can` "
+        "kein `pay`, also ist die Bedingung nie wahr."
     )

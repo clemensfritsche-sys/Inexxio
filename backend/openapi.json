@@ -4425,7 +4425,7 @@
             ],
             "title": "Vat Number"
           },
-          "iban_masked": {
+          "iban": {
             "anyOf": [
               {
                 "type": "string"
@@ -4434,7 +4434,7 @@
                 "type": "null"
               }
             ],
-            "title": "Iban Masked"
+            "title": "Iban"
           },
           "email": {
             "type": "string",
@@ -5128,21 +5128,6 @@
             "title": "Settled",
             "default": false
           },
-          "share": {
-            "type": "string",
-            "title": "Share",
-            "default": "100"
-          },
-          "share_label": {
-            "type": "string",
-            "title": "Share Label",
-            "default": ""
-          },
-          "share_hint": {
-            "type": "string",
-            "title": "Share Hint",
-            "default": ""
-          },
           "methods": {
             "items": {
               "$ref": "#/components/schemas/DealMethod"
@@ -5796,17 +5781,6 @@
               }
             ],
             "title": "Currency"
-          },
-          "share": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Share"
           },
           "method": {
             "anyOf": [

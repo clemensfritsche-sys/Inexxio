@@ -23,7 +23,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from ..domain import deal as dm
 from .base import TimestampMixin
 
 
@@ -138,19 +137,13 @@ class Deal(Base, TimestampMixin):
         JSONB, nullable=True,
     )
 
-    #: ►►► **Welchen Teil der Positionen rechnet DIESER Vorgang ab?** (Testnotiz #866)
-    #:
-    #: In Prozent, Vorgabe 100 – der Normalfall, den niemand einstellen soll. Erst mit
-    #: ihm ist die Zwei-Modul-Form («Anzahlung 30 %, Restzahlung 70 %») überhaupt
-    #: gangbar: beide Module sehen dieselben Stücke, also dieselben Positionen, und ohne
-    #: Anteil hätte jedes die **volle** Summe zugesagt.
-    #:
-    #: **Kein Betrag** – der stünde beim Modellieren nicht fest und wäre bei der zweiten
-    #: Ausführung falsch. Ein *Anteil* ist dagegen eine Bedingung des Geschäfts und
-    #: überlebt jede Menge.
-    share: Mapped[Decimal] = mapped_column(
-        Numeric(6, 3), nullable=False, default=dm.FULL_SHARE, server_default="100",
-    )
+    # ►►► **Einen «Anteil» gibt es hier NICHT** (Testnotiz #867). ◄◄◄
+    #
+    #   Hier stand eine Runde lang ``share`` (Prozent, Vorgabe 100) als Gegenstück zu
+    #   «eine Rechnung je Modul». Er war ein Begriff zu viel – und er wird nicht
+    #   gebraucht: **wer den Preis nennt, nennt ihn je Position**, und ein zweites Modul
+    #   für die Anzahlung trägt schlicht seine eigenen Positionspreise. Die Spalte fällt
+    #   im Folge-Deploy (Zwei-Deploy-Regel, ``docs/backlog.md``).
 
 
 class DealEntry(Base, TimestampMixin):

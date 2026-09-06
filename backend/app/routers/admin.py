@@ -21,24 +21,30 @@ from ..services.admin import log_audit
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
-def _mask_iban(value: str | None) -> str | None:
-    if not value or len(value) < 8:
-        return value
-    return value[:4] + " **** **** **** " + value[-4:]
-
-
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
 def _company_response(db: Session, company) -> CompanySettingsResponse:
-    """Vollständige Unternehmens-Antwort mit maskierter Bank + **abgeleiteten** Feldern.
+    """Vollständige Unternehmens-Antwort mit **abgeleiteten** Feldern.
 
     ``is_operator`` (ältestes Unternehmen), ``has_address`` und ``website`` sind
     Projektionen, keine gespeicherten Flags – die eine Definition von «trägt echte
     Ortsangaben» steht in ``address.has_content``, die der Website-Adresse in
-    ``sites.website_url``; hier werden sie nur angewandt."""
+    ``sites.website_url``; hier werden sie nur angewandt.
+
+    ►►► **Die IBAN wird nicht mehr maskiert** (Testnotiz #870). ◄◄◄ ``_mask_iban`` stand
+    hier und lieferte «CH12 **** **** **** 8901», während das Eingabefeld leer blieb: ein
+    Unternehmen **mit** Bankverbindung sah aus wie eines ohne, und der QR-Einzahlungsschein
+    daneben wirkte wie aus dem Nichts. Die eigene IBAN steht auf jeder Rechnung, die wir
+    stellen – vor Admins zu verbergen, was wir jedem Kunden schicken, verbirgt nichts und
+    macht die Anzeige unwahr.
+
+    *Der Spaltenname ``iban_encrypted`` bleibt, verschlüsselt wird dort nichts (er stammt
+    aus dem Vorgängersystem) – eine Umbenennung ist eine Migration und gehört nicht in
+    eine Testnotizen-Runde.*
+    """
     from ..services import address
     resp = CompanySettingsResponse.model_validate(company)
-    resp.iban_masked = _mask_iban(company.iban_encrypted)
+    resp.iban = company.iban_encrypted
     resp.is_operator = sites.is_operator(db, company)
     resp.has_address = address.has_content(address.of_company(company))
     resp.website = sites.website_url()

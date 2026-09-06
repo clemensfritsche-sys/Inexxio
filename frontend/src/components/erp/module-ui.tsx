@@ -63,20 +63,54 @@ export const MODULE_TITLE: CSSProperties = {
 export const ACT_H = { row: 26, inline: 30, main: 34 } as const;
 
 /**
+ * ►►► **Wie weit ist ein Schritt?** ◄◄◄ `past` – vorbei · `active` – dran · `ahead` –
+ * steht noch aus.
+ *
+ * **Bewusst nicht `done`/`open`.** Das sind die Wörter, mit denen ein *Modul* seine
+ * eigenen Stufen benennt (`DEAL_STAGE.done`) bzw. mit denen eine Leiste sagt, welcher
+ * Abschnitt gerade **offen** ist. Hier geht es um etwas Drittes: wie weit man ist. Ein
+ * Wort, das in derselben Datei zwei Dinge meint, ist die Form, in der ein Vergleich still
+ * falsch wird.
+ */
+export type StepState = 'past' | 'active' | 'ahead';
+
+const STEP_COLOR: Record<StepState, string> = {
+  past: 'var(--fg-2)',
+  active: 'var(--accent)',
+  ahead: 'var(--border-2)',
+};
+
+/**
  * **Ein Abschnitt einer Modul-Karte** – Versalien-Beschriftung über einer Haarlinie,
  * rechts Platz für das, was zum Abschnitt gehört (die Währung, eine Gegenhandlung).
  *
  * Bewusst **ohne** Symbol und ohne Display-Schrift: in einer Karte mit drei Abschnitten
  * wären drei getönte Quadrate und drei fette Überschriften lauter als der Inhalt. Der
  * grosse Kopf steht oben, hier gliedert es nur.
+ *
+ * ►►► **Der Verlauf steht AN den Abschnitten, nicht als Leiste darüber** (Testnotiz
+ * #868). ◄◄◄
+ *
+ * *«Kann man diese Anzeige nicht vertikal machen und es so visuell etwas besser
+ * strukturieren – mir passt das da oben nicht.»* – Hier stand eine waagrechte
+ * Stufen-Leiste (`ModuleSteps`), die dieselben drei Wörter trug wie die drei Abschnitte
+ * darunter. Seit es keine Reiter mehr gibt (#863) versteckte sie nichts mehr; sie sagte
+ * nur noch, **wie weit** der Vorgang ist – und dafür braucht es keine zweite Zeile mit
+ * denselben Namen.
+ *
+ * **Die Abschnitte SIND die vertikale Fassung.** Sie stehen ohnehin untereinander, in
+ * derselben Reihenfolge; ihnen einen **Punkt** voranzustellen (Punkt + Wort, die Anatomie
+ * jedes Status im Haus) sagt dasselbe an der Stelle, an der man es liest. Ein Wort weniger
+ * doppelt, eine Zeile weniger Fläche.
  */
-export function ModuleSection({ title, right, children, first }: {
+export function ModuleSection({ title, state, right, children, first }: {
   /**
-   * **Leer heisst: kein Kopf.** Steht der Name des Abschnitts schon eine Zeile höher –
-   * in der Stufen-Leiste, hervorgehoben –, dann sagt eine Überschrift darunter dasselbe
-   * Wort ein zweites Mal. Ein Kopf, der nichts Neues sagt, ist Fläche.
+   * **Leer heisst: kein Kopf.** Sagt der Name nichts, was der Inhalt nicht schon sagt,
+   * ist eine Überschrift Fläche.
    */
   title?: string;
+  /** Wie weit dieser Abschnitt ist – Punkt vor der Beschriftung. Ohne Angabe: kein Punkt. */
+  state?: StepState;
   right?: ReactNode;
   /** Der erste Abschnitt schliesst direkt an die Kopf-Linie an. */
   first?: boolean;
@@ -88,7 +122,17 @@ export function ModuleSection({ title, right, children, first }: {
         <div className="flex items-center gap-2" style={{
           paddingBottom: 8, marginBottom: 12, borderBottom: '1px solid var(--border-1)',
         }}>
-          <span style={{ ...MICRO_LABEL, flex: 1, minWidth: 0 }}>{title}</span>
+          {state && (
+            <span aria-hidden className="rounded-full" style={{
+              width: 7, height: 7, flex: 'none', background: STEP_COLOR[state],
+            }} />
+          )}
+          <span style={{
+            ...MICRO_LABEL, flex: 1, minWidth: 0,
+            // **Wo man steht, ist die lauteste Zeile** – dieselbe Geste wie in der
+            // Bestandsleiste: der offene Ausschnitt tritt hervor, die übrigen bleiben da.
+            color: state === 'active' ? 'var(--fg-1)' : undefined,
+          }}>{title}</span>
           {right}
         </div>
       )}
@@ -258,103 +302,21 @@ function SegmentMark({ seg, open, dimmed, hint, onPick }: {
   );
 }
 
-/**
- * ►►► **Die Stufen eines Moduls — und wie man zwischen ihnen wechselt.** ◄◄◄
+/*
+ * ►►► **Eine Stufen-LEISTE gibt es nicht mehr** (Testnotiz #868). ◄◄◄
  *
- * Gemeldet war: *«es gibt diese drei Schritte … aber ich muss irgendwie zwischen den
- * Schritten hin- und herwechseln können oder alles auf einen Blick sehen.»*
+ * Hier stand `ModuleSteps` (+ `ModuleStep`, `ALL_STEPS`): eine waagrechte Leiste über der
+ * Karte, die jeden Schritt als Segment zeigte. Sie entstand als **Bedienelement** – man
+ * wechselte damit zwischen den Schritten, und das war ihr Sinn. Seit alles untereinander
+ * steht (#863) hatte sie keinen Handler mehr, und was blieb, war eine Zeile, die dieselben
+ * drei Wörter trug wie die drei Abschnitte darunter.
  *
- * Die frühere Fassung war eine **Kette aus Punkt und Linie**, in der alle drei Stufen
- * immer offen untereinander standen: bei einem Vorgang mit vier Buchungen war die Karte
- * zwei Bildschirme hoch, und was gerade dran war, musste man suchen. Sie sagte den
- * Verlauf – und liess ihn nicht bedienen.
+ * *«Mir passt das da oben nicht.»* – Der Verlauf steht jetzt **an** den Abschnitten
+ * (`ModuleSection state`), also dort, wo man den Namen ohnehin liest: Punkt + Wort, die
+ * Anatomie jedes Status im Haus, und von oben nach unten gelesen ist es die vertikale
+ * Fassung derselben Aussage.
  *
- * Es ist **dieselbe Leiste wie beim Bestand**, mit Stufen statt Zuständen: die Segmente
- * zeigen den Verlauf in einem Bild, die Beschriftung darunter nennt jede Stufe mit ihrer
- * einen Zahl, **und sie ist zugleich das Bedienelement**. Ein neues Modul mit Stufen
- * bekommt dieselbe Zeile, ohne eine Zeile Code dafür zu schreiben.
- *
- * ►►► **Und sie darf auch nur ZEIGEN** (Testnotiz #863). ◄◄◄
- *
- * *«Ich mag diese Reiter-Ansicht nicht, ich möchte alles auf einmal sehen untereinander.»*
- * – Ohne `onOpen` ist sie genau das: eine **Übersicht**. Die Segmente sagen weiterhin, wie
- * weit der Vorgang ist; nur versteckt die Leiste nichts mehr, also gibt es auch nichts zu
- * öffnen (und darum keinen «Alles»-Schalter, der immer an wäre).
- *
- * Das ist dieselbe Bauart wie bei `ValueBar` selbst: **ohne Handler ist alles Anzeige.**
- * Zwei Bauteile – eines zum Wechseln, eines zum Zeigen – wären zwei Fassungen derselben
- * Leiste, und die zweite bliebe beim nächsten neuen Zustand stehen.
+ * `ValueBar` bleibt, wo sie hingehört: bei einem **Anteil an einem Ganzen** (Bestand).
+ * Drei Schritte sind kein Anteil – sie waren als drei gleich breite Segmente gezeichnet,
+ * was schon sagt, dass die Breite nichts bedeutete.
  */
-export type ModuleStep = {
-  key: string;
-  label: string;
-  /**
-   * `past` – vorbei · `active` – dran · `ahead` – steht noch aus.
-   *
-   * **Bewusst nicht `done`/`open`.** Das sind die Wörter, mit denen ein *Modul* seine
-   * eigenen Stufen benennt (`DEAL_STAGE.done`) bzw. mit denen diese Leiste sagt, welcher
-   * Abschnitt gerade **offen** ist. Hier geht es um etwas Drittes: wie weit man ist. Ein
-   * Wort, das in derselben Datei zwei Dinge meint, ist die Form, in der ein Vergleich
-   * still falsch wird – und ein Wächter, der Stufen-Literale sucht, kann die beiden
-   * Bedeutungen nicht auseinanderhalten.
-   */
-  state: 'past' | 'active' | 'ahead';
-  /** Die eine Zahl dieser Stufe. Leer heisst «dazu gibt es noch nichts zu sagen». */
-  value?: string;
-  hint?: string;
-};
-
-/** Der Wert, bei dem alle Stufen offen stehen. */
-export const ALL_STEPS = 'all';
-
-const STEP_COLOR: Record<ModuleStep['state'], string> = {
-  past: 'var(--fg-2)',
-  active: 'var(--accent)',
-  ahead: 'var(--border-2)',
-};
-
-export function ModuleSteps({ steps, open, onOpen, allLabel = 'Alles' }: {
-  steps: ModuleStep[];
-  /** Die offene Stufe – oder `ALL_STEPS`. Ohne `onOpen` bedeutungslos. */
-  open?: string;
-  /** **Ohne Handler ist die Leiste eine Übersicht** – sie versteckt dann nichts (#863). */
-  onOpen?: (key: string) => void;
-  allLabel?: string;
-}) {
-  const all = open === ALL_STEPS;
-  return (
-    // Sie ist ein **Band**, kein Absatz: darüber steht, worum es geht, darunter der
-    // gewählte Schritt. Ohne die Luft oben klebte sie am letzten Eintrag des Abschnitts
-    // davor und las sich, als gehörte sie noch dazu.
-    <div style={{ margin: '14px 0 16px' }}>
-      <ValueBar
-        segments={steps.map((s) => ({
-          key: s.key, label: s.label, value: 1, color: STEP_COLOR[s.state],
-          text: s.value || undefined, hint: s.hint,
-        }))}
-        active={onOpen && !all ? open : null}
-        dim={false}
-        onPick={onOpen}
-        legendHint={onOpen && ((shown) => (shown ? 'Ist offen' : 'Diesen Schritt öffnen'))}
-        trailing={onOpen && (
-          <button type="button" aria-pressed={all}
-            data-tip={all ? 'Nur den gewählten Schritt zeigen' : 'Alle Schritte zeigen'}
-            className="flex items-center gap-1.5 text-[12.5px]"
-            style={{
-              marginLeft: 'auto',
-              color: all ? 'var(--accent-ink)' : 'var(--fg-3)',
-              borderBottom: `1px solid ${all ? 'var(--accent)' : 'transparent'}`,
-              paddingBottom: 1,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(all ? (steps.find((s) => s.state === 'active') ?? steps[0]).key
-                : ALL_STEPS);
-            }}>
-            {allLabel}
-          </button>
-        )}
-      />
-    </div>
-  );
-}

@@ -140,6 +140,26 @@ Migration.
 *Der frühere Punkt «`payments.kind` droppen» geht darin auf: die Spalte fällt mit ihrer
 Tabelle, wenn es soweit ist.*
 
+## Offen: `deals.share` (Zwei-Deploy-Regel)
+
+Die Spalte hat ihr ORM-Mapping mit **Testnotiz #867** verloren – der «Anteil», den ein
+Vorgang von den Positionen abrechnet. Er war als Komfort für die Anzahlung gedacht (das
+Gegenstück zu «eine Rechnung je Modul», #866) und ist ein Begriff zu viel: *«ich checke
+diese Funktion nicht»*. Gebraucht wird er nicht – **wer den Preis nennt, nennt ihn je
+Position**, und ein zweites Modul trägt schlicht seine eigenen Positionspreise.
+
+Sie ist `NOT NULL DEFAULT 100`, ein Insert ohne sie läuft also weiter; ihr Eintrag im
+`_COLUMN_SAFETY_NET` ist mit dem Mapping entfallen (ein Netz für eine Spalte, die kein
+Modell kennt, schützt nichts).
+
+**Erst im Folge-Deploy droppen** – im selben liefe die während des Cloud-Run-Rollouts noch
+laufende Vorgänger-Revision gegen eine Tabelle ohne sie (die Ausfallklasse von Migration
+`090`).
+
+```sql
+ALTER TABLE deals DROP COLUMN IF EXISTS share;
+```
+
 ## Offen: `deals.reference` und `deals.note` (Zwei-Deploy-Regel)
 
 Beide haben ihr ORM-Mapping in dieser Runde verloren (Testnotiz #812): niemand wusste, was

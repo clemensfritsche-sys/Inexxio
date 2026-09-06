@@ -448,15 +448,12 @@ class DealEmbed(BaseModel):
     #: sie fragt nach der **Zusage**, nicht nach dem offenen Betrag: wer nichts
     #: berechnet hat, hat null offen, und das hiesse sonst «bezahlt».
     settled: bool = False
-    # ─── Der Anteil, die Zahlungsarten und die dritte Bezahlart ──────────────────
-    #: ►►► **Welchen Teil der Positionen dieser Vorgang abrechnet** (#866) – in Prozent.
-    #:
-    #: Er ist die Voraussetzung dafür, dass «eine Rechnung je Modul» trägt: *Vorauszahlung
-    #: → Leistung → Restzahlung* sind zwei Module, beide sehen dieselben Stücke – ohne
-    #: Anteil hätte jedes die **volle** Summe zugesagt.
-    share: str = "100"
-    share_label: str = ""
-    share_hint: str = ""
+    # ─── Die Zahlungsarten und die dritte Bezahlart ──────────────────────────────
+    # ►►► **Einen «Anteil» gibt es nicht** (Testnotiz #867). ◄◄◄ Hier standen ``share``,
+    # ``share_label`` und ``share_hint`` – der Prozentsatz, den ein Vorgang von den
+    # Positionen abrechnet. Er war als Komfort für die Anzahlung gedacht und war ein
+    # Begriff zu viel; gebraucht wird er nicht: **wer den Preis nennt, nennt ihn je
+    # Position**, und ein zweites Modul trägt schlicht seine eigenen Preise.
     #: **Womit ein Mensch bezahlen kann** – bar · Überweisung. Die Karte steht nicht darin:
     #: sie kommt über den Webhook, und von Hand wäre sie eine Behauptung ohne Beleg.
     methods: list[DealMethod] = Field(default_factory=list)
@@ -538,11 +535,6 @@ class DealUpdate(BaseModel):
     #: Nur **vor der Zusage**; danach führt ``can`` das Verb nicht mehr, und ``apply``
     #: weist es ab.
     currency: Optional[str] = None
-    #: ►►► **Welchen Teil der Positionen dieser Vorgang abrechnet** (``share``, #866).
-    #: ◄◄◄ In Prozent; 100 ist der ganze Betrag. Er ist das Gegenstück zu «eine Rechnung
-    #: je Modul»: eine Anzahlung ist ein **zweites Modul** mit einem anderen Anteil, und
-    #: ohne ihn hätte jedes von beiden die volle Summe zugesagt.
-    share: Optional[str] = None
     #: ►►► **Wie bezahlt wurde** (``pay``) – bar · Überweisung (Testnotiz #865). ◄◄◄ Die
     #: **Karte** weist der Dienst ab: sie entsteht beim Zahlungsdienst und kommt über den
     #: Webhook; von Hand erfasst wäre sie eine Behauptung ohne Beleg.

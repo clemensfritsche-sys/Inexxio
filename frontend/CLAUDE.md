@@ -261,10 +261,9 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
 | Bauteil | Was es ist |
 |---|---|
 | `MODULE_CARD` · `MODULE_TITLE` | Die Fläche und der Name – dieselbe Karte wie `SPEC.card` am Datensatz, nur mit der Polsterung einer schmalen Prozessspalte. Gesetzt wird sie in `ModuleShell`, also erbt sie **jedes** Modul. |
-| `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie. **Leerer Titel = kein Kopf** – steht der Name schon in der Stufen-Leiste darüber, sagt eine Überschrift darunter dasselbe Wort ein zweites Mal. |
+| `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie – mit **Punkt davor**, wenn er sagt, wie weit er ist (`state`: `past · active · ahead`). **Leerer Titel = kein Kopf.** |
 | `ModuleMeta` | Die leise Zeile für das, was über den ganzen Vorgang gilt (Richtung, Währung, Termin, Sperre). |
 | `ValueBar` | **Ein Anteil an einem Ganzen** – Leiste, Punkt, Wort, Zahl; die Beschriftung ist zugleich das Bedienelement. |
-| `ModuleSteps` · `ALL_STEPS` | Die Stufen eines Moduls **und** der Wechsel zwischen ihnen. |
 | `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
 
 - ►►► **Die Karte ist weiss – wie jeder Datensatz im Haus.** ◄◄◄ Sie war getönt, Rahmen
@@ -279,13 +278,19 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
   offen · nicht berechnet* eines Geldvorgangs sind dieselbe Aussage mit anderen Segmenten.
   Alle Regeln von dort gelten unverändert (Beschriftung gehört zur Leiste #789, Haarlinie
   als `border` statt `gap`, kein Filter).
-- **`dim` unterscheidet die beiden Fälle.** Beim **Bestand** treten die anderen zurück –
-  das ersetzt einen Filter. Bei den **Stufen** nicht: dort trägt die Farbe den Fortschritt,
-  und gedämpft sehen «vorbei» und «steht noch aus» gleich aus (gemessen: die halbe Leiste
-  war dasselbe Blassgrau). Welche Stufe offen ist, sagt die Beschriftung ohnehin.
-- **Die Stufen-Wörter heissen `past · active · ahead`, bewusst nicht `done`/`open`:** das
+- **`dim` gilt dem Bestand**: dort treten die anderen Segmente zurück, sobald man eines
+  ansieht – das ersetzt einen Filter.
+- ►►► **Eine Stufen-LEISTE gibt es nicht** (Testnotiz #868). ◄◄◄ `ModuleSteps`/`ALL_STEPS`
+  standen hier und waren ein **Bedienelement** – man wechselte damit zwischen den
+  Schritten. Seit alles untereinander steht (#863) hatten sie keinen Handler mehr, und was
+  blieb, war eine waagrechte Zeile mit denselben Wörtern wie die Abschnitte darunter:
+  *«mir passt das da oben nicht»*. Der Verlauf steht jetzt **an** den Abschnitten
+  (`ModuleSection state`) – von oben nach unten gelesen ist das die vertikale Fassung
+  derselben Aussage. `ValueBar` bleibt beim **Anteil an einem Ganzen**; drei Schritte sind
+  keiner, und dass sie als drei **gleich breite** Segmente dastanden, sagte es bereits.
+- **Die Stand-Wörter heissen `past · active · ahead`, bewusst nicht `done`/`open`:** das
   sind die Wörter, mit denen ein *Modul* seine eigenen Stufen benennt (`DEAL_STAGE.done`)
-  bzw. die Leiste sagt, welcher Abschnitt **offen** ist. Ein Wort, das in derselben Datei
+  bzw. eine Leiste sagt, welcher Abschnitt **offen** ist. Ein Wort, das in derselben Datei
   zwei Dinge meint, ist die Form, in der ein Vergleich still falsch wird.
 
 ## Zahlung (`components/erp/deal-work.tsx`)
@@ -300,22 +305,17 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Missverständnis – ein **Zustand** in einer Reihe von **Schritten**. Der dritte Schritt ist
   das **Geld**: eine Zahlung macht aus einem Angebot keine Zusage, sie ist reversibel, und
   sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach. Er steht dort, wo man
-  ihn erwartet, und ist ab der Zusage bedienbar. Die Schlüssel dafür kommen aus
-  `DEAL_STAGE`; **`MONEY` bewusst nicht** – es ist keine Stufe.
-- ►►► **Man wechselt zwischen den Schritten – oder sieht alles auf einmal.** ◄◄◄
-  Gemeldet war genau das: *«es gibt diese drei Schritte … aber ich muss irgendwie zwischen
-  den Schritten hin- und herwechseln können oder alles auf einen Blick sehen.»* Die
-  frühere Kette aus Punkt und Linie sagte den Verlauf und **liess ihn nicht bedienen**:
-  alle drei standen immer offen untereinander, bei vier Buchungen war die Karte zwei
-  Bildschirme hoch, und was gerade dran war, musste man suchen.
-  **Die Antwort ist EIN Zustand, kein zweiter Mechanismus** (`ModuleSteps`): er trägt den
-  Schlüssel eines Schritts **oder** `ALL_STEPS`. Wer arbeitet, sieht einen; wer
-  vergleicht, klappt alles auf. **Vorgewählt ist, wo gearbeitet wird** – vor der Zusage
-  das Angebot, danach das Geld (der bestätigte Auftrag ist ein Beleg, an dem man nichts
-  tut); nachgezogen wird beim **Wechsel** des Zustands, nicht bei jedem Rendern, also
-  bleibt, wer selbst umschaltet, dort (dieselbe Bauart wie `defaultOpen`, #727).
-- **Es ist die Leiste des Bestands, mit Stufen statt Zuständen** – ein neues Modul mit
-  Schritten bekommt sie, ohne eine Zeile dafür zu schreiben.
+  ihn erwartet, und ist ab der Zusage bedienbar. Das Geld trägt darum auch **keinen
+  eigenen Schlüssel** mehr: der Abschnitt nennt sich über `d.money_label` vom Server.
+- ►►► **Der Verlauf steht AN den Abschnitten** (Testnotiz #868). ◄◄◄ *«Kann man diese
+  Anzeige nicht vertikal machen und es so visuell etwas besser strukturieren – mir passt
+  das da oben nicht.»* Über der Karte stand eine waagrechte Stufen-Leiste. Sie entstand als
+  **Bedienelement** (#863 nahm ihr den Handler), und was blieb, war eine Zeile mit
+  denselben drei Wörtern wie die Abschnitte darunter. **Die Abschnitte SIND die vertikale
+  Fassung**: ein Punkt vor der Überschrift (`ModuleSection state`) sagt dasselbe an der
+  Stelle, an der man den Namen ohnehin liest – vorbei (dunkel) · dran (Akzent) · steht noch
+  aus (Haarlinie). Damit sind `ModuleSteps`, `ALL_STEPS`, die drei Schlüssel (`OFFER`,
+  `AGREED`, `MONEY`) und `moneyValue` entfallen.
 - **Der Angebotsspiegel ist der Kern der ersten Zeile** (`quotes`): je angefragter
   Gegenpartei eine Zeile mit Preis, Lieferfrist und Zahlungsfrist. **Wo niemand zugelassen
   ist, wird gesucht** (`ObjectSelect` + `api.searchDealParties`); wo genau einer steht, gibt
@@ -563,11 +563,11 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
 - ►►► **Keine Reiter — alles untereinander** (Testnotiz #863). ◄◄◄ *«Ich mag diese
   Reiter-Ansicht nicht, ich möchte alles auf einmal sehen untereinander.»* Und die Meldung
   hat recht, weil der Vorgang **einer** ist: das Angebot erklärt die Zusage, die Zusage
-  erklärt die Rechnung. `open`/`setOpen`/`shows`/`ALL_STEPS` sind entfallen; die
-  **Leiste bleibt als Übersicht** (`ModuleSteps` ohne `onOpen` – dieselbe Bauart wie
-  `ValueBar`: ohne Handler ist alles Anzeige). *Die Sorge aus der Vorrunde («bei vier
-  Buchungen zwei Bildschirme hoch») bleibt richtig – sie ist eine Frage der **Dichte**,
-  nicht des Versteckens, und die drei Antworten darauf stehen unten.*
+  erklärt die Rechnung. `open`/`setOpen`/`shows` sind entfallen; die Leiste blieb eine
+  Runde lang als **Übersicht** ohne Handler und ist mit #868 ebenfalls gegangen – der
+  Verlauf steht jetzt an den Abschnitten. *Die Sorge aus der Vorrunde («bei vier Buchungen
+  zwei Bildschirme hoch») bleibt richtig – sie ist eine Frage der **Dichte**, nicht des
+  Versteckens, und die drei Antworten darauf stehen unten.*
 - ►►► **EINE Positionstabelle** (#862). ◄◄◄ *«Der Positions-Abschnitt ist doppelt.»* – Er
   war es: `Goods` sagte, worum es geht, und `OurOffer` zeigte dieselben Zeilen noch einmal
   mit Eingabefeldern (und **weniger**: kein Chevron, keine Spezifikation). Jetzt ist es
@@ -596,12 +596,32 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Wo es keinen Code geben kann, steht der **Grund** statt einer leeren Fläche.
 - **Wie bezahlt wurde, ist ein `Segmented`** (`d.methods`) – zwei Werte sind ein Schieber,
   keine Auswahlliste; die **Karte** steht nicht darin (sie kommt über den Webhook).
-- ►►► **Währung und Anteil stehen im ANGEBOT** (#864/#866). ◄◄◄ Beides sind
-  **Entscheidungen** über das, was gleich hinausgeht – ein Auswahlfeld zwischen lauter
-  Auskünften (der Meta-Zeile) liest sich wie eine. Und beide hängen an **`can`**, nicht an
-  einem zweiten Feld: `share_locked`/`currency_locked` sind entfallen – gemessen gab
-  Ersteres einer **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie
-  abnimmt. Was feststeht, steht als Wert da (`Fixed`), nicht als gesperrtes Feld (#749).
+- ►►► **Die Währung steht im ANGEBOT** (#864). ◄◄◄ Sie ist eine **Entscheidung** über das,
+  was gleich hinausgeht – ein Auswahlfeld zwischen lauter Auskünften (der Meta-Zeile) liest
+  sich wie eine. Sie hängt an **`can`**, nicht an einem zweiten Feld (`currency_locked` ist
+  entfallen); was feststeht, steht als Wert da (`Fixed`), nicht als gesperrtes Feld (#749).
+  **Und ihre Beschriftung trägt den Code schon** (#869): `currency.label` liefert «CHF ·
+  Schweizer Franken» – der Code davor ergab «CHF · CHF · Schweizer Franken». Das Feld ist
+  so breit, dass der Name lesbar bleibt; ein natives Auswahlfeld zeigt geschlossen genau
+  den Text der gewählten Zeile.
+- ►►► **Einen «Anteil» gibt es nicht** (#867). ◄◄◄ Er stand daneben – eine Prozentzahl, die
+  sagte, welchen Teil der Positionen dieser Vorgang abrechnet. *«Ich checke diese Funktion
+  nicht»*, und gebraucht wird sie nicht: **wer den Preis nennt, nennt ihn je Position**,
+  also trägt ein zweites Modul schlicht seine eigenen Positionspreise.
+- ►►► **Der Status steht an der RECHNUNG, nicht als Leiste darüber** (#875). ◄◄◄ `MoneyBar`
+  war richtig, solange ein Vorgang mehrere Rechnungen tragen konnte; seit #866 gibt es je
+  Modul **eine** – die Leiste fasste damit eine Zeile zusammen, die direkt darunter stand.
+  Übrig bleibt **Punkt + Wort** an der Zeile (*Bezahlt · Offen · Überfällig · Überzahlt*),
+  **abgeleitet** aus `e.open`/`e.overdue`. Und die **Beleg-Nummer wird dabei nicht bis zur
+  Unkenntlichkeit gekappt** («100…»): sie schrumpft nur bis `REF_MIN`, darunter bricht die
+  Zeile um – dieselbe Lehre wie bei der Positionszeile (#847).
+- ►►► **Zwei Knöpfe sind gefallen** (#874). ◄◄◄ «Gutschrift erfassen» am Vorgang trug
+  dasselbe Wort wie die Gutschrift **an der Rechnung** und tat etwas anderes (eine
+  freistehende negative Forderung ohne Bezug, die in der Liste als zweite Rechnung
+  erschien); «Zahlung erfassen» am Vorgang war **unerreichbar** (`can` führt `pay` erst mit
+  einer gebuchten Forderung). **Und «Auftrag stornieren» ist keine Buchung**: es stand
+  zwischen den beiden und steht jetzt am **Ende der Karte**, neben dem Abschluss – die eine
+  bringt den Vorgang ans Ziel, die andere nimmt ihn zurück.
 
 ## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das

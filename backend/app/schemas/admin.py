@@ -65,7 +65,19 @@ class CompanySettingsResponse(BaseModel):
     currency: str = "CHF"
     uid_number: Optional[str]
     vat_number: Optional[str]
-    iban_masked: Optional[str] = None
+    # ►►► **Die eigene IBAN steht ausgeschrieben da** (Testnotiz #870). ◄◄◄
+    #
+    # Hier stand ``iban_masked`` («CH12 **** **** **** 8901»), und das Feld im Browser
+    # blieb **leer** – die echte Nummer kam nie zurück. Damit sah ein Unternehmen **mit**
+    # Bankverbindung aus wie eines ohne, und wer die QR-Rechnung sah, musste glauben, das
+    # System habe sie erfunden: *«das System darf nicht auf einmal aus dem Nichts
+    # Bankverbindungen zaubern»*.
+    #
+    # **Sie ist kein Geheimnis.** Sie steht auf jeder Rechnung, die wir stellen, und im
+    # QR-Code, den wir dem Zahlenden hinlegen – gegenüber genau den Personen, die sie hier
+    # sehen (Admin). Maskiert wird, was der Empfänger nicht sehen **soll**; hier war es
+    # das, was er sehen **muss**, um zu prüfen, ob es stimmt.
+    iban: Optional[str] = None
     email: str
     phone: Optional[str]
     # **Abgeleitet, nicht gepflegt** (Testnotiz #309): die Adresse, unter der diese

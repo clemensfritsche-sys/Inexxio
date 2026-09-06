@@ -2677,15 +2677,19 @@ def test_a_module_has_at_most_one_live_invoice():
         db.rollback(); db.close()
 
 
-def test_two_modules_split_the_amount_by_share():
-    """►►► **Der Anteil ist das Gegenstück zu «eine Rechnung je Modul»** (#866). ◄◄◄
+def test_two_modules_price_their_own_positions():
+    """►►► **Anzahlung und Restzahlung sind zwei Module — und je Modul EIN Preis** (#867).
 
-    Anzahlung und Restzahlung sind **zwei Module** – und beide sehen dieselben Stücke,
-    also dieselben Positionen. Ohne Anteil sagte jedes die **volle** Summe zu: zusammen
-    das Doppelte, und «erst zahlen» (`settled`) ginge bei der Anzahlung nie auf.
+    *«Ich checke diese Funktion nicht.»* – Hier stand ein `share`: eine Prozentzahl je
+    Vorgang, gedacht als Gegenstück zu «eine Rechnung je Modul» (#866). Sie ist entfallen,
+    und die Aufteilung braucht sie nicht: **wer den Preis nennt, nennt ihn je Position**,
+    also trägt die Anzahlung ihre eigenen Positionspreise und die Restzahlung ihre.
 
-    Bug-Formen: (a) der Anteil wirkt nicht auf den Angebotsbetrag; (b) er ist nach der
-    Zusage noch änderbar – dann steht draussen eine Zusage über eine andere Zahl.
+    Das ist zugleich die genauere Antwort – ein Prozentsatz auf eine Summe verteilt sich
+    über alle Steuersätze, ein Preis je Position sagt, was er meint.
+
+    Bug-Formen: (a) die beiden Vorgänge teilen sich eine Zahl (dann wäre der Preis eine
+    Eigenschaft des Auftrags statt des Angebots); (b) `share` ist zurück.
     """
     from fastapi import HTTPException
     from app.services import deal as svc
@@ -2698,34 +2702,28 @@ def test_two_modules_split_the_amount_by_share():
         anzahlung, rest = rows[0], rows[1]
         staff = _staff(db)
 
-        svc.apply(db, order=order, step=anzahlung, action="share",
-                  payload={"share": "30"}, actor=staff)
-        db.flush()
-        for step in (anzahlung, rest):
+        # 2 Stück – 150.00 je Stück als Anzahlung, 350.00 als Restzahlung.
+        for step, price in ((anzahlung, "150.00"), (rest, "350.00")):
             svc.apply(db, order=order, step=step, action="ask", payload={
                 "parties": [kunde.object_id], "lead_days": 5, "payment_days": 30,
-                "lines": [{"article": art.id, "price": "500.00", "vat": "0.00"}],
+                "lines": [{"article": art.id, "price": price, "vat": "0.00"}],
             }, actor=staff)
         db.flush()
-        # 2 Stück × 500.00, 0 % – der eine nimmt 30 %, der andere alles.
         part = svc.of_step(db, anzahlung.id)
         full = svc.of_step(db, rest.id)
-        assert part.quotes[0]["amount"] == "300.00", (
-            f"Der Anteil wirkt nicht (a): {part.quotes[0]['amount']}"
+        assert (part.quotes[0]["amount"], full.quotes[0]["amount"]) == ("300.00", "700.00"), (
+            f"Die beiden Vorgänge tragen nicht ihre eigenen Preise (a): "
+            f"{part.quotes[0]['amount']} / {full.quotes[0]['amount']}"
         )
-        assert full.quotes[0]["amount"] == "1000.00"
 
-        # (b) **Ab der Zusage gebunden** – dieselbe Tabelle, die auch der Knopf liest.
-        svc.apply(db, order=order, step=anzahlung, action="agree",
-                  payload={"party": kunde.object_id}, actor=staff)
-        db.flush()
-        assert "share" not in svc.can(db, svc.of_step(db, anzahlung.id), staff)
+        # (b) **Den Anteil gibt es nicht mehr** – weder als Verb noch als Feld.
+        assert "share" not in svc.can(db, part, staff)
+        assert not hasattr(part, "share"), "Die Spalte ist wieder am Modell (b)."
         with pytest.raises(HTTPException) as e:
             svc.apply(db, order=order, step=anzahlung, action="share",
                       payload={"share": "50"}, actor=staff)
-        assert e.value.status_code == 409, (
-            "Der Anteil lässt sich nach der Zusage ändern (b) – draussen liegt dann eine "
-            "Zusage über eine andere Zahl."
+        assert e.value.status_code in (400, 409), (
+            "Der Anteil ist als Handlung zurück (b) – der Preis steht an der Position."
         )
     finally:
         db.rollback(); db.close()
@@ -2865,6 +2863,53 @@ def test_a_transfer_is_information_not_a_booking():
         assert qrbill.problem(iban=iban, currency=code, amount=Decimal("10")), (
             f"«{why}» liefert trotzdem einen Code (c)."
         )
+
+
+def test_the_qr_takes_its_size_from_where_it_stands():
+    """►►► **Wie gross der Code ist, entscheidet die Stelle, an der er steht** (#872).
+
+    *«Der QR-Code ist sehr aussermittig – schaut total beschissen aus.»* Er trug eine
+    feste Kantenlänge (`size = 240`) und stand in einem 168 px breiten Kasten: 72 px zu
+    breit, also ragte er heraus und sass sichtbar ausser der Mitte. Eine zweite Zahl im
+    Backend, die zur Breite im Browser passen muss, geht beim ersten Umbau auseinander.
+
+    **Und die Ruhezone gehört zum Code**, nicht zum Layout drumherum: vier Module ringsum
+    (ISO/IEC 18004) – ohne sie liest ihn eine App auf farbigem Grund nicht mehr. In der
+    `viewBox`, damit sie mitskaliert; als Polsterung im Browser wäre sie die zweite
+    Stelle, an der jemand sie wegoptimiert.
+
+    Bug-Formen: (a) eine feste Kantenlänge ist zurück; (b) die Ruhezone fehlt; (c) das
+    Bild ist ein Inline-Element – dann steht unter ihm die Grundlinien-Lücke, und es sitzt
+    wieder nicht mittig.
+    """
+    import inspect
+    from app.services import qrbill
+
+    assert "size" not in inspect.signature(qrbill.svg).parameters, (
+        "Der Code trägt wieder eine feste Kantenlänge (a) – zwei Zahlen für eine Breite."
+    )
+    code = qrbill.svg("SPC\n0200\n1")
+    flat = code.replace(" ", "")
+    assert "width:100%" in flat and "height:auto" in flat, (
+        "Er füllt seinen Kasten nicht (a) – dann entscheidet wieder eine Zahl im Backend "
+        "über eine Breite im Browser."
+    )
+    assert 'width="' not in code.split(">")[0], (
+        "Die feste Kantenlänge steht wieder am Bild (a)."
+    )
+    assert "display:block" in flat, (
+        "Er ist ein Inline-Element (c) – darunter steht dann die Grundlinien-Lücke."
+    )
+    # (b) **Die Ruhezone** – die `viewBox` beginnt vier Module im Negativen und ist um
+    # acht grösser als die Matrix (quadratisch, sonst verzerrt `height:auto`).
+    box = re.search(r'viewBox="(-?\d+) (-?\d+) (\d+) (\d+)"', code)
+    assert box, "Ohne `viewBox` skaliert gar nichts."
+    x, y, w, h = (int(g) for g in box.groups())
+    assert (x, y) == (-4, -4), (
+        f"Die Ruhezone misst {-x} statt vier Module (b) – ein Code ohne Rand ist einer, "
+        f"den manche App nicht mehr liest."
+    )
+    assert w == h, "Das Bild ist nicht mehr quadratisch – `height:auto` verzerrte es."
 
 
 def test_a_refund_is_bounded_and_says_so_in_a_sentence():

@@ -307,59 +307,20 @@ def prepaid(due_days: Optional[int]) -> bool:
 # Betrag auf derselben Achse. Sie bleibt darum jederzeit möglich – Skonto, Teilretoure,
 # Kulanz. Die Regel sperrt genau eine Sache: eine **zweite positive Forderung**.
 #
-# ► **Und ohne den Anteil wäre der Zwei-Modul-Weg nur scheinbar gangbar.** Beide Module
-#   sehen dieselben Stücke, also dieselben Positionen – ein Anzahlungs-Modul hätte damit
-#   die **volle** Summe zugesagt, und «erst zahlen» ginge nie auf (``Balance.settled``
-#   fragt nach der Zusage). Der Anteil sagt, welchen Teil der Positionen *dieser* Vorgang
-#   abrechnet; die Positionspreise bleiben die wahren, und auf dem Beleg steht
-#   «Anzahlung 30 %».
-
-#: Der ganze Betrag – die Vorgabe, und der Normalfall.
-FULL_SHARE = Decimal("100")
-
-SHARE_LABEL = "Anteil"
-SHARE_HINT = ("Welcher Teil der Positionen wird hier abgerechnet? "
-              "100 % ist der ganze Betrag; 30 % ist die Anzahlung, deren Rest ein "
-              "zweites Zahlungs-Modul abrechnet.")
-
-
-def assert_share(value: Any) -> Decimal:
-    """**Ein Anteil in Prozent** – grösser als null, höchstens hundert.
-
-    Null wäre ein Vorgang über nichts, und über hundert Prozent verkauft niemand mehr,
-    als er hat: beides ist ein Tippfehler, und ein Tippfehler in einer Zusage ist teuer.
-    """
-    try:
-        share = Decimal(str(value)).quantize(Decimal("0.001"))
-    except (ArithmeticError, TypeError, ValueError):
-        raise ValueError(f"«{value}» ist kein Anteil.")
-    if not Decimal("0") < share <= FULL_SHARE:
-        raise ValueError("Ein Anteil liegt zwischen 0 und 100 Prozent.")
-    return share
-
-
-def share_text(value: Any) -> str:
-    """**Der Anteil, wie man ihn schreibt** – ohne die Nullen, die niemand tippt.
-
-    Gespeichert ist er auf drei Stellen genau (ein Drittel ist 33.333 %), angezeigt wird
-    er so kurz wie möglich: «100», nicht «100.000». Eine Zahl, die genauer aussieht, als
-    jemand sie gemeint hat, lädt dazu ein, sie für eine Angabe zu halten.
-    """
-    share = Decimal(str(value)) if value is not None else FULL_SHARE
-    return format(share.normalize(), "f")
-
-
-def share_of(total: Decimal, share: Optional[Decimal]) -> Decimal:
-    """Der Teil einer Summe – **die eine Rechenstelle**.
-
-    Ohne Angabe ist es der ganze Betrag: ein Vorgang ohne Anteil rechnet alles ab, und
-    das ist der Normalfall, den niemand einstellen soll.
-    """
-    if share is None or share == FULL_SHARE:
-        return total
-    return total * share / FULL_SHARE
-
-
+# ► ►►► **Und einen «Anteil» gibt es dafür NICHT** (Testnotiz #867). ◄◄◄
+#
+#   Hier stand `deals.share` – eine Prozentzahl, die sagte, welchen Teil der Positionen
+#   *dieser* Vorgang abrechnet. Sie war als Komfort für die Anzahlung gedacht und war
+#   **ein Begriff zu viel**: *«ich checke diese Funktion nicht»*.
+#
+#   Sie wird auch nicht gebraucht. **Wer den Preis nennt, nennt ihn je Position** – in
+#   einem Anzahlungs-Modul tippt man dort schlicht den Teilbetrag, den man verlangt. Das
+#   ist dieselbe Zahl, nur ohne eine zweite Rechenregel dahinter, und der Beleg sagt
+#   danach die Wahrheit: er lautet auf das, was gefordert wird.
+#
+#   *Der Preis dafür ist ehrlich: der Zusammenhang «30 % von …» steht nirgends mehr
+#   geschrieben. Er stand aber ohnehin nur im Anteil, nicht auf dem Beleg – und ein
+#   Prozentsatz, den niemand versteht, ist keine Dokumentation.*
 # ---------------------------------------------------------------------------
 # ►►► WIE BEZAHLT WURDE — drei Wege, und nur zwei tippt ein Mensch ◄◄◄
 # ---------------------------------------------------------------------------
@@ -431,8 +392,12 @@ def assert_method(value: Any) -> Optional[str]:
 # aussieht; ein einziges Wort für beide wäre an der Hälfte der Belege falsch.
 STORNO_WORD = "Stornieren"
 CREDIT_WORD = "Gutschrift"
-#: Der Knopf, wo eine Rechnung schon steht: dann ist die nächste Zeile eine Minderung.
-CREDIT_ENTRY_WORD = "Gutschrift erfassen"
+# ►►► **Ein zweites «Gutschrift» gibt es nicht** (Testnotiz #874). ◄◄◄ Hier stand
+#   ``CREDIT_ENTRY_WORD = "Gutschrift erfassen"`` – der Knopf am **Vorgang**, sobald die
+#   eine Rechnung stand. Er trug dasselbe Wort wie die Gutschrift **an der Rechnung**
+#   (``reverse_word``) und tat etwas anderes: eine freistehende negative Forderung ohne
+#   Bezug auf einen Beleg. Zwei gleich benannte Knöpfe mit zwei Wirkungen sind die Form,
+#   in der man den falschen drückt.
 #: Geld zurück – von Hand (bar, Überweisung) …
 REFUND_WORD = "Erstattung erfassen"
 #: … und über den Zahlungsdienst, der die Karte belastet hat.

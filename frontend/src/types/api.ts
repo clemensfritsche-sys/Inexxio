@@ -1702,8 +1702,8 @@ export interface components {
             uid_number: string | null;
             /** Vat Number */
             vat_number: string | null;
-            /** Iban Masked */
-            iban_masked?: string | null;
+            /** Iban */
+            iban?: string | null;
             /** Email */
             email: string;
             /** Phone */
@@ -1989,21 +1989,6 @@ export interface components {
              * @default false
              */
             settled: boolean;
-            /**
-             * Share
-             * @default 100
-             */
-            share: string;
-            /**
-             * Share Label
-             * @default
-             */
-            share_label: string;
-            /**
-             * Share Hint
-             * @default
-             */
-            share_hint: string;
             /** Methods */
             methods?: components["schemas"]["DealMethod"][];
             /**
@@ -2310,8 +2295,6 @@ export interface components {
             service_date?: string | null;
             /** Currency */
             currency?: string | null;
-            /** Share */
-            share?: string | null;
             /** Method */
             method?: string | null;
         };

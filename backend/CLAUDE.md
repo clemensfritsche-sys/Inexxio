@@ -560,16 +560,21 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > die **stornierte** Zeile (genau das ist der Ausweg – storniert und neu gestellt), nicht
 > die **Gutschrift** (negativ = Minderung, keine zweite Rechnung). Damit ist die Regel
 > **keine Sackgasse**: sie verbietet die zweite *offene* Forderung, nicht den zweiten
-> Vorgang. `charge_word` wird zu «Gutschrift erfassen», `next_charge` fällt weg.
+> Vorgang. Steht die Rechnung, **fehlt der Knopf** (`credit_only`), und `next_charge` fällt
+> mit ihm weg.
 > **Und das System wurde kleiner**: `_charge_for_payment` hatte drei Fälle, darunter
 > «mehrere offene → die Zahlung muss sagen, welche» – der Ast ist **unerreichbar**
 > geworden und ist entfallen (ein Ast, den niemand erreicht, ist von einem kaputten nicht
 > zu unterscheiden), mit ihm `DealEmbed.open_invoices`.
-> **Der Anteil ist das Gegenstück** (`deals.share`, Prozent, Vorgabe 100): zwei Module
-> sehen dieselben Stücke, also dieselben Positionen – ohne ihn hätte jedes die **volle**
-> Summe zugesagt, und `Balance.settled` ginge bei der Anzahlung nie auf. **Gebunden wie
-> die Währung**, und aus demselben Grund: beides steht in `ACTIONS[OFFER]`, der Knopf fehlt
-> danach von selbst und `apply` weist ab.
+> ►►► **Einen «Anteil» gibt es NICHT** (Testnotiz #867). ◄◄◄ Hier stand `deals.share`
+> (Prozent, Vorgabe 100) als Gegenstück zur Zwei-Modul-Form. Er ist **ersatzlos entfallen**
+> – *«ich checke diese Funktion nicht»* –, und die Aufteilung braucht ihn nicht: **wer den
+> Preis nennt, nennt ihn je Position**, also trägt die Anzahlung ihre eigenen
+> Positionspreise und die Restzahlung ihre. Das ist zugleich die genauere Antwort – ein
+> Prozentsatz auf eine Summe verteilt sich über alle Steuersätze, ein Preis je Position
+> sagt, was er meint. Weg sind Vokabel (`FULL_SHARE`, `assert_share`, `share_of`), Verb,
+> Modell-Mapping, drei `DealEmbed`-Felder und der Netz-Eintrag; die **Spalte** fällt im
+> Folge-Deploy (`docs/backlog.md`).
 > ►►► **Ein zweites Feld «gesperrt?» gibt es nicht mehr.** ◄◄◄ `currency_locked` hatte
 > **keinen** Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben gab
 > einer **Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt
@@ -603,6 +608,34 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **jede Bug-Form gegengeprüft**; *drei waren dabei stumpf und liessen ihre eigene durch*
 > (zweimal war eine Zeichenkette an zwei Stellen im Rumpf, einmal las ein Wächter Zeilen
 > der **rohen** Datei und zählte einen Kommentar als Abstand mit).
+> ►►► **Und zwei Knöpfe sind gefallen** (Testnotiz #874). ◄◄◄ **«Gutschrift erfassen»** am
+> Vorgang trug dasselbe Wort wie die Gutschrift **an der Rechnung** (`reverse_word`) und tat
+> etwas anderes: eine freistehende negative Forderung ohne Bezug auf einen Beleg, die in der
+> Liste als zweite Rechnung erschien. Was für eine Korrektur vorgesehen ist, steht im
+> Fehlersatz von `_charge` selbst – **stornieren und neu stellen**; `dm.CREDIT_ENTRY_WORD`
+> ist damit entfallen, `charge_word` ist wieder eine Angabe der Richtung.
+> **«Zahlung erfassen»** am Vorgang war **unerreichbar** (`can` führt `pay` erst mit einer
+> gebuchten Forderung, #822).
+
+> ►►► **Die eigene IBAN wird nicht maskiert** (Testnotiz #870). ◄◄◄
+> `_mask_iban`/`CompanySettingsResponse.iban_masked` sind entfallen; die Antwort trägt
+> `iban` (aus `company.iban_encrypted`). Sie kam maskiert zurück und stand im Browser als
+> **Platzhalter** – also genau dort, wo eine Oberfläche sagt «hier ist nichts»: ein
+> Unternehmen **mit** Bankverbindung sah aus wie eines ohne, und der QR-Einzahlungsschein
+> daneben wie erfunden. **Sie ist kein Geheimnis** – sie steht auf jeder Rechnung, die wir
+> stellen, und im QR-Code, den wir dem Zahlenden hinlegen; maskiert wird, was der Empfänger
+> nicht sehen *soll*, hier war es das, was er sehen *muss*. *Der Spaltenname
+> `iban_encrypted` bleibt und lügt: verschlüsselt wird dort nichts – eine Umbenennung ist
+> eine Migration.* Wächter: `test_sites.test_our_own_bank_account_is_not_masked`.
+
+> ►►► **Der QR nimmt seine Grösse von der Stelle, an der er steht** (Testnotiz #872).◄◄◄
+> `qrbill.svg` trug eine feste Kantenlänge (`size = 240`) und stand in einem 168 px breiten
+> Kasten – 72 px zu breit, also ragte er heraus und sass sichtbar ausser der Mitte. Das Bild
+> nennt jetzt nur noch sein **Seitenverhältnis** (`viewBox`) und füllt seinen Kasten
+> (`display:block;width:100%;height:auto`); eine zweite Zahl im Backend, die zur Breite im
+> Browser passen muss, geht beim ersten Umbau auseinander. **Die Ruhezone gehört zum Code**:
+> vier Module ringsum (ISO/IEC 18004) in der `viewBox`, damit sie mitskaliert – als
+> Polsterung im Browser wäre sie die zweite Stelle, an der jemand sie wegoptimiert.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

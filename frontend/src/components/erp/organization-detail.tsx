@@ -158,7 +158,11 @@ function buildForm(s: CompanySettings): OrgForm {
     vat_number: s.vat_number ?? '',
     email: s.email ?? '',
     phone: s.phone ?? '',
-    iban: '',                                  // die echte IBAN kommt nie zurück (maskiert)
+    // ►►► **Die IBAN steht im Feld, wie jede andere Angabe** (Testnotiz #870). ◄◄◄
+    // Sie kam einmal maskiert zurück und stand darum hier als `''`: ein Unternehmen **mit**
+    // Bankverbindung sah aus wie eines ohne – und die QR-Rechnung daneben wie aus dem
+    // Nichts gezaubert. Ein leeres Feld heisst jetzt wieder: da ist nichts.
+    iban: s.iban ?? '',
   };
 }
 
@@ -241,9 +245,10 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         uid: nn(v.uid), vat_number: nn(v.vat_number),
         email: v.email, phone: nn(v.phone),
       };
-      // Die IBAN wird nur gesendet, wenn sie neu eingegeben wurde (sonst überschriebe der
-      // maskierte Platzhalter die echte Nummer).
-      if (v.iban.trim()) data.iban = v.iban.trim();
+      // **Sie wird gesendet wie jede andere Angabe** (#870) – auch leer. Der frühere
+      // «nur wenn neu eingegeben»-Vorbehalt war die Folge der Maskierung: er hätte ein
+      // absichtliches Löschen stillschweigend verschluckt.
+      data.iban = nn(v.iban);
       const updated = await api.updateCompany(record.object_id, data);
       setBase(updated);
       onSaved(updated);
@@ -487,12 +492,19 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           </Card>
 
           {/* ── 4. Bankverbindung ────────────────────────────────────────────── */}
-          {/* EINE Zahl: die IBAN trägt Land, Bank und Konto. QR-IBAN (die QR-Rechnung ist
-              nicht gebaut), Bankname und BIC waren Abschriften daraus (#313). */}
+          {/* EINE Zahl: die IBAN trägt Land, Bank und Konto. Bankname und BIC waren
+              Abschriften daraus (#313); die **QR-Rechnung** gibt es inzwischen, und sie
+              liest genau dieses Feld (`services/qrbill`). */}
+          {/* ►►► **Was gespeichert ist, steht im Feld** (#870). ◄◄◄ Der maskierte Wert
+              stand als **Platzhalter** da – also genau dort, wo eine Oberfläche sagt
+              «hier ist nichts». Wer die IBAN eingetragen hatte, sah ein leeres
+              Pflichtfeld; wer die QR-Rechnung sah, musste glauben, das System habe die
+              Bankverbindung erfunden. Jetzt trägt das Feld den Wert, der Platzhalter ist
+              wieder ein Beispiel, und «Pflicht» hängt nicht mehr an ihm. */}
           <Card title="Bankverbindung">
             <AField label="IBAN" value={form.iban} onChange={str('iban')}
-              placeholder={base.iban_masked ?? 'CH00 0000 0000 0000 0000 0'}
-              required={!base.iban_masked} onEnter={saveNow} />
+              placeholder="CH00 0000 0000 0000 0000 0"
+              required onEnter={saveNow} />
           </Card>
 
           {/* ── 5. Gebiete (Weltkarte) ───────────────────────────────────────── */}
