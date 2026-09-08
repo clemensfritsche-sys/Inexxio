@@ -1429,6 +1429,71 @@ def billing_of(db: Session, deal: Deal) -> dict[str, Any]:
     }
 
 
+def document_head(db: Session, row: Deal, *, won: bool) -> dict[str, Any]:
+    """►►► **Wer stellt den Beleg, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
+
+    Eine Rechnung ist erst eine, wenn sie **beide Seiten** nennt: Name und Ort, wie im
+    Geschäftsverkehr aufgetreten, und die **UID mit dem Zusatz MWST** dessen, der sie
+    stellt – ohne ihn kann dem Empfänger der Vorsteuerabzug verweigert werden.
+
+    ►►► **Neu ist hier nichts als die ZUORDNUNG.** ◄◄◄ Beide Seiten stehen längst da:
+    **uns** kennt ``sites.find_operator``, den **Partner** kennt ``billing_of`` –
+    dieselbe Auskunft, aus der der Einzahlungsschein seinen Schuldner nimmt. Es gibt
+    darum keine zweite Adressenlogik und kein neues Feld.
+
+    **Welche Seite welche Rolle hat, sagt die Richtung** – und zwar über die Angabe, die
+    es schon gibt: ``Direction.collects`` («fliesst das Geld zu uns?»). Wo es zu uns
+    fliesst, sind **wir** der Lieferant; bei einer Ausgabe ist es der Partner. Ein
+    zweites Feld «wer fakturiert» wäre dieselbe Aussage ein zweites Mal – und die beiden
+    gerieten beim ersten Vorgang in Widerspruch, in dem jemand nur eine davon setzt.
+
+    **Was fehlt, wird nicht erfunden**: eine Seite ohne hinterlegte Anschrift trägt
+    ``address = None``, eine ohne UID ``uid = None``. Die Oberfläche sagt dann klein an
+    der Stelle, was fehlt – eine erfundene Zeile wäre auf einem Beleg schlimmer als eine
+    leere.
+
+    ►►► **Und die Gegenseite hängt an ``won`` – wie jede andere Angabe über sie.** ◄◄◄
+    Wer nicht den Zuschlag hat, sieht **uns** (das steht auf jeder Rechnung, die wir
+    stellen) und eine **leere** Gegenseite: der Name des Konkurrenten stünde sonst im
+    Belegkopf, während er zwei Zeilen weiter oben ausgeblendet ist. Ein bestehender
+    Wächter hat genau das gefunden.
+    """
+    flow = dm.of(row.direction)
+    company = sites.find_operator(db)
+    who = billing_of(db, row) if won else {}
+    seat = who.get("address") or {}
+    seat_ours = address.of_company(company) if company is not None else None
+    ours = {
+        "object_id": getattr(company, "object_id", None),
+        "name": getattr(company, "company_name", "") or "",
+        # **Eine Adresse ohne Ort ist keine.** ``of_company`` liefert immer ein Gerüst
+        # (leere Strasse wird zu «—»); ``has_content`` fragt, ob wirklich etwas drinsteht –
+        # sonst stünde auf dem Beleg ein Gedankenstrich, wo eine Anschrift hingehört.
+        "address": address.lines(seat_ours) if address.has_content(seat_ours) else [],
+        # **Die MWST-Nummer geht vor der blossen UID** – auf dem Beleg zählt die, die den
+        # Vorsteuerabzug trägt; ohne sie steht die UID immer noch besser da als nichts.
+        "uid": getattr(company, "vat_number", None) or getattr(company, "uid_number", None),
+    }
+    theirs = {
+        "object_id": row.party_id if won else None,
+        "name": who.get("name") or "",
+        "address": address.lines(address.make(
+            street1=seat.get("line1") or "", street2=seat.get("line2") or "",
+            zip=seat.get("postal_code") or "", city=seat.get("city") or "",
+            country=seat.get("country"),
+        )) if seat else [],
+        # Eine UID der Gegenpartei führt das System nicht – sie ist für den
+        # Inland-Beleg auch nicht verlangt. Kein Feld zu haben ist ehrlicher, als eines
+        # zu zeigen, das nie etwas enthalten kann.
+        "uid": None,
+    }
+    supplier, customer = (ours, theirs) if flow.collects else (theirs, ours)
+    return {
+        "supplier": {"label": dm.SUPPLIER, **supplier},
+        "customer": {"label": dm.CUSTOMER, **customer},
+    }
+
+
 # ---------------------------------------------------------------------------
 # ►► DIE GEGENPARTEI
 # ---------------------------------------------------------------------------
@@ -1771,6 +1836,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "allowed": _named(db, modules.parties_allowed(step.config)) if internal else [],
         "quotes": _quotes(db, row, step, viewer=viewer, internal=internal),
         "lines": embed_lines(db, order, row, step=step),
+        # ►►► **Der Belegkopf** – die beiden Parteien mit ihren Rollen (MWSTG Art. 26).
+        #
+        # **Uns** sieht jeder – ein Beleg ohne Aussteller ist keiner, und wer bezahlen
+        # soll, muss wissen, an wen. Die **Gegenseite** hängt an ``won``, wie jede andere
+        # Angabe über sie.
+        **document_head(db, row, won=won),
         "party_object_id": row.party_id if won else None,
         "party_name": (_named(db, [row.party_id])[0]["name"]
                        if row.party_id and won else None),

@@ -5466,9 +5466,12 @@ def test_the_chosen_counterparty_keeps_its_number_and_name():
         "Die frische Wahl wird weggeworfen – das Feld zeigt nach dem Klick nichts."
     )
     # *Sie stand einmal im Block «bestätigter Auftrag»; seit die Karte EIN Beleg ist
-    # (#899), steht der Empfänger dort, wo er auf jedem Beleg steht: im Kopf.*
-    head = _component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"), "DocHead")
-    assert "d.party_object_id" in head and "d.party_name" in head, (
+    # (#899), steht der Empfänger dort, wo er auf jedem Beleg steht: im Kopf – und seit
+    # der Belegkopf **beide** Parteien nennt (MWSTG Art. 26), in ihrem eigenen Block, mit
+    # Rolle, Anschrift und UID. Gefragt bleibt die **Regel**: Nummer UND Name.*
+    parties = _component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                         "Parties")
+    assert "s.object_id" in parties and "s.name" in parties, (
         "Die zugesagte Gegenpartei steht nicht mit Nummer und Namen da."
     )
 
@@ -6372,10 +6375,10 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
         assert "ix-tnum" in before, (
             f"«{what}» steht in Fliesstext statt tabellarisch (#839)."
         )
-    # **Nummer und Name auf EINER Zeile** (#838) – der Name wird gekappt, er bricht nicht um.
-    head = " ".join(_component(src, "DocHead").split())
-    party = head[head.index("{d.party_word}"):]
-    party = party[:party.index("</ModuleMeta>")]
+    # **Nummer und Name auf EINER Zeile** (#838) – der Name wird gekappt, er bricht nicht
+    # um. Sie steht seither im Belegkopf, bei der Rolle, die sie benennt.
+    party = " ".join(_component(src, "Parties").split())
+    party = party[party.index("<ObjId"):]
     assert "flex-wrap" not in party, (
         "Nummer und Name brechen um – dann liest sich der Name wie eine zweite Angabe (#838)."
     )
@@ -7750,12 +7753,18 @@ def test_the_confirmed_order_does_not_label_its_party():
     Bug-Form: das Wort steht wieder als Mikro-Label über bzw. vor der Zeile.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    head = " ".join(_component(src, "DocHead").split())
-    assert "MICRO_LABEL, flex: 'none' }}>{d.party_word}" not in head, (
+    parties = " ".join(_component(src, "Parties").split())
+    assert "d.party_word" not in parties, (
         "Die Beschriftung «Partner» ist zurück (#883)."
     )
-    assert "aria-label={d.party_word}" in head, (
-        "Die Zeile hat gar keinen Namen mehr – dann fehlt sie dem, der die Karte hört."
+    # ►►► **Benannt ist die Zeile trotzdem – nur besser.** ◄◄◄ Sie trug einmal ein
+    # `aria-label`, weil ein sichtbares Wort davor nichts gesagt hätte. Der Belegkopf
+    # nennt jetzt die **Rolle** («Lieferant» ↔ «Kunde», MWSTG Art. 26) – eine Angabe, die
+    # die Zeile nicht schon selbst macht, und darum eine sichtbare Beschriftung statt
+    # einer nur hörbaren. Ein Wächter, der auf `aria-label` besteht, verböte sie.
+    assert "MICRO_LABEL}>{s.label}" in parties, (
+        "Die Zeile hat gar keinen Namen mehr – dann fehlt sie dem, der die Karte hört, "
+        "und dem, der sie sieht, fehlt die Rolle."
     )
 
 
@@ -7873,7 +7882,12 @@ def test_a_document_says_each_of_its_facts_exactly_once():
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     for what, field, where in (
-            ("der Empfänger", "d.party_object_id", "DocHead"),
+            # *Der Empfänger steht seit dem Belegkopf (MWSTG Art. 26) als **Partei** da –
+            # mit Rolle, Anschrift und UID. `d.party_object_id` gibt es in der Karte gar
+            # nicht mehr: die ärmere Zeile daneben wäre genau die Doppelung, die dieser
+            # Wächter verbietet.*
+            ("der Empfänger", "d.customer", "Parties"),
+            ("der Aussteller", "d.supplier", "Parties"),
             ("das Zusagedatum", "d.agreed_on", "DocHead"),
             ("die Zahlungsfrist", "d.due_days", "Terms"),
             ("der Liefertermin", "d.due_date", "Terms"),
@@ -7970,4 +7984,99 @@ def test_the_section_heads_of_a_card_stand_on_one_edge():
     assert "state ? STEP_COLOR[state] : 'transparent'" in section, (
         "Der reservierte Platz trägt keine Farbe mehr bzw. füllt sich nicht mehr aus dem "
         "Zustand."
+    )
+
+
+def test_the_document_head_names_both_parties_and_says_what_is_missing():
+    """►►► **Ein Beleg nennt Aussteller und Empfänger** (MWSTG Art. 26). ◄◄◄
+
+    Beide Seiten kommen **fertig** vom Server (``DealSide``) – mit ihrer Rolle im Wort.
+    Die Karte fragt dafür kein einziges Mal, ob es eine Einnahme oder eine Ausgabe ist;
+    sie zeichnet zwei Blöcke, und **welche Seite welche ist**, entscheidet die Richtung
+    an der einen Stelle, an der sie ohnehin gelesen wird.
+
+    **Wer der Aussteller ist, sagt die Struktur, nicht sein Name**: ein Vergleich auf das
+    Wort «Lieferant» wäre ein Spiegel über die API-Grenze, der beim ersten Umbenennen
+    still falsch wird.
+
+    **Und was fehlt, wird gesagt statt erfunden** – eine erfundene Zeile wäre auf einem
+    Beleg schlimmer als eine leere.
+
+    Bug-Formen: (a) der Belegkopf wird gar nicht gezeichnet; (b) die Rolle wird über den
+    Namen der Beschriftung entschieden; (c) eine fehlende Pflichtangabe bleibt eine
+    stumme Lücke.
+    """
+    work = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    head = _code(_component(work, "Parties"))
+    assert "d.supplier" in head and "d.customer" in head, (
+        "Der Belegkopf nennt nicht beide Parteien – ein Beleg ohne Aussteller ist keiner."
+    )
+    # **Und er wird auch GEZEICHNET.** Ein Bauteil, das niemand aufruft, ist von einem
+    # fehlenden nicht zu unterscheiden – genau diese Bug-Form ging beim Gegenprüfen durch.
+    assert "<Parties" in _code(_component(work, "DocHead")), (
+        "Den Belegkopf gibt es, aber der Kopf ruft ihn nicht – dann steht er nirgends."
+    )
+    assert "s.label" in head and "s.address" in head, (
+        "Rolle bzw. Anschrift werden nicht aus der Antwort gelesen."
+    )
+    for word in ("'Lieferant'", '"Lieferant"', "'Kunde'", '"Kunde"'):
+        assert word not in head, (
+            f"Die Rolle wird über das Wort {word} entschieden – ein Spiegel über die "
+            f"API-Grenze, der beim ersten Umbenennen still falsch wird."
+        )
+    # Gezählt, nicht gesucht: **jede** der beiden Pflichtangaben sagt es, wenn sie fehlt.
+    # «Irgendwo steht ein `<Missing`» war zu grob – die Bug-Form «nur die eine schweigt»
+    # ging durch.
+    assert head.count("<Missing") == 2, (
+        "Eine fehlende Pflichtangabe bleibt eine stumme Lücke – sie sieht dann aus wie "
+        "eine, die es so geben darf (Anschrift und UID, MWSTG Art. 26)."
+    )
+
+
+def test_the_open_amount_stands_in_the_head_and_exactly_once():
+    """►►► **Die eine Information: was noch offen ist.** ◄◄◄
+
+    *Was muss ein Mensch an diesem Beleg in unter einer Sekunde finden?* – den **offenen
+    Betrag**. Er reiste längst mit (``DealEmbed.open``) und stand **nirgends**: die
+    Geld-Zeile listet die einzelnen Buchungen, ihre Summe zeigte niemand.
+
+    Er steht darum im **Belegkopf** – und **genau einmal**: eine Zahl, die zweimal
+    dasteht, erzeugt die Frage, welche gilt.
+
+    **Rot heisst überfällig, und das sagt der Server** (``entries[].overdue`` = fällig
+    *und* noch etwas offen). Eine zweite Formel im Browser wiche ab und sähe trotzdem
+    richtig aus.
+
+    Bug-Formen: (a) die Zahl steht nirgends; (b) sie steht ein zweites Mal in der
+    Geld-Zeile; (c) «überfällig» wird im Browser aus einem Datum gerechnet.
+    """
+    work = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    code = _code(work)
+    head = _code(_component(work, "DocHead"))
+    assert "d.open" in head and "d.open_word" in head, (
+        "Der offene Betrag steht nicht im Belegkopf – dann steht er nirgends."
+    )
+    assert code.count("formatAmount(d.open") == 1, (
+        "Der offene Betrag steht mehr als einmal in der Karte – welche Zahl gilt?"
+    )
+    over = _code(_body(work, "overdue", kind="function"))
+    assert "e.overdue" in over and "Date" not in over, (
+        "«Überfällig» wird im Browser gerechnet statt gelesen – zwei Formeln für "
+        "dieselbe Aussage."
+    )
+
+
+def test_the_partner_is_named_once_not_beside_his_own_document_head():
+    """►►► **Dieselbe Angabe steht nicht zweimal da.** ◄◄◄
+
+    Im Kopf stand «An 100000123 Muster AG». Seit der Belegkopf **beide** Parteien mit
+    ihrer Rolle, Anschrift und UID nennt, wäre diese Zeile dieselbe Angabe ein zweites
+    Mal – nur ärmer, und ohne zu sagen, welche Rolle der Genannte hat.
+
+    Bug-Form: die Meta-Zeile nennt den Partner wieder neben dem Belegkopf.
+    """
+    work = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    head = _code(_component(work, "DocHead"))
+    assert "d.party_name" not in head, (
+        "Der Partner steht neben dem Belegkopf ein zweites Mal – und dort ohne Rolle."
     )

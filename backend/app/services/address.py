@@ -96,3 +96,27 @@ def has_content(a: Optional[dict]) -> bool:
     if not a:
         return False
     return bool(_txt(a.get("zip")) or _txt(a.get("city")))
+
+
+def lines(a: Optional[dict]) -> list[str]:
+    """►►► **Die Anschrift, wie sie auf einem Beleg steht** – Zeile für Zeile. ◄◄◄
+
+    Auf einem Dokument ist eine Adresse **Text in einer festen Reihenfolge**, kein Satz
+    Felder. Sie hier zu setzen statt im Browser hält die Reihenfolge an der einen Stelle,
+    die Adressen ohnehin kennt – eine zweite Fassung im Frontend wäre die Stelle, an der
+    beim nächsten Feld eine Zeile verrutscht.
+
+    **Der Name steht nicht dabei**: er ist die laute Zeile des Belegkopfs und wird dort
+    gesetzt; hier stünde er ein zweites Mal.
+
+    **Leeres fällt weg, und der Gedankenstrich mit** – ``make`` setzt für eine fehlende
+    Strasse ein ``—``, damit das *Feld* belegt ist; auf einem Beleg wäre er eine Zeile,
+    die nichts sagt.
+    """
+    if not a:
+        return []
+    out = [
+        _txt(a.get("street1")), _txt(a.get("street2")),
+        _join(a.get("zip"), a.get("city")), _txt(a.get("country")),
+    ]
+    return [line for line in out if line and line != DASH]

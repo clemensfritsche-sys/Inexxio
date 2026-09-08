@@ -220,6 +220,14 @@ export type DealLine = components['schemas']['DealLine'];
 /** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
 export type DealParty = components['schemas']['DealParty'];
 /**
+ * **Eine Partei des Belegkopfs** – Lieferant bzw. Kunde (MWSTG Art. 26).
+ *
+ * Die Rolle steht im `label`, nicht in der Position: welche Seite welche trägt,
+ * entscheidet der Server aus der Richtung. Die Anschrift kommt **als Zeilen**, wie sie
+ * auf dem Beleg steht – eine zweite Adressenlogik im Browser gibt es nicht.
+ */
+export type DealSide = components['schemas']['DealSide'];
+/**
  * **Ein Halter** – Objektnummer, Typ, Name (`services/places`).
  *
  * Dieselbe Form für alle drei Fragen, die einen Ort nennen: das Ziel eines

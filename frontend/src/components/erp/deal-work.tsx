@@ -7,7 +7,7 @@ import {
   Undo2, Wallet, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { DealEmbed, DealParty, DealQuote, TransferInfo } from '@/types';
+import type { DealEmbed, DealParty, DealQuote, DealSide, TransferInfo } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { PayOnline } from '@/components/erp/pay-online';
@@ -15,7 +15,7 @@ import {
   Label, MICRO_LABEL, Segmented, TermField, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
-  ACT_H, ActionButton, Actions, ModuleMeta, ModuleSection,
+  ACT_H, ActionButton, Actions, MODULE_GRID, ModuleMeta, ModuleSection,
 } from '@/components/erp/module-ui';
 import {
   DEAL_PARTY, DEAL_STAGE, DEAL_TASK_HINT, QUOTE_STATE, dealDirection,
@@ -581,11 +581,19 @@ function Fixed({ label, value, hint }: { label: string; value: string; hint?: st
  * zweimal (#797). Der Titel ist jetzt das laute Wort; die Richtung ist das Zeichen davor,
  * mit ihrer Bedeutung im Hover – dieselbe Regel wie bei jedem Symbol im Haus.
  *
- * ## «An <Partner>» steht erst, wenn es einen gibt
+ * ## Die beiden Parteien stehen erst da, wenn es sie gibt
  *
  * Vor der Zusage nennen die **Rückläufe** die Adressaten – es sind mehrere, und einen
  * davon vorwegzunehmen wäre eine Behauptung. Mit der Zusage steht genau einer fest, und
- * dann gehört er dorthin, wo auf jedem Beleg der Empfänger steht.
+ * dann gehört er dorthin, wo auf jedem Beleg der Empfänger steht: in den **Belegkopf**
+ * (`Parties`), mit Rolle, Anschrift und – beim Aussteller – der UID.
+ *
+ * ## Die EINE Information steht oben rechts
+ *
+ * *Was muss man in unter einer Sekunde finden?* – **was noch offen ist.** Sie stand
+ * nirgends: die Geld-Zeile listet die Buchungen, aber die Summe daraus (`open`) wurde
+ * gar nicht angezeigt. Sie steht darum hier, an der Kante, an der man sie sucht – und
+ * **genau einmal**.
  */
 function DocHead({ d }: { d: Filled }) {
   const dir = dealDirection(d.direction);
@@ -617,30 +625,136 @@ function DocHead({ d }: { d: Filled }) {
             <Lock size={11} /> Erst zahlen
           </span>
         )}
-      </div>
-      {/* ►►► **Der Empfänger — Nummer und Name auf EINER Zeile** (#838/#883). ◄◄◄
-          Der Name wird gekappt; `flex-wrap` schob ihn bei enger Spalte darunter, und dort
-          las er sich wie eine zweite Angabe. Eine Beschriftung «Partner» davor sagt
-          nichts, was «An 100000123 Muster AG» nicht schon sagt – benannt bleibt die Zeile
-          für den, der die Karte hört. */}
-      {d.party_object_id != null && (
-        <ModuleMeta>
-          <span className="flex items-center gap-2" style={{ minWidth: 0, flex: '1 1 auto' }}
-            aria-label={d.party_word}>
-            <span style={{ flex: 'none' }}>An</span>
-            <ObjId value={d.party_object_id} />
-            <span className="truncate" style={{ color: 'var(--fg-2)', minWidth: 0 }}
-              data-tip={d.party_name || undefined}>{d.party_name}</span>
+        {/* ►►► **Die eine Information — was noch offen ist.** ◄◄◄
+
+            Sie kam bisher zwar mit (`open`), stand aber nirgends: die Geld-Zeile zeigt
+            die einzelnen Buchungen, ihre **Summe** zeigte niemand. Genau sie ist die
+            Frage, die ein Mensch an diesem Beleg zuerst hat.
+
+            **Rot heisst überfällig**, und die Antwort darauf kommt vom Server
+            (`entries[].overdue` – fällig **und** noch etwas offen); eine zweite Formel
+            hier wiche ab und sähe trotzdem richtig aus.
+
+            Sie steht **einmal**: unten wiederholt sie niemand. */}
+        {d.open != null && (
+          <span className="flex items-baseline gap-1.5" style={{ flex: 'none' }}
+            data-tip="Gefordert und noch nicht bezahlt – die Summe über alle Rechnungen dieses Vorgangs.">
+            <span style={MICRO_LABEL}>{d.open_word}</span>
+            <span className="ix-tnum" style={{
+              font: '700 14px var(--font-display)', letterSpacing: '-.01em',
+              color: overdue(d) ? 'var(--danger)' : 'var(--fg-1)',
+            }}>{formatAmount(d.open, d.currency_decimals)} {d.currency}</span>
           </span>
-          {d.agreed_on && (
-            <span className="ix-tnum" style={{ flex: 'none' }}
-              data-tip="Tag der Zusage – ab ihm laufen Liefer- und Zahlungsfrist.">
-              {localDate(d.agreed_on)}
-            </span>
-          )}
+        )}
+      </div>
+      <Parties d={d} />
+      {/* ►►► **Das Datum steht ALLEIN in der Meta-Zeile** (#838/#883). ◄◄◄
+          Hier stand daneben «An 100000123 Muster AG» – seit der Belegkopf beide Parteien
+          mit ihrer Rolle nennt, wäre das dieselbe Angabe ein zweites Mal, nur ärmer (ohne
+          Anschrift, ohne UID) und ohne zu sagen, welche Rolle der Genannte hat. */}
+      {d.agreed_on && (
+        <ModuleMeta>
+          <span className="ix-tnum"
+            data-tip="Tag der Zusage – ab ihm laufen Liefer- und Zahlungsfrist.">
+            {localDate(d.agreed_on)}
+          </span>
         </ModuleMeta>
       )}
     </>
+  );
+}
+
+/**
+ * ►►► **Ist an diesem Vorgang etwas überfällig?** ◄◄◄
+ *
+ * Gefragt wird der **Server**, nicht die Uhr des Browsers: `overdue` heisst *fällig **und**
+ * noch etwas offen* – zwei Bedingungen, und die zweite kennt nur, wer die Buchungen
+ * rechnet. Eine zweite Formel hier wiche ab und sähe trotzdem richtig aus.
+ */
+function overdue(d: Filled): boolean {
+  return d.entries.some((e) => e.overdue);
+}
+
+/**
+ * ►►► **Der Belegkopf — wer stellt ihn, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
+ *
+ * Eine Rechnung ist erst eine, wenn sie **beide Seiten** nennt: Name und Ort, wie im
+ * Geschäftsverkehr aufgetreten, und beim Aussteller die **UID** – ohne sie kann dem
+ * Empfänger der Vorsteuerabzug verweigert werden.
+ *
+ * ## Die Rolle steht im WORT, nicht in der Position
+ *
+ * «Lieferant» ↔ «Kunde» kommen fertig vom Server (`DealSide.label`), und **welche Seite
+ * welche trägt**, entscheidet dort die Richtung. Diese Komponente fragt dafür kein
+ * einziges Mal, ob es eine Einnahme oder eine Ausgabe ist – sie zeichnet zwei Blöcke.
+ *
+ * ## Was fehlt, wird gesagt – nicht erfunden
+ *
+ * Eine Pflichtangabe, die nicht hinterlegt ist, steht als kleines rotes **«fehlt»** da.
+ * Eine erfundene Zeile wäre auf einem Beleg schlimmer als eine leere, und eine leere
+ * Stelle ohne Vermerk sähe aus wie eine, die es so geben darf.
+ *
+ * ## Eine Seite ohne Namen gibt es gar nicht
+ *
+ * Vor der Zusage steht der Partner nicht fest, und wer den Zuschlag **nicht** hat, sieht
+ * die Gegenseite nicht (`won`). Beides ist derselbe Fall: eine Seite ohne Namen wird
+ * nicht gezeichnet – sonst stünde dort dreimal «fehlt» für etwas, das nicht fehlt.
+ */
+function Parties({ d }: { d: Filled }) {
+  // **Wer der Aussteller ist, sagt das Feld – nicht sein Name.** Ein Vergleich auf das
+  // Wort «Lieferant» wäre ein Spiegel über die API-Grenze, der beim ersten Umbenennen
+  // still falsch wird; hier steht die Rolle in der Struktur selbst.
+  const sides = ([[d.supplier, true], [d.customer, false]] as const).filter(
+    (pair): pair is readonly [DealSide, boolean] => !!pair[0] && !!pair[0].name);
+  if (!sides.length) return null;
+  return (
+    <div style={{ ...MODULE_GRID, gap: '12px 24px', marginBottom: 14 }}>
+      {sides.map(([s, issuer]) => (
+        <div key={s.label} style={{ minWidth: 0 }}>
+          <span style={MICRO_LABEL}>{s.label}</span>
+          <div className="flex items-center gap-2" style={{ minWidth: 0, paddingTop: 5 }}>
+            {s.object_id != null && <ObjId value={s.object_id} />}
+            <span className="truncate font-semibold text-[13px]"
+              style={{ color: 'var(--fg-1)', minWidth: 0 }} data-tip={s.name}>{s.name}</span>
+          </div>
+          {/* **Die Anschrift kommt als ZEILEN**, wie sie auf dem Beleg steht – die
+              Reihenfolge gehört dorthin, wo Adressen gebaut werden (`address.lines`).
+              Eine zweite Fassung hier wäre die Stelle, an der beim nächsten Feld eine
+              Zeile verrutscht. */}
+          {s.address?.length ? (
+            <div className="text-[12px]" style={{ color: 'var(--fg-3)', paddingTop: 3 }}>
+              {s.address.map((line) => <div key={line} className="truncate">{line}</div>)}
+            </div>
+          ) : <Missing what="Anschrift" />}
+          {/* **Die UID nur beim Aussteller** – eine des Empfängers führt das System nicht,
+              und für den Inland-Beleg ist sie auch nicht verlangt. Wo sie hingehört und
+              fehlt, sagt es die Zeile. */}
+          {issuer && (s.uid
+            ? <div className="ix-tnum text-[12px]"
+              style={{ color: 'var(--fg-3)', paddingTop: 3 }}
+              data-tip="Ohne sie kann dem Empfänger der Vorsteuerabzug verweigert werden.">
+              {s.uid}
+            </div>
+            : <Missing what="UID" />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * **Eine Pflichtangabe, die nicht hinterlegt ist** – klein, rot, benannt.
+ *
+ * Sie steht dort, wo die Angabe stünde: eine leere Stelle sähe aus wie eine, die es so
+ * geben darf, und ein Platzhalter wie eine Angabe.
+ */
+function Missing({ what }: { what: string }) {
+  return (
+    <div className="flex items-center gap-1 text-[12px]"
+      style={{ color: 'var(--danger)', paddingTop: 3 }}
+      data-tip={`${what} fehlt – sie gehört auf einen Beleg (MWSTG Art. 26).`}>
+      <AlertTriangle size={11} /> {what} fehlt
+    </div>
   );
 }
 

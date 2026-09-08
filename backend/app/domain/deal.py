@@ -141,6 +141,17 @@ KINDS: tuple[str, ...] = (CHARGE, PAYMENT)
 #: Der andere im Geschäft – in beiden Richtungen und in beiden Numeri.
 PARTY = "Partner"
 
+# ►►► **Auf dem BELEG heissen die beiden anders – und das ist kein Rückschritt.** ◄◄◄
+#
+# «Partner» beantwortet «wer ist der andere?», und dafür bleibt es das eine Wort. Ein
+# **Beleg** stellt eine zweite Frage: *wer schuldet wem etwas?* – und darauf gibt es zwei
+# verschiedene Antworten, die auf keiner Rechnung gleich heissen dürfen. Sie stehen
+# darum hier als zwei Konstanten und **nicht** in ``Direction``: welche Seite welche
+# Rolle hat, sagt die Richtung (``collects``), aber wie die Rollen *heissen*, ist in
+# beiden Richtungen dasselbe.
+SUPPLIER = "Lieferant"
+CUSTOMER = "Kunde"
+
 #: **Was man an der Schwelle tut**: das *Angebot* annehmen – der Auftrag ist das Ergebnis
 #: (Testnotiz #826). «Auftrag bestätigen» benannte die Folge statt der Handlung.
 AGREE_VERB = "Angebot annehmen"

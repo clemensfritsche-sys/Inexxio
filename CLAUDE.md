@@ -2979,6 +2979,68 @@
 > ausklappenden Knopf –, und die Messung gegen ihre eigene Bug-Form gegengeprüft
 > (+119 px bei 375, +174 px bei 320 mit einem unteilbaren Wort).
 
+> ►►► **Die Karte IST der Beleg — und ein Beleg nennt BEIDE Parteien** (MWSTG Art. 26).
+> ◄◄◄ Zwei Dinge fehlten dem Beleg noch, und beide waren **Angaben, die es längst gibt**.
+> **(1) Der Belegkopf** (`deal.document_head` → `DealSide`): eine Rechnung ist erst eine,
+> wenn sie Aussteller und Empfänger nennt – Name und Ort, und beim Aussteller die **UID
+> mit dem Zusatz MWST** (ohne sie kann dem Empfänger der Vorsteuerabzug verweigert
+> werden). **Neu ist nichts als die ZUORDNUNG**: **uns** kennt `sites.find_operator`, den
+> **Partner** kennt `billing_of` – dieselbe Auskunft, aus der der Einzahlungsschein seinen
+> Schuldner nimmt. Keine zweite Adressenlogik, kein neues Feld, keine Migration.
+> **Welche Seite welche Rolle hat, sagt `Direction.collects`** – die Angabe, die es schon
+> gibt: fliesst das Geld zu uns, sind wir der Lieferant; bei einer Ausgabe ist es der
+> Partner. Damit gilt es für **Ein- und Auszahlungen** ohne eine einzige Fallunterscheidung,
+> und die Oberfläche fragt für die Rolle nicht nach der Richtung: **sie steht im Wort**
+> (`DealSide.label`), und *wer der Aussteller ist*, sagt die **Struktur** – ein Vergleich
+> auf «Lieferant» wäre ein Spiegel über die API-Grenze, der beim ersten Umbenennen still
+> falsch wird.
+> **Die Anschrift kommt als ZEILEN** (`address.lines`), nicht als Satz Felder: auf einem
+> Dokument ist eine Adresse Text in einer festen Reihenfolge, und die gehört dorthin, wo
+> Adressen ohnehin gebaut werden – eine zweite Fassung im Browser wäre die Stelle, an der
+> beim nächsten Feld eine Zeile verrutscht. Der Platzhalter «—», den `make` für eine
+> fehlende Strasse setzt, damit das *Feld* belegt ist, fällt dabei weg; auf einem Beleg
+> wäre er eine Zeile, die nichts sagt.
+> **Was fehlt, wird gesagt statt erfunden**: eine Pflichtangabe ohne Wert steht als kleines
+> rotes «fehlt» da – eine erfundene Zeile wäre auf einem Beleg schlimmer als eine leere,
+> und eine stumme Lücke sähe aus wie eine, die es so geben darf.
+> **Und die Bankverbindung steht bewusst NICHT daneben**: wohin überwiesen wird, sagt
+> `transfer_info` an der Rechnung, die bezahlt werden soll – mit Referenz und QR-Code.
+> **(2) Die eine Information — was noch offen ist.** Sie reiste längst mit (`open`) und
+> stand **nirgends**: die Geld-Zeile listet die einzelnen Buchungen, ihre **Summe** zeigte
+> niemand. Sie steht jetzt im Kopf, an der Kante, an der man sie sucht – und **genau
+> einmal**. **Rot heisst überfällig, und das sagt der Server** (`entries[].overdue` =
+> fällig *und* noch etwas offen); eine zweite Formel im Browser wiche ab und sähe trotzdem
+> richtig aus. Mit ihr ist die Zeile «An 100000123 Muster AG» entfallen – seit der
+> Belegkopf beide Parteien nennt, wäre sie dieselbe Angabe ein zweites Mal, nur ärmer und
+> ohne Rolle.
+> ►►► **Ein echtes Leck, gefunden von einem bestehenden Wächter.** ◄◄◄ Der Belegkopf trug
+> den Namen des **Gewinners** auch für einen unterlegenen Bieter – während er zwei Zeilen
+> weiter oben ausgeblendet ist. Die Gegenseite hängt jetzt an **`won`**, wie jede andere
+> Angabe über sie; **uns** sieht jeder, denn ein Beleg ohne Aussteller ist keiner.
+> **Und ein zweites, in meinem eigenen Wächter:** er legte den Betreiber über
+> `sites.operator` an – die **Schreib**-Form, die committet, weil sie die Objektnummer
+> vergibt. Ein Commit überlebt das `rollback` am Ende, die Zeile blieb stehen, und drei
+> Wächter in `test_move_module` fielen danach am Primärschlüssel aus. Gemessen, nicht
+> vermutet: gegen ein **frisches** Schema war alles grün, gegen die gewachsene Datenbank
+> nicht – genau der Unterschied, der einen Aufräum-Fehler verrät.
+> **Die Axenlinie zwischen den Abschnitten ist bewusst NICHT gebaut.** Der Entwurf hatte
+> sie als tragendes Element; die Karte hat seit #863/#868 aber eine eigene, vom Nutzer
+> selbst gewählte Fassung (Punkt + Wort + Haarlinie je Abschnitt), die dasselbe sagt. Eine
+> Linie darüber bräuchte in `ModuleSection` ein `last`, das jeder Aufrufer pflegen muss –
+> eine Regel mehr für eine Aussage, die schon dasteht.
+> Wächter: 1 neuer in `tests/test_deal_module.py` (3 Bug-Formen), 3 neue in
+> `test_frontend_mirrors.py` (7 Bug-Formen) – **jede gegengeprüft**; *zwei der neuen waren
+> dabei stumpf und liessen ihre eigene durch* (einer prüfte nur, dass es das Bauteil
+> **gibt**, nicht dass der Kopf es **ruft**; einer fragte, ob *irgendwo* ein `<Missing>`
+> steht, und war schon durch die eine der beiden Pflichtangaben erfüllt). Vier bestehende
+> prüften die **Form** der alten Lösung (die «An»-Zeile in `DocHead`) und hätten die
+> bessere Fassung verboten – sie fragen jetzt die Regel an ihrem neuen Ort. Suite grün
+> gegen die gewachsene Datenbank (551) **und** gegen ein Schema nur aus den Migrationen
+> (559). Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 ·
+> 375 · 320 px, **0 px** waagrechter Überlauf über sechs Zustände (inkl. Ausgabe mit
+> vertauschten Rollen und der Sicht der unterlegenen Gegenpartei) – und die Messung gegen
+> ihre eigene Bug-Form gegengeprüft (+27,6 px bei 375, +82,6 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

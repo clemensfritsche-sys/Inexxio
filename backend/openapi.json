@@ -4984,6 +4984,26 @@
             "type": "array",
             "title": "Lines"
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "party_object_id": {
             "anyOf": [
               {
@@ -5549,6 +5569,54 @@
         ],
         "title": "DealQuote",
         "description": "**Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.\n\n``state``: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``. «gewählt»\nentsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt wurde –\nein Zustand ist eine Folge.\n\n**Eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise fallen beim Aufbau\nder Antwort weg, nicht in der Oberfläche."
+      },
+      "DealSide": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "address": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Address"
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "DealSide",
+        "description": "**Eine Partei des Belegs** – so, wie sie auf einer Rechnung stehen muss.\n\nName und Ort, wie im Geschäftsverkehr aufgetreten, und beim Aussteller die **UID mit\ndem Zusatz MWST** (MWSTG Art. 26): ohne sie kann dem Empfänger der Vorsteuerabzug\nverweigert werden.\n\n**Die Rolle steht im Wort, nicht in der Position**: `label` sagt «Lieferant» bzw.\n«Kunde», damit die Oberfläche für kein `if` nach der Richtung fragt. Welche Seite\nwelche Rolle trägt, entscheidet `deal.document_head` an der einen Stelle, an der die\nRichtung ohnehin gelesen wird.\n\n**Fehlendes bleibt leer** – eine Anschrift, die es nicht gibt, ist `None`. Eine\nerfundene Zeile wäre auf einem Beleg schlimmer als eine leere; die Oberfläche sagt an\nder Stelle klein, was fehlt."
       },
       "DealStage": {
         "properties": {

@@ -1955,6 +1955,8 @@ export interface components {
             quotes?: components["schemas"]["DealQuote"][];
             /** Lines */
             lines?: components["schemas"]["DealLine"][];
+            supplier?: components["schemas"]["DealSide"] | null;
+            customer?: components["schemas"]["DealSide"] | null;
             /** Party Object Id */
             party_object_id?: number | null;
             /** Party Name */
@@ -2194,6 +2196,38 @@ export interface components {
             state: string;
             /** Lines */
             lines?: Record<string, never>[];
+        };
+        /**
+         * DealSide
+         * @description **Eine Partei des Belegs** – so, wie sie auf einer Rechnung stehen muss.
+         *
+         *     Name und Ort, wie im Geschäftsverkehr aufgetreten, und beim Aussteller die **UID mit
+         *     dem Zusatz MWST** (MWSTG Art. 26): ohne sie kann dem Empfänger der Vorsteuerabzug
+         *     verweigert werden.
+         *
+         *     **Die Rolle steht im Wort, nicht in der Position**: `label` sagt «Lieferant» bzw.
+         *     «Kunde», damit die Oberfläche für kein `if` nach der Richtung fragt. Welche Seite
+         *     welche Rolle trägt, entscheidet `deal.document_head` an der einen Stelle, an der die
+         *     Richtung ohnehin gelesen wird.
+         *
+         *     **Fehlendes bleibt leer** – eine Anschrift, die es nicht gibt, ist `None`. Eine
+         *     erfundene Zeile wäre auf einem Beleg schlimmer als eine leere; die Oberfläche sagt an
+         *     der Stelle klein, was fehlt.
+         */
+        DealSide: {
+            /** Label */
+            label: string;
+            /** Object Id */
+            object_id?: number | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Address */
+            address?: string[];
+            /** Uid */
+            uid?: string | null;
         };
         /**
          * DealStage

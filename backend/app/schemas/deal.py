@@ -252,6 +252,40 @@ class DealTerm(BaseModel):
     label: str
 
 
+class DealSide(BaseModel):
+    """**Eine Partei des Belegs** – so, wie sie auf einer Rechnung stehen muss.
+
+    Name und Ort, wie im Geschäftsverkehr aufgetreten, und beim Aussteller die **UID mit
+    dem Zusatz MWST** (MWSTG Art. 26): ohne sie kann dem Empfänger der Vorsteuerabzug
+    verweigert werden.
+
+    **Die Rolle steht im Wort, nicht in der Position**: `label` sagt «Lieferant» bzw.
+    «Kunde», damit die Oberfläche für kein `if` nach der Richtung fragt. Welche Seite
+    welche Rolle trägt, entscheidet `deal.document_head` an der einen Stelle, an der die
+    Richtung ohnehin gelesen wird.
+
+    **Fehlendes bleibt leer** – eine Anschrift, die es nicht gibt, ist `None`. Eine
+    erfundene Zeile wäre auf einem Beleg schlimmer als eine leere; die Oberfläche sagt an
+    der Stelle klein, was fehlt.
+    """
+
+    label: str
+    #: Die Objektnummer – beim Partner die des Benutzers, bei uns die der Gesellschaft.
+    object_id: Optional[int] = None
+    name: str = ""
+    #: Die Anschrift **als Zeilen**, wie sie auf dem Beleg steht (`address.lines`) – leer,
+    #: wenn keine hinterlegt ist. Ein Satz Felder wäre hier eine zweite Adressenlogik im
+    #: Browser; die Reihenfolge gehört dorthin, wo Adressen ohnehin gebaut werden.
+    address: list[str] = Field(default_factory=list)
+    #: Nur beim Aussteller belegt – eine UID der Gegenpartei führt das System nicht, und
+    #: für den Inland-Beleg ist sie auch nicht verlangt.
+    #:
+    #: **Die Bankverbindung steht bewusst nicht daneben**: wohin überwiesen wird, sagt
+    #: ``transfer_info`` an der Rechnung, die bezahlt werden soll – zusammen mit
+    #: Referenz und QR-Code. Hier wäre sie dieselbe Angabe ein zweites Mal.
+    uid: Optional[str] = None
+
+
 class DealEmbed(BaseModel):
     """**Der Geldvorgang**, wie ihn die Ausführungsstelle braucht.
 
@@ -412,6 +446,16 @@ class DealEmbed(BaseModel):
     #: **Worum es geht** – abgeleitet aus den Einzelinstanzen des Auftrags, mit der
     #: Spezifikation des Artikels. Nie getippt.
     lines: list[DealLine] = Field(default_factory=list)
+
+    # ─── Der Belegkopf: die beiden Parteien ──────────────────────────────────────
+    #: ►►► **Wer stellt den Beleg, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
+    #:
+    #: Beide Seiten sind eine **Ableitung** aus Angaben, die es längst gibt (uns kennt
+    #: `sites.find_operator`, den Partner `deal.billing_of`) – neu ist allein, welche
+    #: Seite welche **Rolle** trägt, und das sagt die Richtung (`collects`). Sie stehen
+    #: im Kopf des Belegs und werden von keiner Schicht wiederholt.
+    supplier: Optional[DealSide] = None
+    customer: Optional[DealSide] = None
 
     # ─── Die Zusage ──────────────────────────────────────────────────────────────
     party_object_id: Optional[int] = None

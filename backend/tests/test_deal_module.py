@@ -1371,6 +1371,17 @@ def test_whoever_did_not_win_does_not_see_the_award():
         assert lost["allowed"] == [], (
             "Die Freigabe-Liste ist die Konkurrenzliste – sie geht ihn nichts an."
         )
+        # ►►► **Auch im BELEGKOPF nicht.** ◄◄◄ Er nennt beide Parteien – **uns** sieht
+        # jeder (ein Beleg ohne Aussteller ist keiner), die **Gegenseite** hängt an
+        # derselben Regel wie jede andere Angabe über sie. Genau hier stand der Name des
+        # Konkurrenten, bis dieser Wächter ihn gefunden hat.
+        # Der Vorgang ist eine **Ausgabe**, also steht die Gegenpartei auf der
+        # Lieferanten-Seite – genau dort stand der Name des Konkurrenten, bis dieser
+        # Wächter ihn gefunden hat. *Dass **wir** im Kopf stehen, prüft der eigene
+        # Wächter dafür; hier hinge es daran, ob eine Gesellschaft angelegt ist.*
+        assert not lost["supplier"]["name"] and lost["supplier"]["object_id"] is None, (
+            "Der Konkurrent steht im Belegkopf."
+        )
         assert "100.00" not in str(lost) and "Härterei A" not in str(lost), (
             "Irgendwo in der Antwort steckt der Konkurrent noch."
         )
@@ -3059,5 +3070,108 @@ def test_a_prepaid_term_agreed_by_hand_is_not_swallowed():
             f"gewinnt gegen die Zusage."
         )
         assert dm.prepaid(row.due_days), "Vorauszahlung vereinbart, und sie gilt nicht."
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_document_names_both_parties_with_their_roles():
+    """►►► **Ein Beleg nennt BEIDE Seiten – und wer welche ist, sagt die Richtung.** ◄◄◄
+
+    Eine Rechnung ist erst eine, wenn sie Aussteller und Empfänger nennt (MWSTG Art. 26):
+    Name und Ort, und beim Aussteller die **UID**. Beides steht längst da – **uns** kennt
+    ``sites.find_operator``, den **Partner** kennt ``billing_of`` –; neu ist allein die
+    **Zuordnung**, und die entscheidet ``Direction.collects``: fliesst das Geld zu uns,
+    sind wir der Lieferant.
+
+    Bug-Formen, jede gegengeprüft: (a) die Rollen sind vertauscht – bei einer **Ausgabe**
+    stünden wir als Lieferant da, also als der, der fakturiert; (b) es gibt gar keinen
+    Belegkopf; (c) die Anschrift reist als leere Zeile mit (``make`` setzt für eine
+    fehlende Strasse ein «—», und auf einem Beleg wäre das eine Zeile, die nichts sagt).
+    """
+    from app.domain import deal as dm
+    from app.models import CompanySettings
+    from app.services import address, deal as svc, objects as obj, sites
+    db = _db()
+    try:
+        # **Der Betreiber wird HIER angelegt, nicht über ``sites.operator``**: die
+        # Schreib-Form **committet** (sie vergibt die Objektnummer), und ein Commit
+        # überlebt das ``rollback`` am Ende – die Zeile bliebe stehen und liesse den
+        # nächsten Wächter, der selbst eine Gesellschaft anlegt, am Primärschlüssel
+        # auflaufen. Gemessen: drei Wächter in ``test_move_module`` fielen aus.
+        haus = sites.find_operator(db)
+        if haus is None:
+            haus = CompanySettings(is_operator=True, object_id=obj.next_object_id(db))
+            db.add(haus)
+        haus.company_name = "Wir AG"
+        haus.street, haus.street_nr = "Bahnhofstrasse", "1"
+        haus.zip_code, haus.city, haus.country = "8001", "Zürich", "CH"
+        haus.vat_number = "CHE-123.456.789 MWST"
+        db.flush()
+
+        p = _party(db, "Härterei A")
+        p.address_line1, p.postal_code, p.city = "Werkweg 3", "9000", "St. Gallen"
+        db.flush()
+        staff = _staff(db)
+
+        def head(direction: str) -> dict:
+            art = _article(db, f"Welle {direction}",
+                           steps=[_money_step(direction=direction, parties=[p])])
+            order, rows = _make(db, quantity=1, article=art)
+            step = rows[0]
+            svc.apply(db, order=order, step=step, action="ask", payload={
+                "parties": [p.object_id], "lead_days": 5, "payment_days": 30,
+                "lines": [{"article": art.id, "price": "100.00", "vat": "8.10"}],
+            }, actor=staff)
+            db.flush()
+            # **Wer den Preis nennt, sagt die Richtung** – bei einer Ausgabe die
+            # Gegenpartei; ihre Offerte ist darum ein eigener Schritt.
+            if direction == "out":
+                svc.apply(db, order=order, step=step, action="quote",
+                          payload={"party": p.object_id, "amount": "100.00",
+                                   "lead_days": 5, "payment_days": 30}, actor=staff)
+                db.flush()
+            svc.apply(db, order=order, step=step, action="agree",
+                      payload={"party": p.object_id}, actor=staff)
+            db.flush()
+            return svc.embed_data(db, order=order, step=step, viewer=staff)
+
+        # **Einnahme: wir fakturieren.**
+        inc = head("in")
+        assert inc["supplier"]["name"] == "Wir AG", (
+            f"Bei einer Einnahme sind WIR der Lieferant – hier steht "
+            f"{inc['supplier']['name']!r}."
+        )
+        assert inc["customer"]["object_id"] == p.object_id
+        assert inc["supplier"]["uid"] == "CHE-123.456.789 MWST", (
+            "Ohne UID des Ausstellers kann dem Empfänger der Vorsteuerabzug verweigert "
+            "werden – sie gehört auf den Beleg."
+        )
+        assert inc["supplier"]["address"] == ["Bahnhofstrasse 1", "8001 Zürich", "CH"], (
+            f"Die Anschrift steht nicht als Beleg-Zeilen da: "
+            f"{inc['supplier']['address']!r}"
+        )
+        assert inc["customer"]["address"] == ["Werkweg 3", "9000 St. Gallen", "CH"]
+
+        # **Ausgabe: die Gegenpartei fakturiert.** Dieselbe Ableitung, andere Richtung –
+        # kein zweiter Weg, kein ``if`` in der Oberfläche.
+        out = head("out")
+        assert out["supplier"]["object_id"] == p.object_id, (
+            "Bei einer Ausgabe stellt die Gegenpartei den Beleg – die Rollen sind "
+            "vertauscht."
+        )
+        assert out["customer"]["name"] == "Wir AG"
+
+        # **Die Rolle steht im WORT** – die Oberfläche fragt für sie nicht nach der
+        # Richtung.
+        assert inc["supplier"]["label"] == out["supplier"]["label"] == dm.SUPPLIER
+        assert inc["customer"]["label"] == out["customer"]["label"] == dm.CUSTOMER
+
+        # **Und eine fehlende Strasse ist keine Zeile.** ``make`` setzt dafür ein «—»,
+        # damit das *Feld* belegt ist; auf einem Beleg wäre es eine Zeile, die nichts
+        # sagt. Mit einer vollständigen Anschrift ist der Fall nicht herstellbar – darum
+        # steht er hier an der Regel selbst.
+        assert address.lines(address.make(zip="9000", city="St. Gallen")) == [
+            "9000 St. Gallen", "CH",
+        ], "Der Platzhalter «—» steht als eigene Zeile auf dem Beleg." 
     finally:
         db.rollback(); db.close()
