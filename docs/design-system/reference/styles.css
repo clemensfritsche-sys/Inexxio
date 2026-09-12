@@ -1,0 +1,9 @@
+/* ============================================================
+   INEXXIO Design System — Root stylesheet
+   Import this single file to get the full token system (color,
+   type, spacing, radii, shadows). Page-level component styles
+   (e.g. the website reference build) live in their own folders
+   and are loaded separately — see ui_kits/website/.
+   ============================================================ */
+
+@import url('./colors_and_type.css');

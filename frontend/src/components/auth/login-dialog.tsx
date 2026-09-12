@@ -1,0 +1,379 @@
+'use client';
+
+/**
+ * **Die Anmeldung ist ein Pop-up, keine Seite.**
+ *
+ * Vorher war `/login` eine Route mit deckendem, animiertem Farbverlauf: wer sich anmelden
+ * wollte, verliess die Seite, auf der er war, und fand nur über einen eigenen Link
+ * («Zurück zur Startseite») zurück. Jetzt ist es ein Dialog über dem, was man ansieht –
+ * halbtransparenter Scrim, Klick daneben und `Esc` schliessen.
+ *
+ * **Zwei Orte, EINE Komponente.** Der Knopf in der Navigation öffnet sie an Ort und
+ * Stelle (keine Navigation); die **Route** bleibt der Weg, auf dem ein geschützter
+ * Bereich umleitet und auf dem ein Lesezeichen landet – sie rendert denselben Dialog,
+ * nur heisst «daneben klicken» dort «zur Startseite», weil hinter ihr nichts steht.
+ *
+ * Damit ist **«Zurück zur Startseite» entfallen**: nicht gestrichen, sondern in die
+ * Geste aufgegangen, die ein Pop-up ohnehin hat.
+ */
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Fingerprint } from 'lucide-react';
+import type { FirebaseError } from 'firebase/app';
+import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
+import {
+  loginWithPasskey, loginWithPasskeyAutofill, cancelPasskeyAutofill,
+  passkeySupported, passkeyAutofillSupported, isPasskeyCancellation,
+} from '@/lib/passkey';
+import { api } from '@/lib/api';
+
+type Step = 'input' | 'loading' | 'sent';
+
+function getMailUrl(email: string): string {
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (['gmail.com', 'googlemail.com'].includes(domain)) return 'https://mail.google.com';
+  if (['outlook.com', 'hotmail.com', 'live.com', 'hotmail.de', 'outlook.de', 'msn.com'].includes(domain)) return 'https://outlook.live.com';
+  if (domain.startsWith('yahoo.')) return 'https://mail.yahoo.com';
+  if (['icloud.com', 'me.com', 'mac.com'].includes(domain)) return 'https://www.icloud.com/mail';
+  if (domain === 'bluewin.ch') return 'https://mail.bluewin.ch';
+  return `mailto:${email}`;
+}
+
+const REDIRECT_KEY = 'inexxio_login_redirect';
+const ROLE_KEY = 'inexxio_user_role';
+
+function getGoogleErrorMessage(code: string): string {
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      return 'Google-Anmeldung ist nicht aktiviert.';
+    case 'auth/unauthorized-domain':
+      return 'Diese Domain ist nicht autorisiert.';
+    case 'auth/network-request-failed':
+      return 'Netzwerkfehler. Bitte Internetverbindung prüfen.';
+    case 'auth/web-storage-unavailable':
+      return 'Browser-Speicher nicht verfügbar. Cookie-Einstellungen prüfen.';
+    default:
+      return `Anmeldung fehlgeschlagen (${code || 'unbekannt'}). Bitte erneut versuchen.`;
+  }
+}
+
+export function LoginDialog({ onClose, fallback = '/' }: {
+  /** Was «daneben klicken» bedeutet: schliessen (Pop-up) bzw. zur Startseite (Route). */
+  onClose: () => void;
+  /** Wohin nach der Anmeldung, wenn kein `?from=` gemerkt ist. */
+  fallback?: string;
+}) {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [step, setStep] = useState<Step>('input');
+  const [error, setError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [showPasskey, setShowPasskey] = useState(false);
+  const [sentEmail, setSentEmail] = useState('');
+
+  useEffect(() => {
+    setShowPasskey(passkeySupported());
+    // Store the ?from= param so verify page and Google login can redirect back
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get('from');
+    if (from && from !== '/login' && !from.startsWith('/login/')) {
+      localStorage.setItem(REDIRECT_KEY, from);
+    }
+  }, []);
+
+  // **Esc schliesst** – dieselbe Aussage wie der Klick daneben, nur mit der Tastatur.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Passkey-Autofill (Conditional UI): still im Hintergrund starten, sobald der Browser es
+  // unterstützt. Der Passkey erscheint dann direkt im Autofill-Dropdown des E-Mail-Feldes –
+  // ein Tap auf den Vorschlag (+ Face/Touch ID) meldet an, ganz ohne Knopfdruck. Der Promise
+  // bleibt offen, bis der Nutzer im Autofill wählt; beim Verlassen der Seite wird abgebrochen.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!(await passkeyAutofillSupported())) return;
+      try {
+        const { token } = await loginWithPasskeyAutofill();
+        if (!cancelled) await finishTokenLogin(token);
+      } catch (err: unknown) {
+        if (!cancelled && !isPasskeyCancellation(err)) {
+          setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
+        }
+      }
+    })();
+    return () => { cancelled = true; cancelPasskeyAutofill(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Gemeinsamer Abschluss für Token-basierte Logins (Google, Passkey): Token setzen,
+  // Profil (Rolle/Name) cachen und zur Ursprungsseite weiterleiten.
+  async function finishTokenLogin(token: string) {
+    api.setToken(token);
+    localStorage.setItem('inexxio_token', token);
+    try {
+      const profile = await api.getMe();
+      localStorage.setItem(ROLE_KEY, profile.role);
+      const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+      if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
+    } catch {
+      // role/name fetch failed — will retry on next page load
+    }
+    const redirect = localStorage.getItem(REDIRECT_KEY) || fallback;
+    localStorage.removeItem(REDIRECT_KEY);
+    onClose();
+    router.push(redirect);
+    router.refresh();
+  }
+
+  async function handlePasskeyLogin() {
+    if (passkeyLoading) return;
+    setError('');
+    setPasskeyLoading(true);
+    try {
+      const { token } = await loginWithPasskey();
+      await finishTokenLogin(token);
+    } catch (err: unknown) {
+      if (!isPasskeyCancellation(err)) {
+        setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
+      }
+      setPasskeyLoading(false);
+    }
+  }
+
+  async function handleMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setError('');
+    setStep('loading');
+    try {
+      await sendMagicLink(email.trim());
+      setSentEmail(email.trim());
+      setStep('sent');
+    } catch {
+      setError('Fehler beim Senden. Bitte versuchen Sie es erneut.');
+      setStep('input');
+    }
+  }
+
+  async function handleGoogleLogin() {
+    if (googleLoading) return;
+    setError('');
+    setGoogleLoading(true);
+
+    // Watchdog: Schliesst der Nutzer das Popup (X), meldet Firebase das nicht in
+    // allen Browsern zuverlässig zurück – der Button bliebe sonst ewig im
+    // Ladezustand. Kehrt der Fokus ins Hauptfenster zurück und ist nach kurzer
+    // Frist nichts passiert, den Ladezustand wieder freigeben.
+    let settled = false;
+    const onFocus = () => {
+      window.setTimeout(() => { if (!settled) setGoogleLoading(false); }, 1500);
+    };
+    window.addEventListener('focus', onFocus, { once: true });
+
+    try {
+      const { token } = await signInWithGoogle();
+      settled = true;
+      await finishTokenLogin(token);
+    } catch (err: unknown) {
+      settled = true;
+      setGoogleLoading(false);
+      const code = (err as FirebaseError).code ?? '';
+      // Vom Nutzer bewusst abgebrochen (Popup geschlossen) → keine Fehlermeldung
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setError(getGoogleErrorMessage(code));
+      }
+    } finally {
+      window.removeEventListener('focus', onFocus);
+    }
+  }
+
+  return (
+    <div
+      className="ix-login-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Anmelden"
+      /* **Klick daneben schliesst** – die übliche Geste eines Pop-ups, und zugleich der
+         Ersatz für den früheren «Zurück zur Startseite»-Link. Nur der Scrim selbst
+         zählt: ein Klick, der innerhalb der Karte begonnen hat, darf sie nicht
+         schliessen (Textauswahl über den Rand hinaus). */
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="ix-login-card" onMouseDown={(e) => e.stopPropagation()}>
+
+          {step === 'sent' ? (
+            /* ── Success State ── */
+            <div className="ix-success">
+              <div className="ix-success-icon">
+                <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                  <circle
+                    className="ix-success-circle"
+                    cx="60" cy="60" r="58"
+                    fill="none" stroke="#E51A14" strokeWidth="1.5" opacity="0.2"
+                  />
+                  <polyline
+                    className="ix-success-line-1"
+                    points="38,65 52,78"
+                    fill="none" stroke="#E51A14" strokeWidth="5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                  />
+                  <polyline
+                    className="ix-success-line-2"
+                    points="52,78 88,42"
+                    fill="none" stroke="#E51A14" strokeWidth="5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <h2>Überprüfen Sie Ihre E-Mail!</h2>
+              <p>
+                Wir haben einen Anmeldungslink an{' '}
+                <strong style={{ color: 'var(--fg-2)' }}>{sentEmail}</strong>{' '}
+                gesendet. Bitte prüfen Sie Ihren Posteingang.
+              </p>
+              <a
+                href={getMailUrl(sentEmail)}
+                target={getMailUrl(sentEmail).startsWith('mailto:') ? undefined : '_blank'}
+                rel="noopener noreferrer"
+                className="ix-submit-btn"
+                style={{ marginBottom: 12 }}
+              >
+                Posteingang öffnen
+              </a>
+              <button
+                className="ix-success-reset"
+                onClick={() => { setStep('input'); setEmail(''); }}
+              >
+                Andere E-Mail verwenden
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* ── Header ── */}
+              <div className="ix-login-header">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="Inexxio" className="ix-login-logo" />
+                <h1>Anmelden</h1>
+                <p>Geben Sie Ihre E-Mail-Adresse ein</p>
+              </div>
+
+              {/* ── Error ── */}
+              {error && (
+                <div key={error} className="ix-login-error" style={{ marginBottom: 16 }}>
+                  {error}
+                </div>
+              )}
+
+              {/* ── Magic Link Form ── */}
+              <form onSubmit={handleMagicLink} className="ix-login-form">
+                <div className="ix-form-group">
+                  <label className="ix-form-label" htmlFor="email">
+                    E-Mail-Adresse
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    className="ix-email-input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="sie@unternehmen.ch"
+                    required
+                    autoComplete="email webauthn"
+                    autoFocus
+                    disabled={step === 'loading'}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="ix-submit-btn"
+                  disabled={step === 'loading' || !email.trim()}
+                >
+                  {step === 'loading' ? (
+                    <>
+                      <span className="ix-spinner" />
+                      Wird gesendet…
+                    </>
+                  ) : (
+                    'Anmeldelink senden'
+                  )}
+                </button>
+              </form>
+
+              {/* Passkey-Hinweis: der Passkey erscheint direkt im Autofill des Feldes oben. */}
+              {showPasskey && (
+                <p className="ix-passkey-hint">
+                  <Fingerprint aria-hidden />
+                  Haben Sie einen Passkey? Er wird direkt im Feld oben angeboten – oder unten wählen.
+                </p>
+              )}
+
+              {/* ── Divider ── */}
+              <div className="ix-divider" style={{ marginTop: 18, marginBottom: 12 }}>
+                <span>oder</span>
+              </div>
+
+              {/* ── Passkey Button (der schnellste Weg – über Google) ── */}
+              {showPasskey && (
+                <button
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                  className="ix-google-btn ix-passkey-btn"
+                  style={{ marginBottom: 12 }}
+                  type="button"
+                >
+                  {passkeyLoading ? (
+                    <span
+                      className="ix-spinner"
+                      style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
+                    />
+                  ) : (
+                    <Fingerprint style={{ width: 18, height: 18, color: 'var(--inexxio-red)' }} aria-hidden />
+                  )}
+                  Mit Passkey anmelden
+                </button>
+              )}
+
+              {/* ── Google Button ── */}
+              <button
+                onClick={handleGoogleLogin}
+                disabled={googleLoading}
+                className="ix-google-btn"
+              >
+                {googleLoading ? (
+                  <span
+                    className="ix-spinner"
+                    style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
+                  />
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                )}
+                Mit Google anmelden
+              </button>
+
+              {/* ── Footer ── */}
+              <p className="ix-login-footer">
+                Mit der Anmeldung stimmen Sie unseren{' '}
+                <Link href="/agb">AGB</Link>{' '}
+                und der{' '}
+                <Link href="/datenschutz">Datenschutzerklärung</Link>{' '}
+                zu.
+              </p>
+            </>
+          )}
+      </div>
+    </div>
+  );
+}

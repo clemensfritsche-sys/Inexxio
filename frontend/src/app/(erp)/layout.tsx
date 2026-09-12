@@ -6,6 +6,8 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
+import { ScanProvider } from '@/components/scan/scan-provider';
+import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
 const ROLE_KEY = 'inexxio_user_role';
 
@@ -26,13 +28,14 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
       try {
         const profile = await api.getMe();
         localStorage.setItem(ROLE_KEY, profile.role);
-        if (profile.role === 'customer' || profile.role === 'supplier') {
+        // Lieferanten dürfen ins ERP (sehen nur ihre Bestellungen); Kunden nicht.
+        if (profile.role === 'customer') {
           router.replace('/');
           return;
         }
       } catch {
         const cached = localStorage.getItem(ROLE_KEY);
-        if (cached === 'customer' || cached === 'supplier') {
+        if (cached === 'customer') {
           router.replace('/');
           return;
         }
@@ -60,12 +63,14 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
+    <ScanProvider>
       <Navbar />
       <main style={{ minHeight: 'calc(100vh - 72px - 280px)', background: '#FAFAF8' }}>
         {children}
       </main>
       <Footer />
-    </>
+
+      <FeedbackPin />
+    </ScanProvider>
   );
 }

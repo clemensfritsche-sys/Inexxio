@@ -1,0 +1,26 @@
+<!-- @dsCard group="ERP / App" viewport="640x160" name="KPI Tiles" subtitle="Icon-led stats — hairlines and whitespace, no card shadows" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body{margin:0;background:#fff;font-family:var(--font-body);padding:24px;}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);}
+  .tile{padding:0 22px;border-left:1px solid var(--border-1);}
+  .tile:first-child{border-left:0;padding-left:0;}
+  .tile .ico{color:var(--fg-4);margin-bottom:10px;}
+  .tile .ico .lucide{width:18px;height:18px;}
+  .tile .lbl{font:var(--caption);color:var(--fg-3);margin-bottom:6px;}
+  .tile .n{font:800 30px/1 var(--font-display);letter-spacing:-.02em;color:var(--fg-1);font-variant-numeric:tabular-nums;}
+  .tile .delta{display:flex;align-items:center;gap:4px;font:var(--caption);color:var(--success);margin-top:7px;}
+  .tile .delta.down{color:var(--inexxio-red);}
+  .tile .delta .lucide{width:12px;height:12px;}
+</style></head>
+<body>
+  <div class="tiles">
+    <div class="tile"><div class="ico"><i data-lucide="folder-kanban"></i></div><div class="lbl">Aktive Projekte</div><div class="n">12</div><div class="delta"><i data-lucide="arrow-up-right"></i>3 neu</div></div>
+    <div class="tile"><div class="ico"><i data-lucide="users"></i></div><div class="lbl">Team</div><div class="n">28</div><div class="delta"><i data-lucide="arrow-up-right"></i>2 neu</div></div>
+    <div class="tile"><div class="ico"><i data-lucide="wallet"></i></div><div class="lbl">Budget genutzt</div><div class="n">64%</div><div class="delta down"><i data-lucide="arrow-down-right"></i>CHF 124k</div></div>
+    <div class="tile"><div class="ico"><i data-lucide="clock"></i></div><div class="lbl">Termintreue</div><div class="n">92%</div><div class="delta"><i data-lucide="arrow-up-right"></i>+5%</div></div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body></html>

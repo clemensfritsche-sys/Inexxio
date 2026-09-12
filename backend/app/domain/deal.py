@@ -1,0 +1,1054 @@
+"""**Der Geldvorgang — eine Richtung, drei Stufen, zwei Arten von Zeile.**
+
+Dieses Modul ist der Fachkern des Prozessschrittmoduls «Zahlung» (``domain/modules.
+Zahlung``). Es steht **vollständig für sich**: keine Datenbank, kein Dienst – und
+ausdrücklich **kein Import** aus ``domain/procurement`` oder ``domain/money``. Wer die
+Module «Beschaffen» und «Verkauf» eines Tages ersatzlos löscht, muss hier keine Zeile
+anfassen.
+
+## Warum es das gibt
+
+Einkauf und Verkauf waren zwei Module, und daneben standen Fälle, die in keines von
+beiden passten: eine Spedition, die man beauftragt (ein Einkauf **im** Bewegen-Modul),
+eine Leistung ohne Artikel, eine Vorauszahlung. Jeder dieser Fälle bekam ein eigenes
+Stück Mechanik, und die Mechanik wuchs schneller als die Fälle.
+
+Der kleinste gemeinsame Nenner ist **nicht** «Ware», sondern **Geld mit einer zweiten
+Partei**. Ein Vorgang hat genau eine Richtung – es kommt herein oder es geht hinaus –,
+und alles Weitere ist in beiden Richtungen dieselbe Maschine: jemand nennt einen Preis,
+beide sagen zu, es wird gefordert, es wird gezahlt.
+
+## Die eine Regel, die es robust macht
+
+**Dieses Modul bewegt keine Stücke.** Es misst nicht, es sondert nicht aus, es verbaut
+nicht, es bewegt nicht, und es ändert keinen Zustand: die Einzelinstanzen stehen davor,
+warten und laufen danach unverändert weiter (``Im Prozess`` → ``Im Prozess``).
+
+Daraus folgt die Robustheit ohne eine einzige Prüfung: **keine andere Regel im System
+muss von diesem Modul wissen.** Es gibt keinen neuen Status, keinen Ausgang, keine
+Kettenregel, keinen Ortswechsel und keine Zeile in der Prozess-Engine. Was mit den
+Stücken *physisch* geschieht, sagen die Module davor und danach – kommissioniert wird
+mit «Bewegen», ausgeliefert mit «Bewegen», ausgesondert mit «Aussondern».
+
+Wer diesem Modul einen Statuswechsel gäbe, hätte in drei Wochen wieder die Fragen, aus
+denen es entstanden ist.
+
+## Drei Achsen, keine Reihenfolge
+
+**Ware · Forderung · Geld** sind unabhängig, und jedes Szenario ist eine andere *Folge*
+derselben Grundhandlungen:
+
+=============================  ==========================================
+Szenario                       Folge
+=============================  ==========================================
+Rechnung mit Zahlungsziel      zusagen → abschliessen → fordern → zahlen
+Vorauszahlung                  zusagen → fordern → zahlen → abschliessen
+Anzahlung + Schlussrechnung    zusagen → fordern → zahlen → … → fordern
+Gutschrift / Kulanz            negative Forderung, ohne Ware
+Erstattung                     negative Zahlung, auch nach dem Storno
+=============================  ==========================================
+
+Für **keines** davon gibt es hier einen Modus – und seit #854 auch keinen Schalter mehr:
+«erst weiter, wenn bezahlt» ist die **Bedeutung der vereinbarten Zahlungsfrist**
+(``prepaid``: null Tage ab Zusage), nicht eine Einstellung daneben.
+"""
+
+from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+from typing import Any, Optional
+
+from . import currency as cur
+
+# ---------------------------------------------------------------------------
+# ►►► DIE RICHTUNG — das eine Feld, aus dem alles Übrige folgt ◄◄◄
+# ---------------------------------------------------------------------------
+
+#: **Geld kommt herein** – wir stellen Rechnung, die Gegenpartei ist ein Kunde.
+IN = "in"
+#: **Geld geht hinaus** – wir bekommen Rechnung, die Gegenpartei ist ein Lieferant.
+OUT = "out"
+
+# ---------------------------------------------------------------------------
+# ►►► DIE STUFEN — ZWEI, weil zwei Dinge unumkehrbar sind ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# **nichts zugesagt · zugesagt.** Das ist die ganze Verpflichtungskette; alles andere ist
+# eine Folge davon.
+#
+# ``DONE`` und ``CANCELLED`` sind **Ausgänge, keine Stufen** – man kommt dort an, statt
+# hindurchzugehen. «Abgeschlossen» stand einmal als dritte Stufe da und war genau das
+# Missverständnis: ein **Zustand** in einer Reihe von **Schritten**.
+#
+# Und die dritte Zeile in der Karte ist das **Geld** – aber es ist keine Stufe: eine
+# Zahlung macht aus einem Angebot keine Zusage, sie ist reversibel (Teilzahlung,
+# Erstattung), und sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach
+# (Zahlungsziel). Wer sie als dritte Stufe führte, hätte für die Vorauszahlung ein ``if``.
+
+OFFER = "offer"
+AGREED = "agreed"
+DONE = "done"
+CANCELLED = "cancelled"
+
+STAGES: tuple[str, ...] = (OFFER, AGREED)
+
+# ---------------------------------------------------------------------------
+# ►►► DIE ANGEBOTSZEILEN — der Vorgang hat ZWEI Parteien ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Ein Geldvorgang ist kein Formular, das eine Seite ausfüllt: jemand fragt, der andere
+# nennt einen Preis, einer sagt zu. Je zugelassener Gegenpartei eine Zeile.
+#
+# ``gewaehlt`` entsteht **nicht durch Tippen**, sondern dadurch, dass bei dieser Zeile
+# zugesagt wurde – ein Zustand ist eine Folge.
+ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaehlt"
+
+QUOTE_STATES: tuple[str, ...] = (ASKED, QUOTED, DECLINED, CHOSEN)
+
+#: **Ab hier ist eine zweite Partei gebunden.** Davor darf man frei ändern; ab hier ist
+#: eine Änderung ein Storno – draussen liegt eine Zusage, die jemand gelesen hat.
+BINDING = AGREED
+
+# ---------------------------------------------------------------------------
+# ►►► DIE ZEILEN — zwei Arten, ein Vorzeichen ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# ``CHARGE``   die **Forderung** (Rechnung). Negativ = Gutschrift.
+# ``PAYMENT``  das **Geld**. Negativ = Erstattung.
+#
+# Zwei Arten und nicht zwei Tabellen: beide sind «eine Zeile Geld an diesem Vorgang»,
+# beide tragen Betrag, Datum, Referenz. Und zwei Arten und nicht eine: ohne die
+# Unterscheidung liesse sich «wie viel hat er wirklich gezahlt» nicht mehr beantworten,
+# und eine Gutschrift sähe aus wie eine offene Rechnung.
+
+CHARGE = "charge"
+PAYMENT = "payment"
+
+KINDS: tuple[str, ...] = (CHARGE, PAYMENT)
+
+# ---------------------------------------------------------------------------
+# ►►► WAS IN BEIDEN RICHTUNGEN GLEICH HEISST — Konstanten, keine Tabelle ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# «Kunde» ↔ «Lieferant» standen einmal als zwei Werte in ``Direction``, und jede
+# Aufrufstelle musste sich die richtige holen. Es ist aber **dieselbe Rolle**: der andere
+# im Geschäft. Ein Wort dafür ist nicht nur kürzer, es nimmt eine ganze Klasse von Fehlern
+# weg – die Wahl des falschen Wortes gibt es dann gar nicht mehr.
+#
+# **Und Singular = Plural.** Damit ist das «Kundeen»-Problem (#787) *strukturell*
+# erledigt statt durch einen zweiten gepflegten Wert: es gibt keine Beugung, die jemand
+# rechnen könnte.
+
+#: Der andere im Geschäft – in beiden Richtungen und in beiden Numeri.
+PARTY = "Partner"
+
+# ►►► **Auf dem BELEG heissen die beiden anders – und das ist kein Rückschritt.** ◄◄◄
+#
+# «Partner» beantwortet «wer ist der andere?», und dafür bleibt es das eine Wort. Ein
+# **Beleg** stellt eine zweite Frage: *wer schuldet wem etwas?* – und darauf gibt es zwei
+# verschiedene Antworten, die auf keiner Rechnung gleich heissen dürfen. Sie stehen
+# darum hier als zwei Konstanten und **nicht** in ``Direction``: welche Seite welche
+# Rolle hat, sagt die Richtung (``collects``), aber wie die Rollen *heissen*, ist in
+# beiden Richtungen dasselbe.
+#
+# ►►► **«Lieferant ↔ Kunde» war zu eng** (Testnotiz #903). ◄◄◄
+#
+# Das Modul entstand aus der Einsicht, dass der kleinste gemeinsame Nenner **nicht die
+# Ware** ist: Miete, Lohn, Gebühr, Spesen und ein eingekaufter Transport haben keinen
+# Lieferanten. Ein Rollenname, der «Lieferant» heisst, ist damit enger als das Modul –
+# derselbe Fehler, den «Verkauf ↔ Einkauf» schon einmal hatte (#831).
+#
+# **«Rechnungssteller ↔ Rechnungsempfänger»** – der Vorschlag aus der Notiz – ist präzise
+# für eine **Rechnung** und falsch auf einer **Offerte**: dort hat niemand eine Rechnung
+# gestellt, und es ist derselbe Beleg, nur eine Stufe früher.
+#
+# **Es sind die Begriffe des MWSTG selbst**, und daraus folgen drei Dinge auf einmal: sie
+# gelten für *jede* Leistung (Ware, Dienstleistung, Miete, Lohn, Transport), sie stehen
+# ohnehin auf jedem Schweizer Beleg, und sie passen **wörtlich** zum Pflichtsatz beim
+# Reverse Charge («Steuerschuldnerschaft des *Leistungsempfängers*»). Zwei verschiedene
+# Wörter für dieselbe Person auf demselben Papier wären genau die Rückfrage, die dieser
+# Beleg vermeiden soll.
+SUPPLIER = "Leistungserbringer"
+CUSTOMER = "Leistungsempfänger"
+#: Sie sind etwas sperrig – also sagt der Hover in einem Satz, was sie bedeuten. Ein
+#: Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung.
+SUPPLIER_HINT = "Wer die Leistung erbringt und den Beleg stellt."
+CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
+
+#: ►►► **Welche unserer Gesellschaften den Beleg stellt** (Testnotiz #905). ◄◄◄
+#:
+#: Nicht «Aussteller» – das Wort sagt dasselbe wie ``SUPPLIER`` eine Zeile weiter oben und
+#: erzeugte die Frage, ob zwei verschiedene Dinge gemeint sind. Gefragt ist die
+#: **Gesellschaft**, und sie ist vorgewählt: hier steht nur die Korrektur.
+ISSUER_LABEL = "Unsere Gesellschaft"
+
+#: ►►► **Die Nummer im Belegkopf** (Testnotiz #904). ◄◄◄
+#:
+#: «Objektnummer» ist ein Systembegriff und auf einem Beleg fehl am Platz; «Benutzernummer»
+#: ist falsch, sobald die Partei ein Unternehmen ist. Der Block darüber sagt bereits,
+#: **wessen** Nummer es ist – also genügt das kürzeste Wort, das die Sache benennt.
+PARTY_NUMBER_LABEL = "Nr."
+
+#: **Was man an der Schwelle tut**: das *Angebot* annehmen – der Auftrag ist das Ergebnis
+#: (Testnotiz #826). «Auftrag bestätigen» benannte die Folge statt der Handlung.
+AGREE_VERB = "Angebot annehmen"
+#: ►►► **Was man tut, wenn nichts mehr davorsteht** (Testnotiz #848). ◄◄◄
+#:
+#: «Auftrag erledigt» meinte den falschen Auftrag: es klang nach dem ERP-Datensatz, gemeint
+#: ist **dieses Modul**. Ein *Vorgang* ist genau dieser Geldvorgang – das Wort steht seit
+#: jeher dafür im Haus, und es verwechselt sich mit nichts.
+FINISH_VERB = "Vorgang abschliessen"
+#: Die eine Gegenhandlung.
+UNDO = "Auftrag stornieren"
+
+#: ►►► **Die beiden Geld-Zeilen — in beiden Richtungen dasselbe Wort** (#828). ◄◄◄
+#:
+#: «Rechnung stellen» ↔ «Rechnung erfassen» und «Zahlungseingang» ↔ «Zahlung» waren vier
+#: Wörter für zwei Handlungen. **Erfasst** wird beides, egal in welche Richtung es fliesst –
+#: das System bucht eine Zeile, es überweist nichts. Zwei Wörter weniger, die auseinander
+#: laufen können.
+CHARGE_WORD = "Rechnung erfassen"
+PAYMENT_WORD = "Zahlung erfassen"
+#: ►►► **Und die dritte Handlung am Geld: sie AUSFÜHREN.** ◄◄◄
+#:
+#: «Erfassen» heisst *aufschreiben, was schon geschehen ist* – eine Überweisung, die auf
+#: dem Konto liegt. **Hier geschieht es**: der Betrag wird jetzt eingezogen, und gebucht
+#: wird er erst, wenn der Zahlungsdienst das bestätigt. Zwei verschiedene Handlungen, zwei
+#: Wörter; dasselbe Wort für beide hiesse, dass niemand mehr sieht, welche gemeint ist.
+PAY_ONLINE_WORD = "Jetzt bezahlen"
+#: Das Wort für den offenen Betrag – aus unserer Sicht in beiden Richtungen «Offen».
+OPEN_WORD = "Offen"
+#: Die Überschrift der dritten Zeile der Karte.
+MONEY_LABEL = "Rechnung & Zahlung"
+
+#: **Was bei ihm zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
+#:
+#: Eine Eigenschaft der **Paarung** Modul × Partner (derselbe Lieferant führt je Teil eine
+#: andere Nummer), und sie gilt in **beiden** Richtungen: beim Einkauf sagt sie, wie man
+#: bei ihm bestellt, beim Verkauf, was er bekommt. Ein Feld, das es nur auf einer Seite
+#: gibt, wäre wieder eine Verzweigung – und der frühere Satz «Was ist daran zu tun?» am
+#: Vorgang war ihre optionale Doppelung (Testnotiz #805).
+TASK = "Was ist zu tun?"
+TASK_HINT = "Artikelnummer, Link oder Beschreibung"
+
+# ---------------------------------------------------------------------------
+# ►►► WER DEN PREIS NENNT — der Urheber eines Angebots ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Ein Angebot hat einen **Urheber**, und der ist in den beiden Richtungen ein anderer
+# (Testnotiz #837):
+#
+# * **Ausgabe**: wir fragen an, **er** nennt den Preis, wir wählen aus.
+# * **Einnahme**: **wir** nennen den Preis, er nimmt an oder lehnt ab.
+#
+# Das ist keine Formulierungsfrage, sondern eine andere **Abfolge**. Vorher schickte
+# ``ask`` in beiden Richtungen eine leere Zeile hinaus – beim Verkauf sähe der Kunde ein
+# Angebot ohne Preis, und wir müssten ihn danach nachtragen. Steht der Urheber als
+# **Angabe** da, folgt daraus beides ohne eine Verzweigung: wer nennt, füllt **vor** dem
+# Hinausgehen, und wer nicht nennt, darf den fremden Preis nicht ändern.
+
+#: **Wir** nennen den Preis (Einnahme) – das Angebot geht mit dem Betrag hinaus.
+BY_US = "us"
+#: **Die Gegenpartei** nennt ihn (Ausgabe) – wir fragen an und warten auf die Offerte.
+BY_PARTY = "party"
+
+# ---------------------------------------------------------------------------
+# ►►► DIE NUMMER EINER ZEILE — nur, wo sie von AUSSEN kommt ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Eine Nummer, die **wir** vergeben, tippt niemand ab (Testnotiz #840): sie entsteht aus
+# der Serie, lückenlos und ohne Doppelung. Ein Eingabefeld daneben ist die zweite Aussage
+# über dieselbe Sache – und die getippte gewinnt, auch wenn sie falsch ist.
+#
+# Das Feld gibt es darum genau dort, wo die Nummer **von aussen** kommt: an einer
+# Lieferantenrechnung (sie steht auf seinem Papier) und an jeder Zahlung (QR-Referenz,
+# Zahlungszweck, die Id des Zahlungsdienstes).
+
+#: ►►► **Die Nummer der Gegenpartei – EIN Feld für BEIDE Zeilen-Arten** (#840/#850). ◄◄◄
+#:
+#: Die Regel galt zuerst nur für die Rechnung, und an der Zahlung stand weiter ein Feld –
+#: obwohl bei einer **Einnahme** auch die Zahlung unsere Nummer trägt (sie referenziert
+#: unsere Rechnung). Zwei Regeln für dieselbe Frage laufen genau so auseinander.
+#:
+#: Jetzt gilt einer für beide: **wo wir nummerieren, tippt niemand**, und wo die
+#: Gegenpartei nummeriert, ist es ihre Angabe – ihre Belegnummer, ihr Zahlungszweck.
+#:
+#: ►►► **Ein Feld heisst EINEN Namen** (Testnotiz #898). ◄◄◄
+#:
+#: Es hiess «Beleg-/Zahlungsreferenz des Partners» – ein Schrägstrich zwischen zwei
+#: Wörtern ist keine Beschriftung, sondern die Weigerung, sich zu entscheiden: er sagt
+#: «eines von beidem, such dir aus welches». Der Grund dafür war, dass **eine** Angabe
+#: an zwei Zeilen-Arten steht; genau das ist aber die Aussage der Regel und nicht die
+#: der Beschriftung. Gemeint ist beide Male die Nummer, unter der die Gegenpartei diesen
+#: Geldfluss führt – und das ist ihre **Zahlungsreferenz**.
+PARTY_REFERENCE = "Zahlungsreferenz des Partners"
+
+# ---------------------------------------------------------------------------
+# ►►► DIE BEIDEN FRISTEN — eine Zahl, und die üblichen Werte haben Namen ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Eine Frist ist **eine Zahl in Tagen** (Testnotizen #854/#855). Sie hat aber zwei, drei
+# übliche Werte, und die trägt man nicht als Zahl im Kopf: «Vorauszahlung» ist ein
+# Geschäftsbegriff, «0» ist eine Ziffer, die man erklären muss.
+#
+# ►►► **Und «Vorauszahlung» ist der Wert 0 – kein zweites Feld daneben.** ◄◄◄
+#
+# Vorher stand die Sperre («erst weiter, wenn bezahlt») als eigener Schalter in der
+# **Modul-Definition**, und die Zahlungsfrist daneben in der Ausführung: zwei Angaben über
+# **eine** Sache, an zwei Orten, zu zwei Zeitpunkten – und wer sie verschieden setzte,
+# hatte einen Vorgang, der etwas anderes sagt als er tut. «Zahlbar in 0 Tagen ab Zusage»
+# **ist** die Vorauszahlung; die Sperre folgt daraus, statt daneben zu stehen.
+#
+# **Beim Modellieren steht sie ohnehin nicht fest**: derselbe Ablauf verkauft einmal gegen
+# Vorkasse und einmal auf Rechnung. Sie gehört dorthin, wo man das Angebot **schreibt**.
+#
+# Damit «0» genau eine Bedeutung hat, ist es **kein tippbarer Wert**: die freie Eingabe
+# beginnt bei 1, und die Null gibt es nur über ihren Namen (``FREE_MIN``).
+
+#: Zahlbar in null Tagen ab der Zusage – **das ist die Vorauszahlung**.
+PREPAID_DAYS = 0
+
+#: Die üblichen Zahlungsfristen. Alles andere tippt man – aber nicht die Null.
+PAYMENT_TERMS: tuple[tuple[int, str], ...] = ((PREPAID_DAYS, "Vorauszahlung"),
+                                              (30, "30 Tage"))
+#: Die übliche Lieferfrist, die keine ist: eine Software ist sofort da (Testnotiz #856).
+#: Sie steht als **Wort** da, damit niemand rät, ob «0» erlaubt ist oder ein Fehler.
+LEAD_TERMS: tuple[tuple[int, str], ...] = ((0, "Sofort"),)
+
+#: Ab hier beginnt die freie Eingabe. **Nicht bei 0** – die hat einen Namen, und zwei Wege
+#: zu einem Wert wären zwei Bedeutungen, von denen eine niemand kennt.
+FREE_MIN = 1
+
+PAYMENT_TERM_LABEL = "Zahlungsfrist"
+LEAD_TERM_LABEL = "Lieferfrist"
+FREE_TERM_LABEL = "Individuell"
+
+
+def prepaid(due_days: Optional[int]) -> bool:
+    """►►► **Wartet dieses Modul auf das Geld?** – die eine Lesestelle. ◄◄◄
+
+    Es ist **keine Einstellung**, sondern die Bedeutung der vereinbarten Zahlungsfrist:
+    wer in null Tagen zahlbar stellt, liefert nicht vorher. Ein Schalter daneben wäre die
+    zweite Aussage über dieselbe Sache – und beim ersten Widerspruch gewinnt der Schalter,
+    obwohl auf dem Angebot die Frist steht.
+
+    ``None`` heisst «keine Frist vereinbart» und damit **nicht** Vorauszahlung: ohne
+    Angabe hat niemand über den Zeitpunkt gesprochen, und eine erfundene Sperre wäre
+    schlimmer als keine.
+    """
+    return due_days == PREPAID_DAYS
+
+
+# ---------------------------------------------------------------------------
+# ►►► EINE RECHNUNG JE MODUL — und der Anteil, der das erst möglich macht ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich
+# einfach 2 Zahlungsmodule … meistens hat man eine Vorauszahlung, dann eine
+# Leistungserbringung und dann wieder eine Restzahlung.»* (Testnotiz #866)
+#
+# **Der Grund ist die Zeit.** *Vorauszahlung → Leistung → Restzahlung* sind drei
+# **Zeitpunkte**, und die Zeit ist die Achse des Prozesses; ein Modul steht an *einem*
+# Punkt. Zwei Zahlungen zu zwei Zeitpunkten sind darum zwei Module – das erste vor der
+# Leistung (Zahlungsfrist 0, es hält den Prozess an), das zweite danach. Zwei Rechnungen
+# **an derselben Stelle** wären dagegen zwei Aussagen über einen Moment, der nur einmal
+# existiert.
+#
+# **Damit ist der Vorgang die Zusage, und die Rechnung ist ihr Beleg**: eine Zusage, eine
+# Rechnung. Was daran falsch ist, wird **storniert und neu gestellt** – der Weg dahin ist
+# derselbe, den die Buchhaltung ohnehin verlangt, und er lässt keinen Zustand ohne
+# Ausgang zurück (eine stornierte Rechnung zählt nicht mehr, also darf die nächste
+# entstehen).
+#
+# **Eine Minderung ist keine zweite Rechnung**, sondern eine **Gutschrift**: ein negativer
+# Betrag auf derselben Achse. Sie bleibt darum jederzeit möglich – Skonto, Teilretoure,
+# Kulanz. Die Regel sperrt genau eine Sache: eine **zweite positive Forderung**.
+#
+# ► ►►► **Und einen «Anteil» gibt es dafür NICHT** (Testnotiz #867). ◄◄◄
+#
+#   Hier stand `deals.share` – eine Prozentzahl, die sagte, welchen Teil der Positionen
+#   *dieser* Vorgang abrechnet. Sie war als Komfort für die Anzahlung gedacht und war
+#   **ein Begriff zu viel**: *«ich checke diese Funktion nicht»*.
+#
+#   Sie wird auch nicht gebraucht. **Wer den Preis nennt, nennt ihn je Position** – in
+#   einem Anzahlungs-Modul tippt man dort schlicht den Teilbetrag, den man verlangt. Das
+#   ist dieselbe Zahl, nur ohne eine zweite Rechenregel dahinter, und der Beleg sagt
+#   danach die Wahrheit: er lautet auf das, was gefordert wird.
+#
+#   *Der Preis dafür ist ehrlich: der Zusammenhang «30 % von …» steht nirgends mehr
+#   geschrieben. Er stand aber ohnehin nur im Anteil, nicht auf dem Beleg – und ein
+#   Prozentsatz, den niemand versteht, ist keine Dokumentation.*
+# ---------------------------------------------------------------------------
+# ►►► WIE BEZAHLT WURDE — drei Wege, und nur zwei tippt ein Mensch ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Im Grunde gibt es 3 Arten von Bezahlsystemen: Barzahlung, Zahlung per Karte und
+# Zahlung via Banküberweisung.»* (Testnotiz #865) – Genau drei, und sie sind **eine
+# Angabe an der Zahlung**, kein zweites Modell: gebucht wird in jedem Fall dieselbe Zeile.
+#
+# **«Zahlung erfassen» ist nicht «Barzahlung».** Es heisst *aufschreiben, was passiert
+# ist* – bei einer eingegangenen Überweisung genauso wie bei Bargeld. Den Knopf so zu
+# nennen wäre bei der Hälfte der Buchungen falsch; die Art gehört an die **Zeile**.
+#
+# **Die Karte tippt niemand ab** (dieselbe Regel wie bei einer Nummer, die wir vergeben):
+# sie entsteht beim Zahlungsdienst und kommt über den Webhook. Ein Mensch, der sie von
+# Hand wählt, behauptet eine Buchung, für die es keinen Beleg gibt.
+CASH = "cash"
+TRANSFER = "transfer"
+CARD = "card"
+
+METHODS: tuple[tuple[str, str], ...] = (
+    (CASH, "Bar"),
+    (TRANSFER, "Überweisung"),
+    (CARD, "Karte"),
+)
+
+#: Was ein **Mensch** erfassen darf. Die Karte schreibt allein der Webhook.
+MANUAL_METHODS: tuple[str, ...] = (CASH, TRANSFER)
+
+METHOD_LABEL = "Zahlungsart"
+
+
+def method_name(key: Optional[str]) -> Optional[str]:
+    """Das Wort zur Zahlungsart – **eine** Auflösung, oder ``None`` für Altbestand."""
+    return dict(METHODS).get(key or "")
+
+
+def assert_method(value: Any) -> Optional[str]:
+    """Eine **von Hand** erfasste Zahlungsart – oder ``None``.
+
+    Die Karte wird hier abgewiesen, nicht bloss ignoriert: ein Feld, das die Oberfläche
+    nicht anbietet, der Dienst aber annimmt, wäre die Hintertür zu einer Buchung, die
+    behauptet, ein Zahlungsdienst habe sie gemeldet.
+    """
+    if value in (None, ""):
+        return None
+    key = str(value)
+    if key not in MANUAL_METHODS:
+        raise ValueError(
+            f"«{key}» lässt sich nicht von Hand erfassen – "
+            f"möglich sind {', '.join(dict(METHODS)[m] for m in MANUAL_METHODS)}.")
+    return key
+
+
+# ---------------------------------------------------------------------------
+# ►►► STORNO ODER GUTSCHRIFT — dieselbe Zeile, zwei Lagen ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Wenn bezahlt wurde, dann wurde bezahlt, dann kann ich ja quasi nicht mehr
+# stornieren … ich kann bzw. soll können einen Betrag zurückerstatten.»* (Testnotiz #860)
+#
+# Technisch ist beides **dieselbe Gegenbuchung** (negative Forderung über den vollen
+# Betrag) – fachlich sind es zwei Lagen, und sie haben zwei Namen:
+#
+# * **unbezahlt** → *Stornorechnung*: die Forderung war falsch, sie wird zurückgenommen.
+# * **bezahlt**  → *Gutschrift*: die Forderung war richtig, das Geschäft ändert sich –
+#   und danach steht der offene Betrag **negativ**, also folgt die **Erstattung**.
+#
+# Ein zweites Verb wäre eine zweite Regel für eine Buchung, die in beiden Fällen gleich
+# aussieht; ein einziges Wort für beide wäre an der Hälfte der Belege falsch.
+STORNO_WORD = "Stornieren"
+CREDIT_WORD = "Gutschrift"
+# ►►► **Ein zweites «Gutschrift» gibt es nicht** (Testnotiz #874). ◄◄◄ Hier stand
+#   ``CREDIT_ENTRY_WORD = "Gutschrift erfassen"`` – der Knopf am **Vorgang**, sobald die
+#   eine Rechnung stand. Er trug dasselbe Wort wie die Gutschrift **an der Rechnung**
+#   (``reverse_word``) und tat etwas anderes: eine freistehende negative Forderung ohne
+#   Bezug auf einen Beleg. Zwei gleich benannte Knöpfe mit zwei Wirkungen sind die Form,
+#   in der man den falschen drückt.
+#: Geld zurück – von Hand (bar, Überweisung) …
+REFUND_WORD = "Erstattung erfassen"
+#: … und über den Zahlungsdienst, der die Karte belastet hat.
+REFUND_ONLINE_WORD = "Online erstatten"
+#: Die dritte Bezahlart an einer offenen Rechnung: **Angaben**, keine Buchung.
+TRANSFER_WORD = "Überweisen"
+
+
+def reverse_word(paid: Decimal) -> str:
+    """**Wie die Gegenbuchung an DIESER Rechnung heisst** – die eine Lesestelle."""
+    return CREDIT_WORD if paid > 0 else STORNO_WORD
+
+
+@dataclass(frozen=True)
+class Direction:
+    """**Ein Geldvorgang in EINER Richtung** – alles, was die beiden unterscheidet.
+
+    Und das ist ausschliesslich **Sprache**: Wörter für die Stufen, für die Gegenpartei
+    und für die beiden Geld-Zeilen. Stufen, Schwelle, Storno, Tor und Rechenweg sind in
+    beiden Richtungen identisch.
+
+    Es steht als **Daten** da und nicht als Verzweigung, weil eine Verzweigung sich
+    vermehrt: die erste ist eine Beschriftung, die zweite eine Regel, und ab der dritten
+    gibt es zwei Vorgänge, die nur noch so tun, als wären sie einer.
+    """
+
+    key: str
+    #: Wie der Vorgang heisst – die Überschrift über dem Block («Einnahme» · «Ausgabe»).
+    label: str
+    #: Ein Satz, der sagt, was passiert. Er steht im Editor neben der Wahl.
+    hint: str
+    #: **Die beiden Stufen, wie sie in dieser Richtung heissen** – «Angebot» ↔ «Anfrage».
+    #: Einer der vier echten Unterschiede: wer zuerst fragt, ist nicht derselbe.
+    stage_labels: dict[str, str]
+    #: **Wie man auf den Partner zugeht** – der eine Punkt, an dem die Richtung eine echte
+    #: Handlung unterscheidet: bei einer Ausgabe fragt man an, bei einer Einnahme bietet
+    #: man an.
+    ask_verb: str
+    #: ►►► **Wer den Preis nennt** – ``BY_US`` ↔ ``BY_PARTY`` (Testnotiz #837). ◄◄◄
+    #:
+    #: Daraus folgt die ganze Abfolge: wer nennt, füllt **vor** dem Hinausgehen (das
+    #: Angebot geht mit dem Betrag hinaus), und wer nicht nennt, ändert den fremden Preis
+    #: nicht – er nimmt an oder lehnt ab.
+    quoted_by: str
+    #: **Wie die Nummer einer Geld-Zeile entsteht.** ``None`` heisst «wir nummerieren» –
+    #: dann gibt es **kein** Eingabefeld, weder an der Rechnung noch an der Zahlung
+    #: (#840/#850). Sonst der Name des Feldes.
+    reference: Optional[str]
+    #: ►►► **Kassieren wir hier – oder zahlen wir?** ◄◄◄
+    #:
+    #: Ein Zahlungsdienst **zieht ein**; er überweist nicht in unserem Namen. Das Bezahlen
+    #: über die Karte gibt es darum nur, wo das Geld **zu uns** fliesst: bei einer Ausgabe
+    #: zahlen *wir*, und das tut ein Mensch am Konto der Bank.
+    #:
+    #: Es steht als **Angabe** hier und nicht als ``if direction == IN`` im Dienst – aus
+    #: demselben Grund wie ``quoted_by``: die erste Verzweigung ist eine Beschriftung, die
+    #: zweite eine Regel, und ab der dritten gibt es zwei Vorgänge, die nur so tun, als
+    #: wären sie einer.
+    collects: bool
+
+    #: ►►► **Was man TUT, ist in beiden Richtungen dasselbe.** ◄◄◄
+    #:
+    #: Das Verb der Schwelle, das des Abschlusses, die Gegenhandlung, die beiden Geld-Wörter
+    #: und die Überschrift lauteten in beiden Richtungen gleich – als Feld waren sie fünf
+    #: Werte, die jemand einzeln hätte ändern können. Als Konstante sind sie eine Aussage.
+    @property
+    def stage_verbs(self) -> dict[str, str]:
+        return {OFFER: AGREE_VERB, AGREED: FINISH_VERB}
+
+    @property
+    def undo(self) -> str:
+        return UNDO
+
+    @property
+    def charge_word(self) -> str:
+        return CHARGE_WORD
+
+    @property
+    def payment_word(self) -> str:
+        return PAYMENT_WORD
+
+    @property
+    def pay_online_word(self) -> str:
+        return PAY_ONLINE_WORD
+
+    @property
+    def open_word(self) -> str:
+        return OPEN_WORD
+
+    @property
+    def money_label(self) -> str:
+        return MONEY_LABEL
+
+    @property
+    def party_actions(self) -> tuple[str, ...]:
+        """►►► **Was die GEGENPARTEI an diesem Vorgang darf.** ◄◄◄
+
+        Es folgt aus ``quoted_by`` und ist keine zweite Angabe: **wer den Preis nennt,
+        offeriert; wer ihn empfängt, nimmt an oder lehnt ab.** Bei einer Ausgabe darf sie
+        darum ``quote``, bei einer Einnahme ``agree`` – unseren Preis zu überschreiben
+        wäre dort keine Antwort, sondern eine Gegenofferte, und die ist ein neuer Vorgang.
+
+        Absagen darf sie immer: das ist die eine Antwort, die in beide Richtungen dieselbe
+        Bedeutung hat.
+
+        ►►► **Und bezahlen darf sie – das ist der Sinn der Sache.** ◄◄◄ ``pay_online``
+        steht in **beiden** Tupeln, ohne eine Bedingung: *ob* es an diesem Vorgang
+        überhaupt eine Zahlung zu leisten gibt, beantwortet ``collects`` eine Ebene höher
+        (``ACTIONS`` führt das Verb bei einer Ausgabe gar nicht), und ``can`` bildet die
+        Schnittmenge. Zwei Stellen, die dieselbe Bedingung prüfen, sind zwei Massstäbe.
+        """
+        return (("quote", "decline", "pay_online") if self.quoted_by == BY_PARTY
+                else ("agree", "decline", "pay_online"))
+
+    def label_of(self, stage: str) -> str:
+        """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
+        gleich – sie sind keine Stufen, aber sie brauchen ein Wort."""
+        if stage == CANCELLED:
+            return "Storniert"
+        if stage == DONE:
+            return "Erledigt"
+        return self.stage_labels.get(stage, stage)
+
+
+#: ►►► **Die eine Liste.** Eine dritte Richtung gibt es nicht – Geld kommt oder geht.
+DIRECTIONS: dict[str, Direction] = {
+    IN: Direction(
+        key=IN,
+        label="Einnahme",
+        hint="Einnahme – wir stellen Rechnung, Geld kommt herein.",
+        # ►►► **Die Auftragsbestätigung IST diese Stufe** (Testnotiz #908). ◄◄◄
+        # Sie ist kein dritter Schritt: sie hat Datum (``agreed_on``), Nummer (die
+        # Auftragsnummer), die bestätigten Positionen mit Preis und Satz und beide
+        # Fristen. Eine eigene Stufe dafür wäre derselbe Fehler wie das entfernte
+        # «Abgeschlossen» – ein **Zustand** in einer Reihe von **Schritten**, den man
+        # nicht *tut*. Zu tun war allein, dass der Beleg heisst, was er ist: beide
+        # Richtungen sagten «Auftrag».
+        stage_labels={OFFER: "Offerte", AGREED: "Auftragsbestätigung"},
+        # Wir **bieten** an; die Gegenpartei fragt nicht bei uns an.
+        ask_verb="Anbieten",
+        # **Wir** nennen den Preis – das Angebot geht mit ihm hinaus.
+        quoted_by=BY_US,
+        # Und wir nummerieren: kein Eingabefeld.
+        reference=None,
+        # **Das Geld kommt zu uns** – hier kann ein Zahlungsdienst einziehen.
+        collects=True,
+    ),
+    OUT: Direction(
+        key=OUT,
+        label="Ausgabe",
+        hint="Ausgabe – wir bekommen Rechnung, Geld geht hinaus.",
+        # Dieselbe Schwelle, andere Richtung: was wir bestellen, heisst **Bestellung**.
+        stage_labels={OFFER: "Anfrage", AGREED: "Bestellung"},
+        # Wir **fragen** an; die Gegenpartei bietet uns an.
+        ask_verb="Anfragen",
+        quoted_by=BY_PARTY,
+        # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
+        reference=PARTY_REFERENCE,
+        # **Wir zahlen** – das tut ein Mensch am Bankkonto, nicht ein Kartenformular.
+        collects=False,
+    ),
+}
+
+
+def of(direction: Optional[str]) -> Direction:
+    """Der Vorgang zu einer Richtung. Unbekannt → **Ausgabe**, nicht ein Fehler.
+
+    Hier wird gelesen, nicht geschrieben: ein Wert, den es nicht geben dürfte, darf keine
+    Auftrags-Anzeige zerlegen. Geschrieben wird ausschliesslich über ``assert_direction``,
+    und die weist ab.
+    """
+    return DIRECTIONS.get(direction or "", DIRECTIONS[OUT])
+
+
+def assert_direction(direction: Any) -> str:
+    """Die Schreibprüfung. Ohne sie wäre ``of`` eine stille Umgehung der Liste."""
+    if direction in DIRECTIONS:
+        return str(direction)
+    raise ValueError(
+        f"«{direction}» ist keine Richtung. Erlaubt: "
+        + ", ".join(f"{d.label} ({k})" for k, d in DIRECTIONS.items()) + "."
+    )
+
+
+def assert_kind(kind: Any) -> str:
+    """Die Schreibprüfung für eine Geld-Zeile."""
+    if kind in KINDS:
+        return str(kind)
+    raise ValueError(f"«{kind}» ist keine Art einer Geld-Zeile. Erlaubt: "
+                     + ", ".join(KINDS) + ".")
+
+
+# ---------------------------------------------------------------------------
+# ►►► DER BETRAG — eine Stelle, an der aus Eingabe eine Zahl wird ◄◄◄
+# ---------------------------------------------------------------------------
+
+#: Die Obergrenze. Nicht, weil es teurer nichts gäbe, sondern weil ein Tippfehler
+#: («100000» statt «1000.00») sonst als Zusage im Log stünde.
+MAX_AMOUNT = Decimal("99999999.99")
+
+
+def amount(value: Any, code: str, *, allow_negative: bool = False) -> Optional[Decimal]:
+    """Aus einer Eingabe ein Betrag – oder ``None``, wenn nichts dasteht.
+
+    **Über ``Decimal`` und nie über ``float``**: wo es auf den Rappen ankommt, ist
+    ``0.1 + 0.2`` kein Argument. Die Eingabe darf ein String sein (das ist sie im
+    Browser), ein Komma wird als Dezimaltrennzeichen gelesen – wer «12,50» tippt, meint
+    zwölf Franken fünfzig und nicht einen Fehler.
+
+    ``allow_negative`` steht nur an den **Geld-Zeilen**: eine Gutschrift ist eine
+    negative Forderung, eine Erstattung eine negative Zahlung. Eine negative **Zusage**
+    gibt es dagegen nicht – das wäre ein Vorgang in die andere Richtung, und der hat
+    seine eigene Richtung.
+    """
+    if value in (None, ""):
+        return None
+    try:
+        found = Decimal(str(value).strip().replace("'", "").replace(",", "."))
+    except (InvalidOperation, ValueError):
+        raise ValueError(f"«{value}» ist kein Betrag.")
+    # **Gerundet auf die kleinste Einheit DIESER Währung**, nicht fest auf zwei
+    # Stellen: ein fester Schnitt bei ``0.01`` verlöre bei einer dreistelligen
+    # Währung (KWD) still eine Stelle – und zwar in der Richtung, in der ein Betrag
+    # kleiner wird, ohne dass es jemand sieht.
+    found = _round(found, code)
+    if not allow_negative and found < 0:
+        raise ValueError("Ein zugesagter Betrag ist nicht negativ – "
+                         "die Richtung sagt, wohin das Geld fliesst.")
+    if abs(found) > MAX_AMOUNT:
+        raise ValueError(f"Der Betrag ist zu gross (max. {MAX_AMOUNT}).")
+    return found
+
+
+# ---------------------------------------------------------------------------
+# ►►► DIE MEHRWERTSTEUER — der Satz gehört der POSITION ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Eine Rechnung ohne Steuersatz und Steuerbetrag ist keine (MWSTG Art. 26 Abs. 2 Bst. f).
+# Und der Satz hängt an der **Sache**, nicht am Beleg: sechs Wellen zu 8.1 % und eine
+# Lieferung ins Ausland zu 0 % stehen auf demselben Papier.
+#
+# ## Die eine Regel, aus der alles folgt
+#
+# ►►► **Ein Positionspreis ist NETTO. Jeder Betrag ist BRUTTO.** ◄◄◄
+#
+# So denkt und rechnet man einen Preis (netto je Stück), und so schuldet man Geld (brutto).
+# Damit bleibt ``balance`` unverändert: *offen*, *gefordert* und *gezahlt* sind weiterhin
+# dasselbe Mass, und Netto und Steuer sind **Ableitungen** – null Spalten.
+#
+# ## Gerundet wird je SATZ auf der SUMME
+#
+# Nicht je Position und dann addiert: bei zwölf Zeilen zu 8.1 % weicht die Summe der
+# gerundeten Einzelbeträge um Rappen von der gerundeten Summe ab, und eine MWST-Abrechnung
+# kennt keine Rappen-Toleranz. Das ist die Rundungsregel der ESTV und zugleich die einzige,
+# die zweimal gerechnet dasselbe ergibt.
+
+# ►►► **EINE Katalogzeile trug ZWEI Tatbestände** (Arbeitsauftrag §1.3). ◄◄◄
+#
+# Der Nullsatz hiess «Ohne (Export · Reverse Charge)» – ein Schrägstrich zwischen zwei
+# **verschiedenen** Rechtsgründen mit **verschiedenen** Pflichtsätzen auf dem Beleg:
+#
+# * Ausfuhr → «Steuerfreie Ausfuhrlieferung»
+# * Leistung an eine Gegenpartei im Ausland → «Steuerschuldnerschaft des
+#   Leistungsempfängers»
+#
+# Ein Beleg, der nur «0 %» sagt, nennt den **Grund** nicht – und genau den braucht der
+# Empfänger für seine eigene Abrechnung. Das ist die Rückfrage, die garantiert kommt.
+#
+# ►►► **Der Pflichtsatz hängt am SATZ, nicht am Beleg.** ◄◄◄ Damit erscheint er
+# **automatisch**, sobald eine Position ihn trägt: kein ``if``, kein Feld am Vorgang,
+# keine zweite Stelle, die beim nächsten Satz jemand vergisst.
+#
+# **Und darum ist der Schlüssel ab jetzt die Katalogzeile, nicht die Zahl** – «0.00» ist
+# mehrdeutig geworden. Was gespeichert wird (``DealLine.vat``, ``DealEntry.vat``), ist
+# der Schlüssel; die Zahl ist eine Auskunft daraus.
+
+
+@dataclass(frozen=True)
+class VatRate:
+    """Ein Steuersatz des Katalogs – Schlüssel, Zahl, Name und sein Pflichtsatz."""
+
+    key: str
+    #: Als **String** mit zwei Nachkommastellen, so wie gerechnet und verglichen wird.
+    rate: str
+    label: str
+    #: Der Satz, der bei diesem Tatbestand auf dem Beleg **stehen muss** – sonst ``None``.
+    note: Optional[str] = None
+
+
+#: **Die Schweizer Sätze** – ein Katalog, keine freie Zahl: ein getippter Satz ist ein
+#: Satz, den es nicht gibt, und er fällt erst bei der Abrechnung auf. Ändert der
+#: Gesetzgeber sie, ist es **eine Zeile hier** – die eingefrorenen Belege behalten ihren.
+VAT_RATES: tuple[VatRate, ...] = (
+    VatRate("normal", "8.10", "Normalsatz"),
+    VatRate("reduced", "2.60", "Reduziert"),
+    VatRate("lodging", "3.80", "Beherbergung"),
+    VatRate("export", "0.00", "Export",
+            "Steuerfreie Ausfuhrlieferung"),
+    VatRate("reverse", "0.00", "Reverse Charge",
+            "Steuerschuldnerschaft des Leistungsempfängers"),
+)
+
+#: Der Katalog als Nachschlagewerk – gebaut, nicht gepflegt.
+_BY_KEY: dict[str, VatRate] = {v.key: v for v in VAT_RATES}
+
+#: Womit eine neue Position beginnt. Der Normalfall ist der Normalsatz.
+DEFAULT_VAT = "normal"
+
+
+def vat_entry(value: Any) -> Optional[VatRate]:
+    """Die Katalogzeile zu einem Wert – **tolerant**, denn Belege sind eingefroren.
+
+    Drei Wege hinein, und das ist Absicht:
+
+    1. Der **Schlüssel** («normal», «export») – so wird ab jetzt geschrieben.
+    2. Eine **Zahl** («8.10») – so steht es in jedem Beleg, der vor dieser Runde
+       entstanden ist. Sie trifft die erste Zeile mit diesem Satz.
+    3. Alles andere → ``None``; der Aufrufer zeigt den Rohwert, statt zu raten.
+
+    ►►► **Die eine benannte Annahme:** ein altes «0.00» wird **Export**. ◄◄◄ Beide
+    Nullsätze hiessen bis heute gleich, also lässt sich nicht mehr feststellen, welcher
+    gemeint war – und Export ist der häufigere. Wer es genauer braucht, korrigiert die
+    Position; **gebuchte** Belege bleiben unangetastet.
+    """
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if text in _BY_KEY:
+        return _BY_KEY[text]
+    try:
+        num = f"{Decimal(text):.2f}"
+    except InvalidOperation:
+        return None
+    return next((v for v in VAT_RATES if v.rate == num), None)
+
+#: Wie das Feld heisst – ein Wort für beide Richtungen.
+VAT_LABEL = "MWST"
+#: Das Datum, an dem die Leistung erbracht wurde (MWSTG Art. 26 Abs. 2 Bst. c).
+#:
+#: Es ist **nicht** das Rechnungsdatum, und der Unterschied zählt: bei einem Satzwechsel
+#: oder über den Jahreswechsel entscheidet **es**, welcher Satz gilt. Vorbelegt mit dem
+#: Rechnungsdatum, weil beide meistens zusammenfallen.
+SERVICE_DATE_LABEL = "Leistungsdatum"
+
+
+def assert_vat(value: Any) -> str:
+    """Die Schreibprüfung für einen Steuersatz. Unbekannt ist ein **Fehler**, kein Default.
+
+    Zurück kommt der **Schlüssel** der Katalogzeile – das ist ab jetzt der gespeicherte
+    Wert. Eine Zahl wird dabei umgesetzt: wer «8.10» schickt, meint den Normalsatz.
+
+    Beim **Lesen** ist das anders (``vat_of``, ``vat_entry``): ein alter Beleg trägt
+    einen Satz, den der Katalog vielleicht nicht mehr führt, und eine Anzeige darf daran
+    nicht zerbrechen.
+    """
+    if value in (None, ""):
+        return DEFAULT_VAT
+    entry = vat_entry(value)
+    if entry is None:
+        # **Ein unlesbarer Wert ist derselbe Fehler wie ein unbekannter** – und er bekommt
+        # denselben Satz. Ohne das Auffangen kam aus «acht Prozent» ein `InvalidOperation`
+        # aus der Tiefe der `decimal`-Bibliothek: technisch eine Ablehnung, fachlich eine
+        # Sackgasse ohne Erklärung, und an der Tür ein 500 statt eines 400.
+        raise ValueError(
+            f"«{value}» ist kein Steuersatz. Erlaubt: "
+            + ", ".join(f"{v.label} ({v.rate} %)" for v in VAT_RATES) + "."
+        )
+    return entry.key
+
+
+def vat_of(value: Any) -> Decimal:
+    """Ein Satz als Zahl – tolerant gelesen. Unlesbar heisst **0 %**, nicht «kaputt».
+
+    Nimmt Schlüssel **und** Zahl: ein eingefrorener Beleg von vor dieser Runde trägt die
+    Zahl, ein neuer den Schlüssel, und beide müssen dieselbe Summe ergeben.
+    """
+    entry = vat_entry(value)
+    if entry is not None:
+        return Decimal(entry.rate)
+    try:
+        return Decimal(str(value or "0")).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return Decimal("0.00")
+
+
+def vat_label(value: Any) -> str:
+    """Wie dieser Satz **heisst**. Unbekanntes zeigt sich als Prozentzahl, nicht als Name."""
+    entry = vat_entry(value)
+    return entry.label if entry is not None else f"{vat_of(value):.2f} %"
+
+
+def vat_note(value: Any) -> Optional[str]:
+    """Der **Pflichtsatz** dieses Tatbestands – ``None``, wo keiner verlangt ist."""
+    entry = vat_entry(value)
+    return entry.note if entry is not None else None
+
+
+def _round(value: Decimal, code: str) -> Decimal:
+    """►►► **Auf die kleinste Einheit DIESER Währung**, kaufmännisch. ◄◄◄
+
+    Sie hiess einmal ``_rappen`` und rundete fest auf ``0.01`` – das ist bei fast jeder
+    Währung richtig und bei **JPY** (null Stellen) und **KWD** (drei) still falsch.
+    Gerundet wird darum in ``domain/currency`` (``round_to``, kaufmännisch); hier steht
+    nur der Name, unter dem dieses Modul danach fragt. Zwei Rundungen wären ein Rappen
+    Differenz zwischen Anzeige und Buchung, den niemand erklären kann.
+    """
+    return cur.round_to(value, code)
+
+
+def line_net(line: dict[str, Any], code: str) -> Decimal:
+    """Der **Netto**-Betrag einer Position: Menge × Einzelpreis. Ohne Preis: null."""
+    price = amount(line.get("price"), code, allow_negative=True)
+    if price is None:
+        return _round(Decimal(0), code)
+    return _round(price * Decimal(int(line.get("quantity") or 0)), code)
+
+
+def vat_split(lines: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
+    """►►► **Die Aufteilung je Steuersatz** – gerundet auf der Summe, nicht je Zeile. ◄◄◄
+
+    Zurück kommt je vorkommendem Satz eine Zeile ``{vat, rate, label, note, net, tax}``
+    als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet,
+    auch nicht auf dem Weg durch JSON.
+
+    ►►► **Gruppiert wird nach KATALOGZEILE, nicht nach Zahl.** ◄◄◄ Sonst fielen *Export*
+    und *Reverse Charge* zu einer Zeile zusammen – beide tragen 0 % –, und der Beleg
+    nennte nur einen der beiden Rechtsgründe. Zwei Tatbestände sind zwei Zeilen, auch
+    wenn ihre Zahl dieselbe ist.
+
+    Sortiert nach Satz (absteigend), dann nach Katalog-Reihenfolge – damit zwei Läufe
+    dieselbe Reihenfolge ergeben.
+    """
+    zero = _round(Decimal(0), code)
+    buckets: dict[str, Decimal] = {}
+    for line in lines or []:
+        entry = vat_entry(line.get("vat"))
+        key = entry.key if entry is not None else f"{vat_of(line.get('vat')):.2f}"
+        buckets[key] = buckets.get(key, zero) + line_net(line, code)
+    order = {v.key: i for i, v in enumerate(VAT_RATES)}
+    return [
+        _row(key, net, code)
+        for key, net in sorted(buckets.items(),
+                               key=lambda kv: (-vat_of(kv[0]), order.get(kv[0], 99)))
+    ]
+
+
+def _row(key: str, net: Decimal, code: str) -> dict[str, str]:
+    """Eine Zeile der Aufteilung – aus Schlüssel und Netto, samt ihrer Auskunft."""
+    tax = _round(net * vat_of(key) / Decimal(100), code)
+    return _describe(key, {"net": cur.money(net, code), "tax": cur.money(tax, code)})
+
+
+def _describe(key: str, row: dict[str, str]) -> dict[str, str]:
+    """Schlüssel · Zahl · Name · Pflichtsatz an eine Zeile schreiben.
+
+    **Die Auskunft reist mit der Zeile**, statt dass der Empfänger sie nachschlägt: eine
+    gebuchte Zeile ist eingefroren, und wer ihren Namen erst zur Anzeige nachschlägt,
+    ändert die Vergangenheit, sobald der Katalog sich ändert.
+    """
+    out = {"vat": key, "rate": f"{vat_of(key):.2f}", "label": vat_label(key), **row}
+    note = vat_note(key)
+    if note:
+        out["note"] = note
+    return out
+
+
+def gross_of(lines: list[dict[str, Any]], code: str) -> Decimal:
+    """Die **Brutto**-Summe der Positionen – Netto plus Steuer, je Satz gerundet."""
+    return sum((Decimal(row["net"]) + Decimal(row["tax"])
+                for row in vat_split(lines, code)), _round(Decimal(0), code))
+
+
+def split_for(gross: Decimal, lines: list[dict[str, Any]],
+              code: str) -> list[dict[str, str]]:
+    """►►► **Die Aufteilung EINER Rechnung** – auch wenn sie nur ein Teil ist. ◄◄◄
+
+    Eine **Anzahlung** ist zum Satz der zugrunde liegenden Leistung zu versteuern; bei
+    gemischten Sätzen also **anteilig** über alle. Genau das tut diese Funktion: sie
+    verteilt den geforderten Brutto-Betrag im Verhältnis der Positionen und rechnet die
+    Steuer je Satz zurück.
+
+    **Der letzte Anteil bekommt den Rest.** Sonst fehlt oder überschiesst ein Rappen, und
+    die Summe der Zeilen wäre nicht der Betrag der Rechnung – ein Beleg, der sich selbst
+    widerspricht.
+
+    Ohne Positionen (eine **Ausgabe**: die Steuer steht auf *seiner* Rechnung) gibt es
+    hier nichts zu verteilen; dann nennt der Aufrufer den Satz, und ``split_at`` rechnet.
+    """
+    zero = _round(Decimal(0), code)
+    rows = vat_split(lines, code)
+    total = sum((Decimal(r["net"]) + Decimal(r["tax"]) for r in rows), zero)
+    if not rows or total == 0:
+        return []
+    out: list[dict[str, str]] = []
+    used = zero
+    for i, row in enumerate(rows):
+        share = Decimal(row["net"]) + Decimal(row["tax"])
+        part = (gross - used if i == len(rows) - 1
+                else _round(gross * share / total, code))
+        used += part
+        out.append(_at(part, row["vat"], code))
+    return out
+
+
+def split_at(gross: Decimal, rate: Any, code: str) -> list[dict[str, str]]:
+    """Die Aufteilung eines Brutto-Betrags zu **einem** Satz – die Ausgabe-Seite."""
+    entry = vat_entry(rate)
+    return [_at(gross, entry.key if entry is not None else f"{vat_of(rate):.2f}", code)]
+
+
+def _at(gross: Decimal, key: str, code: str) -> dict[str, str]:
+    """Brutto **rückwärts** in Netto und Steuer: ``netto = brutto / (1 + satz)``."""
+    net = _round(gross / (Decimal(1) + vat_of(key) / Decimal(100)), code)
+    return _describe(key, {"net": cur.money(net, code),
+                           "tax": cur.money(gross - net, code)})
+
+
+def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:
+    """Netto · Steuer · Brutto einer Aufteilung – die drei Zahlen unter dem Strich."""
+    zero = _round(Decimal(0), code)
+    net = sum((Decimal(r["net"]) for r in rows), zero)
+    tax = sum((Decimal(r["tax"]) for r in rows), zero)
+    return {"net": cur.money(net, code), "tax": cur.money(tax, code),
+            "gross": cur.money(net + tax, code)}
+
+
+@dataclass(frozen=True)
+class Balance:
+    """**Die Rechnung dieses Vorgangs — vier Zahlen, null Spalten.**
+
+    Alles ist abgeleitet. Eine gespeicherte Spalte «offener Betrag» wäre die zweite
+    Wahrheit, und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
+
+    ``uncharged`` ist die Zahl, die es ohne die Trennung von Forderung und Geld gar nicht
+    geben könnte: *zugesagt − berechnet*. Sie ist der Vorgabewert der nächsten Rechnung
+    und damit der Grund, warum eine Anzahlung keinen eigenen Modus braucht.
+
+    Ein **negativer** offener Betrag ist kein Fehler, sondern eine Aussage: dann haben
+    wir zu viel bekommen bzw. zu viel gezahlt.
+    """
+
+    agreed: Optional[Decimal]
+    charged: Decimal
+    paid: Decimal
+    #: berechnet − bezahlt
+    open: Decimal
+    #: zugesagt − berechnet (``None``, solange nichts zugesagt ist)
+    uncharged: Optional[Decimal]
+
+    @property
+    def next_charge(self) -> Optional[Decimal]:
+        """**Was als nächstes zu fordern wäre** – und niemals ein negativer Vorschlag.
+
+        ``uncharged`` darf negativ sein (es wurde mehr berechnet als zugesagt) – das ist
+        eine gültige Aussage. Als **Vorgabe** in einem Eingabefeld ist sie es nicht: sie
+        stand dort als «−250.00», und niemand will eine Rechnung über minus 250 stellen
+        (Testnotiz #795). ``None`` heisst «nichts vorzuschlagen», nicht «null».
+
+        Eine Gutschrift bleibt davon unberührt: negative Beträge sind **eingebbar**, sie
+        werden nur nie **vorgeschlagen**.
+        """
+        if self.uncharged is None or self.uncharged <= 0:
+            return None
+        return self.uncharged
+
+    @property
+    def next_payment(self) -> Optional[Decimal]:
+        """**Was als nächstes zu zahlen wäre** – dieselbe Regel wie ``next_charge``."""
+        return self.open if self.open > 0 else None
+
+    @property
+    def settled(self) -> bool:
+        """**Ist bezahlt, was zugesagt wurde?** Die eine Frage, die ``prepaid`` stellt.
+
+        Gefragt wird nach der **Zusage**, nicht nach dem offenen Betrag: wer nichts
+        berechnet hat, hat einen offenen Betrag von null – und das hiesse «bezahlt»,
+        obwohl nie jemand etwas gefordert hat. Dieselbe Zahl, eine ganz andere Aussage.
+        """
+        return self.paid >= (self.agreed or Decimal("0"))
+
+
+def balance(agreed: Optional[Decimal],
+            entries: list[tuple[str, Decimal]]) -> Balance:
+    """Zusage und Geld-Zeilen zu vier Zahlen. **Die eine Rechenstelle.**
+
+    ``entries`` ist eine Liste ``(Art, Betrag)`` – dieselbe Form, in der die Zeilen in
+    der Datenbank stehen. Diese Funktion kennt keine Datenbank; sie rechnet, und der
+    Dienst liest.
+    """
+    charged = sum((a for k, a in entries if k == CHARGE), Decimal("0"))
+    paid = sum((a for k, a in entries if k == PAYMENT), Decimal("0"))
+    return Balance(
+        agreed=agreed,
+        charged=charged,
+        paid=paid,
+        open=charged - paid,
+        uncharged=None if agreed is None else agreed - charged,
+    )

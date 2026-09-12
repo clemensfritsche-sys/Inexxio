@@ -1,5 +1,11 @@
 # ADR 001: Technology Stack
 
+> ## Kopfstatus (August 2026): **gültig, mit benannten Abweichungen**
+> Die Wahl der Bausteine steht. **Nicht verdrahtet** sind heute: Stripe, Typesense, Gmail
+> API, Cloud Storage und die KI – sie stehen unten als Teil des Stacks, sind im Code aber
+> nicht vorhanden (siehe `CLAUDE.md` → Architektur und `docs/attic.md`).
+
+
 **Status:** Accepted  
 **Date:** 2026-06-03  
 **Deciders:** Inexxio AG
