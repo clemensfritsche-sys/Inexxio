@@ -85,6 +85,19 @@ class VatRate(BaseModel):
     note: Optional[str] = None
 
 
+class IncotermOption(BaseModel):
+    """Eine Incoterms-2020-Klausel – Kürzel, Name und der Satz, der sie erklärt.
+
+    **Die Erklärung reist mit**, weil genau hier die Fragen entstehen: es ist die Stelle
+    im Beleg, an der ein Kürzel über Tausende Franken entscheidet. Sie in der Oberfläche
+    zu formulieren hiesse, sie beim nächsten Umbau ein zweites Mal zu schreiben.
+    """
+
+    key: str
+    label: str
+    hint: str
+
+
 class CurrencyOption(BaseModel):
     """Eine wählbare Währung – der Code und wie sie heisst.
 
@@ -95,6 +108,17 @@ class CurrencyOption(BaseModel):
 
     code: str
     label: str
+
+
+class IssuerOption(BaseModel):
+    """Eine unserer Gesellschaften – Objektnummer und Name **mit Rechtsform**.
+
+    Der Name kommt aus derselben Stelle wie der im Belegkopf (``sites.legal_name``): eine
+    Auswahl, die anders schreibt als der Beleg, den sie erzeugt, ist eine zweite Schreibweise.
+    """
+
+    object_id: Optional[int] = None
+    name: str = ""
 
 
 class VatShare(BaseModel):
@@ -145,6 +169,18 @@ class DealLine(BaseModel):
     #: «export»). Er hängt an der **Sache**: sechs Wellen zum Normalsatz und eine Ausfuhr
     #: zu 0 % stehen auf demselben Papier.
     vat: str = "normal"
+    #: **Derselbe Satz als Prozentzahl** – damit eine Anzeige nicht «normal %» schreibt,
+    #: weil sie den Schlüssel für eine Zahl hält. Eine zweite Auflösung im Browser wäre
+    #: genau die Stelle, an der das passiert.
+    vat_rate: str = "0.00"
+    #: Wie er **heisst** («Normalsatz», «Export») – bei zwei Nullsätzen ist «0 %» keine
+    #: Auskunft, sondern ein Rätsel.
+    vat_label: str = ""
+    #: ►►► **Der Pflichtsatz** dieses Tatbestands (MWSTG Art. 26). ◄◄◄ «Steuerfreie
+    #: Ausfuhrlieferung» ↔ «Steuerschuldnerschaft des Leistungsempfängers» – zwei
+    #: verschiedene Rechtsgründe, die beide 0 % ergeben; der Empfänger braucht den Grund
+    #: für seine eigene Abrechnung. ``None``, wo keiner verlangt ist.
+    vat_note: Optional[str] = None
 
 
 class DealPrice(BaseModel):
@@ -316,15 +352,31 @@ class DealSide(BaseModel):
     """
 
     label: str
+    #: ►►► **Was die Rolle bedeutet – in einem Satz.** ◄◄◄ «Leistungserbringer» und
+    #: «Leistungsempfänger» sind die Begriffe des MWSTG und darum richtig; sie sind auch
+    #: sperrig, und ein Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung.
+    #: Er reist mit dem Wort, damit die Karte ihn nicht zum zweiten Mal formuliert.
+    hint: str = ""
     #: Die Objektnummer – beim Partner die des Benutzers, bei uns die der Gesellschaft.
     object_id: Optional[int] = None
     name: str = ""
+    #: ►►► **«z. H. …»** – die Person, an die der Beleg im Haus geht. ◄◄◄ Auf einer
+    #: Rechnung ist der Schuldner die *Muster AG*; wer sie dort öffnet, steht darunter.
+    #: ``None``, wo nur eines von beiden hinterlegt ist (der B2C-Fall).
+    attn: Optional[str] = None
+    #: ►►► **Ein Beleg ohne Kontaktweg löst die Rückfrage per Telefonbuch aus.** ◄◄◄
+    #: Beides steht am Datensatz; es fehlte allein die Zeile auf dem Beleg.
+    email: Optional[str] = None
+    phone: Optional[str] = None
     #: Die Anschrift **als Zeilen**, wie sie auf dem Beleg steht (`address.lines`) – leer,
     #: wenn keine hinterlegt ist. Ein Satz Felder wäre hier eine zweite Adressenlogik im
     #: Browser; die Reihenfolge gehört dorthin, wo Adressen ohnehin gebaut werden.
     address: list[str] = Field(default_factory=list)
-    #: Nur beim Aussteller belegt – eine UID der Gegenpartei führt das System nicht, und
-    #: für den Inland-Beleg ist sie auch nicht verlangt.
+    #: ►►► **Beide Seiten können eine tragen** (Arbeitsauftrag §1.1). ◄◄◄ Hier stand
+    #: «nur beim Aussteller – eine UID der Gegenpartei führt das System nicht», und das
+    #: war schlicht falsch: ``uid_number``/``vat_number`` stehen seit dem Fundament am
+    #: Benutzer. **Verlangt** ist sie beim Reverse Charge – ohne die Nummer des
+    #: Leistungsempfängers trägt das Verfahren nicht.
     #:
     #: **Die Bankverbindung steht bewusst nicht daneben**: wohin überwiesen wird, sagt
     #: ``transfer_info`` an der Rechnung, die bezahlt werden soll – zusammen mit
@@ -443,6 +495,16 @@ class DealEmbed(BaseModel):
     #: Der Katalog, aus dem gewählt wird. Eine **Aufzählung**, kein Datensatz – ein
     #: natives Auswahlfeld ist hier richtig.
     currencies: list[CurrencyOption] = Field(default_factory=list)
+
+    # ─── Wer den Beleg stellt (Testnotiz #905) ───────────────────────────────────
+    #: Die Objektnummer **unserer** Gesellschaft – vorgewählt aus der des freigebenden
+    #: Mitarbeiters, eingefroren am Vorgang. Sie steht auch im Belegkopf; hier steht sie
+    #: als **Wahl**, damit die Oberfläche sie nicht aus dem Kopf zurückrechnet.
+    issuer: Optional[int] = None
+    issuer_label: str = ""
+    #: Woraus gewählt wird – **nur für das Personal**: eine Gegenpartei wählt nicht aus,
+    #: wer ihr eine Rechnung stellt.
+    issuers: list[IssuerOption] = Field(default_factory=list)
     #: Die Überschrift des Geld-Bereichs – der dritten Zeile der Karte.
     money_label: str = "Rechnung & Zahlung"
     #: Das Wort für die eine Gegenhandlung – oder ``None``, wo sie nicht geht.
@@ -494,6 +556,21 @@ class DealEmbed(BaseModel):
     lines: list[DealLine] = Field(default_factory=list)
 
     # ─── Der Belegkopf: die beiden Parteien ──────────────────────────────────────
+    # ─── Die Lieferbedingung ─────────────────────────────────────────────────────
+    #: Die gewählte Klausel («FCA») – ``None``, solange keine vereinbart ist.
+    incoterm: Optional[str] = None
+    #: Der benannte Ort. **Ohne ihn ist die Klausel keine Vereinbarung** – bei ``FCA``
+    #: entscheidet genau er, wo das Risiko übergeht.
+    incoterm_place: Optional[str] = None
+    #: Der fertige Satz für den Beleg – «FCA Rorschach (Incoterms 2020)». **Vom Server**,
+    #: damit er nicht im Browser ein zweites Mal zusammengesetzt wird.
+    incoterm_text: Optional[str] = None
+    incoterm_label: str = ""
+    incoterm_place_label: str = ""
+    incoterm_place_hint: str = ""
+    #: Alle elf Klauseln mit ihrer Erklärung.
+    incoterms: list[IncotermOption] = Field(default_factory=list)
+
     #: ►►► **Wer stellt den Beleg, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
     #:
     #: Beide Seiten sind eine **Ableitung** aus Angaben, die es längst gibt (uns kennt
@@ -637,6 +714,18 @@ class DealUpdate(BaseModel):
     #: **Karte** weist der Dienst ab: sie entsteht beim Zahlungsdienst und kommt über den
     #: Webhook; von Hand erfasst wäre sie eine Behauptung ohne Beleg.
     method: Optional[str] = None
+    #: ►►► **Die Lieferbedingung** (``incoterm``) – Klausel und benannter Ort. ◄◄◄
+    #:
+    #: Beide stehen hier, weil sie **eine** Vereinbarung sind: eine Klausel ohne Ort ist
+    #: keine, und ein Ort ohne Klausel sagt nichts. *Und sie stehen hier überhaupt, weil
+    #: Pydantic Unbekanntes **stillschweigend verwirft* – ein Feld, das die Tür nicht
+    #: kennt, kommt nie an, und kein Dienst-Test findet das (die rufen ``apply`` direkt).
+    incoterm: Optional[str] = None
+    incoterm_place: Optional[str] = None
+    #: ►►► **Welche unserer Gesellschaften den Beleg stellt** (``issuer``, #905). ◄◄◄
+    #: Die Objektnummer; ``None`` heisst «der Betreiber». Nur vor der Zusage – danach
+    #: führt ``can`` das Verb nicht mehr.
+    issuer: Optional[int] = None
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

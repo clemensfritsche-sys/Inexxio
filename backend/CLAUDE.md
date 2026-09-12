@@ -655,6 +655,75 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > vier Module ringsum (ISO/IEC 18004) in der `viewBox`, damit sie mitskaliert – als
 > Polsterung im Browser wäre sie die zweite Stelle, an der jemand sie wegoptimiert.
 
+> ►►► **Der Beleg wird vollständig — und ein Modul meldet seine Lücken** (Arbeitsauftrag
+> `docs/arbeitsauftrag-beleg.md`, Migrationen `131`/`132`). ◄◄◄
+>
+> **Die Rollen sind die des MWSTG** (`deal.SUPPLIER`/`CUSTOMER`): **Leistungserbringer** ↔
+> **Leistungsempfänger** – sie gelten für *jede* Leistung (Ware, Dienstleistung, Miete,
+> Lohn, Transport) und passen **wörtlich** zum Reverse-Charge-Pflichtsatz. Der erklärende
+> Satz reist mit (`DealSide.hint`). **Die Stufen heissen je Richtung richtig**
+> (*Offerte → Auftragsbestätigung* ↔ *Anfrage → Bestellung*) – eine eigene AB-Stufe gibt es
+> **nicht**: sie *ist* die Schwelle `agreed`, und ein Zustand in einer Reihe von Schritten
+> wäre derselbe Fehler wie damals bei «Abgeschlossen».
+>
+> **Der Belegkopf** (`deal.document_head`) trägt jetzt, was ihn zu einem macht: Rechtsform
+> am Namen (`sites.legal_name` – angehängt nur, wo sie nicht schon dasteht), Anschrift als
+> **Zeilen**, «z. H.» (`people.billing_name` – auf einer Rechnung ist der Schuldner die
+> *Muster AG*, nicht ihr Einkäufer; **neben** `display_name`, nicht an seiner Stelle),
+> Kontaktweg und die **UID beider Seiten**. Die der Gegenpartei stand als `None` mit der
+> Begründung «führt das System nicht» – falsch: `uid_number`/`vat_number` stehen seit dem
+> Fundament am Benutzer.
+>
+> ►►► **Der Nullsatz trägt ZWEI Tatbestände** (`domain/deal.VAT_RATES`). ◄◄◄ **Export**
+> («Steuerfreie Ausfuhrlieferung») und **Reverse Charge** («Steuerschuldnerschaft des
+> Leistungsempfängers») sind zwei Rechtsgründe mit zwei Pflichtsätzen – und beide ergeben
+> 0 %. Damit ist der **Schlüssel** der gespeicherte Wert, nicht die Zahl: `assert_vat`
+> gibt ihn zurück, `vat_split` gruppiert je **Katalogzeile** (sonst nennte der Beleg nur
+> einen der Gründe), und `vat_entry` liest **tolerant** – ein eingefrorener Beleg trägt
+> die alte Zahl. **Die eine benannte Annahme:** altes «0.00» wird **Export**. Der
+> Pflichtsatz hängt am **Satz** und erscheint damit von selbst; `embed_lines` schickt
+> Schlüssel, Prozentzahl, Name und Pflichtsatz **fertig** mit – eine zweite Auflösung im
+> Browser schriebe «normal %».
+>
+> ►►► **Vollständigkeit ist eine Eigenschaft des MODULS** (`deal.gaps` · `REQUIRED_FOR` ·
+> `schemas.DataGap`). ◄◄◄ *«Wenn das Modul zu wenig Angaben hat, muss es Alarm schlagen.»*
+> – **Es ist `StepNeed` für Stammdaten**: eine Zeile (wo sie hingehört · was fehlt · warum),
+> **kein** Zustand und **kein** Pausenwert. Durchgesetzt wird sie über **`can`** – fehlt
+> etwas, führt `can` das Verb nicht, und `assert_allowed` weist an derselben Liste ab.
+> * **Eine Tabelle, keine Bedingungskette** (`REQUIRED_FOR`), **gestaffelt je Handlung**:
+>   eine Anfrage braucht weniger als eine Rechnung; `_UP_TO` sagt, was eine Handlung
+>   mitverlangt.
+> * **Nur Verben, die nach aussen wirken.** Absagen, stornieren und jede Geld-Zeile bleiben
+>   möglich – sonst wäre ein Vorgang mit halber Anschrift für immer eingefroren.
+> * **Die genannte Partei reist mit** (`apply → assert_allowed → gaps`, `_head_for`):
+>   `party_id` wird **von** `_agree` gesetzt, also *nach* dem Tor – ohne sie lehnte die
+>   Zusage sich selbst ab.
+> * **Der Fehlersatz unterscheidet die Gründe**: fehlende Angabe → **400 mit dem
+>   Feldnamen**, falsche Stufe → **409 mit der Stufe**.
+>
+> **Aussenhandel**: `articles.hs_code` (6–8 Stellen; die ersten **sechs sind weltweit
+> identisch** – WCO, rund 200 Länder) und `articles.origin_country` sind **zwei Zeilen in
+> `SPEC_FIELDS`** – die Spezifikation reist längst mit dem Beleg, also weiss der
+> Geldvorgang nichts von ihnen (Quelltext-Wächter). Die **Incoterms 2020**
+> (`domain/incoterms.py`, alle elf mit Erklärung) stehen am **Vorgang**
+> (`deals.incoterm`/`incoterm_place`), nicht am Bewegen-Modul: ein Incoterm ist eine
+> **Vereinbarung**, kein physischer Schritt. **Der benannte Ort ist Pflicht**, sobald eine
+> Klausel steht; der Satz für den Beleg kommt aus **einer** Stelle (`sentence`).
+>
+> ►►► **Wer den Beleg stellt** (`deals.issuer_company_id` ← `UserProfile.company_object_id`,
+> Migration `132`). ◄◄◄ Es war immer der **Betreiber** – eine Vermutung, sobald es mehrere
+> gleichrangige Gesellschaften gibt. Eingefroren bei der **Anlage** aus der Gesellschaft des
+> Freigebenden (`issuer_of`); bei jeder Anzeige neu gelesen änderte ein Wechsel rückwirkend
+> die Vergangenheit. `NULL` heisst weiterhin «der Betreiber» (`issuer_company` ist die eine
+> Lesestelle – Belegkopf, IBAN-Lücke und Einzahlungsschein fragen sie, sonst zeigte der QR
+> auf ein anderes Konto als der Beleg). Änderbar bis zur Zusage, und das steht in `ACTIONS`.
+> **`people.assert_employment` prüft den ÜBERGANG, nicht den Bestand**: wer Mitarbeiter
+> *wird*, braucht eine Gesellschaft – eine Prüfung auf den Zustand machte jede bestehende
+> Zeile ohne sie unbearbeitbar. Sie wohnt im **Dienst**, nicht im Router: zwei Oberflächen
+> schreiben denselben Datensatz.
+>
+> Wächter: `tests/test_deal_module.py` (12 Bug-Formen gegengeprüft).
+
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,
 > physisch noch da) tun dasselbe – das Stück verlässt den Auftrag; der Unterschied ist

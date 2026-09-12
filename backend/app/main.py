@@ -139,6 +139,16 @@ _COLUMN_SAFETY_NET = (
     # bleibt bis zum Folge-Deploy stehen (Zwei-Deploy-Regel), aber kein Modell liest sie
     # mehr – ein Netz für eine Spalte, die niemand kennt, schützt nichts.*
     ("deal_entries", "method", "VARCHAR(10)"),
+    # ►► **Zoll und Lieferbedingung** (Migration 131). Sie stehen hier, weil eine Spalte,
+    #    die **nur** in einer Migration steht, die dev-Datenbank nie erreicht – die Lehre
+    #    aus #778, und beim Ausfall zählt ohnehin nur dieser Weg (Migration 090).
+    ("articles", "hs_code", "VARCHAR(12)"),
+    ("articles", "origin_country", "VARCHAR(2)"),
+    ("deals", "incoterm", "VARCHAR(3)"),
+    ("deals", "incoterm_place", "VARCHAR(120)"),
+    # Migration 132 – wer den Beleg stellt (Testnotiz #905).
+    ("user_profiles", "company_object_id", "BIGINT"),
+    ("deals", "issuer_company_id", "BIGINT"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

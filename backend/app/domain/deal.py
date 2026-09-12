@@ -174,6 +174,13 @@ CUSTOMER = "Leistungsempfänger"
 SUPPLIER_HINT = "Wer die Leistung erbringt und den Beleg stellt."
 CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 
+#: ►►► **Welche unserer Gesellschaften den Beleg stellt** (Testnotiz #905). ◄◄◄
+#:
+#: Nicht «Aussteller» – das Wort sagt dasselbe wie ``SUPPLIER`` eine Zeile weiter oben und
+#: erzeugte die Frage, ob zwei verschiedene Dinge gemeint sind. Gefragt ist die
+#: **Gesellschaft**, und sie ist vorgewählt: hier steht nur die Korrektur.
+ISSUER_LABEL = "Unsere Gesellschaft"
+
 #: ►►► **Die Nummer im Belegkopf** (Testnotiz #904). ◄◄◄
 #:
 #: «Objektnummer» ist ein Systembegriff und auf einem Beleg fehl am Platz; «Benutzernummer»

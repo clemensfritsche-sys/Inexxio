@@ -6367,7 +6367,6 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
             # **Und die Frist heisst, wie sie heisst** (#885): «Vorauszahlung» statt
             # «0 Tage», gelesen aus derselben Liste, aus der man sie wählt. Tabellarisch
             # bleibt sie – es ist eine Zahl.
-            ("Zahlungsfrist", "Terms", "{termText(d.due_days, d.payment_terms)}"),
             ("Zusagedatum", "DocHead", "{localDate(d.agreed_on)}")):
         block = " ".join(_component(src, where).split())
         assert marker in block, f"«{what}» steht nicht mehr in «{where}»."
@@ -6375,6 +6374,19 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
         assert "ix-tnum" in before, (
             f"«{what}» steht in Fliesstext statt tabellarisch (#839)."
         )
+    # ►►► **Die Zahlungsfrist steht seit #907 in einem `Fixed`** – der einen Form, in der
+    # eine feststehende Angabe im Haus dasteht (Versalien-Beschriftung, Wert darunter).
+    # Gefragt ist darum, dass sie **dort** tabellarisch ist, nicht dass sie in `Terms`
+    # ausgeschrieben steht: ein Wächter, der die Schreibweise prüft, verbietet die
+    # bessere Fassung.
+    terms = " ".join(_component(src, "Terms").split())
+    assert "termText(d.due_days, d.payment_terms)" in terms, (
+        "Die Zahlungsfrist steht nicht mehr im Beleg – oder nicht mehr mit ihrem Namen "
+        "(«Vorauszahlung» statt «0 Tage», #885)."
+    )
+    assert "ix-tnum" in " ".join(_component(src, "Fixed").split()), (
+        "Eine feststehende Angabe steht in Fliesstext statt tabellarisch (#839)."
+    )
     # **Nummer und Name auf EINER Zeile** (#838) – der Name wird gekappt, er bricht nicht
     # um. Sie steht seither im Belegkopf, bei der Rolle, die sie benennt.
     party = " ".join(_component(src, "Parties").split())
@@ -6738,12 +6750,18 @@ def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
         "Die Beschriftung «Währung» steht wieder über dem Auswahlfeld (#876) – oder das "
         "Feld hat gar keinen Namen mehr."
     )
-    # **Im Angebot, und nur dort** – nicht an jeder Zahl, und nicht mehr im Kopf (#864).
-    # *Sie steht seit #899 im Abschnitt «Bedingungen» – derselbe Ort, nur benannt: eine
-    # Währung ist eine Bedingung des Geschäfts, keine Spalte der Tabelle.*
-    assert "<Currency" in _component(src, "Terms"), (
-        "Die Währung steht nicht bei den Bedingungen (#864) – entschieden wird sie dort, "
-        "wo man den Preis und die Fristen nennt."
+    # ►►► **Sie steht bei den PREISEN** (Testnotiz #906). ◄◄◄
+    #
+    # *«Informationen dort anpassbar machen, wo man sie sucht.»* – Sie stand im Abschnitt
+    # «Bedingungen», also einen Abschnitt unter den Zahlen, auf die sie sich bezieht.
+    # Über der Preisspalte sagt schon ihre **Position**, dass sie für **alle** Positionen
+    # gilt. *Löst #864 ab: der Ort ist besser, die Regel dieselbe.*
+    assert "<Currency" in _component(src, "Goods"), (
+        "Die Währung steht nicht bei den Preisen (#906) – gesucht wird sie dort, wo die "
+        "Beträge stehen, auf die sie sich bezieht."
+    )
+    assert "<Currency" not in _component(src, "Terms"), (
+        "Die Währung steht wieder in «Bedingungen» – dann gibt es sie zweimal."
     )
     assert "<Currency" not in _component(src, "DocHead"), (
         "Die Währung steht wieder im Belegkopf – zwischen lauter Auskünften liest sich "
@@ -7762,7 +7780,7 @@ def test_the_confirmed_order_does_not_label_its_party():
     # nennt jetzt die **Rolle** («Lieferant» ↔ «Kunde», MWSTG Art. 26) – eine Angabe, die
     # die Zeile nicht schon selbst macht, und darum eine sichtbare Beschriftung statt
     # einer nur hörbaren. Ein Wächter, der auf `aria-label` besteht, verböte sie.
-    assert "MICRO_LABEL}>{s.label}" in parties, (
+    assert "}>{s.label}</span>" in parties, (
         "Die Zeile hat gar keinen Namen mehr – dann fehlt sie dem, der die Karte hört, "
         "und dem, der sie sieht, fehlt die Rolle."
     )
@@ -8033,34 +8051,41 @@ def test_the_document_head_names_both_parties_and_says_what_is_missing():
     )
 
 
-def test_the_open_amount_stands_in_the_head_and_exactly_once():
-    """►►► **Die eine Information: was noch offen ist.** ◄◄◄
+def test_the_open_amount_stands_at_the_invoice_and_nowhere_else():
+    """►►► **Der offene Betrag steht, wo er etwas sagt — an der Rechnung** (#902). ◄◄◄
 
-    *Was muss ein Mensch an diesem Beleg in unter einer Sekunde finden?* – den **offenen
-    Betrag**. Er reiste längst mit (``DealEmbed.open``) und stand **nirgends**: die
-    Geld-Zeile listet die einzelnen Buchungen, ihre Summe zeigte niemand.
+    Er stand eine Runde lang im **Belegkopf**, als Antwort auf «was muss man in unter
+    einer Sekunde finden?». Genau daran fiel auf, dass es die falsche Stelle ist:
+    *«Angebot · Offen 0.00 CHF»* – auf einem **Angebot** ist nichts gefordert, also ist
+    er null, und «Offen 0.00» liest sich wie «bezahlt».
 
-    Er steht darum im **Belegkopf** – und **genau einmal**: eine Zahl, die zweimal
-    dasteht, erzeugt die Frage, welche gilt.
+    Er geht damit nicht verloren: er steht **genau einmal**, an der **Rechnung** (Punkt +
+    Wort, #875). Ohne Rechnung gibt es nichts Offenes – das ist keine Zahl, sondern eine
+    Tatsache.
 
-    **Rot heisst überfällig, und das sagt der Server** (``entries[].overdue`` = fällig
-    *und* noch etwas offen). Eine zweite Formel im Browser wiche ab und sähe trotzdem
-    richtig aus.
+    *Nimmt die Regel der Vorrunde zurück; die Begründung dort war richtig für die Frage
+    und falsch für den Ort.*
 
-    Bug-Formen: (a) die Zahl steht nirgends; (b) sie steht ein zweites Mal in der
-    Geld-Zeile; (c) «überfällig» wird im Browser aus einem Datum gerechnet.
+    Bug-Formen: (a) der Kopf trägt ihn wieder; (b) er steht an zwei Stellen der Karte;
+    (c) «überfällig» wird im Browser aus einem Datum gerechnet statt gelesen.
     """
     work = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
     code = _code(work)
     head = _code(_component(work, "DocHead"))
-    assert "d.open" in head and "d.open_word" in head, (
-        "Der offene Betrag steht nicht im Belegkopf – dann steht er nirgends."
+    assert "d.open" not in head, (
+        "Der offene Betrag steht wieder im Belegkopf – auf einem Angebot ist er null, "
+        "und «Offen 0.00» liest sich wie «bezahlt» (#902)."
     )
-    assert code.count("formatAmount(d.open") == 1, (
-        "Der offene Betrag steht mehr als einmal in der Karte – welche Zahl gilt?"
+    assert code.count("formatAmount(d.open") == 0, (
+        "Die Summe über alle Rechnungen steht wieder in der Karte – gemeint ist der "
+        "offene Betrag DIESER Rechnung (`e.open`)."
     )
-    over = _code(_body(work, "overdue", kind="function"))
-    assert "e.overdue" in over and "Date" not in over, (
+    entry = _code(_component(work, "EntryRow"))
+    assert "e.open" in entry, (
+        "Die Rechnungszeile sagt nicht mehr, was auf sie offen ist – dann steht es "
+        "nirgends."
+    )
+    assert "e.overdue" in entry and "new Date" not in entry, (
         "«Überfällig» wird im Browser gerechnet statt gelesen – zwei Formeln für "
         "dieselbe Aussage."
     )
@@ -8079,4 +8104,249 @@ def test_the_partner_is_named_once_not_beside_his_own_document_head():
     head = _code(_component(work, "DocHead"))
     assert "d.party_name" not in head, (
         "Der Partner steht neben dem Belegkopf ein zweites Mal – und dort ohne Rolle."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►►► DER BELEG WIRD VOLLSTÄNDIG — Rollen, Lücken, Aussenhandel
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_role_explains_itself_and_the_number_has_a_micro_label():
+    """►►► **Rollen und Nummer im Belegkopf** (Testnotizen #903/#904). ◄◄◄
+
+    «Leistungserbringer» und «Leistungsempfänger» sind die Begriffe des MWSTG – also die,
+    die auf einem Schweizer Beleg ohnehin gelten, und sie passen **wörtlich** zum
+    Pflichtsatz beim Reverse Charge. Sie sind auch sperrig: darum sagt der Hover in einem
+    Satz, was sie bedeuten – und der **Satz kommt vom Server** (`DealSide.hint`), nicht
+    aus der Oberfläche.
+
+    Die **Nummer** steht als eigene Zeile mit dem Mikro-Label «Nr.»: «Objektnummer» ist
+    ein Systembegriff, «Benutzernummer» falsch, sobald die Partei ein Unternehmen ist –
+    und der Block darüber sagt bereits, **wessen** Nummer es ist.
+
+    Bug-Formen: (a) der Hover fehlt, der Fachbegriff steht unerklärt da; (b) die
+    Erklärung wird in der Oberfläche formuliert statt gelesen; (c) die Nummer steht ohne
+    Beschriftung neben dem Namen; (d) das Wort «Nr.» ist ein Literal statt der Konstante.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    parties = " ".join(_component(src, "Parties").split())
+    assert "data-tip={s.hint" in parties, (
+        "Die Rolle erklärt sich nicht (a) – «Leistungserbringer» ohne Satz ist eine "
+        "Rückfrage mit Verzögerung."
+    )
+    assert "Leistungserbringer" not in src and "Leistungsempfänger" not in src, (
+        "Ein Rollen-Wort steht als Literal in der Oberfläche (b) – es kommt vom Server."
+    )
+    assert "PARTY_NUMBER_LABEL" in parties, (
+        "Die Nummer steht ohne ihre Beschriftung da (c/d) – oder das Wort ist ein "
+        "Literal statt der gespiegelten Konstante."
+    )
+    assert '"Nr."' not in src and "'Nr.'" not in src, (
+        "«Nr.» steht als Literal in der Karte (d)."
+    )
+
+
+def test_the_module_says_what_it_is_missing():
+    """►►► **Ein Modul weiss, was es braucht – und sagt, was fehlt** (§2). ◄◄◄
+
+    Das ist kein neuer Mechanismus, sondern `StepNeed` für Stammdaten: die Zeilen kommen
+    **vom Server** (`DealEmbed.gaps`), durchgesetzt wird über `can` – der Knopf fehlt
+    ohnehin, hier steht nur, **warum**.
+
+    **Und die Zeile führt dorthin, wo man es beheben kann**: eine Meldung ohne Adresse
+    ist eine Sackgasse mit Ausrufezeichen.
+
+    Bug-Formen: (a) die Lücken werden gar nicht gezeigt; (b) die Oberfläche rechnet sie
+    sich selbst aus; (c) die Zeile nennt den Datensatz nicht, den man öffnen muss.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "<Gaps" in src and "d.gaps" in src, (
+        "Die gemeldeten Lücken stehen nirgends (a) – dann fehlt nur der Knopf, und "
+        "niemand weiss, warum."
+    )
+    block = " ".join(_component(src, "Gaps").split())
+    for field in ("g.field_label", "g.why", "g.record_label"):
+        assert field in block, (
+            f"«{field}» steht nicht in der Zeile (b) – dann formuliert die Oberfläche, "
+            f"was der Server längst sagt."
+        )
+    assert "<ObjId value={g.record_object_id}" in block, (
+        "Die Zeile nennt den Datensatz nicht als Nummer (c) – eine Meldung ohne Adresse "
+        "ist eine Sackgasse."
+    )
+
+
+def test_a_zero_rate_names_its_legal_ground_on_the_document():
+    """►►► **«0 %» allein ist kein Grund** (Arbeitsauftrag §1.3, MWSTG Art. 26). ◄◄◄
+
+    *Export* und *Reverse Charge* sind zwei **verschiedene** Rechtsgründe mit
+    verschiedenen Pflichtsätzen – und beide ergeben 0 %. Ein Beleg, der nur die Zahl
+    nennt, sagt dem Empfänger nicht, was er in seine eigene Abrechnung schreibt.
+
+    **Der Satz hängt am Satz** und reist mit ihm (`vat_split[].note`) – kein `if`, keine
+    zweite Liste. Und **gewählt wird der Katalog-Eintrag, nicht die Zahl**: «0.00» ist
+    seither mehrdeutig.
+
+    Bug-Formen: (a) der Pflichtsatz steht nirgends; (b) er wird in der Oberfläche
+    formuliert; (c) das Auswahlfeld schickt die Prozentzahl statt des Schlüssels;
+    (d) die Vorschau gruppiert nach Zahl und wirft die beiden Nullsätze zusammen.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    totals = " ".join(_component(src, "Totals").split())
+    assert "{v.note}" in totals, (
+        "Der Pflichtsatz steht nicht auf dem Beleg (a) – und im Hover wäre er auf einem "
+        "Papier gar nicht vorhanden."
+    )
+    assert "Ausfuhrlieferung" not in src and "Steuerschuldnerschaft" not in src, (
+        "Ein Pflichtsatz steht als Literal in der Oberfläche (b)."
+    )
+    goods = " ".join(_component(src, "Goods").split())
+    assert "value={r.key}" in goods, (
+        "Das Auswahlfeld schickt die Prozentzahl statt des Katalog-Schlüssels (c) – "
+        "«0.00» ist seit zwei Nullsätzen mehrdeutig."
+    )
+    sums = " ".join(_component(src, "Sums").split())
+    assert "rates.find((v) => v.key === key)" in sums, (
+        "Die Vorschau löst den Schlüssel nicht über den Katalog auf (c/d) – "
+        "`Number('normal')` ist `NaN`, und die Steuer wäre still null."
+    )
+
+
+def test_a_delivery_clause_explains_itself_and_names_its_place():
+    """►►► **Incoterms 2020 — mit Erklärung, und nie ohne Ort** (§3.2). ◄◄◄
+
+    Es ist die Stelle im Beleg, an der ein Kürzel über Tausende Franken entscheidet.
+    **Katalog statt Freitext** (wie Währung und Steuersatz), **Erklärung vom Server** (die
+    Karte formuliert sie nicht zum zweiten Mal) – und der **benannte Ort ist Pflicht**:
+    «FCA» allein ist keine Vereinbarung.
+
+    **Der Satz für den Beleg kommt ebenfalls vom Server** (`incoterm_text`): hier
+    zusammengesetzt wäre er die zweite Schreibweise, und die Jahreszahl fiele beim
+    nächsten Umbau weg.
+
+    Bug-Formen: (a) die Klauseln stehen als Liste in der Oberfläche; (b) die Erklärung
+    wird hier formuliert; (c) der Ort fehlt; (d) der Beleg-Satz wird im Browser gebaut.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    block = " ".join(_component(src, "Delivery").split())
+    assert "d.incoterms" in block, (
+        "Der Katalog kommt nicht vom Server (a) – eine zweite Liste im Browser liefe "
+        "beim nächsten Umbau der Klauseln auseinander."
+    )
+    for key in ("FCA", "EXW", "DDP"):
+        assert f'"{key}"' not in src and f"'{key}'" not in src, (
+            f"Die Klausel «{key}» steht als Literal in der Oberfläche (a)."
+        )
+    assert "title={t.hint}" in block and "{term.hint}" in block, (
+        "Die Erklärung fehlt (b) – weder in der Liste noch sichtbar unter der Wahl."
+    )
+    assert "d.incoterm_place" in block, (
+        "Der benannte Ort fehlt (c) – «FCA» allein ist keine Vereinbarung."
+    )
+    assert "d.incoterm_text" in block and "Incoterms 2020" not in src, (
+        "Der Satz für den Beleg wird im Browser gebaut (d) – dann gibt es ihn zweimal."
+    )
+
+
+def test_the_terms_are_written_in_exactly_one_place():
+    """►►► **Zahlungs- und Lieferfrist stehen EINMAL** (Testnotiz #907). ◄◄◄
+
+    Sie standen im Abschnitt «Bedingungen» **und** an der Angebotszeile – zwei
+    unabhängige Eingaben für dieselbe Vereinbarung.
+
+    **Die Auflösung ist die bestehende Regel, nicht eine neue**: `we_quote` (←
+    `Direction.quoted_by`) sagt, wer den Preis nennt – und wer den Preis nennt, nennt auch
+    die Fristen. Kein `if` auf die Richtung; dieselbe Angabe, die eine Zeile höher schon
+    über den Betrag entscheidet.
+
+    Bug-Formen: (a) beide Stellen schreiben wieder; (b) die Unterscheidung fragt den
+    Modultyp oder die Richtung statt `we_quote`.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    quote = " ".join(_component(src, "QuoteRow").split())
+    # **Gefragt ist, dass die FRISTEN gebunden sind** – nicht, dass die Bedingung
+    # irgendwo im Rumpf vorkommt: sie steht dort ohnehin schon (das Betragsfeld hängt an
+    # derselben Angabe). Ein Wächter, der nur nach ihrem Vorkommen fragt, lässt seine
+    # eigene Bug-Form durch – gemessen.
+    assert "<TermField" in quote, "Die Angebotszeile kennt gar keine Fristen mehr."
+    before = quote[max(0, quote.index("<TermField") - 220):quote.index("<TermField")]
+    assert "!d.we_quote" in before, (
+        "Die Angebotszeile schreibt die Fristen unabhängig vom Beleg (a) – zwei "
+        "Eingaben für dieselbe Vereinbarung."
+    )
+    terms = " ".join(_component(src, "Terms").split())
+    assert "<TermField" in terms, (
+        "Der Beleg nennt seine Fristen nicht mehr – dann gibt es sie nur noch an der "
+        "Zeile des Partners."
+    )
+    assert "d.direction" not in terms and "d.direction" not in quote, (
+        "Die Unterscheidung fragt die Richtung (b) statt `we_quote`."
+    )
+
+
+def test_the_customs_fields_live_at_the_article():
+    """►►► **Zolltarifnummer und Ursprungsland gehören der SACHE** (§3.1). ◄◄◄
+
+    Sie stehen am **Artikel** und reisen über die Spezifikation von selbst auf jede
+    Offerte und jede Rechnung – der Geldvorgang weiss nichts von ihnen. Genau das ist der
+    Beleg dafür, dass es der richtige Ort ist.
+
+    *Die ersten sechs Stellen sind weltweit identisch (Harmonisiertes System der WCO);
+    darüber hinaus ist die Nummer national – das sagt der Platzhalter, statt es zu
+    verschweigen.*
+
+    Bug-Formen: (a) die Felder fehlen im Artikel-Editor; (b) sie werden nicht gesendet;
+    (c) das Ursprungsland reist kleingeschrieben ab – «ch» und «CH» wären zwei Länder;
+    (d) der Geldvorgang nennt sie einzeln statt die Spezifikation durchzureichen.
+    """
+    art = _code(_read(FRONTEND / "components" / "erp" / "article-detail.tsx"))
+    for key in ("hs_code", "origin_country"):
+        assert f"key: '{key}'" in art, (
+            f"«{key}» fehlt im Artikel-Editor (a) – dann steht es auf keinem Beleg."
+        )
+        assert f"{key}: form.{key}" in art, (
+            f"«{key}» wird nicht gesendet (b)."
+        )
+    assert "form.origin_country.trim().toUpperCase()" in art, (
+        "Das Ursprungsland reist ungenormt ab (c) – «ch» und «CH» wären zwei Länder."
+    )
+    deal = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "hs_code" not in deal and "origin_country" not in deal, (
+        "Der Geldvorgang nennt die Zoll-Angaben beim Namen (d) – er reicht die "
+        "Spezifikation durch, und genau deshalb stimmt der Ort."
+    )
+
+
+def test_the_issuer_is_a_choice_at_the_document_head():
+    """►►► **Wer den Beleg stellt, steht im Kopf – und ist eine Wahl** (#905). ◄◄◄
+
+    Vorgewählt ist die Gesellschaft des freigebenden Mitarbeiters; wer für eine
+    Schwestergesellschaft anbietet, korrigiert es. **Ob es die Wahl noch gibt, sagt
+    `can`** – ab der Zusage fehlt das Symbol, statt ausgegraut dazustehen.
+
+    Und am **Benutzer** ist es eine Anstellungsangabe: wer für wen arbeitet, entscheidet
+    nicht die Person selbst.
+
+    Bug-Formen: (a) der Wechsel hängt an der Stufe statt an `can`; (b) er steht als
+    Dauer-Auswahlfeld im Kopf; (c) er ist ein selbstgebauter Knopf statt `ActionButton`;
+    (d) die Gesellschaft fehlt am Benutzer-Datensatz.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    parties = " ".join(_component(src, "Parties").split())
+    assert "may(d, active, 'issuer')" in parties, (
+        "Der Wechsel hängt nicht an `can` (a) – dann ist es die zweite Regel daneben."
+    )
+    issuer = " ".join(_component(src, "Issuer").split())
+    assert "<ActionButton" in issuer and "erp-actbtn" not in issuer, (
+        "Der Stift ist ein selbstgebauter Knopf (b/c) – im Haus ist ein Symbol-Knopf "
+        "ein `ActionButton`."
+    )
+    assert "<ObjectSelect" in issuer, (
+        "Die Wahl ist kein Referenzfeld (b) – ein natives Auswahlfeld über Datensätze "
+        "gibt es im Haus nicht."
+    )
+    user = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))
+    assert "company_object_id" in user and re.search(r"<CompanyPick[\s/>]", user), (
+        "Die Gesellschaft fehlt am Benutzer-Datensatz (d) – dann kann nichts vorgewählt "
+        "werden, und der Beleg nimmt still den Betreiber."
     )

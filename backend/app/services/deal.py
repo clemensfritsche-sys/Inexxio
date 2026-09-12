@@ -41,6 +41,7 @@ from sqlalchemy.orm import Session
 from ..core.config import payment_service_ready
 from ..domain import currency as cur
 from ..domain import deal as dm
+from ..domain import incoterms as inc
 from ..domain import modules
 from ..models import (
     Article, Deal, DealEntry, Instance, InstanceUnit, Order, OrderUnit, ProcessEvent,
@@ -80,7 +81,7 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: nichts – gebucht wird, wenn der Dienst es meldet. Wer beide zu einem Verb machte,
 #: bekäme einen Knopf, dessen Wirkung von einer Einstellung abhängt.
 ACTIONS: dict[str, tuple[str, ...]] = {
-    dm.OFFER: ("currency", "ask", "quote", "decline", "agree"),
+    dm.OFFER: ("currency", "issuer", "incoterm", "ask", "quote", "decline", "agree"),
     dm.AGREED: ("revoke", "charge", "pay", "pay_online", "refund_online"),
     dm.DONE: ("charge", "pay", "pay_online", "refund_online"),
     dm.CANCELLED: ("charge", "pay", "pay_online", "refund_online"),
@@ -210,12 +211,15 @@ def transfer_info(db: Session, row: Deal, charge: DealEntry) -> dict[str, Any]:
     Code nicht kennt. Wo es keinen QR geben kann (fremde Währung, keine CH-IBAN), steht
     der **Grund** daneben statt einer leeren Fläche.
     """
-    company = sites.find_operator(db)
+    # **Überwiesen wird an den Aussteller**, nicht an den Betreiber (Testnotiz #905):
+    # dieselbe Gesellschaft, die im Belegkopf steht – eine zweite Lesart wäre ein QR-Code,
+    # der auf ein anderes Konto zeigt als der Beleg darüber.
+    company = issuer_company(db, row)
     iban = getattr(company, "iban_encrypted", None)
     number = charge.reference or str(charge.id)
     amount = _open_of(_entries(db, row.id), charge)
     creditor = {
-        "name": getattr(company, "company_name", "") or "",
+        "name": sites.legal_name(company) or "",
         "street": getattr(company, "street", None),
         "street_nr": getattr(company, "street_nr", None),
         "zip": getattr(company, "zip_code", None),
@@ -432,7 +436,22 @@ def embed_lines(db: Session, order: Order, row: Deal,
             # demselben Papier. Solange nichts zugesagt ist, steht kein Preis da und der
             # Satz ist die **Vorgabe des Moduls**; vorbelegen, nie erfinden.
             "price": line.get("price"),
-            "vat": str(line.get("vat") or fallback),
+            # ►►► **Der Satz reist als SCHLÜSSEL – und mit seiner Zahl daneben.** ◄◄◄
+            #
+            # Seit *Export* und *Reverse Charge* zwei Katalogzeilen sind, ist «0.00»
+            # **mehrdeutig**: zwei verschiedene Rechtsgründe mit verschiedenen
+            # Pflichtsätzen. Gespeichert wird darum der Schlüssel – und weil eingefrorene
+            # Belege noch die alte Zahl tragen, wird hier **normalisiert** (`assert_vat`
+            # setzt «8.10» auf «normal» um). Die Oberfläche sieht damit immer einen
+            # Schlüssel und braucht keine zweite Toleranzregel.
+            #
+            # **Prozentzahl und Name kommen mit**: eine Anzeige, die «normal %» schreibt,
+            # weil sie den Schlüssel für eine Zahl hält, ist genau der Fehler, den eine
+            # zweite Auflösung im Browser produziert.
+            "vat": dm.assert_vat(line.get("vat") or fallback),
+            "vat_rate": str(dm.vat_of(line.get("vat") or fallback)),
+            "vat_label": dm.vat_label(line.get("vat") or fallback),
+            "vat_note": dm.vat_note(line.get("vat") or fallback),
         })
     return out
 
@@ -457,7 +476,24 @@ def house_currency(db: Session) -> str:
         return cur.DEFAULT
 
 
-def instantiate_for_order(db: Session, order: Order) -> None:
+def issuer_of(db: Session, actor_id: Optional[int]) -> Optional[int]:
+    """►►► **Welche unserer Gesellschaften stellt den Beleg?** (Testnotiz #905) ◄◄◄
+
+    Die des **freigebenden Mitarbeiters** (``UserProfile.company_object_id``). ``None``
+    heisst «der Betreiber» – der Rückfall bleibt, er ist nur nicht mehr die Regel.
+
+    *Gelesen wird die interne Id, nicht die Objektnummer: ``actor_id`` ist der
+    Fremdschlüssel, den der Prozess ohnehin durchreicht (``people`` trägt den Schlüssel
+    deshalb im Namen).*
+    """
+    if actor_id is None:
+        return None
+    u = db.query(UserProfile).filter(UserProfile.id == actor_id).first()
+    return getattr(u, "company_object_id", None)
+
+
+def instantiate_for_order(db: Session, order: Order,
+                          *, actor_id: Optional[int] = None) -> None:
     """Jedes «Zahlung»-Modul dieses Auftrags bekommt seinen Vorgang.
 
     **Bei der Freigabe und nicht beim Erreichen**: mit wem und worüber gehandelt wird,
@@ -484,6 +520,10 @@ def instantiate_for_order(db: Session, order: Order) -> None:
                 # mit genau einer richtigen Antwort. Wer in einer anderen fakturiert,
                 # ändert sie am Vorgang – bis zur Zusage.
                 currency=house_currency(db),
+                # ►►► **Und wer ihn stellt, steht ebenso am Vorgang.** ◄◄◄ Eingefroren
+                # aus der Gesellschaft des Freigebenden – bei jeder Anzeige neu gelesen
+                # änderte ein Wechsel rückwirkend, wer einen alten Beleg gestellt hat.
+                issuer_company_id=issuer_of(db, actor_id),
                 stage=dm.OFFER, quotes=[],
             ))
     if rows:
@@ -638,7 +678,9 @@ def gaps(db: Session, row: Deal, *, action: str,
             if field == "uid" and side == "party" and not reverse:
                 continue
             if field == "iban":
-                company = sites.find_operator(db)
+                # **Die IBAN der Gesellschaft, die den Beleg stellt** – nicht die des
+                # Betreibers: überwiesen wird an den Aussteller (``issuer_company``).
+                company = issuer_company(db, row)
                 if getattr(company, "iban_encrypted", None):
                     continue
                 out.append(_gap(sides["us"], label, why))
@@ -892,6 +934,58 @@ def _currency(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         row.currency = cur.assert_code(data.get("currency"))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+def _issuer(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Wer stellt diesen Beleg?** (Testnotiz #905) ◄◄◄
+
+    Vorgewählt ist die Gesellschaft des freigebenden Mitarbeiters; hier wird sie
+    korrigiert – der Fall, dass jemand für eine Schwestergesellschaft anbietet.
+
+    **Nur eine unserer Gesellschaften**, und das wird geprüft: eine Objektnummer, die auf
+    nichts zeigt, wäre auf einem Beleg schlimmer als gar keine – sie sieht aus wie eine
+    Angabe. ``None`` ist erlaubt und heisst «der Betreiber».
+
+    Dass es **nach der Zusage** nicht mehr geht, sagt ``ACTIONS`` – wie bei der Währung.
+    """
+    value = _int(data.get("issuer"))
+    if value is not None and sites.by_object_id(db, value) is None:
+        raise HTTPException(
+            status_code=400, detail=f"«{value}» ist keine unserer Gesellschaften.")
+    row.issuer_company_id = value
+
+
+def _incoterm(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+              data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Die Lieferbedingung** (Incoterms 2020). ◄◄◄
+
+    Wer Fracht, Versicherung und Zoll trägt – die Angabe, die im Aussenhandel über
+    Tausende entscheidet und ohne die jeder Beleg eine Rückfrage auslöst.
+
+    **Ein Katalog, kein Freitext** (``incoterms.assert_incoterm`` nennt die erlaubten):
+    «DAT» ist die Klausel von 2010, die es 2020 nicht mehr gibt – wer sie schickt, soll
+    das lesen statt still etwas Ungültiges zu vereinbaren.
+
+    **Der benannte Ort ist Pflicht, sobald eine Klausel steht**: «FCA» allein ist keine
+    Vereinbarung – bei genau dieser Klausel entscheidet der Ort, wo das Risiko übergeht.
+    Umgekehrt wird der Ort mit der Klausel gelöscht: ein Ort ohne Klausel sagt nichts.
+
+    Dass es **nach der Zusage** nicht mehr geht, sagt ``ACTIONS`` – wie bei der Währung.
+    """
+    try:
+        key = inc.assert_incoterm(data.get("incoterm"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    place = _text(data.get("incoterm_place"), 120)
+    if key and not place:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"«{key}» braucht einen benannten Ort – ohne ihn ist die Klausel "
+                    f"keine Vereinbarung (z. B. «{key} Rorschach»)."),
+        )
+    row.incoterm = key
+    row.incoterm_place = place if key else None
 
 
 def _priced(db: Session, *, order: Order, step: ProcessStep, code: str,
@@ -1663,6 +1757,17 @@ def billing_of(db: Session, deal: Deal) -> dict[str, Any]:
     }
 
 
+def issuer_company(db: Session, row: Deal):
+    """►►► **Unsere Seite des Belegs** – die eingefrorene Gesellschaft. ◄◄◄
+
+    **Eine Lesestelle**, damit Belegkopf, Lückenprüfung und Anzeige nicht drei Antworten
+    auf dieselbe Frage geben. Der **Betreiber** bleibt der Rückfall – für jeden Vorgang,
+    der vor dieser Angabe entstanden ist, und für jeden, dessen Gesellschaft es nicht
+    mehr gibt: ein Beleg ohne Aussteller wäre schlimmer als einer mit dem Betreiber.
+    """
+    return sites.by_object_id(db, row.issuer_company_id) or sites.find_operator(db)
+
+
 def document_head(db: Session, row: Deal, *, won: bool) -> dict[str, Any]:
     """►►► **Wer stellt den Beleg, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
 
@@ -1693,7 +1798,7 @@ def document_head(db: Session, row: Deal, *, won: bool) -> dict[str, Any]:
     Wächter hat genau das gefunden.
     """
     flow = dm.of(row.direction)
-    company = sites.find_operator(db)
+    company = issuer_company(db, row)
     who = billing_of(db, row) if won else {}
     seat = who.get("address") or {}
     seat_ours = address.of_company(company) if company is not None else None
@@ -2031,6 +2136,20 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # Auftrag weiss, wann die Stücke hier angekommen sind; die Erfassung zeigt es
         # vorbelegt und lässt es überschreiben (Teilleistungen kennt nur ein Mensch).
         "service_date": service_day(db, step),
+        # ►►► **Die Lieferbedingung** (Incoterms 2020, Arbeitsauftrag §3.2). ◄◄◄
+        #
+        # Katalog **und** Erklärung reisen mit: genau hier entstehen die Fragen, und die
+        # Karte soll den Satz nicht zum zweiten Mal formulieren. Der fertige Satz
+        # («FCA Rorschach (Incoterms 2020)») kommt ebenfalls vom Server – im Browser
+        # zusammengesetzt wäre er die zweite Schreibweise.
+        "incoterm": row.incoterm,
+        "incoterm_place": row.incoterm_place,
+        "incoterm_text": inc.sentence(row.incoterm, row.incoterm_place),
+        "incoterm_label": inc.LABEL,
+        "incoterm_place_label": inc.PLACE_LABEL,
+        "incoterm_place_hint": inc.PLACE_HINT,
+        "incoterms": [{"key": t.key, "label": t.label, "hint": t.hint}
+                      for t in inc.INCOTERMS],
         # ►►► **In welcher Währung?** ◄◄◄ Ein Betrag ohne sie ist keine Zahl. Sie reist
         # **mit jedem Vorgang** mit, damit die Oberfläche nirgends «CHF» annimmt – und mit
         # ihr die Nachkommastellen, denn ein Yen-Betrag mit zwei Stellen ist keiner.
@@ -2040,6 +2159,18 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # **Änderbar, solange nichts zugesagt ist** – und das steht in ``can``, nicht in
         # einem zweiten Feld daneben: dieselbe Liste zeigt den Knopf und weist ab.
         "currencies": [{"code": c, "label": cur.label(c)} for c in cur.CURRENCIES],
+        # ►►► **Wer den Beleg stellt** (Testnotiz #905) – vorgewählt, nicht geraten. ◄◄◄
+        #
+        # Die Nummer steht ohnehin im Belegkopf; hier steht sie als **Wahl**, damit die
+        # Oberfläche sie nicht aus dem Kopf zurückrechnen muss. Die Liste gibt es nur für
+        # das Personal – eine Gegenpartei wählt nicht aus, wer ihr eine Rechnung stellt,
+        # und die Gesellschaften des Hauses gehen sie nichts an.
+        "issuer": getattr(issuer_company(db, row), "object_id", None),
+        "issuer_label": dm.ISSUER_LABEL,
+        # **Wählbar, nicht alle**: eine geschlossene Gesellschaft stellt keine neuen
+        # Belege mehr – sie bleibt im Feed, aber nicht in einer Auswahl.
+        "issuers": [{"object_id": c.object_id, "name": sites.legal_name(c)}
+                    for c in sites.selectable_companies(db)] if internal else [],
         # ►►► **Netto, Steuer und die Aufteilung – ABLEITUNGEN der Positionen.** ◄◄◄
         #
         # Der Brutto-Betrag steht längst als ``amount`` da; ihn hier zu wiederholen wäre
@@ -2076,9 +2207,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "term_free_label": dm.FREE_TERM_LABEL,
         "payment_term_label": dm.PAYMENT_TERM_LABEL,
         "lead_term_label": dm.LEAD_TERM_LABEL,
-        # ►►► **Der Anteil** (Testnotiz #866) – welchen Teil der Positionen dieser Vorgang
-        # abrechnet. Ohne ihn wäre die Zwei-Modul-Form («Anzahlung 30 %, Restzahlung
-        # 70 %») nur scheinbar gangbar: beide Module sehen dieselben Stücke.
         # **Wie bezahlt wurde** (#865) – die Liste dessen, was ein Mensch erfassen darf.
         # Die Karte schreibt allein der Webhook, also steht sie hier nicht.
         "methods": [{"key": k, "label": name} for k, name in dm.METHODS
@@ -2325,6 +2453,8 @@ def _money(value: Optional[Decimal], code: str) -> Optional[str]:
 # nicht vorhanden – und ein Wächter kann es lesen, statt es zu glauben.
 HANDLERS = {
     "currency": _currency,
+    "issuer": _issuer,
+    "incoterm": _incoterm,
     "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
     "revoke": _revoke,
     "charge": _charge, "pay": _pay, REVERSE: _reverse,

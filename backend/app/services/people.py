@@ -13,12 +13,17 @@ bekommt lautlos den falschen (oder keinen) Namen. Darum tragen die Funktionen hi
 den Schlüssel **im Namen**.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import UserProfile
+from . import sites
 from .admin import log_audit
+
+#: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
+STAFF_ROLES = ("admin", "employee")
 
 
 def name(u: Optional[UserProfile]) -> Optional[str]:
@@ -60,6 +65,39 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
     return name(db.query(UserProfile).filter(UserProfile.id == user_id).first())
 
 
+def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) -> None:
+    """►►► **Wer Mitarbeiter WIRD, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
+
+    Ohne diese Zuordnung kann ein Beleg nicht sagen, wer ihn stellt – er nähme still den
+    Betreiber, also die Gesellschaft, die die Website vertritt, auch wenn eine
+    Schwestergesellschaft fakturiert.
+
+    ►►► **Geprüft wird der ÜBERGANG, nicht der Bestand.** ◄◄◄ Das ist die eine
+    Feinheit, und sie ist bewusst so: eine Prüfung auf den *Zustand* machte jede
+    bestehende Personalzeile ohne Gesellschaft unbearbeitbar – man käme nicht einmal mehr
+    dazu, die Gesellschaft nachzutragen, ohne sie im selben Zug mitzuschicken. Die
+    Schreibstelle weist darum den **neuen** schlechten Zustand ab; den **bestehenden**
+    meldet der Geldvorgang als ``DataGap`` – dieselbe Arbeitsteilung wie überall:
+    *streng schreiben, tolerant lesen, Fehlendes benennen.*
+
+    Und die Gesellschaft muss es **geben**: eine Objektnummer, die auf nichts zeigt, ist
+    schlimmer als keine – sie sieht aus wie eine Zuordnung.
+    """
+    company = fields["company_object_id"] if "company_object_id" in fields \
+        else user.company_object_id
+    if company is not None and sites.by_object_id(db, company) is None:
+        raise HTTPException(
+            400, detail=f"«{company}» ist keine unserer Gesellschaften.")
+    role = fields.get("role", user.role)
+    if role in STAFF_ROLES and role != user.role and company is None:
+        raise HTTPException(
+            400,
+            detail=(f"«{user.display_name}» braucht eine Gesellschaft, um als "
+                    f"{'Administrator' if role == 'admin' else 'Mitarbeiter'} zu "
+                    f"arbeiten – auf einem Beleg steht, wer ihn stellt."),
+        )
+
+
 def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) -> UserProfile:
     """Profil-Felder schreiben – **EIN** Pfad für beide Oberflächen.
 
@@ -70,8 +108,14 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) ->
     Spur im Audit-Log, eine im ERP geänderte schon.
 
     Diese Stelle vereint beides: gleiche Zuweisung, gleiche Protokollierung, egal von
-    welcher Oberfläche. Committet NICHT (der Aufrufer entscheidet)."""
-    for key, value in data.model_dump(exclude_unset=True).items():
+    welcher Oberfläche. Committet NICHT (der Aufrufer entscheidet).
+
+    **Die Anstellungsregel steht hier und nicht im Router** (``assert_employment``): die
+    Tür ist nicht der einzige Aufrufer, und zwei Oberflächen schreiben denselben
+    Datensatz."""
+    fields = data.model_dump(exclude_unset=True)
+    assert_employment(db, user, fields)
+    for key, value in fields.items():
         old_val = getattr(user, key, None)
         old_str = str(old_val) if old_val is not None else None
         new_str = str(value) if value is not None else None

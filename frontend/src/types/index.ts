@@ -55,6 +55,10 @@ export interface ArticleInput {
   supplier_article_number?: string | null;
   min_order_qty?: string | null;
   safety_stock?: string | null;
+  /** **Die Zolltarifnummer** (HS) – die ersten sechs Stellen gelten weltweit. */
+  hs_code?: string | null;
+  /** **Wo die Ware hergestellt wurde** (ISO-2) – nicht das Versandland. */
+  origin_country?: string | null;
   /**
    * **Welchen Artikel löst dieser hier ab?** (Objektnummer) — nur bei der Anlage.
    *

@@ -18,6 +18,7 @@ Die Regeln, die hier geprüft werden, sind die des Moduls «Zahlung»
 Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
 """
 
+import inspect
 import os
 import pathlib
 import re
@@ -122,15 +123,19 @@ def _money_step(*, direction: str = "out", parties=(), task: str = "Härten auf 
                        "parties": [{"party": p.object_id, "ref": task} for p in parties]}}
 
 
-def _make(db, *, quantity: int, article, steps=None):
-    """Ein freigegebener Erzeugungsauftrag über diesen Artikel."""
+def _make(db, *, quantity: int, article, steps=None, actor=None):
+    """Ein freigegebener Erzeugungsauftrag über diesen Artikel.
+
+    ``actor`` ist der **Freigebende** – aus seiner Gesellschaft friert der Geldvorgang
+    ein, wer den Beleg stellt (Testnotiz #905). Ohne ihn gilt weiterhin der Betreiber.
+    """
     from app.models import ProcessStep
     from app.services import process as proc
     order = proc.release(
         db,
         lines=[{"article_object_id": article.object_id, "quantity": quantity,
                 "origin": "neu", "units": []}],
-        steps=steps or [], actor_id=None,
+        steps=steps or [], actor_id=getattr(actor, "id", None),
     )
     db.flush()
     rows = (db.query(ProcessStep).filter(ProcessStep.order_id == order.id)
@@ -3565,5 +3570,315 @@ def test_a_gap_never_becomes_a_dead_end():
         # **Und die Karte sagt, woran es liegt** – statt nur Knöpfe wegzunehmen.
         embed = svc.embed_data(db, order=order, step=step, viewer=staff)
         assert [g["field_label"] for g in embed["gaps"]] == ["UID / MWST-Nummer"]
+    finally:
+        db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# ►►► AUSSENHANDEL — Zolltarif und Lieferbedingung (Arbeitsauftrag §3)
+# ---------------------------------------------------------------------------
+
+def test_a_delivery_clause_is_a_catalog_and_a_named_place():
+    """►►► **«FCA» allein ist keine Vereinbarung – «FCA Rorschach» ist eine.** ◄◄◄
+
+    Ein Incoterm ist die Stelle im Beleg, an der ein Kürzel über Tausende Franken
+    entscheidet. Darum ein **Katalog** statt eines Freitextes (dieselbe Begründung wie bei
+    Währung und Steuersatz) – und darum ist der **benannte Ort Pflicht**: bei ``FCA``
+    entscheidet genau er, wo das Risiko übergeht.
+
+    Bug-Formen, jede gegengeprüft: (a) ein freier Text geht durch – «DAT» ist die Klausel
+    von 2010, die es 2020 nicht mehr gibt, und sie sähe hinterher aus wie eine Vereinbarung;
+    (b) die Klausel geht ohne Ort durch; (c) der Ort bleibt stehen, wenn die Klausel
+    entfernt wird – ein Ort ohne Klausel sagt nichts; (d) der Satz für den Beleg wird
+    irgendwo zusammengesetzt statt an der einen Stelle.
+    """
+    from fastapi import HTTPException
+    from app.domain import incoterms as inc
+    from app.services import deal as svc
+    db = _db()
+    try:
+        p = _party(db, "Kunden AG")
+        staff = _staff(db)
+        art = _article(db, "Welle 3.1",
+                       steps=[_money_step(direction="in", parties=[p])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+
+        # (a) Der Katalog ist vollständig und geschlossen – elf Klauseln, keine zwölfte.
+        assert len(inc.INCOTERMS) == 11
+        assert [t.key for t in inc.INCOTERMS][:3] == ["EXW", "FCA", "CPT"]
+        assert all(t.hint for t in inc.INCOTERMS), "jede Klausel erklärt sich selbst"
+        with pytest.raises(HTTPException) as bad:
+            svc.apply(db, order=order, step=step, action="incoterm",
+                      payload={"incoterm": "DAT", "incoterm_place": "Basel"},
+                      actor=staff)
+        assert "DAT" in bad.value.detail and "FCA" in bad.value.detail, \
+            "die Ablehnung nennt die erlaubten, statt nur nein zu sagen"
+
+        # (b) Ohne Ort ist es keine Vereinbarung.
+        with pytest.raises(HTTPException) as bare:
+            svc.apply(db, order=order, step=step, action="incoterm",
+                      payload={"incoterm": "FCA"}, actor=staff)
+        assert "FCA" in bare.value.detail and "Ort" in bare.value.detail
+
+        svc.apply(db, order=order, step=step, action="incoterm",
+                  payload={"incoterm": "fca", "incoterm_place": "Rorschach"},
+                  actor=staff)
+        row = svc.of_step(db, step.id)
+        assert row.incoterm == "FCA", "klein geschrieben ist dieselbe Klausel"
+
+        # (d) Der Satz kommt aus EINER Stelle und trägt die Fassung.
+        assert inc.sentence("FCA", "Rorschach") == "FCA Rorschach (Incoterms 2020)"
+        embed = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert embed["incoterm_text"] == "FCA Rorschach (Incoterms 2020)"
+        assert len(embed["incoterms"]) == 11
+
+        # (c) Klausel weg heisst Ort weg.
+        svc.apply(db, order=order, step=step, action="incoterm",
+                  payload={"incoterm": None, "incoterm_place": "Rorschach"},
+                  actor=staff)
+        row = svc.of_step(db, step.id)
+        assert row.incoterm is None and row.incoterm_place is None
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_customs_number_travels_with_the_specification():
+    """►►► **Zolltarifnummer und Ursprungsland stehen am ARTIKEL.** ◄◄◄
+
+    Sie sind Eigenschaften der **Sache**, nicht des Geschäfts – und damit reisen sie über
+    die Spezifikation von selbst auf jede Offerte und jede Rechnung, **ohne dass der
+    Geldvorgang von ihnen weiss**. Genau das ist der Beleg dafür, dass es der richtige Ort
+    ist: es brauchte im Modul keine Zeile.
+
+    *Die ersten sechs Stellen sind weltweit identisch (Harmonisiertes System der WCO,
+    rund 200 Länder); darüber hinaus ist die Nummer national. Gespeichert werden darum
+    sechs bis acht – das Importland hängt seine eigene Verlängerung selbst an.*
+
+    Bug-Formen, gegengeprüft: (a) die Felder stehen nicht in der Spezifikation – dann
+    stehen sie auf keinem Beleg; (b) der Geldvorgang nennt sie einzeln, statt die
+    Spezifikation mitreisen zu lassen.
+    """
+    from app.services import article_fields, deal as svc
+    db = _db()
+    try:
+        p = _party(db, "Kunden AG")
+        staff = _staff(db)
+        art = _article(db, "Welle 3.2",
+                       steps=[_money_step(direction="in", parties=[p])])
+        art.hs_code = "848210"
+        art.origin_country = "CH"
+        db.flush()
+        order, rows = _make(db, quantity=2, article=art)
+        step = rows[0]
+
+        # (a) Sie gehören zur Spezifikation – der einen Liste, die den Beleg speist.
+        keys = [k for k, _label, _unit in article_fields.SPEC_FIELDS]
+        assert "hs_code" in keys and "origin_country" in keys
+
+        flat = {f["label"]: f["value"]
+                for f in article_fields.specification(art)}
+        assert flat.get("Zolltarifnummer (HS)") == "848210"
+        assert flat.get("Ursprungsland") == "CH"
+
+        # (b) Und sie kommen beim Beleg an, ohne dass er sie kennt.
+        embed = svc.embed_data(db, order=order, step=step, viewer=staff)
+        shown = {f["label"]: f["value"] for f in embed["lines"][0]["spec"]}
+        assert shown.get("Zolltarifnummer (HS)") == "848210"
+        assert shown.get("Ursprungsland") == "CH"
+        # Und der Geldvorgang nennt sie nirgends beim Namen – er reicht die
+        # Spezifikation durch. Genau das ist der Beleg für den richtigen Ort.
+        assert "hs_code" not in inspect.getsource(svc)
+    finally:
+        db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# ►►► WER STELLT DEN BELEG — die eigene Gesellschaft (Testnotiz #905)
+# ---------------------------------------------------------------------------
+
+def test_the_issuer_is_frozen_from_the_person_who_released_it():
+    """►►► **Auf dem Beleg steht die Gesellschaft, die ihn stellt.** ◄◄◄
+
+    Bis hierher war das immer der **Betreiber** – die Gesellschaft, die die Website
+    vertritt. Bei mehreren gleichrangigen Gesellschaften ist das eine Vermutung, und sie
+    steht auf einem Beleg.
+
+    **Eingefroren bei der Anlage**, nicht bei jeder Anzeige gelesen: wechselt jemand die
+    Gesellschaft, änderte sich sonst rückwirkend, wer einen alten Beleg gestellt hat.
+
+    Bug-Formen, jede gegengeprüft: (a) der Kopf nimmt weiter den Betreiber; (b) die
+    Gesellschaft wird bei der Anzeige aus der Person gelesen – dann wandert die
+    Vergangenheit mit; (c) der Rückfall fehlt, und ein alter Vorgang hat keinen Aussteller;
+    (d) die Bankverbindung im Einzahlungsschein bleibt die des Betreibers – der QR zeigte
+    auf ein anderes Konto als der Beleg darüber.
+    """
+    from app.models import CompanySettings
+    from app.services import deal as svc, objects as obj, sites
+    db = _db()
+    try:
+        _house(db)
+        zweite = CompanySettings(
+            object_id=obj.next_object_id(db), company_name="Inexxio Süd",
+            legal_form="GmbH", street="Seestrasse", street_nr="9", zip_code="8640",
+            city="Rapperswil", country="CH", vat_number="CHE-900.800.700 MWST",
+            email="sued@example.com", iban_encrypted="CH9300762011623852957",
+        )
+        db.add(zweite)
+        db.flush()
+
+        p = _party(db, "Kunden AG")
+        staff = _staff(db)
+        staff.company_object_id = zweite.object_id
+        db.flush()
+
+        art = _article(db, "Welle 9.5",
+                       steps=[_money_step(direction="in", parties=[p])])
+        order, rows = _make(db, quantity=1, article=art, actor=staff)
+        step = rows[0]
+        row = svc.of_step(db, step.id)
+
+        # (a)/(b) Eingefroren – und der Kopf liest ihn.
+        assert row.issuer_company_id == zweite.object_id
+        head = svc.document_head(db, row, won=True)
+        assert head["supplier"]["name"] == "Inexxio Süd GmbH"
+        assert head["supplier"]["object_id"] == zweite.object_id
+
+        # (b) Der Wechsel der Person ändert die Vergangenheit nicht.
+        staff.company_object_id = None
+        db.flush()
+        assert svc.document_head(db, row, won=True)["supplier"]["name"] \
+            == "Inexxio Süd GmbH"
+
+        # (c) Ohne Angabe gilt weiterhin der Betreiber – ein Beleg ohne Aussteller
+        #     wäre schlimmer als einer mit dem Betreiber.
+        row.issuer_company_id = None
+        db.flush()
+        assert svc.document_head(db, row, won=True)["supplier"]["name"] \
+            == sites.legal_name(sites.find_operator(db))
+
+        # (d) Und überwiesen wird an den Aussteller, nicht an den Betreiber.
+        row.issuer_company_id = zweite.object_id
+        db.flush()
+        _agree(db, order=order, step=step, party=p, amount="100.00", staff=staff)
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100.00"}, actor=staff)
+        charge = svc.live_charge(db, row)
+        info = svc.transfer_info(db, row, charge)
+        assert info["iban"] == "CH9300762011623852957"
+        assert info["creditor"] == "Inexxio Süd GmbH"
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_issuer_is_a_choice_until_the_deal_is_struck():
+    """►►► **Änderbar bis zur Zusage – und das steht in ``can``, nicht daneben.** ◄◄◄
+
+    Dieselbe Regel wie bei der Währung, und **dieselbe Tabelle**: ``issuer`` steht in
+    ``ACTIONS[OFFER]``, also fehlt der Knopf nach der Zusage von selbst und ``apply``
+    weist ihn ab. Ein zweites Feld «gesperrt?» wäre die Stelle, an der Knopf und Tür
+    auseinanderlaufen (die Lehre aus ``currency_locked``).
+
+    Bug-Formen, jede gegengeprüft: (a) die Wahl gilt auch nach der Zusage – dann ändert
+    jemand nachträglich, wer einen zugesagten Beleg gestellt hat; (b) eine beliebige
+    Nummer wird angenommen, obwohl sie auf keine Gesellschaft zeigt; (c) die Auswahlliste
+    geht auch an die Gegenpartei – die wählt nicht aus, wer ihr eine Rechnung stellt.
+    """
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        haus = _house(db)
+        p = _party(db, "Kunden AG")
+        staff = _staff(db)
+        art = _article(db, "Welle 9.6",
+                       steps=[_money_step(direction="in", parties=[p])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+
+        assert "issuer" in svc.can(db, svc.of_step(db, step.id), staff)
+
+        # (b) Eine Nummer, die auf nichts zeigt, sieht aus wie eine Angabe.
+        with pytest.raises(HTTPException) as unknown:
+            svc.apply(db, order=order, step=step, action="issuer",
+                      payload={"issuer": 999999999}, actor=staff)
+        assert "999999999" in unknown.value.detail
+        assert "Gesellschaft" in unknown.value.detail
+
+        svc.apply(db, order=order, step=step, action="issuer",
+                  payload={"issuer": haus.object_id}, actor=staff)
+        assert svc.of_step(db, step.id).issuer_company_id == haus.object_id
+
+        # (c) Die Liste ist eine Personal-Angabe.
+        embed = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert embed["issuer"] == haus.object_id
+        assert [i["object_id"] for i in embed["issuers"]] == [haus.object_id]
+        fremd = svc.embed_data(db, order=order, step=step, viewer=p)
+        assert fremd["issuers"] == []
+
+        # (a) Nach der Zusage ist die Frage entschieden.
+        _agree(db, order=order, step=step, party=p, amount="100.00", staff=staff)
+        row = svc.of_step(db, step.id)
+        assert "issuer" not in svc.can(db, row, staff)
+        with pytest.raises(HTTPException):
+            svc.apply(db, order=order, step=step, action="issuer",
+                      payload={"issuer": haus.object_id}, actor=staff)
+    finally:
+        db.rollback(); db.close()
+
+
+def test_nobody_becomes_staff_without_a_company():
+    """►►► **Wer Mitarbeiter WIRD, gehört zu einer Gesellschaft.** ◄◄◄
+
+    Ohne diese Zuordnung kann ein Beleg nicht sagen, wer ihn stellt – er nähme still den
+    Betreiber, auch wenn eine Schwestergesellschaft fakturiert.
+
+    ►►► **Geprüft wird der ÜBERGANG, nicht der Bestand.** ◄◄◄ Eine Prüfung auf den
+    *Zustand* machte jede bestehende Personalzeile ohne Gesellschaft unbearbeitbar – man
+    käme nicht einmal dazu, die Gesellschaft nachzutragen. Die Schreibstelle weist den
+    **neuen** schlechten Zustand ab; *streng schreiben, tolerant lesen.*
+
+    Bug-Formen, jede gegengeprüft: (a) die Rollenänderung geht ohne Gesellschaft durch;
+    (b) die Prüfung fragt den Zustand und sperrt bestehende Zeilen ein; (c) eine Nummer,
+    die auf keine Gesellschaft zeigt, wird angenommen; (d) die Regel steht im Router statt
+    im Dienst – dann gilt sie für die zweite Oberfläche nicht.
+    """
+    from fastapi import HTTPException
+    from app.schemas.admin import ErpAdminUpdate
+    from app.services import people
+    db = _db()
+    try:
+        haus = _house(db)
+        u = _party(db, "Neue Person", role="customer")
+
+        # (a) Ohne Gesellschaft wird niemand Mitarbeiter.
+        with pytest.raises(HTTPException) as bad:
+            people.apply_profile_update(
+                db, u, ErpAdminUpdate(role="employee"), actor_id=u.id)
+        assert "Gesellschaft" in bad.value.detail
+        assert u.display_name in bad.value.detail, "der Satz nennt die betroffene Person"
+
+        # (c) Und nicht mit irgendeiner Nummer.
+        with pytest.raises(HTTPException):
+            people.apply_profile_update(
+                db, u, ErpAdminUpdate(role="employee", company_object_id=999999999),
+                actor_id=u.id)
+
+        # Mit ihr geht es – in einem Zug.
+        people.apply_profile_update(
+            db, u, ErpAdminUpdate(role="employee", company_object_id=haus.object_id),
+            actor_id=u.id)
+        assert u.role == "employee" and u.company_object_id == haus.object_id
+
+        # (b) Eine bestehende Zeile ohne Gesellschaft bleibt bearbeitbar.
+        alt = _party(db, "Alte Person", role="employee")
+        alt.company_object_id = None
+        db.flush()
+        people.apply_profile_update(
+            db, alt, ErpAdminUpdate(job_title="Werkstatt"), actor_id=u.id)
+        assert alt.job_title == "Werkstatt"
+
+        # (d) Die Regel wohnt im Dienst – beide Oberflächen schreiben über ihn.
+        assert "assert_employment" in inspect.getsource(people.apply_profile_update)
     finally:
         db.rollback(); db.close()

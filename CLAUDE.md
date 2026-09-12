@@ -3041,6 +3041,184 @@
 > vertauschten Rollen und der Sicht der unterlegenen Gegenpartei) – und die Messung gegen
 > ihre eigene Bug-Form gegengeprüft (+27,6 px bei 375, +82,6 px bei 320).
 
+> ►►► **DER BELEG WIRD VOLLSTÄNDIG — und ein Modul meldet, was ihm fehlt**
+> (Arbeitsauftrag `docs/arbeitsauftrag-beleg.md`, Testnotizen #902–#908, Migrationen
+> `131`/`132`). ◄◄◄ Sieben Stufen in einem Zug, und der rote Faden ist **einer**: ein
+> Beleg, der beim Empfänger eine Frage auslöst, kostet mehr Zeit als jedes Feld, das sie
+> verhindert hätte – und ein Feld, das nie eine Frage verhindert, ist Ballast.
+>
+> **(1) Die Rollen heissen, wie das Gesetz sie nennt** (#903): **Leistungserbringer** ↔
+> **Leistungsempfänger**. «Lieferant/Kunde» ist zu eng – Miete, Lohn, Gebühr und eine
+> Spedition haben keinen Lieferanten; «Rechnungssteller/-empfänger» ist präzise für eine
+> **Rechnung** und falsch auf einer **Offerte**, und derselbe Beleg trägt beide Zustände.
+> Es sind die Begriffe des **MWSTG selbst** und sie passen **wörtlich** zum
+> Reverse-Charge-Pflichtsatz («Steuerschuldnerschaft des *Leistungsempfängers*») – zwei
+> verschiedene Wörter für dieselbe Person auf demselben Papier wären genau die Rückfrage,
+> die dieser Beleg vermeiden soll. Sie sind sperrig, also **erklärt der Hover sie in einem
+> Satz** (`DealSide.hint`, vom Server – die Karte formuliert ihn nicht ein zweites Mal).
+> Die **Nummer** steht als eigene Zeile mit dem Mikro-Label **«Nr.»** (#904):
+> «Objektnummer» ist ein Systembegriff, «Benutzernummer» falsch, sobald die Partei ein
+> Unternehmen ist – und der Block darüber sagt bereits, **wessen** Nummer es ist.
+> **Die Auftragsbestätigung ist KEINE dritte Stufe** (#908): sie *ist* die Schwelle
+> `agreed`, aus der Sicht dessen, der bestätigt, und sie hat längst alles, was eine AB
+> ausmacht (Datum, Nummer, bestätigte Positionen mit Preis und Satz, beide Fristen). Eine
+> eigene Stufe wäre derselbe Fehler wie damals bei «Abgeschlossen» – ein **Zustand** in
+> einer Reihe von **Schritten**. Was fehlte, war der **Name**: `stage_labels` heisst je
+> Richtung *Offerte → Auftragsbestätigung* bzw. *Anfrage → Bestellung*.
+>
+> **(2) Der Belegkopf ist erst jetzt einer** (MWSTG Art. 26). Der **Empfänger ist eine
+> Rechtsperson, nicht ihr Vertreter**: `display_name` ist bewusst person-first (#291) und
+> im ERP richtig – auf einer Rechnung ist der Schuldner die *Muster AG*.
+> `people.billing_name` liefert darum **Zeilen** (Firma, darunter «z. H. …»), neben
+> `display_name` statt an seiner Stelle: *zwei Formen einer Regel sind in Ordnung, zwei
+> Regeln nicht.* Dazu **Rechtsform am Namen** (`sites.legal_name` – «Inexxio» ist keine
+> Rechtsperson, «Inexxio AG» ist eine; angehängt nur, wo sie nicht schon im Namen steht,
+> sonst entstünde «Wir AG AG») und der **Kontaktweg** unter der Anschrift: ein Beleg ohne
+> ihn ist der, der eine Rückfrage per Telefonbuch auslöst.
+> **Und die UID der Gegenpartei gibt es sehr wohl** – hier stand «führt das System nicht»,
+> und das war schlicht falsch: `uid_number`/`vat_number` stehen seit dem Fundament am
+> Benutzer. Verlangt ist sie beim **Reverse Charge**; ohne die Nummer des
+> Leistungsempfängers trägt das Verfahren nicht.
+>
+> **(3) Der Nullsatz trägt ZWEI Tatbestände** – und darum zwei Katalogzeilen
+> (`domain/deal.VAT_RATES`): **Export** («Steuerfreie Ausfuhrlieferung») und **Reverse
+> Charge**. Vorher stand dort *eine* Zeile mit einem Schrägstrich zwischen zwei
+> **verschiedenen** Rechtsgründen mit **verschiedenen** Pflichtsätzen – ein Beleg, der nur
+> «0 %» sagt, nennt den Grund nicht, und genau den braucht der Empfänger für seine eigene
+> Abrechnung. **Der Pflichtsatz hängt am SATZ**, nicht am Beleg: er erscheint automatisch,
+> sobald ein solcher Satz vorkommt – kein `if`, kein Feld, keine zweite Stelle.
+> **Damit ist der Schlüssel die Katalogzeile, nicht die Zahl**: «0.00» ist seither
+> mehrdeutig. `assert_vat` gibt den **Schlüssel** zurück, `vat_split` gruppiert je
+> Katalogzeile (sonst fielen beide Nullsätze zu einer Zeile zusammen und der Beleg nennte
+> nur einen der Gründe), und `vat_entry` liest **tolerant**: ein eingefrorener Beleg trägt
+> die alte Zahl. **Die eine benannte Annahme:** ein altes «0.00» wird **Export** – beide
+> hiessen bis dahin gleich, also lässt es sich nicht mehr feststellen, und Export ist der
+> häufigere. *Die Zeile reist darum fertig: Schlüssel **und** Prozentzahl **und** Name –
+> eine zweite Auflösung im Browser schriebe «normal %».*
+>
+> ►►► **(4) Vollständigkeit ist eine Eigenschaft des MODULS — der Kern dieser Runde.** ◄◄◄
+> *«Wenn das Modul zu wenig Angaben hat, um seinen Prozess abzuwickeln, dann muss es Alarm
+> schlagen.»* – **Und es ist kein neuer Mechanismus: es ist `StepNeed` für Stammdaten.**
+> Der Verbrauch meldet fehlendes **Material** als Zeile, ohne einen Zustand daraus zu
+> machen; eine fehlende **Stammdatenangabe** ist dieselbe Aussage über einen anderen
+> Gegenstand – also bekommt sie dieselbe Form (`DataGap`: wo sie hingehört · was fehlt ·
+> warum) und **keinen** Pausenwert.
+> **Durchgesetzt ohne eine neue Regel: die Lücken speisen `can`.** Fehlt etwas, führt `can`
+> das Verb nicht – der Knopf ist **nicht da** –, und `assert_allowed` weist an derselben
+> Liste ab. Eine zweite Prüfung daneben wäre der zweite Massstab, den `can` gerade
+> abschafft.
+> **Gestaffelt je Handlung** (`REQUIRED_FOR`, eine Tabelle statt einer Bedingungskette):
+> eine Anfrage braucht weniger als eine Rechnung. Stünde alles vor der ersten Handlung,
+> hielte eine Angabe das Modul an, die erst in drei Schritten zählt – und man müsste sie
+> erfinden, um weiterzukommen. **Und nur für Verben, die nach aussen wirken**: absagen,
+> stornieren und jede Geld-Zeile bleiben möglich, sonst wäre ein Vorgang mit halber
+> Anschrift für immer eingefroren (dieselbe Regel wie beim Halt nach «nicht bestanden»).
+> **Zwei Feinheiten, die beim Bauen auffielen:** die **Gegenpartei** steht bei `ask` noch
+> gar nicht fest – ihre Felder gehören zu `agree`; und `party_id` wird **von** `_agree`
+> gesetzt, also *nach* dem Tor – die genannte Partei reist darum durch
+> `apply → assert_allowed → gaps` mit (`_head_for` wertet den Kopf gegen sie aus, ohne den
+> Vorgang zu ändern). Ohne das lehnte die Zusage sich selbst ab.
+> **Der Fehlersatz unterscheidet die beiden Gründe**: fehlende Angabe → **400 mit dem
+> Feldnamen**, falsche Stufe → **409 mit der Stufe**. Sie verlangen verschiedene
+> Handlungen, und «nicht möglich» ist eine Sackgasse mit Ausrufezeichen.
+>
+> **(5) Aussenhandel — HS-Code und Incoterms.** Die Sachfrage zuerst: **der HS-Code ist
+> weltweit einheitlich in seinen ersten SECHS Stellen** (Harmonisiertes System der
+> Weltzollorganisation, rund 200 Länder, über 98 % des Welthandels); darüber hinaus ist er
+> national (EU 8/10, CH 8, US 10). Gespeichert werden darum **6 bis 8** – das Importland
+> hängt seine eigene Verlängerung ohnehin selbst an. Er steht **auf jedem Beleg**, nicht
+> nur im Export: er kostet eine Zeile und verhindert genau die Rückfrage, um die es geht.
+> **Und er brauchte keine neue Mechanik**: `articles.hs_code` + `origin_country` plus
+> **zwei Zeilen in `SPEC_FIELDS`** – die Spezifikation reist längst mit dem Beleg, also
+> stehen sie auf Offerte *und* Rechnung, **ohne dass der Geldvorgang von ihnen weiss**
+> (gemessen: «hs_code» kommt in `services/deal.py` nicht vor – genau das ist der Beleg für
+> den richtigen Ort). *Das **Ursprungsland** ist nicht aus der Nummer ableitbar und nicht
+> das Versandland: eine eigene Angabe.*
+> **Die Incoterms 2020 gehören an den VORGANG** (`deals.incoterm` + `incoterm_place`),
+> nicht an das Bewegen-Modul: ein Incoterm ist eine **Vereinbarung** über Kosten und
+> Risiko zwischen zwei Parteien, kein physischer Vorgang – das Bewegen-Modul *führt aus*,
+> was hier vereinbart wurde. Eingefroren mit der Zusage wie die Währung, und dass es
+> danach nicht mehr geht, sagt `ACTIONS`, nicht eine zweite Regel.
+> **Alle elf Klauseln als Katalog, jede mit ihrer Erklärung** (`domain/incoterms.py`) –
+> dieselbe Begründung wie bei Währung und Steuersatz: «FOB» getippt ist noch keine
+> Vereinbarung, und ein Tippfehler fällt erst auf, wenn ein Container im Hafen steht. Die
+> Erklärung steht **am Katalog**, weil sie eine Eigenschaft der Klausel ist – und
+> **sichtbar**, nicht nur im Hover: es ist die Stelle im ganzen Beleg, an der ein Kürzel
+> über Tausende entscheidet, und wer nicht weiss, dass er fragen müsste, findet keinen
+> Hover. **Der benannte Ort ist Pflicht**, sobald eine Klausel steht: bei `FCA` entscheidet
+> genau er, wo das Risiko übergeht. Die vier See-Klauseln tragen ihren Hinweis im Text –
+> sie für Luftfracht zu wählen ist der häufigste Fehler überhaupt.
+>
+> **(6) Wer den Beleg stellt, war eine VERMUTUNG** (#905, Migration `132`). Bis hierher war
+> es immer der **Betreiber** – also die Gesellschaft, die die eine Website vertritt, auch
+> wenn eine Schwestergesellschaft fakturiert. Die Angabe fehlte im Datenmodell ganz:
+> `UserProfile.company_object_id` sagt jetzt, für welche Gesellschaft eine Person arbeitet,
+> und `deals.issuer_company_id` friert bei der **Anlage** ein, wer den Beleg stellt – bei
+> jeder Anzeige neu gelesen änderte ein Wechsel **rückwirkend** die Vergangenheit.
+> **`NULL` heisst weiterhin «der Betreiber»**: der Rückfall bleibt, er ist nur nicht mehr
+> die Regel. Überwiesen wird an den **Aussteller**, nicht an den Betreiber – sonst zeigte
+> der QR-Code auf ein anderes Konto als der Beleg darüber.
+> ►►► **Und geprüft wird der ÜBERGANG, nicht der Bestand** (`people.assert_employment`).
+> ◄◄◄ Wer Mitarbeiter **wird**, braucht eine Gesellschaft; eine Prüfung auf den *Zustand*
+> machte jede bestehende Personalzeile ohne sie unbearbeitbar – man käme nicht einmal dazu,
+> sie nachzutragen. Die Schreibstelle weist den **neuen** schlechten Zustand ab, den
+> **bestehenden** meldet der Geldvorgang als `DataGap`: *streng schreiben, tolerant lesen,
+> Fehlendes benennen.* Die Regel wohnt im **Dienst**, nicht im Router – die Tür ist nicht
+> der einzige Aufrufer, und zwei Oberflächen schreiben denselben Datensatz.
+>
+> **(7) Die Oberfläche folgt dem Beleg.** Der **offene Betrag verlässt den Kopf** (#902):
+> *«Angebot · Offen 0.00 CHF»* – auf einem **Angebot** ist nichts gefordert, also ist er
+> null, und «Offen 0.00» liest sich wie «bezahlt». Er steht **genau einmal**, an der
+> **Rechnung** (Punkt + Wort, #875); ohne Rechnung gibt es nichts Offenes, und das ist
+> keine Zahl, sondern eine Tatsache. *Die **Belegart** bleibt – sie ist die eine Angabe,
+> die ein Papier zu einem Beleg macht (#899), und sie steht sonst nirgends. Das ist die
+> eine bewusste Abweichung vom Wortlaut der Notiz.*
+> **Die Währung steht bei den PREISEN** (#906) – *«Informationen dort anpassbar machen, wo
+> man sie sucht»*: sie stand im Abschnitt «Bedingungen», also einen Abschnitt unter den
+> Zahlen, auf die sie sich bezieht. Über der Preisspalte sagt schon ihre **Position**, was
+> der Hover ausspricht: sie gilt für **alle** Positionen. Und sie hängt an **`can`**, nicht
+> daran, ob wir hier Preise tippen – bei einer **Ausgabe** nennt die Gegenpartei den Preis,
+> und die Währung ist trotzdem unsere Entscheidung.
+> ►►► **Die Fristen stehen EINMAL** (#907) – und die Auflösung ist die **bestehende
+> Regel**, nicht eine neue. ◄◄◄ Zahlungs- und Lieferfrist standen im Beleg **und** an der
+> Angebotszeile: zwei unabhängige Eingaben für dieselbe Vereinbarung. `quoted_by` sagt,
+> **wer den Preis nennt** – und wer den Preis nennt, nennt auch die Fristen: bei einer
+> **Einnahme** schreiben wir sie im Beleg und die Zeile des Partners zeigt sie nur an (er
+> nimmt an oder lehnt ab, #837), bei einer **Ausgabe** ist seine Zeile die Schreibstelle.
+> Kein `if` in der Oberfläche – dieselbe Angabe, die eine Zeile höher schon über den Betrag
+> entscheidet. **Und steht es fest, liest es sich wie die Fusszeile eines Belegs**
+> (`Fixed`: Versalien-Beschriftung, Wert darunter) statt als Satz aus Chips: *was man
+> sieht, ist, was gedruckt wird.*
+>
+> **Ausdrücklich NICHT gebaut, mit Begründung** (`docs/beleg-pflichtangaben.md` §3): eine
+> eigene Offertnummern-Serie (die Auftragsnummer ist die Kennung, und eine zweite Serie
+> wäre eine zweite Identität für denselben Vorgang) · **Skonto** (ein zweites Zahlungsziel
+> neben dem einen, und beide müssten in `balance` gerechnet werden) · **Proforma** (das ist
+> ein Ausdruck, kein Zustand) · **VIES-Validierung** (ein fremder Dienst für eine Angabe,
+> die der Kunde selbst kennt) · **Packliste und Gewichte** (das ist der Lieferschein, und
+> der gehört dem Bewegen-Modul) · **englische Belege** (das ganze Haus ist einsprachig;
+> eine Sprache je Beleg wäre die erste Stelle, an der es auseinanderläuft).
+>
+> **Ein Fund nebenbei, und er war still**: `DealSide` kannte `hint`, `attn`, `email` und
+> `phone` nicht – Pydantic verwirft Unbekanntes **stillschweigend**, also wären alle vier
+> nie angekommen, und kein Dienst-Test hätte es gefunden (die rufen `document_head`
+> direkt). Dieselbe Falle wie damals bei `ModuleConfigInput` und bei `DealUpdate`.
+> Wächter: 5 neue in `tests/test_deal_module.py` (**12 Bug-Formen gegengeprüft**), 7 neue
+> in `test_frontend_mirrors.py` (**14 Bug-Formen**), dazu 4 auf die neue Regel gezogene –
+> *zwei der neuen waren dabei stumpf und liessen ihre eigene Form durch* (einer fragte nach
+> dem blossen **Vorkommen** von `!d.we_quote`, das im selben Rumpf schon für das
+> Betragsfeld steht; einer prüfte `<CompanyPick` und war durch `<CompanyPickX` erfüllt) –
+> gemessen, nachgeschärft, erneut gegengeprüft. Suite grün gegen die gewachsene Datenbank
+> **und** gegen ein Schema nur aus den Migrationen (je 577); Migrationen `131`/`132` von
+> null · idempotent · downgrade · re-upgrade · **über das Lifespan-Netz** verifiziert.
+> Gemessen in Chromium an den **echten** Komponenten (Karte im `ModuleShell`): 1440 · 1280
+> · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **sechs** Zustände
+> (Offerte · Lücken · Auftragsbestätigung · Ausgabe mit offener Incoterm-Wahl · JPY · Sicht
+> der Gegenpartei) – und die Messung **gegen ihre eigene Bug-Form gegengeprüft**: ein
+> unteilbares Wort in einem gekappten Namen meldet zu Recht **nichts** (dort ist
+> `overflow: hidden`), dasselbe Wort in der Incoterm-Erklärung meldet **+114,7 px** bei
+> 375 und **+169,7 px** bei 320.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -3286,6 +3464,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Zeilen daneben; *offen*, *fällig* und *überfällig* als Ableitung, null Spalten. Steuer je
   Position (MWSTG Art. 26) und **eine Währung je Vorgang** (ISO 4217, mit den
   Nachkommastellen der Währung).
+- **Der Beleg ist vollständig**: Belegkopf mit **beiden** Parteien (Leistungserbringer ↔
+  Leistungsempfänger, Rechtsform, Anschrift, «z. H.», Kontaktweg, UID), **Pflichtsatz je
+  Nullsatz** (Export ↔ Reverse Charge), **Zolltarifnummer und Ursprungsland** aus der
+  Artikel-Spezifikation und die **Incoterms 2020** als Katalog mit Erklärung. Welche unserer
+  Gesellschaften ihn stellt, ist am Vorgang eingefroren (`deals.issuer_company_id`).
+- **Ein Modul meldet, was ihm fehlt** (`DataGap`): fehlende Stammdaten sind eine **Zeile**,
+  kein Zustand – dieselbe Form wie `StepNeed`. Durchgesetzt über `can`: der Knopf ist gar
+  nicht da, und die Zeile sagt in Klartext, **wo** die Angabe hingehört und **warum**.
 - **Online bezahlen – in der eigenen Karte** (§9.13): «Jetzt bezahlen» öffnet das
   Zahlungsformular **im ERP**, nicht auf einer fremden Seite; die Gegenpartei bezahlt über
   ihren eigenen, engen Zugang. Was das ERP weiss (Name · E-Mail · Rechnungsadresse), wird

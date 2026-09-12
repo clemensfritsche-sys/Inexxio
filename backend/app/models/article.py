@@ -69,6 +69,19 @@ class Article(Base, TimestampMixin):
     min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
     safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
     supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
+    # ►►► **Zoll: was die Ware IST, und woher sie kommt** (Arbeitsauftrag §3.1). ◄◄◄
+    #
+    # Beides ist eine Eigenschaft der **Sache**, nicht des Belegs – darum steht es hier
+    # und reist über die Spezifikation von selbst auf jede Offerte und jede Rechnung.
+    #
+    # **Der HS-Code ist weltweit einheitlich – in seinen ersten sechs Stellen.** Das
+    # Harmonisierte System ist ein Abkommen der Weltzollorganisation; rund 200 Länder
+    # wenden es an. Darüber hinaus ist es national (EU 8/10 Stellen, CH 8, US 10) – also
+    # speichern wir 6 bis 8: das Importland hängt seine eigene Verlängerung ohnehin an.
+    hs_code: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+    # **Ursprungsland ist NICHT aus dem HS-Code ableitbar** und auch nicht das
+    # Versandland – es ist eine eigene Angabe (ISO-2, wie jedes Land im Haus).
+    origin_country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
     # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es reist mit dem
     # Beschaffungs-Beleg zum Lieferanten (``services/article_fields``), damit er weiss,
     # was er in die Hand nimmt.

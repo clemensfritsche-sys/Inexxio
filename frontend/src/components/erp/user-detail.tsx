@@ -16,6 +16,7 @@ import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
 // Rolle, Bankverbindung, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
 import { Field as AField, ToggleField, SelectField } from '@/components/account/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
+import { ObjectSelect } from '@/components/erp/object-select';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
@@ -142,6 +143,7 @@ interface ERPForm {
   bank_name: string;
   bank_iban: string;
   bank_bic: string;
+  company_object_id: string;
   department: string;
   job_title: string;
   employment_start_date: string;
@@ -181,6 +183,7 @@ function buildForm(p: UserProfile): ERPForm {
     bank_name: p.bank_name ?? '',
     bank_iban: p.bank_iban ?? '',
     bank_bic: p.bank_bic ?? '',
+    company_object_id: p.company_object_id != null ? String(p.company_object_id) : '',
     department: p.department ?? '',
     job_title: p.job_title ?? '',
     employment_start_date: p.employment_start_date ?? '',
@@ -190,6 +193,46 @@ function buildForm(p: UserProfile): ERPForm {
 }
 
 const nn = (s: string): string | null => (s.trim() === '' ? null : s);
+
+/**
+ * ►►► **Für welche unserer Gesellschaften arbeitet diese Person?** (Testnotiz #905) ◄◄◄
+ *
+ * Die Angabe fehlte im Datenmodell ganz – und damit konnte ein Beleg nicht sagen, wer ihn
+ * stellt: er nahm immer den **Betreiber**, also die Gesellschaft, die die Website
+ * vertritt, auch wenn eine Schwestergesellschaft fakturiert.
+ *
+ * **Dasselbe Bauteil wie jede Referenz im Haus** (`ObjectSelect`) – ein natives
+ * Auswahlfeld über Datensätze gibt es nicht. Die Liste ist kurz, also wird **im Browser**
+ * gefiltert: ein eigener Such-Endpunkt für eine Handvoll Gesellschaften wäre ein Weg zu
+ * viel. Geladen wird sie **einmal**, nicht bei jedem Tastendruck.
+ *
+ * **«Keine» bleibt wählbar** – für jeden, der nicht bei uns arbeitet; ob das an einer
+ * *Rollenänderung* scheitert, entscheidet der Dienst (`people.assert_employment`).
+ */
+function CompanyPick({ value, readOnly, onChange }: {
+  value: string; readOnly: boolean; onChange: (v: string) => void;
+}) {
+  const [all, setAll] = useState<{ object_id: number; name: string }[]>([]);
+  useEffect(() => {
+    let dead = false;
+    api.getCompanies()
+      .then((rows) => !dead && setAll(rows
+        .filter((c) => c.object_id != null)
+        .map((c) => ({ object_id: c.object_id as number, name: c.company_name ?? '' }))))
+      .catch(() => undefined);
+    return () => { dead = true; };
+  }, []);
+  const current = value ? Number(value) : null;
+  return (
+    <ObjectSelect<{ object_id: number; name: string }>
+      label="Gesellschaft" value={current} disabled={readOnly}
+      emptyOption="Keine"
+      selected={all.find((c) => c.object_id === current)}
+      find={async (q) => all.filter((c) => `${c.object_id}`.includes(q)
+        || c.name.toLowerCase().includes(q.toLowerCase()))}
+      onChange={(id) => onChange(id == null ? '' : String(id))} />
+  );
+}
 
 /** Form → Update-Payload. **Dieselbe Spiegel-Logik wie im Profil:** «Rechnung =
  *  Lieferung» kopiert die Rechnungsfelder aus der Adresse (EIN Datensatz, eine
@@ -243,6 +286,13 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     data.bank_bic = nn(v.bank_bic);
   }
   if (isStaff) {
+    // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
+    //
+    // Ohne sie kann ein Beleg nicht sagen, wer ihn stellt – er nähme still den Betreiber,
+    // auch wenn eine Schwestergesellschaft fakturiert. **Die Regel steht im Dienst**
+    // (`people.assert_employment`), nicht hier: sie gilt für jede Oberfläche, die diesen
+    // Datensatz schreibt. Dies ist die freundliche Hälfte.
+    data.company_object_id = v.company_object_id ? Number(v.company_object_id) : null;
     data.department = nn(v.department);
     data.job_title = nn(v.job_title);
     data.employment_start_date = nn(v.employment_start_date);
@@ -350,6 +400,16 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         {isStaff && (
           <SubBlock icon={Briefcase} title="Anstellung">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ►►► **Für welche unserer Gesellschaften?** (Testnotiz #905) ◄◄◄
+                  Es ist eine **Anstellungs**angabe – darum hier und nicht im Profil: wer
+                  für wen arbeitet, entscheidet nicht die Person selbst. Ohne sie weist
+                  der Dienst die Rollenänderung ab (`people.assert_employment`), denn auf
+                  einem Beleg steht, wer ihn stellt. Dasselbe Bauteil wie jede Referenz
+                  im Haus. */}
+              <div className="sm:col-span-2">
+                <CompanyPick value={form.company_object_id} readOnly={ro}
+                  onChange={(v) => setForm((f) => ({ ...f, company_object_id: v }))} />
+              </div>
               <AField label="Abteilung" value={form.department} onChange={str('department')} readOnly={ro} onEnter={saveNow} />
               <AField label="Funktion" value={form.job_title} onChange={str('job_title')} readOnly={ro} onEnter={saveNow} />
               <AField label="Eintrittsdatum" value={form.employment_start_date} onChange={str('employment_start_date')} readOnly={ro} type="date" onEnter={saveNow} />

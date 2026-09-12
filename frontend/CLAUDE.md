@@ -696,6 +696,62 @@ die Richtung**; ein Wächter zählt sie.
   zwischen den beiden und steht jetzt am **Ende der Karte**, neben dem Abschluss – die eine
   bringt den Vorgang ans Ziel, die andere nimmt ihn zurück.
 
+### Der Beleg ist vollständig (Arbeitsauftrag, #902–#908)
+- ►►► **Die Rollen erklären sich selbst** (#903). ◄◄◄ «Leistungserbringer» ↔
+  «Leistungsempfänger» sind die Begriffe des MWSTG – und sperrig; der erklärende Satz kommt
+  **vom Server** (`DealSide.hint`) und steht im Hover. Ein Rollen-Wort als Literal in der
+  Oberfläche ist ein Wächter-Fehler.
+- **Die Nummer ist eine eigene Zeile mit «Nr.»** (#904, `PARTY_NUMBER_LABEL`):
+  «Objektnummer» ist ein Systembegriff, «Benutzernummer» falsch, sobald die Partei ein
+  Unternehmen ist – und der Block darüber sagt bereits, **wessen** Nummer es ist. Klickbar
+  bleibt sie.
+- **Der Belegkopf trägt «z. H.», Kontaktweg und die UID beider Seiten.** Was fehlt, steht
+  als kleines rotes «fehlt» da (`Missing`) – eine erfundene Zeile wäre auf einem Beleg
+  schlimmer als eine leere.
+- ►►► **Der offene Betrag steht NICHT im Kopf** (#902). ◄◄◄ *«Angebot · Offen 0.00 CHF»* –
+  auf einem Angebot ist nichts gefordert, also ist er null, und «Offen 0.00» liest sich wie
+  «bezahlt». Er steht **genau einmal**, an der **Rechnung** (Punkt + Wort, #875). *Die
+  **Belegart** bleibt – sie ist die eine Angabe, die ein Papier zu einem Beleg macht.*
+- ►►► **Was fehlt, sagt das Modul** (`Gaps` ← `DealEmbed.gaps`). ◄◄◄ Dieselbe Anatomie wie
+  `StepNeed`: Zeile · Nummer · Klartext, und der Klick führt zum Datensatz – eine Meldung
+  ohne Adresse ist eine Sackgasse mit Ausrufezeichen. Gerechnet wird hier nichts; der Knopf
+  fehlt ohnehin (`can`), diese Zeilen sagen **warum**.
+- **Der Pflichtsatz steht auf dem Beleg, nicht im Hover** (`Totals`, `vat_split[].note`):
+  «Steuerfreie Ausfuhrlieferung» ↔ «Steuerschuldnerschaft des Leistungsempfängers» sind zwei
+  **verschiedene** Rechtsgründe, die beide 0 % ergeben – und auf einem Papier gibt es keinen
+  Hover. **Gewählt wird der Katalog-Schlüssel, nicht die Zahl** (`value={r.key}`): «0.00»
+  ist seither mehrdeutig, und `Number('normal')` wäre `NaN` – die Vorschau löst ihn darum
+  über den Katalog auf (`rates.find(v => v.key === key)`).
+- ►►► **Die Währung steht bei den PREISEN** (#906). ◄◄◄ *«Informationen dort anpassbar
+  machen, wo man sie sucht»* – über der Preisspalte sagt schon ihre **Position**, dass sie
+  für **alle** Positionen gilt. Sie hängt an **`can`**, nicht daran, ob wir hier Preise
+  tippen: bei einer **Ausgabe** nennt die Gegenpartei den Preis, und die Währung ist
+  trotzdem unsere Entscheidung. *Löst #864 ab – der Ort ist besser, die Regel dieselbe.*
+- ►►► **Die Fristen stehen EINMAL** (#907), und die Auflösung ist die bestehende Regel:
+  `we_quote` (← `quoted_by`) sagt, **wer den Preis nennt** – und wer den Preis nennt, nennt
+  auch die Fristen. Einnahme → im Beleg (`Terms`), die Zeile des Partners zeigt sie nur an;
+  Ausgabe → an **seiner** Zeile (`QuoteRow`), der Beleg liest sie. Kein `if` auf die
+  Richtung. **Und steht es fest, liest es sich wie die Fusszeile eines Belegs** (`Fixed`):
+  *was man sieht, ist, was gedruckt wird.*
+- **Die Lieferbedingung ist ein Katalog mit Erklärung** (`Delivery`, `d.incoterms`): jede
+  Zeile trägt sie als `title`, und die **gewählte** steht darunter als Satz – ein Hover
+  findet nur, wer weiss, dass es ihn gibt, und das ist genau die Frage, die diese Klauseln
+  auslösen. **Der benannte Ort erscheint mit der Klausel** und geht mit ihr; der Satz für
+  den Beleg («FCA Rorschach (Incoterms 2020)») kommt vom Server.
+- **Wer den Beleg stellt, ist eine Wahl** (#905, `Issuer`): ein `ActionButton` mit Stift am
+  Block des Leistungserbringers, dahinter dasselbe `ObjectSelect` wie jede Referenz im Haus.
+  Die Liste reist mit dem Vorgang (`d.issuers`) – ein eigener Such-Endpunkt für eine
+  Handvoll Gesellschaften wäre ein Weg zu viel. **Ob es die Wahl noch gibt, sagt `can`**:
+  ab der Zusage fehlt das Symbol, statt ausgegraut dazustehen.
+- **Am Benutzer ist die Gesellschaft eine ANSTELLUNGS-Angabe** (`user-detail.CompanyPick`) –
+  darum im ERP und nicht im Profil: wer für wen arbeitet, entscheidet nicht die Person
+  selbst. Ohne sie weist der Dienst die Rollenänderung ab (`people.assert_employment`); dies
+  ist die freundliche Hälfte.
+- **Zolltarifnummer und Ursprungsland stehen am ARTIKEL** (`article-detail`, zwei Zeilen in
+  `OPTIONAL_FIELDS`) und reisen über die Spezifikation auf jeden Beleg – der Geldvorgang
+  nennt sie nirgends beim Namen, und genau das ist der Beleg für den richtigen Ort. Das
+  Ursprungsland wird **grossgeschrieben** gesendet: «ch» und «CH» wären zwei Länder.
+
 ## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das
 Bewegen-Modul trug dafür einmal den Einkaufs-Beleg samt Schalter «Selbst ↔ Beschaffen»

@@ -94,7 +94,8 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 
 
 # Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
-_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number")
+_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number",
+                         "hs_code", "origin_country")
 _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
 
 
@@ -127,6 +128,13 @@ class ArticleCreate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut (reist mit dem Beschaffungs-Beleg)
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
+    #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
+    #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
+    hs_code: Optional[str] = None
+    #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
+    #: Versandland: es ist eine eigene Angabe.
+    origin_country: Optional[str] = None
     #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
     steps: list[ModuleInput] = Field(default_factory=list)
     #: **Welchen Artikel löst dieser hier ab?** (Objektnummer, optional.)
@@ -212,6 +220,13 @@ class ArticleUpdate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut (reist mit dem Beschaffungs-Beleg)
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
+    #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
+    #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
+    hs_code: Optional[str] = None
+    #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
+    #: Versandland: es ist eine eigene Angabe.
+    origin_country: Optional[str] = None
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     # **``is_active`` steht hier bewusst NICHT.** Ein Artikel wird über genau EINE Achse
     # ausser Betrieb genommen: seinen fachlichen ``status`` (Freigegeben ↔ Inaktiv).
@@ -329,6 +344,13 @@ class ArticleResponse(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: bool = False                     # Gefahrgut (reist mit dem Beschaffungs-Beleg)
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
+    #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
+    #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
+    hs_code: Optional[str] = None
+    #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
+    #: Versandland: es ist eine eigene Angabe.
+    origin_country: Optional[str] = None
     landed_unit_cost: Optional[Decimal] = None  # read-only, aus der letzten Bestellung
     # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
     # ── Ersetzen: die Kette in beide Richtungen ────────────────────────────────

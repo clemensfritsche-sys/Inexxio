@@ -1372,6 +1372,10 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
             /** Steps */
             steps?: components["schemas"]["ModuleInput"][];
             /** Replaces Object Id */
@@ -1545,6 +1549,10 @@ export interface components {
              * @default false
              */
             is_hazmat: boolean;
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
             /** Landed Unit Cost */
             landed_unit_cost?: string | null;
             /** Replaced By Id */
@@ -1614,6 +1622,10 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
         };
@@ -1934,6 +1946,15 @@ export interface components {
             currency_decimals: number;
             /** Currencies */
             currencies?: components["schemas"]["CurrencyOption"][];
+            /** Issuer */
+            issuer?: number | null;
+            /**
+             * Issuer Label
+             * @default
+             */
+            issuer_label: string;
+            /** Issuers */
+            issuers?: components["schemas"]["IssuerOption"][];
             /**
              * Money Label
              * @default Rechnung & Zahlung
@@ -1990,6 +2011,29 @@ export interface components {
             quotes?: components["schemas"]["DealQuote"][];
             /** Lines */
             lines?: components["schemas"]["DealLine"][];
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Incoterm Place */
+            incoterm_place?: string | null;
+            /** Incoterm Text */
+            incoterm_text?: string | null;
+            /**
+             * Incoterm Label
+             * @default
+             */
+            incoterm_label: string;
+            /**
+             * Incoterm Place Label
+             * @default
+             */
+            incoterm_place_label: string;
+            /**
+             * Incoterm Place Hint
+             * @default
+             */
+            incoterm_place_hint: string;
+            /** Incoterms */
+            incoterms?: components["schemas"]["IncotermOption"][];
             supplier?: components["schemas"]["DealSide"] | null;
             customer?: components["schemas"]["DealSide"] | null;
             /** Gaps */
@@ -2146,6 +2190,18 @@ export interface components {
              * @default normal
              */
             vat: string;
+            /**
+             * Vat Rate
+             * @default 0.00
+             */
+            vat_rate: string;
+            /**
+             * Vat Label
+             * @default
+             */
+            vat_label: string;
+            /** Vat Note */
+            vat_note?: string | null;
         };
         /**
          * DealMethod
@@ -2254,6 +2310,11 @@ export interface components {
         DealSide: {
             /** Label */
             label: string;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
             /** Object Id */
             object_id?: number | null;
             /**
@@ -2261,6 +2322,12 @@ export interface components {
              * @default
              */
             name: string;
+            /** Attn */
+            attn?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
             /** Address */
             address?: string[];
             /** Uid */
@@ -2368,6 +2435,12 @@ export interface components {
             currency?: string | null;
             /** Method */
             method?: string | null;
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Incoterm Place */
+            incoterm_place?: string | null;
+            /** Issuer */
+            issuer?: number | null;
         };
         /**
          * DefinitionLine
@@ -2467,6 +2540,8 @@ export interface components {
             newsletter_opt_in?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "supplier" | "customer") | null;
+            /** Company Object Id */
+            company_object_id?: number | null;
             /** Department */
             department?: string | null;
             /** Job Title */
@@ -2784,6 +2859,22 @@ export interface components {
             numbers?: string[];
         };
         /**
+         * IncotermOption
+         * @description Eine Incoterms-2020-Klausel – Kürzel, Name und der Satz, der sie erklärt.
+         *
+         *     **Die Erklärung reist mit**, weil genau hier die Fragen entstehen: es ist die Stelle
+         *     im Beleg, an der ein Kürzel über Tausende Franken entscheidet. Sie in der Oberfläche
+         *     zu formulieren hiesse, sie beim nächsten Umbau ein zweites Mal zu schreiben.
+         */
+        IncotermOption: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Hint */
+            hint: string;
+        };
+        /**
          * InstanceResponse
          * @description Instanz – die Gruppe, mit ihrer Menge und ihrer Aufstellung.
          *
@@ -2898,6 +2989,22 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * IssuerOption
+         * @description Eine unserer Gesellschaften – Objektnummer und Name **mit Rechtsform**.
+         *
+         *     Der Name kommt aus derselben Stelle wie der im Belegkopf (``sites.legal_name``): eine
+         *     Auswahl, die anders schreibt als der Beleg, den sie erzeugt, ist eine zweite Schreibweise.
+         */
+        IssuerOption: {
+            /** Object Id */
+            object_id?: number | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
         };
         /**
          * JourneyNeighbour
@@ -4076,6 +4183,8 @@ export interface components {
             bank_bic: string | null;
             /** Bank Name */
             bank_name: string | null;
+            /** Company Object Id */
+            company_object_id: number | null;
             /** Department */
             department: string | null;
             /** Job Title */

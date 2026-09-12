@@ -749,7 +749,7 @@ def release(
     # Dieselbe Regel, andere Maschine (``services/deal``): mit wem und worüber gehandelt
     # wird, steht in der Definition, und ein Angebot einzuholen dauert. Idempotent, ohne
     # ein solches Modul ein No-op.
-    deal_svc.instantiate_for_order(db, order)
+    deal_svc.instantiate_for_order(db, order, actor_id=actor_id)
     return order
 
 

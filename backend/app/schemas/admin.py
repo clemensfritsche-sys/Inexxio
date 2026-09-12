@@ -201,6 +201,8 @@ class UserProfileResponse(BaseModel):
     bank_name: Optional[str]
 
     # Employee
+    #: Für welche unserer Gesellschaften diese Person arbeitet (Objektnummer).
+    company_object_id: Optional[int]
     department: Optional[str]
     job_title: Optional[str]
     employment_start_date: Optional[date]
@@ -281,6 +283,10 @@ class ErpAdminUpdate(UserProfileUpdate):
     # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
     # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.
     role: Optional[Role] = None
+    #: ►►► **Für welche Gesellschaft?** (Testnotiz #905) ◄◄◄ Eine Anstellungsangabe –
+    #: darum hier und **nicht** in ``UserProfileUpdate``: wer für wen arbeitet, entscheidet
+    #: nicht die Person selbst. Ohne sie wird niemand Mitarbeiter (``assert_employment``).
+    company_object_id: Optional[int] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None

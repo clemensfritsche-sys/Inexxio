@@ -47,14 +47,15 @@ import { LabelButton } from '@/components/scan/object-label';
 // Spezifikation, wo man ohnehin hinschaut – ein eigener Reiter dafür war ein Klick für
 // eine Zahl. Und damit hat der Artikel überhaupt keine zweite Ansicht mehr.
 
-type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat';
+type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat'
+  | 'hs_code' | 'origin_country';
 // Der frühere «Fixierte Standort» (GPS + Adresse am Artikel) ist ersatzlos entfallen
 // (Notiz #168): Ein Artikel ist eine Gattung – einen Ort hat immer nur die Instanz.
 type AddKey = OptKey;
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
-  is_hazmat: string;
+  is_hazmat: string; hs_code: string; origin_country: string;
 };
 
 // Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen).
@@ -70,12 +71,23 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
   { key: 'min_order_qty', label: 'Mindestbestellmenge', numeric: true, placeholder: 'z. B. 50' },
   { key: 'safety_stock', label: 'Sicherheitsbestand', numeric: true, placeholder: 'darunter wird automatisch nachbestellt – z. B. 20' },
   { key: 'is_hazmat', label: 'Gefahrgut', boolean: true, placeholder: '' },
+  // ►►► **Zoll-Angaben** – sie stehen auf JEDEM Beleg, nicht nur im Export. ◄◄◄
+  //
+  // Die **ersten sechs Stellen der Zolltarifnummer sind weltweit identisch**
+  // (Harmonisiertes System der Weltzollorganisation, rund 200 Länder); darüber hinaus
+  // ist sie national – das Importland hängt seine eigene Verlängerung ohnehin selbst an.
+  // Der Platzhalter sagt genau das, statt es zu verschweigen.
+  //
+  // Das **Ursprungsland ist NICHT aus der Nummer ableitbar** und auch nicht das
+  // Versandland: eine eigene Angabe.
+  { key: 'hs_code', label: 'Zolltarifnummer (HS)', placeholder: '6 bis 8 Stellen – die ersten 6 gelten weltweit, z. B. 848210' },
+  { key: 'origin_country', label: 'Ursprungsland', placeholder: 'Wo die Ware hergestellt wurde – z. B. CH' },
 ];
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
-    is_hazmat: '' };
+    is_hazmat: '', hs_code: '', origin_country: '' };
   if (!record) return base;
   return {
     ...base,
@@ -86,6 +98,7 @@ function seedFrom(record: Article | null): Form {
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     is_hazmat: record.is_hazmat ? 'ja' : '',
+    hs_code: record.hs_code ?? '', origin_country: record.origin_country ?? '',
   };
 }
 
@@ -185,6 +198,10 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     min_order_qty: form.min_order_qty.trim() || null,
     safety_stock: form.safety_stock.trim() || null,
     is_hazmat: form.is_hazmat === 'ja',
+    // **Zoll-Angaben** – Grossschreibung beim Ursprungsland, damit «ch» und «CH»
+    // nicht zwei Länder sind (ISO-2 ist grossgeschrieben).
+    hs_code: form.hs_code.trim() || null,
+    origin_country: form.origin_country.trim().toUpperCase() || null,
     // **Ersetzen ist Teil der Anlage** – ein Vorgang, ein Aufruf: der Vorgänger zeigt
     // danach hierher UND ist ausser Betrieb.
     replaces_object_id: replaces?.object_id ?? null,

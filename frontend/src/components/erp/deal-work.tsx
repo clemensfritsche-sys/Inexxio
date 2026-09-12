@@ -3,8 +3,8 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash,
-  ClipboardList, CreditCard, FileText, Landmark, Loader2, Lock, RotateCcw, Send,
-  Undo2, Wallet, X,
+  ClipboardList, CreditCard, FileText, Landmark, Loader2, Lock, Pencil, RotateCcw,
+  Send, Undo2, Wallet, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote, DealSide, TransferInfo } from '@/types';
@@ -18,7 +18,7 @@ import {
   ACT_H, ActionButton, Actions, MODULE_GRID, ModuleMeta, ModuleSection,
 } from '@/components/erp/module-ui';
 import {
-  DEAL_PARTY, DEAL_STAGE, DEAL_TASK_HINT, QUOTE_STATE, dealDirection,
+  DEAL_PARTY, DEAL_STAGE, DEAL_TASK_HINT, PARTY_NUMBER_LABEL, QUOTE_STATE, dealDirection,
 } from '@/lib/modules';
 import { useAutosave } from '@/lib/use-autosave';
 import { formatAmount, localDate } from '@/lib/utils';
@@ -286,6 +286,20 @@ export function DealWork({
   }));
   const [offer, setOffer] = useState<{ lead: string; days: string }>(
     { lead: '', days: '' });
+  // ►►► **Die Fristen des Belegs zeigen, was schon draussen ist** (#907). ◄◄◄
+  //
+  // Seit sie **einmal** stehen – bei einer Einnahme hier, bei einer Ausgabe an der Zeile
+  // des Partners – ist dies die Schreibstelle *und* die Anzeige. Ein leeres Feld über
+  // einem längst versandten Angebot behauptete, es sei nichts vereinbart.
+  //
+  // Nachgezogen wird beim **Wechsel des Server-Werts**, nicht bei jedem Rendern – dieselbe
+  // Bauart wie an der Angebotszeile (#846): eine laufende Eingabe wird nicht überschrieben.
+  const sent = d.we_quote
+    ? `${d.quotes[0]?.lead_days ?? ''}|${d.quotes[0]?.payment_days ?? ''}` : '|';
+  useEffect(() => {
+    const [lead, days] = sent.split('|');
+    if (lead || days) setOffer({ lead, days });
+  }, [sent]);
   // **Preise tippt man nur, wo WIR sie nennen – und nur, solange man anbieten kann.**
   // Danach ist die Tabelle das, was sie immer war: die Auskunft, worum es geht.
   const pricing = d.we_quote && may(d, active, 'ask');
@@ -315,7 +329,13 @@ export function DealWork({
           Rückläufe klappen auf eine Zeile zusammen, und darunter kommt das Geld dazu.
           Ein späterer PDF-Export ist damit **dieselbe Komponente ohne Knöpfe** – kein
           zweiter Beleg, der beim nächsten Feld auseinanderläuft. */}
-      <DocHead d={d} />
+      <DocHead d={d} busy={busy} active={active} onAction={onAction} />
+
+      {/* ►►► **Was fehlt, um weiterzukommen** (Arbeitsauftrag §2). ◄◄◄
+          Ein Modul weiss selbst, was es braucht, und sagt, was fehlt – statt einfach
+          keinen Knopf anzubieten. Die Zeilen kommen vom Server (`gaps`), sie sind keine
+          Rechnung der Oberfläche. */}
+      <Gaps rows={d.gaps ?? []} />
 
       {/* ►►► **EINE Positionstabelle** (Testnotiz #862). ◄◄◄
           *«Der Positions-Abschnitt ist doppelt.»* – Er war es: oben stand, worum es geht
@@ -326,7 +346,8 @@ export function DealWork({
           Es ist **eine** Tabelle: dieselben Zeilen, und wo wir den Preis nennen dürfen,
           sind Preis und Satz dort **Eingaben** statt Anzeigen. Was gehandelt wird, sagt
           der Prozess – auch beim Eintippen. */}
-      <Goods d={d} rows={rows} editable={pricing} onPrice={setRow} />
+      <Goods d={d} rows={rows} editable={pricing} busy={busy} active={active}
+        onPrice={setRow} onAction={onAction} />
 
       {/* ►►► **Zu welchen Bedingungen** (Testnotizen #897/#899). ◄◄◄
           Währung und die beiden Fristen standen an drei Orten – die Währung im Angebot,
@@ -514,7 +535,7 @@ function Currency({ d, busy, active, onAction }: {
     // die Karte hört (`aria-label`).
     <div style={{ width: 190, maxWidth: '100%' }}>
       <select className={inputCls} aria-label={CURRENCY_LABEL} disabled={busy}
-        data-tip="Die Währung dieses Vorgangs – ab der Zusage gebunden."
+        data-tip="Die Währung gilt für alle Positionen dieses Belegs – ab der Zusage gebunden."
         value={d.currency}
         onChange={(e) => onAction({ action: 'currency', currency: e.target.value })}>
         {/* ►►► **Die Beschriftung TRÄGT den Code schon** (Testnotiz #869). ◄◄◄
@@ -595,7 +616,9 @@ function Fixed({ label, value, hint }: { label: string; value: string; hint?: st
  * gar nicht angezeigt. Sie steht darum hier, an der Kante, an der man sie sucht – und
  * **genau einmal**.
  */
-function DocHead({ d }: { d: Filled }) {
+function DocHead({ d, busy, active, onAction }: {
+  d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
+}) {
   const dir = dealDirection(d.direction);
   const Icon = dir.icon;
   const cancelled = d.stage === DEAL_STAGE.cancelled;
@@ -625,29 +648,21 @@ function DocHead({ d }: { d: Filled }) {
             <Lock size={11} /> Erst zahlen
           </span>
         )}
-        {/* ►►► **Die eine Information — was noch offen ist.** ◄◄◄
+        {/* ►►► **Der offene Betrag steht NICHT hier** (Testnotiz #902). ◄◄◄
 
-            Sie kam bisher zwar mit (`open`), stand aber nirgends: die Geld-Zeile zeigt
-            die einzelnen Buchungen, ihre **Summe** zeigte niemand. Genau sie ist die
-            Frage, die ein Mensch an diesem Beleg zuerst hat.
+            Er stand eine Runde lang in dieser Zeile – als Antwort auf «was muss man in
+            unter einer Sekunde finden?». *«Angebot · Offen 0.00 CHF»*, und genau daran
+            fiel auf, dass es die falsche Stelle ist: auf einem **Angebot** ist nichts
+            gefordert, also ist er null, und «Offen 0.00» liest sich wie «bezahlt».
 
-            **Rot heisst überfällig**, und die Antwort darauf kommt vom Server
-            (`entries[].overdue` – fällig **und** noch etwas offen); eine zweite Formel
-            hier wiche ab und sähe trotzdem richtig aus.
+            Er geht damit nicht verloren – er steht **genau einmal**, dort, wo er etwas
+            sagt: **an der Rechnung** (Punkt + Wort, #875). Ohne Rechnung gibt es nichts
+            Offenes, und das ist keine Zahl, sondern eine Tatsache.
 
-            Sie steht **einmal**: unten wiederholt sie niemand. */}
-        {d.open != null && (
-          <span className="flex items-baseline gap-1.5" style={{ flex: 'none' }}
-            data-tip="Gefordert und noch nicht bezahlt – die Summe über alle Rechnungen dieses Vorgangs.">
-            <span style={MICRO_LABEL}>{d.open_word}</span>
-            <span className="ix-tnum" style={{
-              font: '700 14px var(--font-display)', letterSpacing: '-.01em',
-              color: overdue(d) ? 'var(--danger)' : 'var(--fg-1)',
-            }}>{formatAmount(d.open, d.currency_decimals)} {d.currency}</span>
-          </span>
-        )}
+            *Die **Belegart** bleibt: sie ist die eine Angabe, die ein Papier zu einem
+            Beleg macht (#899), und sie steht sonst nirgends.* */}
       </div>
-      <Parties d={d} />
+      <Parties d={d} busy={busy} active={active} onAction={onAction} />
       {/* ►►► **Das Datum steht ALLEIN in der Meta-Zeile** (#838/#883). ◄◄◄
           Hier stand daneben «An 100000123 Muster AG» – seit der Belegkopf beide Parteien
           mit ihrer Rolle nennt, wäre das dieselbe Angabe ein zweites Mal, nur ärmer (ohne
@@ -665,15 +680,65 @@ function DocHead({ d }: { d: Filled }) {
 }
 
 /**
- * ►►► **Ist an diesem Vorgang etwas überfällig?** ◄◄◄
+ * ►►► **Was diesem Modul fehlt, um weiterzukommen** (Arbeitsauftrag §2). ◄◄◄
  *
- * Gefragt wird der **Server**, nicht die Uhr des Browsers: `overdue` heisst *fällig **und**
- * noch etwas offen* – zwei Bedingungen, und die zweite kennt nur, wer die Buchungen
- * rechnet. Eine zweite Formel hier wiche ab und sähe trotzdem richtig aus.
+ * *«Wenn das Modul zu wenig Angaben hat, um seinen Prozess abzuwickeln, dann muss es
+ * Alarm schlagen.»*
+ *
+ * ## Es ist kein neuer Mechanismus – es ist `StepNeed` für Stammdaten
+ *
+ * Der Verbrauch meldet fehlendes **Material** als Zeile («Artikel · gebraucht ·
+ * verfügbar»), ohne einen Zustand daraus zu machen: die Freigabe geht, das Modul bewegt
+ * nichts, und die Zeile sagt, woran es liegt. Eine fehlende **Stammdatenangabe** ist
+ * dieselbe Aussage über einen anderen Gegenstand – also bekommt sie dieselbe Form.
+ *
+ * ## Der Knopf fehlt ohnehin – hier steht, warum
+ *
+ * Durchgesetzt wird es über `can` (Auskunft **und** Tor); diese Zeilen erklären nur, was
+ * man sonst raten müsste. **Und sie führen dorthin, wo man es beheben kann**: die Nummer
+ * ist klickbar, weil eine Meldung ohne Adresse eine Sackgasse mit Ausrufezeichen ist.
+ *
+ * *Nur für das Personal – eine Gegenpartei kann unsere Stammdaten weder sehen noch
+ * pflegen; der Server liefert die Zeilen darum gar nicht erst mit.*
  */
-function overdue(d: Filled): boolean {
-  return d.entries.some((e) => e.overdue);
+function Gaps({ rows }: { rows: NonNullable<Filled['gaps']> }) {
+  if (!rows.length) return null;
+  return (
+    <div className="flex flex-col" style={{ marginBottom: 14 }}>
+      {rows.map((g, i) => (
+        <div key={`${g.record_object_id}|${g.field_label}|${i}`}
+          className="flex flex-wrap items-center gap-x-2 gap-y-0.5"
+          style={{ padding: '3px 0' }}>
+          <AlertTriangle size={12} style={{ flex: 'none', color: 'var(--danger)' }} />
+          <span className="text-[12px] font-semibold" style={{ color: 'var(--danger)' }}>
+            {g.field_label} fehlt
+          </span>
+          {/* **Wo sie hingehört** – Nummer und Name, dieselbe Anatomie wie überall. */}
+          {g.record_object_id != null && <ObjId value={g.record_object_id} />}
+          <span className="text-[12px] truncate" style={{
+            color: 'var(--fg-3)', minWidth: 0,
+          }}>{g.record_label}</span>
+          {/* **Warum dieser Beleg sie braucht** – ein Satz, im Hover. Er steht nicht in
+              der Zeile: bei drei Lücken wären es drei Absätze über dem Beleg. */}
+          <span className="text-[11.5px] truncate" style={{
+            color: 'var(--fg-4)', minWidth: 0, flex: '1 1 140px', cursor: 'help',
+          }} data-tip={g.why}>{g.why}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
+
+/*
+ * ►►► **`overdue` ist mitgegangen** (Testnotiz #902). ◄◄◄
+ *
+ * Es beantwortete «ist an diesem Vorgang etwas überfällig?» und hatte genau **einen**
+ * Leser: die Farbe des offenen Betrags im Belegkopf. Der steht nicht mehr dort – er
+ * steht **an der Rechnung**, und dort fragt die Zeile ihr eigenes `e.overdue`. Eine
+ * Ableitung ohne Leser ist keine Ableitung, sondern eine zweite Wahrheit, die niemand
+ * vergleicht.
+ */
+
 
 /**
  * ►►► **Der Belegkopf — wer stellt ihn, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
@@ -700,10 +765,12 @@ function overdue(d: Filled): boolean {
  * die Gegenseite nicht (`won`). Beides ist derselbe Fall: eine Seite ohne Namen wird
  * nicht gezeichnet – sonst stünde dort dreimal «fehlt» für etwas, das nicht fehlt.
  */
-function Parties({ d }: { d: Filled }) {
+function Parties({ d, busy, active, onAction }: {
+  d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
+}) {
   // **Wer der Aussteller ist, sagt das Feld – nicht sein Name.** Ein Vergleich auf das
-  // Wort «Lieferant» wäre ein Spiegel über die API-Grenze, der beim ersten Umbenennen
-  // still falsch wird; hier steht die Rolle in der Struktur selbst.
+  // Wort «Leistungserbringer» wäre ein Spiegel über die API-Grenze, der beim ersten
+  // Umbenennen still falsch wird; hier steht die Rolle in der Struktur selbst.
   const sides = ([[d.supplier, true], [d.customer, false]] as const).filter(
     (pair): pair is readonly [DealSide, boolean] => !!pair[0] && !!pair[0].name);
   if (!sides.length) return null;
@@ -711,12 +778,34 @@ function Parties({ d }: { d: Filled }) {
     <div style={{ ...MODULE_GRID, gap: '12px 24px', marginBottom: 14 }}>
       {sides.map(([s, issuer]) => (
         <div key={s.label} style={{ minWidth: 0 }}>
-          <span style={MICRO_LABEL}>{s.label}</span>
+          {/* ►►► **Die Rolle erklärt sich selbst** (Testnotiz #903). ◄◄◄
+              «Leistungserbringer» und «Leistungsempfänger» sind die Begriffe des MWSTG –
+              also die, die auf einem Schweizer Beleg ohnehin gelten, und sie passen
+              wörtlich zum Pflichtsatz beim Reverse Charge. Sie sind auch sperrig, darum
+              sagt der Hover in einem Satz, was sie bedeuten. Der **Satz kommt vom
+              Server** (`DealSide.hint`) – hier formuliert wäre er die zweite Fassung. */}
+          <span className="flex items-center gap-1.5" style={{ minWidth: 0 }}>
+            <span style={{ ...MICRO_LABEL, cursor: s.hint ? 'help' : undefined }}
+              data-tip={s.hint || undefined}>{s.label}</span>
+            {/* ►►► **Wer den Beleg stellt, ist eine WAHL** (Testnotiz #905). ◄◄◄
+                Vorgewählt ist die Gesellschaft des Freigebenden; hier steht nur die
+                Korrektur – ein Stift, kein Formularfeld. Ob es sie noch gibt, sagt
+                `can`: ab der Zusage fehlt das Symbol, statt ausgegraut dazustehen. */}
+            {issuer && may(d, active, 'issuer') && (
+              <Issuer d={d} busy={busy} onAction={onAction} />
+            )}
+          </span>
           <div className="flex items-center gap-2" style={{ minWidth: 0, paddingTop: 5 }}>
-            {s.object_id != null && <ObjId value={s.object_id} />}
             <span className="truncate font-semibold text-[13px]"
               style={{ color: 'var(--fg-1)', minWidth: 0 }} data-tip={s.name}>{s.name}</span>
           </div>
+          {/* ►►► **«z. H.» ist die Person, nicht der Schuldner** (§1.2). ◄◄◄ Auf einer
+              Rechnung ist der Schuldner die *Muster AG*; wer sie dort öffnet, steht
+              darunter. Beides kommt fertig aus `people.billing_name`. */}
+          {s.attn && (
+            <div className="truncate text-[12px]"
+              style={{ color: 'var(--fg-2)', paddingTop: 2 }}>{s.attn}</div>
+          )}
           {/* **Die Anschrift kommt als ZEILEN**, wie sie auf dem Beleg steht – die
               Reihenfolge gehört dorthin, wo Adressen gebaut werden (`address.lines`).
               Eine zweite Fassung hier wäre die Stelle, an der beim nächsten Feld eine
@@ -726,19 +815,83 @@ function Parties({ d }: { d: Filled }) {
               {s.address.map((line) => <div key={line} className="truncate">{line}</div>)}
             </div>
           ) : <Missing what="Anschrift" />}
-          {/* **Die UID nur beim Aussteller** – eine des Empfängers führt das System nicht,
-              und für den Inland-Beleg ist sie auch nicht verlangt. Wo sie hingehört und
-              fehlt, sagt es die Zeile. */}
-          {issuer && (s.uid
-            ? <div className="ix-tnum text-[12px]"
+          {/* ►►► **Die Nummer steht als eigene Zeile, mit «Nr.»** (Testnotiz #904). ◄◄◄
+              «Objektnummer» ist ein Systembegriff und auf einem Beleg fehl am Platz;
+              «Benutzernummer» ist falsch, sobald die Partei ein Unternehmen ist. Der
+              Block darüber sagt bereits, **wessen** Nummer es ist – also genügt «Nr.».
+              Sie bleibt klickbar und führt zum Datensatz. */}
+          {s.object_id != null && (
+            <div className="flex items-baseline gap-1.5" style={{ paddingTop: 3 }}>
+              <span style={MICRO_LABEL}>{PARTY_NUMBER_LABEL}</span>
+              <ObjId value={s.object_id} />
+            </div>
+          )}
+          {/* ►►► **Ein Beleg ohne Kontaktweg löst die Rückfrage per Telefonbuch aus**
+              (§1.4). ◄◄◄ Beides steht am Datensatz; es fehlte allein die Zeile hier. */}
+          {(s.email || s.phone) && (
+            <div className="truncate text-[12px]"
               style={{ color: 'var(--fg-3)', paddingTop: 3 }}
-              data-tip="Ohne sie kann dem Empfänger der Vorsteuerabzug verweigert werden.">
+              data-tip="Kontaktweg für Rückfragen zu diesem Beleg.">
+              {[s.email, s.phone].filter(Boolean).join(' · ')}
+            </div>
+          )}
+          {/* ►►► **Die UID tragen beide Seiten** (§1.1). ◄◄◄ Hier stand «nur beim
+              Aussteller – eine des Empfängers führt das System nicht»; das war falsch,
+              sie steht seit dem Fundament am Benutzer. Gemeldet wird sie nur, wo sie
+              **verlangt** ist: beim Aussteller immer (ohne sie kann dem Empfänger der
+              Vorsteuerabzug verweigert werden), beim Empfänger dann, wenn eine Position
+              Reverse Charge trägt – und das sagt die Lücken-Zeile, nicht diese hier. */}
+          {s.uid ? (
+            <div className="ix-tnum truncate text-[12px]"
+              style={{ color: 'var(--fg-3)', paddingTop: 3 }}
+              data-tip="UID / MWST-Nummer – ohne sie kann der Vorsteuerabzug verweigert werden.">
               {s.uid}
             </div>
-            : <Missing what="UID" />)}
+          ) : issuer ? <Missing what="UID" /> : null}
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * ►►► **Welche unserer Gesellschaften stellt diesen Beleg?** (Testnotiz #905) ◄◄◄
+ *
+ * Vorgewählt ist die Gesellschaft des **freigebenden Mitarbeiters** – wer für eine
+ * Schwestergesellschaft anbietet, korrigiert es hier. Ein Stift statt eines
+ * Dauer-Auswahlfeldes: im Normalfall stimmt die Vorwahl, und ein Feld, das fast nie
+ * angefasst wird, ist Fläche.
+ *
+ * **Die Liste reist mit dem Vorgang** (`issuers`) – gesucht wird darin, nicht beim
+ * Server: es sind eine Handvoll Gesellschaften, und eine zweite Suche dafür wäre ein
+ * Endpunkt für eine Liste, die ohnehin schon da ist. Dasselbe Bauteil wie jede Referenz
+ * im Haus (`ObjectSelect`), damit es sich anfühlt wie jede andere Wahl.
+ */
+function Issuer({ d, busy, onAction }: {
+  d: Filled; busy?: boolean; onAction: (body: Action) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const all = d.issuers ?? [];
+  if (!open) {
+    return (
+      // **Derselbe Knopf wie jeder andere im Haus** – Symbol, Name beim Zeigen
+      // (`ActionButton`). Ein selbstgebauter Kasten daneben wäre die zweite Bauart.
+      <ActionButton icon={Pencil} label={d.issuer_label ?? 'Unsere Gesellschaft'}
+        height={ACT_H.row} disabled={busy}
+        tip="Wer diesen Beleg stellt. Bis zur Zusage änderbar."
+        onClick={() => setOpen(true)} />
+    );
+  }
+  return (
+    <span style={{ flex: '1 1 100%', minWidth: 0 }}>
+      <ObjectSelect<{ object_id: number; name: string }>
+        value={d.issuer ?? null} disabled={busy}
+        selected={all.find((c) => c.object_id === d.issuer) as { object_id: number; name: string } | undefined}
+        find={async (q) => all.filter((c): c is { object_id: number; name: string } =>
+          c.object_id != null
+          && (`${c.object_id}`.includes(q) || (c.name ?? '').toLowerCase().includes(q.toLowerCase())))}
+        onChange={(id) => { setOpen(false); onAction({ action: 'issuer', issuer: id }); }} />
+    </span>
   );
 }
 
@@ -786,13 +939,17 @@ function named(line: Filled['lines'][number]): string {
     .filter(Boolean).join(' ');
 }
 
-function Goods({ d, rows, editable, onPrice }: {
+function Goods({ d, rows, editable, busy, active, onPrice, onAction }: {
   d: Filled;
   /** Der Angebotsentwurf – je Zeile Preis und Satz, gehalten in `DealWork` (#862). */
   rows: PriceRow[];
   /** **Darf man hier tippen?** Nur wo wir den Preis nennen und noch anbieten können. */
   editable: boolean;
+  busy?: boolean;
+  active: boolean;
   onPrice: (article: number | null, patch: Partial<PriceRow>) => void;
+  /** Die Währung steht über der Preisspalte – sie gilt für alle Positionen (#906). */
+  onAction: (body: Action) => void;
 }) {
   const [open, setOpen] = useState<number | null>(null);
   // **Ohne Positionen gibt es den Abschnitt nicht** – eine Überschrift über einer leeren
@@ -802,9 +959,12 @@ function Goods({ d, rows, editable, onPrice }: {
   // **Ausser man muss einen Preis nennen**: dann ist es **eine** Zeile ohne Artikel –
   // derselbe Mechanismus mit einer entarteten Zeile, kein zweiter Fall (so stand es
   // schon im Angebotsblock, den diese Tabelle abgelöst hat).
+  const fallback = (d.vat_rates ?? []).find((v) => v.key === d.vat_rate);
   const items: Filled['lines'] = d.lines.length ? d.lines : (editable ? [{
     article_id: null, article_object_id: null, article_name: '', quantity: 1,
     spec: [], price: null, vat: d.vat_rate,
+    vat_rate: fallback?.rate ?? '0.00', vat_label: fallback?.label ?? '',
+    vat_note: fallback?.note ?? null,
   }] : []);
   // ►►► **Was es kostet, steht bei dem, was es ist** (Testnotiz #899). ◄◄◄
   //
@@ -821,6 +981,21 @@ function Goods({ d, rows, editable, onPrice }: {
   if (!items.length && !summed) return null;
   return (
     <ModuleSection title={items.length ? 'Positionen' : 'Betrag'}>
+      {/* ►►► **Die Währung steht bei den PREISEN** (Testnotiz #906). ◄◄◄
+
+          *«Informationen dort anpassbar machen, wo man sie sucht.»* – Sie stand im
+          Abschnitt «Bedingungen», also einen Abschnitt unter den Zahlen, auf die sie
+          sich bezieht. Hier steht sie über der Preisspalte, und damit sagt schon ihre
+          **Position**, was der Hover ausspricht: sie gilt für **alle** Positionen, nicht
+          je Zeile (ein Beleg hat eine Währung – zwei wären zwei Belege).
+
+          **Ob man sie noch wählen darf, sagt `can`** – nicht, ob wir hier Preise
+          tippen: bei einer **Ausgabe** nennt die Gegenpartei den Preis, und die Währung
+          ist trotzdem unsere Entscheidung. Danach steht hier nichts mehr; dann sagen es
+          die Beträge selbst (#881). */}
+      <div className="flex justify-end" style={{ paddingBottom: 4 }}>
+        <Currency d={d} busy={busy} active={active} onAction={onAction} />
+      </div>
       {items.map((line, i) => {
         const spec = line.spec ?? [];
         const key = line.article_id ?? -(i + 1);
@@ -908,11 +1083,19 @@ function Goods({ d, rows, editable, onPrice }: {
                       es nicht gibt, und er fällt erst bei der Abrechnung auf. */}
                   <div style={{ width: 92 }}>
                     <Label>{d.vat_label}</Label>
+                    {/* ►►► **Gewählt wird der KATALOG-Eintrag, nicht die Zahl**
+                        (Arbeitsauftrag §1.3). ◄◄◄ Seit *Export* und *Reverse Charge*
+                        zwei Zeilen sind, ist «0.00» **mehrdeutig** – zwei verschiedene
+                        Rechtsgründe mit verschiedenen Pflichtsätzen. Der Wert ist darum
+                        `key`, und die Beschriftung nennt den Namen: bei zwei Nullsätzen
+                        untereinander ist «0 %» keine Wahl, sondern ein Rätsel. */}
                     <select className={inputCls} value={row.vat}
                       aria-label={`${d.vat_label} – ${named(line)}`}
                       onChange={(e) => onPrice(row.article, { vat: e.target.value })}>
                       {(d.vat_rates ?? []).map((r) => (
-                        <option key={r.rate} value={r.rate}>{r.rate} %</option>
+                        <option key={r.key} value={r.key} title={r.note ?? undefined}>
+                          {r.rate} % · {r.label}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -920,8 +1103,13 @@ function Goods({ d, rows, editable, onPrice }: {
               ) : line.price != null && (
                 <span className="flex items-center gap-2"
                   style={{ flex: 'none', marginLeft: 'auto' }}>
+                  {/* **Der Satz zeigt seine ZAHL, nicht seinen Schlüssel** – und bei
+                      einem Nullsatz dazu den Grund im Hover: «0 %» allein sagt nicht,
+                      ob es eine Ausfuhr oder Reverse Charge ist. */}
                   <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}
-                    data-tip={`${line.vat} % ${d.vat_label}`}>{line.vat} %</span>
+                    data-tip={[`${line.vat_rate} % ${d.vat_label}`, line.vat_label,
+                      line.vat_note].filter(Boolean).join(' · ')}>
+                    {line.vat_rate} %</span>
                   <span className="text-[12.5px] ix-tnum" style={{ color: 'var(--fg-3)' }}
                     data-tip="Einzelpreis netto">{formatAmount(line.price, d.currency_decimals)}</span>
                   <span className="text-[12.5px] ix-tnum font-semibold"
@@ -954,7 +1142,8 @@ function Goods({ d, rows, editable, onPrice }: {
           steht unter den Zahlen, aus denen sie kommt, statt einen Bildschirm tiefer im
           Angebotsblock. */}
       {editable && (
-        <Sums rows={rows} lines={d.lines} label={d.vat_label ?? 'MWST'}
+        <Sums rows={rows} lines={d.lines} rates={d.vat_rates ?? []}
+          label={d.vat_label ?? 'MWST'}
           decimals={d.currency_decimals} code={d.currency} />
       )}
       {summed && (
@@ -1196,19 +1385,20 @@ function Terms({ d, busy, active, editable, value, onChange, onAction }: {
   onAction: (body: Action) => void;
 }) {
   const agreed = d.stage !== DEAL_STAGE.offer;
+  const term = (d.incoterms ?? []).find((t) => t.key === d.incoterm);
+  const deliveryTerms = may(d, active, 'incoterm') || !!d.incoterm_text;
   // **Ohne Inhalt gibt es den Abschnitt nicht** – eine Überschrift über einer leeren
   // Fläche ist eine Auskunft, die nichts sagt. Bei einer *Ausgabe* vor der Zusage nennt
-  // die Gegenpartei die Fristen an **ihrer** Zeile; hier bleibt dann die Währung.
-  if (!may(d, active, 'currency') && !editable && !agreed) return null;
+  // die Gegenpartei die Fristen an **ihrer** Zeile; hier bleibt dann die
+  // Lieferbedingung – sie ist unsere Vereinbarung, in beide Richtungen.
+  if (!deliveryTerms && !editable && !agreed) return null;
   return (
     <ModuleSection title="Bedingungen">
       <div className="flex flex-col gap-2">
-        {/* ►►► **Die Währung ist eine Bedingung** (#864/#876/#881). ◄◄◄
-            Sie ist eine **Entscheidung** über das, was hinausgeht – und ab der Zusage
-            gebunden, weil draussen dann eine Zusage über diesen Betrag in *dieser*
-            Währung liegt. Danach steht hier nichts mehr: dann sagen es die Beträge
-            selbst. */}
-        <Currency d={d} busy={busy} active={active} onAction={onAction} />
+        {/* ►►► **Die Währung steht hier NICHT mehr** (Testnotiz #906). ◄◄◄
+            *«Informationen dort anpassbar machen, wo man sie sucht»* – sie gehört zu den
+            **Preisen** und steht seither über der Preisspalte (`Goods`). Ein zweites
+            Auswahlfeld hier wäre dieselbe Frage an zwei Orten. */}
         {editable && (
           <>
             <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
@@ -1223,17 +1413,37 @@ function Terms({ d, busy, active, editable, value, onChange, onAction }: {
                 : `Liefertermin ab heute: ${localDate(inDays(Number(value.lead)))}`} />
           </>
         )}
+        {/* ►►► **Wer Fracht, Versicherung und Zoll trägt** (Incoterms 2020). ◄◄◄
+
+            Es ist die Stelle im ganzen Beleg, an der ein Kürzel über Tausende Franken
+            entscheidet – und genau hier entstehen die Fragen. Darum ein **Katalog**
+            statt eines Freitextes (wie bei Währung und Steuersatz), und darum trägt
+            **jede Klausel ihre Erklärung** – vom Server, nicht hier formuliert.
+
+            Ein Incoterm gehört an den **Vorgang**, nicht an das Bewegen-Modul: er ist
+            eine *Vereinbarung* zwischen zwei Parteien, kein physischer Schritt. Das
+            Bewegen-Modul führt aus, was hier vereinbart wurde. Eingefroren mit der
+            Zusage, wie die Währung – und dass es danach nicht mehr geht, sagt `can`. */}
+        {deliveryTerms && (
+          <Delivery d={d} term={term} busy={busy} active={active} onAction={onAction} />
+        )}
+        {/* ►►► **Steht es fest, liest es sich wie die FUSSZEILE eines Belegs**
+            (Testnotiz #907). ◄◄◄
+
+            *«Bedingungen soll aussehen wie der fertige Beleg, damit man intuitiv
+            erkennt, was man ändert.»* – Also dieselbe Anatomie wie jede feststehende
+            Angabe im Haus (`Fixed`: Versalien-Beschriftung, Wert darunter), nicht ein
+            Satz aus Chips mit Symbolen dazwischen. Was man sieht, ist, was gedruckt
+            wird. */}
         {!editable && agreed && (
-          <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[12px]">
+          <div style={{ ...MODULE_GRID, gap: '10px 24px' }}>
             {/* ►►► **«0 Tage» gibt es nicht — sie heisst «Vorauszahlung»** (#885). ◄◄◄
                 Gelesen aus derselben Liste, aus der sie gewählt wurde; ein Wert
                 ausserhalb davon ist die freie Eingabe und heisst «x Tage». */}
             {d.due_days != null && (
-              <span className="flex items-center gap-1.5">
-                <span style={MICRO_LABEL}>{d.payment_term_label}</span>
-                <span className="ix-tnum" style={{ color: 'var(--fg-2)' }}>
-                  {termText(d.due_days, d.payment_terms)}</span>
-              </span>
+              <Fixed label={d.payment_term_label ?? 'Zahlungsfrist'}
+                value={termText(d.due_days, d.payment_terms) ?? ''}
+                hint="Ab dem Zusagedatum – daraus folgt die Fälligkeit jeder Rechnung." />
             )}
             {/* ►►► **Der Liefertermin — und ob er vorbei ist** (#814). ◄◄◄
                 Ein Verzug ist kein Zustand, den jemand pflegt: er ist *Termin vorbei und
@@ -1241,22 +1451,113 @@ function Terms({ d, busy, active, editable, value, onChange, onAction }: {
                 Forderung. Was man dann tun kann, gibt es alles schon – warten,
                 stornieren, und das Geld läuft davon unabhängig weiter. */}
             {d.due_date && (
-              <span className="flex items-center gap-1.5" style={{
-                color: d.late ? 'var(--danger)' : undefined, cursor: 'help',
-              }} data-tip={d.late
-                ? 'Der zugesagte Liefertermin ist vorbei und das Modul ist noch nicht erledigt.'
-                : 'Zugesagter Liefertermin – Zusagedatum plus Lieferfrist.'}>
-                {d.late ? <AlertTriangle size={12} /> : <CalendarClock size={12} />}
-                <span style={MICRO_LABEL}>{d.late ? 'überfällig seit' : 'Liefertermin'}</span>
-                <span className="ix-tnum" style={{
-                  color: d.late ? 'var(--danger)' : 'var(--fg-2)',
-                }}>{localDate(d.due_date)}</span>
-              </span>
+              <div style={{ minWidth: 0 }}>
+                <span style={MICRO_LABEL}>
+                  {d.late ? 'Liefertermin · überfällig seit' : 'Liefertermin'}
+                </span>
+                <div className="ix-tnum text-[13px] flex items-center gap-1.5"
+                  style={{
+                    color: d.late ? 'var(--danger)' : 'var(--fg-2)',
+                    paddingTop: 6, cursor: 'help',
+                  }} data-tip={d.late
+                    ? 'Der zugesagte Liefertermin ist vorbei und das Modul ist noch nicht erledigt.'
+                    : 'Zugesagter Liefertermin – Zusagedatum plus Lieferfrist.'}>
+                  {d.late ? <AlertTriangle size={12} /> : <CalendarClock size={12} />}
+                  {localDate(d.due_date)}
+                </div>
+              </div>
             )}
           </div>
         )}
       </div>
     </ModuleSection>
+  );
+}
+
+/**
+ * ►►► **Die Lieferbedingung — eine Klausel UND ihr benannter Ort** (Incoterms 2020). ◄◄◄
+ *
+ * «FCA» allein ist keine Vereinbarung, «FCA Rorschach» ist eine: bei genau dieser Klausel
+ * entscheidet der Ort, wo das Risiko übergeht. Beide stehen darum nebeneinander und gehen
+ * **zusammen** hinaus – der Dienst weist eine Klausel ohne Ort ab.
+ *
+ * ## Die Erklärung steht sichtbar, nicht nur im Hover
+ *
+ * Der Auftrag verlangte «zur jeweiligen Option eine kurze Beschreibung im Hover». Beides:
+ * **jede Zeile der Liste** trägt sie als `title`, und die **gewählte** steht darunter als
+ * Satz. Ein Hover findet nur, wer weiss, dass es ihn gibt – und das ist genau die Frage,
+ * die diese Klauseln dauernd auslösen.
+ *
+ * ## Der Satz für den Beleg kommt vom Server
+ *
+ * «FCA Rorschach (Incoterms 2020)» baut `incoterms.sentence` – hier zusammengesetzt wäre
+ * es die zweite Schreibweise, und die Jahreszahl fiele beim nächsten Umbau weg. Sie gehört
+ * dazu: es gibt mehrere gültige Fassungen, und welche gemeint ist, entscheidet im
+ * Streitfall.
+ */
+function Delivery({ d, term, busy, active, onAction }: {
+  d: Filled;
+  term: { key: string; label: string; hint: string } | undefined;
+  busy?: boolean; active: boolean; onAction: (body: Action) => void;
+}) {
+  const [place, setPlace] = useState(d.incoterm_place ?? '');
+  // **Was der Server sagt, gewinnt beim Wechsel** – dieselbe Bauart wie an der
+  // Angebotszeile (#846): ein `useState`-Startwert wird genau einmal gelesen.
+  const remote = d.incoterm_place ?? '';
+  useEffect(() => { setPlace(remote); }, [remote]);
+  const editable = may(d, active, 'incoterm');
+
+  // **Steht sie fest, ist sie ein Satz** – kein gesperrtes Feld (die Regel aus #749).
+  if (!editable) {
+    return d.incoterm_text
+      ? <Fixed label={d.incoterm_label ?? 'Lieferbedingung'} value={d.incoterm_text}
+          hint={term?.hint} />
+      : null;
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-end gap-2 flex-wrap">
+        <div style={{ flex: '1 1 170px', minWidth: 0 }}>
+          <Label>{d.incoterm_label ?? 'Lieferbedingung'}</Label>
+          <select className={inputCls} value={d.incoterm ?? ''} disabled={busy}
+            aria-label={d.incoterm_label ?? 'Lieferbedingung'}
+            onChange={(e) => onAction({
+              action: 'incoterm', incoterm: e.target.value || null,
+              // **Klausel weg heisst Ort weg** – ein Ort ohne Klausel sagt nichts.
+              incoterm_place: e.target.value ? place : null,
+            })}>
+            <option value="">Keine</option>
+            {(d.incoterms ?? []).map((t) => (
+              <option key={t.key} value={t.key} title={t.hint}>{t.key} · {t.label}</option>
+            ))}
+          </select>
+        </div>
+        {/* **Der Ort erscheint erst mit der Klausel** – vorher gäbe es nichts zu
+            benennen, und ein leeres Feld daneben sähe aus wie eine vergessene Angabe. */}
+        {d.incoterm && (
+          <div style={{ flex: '1 1 170px', minWidth: 0 }}>
+            <Label required>{d.incoterm_place_label ?? 'Benannter Ort'}</Label>
+            <input className={inputCls} value={place} disabled={busy}
+              placeholder={d.incoterm_place_hint ?? ''}
+              aria-label={d.incoterm_place_label ?? 'Benannter Ort'}
+              onChange={(e) => setPlace(e.target.value)}
+              onBlur={() => place !== remote && place.trim() && onAction({
+                action: 'incoterm', incoterm: d.incoterm, incoterm_place: place.trim(),
+              })} />
+          </div>
+        )}
+      </div>
+      {/* ►►► **Die gewählte Klausel erklärt sich – sichtbar.** ◄◄◄ Genau hier entstehen
+          die Fragen; eine Erklärung, die man erst durch Zeigen findet, beantwortet sie
+          für den nicht, der gar nicht weiss, dass er fragen müsste. */}
+      {term && (
+        <p className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>{term.hint}</p>
+      )}
+      {d.incoterm_text && (
+        <p className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}
+          data-tip="So steht die Vereinbarung auf dem Beleg.">{d.incoterm_text}</p>
+      )}
+    </div>
   );
 }
 
@@ -1268,8 +1569,16 @@ function Terms({ d, busy, active, editable, value, onChange, onAction }: {
  * Summe ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz. Dieselbe Regel wie im
  * Dienst (`domain/deal.vat_split`) – hier als **Vorschau**, gebucht wird dort.
  */
-function Sums({ rows, lines, label, decimals, code }: {
+function Sums({ rows, lines, rates, label, decimals, code }: {
   rows: PriceRow[]; lines: Filled['lines']; label: string;
+  /**
+   * ►►► **Der Katalog – denn der Satz ist ein SCHLÜSSEL, keine Zahl.** ◄◄◄
+   *
+   * Seit *Export* und *Reverse Charge* zwei Zeilen sind, ist «0.00» mehrdeutig; die
+   * Position trägt darum «normal»/«export». `Number('normal')` wäre `NaN`, und die
+   * Vorschau zeigte still eine Steuer von null – dieselbe Zahl wie ein echter Nullsatz.
+   */
+  rates: NonNullable<Filled['vat_rates']>;
   /** Der Währungscode – er steht beim **Total**, der Zahl, die hinausgeht (#881). */
   code: string;
   /**
@@ -1289,10 +1598,19 @@ function Sums({ rows, lines, label, decimals, code }: {
     buckets.set(r.vat, (buckets.get(r.vat) ?? 0) + net);
   });
   let net = 0;
-  const splits: { rate: string; tax: number }[] = [];
-  buckets.forEach((sum, rate) => {
+  const splits: { rate: string; tax: number; label?: string | null;
+                  note?: string | null }[] = [];
+  buckets.forEach((sum, key) => {
+    // **Gruppiert wird je Katalogzeile, nicht je Prozentzahl** – dieselbe Regel wie im
+    // Dienst (`vat_split`): fielen Export und Reverse Charge zu einer Zeile zusammen,
+    // nennte der Beleg nur einen der beiden Rechtsgründe.
+    const cat = rates.find((v) => v.key === key);
+    const rate = cat?.rate ?? '0.00';
     net += sum;
-    splits.push({ rate, tax: Math.round(sum * Number(rate) * unit / 100) / unit });
+    splits.push({
+      rate, label: cat?.label, note: cat?.note,
+      tax: Math.round(sum * Number(rate) * unit / 100) / unit,
+    });
   });
   const tax = splits.reduce((n, s) => n + s.tax, 0);
   if (net === 0 && tax === 0) return null;
@@ -1320,8 +1638,18 @@ function Sums({ rows, lines, label, decimals, code }: {
  */
 function Totals({ net, splits, total, label, decimals, code }: {
   net: number | string | null;
-  /** Je Steuersatz eine Zeile – zwei Sätze auf einem Beleg sind der Normalfall. */
-  splits: { rate: string; tax: number | string }[];
+  /**
+   * Je Steuersatz eine Zeile – zwei Sätze auf einem Beleg sind der Normalfall.
+   *
+   * ►►► **`note` ist der PFLICHTSATZ** (Arbeitsauftrag §1.3). ◄◄◄ «Steuerfreie
+   * Ausfuhrlieferung» bzw. «Steuerschuldnerschaft des Leistungsempfängers» – zwei
+   * verschiedene Rechtsgründe, die beide 0 % ergeben. Ein Beleg, der nur «0 %» sagt,
+   * nennt den Grund nicht, und genau den braucht der Empfänger für seine eigene
+   * Abrechnung. Er hängt am **Satz** und reist mit ihm mit – kein `if`, keine zweite
+   * Liste, die jemand vergisst.
+   */
+  splits: { rate: string; tax: number | string; label?: string | null;
+            note?: string | null }[];
   total: number | string;
   label: string;
   /** Die kleinste Einheit dieser Währung (ISO 4217) – auch die Vorschau rundet je Währung. */
@@ -1346,11 +1674,24 @@ function Totals({ net, splits, total, label, decimals, code }: {
         {/* **Je Satz eine Zeile** – zwei Sätze auf einem Beleg sind der Normalfall
             (sechs Wellen zu 8.1 %, eine Ausfuhr zu 0 %), und die Abrechnung verlangt sie
             einzeln. Eine Summe «MWST» allein wäre für die Abrechnung wertlos. */}
-        {splits.map((v) => (
-          <Fragment key={v.rate}>
-            <span style={{ color: 'var(--fg-4)' }}>{label} {v.rate} %</span>
+        {splits.map((v, i) => (
+          <Fragment key={`${v.rate}|${v.label ?? i}`}>
+            <span style={{ color: 'var(--fg-4)' }}>
+              {label} {v.rate} %{v.label && Number(v.rate) === 0 ? ` · ${v.label}` : ''}
+            </span>
             <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
               {formatAmount(v.tax, decimals)}</span>
+            {/* ►►► **Der Pflichtsatz steht auf dem Beleg, nicht im Hover** (§1.3). ◄◄◄
+                «Steuerfreie Ausfuhrlieferung» und «Steuerschuldnerschaft des
+                Leistungsempfängers» sind zwei **verschiedene** Rechtsgründe, die beide
+                0 % ergeben – der Empfänger braucht den Grund für seine eigene
+                Abrechnung, und ein Hover ist auf einem Papier nicht vorhanden. */}
+            {v.note && (
+              <span style={{
+                gridColumn: '1 / -1', color: 'var(--fg-4)', fontSize: 11.5,
+                paddingBottom: 2,
+              }}>{v.note}</span>
+            )}
           </Fragment>
         ))}
         {/* **Die Haarlinie geht über BEIDE Spalten** – als eigene Rasterzeile. An die
@@ -1544,19 +1885,35 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
               {/* **Zahlungsfrist über Lieferfrist** (#897) – dieselbe Reihenfolge wie
                   im Abschnitt «Bedingungen»; zwei Formulare für dieselben zwei Fragen
                   dürfen nicht anders herum fragen. */}
-              <div style={{ flex: '1 1 100%', minWidth: 0 }}
-                className="flex flex-col gap-2">
-                <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
-                  value={days} onChange={setDays}
-                  terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
-                  freeLabel={d.term_free_label ?? 'Individuell'} />
-                <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
-                  value={lead} onChange={setLead}
-                  terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
-                  freeLabel={d.term_free_label ?? 'Individuell'}
-                  preview={lead === '' ? undefined
-                    : `Liefertermin ab heute: ${localDate(inDays(Number(lead)))}`} />
-              </div>
+              {/* ►►► **Die Fristen stehen EINMAL** (Testnotiz #907). ◄◄◄
+
+                  Sie standen hier **und** im Abschnitt «Bedingungen» – zwei unabhängige
+                  Eingaben für dieselbe Vereinbarung, und wer die eine änderte, sah die
+                  andere weiter mit dem alten Wert.
+
+                  **Die Auflösung ist die bestehende Regel, nicht eine neue**:
+                  `we_quote` (← `Direction.quoted_by`) sagt, **wer den Preis nennt** – und
+                  wer den Preis nennt, nennt auch die Fristen. Bei einer **Einnahme**
+                  schreiben wir sie im Beleg, und die Zeile des Partners zeigt sie nur
+                  noch an (er nimmt an oder lehnt ab, #837); bei einer **Ausgabe** ist
+                  diese Zeile *sein* Angebot – dann ist sie die Schreibstelle, und der
+                  Beleg liest sie. Kein `if` in der Oberfläche: sie fragt dieselbe Angabe
+                  wie beim Betrag eine Zeile höher. */}
+              {!d.we_quote && (
+                <div style={{ flex: '1 1 100%', minWidth: 0 }}
+                  className="flex flex-col gap-2">
+                  <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
+                    value={days} onChange={setDays}
+                    terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
+                    freeLabel={d.term_free_label ?? 'Individuell'} />
+                  <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
+                    value={lead} onChange={setLead}
+                    terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
+                    freeLabel={d.term_free_label ?? 'Individuell'}
+                    preview={lead === '' ? undefined
+                      : `Liefertermin ab heute: ${localDate(inDays(Number(lead)))}`} />
+                </div>
+              )}
             </>
           )}
           {/* ►►► **Absage und Zuschlag sind Symbol-Knöpfe** (Testnotiz #880). ◄◄◄

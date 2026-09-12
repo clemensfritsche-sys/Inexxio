@@ -3613,6 +3613,28 @@
             ],
             "title": "Is Hazmat"
           },
+          "hs_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/ModuleInput"
@@ -3965,6 +3987,28 @@
             "title": "Is Hazmat",
             "default": false
           },
+          "hs_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
+          },
           "landed_unit_cost": {
             "anyOf": [
               {
@@ -4223,6 +4267,28 @@
               }
             ],
             "title": "Is Hazmat"
+          },
+          "hs_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
           },
           "expected_updated_at": {
             "anyOf": [
@@ -4917,6 +4983,29 @@
             "type": "array",
             "title": "Currencies"
           },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "issuer_label": {
+            "type": "string",
+            "title": "Issuer Label",
+            "default": ""
+          },
+          "issuers": {
+            "items": {
+              "$ref": "#/components/schemas/IssuerOption"
+            },
+            "type": "array",
+            "title": "Issuers"
+          },
           "money_label": {
             "type": "string",
             "title": "Money Label",
@@ -5016,6 +5105,61 @@
             },
             "type": "array",
             "title": "Lines"
+          },
+          "incoterm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm"
+          },
+          "incoterm_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm Place"
+          },
+          "incoterm_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm Text"
+          },
+          "incoterm_label": {
+            "type": "string",
+            "title": "Incoterm Label",
+            "default": ""
+          },
+          "incoterm_place_label": {
+            "type": "string",
+            "title": "Incoterm Place Label",
+            "default": ""
+          },
+          "incoterm_place_hint": {
+            "type": "string",
+            "title": "Incoterm Place Hint",
+            "default": ""
+          },
+          "incoterms": {
+            "items": {
+              "$ref": "#/components/schemas/IncotermOption"
+            },
+            "type": "array",
+            "title": "Incoterms"
           },
           "supplier": {
             "anyOf": [
@@ -5460,6 +5604,27 @@
             "type": "string",
             "title": "Vat",
             "default": "normal"
+          },
+          "vat_rate": {
+            "type": "string",
+            "title": "Vat Rate",
+            "default": "0.00"
+          },
+          "vat_label": {
+            "type": "string",
+            "title": "Vat Label",
+            "default": ""
+          },
+          "vat_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Note"
           }
         },
         "type": "object",
@@ -5616,6 +5781,11 @@
             "type": "string",
             "title": "Label"
           },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          },
           "object_id": {
             "anyOf": [
               {
@@ -5631,6 +5801,39 @@
             "type": "string",
             "title": "Name",
             "default": ""
+          },
+          "attn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attn"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
           },
           "address": {
             "items": {
@@ -5900,6 +6103,39 @@
               }
             ],
             "title": "Method"
+          },
+          "incoterm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm"
+          },
+          "incoterm_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm Place"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
           }
         },
         "type": "object",
@@ -6295,6 +6531,17 @@
               }
             ],
             "title": "Role"
+          },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
           },
           "department": {
             "anyOf": [
@@ -6911,6 +7158,30 @@
         "title": "HoldNumbers",
         "description": "Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf."
       },
+      "IncotermOption": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "hint"
+        ],
+        "title": "IncotermOption",
+        "description": "Eine Incoterms-2020-Klausel – Kürzel, Name und der Satz, der sie erklärt.\n\n**Die Erklärung reist mit**, weil genau hier die Fragen entstehen: es ist die Stelle\nim Beleg, an der ein Kürzel über Tausende Franken entscheidet. Sie in der Oberfläche\nzu formulieren hiesse, sie beim nächsten Umbau ein zweites Mal zu schreiben."
+      },
       "InstanceResponse": {
         "properties": {
           "id": {
@@ -7144,6 +7415,29 @@
         ],
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
+      },
+      "IssuerOption": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "IssuerOption",
+        "description": "Eine unserer Gesellschaften – Objektnummer und Name **mit Rechtsform**.\n\nDer Name kommt aus derselben Stelle wie der im Belegkopf (``sites.legal_name``): eine\nAuswahl, die anders schreibt als der Beleg, den sie erzeugt, ist eine zweite Schreibweise."
       },
       "JourneyNeighbour": {
         "properties": {
@@ -9518,6 +9812,17 @@
             ],
             "title": "Bank Name"
           },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          },
           "department": {
             "anyOf": [
               {
@@ -9666,6 +9971,7 @@
           "bank_iban",
           "bank_bic",
           "bank_name",
+          "company_object_id",
           "department",
           "job_title",
           "employment_start_date",

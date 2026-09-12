@@ -34,6 +34,16 @@ SPEC_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("surface", "Oberfläche", ""),
     ("cad_url", "Zeichnung", ""),
     ("is_hazmat", "Gefahrgut", ""),
+    # ►►► **Zoll-Angaben stehen auf JEDEM Beleg, nicht nur im Export.** ◄◄◄
+    #
+    # Sie kosten eine Zeile und verhindern genau die Rückfrage, um die es geht; wo sie im
+    # Inland fehlen, ist das kein Fehler – sie fehlen eben (leere Felder fallen weg).
+    #
+    # **Und sie brauchten keine neue Mechanik**: die Spezifikation reist längst mit dem
+    # Beleg, also stehen sie mit diesen zwei Zeilen auf Offerte *und* Rechnung, ohne dass
+    # der Geldvorgang von ihnen weiss.
+    ("hs_code", "Zolltarifnummer (HS)", ""),
+    ("origin_country", "Ursprungsland", ""),
 )
 
 

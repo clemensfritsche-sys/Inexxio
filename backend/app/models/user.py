@@ -78,6 +78,20 @@ class UserProfile(Base, TimestampMixin):
     bank_name: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Employee info
+    #: ►►► **Für WELCHE Gesellschaft arbeitet diese Person?** (Testnotiz #905) ◄◄◄
+    #:
+    #: Die Objektnummer eines Unternehmens (``company_settings``). Es gab sie bis hierher
+    #: nicht – und damit konnte ein Beleg nicht sagen, wer ihn stellt: er nahm immer den
+    #: **Betreiber**, also die Gesellschaft, die die Website vertritt, auch wenn eine
+    #: Schwestergesellschaft fakturiert.
+    #:
+    #: **Keine Fremdschlüssel-Spalte**, sondern die Objektnummer – dieselbe Bauart wie
+    #: ``Deal.party_id`` und ``InstanceUnit.place_object_id``: sie ist die Adresse, unter
+    #: der im Haus auf einen Datensatz gezeigt wird.
+    #:
+    #: ``NULL`` ist regulär für jeden, der **nicht** bei uns arbeitet (Kunde, Lieferant);
+    #: für Personal ist es eine **Lücke**, die der Geldvorgang meldet, statt sie zu raten.
+    company_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     department: Mapped[Optional[str]] = mapped_column(String(100))
     job_title: Mapped[Optional[str]] = mapped_column(String(100))
     employment_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

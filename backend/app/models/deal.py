@@ -74,6 +74,22 @@ class Deal(Base, TimestampMixin):
     #: dort ist eine zweite Partei gebunden.
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="CHF")
 
+    #: ►►► **WER stellt den Beleg** – die Objektnummer unserer Gesellschaft. ◄◄◄
+    #:
+    #: Bis hierher war das immer der **Betreiber** (``sites.find_operator``) – also die
+    #: Gesellschaft, die die eine Website vertritt. Bei mehreren gleichrangigen
+    #: Gesellschaften ist das eine Vermutung, und sie steht auf einem Beleg.
+    #:
+    #: Gesetzt wird sie bei der **Anlage**, aus der Gesellschaft des freigebenden
+    #: Mitarbeiters (``UserProfile.company_object_id``) – nicht bei jeder Anzeige neu
+    #: gelesen: wechselt jemand die Gesellschaft, änderte sich sonst rückwirkend, wer
+    #: einen alten Beleg gestellt hat.
+    #:
+    #: ``NULL`` ist regulär und heisst «der Betreiber» – der Rückfall bleibt, er ist nur
+    #: nicht mehr die Regel. Änderbar bis zur Zusage, wie die Währung: ``issuer`` steht in
+    #: ``ACTIONS[OFFER]``, also fehlt der Knopf danach von selbst.
+    issuer_company_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
     #: ``offer`` · ``agreed`` · ``done`` · ``cancelled`` (``domain/deal``).
     stage: Mapped[str] = mapped_column(String(16), nullable=False, default="offer")
 
@@ -107,6 +123,20 @@ class Deal(Base, TimestampMixin):
 
     #: Wann zugesagt wurde – der Anker, ab dem eine Zahlungsfrist läuft.
     agreed_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    #: ►►► **Die Lieferbedingung** (Incoterms 2020, ``domain/incoterms``). ◄◄◄
+    #:
+    #: Sie gehört an den **Vorgang**, nicht an das Bewegen-Modul: ein Incoterm ist eine
+    #: **Vereinbarung** über Kosten und Risiko zwischen zwei Parteien, kein physischer
+    #: Vorgang. Das Bewegen-Modul *führt aus*, was hier vereinbart wurde – und auf dem
+    #: Beleg steht sie, nicht auf dem Lieferschein.
+    #:
+    #: Eingefroren mit der Zusage, wie die Währung: ``incoterm`` steht in
+    #: ``ACTIONS[OFFER]``, also fehlt der Knopf danach von selbst.
+    incoterm: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    #: **Der benannte Ort** – ohne ihn ist die Klausel keine Vereinbarung: bei ``FCA``
+    #: entscheidet genau er, wo das Risiko übergeht.
+    incoterm_place: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
     #: ►►► **Der Angebotsspiegel** – je zugelassener Gegenpartei eine Zeile. ◄◄◄
     #:

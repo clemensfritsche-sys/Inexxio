@@ -108,6 +108,17 @@ export const DEAL_DIRECTION: Record<string, {
  */
 export const DEAL_PARTY = 'Partner';
 
+/**
+ * ►►► **Die Nummer im Belegkopf** (Testnotiz #904). ◄◄◄
+ *
+ * «Objektnummer» ist ein Systembegriff und auf einem Beleg fehl am Platz; «Benutzernummer»
+ * ist falsch, sobald die Partei ein Unternehmen ist. Der Block darüber sagt bereits,
+ * **wessen** Nummer es ist (Leistungserbringer ↔ -empfänger) – also genügt «Nr.».
+ *
+ * Gespiegelt von `domain/deal.PARTY_NUMBER_LABEL`.
+ */
+export const PARTY_NUMBER_LABEL = 'Nr.';
+
 /*
  * ►►► **Der Steuersatz und sein Name stehen hier NICHT mehr** (Testnotiz #851). ◄◄◄
  *
