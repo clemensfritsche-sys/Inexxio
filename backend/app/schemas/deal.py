@@ -64,16 +64,25 @@ class DealQuote(BaseModel):
 
 
 class VatRate(BaseModel):
-    """Ein wählbarer Steuersatz – der Wert und wie er heisst.
+    """Ein wählbarer Steuersatz – Schlüssel, Zahl, Name und sein Pflichtsatz.
 
     Ein **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,
     und er fällt erst bei der Abrechnung auf.
+
+    ►►► **Der Schlüssel ist die Identität, nicht die Zahl.** ◄◄◄ *Export* und
+    *Reverse Charge* tragen beide 0 %, sind aber zwei verschiedene Rechtsgründe mit zwei
+    verschiedenen Pflichtsätzen auf dem Beleg.
     """
 
-    #: Als **String** mit zwei Nachkommastellen («8.10») – so, wie er auch gespeichert
-    #: und verglichen wird; ein `float` wäre an genau dieser Stelle die falsche Zahl.
+    #: Die Katalogzeile – das ist der gespeicherte Wert («normal», «export», «reverse»).
+    key: str
+    #: Als **String** mit zwei Nachkommastellen («8.10») – so, wie auch gerechnet und
+    #: verglichen wird; ein `float` wäre an genau dieser Stelle die falsche Zahl.
     rate: str
     label: str
+    #: Der Satz, der bei diesem Tatbestand auf dem Beleg **stehen muss** – sonst ``None``.
+    #: Er reist mit dem Satz, damit die Oberfläche ihn nicht selbst formuliert.
+    note: Optional[str] = None
 
 
 class CurrencyOption(BaseModel):
@@ -96,7 +105,16 @@ class VatShare(BaseModel):
     Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz.
     """
 
+    #: Die Katalogzeile. Bei einem Beleg von **vor** dieser Runde fehlt sie – dann sagt
+    #: ``rate`` allein, was gemeint war (und «0.00» ist dort nicht mehr auflösbar).
+    vat: Optional[str] = None
     rate: str
+    #: Wie der Satz heisst – **eingefroren mitgeschrieben**, nicht zur Anzeige
+    #: nachgeschlagen: ein gebuchter Beleg behält seine Bezeichnung, auch wenn der
+    #: Katalog sich ändert.
+    label: Optional[str] = None
+    #: Der Pflichtsatz dieses Tatbestands, falls einer verlangt ist.
+    note: Optional[str] = None
     net: str
     tax: str
 
@@ -123,9 +141,10 @@ class DealLine(BaseModel):
     #: ``None``, solange niemand ihn genannt hat. Als **String**: wo es auf den Rappen
     #: ankommt, wird nicht durch ``float`` gerechnet.
     price: Optional[str] = None
-    #: **Der Steuersatz dieser Position** («8.10»). Er hängt an der **Sache**: sechs Wellen
-    #: zu 8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier.
-    vat: str = "8.10"
+    #: **Der Steuersatz dieser Position** – der **Schlüssel** der Katalogzeile («normal»,
+    #: «export»). Er hängt an der **Sache**: sechs Wellen zum Normalsatz und eine Ausfuhr
+    #: zu 0 % stehen auf demselben Papier.
+    vat: str = "normal"
 
 
 class DealPrice(BaseModel):
@@ -250,6 +269,33 @@ class DealTerm(BaseModel):
 
     days: int
     label: str
+
+
+class DataGap(BaseModel):
+    """►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄
+
+    **Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch
+    meldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:
+    es ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;
+    das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.
+
+    **Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie
+    die **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine
+    Meldung.
+
+    Durchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt
+    es den Knopf gar nicht – und die Tür weist an derselben Liste ab.
+    """
+
+    #: Wo die Angabe hingehört – klickbar. ``None``, wenn der Datensatz selbst fehlt.
+    record_object_id: Optional[int] = None
+    #: Wessen Angabe es ist: «Inexxio AG» · «Monika Fritsche».
+    record_label: str = ""
+    #: Was fehlt: «UID / MWST-Nummer» · «Anschrift» · «IBAN».
+    field_label: str = ""
+    #: **Ein Satz, warum dieser Beleg sie braucht.** Ohne ihn ist es eine Forderung ohne
+    #: Grund, und der Mensch trägt irgendetwas ein, um weiterzukommen.
+    why: str = ""
 
 
 class DealSide(BaseModel):
@@ -456,6 +502,14 @@ class DealEmbed(BaseModel):
     #: im Kopf des Belegs und werden von keiner Schicht wiederholt.
     supplier: Optional[DealSide] = None
     customer: Optional[DealSide] = None
+
+    # ─── Was fehlt, um weiterzukommen ────────────────────────────────────────────
+    #: ►►► **Die Lücken, die die nächste Handlung verhindern.** ◄◄◄
+    #:
+    #: Leer heisst: nichts fehlt. Sie stehen **neben** dem Weg nach vorn, nicht statt
+    #: seiner – und sie erklären, warum ein Knopf nicht da ist. Ein fehlender Knopf ohne
+    #: Grund ist die unangenehmste Form einer Regel.
+    gaps: list[DataGap] = Field(default_factory=list)
 
     # ─── Die Zusage ──────────────────────────────────────────────────────────────
     party_object_id: Optional[int] = None

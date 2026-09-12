@@ -149,8 +149,37 @@ PARTY = "Partner"
 # darum hier als zwei Konstanten und **nicht** in ``Direction``: welche Seite welche
 # Rolle hat, sagt die Richtung (``collects``), aber wie die Rollen *heissen*, ist in
 # beiden Richtungen dasselbe.
-SUPPLIER = "Lieferant"
-CUSTOMER = "Kunde"
+#
+# ►►► **«Lieferant ↔ Kunde» war zu eng** (Testnotiz #903). ◄◄◄
+#
+# Das Modul entstand aus der Einsicht, dass der kleinste gemeinsame Nenner **nicht die
+# Ware** ist: Miete, Lohn, Gebühr, Spesen und ein eingekaufter Transport haben keinen
+# Lieferanten. Ein Rollenname, der «Lieferant» heisst, ist damit enger als das Modul –
+# derselbe Fehler, den «Verkauf ↔ Einkauf» schon einmal hatte (#831).
+#
+# **«Rechnungssteller ↔ Rechnungsempfänger»** – der Vorschlag aus der Notiz – ist präzise
+# für eine **Rechnung** und falsch auf einer **Offerte**: dort hat niemand eine Rechnung
+# gestellt, und es ist derselbe Beleg, nur eine Stufe früher.
+#
+# **Es sind die Begriffe des MWSTG selbst**, und daraus folgen drei Dinge auf einmal: sie
+# gelten für *jede* Leistung (Ware, Dienstleistung, Miete, Lohn, Transport), sie stehen
+# ohnehin auf jedem Schweizer Beleg, und sie passen **wörtlich** zum Pflichtsatz beim
+# Reverse Charge («Steuerschuldnerschaft des *Leistungsempfängers*»). Zwei verschiedene
+# Wörter für dieselbe Person auf demselben Papier wären genau die Rückfrage, die dieser
+# Beleg vermeiden soll.
+SUPPLIER = "Leistungserbringer"
+CUSTOMER = "Leistungsempfänger"
+#: Sie sind etwas sperrig – also sagt der Hover in einem Satz, was sie bedeuten. Ein
+#: Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung.
+SUPPLIER_HINT = "Wer die Leistung erbringt und den Beleg stellt."
+CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
+
+#: ►►► **Die Nummer im Belegkopf** (Testnotiz #904). ◄◄◄
+#:
+#: «Objektnummer» ist ein Systembegriff und auf einem Beleg fehl am Platz; «Benutzernummer»
+#: ist falsch, sobald die Partei ein Unternehmen ist. Der Block darüber sagt bereits,
+#: **wessen** Nummer es ist – also genügt das kürzeste Wort, das die Sache benennt.
+PARTY_NUMBER_LABEL = "Nr."
 
 #: **Was man an der Schwelle tut**: das *Angebot* annehmen – der Auftrag ist das Ergebnis
 #: (Testnotiz #826). «Auftrag bestätigen» benannte die Folge statt der Handlung.
@@ -548,7 +577,14 @@ DIRECTIONS: dict[str, Direction] = {
         key=IN,
         label="Einnahme",
         hint="Einnahme – wir stellen Rechnung, Geld kommt herein.",
-        stage_labels={OFFER: "Angebot", AGREED: "Auftrag"},
+        # ►►► **Die Auftragsbestätigung IST diese Stufe** (Testnotiz #908). ◄◄◄
+        # Sie ist kein dritter Schritt: sie hat Datum (``agreed_on``), Nummer (die
+        # Auftragsnummer), die bestätigten Positionen mit Preis und Satz und beide
+        # Fristen. Eine eigene Stufe dafür wäre derselbe Fehler wie das entfernte
+        # «Abgeschlossen» – ein **Zustand** in einer Reihe von **Schritten**, den man
+        # nicht *tut*. Zu tun war allein, dass der Beleg heisst, was er ist: beide
+        # Richtungen sagten «Auftrag».
+        stage_labels={OFFER: "Offerte", AGREED: "Auftragsbestätigung"},
         # Wir **bieten** an; die Gegenpartei fragt nicht bei uns an.
         ask_verb="Anbieten",
         # **Wir** nennen den Preis – das Angebot geht mit ihm hinaus.
@@ -562,7 +598,8 @@ DIRECTIONS: dict[str, Direction] = {
         key=OUT,
         label="Ausgabe",
         hint="Ausgabe – wir bekommen Rechnung, Geld geht hinaus.",
-        stage_labels={OFFER: "Anfrage", AGREED: "Auftrag"},
+        # Dieselbe Schwelle, andere Richtung: was wir bestellen, heisst **Bestellung**.
+        stage_labels={OFFER: "Anfrage", AGREED: "Bestellung"},
         # Wir **fragen** an; die Gegenpartei bietet uns an.
         ask_verb="Anfragen",
         quoted_by=BY_PARTY,
@@ -666,18 +703,84 @@ def amount(value: Any, code: str, *, allow_negative: bool = False) -> Optional[D
 # kennt keine Rappen-Toleranz. Das ist die Rundungsregel der ESTV und zugleich die einzige,
 # die zweimal gerechnet dasselbe ergibt.
 
+# ►►► **EINE Katalogzeile trug ZWEI Tatbestände** (Arbeitsauftrag §1.3). ◄◄◄
+#
+# Der Nullsatz hiess «Ohne (Export · Reverse Charge)» – ein Schrägstrich zwischen zwei
+# **verschiedenen** Rechtsgründen mit **verschiedenen** Pflichtsätzen auf dem Beleg:
+#
+# * Ausfuhr → «Steuerfreie Ausfuhrlieferung»
+# * Leistung an eine Gegenpartei im Ausland → «Steuerschuldnerschaft des
+#   Leistungsempfängers»
+#
+# Ein Beleg, der nur «0 %» sagt, nennt den **Grund** nicht – und genau den braucht der
+# Empfänger für seine eigene Abrechnung. Das ist die Rückfrage, die garantiert kommt.
+#
+# ►►► **Der Pflichtsatz hängt am SATZ, nicht am Beleg.** ◄◄◄ Damit erscheint er
+# **automatisch**, sobald eine Position ihn trägt: kein ``if``, kein Feld am Vorgang,
+# keine zweite Stelle, die beim nächsten Satz jemand vergisst.
+#
+# **Und darum ist der Schlüssel ab jetzt die Katalogzeile, nicht die Zahl** – «0.00» ist
+# mehrdeutig geworden. Was gespeichert wird (``DealLine.vat``, ``DealEntry.vat``), ist
+# der Schlüssel; die Zahl ist eine Auskunft daraus.
+
+
+@dataclass(frozen=True)
+class VatRate:
+    """Ein Steuersatz des Katalogs – Schlüssel, Zahl, Name und sein Pflichtsatz."""
+
+    key: str
+    #: Als **String** mit zwei Nachkommastellen, so wie gerechnet und verglichen wird.
+    rate: str
+    label: str
+    #: Der Satz, der bei diesem Tatbestand auf dem Beleg **stehen muss** – sonst ``None``.
+    note: Optional[str] = None
+
+
 #: **Die Schweizer Sätze** – ein Katalog, keine freie Zahl: ein getippter Satz ist ein
 #: Satz, den es nicht gibt, und er fällt erst bei der Abrechnung auf. Ändert der
 #: Gesetzgeber sie, ist es **eine Zeile hier** – die eingefrorenen Belege behalten ihren.
-VAT_RATES: tuple[tuple[str, str], ...] = (
-    ("8.10", "Normalsatz"),
-    ("2.60", "Reduziert"),
-    ("3.80", "Beherbergung"),
-    ("0.00", "Ohne (Export · Reverse Charge)"),
+VAT_RATES: tuple[VatRate, ...] = (
+    VatRate("normal", "8.10", "Normalsatz"),
+    VatRate("reduced", "2.60", "Reduziert"),
+    VatRate("lodging", "3.80", "Beherbergung"),
+    VatRate("export", "0.00", "Export",
+            "Steuerfreie Ausfuhrlieferung"),
+    VatRate("reverse", "0.00", "Reverse Charge",
+            "Steuerschuldnerschaft des Leistungsempfängers"),
 )
 
+#: Der Katalog als Nachschlagewerk – gebaut, nicht gepflegt.
+_BY_KEY: dict[str, VatRate] = {v.key: v for v in VAT_RATES}
+
 #: Womit eine neue Position beginnt. Der Normalfall ist der Normalsatz.
-DEFAULT_VAT = "8.10"
+DEFAULT_VAT = "normal"
+
+
+def vat_entry(value: Any) -> Optional[VatRate]:
+    """Die Katalogzeile zu einem Wert – **tolerant**, denn Belege sind eingefroren.
+
+    Drei Wege hinein, und das ist Absicht:
+
+    1. Der **Schlüssel** («normal», «export») – so wird ab jetzt geschrieben.
+    2. Eine **Zahl** («8.10») – so steht es in jedem Beleg, der vor dieser Runde
+       entstanden ist. Sie trifft die erste Zeile mit diesem Satz.
+    3. Alles andere → ``None``; der Aufrufer zeigt den Rohwert, statt zu raten.
+
+    ►►► **Die eine benannte Annahme:** ein altes «0.00» wird **Export**. ◄◄◄ Beide
+    Nullsätze hiessen bis heute gleich, also lässt sich nicht mehr feststellen, welcher
+    gemeint war – und Export ist der häufigere. Wer es genauer braucht, korrigiert die
+    Position; **gebuchte** Belege bleiben unangetastet.
+    """
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if text in _BY_KEY:
+        return _BY_KEY[text]
+    try:
+        num = f"{Decimal(text):.2f}"
+    except InvalidOperation:
+        return None
+    return next((v for v in VAT_RATES if v.rate == num), None)
 
 #: Wie das Feld heisst – ein Wort für beide Richtungen.
 VAT_LABEL = "MWST"
@@ -692,31 +795,53 @@ SERVICE_DATE_LABEL = "Leistungsdatum"
 def assert_vat(value: Any) -> str:
     """Die Schreibprüfung für einen Steuersatz. Unbekannt ist ein **Fehler**, kein Default.
 
-    Beim **Lesen** ist das anders (``vat_of``): ein alter Beleg trägt einen Satz, den der
-    Katalog vielleicht nicht mehr führt, und eine Anzeige darf daran nicht zerbrechen.
+    Zurück kommt der **Schlüssel** der Katalogzeile – das ist ab jetzt der gespeicherte
+    Wert. Eine Zahl wird dabei umgesetzt: wer «8.10» schickt, meint den Normalsatz.
+
+    Beim **Lesen** ist das anders (``vat_of``, ``vat_entry``): ein alter Beleg trägt
+    einen Satz, den der Katalog vielleicht nicht mehr führt, und eine Anzeige darf daran
+    nicht zerbrechen.
     """
-    # **Ein unlesbarer Wert ist derselbe Fehler wie ein unbekannter** – und er bekommt
-    # denselben Satz. Ohne das Auffangen kam aus «acht Prozent» ein `InvalidOperation`
-    # aus der Tiefe der `decimal`-Bibliothek: technisch eine Ablehnung, fachlich eine
-    # Sackgasse ohne Erklärung, und an der Tür ein 500 statt eines 400.
-    try:
-        text = f"{Decimal(str(value)):.2f}" if value not in (None, "") else DEFAULT_VAT
-    except InvalidOperation:
-        text = str(value)
-    if text not in dict(VAT_RATES):
+    if value in (None, ""):
+        return DEFAULT_VAT
+    entry = vat_entry(value)
+    if entry is None:
+        # **Ein unlesbarer Wert ist derselbe Fehler wie ein unbekannter** – und er bekommt
+        # denselben Satz. Ohne das Auffangen kam aus «acht Prozent» ein `InvalidOperation`
+        # aus der Tiefe der `decimal`-Bibliothek: technisch eine Ablehnung, fachlich eine
+        # Sackgasse ohne Erklärung, und an der Tür ein 500 statt eines 400.
         raise ValueError(
             f"«{value}» ist kein Steuersatz. Erlaubt: "
-            + ", ".join(f"{r} % ({name})" for r, name in VAT_RATES) + "."
+            + ", ".join(f"{v.label} ({v.rate} %)" for v in VAT_RATES) + "."
         )
-    return text
+    return entry.key
 
 
 def vat_of(value: Any) -> Decimal:
-    """Ein Satz als Zahl – tolerant gelesen. Unlesbar heisst **0 %**, nicht «kaputt»."""
+    """Ein Satz als Zahl – tolerant gelesen. Unlesbar heisst **0 %**, nicht «kaputt».
+
+    Nimmt Schlüssel **und** Zahl: ein eingefrorener Beleg von vor dieser Runde trägt die
+    Zahl, ein neuer den Schlüssel, und beide müssen dieselbe Summe ergeben.
+    """
+    entry = vat_entry(value)
+    if entry is not None:
+        return Decimal(entry.rate)
     try:
         return Decimal(str(value or "0")).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError):
         return Decimal("0.00")
+
+
+def vat_label(value: Any) -> str:
+    """Wie dieser Satz **heisst**. Unbekanntes zeigt sich als Prozentzahl, nicht als Name."""
+    entry = vat_entry(value)
+    return entry.label if entry is not None else f"{vat_of(value):.2f} %"
+
+
+def vat_note(value: Any) -> Optional[str]:
+    """Der **Pflichtsatz** dieses Tatbestands – ``None``, wo keiner verlangt ist."""
+    entry = vat_entry(value)
+    return entry.note if entry is not None else None
 
 
 def _round(value: Decimal, code: str) -> Decimal:
@@ -742,20 +867,50 @@ def line_net(line: dict[str, Any], code: str) -> Decimal:
 def vat_split(lines: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
     """►►► **Die Aufteilung je Steuersatz** – gerundet auf der Summe, nicht je Zeile. ◄◄◄
 
-    Zurück kommt je vorkommendem Satz eine Zeile ``{rate, net, tax}`` als **String** – wo
-    es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet, auch nicht auf dem
-    Weg durch JSON. Sortiert nach Satz, damit zwei Läufe dieselbe Reihenfolge ergeben.
+    Zurück kommt je vorkommendem Satz eine Zeile ``{vat, rate, label, note, net, tax}``
+    als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet,
+    auch nicht auf dem Weg durch JSON.
+
+    ►►► **Gruppiert wird nach KATALOGZEILE, nicht nach Zahl.** ◄◄◄ Sonst fielen *Export*
+    und *Reverse Charge* zu einer Zeile zusammen – beide tragen 0 % –, und der Beleg
+    nennte nur einen der beiden Rechtsgründe. Zwei Tatbestände sind zwei Zeilen, auch
+    wenn ihre Zahl dieselbe ist.
+
+    Sortiert nach Satz (absteigend), dann nach Katalog-Reihenfolge – damit zwei Läufe
+    dieselbe Reihenfolge ergeben.
     """
     zero = _round(Decimal(0), code)
     buckets: dict[str, Decimal] = {}
     for line in lines or []:
-        rate = f"{vat_of(line.get('vat')):.2f}"
-        buckets[rate] = buckets.get(rate, zero) + line_net(line, code)
+        entry = vat_entry(line.get("vat"))
+        key = entry.key if entry is not None else f"{vat_of(line.get('vat')):.2f}"
+        buckets[key] = buckets.get(key, zero) + line_net(line, code)
+    order = {v.key: i for i, v in enumerate(VAT_RATES)}
     return [
-        {"rate": rate, "net": cur.money(net, code),
-         "tax": cur.money(_round(net * vat_of(rate) / Decimal(100), code), code)}
-        for rate, net in sorted(buckets.items(), key=lambda kv: Decimal(kv[0]), reverse=True)
+        _row(key, net, code)
+        for key, net in sorted(buckets.items(),
+                               key=lambda kv: (-vat_of(kv[0]), order.get(kv[0], 99)))
     ]
+
+
+def _row(key: str, net: Decimal, code: str) -> dict[str, str]:
+    """Eine Zeile der Aufteilung – aus Schlüssel und Netto, samt ihrer Auskunft."""
+    tax = _round(net * vat_of(key) / Decimal(100), code)
+    return _describe(key, {"net": cur.money(net, code), "tax": cur.money(tax, code)})
+
+
+def _describe(key: str, row: dict[str, str]) -> dict[str, str]:
+    """Schlüssel · Zahl · Name · Pflichtsatz an eine Zeile schreiben.
+
+    **Die Auskunft reist mit der Zeile**, statt dass der Empfänger sie nachschlägt: eine
+    gebuchte Zeile ist eingefroren, und wer ihren Namen erst zur Anzeige nachschlägt,
+    ändert die Vergangenheit, sobald der Katalog sich ändert.
+    """
+    out = {"vat": key, "rate": f"{vat_of(key):.2f}", "label": vat_label(key), **row}
+    note = vat_note(key)
+    if note:
+        out["note"] = note
+    return out
 
 
 def gross_of(lines: list[dict[str, Any]], code: str) -> Decimal:
@@ -792,20 +947,21 @@ def split_for(gross: Decimal, lines: list[dict[str, Any]],
         part = (gross - used if i == len(rows) - 1
                 else _round(gross * share / total, code))
         used += part
-        out.append(_at(part, row["rate"], code))
+        out.append(_at(part, row["vat"], code))
     return out
 
 
 def split_at(gross: Decimal, rate: Any, code: str) -> list[dict[str, str]]:
     """Die Aufteilung eines Brutto-Betrags zu **einem** Satz – die Ausgabe-Seite."""
-    return [_at(gross, f"{vat_of(rate):.2f}", code)]
+    entry = vat_entry(rate)
+    return [_at(gross, entry.key if entry is not None else f"{vat_of(rate):.2f}", code)]
 
 
-def _at(gross: Decimal, rate: str, code: str) -> dict[str, str]:
+def _at(gross: Decimal, key: str, code: str) -> dict[str, str]:
     """Brutto **rückwärts** in Netto und Steuer: ``netto = brutto / (1 + satz)``."""
-    net = _round(gross / (Decimal(1) + vat_of(rate) / Decimal(100)), code)
-    return {"rate": rate, "net": cur.money(net, code),
-            "tax": cur.money(gross - net, code)}
+    net = _round(gross / (Decimal(1) + vat_of(key) / Decimal(100)), code)
+    return _describe(key, {"net": cur.money(net, code),
+                           "tax": cur.money(gross - net, code)})
 
 
 def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:

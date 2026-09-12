@@ -541,3 +541,49 @@ def test_holders_are_searchable_by_number_and_by_name():
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_company_gets_its_number_from_the_sequence():
+    """►►► **Die Id einer Gesellschaft kommt aus der Sequenz.** ◄◄◄
+
+    Am Modell stand ``default=1`` – aus der Zeit, als es genau **eine** Gesellschaft gab.
+    Ein Python-Default **überschreibt** die Sequenz der Spalte: seither bekam jede
+    Gesellschaft, die jemand ohne ausdrückliche Id anlegt, die **1** und lief am
+    Primärschlüssel auf.
+
+    Aufgefallen ist es nicht, weil beide Dienstpfade die Id selbst setzten
+    (``sites.operator`` die 1, ``sites.create`` ``max + 1``) – eine Falle, die auf den
+    nächsten Aufrufer wartete. **Gemessen an zwei Wächtern in dieser Datei**: sie legen
+    eine Gesellschaft direkt an und liefen genau dann auf, wenn schon eine existierte.
+
+    *Und die Begründung im Dienst war überholt: die Spalte trage keine Sequence. Gemessen
+    führt sie in **beiden** Schemata ein ``nextval`` – gewachsen wie nur aus den
+    Migrationen gebaut.*
+
+    Bug-Formen: (a) der Python-Default ist zurück; (b) der Dienst vergibt wieder selbst.
+    """
+    from app.models import CompanySettings
+    from app.services import sites
+    db = _db()
+    try:
+        first = sites.operator(db)
+        second = CompanySettings(company_name="Werk Nord")
+        db.add(second)
+        db.flush()
+        assert second.id != first.id, (
+            f"Zwei Gesellschaften teilen sich die Id {second.id} – ein Python-Default "
+            f"überschreibt die Sequenz (a)."
+        )
+        third = CompanySettings(company_name="Werk Süd")
+        db.add(third)
+        db.flush()
+        assert len({first.id, second.id, third.id}) == 3
+
+        # **Und der Dienst rechnet nicht daneben** (b): eine zweite Nummernvergabe ist ein
+        # Check-then-Act, den der Lock nur zudeckt – und sie lässt die Sequenz zurück.
+        src = (BACKEND / "app" / "services" / "sites.py").read_text(encoding="utf-8")
+        assert "max(CompanySettings.id)" not in src, (
+            "Der Dienst vergibt die Id wieder selbst (b)."
+        )
+    finally:
+        db.rollback(); db.close()

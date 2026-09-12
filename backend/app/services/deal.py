@@ -520,6 +520,181 @@ def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Deal]]:
     )
 
 
+# ---------------------------------------------------------------------------
+# ►►► WAS DIESES MODUL BRAUCHT — und was es meldet, wenn es fehlt ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Wenn das Modul zu wenig Angaben hat, um seinen Prozess abzuwickeln, dann muss es
+# Alarm schlagen.»*
+#
+# ►►► **Das ist kein neuer Mechanismus – es ist ``StepNeed`` für Stammdaten.** ◄◄◄
+#
+# Der Verbrauch meldet fehlendes **Material** als Zeile («Artikel · gebraucht ·
+# verfügbar»), und die Regel dazu steht seit §9.6 im Haus: *Nichtverfügbarkeit ist KEIN
+# Zustand.* Die Freigabe geht, das Modul bewegt nichts, und die Zeile sagt in Klartext,
+# woran es liegt. Eine fehlende **Stammdatenangabe** ist dieselbe Aussage über einen
+# anderen Gegenstand – also bekommt sie dieselbe Form und **keinen** Pausenwert.
+#
+# ►►► **Durchgesetzt wird sie ohne eine neue Regel: die Lücken speisen ``can``.** ◄◄◄
+# Fehlt etwas, führt ``can`` das Verb nicht – der Knopf ist damit **nicht da** (ein Knopf,
+# der nie etwas tun kann, ist kein Angebot), und ``assert_allowed`` weist an derselben
+# Liste ab. Eine zweite Prüfung daneben wäre der zweite Massstab, den ``can`` gerade
+# abschafft.
+#
+# ►►► **Gestaffelt je Handlung, nicht als ein Block.** ◄◄◄ Eine Anfrage braucht weniger
+# als eine Rechnung. Stünde alles vor der ersten Handlung, hielte eine Angabe das Modul
+# an, die erst in drei Schritten zählt – und man müsste sie erfinden, um weiterzukommen.
+
+#: **Was wann verlangt wird** – eine Tabelle, keine Bedingungskette. Ein neues Feld ist
+#: eine Zeile hier, und ein neues Modul deklariert seine eigene Liste.
+#:
+#: ``(seite, feld, beschriftung, grund)`` – ``seite`` ist ``us`` oder ``party``.
+REQUIRED_FOR: dict[str, tuple[tuple[str, str, str, str], ...]] = {
+    "ask": (
+        ("us", "name", "Firma und Rechtsform",
+         "Ein Beleg nennt die Rechtsperson, die ihn stellt."),
+        ("us", "address", "Anschrift",
+         "Ohne Sitz ist der Aussteller nicht bestimmbar."),
+        ("us", "contact", "E-Mail oder Telefon",
+         "Ohne Kontaktweg landet jede Rückfrage im Telefonbuch."),
+    ),
+    # ►►► **Die Gegenpartei steht erst mit der ZUSAGE fest.** ◄◄◄
+    #
+    # Beim Anfragen ist sie noch nicht gewählt – ``deals.party_id`` ist ``NULL``, und das
+    # ist der Sinn der Stufe: man fragt mehrere. Ihre Angaben hier zu verlangen hiesse,
+    # eine Anfrage an der Angabe scheitern zu lassen, die sie gerade erst erzeugt.
+    "agree": (
+        ("party", "name", "Name",
+         "Ein Beleg braucht einen Adressaten."),
+        ("party", "address", "Anschrift",
+         "Eine Zusage bindet eine Rechtsperson – die braucht einen Sitz."),
+        ("us", "uid", "UID / MWST-Nummer",
+         "Ohne sie kann dem Empfänger der Vorsteuerabzug verweigert werden "
+         "(MWSTG Art. 26)."),
+    ),
+    "charge": (
+        ("us", "iban", "IBAN",
+         "Auf eine Rechnung gehört, wohin überwiesen wird."),
+        ("party", "uid", "UID / MWST-Nummer",
+         "Beim Reverse Charge schuldet der Leistungsempfänger die Steuer – ohne seine "
+         "Nummer trägt das Verfahren nicht."),
+    ),
+}
+
+
+def _has(side: dict[str, Any], field: str) -> bool:
+    """Steht diese Angabe wirklich da? **Leer ist nicht vorhanden.**"""
+    if field == "contact":
+        return bool(side.get("email") or side.get("phone"))
+    value = side.get(field)
+    return bool(value)
+
+
+def gaps(db: Session, row: Deal, *, action: str,
+         party_id: Optional[int] = None) -> list[dict[str, Any]]:
+    """►►► **Welche Angaben fehlen, um DIESE Handlung zu tun?** ◄◄◄
+
+    Zurück kommt je Lücke eine Zeile mit dem **Datensatz** (klickbar), dem **Feld** und
+    einem Satz, der sagt, **warum dieser Beleg sie braucht**. Was daraus folgt, entscheidet
+    ein Mensch – wie bei ``StepNeed``: hingehen und eintragen.
+
+    **Gestaffelt und kumulativ**: ``charge`` verlangt auch, was ``ask`` und ``agree``
+    verlangen. Eine Rechnung ohne Adressaten gibt es nicht, nur weil man schon zugesagt
+    hat.
+
+    **Zwei Sonderfälle, beide benannt:**
+
+    * Die **IBAN** verlangt nur, wer **einzieht** (``collects``). Auf einer
+      Lieferantenrechnung steht *seine* Bankverbindung, nicht unsere.
+    * Die **UID des Empfängers** verlangt nur ein Beleg, der *Reverse Charge* trägt –
+      im Inland ist sie nicht vorgeschrieben, und ein Pflichtfeld, das meistens leer
+      bleiben darf, ist keines.
+    """
+    # ►►► **Geprüft wird die Partei, um die es GEHT.** ◄◄◄
+    #
+    # Beim Zuschlag steht sie in der **Nutzlast**, nicht am Vorgang: ``party_id`` wird
+    # erst von ``_agree`` gesetzt, und die Prüfung läuft davor. Ohne diese Angabe prüfte
+    # sich die Zusage gegen eine leere Gegenseite und wäre nie möglich.
+    #
+    # **Und wo noch gar keine feststeht, wird die Gegenseite nicht geprüft** – beim
+    # Anfragen gibt es sie noch nicht, und der Knopf muss trotzdem da sein.
+    look = party_id if party_id is not None else row.party_id
+    head = _head_for(db, row, look)
+    flow = dm.of(row.direction)
+    us, party = ((head["supplier"], head["customer"]) if flow.collects
+                 else (head["customer"], head["supplier"]))
+    sides = {"us": us, "party": party}
+    known = look is not None
+    # **Reverse Charge steht an der POSITION** – gefragt sind die zugesagten Zeilen; vor
+    # der Zusage gibt es noch keine, und dort verlangt auch niemand die Nummer.
+    reverse = any(ln.get("vat") == "reverse" for ln in (row.agreed_lines or []))
+    out: list[dict[str, Any]] = []
+    for stage in _UP_TO.get(action, ()):
+        for side, field, label, why in REQUIRED_FOR[stage]:
+            if field == "iban" and not flow.collects:
+                continue
+            if side == "party" and not known:
+                continue
+            if field == "uid" and side == "party" and not reverse:
+                continue
+            if field == "iban":
+                company = sites.find_operator(db)
+                if getattr(company, "iban_encrypted", None):
+                    continue
+                out.append(_gap(sides["us"], label, why))
+                continue
+            if not _has(sides[side], field):
+                out.append(_gap(sides[side], label, why))
+    return out
+
+
+#: Welche Stufen eine Handlung **mitverlangt** – kumulativ, in der Reihenfolge des Belegs.
+_UP_TO: dict[str, tuple[str, ...]] = {
+    "ask": ("ask",),
+    "quote": ("ask",),
+    "agree": ("ask", "agree"),
+    "charge": ("ask", "agree", "charge"),
+}
+
+
+def _head_for(db: Session, row: Deal, party_id: Optional[int]) -> dict[str, Any]:
+    """Der Belegkopf, wie er **mit dieser Partei** aussähe – ohne den Vorgang zu ändern.
+
+    Dieselbe Ableitung wie ``document_head``; nur wird die Gegenseite vorübergehend auf
+    die genannte gesetzt. Ein zweiter Kopf-Aufbau daneben wäre die zweite Wahrheit, die
+    beim nächsten Feld auseinanderläuft.
+    """
+    if party_id is None or party_id == row.party_id:
+        return document_head(db, row, won=True)
+    before = row.party_id
+    try:
+        row.party_id = party_id
+        return document_head(db, row, won=True)
+    finally:
+        row.party_id = before
+
+
+def _next_action(row: Deal) -> str:
+    """**Welche Handlung steht an dieser Stufe an?** – die, deren Lücken zählen.
+
+    Vor der Zusage ist es das Anbieten bzw. Anfragen, danach die Rechnung. Eine Liste
+    aller Lücken über alle Stufen wäre eine Mängelliste statt einer Auskunft: sie nennte
+    Angaben, die erst in drei Schritten gebraucht werden, und niemand wüsste, welche
+    gerade im Weg steht.
+    """
+    return "charge" if row.stage != dm.OFFER else "ask"
+
+
+def _gap(side: dict[str, Any], label: str, why: str) -> dict[str, Any]:
+    """Eine Lücke als Zeile – **wo** sie hingehört, **was** fehlt, **warum**."""
+    return {
+        "record_object_id": side.get("object_id"),
+        "record_label": side.get("name") or side.get("label") or "",
+        "field_label": label,
+        "why": why,
+    }
+
+
 def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
     """►►► **Was darf DIESER Betrachter an DIESEM Vorgang tun?** ◄◄◄
 
@@ -597,11 +772,34 @@ def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
     if any(e.kind == dm.CHARGE and e.reverses_id is None and e.id not in already
            for e in rows):
         stage.append(REVERSE)
-    return stage
+    # ►►► **Was Angaben braucht, die es nicht gibt, steht hier nicht.** ◄◄◄
+    #
+    # Die Lücken speisen ``can`` – damit ist die Vollständigkeit **keine zweite Regel**:
+    # der Knopf erscheint gar nicht, und ``assert_allowed`` weist an derselben Liste ab.
+    # Was fehlt, sagt die Karte daneben (``DealEmbed.gaps``), damit «geht nicht» nicht
+    # ohne «woran es liegt» dasteht.
+    #
+    # Nur die Verben, die **nach aussen** wirken: eine Absage, ein Storno und jede
+    # Geld-Zeile müssen möglich bleiben, auch wenn ein Stammdatenfeld fehlt – sonst wäre
+    # eine unvollständige Anschrift eine Sackgasse, aus der niemand mehr herauskommt.
+    return [a for a in stage if not (a in _UP_TO and gaps(db, row, action=a))]
+
+
+def _int(value: Any) -> Optional[int]:
+    """Eine Objektnummer aus der Nutzlast – **tolerant**, denn hier wird nur nachgesehen.
+
+    Ein unlesbarer Wert ist hier keine Ablehnung: der Handler, der ihn wirklich braucht,
+    weist ihn mit einem Satz ab. Diese Stelle sucht nur, wen sie prüfen soll.
+    """
+    try:
+        return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def assert_allowed(db: Session, row: Deal, action: str,
-                   viewer: Optional[UserProfile]) -> None:
+                   viewer: Optional[UserProfile],
+                   party_id: Optional[int] = None) -> None:
     """►►► **Das Tor zu ``can`` – zwei Formen einer Regel, ein Namensstamm.** ◄◄◄
 
     ``can`` nennt die erlaubten Verben (die Oberfläche rendert genau sie), ``assert_allowed``
@@ -612,13 +810,31 @@ def assert_allowed(db: Session, row: Deal, action: str,
     Sie ist **öffentlich**, weil nicht jedes Verb durch ``apply`` läuft: ``pay_online``
     hat seinen eigenen Endpunkt und muss trotzdem an derselben Tür vorbei.
     """
-    if action not in can(db, row, viewer):
-        flow = dm.of(row.direction)
+    if action in can(db, row, viewer):
+        return
+    # ►►► **«Geht nicht» ohne «woran es liegt» ist eine Sackgasse mit Ausrufezeichen.** ◄◄◄
+    #
+    # Es gibt **zwei** Gründe, warum ein Verb fehlt, und sie verlangen verschiedene
+    # Handlungen: die **Stufe** (dann ist es zu früh oder zu spät) und eine **fehlende
+    # Angabe** (dann geht man hin und trägt sie ein). Ein Satz für beide nennte in der
+    # Hälfte der Fälle die falsche Ursache – und der Mensch suchte am falschen Ort.
+    missing = (gaps(db, row, action=action, party_id=party_id)
+               if action in _UP_TO else [])
+    if missing:
+        first = missing[0]
         raise HTTPException(
-            status_code=409,
-            detail=(f"«{action}» geht hier nicht: der Vorgang steht auf "
-                    f"«{flow.label_of(row.stage)}»."),
+            status_code=400,
+            detail=(f"Dafür fehlt {first['field_label']} bei "
+                    f"«{first['record_label']}». {first['why']}"
+                    + (f" (und {len(missing) - 1} weitere Angabe"
+                       f"{'n' if len(missing) > 2 else ''})" if len(missing) > 1 else "")),
         )
+    flow = dm.of(row.direction)
+    raise HTTPException(
+        status_code=409,
+        detail=(f"«{action}» geht hier nicht: der Vorgang steht auf "
+                f"«{flow.label_of(row.stage)}»."),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -634,7 +850,9 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
             status_code=404,
             detail="Zu diesem Modul gibt es keinen Geldvorgang.",
         )
-    assert_allowed(db, row, action, actor)
+    # **Die Nutzlast weiss, um wen es geht** – beim Zuschlag steht die Gegenpartei dort,
+    # und die Vollständigkeitsprüfung muss sie kennen, bevor ``_agree`` sie setzt.
+    assert_allowed(db, row, action, actor, _int(payload.get("party")))
     # ►►► **Nicht jedes Verb in ``can`` ändert den Vorgang.** ◄◄◄
     #
     # ``pay_online`` **löst** eine Zahlung aus und bucht nichts – es hat darum keinen
@@ -1123,9 +1341,14 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         reverses_id=entry.id,
         # **Die Gegenbuchung spiegelt die Steuer** – sonst hebt sie den Betrag auf, und
         # die Steuer der stornierten Rechnung bliebe für immer in der Abrechnung stehen.
-        vat=[{"rate": r["rate"],
-               "net": cur.money(-Decimal(r["net"]), row.currency),
-               "tax": cur.money(-Decimal(r["tax"]), row.currency)}
+        #
+        # **Gespiegelt wird die ganze Zeile**, nicht nur ihre Zahlen: Schlüssel, Name und
+        # Pflichtsatz gehören zur stornierten Aussage. Würden hier nur ``rate``, ``net``
+        # und ``tax`` neu gebaut, verlöre die Gegenbuchung ausgerechnet den Rechtsgrund,
+        # den sie zurücknimmt (und zwei Nullsätze wären danach nicht mehr zu trennen).
+        vat=[{**r,
+              "net": cur.money(-Decimal(r["net"]), row.currency),
+              "tax": cur.money(-Decimal(r["tax"]), row.currency)}
              for r in (entry.vat or [])],
         service_date=entry.service_date,
     ))
@@ -1421,7 +1644,18 @@ def billing_of(db: Session, deal: Deal) -> dict[str, Any]:
     full = bool(line1.strip() and city.strip() and zip_code.strip())
     return {
         "name": (named or u.invoice_company if own else None) or people.name(u),
+        # ►►► **Auf dem BELEG steht die Rechtsperson, nicht ihr Vertreter.** ◄◄◄
+        #
+        # ``people.name`` ist person-first (#291) – im ERP richtig, auf einer Rechnung
+        # falsch: Schuldner ist die *Muster AG*. ``billing_name`` liefert darum Zeilen
+        # (Firma, darunter «z. H. …»); wer nur einen String braucht, nimmt weiterhin
+        # ``name``. Zwei Formen einer Regel, nicht zwei Regeln.
+        "lines": people.billing_name(u),
         "email": (u.invoice_email if own else None) or u.email,
+        "phone": u.phone,
+        # **Dieselbe Rangfolge wie bei uns** – die MWST-Nummer trägt den Vorsteuerabzug,
+        # die blosse UID ist immer noch besser als nichts.
+        "uid": u.vat_number or u.uid_number,
         "address": {
             "line1": line1, "line2": line2 or None, "city": city,
             "postal_code": zip_code, "country": address.iso2(country),
@@ -1465,7 +1699,11 @@ def document_head(db: Session, row: Deal, *, won: bool) -> dict[str, Any]:
     seat_ours = address.of_company(company) if company is not None else None
     ours = {
         "object_id": getattr(company, "object_id", None),
-        "name": getattr(company, "company_name", "") or "",
+        # ►►► **Der Name trägt die Rechtsform** (Arbeitsauftrag §1.4). ◄◄◄ «Inexxio» ist
+        # keine Rechtsperson, «Inexxio AG» ist eine – und auf einem Beleg steht die, die
+        # haftet. Die Regel wohnt bei den Gesellschaften (``sites.legal_name``), weil sie
+        # eine Aussage über ein Unternehmen ist und nicht über einen Geldvorgang.
+        "name": sites.legal_name(company),
         # **Eine Adresse ohne Ort ist keine.** ``of_company`` liefert immer ein Gerüst
         # (leere Strasse wird zu «—»); ``has_content`` fragt, ob wirklich etwas drinsteht –
         # sonst stünde auf dem Beleg ein Gedankenstrich, wo eine Anschrift hingehört.
@@ -1473,24 +1711,41 @@ def document_head(db: Session, row: Deal, *, won: bool) -> dict[str, Any]:
         # **Die MWST-Nummer geht vor der blossen UID** – auf dem Beleg zählt die, die den
         # Vorsteuerabzug trägt; ohne sie steht die UID immer noch besser da als nichts.
         "uid": getattr(company, "vat_number", None) or getattr(company, "uid_number", None),
+        # ►►► **Ein Beleg ohne Kontaktweg ist der, der eine Rückfrage per Telefonbuch
+        # auslöst.** ◄◄◄ Beides steht am Unternehmen; es fehlte allein die Zeile hier.
+        "email": getattr(company, "email", None),
+        "phone": getattr(company, "phone", None),
     }
     theirs = {
         "object_id": row.party_id if won else None,
-        "name": who.get("name") or "",
+        # **Firma zuerst, Person als «z. H.»** – ``billing_name`` entscheidet das an der
+        # einen Stelle, an der Personennamen im Haus gebaut werden.
+        "name": (who.get("lines") or [""])[0],
+        "attn": (who.get("lines") or [None, None])[1] if len(
+            who.get("lines") or []) > 1 else None,
         "address": address.lines(address.make(
             street1=seat.get("line1") or "", street2=seat.get("line2") or "",
             zip=seat.get("postal_code") or "", city=seat.get("city") or "",
             country=seat.get("country"),
         )) if seat else [],
-        # Eine UID der Gegenpartei führt das System nicht – sie ist für den
-        # Inland-Beleg auch nicht verlangt. Kein Feld zu haben ist ehrlicher, als eines
-        # zu zeigen, das nie etwas enthalten kann.
-        "uid": None,
+        # ►►► **Die UID der Gegenpartei gibt es sehr wohl** (Arbeitsauftrag §1.1). ◄◄◄
+        #
+        # Hier stand «eine UID der Gegenpartei führt das System nicht» – und das war
+        # schlicht falsch: ``uid_number`` und ``vat_number`` stehen seit dem Fundament im
+        # Benutzer-Datensatz. Eine Angabe wegzuwerfen, die man hat, ist teurer als eine
+        # zu bauen, die man nicht hat.
+        #
+        # **Verlangt ist sie beim Reverse Charge**: ohne die Nummer des
+        # Leistungsempfängers trägt das Verfahren nicht, und die Rechnung ist angreifbar.
+        # Dieselbe Rangfolge wie bei uns – MWST-Nummer vor blosser UID.
+        "uid": who.get("uid"),
+        "email": who.get("email"),
+        "phone": who.get("phone"),
     }
     supplier, customer = (ours, theirs) if flow.collects else (theirs, ours)
     return {
-        "supplier": {"label": dm.SUPPLIER, **supplier},
-        "customer": {"label": dm.CUSTOMER, **customer},
+        "supplier": {"label": dm.SUPPLIER, "hint": dm.SUPPLIER_HINT, **supplier},
+        "customer": {"label": dm.CUSTOMER, "hint": dm.CUSTOMER_HINT, **customer},
     }
 
 
@@ -1759,7 +2014,10 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "ref_label": flow.reference,
         # **Die Steuer-Angaben** – Katalog, Vorgabe und Wörter reisen mit, damit die Karte
         # keine zweite Liste pflegt und für kein `if` nach der Richtung fragt.
-        "vat_rates": [{"rate": r, "label": name} for r, name in dm.VAT_RATES],
+        # **Der Pflichtsatz reist mit dem Satz** – die Karte baut keinen eigenen Text und
+        # führt keine zweite Liste, die beim nächsten Tatbestand jemand vergisst.
+        "vat_rates": [{"key": v.key, "rate": v.rate, "label": v.label, "note": v.note}
+                      for v in dm.VAT_RATES],
         # ►►► **Die Vorgabe steht im Katalog, nicht am Modul** (Testnotiz #851). ◄◄◄
         #
         # Der Satz hängt an der **Sache** (was für eine Ware ist es?) und am **Empfänger**
@@ -1842,6 +2100,16 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # soll, muss wissen, an wen. Die **Gegenseite** hängt an ``won``, wie jede andere
         # Angabe über sie.
         **document_head(db, row, won=won),
+        # ►►► **Was fehlt, um weiterzukommen** (Arbeitsauftrag §2). ◄◄◄
+        #
+        # Gefragt wird nach der **nächsten** Handlung dieser Stufe – die, deren Knopf
+        # gerade fehlt. Ein Mensch soll lesen können, *warum*, statt vor einer Karte ohne
+        # Angebot zu stehen.
+        #
+        # **Nur für das Personal**: eine Gegenpartei kann unsere Stammdaten weder sehen
+        # noch pflegen, und eine Meldung über einen Datensatz, den sie nicht öffnen darf,
+        # wäre eine Sackgasse mit fremder Adresse.
+        "gaps": (gaps(db, row, action=_next_action(row)) if internal else []),
         "party_object_id": row.party_id if won else None,
         "party_name": (_named(db, [row.party_id])[0]["name"]
                        if row.party_id and won else None),

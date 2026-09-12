@@ -100,6 +100,27 @@ def website_url() -> str:
 PLATFORM_FIELDS = ("plausible_domain", "google_maps_api_key")
 
 
+def legal_name(company: CompanySettings | None) -> str:
+    """►►► **Der Name der Rechtsperson** – so, wie er auf einen Beleg gehört. ◄◄◄
+
+    «Inexxio» ist keine Rechtsperson, «Inexxio AG» ist eine, und auf einer Rechnung
+    steht die, die haftet. Beide Angaben liegen längst am Unternehmen; hier werden sie
+    zu **einem** Namen.
+
+    ►►► **Und die Rechtsform steht GENAU EINMAL da.** ◄◄◄ Fast jeder trägt sie schon im
+    Firmennamen («Muster AG»), und stumpf angehängt käme «Muster AG AG» heraus – gemessen
+    am ersten Wächter, der es versuchte. Sie wird darum nur ergänzt, wo sie **fehlt**.
+
+    *Gross-/Kleinschreibung zählt dabei nicht, und es wird auf ein ganzes Wort geprüft:
+    sonst schluckte «Sagex» die Form «AG» nicht, aber «Maschinenbau» das «au».*
+    """
+    name = (getattr(company, "company_name", "") or "").strip()
+    form = (getattr(company, "legal_form", "") or "").strip()
+    if not form or form.casefold() in [w.casefold() for w in name.split()]:
+        return name
+    return f"{name} {form}".strip()
+
+
 def _assign_object_id(db: Session, company: CompanySettings) -> None:
     """Objektnummer lazy vergeben – ohne Nummer wäre die Gesellschaft kein ERP-Datensatz
     (nicht referenzierbar, nicht als Halter verwendbar, nicht im Feed)."""
@@ -143,7 +164,9 @@ def operator(db: Session) -> CompanySettings:
         # Die erste Gesellschaft ist sofort der Betreiber – sonst fände ``find_operator``
         # zwar über den Alters-Fallback dieselbe Zeile, aber der explizite Marker macht
         # die Wahl sichtbar und stabil (der Fallback ist nur das Sicherheitsnetz).
-        company = CompanySettings(id=1, is_operator=True)
+        # Die Id kommt aus der Sequenz – eine fest gesetzte 1 liesse sie stehen, und der
+        # nächste Einfüger bekäme sie ein zweites Mal.
+        company = CompanySettings(is_operator=True)
         db.add(company)
         db.commit()
         db.refresh(company)
@@ -408,12 +431,15 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
 def create(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
     """Neue **Gesellschaft** anlegen (nur Admin, siehe Router) – vollwertig, gleichrangig.
 
-    ``company_settings.id`` trägt keine Sequence (die Tabelle war als Singleton angelegt),
-    darum wird der Schlüssel hier vergeben. Der Lock auf den Betreiber serialisiert
-    gleichzeitige Anlagen – ohne ihn wäre ``max(id) + 1`` ein Check-then-Act und zwei
-    Admins bekämen denselben Schlüssel."""
-    from sqlalchemy import func
+    ►►► **Die Id kommt aus der Sequenz.** ◄◄◄ Hier stand ``max(id) + 1`` mit der
+    Begründung, ``company_settings.id`` trage keine Sequence – *das stimmt nicht mehr*:
+    gemessen führt die Spalte in **beiden** Schemata (gewachsen wie nur aus den
+    Migrationen gebaut) ein ``nextval``. Eine zweite Nummernvergabe daneben ist ein
+    Check-then-Act, den der Lock nur zudeckt, und sie lässt die Sequenz zurückfallen –
+    der nächste Einfüger, der sie *doch* benutzt, bekommt eine vergebene Nummer.
 
+    Der Lock auf den Betreiber bleibt: er serialisiert die **Betreiber-Wahl**, nicht die
+    Nummernvergabe."""
     op = operator(db)
     db.query(CompanySettings).filter(CompanySettings.id == op.id).with_for_update().first()
 
@@ -421,8 +447,10 @@ def create(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
     if not name:
         raise HTTPException(400, detail="Name des Unternehmens fehlt")
 
-    next_id = (db.query(func.max(CompanySettings.id)).scalar() or 0) + 1
-    company = CompanySettings(id=next_id, company_name=name)
+    # **Die Id kommt aus der Sequenz.** Hier stand ``max(id) + 1`` – eine zweite
+    # Nummernvergabe neben der, die die Spalte ohnehin hat, und bei zwei gleichzeitigen
+    # Anlagen dieselbe Zahl zweimal.
+    company = CompanySettings(company_name=name)
     _apply_entity_fields(company, {k: v for k, v in data.items() if k != "company_name"},
                          db, actor_id)
     # Ohne Land-Angabe das des Betreibers erben: die Adress-Klassifikation vergleicht Länder

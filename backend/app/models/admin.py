@@ -37,7 +37,18 @@ class CompanySettings(Base):
 
     __tablename__ = "company_settings"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    # ►►► **Die Nummer kommt aus der Sequenz, nicht aus einer Vorgabe.** ◄◄◄
+    #
+    # Hier stand ``default=1`` – aus der Zeit, als es genau **eine** Gesellschaft gab.
+    # Ein Python-Default **überschreibt** die Sequenz der Spalte: seither bekam jede
+    # Gesellschaft, die jemand ohne ausdrückliche Id anlegt, die **1** und lief am
+    # Primärschlüssel auf. Die beiden Dienstpfade fielen nicht darauf herein, weil sie
+    # die Id selbst setzen (``sites.operator`` die 1, ``sites.create`` ``max + 1``) –
+    # also war es eine Falle, die nur auf den nächsten Aufrufer wartete.
+    #
+    # *Gemessen an zwei Wächtern in ``test_move_module``: sie legten eine Gesellschaft
+    # direkt an und liefen genau dann auf, wenn schon eine existierte.*
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Universelle Objektnummer: Jede Gesellschaft ist ein vollwertiger ERP-Datensatz
     # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten
     # Abfrage lazy vergeben (services/sites.operator) bzw. beim Anlegen (sites.create).

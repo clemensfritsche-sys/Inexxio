@@ -277,3 +277,4 @@ def test_is_primary_is_dropped_everywhere_not_re_added():
     assert ("company_settings", "is_primary") in drop, "is_primary gehört ins Drop-Netz"
     assert ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false") in _COLUMN_SAFETY_NET
 
+

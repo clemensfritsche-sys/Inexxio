@@ -1795,6 +1795,41 @@ export interface components {
             label: string;
         };
         /**
+         * DataGap
+         * @description ►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄
+         *
+         *     **Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch
+         *     meldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:
+         *     es ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;
+         *     das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.
+         *
+         *     **Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie
+         *     die **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine
+         *     Meldung.
+         *
+         *     Durchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt
+         *     es den Knopf gar nicht – und die Tür weist an derselben Liste ab.
+         */
+        DataGap: {
+            /** Record Object Id */
+            record_object_id?: number | null;
+            /**
+             * Record Label
+             * @default
+             */
+            record_label: string;
+            /**
+             * Field Label
+             * @default
+             */
+            field_label: string;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /**
          * DealEmbed
          * @description **Der Geldvorgang**, wie ihn die Ausführungsstelle braucht.
          *
@@ -1957,6 +1992,8 @@ export interface components {
             lines?: components["schemas"]["DealLine"][];
             supplier?: components["schemas"]["DealSide"] | null;
             customer?: components["schemas"]["DealSide"] | null;
+            /** Gaps */
+            gaps?: components["schemas"]["DataGap"][];
             /** Party Object Id */
             party_object_id?: number | null;
             /** Party Name */
@@ -2106,7 +2143,7 @@ export interface components {
             price?: string | null;
             /**
              * Vat
-             * @default 8.10
+             * @default normal
              */
             vat: string;
         };
@@ -4140,16 +4177,24 @@ export interface components {
         };
         /**
          * VatRate
-         * @description Ein wählbarer Steuersatz – der Wert und wie er heisst.
+         * @description Ein wählbarer Steuersatz – Schlüssel, Zahl, Name und sein Pflichtsatz.
          *
          *     Ein **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,
          *     und er fällt erst bei der Abrechnung auf.
+         *
+         *     ►►► **Der Schlüssel ist die Identität, nicht die Zahl.** ◄◄◄ *Export* und
+         *     *Reverse Charge* tragen beide 0 %, sind aber zwei verschiedene Rechtsgründe mit zwei
+         *     verschiedenen Pflichtsätzen auf dem Beleg.
          */
         VatRate: {
+            /** Key */
+            key: string;
             /** Rate */
             rate: string;
             /** Label */
             label: string;
+            /** Note */
+            note?: string | null;
         };
         /**
          * VatShare
@@ -4160,8 +4205,14 @@ export interface components {
          *     Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz.
          */
         VatShare: {
+            /** Vat */
+            vat?: string | null;
             /** Rate */
             rate: string;
+            /** Label */
+            label?: string | null;
+            /** Note */
+            note?: string | null;
             /** Net */
             net: string;
             /** Tax */

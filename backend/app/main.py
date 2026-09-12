@@ -291,6 +291,16 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE table_name='deal_entries' AND column_name='charge_id') THEN "
     "CREATE INDEX IF NOT EXISTS ix_deal_entries_charge_id "
     "ON deal_entries (charge_id); END IF; END $$;",
+    # ►► **Die Sequenz der Gesellschaften holt auf.** Bis heute vergab
+    #    ``CompanySettings.id`` ihre Nummer über einen Python-Default (``default=1``) bzw.
+    #    über ``max(id) + 1`` – beides **ohne** die Sequenz der Spalte zu bewegen. In jeder
+    #    gewachsenen Datenbank steht sie damit hinter den echten Zeilen, und der erste
+    #    Einfüger, der sie *doch* benutzt, bekommt eine längst vergebene Nummer.
+    #    ``setval`` holt sie einmalig nach; ohne Zeilen bleibt sie, wo sie ist.
+    "DO $$ BEGIN IF to_regclass('public.company_settings') IS NOT NULL "
+    "AND EXISTS (SELECT 1 FROM company_settings) THEN "
+    "PERFORM setval(pg_get_serial_sequence('company_settings', 'id'), "
+    "(SELECT max(id) FROM company_settings)); END IF; END $$;",
     # ►► **Die Vorauswahl der Stück-Auswahl** (Migration 113): «die ältesten Stücke
     #    dieser Instanz, die im Regal liegen» – genau die Form, für die ein
     #    zusammengesetzter Index gebaut ist. Gemessen bei 50 000 Stücken: 15,3 → 1,2 ms.

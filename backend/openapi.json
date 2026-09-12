@@ -4736,6 +4736,39 @@
         "title": "CurrencyOption",
         "description": "Eine wählbare Währung – der Code und wie sie heisst.\n\nEin **Katalog**, keine freie Eingabe: «CHF» getippt ist noch keine Währung, und ein\nTippfehler fällt erst auf, wenn jemand eine Summe über zwei Währungen zieht. Die\nBeschriftung trägt den Code selbst, kein Symbol – «$» ist nicht eindeutig."
       },
+      "DataGap": {
+        "properties": {
+          "record_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Object Id"
+          },
+          "record_label": {
+            "type": "string",
+            "title": "Record Label",
+            "default": ""
+          },
+          "field_label": {
+            "type": "string",
+            "title": "Field Label",
+            "default": ""
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "DataGap",
+        "description": "►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄\n\n**Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch\nmeldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:\nes ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;\ndas Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.\n\n**Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie\ndie **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine\nMeldung.\n\nDurchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt\nes den Knopf gar nicht – und die Tür weist an derselben Liste ab."
+      },
       "DealEmbed": {
         "properties": {
           "direction": {
@@ -5003,6 +5036,13 @@
                 "type": "null"
               }
             ]
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/DataGap"
+            },
+            "type": "array",
+            "title": "Gaps"
           },
           "party_object_id": {
             "anyOf": [
@@ -5419,7 +5459,7 @@
           "vat": {
             "type": "string",
             "title": "Vat",
-            "default": "8.10"
+            "default": "normal"
           }
         },
         "type": "object",
@@ -10013,6 +10053,10 @@
       },
       "VatRate": {
         "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
           "rate": {
             "type": "string",
             "title": "Rate"
@@ -10020,21 +10064,66 @@
           "label": {
             "type": "string",
             "title": "Label"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           }
         },
         "type": "object",
         "required": [
+          "key",
           "rate",
           "label"
         ],
         "title": "VatRate",
-        "description": "Ein wählbarer Steuersatz – der Wert und wie er heisst.\n\nEin **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,\nund er fällt erst bei der Abrechnung auf."
+        "description": "Ein wählbarer Steuersatz – Schlüssel, Zahl, Name und sein Pflichtsatz.\n\nEin **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,\nund er fällt erst bei der Abrechnung auf.\n\n►►► **Der Schlüssel ist die Identität, nicht die Zahl.** ◄◄◄ *Export* und\n*Reverse Charge* tragen beide 0 %, sind aber zwei verschiedene Rechtsgründe mit zwei\nverschiedenen Pflichtsätzen auf dem Beleg."
       },
       "VatShare": {
         "properties": {
+          "vat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
+          },
           "rate": {
             "type": "string",
             "title": "Rate"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "net": {
             "type": "string",

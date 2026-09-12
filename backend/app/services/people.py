@@ -26,6 +26,32 @@ def name(u: Optional[UserProfile]) -> Optional[str]:
     return u.display_name if u else None
 
 
+def billing_name(u: Optional[UserProfile]) -> list[str]:
+    """►►► **Wie diese Partei auf einem BELEG steht** – Firma zuerst. ◄◄◄
+
+    ``display_name`` ist bewusst **person-first** («Vorname Nachname → Firma → E-Mail»,
+    Notiz #291), und im ERP ist das richtig: man arbeitet mit Menschen.
+
+    Auf einer **Rechnung** ist es falsch. Schuldner ist die *Muster AG*, nicht der
+    Einkäufer, der dort arbeitet – und wer den Beleg bezahlt, braucht die Rechtsperson,
+    die er in seiner Buchhaltung führt.
+
+    Zurück kommen **Zeilen**, nicht ein Name: die Firma, und darunter die Person als
+    «z. H.», wenn beide da sind. Ohne Firma bleibt die Person – das ist der B2C-Fall und
+    korrekt.
+
+    *Zwei Formen einer Regel sind in Ordnung; zwei Regeln nicht – darum steht sie hier
+    neben ``display_name`` und nicht im Geldvorgang.*
+    """
+    if u is None:
+        return []
+    person = " ".join(p for p in (u.first_name, u.last_name) if p).strip()
+    company = (u.company_name or "").strip()
+    if company and person:
+        return [company, f"z. H. {person}"]
+    return [company or person or u.email]
+
+
 def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
     """Anzeigename über die **interne** Primärschlüssel-Id (Fremdschlüssel-Spalten
     wie ``supplier_id``, ``customer_id``, ``inspector_id``, ``uploaded_by``)."""
