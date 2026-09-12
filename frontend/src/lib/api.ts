@@ -4,6 +4,7 @@ import type {
   OrderDraft,
   OrderValidation,
   DealParty,
+  VoucherParty,
   UnitChoices,
   ArticleOption,
   OrderUnitPage,
@@ -416,6 +417,67 @@ class ApiClient {
     const params = new URLSearchParams({ limit: String(limit) });
     if (search?.trim()) params.set('search', search.trim());
     return this.get(`/api/v1/erp/orders/deal-parties?${params}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ►►► DER BELEG — das neu aufgebaute Modul «Zahlung»
+  // ─────────────────────────────────────────────────────────────────────────────
+  //
+  // Eigene Wege statt eines gemeinsamen mit `…/deal`: die beiden Module teilen bewusst
+  // keine Zeile, damit das alte eines Tages **ersatzlos** gelöscht werden kann – und dann
+  // fallen genau die `deal*`-Methoden weg, nicht eine Verzweigung in einer geteilten.
+
+  /** **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (`voucher.VERBS`). */
+  updateVoucher(orderObjectId: number, stepId: number,
+                body: { action: string } & Record<string, unknown>): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/voucher`, body);
+  }
+
+  /**
+   * **Eine Zahlung über den offenen Betrag vorbereiten** – für unsere eigene Karte.
+   *
+   * Sie ändert am Beleg **nichts**; gebucht wird erst, wenn das Geld da ist – und das
+   * meldet der Webhook, nicht dieser Browser. `chargeId` ist die Zeile, an der geklickt
+   * wurde; ohne Angabe die älteste offene.
+   */
+  prepareVoucherPayment(objectId: number, stepId: number,
+                        chargeId?: number | null): Promise<PaymentSetup> {
+    const q = chargeId != null ? `?charge=${chargeId}` : '';
+    return this.post(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/payment${q}`, {});
+  }
+
+  /**
+   * **Wie man diese Rechnung überweist** – Bankverbindung, Referenz und, wo er gilt, die
+   * **QR-Rechnung** als fertiges Bild. Erzeugt wird sie im Backend: die Nutzlast ist eine
+   * Liste von einunddreissig Zeilen in fester Reihenfolge.
+   */
+  voucherTransfer(objectId: number, stepId: number,
+                  entryId: number): Promise<TransferInfo> {
+    return this.get(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/transfer?entry=${entryId}`);
+  }
+
+  /**
+   * **Geld zurück – über den Dienst, der es eingezogen hat.** Nur für eine **Karten**-
+   * Zahlung: bar und per Überweisung ist die Erstattung eine gewöhnliche negative Zahlung.
+   */
+  refundVoucherPayment(objectId: number, stepId: number,
+                       entryId: number, amount?: string): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/refund`,
+      { action: 'refund_online', entry: entryId, ...(amount ? { amount } : {}) });
+  }
+
+  /**
+   * **Gegenparteien eines Belegs suchen** – Nummer **oder** Name, ohne Rollenfilter.
+   *
+   * Wer einschränken will, nennt die zugelassenen Gegenparteien in der Definition; das
+   * ist die Stelle, an der eine solche Freigabe hingehört.
+   */
+  searchVoucherParties(search?: string, limit = 20): Promise<VoucherParty[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (search?.trim()) params.set('search', search.trim());
+    return this.get(`/api/v1/erp/orders/voucher-parties?${params}`);
   }
 
   getArticles(search?: string, limit?: number): Promise<Article[]> {

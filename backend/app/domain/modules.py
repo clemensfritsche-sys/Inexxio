@@ -22,6 +22,7 @@ from typing import Any, Optional
 from fastapi import HTTPException
 
 from . import capture_types, deal, sampling, statuses as st
+from . import voucher as vo
 
 #: Der eine Ortsbedarf, den es heute gibt: **beim Produkt**. Eine geschlossene Liste
 #: wie ``Aussondern.MODES`` – ein künftiges Modul («an meinem konfigurierten Ort»)
@@ -33,6 +34,15 @@ AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
 BEWEGEN = "bewegen"
 ZAHLUNG = "zahlung"
+#: ►►► **Das neu aufgebaute Zahlungsmodul** (``docs/neuaufbau-zahlungsmodul.md``). ◄◄◄
+#:
+#: Es heisst in der Oberfläche ebenfalls «Zahlung» und trägt eine andere Farbfamilie,
+#: damit man die beiden im Fluss unterscheidet. Der **Schlüssel** muss ein anderer sein:
+#: ``zahlung`` steht in den eingefrorenen Prozessen laufender Aufträge, und ein Schlüssel
+#: ist eine Adresse, kein Name – ihn umzubenennen wäre eine Datenmigration eingefrorener
+#: Vorlagen. Er heisst darum nach der **Sache** (ein Beleg), die Beschriftung nach der
+#: **Handlung**.
+BELEG = "beleg"
 
 
 class Module:
@@ -780,6 +790,175 @@ def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
 # ``deal.prepaid(row.due_days)`` – null Tage ab Zusage *ist* die Vorauszahlung.
 
 
+class Beleg(Module):
+    """►►► **Geld mit einer zweiten Partei — als Beleg gedacht.** ◄◄◄
+
+    Der Neuaufbau des Zahlungsmoduls (``docs/neuaufbau-zahlungsmodul.md``). Fachlich
+    dasselbe wie sein Vorgänger – die Einsicht, dass der kleinste gemeinsame Nenner von
+    Einkauf, Verkauf, Spedition, Miete, Lohn und Vorauszahlung **nicht die Ware** ist,
+    sondern Geld mit einer zweiten Partei –, in einer Datenform, die dazu passt:
+
+    * der **Angebotsspiegel** ist eine Tabelle, keine Liste an einem Feld,
+    * die **Position** gibt es in **einer** Form statt in dreien,
+    * ein **Verb** wird an **einer** Stelle deklariert statt an vieren.
+
+    **Es fasst das alte Modul an keiner Stelle an** (``domain/voucher`` statt
+    ``domain/deal``), und das ist der Sinn: wird ``zahlung`` gelöscht, ist hier keine
+    Zeile zu ändern – dieselbe Regel, die schon beim Löschen von «Beschaffen» und
+    «Verkauf» null Zeilen gekostet hat.
+
+    ## Zwei Angaben, sonst nichts
+
+    ``direction``  **Kommt Geld herein oder geht es hinaus?** Daraus folgt jedes Wort.
+    ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
+                   beim Ausführen gesucht. Je Zeile eine Pflichtangabe «Was ist zu tun?»
+                   (``vo.TASK``): seine Artikelnummer, sein Shop-Link oder ein Satz. Sie
+                   gehört der **Paarung** Modul × Partner – derselbe Lieferant führt je
+                   Teil eine andere Nummer.
+
+    Kein Betrag, keine Menge, kein Artikel, kein Termin, kein Steuersatz: alles davon
+    steht beim Modellieren nicht fest. **Was gehandelt wird, sagt der Prozess** – die
+    Einzelinstanzen, die vor dem Modul stehen, tragen ihren Artikel.
+
+    ## Die eine Regel, die es robust macht: es bewegt keine Stücke
+
+    Ein **Durchläufer** (``Im Prozess`` → ``Im Prozess``), ``terminal = False``,
+    ``moves = False``, kein Ortswechsel, kein neuer Status. Daraus folgt, dass **keine
+    andere Regel im System von ihm wissen muss**.
+    """
+
+    #: Die **zwei** Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
+    DIRECTION = "direction"
+    PARTIES = "parties"
+    #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
+    PARTY = "party"
+    REF = "ref"
+
+    #: Mehr ist keine Auswahl mehr, sondern eine Adressliste.
+    MAX_PARTIES = 10
+    #: Eine Artikelnummer oder ein Link – kein Bestelltext.
+    MAX_REF = 200
+
+    #: ►►► **Kein Scan.** ◄◄◄ Ein Scan beantwortet «habe ich das richtige physische Ding
+    #: vor mir». Dieses Modul tut mit dem Stück gar nichts – ein Etikett zu scannen, um
+    #: eine Rechnung zu stellen, ist eine Geste ohne Aussage.
+    requires_verification = False
+
+    def action_for(self, config: Optional[dict[str, Any]]) -> str:
+        """**Erfasst wird nichts.** Der Knopf erledigt den Beleg."""
+        return vo.FINISH_VERB
+
+    def direction_of(self, config: Optional[dict[str, Any]]) -> str:
+        """**Die Richtung dieses Schritts** – die eine Lesestelle.
+
+        Sie steht in der ``config`` und nicht als zweiter Modul-Schlüssel: es ist EIN
+        Modul, und die Richtung ist seine Einstellung. Tolerant gelesen (fehlend =
+        Ausgabe), damit eine alte Zeile keine Anzeige zerlegt; geschrieben wird streng.
+        """
+        return str((config or {}).get(self.DIRECTION) or vo.OUT)
+
+    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
+        data = raw or {}
+        try:
+            direction = vo.assert_direction(data.get(self.DIRECTION))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        flow = vo.of(direction)
+        # **Keine Erfassungspunkte, keine Stichprobe.** Geld ist keine Messung am Stück;
+        # die Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
+        # Alles andere – Steuersatz, Sperre, Betrag – wird **verworfen**: ein Feld, das
+        # die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre die Hintertür zu
+        # einer zweiten Wahrheit.
+        return {
+            self.DIRECTION: direction,
+            self.PARTIES: self._clean_parties(data.get(self.PARTIES), flow),
+            "points": [], "sample": dict(sampling.DEFAULT),
+        }
+
+    def _clean_parties(self, value: Any,
+                       flow: "vo.Direction") -> list[dict[str, Any]]:
+        """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt und heisst **frei**."""
+        if value in (None, ""):
+            value = []
+        if not isinstance(value, (list, tuple)):
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{flow.label}» erwartet eine Liste zugelassener {vo.PARTY}.",
+            )
+        rows: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        for entry in value:
+            raw = entry.get(self.PARTY) if isinstance(entry, dict) else entry
+            number = self._object_id(raw)
+            if number is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"«{entry}» ist keine Objektnummer ({vo.PARTY}).")
+            if number in seen:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"{vo.PARTY} {number} steht zweimal – zweimal derselbe ist "
+                            f"keine zweite Wahl."))
+            seen.add(number)
+            ref = str((entry.get(self.REF) if isinstance(entry, dict) else "")
+                      or "").strip()
+            if not ref:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"{vo.PARTY} {number}: «{vo.TASK}» fehlt – ohne die Angabe "
+                            f"weiss er nicht, worum es geht ({vo.TASK_HINT})."))
+            if len(ref) > self.MAX_REF:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"{vo.PARTY} {number}: «{vo.TASK}» ist zu lang "
+                            f"(max. {self.MAX_REF} Zeichen)."))
+            rows.append({self.PARTY: number, self.REF: ref})
+        if len(rows) > self.MAX_PARTIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Höchstens {self.MAX_PARTIES} {vo.PARTY} je Modul.")
+        return rows
+
+    @classmethod
+    def parties_of(cls, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Die zugelassenen Gegenparteien **mit ihrer Bestellangabe** – eine Lesestelle.
+
+        **Leer heisst frei, nicht «niemand».** Der Dienst schränkt nur ein, wenn hier
+        etwas steht; sonst wäre ein Modul ohne Liste eines, bei dem man mit niemandem
+        handeln kann.
+
+        Sie steht als **Methode am Modul** und nicht als Funktion daneben: so gibt es
+        nichts, was beim Löschen des alten Moduls versehentlich stehen bliebe.
+        """
+        rows: list[dict[str, Any]] = []
+        for entry in (config or {}).get(cls.PARTIES) or []:
+            raw = entry.get(cls.PARTY) if isinstance(entry, dict) else entry
+            try:
+                number = int(raw)
+            except (TypeError, ValueError):
+                continue
+            ref = str((entry.get(cls.REF) if isinstance(entry, dict) else "") or "")
+            rows.append({cls.PARTY: number, cls.REF: ref})
+        return rows
+
+    @classmethod
+    def parties_allowed(cls, config: Optional[dict[str, Any]]) -> list[int]:
+        """Nur die Nummern – die Form, in der die **Freigabe-Prüfung** sie braucht.
+
+        Zwei Formen einer Regel, ein Namensstamm: ``parties_of`` nennt die ganze Zeile,
+        ``parties_allowed`` beantwortet «darf der hier mitspielen».
+        """
+        return [int(r[cls.PARTY]) for r in cls.parties_of(config)]
+
+    @classmethod
+    def ref_for(cls, config: Optional[dict[str, Any]], party: Optional[int]) -> str:
+        """**Was bei DIESEM Partner zu tun ist** – oder leer, wo er nicht gelistet ist."""
+        if party is None:
+            return ""
+        return next((str(r[cls.REF]) for r in cls.parties_of(config)
+                     if int(r[cls.PARTY]) == int(party)), "")
+
+
 MODULES: dict[str, Module] = {
     m.key: m for m in (
         Datenerfassung(
@@ -808,7 +987,11 @@ MODULES: dict[str, Module] = {
         ),
         Zahlung(
             key=ZAHLUNG,
-            label="Zahlung",
+            # ►►► **«(alt)»** – solange beide Fassungen nebeneinander stehen. ◄◄◄
+            # Die Farbe unterscheidet sie im Fluss, das Wort in der Palette: wer ein neues
+            # Modul anlegt, soll nicht raten müssen, welches der beiden gemeint ist. Es
+            # verschwindet mit der Löschung dieses Moduls, nicht durch eine Umbenennung.
+            label="Zahlung (alt)",
             # Ein **Durchläufer**: das Modul hält die Stücke auf, es verändert sie nicht.
             # Genau daraus folgt, dass keine andere Regel im System von ihm wissen muss.
             status_before=st.IM_PROZESS,
@@ -819,6 +1002,21 @@ MODULES: dict[str, Module] = {
             # zu unterscheiden. Magenta/Rosa ist die einzige unbesetzte Familie – und sie
             # sitzt deutlich pinker als das orange-braune Clay.
             tone="rose",
+        ),
+        Beleg(
+            key=BELEG,
+            label="Zahlung",
+            # Ein **Durchläufer**, wie sein Vorgänger: das Modul hält die Stücke auf, es
+            # verändert sie nicht. Genau daraus folgt, dass keine andere Regel im System
+            # von ihm wissen muss.
+            status_before=st.IM_PROZESS,
+            status_after=st.IM_PROZESS,
+            # Gedämpftes Violett – die Nachbarfamilie von ``rose`` über die kalte Seite.
+            # Das ist Absicht: die beiden sind zwei Fassungen **desselben** Moduls, also
+            # sollen sie verwandt aussehen und trotzdem unterscheidbar sein. Sie steht
+            # seit der Löschung von «Beschaffen» ohne Besitzer im Katalog und kostet damit
+            # keine neue Zeile in der Oberfläche.
+            tone="plum",
         ),
         Verbrauch(
             key=VERBRAUCH,

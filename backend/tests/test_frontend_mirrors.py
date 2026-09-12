@@ -5277,8 +5277,21 @@ def test_the_money_module_is_a_pass_through_in_the_editor_too():
     (c) eine Frist steht im Editor.
     """
     src = _read(FRONTEND / "lib" / "modules.ts")
+    # ►►► **Die Definition beider Zahlungsmodule ist EINE Implementierung.** ◄◄◄
+    #
+    # Sie stand einmal als Rumpf unter dem Schlüssel `zahlung:`; seit es zwei Module gibt
+    # (`zahlung` und `beleg`, `docs/neuaufbau-zahlungsmodul.md`), steht sie als Konstante
+    # daneben und wird zweimal referenziert – ein abgeschriebener zweiter Eintrag wäre die
+    # Stelle, an der beim nächsten Feld eine Hälfte stehen bleibt. Geprüft wird darum die
+    # **Regel** und nicht der frühere Ort: es gibt eine Form, und beide Schlüssel zeigen
+    # darauf.
     form = _body(src, "MODULE_FORM", kind="const")
-    row = form.split("  zahlung: {", 1)[1].split("\n  },", 1)[0]
+    for key in ("zahlung", "beleg"):
+        assert f"{key}: MONEY_FORM," in form, (
+            f"«{key}» hat eine eigene Entwurfsform – zwei Fassungen derselben Definition "
+            f"laufen beim nächsten Feld auseinander."
+        )
+    row = _body(src, "MONEY_FORM", kind="const")
     for field in ("direction", "parties"):
         assert field in row, f"«{field}» fehlt in der Entwurfsform des Geldmoduls."
     assert "prepaid" not in row, (
@@ -6634,8 +6647,8 @@ def test_the_trade_modules_are_gone_from_both_sides():
     from app.domain import modules
 
     assert set(modules.KEYS) == {
-        "datenerfassung", "aussondern", "bewegen", "zahlung", "verbrauch",
-    }, f"Die Modultypen sind nicht mehr die fünf erwarteten: {sorted(modules.KEYS)} (a)."
+        "datenerfassung", "aussondern", "bewegen", "zahlung", "beleg", "verbrauch",
+    }, f"Die Modultypen sind nicht die erwarteten: {sorted(modules.KEYS)} (a)."
 
     # (b) **Die Dateien sind weg** – ein toter Dienst neben einem lebenden ist die
     #     zweite Maschine für dieselbe Sache.
@@ -6834,7 +6847,10 @@ def test_what_the_erp_already_knows_is_not_asked_again():
     # jemand den Fehler beschreibt, den er verhindern soll. (Gemessen: erste Fassung
     # scheiterte an ihrem eigenen «Kein ``receipt_email``».)
     svc = _read(BACKEND / "app" / "services" / "stripe_pay.py")
-    assert '"billing": deal_svc.billing_of(' in svc, (
+    # ►►► **Der Adapter kennt das Geld-Modul als Schnittstelle, nicht als Namen.** ◄◄◄
+    # Es gibt zwei (``deal``, ``voucher``); ein Wächter, der ``deal_svc.billing_of``
+    # wörtlich verlangte, verböte ausgerechnet die Fassung, die beide trägt.
+    assert '"billing": svc.billing_of(' in svc, (
         "Der Dienst liefert die bekannten Angaben nicht mit (c)."
     )
     # ►►► **Und es gibt genau EINE Auskunft darüber** (Testnotiz #865). ◄◄◄
@@ -8766,3 +8782,189 @@ def test_the_chronicle_says_only_when():
             f"Die Chronik nennt «{never}» (b) – das steht oben schon, und hier wäre es "
             f"das dritte Mal."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►►► DER NEU AUFGEBAUTE BELEG (docs/neuaufbau-zahlungsmodul.md, #921–#926)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _beleg() -> str:
+    return _read(FRONTEND / "components" / "erp" / "beleg-work.tsx")
+
+
+def test_an_editable_value_is_marked_in_exactly_one_way():
+    """►►► **«Man muss erkennen, dass es veränderbar ist»** (Testnotiz #922). ◄◄◄
+
+    *«Es soll so ausschauen wie der finale Beleg, nur eben gehighlighted … ACHTUNG: Ich
+    will das auch für alle anderen Angaben auf dem Beleg.»*
+
+    Also **eine** Auszeichnung an **einer** Stelle (`.ix-editable` in `globals.css`), und
+    jeder änderbare Wert trägt sie. Und sie darf **nichts am Layout tun**: der Nutzer hat
+    Grösse, Form und Schrift ausdrücklich ausgeschlossen – ein `border` verschöbe das
+    Layout um seine Breite, ein `inset box-shadow` nie.
+
+    Bug-Formen: (a) die Klasse gibt es nicht; (b) sie ändert die Geometrie (`border`,
+    `padding`, `font-size`); (c) ein änderbarer Wert der Karte trägt sie nicht;
+    (d) die Karte baut die Auszeichnung selbst statt das eine Bauteil zu nehmen.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    # **Am Zeilenanfang verankert** – `fieldset:disabled .ix-editable {` enthält dieselbe
+    # Zeichenkette, und ohne den Anker las der Wächter die *gesperrte* Ausprägung: seine
+    # eigene Bug-Form ging damit durch (gemessen).
+    assert "\n.ix-editable {" in css, "Die Auszeichnung gibt es nicht (a)."
+    rule = css.split("\n.ix-editable {", 1)[1].split("}", 1)[0]
+    for geometry in ("border:", "border-width", "padding", "font-size", "font-weight"):
+        assert geometry not in rule, (
+            f"«{geometry}» in `.ix-editable` (b) – die Auszeichnung ändert die Geometrie, "
+            f"und genau das war ausgeschlossen («nicht durch Veränderung der Grösse, "
+            f"Form, Schriftart»)."
+        )
+    assert "box-shadow" in rule, (
+        "Die Auszeichnung hat keine Linie (a) – ein Wert ohne Zeichen ist keiner."
+    )
+
+    src = _beleg()
+    assert "function Editable(" in src, (
+        "Die Karte hat kein gemeinsames Bauteil für den änderbaren Wert (d)."
+    )
+    # (c) **Jeder änderbare Wert der Karte** – die Liste der Notiz, Punkt für Punkt.
+    for name in ("Currency", "Terms", "Delivery", "LineRow", "Customs", "Recipients",
+                 "Issuer"):
+        body = _component(src, name)
+        assert "<Editable" in body or "ix-editable" in body, (
+            f"«{name}» trägt die Auszeichnung nicht (c) – der Nutzer wollte sie "
+            f"ausdrücklich für **alle** Angaben auf dem Beleg."
+        )
+
+
+def test_the_action_that_moves_the_document_looks_the_same_everywhere():
+    """►►► **«So gross und ausdrucksstark wie ‹Vorgang abschliessen›»** (#923). ◄◄◄
+
+    *«Eine UI-Logik.»* – Genau: ein Bauteil (`StageAction`) mit denselben Massen wie der
+    Knopf, der jedes Modul beendet (volle Breite, Fläche, 42 px, 14 px Schrift). Ein
+    Sonderfall für einen Knopf wäre die Stelle, an der der nächste wieder anders aussieht.
+
+    Bug-Formen: (a) es gibt das Bauteil nicht; (b) es trägt nicht die Masse des
+    Abschluss-Knopfes; (c) das Anbieten benutzt es nicht.
+    """
+    src = _beleg()
+    assert "function StageAction(" in src, "Es gibt kein gemeinsames Bauteil (a)."
+    body = _component(src, "StageAction")
+    for mark in ("erp-actbtn-primary", "w-full", "height: 42", "fontSize: 14"):
+        assert mark in body, (
+            f"«{mark}» fehlt (b) – dann ist der Knopf nicht so gross und ausdrucksstark "
+            f"wie der am Ende der Karte (`order-detail`)."
+        )
+    # **Und derselbe Knopf trägt wirklich die Masse des Abschlusses** – gelesen dort, wo
+    # er entsteht: eine abgeschriebene Zahl liefe beim nächsten Umbau auseinander.
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "height: 42, fontSize: 14" in detail, (
+        "Der Abschluss-Knopf hat andere Masse (b) – dann ist «wie am Schluss» eine "
+        "Behauptung."
+    )
+    assert "<StageAction" in _component(src, "Offer"), (
+        "Das Anbieten ist kein `StageAction` (c) – genau dieser Knopf war gemeldet."
+    )
+
+
+def test_every_summed_amount_names_its_currency():
+    """►►► **«Wenn daneben die Währung stehen würde»** (Testnotiz #921). ◄◄◄
+
+    Die Regel: **jede Zahl, die man abschreibt oder überweist, nennt ihre Währung** –
+    Netto, Steuer je Satz, Total, offener Betrag, jede Geld-Zeile. **Nicht** an jedem
+    Einzelpreis: dort stünde dasselbe Wort zwanzigmal.
+
+    Bug-Formen: (a) eine Summe ohne Währung; (b) der Einzelpreis trägt sie doch;
+    (c) die Währung ist fest «CHF» statt der des Belegs.
+    """
+    src = _beleg()
+    sums = _component(src, "Sums")
+    # **JEDE Summenzeile**, nicht irgendeine: mit einem blossen «kommt vor» genügte eine
+    # von dreien, und die Netto-Zeile hätte ihre Währung verlieren können, ohne dass es
+    # auffällt (gemessen – die erste Fassung liess genau das durch).
+    assert sums.count("${code}") >= sums.count("<SumRow"), (
+        f"Nicht jede Summenzeile nennt ihre Währung (a): {sums.count('${code}')} von "
+        f"{sums.count('<SumRow')}."
+    )
+    assert "<Currency" in sums, "Das Total nennt seine Währung nicht (a)."
+    row = _component(src, "LineRow")
+    assert "{d.currency}" not in row, (
+        "Der Einzelpreis trägt die Währung (b) – zwanzig Zeilen, zwanzigmal dasselbe Wort."
+    )
+    entry = _component(src, "EntryRow")
+    assert "{d.currency}" in entry, "Eine Geld-Zeile nennt ihre Währung nicht (a)."
+    assert "'CHF'" not in _code(_component(src, "Money")), (
+        "Die Geld-Zeile schreibt «CHF» fest (c) – ein Yen-Beleg läse sich als Franken."
+    )
+
+
+def test_the_terms_carry_no_heading_and_no_prepaid_chip():
+    """►►► **Drei Notizen, eine Richtung: weniger auf dem Beleg** (#924/#925/#926). ◄◄◄
+
+    *«Keine Überschrift ‹Konditionen› mehr, sondern einfach unter den Positionen und
+    Beträgen die Zahlungs- und Lieferkonditionen»* – jede der drei Zeilen trägt ihren
+    Namen, und ein Sammelbegriff darüber sagt nichts dazu.
+
+    *«Diese Info kann komplett hier entfallen, denn ich sehe es ja unten, ob Vorauszahlung
+    oder nicht»* – die Pille im Kopf war die zweite Aussage über die **Zahlungsfrist**,
+    die zwei Abschnitte tiefer steht und dort geändert wird.
+
+    Bug-Formen: (a) die Überschrift ist zurück; (b) der Kopf zeigt die Vorauszahlung;
+    (c) die Zahlungsfrist steht nicht über der Lieferfrist (#897).
+    """
+    src = _beleg()
+    assert "Konditionen" not in _code(src), "Die Überschrift ist zurück (a)."
+    head = _component(src, "DocHead") + _component(src, "Parties")
+    assert "prepaid" not in head, (
+        "Der Kopf zeigt wieder die Vorauszahlung (b) – sie steht in den Konditionen."
+    )
+    terms = _component(src, "Terms")
+    assert terms.index("payment_term_label") < terms.index("lead_term_label"), (
+        "Die Lieferfrist steht über der Zahlungsfrist (c) – die folgenreichere Angabe "
+        "gehört nach oben (#897)."
+    )
+
+
+def test_the_card_never_branches_on_the_direction():
+    """►►► **Was Einnahme von Ausgabe unterscheidet, reist fertig mit.** ◄◄◄
+
+    Die Karte kennt weder «Kunde» noch «Lieferant» und fragt nie nach der Richtung: sie
+    liest `label`, `ask_verb`, `we_quote`, `ref_label`, `stages[].label/verb`. Die erste
+    Verzweigung ist eine Beschriftung, die zweite eine Regel, und ab der dritten gibt es
+    zwei Belege, die nur so tun, als wären sie einer.
+
+    Bug-Formen: (a) ein Vergleich auf `'in'`/`'out'`; (b) ein Rollen-Wort als Literal;
+    (c) ein Modultyp im Rumpf.
+    """
+    code = _code(_beleg())
+    for branch in ("=== 'in'", '=== "in"', "=== 'out'", '=== "out"',
+                   "direction ===", ".direction =="):
+        assert branch not in code, f"Die Karte verzweigt auf die Richtung (a): «{branch}»."
+    for word in ("Kunde", "Lieferant", "Einnahme", "Ausgabe"):
+        assert word not in code, (
+            f"«{word}» steht als Literal in der Karte (b) – die Wörter kommen vom Server."
+        )
+    for key in ("'beleg'", '"beleg"', "'zahlung'"):
+        assert key not in code, f"Die Karte nennt einen Modultyp (c): «{key}»."
+
+
+def test_the_two_payment_modules_share_no_line_in_the_browser_either():
+    """►►► **Die Unabhängigkeit gilt auf beiden Seiten.** ◄◄◄
+
+    Das alte Zahlungsmodul soll ersatzlos löschbar sein – dann darf in der neuen Karte
+    keine Zeile zu ändern sein, und umgekehrt.
+
+    Bug-Formen: (a) die neue Karte importiert aus der alten; (b) sie ruft `updateDeal`;
+    (c) die alte Karte importiert aus der neuen.
+    """
+    # **Der CODE, nicht die Erklärung** – der Kopf der neuen Karte *nennt* ihren
+    # Vorgänger, um zu sagen, was anders ist; ein Wächter, der die Prosa mitliest, schlägt
+    # an, weil jemand die Regel beschreibt. (Gemessen: die erste Fassung scheiterte an
+    # ihrem eigenen Verweis.)
+    new = _code(_beleg())
+    old = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "deal-work" not in new, "Die neue Karte hängt an der alten (a)."
+    for call in ("updateDeal", "dealTransfer", "refundPayment", "preparePayment",
+                 "searchDealParties"):
+        assert call not in new, f"Die neue Karte ruft «{call}» (b)."
+    assert "beleg-work" not in old, "Die alte Karte hängt an der neuen (c)."

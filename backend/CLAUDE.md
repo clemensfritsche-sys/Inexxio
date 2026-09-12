@@ -779,6 +779,43 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > (`_verify_history`): ein Schreiber ausserhalb der Prozesslogik hinterlässt gar keinen
 > Eintrag – gefunden wird er nur, wenn Log und Zeile verglichen werden (§5.3).
 
+> ►►► **Der Beleg — das Zahlungsmodul, von Grund auf neu** (`domain/voucher` ·
+> `services/voucher` · `schemas/voucher` · `models/voucher`, Tabellen `vouchers` ·
+> `voucher_quotes` · `voucher_lines` · `voucher_entries`, Migration `134`,
+> `docs/neuaufbau-zahlungsmodul.md`, PROCESS_CORE §9.15). ◄◄◄
+> Fachlich dasselbe wie `deal` – Geld mit einer zweiten Partei, beide Richtungen, drei
+> Achsen ohne Reihenfolge, `can` als Auskunft **und** Tor, und es **bewegt keine Stücke**.
+> Verschieden ist die **Form**:
+> **(1) `VERBS` – EINE Deklaration je Verb.** *Stufe · Stammdaten · wer darf · welche
+> Funktion* in einer Zeile. Beim Vorgänger vier Tabellen (`ACTIONS` · `REQUIRED_FOR`/
+> `_UP_TO` · `HANDLERS` · `Direction.party_actions`), und die vierte bekam ein neues Verb
+> nicht mit. `Verb.party` ist dabei eine **Regel** (`NEVER` · `ALWAYS` · `IF_THEY_PRICE` ·
+> `IF_WE_PRICE`), gegen die Richtung ausgewertet – keine zweite Liste je Richtung.
+> **(2) Der Angebotsspiegel ist eine Tabelle.** Damit entfallen «nie an Ort ändern», das
+> Neubauen der ganzen Liste (`_write_quotes`) und die JSONB-Containment-Abfrage in `mine`.
+> **(3) Die Position gibt es EINMAL** – eingefroren durch die **Stufe**: `sync_lines`
+> läuft nur, solange `stage = offer`. Kein Feld je Zeile, keine Kopie, keine dritte Form.
+> **Drei Spalten sind Ableitungen**: `party_of` · `agreed_amount` · `due_days_of` lesen die
+> **gewählte** Angebotszeile (`state = gewaehlt`). Am Vorgänger standen sie daneben, und
+> `_agree` musste einen abweichenden Betrag abweisen – der Widerspruch kann jetzt nicht
+> mehr entstehen.
+> **Ein neues Verb `price`** trennt «die Positionen bepreisen» vom «Anfragen»: erst damit
+> gilt «gespeichert, nicht abgeschickt» auch für das Herzstück des Belegs.
+> **`sync_lines` schreibt auf einem Lesepfad** (`embed_data`) – bewusst: die Positionen
+> *sind* der Prozess, solange nichts zugesagt ist, und sie brauchen eine Id, damit man sie
+> bepreisen kann. Idempotent, durch `uq_voucher_lines_article` abgesichert, ab der Zusage
+> ein No-op.
+> **Der Zahlungsdienst-Adapter kennt das Geld-Modul als SCHNITTSTELLE, nicht als Namen**
+> (`stripe_pay.MONEY`): beide bieten `open_charges` · `open_of` · `card_payment` ·
+> `billing_of` · `record_payment` · `of_reference`, und der Faden zurück ist ein Schlüssel
+> in den Metadaten (`key_of(svc)`). Wird `deal` gelöscht, fällt dort **eine Zeile**.
+> **Die drei Berührungspunkte im Rahmen** sind je eine Zeile und no-op ohne das Modul –
+> dieselben wie beim Vorgänger (`instantiate_for_order` · `assert_completable` · `finish`).
+> **Kein Import aus `deal`/`purchase`/`money`** (Quelltext-Wächter). Der Preis dafür ist
+> eine **befristete Doppelung** des Steuerkatalogs; ein Wächter vergleicht die beiden,
+> solange es beide gibt, und stirbt mit dem alten Modul.
+> Wächter: `tests/test_voucher_module.py` (17 Prüfungen, **18 Bug-Formen gegengeprüft**).
+
 ## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
 
 Drei Netze, drei verschiedene Fänge: die **Migration** ist die Wahrheit · `create_all` im

@@ -27,6 +27,7 @@ from ..models.process_event import (
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
     consumption as consumption_svc, deal as deal_svc, materialize,
+    voucher as voucher_svc,
     places as places_svc, sampling,
 )
 from .instances import unit_number
@@ -750,6 +751,10 @@ def release(
     # wird, steht in der Definition, und ein Angebot einzuholen dauert. Idempotent, ohne
     # ein solches Modul ein No-op.
     deal_svc.instantiate_for_order(db, order, actor_id=actor_id)
+    # **Und dasselbe für das neu aufgebaute Modul** (``services/voucher``): eine Zeile,
+    # no-op ohne ein solches Modul – und sie fällt mit dem alten Modul weg, nicht mit
+    # einer Verzweigung darin.
+    voucher_svc.instantiate_for_order(db, order, actor_id=actor_id)
     return order
 
 
@@ -964,6 +969,7 @@ def confirm_step(
     # einen – und dort heisst «noch nicht zugesagt» bzw. «noch nicht bezahlt», dass es
     # hier nichts abzuschliessen gibt. Kein Zustand am Stück, kein Pausenwert.
     deal_svc.assert_completable(db, step=step)
+    voucher_svc.assert_completable(db, step=step)
     instance = _verified_instance(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
@@ -1162,6 +1168,7 @@ def confirm_step(
     # er** – Forderungen und Zahlungen laufen weiter, denn ein Zahlungsziel endet nicht
     # mit der Ware.
     deal_svc.finish(db, order=order, step=step)
+    voucher_svc.finish(db, order=order, step=step)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
 

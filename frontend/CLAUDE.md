@@ -752,6 +752,49 @@ die Richtung**; ein Wächter zählt sie.
   nennt sie nirgends beim Namen, und genau das ist der Beleg für den richtigen Ort. Das
   Ursprungsland wird **grossgeschrieben** gesendet: «ch» und «CH» wären zwei Länder.
 
+## Zahlung, neu aufgebaut (`components/erp/beleg-work.tsx`)
+►►► **Die Karte ist von der ersten Zeile an ein BELEG** (`docs/neuaufbau-zahlungsmodul.md`,
+PROCESS_CORE §9.15). ◄◄◄ *Belegkopf → Positionen → Konditionen → Rückläufe → Rechnung &
+Zahlung → Chronik.* Der Vorgänger (`deal-work.tsx`) entstand als Modulkarte und wurde über
+#847 · #899 · #913 dorthin umgeformt – drei Runden für eine Einsicht.
+
+- ►►► **Ein änderbarer Wert trägt EINE Auszeichnung** (#922, `.ix-editable` in
+  `globals.css`, Hülle `Editable`). ◄◄◄ *«Es soll so ausschauen wie der finale Beleg, nur
+  eben gehighlighted … ACHTUNG: Ich will das auch für alle anderen Angaben auf dem
+  Beleg.»* Eine Haarlinie in der leisen Stimme des Hauses, als `inset box-shadow` und
+  damit **ohne Layoutwirkung** – Grösse, Form und Schrift bleiben, wie der Nutzer es
+  verlangt hat (gemessen: Δb 0.00 · Δh 0.00 · Δx 0.00 px). Sie tragen: Währung ·
+  Zahlungsfrist · Lieferfrist · Lieferbedingung · Preis · MWST · Zolltarifnummer ·
+  Ursprungsland · Gegenpartei.
+  **Und die Felder verloren ihren Rahmen** (`DOC_FIELD`): ein gerahmter Eingabekasten ist
+  die Form eines *Formulars*, und ein Beleg ist keines. `inputCls` bleibt richtig, wo man
+  wirklich ein Formular ausfüllt – im Editor und beim Buchen einer Geld-Zeile.
+  **Nach der Zusage steht der Beleg fest**, und dann trägt **nichts** mehr die
+  Auszeichnung: eine Linie, die Änderbarkeit verspricht, wäre dort eine Unwahrheit.
+- ►►► **Die Handlung, die weiterbringt, sieht überall gleich aus** (#923, `StageAction`).
+  ◄◄◄ *«Kann dieser Button so gross und ausdrucksstark werden wie ‹Vorgang abschliessen›
+  am Schluss? Eine UI-Logik.»* – Volle Breite, Fläche, 42 px, 14 px Schrift: buchstäblich
+  die Masse des Knopfes, der jedes Modul beendet (`order-detail`). Ein Sonderfall für
+  einen Knopf wäre die Stelle, an der der nächste wieder anders aussieht.
+- **Jede Zahl, die man abschreibt, nennt ihre Währung** (#921): Netto, Steuer je Satz,
+  Total, offener Betrag, jede Geld-Zeile. **Nicht** an jedem Einzelpreis – dort stünde
+  dasselbe Wort zwanzigmal. Die Währung selbst **ist** der Wähler (der Code am Total, ein
+  unsichtbares `<select>` darüber).
+- **Keine Überschrift «Konditionen»** (#926) – die drei Zeilen darunter sagen selbst, was
+  sie sind. Und **keine Vorauszahlungs-Pille im Kopf** (#924/#925): ob vorausbezahlt wird,
+  sagt die **Zahlungsfrist** eine Zeile tiefer, wo man sie ändert.
+- **Kein einziges `if` auf die Richtung**: `label`, `ask_verb`, `we_quote`, `ref_label`,
+  `stages[].label/verb` reisen fertig mit; die Karte kennt weder «Kunde» noch «Lieferant».
+  Ein Wächter zählt es.
+- **Die beiden Zahlungsmodule teilen keine Zeile** – eigene Komponente, eigene
+  API-Methoden (`updateVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
+  `refundVoucherPayment` · `searchVoucherParties`), eigener Endpunkt. Die **Definition**
+  teilen sie dagegen sehr wohl: `MONEY_FORM` in `lib/modules.ts` steht einmal und wird
+  zweimal referenziert – beim Löschen des alten Moduls fällt genau **eine Zeile**.
+- **Symbol gleich, Farbe anders**: es ist dasselbe Modul in einer besseren Datenform, also
+  dasselbe Zeichen (`HandCoins`) – was sie unterscheidet, ist der `tone` vom Backend
+  (`plum` ↔ `rose`).
+
 ## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das
 Bewegen-Modul trug dafür einmal den Einkaufs-Beleg samt Schalter «Selbst ↔ Beschaffen»

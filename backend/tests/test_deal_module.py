@@ -2681,11 +2681,26 @@ def test_the_online_payment_names_the_invoice_it_settles():
     # Antwort an unsere Karte, und ein Wächter, den bereits die Anzeige erfüllt, sagt
     # nichts über den Faden zurück.
     meta = src.split("metadata={", 1)[1].split("}", 1)[0]
-    for key in ('"charge_id"', '"invoice"', '"deal_id"'):
+    for key in ('"charge_id"', '"invoice"'):
         assert key in meta, (
             f"Die Metadaten nennen {key} nicht (b) – dann weiss die Rückbuchung nicht, "
             f"worauf die Zahlung geht."
         )
+    # ►►► **Der Faden zurück nennt das MODUL – und zwar abgeleitet.** ◄◄◄
+    #
+    # Er hiess einmal wörtlich ``"deal_id"``. Seit es zwei Geld-Module gibt, kennt der
+    # Adapter das Modul als **Schnittstelle** und schlägt den Schlüssel nach
+    # (``key_of``) – ein Wächter, der das Literal verlangte, verböte ausgerechnet die
+    # Fassung, die beide trägt. Geprüft wird darum die **Regel**: der Schlüssel steht in
+    # den Metadaten, und er löst für dieses Modul auf.
+    assert "key_of(svc)" in meta, (
+        "Die Metadaten nennen das Geld-Modul nicht (b) – dann findet die Rückbuchung "
+        "die Zeile nicht."
+    )
+    from app.services import deal as _deal_svc, stripe_pay as _stripe
+    assert _stripe.key_of(_deal_svc) == "deal_id", (
+        "Der Schlüssel dieses Moduls löst nicht auf (b)."
+    )
     line = next(l for l in src.splitlines() if "description=" in l)
     assert "Rechnung {number}" in line, "Die Beschreibung nennt die Rechnung nicht (b)."
     assert line.count("order.object_id") == 1, "Die Auftragsnummer steht zweimal (c)."
@@ -3023,13 +3038,15 @@ def test_a_refund_is_bounded_and_says_so_in_a_sentence():
          patch.object(stripe_pay.deal_svc, "card_payment", return_value=entry):
         for bad, why in (("acht Franken", "a"), ("-5", "b"), ("0", "b"), ("500", "c")):
             with pytest.raises(HTTPException) as e:
-                stripe_pay.refund(None, deal=deal, entry_id=9, amount=bad)
+                stripe_pay.refund(None, svc=stripe_pay.deal_svc, row=deal,
+                                  entry_id=9, amount=bad)
             assert e.value.status_code == 400, f"«{bad}» ({why}) – kein Satz, ein Fehler."
             assert str(e.value.detail).strip(), f"«{bad}» ({why}) – Ablehnung ohne Grund."
         # **Die gültigen Wege** – ohne Angabe alles, mit Angabe ein Teil, Komma inklusive.
         for value, minor in ((None, 10000), ("40", 4000), ("40,50", 4050)):
             api.reset_mock()
-            stripe_pay.refund(None, deal=deal, entry_id=9, amount=value)
+            stripe_pay.refund(None, svc=stripe_pay.deal_svc, row=deal,
+                              entry_id=9, amount=value)
             kw = api.Refund.create.call_args.kwargs
             assert kw["amount"] == minor, f"«{value}» (d): {kw['amount']} statt {minor}."
             # **Die Referenz IST die Zahlungsabsicht** – der Dienst findet die Belastung

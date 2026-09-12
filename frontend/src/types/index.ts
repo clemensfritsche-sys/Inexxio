@@ -204,6 +204,33 @@ export type ModuleCatalog = components['schemas']['ModuleCatalog'];
  */
 export type ModuleTypeInfo = components['schemas']['ModuleTypeInfo'];
 /**
+ * ►►► **Der Beleg** – das neu aufgebaute Modul «Zahlung» (`services/voucher`). ◄◄◄
+ *
+ * `null` bei jedem anderen Modultyp – die Oberfläche braucht damit keine
+ * Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.
+ *
+ * Er steht **neben** `DealEmbed` und nicht an seiner Stelle: beide Fassungen laufen
+ * nebeneinander, bis die alte gelöscht wird (`docs/neuaufbau-zahlungsmodul.md`).
+ */
+export type VoucherEmbed = components['schemas']['VoucherEmbed'];
+/** Eine der **zwei** Stufen des Belegs – mit Wort, Verb und Zustand. */
+export type VoucherStage = components['schemas']['VoucherStage'];
+/** Eine Zeile Geld – eine Forderung (`charge`) oder eine Zahlung (`payment`). */
+export type VoucherEntryOut = components['schemas']['VoucherEntryOut'];
+/**
+ * **Eine Angebotszeile** – eine Gegenpartei, ein Preis, zwei Fristen.
+ *
+ * Seit der Angebotsspiegel eine **Tabelle** ist, trägt sie ihre eigene `id`: die
+ * Oberfläche adressiert damit genau diese Zeile.
+ */
+export type VoucherQuoteOut = components['schemas']['VoucherQuoteOut'];
+/** **Eine Position** – und es gibt sie in genau dieser einen Form. */
+export type VoucherLineOut = components['schemas']['VoucherLineOut'];
+/** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
+export type VoucherParty = components['schemas']['VoucherParty'];
+/** **Eine Partei des Belegkopfs** – Leistungserbringer bzw. -empfänger (MWSTG Art. 26). */
+export type VoucherSide = components['schemas']['VoucherSide'];
+/**
  * **Der Geldvorgang** eines «Zahlung»-Moduls – Richtung, Stufen, Zusage, Geld-Zeilen
  * (`services/deal`). `null` bei jedem anderen Modultyp – die Oberfläche braucht damit
  * keine Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.

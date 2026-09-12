@@ -42,6 +42,11 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // (`DEAL_DIRECTION`), nicht die Kachel: eine Palette mit zwei fast gleichen Symbolen
   // wäre wieder die Trennung, die dieses Modul gerade aufhebt.
   zahlung: HandCoins,
+  // ►►► **Das neu aufgebaute Zahlungsmodul trägt dasselbe Symbol.** ◄◄◄ Es ist dasselbe
+  // Modul in einer besseren Datenform, nicht ein anderes – und was es unterscheidet, ist
+  // die **Farbe** (`tone`, vom Backend). Ein zweites Zeichen behauptete einen zweiten
+  // Vorgang; die Beschriftung sagt «Zahlung (alt)» dort, wo es nötig ist.
+  beleg: HandCoins,
 };
 
 /**
@@ -464,6 +469,39 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
  * Es ist bewusst **kein** Spiegel des Backends: die Regel gilt dort (`Module.clean_config`),
  * hier steht nur die Form der Eingabe. `test_frontend_mirrors` hält die Schlüssel deckungsgleich.
  */
+/**
+ * ►►► **Die Definition eines Geld-Moduls — Richtung und zugelassene Partner.** ◄◄◄
+ *
+ * Sie ist für **beide** Zahlungsmodule wortgleich (`zahlung` und `beleg`), also steht sie
+ * einmal und wird zweimal referenziert. Beim Löschen des alten fällt eine Zeile aus
+ * `MODULE_FORM`, nicht eine halb nachgeführte Kopie.
+ *
+ * **ZWEI Angaben – kein Steuersatz (#851), keine Sperre (#854).** Beide hingen hier als
+ * Vorgabe und waren damit Eigenschaften des **Moduls**: eine Vorlage, die für jeden
+ * künftigen Auftrag dasselbe behauptet. Der Satz hängt aber an der **Sache** und die
+ * Sperre an der vereinbarten **Zahlungsfrist** – beides steht erst fest, wenn ein Auftrag
+ * läuft. Keine Erfassungspunkte und keine Stichprobe: Geld ist keine Messung am Stück.
+ */
+const MONEY_FORM = {
+  draft: (c: Record<string, unknown>) => ({
+    // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend – ein
+    // freigegebener Prozess ist eingefroren, und eine alte Zeile darf keine Anzeige
+    // zerlegen. (Die Vorgabe eines **neuen** Moduls ist dagegen die Einnahme, #791 – das
+    // ist eine andere Frage: was gilt, wenn nichts dasteht, gegenüber was vorgeschlagen
+    // wird, bevor jemand wählt.)
+    direction: (c.direction === 'in' ? 'in' : 'out') as 'in' | 'out',
+    // Tolerant gelesen wie im Backend: die alte Form war die blosse Objektnummer, und ein
+    // freigegebener Prozess ist eingefroren – sie steht in laufenden Aufträgen.
+    parties: asRows(c.parties).map((r) => ({
+      party: Number(r.party ?? r), ref: String(r.ref ?? ''),
+    })).filter((r) => Number.isFinite(r.party)),
+  }),
+  config: (m: ModuleDraft) => ({
+    direction: m.direction,
+    parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
+  }),
+};
+
 export const MODULE_FORM: Record<string, {
   config: (m: ModuleDraft) => Record<string, unknown>;
   /**
@@ -519,33 +557,12 @@ export const MODULE_FORM: Record<string, {
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
-  zahlung: {
-    draft: (c) => ({
-      // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend
-      // (`deal.of`) – ein freigegebener Prozess ist eingefroren, und eine alte Zeile
-      // darf keine Anzeige zerlegen. (Die Vorgabe eines **neuen** Moduls ist dagegen die
-      // Einnahme, #791 – das ist eine andere Frage: was gilt, wenn nichts dasteht,
-      // gegenüber was vorgeschlagen wird, bevor jemand wählt.)
-      direction: c.direction === 'in' ? 'in' : 'out',
-      // Tolerant gelesen wie im Backend (`modules.parties_of`): die alte Form war die
-      // blosse Objektnummer, und ein freigegebener Prozess ist eingefroren – sie steht
-      // also in laufenden Aufträgen und wird sie überleben.
-      parties: asRows(c.parties).map((r) => ({
-        party: Number(r.party ?? r), ref: String(r.ref ?? ''),
-      })).filter((r) => Number.isFinite(r.party)),
-    }),
-    // ►►► **ZWEI Angaben – kein Steuersatz (#851), keine Sperre (#854).** ◄◄◄
-    //
-    // Er hing hier als Vorgabe und war damit eine Eigenschaft des **Moduls**: eine
-    // Vorlage, die für jeden Auftrag denselben Satz behauptet. Er hängt aber an der
-    // **Sache**, und die steht erst fest, wenn ein Auftrag läuft – dort wird er je
-    // Position gefragt (`OurOffer`), und der Katalog reist mit dem Vorgang.
-    // Keine Erfassungspunkte und keine Stichprobe: Geld ist keine Messung am Stück.
-    config: (m) => ({
-      direction: m.direction,
-      parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
-    }),
-  },
+  zahlung: MONEY_FORM,
+  // ►►► **Dieselbe Implementierung, zwei Schlüssel.** ◄◄◄ Die Definition beider
+  // Zahlungsmodule ist wortgleich (Richtung + zugelassene Partner) – ein zweiter,
+  // abgeschriebener Eintrag daneben wäre die Stelle, an der beim nächsten Feld eine
+  // Hälfte stehen bleibt. Beim Löschen des alten Moduls fällt genau **eine Zeile**.
+  beleg: MONEY_FORM,
   verbrauch: {
     draft: (c) => ({
       lines: asRows(c.lines).map((r, i) => ({

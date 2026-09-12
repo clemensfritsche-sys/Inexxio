@@ -24,6 +24,7 @@ import {
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { DealWork } from '@/components/erp/deal-work';
+import { BelegWork } from '@/components/erp/beleg-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
 import { RUNTIME_CHOICE } from '@/lib/scan';
 import { moduleIcon } from '@/lib/modules';
@@ -233,6 +234,27 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   }, [live]);
 
   /**
+   * **Eine Handlung am Beleg** – derselbe Weg, eigener Endpunkt.
+   *
+   * Die beiden Zahlungsmodule teilen bewusst keine Zeile Dienst, damit das alte eines
+   * Tages ersatzlos gelöscht werden kann (`docs/neuaufbau-zahlungsmodul.md`) – dann fällt
+   * `runDeal` weg, nicht eine Verzweigung in einem geteilten Aufruf.
+   */
+  const runVoucher = useCallback(async (
+    stepId: number, body: { action: string } & Record<string, unknown>,
+  ) => {
+    if (!live) return;
+    setBusy(true); setError(null);
+    try {
+      setLive(await api.updateVoucher(live.object_id, stepId, body));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [live]);
+
+  /**
    * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm.
    *
    * Jede andere Aktualisierung ist die **Antwort** auf einen Befehl (`confirm`, `deal`),
@@ -299,7 +321,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep}
-            onDeal={runDeal} onReload={reload} onDeviate={onDeviate} />
+            onDeal={runDeal} onVoucher={runVoucher} onReload={reload}
+            onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -427,13 +450,16 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeal, onReload, onDeviate }: {
+function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
+                   onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number | null, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], place: number | null) => void;
   /** Eine Handlung am Geldvorgang («Zahlung»). */
   onDeal: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
+  onVoucher: (stepId: number,
+              body: { action: string } & Record<string, unknown>) => void;
   /**
    * **Den Auftrag neu laden.**
    *
@@ -555,10 +581,19 @@ function RunView({ order, busy, onConfirm, onDeal, onReload, onDeviate }: {
     // ihm. Erkannt allein daran, dass es einen gibt – nie am Modultyp; bei jedem anderen
     // ist `deal` leer, und es bleibt beim Inhalt allein.
     const money = stepInfo(order, step.id)?.deal ?? null;
+    // **Und der Beleg des neu aufgebauten Moduls** – dieselbe Bauart, eigene Maschine.
+    // Erkannt allein daran, dass es einen gibt; bei jedem anderen Modultyp ist er leer.
+    const paper = stepInfo(order, step.id)?.voucher ?? null;
     return (
     <div className="flex flex-col gap-2.5">
       <Reason text={stepInfo(order, step.id)?.reason} />
-      {money ? (
+      {paper ? (
+        <BelegWork voucher={paper} busy={busy} active={isActive}
+          orderObjectId={order.object_id} stepId={step.id}
+          onAction={(body) => onVoucher(step.id, body)} onPaid={onReload}>
+          {work}
+        </BelegWork>
+      ) : money ? (
         <DealWork deal={money} busy={busy} active={isActive}
           orderObjectId={order.object_id} stepId={step.id}
           onAction={(body) => onDeal(step.id, body)} onPaid={onReload}>

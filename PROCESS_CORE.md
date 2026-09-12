@@ -2772,6 +2772,52 @@ die Fälligkeit, und null heisst Vorauszahlung. Zwei Formulare für dieselben zw
 dürfen nicht anders herum fragen.
 
 
+### 9.15 Der Beleg — das Zahlungsmodul, neu aufgebaut
+
+> `docs/neuaufbau-zahlungsmodul.md` · `domain/voucher` · `services/voucher` ·
+> Tabellen `vouchers` · `voucher_quotes` · `voucher_lines` · `voucher_entries` ·
+> Migration `134`
+
+**Fachlich dasselbe wie §9.12–§9.14**: Geld mit einer zweiten Partei, in beide Richtungen
+dieselbe Maschine, drei Achsen ohne Reihenfolge, `can` als Auskunft **und** Tor, und die
+eine Regel, aus der die Robustheit folgt – **es bewegt keine Stücke.**
+
+**Neu ist die FORM**, an drei Stellen, an denen der Vorgänger die Hälfte seiner Zeilen
+verbraucht hat:
+
+| | Vorgänger (`zahlung`) | Neu (`beleg`) |
+|---|---|---|
+| Angebotsspiegel | JSONB an der Kopfzeile, bei jeder Änderung neu gebaut | eine **Tabelle** |
+| Position | **drei** Formen (abgeleitet · je Angebot kopiert · eingefroren), 21 Fundstellen | **eine** Tabelle; eingefroren durch die **Stufe** |
+| Ein Verb | **vier** Deklarationen (`ACTIONS` · `REQUIRED_FOR`/`_UP_TO` · `HANDLERS` · `party_actions`) | **eine** Zeile in `VERBS` |
+
+**Drei Spalten sind Ableitungen geworden**: *mit wem* · *was vereinbart ist* · *welche
+Zahlungsfrist* stehen an der **gewählten Angebotszeile** (`state = gewaehlt`). Am
+Vorgänger standen sie daneben und wurden beim Zuschlag hineinkopiert – damit konnte
+derselbe Beleg zwei Dinge sagen, und eine eigene Regel musste den Widerspruch verhindern.
+Als Ableitung kann er **nicht entstehen**.
+
+**Ein neues Verb: `price`.** Die Positionen zu bepreisen ist eine eigene Handlung, nicht
+ein Nebeneffekt des Anfragens. Damit gilt die Hausregel «gespeichert, nicht abgeschickt»
+auch für das Herzstück des Belegs: man tippt, es wird gespeichert, und `ask` schickt es
+hinaus.
+
+**Die Positionen gehören dem BELEG, nicht der Angebotszeile.** Ein Beleg hat *einen* Satz
+Positionen mit *einem* Satz Preise – zwei Kunden zwei verschiedene Preise anzubieten sind
+zwei Angebote, also zwei Belege. Beim Vergleich mehrerer Lieferanten (der eigentliche
+Zweck des Spiegels) nennt ohnehin jeder eine **Summe**, und die steht an seiner Zeile.
+
+**Der Vorgang bleibt am SCHRITT**, nicht am Auftrag: ein Auftrag kann eine Einnahme *und*
+eine Ausgabe tragen (wir kaufen Material, wir verkaufen das Produkt) – «ein Vorgang je
+Auftrag» bräuchte sofort die Regel «je Richtung». Und dass eine Anzahlung ein **zweites
+Modul** ist, bleibt richtig: drei Zeitpunkte sind drei Punkte im Prozess (§9.14).
+
+**Beide Fassungen laufen nebeneinander**, bis das alte Modul gelöscht wird. Sie teilen
+**keine Zeile** – eigene Vokabel, eigener Dienst, eigene Tabellen, eigene Endpunkte, eigene
+Komponente; die drei Berührungspunkte im Rahmen sind je eine Zeile und no-op ohne das
+Modul. Der Preis dafür ist eine **befristete Doppelung** des Steuerkatalogs, und sie hat
+einen Wächter, der mit dem alten Modul stirbt.
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

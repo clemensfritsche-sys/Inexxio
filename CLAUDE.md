@@ -3338,6 +3338,90 @@
 > **acht** Zustände – und die Messung gegen ihre eigene Bug-Form gegengeprüft (+73,7 px bei
 > 375, +128,7 px bei 320 mit einem unteilbaren Wort).
 
+> ►►► **DAS ZAHLUNGSMODUL, VON GRUND AUF NEU — und beide laufen nebeneinander**
+> (`docs/neuaufbau-zahlungsmodul.md`, PROCESS_CORE §9.15, Migration `134`). ◄◄◄
+> *«Wir haben jetzt schon so viel hin und her geflickt … es wird Zeit für einen Neustart.
+> Bau das Modul von Grund auf neu. Es gibt dann einfach ein neues Modul, heisst auch
+> ‹Zahlung›, bekommt eine leicht andere Farbe. Irgendwann soll das erste vollständig
+> gelöscht werden können.»*
+> **Der Befund war gemessen, nicht erinnert:** 7'625 Zeilen über fünf Dateien. Die
+> **Logik** ist richtig geworden; die **Datenform** war an drei Stellen noch die des
+> ersten Entwurfs, und dort lag die Hälfte der Zeilen.
+> **(1) Der Angebotsspiegel ist eine TABELLE** (`voucher_quotes`). Ein Angebot *ist* eine
+> Entität – Partner, Betrag, zwei Fristen, Zustand, Datum. Als JSONB musste die ganze
+> Liste bei jeder Änderung neu gebaut werden (ein mutierter Wert fällt still aus dem
+> `UPDATE`), «wann ging sie hinaus» musste nachträglich hineingeflickt werden, und «woran
+> ist dieser Betrachter beteiligt?» war eine Containment-Abfrage statt einer `WHERE`-Zeile.
+> **(2) Die Position gibt es in EINER Form** (`voucher_lines`) statt in dreien
+> (abgeleitet · je Angebot kopiert · eingefroren, angefasst an **21** Stellen).
+> ►►► **Eingefroren wird durch die STUFE, nicht durch eine Kopie**: solange der Beleg auf
+> `offer` steht, zieht `sync_lines` Artikel und Mengen aus dem Prozess nach; ab der Zusage
+> nie wieder. Null zusätzliche Spalten, null Kopien. ◄◄◄
+> **(3) Ein Verb wird an EINER Stelle deklariert** (`VERBS`): *in welcher Stufe · welche
+> Stammdaten · wer darf · welche Funktion* stehen in einer Zeile. Beim Vorgänger waren das
+> vier Tabellen (`ACTIONS` · `REQUIRED_FOR`/`_UP_TO` · `HANDLERS` · `party_actions`) –
+> und die vierte bekam ein neues Verb nicht mit. Das widersprach der eigenen Hausregel.
+> **Drei Spalten sind ABLEITUNGEN geworden**: *mit wem* · *was vereinbart ist* · *welche
+> Zahlungsfrist* stehen an der **gewählten Angebotszeile**. Am Vorgänger standen sie
+> daneben und wurden beim Zuschlag hineinkopiert – derselbe Beleg konnte damit zwei Dinge
+> sagen, und eine eigene Regel musste das verhindern (`_agree` wies einen abweichenden
+> Betrag ab). **Als Ableitung kann der Widerspruch nicht entstehen** – eine Regel weniger,
+> und zwar konstruktiv.
+> **Ein neues Verb: `price`.** Die Positionen zu bepreisen ist eine eigene Handlung, nicht
+> ein Nebeneffekt des Anfragens – damit gilt «gespeichert, nicht abgeschickt» endlich auch
+> für das Herzstück des Belegs. **Und die Positionen gehören dem BELEG**, nicht der
+> Angebotszeile: ein Beleg hat *einen* Satz Preise; zwei Kunden zwei verschiedene Preise
+> anzubieten sind zwei Angebote, also zwei Belege.
+> **Bewusst NICHT geändert:** der Vorgang bleibt am **Schritt**. Ein Auftrag kann eine
+> Einnahme *und* eine Ausgabe tragen – «ein Vorgang je Auftrag» bräuchte sofort die Regel
+> «je Richtung», und Regeln sind das, was hier abgebaut wird. Dass eine Anzahlung ein
+> zweites Modul ist (#866), bleibt ebenfalls: drei Zeitpunkte sind drei Punkte im Prozess.
+> **Identität:** Schlüssel `beleg`, Beschriftung «Zahlung», Farbfamilie **`plum`** (die
+> Nachbarfamilie von `rose` über die kalte Seite – verwandt, wie es sich für zwei
+> Fassungen desselben Moduls gehört, und trotzdem unterscheidbar; sie steht seit der
+> Löschung von «Beschaffen» ohne Besitzer im Katalog und kostet **null** neue Zeilen). Das
+> alte heisst bis zu seiner Löschung «Zahlung **(alt)**». *Der Schlüssel kann nicht
+> `zahlung` heissen – er steht in den eingefrorenen Prozessen laufender Aufträge; ein
+> Schlüssel ist eine Adresse, kein Name.*
+> ►►► **Die Karte ist von der ersten Zeile an ein BELEG** (`beleg-work.tsx`). ◄◄◄
+> *Belegkopf → Positionen → Konditionen → Rückläufe → Rechnung & Zahlung → Chronik* – die
+> Ordnung, die ein Beleg seit Jahrhunderten hat. Der Vorgänger entstand als Modulkarte und
+> wurde über #847 · #899 · #913 dorthin umgeformt: drei Runden für eine Einsicht.
+> **Testnotiz #922 ist die Regel dieser Runde**: *«Man muss erkennen, dass es veränderbar
+> ist … ACHTUNG: Ich will das auch für alle anderen Angaben auf dem Beleg.»* Also **eine**
+> Auszeichnung an **einer** Stelle (`.ix-editable` in `globals.css`) – eine Haarlinie in
+> der leisen Stimme des Hauses, als `inset box-shadow` und damit **ohne Layoutwirkung**
+> (gemessen: Δb 0.00 · Δh 0.00 · Δx 0.00 px). Sie trägt jeder änderbare Wert: Währung ·
+> Zahlungsfrist · Lieferfrist · Lieferbedingung · Preis · MWST · Zolltarifnummer ·
+> Ursprungsland · Gegenpartei. **Und die Felder verloren ihren Rahmen**: ein gerahmter
+> Eingabekasten ist die Form eines *Formulars*, und ein Beleg ist keines – was ihn von
+> einer gedruckten Zeile unterscheidet, ist allein die Haarlinie. Nach der Zusage steht
+> der Beleg fest, und dann trägt **nichts** mehr die Auszeichnung (gemessen: 0).
+> **#923 ist eine UI-Logik, kein Sonderfall**: die Handlung, die den Beleg eine Stufe
+> weiterbringt, sieht **überall** gleich aus (`StageAction` – volle Breite, Fläche, 42 px,
+> 14 px Schrift; dieselben Masse wie der Knopf, der jedes Modul beendet).
+> **#921** – *jede Zahl, die man abschreibt oder überweist, nennt ihre Währung* (Netto,
+> Steuer je Satz, Total, offener Betrag, jede Geld-Zeile); **nicht** an jedem Einzelpreis,
+> dort stünde dasselbe Wort zwanzigmal. **#926** – keine Überschrift «Konditionen»: die
+> drei Zeilen darunter sagen selbst, was sie sind. **#924/#925** – die
+> Vorauszahlungs-Pille im Kopf ist entfallen: ob vorausbezahlt wird, sagt die
+> **Zahlungsfrist** eine Zeile tiefer, wo man sie ändert.
+> **Die Löschung des alten Moduls kostet hier null Zeilen** – und das ist geprüft, nicht
+> behauptet: kein Import, kein geteilter Dienst, kein gemeinsamer Endpunkt, keine
+> gemeinsame Komponente. Der einzige Preis ist eine **befristete Doppelung** des
+> Steuerkatalogs, und sie hat einen Wächter, der mit dem alten Modul stirbt.
+> Wächter: `tests/test_voucher_module.py` (17 Prüfungen) + 6 in `test_frontend_mirrors.py`
+> – **33 Bug-Formen gegengeprüft, jede meldet**; *drei waren dabei stumpf und liessen ihre
+> eigene durch* (ein Wächter, der den Prozess nicht wirklich veränderte; eine Bug-Form,
+> die gar nicht herstellbar war; und `.ix-editable {`, das auch in
+> `fieldset:disabled .ix-editable {` steckt – am Zeilenanfang verankert). Suite grün gegen
+> die gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen (je 610);
+> Migration `134` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
+> verifiziert. Gemessen in Chromium an der **echten** Komponente (Karte im `ModuleShell`):
+> 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **sieben**
+> Zustände (inkl. JPY, gemeldeten Lücken und der Sicht der Gegenpartei) – und die Messung
+> gegen ihre eigene Bug-Form gegengeprüft (+10,8 px bei 375, +65,8 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

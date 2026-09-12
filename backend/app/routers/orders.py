@@ -19,6 +19,7 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
 from ..schemas.deal import DealEmbed, DealParty, DealUpdate
+from ..schemas.voucher import VoucherEmbed, VoucherParty, VoucherUpdate
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
@@ -36,6 +37,7 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import deal as deal_svc
+from ..services import voucher as voucher_svc
 from ..services import flow as flow_svc
 from ..services import lookup
 from ..services import places as places_svc
@@ -116,6 +118,11 @@ def _steps(db: Session, order: Order, *,
         # wird beim Aufbau der Antwort, nicht in der Oberfläche.
         money = deal_svc.embed_data(db, order=order, step=s, viewer=viewer)
         row.deal = DealEmbed(**money) if money else None
+        # **Der Beleg** – dasselbe noch einmal für das neu aufgebaute Modul. Zwei
+        # Aufrufe, kein ``if module_type``: jedes Modul liefert seinen Vorgang oder
+        # ``None``, und die Zeile fällt mit dem alten Modul weg.
+        paper = voucher_svc.embed_data(db, order=order, step=s, viewer=viewer)
+        row.voucher = VoucherEmbed(**paper) if paper else None
         out.append(row)
     return out
 
@@ -158,9 +165,12 @@ def _involved(db: Session, viewer: UserProfile) -> Optional[set[tuple[int, int]]
     direkte Adresse. Zwei Ableitungen derselben Frage laufen genau so auseinander.
     """
     deals = deal_svc.mine(db, viewer)
-    if deals is None:
+    papers = voucher_svc.mine(db, viewer)
+    if deals is None or papers is None:
+        # **Personal sieht alles** – beide Module antworten darauf mit ``None``, und eine
+        # Vereinigung mit «alles» ist «alles».
         return None
-    return {(r.order_id, r.step_id) for r in deals}
+    return {(r.order_id, r.step_id) for r in list(deals) + list(papers)}
 
 
 def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int]]:
@@ -413,6 +423,28 @@ def article_options(
             create_problem=articles_svc.may_create(a),
         )
         for a in rows
+    ]
+
+
+@router.get("/voucher-parties", response_model=list[VoucherParty])
+def voucher_parties(
+    search: str = Query("", max_length=80),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
+
+    Dieselbe Suchbedingung wie überall (Nummer **oder** Name) und **ohne Rollenfilter**:
+    eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.
+    Wer einschränken will, nennt die zugelassenen Gegenparteien in der **Definition**.
+
+    **Vor** ``GET /{object_id}`` deklariert, sonst verschluckt der Pfad-Platzhalter die
+    Route.
+    """
+    return [
+        VoucherParty(object_id=u.object_id or 0, name=u.display_name)
+        for u in voucher_svc.search_parties(db, search=search, limit=limit)
     ]
 
 
@@ -965,7 +997,7 @@ def prepare_payment(
     # Prüfung daneben wäre ein zweiter Massstab – und der bekäme die nächste Bedingung
     # nicht mit.
     deal_svc.assert_allowed(db, row, "pay_online", user)
-    return PaymentSetup(**stripe_pay.prepare(db, deal=row, order=order, charge_id=charge))
+    return PaymentSetup(**stripe_pay.prepare(db, svc=deal_svc, row=row, order=order, charge_id=charge))
 
 
 @router.post("/{object_id}/steps/{step_id}/deal/refund", response_model=OrderResponse)
@@ -993,7 +1025,8 @@ def refund_payment(
     order = orders_svc.get(db, object_id)
     step, row = _deal_step(db, order, step_id, user)
     deal_svc.assert_allowed(db, row, "refund_online", user)
-    stripe_pay.refund(db, deal=row, entry_id=body.entry, amount=body.amount)
+    stripe_pay.refund(db, svc=deal_svc, row=row, entry_id=body.entry,
+                      amount=body.amount)
     return _to_response(db, order, user)
 
 
@@ -1022,3 +1055,144 @@ def transfer_details(
             detail="Zu dieser Rechnung gibt es nichts zu überweisen – sie ist beglichen "
                    "oder gehört nicht zu diesem Vorgang.")
     return TransferInfo(**deal_svc.transfer_info(db, row, charge))
+
+
+# ---------------------------------------------------------------------------
+# ►►► DER BELEG — das neu aufgebaute Modul «Zahlung» (docs/neuaufbau-zahlungsmodul.md)
+# ---------------------------------------------------------------------------
+#
+# Eigene Wege statt eines gemeinsamen mit ``…/deal``: die beiden Module teilen bewusst
+# keine Zeile Code, damit das alte eines Tages **ersatzlos** gelöscht werden kann – und
+# dann fallen genau diese fünf Endpunkte des alten weg, nicht eine Verzweigung in einem
+# geteilten.
+
+def _voucher_step(db: Session, order, step_id: int, user: UserProfile):
+    """**Der Beleg eines Moduls – und ob dieser Betrachter ihn sieht.**
+
+    Viermal dieselbe Vorrede (Handeln · Vorbereiten · Erstatten · Überweisen);
+    ausgeschrieben wäre sie viermal dieselbe Chance, eine der beiden Prüfungen zu
+    vergessen.
+    """
+    mine = _visible(db, order, user)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None or (mine is not None and step.id not in mine):
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    row = voucher_svc.of_step(db, step.id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
+    return step, row
+
+
+@router.post("/{object_id}/steps/{step_id}/voucher", response_model=OrderResponse)
+def update_voucher(
+    object_id: int,
+    step_id: int,
+    data: VoucherUpdate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher.VERBS``).
+
+    **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
+    wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt
+    ``services/voucher.can``, und dieselbe Tabelle ist Auskunft und Tor.
+
+    **Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,
+    soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
+
+    **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
+    ``_visible`` zeigt ihr nur ihr Modul, ``voucher.embed_data`` nur ihre eigene
+    Angebotszeile und keine Zahl über Forderung und Geld.
+    """
+    order = orders_svc.get(db, object_id)
+    step, _row = _voucher_step(db, order, step_id, user)
+    row = voucher_svc.apply(db, order=order, step=step, action=data.action,
+                            payload=data.changes(), actor=user)
+    log_audit(db, "vouchers", data.action,
+              f"Beleg zu Modul {step.id} → {row.stage}",
+              user_id=user.id, object_id=order.object_id)
+    db.commit()
+    db.refresh(order)
+    return _to_response(db, order, viewer=user)
+
+
+@router.post("/{object_id}/steps/{step_id}/voucher/payment",
+             response_model=PaymentSetup)
+def prepare_voucher_payment(
+    object_id: int,
+    step_id: int,
+    charge: Optional[int] = None,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
+
+    Kein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
+    Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
+    erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
+    des Zahlenden. Das Verb steht trotzdem in ``can``: «was darf ich hier tun» ist EINE
+    Frage, und dieselbe Liste ist auch hier das **Tor**.
+
+    **Auch für die Gegenpartei offen** – das ist der Sinn: der Kunde bezahlt bei uns,
+    nicht auf einer fremden Seite.
+    """
+    order = orders_svc.get(db, object_id)
+    _step, row = _voucher_step(db, order, step_id, user)
+    voucher_svc.assert_allowed(db, row, "pay_online", user)
+    return PaymentSetup(**stripe_pay.prepare(db, svc=voucher_svc, row=row, order=order,
+                                             charge_id=charge))
+
+
+@router.post("/{object_id}/steps/{step_id}/voucher/refund",
+             response_model=OrderResponse)
+def refund_voucher_payment(
+    object_id: int,
+    step_id: int,
+    body: VoucherUpdate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """►►► **Geld zurück — über den Dienst, der es eingezogen hat.** ◄◄◄
+
+    Bar und per Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es
+    längst gibt); eine **Karte** erstattet der Dienst, der sie belastet hat. **Gebucht
+    wird auch hier nicht hier** – der Webhook schreibt die negative Zeile.
+
+    **Personal-only**: eine Erstattung ist unsere Aussage über unser Konto.
+    """
+    order = orders_svc.get(db, object_id)
+    _step, row = _voucher_step(db, order, step_id, user)
+    voucher_svc.assert_allowed(db, row, "refund_online", user)
+    stripe_pay.refund(db, svc=voucher_svc, row=row, entry_id=body.entry,
+                      amount=body.amount)
+    return _to_response(db, order, viewer=user)
+
+
+@router.get("/{object_id}/steps/{step_id}/voucher/transfer",
+            response_model=TransferInfo)
+def voucher_transfer_details(
+    object_id: int,
+    step_id: int,
+    entry: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.
+
+    Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
+    den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
+    Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+    """
+    order = orders_svc.get(db, object_id)
+    _step, row = _voucher_step(db, order, step_id, user)
+    charge = next((e for e in voucher_svc.open_charges(db, row) if e.id == entry), None)
+    if charge is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Zu dieser Rechnung gibt es nichts zu überweisen – sie ist beglichen "
+                   "oder gehört nicht zu diesem Beleg.")
+    return TransferInfo(**voucher_svc.transfer_info(db, row, charge))

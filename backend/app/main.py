@@ -274,6 +274,23 @@ _INDEX_SAFETY_NET = (
 # ``Instance.reservations.has_key(...)`` (Unterdeckung, Verkaufs-Abgang, Abschluss)
 # wären sonst Full-Table-Scans über den gesamten Bestand.
 _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
+    # ►► **Die beiden Eindeutigkeitsregeln des Belegs** (Migration 134). Sie sind kein
+    #    Beiwerk: ohne den ersten gäbe es zwei aktive Belege an einem Modul, ohne den
+    #    zweiten dieselbe Position zweimal – und beides genau dann, wenn zwei Aufrufe
+    #    gleichzeitig laufen, also im Fall, den eine Prüfung in der Anwendungslogik nicht
+    #    abdeckt (``sync_lines`` läuft bei jeder Anzeige). ``create_all`` legt sie mit der
+    #    Tabelle an; hier stehen sie für den Fall, dass die Tabelle schon ohne sie
+    #    existiert – die Lehre aus #778: eine Index-Änderung, die **nur** in einer
+    #    Migration steht, erreicht die dev-Datenbank nie.
+    "DO $$ BEGIN IF to_regclass('public.vouchers') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_step "
+    "ON vouchers (step_id) WHERE is_active; END IF; END $$;",
+    "DO $$ BEGIN IF to_regclass('public.voucher_lines') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_lines_article "
+    "ON voucher_lines (voucher_id, article_id) WHERE is_active; END IF; END $$;",
+    "DO $$ BEGIN IF to_regclass('public.voucher_quotes') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_quotes_party "
+    "ON voucher_quotes (voucher_id, party_id) WHERE is_active; END IF; END $$;",
     # ►► Die Exklusivitätsregel (PROCESS_CORE.md §3). Sie ist kein Beiwerk: ohne diesen
     #    Index kann dieselbe Einzelinstanz in zwei Aufträgen aktiv sein, und zwar genau
     #    dann, wenn zwei Freigaben gleichzeitig laufen – der Fall, den eine Prüfung in

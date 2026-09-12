@@ -73,8 +73,28 @@ from sqlalchemy.orm import Session
 from ..core.config import get_settings, payment_service_ready
 from ..domain import currency as cur
 from ..domain import deal as dm
-from ..models import Deal, Order
+from ..models import Deal, Order, Voucher
 from . import deal as deal_svc
+from . import voucher as voucher_svc
+
+# ►►► **Der Adapter kennt EIN Geld-Modul – als Schnittstelle, nicht als Namen.** ◄◄◄
+#
+# Es gibt derzeit zwei (das alte ``deal`` und den neu aufgebauten ``voucher``), und beide
+# bieten dieselben fünf Funktionen an: ``open_charges`` · ``open_of`` · ``card_payment`` ·
+# ``billing_of`` · ``record_payment`` · ``of_reference``. Diese Datei bekommt das Modul
+# darum **übergeben** und fragt nie, welches es ist.
+#
+# Der **Faden zurück** ist ein Schlüssel in den Metadaten der Zahlungsabsicht; er nennt
+# zugleich das Modul. Wird das alte gelöscht, fällt hier **eine Zeile** – und sonst nichts.
+MONEY: tuple[tuple[str, Any, Any], ...] = (
+    ("voucher_id", voucher_svc, Voucher),
+    ("deal_id", deal_svc, Deal),
+)
+
+
+def key_of(svc: Any) -> str:
+    """Unter welchem Schlüssel dieses Modul in den Metadaten steht."""
+    return next(k for k, mod, _ in MONEY if mod is svc)
 
 #: Was wir vom Zahlungsdienst hören wollen — und sonst nichts. Jede weitere Meldung wird
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
@@ -115,7 +135,7 @@ def _minor(amount: Decimal, code: str) -> int:
     return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def prepare(db: Session, *, deal: Deal, order: Order,
+def prepare(db: Session, *, svc: Any, row: Any, order: Order,
             charge_id: Optional[int] = None) -> dict[str, Any]:
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten.** ◄◄◄
 
@@ -148,7 +168,7 @@ def prepare(db: Session, *, deal: Deal, order: Order,
     # Reihenfolge, die niemand angeordnet hat, ist keine Regel, sondern ein Zufall der
     # Sortierung. Ohne Angabe bleibt sie die Vorgabe – bei genau einer offenen ist das die
     # einzig mögliche Antwort.
-    charges = deal_svc.open_charges(db, deal)
+    charges = svc.open_charges(db, row)
     if not charges:
         raise HTTPException(
             status_code=409,
@@ -163,8 +183,8 @@ def prepare(db: Session, *, deal: Deal, order: Order,
             detail=("Auf diese Rechnung ist nichts mehr offen – sie ist beglichen oder "
                     "storniert."),
         )
-    owed = deal_svc.open_of(db, deal, charge)
-    code = cur.assert_code(deal.currency)
+    owed = svc.open_of(db, row, charge)
+    code = cur.assert_code(row.currency)
     number = charge.reference or str(charge.id)
     intent = stripe.PaymentIntent.create(
         amount=_minor(owed, code),
@@ -178,7 +198,7 @@ def prepare(db: Session, *, deal: Deal, order: Order,
         # Metadaten sind der **maschinelle** Ort: hier sucht man beim Dienst, hierüber
         # findet der Webhook den Vorgang, und hier steht, welche Rechnung gemeint war –
         # ohne eine ``stripe_*``-Spalte bei uns.
-        metadata={"deal_id": str(deal.id), "charge_id": str(charge.id),
+        metadata={key_of(svc): str(row.id), "charge_id": str(charge.id),
                   "invoice": number, "order": str(order.object_id)},
         # ►►► **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer.** ◄◄◄
         #
@@ -201,11 +221,11 @@ def prepare(db: Session, *, deal: Deal, order: Order,
         "currency": code,
         # **Wofür bezahlt wird** – die Karte nennt den Beleg, nicht nur eine Zahl.
         "invoice": number,
-        "billing": deal_svc.billing_of(db, deal),
+        "billing": svc.billing_of(db, row),
     }
 
 
-def refund(db: Session, *, deal: Deal, entry_id: Optional[int],
+def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
            amount: Optional[str] = None) -> None:
     """►►► **Geld zurück – auf dem Weg, auf dem es gekommen ist** (Testnotiz #860). ◄◄◄
 
@@ -228,8 +248,8 @@ def refund(db: Session, *, deal: Deal, entry_id: Optional[int],
     dieselbe Handlung mit einer kleineren Zahl – kein zweites Verb.
     """
     stripe = _api()
-    entry = deal_svc.card_payment(db, deal, entry_id)
-    code = cur.assert_code(deal.currency)
+    entry = svc.card_payment(db, row, entry_id)
+    code = cur.assert_code(row.currency)
     # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest ein
     # Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser* Währung.
     # Ein blosses ``Decimal(...)`` daneben wäre eine zweite Lesart – und bei einem
@@ -295,20 +315,21 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
     bei einer Teilautorisierung sind das zwei verschiedene Zahlen, und nur die zweite ist
     eine Zahlung.
     """
-    row = _deal_of(db, (data.get("metadata") or {}).get("deal_id"))
+    svc, row = _row_of(db, data.get("metadata") or {})
     if row is None:
         return "unknown"
     amount = _amount_of(data.get("amount_received"), row.currency)
     if amount <= 0:
         return "ignored"
-    deal_svc.record_payment(
+    svc.record_payment(
         db, row=row, amount=amount,
         reference=str(data.get("id") or "") or None,
         note="Zahlungsdienst",
         # ►►► **Die Rechnung reist mit** (Testnotiz #858). ◄◄◄ Welche gemeint war, stand
         # beim Vorbereiten fest – sie hier erneut zu suchen hiesse raten, denn zwischen
         # der Zahlung und ihrer Meldung kann eine zweite Rechnung entstanden sein.
-        charge_id=_still_open(db, row, (data.get("metadata") or {}).get("charge_id")),
+        charge_id=_still_open(svc, db, row,
+                              (data.get("metadata") or {}).get("charge_id")),
         # **Wie bezahlt wurde, weiss der Dienst** – und nur er: von Hand erfasst wäre die
         # Karte eine Behauptung ohne Beleg (``dm.MANUAL_METHODS`` weist sie darum ab).
         method=dm.CARD,
@@ -325,13 +346,18 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     Rechnung**) – genau darum sind Forderung und Geld zwei Achsen.
     """
     intent = str(data.get("payment_intent") or "")
-    row = deal_svc.of_reference(db, intent)
+    # **Gesucht wird über die Referenz, nicht über eine Metadate** – eine Erstattung trägt
+    # die Zahlungsabsicht, und die steht an genau einer Zeile im Haus. Gefragt werden
+    # beide Module; wo es die Zeile gibt, gehört sie dem, der sie geschrieben hat.
+    svc, row = next(((mod, found) for _, mod, _model in MONEY
+                     if (found := mod.of_reference(db, intent)) is not None),
+                    (None, None))
     if row is None:
         return "unknown"
     amount = _amount_of(data.get("amount_refunded"), row.currency)
     if amount <= 0:
         return "ignored"
-    deal_svc.record_payment(
+    svc.record_payment(
         db, row=row, amount=-amount,
         # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung zusammen,
         # und die Idempotenz würfe sie weg.
@@ -352,14 +378,27 @@ def _amount_of(value: Any, code: Any) -> Decimal:
     return Decimal(str(value or 0)).scaleb(-cur.minor_units(code))
 
 
-def _deal_of(db: Session, value: Any) -> Optional[Deal]:
-    try:
-        return db.query(Deal).filter(Deal.id == int(value)).first()
-    except (TypeError, ValueError):
-        return None
+def _row_of(db: Session, meta: dict[str, Any]) -> tuple[Any, Any]:
+    """►►► **Welches Geld-Modul, und welche Zeile?** ◄◄◄
+
+    Der Schlüssel in den Metadaten nennt beides – ``voucher_id`` bzw. ``deal_id``. Damit
+    braucht diese Datei keine Fallunterscheidung nach Modultyp und keine zweite Tabelle:
+    was sie kennt, ist die **Schnittstelle**, nicht der Name.
+    """
+    for key, mod, model in MONEY:
+        try:
+            value = meta.get(key)
+            if value in (None, ""):
+                continue
+            found = db.query(model).filter(model.id == int(value)).first()
+        except (TypeError, ValueError):
+            continue
+        if found is not None:
+            return mod, found
+    return None, None
 
 
-def _still_open(db: Session, row: Deal, value: Any) -> Optional[int]:
+def _still_open(svc: Any, db: Session, row: Any, value: Any) -> Optional[int]:
     """►►► **Die Rechnung aus den Metadaten – falls es sie noch gibt.** ◄◄◄
 
     Metadaten sind Strings, und eine ältere Absicht (vor dieser Regel) trägt den Schlüssel
@@ -384,4 +423,4 @@ def _still_open(db: Session, row: Deal, value: Any) -> Optional[int]:
         return None
     if wanted is None:
         return None
-    return wanted if any(c.id == wanted for c in deal_svc.open_charges(db, row)) else None
+    return wanted if any(c.id == wanted for c in svc.open_charges(db, row)) else None

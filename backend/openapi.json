@@ -1753,6 +1753,72 @@
         }
       }
     },
+    "/api/v1/erp/orders/voucher-parties": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Voucher Parties",
+        "description": "**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.\n\nDieselbe Suchbedingung wie überall (Nummer **oder** Name) und **ohne Rollenfilter**:\neine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.\nWer einschränken will, nennt die zugelassenen Gegenparteien in der **Definition**.\n\n**Vor** ``GET /{object_id}`` deklariert, sonst verschluckt der Pfad-Platzhalter die\nRoute.",
+        "operationId": "voucher_parties_api_v1_erp_orders_voucher_parties_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VoucherParty"
+                  },
+                  "title": "Response Voucher Parties Api V1 Erp Orders Voucher Parties Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/deal-parties": {
       "get": {
         "tags": [
@@ -2596,6 +2662,279 @@
         "summary": "Transfer Details",
         "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung (#865).\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Vorgang sieht – der Zahlende zuerst, denn er ist es, der überweist.\n\n**Erst auf Klick**: der Code ist ein paar Kilobyte SVG, und er interessiert genau\ndann, wenn jemand wirklich zahlen will.",
         "operationId": "transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "entry",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Voucher",
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher.VERBS``).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt\n``services/voucher.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,\nsoll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:\n``_visible`` zeigt ihr nur ihr Modul, ``voucher.embed_data`` nur ihre eigene\nAngebotszeile und keine Zahl über Forderung und Geld.",
+        "operationId": "update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoucherUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/payment": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Prepare Voucher Payment",
+        "description": "►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄\n\nKein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim\nZahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird\nerst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser\ndes Zahlenden. Das Verb steht trotzdem in ``can``: «was darf ich hier tun» ist EINE\nFrage, und dieselbe Liste ist auch hier das **Tor**.\n\n**Auch für die Gegenpartei offen** – das ist der Sinn: der Kunde bezahlt bei uns,\nnicht auf einer fremden Seite.",
+        "operationId": "prepare_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_payment_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "charge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Charge"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/refund": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Refund Voucher Payment",
+        "description": "►►► **Geld zurück — über den Dienst, der es eingezogen hat.** ◄◄◄\n\nBar und per Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es\nlängst gibt); eine **Karte** erstattet der Dienst, der sie belastet hat. **Gebucht\nwird auch hier nicht hier** – der Webhook schreibt die negative Zeile.\n\n**Personal-only**: eine Erstattung ist unsere Aussage über unser Konto.",
+        "operationId": "refund_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_refund_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoucherUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/transfer": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Voucher Transfer Details",
+        "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar\nKilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.",
+        "operationId": "voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get",
         "security": [
           {
             "HTTPBearer": []
@@ -4807,38 +5146,24 @@
         "title": "CurrencyOption",
         "description": "Eine wählbare Währung – der Code und wie sie heisst.\n\nEin **Katalog**, keine freie Eingabe: «CHF» getippt ist noch keine Währung, und ein\nTippfehler fällt erst auf, wenn jemand eine Summe über zwei Währungen zieht. Die\nBeschriftung trägt den Code selbst, kein Symbol – «$» ist nicht eindeutig."
       },
-      "DataGap": {
+      "CurrencyOut": {
         "properties": {
-          "record_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Record Object Id"
-          },
-          "record_label": {
+          "code": {
             "type": "string",
-            "title": "Record Label",
-            "default": ""
+            "title": "Code"
           },
-          "field_label": {
+          "label": {
             "type": "string",
-            "title": "Field Label",
-            "default": ""
-          },
-          "why": {
-            "type": "string",
-            "title": "Why",
-            "default": ""
+            "title": "Label"
           }
         },
         "type": "object",
-        "title": "DataGap",
-        "description": "►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄\n\n**Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch\nmeldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:\nes ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;\ndas Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.\n\n**Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie\ndie **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine\nMeldung.\n\nDurchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt\nes den Knopf gar nicht – und die Tür weist an derselben Liste ab."
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "CurrencyOut",
+        "description": "Eine wählbare Währung – Code und Name."
       },
       "DealEmbed": {
         "properties": {
@@ -4949,7 +5274,7 @@
           },
           "vat_split": {
             "items": {
-              "$ref": "#/components/schemas/VatShare"
+              "$ref": "#/components/schemas/app__schemas__deal__VatShare"
             },
             "type": "array",
             "title": "Vat Split"
@@ -5176,7 +5501,7 @@
           },
           "gaps": {
             "items": {
-              "$ref": "#/components/schemas/DataGap"
+              "$ref": "#/components/schemas/app__schemas__deal__DataGap"
             },
             "type": "array",
             "title": "Gaps"
@@ -5443,7 +5768,7 @@
           },
           "vat": {
             "items": {
-              "$ref": "#/components/schemas/VatShare"
+              "$ref": "#/components/schemas/app__schemas__deal__VatShare"
             },
             "type": "array",
             "title": "Vat"
@@ -7221,6 +7546,30 @@
         "title": "IncotermOption",
         "description": "Eine Incoterms-2020-Klausel – Kürzel, Name und der Satz, der sie erklärt.\n\n**Die Erklärung reist mit**, weil genau hier die Fragen entstehen: es ist die Stelle\nim Beleg, an der ein Kürzel über Tausende Franken entscheidet. Sie in der Oberfläche\nzu formulieren hiesse, sie beim nächsten Umbau ein zweites Mal zu schreiben."
       },
+      "IncotermOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "IncotermOut",
+        "description": "Eine Klausel der Incoterms 2020 – mit ihrer Erklärung.\n\nSie steht **sichtbar** und nicht nur im Hover: es ist die Stelle im ganzen Beleg, an\nder ein Kürzel über Tausende entscheidet, und wer nicht weiss, dass er fragen müsste,\nfindet keinen Hover."
+      },
       "InstanceResponse": {
         "properties": {
           "id": {
@@ -7477,6 +7826,29 @@
         "type": "object",
         "title": "IssuerOption",
         "description": "Eine unserer Gesellschaften – Objektnummer und Name **mit Rechtsform**.\n\nDer Name kommt aus derselben Stelle wie der im Belegkopf (``sites.legal_name``): eine\nAuswahl, die anders schreibt als der Beleg, den sie erzeugt, ist eine zweite Schreibweise."
+      },
+      "IssuerOut": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "IssuerOut",
+        "description": "Eine unserer Gesellschaften, die den Beleg stellen kann."
       },
       "JourneyNeighbour": {
         "properties": {
@@ -8419,6 +8791,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DealEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "voucher": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherEmbed"
               },
               {
                 "type": "null"
@@ -10431,7 +10813,1460 @@
         "title": "VatRate",
         "description": "Ein wählbarer Steuersatz – Schlüssel, Zahl, Name und sein Pflichtsatz.\n\nEin **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,\nund er fällt erst bei der Abrechnung auf.\n\n►►► **Der Schlüssel ist die Identität, nicht die Zahl.** ◄◄◄ *Export* und\n*Reverse Charge* tragen beide 0 %, sind aber zwei verschiedene Rechtsgründe mit zwei\nverschiedenen Pflichtsätzen auf dem Beleg."
       },
-      "VatShare": {
+      "VatRateOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "rate": {
+            "type": "string",
+            "title": "Rate"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "rate",
+          "label"
+        ],
+        "title": "VatRateOut",
+        "description": "Ein Steuersatz des Katalogs.\n\n**Der Pflichtsatz reist mit dem Satz** (``note``): *Export* und *Reverse Charge* sind\nzwei Rechtsgründe mit zwei Pflichtsätzen und ergeben beide 0 % – ein Beleg, der nur\n«0 %» sagt, nennt den Grund nicht."
+      },
+      "VoucherEmbed": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "out"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "party_word": {
+            "type": "string",
+            "title": "Party Word",
+            "default": ""
+          },
+          "ask_verb": {
+            "type": "string",
+            "title": "Ask Verb",
+            "default": ""
+          },
+          "we_quote": {
+            "type": "boolean",
+            "title": "We Quote",
+            "default": false
+          },
+          "ref_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Label"
+          },
+          "goods_title": {
+            "type": "string",
+            "title": "Goods Title",
+            "default": ""
+          },
+          "quotes_title": {
+            "type": "string",
+            "title": "Quotes Title",
+            "default": ""
+          },
+          "history_title": {
+            "type": "string",
+            "title": "History Title",
+            "default": ""
+          },
+          "money_label": {
+            "type": "string",
+            "title": "Money Label",
+            "default": ""
+          },
+          "task_label": {
+            "type": "string",
+            "title": "Task Label",
+            "default": ""
+          },
+          "party_number_label": {
+            "type": "string",
+            "title": "Party Number Label",
+            "default": ""
+          },
+          "vat_rates": {
+            "items": {
+              "$ref": "#/components/schemas/VatRateOut"
+            },
+            "type": "array",
+            "title": "Vat Rates"
+          },
+          "vat_rate": {
+            "type": "string",
+            "title": "Vat Rate",
+            "default": "normal"
+          },
+          "vat_label": {
+            "type": "string",
+            "title": "Vat Label",
+            "default": "MWST"
+          },
+          "service_date_label": {
+            "type": "string",
+            "title": "Service Date Label",
+            "default": "Leistungsdatum"
+          },
+          "net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net"
+          },
+          "tax": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax"
+          },
+          "vat_split": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__voucher__VatShare"
+            },
+            "type": "array",
+            "title": "Vat Split"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "currency_label": {
+            "type": "string",
+            "title": "Currency Label",
+            "default": "CHF"
+          },
+          "currency_decimals": {
+            "type": "integer",
+            "title": "Currency Decimals",
+            "default": 2
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyOut"
+            },
+            "type": "array",
+            "title": "Currencies"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "issuer_label": {
+            "type": "string",
+            "title": "Issuer Label",
+            "default": ""
+          },
+          "issuers": {
+            "items": {
+              "$ref": "#/components/schemas/IssuerOut"
+            },
+            "type": "array",
+            "title": "Issuers"
+          },
+          "incoterm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm"
+          },
+          "incoterm_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm Place"
+          },
+          "incoterm_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm Text"
+          },
+          "incoterm_label": {
+            "type": "string",
+            "title": "Incoterm Label",
+            "default": ""
+          },
+          "incoterm_place_label": {
+            "type": "string",
+            "title": "Incoterm Place Label",
+            "default": ""
+          },
+          "incoterm_place_hint": {
+            "type": "string",
+            "title": "Incoterm Place Hint",
+            "default": ""
+          },
+          "incoterms": {
+            "items": {
+              "$ref": "#/components/schemas/IncotermOut"
+            },
+            "type": "array",
+            "title": "Incoterms"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": "offer"
+          },
+          "stage_label": {
+            "type": "string",
+            "title": "Stage Label",
+            "default": ""
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "can": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Can"
+          },
+          "undo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo"
+          },
+          "charge_word": {
+            "type": "string",
+            "title": "Charge Word",
+            "default": ""
+          },
+          "payment_word": {
+            "type": "string",
+            "title": "Payment Word",
+            "default": ""
+          },
+          "pay_online_word": {
+            "type": "string",
+            "title": "Pay Online Word",
+            "default": ""
+          },
+          "open_word": {
+            "type": "string",
+            "title": "Open Word",
+            "default": "Offen"
+          },
+          "transfer_word": {
+            "type": "string",
+            "title": "Transfer Word",
+            "default": ""
+          },
+          "refund_word": {
+            "type": "string",
+            "title": "Refund Word",
+            "default": ""
+          },
+          "refund_online_word": {
+            "type": "string",
+            "title": "Refund Online Word",
+            "default": ""
+          },
+          "prepaid": {
+            "type": "boolean",
+            "title": "Prepaid",
+            "default": false
+          },
+          "payment_terms": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherTerm"
+            },
+            "type": "array",
+            "title": "Payment Terms"
+          },
+          "lead_terms": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherTerm"
+            },
+            "type": "array",
+            "title": "Lead Terms"
+          },
+          "term_free_min": {
+            "type": "integer",
+            "title": "Term Free Min",
+            "default": 1
+          },
+          "term_free_label": {
+            "type": "string",
+            "title": "Term Free Label",
+            "default": ""
+          },
+          "payment_term_label": {
+            "type": "string",
+            "title": "Payment Term Label",
+            "default": ""
+          },
+          "lead_term_label": {
+            "type": "string",
+            "title": "Lead Term Label",
+            "default": ""
+          },
+          "methods": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherMethod"
+            },
+            "type": "array",
+            "title": "Methods"
+          },
+          "method_label": {
+            "type": "string",
+            "title": "Method Label",
+            "default": ""
+          },
+          "allowed": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherParty"
+            },
+            "type": "array",
+            "title": "Allowed"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherQuoteOut"
+            },
+            "type": "array",
+            "title": "Quotes"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherLineOut"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__voucher__DataGap"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "party_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Object Id"
+          },
+          "party_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "due_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Days"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "agreed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreed On"
+          },
+          "cancelled_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled On"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "late": {
+            "type": "boolean",
+            "title": "Late",
+            "default": false
+          },
+          "charged": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charged"
+          },
+          "paid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "uncharged": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncharged"
+          },
+          "credit_only": {
+            "type": "boolean",
+            "title": "Credit Only",
+            "default": false
+          },
+          "next_charge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Charge"
+          },
+          "next_payment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Payment"
+          },
+          "settled": {
+            "type": "boolean",
+            "title": "Settled",
+            "default": false
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherEntryOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "title": "VoucherEmbed",
+        "description": "**Der ganze Beleg, wie die Ausführungsstelle ihn braucht.**\n\nAlles, was die Oberfläche zum Zeichnen braucht, reist mit: Wörter, Stufen, Verben,\nZahlen und was man tun darf. Sie fragt damit **nie** nach der Richtung und **nie** nach\ndem Modultyp."
+      },
+      "VoucherEntryOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "booked_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "default": false
+          },
+          "vat": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__voucher__VatShare"
+            },
+            "type": "array",
+            "title": "Vat"
+          },
+          "service_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Date"
+          },
+          "reverses": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverses"
+          },
+          "reversed": {
+            "type": "boolean",
+            "title": "Reversed",
+            "default": false
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "method_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method Label"
+          },
+          "reverse_word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverse Word"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "refundable": {
+            "type": "boolean",
+            "title": "Refundable",
+            "default": false
+          },
+          "transferable": {
+            "type": "boolean",
+            "title": "Transferable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "amount"
+        ],
+        "title": "VoucherEntryOut",
+        "description": "**Eine Zeile Geld** – eine Forderung oder eine Zahlung."
+      },
+      "VoucherLineOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "type": "string",
+            "title": "Article Name",
+            "default": ""
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 0
+          },
+          "hs_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "vat": {
+            "type": "string",
+            "title": "Vat",
+            "default": "normal"
+          },
+          "vat_rate": {
+            "type": "string",
+            "title": "Vat Rate",
+            "default": "0.00"
+          },
+          "vat_label": {
+            "type": "string",
+            "title": "Vat Label",
+            "default": ""
+          },
+          "vat_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "VoucherLineOut",
+        "description": "**Eine Position** – und es gibt sie in genau dieser einen Form.\n\nSie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile. Beim Vorgänger\ngab es dieselbe Sache dreimal (abgeleitet · je Angebot kopiert · eingefroren), und die\nOberfläche musste über Artikelnummern zuordnen."
+      },
+      "VoucherMethod": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "VoucherMethod",
+        "description": "Ein Weg zum Geld, den ein **Mensch** erfassen darf."
+      },
+      "VoucherParty": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "VoucherParty",
+        "description": "Eine Gegenpartei – Objektnummer und Anzeigename."
+      },
+      "VoucherPrice": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "vat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
+          },
+          "hs_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "VoucherPrice",
+        "description": "Was an **einer** Position geändert wird (``price``).\n\nAdressiert über die **Id der Zeile**: die Menge kommt aus dem Prozess und steht hier\nbewusst nicht – eine getippte wäre die zweite Aussage über dieselbe Sache."
+      },
+      "VoucherQuoteOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "party_object_id": {
+            "type": "integer",
+            "title": "Party Object Id"
+          },
+          "party_name": {
+            "type": "string",
+            "title": "Party Name",
+            "default": ""
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref",
+            "default": ""
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "payment_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Days"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "angefragt"
+          },
+          "sent_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "party_object_id"
+        ],
+        "title": "VoucherQuoteOut",
+        "description": "**Eine Angebotszeile** – je angefragter Gegenpartei eine.\n\nSeit sie eine **Tabelle** ist, trägt sie ihre eigene Id: die Oberfläche adressiert\ndamit genau diese Zeile, statt über die Objektnummer der Partei zu gehen."
+      },
+      "VoucherSide": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "attn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attn"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "address": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Address"
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "VoucherSide",
+        "description": "**Eine Seite des Belegkopfs** – Leistungserbringer bzw. -empfänger.\n\nDie Begriffe des MWSTG: sie gelten für *jede* Leistung (Ware, Dienstleistung, Miete,\nLohn, Transport) und passen wörtlich zum Reverse-Charge-Pflichtsatz. Der erklärende\nSatz reist mit – ein Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung."
+      },
+      "VoucherStage": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "verb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verb"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "VoucherStage",
+        "description": "Eine der **zwei** Stufen – mit ihrem Wort, ihrem Verb und ihrem Zustand."
+      },
+      "VoucherTerm": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days",
+          "label"
+        ],
+        "title": "VoucherTerm",
+        "description": "Eine übliche Frist mit ihrem **Namen** – «Vorauszahlung» statt «0»."
+      },
+      "VoucherUpdate": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "party": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party"
+          },
+          "parties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Parties"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "payment_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Days"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "booked_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/VoucherPrice"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
+          },
+          "vat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "incoterm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm"
+          },
+          "incoterm_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm Place"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "VoucherUpdate",
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``charge``   eine **Forderung** buchen (negativ = Gutschrift)\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
+      },
+      "app__schemas__deal__DataGap": {
+        "properties": {
+          "record_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Object Id"
+          },
+          "record_label": {
+            "type": "string",
+            "title": "Record Label",
+            "default": ""
+          },
+          "field_label": {
+            "type": "string",
+            "title": "Field Label",
+            "default": ""
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "DataGap",
+        "description": "►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄\n\n**Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch\nmeldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:\nes ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;\ndas Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.\n\n**Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie\ndie **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine\nMeldung.\n\nDurchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt\nes den Knopf gar nicht – und die Tür weist an derselben Liste ab."
+      },
+      "app__schemas__deal__VatShare": {
         "properties": {
           "vat": {
             "anyOf": [
@@ -10487,6 +12322,94 @@
         ],
         "title": "VatShare",
         "description": "**Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.\n\nGerundet **je Satz auf der Summe**, nie je Position aufsummiert (``domain/deal.\nvat_split``): bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um\nRappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz."
+      },
+      "app__schemas__voucher__DataGap": {
+        "properties": {
+          "record_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Object Id"
+          },
+          "record_label": {
+            "type": "string",
+            "title": "Record Label",
+            "default": ""
+          },
+          "field_label": {
+            "type": "string",
+            "title": "Field Label",
+            "default": ""
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "DataGap",
+        "description": "**Eine fehlende Stammdatenangabe** – ``StepNeed`` für Stammdaten.\n\nWo sie hingehört (klickbar), was fehlt und **warum dieser Beleg sie braucht**. Kein\nZustand und kein Pausenwert: das Modul ist schlicht nicht vollständig."
+      },
+      "app__schemas__voucher__VatShare": {
+        "properties": {
+          "vat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
+          },
+          "rate": {
+            "type": "string",
+            "title": "Rate",
+            "default": "0.00"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "net": {
+            "type": "string",
+            "title": "Net",
+            "default": "0"
+          },
+          "tax": {
+            "type": "string",
+            "title": "Tax",
+            "default": "0"
+          }
+        },
+        "type": "object",
+        "title": "VatShare",
+        "description": "Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl."
       }
     },
     "securitySchemes": {

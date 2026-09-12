@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from ..domain import modules, sampling
 
 from .deal import DealEmbed
+from .voucher import VoucherEmbed
 from .instance import StockState
 from .place import PlaceRef
 from .process import ModuleFacts, ModuleInput
@@ -142,6 +143,12 @@ class ProcessStepResponse(ModuleFacts):
     #: seine eigene Maschine, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos
     #: gelöscht werden können, ohne dass hier eine Zeile fällt.
     deal: Optional[DealEmbed] = None
+    #: ►►► **Der Beleg** (``services/voucher``) – das neu aufgebaute Modul «Zahlung».
+    #: ``None`` bei jedem anderen Modultyp. Es steht **neben** ``deal`` und nicht an
+    #: seiner Stelle: beide Fassungen laufen nebeneinander, bis die alte gelöscht wird
+    #: (``docs/neuaufbau-zahlungsmodul.md``), und ein laufender Auftrag trägt seinen
+    #: Prozess eingefroren – er soll auch danach noch zeichnen können, was er war.
+    voucher: Optional[VoucherEmbed] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -226,7 +233,8 @@ class ProcessStepResponse(ModuleFacts):
 
         Das aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.
         """
-        return bool(self.deal.can if self.deal else [])
+        return bool((self.deal.can if self.deal else [])
+                    or (self.voucher.can if self.voucher else []))
 
 
 class StepWork(BaseModel):

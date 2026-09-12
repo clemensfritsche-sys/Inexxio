@@ -778,6 +778,51 @@
 /* Touch-Geräte kennen kein Hover → Aktionen dauerhaft zeigen. */
 @media (hover: none) { .erp-docrow-actions { opacity: 1; } }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   ►►► EIN WERT, DEN MAN ÄNDERN KANN — die eine Auszeichnung (Testnotiz #922)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   *«Ich finde es total cool, dass es so ausschaut wie im finalen Beleg … Eine Sache
+   fehlt noch, nämlich dass man erkennt, dass es veränderbar ist. Es soll sehr
+   minimalistisch sichtbar sein – also nicht durch Veränderung der Grösse, Form,
+   Schriftart oder so. Vielleicht der Farbe. ACHTUNG: Ich will das auch für alle anderen
+   Angaben auf dem Beleg.»*
+
+   Also **eine** Regel, an **einer** Stelle, geerbt von allem: Währung, Zahlungsfrist,
+   Lieferfrist, Lieferbedingung, Preis, MWST, Zolltarifnummer, Ursprungsland und die
+   Gegenpartei tragen dieselbe Auszeichnung.
+
+   **Eine Haarlinie unter dem Wert, in der leisen Stimme des Hauses** (`--accent`,
+   gedämpft) – als `inset box-shadow` und nicht als `border`: ein Rahmen verschiebt das
+   Layout um seine Breite, ein Schatten **nie**. Damit ändert sich weder Grösse noch Form
+   noch Schrift; der Beleg sieht aus wie der Beleg, nur gehighlighted.
+
+   Beim Zeigen (und beim Tastaturfokus) wird die Linie kräftig und bekommt die getönte
+   Fläche des Hauses. `:focus-within`, nicht `:focus`: das Bedienelement darin ist oft ein
+   `<select>` oder ein `<input>`, und der Rahmen soll mit ihm leuchten.
+
+   **Rot ist hier falsch** – es ist im ERP die Warnfarbe; «änderbar» ist eine Einladung,
+   keine Meldung (Design-System §4). */
+.ix-editable {
+  cursor: pointer;
+  border-radius: 3px;
+  box-shadow: inset 0 -1px 0 rgba(44, 110, 143, .38);
+  transition: background-color .12s, box-shadow .12s;
+}
+.ix-editable:hover,
+.ix-editable:focus-within {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -1px 0 var(--accent);
+}
+/* Ein gesperrter Wert ist keine Einladung mehr: ab der Zusage steht der Beleg fest, und
+   eine Linie, die Änderbarkeit verspricht, wäre dort eine Unwahrheit. */
+.ix-editable[aria-disabled='true'],
+fieldset:disabled .ix-editable {
+  cursor: default;
+  box-shadow: none;
+  background: transparent;
+}
+
 /* ── Detail-Kopf: Status-Aktionsknöpfe (Freigeben/Deaktivieren …) ── */
 .erp-actbtn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;

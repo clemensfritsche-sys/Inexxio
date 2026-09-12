@@ -351,6 +351,10 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,
   zahlung: MoneyFields,
+  // ►►► **Dasselbe Formular, die andere Suche.** ◄◄◄ Die Definition beider
+  // Zahlungsmodule ist wortgleich; verschieden ist nur, welchen Weg die Gegenpartei-Suche
+  // nimmt – und das ist eine **Angabe**, keine Verzweigung im Formular.
+  beleg: (p) => <MoneyFields {...p} search={api.searchVoucherParties} />,
 };
 
 /**
@@ -409,10 +413,19 @@ function RowDelete({ label, hint, reveal, onClick }: {
  * verkauft einmal gegen Vorkasse und einmal auf Rechnung –, also wird sie dort gefragt,
  * wo man das Angebot **schreibt**.
  */
-function MoneyFields({ module: m, onChange }: {
+function MoneyFields({ module: m, onChange, search = api.searchDealParties }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
+  /**
+   * ►►► **Woher die Gegenparteien kommen — eine Angabe, kein `if` auf den Modultyp.** ◄◄◄
+   *
+   * Beide Zahlungsmodule stellen dieselbe Frage und haben je einen eigenen Weg dorthin
+   * (sie teilen bewusst keine Zeile Dienst, damit das alte löschbar bleibt). Als **Prop**
+   * ist das eine Zeile im Register darunter; eine Verzweigung hier wäre der Modultyp in
+   * einer Komponente, die ihn nicht kennen müsste.
+   */
+  search?: (q: string, limit?: number) => Promise<{ object_id: number; name: string }[]>;
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
 
@@ -422,7 +435,7 @@ function MoneyFields({ module: m, onChange }: {
     const missing = m.parties.map((r) => r.party).filter((n) => !(n in known));
     if (missing.length === 0) return;
     let stale = false;
-    void Promise.all(missing.map((n) => api.searchDealParties(String(n), 1)))
+    void Promise.all(missing.map((n) => search(String(n), 1)))
       .then((groups) => {
         if (stale) return;
         const found: Record<number, string> = {};
@@ -431,9 +444,9 @@ function MoneyFields({ module: m, onChange }: {
       })
       .catch(() => {});
     return () => { stale = true; };
-  }, [m.parties, known]);
+  }, [m.parties, known, search]);
 
-  const find = useCallback((q: string) => api.searchDealParties(q).catch(() => []), []);
+  const find = useCallback((q: string) => search(q).catch(() => []), [search]);
 
   return (
     <div className="flex flex-col gap-3">

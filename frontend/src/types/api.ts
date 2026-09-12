@@ -661,6 +661,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/voucher-parties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Voucher Parties
+         * @description **Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
+         *
+         *     Dieselbe Suchbedingung wie überall (Nummer **oder** Name) und **ohne Rollenfilter**:
+         *     eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.
+         *     Wer einschränken will, nennt die zugelassenen Gegenparteien in der **Definition**.
+         *
+         *     **Vor** ``GET /{object_id}`` deklariert, sonst verschluckt der Pfad-Platzhalter die
+         *     Route.
+         */
+        get: operations["voucher_parties_api_v1_erp_orders_voucher_parties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/deal-parties": {
         parameters: {
             query?: never;
@@ -1037,6 +1064,116 @@ export interface paths {
          *     dann, wenn jemand wirklich zahlen will.
          */
         get: operations["transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Voucher
+         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher.VERBS``).
+         *
+         *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
+         *     wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt
+         *     ``services/voucher.can``, und dieselbe Tabelle ist Auskunft und Tor.
+         *
+         *     **Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,
+         *     soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
+         *
+         *     **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
+         *     ``_visible`` zeigt ihr nur ihr Modul, ``voucher.embed_data`` nur ihre eigene
+         *     Angebotszeile und keine Zahl über Forderung und Geld.
+         */
+        post: operations["update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare Voucher Payment
+         * @description ►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
+         *
+         *     Kein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
+         *     Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
+         *     erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
+         *     des Zahlenden. Das Verb steht trotzdem in ``can``: «was darf ich hier tun» ist EINE
+         *     Frage, und dieselbe Liste ist auch hier das **Tor**.
+         *
+         *     **Auch für die Gegenpartei offen** – das ist der Sinn: der Kunde bezahlt bei uns,
+         *     nicht auf einer fremden Seite.
+         */
+        post: operations["prepare_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund Voucher Payment
+         * @description ►►► **Geld zurück — über den Dienst, der es eingezogen hat.** ◄◄◄
+         *
+         *     Bar und per Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es
+         *     längst gibt); eine **Karte** erstattet der Dienst, der sie belastet hat. **Gebucht
+         *     wird auch hier nicht hier** – der Webhook schreibt die negative Zeile.
+         *
+         *     **Personal-only**: eine Erstattung ist unsere Aussage über unser Konto.
+         */
+        post: operations["refund_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Voucher Transfer Details
+         * @description **Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.
+         *
+         *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
+         *     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
+         *     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+         */
+        get: operations["voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1812,39 +1949,14 @@ export interface components {
             label: string;
         };
         /**
-         * DataGap
-         * @description ►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄
-         *
-         *     **Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch
-         *     meldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:
-         *     es ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;
-         *     das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.
-         *
-         *     **Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie
-         *     die **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine
-         *     Meldung.
-         *
-         *     Durchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt
-         *     es den Knopf gar nicht – und die Tür weist an derselben Liste ab.
+         * CurrencyOut
+         * @description Eine wählbare Währung – Code und Name.
          */
-        DataGap: {
-            /** Record Object Id */
-            record_object_id?: number | null;
-            /**
-             * Record Label
-             * @default
-             */
-            record_label: string;
-            /**
-             * Field Label
-             * @default
-             */
-            field_label: string;
-            /**
-             * Why
-             * @default
-             */
-            why: string;
+        CurrencyOut: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
         };
         /**
          * DealEmbed
@@ -1931,7 +2043,7 @@ export interface components {
             /** Tax */
             tax?: string | null;
             /** Vat Split */
-            vat_split?: components["schemas"]["VatShare"][];
+            vat_split?: components["schemas"]["app__schemas__deal__VatShare"][];
             /**
              * Currency
              * @default CHF
@@ -2040,7 +2152,7 @@ export interface components {
             supplier?: components["schemas"]["DealSide"] | null;
             customer?: components["schemas"]["DealSide"] | null;
             /** Gaps */
-            gaps?: components["schemas"]["DataGap"][];
+            gaps?: components["schemas"]["app__schemas__deal__DataGap"][];
             /** Party Object Id */
             party_object_id?: number | null;
             /** Party Name */
@@ -2130,7 +2242,7 @@ export interface components {
              */
             overdue: boolean;
             /** Vat */
-            vat?: components["schemas"]["VatShare"][];
+            vat?: components["schemas"]["app__schemas__deal__VatShare"][];
             /** Service Date */
             service_date?: string | null;
             /** Reverses */
@@ -2889,6 +3001,25 @@ export interface components {
             hint: string;
         };
         /**
+         * IncotermOut
+         * @description Eine Klausel der Incoterms 2020 – mit ihrer Erklärung.
+         *
+         *     Sie steht **sichtbar** und nicht nur im Hover: es ist die Stelle im ganzen Beleg, an
+         *     der ein Kürzel über Tausende entscheidet, und wer nicht weiss, dass er fragen müsste,
+         *     findet keinen Hover.
+         */
+        IncotermOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
+        };
+        /**
          * InstanceResponse
          * @description Instanz – die Gruppe, mit ihrer Menge und ihrer Aufstellung.
          *
@@ -3012,6 +3143,19 @@ export interface components {
          *     Auswahl, die anders schreibt als der Beleg, den sie erzeugt, ist eine zweite Schreibweise.
          */
         IssuerOption: {
+            /** Object Id */
+            object_id?: number | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /**
+         * IssuerOut
+         * @description Eine unserer Gesellschaften, die den Beleg stellen kann.
+         */
+        IssuerOut: {
             /** Object Id */
             object_id?: number | null;
             /**
@@ -3499,6 +3643,7 @@ export interface components {
             needs?: components["schemas"]["StepNeed"][];
             target?: components["schemas"]["PlaceRef"] | null;
             deal?: components["schemas"]["DealEmbed"] | null;
+            voucher?: components["schemas"]["VoucherEmbed"] | null;
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -4324,6 +4469,651 @@ export interface components {
             note?: string | null;
         };
         /**
+         * VatRateOut
+         * @description Ein Steuersatz des Katalogs.
+         *
+         *     **Der Pflichtsatz reist mit dem Satz** (``note``): *Export* und *Reverse Charge* sind
+         *     zwei Rechtsgründe mit zwei Pflichtsätzen und ergeben beide 0 % – ein Beleg, der nur
+         *     «0 %» sagt, nennt den Grund nicht.
+         */
+        VatRateOut: {
+            /** Key */
+            key: string;
+            /** Rate */
+            rate: string;
+            /** Label */
+            label: string;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * VoucherEmbed
+         * @description **Der ganze Beleg, wie die Ausführungsstelle ihn braucht.**
+         *
+         *     Alles, was die Oberfläche zum Zeichnen braucht, reist mit: Wörter, Stufen, Verben,
+         *     Zahlen und was man tun darf. Sie fragt damit **nie** nach der Richtung und **nie** nach
+         *     dem Modultyp.
+         */
+        VoucherEmbed: {
+            /**
+             * Direction
+             * @default out
+             */
+            direction: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Party Word
+             * @default
+             */
+            party_word: string;
+            /**
+             * Ask Verb
+             * @default
+             */
+            ask_verb: string;
+            /**
+             * We Quote
+             * @default false
+             */
+            we_quote: boolean;
+            /** Ref Label */
+            ref_label?: string | null;
+            /**
+             * Goods Title
+             * @default
+             */
+            goods_title: string;
+            /**
+             * Quotes Title
+             * @default
+             */
+            quotes_title: string;
+            /**
+             * History Title
+             * @default
+             */
+            history_title: string;
+            /**
+             * Money Label
+             * @default
+             */
+            money_label: string;
+            /**
+             * Task Label
+             * @default
+             */
+            task_label: string;
+            /**
+             * Party Number Label
+             * @default
+             */
+            party_number_label: string;
+            /** Vat Rates */
+            vat_rates?: components["schemas"]["VatRateOut"][];
+            /**
+             * Vat Rate
+             * @default normal
+             */
+            vat_rate: string;
+            /**
+             * Vat Label
+             * @default MWST
+             */
+            vat_label: string;
+            /**
+             * Service Date Label
+             * @default Leistungsdatum
+             */
+            service_date_label: string;
+            /** Net */
+            net?: string | null;
+            /** Tax */
+            tax?: string | null;
+            /** Vat Split */
+            vat_split?: components["schemas"]["app__schemas__voucher__VatShare"][];
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /**
+             * Currency Label
+             * @default CHF
+             */
+            currency_label: string;
+            /**
+             * Currency Decimals
+             * @default 2
+             */
+            currency_decimals: number;
+            /** Currencies */
+            currencies?: components["schemas"]["CurrencyOut"][];
+            /** Issuer */
+            issuer?: number | null;
+            /**
+             * Issuer Label
+             * @default
+             */
+            issuer_label: string;
+            /** Issuers */
+            issuers?: components["schemas"]["IssuerOut"][];
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Incoterm Place */
+            incoterm_place?: string | null;
+            /** Incoterm Text */
+            incoterm_text?: string | null;
+            /**
+             * Incoterm Label
+             * @default
+             */
+            incoterm_label: string;
+            /**
+             * Incoterm Place Label
+             * @default
+             */
+            incoterm_place_label: string;
+            /**
+             * Incoterm Place Hint
+             * @default
+             */
+            incoterm_place_hint: string;
+            /** Incoterms */
+            incoterms?: components["schemas"]["IncotermOut"][];
+            /**
+             * Stage
+             * @default offer
+             */
+            stage: string;
+            /**
+             * Stage Label
+             * @default
+             */
+            stage_label: string;
+            /** Stages */
+            stages?: components["schemas"]["VoucherStage"][];
+            /** Can */
+            can?: string[];
+            /** Undo */
+            undo?: string | null;
+            /**
+             * Charge Word
+             * @default
+             */
+            charge_word: string;
+            /**
+             * Payment Word
+             * @default
+             */
+            payment_word: string;
+            /**
+             * Pay Online Word
+             * @default
+             */
+            pay_online_word: string;
+            /**
+             * Open Word
+             * @default Offen
+             */
+            open_word: string;
+            /**
+             * Transfer Word
+             * @default
+             */
+            transfer_word: string;
+            /**
+             * Refund Word
+             * @default
+             */
+            refund_word: string;
+            /**
+             * Refund Online Word
+             * @default
+             */
+            refund_online_word: string;
+            /**
+             * Prepaid
+             * @default false
+             */
+            prepaid: boolean;
+            /** Payment Terms */
+            payment_terms?: components["schemas"]["VoucherTerm"][];
+            /** Lead Terms */
+            lead_terms?: components["schemas"]["VoucherTerm"][];
+            /**
+             * Term Free Min
+             * @default 1
+             */
+            term_free_min: number;
+            /**
+             * Term Free Label
+             * @default
+             */
+            term_free_label: string;
+            /**
+             * Payment Term Label
+             * @default
+             */
+            payment_term_label: string;
+            /**
+             * Lead Term Label
+             * @default
+             */
+            lead_term_label: string;
+            /** Methods */
+            methods?: components["schemas"]["VoucherMethod"][];
+            /**
+             * Method Label
+             * @default
+             */
+            method_label: string;
+            /** Allowed */
+            allowed?: components["schemas"]["VoucherParty"][];
+            /** Quotes */
+            quotes?: components["schemas"]["VoucherQuoteOut"][];
+            /** Lines */
+            lines?: components["schemas"]["VoucherLineOut"][];
+            supplier?: components["schemas"]["VoucherSide"] | null;
+            customer?: components["schemas"]["VoucherSide"] | null;
+            /** Gaps */
+            gaps?: components["schemas"]["app__schemas__voucher__DataGap"][];
+            /** Party Object Id */
+            party_object_id?: number | null;
+            /** Party Name */
+            party_name?: string | null;
+            /** Amount */
+            amount?: string | null;
+            /** Due Days */
+            due_days?: number | null;
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Agreed On */
+            agreed_on?: string | null;
+            /** Cancelled On */
+            cancelled_on?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Late
+             * @default false
+             */
+            late: boolean;
+            /** Charged */
+            charged?: string | null;
+            /** Paid */
+            paid?: string | null;
+            /** Open */
+            open?: string | null;
+            /** Uncharged */
+            uncharged?: string | null;
+            /**
+             * Credit Only
+             * @default false
+             */
+            credit_only: boolean;
+            /** Next Charge */
+            next_charge?: string | null;
+            /** Next Payment */
+            next_payment?: string | null;
+            /**
+             * Settled
+             * @default false
+             */
+            settled: boolean;
+            /** Entries */
+            entries?: components["schemas"]["VoucherEntryOut"][];
+        };
+        /**
+         * VoucherEntryOut
+         * @description **Eine Zeile Geld** – eine Forderung oder eine Zahlung.
+         */
+        VoucherEntryOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Amount */
+            amount: string;
+            /** Booked On */
+            booked_on?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
+            /** Vat */
+            vat?: components["schemas"]["app__schemas__voucher__VatShare"][];
+            /** Service Date */
+            service_date?: string | null;
+            /** Reverses */
+            reverses?: number | null;
+            /**
+             * Reversed
+             * @default false
+             */
+            reversed: boolean;
+            /** Charge Id */
+            charge_id?: number | null;
+            /** Method */
+            method?: string | null;
+            /** Method Label */
+            method_label?: string | null;
+            /** Reverse Word */
+            reverse_word?: string | null;
+            /** Open */
+            open?: string | null;
+            /**
+             * Refundable
+             * @default false
+             */
+            refundable: boolean;
+            /**
+             * Transferable
+             * @default false
+             */
+            transferable: boolean;
+        };
+        /**
+         * VoucherLineOut
+         * @description **Eine Position** – und es gibt sie in genau dieser einen Form.
+         *
+         *     Sie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile. Beim Vorgänger
+         *     gab es dieselbe Sache dreimal (abgeleitet · je Angebot kopiert · eingefroren), und die
+         *     Oberfläche musste über Artikelnummern zuordnen.
+         */
+        VoucherLineOut: {
+            /** Id */
+            id: number;
+            /** Article Id */
+            article_id?: number | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /**
+             * Article Name
+             * @default
+             */
+            article_name: string;
+            /**
+             * Quantity
+             * @default 0
+             */
+            quantity: number;
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
+            /** Price */
+            price?: string | null;
+            /**
+             * Vat
+             * @default normal
+             */
+            vat: string;
+            /**
+             * Vat Rate
+             * @default 0.00
+             */
+            vat_rate: string;
+            /**
+             * Vat Label
+             * @default
+             */
+            vat_label: string;
+            /** Vat Note */
+            vat_note?: string | null;
+        };
+        /**
+         * VoucherMethod
+         * @description Ein Weg zum Geld, den ein **Mensch** erfassen darf.
+         */
+        VoucherMethod: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * VoucherParty
+         * @description Eine Gegenpartei – Objektnummer und Anzeigename.
+         */
+        VoucherParty: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /**
+         * VoucherPrice
+         * @description Was an **einer** Position geändert wird (``price``).
+         *
+         *     Adressiert über die **Id der Zeile**: die Menge kommt aus dem Prozess und steht hier
+         *     bewusst nicht – eine getippte wäre die zweite Aussage über dieselbe Sache.
+         */
+        VoucherPrice: {
+            /** Id */
+            id: number;
+            /** Price */
+            price?: string | null;
+            /** Vat */
+            vat?: string | null;
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
+        };
+        /**
+         * VoucherQuoteOut
+         * @description **Eine Angebotszeile** – je angefragter Gegenpartei eine.
+         *
+         *     Seit sie eine **Tabelle** ist, trägt sie ihre eigene Id: die Oberfläche adressiert
+         *     damit genau diese Zeile, statt über die Objektnummer der Partei zu gehen.
+         */
+        VoucherQuoteOut: {
+            /** Id */
+            id: number;
+            /** Party Object Id */
+            party_object_id: number;
+            /**
+             * Party Name
+             * @default
+             */
+            party_name: string;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /** Amount */
+            amount?: string | null;
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Payment Days */
+            payment_days?: number | null;
+            /**
+             * State
+             * @default angefragt
+             */
+            state: string;
+            /** Sent On */
+            sent_on?: string | null;
+        };
+        /**
+         * VoucherSide
+         * @description **Eine Seite des Belegkopfs** – Leistungserbringer bzw. -empfänger.
+         *
+         *     Die Begriffe des MWSTG: sie gelten für *jede* Leistung (Ware, Dienstleistung, Miete,
+         *     Lohn, Transport) und passen wörtlich zum Reverse-Charge-Pflichtsatz. Der erklärende
+         *     Satz reist mit – ein Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung.
+         */
+        VoucherSide: {
+            /** Label */
+            label: string;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
+            /** Object Id */
+            object_id?: number | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Attn */
+            attn?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Address */
+            address?: string[];
+            /** Uid */
+            uid?: string | null;
+        };
+        /**
+         * VoucherStage
+         * @description Eine der **zwei** Stufen – mit ihrem Wort, ihrem Verb und ihrem Zustand.
+         */
+        VoucherStage: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Verb */
+            verb?: string | null;
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /**
+             * Active
+             * @default false
+             */
+            active: boolean;
+        };
+        /**
+         * VoucherTerm
+         * @description Eine übliche Frist mit ihrem **Namen** – «Vorauszahlung» statt «0».
+         */
+        VoucherTerm: {
+            /** Days */
+            days: number;
+            /** Label */
+            label: string;
+        };
+        /**
+         * VoucherUpdate
+         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).
+         *
+         *     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
+         *     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
+         *     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei
+         *     ``decline``  eine Angebotszeile absagen – auch von der Gegenpartei
+         *     ``agree``    den **Zuschlag** geben (``party``)
+         *     ``revoke``   stornieren – die eine Gegenhandlung
+         *     ``charge``   eine **Forderung** buchen (negativ = Gutschrift)
+         *     ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
+         *     ``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung
+         *     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
+         *
+         *     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
+         *     **verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür
+         *     formulierte, hätte sie beim zweiten Aufrufer nicht.
+         *
+         *     **Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,
+         *     bleibt, wie es war.
+         */
+        VoucherUpdate: {
+            /** Action */
+            action: string;
+            /** Party */
+            party?: number | null;
+            /** Parties */
+            parties?: number[];
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Payment Days */
+            payment_days?: number | null;
+            /** Amount */
+            amount?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Booked On */
+            booked_on?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Entry */
+            entry?: number | null;
+            /** Charge Id */
+            charge_id?: number | null;
+            /** Lines */
+            lines?: components["schemas"]["VoucherPrice"][] | null;
+            /** Vat */
+            vat?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Method */
+            method?: string | null;
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Incoterm Place */
+            incoterm_place?: string | null;
+            /** Issuer */
+            issuer?: number | null;
+        };
+        /**
+         * DataGap
+         * @description ►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄
+         *
+         *     **Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch
+         *     meldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:
+         *     es ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;
+         *     das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.
+         *
+         *     **Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie
+         *     die **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine
+         *     Meldung.
+         *
+         *     Durchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt
+         *     es den Knopf gar nicht – und die Tür weist an derselben Liste ab.
+         */
+        app__schemas__deal__DataGap: {
+            /** Record Object Id */
+            record_object_id?: number | null;
+            /**
+             * Record Label
+             * @default
+             */
+            record_label: string;
+            /**
+             * Field Label
+             * @default
+             */
+            field_label: string;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /**
          * VatShare
          * @description **Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.
          *
@@ -4331,7 +5121,7 @@ export interface components {
          *     vat_split``): bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um
          *     Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz.
          */
-        VatShare: {
+        app__schemas__deal__VatShare: {
             /** Vat */
             vat?: string | null;
             /** Rate */
@@ -4343,6 +5133,59 @@ export interface components {
             /** Net */
             net: string;
             /** Tax */
+            tax: string;
+        };
+        /**
+         * DataGap
+         * @description **Eine fehlende Stammdatenangabe** – ``StepNeed`` für Stammdaten.
+         *
+         *     Wo sie hingehört (klickbar), was fehlt und **warum dieser Beleg sie braucht**. Kein
+         *     Zustand und kein Pausenwert: das Modul ist schlicht nicht vollständig.
+         */
+        app__schemas__voucher__DataGap: {
+            /** Record Object Id */
+            record_object_id?: number | null;
+            /**
+             * Record Label
+             * @default
+             */
+            record_label: string;
+            /**
+             * Field Label
+             * @default
+             */
+            field_label: string;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /**
+         * VatShare
+         * @description Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl.
+         */
+        app__schemas__voucher__VatShare: {
+            /** Vat */
+            vat?: string | null;
+            /**
+             * Rate
+             * @default 0.00
+             */
+            rate: string;
+            /** Label */
+            label?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Net
+             * @default 0
+             */
+            net: string;
+            /**
+             * Tax
+             * @default 0
+             */
             tax: string;
         };
     };
@@ -5476,6 +6319,38 @@ export interface operations {
             };
         };
     };
+    voucher_parties_api_v1_erp_orders_voucher_parties_get: {
+        parameters: {
+            query?: {
+                search?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoucherParty"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     deal_parties_api_v1_erp_orders_deal_parties_get: {
         parameters: {
             query?: {
@@ -5884,6 +6759,146 @@ export interface operations {
         };
     };
     transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get: {
+        parameters: {
+            query: {
+                entry: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoucherUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_payment_post: {
+        parameters: {
+            query?: {
+                charge?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSetup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_refund_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoucherUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get: {
         parameters: {
             query: {
                 entry: number;
