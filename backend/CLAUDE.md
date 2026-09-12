@@ -315,9 +315,10 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > ohne vereinbarte Frist kein Termin (#814).
 > Keine Menge, kein Artikel, kein Termin, **kein Betrag** – der steht beim Modellieren nicht
 > fest. *Was* gehandelt wird, sagt der Prozess: `deal.process_lines`/`lines_of` gruppiert die
-> Artikel der Einzelinstanzen, die vor dem Modul stehen, und `services/article_fields` legt
-> die **Spezifikation** dazu – mit der Zusage frieren beide in `agreed_lines` ein. `subject`
-> sagt darum nur noch, was **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang.
+> Artikel der Einzelinstanzen, die vor dem Modul stehen – mit Name, Nummer, Menge, Preis,
+> Satz und den beiden **Zoll-Angaben**; mit der Zusage frieren sie in `agreed_lines` ein.
+> *Die ganze **Spezifikation** reiste einmal mit (`services/article_fields`) und tut es
+> seit #916 nicht mehr: auf einem Beleg steht, was der Empfänger braucht.*
 > **Ein Vorgang hat zwei Parteien** (`deals.quotes`): `ask` → `quote`/`decline` → `agree`.
 > Eine **Liste**, auch wenn fast immer einer drinsteht – n statt 1, damit der Vergleich kein
 > zweiter Mechanismus ist. Geändert wird eine Zeile durch **Neubau** (`_write_quotes`), nie
@@ -467,8 +468,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > nennt keinen Preis. Ohne diese Zeile war der Preis bei jedem `quote` Pflicht, und bei
 > einer Einnahme ist ein gesendeter Betrag ohnehin wirkungslos – die Frist liess sich also
 > gar nicht mehr ändern.
-> ►►► **Und die TÜR muss die Felder kennen.** ◄◄◄ `DealUpdate` kannte `lines`, `vat` und
-> `service_date` nicht; Pydantic verwirft Unbekanntes **stillschweigend** (dieselbe Falle
+> ►►► **Und die TÜR muss die Felder kennen.** ◄◄◄ `DealUpdate` kannte `lines` und `vat`
+> nicht; Pydantic verwirft Unbekanntes **stillschweigend** (dieselbe Falle
 > wie `ModuleConfigInput`). Kein Dienst-Test findet das – die rufen `apply` direkt. Und
 > `assert_vat` warf bei unlesbarem Wert ein `InvalidOperation` statt eines Satzes: eine
 > Ablehnung ohne Erklärung, an der Tür ein 500 statt eines 400.
@@ -810,6 +811,40 @@ scheiterte danach **jeder** Lesezugriff auf den Beleg (140 Prüfungen).
 - SQLAlchemy 2.0: `Mapped[T]`, `mapped_column()`
 - Fehler: `raise HTTPException(status_code=..., detail="...")`
 - Audit-Log bei jedem Update schreiben
+
+> ►►► **Testnotizen #909–#920 — was zweimal dasteht, steht einmal zu viel.** ◄◄◄
+> Zwölf Notizen, und der rote Faden ist **einer**: jede Beleg-Angabe hat genau einen Ort –
+> die Regel aus #899, konsequent zu Ende gedacht.
+> **Die Spezifikation ist vom Beleg verschwunden** (#916, `services/article_fields`
+> gelöscht, `DealLine.spec` und `SpecEntry` ebenso). Sie war der Kompromiss «Datenblatt
+> auf Klick»; auf einem **Beleg** ist sie das nicht. **Geblieben sind die beiden
+> Zoll-Angaben** (#915) – sie sind keine Beschreibung, sondern Voraussetzung der Ausfuhr,
+> und sie wären mit ihr spurlos verschwunden: `DealLine.hs_code`/`origin_country`, **der
+> Artikel belegt vor, der Beleg trägt den Wert** (dieselbe Beziehung wie beim Preis),
+> eingefroren mit der Zusage. **Zurückgeschrieben wird nichts** – ein Beleg korrigiert
+> keine Stammdaten.
+> **Das Leistungsdatum ist keine Eingabe mehr** (#919): `DealUpdate.service_date` und
+> `DealEmbed.service_date` sind entfallen, `_charge` liest allein `service_day(db, step)`.
+> Ein trotzdem gesendeter Wert wird **verworfen** – ein Feld, das die Oberfläche nicht
+> anbietet, der Dienst aber annimmt, wäre eine Hintertür zu einer Angabe, die niemand mehr
+> prüft. **Vom Beleg verschwindet es nicht**: es steht an der gebuchten Rechnung
+> (`DealEntryOut.service_date`), wo es rechtlich zählt (MWSTG Art. 26 Bst. c) – und es ist
+> **nicht** der Liefertermin: der ist die *Zusage*, dies die *Tatsache*.
+> **Die Chronik braucht zwei Daten, die es nicht gab** (#918, Migration `133`):
+> `quotes[].sent_on` (wann die Zeile hinausging – als Datum an der **Zeile**, denn der
+> Angebotsspiegel ist eine Liste) und `deals.cancelled_on`. `updated_at` ist die Antwort
+> **nicht**: sie wandert bei jeder späteren Änderung mit, und ein Storno, dessen Datum
+> sich bewegt, ist kein Datum.
+> **Und der Datensatzname eines Unternehmens trägt seine Rechtsform** (#910): die Regel
+> steht seit jeher in `sites.legal_name` (inklusive der Ausnahme «Muster AG» + «AG» =
+> «Muster AG») – sie wurde nur nicht überall gerufen. Jetzt rufen sie die **Halter-Kette**,
+> die **Halter-Suche** (`places.py`), die **Gebietskarte** und die Antwort selbst
+> (`CompanySettingsResponse.legal_name`, `/admin/settings/public`). Ein Quelltext-Wächter
+> verbietet jede zweite Zusammensetzung aus Name + Rechtsform – das Impressum hatte eine
+> und schrieb «Inexxio AG (AG)».
+> Wächter: `tests/test_deal_module.py` (2 neue, 4 auf die neue Regel gezogen) +
+> `test_frontend_mirrors.py` (9 neue, 9 nachgezogen). Migration `133` von null ·
+> idempotent · downgrade · re-upgrade · über das Lifespan-Netz verifiziert.
 
 ## Env-Variablen
 `/.env.example` nennt **nur, was der Code auch liest** – eine Variable auf Vorrat sieht aus

@@ -792,6 +792,24 @@ Scanner bekommt dieselbe Suche mit (`suggest`).
   (`PlaceRef.label`), reicht es in `find` als `name` durch.
 - **«Nichts» ist eine Wahl**, kein X-Knopf daneben: `emptyOption` führt sie als erste
   Zeile der Liste, und ein leeres Feld **zeigt sie an** (#734–#736).
+- ►►► **Die Vorschlagsliste hängt an `document.body`, nicht im Feld** (#909). ◄◄◄
+  *«Wenn ich hier etwas suche und auswählen möchte, dann geht das nicht wirklich gut, da
+  es von der Ebene her zu tief ist.»* – Als `position: absolute` **im** Feld lag sie in
+  jedem Rahmen darüber: ein Vorfahr mit `overflow: hidden` schnitt sie ab, ein Nachbar
+  mit eigenem Stapelplatz legte sich darüber (gemessen: die unterste Zeile traf das
+  Modul darunter, der Klick ging ins Leere). **`z-index` hilft dagegen nicht** – er gilt
+  nur *innerhalb* des Stapelkontexts, in dem das Element steht, und einen solchen macht
+  jede Karte mit `transform`, `filter` oder eigenem `z-index` auf.
+  Also verlässt sie den Baum: `createPortal` an `document.body`, `position: fixed` an der
+  gemessenen Stelle des Feldes (`LIST_*` in `fields.tsx`). Damit gibt es **keinen
+  Vorfahren mehr**, der sie schneiden könnte – konstruktiv statt geprüft.
+  Drei Dinge gehören dazu und sind je eine Zeile: der Klick-daneben-Schliesser fragt
+  **auch** die Liste (sie ist kein Nachfahre mehr – sonst verschwindet die Zeile, bevor
+  der Klick auf ihr ankommt), `scroll` mit `capture: true` führt sie nach (auch innere
+  Container), und am unteren Fensterrand klappt sie nach **oben**. Gemessen in Chromium:
+  Portal an `<body>`, unterste Zeile anklickbar, Klick kommt an, Esc schliesst, Abstand
+  beim Scrollen unverändert 4,0 px, Flip nach oben – und jede Prüfung gegen ihre
+  Bug-Form gegengeprüft.
 - **Und wo «nichts» heisst «das entscheidet sich erst am Band», ist der Satz geteilt**:
   `scan.RUNTIME_CHOICE` = «Beim Ausführen definieren» (#785/#786). Nicht «scannen» – das
   ist einer von zwei Wegen zur selben Wahl, und bei den zugelassenen Gegenparteien wird

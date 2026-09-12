@@ -4416,6 +4416,11 @@
             "type": "string",
             "title": "Legal Form"
           },
+          "legal_name": {
+            "type": "string",
+            "title": "Legal Name",
+            "default": ""
+          },
           "street": {
             "anyOf": [
               {
@@ -4920,18 +4925,6 @@
             "title": "Service Date Label",
             "default": "Leistungsdatum"
           },
-          "service_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Service Date"
-          },
           "net": {
             "anyOf": [
               {
@@ -5243,6 +5236,18 @@
               }
             ],
             "title": "Agreed On"
+          },
+          "cancelled_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled On"
           },
           "due_date": {
             "anyOf": [
@@ -5579,15 +5584,27 @@
             "type": "integer",
             "title": "Quantity"
           },
-          "spec": {
-            "items": {
-              "additionalProperties": {
+          "hs_code": {
+            "anyOf": [
+              {
                 "type": "string"
               },
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Spec"
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
           },
           "price": {
             "anyOf": [
@@ -5632,7 +5649,7 @@
           "quantity"
         ],
         "title": "DealLine",
-        "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\nDie **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die\nSache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei\ndem Partner, den es betrifft (``DealQuote.ref``)."
+        "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\n►►► **Die Spezifikation reist NICHT mehr mit** (Testnotiz #916). ◄◄◄ Sie stand als\naufklappbares Datenblatt an der Zeile – der Kompromiss «Spezifikation auf Klick».\nAuf einem **Beleg** ist sie das nicht: was der Empfänger braucht, steht in der\nZeile; was er nicht braucht, gehört nicht auf das Papier. Was **daran** zu tun ist,\nsteht bei dem Partner, den es betrifft (``DealQuote.ref``).\n\nPflicht bleiben die beiden **Zoll-Angaben** – sie sind keine Beschreibung, sondern\nVoraussetzung der Ausfuhr; sie stehen darum offen an der Zeile (#915)."
       },
       "DealMethod": {
         "properties": {
@@ -5700,6 +5717,28 @@
               }
             ],
             "title": "Vat"
+          },
+          "hs_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hs Code"
+          },
+          "origin_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Country"
           }
         },
         "type": "object",
@@ -5759,6 +5798,18 @@
             "type": "string",
             "title": "State",
             "default": "angefragt"
+          },
+          "sent_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent On"
           },
           "lines": {
             "items": {
@@ -6069,18 +6120,6 @@
               }
             ],
             "title": "Vat"
-          },
-          "service_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Service Date"
           },
           "currency": {
             "anyOf": [
@@ -8923,9 +8962,9 @@
             "type": "integer",
             "title": "Object Id"
           },
-          "company_name": {
+          "name": {
             "type": "string",
-            "title": "Company Name"
+            "title": "Name"
           },
           "is_operator": {
             "type": "boolean",
@@ -8936,10 +8975,10 @@
         "type": "object",
         "required": [
           "object_id",
-          "company_name"
+          "name"
         ],
         "title": "TerritoryCompany",
-        "description": "Schlanke Gesellschaft für die Weltkarte (Picker + Färbung)."
+        "description": "Schlanke Gesellschaft für die Weltkarte (Picker + Färbung).\n\nDas Feld heisst **name**, nicht ``company_name``: es trägt den *Datensatznamen*\n(mit Rechtsform, ``sites.legal_name``) und nicht den Spaltenwert – zwei Dinge, die\ngleich hiessen und Verschiedenes meinten, sind die Verwechslung von morgen."
       },
       "TerritoryCountry": {
         "properties": {

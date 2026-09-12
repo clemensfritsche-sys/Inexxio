@@ -49,8 +49,20 @@ export function instanceName(i: Instance): string | null {
   return i.article_name?.trim() || null;
 }
 
-/** Standort **und** Unternehmen tragen ihren Namen im selben Feld – der Hauptsitz führt
- *  die Firma, eine Aussenstelle ihren Standortnamen («Werk Nord»). */
-export function organizationName(c: Pick<CompanySettings, 'company_name'>): string | null {
-  return c.company_name?.trim() || null;
+/**
+ * ►►► **Unternehmensname · Abstand · Rechtsform** (Testnotiz #910). ◄◄◄
+ *
+ * «Inexxio» ist keine Rechtsperson, «Inexxio AG» ist eine – und der Datensatzname ist
+ * überall derselbe: im Feed, in der Kopfzeile, in der Halter-Kette und auf dem Beleg.
+ *
+ * Zusammengesetzt wird er **nicht hier**: die Regel kennt eine Ausnahme (wer die Form
+ * schon im Namen führt, bekommt sie nicht zweimal – «Muster AG», nicht «Muster AG AG»),
+ * und eine zweite Fassung davon sähe richtig aus und wäre es nicht. Er kommt fertig vom
+ * Server (`sites.legal_name`); der blosse Name bleibt der Rückfall, solange eine Antwort
+ * ihn nicht mitbringt.
+ */
+export function organizationName(
+  c: Pick<CompanySettings, 'company_name'> & { legal_name?: string },
+): string | null {
+  return c.legal_name?.trim() || c.company_name?.trim() || null;
 }

@@ -7,6 +7,7 @@ import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DetailBody, Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
 import { organizationStatus } from '@/lib/record-status';
+import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { Field as AField } from '@/components/account/field';
@@ -314,7 +315,12 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
           Für jede Gesellschaft gleich; kein «Hauptsitz»-Rang. */}
       <DetailHeader
-        type="organization" title={form.company_name || null}
+        // ►►► **Der Datensatzname trägt die Rechtsform** (Testnotiz #910). ◄◄◄ Er kommt
+        // fertig vom Server (`sites.legal_name`) – hier aus Name und Rechtsform
+        // zusammengesetzt wäre er die zweite Fassung einer Regel, die eine Ausnahme
+        // kennt («Muster AG» + «AG» bleibt «Muster AG», nicht «Muster AG AG»).
+        // Solange noch nichts geladen ist, steht der blosse Name da.
+        type="organization" title={organizationName(base) || form.company_name || null}
         objectId={record.object_id} onBack={onBack}
         // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
         // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt

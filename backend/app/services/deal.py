@@ -48,7 +48,7 @@ from ..models import (
     ProcessStep, UserProfile,
 )
 from ..models.process_event import KIND_START, KIND_STEP
-from . import address, article_fields, lookup, people, qrbill, sites
+from . import address, lookup, people, qrbill, sites
 
 #: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
 #: ERP, und dort steht der ganze Auftrag.
@@ -398,12 +398,18 @@ def lines_of(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
 
 def embed_lines(db: Session, order: Order, row: Deal,
                 *, step: Optional[ProcessStep] = None) -> list[dict[str, Any]]:
-    """Die Zeilen **mit Namen und Spezifikation** – das, was die Gegenpartei liest.
+    """Die Zeilen **mit Namen, Preis und Zoll-Angaben** – das, was die Gegenpartei liest.
 
-    Die Spezifikation **reist mit**, sie wird nicht ausgewählt (``article_fields``): eine
-    Spezifikation, die je nach Empfänger anders lautet, ist keine. Sie beschreibt die
-    Sache; **was daran zu tun ist**, steht bei dem Partner, den es betrifft
-    (``config.parties[].ref``).
+    ►►► **Zolltarifnummer und Ursprungsland: der Artikel belegt vor, der Beleg trägt
+    den Wert** (Testnotiz #915). ◄◄◄ Die Nummer ist eine Eigenschaft der **Sache**;
+    welche auf *diesem* Beleg steht, ist eine Aussage **dieses Geschäfts** – dieselbe
+    Beziehung wie beim Preis. Steht in der (eingefrorenen) Zeile ein Wert, gilt er;
+    sonst der des Artikels. **Zurückgeschrieben wird nichts**: ein Beleg korrigiert
+    keine Stammdaten.
+
+    *Die ganze Spezifikation reist seit #916 nicht mehr mit – auf einem Beleg steht,
+    was der Empfänger braucht. Die beiden Zoll-Angaben sind keine Beschreibung, sondern
+    Voraussetzung der Ausfuhr.*
 
     Eine Abfrage für alle Zeilen, nicht eine je Zeile.
     """
@@ -428,7 +434,10 @@ def embed_lines(db: Session, order: Order, row: Deal,
             "article_object_id": art.object_id if art else None,
             "article_name": art.name if art else "",
             "quantity": int(line["quantity"]),
-            "spec": article_fields.specification(art),
+            # Der eingefrorene Wert gewinnt; ohne ihn der des Artikels (#915).
+            "hs_code": line.get("hs_code") or (art.hs_code if art else None) or None,
+            "origin_country": (line.get("origin_country")
+                               or (art.origin_country if art else None) or None),
             # ►►► **Preis und Satz gehören der Position** (MWSTG Art. 26). ◄◄◄
             #
             # Der **Preis ist netto** – so denkt und rechnet man –, und der **Satz hängt an
@@ -1020,6 +1029,11 @@ def _priced(db: Session, *, order: Order, step: ProcessStep, code: str,
             # zwei Nachkommastellen behauptet eine Genauigkeit, die es nicht gibt.
             "price": cur.money(price, code),
             "vat": vat,
+            # ►►► **Zoll-Angaben gehören zur Position** (Testnotiz #915). ◄◄◄ Leer heisst
+            # «nimm die des Artikels» – als leerer String gespeichert wäre es die
+            # Behauptung, es gebe keine.
+            "hs_code": _text(raw.get("hs_code"), 12),
+            "origin_country": _text(raw.get("origin_country"), 60),
         })
     return out
 
@@ -1067,9 +1081,14 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             detail=(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
                     f"nennen wir ihn, nicht der {dm.PARTY}."),
         )
+    # ►►► **Wann die Zeile hinausging** (Testnotiz #918). ◄◄◄ Die Chronik des Belegs
+    # fragt «wann wurde offeriert» – und das weiss nur der Moment, in dem es passiert.
+    # Als Datum im JSONB, nicht als Spalte: es gehört der **Zeile**, und von denen gibt
+    # es n (der Angebotsspiegel ist eine Liste).
     fresh = ({"amount": cur.money(dm.gross_of(priced, row.currency), row.currency),
-              "lines": priced, "state": dm.QUOTED}
-             if priced else {"amount": None, "lines": [], "state": dm.ASKED})
+              "lines": priced, "state": dm.QUOTED, "sent_on": date.today().isoformat()}
+             if priced else {"amount": None, "lines": [], "state": dm.ASKED,
+                             "sent_on": date.today().isoformat()})
     lead, days = _days(data.get("lead_days")), _days(data.get("payment_days"))
     # ►►► **Wer den Preis nennt, nennt auch die beiden Fristen** (Testnotizen #854/#856).
     # ◄◄◄ Sie sind der Rest der Zusage: aus der Lieferfrist kommt der Termin, aus der
@@ -1231,8 +1250,13 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     Ein Storno macht die Zusage nicht ungeschehen, er sagt nur, dass nichts mehr kommt.
     Die gegangenen Stufen bleiben darum stehen; das Geld darf weiterhin fliessen, denn
     eine Anzahlung muss erstattet werden können.
+
+    ►►► **Und wann es war, steht danach da** (Testnotiz #918). ◄◄◄ ``stage`` sagt
+    **dass** storniert wurde; die Chronik des Belegs fragt nach dem **wann**, und
+    ``updated_at`` ist die Antwort nicht – sie wandert bei jeder späteren Änderung mit.
     """
     row.stage = dm.CANCELLED
+    row.cancelled_on = date.today()
 
 
 def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
@@ -1311,9 +1335,13 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         # eine Rechnung, die zwei Wochen später geschrieben wird, verschöbe damit die
         # Steuerperiode (MWSTG Art. 26 Bst. c).
         #
-        # Vorbelegt, nicht erzwungen: ein Mensch darf es überschreiben, denn er weiss von
-        # Teilleistungen, von denen der Log nichts weiss.
-        service_date=_day(data.get("service_date")) or service_day(db, step) or booked,
+        # ►►► **Und es ist keine Eingabe** (Testnotiz #919). ◄◄◄ Es stand als Feld im
+        # Formular und war damit die **zweite Aussage** über dieselbe Sache – die
+        # getippte gewinnt, auch wenn sie falsch ist. Der Prozess weiss es besser als
+        # jemand, der eine Rechnung schreibt. Ein trotzdem gesendeter Wert wird
+        # **verworfen**: ein Feld, das die Oberfläche nicht anbietet, der Dienst aber
+        # annimmt, wäre eine Hintertür zu einer Angabe, die niemand mehr prüft.
+        service_date=service_day(db, step) or booked,
     ))
 
 
@@ -2132,10 +2160,9 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "vat_rate": dm.DEFAULT_VAT,
         "vat_label": dm.VAT_LABEL,
         "service_date_label": dm.SERVICE_DATE_LABEL,
-        # ►►► **Das Leistungsdatum kommt aus dem PROZESS** (Testnotiz #852). ◄◄◄ Der
-        # Auftrag weiss, wann die Stücke hier angekommen sind; die Erfassung zeigt es
-        # vorbelegt und lässt es überschreiben (Teilleistungen kennt nur ein Mensch).
-        "service_date": service_day(db, step),
+        # *Die Vorbelegung des früheren Eingabefeldes stand hier (#852) und ist mit ihm
+        # entfallen (#919): das Datum kommt aus dem Prozess und steht an der **gebuchten
+        # Rechnung** – dort, wo es rechtlich zählt, und nicht dort, wo man arbeitet.*
         # ►►► **Die Lieferbedingung** (Incoterms 2020, Arbeitsauftrag §3.2). ◄◄◄
         #
         # Katalog **und** Erklärung reisen mit: genau hier entstehen die Fragen, und die
@@ -2244,6 +2271,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "amount": _money(row.amount, row.currency) if won else None,
         "due_days": row.due_days if won else None,
         "agreed_on": row.agreed_on if won else None,
+        # ►►► **Wann storniert wurde** (Testnotiz #918) – die dritte Zeile der Chronik.
+        "cancelled_on": row.cancelled_on if won else None,
         # ►►► **Der Liefertermin und der Verzug — zwei ABLEITUNGEN, null Spalten.** ◄◄◄
         #
         # Ein Lieferverzug ist kein Zustand: der Termin ist *Zusagedatum + Lieferfrist der

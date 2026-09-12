@@ -149,6 +149,9 @@ _COLUMN_SAFETY_NET = (
     # Migration 132 – wer den Beleg stellt (Testnotiz #905).
     ("user_profiles", "company_object_id", "BIGINT"),
     ("deals", "issuer_company_id", "BIGINT"),
+    # Migration 133 – wann storniert wurde (Testnotiz #918). ``updated_at`` ist die
+    # Antwort nicht: sie wandert bei jeder späteren Änderung mit.
+    ("deals", "cancelled_on", "DATE"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

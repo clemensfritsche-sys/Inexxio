@@ -1695,6 +1695,11 @@ export interface components {
             company_name: string;
             /** Legal Form */
             legal_form: string;
+            /**
+             * Legal Name
+             * @default
+             */
+            legal_name: string;
             /** Street */
             street: string | null;
             /** Street Nr */
@@ -1921,8 +1926,6 @@ export interface components {
              * @default Leistungsdatum
              */
             service_date_label: string;
-            /** Service Date */
-            service_date?: string | null;
             /** Net */
             net?: string | null;
             /** Tax */
@@ -2048,6 +2051,8 @@ export interface components {
             due_days?: number | null;
             /** Agreed On */
             agreed_on?: string | null;
+            /** Cancelled On */
+            cancelled_on?: string | null;
             /** Due Date */
             due_date?: string | null;
             /**
@@ -2163,9 +2168,14 @@ export interface components {
          *     Je Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der
          *     Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
          *
-         *     Die **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die
-         *     Sache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei
-         *     dem Partner, den es betrifft (``DealQuote.ref``).
+         *     ►►► **Die Spezifikation reist NICHT mehr mit** (Testnotiz #916). ◄◄◄ Sie stand als
+         *     aufklappbares Datenblatt an der Zeile – der Kompromiss «Spezifikation auf Klick».
+         *     Auf einem **Beleg** ist sie das nicht: was der Empfänger braucht, steht in der
+         *     Zeile; was er nicht braucht, gehört nicht auf das Papier. Was **daran** zu tun ist,
+         *     steht bei dem Partner, den es betrifft (``DealQuote.ref``).
+         *
+         *     Pflicht bleiben die beiden **Zoll-Angaben** – sie sind keine Beschreibung, sondern
+         *     Voraussetzung der Ausfuhr; sie stehen darum offen an der Zeile (#915).
          */
         DealLine: {
             /** Article Id */
@@ -2179,10 +2189,10 @@ export interface components {
             article_name: string;
             /** Quantity */
             quantity: number;
-            /** Spec */
-            spec?: {
-                [key: string]: string;
-            }[];
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
             /** Price */
             price?: string | null;
             /**
@@ -2251,6 +2261,10 @@ export interface components {
             price: string;
             /** Vat */
             vat?: string | null;
+            /** Hs Code */
+            hs_code?: string | null;
+            /** Origin Country */
+            origin_country?: string | null;
         };
         /**
          * DealQuote
@@ -2287,6 +2301,8 @@ export interface components {
              * @default angefragt
              */
             state: string;
+            /** Sent On */
+            sent_on?: string | null;
             /** Lines */
             lines?: Record<string, never>[];
         };
@@ -2429,8 +2445,6 @@ export interface components {
             lines?: components["schemas"]["DealPrice"][] | null;
             /** Vat */
             vat?: string | null;
-            /** Service Date */
-            service_date?: string | null;
             /** Currency */
             currency?: string | null;
             /** Method */
@@ -3847,12 +3861,16 @@ export interface components {
         /**
          * TerritoryCompany
          * @description Schlanke Gesellschaft für die Weltkarte (Picker + Färbung).
+         *
+         *     Das Feld heisst **name**, nicht ``company_name``: es trägt den *Datensatznamen*
+         *     (mit Rechtsform, ``sites.legal_name``) und nicht den Spaltenwert – zwei Dinge, die
+         *     gleich hiessen und Verschiedenes meinten, sind die Verwechslung von morgen.
          */
         TerritoryCompany: {
             /** Object Id */
             object_id: number;
-            /** Company Name */
-            company_name: string;
+            /** Name */
+            name: string;
             /**
              * Is Operator
              * @default false

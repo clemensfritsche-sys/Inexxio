@@ -123,6 +123,11 @@ class Deal(Base, TimestampMixin):
 
     #: Wann zugesagt wurde – der Anker, ab dem eine Zahlungsfrist läuft.
     agreed_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    #: ►►► **Wann storniert wurde** (Testnotiz #918). ◄◄◄ ``stage`` sagt **dass**, nicht
+    #: **wann** – und ``updated_at`` ist die Antwort nicht: sie wandert bei jeder
+    #: späteren Änderung mit, und ein Storno, dessen Datum sich bewegt, ist kein Datum.
+    #: ``NULL`` heisst «nicht storniert».
+    cancelled_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     #: ►►► **Die Lieferbedingung** (Incoterms 2020, ``domain/incoterms``). ◄◄◄
     #:

@@ -91,8 +91,8 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
     return TONES[idx % TONES.length] ?? OPERATOR_TONE;
   };
   const nameOf = (objId: number | null | undefined) =>
-    data.companies.find((c) => c.object_id === objId)?.company_name
-    ?? data.companies.find((c) => c.object_id === operatorId)?.company_name ?? 'Betreiber';
+    data.companies.find((c) => c.object_id === objId)?.name
+    ?? data.companies.find((c) => c.object_id === operatorId)?.name ?? 'Betreiber';
 
   // Ein Land ist eine **Ausnahme**, wenn sein Besitzer vom Besitzer seiner Region abweicht –
   // abgeleitet aus den Daten, nicht als zweites Flag geführt.
@@ -192,7 +192,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
                       border: `1px solid ${cur ? tone.ring : 'var(--border-1)'}`,
                       background: cur ? tone.bg : '#fff', font: '600 12px var(--font-body)', color: 'var(--fg-1)' }}>
                     <span style={{ width: 7, height: 7, borderRadius: 999, background: tone.dot, flex: 'none' }} />
-                    {c.company_name}
+                    {c.name}
                     {cur && <Check size={12} style={{ color: tone.dot }} />}
                   </button>
                 );

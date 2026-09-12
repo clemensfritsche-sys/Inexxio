@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ElementType, ReactNode } from 'react';
 import { AlertCircle, ArrowLeft, CalendarClock, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Pencil, Sparkles, ExternalLink, Zap, type LucideIcon } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-flow';
@@ -779,6 +780,18 @@ function newestFirst(options: SelectOption[]): SelectOption[] {
   return [...others, ...numeric.sort((a, b) => Number(b.value) - Number(a.value))];
 }
 
+/** Wo die Vorschlagsliste steht – in Bildschirm-Koordinaten, weil sie `fixed` hängt. */
+type ListBox = { left: number; top: number; width: number; maxHeight: number };
+
+// Die Masse der Liste an EINER Stelle. `LIST_Z` liegt über dem Dialog des Hauses (60) und
+// unter dem Scan-Vollbild (100): eine Wahl, die sich über den Scanner legte, verdeckte
+// genau das Bild, aus dem sie entsteht.
+const LIST_GAP = 4;    // Luft zum Feld
+const LIST_EDGE = 8;   // Luft zum Fensterrand
+const LIST_MIN = 160;  // darunter lohnt sich das Aufklappen nach unten nicht mehr
+const LIST_MAX = 240;
+const LIST_Z = 70;
+
 export function SearchSelect({ label, value, onChange, options, required, placeholder,
                                search, emptyOption, action }: {
   label?: string; value: string; onChange: (v: string) => void;
@@ -826,6 +839,8 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<SelectOption[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<ListBox | null>(null);
   // Die Leer-Zeile steht **vor** der Sortierung und bleibt vorn: `newestFirst` lässt
   // nicht-numerische Werte ohnehin an Ort und Stelle.
   const all = emptyOption ? [{ value: '', label: emptyOption }, ...options] : options;
@@ -847,13 +862,73 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
     return () => { stale = true; window.clearTimeout(t); };
   }, [query, search]);
 
+  // ►►► **Die Liste steht am Feld – aber nicht IN ihm** (Testnotiz #909). ◄◄◄
+  //
+  // Gemeldet war: *«wenn ich hier etwas suche und auswählen möchte, dann geht das nicht
+  // wirklich gut, da es von der Ebene her zu tief ist.»* – Sie lag als
+  // `position: absolute` **im** Feld und damit in jedem Rahmen darüber: ein Vorfahr mit
+  // `overflow: hidden` schnitt sie ab, ein Nachbar mit höherem Stapelplatz legte sich
+  // darüber. `z-index` hilft dagegen nicht: er gilt nur **innerhalb** des Stapelkontexts,
+  // in dem das Element steht – und einen solchen erzeugt jede Karte mit `transform`,
+  // `filter` oder eigenem `z-index`.
+  //
+  // Also verlässt die Liste den Baum: sie hängt an `document.body` und steht `fixed` an
+  // der gemessenen Stelle des Feldes. Damit gibt es keinen Vorfahren mehr, der sie
+  // schneiden oder überdecken könnte – die Robustheit ist konstruktiv statt geprüft.
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - LIST_GAP - LIST_EDGE;
+    const above = r.top - LIST_GAP - LIST_EDGE;
+    // **Nach oben nur, wenn es unten wirklich eng wird** – ein Feld, dessen Liste mal so
+    // und mal so aufklappt, lässt sich nicht blind bedienen.
+    const up = below < LIST_MIN && above > below;
+    const maxHeight = Math.max(LIST_MIN, Math.min(LIST_MAX, up ? above : below));
+    setBox({
+      left: r.left, width: r.width, maxHeight,
+      top: up ? Math.max(LIST_EDGE, r.top - LIST_GAP - maxHeight) : r.bottom + LIST_GAP,
+    });
+  }, []);
+
+  // **Gemessen wird VOR dem Zeichnen** (`useLayoutEffect`) – sonst blitzt die Liste
+  // einen Bild lang an der linken oberen Ecke auf.
+  useLayoutEffect(() => {
+    if (!open) { setBox(null); return; }
+    measure();
+    // `capture: true`, damit auch **innere** Scroll-Container melden: die Karte scrollt,
+    // das Feld wandert, die Liste muss mit. Ohne das bliebe sie stehen, wo sie war.
+    window.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
+    };
+  }, [open, measure]);
+
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQuery(''); }
+      const t = e.target as Node;
+      // Die Liste ist **kein** Nachfahre des Feldes mehr – ohne diese zweite Frage
+      // schlösse `mousedown` sie, bevor der Klick auf eine Zeile ankommt: die Zeile wäre
+      // aus dem Baum, das `click`-Ereignis fiele aus, und die Wahl ginge ins Leere.
+      if (ref.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false); setQuery('');
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
+
+  // **Esc schliesst** – dieselbe Taste wie überall im Haus; eine Liste, die über allem
+  // liegt, braucht einen Weg heraus, der keine Maus verlangt.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setOpen(false); setQuery(''); }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
 
   const q = query.trim().toLowerCase();
   // Sucht das Feld serverseitig, ist die Antwort die Liste – ein zweiter Filter darüber
@@ -900,8 +975,8 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
           ? <Search size={14} style={glyph} />
           : <ChevronDown size={14} style={glyph} />}
       </div>
-      {open && (
-        <div style={{ position: 'absolute', zIndex: 40, top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', boxShadow: 'var(--shadow-lg)' }}>
+      {open && box && createPortal(
+        <div ref={listRef} style={{ position: 'fixed', zIndex: LIST_Z, left: box.left, top: box.top, width: box.width, maxHeight: box.maxHeight, overflowY: 'auto', background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', boxShadow: 'var(--shadow-lg)' }}>
           {filtered.length === 0 ? (
             <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--fg-4)' }}>
               {search && !q ? 'Nummer oder Name eingeben' : 'Keine Treffer'}
@@ -913,7 +988,8 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
               <OptionRow option={o} />
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

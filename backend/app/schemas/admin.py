@@ -57,6 +57,12 @@ class CompanySettingsResponse(BaseModel):
     is_active: bool = True
     company_name: str
     legal_form: str
+    # ►►► **Der Datensatzname** – Unternehmensname, Abstand, Rechtsform (Testnotiz #910).
+    # ◄◄◄ Eine **Projektion**, keine Spalte: die Regel (und die Ausnahme «Muster AG» +
+    # «AG» = «Muster AG», nicht «Muster AG AG») steht genau einmal in
+    # ``sites.legal_name``. Wer sie im Browser nachbaute, hätte die Ausnahme beim ersten
+    # Mal vergessen – und die zweite Fassung sähe trotzdem richtig aus.
+    legal_name: str = ""
     street: Optional[str]
     street_nr: Optional[str]
     zip_code: Optional[str]
@@ -97,9 +103,13 @@ class TerritoryRegion(BaseModel):
 
 
 class TerritoryCompany(BaseModel):
-    """Schlanke Gesellschaft für die Weltkarte (Picker + Färbung)."""
+    """Schlanke Gesellschaft für die Weltkarte (Picker + Färbung).
+
+    Das Feld heisst **name**, nicht ``company_name``: es trägt den *Datensatznamen*
+    (mit Rechtsform, ``sites.legal_name``) und nicht den Spaltenwert – zwei Dinge, die
+    gleich hiessen und Verschiedenes meinten, sind die Verwechslung von morgen."""
     object_id: int
-    company_name: str
+    name: str
     is_operator: bool = False
 
 

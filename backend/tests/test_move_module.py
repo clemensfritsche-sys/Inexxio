@@ -298,7 +298,10 @@ def test_the_chain_reads_from_inside_out_and_stops_at_an_address():
             box.object_id, shelf.object_id, works.object_id,
         ]
         assert [s.kind for s in chain] == ["instance", "instance", "organization"]
-        assert chain[-1].label == "Werk Nord"
+        # ►►► **Der Datensatzname trägt seine Rechtsform** (Testnotiz #910). ◄◄◄ In
+        # der Kette steht dieselbe Gesellschaft wie im Feed und auf dem Beleg –
+        # ``sites.legal_name``, nicht der blosse Spaltenwert.
+        assert chain[-1].label == "Werk Nord AG"
         assert places_svc.chain(db, None) == [], "Standortlos ist eine leere Kette."
         assert places_svc.place_of(unit_of(shelf)) == (places_svc.OBJECT, works.object_id)
     finally:

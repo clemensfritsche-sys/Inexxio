@@ -549,10 +549,10 @@ class Zahlung(Module):
     ## Was gehandelt wird, sagt der PROZESS – nicht ein Feld
 
     Es gibt **keinen Artikel** in der Definition: die Einzelinstanzen, die vor dem Modul
-    stehen, tragen ihren Artikel, und der Artikel trägt seine **Spezifikation**. Beides
-    reist mit dem Vorgang (``deal.lines_of`` / ``services/article_fields``), damit die
-    Gegenpartei weiss, worum es geht. Ein getipptes Artikelfeld daneben wäre eine zweite
-    Aussage über dieselbe Sache – und die getippte gewinnt auch dann, wenn sie falsch ist.
+    stehen, tragen ihren Artikel. Er reist mit dem Vorgang (``deal.lines_of``) – mit Name,
+    Nummer, Menge und den beiden **Zoll-Angaben**, die eine Ausfuhr verlangt. Ein
+    getipptes Artikelfeld daneben wäre eine zweite Aussage über dieselbe Sache – und die
+    getippte gewinnt auch dann, wenn sie falsch ist.
 
     Daraus folgt, warum der Satz **freiwillig** ist: Zeilen und Satz sind zusammen die
     Aussage, und die Zeilen gibt es immer.

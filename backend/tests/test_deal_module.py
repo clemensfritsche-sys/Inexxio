@@ -502,12 +502,17 @@ def test_what_is_traded_is_derived_and_the_specification_travels():
     """►►► **Kein Artikelfeld – die Zeilen sind der Prozess.** ◄◄◄
 
     Die Einzelinstanzen des Auftrags tragen ihren Artikel, der Artikel seine
-    Spezifikation. Beides reist mit, damit die Gegenpartei weiss, worum es geht.
+    Spezifikation.
+
+    ►►► **Die ganze Spezifikation reist seit #916 NICHT mehr mit.** ◄◄◄ Sie stand als
+    aufklappbares Datenblatt an der Zeile – der Kompromiss «Spezifikation auf Klick». Auf
+    einem **Beleg** ist sie das nicht: was der Empfänger braucht, steht in der Zeile.
+    Geblieben sind die beiden **Zoll-Angaben** (#915) – sie sind keine Beschreibung,
+    sondern Voraussetzung der Ausfuhr –, und *was zu tun ist*, steht beim Partner.
 
     Bug-Form (1): ein getipptes Artikelfeld – die zweite Aussage über dieselbe Sache, und
-    die getippte gewinnt auch dann, wenn sie falsch ist. Bug-Form (2): die Spezifikation
-    reist nicht mit – dann steht auf dem Beleg ein Betrag und sonst nichts, und der
-    Lieferant weiss nicht, was er härten soll.
+    die getippte gewinnt auch dann, wenn sie falsch ist. Bug-Form (2): das Datenblatt ist
+    zurück auf dem Beleg.
     """
     from app.models import Article
     from app.services import deal as svc
@@ -526,10 +531,9 @@ def test_what_is_traded_is_derived_and_the_specification_travels():
         line = facts["lines"][0]
         assert line["quantity"] == 6 and line["article_name"] == "Welle 40x200"
         assert line["article_object_id"] == art.object_id
-        values = {f["label"]: f["value"] for f in line["spec"]}
-        assert values.get("Werkstoff") == "1.4301", (
-            "Die Spezifikation reist nicht mit – der Lieferant sieht einen Betrag und "
-            "sonst nichts."
+        assert "spec" not in line, (
+            "Das Datenblatt steht wieder auf dem Beleg (2) – was der Empfänger braucht, "
+            "steht in der Zeile; was er nicht braucht, gehört nicht auf das Papier."
         )
         # ►►► **Was bei einem Partner zu tun ist, steht BEI IHM** (#805/#808). ◄◄◄
         #
@@ -1806,17 +1810,24 @@ def test_the_door_lets_the_positions_through():
 
     sent = DealUpdate.model_validate({
         "action": "charge", "amount": "100.00", "vat": "2.60",
-        "service_date": "2026-08-20",
-        "lines": [{"article": None, "price": "10.00", "vat": "8.10"}],
+        "lines": [{"article": None, "price": "10.00", "vat": "8.10",
+                   "hs_code": "848210", "origin_country": "CH"}],
     })
     changes = sent.changes()
     assert changes["vat"] == "2.60", "Der Steuersatz kommt an der Tür nicht an."
-    assert str(changes["service_date"]) == "2026-08-20", (
-        "Das Leistungsdatum kommt an der Tür nicht an."
+    assert changes["lines"] == [{"article": None, "price": "10.00", "vat": "8.10",
+                                 "hs_code": "848210", "origin_country": "CH"}], (
+        "Die Positionen kommen an der Tür nicht an – Preis und Zoll-Angaben eines "
+        "Angebots gingen stillschweigend verloren."
     )
-    assert changes["lines"] == [{"article": None, "price": "10.00", "vat": "8.10"}], (
-        "Die Positionen kommen an der Tür nicht an – der Preis eines Angebots ginge "
-        "stillschweigend verloren."
+    # ►►► **Das Leistungsdatum ist KEINE Eingabe mehr** (Testnotiz #919). ◄◄◄ Es kommt
+    # aus dem Prozess; ein Feld daneben war die zweite Aussage über dieselbe Sache. Ein
+    # trotzdem gesendeter Wert wird **verworfen** – sonst gäbe es eine Hintertür zu einer
+    # Angabe, die die Oberfläche gar nicht mehr anbietet.
+    assert "service_date" not in DealUpdate.model_validate(
+        {"action": "charge", "amount": "1", "service_date": "2026-08-20"}).changes(), (
+        "Das Leistungsdatum kommt wieder an der Tür an – dann kann es jemand setzen, "
+        "und niemand sieht es je wieder an einem Formular."
     )
     # **Nur gesendete Felder wirken**: was nicht mitkommt, steht auch nicht in `changes`.
     assert "lines" not in DealUpdate.model_validate({"action": "pay"}).changes()
@@ -1845,12 +1856,14 @@ def test_a_booked_document_keeps_its_tax_statement():
         step = rows[0]
         _agree(db, order=order, step=step, party=kunde, amount="100.00")
         svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "108.10", "vat": "8.10",
-                           "service_date": "2026-08-20"})
+                  payload={"amount": "108.10", "vat": "8.10"})
         row = svc.of_step(db, step.id)
         bill = svc._entries(db, row.id)[0]
         assert bill.vat, "Die gebuchte Forderung trägt keine Steuer-Angabe (a)."
-        assert str(bill.service_date) == "2026-08-20", "Das Leistungsdatum fehlt."
+        # ►►► **Das Leistungsdatum kommt aus dem PROZESS** (#852/#919) – gebucht, nicht
+        # getippt. Es steht auf dem Beleg (Pflichtangabe, MWSTG Art. 26 Bst. c), aber es
+        # gibt kein Feld dafür.
+        assert bill.service_date is not None, "Das Leistungsdatum fehlt."
 
         svc.apply(db, order=order, step=step, action="reverse", payload={"entry": bill.id})
         storno = [e for e in svc._entries(db, row.id) if e.reverses_id == bill.id][0]
@@ -2100,12 +2113,14 @@ def test_the_service_date_comes_from_the_process_not_from_the_invoice_date():
     Rechnungsdatum ist es **nicht**: eine Rechnung, die zwei Wochen später geschrieben
     wird, verschöbe damit die Steuerperiode (MWSTG Art. 26 Bst. c).
 
-    **Vorbelegt, nicht erzwungen** – ein Mensch weiss von Teilleistungen, von denen der
-    Log nichts weiss. Und **abgeleitet, nicht gespeichert**: eine Spalte daneben wäre die
-    zweite Wahrheit.
+    ►►► **Und es ist KEINE Eingabe** (Testnotiz #919). ◄◄◄ Es stand als Feld im
+    Erfassungsformular – die zweite Aussage über eine Sache, die der Prozess besser
+    weiss, und die getippte gewinnt auch dann, wenn sie falsch ist. Ein trotzdem
+    gesendeter Wert wird darum **verworfen**. Vom Beleg verschwindet es nicht: es steht
+    an der gebuchten Rechnung, wo es rechtlich zählt.
 
-    Bug-Formen: (a) die Antwort trägt das Datum nicht – dann muss die Oberfläche es
-    erfinden oder leer lassen; (b) eine gesendete Angabe wird überschrieben.
+    Bug-Formen: (a) die gebuchte Zeile trägt das Datum nicht – dann fehlt eine
+    Pflichtangabe auf der Rechnung; (b) eine gesendete Angabe wirkt doch.
     """
     from datetime import date
     from app.domain import deal as dm
@@ -2149,11 +2164,6 @@ def test_the_service_date_comes_from_the_process_not_from_the_invoice_date():
         assert arrived == date.today(), (
             "Das Leistungsdatum kommt nicht aus dem Prozess (a)."
         )
-        embed = svc.embed_data(db, order=order, step=rows[1], viewer=staff)
-        assert embed["service_date"] == arrived, (
-            "Es reist nicht mit der Antwort (a) – dann erfindet es die Oberfläche."
-        )
-
         _agree(db, order=order, step=rows[1], party=kunde, amount="500.00", staff=staff)
         svc.apply(db, order=order, step=rows[1], action="charge",
                   payload={"amount": "500.00"}, actor=staff)
@@ -2161,9 +2171,13 @@ def test_the_service_date_comes_from_the_process_not_from_the_invoice_date():
         booked = (db.query(DealEntry)
                   .filter(DealEntry.deal_id == svc.of_step(db, rows[1].id).id,
                           DealEntry.kind == dm.CHARGE).one())
-        assert booked.service_date == arrived
+        assert booked.service_date == arrived, (
+            "Die gebuchte Zeile trägt das Leistungsdatum nicht (a) – dann fehlt auf der "
+            "Rechnung eine Pflichtangabe (MWSTG Art. 26 Bst. c)."
+        )
 
-        # (b) **Ein Mensch darf übersteuern** – er weiss von Teilleistungen.
+        # (b) **Ein gesendeter Wert wirkt NICHT** (#919) – der Prozess weiss es besser
+        # als jemand, der eine Rechnung schreibt.
         #
         # *Gebucht als **Gutschrift** (negativer Betrag): je Modul gibt es genau eine
         # Rechnung (#866), eine Minderung ist davon ausgenommen. Für diese Frage ist es
@@ -2175,9 +2189,9 @@ def test_the_service_date_comes_from_the_process_not_from_the_invoice_date():
                     .filter(DealEntry.deal_id == svc.of_step(db, rows[1].id).id,
                             DealEntry.kind == dm.CHARGE)
                     .order_by(DealEntry.id).all())
-        assert rows_out[-1].service_date == date(2026, 1, 31), (
-            "Die gesendete Angabe wird überschrieben (b) – dann ist die Vorbelegung "
-            "eine Vorschrift."
+        assert rows_out[-1].service_date == arrived, (
+            "Eine gesendete Angabe wirkt doch (b) – dann gibt es eine Hintertür zu "
+            "einer Eingabe, die die Oberfläche gar nicht mehr anbietet."
         )
     finally:
         db.rollback()
@@ -3643,52 +3657,108 @@ def test_a_delivery_clause_is_a_catalog_and_a_named_place():
         db.rollback(); db.close()
 
 
-def test_the_customs_number_travels_with_the_specification():
-    """►►► **Zolltarifnummer und Ursprungsland stehen am ARTIKEL.** ◄◄◄
+def test_the_customs_number_is_prefilled_by_the_article_and_frozen_by_the_deal():
+    """►►► **Der Artikel belegt vor, der BELEG trägt den Wert** (Testnotiz #915). ◄◄◄
 
-    Sie sind Eigenschaften der **Sache**, nicht des Geschäfts – und damit reisen sie über
-    die Spezifikation von selbst auf jede Offerte und jede Rechnung, **ohne dass der
-    Geldvorgang von ihnen weiss**. Genau das ist der Beleg dafür, dass es der richtige Ort
-    ist: es brauchte im Modul keine Zeile.
+    *«Auch wenn etwas eingetragen ist, soll es trotzdem möglich sein, hier eine Eingabe
+    bzw. Änderung einzutragen.»* – Die Zolltarifnummer ist eine Eigenschaft der **Sache**;
+    welche auf *diesem* Beleg steht, ist eine Aussage **dieses Geschäfts**. Dieselbe
+    Beziehung wie beim Preis: vorbelegt aus dem Artikel, frei überschreibbar, **mit der
+    Zusage eingefroren** – ab dort ist eine zweite Partei gebunden.
+
+    **Das Ursprungsland gehört dazu**: es ist für die Ausfuhr dieselbe Pflichtangabe und
+    wäre mit dem Datenblatt (#916) sonst spurlos vom Beleg verschwunden.
 
     *Die ersten sechs Stellen sind weltweit identisch (Harmonisiertes System der WCO,
     rund 200 Länder); darüber hinaus ist die Nummer national. Gespeichert werden darum
-    sechs bis acht – das Importland hängt seine eigene Verlängerung selbst an.*
+    sechs bis acht – das Importland hängt seine Verlängerung selbst an.*
 
-    Bug-Formen, gegengeprüft: (a) die Felder stehen nicht in der Spezifikation – dann
-    stehen sie auf keinem Beleg; (b) der Geldvorgang nennt sie einzeln, statt die
-    Spezifikation mitreisen zu lassen.
+    Bug-Formen, gegengeprüft: (a) die Zeile trägt sie gar nicht – dann stehen sie auf
+    keinem Beleg; (b) der Artikel belegt nicht vor – dann tippt man ab, was dasteht;
+    (c) ein am Beleg genannter Wert wird verworfen; (d) er friert mit der Zusage nicht
+    ein, sondern folgt weiter dem Artikel.
     """
-    from app.services import article_fields, deal as svc
+    from app.services import deal as svc
     db = _db()
     try:
-        p = _party(db, "Kunden AG")
+        kunde = _party(db, "Kunden AG", role="customer")
         staff = _staff(db)
         art = _article(db, "Welle 3.2",
-                       steps=[_money_step(direction="in", parties=[p])])
+                       steps=[_money_step(direction="in", parties=[kunde])])
         art.hs_code = "848210"
         art.origin_country = "CH"
         db.flush()
         order, rows = _make(db, quantity=2, article=art)
         step = rows[0]
 
-        # (a) Sie gehören zur Spezifikation – der einen Liste, die den Beleg speist.
-        keys = [k for k, _label, _unit in article_fields.SPEC_FIELDS]
-        assert "hs_code" in keys and "origin_country" in keys
-
-        flat = {f["label"]: f["value"]
-                for f in article_fields.specification(art)}
-        assert flat.get("Zolltarifnummer (HS)") == "848210"
-        assert flat.get("Ursprungsland") == "CH"
-
-        # (b) Und sie kommen beim Beleg an, ohne dass er sie kennt.
+        # (a)/(b) Die Zeile trägt sie, vorbelegt aus dem Artikel.
         embed = svc.embed_data(db, order=order, step=step, viewer=staff)
-        shown = {f["label"]: f["value"] for f in embed["lines"][0]["spec"]}
-        assert shown.get("Zolltarifnummer (HS)") == "848210"
-        assert shown.get("Ursprungsland") == "CH"
-        # Und der Geldvorgang nennt sie nirgends beim Namen – er reicht die
-        # Spezifikation durch. Genau das ist der Beleg für den richtigen Ort.
-        assert "hs_code" not in inspect.getsource(svc)
+        line = embed["lines"][0]
+        assert line["hs_code"] == "848210", (
+            "Die Zolltarifnummer steht nicht an der Position (a/b)."
+        )
+        assert line["origin_country"] == "CH", (
+            "Das Ursprungsland steht nicht an der Position (a/b)."
+        )
+
+        # (c) Am Beleg genannt gewinnt der Beleg – und (d) er friert mit der Zusage ein.
+        svc.apply(db, order=order, step=step, action="ask", actor=staff,
+                  payload={"parties": [kunde.object_id], "lead_days": 14,
+                           "payment_days": 30,
+                           "lines": [{"article": art.id, "price": "100.00",
+                                      "vat": "normal", "hs_code": "731815",
+                                      "origin_country": "DE"}]})
+        svc.apply(db, order=order, step=step, action="agree", actor=staff,
+                  payload={"party": kunde.object_id})
+        db.flush()
+        # Der Artikel ändert sich danach – der Beleg nicht.
+        art.hs_code = "999999"
+        db.flush()
+        frozen = svc.embed_data(db, order=order, step=step, viewer=staff)["lines"][0]
+        assert frozen["hs_code"] == "731815", (
+            "Der am Beleg genannte Wert gilt nicht (c) – oder er folgt nach der Zusage "
+            "weiter dem Artikel (d)."
+        )
+        assert frozen["origin_country"] == "DE", (
+            "Das Ursprungsland des Belegs gilt nicht (c/d)."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_document_carries_no_datasheet():
+    """►►► **Die Spezifikation steht NICHT auf dem Beleg** (Testnotiz #916). ◄◄◄
+
+    Sie war der Kompromiss «Datenblatt auf Klick». Auf einem **Beleg** ist sie das nicht:
+    was der Empfänger braucht, steht in der Zeile; was er nicht braucht, gehört nicht auf
+    das Papier. Ersatzlos gelöscht – Feld, Dienst und Ansicht.
+
+    **Und die Lücke, die das hinterliess, ist geschlossen**: die beiden Zoll-Angaben
+    standen darin und stehen seither offen an der Zeile (#915). Sie sind keine
+    Beschreibung, sondern Voraussetzung der Ausfuhr.
+
+    Bug-Formen: (a) die Zeile trägt wieder ein Datenblatt; (b) der Dienst, der es baute,
+    ist zurück.
+    """
+    import importlib
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Kunden AG", role="customer")
+        staff = _staff(db)
+        art = _article(db, "Welle 3.2",
+                       steps=[_money_step(direction="in", parties=[kunde])])
+        art.material = "1.4301"
+        db.flush()
+        order, rows = _make(db, quantity=1, article=art)
+        line = svc.embed_data(db, order=order, step=rows[0], viewer=staff)["lines"][0]
+        assert "spec" not in line, "Das Datenblatt steht wieder auf dem Beleg (a)."
+        try:
+            importlib.import_module("app.services.article_fields")
+        except ModuleNotFoundError:
+            pass
+        else:
+            raise AssertionError("Der Dienst, der das Datenblatt baute, ist zurück (b).")
     finally:
         db.rollback(); db.close()
 

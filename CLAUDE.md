@@ -3219,6 +3219,125 @@
 > `overflow: hidden`), dasselbe Wort in der Incoterm-Erklärung meldet **+114,7 px** bei
 > 375 und **+169,7 px** bei 320.
 
+> ►►► **WAS ZWEIMAL DASTEHT, STEHT EINMAL ZU VIEL** (Testnotizen #909–#920,
+> Arbeitsauftrag `docs/arbeitsauftrag-beleg-2.md`, Migration `133`). ◄◄◄ Zwölf Notizen,
+> und der rote Faden ist **einer**: jede Beleg-Angabe hat genau **einen** Ort – die Regel
+> aus #899, konsequent zu Ende gedacht. Drei Dinge sind darum **entfallen**, nicht gebaut.
+>
+> **(1) #911 war ein echter Fehler, und die Ursache lag in der Bauart.** *«Egal was ich
+> hier auswähle, es wird nicht übernommen»* – und das stimmte: das Auswahlfeld der
+> **Lieferbedingung** hing am **Serverwert** und schickte beim Wählen sofort
+> `{incoterm: 'FCA', incoterm_place: ''}`; der Dienst weist eine Klausel **ohne benannten
+> Ort** ab (zu Recht – «FCA» allein ist keine Vereinbarung). Der Server änderte also
+> nichts, das Feld las den alten Wert zurück, und es sah aus, als täte der Klick nichts.
+> **Die Regel ist richtig, die Bauart war falsch**: die beiden Angaben sind **eine**
+> Vereinbarung, also leben sie als **ein Entwurf** und gehen zusammen hinaus, sobald er
+> vollständig ist – dieselbe Bauart wie die Angebotszeile (#879): *gespeichert, nicht
+> abgeschickt, und erst wenn der Dienst es annehmen kann.*
+>
+> ►►► **(2) Ein Auswahlfeld darf nicht abgeschnitten werden** (#909). ◄◄◄ *«Wenn ich hier
+> etwas suche und auswählen möchte, dann geht das nicht wirklich gut, da es von der Ebene
+> her zu tief ist … finden wir eine elegante und vor allem robuste Lösung.»* – Die
+> Vorschlagsliste lag als `position: absolute` **im** Feld und damit in jedem Rahmen
+> darüber: ein Vorfahr mit `overflow: hidden` schnitt sie ab, ein Nachbar mit eigenem
+> Stapelplatz legte sich darüber. **`z-index` hilft dagegen nicht** – er gilt nur
+> *innerhalb* des Stapelkontexts, in dem das Element steht, und einen solchen macht jede
+> Karte mit `transform`, `filter` oder eigenem `z-index` auf. Also **verlässt sie den
+> Baum**: `createPortal` an `document.body`, `position: fixed` an der gemessenen Stelle
+> des Feldes. Damit gibt es **keinen Vorfahren mehr**, der sie schneiden könnte – die
+> Robustheit ist konstruktiv statt geprüft. Drei Zeilen gehören dazu: der
+> Klick-daneben-Schliesser fragt **auch** die Liste (sie ist kein Nachfahre mehr – sonst
+> verschwindet die Zeile, bevor der Klick auf ihr ankommt), `scroll` mit `capture: true`
+> führt sie nach, und am unteren Fensterrand klappt sie nach oben. **Gemessen**: die
+> unterste Zeile traf vorher das Modul darunter und der Klick ging ins Leere; jetzt trifft
+> jede Zeile sich selbst.
+>
+> **(3) Der Belegkopf ist symmetrisch – und er trägt die Gegenpartei** (#913/#912/#914).
+> Vorher floss jede Seite für sich untereinander: hatte die eine kein «z. H.», rutschte
+> bei ihr alles eine Zeile hoch, und die Anschrift der einen stand neben der Nummer der
+> anderen. Die Blöcke teilen jetzt **ein** Raster mit einer festen Zeile je Angabe
+> (`subgrid`, `PARTY_ROWS`) – fehlt eine, bleibt die Zeile **leer**: die Symmetrie ist die
+> Aussage, nicht die Dichte. Gemessen: gleiche Angabe = gleiche y-Koordinate, **Δ 0,00 px**
+> über sieben Fälle und drei Breiten.
+> **Und die Gegenpartei wählt man dort, wo sie steht** (#912) – *ändern, wo man liest*:
+> der Leistungsempfänger im Kopf ist das Bedienelement (Chips mit **Punkt + Wort** je
+> Zustand; ein Karussell mit Pfeilen sagte weder, wie viele es gibt, noch welcher gewählt
+> ist). Der Knopf **«Bei N anbieten»** bleibt am Angebot – die Handlung gehört zu dem,
+> worauf sie wirkt; die **Abwahl** lebt eine Ebene über beiden, sonst sagten Kopf und
+> Knopf Verschiedenes. *Nebenbei ist eine Regel verschwunden statt besser geworden:* das
+> Feld **schliesst sich mit der Wahl**, also gibt es keinen Ort mehr, an dem etwas leer
+> stehenbleiben könnte – der gehaltene «picked»-Zustand (#794 → #820) ist entfallen.
+> **B2B und B2C brauchen keinen Schalter** (#914): *Firma zuerst, Person als «z. H.»;
+> ohne Firma bleibt die Person* steht längst in `people.billing_name`. Ein
+> `is_business`-Feld wäre eine zweite Aussage über etwas, das die Daten schon sagen – und
+> die Stelle, an der jemand es falsch setzt. **Gemessen statt gebaut**: der Beleg einer
+> Privatperson nennt ihren Namen und hat **keine** «z. H.»-Zeile.
+>
+> **(4) Die Positionszeile trägt, was auf den Beleg gehört** (#916/#915). Die
+> aufklappbare **Spezifikation ist ersatzlos gelöscht** – Chevron, Zustand, Raster, und
+> dazu `DealLine.spec`, `SpecEntry` und `services/article_fields`. Sie war der Kompromiss
+> «Datenblatt auf Klick»; auf einem **Beleg** ist sie das nicht: was der Empfänger
+> braucht, steht in der Zeile. **Geblieben sind die beiden Zoll-Angaben**, und zwar offen:
+> **Zolltarifnummer und Ursprungsland** sind für die Ausfuhr dieselbe Pflichtangabe wie
+> der Preis für die Rechnung, und sie wären mit dem Datenblatt spurlos verschwunden. Sie
+> sind **überschreibbar** (#915) – die Nummer ist eine Eigenschaft der **Sache**, aber
+> welche auf *diesem* Beleg steht, ist eine Aussage **dieses Geschäfts**: *der Artikel
+> belegt vor, der Beleg trägt den Wert*, eingefroren mit der Zusage, dieselbe Beziehung
+> wie beim Preis. **Zurückgeschrieben wird nichts** – ein Beleg korrigiert keine
+> Stammdaten.
+>
+> **(5) Die Währung ist der Code am Total** (#917). Sie stand als 190-px-Auswahlfeld über
+> der Preisspalte (#906) – die Richtung war richtig, die Form zu laut: ein Formularfeld
+> über einer Tabelle, in der sonst nur Zahlen stehen. Jetzt **ist der Code selbst das
+> Bedienelement**: kein Rahmen, keine Fläche, dieselbe Schrift wie die Zahl daneben, der
+> volle Name in der aufgeklappten Liste. *Das ist die eine Abweichung vom Wortlaut des
+> Auftrags («am Nettobetrag»): dort stünden **zwei** Codes auf einer Karte – einer als
+> Wähler, einer als gedruckte Tatsache am Total, das seinen seit #881 nennen muss. So gibt
+> es genau einen, und er ist der Wähler.* Sichtbar ist ein `<span>`, bedienbar ein
+> unsichtbares `<select>` darüber: ein nativer Wähler zeigt geschlossen den Text **seiner
+> Zeile**, und der wäre bei «CHF · Schweizer Franken» auf Code-Breite ein halber Name.
+>
+> **(6) Unten steht eine Chronik, kein zweiter Beleg** (#918, Migration `133`).
+> *«Eigentlich muss ich ja nur wissen: wann wurde offeriert, wann wurde die Offerte
+> angenommen – alle anderen Details sind nur Duplikate.»* Stimmt: Partner, Betrag und
+> Fristen stehen im Kopf, in den Positionen und in den Konditionen. Übrig bleiben die
+> **Daten** (`quotes[].sent_on` · `deals.cancelled_on` · `agreed_on`), minimal und
+> tabellarisch; die unterlegenen Zeilen bleiben als **Nachweis** hinter derselben einen
+> Zeile wie bisher. **`updated_at` war die Antwort nicht** – sie wandert bei jeder
+> späteren Änderung mit, und ein Storno, dessen Datum sich bewegt, ist kein Datum.
+> ►►► **Und ein bestehender Wächter hat sofort gemeldet, was dabei entstand**: ◄◄◄ das
+> **Zusagedatum** stand nun im Kopf **und** in der Chronik. Es steht jetzt nur noch in der
+> Chronik – und damit hatte `ModuleMeta` keinen Leser mehr und ist ebenfalls entfallen.
+>
+> **(7) Wörter: «Konditionen» statt «Bedingungen»** (#920 – im deutschen
+> Geschäftsverkehr ist das der Sammelbegriff für Zahlungs-, Liefer- und
+> Preisvereinbarungen; «Bedingungen» ist juristisch belegt und liest sich auf einem Beleg
+> als Verweis auf ein Regelwerk). **Das Leistungsdatum ist kein Eingabefeld mehr** (#919):
+> der Server leitet es aus dem Prozess ab, und eine Eingabe daneben war die zweite
+> Aussage – ein trotzdem gesendeter Wert wird **verworfen**. Vom Beleg verschwindet es
+> nicht: es steht an der **gebuchten Rechnung**, wo es rechtlich zählt (MWSTG Art. 26
+> Bst. c) – und es ist **nicht** der Liefertermin (der ist die *Zusage*, dies die
+> *Tatsache*; über den Jahreswechsel entscheidet es die Steuerperiode).
+> **Und der Datensatzname eines Unternehmens trägt seine Rechtsform** (#910): die Regel
+> stand seit jeher in `sites.legal_name` – sie wurde nur nicht überall gerufen. Jetzt
+> rufen sie Halter-Kette, Halter-Suche, Gebietskarte, Kopfzeile, Feed und Impressum; ein
+> Quelltext-Wächter verbietet jede **zweite** Zusammensetzung aus Name + Rechtsform (das
+> Impressum hatte eine und schrieb «Inexxio AG (AG)»).
+>
+> Wächter: 11 neue in `test_frontend_mirrors.py`, 2 neue in `test_deal_module.py`, dazu 13
+> auf die neue Regel gezogene – **31 Bug-Formen gegengeprüft, jede meldet**; *vier waren
+> dabei stumpf und liessen ihre eigene durch* (einmal traf `<Currency` auch `<CurrencyLine`
+> – dieselbe Namens-Präfix-Falle wie damals bei `<CompanyPick`; zweimal fragte ein Wächter
+> nur nach dem **Vorkommen** eines Namens und liess eine Bug-Form durch, die bloss die
+> Bedingung auf `false` setzte; einmal stand die gesuchte Zeichenkette auch im
+> `removeEventListener`). Fünf bestehende prüften die **Form** der alten Lösung und hätten
+> die bessere verboten. Suite grün gegen die gewachsene Datenbank (580) **und** gegen ein
+> Schema nur aus den Migrationen (588); Migration `133` von null · idempotent · downgrade ·
+> re-upgrade · über das Lifespan-Netz verifiziert. Gemessen in Chromium an den **echten**
+> Komponenten: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über
+> **acht** Zustände – und die Messung gegen ihre eigene Bug-Form gegengeprüft (+73,7 px bei
+> 375, +128,7 px bei 320 mit einem unteilbaren Wort).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -3465,9 +3584,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Position (MWSTG Art. 26) und **eine Währung je Vorgang** (ISO 4217, mit den
   Nachkommastellen der Währung).
 - **Der Beleg ist vollständig**: Belegkopf mit **beiden** Parteien (Leistungserbringer ↔
-  Leistungsempfänger, Rechtsform, Anschrift, «z. H.», Kontaktweg, UID), **Pflichtsatz je
-  Nullsatz** (Export ↔ Reverse Charge), **Zolltarifnummer und Ursprungsland** aus der
-  Artikel-Spezifikation und die **Incoterms 2020** als Katalog mit Erklärung. Welche unserer
+  Leistungsempfänger, Rechtsform, Anschrift, «z. H.», Kontaktweg, UID) – beide auf **einem
+  Raster**, gleiche Angabe auf gleicher Höhe –, **Pflichtsatz je Nullsatz** (Export ↔
+  Reverse Charge), **Zolltarifnummer und Ursprungsland je Position** (aus dem Artikel
+  vorbelegt, am Beleg überschreibbar, mit der Zusage eingefroren) und die **Incoterms
+  2020** als Katalog mit Erklärung. Die **Gegenpartei wählt man im Kopf**, wo sie steht;
+  darunter sagt eine **Chronik** nur noch, **wann** was passiert ist. Welche unserer
   Gesellschaften ihn stellt, ist am Vorgang eingefroren (`deals.issuer_company_id`).
 - **Ein Modul meldet, was ihm fehlt** (`DataGap`): fehlende Stammdaten sind eine **Zeile**,
   kein Zustand – dieselbe Form wie `StepNeed`. Durchgesetzt über `can`: der Knopf ist gar

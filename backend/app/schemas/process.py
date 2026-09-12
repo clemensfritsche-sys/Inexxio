@@ -248,17 +248,6 @@ class TransferInfo(BaseModel):
     problem: Optional[str] = None
 
 
-class SpecEntry(BaseModel):
-    """Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.
-
-    Sie **reist mit dem Beleg** (``services/article_fields``) und wird nicht ausgewählt:
-    eine Spezifikation, die je nach Empfänger anders lautet, ist keine.
-    """
-
-    label: str
-    value: str
-
-
 class StepConfirm(BaseModel):
     """«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.
 

@@ -261,6 +261,13 @@ export interface CompanySettings {
   is_active?: boolean;
   company_name: string;
   legal_form: string | null;
+  /**
+   * ►►► **Der Datensatzname** – Unternehmensname, Abstand, Rechtsform (Testnotiz #910).
+   * ◄◄◄ Kommt fertig vom Server (`sites.legal_name`); hier zusammengesetzt wäre es die
+   * zweite Fassung der Regel, und die Ausnahme («Muster AG» + «AG» bleibt «Muster AG»)
+   * fehlte ihr beim ersten Mal.
+   */
+  legal_name?: string;
   street: string;
   street_number: string | null;
   zip: string;

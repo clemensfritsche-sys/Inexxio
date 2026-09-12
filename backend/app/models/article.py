@@ -82,9 +82,8 @@ class Article(Base, TimestampMixin):
     # **Ursprungsland ist NICHT aus dem HS-Code ableitbar** und auch nicht das
     # Versandland – es ist eine eigene Angabe (ISO-2, wie jedes Land im Haus).
     origin_country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
-    # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es reist mit dem
-    # Beschaffungs-Beleg zum Lieferanten (``services/article_fields``), damit er weiss,
-    # was er in die Hand nimmt.
+    # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es steht am Artikel, nicht
+    # auf dem Beleg (dort steht seit #916 nur noch, was der Empfänger wirklich braucht).
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Die frühere Erfassungsmaske am Artikel (``capture_fields``) ist entfallen: was

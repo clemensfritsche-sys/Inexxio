@@ -5445,36 +5445,44 @@ def test_the_editor_explains_nothing_it_already_shows():
 
 
 def test_the_chosen_counterparty_keeps_its_number_and_name():
-    """**Wer gewählt wurde, steht da — mit Nummer und Namen** (Testnotiz #794).
+    """**Wer gewählt wurde, steht da — mit Nummer und Namen** (Testnotizen #794/#820).
 
-    Bug-Form: die frisch gewählte Option wird weggeworfen und nur die Nummer gehalten.
-    Dann zeigt das Feld nach dem Klick nichts, weil die Wahl noch nicht gespeichert ist –
-    und der Mensch weiss nicht, ob sein Klick angekommen ist.
+    Die frisch gewählte Gegenpartei durfte nicht verschwinden: gespeichert ist sie im
+    Moment des Klicks noch nicht, und ein Feld, das danach leer dasteht, sagt nicht, ob
+    der Klick angekommen ist (#794). Sie durfte aber auch nicht stehenbleiben, sobald der
+    Server sie als Zeile zurückgibt – dann stand derselbe Partner zweimal da (#820).
+
+    ►►► **Seit #912 löst sich die Frage auf**: das Feld ist ein **Hinzufüger im
+    Belegkopf**, und es **schliesst sich mit der Wahl**. ◄◄◄ Damit gibt es keinen Ort
+    mehr, an dem etwas leer stehenbleiben könnte – und keinen zweiten Zustand, der die
+    frische Wahl halten müsste. Eine Regel weniger, statt einer besseren Fassung
+    derselben.
+
+    *Der frühere Zwillings-Wächter (`…_the_field_holds_the_pick_only_until_it_is_a_row`)
+    ist damit entfallen: er prüfte den Mechanismus, den es nicht mehr gibt.*
+
+    Bug-Formen: (a) das Feld bleibt nach der Wahl stehen – dann steht der Partner gleich
+    zweimal da, einmal als Chip und einmal im Feld; (b) die zugesagte Gegenpartei steht
+    im Kopf ohne Nummer oder ohne Namen.
     """
-    offer = _code(_body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                        "Offer", kind="function"))
-    # **Gefragt wird die REGEL, nicht der Wortlaut**: die frische Wahl reist als
-    # **Option** ins Feld (nicht bloss als Nummer). Die erste Fassung verlangte
-    # `selected={picked}` – also die Form der damaligen Lösung – und schlug an, als die
-    # Wahl zusätzlich fallen gelassen wurde, sobald sie als Zeile dasteht (#820). Ein
-    # Wächter, der die Form prüft, verbietet die bessere Lösung.
-    assert "setPicked(" in offer and "selected={" in offer, (
-        "Die gewählte Gegenpartei wird nicht gehalten (#794) – das Feld steht nach dem "
-        "Klick leer da."
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    add = " ".join(_component(src, "Recipients").split())
+    assert "setAdding(false); if (nr !== null)" in add, (
+        "Das Feld bleibt nach der Wahl stehen (a) – dann steht der Partner zweimal da, "
+        "und ein Hinzufüger zeigt, was schon dasteht."
     )
-    assert "selected={null}" not in offer, (
-        "Die frische Wahl wird weggeworfen – das Feld zeigt nach dem Klick nichts."
+    assert "useState<DealParty | null>" not in add, (
+        "Die frische Wahl wird in einem zweiten Zustand gehalten – seit das Feld sich "
+        "mit der Wahl schliesst, gibt es nichts zu halten (#820)."
     )
     # *Sie stand einmal im Block «bestätigter Auftrag»; seit die Karte EIN Beleg ist
     # (#899), steht der Empfänger dort, wo er auf jedem Beleg steht: im Kopf – und seit
     # der Belegkopf **beide** Parteien nennt (MWSTG Art. 26), in ihrem eigenen Block, mit
     # Rolle, Anschrift und UID. Gefragt bleibt die **Regel**: Nummer UND Name.*
-    parties = _component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                         "Parties")
+    parties = _component(src, "Parties")
     assert "s.object_id" in parties and "s.name" in parties, (
-        "Die zugesagte Gegenpartei steht nicht mit Nummer und Namen da."
+        "Die zugesagte Gegenpartei steht nicht mit Nummer und Namen da (b)."
     )
-
 
 def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
     """►►► **Eine naheliegende Handlung — und der Server sagt welche.** ◄◄◄
@@ -5811,14 +5819,17 @@ def test_who_is_asked_is_a_choice_not_an_announcement():
         "Ansage (#809)."
     )
     assert "action: 'ask'" in flat and "parties" in flat
-    assert "setDropped" in offer, (
+    # ►►► **Gewählt wird im KOPF, gesendet am Angebot** (Testnotiz #912). ◄◄◄ Die Abwahl
+    # lebt darum eine Ebene über beiden; hier zu suchen prüfte die Form der alten Lösung.
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "onDrop" in " ".join(_component(src, "Recipients").split()), (
         "Es gibt keinen Weg, jemanden von der Anfrage auszunehmen."
     )
     # ►►► **Und die Abwahl gilt nur für DIESE Anfrage** (Testnotiz #835). ◄◄◄
     #
     # Sie überlebte das Absenden: wer erst einen von zweien fragte, hatte den zweiten
     # noch abgewählt – «Bei 0 anbieten», gesperrt, bis zum Refresh.
-    assert "setDropped([])" in flat, (
+    assert "setDropped([]);" in " ".join(_component(src, "DealWork").split()), (
         "Die Abwahl überlebt die Anfrage – der nächste Partner bleibt abgewählt (#835)."
     )
 
@@ -6031,42 +6042,6 @@ def test_the_money_module_says_it_with_its_values_not_with_labels():
             f"«{gone}» ist zurück – die Vorauszahlung ist keine Angabe der Definition "
             f"mehr, sondern die Zahlungsfrist des Angebots (#854)."
         )
-
-
-def test_the_field_holds_the_pick_only_until_it_is_a_row():
-    """►►► **Ein Hinzufüger zeigt nicht, was schon dasteht** (Testnotizen #794 → #820).
-
-    Die frische Wahl wird gehalten, weil das Feld im Moment des Klicks sonst leer
-    dasteht – gespeichert ist sie noch nicht (#794). Sobald der Server sie als
-    Angebotszeile zurückgibt, ist sie es aber, und dann steht derselbe Partner
-    **zweimal** da: als Zeile und im Feld darunter (#820).
-
-    **Gemessen, nicht vermutet**: der Editor (`MoneyFields`) war es *nicht* – dort räumt
-    `SearchSelect.pick` seine Suche selbst auf, und das Feld ist nach dem Klick leer
-    (Chromium, zwei Adds hintereinander, beide Male ``""``). Ein `key`-Zurücksetzen dort
-    hätte nichts behoben und den Fund nur zugedeckt.
-
-    Bug-Formen: (a) die Wahl wird unbedingt gehalten; (b) sie wird gar nicht mehr
-    gehalten (dann ist #794 zurück); (c) sie wird über einen zweiten Zustand geräumt,
-    den irgendein Pfad vergisst.
-    """
-    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    offer = _body(src, "Offer", kind="function")
-    assert "value={picked?.object_id ?? null}" not in offer, (
-        "Die Wahl wird unbedingt gehalten – der Partner steht dann zweimal da."
-    )
-    assert "useState<DealParty | null>(null)" in offer, (
-        "Die frische Wahl wird gar nicht mehr gehalten – dann steht das Feld im Moment "
-        "des Klicks leer da (#794)."
-    )
-    # (c) **Eine Ableitung, kein zweiter Zustand**: `setPicked(null)` an einer Antwort
-    # wäre die Stelle, die der nächste Pfad vergisst.
-    assert "d.quotes.some((q) => q.party_object_id === picked.object_id)" in offer, (
-        "Die Wahl fällt nicht, sobald sie als Zeile dasteht."
-    )
-    assert "setPicked(null)" not in offer.replace("setPicked(nr === null ? null", ""), (
-        "Die Wahl wird über einen zweiten Zustand geräumt statt abgeleitet."
-    )
 
 
 def test_the_closing_action_stands_at_the_end_of_the_card():
@@ -6367,7 +6342,11 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
             # **Und die Frist heisst, wie sie heisst** (#885): «Vorauszahlung» statt
             # «0 Tage», gelesen aus derselben Liste, aus der man sie wählt. Tabellarisch
             # bleibt sie – es ist eine Zahl.
-            ("Zusagedatum", "DocHead", "{localDate(d.agreed_on)}")):
+            #
+            # *Das Zusagedatum steht seit #918 in der **Chronik** – dem Abschnitt, der
+            # nur noch sagt, **wann** etwas passiert ist. Im Kopf stand es damit zum
+            # zweiten Mal.*
+            ("Zusagedatum", "Chronicle", "{localDate(when)}")):
         block = " ".join(_component(src, where).split())
         assert marker in block, f"«{what}» steht nicht mehr in «{where}»."
         before = block[max(0, block.index(marker) - 300):block.index(marker)]
@@ -6739,7 +6718,10 @@ def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
         # Geprüft wird die **Nachbarschaft**: unmittelbar hinter der ausgegebenen Zahl
         # steht ihr Code – ob er `d.currency` heisst oder als `code` hereingereicht wird,
         # ist die Sache der Aufrufstelle.
-        assert re.search(r"formatAmount\([^)]*\)\}\s*\{(d\.currency|code)\}", shown), (
+        # *Seit #917 kann dort der **Wähler** stehen statt des blossen Textes – gefragt
+        # ist, dass die Zahl ihre Währung nennt, nicht wie das Bauteil heisst.*
+        assert re.search(r"formatAmount\([^)]*\)\}\s*\{[^}]*\b(currency|code)\b[^}]*\}",
+                         shown), (
             f"Der Betrag in «{what}» nennt seine Währung nicht (c) – seit #881 ist das "
             f"die einzige Stelle, an der sie noch steht."
         )
@@ -6767,7 +6749,9 @@ def test_the_currency_is_one_control_in_the_offer_and_hangs_on_can():
         "Die Währung steht wieder im Belegkopf – zwischen lauter Auskünften liest sich "
         "ein Bedienelement wie eine (#864)."
     )
-    assert src.count("<Currency") == 1, (
+    # **Genau dieser Name, nicht der, der so anfängt**: `<CurrencyLine` steht daneben
+    # (die Zeile, die den Wähler trägt, wo es keine Summe gibt).
+    assert len(re.findall(r"<Currency[\s/>]", src)) == 1, (
         "Die Währung steht an mehr als einer Stelle – dann ist sie eine Spalte geworden."
     )
 
@@ -6939,6 +6923,12 @@ def test_a_name_never_stands_without_its_object_number():
     # meldete es eine Zeile, in der beide direkt nebeneinander stehen.
     for i in shown:
         window = "\n".join(lines[max(0, i - 14):i + 14])
+        # ►►► **Auch ein Bauteil zählt, das beide bekommt.** ◄◄◄ Der Chip im Belegkopf
+        # (#912) rendert `<ObjId>` selbst und nimmt Name und Nummer als **Paar** entgegen;
+        # der Wächter suchte nur nach dem Element und hätte damit die Weitergabe an eine
+        # Komponente verboten – also die Form der Lösung statt der Regel.
+        if re.search(r"number=\{", window):
+            continue
         assert "<ObjId" in window, (
             f"«{lines[i].strip()}» (Zeile {i + 1}) steht ohne seine Objektnummer – "
             f"ein Name allein ist keine Kennung (#853)."
@@ -7628,9 +7618,14 @@ def test_a_money_row_shows_one_date_and_hides_the_other_in_the_hover():
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     row = " ".join(_component(src, "EntryRow").split())
-    assert "localDate(" not in row, (
-        "Die Zeile schreibt ihr Datum wieder selbst (a) – dann stehen beide da."
-    )
+    # **Gemeint sind die beiden Daten der Zeile** – gebucht und fällig. Seit #919 steht
+    # daneben das **Leistungsdatum**, und das ist eine dritte, rechtlich verlangte
+    # Angabe (MWSTG Art. 26 Bst. c), nicht die zweite Schreibweise derselben. Ein
+    # Wächter, der jedes `localDate(` verbietet, verbietet sie mit.
+    for date in ("e.booked_on", "e.due_on"):
+        assert f"localDate({date})" not in row, (
+            "Die Zeile schreibt ihr Datum wieder selbst (a) – dann stehen beide da."
+        )
     assert "dateText(e).text" in row and "dateText(e).tip" in row, (
         "Zeile und Hover kommen nicht mehr aus derselben Ableitung (b)."
     )
@@ -7906,7 +7901,7 @@ def test_a_document_says_each_of_its_facts_exactly_once():
             # Wächter verbietet.*
             ("der Empfänger", "d.customer", "Parties"),
             ("der Aussteller", "d.supplier", "Parties"),
-            ("das Zusagedatum", "d.agreed_on", "DocHead"),
+            ("das Zusagedatum", "d.agreed_on", "Chronicle"),
             ("die Zahlungsfrist", "d.due_days", "Terms"),
             ("der Liefertermin", "d.due_date", "Terms"),
             ("die Steueraufteilung", "d.vat_split", "Goods"),
@@ -8237,7 +8232,10 @@ def test_a_delivery_clause_explains_itself_and_names_its_place():
         assert f'"{key}"' not in src and f"'{key}'" not in src, (
             f"Die Klausel «{key}» steht als Literal in der Oberfläche (a)."
         )
-    assert "title={t.hint}" in block and "{term.hint}" in block, (
+    # Gefragt ist die **Regel** (eine Erklärung aus dem Katalog-Eintrag wird gezeigt),
+    # nicht der Name der Variablen, aus der sie kommt – sonst verbietet der Wächter die
+    # nächste, bessere Fassung.
+    assert "title={t.hint}" in block and re.search(r"\{\w+\.hint\}", block), (
         "Die Erklärung fehlt (b) – weder in der Liste noch sichtbar unter der Wahl."
     )
     assert "d.incoterm_place" in block, (
@@ -8245,6 +8243,40 @@ def test_a_delivery_clause_explains_itself_and_names_its_place():
     )
     assert "d.incoterm_text" in block and "Incoterms 2020" not in src, (
         "Der Satz für den Beleg wird im Browser gebaut (d) – dann gibt es ihn zweimal."
+    )
+
+
+def test_a_clause_and_its_place_are_one_draft():
+    """►►► **Klausel und Ort gehen ZUSAMMEN hinaus** (Testnotiz #911). ◄◄◄
+
+    Gemeldet war: *«Egal was ich hier auswähle, es wird nicht übernommen.»* – Und das
+    stimmte. Das Auswahlfeld war an den **Serverwert** gebunden und schickte beim Wählen
+    sofort ``{incoterm: 'FCA', incoterm_place: ''}``; der Dienst weist eine Klausel
+    **ohne benannten Ort** mit 400 ab (zu Recht). Der Server änderte also nichts, das
+    Feld las den alten Wert zurück – und es sah aus, als täte der Klick nichts.
+
+    **Die Regel ist richtig, die Bauart war falsch**: die beiden Angaben sind **eine**
+    Vereinbarung, also leben sie als **ein Entwurf** und gehen hinaus, sobald er
+    vollständig ist. Dieselbe Bauart wie die Angebotszeile (#879) – gespeichert, nicht
+    abgeschickt, und erst wenn der Dienst es annehmen kann.
+
+    Bug-Formen: (a) das Auswahlfeld liest den Serverwert; (b) die Wahl schickt sofort;
+    (c) es gibt gar keinen Autosave, also wird nie gespeichert.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    block = " ".join(_component(src, "Delivery").split())
+    # Gemeint ist **die Klausel**, nicht der abgeleitete Satz daneben
+    # (``value={d.incoterm_text}`` in der feststehenden Fassung ist richtig so).
+    assert not re.search(r"value=\{d\.incoterm(?![A-Za-z0-9_])", block), (
+        "Das Auswahlfeld liest den Serverwert (a) – der ändert sich erst, wenn der "
+        "Dienst annimmt, und bis dahin springt die Wahl zurück."
+    )
+    assert not re.search(r"onChange=\{\([^)]*\) => onAction\(", block), (
+        "Die Wahl geht sofort hinaus (b) – ohne den Ort ist sie eine halbe Angabe, "
+        "und der Dienst weist sie zu Recht ab."
+    )
+    assert "useAutosave(" in block, (
+        "Es gibt keinen Autosave (c) – dann wird die Vereinbarung nie gespeichert."
     )
 
 
@@ -8287,9 +8319,12 @@ def test_the_terms_are_written_in_exactly_one_place():
 def test_the_customs_fields_live_at_the_article():
     """►►► **Zolltarifnummer und Ursprungsland gehören der SACHE** (§3.1). ◄◄◄
 
-    Sie stehen am **Artikel** und reisen über die Spezifikation von selbst auf jede
-    Offerte und jede Rechnung – der Geldvorgang weiss nichts von ihnen. Genau das ist der
-    Beleg dafür, dass es der richtige Ort ist.
+    Sie stehen am **Artikel** – dort werden sie gepflegt, und nur dort.
+
+    ►►► **Der Beleg belegt daraus VOR, er schreibt nicht zurück** (Testnotiz #915). ◄◄◄
+    Welche Nummer auf *diesem* Beleg steht, ist eine Aussage **dieses Geschäfts** –
+    dieselbe Beziehung wie beim Preis: vorbelegt aus dem Artikel, überschreibbar, mit der
+    Zusage eingefroren. Was der Beleg **nicht** tut, ist die Stammdaten korrigieren.
 
     *Die ersten sechs Stellen sind weltweit identisch (Harmonisiertes System der WCO);
     darüber hinaus ist die Nummer national – das sagt der Platzhalter, statt es zu
@@ -8297,7 +8332,8 @@ def test_the_customs_fields_live_at_the_article():
 
     Bug-Formen: (a) die Felder fehlen im Artikel-Editor; (b) sie werden nicht gesendet;
     (c) das Ursprungsland reist kleingeschrieben ab – «ch» und «CH» wären zwei Länder;
-    (d) der Geldvorgang nennt sie einzeln statt die Spezifikation durchzureichen.
+    (d) der Geldvorgang schreibt sie an den Artikel zurück – dann korrigiert ein Beleg
+    Stammdaten, und ein einziges Geschäft ändert, was die Sache ist.
     """
     art = _code(_read(FRONTEND / "components" / "erp" / "article-detail.tsx"))
     for key in ("hs_code", "origin_country"):
@@ -8310,10 +8346,12 @@ def test_the_customs_fields_live_at_the_article():
     assert "form.origin_country.trim().toUpperCase()" in art, (
         "Das Ursprungsland reist ungenormt ab (c) – «ch» und «CH» wären zwei Länder."
     )
+    # (d) Gepflegt wird am **Artikel**: der Geldvorgang kennt keinen Weg dorthin – er
+    # schickt seine Zeilen an sein eigenes Verb (`ask`/`quote`), nie an den Artikel.
     deal = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    assert "hs_code" not in deal and "origin_country" not in deal, (
-        "Der Geldvorgang nennt die Zoll-Angaben beim Namen (d) – er reicht die "
-        "Spezifikation durch, und genau deshalb stimmt der Ort."
+    assert "updateArticle" not in deal and "api.updateArticle" not in deal, (
+        "Der Geldvorgang schreibt an den Artikel (d) – ein Beleg korrigiert keine "
+        "Stammdaten."
     )
 
 
@@ -8350,3 +8388,381 @@ def test_the_issuer_is_a_choice_at_the_document_head():
         "Die Gesellschaft fehlt am Benutzer-Datensatz (d) – dann kann nichts vorgewählt "
         "werden, und der Beleg nimmt still den Betreiber."
     )
+
+
+def test_a_company_record_is_named_with_its_legal_form():
+    """►►► **Unternehmensname · Abstand · Rechtsform — an EINER Stelle** (Notiz #910). ◄◄◄
+
+    *«Der Datensatzname bei Datensatztyp Unternehmen soll immer der Unternehmensname
+    sein → Abstand → Rechtsform.»* – Die Regel gab es längst (``sites.legal_name``,
+    inklusive der Ausnahme «Muster AG» + «AG» = «Muster AG», nicht «Muster AG AG»); sie
+    wurde nur nicht überall gerufen. Genannt wird derselbe Datensatz in der
+    **Halter-Kette**, in der **Halter-Suche**, auf der **Gebietskarte**, in der
+    **Kopfzeile**, im **Feed** und im **Impressum** – und er muss überall gleich heissen.
+
+    **Zusammengesetzt wird er nirgendwo sonst.** Das Impressum tat es und schrieb
+    ``«Inexxio AG (AG)»``: eine zweite Fassung einer Regel, die eine Ausnahme kennt,
+    sieht richtig aus und ist es nicht.
+
+    Bug-Formen: (a) eine Station trägt den blossen Spaltenwert; (b) die Antwort führt den
+    Datensatznamen gar nicht; (c) jemand baut ihn ein zweites Mal aus beiden Feldern
+    zusammen; (d) das Frontend setzt ihn selbst statt ihn zu lesen.
+    """
+    places = _code(_read(BACKEND / "app" / "services" / "places.py"))
+    for line in places.split("\n"):
+        if 'Station(' in line and '"organization"' in line:
+            assert "legal_name" in line, (
+                "Eine Halter-Station trägt den blossen Spaltenwert (a) – dieselbe "
+                f"Gesellschaft hiesse dort anders als auf dem Beleg: {line.strip()}"
+            )
+
+    admin = _code(_read(BACKEND / "app" / "routers" / "admin.py"))
+    assert admin.count("legal_name") >= 3, (
+        "Der Datensatzname fehlt in einer der Antworten (b) – Detail, Gebietskarte und "
+        "die öffentliche Auskunft müssen ihn alle drei führen."
+    )
+
+    # (c) Keine zweite Zusammensetzung – weder im Backend noch im Browser. Gesucht ist
+    # die **Verbindung** beider Angaben in einem Ausdruck, nicht ihr blosses Vorkommen
+    # (sie stehen völlig zu Recht nebeneinander in Formular, Schema und Modell).
+    joiner = re.compile(
+        r"(company_name|companyName)[^\n]{0,40}[+`}][^\n]{0,40}(legal_form|legalForm)"
+        r"|(legal_form|legalForm)[^\n]{0,40}[+`}][^\n]{0,40}(company_name|companyName)"
+    )
+    files = [p for p in (BACKEND / "app").rglob("*.py")]
+    files += [p for p in (FRONTEND).rglob("*.ts")] + [p for p in FRONTEND.rglob("*.tsx")]
+    for path in files:
+        if path.name in ("sites.py", "api.ts"):
+            continue
+        hit = joiner.search(_code(_read(path)))
+        assert hit is None, (
+            f"«{path.name}» setzt den Namen ein zweites Mal aus Name und Rechtsform "
+            f"zusammen (c): {hit.group(0)!r}. Die Regel steht in ``sites.legal_name``."
+        )
+
+    # (d) Der eine Namensgeber des Frontends liest ihn, statt ihn zu bauen.
+    names = _code(_read(FRONTEND / "lib" / "record-name.ts"))
+    block = _body(names, "organizationName", kind="function")
+    assert "legal_name" in block, (
+        "``organizationName`` liest den Datensatznamen nicht (d) – dann heisst dieselbe "
+        "Gesellschaft im Feed anders als in der Halter-Kette."
+    )
+
+
+def test_the_suggestion_list_hangs_on_the_body_not_in_the_field():
+    """►►► **Die Liste steht am Feld – aber nicht IN ihm** (Testnotiz #909). ◄◄◄
+
+    *«Wenn ich hier etwas suche und auswählen möchte, dann geht das nicht wirklich gut,
+    da es von der Ebene her zu tief ist … finden wir hier eine elegante und vor allem
+    robuste Lösung.»* – Gemessen und nachgestellt: als ``position: absolute`` **im** Feld
+    liegt die Liste in jedem Rahmen darüber. Ein Vorfahr mit ``overflow: hidden``
+    schneidet sie ab, ein Nachbar mit eigenem Stapelplatz legt sich darüber – und
+    ``z-index`` hilft nicht, denn er gilt nur **innerhalb** des Stapelkontexts, in dem das
+    Element steht.
+
+    Also verlässt sie den Baum: ``createPortal`` an ``document.body``, ``position: fixed``
+    an der gemessenen Stelle des Feldes. Damit gibt es keinen Vorfahren mehr, der sie
+    schneiden könnte – **konstruktiv statt geprüft**.
+
+    Bug-Formen: (a) sie steht wieder absolut im Feld; (b) es gibt kein Portal; (c) der
+    Klick-daneben-Schliesser fragt nur das Feld – dann verschwindet die Zeile, bevor der
+    Klick auf ihr ankommt; (d) sie wird beim Scrollen nicht nachgeführt.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    block = " ".join(_component(src, "SearchSelect").split())
+    assert "createPortal(" in block and "document.body," in block, (
+        "Die Liste hängt nicht an <body> (b) – dann schneidet sie der erste Rahmen mit "
+        "``overflow: hidden`` wieder ab."
+    )
+    assert "position: 'fixed'" in block, (
+        "Die Liste steht wieder absolut im Feld (a) – ausserhalb des Baums ist das die "
+        "falsche Bezugsgrösse, sie landete an der linken oberen Ecke der Seite."
+    )
+    assert "listRef.current?.contains" in block, (
+        "Der Klick-daneben-Schliesser fragt nur das Feld (c) – die Liste ist kein "
+        "Nachfahre mehr, also verschwände die Zeile, bevor der Klick auf ihr ankommt."
+    )
+    # **Das Anmelden, nicht das Abmelden**: die erste Fassung fragte nur nach der
+    # Zeichenkette – und die steht auch in ``removeEventListener``. Ein Wächter, der
+    # seine eigene Bug-Form durchlässt, ist von einem kaputten nicht zu unterscheiden
+    # (gemessen: die Bug-Form meldete nichts).
+    assert ("addEventListener('scroll', measure, true)" in block
+            and "addEventListener('resize', measure)" in block), (
+        "Die Liste wird nicht nachgeführt (d) – sie bliebe stehen, während das Feld "
+        "unter ihr wegscrollt."
+    )
+
+
+def test_the_terms_section_is_called_konditionen():
+    """►►► **«Konditionen», nicht «Bedingungen»** (Testnotiz #920). ◄◄◄
+
+    Geprüft statt geraten: im deutschen Geschäftsverkehr ist der Sammelbegriff für
+    Zahlungs-, Liefer- und Preisvereinbarungen *Konditionen*. «Bedingungen» ist
+    juristisch belegt (**A**llgemeine **G**eschäfts**b**edingungen) und liest sich auf
+    einem Beleg als Verweis auf ein Regelwerk statt auf das, was hier vereinbart wurde.
+
+    Bug-Form: das alte Wort steht wieder da.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "'Konditionen'" in src, "Der Abschnitt heisst nicht «Konditionen»."
+    assert "Bedingungen" not in src, (
+        "«Bedingungen» steht wieder da – auf einem Beleg liest es sich als Verweis auf "
+        "ein Regelwerk statt auf das Vereinbarte."
+    )
+
+
+def test_a_position_shows_its_customs_data_and_no_datasheet():
+    """►►► **Zoll-Angaben offen, Datenblatt weg** (Testnotizen #915/#916). ◄◄◄
+
+    Die aufklappbare Spezifikation war der Kompromiss «Datenblatt auf Klick». Auf einem
+    **Beleg** ist sie das nicht: was der Empfänger braucht, steht in der Zeile. Sie ist
+    ersatzlos gelöscht – und die Lücke, die das hinterliess, ist geschlossen:
+    **Zolltarifnummer und Ursprungsland** sind für die Ausfuhr dieselbe Pflichtangabe wie
+    der Preis für die Rechnung und stehen seither offen an der Position, vorbelegt aus
+    dem Artikel und **überschreibbar**.
+
+    Bug-Formen: (a) der Chevron ist zurück; (b) die Zeile zeigt die Zoll-Angaben nicht;
+    (c) sie sind nicht überschreibbar; (d) sie gehen beim Anbieten nicht mit hinaus.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    goods = " ".join(_component(src, "Goods").split())
+    assert "spec" not in goods and "aria-expanded" not in goods, (
+        "Das aufklappbare Datenblatt ist zurück (a) – auf einem Beleg steht, was der "
+        "Empfänger braucht, nicht sein Datenblatt."
+    )
+    # **Gefragt ist der WERT, nicht der Name**: die erste Fassung fragte nur, ob er im
+    # Rumpf vorkommt – und eine Bug-Form, die bloss die Bedingung auf `false` setzt, liess
+    # sie durch (gemessen, zweimal nachgeschärft). `…}` gibt es nur dort, wo er als
+    # JSX-Wert dasteht; in einer Bedingung folgt `&&` oder `||`.
+    assert "line.hs_code}" in goods and "line.origin_country}" in goods, (
+        "Die Zeile zeigt die Zoll-Angaben nicht (b) – mit dem Datenblatt wären sie "
+        "spurlos vom Beleg verschwunden."
+    )
+    assert "{ hs: e.target.value }" in goods and "{ origin: e.target.value }" in goods, (
+        "Die Zoll-Angaben sind nicht überschreibbar (c) – welche Nummer auf *diesem* "
+        "Beleg steht, ist eine Aussage dieses Geschäfts."
+    )
+    offer = " ".join(_component(src, "Offer").split())
+    assert "hs_code: r.hs" in offer and "origin_country: r.origin" in offer, (
+        "Sie gehen beim Anbieten nicht mit hinaus (d) – dann friert die Zusage einen "
+        "Wert ein, den niemand genannt hat."
+    )
+
+
+def test_the_currency_is_the_code_at_the_total():
+    """►►► **Der Code am Total IST der Währungswähler** (Testnotiz #917). ◄◄◄
+
+    Sie stand als 190-px-Auswahlfeld über der Preisspalte (#906) – die Richtung war
+    richtig, die Form zu laut. Jetzt ist sie der Code an der einen Zahl, die man
+    abschreibt: kein Rahmen, keine Fläche, ein Zeichen statt eines Formularfeldes.
+
+    **Und es gibt genau EINEN Code auf der Karte**: ein Wähler am Netto *und* eine
+    gedruckte Angabe am Total wären dieselbe Aussage zweimal.
+
+    Bug-Formen: (a) der Wähler steht wieder als Feld über der Tabelle; (b) er trägt
+    wieder eine Rahmen-/Feld-Anatomie; (c) der Total zeigt den Code statt des Wählers.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    goods = " ".join(_component(src, "Goods").split())
+    # **Genau ein Vorkommen, und zwar die Zuweisung**: gerendert wird er dort, wohin er
+    # gereicht wird (der Summenblock), nicht noch einmal über der Tabelle.
+    # **Genau dieser Name, nicht der, der so anfängt**: `<CurrencyLine` steht daneben und
+    # machte die erste Fassung stumpf (gemessen: sie zählte zwei).
+    assert len(re.findall(r"<Currency[\s/>]", goods)) == 1 \
+            and "const currency = may(" in goods, (
+        "Der Wähler steht wieder frei in der Tabelle (a) – über einer Tabelle aus "
+        "Zahlen ist ein Formularfeld die laute Form, die #917 gemeldet hat."
+    )
+    assert "currency={currency}" in goods, (
+        "Der Summenblock bekommt den Wähler nicht (a) – dann steht er woanders."
+    )
+    picker = " ".join(_component(src, "Currency").split())
+    assert "className={inputCls}" not in picker and "opacity: 0" in picker, (
+        "Der Wähler trägt wieder die Anatomie eines Formularfeldes (b) – über einer "
+        "Tabelle aus Zahlen ist das die laute Form, die #917 gemeldet hat."
+    )
+    totals = " ".join(_component(src, "Totals").split())
+    assert "{currency ?? code}" in totals, (
+        "Der Total zeigt den blossen Code (c) – dann gibt es ihn zweimal auf der Karte, "
+        "einmal als Wähler und einmal als Text."
+    )
+
+
+def test_the_service_date_is_shown_at_the_invoice_and_never_typed():
+    """►►► **Das Leistungsdatum ist keine Eingabe – aber es steht auf dem Beleg**
+    (Testnotiz #919). ◄◄◄
+
+    *«Es soll nicht möglich sein, hier ein veränderbares Leistungsdatum anzugeben.»* –
+    Richtig: der Server leitet es aus dem Prozess ab, und eine Eingabe daneben war die
+    zweite Aussage über dieselbe Sache.
+
+    **Vom Beleg verschwindet es trotzdem nicht**: es ist auf einer Schweizer Rechnung
+    eine Pflichtangabe (MWSTG Art. 26 Bst. c) und **nicht** dasselbe wie der Liefertermin
+    in den Konditionen – der Termin ist die *Zusage*, das Leistungsdatum die *Tatsache*.
+    Es steht an der gebuchten Rechnung, wo es rechtlich zählt.
+
+    Bug-Formen: (a) das Eingabefeld ist zurück; (b) es geht wieder in der Nutzlast mit;
+    (c) es steht nirgends mehr am Beleg.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    entry = " ".join(_component(src, "Entry").split())
+    assert "service" not in entry, (
+        "Das Leistungsdatum steht wieder im Erfassungsformular (a/b) – der Prozess weiss "
+        "es besser als jemand, der eine Rechnung schreibt."
+    )
+    row = " ".join(_component(src, "EntryRow").split())
+    # **Gefragt ist der WERT** – dieselbe Schärfung wie bei den Zoll-Angaben: nur nach
+    # dem Vorkommen gefragt, ging eine Bug-Form durch, die bloss die Bedingung auf
+    # `false` setzte (gemessen).
+    assert "localDate(e.service_date)" in row and "service_date_label" in row, (
+        "Das Leistungsdatum steht an der gebuchten Rechnung nicht mehr (c) – dann fehlt "
+        "auf dem Beleg eine Pflichtangabe (MWSTG Art. 26 Bst. c)."
+    )
+
+
+def test_both_parties_stand_on_one_grid():
+    """►►► **Beide Parteien auf EINER Linie** (Testnotiz #913). ◄◄◄
+
+    Vorher floss jede Seite für sich untereinander: hatte die eine kein «z. H.», rutschte
+    bei ihr alles eine Zeile hoch – dann stand die Anschrift der einen neben der Nummer
+    der anderen, und ein Beleg, den man nebeneinander liest, liest sich nicht mehr
+    nebeneinander.
+
+    Die Blöcke teilen darum **ein** Raster mit einer festen Zeile je Angabe (Rolle · Name
+    · z. H. · Anschrift · Nr. · Kontakt · UID) – als `subgrid`, damit die Zeilenhöhe die
+    **beider** Seiten ist. Fehlt eine Angabe, bleibt die Zeile leer: die Symmetrie ist die
+    Aussage, nicht die Dichte.
+
+    *Gemessen in Chromium (1440 · 1024 · 834 px, sieben Fälle): gleiche Angabe = gleiche
+    y-Koordinate, Δ **0,00 px** – und gegen die eigene Bug-Form gegengeprüft.*
+
+    Bug-Formen: (a) die Blöcke stehen wieder je für sich; (b) die Zeilenzahl steht als
+    Literal an zwei Stellen und läuft auseinander; (c) eine fehlende Angabe lässt ihre
+    Zeile ausfallen, statt sie leer zu lassen.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    block = " ".join(_component(src, "Parties").split())
+    assert "gridTemplateRows: 'subgrid'" in block, (
+        "Die Blöcke teilen kein Raster (a) – dann sitzt eine Seite eine Zeile tiefer als "
+        "die andere, sobald ihr eine Angabe fehlt."
+    )
+    assert "const PARTY_ROWS" in src and block.count("PARTY_ROWS") == 2, (
+        "Die Zeilenzahl steht nicht als eine Zahl da (b) – das Raster braucht sie zweimal "
+        "(Vorrat am Rahmen, Spanne je Block), und zwei Literale laufen auseinander."
+    )
+    # (c) **Jede Zeile wird gezeichnet, auch die leere.** Gefragt ist, dass keine
+    # bedingte Zeile mit `null` endet – genau das lässt sie ausfallen. Die erste Fassung
+    # zählte nur die `<div />` und war damit stumpf: eine weggenommene liess noch genug
+    # übrig (gemessen).
+    assert ": null}" not in block and block.count("<div />") >= 4, (
+        "Eine fehlende Angabe lässt ihre Zeile ausfallen (c) – dann rutscht alles "
+        "darunter eine Zeile hoch, und genau das war #913."
+    )
+
+
+def test_the_recipient_is_chosen_where_he_is_named():
+    """►►► **Die Gegenpartei wählt man dort, wo sie steht** (Testnotiz #912). ◄◄◄
+
+    *«Die Auswahl-Eingabe hier unten entfällt (bis auf „Bei 1 anbieten"), und die jeweilige
+    Gegenpartei führst du oben rechts direkt als Leistungsempfänger auf.»* – Die Idee
+    dahinter ist die Hausregel selbst: **ändern, wo man liest**. Der Belegkopf sagt
+    «Leistungsempfänger: …», also gehört die Wahl dorthin und nicht in einen Abschnitt
+    zwei Bildschirme tiefer.
+
+    **Chips, keine Pfeile**: ein Karussell sagte weder, wie viele es gibt, noch welcher
+    gewählt ist. Jeder Chip trägt **Punkt + Wort** für seinen Zustand – die Anatomie jedes
+    Status im Haus.
+
+    Bug-Formen: (a) die Auswahl steht wieder im Angebotsabschnitt; (b) die Abwahl lebt in
+    zwei Zuständen (dann sagen Kopf und Knopf Verschiedenes); (c) der Zustand eines
+    Angebots steht als blosses Wort ohne Punkt da.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    offer = " ".join(_component(src, "Offer").split())
+    assert "setDropped" not in offer and "<ObjectSelect" not in offer, (
+        "Die Auswahl steht wieder im Angebotsabschnitt (a) – gewählt wird im Belegkopf, "
+        "gesendet hier."
+    )
+    assert "Bei {chosen.length}" in offer, (
+        "Der Knopf «Bei N anbieten» ist mitgegangen – die Handlung gehört zu dem, worauf "
+        "sie wirkt."
+    )
+    assert "<Recipients" in " ".join(_component(src, "Parties").split()), (
+        "Der Belegkopf trägt die Wahl nicht (a)."
+    )
+    # (b) **Ein Zustand, zwei Leser** – er lebt über beiden.
+    assert src.count("useState<number[]>([])") == 1 and "dropped={dropped}" in src, (
+        "Die Abwahl lebt in zwei Zuständen (b) – dann zeigt der Kopf etwas anderes an, "
+        "als der Knopf abschickt."
+    )
+    chip = " ".join(_component(src, "Chip").split())
+    assert "borderRadius: 999" in chip and "state.color" in chip and "state.label" in chip, (
+        "Ein Chip nennt seinen Zustand nicht als Punkt + Wort (c)."
+    )
+
+
+def test_a_private_customer_is_named_by_his_own_name():
+    """►►► **B2B und B2C – und dafür gibt es keinen Schalter** (Testnotiz #914). ◄◄◄
+
+    Die Regel steht längst da (`people.billing_name`): *Firma zuerst, Person als «z. H.»;
+    ohne Firma bleibt die Person.* Ein Privatkunde trägt keinen Firmennamen – also steht
+    dort sein Name, und zwar **ohne dass jemand ein Häkchen setzt**.
+
+    Ein `is_business`-Feld wäre eine **zweite Aussage** über etwas, das die Daten schon
+    sagen – und es wäre die Stelle, an der jemand es falsch setzt.
+
+    *Gemessen in Chromium: der Beleg einer Privatperson nennt ihren Namen und hat **keine**
+    «z. H.»-Zeile; der einer Firma beide.*
+
+    Bug-Formen: (a) irgendwo steht doch ein B2B/B2C-Schalter; (b) die Oberfläche
+    entscheidet selbst, was in den Namen gehört, statt zu lesen, was der Server schickt.
+    """
+    for where in ("services/deal.py", "services/people.py", "schemas/deal.py"):
+        src = _code(_read(BACKEND / "app" / where))
+        assert "is_business" not in src and "is_company" not in src, (
+            f"«{where}» führt einen B2B/B2C-Schalter (a) – die Daten sagen es bereits."
+        )
+    people = _code(_read(BACKEND / "app" / "services" / "people.py"))
+    block = _body(people, "billing_name")
+    assert "z. H." in block, (
+        "Die Regel «Firma zuerst, Person als z. H.» steht nicht mehr in "
+        "``people.billing_name`` – dann baut sie jemand ein zweites Mal."
+    )
+    deal = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    parties = " ".join(_component(deal, "Parties").split())
+    assert "s.attn" in parties and "z. H." not in parties, (
+        "Die Oberfläche baut den Namen selbst (b) – sie zeigt, was der Server schickt."
+    )
+
+
+def test_the_chronicle_says_only_when():
+    """►►► **Unten steht eine Chronik, kein zweiter Beleg** (Testnotiz #918). ◄◄◄
+
+    *«Eigentlich muss ich ja nur wissen: wann wurde offeriert, wann wurde die Offerte
+    angenommen. Alle anderen Details – von wem, welcher Betrag etc. – sind nur Duplikate,
+    es steht ja oben sowieso.»*
+
+    Stimmt, und es ist die Regel aus #899 eine Stufe weiter gedacht: jede Beleg-Angabe
+    steht an **genau einem** Ort. Partner, Betrag und Fristen stehen im Kopf, in den
+    Positionen und in den Konditionen – unten wären sie das dritte Mal.
+
+    *Die unterlegenen Zeilen verschwinden nicht: sie sind der Nachweis, warum so
+    entschieden wurde, und stehen zugeklappt hinter derselben einen Zeile wie bisher.*
+
+    Bug-Formen: (a) es gibt keine Chronik; (b) sie nennt mehr als Datum und Ereignis;
+    (c) das Storno-Datum fehlt – dann steht ein Ereignis ohne Zeitpunkt da.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    block = " ".join(_component(src, "Chronicle").split())
+    # **Gefragt ist, WANN sie erscheint** – die erste Fassung suchte nur den Namen und
+    # liess eine Bug-Form durch, die sie auf `false` schaltete (gemessen).
+    assert "{agreed && <Chronicle" in " ".join(_component(src, "Offer").split()), (
+        "Der Abschnitt hat keine Chronik (a)."
+    )
+    for what in ("q.sent_on", "d.agreed_on", "d.cancelled_on"):
+        assert what in block, f"Die Chronik kennt «{what}» nicht (a/c)."
+    for never in ("amount", "party_name", "due_days", "ref"):
+        assert never not in block, (
+            f"Die Chronik nennt «{never}» (b) – das steht oben schon, und hier wäre es "
+            f"das dritte Mal."
+        )

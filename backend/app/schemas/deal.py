@@ -58,6 +58,11 @@ class DealQuote(BaseModel):
     lead_days: Optional[int] = None
     payment_days: Optional[int] = None
     state: str = "angefragt"
+    #: ►►► **Wann diese Zeile hinausging** (Testnotiz #918). ◄◄◄ Die Chronik des Belegs
+    #: fragt «wann wurde offeriert» – und das weiss nur der Moment, in dem es passiert.
+    #: Als Datum an der **Zeile**, nicht als Spalte am Vorgang: der Angebotsspiegel ist
+    #: eine Liste, und n Zeilen gehen nicht zwingend am selben Tag hinaus.
+    sent_on: Optional[date] = None
     #: **Die Positionen dieser Offerte** – nur, wo **wir** den Preis nennen. Dort ist der
     #: Betrag ihre Brutto-Summe und keine zweite, getippte Zahl daneben.
     lines: list[dict[str, Any]] = Field(default_factory=list)
@@ -149,9 +154,14 @@ class DealLine(BaseModel):
     Je Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der
     Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
 
-    Die **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die
-    Sache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei
-    dem Partner, den es betrifft (``DealQuote.ref``).
+    ►►► **Die Spezifikation reist NICHT mehr mit** (Testnotiz #916). ◄◄◄ Sie stand als
+    aufklappbares Datenblatt an der Zeile – der Kompromiss «Spezifikation auf Klick».
+    Auf einem **Beleg** ist sie das nicht: was der Empfänger braucht, steht in der
+    Zeile; was er nicht braucht, gehört nicht auf das Papier. Was **daran** zu tun ist,
+    steht bei dem Partner, den es betrifft (``DealQuote.ref``).
+
+    Pflicht bleiben die beiden **Zoll-Angaben** – sie sind keine Beschreibung, sondern
+    Voraussetzung der Ausfuhr; sie stehen darum offen an der Zeile (#915).
     """
 
     #: ``None`` bei einer Zeile **ohne Artikel** – dort, wo es gar keine Stücke gibt
@@ -160,7 +170,15 @@ class DealLine(BaseModel):
     article_object_id: Optional[int] = None
     article_name: str = ""
     quantity: int
-    spec: list[dict[str, str]] = Field(default_factory=list)
+    #: ►►► **Zolltarifnummer und Ursprungsland – am BELEG, nicht nur am Artikel.** ◄◄◄
+    #:
+    #: Die Nummer ist eine Eigenschaft der **Sache**; welche auf *diesem* Beleg steht,
+    #: ist eine Aussage **dieses Geschäfts** – dieselbe Beziehung wie beim Preis. Der
+    #: Artikel liefert die **Vorbelegung**, der Beleg trägt den **Wert**, und mit der
+    #: Zusage friert er ein (``agreed_lines``). Zurückgeschrieben wird nichts: ein Beleg
+    #: korrigiert keine Stammdaten.
+    hs_code: Optional[str] = None
+    origin_country: Optional[str] = None
     #: ►►► **Der Einzelpreis – NETTO** (so denkt und rechnet man einen Preis). ◄◄◄
     #: ``None``, solange niemand ihn genannt hat. Als **String**: wo es auf den Rappen
     #: ankommt, wird nicht durch ``float`` gerechnet.
@@ -199,6 +217,10 @@ class DealPrice(BaseModel):
     price: str = "0"
     #: Der Steuersatz dieser Position – **streng** geprüft (``deal.assert_vat``).
     vat: Optional[str] = None
+    #: **Zoll-Angaben dieser Position** (Testnotiz #915). Leer heisst «nimm die des
+    #: Artikels»; ein gesetzter Wert überschreibt ihn **auf diesem Beleg**.
+    hs_code: Optional[str] = None
+    origin_country: Optional[str] = None
 
 
 class DealEntryOut(BaseModel):
@@ -446,14 +468,9 @@ class DealEmbed(BaseModel):
     #: Richtungen, damit die Karte keine eigene Konstante daneben hält.
     vat_label: str = "MWST"
     service_date_label: str = "Leistungsdatum"
-    #: ►►► **Wann die Leistung erbracht wurde – aus dem PROZESS** (Testnotiz #852). ◄◄◄
-    #:
-    #: Der Tag, an dem die Stücke dieses Modul erreicht haben. Das Rechnungsdatum ist es
-    #: **nicht**: eine Rechnung, die zwei Wochen später geschrieben wird, verschöbe damit
-    #: die Steuerperiode (MWSTG Art. 26 Bst. c). Es ist die **Vorbelegung** des Feldes,
-    #: kein fester Wert – ein Mensch weiss von Teilleistungen, von denen der Log nichts
-    #: weiss. ``None`` heisst «noch nichts angekommen»; dann gilt der Buchungstag.
-    service_date: Optional[date] = None
+    #: *Die **Vorbelegung** des früheren Eingabefeldes stand hier und ist mit ihm
+    #: entfallen (Testnotiz #919). Das Leistungsdatum steht auf dem Beleg, wo es
+    #: rechtlich zählt: an der **gebuchten Rechnung** (``DealEntryOut.service_date``).*
     #: ►►► **Nennen WIR den Preis je Position?** ◄◄◄
     #:
     #: Es ist dieselbe Angabe wie ``we_quote`` – und genau darum steht sie nicht zweimal
@@ -595,6 +612,9 @@ class DealEmbed(BaseModel):
     amount: Optional[str] = None
     due_days: Optional[int] = None
     agreed_on: Optional[date] = None
+    #: ►►► **Wann storniert wurde** (Testnotiz #918). ◄◄◄ ``stage`` sagt **dass**, die
+    #: Chronik des Belegs fragt nach dem **wann**. ``None`` heisst «nicht storniert».
+    cancelled_on: Optional[date] = None
     #: ►►► **Wann er liefern wollte** – Zusagedatum + Lieferfrist. Eine **Ableitung**,
     #: keine Spalte; ohne vereinbarte Frist gibt es keinen Termin.
     due_date: Optional[date] = None
@@ -703,9 +723,10 @@ class DealUpdate(BaseModel):
     #: die Steuer steht auf **seiner** Rechnung, und wir schreiben sie ab). Wo wir die
     #: Positionen preisen, kommt die Aufteilung aus ihnen und dieses Feld ist nichts.
     vat: Optional[str] = None
-    #: ►►► **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Bst. c). ◄◄◄ ``None``
-    #: heisst «wie gebucht» – das ist der Normalfall und keine fehlende Angabe.
-    service_date: Optional[date] = None
+    #: *Das **Leistungsdatum** stand hier und ist entfallen (Testnotiz #919): es kommt
+    #: aus dem Prozess (``deal.service_day``), und eine Eingabe daneben war die zweite
+    #: Aussage über dieselbe Sache. Es steht weiterhin auf dem Beleg – als **Auskunft an
+    #: der gebuchten Rechnung**, wo es rechtlich zählt.*
     #: ►►► **Die Währung des Vorgangs** (``currency``) – ISO 4217, drei Zeichen. ◄◄◄
     #: Nur **vor der Zusage**; danach führt ``can`` das Verb nicht mehr, und ``apply``
     #: weist es ab.

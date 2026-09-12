@@ -48,6 +48,7 @@ def _company_response(db: Session, company) -> CompanySettingsResponse:
     resp.is_operator = sites.is_operator(db, company)
     resp.has_address = address.has_content(address.of_company(company))
     resp.website = sites.website_url()
+    resp.legal_name = sites.legal_name(company)
     return resp
 
 
@@ -88,14 +89,18 @@ async def get_public_settings(db: Session = Depends(get_db)):
     Website – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die
     übrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht
     umgeschaltet."""
-    from ..services.sites import find_operator, website_url
+    from ..services.sites import find_operator, legal_name, website_url
     s = find_operator(db)
     if not s:
-        return {"company_name": "Inexxio AG", "legal_form": "AG", "email": "info@inexxio.com",
+        return {"company_name": "Inexxio AG", "legal_form": "AG",
+                "legal_name": "Inexxio AG", "email": "info@inexxio.com",
                 "website": website_url(), "country": "Schweiz"}
     return {
         "object_id": s.object_id,
         "company_name": s.company_name, "legal_form": s.legal_form,
+        # Der Datensatzname, fertig (#910) – das Impressum baute «Inexxio AG (AG)»
+        # aus beiden Feldern zusammen; die Regel steht in ``sites.legal_name``.
+        "legal_name": legal_name(s),
         "street": s.street, "street_nr": s.street_nr, "zip_code": s.zip_code,
         "city": s.city, "country": s.country, "uid_number": s.uid_number,
         "vat_number": s.vat_number,
@@ -204,7 +209,9 @@ def _territory_map_response(db: Session) -> TerritoryMapResponse:
     op = sites.operator(db)
     mapping = sites.territory_map(db)                 # {region: company_object_id}
     companies = [
-        TerritoryCompany(object_id=c.object_id, company_name=c.company_name,
+        # Der Datensatzname trägt seine Rechtsform (#910) – auf der Karte steht
+        # dieselbe Gesellschaft wie im Feed und auf dem Beleg.
+        TerritoryCompany(object_id=c.object_id, name=sites.legal_name(c),
                          is_operator=sites.is_operator(db, c))
         for c in sites.selectable_companies(db) if c.object_id is not None
     ]

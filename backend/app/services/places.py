@@ -53,7 +53,7 @@ from ..domain import modules
 from ..models import (
     Article, CompanySettings, Instance, InstanceUnit, ProcessStep, UserProfile,
 )
-from . import lookup
+from . import lookup, sites
 from .instances import unit_number
 
 #: Wie viele Stationen eine Kette höchstens hat. Die Grenze ist ein **Netz**, keine
@@ -136,7 +136,7 @@ def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
         out[user.object_id] = Station(user.object_id, "user", user.display_name)
 
     for co in db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids)).all():
-        out[co.object_id] = Station(co.object_id, "organization", co.company_name)
+        out[co.object_id] = Station(co.object_id, "organization", sites.legal_name(co))
 
     return out
 
@@ -248,7 +248,7 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
         .limit(limit)
         .all()
     )
-    out.extend(Station(c.object_id, "organization", c.company_name) for c in companies)
+    out.extend(Station(c.object_id, "organization", sites.legal_name(c)) for c in companies)
 
     return out[:limit]
 

@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 interface PublicSettings {
   company_name: string;
   legal_form: string;
+  legal_name?: string;
   street?: string;
   street_nr?: string;
   zip_code?: string;
@@ -41,7 +42,6 @@ export default async function ImpressumPage() {
   const settings = await getCompanySettings();
 
   const companyName = settings?.company_name || 'Inexxio AG';
-  const legalForm = settings?.legal_form || 'AG';
   const address = settings
     ? [
         `${settings.street || ''} ${settings.street_nr || ''}`.trim(),
@@ -51,7 +51,11 @@ export default async function ImpressumPage() {
         .filter(Boolean)
         .join(', ')
     : null;
-  const fullName = `${companyName} (${legalForm})`;
+  // ►►► **Der Name der Rechtsperson kommt fertig vom Server** (Testnotiz #910). ◄◄◄
+  // Hier stand der Name mit der Rechtsform in Klammern dahinter – bei «Inexxio AG»
+  // mit Rechtsform «AG» also «Inexxio AG (AG)». Die Regel (und ihre Ausnahme) steht
+  // in `sites.legal_name`; eine zweite Fassung davon sah richtig aus und war es nicht.
+  const fullName = settings?.legal_name || companyName;
 
   return (
     <div className="min-h-screen bg-white">

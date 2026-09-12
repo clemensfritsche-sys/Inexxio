@@ -209,18 +209,20 @@ export function ModuleSection({ title, state, right, children, first }: {
   );
 }
 
-/**
- * **Die Meta-Zeile** – was über den ganzen Vorgang gilt und in keinen Abschnitt gehört:
- * Richtung, Währung, ein Termin, eine Sperre. Eine Zeile, leise, umbrechend.
+/*
+ * ►►► **`ModuleMeta` ist entfallen** (Testnotiz #918). ◄◄◄
+ *
+ * Sie war die leise Zeile unter dem Kopf – «was über den ganzen Vorgang gilt und in
+ * keinen Abschnitt gehört». Zuletzt trug sie genau **eine** Angabe, das Zusagedatum; und
+ * seit der Abschnitt darunter eine **Chronik** ist («wann wurde offeriert, wann wurde
+ * angenommen»), stand sie dort zum zweiten Mal. Ein bestehender Wächter hat es gemeldet,
+ * kaum dass die Chronik stand.
+ *
+ * Damit hatte sie **keinen Leser mehr**. Ein Bauteil des Design-Systems ohne Aufrufer ist
+ * genau das, was beim nächsten Umbau still abweicht – und ein neues Modul, das eine
+ * solche Zeile braucht, schreibt drei Zeilen Flexbox, statt eine Vorlage zu erben, deren
+ * Masse niemand mehr geprüft hat.
  */
-export function ModuleMeta({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[12px]"
-      style={{ color: 'var(--fg-3)', marginBottom: 14 }}>
-      {children}
-    </div>
-  );
-}
 
 /**
  * **Das Werteraster eines Moduls** – dasselbe wie am Datensatz (`SPEC.grid`), nur mit
