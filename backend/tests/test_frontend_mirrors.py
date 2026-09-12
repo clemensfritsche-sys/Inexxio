@@ -4478,7 +4478,13 @@ def test_a_record_reference_is_always_the_same_field():
     for path in sorted((FRONTEND / "components" / "erp").rglob("*.tsx")):
         code = _code(_read(path))
         for m in re.finditer(r"<select\b", code):
-            window = code[m.start():m.start() + 900]
+            # **Das Fenster endet am Element, nicht nach 900 Zeichen.** Fest gezählt las
+            # es über die Funktion hinaus in die **nächste** hinein und meldete dort ein
+            # `object_id`, das mit diesem Auswahlfeld nichts zu tun hat (gemessen an
+            # `DocPick`/`DocRef`). Und umgekehrt: eine lange Optionsliste rutschte aus dem
+            # Fenster – der Wächter war in beide Richtungen ungenau.
+            end = code.find("</select>", m.start())
+            window = code[m.start():end if end != -1 else m.start() + 900]
             assert "object_id" not in window, (
                 f"{path.name} wählt einen Datensatz über ein natives <select> – "
                 f"nicht durchsuchbar, und bei tausend Artikeln tausend Knoten je Zeile. "
@@ -8813,7 +8819,14 @@ def test_an_editable_value_is_marked_in_exactly_one_way():
     # eigene Bug-Form ging damit durch (gemessen).
     assert "\n.ix-editable {" in css, "Die Auszeichnung gibt es nicht (a)."
     rule = css.split("\n.ix-editable {", 1)[1].split("}", 1)[0]
-    for geometry in ("border:", "border-width", "padding", "font-size", "font-weight"):
+    # **Jede** Rahmen-Schreibweise, nicht nur `border:` – `border-bottom: 1px …` ist
+    # dieselbe Verschiebung und ging als Bug-Form durch (gemessen). `border-radius`
+    # bleibt erlaubt: eine Ecke verschiebt nichts.
+    assert not re.search(r"border(?!-radius)", rule), (
+        "Ein Rahmen in `.ix-editable` (b) – er verschiebt das Layout um seine Breite, "
+        "und genau das war ausgeschlossen."
+    )
+    for geometry in ("padding", "font-size", "font-weight", "margin"):
         assert geometry not in rule, (
             f"«{geometry}» in `.ix-editable` (b) – die Auszeichnung ändert die Geometrie, "
             f"und genau das war ausgeschlossen («nicht durch Veränderung der Grösse, "
@@ -8827,11 +8840,25 @@ def test_an_editable_value_is_marked_in_exactly_one_way():
     assert "function Editable(" in src, (
         "Die Karte hat kein gemeinsames Bauteil für den änderbaren Wert (d)."
     )
+    # **Die Hüllen, die die Auszeichnung selbst setzen** – wer eine davon nimmt, trägt
+    # sie. Geprüft wird die **Regel** («jeder änderbare Wert ist ausgezeichnet»), nicht
+    # die Form einer bestimmten Fassung: `DocPick` und `DocRef` sind aus genau diesem
+    # Bauteil gebaut, und ein Wächter, der `<Editable` wörtlich verlangt, verbietet die
+    # bessere Lösung, statt sie zu prüfen.
+    for wrapper in ("DocPick", "DocRef"):
+        # Generisch deklariert (`function DocRef<T extends …>`) ist dieselbe Funktion –
+        # ein Wächter, der die runde Klammer verlangt, prüft die Schreibweise.
+        assert re.search(rf"function {wrapper}\b", src), f"«{wrapper}» fehlt (d)."
+        assert "<Editable" in _component(src, wrapper), (
+            f"«{wrapper}» setzt die Auszeichnung nicht (d) – dann trägt sie keiner "
+            f"seiner Aufrufer."
+        )
+    marks = ("<Editable", "ix-editable", "<DocPick", "<DocRef")
     # (c) **Jeder änderbare Wert der Karte** – die Liste der Notiz, Punkt für Punkt.
-    for name in ("Currency", "Terms", "Delivery", "LineRow", "Customs", "Recipients",
+    for name in ("Currency", "Term", "Delivery", "LineRow", "Customs", "Recipients",
                  "Issuer"):
         body = _component(src, name)
-        assert "<Editable" in body or "ix-editable" in body, (
+        assert any(m in body for m in marks), (
             f"«{name}» trägt die Auszeichnung nicht (c) – der Nutzer wollte sie "
             f"ausdrücklich für **alle** Angaben auf dem Beleg."
         )
@@ -8968,3 +8995,216 @@ def test_the_two_payment_modules_share_no_line_in_the_browser_either():
                  "searchDealParties"):
         assert call not in new, f"Die neue Karte ruft «{call}» (b)."
     assert "beleg-work" not in old, "Die alte Karte hängt an der neuen (c)."
+
+
+def test_an_editable_value_is_the_printed_value_itself():
+    """►►► **Der gedruckte Wert IST das Bedienelement** (Testnotizen #929/#930/#934/#935).
+
+    ◄◄◄ Dreimal derselbe Satz: *«Ich möchte die gleiche Logik, das gleiche Design wie bei
+    der Währung oder der Betragsangabe, sodass es aussieht wie ein richtiger Beleg und
+    eben gewisse Variablen veränderbar sind.»*
+
+    Also ist es keine Eigenschaft der Währung, sondern die **Form eines änderbaren Werts
+    im Beleg**: sichtbar ein `<span>` in der Schrift, die dort ohnehin steht, bedienbar
+    ein unsichtbares Bedienelement darüber. Sie steht **einmal** (`DocPick` für eine
+    Aufzählung, `DocRef` für einen Datensatz) und wird überall gerufen.
+
+    Das löst zugleich #935: ein natives Auswahlfeld nimmt die Breite seiner **längsten
+    Zeile** («DPU · Geliefert entladen»), und daneben sass der Pfeil scheinbar eingerückt.
+    Hier bestimmt die Anzeige die Breite.
+
+    Bug-Formen: (a) `DocPick` zeigt den Wert nicht selbst an bzw. legt das Bedienelement
+    nicht unsichtbar darüber; (b) die Lieferbedingung baut wieder ein eigenes `<select>`;
+    (c) die Frist ist wieder eine Knopfreihe (`TermField`); (d) der Aussteller hängt
+    wieder hinter einem Stift-Knopf statt am Namen.
+    """
+    src = _beleg()
+
+    # (a) **Die Form selbst** – Anzeige und unsichtbares Bedienelement in einem Bauteil.
+    pick = _code(_component(src, "DocPick"))
+    assert "aria-hidden" in pick and "<select" in pick, (
+        "«DocPick» zeigt den Wert nicht selbst an (a) – dann ist es ein Formularfeld."
+    )
+    for mark in ("position: 'absolute'", "opacity: 0"):
+        assert mark in pick, (
+            f"«{mark}» fehlt in `DocPick` (a) – das Bedienelement liegt nicht unsichtbar "
+            f"über der Anzeige, und damit bestimmt wieder es die Breite."
+        )
+
+    # (b)/(c)/(d) **Die Aufrufstellen nehmen es auch.**
+    delivery = _code(_component(src, "Delivery"))
+    assert "<DocPick" in delivery and "<select" not in delivery, (
+        "Die Lieferbedingung baut ihr eigenes Auswahlfeld (b) – genau daraus kam «das "
+        "Feld ist irgendwie super breit» (#935)."
+    )
+    term = _code(_component(src, "Term"))
+    assert "<DocPick" in term, "Die Frist ist kein Beleg-Wert (c)."
+    assert "TermField" not in _code(src), (
+        "Die Frist ist wieder eine Knopfreihe (c) – ein Formular mitten im Beleg."
+    )
+    issuer = _code(_component(src, "Issuer"))
+    assert "<DocRef" in issuer and "ActionButton" not in issuer, (
+        "Der Aussteller hängt hinter einem Knopf (d) – gefragt war der **Name** als "
+        "änderbarer Wert (#929)."
+    )
+
+
+def test_a_vat_rate_names_its_percentage():
+    """►►► **«Normalsatz» sagt nicht, wie hoch er ist** (Testnotiz #932). ◄◄◄
+
+    *«‹Normalsatz›, ‹reduziert› sind leider zu wenig aussagekräftig – es sollte immer noch
+    der entsprechende Prozentsatz angegeben sein.»*
+
+    Beides steht längst in den Daten (`label` + `rate`). Zusammengesetzt wird es an
+    **einer** Stelle, sonst nennt die Auswahlliste den Satz und die Anzeige daneben nicht
+    – oder umgekehrt.
+
+    Bug-Formen: (a) es gibt keine gemeinsame Auflösung; (b) sie nennt den Satz nicht;
+    (c) die Auswahl oder die Anzeige geht daran vorbei.
+    """
+    src = _beleg()
+    assert "function vatText(" in src, "Es gibt keine gemeinsame Auflösung (a)."
+    body = _code(_component(src, "vatText"))
+    assert "rate" in body and "%" in body, (
+        "Die Auflösung nennt den Prozentsatz nicht (b) – dann sagt sie nichts Neues."
+    )
+    line = _code(_component(src, "LineRow"))
+    assert line.count("vatText(") >= 2, (
+        "Auswahl und Anzeige lösen nicht beide über `vatText` auf (c) – die Stelle, an "
+        "der die Liste den Satz nennt und die Zeile daneben nicht."
+    )
+
+
+def test_a_name_and_its_number_stand_in_one_line():
+    """►►► **Name und Objektnummer sind EIN Datensatz** (Testnotiz #933). ◄◄◄
+
+    *«Der Name und die Objektnummer sollten immer in einer Linie, in einer Reihe sein,
+    nicht umgebrochen.»* – Untereinander lesen sie sich wie zwei Angaben. Gekappt wird
+    der **Name**; die Nummer ist die Kennung, an der man die Sache wiedererkennt (#853).
+
+    Bug-Formen: (a) Name und Nummer stehen in verschiedenen Zeilen; (b) die Nummer darf
+    schrumpfen statt des Namens.
+    """
+    src = _code(_component(_beleg(), "LineRow"))
+    at_name = src.find("article_name")
+    at_id = src.find("<ObjId", at_name)
+    assert at_name != -1 and at_id != -1, "Die Zeile nennt nicht beides."
+    between = src[at_name:at_id]
+    assert "flex flex-col" not in between, (
+        "Zwischen Name und Nummer beginnt eine neue Spalte (a) – dann brechen sie um."
+    )
+    # Die Kappung steht am **Rahmen** des Namens, also ein Stück davor.
+    assert "truncate" in src[max(0, at_name - 160):at_id], (
+        "Der Name wird nicht gekappt (b)."
+    )
+    assert "flex: 'none'" in src[max(0, at_id - 120):at_id + 260], (
+        "Die Nummer darf schrumpfen (b) – gekappt gehört der Name, nie die Kennung."
+    )
+
+
+def test_a_typed_amount_has_the_decimals_of_its_currency():
+    """►►► **Was man tippen kann, ist die Stelligkeit der Währung** (Testnotiz #931). ◄◄◄
+
+    Die Anzeige behebt der Dienst (`test_a_price_leaves_the_service_in_the_scale_of_its_
+    currency`); hier geht es um das **Eingabefeld**: wer vier Nachkommastellen tippen
+    kann, bekommt sie vom Server gerundet zurück, und das sieht aus wie ein Datenverlust.
+
+    Bug-Formen: (a) `numericOnly` kann gar nicht begrenzen; (b) das Preisfeld begrenzt
+    nicht; (c) es begrenzt fest auf zwei (JPY hat null, KWD drei).
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "decimals?: boolean | number" in fields, (
+        "`numericOnly` kennt keine Stellenzahl (a)."
+    )
+    assert "slice(0, decimals)" in fields, "`numericOnly` begrenzt nicht (a)."
+
+    line = _code(_component(_beleg(), "LineRow"))
+    at = line.find("aria-label=\"Einzelpreis\"")
+    assert at != -1, "Das Preisfeld heisst nicht mehr so."
+    window = line[max(0, at - 600):at]
+    assert "decimals: d.currency_decimals" in window, (
+        "Das Preisfeld nimmt die Stelligkeit nicht aus der Währung (b/c) – «immer zwei» "
+        "ist bei JPY und KWD still falsch."
+    )
+
+
+def test_an_api_method_never_loses_its_client():
+    """►►► **«Kommt kein Vorschlag, nichts»** (Testnotiz #927). ◄◄◄
+
+    Unter jeder Notiz dieser Runde stand derselbe Konsolen-Fehler: *«Cannot read
+    properties of undefined (reading ‹get›)»*. Das ist wörtlich `this.get`, wenn `this`
+    fehlt – eine Klassenmethode, die als **Wert** weitergereicht wird
+    (`search={api.searchVoucherParties}`), verliert ihr `this`. Und man sieht es der
+    Stelle nicht an: der Fehler landet in der Konsole, das Feld bleibt leer.
+
+    Die Regel gehört an den **Client**, nicht an jede Aufrufstelle: eine Regel, die man
+    bei jedem neuen `search={…}` erneut einhalten muss, ist die Form, die man vergisst.
+
+    Bug-Formen: (a) es wird nicht gebunden; (b) gebunden wird eine **Liste von Namen**
+    (die Form, die den nächsten Endpunkt nicht kennt).
+    """
+    src = _code(_read(FRONTEND / "lib" / "api.ts"))
+    at = src.find("class ApiClient")
+    assert at != -1, "Es gibt keinen Client mehr."
+    head = src[at:at + 1400]
+    assert "constructor()" in head, "Der Client bindet seine Methoden nicht (a)."
+    assert "getOwnPropertyNames" in head and ".bind(this)" in head, (
+        "Gebunden wird nicht über den Prototyp (a/b) – eine aufgezählte Liste kennt den "
+        "nächsten Endpunkt nicht."
+    )
+
+
+def test_a_note_names_the_element_not_its_whole_subtree():
+    """►►► **Das Testnotizen-Werkzeug schneidet mit, was die Sache IST.** ◄◄◄
+
+    Gemeldet: *«Die Ausgabe ist nicht tatsachengemäss.»* – Gemessen an den Notizen dieser
+    Runde stimmt das, und zwar an drei Stellen:
+
+    * ein `<select>` lieferte als Element-Text **alle Optionen** («—EXW · Ab WerkFCA ·
+      Frei FrachtführerCPT · …»), also die Liste statt der Wahl;
+    * ein Container lieferte `textContent` **aller** Nachfahren – bei einer Karte eine
+      Wand aus Text, in der die gemeinte Stelle untergeht;
+    * der Fehler-Ringpuffer hielt fünfmal **dieselbe** Zeile und war damit voll, bevor
+      der zweite, andere Fehler kam – also ausgerechnet der, den man gebraucht hätte.
+
+    Bug-Formen: (a) der Wert eines Bedienelements wird nicht gelesen; (b) der Text der
+    Nachfahren gewinnt gegen den eigenen; (c) Fehler werden wiederholt statt gezählt;
+    (d) die Selektor-Kette bricht nach fester Tiefe ab und ist damit relativ.
+    """
+    src = _code(_read(FRONTEND / "lib" / "feedback.ts"))
+    assert "selectedOptions" in src, (
+        "Ein `<select>` wird nicht nach seiner **Wahl** gefragt (a) – dann steht die "
+        "ganze Liste in der Notiz."
+    )
+    label = _component(src, "elementLabel")
+    assert "Node.TEXT_NODE" in label, (
+        "Der eigene Text wird nicht von dem der Nachfahren unterschieden (b)."
+    )
+    at_own = label.find("Node.TEXT_NODE")
+    at_deep = label.find("el.textContent")
+    assert at_deep == -1 or at_own < at_deep, (
+        "Der Text der Nachfahren steht vor dem eigenen (b) – dann gewinnt er."
+    )
+    # **Gezählt heisst: gefunden UND erhöht.** Ein blosses «`count` kommt vor» war stumpf
+    # – es steht auch im neuen Eintrag (`{ text, count: 1 }`), und die Bug-Form, die das
+    # Erhöhen weglässt, ging damit durch (gemessen).
+    pushed = _component(src, "push")
+    assert ".find(" in pushed and ("+= 1" in pushed or "++" in pushed), (
+        "Fehler werden wiederholt statt gezählt (c) – fünfmal dieselbe Zeile füllt den "
+        "Puffer, bevor der zweite, andere Fehler kommt."
+    )
+    path = _component(src, "cssPath")
+    assert "anchorFor" in path, (
+        "Die Kette hat keinen benannten Anker (d) – nach fester Tiefe abgebrochen ist "
+        "sie relativ und trifft irgendein `div` irgendwo auf der Seite."
+    )
+    # **Und die Markierungen, aus denen die Herkunft entsteht, müssen es geben.**
+    assert "data-fb-module" in _code(
+        _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")), (
+        "Die Modul-Karte benennt sich nicht – dann steht in keiner Notiz, aus welchem "
+        "Modul sie kommt."
+    )
+    assert "data-fb-section" in _code(
+        _read(FRONTEND / "components" / "erp" / "module-ui.tsx")), (
+        "Der Abschnitt eines Moduls benennt sich nicht."
+    )

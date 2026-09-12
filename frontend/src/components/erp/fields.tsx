@@ -713,7 +713,7 @@ export function ChoiceButton({ icon: Icon, tone, title, text, disabled, onClick 
  * Zeichen spurlos verschwinden. Hier bleibt der Wert immer sichtbar und sauber.
  */
 export function numericOnly(
-  raw: string, opts: { decimals?: boolean; signed?: boolean } = {},
+  raw: string, opts: { decimals?: boolean | number; signed?: boolean } = {},
 ): string {
   const { decimals = true, signed = false } = opts;
   // **Ein Minus ist an genau einer Stelle richtig: ganz vorn.** Wo negative Beträge eine
@@ -721,9 +721,14 @@ export function numericOnly(
   // – aber nicht mittendrin, und nicht zweimal.
   const minus = signed && raw.trimStart().startsWith('-') ? '-' : '';
   const cleaned = raw.replace(',', '.').replace(/[^\d.]/g, '');
-  if (!decimals) return minus + cleaned.replace(/\./g, '');
+  if (decimals === false || decimals === 0) return minus + cleaned.replace(/\./g, '');
   const [head, ...rest] = cleaned.split('.');       // höchstens EIN Trenner
-  return minus + (rest.length ? `${head}.${rest.join('')}` : head);
+  // ►►► **Wie viele Nachkommastellen erlaubt sind, sagt die WÄHRUNG** (Testnotiz #931).
+  // ◄◄◄ Nicht «immer zwei»: JPY hat null, KWD drei. `true` heisst «unbegrenzt» und bleibt
+  // richtig, wo kein Betrag getippt wird (eine Menge, ein Messwert).
+  const tail = rest.join('');
+  const kept = typeof decimals === 'number' ? tail.slice(0, decimals) : tail;
+  return minus + (rest.length ? `${head}.${kept}` : head);
 }
 
 /** Tastatur/Verhalten passend zum Zahlenfeld (Mobile: Ziffernblock). */

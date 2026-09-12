@@ -821,3 +821,44 @@ def test_the_door_knows_every_field_it_accepts():
         assert field in known, (
             f"«{field}» fehlt an der Tür – es käme nie an, und niemand würde es merken."
         )
+
+
+def test_a_price_leaves_the_service_in_the_scale_of_its_currency():
+    """►►► **Ein Betrag hat die Nachkommastellen SEINER Währung** (Testnotiz #931). ◄◄◄
+
+    *«Warum hat das vier Stellen? Eine Währung hat doch immer zwei nachkommastellen.
+    Bitte robuste Lösung hierfür finden.»*
+
+    Fast – aber nicht ganz: **JPY hat null, KWD drei**, und genau darum ist «immer zwei»
+    keine robuste Lösung, sondern dieselbe Falle eine Ebene weiter. Die Zahl steht im
+    Vorgang, und ein Betrag verlässt den Dienst mit ihr.
+
+    Die vier kamen aus der Spalte (`NUMERIC(18, 4)` – gross genug für jede Währung) und
+    aus `str()`, das ihre volle Skala ausschreibt. Behoben wird es **am Dienst**, nicht in
+    der Anzeige: dieselbe Zeichenkette steht gleich im Eingabefeld, und wer sie dort
+    liest, tippt vier Nachkommastellen weiter.
+
+    Bug-Formen: (a) der rohe Spaltenwert geht hinaus; (b) fest auf zwei Stellen gerundet.
+    """
+    from app.services import voucher as svc
+    with _db() as db:
+        _house(db)
+        order, step, row, _who, _art = _scene(db)
+        _price(db, order, step, row, price="30")
+
+        lines = svc.embed_lines(db, row)
+        assert lines, "Die Szene hat keine Position."
+        assert lines[0]["price"] == "30.00", (
+            f"«{lines[0]['price']}» statt «30.00» (a) – die Skala der Spalte ist nicht "
+            f"die Stelligkeit der Währung."
+        )
+
+        # (b) **Dieselbe Position in einer nullstelligen Währung.** Wer fest auf zwei
+        # rundet, schreibt hier «30.00» – einen Yen-Betrag, den es nicht gibt.
+        svc.apply(db, order=order, step=step, action="currency",
+                  payload={"currency": "JPY"})
+        db.flush()
+        yen = svc.embed_lines(db, row)
+        assert yen[0]["price"] == "30", (
+            f"«{yen[0]['price']}» statt «30» (b) – JPY hat keine Nachkommastellen."
+        )

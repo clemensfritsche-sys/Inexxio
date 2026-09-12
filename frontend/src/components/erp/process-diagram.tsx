@@ -1131,7 +1131,10 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
     // Dort benennt sie das Modul, statt es zu übertönen – und der Rahmen nimmt sie
     // weiterhin auf, wenn das Modul **dran** ist. Das ist die einzige Stelle, an der die
     // Karte selbst Farbe trägt, und sie sagt damit genau eine Sache.
-    <div className="rounded-ds-lg" {...body}
+    // **Die Karte sagt, welches Modul sie ist** – für die Testnotizen: eine Notiz aus
+    // einer Modul-Karte nennt damit ohne Raten ihr Modul (`lib/feedback.originOf`). Eine
+    // Markierung an der einen Hülle, also erbt sie **jedes** Modul.
+    <div className="rounded-ds-lg" data-fb-module={label} {...body}
       style={{
         ...MODULE_CARD,
         borderColor: active ? tone.fg : 'var(--border-1)',

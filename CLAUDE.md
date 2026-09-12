@@ -3422,6 +3422,73 @@
 > Zustände (inkl. JPY, gemeldeten Lücken und der Sicht der Gegenpartei) – und die Messung
 > gegen ihre eigene Bug-Form gegengeprüft (+10,8 px bei 375, +65,8 px bei 320).
 
+> ►►► **DER GEDRUCKTE WERT IST DAS BEDIENELEMENT — und eine Methode behält ihren
+> Client** (Testnotizen #927–#935). ◄◄◄ Neun Notizen, und **eine** Ursache lag unter
+> vier davon: in jeder stand derselbe Konsolen-Fehler.
+>
+> ►►► **(1) «Cannot read properties of undefined (reading ‹get›)»** — das ist wörtlich
+> `this.get`, wenn `this` fehlt. ◄◄◄ Eine Klassenmethode, die als **Wert** weitergereicht
+> wird (`search={api.searchVoucherParties}`, `search = api.searchDealParties` als
+> Vorgabewert), verliert ihr `this` – und man sieht es der Stelle nicht an: der Fehler
+> landet in der Konsole, das Feld bleibt **leer**. Genau daraus kamen #927 («kommt kein
+> Vorschlag, nichts»), #928 und #930. Der Fehler war **älter als das neue Modul** – die
+> Partner-Suche im Editor des alten traf ihn genauso, nur hatte dort niemand getippt.
+> Behoben am **Client**, nicht an der Aufrufstelle: `ApiClient` bindet im Konstruktor
+> **über den Prototyp**, also kann eine Methode ihr `this` gar nicht mehr verlieren –
+> konstruktiv statt geprüft. Eine Liste von Namen wäre die Form, die den nächsten
+> Endpunkt nicht kennt. *Gemessen an der echten Schicht in Chromium: losgelöst aufgerufen
+> liefert sie ihre Zeilen; die Bug-Form meldet den gemeldeten Satz wortgleich.*
+>
+> ►►► **(2) Der gedruckte Wert IST das Bedienelement** (#929/#930/#934/#935). ◄◄◄
+> Dreimal derselbe Satz: *«Ich möchte die gleiche Logik, das gleiche Design wie bei der
+> Währung oder der Betragsangabe.»* – Also ist es keine Eigenschaft der Währung, sondern
+> die **Form eines änderbaren Werts im Beleg**, und sie steht seither **einmal**:
+> `DocPick` (eine Aufzählung) und `DocRef` (ein Datensatz), beide auf `Editable` gebaut.
+> Sichtbar ein `<span>` in der Schrift, die dort ohnehin steht; bedienbar ein
+> **unsichtbares** Bedienelement darüber.
+> **Das ist nicht Kosmetik, sondern der Fix von #935**: ein natives Auswahlfeld nimmt die
+> Breite seiner **längsten Zeile** – «DPU · Geliefert entladen» –, und daneben sass der
+> Pfeil scheinbar eingerückt. Gemessen: **229 px → 13 px**, und die Anzeige bestimmt die
+> Breite. Damit fällt der **Stift-Knopf am Aussteller** (#929: *«statt diesem Button kann
+> nicht der Unternehmensname als veränderbare Variable deklariert werden?»* – doch), und
+> die **Frist** ist wieder ein Wert statt einer Knopfreihe (#934): `TermField` mit
+> *Vorauszahlung · 30 Tage · Individuell* war ein **Formular** mitten im Beleg. Die freie
+> Eingabe bleibt und steht an **derselben Stelle** – ein zweites Bedienelement daneben
+> wäre die zweite Aussage über dieselbe Frist.
+>
+> ►►► **(3) Ein Betrag hat die Nachkommastellen SEINER Währung** (#931). ◄◄◄ *«Warum hat
+> das vier Stellen? Eine Währung hat doch immer zwei.»* – Fast: **JPY hat null, KWD
+> drei**, und «immer zwei» wäre dieselbe Falle eine Ebene weiter. Die vier kamen aus
+> `NUMERIC(18, 4)` und aus `str()`, das die volle Skala ausschreibt. Behoben am
+> **Dienst** (`_money`), nicht in der Anzeige: dieselbe Zeichenkette steht gleich im
+> Eingabefeld. Und `numericOnly` nimmt jetzt eine **Stellenzahl** statt eines Ja/Nein, das
+> Preisfeld die des Vorgangs – wer vier tippt, bekäme sie gerundet zurück, und das sieht
+> aus wie Datenverlust.
+>
+> **(4) Kleineres, jedes an einer Stelle:** der Steuersatz nennt seinen **Prozentsatz**
+> (#932 – «Normalsatz» allein sagt nicht, ob 8.1 oder 7.7; zusammengesetzt in `vatText`,
+> damit Auswahl und Anzeige nicht auseinanderlaufen); **Name und Objektnummer stehen in
+> einer Zeile** (#933 – untereinander lesen sie sich wie zwei Angaben; gekappt wird der
+> **Name**, nie die Kennung).
+>
+> **Und das Testnotizen-Werkzeug selbst ist nachgeschärft** (`docs/feedback.md`): ein
+> `<select>` meldet seine **Wahl** statt aller Optionen, ein Container seinen **eigenen**
+> Text statt des ganzen Teilbaums, die Selektor-Kette hat einen **Anker** statt einer
+> festen Tiefe, die **Herkunft** kommt als Pfad («Zahlung › Positionen», neu markiert an
+> `ModuleShell` und `ModuleSection`), und derselbe Fehler wird **gezählt** statt fünfmal
+> wiederholt – vorher war der Puffer voll, bevor der zweite, andere Fehler kam.
+>
+> Wächter: 6 neue (5 in `test_frontend_mirrors.py`, 1 in `test_voucher_module.py`), 2 auf
+> die neue Regel gezogen, 2 nachgeschärft – **16 Bug-Formen gegengeprüft, jede meldet**;
+> *zwei waren dabei stumpf und liessen ihre eigene durch* (ein blosses «`count` kommt
+> vor» war schon durch `{ text, count: 1 }` erfüllt; `border:` liess `border-bottom:`
+> durch). Ein bestehender Wächter las sein 900-Zeichen-Fenster über die Funktion hinaus
+> in die nächste – er endet jetzt am `</select>`. Suite grün gegen die gewachsene
+> Datenbank **und** gegen ein Schema nur aus den Migrationen (je 617); **keine
+> Migration**. Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 ·
+> 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht** Zustände – und die
+> Messung gegen ihre eigene Bug-Form gegengeprüft (+76,7 px bei 375, +131,7 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

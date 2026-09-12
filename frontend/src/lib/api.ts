@@ -80,6 +80,38 @@ function notifyDataChanged(path: string) {
 }
 
 class ApiClient {
+  /**
+   * ►►► **Jede Methode ist an ihren Client gebunden** (Testnotiz #927). ◄◄◄
+   *
+   * Gemeldet war «wenn ich hier etwas eingebe, kommt kein Vorschlag» – und daneben in
+   * jeder Notiz derselbe Konsolen-Fehler: *«Cannot read properties of undefined (reading
+   * ‹get›)»*. Das ist wörtlich `this.get`, wenn `this` fehlt. Eine Klassenmethode, die
+   * als **Wert** weitergereicht wird (`search={api.searchVoucherParties}`,
+   * `search = api.searchDealParties` als Vorgabewert), verliert ihr `this` – und dass
+   * eine solche Suchquelle stumm bleibt, sieht man ihr nicht an: der Fehler landet in
+   * der Konsole, das Feld bleibt leer.
+   *
+   * Am **Aufrufer** wäre das eine Regel, die man bei jedem neuen `search={…}` erneut
+   * einhalten muss. Hier ist es **eine Stelle**: nach dem Binden kann eine Methode
+   * dieses Clients ihr `this` gar nicht mehr verlieren – konstruktiv statt geprüft.
+   *
+   * Bewusst über den **Prototyp**, nicht über eine Liste von Namen: eine Liste ist die
+   * Form, die man beim nächsten Endpunkt vergisst.
+   */
+  constructor() {
+    const proto = Object.getPrototypeOf(this) as object;
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name === 'constructor') continue;
+      // Über den **Deskriptor**, nicht über den Zugriff: ein `get foo()` würde beim
+      // blossen Lesen ausgeführt – hier gibt es keinen, und genau darum darf es auch
+      // später keinen Unfall geben.
+      const desc = Object.getOwnPropertyDescriptor(proto, name);
+      if (typeof desc?.value === 'function') {
+        (this as unknown as Record<string, unknown>)[name] = desc.value.bind(this);
+      }
+    }
+  }
+
   private token: string | null = null;
   /**
    * Liefert einen **frischen** Token (Firebase erneuert bei Bedarf selbst). Wird von der

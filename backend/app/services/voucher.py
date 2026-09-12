@@ -360,7 +360,15 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
             "hs_code": ln.hs_code or (art.hs_code if art else None) or None,
             "origin_country": (ln.origin_country
                                or (art.origin_country if art else None) or None),
-            "price": str(ln.price) if ln.price is not None else None,
+            # ►►► **Ein Betrag verlässt den Dienst in der Stelligkeit seiner Währung**
+            # (Testnotiz #931). ◄◄◄ Die Spalte ist `NUMERIC(18, 4)` – gross genug für
+            # jede Währung –, und `str()` schreibt ihre volle Skala aus: «30.0000».
+            # Das ist keine Anzeigefrage der Oberfläche: dieselbe Zahl steht gleich im
+            # Eingabefeld, und wer sie dort liest, tippt vier Nachkommastellen weiter.
+            # Gerundet wird darum **hier**, an der einen Stelle, an der ein Betrag das
+            # Haus verlässt – und mit der Stelligkeit der Währung, nie fest auf zwei
+            # (JPY hat null, KWD drei).
+            "price": _money(ln.price, row.currency),
             "vat": vo.assert_vat(ln.vat),
             "vat_rate": str(vo.vat_of(ln.vat)),
             "vat_label": vo.vat_label(ln.vat),

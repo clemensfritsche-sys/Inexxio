@@ -795,6 +795,35 @@ Zahlung → Chronik.* Der Vorgänger (`deal-work.tsx`) entstand als Modulkarte u
   dasselbe Zeichen (`HandCoins`) – was sie unterscheidet, ist der `tone` vom Backend
   (`plum` ↔ `rose`).
 
+### Ein änderbarer Wert hat EINE Form (#929/#930/#934/#935)
+`DocPick` (eine Aufzählung) und `DocRef` (ein Datensatz) sind die zwei Hüllen, beide auf
+`Editable` gebaut. **Sichtbar ist ein `<span>` in der Schrift, die dort ohnehin steht;
+bedienbar ein unsichtbares Bedienelement darüber** – die Lösung, die die Währung hatte,
+jetzt als Regel für jeden Wert des Belegs.
+
+Das ist zugleich der Fix von #935: ein natives Auswahlfeld nimmt die Breite seiner
+**längsten Zeile** («DPU · Geliefert entladen»), und daneben sass der Pfeil scheinbar
+eingerückt – gemessen **229 px → 13 px**. Damit ist auch der Stift-Knopf am Aussteller
+entfallen (#929) und die Frist wieder ein Wert statt einer Knopfreihe (#934); `TermField`
+kommt in dieser Datei nicht mehr vor. Die freie Eingabe steht an **derselben** Stelle.
+
+- **`vatText` ist die eine Auflösung** (#932): Name **und** Prozentsatz. «Normalsatz»
+  allein sagt nicht, ob 8.1 oder 7.7 – und getrennt gebaut nennt die Liste den Satz und
+  die Zeile daneben nicht.
+- **Name und Objektnummer stehen in EINER Zeile** (#933); gekappt wird der Name, nie die
+  Kennung (#853).
+- **`numericOnly` nimmt eine Stellenzahl** (#931, `decimals?: boolean | number`), und das
+  Preisfeld die des Vorgangs. Die Anzeige behebt der Dienst (`_money`) – dieselbe
+  Zeichenkette steht gleich im Eingabefeld.
+
+### Eine API-Methode behält ihren Client (#927)
+`ApiClient` bindet im Konstruktor **über den Prototyp**. Vorher verlor jede Methode, die
+als **Wert** weitergereicht wurde (`search={api.searchVoucherParties}`), ihr `this` –
+`this.get` warf, der Fehler landete in der Konsole, und das Suchfeld blieb **stumm**.
+Das war die Ursache von «kommt kein Vorschlag, nichts» und stand als Konsolen-Fehler
+unter *jeder* Notiz dieser Runde. Am Aufrufer wäre es eine Regel, die man bei jedem neuen
+`search={…}` erneut einhalten muss.
+
 ## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das
 Bewegen-Modul trug dafür einmal den Einkaufs-Beleg samt Schalter «Selbst ↔ Beschaffen»

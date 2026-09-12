@@ -147,3 +147,41 @@ Exportformat (stabil halten – die Skill liest es):
   `attachments`-Modul – Auslieferung authentifiziert, nicht über den öffentlichen Token.
 - **KI-Veredelung** nach ADR-004-Muster: Titel/Kategorie ableiten, Dubletten erkennen
   (lexikalisch gratis über `article_names._similarity`).
+
+## Was die Notiz mitschneidet — nachgeschärft (September 2026)
+
+> *«Mein Testnotizentool funktioniert nicht mehr so gut, die Ausgabe ist nicht
+> tatsachengemäss.»* – Gemessen an den Notizen der Runde #927–#935 stimmte das an vier
+> Stellen, und jede war eine **Heuristik, die über ihren Fall hinausgeriet**.
+
+**(1) Der Element-Text ist, was das Element IST — nicht, was alles darin steht.**
+`textContent` ist an einem Knopf richtig und sonst fast nie: ein `<select>` lieferte den
+Text **aller Optionen** («—EXW · Ab WerkFCA · Frei FrachtführerCPT · …»), also die Liste
+statt der Wahl; ein Container lieferte alles, was darin steht. Gefragt wird jetzt in der
+Reihenfolge, in der eine Oberfläche Bedeutung trägt: **ausdrückliche** Benennung
+(`aria-label` · `data-tip` · `title` · `placeholder`) → bei einem Bedienelement seine
+**Wahl** (`selectedOptions[0]`, `value`) → der **eigene** Text (nur direkte Textknoten) →
+die zugehörige `<label>`-Beschriftung → und erst zuletzt der Text der Nachfahren, **nur
+wenn er kurz ist**. Eine Wand aus Text sagt weniger als ein ehrliches «—».
+
+**(2) Die Selektor-Kette braucht einen ANKER, keine feste Länge.** Nach fünf Ebenen
+abgeschnitten war sie **relativ** (`div > section:nth-of-type(3) > div > …`) und traf
+irgendein `div` irgendwo auf der Seite – der Pin sass beim nächsten Besuch falsch oder
+gar nicht. Gelaufen wird jetzt, bis etwas **Benanntes** kommt (`id` oder eine
+`data-fb-*`-Markierung), sonst bis `body`. Das bindet den Pfad **und** hält ihn kurz.
+
+**(3) Die Herkunft steht als Kette, nicht als ein Fund.** `data-fb-*` sammelt die
+Oberfläche jetzt über **alle** Vorfahren ein und schreibt sie als Pfad («Zahlung ›
+Positionen»). Dafür benennen sich zwei Stellen neu: die **Modul-Karte** (`ModuleShell` →
+`data-fb-module`) und der **Abschnitt eines Moduls** (`ModuleSection` →
+`data-fb-section`). Beide sind die *eine* Hülle ihrer Art, also erbt es jedes Modul ohne
+eine Zeile. Für die Entwicklung ist das die Angabe, die ohne Raten zur Komponente führt.
+
+**(4) Derselbe Fehler ist EIN Fehler, und wie oft er kam, ist die Auskunft.** Der
+Ringpuffer hielt fünf Einträge; ein Fehler in einer Render-Schleife füllte ihn fünfmal
+mit derselben Zeile – und war damit voll, **bevor** der zweite, andere Fehler kam, also
+ausgerechnet der, den man gebraucht hätte. Gezählt statt wiederholt bleibt beides
+erhalten («… ×5»).
+
+*Wächter: `tests/test_frontend_mirrors.py::test_a_note_names_the_element_not_its_whole_subtree`
+– jede der vier Bug-Formen gegengeprüft.*

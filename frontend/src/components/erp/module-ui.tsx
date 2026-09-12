@@ -180,7 +180,10 @@ export function ModuleSection({ title, state, right, children, first }: {
   children: ReactNode;
 }) {
   return (
-    <section style={{ marginTop: first ? 0 : 18, minWidth: 0 }}>
+    // `data-fb-section` benennt den Abschnitt für eine Testnotiz – damit steht in jeder
+    // Notiz aus einer Modul-Karte «‹Modul› › ‹Abschnitt›» statt einer `nth-of-type`-Kette.
+    <section data-fb-section={title || undefined}
+      style={{ marginTop: first ? 0 : 18, minWidth: 0 }}>
       {(title || right) && (
         <div className="flex items-center gap-2" style={{
           paddingBottom: 8, marginBottom: 12, borderBottom: '1px solid var(--border-1)',

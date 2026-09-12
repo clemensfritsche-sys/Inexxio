@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   AlertTriangle, ArrowUpRight, Check, ChevronDown, CircleSlash, ClipboardList,
-  CreditCard, FileText, Landmark, Loader2, Pencil, Plus, RotateCcw, Send, Undo2,
+  CreditCard, FileText, Landmark, Loader2, Plus, RotateCcw, Send, Undo2,
   Wallet, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -15,7 +15,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { PayOnline } from '@/components/erp/pay-online';
 import {
-  Label, MICRO_LABEL, TermField, inputCls, numericInputProps, numericOnly,
+  Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Actions, ModuleSection } from '@/components/erp/module-ui';
 import { DEAL_STAGE, PARTY_NUMBER_LABEL, QUOTE_STATE } from '@/lib/modules';
@@ -241,6 +241,111 @@ const DOC_FIELD: CSSProperties = {
   font: 'inherit', color: 'inherit',
 };
 
+/**
+ * ►►► **Der gedruckte Wert IST das Bedienelement** (Testnotizen #929/#930/#934/#935). ◄◄◄
+ *
+ * Dreimal derselbe Satz: *«Ich möchte die gleiche Logik, das gleiche Design wie bei der
+ * Währung, sodass es aussieht wie ein richtiger Beleg und eben gewisse Variablen
+ * veränderbar sind.»* – Also ist es keine Eigenschaft der Währung, sondern die **Form
+ * eines änderbaren Werts im Beleg**, und sie steht einmal.
+ *
+ * Sichtbar ist ein `<span>` in der Schrift, die dort ohnehin steht; bedienbar ein
+ * **unsichtbares** `<select>` darüber. Das ist nicht nur Kosmetik – es löst zugleich das
+ * gemeldete Breiten-Problem (#935): ein natives Auswahlfeld nimmt die Breite seiner
+ * **längsten Zeile** («DPU · Geliefert entladen»), und daneben sass der Pfeil dann
+ * scheinbar eingerückt. Hier bestimmt die **Anzeige** die Breite, und das Bedienelement
+ * legt sich exakt darüber.
+ *
+ * Steht der Wert fest, bleibt der Text – ohne Auszeichnung. Eine Linie, die
+ * Änderbarkeit verspricht, wäre dort eine Unwahrheit.
+ */
+function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: {
+  on: boolean;
+  value: string;
+  /** Was dasteht – der **kurze** Name, nie die Zeile des Auswahlfelds. */
+  text: string;
+  options: { value: string; label: string }[];
+  face?: CSSProperties;
+  tip?: string;
+  busy?: boolean;
+  aria: string;
+  onChange: (value: string) => void;
+}) {
+  const shown = <span aria-hidden style={face}>{text}</span>;
+  if (!on) return shown;
+  return (
+    <Editable title={tip}>
+      <span style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+        {shown}
+        <select value={value} disabled={busy} aria-label={aria}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
+                   opacity: 0, cursor: 'pointer' }}>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </span>
+    </Editable>
+  );
+}
+
+/**
+ * ►►► **Ein Datensatz auf dem Beleg — dieselbe Form, nur mit Suche** (#928/#929/#930). ◄◄◄
+ *
+ * Ein `<select>` geht hier nicht: ein Partner ist eine **Referenz**, keine Aufzählung
+ * (`ObjectSelect` ist die eine Bauart dafür). Die Regel bleibt trotzdem dieselbe – im
+ * Ruhezustand steht der **Name** da, so wie er gedruckt würde, mit der Auszeichnung aus
+ * #922; der Klick macht daraus die Suche.
+ *
+ * Damit ist der frühere Stift-Knopf am Aussteller entfallen (#929): *«Statt diesem Button
+ * kann nicht der darunter befindliche Unternehmensname als veränderbare Variable
+ * deklariert werden?»* – Doch, und es ist dieselbe Form wie überall sonst.
+ */
+function DocRef<T extends { object_id: number; name: string }>({
+  on, text, placeholder, value, selected, find, face, tip, onChange,
+}: {
+  on: boolean;
+  text: ReactNode;
+  placeholder: string;
+  value: number | null;
+  selected?: T | null;
+  find: (query: string) => Promise<T[]>;
+  face?: CSSProperties;
+  tip?: string;
+  onChange: (objectId: number | null, option: T | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // **Wer klickt, will tippen.** Ohne den Sprung in das Feld kostet die Wahl zwei Klicks –
+  // der erste öffnet nur, und das sieht aus wie ein Aussetzer.
+  const focus = useCallback((node: HTMLDivElement | null) => {
+    node?.querySelector('input')?.focus();
+  }, []);
+
+  if (!on) return <span style={face}>{text}</span>;
+  if (!open) {
+    return (
+      <Editable title={tip}>
+        <button type="button" onClick={() => setOpen(true)}
+          style={{ ...DOC_FIELD, ...face, cursor: 'pointer', textAlign: 'left',
+                   maxWidth: '100%' }}>
+          {text}
+        </button>
+      </Editable>
+    );
+  }
+  return (
+    <div ref={focus} style={{ minWidth: 0 }}>
+      <Editable as="div" style={{ minWidth: 170 }}>
+        <ObjectSelect<T>
+          value={value} selected={selected} placeholder={placeholder} find={find}
+          onChange={(n, option) => { setOpen(false); onChange(n, option); }}
+        />
+      </Editable>
+    </div>
+  );
+}
+
 /** Eine Pflichtangabe, die fehlt – klein, rot, an ihrer Stelle. Erfunden wird nichts. */
 function Missing({ what }: { what: string }) {
   return (
@@ -278,7 +383,6 @@ function DocHead({ d, busy, onAction }: {
           <span style={{ font: '700 15px var(--font-display)', color: 'var(--fg-1)' }}>
             {d.stage_label}
           </span>
-          <Issuer d={d} busy={busy} onAction={onAction} />
         </div>
         <Parties d={d} busy={busy} onAction={onAction} />
         <Gaps rows={d.gaps ?? []} />
@@ -331,13 +435,9 @@ function Party({ side, d, busy, onAction }: {
       rowGap: 3, minWidth: 0, alignContent: 'start',
     }}>
       <span style={MICRO_LABEL} data-tip={side.hint || undefined}>{side.label}</span>
-      {ours ? (
-        <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}>
-          {side.name || <Missing what="Firma" />}
-        </span>
-      ) : (
-        <Recipients d={d} side={side} busy={busy} onAction={onAction} />
-      )}
+      {ours
+        ? <Issuer d={d} side={side} onAction={onAction} />
+        : <Recipients d={d} side={side} busy={busy} onAction={onAction} />}
       {side.attn
         ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{side.attn}</span>
         : <div />}
@@ -401,17 +501,18 @@ function Recipients({ d, side, busy, onAction }: {
           state={q.state ?? QUOTE_STATE.asked} />
       ))}
       {free ? (
-        <Editable as="div" style={{ minWidth: 170, flex: '1 1 170px' }}>
-          <ObjectSelect<VoucherParty>
-            value={picked?.object_id ?? null} selected={picked}
-            placeholder={d.party_word}
-            find={find}
-            onChange={(_n, option) => {
-              setPicked(null);
-              if (option) void onAction({ action: 'ask', parties: [option.object_id] });
-            }}
-          />
-        </Editable>
+        // ►►► **Dieselbe Form wie jeder änderbare Wert** (#928/#930). ◄◄◄ Im Ruhezustand
+        // steht da, was auf dem Beleg stünde – der Klick macht daraus die Suche.
+        <DocRef<VoucherParty>
+          on text={d.quotes.length ? `+ ${d.party_word}` : d.party_word}
+          placeholder={d.party_word} tip={d.party_word}
+          face={{ fontSize: 13, color: 'var(--fg-3)' }}
+          value={picked?.object_id ?? null} selected={picked} find={find}
+          onChange={(_n, option) => {
+            setPicked(null);
+            if (option) void onAction({ action: 'ask', parties: [option.object_id] });
+          }}
+        />
       ) : (
         (d.allowed ?? [])
           .filter((p) => !known.includes(p.object_id))
@@ -459,11 +560,12 @@ function quoteLook(state: string): { label: string; color: string } {
  * **Welche unserer Gesellschaften den Beleg stellt** – vorgewählt, hier steht die
  * Korrektur. Nur, wo es mehr als eine gibt: eine Auswahl mit genau einer Antwort ist keine.
  */
-function Issuer({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send }) {
+function Issuer({ d, side, onAction }: {
+  d: Filled; side: VoucherSide; onAction: Send;
+}) {
   // **Stabil über Renderings** – sonst baut `find` bei jedem Rendern neu, und das
   // Suchfeld verlöre seine Ergebnisse mitten im Tippen.
   const options = useMemo(() => d.issuers ?? [], [d.issuers]);
-  const [open, setOpen] = useState(false);
   // **Die Liste reist mit dem Vorgang** – ein eigener Such-Endpunkt für eine Handvoll
   // Gesellschaften wäre ein Weg zu viel. Gesucht wird darum in ihr.
   const find = useCallback(
@@ -475,29 +577,20 @@ function Issuer({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Sen
         || String(o.object_id).includes(q.trim())),
     [options]);
 
-  if (!may(d, 'issuer') || options.length < 2) return null;
+  const face: CSSProperties = { font: '600 13px var(--font-body)', color: 'var(--fg-1)' };
   const chosen = options.find((o) => o.object_id === d.issuer);
-  if (!open) {
-    return (
-      <ActionButton icon={Pencil} label={d.issuer_label} height={ACT_H.row}
-        disabled={busy} onClick={() => setOpen(true)} />
-    );
-  }
   return (
-    // **Ein Datensatz wird über `ObjectSelect` gewählt, nie über ein natives `<select>`** –
-    // nicht durchsuchbar, und eine Gesellschaft ist eine **Referenz**, keine Aufzählung.
-    <Editable as="div" style={{ minWidth: 200, flex: '1 1 200px' }}>
-      <ObjectSelect
-        value={d.issuer ?? null}
-        selected={chosen?.object_id != null
-          ? { object_id: chosen.object_id, name: chosen.name } : null}
-        placeholder={d.issuer_label} find={find}
-        onChange={(n) => {
-          setOpen(false);
-          void onAction({ action: 'issuer', issuer: n });
-        }}
-      />
-    </Editable>
+    <DocRef
+      // **Eine Auswahl mit genau einer Antwort ist keine** – dann steht dort nur der Name.
+      on={may(d, 'issuer') && options.length > 1}
+      text={side.name || <Missing what="Firma" />}
+      placeholder={d.issuer_label} tip={d.issuer_label} face={face}
+      value={d.issuer ?? null}
+      selected={chosen?.object_id != null
+        ? { object_id: chosen.object_id, name: chosen.name } : null}
+      find={find}
+      onChange={(n) => void onAction({ action: 'issuer', issuer: n })}
+    />
   );
 }
 
@@ -617,11 +710,20 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
           {line.quantity}×
         </span>
         <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
-          <span className="truncate" style={{ fontSize: 13, color: 'var(--fg-1)' }}>
-            {line.article_name || '—'}
+          {/* ►►► **Name und Objektnummer stehen in EINER Zeile** (Testnotiz #933). ◄◄◄
+              *«Der Name und die Objektnummer sollten immer in einer Linie, in einer Reihe
+              sein, nicht umgebrochen.»* – Sie benennen **einen** Datensatz; untereinander
+              lesen sie sich wie zwei Angaben. Gekappt wird der **Name**, nie die Nummer:
+              sie ist die Kennung, an der man die Sache wiedererkennt. */}
+          <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
+            <span className="truncate" style={{ fontSize: 13, color: 'var(--fg-1)' }}>
+              {line.article_name || '—'}
+            </span>
+            {line.article_object_id != null && (
+              <span style={{ flex: 'none' }}><ObjId value={line.article_object_id} /></span>
+            )}
           </span>
           <span className="flex flex-wrap items-center" style={{ gap: 8, minWidth: 0 }}>
-            {line.article_object_id != null && <ObjId value={line.article_object_id} />}
             {/* ►►► **Zoll: der Artikel belegt vor, der Beleg trägt den Wert** (#915). ◄◄◄
                 Zolltarifnummer und Ursprungsland sind keine Beschreibung, sondern
                 Voraussetzung der Ausfuhr – sie stehen offen in der Zeile, nicht hinter
@@ -637,8 +739,14 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
         <div className="flex items-center" style={{ gap: 10, flex: 'none' }}>
           <Editable on={editable} title="Einzelpreis, netto">
             {editable ? (
+              // ►►► **Ein Betrag hat die Nachkommastellen SEINER Währung** (#931). ◄◄◄
+              // *«Warum hat das vier Stellen? Eine Währung hat doch immer zwei.»* – Fast:
+              // JPY hat null, KWD drei; die Zahl steht im Vorgang (`currency_decimals`).
+              // Die vier kamen aus der Spalte `NUMERIC(18, 4)` – behoben ist das am
+              // **Dienst**; hier wird verhindert, dass man sie überhaupt tippen kann.
               <input {...numericInputProps} value={price} disabled={busy}
-                onChange={(e) => setPrice(numericOnly(e.target.value))}
+                onChange={(e) => setPrice(
+                  numericOnly(e.target.value, { decimals: d.currency_decimals ?? 2 }))}
                 onBlur={now}
                 onKeyDown={(e) => { if (e.key === 'Enter') now(); }}
                 aria-label="Einzelpreis"
@@ -650,26 +758,35 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
               </span>
             )}
           </Editable>
-          <Editable on={editable} title={d.vat_label}>
-            {editable ? (
-              <select disabled={busy} value={vat} aria-label={d.vat_label}
-                onChange={(e) => { setVat(e.target.value); }}
-                onBlur={now}
-                style={{ ...DOC_FIELD, font: '400 12px var(--font-body)',
-                         color: 'var(--fg-2)', cursor: 'pointer' }}>
-                {(d.vat_rates ?? []).map((v) => (
-                  <option key={v.key} value={v.key}>{v.label}</option>
-                ))}
-              </select>
-            ) : (
-              <span style={{ fontSize: 12, color: 'var(--fg-3)' }}
-                data-tip={line.vat_note || undefined}>{line.vat_label}</span>
-            )}
-          </Editable>
+          {/* ►►► **Der Steuersatz nennt seinen Prozentsatz** (Testnotiz #932). ◄◄◄
+              *«‹Normalsatz›, ‹Reduziert› sind leider zu wenig aussagekräftig – es sollte
+              immer noch der entsprechende Prozentsatz angegeben sein.»* Beides steht
+              längst in den Daten (`label` + `rate`); zusammengesetzt wird es an **einer**
+              Stelle (`vatText`), damit Auswahl und Anzeige nicht auseinanderlaufen. */}
+          <DocPick on={editable} value={vat} text={vatText(line.vat_label, line.vat_rate)}
+            busy={busy} aria={d.vat_label} tip={line.vat_note || d.vat_label}
+            face={{ fontSize: 12, color: 'var(--fg-3)' }}
+            options={(d.vat_rates ?? []).map((v) => ({
+              value: v.key, label: vatText(v.label, v.rate) }))}
+            onChange={(v) => { setVat(v); }} />
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * **Ein Steuersatz heisst, wie er heisst – und wie hoch er ist** (Testnotiz #932).
+ *
+ * Name **und** Prozentsatz, an einer Stelle zusammengesetzt: «Normalsatz» allein sagt
+ * nicht, ob 8.1 oder 7.7 gemeint ist, und ein Beleg, den man später liest, muss es sagen.
+ * Beide Angaben reisen ohnehin mit (`label` · `rate`) – eine zweite Auflösung im Browser
+ * wäre die Stelle, an der Auswahl und Anzeige auseinanderlaufen.
+ */
+function vatText(label?: string | null, rate?: string | null): string {
+  const name = label ?? '';
+  if (!rate) return name || '—';
+  return name ? `${name} · ${rate} %` : `${rate} %`;
 }
 
 /** Eine Zoll-Angabe – klein, an ihrer Zeile, und änderbar, solange der Beleg offen ist. */
@@ -767,26 +884,12 @@ function sum(rows: NonNullable<Filled['vat_split']>, dec: number): string {
 function Currency({ d, busy, onAction }: {
   d: Filled; busy: boolean; onAction: Send;
 }) {
-  const code = d.currency;
-  const face: CSSProperties = {
-    font: '600 13px var(--font-body)', color: 'var(--fg-2)',
-  };
-  if (!may(d, 'currency')) return <span style={face}>{code}</span>;
   return (
-    <Editable title={d.currency_label}>
-      <span style={{ position: 'relative', display: 'inline-block' }}>
-        <span aria-hidden style={face}>{code}</span>
-        <select value={code} disabled={busy} aria-label={d.currency_label}
-          onChange={(e) => void onAction({ action: 'currency',
-                                           currency: e.target.value })}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
-                   opacity: 0, cursor: 'pointer' }}>
-          {(d.currencies ?? []).map((c) => (
-            <option key={c.code} value={c.code}>{c.label}</option>
-          ))}
-        </select>
-      </span>
-    </Editable>
+    <DocPick on={may(d, 'currency')} value={d.currency} text={d.currency}
+      face={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}
+      tip={d.currency_label} busy={busy} aria={d.currency_label}
+      options={(d.currencies ?? []).map((c) => ({ value: c.code, label: c.label }))}
+      onChange={(currency) => void onAction({ action: 'currency', currency })} />
   );
 }
 
@@ -820,47 +923,88 @@ function Terms({ d, busy, terms, onTerms, onAction }: {
   const setPay = (v: string) => onTerms({ pay: v, lead });
   const setLead = (v: string) => onTerms({ pay, lead: v });
 
-  if (!open || !editable) {
-    return (
-      <ModuleSection>
-        <div style={{ display: 'grid', gap: '10px 24px',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))' }}>
-          <Fixed label={d.payment_term_label}
-            value={termWord(d, d.due_days, d.payment_terms ?? [])} />
-          <Fixed label={d.lead_term_label}
-            value={termWord(d, d.lead_days, d.lead_terms ?? [])}
-            hint={d.due_date ? `Termin ${localDate(d.due_date)}` : undefined} />
-          <Delivery d={d} busy={busy} onAction={onAction} />
-        </div>
-      </ModuleSection>
-    );
-  }
+  const on = open && editable;
   return (
     <ModuleSection>
-      <div style={{ display: 'grid', gap: '12px 24px',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))' }}>
-        <Editable as="div">
-          <TermField label={d.payment_term_label} value={pay} required
-            onChange={setPay} terms={d.payment_terms ?? []}
-            freeMin={d.term_free_min ?? 1} freeLabel={d.term_free_label ?? 'Individuell'} />
-        </Editable>
-        <Editable as="div">
-          <TermField label={d.lead_term_label} value={lead} required
-            onChange={setLead} terms={d.lead_terms ?? []}
-            freeMin={d.term_free_min ?? 1} freeLabel={d.term_free_label ?? 'Individuell'} />
-        </Editable>
+      <div style={{ display: 'grid', gap: '10px 24px',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))' }}>
+        <Term label={d.payment_term_label} on={on} busy={busy} value={pay}
+          days={d.due_days} terms={d.payment_terms ?? []} onChange={setPay}
+          freeMin={d.term_free_min ?? 1} freeLabel={d.term_free_label ?? 'Individuell'} />
+        <Term label={d.lead_term_label} on={on} busy={busy} value={lead}
+          days={d.lead_days} terms={d.lead_terms ?? []} onChange={setLead}
+          hint={d.due_date ? `Termin ${localDate(d.due_date)}` : undefined}
+          freeMin={d.term_free_min ?? 1} freeLabel={d.term_free_label ?? 'Individuell'} />
         <Delivery d={d} busy={busy} onAction={onAction} />
       </div>
     </ModuleSection>
   );
 }
 
-/** Wie diese Frist **heisst** – gelesen aus derselben Liste, aus der man sie wählt (#885). */
-function termWord(d: Filled, days: number | null | undefined,
-                  terms: NonNullable<Filled['payment_terms']>): string {
-  if (days == null) return '—';
-  const named = terms.find((t) => t.days === days);
-  return named ? named.label : `${days} Tag${days === 1 ? '' : 'e'}`;
+/**
+ * ►►► **Eine Frist ist ein Wert auf dem Beleg, keine Knopfreihe** (Testnotiz #934). ◄◄◄
+ *
+ * *«So ist das aber noch nicht ganz richtig. Ich möchte die gleiche Logik, das gleiche
+ * Design wie bei Währung oder Betragsangabe.»* – Dagestanden hatte ein `TermField`:
+ * *Vorauszahlung · 30 Tage · Individuell* als drei Chips nebeneinander, also ein
+ * **Formular** mitten im Beleg. Ein Beleg druckt «Zahlbar in 30 Tagen», und dass man das
+ * ändern kann, sagt die Haarlinie – mehr nicht.
+ *
+ * Die freie Eingabe bleibt erhalten und ist derselbe Wert: wer sie wählt, bekommt an
+ * **derselben Stelle** ein Zahlenfeld. Ein zweites Bedienelement daneben wäre die zweite
+ * Aussage über dieselbe Frist.
+ */
+const TERM_FREE = ' frei';
+
+function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, onChange }: {
+  label: string; on: boolean; busy: boolean;
+  /** Der Entwurf (leer = noch nichts gewählt) – die gebuchte Zahl steht in `days`. */
+  value: string;
+  days: number | null | undefined;
+  terms: { days: number; label: string }[];
+  hint?: string;
+  freeMin: number; freeLabel: string;
+  onChange: (value: string) => void;
+}) {
+  const current = on ? value : (days == null ? '' : String(days));
+  const named = terms.find((t) => String(t.days) === current);
+  const free = current !== '' && !named;
+  const [typing, setTyping] = useState(false);
+  const word = current === ''
+    ? '—'
+    : (named ? named.label : `${current} Tag${current === '1' ? '' : 'e'}`);
+
+  return (
+    <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
+      <span style={MICRO_LABEL}>{label}</span>
+      {on && (free || typing) ? (
+        <Editable title={label}>
+          <input {...numericInputProps} autoFocus value={current} disabled={busy}
+            aria-label={label}
+            onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
+            onBlur={() => {
+              setTyping(false);
+              const n = Number(current);
+              onChange(String(Number.isFinite(n) && n >= freeMin ? n : freeMin));
+            }}
+            style={{ ...DOC_FIELD, width: 64, fontSize: 13,
+                     fontVariantNumeric: 'tabular-nums' }} />
+        </Editable>
+      ) : (
+        <DocPick on={on} value={named ? current : ''} text={word} busy={busy} aria={label}
+          face={{ fontSize: 13, color: 'var(--fg-1)' }} tip={hint}
+          options={[
+            ...(current === '' ? [{ value: '', label: '—' }] : []),
+            ...terms.map((t) => ({ value: String(t.days), label: t.label })),
+            { value: TERM_FREE, label: freeLabel },
+          ]}
+          onChange={(v) => {
+            if (v === TERM_FREE) { setTyping(true); onChange(String(freeMin)); return; }
+            onChange(v);
+          }} />
+      )}
+    </div>
+  );
 }
 
 /** Ein feststehender Wert – Versalien-Beschriftung, Wert darunter. Wie eine Beleg-Fusszeile. */
@@ -898,24 +1042,27 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
 
   if (!editable) {
     return (
-      <Fixed label={d.incoterm_label || 'Lieferbedingung'}
-        value={d.incoterm_text || '—'} />
+      <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
+        <span style={MICRO_LABEL}>{d.incoterm_label || 'Lieferbedingung'}</span>
+        <span style={{ fontSize: 13, color: 'var(--fg-1)' }}>{d.incoterm_text || '—'}</span>
+      </div>
     );
   }
   const chosen = (d.incoterms ?? []).find((t) => t.key === key);
   return (
-    <div className="flex flex-col" style={{ gap: 4, minWidth: 0 }}>
-      <Label>{d.incoterm_label}</Label>
-      <Editable as="div">
-        <select disabled={busy} value={key} aria-label={d.incoterm_label}
-          onChange={(e) => setKey(e.target.value)}
-          style={{ ...DOC_FIELD, fontSize: 13, cursor: 'pointer' }}>
-          <option value="">—</option>
-          {(d.incoterms ?? []).map((t) => (
-            <option key={t.key} value={t.key}>{t.key} · {t.label}</option>
-          ))}
-        </select>
-      </Editable>
+    <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
+      <span style={MICRO_LABEL}>{d.incoterm_label}</span>
+      {/* ►►► **Die Klausel steht als KÜRZEL da, nicht als volle Zeile** (#935). ◄◄◄
+          Gemeldet war «das Feld ist irgendwie super breit und der Dropdown-Button etwas
+          eingerückt» – ein natives Auswahlfeld nimmt die Breite seiner längsten Zeile,
+          und die heisst hier «DPU · Geliefert entladen». Sichtbar ist jetzt, was auf dem
+          Beleg steht; die Erklärung folgt darunter als Satz. */}
+      <DocPick on value={key} text={chosen ? chosen.key : '—'} busy={busy}
+        aria={d.incoterm_label} face={{ fontSize: 13, color: 'var(--fg-1)' }}
+        options={[{ value: '', label: '—' },
+                  ...(d.incoterms ?? []).map((t) => ({
+                    value: t.key, label: `${t.key} · ${t.label}` }))]}
+        onChange={setKey} />
       {key !== '' && (
         <Editable as="div">
           <input value={place} disabled={busy}
@@ -923,7 +1070,7 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
             onChange={(e) => setPlace(e.target.value)}
             onBlur={now}
             onKeyDown={(e) => { if (e.key === 'Enter') now(); }}
-            style={{ ...DOC_FIELD, fontSize: 13 }} />
+            style={{ ...DOC_FIELD, fontSize: 13, width: '100%' }} />
         </Editable>
       )}
       {/* ►►► **Die Erklärung steht SICHTBAR, nicht im Hover.** ◄◄◄ Es ist die Stelle im
@@ -1064,16 +1211,17 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
               style={{ ...DOC_FIELD, width: 110, textAlign: 'right', fontSize: 13,
                        fontVariantNumeric: 'tabular-nums' }} />
           </Editable>
-          <Editable as="div" style={{ minWidth: 150 }}>
-            <TermField label={v.payment_term_label} value={pay} onChange={setPay}
-              terms={v.payment_terms ?? []} freeMin={v.term_free_min ?? 1}
-              freeLabel={v.term_free_label ?? 'Individuell'} />
-          </Editable>
-          <Editable as="div" style={{ minWidth: 150 }}>
-            <TermField label={v.lead_term_label} value={lead} onChange={setLead}
-              terms={v.lead_terms ?? []} freeMin={v.term_free_min ?? 1}
-              freeLabel={v.term_free_label ?? 'Individuell'} />
-          </Editable>
+          {/* **Dieselbe Frist-Form wie im Beleg** – zwei Bauarten für dieselbe Frage
+              liefen beim nächsten üblichen Wert auseinander, und die Zeile des Partners
+              ist derselbe Beleg, nur seine Seite davon. */}
+          <Term label={v.payment_term_label} on busy={busy} value={pay} days={null}
+            terms={v.payment_terms ?? []} onChange={setPay}
+            freeMin={v.term_free_min ?? 1}
+            freeLabel={v.term_free_label ?? 'Individuell'} />
+          <Term label={v.lead_term_label} on busy={busy} value={lead} days={null}
+            terms={v.lead_terms ?? []} onChange={setLead}
+            freeMin={v.term_free_min ?? 1}
+            freeLabel={v.term_free_label ?? 'Individuell'} />
         </div>
       )}
       <Actions>

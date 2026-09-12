@@ -84,17 +84,81 @@ function sectionOf(el: Element): string {
   return '';
 }
 
-/** Sichtbarer Text des Elements – in einer deutschsprachigen UI der beste Anker im Code. */
-function visibleLabel(el: Element): string {
-  let cur: Element | null = el;
-  for (let i = 0; cur && i < 3; i++, cur = cur.parentElement) {
-    const explicit = cur.getAttribute('aria-label') || cur.getAttribute('title')
-      || (cur as HTMLInputElement).placeholder || '';
-    const text = explicit || (cur.textContent || '');
-    const clean = text.replace(/\s+/g, ' ').trim();
-    if (clean) return cut(clean, MAX.label);
+const tidy = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+/**
+ * ►►► **Was ein Element IST – nicht, was alles darin steht.** ◄◄◄
+ *
+ * Die frühere Fassung nahm `textContent` des Elements bzw. seiner Vorfahren. An einem
+ * Knopf stimmt das; an allem anderen nicht, und zwei Fälle machten die Notiz unbrauchbar:
+ *
+ * - ein `<select>` lieferte den Text **aller Optionen** («—EXW · Ab WerkFCA · Frei
+ *   FrachtführerCPT · …»), also die Liste statt der Wahl;
+ * - ein Container lieferte alles, was darin steht – bei einer ganzen Karte eine Wand aus
+ *   Text, in der die eigentliche Stelle untergeht.
+ *
+ * Gefragt wird darum in der Reihenfolge, in der eine Oberfläche ihre Bedeutung trägt:
+ * die **ausdrückliche** Benennung (`aria-label`, `title`, `placeholder`), bei einem
+ * Bedienelement seine **Wahl**, sonst der **eigene** Text (nur direkte Textknoten), dann
+ * die zugehörige `<label>`-Beschriftung, und erst zuletzt – und **nur wenn er kurz ist** –
+ * der Text der Nachfahren. Eine Wand aus Text sagt weniger als ein ehrliches «—».
+ */
+function elementLabel(el: Element): string {
+  const explicit = tidy(
+    el.getAttribute('aria-label') || el.getAttribute('data-tip')
+    || el.getAttribute('title') || (el as HTMLInputElement).placeholder || '',
+  );
+  if (explicit) return cut(explicit, MAX.label);
+
+  const chosen = controlValue(el);
+  if (chosen) return cut(chosen, MAX.label);
+
+  // **Nur die eigenen Textknoten** – das ist die Beschriftung dieses Elements, nicht die
+  // seiner Kinder.
+  const own = tidy(Array.from(el.childNodes)
+    .filter((n) => n.nodeType === Node.TEXT_NODE)
+    .map((n) => n.textContent ?? '').join(' '));
+  if (own) return cut(own, MAX.label);
+
+  const labelled = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+  const named = tidy(labelled?.textContent ?? el.closest('label')?.textContent ?? '');
+  if (named) return cut(named, MAX.label);
+
+  const deep = tidy(el.textContent ?? '');
+  return deep.length <= 60 ? deep : '';
+}
+
+/** Der **Wert** eines Bedienelements – bei einem `<select>` die gewählte Zeile, nie die Liste. */
+function controlValue(el: Element): string {
+  if (el instanceof HTMLSelectElement) {
+    return tidy(el.selectedOptions[0]?.textContent ?? el.value);
+  }
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    return tidy(el.value);
   }
   return '';
+}
+
+/**
+ * ►►► **Woher im Haus kommt das?** ◄◄◄
+ *
+ * Eine `nth-of-type`-Kette sagt, **wo** ein Element im Baum hängt – nicht, **was** es
+ * ist. Die Oberfläche weiss das aber: Abschnitte, Reiter und Modul-Karten markieren sich
+ * mit `data-fb-*`. Eingesammelt wird die ganze Kette bis zur Wurzel, und daraus wird ein
+ * lesbarer Pfad («Zahlung › Positionen»). Für die Entwicklung ist das die eine Angabe,
+ * die ohne Raten zur richtigen Komponente führt.
+ */
+function originOf(el: Element): string {
+  const parts: string[] = [];
+  let cur: Element | null = el;
+  while (cur && cur !== document.body) {
+    for (const attr of Array.from(cur.attributes)) {
+      if (attr.name.startsWith('data-fb-') && attr.value) parts.unshift(tidy(attr.value));
+    }
+    cur = cur.parentElement;
+  }
+  // Doppelte Nennungen (derselbe Abschnitt an zwei Ebenen) sind keine Zusatzinformation.
+  return cut(parts.filter((p, i) => parts.indexOf(p) === i).join(' › '), MAX.section);
 }
 
 /**
@@ -105,9 +169,15 @@ function visibleLabel(el: Element): string {
 function cssPath(el: Element): string {
   const parts: string[] = [];
   let cur: Element | null = el;
-  for (let i = 0; cur && i < 5 && cur !== document.body; i++) {
+  // ►►► **Die Kette braucht einen ANKER, keine feste Länge.** ◄◄◄ Nach fünf Ebenen
+  // abgeschnitten war sie **relativ** und traf irgendein `div` irgendwo auf der Seite –
+  // der Pin sass beim nächsten Besuch falsch oder gar nicht. Gelaufen wird darum, bis
+  // etwas Benanntes kommt (`id` oder eine `data-fb-*`-Markierung) und sonst bis `body`.
+  // Das bindet den Pfad **und** hält ihn kurz.
+  for (let i = 0; cur && i < 40 && cur !== document.body; i++) {
     const node: Element = cur;
-    if (node.id) { parts.unshift(`#${CSS.escape(node.id)}`); break; }
+    const anchor = anchorFor(node);
+    if (anchor) { parts.unshift(anchor); return cut(parts.join(' > '), MAX.selector); }
     const tag = node.tagName.toLowerCase();
     const parent: HTMLElement | null = node.parentElement;
     if (!parent) { parts.unshift(tag); break; }
@@ -115,18 +185,34 @@ function cssPath(el: Element): string {
     parts.unshift(twins.length > 1 ? `${tag}:nth-of-type(${twins.indexOf(node) + 1})` : tag);
     cur = parent;
   }
-  return cut(parts.join(' > '), MAX.selector);
+  return cut(['body', ...parts].join(' > '), MAX.selector);
+}
+
+/** Ein benannter Halt in der Kette – `id` oder eine `data-fb-*`-Markierung des Hauses. */
+function anchorFor(node: Element): string {
+  if (node.id) return `#${CSS.escape(node.id)}`;
+  for (const attr of Array.from(node.attributes)) {
+    if (attr.name.startsWith('data-fb-') && attr.value) {
+      return `[${attr.name}="${CSS.escape(attr.value)}"]`;
+    }
+  }
+  return '';
 }
 
 /** WO: alles, was das angeklickte Element beschreibt. */
 export function describeAnchor(el: Element, clientX: number, clientY: number): FeedbackAnchor {
   const rect = el.getBoundingClientRect();
+  const origin = originOf(el);
+  const section = sectionOf(el);
   return {
-    label: visibleLabel(el),
+    label: elementLabel(el),
     tag: cut(el.tagName.toLowerCase(), MAX.tag),
     selector: cssPath(el),
     html: cut(el.outerHTML.replace(/\s+/g, ' '), MAX.html),
-    section: sectionOf(el),
+    // **Die Herkunft ist die bessere Auskunft** – wo eine steht, steht sie hier; sonst
+    // bleibt der Abschnittskopf. Zwei Felder dafür wären zwei Wahrheiten über dieselbe
+    // Frage, und das Backend-Schema kennt eines.
+    section: origin || section,
     rx: rect.width ? clamp01((clientX - rect.left) / rect.width) : 0.5,
     ry: rect.height ? clamp01((clientY - rect.top) / rect.height) : 0.5,
   };
@@ -162,11 +248,22 @@ export function locateAnchor(note: FeedbackNote): DOMRect | null {
 // Genau der Teil, den man von Hand nie dokumentiert. Bewusst nur Listener (kein
 // Monkey-Patching von console.*) – null Risiko für die laufende Anwendung.
 
-const errors: string[] = [];
+const errors: { text: string; count: number }[] = [];
 let capturing = false;
 
+/**
+ * ►►► **Derselbe Fehler ist EIN Fehler, und wie oft er kam, ist die Auskunft.** ◄◄◄
+ *
+ * Der Ringpuffer hielt fünf Einträge; ein Fehler in einer Render-Schleife füllte ihn
+ * fünfmal mit derselben Zeile, und die Notiz meldete «… | … | … | … | …». Damit war der
+ * Puffer voll, bevor der **zweite, andere** Fehler kam – also ausgerechnet der, den man
+ * gebraucht hätte. Gezählt statt wiederholt bleibt beides erhalten.
+ */
 function push(message: string) {
-  errors.push(cut(message.replace(/\s+/g, ' ').trim(), MAX.error));
+  const text = cut(tidy(message), MAX.error);
+  const seen = errors.find((e) => e.text === text);
+  if (seen) { seen.count += 1; return; }
+  errors.push({ text, count: 1 });
   if (errors.length > 5) errors.shift();
 }
 
@@ -186,7 +283,7 @@ export function startErrorCapture(): () => void {
 }
 
 function recentErrors(): string[] {
-  return errors.slice(-5);
+  return errors.map((e) => (e.count > 1 ? `${e.text} ×${e.count}` : e.text));
 }
 
 // ─── Export für die Weiterverarbeitung ────────────────────────────────────────
