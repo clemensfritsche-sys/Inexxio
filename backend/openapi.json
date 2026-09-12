@@ -8807,6 +8807,17 @@
               }
             ]
           },
+          "blocked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked"
+          },
           "label": {
             "type": "string",
             "title": "Label",
@@ -10909,11 +10920,6 @@
           "task_label": {
             "type": "string",
             "title": "Task Label",
-            "default": ""
-          },
-          "party_number_label": {
-            "type": "string",
-            "title": "Party Number Label",
             "default": ""
           },
           "vat_rates": {

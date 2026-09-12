@@ -1542,32 +1542,28 @@ def _target(row: Deal, data: dict[str, Any],
 # ►► DIE SPERRE UND DER ABSCHLUSS — beide am EINEN Ausführungs-Mechanismus
 # ---------------------------------------------------------------------------
 
-def assert_completable(db: Session, *, step: ProcessStep) -> None:
-    """**Darf dieses Modul bestätigt werden?** – gerufen von ``process.confirm_step``.
+def completion_problem(db: Session, *, step: ProcessStep) -> Optional[str]:
+    """►►► **Warum lässt sich dieses Modul noch nicht abschliessen?** ◄◄◄ (#945)
 
-    Drei Gründe, warum nicht, und alle drei sind derselbe Satz: der Geldvorgang ist noch
-    nicht so weit. Es gibt dafür **keinen Zustand am Stück** und keinen Pausenwert – das
-    Modul ist schlicht nicht fertig (dieselbe Haltung wie ``StepNeed`` beim Verbrauch).
+    Drei Gründe, und alle drei sind derselbe Satz: der Geldvorgang ist noch nicht so weit.
+    Es gibt dafür **keinen Zustand am Stück** und keinen Pausenwert – das Modul ist
+    schlicht nicht fertig (dieselbe Haltung wie ``StepNeed`` beim Verbrauch).
 
-    Ohne Geldvorgang ein No-op: jedes andere Modul läuft hier unverändert durch.
+    **Zwei Formen einer Regel**: hier der **Grund**, in ``assert_completable`` die **Tür**.
+    Ohne die erste stand der Abschluss-Knopf als vollflächige Einladung da, die der Dienst
+    danach abwies. Ohne Geldvorgang ``None``: jedes andere Modul läuft unverändert durch.
     """
     row = of_step(db, step.id)
     if row is None:
-        return
+        return None
     flow = dm.of(row.direction)
     if row.stage == dm.OFFER:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{flow.label}»: der Auftrag ist noch nicht bestätigt – bis dahin "
-                    f"steht kein Betrag fest, und es gibt nichts zu erledigen."),
-        )
+        return (f"«{flow.label}»: der Auftrag ist noch nicht bestätigt – bis dahin "
+                f"steht kein Betrag fest, und es gibt nichts zu erledigen.")
     if row.stage == dm.CANCELLED:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{flow.label}» ist storniert. Die Stücke stehen still, bis "
-                    f"jemand entscheidet, was mit ihnen geschieht – dafür gibt es den "
-                    f"ganz gewöhnlichen Abweichungsauftrag."),
-        )
+        return (f"«{flow.label}» ist storniert. Die Stücke stehen still, bis "
+                f"jemand entscheidet, was mit ihnen geschieht – dafür gibt es den "
+                f"ganz gewöhnlichen Abweichungsauftrag.")
     # ►►► **Die Sperre ist die vereinbarte ZAHLUNGSFRIST** (Testnotiz #854). ◄◄◄
     #
     # Sie stand einmal als Schalter in der Modul-Definition (``modules.prepaid(config)``)
@@ -1575,15 +1571,22 @@ def assert_completable(db: Session, *, step: ProcessStep) -> None:
     # Vorauszahlung. Zwei Angaben über eine Sache – und wer sie verschieden setzte, hatte
     # einen Vorgang, der etwas anderes sagt als er tut.
     if not dm.prepaid(row.due_days):
-        return
+        return None
     money = balance_of(db, row)
     if not money.settled:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{flow.label}» wartet auf den Zahlungseingang: "
-                    f"{money.paid} von {money.agreed} bezahlt. So ist es vereinbart – "
-                    f"{dm.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter."),
-        )
+        return (f"«{flow.label}» wartet auf den Zahlungseingang: "
+                f"{money.paid} von {money.agreed} bezahlt. So ist es vereinbart – "
+                f"{dm.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter.")
+    return None
+
+
+def assert_completable(db: Session, *, step: ProcessStep) -> None:
+    """**Die Tür** – gerufen von ``process.confirm_step``; den Grund nennt
+    ``completion_problem``. Zwei Massstäbe wären ein Knopf, der bereitsteht und scheitert.
+    """
+    why = completion_problem(db, step=step)
+    if why:
+        raise HTTPException(status_code=409, detail=why)
 
 
 def finish(db: Session, *, order: Order, step: ProcessStep) -> None:

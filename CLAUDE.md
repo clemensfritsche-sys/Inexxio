@@ -3489,6 +3489,77 @@
 > 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht** Zustände – und die
 > Messung gegen ihre eigene Bug-Form gegengeprüft (+76,7 px bei 375, +131,7 px bei 320).
 
+> ►►► **EIN LESEPFAD, DER SCHREIBT, MUSS AUCH BEHALTEN** (Testnotizen #936–#947). ◄◄◄
+> Zwölf Notizen, und drei davon waren echte Fehler – jeder mit einer Ursache, die man
+> nicht dort suchte, wo er auffiel.
+> **(1) Der getippte Preis kam nicht an** (#937 – *«Auto-Save wird ausgelöst, aber der
+> Wert wird nicht übernommen; nur mit Enter funktioniert es»*). Die Oberfläche war
+> unschuldig, und «mit Enter geht es» war kein Hinweis auf sie, sondern schlicht der
+> **zweite** Versuch. Der Beleg zieht seine Positionen beim **Anzeigen** aus dem Prozess
+> nach (`voucher.sync_lines` – der eine bewusste Schreibvorgang auf einem Lesepfad: die
+> Positionen *sind* der Prozess, und sie brauchen eine Id, damit man sie bepreisen kann).
+> **Nur behielt sie niemand**: `get_db` committet nicht, ein blosses `flush` fällt beim
+> Schliessen der Sitzung zurück. Der Browser bekam Zeilen-Ids, **die es nicht gibt**, und
+> `_price` fand seine Zeile nicht – der Preis wurde **stillschweigend** verworfen; der
+> erste POST legte die Zeilen dann an und committete sie, und ab da ging alles.
+> **Der Commit steht an der Transaktionsgrenze, nicht im Dienst** (`orders._steps` →
+> `_keep`): eine Fachfunktion, die committet, reisst in der Suite jede Szene mit, die
+> eigentlich verworfen werden soll – und in jeder Leseroute einzeln wäre es eine Regel,
+> an die jede künftige denken müsste. `_steps` ist die **eine** Stelle, an der eine
+> Antwort ihre Module baut.
+> **(2) «Ich kann nichts eingeben oder auswählen»** (#942). Gemessen: die Trefferfläche
+> der drei Konditionen-Wähler war **13 × 24 px** – die Breite des gedruckten «—». Das ist
+> die Kehrseite von «der gedruckte Wert IST das Bedienelement»: wo noch nichts dasteht,
+> steht auch kein Bedienelement, und die Haarlinie daneben war ebenso schmal. `MIN_PICK`
+> ist darum eine **Untergrenze**, keine Breite (ein gesetzter Wert bestimmt sie weiterhin
+> selbst), und sie gilt für die Fläche **und** die Auszeichnung: was man anklicken kann,
+> muss man sehen. Gemessen 44 px statt 13.
+> **(3) Die Testnotiz liess sich nicht speichern** (#943 – `\u0000 cannot be converted to
+> text`). Der Platzhalter der freien Frist trug ein echtes **NUL-Byte**, damit er mit
+> keiner Tageszahl kollidieren kann; über `outerHTML` reiste es in die Notiz, und
+> PostgreSQL nimmt in `text` kein NUL auf. Behoben an der Wurzel (eine Frist ist eine
+> **Zahl**, «frei» ist eindeutig genug) **und** im Werkzeug: `feedback.cut` – die eine
+> Kapp-Funktion, durch die jede erfasste Zeichenkette läuft – putzt jetzt C0-Steuerzeichen.
+> *Was die Seite hergibt, entscheidet nicht die Seite.*
+> **(4) Derselbe Befehl mit zwei Nutzlasten** (#941 – *«ist die Funktion dieses Buttons
+> wirklich aktiv?»*). Nein: der «+ Partner»-Knopf im Belegkopf schickte `ask` **ohne** die
+> beiden Fristen, und der Dienst weist ein Angebot ohne sie zu Recht ab. Gebaut wird die
+> Nutzlast jetzt **an einer Stelle** (in `BelegWork`, wo der Entwurf der Fristen ohnehin
+> wohnt); wer fragt, sagt nur noch **wen**.
+> **(5) «Anschrift fehlt», obwohl oben ein Empfänger steht** (#939). Der Kopf las
+> `party_of` – «mit wem wurde **abgeschlossen**», vor der Zusage `None`. Eine Offerte ist
+> aber adressiert, sobald sie an **genau einen** hinausgeht (`addressee_of`); bei mehreren
+> ist es ein Rundschreiben und es gibt keinen Adressaten. Und gemeldet wird eine fehlende
+> Angabe nur über **jemanden, den es gibt** – dieselbe Regel, die `gaps` längst anwendet
+> («die Gegenseite wird erst geprüft, wenn sie bekannt ist»).
+> **(6) «Vorgang abschliessen» über einer Offerte** (#945 – *«passt das schon in die
+> bestehende Lösung??? ich denke nicht»*). Der Knopf gehört dorthin – **jedes** Modul endet
+> mit ihm –, aber er stand als vollflächige Einladung über einem Beleg, den der Dienst
+> gleich darauf mit 409 abwies. **Zwei Formen einer Regel**: `completion_problem` nennt den
+> Grund, `assert_completable` ist die Tür, und er reist als `ProcessStepResponse.blocked`
+> an die Oberfläche. Kein `if module_type` dort – die Regel wohnt im Dienst.
+> **(7) Kleineres, jedes an einer Stelle:** der **Aussteller** ist wieder wählbar (#936 –
+> `options.length > 1` stimmt für eine *Frage*, nicht für eine **Korrektur**; die
+> Automatik bleibt, er friert mit der Freigabe ein); der **Steuersatz nennt den Wert
+> zuerst** (#938 – auf einem Beleg ist die Zahl die Aussage, der Name ihr Rechtsgrund);
+> **Name und Nummer stehen in einer Zeile** (#940 – die Regel aus #933, damit ist die
+> eigene «Nr.»-Zeile samt Beschriftung entfallen und das Raster hat **sechs** Zeilen);
+> **E-Mail und Telefon untereinander** (#944 – zwei Wege, kein Wert); «Rückläufe» heisst
+> **«Angebote»** (#946 – der Abschnitt trägt unsere hinaus bzw. ihre herein, und
+> «Rücklauf» beschreibt davon höchstens die Hälfte; weglassen wäre das andere gewesen,
+> aber er **ist** ein Schritt); und die **Jahreszahl** verlässt die Beschriftung der
+> Lieferbedingung (#947 – welche Fassung gilt, steht in der Erklärung der gewählten
+> Klausel, und die steht sichtbar darunter).
+> Wächter: 3 neue in `tests/test_voucher_module.py`, 7 neue in `test_frontend_mirrors.py` –
+> **18 Bug-Formen gegengeprüft, jede meldet**; ein bestehender prüfte die **Form** der
+> alten Lösung (#935: «der Wähler ist exakt so breit wie sein Wert») und hätte die
+> Untergrenze verboten – er fragt jetzt die Regel («nicht so breit wie die längste
+> Zeile»). Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den
+> Migrationen (je 628); **keine Migration** in dieser Runde. Gemessen in Chromium an der
+> **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter
+> Überlauf über **neun** Zustände – und die Messung gegen ihre eigene Bug-Form
+> gegengeprüft (+27,7 px bei 375, +82,7 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

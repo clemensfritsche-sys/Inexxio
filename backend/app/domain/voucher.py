@@ -150,9 +150,10 @@ CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
-#: Die Nummer im Belegkopf. «Objektnummer» ist ein Systembegriff, «Benutzernummer» falsch,
-#: sobald die Partei ein Unternehmen ist – und wessen Nummer es ist, sagt der Block darüber.
-PARTY_NUMBER_LABEL = "Nr."
+#: ►►► **Die Nummer steht NEBEN dem Namen** (Testnotiz #940) – und braucht darum keine
+#: eigene Beschriftung mehr: «Name Nummer» ist die Form, in der dieses Haus einen
+#: Datensatz nennt (#933). Die frühere eigene Zeile mit dem Mikro-Label «Nr.» ist
+#: ersatzlos entfallen; sie stand vier Zeilen unter dem Namen, zu dem sie gehört.
 
 #: Was man an der Schwelle tut: das **Angebot** annehmen – der Auftrag ist das Ergebnis.
 AGREE_VERB = "Angebot annehmen"
@@ -184,8 +185,13 @@ PARTY_REFERENCE = "Zahlungsreferenz des Partners"
 #: ►►► **Die Überschriften des Belegs.** ◄◄◄ Eine fehlt mit Absicht: über den Konditionen
 #: stand «Konditionen», und die Zeilen darunter (Zahlungsfrist, Lieferfrist,
 #: Lieferbedingung) sagen selbst, was sie sind (Testnotiz #926).
+#:
+#: **«Rückläufe» heisst jetzt «Angebote»** (#946): der Abschnitt trägt die Angebote –
+#: unsere hinaus bzw. ihre herein –, und «Rücklauf» beschreibt davon höchstens die
+#: Hälfte. Weglassen wäre das andere gewesen, aber der Abschnitt **ist** ein Schritt:
+#: sein Punkt vor der Überschrift sagt, wo der Beleg steht.
 GOODS_TITLE = "Positionen"
-QUOTES_TITLE = "Rückläufe"
+QUOTES_TITLE = "Angebote"
 HISTORY_TITLE = "Chronik"
 
 # ---------------------------------------------------------------------------

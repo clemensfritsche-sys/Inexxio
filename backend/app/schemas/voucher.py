@@ -260,7 +260,6 @@ class VoucherEmbed(BaseModel):
     history_title: str = ""
     money_label: str = ""
     task_label: str = ""
-    party_number_label: str = ""
     # ─── Steuer ─────────────────────────────────────────────────────────────────
     vat_rates: list[VatRateOut] = Field(default_factory=list)
     vat_rate: str = "normal"

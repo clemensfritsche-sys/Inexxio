@@ -149,6 +149,13 @@ class ProcessStepResponse(ModuleFacts):
     #: (``docs/neuaufbau-zahlungsmodul.md``), und ein laufender Auftrag trägt seinen
     #: Prozess eingefroren – er soll auch danach noch zeichnen können, was er war.
     voucher: Optional[VoucherEmbed] = None
+    #: ►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** (#945) ◄◄◄
+    #:
+    #: ``None`` heisst «nichts steht im Weg». Der Satz kommt aus derselben Regel, die
+    #: ``confirm_step`` durchsetzt (``process.completion_problem``) – die Auskunfts-Form,
+    #: nicht eine zweite Bedingung: der Knopf «Vorgang abschliessen» gehört an **jedes**
+    #: Modul, aber angeboten werden darf er erst, wenn er etwas tun kann.
+    blocked: Optional[str] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

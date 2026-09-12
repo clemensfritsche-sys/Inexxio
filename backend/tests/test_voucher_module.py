@@ -862,3 +862,154 @@ def test_a_price_leaves_the_service_in_the_scale_of_its_currency():
         assert yen[0]["price"] == "30", (
             f"«{yen[0]['price']}» statt «30» (b) – JPY hat keine Nachkommastellen."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §5 – WAS EINE ANSICHT SCHREIBT, BLEIBT (Testnotizen #937 · #939 · #945)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_view_that_writes_its_lines_also_keeps_them():
+    """►►► **Der getippte Preis kam nicht an – und der Grund lag im Lesepfad.** ◄◄◄
+
+    Gemeldet (#937): *«Wenn ich 30 eingebe und warte, wird Auto-Save ausgelöst, aber der
+    Wert wird nicht übernommen – nur mit Enter funktioniert es.»*
+
+    Die Oberfläche war unschuldig. ``sync_lines`` legt die Positionszeilen beim **Anzeigen**
+    an; ``get_db`` committet aber nie, und ein blosses ``flush`` fällt beim Schliessen der
+    Sitzung zurück. Der Browser bekam damit Ids, **die es nicht gibt** – und ``_price``
+    findet seine Zeile nicht und schreibt nichts. Dass es «mit Enter ging», war schlicht
+    der **zweite** Versuch: der erste ``POST`` legt die Zeilen an und committet sie.
+
+    Bug-Formen: (a) die Ansicht behält ihre Zeilen nicht; (b) sie vergibt bei jedem Aufruf
+    neue Ids; (c) ein Preis auf die eben gezeigte Id kommt nicht an.
+    """
+    from app.models import VoucherLine
+    from app.routers import orders as router
+    from app.services import voucher as svc
+    with _db() as db:
+        _house(db)
+        order, step, row, _who, _art = _scene(db)
+
+        shown = router._steps(db, order)
+        paper = next((s.voucher for s in shown if s.voucher is not None), None)
+        assert paper is not None, "Die Ansicht zeigt keinen Beleg."
+        ids = [ln.id for ln in paper.lines]
+        assert ids, "Die Ansicht zeigt keine Position."
+
+        # ►►► **Die Sitzung endet, ohne dass jemand committet** – genau wie ``get_db``.
+        db.rollback()
+        kept = db.query(VoucherLine).filter(VoucherLine.id.in_(ids)).count()
+        assert kept == len(ids), (
+            f"{kept} von {len(ids)} Positionen haben die Anzeige überlebt (a) – der "
+            f"Browser hält damit Ids, die es in der Datenbank nicht gibt."
+        )
+
+        # (b) **Dieselbe Ansicht noch einmal: dieselben Ids.** Neue wären dasselbe
+        # Problem mit einem Schritt Verzögerung.
+        again = next(s.voucher for s in router._steps(db, order) if s.voucher is not None)
+        assert [ln.id for ln in again.lines] == ids, (
+            "Die zweite Anzeige vergibt andere Ids (b) – dann zeigt jede Ansicht auf "
+            "Zeilen, die die nächste nicht mehr kennt."
+        )
+
+        # (c) **Und der Preis kommt an** – auf die Id, die dastand.
+        svc.apply(db, order=order, step=step, action="price",
+                  payload={"lines": [{"id": ids[0], "price": "30", "vat": "normal"}]})
+        db.flush()
+        assert svc.embed_lines(db, row)[0]["price"] == "30.00", (
+            "Der Preis auf die eben gezeigte Id kommt nicht an (c) – genau die gemeldete "
+            "Form: der Auto-Save läuft, und es passiert nichts."
+        )
+
+
+def test_the_addressee_is_the_one_we_asked():
+    """►►► **«Anschrift fehlt», obwohl oben ein Empfänger steht** (Testnotiz #939). ◄◄◄
+
+    Der Belegkopf las ``party_of`` – «mit wem wurde **abgeschlossen**», und das ist vor der
+    Zusage ``None``. Eine **Offerte** ist aber adressiert, sobald sie an genau einen
+    hinausgeht; dort stand niemand, und die Zeile darunter meldete eine fehlende Anschrift
+    zu einer leeren Stelle.
+
+    Bug-Formen: (a) der Kopf bleibt leer, obwohl genau einer angefragt ist; (b) bei
+    mehreren wird einer geraten; (c) die Vollständigkeitsprüfung hält den Angefragten
+    schon für gebunden.
+    """
+    from app.services import voucher as svc
+    with _db() as db:
+        _house(db)
+        one = _party(db, "Muster AG", "customer")
+        two = _party(db, "Zweit AG", "customer")
+        order, step, row, _who, _art = _scene(db, parties=[one, two])
+        _price(db, order, step, row)
+
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [one.object_id], "payment_days": 30,
+                           "lead_days": 5})
+        db.flush()
+        head = svc.document_head(db, row, won=True)
+        them = head["customer"]
+        assert them["object_id"] == one.object_id, (
+            f"Der Kopf nennt «{them['object_id']}» statt des einen Angefragten (a) – und "
+            f"meldet darunter eine Anschrift, die zu niemandem gehört."
+        )
+        assert them["address"], "Der Angefragte hat eine Anschrift, der Kopf zeigt keine."
+
+        # (c) **Gebunden ist er damit nicht.** Die Lücken fragen weiter nach der Zusage –
+        # sonst verlangte eine blosse Anfrage bereits die Angaben eines Vertrags.
+        assert svc.gaps(db, row, action="ask") == [], (
+            "Eine Anfrage verlangt die Angaben der Gegenseite (c) – die steht erst mit "
+            "der Zusage fest, und genau dafür gibt es die Stufe."
+        )
+
+        # (b) **Zwei Angefragte sind ein Rundschreiben** – dann gibt es keinen Adressaten.
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [two.object_id], "payment_days": 30,
+                           "lead_days": 5})
+        db.flush()
+        assert svc.addressee_of(db, row) is None, (
+            "Bei zwei Angefragten wird einer geraten (b) – eine erfundene Adresse ist "
+            "schlimmer als eine leere Zeile."
+        )
+
+
+def test_a_module_says_why_it_cannot_be_finished_yet():
+    """►►► **«Vorgang abschliessen» über einer Offerte** (Testnotiz #945). ◄◄◄
+
+    *«Ich weiss nicht, warum hier ‹Vorgang abschliessen› kommt – passt das schon in die
+    bestehende Lösung?»* Der Knopf gehört dorthin (jedes Modul endet mit ihm), aber er
+    stand als vollflächige Einladung über einem Beleg, den der Dienst gleich darauf mit
+    409 abwies. **Zwei Formen einer Regel**: ``completion_problem`` nennt den Grund,
+    ``assert_completable`` ist die Tür – und die Ansicht reicht ihn als ``step.blocked``
+    durch.
+
+    Bug-Formen: (a) es gibt keinen Grund, nur die Ablehnung; (b) der Grund kommt nicht am
+    Schritt an; (c) die beiden Formen sagen Verschiedenes.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.routers import orders as router
+    from app.services import process as proc, voucher as svc
+    with _db() as db:
+        _house(db)
+        order, step, row, _who, _art = _scene(db)
+
+        why = proc.completion_problem(db, step)
+        assert why, "Eine Offerte lässt sich abschliessen? (a)"
+        shown = next(s for s in router._steps(db, order) if s.id == step.id)
+        assert shown.blocked == why, (
+            f"Der Grund erreicht den Schritt nicht (b): «{shown.blocked}»."
+        )
+
+        # (c) **Dieselbe Regel, zwei Formen** – die Tür sagt wörtlich denselben Satz.
+        with _pytest.raises(HTTPException) as err:
+            svc.assert_completable(db, step=step)
+        assert err.value.detail == why, (
+            f"Tür und Auskunft sagen Verschiedenes (c): «{err.value.detail}» ≠ «{why}»."
+        )
+
+        # **Und ein Modul ohne Beleg ist nie gesperrt** – der Rahmen erbt nichts.
+        plain = next(s for s in router._steps(db, order) if s.module_type != "beleg")
+        assert plain.blocked is None, (
+            "Ein Modul ohne Geldvorgang meldet eine Sperre – die Regel ist die des "
+            "Belegs, nicht die des Rahmens."
+        )

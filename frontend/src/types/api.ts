@@ -3644,6 +3644,8 @@ export interface components {
             target?: components["schemas"]["PlaceRef"] | null;
             deal?: components["schemas"]["DealEmbed"] | null;
             voucher?: components["schemas"]["VoucherEmbed"] | null;
+            /** Blocked */
+            blocked?: string | null;
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -4547,11 +4549,6 @@ export interface components {
              * @default
              */
             task_label: string;
-            /**
-             * Party Number Label
-             * @default
-             */
-            party_number_label: string;
             /** Vat Rates */
             vat_rates?: components["schemas"]["VatRateOut"][];
             /**

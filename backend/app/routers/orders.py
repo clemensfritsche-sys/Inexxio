@@ -123,8 +123,36 @@ def _steps(db: Session, order: Order, *,
         # ``None``, und die Zeile fällt mit dem alten Modul weg.
         paper = voucher_svc.embed_data(db, order=order, step=s, viewer=viewer)
         row.voucher = VoucherEmbed(**paper) if paper else None
+        # **Und warum es jetzt nicht abzuschliessen ist** (#945) – dieselbe Regel, die
+        # ``confirm_step`` durchsetzt, nur als Auskunft. ``None`` bei jedem Modul ohne
+        # Geldvorgang.
+        row.blocked = process_svc.completion_problem(db, s)
         out.append(row)
+    _keep(db)
     return out
+
+
+def _keep(db: Session) -> None:
+    """►►► **Was eine ANSICHT schreibt, muss auch bleiben** (Testnotiz #937). ◄◄◄
+
+    Der Beleg zieht seine Positionen beim Anzeigen aus dem Prozess nach
+    (``voucher.sync_lines``) – der einzige Schreibvorgang auf einem Lesepfad, und er ist
+    Absicht: die Positionen **sind** der Prozess, solange nichts zugesagt ist, und sie
+    brauchen eine Id, damit man sie bepreisen kann.
+
+    **Nur behielt sie niemand.** ``get_db`` committet nicht, ein blosses ``flush`` fällt
+    beim Schliessen der Sitzung zurück – der Browser bekam Zeilen-Ids, die es in der
+    Datenbank gar nicht gibt, und der nächste ``price``-Befehl fand seine Zeile nicht: der
+    getippte Preis wurde **stillschweigend** verworfen. Dass es «mit Enter dann ging», war
+    kein Hinweis auf die Oberfläche, sondern schlicht der **zweite** Versuch: der erste
+    ``POST`` legt die Zeilen an und committet sie, danach sind die Ids stabil.
+
+    **Hier und nicht im Dienst**: eine Transaktionsgrenze gehört an die Tür, nicht in die
+    Fachlogik (die Suite fährt dieselben Dienste in EINER Sitzung, die sie am Ende
+    verwirft). Und hier statt in jeder Leseroute: ``_steps`` ist die eine Stelle, an der
+    eine Antwort ihre Module baut – eine neue Route erbt es, ohne daran zu denken.
+    """
+    db.commit()
 
 
 #: **Was nur das Personal sieht** – der interne Lauf des Auftrags.

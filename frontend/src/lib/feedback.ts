@@ -25,7 +25,23 @@ export const UI_MARKER = 'data-feedback-ui';
 // Notiz nie an einer Validierung scheitert, wenn jemand einen Roman-Knopf anklickt.
 const MAX = { label: 200, tag: 40, selector: 500, html: 800, ua: 300, error: 300, section: 80 };
 
-const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s);
+/**
+ * ►►► **Eine Notiz enthält nur Text, den eine Datenbank auch aufnimmt** (#943). ◄◄◄
+ *
+ * Gemeldet war ein Speicherfehler: `unsupported Unicode escape sequence … \\u0000 cannot
+ * be converted to text`. PostgreSQL nimmt in `text` **kein NUL** auf – und eine Notiz
+ * erfasst rohen `outerHTML`, also alles, was irgendwo in der Oberfläche steht. Der
+ * konkrete Auslöser war ein Platzhalter mit NUL-Byte und ist behoben; **die Regel gehört
+ * trotzdem hierher**: was die Seite hergibt, entscheidet nicht die Seite.
+ *
+ * Gekappt wird jedes C0-Steuerzeichen ausser Tabulator und Zeilenumbruch – sie tragen in
+ * einer Notiz keine Information, und keines davon überlebt die Speicherung.
+ */
+const clean = (s: string) => s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+const cut = (s: string, n: number) => {
+  const safe = clean(s);
+  return safe.length > n ? safe.slice(0, n) : safe;
+};
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
 /** Aktuelle Seite inkl. Query – die Route, an der die Notiz hängt. */
@@ -65,7 +81,7 @@ export function currentObjectId(): number | null {
 /** «Artikel · Prozess» – Datensatzart plus aktiver Reiter (aus dem DOM, eine Quelle). */
 function currentView(): string {
   const tab = document.querySelector('[data-fb-tab]')?.getAttribute('data-fb-tab') ?? '';
-  return [openRecord.kind, tab].filter(Boolean).join(' · ').slice(0, 80);
+  return cut([openRecord.kind, tab].filter(Boolean).join(' · '), MAX.section);
 }
 
 /**

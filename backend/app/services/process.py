@@ -915,6 +915,20 @@ def _verified_instance(db: Session, *, order: Order, step: ProcessStep,
     return instance
 
 
+def completion_problem(db: Session, step: ProcessStep) -> Optional[str]:
+    """►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** (#945) ◄◄◄
+
+    Die **Auskunfts-Form** dessen, was ``confirm_step`` gleich darunter durchsetzt – eine
+    Frage an dieselben Dienste, nie eine zweite Regel. Gemeldet wurde ein «Vorgang
+    abschliessen» in voller Breite über einer **Offerte**: der Knopf gehört dorthin (jedes
+    Modul endet mit ihm), aber angeboten werden darf er erst, wenn er etwas tun kann.
+
+    ``None`` heisst «nichts steht im Weg» – bei jedem Modul ohne Geldvorgang immer.
+    """
+    return (deal_svc.completion_problem(db, step=step)
+            or voucher_svc.completion_problem(db, step=step))
+
+
 def confirm_step(
     db: Session, *, order: Order, step_id: int, values: dict[str, dict[str, Any]],
     actor_id: Optional[int],

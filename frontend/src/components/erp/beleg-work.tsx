@@ -18,7 +18,7 @@ import {
   Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Actions, ModuleSection } from '@/components/erp/module-ui';
-import { DEAL_STAGE, PARTY_NUMBER_LABEL, QUOTE_STATE } from '@/lib/modules';
+import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { useAutosave } from '@/lib/use-autosave';
 import { formatAmount, localDate } from '@/lib/utils';
 
@@ -83,6 +83,20 @@ type Action = { action: string } & Record<string, unknown>;
 type Send = (body: Action) => Promise<unknown> | void;
 
 /**
+ * ►►► **Anfragen bzw. anbieten — EIN Payload, zwei Aufrufer** (Testnotiz #941). ◄◄◄
+ *
+ * *«Ist die Funktion dieses Buttons wirklich aktiv? Funktioniert die Logik dahinter?»* –
+ * Nein, und der Grund war eine **zweite Nutzlast**: der Knopf im Belegkopf schickte
+ * `ask` **ohne** die beiden Fristen, und der Dienst weist ein Angebot ohne sie zu Recht
+ * ab (aus ihnen kommen Fälligkeit und Termin). Der Knopf am Angebot schickte sie mit,
+ * also tat derselbe Befehl je nach Herkunft etwas anderes.
+ *
+ * Gebaut wird die Nutzlast jetzt **an einer Stelle** (in `BelegWork`, wo der Entwurf der
+ * Fristen ohnehin wohnt); wer fragt, sagt nur noch **wen**.
+ */
+type Ask = (parties?: number[]) => void;
+
+/**
  * **Darf man das hier tun?** – die eine Frage, und sie geht an den Server.
  *
  * `can` ist Auskunft **und** Tor (`services/voucher`): dieselbe Liste rendert die Knöpfe
@@ -143,13 +157,25 @@ export function BelegWork({
     pay: d.due_days == null ? '' : String(d.due_days),
     lead: d.lead_days == null ? '' : String(d.lead_days),
   });
+  // ►►► **Der eine Payload-Bauer** (Testnotiz #941) – siehe `Ask`. Er steht hier, weil
+  // der Entwurf der Fristen hier wohnt; die Aufrufer sagen nur noch, **wen** sie fragen.
+  const onAsk = useCallback<Ask>((parties) => {
+    void onAction({
+      action: 'ask',
+      ...(parties && parties.length ? { parties } : {}),
+      // **Die Null ist eine Angabe** («Vorauszahlung» · «Sofort») – darum auf den leeren
+      // String geprüft, nicht auf Wahrheit: `0 ? … : …` verlöre genau den Wert.
+      ...(terms.pay === '' ? {} : { payment_days: Number(terms.pay) }),
+      ...(terms.lead === '' ? {} : { lead_days: Number(terms.lead) }),
+    });
+  }, [onAction, terms]);
 
   return (
     <div className="flex flex-col" style={{ minWidth: 0 }}>
-      <DocHead d={d} busy={busy} onAction={onAction} />
+      <DocHead d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
       <Goods d={d} busy={busy} onAction={onAction} />
       <Terms d={d} busy={busy} terms={terms} onTerms={setTerms} onAction={onAction} />
-      <Quotes d={d} busy={busy} active={active} terms={terms} onAction={onAction} />
+      <Quotes d={d} busy={busy} active={active} onAsk={onAsk} onAction={onAction} />
       {agreed && (
         <Money d={d} busy={busy} orderObjectId={orderObjectId} stepId={stepId}
           onAction={onAction} onPaid={onPaid} />
@@ -258,7 +284,19 @@ const DOC_FIELD: CSSProperties = {
  *
  * Steht der Wert fest, bleibt der Text – ohne Auszeichnung. Eine Linie, die
  * Änderbarkeit verspricht, wäre dort eine Unwahrheit.
+ *
+ * ►►► **Und ein Wähler ist mindestens so breit, dass man ihn trifft** (#942). ◄◄◄
+ *
+ * *«Bei Zahlungsfrist, Lieferfrist, Lieferbedingung kann ich nichts eingeben oder
+ * auswählen.»* – Gemessen: die Trefferfläche war **13 × 24 px**, nämlich die Breite des
+ * gedruckten «—». Das ist die Kehrseite der Regel «der gedruckte Wert IST das
+ * Bedienelement»: wo noch nichts dasteht, steht auch kein Bedienelement. `MIN_PICK` ist
+ * darum eine **Untergrenze**, keine Breite – ein gesetzter Wert bestimmt sie weiterhin
+ * selbst –, und sie gilt für die Haarlinie **und** die Fläche: was man anklicken kann,
+ * muss man auch sehen.
  */
+const MIN_PICK = 44;
+
 function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: {
   on: boolean;
   value: string;
@@ -275,7 +313,8 @@ function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: 
   if (!on) return shown;
   return (
     <Editable title={tip}>
-      <span style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+      <span style={{ position: 'relative', display: 'inline-block',
+                     minWidth: MIN_PICK, maxWidth: '100%' }}>
         {shown}
         <select value={value} disabled={busy} aria-label={aria}
           onChange={(e) => onChange(e.target.value)}
@@ -357,8 +396,14 @@ function Missing({ what }: { what: string }) {
 // Der Belegkopf
 // ───────────────────────────────────────────────────────────────────────────────
 
-/** Wie viele Zeilen ein Partei-Block hat – siehe `Party`. */
-const PARTY_ROWS = 7;
+/**
+ * Wie viele Zeilen ein Partei-Block hat – siehe `Party`.
+ *
+ * ►►► **Sechs statt sieben** (Testnotiz #940): die Objektnummer steht **neben** dem Namen,
+ * nicht vier Zeilen darunter. Das ist die Form, in der dieses Haus einen Datensatz nennt
+ * (#933) – und damit braucht sie auch keine eigene Beschriftung «Nr.» mehr.
+ */
+const PARTY_ROWS = 6;
 
 /**
  * **Der Belegkopf** – die Belegart und beide Parteien.
@@ -373,8 +418,8 @@ const PARTY_ROWS = 7;
  * – Genau: sie war die zweite Aussage über die **Zahlungsfrist**, die zwei Abschnitte
  * tiefer als Wert dasteht und dort geändert wird.
  */
-function DocHead({ d, busy, onAction }: {
-  d: Filled; busy: boolean; onAction: Send;
+function DocHead({ d, busy, onAction, onAsk }: {
+  d: Filled; busy: boolean; onAction: Send; onAsk: Ask;
 }) {
   return (
     <ModuleSection first>
@@ -384,7 +429,7 @@ function DocHead({ d, busy, onAction }: {
             {d.stage_label}
           </span>
         </div>
-        <Parties d={d} busy={busy} onAction={onAction} />
+        <Parties d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
         <Gaps rows={d.gaps ?? []} />
       </div>
     </ModuleSection>
@@ -399,7 +444,9 @@ function DocHead({ d, busy, onAction }: {
  * anderen. Sie teilen jetzt **ein** Raster mit einer festen Zeile je Angabe (`subgrid`) –
  * fehlt eine, bleibt die Zeile **leer**: die Symmetrie ist die Aussage, nicht die Dichte.
  */
-function Parties({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send }) {
+function Parties({ d, busy, onAction, onAsk }: {
+  d: Filled; busy: boolean; onAction: Send; onAsk: Ask;
+}) {
   return (
     <div style={{
       display: 'grid',
@@ -407,8 +454,8 @@ function Parties({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Se
       gridTemplateRows: `repeat(${PARTY_ROWS}, auto)`,
       gap: '14px 24px', minWidth: 0,
     }}>
-      <Party side={d.supplier} d={d} busy={busy} onAction={onAction} />
-      <Party side={d.customer} d={d} busy={busy} onAction={onAction} />
+      <Party side={d.supplier} d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
+      <Party side={d.customer} d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
     </div>
   );
 }
@@ -421,8 +468,9 @@ function Parties({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Se
  * man liest*: der Leistungsempfänger **ist** das Bedienelement, nicht ein Feld an anderer
  * Stelle, dessen Wirkung man drei Zeilen höher sucht.
  */
-function Party({ side, d, busy, onAction }: {
+function Party({ side, d, busy, onAction, onAsk }: {
   side: VoucherSide | null | undefined; d: Filled; busy: boolean; onAction: Send;
+  onAsk: Ask;
 }) {
   if (!side) return <div />;
   // **Wer die Gegenseite ist, sagt die Struktur** – nicht ein Vergleich auf «Leistungs-
@@ -435,9 +483,16 @@ function Party({ side, d, busy, onAction }: {
       rowGap: 3, minWidth: 0, alignContent: 'start',
     }}>
       <span style={MICRO_LABEL} data-tip={side.hint || undefined}>{side.label}</span>
-      {ours
-        ? <Issuer d={d} side={side} onAction={onAction} />
-        : <Recipients d={d} side={side} busy={busy} onAction={onAction} />}
+      {/* ►►► **Name und Nummer in EINER Zeile** (Testnotiz #940). ◄◄◄ Sie benennen
+          **einen** Datensatz – dieselbe Form wie in der Positionszeile (#933). */}
+      <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
+        {ours
+          ? <Issuer d={d} side={side} onAction={onAction} />
+          : <Recipients d={d} side={side} busy={busy} onAsk={onAsk} />}
+        {side.object_id != null && (
+          <span style={{ flex: 'none' }}><ObjId value={side.object_id} /></span>
+        )}
+      </span>
       {side.attn
         ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{side.attn}</span>
         : <div />}
@@ -447,19 +502,18 @@ function Party({ side, d, busy, onAction }: {
             {(side.address ?? []).join('\n')}
           </span>
         )
-        : <div><Missing what="Anschrift" /></div>}
+        /* ►►► **Was fehlt, wird gesagt – aber nur über jemanden, den es gibt** (#939).
+            ◄◄◄ Solange kein Adressat feststeht, nennt die Seite **niemanden**; «Anschrift
+            fehlt» wäre dann eine Aussage über eine leere Stelle. Dieselbe Regel wie im
+            Dienst (`gaps` prüft die Gegenseite erst, wenn sie bekannt ist). */
+        : <div>{side.object_id != null ? <Missing what="Anschrift" /> : null}</div>}
+      {/* ►►► **E-Mail und Telefon untereinander** (Testnotiz #944). ◄◄◄ Es sind zwei
+          Wege, nicht ein Wert – und auf der Breite einer Beleg-Spalte brach die Zeile
+          ohnehin, nur an einer beliebigen Stelle. */}
       {side.email || side.phone
         ? (
-          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
-            {[side.email, side.phone].filter(Boolean).join(' · ')}
-          </span>
-        )
-        : <div />}
-      {side.object_id != null
-        ? (
-          <span className="flex items-baseline" style={{ gap: 6 }}>
-            <span style={MICRO_LABEL}>{d.party_number_label || PARTY_NUMBER_LABEL}</span>
-            <ObjId value={side.object_id} />
+          <span style={{ fontSize: 12, color: 'var(--fg-3)', whiteSpace: 'pre-line' }}>
+            {[side.email, side.phone].filter(Boolean).join('\n')}
           </span>
         )
         : <div />}
@@ -477,8 +531,8 @@ function Party({ side, d, busy, onAction }: {
  * (Punkt + Wort je Zustand) plus, wo die Definition niemanden nennt, ein Suchfeld: ein
  * Karussell mit Pfeilen sagte weder, wie viele es gibt, noch welcher gewählt ist.
  */
-function Recipients({ d, side, busy, onAction }: {
-  d: Filled; side: VoucherSide; busy: boolean; onAction: Send;
+function Recipients({ d, side, busy, onAsk }: {
+  d: Filled; side: VoucherSide; busy: boolean; onAsk: Ask;
 }) {
   const open = d.stage === DEAL_STAGE.offer;
   const canAsk = may(d, 'ask');
@@ -510,7 +564,7 @@ function Recipients({ d, side, busy, onAction }: {
           value={picked?.object_id ?? null} selected={picked} find={find}
           onChange={(_n, option) => {
             setPicked(null);
-            if (option) void onAction({ action: 'ask', parties: [option.object_id] });
+            if (option) onAsk([option.object_id]);
           }}
         />
       ) : (
@@ -521,7 +575,7 @@ function Recipients({ d, side, busy, onAction }: {
               className="ix-editable inline-flex items-center"
               style={{ gap: 5, padding: '2px 7px', fontSize: 12, color: 'var(--fg-2)',
                        background: 'transparent', border: 0, cursor: 'pointer' }}
-              onClick={() => void onAction({ action: 'ask', parties: [p.object_id] })}>
+              onClick={() => onAsk([p.object_id])}>
               <Plus size={11} /> {p.name || p.object_id}
             </button>
           ))
@@ -581,8 +635,13 @@ function Issuer({ d, side, onAction }: {
   const chosen = options.find((o) => o.object_id === d.issuer);
   return (
     <DocRef
-      // **Eine Auswahl mit genau einer Antwort ist keine** – dann steht dort nur der Name.
-      on={may(d, 'issuer') && options.length > 1}
+      // ►►► **Wählbar, solange man darf** (Testnotiz #936). ◄◄◄ Hier stand
+      // `options.length > 1` – «eine Auswahl mit genau einer Antwort ist keine». Das
+      // stimmt für eine *Frage*, nicht für eine **Korrektur**: wer nachsehen will, welche
+      // Gesellschaft den Beleg stellt, findet sonst kein Bedienelement und hält die
+      // Vorwahl für unabänderlich. Die Automatik bleibt, wie sie war – der Aussteller ist
+      // mit der Freigabe eingefroren (`issuer_of`), hier steht nur die Korrektur.
+      on={may(d, 'issuer')}
       text={side.name || <Missing what="Firma" />}
       placeholder={d.issuer_label} tip={d.issuer_label} face={face}
       value={d.issuer ?? null}
@@ -786,7 +845,10 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
 function vatText(label?: string | null, rate?: string | null): string {
   const name = label ?? '';
   if (!rate) return name || '—';
-  return name ? `${name} · ${rate} %` : `${rate} %`;
+  // ►►► **Der Wert zuerst, der Name danach** (Testnotiz #938). ◄◄◄ Auf einem Beleg ist
+  // die **Zahl** die Aussage – der Name ist ihr Rechtsgrund. Und in einer Liste
+  // untereinander steht so das Gleiche übereinander: «8.10 %», «2.60 %», «0.00 %».
+  return name ? `${rate} % · ${name}` : `${rate} %`;
 }
 
 /** Eine Zoll-Angabe – klein, an ihrer Zeile, und änderbar, solange der Beleg offen ist. */
@@ -953,8 +1015,14 @@ function Terms({ d, busy, terms, onTerms, onAction }: {
  * Die freie Eingabe bleibt erhalten und ist derselbe Wert: wer sie wählt, bekommt an
  * **derselben Stelle** ein Zahlenfeld. Ein zweites Bedienelement daneben wäre die zweite
  * Aussage über dieselbe Frist.
+ *
+ * ►►► **Der Platzhalter trägt kein Steuerzeichen** (Testnotiz #943). ◄◄◄ Er stand hier
+ * mit einem vorangestellten **NUL-Byte**, damit er mit keiner Tageszahl kollidieren
+ * kann. Es reiste über `outerHTML` in die Testnotiz, und PostgreSQL nimmt **kein** NUL
+ * in Text auf: das Speichern brach mit `UntranslatableCharacter` ab. Eindeutig ist er
+ * auch so – eine Frist ist eine **Zahl**, und «frei» ist keine.
  */
-const TERM_FREE = ' frei';
+const TERM_FREE = 'frei';
 
 function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, onChange }: {
   label: string; on: boolean; busy: boolean;
@@ -1095,9 +1163,8 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
  * Beleg nichts; danach sind die unterlegenen Zeilen der **Nachweis**, warum so entschieden
  * wurde – und der gehört auf Klick, nicht auf den Bildschirm.
  */
-function Quotes({ d, busy, active, terms, onAction }: {
-  d: Filled; busy: boolean; active: boolean;
-  terms: { pay: string; lead: string }; onAction: Send;
+function Quotes({ d, busy, active, onAsk, onAction }: {
+  d: Filled; busy: boolean; active: boolean; onAsk: Ask; onAction: Send;
 }) {
   const open = d.stage === DEAL_STAGE.offer;
   const [shown, setShown] = useState(false);
@@ -1139,8 +1206,7 @@ function Quotes({ d, busy, active, terms, onAction }: {
               )}
             </>
           )}
-        {open && <Offer d={d} busy={busy} active={active} terms={terms}
-          onAction={onAction} />}
+        {open && <Offer d={d} busy={busy} active={active} onAsk={onAsk} />}
       </div>
     </ModuleSection>
   );
@@ -1256,9 +1322,8 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
  * Die Zahl im Wort ist die der Gegenparteien, die noch nichts bekommen haben; sie fällt
  * weg, wenn es nur eine gibt – dann ist die Wahl keine (#793).
  */
-function Offer({ d, busy, active, terms, onAction }: {
-  d: Filled; busy: boolean; active: boolean;
-  terms: { pay: string; lead: string }; onAction: Send;
+function Offer({ d, busy, active, onAsk }: {
+  d: Filled; busy: boolean; active: boolean; onAsk: Ask;
 }) {
   const allowed = d.allowed ?? [];
   const known = d.quotes.map((q) => q.party_object_id);
@@ -1273,15 +1338,7 @@ function Offer({ d, busy, active, terms, onAction }: {
     <StageAction icon={Send} label={label} disabled={busy}
       tip={allowed.length === 0
         ? `Wähle oben den ${d.party_word}` : undefined}
-      onClick={() => void onAction({
-        action: 'ask',
-        ...(fresh.length ? { parties: fresh.map((p) => p.object_id) } : {}),
-        // **Die Null ist eine Angabe** («Vorauszahlung» · «Sofort») – darum auf den
-        // leeren String geprüft, nicht auf Wahrheit: `0 ? … : …` verlöre genau den Wert,
-        // um den es geht.
-        ...(terms.pay === '' ? {} : { payment_days: Number(terms.pay) }),
-        ...(terms.lead === '' ? {} : { lead_days: Number(terms.lead) }),
-      })} />
+      onClick={() => onAsk(fresh.map((p) => p.object_id))} />
   );
 }
 

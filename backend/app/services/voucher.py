@@ -215,6 +215,26 @@ def party_of(db: Session, row: Voucher) -> Optional[int]:
     return q.party_id if q is not None else None
 
 
+def addressee_of(db: Session, row: Voucher) -> Optional[int]:
+    """►►► **An wen geht dieser Beleg – jetzt, nicht erst mit der Zusage** (#939). ◄◄◄
+
+    ``party_of`` beantwortet «mit wem wurde abgeschlossen» und ist vor der Zusage ``None``.
+    Für den **Belegkopf** ist das zu wenig: eine Offerte ist adressiert, sobald sie an
+    genau einen hinausgeht – und stand dort niemand, meldete der Kopf «Anschrift fehlt»,
+    obwohl oben ein Leistungsempfänger angefragt war.
+
+    **Genau einer, sonst keiner.** Werden mehrere angefragt, ist es ein Rundschreiben und
+    es gibt keinen einen Adressaten – eine geratene Auswahl wäre schlimmer als die leere
+    Zeile. Die **Vollständigkeitsprüfung** (``gaps``) fragt weiterhin ``party_of``: sie
+    entscheidet, ob jemand **gebunden** ist, und das tut erst die Zusage.
+    """
+    chosen = party_of(db, row)
+    if chosen is not None:
+        return chosen
+    rows = quotes_of(db, row)
+    return rows[0].party_id if len(rows) == 1 else None
+
+
 def agreed_amount(db: Session, row: Voucher) -> Optional[Decimal]:
     """**Was vereinbart ist** – der Betrag der gewählten Zeile."""
     q = chosen_quote(db, row)
@@ -1305,40 +1325,50 @@ def record_payment(db: Session, *, row: Voucher, amount: Decimal,
 # ►► DIE DREI BERÜHRUNGSPUNKTE MIT DEM RAHMEN — je eine Zeile, no-op ohne dieses Modul
 # ---------------------------------------------------------------------------
 
-def assert_completable(db: Session, *, step: ProcessStep) -> None:
-    """**Darf dieses Modul bestätigt werden?** – gerufen von ``process.confirm_step``.
+def completion_problem(db: Session, *, step: ProcessStep) -> Optional[str]:
+    """►►► **Warum lässt sich dieses Modul noch nicht abschliessen?** ◄◄◄ (#945)
 
-    Drei Gründe, warum nicht, und alle drei sind derselbe Satz: der Beleg ist noch nicht so
-    weit. Es gibt dafür **keinen Zustand am Stück** und keinen Pausenwert – das Modul ist
-    schlicht nicht fertig.
+    Drei Gründe, und alle drei sind derselbe Satz: der Beleg ist noch nicht so weit. Es
+    gibt dafür **keinen Zustand am Stück** und keinen Pausenwert – das Modul ist schlicht
+    nicht fertig.
+
+    **Zwei Formen einer Regel, ein Namensstamm** (wie ``pick_problem``/``unpickable``):
+    hier steht der **Grund**, in ``assert_completable`` steht die **Tür**. Ohne die erste
+    Form stand «Vorgang abschliessen» als vollflächiger Knopf an einer Offerte – eine
+    Einladung, die der Dienst danach mit 409 abwies. Ein Knopf, der jetzt nichts tun kann,
+    sagt es **vorher**; dass es ihn gibt, bleibt richtig: **jedes** Modul endet mit ihm.
     """
     row = of_step(db, step.id)
     if row is None:
-        return
+        return None
     flow = vo.of(row.direction)
     if row.stage == vo.OFFER:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{flow.label}»: der Auftrag ist noch nicht bestätigt – bis dahin "
-                    f"steht kein Betrag fest, und es gibt nichts zu erledigen."))
+        return (f"«{flow.label}»: der Auftrag ist noch nicht bestätigt – bis dahin "
+                f"steht kein Betrag fest, und es gibt nichts zu erledigen.")
     if row.stage == vo.CANCELLED:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{flow.label}» ist storniert. Die Stücke stehen still, bis jemand "
-                    f"entscheidet, was mit ihnen geschieht – dafür gibt es den ganz "
-                    f"gewöhnlichen Abweichungsauftrag."))
+        return (f"«{flow.label}» ist storniert. Die Stücke stehen still, bis jemand "
+                f"entscheidet, was mit ihnen geschieht – dafür gibt es den ganz "
+                f"gewöhnlichen Abweichungsauftrag.")
     # ►►► **Die Sperre ist die vereinbarte ZAHLUNGSFRIST.** ◄◄◄ «Zahlbar in null Tagen ab
     # Zusage» *ist* die Vorauszahlung – ein Schalter daneben wäre die zweite Aussage über
     # dieselbe Sache.
     if not vo.prepaid(due_days_of(db, row)):
-        return
+        return None
     money = balance_of(db, row)
     if not money.settled:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{flow.label}» wartet auf den Zahlungseingang: {money.paid} von "
-                    f"{money.agreed} bezahlt. So ist es vereinbart – "
-                    f"{vo.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter."))
+        return (f"«{flow.label}» wartet auf den Zahlungseingang: {money.paid} von "
+                f"{money.agreed} bezahlt. So ist es vereinbart – "
+                f"{vo.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter.")
+    return None
+
+
+def assert_completable(db: Session, *, step: ProcessStep) -> None:
+    """**Die Tür** – gerufen von ``process.confirm_step``. Den Grund nennt ``completion_
+    problem``; zwei Massstäbe wären ein Knopf, der bereitsteht und dann scheitert.
+    """
+    why = completion_problem(db, step=step)
+    if why:
+        raise HTTPException(status_code=409, detail=why)
 
 
 def finish(db: Session, *, order: Order, step: ProcessStep) -> None:
@@ -1471,7 +1501,10 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     """
     flow = vo.of(row.direction)
     company = issuer_company(db, row)
-    who = billing_of(db, row, party_id) if won else {}
+    # **Der Adressat, nicht der Vertragspartner** (#939): steht genau einer an, ist er es
+    # längst – erst die Zusage bindet ihn.
+    look = party_id if party_id is not None else addressee_of(db, row)
+    who = billing_of(db, row, look) if won else {}
     seat = who.get("address") or {}
     seat_ours = address.of_company(company) if company is not None else None
     ours = {
@@ -1487,7 +1520,7 @@ def document_head(db: Session, row: Voucher, *, won: bool,
         "email": getattr(company, "email", None),
         "phone": getattr(company, "phone", None),
     }
-    number = (party_id if party_id is not None else party_of(db, row)) if won else None
+    number = look if won else None
     lines = who.get("lines") or []
     theirs = {
         "object_id": number,
@@ -1848,7 +1881,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "quotes_title": vo.QUOTES_TITLE,
         "history_title": vo.HISTORY_TITLE,
         "task_label": vo.TASK,
-        "party_number_label": vo.PARTY_NUMBER_LABEL,
         # **Das Wort der Gegenhandlung hängt an DEN HANDLUNGEN DIESES BETRACHTERS**, nicht
         # an der Stufe: sonst liest eine Gegenpartei «Auftrag stornieren» an einem Knopf,
         # den es für sie nie gibt.

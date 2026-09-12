@@ -816,6 +816,28 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > solange es beide gibt, und stirbt mit dem alten Modul.
 > Wächter: `tests/test_voucher_module.py` (17 Prüfungen, **18 Bug-Formen gegengeprüft**).
 
+> ►►► **Ein Lesepfad, der schreibt, muss auch BEHALTEN** (Testnotiz #937). ◄◄◄
+> `voucher.sync_lines` legt die Positionszeilen beim **Anzeigen** an – der eine bewusste
+> Schreibvorgang auf einem Lesepfad. Nur committete ihn niemand: `get_db` committet nicht,
+> ein blosses `flush` fällt beim Schliessen der Sitzung zurück, und der Browser bekam
+> **Zeilen-Ids, die es nicht gibt**; der nächste `price`-Befehl fand seine Zeile nicht und
+> schrieb stillschweigend nichts. Der Commit steht jetzt in `orders._steps` (`_keep`) –
+> **an der Transaktionsgrenze, nicht im Dienst**: eine Fachfunktion, die committet, reisst
+> in der Suite jede Szene mit, die verworfen werden soll, und in jeder Leseroute einzeln
+> wäre es eine Regel, an die jede künftige denken müsste.
+>
+> ►►► **Zwei Formen einer Regel – auch beim Abschluss** (#945). ◄◄◄
+> `completion_problem` nennt den **Grund**, `assert_completable` ist die **Tür**
+> (`services/voucher` und `services/deal`, zusammengefasst in `process.completion_problem`);
+> die Ansicht reicht ihn als `ProcessStepResponse.blocked` durch. Ohne die erste Form stand
+> «Vorgang abschliessen» als vollflächige Einladung über einer Offerte, die der Dienst
+> gleich darauf mit 409 abwies.
+>
+> **Der Adressat ist nicht der Vertragspartner** (#939): `voucher.addressee_of` – die
+> gewählte Zeile, sonst die **eine** angefragte; bei mehreren keiner (ein Rundschreiben hat
+> keinen Adressaten). `party_of` bleibt, was es ist, und `gaps` fragt weiterhin danach:
+> **gebunden** ist erst, wer zugesagt bekam.
+
 ## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
 
 Drei Netze, drei verschiedene Fänge: die **Migration** ist die Wahrheit · `create_all` im

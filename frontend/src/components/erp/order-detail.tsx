@@ -537,6 +537,8 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
     // die Rolle: dieselbe Naht, an der auch das Modul-Protokoll hängt. Und die Regel gilt
     // für **jedes** Modul, nicht für dieses eine.
     const plain = step.verifies === false;
+    // **Warum jetzt nicht?** – der Satz kommt vom Server (`process.completion_problem`).
+    const blocked = stepInfo(order, step.id)?.blocked ?? null;
     const work = !internal ? null : isActive && plain ? (
       // ►►► **Der Modul-Knopf IST ein Knopf** (Testnotiz #813). ◄◄◄
       //
@@ -545,8 +547,16 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
       // daraus etwas, das man als Knopf erkennt. Und dieser hier ist die **eine**
       // Handlung, die das Modul abschliesst; er trägt darum die volle Breite und die
       // Fläche, nicht bloss eine Kontur.
+      // ►►► **Und er sagt, wenn er JETZT nichts tun kann** (Testnotiz #945). ◄◄◄
+      //
+      // «Vorgang abschliessen» stand in voller Breite über einer **Offerte** – eine
+      // Einladung, die der Dienst danach mit 409 abwies. Der Knopf gehört dorthin
+      // (jedes Modul endet mit ihm), aber **angeboten** werden darf er erst, wenn er
+      // etwas bewirkt. Was im Weg steht, sagt der Server aus derselben Regel, die
+      // `confirm_step` durchsetzt (`step.blocked`) – nicht eine Heuristik hier.
       <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
-        disabled={busy} style={{ height: 42, fontSize: 14 }}
+        disabled={busy || !!blocked} style={{ height: 42, fontSize: 14 }}
+        {...(blocked ? { 'data-tip': blocked } : {})}
         onClick={() => onConfirm(step.id, null, 'manual', {}, [], null)}>
         <Check size={16} /> {stepInfo(order, step.id)?.action ?? 'Bestätigen'}
       </button>

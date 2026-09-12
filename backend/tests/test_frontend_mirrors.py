@@ -9208,3 +9208,202 @@ def test_a_note_names_the_element_not_its_whole_subtree():
         _read(FRONTEND / "components" / "erp" / "module-ui.tsx")), (
         "Der Abschnitt eines Moduls benennt sich nicht."
     )
+
+
+# ---------------------------------------------------------------------------
+# Der Beleg — Testnotizen #936–#947
+# ---------------------------------------------------------------------------
+
+def test_a_picker_is_wide_enough_to_hit():
+    """►►► **«Ich kann nichts eingeben oder auswählen»** (Testnotiz #942). ◄◄◄
+
+    Die Kehrseite der Regel «der gedruckte Wert IST das Bedienelement»: wo noch nichts
+    dasteht, steht auch kein Bedienelement. Gemessen war die Trefferflaeche **13 × 24 px** –
+    die Breite des gedruckten «—»; die Haarlinie daneben war ebenso breit, also sah man
+    der Zeile nicht einmal an, dass sie etwas anzubieten hat.
+
+    ``MIN_PICK`` ist eine **Untergrenze**, keine Breite: ein gesetzter Wert bestimmt sie
+    weiterhin selbst.
+
+    Bug-Formen: (a) es gibt keine Untergrenze; (b) sie steht als feste Breite da und kappt
+    lange Werte; (c) sie gilt nur der Flaeche, nicht der sichtbaren Auszeichnung.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    pick = _component(src, "DocPick")
+    assert "MIN_PICK" in src, "Es gibt keine Untergrenze fuer die Trefferflaeche (a)."
+    assert "minWidth: MIN_PICK" in pick, (
+        "Der Waehler nennt keine Mindestbreite (a) – bei einem «—» ist er 13 px breit."
+    )
+    assert "width: MIN_PICK" not in pick, (
+        "Die Untergrenze ist eine feste Breite (b) – dann kappt sie lange Werte."
+    )
+    # (c) **Sie sitzt an der Huelle, die auch die Haarlinie traegt** – nicht am
+    # unsichtbaren ``<select>``: was man anklicken kann, muss man auch sehen.
+    huelle = pick[pick.index("<Editable"):pick.index("<select")]
+    assert "minWidth: MIN_PICK" in huelle, (
+        "Die Untergrenze gilt nur der Flaeche (c) – die Auszeichnung bleibt 13 px schmal."
+    )
+
+
+def test_a_vat_rate_leads_with_its_number():
+    """**Der Wert zuerst, der Name danach** (Testnotiz #938).
+
+    Auf einem Beleg ist die **Zahl** die Aussage; der Name ist ihr Rechtsgrund. Und
+    untereinander gelesen steht so das Gleiche uebereinander.
+
+    Bug-Formen: (a) der Name steht wieder vorn; (b) die Zusammensetzung wandert an die
+    Aufrufstelle, und Auswahl und Anzeige laufen auseinander.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    body = _body(src, "vatText", kind="function")
+    assert "${rate} % · ${name}" in body, (
+        "Der Steuersatz nennt den Namen vor dem Wert (a)."
+    )
+    assert "${name} · ${rate}" not in src, "Irgendwo steht die alte Reihenfolge (a)."
+    assert src.count("vatText(") >= 3, (
+        "Die Zusammensetzung steht nicht mehr an einer Stelle (b) – Auswahl und Anzeige "
+        "muessen dieselbe sein."
+    )
+
+
+def test_a_name_in_the_document_head_carries_its_number():
+    """**Die Nummer steht neben dem Namen** (Testnotiz #940) – wie in der Positionszeile.
+
+    Sie stand als eigene Zeile mit dem Mikro-Label «Nr.», vier Zeilen unter dem Namen, zu
+    dem sie gehoert. Name und Objektnummer benennen **einen** Datensatz (#933).
+
+    Bug-Formen: (a) die Nummer steht wieder in einer eigenen Zeile; (b) das Raster behaelt
+    die Zeile, die es nicht mehr gibt; (c) die Beschriftung «Nr.» lebt weiter.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    party = _component(src, "Party")
+    head = party[: party.index("side.attn")]
+    assert "<ObjId value={side.object_id}" in head, (
+        "Die Nummer steht nicht bei Name und Waehler (a)."
+    )
+    assert "PARTY_NUMBER_LABEL" not in src and "'Nr.'" not in src, (
+        "Die Beschriftung «Nr.» lebt weiter (c) – neben dem Namen sagt der Block darueber "
+        "laengst, wessen Nummer es ist."
+    )
+    assert "const PARTY_ROWS = 6" in src, (
+        "Das Raster behaelt eine Zeile, die es nicht mehr gibt (b) – dann klafft in beiden "
+        "Bloecken eine Luecke."
+    )
+
+
+def test_two_ways_to_reach_someone_stand_below_each_other():
+    """**E-Mail und Telefon untereinander** (Testnotiz #944).
+
+    Es sind zwei **Wege**, nicht ein Wert – und auf der Breite einer Beleg-Spalte brach die
+    Zeile ohnehin, nur an einer beliebigen Stelle.
+
+    Bug-Form: sie stehen wieder mit «·» in einer Zeile.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    party = _component(src, "Party")
+    kontakt = party[party.index("side.email || side.phone"):]
+    assert "join('\\n')" in kontakt and "whiteSpace: 'pre-line'" in kontakt, (
+        "Kontaktweg und Telefon stehen in einer Zeile – zwei Wege sind kein Wert."
+    )
+
+
+def test_asking_someone_is_built_in_exactly_one_place():
+    """►►► **Derselbe Befehl, zwei Nutzlasten** (Testnotiz #941). ◄◄◄
+
+    *«Ist die Funktion dieses Buttons wirklich aktiv?»* – Nein: der Knopf im Belegkopf
+    schickte ``ask`` **ohne** die beiden Fristen, und der Dienst weist ein Angebot ohne sie
+    ab. Der Knopf am Angebot schickte sie mit; derselbe Befehl tat also je nach Herkunft
+    etwas anderes.
+
+    Bug-Formen: (a) eine Aufrufstelle baut die Nutzlast wieder selbst; (b) die Fristen
+    fehlen darin; (c) die Null geht verloren (``0 ? … : …``).
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    assert src.count("action: 'ask'") == 1, (
+        "Die Nutzlast des Anfragens entsteht an mehr als einer Stelle (a)."
+    )
+    bauer = src[_at(src, "const onAsk"):]
+    bauer = bauer[: bauer.index("return (")]
+    assert "payment_days" in bauer and "lead_days" in bauer, (
+        "Die Fristen fehlen in der Nutzlast (b) – der Dienst weist das Angebot ab."
+    )
+    assert "terms.pay === ''" in bauer and "terms.lead === ''" in bauer, (
+        "Geprueft wird auf Wahrheit statt auf den leeren String (c) – die Null ist eine "
+        "Angabe («Vorauszahlung» · «Sofort») und ginge verloren."
+    )
+
+
+def test_the_issuer_stays_changeable():
+    """**Welche Gesellschaft den Beleg stellt, kann man korrigieren** (Testnotiz #936).
+
+    Die Automatik bleibt – der Aussteller friert mit der Freigabe ein. Hier stand
+    zusaetzlich ``options.length > 1``: «eine Auswahl mit genau einer Antwort ist keine».
+    Das stimmt fuer eine *Frage*, nicht fuer eine **Korrektur** – wer nachsehen will,
+    findet sonst gar kein Bedienelement.
+
+    Bug-Form: die Zahl der Gesellschaften entscheidet wieder ueber die Aenderbarkeit.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    issuer = _component(src, "Issuer")
+    assert "options.length" not in issuer, (
+        "Die Aenderbarkeit haengt wieder an der Zahl der Gesellschaften – bei genau einer "
+        "gibt es dann kein Bedienelement."
+    )
+    assert "on={may(d, 'issuer')}" in issuer, (
+        "Der Aussteller fragt nicht mehr `can` – und `can` ist Auskunft und Tor."
+    )
+
+
+def test_a_note_carries_no_control_characters():
+    """►►► **Eine Notiz enthaelt nur Text, den eine Datenbank aufnimmt** (#943). ◄◄◄
+
+    Gemeldet war ein Speicherfehler beim Anlegen einer Testnotiz: PostgreSQL nimmt in
+    ``text`` **kein NUL** auf. Der Ausloeser war ein Platzhalter mit NUL-Byte im Beleg –
+    behoben –, und die Regel gehoert trotzdem in das Werkzeug: was die Seite hergibt,
+    entscheidet nicht die Seite.
+
+    Bug-Formen: (a) irgendeine Quelle im Frontend traegt wieder ein Steuerzeichen;
+    (b) das Werkzeug putzt nicht, was es erfasst.
+    """
+    import pathlib as _p
+    schmutz = {chr(c) for c in range(32)} - {"\t", "\n", "\r"}
+    for path in sorted((FRONTEND).rglob("*.ts*")):
+        text = _p.Path(path).read_text(encoding="utf-8")
+        bad = schmutz & set(text)
+        assert not bad, (
+            f"{path.name} traegt ein Steuerzeichen ({[hex(ord(c)) for c in bad]}) (a) – "
+            f"ueber `outerHTML` landet es in jeder Testnotiz, und das Speichern bricht ab."
+        )
+    src = _code(_read(FRONTEND / "lib" / "feedback.ts"))
+    assert "const clean = (s: string)" in src, (
+        "Das Werkzeug putzt nicht, was es erfasst (b)."
+    )
+    cut = src[_at(src, "const cut = "):]
+    assert "clean(s)" in cut[: cut.index("clamp01")], (
+        "Die eine Kapp-Funktion, durch die jede erfasste Zeichenkette laeuft, putzt nicht "
+        "(b) – dann haengt es an der Aufrufstelle, ob eine Notiz speicherbar ist."
+    )
+
+
+def test_a_finish_button_says_when_it_cannot_act():
+    """**«Vorgang abschliessen» ueber einer Offerte** (Testnotiz #945).
+
+    Der Knopf gehoert an **jedes** Modul – aber angeboten werden darf er erst, wenn er
+    etwas bewirkt. Was im Weg steht, sagt der Server (``step.blocked``); eine Heuristik der
+    Oberflaeche waere ein zweiter Massstab.
+
+    Bug-Formen: (a) der Knopf fragt nicht nach der Sperre; (b) er ist gesperrt und sagt
+    nicht warum; (c) die Oberflaeche leitet den Grund selbst her (ein Modultyp).
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    knopf = src[_at(src, "const blocked ="):]
+    knopf = knopf[: knopf.index("</button>")]
+    assert "disabled={busy || !!blocked}" in knopf, (
+        "Der Abschluss-Knopf fragt die Sperre nicht (a)."
+    )
+    assert "'data-tip': blocked" in knopf, (
+        "Er ist gesperrt und sagt nicht, warum (b) – eine Sackgasse mit Ausrufezeichen."
+    )
+    assert "beleg" not in knopf and "zahlung" not in knopf, (
+        "Die Oberflaeche nennt einen Modultyp (c) – die Regel steht im Dienst."
+    )

@@ -67,9 +67,10 @@ INCOTERMS: tuple[Incoterm, ...] = (
 
 _BY_KEY: dict[str, Incoterm] = {t.key: t for t in INCOTERMS}
 
-#: Wie das Feld heisst. Die Jahreszahl gehört dazu – es gibt mehrere gültige Fassungen,
-#: und welche gemeint ist, entscheidet im Streitfall.
-LABEL = "Lieferbedingung (Incoterms 2020)"
+#: Wie das Feld heisst (Testnotiz #947). **Die Jahreszahl steht nicht dabei**: eine
+#: Beschriftung sagt, worum es geht – die Fassung steht in der Erklärung der gewählten
+#: Klausel, und die steht auf dem Beleg sichtbar darunter.
+LABEL = "Lieferbedingung"
 #: Was neben der Klausel steht. **Ohne ihn ist sie keine Vereinbarung.**
 PLACE_LABEL = "Benannter Ort"
 PLACE_HINT = "Der Ort, auf den sich die Klausel bezieht – z. B. «Rorschach»."
