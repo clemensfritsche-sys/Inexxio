@@ -3865,11 +3865,6 @@ export interface components {
              */
             pay_online_word: string;
             /**
-             * Open Word
-             * @default Offen
-             */
-            open_word: string;
-            /**
              * Refund Online Word
              * @default
              */
@@ -3951,6 +3946,12 @@ export interface components {
             paid?: string | null;
             /** Open */
             open?: string | null;
+            /** Open State */
+            open_state?: string | null;
+            /** Open State Label */
+            open_state_label?: string | null;
+            /** Open State Tone */
+            open_state_tone?: string | null;
             /** Uncharged */
             uncharged?: string | null;
             /**
@@ -4233,6 +4234,8 @@ export interface components {
          * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).
          *
          *     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
+         *     ``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden
+         *                  nennt; **nicht** dasselbe wie ``ask`` (#1000)
          *     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
          *     ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
          *     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei

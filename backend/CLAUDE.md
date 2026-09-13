@@ -887,6 +887,41 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > zurückgezahlt wird über die gewöhnliche negative Zahlung bzw. ``refund_online``,
 > verrechnet wird nie automatisch.
 
+> ►►► **Wählen ist nicht anfragen** (Testnotiz #1000, Migration `136`). ◄◄◄
+> Die Wahl der Gegenpartei löste unmittelbar ``ask`` aus – die Handlung, mit der der Beleg
+> **nach aussen** geht: sie verlangt Preis, beide Fristen und die Lieferbedingung
+> (``_assert_complete``/``_assert_terms``). An einem frischen Modul fehlt davon
+> naturgemäss alles, der Dienst wies mit einem Satz ab, und die Wahl war weg – gemessen
+> über die echten Dienstpfade, nicht vermutet.
+> Damit war *«wen meine ich»* die letzte Angabe des Belegs **ohne eigenes Verb**; die
+> Regel gilt unverändert (#985): *jeder änderbare Wert des Belegs wird sofort
+> persistiert*, und was nach aussen geht, ist eine eigene Handlung. Neu sind
+> ``vouchers.parties`` (eine Liste von Objektnummern) und das Verb ``party``.
+> **Und es ist kein Rückfall in die Form des Vorgängers**: dort stand der
+> *Angebotsspiegel* als JSONB – eine **Entität** mit Betrag, Fristen, Zustand und Datum.
+> Hier steht dieselbe Form wie eine Ebene höher in ``config.parties``: Nummern ohne
+> Eigenschaften. Was **hinausgegangen** ist, bleibt eine Zeile (``voucher_quotes``).
+> **Drei Quellen, eine Liste** (``_possible_parties``: zugelassen ∪ gewählt ∪ angefragt);
+> ``_ask`` liest sie, wenn die Nutzlast nichts nennt; ``addressee_of`` zählt auch die
+> blosse Wahl (sonst meldete der Kopf «Anschrift fehlt» über jemanden, den man ausgewählt
+> hat); und ``unask`` ist **eine** Gegenhandlung – was sie bewirkt, sagt der Beleg: eine
+> Zeile wird zurückgezogen, eine blosse Wahl fällt weg, beides zusammen, wo beides da ist.
+
+> ►►► **Der Saldo ist eine Ableitung aus EINER Zahl** (Testnotiz #997,
+> ``domain/voucher.balance_state``). ◄◄◄ *offen* (orange) · *überfällig* (rot) ·
+> *beglichen* (grün) · **Guthaben** (grün) – null Spalten, und die Anzeige nennt allein
+> die Zahl und färbt sie; das Wort reist mit und steht im Hover.
+> **Zwei Funktionen, keine zweite Regel:** ``charge_state`` kennt Betrag **und** Rest,
+> kann darum «teilweise bezahlt» sagen und «überzahlt» am Vorzeichenwechsel erkennen; der
+> Saldo ist eine **Differenz**, und daraus folgen genau drei Aussagen. Sie mit ``total=0``
+> durch dieselbe Funktion zu schicken hiesse, ihr eine Zahl zu erfinden. Toleranz, Wörter
+> und Ampeltöne sind geteilt.
+> **Und ein Guthaben ist GRÜN**: an einer einzelnen Forderung ist «Überzahlt» ein Problem,
+> im Saldo eine Tatsache – niemand schuldet mehr etwas. ``OPEN_WORD`` ist mit ihm
+> entfallen: das Wort kommt aus ``CHARGE_STATES``, zwei Literale für dasselbe Wort waren
+> die Stelle, an der eines beim Umbenennen stehenbleibt.
+> Wächter: ``tests/test_voucher_module.py`` (2 neue, **11 Bug-Formen gegengeprüft**).
+
 ## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
 
 Drei Netze, drei verschiedene Fänge: die **Migration** ist die Wahrheit · `create_all` im

@@ -382,7 +382,13 @@ function RowDelete({ label, hint, reveal, onClick }: {
   return (
     <button type="button" aria-label={label} data-tip={hint}
       className={`flex items-center justify-center rounded flex-none${reveal ? ' ix-rowactions' : ''}`}
-      style={{ width: 26, height: 26, color: 'var(--danger)' }}
+      // ►►► **Eine Zeilenaktion steht am ENDE ihrer Zeile** (Testnotiz #995). ◄◄◄ Sie
+      // stand links neben dem Namen, sobald die Zeile kein Eingabefeld trug (beim
+      // Verkauf gibt es keine Bestellangabe) – mitten im Text statt an dem Platz, den
+      // die Zeilen-Grammatik dafür kennt (`module-ui.LedgerRow`). `margin-left: auto`
+      // sagt es einmal am Knopf statt an jeder Aufrufstelle; wo ein Feld ohnehin die
+      // Lücke füllt (Erfassungspunkt), ändert es nichts.
+      style={{ width: 26, height: 26, color: 'var(--danger)', marginLeft: 'auto' }}
       onClick={onClick}>
       <Trash2 size={14} />
     </button>

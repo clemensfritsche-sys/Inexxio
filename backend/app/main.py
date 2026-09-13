@@ -127,6 +127,7 @@ _COLUMN_SAFETY_NET = (
     # trägt jedes Zahlungsmodul in jeder Auftrags-Antwort.
     ("vouchers", "lead_days", "INTEGER"),
     ("vouchers", "payment_days", "INTEGER"),
+    ("vouchers", "parties", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

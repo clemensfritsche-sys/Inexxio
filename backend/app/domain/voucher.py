@@ -234,7 +234,11 @@ PAYMENT_WORD = "Zahlung erfassen"
 #: Und die dritte Handlung am Geld: sie **auslösen**. «Erfassen» heisst *aufschreiben, was
 #: geschehen ist*; hier geschieht es, und gebucht wird erst, wenn der Dienst es meldet.
 PAY_ONLINE_WORD = "Jetzt bezahlen"
-OPEN_WORD = "Offen"
+#: ►►► **«Offen» steht nicht mehr an der Saldo-Zeile** (Testnotiz #997). ◄◄◄ Hier stand
+#: dafür ein eigenes Wort (``OPEN_WORD``); den Zustand trägt jetzt die **Farbe** des
+#: Betrags, und wo ein Wort gebraucht wird (Hover, Guthaben), kommt es aus
+#: ``CHARGE_STATES`` – dieselbe Liste, die auch die einzelne Forderung benennt. Zwei
+#: Literale für dasselbe Wort waren die Stelle, an der eines beim Umbenennen stehenbleibt.
 
 #: ►►► **ZWEI Fächer statt einer Liste aus Knöpfen.** ◄◄◄
 #:
@@ -516,6 +520,39 @@ def charge_state(total: Decimal, remaining: Decimal, *,
 def _state(key: str) -> dict[str, str]:
     label, tone = CHARGE_STATES[key]
     return {"state": key, "state_label": label, "state_tone": tone}
+
+
+#: Wer mehr bezahlt hat, als gefordert war, hat kein Problem – er hat etwas gut.
+CREDIT = "credit"
+CREDIT_WORD = "Guthaben"
+
+
+def balance_state(open_amount: Decimal, *, overdue: bool = False) -> dict[str, str]:
+    """►►► **Wie steht der Beleg im Ganzen?** – aus **einer** Zahl (Testnotiz #997). ◄◄◄
+
+    *«Das Wort ‹Offen› entfällt, der Status wird ausschliesslich über die Farbe des
+    Betrags getragen: offen orange · überfällig rot · beglichen grün · überzahlt grün mit
+    ausgewiesenem Guthaben.»*
+
+    **Warum das eine zweite Funktion neben ``charge_state`` ist und keine zweite Regel:**
+    beide teilen Toleranz, Wörter und Ampeltöne; verschieden ist, was sie **kennen**. Eine
+    Forderung hat einen Betrag, also lässt sich «teilweise bezahlt» von «nichts bezahlt»
+    unterscheiden und «überzahlt» am Vorzeichenwechsel erkennen. Der Saldo ist eine
+    **Differenz** – *gefordert minus geflossen* –, und daraus folgen genau drei Aussagen:
+    es steht etwas aus, es ist ausgeglichen, oder es ist zu viel geflossen. Sie mit
+    ``total=0`` durch dieselbe Funktion zu schicken hiesse, ihr eine Zahl zu erfinden.
+
+    ►►► **Und ein Guthaben ist GRÜN, nicht rot.** ◄◄◄ An einer einzelnen Forderung ist
+    «Überzahlt» ein Problem: dort stimmt der Beleg nicht mit dem Geld überein. Im Saldo
+    ist es eine Tatsache über den Vorgang – niemand schuldet mehr etwas, und was zu viel
+    kam, steht als Guthaben da. Zurückgegeben wird es über die gewöhnliche negative
+    Zahlung; verrechnet wird nie automatisch.
+    """
+    if abs(open_amount) <= SETTLED_TOLERANCE:
+        return _state("settled")
+    if open_amount < 0:
+        return {"state": CREDIT, "state_label": CREDIT_WORD, "state_tone": "done"}
+    return _state("overdue" if overdue else "open")
 
 
 @dataclass(frozen=True)

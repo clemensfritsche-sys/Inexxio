@@ -3168,6 +3168,83 @@ eine gewöhnliche **negative Zahlung** (bar, Überweisung) bzw. `refund_online` 
 nur ein Mensch.
 
 
+#### 9.15o Wählen ist nicht anfragen
+
+> Testnotiz #1000 · `services/voucher._add_party` · Migration `136`
+
+*«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
+setzen. Die Auswahl wird korrekt angezeigt, aber nicht übernommen/persistiert.»*
+
+**Nachgestellt über die echten Dienstpfade, und die Ursache ist strukturell.** Die Wahl im
+freien Feld löste unmittelbar `ask` aus — und das ist die Handlung, mit der der Beleg
+**nach aussen** geht: sie verlangt Preis, beide Fristen und die Lieferbedingung
+(§9.15a/§9.15m). An einem frischen Modul fehlt davon naturgemäss alles, der Dienst wies
+mit einem Satz ab, und die Wahl war weg.
+
+Damit war *«wen meine ich»* die letzte Angabe des Belegs **ohne eigenes Verb**. Die Regel
+gilt unverändert: **jeder änderbare Wert des Belegs wird sofort persistiert**, und was
+nach aussen geht, ist eine eigene, ausdrückliche Handlung.
+
+- **Drei Quellen, eine Liste** (`_possible_parties`): die **zugelassenen** aus der
+  Definition (eine Vorlage für jeden künftigen Auftrag), die **gewählten** am Beleg
+  (`vouchers.parties`) und die **angefragten** aus dem Spiegel. Ohne Dubletten.
+- **Warum eine Liste und keine Tabelle.** `config.parties` steht eine Ebene höher in
+  derselben Form: eine Liste von Objektnummern, ohne Eigenschaften und ohne Zustand. Was
+  **hinausgegangen** ist, bleibt eine Zeile (`voucher_quotes`) mit Betrag, Fristen,
+  Zustand und Datum — genau diese Trennung war der Grund des Neuaufbaus, und sie bleibt.
+- **Geprüft wird die Wahl selbst**, nicht die Reife des Belegs (`_party`): dass es die
+  Nummer gibt, dass sie zu einem Datensatz gehört, mit dem man handeln kann, und dass die
+  Definition sie nicht ausschliesst. Eine Auswahl, die der Dienst später abwiese, wäre
+  keine.
+- **Auch die blosse Wahl adressiert** (`addressee_of`): sonst meldete der Belegkopf
+  «Anschrift fehlt» über jemanden, den man eine Zeile höher ausgewählt hat.
+- **Eine Gegenhandlung, ein Klick** (`unask`): was sie bewirkt, sagt der Beleg — steht eine
+  Zeile da, wird sie zurückgezogen; steht keine, fällt die Wahl weg. Beides zusammen, wo
+  beides da ist. Zwei Verben wären zwei Wörter für eine Sache.
+
+#### 9.15p Die Zeilen-Grammatik — und der Saldo ist eine Farbe
+
+> Testnotizen #995–#999 · #1001–#1003 · `module-ui.LedgerRow`
+
+**Eine Zeile, vier Plätze, immer dieselben:**
+
+```
+[ Identifikator ] [ Meta ] ············ [ Aktion ] [ Betrag ]
+```
+
+Vier Notizen betrafen vier Plätze derselben Zeile — der Zustandspunkt **vor** der
+Rechnungsnummer (#996), die Korrekturen **hinter** dem Betrag (#998/#1002) und eine
+**zweite Zeile** mit einer Angabe, die die erste schon sagt (#999). Also ist es keine
+Sammlung von Einzelfällen, sondern eine **Grammatik**, und sie steht als ein Bauteil da.
+
+- **Der Identifikator** sagt, was die Zeile *ist*: die Rechnungsnummer, die Zahlungsart.
+  Nichts steht davor.
+- **Der Betrag steht immer zuletzt** und damit in jeder Zeile auf derselben Flucht —
+  nicht, weil jemand eine Spaltenbreite pflegt, sondern weil er das letzte Element ist.
+- **Die Aktion steht links davon und belegt ihren Platz immer** (`opacity`, kein
+  `display`): erschiene sie erst beim Zeigen, rutschte der Betrag unter dem Zeiger zur
+  Seite. Gemessen: Δ 0.00 px.
+- **Strikt einreihig** — was nicht passt, wird gekappt (Meta zuerst).
+
+►►► **Der Saldo sagt seinen Zustand als FARBE** (#997, `domain/voucher.balance_state`).
+◄◄◄ «Offen 0.00» las sich wie «bezahlt», und das Wort war ohnehin nur an einem der vier
+Zustände richtig. Also nennt die Karte allein die **Zahl** und färbt sie: orange, solange
+etwas aussteht · rot, sobald ein Termin vorbei ist · grün, wenn es aufgeht. Das **Wort**
+reist mit und steht im Hover — Farbe allein ist kein zugängliches Signal (WCAG 1.4.1).
+
+**Ein Guthaben ist grün und nennt sich beim Namen.** An einer einzelnen Forderung ist
+«Überzahlt» ein Problem — dort stimmt der Beleg nicht mit dem Geld überein; im **Saldo**
+ist es eine Tatsache: niemand schuldet mehr etwas. Ein **Minus** wäre dort die schlechtere
+Antwort — ein offener Posten ist eine Forderung und kein negativer Wert, und «−250.00»
+neben dem Wort «Guthaben» wäre eine doppelte Verneinung.
+
+**Und die Handlung steht in dem Fach, zu dem sie gehört** (#1001): *Rechnung stellen* zu
+«Fordern», *Zahlung erfassen* zu «Begleichen» — dort zuunterst, direkt unter der
+Zahlungsart, mit der sie eine Einheit bildet. Unter **beiden** Abschnitten stand sie
+hinter allem, was in ihnen wächst: jede erfasste Zahlung schob sie weiter weg von der
+Wahl, zu der sie gehört.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

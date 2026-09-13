@@ -6428,11 +6428,18 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
     # ►►► **Die Zeile heisst jetzt `RowActions`** (#989/#993) – sie **ist** eine
     # `Actions`-Zeile (`.ix-actions`, nowrap) und steht zusätzlich am Zeilenende und
     # erscheint beim Zeigen. Der Wächter fragt die Regel: **jeder** Knopf der Geld-Zeile
-    # steht in ihr.
-    inner = row[row.index("<RowActions"):row.index("</RowActions>")]
+    # steht in ihr. Seit die Grammatik die Zeile baut (#996–#1002), reicht die
+    # Aufrufstelle sie als `actions` durch – geprüft wird der Platz, nicht das Markup.
+    inner = row[row.index("actions={"):row.index("amount={")]
     n = row.count("<ActionButton") + row.count("<ConfirmButton")
     assert n == inner.count("<ActionButton") + inner.count("<ConfirmButton"), (
         "Ein Symbol-Knopf steht ausserhalb der nicht umbrechenden Zeile (d)."
+    )
+    grammar = _body(_code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx")),
+                    "LedgerRow", kind="export function")
+    assert "<RowActions>{actions}</RowActions>" in " ".join(grammar.split()), (
+        "Die Grammatik setzt die Knöpfe nicht mehr in `RowActions` (d) – dann behalten "
+        "sie ihre Breite nicht, und sie schwingen wieder unter dem Zeiger weg."
     )
     # **Und diese Zeile gehört sich selbst.** Gemessen bei 375 px: als letztes Kind der
     # umbrechenden Angaben-Zeile brach **sie** um, sobald ein Knopf aufklappte – der Knopf
@@ -8229,10 +8236,20 @@ def test_exactly_one_money_action_moves_the_voucher_on():
     # (b) **Und sie wird abgeleitet, nicht nebeneinandergestellt**: erst fordern, dann
     # kassieren – ein Rang, den die Oberfläche vergäbe, wäre die zweite Regel neben `can`.
     assert "const forward =" in money, "Der Rang wird nicht abgeleitet (b)."
-    # (c) **Das Formular tritt an ihre Stelle**, es steht nicht daneben.
-    assert "{form ? (" in money, (
+    # (c) **Das Formular tritt an ihre Stelle**, es steht nicht daneben – entschieden an
+    # **einer** Stelle. *Gefragt ist die Regel, nicht ihre Schreibweise: sie stand einmal
+    # als `{form ? (…) : (…)}` im JSX, und seit die Handlung in ihrem eigenen Fach steht
+    # (#1001), entscheidet dieselbe Bedingung eine Ebene höher.*
+    assert "if (form)" in money and money.count("<StageAction") == 1, (
         "Formular und Knopf stehen gleichzeitig da (c) – zwei Handlungen für dieselbe "
         "Sache."
+    )
+    # ►►► **Und sie steht in dem Fach, zu dem sie gehört** (Testnotiz #1001). ◄◄◄ Unter
+    # **beiden** Abschnitten stand sie hinter allem, was in ihnen wächst: jede erfasste
+    # Zahlung schob sie weiter weg von der Zahlungsart, mit der sie eine Einheit bildet.
+    assert money.count("slot('charge')") == 1 and money.count("slot('pay')") == 1, (
+        "Die Handlung steht wieder ausserhalb der beiden Fächer (a) – dann trennt sie "
+        "jede neue Zeile von der Wahl, zu der sie gehört."
     )
 
 
@@ -8529,9 +8546,29 @@ def test_a_date_is_written_in_exactly_one_place():
     assert "toLocaleDateString" not in code and "toLocaleString" not in code, (
         "Auch das eine Modul rechnet wieder mit dem ICU (b)."
     )
-    # Die Regeln, nach denen gefragt wurde – jede als eigener Ast.
-    for word in ("'Gestern'", "'Morgen'", "vor ${-n} Tagen", "in ${n} Tagen"):
+    # Die Regeln, nach denen gefragt wurde – jede als eigener Ast. **Gefragt sind die
+    # Wörter, nicht ihre Schreibweise**: «vor 3 Tagen» einmal als Vorlage und einmal aus
+    # einer Funktion ist dieselbe Regel, und ein Wächter, der die frühere Form verlangt,
+    # verbietet die bessere.
+    for word in ("'Gestern'", "'Morgen'", "'Minute'", "'Stunde'", "'Tag'"):
         assert word in code, f"Die Regel «{word}» fehlt in `when()`."
+    # ►►► **Und innerhalb eines Tages sagt sie es auch** (Testnotiz #1003). ◄◄◄ Für
+    # «heute» stand hier die blosse **Uhrzeit** – eine Zahl, aus der man selbst
+    # ausrechnet, wie lange das her ist. Die Tatsache gehört in den Hover
+    # (`whenTitle`), die **Aussage** in die Zeile.
+    body = _body(code, "when", kind="export function")
+    assert "gerade eben" in code.lower() or "JUST_NOW" in body, (
+        "Unter einer Minute steht wieder eine Zahl statt «gerade eben»."
+    )
+    for unit in ("MINUTE", "HOUR", "DAY"):
+        assert unit in body, (
+            f"`when()` kennt die Schwelle «{unit}» nicht – dann fällt alles von heute "
+            f"wieder auf eine einzige Aussage zusammen."
+        )
+    assert "getHours" not in body, (
+        "Für «heute» steht wieder die blosse Uhrzeit – das ist die Tatsache, nicht die "
+        "Aussage; sie gehört in `whenTitle` und damit in den Hover."
+    )
     # (c) **Die Tatsache reist mit** – `formatWhen` gibt Aussage und Hover in einem Zug.
     assert "whenTitle(value)" in _body(code, "formatWhen", kind="export function"), (
         "Die Aussage kommt ohne ihre Tatsache (c) – dann steht eine Zahl da, die "
@@ -8584,8 +8621,13 @@ def test_a_row_action_stands_at_the_end_of_its_row():
     künftige Zeilenaktionen; sichtbar bei Hover/Fokus, auf Touch dauerhaft. Destruktive
     Aktionen mit kurzer Bestätigung.»*
 
-    Also ein **Bauteil**, kein Fall: `Row`/`RowActions` in `module-ui`, und die Regel im
-    Blatt (`.ix-row`/`.ix-rowactions`) – damit erbt jede künftige Liste sie.
+    Also ein **Bauteil**, kein Fall: `LedgerRow`/`RowActions` in `module-ui`, und die
+    Regel im Blatt (`.ix-row`/`.ix-rowactions`) – damit erbt jede künftige Liste sie.
+
+    ►►► **Und die Aufrufstelle baut die Zeile nicht selbst** (#996–#1002). ◄◄◄ Sie sagt
+    nur, was an die vier Plätze gehört; **wo** die Knöpfe stehen, entscheidet die
+    Grammatik. Ein Wächter, der die frühere Flexzeile in `EntryRow` sucht, verböte genau
+    diese Lösung – gefragt ist darum die Regel an ihrem neuen Ort.
 
     Bug-Formen: (a) die Knöpfe stehen wieder als eigener Block unter der Zeile; (b) sie
     stehen dauerhaft da; (c) der Storno fragt nicht nach; (d) die Rückfrage bleibt stehen,
@@ -8593,13 +8635,19 @@ def test_a_row_action_stands_at_the_end_of_its_row():
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     row = _component(work, "EntryRow")
-    # (a) **Am Ende der Zeile, nicht darunter**: `RowActions` steht INNERHALB der Zeile mit
-    # den Angaben – zwischen ihrem Beginn und den Knöpfen liegt kein `</div>`.
-    start = row.index("items-baseline")
-    assert "</div>" not in row[start:row.index("<RowActions")], (
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    # (a) **In der Zeile, nicht darunter** – und das entscheidet die Grammatik: die
+    # Aufrufstelle reicht ihre Knöpfe als `actions` durch, `LedgerRow` setzt sie in
+    # `RowActions` **innerhalb** derselben Zeile.
+    assert "<LedgerRow" in row and "actions={" in row, (
+        "Die Geld-Zeile baut sich wieder selbst (a) – dann gilt die Grammatik für sie "
+        "nicht mehr."
+    )
+    grammar = _body(ui, "LedgerRow", kind="export function")
+    at = grammar.index("<RowActions")
+    assert "</div>" not in grammar[grammar.index("ix-row"):at], (
         "Die Korrekturen stehen wieder als eigener Block unter der Zeile (a)."
     )
-    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
     assert "ix-rowactions" in _body(ui, "RowActions", kind="export function"), (
         "Die Knöpfe stehen dauerhaft da (b) – die Regel steht im Blatt, nicht hier."
     )
@@ -8673,18 +8721,165 @@ def test_a_payment_row_begins_with_how_it_was_paid():
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     row = _component(work, "EntryRow")
-    first = row[row.index("items-baseline"):row.index("<RowActions")]
-    assert "e.method_label" in first, (
+    # **Der Identifikator ist der erste Platz der Zeilen-Grammatik** – gefragt ist, was
+    # dort steht, nicht mehr, in welcher Reihenfolge eine handgebaute Flexzeile ihre
+    # Kinder aufzählt.
+    ident = row[row.index("ident="):row.index("meta=")]
+    assert "e.method_label" in ident, (
         "Die Zahlungszeile beginnt nicht mit ihrer Art (a)."
     )
-    assert first.index("e.method_label") < first.index("e.amount"), (
+    assert row.index("ident=") < row.index("amount="), (
         "Die Zahlungsart steht hinter dem Betrag (a)."
     )
-    # (b) **Kein Zustandswort mehr unter der Zeile** – der Punkt sagt ihn.
-    tail = row[row.index("</RowActions>"):]
-    assert "state.label" not in tail, (
-        "Der Zustand steht wieder als eigene Zeile darunter (b) – der Punkt eine Zeile "
-        "höher sagt ihn bereits."
+    # (b) **Keine zweite Zeile mehr** – dort standen Zustand und Vermerk (#988/#999).
+    assert "state.label" not in row, (
+        "Der Zustand steht wieder als eigene Zeile darunter (b)."
     )
-    # (c) **Aber sie sagt ihn weiterhin** – als Punkt in der Farbe ihres Tons.
-    assert "state.color" in first, "Die Rechnung sagt ihren Zustand gar nicht mehr (c)."
+    # (c) **Aber sie sagt ihn weiterhin** – als Farbe des Betrags und als Wort im Hover.
+    assert "state?.color" in row and "state?.label" in row, (
+        "Die Rechnung sagt ihren Zustand gar nicht mehr (c)."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► Testnotizen #995–#1003 — eine Zeilen-Grammatik, und der Saldo ist eine Farbe
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_money_row_follows_one_grammar():
+    """►►► **Eine Zeile, vier Plätze, immer dieselben** (#996/#998/#999/#1002). ◄◄◄
+
+    *«Definiere EIN Zeilenlayout, das für alle Zeilen in ‹Fordern› und ‹Begleichen› gilt,
+    und implementiere es als eine Komponente:*
+    ``[ Identifikator ] [ Meta ] … [ Aktion ] [ Betrag ]``*»*
+
+    Vier Notizen, ein Layout – und jede betraf einen anderen Platz darin: der Zustandspunkt
+    vor der Rechnungsnummer (#996), die Korrekturen **hinter** dem Betrag (#998/#1002) und
+    eine **zweite Zeile** mit einer Angabe, die die erste schon sagt (#999).
+
+    Bug-Formen: (a) die Aufrufstelle baut ihre Zeile wieder selbst; (b) der Betrag steht
+    nicht zuletzt; (c) die Aktion steht hinter ihm; (d) die Zeile bricht um oder hat eine
+    zweite; (e) vor dem Identifikator steht wieder ein Zeichen.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    grammar = _body(ui, "LedgerRow", kind="export function")
+    flat = " ".join(grammar.split())
+    # (b)/(c) **Die Reihenfolge IST die Grammatik.**
+    order = [flat.index(x) for x in ("{ident}", "{meta}", "<RowActions", "{amount}")]
+    assert order == sorted(order), (
+        f"Die vier Plätze stehen nicht in ihrer Reihenfolge (b/c): {order}."
+    )
+    # (d) **Strikt einreihig** – was nicht passt, wird gekappt, nie umgebrochen.
+    assert "flexWrap: 'nowrap'" in flat, (
+        "Die Zeile darf wieder umbrechen (d) – dann rutscht der Betrag unter den Text."
+    )
+    assert flat.count("truncate") >= 2, (
+        "Identifikator und Meta kappen nicht (d) – dann bricht die Zeile doch."
+    )
+    # (a) **Die Aufrufstelle sagt nur, WAS an die Plätze gehört.**
+    row = _component(_code(_beleg()), "EntryRow")
+    assert "<LedgerRow" in row, "Die Geld-Zeile baut sich wieder selbst (a)."
+    for slot in ("ident=", "meta=", "actions=", "amount="):
+        assert slot in row, f"Der Platz «{slot}» fehlt (a)."
+    # (e) **Kein Zeichen vor dem Identifikator** – der Punkt sagte als viertes, was die
+    # Farbe des Betrags, der Hover und der Abschnitt «Angebote» längst sagen (#996).
+    assert "rounded-full" not in row, (
+        "Vor der Rechnungsnummer steht wieder ein Punkt (e) – er rückt sie ein und sagt "
+        "als Zeichen etwas, wofür ihm das Wort fehlt."
+    )
+    # (d) **Und die zweite Zeile ist weg** – dort stand «Zahlungsdienst» neben «Karte».
+    # *Gefragt ist der **Vermerk**, nicht das Wort: «Zahlungsdienst» steht in derselben
+    # Datei völlig zu Recht in einer Fehlermeldung – der erste Anlauf zählte sie mit.*
+    assert 'note="Zahlungsdienst"' not in _read(
+        BACKEND / "app" / "services" / "stripe_pay.py"), (
+        "Der Vermerk «Zahlungsdienst» wird wieder geschrieben (d) – die Zahlungsart sagt "
+        "es bereits."
+    )
+
+
+def test_the_balance_is_a_number_and_its_colour():
+    """►►► **Der Saldo sagt seinen Zustand als FARBE** (Testnotiz #997). ◄◄◄
+
+    *«Das Wort ‹Offen› entfällt.»* – Es war ohnehin nur an einem der vier Zustände
+    richtig: «Offen 0.00» las sich wie «bezahlt», und bei einer Überzahlung sagte es das
+    Gegenteil dessen, was dastand.
+
+    Bug-Formen: (a) das Wort steht wieder vor der Zahl; (b) die Oberfläche rechnet den
+    Zustand selbst; (c) das Guthaben steht ohne Namen da; (d) der offene Posten bekommt
+    ein Minus.
+    """
+    src = _code(_beleg())
+    bal = _component(src, "Balance")
+    # (a) **Kein Wort ausser dem Guthaben** – und das kommt vom Server.
+    assert "open_word" not in src, "Das Wort «Offen» steht wieder vor der Zahl (a)."
+    # *Gefragt ist der **Textknoten**, nicht das Vorkommen: das Wort steht ohnehin als
+    # `data-tip`, und «kommt vor» liess die eigene Bug-Form durch – gemessen,
+    # nachgeschärft.*
+    visible = re.sub(r"\b\w+=\{[^}]*\}", "", bal)
+    assert "d.open_state_label" in visible, (
+        "Das Guthaben nennt sich nicht beim Namen (c) – «250.00» in Grün sagt nicht, wer "
+        "wem etwas schuldet."
+    )
+    # (b) **Der Zustand kommt vom Server** – hier gerechnet wäre er die zweite Ableitung
+    # derselben Zahlen und die erste, die eine Rundungstoleranz vergisst.
+    assert "d.open_state_tone" in bal and "TONE[" in bal, (
+        "Die Farbe wird wieder selbst gewählt (b)."
+    )
+    assert "Number(d.open)" not in bal, (
+        "Die Oberfläche entscheidet wieder an der Zahl, welche Farbe gilt (b)."
+    )
+    # (d) **Ein offener Posten ist eine Forderung, kein negativer Wert** – das Vorzeichen
+    # gibt es nur beim Guthaben, und dort dreht es die Zahl ins Positive.
+    assert "negate(d.open)" in bal and "credit" in bal, (
+        "Das Vorzeichen hängt nicht mehr am Guthaben (d)."
+    )
+
+
+def test_a_row_action_is_flush_right():
+    """►►► **Auch im Editor steht sie am Ende ihrer Zeile** (Testnotiz #995). ◄◄◄
+
+    Der «Entfernen»-Knopf der Partner-Zeile stand links neben dem Namen, sobald die Zeile
+    kein Eingabefeld trug – beim **Verkauf** gibt es keine Bestellangabe, und damit war
+    nichts mehr da, das die Lücke füllte. Mitten im Text ist kein Platz für eine Aktion:
+    die Zeilen-Grammatik kennt dafür einen (`module-ui.LedgerRow`).
+
+    Bug-Formen: (a) der Knopf steht wieder direkt am Text; (b) die Regel steht an der
+    Aufrufstelle statt am Knopf – dann vergisst sie die nächste.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    body = _body(src, "RowDelete", kind="function")
+    assert "marginLeft: 'auto'" in body, (
+        "Der Löschen-Knopf steht wieder mitten in der Zeile (a)."
+    )
+    for call in re.findall(r"<RowDelete[^/]*?/>", src, re.S):
+        assert "marginLeft" not in call and "style=" not in call, (
+            "Eine Aufrufstelle richtet den Knopf selbst aus (b) – dann tut es die "
+            "nächste anders."
+        )
+
+
+def test_choosing_a_party_writes_it_instead_of_asking():
+    """►►► **Die Wahl wird geschrieben, nicht abgeschickt** (Testnotiz #1000). ◄◄◄
+
+    *«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
+    setzen. Die Auswahl wird korrekt angezeigt, aber nicht übernommen/persistiert.»*
+
+    Das freie Feld rief `onAsk` – die Handlung, mit der der Beleg **nach aussen** geht. Sie
+    verlangt Preis, beide Fristen und die Lieferbedingung, und an einem frischen Modul
+    fehlt davon naturgemäss alles: der Dienst wies mit einem Satz ab, und die getroffene
+    Wahl war weg. Anfragen tut der `+` am Chip, wenn alles dasteht.
+
+    Bug-Formen: (a) das Feld fragt wieder an; (b) die Wahl lässt sich nicht mehr
+    zurücknehmen, solange nichts hinausgegangen ist.
+    """
+    src = _code(_beleg())
+    who = _component(src, "Recipients")
+    field = who[who.index("<DocRef"):]
+    assert "action: 'party'" in field and "onAsk(" not in field, (
+        "Die Wahl der Gegenpartei fragt sie sofort an (a) – dann verwirft ein "
+        "unvollständiger Beleg sie stillschweigend."
+    )
+    # (b) **Wer nur gewählt ist, lässt sich auch wieder wegnehmen** – dieselbe
+    # Gegenhandlung wie beim Zurückziehen einer Anfrage; was sie bewirkt, sagt der Beleg.
+    assert "removable" in who and "allowed.some" in who, (
+        "Ein nur gewählter Partner lässt sich nicht mehr abwählen (b)."
+    )

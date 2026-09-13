@@ -4003,6 +4003,73 @@
 > Kante verglichen; gegengeprüft, dass ein unteilbares Wort in freiem Text weiterhin meldet
 > (+23,7 px bei 375, +78,7 px bei 320) und dasselbe Wort hinter `truncate` zu Recht nicht.
 
+> ►►► **WÄHLEN IST NICHT ANFRAGEN — und der Saldo ist eine FARBE** (Testnotizen
+> #995–#1003, Migration `136`). ◄◄◄ Neun Notizen, und die grösste war ein echter Fehler
+> mit einer strukturellen Ursache.
+> **(1) #1000 – die Wahl hatte keinen Speicherpfad.** *«Wurde beim Anlegen kein Partner
+> vorgewählt, lässt er sich nachträglich nicht mehr setzen – die Auswahl wird angezeigt,
+> aber nicht übernommen.»* **Nachgestellt über die echten Dienstpfade**, nicht vermutet:
+> der Klick im freien Feld löste unmittelbar `ask` aus, und das ist die Handlung, mit der
+> der Beleg **nach aussen** geht – sie verlangt Preis, beide Fristen und die
+> Lieferbedingung (#964/#985). An einem frischen Modul fehlt davon naturgemäss alles;
+> gemessen: *«Ohne Lieferbedingung …» → «Ohne Lieferfrist …» → OK*. Die Wahl war damit die
+> letzte Angabe des Belegs **ohne eigenes Verb**, und der Fix ist die Regel, nicht das
+> Feld: **jeder änderbare Wert des Belegs wird sofort persistiert**, und was hinausgeht,
+> ist eine eigene Handlung (`party` schreibt, `+` fragt an).
+> **Und es ist kein Rückfall in die Form des Vorgängers**: `vouchers.parties` ist eine
+> Liste von **Objektnummern** – dieselbe Form, in der `config.parties` eine Ebene höher
+> steht –, keine Entität. Was **hinausgegangen** ist, bleibt eine Zeile
+> (`voucher_quotes`) mit Betrag, Fristen, Zustand und Datum; genau diese Trennung war der
+> Grund des Neuaufbaus. `unask` ist **eine** Gegenhandlung, und was sie bewirkt, sagt der
+> Beleg: eine Zeile wird zurückgezogen, eine blosse Wahl fällt weg.
+> ►►► **(2) Die Zeilen-Grammatik — eine Zeile, vier Plätze** (#996/#998/#999/#1002). ◄◄◄
+> `[ Identifikator ] [ Meta ] ··· [ Aktion ] [ Betrag ]`, als **ein** Bauteil
+> (`module-ui.LedgerRow`). Vier Notizen betrafen vier Plätze derselben Zeile – der
+> Zustandspunkt **vor** der Rechnungsnummer, die Korrekturen **hinter** dem Betrag und
+> eine **zweite Zeile** mit einer Angabe, die die erste schon sagt («Zahlungsdienst» neben
+> «Karte» – der Vermerk ist an der Quelle entfallen). Der **Betrag steht immer zuletzt**
+> und damit in jeder Zeile auf derselben Flucht, ohne dass jemand eine Spaltenbreite
+> pflegt; die **Aktion belegt ihren Platz immer** (`opacity`, kein `display`), sonst
+> rutschte er beim Zeigen zur Seite – gemessen **Δ 0.00 px**. **Strikt einreihig**: was
+> nicht passt, wird gekappt.
+> ►►► **(3) Der Saldo sagt seinen Zustand als Farbe** (#997). ◄◄◄ «Offen 0.00» las sich
+> wie «bezahlt», und das Wort war ohnehin nur an einem der vier Zustände richtig. Jetzt
+> allein die **Zahl**, gefärbt: orange offen · rot überfällig · grün beglichen · grün mit
+> dem Wort **«Guthaben»**, wenn zu viel geflossen ist. **Der Zustand kommt vom Server**
+> (`domain/voucher.balance_state` – dieselbe Toleranz und dieselben drei Ampeltöne wie
+> `charge_state`, aber über die **Differenz** statt über Betrag und Rest; sie mit
+> `total = 0` durch dieselbe Funktion zu schicken hiesse, ihr eine Zahl zu erfinden). Ein
+> **Minus** gibt es nur beim Guthaben, und dort dreht es die Zahl ins Positive: ein
+> offener Posten ist eine Forderung, kein negativer Wert. `OPEN_WORD` ist mitgegangen.
+> **(4) #1001 – die Handlung steht in ihrem Fach.** Sie stand unter **beiden**
+> Abschnitten, also hinter allem, was in ihnen wächst: jede erfasste Zahlung schob sie
+> weiter weg von der Zahlungsart, mit der sie eine Einheit bildet. Jetzt zuunterst in
+> «Fordern» bzw. «Begleichen», in fester Reihenfolge (erfasste Zeilen → Wahl → Knopf).
+> **(5) #1003 – die Granularität, nicht die Fundstellen.** Gesucht wurde über die ganze
+> Codebase: `lib/when.ts` ist die **einzige** Datums-Formatierung (0 verbleibende
+> `toLocaleDateString`/`Intl.DateTimeFormat`; was der Griff sonst findet, sind Zahlen, die
+> Copyright-Jahreszahl und ein Ländername). Was fehlte, war die **Aussage unter einem
+> Tag**: für «heute» stand die blosse Uhrzeit – eine Zahl, aus der man selbst ausrechnet,
+> wie lange das her ist. Neu «gerade eben» · «vor 12 Minuten» · «vor 3 Stunden»; die
+> Kaskade ist eine **Reihenfolge**, kein Widerspruch (was 20 Stunden her ist, war gestern
+> *und* ist «vor 20 Stunden» – die genauere Aussage gewinnt), und ein **reines Datum**
+> überspringt sie. Erzeugte Belege behalten das absolute Datum (`day()`, MWSTG Art. 26).
+> **(6) #995 – eine Zeilenaktion steht am Ende ihrer Zeile**, und die Regel steht am Knopf
+> (`RowDelete`), nicht an der Aufrufstelle: ohne Eingabefeld daneben (beim Verkauf gibt es
+> keine Bestellangabe) klebte «Entfernen» am Namen.
+> Wächter: 2 neue in `tests/test_voucher_module.py`, 4 neue in `test_frontend_mirrors.py`,
+> dazu 5 auf die neue Regel gezogene – **21 Bug-Formen gegengeprüft, jede meldet**; *drei
+> waren dabei stumpf und liessen ihre eigene durch* (eine Bug-Form, die `needs` setzte,
+> wo die Regel gar nicht hängt; ein Leck-Wächter, der nur den Schlüssel prüfte und Wort
+> und Ton durchliess; und ein «kommt vor», das schon durch `data-tip` erfüllt war).
+> Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den
+> Migrationen (je 553); Migration `136` von null · idempotent · downgrade · re-upgrade ·
+> über das Lifespan-Netz verifiziert. Gemessen in Chromium an der **echten** Komponente
+> (Karte im `ModuleShell`): 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter
+> Überlauf über **acht** Beleg-Zustände; Betrag in jeder Zeile bündig und einreihig,
+> beim Zeigen **Δ 0.00 px** – und die Messung **in beide Richtungen** gegengeprüft (ein
+> unteilbares Wort in freiem Text meldet, dasselbe hinter `truncate` zu Recht nicht).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

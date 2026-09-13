@@ -233,9 +233,17 @@ heisst «kennt ihn, hat aber nichts zu fragen»), nur trägt ihn heute niemand.*
 und je ein `toLocaleDateString` an Benutzer, Profil und Passkeys – dieselbe Angabe las
 sich an fünf Stellen anders.
 
-- **`when()` sagt, WANN es war** – die Aussage: heute die Uhrzeit · «Gestern» · «vor 3
-  Tagen» · «13. Sep.» · «13. Sep. 2025» · «Morgen» · «in 5 Tagen». Für alles, wo ein
-  Zeitpunkt eine **Auskunft** ist (Log, Angebote, letzter Login, angelegt/geändert).
+- **`when()` sagt, WANN es war** – die Aussage: «gerade eben» · «vor 12 Minuten» · «vor 3
+  Stunden» · «Gestern» · «vor 3 Tagen» · «13. Sep.» · «13. Sep. 2025» · «Morgen» · «in 5
+  Tagen». Für alles, wo ein Zeitpunkt eine **Auskunft** ist (Log, Angebote, letzter Login,
+  angelegt/geändert).
+  ►►► **Innerhalb eines Tages zählt sie Stunden und Minuten** (Testnotiz #1003). ◄◄◄ Für
+  «heute» stand hier die blosse **Uhrzeit** – eine Zahl, aus der man selbst ausrechnet,
+  wie lange das her ist. Die Kaskade ist eine **Reihenfolge**, kein Widerspruch: was 20
+  Stunden her ist, war gestern *und* ist «vor 20 Stunden» – die genauere Aussage gewinnt,
+  und «Gestern» beginnt dort, wo Stunden zu zählen aufhört. Ein **reines Datum**
+  überspringt sie: «vor 7 Stunden» an einem Fälligkeitstag wäre eine erfundene
+  Genauigkeit.
 - **`day()` sagt, WELCHER TAG auf dem Papier steht** – die Tatsache: Rechnungs-,
   Leistungs- und Fälligkeitsdatum, ein Eintrittsdatum. Auf einem **Beleg** ist «vor 3
   Tagen» keine Angabe. *Zwei Formen einer Regel, ein Modul, ein Namensstamm.*
@@ -292,7 +300,8 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
 | `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie – mit **Punkt davor**, wenn er sagt, wie weit er ist (`state`: `past · active · ahead`). **Leerer Titel = kein Kopf.** ►►► **Die Status-Spalte steht immer, auch leer** (#899): ein Punkt rückt die Beschriftung um seine Breite ein, und nur *manche* Abschnitte sind ein Schritt – gemessen 18 px ↔ 33 px im selben Beleg. Ein Punkt für alle wäre die falsche Lösung: er behauptete einen Fortschritt, den ein Inhalts-Abschnitt nicht hat. |
 | `ModuleMeta` | Die leise Zeile für das, was über den ganzen Vorgang gilt (Richtung, Währung, Termin, Sperre). |
 | `ValueBar` | **Ein Anteil an einem Ganzen** – Leiste, Punkt, Wort, Zahl; die Beschriftung ist zugleich das Bedienelement. |
-| `Row` · `RowActions` | ►►► **Eine Zeilenaktion ist eine GATTUNG** (#989/#993). ◄◄◄ Die Korrekturen stehen am **Zeilenende**, im Ruhezustand unsichtbar, bei Hover und Fokus da – und auf einem Gerät **ohne Zeiger dauerhaft** (`.ix-row`/`.ix-rowactions` in `globals.css`, die Regel aus #832, jetzt für jede Zeile statt für eine). Sie belegen ihren Platz immer (`opacity`, kein `display`): erschienen sie erst beim Zeigen, verschöbe die Zeile ihren Inhalt unter dem Zeiger. ►►► **Und ihre Knöpfe klappen ihren Namen NICHT aus – gemessen.** ◄◄◄ In der echten Geld-Zeile bei 375 px steht der Knopf beim Zeigen nicht still (`313/48 → 329/32 → 317/44 → …`); die Entscheidung trifft darum die **Zeile** (`InRow`-Kontext), nicht die Aufrufstelle – als Angabe je Knopf wäre sie eine Regel, die der erste Neue vergisst. Der Name steht dann in der Blase, die am Layout nichts ändert. |
+| `LedgerRow` | ►►► **Die Zeilen-Grammatik: eine Zeile, vier Plätze** (#996/#998/#999/#1002). ◄◄◄ `[ Identifikator ] [ Meta ] … [ Aktion ] [ Betrag ]`. Der **Identifikator** sagt, was die Zeile *ist* (Rechnungsnummer, Zahlungsart) und hat **nichts** vor sich; der **Betrag** steht immer zuletzt und damit in jeder Zeile auf derselben Flucht – nicht über eine gepflegte Spaltenbreite, sondern weil er das letzte Element ist. **Strikt einreihig**: was nicht passt, wird gekappt (Meta zuerst) – die zweite Zeile war der Ort, an dem die Angabe aus #999 landete. Die Aufrufstelle sagt nur, **was** an die Plätze gehört. |
+| `RowActions` | ►►► **Eine Zeilenaktion ist eine GATTUNG** (#989/#993). ◄◄◄ Die Korrekturen stehen am **Zeilenende**, im Ruhezustand unsichtbar, bei Hover und Fokus da – und auf einem Gerät **ohne Zeiger dauerhaft** (`.ix-row`/`.ix-rowactions` in `globals.css`, die Regel aus #832, jetzt für jede Zeile statt für eine). Sie belegen ihren Platz immer (`opacity`, kein `display`): erschienen sie erst beim Zeigen, verschöbe die Zeile ihren Inhalt unter dem Zeiger. ►►► **Und ihre Knöpfe klappen ihren Namen NICHT aus – gemessen.** ◄◄◄ In der echten Geld-Zeile bei 375 px steht der Knopf beim Zeigen nicht still (`313/48 → 329/32 → 317/44 → …`); die Entscheidung trifft darum die **Zeile** (`InRow`-Kontext), nicht die Aufrufstelle – als Angabe je Knopf wäre sie eine Regel, die der erste Neue vergisst. Der Name steht dann in der Blase, die am Layout nichts ändert. |
 | `ConfirmButton` | **Was nicht rückgängig zu machen ist, fragt einmal nach** – derselbe Knopf, ein zweiter Klick, das Wort daneben; die Frage schliesst sich von selbst (ein stehender Zustand müsste weggeklickt werden). Kein Dialog: die Rückfrage gehört an die Zeile, an der sie entsteht. |
 | `FIELD_GAP` | Der Abstand zwischen zwei Feldern einer Formular-Zeile (#987/#990). **Unter** der Beschriftung gibt es keinen: `fields.Label` bringt seine 4 px mit, und ein `gap` daneben kommt obendrauf – genau das waren die 7 px, die gemeldet wurden. |
 | `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
@@ -388,6 +397,25 @@ umgeformt – drei Runden für eine Einsicht; **er ist gelöscht** (#960, siehe 
 - **Symbol gleich, Farbe anders**: es ist dasselbe Modul in einer besseren Datenform, also
   dasselbe Zeichen (`HandCoins`) – was sie unterscheidet, ist der `tone` vom Backend
   (`plum` ↔ `rose`).
+
+### Wählen ist nicht anfragen (#1000)
+►►► **Die Wahl der Gegenpartei wird GESCHRIEBEN, nicht abgeschickt.** ◄◄◄ Das freie Feld
+(`Recipients`, dort wo die Definition niemanden nennt) rief `onAsk` – die Handlung, mit
+der der Beleg **nach aussen** geht: sie verlangt Preis, beide Fristen und die
+Lieferbedingung. An einem frischen Modul fehlt davon naturgemäss alles, der Dienst wies
+mit einem Satz ab, und die getroffene Wahl war weg. Jetzt schreibt sie das Verb `party`
+(wie jeder andere änderbare Wert des Belegs, #985); **anfragen** tut der `+` am Chip, wenn
+alles dasteht. Und was nur **gewählt** ist, lässt sich mit dem `✕` wieder wegnehmen – wer
+in der **Definition** steht, bleibt: die ist die Vorlage und gehört nicht diesem Beleg.
+
+### Der Saldo ist eine Zahl und ihre Farbe (#997)
+`Balance` nennt allein den Betrag und färbt ihn – orange offen · rot überfällig · grün
+beglichen · grün mit dem Wort **«Guthaben»**, wenn zu viel geflossen ist. Das Wort «Offen»
+ist entfallen: es war nur an einem der vier Zustände richtig, und «Offen 0.00» las sich
+wie «bezahlt». **Der Zustand kommt vom Server** (`open_state*`), das Wort steht im Hover
+(Farbe allein ist kein zugängliches Signal). Ein **Minus** gibt es nur beim Guthaben, und
+dort dreht es die Zahl ins Positive: ein offener Posten ist eine Forderung, kein negativer
+Wert.
 
 ### Ein änderbarer Wert hat EINE Form (#929/#930/#934/#935)
 `DocPick` (eine Aufzählung) und `DocRef` (ein Datensatz) sind die zwei Hüllen, beide auf

@@ -232,7 +232,14 @@ def addressee_of(db: Session, row: Voucher) -> Optional[int]:
     if chosen is not None:
         return chosen
     rows = quotes_of(db, row)
-    return rows[0].party_id if len(rows) == 1 else None
+    if rows:
+        return rows[0].party_id if len(rows) == 1 else None
+    # ►►► **Auch die blosse Wahl adressiert schon** (Testnotiz #1000). ◄◄◄ Wer gewählt,
+    # aber noch nicht angefragt ist, steht auf dem Beleg – sonst sagte der Kopf «Anschrift
+    # fehlt» über jemanden, den man eine Zeile höher ausgewählt hat. Dieselbe Regel wie
+    # oben: genau einer, sonst keiner.
+    picked = parties_on(row)
+    return picked[0] if len(picked) == 1 else None
 
 
 def _possible_parties(db: Session, row: Voucher, step: ProcessStep) -> list[int]:
@@ -248,10 +255,25 @@ def _possible_parties(db: Session, row: Voucher, step: ProcessStep) -> list[int]
     """
     out: list[int] = []
     for number in (list(modules.Beleg.parties_allowed(step.config))
+                   + parties_on(row)
                    + [q.party_id for q in quotes_of(db, row)]):
         if number is not None and number not in out:
             out.append(int(number))
     return out
+
+
+def parties_on(row: Voucher) -> list[int]:
+    """►►► **Wen dieser Beleg betrifft – die Wahl zur Laufzeit** (Testnotiz #1000). ◄◄◄
+
+    Die dritte Quelle neben Definition und Angebotsspiegel, und die einzige, die ein
+    Mensch **an diesem Beleg** setzt: wo die Vorlage niemanden nennt, steht hier, wen er
+    meint. **Leer ist der Normalfall**, nicht ein Fehler.
+
+    Die eine Lesestelle – ``row.parties`` ist ``NOT NULL``, aber ein Altbestand aus der
+    Zeit vor Migration 136 kann über das Spalten-Netz gekommen sein; tolerant gelesen
+    kostet das eine Zeile und erspart eine Ausnahme an drei Stellen.
+    """
+    return [int(n) for n in (row.parties or []) if n is not None]
 
 
 def agreed_amount(db: Session, row: Voucher) -> Optional[Decimal]:
@@ -619,10 +641,14 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     flow = vo.of(row.direction)
     out = [k for k, v in VERBS.items() if row.stage in v.stages]
     rows = entries_of(db, row)
-    # ►►► **Vor der ersten Anfrage gibt es nichts abzubrechen** (#957). ◄◄◄ Und nichts
-    # abzuwählen: beide Verben setzen voraus, dass etwas hinausgegangen ist.
+    # ►►► **Vor der ersten Anfrage gibt es nichts abzubrechen** (#957). ◄◄◄
     if row.stage == vo.OFFER and not quotes_of(db, row):
-        out = [a for a in out if a not in ("revoke", "unask")]
+        out = [a for a in out if a != "revoke"]
+    # **Abwählen setzt voraus, dass jemand dasteht** – und das sind seit #1000 zwei Fälle:
+    # eine hinausgegangene Zeile oder eine blosse Wahl. Beide nimmt dasselbe Verb zurück,
+    # also fragt die Bedingung nach beiden.
+    if not (quotes_of(db, row) or parties_on(row)):
+        out = [a for a in out if a != "unask"]
     # ►►► **Ohne Rechnung keine Zahlung.** ◄◄◄ Man kassiert nicht, was niemand gefordert
     # hat. Die Vorauszahlung verliert nichts – sie ist «erst fordern, dann zahlen».
     if not any(e.kind == vo.CHARGE for e in rows):
@@ -799,6 +825,42 @@ def _terms(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         row.lead_days = _days(data.get("lead_days"))
 
 
+def _add_party(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+               data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Die Gegenpartei WÄHLEN — das fehlende Verb** (Testnotiz #1000). ◄◄◄
+
+    *«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
+    setzen – die Auswahl wird angezeigt, aber nicht übernommen.»*
+
+    **Wählen und anfragen sind zwei Dinge.** Bis hierher war die Wahl im freien Feld
+    unmittelbar ein ``ask``, und ``ask`` geht **nach aussen**: es verlangt einen
+    vollständigen Beleg (Preis, beide Fristen, Lieferbedingung). An einem frischen Modul
+    fehlt davon naturgemäss alles – der Dienst wies mit einem Satz ab, und die Wahl war
+    weg. Gemessen über die echten Dienstpfade, nicht vermutet.
+
+    Also dieselbe Regel wie bei den Fristen (#985): **erst schreiben, dann hinausgehen.**
+    Hier wird nur festgehalten, wen der Beleg betrifft; ``ask`` bleibt die ausdrückliche
+    Handlung, und sie prüft weiterhin alles, was ein Angebot braucht.
+
+    **Geprüft wird trotzdem sofort, aber nur die Wahl selbst** (``_party``): dass es die
+    Nummer gibt, dass sie zu einem Datensatz gehört, mit dem man handeln kann, und dass
+    die Definition sie nicht ausschliesst. Eine Auswahl, die der Dienst später abwiese,
+    wäre keine.
+
+    **Doppelt gewählt ist einmal gewählt** – und die Liste wird **neu zugewiesen**: ein
+    mutierter JSONB-Wert fällt still aus dem ``UPDATE``.
+    """
+    flow = vo.of(row.direction)
+    number = _party(db, step=step, value=data.get("party"), flow=flow)
+    if number is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ohne Objektnummer gibt es keinen {vo.PARTY}, den man wählen könnte.")
+    if number not in parties_on(row):
+        row.parties = [*parties_on(row), number]
+    db.flush()
+
+
 def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Die Positionen bepreisen — ein eigenes Verb, und das ist der Punkt.** ◄◄◄
@@ -845,7 +907,8 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
     **Ohne Angabe sind es alle zugelassenen.** Steht in der Definition genau eine, ist die
     Wahl zur Laufzeit keine Wahl. Wo die Definition **niemanden** nennt, heisst das
-    **frei**: dann muss die Nutzlast sagen, wen man fragt.
+    **frei** – dann sagt es der Beleg selbst (``parties``, gesetzt vom Verb ``party``)
+    oder die Nutzlast.
 
     ►►► **Wer den Preis nennt, schickt ihn mit.** ◄◄◄ Bei einer **Ausgabe** geht die Zeile
     leer hinaus, und das ist ihr Sinn. Bei einer **Einnahme** ist der Betrag die
@@ -860,7 +923,11 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """
     flow = vo.of(row.direction)
     allowed = modules.Beleg.parties_allowed(step.config)
-    wanted = list(data.get("parties") or []) or allowed
+    # **Drei Quellen, eine Reihenfolge**: was der Aufrufer nennt · was die Definition
+    # zulässt · wen der Beleg selbst schon trägt (die Wahl zur Laufzeit, #1000). Ohne die
+    # dritte müsste ein gewählter Partner beim Anfragen ein zweites Mal genannt werden –
+    # dieselbe Angabe zweimal, und die zweite kann fehlen.
+    wanted = list(data.get("parties") or []) or allowed or parties_on(row)
     if not wanted:
         raise HTTPException(
             status_code=400,
@@ -1021,7 +1088,25 @@ def _unask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     Tor. Fachlich ist es zugleich das Richtige: nach dem Zuschlag sind die **unterlegenen**
     Zeilen der Nachweis, warum so entschieden wurde, und wer den Vorgang zurücknehmen will,
     storniert ihn.
+
+    ►►► **Und es nimmt auch eine Wahl zurück, die noch gar nicht hinausging** (#1000). ◄◄◄
+    Seit ``party`` die Gegenpartei **wählt**, ohne sie anzufragen, gibt es zwei Zustände,
+    aus denen man herauswollen kann – und es ist **dieselbe** Handlung: *diesen Partner
+    von diesem Beleg wegnehmen*. Was sie bewirkt, sagt der Beleg, nicht der Aufrufer:
+    steht eine Zeile da, wird sie zurückgezogen; steht keine, fällt die Wahl weg. Zwei
+    Verben wären zwei Wörter für eine Sache – dieselbe Regel wie bei ``revoke``.
     """
+    number = _int(data.get("party"))
+    if number is not None and number in parties_on(row):
+        # **Eine Handlung, ein Klick.** Wer zur Laufzeit gewählt wurde, verschwindet ganz –
+        # samt der Zeile, falls schon eine hinausging. Zuerst die Zeile und beim zweiten
+        # Klick die Wahl wären zwei Klicks für eine Absicht.
+        row.parties = [n for n in parties_on(row) if n != number]
+        for q in quotes_of(db, row):
+            if q.party_id == number:
+                q.is_active = False
+        db.flush()
+        return
     _target(db, row, data, actor).is_active = False
     db.flush()
 
@@ -1197,6 +1282,11 @@ VERBS: dict[str, Verb] = {
     # sofort geschrieben, statt bis zum Anfragen im Browser zu leben.
     "terms": Verb(stages=(vo.OFFER,), run=_terms),
     "price": Verb(stages=(vo.OFFER,), run=_price),
+    # ►►► **Wählen ist nicht anfragen** (Testnotiz #1000). ◄◄◄ Auch dies ein änderbarer
+    # Wert des Belegs, also **ohne** Stammdaten-Bedingung: wer festhält, wen er meint, soll
+    # nicht daran scheitern, dass der Beleg noch keinen Preis trägt. Geprüft wird die Wahl
+    # selbst (`_party`), nicht die Reife des Belegs – die prüft `ask`.
+    "party": Verb(stages=(vo.OFFER,), run=_add_party),
     "ask": Verb(stages=(vo.OFFER,), run=_ask, needs=("ask",)),
     # **Die Gegenhandlung zu ``ask``** – ohne Stammdaten-Bedingung: wer etwas zurücknimmt,
     # soll nicht an einer fehlenden Anschrift scheitern (dieselbe Regel wie beim Absagen).
@@ -2048,6 +2138,14 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                        and party == viewer.object_id)
     allowed = can(db, row, viewer)
     live = live_charge(db, row)
+    # **Wie der Beleg im Ganzen steht** (#997) – eine Ableitung aus der Differenz; die
+    # Anzeige trägt sie als **Farbe** des Betrags. Überfällig ist er, sobald der Tag einer
+    # Forderung vorbei ist und überhaupt noch etwas offen ist – dieselbe Bedingung wie an
+    # der einzelnen Zeile, damit Zeile und Summe nicht zwei Antworten geben.
+    balance = vo.balance_state(
+        money.open,
+        overdue=bool(money.open > 0 and any(
+            e.kind == vo.CHARGE and e.due_on and e.due_on < today for e in entries)))
     # **Was sich über den Dienst zurückgeben lässt** – dieselbe Liste, die ``can`` befragt
     # und ``card_payment`` als Tor benutzt. Eine zweite Bedingung hier wäre ein zweiter
     # Massstab, und der bekäme die nächste Regel nicht mit.
@@ -2115,7 +2213,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "charge_word": flow.charge_verb,
         "payment_word": vo.PAYMENT_WORD,
         "pay_online_word": vo.PAY_ONLINE_WORD,
-        "open_word": vo.OPEN_WORD,
         # ►►► **Zwei Fächer statt einer Überschrift über allem.** ◄◄◄ *Was schuldet uns
         # jemand* und *wie kommt das Geld hierher* sind zwei Fragen, und jede gehört einer
         # Seite; der frühere gemeinsame Titel «Rechnung & Zahlung» fasste sie zusammen.
@@ -2218,6 +2315,14 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "charged": _money(money.charged, row.currency) if won else None,
         "paid": _money(money.paid, row.currency) if won else None,
         "open": _money(money.open, row.currency) if won else None,
+        # ►►► **Wie der Beleg im Ganzen steht — als Farbe, nicht als Wort** (#997). ◄◄◄
+        # Dieselbe Ableitung wie an der einzelnen Forderung, nur über die Differenz; die
+        # Anzeige nennt allein die Zahl und färbt sie. Das **Wort** reist mit, weil Farbe
+        # allein kein zugängliches Signal ist – es steht im Hover und, wo es etwas Neues
+        # sagt (ein **Guthaben**), auch daneben.
+        "open_state": balance["state"] if won else None,
+        "open_state_label": balance["state_label"] if won else None,
+        "open_state_tone": balance["state_tone"] if won else None,
         "uncharged": _money(money.uncharged, row.currency) if won else None,
         # **Eine Rechnung je Modul** – die zweite Form derselben Regel, die ``_charge``
         # durchsetzt: steht sie, gibt es nichts mehr zu buchen, und der Vorschlag fällt mit

@@ -322,7 +322,12 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
     svc.record_payment(
         db, row=row, amount=amount,
         reference=str(data.get("id") or "") or None,
-        note="Zahlungsdienst",
+        # ►►► **Kein Vermerk «Zahlungsdienst»** (Testnotiz #999). ◄◄◄ Er stand als zweite
+        # Angabe neben ``method=card`` – und der Zeile ist damit **zweimal** angesehen,
+        # dass sie über den Dienst kam: einmal als Zahlungsart («Karte», die Angabe, nach
+        # der man sie wiedererkennt) und einmal als Wort daneben. Ein Vermerk ist für das
+        # da, was **sonst nirgends** steht.
+        note=None,
         # ►►► **Die Rechnung reist mit** (Testnotiz #858). ◄◄◄ Welche gemeint war, stand
         # beim Vorbereiten fest – sie hier erneut zu suchen hiesse raten, denn zwischen
         # der Zahlung und ihrer Meldung kann eine zweite Rechnung entstanden sein.

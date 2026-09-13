@@ -164,8 +164,8 @@ export function ActionButton({
  * *«‹Stornieren› und ‹Korrigieren› bitte als Zeilenaktion statt als freistehende Buttons
  * – einheitlich für beide und künftige Zeilenaktionen.»*
  *
- * Also ist es eine **Gattung**, kein Fall: `Row` markiert die Zeile, `RowActions` die
- * Knöpfe an ihrem Ende. Im Ruhezustand sind sie unsichtbar, beim Zeigen und beim Fokus da
+ * Also ist es eine **Gattung**, kein Fall: `LedgerRow` ist die Zeile, `RowActions` die
+ * Knöpfe darin. Im Ruhezustand sind sie unsichtbar, beim Zeigen und beim Fokus da
  * – und auf einem Gerät **ohne** Zeiger dauerhaft (die Regel steht in `globals.css`,
  * `.ix-row`/`.ix-rowactions`, #832). Eine Funktion, die nur ein Zeiger findet, gibt es am
  * Telefon nicht.
@@ -174,9 +174,64 @@ export function ActionButton({
  * Zeigen, verschöbe die Zeile ihren Inhalt unter dem Zeiger – dieselbe Falle wie beim
  * schwingenden Knopf oben.
  */
-export function Row({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+/**
+ * ►►► **DIE ZEILEN-GRAMMATIK — eine Zeile, vier Plätze, immer dieselben.** ◄◄◄
+ *
+ * *«Definiere EIN Zeilenlayout, das für alle Zeilen in ‹Fordern› und ‹Begleichen› gilt,
+ * und implementiere es als eine Komponente.»* (Tickets #996/#998/#999/#1002)
+ *
+ * ```
+ * [ Identifikator ] [ Meta ] ············ [ Aktion ] [ Betrag ]
+ * ```
+ *
+ * * **Der Identifikator steht links** und sagt, was diese Zeile *ist*: die
+ *   Rechnungsnummer, die Zahlungsart. Er ist die Angabe, an der man sie wiedererkennt –
+ *   und darum steht **nichts** davor. Ein Zustandspunkt an dieser Stelle rückte die
+ *   Nummer ein und sagte als Zeichen etwas, wofür ihm das Wort fehlt (#996).
+ * * **Meta folgt in derselben Zeile**: Datum, und was sonst noch dazugehört.
+ * * **Der Betrag steht IMMER ganz rechts** – in jeder Zeile auf derselben Flucht, weil er
+ *   das letzte Element ist und die Zeile die volle Breite hat. Untereinander sind zwei
+ *   Beträge damit vergleichbar, ohne dass jemand eine Spaltenbreite pflegt.
+ * * **Die Aktion steht links davon** und **belegt ihren Platz immer** (`opacity`, kein
+ *   `display`): erschiene sie erst beim Zeigen, rutschte der Betrag unter dem Zeiger zur
+ *   Seite. Vorher stand sie *hinter* dem Betrag – also genau dort, wo das Auge die Zahl
+ *   sucht (#998/#1002).
+ *
+ * **Strikt einreihig.** Kein Umbruch, keine zweite Zeile: was nicht passt, wird gekappt
+ * (Meta zuerst, dann der Identifikator). Eine zweite Zeile war die Stelle, an der die
+ * Angaben aus #999 landeten – und an der zwei Zeilen wie zwei Vorgänge aussahen.
+ */
+export function LedgerRow({ ident, meta, actions, amount, tip, faded }: {
+  /** Was diese Zeile **ist** – Rechnungsnummer, Zahlungsart. */
+  ident: ReactNode;
+  /** Datum und Zusatzangaben – gibt als Erstes Platz ab. */
+  meta?: ReactNode;
+  /** Korrekturen an **dieser** Zeile; sie erscheinen bei Hover und Fokus. */
+  actions?: ReactNode;
+  /** Die Zahl. Sie steht rechts, tabellarisch, und rührt sich nie. */
+  amount: ReactNode;
+  /** Die Erklärung am Betrag – dort trägt die Farbe den Zustand (#997). */
+  tip?: string;
+  /** Eine stornierte Zeile bleibt stehen, tritt aber zurück. */
+  faded?: boolean;
+}) {
   return (
-    <div className="ix-row flex flex-col" style={{ minWidth: 0, ...style }}>{children}</div>
+    <div className="ix-row flex items-baseline" style={{
+      gap: 10, minWidth: 0, flexWrap: 'nowrap', opacity: faded ? 0.55 : 1,
+    }}>
+      <span className="truncate" style={{
+        flex: '0 1 auto', minWidth: 0, fontSize: 12.5, color: 'var(--fg-2)',
+      }}>{ident}</span>
+      <span className="truncate" style={{
+        flex: '1 1 auto', minWidth: 0, fontSize: 11.5, color: 'var(--fg-3)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>{meta}</span>
+      {actions && <RowActions>{actions}</RowActions>}
+      <span style={{
+        flex: 'none', font: '600 13px var(--font-body)',
+        fontVariantNumeric: 'tabular-nums',
+      }} {...(tip ? { 'data-tip': tip } : {})}>{amount}</span>
+    </div>
   );
 }
 

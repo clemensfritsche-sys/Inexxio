@@ -110,6 +110,28 @@ class Voucher(Base, TimestampMixin):
     #: entscheidet genau er, wo das Risiko übergeht.
     incoterm_place: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
+    #: ►►► **Wen dieser Beleg betrifft — wo die Definition niemanden nennt** (#1000). ◄◄◄
+    #:
+    #: ``config.parties`` am Modul ist eine **Vorlage**: sie sagt, wer in Frage kommt, und
+    #: gilt für jeden künftigen Auftrag. Lässt sie **jeden** zu (leer), muss die Wahl
+    #: irgendwo hin – und bis hierher gab es dafür keinen Ort: der Klick im Feld löste
+    #: sofort ``ask`` aus, und das geht nur mit einem **vollständigen** Beleg hinaus.
+    #: Fehlte Preis, Frist oder Lieferbedingung, wies der Dienst zu Recht ab, und die
+    #: getroffene Wahl war weg. Sie war damit die letzte Angabe des Belegs ohne eigenes
+    #: Verb – dieselbe Lücke wie bei den Fristen (#985), nur eine Runde später.
+    #:
+    #: **Und es ist kein Rückfall in die Form des Vorgängers.** Dort stand der
+    #: *Angebotsspiegel* als JSONB – eine **Entität** mit Betrag, Fristen, Zustand und
+    #: Datum. Hier steht eine Liste von Objektnummern, genau so, wie sie eine Zeile höher
+    #: in ``config.parties`` steht: keine Eigenschaften, keine Zustände, nichts, wonach
+    #: jemand filtern müsste. Was hinausgegangen ist, bleibt eine **Zeile**
+    #: (``voucher_quotes``) – das ist der Unterschied, um den es ging.
+    #:
+    #: **Immer neu zuweisen, nie an Ort ändern**: ein mutierter JSONB-Wert fällt still aus
+    #: dem ``UPDATE``.
+    parties: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+
     #: ►►► **Die beiden Fristen als ENTWURF** – was auf dem Beleg steht, bevor er
     #: hinausgeht (Testnotiz #985). ◄◄◄
     #:

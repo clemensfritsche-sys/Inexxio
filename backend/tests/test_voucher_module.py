@@ -1969,3 +1969,189 @@ def test_a_charge_says_how_it_stands():
     finally:
         db.rollback()
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► Testnotizen #995–#1003 — wählen ist nicht anfragen, und der Saldo ist eine Farbe
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_party_is_chosen_before_it_is_asked():
+    """►►► **Wählen und anfragen sind zwei Dinge** (Testnotiz #1000). ◄◄◄
+
+    *«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
+    setzen. Die Auswahl wird korrekt angezeigt, aber nicht übernommen/persistiert.»*
+
+    **Nachgestellt, nicht vermutet.** Die Wahl im freien Feld löste sofort ``ask`` aus –
+    und das ist die Handlung, mit der der Beleg **nach aussen** geht: sie verlangt Preis,
+    beide Fristen und die Lieferbedingung (#964/#985). An einem frischen Modul fehlt
+    davon naturgemäss alles, der Dienst wies mit einem Satz ab, und die Wahl war weg.
+
+    Damit war *«wen meine ich»* die letzte Angabe des Belegs **ohne eigenes Verb** –
+    dieselbe Lücke wie bei den Fristen, nur eine Runde später. Die Regel gilt unverändert:
+    *jeder änderbare Wert des Belegs wird sofort persistiert.*
+
+    Bug-Formen: (a) das Verb ``party`` gibt es nicht; (b) die Wahl setzt einen
+    unvollständigen Beleg voraus (also wieder ``ask``); (c) sie überlebt das erneute Lesen
+    nicht; (d) sie erreicht den Belegkopf nicht – dann steht «Anschrift fehlt» über
+    jemandem, den man eine Zeile höher ausgewählt hat; (e) ``ask`` findet sie nicht und
+    verlangt die Nummer ein zweites Mal; (f) es gibt keinen Weg zurück; (g) irgendeine
+    Nummer geht durch.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    from app.models import Voucher
+
+    db = _db()
+    try:
+        # **Ein Modul ohne vorgewählten Partner** – «leer heisst frei».
+        order, step, row, _who, _art = _scene(db, parties=[])
+        assert not step.config.get("parties"), "Die Szene hat doch einen Partner."
+        them = _party(db, "Muster AG", "customer")
+
+        # (a)/(b) **Die Wahl geht am frischen Beleg** – ohne Preis, ohne Fristen.
+        assert "party" in svc.can(db, row, None), (
+            "Es gibt kein Verb, mit dem man die Gegenpartei wählt (a)."
+        )
+        svc.apply(db, order=order, step=step, action="party",
+                  payload={"party": them.object_id})
+        db.flush()
+
+        # (c) **Und sie überlebt** – neu gelesen, nicht aus dem Objekt.
+        db.expire_all()
+        again = db.query(Voucher).filter(Voucher.id == row.id).one()
+        assert svc.parties_on(again) == [them.object_id], (
+            f"Die Wahl überlebt das Speichern nicht (c): {svc.parties_on(again)}."
+        )
+
+        # (d) **Sie steht im Belegkopf** – der Adressat ist, wer gewählt ist.
+        staff = _party(db, "Personal", "admin")
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert [r["object_id"] for r in seen["recipients"]] == [them.object_id], (
+            "Die Wahl erreicht die Auswahl-Zeile nicht (d)."
+        )
+        assert seen["customer"]["object_id"] == them.object_id, (
+            "Der Belegkopf kennt den Gewählten nicht (d) – dann meldet er «Anschrift "
+            "fehlt» über jemanden, den man ausgewählt hat."
+        )
+
+        # (e) **`ask` findet sie von selbst** – ohne die Nummer ein zweites Mal zu nennen.
+        _price(db, order, step, row, price="10.00")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        db.flush()
+        svc.apply(db, order=order, step=step, action="ask", payload={})
+        db.flush()
+        assert [q.party_id for q in svc.quotes_of(db, row)] == [them.object_id], (
+            "«Anfragen» findet den gewählten Partner nicht (e)."
+        )
+
+        # (f) **Und es gibt den Weg zurück** – eine Handlung, ein Klick: die Zeile und die
+        #     Wahl verschwinden zusammen.
+        assert "unask" in svc.can(db, row, None), "Die Wahl lässt sich nicht zurücknehmen (f)."
+        svc.apply(db, order=order, step=step, action="unask",
+                  payload={"party": them.object_id})
+        db.flush()
+        assert not svc.quotes_of(db, row) and not svc.parties_on(row), (
+            f"Zurückgenommen ist nur die Hälfte (f): {svc.parties_on(row)} / "
+            f"{[q.party_id for q in svc.quotes_of(db, row)]}."
+        )
+
+        # (g) **Geprüft wird die Wahl selbst** – eine Auswahl, die der Dienst später
+        #     abwiese, wäre keine.
+        with _pytest.raises(HTTPException) as bad:
+            svc.apply(db, order=order, step=step, action="party",
+                      payload={"party": 999_999_999})
+        assert bad.value.status_code == 400, (
+            f"Irgendeine Nummer geht durch (g): {bad.value.status_code}."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_balance_says_how_it_stands_in_one_number():
+    """►►► **Der Saldo — eine Zahl, und ihre Farbe ist die Aussage** (Testnotiz #997).◄◄◄
+
+    *«Das Wort ‹Offen› entfällt, der Status wird ausschliesslich über die Farbe des
+    Betrags getragen: offen orange · überfällig rot · beglichen grün · überzahlt grün mit
+    ausgewiesenem Guthaben.»*
+
+    **Es ist keine zweite Regel neben ``charge_state``, sondern dieselbe über eine andere
+    Zahl**: dort ein Betrag und sein Rest, hier die blosse Differenz. Toleranz, Wörter und
+    Ampeltöne sind geteilt – verschieden ist nur, was sich daraus sagen lässt.
+
+    Bug-Formen: (a) der Zustand wird gar nicht geliefert, also rechnet ihn die Oberfläche
+    wieder selbst; (b) drei Rappen Rest heissen «offen»; (c) ein Guthaben ist rot wie ein
+    Problem; (d) eine Gegenpartei ohne Zuschlag liest die Zahl mit.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from decimal import Decimal
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+
+    # (b) **Die Toleranz gehört ins Fachmodell** – eine Rechnung, die wegen drei Rappen
+    #     «offen» heisst, ist eine Mahnliste voller Geister.
+    assert vo.balance_state(Decimal("0.03"))["state"] == "settled", (
+        "Drei Rappen Rest heissen «offen» (b)."
+    )
+    assert vo.balance_state(Decimal("100.00"))["state_tone"] == "pending", (
+        "Ein offener Posten ist nicht mehr die Warnfarbe (a)."
+    )
+    assert vo.balance_state(Decimal("100.00"), overdue=True)["state_tone"] == "danger", (
+        "Überfällig ist nicht mehr rot (a)."
+    )
+    # (c) **Ein Guthaben ist grün** – niemand schuldet mehr etwas.
+    credit = vo.balance_state(Decimal("-250.00"))
+    assert credit["state"] == vo.CREDIT and credit["state_tone"] == "done", (
+        f"Das Guthaben ist ein Problem statt einer Tatsache (c): {credit}."
+    )
+    assert credit["state_label"] == vo.CREDIT_WORD, (
+        "Das Guthaben nennt sich nicht beim Namen (c) – «250.00» in Grün sagt nicht, wer "
+        "wem etwas schuldet."
+    )
+
+    db = _db()
+    try:
+        # Zwei Angefragte, einer bekommt den Zuschlag – (d) braucht einen Unterlegenen.
+        winner = _party(db, "Muster AG", "customer")
+        loser = _party(db, "Zweiter", "customer")
+        order, step, row, who, _art = _scene(db, quantity=1,
+                                             parties=[winner, loser])
+        _price(db, order, step, row, price="100.00")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask", payload={})
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id})
+        svc.apply(db, order=order, step=step, action="charge", payload={})
+        db.flush()
+        staff = _party(db, "Personal", "admin")
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert seen["open_state"] == "open" and seen["open_state_tone"] == "pending", (
+            f"Der Saldo sagt seinen Zustand nicht (a): {seen['open_state']}."
+        )
+        # Überzahlt: mehr geflossen, als gefordert war.
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "150.00", "method": "cash"})
+        db.flush()
+        over = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert over["open_state"] == vo.CREDIT and over["open_state_tone"] == "done", (
+            f"Die Überzahlung ist ein Problem statt eines Guthabens (c): "
+            f"{over['open_state']}/{over['open_state_tone']}."
+        )
+        # (d) **Wer keinen Zuschlag hat, liest keine Zahl** – und damit auch keinen
+        #     Zustand über sie.
+        blind = svc.embed_data(db, order=order, step=step, viewer=loser)
+        # *Gefragt sind **alle drei** Angaben: der erste Anlauf prüfte nur den Schlüssel
+        # und liess das Wort («Guthaben») und den Ton durch – gemessen, nachgeschärft.*
+        leaked = {k: blind[k] for k in
+                  ("open", "open_state", "open_state_label", "open_state_tone")
+                  if blind[k] is not None}
+        assert not leaked, f"Ein Unterlegener liest den Saldo mit (d): {leaked}."
+    finally:
+        db.rollback()
+        db.close()

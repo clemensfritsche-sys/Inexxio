@@ -12,9 +12,12 @@
  * ## Zwei Fragen, zwei Funktionen — und das ist kein Widerspruch
  *
  * **`when()` beantwortet «wann war das?»** – die Aussage, nach der man wirklich fragt:
- * heute die Uhrzeit, gestern «Gestern», diese Woche «vor 3 Tagen», danach das Datum. Sie
- * steht überall dort, wo ein Zeitpunkt eine **Auskunft** ist (Log, Chronik, letzter
- * Login, angelegt/geändert).
+ * «gerade eben», «vor 12 Minuten», «vor 3 Stunden», «Gestern», «vor 3 Tagen», danach das
+ * Datum. Sie steht überall dort, wo ein Zeitpunkt eine **Auskunft** ist (Log, Angebote,
+ * letzter Login, angelegt/geändert).
+ *
+ * *Für «heute» stand hier einmal die blosse **Uhrzeit** (`17:58`) – eine Zahl, aus der
+ * man selbst ausrechnet, wie lange das her ist (Testnotiz #1003).*
  *
  * **`day()` beantwortet «welcher Tag steht auf dem Papier?»** – die Tatsache. Auf einem
  * **Beleg** ist das Rechnungsdatum kein «vor 3 Tagen»: es ist die Angabe, die gedruckt
@@ -46,6 +49,26 @@ export const NOTHING = '—';
 
 /** Ab hier ist «vor N Tagen» keine Auskunft mehr, sondern eine Rechenaufgabe. */
 const NEAR_DAYS = 7;
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** «gerade eben» – darunter ist jede Zahl eine erfundene Genauigkeit. */
+const JUST_NOW = 'gerade eben';
+
+/** Singular und Plural als **Angabe**, nicht als Rechnung: deutsche Beugung ist keine
+ *  Zeichenkettenoperation, und eine Regel, die bei einem Wort zufällig stimmt, ist keine
+ *  (die Lehre aus «Kundeen», #787). */
+const MINUTES: [string, string] = ['Minute', 'Minuten'];
+const HOURS: [string, string] = ['Stunde', 'Stunden'];
+const DAYS: [string, string] = ['Tag', 'Tagen'];
+
+/** «vor 3 Stunden» ↔ «in 3 Stunden» – die Richtung sagt das Vorzeichen. */
+function ago(n: number, [one, many]: [string, string], past: boolean): string {
+  const word = n === 1 ? one : many;
+  return past ? `vor ${n} ${word}` : `in ${n} ${word}`;
+}
 
 function parse(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
@@ -93,7 +116,9 @@ export function whenTitle(value: string | Date | null | undefined): string | und
  * ►►► **«Wann war das?» – die Aussage, nicht die Zahl.** ◄◄◄
  *
  * ==================  ====================================================
- * heute               `17:58` – an einem Tag interessiert die Uhrzeit
+ * unter einer Minute  `gerade eben`
+ * unter einer Stunde  `vor 12 Minuten`
+ * unter einem Tag     `vor 3 Stunden`
  * gestern             `Gestern`
  * 2–6 Tage her        `vor 3 Tagen`
  * älter, dieses Jahr  `13. Sep.` – die Jahreszahl sagt nichts Neues
@@ -103,8 +128,18 @@ export function whenTitle(value: string | Date | null | undefined): string | und
  * weiter voraus       `13. Sep.` bzw. `13. Sep. 2027`
  * ==================  ====================================================
  *
- * **Ein reines Datum kennt keine Uhrzeit** – ein Fälligkeitstag *ist* heute, und «00:00»
- * wäre eine erfundene Genauigkeit. Er sagt dann «Heute».
+ * ►►► **Die Uhrzeit war eine Zahl, keine Aussage** (Testnotiz #1003). ◄◄◄ Für «heute»
+ * stand hier `17:58` – und wer das liest, rechnet selbst aus, wie lange das her ist. Ein
+ * Zeitpunkt beantwortet aber die Frage *wann war das*, und innerhalb eines Tages heisst
+ * die Antwort «vor drei Stunden». Die **Tatsache** (Datum und Uhrzeit) steht unverändert
+ * im Hover, wo man sie nachschlägt.
+ *
+ * **Die Kaskade ist eine Reihenfolge, kein Widerspruch**: was 20 Stunden her ist, war
+ * gestern *und* ist «vor 20 Stunden» – die genauere Aussage gewinnt. «Gestern» beginnt
+ * damit dort, wo Stunden zu zählen aufhört.
+ *
+ * **Ein reines Datum kennt keine Uhrzeit** – ein Fälligkeitstag *ist* heute, und «vor 7
+ * Stunden» wäre eine erfundene Genauigkeit. Er sagt «Heute» und überspringt die Kaskade.
  *
  * `now` ist ein Parameter, damit die Funktion **rein** ist und sich prüfen lässt; ohne
  * ihn ist es der Moment des Renderns.
@@ -114,12 +149,18 @@ export function when(value: string | Date | null | undefined,
   const d = parse(value);
   if (!d) return NOTHING;
   const dayOnly = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const gap = now.getTime() - d.getTime();
+  const past = gap >= 0;
+  const abs = Math.abs(gap);
+  if (!dayOnly && abs < MINUTE) return JUST_NOW;
+  if (!dayOnly && abs < HOUR) return ago(Math.floor(abs / MINUTE), MINUTES, past);
+  if (!dayOnly && abs < DAY) return ago(Math.floor(abs / HOUR), HOURS, past);
   const n = calendarDays(now, d);
-  if (n === 0) return dayOnly ? 'Heute' : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (n === 0) return 'Heute';
   if (n === -1) return 'Gestern';
   if (n === 1) return 'Morgen';
-  if (n < 0 && n > -NEAR_DAYS) return `vor ${-n} Tagen`;
-  if (n > 0 && n < NEAR_DAYS) return `in ${n} Tagen`;
+  if (n < 0 && n > -NEAR_DAYS) return ago(-n, DAYS, true);
+  if (n > 0 && n < NEAR_DAYS) return ago(n, DAYS, false);
   const short = `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
   return d.getFullYear() === now.getFullYear() ? short : `${short} ${d.getFullYear()}`;
 }

@@ -368,7 +368,6 @@ class VoucherEmbed(BaseModel):
     charge_word: str = ""
     payment_word: str = ""
     pay_online_word: str = ""
-    open_word: str = "Offen"
     refund_online_word: str = ""
     # ─── Fristen ────────────────────────────────────────────────────────────────
     #: **Eine Ableitung der Zahlungsfrist**, keine Einstellung: null Tage ab Zusage *ist*
@@ -418,6 +417,12 @@ class VoucherEmbed(BaseModel):
     charged: Optional[str] = None
     paid: Optional[str] = None
     open: Optional[str] = None
+    #: ►►► **Wie der Beleg im Ganzen steht** (Testnotiz #997) – ``offen`` · ``überfällig``
+    #: · ``beglichen`` · ``credit``. Die Anzeige nennt allein die **Zahl** und färbt sie;
+    #: das Wort steht im Hover und, wo es etwas Neues sagt (ein **Guthaben**), daneben.
+    open_state: Optional[str] = None
+    open_state_label: Optional[str] = None
+    open_state_tone: Optional[str] = None
     #: *zugesagt − berechnet* – die Zahl, die es ohne die Trennung von Forderung und Geld
     #: gar nicht geben könnte.
     uncharged: Optional[str] = None
@@ -433,6 +438,8 @@ class VoucherUpdate(BaseModel):
     """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).
 
     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
+    ``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden
+                 nennt; **nicht** dasselbe wie ``ask`` (#1000)
     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
     ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei
