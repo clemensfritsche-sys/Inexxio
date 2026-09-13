@@ -194,15 +194,31 @@ class VoucherEntryOut(BaseModel):
     open: Optional[str] = None
     #: Lässt sie sich über den Zahlungsdienst zurückgeben?
     refundable: bool = False
-    #: Trägt sie einen Einzahlungsschein mit **unserer** Bankverbindung?
-    transferable: bool = False
+    #: ►►► **``transferable`` ist entfallen.** ◄◄◄ Es sagte je Zeile, ob sie einen
+    #: Einzahlungsschein trägt – aus der Zeit, als jede Bezahlart ein eigener Knopf an
+    #: jeder Rechnung war. Welche Rechnung das Fach «Begleichen» meint, sagt jetzt
+    #: ``VoucherEmbed.settle_charge``: **eine** Antwort statt einer je Zeile.
 
 
-class VoucherMethod(BaseModel):
-    """Ein Weg zum Geld, den ein **Mensch** erfassen darf."""
+class VoucherWay(BaseModel):
+    """►►► **Ein Weg zum Geld – und was er auslöst.** ◄◄◄
+
+    Bar · Überweisung · Karte sind drei Antworten auf **eine** Frage. Jeder Weg trägt
+    darum sein eigenes Verb: ``action`` ist die Handlung am Beleg (``pay`` ↔
+    ``pay_online``), ``verb`` ihr Wort. **Beide leer** heisst: dieser Weg ist eine reine
+    *Auskunft* – so sieht die Gegenpartei die Überweisung, und dort steht kein Knopf, der
+    nach Buchung aussieht.
+    """
 
     key: str
     label: str
+    action: Optional[str] = None
+    verb: Optional[str] = None
+    #: **Bringt dieser Weg eine Auskunft mit?** – heute der Einzahlungsschein
+    #: (Bankverbindung, Referenz, QR). Sie steht als **Eigenschaft des Weges** da und
+    #: nicht als Vergleich auf «transfer»: ein Schlüssel-Vergleich in der Oberfläche wäre
+    #: der Spiegel über die API-Grenze, der beim nächsten Weg still falsch wird.
+    info: bool = False
 
 
 class VoucherTerm(BaseModel):
@@ -282,7 +298,11 @@ class VoucherEmbed(BaseModel):
     # ─── Die Überschriften des Belegs ───────────────────────────────────────────
     goods_title: str = ""
     quotes_title: str = ""
-    money_label: str = ""
+    #: ►►► **Zwei Fächer statt eines Titels über allem** («Rechnung & Zahlung»). ◄◄◄
+    #: *Was schuldet uns jemand* und *wie kommt das Geld hierher* sind zwei Fragen, und
+    #: jede gehört genau einer Seite: die erste uns, die zweite dem Zahlenden.
+    claim_title: str = ""
+    settle_title: str = ""
     #: **Was ist zu tun?** – der Satz am **Modul**, und wie er heisst. Leer heisst «gemäss
     #: Spezifikation»: der Beleg sagt über seine Positionen längst, *was* es ist.
     task_label: str = ""
@@ -330,12 +350,12 @@ class VoucherEmbed(BaseModel):
     can: list[str] = Field(default_factory=list)
     #: Das Wort der Gegenhandlung – ``None``, wo es sie für diesen Betrachter nicht gibt.
     undo: Optional[str] = None
+    #: **«Rechnung stellen» ↔ «Rechnung erfassen»** – im einen Fall entsteht der Beleg
+    #: hier, im anderen schreiben wir einen fremden ab (``Direction.charge_verb``).
     charge_word: str = ""
     payment_word: str = ""
     pay_online_word: str = ""
     open_word: str = "Offen"
-    transfer_word: str = ""
-    refund_word: str = ""
     refund_online_word: str = ""
     # ─── Fristen ────────────────────────────────────────────────────────────────
     #: **Eine Ableitung der Zahlungsfrist**, keine Einstellung: null Tage ab Zusage *ist*
@@ -347,8 +367,15 @@ class VoucherEmbed(BaseModel):
     term_free_label: str = ""
     payment_term_label: str = ""
     lead_term_label: str = ""
-    # ─── Zahlungsarten ──────────────────────────────────────────────────────────
-    methods: list[VoucherMethod] = Field(default_factory=list)
+    # ─── Die Wege zum Geld ──────────────────────────────────────────────────────
+    #: **Eine Frage, mehrere Antworten** – leer heisst «hier ist gerade nichts zu
+    #: begleichen» (keine offene Forderung). Der frühere ``methods`` war die halbe Liste:
+    #: er kannte nur die beiden Arten, die ein Mensch **erfasst**, und die Karte und die
+    #: Überweisungs-Auskunft standen daneben als eigene Knöpfe.
+    ways: list[VoucherWay] = Field(default_factory=list)
+    #: **Welche Rechnung die Wege meinen** – je Modul lebt höchstens eine offene (#866),
+    #: die Frage hat also genau eine Antwort, und sie gehört dem Dienst.
+    settle_charge: Optional[int] = None
     method_label: str = ""
     # ─── Der Beleg selbst ───────────────────────────────────────────────────────
     allowed: list[VoucherParty] = Field(default_factory=list)

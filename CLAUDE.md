@@ -3838,6 +3838,66 @@
 > darunter eine Ausgabe, bei der die Gegenpartei den Preis nennt) – und die Messung gegen
 > ihre eigene Bug-Form gegengeprüft (+46,7 px bei 375, +101,7 px bei 320).
 
+> ►►► **RECHNUNG & ZAHLUNG: ZWEI FÄCHER, EINE HANDLUNG, EINE WAHL** — und drei
+> Testnotizen (#979/#981/#982) ◄◄◄ (`docs/konzept-beleg-shop-besitz.md`, PROCESS_CORE
+> §9.15i–l).
+> *«Irgendwie scheint mir dieser Bereich zu komplex, zu unstrukturiert, zu wirr, zu viele
+> Optionen, die sich gegeneinander stören, kannibalisieren.»*
+> **Gezählt, nicht vermutet**: an einer Rechnung standen bis zu **sechs** gleich
+> aussehende Knöpfe mit **drei** Bedeutungen – eine Buchung, eine Korrektur und eine
+> blosse **Auskunft** («Überweisen» zeigt IBAN und QR und bucht gar nichts). Dazu **zwei
+> Rollen in einer Zeile** («Rechnung erfassen» ist unsere Handlung, «Jetzt bezahlen» die
+> des Zahlenden) und **kein Fortschritt**, obwohl es drei klare Zustände gibt.
+> **(1) Zwei Fächer**: **Fordern** (*was schuldet uns jemand?*) und **Begleichen** (*wie
+> kommt das Geld hierher?*) – zwei Fragen, jede gehört genau einer Seite, beide sind ein
+> gewöhnlicher `ModuleSection` und tragen damit denselben Punkt wie jeder andere
+> Abschnitt. Dazwischen die Zeile «Offen». Der Sammeltitel «Rechnung & Zahlung» ist
+> **entfallen** – er fasste zwei Fragen zu einer zusammen, und daraus kam die Unordnung.
+> **(2) Genau eine Handlung bringt weiter** (`StageAction`, dasselbe Bauteil wie der
+> Zuschlag und der Abschluss): *Rechnung stellen* → *Zahlung erfassen* → nichts mehr;
+> alles andere ist eine **Korrektur** und steht klein bei der Zeile, die sie korrigiert.
+> **(3) Der Weg zum Geld ist eine WAHL, kein Verb** (`ways`): bar · Überweisung · Karte
+> sind drei Antworten auf **eine** Frage – was dahinter passiert, ist verschieden (buchen
+> ↔ Angaben zeigen ↔ Zahlformular öffnen), die Frage ist dieselbe. **Jeder Weg sagt
+> selbst, was er auslöst** und **ob er eine Auskunft mitbringt**; beides leer heisst
+> *reine Auskunft* – so sieht die Gegenpartei die Überweisung, und dort steht kein Knopf,
+> der nach Buchung aussieht. **Und welche Rechnung sie meinen, sagt der Dienst**
+> (`settle_charge`) – je Modul lebt höchstens eine offene (#866).
+> **«Rechnung STELLEN» ↔ «Rechnung ERFASSEN»** (`Direction.charge_verb`): im einen Fall
+> entsteht der Beleg hier, im anderen schreiben wir einen fremden ab. Die **Zahlung** wird
+> in beiden Richtungen *erfasst* – das System bucht eine Zeile, es überweist nichts.
+> *Bewusst nicht in dieser Runde: die **Automatisierung** (camt.053, Mahnliste) und die
+> **Zustellung** (PDF, E-Mail) – beides steht als benannter offener Punkt im Konzept.*
+> **#979 – «Lieferadresse» beim Leistungserbringer war falsch.** Sie heisst *wohin
+> geliefert wird*, und an seiner eigenen Anschrift stand damit, man möge **ihm** dorthin
+> liefern – während er derjenige ist, der liefert. Von seiner Seite geht die Ware **ab**:
+> **Versandadresse**. **Nur diese eine Beschriftung ist rollenabhängig** – die
+> «Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage. Die Rolle wird nicht
+> übergeben, sondern gelesen (`flow.collects`).
+> **#981 – die Auswahl steht ÜBER der Rolle.** Die Chips standen **in** der Namenszeile
+> und ersetzten damit die Angabe, die sie auswählen. Jetzt: erst *wen meine ich*, dann
+> *was gilt für ihn*; auf unserer Seite bleibt die Zeile leer (Symmetrie, #913).
+> **#982 – ein Eingabefeld nennt sich, während man tippt.** «Zolltarif»/«Ursprung» standen
+> als **Platzhalter** im Feld – also dort, wo eine Oberfläche sagt «hier ist nichts» – und
+> verschwanden beim ersten Zeichen. Sie stehen jetzt davor, in beiden Zuständen gleich;
+> die Auszeichnung trägt allein der Wert.
+> **Nebenbei gemessen und behoben** (nicht gemeldet, **älter** als diese Runde): bei einem
+> langen Satznamen («0.00 % · Steuerfreie Ausfuhrlieferung») lief die Positionszeile in
+> einer 320-px-Spur um **13,8 px** über – die Preisgruppe stand auf `flex: none`. Sie darf
+> jetzt umbrechen; ein Kürzen wäre die falsche Lösung, der Rechtsgrund eines Nullsatzes
+> gehört auf den Beleg.
+> Wächter: 3 neue in `tests/test_voucher_module.py`, 8 neue und 5 auf die neue Regel
+> gezogene in `test_frontend_mirrors.py` – **23 Bug-Formen gegengeprüft, jede meldet**;
+> *zwei der neuen waren dabei stumpf und liessen ihre eigene durch*. Suite grün gegen ein
+> Schema nur aus den Migrationen (539); **keine Migration** in dieser Runde. Gemessen in
+> Chromium an der **echten** Komponente (Karte im `ModuleShell`): 1440 · 1280 · 1024 ·
+> 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht** Beleg-Zustände (inkl.
+> der Sicht der Gegenpartei und einer Ausgabe) – und die Messung **in beide Richtungen**
+> gegengeprüft: ein unteilbares Wort in freiem Text meldet +80,7 px bei 375 und +135,7 px
+> bei 320, dasselbe Wort hinter `truncate` meldet zu Recht **nichts**. Dazu 35 Prüfungen
+> an den echten Komponenten (Chips über der Rolle, Symmetrie Δ 0,00 px, Beschriftung 4 px
+> vor dem Feld, die Wege je Rolle).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -4110,11 +4170,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Zahlungsformular **im ERP**, nicht auf einer fremden Seite; die Gegenpartei bezahlt über
   ihren eigenen, engen Zugang. Was das ERP weiss (Name · E-Mail · Rechnungsadresse), wird
   nicht noch einmal gefragt. Gebucht wird nur vom **Webhook**.
+- **Rechnung & Zahlung sind ZWEI Fächer** (§9.15i): **Fordern** (*was schuldet uns
+  jemand?* – uns) und **Begleichen** (*wie kommt das Geld hierher?* – dem Zahlenden), mit
+  der Zeile «Offen» dazwischen; jedes trägt seinen Fortschritts-Punkt. **Genau eine
+  Handlung bringt weiter** – unten, breit: *Rechnung stellen* → *Zahlung erfassen* →
+  nichts mehr; alles andere ist eine Korrektur und steht klein bei ihrer Zeile.
 - **Drei Wege zum Geld, eine Rechnung je Modul** (§9.14): *bar* wird erfasst, die *Karte*
   ausgeführt, die *Überweisung* ist eine **Auskunft** – Bankverbindung, RF-Referenz und
-  die **Swiss QR-Rechnung**. Alle drei stehen **an** der Rechnung, die sie begleichen; je
-  Modul lebt höchstens eine, und die Anzahlung ist darum ein **zweites Modul** mit seinen
-  **eigenen Positionspreisen** (einen «Anteil» gibt es nicht, #867).
+  die **Swiss QR-Rechnung**. Sie sind **eine Wahl, kein Verb** (§9.15i): ein Schieber, und
+  jeder Weg sagt selbst, was er auslöst – beides leer heisst *reine Auskunft*, und so
+  sieht die Gegenpartei die Überweisung. Welche Rechnung sie meinen, sagt der Dienst
+  (`settle_charge`); je Modul lebt höchstens eine, und die Anzahlung ist darum ein
+  **zweites Modul** mit seinen **eigenen Positionspreisen** (einen «Anteil» gibt es
+  nicht, #867).
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.

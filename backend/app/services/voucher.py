@@ -1596,8 +1596,11 @@ def document_head(db: Session, row: Voucher, *, won: bool,
         "name": sites.legal_name(company),
         # Eine Adresse ohne Ort ist keine: ``of_company`` liefert immer ein Gerüst,
         # ``has_content`` fragt, ob wirklich etwas drinsteht.
+        # **Wer liefert, versendet** – daraus folgt die Beschriftung der zweiten
+        # Anschrift (#979); ``collects`` sagt es längst, ein zweites Feld wäre dieselbe
+        # Aussage ein zweites Mal.
         **_addresses(address.lines(seat_ours) if address.has_content(seat_ours) else [],
-                     []),
+                     [], sends=flow.collects),
         "uid": (getattr(company, "vat_number", None)
                 or getattr(company, "uid_number", None)),
         "email": getattr(company, "email", None),
@@ -1611,7 +1614,7 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     }
 
 
-def _addresses(billed: list[str], shipped: list[str]) -> dict[str, Any]:
+def _addresses(billed: list[str], shipped: list[str], *, sends: bool) -> dict[str, Any]:
     """►►► **Die Anschriften einer Belegseite – beide, immer, beschriftet** (#975). ◄◄◄
 
     *«Standardmässig immer bei Informationen ausweisen, global etablieren, auch wenn sie
@@ -1628,6 +1631,12 @@ def _addresses(billed: list[str], shipped: list[str]) -> dict[str, Any]:
     keine** dasteht, gibt es auch keine Beschriftung: die Seite sagt dann, dass sie fehlt.
 
     Erfunden wird nichts – ``shipped`` entsteht nur aus Angaben, die wirklich da sind.
+
+    ►►► **Und die zweite Beschriftung sagt die RICHTUNG** (Testnotiz #979). ◄◄◄ ``sends``
+    heisst «diese Seite ist der Leistungserbringer»: bei ihr geht die Ware **ab**, also
+    ist es die *Versandadresse*; beim Empfänger kommt sie **an**, also die *Lieferadresse*.
+    Vorher stand «Lieferadresse» auf beiden Seiten – und bat den Absender, an sich selbst
+    zu liefern.
     """
     if not billed:
         return {"address": [], "shipping": [],
@@ -1636,7 +1645,7 @@ def _addresses(billed: list[str], shipped: list[str]) -> dict[str, Any]:
         "address": billed,
         "shipping": shipped or billed,
         "address_label": vo.BILLING_LABEL,
-        "shipping_label": vo.SHIPPING_LABEL,
+        "shipping_label": vo.SHIPPING_FROM_LABEL if sends else vo.SHIPPING_LABEL,
     }
 
 
@@ -1649,7 +1658,12 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, 
 
     ``party_id is None`` heisst «dieser Betrachter darf sie nicht sehen» – dann ist die
     Seite leer, nicht erfunden.
+
+    **Welche Rolle sie hat, steht in der Richtung** (#979): die Gegenpartei ist genau dann
+    der Leistungserbringer, wenn das Geld **nicht** zu uns fliesst. Ein Parameter dafür
+    wäre eine Angabe, die jeder der beiden Aufrufer einzeln falsch setzen könnte.
     """
+    sends = not vo.of(row.direction).collects
     who = billing_of(db, row, party_id) if party_id is not None else {}
     seat = who.get("address") or {}
     lines = who.get("lines") or []
@@ -1663,7 +1677,7 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, 
             street1=seat.get("line1") or "", street2=seat.get("line2") or "",
             zip=seat.get("postal_code") or "", city=seat.get("city") or "",
             country=seat.get("country"),
-        )) if seat else [], who.get("shipping") or []),
+        )) if seat else [], who.get("shipping") or [], sends=sends),
         "uid": who.get("uid"),
         "email": who.get("email"),
         "phone": who.get("phone"),
@@ -1991,11 +2005,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     # Massstab, und der bekäme die nächste Regel nicht mit.
     refund_ids = ({e.id for e in refundable(db, row)}
                   if "refund_online" in allowed else set())
-    # **Worauf man überweisen kann** – offen und uns zustehend. Die Frage ist nicht «wer
-    # darf?» (überweisen darf jeder), sondern «trägt der Einzahlungsschein eine
-    # Bankverbindung, die es bei uns gibt?».
-    transferable_ids = ({e.id for e in open_charges(db, row)}
-                        if won and flow.collects else set())
+    # ►►► **Welche Rechnung das Fach «Begleichen» meint.** ◄◄◄ Je Modul lebt höchstens
+    # **eine** Forderung (#866) – die Frage «welche bezahle ich?» hat damit genau eine
+    # Antwort, und sie gehört dem Dienst: die älteste noch offene. Sie in der Oberfläche
+    # zu suchen wäre eine zweite Regel neben ``open_charges``, und genau daraus entstand
+    # #859 («kassiert wurde immer die älteste offene, egal an welchem Knopf man klickte»).
+    settle = next(iter(open_charges(db, row)), None) if won else None
     priced = priced_dicts(db, row)
     sums = vo.totals(vo.vat_split(priced, row.currency), row.currency)
     return {
@@ -2046,11 +2061,18 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "net": sums["net"] if won else None,
         "tax": sums["tax"] if won else None,
         "vat_split": vo.vat_split(priced, row.currency) if won else [],
-        "charge_word": vo.CHARGE_WORD,
+        # ►►► **«Rechnung stellen» ↔ «Rechnung erfassen»** – die eine Angabe der Richtung
+        # an dieser Stelle: im einen Fall entsteht der Beleg hier, im anderen schreiben
+        # wir einen fremden ab.
+        "charge_word": flow.charge_verb,
         "payment_word": vo.PAYMENT_WORD,
         "pay_online_word": vo.PAY_ONLINE_WORD,
         "open_word": vo.OPEN_WORD,
-        "money_label": vo.MONEY_LABEL,
+        # ►►► **Zwei Fächer statt einer Überschrift über allem.** ◄◄◄ *Was schuldet uns
+        # jemand* und *wie kommt das Geld hierher* sind zwei Fragen, und jede gehört einer
+        # Seite; der frühere gemeinsame Titel «Rechnung & Zahlung» fasste sie zusammen.
+        "claim_title": vo.CLAIM_TITLE,
+        "settle_title": vo.SETTLE_TITLE,
         "goods_title": vo.GOODS_TITLE,
         "quotes_title": vo.QUOTES_TITLE,
         # ►►► **Zwei Fragen, zwei Angaben** (siehe ``domain/voucher.TASK``). ◄◄◄ *Was* zu
@@ -2083,13 +2105,13 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "term_free_label": vo.FREE_TERM_LABEL,
         "payment_term_label": vo.PAYMENT_TERM_LABEL,
         "lead_term_label": vo.LEAD_TERM_LABEL,
-        # **Wie bezahlt wurde** – nur, was ein Mensch erfassen darf. Die Karte schreibt
-        # allein der Webhook, also steht sie hier nicht.
-        "methods": [{"key": k, "label": name} for k, name in vo.METHODS
-                    if k in vo.MANUAL_METHODS],
+        # ►►► **Der Weg zum Geld ist eine WAHL, kein Verb.** ◄◄◄ Bar · Überweisung · Karte
+        # sind drei Antworten auf **eine** Frage; was dahinter passiert, ist verschieden
+        # (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen), die Frage ist dieselbe. Als drei
+        # Knöpfe standen sie im selben Rang wie eine Buchung und wie eine Korrektur.
+        "ways": _ways(allowed, collects=flow.collects) if settle is not None else [],
+        "settle_charge": settle.id if settle is not None else None,
         "method_label": vo.METHOD_LABEL,
-        "transfer_word": vo.TRANSFER_WORD,
-        "refund_word": vo.REFUND_WORD,
         "refund_online_word": vo.REFUND_ONLINE_WORD,
         # **Die Freigabe-Liste ist die Konkurrenzliste** – sie geht eine Gegenpartei nichts
         # an, auch nicht die, die den Zuschlag hat.
@@ -2184,13 +2206,54 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 "open": (_money(_open_of(entries, e), row.currency)
                          if e.kind == vo.CHARGE else None),
                 "refundable": e.id in refund_ids,
-                "transferable": e.id in transferable_ids,
             }
             # **Dieselbe Frage, dieselbe Antwort**: die Zeilen gehören dem, der den
             # Zuschlag hat – seine Rechnungen, seine Zahlungen.
             for e in (entries if won else [])
         ],
     }
+
+
+def _ways(allowed: list[str], *, collects: bool) -> list[dict[str, Any]]:
+    """►►► **Die Wege zum Geld – als EINE Frage mit mehreren Antworten.** ◄◄◄
+
+    *«Bar · Überweisung · Karte»* standen als drei Knöpfe an der Rechnungszeile, in
+    derselben Form wie eine Buchung («Rechnung erfassen») und wie eine Korrektur
+    («Stornieren») – drei Bedeutungen, ein Aussehen. Es ist aber **eine** Frage: *wie
+    kommt das Geld hierher?*
+
+    **Jeder Weg sagt selbst, was er auslöst** – und ob überhaupt etwas:
+
+    * **bar** und **Überweisung** enden in einer Buchung (``pay``), und die darf nur, wer
+      über unser Konto spricht.
+    * die **Überweisung** ist zusätzlich eine **Auskunft** (Bankverbindung, Referenz, QR).
+      Für den Zahlenden ist sie *nur* das: ``action`` bleibt leer, und damit steht dort
+      kein Knopf, der nach Buchung aussieht.
+    * die **Karte** führt aus (``pay_online``); gebucht wird auch dort erst vom Webhook.
+
+    Angeboten wird nur, was dieser Betrachter tun darf – gelesen aus ``can``, der Liste,
+    die ohnehin **Auskunft und Tor** ist. Eine zweite Bedingung hier wäre ein zweiter
+    Massstab, und der bekäme die nächste Regel nicht mit.
+    """
+    books = "pay" in allowed
+    out: list[dict[str, Any]] = []
+
+    def way(key: str, action: Optional[str], verb: Optional[str],
+            info: bool = False) -> dict[str, Any]:
+        return {"key": key, "label": vo.method_name(key) or key,
+                "action": action, "verb": verb, "info": info}
+
+    if books:
+        out.append(way(vo.CASH, "pay", vo.PAYMENT_WORD))
+    # **Der Einzahlungsschein trägt UNSERE Bankverbindung** – es gibt ihn also nur, wo das
+    # Geld zu uns fliesst. Als *Buchungsart* bleibt die Überweisung trotzdem überall
+    # wählbar: auch eine Ausgabe wird überwiesen.
+    if books or collects:
+        out.append(way(vo.TRANSFER, "pay" if books else None,
+                       vo.PAYMENT_WORD if books else None, info=collects))
+    if "pay_online" in allowed:
+        out.append(way(vo.CARD, "pay_online", vo.PAY_ONLINE_WORD))
+    return out
 
 
 def _quotes(db: Session, row: Voucher, step: ProcessStep, *,

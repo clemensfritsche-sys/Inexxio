@@ -1,10 +1,10 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   AlertTriangle, Check, ChevronDown, CircleSlash, ClipboardList,
-  CreditCard, FileText, Landmark, Loader2, Plus, RotateCcw, Send, Undo2,
+  CreditCard, FileText, Loader2, Plus, RotateCcw, Send, Undo2,
   Wallet, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -17,7 +17,7 @@ import { PayOnline } from '@/components/erp/pay-online';
 import {
   Label, MICRO_LABEL, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
-import { ACT_H, ActionButton, Actions, ModuleSection } from '@/components/erp/module-ui';
+import { ActionButton, Actions, ModuleSection } from '@/components/erp/module-ui';
 import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { useAutosave } from '@/lib/use-autosave';
 import { formatAmount, localDate, localDateTime } from '@/lib/utils';
@@ -542,8 +542,18 @@ function Note({ tip, icon: Icon, children }: {
  * ►►► **Und eine siebte für die zweite Anschrift** (Testnotiz #952). ◄◄◄ Rechnungs- und
  * Lieferadresse müssen nicht gleich sein. Die Zeile steht auf **beiden** Seiten, auch wo
  * sie leer bleibt: die Symmetrie ist die Aussage, nicht die Dichte (#913).
+ *
+ * ►►► **Und eine achte ÜBER der Rolle – die Auswahl** (Testnotiz #981). ◄◄◄ *«Gefühlt
+ * sollte die Auswahloptionen oberhalb vom Headline Leistungsempfänger stehen und dann je
+ * nachdem was angewählt wurde unterhalb der Headline die Angaben geladen werden.»*
+ *
+ * Sie stand bis hierher **in** der Namenszeile, also *unter* der Rolle und an der Stelle,
+ * an der sonst der Name steht: die Chips ersetzten die Angabe, die sie auswählen. Über
+ * der Rolle ist es die Reihenfolge des Lesens – erst *wen meine ich*, dann *was gilt für
+ * ihn*. Auf unserer Seite bleibt die Zeile leer; die Symmetrie ist dieselbe Regel wie bei
+ * jeder anderen (#913).
  */
-const PARTY_ROWS = 7;
+const PARTY_ROWS = 8;
 
 /**
  * **Der Belegkopf** – beide Parteien, und sonst nichts.
@@ -641,6 +651,14 @@ function Party({ side, d, busy, onAction, onAsk }: {
       display: 'grid', gridRow: `span ${PARTY_ROWS}`, gridTemplateRows: 'subgrid',
       rowGap: 3, minWidth: 0, alignContent: 'start',
     }}>
+      {/* ►►► **Die Auswahl steht ÜBER der Rolle** (Testnotiz #981). ◄◄◄ Erst *wen meine
+          ich*, dann *was gilt für ihn* – und was angewählt ist, steht darunter. */}
+      {side.ours
+        ? <div />
+        : (
+          <Recipients d={d} side={side} busy={busy} onAsk={onAsk}
+            current={current} onShow={setShown} onAction={onAction} />
+        )}
       <span style={MICRO_LABEL} data-tip={side.hint || undefined}>{side.label}</span>
       {/* ►►► **Name und Nummer in EINER Zeile** (Testnotiz #940). ◄◄◄ Sie benennen
           **einen** Datensatz – dieselbe Form wie in der Positionszeile (#933). */}
@@ -648,8 +666,11 @@ function Party({ side, d, busy, onAction, onAsk }: {
         {side.ours
           ? <Issuer d={d} side={side} onAction={onAction} />
           : (
-            <Recipients d={d} side={side} busy={busy} onAsk={onAsk}
-              current={current} onShow={setShown} onAction={onAction} />
+            <span className="truncate"
+              style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)',
+                       minWidth: 0 }}>
+              {view.name || <Missing what="Name" />}
+            </span>
           )}
         {view.object_id != null && (
           <span style={{ flex: 'none' }}><ObjId value={view.object_id} /></span>
@@ -731,6 +752,12 @@ function Anschrift({ label, lines }: { label?: string | null; lines: string[] })
  * *durfte* – fehlte eine Stammdatenangabe (`gaps`), verschwand mit dem Anfragen auch das
  * Abwählen und die Anschrift. Was man **tun** darf, entscheidet weiterhin `can`, je Chip;
  * was man **sehen** darf, ist eine andere Frage.
+ *
+ * ►►► **Sie ist nur noch die Auswahl** (Testnotiz #981). ◄◄◄ Sie stand in der Namenszeile
+ * und trug damit zwei Aufgaben: auswählen **und** die Gewählte benennen. Jetzt steht sie
+ * über der Rolle, und der Name steht dort, wo er auf jedem Beleg steht – darunter. Nach
+ * dem Zuschlag gibt es nichts mehr zu wählen: dann ist die Zeile leer (die unterlegenen
+ * Angebote sind der Nachweis und stehen in ihrem Abschnitt).
  */
 function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
   d: Filled; side: VoucherSide; busy: boolean;
@@ -744,14 +771,9 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
   const [picked, setPicked] = useState<VoucherParty | null>(null);
   const find = useCallback((q: string) => api.searchVoucherParties(q).catch(() => []), []);
 
-  // Steht der Zuschlag, ist die Gegenpartei ein **Name** – es gibt nichts mehr zu wählen.
-  if (!open) {
-    return (
-      <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}>
-        {side.name || <Missing what="Name" />}
-      </span>
-    );
-  }
+  // Steht der Zuschlag, gibt es nichts mehr zu wählen – der Name steht eine Zeile tiefer,
+  // wo er auf jedem Beleg steht.
+  if (!open) return <div />;
   const asked = new Map(d.quotes.map((q) => [q.party_object_id, q]));
   const free = (d.allowed ?? []).length === 0;
   const canAsk = may(d, 'ask');
@@ -1084,7 +1106,16 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
         // Reihe sind mittig zentriert genau dann versetzt, wenn man sie nebeneinander
         // liest (gemessen: 2,75 px). Eine Zeile Text hat eine **Grundlinie**, und darauf
         // sitzen beide – dieselbe Ausrichtung wie überall sonst auf diesem Beleg.
-        <div className="flex items-baseline" style={{ gap: 10, flex: 'none' }}>
+        // ►►► **Und die Gruppe darf umbrechen** – gemessen, nicht vermutet. ◄◄◄ Sie stand
+        // auf `flex: none`, also auf ihrer vollen Inhaltsbreite; bei einem langen
+        // Satznamen («0.00 % · Steuerfreie Ausfuhrlieferung», seit dem Nullsatz mit zwei
+        // Tatbeständen) sind das rund 300 px, und in einer 320-px-Spur lief die Zeile um
+        // **13,8 px** über. Mit `0 1 auto` + Umbruch fällt der Preis unter seinen Satz,
+        // statt aus der Karte zu ragen – und beide bleiben lesbar. *Ein Kürzen wäre die
+        // andere Lösung und die falsche: der Rechtsgrund eines Nullsatzes gehört auf den
+        // Beleg, nicht in einen Hover.*
+        <div className="flex flex-wrap items-baseline justify-end"
+          style={{ gap: '2px 10px', flex: '0 1 auto', minWidth: 0 }}>
           {/* ►►► **Der Steuersatz nennt seinen Prozentsatz** (Testnotiz #932). ◄◄◄
               *«‹Normalsatz›, ‹Reduziert› sind leider zu wenig aussagekräftig – es sollte
               immer noch der entsprechende Prozentsatz angegeben sein.»* Beides steht
@@ -1141,7 +1172,23 @@ function vatText(label?: string | null, rate?: string | null): string {
   return name ? `${rate} % · ${name}` : `${rate} %`;
 }
 
-/** Eine Zoll-Angabe – klein, an ihrer Zeile, und änderbar, solange der Beleg offen ist. */
+/**
+ * Eine Zoll-Angabe – klein, an ihrer Zeile, und änderbar, solange der Beleg offen ist.
+ *
+ * ►►► **Die Beschriftung steht davor — beim Eingeben wie im fertigen Beleg** (#982). ◄◄◄
+ *
+ * *«Im fertigen Beleg steht eigentlich immer ‹Zolltarif xy, Ursprung xy› – hier bei der
+ * Eingabe steht einfach nur das Eingabefeld, aber der entsprechende Text nicht davor. Das
+ * ist eine unerlaubte Abweichung von unserer Logik.»*
+ *
+ * Und das stimmt: der Name stand als **Platzhalter** im Feld, also an genau der Stelle,
+ * an der eine Oberfläche sagt «hier ist nichts» – und er verschwand beim ersten Zeichen.
+ * Die ganze Regel dieses Belegs lautet *der gedruckte Wert IST das Bedienelement* (#922):
+ * was man ändert, muss aussehen wie das, was gedruckt wird. Hier war es andersherum.
+ *
+ * Beschriftung und Wert sind darum **eine** Zeile in beiden Zuständen – dieselbe Grösse,
+ * dieselbe Farbe; nur der Wert trägt die Auszeichnung, denn nur er ist änderbar.
+ */
 function Customs({ label, value, on, width, busy, onChange, onDone }: {
   label: string; value: string; on: boolean; width: number; busy: boolean;
   onChange: (v: string) => void; onDone: () => void;
@@ -1152,14 +1199,16 @@ function Customs({ label, value, on, width, busy, onChange, onDone }: {
       : null;
   }
   return (
-    <Editable title={label} missing={value.trim() === ''}>
-      <input value={value} disabled={busy} placeholder={label}
-        aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onDone}
-        onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
-        style={{ ...DOC_FIELD, width, fontSize: 11.5, color: 'var(--fg-2)' }} />
-    </Editable>
+    <span className="inline-flex items-baseline" style={{ gap: 4, minWidth: 0 }}>
+      <span style={{ fontSize: 11.5, color: 'var(--fg-3)', flex: 'none' }}>{label}</span>
+      <Editable title={label} missing={value.trim() === ''}>
+        <input value={value} disabled={busy} aria-label={label}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
+          style={{ ...DOC_FIELD, width, fontSize: 11.5, color: 'var(--fg-2)' }} />
+      </Editable>
+    </span>
   );
 }
 
@@ -1707,20 +1756,55 @@ const WAIT_TRIES = 10;
 const WAIT_STEP = 1500;
 
 /**
- * ►►► **Rechnung und Zahlung — und sie hängen an `can`, nicht an «ist dran».** ◄◄◄
+ * ►►► **ZWEI FÄCHER, EINE HANDLUNG, EINE WAHL** — der Umbau von «Rechnung & Zahlung». ◄◄◄
  *
- * Ein Zahlungsziel läuft weiter, wenn die Ware längst draussen ist: der Dienst erlaubt
- * Rechnung und Zahlung auch an einem **abgeschlossenen** Auftrag. Eine erfundene Sperre
- * («nur wenn das Modul aktiv ist») hätte keinen Schlüssel – dieselbe Fehlerform wie damals
- * bei «nicht bestanden».
+ * *«Zu komplex, zu unstrukturiert, zu wirr, zu viele Optionen, die sich gegeneinander
+ * stören, kannibalisieren.»*
+ *
+ * Gezählt, nicht vermutet: an einer Rechnung standen bis zu **sechs** gleich aussehende
+ * Knöpfe, und sie bedeuteten **drei** verschiedene Dinge – eine Buchung («Rechnung
+ * erfassen»), eine Korrektur («Stornieren») und eine blosse **Auskunft** («Überweisen»
+ * zeigt IBAN und QR und bucht gar nichts). Dazu standen **zwei Rollen** in einer Zeile:
+ * «Rechnung erfassen» ist unsere Handlung, «Jetzt bezahlen» die des Zahlenden – jeder sah
+ * Knöpfe, die ihm nicht gehören. Und einen **Fortschritt** gab es nicht, obwohl es drei
+ * klare Zustände gibt (nichts gefordert → gefordert → bezahlt).
+ *
+ * Drei Regeln räumen das auf:
+ *
+ * **(1) Zwei Fächer statt einer Knopfreihe.** Es sind nur zwei Fragen, und jede gehört
+ * genau einer Seite: **Fordern** – *was schuldet uns jemand?* (uns: stellen, stornieren,
+ * gutschreiben) – und **Begleichen** – *wie kommt das Geld hierher?* (dem Zahlenden: bar,
+ * Überweisung, Karte). Beide sind ein ganz gewöhnlicher `ModuleSection` und tragen damit
+ * denselben Fortschritts-Punkt wie jeder andere Abschnitt des Belegs. Dazwischen die
+ * Zeile «Offen».
+ *
+ * **(2) Genau eine Handlung bringt weiter** – unten, breit, als `StageAction`: *Rechnung
+ * stellen* → *Zahlung erfassen* → nichts mehr. Alles andere ist eine **Korrektur** und
+ * steht klein bei der Zeile, die sie korrigiert; nie im selben Rang.
+ *
+ * **(3) Der Weg zum Geld ist eine Wahl, kein Verb** – ein Schieber statt dreier Knöpfe.
+ * Was dahinter passiert, ist verschieden (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen),
+ * die **Frage** ist dieselbe. Welche Antworten es gibt, sagt der Server (`ways`) – aus
+ * `can`, der Liste, die ohnehin Auskunft **und** Tor ist.
+ *
+ * **Und alles hängt weiter an `can`, nicht an «ist dran»**: ein Zahlungsziel läuft weiter,
+ * wenn die Ware längst draussen ist. Eine erfundene Sperre hätte keinen Schlüssel –
+ * dieselbe Fehlerform wie damals bei «nicht bestanden».
  */
 function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   d: Filled; busy: boolean; orderObjectId: number; stepId: number;
   onAction: Send; onPaid: () => void;
 }) {
   const [form, setForm] = useState<{ kind: 'charge' | 'pay'; preset: string;
-                                     chargeId?: number | null } | null>(null);
-  const [panel, setPanel] = useState<{ kind: 'pay' | 'transfer'; entry: number } | null>(null);
+                                     method?: string } | null>(null);
+  const [card, setCard] = useState(false);
+  // **Die gewählte Antwort ist eine ABLEITUNG, kein zweiter Zustand**: fällt der Weg weg
+  // (eine Rechnung ist bezahlt, ein Dienst nicht mehr eingerichtet), steht sie auf dem
+  // ersten, den es noch gibt. Ein Zustand, der nachgezogen werden muss, wäre ein Effekt
+  // und die Stelle, an der ein Knopf auf einen Weg zeigt, den der Server nicht mehr führt.
+  const [picked, setPicked] = useState<string | null>(null);
+  const ways = d.ways ?? [];
+  const way = ways.find((w) => w.key === picked) ?? ways[0] ?? null;
   const dec = d.currency_decimals ?? 2;
   const code = d.currency;
 
@@ -1738,74 +1822,118 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
 
   const charges = d.entries.filter((e) => e.kind === 'charge');
   const payments = d.entries.filter((e) => e.kind === 'payment');
+  const settle = d.settle_charge ?? null;
+  const canCharge = may(d, 'charge') && !d.credit_only;
+
+  // ►►► **Genau EINE Handlung bringt weiter** (Regel 2) – und welche, sagen die Daten:
+  // erst fordern, dann kassieren. Alles andere ist eine Korrektur und steht bei ihrer
+  // Zeile. Ein Rang, den die Oberfläche selbst vergäbe, wäre die zweite Regel neben `can`.
+  const forward = canCharge
+    ? { icon: FileText, label: d.charge_word,
+        run: () => setForm({ kind: 'charge', preset: d.next_charge ?? '' }) }
+    : way?.action === 'pay' && way.verb
+      ? { icon: Wallet, label: way.verb,
+          run: () => setForm({ kind: 'pay', preset: d.next_payment ?? '',
+                               method: way.key }) }
+      : way?.action === 'pay_online'
+        ? { icon: CreditCard, label: way.verb ?? d.pay_online_word,
+            run: () => setCard(true) }
+        : null;
 
   return (
-    <ModuleSection title={d.money_label || 'Rechnung & Zahlung'}
-      state={charges.length ? 'active' : 'ahead'}>
-      <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
-        {charges.length === 0 && (
-          <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Nichts berechnet</span>
-        )}
-        {charges.map((e) => (
-          <Fragment key={e.id}>
-            <EntryRow d={d} e={e} busy={busy} panel={panel}
-              onAction={onAction}
-              onPanel={(kind) => setPanel(
-                panel && panel.entry === e.id && panel.kind === kind
-                  ? null : { kind, entry: e.id })}
-              onPay={() => setForm({ kind: 'pay', preset: e.open ?? '',
-                                     chargeId: e.id })}
-              orderObjectId={orderObjectId} stepId={stepId}
-              onPaid={() => { setPanel(null); setWaiting(WAIT_TRIES); onPaid(); }} />
-            {payments.filter((p) => p.charge_id === e.id).map((p) => (
-              <EntryRow key={p.id} d={d} e={p} sub busy={busy} panel={null}
-                onAction={onAction} onPanel={() => {}} onPay={() => {}}
-                orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
-            ))}
-          </Fragment>
-        ))}
-        {payments.filter((p) => p.charge_id == null).map((p) => (
-          <EntryRow key={p.id} d={d} e={p} busy={busy} panel={null}
-            onAction={onAction} onPanel={() => {}} onPay={() => {}}
-            orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
-        ))}
-        {form && (
+    <>
+      {/* ►►► **Fach 1 — was schuldet uns jemand?** ◄◄◄ Es gehört uns: stellen,
+          stornieren, gutschreiben. Der Punkt sagt, wo man steht – *aktiv*, solange nichts
+          gefordert ist, *vorbei*, sobald die Forderung dasteht. */}
+      <ModuleSection title={d.claim_title || 'Fordern'}
+        state={charges.length ? 'past' : 'active'}>
+        <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
+          {charges.length === 0 && (
+            <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Nichts berechnet</span>
+          )}
+          {charges.map((e) => (
+            <EntryRow key={e.id} d={d} e={e} busy={busy} onAction={onAction}
+              orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
+          ))}
+        </div>
+      </ModuleSection>
+
+      {/* ►►► **Fach 2 — wie kommt das Geld hierher?** ◄◄◄ Es gehört dem Zahlenden. Der
+          Weg ist eine **Wahl** (Regel 3), und was er zeigt, sagt er selbst: eine Auskunft
+          (Einzahlungsschein) oder ein Formular (Karte). Bei genau einer Antwort gibt es
+          nichts zu wählen – dann steht der Schieber nicht da (dieselbe Regel wie #793). */}
+      <ModuleSection title={d.settle_title || 'Begleichen'}
+        state={!charges.length ? 'ahead' : (settle == null ? 'past' : 'active')}>
+        <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
+          {ways.length === 0 && payments.length === 0 && (
+            <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
+              {charges.length ? 'Nichts mehr offen' : 'Noch nichts zu begleichen'}
+            </span>
+          )}
+          {ways.length > 1 && way && (
+            <Segmented label={d.method_label} value={way.key}
+              onChange={(v) => { setPicked(v); setCard(false); }}
+              options={ways.map((w) => ({ value: w.key, label: w.label }))} />
+          )}
+          {/* **Die Auskunft kommt mit dem Weg** – nicht aus einem Vergleich auf
+              «transfer»: ein Schlüssel-Vergleich hier wäre der Spiegel über die
+              API-Grenze, der beim nächsten Weg still falsch wird. */}
+          {way?.info && settle != null && (
+            <Transfer orderObjectId={orderObjectId} stepId={stepId} entryId={settle} />
+          )}
+          {card && settle != null && (
+            <PayOnline orderObjectId={orderObjectId} stepId={stepId} chargeId={settle}
+              prepare={api.prepareVoucherPayment} label={d.pay_online_word}
+              onDone={() => { setCard(false); setWaiting(WAIT_TRIES); onPaid(); }}
+              onClose={() => setCard(false)} />
+          )}
+          {/* ►►► **Die Zahlungen stehen im Fach, in das sie gehören.** ◄◄◄ Bis #861
+              standen sie eingerückt unter ihrer Rechnung – die Antwort auf «welche
+              Zahlung gehört zu welcher?» in einer flachen Gesamtliste. Sie steht jetzt
+              **an der Rechnung selbst**: deren Zeile sagt, wie viel von *ihr* offen ist
+              (`invoiceState` aus `e.open`) – eine Aussage statt einer Gruppierung. Und je
+              Modul lebt ohnehin höchstens **eine** offene Forderung (#866). */}
+          {payments.map((p) => (
+            <EntryRow key={p.id} d={d} e={p} busy={busy} onAction={onAction}
+              orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
+          ))}
+        </div>
+      </ModuleSection>
+
+      {/* **Die Zeile «Offen» verbindet die beiden Fächer** – das Ergebnis von *gefordert
+          minus beglichen*, und die einzige Zahl, die man abschreibt. */}
+      {d.open != null && charges.length > 0 && (
+        <div className="flex items-baseline" style={{
+          gap: 10, marginTop: 14, paddingTop: 8, borderTop: '1px solid var(--border-1)',
+        }}>
+          <span style={{ ...MICRO_LABEL, flex: 1 }}>{d.open_word}</span>
+          <span style={{ font: '700 14px var(--font-body)',
+                         fontVariantNumeric: 'tabular-nums',
+                         color: Number(d.open) > 0 ? 'var(--fg-1)' : 'var(--ok)' }}>
+            {formatAmount(d.open, dec)}
+          </span>
+          <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}>
+            {code}
+          </span>
+        </div>
+      )}
+
+      {/* **Das Formular tritt an die Stelle des Knopfes** – zwei Handlungen gleichzeitig
+          anzubieten wäre wieder die Reihe, die diese Runde abbaut. */}
+      {form ? (
+        <div style={{ marginTop: 12 }}>
           <Entry kind={form.kind} d={d} busy={busy} preset={form.preset}
-            chargeId={form.chargeId ?? null}
+            method={form.method ?? null} chargeId={settle}
             onCancel={() => setForm(null)}
             onSubmit={(body) => { setForm(null); void onAction(body); }} />
-        )}
-        <Actions>
-          {may(d, 'charge') && !d.credit_only && (
-            <ActionButton icon={FileText} label={d.charge_word} tone="primary"
-              height={ACT_H.inline} disabled={busy}
-              onClick={() => setForm({ kind: 'charge', preset: d.next_charge ?? '' })} />
-          )}
-          {/* ►►► **«Zahlung erfassen» gibt es nur AN der Rechnung** (Testnotiz #958). ◄◄◄
-              *«Warum gibt es hier zweimal den Button ‹Zahlung erfassen›? Das ist ein
-              absolutes No-Go.»* – Er stand hier **und** an jeder Rechnungszeile, und das
-              war kein Gestaltungsfehler, sondern eine offene Frage: der hier wusste nicht,
-              **welche** Rechnung gemeint ist, und wählte still die älteste offene. Ein
-              Knopf **an** der Zeile beantwortet sie, indem er sie nicht stellt (#859).
-              Geblieben ist hier, was dem **Vorgang** gilt: die nächste Forderung. */}
-        </Actions>
-        {d.open != null && charges.length > 0 && (
-          <div className="flex items-baseline" style={{
-            gap: 10, paddingTop: 8, borderTop: '1px solid var(--border-1)',
-          }}>
-            <span style={{ ...MICRO_LABEL, flex: 1 }}>{d.open_word}</span>
-            <span style={{ font: '700 14px var(--font-body)',
-                           fontVariantNumeric: 'tabular-nums',
-                           color: Number(d.open) > 0 ? 'var(--fg-1)' : 'var(--ok)' }}>
-              {formatAmount(d.open, dec)}
-            </span>
-            <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}>
-              {code}
-            </span>
-          </div>
-        )}
-      </div>
-    </ModuleSection>
+        </div>
+      ) : forward && (
+        <div style={{ marginTop: 12 }}>
+          <StageAction icon={forward.icon} label={forward.label} disabled={busy}
+            onClick={forward.run} />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1815,12 +1943,16 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
  * ►►► **EIN Datum je Zeile** (#890). ◄◄◄ «6.9.2026 · fällig 6.9.2026» waren zwei Zahlen,
  * die man vergleichen muss, um die eine Aussage zu bekommen. Hier steht «fällig in 30
  * Tagen» bzw. «überfällig seit 17 Tagen»; die beiden Daten stehen im Hover.
+ *
+ * ►►► **Und hier stehen nur noch KORREKTUREN** (Regel 2). ◄◄◄ Bezahlen, überweisen und
+ * online bezahlen sind Wege zum Geld und stehen im Fach «Begleichen» – als **eine** Wahl,
+ * nicht als drei Knöpfe, die neben einem Storno im selben Rang stehen. Was bleibt, ist
+ * das, was *diese* Zeile korrigiert: die Gegenbuchung an einer Rechnung, die zweite
+ * Zahlung an einer Zahlung.
  */
-function EntryRow({ d, e, sub, busy, panel, onAction, onPanel, onPay,
-                    orderObjectId, stepId, onPaid }: {
-  d: Filled; e: Filled['entries'][number]; sub?: boolean; busy: boolean;
-  panel: { kind: 'pay' | 'transfer'; entry: number } | null;
-  onAction: Send; onPanel: (kind: 'pay' | 'transfer') => void; onPay: () => void;
+function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
+  d: Filled; e: Filled['entries'][number]; busy: boolean;
+  onAction: Send;
   orderObjectId: number; stepId: number; onPaid: () => void;
 }) {
   const dec = d.currency_decimals ?? 2;
@@ -1834,8 +1966,7 @@ function EntryRow({ d, e, sub, busy, panel, onAction, onPanel, onPay,
 
   return (
     <div className="flex flex-col" style={{
-      gap: 6, paddingLeft: sub ? 18 : 0, minWidth: 0,
-      opacity: e.reversed ? 0.55 : 1,
+      gap: 6, minWidth: 0, opacity: e.reversed ? 0.55 : 1,
     }}>
       <div className="flex flex-wrap items-baseline" style={{ gap: '3px 10px', minWidth: 0 }}>
         {state && (
@@ -1871,18 +2002,6 @@ function EntryRow({ d, e, sub, busy, panel, onAction, onPanel, onPay,
             tone="danger" disabled={busy}
             onClick={() => void onAction({ action: 'reverse', entry: e.id })} />
         )}
-        {charge && !e.reversed && may(d, 'pay') && Number(e.open ?? 0) > 0 && (
-          <ActionButton icon={Wallet} label={d.payment_word} disabled={busy}
-            onClick={onPay} />
-        )}
-        {e.transferable && (
-          <ActionButton icon={Landmark} label={d.transfer_word ?? 'Überweisen'}
-            disabled={busy} onClick={() => onPanel('transfer')} />
-        )}
-        {charge && !e.reversed && may(d, 'pay_online') && Number(e.open ?? 0) > 0 && (
-          <ActionButton icon={CreditCard} label={d.pay_online_word} tone="primary"
-            disabled={busy} onClick={() => onPanel('pay')} />
-        )}
         {e.refundable && (
           <ActionButton icon={Undo2} label={d.refund_online_word ?? 'Online erstatten'}
             disabled={busy}
@@ -1898,14 +2017,6 @@ function EntryRow({ d, e, sub, busy, panel, onAction, onPanel, onPay,
             })} />
         )}
       </Actions>
-      {panel?.entry === e.id && panel.kind === 'pay' && (
-        <PayOnline orderObjectId={orderObjectId} stepId={stepId} chargeId={e.id}
-          prepare={api.prepareVoucherPayment} label={d.pay_online_word}
-          onDone={onPaid} onClose={() => onPanel('pay')} />
-      )}
-      {panel?.entry === e.id && panel.kind === 'transfer' && (
-        <Transfer orderObjectId={orderObjectId} stepId={stepId} entryId={e.id} />
-      )}
     </div>
   );
 }
@@ -1978,18 +2089,28 @@ function Transfer({ orderObjectId, stepId, entryId }: {
 }
 
 /**
- * **Eine Geld-Zeile erfassen** – Betrag, und wo es etwas zu wählen gibt, die Zahlungsart.
+ * **Eine Geld-Zeile erfassen** – Betrag, und was sonst noch niemand gesagt hat.
  *
  * Die Vorgabe kommt vom Server (`next_charge` ↔ `next_payment`) und ist **nie negativ**:
  * überberechnet ist eine gültige Aussage, aber kein Vorschlag in einem Eingabefeld.
+ *
+ * ►►► **Die Zahlungsart fragt es NICHT mehr** (Regel 3). ◄◄◄ Sie ist die Wahl im Fach
+ * «Begleichen» und damit längst getroffen, bevor dieses Formular aufgeht – ein zweites
+ * Bedienelement dafür wäre die zweite Aussage über dieselbe Sache, und die getippte
+ * gewänne auch dann, wenn sie der Wahl widerspricht. Der Schieber selbst ist geblieben,
+ * er steht nur dort, wo die Frage entsteht (#967).
+ *
+ * **Und welche Rechnung gemeint ist, fragt es ebenso wenig** (#859/#866): je Modul lebt
+ * höchstens eine offene, und der Server nennt sie (`settle_charge`).
  */
-function Entry({ kind, d, busy, preset, chargeId, onCancel, onSubmit }: {
+function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: {
   kind: 'charge' | 'pay'; d: Filled; busy: boolean; preset: string;
+  /** Der im Fach «Begleichen» gewählte Weg – bei einer Forderung `null`. */
+  method: string | null;
   chargeId: number | null;
   onCancel: () => void; onSubmit: (body: Action) => void;
 }) {
   const [amount, setAmount] = useState(preset);
-  const [method, setMethod] = useState((d.methods ?? [])[0]?.key ?? '');
   const [reference, setReference] = useState('');
   const [vat, setVat] = useState(d.vat_rate ?? 'normal');
   // **Der Satz wird nur gefragt, wo es keine bepreisten Positionen gibt** – sonst kommt
@@ -2010,17 +2131,6 @@ function Entry({ kind, d, busy, preset, chargeId, onCancel, onSubmit }: {
             style={{ width: 120, textAlign: 'right',
                      fontVariantNumeric: 'tabular-nums' }} />
         </div>
-        {/* ►►► **Wie bezahlt wurde, ist ein SCHIEBER** (Testnotiz #967). ◄◄◄
-            *«Hier soll wieder der Sliderbutton zum Einsatz kommen.»* – Und die Regel
-            dahinter ist die des Hauses: ein Auswahlfeld ist die Form für eine **lange**
-            Aufzählung; hier sind es **zwei** Werte (bar · Überweisung – die Karte tippt
-            niemand ab, sie kommt über den Webhook). Zwei Werte hinter einem Klick zu
-            verstecken ist ein Klick für eine Entscheidung, die man sehen könnte.
-            `Segmented` bringt seine eigene Beschriftung mit. */}
-        {kind === 'pay' && (d.methods ?? []).length > 0 && (
-          <Segmented label={d.method_label} value={method} onChange={setMethod}
-            options={(d.methods ?? []).map((m) => ({ value: m.key, label: m.label }))} />
-        )}
         {asksVat && (
           <div className="flex flex-col" style={{ gap: 3 }}>
             <Label>{d.vat_label}</Label>

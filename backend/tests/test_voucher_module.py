@@ -1236,9 +1236,23 @@ def test_a_recipient_carries_its_own_address():
         assert ours["address"] and ours["shipping"] == ours["address"], (
             "Der Leistungserbringer nennt seine Anschriften nicht (g)."
         )
+        # ►►► **Und die zweite Beschriftung sagt die RICHTUNG** (Testnotiz #979). ◄◄◄
+        #
+        # *«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse
+        # oder so?»* – Ja: «Lieferadresse» heisst *wohin geliefert wird*, und an der
+        # eigenen Anschrift des Leistungserbringers stand damit, man möge **ihm** dorthin
+        # liefern. Hier ist es eine **Einnahme**, wir sind also der Leistungserbringer –
+        # bei uns geht die Ware ab (*Versandadresse*), beim Empfänger kommt sie an.
+        #
+        # *Der Wächter verlangte hier zweimal `SHIPPING_LABEL` – also die Form der
+        # damaligen Lösung, in der beide Seiten dasselbe sagten.*
         assert (ours["address_label"], ours["shipping_label"]) == (
-            vo.BILLING_LABEL, vo.SHIPPING_LABEL), (
-            "Unsere Seite trägt keine Beschriftungen (g)."
+            vo.BILLING_LABEL, vo.SHIPPING_FROM_LABEL), (
+            "Unsere Seite trägt die falschen Beschriftungen (g/#979) – wer liefert, "
+            "versendet, und «Lieferadresse» bittet ihn, an sich selbst zu liefern."
+        )
+        assert seen["supplier"]["shipping_label"] != seen["customer"]["shipping_label"], (
+            "Beide Seiten sagen dasselbe (#979)."
         )
 
         # (d) Eine abweichende Rechnungsadresse macht zwei daraus.
@@ -1558,3 +1572,195 @@ def test_how_to_order_exists_only_where_we_order():
             )
     finally:
         db.rollback(); db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DER UMBAU VON «RECHNUNG & ZAHLUNG» — zwei Fächer, eine Handlung, eine Wahl
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_invoice_is_issued_here_and_recorded_there():
+    """►►► **«Rechnung stellen» ↔ «Rechnung erfassen»** – zwei Vorgänge, zwei Wörter.◄◄◄
+
+    Bei einer **Einnahme** entsteht der Beleg hier, bekommt unsere Nummer und geht hinaus;
+    bei einer **Ausgabe** schreiben wir ab, was der Lieferant geschickt hat. Beides hiess
+    «Rechnung erfassen» – und ausgerechnet der Fall, in dem eine Rechnungsnummer vergeben
+    wird, klang nach Abtippen. **Die Zahlung wird weiterhin in beiden Richtungen
+    erfasst**: das System bucht eine Zeile, es überweist nichts.
+
+    Bug-Formen: (a) beide Richtungen sagen dasselbe; (b) das Wort steht wieder als eine
+    Konstante für beide da; (c) auch die Zahlung bekommt zwei Wörter.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+
+    assert vo.of("in").charge_verb == vo.CHARGE_ISSUE, (
+        "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
+    )
+    assert vo.of("out").charge_verb == vo.CHARGE_RECORD, (
+        "Eine fremde Rechnung wird abgeschrieben, nicht gestellt (a)."
+    )
+    assert vo.of("in").charge_verb != vo.of("out").charge_verb, (
+        "Beide Richtungen sagen dasselbe (a)."
+    )
+    assert not hasattr(vo, "CHARGE_WORD"), (
+        "Das Wort steht wieder als eine Konstante für beide Richtungen da (b)."
+    )
+    # (c) **Nur die Forderung ist verschieden** – ein zweites Feld für die Zahlung wäre
+    # ein Wert, den jemand einzeln falsch setzen kann.
+    assert not any("payment" in f for f in vo.Direction.__dataclass_fields__), (
+        "Auch die Zahlung hat ein Wort je Richtung bekommen (c)."
+    )
+
+
+def test_the_ways_to_the_money_come_from_can_and_say_what_they_do():
+    """►►► **Der Weg zum Geld ist eine Wahl – und jeder Weg sagt, was er auslöst.** ◄◄◄
+
+    Bar · Überweisung · Karte sind drei Antworten auf **eine** Frage; was dahinter
+    passiert, ist verschieden (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen). Angeboten
+    wird nur, was dieser Betrachter darf – gelesen aus ``can``, der Liste, die ohnehin
+    Auskunft **und** Tor ist.
+
+    **Und die Gegenpartei bucht nicht**: für sie ist die Überweisung eine reine
+    *Auskunft* – ``action`` und ``verb`` bleiben leer, und damit steht bei ihr kein Knopf,
+    der nach Buchung aussieht.
+
+    Bug-Formen: (a) es gibt Wege, obwohl nichts offen ist; (b) die Gegenpartei bekommt
+    einen Buchungs-Weg; (c) ein Weg sagt nicht, ob er eine Auskunft mitbringt; (d) die
+    Liste kommt nicht aus ``can``.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _scene(db, quantity=2)
+        staff = _party(db, "Personal", "admin")
+        _price(db, order, step, row, price="100.00")
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"lead_days": 0, "payment_days": 30}, actor=staff)
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id}, actor=staff)
+        db.flush()
+
+        # (a) **Ohne offene Forderung gibt es nichts zu begleichen.**
+        empty = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert empty["ways"] == [] and empty["settle_charge"] is None, (
+            "Es gibt Wege, obwohl nichts gefordert ist (a) – dann zeigt die Karte eine "
+            "Wahl, die ins Leere führt."
+        )
+
+        svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
+        db.flush()
+        charge = svc.live_charge(db, row)
+        assert charge is not None
+
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert seen["settle_charge"] == charge.id, (
+            "Der Beleg nennt die Rechnung nicht, die begleichen werden soll."
+        )
+        ours = {w["key"]: w for w in seen["ways"]}
+        assert vo.CASH in ours and vo.TRANSFER in ours, (
+            f"Das Personal kann nicht bar und nicht per Überweisung buchen: {list(ours)}."
+        )
+        assert ours[vo.CASH]["action"] == "pay" and ours[vo.CASH]["verb"], (
+            "Ein Weg sagt nicht, was er auslöst."
+        )
+        # (c) **Die Auskunft ist eine Eigenschaft des Weges** – die Oberfläche vergleicht
+        # sonst den Schlüssel «transfer», und das ist der Spiegel über die API-Grenze.
+        assert ours[vo.TRANSFER]["info"] is True, (
+            "Die Überweisung bringt keine Auskunft mit (c)."
+        )
+        assert ours[vo.CASH]["info"] is False, "Bar bringt eine Auskunft mit (c)."
+
+        # (b) **Die Gegenpartei sieht die Überweisung – und bucht nicht.**
+        theirs = {w["key"]: w for w in
+                  svc.embed_data(db, order=order, step=step,
+                                 viewer=who[0])["ways"]}
+        assert vo.CASH not in theirs, (
+            "Die Gegenpartei bekommt einen Buchungs-Weg (b) – eine Buchung ist unsere "
+            "Aussage über unser Konto."
+        )
+        assert theirs[vo.TRANSFER]["action"] is None, (
+            "Die Überweisung ist für sie eine Buchung (b) statt einer Auskunft."
+        )
+        assert theirs[vo.TRANSFER]["info"] is True, (
+            "Sie sieht die Bankverbindung nicht – dann kann sie gar nicht überweisen."
+        )
+        # (d) **Die Liste kommt aus `can`** – zwei Massstäbe wären ein Knopf, der
+        # bereitsteht und dann scheitert.
+        for key, way in ours.items():
+            if way["action"]:
+                assert way["action"] in seen["can"], (
+                    f"«{key}» bietet «{way['action']}» an, was `can` nicht führt (d)."
+                )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_settle_charge_is_named_by_the_service_not_guessed():
+    """►►► **Welche Rechnung begleicht man?** – der Dienst sagt es (#859/#866). ◄◄◄
+
+    Je Modul lebt höchstens **eine** offene Forderung, die Frage hat damit genau eine
+    Antwort. Sie in der Oberfläche zu suchen wäre eine zweite Regel neben ``open_charges``
+    – und genau daraus kam #859 («kassiert wurde immer die älteste offene, egal an welchem
+    Knopf jemand geklickt hat»).
+
+    Bug-Formen: (a) eine stornierte Rechnung wird zum Ziel; (b) eine bezahlte bleibt es;
+    (c) eine Gegenpartei ohne Zuschlag bekommt eine genannt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        one = _party(db, "Muster AG", "customer")
+        two = _party(db, "Zweit AG", "customer")
+        order, step, row, _who, _art = _scene(db, quantity=2, parties=[one, two])
+        staff = _party(db, "Personal", "admin")
+        _price(db, order, step, row, price="100.00")
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [one.object_id, two.object_id],
+                           "lead_days": 0, "payment_days": 30}, actor=staff)
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": one.object_id}, actor=staff)
+        svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
+        db.flush()
+        first = svc.live_charge(db, row)
+        assert svc.embed_data(db, order=order, step=step,
+                              viewer=staff)["settle_charge"] == first.id
+
+        # (c) **Wer den Zuschlag nicht hat, sieht nichts** – auch keine Rechnungsnummer.
+        assert svc.embed_data(db, order=order, step=step,
+                              viewer=two)["settle_charge"] is None, (
+            "Ein unterlegener Angefragter bekommt eine Rechnung genannt (c)."
+        )
+
+        # (a) **Storniert ist kein Ziel mehr.**
+        svc.apply(db, order=order, step=step, action="reverse",
+                  payload={"entry": first.id}, actor=staff)
+        db.flush()
+        assert svc.embed_data(db, order=order, step=step,
+                              viewer=staff)["settle_charge"] is None, (
+            "Eine stornierte Rechnung bleibt das Ziel (a) – auf sie zahlt niemand."
+        )
+
+        # (b) **Bezahlt ist kein Ziel mehr.**
+        svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
+        db.flush()
+        second = svc.live_charge(db, row)
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert seen["settle_charge"] == second.id
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": seen["open"], "method": "cash"}, actor=staff)
+        db.flush()
+        done = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert done["settle_charge"] is None and done["ways"] == [], (
+            "Eine bezahlte Rechnung bleibt das Ziel (b) – dann bietet die Karte an, "
+            "etwas zu begleichen, das beglichen ist."
+        )
+    finally:
+        db.rollback()
+        db.close()

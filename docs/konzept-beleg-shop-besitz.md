@@ -139,6 +139,12 @@ einem Datum, sonst nichts.*
 
 # Frage 2 · Rechnung & Zahlung neu bauen
 
+> **Stand: gebaut** (September 2026). Die drei Regeln unten sind umgesetzt – zwei Fächer,
+> genau eine Handlung, ein Schieber für den Weg zum Geld –, dazu die beiden
+> Wortkorrekturen. **Nicht gebaut und ausdrücklich offen**: die *Automatisierung* und die
+> *Zustellung* (die beiden letzten Abschnitte dieser Frage). Details in `PROCESS_CORE.md`
+> §9.15i.
+
 ## Warum es sich wirr anfühlt — vier Gründe, am Code nachgezählt
 
 ### 1. Sechs Knöpfe, die gleich aussehen, aber drei verschiedene Dinge tun
@@ -295,6 +301,8 @@ Derselbe Knopf wie beim Storno; wie er heisst, entscheidet die Zahl (bezahlt ↔
 
 ## Automatisierung — ohne Flexibilität zu verlieren
 
+> **Nicht gebaut.** Bewusst zurückgestellt – hier steht, was möglich wäre.
+
 Die Regel des Hauses lautet: **das System schlägt vor, der Mensch entscheidet.**
 Automatik heisst hier *vorausfüllen*, nie *selbst ausführen*.
 
@@ -317,6 +325,8 @@ Entscheidung – Anzahlung, Teillieferung, Kulanz. Eine Automatik müsste eine d
 festlegen und wäre bei allen anderen falsch.
 
 ## Eine Lücke, die benannt gehört: die Zustellung
+
+> **Nicht gebaut.** Bewusst zurückgestellt – hier steht, was fehlt.
 
 Eine Rechnung, die wir stellen, muss beim Empfänger **ankommen**. Heute sieht er sie in
 seinem Zugang zum ERP. Ein PDF oder eine E-Mail gibt es nicht (E-Mail ist im System

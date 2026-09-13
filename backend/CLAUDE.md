@@ -1024,3 +1024,69 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > schon sagen. Eine Auflösung ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau
 > abweicht. **`label_of` bleibt** – eine Fehlermeldung über die Stufe muss die Stufe nennen
 > dürfen.
+
+> ►►► **ZWEI FÄCHER, EINE HANDLUNG, EINE WAHL — der Umbau von «Rechnung & Zahlung»**
+> (`docs/konzept-beleg-shop-besitz.md`, PROCESS_CORE §9.15f). ◄◄◄
+> *«Irgendwie scheint mir dieser Bereich zu komplex, zu unstrukturiert, zu wirr, zu viele
+> Optionen, die sich gegeneinander stören, kannibalisieren.»*
+> **Gezählt, nicht vermutet.** An einer Rechnung standen bis zu **sechs** gleich
+> aussehende Knöpfe mit **drei** Bedeutungen: eine Buchung («Rechnung erfassen»), eine
+> Korrektur («Stornieren») und eine blosse **Auskunft** («Überweisen» zeigt IBAN und QR
+> und bucht gar nichts). Dazu standen **zwei Rollen** in einer Zeile – «Rechnung erfassen»
+> ist unsere Handlung, «Jetzt bezahlen» die des Zahlenden –, und einen **Fortschritt** gab
+> es nicht, obwohl es drei klare Zustände gibt (nichts gefordert → gefordert → bezahlt).
+> **(1) Zwei Fächer statt einer Knopfreihe** (`vo.CLAIM_TITLE`/`SETTLE_TITLE`): es sind
+> zwei Fragen, und jede gehört genau einer Seite – **Fordern** (*was schuldet uns jemand?*
+> – uns: stellen, stornieren, gutschreiben) und **Begleichen** (*wie kommt das Geld
+> hierher?* – dem Zahlenden). Beide sind ein gewöhnlicher `ModuleSection` und tragen damit
+> denselben Fortschritts-Punkt wie jeder andere Abschnitt. Der gemeinsame Titel
+> «Rechnung & Zahlung» ist **entfallen** – er fasste zwei Fragen zu einer zusammen.
+> **(2) Genau eine Handlung bringt weiter** – unten, breit, als `StageAction`: *Rechnung
+> stellen* → *Zahlung erfassen* → nichts mehr. Alles andere ist eine **Korrektur** und
+> steht klein bei der Zeile, die sie korrigiert. Die Ausführungsstelle leitet den Rang aus
+> `can` + `credit_only` ab; ein Rang, den sie selbst vergäbe, wäre die zweite Regel.
+> **(3) Der Weg zum Geld ist eine WAHL, kein Verb** (`voucher._ways` →
+> `VoucherEmbed.ways`): bar · Überweisung · Karte sind drei Antworten auf **eine** Frage.
+> Was dahinter passiert, ist verschieden (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen) –
+> die Frage ist dieselbe. **Jeder Weg sagt selbst, was er auslöst** (`action`/`verb`) und
+> **ob er eine Auskunft mitbringt** (`info`): beides leer heisst *reine Auskunft*, und
+> genau so sieht die Gegenpartei die Überweisung – dort steht kein Knopf, der nach Buchung
+> aussieht. Angeboten wird nur, was `can` hergibt; ein Schlüssel-Vergleich auf «transfer»
+> in der Oberfläche wäre der Spiegel über die API-Grenze. **`methods` ist damit entfallen**
+> – es war die halbe Liste (nur die beiden Arten, die ein Mensch *erfasst*), und die Karte
+> und die Überweisungs-Auskunft standen daneben als eigene Knöpfe.
+> **Und welche Rechnung gemeint ist, sagt der Dienst** (`VoucherEmbed.settle_charge`): je
+> Modul lebt höchstens **eine** offene Forderung (#866), die Frage hat also genau eine
+> Antwort. `VoucherEntryOut.transferable` ist mitgegangen – eine Angabe je Zeile für eine
+> Frage, die einmal beantwortet wird.
+> ►►► **«Rechnung STELLEN» ↔ «Rechnung ERFASSEN»** (`Direction.charge_verb`). ◄◄◄ Bei
+> einer **Einnahme** entsteht der Beleg hier, bekommt unsere Nummer und geht hinaus; bei
+> einer **Ausgabe** schreiben wir ab, was der Lieferant geschickt hat. Beides hiess
+> «Rechnung erfassen» – und ausgerechnet der Fall, in dem eine Rechnungsnummer vergeben
+> wird, klang nach Abtippen. Die **Zahlung** wird weiterhin in beiden Richtungen
+> *erfasst*: das System bucht eine Zeile, es überweist nichts – sie bleibt eine Konstante.
+> **Bewusst nicht in dieser Runde**: die Automatisierung (Bank-Datei camt.053, Mahnliste)
+> und die **Zustellung** (PDF, E-Mail) – beides steht als benannter offener Punkt im
+> Konzept.
+>
+> ►►► **«Lieferadresse» beim Leistungserbringer war falsch** (Testnotiz #979). ◄◄◄
+> *«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse oder
+> so? Etabliere hier korrektes.»* – Richtig gesehen: «Lieferadresse» heisst *wohin
+> geliefert wird*, und an seiner eigenen Anschrift stand damit, man möge **ihm** dorthin
+> liefern – während er derjenige ist, der liefert. Von seiner Seite aus geht die Ware
+> **ab**: `vo.SHIPPING_FROM_LABEL` = **Versandadresse** (im Handel, in der Logistik und im
+> Zoll ist der *Versender* die Gegenrolle des Empfängers). **Nur diese eine Beschriftung
+> ist rollenabhängig**, und das ist Absicht: die «Rechnungsadresse» beantwortet auf beiden
+> Seiten dieselbe Frage – *welche Anschrift gilt in Rechnungssachen*. Die Rolle wird
+> **nicht** übergeben, sondern gelesen: `document_head` kennt sie als `flow.collects`,
+> `their_side` leitet sie selbst ab (`not collects`) – ein Parameter wäre eine Angabe, die
+> jeder der beiden Aufrufer einzeln falsch setzen kann.
+> Wächter: 3 neue in `tests/test_voucher_module.py`, 8 neue und 5 auf die neue Regel
+> gezogene in `test_frontend_mirrors.py` – **23 Bug-Formen gegengeprüft, jede meldet**;
+> *zwei der neuen waren dabei stumpf und liessen ihre eigene durch* (einer zählte das
+> **Wort** «Zahlung erfassen», das auch als Überschrift des Formulars dasteht – er zählt
+> jetzt die **Handlung**; einer fragte nach `{label}` innerhalb der Auszeichnung und war
+> schon durch `title={label}` erfüllt – er fragt jetzt den **Textknoten**). Vier
+> bestehende prüften die **Form** der alten Lösung (jede Handlung an ihrer Zeile · die
+> Einrückung der Zahlung · der Schieber im Formular · beide Seiten mit «Lieferadresse»)
+> und hätten die bessere Fassung verboten.

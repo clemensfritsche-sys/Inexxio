@@ -169,8 +169,24 @@ CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 #:
 #: *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls – hier steht die
 #: **Anschrift auf dem Beleg**, nicht der Transport.*
+#:
+#: ►►► **Und die zweite Beschriftung hängt an der ROLLE** (Testnotiz #979). ◄◄◄
+#:
+#: *«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse oder
+#: so? Etabliere hier korrektes.»* – Richtig gesehen: «Lieferadresse» heisst *wohin
+#: geliefert wird*, und beim **Leistungserbringer** stand damit an seiner eigenen Adresse,
+#: man möge ihm dorthin liefern – während er derjenige ist, der liefert. Von seiner Seite
+#: aus ist es die Adresse, von der die Ware **abgeht**: im Handel, in der Logistik und im
+#: Zoll heisst sie **Versandadresse** (der Versender ist die Gegenrolle des Empfängers).
+#:
+#: **Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
+#: «Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage – *welche Anschrift
+#: gilt in Rechnungssachen* (wohin sie geht ↔ von wo sie kommt) –, und sie steht so auch
+#: auf jedem gedruckten Beleg. Ein zweites Wort dafür wäre eine Unterscheidung ohne
+#: Unterschied.
 BILLING_LABEL = "Rechnungsadresse"
 SHIPPING_LABEL = "Lieferadresse"
+SHIPPING_FROM_LABEL = "Versandadresse"
 
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
@@ -201,14 +217,45 @@ def undo_word(stage: str) -> str:
     """Wie die Gegenhandlung in **dieser** Stufe heisst – die eine Auflösung."""
     return UNDO_AT.get(stage, UNDO)
 
-#: **Erfasst** wird beides – das System bucht eine Zeile, es überweist nichts.
-CHARGE_WORD = "Rechnung erfassen"
+#: ►►► **«Rechnung STELLEN» ↔ «Rechnung ERFASSEN» — zwei Vorgänge, zwei Wörter.** ◄◄◄
+#:
+#: Bis hierher hiess beides «Rechnung erfassen», und das ist kein Geschmack, sondern eine
+#: Verwechslung: bei einer **Einnahme** entsteht der Beleg **hier** und geht hinaus; bei
+#: einer **Ausgabe** schreiben wir ab, was der Lieferant uns geschickt hat. Ein Wort für
+#: beides lässt den einen Fall wie den anderen aussehen – und ausgerechnet der, in dem
+#: eine Rechnungsnummer vergeben wird, klang nach Abtippen.
+#:
+#: Es ist damit die eine Angabe der Richtung an dieser Stelle (``Direction.charge_verb``);
+#: **erfasst** wird die Zahlung weiterhin in beiden Richtungen – das System bucht eine
+#: Zeile, es überweist nichts.
+CHARGE_ISSUE = "Rechnung stellen"
+CHARGE_RECORD = "Rechnung erfassen"
 PAYMENT_WORD = "Zahlung erfassen"
 #: Und die dritte Handlung am Geld: sie **auslösen**. «Erfassen» heisst *aufschreiben, was
 #: geschehen ist*; hier geschieht es, und gebucht wird erst, wenn der Dienst es meldet.
 PAY_ONLINE_WORD = "Jetzt bezahlen"
 OPEN_WORD = "Offen"
-MONEY_LABEL = "Rechnung & Zahlung"
+
+#: ►►► **ZWEI Fächer statt einer Liste aus Knöpfen.** ◄◄◄
+#:
+#: *«Zu komplex, zu unstrukturiert, zu wirr, zu viele Optionen, die sich gegeneinander
+#: stören.»* – Gezählt: an einer Rechnung standen bis zu sechs gleich aussehende Knöpfe,
+#: und sie bedeuteten **drei** verschiedene Dinge (eine Buchung · eine Korrektur · eine
+#: blosse Auskunft). Dazu standen **zwei Rollen** in einer Zeile: «Rechnung erfassen» ist
+#: unsere Handlung, «Jetzt bezahlen» die des Zahlenden.
+#:
+#: Es sind aber nur **zwei Fragen**, und jede gehört genau einer Seite:
+#:
+#: * **Fordern** – *was schuldet uns jemand?* Gehört uns: stellen, stornieren, gutschreiben.
+#: * **Begleichen** – *wie kommt das Geld hierher?* Gehört dem Zahlenden: bar · Überweisung
+#:   · Karte.
+#:
+#: Dazwischen steht die Zeile «Offen». Wer welches Fach bedienen darf, weiss ``can``
+#: längst – es wurde bloss nicht dargestellt. Der frühere gemeinsame Titel
+#: («Rechnung & Zahlung») ist damit entfallen: er fasste zwei Fragen zu einer Überschrift
+#: zusammen, und genau daraus kam die Unordnung.
+CLAIM_TITLE = "Fordern"
+SETTLE_TITLE = "Begleichen"
 
 #: ►►► **EIN Feld stellte ZWEI Fragen – darum sind es jetzt zwei.** ◄◄◄
 #:
@@ -377,10 +424,13 @@ def assert_method(value: Any) -> Optional[str]:
 # einziges Wort wäre an der Hälfte der Belege falsch.
 STORNO_WORD = "Stornieren"
 CREDIT_WORD = "Gutschrift"
-REFUND_WORD = "Erstattung erfassen"
 REFUND_ONLINE_WORD = "Online erstatten"
-#: Die dritte Bezahlart an einer offenen Rechnung: **Angaben**, keine Buchung.
-TRANSFER_WORD = "Überweisen"
+#: ►►► **«Überweisen» und «Erstattung erfassen» sind entfallen.** ◄◄◄ Beides waren
+#: Knopf-Beschriftungen aus der Zeit, als jede Bezahlart ein eigener Knopf an der
+#: Rechnungszeile war. Die Überweisung ist seither eine **Antwort** im Fach «Begleichen»
+#: und heisst dort, wie sie in ``METHODS`` heisst; «Erstattung erfassen» hatte **keinen
+#: Leser** – erstattet wird über die gewöhnliche negative Zahlung bzw. über den Dienst.
+#: Ein Wort ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau abweicht.
 
 
 def reverse_word(paid: Decimal) -> str:
@@ -415,6 +465,11 @@ class Direction:
     ask_verb: str
     #: ►►► **Wer den Preis nennt** – ``BY_US`` ↔ ``BY_PARTY``. ◄◄◄
     quoted_by: str
+    #: ►►► **Wie die Forderung entsteht** – «Rechnung stellen» ↔ «Rechnung erfassen». ◄◄◄
+    #: Im einen Fall entsteht der Beleg hier, im anderen schreiben wir einen fremden ab.
+    #: Das ist der einzige der Geld-Wörter, der wirklich verschieden ist – die Zahlung
+    #: wird in beiden Richtungen **erfasst**, und darum steht sie als Konstante daneben.
+    charge_verb: str
     #: **Wie die Nummer einer Geld-Zeile entsteht.** ``None`` heisst «wir nummerieren» –
     #: dann gibt es kein Eingabefeld, weder an der Rechnung noch an der Zahlung.
     reference: Optional[str]
@@ -463,6 +518,8 @@ DIRECTIONS: dict[str, Direction] = {
         stage_labels={OFFER: "Offerte", AGREED: "Auftragsbestätigung"},
         ask_verb="Anbieten",
         quoted_by=BY_US,
+        # **Wir stellen sie** – sie entsteht hier, bekommt unsere Nummer und geht hinaus.
+        charge_verb=CHARGE_ISSUE,
         reference=None,
         collects=True,
         # **Wir liefern** – es gibt nichts zu bestellen, also auch keine Bestellangabe.
@@ -475,6 +532,8 @@ DIRECTIONS: dict[str, Direction] = {
         stage_labels={OFFER: "Anfrage", AGREED: "Bestellung"},
         ask_verb="Anfragen",
         quoted_by=BY_PARTY,
+        # **Seine Rechnung schreiben wir ab** – der Beleg entsteht bei ihm.
+        charge_verb=CHARGE_RECORD,
         # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
         reference=PARTY_REFERENCE,
         collects=False,

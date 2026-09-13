@@ -9200,9 +9200,14 @@
             "title": "Quotes Title",
             "default": ""
           },
-          "money_label": {
+          "claim_title": {
             "type": "string",
-            "title": "Money Label",
+            "title": "Claim Title",
+            "default": ""
+          },
+          "settle_title": {
+            "type": "string",
+            "title": "Settle Title",
             "default": ""
           },
           "task_label": {
@@ -9421,16 +9426,6 @@
             "title": "Open Word",
             "default": "Offen"
           },
-          "transfer_word": {
-            "type": "string",
-            "title": "Transfer Word",
-            "default": ""
-          },
-          "refund_word": {
-            "type": "string",
-            "title": "Refund Word",
-            "default": ""
-          },
           "refund_online_word": {
             "type": "string",
             "title": "Refund Online Word",
@@ -9475,12 +9470,23 @@
             "title": "Lead Term Label",
             "default": ""
           },
-          "methods": {
+          "ways": {
             "items": {
-              "$ref": "#/components/schemas/VoucherMethod"
+              "$ref": "#/components/schemas/VoucherWay"
             },
             "type": "array",
-            "title": "Methods"
+            "title": "Ways"
+          },
+          "settle_charge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settle Charge"
           },
           "method_label": {
             "type": "string",
@@ -9885,11 +9891,6 @@
             "type": "boolean",
             "title": "Refundable",
             "default": false
-          },
-          "transferable": {
-            "type": "boolean",
-            "title": "Transferable",
-            "default": false
           }
         },
         "type": "object",
@@ -10005,25 +10006,6 @@
         ],
         "title": "VoucherLineOut",
         "description": "**Eine Position** – und es gibt sie in genau dieser einen Form.\n\nSie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile. Beim Vorgänger\ngab es dieselbe Sache dreimal (abgeleitet · je Angebot kopiert · eingefroren), und die\nOberfläche musste über Artikelnummern zuordnen."
-      },
-      "VoucherMethod": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label"
-        ],
-        "title": "VoucherMethod",
-        "description": "Ein Weg zum Geld, den ein **Mensch** erfassen darf."
       },
       "VoucherParty": {
         "properties": {
@@ -10594,6 +10576,52 @@
         ],
         "title": "VoucherUpdate",
         "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``charge``   eine **Forderung** buchen (negativ = Gutschrift)\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
+      },
+      "VoucherWay": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "verb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verb"
+          },
+          "info": {
+            "type": "boolean",
+            "title": "Info",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "VoucherWay",
+        "description": "►►► **Ein Weg zum Geld – und was er auslöst.** ◄◄◄\n\nBar · Überweisung · Karte sind drei Antworten auf **eine** Frage. Jeder Weg trägt\ndarum sein eigenes Verb: ``action`` ist die Handlung am Beleg (``pay`` ↔\n``pay_online``), ``verb`` ihr Wort. **Beide leer** heisst: dieser Weg ist eine reine\n*Auskunft* – so sieht die Gegenpartei die Überweisung, und dort steht kein Knopf, der\nnach Buchung aussieht."
       }
     },
     "securitySchemes": {

@@ -2995,6 +2995,118 @@ Beleg neben den drei Wörtern, die sie erklärt.
 `Editable` (§9.15, #961/#963): eine **definite** Quergrösse wirkt in der Spalte *und* in der
 Zeile. Gemessen: Box == Text, Δ 0,00 px; die Bug-Form meldet 1146 px.
 
+#### 9.15i Rechnung & Zahlung — zwei Fächer, eine Handlung, eine Wahl
+
+> `docs/konzept-beleg-shop-besitz.md` · `beleg-work.Money` · `voucher._ways`
+
+*«Irgendwie scheint mir dieser Bereich zu komplex, zu unstrukturiert, zu wirr, zu viele
+Optionen, die sich gegeneinander stören, kannibalisieren.»*
+
+**Gezählt, nicht vermutet.** An einer Rechnung standen bis zu **sechs** gleich aussehende
+Knöpfe mit **drei** Bedeutungen — eine Buchung («Rechnung erfassen»), eine Korrektur
+(«Stornieren») und eine blosse **Auskunft** («Überweisen» zeigt IBAN und QR und bucht gar
+nichts). Dazu standen **zwei Rollen** in einer Zeile: «Rechnung erfassen» ist unsere
+Handlung, «Jetzt bezahlen» die des Zahlenden. Und einen **Fortschritt** gab es nicht,
+obwohl es drei klare Zustände gibt: *nichts gefordert → gefordert → bezahlt.*
+
+**(1) Zwei Fächer statt einer Knopfreihe.** Es sind zwei Fragen, und jede gehört genau
+einer Seite:
+
+| Fach | Frage | Wem es gehört |
+|---|---|---|
+| **Fordern** | Was schuldet uns jemand? | uns — stellen, stornieren, gutschreiben |
+| **Begleichen** | Wie kommt das Geld hierher? | dem Zahlenden — bar · Überweisung · Karte |
+
+Beide sind ein gewöhnlicher `ModuleSection` und tragen damit denselben Fortschritts-Punkt
+wie jeder andere Abschnitt des Belegs. Dazwischen die Zeile **«Offen»** — das Ergebnis von
+*gefordert minus beglichen*. Der frühere gemeinsame Titel «Rechnung & Zahlung» ist
+**entfallen**: er fasste zwei Fragen zu einer Überschrift zusammen, und genau daraus kam
+die Unordnung.
+
+**(2) Genau eine Handlung bringt weiter** — unten, breit, als `StageAction` (dasselbe
+Bauteil wie der Zuschlag und der Modul-Abschluss, §9.15): *Rechnung stellen* → *Zahlung
+erfassen* → nichts mehr. Alles andere ist eine **Korrektur** und steht klein bei der Zeile,
+die sie korrigiert — nie im selben Rang. Welche gerade dran ist, folgt aus `can` und
+`credit_only`; ein Rang, den die Oberfläche selbst vergäbe, wäre die zweite Regel daneben.
+
+**(3) Der Weg zum Geld ist eine WAHL, kein Verb.** Bar · Überweisung · Karte sind drei
+Antworten auf **eine** Frage; was dahinter passiert, ist verschieden (buchen ↔ Angaben
+zeigen ↔ Zahlformular öffnen), die Frage ist dieselbe. Als drei Knöpfe standen sie im
+selben Rang wie eine Buchung und wie eine Korrektur.
+
+Welche Antworten es gibt, sagt der Server (`ways`, abgeleitet aus `can`), und **jeder Weg
+sagt selbst, was er auslöst** (`action`/`verb`) und **ob er eine Auskunft mitbringt**
+(`info`). Beides leer heisst *reine Auskunft* — so sieht die Gegenpartei die Überweisung,
+und dort steht kein Knopf, der nach Buchung aussieht. Ein Vergleich auf den Schlüssel
+«transfer» in der Oberfläche wäre der Spiegel über die API-Grenze, der beim nächsten Weg
+still falsch wird.
+
+**Und welche Rechnung gemeint ist, sagt der Dienst** (`settle_charge`): je Modul lebt
+höchstens **eine** offene Forderung (§9.14), die Frage hat also genau eine Antwort. Sie in
+den Zeilen zu suchen wäre die zweite Regel neben `open_charges` — genau daraus kam #859.
+
+**«Rechnung STELLEN» ↔ «Rechnung ERFASSEN»** (`Direction.charge_verb`): bei einer
+**Einnahme** entsteht der Beleg hier, bekommt unsere Nummer und geht hinaus; bei einer
+**Ausgabe** schreiben wir ab, was der Lieferant geschickt hat. Die **Zahlung** wird in
+beiden Richtungen *erfasst* — das System bucht eine Zeile, es überweist nichts.
+
+*Bewusst nicht gebaut und benannt: die **Automatisierung** (Bank-Datei camt.053,
+Mahnliste) und die **Zustellung** (PDF, E-Mail). Beides steht im Konzept.*
+
+#### 9.15j Die zweite Anschrift heisst je Rolle anders
+
+> Testnotiz #979 · `voucher._addresses`
+
+*«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse oder so?
+Etabliere hier korrektes.»*
+
+«Lieferadresse» heisst *wohin geliefert wird* — an der eigenen Anschrift des
+**Leistungserbringers** stand damit, man möge **ihm** dorthin liefern, während er
+derjenige ist, der liefert. Von seiner Seite aus geht die Ware **ab**: das ist die
+**Versandadresse** (im Handel, in der Logistik und im Zoll ist der *Versender* die
+Gegenrolle des Empfängers).
+
+**Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
+«Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage — *welche Anschrift gilt
+in Rechnungssachen* —, und so steht sie auch auf jedem gedruckten Beleg. Ein zweites Wort
+dafür wäre eine Unterscheidung ohne Unterschied.
+
+Die Rolle wird **nicht übergeben, sondern gelesen**: `document_head` kennt sie als
+`flow.collects`, `their_side` leitet sie selbst ab (`not collects`). Ein Parameter wäre
+eine Angabe, die jeder der beiden Aufrufer einzeln falsch setzen kann.
+
+#### 9.15k Die Auswahl der Gegenpartei steht über ihrer Rolle
+
+> Testnotiz #981 · `beleg-work.Party`
+
+*«Gefühlt sollte die Auswahloptionen oberhalb vom Headline Leistungsempfänger stehen und
+dann je nachdem was angewählt wurde unterhalb der Headline die Angaben geladen werden.»*
+
+Die Chips standen **in** der Namenszeile, also unter der Rolle und an genau der Stelle, an
+der sonst der Name steht: sie **ersetzten** die Angabe, die sie auswählen. Über der Rolle
+ist es die Reihenfolge des Lesens — erst *wen meine ich*, dann *was gilt für ihn*.
+
+Das Raster bekommt dafür eine achte Zeile (`PARTY_ROWS`), und auf unserer Seite bleibt sie
+**leer**: die Symmetrie ist die Aussage, nicht die Dichte (§9.15, #913). Nach dem Zuschlag
+gibt es nichts mehr zu wählen — dann ist die Zeile leer, und die unterlegenen Angebote
+stehen als Nachweis in ihrem Abschnitt.
+
+#### 9.15l Ein Eingabefeld nennt sich, während man tippt
+
+> Testnotiz #982 · `beleg-work.Customs`
+
+*«Im fertigen Beleg steht eigentlich immer ‹Zolltarif xy, Ursprung xy› — hier bei der
+Eingabe steht einfach nur das Eingabefeld, aber der entsprechende Text nicht davor. Das
+ist eine unerlaubte Abweichung von unserer Logik.»*
+
+Der Name stand als **Platzhalter** im Feld — also an der Stelle, an der eine Oberfläche
+sagt «hier ist nichts» — und verschwand beim ersten Zeichen. Die Regel dieses Belegs
+lautet *der gedruckte Wert IST das Bedienelement* (§9.15, #922): was man ändert, muss
+aussehen wie das, was gedruckt wird. Beschriftung und Wert stehen darum in **beiden**
+Zuständen als eine Zeile, in derselben Grösse und Farbe; die Auszeichnung trägt allein der
+Wert, denn nur er ist änderbar.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

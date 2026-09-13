@@ -3742,10 +3742,15 @@ export interface components {
              */
             quotes_title: string;
             /**
-             * Money Label
+             * Claim Title
              * @default
              */
-            money_label: string;
+            claim_title: string;
+            /**
+             * Settle Title
+             * @default
+             */
+            settle_title: string;
             /**
              * Task Label
              * @default
@@ -3865,16 +3870,6 @@ export interface components {
              */
             open_word: string;
             /**
-             * Transfer Word
-             * @default
-             */
-            transfer_word: string;
-            /**
-             * Refund Word
-             * @default
-             */
-            refund_word: string;
-            /**
              * Refund Online Word
              * @default
              */
@@ -3908,8 +3903,10 @@ export interface components {
              * @default
              */
             lead_term_label: string;
-            /** Methods */
-            methods?: components["schemas"]["VoucherMethod"][];
+            /** Ways */
+            ways?: components["schemas"]["VoucherWay"][];
+            /** Settle Charge */
+            settle_charge?: number | null;
             /**
              * Method Label
              * @default
@@ -4023,11 +4020,6 @@ export interface components {
              * @default false
              */
             refundable: boolean;
-            /**
-             * Transferable
-             * @default false
-             */
-            transferable: boolean;
         };
         /**
          * VoucherLineOut
@@ -4077,16 +4069,6 @@ export interface components {
             vat_label: string;
             /** Vat Note */
             vat_note?: string | null;
-        };
-        /**
-         * VoucherMethod
-         * @description Ein Weg zum Geld, den ein **Mensch** erfassen darf.
-         */
-        VoucherMethod: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
         };
         /**
          * VoucherParty
@@ -4302,6 +4284,31 @@ export interface components {
             incoterm_place?: string | null;
             /** Issuer */
             issuer?: number | null;
+        };
+        /**
+         * VoucherWay
+         * @description ►►► **Ein Weg zum Geld – und was er auslöst.** ◄◄◄
+         *
+         *     Bar · Überweisung · Karte sind drei Antworten auf **eine** Frage. Jeder Weg trägt
+         *     darum sein eigenes Verb: ``action`` ist die Handlung am Beleg (``pay`` ↔
+         *     ``pay_online``), ``verb`` ihr Wort. **Beide leer** heisst: dieser Weg ist eine reine
+         *     *Auskunft* – so sieht die Gegenpartei die Überweisung, und dort steht kein Knopf, der
+         *     nach Buchung aussieht.
+         */
+        VoucherWay: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Action */
+            action?: string | null;
+            /** Verb */
+            verb?: string | null;
+            /**
+             * Info
+             * @default false
+             */
+            info: boolean;
         };
     };
     responses: never;

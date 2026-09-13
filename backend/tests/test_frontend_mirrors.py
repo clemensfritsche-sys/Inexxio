@@ -6071,78 +6071,88 @@ def test_the_money_actions_stand_at_the_invoice_they_belong_to():
     älteste offene. Ein Knopf **an** der Zeile beantwortet die Frage, indem er sie nicht
     stellt – und die Karte nennt die Rechnung, die sie meint (`chargeId`).
 
+    ►►► **Und die Antwort kommt jetzt vom SERVER** (der Umbau von «Rechnung & Zahlung»).
+    ◄◄◄ Je Modul lebt höchstens **eine** offene Forderung (#866) – die Frage hat damit
+    genau eine Antwort, und sie gehört dem Dienst (`settle_charge`). Der Wächter verlangte
+    bis hierher, dass **jede** Handlung an ihrer Zeile steht (`onPay}`, `onPanel(…)`) –
+    also die Form der damaligen Lösung; sie war der Grund, warum an einer Rechnung sechs
+    gleich aussehende Knöpfe standen. Die **Regel** – *keine Handlung, die rät, welche
+    Rechnung gemeint ist* – gilt unverändert und wird hier gefragt.
+
     Bug-Formen: (a) die Bezahlkarte nennt die Rechnung nicht; (b) das Formular fragt
-    wieder nach ihr; (c) die Handlungen stehen wieder alle unter der Liste.
+    wieder nach ihr; (c) eine Korrektur verlässt ihre Zeile.
     """
     src = _code(_read(DEAL_WORK))
     money = _component(src, "Money")
-    # ►►► **Beide Leser einzeln** – ein blosses «kommt irgendwo vor» wäre schon durch den
-    # einen erfüllt, und der andere könnte still ausfallen (gemessen: die erste Fassung
-    # liess ihre eigene Bug-Form durch, weil `chargeId={e.id}` zweimal dasteht).
-    row = _body(src, "EntryRow", kind="function")
+
     def _tag(where: str, opening: str) -> str:
         cut = where[where.index(opening):]
         return cut[:cut.index("/>")]
 
-    assert "chargeId={e.id}" in _tag(row, "<PayOnline"), (
+    assert "chargeId={settle}" in _tag(money, "<PayOnline"), (
         "Die Bezahlkarte nennt die Rechnung nicht (a) – dann kassiert sie wieder die "
-        "älteste offene, egal an welchem Knopf jemand geklickt hat."
+        "älteste offene, egal worauf jemand gezeigt hat."
     )
-    # **Die erfasste Zahlung ebenso**: welche Rechnung gemeint ist, entscheidet der Knopf
-    # an der Zeile – das Formular bekommt es mit, statt es zu fragen.
-    assert "chargeId: e.id" in money, (
-        "Die erfasste Zahlung nennt die Rechnung nicht (a) – dann entscheidet wieder der "
-        "Dienst, worauf sie geht."
-    )
-    assert "chargeId={form.chargeId" in money, (
-        "Das Formular bekommt die Rechnung nicht durchgereicht (a)."
+    assert "entryId={settle}" in _tag(money, "<Transfer"), (
+        "Der Einzahlungsschein nennt die Rechnung nicht (a)."
     )
     entry = _component(src, "Entry")
     assert "open_invoices" not in entry and "Rechnung</Label>" not in entry, (
         "Das Formular fragt wieder, worauf die Zahlung geht (b) – die Frage ist "
         "beantwortet, bevor es aufgeht."
     )
-    for action in ("onPay}", "onPanel('pay')", "onPanel('transfer')", "action: 'reverse'"):
+    # (c) **Was eine Zeile korrigiert, steht an ihr.** Das ist die andere Hälfte derselben
+    # Regel: eine Gegenbuchung meint **diese** Rechnung, eine zweite Zahlung **diese**
+    # Zahlung – beide könnten gar nicht raten, und darum gehören sie nicht nach unten.
+    row = _body(src, "EntryRow", kind="function")
+    for action in ("action: 'reverse'", "entry: e.id", "action: 'pay'", "negate(e.amount)"):
         assert action in row, (
-            f"«{action}» steht nicht mehr an der Zeile (c) – dann gilt es wieder dem "
-            f"ganzen Vorgang."
+            f"«{action}» steht nicht mehr an der Zeile (c) – dann gilt die Korrektur "
+            f"wieder dem ganzen Vorgang."
         )
 
 
-def test_payments_stand_indented_under_their_invoice():
-    """►►► **Die Zahlung gehört zu ihrer Rechnung** (Testnotiz #861). ◄◄◄
+def test_a_payment_stands_in_the_compartment_it_belongs_to():
+    """►►► **Forderung und Geld sind ZWEI Fächer** (Testnotiz #861, dann der Umbau). ◄◄◄
 
-    Sie standen als **flache** Liste da, chronologisch, und die Zugehörigkeit war ein
-    kleines «auf 100000801-1» am Zeilenende: bei zwei Rechnungen und vier Zahlungen
-    musste man Nummern vergleichen. Eingerückt sagt es die **Form** – dieselbe Geste wie
-    bei der Stückliste unter ihrer Einzelinstanz (#724).
+    Die Buchungen standen einmal als **flache** Liste da, chronologisch, und die
+    Zugehörigkeit war ein kleines «auf 100000801-1» am Zeilenende: bei zwei Rechnungen und
+    vier Zahlungen musste man Nummern vergleichen. #861 hat sie darum unter ihre Rechnung
+    **eingerückt**.
 
-    **Was zu keiner gehört, verschwindet nicht**: Zahlungen aus der Zeit vor #858 tragen
-    keine Zuordnung, und eine Online-Zahlung auf eine inzwischen stornierte Rechnung
-    ebenso wenig. Geraten wird nichts, gezeigt schon.
+    *Der Umbau beantwortet dieselbe Frage eine Ebene höher: **Fordern** – was schuldet uns
+    jemand – und **Begleichen** – wie kommt das Geld hierher – sind zwei Fragen und je ein
+    Abschnitt. Eine Zahlung steht damit in dem Fach, in das sie gehört, und wie viel von
+    **einer** Rechnung beglichen ist, sagt die Rechnung selbst (`invoiceState` aus
+    `e.open`): eine **Aussage** statt einer Gruppierung. Je Modul lebt ohnehin höchstens
+    eine offene Forderung (#866). Der Wächter verlangte die Einrückung wörtlich – also die
+    Form – und hätte den Umbau verboten.*
 
-    Bug-Formen: (a) die Liste ist wieder flach; (b) eine Zahlung ohne Zuordnung fällt
-    heraus; (c) die Zugehörigkeit steht zusätzlich als Text – dieselbe Angabe zweimal.
+    Bug-Formen: (a) Forderungen und Zahlungen stehen wieder in einer Liste; (b) eine
+    Zahlung fällt heraus, weil sie zu keiner Rechnung gehört; (c) die Rechnung sagt ihren
+    eigenen Stand nicht mehr; (d) die Zugehörigkeit steht zusätzlich als Text.
     """
     src = _code(_read(DEAL_WORK))
     money = _component(src, "Money")
-    assert "p.charge_id === e.id" in money, (
-        "Die Zeilen werden nicht mehr nach ihrer Rechnung gruppiert (a)."
-    )
     assert "d.entries.map(" not in money, (
-        "Die Buchungen stehen wieder als flache Liste (a)."
+        "Die Buchungen stehen wieder als eine Liste (a)."
     )
-    # **Die Einrückung sagt die Zugehörigkeit** – als Angabe der Zeile, nicht als Text.
-    assert "sub ? 18 : 0" in _body(src, "EntryRow", kind="function"), (
-        "Die Zahlung steht nicht mehr eingerückt unter ihrer Rechnung (a)."
+    for split in ("e.kind === 'charge'", "e.kind === 'payment'"):
+        assert split in money, f"«{split}»: die beiden Fächer sind nicht getrennt (a)."
+    # (b) **Alle Zahlungen, ohne Bedingung** – Zahlungen aus der Zeit vor #858 tragen keine
+    # Zuordnung, und eine Online-Zahlung auf eine inzwischen stornierte Rechnung ebenso
+    # wenig. Geraten wird nichts, gezeigt schon.
+    assert "payments.map(" in money and "payments.filter(" not in money, (
+        "Eine Zahlung fällt aus der Ansicht (b) – dann verschwindet Geld, das geflossen ist."
     )
-    assert "p.charge_id == null" in money, (
-        "Eine Zahlung ohne Rechnung fällt aus der Ansicht (b) – geraten wird nichts, "
-        "gezeigt schon."
+    # (c) **Der Stand gehört der Rechnung** – das ist die Antwort auf «welche Zahlung
+    # gehört wohin», und sie steht als Ergebnis da statt als Gruppierung.
+    assert "invoiceState(e)" in _body(src, "EntryRow", kind="function"), (
+        "Die Rechnung sagt ihren eigenen Stand nicht mehr (c)."
     )
     assert "auf {chargeRef" not in src and "function chargeRef" not in src, (
-        "Die Zugehörigkeit steht zusätzlich als Text (c) – die Einrückung sagt es, und "
-        "in einer engen Zeile kostet die zweite Angabe den Platz des Datums."
+        "Die Zugehörigkeit steht zusätzlich als Text (d) – in einer engen Zeile kostet "
+        "die zweite Angabe den Platz des Datums."
     )
 
 
@@ -6174,9 +6184,18 @@ def test_a_transfer_is_information_with_a_code_and_a_reason():
         "Wo es keinen Code geben kann, steht kein Grund (b) – eine leere Fläche sagt "
         "nicht, ob sie fehlt oder lädt."
     )
-    assert "e.transferable" in _body(src, "EntryRow", kind="function"), (
-        "Der Knopf hängt nicht an der Angabe des Servers (c) – ein `if direction ===` "
-        "wäre die erste Zeile, die beim nächsten Fall falsch liegt."
+    # (c) ►►► **Die Auskunft hängt an der Angabe des Servers** – seit dem Umbau am **Weg**
+    # (`way.info`) statt an jeder Zeile (`e.transferable`): sie ist eine Antwort auf «wie
+    # kommt das Geld hierher», nicht eine Eigenschaft jeder Rechnung. Ein Vergleich auf den
+    # Schlüssel «transfer» wäre der Spiegel über die API-Grenze, der beim nächsten Weg
+    # still falsch wird.
+    money = _component(src, "Money")
+    assert "way?.info" in money, (
+        "Der Einzahlungsschein hängt nicht an der Angabe des Servers (c) – ein "
+        "`if direction ===` wäre die erste Zeile, die beim nächsten Fall falsch liegt."
+    )
+    assert "'transfer'" not in money, (
+        "Die Oberfläche vergleicht wieder den Schlüssel des Weges (c)."
     )
 
 
@@ -7499,25 +7518,47 @@ def test_paying_a_voucher_asks_the_voucher():
     )
 
 
-def test_recording_a_payment_lives_only_at_the_invoice():
-    """►►► **Zweimal «Zahlung erfassen» ist einmal zu viel** (Testnotiz #958). ◄◄◄
+def test_recording_a_payment_exists_exactly_once_and_names_its_invoice():
+    """►►► **«Zahlung erfassen» gibt es EINMAL — und es weiss, welche Rechnung.** ◄◄◄
 
     *«Warum gibt es hier zweimal den Button ‹Zahlung erfassen›? Das ist ein absolutes
-    No-Go.»* – Und es war kein Gestaltungsfehler, sondern eine offene Frage: der Knopf am
-    **Vorgang** wusste nicht, welche Rechnung gemeint ist, und wählte still die älteste
-    offene. Ein Knopf **an** der Zeile beantwortet sie, indem er sie nicht stellt (#859).
+    No-Go.»* (#958) – Und es war kein Gestaltungsfehler, sondern eine offene Frage: der
+    Knopf am **Vorgang** wusste nicht, welche Rechnung gemeint ist, und wählte still die
+    älteste offene.
 
-    Bug-Formen: (a) der Knopf am Vorgang ist zurück; (b) der an der Rechnung fehlt.
+    *Der Wächter verlangte damals, dass `d.payment_word` **in `EntryRow`** steht und
+    **nicht in `Money`** – also die Form der damaligen Lösung. Seit der Umbau die Geld-
+    Handlungen in zwei Fächer sortiert (eine Buchung ist keine Korrektur), steht das Verb
+    genau einmal, nämlich als die **eine** Handlung, die weiterbringt; und welche Rechnung
+    sie meint, sagt der Server (`settle_charge`). Der Wächter hätte die bessere Fassung
+    verboten – er fragt jetzt die Regel.*
+
+    Bug-Formen: (a) das Verb steht wieder an zwei Stellen; (b) die Buchung nennt die
+    Rechnung nicht mehr; (c) die Oberfläche sucht sie sich selbst aus den Zeilen.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    # (a) **Gezählt, nicht gesucht** – und gezählt wird die **Handlung**, nicht das Wort:
+    # es steht auch als Überschrift des Formulars da, und ein «kommt zweimal vor» wäre
+    # davon erfüllt. Genau eine Stelle öffnet die Erfassung einer Zahlung.
+    opens = src.count("setForm({ kind: 'pay'")
+    assert opens == 1, (
+        f"Die Erfassung einer Zahlung geht von {opens} Stellen aus (a) – eine Handlung, "
+        f"eine Stelle."
+    )
     money = _component(src, "Money")
-    assert "d.payment_word" not in money, (
-        "Der Knopf am Vorgang ist zurück (a) – und er kann nicht sagen, welche Rechnung."
+    # (b/c) **Die Rechnung kommt vom Server** – sie in den Zeilen zu suchen wäre die
+    # zweite Regel neben `open_charges`, und genau daraus kam #859.
+    assert "d.settle_charge" in money, (
+        "Die Buchung nennt die Rechnung nicht mehr (b) – dann entscheidet wieder der "
+        "Dienst, worauf sie geht."
     )
-    row = _component(src, "EntryRow")
-    assert "d.payment_word" in row, (
-        "An der Rechnung fehlt er (b) – dann gibt es gar keinen Weg zu buchen."
+    assert "chargeId={settle}" in money, (
+        "Das Formular bekommt sie nicht durchgereicht (b)."
     )
+    for guess in ("charges.find(", "charges[0]", "open_charges"):
+        assert guess not in money, (
+            f"«{guess}»: die Oberfläche sucht sich die Rechnung selbst (c)."
+        )
 
 
 def test_the_cancel_button_stands_beside_the_finish_button_as_a_square():
@@ -7928,16 +7969,29 @@ def test_the_payment_method_is_a_slider_not_a_dropdown():
     Webhook). Zwei Werte hinter einem Klick zu verstecken ist ein Klick für eine
     Entscheidung, die man sehen könnte.
 
-    Bug-Form: die Zahlungsart ist wieder ein `<select>`.
+    ►►► **Und der Schieber steht dort, wo die Frage entsteht** (der Umbau). ◄◄◄ Er sass
+    im **Erfassungsformular**, also *nachdem* man sich schon entschieden hatte, überhaupt
+    zu buchen – und daneben standen «Überweisen» und «Jetzt bezahlen» als eigene Knöpfe an
+    der Rechnungszeile: dieselbe Frage, dreimal, in zwei Formensprachen. Jetzt ist es
+    **eine** Frage im Fach «Begleichen» (*wie kommt das Geld hierher?*), und das Formular
+    fragt sie nicht noch einmal.
+
+    Bug-Formen: (a) die Zahlungsart ist wieder ein `<select>`; (b) sie steht wieder im
+    Formular; (c) die Beschriftung steht zweimal.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    entry = _component(src, "Entry")
-    assert "<Segmented" in entry, "Die Zahlungsart ist kein Schieber mehr."
-    assert "d.method_label}</Label>" not in entry, (
-        "Die Beschriftung steht zweimal – `Segmented` bringt seine eigene mit."
+    money = _component(src, "Money")
+    assert "<Segmented" in money, "Die Zahlungsart ist kein Schieber mehr (a)."
+    assert "aria-label={d.method_label}" not in src, (
+        "Das alte Auswahlfeld steht noch da (a)."
     )
-    assert "aria-label={d.method_label}" not in entry, (
-        "Das alte Auswahlfeld steht noch da."
+    entry = _component(src, "Entry")
+    assert "<Segmented" not in entry and "setMethod" not in entry, (
+        "Das Formular fragt die Zahlungsart erneut (b) – sie ist längst gewählt, und die "
+        "getippte gewänne auch dann, wenn sie der Wahl widerspricht."
+    )
+    assert "d.method_label}</Label>" not in money, (
+        "Die Beschriftung steht zweimal (c) – `Segmented` bringt seine eigene mit."
     )
 
 
@@ -8079,3 +8133,261 @@ def test_each_side_of_the_head_names_both_addresses():
         assert word not in card, (
             f"«{word}» steht als Literal in der Karte (c) – die Wörter kommen vom Server."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DER UMBAU VON «RECHNUNG & ZAHLUNG» + TESTNOTIZEN #979/#981/#982
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_money_stands_in_two_compartments_not_in_one_row_of_buttons():
+    """►►► **Regel 1 — zwei Fächer statt sechs Knöpfen.** ◄◄◄
+
+    *«Zu komplex, zu unstrukturiert, zu wirr, zu viele Optionen, die sich gegeneinander
+    stören, kannibalisieren.»* – Gezählt: an einer Rechnung standen bis zu sechs gleich
+    aussehende Knöpfe mit **drei** Bedeutungen (Buchung · Korrektur · blosse Auskunft),
+    und **zwei Rollen** in einer Zeile («Rechnung erfassen» ist unsere Handlung, «Jetzt
+    bezahlen» die des Zahlenden).
+
+    Es sind zwei Fragen: *was schuldet uns jemand* (uns) und *wie kommt das Geld hierher*
+    (dem Zahlenden). Zwei Fragen, zwei `ModuleSection` – und damit derselbe
+    Fortschritts-Punkt wie an jedem anderen Abschnitt des Belegs, den es hier vorher gar
+    nicht gab.
+
+    Bug-Formen: (a) es gibt wieder einen gemeinsamen Abschnitt; (b) ein Fach zeigt keinen
+    Fortschritt; (c) die Wörter stehen wieder in der Karte statt beim Server.
+    """
+    src = _code(_beleg())
+    money = _component(src, "Money")
+    assert money.count("<ModuleSection") == 2, (
+        f"Das Geld steht in {money.count('<ModuleSection')} Abschnitt(en) statt in zwei "
+        f"Fächern (a)."
+    )
+    assert money.count("state=") >= 2, "Ein Fach sagt seinen Fortschritt nicht (b)."
+    assert "d.claim_title" in money and "d.settle_title" in money, (
+        "Die Überschriften kommen nicht vom Server (c)."
+    )
+    # (c) **Und der alte Sammeltitel ist weg** – er fasste zwei Fragen zu einer zusammen.
+    assert "money_label" not in src and "Rechnung & Zahlung" not in src, (
+        "Der gemeinsame Titel ist zurück (a/c)."
+    )
+
+
+def test_exactly_one_money_action_moves_the_voucher_on():
+    """►►► **Regel 2 — genau EINE Handlung bringt weiter.** ◄◄◄
+
+    Unten, breit, farbig: *Rechnung stellen* → *Zahlung erfassen* → nichts mehr. Alles
+    andere ist eine **Korrektur** und steht klein bei der Zeile, die sie korrigiert – nie
+    im selben Rang. Es ist dasselbe Bauteil, das den Zuschlag und den Modul-Abschluss
+    trägt (`StageAction`, #923): eine Handlung, die weiterbringt, sieht überall gleich aus.
+
+    Bug-Formen: (a) die Handlung ist wieder ein Knopf unter vielen; (b) es gibt zwei
+    dominante gleichzeitig; (c) das Formular steht neben dem Knopf, der es öffnet.
+    """
+    src = _code(_beleg())
+    money = _component(src, "Money")
+    assert "<StageAction" in money, (
+        "Die Geld-Handlung ist keine Stufen-Handlung mehr (a) – dann steht sie wieder im "
+        "Rang einer Korrektur."
+    )
+    assert money.count("<StageAction") == 1, (
+        f"Es gibt {money.count('<StageAction')} dominante Handlungen (b) – die eine, die "
+        f"weiterbringt, ist genau eine."
+    )
+    # (b) **Und sie wird abgeleitet, nicht nebeneinandergestellt**: erst fordern, dann
+    # kassieren – ein Rang, den die Oberfläche vergäbe, wäre die zweite Regel neben `can`.
+    assert "const forward =" in money, "Der Rang wird nicht abgeleitet (b)."
+    # (c) **Das Formular tritt an ihre Stelle**, es steht nicht daneben.
+    assert "{form ? (" in money, (
+        "Formular und Knopf stehen gleichzeitig da (c) – zwei Handlungen für dieselbe "
+        "Sache."
+    )
+
+
+def test_the_way_to_the_money_is_one_choice_with_several_answers():
+    """►►► **Regel 3 — der Weg zum Geld ist eine Wahl, kein Verb.** ◄◄◄
+
+    Bar · Überweisung · Karte sind drei Antworten auf **eine** Frage. Was dahinter
+    passiert, ist verschieden (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen) – die Frage
+    ist dieselbe. Als drei Knöpfe standen sie im selben Rang wie eine Buchung und wie eine
+    Korrektur.
+
+    **Welche Antworten es gibt, sagt der Server** (`ways` aus `can`), und **jeder Weg sagt
+    selbst, was er auslöst** (`action`/`verb`) – ein Weg ohne beides ist eine reine
+    Auskunft, und dort steht kein Knopf, der nach Buchung aussieht.
+
+    Bug-Formen: (a) die Wege sind wieder Knöpfe; (b) die Oberfläche baut die Liste selbst;
+    (c) sie leitet das Verb aus dem Schlüssel ab; (d) bei genau einer Antwort steht
+    trotzdem ein Schieber.
+    """
+    src = _code(_beleg())
+    money = _component(src, "Money")
+    assert "<Segmented" in money, "Die Wege sind wieder einzelne Knöpfe (a)."
+    assert "d.ways" in money, "Die Liste kommt nicht vom Server (b)."
+    for key in ("'cash'", "'card'", "'transfer'"):
+        assert key not in money, (
+            f"«{key}»: die Oberfläche kennt die Schlüssel der Wege (c) – dann leitet sie "
+            f"das Verb daraus ab, statt es zu lesen."
+        )
+    assert "way.verb" in money and "way?.action" in money, (
+        "Der Weg sagt nicht selbst, was er auslöst (c)."
+    )
+    assert "ways.length > 1" in money, (
+        "Bei genau einer Antwort steht ein Schieber (d) – eine Wahl mit einer Antwort ist "
+        "keine (#793)."
+    )
+
+
+def test_an_invoice_is_issued_here_and_recorded_there():
+    """►►► **«Rechnung stellen» ↔ «Rechnung erfassen»** – zwei Vorgänge, zwei Wörter. ◄◄◄
+
+    Bei einer **Einnahme** entsteht der Beleg hier, bekommt unsere Nummer und geht hinaus;
+    bei einer **Ausgabe** schreiben wir ab, was der Lieferant geschickt hat. Beides hiess
+    «Rechnung erfassen» – und ausgerechnet der Fall, in dem eine Rechnungsnummer vergeben
+    wird, klang nach Abtippen.
+
+    Bug-Formen: (a) beide Richtungen sagen wieder dasselbe; (b) das Wort steht als
+    Konstante neben der Richtung; (c) die Karte schreibt es selbst.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+
+    assert vo.of("in").charge_verb != vo.of("out").charge_verb, (
+        "Beide Richtungen sagen dasselbe (a)."
+    )
+    assert vo.of("in").charge_verb == "Rechnung stellen", (
+        "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
+    )
+    assert not hasattr(vo, "CHARGE_WORD"), (
+        "Das Wort steht wieder als eine Konstante für beide Richtungen da (b)."
+    )
+    src = (BACKEND / "app" / "services" / "voucher.py").read_text()
+    assert '"charge_word": flow.charge_verb' in src, (
+        "Der Beleg schickt nicht das Wort seiner Richtung (b)."
+    )
+    card = _code(_beleg())
+    for word in ("Rechnung stellen", "Rechnung erfassen"):
+        assert word not in card, f"«{word}» steht als Literal in der Karte (c)."
+
+
+def test_the_sender_side_names_the_address_the_goods_leave_from():
+    """►►► **«Lieferadresse» beim Leistungserbringer war falsch** (Testnotiz #979). ◄◄◄
+
+    *«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse oder
+    so? Etabliere hier korrektes.»* – Richtig gesehen: «Lieferadresse» heisst *wohin
+    geliefert wird*, und an der eigenen Anschrift des Leistungserbringers stand damit, man
+    möge ihm dorthin liefern – während er derjenige ist, der liefert. Von seiner Seite aus
+    ist es die Adresse, von der die Ware **abgeht**: **Versandadresse** (der Versender ist
+    die Gegenrolle des Empfängers, so heisst es im Handel, in der Logistik und im Zoll).
+
+    **Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
+    «Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage – *welche Anschrift
+    gilt in Rechnungssachen*. Ein zweites Wort dafür wäre eine Unterscheidung ohne
+    Unterschied.
+
+    Bug-Formen: (a) beide Seiten sagen wieder «Lieferadresse»; (b) die Rolle wird an der
+    Aufrufstelle geraten statt aus der Richtung gelesen; (c) die Karte kennt die Wörter.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+
+    assert vo.SHIPPING_FROM_LABEL != vo.SHIPPING_LABEL, (
+        "Beide Seiten sagen dasselbe (a)."
+    )
+    src = (BACKEND / "app" / "services" / "voucher.py").read_text()
+    body = src[src.index("def _addresses("):]
+    body = body[:body.index("\ndef ", 1)]
+    assert "sends" in body and "SHIPPING_FROM_LABEL" in body, (
+        "Die Auflösung kennt die Rolle nicht (a)."
+    )
+    # (b) **Die Richtung sagt es** – `collects` steht längst da, und die Gegenseite leitet
+    # es selbst ab: ein Parameter wäre eine Angabe, die jeder Aufrufer falsch setzen kann.
+    theirs = src[src.index("def their_side("):]
+    theirs = theirs[:theirs.index("\ndef ", 1)]
+    assert "not vo.of(row.direction).collects" in theirs, (
+        "Die Gegenseite rät ihre Rolle (b)."
+    )
+    head = src[src.index("def document_head("):src.index("def _addresses(")]
+    assert "sends=flow.collects" in head, "Unsere Seite rät ihre Rolle (b)."
+    assert "Versandadresse" not in _code(_beleg()), (
+        "Das Wort steht als Literal in der Karte (c)."
+    )
+
+
+def test_the_recipient_choice_stands_above_the_role_not_in_its_name_line():
+    """►►► **Die Auswahl steht ÜBER der Rolle** (Testnotiz #981). ◄◄◄
+
+    *«Gefühlt sollte die Auswahloptionen oberhalb vom Headline Leistungsempfänger stehen
+    und dann je nachdem was angewählt wurde unterhalb der Headline die Angaben geladen
+    werden – es ist einfach noch nicht so elegant, wie ich es gerne hätte.»*
+
+    Die Chips standen **in** der Namenszeile, also unter der Rolle und an genau der
+    Stelle, an der sonst der Name steht: sie ersetzten die Angabe, die sie auswählen. Über
+    der Rolle ist es die Reihenfolge des Lesens – erst *wen meine ich*, dann *was gilt für
+    ihn*. Auf unserer Seite bleibt die Zeile leer; die Symmetrie ist dieselbe Regel wie bei
+    jeder anderen Zeile des Rasters (#913).
+
+    Bug-Formen: (a) die Auswahl steht wieder unter der Rolle; (b) das Raster zählt die
+    Zeile nicht mit – dann laufen die beiden Blöcke auseinander; (c) der Name steht nicht
+    mehr unter der Rolle.
+    """
+    src = _code(_beleg())
+    party = _component(src, "Party")
+    assert party.index("<Recipients") < party.index("{side.label}"), (
+        "Die Auswahl steht wieder unter der Rolle (a)."
+    )
+    assert party.index("{side.label}") < party.index("view.name"), (
+        "Der Name steht nicht unter der Rolle (c)."
+    )
+    assert "const PARTY_ROWS = 8" in src, (
+        "Das Raster zählt die neue Zeile nicht mit (b) – dann steht dieselbe Angabe auf "
+        "beiden Seiten auf verschiedener Höhe."
+    )
+    # (b) **Und unsere Seite hält die Zeile frei** – ein fehlendes Kind verschöbe alles
+    # darunter um eine Zeile.
+    assert "side.ours\n        ? <div />" in party or "? <div />" in party, (
+        "Unsere Seite lässt die Zeile aus (b)."
+    )
+    # (a) **Die Chips sind nur noch die Auswahl** – benannt wird die Gewählte darunter.
+    rec = _component(src, "Recipients")
+    assert "font: '600 13px var(--font-body)'" not in rec, (
+        "Die Auswahl trägt wieder den Namen der Gewählten (a) – dann steht er zweimal."
+    )
+
+
+def test_a_customs_field_names_itself_while_it_is_being_typed():
+    """►►► **Die Beschriftung steht davor – beim Eingeben wie im Beleg** (#982). ◄◄◄
+
+    *«Im fertigen Beleg steht eigentlich immer ‹Zolltarif xy, Ursprung xy› – hier bei der
+    Eingabe steht einfach nur das Eingabefeld, aber der entsprechende Text nicht davor.
+    Das ist eine unerlaubte Abweichung von unserer Logik.»*
+
+    Der Name stand als **Platzhalter** im Feld – also an der Stelle, an der eine Oberfläche
+    sagt «hier ist nichts» – und verschwand beim ersten Zeichen. Die Regel dieses Belegs
+    lautet *der gedruckte Wert IST das Bedienelement* (#922): was man ändert, muss aussehen
+    wie das, was gedruckt wird.
+
+    Bug-Formen: (a) der Name ist wieder nur ein Platzhalter; (b) die beiden Zustände sehen
+    verschieden aus; (c) die Beschriftung trägt die Auszeichnung änderbarer Werte, obwohl
+    sie nicht änderbar ist.
+    """
+    src = _code(_beleg())
+    body = _body(src, "Customs", kind="function")
+    assert "placeholder=" not in body, (
+        "Der Name steht wieder als Platzhalter (a) – dann ist er beim ersten Zeichen weg."
+    )
+    # (b) **Dieselbe Zeile in beiden Zuständen**: Beschriftung, dann Wert – gleiche Grösse,
+    # gleiche Farbe. Gezählt, denn genau eine der beiden Stellen könnte abweichen.
+    assert body.count("fontSize: 11.5, color: 'var(--fg-3)'") == 2, (
+        "Die Beschriftung sieht im Eingabe- und im Lesezustand verschieden aus (b)."
+    )
+    # (c) **Nur der Wert ist änderbar** – die Hülle umschliesst das Feld, nicht das Wort.
+    # Gefragt wird der **Textknoten**: `title={label}` und `aria-label={label}` stehen
+    # zu Recht in der Hülle, und ein blosses «`{label}` kommt darin vor» wäre schon davon
+    # erfüllt (gemessen – die erste Fassung schlug genau daran an).
+    edit = body[body.index('<span className="inline-flex'):]
+    assert edit.index("{label}</span>") < edit.index("<Editable"), (
+        "Die Beschriftung steht innerhalb der Auszeichnung (c) – dann verspricht sie "
+        "Änderbarkeit, die es nicht gibt."
+    )
