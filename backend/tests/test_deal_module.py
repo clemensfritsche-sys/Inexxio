@@ -3658,10 +3658,15 @@ def test_a_delivery_clause_is_a_catalog_and_a_named_place():
         row = svc.of_step(db, step.id)
         assert row.incoterm == "FCA", "klein geschrieben ist dieselbe Klausel"
 
-        # (d) Der Satz kommt aus EINER Stelle und trägt die Fassung.
-        assert inc.sentence("FCA", "Rorschach") == "FCA Rorschach (Incoterms 2020)"
+        # (d) Der Satz kommt aus EINER Stelle.
+        #
+        # ►►► **Ohne die Fassung in Klammern** (Testnotiz #956): *«Diese Info in Klammern
+        # kann grundsätzlich entfallen. Bei allen.»* Welche Fassung gilt, steht in der
+        # Erklärung der gewählten Klausel – und die steht auf dem Beleg sichtbar darunter,
+        # nicht als Anhang an jedem Wert. Gefragt wird hier weiter die **eine** Stelle.
+        assert inc.sentence("FCA", "Rorschach") == "FCA Rorschach"
         embed = svc.embed_data(db, order=order, step=step, viewer=staff)
-        assert embed["incoterm_text"] == "FCA Rorschach (Incoterms 2020)"
+        assert embed["incoterm_text"] == "FCA Rorschach"
         assert len(embed["incoterms"]) == 11
 
         # (c) Klausel weg heisst Ort weg.

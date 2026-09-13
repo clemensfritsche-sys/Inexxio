@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
-  AlertTriangle, ArrowUpRight, Check, ChevronDown, CircleSlash, ClipboardList,
+  AlertTriangle, Check, ChevronDown, CircleSlash, ClipboardList,
   CreditCard, FileText, Landmark, Loader2, Plus, RotateCcw, Send, Undo2,
   Wallet, X,
 } from 'lucide-react';
@@ -181,11 +181,9 @@ export function BelegWork({
           onAction={onAction} onPaid={onPaid} />
       )}
       <Chronicle d={d} />
-      {/* ►►► **Der Modul-Abschluss steht am ENDE** (Testnotiz #829). ◄◄◄ Er stand einmal
-          mitten in der Kette und sagte «hier ist Schluss», während sichtbar noch etwas
-          folgte. */}
-      {children && <div style={{ marginTop: 18 }}>{children}</div>}
-      <Bottom d={d} busy={busy} onAction={onAction} />
+      {/* ►►► **Der Modul-Abschluss steht am ENDE** (Testnotiz #829) – und der Storno
+          daneben (#957). ◄◄◄ */}
+      <Footer d={d} busy={busy} onAction={onAction}>{children}</Footer>
     </div>
   );
 }
@@ -204,6 +202,21 @@ export function BelegWork({
  * `as` ist die Form, die der Aufrufer ohnehin braucht – ein `<span>` mitten in einer
  * Zeile, ein `<div>` um ein Feld. Ein zweites Bauteil dafür wäre dieselbe Regel ein
  * zweites Mal.
+ *
+ * ►►► **Die Auszeichnung ist deckungsgleich mit dem Bedienelement** (Testnotiz #948). ◄◄◄
+ *
+ * *«Das gehighlightete Feld ist deutlich grösser als das selektierbare Feld. Das ist ein
+ * design- und UX-technisches No-Go. Bitte eine robuste Lösung etablieren und bei allen
+ * Eingabefeldern kontrollieren.»*
+ *
+ * Die Ursache war der **Display-Typ**: als reines Inline-Element nahm die Hülle die Höhe
+ * der **Zeile** (Schriftgrösse × Zeilenhöhe), während das Bedienelement darin seine eigene,
+ * kleinere Box hatte. Sichtbar getönt war also mehr, als man treffen konnte.
+ *
+ * `inline-flex` löst es **konstruktiv** statt durch abgestimmte Zahlen: die Hülle nimmt
+ * genau die Höhe ihres Kindes, und das Kind streckt sich auf ihre – es gibt danach nur
+ * **eine** Box. Eine Messung, die zwei Zahlen vergleicht, könnte ein Auseinanderlaufen nur
+ * melden; so kann es nicht entstehen.
  */
 function Editable({ on = true, as: Tag = 'span', style, title, children }: {
   on?: boolean;
@@ -212,8 +225,18 @@ function Editable({ on = true, as: Tag = 'span', style, title, children }: {
   title?: string;
   children: ReactNode;
 }) {
+  // **Und sie darf sich nicht strecken** – das war die gemessene Ursache: in einer
+  // Spalte (`flex-col`) wird jedes Kind **blockifiziert** und auf die volle Breite
+  // gezogen; die getönte Fläche war damit 229 px breit, das `<select>` darin 44 px
+  // (gemessen, genau der gemeldete Unterschied). `align-self: start` nimmt die Streckung
+  // in **beiden** Achsen zurück, ohne dass die Hülle ihren Kontext kennen muss.
+  const box: CSSProperties = Tag === 'span'
+    ? { display: 'inline-flex', alignSelf: 'start', maxWidth: '100%', ...style }
+    // **Auch der Block-Fall ist ein Flex-Kasten** – sonst ist die Hülle so hoch wie ihre
+    // Zeile (24 px) und das Feld darin 19,5 px; gemessen am Betragsfeld der Angebotszeile.
+    : { display: 'flex', ...style };
   return (
-    <Tag className={on ? 'ix-editable' : undefined} style={style}
+    <Tag className={on ? 'ix-editable' : undefined} style={box}
       {...(on ? {} : { 'aria-disabled': true as const })}
       {...(title ? { 'data-tip': title } : {})}>
       {children}
@@ -311,20 +334,21 @@ function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: 
 }) {
   const shown = <span aria-hidden style={face}>{text}</span>;
   if (!on) return shown;
+  // ►►► **EINE Box** (#948): Auszeichnung und Bedienelement sitzen auf demselben Element –
+  // der frühere Zwischen-`<span>` war die zweite, und sie konnte grösser sein als das
+  // `<select>`, das sie versprach. `inset: 0` deckt jetzt exakt die getönte Fläche.
   return (
-    <Editable title={tip}>
-      <span style={{ position: 'relative', display: 'inline-block',
-                     minWidth: MIN_PICK, maxWidth: '100%' }}>
-        {shown}
-        <select value={value} disabled={busy} aria-label={aria}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
-                   opacity: 0, cursor: 'pointer' }}>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      </span>
+    <Editable title={tip}
+      style={{ position: 'relative', minWidth: MIN_PICK, maxWidth: '100%' }}>
+      {shown}
+      <select value={value} disabled={busy} aria-label={aria}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
+                 opacity: 0, cursor: 'pointer' }}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
     </Editable>
   );
 }
@@ -402,8 +426,12 @@ function Missing({ what }: { what: string }) {
  * ►►► **Sechs statt sieben** (Testnotiz #940): die Objektnummer steht **neben** dem Namen,
  * nicht vier Zeilen darunter. Das ist die Form, in der dieses Haus einen Datensatz nennt
  * (#933) – und damit braucht sie auch keine eigene Beschriftung «Nr.» mehr.
+ *
+ * ►►► **Und eine siebte für die zweite Anschrift** (Testnotiz #952). ◄◄◄ Rechnungs- und
+ * Lieferadresse müssen nicht gleich sein. Die Zeile steht auf **beiden** Seiten, auch wo
+ * sie leer bleibt: die Symmetrie ist die Aussage, nicht die Dichte (#913).
  */
-const PARTY_ROWS = 6;
+const PARTY_ROWS = 7;
 
 /**
  * **Der Belegkopf** – die Belegart und beide Parteien.
@@ -472,11 +500,25 @@ function Party({ side, d, busy, onAction, onAsk }: {
   side: VoucherSide | null | undefined; d: Filled; busy: boolean; onAction: Send;
   onAsk: Ask;
 }) {
+  // ►►► **Welcher Angefragte gerade dasteht** (Testnotiz #951). ◄◄◄
+  //
+  // *«Was mich noch stört: die jeweilige Anschrift ist nicht sichtbar … es müssen nicht
+  // alle auf einmal sein, aber immer mindestens eine geladen und ggf. auf Wunsch die
+  // anderen auch.»*
+  //
+  // Ein **Beleg** hat einen Adressaten – also steht einer vollständig da, und ein Klick
+  // auf einen Chip schaltet um. Die Seiten **reisen alle mit** (`recipients`): bei einer
+  // Handvoll Angefragten kostet das nichts, und ein Endpunkt «Anschrift zu Nummer» wäre
+  // ein zweiter Weg zu einer Angabe, die der Beleg ohnehin liefert.
+  const [shown, setShown] = useState<number | null>(null);
   if (!side) return <div />;
-  // **Wer die Gegenseite ist, sagt die Struktur** – nicht ein Vergleich auf «Leistungs-
-  // erbringer». Ein Spiegel über die API-Grenze wird beim ersten Umbenennen still falsch:
-  // die Gegenseite ist die, die **wir** nicht sind, und uns kennt der Beleg am Aussteller.
-  const ours = side.object_id != null && side.object_id === d.issuer;
+  // **Wer die Gegenseite ist, sagt die Struktur** (`ours` vom Server) – nicht ein Vergleich
+  // auf «Leistungserbringer». Ein Spiegel über die API-Grenze wird beim ersten Umbenennen
+  // still falsch.
+  const list = side.ours ? [] : (d.recipients ?? []);
+  // **Mindestens eine** – der Adressat, wenn es einen gibt, sonst der erste Angefragte.
+  const current = shown ?? side.object_id ?? list[0]?.object_id ?? null;
+  const view = list.find((r) => r.object_id === current) ?? side;
   return (
     <div style={{
       display: 'grid', gridRow: `span ${PARTY_ROWS}`, gridTemplateRows: 'subgrid',
@@ -486,41 +528,61 @@ function Party({ side, d, busy, onAction, onAsk }: {
       {/* ►►► **Name und Nummer in EINER Zeile** (Testnotiz #940). ◄◄◄ Sie benennen
           **einen** Datensatz – dieselbe Form wie in der Positionszeile (#933). */}
       <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
-        {ours
+        {side.ours
           ? <Issuer d={d} side={side} onAction={onAction} />
-          : <Recipients d={d} side={side} busy={busy} onAsk={onAsk} />}
-        {side.object_id != null && (
-          <span style={{ flex: 'none' }}><ObjId value={side.object_id} /></span>
+          : (
+            <Recipients d={d} side={side} busy={busy} onAsk={onAsk}
+              current={current} onShow={setShown} onAction={onAction} />
+          )}
+        {view.object_id != null && (
+          <span style={{ flex: 'none' }}><ObjId value={view.object_id} /></span>
         )}
       </span>
-      {side.attn
-        ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{side.attn}</span>
+      {view.attn
+        ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{view.attn}</span>
         : <div />}
-      {(side.address ?? []).length
-        ? (
-          <span style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-line' }}>
-            {(side.address ?? []).join('\n')}
-          </span>
-        )
+      {(view.address ?? []).length
+        ? <Anschrift label={view.address_label} lines={view.address ?? []} />
         /* ►►► **Was fehlt, wird gesagt – aber nur über jemanden, den es gibt** (#939).
             ◄◄◄ Solange kein Adressat feststeht, nennt die Seite **niemanden**; «Anschrift
             fehlt» wäre dann eine Aussage über eine leere Stelle. Dieselbe Regel wie im
             Dienst (`gaps` prüft die Gegenseite erst, wenn sie bekannt ist). */
-        : <div>{side.object_id != null ? <Missing what="Anschrift" /> : null}</div>}
+        : <div>{view.object_id != null ? <Missing what="Anschrift" /> : null}</div>}
+      {/* ►►► **Die Lieferadresse, wo sie eine eigene ist** (Testnotiz #952). ◄◄◄ Sie
+          entsteht aus Angaben, die am Benutzer stehen – erfunden wird nichts; wo es nur
+          eine Anschrift gibt, bleibt die Zeile leer und **keine** der beiden trägt eine
+          Beschriftung: eine Unterscheidung ohne Gegenstück ist keine.
+          *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls; hier steht die
+          Anschrift auf dem Beleg, nicht der Transport.* */}
+      {(view.shipping ?? []).length
+        ? <Anschrift label={view.shipping_label} lines={view.shipping ?? []} />
+        : <div />}
       {/* ►►► **E-Mail und Telefon untereinander** (Testnotiz #944). ◄◄◄ Es sind zwei
           Wege, nicht ein Wert – und auf der Breite einer Beleg-Spalte brach die Zeile
           ohnehin, nur an einer beliebigen Stelle. */}
-      {side.email || side.phone
+      {view.email || view.phone
         ? (
           <span style={{ fontSize: 12, color: 'var(--fg-3)', whiteSpace: 'pre-line' }}>
-            {[side.email, side.phone].filter(Boolean).join('\n')}
+            {[view.email, view.phone].filter(Boolean).join('\n')}
           </span>
         )
         : <div />}
-      {side.uid
-        ? <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{side.uid}</span>
+      {view.uid
+        ? <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{view.uid}</span>
         : <div />}
     </div>
+  );
+}
+
+/** Eine Anschrift als Zeilen – mit Beschriftung nur, wo es zwei gibt (#952). */
+function Anschrift({ label, lines }: { label?: string | null; lines: string[] }) {
+  return (
+    <span className="flex flex-col" style={{ gap: 1, minWidth: 0 }}>
+      {label && <span style={MICRO_LABEL}>{label}</span>}
+      <span style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-line' }}>
+        {lines.join('\n')}
+      </span>
+    </span>
   );
 }
 
@@ -531,8 +593,13 @@ function Party({ side, d, busy, onAction, onAsk }: {
  * (Punkt + Wort je Zustand) plus, wo die Definition niemanden nennt, ein Suchfeld: ein
  * Karussell mit Pfeilen sagte weder, wie viele es gibt, noch welcher gewählt ist.
  */
-function Recipients({ d, side, busy, onAsk }: {
-  d: Filled; side: VoucherSide; busy: boolean; onAsk: Ask;
+function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
+  d: Filled; side: VoucherSide; busy: boolean;
+  /** Wessen Anschrift gerade dasteht – der Chip dazu ist markiert. */
+  current: number | null;
+  onAsk: Ask;
+  onShow: (objectId: number) => void;
+  onAction: Send;
 }) {
   const open = d.stage === DEAL_STAGE.offer;
   const canAsk = may(d, 'ask');
@@ -548,11 +615,22 @@ function Recipients({ d, side, busy, onAsk }: {
   }
   const known = d.quotes.map((q) => q.party_object_id);
   const free = (d.allowed ?? []).length === 0;
+  // ►►► **Abwählen ist die Gegenhandlung zum Anfragen** (Testnotiz #951). ◄◄◄ *«Ich kann
+  // zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch abwählen.»* – Es
+  // gab dafür schlicht **nichts**; die Hausregel steht seit dem Beschaffen-Modul: jede
+  // Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle. **Ob** es geht, sagt
+  // `can` (der Server sperrt die zugesagte Zeile – dort ist der Storno der Weg).
+  const canDrop = may(d, 'unask');
   return (
     <div className="flex flex-wrap items-center" style={{ gap: 6, minWidth: 0 }}>
       {d.quotes.map((q) => (
         <Chip key={q.id} name={q.party_name} number={q.party_object_id}
-          state={q.state ?? QUOTE_STATE.asked} />
+          state={q.state ?? QUOTE_STATE.asked}
+          active={q.party_object_id === current}
+          onShow={() => onShow(q.party_object_id)}
+          onDrop={canDrop && q.state !== QUOTE_STATE.chosen && !busy
+            ? () => void onAction({ action: 'unask', party: q.party_object_id })
+            : undefined} />
       ))}
       {free ? (
         // ►►► **Dieselbe Form wie jeder änderbare Wert** (#928/#930). ◄◄◄ Im Ruhezustand
@@ -584,20 +662,43 @@ function Recipients({ d, side, busy, onAsk }: {
   );
 }
 
-/** Eine angefragte Gegenpartei – Punkt, Name, Nummer. Die Anatomie jedes Zustands im Haus. */
-function Chip({ name, number, state }: {
+/**
+ * Eine angefragte Gegenpartei – Punkt, Name, Nummer. Die Anatomie jedes Zustands im Haus.
+ *
+ * ►►► **Der Chip ist zweierlei Bedienelement** (Testnotiz #951): ein Klick **zeigt** seine
+ * Anschrift, das ✕ **zieht die Anfrage zurück**. Zwei Knöpfe in einer Hülle, nicht einer im
+ * anderen: verschachtelte Knöpfe sind ungültiges HTML, und ein einziger müsste erraten, was
+ * gemeint war.
+ */
+function Chip({ name, number, state, active, onShow, onDrop }: {
   name: string; number: number; state: string;
+  active?: boolean;
+  onShow?: () => void;
+  onDrop?: () => void;
 }) {
   const look = quoteLook(state);
   return (
     <span className="inline-flex items-center" style={{
-      gap: 6, padding: '3px 8px', borderRadius: 999,
-      border: '1px solid var(--border-1)', fontSize: 12, color: 'var(--fg-1)',
-      minWidth: 0,
+      gap: 6, padding: '3px 4px 3px 8px', borderRadius: 999,
+      border: `1px solid ${active ? 'var(--accent)' : 'var(--border-1)'}`,
+      background: active ? 'var(--accent-soft)' : undefined,
+      fontSize: 12, color: 'var(--fg-1)', minWidth: 0,
     }} data-tip={look.label}>
       <span aria-hidden className="rounded-full"
         style={{ width: 6, height: 6, flex: 'none', background: look.color }} />
-      <span className="truncate" style={{ maxWidth: 150 }}>{name || number}</span>
+      <button type="button" onClick={onShow} aria-label={`Anschrift von ${name || number}`}
+        className="truncate" style={{ ...DOC_FIELD, maxWidth: 150,
+                                      cursor: onShow ? 'pointer' : 'default' }}>
+        {name || number}
+      </button>
+      {onDrop && (
+        <button type="button" onClick={onDrop} aria-label="Anfrage zurückziehen"
+          data-tip="Anfrage zurückziehen"
+          style={{ ...DOC_FIELD, display: 'inline-flex', color: 'var(--danger)',
+                   cursor: 'pointer', padding: '0 2px' }}>
+          <X size={11} />
+        </button>
+      )}
     </span>
   );
 }
@@ -1241,19 +1342,30 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
     [d.payment_days]);
 
   return (
+    // ►►► **Die Haarlinie schliesst den Container, sie eröffnet ihn nicht** (#955). ◄◄◄
+    // *«Der obere Strich in diesem Container ist irgendwie unnötig bzw. macht optisch
+    // keinen Sinn – ich würde ihn pro Container unten setzen.»* – Und er war zugleich die
+    // **zweite** Linie direkt unter der Trennlinie des Abschnitts.
+    // ►►► **Und die Zeile ist kompakter** (#954): weniger Polsterung, weniger Abstand.
     <div className="flex flex-col" style={{
-      gap: 8, padding: '9px 0', borderTop: '1px solid var(--border-1)', minWidth: 0,
+      gap: 6, padding: '0 0 7px', borderBottom: '1px solid var(--border-1)', minWidth: 0,
     }}>
       <div className="flex flex-wrap items-baseline" style={{ gap: '4px 10px', minWidth: 0 }}>
         <span aria-hidden className="rounded-full" style={{
           width: 6, height: 6, flex: 'none', background: look.color,
           alignSelf: 'center',
         }} />
-        <span className="truncate" style={{ fontSize: 13, flex: `1 1 ${NAME_MIN}px`,
-                                            minWidth: 0 }}>
-          {d.party_name || d.party_object_id}
+        {/* ►►► **Nummer neben dem Namen — als EINE Gruppe** (Testnotiz #953). ◄◄◄ Beide
+            benennen **einen** Datensatz; als Geschwister in einer umbrechenden Zeile
+            rutschte die Nummer auf die nächste, sobald es eng wurde. Gekappt wird der
+            Name, nie die Kennung (#853). */}
+        <span className="flex items-baseline"
+          style={{ gap: 8, flex: `1 1 ${NAME_MIN}px`, minWidth: 0 }}>
+          <span className="truncate" style={{ fontSize: 13, minWidth: 0 }}>
+            {d.party_name || d.party_object_id}
+          </span>
+          <span style={{ flex: 'none' }}><ObjId value={d.party_object_id} /></span>
         </span>
-        <ObjId value={d.party_object_id} />
         {d.amount != null && !declined && (
           <span style={{ font: '600 13px var(--font-body)',
                          fontVariantNumeric: 'tabular-nums' }}>
@@ -1424,11 +1536,13 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               height={ACT_H.inline} disabled={busy}
               onClick={() => setForm({ kind: 'charge', preset: d.next_charge ?? '' })} />
           )}
-          {may(d, 'pay') && (
-            <ActionButton icon={Wallet} label={d.payment_word} height={ACT_H.inline}
-              disabled={busy}
-              onClick={() => setForm({ kind: 'pay', preset: d.next_payment ?? '' })} />
-          )}
+          {/* ►►► **«Zahlung erfassen» gibt es nur AN der Rechnung** (Testnotiz #958). ◄◄◄
+              *«Warum gibt es hier zweimal den Button ‹Zahlung erfassen›? Das ist ein
+              absolutes No-Go.»* – Er stand hier **und** an jeder Rechnungszeile, und das
+              war kein Gestaltungsfehler, sondern eine offene Frage: der hier wusste nicht,
+              **welche** Rechnung gemeint ist, und wählte still die älteste offene. Ein
+              Knopf **an** der Zeile beantwortet sie, indem er sie nicht stellt (#859).
+              Geblieben ist hier, was dem **Vorgang** gilt: die nächste Forderung. */}
         </Actions>
         {d.open != null && charges.length > 0 && (
           <div className="flex items-baseline" style={{
@@ -1541,7 +1655,8 @@ function EntryRow({ d, e, sub, busy, panel, onAction, onPanel, onPay,
       </Actions>
       {panel?.entry === e.id && panel.kind === 'pay' && (
         <PayOnline orderObjectId={orderObjectId} stepId={stepId} chargeId={e.id}
-          label={d.pay_online_word} onDone={onPaid} onClose={() => onPanel('pay')} />
+          prepare={api.prepareVoucherPayment} label={d.pay_online_word}
+          onDone={onPaid} onClose={() => onPanel('pay')} />
       )}
       {panel?.entry === e.id && panel.kind === 'transfer' && (
         <Transfer orderObjectId={orderObjectId} stepId={stepId} entryId={e.id} />
@@ -1738,18 +1853,42 @@ function Chronicle({ d }: { d: Filled }) {
 /**
  * **Die Handlungen unter dem Strich** – wie die Unterschrift auf einem Beleg.
  *
- * Der **Zuschlag** steht an der Angebotszeile (dort wirkt er), der **Storno** hier: er ist
- * die Gegenhandlung des ganzen Belegs, keine Buchung.
+ * Der **Zuschlag** steht an der Angebotszeile (dort wirkt er), der **Abschluss** und der
+ * **Storno** hier: der eine bringt den Vorgang ans Ziel, der andere nimmt ihn zurück.
+ *
+ * ►►► **Und sie stehen NEBENEINANDER, in klarer Rangfolge** (Testnotiz #957). ◄◄◄
+ *
+ * *«Ich hätte gerne, dass es neben dem grossen Button ‹Vorgang abschliessen› platziert
+ * wird, jedoch nur ein quadratischer Button mit Icon, sodass der Hauptfokus und der absolut
+ * dominante Button immer noch ‹Vorgang abschliessen› ist.»*
+ *
+ * Also **eine** Zeile: der Abschluss nimmt den ganzen Platz (`flex: 1`), der Storno ein
+ * Quadrat in derselben Höhe. Beim Zeigen klappt sein Name daneben auf – dieselbe Geste wie
+ * jeder Symbol-Knopf im Haus (#900), und mehr braucht er nicht: dass er die Gegenhandlung
+ * ist, sagt die Warnfarbe.
+ *
+ * **Wann es ihn gibt, sagt `can`** – und das ist die Antwort auf die Frage der Notiz, ob
+ * ein Abbruch «zu jedem Schritt sauber etabliert» ist: beide Stufen führen `revoke`, und
+ * solange **nichts hinausgegangen** ist, führt der Server ihn nicht (es gibt dann nichts
+ * abzubrechen). Das Wort dazu kommt ebenfalls von dort (`undo`): im Angebot «Vorgang
+ * abbrechen», ab der Zusage «Auftrag stornieren» – vor der Zusage gibt es keinen Auftrag,
+ * den man stornieren könnte.
  */
-function Bottom({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send }) {
-  if (!d.undo) return null;
+function Footer({ d, busy, onAction, children }: {
+  d: Filled; busy: boolean; onAction: Send; children?: ReactNode;
+}) {
+  if (!children && !d.undo) return null;
   return (
     <div style={{ marginTop: 18, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
-      <Actions>
-        <ActionButton icon={ArrowUpRight} label={d.undo} tone="danger" disabled={busy}
-          tip="Der Beleg behält seinen Weg – ein Storno sagt nur, dass nichts mehr kommt."
-          onClick={() => void onAction({ action: 'revoke' })} />
-      </Actions>
+      <div className="flex items-stretch" style={{ gap: 8, minWidth: 0 }}>
+        {children && <div style={{ flex: 1, minWidth: 0 }}>{children}</div>}
+        {d.undo && (
+          <ActionButton icon={CircleSlash} label={d.undo} tone="danger" height={42} square
+            disabled={busy}
+            tip="Der Beleg behält seinen Weg – ein Storno sagt nur, dass nichts mehr kommt."
+            onClick={() => void onAction({ action: 'revoke' })} />
+        )}
+      </div>
     </div>
   );
 }

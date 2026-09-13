@@ -2261,7 +2261,11 @@ def test_the_palette_symbol_is_centred():
     # wo sie jetzt steht.*
     tuck = css[css.index(".ix-tuck {"):css.index(".ix-tuck-name")]
     assert "gap: 0;" in tuck, "Der Abstand gilt auch eingeklappt – das Symbol sitzt daneben."
-    assert "gap: 7px;" in css[css.index(".ix-tuck:hover"):][:260], (
+    # *Gefragt wird die **Regel** am Zeilenanfang, nicht das blosse Vorkommen des Namens:
+    # sonst trifft der Waechter die erste Prosa-Stelle, die die Regel **erklaert** (gemessen,
+    # als ein Kommentar `.ix-tuck:hover { width: auto }` zitierte) – dieselbe Stumpfheit wie
+    # damals, als ein Waechter seinen eigenen Erklaertext mitlas.*
+    assert "gap: 7px;" in css[_at(css, "\n.ix-tuck:hover"):][:260], (
         "Aufgeklappt fehlt der Abstand zum Namen."
     )
 
@@ -9277,17 +9281,22 @@ def test_a_name_in_the_document_head_carries_its_number():
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     party = _component(src, "Party")
-    head = party[: party.index("side.attn")]
-    assert "<ObjId value={side.object_id}" in head, (
-        "Die Nummer steht nicht bei Name und Waehler (a)."
-    )
+    # *Gefragt wird die **Regel**, nicht der Variablenname: seit #951 zeigt der Block den
+    # gewaehlten Empfaenger (``view``), nicht mehr blind ``side`` – die Nummer gehoert
+    # weiterhin in dieselbe Zeile wie der Name.*
+    head = party[: party.index(".attn")]
+    assert "<ObjId value={" in head, "Die Nummer steht nicht bei Name und Waehler (a)."
     assert "PARTY_NUMBER_LABEL" not in src and "'Nr.'" not in src, (
         "Die Beschriftung «Nr.» lebt weiter (c) – neben dem Namen sagt der Block darueber "
         "laengst, wessen Nummer es ist."
     )
-    assert "const PARTY_ROWS = 6" in src, (
-        "Das Raster behaelt eine Zeile, die es nicht mehr gibt (b) – dann klafft in beiden "
-        "Bloecken eine Luecke."
+    # Die Zeilenzahl selbst ist keine Regel – sie muss nur zur Zahl der Angaben passen, die
+    # der Block untereinander stellt. Gezaehlt wird darum, nicht verglichen.
+    rows = int(re.search(r"const PARTY_ROWS = (\d+)", src).group(1))
+    grid = party[party.index("gridRow:"):]
+    assert rows == grid.count("<div />") + grid.count(": <div>") + 2, (
+        "Das Raster und die Angaben des Blocks sind nicht gleich lang (b) – dann klafft in "
+        "beiden Bloecken eine Luecke."
     )
 
 
@@ -9301,7 +9310,7 @@ def test_two_ways_to_reach_someone_stand_below_each_other():
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     party = _component(src, "Party")
-    kontakt = party[party.index("side.email || side.phone"):]
+    kontakt = party[party.index(".email ||"):]
     assert "join('\\n')" in kontakt and "whiteSpace: 'pre-line'" in kontakt, (
         "Kontaktweg und Telefon stehen in einer Zeile – zwei Wege sind kein Wert."
     )
@@ -9385,25 +9394,287 @@ def test_a_note_carries_no_control_characters():
     )
 
 
-def test_a_finish_button_says_when_it_cannot_act():
-    """**«Vorgang abschliessen» ueber einer Offerte** (Testnotiz #945).
+def test_a_finish_button_that_cannot_act_is_not_there():
+    """►►► **Was jetzt nicht geht, steht auch nicht da** (Testnotiz #950). ◄◄◄
 
-    Der Knopf gehoert an **jedes** Modul – aber angeboten werden darf er erst, wenn er
-    etwas bewirkt. Was im Weg steht, sagt der Server (``step.blocked``); eine Heuristik der
-    Oberflaeche waere ein zweiter Massstab.
+    *«Es gibt hier ja noch den Button ‹Vorgang abschliessen›, welcher bewusst ausgegraut
+    deaktiviert ist … Ich sehe keinen Grund, warum dies sichtbar sein sollte. Wenn es die
+    Option zum jetzigen Zeitpunkt nicht gibt, dann entfernen.»*
 
-    Bug-Formen: (a) der Knopf fragt nicht nach der Sperre; (b) er ist gesperrt und sagt
-    nicht warum; (c) die Oberflaeche leitet den Grund selbst her (ein Modultyp).
+    Das ist #945 einen Schritt weiter, nicht zurueck: dort war das Problem, dass der Knopf
+    eine **Einladung** war, die der Dienst mit 409 abwies – ausgegraut loeste das halb. Die
+    Hausregel ist eindeutig: *ein Knopf, der nie etwas tun kann, ist kein Angebot.*
+
+    Bug-Formen, jede gegengeprueft: (a) der Knopf steht gesperrt da; (b) er fragt die Sperre
+    gar nicht (und laeuft dann in den 409); (c) die Oberflaeche leitet den Grund selbst her
+    (ein Modultyp).
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
     knopf = src[_at(src, "const blocked ="):]
     knopf = knopf[: knopf.index("</button>")]
-    assert "disabled={busy || !!blocked}" in knopf, (
-        "Der Abschluss-Knopf fragt die Sperre nicht (a)."
+    assert "blocked ? null :" in knopf, (
+        "Der Abschluss-Knopf steht gesperrt da statt zu fehlen (a/b) – und ausgegraut ist "
+        "er eine Einladung, die der Dienst gleich darauf abweist."
     )
-    assert "'data-tip': blocked" in knopf, (
-        "Er ist gesperrt und sagt nicht, warum (b) – eine Sackgasse mit Ausrufezeichen."
+    assert "disabled={busy}" in knopf, (
+        "Er fragt die Sperre nicht mehr, aber auch nicht mehr `busy` – dann laeuft ein "
+        "Doppelklick in zwei Bestaetigungen."
+    )
+    # *Und der **Grund** ist kein Hover an einem toten Knopf mehr: die Modul-Karte sagt ihn
+    # selbst (Stufe, gemeldete Luecken). Ein zweiter Ort dafuer waere dieselbe Auskunft
+    # noch einmal – und zwar dort, wo man sie nur findet, wenn man auf nichts zeigt.*
+    assert "'data-tip': blocked" not in knopf, (
+        "Die Begruendung haengt wieder am Knopf – den es in diesem Zustand nicht gibt."
     )
     assert "beleg" not in knopf and "zahlung" not in knopf, (
         "Die Oberflaeche nennt einen Modultyp (c) – die Regel steht im Dienst."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #948–#959 — die Fläche, der Ort und die richtige Tür
+# ---------------------------------------------------------------------------
+
+def test_an_editable_value_is_a_tinted_area_not_an_underline():
+    """►►► **Eine Fläche, kein Unterstrich** (Testnotiz #949). ◄◄◄
+
+    *«Ich möchte keinen Unterstrich, sondern wie jetzt beim Hover, dass der ganze
+    Eingabebereich leicht farblich hintersetzt ist – also standardmässig schon ohne Hover,
+    und der Unterstrich dafür weg. Beim Hover vielleicht nochmals eine dezent kräftigere
+    Farbe. Wende das bei allen solchen Feldern an.»*
+
+    Die Bedingung aus #922 gilt unverändert: **keine Layoutwirkung**. Die Tönung ist darum
+    eine ``background`` und wächst über einen **äusseren** ``box-shadow``; Polsterung hätte
+    genau das gebrochen.
+
+    Bug-Formen, jede gegengeprüft: (a) der Unterstrich lebt weiter; (b) im Ruhezustand gibt
+    es keine Fläche; (c) der Hover ist nicht kräftiger; (d) die Fläche kommt über eine
+    Polsterung und verschiebt damit den Beleg; (e) eine Farbe steht als Zahl daneben statt
+    aus dem Token zu kommen.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    rule = css[_at(css, "\n.ix-editable {"):]
+    rule = rule[: rule.index("}")]
+    assert "inset" not in rule, "Der Unterstrich lebt weiter (a)."
+    assert "background:" in rule, "Im Ruhezustand gibt es keine Fläche (b)."
+    assert "padding" not in rule, (
+        "Die Fläche kommt über eine Polsterung (d) – #922 verlangt ausdrücklich, dass "
+        "Grösse und Form bleiben, wie sie gedruckt würden."
+    )
+    assert "box-shadow: 0 0 0" in rule, (
+        "Die Fläche klebt am Text – sie wächst über einen äusseren Schatten, weil der "
+        "keinen Platz belegt."
+    )
+    assert not re.search(r"(rgba?\(|#[0-9a-fA-F]{3,6})", rule), (
+        "Eine Farbe steht als Zahl im Blatt (e) – Token-Werte gehören in "
+        "`colors_and_type.css`."
+    )
+    hover = css[_at(css, "\n.ix-editable:hover"):]
+    hover = hover[: hover.index("}")]
+    assert "var(--accent-soft)" in hover and "58%" not in hover, (
+        "Der Hover ist nicht kräftiger als der Ruhezustand (c) – dann sagt er nichts."
+    )
+
+
+def test_the_marking_is_congruent_with_the_control():
+    """►►► **Die Auszeichnung ist so gross wie das Bedienelement** (Testnotiz #948). ◄◄◄
+
+    *«Das gehighlightete Feld ist deutlich grösser als das selektierbare Feld. Das ist ein
+    design- und UX-technisches No-Go. Bitte eine robuste Lösung etablieren und bei allen
+    Eingabefeldern kontrollieren.»*
+
+    Gelöst wird es **konstruktiv**, nicht durch abgestimmte Zahlen: die Hülle ist
+    ``inline-flex`` (dann nimmt sie genau die Höhe ihres Kindes), und Auszeichnung und
+    ``<select>`` sitzen auf **demselben** Element – der frühere Zwischen-``<span>`` war die
+    zweite Box, und sie konnte grösser sein als das, was sie versprach.
+
+    Bug-Formen: (a) die Hülle ist wieder ein reines Inline-Element; (b) es gibt zwei Boxen;
+    (c) das Bedienelement deckt nicht die ganze Fläche.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    hull = _component(src, "Editable")
+    assert "'inline-flex'" in hull and "'flex'" in hull, (
+        "Die Hülle ist ein reines Inline-Element (a) – dann nimmt sie die Höhe der Zeile "
+        "und ist grösser als das Bedienelement darin (gemessen 24 px ↔ 19,5 px)."
+    )
+    # *Und sie darf sich nicht **strecken**: in einer Spalte wird jedes Flex-Kind
+    # blockifiziert und auf die volle Breite gezogen – gemessen war die getönte Fläche
+    # 229 px breit und das `<select>` darin 46 px, also genau der gemeldete Unterschied.*
+    assert "alignSelf: 'start'" in hull, (
+        "Die Hülle streckt sich auf die Breite ihrer Spalte (a)."
+    )
+    pick = _component(src, "DocPick")
+    assert pick.count("<Editable") == 1 and "display: 'inline-block'" not in pick, (
+        "Es gibt zwei Boxen (b) – Auszeichnung und Bedienelement gehören auf dasselbe "
+        "Element, sonst kann die eine grösser sein als die andere."
+    )
+    assert "inset: 0" in pick, "Das Bedienelement deckt die Fläche nicht (c)."
+
+
+def test_paying_a_voucher_asks_the_voucher():
+    """►►► **«Jetzt bezahlen» rief die Tür des ALTEN Moduls** (Testnotiz #959). ◄◄◄
+
+    *«Wieso funktioniert diese Option nicht mehr? Achtung, dies muss sauber funktionieren,
+    und ich habe keinen Bock, nochmals Stripe zu konfigurieren.»* – Musste er nicht: die
+    Schlüssel, der Webhook und das Zahlungsformular sind unverändert. Die Karte rief fest
+    ``api.preparePayment``, also den Endpunkt des **Vorgängers**; am Beleg gab es dort
+    keinen Vorgang, und der Dienst antwortete mit 404.
+
+    Bug-Formen: (a) die Karte kennt wieder einen Endpunkt; (b) beide Aufrufer geben densel-
+    ben mit; (c) die Funktion wird an der Aufrufstelle gebaut (dann läuft die Vorbereitung
+    bei jedem Rendern neu).
+    """
+    card = _code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx"))
+    assert "api." not in card, (
+        "Die Karte kennt wieder einen Endpunkt (a) – welcher Vorgang bezahlt wird, weiss "
+        "nur der Aufrufer."
+    )
+    assert "prepare(orderObjectId" in card, "Die Karte fragt nicht den Aufrufer."
+    beleg = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    deal = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "prepare={api.prepareVoucherPayment}" in beleg, "Der Beleg ruft die falsche Tür."
+    assert "prepare={api.preparePayment}" in deal, "Der alte Vorgang ruft die falsche Tür."
+    # (c) **Eine prototypgebundene Methode, keine Pfeilfunktion** – sonst ist es bei jedem
+    # Rendern eine neue Referenz, und der Effekt der Vorbereitung läuft endlos.
+    assert "prepare={(" not in beleg and "prepare={(" not in deal, (
+        "Die Funktion wird an der Aufrufstelle gebaut (c)."
+    )
+
+
+def test_recording_a_payment_lives_only_at_the_invoice():
+    """►►► **Zweimal «Zahlung erfassen» ist einmal zu viel** (Testnotiz #958). ◄◄◄
+
+    *«Warum gibt es hier zweimal den Button ‹Zahlung erfassen›? Das ist ein absolutes
+    No-Go.»* – Und es war kein Gestaltungsfehler, sondern eine offene Frage: der Knopf am
+    **Vorgang** wusste nicht, welche Rechnung gemeint ist, und wählte still die älteste
+    offene. Ein Knopf **an** der Zeile beantwortet sie, indem er sie nicht stellt (#859).
+
+    Bug-Formen: (a) der Knopf am Vorgang ist zurück; (b) der an der Rechnung fehlt.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    money = _component(src, "Money")
+    assert "d.payment_word" not in money, (
+        "Der Knopf am Vorgang ist zurück (a) – und er kann nicht sagen, welche Rechnung."
+    )
+    row = _component(src, "EntryRow")
+    assert "d.payment_word" in row, (
+        "An der Rechnung fehlt er (b) – dann gibt es gar keinen Weg zu buchen."
+    )
+
+
+def test_the_cancel_button_stands_beside_the_finish_button_as_a_square():
+    """►►► **Der Storno neben dem Abschluss, als Quadrat** (Testnotiz #957). ◄◄◄
+
+    *«Ich hätte gerne, dass es neben dem grossen Button ‹Vorgang abschliessen› platziert
+    wird, jedoch nur ein quadratischer Button mit Icon, sodass der Hauptfokus und der absolut
+    dominante Button immer noch ‹Vorgang abschliessen› ist.»*
+
+    Bug-Formen: (a) er steht wieder in einer eigenen Zeile darunter; (b) er ist nicht
+    quadratisch; (c) die Breite kommt als Inline-Stil und nimmt dem Knopf damit die Geste,
+    seinen Namen beim Zeigen auszuklappen.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    foot = _component(src, "Footer")
+    assert "children" in foot and "flex: 1" in foot, (
+        "Der Abschluss steht nicht in derselben Zeile (a) – dann ist der Storno ein "
+        "zweiter Block und nicht sein kleiner Nachbar."
+    )
+    assert "square" in foot and "height={42}" in foot, (
+        "Der Knopf ist nicht quadratisch in der Höhe des Abschlusses (b)."
+    )
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    assert "'--actbtn-w'" in ui and "width:" not in _component(ui, "ActionButton"), (
+        "Die Breite kommt als Inline-Stil (c) – sie gewinnt gegen "
+        "`.ix-tuck:hover { width: auto }`, und der Name klappt nie aus."
+    )
+    css = _read(FRONTEND / "app" / "globals.css")
+    assert "width: var(--actbtn-w, 32px)" in css, (
+        "Die Regelbreite kommt nicht aus der Variablen (c) – dann kann der Aufrufer sie "
+        "nur inline setzen."
+    )
+
+
+def test_a_quote_row_closes_itself_and_keeps_name_and_number_together():
+    """**Die Haarlinie unten, Nummer neben dem Namen** (Testnotizen #953/#955).
+
+    *«Der obere Strich in diesem Container ist irgendwie unnötig bzw. macht optisch keinen
+    Sinn – ich würde ihn pro Container unten setzen.»* Er war zugleich die **zweite** Linie
+    direkt unter der Trennlinie des Abschnitts. Und *«die Objektnummer immer neben den
+    Objektnamen»* (#853): als Geschwister in einer umbrechenden Zeile rutschte die Nummer
+    auf die nächste, sobald es eng wurde.
+
+    Bug-Formen: (a) die Linie steht wieder oben; (b) Name und Nummer sind wieder
+    Geschwister der umbrechenden Zeile.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    row = _component(src, "QuoteRow")
+    assert "borderBottom: '1px solid var(--border-1)'" in row and "borderTop" not in row, (
+        "Die Linie eröffnet den Container statt ihn zu schliessen (a)."
+    )
+    group = row[row.index("party_name"):]
+    assert "<ObjId value={d.party_object_id} /></span>" in group[:400], (
+        "Name und Nummer sind zwei Geschwister der umbrechenden Zeile (b) – dann fällt die "
+        "Kennung auf die nächste Zeile."
+    )
+    assert f"flex: `1 1 ${{NAME_MIN}}px`" in row[: row.index("party_name")] \
+        or "flex: `1 1 ${NAME_MIN}px`" in row, "Die Gruppe schrumpft nicht mit."
+
+
+def test_a_recipient_chip_can_be_shown_and_dropped():
+    """►►► **Der Chip zeigt seine Anschrift und lässt sich abwählen** (Testnotiz #951). ◄◄◄
+
+    *«Ich kann zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch
+    abwählen … zudem stört mich, dass die jeweilige Anschrift nicht sichtbar ist.»*
+
+    Bug-Formen: (a) der Chip ist wieder reine Anzeige; (b) es gibt kein Abwählen; (c) die
+    Oberfläche entscheidet selbst, ob abgewählt werden darf, statt `can` zu fragen; (d) der
+    Block zeigt weiter blind die Seite des Servers statt der gewählten.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    chip = _component(src, "Chip")
+    # *Zwei Knöpfe in **einer** Hülle – ein Klick auf den Namen zeigt die Anschrift, das ✕
+    # zieht die Anfrage zurück. Verschachtelte Knöpfe wären ungültiges HTML, und ein
+    # einziger müsste erraten, was gemeint war. Gezählt wird, statt nach dem Vorkommen der
+    # Namen zu fragen: die standen auch dann noch da, als die Bug-Form den Klick entfernte.*
+    assert chip.count("<button") == 2, (
+        f"Der Chip hat {chip.count('<button')} Knöpfe statt zwei (a/b) – reine Anzeige "
+        f"zeigt keine Anschrift, und ohne ✕ gibt es kein Abwählen."
+    )
+    assert "onClick={onShow}" in chip, "Der Name zeigt die Anschrift nicht (a)."
+    assert "onClick={onDrop}" in chip, "Das ✕ zieht die Anfrage nicht zurück (b)."
+    rec = _component(src, "Recipients")
+    assert "may(d, 'unask')" in rec, (
+        "Die Oberfläche entscheidet selbst (c) – `can` ist Auskunft **und** Tor."
+    )
+    assert "action: 'unask'" in rec, "Das Verb wird nicht geschickt (b)."
+    party = _component(src, "Party")
+    # *Gefragt wird, dass **keine** angezeigte Angabe mehr aus `side` kommt – ein blosses
+    # «`view.address` steht irgendwo» war stumpf: die eine Stelle umzustellen liess das
+    # Wort an der anderen stehen, und der Wächter schlug nicht an (gemessen).*
+    assert "d.recipients" in party, "Die Seiten der Angefragten werden nicht gelesen (d)."
+    # *`side.object_id` bleibt erlaubt – daraus **entsteht** die Vorwahl (der Adressat ist
+    # der Standard). Gefragt sind die **angezeigten** Angaben.*
+    for feld in ("address", "shipping", "attn", "email", "phone", "uid"):
+        assert f"side.{feld}" not in party, (
+            f"«{feld}» kommt weiter blind aus der Seite des Servers (d) – dann bleibt beim "
+            f"Umschalten die Angabe des Adressaten stehen."
+        )
+    # **Wer die Gegenseite ist, sagt die Struktur** – nicht ein Vergleich auf ein Rollenwort.
+    assert "side.ours" in party, "Die Seite wird geraten statt gelesen."
+
+
+def test_a_delivery_clause_carries_no_edition_in_brackets():
+    """**«(Incoterms 2020)» entfällt – bei allen** (Testnotiz #956).
+
+    Welche Fassung gilt, steht in der **Erklärung** der gewählten Klausel, und die steht auf
+    dem Beleg sichtbar darunter. Als Anhang an jedem Wert wäre sie eine Wiederholung, die
+    mit jeder Anzeige länger wird.
+
+    Bug-Form: der Satz baut die Fassung wieder an.
+    """
+    src = _code(_read(BACKEND / "app" / "domain" / "incoterms.py"))
+    out = src[_at(src, "def sentence"):]
+    out = out[: out.index("\n\n\n")] if "\n\n\n" in out else out
+    assert "Incoterms" not in out, (
+        "Der Satz trägt die Fassung wieder – und zwar an jeder Anzeige."
     )

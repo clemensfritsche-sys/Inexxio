@@ -103,12 +103,17 @@ def assert_incoterm(value: Any) -> Optional[str]:
 
 
 def sentence(key: Optional[str], place: Optional[str]) -> Optional[str]:
-    """**Wie die Vereinbarung auf dem Beleg steht** – «FCA Rorschach (Incoterms 2020)».
+    """**Wie die Vereinbarung auf dem Beleg steht** – «FCA Rorschach».
 
     Eine Stelle, an der sie gebaut wird; im Browser zusammengesetzt wäre sie die zweite
     Schreibweise, und die beiden lauteten beim nächsten Feld verschieden.
+
+    ►►► **Ohne die Jahreszahl in Klammern** (Testnotiz #956, nach #947 auch hier). ◄◄◄
+    *«Diese Info in Klammern kann grundsätzlich entfallen. Bei allen.»* – Sie stand an
+    **jedem** Wert und sagte an jedem dasselbe; welche Fassung gilt, gehört einmal in die
+    Erklärung der gewählten Klausel, nicht zwanzigmal hinter das Kürzel.
     """
     term = of(key)
     if term is None:
         return None
-    return " ".join(x for x in (term.key, (place or "").strip()) if x) + " (Incoterms 2020)"
+    return " ".join(x for x in (term.key, (place or "").strip()) if x)

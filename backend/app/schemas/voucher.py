@@ -221,8 +221,13 @@ class VoucherSide(BaseModel):
     Satz reist mit – ein Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung.
     """
 
-    label: str
+    label: str = ""
     hint: str = ""
+    #: ►►► **Ist das unsere Seite?** ◄◄◄ Welcher Block die Gegenpartei ist, wechselt mit
+    #: der Richtung – und die Oberfläche muss es wissen, um beim Umschalten des Empfängers
+    #: den richtigen zu tauschen. Ein Vergleich auf «Leistungserbringer» wäre ein Spiegel
+    #: über die API-Grenze; dies **ist** die Struktur.
+    ours: bool = False
     object_id: Optional[int] = None
     #: Der Name **mit Rechtsform** – auf einem Beleg steht die, die haftet.
     name: str = ""
@@ -234,6 +239,12 @@ class VoucherSide(BaseModel):
     #: Reihenfolge, und eine zweite Fassung im Browser wäre die Stelle, an der eine Zeile
     #: verrutscht. Leer heisst «nicht hinterlegt»; erfunden wird nichts.
     address: list[str] = Field(default_factory=list)
+    #: Die **zweite** Anschrift, wo eine eigene Rechnungsadresse hinterlegt ist (#952).
+    #: Leer heisst «es gibt nur eine» – dann sind auch die Beschriftungen ``None``, denn
+    #: eine Unterscheidung ohne Gegenstück ist keine.
+    shipping: list[str] = Field(default_factory=list)
+    address_label: Optional[str] = None
+    shipping_label: Optional[str] = None
     uid: Optional[str] = None
 
 
@@ -323,6 +334,9 @@ class VoucherEmbed(BaseModel):
     lines: list[VoucherLineOut] = Field(default_factory=list)
     supplier: Optional[VoucherSide] = None
     customer: Optional[VoucherSide] = None
+    #: Je **angefragtem** Empfänger eine ganze Seite – der Kopf zeigt einen, die Oberfläche
+    #: schaltet um (#951). Leer für eine Gegenpartei: das ist die Konkurrenzliste.
+    recipients: list[VoucherSide] = Field(default_factory=list)
     gaps: list[DataGap] = Field(default_factory=list)
     # ─── Die Ableitungen der gewählten Angebotszeile ────────────────────────────
     #: *mit wem · was vereinbart ist · welche Fristen* – sie stehen an der **gewählten
@@ -358,6 +372,7 @@ class VoucherUpdate(BaseModel):
 
     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
+    ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei
     ``decline``  eine Angebotszeile absagen – auch von der Gegenpartei
     ``agree``    den **Zuschlag** geben (``party``)

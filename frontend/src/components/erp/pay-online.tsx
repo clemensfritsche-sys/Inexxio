@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, ShieldCheck } from 'lucide-react';
 import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/stripe-js';
-import { api } from '@/lib/api';
 import type { PaymentSetup } from '@/types';
 
 /**
@@ -40,7 +39,7 @@ import type { PaymentSetup } from '@/types';
  * und nicht «gebucht» – und lädt den Auftrag nach, damit die Zeile erscheint, sobald sie
  * da ist.
  */
-export function PayOnline({ orderObjectId, stepId, chargeId, label, onDone, onClose }: {
+export function PayOnline({ orderObjectId, stepId, chargeId, prepare, label, onDone, onClose }: {
   orderObjectId: number;
   stepId: number;
   /**
@@ -51,6 +50,21 @@ export function PayOnline({ orderObjectId, stepId, chargeId, label, onDone, onCl
    * Knopf danebenstand.
    */
   chargeId?: number | null;
+  /**
+   * ►►► **WELCHES Modul bezahlt wird, sagt der Aufrufer** (Testnotiz #959). ◄◄◄
+   *
+   * Die Karte rief fest `api.preparePayment` – den Endpunkt des **alten** Zahlungsmoduls.
+   * Am Beleg gab es dort keinen Vorgang, der Dienst antwortete mit 404, und «Jetzt
+   * bezahlen» tat nichts. Es war kein Stripe-Problem: die Schlüssel, der Webhook und das
+   * Element sind unverändert – es war die falsche Tür.
+   *
+   * Die Karte kennt darum **keinen** Endpunkt mehr. Übergeben wird eine
+   * **prototypgebundene** Methode des Clients (`api.prepareVoucherPayment`), also eine
+   * stabile Referenz – eine hier gebaute Pfeilfunktion wäre bei jedem Rendern eine neue
+   * und liesse die Vorbereitung endlos laufen.
+   */
+  prepare: (objectId: number, stepId: number,
+            chargeId?: number | null) => Promise<PaymentSetup>;
   /** Das Wort des Servers («Jetzt bezahlen») – die Karte hält keine eigene Konstante. */
   label: string;
   /** Der Auftrag soll neu geladen werden – die Zahlung kommt über den Webhook. */
@@ -68,11 +82,11 @@ export function PayOnline({ orderObjectId, stepId, chargeId, label, onDone, onCl
   // Absicht über den offenen Betrag und ändert an unserem Vorgang keine Zeile.
   useEffect(() => {
     let dead = false;
-    api.preparePayment(orderObjectId, stepId, chargeId)
+    prepare(orderObjectId, stepId, chargeId)
       .then((s) => { if (!dead) setSetup(s); })
       .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
     return () => { dead = true; };
-  }, [orderObjectId, stepId, chargeId]);
+  }, [prepare, orderObjectId, stepId, chargeId]);
 
   // **Das SDK kommt erst auf Klick** (`await import`) – dieselbe Regel wie beim Decoder
   // des Scanners: was niemand öffnet, kostet niemanden etwas.

@@ -11235,6 +11235,13 @@
               }
             ]
           },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherSide"
+            },
+            "type": "array",
+            "title": "Recipients"
+          },
           "gaps": {
             "items": {
               "$ref": "#/components/schemas/app__schemas__voucher__DataGap"
@@ -11885,12 +11892,18 @@
         "properties": {
           "label": {
             "type": "string",
-            "title": "Label"
+            "title": "Label",
+            "default": ""
           },
           "hint": {
             "type": "string",
             "title": "Hint",
             "default": ""
+          },
+          "ours": {
+            "type": "boolean",
+            "title": "Ours",
+            "default": false
           },
           "object_id": {
             "anyOf": [
@@ -11948,6 +11961,35 @@
             "type": "array",
             "title": "Address"
           },
+          "shipping": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shipping"
+          },
+          "address_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Label"
+          },
+          "shipping_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipping Label"
+          },
           "uid": {
             "anyOf": [
               {
@@ -11961,9 +12003,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "label"
-        ],
         "title": "VoucherSide",
         "description": "**Eine Seite des Belegkopfs** – Leistungserbringer bzw. -empfänger.\n\nDie Begriffe des MWSTG: sie gelten für *jede* Leistung (Ware, Dienstleistung, Miete,\nLohn, Transport) und passen wörtlich zum Reverse-Charge-Pflichtsatz. Der erklärende\nSatz reist mit – ein Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung."
       },
@@ -12237,7 +12276,7 @@
           "action"
         ],
         "title": "VoucherUpdate",
-        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``charge``   eine **Forderung** buchen (negativ = Gutschrift)\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``charge``   eine **Forderung** buchen (negativ = Gutschrift)\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
       },
       "app__schemas__deal__DataGap": {
         "properties": {

@@ -824,6 +824,55 @@ Das war die Ursache von «kommt kein Vorschlag, nichts» und stand als Konsolen-
 unter *jeder* Notiz dieser Runde. Am Aufrufer wäre es eine Regel, die man bei jedem neuen
 `search={…}` erneut einhalten muss.
 
+### Die Auszeichnung ist so gross wie das Feld (#948/#949)
+►►► **Eine Box, nicht zwei.** ◄◄◄ *«Das gehighlightete Feld ist deutlich grösser als das
+selektierbare Feld – ein design- und UX-technisches No-Go.»* Gemessen an der echten
+Komponente: die alte Bauart hat **62** Stellen, an denen beides auseinander liegt
+(«Zahlungsfrist Fläche 229×24 ≠ Feld 46×24»). Ursache ist ein Grundzug von Flexbox: in
+einer **Spalte** wird jedes Kind blockifiziert und auf die volle Breite gezogen.
+
+`Editable` ist darum `inline-flex` **mit `align-self: start`** (keine Streckung in beiden
+Achsen), und `DocPick` setzt das Bedienelement mit `inset: 0` auf **dieselbe** Hülle – der
+frühere Zwischen-`<span>` war die zweite Box. Auch `as="div"` ist ein Flex-Kasten: sonst
+ist die Hülle so hoch wie ihre **Zeile** (24 px) und das Feld darin 19,5 px. Gemessen
+danach: **76 Felder, alle deckungsgleich**.
+
+**Und es ist eine Fläche, kein Unterstrich** (#949, `.ix-editable`): ruhend getönt, beim
+Zeigen kräftiger – über eine `background` und einen **äusseren** `box-shadow`, damit die
+Bedingung aus #922 gilt (Δb 0.00 · Δh 0.00, auch beim Zeigen). Polsterung hätte den Beleg
+verschoben. Die Farbe kommt aus `--accent-soft`, nie als Zahl im Blatt.
+
+### Der Empfänger ist wählbar, abwählbar – und zeigt seine Anschrift (#951/#952)
+Ein **Beleg** hat einen Adressaten: einer steht vollständig da, ein Klick auf einen Chip
+schaltet um. Die Seiten aller Angefragten reisen mit (`recipients`) – ein Endpunkt
+«Anschrift zu Nummer» wäre ein zweiter Weg zu einer Angabe, die der Beleg ohnehin
+liefert. **Welcher Block die Gegenseite ist, sagt der Server** (`VoucherSide.ours`); ein
+Vergleich auf «Leistungserbringer» wäre ein Spiegel über die API-Grenze.
+
+Der Chip trägt **zwei** Knöpfe in einer Hülle – der Name zeigt die Anschrift, das ✕ zieht
+die Anfrage zurück (`unask`); verschachtelte Knöpfe wären ungültiges HTML. **Ob abgewählt
+werden darf, sagt `can`.** Und wo eine eigene Rechnungsadresse hinterlegt ist, stehen
+**zwei** Anschriften mit Beschriftung – nur dann: bei einer einzigen wäre
+«Rechnungsadresse» eine Unterscheidung ohne Gegenstück.
+
+### Die Fusszeile: der Abschluss, und der Storno daneben (#950/#957)
+*«Wenn es die Option zum jetzigen Zeitpunkt nicht gibt, dann entfernen.»* Der gesperrte
+Abschluss-Knopf ist **weg**, nicht ausgegraut (`order-detail`: `blocked ? null : …`) – das
+ist #945 einen Schritt weiter, und was im Weg steht, sagt die Modul-Karte selbst. Der
+**Storno** steht als 42 × 42-px-Quadrat daneben (`Footer`), der dominante Knopf nimmt den
+Rest. Seine Breite kommt aus der CSS-Variablen `--actbtn-w`, nie inline: ein Inline-Wert
+gewinnt gegen `.ix-tuck:hover { width: auto }`, und der Name klappte nie aus.
+
+### «Jetzt bezahlen» fragt den richtigen Vorgang (#959)
+`PayOnline` kennt **keinen** Endpunkt mehr – `prepare` kommt vom Aufrufer
+(`api.prepareVoucherPayment` ↔ `api.preparePayment`), als **prototypgebundene** Methode:
+eine dort gebaute Pfeilfunktion wäre bei jedem Rendern eine neue Referenz und liesse die
+Vorbereitung endlos laufen. Vorher rief die Karte fest die Tür des **alten** Moduls; am
+Beleg gab es dort keinen Vorgang (404), und der Knopf tat nichts. Stripe war unberührt.
+
+**Und «Zahlung erfassen» gibt es nur AN der Rechnung** (#958): der Knopf am Vorgang wusste
+nicht, welche gemeint ist, und wählte still die älteste offene.
+
 ## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das
 Bewegen-Modul trug dafür einmal den Einkaufs-Beleg samt Schalter «Selbst ↔ Beschaffen»

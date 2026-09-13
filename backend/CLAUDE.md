@@ -837,6 +837,28 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > gewählte Zeile, sonst die **eine** angefragte; bei mehreren keiner (ein Rundschreiben hat
 > keinen Adressaten). `party_of` bleibt, was es ist, und `gaps` fragt weiterhin danach:
 > **gebunden** ist erst, wer zugesagt bekam.
+>
+> ►►► **Jede Zusage nach aussen hat ihre Gegenhandlung – auch `ask`** (#951). ◄◄◄
+> `unask` zieht eine Anfrage zurück (Soft-Delete: was hinausging, wird nicht geleugnet).
+> **Es gilt nur vor der Zusage, und ohne eine zweite Regel**: `_agree` setzt Zustand und
+> Stufe in einem Zug, also gibt es in der Stufe «Angebot» keine gewählte Zeile, und danach
+> führt `can` das Verb nicht mehr – die unterlegenen Zeilen sind dort der **Nachweis**.
+> *Eine Sperre «die gewählte nicht» stand einen Anlauf lang in `_unask` und war
+> **unerreichbar**; ein Ast, den niemand erreicht, ist von einem kaputten nicht zu
+> unterscheiden.*
+>
+> **Abbrechen geht, sobald etwas hinausgegangen ist** (#957): `revoke` steht in **beiden**
+> Stufen, und die Bedingung «es gibt eine Angebotszeile» ist keine Stufe, sondern eine
+> Frage an die Daten – sie steht in `can`. Das **Wort** hängt an der Stufe
+> (`vo.undo_word`): vor der Zusage gibt es keinen Auftrag, den man stornieren könnte.
+>
+> **Je Angefragtem eine ganze Seite** (#951/#952): `their_side` ist die eine Ableitung, und
+> `document_head` wie `recipients` lesen sie – zweimal gebaut liefen sie beim nächsten Feld
+> auseinander. Jede Seite trägt `ours` (welcher Block **unserer** ist, wechselt mit der
+> Richtung; ein Vergleich auf ein Rollen-Wort wäre ein Spiegel über die API-Grenze) und,
+> wo eine eigene Rechnungsadresse hinterlegt ist, die **Lieferadresse** daneben – nur wenn
+> sie sich unterscheidet, sonst wären zwei Blöcke mit demselben Text zwei Aussagen über
+> eine Sache. Die Liste gibt es **nur für das Personal**: sie ist die Konkurrenzliste.
 
 ## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
 

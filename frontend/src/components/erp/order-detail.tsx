@@ -547,19 +547,27 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
       // daraus etwas, das man als Knopf erkennt. Und dieser hier ist die **eine**
       // Handlung, die das Modul abschliesst; er trägt darum die volle Breite und die
       // Fläche, nicht bloss eine Kontur.
-      // ►►► **Und er sagt, wenn er JETZT nichts tun kann** (Testnotiz #945). ◄◄◄
+      // ►►► **Und wenn er JETZT nichts tun kann, gibt es ihn nicht** (Testnotiz #950). ◄◄◄
       //
-      // «Vorgang abschliessen» stand in voller Breite über einer **Offerte** – eine
-      // Einladung, die der Dienst danach mit 409 abwies. Der Knopf gehört dorthin
-      // (jedes Modul endet mit ihm), aber **angeboten** werden darf er erst, wenn er
-      // etwas bewirkt. Was im Weg steht, sagt der Server aus derselben Regel, die
-      // `confirm_step` durchsetzt (`step.blocked`) – nicht eine Heuristik hier.
-      <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
-        disabled={busy || !!blocked} style={{ height: 42, fontSize: 14 }}
-        {...(blocked ? { 'data-tip': blocked } : {})}
-        onClick={() => onConfirm(step.id, null, 'manual', {}, [], null)}>
-        <Check size={16} /> {stepInfo(order, step.id)?.action ?? 'Bestätigen'}
-      </button>
+      // *«Es gibt hier ja noch den Button ‹Vorgang abschliessen›, welcher bewusst ausgegraut
+      // deaktiviert ist … Ich sehe keinen Grund, warum dies sichtbar sein sollte. Wenn es
+      // die Option zum jetzigen Zeitpunkt nicht gibt, dann entfernen.»*
+      //
+      // Damit ist #945 einen Schritt weitergegangen, nicht zurückgenommen: dort war das
+      // Problem, dass der Knopf eine **Einladung** war, die der Dienst mit 409 abwies –
+      // ausgegraut löste das halb. Die Hausregel ist eindeutig: *ein Knopf, der nie etwas
+      // tun kann, ist kein Angebot.* **Was** im Weg steht, sagt die Modul-Karte selbst (die
+      // Stufe, die gemeldeten Lücken) – ein Hinweis hier wäre dieselbe Auskunft ein zweites
+      // Mal, und zwar in einer Blase, die man nur findet, wenn man auf einen toten Knopf
+      // zeigt. Gefragt wird weiterhin der **Server** (`step.blocked`, aus derselben Regel,
+      // die `confirm_step` durchsetzt) – nicht eine Heuristik hier.
+      blocked ? null : (
+        <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
+          disabled={busy} style={{ height: 42, fontSize: 14 }}
+          onClick={() => onConfirm(step.id, null, 'manual', {}, [], null)}>
+          <Check size={16} /> {stepInfo(order, step.id)?.action ?? 'Bestätigen'}
+        </button>
+      )
     ) : isActive ? (
       // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
       // (Scan-Regel §3).

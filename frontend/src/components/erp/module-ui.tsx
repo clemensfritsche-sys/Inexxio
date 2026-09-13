@@ -90,13 +90,22 @@ export const ACT_H = { row: 26, inline: 30, main: 34 } as const;
  * `::after` weg – die Blase wäre unsichtbar (die Lehre aus #790).
  */
 export function ActionButton({
-  icon: Icon, label, tone = 'neutral', height = ACT_H.row, tip, disabled, onClick,
+  icon: Icon, label, tone = 'neutral', height = ACT_H.row, square, tip, disabled, onClick,
 }: {
   icon: LucideIcon;
   /** Was der Knopf tut – das Wort, das beim Zeigen daneben aufklappt, und das `aria-label`. */
   label: string;
   tone?: 'primary' | 'neutral' | 'danger';
   height?: number;
+  /**
+   * ►►► **Ein Quadrat in der Höhe, die daneben steht** (Testnotiz #957). ◄◄◄
+   *
+   * Die Regelbreite ist 32 px – neben einem 42 px hohen Knopf sähe das wie ein Versehen
+   * aus. `square` sagt «so breit wie hoch»; gesetzt wird es über die CSS-Variable
+   * `--actbtn-w`, damit `.ix-tuck:hover { width: auto }` den Namen weiterhin ausklappen
+   * kann. Ein Inline-`width` gewinnt gegen jede Regel und nähme ihm die Geste.
+   */
+  square?: boolean;
   /**
    * Ein **Grund**, keine zweite Beschriftung – er steht als Blase an der Hülle. Meist der
    * Satz, warum es gerade nicht geht, oder was die Handlung nach sich zieht.
@@ -108,7 +117,10 @@ export function ActionButton({
   const button = (
     <button type="button" disabled={disabled} onClick={onClick}
       className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon ix-tuck`}
-      style={{ height }} aria-label={label}>
+      style={square
+        ? ({ height, '--actbtn-w': `${height}px` } as CSSProperties)
+        : { height }}
+      aria-label={label}>
       <Icon size={13} />
       <span className="ix-tuck-name">{label}</span>
     </button>

@@ -2492,7 +2492,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
         <>
           {paying === e.id && (
             <PayOnline orderObjectId={orderObjectId} stepId={stepId} chargeId={e.id}
-              label={d.pay_online_word}
+              prepare={api.preparePayment} label={d.pay_online_word}
               onDone={() => { setWait({ paid: d.paid ?? '', tries: 0 }); onPaid?.(); }}
               onClose={() => setPaying(null)} />
           )}

@@ -4716,6 +4716,8 @@ export interface components {
             lines?: components["schemas"]["VoucherLineOut"][];
             supplier?: components["schemas"]["VoucherSide"] | null;
             customer?: components["schemas"]["VoucherSide"] | null;
+            /** Recipients */
+            recipients?: components["schemas"]["VoucherSide"][];
             /** Gaps */
             gaps?: components["schemas"]["app__schemas__voucher__DataGap"][];
             /** Party Object Id */
@@ -4956,13 +4958,21 @@ export interface components {
          *     Satz reist mit – ein Fachbegriff ohne Erklärung ist eine Rückfrage mit Verzögerung.
          */
         VoucherSide: {
-            /** Label */
+            /**
+             * Label
+             * @default
+             */
             label: string;
             /**
              * Hint
              * @default
              */
             hint: string;
+            /**
+             * Ours
+             * @default false
+             */
+            ours: boolean;
             /** Object Id */
             object_id?: number | null;
             /**
@@ -4978,6 +4988,12 @@ export interface components {
             phone?: string | null;
             /** Address */
             address?: string[];
+            /** Shipping */
+            shipping?: string[];
+            /** Address Label */
+            address_label?: string | null;
+            /** Shipping Label */
+            shipping_label?: string | null;
             /** Uid */
             uid?: string | null;
         };
@@ -5019,6 +5035,7 @@ export interface components {
          *
          *     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
          *     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
+         *     ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
          *     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei
          *     ``decline``  eine Angebotszeile absagen – auch von der Gegenpartei
          *     ``agree``    den **Zuschlag** geben (``party``)

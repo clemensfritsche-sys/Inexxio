@@ -148,6 +148,17 @@ CUSTOMER = "Leistungsempfänger"
 SUPPLIER_HINT = "Wer die Leistung erbringt und den Beleg stellt."
 CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 
+#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben** (Testnotiz #952). ◄◄◄ Sie müssen
+#: nicht gleich sein – und genau darum stehen die Beschriftungen **nur dort, wo sie sich
+#: unterscheiden**: bei einer einzigen Anschrift wäre «Rechnungsadresse» darüber eine
+#: Unterscheidung, die es nicht gibt. Erfunden wird nichts: die zweite Zeile entsteht aus
+#: Angaben, die am Benutzer stehen (Rechnungsadresse ≠ Hauptadresse).
+#:
+#: *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls – hier steht die
+#: **Anschrift auf dem Beleg**, nicht der Transport.*
+BILLING_LABEL = "Rechnungsadresse"
+SHIPPING_LABEL = "Lieferadresse"
+
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
 #: ►►► **Die Nummer steht NEBEN dem Namen** (Testnotiz #940) – und braucht darum keine
@@ -162,6 +173,16 @@ AGREE_VERB = "Angebot annehmen"
 FINISH_VERB = "Vorgang abschliessen"
 #: Die eine Gegenhandlung.
 UNDO = "Auftrag stornieren"
+#: ►►► **Und im Angebot heisst es anders** (Testnotiz #957). ◄◄◄ Vor der Zusage ist kein
+#: Auftrag da, den man stornieren könnte – hinausgegangen ist ein Angebot. Das Wort hängt
+#: damit an der **Stufe**, nicht an der Richtung: in beiden Richtungen bricht man denselben
+#: Vorgang ab, und ein Wert je Richtung wäre einer, den man falsch setzen kann.
+UNDO_AT = {OFFER: "Vorgang abbrechen", AGREED: UNDO}
+
+
+def undo_word(stage: str) -> str:
+    """Wie die Gegenhandlung in **dieser** Stufe heisst – die eine Auflösung."""
+    return UNDO_AT.get(stage, UNDO)
 
 #: **Erfasst** wird beides – das System bucht eine Zeile, es überweist nichts.
 CHARGE_WORD = "Rechnung erfassen"

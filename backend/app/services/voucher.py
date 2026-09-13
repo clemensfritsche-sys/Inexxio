@@ -585,6 +585,10 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     flow = vo.of(row.direction)
     out = [k for k, v in VERBS.items() if row.stage in v.stages]
     rows = entries_of(db, row)
+    # ►►► **Vor der ersten Anfrage gibt es nichts abzubrechen** (#957). ◄◄◄ Und nichts
+    # abzuwählen: beide Verben setzen voraus, dass etwas hinausgegangen ist.
+    if row.stage == vo.OFFER and not quotes_of(db, row):
+        out = [a for a in out if a not in ("revoke", "unask")]
     # ►►► **Ohne Rechnung keine Zahlung.** ◄◄◄ Man kassiert nicht, was niemand gefordert
     # hat. Die Vorauszahlung verliert nichts – sie ist «erst fordern, dann zahlen».
     if not any(e.kind == vo.CHARGE for e in rows):
@@ -928,6 +932,31 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.agreed_on = date.today()
 
 
+def _unask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Eine Anfrage zurückziehen** (Testnotiz #951). ◄◄◄
+
+    *«Ich kann zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch
+    abwählen.»* – Und es gab dafür **nichts**: ``ask`` hatte keine Gegenhandlung, also war
+    eine falsch gewählte Gegenpartei für immer am Beleg. Die Hausregel dazu steht seit dem
+    Beschaffen-Modul: *jede Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle.*
+
+    **Soft-Delete wie überall** – die Zeile bleibt in der Datenbank, sie ist nur nicht mehr
+    Teil dieses Belegs. Was hinausging, ist damit nicht geleugnet.
+
+    ►►► **Und es gilt nur VOR der Zusage – ohne eine zweite Regel.** ◄◄◄ Eine Sperre «die
+    gewählte Zeile nicht» stand hier einen Anlauf lang und war **unerreichbar**: ``_agree``
+    setzt ``CHOSEN`` und die Stufe ``AGREED`` in einem Zug, also gibt es in der Stufe
+    ``OFFER`` keine gewählte Zeile, und ab ihr führt ``can`` dieses Verb gar nicht. Ein Ast,
+    den niemand erreicht, ist von einem kaputten nicht zu unterscheiden – die Stufe ist das
+    Tor. Fachlich ist es zugleich das Richtige: nach dem Zuschlag sind die **unterlegenen**
+    Zeilen der Nachweis, warum so entschieden wurde, und wer den Vorgang zurücknehmen will,
+    storniert ihn.
+    """
+    _target(db, row, data, actor).is_active = False
+    db.flush()
+
+
 def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Stornieren.** Der Beleg **behält seinen Weg**: ein Storno macht die Zusage nicht
@@ -1097,6 +1126,9 @@ VERBS: dict[str, Verb] = {
     "incoterm": Verb(stages=(vo.OFFER,), run=_incoterm),
     "price": Verb(stages=(vo.OFFER,), run=_price),
     "ask": Verb(stages=(vo.OFFER,), run=_ask, needs=("ask",)),
+    # **Die Gegenhandlung zu ``ask``** – ohne Stammdaten-Bedingung: wer etwas zurücknimmt,
+    # soll nicht an einer fehlenden Anschrift scheitern (dieselbe Regel wie beim Absagen).
+    "unask": Verb(stages=(vo.OFFER,), run=_unask),
     "quote": Verb(stages=(vo.OFFER,), run=_quote, needs=("ask",), party=IF_THEY_PRICE),
     "decline": Verb(stages=(vo.OFFER,), run=_decline, party=ALWAYS),
     "agree": Verb(stages=(vo.OFFER,), run=_agree, needs=("ask", "agree"),
@@ -1105,7 +1137,11 @@ VERBS: dict[str, Verb] = {
     # Storno: eine Anzahlung muss erstattet werden können, und eine Rechnung darf vor der
     # Erfüllung stehen wie danach. Wer das an die Stufe bände, hätte für jedes Szenario
     # ein ``if``.
-    "revoke": Verb(stages=(vo.AGREED,), run=_revoke),
+    # ►►► **Abbrechen geht, sobald etwas hinausgegangen ist** (Testnotiz #957). ◄◄◄
+    # Vorher erst ab der Zusage – im Angebot stand ein hinausgeschickter Beleg ohne jeden
+    # Ausweg da. «Solange nicht angefangen wurde, natürlich nicht»: dass es eine
+    # Angebotszeile gibt, prüft ``can`` (die Stufe allein sagt es nicht).
+    "revoke": Verb(stages=(vo.OFFER, vo.AGREED), run=_revoke),
     "charge": Verb(stages=(vo.AGREED, vo.DONE, vo.CANCELLED), run=_charge,
                    needs=("ask", "agree", "charge")),
     "pay": Verb(stages=(vo.AGREED, vo.DONE, vo.CANCELLED), run=_pay),
@@ -1442,6 +1478,12 @@ def billing_of(db: Session, row: Voucher,
     **Die Rechnungsadresse geht vor der Wohnadresse** – dafür ist sie da. Und geliefert
     wird nur eine **vollständige**: eine halbe wäre eine Vorbelegung, die das Formular
     danach doch wieder erfragt, nur falsch.
+
+    ►►► **Und wo beide stehen, sind es ZWEI Anschriften** (Testnotiz #952). ◄◄◄ Eine
+    hinterlegte Rechnungsadresse heisst, dass die **Hauptadresse** die andere ist – dorthin
+    geht die Ware, hierhin die Rechnung. ``shipping`` trägt sie darum als eigene Angabe,
+    **nur wenn sie sich unterscheidet**: sonst wären zwei Blöcke mit demselben Text zwei
+    Aussagen über eine Sache. Erfunden wird nichts – fehlt eine, ist die Liste leer.
     """
     empty: dict[str, Any] = {"name": None, "email": None, "address": None}
     number = party_id if party_id is not None else party_of(db, row)
@@ -1461,6 +1503,15 @@ def billing_of(db: Session, row: Voucher,
     zip_code = (u.invoice_postal_code if own else u.postal_code) or ""
     country = (u.invoice_country if own else u.country) or u.country
     full = bool(line1.strip() and city.strip() and zip_code.strip())
+    # Die **zweite** Anschrift: die Hauptadresse, wenn eine eigene Rechnungsadresse
+    # dasteht. Verglichen werden die **Zeilen**, nicht die Felder – das ist die Form, in
+    # der sie auf dem Beleg landen, und nur dort entscheidet sich, ob man sie auseinander
+    # halten kann.
+    main = address.make(street1=u.address_line1 or "", street2=u.address_line2 or "",
+                        zip=u.postal_code or "", city=u.city or "", country=u.country)
+    billed = address.lines(address.make(
+        street1=line1, street2=line2, zip=zip_code, city=city, country=country))
+    shipped = address.lines(main) if own and address.has_content(main) else []
     return {
         "name": (named or u.invoice_company if own else None) or people.name(u),
         # **Auf dem Beleg steht die Rechtsperson, nicht ihr Vertreter**: ``people.name``
@@ -1476,6 +1527,7 @@ def billing_of(db: Session, row: Voucher,
             "line1": line1, "line2": line2 or None, "city": city,
             "postal_code": zip_code, "country": address.iso2(country),
         } if full else None,
+        "shipping": shipped if shipped and shipped != billed else [],
     }
 
 
@@ -1498,16 +1550,21 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     **Und die Gegenseite hängt an ``won``** – wie jede andere Angabe über sie: wer nicht
     den Zuschlag hat, sieht **uns** (das steht auf jeder Rechnung, die wir stellen) und
     eine **leere** Gegenseite.
+
+    ►►► **Jede Seite sagt selbst, ob sie unsere ist** (``ours``). ◄◄◄ Welcher der beiden
+    Blöcke die **Gegenpartei** ist, wechselt mit der Richtung – die Oberfläche muss das
+    aber wissen, um beim Umschalten des Empfängers den richtigen Block zu tauschen. Ein
+    Vergleich auf «Leistungserbringer» wäre ein Spiegel über die API-Grenze, der beim
+    ersten Umbenennen still falsch wird; ``ours`` **ist** die Struktur.
     """
     flow = vo.of(row.direction)
     company = issuer_company(db, row)
     # **Der Adressat, nicht der Vertragspartner** (#939): steht genau einer an, ist er es
     # längst – erst die Zusage bindet ihn.
     look = party_id if party_id is not None else addressee_of(db, row)
-    who = billing_of(db, row, look) if won else {}
-    seat = who.get("address") or {}
     seat_ours = address.of_company(company) if company is not None else None
     ours = {
+        "ours": True,
         "object_id": getattr(company, "object_id", None),
         # **Der Name trägt die Rechtsform** – «Inexxio» ist keine Rechtsperson, «Inexxio
         # AG» ist eine, und auf einem Beleg steht die, die haftet.
@@ -1520,10 +1577,31 @@ def document_head(db: Session, row: Voucher, *, won: bool,
         "email": getattr(company, "email", None),
         "phone": getattr(company, "phone", None),
     }
-    number = look if won else None
+    theirs = their_side(db, row, look if won else None)
+    supplier, customer = (ours, theirs) if flow.collects else (theirs, ours)
+    return {
+        "supplier": {"label": vo.SUPPLIER, "hint": vo.SUPPLIER_HINT, **supplier},
+        "customer": {"label": vo.CUSTOMER, "hint": vo.CUSTOMER_HINT, **customer},
+    }
+
+
+def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, Any]:
+    """**Die Gegenseite des Belegkopfs** – als eine Stelle, weil es zwei Leser gibt.
+
+    Der Belegkopf zeigt **einen** Empfänger; sind mehrere angefragt, braucht die
+    Oberfläche dieselbe Seite je Angefragtem (``recipients``). Zweimal gebaut liefen die
+    beiden beim nächsten Feld auseinander.
+
+    ``party_id is None`` heisst «dieser Betrachter darf sie nicht sehen» – dann ist die
+    Seite leer, nicht erfunden.
+    """
+    who = billing_of(db, row, party_id) if party_id is not None else {}
+    seat = who.get("address") or {}
     lines = who.get("lines") or []
-    theirs = {
-        "object_id": number,
+    shipping = who.get("shipping") or []
+    return {
+        "ours": False,
+        "object_id": party_id,
         "name": (lines or [""])[0],
         "attn": lines[1] if len(lines) > 1 else None,
         "address": address.lines(address.make(
@@ -1531,14 +1609,14 @@ def document_head(db: Session, row: Voucher, *, won: bool,
             zip=seat.get("postal_code") or "", city=seat.get("city") or "",
             country=seat.get("country"),
         )) if seat else [],
+        # **Die Beschriftungen erscheinen nur, wo es zwei Anschriften gibt** – bei einer
+        # einzigen wäre «Rechnungsadresse» darüber eine Unterscheidung ohne Gegenstück.
+        "shipping": shipping,
+        "address_label": vo.BILLING_LABEL if shipping else None,
+        "shipping_label": vo.SHIPPING_LABEL if shipping else None,
         "uid": who.get("uid"),
         "email": who.get("email"),
         "phone": who.get("phone"),
-    }
-    supplier, customer = (ours, theirs) if flow.collects else (theirs, ours)
-    return {
-        "supplier": {"label": vo.SUPPLIER, "hint": vo.SUPPLIER_HINT, **supplier},
-        "customer": {"label": vo.CUSTOMER, "hint": vo.CUSTOMER_HINT, **customer},
     }
 
 
@@ -1884,7 +1962,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # **Das Wort der Gegenhandlung hängt an DEN HANDLUNGEN DIESES BETRACHTERS**, nicht
         # an der Stufe: sonst liest eine Gegenpartei «Auftrag stornieren» an einem Knopf,
         # den es für sie nie gibt.
-        "undo": vo.UNDO if "revoke" in allowed else None,
+        "undo": vo.undo_word(row.stage) if "revoke" in allowed else None,
         "stage": row.stage,
         "stage_label": flow.label_of(row.stage),
         "stages": _stages(row, flow),
@@ -1913,6 +1991,14 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "allowed": (_named(db, modules.Beleg.parties_allowed(step.config))
                     if internal else []),
         "quotes": _quotes(db, row, step, viewer=viewer, internal=internal),
+        # ►►► **Je Angefragtem eine ganze Seite** (Testnotiz #951). ◄◄◄ Der Belegkopf zeigt
+        # **einen** Empfänger – ein Beleg hat einen Adressaten. Wer mehrere anfragt, will
+        # trotzdem deren Anschriften sehen: sie reisen darum alle mit, und die Oberfläche
+        # schaltet um. Ein Endpunkt «Anschrift zu Nummer» wäre ein zweiter Weg zur selben
+        # Angabe, und bei einer Handvoll Angefragten kostet das Mitreisen nichts.
+        # **Nur für das Personal**: die Liste der Angefragten ist die Konkurrenzliste.
+        "recipients": ([their_side(db, row, q.party_id) for q in quotes_of(db, row)]
+                       if internal else []),
         "lines": embed_lines(db, row),
         # **Der Belegkopf** – die beiden Parteien mit ihren Rollen (MWSTG Art. 26).
         # **Uns** sieht jeder: ein Beleg ohne Aussteller ist keiner, und wer bezahlen soll,

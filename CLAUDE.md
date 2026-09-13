@@ -3560,6 +3560,101 @@
 > Überlauf über **neun** Zustände – und die Messung gegen ihre eigene Bug-Form
 > gegengeprüft (+27,7 px bei 375, +82,7 px bei 320).
 
+> ►►► **DIE AUSZEICHNUNG WAR GRÖSSER ALS DAS FELD — und das war messbar**
+> (Testnotizen #948–#959). ◄◄◄ Zwölf Notizen, und die beiden grössten waren **eine**
+> Ursache und **ein** stiller Fehler.
+> ►►► **(1) 229 px Fläche über einem 46 px breiten Feld** (#948). ◄◄◄ *«Das gehighlightete
+> Feld ist deutlich grösser als das selektierbare Feld. Das ist ein design- und
+> UX-technisches No-Go.»* – **Gemessen, nicht geschätzt**: die alte Bauart meldet an der
+> echten Komponente **62** Stellen, an denen Auszeichnung und Bedienelement auseinander
+> liegen, darunter genau die gemeldete («Zahlungsfrist Fläche 229×24 ≠ Feld 46×24»). Die
+> Ursache ist ein Grundzug von Flexbox: in einer **Spalte** wird jedes Kind blockifiziert
+> und auf die volle Breite gezogen – die Hülle war damit so breit wie ihre Spalte, das
+> `<select>` darin so breit wie sein Wert.
+> **Gelöst wird es konstruktiv, nicht durch abgestimmte Zahlen**: es gibt nur noch **eine**
+> Box (`Editable` ist `inline-flex` mit `align-self: start`, und `inset: 0` des
+> Bedienelements deckt exakt sie). Der frühere Zwischen-`<span>` war die zweite, und zwei
+> Boxen können auseinanderlaufen. Auch der Block-Fall (`as="div"`) ist jetzt ein
+> Flex-Kasten: sonst ist die Hülle so hoch wie ihre **Zeile** (24 px) und das Feld darin
+> 19,5 px. Gemessen danach: **76 Felder, alle deckungsgleich**.
+> ►►► **(2) Eine Fläche statt eines Unterstrichs** (#949). ◄◄◄ *«Ich möchte keinen
+> Unterstrich, sondern dass der ganze Eingabebereich leicht farblich hintersetzt ist –
+> standardmässig schon ohne Hover, beim Hover eine dezent kräftigere Farbe.»* Die Bedingung
+> aus #922 gilt unverändert: **keine Layoutwirkung**. Die Tönung ist darum eine
+> `background` und wächst über einen **äusseren** `box-shadow` um zwei Pixel – ein Schatten
+> belegt keinen Platz, eine Polsterung hätte den Beleg verschoben (gemessen: Δb 0.00 ·
+> Δh 0.00, auch beim Zeigen). Die Farbe kommt aus `--accent-soft`, zur Ruhe hin
+> abgeschwächt; das frühere `rgba(44, 110, 143, .38)` war eine zweite Farbangabe im Blatt.
+> ►►► **(3) «Jetzt bezahlen» rief die Tür des ALTEN Moduls** (#959) – und Stripe musste
+> niemand neu konfigurieren. ◄◄◄ Die Bezahlkarte rief fest `api.preparePayment`; am
+> **Beleg** gibt es dort keinen Vorgang, der Dienst antwortete mit 404, und der Knopf tat
+> nichts. Schlüssel, Webhook und Zahlungsformular waren unberührt – es war die falsche
+> Adresse. Die Karte kennt jetzt **keinen** Endpunkt (`prepare` kommt vom Aufrufer, als
+> **prototypgebundene** Methode: eine hier gebaute Pfeilfunktion wäre bei jedem Rendern
+> eine neue und liesse die Vorbereitung endlos laufen).
+> **(4) «Zahlung erfassen» gab es zweimal** (#958) – und das war keine Gestaltungsfrage,
+> sondern eine offene Frage: der Knopf am **Vorgang** wusste nicht, welche Rechnung gemeint
+> ist, und wählte still die älteste offene. Ein Knopf **an** der Zeile beantwortet sie,
+> indem er sie nicht stellt (#859); der andere ist entfallen.
+> ►►► **(5) Was jetzt nicht geht, steht auch nicht da** (#950). ◄◄◄ *«Der Button ‹Vorgang
+> abschliessen› ist bewusst ausgegraut deaktiviert. Ich sehe keinen Grund, warum dies
+> sichtbar sein sollte.»* – Das ist #945 einen Schritt weiter, nicht zurück: dort war das
+> Problem, dass der Knopf eine **Einladung** war, die der Dienst mit 409 abwies; ausgegraut
+> löste das halb. *Ein Knopf, der nie etwas tun kann, ist kein Angebot.* **Was** im Weg
+> steht, sagt die Modul-Karte selbst (Stufe, gemeldete Lücken) – ein Hover an einem toten
+> Knopf ist die Auskunft, die man nur findet, wenn man auf nichts zeigt.
+> **(6) Der Storno steht NEBEN dem Abschluss, als Quadrat** (#957): der dominante Knopf
+> nimmt den ganzen Platz (`flex: 1`), der Storno 42 × 42 px daneben und klappt beim Zeigen
+> seinen Namen aus (gemessen: 42×42, dieselbe Zeile, und der Knopf bleibt über vier
+> Messungen an derselben Stelle). Seine **Breite kommt aus einer CSS-Variablen**, nicht
+> inline – ein Inline-Wert gewinnt gegen `.ix-tuck:hover { width: auto }`, und der Name
+> klappte nie aus.
+> **Und der Abbruch ist jetzt an jedem Schritt erreichbar** (dieselbe Notiz): `revoke`
+> steht in **beiden** Stufen; dass etwas hinausgegangen sein muss, ist keine Stufe, sondern
+> eine Frage an die Daten und steht in `can`. **Das Wort hängt an der Stufe** – vor der
+> Zusage gibt es keinen Auftrag, den man stornieren könnte («Vorgang abbrechen» ↔ «Auftrag
+> stornieren»).
+> ►►► **(7) Eine Anfrage zurückziehen – und die Anschrift jedes Angefragten sehen**
+> (#951/#952). ◄◄◄ `ask` war das **einzige** Verb ohne Gegenhandlung; eine falsch gewählte
+> Gegenpartei blieb für immer am Beleg. `unask` ist ein Soft-Delete wie überall – was
+> hinausging, wird nicht geleugnet. **Und es gilt nur vor der Zusage, ohne eine zweite
+> Regel**: `_agree` setzt Zustand und Stufe in einem Zug, also gibt es in der Stufe
+> «Angebot» keine gewählte Zeile, und danach führt `can` das Verb nicht mehr – die
+> unterlegenen Zeilen sind dann der **Nachweis**, warum so entschieden wurde. *Eine Sperre
+> «die gewählte nicht» stand einen Anlauf lang im Dienst und war **unerreichbar**; ein Ast,
+> den niemand erreicht, ist von einem kaputten nicht zu unterscheiden.*
+> **Ein Beleg hat EINEN Adressaten** – also steht einer vollständig da, und ein Klick auf
+> einen Chip schaltet um; die Seiten aller Angefragten reisen als `recipients` mit (bei
+> einer Handvoll kostet das nichts, und ein Endpunkt «Anschrift zu Nummer» wäre ein zweiter
+> Weg zu einer Angabe, die der Beleg ohnehin liefert). **Jede Seite sagt selbst, ob sie
+> unsere ist** (`ours`) – ein Vergleich auf «Leistungserbringer» wäre ein Spiegel über die
+> API-Grenze, der beim ersten Umbenennen still falsch wird.
+> **Rechnungs- und Lieferadresse sind zwei Angaben** (#952) – abgeleitet aus dem, was am
+> Benutzer steht, und **nur wo sie sich unterscheiden**: bei einer einzigen wäre
+> «Rechnungsadresse» eine Unterscheidung ohne Gegenstück. *Die physische Lieferung bleibt
+> Sache des Bewegen-Moduls; hier steht die Anschrift auf dem Beleg.*
+> **(8) Kleineres, jedes an einer Stelle:** die Haarlinie **schliesst** die Angebotszeile,
+> statt sie zu eröffnen (#955 – oben war sie zugleich die zweite Linie direkt unter der
+> Trennlinie des Abschnitts), die Zeile ist kompakter (#954), Name und Nummer sind **eine
+> Gruppe** (#953 – als Geschwister einer umbrechenden Zeile fiel die Kennung auf die
+> nächste), und «(Incoterms 2020)» entfällt an jedem Wert (#956 – welche Fassung gilt,
+> steht in der Erklärung der Klausel, und die steht sichtbar darunter).
+> Wächter: 3 neue in `tests/test_voucher_module.py`, 8 neue in `test_frontend_mirrors.py`,
+> dazu 5 auf die neue Regel gezogene – **24 Bug-Formen gegengeprüft, jede meldet**; *drei
+> waren dabei stumpf und liessen ihre eigene durch* (zweimal fragte ein Wächter nach dem
+> blossen **Vorkommen** eines Namens, der auch in der Prop-Liste steht; einmal prüfte er
+> `view.address` irgendwo im Rumpf, während die Bug-Form nur **eine** der beiden Stellen
+> umstellte). Ein bestehender las seinen eigenen Kommentar mit – er zitierte
+> `.ix-tuck:hover { width: auto }`, und der Wächter fand die Prosa statt der Regel; er
+> verankert jetzt am Zeilenanfang. Suite grün gegen die gewachsene Datenbank **und** gegen
+> ein Schema nur aus den Migrationen (je 639); **keine Migration** in dieser Runde.
+> **Und der Messstand selbst war blind**: sein Stilblatt stammte aus der Zeit vor
+> `.ix-editable` – die Prüfung «ohne Layoutwirkung» verglich eine Klasse, die es dort gar
+> nicht gab, und konnte nie anschlagen. Neu gebaut, und damit meldet die alte Bauart die
+> 62 Stellen. Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 ·
+> 375 · 320 px, **0 px** waagrechter Überlauf über **zehn** Zustände – und die Messung
+> gegen ihre eigene Bug-Form gegengeprüft (+22,9 px bei 375, +77,9 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

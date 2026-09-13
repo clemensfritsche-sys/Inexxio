@@ -1013,3 +1013,224 @@ def test_a_module_says_why_it_cannot_be_finished_yet():
             "Ein Modul ohne Geldvorgang meldet eine Sperre – die Regel ist die des "
             "Belegs, nicht die des Rahmens."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §12 – JEDE ZUSAGE NACH AUSSEN HAT IHRE GEGENHANDLUNG
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_ask_can_be_taken_back():
+    """►►► **Eine Anfrage zurückziehen** (Testnotiz #951). ◄◄◄
+
+    *«Ich kann zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch
+    abwählen.»* – Und es gab dafür **nichts**: ``ask`` war das einzige Verb ohne
+    Gegenhandlung, eine falsch gewählte Gegenpartei blieb für immer am Beleg. Die Hausregel
+    steht seit dem Beschaffen-Modul: *jede Zusage nach aussen hat ihre Gegenhandlung an
+    derselben Stelle.*
+
+    **Soft-Delete wie überall** – was hinausging, wird nicht geleugnet; die Zeile ist nur
+    nicht mehr Teil dieses Belegs. **Die zugesagte nicht**: dort hängt die Zusage, und ihre
+    Gegenhandlung ist der Storno des ganzen Vorgangs.
+
+    Bug-Formen, jede gegengeprüft: (a) es gibt das Verb nicht; (b) die Zeile wird
+    **gelöscht** statt stillgelegt; (c) auch die zugesagte lässt sich abwählen; (d) das Verb
+    steht schon da, bevor überhaupt etwas hinausgegangen ist.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.models import VoucherQuote
+    from app.services import voucher as svc
+    with _db() as db:
+        _house(db)
+        one = _party(db, "Muster AG", "customer")
+        two = _party(db, "Zweit AG", "customer")
+        order, step, row, _who, _art = _scene(db, parties=[one, two])
+        _price(db, order, step, row)
+        staff = _party(db, "Personal", "admin")
+
+        # (d) Vor der ersten Anfrage gibt es nichts abzuwählen – und nichts abzubrechen.
+        assert "unask" not in svc.can(db, row, staff), (
+            "Abwählen steht da, bevor etwas hinausgegangen ist (d)."
+        )
+        assert "revoke" not in svc.can(db, row, staff), (
+            "Abbrechen steht da, bevor etwas hinausgegangen ist (d) – es gibt dann nichts, "
+            "was man zurücknehmen könnte."
+        )
+
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [one.object_id, two.object_id],
+                           "payment_days": 30, "lead_days": 5}, actor=staff)
+        db.flush()
+        assert len(svc.quotes_of(db, row)) == 2
+        assert "unask" in svc.can(db, row, staff), "Das Verb fehlt (a)."
+
+        svc.apply(db, order=order, step=step, action="unask",
+                  payload={"party": two.object_id}, actor=staff)
+        db.flush()
+        assert [q.party_id for q in svc.quotes_of(db, row)] == [one.object_id], (
+            "Die abgewählte Zeile steht weiter am Beleg (a)."
+        )
+        # (b) **Stillgelegt, nicht gelöscht** – die Historie ist nicht verhandelbar.
+        gone = (db.query(VoucherQuote)
+                .filter(VoucherQuote.voucher_id == row.id,
+                        VoucherQuote.party_id == two.object_id).first())
+        assert gone is not None and gone.is_active is False, (
+            "Die Zeile ist weg statt stillgelegt (b) – ein Hard-Delete gibt es im Haus "
+            "nirgends."
+        )
+
+        # (c) **Ab der Zusage gar nicht mehr** – und zwar ohne eine zweite Regel: die
+        # unterlegenen Zeilen sind dann der Nachweis, warum so entschieden wurde, und die
+        # gewählte nimmt man mit dem Storno zurück. Eine Sperre «die gewählte nicht» stand
+        # hier einen Anlauf lang und war **unerreichbar**, weil `_agree` Zustand und Stufe
+        # in einem Zug setzt: gemessen, entfernt, und die Stufe ist das Tor.
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": one.object_id}, actor=staff)
+        db.flush()
+        assert "unask" not in svc.can(db, row, staff), (
+            "Nach dem Zuschlag lässt sich noch abwählen (c) – dann verschwindet der "
+            "Nachweis, warum so entschieden wurde."
+        )
+        with _pytest.raises(HTTPException) as err:
+            svc.apply(db, order=order, step=step, action="unask",
+                      payload={"party": two.object_id}, actor=staff)
+        assert err.value.status_code == 409, (
+            f"Die Tür lässt es trotzdem durch (c): «{err.value.detail}»."
+        )
+
+
+def test_a_cancel_is_reachable_at_every_step_that_happened():
+    """►►► **Abbrechen geht, sobald etwas hinausgegangen ist** (Testnotiz #957). ◄◄◄
+
+    *«Kannst du nochmals evaluieren, ob eigentlich immer ein Abbruch sauber und logisch
+    korrekt etabliert ist zu jedem Schritt im Modul? Solange nicht angefangen wurde
+    natürlich nicht, aber sobald der erste Schritt getriggert wurde.»*
+
+    Der Beleg hat **zwei** Stufen, und beide führen jetzt ``revoke`` – vorher erst die
+    Zusage: im Angebot stand ein hinausgeschickter Beleg **ohne jeden Ausweg** da. Die
+    Bedingung «es ist etwas hinausgegangen» ist keine Stufe, sondern eine Frage an die
+    Daten, und sie steht in ``can``.
+
+    **Und das Wort hängt an der Stufe**: vor der Zusage gibt es keinen Auftrag, den man
+    stornieren könnte – dort bricht man den Vorgang ab.
+
+    Bug-Formen: (a) im Angebot gibt es keinen Abbruch; (b) er steht schon vor der ersten
+    Anfrage da; (c) ein Wort für beide Stufen.
+    """
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    with _db() as db:
+        _house(db)
+        order, step, row, who, _art = _scene(db)
+        _price(db, order, step, row)
+        staff = _party(db, "Personal", "admin")
+
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [who[0].object_id], "payment_days": 30,
+                           "lead_days": 5}, actor=staff)
+        db.flush()
+        assert row.stage == vo.OFFER
+        assert "revoke" in svc.can(db, row, staff), (
+            "Im Angebot gibt es keinen Abbruch (a) – ein hinausgeschickter Beleg ohne "
+            "Ausweg ist eine Sackgasse."
+        )
+        # (c) Zwei Stufen, zwei Wörter – und beide kommen aus **einer** Auflösung.
+        assert vo.undo_word(vo.OFFER) != vo.undo_word(vo.AGREED), (
+            "Dasselbe Wort in beiden Stufen (c) – vor der Zusage gibt es keinen Auftrag."
+        )
+        assert svc.embed_data(db, order=order, step=step,
+                              viewer=staff)["undo"] == vo.undo_word(vo.OFFER), (
+            "Der Beleg nennt ein anderes Wort als die Auflösung (c)."
+        )
+
+        svc.apply(db, order=order, step=step, action="revoke", payload={}, actor=staff)
+        db.flush()
+        assert row.stage == vo.CANCELLED
+        # **Der Beleg behält seinen Weg** – das Datum der Anfrage bleibt stehen.
+        assert svc.quotes_of(db, row)[0].sent_on is not None
+
+
+def test_a_recipient_carries_its_own_address():
+    """►►► **Je Angefragtem eine ganze Seite** (Testnotizen #951/#952). ◄◄◄
+
+    *«Was mich noch stört: die jeweilige Anschrift ist nicht sichtbar … es müssen nicht alle
+    auf einmal sein, aber immer mindestens eine geladen und ggf. auf Wunsch die anderen
+    auch.»* – Ein **Beleg** hat einen Adressaten, also steht einer vollständig da; die
+    übrigen reisen als ``recipients`` mit, und die Oberfläche schaltet um. Ein Endpunkt
+    «Anschrift zu Nummer» wäre ein zweiter Weg zu einer Angabe, die der Beleg ohnehin
+    liefert.
+
+    **Und wo eine eigene Rechnungsadresse steht, sind es zwei Anschriften** (#952) – mit
+    Beschriftungen, aber **nur dann**: bei einer einzigen wäre «Rechnungsadresse» eine
+    Unterscheidung ohne Gegenstück.
+
+    Bug-Formen: (a) die Seiten fehlen; (b) sie tragen keine Anschrift; (c) eine Gegenpartei
+    bekommt die Konkurrenzliste; (d) die Lieferadresse fehlt, obwohl sie abweicht; (e) sie
+    steht doppelt, weil sie gleich ist; (f) die Beschriftungen stehen auch bei einer
+    einzigen Anschrift da.
+    """
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    with _db() as db:
+        _house(db)
+        one = _party(db, "Muster AG", "customer")
+        two = _party(db, "Zweit AG", "customer")
+        order, step, row, _who, _art = _scene(db, parties=[one, two])
+        _price(db, order, step, row)
+        staff = _party(db, "Personal", "admin")
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [one.object_id, two.object_id],
+                           "payment_days": 30, "lead_days": 5}, actor=staff)
+        db.flush()
+
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        got = [r["object_id"] for r in seen["recipients"]]
+        assert got == [one.object_id, two.object_id], f"Die Seiten fehlen (a): {got}."
+        assert all(r["address"] for r in seen["recipients"]), (
+            "Eine Seite ohne Anschrift (b) – genau die Angabe, um die es ging."
+        )
+        # **Jede Seite sagt selbst, ob sie unsere ist** – daran unterscheidet die
+        # Oberfläche die Blöcke, ohne ein Rollen-Wort zu vergleichen.
+        assert all(r["ours"] is False for r in seen["recipients"])
+        assert seen["supplier"]["ours"] != seen["customer"]["ours"]
+
+        # (c) Die Liste der Angefragten ist die Konkurrenzliste.
+        mine = svc.embed_data(db, order=order, step=step, viewer=two)
+        assert mine["recipients"] == [], (
+            "Eine Gegenpartei sieht die übrigen Angefragten (c)."
+        )
+
+        # (f) Eine einzige Anschrift trägt **keine** Beschriftung.
+        plain = next(r for r in seen["recipients"] if r["object_id"] == one.object_id)
+        assert plain["shipping"] == [] and plain["address_label"] is None, (
+            "Beschriftungen bei einer einzigen Anschrift (f)."
+        )
+
+        # (d) Eine abweichende Rechnungsadresse macht zwei daraus.
+        one.invoice_address_line1 = "Rechnungsweg 9"
+        one.invoice_postal_code = "9000"
+        one.invoice_city = "St. Gallen"
+        db.flush()
+        both = next(r for r in svc.embed_data(db, order=order, step=step,
+                                             viewer=staff)["recipients"]
+                    if r["object_id"] == one.object_id)
+        assert any("Rechnungsweg 9" in x for x in both["address"]), (
+            "Die Rechnungsadresse steht nicht auf dem Beleg – dafür ist sie da."
+        )
+        assert both["shipping"], "Die Lieferadresse fehlt, obwohl sie abweicht (d)."
+        assert both["address_label"] == vo.BILLING_LABEL
+        assert both["shipping_label"] == vo.SHIPPING_LABEL
+
+        # (e) Und ist sie gleich, gibt es sie **nicht** zweimal.
+        one.invoice_address_line1 = one.address_line1
+        one.invoice_postal_code = one.postal_code
+        one.invoice_city = one.city
+        one.invoice_country = one.country
+        db.flush()
+        same = next(r for r in svc.embed_data(db, order=order, step=step,
+                                             viewer=staff)["recipients"]
+                    if r["object_id"] == one.object_id)
+        assert same["shipping"] == [], (
+            "Dieselbe Anschrift steht zweimal da (e) – zwei Blöcke mit demselben Text sind "
+            "zwei Aussagen über eine Sache."
+        )
