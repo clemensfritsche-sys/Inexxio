@@ -1,21 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { User, MapPin, Building2, Truck, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
+import { User, Shield, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
+import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
-import { ContactSection } from './sections/contact-section';
-import { CompanySection } from './sections/company-section';
-import { ShippingSection } from './sections/shipping-section';
-import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
-import { NotificationsSection } from './sections/notifications-section';
-import { PrivacySection } from './sections/privacy-section';
 
-type SectionId = 'profile' | 'contact' | 'company' | 'shipping' | 'invoice' | 'security' | 'notifications' | 'privacy';
+// Konsolidiert auf 4 Reiter: «Mein Profil» bündelt Person + Adressen + Kommunikation in EINER
+// Sektion (ein Formular, ein Auto-Save); «Benachrichtigungen» ist entfallen (die Toggles hatten
+// keinerlei Backend-Wirkung – kein E-Mail-/In-App-System dahinter).
+type SectionId = 'profile' | 'security';
 
 interface Props {
   profile: UserProfile | null;
@@ -46,36 +43,23 @@ function CompletionRing({ percentage }: { percentage: number }) {
 export function AccountShell({ profile, isLoading, onSave }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile');
   const isMobile = useIsMobile(768);
+
   const completion = useProfileCompletion(profile);
 
-  const isBusiness = profile?.is_business || profile?.role === 'supplier';
-  const isCustomer = profile?.role === 'customer';
   const isEmployee = profile?.role === 'employee';
   const isSupplier = profile?.role === 'supplier';
 
   const sections = useMemo(() => {
     const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
       { id: 'profile', label: 'Mein Profil', icon: User },
-      { id: 'contact', label: 'Kontakt & Adresse', icon: MapPin },
-    ];
-    if (isBusiness || isSupplier) {
-      base.push({ id: 'company', label: 'Firmendaten', icon: Building2 });
-    }
-    if (isCustomer || isSupplier) {
-      base.push({ id: 'shipping', label: 'Lieferadressen', icon: Truck });
-      base.push({ id: 'invoice', label: 'Rechnungsadresse', icon: FileText });
-    }
-    base.push(
       { id: 'security', label: 'Sicherheit', icon: Shield },
-      { id: 'notifications', label: 'Benachrichtigungen', icon: Bell },
-      { id: 'privacy', label: 'Datenschutz', icon: Lock },
-    );
+    ];
+    // Systemkonfiguration ist neu ein ERP-Datensatz («Unternehmen» im ERP-Feed) und
+    // wird daher nicht mehr in den Profileinstellungen geführt.
     return base;
-  }, [isBusiness, isCustomer, isSupplier]);
+  }, []);
 
-  const fullName = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.display_name || profile.email
-    : '';
+  const fullName = profile ? userDisplayName(profile) : '';
 
   const initials = fullName
     ? fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -84,19 +68,15 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   function renderSection() {
     if (!profile) return null;
     switch (activeSection) {
-      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isCustomer={isCustomer} />;
-      case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
-      case 'company': return <CompanySection profile={profile} onSave={onSave} />;
-      case 'shipping': return <ShippingSection profile={profile} onSave={onSave} isBusiness={!!isBusiness} />;
-      case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} isBusiness={!!isBusiness} />;
+      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
       case 'security': return <SecuritySection profile={profile} />;
-      case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;
-      case 'privacy': return <PrivacySection profile={profile} onSave={onSave} />;
     }
   }
 
   const totalMissing = completion.totalCount - completion.completedCount;
   const pctColor = completion.percentage === 100 ? '#16a34a' : completion.percentage >= 60 ? '#f59e0b' : '#E51A14';
+  const missingLabel = totalMissing > 0
+    ? `${totalMissing} Pflichtfeld${totalMissing !== 1 ? 'er' : ''} offen` : '';
 
   if (isMobile) {
     return (
@@ -232,11 +212,9 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
                 Profil {completion.percentage === 100 ? 'vollständig' : `${completion.percentage}% vollständig`}
               </p>
               {totalMissing > 0 ? (
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
-                  {totalMissing} Pflichtfeld{totalMissing !== 1 ? 'er' : ''} fehlen
-                </p>
+                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{missingLabel}</p>
               ) : (
-                <p style={{ fontSize: 11, color: '#16a34a', margin: '2px 0 0' }}>Alle Pflichtfelder ausgefüllt</p>
+                <p style={{ fontSize: 11, color: '#16a34a', margin: '2px 0 0' }}>Alles erledigt</p>
               )}
             </div>
           </div>
@@ -278,16 +256,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
           })}
         </nav>
 
-        {/* Admin links */}
-        {profile?.role === 'admin' && (
-          <nav style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginTop: 10 }}>
-            <p style={{ padding: '10px 14px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Admin</p>
-            <Link href="/admin/einstellungen" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid #F1F5F9', color: '#374151', textDecoration: 'none', fontSize: 13 }} className="hover:bg-slate-50 transition-colors">
-              <Package style={{ width: 15, height: 15, flexShrink: 0 }} />
-              Systemkonfiguration
-            </Link>
-          </nav>
-        )}
       </aside>
 
       {/* Main content */}

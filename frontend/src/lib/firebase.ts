@@ -10,14 +10,15 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
+  signInWithCustomToken,
   signOut,
-  onAuthStateChanged,
+  onIdTokenChanged,
   verifyBeforeUpdateEmail,
   type Auth,
   type User,
 } from 'firebase/auth';
+import { api } from './api';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -52,9 +53,12 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 function getActionCodeSettings() {
+  // Unter welcher Adresse die Oberfläche läuft, weiss das Deployment – nicht eine
+  // fest verdrahtete Domain hier (die stand auf `inexxio.web.app`, also auf keinem
+  // der beiden Ziele). Im Browser gilt ohnehin die Adresse, auf der man steht.
   const baseUrl = typeof window !== 'undefined'
     ? window.location.origin
-    : 'https://inexxio.web.app';
+    : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   return {
     url: `${baseUrl}/login/verify`,
     handleCodeInApp: true,
@@ -82,30 +86,21 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
   return { token, user: result.user };
 }
 
-const GOOGLE_REDIRECT_KEY = 'inexxio_google_redirect_pending';
-
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
   if (!auth) throw new Error('Firebase not initialized');
-  // Set flag before navigating so we know to call getRedirectResult on return.
-  // This also prevents calling getRedirectResult on unrelated page loads, which
-  // would corrupt the auth instance via stale IndexedDB pendingRedirect entries.
-  localStorage.setItem(GOOGLE_REDIRECT_KEY, '1');
-  await signInWithRedirect(auth, googleProvider);
+  const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+  const token = await result.user.getIdToken();
+  return { token, user: result.user };
 }
 
-export async function getGoogleRedirectResult(): Promise<{ token: string; user: User } | null> {
-  if (!auth) return null;
-  if (!localStorage.getItem(GOOGLE_REDIRECT_KEY)) return null;
-  localStorage.removeItem(GOOGLE_REDIRECT_KEY);
-  try {
-    const result = await getRedirectResult(auth);
-    if (!result) return null;
-    const token = await result.user.getIdToken();
-    return { token, user: result.user };
-  } catch (err) {
-    if ((err as { code?: string }).code === 'auth/internal-error') return null;
-    throw err;
-  }
+// Passkey-Anmeldung: Das Backend prüft die WebAuthn-Assertion und stellt einen
+// Firebase Custom Token aus. Damit wird hier eine ganz normale Firebase-Session
+// begründet – ab jetzt verhält sich alles wie bei Magic Link / Google.
+export async function signInWithPasskey(firebaseToken: string): Promise<{ token: string; user: User }> {
+  if (!auth) throw new Error('Firebase not initialized');
+  const result = await signInWithCustomToken(auth, firebaseToken);
+  const token = await result.user.getIdToken();
+  return { token, user: result.user };
 }
 
 export async function logout(): Promise<void> {
@@ -119,9 +114,26 @@ export async function getIdToken(): Promise<string | null> {
   return auth.currentUser.getIdToken();
 }
 
+// Selbstheilung bei 401: Der API-Client hält den Token als Schnappschuss (gesetzt von
+// `onIdTokenChanged`). Firebases proaktive Erneuerung ist ein Timer – im Hintergrund-Tab
+// gedrosselt, im Ruhezustand des Geräts gar nicht. Kommt der Nutzer nach einer Pause
+// zurück, kann der Schnappschuss abgelaufen sein. Statt das als «keine Daten» enden zu
+// lassen, holt der Client bei einem 401 EINMAL erzwungen einen frischen Token
+// (`getIdToken(true)`) und wiederholt die Anfrage. Hier registriert, damit `api.ts`
+// nichts von Firebase wissen muss (keine zirkuläre Abhängigkeit).
+api.setTokenProvider(async () => {
+  if (!auth?.currentUser) return null;
+  return auth.currentUser.getIdToken(true);
+});
+
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};
-  return onAuthStateChanged(auth, callback);
+  // FIX: onAuthStateChanged feuert nur bei Login/Logout – NICHT bei der stündlichen
+  // Token-Rotation. Der Bearer-Token wurde deshalb nie erneuert und nach ~1h scheiterte
+  // jeder API-Call mit 401, bis die Seite hart neu geladen wurde. onIdTokenChanged hat
+  // dieselbe Signatur, feuert zusätzlich bei jeder Token-Erneuerung – alle Abonnenten
+  // (AuthProvider, ERP-/Konto-Layout, Navbar) setzen den API-Token damit automatisch neu.
+  return onIdTokenChanged(auth, callback);
 }
 
 export async function updateEmailAddress(newEmail: string): Promise<void> {

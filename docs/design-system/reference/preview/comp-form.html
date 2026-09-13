@@ -1,0 +1,28 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body{margin:0;background:#fff;padding:20px;font-family:var(--font-body);}
+  label{display:block;font:var(--caption);color:var(--fg-2);margin-bottom:6px;}
+  .field{width:100%;box-sizing:border-box;padding:13px 15px;border:1.5px solid var(--border-2);border-radius:var(--r-md);font:var(--body);color:var(--fg-1);background:#fff;}
+  .field.focus{border-color:var(--inexxio-red);box-shadow:0 0 0 3px rgba(229,26,20,.14);}
+  .row{display:flex;gap:14px;margin-bottom:16px;}
+  .row>div{flex:1;}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{font:var(--caption);padding:8px 14px;border-radius:var(--r-pill);border:1.5px solid var(--border-2);color:var(--fg-2);cursor:pointer;}
+  .chip.on{background:var(--inexxio-black);color:#fff;border-color:var(--inexxio-black);}
+</style></head>
+<body>
+  <div class="row">
+    <div><label>Vorname</label><input class="field" value="Lea"></div>
+    <div><label>Wohnfläche</label><input class="field focus" value="25 m²"></div>
+  </div>
+  <label>Wohnsituation</label>
+  <div class="chips">
+    <span class="chip on">Single</span>
+    <span class="chip">Paar</span>
+    <span class="chip">Familie</span>
+    <span class="chip">Ferienwohnung</span>
+    <span class="chip">Loft</span>
+  </div>
+</body></html>
