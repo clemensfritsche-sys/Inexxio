@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-from . import capture_types, deal, sampling, statuses as st
+from . import capture_types, sampling, statuses as st
 from . import voucher as vo
 
 #: Der eine Ortsbedarf, den es heute gibt: **beim Produkt**. Eine geschlossene Liste
@@ -33,15 +33,14 @@ DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
 BEWEGEN = "bewegen"
-ZAHLUNG = "zahlung"
-#: ►►► **Das neu aufgebaute Zahlungsmodul** (``docs/neuaufbau-zahlungsmodul.md``). ◄◄◄
+#: ►►► **Das Zahlungsmodul – und es heisst ``beleg``** (Testnotiz #960). ◄◄◄
 #:
-#: Es heisst in der Oberfläche ebenfalls «Zahlung» und trägt eine andere Farbfamilie,
-#: damit man die beiden im Fluss unterscheidet. Der **Schlüssel** muss ein anderer sein:
-#: ``zahlung`` steht in den eingefrorenen Prozessen laufender Aufträge, und ein Schlüssel
-#: ist eine Adresse, kein Name – ihn umzubenennen wäre eine Datenmigration eingefrorener
-#: Vorlagen. Er heisst darum nach der **Sache** (ein Beleg), die Beschriftung nach der
-#: **Handlung**.
+#: Der Schlüssel ist die **Sache** (ein Beleg), die Beschriftung die **Handlung**
+#: («Zahlung»). Er stammt aus der Zeit, als das Vorgängermodul unter ``zahlung`` daneben
+#: lief; das ist gelöscht, der Schlüssel bleibt: er steht in den eingefrorenen Prozessen
+#: laufender Aufträge, und ein Schlüssel ist eine **Adresse**, kein Name – ihn
+#: umzubenennen wäre eine Datenmigration eingefrorener Vorlagen für einen Namen, den
+#: niemand liest.
 BELEG = "beleg"
 
 
@@ -525,271 +524,6 @@ class Bewegen(Module):
         return Move(target=int(goal))
 
 
-class Zahlung(Module):
-    """►►► **Geld mit einer zweiten Partei** – ein Modul für beide Richtungen. ◄◄◄
-
-    Es ist die Antwort auf die Frage, was Einkauf, Verkauf, eine eingekaufte Spedition,
-    eine Leistung ohne Artikel und eine Vorauszahlung gemeinsam haben. Nicht die
-    **Ware** – die ist in jedem Fall eine andere. Sondern: **es fliesst Geld, und eine
-    zweite Partei ist beteiligt.**
-
-    ## Was hier eingestellt wird: vier Dinge
-
-    ``direction``  **Kommt Geld herein oder geht es hinaus?** (``domain/deal``). Daraus
-                   folgt jedes Wort – wie die Stufen heissen, wie die Gegenpartei heisst,
-                   wer die Rechnung stellt. Als **Daten**, nicht als Verzweigung.
-    ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
-                   beim Ausführen gesucht. Eine Liste mit einem Eintrag ist der
-                   Normalfall; wer vergleichen will, nennt drei.
-
-    ►►► **Und es sind ZWEI, nicht drei** (Testnotiz #854). ◄◄◄
-
-    Hier stand ein dritter Schalter: ``prepaid`` – «erst weiter, wenn bezahlt». Er ist
-    ersatzlos entfallen, weil er dieselbe Sache ein zweites Mal sagte: **die vereinbarte
-    Zahlungsfrist ist die Aussage**, und «zahlbar in null Tagen ab Zusage» *ist* die
-    Vorauszahlung (``deal.prepaid``). Zwei Angaben über eine Sache, an zwei Orten und zu
-    zwei Zeitpunkten – und wer sie verschieden setzte, hatte einen Vorgang, der etwas
-    anderes sagt als er tut.
-
-    Beim **Modellieren** steht sie ohnehin nicht fest: derselbe Ablauf verkauft einmal
-    gegen Vorkasse und einmal auf Rechnung. Sie gehört dorthin, wo man das Angebot
-    **schreibt** – an die Ausführungsstelle. Ein trotzdem gesendeter Wert wird
-    **verworfen**.
-
-    ## Was gehandelt wird, sagt der PROZESS – nicht ein Feld
-
-    Es gibt **keinen Artikel** in der Definition: die Einzelinstanzen, die vor dem Modul
-    stehen, tragen ihren Artikel. Er reist mit dem Vorgang (``deal.lines_of``) – mit Name,
-    Nummer, Menge und den beiden **Zoll-Angaben**, die eine Ausfuhr verlangt. Ein
-    getipptes Artikelfeld daneben wäre eine zweite Aussage über dieselbe Sache – und die
-    getippte gewinnt auch dann, wenn sie falsch ist.
-
-    Daraus folgt, warum der Satz **freiwillig** ist: Zeilen und Satz sind zusammen die
-    Aussage, und die Zeilen gibt es immer.
-
-    ==========================  ====================================================
-    Zeilen **ohne** Satz        wir kaufen bzw. verkaufen **diese Teile**
-    Zeilen **mit** Satz         an **diesen Teilen** ist **das** zu tun
-    ==========================  ====================================================
-
-    Genau deshalb braucht es **keine Templates** und keinen Modus «Sache ↔ Leistung»: die
-    Unterscheidung fällt aus zwei Angaben heraus, die es ohnehin gibt. Ein Template wäre
-    ein Konzept für eine Frage, die sich von selbst beantwortet.
-
-    Ebenso gibt es **keine Menge** (die Zahl der Einzelinstanzen) und **keinen Termin**
-    (ableitbar aus Bestelldatum und Lieferfrist).
-
-    **Was bei einem Partner zu tun ist, steht dagegen bei IHM** – je zugelassenem Partner
-    eine Pflichtangabe (``parties[].ref``, ``deal.TASK``): seine Artikelnummer, sein
-    Shop-Link oder ein Satz. Sie ist eine Eigenschaft der **Paarung** Modul × Partner und
-    nicht des Partners allein – derselbe Lieferant führt je Teil eine andere Nummer –, und
-    sie gehört dorthin, wo man festlegt, wer in Frage kommt. Am **Vorgang** wäre sie eine
-    Angabe, die man bei jedem Mal neu abschreibt.
-
-    ## Die eine Regel, die es robust macht: es bewegt keine Stücke
-
-    Ein **Durchläufer** (``Im Prozess`` → ``Im Prozess``), ``terminal = False``,
-    ``moves = False``, kein Ortswechsel, kein neuer Status. Es hält die Stücke auf, bis
-    die zweite Partei ihren Teil getan hat, und lässt sie dann weiterlaufen.
-
-    Daraus folgt, dass **keine andere Regel im System von diesem Modul wissen muss**:
-    keine Kettenregel, keine Statusliste, keine Bestandsansicht, keine Zeile in der
-    Prozess-Engine. Was physisch passiert, sagen die Nachbarn – kommissioniert und
-    ausgeliefert wird mit «Bewegen», ausgesondert mit «Aussondern».
-
-    *Ein Verkauf besteht damit aus zwei Modulen statt aus einem, und das ist der Preis.
-    Er ist der richtige: sobald dieses Modul auch Ware bewegte, bräuchte es für jede
-    Kombination aus Geld und Ware wieder einen eigenen Fall.*
-
-    ## Und es trägt bewusst KEINEN ``buys``-Beleg
-
-    ``Module.buys`` bindet ein Modul an ``services/purchase`` – an dieselbe Maschine, aus
-    der «Beschaffen» und «Verkauf» bestehen. Dieses Modul hat seine eigene
-    (``services/deal``), und zwar vollständig: eigene Tabelle, eigener Dienst, eigene
-    Vokabel. Das ist Absicht und keine Doppelung auf Zeit – wer die beiden alten Module
-    löscht, soll dabei keine Zeile hier anfassen müssen.
-    """
-
-    #: Die **zwei** Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
-    DIRECTION = "direction"
-    PARTIES = "parties"
-    #: ►►► **Der Steuersatz, mit dem eine neue Position beginnt.** ◄◄◄
-    #:
-    #: Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26) – und der Satz hängt an der
-    #: **Sache**, nicht am Beleg: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen auf
-    #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
-    PARTY = "party"
-    REF = "ref"
-
-    #: Mehr ist keine Auswahl mehr, sondern eine Adressliste.
-    MAX_PARTIES = 10
-    #: Eine Artikelnummer oder ein Link – kein Bestelltext.
-    MAX_REF = 200
-
-    #: ►►► **Kein Scan.** ◄◄◄
-    #:
-    #: Ein Scan beantwortet «habe ich das richtige physische Ding vor mir» – er verifiziert
-    #: das Etikett am Ding, bevor jemand etwas **damit** tut. Dieses Modul tut mit dem
-    #: Stück gar nichts: es stellt etwas in Rechnung, mit Referenz auf die Einzelinstanzen.
-    #: Ein Etikett zu scannen, um eine Rechnung zu stellen, ist eine Geste ohne Aussage.
-    #:
-    #: Die Deklaration gibt es im Rahmen genau für diesen Fall («ein reiner Rechenschritt,
-    #: eine Freigabe am Schreibtisch»); ``process._verified_instance`` trägt sie seit
-    #: jeher, und ohne Instanz bewegt ``confirm_step`` **alles**, was davorsteht – ein
-    #: Vorgang statt einer je Instanz. Das ist hier genau richtig: ein Auftrag wird einmal
-    #: erledigt, nicht je Kiste.
-    requires_verification = False
-
-    #: **Erfasst wird nichts.** Was der Knopf auslöst, ist das Erledigen des Auftrags;
-    #: wie es heisst, sagt die Richtung (in beiden dasselbe Wort – siehe ``stage_verbs``).
-    def action_for(self, config: Optional[dict[str, Any]]) -> str:
-        return deal.of(self.direction_of(config)).stage_verbs[deal.AGREED]
-
-    def direction_of(self, config: Optional[dict[str, Any]]) -> str:
-        """**Die Richtung dieses Schritts** – die eine Lesestelle.
-
-        Sie steht in der ``config`` und nicht als zweiter Modul-Schlüssel: es ist EIN
-        Modul, und die Richtung ist seine Einstellung. Die ``config`` friert mit der
-        Freigabe ein und reist mit dem Schritt – sie ist damit genauso haltbar wie ein
-        Schlüssel und kostet keine zweite Kachel in der Palette.
-
-        Tolerant gelesen: ein fehlender Wert ist eine **Ausgabe** (``deal.of``), damit
-        eine alte Zeile keine Anzeige zerlegt. Geschrieben wird streng.
-        """
-        return str((config or {}).get(self.DIRECTION) or deal.OUT)
-
-    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        data = raw or {}
-        try:
-            direction = deal.assert_direction(data.get(self.DIRECTION))
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        flow = deal.of(direction)
-        # **Keine Erfassungspunkte, keine Stichprobe.** Geld ist keine Messung am Stück;
-        # die Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {
-            self.DIRECTION: direction,
-            self.PARTIES: self._parties(data.get(self.PARTIES), flow),
-            # ►►► **Keine Sperre** (Testnotiz #854). ◄◄◄
-            #
-            # ``prepaid`` stand hier und sagte, was die **Zahlungsfrist** ohnehin sagt.
-            # Ein gesendeter Wert wird darum verworfen – ein Feld, das die Oberfläche
-            # nicht anbietet, der Dienst aber annimmt, wäre die Hintertür zu genau der
-            # zweiten Wahrheit, die es hier nicht geben darf.
-            # ►►► **Kein Steuersatz** (Testnotiz #851). ◄◄◄
-            #
-            # Er stand hier als «Vorgabe jeder neuen Position» und war damit eine
-            # Eigenschaft des **Moduls**: eine Vorlage, die für jeden künftigen Auftrag
-            # denselben Satz behauptet. Er hängt aber an der **Sache** – sechs Wellen zu
-            # 8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier –, und die steht
-            # erst fest, wenn ein Auftrag läuft. Gefragt wird er darum je Position an der
-            # Ausführungsstelle; die Vorbelegung ist der Normalsatz (``deal.DEFAULT_VAT``),
-            # und ein Wert, der hier trotzdem ankommt, wird **verworfen**.
-            "points": [], "sample": dict(sampling.DEFAULT),
-        }
-
-    def _parties(self, value: Any, flow: "deal.Direction") -> list[dict[str, Any]]:
-        """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt und heisst **frei**.
-
-        Je Zeile die Objektnummer und die **Angabe, was bei ihm zu tun ist**
-        (``deal.TASK``): seine Artikelnummer, sein Shop-Link oder ein Satz. Sie gehört der
-        **Paarung** Modul × Partner, nicht dem Partner allein – derselbe Lieferant führt je
-        Teil eine andere Nummer –, und sie gilt in **beiden** Richtungen: beim Einkauf sagt
-        sie, wie man bei ihm bestellt, beim Verkauf, was er bekommt.
-
-        **Sie ist Pflicht** (Testnotizen #805/#808). Der frühere freiwillige Satz am
-        Vorgang («Was ist daran zu tun?») war ihre optionale Doppelung – und ein Feld, das
-        man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen; dann sagt seine
-        Leere nichts.
-
-        Tolerant **gelesen** wird die alte Form (blosse Objektnummer): ein freigegebener
-        Prozess ist eingefroren, sie steht in laufenden Aufträgen und wird sie überleben.
-        """
-        if value in (None, ""):
-            value = []
-        if not isinstance(value, (list, tuple)):
-            raise HTTPException(
-                status_code=400,
-                detail=f"«{flow.label}» erwartet eine Liste zugelassener "
-                       f"{deal.PARTY}.",
-            )
-        rows: list[dict[str, Any]] = []
-        seen: set[int] = set()
-        for entry in value:
-            raw = entry.get(self.PARTY) if isinstance(entry, dict) else entry
-            number = self._object_id(raw)
-            if number is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"«{entry}» ist keine Objektnummer ({deal.PARTY}).",
-                )
-            if number in seen:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{deal.PARTY} {number} steht zweimal – zweimal "
-                            f"derselbe ist keine zweite Wahl."),
-                )
-            seen.add(number)
-            ref = str((entry.get(self.REF) if isinstance(entry, dict) else "") or "").strip()
-            if not ref:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{deal.PARTY} {number}: «{deal.TASK}» fehlt – ohne die "
-                            f"Angabe weiss er nicht, worum es geht ({deal.TASK_HINT})."),
-                )
-            if len(ref) > self.MAX_REF:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{deal.PARTY} {number}: «{deal.TASK}» ist zu lang "
-                            f"(max. {self.MAX_REF} Zeichen)."),
-                )
-            rows.append({self.PARTY: number, self.REF: ref})
-        if len(rows) > self.MAX_PARTIES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Höchstens {self.MAX_PARTIES} {deal.PARTY} je Modul.",
-            )
-        return rows
-
-
-def parties_of(config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Die zugelassenen Gegenparteien **mit ihrer Bestellangabe** – die eine Lesestelle.
-
-    **Leer heisst frei, nicht «niemand».** Der Dienst schränkt nur ein, wenn hier etwas
-    steht; sonst wäre ein Modul ohne Liste eines, bei dem man mit niemandem handeln kann.
-
-    Tolerant gegen die alte Form (blosse Objektnummer) – sie steht in jedem Auftrag, der
-    vor dieser Runde freigegeben wurde, und ein eingefrorener Prozess ändert sich nie.
-    """
-    rows: list[dict[str, Any]] = []
-    for entry in (config or {}).get(Zahlung.PARTIES) or []:
-        raw = entry.get(Zahlung.PARTY) if isinstance(entry, dict) else entry
-        try:
-            number = int(raw)
-        except (TypeError, ValueError):
-            continue
-        ref = str((entry.get(Zahlung.REF) if isinstance(entry, dict) else "") or "")
-        rows.append({Zahlung.PARTY: number, Zahlung.REF: ref})
-    return rows
-
-
-def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
-    """Nur die Nummern – die Form, in der die **Freigabe-Prüfung** sie braucht.
-
-    Zwei Formen einer Regel, ein Namensstamm: ``parties_of`` nennt die ganze Zeile,
-    ``parties_allowed`` beantwortet «darf der hier mitspielen». Zwei Lesestellen wären
-    zwei Regeln.
-    """
-    return [int(r[Zahlung.PARTY]) for r in parties_of(config)]
-
-
-# ►►► **``prepaid(config)`` ist entfallen** (Testnotiz #854). ◄◄◄
-#
-# «Erst weiter, wenn bezahlt» war eine Angabe der **Definition** – und damit die zweite
-# Aussage neben der vereinbarten **Zahlungsfrist**. Gefragt wird jetzt der Vorgang:
-# ``deal.prepaid(row.due_days)`` – null Tage ab Zusage *ist* die Vorauszahlung.
-
-
 class Beleg(Module):
     """►►► **Geld mit einer zweiten Partei — als Beleg gedacht.** ◄◄◄
 
@@ -802,10 +536,10 @@ class Beleg(Module):
     * die **Position** gibt es in **einer** Form statt in dreien,
     * ein **Verb** wird an **einer** Stelle deklariert statt an vieren.
 
-    **Es fasst das alte Modul an keiner Stelle an** (``domain/voucher`` statt
-    ``domain/deal``), und das ist der Sinn: wird ``zahlung`` gelöscht, ist hier keine
-    Zeile zu ändern – dieselbe Regel, die schon beim Löschen von «Beschaffen» und
-    «Verkauf» null Zeilen gekostet hat.
+    **Es fasste das alte Modul an keiner Stelle an** (``domain/voucher`` statt
+    ``domain/deal``), und das war der Sinn: als ``zahlung`` gelöscht wurde (Testnotiz
+    #960), war hier **keine Zeile** zu ändern – dieselbe Regel, die schon beim Löschen
+    von «Beschaffen» und «Verkauf» null Zeilen gekostet hat.
 
     ## Zwei Angaben, sonst nichts
 
@@ -985,37 +719,17 @@ MODULES: dict[str, Module] = {
             status_after=st.IM_PROZESS,
             tone="moss",
         ),
-        Zahlung(
-            key=ZAHLUNG,
-            # ►►► **«(alt)»** – solange beide Fassungen nebeneinander stehen. ◄◄◄
-            # Die Farbe unterscheidet sie im Fluss, das Wort in der Palette: wer ein neues
-            # Modul anlegt, soll nicht raten müssen, welches der beiden gemeint ist. Es
-            # verschwindet mit der Löschung dieses Moduls, nicht durch eine Umbenennung.
-            label="Zahlung (alt)",
-            # Ein **Durchläufer**: das Modul hält die Stücke auf, es verändert sie nicht.
-            # Genau daraus folgt, dass keine andere Regel im System von ihm wissen muss.
-            status_before=st.IM_PROZESS,
-            status_after=st.IM_PROZESS,
-            # Gedämpftes Altrosa. Die sechs bestehenden Familien sind vergeben (Slate=Blau ·
-            # Sand=Gelbbraun · Moss=Grün · Clay=Rotbraun · Plum=Violett · Teal=Blaugrün),
-            # und ein Modul, das sich eine teilt, ist im Fluss von seinem Nachbarn nicht
-            # zu unterscheiden. Magenta/Rosa ist die einzige unbesetzte Familie – und sie
-            # sitzt deutlich pinker als das orange-braune Clay.
-            tone="rose",
-        ),
         Beleg(
             key=BELEG,
             label="Zahlung",
-            # Ein **Durchläufer**, wie sein Vorgänger: das Modul hält die Stücke auf, es
+            # Ein **Durchläufer**: das Modul hält die Stücke auf, es
             # verändert sie nicht. Genau daraus folgt, dass keine andere Regel im System
             # von ihm wissen muss.
             status_before=st.IM_PROZESS,
             status_after=st.IM_PROZESS,
-            # Gedämpftes Violett – die Nachbarfamilie von ``rose`` über die kalte Seite.
-            # Das ist Absicht: die beiden sind zwei Fassungen **desselben** Moduls, also
-            # sollen sie verwandt aussehen und trotzdem unterscheidbar sein. Sie steht
-            # seit der Löschung von «Beschaffen» ohne Besitzer im Katalog und kostet damit
-            # keine neue Zeile in der Oberfläche.
+            # Gedämpftes Violett. Die Familien sind vergeben (Slate=Blau · Sand=Gelbbraun ·
+            # Moss=Grün · Clay=Rotbraun), und ein Modul, das sich eine teilt, ist im Fluss
+            # von seinem Nachbarn nicht zu unterscheiden.
             tone="plum",
         ),
         Verbrauch(

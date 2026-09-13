@@ -167,7 +167,11 @@ ISSUER_LABEL = "Unsere Gesellschaft"
 #: ersatzlos entfallen; sie stand vier Zeilen unter dem Namen, zu dem sie gehört.
 
 #: Was man an der Schwelle tut: das **Angebot** annehmen – der Auftrag ist das Ergebnis.
-AGREE_VERB = "Angebot annehmen"
+#: ►►► **«Offerte annehmen»** (Testnotiz #966). ◄◄◄ *«Einheitliches Wording.»* – Der Beleg
+#: heisst in dieser Richtung «Offerte» (``stage_labels``), und der Knopf nahm bis hierher
+#: ein «Angebot» an, das auf dem Papier nirgends steht. Es ist **ein** Wort, weil es in
+#: beiden Richtungen dasselbe tut; wie der Beleg heisst, sagt die Stufe.
+AGREE_VERB = "Offerte annehmen"
 #: Was man tut, wenn nichts mehr davorsteht. Ein *Vorgang* ist dieser Beleg – das Wort
 #: verwechselt sich mit nichts, «Auftrag erledigt» meinte den ERP-Datensatz.
 FINISH_VERB = "Vorgang abschliessen"
@@ -213,7 +217,14 @@ PARTY_REFERENCE = "Zahlungsreferenz des Partners"
 #: sein Punkt vor der Überschrift sagt, wo der Beleg steht.
 GOODS_TITLE = "Positionen"
 QUOTES_TITLE = "Angebote"
-HISTORY_TITLE = "Chronik"
+#: ►►► **Eine «Chronik» gibt es nicht mehr** (Testnotiz #970). ◄◄◄
+#:
+#: *«Die Chronik kann hier vollständig und gänzlich entfallen. Ich möchte die Information
+#: dort darstellen, wo sie eigentlich angezeigt werden.»* – Und das ist richtig: sie zählte
+#: **zwei Daten** auf, die beide einen eigenen Ort haben. *Wann offeriert wurde* gehört an
+#: den Abschnitt «Angebote», *wann zugesagt wurde* an die Zeile, bei der zugesagt wurde.
+#: Ein eigener Abschnitt darunter wiederholte sie in anderer Form – und ausgerechnet in
+#: der ärmeren: als nacktes Datum statt als Aussage («vor 3 Tagen»).
 
 # ---------------------------------------------------------------------------
 # ►►► DIE BEIDEN FRISTEN — eine Zahl, und die üblichen Werte haben Namen ◄◄◄
@@ -239,6 +250,16 @@ FREE_MIN = 1
 
 PAYMENT_TERM_LABEL = "Zahlungsfrist"
 LEAD_TERM_LABEL = "Lieferfrist"
+
+#: ►►► **Die beiden Zoll-Angaben – so, wie sie am Artikel heissen** (Testnotiz #964). ◄◄◄
+#:
+#: Sie stehen hier, weil ``_assert_complete`` sie **nennen** muss, wenn sie fehlen: «Ohne
+#: Zolltarifnummer …» ist eine Auskunft, «Ohne hs_code …» eine Fehlermeldung an den
+#: Entwickler. Auf dem Beleg steht die **kurze** Form daneben (`Zolltarif` · `Ursprung`) –
+#: in einer Positionszeile hat der volle Name keinen Platz, und dort sagt der Wert selbst,
+#: was er ist.
+HS_CODE_LABEL = "Zolltarifnummer"
+ORIGIN_LABEL = "Ursprungsland"
 FREE_TERM_LABEL = "Individuell"
 
 
@@ -373,6 +394,28 @@ class Direction:
             return "Storniert"
         if stage == DONE:
             return "Erledigt"
+        return self.stage_labels.get(stage, stage)
+
+    def document_label(self, stage: str) -> str:
+        """►►► **Welche BELEGART ist das?** (Testnotiz #974) ◄◄◄
+
+        *«Ich möchte, dass diese Anzeige hier verschwindet.»* – Gemeldet an einem
+        erledigten Vorgang, und im Belegkopf stand **«Erledigt»**. Das ist kein Beleg,
+        sondern ein **Zustand**: ein Papier heisst «Offerte» oder «Auftragsbestätigung»,
+        und dass der Vorgang damit durch ist, sagt das Modul – nicht die Überschrift des
+        Dokuments.
+
+        Die Belegart ist darum die des **letzten erreichten Schritts**: ``done`` und
+        ``cancelled`` sind Ausgänge, keine Stufen, und wer dort steht, hat die Zusage
+        hinter sich. Ein stornierter Beleg behält damit seinen Namen und sagt daneben,
+        dass er storniert ist (``cancelled_on``) – das ist dieselbe Regel wie überall:
+        *der Beleg behält seinen Weg.*
+
+        ``label_of`` bleibt daneben und unverändert: eine **Fehlermeldung** über die
+        Stufe muss die Stufe nennen dürfen. Zwei Fragen, zwei Antworten.
+        """
+        if stage in (DONE, CANCELLED):
+            return self.stage_labels[AGREED]
         return self.stage_labels.get(stage, stage)
 
 

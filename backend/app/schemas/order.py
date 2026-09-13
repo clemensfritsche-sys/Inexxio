@@ -13,7 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
-from .deal import DealEmbed
 from .voucher import VoucherEmbed
 from .instance import StockState
 from .place import PlaceRef
@@ -139,15 +138,11 @@ class ProcessStepResponse(ModuleFacts):
     #: beiden Fälle auseinanderhalten, sonst sieht ein offenes Ziel aus wie ein Fehler.
     #: Bei jedem anderen Modultyp schlicht leer.
     target: Optional[PlaceRef] = None
-    #: **Der Geldvorgang** (``services/deal``): das Modul «Zahlung» hat
-    #: seine eigene Maschine, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos
-    #: gelöscht werden können, ohne dass hier eine Zeile fällt.
-    deal: Optional[DealEmbed] = None
-    #: ►►► **Der Beleg** (``services/voucher``) – das neu aufgebaute Modul «Zahlung».
-    #: ``None`` bei jedem anderen Modultyp. Es steht **neben** ``deal`` und nicht an
-    #: seiner Stelle: beide Fassungen laufen nebeneinander, bis die alte gelöscht wird
-    #: (``docs/neuaufbau-zahlungsmodul.md``), und ein laufender Auftrag trägt seinen
-    #: Prozess eingefroren – er soll auch danach noch zeichnen können, was er war.
+    #: ►►► **Der Beleg** (``services/voucher``) – der Geldvorgang des Moduls «Zahlung».
+    #: ``None`` bei jedem anderen Modultyp. Er hat seine **eigene** Maschine, und genau
+    #: das hat sich zweimal ausgezahlt: erst beim ersatzlosen Löschen von «Beschaffen»
+    #: und «Verkauf», dann beim Löschen des Vorgänger-Zahlungsmoduls (Testnotiz #960) –
+    #: beide Male fiel hier keine Zeile, die hier nicht hingehört.
     voucher: Optional[VoucherEmbed] = None
     #: ►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** (#945) ◄◄◄
     #:
@@ -234,14 +229,13 @@ class ProcessStepResponse(ModuleFacts):
         ihre Knöpfe funktionierten.
 
         **Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor
-        ist**: ``can`` am Geldvorgang. Eine zweite Herleitung («ist der Typ
-        ``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der
-        Oberfläche wäre eine dritte Wahrheit.
+        ist**: ``can`` am Beleg. Eine zweite Herleitung («ist der Typ ``beleg``?») liefe
+        beim nächsten Modul auseinander, und eine Heuristik der Oberfläche wäre eine
+        dritte Wahrheit.
 
         Das aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.
         """
-        return bool((self.deal.can if self.deal else [])
-                    or (self.voucher.can if self.voucher else []))
+        return bool(self.voucher.can if self.voucher else [])
 
 
 class StepWork(BaseModel):

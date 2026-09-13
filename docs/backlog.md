@@ -140,43 +140,25 @@ Migration.
 *Der frühere Punkt «`payments.kind` droppen» geht darin auf: die Spalte fällt mit ihrer
 Tabelle, wenn es soweit ist.*
 
-## Offen: `deals.share` (Zwei-Deploy-Regel)
+## Offen: die Tabellen des gelöschten Zahlungsmoduls
 
-Die Spalte hat ihr ORM-Mapping mit **Testnotiz #867** verloren – der «Anteil», den ein
-Vorgang von den Positionen abrechnet. Er war als Komfort für die Anzahlung gedacht (das
-Gegenstück zu «eine Rechnung je Modul», #866) und ist ein Begriff zu viel: *«ich checke
-diese Funktion nicht»*. Gebraucht wird er nicht – **wer den Preis nennt, nennt ihn je
-Position**, und ein zweites Modul trägt schlicht seine eigenen Positionspreise.
+`deals`, `deal_entries` — das **Vorgänger**-Zahlungsmodul ist ersatzlos gelöscht
+(Testnotiz #960), samt `domain/deal`, `services/deal`, `schemas/deal`, `models/deal`,
+`deal-work.tsx`, fünf Endpunkten und fünf API-Methoden. **Kein Modell verweist mehr auf
+sie**, also kann auch keine `NOT NULL` mehr ein Insert auflaufen lassen: es schreibt
+niemand hinein. Ihre Einträge in `_COLUMN_SAFETY_NET` und `_NUMERIC_SAFETY_NET` sind mit
+dem Mapping entfallen — ein Netz für eine Spalte, die kein Modell kennt, schützt nichts.
 
-Sie ist `NOT NULL DEFAULT 100`, ein Insert ohne sie läuft also weiter; ihr Eintrag im
-`_COLUMN_SAFETY_NET` ist mit dem Mapping entfallen (ein Netz für eine Spalte, die kein
-Modell kennt, schützt nichts).
+**Bewusst nicht mitgedroppt**, dieselbe Regel wie bei den übrigen Alt-Tabellen: der Drop
+kostet die Vergangenheit (jede Offerte, jede gestellte Rechnung und jede gebuchte Zahlung
+aus der Zeit vor dem Beleg), er ist unumkehrbar und verlangt vorher eine Sicherung der
+**produktiven** Datenbank (`scripts/dump-db.sh`) — die kann nur jemand mit Zugriff darauf
+ziehen, nicht eine Migration.
 
-**Erst im Folge-Deploy droppen** – im selben liefe die während des Cloud-Run-Rollouts noch
-laufende Vorgänger-Revision gegen eine Tabelle ohne sie (die Ausfallklasse von Migration
-`090`).
-
-```sql
-ALTER TABLE deals DROP COLUMN IF EXISTS share;
-```
-
-## Offen: `deals.reference` und `deals.note` (Zwei-Deploy-Regel)
-
-Beide haben ihr ORM-Mapping in dieser Runde verloren (Testnotiz #812): niemand wusste, was
-in das Referenz-Feld gehört, und die Rechnungsnummer erzeugt der Dienst längst selbst
-(`<Auftragsnummer>[-n]`). Damit hatte auch die Handlung `note` keinen Aufrufer mehr.
-
-**Erst im Folge-Deploy droppen** — nicht im selben: sonst liefe die während des
-Cloud-Run-Rollouts noch laufende Vorgänger-Revision gegen eine Tabelle ohne sie (die
-Ausfallklasse von Migration `090`).
-
-```sql
-ALTER TABLE deals DROP COLUMN IF EXISTS reference;
-ALTER TABLE deals DROP COLUMN IF EXISTS note;
-```
-
-*Nicht zu verwechseln mit `deal_entries.reference` / `.note`* — die tragen Rechnungsnummer
-bzw. Zahlungszweck einer Geld-Zeile und bleiben.
+*Die früheren Punkte «`deals.share` droppen» (#867) und «`deals.reference`/`.note`
+droppen» (#812) gehen darin auf: die Spalten fallen mit ihrer Tabelle, wenn es soweit
+ist. Ein Drop einzelner Spalten einer Tabelle, die ohnehin niemand liest, wäre Arbeit
+ohne Wirkung.*
 
 ## Erledigt: die toten Spalten sind gedroppt (Migration `120`)
 

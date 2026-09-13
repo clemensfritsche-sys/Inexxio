@@ -14,7 +14,7 @@ export function cn(...inputs: ClassValue[]) {
  * Fast alle haben zwei – und darum stand hier eine feste `2`, und niemand hätte je
  * gemerkt, dass sie falsch ist: **JPY und KRW haben null**, **KWD hat drei**. Ein
  * Yen-Betrag mit zwei Nachkommastellen ist kein Schönheitsfehler, sondern ein Betrag,
- * den es nicht gibt. Der Wert reist mit den Daten (`DealEmbed.currency_decimals`, aus
+ * den es nicht gibt. Der Wert reist mit den Daten (`VoucherEmbed.currency_decimals`, aus
  * `domain/currency`); zwei ist die Vorgabe für alles, was keine Währung nennt.
  *
  * **Der Tausender-Trenner wird festgeschrieben.** `toLocaleString('de-CH')` liefert je

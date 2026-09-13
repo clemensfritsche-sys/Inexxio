@@ -42,7 +42,7 @@ app/
 │   ├── capture_types/← die Erfassungspunkt-Typen (ein neuer Typ = eine neue Datei)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (was darf hinter was stehen)
-│   ├── deal.py       ← der Geldvorgang: Richtung, Stufen, Steuer, Balance
+│   ├── voucher.py    ← der Beleg: Richtung, Stufen, Steuer, Balance, Währung
 │   └── currency.py   ← die Währung: gibt es sie, und wie viele Nachkommastellen?
 ├── models/           ← SQLAlchemy 2.0 Modelle (je ein File pro Entität)
 │   └── __init__.py   ← Re-Export aller Modelle (immer von hier importieren)
@@ -271,7 +271,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Antwort steht in **`core/config.payment_service_ready()`**, nicht im Adapter: sonst
 > müsste der Geldvorgang ihn importieren, um zu wissen, ob er einen Knopf anbieten darf –
 > und damit wüsste er, dass es Stripe ist (Quelltext-Wächter: «stripe» kommt in
-> `services/deal.py` nicht vor). Sie fragt **beide** Schlüssel; einer allein ist eine halbe
+> `services/voucher.py` nicht vor). Sie fragt **beide** Schlüssel; einer allein ist eine halbe
 > Strasse.
 > **Der Webhook hört `payment_intent.succeeded`** (nicht mehr `checkout.session.completed`)
 > und bucht **`amount_received`** – nicht `amount`: bei einer Teilautorisierung sind das
@@ -828,7 +828,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 >
 > ►►► **Zwei Formen einer Regel – auch beim Abschluss** (#945). ◄◄◄
 > `completion_problem` nennt den **Grund**, `assert_completable` ist die **Tür**
-> (`services/voucher` und `services/deal`, zusammengefasst in `process.completion_problem`);
+> (`services/voucher`, durchgereicht von `process.completion_problem`);
 > die Ansicht reicht ihn als `ProcessStepResponse.blocked` durch. Ohne die erste Form stand
 > «Vorgang abschliessen» als vollflächige Einladung über einer Offerte, die der Dienst
 > gleich darauf mit 409 abwies.
@@ -940,3 +940,56 @@ cd backend && python -m scripts.deadcode --backend    # nur das Backend
 Erreichbarkeit ab `app.main` (bzw. ab den Next-Einstiegen) und öffentliche Namen ohne
 fremden Leser. Jede Fundstelle ist ein **Hinweis**, kein Urteil: ein Endpunkt wird über den
 Router aufgerufen, ein Wächter über den Test – der Report weist beides getrennt aus.
+
+> ►►► **Das Vorgänger-Zahlungsmodul ist ERSATZLOS gelöscht** (Testnotiz #960). ◄◄◄
+> Gefallen sind `domain/deal.py` · `services/deal.py` · `schemas/deal.py` ·
+> `models/deal.py`, der Modul-Eintrag `zahlung`, **fünf Endpunkte** (`…/deal`,
+> `…/deal/payment`, `…/deal/refund`, `…/deal/transfer`, `/orders/deal-parties`), das Feld
+> `ProcessStepResponse.deal`, `tests/test_deal_module.py` und **54 Wächter**, die seine
+> Form prüften. Rund 7.600 Zeilen.
+> **Am Beleg keine Zeile** – und das ist der ganze Punkt: er wurde bewusst **neben** ihn
+> gebaut statt in ihn hinein («kein Import aus `deal`»), genau wie er selbst einmal neben
+> «Beschaffen» und «Verkauf» stand. Dieselbe Regel hat damit zweimal gehalten.
+> Konkret fiel je **eine Zeile** an den Berührungspunkten: `stripe_pay.MONEY` (der Adapter
+> kennt das Geld-Modul als **Schnittstelle**, nicht als Namen), `process` (drei Aufrufe
+> wurden zu drei), `orders._involved`, `MODULE_FORM`/`MODULE_FIELDS` im Frontend.
+> **Die Tabellen `deals`/`deal_entries` bleiben stehen** (Zwei-Deploy-Regel,
+> `docs/backlog.md`): eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop
+> kostet die Vergangenheit. Ihre Einträge in `_COLUMN_SAFETY_NET` und
+> `_NUMERIC_SAFETY_NET` sind dagegen **mitgegangen** – ein Netz für eine Spalte, die kein
+> Modell kennt, schützt nichts. Das Numerik-Netz zeigt jetzt auf die Beträge des Belegs.
+> *Die Prosa des Vorgängers liegt in
+> `docs/history/2026-09-zahlungsmodul-vorgaenger.md` – darin stecken fachliche
+> Entscheidungen, die weiter gelten.*
+
+> ►►► **Was auf dem Beleg steht, ist PFLICHT** (Testnotiz #964, PROCESS_CORE §9.15a).◄◄◄
+> `voucher._assert_complete` weist ein `ask` ab, solange Preis, Zolltarifnummer,
+> Ursprungsland oder die Lieferbedingung fehlen – **an der einen Stelle, an der der Beleg
+> nach aussen geht**, nicht bei jedem Tippen (er *entsteht* unvollständig). Die rote
+> Tönung im Browser ist die **freundliche Hälfte** derselben Regel, nie ein zweiter
+> Massstab. **Gelesen wird der Wert, der auf dem Beleg STEHT** (`embed_lines`: die Zeile,
+> wo sie etwas trägt, sonst der Artikel) – die rohe Spalte zu prüfen hiesse, eine Angabe
+> zu verlangen, die sichtbar längst dasteht. Und **der Satz nennt die Position**.
+> *Benannte Folge: die Zoll-Angaben sind Pflicht **auch im Inland**. Man könnte sie am
+> Ziel festmachen, aber ein Pflichtfeld, das je nach Empfänger eines ist oder nicht, ist
+> keins – sondern eine Regel, die man erst beim Scheitern kennenlernt.*
+
+> ►►► **Der Belegkopf nennt die BELEGART, nicht den Zustand** (#974, §9.15b). ◄◄◄
+> `Direction.document_label` gibt für `done`/`cancelled` das Wort der **Zusage-Stufe**:
+> «Erledigt» ist kein Beleg, sondern ein Zustand, und dass der Vorgang durch ist, sagt das
+> Modul. `label_of` bleibt **unverändert daneben** – eine Fehlermeldung über die Stufe muss
+> die Stufe nennen dürfen. Zwei Fragen, zwei Antworten.
+
+> ►►► **Der Moment brauchte keine Spalte** (#968/#969, §9.15c). ◄◄◄ `created_at` einer
+> Angebotszeile *ist* der Moment, in dem sie hinausging (`_ask` legt sie genau dort an und
+> nirgends sonst); `updated_at` der **gewählten** Zeile ist der Moment des Zuschlags
+> (`_agree` setzt `CHOSEN` in einem Zug mit der Stufe, und danach fasst kein Verb sie mehr
+> an). Sie reisen als `sent_at`/`agreed_at` mit; `sent_on` bleibt daneben – das ist das
+> **Datum auf dem Papier**. Mit ihnen ist die **Chronik** entfallen (#970): ein Abschnitt,
+> der dieselben Daten ein zweites Mal nennt, ist die ärmere Kopie.
+
+> ►►► **`recipients` ist die VEREINIGUNG zugelassen ∪ angefragt** (#962, §9.15d). ◄◄◄
+> Es trug nur die Angefragten – und im Offertenschritt ist noch **niemand** angefragt: die
+> Anschrift, die man sehen will, *bevor* man anbietet, gab es gar nicht.
+> `_possible_parties` ist die eine Lesestelle (Definition zuerst, frei Hinzugefügte
+> dahinter, ohne Dubletten); eine zweite Abfrage braucht die Oberfläche nicht.

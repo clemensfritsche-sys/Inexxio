@@ -3655,6 +3655,122 @@
 > 375 · 320 px, **0 px** waagrechter Überlauf über **zehn** Zustände – und die Messung
 > gegen ihre eigene Bug-Form gegengeprüft (+22,9 px bei 375, +77,9 px bei 320).
 
+> ►►► **Das Vorgängermodul ist WEG — und der Beleg wird ruhiger** (Testnotizen
+> #960–#974). ◄◄◄
+> Fünfzehn Notizen, und die grösste war ein **Löschen**: *«Dieses Prozessschrittmodul
+> (Zahlung (alt)) kann vollständig und gänzlich aus dem Code eliminiert werden.»* Gefallen
+> sind `domain/deal` · `services/deal` · `schemas/deal` · `models/deal` · `deal-work.tsx`,
+> der Modul-Eintrag, **fünf Endpunkte**, fünf API-Methoden und **54 Wächter**, die seine
+> Form prüften – rund 7.600 Zeilen. **Am Beleg keine Zeile**, und das ist der ganze Punkt:
+> er wurde bewusst **neben** ihn gebaut statt in ihn hinein, genau wie er selbst einmal
+> neben «Beschaffen» und «Verkauf» stand. Dieselbe Regel hat damit zweimal gehalten; an
+> den Berührungspunkten fiel je **eine** Zeile (`stripe_pay.MONEY` kennt das Geld-Modul
+> als **Schnittstelle**, nicht als Namen). Die Tabellen `deals`/`deal_entries` bleiben
+> stehen – ihre **Netze** nicht: ein Netz für eine Spalte, die kein Modell kennt, schützt
+> nichts. *Die Prosa des Vorgängers liegt in
+> `docs/history/2026-09-zahlungsmodul-vorgaenger.md`; sie beschrieb ein System, das es
+> nicht mehr gibt, und `CLAUDE.md` liest jede Sitzung als Erstes.*
+>
+> ►►► **Zwei gemeldete Höhenversätze, EINE Ursache** (#961/#963). ◄◄◄ `Editable` trug
+> `align-self: start`. Das beantwortet die **Streckung** in einer Spalte richtig – und
+> beantwortet zugleich eine **zweite** Frage, die es nicht beantworten darf: in einer
+> **Zeile** ist die Querachse die senkrechte, und `start` heisst dort «oben». Die Hülle
+> fiel damit aus dem `items-baseline` ihres Elternteils heraus, und neben einer Angabe
+> anderer Schriftgrösse stand sie sichtbar versetzt – einmal am Firmennamen neben seiner
+> Objektnummer, einmal am Steuersatz neben dem Preis. **`width: fit-content` löst genau
+> das eine Problem**: eine *definite* Quergrösse schliesst `stretch` aus (CSS Flexbox
+> §8.3), und in der Zeile bleibt die Ausrichtung die des Elternteils. Die Hülle muss ihren
+> Kontext weiterhin nicht kennen.
+> **Gemessen mit einer Grundlinien-SONDE**, nicht mit einer Boxkante: ein leeres
+> 0 × 0-`inline-block`, dessen Unterkante die Grundlinie der Zeile **ist** (CSS 2.1
+> §10.8.1). Ein `Range` über einen Textknoten liefert die **Zeilenbox** – und zwei
+> Zeilenhöhen haben verschiedene Unterkanten, auch wenn die Grundlinien stimmen: die erste
+> Messung meldete 3 px, davon 0 echt. **Δ 0.00 px**, die Bug-Form 2 px.
+>
+> ►►► **Was auf dem Beleg steht, ist PFLICHT** (#964, `voucher._assert_complete`). ◄◄◄
+> *«Alle Eingabefelder – alles, was so leicht blau hinterlegt ist – sollen Muss-Felder
+> sein.»* «Leicht blau hinterlegt» **ist** die Auszeichnung änderbarer Werte
+> (`.ix-editable`, #922), also gehört die Regel **ihr** und nicht neun Aufrufstellen:
+> dieselbe Auszeichnung in einer anderen Stimme – warnfarben statt akzentfarben, Grösse
+> und Schrift unverändert (gemessen Δb 0 · Δh 0 · Δx 0, die Bedingung aus #922/#948 gilt
+> weiter). Kein Sternchen daneben: eine zweite Form wäre eine zweite Aussage und bräuchte
+> Platz, den ein Beleg nicht hat.
+> **Geprüft wird an der EINEN Stelle, an der er nach aussen geht** – nicht bei jedem
+> Tippen: der Beleg *entsteht* unvollständig, und eine Meldung dabei sagte nur, dass man
+> noch nicht fertig ist. Gelesen wird der Wert, der auf dem Beleg **steht** (die Zeile,
+> sonst der Artikel), und der Satz **nennt die Position**. *Benannte Folge: die
+> Zoll-Angaben sind Pflicht **auch im Inland**. Man könnte sie am Ziel festmachen
+> (Empfängerland ≠ Ausstellerland) – aber ein Pflichtfeld, das je nach Empfänger eines ist
+> oder nicht, ist keins, sondern eine Regel, die man erst beim Scheitern kennenlernt.*
+>
+> ►►► **Die Gegenpartei: EINE Liste, EINE Form** (#962). ◄◄◄ *«Ich kann immer noch nicht
+> einen User abwählen oder wieder aktivieren – es bleiben immer beide aktiv. Zudem sehe
+> ich die Anschrift(en) nicht.»* – Der Befund war eine **Doppelung**, kein kaputter Knopf:
+> dieselbe Sache stand in zwei Formensprachen da (Chip mit ✕ ↔ `+ Name`-Knopf), und der
+> zweite trug ausgerechnet `.ix-editable` – **jede** Partei sah dauerhaft «aktiv» aus.
+> Jetzt **ein Chip je möglicher Gegenpartei**: Punkt (gefüllt = angefragt ↔ hohler Ring),
+> Name **zeigt die Anschrift** – auch bei einer, die noch nicht angefragt ist –, `+` fragt
+> an, `✕` zieht zurück. Dafür trägt `recipients` die **Vereinigung** zugelassen ∪
+> angefragt: im Offertenschritt ist noch **niemand** angefragt, und genau dort will man
+> die Anschrift sehen, *bevor* man anbietet. **Und die Liste hängt nicht mehr an `ask`** –
+> fehlte eine Stammdatenangabe, verschwand mit dem Anfragen auch das Abwählen und die
+> Anschrift; was man **tun** darf, sagt weiterhin `can` je Chip, was man **sehen** darf,
+> ist eine andere Frage.
+>
+> ►►► **Der Belegkopf nennt die BELEGART, nicht den Zustand** (#974). ◄◄◄ An einem
+> erledigten Vorgang stand «Erledigt». Ein Papier heisst «Offerte» oder
+> «Auftragsbestätigung»; dass der Vorgang durch ist, sagt das **Modul**. `done` und
+> `cancelled` sind **Ausgänge, keine Stufen** – wer dort steht, hat die Zusage hinter
+> sich. Ein stornierter Beleg behält damit seinen Namen und sagt **daneben**, dass er
+> storniert ist: *der Beleg behält seinen Weg.* `label_of` bleibt unverändert daneben –
+> eine Fehlermeldung über die Stufe muss die Stufe nennen dürfen. Zwei Fragen, zwei
+> Antworten.
+>
+> ►►► **Die Chronik entfällt — die Daten stehen an ihrem Ort** (#968/#969/#970). ◄◄◄ Sie
+> zählte **zwei Daten** auf, und beide haben einen eigenen: *wann offeriert wurde* am Kopf
+> der Angebote, *wann zugesagt wurde* an der Zeile mit dem Zuschlag, *wann storniert
+> wurde* im Belegkopf. Ein Abschnitt, der dieselben Daten ein zweites Mal nennt, ist nicht
+> der Nachweis, sondern seine **ärmere Kopie**: nacktes Datum statt Aussage. Jetzt «vor 3
+> Tagen offeriert», die Tatsache (Datum **und Uhrzeit**) im Hover – dieselbe Regel wie bei
+> der Fälligkeit einer Geld-Zeile (#890).
+> **Und der Moment brauchte keine Spalte**: `created_at` einer Angebotszeile *ist* der
+> Moment, in dem sie hinausging (`_ask` legt sie genau dort an und nirgends sonst), und
+> `updated_at` der **gewählten** Zeile der des Zuschlags (`_agree` setzt `CHOSEN` in einem
+> Zug mit der Stufe, danach fasst kein Verb sie mehr an). `sent_on` bleibt daneben – das
+> ist das **Datum auf dem Papier**, und ein Beleg trägt einen Tag, keine Uhrzeit.
+>
+> **Ein Modul, das seine Sache selbst zeigt, zählt sie nicht daneben auf** (#973): neben
+> dem Beleg stand die `PointList`, und die sagt, was ein Modul **tun wird** –
+> Erfassungspunkte, Stichprobe, Verb. Ein Beleg hat nichts davon; übrig blieb sein Verb
+> («Vorgang abschliessen»), also der Name eines Knopfes, den es an einem erledigten Modul
+> gar nicht mehr gibt. Gefragt wird, ob es einen Beleg **gibt**, nie der Modultyp.
+>
+> **Kleineres, jedes an genau einer Stelle:** der **Steuersatz steht vor dem Betrag**
+> (#972 – die Zahl ist die letzte Angabe der Zeile und bildet mit der darunter eine
+> Spalte; dahinter verschob jede Satz-Beschriftung anderer Länge den Betrag); **mehr Luft
+> über jedem Abschnitt** (#971 – 18 → 26 px, der Abstand gehört der **Gattung**, nicht der
+> Aufrufstelle); die **Zahlungsart ist ein Schieber** (#967 – zwei Werte hinter einem
+> Klick zu verstecken ist ein Klick für eine Entscheidung, die man sehen könnte); **«Absage»
+> ohne Zusatz** (#965 – «liefert nicht» sagt an einer *Einnahme* sogar das Falsche); und
+> **«Offerte annehmen»** statt «Angebot annehmen» (#966, vom Server – der Beleg heisst in
+> dieser Richtung «Offerte»).
+>
+> **Nebenbei entfallen:** `fields.TermField` (sein letzter Aufrufer war das gelöschte
+> Modul – eine Frist ist ein **Wert** auf dem Beleg, keine Knopfreihe, #934) und drei
+> ungenutzte Symbole.
+> Wächter: 4 neue in `tests/test_voucher_module.py` (**5 Bug-Formen gegengeprüft**), 7
+> neue in `test_frontend_mirrors.py` (**9 Bug-Formen**), 19 auf die neue Regel gezogen –
+> und *drei bestehende prüften die **Form** der alten Lösung* (`align-self: start`,
+> `may(d, active, action)`, ein `<Actions style={{flex: '1 1 100%'}}>`) und hätten damit
+> die bessere Fassung verboten; sie fragen jetzt die Regel. Suite grün gegen die
+> gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen (je 523); **keine
+> Migration** in dieser Runde. Gemessen in Chromium an der **echten** Komponente (Karte im
+> `ModuleShell`): 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf
+> über **sechs** Beleg-Zustände – und die Messung gegen ihre eigene Bug-Form gegengeprüft
+> (+46.7 px bei 375, +101.7 px bei 320). *Ein Name in der Positionszeile taugt als
+> Bug-Form nicht: er trägt `truncate`, und eine Textbreite hinter `overflow: hidden` ist
+> kein Überlauf.*
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -3895,7 +4011,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Statuswechsel schreibt in den append-only Ereignis-Log. **Fünf Module** (Datenerfassung ·
   Aussondern · Verbrauch · Bewegen · **Zahlung**), Abweichungen als
   ganz gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
-- **Zahlung** (§9.12): Geld mit einer zweiten Partei, in beide Richtungen dasselbe Modul –
+- **Zahlung** (§9.12/§9.15, `beleg`): Geld mit einer zweiten Partei, in beide Richtungen dasselbe Modul –
   und es bewegt **keine Stücke**. Angebotsspiegel → Zusage → Rechnungen und Zahlungen als
   Zeilen daneben; *offen*, *fällig* und *überfällig* als Ableitung, null Spalten. Steuer je
   Position (MWSTG Art. 26) und **eine Währung je Vorgang** (ISO 4217, mit den
@@ -3906,8 +4022,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Reverse Charge), **Zolltarifnummer und Ursprungsland je Position** (aus dem Artikel
   vorbelegt, am Beleg überschreibbar, mit der Zusage eingefroren) und die **Incoterms
   2020** als Katalog mit Erklärung. Die **Gegenpartei wählt man im Kopf**, wo sie steht;
-  darunter sagt eine **Chronik** nur noch, **wann** was passiert ist. Welche unserer
-  Gesellschaften ihn stellt, ist am Vorgang eingefroren (`deals.issuer_company_id`).
+  darunter steht **kein Chronik-Abschnitt** mehr (#970) – *wann offeriert wurde* steht am
+  Kopf der Angebote, *wann zugesagt wurde* an der Zeile mit dem Zuschlag, jeweils als
+  Aussage («vor 3 Tagen») mit Datum und Uhrzeit im Hover. Welche unserer Gesellschaften
+  ihn stellt, ist am Vorgang eingefroren (`vouchers.issuer_company_id`).
+- **Und was auf ihm steht, ist Pflicht** (§9.15a): Preis, Steuersatz, beide Zoll-Angaben,
+  beide Fristen und die Lieferbedingung – geprüft an der **einen** Stelle, an der er nach
+  aussen geht; im Browser sagt es der Wert selbst, warnfarben statt akzentfarben.
 - **Ein Modul meldet, was ihm fehlt** (`DataGap`): fehlende Stammdaten sind eine **Zeile**,
   kein Zustand – dieselbe Form wie `StepNeed`. Durchgesetzt über `can`: der Knopf ist gar
   nicht da, und die Zeile sagt in Klartext, **wo** die Angabe hingehört und **warum**.
@@ -3926,7 +4047,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): der **Shop**,
 die Module **Beschaffen**, **Verkauf** und **Ausliefern** (§9.9a – was die ersten beiden
-konnten, kann der Geldvorgang; das dritte war ein Scan und ein Statuswechsel),
+konnten, kann der Geldvorgang; das dritte war ein Scan und ein Statuswechsel), das
+**Vorgänger-Zahlungsmodul** «Zahlung (alt)» (#960 – sein Nachfolger stand bewusst daneben,
+darum kostete die Löschung dort null Zeilen; seine Prosa liegt in
+`docs/history/2026-09-zahlungsmodul-vorgaenger.md`),
 Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent,
 Versand-Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail
 API), Typesense-Suche, Buchhaltung, HR.
@@ -3934,8 +4058,8 @@ API), Typesense-Suche, Buchhaltung, HR.
 **Nächste Aufgabe**: Prozess-Module nach Bedarf. Der Wiederaufbau eines entfernten
 Bereichs beginnt bei der Modellfrage in `docs/attic.md`, nicht bei der alten Datei.
 Am Datenmodell ist **eines offen und es braucht einen Menschen**: die Tabellen der
-entfernten Bereiche (`events`, `document_*`, `article_prices`, `ai_actions`, und neu
-`purchases`, `invoices`, `payments` …) stehen noch. Kein Modell verweist auf sie, sie kosten nichts – aber ihr Drop ist unumkehrbar
+entfernten Bereiche (`events`, `document_*`, `article_prices`, `ai_actions`, `purchases`,
+`invoices`, `payments` und neu `deals`, `deal_entries` …) stehen noch. Kein Modell verweist auf sie, sie kosten nichts – aber ihr Drop ist unumkehrbar
 und verlangt vorher eine Sicherung der **produktiven** Datenbank (`docs/backlog.md`).
 
 ## Deployment

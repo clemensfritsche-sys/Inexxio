@@ -23,7 +23,6 @@ import {
 } from '@/components/erp/definition-lines';
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
-import { DealWork } from '@/components/erp/deal-work';
 import { BelegWork } from '@/components/erp/beleg-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
 import { RUNTIME_CHOICE } from '@/lib/scan';
@@ -216,29 +215,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   }, [live]);
 
   /**
-   * **Eine Handlung am Geldvorgang** – derselbe Weg wie das Bestätigen: ein Aufruf,
-   * die Antwort IST der neue Auftrag. Kein eigener Zustand daneben, der veralten könnte.
-   */
-  const runDeal = useCallback(async (
-    stepId: number, body: { action: string } & Record<string, unknown>,
-  ) => {
-    if (!live) return;
-    setBusy(true); setError(null);
-    try {
-      setLive(await api.updateDeal(live.object_id, stepId, body));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [live]);
-
-  /**
-   * **Eine Handlung am Beleg** – derselbe Weg, eigener Endpunkt.
+   * **Eine Handlung am Beleg** – derselbe Weg wie das Bestätigen: ein Aufruf, die
+   * Antwort IST der neue Auftrag. Kein eigener Zustand daneben, der veralten könnte.
    *
-   * Die beiden Zahlungsmodule teilen bewusst keine Zeile Dienst, damit das alte eines
-   * Tages ersatzlos gelöscht werden kann (`docs/neuaufbau-zahlungsmodul.md`) – dann fällt
-   * `runDeal` weg, nicht eine Verzweigung in einem geteilten Aufruf.
+   * Das Vorgängermodul hatte seinen eigenen Aufruf daneben (`runDeal`) – genau deshalb
+   * kostete seine Löschung hier eine **Streichung** statt einer Verzweigung (#960).
    */
   const runVoucher = useCallback(async (
     stepId: number, body: { action: string } & Record<string, unknown>,
@@ -257,7 +238,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   /**
    * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm.
    *
-   * Jede andere Aktualisierung ist die **Antwort** auf einen Befehl (`confirm`, `deal`),
+   * Jede andere Aktualisierung ist die **Antwort** auf einen Befehl (`confirm`, `voucher`),
    * und das ist die bessere Form: der Server sagt, was daraus wurde. Eine Online-Zahlung
    * hat keine solche Antwort – gebucht wird sie vom Webhook –, also braucht genau sie
    * diesen einen Weg.
@@ -321,7 +302,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep}
-            onDeal={runDeal} onVoucher={runVoucher} onReload={reload}
+            onVoucher={runVoucher} onReload={reload}
             onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
@@ -450,14 +431,13 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
+function RunView({ order, busy, onConfirm, onVoucher, onReload,
                    onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number | null, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], place: number | null) => void;
-  /** Eine Handlung am Geldvorgang («Zahlung»). */
-  onDeal: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
+  /** Eine Handlung am Beleg des Moduls «Zahlung». */
   onVoucher: (stepId: number,
               body: { action: string } & Record<string, unknown>) => void;
   /**
@@ -539,6 +519,10 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
     const plain = step.verifies === false;
     // **Warum jetzt nicht?** – der Satz kommt vom Server (`process.completion_problem`).
     const blocked = stepInfo(order, step.id)?.blocked ?? null;
+    // **Der Beleg umschliesst den Scan** – die Bestätigung, die jedes Modul abschliesst,
+    // passiert *in* ihm. Erkannt allein daran, dass es einen gibt, nie am Modultyp; bei
+    // jedem anderen ist er leer, und es bleibt beim Inhalt allein.
+    const paper = stepInfo(order, step.id)?.voucher ?? null;
     const work = !internal ? null : isActive && plain ? (
       // ►►► **Der Modul-Knopf IST ein Knopf** (Testnotiz #813). ◄◄◄
       //
@@ -587,6 +571,19 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
         onConfirm={(instanceObjectId, verification, values, sources, place) =>
           onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
       />
+    ) : paper ? (
+      // ►►► **Ein Modul, das seine Sache SELBST zeigt, braucht keine Aufzählung daneben**
+      // (Testnotiz #973). ◄◄◄
+      //
+      // *«Ich checke nicht, was diese Info hier soll. Zahlung war abgeschlossen, und es
+      // zeigt es immer noch an.»* – Dagestanden hatte die `PointList`, und die sagt, was
+      // ein Modul **tun wird**: seine Erfassungspunkte, seine Stichprobe, sein Verb. Ein
+      // Beleg hat nichts davon; übrig blieb sein **Verb** («Vorgang abschliessen») – also
+      // der Name eines Knopfes, den es an einem erledigten Modul gar nicht mehr gibt.
+      //
+      // Gefragt wird, ob es einen Beleg **gibt**, nie der Modultyp: jedes künftige Modul,
+      // dessen Inhalt eine eigene Karte ist, erbt die Regel ohne eine Zeile.
+      null
     ) : (
       <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
         action={stepInfo(order, step.id)?.action}
@@ -594,14 +591,6 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
         moduleType={step.moduleType}
         target={step.moves ? (stepInfo(order, step.id)?.target ?? null) : undefined} />
     );
-    // **Der Geldvorgang umschliesst den Scan** – genau wie der Beschaffungs-Beleg, und
-    // aus demselben Grund: die Bestätigung, die jedes Modul abschliesst, passiert *in*
-    // ihm. Erkannt allein daran, dass es einen gibt – nie am Modultyp; bei jedem anderen
-    // ist `deal` leer, und es bleibt beim Inhalt allein.
-    const money = stepInfo(order, step.id)?.deal ?? null;
-    // **Und der Beleg des neu aufgebauten Moduls** – dieselbe Bauart, eigene Maschine.
-    // Erkannt allein daran, dass es einen gibt; bei jedem anderen Modultyp ist er leer.
-    const paper = stepInfo(order, step.id)?.voucher ?? null;
     return (
     <div className="flex flex-col gap-2.5">
       <Reason text={stepInfo(order, step.id)?.reason} />
@@ -611,12 +600,6 @@ function RunView({ order, busy, onConfirm, onDeal, onVoucher, onReload,
           onAction={(body) => onVoucher(step.id, body)} onPaid={onReload}>
           {work}
         </BelegWork>
-      ) : money ? (
-        <DealWork deal={money} busy={busy} active={isActive}
-          orderObjectId={order.object_id} stepId={step.id}
-          onAction={(body) => onDeal(step.id, body)} onPaid={onReload}>
-          {work}
-        </DealWork>
       ) : work}
       {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp.
           ►►► **Und nur, wo es mehr zu berichten gibt als die blosse Passage** (#825):

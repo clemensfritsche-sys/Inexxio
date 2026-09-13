@@ -11,7 +11,7 @@ Wahrheit», und daraus folgte fast die ganze Komplexität: ``stripe_*``-Snapshot
 vier Tabellen, ein Webhook, der **Aufträge erzeugte**, ein ``CheckoutIntent`` mit
 Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier gibt der Geldvorgang
 Betrag und Währung vor, und der Webhook schreibt **eine Zeile Geld**
-(``deal.record_payment``).
+(``voucher.record_payment``).
 
 ## ►►► Bezahlt wird BEI UNS, nicht dort ◄◄◄
 
@@ -53,13 +53,13 @@ Frage. Dieselbe Regel wie überall im Haus: die Genauigkeit ist die der Quelle.
   Grundsatzes oben. Die Steuer gehört an den Beleg, wenn die Rechnung kommt.
 * **Kein Customer Portal, keine Subscriptions.** Wiederkehrende Aufträge werden eine
   **Schlaufe im Prozess** (PROCESS_CORE §13), kein Abo-Objekt beim Zahlungsdienst.
-* **Keine ``stripe_*``-Spalten.** Die Id steht in ``deal_entries.reference`` – in derselben
+* **Keine ``stripe_*``-Spalten.** Die Id steht in ``voucher_entries.reference`` – in derselben
   Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege.
 
 ## Ohne Schlüssel gibt es das alles nicht
 
 ``config.payment_service_ready()`` ist ``False``, der Knopf erscheint gar nicht erst
-(``deal.can`` führt ``pay_online`` dann nicht), und der Webhook antwortet mit 404. Ein
+(``voucher.can`` führt ``pay_online`` dann nicht), und der Webhook antwortet mit 404. Ein
 503-Stub wäre die Behauptung, hier sei etwas abgeschaltet – es ist schlicht nicht
 eingerichtet.
 """
@@ -72,23 +72,21 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings, payment_service_ready
 from ..domain import currency as cur
-from ..domain import deal as dm
-from ..models import Deal, Order, Voucher
-from . import deal as deal_svc
+from ..domain import voucher as dm
+from ..models import Order, Voucher
 from . import voucher as voucher_svc
 
 # ►►► **Der Adapter kennt EIN Geld-Modul – als Schnittstelle, nicht als Namen.** ◄◄◄
 #
-# Es gibt derzeit zwei (das alte ``deal`` und den neu aufgebauten ``voucher``), und beide
-# bieten dieselben fünf Funktionen an: ``open_charges`` · ``open_of`` · ``card_payment`` ·
-# ``billing_of`` · ``record_payment`` · ``of_reference``. Diese Datei bekommt das Modul
-# darum **übergeben** und fragt nie, welches es ist.
+# Ein Geld-Modul bietet sechs Funktionen an: ``open_charges`` · ``open_of`` ·
+# ``card_payment`` · ``billing_of`` · ``record_payment`` · ``of_reference``. Diese Datei
+# bekommt es darum **übergeben** und fragt nie, welches es ist.
 #
 # Der **Faden zurück** ist ein Schlüssel in den Metadaten der Zahlungsabsicht; er nennt
-# zugleich das Modul. Wird das alte gelöscht, fällt hier **eine Zeile** – und sonst nichts.
+# zugleich das Modul. Es waren eine Runde lang zwei (das alte ``deal`` daneben) – und
+# genau deshalb kostete dessen Löschung hier **eine Zeile** (Testnotiz #960).
 MONEY: tuple[tuple[str, Any, Any], ...] = (
     ("voucher_id", voucher_svc, Voucher),
-    ("deal_id", deal_svc, Deal),
 )
 
 
@@ -103,7 +101,7 @@ def key_of(svc: Any) -> str:
 #: ``payment_intent.succeeded`` ist die Meldung der **eigenen** Kasse – die frühere
 #: ``checkout.session.completed`` gehörte der gehosteten und kommt nie mehr. Sie trägt
 #: ``amount_received`` und die ``pi_…``-Id, und genau die nennt später auch eine
-#: Erstattung: darum findet ``deal.of_reference`` den Vorgang ohne eine zweite Spalte.
+#: Erstattung: darum findet ``voucher.of_reference`` den Vorgang ohne eine zweite Spalte.
 PAID = "payment_intent.succeeded"
 REFUNDED = "charge.refunded"
 EVENTS = (PAID, REFUNDED)
@@ -283,7 +281,7 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
     Signaturgeprüft: ohne gültige Signatur ist es keine Meldung des Dienstes, sondern ein
     Fremder, der Zahlungen erfinden möchte.
 
-    **Idempotent über die Referenz** (``deal.record_payment``): der Dienst stellt seine
+    **Idempotent über die Referenz** (``voucher.record_payment``): der Dienst stellt seine
     Meldungen mehrfach zu – das ist zugesichert, nicht die Ausnahme. Ein zweiter Durchlauf
     bucht darum nichts, er findet die Zeile.
     """
@@ -381,7 +379,7 @@ def _amount_of(value: Any, code: Any) -> Decimal:
 def _row_of(db: Session, meta: dict[str, Any]) -> tuple[Any, Any]:
     """►►► **Welches Geld-Modul, und welche Zeile?** ◄◄◄
 
-    Der Schlüssel in den Metadaten nennt beides – ``voucher_id`` bzw. ``deal_id``. Damit
+    Der Schlüssel in den Metadaten nennt beides – ``voucher_id``. Damit
     braucht diese Datei keine Fallunterscheidung nach Modultyp und keine zweite Tabelle:
     was sie kennt, ist die **Schnittstelle**, nicht der Name.
     """

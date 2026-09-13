@@ -15,12 +15,12 @@ import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { PayOnline } from '@/components/erp/pay-online';
 import {
-  Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
+  Label, MICRO_LABEL, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Actions, ModuleSection } from '@/components/erp/module-ui';
 import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { useAutosave } from '@/lib/use-autosave';
-import { formatAmount, localDate } from '@/lib/utils';
+import { formatAmount, localDate, localDateTime } from '@/lib/utils';
 
 /**
  * ►►► **Der Beleg an der Ausführungsstelle — EIN Dokument, das WÄCHST.** ◄◄◄
@@ -132,6 +132,25 @@ function relative(iso: string): string {
   return n > 0 ? `in ${n} Tag${n === 1 ? '' : 'en'}` : `seit ${-n} Tag${n === -1 ? '' : 'en'}`;
 }
 
+/**
+ * ►►► **Wie lange ist das her?** (Testnotizen #968/#969) ◄◄◄
+ *
+ * *«… im Format ‹vor xx Tagen offeriert›, und beim Hovern das genaue Datum und Uhrzeit.»*
+ *
+ * Die **Aussage** steht da («vor 3 Tagen»), die **Tatsache** im Hover – dieselbe Regel
+ * wie bei der Fälligkeit einer Geld-Zeile (#890): eine Zahl, die man erst im Kopf von
+ * heute abziehen muss, ist keine Auskunft, sondern eine Aufgabe.
+ *
+ * Gerechnet wird über **Kalendertage**, nicht über 24-Stunden-Blöcke: gestern 23:50 ist
+ * «gestern», auch wenn es sieben Stunden her ist.
+ */
+function since(iso: string): string {
+  const n = -daysUntil(iso.slice(0, 10));
+  if (n <= 0) return 'heute';
+  if (n === 1) return 'gestern';
+  return `vor ${n} Tagen`;
+}
+
 export function BelegWork({
   voucher, busy, active, orderObjectId, stepId, onAction, onPaid, children,
 }: {
@@ -180,7 +199,6 @@ export function BelegWork({
         <Money d={d} busy={busy} orderObjectId={orderObjectId} stepId={stepId}
           onAction={onAction} onPaid={onPaid} />
       )}
-      <Chronicle d={d} />
       {/* ►►► **Der Modul-Abschluss steht am ENDE** (Testnotiz #829) – und der Storno
           daneben (#957). ◄◄◄ */}
       <Footer d={d} busy={busy} onAction={onAction}>{children}</Footer>
@@ -218,27 +236,62 @@ export function BelegWork({
  * **eine** Box. Eine Messung, die zwei Zahlen vergleicht, könnte ein Auseinanderlaufen nur
  * melden; so kann es nicht entstehen.
  */
-function Editable({ on = true, as: Tag = 'span', style, title, children }: {
+function Editable({ on = true, as: Tag = 'span', style, title, missing, children }: {
   on?: boolean;
   as?: 'span' | 'div';
   style?: CSSProperties;
   title?: string;
+  /**
+   * ►►► **Ein Pflichtwert, der fehlt, sagt es an SEINER Stelle** (Testnotiz #964). ◄◄◄
+   *
+   * *«Alle Eingabefelder hier in diesem Modul – also alles, was so leicht blau hinterlegt
+   * ist – sollen Muss-Felder sein.»* Und «leicht blau hinterlegt» ist genau diese Hülle:
+   * die Regel gehört darum ihr und nicht neun Aufrufstellen.
+   *
+   * Es ist **dieselbe Auszeichnung in einer anderen Stimme** – kein Sternchen, kein
+   * Ausrufezeichen, keine zweite Form: die Fläche wird warnfarben statt akzentfarben,
+   * Grösse und Schrift bleiben, wie #922/#948 sie festgelegt haben. Ein Beleg sieht aus
+   * wie ein Beleg, nur sagt er, wo er noch nicht fertig ist.
+   *
+   * **Die Regel selbst steht im Dienst** (`voucher._assert_complete`): dies ist ihre
+   * freundliche Hälfte, kein zweiter Massstab – wer den Beleg trotzdem hinausschickt,
+   * bekommt einen Satz, der die Position nennt.
+   */
+  missing?: boolean;
   children: ReactNode;
 }) {
   // **Und sie darf sich nicht strecken** – das war die gemessene Ursache: in einer
   // Spalte (`flex-col`) wird jedes Kind **blockifiziert** und auf die volle Breite
   // gezogen; die getönte Fläche war damit 229 px breit, das `<select>` darin 44 px
-  // (gemessen, genau der gemeldete Unterschied). `align-self: start` nimmt die Streckung
-  // in **beiden** Achsen zurück, ohne dass die Hülle ihren Kontext kennen muss.
+  // (gemessen, genau der gemeldete Unterschied).
+  //
+  // ►►► **Die Streckung nimmt `width: fit-content` zurück, nicht `align-self`**
+  // (Testnotizen #961/#963). ◄◄◄
+  //
+  // *«Hier ist so ein komischer Höhenversatz zwischen Objektname und Nummer»* · *«auch
+  // hier ist so ein leichter Höhenversatz zwischen den Werten»* – **eine** Ursache, zwei
+  // Meldungen. `align-self: start` stand hier und beantwortet die Streckung richtig, aber
+  // es beantwortet zugleich eine **zweite** Frage, die es nicht beantworten darf: in
+  // einer **Zeile** ist die Querachse die senkrechte, und `start` heisst dort «oben
+  // ausgerichtet» – die Hülle fiel damit aus dem `items-baseline` bzw. `items-center`
+  // ihres Elternteils heraus, und neben einer Angabe anderer Schriftgrösse stand sie
+  // sichtbar versetzt.
+  //
+  // `fit-content` löst genau das eine Problem: eine **definite** Quergrösse schliesst
+  // `align-self: stretch` aus (CSS Flexbox §8.3), also streckt sich in der Spalte nichts
+  // mehr – und in der Zeile bleibt die senkrechte Ausrichtung die des Elternteils. Die
+  // Hülle muss ihren Kontext weiterhin nicht kennen.
   const box: CSSProperties = Tag === 'span'
-    ? { display: 'inline-flex', alignSelf: 'start', maxWidth: '100%', ...style }
+    ? { display: 'inline-flex', width: 'fit-content', maxWidth: '100%', ...style }
     // **Auch der Block-Fall ist ein Flex-Kasten** – sonst ist die Hülle so hoch wie ihre
     // Zeile (24 px) und das Feld darin 19,5 px; gemessen am Betragsfeld der Angebotszeile.
     : { display: 'flex', ...style };
   return (
-    <Tag className={on ? 'ix-editable' : undefined} style={box}
+    <Tag className={on ? `ix-editable${missing ? ' is-missing' : ''}` : undefined}
+      style={box}
       {...(on ? {} : { 'aria-disabled': true as const })}
-      {...(title ? { 'data-tip': title } : {})}>
+      {...(on && missing ? { 'aria-invalid': true as const } : {})}
+      {...(title ? { 'data-tip': missing ? `${title} – Pflichtangabe` : title } : {})}>
       {children}
     </Tag>
   );
@@ -320,7 +373,7 @@ const DOC_FIELD: CSSProperties = {
  */
 const MIN_PICK = 44;
 
-function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: {
+function DocPick({ on, value, text, options, face, tip, busy, aria, missing, onChange }: {
   on: boolean;
   value: string;
   /** Was dasteht – der **kurze** Name, nie die Zeile des Auswahlfelds. */
@@ -330,6 +383,8 @@ function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: 
   tip?: string;
   busy?: boolean;
   aria: string;
+  /** Pflichtangabe und noch leer (#964) – siehe `Editable.missing`. */
+  missing?: boolean;
   onChange: (value: string) => void;
 }) {
   const shown = <span aria-hidden style={face}>{text}</span>;
@@ -338,7 +393,7 @@ function DocPick({ on, value, text, options, face, tip, busy, aria, onChange }: 
   // der frühere Zwischen-`<span>` war die zweite, und sie konnte grösser sein als das
   // `<select>`, das sie versprach. `inset: 0` deckt jetzt exakt die getönte Fläche.
   return (
-    <Editable title={tip}
+    <Editable title={tip} missing={missing}
       style={{ position: 'relative', minWidth: MIN_PICK, maxWidth: '100%' }}>
       {shown}
       <select value={value} disabled={busy} aria-label={aria}
@@ -452,10 +507,25 @@ function DocHead({ d, busy, onAction, onAsk }: {
   return (
     <ModuleSection first>
       <div className="flex flex-col" style={{ gap: 14, minWidth: 0 }}>
-        <div className="flex items-baseline" style={{ gap: 10, minWidth: 0 }}>
+        {/* ►►► **Hier steht die BELEGART, nicht der Zustand** (Testnotiz #974). ◄◄◄
+            *«Ich möchte, dass diese Anzeige hier verschwindet.»* – Gemeldet an einem
+            erledigten Vorgang, und da stand **«Erledigt»**. Das ist kein Beleg: ein Papier
+            heisst «Offerte» oder «Auftragsbestätigung», und dass der Vorgang durch ist,
+            sagt das Modul. Die Auflösung steht im Backend (`Direction.document_label`) –
+            hier wird gezeichnet, nicht entschieden.
+            **Der Storno bleibt sichtbar**, denn er ist keine Belegart, sondern eine
+            Tatsache über dieses Papier: er stand bis hierher in der Chronik (#970) und
+            steht jetzt dort, wo der Beleg sich benennt. */}
+        <div className="flex flex-wrap items-baseline" style={{ gap: 10, minWidth: 0 }}>
           <span style={{ font: '700 15px var(--font-display)', color: 'var(--fg-1)' }}>
             {d.stage_label}
           </span>
+          {d.cancelled_on && (
+            <span style={{ ...MICRO_LABEL, color: 'var(--danger)' }}
+              data-tip={`Storniert am ${localDate(d.cancelled_on)}`}>
+              storniert {since(d.cancelled_on)}
+            </span>
+          )}
         </div>
         <Parties d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
         <Gaps rows={d.gaps ?? []} />
@@ -587,11 +657,33 @@ function Anschrift({ label, lines }: { label?: string | null; lines: string[] })
 }
 
 /**
- * ►►► **Die Gegenpartei — Chips, kein Karussell** (Testnotiz #912). ◄◄◄
+ * ►►► **Die Gegenpartei — EINE Liste, EINE Form** (Testnotizen #912/#951/#962). ◄◄◄
  *
- * Steht der Zuschlag, ist es ein Name. Davor sind es die angefragten Zeilen als Chips
- * (Punkt + Wort je Zustand) plus, wo die Definition niemanden nennt, ein Suchfeld: ein
- * Karussell mit Pfeilen sagte weder, wie viele es gibt, noch welcher gewählt ist.
+ * *«Ich kann immer noch nicht einen User abwählen oder wieder aktivieren – es bleiben
+ * immer beide aktiv. Zudem sehe ich die Anschrift(en) nicht … Finde hierfür endlich eine
+ * schlanke und vor allem gute ROBUSTE Lösung, visuell sehr minimalistisch wie immer.»*
+ *
+ * **Der Befund war eine Doppelung, kein kaputter Knopf.** Dieselbe Sache stand in **zwei**
+ * Formensprachen da: eine angefragte Partei als *Chip* mit Zustandspunkt und ✕, eine
+ * zugelassene, noch nicht angefragte als `+ Name`-Knopf – und der trug ausgerechnet
+ * `.ix-editable`, die Auszeichnung **änderbarer Werte**. Damit sah *jede* Partei dauerhaft
+ * «aktiv» aus, und ob eine angefragt war, war an der Form nicht abzulesen.
+ *
+ * Jetzt: **ein Chip je möglicher Gegenpartei** (zugelassene ∪ angefragte, `recipients`
+ * vom Server) und **eine Anatomie** – Punkt, Name, Handlung:
+ *
+ * * **Der Punkt sagt, ob angefragt ist**: gefüllt in der Zustandsfarbe ↔ hohler Ring.
+ * * **Der Name zeigt die Anschrift** – immer, auch bei einer, die noch nicht angefragt
+ *   ist. Genau das war die zweite Hälfte der Meldung: im Offertenschritt ist noch niemand
+ *   angefragt, und die Anschrift will man sehen, **bevor** man anbietet.
+ * * **Die Handlung steht rechts im Chip und ist genau eine**: `+` fragt an, `✕` zieht
+ *   zurück. Ein Klick, eine Wirkung; zwei Knöpfe in einer Hülle, nie einer im anderen
+ *   (verschachtelte Knöpfe sind ungültiges HTML).
+ *
+ * **Und die Liste hängt nicht mehr an `ask`.** Sie stand nur da, solange man anfragen
+ * *durfte* – fehlte eine Stammdatenangabe (`gaps`), verschwand mit dem Anfragen auch das
+ * Abwählen und die Anschrift. Was man **tun** darf, entscheidet weiterhin `can`, je Chip;
+ * was man **sehen** darf, ist eine andere Frage.
  */
 function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
   d: Filled; side: VoucherSide; busy: boolean;
@@ -602,41 +694,50 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
   onAction: Send;
 }) {
   const open = d.stage === DEAL_STAGE.offer;
-  const canAsk = may(d, 'ask');
   const [picked, setPicked] = useState<VoucherParty | null>(null);
   const find = useCallback((q: string) => api.searchVoucherParties(q).catch(() => []), []);
 
-  if (!open || !canAsk) {
+  // Steht der Zuschlag, ist die Gegenpartei ein **Name** – es gibt nichts mehr zu wählen.
+  if (!open) {
     return (
       <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}>
         {side.name || <Missing what="Name" />}
       </span>
     );
   }
-  const known = d.quotes.map((q) => q.party_object_id);
+  const asked = new Map(d.quotes.map((q) => [q.party_object_id, q]));
   const free = (d.allowed ?? []).length === 0;
-  // ►►► **Abwählen ist die Gegenhandlung zum Anfragen** (Testnotiz #951). ◄◄◄ *«Ich kann
-  // zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch abwählen.»* – Es
-  // gab dafür schlicht **nichts**; die Hausregel steht seit dem Beschaffen-Modul: jede
-  // Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle. **Ob** es geht, sagt
-  // `can` (der Server sperrt die zugesagte Zeile – dort ist der Storno der Weg).
+  const canAsk = may(d, 'ask');
+  // ►►► **Abwählen ist die Gegenhandlung zum Anfragen** (Testnotiz #951). ◄◄◄ Die
+  // Hausregel steht seit dem Beschaffen-Modul: jede Zusage nach aussen hat ihre
+  // Gegenhandlung an derselben Stelle. **Ob** es geht, sagt `can` (der Server sperrt die
+  // zugesagte Zeile – dort ist der Storno der Weg).
   const canDrop = may(d, 'unask');
+  // **Die Reihenfolge kommt vom Server** (`recipients`: Definition zuerst, frei
+  // Hinzugefügte dahinter). Sie hier neu zu sortieren wäre eine zweite Ordnung.
+  const rows = (d.recipients ?? []).filter((r) => r.object_id != null);
   return (
     <div className="flex flex-wrap items-center" style={{ gap: 6, minWidth: 0 }}>
-      {d.quotes.map((q) => (
-        <Chip key={q.id} name={q.party_name} number={q.party_object_id}
-          state={q.state ?? QUOTE_STATE.asked}
-          active={q.party_object_id === current}
-          onShow={() => onShow(q.party_object_id)}
-          onDrop={canDrop && q.state !== QUOTE_STATE.chosen && !busy
-            ? () => void onAction({ action: 'unask', party: q.party_object_id })
-            : undefined} />
-      ))}
-      {free ? (
+      {rows.map((r) => {
+        const number = r.object_id as number;
+        const quote = asked.get(number);
+        return (
+          <Chip key={number} name={r.name || String(number)} number={number}
+            state={quote ? (quote.state ?? QUOTE_STATE.asked) : null}
+            active={number === current}
+            onShow={() => onShow(number)}
+            onAsk={!quote && canAsk && !busy ? () => onAsk([number]) : undefined}
+            onDrop={quote && canDrop && quote.state !== QUOTE_STATE.chosen && !busy
+              ? () => void onAction({ action: 'unask', party: number })
+              : undefined} />
+        );
+      })}
+      {free && (
         // ►►► **Dieselbe Form wie jeder änderbare Wert** (#928/#930). ◄◄◄ Im Ruhezustand
-        // steht da, was auf dem Beleg stünde – der Klick macht daraus die Suche.
+        // steht da, was auf dem Beleg stünde – der Klick macht daraus die Suche. Nur wo
+        // die Definition **niemanden** nennt: wo sie es tut, ist die Liste die Antwort.
         <DocRef<VoucherParty>
-          on text={d.quotes.length ? `+ ${d.party_word}` : d.party_word}
+          on text={rows.length ? `+ ${d.party_word}` : d.party_word}
           placeholder={d.party_word} tip={d.party_word}
           face={{ fontSize: 13, color: 'var(--fg-3)' }}
           value={picked?.object_id ?? null} selected={picked} find={find}
@@ -645,52 +746,58 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
             if (option) onAsk([option.object_id]);
           }}
         />
-      ) : (
-        (d.allowed ?? [])
-          .filter((p) => !known.includes(p.object_id))
-          .map((p) => (
-            <button key={p.object_id} type="button" disabled={busy}
-              className="ix-editable inline-flex items-center"
-              style={{ gap: 5, padding: '2px 7px', fontSize: 12, color: 'var(--fg-2)',
-                       background: 'transparent', border: 0, cursor: 'pointer' }}
-              onClick={() => onAsk([p.object_id])}>
-              <Plus size={11} /> {p.name || p.object_id}
-            </button>
-          ))
       )}
     </div>
   );
 }
 
 /**
- * Eine angefragte Gegenpartei – Punkt, Name, Nummer. Die Anatomie jedes Zustands im Haus.
+ * **Eine mögliche Gegenpartei** – Punkt, Name, Handlung. Die Anatomie jedes Zustands im
+ * Haus, und hier gibt es sie **einmal** für beide Fälle (#962).
  *
- * ►►► **Der Chip ist zweierlei Bedienelement** (Testnotiz #951): ein Klick **zeigt** seine
- * Anschrift, das ✕ **zieht die Anfrage zurück**. Zwei Knöpfe in einer Hülle, nicht einer im
- * anderen: verschachtelte Knöpfe sind ungültiges HTML, und ein einziger müsste erraten, was
- * gemeint war.
+ * ►►► **Der Chip trägt zwei Knöpfe, nie einen im anderen** (Testnotiz #951): der **Name**
+ * zeigt die Anschrift, das Zeichen rechts fragt an bzw. zieht zurück. Verschachtelte
+ * Knöpfe sind ungültiges HTML, und ein einziger müsste erraten, was gemeint war.
+ *
+ * `state = null` heisst **noch nicht angefragt**: der Punkt ist dann ein hohler Ring –
+ * dieselbe Stelle, dieselbe Grösse, nur ungefüllt. Eine zweite Form (etwa ein gedämpfter
+ * Knopf daneben) wäre genau die Doppelung, aus der die Meldung entstand.
  */
-function Chip({ name, number, state, active, onShow, onDrop }: {
-  name: string; number: number; state: string;
+function Chip({ name, number, state, active, onShow, onAsk, onDrop }: {
+  name: string; number: number;
+  /** Der Zustand der Angebotszeile – `null` heisst «noch nicht angefragt». */
+  state: string | null;
   active?: boolean;
   onShow?: () => void;
+  onAsk?: () => void;
   onDrop?: () => void;
 }) {
   const look = quoteLook(state);
   return (
     <span className="inline-flex items-center" style={{
-      gap: 6, padding: '3px 4px 3px 8px', borderRadius: 999,
+      gap: 6, padding: `3px ${onAsk || onDrop ? 4 : 8}px 3px 8px`, borderRadius: 999,
       border: `1px solid ${active ? 'var(--accent)' : 'var(--border-1)'}`,
       background: active ? 'var(--accent-soft)' : undefined,
-      fontSize: 12, color: 'var(--fg-1)', minWidth: 0,
+      fontSize: 12, color: state ? 'var(--fg-1)' : 'var(--fg-3)', minWidth: 0,
     }} data-tip={look.label}>
       <span aria-hidden className="rounded-full"
-        style={{ width: 6, height: 6, flex: 'none', background: look.color }} />
+        style={{ width: 6, height: 6, flex: 'none',
+                 // **Gefüllt = angefragt, Ring = noch nicht.** Die Form sagt den Zustand,
+                 // ohne ein Wort daneben – und ohne eine zweite Chip-Art.
+                 background: state ? look.color : 'transparent',
+                 boxShadow: state ? undefined : 'inset 0 0 0 1px var(--fg-4)' }} />
       <button type="button" onClick={onShow} aria-label={`Anschrift von ${name || number}`}
         className="truncate" style={{ ...DOC_FIELD, maxWidth: 150,
                                       cursor: onShow ? 'pointer' : 'default' }}>
         {name || number}
       </button>
+      {onAsk && (
+        <button type="button" onClick={onAsk} aria-label="Anfragen" data-tip="Anfragen"
+          style={{ ...DOC_FIELD, display: 'inline-flex', color: 'var(--accent)',
+                   cursor: 'pointer', padding: '0 2px' }}>
+          <Plus size={11} />
+        </button>
+      )}
       {onDrop && (
         <button type="button" onClick={onDrop} aria-label="Anfrage zurückziehen"
           data-tip="Anfrage zurückziehen"
@@ -704,10 +811,11 @@ function Chip({ name, number, state, active, onShow, onDrop }: {
 }
 
 /** Der Zustand einer Angebotszeile als Punkt + Wort – die eine Auflösung. */
-function quoteLook(state: string): { label: string; color: string } {
+function quoteLook(state: string | null): { label: string; color: string } {
   if (state === QUOTE_STATE.chosen) return { label: 'Zugesagt', color: 'var(--ok)' };
   if (state === QUOTE_STATE.declined) return { label: 'Abgesagt', color: 'var(--danger)' };
   if (state === QUOTE_STATE.quoted) return { label: 'Offeriert', color: 'var(--warn)' };
+  if (state === null) return { label: 'Noch nicht angefragt', color: 'var(--fg-4)' };
   return { label: 'Angefragt', color: 'var(--fg-4)' };
 }
 
@@ -896,8 +1004,37 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
         </div>
       </div>
       {d.we_quote && (
-        <div className="flex items-center" style={{ gap: 10, flex: 'none' }}>
-          <Editable on={editable} title="Einzelpreis, netto">
+        // ►►► **Der Satz steht VOR dem Betrag** (Testnotiz #972). ◄◄◄
+        //
+        // *«Kann der MWST-Satz evtl. vor dem Betrag stehen? Irgendwie schaut das etwas
+        // komisch aus, da alles weiter untereinander steht.»* – Und das ist nicht bloss
+        // Geschmack: die **Zahl** ist die letzte Angabe der Zeile, sie steht rechtsbündig
+        // und bildet mit der Zeile darunter eine Spalte. Stand der Satz dahinter,
+        // verschob jede Satz-Beschriftung anderer Länge («8.10 % · Normalsatz» ↔ «0.00 %
+        // · Export») den Betrag – die Beträge standen untereinander **nicht** unter-
+        // einander. Der Satz ist die Eigenschaft, der Preis das Ergebnis.
+        // ►►► **Und sie stehen auf EINER Grundlinie** (Testnotiz #963). ◄◄◄
+        //
+        // *«Entweder täusche ich mich, oder auch hier ist so ein leichter Höhenversatz
+        // zwischen den Werten.»* – Er täuschte sich nicht: Satz (12 px) und Preis (13 px)
+        // standen **mittig** ausgerichtet, und zwei verschieden grosse Texte in einer
+        // Reihe sind mittig zentriert genau dann versetzt, wenn man sie nebeneinander
+        // liest (gemessen: 2,75 px). Eine Zeile Text hat eine **Grundlinie**, und darauf
+        // sitzen beide – dieselbe Ausrichtung wie überall sonst auf diesem Beleg.
+        <div className="flex items-baseline" style={{ gap: 10, flex: 'none' }}>
+          {/* ►►► **Der Steuersatz nennt seinen Prozentsatz** (Testnotiz #932). ◄◄◄
+              *«‹Normalsatz›, ‹Reduziert› sind leider zu wenig aussagekräftig – es sollte
+              immer noch der entsprechende Prozentsatz angegeben sein.»* Beides steht
+              längst in den Daten (`label` + `rate`); zusammengesetzt wird es an **einer**
+              Stelle (`vatText`), damit Auswahl und Anzeige nicht auseinanderlaufen. */}
+          <DocPick on={editable} value={vat} text={vatText(line.vat_label, line.vat_rate)}
+            busy={busy} aria={d.vat_label} tip={line.vat_note || d.vat_label}
+            face={{ fontSize: 12, color: 'var(--fg-3)' }}
+            options={(d.vat_rates ?? []).map((v) => ({
+              value: v.key, label: vatText(v.label, v.rate) }))}
+            onChange={(v) => { setVat(v); }} />
+          <Editable on={editable} title="Einzelpreis, netto"
+            missing={editable && price.trim() === ''}>
             {editable ? (
               // ►►► **Ein Betrag hat die Nachkommastellen SEINER Währung** (#931). ◄◄◄
               // *«Warum hat das vier Stellen? Eine Währung hat doch immer zwei.»* – Fast:
@@ -918,17 +1055,6 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
               </span>
             )}
           </Editable>
-          {/* ►►► **Der Steuersatz nennt seinen Prozentsatz** (Testnotiz #932). ◄◄◄
-              *«‹Normalsatz›, ‹Reduziert› sind leider zu wenig aussagekräftig – es sollte
-              immer noch der entsprechende Prozentsatz angegeben sein.»* Beides steht
-              längst in den Daten (`label` + `rate`); zusammengesetzt wird es an **einer**
-              Stelle (`vatText`), damit Auswahl und Anzeige nicht auseinanderlaufen. */}
-          <DocPick on={editable} value={vat} text={vatText(line.vat_label, line.vat_rate)}
-            busy={busy} aria={d.vat_label} tip={line.vat_note || d.vat_label}
-            face={{ fontSize: 12, color: 'var(--fg-3)' }}
-            options={(d.vat_rates ?? []).map((v) => ({
-              value: v.key, label: vatText(v.label, v.rate) }))}
-            onChange={(v) => { setVat(v); }} />
         </div>
       )}
     </div>
@@ -963,7 +1089,7 @@ function Customs({ label, value, on, width, busy, onChange, onDone }: {
       : null;
   }
   return (
-    <Editable title={label}>
+    <Editable title={label} missing={value.trim() === ''}>
       <input value={value} disabled={busy} placeholder={label}
         aria-label={label}
         onChange={(e) => onChange(e.target.value)}
@@ -1147,7 +1273,7 @@ function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, o
     <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
       <span style={MICRO_LABEL}>{label}</span>
       {on && (free || typing) ? (
-        <Editable title={label}>
+        <Editable title={label} missing={current === ''}>
           <input {...numericInputProps} autoFocus value={current} disabled={busy}
             aria-label={label}
             onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
@@ -1161,6 +1287,7 @@ function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, o
         </Editable>
       ) : (
         <DocPick on={on} value={named ? current : ''} text={word} busy={busy} aria={label}
+          missing={current === ''}
           face={{ fontSize: 13, color: 'var(--fg-1)' }} tip={hint}
           options={[
             ...(current === '' ? [{ value: '', label: '—' }] : []),
@@ -1228,12 +1355,13 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
           Beleg steht; die Erklärung folgt darunter als Satz. */}
       <DocPick on value={key} text={chosen ? chosen.key : '—'} busy={busy}
         aria={d.incoterm_label} face={{ fontSize: 13, color: 'var(--fg-1)' }}
+        missing={key === ''}
         options={[{ value: '', label: '—' },
                   ...(d.incoterms ?? []).map((t) => ({
                     value: t.key, label: `${t.key} · ${t.label}` }))]}
         onChange={setKey} />
       {key !== '' && (
-        <Editable as="div">
+        <Editable as="div" missing={place.trim() === ''}>
           <input value={place} disabled={busy}
             placeholder={d.incoterm_place_label} aria-label={d.incoterm_place_label}
             onChange={(e) => setPlace(e.target.value)}
@@ -1273,9 +1401,29 @@ function Quotes({ d, busy, active, onAsk, onAction }: {
   const rest = d.quotes.filter((q) => q.state !== QUOTE_STATE.chosen);
 
   if (!d.quotes.length && !may(d, 'ask')) return null;
+  // ►►► **Wann offeriert wurde, steht AM Abschnitt** (Testnotiz #968). ◄◄◄
+  //
+  // *«Kann hier noch eine kleine Info dazu, wann offeriert wurde – im Format ‹vor xx
+  // Tagen offeriert›, und beim Hovern das genaue Datum und Uhrzeit.»*
+  //
+  // Es ist die Angabe, die bis hierher in der **Chronik** stand (#970): ein eigener
+  // Abschnitt, der zwei Daten aufzählte, die beide woanders hingehören. Hier ist sie
+  // eine Auskunft am Kopf – dort, wo man die Angebote ohnehin ansieht.
+  //
+  // **Die erste hinausgegangene Zeile ist die Aussage**: wer drei Parteien nacheinander
+  // anfragt, hat trotzdem *einmal* offeriert; die einzelne Zeile sagt ihr eigenes Datum
+  // an ihrem eigenen Ort.
+  const first = d.quotes
+    .map((q) => q.sent_at).filter((x): x is string => !!x).sort()[0];
   return (
-    <ModuleSection title={d.quotes_title || 'Rückläufe'}
-      state={open ? 'active' : 'past'}>
+    <ModuleSection title={d.quotes_title || 'Angebote'}
+      state={open ? 'active' : 'past'}
+      right={first && (
+        <span style={{ fontSize: 11.5, color: 'var(--fg-3)', flex: 'none' }}
+          data-tip={localDateTime(first)}>
+          {since(first)} offeriert
+        </span>
+      )}>
       <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
         {open
           ? d.quotes.map((q) => (
@@ -1373,6 +1521,17 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
           </span>
         )}
       </div>
+      {/* ►►► **Wann diese Zeile den Zuschlag bekam** (Testnotiz #969). ◄◄◄
+          *«Kann hier noch eine kleine Info dazu, wann die Offerte angenommen wurde …»* –
+          Und sie steht **an der Zeile**, nicht in einem Abschnitt darunter: der Zuschlag
+          gilt genau einer, und welcher, ist die halbe Aussage. Dieselbe Form wie am Kopf
+          der Angebote (#968): die Aussage sichtbar, die Tatsache im Hover. */}
+      {chosen && d.agreed_at && (
+        <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}
+          data-tip={localDateTime(d.agreed_at)}>
+          {since(d.agreed_at)} angenommen
+        </span>
+      )}
       {d.ref && (
         <span className="flex items-center" style={{ gap: 6, fontSize: 11.5,
                                                      color: 'var(--fg-3)' }}
@@ -1382,7 +1541,7 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
       )}
       {canQuote && (
         <div className="flex flex-wrap items-end" style={{ gap: 10, minWidth: 0 }}>
-          <Editable as="div">
+          <Editable as="div" missing={amount.trim() === ''}>
             <input {...numericInputProps} value={amount} disabled={busy}
               onChange={(e) => setAmount(numericOnly(e.target.value))}
               aria-label="Betrag"
@@ -1413,12 +1572,18 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
             })} />
         )}
         {canAgree && d.amount != null && (
-          <ActionButton icon={Check} label={v.stages[0]?.verb ?? 'Angebot annehmen'}
+          // **Das Verb kommt vom Server** (`stages[0].verb`) – es ist das Wort der
+          // Schwelle und lautet in beiden Richtungen gleich (#966: «Offerte annehmen»).
+          <ActionButton icon={Check} label={v.stages[0]?.verb ?? 'Offerte annehmen'}
             tone="primary" disabled={busy}
             onClick={() => void onAction({ action: 'agree', party: d.party_object_id })} />
         )}
         {canDecline && (
-          <ActionButton icon={CircleSlash} label="Absage · liefert nicht" tone="danger"
+          // ►►► **«Absage» – und sonst nichts** (Testnotiz #965). ◄◄◄ *«Hier soll einfach
+          // nur ‹Absage› stehen und nicht ‹liefert nicht›.»* Der Zusatz stammte aus dem
+          // Beschaffungs-Beleg, wo nur eingekauft wurde; an einer **Einnahme** sagt er
+          // sogar das Falsche – dort liefern wir, und abgesagt hat der Kunde.
+          <ActionButton icon={CircleSlash} label="Absage" tone="danger"
             disabled={busy}
             onClick={() => void onAction({ action: 'decline',
                                            party: d.party_object_id })} />
@@ -1711,8 +1876,13 @@ function Transfer({ orderObjectId, stepId, entryId }: {
       <div className="flex flex-col" style={{ gap: 4, flex: '1 1 200px', minWidth: 0 }}>
         <Fixed label="Empfänger" value={info.creditor ?? ''} />
         <Fixed label="IBAN" value={info.iban ?? '—'} />
+        {/* ►►► **Die Referenz sagt, WOHER sie kommt** (Testnotiz #871). ◄◄◄ Der Hinweis
+            nannte nur die Norm – und «ISO 11649» ohne Bezug ist genau die Auskunft, aus
+            der die Rückfrage entstand. Er nennt darum die **Rechnungsnummer**, aus der
+            sie abgeleitet ist (ohne Trennstrich: die Norm kennt nur Buchstaben und
+            Ziffern). */}
         <Fixed label="Referenz" value={info.reference ?? '—'}
-          hint="Aus der Rechnungsnummer abgeleitet (ISO 11649)" />
+          hint={`Aus der Rechnungsnummer ${info.invoice} abgeleitet (ISO 11649)`} />
         <Fixed label="Betrag" value={`${info.amount ?? ''} ${info.currency ?? ''}`} />
       </div>
       {info.qr ? (
@@ -1760,17 +1930,16 @@ function Entry({ kind, d, busy, preset, chargeId, onCancel, onSubmit }: {
             style={{ width: 120, textAlign: 'right',
                      fontVariantNumeric: 'tabular-nums' }} />
         </div>
+        {/* ►►► **Wie bezahlt wurde, ist ein SCHIEBER** (Testnotiz #967). ◄◄◄
+            *«Hier soll wieder der Sliderbutton zum Einsatz kommen.»* – Und die Regel
+            dahinter ist die des Hauses: ein Auswahlfeld ist die Form für eine **lange**
+            Aufzählung; hier sind es **zwei** Werte (bar · Überweisung – die Karte tippt
+            niemand ab, sie kommt über den Webhook). Zwei Werte hinter einem Klick zu
+            verstecken ist ein Klick für eine Entscheidung, die man sehen könnte.
+            `Segmented` bringt seine eigene Beschriftung mit. */}
         {kind === 'pay' && (d.methods ?? []).length > 0 && (
-          <div className="flex flex-col" style={{ gap: 3 }}>
-            <Label>{d.method_label}</Label>
-            <select className={inputCls} value={method}
-              aria-label={d.method_label}
-              onChange={(e) => setMethod(e.target.value)}>
-              {(d.methods ?? []).map((m) => (
-                <option key={m.key} value={m.key}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+          <Segmented label={d.method_label} value={method} onChange={setMethod}
+            options={(d.methods ?? []).map((m) => ({ value: m.key, label: m.label }))} />
         )}
         {asksVat && (
           <div className="flex flex-col" style={{ gap: 3 }}>
@@ -1814,41 +1983,21 @@ function Entry({ kind, d, busy, preset, chargeId, onCancel, onSubmit }: {
 // Chronik und die Handlungen unter dem Strich
 // ───────────────────────────────────────────────────────────────────────────────
 
-/**
- * ►►► **Eine Chronik, kein zweiter Beleg** (Testnotiz #918). ◄◄◄
+/*
+ * ►►► **Eine Chronik gibt es nicht mehr** (Testnotiz #970). ◄◄◄
  *
- * *«Eigentlich muss ich ja nur wissen: wann wurde offeriert, wann wurde die Offerte
- * angenommen – alle anderen Details sind nur Duplikate.»* Stimmt: Partner, Betrag und
- * Fristen stehen im Kopf, in den Positionen und in den Konditionen. Übrig bleiben die
- * **Daten**.
+ * *«Die Chronik kann hier vollständig und gänzlich entfallen. Ich möchte die Information
+ * dort darstellen, wo sie eigentlich angezeigt werden (wie bspw. die beiden zuvor
+ * genannten Punkte).»*
+ *
+ * Sie zählte **zwei Daten** auf, und beide haben einen eigenen Ort: *wann offeriert
+ * wurde* steht am Kopf der Angebote (#968), *wann zugesagt wurde* an der Zeile, bei der
+ * zugesagt wurde (#969) – und *wann storniert wurde* im Belegkopf, neben der Belegart.
+ * Ein Abschnitt, der dieselben Daten ein zweites Mal nennt, ist nicht der Nachweis,
+ * sondern seine ärmere Kopie: nacktes Datum statt Aussage.
+ *
+ * Damit sind `Chronicle`, `VoucherEmbed.history_title` und `vo.HISTORY_TITLE` entfallen.
  */
-function Chronicle({ d }: { d: Filled }) {
-  const rows: { when: string; what: string }[] = [];
-  const first = d.quotes
-    .map((q) => q.sent_on).filter((x): x is string => !!x).sort()[0];
-  if (first) rows.push({ when: first, what: d.stages[0]?.label ?? 'Angebot' });
-  if (d.agreed_on) {
-    rows.push({ when: d.agreed_on, what: d.stages[1]?.label ?? 'Zusage' });
-  }
-  if (d.cancelled_on) rows.push({ when: d.cancelled_on, what: 'Storniert' });
-  if (!rows.length) return null;
-  return (
-    <ModuleSection title={d.history_title || 'Chronik'}>
-      <div className="flex flex-col" style={{ gap: 4 }}>
-        {rows.map((r) => (
-          <div key={`${r.when}:${r.what}`} className="flex items-baseline"
-            style={{ gap: 10 }}>
-            <span style={{ fontSize: 12, color: 'var(--fg-3)', flex: 'none',
-                           fontVariantNumeric: 'tabular-nums', width: 92 }}>
-              {localDate(r.when)}
-            </span>
-            <span style={{ fontSize: 12.5 }}>{r.what}</span>
-          </div>
-        ))}
-      </div>
-    </ModuleSection>
-  );
-}
 
 /**
  * **Die Handlungen unter dem Strich** – wie die Unterschrift auf einem Beleg.

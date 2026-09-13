@@ -41,11 +41,6 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // dasselbe Modul. Welche Richtung gilt, sagt das Zeichen **im** Vorgang
   // (`DEAL_DIRECTION`), nicht die Kachel: eine Palette mit zwei fast gleichen Symbolen
   // wäre wieder die Trennung, die dieses Modul gerade aufhebt.
-  zahlung: HandCoins,
-  // ►►► **Das neu aufgebaute Zahlungsmodul trägt dasselbe Symbol.** ◄◄◄ Es ist dasselbe
-  // Modul in einer besseren Datenform, nicht ein anderes – und was es unterscheidet, ist
-  // die **Farbe** (`tone`, vom Backend). Ein zweites Zeichen behauptete einen zweiten
-  // Vorgang; die Beschriftung sagt «Zahlung (alt)» dort, wo es nötig ist.
   beleg: HandCoins,
 };
 
@@ -472,9 +467,9 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
 /**
  * ►►► **Die Definition eines Geld-Moduls — Richtung und zugelassene Partner.** ◄◄◄
  *
- * Sie ist für **beide** Zahlungsmodule wortgleich (`zahlung` und `beleg`), also steht sie
- * einmal und wird zweimal referenziert. Beim Löschen des alten fällt eine Zeile aus
- * `MODULE_FORM`, nicht eine halb nachgeführte Kopie.
+ * Sie stand eine Runde lang für **zwei** Schlüssel (`zahlung` und `beleg`) da – einmal
+ * geschrieben, zweimal referenziert; beim Löschen des alten Moduls fiel darum genau eine
+ * Zeile aus `MODULE_FORM` statt einer halb nachgeführten Kopie (Testnotiz #960).
  *
  * **ZWEI Angaben – kein Steuersatz (#851), keine Sperre (#854).** Beide hingen hier als
  * Vorgabe und waren damit Eigenschaften des **Moduls**: eine Vorlage, die für jeden
@@ -557,11 +552,6 @@ export const MODULE_FORM: Record<string, {
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
-  zahlung: MONEY_FORM,
-  // ►►► **Dieselbe Implementierung, zwei Schlüssel.** ◄◄◄ Die Definition beider
-  // Zahlungsmodule ist wortgleich (Richtung + zugelassene Partner) – ein zweiter,
-  // abgeschriebener Eintrag daneben wäre die Stelle, an der beim nächsten Feld eine
-  // Hälfte stehen bleibt. Beim Löschen des alten Moduls fällt genau **eine Zeile**.
   beleg: MONEY_FORM,
   verbrauch: {
     draft: (c) => ({

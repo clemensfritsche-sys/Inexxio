@@ -688,35 +688,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/deal-parties": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Deal Parties
-         * @description **Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**
-         *
-         *     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
-         *     **ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit
-         *     ihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen
-         *     Gegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort
-         *     gilt sie dann auch beim Ausführen (``deal._party``).
-         *
-         *     **Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und
-         *     die Suche endet als «100000xyz ist keine Zahl».
-         */
-        get: operations["deal_parties_api_v1_erp_orders_deal_parties_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/orders/module-catalog": {
         parameters: {
             query?: never;
@@ -874,44 +845,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Update Deal
-         * @description **Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.
-         *
-         *     ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·
-         *     ``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen
-         *     Löschweg gibt es nicht (Testnotizen #823/#824).
-         *
-         *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
-         *     wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle**
-         *     erlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.
-         *
-         *     **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
-         *     nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
-         *
-         *     **Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit
-         *     die Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``
-         *     nur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**
-         *     darf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;
-         *     wer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist
-         *     alles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.
-         */
-        post: operations["update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/hold": {
         parameters: {
             query?: never;
@@ -963,107 +896,6 @@ export interface paths {
          *     daneben.
          */
         get: operations["step_record_api_v1_erp_orders__object_id__steps__step_id__record_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Prepare Payment
-         * @description ►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
-         *
-         *     ►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ ``charge`` ist die
-         *     Zeile, an der geklickt wurde – ohne Angabe die älteste offene. Vorher kassierte der
-         *     Weg immer die älteste: standen zwei offen, war die zweite unbezahlbar, obwohl ihr Knopf
-         *     danebenstand.
-         *
-         *     Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
-         *     Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
-         *     erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
-         *     des Zahlenden.
-         *
-         *     **Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier
-         *     kommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind
-         *     zwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE
-         *     Frage, und dieselbe Liste ist auch hier das **Tor**.
-         *
-         *     **Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der
-         *     Kunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt
-         *     ``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt
-         *     ``404`` wie überall.
-         *
-         *     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)
-         *     – und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.
-         */
-        post: operations["prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/refund": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Refund Payment
-         * @description ►►► **Geld zurück — über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄
-         *
-         *     *«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag
-         *     zurückerstatten.»* – Genau, und der Weg hängt daran, **wie** das Geld kam: bar und per
-         *     Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es längst gibt),
-         *     eine **Karte** erstattet der Dienst, der sie belastet hat.
-         *
-         *     **Gebucht wird auch hier nicht hier**: der Dienst meldet die Erstattung, und der
-         *     Webhook schreibt die negative Zeile – dieselbe Regel wie beim Einziehen, und aus
-         *     demselben Grund (wer den Browser schliesst, darf keine Buchung verschlucken).
-         *
-         *     **Personal-only**: eine Erstattung ist unsere Aussage über unser Konto. Der Kunde
-         *     fordert sie an, er löst sie nicht aus.
-         */
-        post: operations["refund_payment_api_v1_erp_orders__object_id__steps__step_id__deal_refund_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/transfer": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Transfer Details
-         * @description **Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung (#865).
-         *
-         *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
-         *     den Vorgang sieht – der Zahlende zuerst, denn er ist es, der überweist.
-         *
-         *     **Erst auf Klick**: der Code ist ein paar Kilobyte SVG, und er interessiert genau
-         *     dann, wenn jemand wirklich zahlen will.
-         */
-        get: operations["transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1935,20 +1767,6 @@ export interface components {
             message: string;
         };
         /**
-         * CurrencyOption
-         * @description Eine wählbare Währung – der Code und wie sie heisst.
-         *
-         *     Ein **Katalog**, keine freie Eingabe: «CHF» getippt ist noch keine Währung, und ein
-         *     Tippfehler fällt erst auf, wenn jemand eine Summe über zwei Währungen zieht. Die
-         *     Beschriftung trägt den Code selbst, kein Symbol – «$» ist nicht eindeutig.
-         */
-        CurrencyOption: {
-            /** Code */
-            code: string;
-            /** Label */
-            label: string;
-        };
-        /**
          * CurrencyOut
          * @description Eine wählbare Währung – Code und Name.
          */
@@ -1959,614 +1777,30 @@ export interface components {
             label: string;
         };
         /**
-         * DealEmbed
-         * @description **Der Geldvorgang**, wie ihn die Ausführungsstelle braucht.
+         * DataGap
+         * @description **Eine fehlende Stammdatenangabe** – ``StepNeed`` für Stammdaten.
          *
-         *     ``None`` bei jedem anderen Modultyp – die Oberfläche braucht damit keine
-         *     Fallunterscheidung nach dem Modul (wie ``needs`` und ``target``).
-         *
-         *     **Alles zum Zeichnen reist mit**: Wörter, Stufen, Verben, Zahlen und was man tun
-         *     darf. Die Oberfläche fragt für kein einziges ``if`` nach der Richtung.
+         *     Wo sie hingehört (klickbar), was fehlt und **warum dieser Beleg sie braucht**. Kein
+         *     Zustand und kein Pausenwert: das Modul ist schlicht nicht vollständig.
          */
-        DealEmbed: {
+        DataGap: {
+            /** Record Object Id */
+            record_object_id?: number | null;
             /**
-             * Direction
-             * @default out
-             */
-            direction: string;
-            /**
-             * Label
+             * Record Label
              * @default
              */
-            label: string;
+            record_label: string;
             /**
-             * Party Word
+             * Field Label
              * @default
              */
-            party_word: string;
+            field_label: string;
             /**
-             * Charge Word
+             * Why
              * @default
              */
-            charge_word: string;
-            /**
-             * Payment Word
-             * @default
-             */
-            payment_word: string;
-            /**
-             * Credit Only
-             * @default false
-             */
-            credit_only: boolean;
-            /**
-             * Pay Online Word
-             * @default
-             */
-            pay_online_word: string;
-            /**
-             * Open Word
-             * @default Offen
-             */
-            open_word: string;
-            /**
-             * Ask Verb
-             * @default
-             */
-            ask_verb: string;
-            /**
-             * We Quote
-             * @default false
-             */
-            we_quote: boolean;
-            /** Ref Label */
-            ref_label?: string | null;
-            /** Vat Rates */
-            vat_rates?: components["schemas"]["VatRate"][];
-            /**
-             * Vat Rate
-             * @default 8.10
-             */
-            vat_rate: string;
-            /**
-             * Vat Label
-             * @default MWST
-             */
-            vat_label: string;
-            /**
-             * Service Date Label
-             * @default Leistungsdatum
-             */
-            service_date_label: string;
-            /** Net */
-            net?: string | null;
-            /** Tax */
-            tax?: string | null;
-            /** Vat Split */
-            vat_split?: components["schemas"]["app__schemas__deal__VatShare"][];
-            /**
-             * Currency
-             * @default CHF
-             */
-            currency: string;
-            /**
-             * Currency Label
-             * @default CHF
-             */
-            currency_label: string;
-            /**
-             * Currency Decimals
-             * @default 2
-             */
-            currency_decimals: number;
-            /** Currencies */
-            currencies?: components["schemas"]["CurrencyOption"][];
-            /** Issuer */
-            issuer?: number | null;
-            /**
-             * Issuer Label
-             * @default
-             */
-            issuer_label: string;
-            /** Issuers */
-            issuers?: components["schemas"]["IssuerOption"][];
-            /**
-             * Money Label
-             * @default Rechnung & Zahlung
-             */
-            money_label: string;
-            /** Undo */
-            undo?: string | null;
-            /**
-             * Stage
-             * @default offer
-             */
-            stage: string;
-            /**
-             * Stage Label
-             * @default
-             */
-            stage_label: string;
-            /** Stages */
-            stages?: components["schemas"]["DealStage"][];
-            /** Can */
-            can?: string[];
-            /**
-             * Prepaid
-             * @default false
-             */
-            prepaid: boolean;
-            /** Payment Terms */
-            payment_terms?: components["schemas"]["DealTerm"][];
-            /** Lead Terms */
-            lead_terms?: components["schemas"]["DealTerm"][];
-            /**
-             * Term Free Min
-             * @default 1
-             */
-            term_free_min: number;
-            /**
-             * Term Free Label
-             * @default
-             */
-            term_free_label: string;
-            /**
-             * Payment Term Label
-             * @default
-             */
-            payment_term_label: string;
-            /**
-             * Lead Term Label
-             * @default
-             */
-            lead_term_label: string;
-            /** Allowed */
-            allowed?: components["schemas"]["DealParty"][];
-            /** Quotes */
-            quotes?: components["schemas"]["DealQuote"][];
-            /** Lines */
-            lines?: components["schemas"]["DealLine"][];
-            /** Incoterm */
-            incoterm?: string | null;
-            /** Incoterm Place */
-            incoterm_place?: string | null;
-            /** Incoterm Text */
-            incoterm_text?: string | null;
-            /**
-             * Incoterm Label
-             * @default
-             */
-            incoterm_label: string;
-            /**
-             * Incoterm Place Label
-             * @default
-             */
-            incoterm_place_label: string;
-            /**
-             * Incoterm Place Hint
-             * @default
-             */
-            incoterm_place_hint: string;
-            /** Incoterms */
-            incoterms?: components["schemas"]["IncotermOption"][];
-            supplier?: components["schemas"]["DealSide"] | null;
-            customer?: components["schemas"]["DealSide"] | null;
-            /** Gaps */
-            gaps?: components["schemas"]["app__schemas__deal__DataGap"][];
-            /** Party Object Id */
-            party_object_id?: number | null;
-            /** Party Name */
-            party_name?: string | null;
-            /** Amount */
-            amount?: string | null;
-            /** Due Days */
-            due_days?: number | null;
-            /** Agreed On */
-            agreed_on?: string | null;
-            /** Cancelled On */
-            cancelled_on?: string | null;
-            /** Due Date */
-            due_date?: string | null;
-            /**
-             * Late
-             * @default false
-             */
-            late: boolean;
-            /** Charged */
-            charged?: string | null;
-            /** Paid */
-            paid?: string | null;
-            /** Open */
-            open?: string | null;
-            /** Uncharged */
-            uncharged?: string | null;
-            /** Next Charge */
-            next_charge?: string | null;
-            /** Next Payment */
-            next_payment?: string | null;
-            /**
-             * Settled
-             * @default false
-             */
-            settled: boolean;
-            /** Methods */
-            methods?: components["schemas"]["DealMethod"][];
-            /**
-             * Method Label
-             * @default
-             */
-            method_label: string;
-            /**
-             * Transfer Word
-             * @default
-             */
-            transfer_word: string;
-            /**
-             * Refund Word
-             * @default
-             */
-            refund_word: string;
-            /**
-             * Refund Online Word
-             * @default
-             */
-            refund_online_word: string;
-            /** Entries */
-            entries?: components["schemas"]["DealEntryOut"][];
-        };
-        /**
-         * DealEntryOut
-         * @description Eine Zeile Geld – eine Forderung oder eine Zahlung.
-         *
-         *     ``kind`` sagt, welche Achse. Ein **negativer** Betrag ist keine Ausnahme, sondern die
-         *     Gutschrift bzw. die Erstattung – dafür gibt es keine dritte Art.
-         */
-        DealEntryOut: {
-            /** Id */
-            id: number;
-            /** Kind */
-            kind: string;
-            /** Amount */
-            amount: string;
-            /** Booked On */
-            booked_on?: string | null;
-            /** Due On */
-            due_on?: string | null;
-            /** Reference */
-            reference?: string | null;
-            /** Note */
-            note?: string | null;
-            /**
-             * Overdue
-             * @default false
-             */
-            overdue: boolean;
-            /** Vat */
-            vat?: components["schemas"]["app__schemas__deal__VatShare"][];
-            /** Service Date */
-            service_date?: string | null;
-            /** Reverses */
-            reverses?: number | null;
-            /**
-             * Reversed
-             * @default false
-             */
-            reversed: boolean;
-            /** Charge Id */
-            charge_id?: number | null;
-            /** Method */
-            method?: string | null;
-            /** Method Label */
-            method_label?: string | null;
-            /** Reverse Word */
-            reverse_word?: string | null;
-            /** Open */
-            open?: string | null;
-            /**
-             * Refundable
-             * @default false
-             */
-            refundable: boolean;
-            /**
-             * Transferable
-             * @default false
-             */
-            transferable: boolean;
-        };
-        /**
-         * DealLine
-         * @description **Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.
-         *
-         *     Je Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der
-         *     Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
-         *
-         *     ►►► **Die Spezifikation reist NICHT mehr mit** (Testnotiz #916). ◄◄◄ Sie stand als
-         *     aufklappbares Datenblatt an der Zeile – der Kompromiss «Spezifikation auf Klick».
-         *     Auf einem **Beleg** ist sie das nicht: was der Empfänger braucht, steht in der
-         *     Zeile; was er nicht braucht, gehört nicht auf das Papier. Was **daran** zu tun ist,
-         *     steht bei dem Partner, den es betrifft (``DealQuote.ref``).
-         *
-         *     Pflicht bleiben die beiden **Zoll-Angaben** – sie sind keine Beschreibung, sondern
-         *     Voraussetzung der Ausfuhr; sie stehen darum offen an der Zeile (#915).
-         */
-        DealLine: {
-            /** Article Id */
-            article_id?: number | null;
-            /** Article Object Id */
-            article_object_id?: number | null;
-            /**
-             * Article Name
-             * @default
-             */
-            article_name: string;
-            /** Quantity */
-            quantity: number;
-            /** Hs Code */
-            hs_code?: string | null;
-            /** Origin Country */
-            origin_country?: string | null;
-            /** Price */
-            price?: string | null;
-            /**
-             * Vat
-             * @default normal
-             */
-            vat: string;
-            /**
-             * Vat Rate
-             * @default 0.00
-             */
-            vat_rate: string;
-            /**
-             * Vat Label
-             * @default
-             */
-            vat_label: string;
-            /** Vat Note */
-            vat_note?: string | null;
-        };
-        /**
-         * DealMethod
-         * @description **Eine Zahlungsart, die ein Mensch erfassen darf** – Schlüssel und Wort.
-         *
-         *     Dieselbe Bauart wie ``vat_rates`` und ``payment_terms``: die Liste kommt vom Server,
-         *     damit die Karte keine zweite pflegt, die beim ersten neuen Weg auseinanderläuft.
-         */
-        DealMethod: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-        };
-        /**
-         * DealParty
-         * @description Eine wählbare Gegenpartei – **Objektnummer und Name**, sonst nichts.
-         *
-         *     Dieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die
-         *     Oberfläche kein zweites Auswahlfeld braucht.
-         */
-        DealParty: {
-            /** Object Id */
-            object_id: number;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
-        };
-        /**
-         * DealPrice
-         * @description ►►► **Eine Position, wie sie hereinkommt** – Artikel · Preis · Satz. ◄◄◄
-         *
-         *     Die **Menge steht nicht darin**: sie ist die Zahl der Einzelinstanzen, die vor dem
-         *     Modul stehen (``deal._priced`` liest sie aus dem Prozess). Eine getippte Menge wäre
-         *     die zweite Aussage über dieselbe Sache – und die getippte gewinnt, auch wenn sie
-         *     falsch ist.
-         */
-        DealPrice: {
-            /** Article */
-            article?: number | null;
-            /**
-             * Price
-             * @default 0
-             */
-            price: string;
-            /** Vat */
-            vat?: string | null;
-            /** Hs Code */
-            hs_code?: string | null;
-            /** Origin Country */
-            origin_country?: string | null;
-        };
-        /**
-         * DealQuote
-         * @description **Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.
-         *
-         *     ``state``: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``. «gewählt»
-         *     entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt wurde –
-         *     ein Zustand ist eine Folge.
-         *
-         *     **Eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise fallen beim Aufbau
-         *     der Antwort weg, nicht in der Oberfläche.
-         */
-        DealQuote: {
-            /** Party Object Id */
-            party_object_id: number;
-            /**
-             * Party Name
-             * @default
-             */
-            party_name: string;
-            /**
-             * Ref
-             * @default
-             */
-            ref: string;
-            /** Amount */
-            amount?: string | null;
-            /** Lead Days */
-            lead_days?: number | null;
-            /** Payment Days */
-            payment_days?: number | null;
-            /**
-             * State
-             * @default angefragt
-             */
-            state: string;
-            /** Sent On */
-            sent_on?: string | null;
-            /** Lines */
-            lines?: Record<string, never>[];
-        };
-        /**
-         * DealSide
-         * @description **Eine Partei des Belegs** – so, wie sie auf einer Rechnung stehen muss.
-         *
-         *     Name und Ort, wie im Geschäftsverkehr aufgetreten, und beim Aussteller die **UID mit
-         *     dem Zusatz MWST** (MWSTG Art. 26): ohne sie kann dem Empfänger der Vorsteuerabzug
-         *     verweigert werden.
-         *
-         *     **Die Rolle steht im Wort, nicht in der Position**: `label` sagt «Lieferant» bzw.
-         *     «Kunde», damit die Oberfläche für kein `if` nach der Richtung fragt. Welche Seite
-         *     welche Rolle trägt, entscheidet `deal.document_head` an der einen Stelle, an der die
-         *     Richtung ohnehin gelesen wird.
-         *
-         *     **Fehlendes bleibt leer** – eine Anschrift, die es nicht gibt, ist `None`. Eine
-         *     erfundene Zeile wäre auf einem Beleg schlimmer als eine leere; die Oberfläche sagt an
-         *     der Stelle klein, was fehlt.
-         */
-        DealSide: {
-            /** Label */
-            label: string;
-            /**
-             * Hint
-             * @default
-             */
-            hint: string;
-            /** Object Id */
-            object_id?: number | null;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
-            /** Attn */
-            attn?: string | null;
-            /** Email */
-            email?: string | null;
-            /** Phone */
-            phone?: string | null;
-            /** Address */
-            address?: string[];
-            /** Uid */
-            uid?: string | null;
-        };
-        /**
-         * DealStage
-         * @description Eine Stufe – Schlüssel, Beschriftung und das Verb, wenn sie dran ist.
-         */
-        DealStage: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /** Verb */
-            verb?: string | null;
-            /**
-             * Done
-             * @default false
-             */
-            done: boolean;
-            /**
-             * Active
-             * @default false
-             */
-            active: boolean;
-        };
-        /**
-         * DealTerm
-         * @description Eine **übliche Frist** – die Zahl und wie sie heisst.
-         *
-         *     «Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer, die man erklären muss. Die
-         *     Liste reist mit dem Vorgang (dieselbe Bauart wie ``vat_rates``), damit die Karte keine
-         *     zweite pflegt.
-         */
-        DealTerm: {
-            /** Days */
-            days: number;
-            /** Label */
-            label: string;
-        };
-        /**
-         * DealUpdate
-         * @description Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.
-         *
-         *     ``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten
-         *                 (``parties`` – ohne Angabe **alle** zugelassenen)
-         *     ``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,
-         *                 ``lead_days``, ``payment_days``) – auch von der Gegenpartei
-         *     ``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei
-         *     ``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)
-         *     ``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle
-         *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
-         *                 ``booked_on``, ``due_on``, ``reference``, ``note``)
-         *     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
-         *     ``currency`` die **Währung** setzen (``currency``) – nur vor der Zusage
-         *     ``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie
-         *                 als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die
-         *                 stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).
-         *
-         *     **``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und
-         *     auch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen
-         *     trotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.
-         *
-         *     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
-         *     **verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die
-         *     Regel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
-         *
-         *     **Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,
-         *     bleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich
-         *     wiederholt.
-         */
-        DealUpdate: {
-            /** Action */
-            action: string;
-            /** Party */
-            party?: number | null;
-            /** Parties */
-            parties?: number[];
-            /** Lead Days */
-            lead_days?: number | null;
-            /** Payment Days */
-            payment_days?: number | null;
-            /** Amount */
-            amount?: string | null;
-            /** Reference */
-            reference?: string | null;
-            /** Note */
-            note?: string | null;
-            /** Booked On */
-            booked_on?: string | null;
-            /** Due On */
-            due_on?: string | null;
-            /** Entry */
-            entry?: number | null;
-            /** Charge Id */
-            charge_id?: number | null;
-            /** Lines */
-            lines?: components["schemas"]["DealPrice"][] | null;
-            /** Vat */
-            vat?: string | null;
-            /** Currency */
-            currency?: string | null;
-            /** Method */
-            method?: string | null;
-            /** Incoterm */
-            incoterm?: string | null;
-            /** Incoterm Place */
-            incoterm_place?: string | null;
-            /** Issuer */
-            issuer?: number | null;
+            why: string;
         };
         /**
          * DefinitionLine
@@ -2985,22 +2219,6 @@ export interface components {
             numbers?: string[];
         };
         /**
-         * IncotermOption
-         * @description Eine Incoterms-2020-Klausel – Kürzel, Name und der Satz, der sie erklärt.
-         *
-         *     **Die Erklärung reist mit**, weil genau hier die Fragen entstehen: es ist die Stelle
-         *     im Beleg, an der ein Kürzel über Tausende Franken entscheidet. Sie in der Oberfläche
-         *     zu formulieren hiesse, sie beim nächsten Umbau ein zweites Mal zu schreiben.
-         */
-        IncotermOption: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /** Hint */
-            hint: string;
-        };
-        /**
          * IncotermOut
          * @description Eine Klausel der Incoterms 2020 – mit ihrer Erklärung.
          *
@@ -3134,22 +2352,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-        };
-        /**
-         * IssuerOption
-         * @description Eine unserer Gesellschaften – Objektnummer und Name **mit Rechtsform**.
-         *
-         *     Der Name kommt aus derselben Stelle wie der im Belegkopf (``sites.legal_name``): eine
-         *     Auswahl, die anders schreibt als der Beleg, den sie erzeugt, ist eine zweite Schreibweise.
-         */
-        IssuerOption: {
-            /** Object Id */
-            object_id?: number | null;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
         };
         /**
          * IssuerOut
@@ -3642,7 +2844,6 @@ export interface components {
             /** Needs */
             needs?: components["schemas"]["StepNeed"][];
             target?: components["schemas"]["PlaceRef"] | null;
-            deal?: components["schemas"]["DealEmbed"] | null;
             voucher?: components["schemas"]["VoucherEmbed"] | null;
             /** Blocked */
             blocked?: string | null;
@@ -3749,9 +2950,9 @@ export interface components {
              *     ihre Knöpfe funktionierten.
              *
              *     **Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor
-             *     ist**: ``can`` am Geldvorgang. Eine zweite Herleitung («ist der Typ
-             *     ``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der
-             *     Oberfläche wäre eine dritte Wahrheit.
+             *     ist**: ``can`` am Beleg. Eine zweite Herleitung («ist der Typ ``beleg``?») liefe
+             *     beim nächsten Modul auseinander, und eine Heuristik der Oberfläche wäre eine
+             *     dritte Wahrheit.
              *
              *     Das aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.
              */
@@ -4450,27 +3651,6 @@ export interface components {
             type: string;
         };
         /**
-         * VatRate
-         * @description Ein wählbarer Steuersatz – Schlüssel, Zahl, Name und sein Pflichtsatz.
-         *
-         *     Ein **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,
-         *     und er fällt erst bei der Abrechnung auf.
-         *
-         *     ►►► **Der Schlüssel ist die Identität, nicht die Zahl.** ◄◄◄ *Export* und
-         *     *Reverse Charge* tragen beide 0 %, sind aber zwei verschiedene Rechtsgründe mit zwei
-         *     verschiedenen Pflichtsätzen auf dem Beleg.
-         */
-        VatRate: {
-            /** Key */
-            key: string;
-            /** Rate */
-            rate: string;
-            /** Label */
-            label: string;
-            /** Note */
-            note?: string | null;
-        };
-        /**
          * VatRateOut
          * @description Ein Steuersatz des Katalogs.
          *
@@ -4487,6 +3667,33 @@ export interface components {
             label: string;
             /** Note */
             note?: string | null;
+        };
+        /**
+         * VatShare
+         * @description Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl.
+         */
+        VatShare: {
+            /** Vat */
+            vat?: string | null;
+            /**
+             * Rate
+             * @default 0.00
+             */
+            rate: string;
+            /** Label */
+            label?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Net
+             * @default 0
+             */
+            net: string;
+            /**
+             * Tax
+             * @default 0
+             */
+            tax: string;
         };
         /**
          * VoucherEmbed
@@ -4535,11 +3742,6 @@ export interface components {
              */
             quotes_title: string;
             /**
-             * History Title
-             * @default
-             */
-            history_title: string;
-            /**
              * Money Label
              * @default
              */
@@ -4571,7 +3773,7 @@ export interface components {
             /** Tax */
             tax?: string | null;
             /** Vat Split */
-            vat_split?: components["schemas"]["app__schemas__voucher__VatShare"][];
+            vat_split?: components["schemas"]["VatShare"][];
             /**
              * Currency
              * @default CHF
@@ -4719,7 +3921,7 @@ export interface components {
             /** Recipients */
             recipients?: components["schemas"]["VoucherSide"][];
             /** Gaps */
-            gaps?: components["schemas"]["app__schemas__voucher__DataGap"][];
+            gaps?: components["schemas"]["DataGap"][];
             /** Party Object Id */
             party_object_id?: number | null;
             /** Party Name */
@@ -4791,7 +3993,7 @@ export interface components {
              */
             overdue: boolean;
             /** Vat */
-            vat?: components["schemas"]["app__schemas__voucher__VatShare"][];
+            vat?: components["schemas"]["VatShare"][];
             /** Service Date */
             service_date?: string | null;
             /** Reverses */
@@ -4948,6 +4150,10 @@ export interface components {
             state: string;
             /** Sent On */
             sent_on?: string | null;
+            /** Sent At */
+            sent_at?: string | null;
+            /** Agreed At */
+            agreed_at?: string | null;
         };
         /**
          * VoucherSide
@@ -5091,116 +4297,6 @@ export interface components {
             incoterm_place?: string | null;
             /** Issuer */
             issuer?: number | null;
-        };
-        /**
-         * DataGap
-         * @description ►►► **Eine Angabe, die dieses Modul braucht und nicht findet.** ◄◄◄
-         *
-         *     **Dieselbe Form wie ``StepNeed``, nur über einen anderen Gegenstand.** Der Verbrauch
-         *     meldet fehlendes *Material*, hier fehlen *Stammdaten* – und die Regel ist dieselbe:
-         *     es ist **kein Zustand**. Es gibt keinen Pausenwert und keine Sperre mit Schlüssel;
-         *     das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext, woran es liegt.
-         *
-         *     **Was daraus folgt, entscheidet ein Mensch**: hingehen und eintragen. Darum trägt sie
-         *     die **Objektnummer** des Datensatzes – die Zeile ist der Weg dorthin, nicht nur eine
-         *     Meldung.
-         *
-         *     Durchgesetzt wird sie über ``can``: fehlt etwas, führt es das Verb nicht, also gibt
-         *     es den Knopf gar nicht – und die Tür weist an derselben Liste ab.
-         */
-        app__schemas__deal__DataGap: {
-            /** Record Object Id */
-            record_object_id?: number | null;
-            /**
-             * Record Label
-             * @default
-             */
-            record_label: string;
-            /**
-             * Field Label
-             * @default
-             */
-            field_label: string;
-            /**
-             * Why
-             * @default
-             */
-            why: string;
-        };
-        /**
-         * VatShare
-         * @description **Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.
-         *
-         *     Gerundet **je Satz auf der Summe**, nie je Position aufsummiert (``domain/deal.
-         *     vat_split``): bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um
-         *     Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz.
-         */
-        app__schemas__deal__VatShare: {
-            /** Vat */
-            vat?: string | null;
-            /** Rate */
-            rate: string;
-            /** Label */
-            label?: string | null;
-            /** Note */
-            note?: string | null;
-            /** Net */
-            net: string;
-            /** Tax */
-            tax: string;
-        };
-        /**
-         * DataGap
-         * @description **Eine fehlende Stammdatenangabe** – ``StepNeed`` für Stammdaten.
-         *
-         *     Wo sie hingehört (klickbar), was fehlt und **warum dieser Beleg sie braucht**. Kein
-         *     Zustand und kein Pausenwert: das Modul ist schlicht nicht vollständig.
-         */
-        app__schemas__voucher__DataGap: {
-            /** Record Object Id */
-            record_object_id?: number | null;
-            /**
-             * Record Label
-             * @default
-             */
-            record_label: string;
-            /**
-             * Field Label
-             * @default
-             */
-            field_label: string;
-            /**
-             * Why
-             * @default
-             */
-            why: string;
-        };
-        /**
-         * VatShare
-         * @description Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl.
-         */
-        app__schemas__voucher__VatShare: {
-            /** Vat */
-            vat?: string | null;
-            /**
-             * Rate
-             * @default 0.00
-             */
-            rate: string;
-            /** Label */
-            label?: string | null;
-            /** Note */
-            note?: string | null;
-            /**
-             * Net
-             * @default 0
-             */
-            net: string;
-            /**
-             * Tax
-             * @default 0
-             */
-            tax: string;
         };
     };
     responses: never;
@@ -6365,39 +5461,6 @@ export interface operations {
             };
         };
     };
-    deal_parties_api_v1_erp_orders_deal_parties_get: {
-        parameters: {
-            query?: {
-                /** @description Objektnummer-Teilstring oder Name */
-                search?: string;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DealParty"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     module_catalog_api_v1_erp_orders_module_catalog_get: {
         parameters: {
             query?: never;
@@ -6594,42 +5657,6 @@ export interface operations {
             };
         };
     };
-    update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                step_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DealUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get: {
         parameters: {
             query: {
@@ -6689,110 +5716,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StepRecord"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post: {
-        parameters: {
-            query?: {
-                charge?: number | null;
-            };
-            header?: never;
-            path: {
-                object_id: number;
-                step_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentSetup"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    refund_payment_api_v1_erp_orders__object_id__steps__step_id__deal_refund_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                step_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DealUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    transfer_details_api_v1_erp_orders__object_id__steps__step_id__deal_transfer_get: {
-        parameters: {
-            query: {
-                entry: number;
-            };
-            header?: never;
-            path: {
-                object_id: number;
-                step_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TransferInfo"];
                 };
             };
             /** @description Validation Error */

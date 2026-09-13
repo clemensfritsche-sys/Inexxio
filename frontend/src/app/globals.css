@@ -831,10 +831,29 @@
   background: var(--accent-soft);
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
+/* ►►► **Ein Pflichtwert, der fehlt, sagt es an SEINER Stelle** (Testnotiz #964). ◄◄◄
+   «Alle Eingabefelder – alles, was so leicht blau hinterlegt ist – sollen Muss-Felder
+   sein.» Es ist darum **dieselbe** Auszeichnung in einer anderen Stimme: Fläche und
+   Rahmen wechseln von der leisen (`--accent-soft`) in die Warnfarbe, Grösse, Form und
+   Schrift bleiben unverändert (die Bedingung aus #922/#948 gilt weiter – Δb 0, Δh 0).
+   Kein Sternchen und kein Ausrufezeichen daneben: eine zweite Form wäre eine zweite
+   Aussage über dieselbe Sache, und sie bräuchte Platz, den ein Beleg nicht hat. */
+.ix-editable.is-missing {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.ix-editable.is-missing:hover,
+.ix-editable.is-missing:focus-within {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 20%, transparent);
+}
 /* Ein gesperrter Wert ist keine Einladung mehr: ab der Zusage steht der Beleg fest, und
-   eine Fläche, die Änderbarkeit verspricht, wäre dort eine Unwahrheit. */
+   eine Fläche, die Änderbarkeit verspricht, wäre dort eine Unwahrheit. Und wo nichts mehr
+   zu ändern ist, gibt es auch keine Pflichtangabe – der Beleg ist gedruckt. */
 .ix-editable[aria-disabled='true'],
-fieldset:disabled .ix-editable {
+.ix-editable[aria-disabled='true'].is-missing,
+fieldset:disabled .ix-editable,
+fieldset:disabled .ix-editable.is-missing {
   cursor: default;
   box-shadow: none;
   background: transparent;

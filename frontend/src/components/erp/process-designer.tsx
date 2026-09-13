@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { DealParty, ModuleCatalog } from '@/types';
+import type { ModuleCatalog, VoucherParty } from '@/types';
 import {
   CAPTURE_ICON, DEAL_DIRECTION, DEAL_PARTY, DEAL_TASK, DEAL_TASK_HINT,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
@@ -350,11 +350,7 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,
-  zahlung: MoneyFields,
-  // ►►► **Dasselbe Formular, die andere Suche.** ◄◄◄ Die Definition beider
-  // Zahlungsmodule ist wortgleich; verschieden ist nur, welchen Weg die Gegenpartei-Suche
-  // nimmt – und das ist eine **Angabe**, keine Verzweigung im Formular.
-  beleg: (p) => <MoneyFields {...p} search={api.searchVoucherParties} />,
+  beleg: MoneyFields,
 };
 
 /**
@@ -413,17 +409,17 @@ function RowDelete({ label, hint, reveal, onClick }: {
  * verkauft einmal gegen Vorkasse und einmal auf Rechnung –, also wird sie dort gefragt,
  * wo man das Angebot **schreibt**.
  */
-function MoneyFields({ module: m, onChange, search = api.searchDealParties }: {
+function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
   /**
    * ►►► **Woher die Gegenparteien kommen — eine Angabe, kein `if` auf den Modultyp.** ◄◄◄
    *
-   * Beide Zahlungsmodule stellen dieselbe Frage und haben je einen eigenen Weg dorthin
-   * (sie teilen bewusst keine Zeile Dienst, damit das alte löschbar bleibt). Als **Prop**
-   * ist das eine Zeile im Register darunter; eine Verzweigung hier wäre der Modultyp in
-   * einer Komponente, die ihn nicht kennen müsste.
+   * Als **Prop** ist die Quelle eine Zeile im Register darunter; eine Verzweigung hier
+   * wäre der Modultyp in einer Komponente, die ihn nicht kennen müsste. Solange zwei
+   * Zahlungsmodule nebeneinander liefen, war genau das der Grund, dass die Löschung des
+   * einen hier keine Zeile kostete (Testnotiz #960).
    */
   search?: (q: string, limit?: number) => Promise<{ object_id: number; name: string }[]>;
 }) {
@@ -480,7 +476,7 @@ function MoneyFields({ module: m, onChange, search = api.searchDealParties }: {
             (gemessen in Chromium: nach zwei Klicks beide Male `""`). Genau darum steht
             hier auch kein Zurücksetzen: `SearchSelect.pick` räumt seine Suche selbst auf.
             Die Stelle, an der ein Name stehen blieb, ist die **Laufzeit** (#820) –
-            `deal-work.Offer`, wo die frische Wahl gehalten wird, bis der Server sie als
+            `beleg-work.Recipients`, wo die frische Wahl gehalten wird, bis der Server sie als
             Zeile zurückgibt. */}
         {/* ►►► **«Partner» steht IM Feld, nicht darüber** (Testnotiz #843). ◄◄◄
 
@@ -494,7 +490,7 @@ function MoneyFields({ module: m, onChange, search = api.searchDealParties }: {
             Dieselbe Regel wie im Scan-Dialog (#758). Im **Vollbild** des Scanners bleibt
             die Sorte als Beschriftung stehen (`scanLabel`) – dort liegt Text auf einem
             Foto, und der Platzhalter allein trüge sie nicht. */}
-        <ObjectSelect<DealParty>
+        <ObjectSelect<VoucherParty>
           value={null}
           selected={null}
           find={find}
@@ -550,7 +546,7 @@ function MoneyFields({ module: m, onChange, search = api.searchDealParties }: {
 
           Beim **Modellieren** steht sie ohnehin nicht fest: derselbe Ablauf verkauft
           einmal gegen Vorkasse und einmal auf Rechnung. Gefragt wird sie darum dort, wo
-          man das Angebot **schreibt** (`deal-work.OurOffer`) – mit «Vorauszahlung» als
+          man das Angebot **schreibt** (`beleg-work.Terms`) – mit «Vorauszahlung» als
           erster Vorgabe, und die Sperre ist dort eine Ableitung. */}
       {/* ►►► **Der Steuersatz steht hier NICHT** (Testnotiz #851). ◄◄◄
 

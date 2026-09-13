@@ -209,8 +209,9 @@ export type ModuleTypeInfo = components['schemas']['ModuleTypeInfo'];
  * `null` bei jedem anderen Modultyp – die Oberfläche braucht damit keine
  * Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.
  *
- * Er steht **neben** `DealEmbed` und nicht an seiner Stelle: beide Fassungen laufen
- * nebeneinander, bis die alte gelöscht wird (`docs/neuaufbau-zahlungsmodul.md`).
+ * Er stand eine Runde lang **neben** `DealEmbed`, der Fassung des Vorgängermoduls –
+ * und genau deshalb kostete deren Löschung hier nichts als das Streichen ihrer Zeilen
+ * (Testnotiz #960).
  */
 export type VoucherEmbed = components['schemas']['VoucherEmbed'];
 /** Eine der **zwei** Stufen des Belegs – mit Wort, Verb und Zustand. */
@@ -230,34 +231,6 @@ export type VoucherLineOut = components['schemas']['VoucherLineOut'];
 export type VoucherParty = components['schemas']['VoucherParty'];
 /** **Eine Partei des Belegkopfs** – Leistungserbringer bzw. -empfänger (MWSTG Art. 26). */
 export type VoucherSide = components['schemas']['VoucherSide'];
-/**
- * **Der Geldvorgang** eines «Zahlung»-Moduls – Richtung, Stufen, Zusage, Geld-Zeilen
- * (`services/deal`). `null` bei jedem anderen Modultyp – die Oberfläche braucht damit
- * keine Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.
- */
-export type DealEmbed = components['schemas']['DealEmbed'];
-/** Eine Stufe des Geldvorgangs – Angebot · Zusage · Abgeschlossen. */
-export type DealStage = components['schemas']['DealStage'];
-/** Eine Zeile Geld – eine Forderung (`charge`) oder eine Zahlung (`payment`). */
-export type DealEntryOut = components['schemas']['DealEntryOut'];
-/**
- * **Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.
- *
- * Eine Gegenpartei sieht nur ihre eigene: gefiltert wird beim Aufbau der Antwort.
- */
-export type DealQuote = components['schemas']['DealQuote'];
-/** **Was gehandelt wird** – Artikel, Menge und die Spezifikation, die mitreist. */
-export type DealLine = components['schemas']['DealLine'];
-/** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
-export type DealParty = components['schemas']['DealParty'];
-/**
- * **Eine Partei des Belegkopfs** – Lieferant bzw. Kunde (MWSTG Art. 26).
- *
- * Die Rolle steht im `label`, nicht in der Position: welche Seite welche trägt,
- * entscheidet der Server aus der Richtung. Die Anschrift kommt **als Zeilen**, wie sie
- * auf dem Beleg steht – eine zweite Adressenlogik im Browser gibt es nicht.
- */
-export type DealSide = components['schemas']['DealSide'];
 /**
  * **Ein Halter** – Objektnummer, Typ, Name (`services/places`).
  *

@@ -10,7 +10,7 @@ das** – die rufen den Dienst direkt. Genau daran sind schon ``ModuleConfigInpu
 ``DealUpdate`` einmal gescheitert.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -51,8 +51,20 @@ class VoucherQuoteOut(BaseModel):
     lead_days: Optional[int] = None
     payment_days: Optional[int] = None
     state: str = "angefragt"
-    #: Wann die Zeile hinausging – die Chronik fragt danach.
+    #: **Das Datum auf dem Papier** – ein Beleg trägt einen Tag, keine Uhrzeit.
     sent_on: Optional[date] = None
+    #: ►►► **Wann die Zeile hinausging** (Testnotiz #968) – der **Moment**, nicht der Tag.
+    #:
+    #: Er steht ohne eine eigene Spalte da: ``created_at`` der Angebotszeile *ist* dieser
+    #: Moment, weil ``_ask`` sie genau dort anlegt. Die Oberfläche macht daraus «vor 3
+    #: Tagen offeriert» und nennt im Hover Datum **und** Uhrzeit.
+    sent_at: Optional[datetime] = None
+    #: ►►► **Wann bei dieser Zeile zugesagt wurde** (Testnotiz #969). ◄◄◄
+    #:
+    #: ``None`` an jeder Zeile, die den Zuschlag nicht hat. An der gewählten ist es
+    #: ``updated_at``: ``_agree`` setzt ``CHOSEN`` in einem Zug mit der Stufe, und danach
+    #: fasst kein Verb die Zeile mehr an.
+    agreed_at: Optional[datetime] = None
 
 
 class VatRateOut(BaseModel):
@@ -268,7 +280,6 @@ class VoucherEmbed(BaseModel):
     # ─── Die Überschriften des Belegs ───────────────────────────────────────────
     goods_title: str = ""
     quotes_title: str = ""
-    history_title: str = ""
     money_label: str = ""
     task_label: str = ""
     # ─── Steuer ─────────────────────────────────────────────────────────────────

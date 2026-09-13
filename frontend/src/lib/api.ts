@@ -3,7 +3,6 @@ import type {
   OrderSummary,
   OrderDraft,
   OrderValidation,
-  DealParty,
   VoucherParty,
   UnitChoices,
   ArticleOption,
@@ -87,7 +86,7 @@ class ApiClient {
    * jeder Notiz derselbe Konsolen-Fehler: *«Cannot read properties of undefined (reading
    * ‹get›)»*. Das ist wörtlich `this.get`, wenn `this` fehlt. Eine Klassenmethode, die
    * als **Wert** weitergereicht wird (`search={api.searchVoucherParties}`,
-   * `search = api.searchDealParties` als Vorgabewert), verliert ihr `this` – und dass
+   * `search = api.searchVoucherParties` als Vorgabewert), verliert ihr `this` – und dass
    * eine solche Suchquelle stumm bleibt, sieht man ihr nicht an: der Fehler landet in
    * der Konsole, das Feld bleibt leer.
    *
@@ -383,81 +382,13 @@ class ApiClient {
 
   /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
    *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
-  /**
-   * ►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
-   *
-   * Zurück kommt, was das Formular braucht: das Geheimnis der Zahlungsabsicht, der
-   * öffentliche Schlüssel, der Betrag zum Anzeigen und die Angaben, die im ERP längst
-   * stehen (Name, E-Mail, Rechnungsadresse) – damit sie niemand ein zweites Mal tippt.
-   *
-   * Sie ändert am Vorgang **nichts**; gebucht wird erst, wenn das Geld da ist – und das
-   * meldet der Webhook, nicht dieser Browser (`services/stripe_pay`).
-   */
-  preparePayment(objectId: number, stepId: number,
-                 chargeId?: number | null): Promise<PaymentSetup> {
-    // ►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ Ohne Angabe die
-    // älteste offene – bei genau einer ist das die einzig mögliche Antwort. Vorher gab es
-    // die Angabe gar nicht: der Knopf an der zweiten Rechnung bezahlte die erste.
-    const q = chargeId != null ? `?charge=${chargeId}` : '';
-    return this.post(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/payment${q}`, {});
-  }
-
-  /**
-   * ►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄
-   *
-   * Eine **Auskunft**, keine Buchung: Bankverbindung, Referenz und – wo er gilt – die
-   * **QR-Rechnung** als fertiges Bild. Erzeugt wird sie im Backend: die Nutzlast ist eine
-   * Liste von einunddreissig Zeilen in fester Reihenfolge, und eine zweite Fassung hier
-   * wäre die Stelle, an der beim nächsten Feld eine Zeile verrutscht.
-   *
-   * **Erst auf Klick** – der Code ist ein paar Kilobyte SVG.
-   */
-  dealTransfer(objectId: number, stepId: number, entryId: number): Promise<TransferInfo> {
-    return this.get(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/transfer?entry=${entryId}`);
-  }
-
-  /**
-   * ►►► **Geld zurück – über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄
-   *
-   * Nur für eine **Karten**-Zahlung: bar und per Überweisung ist die Erstattung eine
-   * gewöhnliche Zahlung mit negativem Betrag, die es längst gibt. Gebucht wird auch hier
-   * nicht hier – der Dienst meldet die Erstattung, und der Webhook schreibt die Zeile.
-   */
-  refundPayment(objectId: number, stepId: number,
-                entryId: number, amount?: string): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/refund`,
-      { action: 'refund_online', entry: entryId, ...(amount ? { amount } : {}) });
-  }
-
-  /**
-   * **Eine Handlung am Geldvorgang** (`zahlung`) – ein Endpunkt, neun Verben.
-   */
-  updateDeal(orderObjectId: number, stepId: number,
-             body: { action: string } & Record<string, unknown>): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/deal`, body);
-  }
-
-  /**
-   * **Gegenparteien eines Geldvorgangs suchen** – Nummer **oder** Name, ohne Rollenfilter.
-   *
-   * Wer einschränken will, nennt die zugelassenen Gegenparteien in der Definition; das
-   * ist die Stelle, an der eine solche Freigabe hingehört.
-   */
-  searchDealParties(search?: string, limit = 20): Promise<DealParty[]> {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (search?.trim()) params.set('search', search.trim());
-    return this.get(`/api/v1/erp/orders/deal-parties?${params}`);
-  }
-
   // ─────────────────────────────────────────────────────────────────────────────
-  // ►►► DER BELEG — das neu aufgebaute Modul «Zahlung»
+  // ►►► DER BELEG — das Modul «Zahlung»
   // ─────────────────────────────────────────────────────────────────────────────
   //
-  // Eigene Wege statt eines gemeinsamen mit `…/deal`: die beiden Module teilen bewusst
-  // keine Zeile, damit das alte eines Tages **ersatzlos** gelöscht werden kann – und dann
-  // fallen genau die `deal*`-Methoden weg, nicht eine Verzweigung in einer geteilten.
+  // Das Vorgängermodul hatte seine eigenen `deal*`-Methoden daneben – **genau deshalb
+  // liess es sich ersatzlos löschen** (Testnotiz #960): es fielen fünf Methoden weg
+  // statt einer Verzweigung in einer geteilten.
 
   /** **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (`voucher.VERBS`). */
   updateVoucher(orderObjectId: number, stepId: number,

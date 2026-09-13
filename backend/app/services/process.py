@@ -26,7 +26,7 @@ from ..models.process_event import (
 )
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
-    consumption as consumption_svc, deal as deal_svc, materialize,
+    consumption as consumption_svc, materialize,
     voucher as voucher_svc,
     places as places_svc, sampling,
 )
@@ -746,14 +746,10 @@ def release(
     # fest). Gezogen wird über die **Gesamtmenge** des Auftrags, nicht je Instanz.
     sampling.ensure(db, order=order, step=rows[0], actor_id=actor_id)
 
-    # ── 7. Und jedes «Zahlung»-Modul bekommt seinen Geldvorgang ─────────────
-    # Dieselbe Regel, andere Maschine (``services/deal``): mit wem und worüber gehandelt
-    # wird, steht in der Definition, und ein Angebot einzuholen dauert. Idempotent, ohne
-    # ein solches Modul ein No-op.
-    deal_svc.instantiate_for_order(db, order, actor_id=actor_id)
-    # **Und dasselbe für das neu aufgebaute Modul** (``services/voucher``): eine Zeile,
-    # no-op ohne ein solches Modul – und sie fällt mit dem alten Modul weg, nicht mit
-    # einer Verzweigung darin.
+    # ── 7. Und jedes «Zahlung»-Modul bekommt seinen Beleg ───────────────────
+    # Mit wem und worüber gehandelt wird, steht in der Definition, und ein Angebot
+    # einzuholen dauert. **Eine Zeile, idempotent, ohne ein solches Modul ein No-op** –
+    # so ist der Rahmen mit dem Geld verbunden, und nicht anders herum.
     voucher_svc.instantiate_for_order(db, order, actor_id=actor_id)
     return order
 
@@ -925,8 +921,7 @@ def completion_problem(db: Session, step: ProcessStep) -> Optional[str]:
 
     ``None`` heisst «nichts steht im Weg» – bei jedem Modul ohne Geldvorgang immer.
     """
-    return (deal_svc.completion_problem(db, step=step)
-            or voucher_svc.completion_problem(db, step=step))
+    return voucher_svc.completion_problem(db, step=step)
 
 
 def confirm_step(
@@ -982,7 +977,6 @@ def confirm_step(
     # Dieselbe Bauart: wer nichts zu sagen hat, sagt nichts. Nur ein «Zahlung»-Modul hat
     # einen – und dort heisst «noch nicht zugesagt» bzw. «noch nicht bezahlt», dass es
     # hier nichts abzuschliessen gibt. Kein Zustand am Stück, kein Pausenwert.
-    deal_svc.assert_completable(db, step=step)
     voucher_svc.assert_completable(db, step=step)
     instance = _verified_instance(
         db, order=order, step=step,
@@ -1093,7 +1087,7 @@ def confirm_step(
     # Damit steht die Bewegung dort, wo die Historie ohnehin steht (§7.2) – eine zweite
     # Tabelle daneben wäre eine zweite Wahrheit über denselben Vorgang.
     # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
-    # ein Geldvorgang (``domain/deal``) – dieses Modul sagt allein, wohin.
+    # ein Geldvorgang (``domain/voucher``) – dieses Modul sagt allein, wohin.
     moved = places_svc.apply_for_step(db, step=step, units=units, target=place)
     marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
 
@@ -1181,7 +1175,6 @@ def confirm_step(
         # Steht nichts mehr davor, ist er erledigt. **Nur
     # er** – Forderungen und Zahlungen laufen weiter, denn ein Zahlungsziel endet nicht
     # mit der Ware.
-    deal_svc.finish(db, order=order, step=step)
     voucher_svc.finish(db, order=order, step=step)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}

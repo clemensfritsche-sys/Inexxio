@@ -194,8 +194,14 @@ export function ModuleSection({ title, state, right, children, first }: {
   return (
     // `data-fb-section` benennt den Abschnitt für eine Testnotiz – damit steht in jeder
     // Notiz aus einer Modul-Karte «‹Modul› › ‹Abschnitt›» statt einer `nth-of-type`-Kette.
+    // ►►► **Ein Abschnitt braucht Luft über sich** (Testnotiz #971). ◄◄◄ *«Kann man ein
+    // wenig mehr Spacing einbauen oberhalb von Angebot und oberhalb von Rechnung?»* – Ja,
+    // und es ist **eine** Zahl: der Abstand gehört der **Gattung** «Abschnitt einer
+    // Modul-Karte», nicht der einzelnen Aufrufstelle. Auf 18 px stand die
+    // Versalien-Beschriftung fast so nah am Inhalt darüber wie an ihrem eigenen; der
+    // Strich darunter band sie an das Falsche.
     <section data-fb-section={title || undefined}
-      style={{ marginTop: first ? 0 : 18, minWidth: 0 }}>
+      style={{ marginTop: first ? 0 : 26, minWidth: 0 }}>
       {(title || right) && (
         <div className="flex items-center gap-2" style={{
           paddingBottom: 8, marginBottom: 12, borderBottom: '1px solid var(--border-1)',

@@ -18,7 +18,6 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
-from ..schemas.deal import DealEmbed, DealParty, DealUpdate
 from ..schemas.voucher import VoucherEmbed, VoucherParty, VoucherUpdate
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
@@ -36,7 +35,6 @@ from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
-from ..services import deal as deal_svc
 from ..services import voucher as voucher_svc
 from ..services import flow as flow_svc
 from ..services import lookup
@@ -112,15 +110,10 @@ def _steps(db: Session, order: Order, *,
         # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
         # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.
         row.target = _place_ref(db, (s.config or {}).get("target"))
-        # **Der Geldvorgang** – dieselbe Bauart, eigene Maschine (``services/deal``).
-        # ``None`` bei jedem anderen Modultyp. Eine **Gegenpartei** sieht ihn, aber nur
-        # ihre eigene Angebotszeile und keine Zahl über Forderung und Geld: gefiltert
-        # wird beim Aufbau der Antwort, nicht in der Oberfläche.
-        money = deal_svc.embed_data(db, order=order, step=s, viewer=viewer)
-        row.deal = DealEmbed(**money) if money else None
-        # **Der Beleg** – dasselbe noch einmal für das neu aufgebaute Modul. Zwei
-        # Aufrufe, kein ``if module_type``: jedes Modul liefert seinen Vorgang oder
-        # ``None``, und die Zeile fällt mit dem alten Modul weg.
+        # **Der Beleg** – der Geldvorgang dieses Moduls, ``None`` bei jedem anderen
+        # Modultyp. Eine **Gegenpartei** sieht ihn, aber nur ihre eigene Angebotszeile
+        # und keine Zahl über Forderung und Geld: gefiltert wird beim Aufbau der
+        # Antwort, nicht in der Oberfläche.
         paper = voucher_svc.embed_data(db, order=order, step=s, viewer=viewer)
         row.voucher = VoucherEmbed(**paper) if paper else None
         # **Und warum es jetzt nicht abzuschliessen ist** (#945) – dieselbe Regel, die
@@ -169,7 +162,7 @@ _INTERNAL_FIELDS = (
 
 
 def _mine_only(resp: OrderResponse, steps: set[int]) -> OrderResponse:
-    """Derselbe Auftrag – **nur sein Teil davon** (``deal.mine``)."""
+    """Derselbe Auftrag – **nur sein Teil davon** (``voucher.mine``)."""
     blank = {
         name: OrderResponse.model_fields[name].get_default(call_default_factory=True)
         for name in _INTERNAL_FIELDS
@@ -192,13 +185,11 @@ def _involved(db: Session, viewer: UserProfile) -> Optional[set[tuple[int, int]]
     ERP-Zugang, sah ihren Auftrag aber in **keiner Liste** – erreichbar nur über die
     direkte Adresse. Zwei Ableitungen derselben Frage laufen genau so auseinander.
     """
-    deals = deal_svc.mine(db, viewer)
     papers = voucher_svc.mine(db, viewer)
-    if deals is None or papers is None:
-        # **Personal sieht alles** – beide Module antworten darauf mit ``None``, und eine
-        # Vereinigung mit «alles» ist «alles».
+    if papers is None:
+        # **Personal sieht alles** – das Modul antwortet darauf mit ``None``.
         return None
-    return {(r.order_id, r.step_id) for r in list(deals) + list(papers)}
+    return {(r.order_id, r.step_id) for r in papers}
 
 
 def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int]]:
@@ -476,30 +467,6 @@ def voucher_parties(
     ]
 
 
-@router.get("/deal-parties", response_model=list[DealParty])
-def deal_parties(
-    search: str = Query("", description="Objektnummer-Teilstring oder Name"),
-    limit: int = Query(20, ge=1, le=50),
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    """**Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**
-
-    Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
-    **ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit
-    ihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen
-    Gegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort
-    gilt sie dann auch beim Ausführen (``deal._party``).
-
-    **Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und
-    die Suche endet als «100000xyz ist keine Zahl».
-    """
-    return [
-        DealParty(object_id=u.object_id, name=u.display_name)
-        for u in deal_svc.search_parties(db, search=search, limit=limit)
-    ]
-
-
 @router.get("/module-catalog", response_model=ModuleCatalog)
 def module_catalog(_: UserProfile = Depends(require_employee)):
     """Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen.
@@ -520,7 +487,7 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
         # Sie waren die Vorgabe eines Modul-Feldes, und das Feld ist entfallen: der Satz
         # hängt an der **Sache**, nicht am Modul. Gefragt wird er je Position an der
         # Ausführungsstelle, und dorthin reist der Katalog mit dem Vorgang
-        # (``DealEmbed.vat_rates``). Ein zweiter Weg zur selben Liste wäre die Stelle,
+        # (``VoucherEmbed.vat_rates``). Ein zweiter Weg zur selben Liste wäre die Stelle,
         # die beim nächsten Satzwechsel jemand vergisst.
         capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
     )
@@ -836,55 +803,6 @@ def confirm_step(
     return _to_response(db, order)
 
 
-@router.post("/{object_id}/steps/{step_id}/deal", response_model=OrderResponse)
-def update_deal(
-    object_id: int,
-    step_id: int,
-    data: DealUpdate,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
-):
-    """**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.
-
-    ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·
-    ``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen
-    Löschweg gibt es nicht (Testnotizen #823/#824).
-
-    **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
-    wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle**
-    erlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.
-
-    **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
-    nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
-
-    **Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit
-    die Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``
-    nur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**
-    darf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;
-    wer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist
-    alles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.
-    """
-    order = orders_svc.get(db, object_id)
-    # **Dieselbe eine Frage wie beim Lesen**: wer den Auftrag nicht sieht, handelt auch
-    # nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
-    mine = _visible(db, order, user)
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None or (mine is not None and step.id not in mine):
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    row = deal_svc.apply(db, order=order, step=step, action=data.action,
-                         payload=data.changes(), actor=user)
-    log_audit(db, "deals", data.action,
-              f"Geldvorgang zu Modul {step.id} → {row.stage}",
-              user_id=user.id, object_id=order.object_id)
-    db.commit()
-    db.refresh(order)
-    return _to_response(db, order, viewer=user)
-
-
 @router.get("/{object_id}/steps/{step_id}/hold", response_model=HoldNumbers)
 def hold_numbers(
     object_id: int,
@@ -963,136 +881,13 @@ def step_record(
     )
 
 
-def _deal_step(db: Session, order, step_id: int, user: UserProfile):
-    """**Der Geldvorgang eines Moduls – und ob dieser Betrachter ihn sieht.**
-
-    Dreimal dieselbe Vorrede (Vorbereiten · Erstatten · Überweisen); ausgeschrieben wäre
-    sie dreimal dieselbe Chance, eine der beiden Prüfungen zu vergessen.
-    """
-    mine = _visible(db, order, user)
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None or (mine is not None and step.id not in mine):
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    row = deal_svc.of_step(db, step.id)
-    if row is None:
-        raise HTTPException(status_code=404,
-                            detail="Dieses Modul hat keinen Geldvorgang.")
-    return step, row
-
-
-@router.post("/{object_id}/steps/{step_id}/deal/payment", response_model=PaymentSetup)
-def prepare_payment(
-    object_id: int,
-    step_id: int,
-    charge: Optional[int] = None,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
-):
-    """►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
-
-    ►►► **Bezahlt wird EINE genannte Rechnung** (Testnotiz #859). ◄◄◄ ``charge`` ist die
-    Zeile, an der geklickt wurde – ohne Angabe die älteste offene. Vorher kassierte der
-    Weg immer die älteste: standen zwei offen, war die zweite unbezahlbar, obwohl ihr Knopf
-    danebenstand.
-
-    Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
-    Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
-    erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
-    des Zahlenden.
-
-    **Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier
-    kommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind
-    zwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE
-    Frage, und dieselbe Liste ist auch hier das **Tor**.
-
-    **Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der
-    Kunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt
-    ``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt
-    ``404`` wie überall.
-
-    Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)
-    – und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.
-    """
-    # **Dieselbe eine Frage wie beim Lesen** (wie bei ``…/deal``): wer den Auftrag nicht
-    # sieht, zahlt auch nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
-    order = orders_svc.get(db, object_id)
-    _step, row = _deal_step(db, order, step_id, user)
-    # ►►► **Dieselbe Tabelle, die den Knopf zeigt, lässt hier durch.** ◄◄◄ Eine eigene
-    # Prüfung daneben wäre ein zweiter Massstab – und der bekäme die nächste Bedingung
-    # nicht mit.
-    deal_svc.assert_allowed(db, row, "pay_online", user)
-    return PaymentSetup(**stripe_pay.prepare(db, svc=deal_svc, row=row, order=order, charge_id=charge))
-
-
-@router.post("/{object_id}/steps/{step_id}/deal/refund", response_model=OrderResponse)
-def refund_payment(
-    object_id: int,
-    step_id: int,
-    body: DealUpdate,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
-):
-    """►►► **Geld zurück — über den Dienst, der es eingezogen hat** (Testnotiz #860). ◄◄◄
-
-    *«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag
-    zurückerstatten.»* – Genau, und der Weg hängt daran, **wie** das Geld kam: bar und per
-    Überweisung ist die Erstattung eine gewöhnliche negative Zahlung (die es längst gibt),
-    eine **Karte** erstattet der Dienst, der sie belastet hat.
-
-    **Gebucht wird auch hier nicht hier**: der Dienst meldet die Erstattung, und der
-    Webhook schreibt die negative Zeile – dieselbe Regel wie beim Einziehen, und aus
-    demselben Grund (wer den Browser schliesst, darf keine Buchung verschlucken).
-
-    **Personal-only**: eine Erstattung ist unsere Aussage über unser Konto. Der Kunde
-    fordert sie an, er löst sie nicht aus.
-    """
-    order = orders_svc.get(db, object_id)
-    step, row = _deal_step(db, order, step_id, user)
-    deal_svc.assert_allowed(db, row, "refund_online", user)
-    stripe_pay.refund(db, svc=deal_svc, row=row, entry_id=body.entry,
-                      amount=body.amount)
-    return _to_response(db, order, user)
-
-
-@router.get("/{object_id}/steps/{step_id}/deal/transfer", response_model=TransferInfo)
-def transfer_details(
-    object_id: int,
-    step_id: int,
-    entry: int,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
-):
-    """**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung (#865).
-
-    Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
-    den Vorgang sieht – der Zahlende zuerst, denn er ist es, der überweist.
-
-    **Erst auf Klick**: der Code ist ein paar Kilobyte SVG, und er interessiert genau
-    dann, wenn jemand wirklich zahlen will.
-    """
-    order = orders_svc.get(db, object_id)
-    _step, row = _deal_step(db, order, step_id, user)
-    charge = next((e for e in deal_svc.open_charges(db, row) if e.id == entry), None)
-    if charge is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Zu dieser Rechnung gibt es nichts zu überweisen – sie ist beglichen "
-                   "oder gehört nicht zu diesem Vorgang.")
-    return TransferInfo(**deal_svc.transfer_info(db, row, charge))
-
-
 # ---------------------------------------------------------------------------
 # ►►► DER BELEG — das neu aufgebaute Modul «Zahlung» (docs/neuaufbau-zahlungsmodul.md)
 # ---------------------------------------------------------------------------
 #
-# Eigene Wege statt eines gemeinsamen mit ``…/deal``: die beiden Module teilen bewusst
-# keine Zeile Code, damit das alte eines Tages **ersatzlos** gelöscht werden kann – und
-# dann fallen genau diese fünf Endpunkte des alten weg, nicht eine Verzweigung in einem
-# geteilten.
+# Das Vorgängermodul hatte seine eigenen Wege daneben (``…/deal`` & Co.) – **genau
+# deshalb liess es sich ersatzlos löschen**: es fielen fünf Endpunkte weg statt einer
+# Verzweigung in einem geteilten (Testnotiz #960).
 
 def _voucher_step(db: Session, order, step_id: int, user: UserProfile):
     """**Der Beleg eines Moduls – und ob dieser Betrachter ihn sieht.**

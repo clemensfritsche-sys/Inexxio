@@ -108,50 +108,20 @@ _COLUMN_SAFETY_NET = (
     # Beschaffen und Verkauf sind ersatzlos entfernt, das Geld steht im «Zahlung»-Modul.
     # Ein Netz für eine Spalte, die kein Modell mehr liest, schützt nichts; die **Tabelle**
     # bleibt trotzdem stehen (Zwei-Deploy-Regel, ``docs/backlog.md``).
-    # **Der Geldvorgang hat zwei Parteien** (Migration 125): der Angebotsspiegel steht an
-    # der BESTEHENDEN Tabelle ``deals``. Ohne ihn scheitert jeder Lesezugriff auf einen
-    # Vorgang – und damit jede Auftrags-Anzeige, in der ein «Zahlung»-Modul steht.
-    # ``create_all`` legt eine fehlende Tabelle an, **nie** eine fehlende Spalte.
-    ("deals", "quotes", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
-    # Was gehandelt wird, eingefroren mit der Zusage (Migration 125).
-    ("deals", "agreed_lines", "JSONB"),
-    # **Eine Stornierung ist eine Gegenbuchung** (Migration 126) – der Verweis auf die
-    # stornierte Zeile. Der Fremdschlüssel ist hier bewusst nicht dabei: das Netz zieht
-    # eine **Spalte** nach, damit der Dienst startet; die Integrität stellt die Migration
-    # her, und sie ist die Wahrheit.
-    ("deal_entries", "reverses_id", "BIGINT"),
-    # **Die Steuer gehört zum Beleg** (Migration 127): ohne Satz und Steuerbetrag ist eine
-    # Rechnung keine, und das Leistungsdatum entscheidet bei einem Satzwechsel über beides.
-    ("deal_entries", "vat", "JSONB"),
-    ("deal_entries", "service_date", "DATE"),
-    # **Ein Betrag hat eine Währung** (Migration 128): ohne sie ist «1000» tausend Franken
-    # oder tausend Yen. Vorgabe ``CHF``; wer in einer anderen fakturiert, sagt es am
-    # Vorgang – bis zur Zusage.
-    ("deals", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
-    # **Eine Zahlung gehört zu genau einer Rechnung** (Migration 129, Testnotiz #858).
-    # Ohne die Spalte scheitert jeder Lesezugriff auf eine Geld-Zeile, weil das Modell sie
-    # kennt – dieselbe Ausfallklasse wie ``reverses_id`` darüber; der Fremdschlüssel bleibt
-    # der Migration, das Netz zieht die **Spalte** nach.
-    ("deal_entries", "charge_id", "BIGINT"),
-    # **Die Zahlungsart** (Migration 130, Testnotiz #865) – ``NULL``-bar, weil jede
-    # Zahlung von vorher keine hat und eine geratene eine Behauptung wäre.
-    # *``deals.share`` stand hier daneben und ist mit Testnotiz #867 entfallen: die Spalte
-    # bleibt bis zum Folge-Deploy stehen (Zwei-Deploy-Regel), aber kein Modell liest sie
-    # mehr – ein Netz für eine Spalte, die niemand kennt, schützt nichts.*
-    ("deal_entries", "method", "VARCHAR(10)"),
+    # ►►► **Die Netze für ``deals``/``deal_entries`` sind mitgegangen** (#960). ◄◄◄
+    #
+    # Sie schützten Lesezugriffe auf den Vorgang des **Vorgänger**-Zahlungsmoduls, und den
+    # gibt es nicht mehr: ``domain/deal`` · ``services/deal`` · ``models/deal`` sind
+    # gelöscht, das Geld steht im Beleg (``vouchers`` & Co.). Ein Netz für eine Spalte, die
+    # kein Modell mehr liest, schützt nichts; die **Tabellen** bleiben trotzdem stehen –
+    # sie tragen die Vergangenheit (Zwei-Deploy-Regel, ``docs/backlog.md``).
     # ►► **Zoll und Lieferbedingung** (Migration 131). Sie stehen hier, weil eine Spalte,
     #    die **nur** in einer Migration steht, die dev-Datenbank nie erreicht – die Lehre
     #    aus #778, und beim Ausfall zählt ohnehin nur dieser Weg (Migration 090).
     ("articles", "hs_code", "VARCHAR(12)"),
     ("articles", "origin_country", "VARCHAR(2)"),
-    ("deals", "incoterm", "VARCHAR(3)"),
-    ("deals", "incoterm_place", "VARCHAR(120)"),
     # Migration 132 – wer den Beleg stellt (Testnotiz #905).
     ("user_profiles", "company_object_id", "BIGINT"),
-    ("deals", "issuer_company_id", "BIGINT"),
-    # Migration 133 – wann storniert wurde (Testnotiz #918). ``updated_at`` ist die
-    # Antwort nicht: sie wandert bei jeder späteren Änderung mit.
-    ("deals", "cancelled_on", "DATE"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -167,8 +137,13 @@ _COLUMN_SAFETY_NET = (
 #: ``alembic upgrade``. Geprüft wird vorher, damit nicht bei jedem Start eine Tabelle
 #: umgeschrieben wird.
 _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
-    ("deals", "amount", 18, 4),
-    ("deal_entries", "amount", 18, 4),
+    # Die beiden Beträge des **Vorgänger**-Zahlungsmoduls standen hier und sind mit ihm
+    # gegangen (#960). Das Netz bleibt: es ist der einzige Weg, auf dem eine Typänderung
+    # die dev-Datenbank erreicht, und wer es entfernt, erfindet es beim nächsten
+    # dreistelligen Betrag neu.
+    ("voucher_entries", "amount", 18, 4),
+    ("voucher_lines", "price", 18, 4),
+    ("voucher_quotes", "amount", 18, 4),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -312,15 +287,6 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE table_name='order_units' AND column_name='return_to_order_id') THEN "
     "CREATE INDEX IF NOT EXISTS ix_order_units_return_to_order_id "
     "ON order_units (return_to_order_id); END IF; END $$;",
-    # ►► **Worauf eine Zahlung geht** (Migration 129, Testnotiz #858): «was ist auf dieser
-    #    Rechnung noch offen» ist ein Sprung an ihre Zahlungen. Der Index steht hier, weil
-    #    eine Index-Änderung, die **nur** in einer Migration steht, die dev-Datenbank nie
-    #    erreicht – die Lehre aus #778, teuer bezahlt.
-    "DO $$ BEGIN IF to_regclass('public.deal_entries') IS NOT NULL "
-    "AND EXISTS (SELECT 1 FROM information_schema.columns "
-    "WHERE table_name='deal_entries' AND column_name='charge_id') THEN "
-    "CREATE INDEX IF NOT EXISTS ix_deal_entries_charge_id "
-    "ON deal_entries (charge_id); END IF; END $$;",
     # ►► **Die Sequenz der Gesellschaften holt auf.** Bis heute vergab
     #    ``CompanySettings.id`` ihre Nummer über einen Python-Default (``default=1``) bzw.
     #    über ``max(id) + 1`` – beides **ohne** die Sequenz der Spalte zu bewegen. In jeder

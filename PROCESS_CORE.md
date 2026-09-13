@@ -2812,11 +2812,98 @@ eine Ausgabe tragen (wir kaufen Material, wir verkaufen das Produkt) – «ein V
 Auftrag» bräuchte sofort die Regel «je Richtung». Und dass eine Anzahlung ein **zweites
 Modul** ist, bleibt richtig: drei Zeitpunkte sind drei Punkte im Prozess (§9.14).
 
-**Beide Fassungen laufen nebeneinander**, bis das alte Modul gelöscht wird. Sie teilen
-**keine Zeile** – eigene Vokabel, eigener Dienst, eigene Tabellen, eigene Endpunkte, eigene
-Komponente; die drei Berührungspunkte im Rahmen sind je eine Zeile und no-op ohne das
-Modul. Der Preis dafür ist eine **befristete Doppelung** des Steuerkatalogs, und sie hat
-einen Wächter, der mit dem alten Modul stirbt.
+►►► **Und der Vorgänger ist gelöscht** (Testnotiz #960). ◄◄◄ *«Dieses Prozessschrittmodul
+kann vollständig und gänzlich aus dem Code eliminiert werden wie bereits geplant.»* – Es
+war ein **Löschen**, kein Umbau, und genau dafür wurde dieses Modul **neben** ihn gebaut
+statt in ihn hinein: gefallen sind `domain/deal` · `services/deal` · `schemas/deal` ·
+`models/deal` · `deal-work.tsx`, der Modul-Eintrag, fünf Endpunkte, fünf API-Methoden und
+54 Wächter, die seine Form prüften. **Hier keine Zeile.** Die befristete Doppelung des
+Steuerkatalogs ist damit aufgelöst, und es gibt wieder genau eine Fassung.
+
+*Die Tabellen `deals`/`deal_entries` bleiben stehen* – dieselbe Regel wie bei jeder
+Alt-Tabelle: eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop kostet die
+Vergangenheit und verlangt vorher eine Sicherung der produktiven Datenbank
+(`docs/backlog.md`).
+
+#### 9.15a Was auf dem Beleg steht, ist Pflicht
+
+> Testnotiz #964 · `voucher._assert_complete` · `.ix-editable.is-missing`
+
+*«Alle Eingabefelder hier in diesem Modul – also alles, was so leicht blau hinterlegt ist –
+sollen Muss-Felder sein.»* «Leicht blau hinterlegt» **ist** die Auszeichnung änderbarer
+Werte (§9.15, `.ix-editable`), also gilt die Regel jedem Wert, den der Beleg trägt: Preis
+und Steuersatz je Position, die beiden **Zoll**-Angaben, die beiden **Fristen** und die
+**Lieferbedingung** samt ihrem Ort.
+
+**Geprüft wird an der EINEN Stelle, an der er nach aussen geht** (`ask`) – nicht bei jedem
+Tippen: der Beleg *entsteht* unvollständig, und eine Meldung dabei sagte nur, dass man noch
+nicht fertig ist. Die rote Tönung im Browser ist die **freundliche Hälfte** derselben
+Regel, nie ein zweiter Massstab (dieselbe Bauart wie `pick_problem`/`unpickable`).
+
+**Gelesen wird der Wert, der auf dem Beleg STEHT** – die Zeile, wo sie etwas trägt, sonst
+der Artikel. Die rohe Spalte zu prüfen hiesse, eine Angabe zu verlangen, die sichtbar längst
+dasteht. Und **der Satz nennt die Position**: «Ohne Zolltarifnummer …» über einem Beleg mit
+zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
+
+*Die eine benannte Folge: die Zoll-Angaben sind Pflicht **auch im Inland**. Man könnte sie
+am Ziel festmachen (Empfängerland ≠ Ausstellerland), aber ein Pflichtfeld, das je nach
+Empfänger eines ist oder nicht, ist keins – sondern eine Regel, die man erst beim Scheitern
+kennenlernt. Sie stehen ohnehin am **Artikel** und reisen von dort auf jeden Beleg: wer sie
+einmal pflegt, tippt sie nie wieder.*
+
+#### 9.15b Der Belegkopf nennt die Belegart, nicht den Zustand
+
+> Testnotiz #974 · `Direction.document_label`
+
+Im Kopf stand an einem **erledigten** Vorgang «Erledigt». Ein Papier heisst «Offerte» oder
+«Auftragsbestätigung»; dass der Vorgang damit durch ist, sagt das **Modul**. `done` und
+`cancelled` sind **Ausgänge, keine Stufen** – wer dort steht, hat die Zusage hinter sich,
+also ist die Belegart die des letzten erreichten Schritts.
+
+Ein stornierter Beleg behält damit seinen Namen und sagt **daneben**, dass er storniert ist
+(`cancelled_on`): *der Beleg behält seinen Weg.* `label_of` bleibt unverändert daneben –
+eine Fehlermeldung über die Stufe muss die Stufe nennen dürfen. **Zwei Fragen, zwei
+Antworten.**
+
+#### 9.15c Eine Chronik gibt es nicht — die Daten stehen an ihrem Ort
+
+> Testnotizen #968 · #969 · #970
+
+*«Die Chronik kann vollständig und gänzlich entfallen. Ich möchte die Information dort
+darstellen, wo sie eigentlich angezeigt werden.»* Sie zählte **zwei Daten** auf, und beide
+haben einen eigenen Ort: *wann offeriert wurde* am Kopf der Angebote, *wann zugesagt wurde*
+an der Zeile, bei der zugesagt wurde, *wann storniert wurde* im Belegkopf. Ein Abschnitt,
+der dieselben Daten ein zweites Mal nennt, ist nicht der Nachweis, sondern seine ärmere
+Kopie: nacktes Datum statt Aussage.
+
+**Die Aussage steht da, die Tatsache im Hover** («vor 3 Tagen offeriert» ↔ Datum und
+Uhrzeit) – dieselbe Regel wie bei der Fälligkeit einer Geld-Zeile (§9.14).
+
+**Und der Moment brauchte keine Spalte**: `created_at` einer Angebotszeile *ist* der
+Moment, in dem sie hinausging (`_ask` legt sie genau dort an und nirgends sonst), und
+`updated_at` der **gewählten** Zeile ist der Moment des Zuschlags (`_agree` setzt `CHOSEN`
+in einem Zug mit der Stufe, und danach fasst kein Verb sie mehr an). `sent_on` bleibt
+daneben: das ist das **Datum auf dem Papier** – ein Beleg trägt einen Tag, keine Uhrzeit.
+
+#### 9.15d Die Gegenpartei: eine Liste, eine Form
+
+> Testnotiz #962 · `voucher._possible_parties`
+
+Dieselbe Sache stand in **zwei** Formensprachen da: eine angefragte Partei als Chip mit
+Zustandspunkt und ✕, eine zugelassene, noch nicht angefragte als `+ Name`-Knopf – und der
+trug ausgerechnet `.ix-editable`, die Auszeichnung **änderbarer Werte**. Damit sah *jede*
+Partei dauerhaft «aktiv» aus, und ob eine angefragt war, war an der Form nicht abzulesen.
+
+**Ein Chip je möglicher Gegenpartei**, und eine Anatomie: Punkt (gefüllt = angefragt ↔
+hohler Ring), Name, Handlung (`+` fragt an, `✕` zieht zurück). Der **Name zeigt die
+Anschrift** – immer, auch bei einer noch nicht angefragten: im Offertenschritt ist niemand
+angefragt, und die Anschrift will man sehen, **bevor** man anbietet. `recipients` trägt
+darum die **Vereinigung** zugelassen ∪ angefragt; eine zweite Abfrage braucht es nicht.
+
+**Und die Liste hängt nicht mehr an `ask`.** Sie stand nur da, solange man anfragen
+*durfte* – fehlte eine Stammdatenangabe, verschwand mit dem Anfragen auch das Abwählen und
+die Anschrift. Was man **tun** darf, entscheidet weiterhin `can`, je Chip; was man **sehen**
+darf, ist eine andere Frage.
 
 ## 10. Darstellung
 

@@ -100,8 +100,10 @@ def _article(db, name: str, *, steps=None):
     """
     from app.models import Article
     from app.services import article_process as tpl, objects as obj
+    # **Die Zoll-Angaben stehen am Artikel** und reisen von dort auf jeden Beleg – seit
+    # #964 sind sie Pflicht, bevor er hinausgeht (`_assert_complete`).
     art = Article(object_id=obj.next_object_id(db), name=name, unit="stk",
-                  serialization="batch")
+                  serialization="batch", hs_code="848210", origin_country="CH")
     db.add(art)
     db.flush()
     tpl.create_steps(db, art, [
@@ -146,6 +148,11 @@ def _scene(db, *, direction: str = "in", quantity: int = 3, parties=None):
     step = next(s for s in steps if s.module_type == "beleg")
     row = svc.of_step(db, step.id)
     assert row is not None, "Die Freigabe hat keinen Beleg angelegt."
+    # **Die Lieferbedingung gehört zum vollständigen Beleg** (#964) – ohne sie geht er
+    # nicht hinaus, und fast jede Prüfung hier will ihn hinausgehen lassen.
+    svc.apply(db, order=order, step=step, action="incoterm",
+              payload={"incoterm": "FCA", "incoterm_place": "Rorschach"})
+    db.flush()
     return order, step, row, who, art
 
 
@@ -1234,3 +1241,200 @@ def test_a_recipient_carries_its_own_address():
             "Dieselbe Anschrift steht zweimal da (e) – zwei Blöcke mit demselben Text sind "
             "zwei Aussagen über eine Sache."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #960–#974 – was hinausgeht, ist vollständig
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_incomplete_document_does_not_go_out():
+    """►►► **Was auf dem Beleg steht, ist PFLICHT** (Testnotiz #964). ◄◄◄
+
+    *«Alle Eingabefelder hier in diesem Modul – also alles, was so leicht blau hinterlegt
+    ist – sollen Muss-Felder sein.»*
+
+    «Leicht blau hinterlegt» ist die Auszeichnung **änderbarer Werte** (`.ix-editable`,
+    #922) – die Regel gilt also jedem Wert, den der Beleg trägt. Geprüft wird an der
+    **einen** Stelle, an der er nach aussen geht (``_ask``); die rote Tönung im Browser
+    ist die freundliche Hälfte derselben Regel, nie ein zweiter Massstab.
+
+    **Gelesen wird der Wert, der auf dem Beleg STEHT** – die Zeile, wo sie etwas trägt,
+    sonst der Artikel (``embed_lines``). Die rohe Spalte zu prüfen hiesse, eine Angabe zu
+    verlangen, die sichtbar längst dasteht.
+
+    Bug-Formen: (a) ohne Zolltarifnummer geht es trotzdem hinaus; (b) ohne Ursprungsland;
+    (c) ohne Lieferbedingung; (d) der Satz nennt die Position nicht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+
+    db = _db()
+    try:
+        order, step, row, who, art = _scene(db)
+        _price(db, order, step, row)
+
+        # (c) Ohne Lieferbedingung – die Szene setzt sie, also wieder wegnehmen.
+        row.incoterm, row.incoterm_place = None, None
+        db.flush()
+        with pytest.raises(HTTPException) as no_clause:
+            svc.apply(db, order=order, step=step, action="ask",
+                      payload={"payment_days": 30, "lead_days": 10})
+        assert "Lieferbedingung" in no_clause.value.detail, (
+            "Ohne Lieferbedingung geht der Beleg hinaus (c)."
+        )
+        svc.apply(db, order=order, step=step, action="incoterm",
+                  payload={"incoterm": "FCA", "incoterm_place": "Rorschach"})
+
+        # (a)/(b) Ohne Zoll-Angaben – sie stehen am Artikel und reisen von dort mit.
+        for field, word in (("hs_code", "Zolltarifnummer"),
+                            ("origin_country", "Ursprungsland")):
+            keep = getattr(art, field)
+            setattr(art, field, None)
+            db.flush()
+            with pytest.raises(HTTPException) as gone:
+                svc.apply(db, order=order, step=step, action="ask",
+                          payload={"payment_days": 30, "lead_days": 10})
+            assert word in gone.value.detail, f"«{word}» ist keine Pflichtangabe (a/b)."
+            # (d) **Der Satz nennt die Position** – «Ohne Zolltarifnummer …» über einem
+            # Beleg mit zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
+            assert art.name in gone.value.detail, (
+                "Der Satz nennt die betroffene Position nicht (d)."
+            )
+            setattr(art, field, keep)
+            db.flush()
+
+        # Und vollständig geht er hinaus.
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"payment_days": 30, "lead_days": 10})
+        assert svc.quotes_of(db, row), "Der vollständige Beleg geht nicht hinaus."
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_document_head_names_the_kind_never_the_state():
+    """►►► **Im Belegkopf steht die BELEGART, nicht «Erledigt»** (Testnotiz #974). ◄◄◄
+
+    *«Ich möchte, dass diese Anzeige hier verschwindet.»* – Gemeldet an einem **erledigten**
+    Vorgang, und dort stand «Erledigt». Ein Papier heisst «Offerte» oder
+    «Auftragsbestätigung»; dass der Vorgang damit durch ist, sagt das Modul.
+
+    ``done`` und ``cancelled`` sind **Ausgänge, keine Stufen** – wer dort steht, hat die
+    Zusage hinter sich, also ist die Belegart die des letzten erreichten Schritts. Ein
+    stornierter Beleg behält damit seinen Namen und sagt daneben, dass er storniert ist
+    (``cancelled_on``): *der Beleg behält seinen Weg.*
+
+    **``label_of`` bleibt daneben unverändert** – eine Fehlermeldung über die Stufe muss
+    die Stufe nennen dürfen. Zwei Fragen, zwei Antworten.
+
+    Bug-Formen: (a) der Kopf nennt wieder einen Ausgang; (b) ``label_of`` ist mitgezogen
+    worden und kann die Stufe nicht mehr benennen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+
+    for flow in vo.DIRECTIONS.values():
+        agreed = flow.stage_labels[vo.AGREED]
+        for exit_stage in (vo.DONE, vo.CANCELLED):
+            assert flow.document_label(exit_stage) == agreed, (
+                f"Der Belegkopf nennt bei «{exit_stage}» keinen Beleg (a)."
+            )
+        assert flow.document_label(vo.OFFER) == flow.stage_labels[vo.OFFER]
+        # (b) Die Stufe hat weiterhin ihr eigenes Wort – für den Fehlersatz.
+        assert flow.label_of(vo.DONE) == "Erledigt"
+        assert flow.label_of(vo.CANCELLED) == "Storniert"
+
+
+def test_every_possible_party_carries_its_address():
+    """►►► **Die Anschrift will man sehen, BEVOR man anbietet** (Testnotiz #962). ◄◄◄
+
+    *«Zudem, und das stört mich immer noch: ich sehe die Anschrift(en) nicht. Ich bin im
+    Offertenschritt, also der allerersten Stufe.»* – Genau dort ist noch **niemand**
+    angefragt, und ``recipients`` trug nur die Angefragten: die Liste war leer, und die
+    Anschrift, die man braucht, gab es gar nicht.
+
+    Sie kommt jetzt aus der **Vereinigung** – zugelassen ∪ angefragt, Definition zuerst –,
+    und die Oberfläche braucht dafür keine zweite Abfrage.
+
+    Bug-Formen: (a) eine zugelassene, noch nicht angefragte Partei fehlt; (b) eine frei
+    hinzugefügte fehlt; (c) eine steht doppelt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+
+    db = _db()
+    try:
+        staff = _party(db, "Wir AG", "employee")
+        one = _party(db, "Erste AG", "customer")
+        two = _party(db, "Zweite AG", "customer")
+        order, step, row, _who, _art = _scene(db, parties=[one, two])
+
+        seen = [r["object_id"] for r in
+                svc.embed_data(db, order=order, step=step, viewer=staff)["recipients"]]
+        assert seen == [one.object_id, two.object_id], (
+            f"Die zugelassenen Parteien tragen vor der Anfrage keine Seite (a): {seen}."
+        )
+        for r in svc.embed_data(db, order=order, step=step,
+                                viewer=staff)["recipients"]:
+            assert r["address"], "Eine Seite ohne Anschrift (a)."
+
+        # (b)/(c) Angefragt ändert nichts an der Liste – sie ist eine Vereinigung.
+        _price(db, order, step, row)
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [one.object_id], "payment_days": 30,
+                           "lead_days": 10})
+        again = [r["object_id"] for r in
+                 svc.embed_data(db, order=order, step=step, viewer=staff)["recipients"]]
+        assert again == [one.object_id, two.object_id], (
+            f"Die Liste ändert sich mit der Anfrage (b/c): {again}."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_quote_says_when_it_went_out_and_when_it_was_taken():
+    """►►► **Der Moment steht schon da – er brauchte keine Spalte** (#968/#969). ◄◄◄
+
+    *«… im Format ‹vor xx Tagen offeriert›, und beim Hovern das genaue Datum und
+    Uhrzeit.»* – ``created_at`` einer Angebotszeile **ist** der Moment, in dem sie
+    hinausging (``_ask`` legt sie genau dort an und nirgends sonst), und ``updated_at``
+    der **gewählten** Zeile ist der Moment des Zuschlags (``_agree`` setzt ``CHOSEN`` in
+    einem Zug mit der Stufe, und danach fasst kein Verb sie mehr an).
+
+    ``sent_on`` bleibt daneben: das ist das **Datum auf dem Papier**.
+
+    Bug-Formen: (a) der Moment fehlt; (b) er steht auch an einer Zeile ohne Zuschlag –
+    dann behauptet sie einen, den es dort nie gab.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+
+    db = _db()
+    try:
+        staff = _party(db, "Wir AG", "employee")
+        one = _party(db, "Erste AG", "customer")
+        two = _party(db, "Zweite AG", "customer")
+        order, step, row, _who, _art = _scene(db, parties=[one, two])
+        _price(db, order, step, row)
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"payment_days": 30, "lead_days": 10})
+
+        rows = svc.embed_data(db, order=order, step=step, viewer=staff)["quotes"]
+        assert all(q["sent_at"] for q in rows), "Der Moment des Hinausgehens fehlt (a)."
+        assert all(q["agreed_at"] is None for q in rows), (
+            "Eine Zeile ohne Zuschlag behauptet einen (b)."
+        )
+
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": one.object_id})
+        after = svc.embed_data(db, order=order, step=step, viewer=staff)["quotes"]
+        taken = [q for q in after if q["agreed_at"] is not None]
+        assert [q["party_object_id"] for q in taken] == [one.object_id], (
+            "Der Moment des Zuschlags steht nicht an genau der gewählten Zeile (b)."
+        )
+    finally:
+        db.rollback(); db.close()

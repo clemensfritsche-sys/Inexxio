@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, CalendarClock, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Pencil, Sparkles, ExternalLink, Zap, type LucideIcon } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-flow';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType } from '@/types';
@@ -1092,85 +1092,17 @@ export function Segmented({ label, value, onChange, options, required }: {
   );
 }
 
-/** Der Wert der freien Eingabe – kein Tagesbetrag, sondern «ich tippe selbst». */
-const TERM_FREE = 'free';
-
-/**
- * ►►► **Eine FRIST — die üblichen Werte mit Namen, der Rest getippt.** ◄◄◄
+/*
+ * ►►► **`TermField` ist entfallen — eine Frist ist ein WERT auf dem Beleg** (#934). ◄◄◄
  *
- * Eine Frist ist **eine Zahl in Tagen**. Ihre zwei, drei üblichen Werte trägt aber niemand
- * als Zahl im Kopf: «Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer, die man
- * erklären muss. Genau daraus kam die Meldung – ein nacktes Feld «Tage» beantwortet nicht,
- * was man üblicherweise hineinschreibt (Testnotizen #854/#855/#856).
+ * Es stand hier als Segmentierung («Vorauszahlung · 30 Tage · Individuell») und war damit
+ * ein **Formular** mitten in einem Dokument. Der Beleg druckt «Zahlbar in 30 Tagen», und
+ * dass man das ändern kann, sagt die Haarlinie (`beleg-work.Term` auf `DocPick`) – mehr
+ * nicht. Mit dem Vorgänger-Zahlungsmodul ist sein letzter Aufrufer gegangen (#960).
  *
- * **Und kein Schieberegler.** Eine Zahlungsfrist ist keine stufenlose Grösse: zwischen
- * «Vorauszahlung» und «30 Tage» liegt nichts, was man durch Ziehen findet, und ein Regler
- * über 0–365 träfe die 30 nur mit Glück. Es ist eine **Aufzählung mit einem freien Rest** –
- * und dafür ist die Segmentierung des Hauses da (`Segmented`, dieselbe Form wie überall).
- *
- * **Die Null gibt es nur über ihren Namen.** Die freie Eingabe beginnt bei `freeMin`;
- * sonst gäbe es zwei Wege zu einem Wert und damit zwei Bedeutungen, von denen eine niemand
- * kennt («0 Tage» ↔ «Vorauszahlung»). Geklemmt wird beim Verlassen, nicht beim Tippen –
- * wer eine 3 vor die 0 setzen will, muss die 0 erst schreiben dürfen.
+ * `Segmented` bleibt – es ist die Form für eine **Aufzählung mit wenigen Werten** im
+ * **Formular** (die Zahlungsart beim Buchen, #967), und dort ist sie richtig.
  */
-export function TermField({ label, value, onChange, terms, freeMin, freeLabel, required,
-  preview }: {
-  label: string;
-  /** Die Tageszahl als **String** – ein halb getipptes Feld hat keine Zahl. */
-  value: string;
-  onChange: (v: string) => void;
-  terms: { days: number; label: string }[];
-  freeMin: number;
-  freeLabel: string;
-  required?: boolean;
-  /**
-   * ►►► **Was aus der Frist folgt** (Testnotiz #884). ◄◄◄
-   *
-   * *«Bei Datum muss man immer rechnen … eigentlich zu sagen in x Tagen.»* – Genau so ist
-   * es gebaut, man sah es nur nicht: aus der Lieferfrist wird der Termin (Zusagedatum +
-   * Frist), aus der Zahlungsfrist die Fälligkeit. Der **Aufrufer** rechnet es, weil nur er
-   * das Bezugsdatum kennt; das Feld zeigt es an. Ohne Angabe steht hier nichts.
-   */
-  preview?: string;
-}) {
-  const preset = terms.find((t) => String(t.days) === value);
-  // **Ein Zustand, keine zweite Wahrheit**: er sagt nur, dass jemand «Individuell»
-  // *gewählt* hat – ob die freie Eingabe steht, folgt aus dem Wert selbst.
-  const [manual, setManual] = useState(false);
-  const free = manual || (value !== '' && !preset);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Segmented label={label} required={required}
-        value={free ? TERM_FREE : (preset ? String(preset.days) : '')}
-        onChange={(v) => {
-          setManual(v === TERM_FREE);
-          onChange(v === TERM_FREE ? '' : v);
-        }}
-        // ►►► **Das Symbol folgt aus der Zahl, nicht aus einer Tabelle** (#877/#878). ◄◄◄
-        // Null Tage heisst «ohne Frist» (Sofort · Vorauszahlung), jede andere Zahl ist ein
-        // Termin, und «Individuell» ist die Eingabe. Drei Zeichen für beliebig viele
-        // Werte – eine Zuordnung je Wort wäre die Stelle, an der der nächste übliche Wert
-        // ohne Symbol dasteht.
-        options={[...terms.map((t) => ({
-          value: String(t.days), label: t.label, icon: t.days === 0 ? Zap : CalendarClock,
-        })), { value: TERM_FREE, label: freeLabel, icon: Pencil }]} />
-      {free && (
-        <input className={`${inputCls} ix-tnum`} {...numericInputProps} value={value}
-          aria-label={`${label} in Tagen`} placeholder={`ab ${freeMin} Tagen`}
-          onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
-          onBlur={() => {
-            if (value === '') return;
-            onChange(String(Math.max(freeMin, Number(value))));
-          }} />
-      )}
-      {preview && (
-        <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}>
-          {preview}
-        </span>
-      )}
-    </div>
-  );
-}
 
 /**
  * Der Zustand als Pille: Symbol + Farbe + Wort – **eine** Form, überall dieselbe (Feed wie
