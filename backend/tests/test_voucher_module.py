@@ -115,11 +115,18 @@ def _article(db, name: str, *, steps=None):
     return art
 
 
-def _step(*, direction: str = "in", parties=(), task: str = "Härten auf 58 HRC") -> dict:
-    """Ein Beleg-Modul – **zwei** Angaben, mehr gibt es nicht."""
+def _step(*, direction: str = "in", parties=(), task: str = "Härten auf 58 HRC",
+          ref: str = "Art. 4711") -> dict:
+    """Ein Beleg-Modul – **drei** Angaben, mehr gibt es nicht.
+
+    ``task`` ist **was zu tun ist** (am Modul, freiwillig), ``ref`` **wie man bei ihm
+    bestellt** (je Partner, Pflicht – aber nur, wo wir bestellen). Zwei Fragen, zwei
+    Angaben: als eine stellte sie beim Verkauf eine, die niemand beantworten kann.
+    """
     return {"module_type": "beleg",
             "config": {"direction": direction,
-                       "parties": [{"party": p.object_id, "ref": task} for p in parties]}}
+                       "instruction": task,
+                       "parties": [{"party": p.object_id, "ref": ref} for p in parties]}}
 
 
 def _order(db, *, quantity: int, article, steps=None, actor=None):
@@ -1167,14 +1174,21 @@ def test_a_recipient_carries_its_own_address():
     «Anschrift zu Nummer» wäre ein zweiter Weg zu einer Angabe, die der Beleg ohnehin
     liefert.
 
-    **Und wo eine eigene Rechnungsadresse steht, sind es zwei Anschriften** (#952) – mit
-    Beschriftungen, aber **nur dann**: bei einer einzigen wäre «Rechnungsadresse» eine
-    Unterscheidung ohne Gegenstück.
+    ►►► **Und jede Seite nennt BEIDE Anschriften – immer** (#952/#975). ◄◄◄ *«Ich möchte,
+    dass du das auch auf dem Leistungserbringer machst – standardmässig immer bei
+    Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
+    Eine Logik für alles, Komplexität und If/Else verringern.»*
+
+    Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* – und stellt sie auf
+    jeder Seite gleich. Steht nur eine Anschrift da, trägt sie beide Beschriftungen: das ist
+    die Auskunft «an dieselbe», nicht eine Doppelung. **Wo gar keine dasteht**, gibt es auch
+    keine Beschriftung – dort sagt die Seite, dass sie fehlt.
 
     Bug-Formen: (a) die Seiten fehlen; (b) sie tragen keine Anschrift; (c) eine Gegenpartei
-    bekommt die Konkurrenzliste; (d) die Lieferadresse fehlt, obwohl sie abweicht; (e) sie
-    steht doppelt, weil sie gleich ist; (f) die Beschriftungen stehen auch bei einer
-    einzigen Anschrift da.
+    bekommt die Konkurrenzliste; (d) die abweichende Lieferadresse fehlt; (e) die zweite
+    Anschrift fällt weg, weil sie gleich ist; (f) die Beschriftungen fehlen bei einer
+    einzigen Anschrift; (g) **unsere** Seite nennt sie nicht; (h) sie stehen auch da, wo es
+    gar keine Anschrift gibt.
     """
     from app.domain import voucher as vo
     from app.services import voucher as svc
@@ -1207,10 +1221,24 @@ def test_a_recipient_carries_its_own_address():
             "Eine Gegenpartei sieht die übrigen Angefragten (c)."
         )
 
-        # (f) Eine einzige Anschrift trägt **keine** Beschriftung.
+        # (f) Eine einzige Anschrift steht unter **beiden** Beschriftungen – das ist die
+        # Auskunft «an dieselbe» (#975).
         plain = next(r for r in seen["recipients"] if r["object_id"] == one.object_id)
-        assert plain["shipping"] == [] and plain["address_label"] is None, (
-            "Beschriftungen bei einer einzigen Anschrift (f)."
+        assert plain["shipping"] == plain["address"] and plain["address"], (
+            "Die zweite Anschrift fehlt, wo es nur eine gibt (f)."
+        )
+        assert plain["address_label"] == vo.BILLING_LABEL
+        assert plain["shipping_label"] == vo.SHIPPING_LABEL, (
+            "Beschriftungen fehlen bei einer einzigen Anschrift (f)."
+        )
+        # (g) **Unsere** Seite beantwortet dieselben zwei Fragen.
+        ours = seen["supplier"] if seen["supplier"]["ours"] else seen["customer"]
+        assert ours["address"] and ours["shipping"] == ours["address"], (
+            "Der Leistungserbringer nennt seine Anschriften nicht (g)."
+        )
+        assert (ours["address_label"], ours["shipping_label"]) == (
+            vo.BILLING_LABEL, vo.SHIPPING_LABEL), (
+            "Unsere Seite trägt keine Beschriftungen (g)."
         )
 
         # (d) Eine abweichende Rechnungsadresse macht zwei daraus.
@@ -1228,7 +1256,8 @@ def test_a_recipient_carries_its_own_address():
         assert both["address_label"] == vo.BILLING_LABEL
         assert both["shipping_label"] == vo.SHIPPING_LABEL
 
-        # (e) Und ist sie gleich, gibt es sie **nicht** zweimal.
+        # (e) Und ist sie gleich, steht sie trotzdem unter beiden Beschriftungen – die
+        # Frage «wohin die Ware» hat dann eben dieselbe Antwort (#975).
         one.invoice_address_line1 = one.address_line1
         one.invoice_postal_code = one.postal_code
         one.invoice_city = one.city
@@ -1237,9 +1266,16 @@ def test_a_recipient_carries_its_own_address():
         same = next(r for r in svc.embed_data(db, order=order, step=step,
                                              viewer=staff)["recipients"]
                     if r["object_id"] == one.object_id)
-        assert same["shipping"] == [], (
-            "Dieselbe Anschrift steht zweimal da (e) – zwei Blöcke mit demselben Text sind "
-            "zwei Aussagen über eine Sache."
+        assert same["shipping"] == same["address"], (
+            "Die zweite Anschrift fällt weg, weil sie gleich ist (e)."
+        )
+
+        # (h) **Wo gar keine dasteht, wird auch nichts beschriftet** – dort sagt die Seite,
+        # dass sie fehlt; eine Beschriftung über einer Lücke wäre eine leere Behauptung.
+        empty = svc.their_side(db, row, None)
+        assert empty["address"] == [] and empty["shipping"] == []
+        assert empty["address_label"] is None and empty["shipping_label"] is None, (
+            "Beschriftungen über einer Seite ohne jede Anschrift (h)."
         )
 
 
@@ -1313,38 +1349,39 @@ def test_an_incomplete_document_does_not_go_out():
         db.rollback(); db.close()
 
 
-def test_the_document_head_names_the_kind_never_the_state():
-    """►►► **Im Belegkopf steht die BELEGART, nicht «Erledigt»** (Testnotiz #974). ◄◄◄
+def test_the_document_head_names_no_kind_at_all():
+    """►►► **Der Belegkopf nennt die Belegart gar nicht** (Testnotizen #974/#977). ◄◄◄
 
-    *«Ich möchte, dass diese Anzeige hier verschwindet.»* – Gemeldet an einem **erledigten**
-    Vorgang, und dort stand «Erledigt». Ein Papier heisst «Offerte» oder
-    «Auftragsbestätigung»; dass der Vorgang damit durch ist, sagt das Modul.
+    *«Ich habe eigentlich gesagt, dass dies nicht angezeigt werden soll hier oben.»* – #974
+    hiess «diese Anzeige verschwindet», und daraus die **Belegart** zu machen war die
+    Auslegung einer Ablehnung, keine Umsetzung. Sie sagt oben auch nichts, was die Karte
+    nicht schon sagt: wie weit der Beleg ist, steht als Punkt an jedem Abschnitt, und was
+    als Nächstes zu tun ist, auf dem Knopf, der es tut.
 
-    ``done`` und ``cancelled`` sind **Ausgänge, keine Stufen** – wer dort steht, hat die
-    Zusage hinter sich, also ist die Belegart die des letzten erreichten Schritts. Ein
-    stornierter Beleg behält damit seinen Namen und sagt daneben, dass er storniert ist
-    (``cancelled_on``): *der Beleg behält seinen Weg.*
+    Damit hat ``document_label`` keinen Leser mehr – und eine Auflösung ohne Leser ist die
+    zweite Wahrheit, die beim nächsten Umbau abweicht. **``label_of`` bleibt**: eine
+    Fehlermeldung über die Stufe muss die Stufe nennen dürfen.
 
-    **``label_of`` bleibt daneben unverändert** – eine Fehlermeldung über die Stufe muss
-    die Stufe nennen dürfen. Zwei Fragen, zwei Antworten.
-
-    Bug-Formen: (a) der Kopf nennt wieder einen Ausgang; (b) ``label_of`` ist mitgezogen
-    worden und kann die Stufe nicht mehr benennen.
+    Bug-Formen: (a) die Belegart ist als Feld zurück (Dienst oder Schema); (b) ``label_of``
+    ist mitgezogen worden und kann die Stufe nicht mehr benennen.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import voucher as vo
+    from app.schemas.voucher import VoucherEmbed
 
+    # (a) Weder die Auflösung noch das Feld gibt es noch.
+    assert not hasattr(vo.DIRECTIONS[vo.IN], "document_label"), (
+        "«document_label» ist zurück – die Belegart hat keinen Leser mehr (a)."
+    )
+    assert "stage_label" not in VoucherEmbed.model_fields, (
+        "«stage_label» reist wieder mit, obwohl der Belegkopf sie nicht nennt (a)."
+    )
+    # (b) Die Stufe hat weiterhin ihr eigenes Wort – für den Fehlersatz.
     for flow in vo.DIRECTIONS.values():
-        agreed = flow.stage_labels[vo.AGREED]
-        for exit_stage in (vo.DONE, vo.CANCELLED):
-            assert flow.document_label(exit_stage) == agreed, (
-                f"Der Belegkopf nennt bei «{exit_stage}» keinen Beleg (a)."
-            )
-        assert flow.document_label(vo.OFFER) == flow.stage_labels[vo.OFFER]
-        # (b) Die Stufe hat weiterhin ihr eigenes Wort – für den Fehlersatz.
         assert flow.label_of(vo.DONE) == "Erledigt"
         assert flow.label_of(vo.CANCELLED) == "Storniert"
+        assert flow.label_of(vo.OFFER) == flow.stage_labels[vo.OFFER]
 
 
 def test_every_possible_party_carries_its_address():
@@ -1436,5 +1473,88 @@ def test_a_quote_says_when_it_went_out_and_when_it_was_taken():
         assert [q["party_object_id"] for q in taken] == [one.object_id], (
             "Der Moment des Zuschlags steht nicht an genau der gewählten Zeile (b)."
         )
+    finally:
+        db.rollback(); db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #975–#978 – zwei Fragen, zwei Angaben
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_what_to_do_travels_with_the_document_and_stays_optional():
+    """►►► **«Was ist zu tun?» steht auf dem Beleg – und ist freiwillig.** ◄◄◄
+
+    *«Es ist bewusst bei der Definition angelegt worden: bei einem Fertigungsprozess
+    definiere ich im Vorhinein, was zu tun ist – im Prozess arbeite ich ihn nur noch ab.»*
+    Genau darum steht der Satz am **Modul** und nicht am laufenden Beleg. Er reist mit,
+    damit die Gegenpartei ihn liest – *sie* soll es ja tun.
+
+    **Leer ist der Normalfall** und heisst «gemäss Spezifikation»: die Positionen sagen
+    längst, *was* es ist. Ein Beleg, der dann «—» hinschreibt, sagt nichts.
+
+    Bug-Formen: (a) der Satz erreicht den Beleg nicht; (b) die Beschriftung fehlt; (c) ein
+    leerer Satz wird zu einem Wert; (d) die Gegenpartei sieht ihn nicht – sie soll es tun.
+    """
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        _house(db)
+        who = _party(db, "Muster AG", "customer")
+        order, step, row, _who, _art = _scene(db, parties=[who])
+        staff = _party(db, "Personal", "admin")
+
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert seen["task"] == "Härten auf 58 HRC", (
+            f"Der Auftrag erreicht den Beleg nicht (a): {seen['task']!r}."
+        )
+        assert seen["task_label"] == vo.TASK, "Die Beschriftung fehlt (b)."
+        # (d) **Wer es tun soll, muss es lesen** – der Satz hängt nicht an `won`.
+        theirs = svc.embed_data(db, order=order, step=step, viewer=who)
+        assert theirs["task"] == "Härten auf 58 HRC", (
+            "Die Gegenpartei sieht den Auftrag nicht (d)."
+        )
+
+        # (c) **Leer bleibt leer** – kein Platzhalter, kein «—».
+        step.config = {**step.config, "instruction": ""}
+        db.flush()
+        assert svc.embed_data(db, order=order, step=step, viewer=staff)["task"] == "", (
+            "Ein leerer Auftrag wird zu einem Wert (c)."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_how_to_order_exists_only_where_we_order():
+    """►►► **Die Bestellangabe ist eine Frage der RICHTUNG** (``Direction.party_ref``). ◄◄◄
+
+    *«Bei der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll.
+    Es ist ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
+
+    Sie beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein Shop-Link. Beim
+    **Verkauf** liefern wir; dort gibt es sie nicht, und ein trotzdem gesendeter Wert wird
+    **verworfen** statt gespeichert.
+
+    Bug-Formen: (a) sie steht am Verkaufs-Beleg; (b) sie fehlt am Einkaufs-Beleg.
+    """
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        _house(db)
+        for direction, expected in (("in", ""), ("out", "Art. 4711")):
+            who = _party(db, f"Partner {direction}", "customer")
+            order, step, row, _who, _art = _scene(db, direction=direction, parties=[who])
+            _price(db, order, step, row)
+            staff = _party(db, f"Personal {direction}", "admin")
+            svc.apply(db, order=order, step=step, action="ask",
+                      payload={"parties": [who.object_id],
+                               "payment_days": 30, "lead_days": 5}, actor=staff)
+            db.flush()
+            got = svc.embed_data(db, order=order, step=step,
+                                 viewer=staff)["quotes"][0]["ref"]
+            assert got == expected, (
+                f"«{direction}»: die Bestellangabe ist {got!r} statt {expected!r} "
+                f"({'a' if direction == 'in' else 'b'})."
+            )
     finally:
         db.rollback(); db.close()

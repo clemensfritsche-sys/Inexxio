@@ -3771,6 +3771,73 @@
 > Bug-Form nicht: er trägt `truncate`, und eine Textbreite hinter `overflow: hidden` ist
 > kein Überlauf.*
 
+> ►►► **EIN FELD STELLTE ZWEI FRAGEN — und der Beleg wird symmetrisch** (Testnotizen
+> #975–#978, PROCESS_CORE §9.15b/§9.15e–h). ◄◄◄
+> Vier Notizen und eine **Modellfrage**, die der Nutzer selbst gestellt hat: *«Bei
+> Einkaufsteilen ist es oft ‹gemäss Spezifikation›, aber wenn ein intern gefertigtes Teil
+> auswärts nachbearbeitet werden muss, soll dieses Feld dafür genutzt werden … bei der
+> Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es ist ein
+> Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
+> **Und er hatte recht, weil die eine Pflichtangabe je Partner zwei Dinge meinte.**
+> **«Was ist zu tun?»** («Härten auf 58 HRC») gehört dem **Modul** – der Satz lautet für
+> jeden Lieferanten gleich und stand n-mal da; er steht jetzt **einmal**
+> (`config.instruction`) und ist **freiwillig**: *was* es ist, sagen die Positionen, und
+> **leer heisst «gemäss Spezifikation»** – eine vollständige Aussage, keine fehlende
+> Angabe. **«Wie bestellen?»** (seine Artikelnummer, sein Shop-Link) gehört der **Paarung**
+> Modul × Partner, bleibt **Pflicht** – und gibt es nur, **wo wir bestellen**
+> (`Direction.party_ref`, die Regel des Vorgängers, die beim Neuaufbau verlorenging); beim
+> Verkauf wird ein gesendeter Wert **verworfen**. Damit steht dort nur noch: *wem bieten
+> wir an.*
+> **Der Ort bleibt die Definition**, und das ist die Antwort auf die Frage dahinter: in
+> einem Fertigungsprozess wird **vorher** definiert, was zu tun ist – am Band wird er
+> abgearbeitet. Ein Pflichtfeld, das bei der Hälfte der Vorgänge nichts aufzunehmen hat,
+> lädt zu einer Eingabe ein, die niemand liest.
+> ►►► **#975 Beide Anschriften, auf beiden Seiten, immer** (`voucher._addresses`). ◄◄◄
+> *«Ich möchte, dass du das auch auf dem Leistungserbringer machst – standardmässig immer
+> bei Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche
+> anzeigt. Eine Logik für alles, Komplexität und If/Else verringern.»* – Ein Beleg fragt
+> auf **jeder** Seite dasselbe: *wohin die Rechnung, wohin die Ware.* Bisher standen die
+> Beschriftungen nur auf der Gegenseite und nur, wo die beiden abweichen: **zwei**
+> Bedingungen, und die eine verbliebene Zeile beantwortete danach keine der Fragen
+> erkennbar. Steht nur eine Anschrift da, trägt sie jetzt **beide** Beschriftungen – das
+> ist die Auskunft «an dieselbe». **Wo gar keine dasteht, wird nichts beschriftet**: dort
+> sagt die Seite, dass sie fehlt. Gemessen: gleiche Angabe, gleiche Höhe, **Δ 0,00 px**.
+> ►►► **#976 Die dominante Handlung – und daneben die leise** (`StageRow`). ◄◄◄ *«Kann
+> man diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und daneben das
+> unscheinbarere Abbrechen?»* – Gemeldet an der **Angebotszeile**, und damit ist es keine
+> Eigenschaft einer Zeile, sondern die **Anatomie einer Entscheidung**: eine Handlung
+> bringt den Beleg weiter und nimmt den Platz, alles andere steht als Quadrat daneben und
+> klappt beim Zeigen seinen Namen aus. Sie steht darum **einmal** – die Fusszeile der Karte
+> und der Zuschlag sind dieselbe Zeile. **Welche die dominante ist, sagen die Daten**:
+> annehmen, sobald ein Preis dasteht, sonst ihn erfassen. Gemessen: Absage 42 × 42 px,
+> Δy 0,00, und der Knopf steht über vier Messungen still.
+> ►►► **#977 Der Belegkopf nennt gar keine Belegart.** ◄◄◄ *«Ich habe eigentlich gesagt,
+> dass dies nicht angezeigt werden soll hier oben.»* – Und das stimmt: #974 hiess «diese
+> Anzeige verschwindet», und daraus die **Belegart** zu machen war die Auslegung einer
+> Ablehnung. Sie sagt oben auch nichts, was die Karte nicht schon sagt – wie weit der Beleg
+> ist, steht als Punkt an **jedem** Abschnitt. Damit hatte `Direction.document_label`
+> keinen Leser mehr und ist mitsamt `stage_label` entfallen; **der Storno bleibt**, denn er
+> ist keine Belegart, sondern eine Tatsache über dieses Papier.
+> ►►► **#978 Eine Blase steht über dem, was sie erklärt** (`Note`). ◄◄◄ *«Kann das nicht
+> irgendwo neben dem Betrag stehen – und den Hovertext direkt darüber und nicht wie jetzt
+> irgendwo.»* – **Zwei Meldungen, eine Ursache.** Die Blase sitzt über der **Mitte ihres
+> Elements**; nur war das Element nicht die Auskunft, sondern die ganze Zeile: ein Kind
+> einer Flex-**Spalte** wird blockifiziert und auf die volle Breite gezogen. Bei 460 px
+> stand sie einen halben Beleg neben den drei Wörtern, die sie erklärt. `width:
+> fit-content` ist die Antwort und **nicht** `align-self` – dieselbe Lehre wie bei
+> `Editable` (#961/#963): eine **definite** Quergrösse wirkt in der Spalte *und* in der
+> Zeile. Gemessen: Box == Text, **Δ 0,0 px**; die Bug-Form meldet **1146 px**.
+> Wächter: 4 neue in `tests/test_voucher_module.py`, 3 neue in `test_frontend_mirrors.py`,
+> 4 auf die neue Regel gezogen – **22 Bug-Formen gegengeprüft, jede meldet**; *drei
+> bestehende prüften die **Form** der alten Lösung* (`flex: 1` wörtlich in `Footer`,
+> `<Label required>{DEAL_TASK}</Label>`, die Beschriftung «nur bei zwei Anschriften») und
+> hätten die bessere Fassung verboten. Suite grün gegen die gewachsene Datenbank **und**
+> gegen ein Schema nur aus den Migrationen (je 528); **keine Migration** in dieser Runde.
+> Gemessen in Chromium an der **echten** Komponente (Karte im `ModuleShell`): 1440 · 1280 ·
+> 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **sieben** Zustände (neu
+> darunter eine Ausgabe, bei der die Gegenpartei den Preis nennt) – und die Messung gegen
+> ihre eigene Bug-Form gegengeprüft (+46,7 px bei 375, +101,7 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -4018,14 +4085,21 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Nachkommastellen der Währung).
 - **Der Beleg ist vollständig**: Belegkopf mit **beiden** Parteien (Leistungserbringer ↔
   Leistungsempfänger, Rechtsform, Anschrift, «z. H.», Kontaktweg, UID) – beide auf **einem
-  Raster**, gleiche Angabe auf gleicher Höhe –, **Pflichtsatz je Nullsatz** (Export ↔
-  Reverse Charge), **Zolltarifnummer und Ursprungsland je Position** (aus dem Artikel
-  vorbelegt, am Beleg überschreibbar, mit der Zusage eingefroren) und die **Incoterms
-  2020** als Katalog mit Erklärung. Die **Gegenpartei wählt man im Kopf**, wo sie steht;
-  darunter steht **kein Chronik-Abschnitt** mehr (#970) – *wann offeriert wurde* steht am
-  Kopf der Angebote, *wann zugesagt wurde* an der Zeile mit dem Zuschlag, jeweils als
-  Aussage («vor 3 Tagen») mit Datum und Uhrzeit im Hover. Welche unserer Gesellschaften
-  ihn stellt, ist am Vorgang eingefroren (`vouchers.issuer_company_id`).
+  Raster**, gleiche Angabe auf gleicher Höhe, und **beide Anschriften auf beiden Seiten**
+  (Rechnungs- ↔ Lieferadresse, immer beschriftet, #975) –, **Pflichtsatz je Nullsatz**
+  (Export ↔ Reverse Charge), **Zolltarifnummer und Ursprungsland je Position** (aus dem
+  Artikel vorbelegt, am Beleg überschreibbar, mit der Zusage eingefroren) und die
+  **Incoterms 2020** als Katalog mit Erklärung. Die **Gegenpartei wählt man im Kopf**, wo
+  sie steht; eine **Belegart** nennt er dort **nicht** (#977 – wie weit er ist, sagt der
+  Punkt an jedem Abschnitt), und einen **Chronik-Abschnitt** gibt es ebenfalls nicht
+  (#970): *wann offeriert wurde* steht am Kopf der Angebote, *wann zugesagt wurde* an der
+  Zeile mit dem Zuschlag – jeweils als Aussage («vor 3 Tagen») mit Datum und Uhrzeit im
+  Hover. Welche unserer Gesellschaften ihn stellt, ist am Vorgang eingefroren
+  (`vouchers.issuer_company_id`).
+- **Zwei Fragen, zwei Angaben** (§9.15e): **«Was ist zu tun?»** steht **einmal am Modul**
+  und ist freiwillig (leer heisst «gemäss Spezifikation»), **«Wie bestellen?»** je Partner
+  und Pflicht – aber nur, **wo wir bestellen**. Als *ein* Feld je Partner stellte es beim
+  Verkauf eine Frage, auf die es keine richtige Antwort gibt.
 - **Und was auf ihm steht, ist Pflicht** (§9.15a): Preis, Steuersatz, beide Zoll-Angaben,
   beide Fristen und die Lieferbedingung – geprüft an der **einen** Stelle, an der er nach
   aussen geht; im Browser sagt es der Wert selbst, warnfarben statt akzentfarben.

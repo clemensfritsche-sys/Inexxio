@@ -327,6 +327,30 @@ function StageAction({ icon: Icon, label, disabled, tip, onClick }: {
 }
 
 /**
+ * ►►► **Die dominante Handlung, und daneben die leise** (Testnotiz #976). ◄◄◄
+ *
+ * *«Kann man diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und daneben das
+ * unscheinbarere Abbrechen?»*
+ *
+ * Das ist keine Eigenschaft einer Zeile, sondern die **Anatomie einer Entscheidung** auf
+ * diesem Beleg: eine Handlung bringt ihn weiter und nimmt den Platz, alles andere steht
+ * als Quadrat daneben und klappt beim Zeigen seinen Namen aus. Sie steht darum **einmal**
+ * – die Fusszeile der Karte (Abschluss ↔ Storno) und der Zuschlag an einer Angebotszeile
+ * (annehmen ↔ absagen) sind dieselbe Zeile.
+ */
+function StageRow({ children, aside }: { children?: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="flex items-stretch" style={{ gap: 8, minWidth: 0 }}>
+      {children && <div style={{ flex: 1, minWidth: 0 }}>{children}</div>}
+      {aside}
+    </div>
+  );
+}
+
+/** Was man an einer Angebotszeile tut, wenn man den Preis nennt – in beiden Richtungen. */
+const QUOTE_VERB = 'Offerte erfassen';
+
+/**
  * ►►► **Ein Feld auf dem Beleg sieht aus wie der Beleg** (Testnotiz #922). ◄◄◄
  *
  * *«So dass es eigentlich ausschaut wie der final definierte Beleg, nur eben
@@ -471,6 +495,39 @@ function Missing({ what }: { what: string }) {
   );
 }
 
+/**
+ * ►►► **Eine leise Auskunft — und ihre Blase steht DARÜBER** (Testnotiz #978). ◄◄◄
+ *
+ * *«Den Hovertext direkt darüber und nicht wie jetzt irgendwo.»*
+ *
+ * Die Blase des Hauses sitzt über der **Mitte ihres Elements** (`[data-tip]::after`,
+ * `left: 50%`). Das ist richtig – nur war das Element nicht die Auskunft, sondern die
+ * ganze Zeile: ein Kind einer Flex-**Spalte** wird blockifiziert und auf die volle Breite
+ * gezogen, und bei 460 px stand die Blase einen halben Beleg neben den drei Wörtern, die
+ * sie erklärt.
+ *
+ * `width: fit-content` ist die Antwort und nicht `align-self` – dieselbe Lehre wie bei
+ * `Editable` (#961/#963): eine **definite** Quergrösse wirkt in der Spalte *und* in der
+ * Zeile, `align-self: start` beantwortet in der Zeile die falsche Frage.
+ *
+ * Sie steht als **Bauteil** da, weil es drei Aufrufstellen sind (wann offeriert, wann
+ * angenommen, wie bestellt) – dreimal dieselben vier Werte wären dreimal die Chance, dass
+ * einer abweicht.
+ */
+function Note({ tip, icon: Icon, children }: {
+  tip?: string | null; icon?: typeof ClipboardList; children: ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center"
+      style={{ gap: 6, fontSize: 11.5, color: 'var(--fg-3)', width: 'fit-content',
+               flex: 'none', minWidth: 0 }}
+      {...(tip ? { 'data-tip': tip } : {})}>
+      {Icon && <Icon size={11} style={{ flex: 'none' }} />}
+      {children}
+    </span>
+  );
+}
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Der Belegkopf
 // ───────────────────────────────────────────────────────────────────────────────
@@ -489,17 +546,21 @@ function Missing({ what }: { what: string }) {
 const PARTY_ROWS = 7;
 
 /**
- * **Der Belegkopf** – die Belegart und beide Parteien.
+ * **Der Belegkopf** – beide Parteien, und sonst nichts.
  *
- * ►►► **Die Belegart ist die eine Angabe, die ein Papier zu einem Beleg macht.** ◄◄◄ Sie
- * steht sonst nirgends. Der **offene Betrag** stand einmal daneben und ist entfallen
- * (#902): auf einer Offerte ist nichts gefordert, also null – und «Offen 0.00» liest sich
- * wie «bezahlt». Er steht an der **Rechnung**, wo es ihn wirklich gibt.
+ * ►►► **Die Belegart steht hier NICHT** (Testnotizen #974/#977). ◄◄◄ *«Ich habe eigentlich
+ * gesagt, dass dies nicht angezeigt werden soll hier oben.»* – Und das stimmt: #974 hiess
+ * «diese Anzeige verschwindet», und aus «Erledigt» die **Belegart** zu machen war eine
+ * Auslegung, keine Umsetzung. Sie sagt hier auch nichts, was die Karte nicht schon sagt:
+ * wie weit der Beleg ist, steht als Punkt an **jedem** Abschnitt (`ModuleSection state`),
+ * und was als Nächstes zu tun ist, steht auf dem Knopf, der es tut.
  *
- * ►►► **Und die Vorauszahlungs-Pille ebenso** (Testnotizen #924/#925). ◄◄◄ *«Diese Info
- * kann komplett hier entfallen, denn ich sehe es ja unten, ob Vorauszahlung oder nicht.»*
- * – Genau: sie war die zweite Aussage über die **Zahlungsfrist**, die zwei Abschnitte
- * tiefer als Wert dasteht und dort geändert wird.
+ * **Der Storno bleibt** – er ist keine Belegart, sondern eine **Tatsache** über dieses
+ * Papier, und er steht sonst nirgends (bis #970 stand er in der Chronik).
+ *
+ * Ebenfalls entfallen: der **offene Betrag** (#902 – auf einer Offerte ist nichts
+ * gefordert, und «Offen 0.00» liest sich wie «bezahlt»; er steht an der Rechnung) und die
+ * **Vorauszahlungs-Pille** (#924/#925 – das sagt die Zahlungsfrist, wo man sie ändert).
  */
 function DocHead({ d, busy, onAction, onAsk }: {
   d: Filled; busy: boolean; onAction: Send; onAsk: Ask;
@@ -507,26 +568,12 @@ function DocHead({ d, busy, onAction, onAsk }: {
   return (
     <ModuleSection first>
       <div className="flex flex-col" style={{ gap: 14, minWidth: 0 }}>
-        {/* ►►► **Hier steht die BELEGART, nicht der Zustand** (Testnotiz #974). ◄◄◄
-            *«Ich möchte, dass diese Anzeige hier verschwindet.»* – Gemeldet an einem
-            erledigten Vorgang, und da stand **«Erledigt»**. Das ist kein Beleg: ein Papier
-            heisst «Offerte» oder «Auftragsbestätigung», und dass der Vorgang durch ist,
-            sagt das Modul. Die Auflösung steht im Backend (`Direction.document_label`) –
-            hier wird gezeichnet, nicht entschieden.
-            **Der Storno bleibt sichtbar**, denn er ist keine Belegart, sondern eine
-            Tatsache über dieses Papier: er stand bis hierher in der Chronik (#970) und
-            steht jetzt dort, wo der Beleg sich benennt. */}
-        <div className="flex flex-wrap items-baseline" style={{ gap: 10, minWidth: 0 }}>
-          <span style={{ font: '700 15px var(--font-display)', color: 'var(--fg-1)' }}>
-            {d.stage_label}
+        {d.cancelled_on && (
+          <span style={{ ...MICRO_LABEL, color: 'var(--danger)', width: 'fit-content' }}
+            data-tip={`Storniert am ${localDate(d.cancelled_on)}`}>
+            storniert {since(d.cancelled_on)}
           </span>
-          {d.cancelled_on && (
-            <span style={{ ...MICRO_LABEL, color: 'var(--danger)' }}
-              data-tip={`Storniert am ${localDate(d.cancelled_on)}`}>
-              storniert {since(d.cancelled_on)}
-            </span>
-          )}
-        </div>
+        )}
         <Parties d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
         <Gaps rows={d.gaps ?? []} />
       </div>
@@ -933,6 +980,22 @@ function Goods({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send
           <LineRow key={ln.id} d={d} line={ln} busy={busy}
             editable={editable} customs={customs} onAction={onAction} />
         ))}
+        {/* ►►► **Was ist zu tun? — der Satz am Modul.** ◄◄◄ Er steht bei den Positionen,
+            weil er von **ihnen** handelt («Härten auf 58 HRC»), und er steht **einmal**,
+            weil er für jeden Partner gleich lautet.
+            Er ist eine **Auskunft**, kein Feld: entschieden wird er beim Modellieren, wo
+            man einen Fertigungsablauf definiert – hier wird der Ablauf abgearbeitet.
+            **Leer heisst «gemäss Spezifikation»**, und das schreibt der Beleg nicht hin:
+            eine Zeile, die «nichts Besonderes» sagt, ist keine Auskunft. */}
+        {d.task && (
+          <div className="flex" style={{ gap: 8, minWidth: 0,
+                                         paddingTop: 2, alignItems: 'baseline' }}>
+            <span style={{ ...MICRO_LABEL, flex: 'none' }}>{d.task_label}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--fg-2)', minWidth: 0 }}>
+              {d.task}
+            </span>
+          </div>
+        )}
         <Sums d={d} busy={busy} onAction={onAction} />
       </div>
     </ModuleSection>
@@ -1419,10 +1482,7 @@ function Quotes({ d, busy, active, onAsk, onAction }: {
     <ModuleSection title={d.quotes_title || 'Angebote'}
       state={open ? 'active' : 'past'}
       right={first && (
-        <span style={{ fontSize: 11.5, color: 'var(--fg-3)', flex: 'none' }}
-          data-tip={localDateTime(first)}>
-          {since(first)} offeriert
-        </span>
+        <Note tip={localDateTime(first)}>{since(first)} offeriert</Note>
       )}>
       <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
         {open
@@ -1480,6 +1540,10 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
   const canAgree = may(v, 'agree') && !declined && !chosen;
   const canDecline = may(v, 'decline') && !declined && !chosen;
 
+  // **Welche Handlung diese Zeile weiterbringt** – eine Frage an die Daten, kein Rang, den
+  // die Oberfläche vergibt: annehmen, sobald ein Preis dasteht; sonst ihn erfassen.
+  const forward = canAgree && d.amount != null ? 'agree' : (canQuote ? 'quote' : null);
+
   const [amount, setAmount] = useState(d.amount ?? '');
   const [lead, setLead] = useState(d.lead_days == null ? '' : String(d.lead_days));
   const [pay, setPay] = useState(d.payment_days == null ? '' : String(d.payment_days));
@@ -1488,6 +1552,16 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
     [d.lead_days]);
   useEffect(() => { setPay(d.payment_days == null ? '' : String(d.payment_days)); },
     [d.payment_days]);
+
+  // **Je Handlung EIN Aufruf** – derselbe Knopf steht je nach Lage als Fläche oder als
+  // Quadrat da, und zwei Fassungen desselben Befehls liefen beim nächsten Feld auseinander.
+  const sendQuote = () => void onAction({
+    action: 'quote', party: d.party_object_id, amount,
+    ...(pay === '' ? {} : { payment_days: Number(pay) }),
+    ...(lead === '' ? {} : { lead_days: Number(lead) }),
+  });
+  const sendAgree = () => void onAction({ action: 'agree', party: d.party_object_id });
+  const sendDecline = () => void onAction({ action: 'decline', party: d.party_object_id });
 
   return (
     // ►►► **Die Haarlinie schliesst den Container, sie eröffnet ihn nicht** (#955). ◄◄◄
@@ -1514,6 +1588,17 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
           </span>
           <span style={{ flex: 'none' }}><ObjId value={d.party_object_id} /></span>
         </span>
+        {/* ►►► **Wann diese Zeile den Zuschlag bekam – NEBEN dem Betrag** (#969/#978).◄◄◄
+            *«Kann das nicht irgendwo neben dem Betrag oder so stehen – und den Hovertext
+            direkt darüber und nicht wie jetzt irgendwo.»*
+            Beides hat **eine** Ursache: die Zeile stand als eigenes Kind der Spalte, und
+            ein Kind einer Flex-Spalte wird auf die volle Breite gezogen. Die Blase sitzt
+            über der **Mitte ihres Elements** – bei einer 460 px breiten Zeile also weit
+            weg von den drei Wörtern, die sie erklärt. In der Kopfzeile ist die Angabe so
+            breit wie ihr Text, und die Blase steht damit **konstruktiv** darüber. */}
+        {chosen && d.agreed_at && (
+          <Note tip={localDateTime(d.agreed_at)}>{since(d.agreed_at)} angenommen</Note>
+        )}
         {d.amount != null && !declined && (
           <span style={{ font: '600 13px var(--font-body)',
                          fontVariantNumeric: 'tabular-nums' }}>
@@ -1521,23 +1606,10 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
           </span>
         )}
       </div>
-      {/* ►►► **Wann diese Zeile den Zuschlag bekam** (Testnotiz #969). ◄◄◄
-          *«Kann hier noch eine kleine Info dazu, wann die Offerte angenommen wurde …»* –
-          Und sie steht **an der Zeile**, nicht in einem Abschnitt darunter: der Zuschlag
-          gilt genau einer, und welcher, ist die halbe Aussage. Dieselbe Form wie am Kopf
-          der Angebote (#968): die Aussage sichtbar, die Tatsache im Hover. */}
-      {chosen && d.agreed_at && (
-        <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}
-          data-tip={localDateTime(d.agreed_at)}>
-          {since(d.agreed_at)} angenommen
-        </span>
-      )}
+      {/* **Wie man bei ihm bestellt** – seine Artikelnummer, sein Shop-Link. Es gibt sie
+          nur, wo wir bestellen; *was* zu tun ist, steht einmal am Beleg (`Task`). */}
       {d.ref && (
-        <span className="flex items-center" style={{ gap: 6, fontSize: 11.5,
-                                                     color: 'var(--fg-3)' }}
-          data-tip={v.task_label}>
-          <ClipboardList size={11} /> {d.ref}
-        </span>
+        <Note tip={v.order_label} icon={ClipboardList}>{d.ref}</Note>
       )}
       {canQuote && (
         <div className="flex flex-wrap items-end" style={{ gap: 10, minWidth: 0 }}>
@@ -1561,34 +1633,42 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
             freeLabel={v.term_free_label ?? 'Individuell'} />
         </div>
       )}
-      <Actions>
-        {canQuote && (
-          <ActionButton icon={Send} label="Offerte erfassen" tone="primary"
-            disabled={busy || amount.trim() === ''}
-            onClick={() => void onAction({
-              action: 'quote', party: d.party_object_id, amount,
-              ...(pay === '' ? {} : { payment_days: Number(pay) }),
-              ...(lead === '' ? {} : { lead_days: Number(lead) }),
-            })} />
+      {/* ►►► **Die Handlung, die weiterbringt – und daneben die leise Absage** (#976).◄◄◄
+          *«Kann man diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und
+          daneben das unscheinbarere Abbrechen?»* – Ja, und es ist **dieselbe** Zeile
+          (`StageRow`), die die Karte ganz unten trägt: der Zuschlag ist für diese Zeile,
+          was der Abschluss für das Modul ist. Drei gleich laute Knöpfe sind kein
+          Vorschlag.
+          **Welche die dominante ist, sagen die Daten**: annehmen, sobald ein Preis
+          dasteht – sonst ihn erfassen. Eine Offerte zu **korrigieren**, während man sie
+          annehmen könnte, ist der Nebenweg und steht als Quadrat daneben. */}
+      <StageRow aside={(
+        <>
+          {canQuote && forward !== 'quote' && (
+            <ActionButton icon={Send} label={QUOTE_VERB} tone="primary" height={42} square
+              disabled={busy || amount.trim() === ''} onClick={sendQuote} />
+          )}
+          {canDecline && (
+            // ►►► **«Absage» – und sonst nichts** (Testnotiz #965). ◄◄◄ *«Hier soll
+            // einfach nur ‹Absage› stehen und nicht ‹liefert nicht›.»* Der Zusatz stammte
+            // aus dem Beschaffungs-Beleg, wo nur eingekauft wurde; an einer **Einnahme**
+            // sagt er sogar das Falsche – dort liefern wir, und abgesagt hat der Kunde.
+            <ActionButton icon={CircleSlash} label="Absage" tone="danger" height={42}
+              square disabled={busy} onClick={sendDecline} />
+          )}
+        </>
+      )}>
+        {forward === 'quote' && (
+          <StageAction icon={Send} label={QUOTE_VERB}
+            disabled={busy || amount.trim() === ''} onClick={sendQuote} />
         )}
-        {canAgree && d.amount != null && (
+        {forward === 'agree' && (
           // **Das Verb kommt vom Server** (`stages[0].verb`) – es ist das Wort der
           // Schwelle und lautet in beiden Richtungen gleich (#966: «Offerte annehmen»).
-          <ActionButton icon={Check} label={v.stages[0]?.verb ?? 'Offerte annehmen'}
-            tone="primary" disabled={busy}
-            onClick={() => void onAction({ action: 'agree', party: d.party_object_id })} />
+          <StageAction icon={Check} label={v.stages[0]?.verb ?? 'Offerte annehmen'}
+            disabled={busy} onClick={sendAgree} />
         )}
-        {canDecline && (
-          // ►►► **«Absage» – und sonst nichts** (Testnotiz #965). ◄◄◄ *«Hier soll einfach
-          // nur ‹Absage› stehen und nicht ‹liefert nicht›.»* Der Zusatz stammte aus dem
-          // Beschaffungs-Beleg, wo nur eingekauft wurde; an einer **Einnahme** sagt er
-          // sogar das Falsche – dort liefern wir, und abgesagt hat der Kunde.
-          <ActionButton icon={CircleSlash} label="Absage" tone="danger"
-            disabled={busy}
-            onClick={() => void onAction({ action: 'decline',
-                                           party: d.party_object_id })} />
-        )}
-      </Actions>
+      </StageRow>
     </div>
   );
 }
@@ -2029,15 +2109,14 @@ function Footer({ d, busy, onAction, children }: {
   if (!children && !d.undo) return null;
   return (
     <div style={{ marginTop: 18, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
-      <div className="flex items-stretch" style={{ gap: 8, minWidth: 0 }}>
-        {children && <div style={{ flex: 1, minWidth: 0 }}>{children}</div>}
-        {d.undo && (
-          <ActionButton icon={CircleSlash} label={d.undo} tone="danger" height={42} square
-            disabled={busy}
-            tip="Der Beleg behält seinen Weg – ein Storno sagt nur, dass nichts mehr kommt."
-            onClick={() => void onAction({ action: 'revoke' })} />
-        )}
-      </div>
+      <StageRow aside={d.undo && (
+        <ActionButton icon={CircleSlash} label={d.undo} tone="danger" height={42} square
+          disabled={busy}
+          tip="Der Beleg behält seinen Weg – ein Storno sagt nur, dass nichts mehr kommt."
+          onClick={() => void onAction({ action: 'revoke' })} />
+      )}>
+        {children}
+      </StageRow>
     </div>
   );
 }

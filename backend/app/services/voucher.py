@@ -1505,9 +1505,10 @@ def billing_of(db: Session, row: Voucher,
 
     ►►► **Und wo beide stehen, sind es ZWEI Anschriften** (Testnotiz #952). ◄◄◄ Eine
     hinterlegte Rechnungsadresse heisst, dass die **Hauptadresse** die andere ist – dorthin
-    geht die Ware, hierhin die Rechnung. ``shipping`` trägt sie darum als eigene Angabe,
-    **nur wenn sie sich unterscheidet**: sonst wären zwei Blöcke mit demselben Text zwei
-    Aussagen über eine Sache. Erfunden wird nichts – fehlt eine, ist die Liste leer.
+    geht die Ware, hierhin die Rechnung. ``shipping`` trägt sie darum als eigene Angabe.
+    Erfunden wird nichts – gibt es keine zweite, ist die Liste leer; dass dann **dieselbe**
+    unter beiden Beschriftungen steht, entscheidet der Belegkopf (#975), nicht diese Stelle:
+    hier wird gelesen, was am Benutzer steht.
     """
     empty: dict[str, Any] = {"name": None, "email": None, "address": None}
     number = party_id if party_id is not None else party_of(db, row)
@@ -1528,13 +1529,10 @@ def billing_of(db: Session, row: Voucher,
     country = (u.invoice_country if own else u.country) or u.country
     full = bool(line1.strip() and city.strip() and zip_code.strip())
     # Die **zweite** Anschrift: die Hauptadresse, wenn eine eigene Rechnungsadresse
-    # dasteht. Verglichen werden die **Zeilen**, nicht die Felder – das ist die Form, in
-    # der sie auf dem Beleg landen, und nur dort entscheidet sich, ob man sie auseinander
-    # halten kann.
+    # dasteht. Ohne eigene Rechnungsadresse gibt es sie nicht – dann *ist* die Hauptadresse
+    # die eine, die oben schon steht.
     main = address.make(street1=u.address_line1 or "", street2=u.address_line2 or "",
                         zip=u.postal_code or "", city=u.city or "", country=u.country)
-    billed = address.lines(address.make(
-        street1=line1, street2=line2, zip=zip_code, city=city, country=country))
     shipped = address.lines(main) if own and address.has_content(main) else []
     return {
         "name": (named or u.invoice_company if own else None) or people.name(u),
@@ -1551,7 +1549,10 @@ def billing_of(db: Session, row: Voucher,
             "line1": line1, "line2": line2 or None, "city": city,
             "postal_code": zip_code, "country": address.iso2(country),
         } if full else None,
-        "shipping": shipped if shipped and shipped != billed else [],
+        # **Die zweite Anschrift, roh.** Ob sie dasselbe sagt wie die erste, entscheidet
+        # nicht diese Stelle: seit #975 steht ohnehin auf **jeder** Seite beides, und eine
+        # Gleichheitsprüfung hier wäre die zweite Bedingung mit demselben Ergebnis.
+        "shipping": shipped,
     }
 
 
@@ -1595,7 +1596,8 @@ def document_head(db: Session, row: Voucher, *, won: bool,
         "name": sites.legal_name(company),
         # Eine Adresse ohne Ort ist keine: ``of_company`` liefert immer ein Gerüst,
         # ``has_content`` fragt, ob wirklich etwas drinsteht.
-        "address": address.lines(seat_ours) if address.has_content(seat_ours) else [],
+        **_addresses(address.lines(seat_ours) if address.has_content(seat_ours) else [],
+                     []),
         "uid": (getattr(company, "vat_number", None)
                 or getattr(company, "uid_number", None)),
         "email": getattr(company, "email", None),
@@ -1606,6 +1608,35 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     return {
         "supplier": {"label": vo.SUPPLIER, "hint": vo.SUPPLIER_HINT, **supplier},
         "customer": {"label": vo.CUSTOMER, "hint": vo.CUSTOMER_HINT, **customer},
+    }
+
+
+def _addresses(billed: list[str], shipped: list[str]) -> dict[str, Any]:
+    """►►► **Die Anschriften einer Belegseite – beide, immer, beschriftet** (#975). ◄◄◄
+
+    *«Standardmässig immer bei Informationen ausweisen, global etablieren, auch wenn sie
+    zweimal das Gleiche anzeigt. Eine Logik für alles, Komplexität und If/Else
+    verringern.»*
+
+    Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* –, und er stellt sie
+    auf **jeder** Seite gleich. Bis hierher standen die Beschriftungen nur auf der
+    Gegenseite und nur dort, wo die beiden sich unterscheiden: zwei Bedingungen, und die
+    eine verbliebene Zeile beantwortete danach **keine** der beiden Fragen erkennbar.
+
+    Also **eine** Regel für beide Seiten: gibt es nur eine Anschrift, steht sie unter beiden
+    Beschriftungen – das ist die Auskunft «an dieselbe», nicht eine Doppelung. Und wo **gar
+    keine** dasteht, gibt es auch keine Beschriftung: die Seite sagt dann, dass sie fehlt.
+
+    Erfunden wird nichts – ``shipped`` entsteht nur aus Angaben, die wirklich da sind.
+    """
+    if not billed:
+        return {"address": [], "shipping": [],
+                "address_label": None, "shipping_label": None}
+    return {
+        "address": billed,
+        "shipping": shipped or billed,
+        "address_label": vo.BILLING_LABEL,
+        "shipping_label": vo.SHIPPING_LABEL,
     }
 
 
@@ -1622,22 +1653,17 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, 
     who = billing_of(db, row, party_id) if party_id is not None else {}
     seat = who.get("address") or {}
     lines = who.get("lines") or []
-    shipping = who.get("shipping") or []
     return {
         "ours": False,
         "object_id": party_id,
         "name": (lines or [""])[0],
         "attn": lines[1] if len(lines) > 1 else None,
-        "address": address.lines(address.make(
+        # **Dieselbe Auflösung wie bei uns** (#975) – zwei Seiten, eine Regel.
+        **_addresses(address.lines(address.make(
             street1=seat.get("line1") or "", street2=seat.get("line2") or "",
             zip=seat.get("postal_code") or "", city=seat.get("city") or "",
             country=seat.get("country"),
-        )) if seat else [],
-        # **Die Beschriftungen erscheinen nur, wo es zwei Anschriften gibt** – bei einer
-        # einzigen wäre «Rechnungsadresse» darüber eine Unterscheidung ohne Gegenstück.
-        "shipping": shipping,
-        "address_label": vo.BILLING_LABEL if shipping else None,
-        "shipping_label": vo.SHIPPING_LABEL if shipping else None,
+        )) if seat else [], who.get("shipping") or []),
         "uid": who.get("uid"),
         "email": who.get("email"),
         "phone": who.get("phone"),
@@ -2027,14 +2053,23 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "money_label": vo.MONEY_LABEL,
         "goods_title": vo.GOODS_TITLE,
         "quotes_title": vo.QUOTES_TITLE,
+        # ►►► **Zwei Fragen, zwei Angaben** (siehe ``domain/voucher.TASK``). ◄◄◄ *Was* zu
+        # tun ist, steht **einmal** am Modul und gilt für jeden Partner; *wie* man bei ihm
+        # bestellt, steht an seiner Zeile – und nur, wo wir bestellen.
         "task_label": vo.TASK,
+        "task": modules.Beleg.instruction_of(step.config),
+        "order_label": vo.ORDER_REF,
         # **Das Wort der Gegenhandlung hängt an DEN HANDLUNGEN DIESES BETRACHTERS**, nicht
         # an der Stufe: sonst liest eine Gegenpartei «Auftrag stornieren» an einem Knopf,
         # den es für sie nie gibt.
         "undo": vo.undo_word(row.stage) if "revoke" in allowed else None,
         "stage": row.stage,
-        # ►►► **Die BELEGART, nicht der Zustand** (Testnotiz #974). ◄◄◄
-        "stage_label": flow.document_label(row.stage),
+        # ►►► **Der Belegkopf nennt die Belegart NICHT** (Testnotizen #974/#977). ◄◄◄
+        # Hier stand `stage_label`, und die Karte schrieb es über den Belegkopf. Der
+        # Nutzer hatte es zweimal abgelehnt; eine Angabe, die niemand mehr liest, ist eine
+        # zweite Wahrheit – also ist sie hier und in `Direction` entfallen. Wie weit der
+        # Beleg ist, sagen `stages` und die Punkte an den Abschnitten; was eine Stufe
+        # **heisst**, sagt `label_of` dort, wo eine Meldung sie nennen muss.
         "stages": _stages(row, flow),
         "can": allowed,
         # **Die Sperre ist eine ABLEITUNG der Zahlungsfrist**: «zahlbar in null Tagen ab

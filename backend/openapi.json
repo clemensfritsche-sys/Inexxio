@@ -9210,6 +9210,16 @@
             "title": "Task Label",
             "default": ""
           },
+          "task": {
+            "type": "string",
+            "title": "Task",
+            "default": ""
+          },
+          "order_label": {
+            "type": "string",
+            "title": "Order Label",
+            "default": ""
+          },
           "vat_rates": {
             "items": {
               "$ref": "#/components/schemas/VatRateOut"
@@ -9365,11 +9375,6 @@
             "type": "string",
             "title": "Stage",
             "default": "offer"
-          },
-          "stage_label": {
-            "type": "string",
-            "title": "Stage Label",
-            "default": ""
           },
           "stages": {
             "items": {

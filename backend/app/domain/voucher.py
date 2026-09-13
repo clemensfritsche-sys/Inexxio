@@ -148,11 +148,24 @@ CUSTOMER = "Leistungsempfänger"
 SUPPLIER_HINT = "Wer die Leistung erbringt und den Beleg stellt."
 CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 
-#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben** (Testnotiz #952). ◄◄◄ Sie müssen
-#: nicht gleich sein – und genau darum stehen die Beschriftungen **nur dort, wo sie sich
-#: unterscheiden**: bei einer einzigen Anschrift wäre «Rechnungsadresse» darüber eine
-#: Unterscheidung, die es nicht gibt. Erfunden wird nichts: die zweite Zeile entsteht aus
-#: Angaben, die am Benutzer stehen (Rechnungsadresse ≠ Hauptadresse).
+#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben – auf JEDER Seite, IMMER**
+#: (Testnotizen #952/#975). ◄◄◄
+#:
+#: *«Mir gefällt das ziemlich gut mit Rechnungsadresse, Lieferadresse usw. Ich möchte, dass
+#: du das auch auf dem Leistungserbringer machst – also standardmässig immer bei
+#: Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
+#: Eine Logik für alles, Komplexität und If/Else verringern.»*
+#:
+#: Bis hierher standen die Beschriftungen **nur, wo sich die beiden unterscheiden**, und
+#: **nur** auf der Gegenseite. Das waren zwei Bedingungen für eine Frage, die ein Beleg
+#: immer gleich beantwortet: *wohin die Rechnung, wohin die Ware.* Steht nur eine Anschrift
+#: da, ist die Antwort «an dieselbe» – und die auszusprechen ist keine Doppelung, sondern
+#: die Auskunft; sie wegzulassen hiess, den Leser raten zu lassen, welche der beiden Fragen
+#: die eine Zeile beantwortet.
+#:
+#: Erfunden wird weiterhin nichts: die zweite Zeile entsteht aus Angaben, die am Benutzer
+#: stehen (Rechnungsadresse ≠ Hauptadresse). Wo **gar keine** Anschrift dasteht, gibt es
+#: auch keine Beschriftung – dort sagt die Seite, dass sie fehlt.
 #:
 #: *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls – hier steht die
 #: **Anschrift auf dem Beleg**, nicht der Transport.*
@@ -197,11 +210,34 @@ PAY_ONLINE_WORD = "Jetzt bezahlen"
 OPEN_WORD = "Offen"
 MONEY_LABEL = "Rechnung & Zahlung"
 
-#: **Was bei ihm zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz. Eine
-#: Eigenschaft der **Paarung** Modul × Partner: derselbe Lieferant führt je Teil eine
-#: andere Nummer.
+#: ►►► **EIN Feld stellte ZWEI Fragen – darum sind es jetzt zwei.** ◄◄◄
+#:
+#: *«Bei Einkaufsteilen ist es oft ‹gemäss Spezifikation›, aber wenn ein intern gefertigtes
+#: Teil auswärts nachbearbeitet werden muss, soll dieses Feld dafür genutzt werden … bei
+#: der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es ist
+#: ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
+#:
+#: Und das stimmt, weil die Pflichtangabe je Partner **zwei verschiedene Dinge** meinte:
+#:
+#: * **Was ist zu tun?** («Härten auf 58 HRC») – eine Eigenschaft des **Moduls**: der Satz
+#:   lautet für jeden Lieferanten gleich, stand aber n-mal da. Er ist darum **eine** Angabe
+#:   am Modul und **freiwillig**: *was* es ist, sagt der Beleg längst über seine Positionen
+#:   und deren Spezifikation – der Satz ergänzt nur, was ein Mensch weiss. **Leer heisst
+#:   «gemäss Spezifikation»**, also eine vollständige Aussage und keine fehlende Angabe.
+#: * **Wie bestellen?** (seine Artikelnummer, sein Shop-Link) – eine Eigenschaft der
+#:   **Paarung** Modul × Partner, denn derselbe Lieferant führt je Teil eine andere Nummer.
+#:   Sie bleibt **Pflicht**, gibt es aber nur, **wo wir bestellen** (``party_ref``).
+#:
+#: Damit steht bei einem Verkauf nur noch: *wem bieten wir an.* Was der Kunde bekommt,
+#: sagen die Positionen; wann und wie geliefert wird, ist Sache des Bewegen-Moduls.
 TASK = "Was ist zu tun?"
-TASK_HINT = "Artikelnummer, Link oder Beschreibung"
+TASK_HINT = "Ergänzung zu den Positionen – leer heisst «gemäss Spezifikation»"
+#: Mehr ist kein Arbeitsauftrag mehr, sondern ein Pflichtenheft – und das gehört an die
+#: Spezifikation des Artikels, nicht auf einen Beleg.
+MAX_TASK = 400
+
+ORDER_REF = "Wie bestellen?"
+ORDER_REF_HINT = "Seine Artikelnummer oder der Link zu seinem Shop"
 
 #: Die Nummer, unter der die **Gegenpartei** diesen Geldfluss führt. Das Feld gibt es nur,
 #: wo die Nummer von aussen kommt – eine, die **wir** vergeben, tippt niemand ab.
@@ -386,6 +422,14 @@ class Direction:
     #: er überweist nicht in unserem Namen. Daraus folgt zugleich, wer auf dem Beleg der
     #: Leistungserbringer ist.
     collects: bool
+    #: ►►► **Gibt es hier die Frage «wie bestelle ich bei ihm?»** ◄◄◄ Nur, wo **wir**
+    #: bestellen: beim Verkauf liefern wir, und eine Bestellangabe je Kunde wäre ein
+    #: Pflichtfeld, das niemand ausfüllen kann (``ORDER_REF``).
+    #:
+    #: Es steht als **Eigenschaft der Richtung** und nicht als ``if`` im Dienst: so erbt
+    #: jede künftige Richtung die Regel, und die Oberfläche fragt eine Angabe statt einen
+    #: Schlüssel zu vergleichen.
+    party_ref: bool
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
@@ -396,27 +440,15 @@ class Direction:
             return "Erledigt"
         return self.stage_labels.get(stage, stage)
 
-    def document_label(self, stage: str) -> str:
-        """►►► **Welche BELEGART ist das?** (Testnotiz #974) ◄◄◄
-
-        *«Ich möchte, dass diese Anzeige hier verschwindet.»* – Gemeldet an einem
-        erledigten Vorgang, und im Belegkopf stand **«Erledigt»**. Das ist kein Beleg,
-        sondern ein **Zustand**: ein Papier heisst «Offerte» oder «Auftragsbestätigung»,
-        und dass der Vorgang damit durch ist, sagt das Modul – nicht die Überschrift des
-        Dokuments.
-
-        Die Belegart ist darum die des **letzten erreichten Schritts**: ``done`` und
-        ``cancelled`` sind Ausgänge, keine Stufen, und wer dort steht, hat die Zusage
-        hinter sich. Ein stornierter Beleg behält damit seinen Namen und sagt daneben,
-        dass er storniert ist (``cancelled_on``) – das ist dieselbe Regel wie überall:
-        *der Beleg behält seinen Weg.*
-
-        ``label_of`` bleibt daneben und unverändert: eine **Fehlermeldung** über die
-        Stufe muss die Stufe nennen dürfen. Zwei Fragen, zwei Antworten.
-        """
-        if stage in (DONE, CANCELLED):
-            return self.stage_labels[AGREED]
-        return self.stage_labels.get(stage, stage)
+    # ►►► **Eine Belegart nennt der Kopf NICHT** (Testnotizen #974/#977). ◄◄◄
+    #
+    # Hier stand ``document_label`` – «welche Belegart ist das?», mit den beiden Ausgängen
+    # auf das Wort der Zusage-Stufe abgebildet, damit im Belegkopf nicht «Erledigt» steht.
+    # Es war die Auslegung einer Ablehnung: #974 hiess *«ich möchte, dass diese Anzeige
+    # verschwindet»*, und #977 hat es wiederholt. Die Angabe hat damit keinen Leser mehr,
+    # und eine Auflösung ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau
+    # abweicht. ``label_of`` bleibt – eine **Fehlermeldung** über die Stufe muss die Stufe
+    # nennen dürfen.
 
 
 #: ►►► **Die eine Liste.** Eine dritte Richtung gibt es nicht – Geld kommt oder geht.
@@ -433,6 +465,8 @@ DIRECTIONS: dict[str, Direction] = {
         quoted_by=BY_US,
         reference=None,
         collects=True,
+        # **Wir liefern** – es gibt nichts zu bestellen, also auch keine Bestellangabe.
+        party_ref=False,
     ),
     OUT: Direction(
         key=OUT,
@@ -444,6 +478,8 @@ DIRECTIONS: dict[str, Direction] = {
         # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
         reference=PARTY_REFERENCE,
         collects=False,
+        # **Wir bestellen bei ihm** – und *wie*, führt er unter seiner eigenen Nummer.
+        party_ref=True,
     ),
 }
 

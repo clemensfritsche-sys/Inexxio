@@ -3751,6 +3751,16 @@ export interface components {
              * @default
              */
             task_label: string;
+            /**
+             * Task
+             * @default
+             */
+            task: string;
+            /**
+             * Order Label
+             * @default
+             */
+            order_label: string;
             /** Vat Rates */
             vat_rates?: components["schemas"]["VatRateOut"][];
             /**
@@ -3828,11 +3838,6 @@ export interface components {
              * @default offer
              */
             stage: string;
-            /**
-             * Stage Label
-             * @default
-             */
-            stage_label: string;
             /** Stages */
             stages?: components["schemas"]["VoucherStage"][];
             /** Can */

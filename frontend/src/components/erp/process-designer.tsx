@@ -8,7 +8,8 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog, VoucherParty } from '@/types';
 import {
-  CAPTURE_ICON, DEAL_DIRECTION, DEAL_PARTY, DEAL_TASK, DEAL_TASK_HINT,
+  CAPTURE_ICON, DEAL_DIRECTION, DEAL_ORDER_REF, DEAL_ORDER_REF_HINT, DEAL_PARTY,
+  DEAL_TASK, DEAL_TASK_HINT, dealDirection,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
@@ -25,7 +26,9 @@ import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import {
+  IconSwitch, Label, inputCls, numericInputProps, numericOnly,
+} from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
@@ -522,19 +525,47 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
             <span className="text-[12.5px] truncate" style={{
               color: 'var(--fg-3)', maxWidth: 180, flex: 'none',
             }}>{known[row.party] ?? ''}</span>
-            <input className={inputCls} value={row.ref} maxLength={200} required
-              aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
-              style={{ flex: '1 1 160px', minWidth: 0 }}
-              onChange={(e) => onChange({
-                parties: m.parties.map((x) => (x.party === row.party
-                  ? { ...x, ref: e.target.value } : x)),
-              })} />
+            {/* ►►► **Die Bestellangabe gibt es nur, wo WIR bestellen.** ◄◄◄ Beim Verkauf
+                liefern wir – «wie bestelle ich bei ihm» hat dort keine richtige Antwort,
+                und ein Pflichtfeld ohne richtige Antwort ist eines, das man irgendwie
+                füllt. Gefragt wird die **Richtung** (`partyRef`), nicht der Modultyp; der
+                Dienst verwirft einen trotzdem gesendeten Wert. */}
+            {dealDirection(m.direction).partyRef && (
+              <input className={inputCls} value={row.ref} maxLength={200} required
+                aria-label={DEAL_ORDER_REF} placeholder={DEAL_ORDER_REF_HINT}
+                style={{ flex: '1 1 160px', minWidth: 0 }}
+                onChange={(e) => onChange({
+                  parties: m.parties.map((x) => (x.party === row.party
+                    ? { ...x, ref: e.target.value } : x)),
+                })} />
+            )}
             <RowDelete label="Entfernen" hint="Aus der Freigabe nehmen" reveal
               onClick={() => onChange({
                 parties: m.parties.filter((x) => x.party !== row.party),
               })} />
           </div>
         ))}
+      </div>
+      {/* ►►► **Was ist zu tun? — EIN Satz, freiwillig, in beiden Richtungen.** ◄◄◄
+
+          *«Gerade bei Einkaufsteilen ist es oft gemäss Spezifikation, aber wenn ein intern
+          gefertigtes Teil auswärts nachbearbeitet werden muss … bei der
+          Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll.»*
+
+          Er steht hier – in der **Definition** – und nicht am laufenden Beleg, und das ist
+          die Antwort auf die Frage dahinter: in einem Fertigungsprozess wird **vorher**
+          definiert, was zu tun ist; am Band wird er abgearbeitet.
+
+          Und er steht **einmal** statt je Partner: «Härten auf 58 HRC» lautet für jeden
+          Lieferanten gleich. **Leer ist der Normalfall** und heisst «gemäss Spezifikation»
+          – die Positionen des Belegs sagen längst, *was* es ist; dieser Satz ergänzt nur,
+          was ein Mensch weiss. Ein Pflichtfeld daneben wäre eines, das man irgendwie
+          füllt. */}
+      <div>
+        <Label>{DEAL_TASK}</Label>
+        <input className={inputCls} value={m.instruction} maxLength={400}
+          aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
+          onChange={(e) => onChange({ instruction: e.target.value })} />
       </div>
       {/* ►►► **Die Sperre steht hier NICHT mehr** (Testnotiz #854). ◄◄◄
 

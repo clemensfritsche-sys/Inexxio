@@ -83,16 +83,27 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  */
 export const DEAL_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string;
+  /**
+   * ►►► **Gibt es hier die Frage «wie bestelle ich bei ihm?»** ◄◄◄
+   *
+   * Nur, wo **wir** bestellen: beim Verkauf liefern wir, und eine Bestellangabe je Kunde
+   * wäre ein Pflichtfeld, für das es keine richtige Antwort gibt. Gespiegelt von
+   * `Direction.party_ref` – der Dienst **verwirft** einen trotzdem gesendeten Wert, also
+   * ist dies die freundliche Hälfte derselben Regel, nie ein zweiter Massstab.
+   */
+  partyRef: boolean;
 }> = {
   in: {
     // Der Handschlag – Geld kommt herein, weil eine Zusage nach aussen erfüllt wird.
     icon: Handshake, label: 'Einnahme',
     hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
+    partyRef: false,
   },
   out: {
     // Der Einkaufswagen – Geld geht hinaus, weil wir etwas beziehen.
     icon: ShoppingCart, label: 'Ausgabe',
     hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
+    partyRef: true,
   },
 };
 
@@ -132,14 +143,28 @@ export const PARTY_NUMBER_LABEL = 'Nr.';
  */
 
 /**
- * **Was bei einem Partner zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
+ * ►►► **Was ist zu tun? — EIN Satz am MODUL, freiwillig.** ◄◄◄
  *
- * Eine Eigenschaft der **Paarung** Modul × Partner, in beiden Richtungen und **Pflicht**.
- * Der frühere freiwillige Satz am Vorgang war ihre optionale Doppelung (#805) – und ein
- * Feld, das man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen.
+ * «Härten auf 58 HRC» ist eine Eigenschaft **dieses Schritts** und lautet für jeden
+ * Partner gleich; je Partner abgefragt stand derselbe Satz n-mal da, und beim **Verkauf**
+ * war es ein Pflichtfeld, für das es keine richtige Antwort gibt.
+ *
+ * **Leer heisst «gemäss Spezifikation»** – eine vollständige Aussage, keine fehlende
+ * Angabe: *was* es ist, sagt der Beleg längst über seine Positionen.
  */
 export const DEAL_TASK = 'Was ist zu tun?';
-export const DEAL_TASK_HINT = 'Artikelnummer, Link oder Beschreibung';
+export const DEAL_TASK_HINT =
+  'Ergänzung zu den Positionen – leer heisst «gemäss Spezifikation»';
+
+/**
+ * ►►► **Wie bestellen? — je Partner, Pflicht, und nur wo WIR bestellen.** ◄◄◄
+ *
+ * Seine Artikelnummer, sein Shop-Link. Eine Eigenschaft der **Paarung** Modul × Partner:
+ * derselbe Lieferant führt je Teil eine andere Nummer. Ob es sie gibt, sagt die Richtung
+ * (`DEAL_DIRECTION[…].partyRef`) – beim Verkauf liefern wir.
+ */
+export const DEAL_ORDER_REF = 'Wie bestellen?';
+export const DEAL_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
 
 /** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`deal.of`). */
 export function dealDirection(direction: string | undefined | null) {
@@ -415,9 +440,17 @@ export interface ModuleDraft {
    *
    * Die Bestellangabe gehört der **Paarung** Modul × Gegenpartei – derselbe Lieferant
    * führt je Teil eine andere Nummer –, und es gibt sie nur, wo **wir** bestellen
-   * (`DEAL_DIRECTION[…].ref`; beim Verkauf liefern wir).
+   * (`DEAL_DIRECTION[…].partyRef`; beim Verkauf liefern wir).
    */
   parties: { party: number; ref: string }[];
+  /**
+   * Nur «Zahlung»: **was ist zu tun?** – ein Satz am Modul, **freiwillig**.
+   *
+   * Er gilt für jeden Partner gleich und steht darum **einmal**; leer heisst «gemäss
+   * Spezifikation». Bis hierher war er die Pflichtangabe *je Partner* und stellte damit
+   * zwei Fragen auf einmal – beim Verkauf eine, die niemand beantworten kann.
+   */
+  instruction: string;
   /*
    * ►►► **`prepaid` ist entfallen** (Testnotiz #854). ◄◄◄
    *
@@ -490,10 +523,12 @@ const MONEY_FORM = {
     parties: asRows(c.parties).map((r) => ({
       party: Number(r.party ?? r), ref: String(r.ref ?? ''),
     })).filter((r) => Number.isFinite(r.party)),
+    instruction: String(c.instruction ?? ''),
   }),
   config: (m: ModuleDraft) => ({
     direction: m.direction,
     parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
+    instruction: m.instruction.trim(),
   }),
 };
 
@@ -612,7 +647,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     // **Die Vorgabe ist die EINNAHME** (#791): der häufigere Fall im Haus ist, dass wir
     // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
     // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
-    direction: 'in', parties: [],
+    direction: 'in', parties: [], instruction: '',
   };
 }
 

@@ -5280,61 +5280,88 @@ def test_a_module_without_verification_confirms_without_a_scan():
         )
 
 
-def test_what_to_do_is_asked_once_per_party_and_is_mandatory():
-    """►►► **Ein Pflichtfeld statt zweier optionaler** (Testnotizen #805 · #808). ◄◄◄
+def test_one_field_asked_two_questions_so_there_are_two():
+    """►►► **«Was ist zu tun?» ≠ «Wie bestelle ich bei ihm?»** ◄◄◄
 
-    «Was ist daran zu tun?» stand als **freiwilliger** Satz am Vorgang, und daneben gab es
-    die **Bestellangabe** je Partner – nur beim Einkauf. Das ist dieselbe Aussage zweimal,
-    einmal ohne Adressaten. *«Ich bin sowieso kein Fan von optionalen Feldern»*: ein Feld,
-    das man ausfüllen **kann**, wird an der Hälfte der Stellen leer gelassen, und dann sagt
-    seine Leere nichts.
+    *«Bei Einkaufsteilen ist es oft ‹gemäss Spezifikation›, aber wenn ein intern gefertigtes
+    Teil auswärts nachbearbeitet werden muss, soll dieses Feld dafür genutzt werden … bei
+    der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es ist
+    ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
 
-    Übrig bleibt **eine** Angabe je Partner, **Pflicht**, in **beiden** Richtungen: seine
-    Artikelnummer, sein Shop-Link oder ein Satz.
+    Und das stimmt, weil die **eine** Pflichtangabe je Partner zwei Dinge meinte:
 
-    Bug-Formen: (a) der Satz am Vorgang kommt zurück; (b) die Angabe wird wieder
-    freiwillig; (c) es gibt sie nur in einer Richtung.
+    * **Was ist zu tun?** – eine Eigenschaft des **Moduls**: «Härten auf 58 HRC» lautet für
+      jeden Lieferanten gleich und stand n-mal da. Sie steht jetzt **einmal** und ist
+      **freiwillig**: *was* es ist, sagen die Positionen; leer heisst «gemäss
+      Spezifikation», also eine vollständige Aussage.
+    * **Wie bestellen?** – eine Eigenschaft der **Paarung** Modul × Partner, weiterhin
+      **Pflicht**, aber nur, **wo wir bestellen** (``Direction.party_ref``).
+
+    Bug-Formen: (a) die Bestellangabe ist beim Verkauf wieder Pflicht; (b) ein dort
+    gesendeter Wert wird gespeichert statt verworfen; (c) sie ist beim Einkauf freiwillig
+    geworden; (d) der Auftrag am Modul wird Pflicht; (e) er kommt gar nicht an; (f) die
+    Länge ist ungeprüft; (g) im Editor steht das Bestellfeld auch beim Verkauf; (h) der
+    Auftrag fehlt dort ganz.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from fastapi import HTTPException
     from app.domain import modules as dmod
+    from app.domain import voucher as vo
 
     module = dmod.get(dmod.BELEG)
-    cfg = module.clean_config({"direction": "in",
-                               "parties": [{"party": 100000001, "ref": "Art. 4711"}]})
-    assert "subject" not in cfg, "Der abgeschaffte Satz ist zurück (#805)."
-    assert cfg["parties"][0]["ref"] == "Art. 4711"
-    # (b) **Pflicht** – und (c) in **beiden** Richtungen.
-    for direction in ("in", "out"):
-        try:
-            module.clean_config({"direction": direction,
-                                 "parties": [{"party": 100000001, "ref": "  "}]})
-        except HTTPException:
-            continue
-        raise AssertionError(
-            f"«{direction}»: die Angabe ist wieder freiwillig – ein Feld, das man "
-            f"ausfüllen kann, wird leer gelassen (#808)."
-        )
 
-    # **Der Code, nicht die Prosa**: der Erklärtext daneben *beschreibt* den
-    # abgeschafften Satz – ein Wächter, der ihn mitliest, schlägt an, weil jemand den
-    # Fehler erklärt. (Genau in diese Falle ist diese Datei schon einmal gelaufen.)
-    fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
-                         "MoneyFields", kind="function"))
-    assert "Was ist daran zu tun?" not in fields, "Der Satz steht wieder im Editor."
-    # ►►► **Pflicht ist eine Eigenschaft des FELDES, nicht eines Labels darüber** (#817).
-    #
-    # Die erste Fassung verlangte `<Label required>{DEAL_TASK}</Label>` – also die **Form**
-    # der damaligen Lösung. Als das Label entfiel (der Platzhalter sagt es genauer), schlug
-    # sie an, obwohl die Regel besser erfüllt ist: das Feld selbst ist `required`, und
-    # benannt bleibt es über `aria-label`. Gefragt wird jetzt beides.
-    assert "required" in fields and f"aria-label={{DEAL_TASK}}" in fields, (
-        "Die Angabe ist im Editor weder als Pflicht ausgezeichnet noch benannt."
+    # (a)/(b) **Verkauf**: keine Bestellangabe – und ein gesendeter Wert wird verworfen.
+    sale = module.clean_config({"direction": "in",
+                                "parties": [{"party": 100000001, "ref": "Art. 4711"}]})
+    assert sale["parties"][0]["ref"] == "", (
+        "Beim Verkauf wird die Bestellangabe gespeichert (b) – ein Feld, das die "
+        "Oberfläche nicht anbietet, wäre die Hintertür zu einer Angabe, die niemand liest."
     )
-    assert "<Label required>{DEAL_TASK}</Label>" not in fields, (
-        "Das Label über dem Feld ist zurück – der Platzhalter sagt es genauer, und zwei "
-        "Beschriftungen für ein Feld sind eine zu viel (#817)."
+    module.clean_config({"direction": "in", "parties": [{"party": 100000001}]})
+
+    # (c) **Einkauf**: Pflicht, mit Grund im Satz.
+    try:
+        module.clean_config({"direction": "out",
+                             "parties": [{"party": 100000001, "ref": "  "}]})
+    except HTTPException as e:
+        assert vo.ORDER_REF in str(e.detail), "Der Satz nennt die Angabe nicht."
+    else:
+        raise AssertionError("Beim Einkauf ist die Bestellangabe freiwillig geworden (c).")
+    buy = module.clean_config({"direction": "out",
+                               "parties": [{"party": 100000001, "ref": "Art. 4711"}]})
+    assert buy["parties"][0]["ref"] == "Art. 4711"
+
+    # (d)/(e) **Der Auftrag am Modul**: freiwillig, und er kommt an.
+    assert module.clean_config({"direction": "in"})[module.INSTRUCTION] == "", (
+        "Ohne Auftrag geht das Modul nicht mehr durch (d) – leer heisst «gemäss "
+        "Spezifikation»."
+    )
+    got = module.clean_config({"direction": "in", "instruction": " Härten auf 58 HRC "})
+    assert module.instruction_of(got) == "Härten auf 58 HRC", (
+        "Der Auftrag erreicht das Modul nicht (e)."
+    )
+    # (f) Und er ist kein Pflichtenheft.
+    try:
+        module.clean_config({"direction": "in", "instruction": "x" * (vo.MAX_TASK + 1)})
+    except HTTPException:
+        pass
+    else:
+        raise AssertionError("Die Länge des Auftrags ist ungeprüft (f).")
+
+    # (g)/(h) **Der Editor fragt dieselben zwei Fragen** – und das Bestellfeld hängt an der
+    # Richtung, nicht am Modultyp.
+    fields = _code(_component(_read(FRONTEND / "components" / "erp"
+                                    / "process-designer.tsx"), "MoneyFields"))
+    assert "dealDirection(m.direction).partyRef" in fields, (
+        "Das Bestellfeld steht auch beim Verkauf da (g) – dort hat es keine richtige "
+        "Antwort."
+    )
+    assert "aria-label={DEAL_ORDER_REF}" in fields and "required" in fields, (
+        "Die Bestellangabe ist im Editor weder benannt noch als Pflicht ausgezeichnet."
+    )
+    assert "onChange({ instruction:" in fields and "{DEAL_TASK}" in fields, (
+        "«Was ist zu tun?» gibt es im Editor nicht (h) – dann wird es nie gesetzt."
     )
 
 
@@ -5732,7 +5759,7 @@ def test_everything_about_one_party_stands_on_one_line():
     row = fields[fields.index("erp-partyrow"):]
     row = row[:row.index("))}")]
     flat = " ".join(row.split())
-    for part in ("<ObjId value={row.party}", "aria-label={DEAL_TASK}", "<RowDelete"):
+    for part in ("<ObjId value={row.party}", "aria-label={DEAL_ORDER_REF}", "<RowDelete"):
         assert part in flat, f"«{part}» steht nicht in der Partner-Zeile (#833)."
     # ►►► **Gefragt ist die WIRKUNG, nicht der Klassenname an dieser Stelle.** ◄◄◄
     #
@@ -7500,18 +7527,41 @@ def test_the_cancel_button_stands_beside_the_finish_button_as_a_square():
     wird, jedoch nur ein quadratischer Button mit Icon, sodass der Hauptfokus und der absolut
     dominante Button immer noch ‹Vorgang abschliessen› ist.»*
 
+    ►►► **Und es ist die Anatomie einer ENTSCHEIDUNG, nicht die der Fusszeile** (#976).◄◄◄
+    *«Kann man diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und daneben das
+    unscheinbarere Abbrechen?»* – Gemeldet an der **Angebotszeile** (annehmen ↔ absagen),
+    und damit ist es dieselbe Zeile: eine Handlung nimmt den Platz, die leise steht als
+    Quadrat daneben. Sie wohnt darum in `StageRow` und wird von beiden gesetzt.
+
+    *Der Wächter verlangte `flex: 1` **wörtlich in `Footer`** – also die Form der damaligen
+    Lösung; er hätte das gemeinsame Bauteil verboten, obwohl es die Regel besser erfüllt.
+    Gefragt ist jetzt die Zeile selbst.*
+
     Bug-Formen: (a) er steht wieder in einer eigenen Zeile darunter; (b) er ist nicht
     quadratisch; (c) die Breite kommt als Inline-Stil und nimmt dem Knopf damit die Geste,
-    seinen Namen beim Zeigen auszuklappen.
+    seinen Namen beim Zeigen auszuklappen; (d) die Angebotszeile baut ihre eigene Fassung.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    foot = _component(src, "Footer")
-    assert "children" in foot and "flex: 1" in foot, (
-        "Der Abschluss steht nicht in derselben Zeile (a) – dann ist der Storno ein "
+    stage_row = _component(src, "StageRow")
+    assert "flex: 1" in stage_row, (
+        "Die dominante Handlung nimmt den Platz nicht (a) – dann ist der Storno ein "
         "zweiter Block und nicht sein kleiner Nachbar."
+    )
+    foot = _component(src, "Footer")
+    assert "<StageRow" in foot and "children" in foot, (
+        "Der Abschluss steht nicht in derselben Zeile wie der Storno (a)."
     )
     assert "square" in foot and "height={42}" in foot, (
         "Der Knopf ist nicht quadratisch in der Höhe des Abschlusses (b)."
+    )
+    # (d) **Dieselbe Zeile an der Angebotszeile** – der Zuschlag ist für sie, was der
+    # Abschluss für das Modul ist. Drei gleich laute Knöpfe sind kein Vorschlag.
+    quote = _component(src, "QuoteRow")
+    assert "<StageRow" in quote and "<StageAction" in quote, (
+        "Die Angebotszeile stellt ihre Handlungen wieder gleichrangig nebeneinander (d)."
+    )
+    assert "<Actions" not in quote, (
+        "Die Angebotszeile baut ihre eigene Fassung daneben (d)."
     )
     ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
     assert "'--actbtn-w'" in ui and "width:" not in _component(ui, "ActionButton"), (
@@ -7914,3 +7964,118 @@ def test_a_refusal_is_just_a_refusal():
     assert "v.stages[0]?.verb" in src, (
         "Die Karte schreibt das Verb selbst, statt es vom Server zu lesen."
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #975–#978
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_hover_note_is_as_wide_as_its_own_text():
+    """►►► **Die Blase steht über dem, was sie erklärt** (Testnotiz #978). ◄◄◄
+
+    *«Kann das nicht irgendwo neben dem Betrag oder so stehen – und den Hovertext direkt
+    darüber und nicht wie jetzt irgendwo.»*
+
+    **Zwei Meldungen, eine Ursache.** Die Blase des Hauses sitzt über der **Mitte ihres
+    Elements** (`[data-tip]::after`, `left: 50%`) – nur war das Element nicht die Auskunft,
+    sondern die ganze Zeile: ein Kind einer Flex-**Spalte** wird blockifiziert und auf die
+    volle Breite gezogen. Bei 460 px stand die Blase einen halben Beleg neben den drei
+    Wörtern, die sie erklärt.
+
+    `width: fit-content` ist die Antwort und **nicht** `align-self` – dieselbe Lehre wie bei
+    `Editable` (#961/#963): eine definite Quergrösse wirkt in der Spalte *und* in der Zeile.
+    Und die Angabe steht in der **Kopfzeile** der Angebotszeile, neben dem Betrag.
+
+    Bug-Formen: (a) die Auskunft wird wieder so breit wie ihre Spalte; (b) sie steht wieder
+    als eigenes Kind unter der Kopfzeile; (c) die Tatsache fehlt im Hover; (d) die drei
+    Aufrufstellen bauen sie wieder je selbst.
+    """
+    src = _code(_beleg())
+    note = _component(src, "Note")
+    assert "width: 'fit-content'" in note, (
+        "Die Auskunft wird wieder so breit wie ihre Spalte (a) – dann steht ihre Blase "
+        "irgendwo."
+    )
+    assert "data-tip" in note, "Die Auskunft trägt keine Blase mehr (c)."
+    # (b) **Neben dem Betrag**: die Angabe steht in der Kopfzeile der Angebotszeile.
+    row = _component(src, "QuoteRow")
+    head = row[row.index("items-baseline"):row.index("</div>")]
+    assert "d.agreed_at" in head, (
+        "Die Angabe steht wieder unter der Kopfzeile (b) statt neben dem Betrag."
+    )
+    assert "localDateTime(d.agreed_at)" in head, "Die Tatsache fehlt im Hover (c)."
+    # (d) **Ein Bauteil, drei Aufrufstellen** – wann offeriert, wann angenommen, wie
+    # bestellt. Dreimal dieselben vier Werte wären dreimal die Chance, dass einer abweicht.
+    assert src.count("<Note ") + src.count("<Note>") >= 3, (
+        "Die Auskünfte bauen ihre Form wieder je selbst (d)."
+    )
+
+
+def test_what_to_do_stands_once_on_the_document():
+    """►►► **«Was ist zu tun?» steht bei den Positionen – einmal** (#975er-Runde). ◄◄◄
+
+    Der Satz handelt von den Positionen («Härten auf 58 HRC»), also steht er bei ihnen. Er
+    ist eine **Auskunft**, kein Feld: entschieden wird er beim Modellieren, wo man einen
+    Fertigungsablauf definiert – auf dem Beleg wird er abgearbeitet.
+
+    **Leer schreibt der Beleg nicht hin**: «gemäss Spezifikation» ist die Regel, und eine
+    Zeile, die «nichts Besonderes» sagt, ist keine Auskunft.
+
+    Bug-Formen: (a) der Satz steht nicht auf dem Beleg; (b) er steht auch leer da; (c) er
+    ist zu einem Eingabefeld geworden; (d) seine Beschriftung wird selbst geschrieben.
+    """
+    src = _code(_beleg())
+    goods = _component(src, "Goods")
+    assert "d.task" in goods, "Der Auftrag steht nicht auf dem Beleg (a)."
+    assert "{d.task &&" in goods, "Ein leerer Auftrag belegt eine Zeile (b)."
+    assert "{d.task_label}" in goods, (
+        "Die Beschriftung wird selbst geschrieben (d) – sie kommt vom Server."
+    )
+    # (c) **Eine Auskunft, kein Feld** – kein `.ix-editable`, kein Befehl daran. Das
+    # Fenster endet an der nächsten Zeile des Belegs; ein fester Zeichen-Abstand läse den
+    # `onAction` der Summen mit und meldete, obwohl die Regel erfüllt ist.
+    block = goods[goods.index("{d.task &&"):goods.index("<Sums")]
+    assert "Editable" not in block and "onAction" not in block, (
+        "Der Auftrag ist am Beleg änderbar geworden (c) – entschieden wird er beim "
+        "Modellieren."
+    )
+
+
+def test_each_side_of_the_head_names_both_addresses():
+    """►►► **Beide Anschriften, auf beiden Seiten, immer** (Testnotiz #975). ◄◄◄
+
+    *«Mir gefällt das ziemlich gut mit Rechnungsadresse, Lieferadresse usw. Ich möchte, dass
+    du das auch auf dem Leistungserbringer machst – also standardmässig immer bei
+    Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
+    Eine Logik für alles, Komplexität und If/Else verringern.»*
+
+    Die Auflösung steht darum an **einer** Stelle im Dienst (`_addresses`) und gilt für
+    beide Seiten – die Karte zeichnet nur noch.
+
+    Bug-Formen: (a) es gibt wieder zwei Auflösungen; (b) unsere Seite hat keine; (c) die
+    Karte entscheidet selbst, ob eine Beschriftung erscheint.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    src = (BACKEND / "app" / "services" / "voucher.py").read_text()
+    body = src[src.index("def _addresses("):]
+    body = body[:body.index("\ndef ", 1)]
+    assert "BILLING_LABEL" in body and "SHIPPING_LABEL" in body, (
+        "Die Beschriftungen kommen nicht mehr aus der einen Auflösung (a)."
+    )
+    head = src[src.index("def document_head("):src.index("def _addresses(")]
+    assert "_addresses(" in head, "Unsere Seite nennt ihre Anschriften nicht (b)."
+    assert src.count("_addresses(") >= 3, (
+        "Nicht beide Seiten lesen dieselbe Auflösung (a/b)."
+    )
+    # (c) **Die Karte zeichnet, sie entscheidet nicht**: sie reicht die Beschriftung
+    # durch, statt selbst zu fragen, ob es zwei Anschriften gibt.
+    card = _code(_beleg())
+    party = _component(card, "Party")
+    assert "view.address_label" in party and "view.shipping_label" in party, (
+        "Die Karte baut die Beschriftungen wieder selbst (c)."
+    )
+    for word in ("Rechnungsadresse", "Lieferadresse"):
+        assert word not in card, (
+            f"«{word}» steht als Literal in der Karte (c) – die Wörter kommen vom Server."
+        )

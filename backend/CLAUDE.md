@@ -993,3 +993,34 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > Anschrift, die man sehen will, *bevor* man anbietet, gab es gar nicht.
 > `_possible_parties` ist die eine Lesestelle (Definition zuerst, frei Hinzugefügte
 > dahinter, ohne Dubletten); eine zweite Abfrage braucht die Oberfläche nicht.
+
+> ►►► **Ein Feld stellte ZWEI Fragen — darum sind es zwei** (PROCESS_CORE §9.15e). ◄◄◄
+> *«Bei der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es
+> ist ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
+> * **`vo.TASK` «Was ist zu tun?»** ist eine Eigenschaft des **Moduls**
+>   (`Beleg.INSTRUCTION` → `instruction_of`, `VoucherEmbed.task`) und **freiwillig**: der
+>   Satz lautet für jeden Partner gleich, und **leer heisst «gemäss Spezifikation»** – die
+>   Positionen sagen längst, *was* es ist. `MAX_TASK` hält ihn davon ab, ein Pflichtenheft
+>   zu werden.
+> * **`vo.ORDER_REF` «Wie bestellen?»** gehört der **Paarung** Modul × Partner
+>   (`config.parties[].ref`) und bleibt **Pflicht** – aber nur, wo **`Direction.party_ref`**
+>   es sagt: beim Verkauf liefern wir, und ein trotzdem gesendeter Wert wird **verworfen**.
+> Beide stehen in der **Definition**, nicht am laufenden Beleg: in einem Fertigungsprozess
+> wird vorher definiert, was zu tun ist – am Band wird er abgearbeitet.
+
+> ►►► **Beide Anschriften, auf beiden Seiten, immer** (`voucher._addresses`, #975). ◄◄◄
+> *«Standardmässig immer bei Informationen ausweisen, global etablieren, auch wenn sie
+> zweimal das Gleiche anzeigt. Eine Logik für alles.»* – Ein Beleg fragt auf jeder Seite
+> *wohin die Rechnung, wohin die Ware*. Steht nur eine Anschrift da, trägt sie **beide**
+> Beschriftungen (die Auskunft «an dieselbe»); **wo gar keine dasteht, wird nichts
+> beschriftet** – dort sagt die Seite, dass sie fehlt. Die Auflösung steht an **einer**
+> Stelle und wird von `document_head` (unsere Seite) **und** `their_side` gelesen;
+> `billing_of` liefert die zweite Anschrift roh, ohne Gleichheitsprüfung.
+
+> ►►► **Der Belegkopf nennt gar keine Belegart** (#974/#977, §9.15b). ◄◄◄
+> `Direction.document_label` und `VoucherEmbed.stage_label` sind **entfallen**. #974 hiess
+> «diese Anzeige verschwindet», und daraus die Belegart zu machen war die Auslegung einer
+> Ablehnung; sie sagt oben auch nichts, was `stages` und die Punkte an den Abschnitten nicht
+> schon sagen. Eine Auflösung ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau
+> abweicht. **`label_of` bleibt** – eine Fehlermeldung über die Stufe muss die Stufe nennen
+> dürfen.

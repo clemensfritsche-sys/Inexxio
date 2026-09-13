@@ -2851,19 +2851,25 @@ Empfänger eines ist oder nicht, ist keins – sondern eine Regel, die man erst 
 kennenlernt. Sie stehen ohnehin am **Artikel** und reisen von dort auf jeden Beleg: wer sie
 einmal pflegt, tippt sie nie wieder.*
 
-#### 9.15b Der Belegkopf nennt die Belegart, nicht den Zustand
+#### 9.15b Der Belegkopf nennt gar keine Belegart
 
-> Testnotiz #974 · `Direction.document_label`
+> Testnotizen #974 · #977
 
-Im Kopf stand an einem **erledigten** Vorgang «Erledigt». Ein Papier heisst «Offerte» oder
-«Auftragsbestätigung»; dass der Vorgang damit durch ist, sagt das **Modul**. `done` und
-`cancelled` sind **Ausgänge, keine Stufen** – wer dort steht, hat die Zusage hinter sich,
-also ist die Belegart die des letzten erreichten Schritts.
+Im Kopf stand an einem **erledigten** Vorgang «Erledigt» – ein Zustand, kein Beleg. Der
+erste Anlauf machte daraus die **Belegart** («Offerte» · «Auftragsbestätigung»), und das
+war die Auslegung einer Ablehnung: #974 hiess *«ich möchte, dass diese Anzeige
+verschwindet»*, und #977 hat es wiederholt.
 
-Ein stornierter Beleg behält damit seinen Namen und sagt **daneben**, dass er storniert ist
-(`cancelled_on`): *der Beleg behält seinen Weg.* `label_of` bleibt unverändert daneben –
-eine Fehlermeldung über die Stufe muss die Stufe nennen dürfen. **Zwei Fragen, zwei
-Antworten.**
+**Sie sagt oben auch nichts, was die Karte nicht schon sagt**: wie weit der Beleg ist,
+steht als Punkt an **jedem** Abschnitt (`ModuleSection state`), und was als Nächstes zu tun
+ist, steht auf dem Knopf, der es tut. Damit hatte `Direction.document_label` keinen Leser
+mehr – und eine Auflösung ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau
+abweicht; sie ist mitsamt `VoucherEmbed.stage_label` entfallen.
+
+**Der Storno bleibt.** Er ist keine Belegart, sondern eine **Tatsache** über dieses Papier
+(`cancelled_on`), und er steht sonst nirgends: *der Beleg behält seinen Weg.* `label_of`
+bleibt unverändert daneben – eine Fehlermeldung über die Stufe muss die Stufe nennen
+dürfen. **Zwei Fragen, zwei Antworten.**
 
 #### 9.15c Eine Chronik gibt es nicht — die Daten stehen an ihrem Ort
 
@@ -2904,6 +2910,90 @@ darum die **Vereinigung** zugelassen ∪ angefragt; eine zweite Abfrage braucht 
 *durfte* – fehlte eine Stammdatenangabe, verschwand mit dem Anfragen auch das Abwählen und
 die Anschrift. Was man **tun** darf, entscheidet weiterhin `can`, je Chip; was man **sehen**
 darf, ist eine andere Frage.
+
+#### 9.15e Ein Feld stellte zwei Fragen — darum sind es zwei
+
+> `domain/voucher.TASK` · `ORDER_REF` · `Direction.party_ref` · `Beleg.INSTRUCTION`
+
+*«Bei Einkaufsteilen ist es oft ‹gemäss Spezifikation›, aber wenn ein intern gefertigtes
+Teil auswärts nachbearbeitet werden muss, soll dieses Feld dafür genutzt werden … bei der
+Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es ist ein
+Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
+
+Die Pflichtangabe **je Partner** meinte zwei verschiedene Dinge, und darum war sie in der
+einen Richtung sinnvoll und in der anderen unbeantwortbar:
+
+| | gehört zu | Pflicht? | wo? |
+|---|---|---|---|
+| **Was ist zu tun?** («Härten auf 58 HRC») | dem **Modul** – der Satz lautet für jeden Partner gleich | **nein**, leer heisst «gemäss Spezifikation» | `config.instruction` |
+| **Wie bestellen?** (seine Artikelnummer, sein Shop-Link) | der **Paarung** Modul × Partner – derselbe Lieferant führt je Teil eine andere Nummer | **ja** – aber nur, wo wir bestellen | `config.parties[].ref` |
+
+**Der Ort bleibt die Definition**, und das ist die Antwort auf die Frage dahinter: in einem
+Fertigungsprozess wird **vorher** definiert, was zu tun ist; am Band wird er abgearbeitet
+(§4). Was ein Mensch erst zur Laufzeit weiss, gehört nicht hierher – aber «Härten auf
+58 HRC» weiss er beim Modellieren.
+
+**Leer ist eine vollständige Aussage, keine fehlende Angabe.** *Was* gehandelt wird, sagt
+der Beleg über seine Positionen und deren Spezifikation; der Satz ergänzt nur, was daraus
+nicht hervorgeht. Ein Pflichtfeld, das bei der Hälfte der Vorgänge nichts aufzunehmen hat,
+lädt zu einer Eingabe ein, die niemand liest – und beim Verkauf gab es darauf gar keine
+richtige Antwort.
+
+**Die zweite Frage hängt an der RICHTUNG** (`Direction.party_ref`), nicht an einem `if` im
+Dienst: beim Verkauf liefern **wir**, also gibt es sie dort nicht, und ein trotzdem
+gesendeter Wert wird **verworfen**. Jede künftige Richtung erbt die Regel, und die
+Oberfläche fragt eine Angabe statt einen Schlüssel zu vergleichen.
+
+#### 9.15f Beide Anschriften, auf beiden Seiten, immer
+
+> Testnotizen #952 · #975 · `voucher._addresses`
+
+*«Standardmässig immer bei Informationen ausweisen, global etablieren, auch wenn sie
+zweimal das Gleiche anzeigt. Eine Logik für alles, Komplexität und If/Else verringern.»*
+
+Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* – und stellt sie auf
+**jeder** Seite gleich. Bis hierher standen die Beschriftungen nur auf der Gegenseite und
+nur dort, wo die beiden sich unterscheiden: **zwei** Bedingungen für eine Frage, die immer
+gleich lautet – und die eine verbliebene Zeile beantwortete danach keine der beiden
+erkennbar.
+
+**Eine Regel für beide Seiten**: gibt es nur eine Anschrift, steht sie unter beiden
+Beschriftungen. Das ist die Auskunft «an dieselbe», nicht eine Doppelung. **Wo gar keine
+dasteht, gibt es auch keine Beschriftung** – dort sagt die Seite, dass sie fehlt; eine
+Beschriftung über einer Lücke wäre eine leere Behauptung.
+
+Erfunden wird weiterhin nichts: die zweite Zeile entsteht nur aus Angaben, die am Benutzer
+stehen (Rechnungsadresse ≠ Hauptadresse).
+
+#### 9.15g Die dominante Handlung — und daneben die leise
+
+> Testnotiz #976 · `beleg-work.StageRow`
+
+*«Kann man diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und daneben das
+unscheinbarere Abbrechen?»* – Gemeldet an der **Angebotszeile** (annehmen ↔ absagen), und
+damit ist es keine Eigenschaft einer Zeile, sondern die **Anatomie einer Entscheidung** auf
+diesem Beleg: eine Handlung bringt ihn weiter und nimmt den Platz, alles andere steht als
+Quadrat daneben und klappt beim Zeigen seinen Namen aus.
+
+Sie steht darum **einmal** – die Fusszeile der Karte (Abschluss ↔ Storno, §9.14) und der
+Zuschlag an einer Angebotszeile sind dieselbe Zeile. **Welche die dominante ist, sagen die
+Daten**: annehmen, sobald ein Preis dasteht; sonst ihn erfassen. Eine Offerte zu
+*korrigieren*, während man sie annehmen könnte, ist der Nebenweg.
+
+#### 9.15h Eine Blase steht über dem, was sie erklärt
+
+> Testnotiz #978 · `beleg-work.Note`
+
+*«Kann das nicht irgendwo neben dem Betrag oder so stehen – und den Hovertext direkt
+darüber und nicht wie jetzt irgendwo.»* – **Zwei Meldungen, eine Ursache.** Die Blase des
+Hauses sitzt über der **Mitte ihres Elements** (`[data-tip]::after`, `left: 50%`); nur war
+das Element nicht die Auskunft, sondern die ganze Zeile: ein Kind einer Flex-**Spalte** wird
+blockifiziert und auf die volle Breite gezogen. Bei 460 px stand die Blase einen halben
+Beleg neben den drei Wörtern, die sie erklärt.
+
+`width: fit-content` ist die Antwort und **nicht** `align-self` – dieselbe Lehre wie bei
+`Editable` (§9.15, #961/#963): eine **definite** Quergrösse wirkt in der Spalte *und* in der
+Zeile. Gemessen: Box == Text, Δ 0,00 px; die Bug-Form meldet 1146 px.
 
 ## 10. Darstellung
 

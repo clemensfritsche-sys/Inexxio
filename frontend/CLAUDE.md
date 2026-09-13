@@ -685,3 +685,35 @@ Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
   320 mit einem unteilbaren Wort). *Ein Name in der Positionszeile taugt als Bug-Form
   nicht: er trägt `truncate`, wird also wirklich abgeschnitten – und eine Textbreite
   hinter `overflow: hidden` ist kein Überlauf.*
+
+### Testnotizen #975–#978 — zwei Fragen, zwei Angaben; und die Blase steht über ihrer Auskunft
+
+- ►►► **«Was ist zu tun?» ≠ «Wie bestellen?»** ◄◄◄ Der Editor (`MoneyFields`) fragt jetzt
+  **zwei** Dinge: den Satz am Modul (`instruction`, freiwillig, `DEAL_TASK`) und je Partner
+  die Bestellangabe (`DEAL_ORDER_REF`) – **nur, wo wir bestellen**
+  (`DEAL_DIRECTION[…].partyRef`, gespiegelt von `Direction.party_ref`; der Dienst verwirft
+  einen trotzdem gesendeten Wert, dies ist die freundliche Hälfte derselben Regel). Auf dem
+  Beleg steht der Satz bei den **Positionen** – als **Auskunft**, nicht als Feld: entschieden
+  wird er beim Modellieren. **Leer schreibt der Beleg nicht hin.**
+- ►►► **Die dominante Handlung, daneben die leise** (`StageRow`, #976). ◄◄◄ *«Kann man
+  diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und daneben das
+  unscheinbarere Abbrechen?»* – Eine Handlung nimmt den Platz (`StageAction`, volle Breite),
+  alles andere steht als 42 × 42-Quadrat daneben (`ActionButton square`). Es ist **ein**
+  Bauteil: die Fusszeile der Karte und der Zuschlag an einer Angebotszeile sind dieselbe
+  Zeile. **Welche die dominante ist, sagen die Daten** – annehmen, sobald ein Preis dasteht,
+  sonst ihn erfassen. Gemessen: Absage 42 × 42 px, Δy 0,00, und der Knopf steht beim Zeigen
+  über vier Messungen still (die Zeile bricht nicht um).
+- ►►► **Die Blase steht über dem, was sie erklärt** (`Note`, #978). ◄◄◄ Sie sitzt über der
+  **Mitte ihres Elements** – und das Element war die ganze Zeile: ein Kind einer
+  Flex-**Spalte** wird blockifiziert und auf die volle Breite gezogen. `width: fit-content`
+  ist die Antwort und **nicht** `align-self` (dieselbe Lehre wie bei `Editable`, #961/#963:
+  eine definite Quergrösse wirkt in der Spalte *und* in der Zeile). Drei Aufrufstellen, ein
+  Bauteil – wann offeriert, wann angenommen, wie bestellt; die Angabe zum Zuschlag steht
+  dabei **neben dem Betrag** in der Kopfzeile der Angebotszeile. Gemessen: Box == Text,
+  Δ 0,0 px; die Bug-Form meldet 1146 px.
+- **Der Belegkopf nennt keine Belegart mehr** (#977): `d.stage_label` gibt es nicht, und die
+  Auflösung dahinter ebenso wenig. **Der Storno bleibt** – er ist eine Tatsache über dieses
+  Papier, keine Belegart.
+- **Beide Anschriften auf beiden Seiten** (#975): `Party` reicht `address_label` und
+  `shipping_label` nur noch **durch**; ob es eine Beschriftung gibt, entscheidet der Server.
+  Die Wörter stehen nirgends als Literal in der Karte.

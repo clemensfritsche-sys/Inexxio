@@ -543,12 +543,20 @@ class Beleg(Module):
 
     ## Zwei Angaben, sonst nichts
 
-    ``direction``  **Kommt Geld herein oder geht es hinaus?** Daraus folgt jedes Wort.
-    ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
-                   beim Ausführen gesucht. Je Zeile eine Pflichtangabe «Was ist zu tun?»
-                   (``vo.TASK``): seine Artikelnummer, sein Shop-Link oder ein Satz. Sie
-                   gehört der **Paarung** Modul × Partner – derselbe Lieferant führt je
-                   Teil eine andere Nummer.
+    ``direction``    **Kommt Geld herein oder geht es hinaus?** Daraus folgt jedes Wort.
+    ``parties``      Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
+                     beim Ausführen gesucht. Je Zeile die Pflichtangabe «Wie bestellen?»
+                     (``vo.ORDER_REF``) – aber **nur, wo wir bestellen**
+                     (``Direction.party_ref``): sie gehört der **Paarung** Modul × Partner,
+                     denn derselbe Lieferant führt je Teil eine andere Nummer.
+    ``instruction``  **Was ist zu tun?** (``vo.TASK``) – ein Satz am **Modul**, freiwillig.
+
+    ►►► **Ein Feld stellte zwei Fragen** ◄◄◄ – «Härten auf 58 HRC» lautet für *jeden*
+    Lieferanten gleich und ist damit eine Eigenschaft **dieses Schritts**, nicht der
+    Paarung; je Partner abgefragt stand derselbe Satz n-mal da, und beim **Verkauf** war es
+    ein Pflichtfeld, für das es keine richtige Antwort gibt. Getrennt beantwortet jede
+    Angabe genau ihre Frage, und der Beleg braucht kein ``if`` dafür: **leer heisst «gemäss
+    Spezifikation»** – eine vollständige Aussage, keine fehlende Angabe.
 
     Kein Betrag, keine Menge, kein Artikel, kein Termin, kein Steuersatz: alles davon
     steht beim Modellieren nicht fest. **Was gehandelt wird, sagt der Prozess** – die
@@ -561,9 +569,10 @@ class Beleg(Module):
     andere Regel im System von ihm wissen muss**.
     """
 
-    #: Die **zwei** Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
+    #: Die **drei** Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
     DIRECTION = "direction"
     PARTIES = "parties"
+    INSTRUCTION = "instruction"
     #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
     PARTY = "party"
     REF = "ref"
@@ -606,8 +615,24 @@ class Beleg(Module):
         return {
             self.DIRECTION: direction,
             self.PARTIES: self._clean_parties(data.get(self.PARTIES), flow),
+            self.INSTRUCTION: self._clean_instruction(data.get(self.INSTRUCTION)),
             "points": [], "sample": dict(sampling.DEFAULT),
         }
+
+    def _clean_instruction(self, value: Any) -> str:
+        """**Was ist zu tun?** – freiwillig, in beiden Richtungen, am Modul.
+
+        Leer ist die Regel und heisst «gemäss Spezifikation»: der Beleg sagt über seine
+        Positionen längst, *was* es ist. Ein Pflichtfeld, das bei der Hälfte der Vorgänge
+        nichts aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest.
+        """
+        text = str(value or "").strip()
+        if len(text) > vo.MAX_TASK:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"«{vo.TASK}» ist zu lang (max. {vo.MAX_TASK} Zeichen). Was mehr "
+                        f"braucht, gehört in die Spezifikation des Artikels."))
+        return text
 
     def _clean_parties(self, value: Any,
                        flow: "vo.Direction") -> list[dict[str, Any]]:
@@ -634,17 +659,26 @@ class Beleg(Module):
                     detail=(f"{vo.PARTY} {number} steht zweimal – zweimal derselbe ist "
                             f"keine zweite Wahl."))
             seen.add(number)
+            # ►►► **Die Bestellangabe gibt es nur, wo WIR bestellen** (``party_ref``). ◄◄◄
+            # Beim Verkauf liefern wir – ein Pflichtfeld «wie bestelle ich bei ihm» hätte
+            # dort keine richtige Antwort. Ein trotzdem gesendeter Wert wird **verworfen**,
+            # nicht gespeichert: ein Feld, das die Oberfläche nicht anbietet, der Dienst
+            # aber annimmt, wäre die Hintertür zu einer Angabe, die niemand liest.
+            if not flow.party_ref:
+                rows.append({self.PARTY: number, self.REF: ""})
+                continue
             ref = str((entry.get(self.REF) if isinstance(entry, dict) else "")
                       or "").strip()
             if not ref:
                 raise HTTPException(
                     status_code=400,
-                    detail=(f"{vo.PARTY} {number}: «{vo.TASK}» fehlt – ohne die Angabe "
-                            f"weiss er nicht, worum es geht ({vo.TASK_HINT})."))
+                    detail=(f"{vo.PARTY} {number}: «{vo.ORDER_REF}» fehlt – ohne die "
+                            f"Angabe weiss er nicht, was er liefern soll "
+                            f"({vo.ORDER_REF_HINT})."))
             if len(ref) > self.MAX_REF:
                 raise HTTPException(
                     status_code=400,
-                    detail=(f"{vo.PARTY} {number}: «{vo.TASK}» ist zu lang "
+                    detail=(f"{vo.PARTY} {number}: «{vo.ORDER_REF}» ist zu lang "
                             f"(max. {self.MAX_REF} Zeichen)."))
             rows.append({self.PARTY: number, self.REF: ref})
         if len(rows) > self.MAX_PARTIES:
@@ -686,11 +720,16 @@ class Beleg(Module):
 
     @classmethod
     def ref_for(cls, config: Optional[dict[str, Any]], party: Optional[int]) -> str:
-        """**Was bei DIESEM Partner zu tun ist** – oder leer, wo er nicht gelistet ist."""
+        """**Wie man bei DIESEM Partner bestellt** – leer, wo er nicht gelistet ist."""
         if party is None:
             return ""
         return next((str(r[cls.REF]) for r in cls.parties_of(config)
                      if int(r[cls.PARTY]) == int(party)), "")
+
+    @classmethod
+    def instruction_of(cls, config: Optional[dict[str, Any]]) -> str:
+        """**Was an diesem Schritt zu tun ist** – die eine Lesestelle. Leer ist gültig."""
+        return str((config or {}).get(cls.INSTRUCTION) or "").strip()
 
 
 MODULES: dict[str, Module] = {

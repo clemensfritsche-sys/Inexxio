@@ -251,9 +251,11 @@ class VoucherSide(BaseModel):
     #: Reihenfolge, und eine zweite Fassung im Browser wäre die Stelle, an der eine Zeile
     #: verrutscht. Leer heisst «nicht hinterlegt»; erfunden wird nichts.
     address: list[str] = Field(default_factory=list)
-    #: Die **zweite** Anschrift, wo eine eigene Rechnungsadresse hinterlegt ist (#952).
-    #: Leer heisst «es gibt nur eine» – dann sind auch die Beschriftungen ``None``, denn
-    #: eine Unterscheidung ohne Gegenstück ist keine.
+    #: ►►► **Die zweite Anschrift – und es gibt sie IMMER** (#952/#975). ◄◄◄ Ein Beleg
+    #: fragt auf jeder Seite dasselbe: *wohin die Rechnung, wohin die Ware.* Steht nur eine
+    #: Anschrift da, trägt sie beide Beschriftungen – das ist die Auskunft «an dieselbe».
+    #: Leer sind beide nur, wo **gar keine** hinterlegt ist; dann sind auch die
+    #: Beschriftungen ``None``, denn dort sagt die Seite, dass sie fehlt.
     shipping: list[str] = Field(default_factory=list)
     address_label: Optional[str] = None
     shipping_label: Optional[str] = None
@@ -281,7 +283,14 @@ class VoucherEmbed(BaseModel):
     goods_title: str = ""
     quotes_title: str = ""
     money_label: str = ""
+    #: **Was ist zu tun?** – der Satz am **Modul**, und wie er heisst. Leer heisst «gemäss
+    #: Spezifikation»: der Beleg sagt über seine Positionen längst, *was* es ist.
     task_label: str = ""
+    task: str = ""
+    #: **Wie bestellen?** – die Beschriftung der Angabe an **einer Partner-Zeile**. Sie
+    #: steht auch, wo es die Angabe nicht gibt: was der Beleg **anbietet**, entscheidet
+    #: das Feld selbst (``quotes[].ref``), nicht eine zweite Bedingung daneben.
+    order_label: str = ""
     # ─── Steuer ─────────────────────────────────────────────────────────────────
     vat_rates: list[VatRateOut] = Field(default_factory=list)
     vat_rate: str = "normal"
@@ -312,7 +321,9 @@ class VoucherEmbed(BaseModel):
     incoterms: list[IncotermOut] = Field(default_factory=list)
     # ─── Stufen und Handlungen ──────────────────────────────────────────────────
     stage: str = "offer"
-    stage_label: str = ""
+    #: ►►► **Kein `stage_label`** (Testnotizen #974/#977). ◄◄◄ Der Belegkopf nannte damit
+    #: die Belegart – zweimal abgelehnt, und sie sagt nichts, was die Punkte an den
+    #: Abschnitten und der Knopf darunter nicht schon sagen.
     stages: list[VoucherStage] = Field(default_factory=list)
     #: **Auskunft UND Tor** – dieselbe Liste rendert die Knöpfe und weist in
     #: ``assert_allowed`` ab.
