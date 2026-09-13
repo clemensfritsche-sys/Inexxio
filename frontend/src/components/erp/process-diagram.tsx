@@ -15,7 +15,8 @@ import { MODULE_CARD, MODULE_TITLE } from './module-ui';
 import {
   statusCfg, isPickable, IM_PROZESS, START_AFTER, START_BEFORE, END_BEFORE, statusLabel,
 } from '@/lib/process-status';
-import { formatObjectId, localDateTime } from '@/lib/utils';
+import { formatObjectId } from '@/lib/utils';
+import { whenTitle } from '@/lib/when';
 import { useErpNav } from './obj-id';
 import type {
   GraphEdge, GraphNode, GraphUnits, JourneyStop, ProcessEventResponse, ProcessGraph,
@@ -250,7 +251,7 @@ export function historyTip(events: ProcessEventResponse[], node: GraphNode,
   const lines = mine.map((e) => [
     e.unit_number,
     `${statusLabel(e.status_before)} → ${statusLabel(e.status_after)}`,
-    localDateTime(e.created_at),
+    whenTitle(e.created_at),
     e.actor,
   ].filter(Boolean).join(' · '));
   // Der Log ist append-only – eine Korrektur wäre ein neuer Eintrag, kein geänderter.
@@ -971,7 +972,7 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
               style={{ background: 'var(--bg-3)', color: 'var(--fg-3)' }}
               // **Seit wann läuft dieses Stück hier?** (Testnotiz #689) Aus dem
               // Ereignis-Log – der Start ist ein Ereignis wie jedes andere.
-              data-tip={u.startedAt ? `Start passiert: ${localDateTime(u.startedAt)}` : undefined}>
+              data-tip={u.startedAt ? `Start passiert: ${whenTitle(u.startedAt)}` : undefined}>
               <UnitNumber value={u.number} size={11} />
               {onDeviate && isPickable(u.status) && (
                 // **Der Auslöser sitzt am Stück, an seiner Stelle im Prozess** (§3.1).

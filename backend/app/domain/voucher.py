@@ -438,6 +438,86 @@ def reverse_word(paid: Decimal) -> str:
     return CREDIT_WORD if paid > 0 else STORNO_WORD
 
 
+# ---------------------------------------------------------------------------
+# ►►► DER ZUSTAND EINER FORDERUNG — abgeleitet, nie gespeichert (Testnotiz #991)
+# ---------------------------------------------------------------------------
+#
+# *«Bitte definiere die Zahlungsstatus-Semantik inkl. Überzahlung.»*
+#
+# **Es ist eine Ableitung aus zwei Zahlen** – dem Betrag der Rechnung und dem, was von ihr
+# offen ist. Ein gespeichertes Zustandsfeld daneben wäre die zweite Wahrheit, und die eine
+# vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
+#
+# **Und die Töne sind die drei des Hauses** (``status-flow.TONE``): *done* = erledigt ·
+# *pending* = offen · *danger* = Problem. Eine vierte Farbe für Geld wäre eine zweite
+# Farbsprache – und ein Zustand, den niemand sonst im ERP lesen kann.
+#
+# ►►► **Die Überzahlung ist ein GUTHABEN, und dafür braucht es nichts Neues.** ◄◄◄
+#
+# Wer zu viel bezahlt hat, hat einen **negativen offenen Betrag** – die Zahl steht bereits
+# da, mit Vorzeichen und in derselben Spalte. Eine eigene Guthaben-Tabelle wäre ein zweites
+# Modell für eine Zahl, die schon dasteht, und sie müsste bei jeder Buchung nachgezogen
+# werden. Zurückgezahlt wird über den Weg, auf dem gezahlt wurde: eine gewöhnliche
+# **negative Zahlung** (bar, Überweisung) bzw. ``refund_online`` (Karte) – beides gibt es
+# längst. Verrechnet wird ein Guthaben **nicht automatisch**: welche Rechnung es mindern
+# soll, weiss nur ein Mensch.
+
+#: **Rundungstoleranz** – darunter gilt eine Forderung als beglichen.
+#:
+#: Bei einer Überweisung aus dem Ausland bleiben Rappen liegen; eine Rechnung, die wegen
+#: drei Rappen für immer «offen» heisst, ist keine Auskunft, sondern eine Mahnliste voller
+#: Geister. Die Zahl steht **hier** und nicht in der Oberfläche: sie ist eine fachliche
+#: Entscheidung, keine Anzeigefrage – und wer mahnt, liest denselben Zustand.
+SETTLED_TOLERANCE = Decimal("0.05")
+
+#: Die Zustände einer Forderung – Schlüssel, Wort, Ton.
+CHARGE_STATES: dict[str, tuple[str, str]] = {
+    #: Zurückgenommen: die Zeile steht weiterhin da (eine Rechnungsnummer ist vergeben),
+    #: aber sie fordert nichts mehr. **Rot wie jeder «Stopp»-Zustand im Haus** – der
+    #: Datensatz ist nicht mehr zu verwenden (dieselbe Lesart wie *inaktiv*).
+    "reversed": ("Storniert", "danger"),
+    "settled": ("Beglichen", "done"),
+    "partial": ("Teilweise bezahlt", "pending"),
+    "overdue": ("Überfällig", "danger"),
+    "overpaid": ("Überzahlt", "danger"),
+    "open": ("Offen", "pending"),
+}
+
+
+def charge_state(total: Decimal, remaining: Decimal, *,
+                 reversed_: bool = False, overdue: bool = False) -> dict[str, str]:
+    """**Wie steht diese Forderung?** – Schlüssel, Wort und Ampelton aus zwei Zahlen.
+
+    ``total`` ist ihr Betrag, ``remaining`` was von ihr offen ist.
+
+    ►►► **Gerechnet wird mit dem VORZEICHEN, nicht mit «grösser null».** ◄◄◄ Eine
+    **Gutschrift** ist eine negative Rechnung (§9.11); bei ihr ist auch der offene Betrag
+    negativ, und «offen < 0 heisst überzahlt» nennte jede unbeglichene Gutschrift
+    «Überzahlt». Überzahlt ist, wo Rest und Betrag **verschiedene** Vorzeichen tragen –
+    dann ist mehr geflossen als gefordert, in welche Richtung auch immer.
+
+    «Teilweise bezahlt» ist die Mitte: gleiches Vorzeichen, aber weniger übrig als
+    gefordert. Ohne sie sähe eine Rechnung, auf die eine Anzahlung eingegangen ist,
+    genauso aus wie eine, auf die nichts eingegangen ist.
+    """
+    if reversed_:
+        return _state("reversed")
+    if abs(remaining) <= SETTLED_TOLERANCE:
+        return _state("settled")
+    if total != 0 and (remaining < 0) != (total < 0):
+        return _state("overpaid")
+    if overdue:
+        return _state("overdue")
+    if abs(remaining) + SETTLED_TOLERANCE < abs(total):
+        return _state("partial")
+    return _state("open")
+
+
+def _state(key: str) -> dict[str, str]:
+    label, tone = CHARGE_STATES[key]
+    return {"state": key, "state_label": label, "state_tone": tone}
+
+
 @dataclass(frozen=True)
 class Direction:
     """**Ein Beleg in EINER Richtung** – alles, was die beiden unterscheidet.

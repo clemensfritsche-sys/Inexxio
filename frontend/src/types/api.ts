@@ -4015,6 +4015,12 @@ export interface components {
             reverse_word?: string | null;
             /** Open */
             open?: string | null;
+            /** State */
+            state?: string | null;
+            /** State Label */
+            state_label?: string | null;
+            /** State Tone */
+            state_tone?: string | null;
             /**
              * Refundable
              * @default false

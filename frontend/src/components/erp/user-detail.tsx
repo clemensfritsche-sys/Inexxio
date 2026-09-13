@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import {
   User, MapPin, Building2, Briefcase, Bell, Check, CreditCard, Cog,
 } from 'lucide-react';
-import { userDisplayName, localDate } from '@/lib/utils';
+import { userDisplayName } from '@/lib/utils';
+import { day, when } from '@/lib/when';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
@@ -360,7 +361,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   }));
 
   const termsDate = record.terms_accepted_at
-    ? new Date(record.terms_accepted_at).toLocaleDateString('de-CH') : null;
+    ? day(record.terms_accepted_at) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -504,9 +505,9 @@ function ProfileForm({ record, isAdmin, onSaved }: {
           <AField label="E-Mail" value={record.email} readOnly />
           <AField label="Anmeldung" value={signInLabel(record.last_sign_in_provider)} readOnly />
           <AField label="Passkeys" value={passkeyLabel(record.passkey_count)} readOnly />
-          <AField label="Letzter Login" value={localDate(record.last_login_at)} readOnly />
-          <AField label="Erstellt" value={localDate(record.created_at)} readOnly />
-          <AField label="Zuletzt geändert" value={localDate(record.updated_at)} readOnly />
+          <AField label="Letzter Login" value={when(record.last_login_at)} readOnly />
+          <AField label="Erstellt" value={when(record.created_at)} readOnly />
+          <AField label="Zuletzt geändert" value={when(record.updated_at)} readOnly />
           {isAdmin && (
             <div className="sm:col-span-2">
               <AField label="Firebase UID" value={record.firebase_uid} readOnly />

@@ -110,6 +110,25 @@ class Voucher(Base, TimestampMixin):
     #: entscheidet genau er, wo das Risiko übergeht.
     incoterm_place: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
+    #: ►►► **Die beiden Fristen als ENTWURF** – was auf dem Beleg steht, bevor er
+    #: hinausgeht (Testnotiz #985). ◄◄◄
+    #:
+    #: Sie lebten nur im Browser und reisten allein in der Nutzlast von ``ask`` mit: wer
+    #: sie tippte und die Seite neu lud, hatte sie verloren. Das war **keine Eigenheit
+    #: dieser zwei Felder**, sondern die einzige Stelle des Belegs ohne eigenes Verb –
+    #: Währung, Aussteller, Lieferbedingung, Preis und Zoll werden längst sofort
+    #: geschrieben.
+    #:
+    #: **Die Vereinbarung steht weiterhin an der Angebotszeile.** Das hier ist der
+    #: Entwurf; ``lead_days_of``/``due_days_of`` lesen die gewählte Zeile und fallen
+    #: darauf zurück. Zwei Wahrheiten sind es nicht – es sind zwei **Zeitpunkte**: was wir
+    #: anbieten wollen, und was vereinbart wurde.
+    #:
+    #: **Null ist eine Angabe** («Sofort» · «Vorauszahlung»); ``NULL`` heisst «noch nichts
+    #: gewählt».
+    lead_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    payment_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
 
 class VoucherQuote(Base, TimestampMixin):
     """**Eine Angebotszeile** – je angefragter Gegenpartei eine.

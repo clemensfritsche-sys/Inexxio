@@ -815,6 +815,17 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     has_address: (s.has_address as boolean) ?? false,
     company_name: (s.company_name as string) ?? '',
     legal_form: (s.legal_form as string | null) ?? null,
+    // ►►► **Der Datensatzname – Name UND Rechtsform** (Testnotiz #984). ◄◄◄
+    //
+    // Er fehlte hier, und damit **überall**: dieser Mapper baut ein Objekt Feld für Feld,
+    // also verschwindet still, was er nicht nennt. `legal_name` kam vom Server (`sites.
+    // legal_name`, seit #910), erreichte den Browser aber nie – `organizationName` fiel
+    // an **jeder** Stelle auf den blossen Namen zurück, im Feed wie in der Kopfzeile. Es
+    // sah nach zwei verschiedenen Anzeigen aus und war eine gemeinsame Lücke.
+    //
+    // *Dieselbe Fehlerform wie eine Pydantic-Klasse, die ein Feld nicht kennt – nur in
+    // der anderen Richtung: eine Auflistung verwirft schweigend, was nicht in ihr steht.*
+    legal_name: (s.legal_name as string | undefined) ?? undefined,
     street: (s.street as string) ?? '',
     street_number: (s.street_nr as string | null) ?? null,
     zip: (s.zip_code as string) ?? '',
@@ -843,7 +854,10 @@ function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unkno
   };
   // `website` ist abgeleitet (Deployment-Adresse, #309) – es zurückzuschicken hiesse,
   // eine zweite Wahrheit anzulegen; das Backend nähme es ohnehin nicht an.
-  const skip = new Set(['iban_masked', 'website', 'is_operator', 'has_address', 'is_active']);
+  // `legal_name` ist ebenso abgeleitet (Name + Rechtsform, `sites.legal_name`) – es
+  // zurückzuschicken wäre die zweite Wahrheit neben den beiden Feldern, aus denen es kommt.
+  const skip = new Set(['iban_masked', 'website', 'is_operator', 'has_address', 'is_active',
+                        'legal_name']);
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {
     if (skip.has(k)) continue;

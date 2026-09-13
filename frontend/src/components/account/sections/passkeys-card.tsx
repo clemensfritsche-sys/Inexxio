@@ -5,15 +5,10 @@ import { Plus, Trash2, ShieldCheck, Info, AlertCircle, Fingerprint } from 'lucid
 import { api } from '@/lib/api';
 import { registerPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
 import type { Passkey } from '@/types';
+import { when } from '@/lib/when';
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '–';
-  try {
-    return new Intl.DateTimeFormat('de-CH', { dateStyle: 'medium' }).format(new Date(iso));
-  } catch {
-    return '–';
-  }
-}
+// Datum und Uhrzeit stehen im Haus an EINER Stelle (`lib/when`, Testnotiz #992).
+const formatDate = (iso: string | null) => when(iso);
 
 export function PasskeysCard() {
   const [passkeys, setPasskeys] = useState<Passkey[]>([]);

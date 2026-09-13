@@ -1,5 +1,6 @@
 'use client';
 
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { MICRO_LABEL } from '@/components/erp/fields';
@@ -61,7 +62,17 @@ export const MODULE_TITLE: CSSProperties = {
  * `row` sitzt in einer Tabellenzeile, `inline` in einer Handlungsleiste, `main` ist die
  * eine Handlung, die eine Karte abschliesst.
  */
-export const ACT_H = { row: 26, inline: 30, main: 34 } as const;
+export const ACT_H = { row: 26, inline: 30, main: 34, stage: 42 } as const;
+
+/**
+ * **Der Abstand zwischen zwei Feldern einer Formular-Zeile.**
+ *
+ * Er steht hier und nicht an der Aufrufstelle – sonst hat das nächste Formular 10 px und
+ * das übernächste 9, und niemand sieht es einzeln (Testnotizen #987/#990). **Unter** der
+ * Beschriftung gibt es bewusst keinen: `fields.Label` bringt seine eigenen 4 px mit, und
+ * ein `gap` daneben kommt obendrauf.
+ */
+export const FIELD_GAP = 12;
 
 /**
  * ►►► **Ein Knopf ist ein Symbol, und beim Zeigen steht sein Name da.** ◄◄◄
@@ -89,6 +100,22 @@ export const ACT_H = { row: 26, inline: 30, main: 34 } as const;
  * (sonst böte der eingeklappte Name seitwärts zu scrollen an), und das schneidet ein
  * `::after` weg – die Blase wäre unsichtbar (die Lehre aus #790).
  */
+/**
+ * ►►► **In einer Zeile klappt ein Knopf seinen Namen NICHT aus** – gemessen. ◄◄◄
+ *
+ * `.ix-tuck` ist die Geste des Hauses (#877–#896, #900), und sie braucht Platz: in einer
+ * **umbrechenden** Zeile wird der Knopf breiter, die Zeile bricht neu um, der Zeiger
+ * fällt vom Knopf, er klappt ein. Gemessen an der echten Geld-Zeile bei 375 px:
+ * `313/48 → 329/32 → 317/44 → 329/32 …` – der Knopf steht nicht still, bei 1440 px und
+ * 320 px dagegen schon. Ein Bedienelement, das unter dem Zeiger wegläuft, ist keines.
+ *
+ * **Die Entscheidung trifft die Zeile, nicht die Aufrufstelle.** Als Angabe je Knopf wäre
+ * sie eine Regel, an die jeder neue denken muss – und der erste, der sie vergisst,
+ * schwingt wieder. `RowActions` setzt sie einmal für alles, was in ihr steht; der Name
+ * steht dann in der **Blase**, die am Layout nichts ändert.
+ */
+const InRow = createContext(false);
+
 export function ActionButton({
   icon: Icon, label, tone = 'neutral', height = ACT_H.row, square, tip, disabled, onClick,
 }: {
@@ -114,18 +141,92 @@ export function ActionButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const steady = useContext(InRow);
   const button = (
     <button type="button" disabled={disabled} onClick={onClick}
-      className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon ix-tuck`}
+      className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon${steady ? '' : ' ix-tuck'}`}
       style={square
         ? ({ height, '--actbtn-w': `${height}px` } as CSSProperties)
         : { height }}
       aria-label={label}>
       <Icon size={13} />
-      <span className="ix-tuck-name">{label}</span>
+      {!steady && <span className="ix-tuck-name">{label}</span>}
     </button>
   );
-  return tip ? <span data-tip={tip} className="inline-flex">{button}</span> : button;
+  // **In einer Zeile sagt die Blase den Namen** – und den Grund dahinter, wie überall.
+  const bubble = steady ? (tip ? `${label} — ${tip}` : label) : tip;
+  return bubble ? <span data-tip={bubble} className="inline-flex">{button}</span> : button;
+}
+
+/**
+ * ►►► **Eine Zeile und ihre Aktionen** (Testnotizen #989/#993). ◄◄◄
+ *
+ * *«‹Stornieren› und ‹Korrigieren› bitte als Zeilenaktion statt als freistehende Buttons
+ * – einheitlich für beide und künftige Zeilenaktionen.»*
+ *
+ * Also ist es eine **Gattung**, kein Fall: `Row` markiert die Zeile, `RowActions` die
+ * Knöpfe an ihrem Ende. Im Ruhezustand sind sie unsichtbar, beim Zeigen und beim Fokus da
+ * – und auf einem Gerät **ohne** Zeiger dauerhaft (die Regel steht in `globals.css`,
+ * `.ix-row`/`.ix-rowactions`, #832). Eine Funktion, die nur ein Zeiger findet, gibt es am
+ * Telefon nicht.
+ *
+ * **Sie belegen ihren Platz immer** (`opacity`, kein `display`): erschienen sie erst beim
+ * Zeigen, verschöbe die Zeile ihren Inhalt unter dem Zeiger – dieselbe Falle wie beim
+ * schwingenden Knopf oben.
+ */
+export function Row({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return (
+    <div className="ix-row flex flex-col" style={{ minWidth: 0, ...style }}>{children}</div>
+  );
+}
+
+/** Die Knöpfe **am Ende** ihrer Zeile – siehe `Row`. Sie behalten ihre Breite (`InRow`). */
+export function RowActions({ children }: { children: ReactNode }) {
+  return (
+    <InRow.Provider value>
+      <span className="ix-rowactions ix-actions" style={{ flex: 'none', marginLeft: 'auto' }}>
+        {children}
+      </span>
+    </InRow.Provider>
+  );
+}
+
+/**
+ * ►►► **Was nicht rückgängig zu machen ist, fragt einmal nach** (#989/#993). ◄◄◄
+ *
+ * Ein Storno vergibt eine Rechnungsnummer und geht nach aussen; ein Fehlklick an einer
+ * Zeile, die beim Zeigen erscheint, ist wahrscheinlicher als an einem Knopf, der
+ * dauerhaft dasteht. Die Rückfrage ist darum **an der Zeile** und nicht in einem Dialog:
+ * derselbe Knopf, ein zweiter Klick, und daneben steht das Wort.
+ *
+ * Sie **schliesst sich von selbst** (`RESET_MS`) – eine Frage, die stehen bleibt, ist ein
+ * Zustand, den man wieder wegklicken muss.
+ */
+const RESET_MS = 4000;
+
+export function ConfirmButton({ icon, label, tone = 'danger', height, tip, disabled,
+                               onConfirm }: {
+  icon: LucideIcon;
+  label: string;
+  tone?: 'primary' | 'neutral' | 'danger';
+  height?: number;
+  tip?: string;
+  disabled?: boolean;
+  onConfirm: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = setTimeout(() => setArmed(false), RESET_MS);
+    return () => clearTimeout(id);
+  }, [armed]);
+
+  return (
+    <ActionButton icon={icon} label={armed ? `${label}: bestätigen` : label}
+      tone={tone} height={height} disabled={disabled}
+      tip={armed ? undefined : tip}
+      onClick={() => { if (armed) { setArmed(false); onConfirm(); } else setArmed(true); }} />
+  );
 }
 
 /**

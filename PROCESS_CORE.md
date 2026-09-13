@@ -3107,6 +3107,67 @@ Zuständen als eine Zeile, in derselben Grösse und Farbe; die Auszeichnung trä
 Wert, denn nur er ist änderbar.
 
 
+#### 9.15m Jede Angabe des Belegs hat ihr Verb
+
+> Testnotiz #985 · `voucher._terms` · Migration `135`
+
+*«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist› werden nicht persistiert — nach einem
+Reload sind sie wieder weg. Der Fix muss für beide Felder und alle weiteren Feldtypen im
+Modul gleichermassen greifen.»*
+
+Und die Ursache war **keine Eigenheit dieser zwei Felder**: beide Fristen existierten
+ausschliesslich an der **Angebotszeile**, und die entsteht erst mit dem Anfragen. Vorher
+gab es im ganzen Datenmodell keinen Ort für sie — getippt lebten sie im Browser und
+reisten allein in der Nutzlast von `ask` mit.
+
+Damit waren sie die **einzige** Angabe des Belegs ohne eigenes Verb: Währung, Aussteller,
+Lieferbedingung, Preis, Steuersatz und die beiden Zoll-Angaben werden längst sofort
+geschrieben. Der Fix schliesst darum die Lücke, statt zwei Felder zu flicken — die Regel
+lautet: **jeder änderbare Wert auf dem Beleg wird sofort persistiert, und keiner lebt nur
+im Browser.**
+
+- **Der Entwurf steht am Beleg** (`vouchers.lead_days`/`payment_days`), die **Vereinbarung**
+  weiterhin an der gewählten Angebotszeile. Keine zwei Wahrheiten, sondern zwei
+  **Zeitpunkte**: was wir anbieten wollen, und was zugesagt wurde. `due_days_of` /
+  `lead_days_of` lesen die Zusage und fallen auf den Entwurf zurück — die Reihenfolge *ist*
+  die Regel.
+- **`ask` liest den Beleg**, nicht die Nutzlast: das Angebot ist die Kopie der Fristen,
+  genauso wie der Betrag die Kopie der Positionen ist. Ein gesendeter Wert wird
+  **verworfen**.
+- **Geprüft wird beim Hinausgehen, nicht beim Tippen** (`_assert_terms` in `_ask`/`_quote`):
+  ein Beleg entsteht unvollständig, und eine Meldung dabei sagte nur, dass man noch nicht
+  fertig ist.
+
+#### 9.15n Der Zustand einer Forderung — abgeleitet, mit Toleranz
+
+> Testnotiz #991 · `domain/voucher.charge_state`
+
+*Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert* — aus **zwei
+Zahlen** (Betrag der Rechnung und Rest), **null Spalten**. Ein gespeichertes Zustandsfeld
+wäre die zweite Wahrheit, und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn
+jemand mahnt.
+
+- **Rundungstoleranz `0.05`**: bei einer Auslandsüberweisung bleiben Rappen liegen, und
+  eine Rechnung, die wegen drei Rappen für immer «offen» heisst, ist keine Auskunft,
+  sondern eine Mahnliste voller Geister. Die Zahl steht im Fachmodell, nicht in der
+  Oberfläche — sie ist eine fachliche Entscheidung, und wer mahnt, liest denselben Zustand.
+- **Gerechnet wird mit dem Vorzeichen**, nicht mit «grösser null»: eine **Gutschrift** ist
+  eine negative Rechnung (§9.11), und «offen < 0 heisst überzahlt» nennte jede unbeglichene
+  Gutschrift «Überzahlt». Überzahlt ist, wo Rest und Betrag **verschiedene** Vorzeichen
+  tragen.
+- **Drei Töne, die des Hauses** (`done` · `pending` · `danger`). Eine vierte Farbe für Geld
+  wäre eine zweite Farbsprache — und ein Zustand, den sonst niemand im ERP lesen kann.
+  *Storniert* ist rot wie jeder «Stopp»-Zustand (dieselbe Lesart wie *inaktiv*).
+
+►►► **Die Überzahlung ist ein GUTHABEN, und dafür braucht es nichts Neues.** ◄◄◄ Der
+negative offene Betrag **ist** die Zahl — mit Vorzeichen, in derselben Spalte. Eine eigene
+Guthaben-Tabelle wäre ein zweites Modell für etwas, das schon dasteht, und sie müsste bei
+jeder Buchung nachgezogen werden. Zurückgezahlt wird über den Weg, auf dem gezahlt wurde:
+eine gewöhnliche **negative Zahlung** (bar, Überweisung) bzw. `refund_online` (Karte).
+**Verrechnet wird ein Guthaben nie automatisch** — welche Rechnung es mindern soll, weiss
+nur ein Mensch.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

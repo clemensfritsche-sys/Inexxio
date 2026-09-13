@@ -192,6 +192,19 @@ class VoucherEntryOut(BaseModel):
     reverse_word: Optional[str] = None
     #: Was auf **dieser** Rechnung noch offen ist.
     open: Optional[str] = None
+    #: ►►► **Der Zustand dieser Forderung – Wort und Ampelton vom Server** (#991). ◄◄◄
+    #:
+    #: *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert* –
+    #: abgeleitet aus Betrag und Rest (``domain/voucher.charge_state``), inklusive der
+    #: Rundungstoleranz. Der Ton ist einer der **drei** des Hauses (``done`` · ``pending``
+    #: · ``danger``); die Farbe dazu steht in den Tokens, nicht hier.
+    #:
+    #: Vorher rechnete die Oberfläche ihn selbst – eine zweite Ableitung derselben Sache,
+    #: ohne Toleranz und ohne «teilweise bezahlt». `None` bei einer Zahlung: sie ist ein
+    #: Ereignis, kein Beleg mit einem Stand.
+    state: Optional[str] = None
+    state_label: Optional[str] = None
+    state_tone: Optional[str] = None
     #: Lässt sie sich über den Zahlungsdienst zurückgeben?
     refundable: bool = False
     #: ►►► **``transferable`` ist entfallen.** ◄◄◄ Es sagte je Zeile, ob sie einen

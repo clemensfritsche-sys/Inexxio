@@ -227,6 +227,25 @@ das ist entfernt: was physisch geschieht, sagen die Module, die es tun. `MODULE_
 und `MODULE_FORM` kennen den Schlüssel nicht mehr; `null` bleibt als Wert erlaubt (er
 heisst «kennt ihn, hat aber nichts zu fragen»), nur trägt ihn heute niemand.*
 
+## Datum und Uhrzeit (`lib/when.ts`)
+►►► **EINE Datums-Ausgabe für das ganze System** (Testnotiz #992). ◄◄◄ Vorher sieben:
+`localDate`, `localDateTime`, drei eigene Helfer im Beleg (`daysUntil`/`relative`/`since`)
+und je ein `toLocaleDateString` an Benutzer, Profil und Passkeys – dieselbe Angabe las
+sich an fünf Stellen anders.
+
+- **`when()` sagt, WANN es war** – die Aussage: heute die Uhrzeit · «Gestern» · «vor 3
+  Tagen» · «13. Sep.» · «13. Sep. 2025» · «Morgen» · «in 5 Tagen». Für alles, wo ein
+  Zeitpunkt eine **Auskunft** ist (Log, Angebote, letzter Login, angelegt/geändert).
+- **`day()` sagt, WELCHER TAG auf dem Papier steht** – die Tatsache: Rechnungs-,
+  Leistungs- und Fälligkeitsdatum, ein Eintrittsdatum. Auf einem **Beleg** ist «vor 3
+  Tagen» keine Angabe. *Zwei Formen einer Regel, ein Modul, ein Namensstamm.*
+- **`formatWhen()` gibt beides** (Text + `title`), damit eine Aufrufstelle den Hover
+  **nicht vergessen kann**: eine Aussage ohne ihre Tatsache ist eine Zahl, die niemand
+  nachprüfen kann.
+- **Die Wörter stehen im Modul, nicht im ICU.** `toLocaleDateString('de-CH', {month:
+  'short'})` liefert je nach ICU-Fassung «Sep.» oder «Sept.» – dieselbe Falle wie beim
+  Tausender-Trenner in `formatAmount`. Ein Wächter verbietet jede zweite Formatierung.
+
 ## Bezahlen (`components/erp/pay-online.tsx`)
 **Die Bezahlkarte ist unsere** – kein Zahllink, keine fremde Seite. Vom Dienst kommen nur
 die **Eingabefelder** (ein *Payment Element* in einem iframe), und das ist ihr Sinn: so
@@ -273,6 +292,9 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
 | `ModuleSection` | Abschnitt: Versalien-Beschriftung über einer Haarlinie – mit **Punkt davor**, wenn er sagt, wie weit er ist (`state`: `past · active · ahead`). **Leerer Titel = kein Kopf.** ►►► **Die Status-Spalte steht immer, auch leer** (#899): ein Punkt rückt die Beschriftung um seine Breite ein, und nur *manche* Abschnitte sind ein Schritt – gemessen 18 px ↔ 33 px im selben Beleg. Ein Punkt für alle wäre die falsche Lösung: er behauptete einen Fortschritt, den ein Inhalts-Abschnitt nicht hat. |
 | `ModuleMeta` | Die leise Zeile für das, was über den ganzen Vorgang gilt (Richtung, Währung, Termin, Sperre). |
 | `ValueBar` | **Ein Anteil an einem Ganzen** – Leiste, Punkt, Wort, Zahl; die Beschriftung ist zugleich das Bedienelement. |
+| `Row` · `RowActions` | ►►► **Eine Zeilenaktion ist eine GATTUNG** (#989/#993). ◄◄◄ Die Korrekturen stehen am **Zeilenende**, im Ruhezustand unsichtbar, bei Hover und Fokus da – und auf einem Gerät **ohne Zeiger dauerhaft** (`.ix-row`/`.ix-rowactions` in `globals.css`, die Regel aus #832, jetzt für jede Zeile statt für eine). Sie belegen ihren Platz immer (`opacity`, kein `display`): erschienen sie erst beim Zeigen, verschöbe die Zeile ihren Inhalt unter dem Zeiger. ►►► **Und ihre Knöpfe klappen ihren Namen NICHT aus – gemessen.** ◄◄◄ In der echten Geld-Zeile bei 375 px steht der Knopf beim Zeigen nicht still (`313/48 → 329/32 → 317/44 → …`); die Entscheidung trifft darum die **Zeile** (`InRow`-Kontext), nicht die Aufrufstelle – als Angabe je Knopf wäre sie eine Regel, die der erste Neue vergisst. Der Name steht dann in der Blase, die am Layout nichts ändert. |
+| `ConfirmButton` | **Was nicht rückgängig zu machen ist, fragt einmal nach** – derselbe Knopf, ein zweiter Klick, das Wort daneben; die Frage schliesst sich von selbst (ein stehender Zustand müsste weggeklickt werden). Kein Dialog: die Rückfrage gehört an die Zeile, an der sie entsteht. |
+| `FIELD_GAP` | Der Abstand zwischen zwei Feldern einer Formular-Zeile (#987/#990). **Unter** der Beschriftung gibt es keinen: `fields.Label` bringt seine 4 px mit, und ein `gap` daneben kommt obendrauf – genau das waren die 7 px, die gemeldet wurden. |
 | `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
 | `ActionButton` · `Actions` | ►►► **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name DANEBEN auf** (#877–#896, #900). ◄◄◄ Acht Notizen, ein Satz – also **ein** Bauteil und **eine** Geste: `.ix-tuck` in `globals.css`, von der die Modul-Palette (`.ix-palette`) die getönte Ausprägung ist. Ein Anlauf lang stand der Name in der Blase, weil ein wachsender Knopf in einer **umbrechenden** Zeile schwingt (gemessen 32 → 63 → 51 → 59 px in 800 ms, mit kippendem `:hover`) – #900 hat das zu Recht zurückgewiesen: die Antwort ist nicht, die Geste aufzugeben, sondern **Platz** zu geben. `Actions` ist eine Zeile mit `flex-wrap: nowrap`; wo sie in einer umbrechenden Zeile steht, bekommt sie zusätzlich `flex: 1 1 100%` (eine eigene Zeile, **linksbündig** – rechts angeschlagen wanderte die Gruppe beim Aufklappen unter dem Zeiger weg). Gemessen dann: **148 px, acht Messungen lang unverändert**, bei 1440 · 375 · 320 px. Der **Grund** hängt an einer Hülle, nicht am Knopf: `.ix-tuck` ist `overflow: hidden`, und das schneidet ein `::after` weg (#790). |
 

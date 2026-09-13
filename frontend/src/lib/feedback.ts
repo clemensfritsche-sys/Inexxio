@@ -11,6 +11,7 @@
  */
 
 import type { FeedbackAnchor, FeedbackContext, FeedbackNote } from '@/types';
+import { whenTitle } from '@/lib/when';
 
 /** Nur ausserhalb der Produktion – die Notizfunktion ist ein Werkzeug der Testumgebung. */
 export const FEEDBACK_ENABLED = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
@@ -330,6 +331,6 @@ function noteToMarkdown(n: FeedbackNote): string[] {
     .filter(Boolean).join(' · ');
   if (env) out.push(`- **Umgebung:** ${env}`);
   if (c?.errors?.length) out.push(`- **Fehler:** ${c.errors.join(' | ')}`);
-  out.push(`- **Gemeldet:** ${n.author_name || 'unbekannt'}, ${new Date(n.created_at).toLocaleString('de-CH')}`);
+  out.push(`- **Gemeldet:** ${n.author_name || 'unbekannt'}, ${whenTitle(n.created_at)}`);
   return out;
 }

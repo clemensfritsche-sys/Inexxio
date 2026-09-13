@@ -319,8 +319,12 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         // fertig vom Server (`sites.legal_name`) – hier aus Name und Rechtsform
         // zusammengesetzt wäre er die zweite Fassung einer Regel, die eine Ausnahme
         // kennt («Muster AG» + «AG» bleibt «Muster AG», nicht «Muster AG AG»).
-        // Solange noch nichts geladen ist, steht der blosse Name da.
-        type="organization" title={organizationName(base) || form.company_name || null}
+        //
+        // ►►► **Und kein Rückfall daneben** (Testnotiz #984). ◄◄◄ Hier stand
+        // `|| form.company_name`, also eine **dritte** Antwort auf dieselbe Frage – und
+        // ausgerechnet eine ohne Rechtsform. `base` ist die Zeile, die auch im Feed
+        // steht: derselbe Aufruf, derselbe Name, garantiert.
+        type="organization" title={organizationName(base)}
         objectId={record.object_id} onBack={onBack}
         // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
         // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt

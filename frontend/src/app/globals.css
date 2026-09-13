@@ -769,15 +769,6 @@
 .erp-tab:hover { color: var(--fg-1); }
 .erp-tab-active { color: var(--inexxio-red); border-bottom-color: var(--inexxio-red); }
 
-/* ── Dokument-Zeile (Reiter «Dokumente»): Aktionen erscheinen beim Hover ── */
-.erp-docrow { transition: border-color .15s, box-shadow .15s; }
-.erp-docrow:hover { border-color: var(--border-2); box-shadow: var(--shadow-sm); }
-.erp-docrow-actions { opacity: 0; transition: opacity .15s; }
-.erp-docrow:hover .erp-docrow-actions,
-.erp-docrow:focus-within .erp-docrow-actions { opacity: 1; }
-/* Touch-Geräte kennen kein Hover → Aktionen dauerhaft zeigen. */
-@media (hover: none) { .erp-docrow-actions { opacity: 1; } }
-
 /* ══════════════════════════════════════════════════════════════════════════════
    ►►► EIN WERT, DEN MAN ÄNDERN KANN — die eine Auszeichnung (Testnotiz #922)
    ══════════════════════════════════════════════════════════════════════════════
@@ -1158,8 +1149,20 @@ fieldset:disabled .ix-editable.is-missing {
 
    Als **eine** Regel im Blatt und nicht als Zustand an der Aufrufstelle: wer sie dort
    nachbaute, bräuchte einen `onMouseEnter`-Zustand je Zeile – und beim nächsten Bauteil
-   fehlte er. */
-.erp-rowaction { opacity: 0; transition: opacity .12s; }
-.erp-partyrow:hover .erp-rowaction,
-.erp-partyrow:focus-within .erp-rowaction { opacity: 1; }
-@media (hover: none) { .erp-rowaction { opacity: 1; } }
+   fehlte er.
+
+   ►►► **Und sie gilt für JEDE Zeile, nicht für eine** (Testnotizen #989/#993). ◄◄◄
+
+   Sie hing an `.erp-partyrow`, also an genau einer Liste. Gemeldet wurde dasselbe an den
+   Geld-Zeilen – «Stornieren» und «Korrigieren» standen dort als freistehende Knöpfe unter
+   jeder Zeile, in derselben Grösse wie eine Buchung. Eine Zeilenaktion ist aber eine
+   **Gattung**: `.ix-row` markiert die Zeile, `.ix-rowactions` die Knöpfe darin, und jede
+   künftige Liste erbt beides, ohne dass jemand dieses Blatt anfasst.
+
+   *Kein Überlauf-Menü: bei ein bis zwei Aktionen wäre es ein Klick mehr für etwas, das
+   man auch zeigen kann – und ein Menü, das sich öffnet, ist wieder eine Fläche, die die
+   Zeile verschiebt.* */
+.ix-rowactions { opacity: 0; transition: opacity .12s; }
+.ix-row:hover .ix-rowactions,
+.ix-row:focus-within .ix-rowactions { opacity: 1; }
+@media (hover: none) { .ix-rowactions { opacity: 1; } }

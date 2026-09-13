@@ -6,7 +6,7 @@ import { api, attachmentUrl } from '@/lib/api';
 import type { RecordEntry, RecordValue } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { UnitNumber } from '@/components/erp/unit-number';
-import { localDateTime } from '@/lib/utils';
+import { when, whenTitle } from '@/lib/when';
 
 /**
  * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist.** ◄◄◄
@@ -146,8 +146,10 @@ function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
         </div>
       )}
 
-      <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}>
-        {[entry.actor, localDateTime(entry.at)].filter(Boolean).join(' · ')}
+      {/* **Die Aussage steht da, die Tatsache im Hover** (`lib/when`, #992). */}
+      <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}
+        {...(whenTitle(entry.at) ? { 'data-tip': whenTitle(entry.at) } : {})}>
+        {[entry.actor, when(entry.at)].filter(Boolean).join(' · ')}
       </span>
     </div>
   );

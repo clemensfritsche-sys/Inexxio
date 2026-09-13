@@ -3898,6 +3898,111 @@
 > an den echten Komponenten (Chips über der Rolle, Symmetrie Δ 0,00 px, Beschriftung 4 px
 > vor dem Feld, die Wege je Rolle).
 
+> ►►► **JEDE ANGABE DES BELEGS HAT IHR VERB — und ein Datum hat EINE Ausgabe**
+> (Tickets #983–#994, Migration `135`). ◄◄◄ Zwölf Punkte, und die drei grössten waren
+> **Lücken, die man einzeln nicht sieht**.
+> **(1) #985 war kein Zwei-Felder-Bug.** *«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist›
+> sind nach einem Reload wieder weg.»* – Beide Fristen existierten ausschliesslich an der
+> **Angebotszeile**, und die entsteht erst mit dem Anfragen: davor gab es im ganzen
+> Datenmodell **keinen Ort** für sie. Getippt lebten sie im Browser und reisten allein in
+> der Nutzlast von `ask` mit. Damit waren sie die **einzige** Angabe des Belegs ohne
+> eigenes Verb – Währung, Aussteller, Lieferbedingung, Preis, Steuersatz und die beiden
+> Zoll-Angaben werden längst sofort geschrieben. Der Fix ist darum die **Regel**: *jeder
+> änderbare Wert auf dem Beleg wird sofort persistiert, keiner lebt nur im Browser.*
+> Neu sind ein Verb (`terms`) und zwei Spalten am Beleg – die **Vereinbarung** bleibt an
+> der gewählten Angebotszeile, das hier ist der **Entwurf** (`due_days_of`/`lead_days_of`
+> lesen die Zusage und fallen darauf zurück: keine zwei Wahrheiten, zwei **Zeitpunkte**).
+> **`ask` liest den Beleg**, nicht die Nutzlast; ein gesendeter Wert wird **verworfen**.
+> Im Browser fiel damit ein Zustand **weg** statt einer dazuzukommen: die Zeile speichert
+> sich selbst (`SavedTerm` + `useAutosave`), wie die Lieferbedingung seit #911.
+> **(2) #984 war eine weggeworfene Angabe – und sie fehlte ÜBERALL.** Die gemeinsame
+> Anzeigefunktion gab es längst (`organizationName` ← `sites.legal_name`, #910); nur kam
+> `legal_name` nie im Browser an: `mapSettingsFromBackend` baut sein Objekt **Feld für
+> Feld**, und was ein solcher Mapper nicht nennt, verschwindet **still** – dieselbe
+> Fehlerform wie eine Pydantic-Klasse, die ein Feld nicht kennt, nur in der anderen
+> Richtung. Der Rückfall auf den blossen Namen griff damit an *jeder* Stelle, und die
+> Rechtsform stand im ganzen ERP nirgends. Nebenbei ist der **dritte** Antwortweg in der
+> Kopfzeile entfallen (`|| form.company_name` – ausgerechnet einer ohne Rechtsform).
+> **(3) #983 war ein Punkt zu viel, kein Punkt zu wenig.** Der 6-px-Zustandspunkt im
+> Empfänger-Chip sagte als **vierter**, was dort schon dreimal steht (Zeichen rechts ·
+> Textfarbe · Wort im Hover) – und ausführlich eine Zeile tiefer im Abschnitt *Angebote*,
+> wo jede Zeile ihren eigenen Punkt **und** ihr Wort trägt. «Punkt + Wort» bleibt die
+> Anatomie eines Zustands; hier fehlte das Wort, und übrig blieb ein Zeichen, das man
+> deuten muss.
+> ►►► **#992: Datum und Uhrzeit stehen jetzt an EINER Stelle** (`lib/when.ts`). ◄◄◄
+> Vorher an **sieben**: `localDate`, `localDateTime`, drei eigene Helfer im Beleg
+> (`daysUntil`/`relative`/`since`) und je ein `toLocaleDateString` an Benutzer, Profil und
+> Passkeys – dieselbe Angabe las sich an fünf Stellen anders. **Zwei Funktionen sind dabei
+> kein Widerspruch, sondern zwei Fragen**: `when()` sagt *wann war das* (heute die
+> Uhrzeit · «Gestern» · «vor 3 Tagen» · «13. Sep.» · «13. Sep. 2025» · «Morgen» · «in 5
+> Tagen»), `day()` *welcher Tag steht auf dem Papier* – auf einem **Beleg** ist das
+> Rechnungsdatum kein «vor 3 Tagen», sondern die Angabe, die über die Steuerperiode
+> entscheidet. Die **volle Tatsache steht immer im Hover** (`formatWhen` gibt beides in
+> einem Zug, damit eine Aufrufstelle sie nicht vergessen kann).
+> **Und die Wörter stehen im Modul, nicht im ICU**: `toLocaleDateString('de-CH', {month:
+> 'short'})` liefert je nach ICU-Fassung «Sep.» oder «Sept.» – dieselbe Falle wie beim
+> Tausender-Trenner in `formatAmount` (typografisches `’` im Browser, gerades `'` in
+> Node). Server- und clientseitig gerendert wirft React die Seite weg.
+> ►►► **#991: der Zustand einer Forderung ist eine Ableitung aus ZWEI Zahlen.** ◄◄◄
+> *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert*, null
+> Spalten (`domain/voucher.charge_state`) – und **vom Server**, nicht aus einer zweiten
+> Rechnung im Browser (die hatte weder Toleranz noch «teilweise bezahlt»). **Toleranz
+> `0.05`**: eine Rechnung, die wegen drei Rappen für immer «offen» heisst, ist keine
+> Auskunft, sondern eine Mahnliste voller Geister. **Gerechnet wird mit dem Vorzeichen**,
+> nicht mit «grösser null» – eine **Gutschrift** ist eine negative Rechnung, und «offen
+> < 0 heisst überzahlt» nennte jede unbeglichene Gutschrift «Überzahlt». **Drei Töne, die
+> des Hauses** (`done`/`pending`/`danger`); eine vierte Farbe für Geld wäre eine zweite
+> Farbsprache. **Die Überzahlung ist ein GUTHABEN, und dafür braucht es nichts Neues**:
+> der negative offene Betrag *ist* die Zahl, zurückgezahlt wird über die gewöhnliche
+> negative Zahlung bzw. `refund_online`; verrechnet wird nie automatisch.
+> ►►► **#989/#993: eine Zeilenaktion ist eine GATTUNG, kein Fall.** ◄◄◄ «Stornieren» und
+> «Korrigieren» standen als freistehende Knöpfe **unter** jeder Geld-Zeile, im selben Rang
+> wie eine Buchung. Jetzt am **Zeilenende** (`Row`/`RowActions` in `module-ui`, Regel im
+> Blatt: `.ix-row`/`.ix-rowactions`), im Ruhezustand unsichtbar, bei Hover und Fokus da –
+> und auf einem Gerät **ohne Zeiger dauerhaft** (die Regel aus #832 gilt jetzt für jede
+> Zeile statt für eine). Destruktives fragt einmal nach (`ConfirmButton`, die Frage
+> schliesst sich von selbst); **kein Überlauf-Menü** – bei ein bis zwei Aktionen wäre es
+> ein Klick mehr für etwas Sichtbares.
+> ►►► **Und in einer Zeile klappt ein Knopf seinen Namen NICHT aus – gemessen.** ◄◄◄
+> `.ix-tuck` braucht Platz (#900): an der echten Geld-Zeile bei 375 px steht der Knopf
+> beim Zeigen **nicht still** (`313/48 → 329/32 → 317/44 → 329/32 …`), bei 1440 und
+> 320 px dagegen schon. Die Entscheidung trifft darum die **Zeile**, nicht die
+> Aufrufstelle (`InRow`-Kontext): als Angabe je Knopf wäre sie eine Regel, an die jeder
+> neue denken muss – und der erste, der sie vergisst, schwingt wieder. Der Name steht dann
+> in der **Blase**, die am Layout nichts ändert. Gemessen danach: 32 px, acht Messungen
+> lang unverändert, bei 1440 · 375 · 320 px.
+> **#987/#990 – die beiden Erfassungsformulare waren schon EINE Komponente**; auseinander
+> lagen die **Masse**: ein eigener `gap: 3` unter der Beschriftung, obwohl `fields.Label`
+> seine 4 px mitbringt (also 7 statt 4), und zwei gleich grosse Knöpfe nebeneinander. Jetzt
+> `FIELD_GAP` und `ACT_H.stage` aus `module-ui`, und die Fusszeile ist **`StageRow`** –
+> buchstäblich dieselbe Zeile wie der Abschluss der Karte und der Zuschlag: eine Handlung
+> nimmt die Breite, «Abbrechen» steht als Quadrat daneben.
+> **#988** – «Offen» stand **dreimal** (Punkt an der Zeile · Wort darunter · Zahl in der
+> Brücke zwischen den Fächern); die mittlere Zeile ist entfallen. **#994** – eine
+> Zahlungszeile beginnt mit ihrer **Art** («Überweisung», «Bar», «Karte»): das ist die
+> Angabe, an der man sie wiedererkennt, und bei einer Barzahlung gibt es gar keine
+> Referenz.
+> **Nebenbei entfallen:** die tote CSS-Regel `.erp-docrow*` (der Reiter «Dokumente» ist
+> mit dem Dokumentmodul gegangen) und `utils.localDate`/`localDateTime`.
+> Wächter: 6 neue in `test_frontend_mirrors.py`, 2 neue in `test_voucher_module.py`, dazu
+> **11 auf die neue Regel gezogene** – *jede prüfte die **Form** der alten Lösung*
+> (`invoiceState`, `since(`, `localDateTime(`, `height: 42`, `.erp-partyrow`, die Fristen
+> in der `ask`-Nutzlast) und hätte damit die bessere Fassung verboten. **25 Bug-Formen
+> gegengeprüft, jede meldet**; *zwei waren dabei stumpf und liessen ihre eigene durch* –
+> einer fragte nach dem blossen Vorkommen von `<ConfirmButton` und war schon durch die
+> **zweite** Rückfrage in derselben Zeile erfüllt, einer prüfte, dass `RowActions` kein
+> `ix-tuck` nennt, während es seine **Kinder** tun. Suite grün gegen die gewachsene
+> Datenbank **und** gegen ein Schema nur aus den Migrationen (je 547); Migration `135` von
+> null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz verifiziert.
+> **Gemessen in Chromium an der echten Komponente** (Karte im `ModuleShell`): 1440 · 1280 ·
+> 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht** Beleg-Zustände
+> (inkl. teilweise bezahlt, überzahlt, überfällig, storniert und JPY) – und **die Messung
+> selbst musste in beide Richtungen nachgeschärft werden**: sie verglich die **rohe**
+> Textkante mit dem Rahmen und meldete darum den ausgeklappten Namen eines Knopfes als
+> 94,5-px-Überlauf, obwohl er hinter `overflow: hidden` liegt. Jetzt wird die **gekappte**
+> Kante verglichen; gegengeprüft, dass ein unteilbares Wort in freiem Text weiterhin meldet
+> (+23,7 px bei 375, +78,7 px bei 320) und dasselbe Wort hinter `truncate` zu Recht nicht.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

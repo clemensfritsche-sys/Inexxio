@@ -122,6 +122,11 @@ _COLUMN_SAFETY_NET = (
     ("articles", "origin_country", "VARCHAR(2)"),
     # Migration 132 – wer den Beleg stellt (Testnotiz #905).
     ("user_profiles", "company_object_id", "BIGINT"),
+    # Migration 135 – die beiden Fristen als **Entwurf** am Beleg (Testnotiz #985). Das
+    # Modell kennt sie, also scheitert ohne sie **jede** Abfrage auf einen Beleg – und die
+    # trägt jedes Zahlungsmodul in jeder Auftrags-Antwort.
+    ("vouchers", "lead_days", "INTEGER"),
+    ("vouchers", "payment_days", "INTEGER"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

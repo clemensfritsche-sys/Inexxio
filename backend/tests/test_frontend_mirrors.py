@@ -5753,10 +5753,12 @@ def test_everything_about_one_party_stands_on_one_line():
     fields = _code(_component(src, "MoneyFields"))
     # (a) **Eine Zeile**: der Container der Partner-Zeile trägt `items-center`, und das
     # Feld steht in ihm – nicht in einem zweiten Block darunter.
-    assert "erp-partyrow" in fields, "Die Partner-Zeile gibt es nicht mehr."
+    # ►►► **Die Zeile ist eine GATTUNG** (#989/#993): `.ix-row` statt `.erp-partyrow`.
+    # Dieselbe Regel gilt seither an jeder Zeile mit Aktionen, nicht an dieser einen.
+    assert "ix-row" in fields, "Die Partner-Zeile gibt es nicht mehr."
     # Von der Zeile bis zum Ende der Schleife – ein fester Zeilenumbruch als Marke wäre
     # die Form der heutigen Einrückung, nicht die Regel.
-    row = fields[fields.index("erp-partyrow"):]
+    row = fields[fields.index("ix-row"):]
     row = row[:row.index("))}")]
     flat = " ".join(row.split())
     for part in ("<ObjId value={row.party}", "aria-label={DEAL_ORDER_REF}", "<RowDelete"):
@@ -5770,7 +5772,7 @@ def test_everything_about_one_party_stands_on_one_line():
     # **anfordert** (`reveal`) – und dass das Bauteil sie daraufhin auch setzt.
     assert "reveal" in flat, "Der Löschen-Knopf der Zeile blendet sich nicht mehr ein (#832)."
     delete = _code(_component(src, "RowDelete"))
-    assert "erp-rowaction" in delete, (
+    assert "ix-rowactions" in delete, (
         "«RowDelete» kennt die Hover-Regel nicht mehr – dann wirkt `reveal` nicht."
     )
     # **Und er sieht aus wie der am Modul selbst** (#844): 26 px, kein Rahmen, keine
@@ -5794,12 +5796,12 @@ def test_everything_about_one_party_stands_on_one_line():
 
     # (b)/(c) **Die Regel wohnt im Blatt** – und sie hat eine Touch-Ausnahme.
     css = _read(FRONTEND / "app" / "globals.css")
-    assert ".erp-rowaction { opacity: 0;" in css, (
+    assert ".ix-rowactions { opacity: 0;" in css, (
         "Die Zeilen-Aktion steht wieder dauerhaft da (#832)."
     )
-    assert ".erp-partyrow:hover .erp-rowaction" in css
-    assert ":focus-within .erp-rowaction" in css, "Der Tastaturweg fehlt."
-    assert "@media (hover: none) { .erp-rowaction { opacity: 1; } }" in css, (
+    assert ".ix-row:hover .ix-rowactions" in css
+    assert ":focus-within .ix-rowactions" in css, "Der Tastaturweg fehlt."
+    assert "@media (hover: none) { .ix-rowactions { opacity: 1; } }" in css, (
         "Auf Touch ist der Knopf unerreichbar – dort gibt es kein Hovern."
     )
 
@@ -6147,7 +6149,9 @@ def test_a_payment_stands_in_the_compartment_it_belongs_to():
     )
     # (c) **Der Stand gehört der Rechnung** – das ist die Antwort auf «welche Zahlung
     # gehört wohin», und sie steht als Ergebnis da statt als Gruppierung.
-    assert "invoiceState(e)" in _body(src, "EntryRow", kind="function"), (
+    # ►►► **Und der Stand kommt vom Server** (#991) – die Zeile zeigt ihn, sie rechnet
+    # ihn nicht: `state_label`/`state_tone` aus `domain/voucher.charge_state`.
+    assert "e.state_label" in _body(src, "EntryRow", kind="function"), (
         "Die Rechnung sagt ihren eigenen Stand nicht mehr (c)."
     )
     assert "auf {chargeRef" not in src and "function chargeRef" not in src, (
@@ -6338,15 +6342,19 @@ def test_a_paid_invoice_says_so_at_its_own_line():
         "Die Geld-Leiste ist zurück (a) – bei einer Rechnung je Modul ist sie die "
         "Zusammenfassung von einem."
     )
-    assert "function invoiceState" in src, "Die Zeile sagt ihren Stand nicht (b)."
-    state = _body(src, "invoiceState", kind="function")
-    # (c) **Abgeleitet, nicht gemeldet** – aus den beiden Zahlen, die ohnehin mitreisen.
-    assert "e.open" in state and "e.overdue" in state, (
-        "Der Stand kommt nicht aus `open`/`overdue` (c) – ein eigenes Zustandsfeld wäre "
-        "die zweite Wahrheit neben der Zahl."
+    # ►►► **Der Stand steht an der Zeile – und er kommt vom SERVER** (#991). ◄◄◄
+    #
+    # Hier stand `function invoiceState`, also die **Form** der damaligen Lösung: eine
+    # zweite Ableitung derselben Zahlen im Browser. Sie hatte keine Rundungstoleranz und
+    # kein «teilweise bezahlt», und zwei Ableitungen einer Regel laufen auseinander.
+    # Gefragt ist jetzt die Regel: die Zeile **zeigt** den Stand und **rechnet** ihn nicht.
+    assert "function invoiceState" not in src, (
+        "Der Stand wird wieder im Browser gerechnet (c) – zwei Ableitungen derselben "
+        "Zahlen, und die zweite vergisst die Toleranz."
     )
-    assert "invoiceState(e)" in _body(src, "EntryRow", kind="function"), (
-        "Die Zeile zeigt den Stand nicht an (b)."
+    row = _body(src, "EntryRow", kind="function")
+    assert "e.state_label" in row and "e.state_tone" in row, (
+        "Die Zeile sagt ihren Stand nicht (b)."
     )
 
 
@@ -6392,7 +6400,7 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
     # **Der Grund hängt an einer HÜLLE.** `.ix-tuck` ist `overflow: hidden` (sonst böte
     # der eingeklappte Name seitwärts zu scrollen an), und das schneidet ein `::after`
     # weg – am Knopf selbst wäre die Blase unsichtbar (die Lehre aus #790).
-    assert "data-tip={tip}" in button.split("</button>")[1], (
+    assert "data-tip={bubble}" in button.split("</button>")[1], (
         "Der Grund hängt wieder am Knopf statt an der Hülle – hinter `overflow: hidden` "
         "ist er unsichtbar."
     )
@@ -6417,8 +6425,13 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
     # ein einzelner Knopf daneben in der umbrechenden Angaben-Zeile ist genau der Fall,
     # der gemessen geschwungen hat.
     row = _code(_component(work, "EntryRow"))
-    inner = row[row.index("<Actions"):row.index("</Actions>")]
-    assert row.count("<ActionButton") == inner.count("<ActionButton"), (
+    # ►►► **Die Zeile heisst jetzt `RowActions`** (#989/#993) – sie **ist** eine
+    # `Actions`-Zeile (`.ix-actions`, nowrap) und steht zusätzlich am Zeilenende und
+    # erscheint beim Zeigen. Der Wächter fragt die Regel: **jeder** Knopf der Geld-Zeile
+    # steht in ihr.
+    inner = row[row.index("<RowActions"):row.index("</RowActions>")]
+    n = row.count("<ActionButton") + row.count("<ConfirmButton")
+    assert n == inner.count("<ActionButton") + inner.count("<ConfirmButton"), (
         "Ein Symbol-Knopf steht ausserhalb der nicht umbrechenden Zeile (d)."
     )
     # **Und diese Zeile gehört sich selbst.** Gemessen bei 375 px: als letztes Kind der
@@ -6432,10 +6445,21 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
     # konstruktiv allein, und ein Wächter, der die frühere Zahl verlangt, verböte die
     # bessere Lösung. Geprüft wird darum, dass sie **nicht in der umbrechenden Zeile
     # steht**: zwischen deren Beginn und `<Actions` liegt ihr `</div>`.
-    wrap = row.rindex("flex-wrap", 0, row.index("<Actions"))
-    between = row[wrap:row.index("<Actions")]
-    assert "</div>" in between or "flex: '1 1 100%'" in row, (
-        "Die Handlungs-Zeile teilt sich wieder eine umbrechende Zeile mit den Angaben (c)."
+    # ►►► **Und die Knöpfe der Geld-Zeile klappen ihren Namen NICHT aus** (#989/#993).
+    # ◄◄◄ Sie stehen jetzt **in** der umbrechenden Angaben-Zeile, an ihrem Ende – genau
+    # dort, wo ein wachsender Knopf gemessen geschwungen hat (#900: 32 → 66 → 32 → 57 px).
+    # Eine Zeilenaktion sagt ihren Namen darum in der **Blase** und behält ihre Breite;
+    # der ausklappende Knopf bleibt, wo er Platz hat: in der `Actions`-Zeile eines
+    # Abschnitts. Gemessen, nicht geschätzt – die Bug-Form schwingt.
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    assert "InRow.Provider" in _body(ui, "RowActions", kind="export function"), (
+        "Die Zeile sagt ihren Knöpfen nicht mehr, dass sie ihre Breite behalten (c) – "
+        "in einer umbrechenden Zeile schwingen sie damit unter dem Zeiger weg."
+    )
+    btn = _body(ui, "ActionButton", kind="export function")
+    assert "useContext(InRow)" in btn and "steady ? '' : ' ix-tuck'" in btn, (
+        "Der Knopf liest die Angabe der Zeile nicht (c) – dann ist sie eine Regel, an "
+        "die jede Aufrufstelle einzeln denken muss."
     )
 
 
@@ -6845,7 +6869,9 @@ def test_the_action_that_moves_the_document_looks_the_same_everywhere():
     src = _beleg()
     assert "function StageAction(" in src, "Es gibt kein gemeinsames Bauteil (a)."
     body = _component(src, "StageAction")
-    for mark in ("erp-actbtn-primary", "w-full", "height: 42", "fontSize: 14"):
+    # **Die Höhe kommt aus `ACT_H`**, nicht als Zahl an dieser Stelle (#987/#990) –
+    # abgeschriebene Masse sind genau die Form, in der zwei Knöpfe auseinanderlaufen.
+    for mark in ("erp-actbtn-primary", "w-full", "ACT_H.stage", "fontSize: 14"):
         assert mark in body, (
             f"«{mark}» fehlt (b) – dann ist der Knopf nicht so gross und ausdrucksstark "
             f"wie der am Ende der Karte (`order-detail`)."
@@ -7288,8 +7314,15 @@ def test_asking_someone_is_built_in_exactly_one_place():
     ab. Der Knopf am Angebot schickte sie mit; derselbe Befehl tat also je nach Herkunft
     etwas anderes.
 
-    Bug-Formen: (a) eine Aufrufstelle baut die Nutzlast wieder selbst; (b) die Fristen
-    fehlen darin; (c) die Null geht verloren (``0 ? … : …``).
+    ►►► **Und seit #985 trägt die Nutzlast gar keine Frist mehr.** ◄◄◄ Sie stehen auf
+    dem Beleg und werden dort geschrieben (Verb ``terms``); ``_ask`` liest sie von ihm,
+    wie den Betrag aus den Positionen. Damit ist die Regel dieses Wächters **besser**
+    erfüllt als mit der Fassung, die er ursprünglich prüfte – eine Nutzlast, die nichts
+    trägt, kann sich zwischen zwei Aufrufstellen nicht unterscheiden. Geprüft wird darum
+    die Regel, nicht die damalige Form.
+
+    Bug-Formen: (a) eine Aufrufstelle baut die Nutzlast wieder selbst; (b) sie trägt
+    wieder eine Angabe, die der Beleg schon kennt.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     assert src.count("action: 'ask'") == 1, (
@@ -7297,12 +7330,9 @@ def test_asking_someone_is_built_in_exactly_one_place():
     )
     bauer = src[_at(src, "const onAsk"):]
     bauer = bauer[: bauer.index("return (")]
-    assert "payment_days" in bauer and "lead_days" in bauer, (
-        "Die Fristen fehlen in der Nutzlast (b) – der Dienst weist das Angebot ab."
-    )
-    assert "terms.pay === ''" in bauer and "terms.lead === ''" in bauer, (
-        "Geprueft wird auf Wahrheit statt auf den leeren String (c) – die Null ist eine "
-        "Angabe («Vorauszahlung» · «Sofort») und ginge verloren."
+    assert "payment_days" not in bauer and "lead_days" not in bauer, (
+        "Die Nutzlast trägt wieder eine Frist (b) – dann gibt es einen zweiten Ort für "
+        "sie, und der lebt nur im Browser."
     )
 
 
@@ -7592,7 +7622,7 @@ def test_the_cancel_button_stands_beside_the_finish_button_as_a_square():
     assert "<StageRow" in foot and "children" in foot, (
         "Der Abschluss steht nicht in derselben Zeile wie der Storno (a)."
     )
-    assert "square" in foot and "height={42}" in foot, (
+    assert "square" in foot and "ACT_H.stage" in foot, (
         "Der Knopf ist nicht quadratisch in der Höhe des Abschlusses (b)."
     )
     # (d) **Dieselbe Zeile an der Angebotszeile** – der Zuschlag ist für sie, was der
@@ -7923,13 +7953,16 @@ def test_the_chronicle_is_gone_and_its_dates_stand_where_they_belong():
     )
     assert "history_title" not in src, "Ihre Überschrift reist noch mit (a)."
 
+    # ►►► **Die Aussage kommt aus `lib/when`** (#992) – hier standen `since(` und
+    # `localDateTime(`, also die Namen der damaligen Helfer in dieser Datei. Sie gibt es
+    # nicht mehr: Datum und Uhrzeit haben im Haus **eine** Stelle.
     quotes = _component(src, "Quotes")
-    assert "q.sent_at" in quotes and "since(" in quotes, (
+    assert "q.sent_at" in quotes and "when(" in quotes, (
         "Der Abschnitt sagt nicht mehr, wann offeriert wurde (b/c)."
     )
-    assert "localDateTime(" in quotes, "Die genaue Zeit fehlt im Hover (d)."
+    assert "formatWhen(" in quotes, "Die genaue Zeit fehlt im Hover (d)."
     row = _component(src, "QuoteRow")
-    assert "d.agreed_at" in row and "since(" in row and "localDateTime(" in row, (
+    assert "d.agreed_at" in row and "when(" in row and "formatWhen(" in row, (
         "Die Zeile sagt nicht, wann sie den Zuschlag bekam (b/c/d)."
     )
     # **Und der Storno steht im Kopf** – er war die dritte Zeile der Chronik.
@@ -8057,7 +8090,7 @@ def test_a_hover_note_is_as_wide_as_its_own_text():
     assert "d.agreed_at" in head, (
         "Die Angabe steht wieder unter der Kopfzeile (b) statt neben dem Betrag."
     )
-    assert "localDateTime(d.agreed_at)" in head, "Die Tatsache fehlt im Hover (c)."
+    assert "formatWhen(d.agreed_at)" in head, "Die Tatsache fehlt im Hover (c)."
     # (d) **Ein Bauteil, drei Aufrufstellen** – wann offeriert, wann angenommen, wie
     # bestellt. Dreimal dieselben vier Werte wären dreimal die Chance, dass einer abweicht.
     assert src.count("<Note ") + src.count("<Note>") >= 3, (
@@ -8391,3 +8424,267 @@ def test_a_customs_field_names_itself_while_it_is_being_typed():
         "Die Beschriftung steht innerhalb der Auszeichnung (c) – dann verspricht sie "
         "Änderbarkeit, die es nicht gibt."
     )
+
+
+def test_no_editable_value_of_the_voucher_lives_only_in_the_browser():
+    """►►► **Jede Angabe des Belegs hat ihr Verb** (Testnotiz #985). ◄◄◄
+
+    *«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist› werden nicht persistiert.»* – Sie
+    waren die einzige Angabe ohne eigenes: ein gehobener Zustand in ``BelegWork``,
+    mitgeschickt allein in der Nutzlast von ``ask``. Ein Reload verwarf ihn.
+
+    Geprüft wird die **Regel**, nicht die zwei Felder: der Beleg schickt keine Frist in
+    der Nutzlast eines anderen Verbs mit, und die Zeile, die sie zeigt, speichert sie
+    selbst – dieselbe Bauart wie die Lieferbedingung.
+
+    Bug-Formen: (a) ``ask`` trägt wieder eine Frist mit (der Entwurf lebt woanders);
+    (b) die Frist wird nicht gespeichert (kein ``useAutosave`` in ihrer Zeile); (c) das
+    Verb heisst nicht ``terms``, also kommt nichts an.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+
+    # (a) **Keine Frist reist in einem fremden Befehl mit.** Der eine Payload-Bauer für
+    #     `ask` steht in `BelegWork`; steht dort eine Frist, gibt es wieder einen Entwurf,
+    #     den niemand schreibt.
+    asker = _component(src, "BelegWork")
+    for field in ("payment_days", "lead_days"):
+        assert field not in asker, (
+            f"«{field}» reist wieder in der Nutzlast von `ask` mit (a) – dann lebt der "
+            f"Entwurf im Browser, und ein Reload verwirft ihn."
+        )
+
+    # (b)/(c) **Die Zeile, die eine Frist zeigt, speichert sie auch** – mit ihrem Verb.
+    saver = _component(src, "SavedTerm")
+    assert "useAutosave" in saver, (
+        "Die Frist wird nicht gespeichert (b) – sie steht wieder nur im Browser."
+    )
+    assert "'terms'" in saver or '"terms"' in saver, (
+        "Die Frist wird mit einem anderen Verb geschickt (c) – der Dienst kennt nur "
+        "`terms`, also kommt nichts an."
+    )
+
+
+def test_a_recipient_chip_carries_no_state_dot():
+    """►►► **Der Chip sagt seinen Zustand nicht zum vierten Mal** (Testnotiz #983). ◄◄◄
+
+    *«Ein optisch störender Punkt/Separator. Entfernen, ohne das umliegende Spacing zu
+    zerschiessen.»* – Er stand als 6-px-Punkt vor dem Namen und war genau das: was
+    angefragt ist, sagt das **Zeichen rechts** (`+` ↔ `✕`), die **Textfarbe** und das
+    **Wort im Hover** – und ausführlich der Abschnitt *Angebote* eine Zeile tiefer, wo
+    jede Zeile ihren eigenen Punkt **und** ihr Wort trägt.
+
+    «Punkt + Wort» bleibt die Anatomie eines Zustands im Haus; hier fehlte das Wort, und
+    was blieb, war ein Zeichen, das man deuten muss.
+
+    Bug-Formen: (a) der Punkt steht wieder im Chip; (b) mit ihm verschwand auch das Wort
+    im Hover, also sagt der Chip seinen Zustand gar nicht mehr.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    chip = _component(src, "Chip")
+    assert "rounded-full" not in chip, (
+        "Der Zustandspunkt steht wieder im Chip (a) – die vierte Fassung derselben "
+        "Aussage, und die einzige ohne Wort."
+    )
+    assert "data-tip={look.label}" in chip, (
+        "Mit dem Punkt ist auch das Wort gegangen (b) – dann sagt der Chip seinen "
+        "Zustand nirgends mehr."
+    )
+
+
+def test_a_date_is_written_in_exactly_one_place():
+    """►►► **EINE Datums-Ausgabe für das ganze System** (Testnotiz #992). ◄◄◄
+
+    *«Bitte erstelle EINE zentrale Datums-Formatierungsfunktion und ersetze alle
+    bestehenden Ausgaben damit.»*
+
+    Vorher gab es **sieben**: `localDate`, `localDateTime`, drei eigene Helfer im Beleg
+    (`daysUntil`/`relative`/`since`) und je ein `toLocaleDateString` am Benutzer, am Profil
+    und an den Passkeys. Dieselbe Angabe las sich an fünf Stellen anders.
+
+    ►►► **Zwei Funktionen sind kein Widerspruch, sondern zwei Fragen** – `when()` sagt
+    *wann war das* (die Aussage), `day()` *welcher Tag steht auf dem Papier* (die
+    Tatsache). Zwei Formen einer Regel, ein Modul, ein Namensstamm.
+
+    Bug-Formen: (a) irgendwo im Haus steht wieder eine eigene Formatierung; (b) das Modul
+    verlässt sich auf das ICU des Laufzeitsystems (dann heisst derselbe Monat je nach
+    Umgebung anders – die Lehre aus `formatAmount`); (c) die Aussage steht ohne ihre
+    Tatsache da.
+    """
+    # (a) **Niemand formatiert selbst** – ausser dem einen Modul.
+    for path in (FRONTEND / "components").rglob("*.tsx"):
+        code = _code(path.read_text())
+        for gone in ("toLocaleDateString", "toLocaleTimeString", "DateTimeFormat",
+                     "localDate(", "localDateTime("):
+            assert gone not in code, (
+                f"«{gone}» steht wieder in {path.name} (a) – dann gibt es die "
+                f"Datums-Ausgabe zweimal, und die zweite weicht ab."
+            )
+    src = _read(FRONTEND / "lib" / "when.ts")
+    code = _code(src)
+    # (b) **Die Wörter stehen im Modul**, nicht im ICU der Laufzeit.
+    assert "MONTHS" in code and "'Sep.'" in code, (
+        "Die Monatskürzel kommen wieder aus dem ICU (b) – «Sep.» im Browser, «Sept.» in "
+        "Node, und derselbe Beleg sieht je nach Laufzeit anders aus."
+    )
+    assert "toLocaleDateString" not in code and "toLocaleString" not in code, (
+        "Auch das eine Modul rechnet wieder mit dem ICU (b)."
+    )
+    # Die Regeln, nach denen gefragt wurde – jede als eigener Ast.
+    for word in ("'Gestern'", "'Morgen'", "vor ${-n} Tagen", "in ${n} Tagen"):
+        assert word in code, f"Die Regel «{word}» fehlt in `when()`."
+    # (c) **Die Tatsache reist mit** – `formatWhen` gibt Aussage und Hover in einem Zug.
+    assert "whenTitle(value)" in _body(code, "formatWhen", kind="export function"), (
+        "Die Aussage kommt ohne ihre Tatsache (c) – dann steht eine Zahl da, die "
+        "niemand nachprüfen kann."
+    )
+
+
+def test_a_company_is_named_the_same_in_the_feed_and_in_its_window():
+    """►►► **Unternehmensname + Rechtsform – überall dasselbe** (Testnotiz #984). ◄◄◄
+
+    *«ERP-Feed und Header des Detailfensters, zwingend identisch, eine gemeinsame
+    Anzeigefunktion.»*
+
+    Die gemeinsame Funktion gab es (`organizationName`) – **die Angabe kam nur nie an**:
+    `mapSettingsFromBackend` baut sein Objekt Feld für Feld, und `legal_name` stand nicht
+    darin. Was ein solcher Mapper nicht nennt, verschwindet **still** – dieselbe
+    Fehlerform wie eine Pydantic-Klasse, die ein Feld nicht kennt, nur in der anderen
+    Richtung. Der Rückfall auf den blossen Namen griff damit an *jeder* Stelle, und die
+    Rechtsform stand im ganzen ERP nirgends.
+
+    Bug-Formen: (a) der Mapper verliert das Feld wieder; (b) eine Aufrufstelle baut sich
+    einen eigenen Namen daneben; (c) der abgeleitete Name wird zurückgeschickt.
+    """
+    api = _code(_read(FRONTEND / "lib" / "api.ts"))
+    mapper = _body(api, "mapSettingsFromBackend", kind="function")
+    assert "legal_name" in mapper, (
+        "Der Mapper verliert die Rechtsform wieder (a) – sie kommt vom Server und "
+        "erreicht den Browser nicht, und niemand sieht es."
+    )
+    # (c) **Abgeleitet heisst: nicht zurückschreiben.**
+    back = _body(api, "mapSettingsToBackend", kind="function")
+    assert "'legal_name'" in back, (
+        "Der abgeleitete Name geht zurück an den Server (c) – die zweite Wahrheit neben "
+        "den beiden Feldern, aus denen er kommt."
+    )
+    # (b) **Eine Anzeige, ein Aufruf** – im Feed wie in der Kopfzeile, ohne Rückfall.
+    detail = _code(_read(FRONTEND / "components" / "erp" / "organization-detail.tsx"))
+    head = detail[_at(detail, "<DetailHeader"):]
+    head = head[: head.index("/>")]
+    assert "organizationName(base)" in head and "form.company_name" not in head, (
+        "Die Kopfzeile hat einen eigenen Rückfall (b) – und ausgerechnet einen ohne "
+        "Rechtsform."
+    )
+
+
+def test_a_row_action_stands_at_the_end_of_its_row():
+    """►►► **Zeilenaktion statt freistehender Knöpfe** (Testnotizen #989/#993). ◄◄◄
+
+    *«‹Stornieren› und ‹Korrigieren› bitte als Zeilenaktion – einheitlich für beide und
+    künftige Zeilenaktionen; sichtbar bei Hover/Fokus, auf Touch dauerhaft. Destruktive
+    Aktionen mit kurzer Bestätigung.»*
+
+    Also ein **Bauteil**, kein Fall: `Row`/`RowActions` in `module-ui`, und die Regel im
+    Blatt (`.ix-row`/`.ix-rowactions`) – damit erbt jede künftige Liste sie.
+
+    Bug-Formen: (a) die Knöpfe stehen wieder als eigener Block unter der Zeile; (b) sie
+    stehen dauerhaft da; (c) der Storno fragt nicht nach; (d) die Rückfrage bleibt stehen,
+    bis man sie wegklickt.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    row = _component(work, "EntryRow")
+    # (a) **Am Ende der Zeile, nicht darunter**: `RowActions` steht INNERHALB der Zeile mit
+    # den Angaben – zwischen ihrem Beginn und den Knöpfen liegt kein `</div>`.
+    start = row.index("items-baseline")
+    assert "</div>" not in row[start:row.index("<RowActions")], (
+        "Die Korrekturen stehen wieder als eigener Block unter der Zeile (a)."
+    )
+    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
+    assert "ix-rowactions" in _body(ui, "RowActions", kind="export function"), (
+        "Die Knöpfe stehen dauerhaft da (b) – die Regel steht im Blatt, nicht hier."
+    )
+    # (c) **Destruktives fragt einmal nach** – der Storno vergibt eine Rechnungsnummer.
+    #
+    # *Gefragt ist DIESE Handlung, nicht das blosse Vorkommen des Bauteils: daneben steht
+    # eine zweite (die Erstattung), und «`<ConfirmButton` kommt vor» liess die eigene
+    # Bug-Form durch – gemessen, nachgeschärft.*
+    at = row.index("action: 'reverse'")
+    assert row.rfind("<ConfirmButton", 0, at) > row.rfind("<ActionButton", 0, at), (
+        "Der Storno fragt nicht nach (c) – er vergibt eine Rechnungsnummer und geht nach "
+        "aussen."
+    )
+    confirm = _body(ui, "ConfirmButton", kind="export function")
+    assert "armed" in confirm, "Die Rückfrage ist keine (c)."
+    # (d) **Und sie schliesst sich von selbst** – sonst ist sie ein Zustand.
+    assert "setTimeout" in confirm and "RESET_MS" in confirm, (
+        "Die Rückfrage bleibt stehen (d) – eine Frage, die man wegklicken muss, ist ein "
+        "Zustand mehr."
+    )
+
+
+def test_both_booking_forms_are_the_same_form():
+    """►►► **Ein Formular, und es sieht aus wie jedes andere** (#987/#990). ◄◄◄
+
+    *«Feldhöhen, Spacing, Button-Hierarchie: eine Primäraktion, Abbrechen dezent. Beide
+    untereinander identisch.»*
+
+    «Rechnung stellen» und «Zahlung erfassen» waren schon **dieselbe** Komponente;
+    auseinander lagen die Masse – ein eigener `gap: 3` unter der Beschriftung (obwohl
+    `fields.Label` seine 4 px mitbringt) und zwei gleich grosse Knöpfe nebeneinander.
+
+    Bug-Formen: (a) die Masse stehen wieder als Zahlen an dieser Stelle; (b) zwei gleich
+    grosse Knöpfe; (c) das Feld ist nicht das des Hauses.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    form = _component(work, "Entry")
+    # (a) **Der Abstand kommt aus dem Bauteil.** Und unter der Beschriftung gibt es keinen:
+    # `Label` bringt seine eigenen 4 px mit.
+    assert "FIELD_GAP" in form, "Der Feld-Abstand steht wieder als Zahl da (a)."
+    ask = _component(work, "Ask")
+    assert "gap:" not in ask, (
+        "Unter der Beschriftung steht wieder ein eigener Abstand (a) – `Label` bringt "
+        "seine 4 px mit, und ein `gap` kommt obendrauf."
+    )
+    # (b) **Eine Primäraktion, Abbrechen dezent** – dieselbe Zeile wie überall im Beleg.
+    assert "<StageRow" in form and "<StageAction" in form, (
+        "Die beiden Knöpfe stehen wieder gleichrangig nebeneinander (b)."
+    )
+    assert "square" in form, "«Abbrechen» ist kein Quadrat daneben (b)."
+    # (c) **Das Formularfeld des Hauses** – ein Beleg-Feld (`DOC_FIELD`) wäre hier falsch:
+    # dies ist wirklich ein Formular.
+    assert form.count("inputCls") >= 2, "Die Felder sind nicht die des Hauses (c)."
+
+
+def test_a_payment_row_begins_with_how_it_was_paid():
+    """►►► **Zahlungsart zuerst, dann Betrag und Datum** (Testnotiz #994). ◄◄◄
+
+    *«Im Abschnitt ‹Begleichen› soll jede Zahlungszeile mit der Zahlungsart beginnen.»* –
+    Das ist die Angabe, an der man eine Zahlung wiedererkennt; die Referenz sagt sie
+    nicht, und bei einer Barzahlung gibt es gar keine. Sie stand in einer zweiten Zeile
+    hinter dem Zustand.
+
+    ►►► **Und «Offen» steht nicht dreimal** (#988). ◄◄◄ Der Zustand stand als eigene
+    Zeile unter der Rechnung, obwohl der Punkt eine Zeile höher ihn schon sagt – und
+    «Offen» ein drittes Mal in der Brücke zwischen den beiden Fächern, wo es die Zahl
+    trägt.
+
+    Bug-Formen: (a) die Zahlungsart steht wieder hinten; (b) der Zustand steht wieder als
+    eigene Zeile darunter; (c) die Rechnung verliert dabei ihren Zustand ganz.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    row = _component(work, "EntryRow")
+    first = row[row.index("items-baseline"):row.index("<RowActions")]
+    assert "e.method_label" in first, (
+        "Die Zahlungszeile beginnt nicht mit ihrer Art (a)."
+    )
+    assert first.index("e.method_label") < first.index("e.amount"), (
+        "Die Zahlungsart steht hinter dem Betrag (a)."
+    )
+    # (b) **Kein Zustandswort mehr unter der Zeile** – der Punkt sagt ihn.
+    tail = row[row.index("</RowActions>"):]
+    assert "state.label" not in tail, (
+        "Der Zustand steht wieder als eigene Zeile darunter (b) – der Punkt eine Zeile "
+        "höher sagt ihn bereits."
+    )
+    # (c) **Aber sie sagt ihn weiterhin** – als Punkt in der Farbe ihres Tons.
+    assert "state.color" in first, "Die Rechnung sagt ihren Zustand gar nicht mehr (c)."

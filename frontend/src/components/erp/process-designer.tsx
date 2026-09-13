@@ -373,7 +373,7 @@ function RowDelete({ label, hint, reveal, onClick }: {
   label: string; hint?: string;
   /**
    * **Erst beim Hovern** (#832) – für Zeilen, die man häufig liest und selten löscht.
-   * Die Regel steht in `globals.css` (`.erp-rowaction`, mit `@media (hover: none)` für
+   * Die Regel steht in `globals.css` (`.ix-rowactions`, mit `@media (hover: none)` für
    * Touch); hier wird sie nur **gewählt**, nicht formuliert. Ohne die Angabe steht der
    * Knopf durchgehend da – so, wie der Erfassungspunkt ihn immer schon hatte.
    */
@@ -381,7 +381,7 @@ function RowDelete({ label, hint, reveal, onClick }: {
 }) {
   return (
     <button type="button" aria-label={label} data-tip={hint}
-      className={`flex items-center justify-center rounded flex-none${reveal ? ' erp-rowaction' : ''}`}
+      className={`flex items-center justify-center rounded flex-none${reveal ? ' ix-rowactions' : ''}`}
       style={{ width: 26, height: 26, color: 'var(--danger)' }}
       onClick={onClick}>
       <Trash2 size={14} />
@@ -519,7 +519,7 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
              sichtbar. Eine Funktion, die nur ein Zeiger findet, gibt es am Telefon
              nicht. `focus-within` deckt den Tastaturweg. */
           <div key={row.party}
-            className="erp-partyrow flex items-center gap-2 py-1.5 flex-wrap"
+            className="ix-row flex items-center gap-2 py-1.5 flex-wrap"
             style={{ borderTop: '1px solid var(--border-1)' }}>
             <ObjId value={row.party} />
             <span className="text-[12.5px] truncate" style={{

@@ -34,15 +34,13 @@ export function formatAmount(v: string | number | null | undefined,
     .replace(/\u2019/g, "'");
 }
 
-// ISO-Timestamp → Schweizer Datum («03.07.2026»), leer → «—».
-export function localDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
-}
-
-/** Datum **und** Uhrzeit («31.07.26, 21:52») – die Form der Wer/Wann-Angaben. */
-export function localDateTime(iso: string | null | undefined): string | undefined {
-  return iso ? new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }) : undefined;
-}
+// ►►► **Datum und Uhrzeit stehen in `lib/when`** (Testnotiz #992). ◄◄◄
+//
+// Hier standen `localDate` und `localDateTime`, und daneben lebten drei eigene Helfer im
+// Beleg und drei `toLocaleDateString` an Benutzer, Profil und Passkeys – sieben Formen
+// für eine Angabe. Sie sind ersetzt durch `when()` (die Aussage: «Gestern» · «vor 3
+// Tagen» · «13. Sep.»), `day()` (die Tatsache auf dem Papier) und `whenTitle()` (die
+// volle Angabe im Hover). Ein Wächter verbietet jede zweite Datums-Formatierung daneben.
 
 /**
  * Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`):

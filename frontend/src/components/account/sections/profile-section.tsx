@@ -17,6 +17,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { User, Briefcase, Building2, MapPin, Bell } from 'lucide-react';
 import type { UserProfile } from '@/types';
+import { day } from '@/lib/when';
 import { Field, ToggleField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
@@ -208,7 +209,7 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Abteilung" value={profile.department ?? ''} readOnly />
               <Field label="Funktion" value={profile.job_title ?? ''} readOnly />
-              <Field label="Eintrittsdatum" value={profile.employment_start_date ? new Date(profile.employment_start_date).toLocaleDateString('de-CH') : ''} readOnly />
+              <Field label="Eintrittsdatum" value={profile.employment_start_date ? day(profile.employment_start_date) : ''} readOnly />
               <Field label="Pensum" value={profile.weekly_hours ? `${profile.weekly_hours}h / Woche` : ''} readOnly />
             </div>
           </SubBlock>

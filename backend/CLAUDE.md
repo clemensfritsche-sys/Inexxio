@@ -860,6 +860,33 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > sie sich unterscheidet, sonst wären zwei Blöcke mit demselben Text zwei Aussagen über
 > eine Sache. Die Liste gibt es **nur für das Personal**: sie ist die Konkurrenzliste.
 
+> ►►► **Jede Angabe des Belegs hat ihr VERB** (Testnotiz #985, Migration `135`). ◄◄◄
+> Die beiden Fristen existierten nur an der **Angebotszeile**, und die entsteht erst mit
+> dem Anfragen: davor gab es keinen Ort für sie, also lebten sie im Browser und reisten
+> allein in der Nutzlast von ``ask`` mit – ein Reload verwarf sie **stillschweigend**.
+> Sie waren damit die einzige Angabe ohne eigenes Verb (Währung, Aussteller,
+> Lieferbedingung, Preis und Zoll werden längst sofort geschrieben), und der Fix ist die
+> **Regel**: *jeder änderbare Wert des Belegs wird sofort persistiert.*
+> **Der Entwurf steht am Beleg** (``vouchers.lead_days``/``payment_days``, Verb
+> ``terms``), die **Vereinbarung** weiterhin an der gewählten Zeile – keine zwei
+> Wahrheiten, zwei **Zeitpunkte**; ``due_days_of``/``lead_days_of`` lesen die Zusage und
+> fallen darauf zurück. **``_ask`` liest den Beleg**, nicht die Nutzlast (ein gesendeter
+> Wert wird verworfen: er wäre die zweite Aussage, und die getippte gewänne). Geprüft wird
+> beim **Hinausgehen**, nicht beim Tippen – ein Beleg entsteht unvollständig.
+
+> ►►► **Der Zustand einer Forderung ist eine Ableitung aus zwei Zahlen** (#991,
+> ``domain/voucher.charge_state``). ◄◄◄ *Offen · Teilweise bezahlt · Beglichen ·
+> Überfällig · Überzahlt · Storniert* – **null Spalten**, und vom Server statt aus einer
+> zweiten Rechnung im Browser (die hatte weder Toleranz noch «teilweise bezahlt»).
+> **Toleranz ``0.05``**: eine Rechnung, die wegen drei Rappen «offen» heisst, ist eine
+> Mahnliste voller Geister; die Zahl gehört ins Fachmodell, nicht in die Anzeige.
+> **Gerechnet wird mit dem Vorzeichen** – eine Gutschrift ist eine negative Rechnung, und
+> «offen < 0 heisst überzahlt» nennte jede unbeglichene Gutschrift «Überzahlt».
+> **Drei Töne, die des Hauses** (``done``/``pending``/``danger``).
+> **Die Überzahlung ist ein Guthaben** – der negative offene Betrag *ist* die Zahl;
+> zurückgezahlt wird über die gewöhnliche negative Zahlung bzw. ``refund_online``,
+> verrechnet wird nie automatisch.
+
 ## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
 
 Drei Netze, drei verschiedene Fänge: die **Migration** ist die Wahrheit · `create_all` im

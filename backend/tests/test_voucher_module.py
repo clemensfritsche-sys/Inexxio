@@ -217,7 +217,7 @@ def test_a_verb_is_declared_in_exactly_one_place():
         )
     # (b) **Jedes Verb, das irgendwo vorkommt, steht in `VERBS`.**
     for verb in ("ask", "quote", "decline", "agree", "revoke", "charge", "pay",
-                 "reverse", "price", "currency", "issuer", "incoterm",
+                 "reverse", "price", "currency", "issuer", "incoterm", "terms",
                  "pay_online", "refund_online"):
         assert verb in svc.VERBS, f"«{verb}» fehlt in VERBS (b)."
     # (c) **`can` liest genau diese Tabelle** – geprüft an der Stufe, nicht am Namen.
@@ -342,8 +342,9 @@ def test_a_position_exists_in_exactly_one_form():
         # (b) **Ab der Zusage steht es fest** – und das misst man nur, wenn der Prozess
         #     sich danach wirklich **ändert**: der Auftrag verliert Stücke (genau der
         #     Fall, um den es geht). Ohne diese Zeilen prüfte der Wächter gar nichts.
-        svc.apply(db, order=order, step=step, action="ask", payload={
-            "parties": [who[0].object_id], "lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask", payload={"parties": [who[0].object_id]})
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": who[0].object_id})
         db.flush()
@@ -394,8 +395,10 @@ def test_three_columns_became_derivations():
         a, b = _party(db, "Kunde A", "customer"), _party(db, "Kunde B", "customer")
         order, step, row, _who, _art = _scene(db, quantity=3, parties=[a, b])
         _price(db, order, step, row, price="10.00")
-        svc.apply(db, order=order, step=step, action="ask",
+        svc.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={})
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": b.object_id})
         db.flush()
@@ -503,8 +506,10 @@ def test_an_income_runs_from_offer_to_paid():
     try:
         order, step, row, who, _art = _scene(db, direction="in", quantity=6)
         _price(db, order, step, row, price="50.00")
-        svc.apply(db, order=order, step=step, action="ask",
+        svc.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={})
         db.flush()
         assert svc.quotes_of(db, row)[0].state == "offeriert", (
             "Wo WIR den Preis nennen, geht die Zeile offeriert hinaus."
@@ -648,8 +653,10 @@ def test_a_charge_is_reversed_by_a_counter_entry_never_deleted():
     try:
         order, step, row, who, _art = _scene(db, quantity=2)
         _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="ask",
+        svc.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 0, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={})
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": who[0].object_id})
         svc.apply(db, order=order, step=step, action="charge", payload={})
@@ -704,8 +711,10 @@ def test_one_live_invoice_per_module():
     try:
         order, step, row, who, _art = _scene(db, quantity=2)
         _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="ask",
+        svc.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 0, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={})
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": who[0].object_id})
         svc.apply(db, order=order, step=step, action="charge",
@@ -794,8 +803,10 @@ def test_prepayment_is_the_payment_term_not_a_switch():
     try:
         order, step, row, who, _art = _scene(db, quantity=1)
         _price(db, order, step, row, price="10.00")
-        svc.apply(db, order=order, step=step, action="ask",
+        svc.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 0, "payment_days": 0})
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={})
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": who[0].object_id})
         db.flush()
@@ -805,8 +816,10 @@ def test_prepayment_is_the_payment_term_not_a_switch():
         # (b) **Dieselbe Szene mit 30 Tagen läuft durch.**
         order2, step2, row2, who2, _a2 = _scene(db, quantity=1)
         _price(db, order2, step2, row2, price="10.00")
-        svc.apply(db, order=order2, step=step2, action="ask",
+        svc.apply(db, order=order2, step=step2, action="terms",
                   payload={"lead_days": 0, "payment_days": 30})
+        svc.apply(db, order=order2, step=step2, action="ask",
+                  payload={})
         svc.apply(db, order=order2, step=step2, action="agree",
                   payload={"party": who2[0].object_id})
         db.flush()
@@ -956,9 +969,10 @@ def test_the_addressee_is_the_one_we_asked():
         order, step, row, _who, _art = _scene(db, parties=[one, two])
         _price(db, order, step, row)
 
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [one.object_id], "payment_days": 30,
-                           "lead_days": 5})
+                  payload={"parties": [one.object_id]})
         db.flush()
         head = svc.document_head(db, row, won=True)
         them = head["customer"]
@@ -976,9 +990,10 @@ def test_the_addressee_is_the_one_we_asked():
         )
 
         # (b) **Zwei Angefragte sind ein Rundschreiben** – dann gibt es keinen Adressaten.
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [two.object_id], "payment_days": 30,
-                           "lead_days": 5})
+                  payload={"parties": [two.object_id]})
         db.flush()
         assert svc.addressee_of(db, row) is None, (
             "Bei zwei Angefragten wird einer geraten (b) – eine erfundene Adresse ist "
@@ -1071,9 +1086,10 @@ def test_an_ask_can_be_taken_back():
             "was man zurücknehmen könnte."
         )
 
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30}, actor=staff)
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [one.object_id, two.object_id],
-                           "payment_days": 30, "lead_days": 5}, actor=staff)
+                  payload={"parties": [one.object_id, two.object_id]}, actor=staff)
         db.flush()
         assert len(svc.quotes_of(db, row)) == 2
         assert "unask" in svc.can(db, row, staff), "Das Verb fehlt (a)."
@@ -1139,9 +1155,10 @@ def test_a_cancel_is_reachable_at_every_step_that_happened():
         _price(db, order, step, row)
         staff = _party(db, "Personal", "admin")
 
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30}, actor=staff)
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [who[0].object_id], "payment_days": 30,
-                           "lead_days": 5}, actor=staff)
+                  payload={"parties": [who[0].object_id]}, actor=staff)
         db.flush()
         assert row.stage == vo.OFFER
         assert "revoke" in svc.can(db, row, staff), (
@@ -1199,9 +1216,10 @@ def test_a_recipient_carries_its_own_address():
         order, step, row, _who, _art = _scene(db, parties=[one, two])
         _price(db, order, step, row)
         staff = _party(db, "Personal", "admin")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30}, actor=staff)
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [one.object_id, two.object_id],
-                           "payment_days": 30, "lead_days": 5}, actor=staff)
+                  payload={"parties": [one.object_id, two.object_id]}, actor=staff)
         db.flush()
 
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
@@ -1329,8 +1347,10 @@ def test_an_incomplete_document_does_not_go_out():
         row.incoterm, row.incoterm_place = None, None
         db.flush()
         with pytest.raises(HTTPException) as no_clause:
+            svc.apply(db, order=order, step=step, action="terms",
+                      payload={"lead_days": 10, "payment_days": 30})
             svc.apply(db, order=order, step=step, action="ask",
-                      payload={"payment_days": 30, "lead_days": 10})
+                      payload={})
         assert "Lieferbedingung" in no_clause.value.detail, (
             "Ohne Lieferbedingung geht der Beleg hinaus (c)."
         )
@@ -1344,8 +1364,10 @@ def test_an_incomplete_document_does_not_go_out():
             setattr(art, field, None)
             db.flush()
             with pytest.raises(HTTPException) as gone:
+                svc.apply(db, order=order, step=step, action="terms",
+                          payload={"lead_days": 10, "payment_days": 30})
                 svc.apply(db, order=order, step=step, action="ask",
-                          payload={"payment_days": 30, "lead_days": 10})
+                          payload={})
             assert word in gone.value.detail, f"«{word}» ist keine Pflichtangabe (a/b)."
             # (d) **Der Satz nennt die Position** – «Ohne Zolltarifnummer …» über einem
             # Beleg mit zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
@@ -1356,8 +1378,10 @@ def test_an_incomplete_document_does_not_go_out():
             db.flush()
 
         # Und vollständig geht er hinaus.
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 10, "payment_days": 30})
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"payment_days": 30, "lead_days": 10})
+                  payload={})
         assert svc.quotes_of(db, row), "Der vollständige Beleg geht nicht hinaus."
     finally:
         db.rollback(); db.close()
@@ -1434,9 +1458,10 @@ def test_every_possible_party_carries_its_address():
 
         # (b)/(c) Angefragt ändert nichts an der Liste – sie ist eine Vereinigung.
         _price(db, order, step, row)
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 10, "payment_days": 30})
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [one.object_id], "payment_days": 30,
-                           "lead_days": 10})
+                  payload={"parties": [one.object_id]})
         again = [r["object_id"] for r in
                  svc.embed_data(db, order=order, step=step, viewer=staff)["recipients"]]
         assert again == [one.object_id, two.object_id], (
@@ -1471,8 +1496,10 @@ def test_a_quote_says_when_it_went_out_and_when_it_was_taken():
         two = _party(db, "Zweite AG", "customer")
         order, step, row, _who, _art = _scene(db, parties=[one, two])
         _price(db, order, step, row)
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 10, "payment_days": 30})
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"payment_days": 30, "lead_days": 10})
+                  payload={})
 
         rows = svc.embed_data(db, order=order, step=step, viewer=staff)["quotes"]
         assert all(q["sent_at"] for q in rows), "Der Moment des Hinausgehens fehlt (a)."
@@ -1560,9 +1587,10 @@ def test_how_to_order_exists_only_where_we_order():
             order, step, row, _who, _art = _scene(db, direction=direction, parties=[who])
             _price(db, order, step, row)
             staff = _party(db, f"Personal {direction}", "admin")
+            svc.apply(db, order=order, step=step, action="terms",
+                      payload={"lead_days": 5, "payment_days": 30}, actor=staff)
             svc.apply(db, order=order, step=step, action="ask",
-                      payload={"parties": [who.object_id],
-                               "payment_days": 30, "lead_days": 5}, actor=staff)
+                      payload={"parties": [who.object_id]}, actor=staff)
             db.flush()
             got = svc.embed_data(db, order=order, step=step,
                                  viewer=staff)["quotes"][0]["ref"]
@@ -1638,8 +1666,10 @@ def test_the_ways_to_the_money_come_from_can_and_say_what_they_do():
         order, step, row, who, _art = _scene(db, quantity=2)
         staff = _party(db, "Personal", "admin")
         _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="ask",
+        svc.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 0, "payment_days": 30}, actor=staff)
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={}, actor=staff)
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": who[0].object_id}, actor=staff)
         db.flush()
@@ -1721,9 +1751,10 @@ def test_the_settle_charge_is_named_by_the_service_not_guessed():
         order, step, row, _who, _art = _scene(db, quantity=2, parties=[one, two])
         staff = _party(db, "Personal", "admin")
         _price(db, order, step, row, price="100.00")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 0, "payment_days": 30}, actor=staff)
         svc.apply(db, order=order, step=step, action="ask",
-                  payload={"parties": [one.object_id, two.object_id],
-                           "lead_days": 0, "payment_days": 30}, actor=staff)
+                  payload={"parties": [one.object_id, two.object_id]}, actor=staff)
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": one.object_id}, actor=staff)
         svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
@@ -1760,6 +1791,180 @@ def test_the_settle_charge_is_named_by_the_service_not_guessed():
         assert done["settle_charge"] is None and done["ways"] == [], (
             "Eine bezahlte Rechnung bleibt das Ziel (b) – dann bietet die Karte an, "
             "etwas zu begleichen, das beglichen ist."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_term_typed_on_the_voucher_survives_a_reload():
+    """►►► **Was auf dem Beleg steht, wird sofort geschrieben** (Testnotiz #985). ◄◄◄
+
+    *«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist› werden nicht persistiert – nach einem
+    Reload sind sie wieder weg.»*
+
+    Und die Ursache war **keine Eigenheit dieser zwei Felder**: sie existierten
+    ausschliesslich an der Angebotszeile, und die entsteht erst mit dem Anfragen. Sie
+    waren damit die einzige Angabe des Belegs **ohne eigenes Verb** – getippt lebten sie
+    nur im Browser und reisten allein in der Nutzlast von ``ask`` mit.
+
+    Geprüft wird darum die **Regel**, nicht die zwei Felder: jede Angabe des Belegs hat
+    ihr Verb, sie wird sofort geschrieben, und ``ask`` **kopiert** sie – wie den Betrag
+    aus den Positionen.
+
+    Bug-Formen: (a) ``terms`` fehlt, es gibt kein Verb dafür; (b) der Wert überlebt das
+    erneute Lesen nicht; (c) die Ableitung liefert vor der Zusage nichts, also kommt er im
+    Browser nie an; (d) ``ask`` nimmt eine Frist aus der Nutzlast (die zweite Aussage über
+    dieselbe Sache – und die getippte gewänne); (e) «nur gesendete Felder wirken» gilt
+    nicht: wer eine Frist ändert, verliert die andere; (f) die Null geht verloren.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    from app.models import Voucher
+
+    db = _db()
+    try:
+        order, step, row, who, _art = _scene(db, quantity=2)
+        _price(db, order, step, row, price="10.00")
+
+        # (a)/(b) **Geschrieben, und zwar wirklich** – neu gelesen, nicht aus dem Objekt.
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 7, "payment_days": 0})
+        db.flush()
+        db.expire_all()
+        again = db.query(Voucher).filter(Voucher.id == row.id).one()
+        assert (again.lead_days, again.payment_days) == (7, 0), (
+            f"Die Fristen überleben das Speichern nicht (a/b/f): "
+            f"{again.lead_days}/{again.payment_days}."
+        )
+
+        # (c) **Und sie kommen im Browser an** – vor der Zusage gibt es keine gewählte
+        #     Zeile, also muss die Ableitung auf den Entwurf zurückfallen.
+        staff = _party(db, "Personal", "admin")
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert (seen["lead_days"], seen["due_days"]) == (7, 0), (
+            f"Der Entwurf erreicht die Oberfläche nicht (c): "
+            f"{seen['lead_days']}/{seen['due_days']} – das Feld steht nach jedem Reload "
+            f"wieder leer."
+        )
+        assert seen["prepaid"] is True, (
+            "«Zahlbar in 0 Tagen» ist die Vorauszahlung – auch als Entwurf (c)."
+        )
+
+        # (e) **Nur gesendete Felder wirken.**
+        svc.apply(db, order=order, step=step, action="terms", payload={"lead_days": 3})
+        db.flush()
+        db.expire_all()
+        again = db.query(Voucher).filter(Voucher.id == row.id).one()
+        assert (again.lead_days, again.payment_days) == (3, 0), (
+            f"Eine Änderung an EINER Frist nimmt die andere mit (e): "
+            f"{again.lead_days}/{again.payment_days}."
+        )
+
+        # (d) **`ask` liest den Beleg, nicht die Nutzlast.**
+        svc.apply(db, order=order, step=step, action="ask",
+                  payload={"lead_days": 99, "payment_days": 99})
+        db.flush()
+        quote = svc.quotes_of(db, row)[0]
+        assert (quote.lead_days, quote.payment_days) == (3, 0), (
+            f"Eine Frist aus der Nutzlast gewinnt gegen den Beleg (d): "
+            f"{quote.lead_days}/{quote.payment_days} – dann sagt derselbe Beleg zwei "
+            f"Dinge, und die getippte Zahl schlägt die sichtbare."
+        )
+
+        # Und ab der Zusage gilt die **Vereinbarung**, nicht mehr der Entwurf.
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id})
+        db.flush()
+        quote.payment_days = 14
+        db.flush()
+        assert svc.due_days_of(db, row) == 14, (
+            "Nach der Zusage gilt die Frist der gewählten Angebotszeile."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_charge_says_how_it_stands():
+    """►►► **Der Zustand einer Forderung – abgeleitet, mit Toleranz** (Testnotiz #991).◄◄◄
+
+    *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert* – aus
+    zwei Zahlen (Betrag und Rest), **null Spalten**. Und in den **drei** Ampeltönen des
+    Hauses: eine vierte Farbe für Geld wäre eine zweite Farbsprache.
+
+    ►►► **Die Überzahlung ist ein GUTHABEN** – der negative offene Betrag *ist* die Zahl.
+    Eine eigene Guthaben-Tabelle wäre ein zweites Modell dafür; zurückgezahlt wird über
+    die gewöhnliche negative Zahlung bzw. den Zahlungsdienst.
+
+    Bug-Formen: (a) «teilweise bezahlt» gibt es nicht – eine angezahlte Rechnung sieht aus
+    wie eine unberührte; (b) drei Rappen Restdifferenz halten sie für immer offen;
+    (c) eine unbeglichene **Gutschrift** (negative Rechnung) heisst «Überzahlt»;
+    (d) der Ton kommt aus einer eigenen Farbliste statt aus den drei des Hauses;
+    (e) der Zustand erreicht die Oberfläche nicht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from decimal import Decimal
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+
+    d = Decimal
+    # (a) **Angezahlt ist ein eigener Zustand.**
+    assert vo.charge_state(d("100"), d("40"))["state"] == "partial", (
+        "Eine angezahlte Rechnung sieht aus wie eine unberührte (a)."
+    )
+    assert vo.charge_state(d("100"), d("100"))["state"] == "open"
+    # (b) **Rundungstoleranz** – sonst mahnt man wegen drei Rappen.
+    assert vo.charge_state(d("100"), d("0.03"))["state"] == "settled", (
+        "Drei Rappen halten die Rechnung offen (b)."
+    )
+    assert vo.charge_state(d("100"), d("0.00"))["state"] == "settled"
+    # (c) **Eine Gutschrift ist eine negative Rechnung** – und unbeglichen ist sie offen,
+    #     nicht überzahlt. Gerechnet wird mit dem Vorzeichen, nicht mit «grösser null».
+    assert vo.charge_state(d("-100"), d("-100"))["state"] == "open", (
+        "Eine unbeglichene Gutschrift heisst «Überzahlt» (c)."
+    )
+    assert vo.charge_state(d("-100"), d("-40"))["state"] == "partial"
+    assert vo.charge_state(d("100"), d("-20"))["state"] == "overpaid"
+    assert vo.charge_state(d("-100"), d("20"))["state"] == "overpaid"
+    # Überfällig schlägt «offen», storniert schlägt alles.
+    assert vo.charge_state(d("100"), d("100"), overdue=True)["state"] == "overdue"
+    assert vo.charge_state(d("100"), d("0"), reversed_=True)["state"] == "reversed"
+    # (d) **Drei Töne, keine vierte Farbe.**
+    tones = {tone for _, tone in vo.CHARGE_STATES.values()}
+    assert tones <= {"done", "pending", "danger"}, (
+        f"Ein Ton ausserhalb der drei des Hauses (d): {tones}."
+    )
+
+    # (e) **Und er reist mit** – gemessen über den echten Dienstpfad.
+    db = _db()
+    try:
+        order, step, row, who, _art = _scene(db, quantity=2)
+        _price(db, order, step, row, price="100.00")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask", payload={})
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id})
+        svc.apply(db, order=order, step=step, action="charge", payload={})
+        db.flush()
+        staff = _party(db, "Personal", "admin")
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        entry = seen["entries"][0]
+        assert entry["state_label"] and entry["state_tone"], (
+            "Der Zustand erreicht die Oberfläche nicht (e) – dann rechnet sie ihn "
+            "wieder selbst."
+        )
+        # Eine Anzahlung macht daraus «teilweise bezahlt».
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "50.00", "method": "cash"})
+        db.flush()
+        again = svc.embed_data(db, order=order, step=step, viewer=staff)
+        charge = next(e for e in again["entries"] if e["kind"] == "charge")
+        assert charge["state"] == "partial", (
+            f"Die angezahlte Rechnung sagt «{charge['state']}» (a/e)."
         )
     finally:
         db.rollback()

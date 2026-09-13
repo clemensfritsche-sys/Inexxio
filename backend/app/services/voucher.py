@@ -261,9 +261,24 @@ def agreed_amount(db: Session, row: Voucher) -> Optional[Decimal]:
 
 
 def due_days_of(db: Session, row: Voucher) -> Optional[int]:
-    """**Die vereinbarte Zahlungsfrist** – aus ihr kommen Fälligkeit und Vorauszahlung."""
+    """**Die Zahlungsfrist** – aus ihr kommen Fälligkeit und Vorauszahlung.
+
+    ►►► **Die Vereinbarung, sonst der Entwurf** (Testnotiz #985). ◄◄◄ Steht ein Zuschlag,
+    gilt die Frist **seiner** Zeile – ab dort ist eine zweite Partei gebunden. Davor gilt,
+    was auf dem Beleg steht (``vouchers.payment_days``): die Zeile, die sie tragen würde,
+    gibt es noch gar nicht.
+
+    Zwei Wahrheiten sind es nicht – es sind zwei **Zeitpunkte**, und die Reihenfolge hier
+    ist die Regel dazu.
+    """
     q = chosen_quote(db, row)
-    return q.payment_days if q is not None else None
+    return q.payment_days if q is not None else row.payment_days
+
+
+def lead_days_of(db: Session, row: Voucher) -> Optional[int]:
+    """**Die Lieferfrist** – dieselbe Regel wie ``due_days_of``: Zusage, sonst Entwurf."""
+    q = chosen_quote(db, row)
+    return q.lead_days if q is not None else row.lead_days
 
 
 def balance_of(db: Session, row: Voucher) -> vo.Balance:
@@ -760,6 +775,30 @@ def _incoterm(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.incoterm_place = place if key else None
 
 
+def _terms(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Die beiden Fristen schreiben — das fehlende Verb** (Testnotiz #985). ◄◄◄
+
+    *«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist› werden nicht persistiert.»* – Sie
+    waren die **einzige** Angabe des Belegs ohne eigenes Verb: getippt lebten sie nur im
+    Browser und reisten allein in der Nutzlast von ``ask`` mit, also verwarf ein Reload
+    sie. Währung, Aussteller, Lieferbedingung, Preis und Zoll werden längst sofort
+    geschrieben – dies schliesst die Lücke, statt zwei Felder zu flicken.
+
+    **Nur gesendete Felder wirken**: wer die Zahlungsfrist ändert, verliert die
+    Lieferfrist nicht.
+
+    **Geprüft wird hier NICHT.** Ein Beleg entsteht unvollständig, und eine Meldung beim
+    Tippen sagte nur, dass man noch nicht fertig ist – ``_assert_terms`` steht dort, wo er
+    nach aussen geht (``_ask``/``_quote``). Die freundliche Hälfte derselben Regel ist die
+    warnfarbene Auszeichnung im Browser.
+    """
+    if "payment_days" in data:
+        row.payment_days = _days(data.get("payment_days"))
+    if "lead_days" in data:
+        row.lead_days = _days(data.get("lead_days"))
+
+
 def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Die Positionen bepreisen — ein eigenes Verb, und das ist der Punkt.** ◄◄◄
@@ -812,6 +851,12 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     leer hinaus, und das ist ihr Sinn. Bei einer **Einnahme** ist der Betrag die
     **Brutto-Summe der Positionen** – kein zweites Feld daneben: zwei Zahlen über dieselbe
     Sache liefen auseinander, und ein Angebot ohne Preis ist keines.
+
+    ►►► **Und die Fristen kommen vom BELEG, nicht aus der Nutzlast** (Testnotiz #985).◄◄◄
+    Sie stehen auf dem Beleg (``terms``), also ist das Angebot ihre Kopie – genauso, wie
+    der Betrag die Kopie der Positionen ist. Ein Wert aus der Nutzlast wird **verworfen**:
+    er wäre die zweite Aussage über dieselbe Frist, und die getippte gewänne auch dann,
+    wenn auf dem Beleg sichtbar etwas anderes steht.
     """
     flow = vo.of(row.direction)
     allowed = modules.Beleg.parties_allowed(step.config)
@@ -821,7 +866,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             status_code=400,
             detail=(f"Ohne {vo.PARTY} gibt es nichts anzufragen – dieses Modul lässt "
                     f"jeden zu, also muss hier stehen, wen es betrifft."))
-    lead, days = _days(data.get("lead_days")), _days(data.get("payment_days"))
+    lead, days = row.lead_days, row.payment_days
     # ►►► **Ein unvollständiger Beleg geht nicht hinaus** (Testnotiz #964). ◄◄◄ Geprüft
     # wird an der einen Stelle, an der er nach aussen geht – nicht bei jedem Tippen: der
     # Beleg **entsteht** unvollständig, und eine Meldung dabei sagte nur, dass man noch
@@ -1148,6 +1193,9 @@ VERBS: dict[str, Verb] = {
     "currency": Verb(stages=(vo.OFFER,), run=_currency),
     "issuer": Verb(stages=(vo.OFFER,), run=_issuer),
     "incoterm": Verb(stages=(vo.OFFER,), run=_incoterm),
+    # **Die beiden Fristen** (Testnotiz #985) – wie jeder andere änderbare Wert des Belegs
+    # sofort geschrieben, statt bis zum Anfragen im Browser zu leben.
+    "terms": Verb(stages=(vo.OFFER,), run=_terms),
     "price": Verb(stages=(vo.OFFER,), run=_price),
     "ask": Verb(stages=(vo.OFFER,), run=_ask, needs=("ask",)),
     # **Die Gegenhandlung zu ``ask``** – ohne Stammdaten-Bedingung: wer etwas zurücknimmt,
@@ -2096,7 +2144,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "can": allowed,
         # **Die Sperre ist eine ABLEITUNG der Zahlungsfrist**: «zahlbar in null Tagen ab
         # Zusage» *ist* die Vorauszahlung – ein Schalter daneben wäre die zweite Aussage.
-        "prepaid": vo.prepaid(chosen.payment_days if chosen else None),
+        "prepaid": vo.prepaid(due_days_of(db, row)),
         # **Die üblichen Fristen mit ihren Namen** – «Vorauszahlung» ist ein
         # Geschäftsbegriff, «0» eine Ziffer, die man erklären muss.
         "payment_terms": [{"days": d, "label": name} for d, name in vo.PAYMENT_TERMS],
@@ -2150,8 +2198,11 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "party_object_id": party if won else None,
         "party_name": (_named(db, [party])[0]["name"] if party and won else None),
         "amount": _money(chosen.amount, row.currency) if (chosen and won) else None,
-        "due_days": chosen.payment_days if (chosen and won) else None,
-        "lead_days": chosen.lead_days if (chosen and won) else None,
+        # **Die Vereinbarung, sonst der Entwurf** (#985): vor dem Zuschlag steht auf dem
+        # Beleg, was wir anbieten wollen – ohne diese Zeile kam das Getippte nie zurück,
+        # und die Oberfläche zeigte nach jedem Reload ein leeres Feld.
+        "due_days": due_days_of(db, row) if won else None,
+        "lead_days": lead_days_of(db, row) if won else None,
         "agreed_on": row.agreed_on if won else None,
         "cancelled_on": row.cancelled_on if won else None,
         # ►►► **Der Liefertermin und der Verzug — zwei ABLEITUNGEN, null Spalten.** ◄◄◄
@@ -2205,6 +2256,15 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                                  if e.kind == vo.CHARGE else None),
                 "open": (_money(_open_of(entries, e), row.currency)
                          if e.kind == vo.CHARGE else None),
+                # ►►► **Der Zustand kommt vom Server, nicht aus dem Browser** (#991). ◄◄◄
+                # Die Oberfläche rechnete ihn selbst – eine zweite Ableitung derselben
+                # Zahlen, ohne Rundungstoleranz und ohne «teilweise bezahlt». Eine Zahlung
+                # bekommt keinen: sie ist ein Ereignis, kein Beleg mit einem Stand.
+                **(vo.charge_state(
+                    e.amount, _open_of(entries, e),
+                    reversed_=e.id in reversed_ids,
+                    overdue=bool(e.due_on and e.due_on < today and money.open > 0),
+                ) if e.kind == vo.CHARGE else {}),
                 "refundable": e.id in refund_ids,
             }
             # **Dieselbe Frage, dieselbe Antwort**: die Zeilen gehören dem, der den
