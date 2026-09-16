@@ -4118,6 +4118,93 @@
 > Überlauf über acht Beleg-Zustände; Zahl und Währung in jeder der sechs Geld-Angaben
 > farbgleich, jede Zeile jedes Abschnitts auf derselben linken Kante.
 
+> ►►► **ZWEI ENTITÄTEN, KEIN BELEGTYP — und eine Zahlung darf auf mehrere Belege gehen**
+> (Migration `137`, Testnotizen #1010–#1017). ◄◄◄
+> **Das Datenmodell war schon das geforderte** – und das ist der Bericht wert, weil es
+> heisst, dass **nichts zu migrieren war**: `voucher_entries.kind` kennt genau
+> `charge` (Beleg) und `payment` (Zahlung), der **Saldo** ist seit jeher eine Ableitung
+> (`Σ Beleg − Σ Zahlung`, null Spalten), und eine Aufzählung *Rechnung · Storno ·
+> Gutschrift · Ausbuchung* hat es nie gegeben: **positiv fordert, negativ korrigiert.**
+> Ein Beleg ist nach dem Hinausgehen unveränderlich, korrigiert wird durch eine
+> **Gegenbuchung** mit eigener Nummer (#823/#824/#841), und ein Guthaben wird nie
+> automatisch verrechnet. Drei Dinge fehlten:
+> **(1) Der GRUND** (`voucher_entries.reason`, `vo.REASONS`): *Retoure · Mangel · Kulanz ·
+> Rechnungsfehler · uneinbringlich · Rundungsdifferenz* – **Freitext ohne Logik
+> dahinter**, der Katalog ein Vorschlag (darum `datalist`, kein Auswahlfeld). Er steht an
+> der Stelle, an der ein **Belegtyp** stünde, wenn es einen gäbe; der Unterschied ist,
+> dass ein Grund nichts *tut* – ein Quelltext-Wächter verbietet jede Verzweigung darauf.
+> Das Feld steht **immer** da, auch leer: eines, das beim Vorzeichenwechsel erscheint,
+> wäre genau die Geometrie-Änderung mitten im Tippen, die #1016 gemeldet hat.
+> **(2) Die SAMMELZAHLUNG** (`voucher_allocations`): eine Überweisung über 1'500 begleicht
+> eine Rechnung über 1'000 und eine über 500 – auf dem Kontoauszug steht **eine** Zeile,
+> und eine zweite zu erfinden hiesse, die Wirklichkeit dem Datenmodell anzupassen. Die
+> Zahlung bleibt darum eine Zeile, die Aufteilung ist eine eigene Tabelle. **`charge_id`
+> bleibt als Abkürzung** für den einfachen Fall und wird von derselben einen Stelle
+> geschrieben (`allocate`); **gelesen wird nur die Tabelle** (`paid_map`) – zwei
+> Lesestellen wären der Ort, an dem eine Sammelzahlung halb ankommt. Eine Zahlung wird
+> **vollständig zugeordnet oder gar nicht** (die Summe muss den Betrag ergeben), und ein
+> fremder Beleg wird **genannt** statt übersprungen. *Damit ist #858 («eine Zahlung gehört
+> zu genau einer Rechnung») auf ausdrückliche Weisung zurückgenommen; die Regel «je Modul
+> höchstens eine lebende Forderung» (#866) bleibt unangetastet.*
+> **(3) Die KLEINBETRAGSTOLERANZ** (`Balance.write_off`, `WRITE_OFF_LIMIT = 1.00`): ein
+> Restsaldo unter einem Franken darf als Differenz ausgebucht werden – als **ganz
+> gewöhnliche negative Forderung** mit dem Grund «Rundungsdifferenz», kein neuer
+> Mechanismus. **Angeboten, nie automatisch**: wer automatisch ausbucht, verliert die eine
+> Zeile, an der man später sieht, dass jemand entschieden hat. Die Zahl kommt **mit dem
+> Gegenvorzeichen** – eine, die man erst noch drehen muss, wird einmal nicht gedreht.
+> ►►► **#1016 – ein Auto-Save blendet nichts aus.** ◄◄◄ *«Der Partner-Block springt beim
+> Autosave weiterhin.»* Die Ursache stand im Chip: `onAsk`/`onDrop` hingen an `!busy`,
+> waren also während **jedes** Speicherns `undefined`; die beiden Zeichen verschwanden,
+> die rechte Polsterung wechselte von 4 auf 8 px, jeder Chip wurde schmaler, die
+> umbrechende Reihe floss neu – und danach zurück. **Dieselbe Fehlerform wie
+> `disabled={busy}` (#1009), eine Stufe gröber**, und die Regel gilt ab hier dem ganzen
+> Modul: *`busy` sperrt Handlungen, nie Geometrie; Rückmeldung über Deckkraft.* **Aus der
+> letzten Runde war nichts zurückzubauen** – die Summen-Skelette und das entfernte
+> `disabled` sind die Regel selbst, keine Unterdrückung. Gemessen: mit der Bug-Form
+> verschwinden **4 Knöpfe je Karte**, danach **0** verschobene Kanten.
+> **#1014 lag NICHT an der Anzeige-Funktion** – die dritte Meldung zu derselben Regel, und
+> genau darum: `when()` bekam `booked_on`, einen **reinen Tag**, und aus einem Tag ohne
+> Uhrzeit lässt sich «vor 5 Minuten» nicht ableiten; sie überspringt die Stunden-Kaskade
+> bewusst, statt Genauigkeit zu erfinden. Gefehlt hat der **Zeitpunkt** – er reist jetzt
+> als `booked_at` (`created_at` der Zeile) mit. Die Funktion selbst hat seither **einen
+> Wächter je Stufe** (`frontend/scripts/when.test.mjs`, 12 Prüfungen gegen die echte
+> Quelle, in der CI).
+> **#1013 «Online erstatten» hatte zwei Ursachen**, beide in derselben Zeile: der Aufruf
+> endete auf `.catch(() => {})` (ein 409 des Dienstes kam nirgends an), und **gebucht wird
+> vom Webhook** – ein einzelnes Neuladen danach zeigt verlässlich nichts. Jetzt sichtbare
+> Meldung **und** Nachfragen mit derselben Mechanik wie bei einer Zahlung.
+> **#1010/#1017 nimmt #921 zurück**: *keine Betrags-Ausgabe und kein Betrags-Feld ohne
+> Währung* – auch der Einzelpreis, und in **beiden** Zuständen. Die Währung steht als
+> Suffix **innerhalb** des Feldrahmens, in derselben Hülle wie die Zahl (`Amount` nimmt
+> jetzt ein Eingabefeld als Kind) und damit zwingend in derselben Farbe.
+> **#1011/#1012 – die Zeilen-Grammatik hat einen fünften Platz**: `[ Identifikator ]
+> [ Meta ] … [ Aktion ] [ Datum ] [ Betrag ]`. Das Datum ist die **zweite Zahl** der Zeile;
+> im Fliesstext links sprang der Blick für *wann* und *wie viel* zweimal.
+> **#1015 – der Abschnittskopf ist eine LEISTE**, der dritte Anlauf: die beiden davor
+> (Gewicht 800, mehr Luft) galten dem **Text**, und eine Überschrift, die eine Zone
+> eröffnet, braucht eine **Fläche**. Gedämpfte Füllung (`--bg-3`), dunkle Schrift, kräftige
+> Trennlinie (2 px `--border-2`), über die **volle Modulbreite** – nicht Vollschwarz: in
+> einer Spalte mit fünf Modulen stünden fünf schwarze Balken untereinander, und die
+> ERP-Regel heisst *Struktur vor Fläche*. Sie steht in `ModuleSection`, also erbt sie jedes
+> künftige Modul.
+> Wächter: 4 neue in `tests/test_voucher_module.py`, 4 neue in `test_frontend_mirrors.py`,
+> 3 auf die neue Regel gezogen (sie prüften die **Form** der alten Lösung: `when(e.booked_on)`,
+> `onClick={onAsk}`, «der Einzelpreis trägt **keine** Währung» – der letzte hätte die
+> bessere Fassung verboten) – **23 Bug-Formen gegengeprüft, jede meldet**; *drei waren
+> dabei stumpf* (eine Bug-Form, die den Platz gar nicht verschob; ein fremder Beleg, der
+> danach ohnehin in «die Summe stimmt nicht» lief; ein Anker, der die falsche der beiden
+> `reason`-Zeilen traf). Suite grün gegen ein Schema nur aus den Migrationen (568);
+> Migration `137` von null · idempotent · downgrade · re-upgrade · **über das
+> Lifespan-Netz** verifiziert, samt Backfill der bestehenden Zuordnungen.
+> **Gemessen in Chromium an der echten Komponente** (Karte im `ModuleShell`, Zustände aus
+> den echten Dienstpfaden): 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter
+> Überlauf über **acht** Beleg-Zustände; Auto-Save **0** verschobene Kanten; Datum in
+> **8 von 8** Geld-Zeilen links vom Betrag, Betrag auf **einer** Flucht; **24 von 24**
+> Abschnittsköpfen getönt, 18 px Überhang je Seite. *Und die Messung musste zweimal
+> nachgeschärft werden: sie zählte nullflächige `<option>`-Knoten (2454 «verschobene
+> Kanten», von denen keine eine war) und mass absolut statt karten-relativ – ein
+> Messstand, der seinen eigenen Klick als Sprung liest, meldet alles und nichts.*
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

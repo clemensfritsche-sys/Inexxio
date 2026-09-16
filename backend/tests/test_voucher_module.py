@@ -2155,3 +2155,232 @@ def test_the_balance_says_how_it_stands_in_one_number():
     finally:
         db.rollback()
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► ZWEI ENTITÄTEN, KEIN BELEGTYP — Sammelzahlung · Grund · Kleinbetragstoleranz
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_there_is_no_document_type_only_a_sign_and_a_reason():
+    """►►► **Es gibt KEINEN Belegtyp im Code.** ◄◄◄
+
+    *«Kein Belegtyp im Code. Vorzeichen positiv = Forderung, negativ = Korrektur.»*
+
+    Das Datenmodell trägt genau die beiden Entitäten des Auftrags – ``charge`` (Beleg) und
+    ``payment`` (Zahlung) –, und **das Vorzeichen** sagt, was eine Zeile tut. Eine
+    Aufzählung *Rechnung · Storno · Gutschrift · Ausbuchung* gibt es nicht, und nichts
+    verzweigt auf den **Grund**: er ist Freitext, der Katalog ein Vorschlag.
+
+    Bug-Formen: (a) irgendwo steht wieder eine Belegart-Aufzählung; (b) der Dienst
+    verzweigt auf den Grund; (c) der Grund kommt nicht an (Pydantic verwirft Unbekanntes
+    **stillschweigend**).
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.schemas.voucher import VoucherUpdate
+
+    # (a) Die Vokabel kennt zwei Arten, und das sind die beiden Entitäten.
+    assert set(vo.KINDS) == {vo.CHARGE, vo.PAYMENT}, (
+        f"Es gibt mehr als Beleg und Zahlung (a): {vo.KINDS}."
+    )
+    for word in ("storno", "gutschrift", "ausbuchung", "belegtyp", "doc_type"):
+        assert not any(word == str(k).lower() for k in vo.KINDS), (
+            f"«{word}» ist wieder eine Art (a) statt eines Vorzeichens."
+        )
+    # (b) **Nichts rechnet mit dem Grund.** Er steht auf dem Beleg und im Nachweis.
+    code = _code(BACKEND / "app" / "services" / "voucher.py")
+    for form in ("reason ==", 'reason =="', "reason in (", "reason.startswith"):
+        assert form not in code, f"Der Dienst verzweigt auf den Grund (b): «{form}»."
+    # (c) **Die Tür muss das Feld kennen** – sonst kommt es nie an, und kein Dienst-Test
+    #     findet das (die rufen `apply` direkt).
+    sent = VoucherUpdate(action="charge", amount="-12.00", reason="Retoure").changes()
+    assert sent.get("reason") == "Retoure", f"Der Grund erreicht den Dienst nicht (c): {sent}."
+
+
+def test_a_payment_may_be_split_over_several_documents():
+    """►►► **Sammelzahlung — eine Zahlung, mehrere Belege.** ◄◄◄
+
+    *«Eine Zahlung muss auf mehrere Belege aufteilbar sein.»*
+
+    Eine Überweisung über 1'500 begleicht eine Rechnung über 1'000 und eine über 500: auf
+    dem Kontoauszug steht **eine** Zeile. Sie bleibt darum **eine** Zeile, und die
+    Aufteilung steht in ``voucher_allocations``.
+
+    Bug-Formen: (a) die Aufteilung kommt nicht an und die zweite Rechnung bleibt offen;
+    (b) die Summe darf vom Betrag abweichen (dann behauptet der Beleg zwei Dinge);
+    (c) ein fremder Beleg wird still ignoriert statt abgewiesen; (d) der einfache Fall
+    ohne Aufteilung verliert seine Zuordnung.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _scene(db, direction="in", quantity=2)
+        _price(db, order, step, row, price="500.00", vat="export")   # 0 % – runde Zahlen
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask", payload={})
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id})
+        svc.apply(db, order=order, step=step, action="charge", payload={})
+        db.flush()
+        first = svc.live_charge(db, row)
+        assert first is not None and first.amount == Decimal("1000.0000")
+        # Eine **zweite** Forderung entsteht über die Gutschrift-Achse: negativ ist keine
+        # zweite Rechnung, also nehmen wir die erste zurück und stellen zwei.
+        svc.apply(db, order=order, step=step, action="reverse",
+                  payload={"entry": first.id})
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "1000.00"})
+        db.flush()
+        second = svc.live_charge(db, row)
+        assert second is not None and second.id != first.id
+
+        # (c) Ein fremder Beleg wird **genannt**, nicht verschluckt.
+        with pytest.raises(HTTPException) as bad:
+            svc.apply(db, order=order, step=step, action="pay", payload={
+                "amount": "100.00", "method": "cash",
+                "allocations": [{"charge_id": 10_000_000, "amount": "100.00"}]})
+        # *Gefragt ist der **Grund**, nicht der Code: eine übersprungene Zeile läuft
+        # danach in «die Summe stimmt nicht» – also ebenfalls in einen 400, und der
+        # Wächter wäre stumpf (gemessen, nachgeschärft).*
+        assert bad.value.status_code == 400 and "gehört nicht" in bad.value.detail, (
+            f"Ein fremder Beleg wird still übersprungen (c): {bad.value.detail}"
+        )
+
+        # (b) Die Summe muss den Betrag ergeben – sonst ist es keine Zuordnung.
+        with pytest.raises(HTTPException) as off:
+            svc.apply(db, order=order, step=step, action="pay", payload={
+                "amount": "1500.00", "method": "cash",
+                "allocations": [{"charge_id": second.id, "amount": "100.00"}]})
+        assert off.value.status_code == 400
+
+        # (a) **Eine** Zahlung über beide Belege.
+        svc.apply(db, order=order, step=step, action="pay", payload={
+            "amount": "1500.00", "method": "transfer",
+            "allocations": [{"charge_id": first.id, "amount": "1000.00"},
+                            {"charge_id": second.id, "amount": "500.00"}]})
+        db.flush()
+        payments = [e for e in svc.entries_of(db, row) if e.kind == "payment"]
+        assert len(payments) == 1, (
+            f"Aus einer Zahlung wurden {len(payments)} (a) – das erfindet einen "
+            f"Kontoauszug, den es nicht gibt."
+        )
+        assert svc.open_of(db, row, second) == Decimal("500.0000"), (
+            f"Die Aufteilung kam nicht an (a): offen {svc.open_of(db, row, second)}."
+        )
+        # (d) **Der einfache Fall bleibt** – ohne Aufteilung ist die lebende Rechnung
+        #     gemeint, und sie wird ebenso zugeordnet.
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "500.00", "method": "cash"})
+        db.flush()
+        assert svc.open_of(db, row, second) == Decimal("0.0000"), (
+            f"Der einfache Fall verlor seine Zuordnung (d): "
+            f"offen {svc.open_of(db, row, second)}."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_small_residue_may_be_written_off_but_never_by_itself():
+    """►►► **Kleinbetragstoleranz — angeboten, nie automatisch.** ◄◄◄
+
+    *«Restsaldo unter 1.00 CHF kann als Differenz ausgebucht werden (negativer Beleg,
+    Grund ‹Rundungsdifferenz›). Nicht automatisch.»*
+
+    Es ist **kein neuer Mechanismus**: ausgebucht wird über eine ganz gewöhnliche
+    Forderung mit Gegenvorzeichen. ``Balance.write_off`` sagt nur, **ob** die Lage
+    vorliegt und **wie viel** – damit die Oberfläche es anbieten kann.
+
+    Bug-Formen: (a) über der Toleranz wird es trotzdem angeboten (die stille
+    Abschreibung); (b) die Zahl kommt ohne Gegenvorzeichen und bucht die Differenz
+    doppelt; (c) es passiert von selbst.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _scene(db, direction="in", quantity=1)
+        _price(db, order, step, row, price="100.00", vat="export")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask", payload={})
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id})
+        svc.apply(db, order=order, step=step, action="charge", payload={})
+        db.flush()
+        # (a) Zwanzig Franken bucht niemand «versehentlich» aus.
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "80.00", "method": "cash"})
+        db.flush()
+        assert svc.balance_of(db, row).write_off is None, (
+            "Zwanzig Franken werden als Differenz angeboten (a) – das ist die stille "
+            "Abschreibung."
+        )
+        # Rest 0.03 – die Lage, um die es geht.
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "19.97", "method": "cash"})
+        db.flush()
+        offer = svc.balance_of(db, row).write_off
+        # (b) **Mit dem Gegenvorzeichen** – eine Zahl, die man erst noch drehen muss, wird
+        #     einmal nicht gedreht.
+        assert offer == Decimal("-0.0300"), f"Die Vorgabe stimmt nicht (b): {offer}."
+        # (c) **Nichts passiert von selbst.**
+        assert svc.balance_of(db, row).open == Decimal("0.0300"), (
+            "Die Differenz wurde von selbst ausgebucht (c)."
+        )
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": str(offer), "reason": vo.WRITE_OFF_REASON})
+        db.flush()
+        assert svc.balance_of(db, row).open == Decimal("0.0000")
+        booked = svc.entries_of(db, row)[-1]
+        assert booked.reason == vo.WRITE_OFF_REASON, (
+            f"Die Ausbuchung sagt nicht, warum es sie gibt: {booked.reason!r}."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_money_line_carries_the_moment_it_was_booked():
+    """►►► **Eine Auskunft braucht einen ZEITPUNKT, kein Datum** (Testnotiz #1014). ◄◄◄
+
+    *«Ein Ereignis von vor wenigen Minuten wird als ‹Heute› angezeigt.»* – Dreimal
+    gemeldet, und es lag nie an der Anzeige-Funktion: sie bekam ``booked_on``, einen
+    **reinen Tag**, und aus einem Tag ohne Uhrzeit lässt sich «vor 5 Minuten» nicht
+    ableiten. Ihn zu erfinden wäre schlimmer – gefehlt hat der Zeitpunkt.
+
+    Bug-Form: die Zeile reist ohne ``booked_at``, und der Browser muss wieder raten.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _scene(db, direction="in", quantity=1)
+        _price(db, order, step, row, price="10.00", vat="export")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30})
+        svc.apply(db, order=order, step=step, action="ask", payload={})
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": who[0].object_id})
+        svc.apply(db, order=order, step=step, action="charge", payload={})
+        db.flush()
+        staff = _party(db, "Personal", "admin")
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        line = seen["entries"][0]
+        assert line.get("booked_at") is not None, (
+            "Die Geld-Zeile reist ohne Zeitpunkt – dann heisst alles von heute «Heute»."
+        )
+        assert line["booked_at"] != line["booked_on"], (
+            "Der Zeitpunkt ist der Belegtag – dann sagt er dasselbe und nichts mehr."
+        )
+    finally:
+        db.rollback()
+        db.close()

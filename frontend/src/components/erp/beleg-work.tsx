@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   AlertTriangle, Check, ChevronDown, CircleSlash, ClipboardList,
-  CreditCard, FileText, Loader2, Plus, RotateCcw, Send, Undo2,
+  CreditCard, Eraser, FileText, Loader2, Plus, RotateCcw, Send, Undo2,
   Wallet, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -762,10 +762,10 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
         return (
           <Chip key={number} name={r.name || String(number)} number={number}
             state={quote ? (quote.state ?? QUOTE_STATE.asked) : null}
-            active={number === current}
+            active={number === current} busy={busy}
             onShow={() => onShow(number)}
-            onAsk={!quote && canAsk && !busy ? () => onAsk([number]) : undefined}
-            onDrop={canDrop && removable && !busy
+            onAsk={!quote && canAsk ? () => onAsk([number]) : undefined}
+            onDrop={canDrop && removable
               ? () => void onAction({ action: 'unask', party: number })
               : undefined} />
         );
@@ -814,11 +814,27 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
  * Ein 6-px-Punkt in einer Reihe von Pillen ist genau die Form, in der «Punkt + Wort» nicht
  * mehr gilt: das Wort fehlt, und was bleibt, ist ein Zeichen, das man deuten muss.
  */
-function Chip({ name, number, state, active, onShow, onAsk, onDrop }: {
+function Chip({ name, number, state, active, busy, onShow, onAsk, onDrop }: {
   name: string; number: number;
   /** Der Zustand der Angebotszeile – `null` heisst «noch nicht angefragt». */
   state: string | null;
   active?: boolean;
+  /**
+   * ►►► **Ein Auto-Save verändert die Geometrie NICHT** (Testnotiz #1016). ◄◄◄
+   *
+   * *«Der Partner-Block springt beim Autosave weiterhin.»* – Und die Ursache stand
+   * genau hier: `onAsk`/`onDrop` hingen an `!busy`, waren also während **jedes**
+   * Speicherns `undefined`. Damit verschwanden die beiden Zeichen aus dem Chip, seine
+   * rechte Polsterung wechselte von 4 auf 8 px – jeder Chip wurde schmaler, die
+   * umbrechende Reihe floss neu, und der Block sprang; danach kamen sie zurück und er
+   * sprang wieder.
+   *
+   * Es ist dieselbe Fehlerform wie `disabled={busy}` an einem Eingabefeld (#1009), nur
+   * eine Stufe gröber: **`busy` darf nie etwas ein- oder ausblenden.** Die Knöpfe
+   * bleiben stehen, sie sind nur nicht auslösbar – Rückmeldung über **Deckkraft**, die
+   * am Layout nichts ändert.
+   */
+  busy?: boolean;
   onShow?: () => void;
   onAsk?: () => void;
   onDrop?: () => void;
@@ -837,17 +853,20 @@ function Chip({ name, number, state, active, onShow, onAsk, onDrop }: {
         {name || number}
       </button>
       {onAsk && (
-        <button type="button" onClick={onAsk} aria-label="Anfragen" data-tip="Anfragen"
+        <button type="button" onClick={busy ? undefined : onAsk} aria-disabled={busy}
+          aria-label="Anfragen" data-tip="Anfragen"
           style={{ ...DOC_FIELD, display: 'inline-flex', color: 'var(--accent)',
-                   cursor: 'pointer', padding: '0 2px' }}>
+                   cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.45 : 1,
+                   padding: '0 2px' }}>
           <Plus size={11} />
         </button>
       )}
       {onDrop && (
-        <button type="button" onClick={onDrop} aria-label="Anfrage zurückziehen"
-          data-tip="Anfrage zurückziehen"
+        <button type="button" onClick={busy ? undefined : onDrop} aria-disabled={busy}
+          aria-label="Anfrage zurückziehen" data-tip="Anfrage zurückziehen"
           style={{ ...DOC_FIELD, display: 'inline-flex', color: 'var(--danger)',
-                   cursor: 'pointer', padding: '0 2px' }}>
+                   cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.45 : 1,
+                   padding: '0 2px' }}>
           <X size={11} />
         </button>
       )}
@@ -1105,15 +1124,21 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
             onChange={(v) => { setVat(v); }} />
           <Editable on={editable} title="Einzelpreis, netto"
             missing={editable && price.trim() === ''}>
+            {/* ►►► **Kein Betrag ohne Währung – auch keiner, den man tippt** (#1010/
+                #1017). ◄◄◄ Der Code steht als Suffix **innerhalb** des Feldrahmens
+                (`Editable` liegt aussen), in derselben Hülle wie die Zahl und damit in
+                derselben Farbe: eine zweite Schreibweise wäre die Stelle, an der die
+                Währung wieder fehlt. */}
+            {/* ►►► **Ein Betrag hat die Nachkommastellen SEINER Währung** (#931). ◄◄◄
+                *«Warum hat das vier Stellen? Eine Währung hat doch immer zwei.»* – Fast:
+                JPY hat null, KWD drei; die Zahl steht im Vorgang (`currency_decimals`).
+                Die vier kamen aus der Spalte `NUMERIC(18, 4)` – behoben ist das am
+                **Dienst**; hier wird verhindert, dass man sie überhaupt tippen kann.
+                ►►► **Beim Speichern wird nicht gesperrt** (Testnotiz #1009). ◄◄◄ Ein
+                `disabled` nimmt dem Feld den **Fokus**, und es bekommt ihn nicht zurück:
+                gemessen war `document.activeElement` nach jedem Auto-Save `null`. */}
             {editable ? (
-              // ►►► **Ein Betrag hat die Nachkommastellen SEINER Währung** (#931). ◄◄◄
-              // *«Warum hat das vier Stellen? Eine Währung hat doch immer zwei.»* – Fast:
-              // JPY hat null, KWD drei; die Zahl steht im Vorgang (`currency_decimals`).
-              // Die vier kamen aus der Spalte `NUMERIC(18, 4)` – behoben ist das am
-              // **Dienst**; hier wird verhindert, dass man sie überhaupt tippen kann.
-              // ►►► **Beim Speichern wird nicht gesperrt** (Testnotiz #1009). ◄◄◄ Ein
-              // `disabled` nimmt dem Feld den **Fokus**, und es bekommt ihn nicht zurück:
-              // gemessen war `document.activeElement` nach jedem Auto-Save `null`.
+              <Amount currency={d.currency} size={13}>
               <input {...numericInputProps} value={price}
                 onChange={(e) => setPrice(
                   numericOnly(e.target.value, { decimals: d.currency_decimals ?? 2 }))}
@@ -1122,9 +1147,10 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
                 aria-label="Einzelpreis"
                 style={{ ...DOC_FIELD, width: 92, textAlign: 'right', fontSize: 13,
                          fontVariantNumeric: 'tabular-nums' }} />
+              </Amount>
             ) : (
-              <Amount value={line.price} decimals={d.currency_decimals ?? 2}
-                weight={400} />
+              <Amount value={line.price} currency={d.currency}
+                decimals={d.currency_decimals ?? 2} weight={400} />
             )}
           </Editable>
         </div>
@@ -1866,6 +1892,33 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   }, [waiting, onPaid]);
   useEffect(() => { setWaiting(0); }, [paid]);
 
+  // ►►► **«Online erstatten» sagt jetzt, was daraus wurde** (Testnotiz #1013). ◄◄◄
+  //
+  // *«Der Button ‹Online erstatten› hat keine Wirkung.»* – Zwei Ursachen, beide hier:
+  //
+  // **(1) Der Fehler wurde verschluckt.** Der Aufruf endete auf `.catch(() => {})` – ein
+  // 409 des Zahlungsdienstes («schon erstattet», «Belastung zu alt») kam damit nirgends
+  // an, und der Knopf sah aus, als täte er nichts. **Ein stiller Nicht-Effekt ist
+  // schlimmer als ein Fehler** – die Regel steht wörtlich in `record_payment`.
+  //
+  // **(2) Gebucht wird vom Webhook, nicht vom Aufruf.** Wie bei der Bezahlkarte meldet
+  // der Dienst `charge.refunded`, und **dann** entsteht die Zeile. Ein einzelnes Neuladen
+  // direkt danach zeigt darum verlässlich – nichts. Nachgefragt wird jetzt mit derselben
+  // Mechanik wie bei einer Zahlung (`WAIT_TRIES`/`WAIT_STEP`), und sie endet an der
+  // **Zeile**, nicht an einer Uhr: bleibt die Meldung aus, steht der Hinweis da, statt
+  // eine Buchung zu behaupten.
+  const [failed, setFailed] = useState<string | null>(null);
+  const refund = useCallback(async (entryId: number) => {
+    setFailed(null);
+    try {
+      await api.refundVoucherPayment(orderObjectId, stepId, entryId);
+      setWaiting(WAIT_TRIES);
+      onPaid();
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : String(e));
+    }
+  }, [orderObjectId, stepId, onPaid]);
+
   const charges = d.entries.filter((e) => e.kind === 'charge');
   const payments = d.entries.filter((e) => e.kind === 'payment');
   const settle = d.settle_charge ?? null;
@@ -1931,7 +1984,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
           )}
           {charges.map((e) => (
             <EntryRow key={e.id} d={d} e={e} busy={busy} onAction={onAction}
-              orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
+              onRefund={refund} />
           ))}
           {slot('charge')}
         </div>
@@ -1960,8 +2013,16 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               ist), und je Modul lebt ohnehin höchstens **eine** offene Forderung. */}
           {payments.map((p) => (
             <EntryRow key={p.id} d={d} e={p} busy={busy} onAction={onAction}
-              orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />
+              onRefund={refund} />
           ))}
+          {failed && (
+            <span className="flex items-center" style={{
+              gap: 6, fontSize: 12, color: 'var(--danger)', minWidth: 0,
+            }}>
+              <AlertTriangle size={12} style={{ flex: 'none' }} />
+              <span style={{ minWidth: 0 }}>{failed}</span>
+            </span>
+          )}
           {ways.length > 1 && way && (
             <Segmented label={d.method_label} value={way.key}
               onChange={(v) => { setPicked(v); setCard(false); }}
@@ -1984,6 +2045,26 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
       </ModuleSection>
 
       <Balance d={d} />
+      {/* ►►► **Kleinbetragstoleranz — angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo
+          unter einem Franken darf als **Differenz ausgebucht** werden: eine ganz
+          gewöhnliche negative Forderung mit dem Grund «Rundungsdifferenz» – kein neuer
+          Mechanismus und **kein Automatismus**. Wer automatisch ausbucht, verliert die
+          eine Zeile, an der man später sieht, dass jemand entschieden hat; und
+          «unter einem Franken» wäre als stille Regel die Stelle, an der ein
+          systematischer Fehler nie auffällt.
+          **Ob die Lage vorliegt, sagt der Server** (`write_off`, `Balance.write_off`) –
+          samt Vorzeichen. Hier gerechnet wäre es die zweite Ableitung derselben Zahl. */}
+      {d.write_off && may(d, 'charge') && (
+        <div className="flex justify-end" style={{ marginTop: 8 }}>
+          <ActionButton icon={Eraser} label={d.write_off_word ?? 'Differenz ausbuchen'}
+            disabled={busy}
+            tip={`Bucht ${d.write_off} ${d.currency} als «${d.write_off_reason}» aus.`}
+            onClick={() => void onAction({
+              action: 'charge', amount: d.write_off as string,
+              reason: d.write_off_reason,
+            })} />
+        </div>
+      )}
     </>
   );
 }
@@ -2053,10 +2134,11 @@ function Balance({ d }: { d: Filled }) {
  * das, was *diese* Zeile korrigiert: die Gegenbuchung an einer Rechnung, die zweite
  * Zahlung an einer Zahlung.
  */
-function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
+function EntryRow({ d, e, busy, onAction, onRefund }: {
   d: Filled; e: Filled['entries'][number]; busy: boolean;
   onAction: Send;
-  orderObjectId: number; stepId: number; onPaid: () => void;
+  /** Erstatten über den Zahlungsdienst – samt Warten und sichtbarer Meldung (#1013). */
+  onRefund: (entryId: number) => void;
 }) {
   const dec = d.currency_decimals ?? 2;
   const charge = e.kind === 'charge';
@@ -2076,10 +2158,19 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
   // Antwort auf die Frage, die man wirklich stellt, und «13.09.2026» ist die Zahl, aus
   // der man sie selbst ausrechnet. Dieselbe Regel wie eine Zeile höher bei der
   // Fälligkeit. Das Datum verschwindet nicht – es steht, wie überall, im Hover.
+  //
+  // ►►► **Und sie braucht einen ZEITPUNKT, kein Datum** (Testnotiz #1014). ◄◄◄
+  //
+  // *«Ein Ereignis von vor wenigen Minuten wird als ‹Heute› angezeigt.»* – Dreimal
+  // gemeldet, und dreimal lag es **nicht** an `when()`: die Funktion bekam `booked_on`,
+  // einen **reinen Tag**, und ein Tag ohne Uhrzeit kann «vor 5 Minuten» nicht sagen. Ihn
+  // zu erfinden wäre schlimmer als «Heute» – sie überspringt die Stunden-Kaskade darum
+  // bewusst. Gefehlt hat der Zeitpunkt; er reist jetzt als `booked_at` mit (`created_at`
+  // der Zeile). Im **Hover** steht weiterhin der Belegtag: dort ist er die Tatsache.
   const stamp = charge && e.due_on
     ? { text: `fällig ${when(e.due_on).toLowerCase()}`,
         tip: `Rechnung ${day(e.booked_on)} · fällig ${day(e.due_on)}` }
-    : { text: when(e.booked_on),
+    : { text: when(e.booked_at ?? e.booked_on),
         tip: [`Gebucht ${day(e.booked_on)}`,
               e.service_date ? `${d.service_date_label} ${day(e.service_date)}` : '']
           .filter(Boolean).join(' · ') };
@@ -2093,9 +2184,15 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
          man sie wiedererkennt, und bei einer Barzahlung gibt es gar keine Referenz. */
       ident={(charge ? e.reference : e.method_label)
              || e.reference || (charge ? 'Rechnung' : 'Zahlung')}
-      /* Datum als Aussage, und was sonst noch **nur hier** steht. Eine zweite Zeile gibt
-         es nicht mehr – dort stand die Angabe, die #999 gemeldet hat. */
-      meta={[stamp.text, e.note].filter(Boolean).join(' · ')}
+      /* Was sonst noch **nur hier** steht – Vermerk und, bei einer Korrektur, ihr
+         **Grund** (Retoure · Mangel · Kulanz …). Er ist Freitext ohne Logik dahinter:
+         es gibt keinen Belegtyp, das Vorzeichen sagt *was*, der Grund *warum*. Eine
+         zweite Zeile gibt es nicht – dort landete die Angabe aus #999. */
+      meta={[e.reason, e.note].filter(Boolean).join(' · ')}
+      /* ►►► **Datum rechtsbündig, direkt links vom Betrag** (#1011/#1012). ◄◄◄ Es ist
+         die zweite **Zahl** der Zeile; im Fliesstext links stand sie unter Angaben, und
+         der Blick musste für *wann* und *wie viel* zweimal springen. */
+      date={stamp.text}
       /* ►►► **Die Korrekturen stehen VOR dem Betrag** (#998/#1002). ◄◄◄ Hinter ihm
          standen sie dort, wo das Auge die Zahl sucht – und bei drei Zeilen dreimal. */
       actions={(
@@ -2116,8 +2213,7 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
           {e.refundable && (
             <ConfirmButton icon={Undo2} label={d.refund_online_word ?? 'Online erstatten'}
               disabled={busy}
-              onConfirm={() => void api.refundVoucherPayment(orderObjectId, stepId, e.id)
-                .then(onPaid).catch(() => {})} />
+              onConfirm={() => onRefund(e.id)} />
           )}
           {!charge && may(d, 'pay') && (
             <ActionButton icon={RotateCcw} label="Korrigieren" disabled={busy}
@@ -2238,19 +2334,36 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
 }) {
   const [amount, setAmount] = useState(preset);
   const [reference, setReference] = useState('');
+  const [reason, setReason] = useState('');
+  const [split, setSplit] = useState<Record<number, string>>({});
   const [vat, setVat] = useState(d.vat_rate ?? 'normal');
   // **Der Satz wird nur gefragt, wo es keine bepreisten Positionen gibt** – sonst kommt
   // die Aufteilung aus ihnen, und ein Feld daneben wäre eine zweite Aussage.
   const asksVat = kind === 'charge' && !d.we_quote;
 
+  // ►►► **Eine Zahlung darf auf MEHRERE Belege gehen** (Sammelzahlung). ◄◄◄ Gefragt wird
+  // nur, wo es überhaupt etwas zu verteilen gibt: bei **einem** Beleg hat die Frage genau
+  // eine Antwort, und der Server kennt sie (`settle_charge`). Die Zahlung bleibt **eine**
+  // Zeile – auf dem Kontoauszug steht auch eine.
+  const targets = kind === 'pay'
+    ? d.entries.filter((x) => x.kind === 'charge' && !x.reversed && x.reverses == null)
+    : [];
+  const splits = targets.length > 1;
+  const allocations = targets
+    .map((t) => ({ charge_id: t.id, amount: (split[t.id] ?? '').trim() }))
+    .filter((a) => a.amount !== '');
+
   const book = () => onSubmit({
     action: kind, amount,
     ...(kind === 'pay' && method ? { method } : {}),
-    ...(kind === 'pay' && chargeId != null ? { charge_id: chargeId } : {}),
+    ...(kind === 'pay' && !splits && chargeId != null ? { charge_id: chargeId } : {}),
+    ...(splits && allocations.length ? { allocations } : {}),
     ...(asksVat ? { vat } : {}),
     ...(reference.trim() ? { reference: reference.trim() } : {}),
+    ...(reason.trim() ? { reason: reason.trim() } : {}),
   });
-  const ready = !busy && amount.trim() !== '';
+  const ready = !busy && amount.trim() !== ''
+    && (!splits || allocations.length > 0);
 
   return (
     <div className="flex flex-col" style={{
@@ -2285,7 +2398,50 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
               onChange={(e) => setReference(e.target.value)} />
           </Ask>
         )}
+        {/* ►►► **Der Grund – Freitext, ohne Logik dahinter.** ◄◄◄ Es gibt keinen
+            **Belegtyp**: positiv fordert, negativ korrigiert, und hier steht *warum*
+            (Retoure · Mangel · Kulanz · Rechnungsfehler · uneinbringlich ·
+            Rundungsdifferenz). Die Liste ist ein **Vorschlag** – darum ein `datalist`
+            und kein Auswahlfeld: nichts im System verzweigt darauf, also darf jeder
+            andere Satz auch dastehen.
+            **Er steht immer da, auch leer** – ein Feld, das beim Vorzeichenwechsel
+            erscheint, wäre genau die Geometrie-Änderung mitten im Tippen, die #1016
+            gemeldet hat. */}
+        <Ask label={d.reason_label || 'Grund'} grow>
+          <input value={reason} className={inputCls} list="voucher-reasons"
+            aria-label={d.reason_label || 'Grund'}
+            onKeyDown={(e) => { if (e.key === 'Enter' && ready) book(); }}
+            onChange={(e) => setReason(e.target.value)} />
+          <datalist id="voucher-reasons">
+            {(d.reasons ?? []).map((r) => <option key={r} value={r} />)}
+          </datalist>
+        </Ask>
       </div>
+      {splits && (
+        // ►►► **Die Aufteilung einer Sammelzahlung.** ◄◄◄ Je Beleg ein Teilbetrag; die
+        // Summe muss den Betrag der Zahlung ergeben – der Dienst weist alles andere ab
+        // (eine Zahlung wird vollständig zugeordnet oder gar nicht). Kein Automatismus:
+        // welcher Beleg wie viel bekommt, weiss nur, wer den Zahlungszweck gelesen hat.
+        <div className="flex flex-col" style={{ gap: 6, minWidth: 0 }}>
+          <Label>Zuordnung</Label>
+          {targets.map((t) => (
+            <LedgerRow key={t.id}
+              ident={t.reference || `Beleg ${t.id}`}
+              meta={t.state_label}
+              date={t.open ? `offen ${t.open} ${d.currency}` : undefined}
+              amount={(
+                <input {...numericInputProps} value={split[t.id] ?? ''}
+                  aria-label={`Anteil auf ${t.reference || t.id}`}
+                  onChange={(e) => setSplit((s) => ({
+                    ...s, [t.id]: numericOnly(e.target.value, { signed: true }) }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && ready) book(); }}
+                  className={inputCls}
+                  style={{ width: 110, textAlign: 'right',
+                           fontVariantNumeric: 'tabular-nums' }} />
+              )} />
+          ))}
+        </div>
+      )}
       {/* **Eine Primäraktion, Abbrechen dezent** – dieselbe Zeile wie am Abschluss der
           Karte und am Zuschlag (#976). */}
       <StageRow aside={

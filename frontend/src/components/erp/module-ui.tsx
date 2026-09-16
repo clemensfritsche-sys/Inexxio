@@ -202,13 +202,27 @@ export function ActionButton({
  * (Meta zuerst, dann der Identifikator). Eine zweite Zeile war die Stelle, an der die
  * Angaben aus #999 landeten – und an der zwei Zeilen wie zwei Vorgänge aussahen.
  */
-export function LedgerRow({ ident, meta, actions, amount, tip, faded }: {
+export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
   /** Was diese Zeile **ist** – Rechnungsnummer, Zahlungsart. */
   ident: ReactNode;
-  /** Datum und Zusatzangaben – gibt als Erstes Platz ab. */
+  /** Zusatzangaben – geben als Erstes Platz ab. */
   meta?: ReactNode;
   /** Korrekturen an **dieser** Zeile; sie erscheinen bei Hover und Fokus. */
   actions?: ReactNode;
+  /**
+   * ►►► **Datum und Fälligkeit stehen RECHTS, direkt links vom Betrag** (#1011/#1012).
+   * ◄◄◄
+   *
+   * *«Datum/Fälligkeit stehen links im Fliesstext … Das Datum gehört rechtsbündig direkt
+   * links neben den Betrag.»* – Es ist die **zweite** Zahl der Zeile, und zwei Zahlen
+   * gehören nebeneinander: so stehen sie über alle Zeilen hinweg in zwei Spalten, ohne
+   * dass jemand eine Spaltenbreite pflegt. Im Fliesstext links war es eine Angabe unter
+   * Angaben, und der Blick musste für *wann* und *wie viel* zweimal springen.
+   *
+   * Es **schrumpft nicht** (`flex: none`): «20.8.2026» hat keine Umbruchstelle, und ein
+   * Datum, das sich über seine Box hinaus malt, war schon einmal ein Befund.
+   */
+  date?: ReactNode;
   /** Die Zahl. Sie steht rechts, tabellarisch, und rührt sich nie. */
   amount: ReactNode;
   /** Die Erklärung am Betrag – dort trägt die Farbe den Zustand (#997). */
@@ -228,6 +242,13 @@ export function LedgerRow({ ident, meta, actions, amount, tip, faded }: {
         fontVariantNumeric: 'tabular-nums',
       }}>{meta}</span>
       {actions && <RowActions>{actions}</RowActions>}
+      {date != null && date !== '' && (
+        <span style={{
+          flex: 'none', marginLeft: actions ? undefined : 'auto',
+          fontSize: 11.5, color: 'var(--fg-3)', textAlign: 'right',
+          fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+        }}>{date}</span>
+      )}
       <span style={{
         flex: 'none', font: '600 13px var(--font-body)',
         fontVariantNumeric: 'tabular-nums',
@@ -337,8 +358,8 @@ const SECTION_GAP = 34;
  * Wähler (#917), und der gehört in dieselbe Hülle statt daneben.
  */
 export function Amount({ value, currency, decimals = 2, color, size = 13, weight = 600,
-                         tip }: {
-  value: string | number | null | undefined;
+                         tip, children }: {
+  value?: string | number | null;
   /** Der Code – oder der Wähler, wo er einer ist. Ohne Angabe steht nur die Zahl. */
   currency?: ReactNode;
   decimals?: number;
@@ -347,16 +368,35 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
   size?: number;
   weight?: number;
   tip?: string;
+  /**
+   * ►►► **Derselbe Betrag, nur eingegeben** (Testnotizen #1010/#1017). ◄◄◄
+   *
+   * *«Bei den Positionen fehlt die Währungsangabe – sowohl in der Anzeige als auch beim
+   * Eingabefeld ‹Einzelpreis›.»*
+   *
+   * Steht hier ein Eingabefeld, tritt es an die Stelle der Zahl – **die Währung bleibt,
+   * wo sie ist**: als Suffix in derselben Hülle, also **innerhalb** des Feldrahmens
+   * (`Editable` liegt darum aussen). Zwei Bauteile für dieselbe Angabe wären zwei
+   * Schreibweisen, und die zweite vergisst die Währung.
+   *
+   * *Damit ist #921 («nicht an jedem Einzelpreis – dort stünde dasselbe Wort
+   * zwanzigmal») zurückgenommen: der Nutzer hat es ausdrücklich anders entschieden –
+   * **keine Betrags-Ausgabe und kein Betrags-Feld ohne Währung**. Zurücktreten tut sie
+   * weiterhin über Grösse, Gewicht und Deckkraft.*
+   */
+  children?: ReactNode;
 }) {
   return (
-    <span {...(tip ? { 'data-tip': tip } : {})} style={{
-      color, font: `${weight} ${size}px var(--font-body)`,
-      fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
-    }}>
-      {formatAmount(value, decimals)}
+    <span {...(tip ? { 'data-tip': tip } : {})}
+      className={children ? 'inline-flex items-baseline' : undefined}
+      style={{
+        color, font: `${weight} ${size}px var(--font-body)`,
+        fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+      }}>
+      {children ?? formatAmount(value, decimals)}
       {currency != null && currency !== '' && (
         <span style={{ color: 'inherit', opacity: 0.72, fontSize: size - 1,
-                       fontWeight: 500, marginLeft: 4 }}>{currency}</span>
+                       fontWeight: 500, marginLeft: 4, flex: 'none' }}>{currency}</span>
       )}
     </span>
   );
@@ -410,8 +450,27 @@ export function ModuleSection({ title, state, right, children, first }: {
     <section data-fb-section={title || undefined}
       style={{ marginTop: first ? 0 : SECTION_GAP, minWidth: 0 }}>
       {(title || right) && (
+        // ►►► **Der Abschnittskopf ist eine LEISTE** (Testnotiz #1015). ◄◄◄
+        //
+        // *«Die Bereichsüberschriften sind immer noch zu wenig ausgeprägt … eine klare,
+        // ruhige Bereichsüberschrift über die volle Modulbreite.»* – Das ist der dritte
+        // Anlauf, und die beiden davor (Gewicht 800, mehr Luft) waren zu leise, weil sie
+        // dem **Text** galten. Eine Überschrift, die eine Zone eröffnet, braucht eine
+        // eigene **Fläche**.
+        //
+        // **Gedämpfte Füllung, dunkle Schrift, kräftige Trennlinie** – nicht Vollschwarz:
+        // in einer Spalte mit fünf Modulen stünden fünf schwarze Balken untereinander,
+        // und die ERP-Regel des Hauses heisst *Struktur vor Fläche*. `--bg-3` ist der
+        // leiseste Ton, der sich von der weissen Karte überhaupt abhebt; die Linie
+        // darunter ist die eigentliche Abgrenzung (2 px, `--border-2`).
+        //
+        // **Volle Modulbreite** über einen negativen Seitenrand in der Polsterung der
+        // Karte (`MODULE_CARD.padding` = 18 px): die Leiste gehört der Karte, nicht dem
+        // Textblock – zieht man sie nur bis zur Satzkante, sieht sie aus wie ein Kasten
+        // im Inhalt statt wie seine Überschrift.
         <div className="flex items-center gap-2" style={{
-          paddingBottom: 8, marginBottom: 12, borderBottom: '1px solid var(--border-1)',
+          padding: '6px 18px', margin: '0 -18px 14px',
+          background: 'var(--bg-3)', borderBottom: '2px solid var(--border-2)',
         }}>
           {/* ►►► **Die Status-Spalte steht immer, auch leer.** ◄◄◄
               Ein Punkt vor der Beschriftung rückt sie um seine Breite ein – und in einer
@@ -441,9 +500,10 @@ export function ModuleSection({ title, state, right, children, first }: {
             // Schriftfamilie führt 800 (`colors_and_type.css` lädt sie), es wird also
             // nichts synthetisiert.
             fontWeight: 800,
-            // **Wo man steht, ist die lauteste Zeile** – dieselbe Geste wie in der
-            // Bestandsleiste: der offene Ausschnitt tritt hervor, die übrigen bleiben da.
-            color: state === 'active' ? 'var(--fg-1)' : undefined,
+            // **Auf der Leiste trägt jede Überschrift die dunkle Schrift** – gedämpft
+            // wäre sie leiser als der Inhalt darunter, den sie eröffnet. Wo man steht,
+            // sagt der Punkt links; die Farbe ist nicht mehr das Mittel dafür.
+            color: 'var(--fg-1)',
           }}>{title}</span>
           {right}
         </div>

@@ -6928,11 +6928,16 @@ def test_every_summed_amount_names_its_currency():
         f"{sums.count('code={d.currency}')} von {sums.count('<SumRow')}."
     )
     assert "currency={<Currency" in sums, "Das Total nennt seine Währung nicht (a)."
-    row = _component(src, "LineRow")
-    # Gefragt ist die **Angabe**, nicht das Wort: ``currency_decimals`` steht hier
-    # zu Recht (die Stellenzahl der Währung), und ein blosses «kommt vor» schlug darauf an.
-    assert "currency={" not in _code(row), (
-        "Der Einzelpreis trägt die Währung (b) – zwanzig Zeilen, zwanzigmal dasselbe Wort."
+    # ►►► **Und der Einzelpreis nennt sie ebenfalls — in BEIDEN Zuständen** (#1010/#1017).
+    # ◄◄◄ *«Bei den Positionen fehlt die Währungsangabe – sowohl in der Anzeige als auch
+    # beim Eingabefeld ‹Einzelpreis›. Keine Betragsausgabe und kein Betragsfeld ohne
+    # Währung.»* Das **nimmt die frühere Ausnahme zurück** («dort stünde dasselbe Wort
+    # zwanzigmal»): der Nutzer hat es ausdrücklich anders entschieden, und der Wächter
+    # prüft ab hier die neue Regel – vorher verbot er sie.
+    row = _code(_component(src, "LineRow"))
+    assert row.count("currency={d.currency}") >= 2, (
+        f"Der Einzelpreis nennt seine Währung nicht in beiden Zuständen (b): "
+        f"{row.count('currency={d.currency}')} von zwei (Eingabe und Anzeige)."
     )
     entry = _component(src, "EntryRow")
     assert "currency={d.currency}" in entry, "Eine Geld-Zeile nennt ihre Währung nicht (a)."
@@ -7719,9 +7724,13 @@ def test_a_recipient_chip_can_be_shown_and_dropped():
         f"Der Chip hat {chip.count('<button')} Knöpfe statt drei (a/b) – reine Anzeige "
         f"zeigt keine Anschrift, und ohne + / ✕ gibt es kein An- und Abwählen."
     )
-    assert "onClick={onShow}" in chip, "Der Name zeigt die Anschrift nicht (a)."
-    assert "onClick={onAsk}" in chip, "Das + fragt nicht an (b)."
-    assert "onClick={onDrop}" in chip, "Das ✕ zieht die Anfrage nicht zurück (b)."
+    # Gefragt wird, **dass** der Knopf seine Handlung trägt – nicht, wie der Ausdruck
+    # geschrieben ist: seit #1016 steht dort `busy ? undefined : onAsk`, und eine Prüfung
+    # auf die Schreibweise hätte ausgerechnet die bessere Fassung verboten.
+    for handler, what in (("onShow", "Der Name zeigt die Anschrift nicht (a)."),
+                          ("onAsk", "Das + fragt nicht an (b)."),
+                          ("onDrop", "Das ✕ zieht die Anfrage nicht zurück (b).")):
+        assert re.search(r"onClick=\{[^}]*\b" + handler + r"\b", chip), what
     # ►►► **Eine Form für beide Fälle** (#962): eine zugelassene, noch nicht angefragte
     # Partei stand als `+ Name`-Knopf mit `.ix-editable` daneben – der Auszeichnung
     # **änderbarer Werte**. Damit sah jede Partei dauerhaft «aktiv» aus, und ob eine
@@ -8958,11 +8967,20 @@ def test_a_money_row_says_when_it_was_not_which_day():
     (MWSTG Art. 26). Gefragt ist hier aber *wann war das* – «vor 3 Tagen», wie eine Zeile
     höher bei der Fälligkeit. Das Datum verschwindet nicht, es steht im Hover.
 
-    Bug-Form: der Buchungstag steht wieder als Datum in der Zeile.
+    ►►► **Und eine Auskunft braucht einen ZEITPUNKT** (Testnotiz #1014). ◄◄◄ Dieselbe
+    Regel, dreimal gemeldet – und die letzte Meldung lag nicht mehr an `when()`: die
+    Funktion bekam `booked_on`, einen **reinen Tag**, und aus einem Tag ohne Uhrzeit lässt
+    sich «vor 5 Minuten» nicht ableiten (sie überspringt die Stunden-Kaskade darum
+    bewusst, statt Genauigkeit zu erfinden). Gefehlt hat der Zeitpunkt; er reist als
+    `booked_at` mit.
+
+    Bug-Formen: (a) der Buchungstag steht wieder als Datum in der Zeile; (b) die Aussage
+    liest wieder den reinen Tag, und alles von heute heisst «Heute».
     """
     entry = _code(_component(_beleg(), "EntryRow"))
-    assert "when(e.booked_on)" in entry, (
-        "Der Buchungstag steht als Datum in der Zeile statt als Aussage."
+    assert "when(e.booked_at" in entry, (
+        "Die Aussage liest den reinen Tag statt des Zeitpunkts (b) – damit heisst alles "
+        "von heute «Heute», auch was vor fünf Minuten gebucht wurde."
     )
     assert "text: day(e.booked_on)" not in entry, (
         "Der Buchungstag steht wieder als Tatsache in der Zeile."
@@ -9071,3 +9089,142 @@ def test_an_undoing_action_never_looks_like_an_adding_one():
     )
     for icon in ("icon={CircleSlash}", "icon={RotateCcw}", "icon={Undo2}"):
         assert icon in entry, f"Der Zeile fehlt ihr Symbol: {icon}."
+
+
+def test_a_save_never_hides_a_control_in_the_party_block():
+    """►►► **Ein Auto-Save verändert die Geometrie NICHT** (Testnotiz #1016). ◄◄◄
+
+    *«Der Partner-Block im Zahlungsmodul springt beim Autosave weiterhin.»*
+
+    Die Ursache stand im Chip: ``onAsk``/``onDrop`` hingen an ``!busy``, waren also
+    während **jedes** Speicherns ``undefined``. Damit verschwanden die beiden Zeichen aus
+    dem Chip, seine rechte Polsterung wechselte von 4 auf 8 px – jeder Chip wurde
+    schmaler, die umbrechende Reihe floss neu, der Block sprang; danach kamen sie zurück
+    und er sprang erneut.
+
+    Es ist dieselbe Fehlerform wie ``disabled={busy}`` an einem Eingabefeld (#1009), nur
+    eine Stufe gröber: **``busy`` darf nie etwas ein- oder ausblenden.** Rückmeldung
+    kommt über **Deckkraft**, die am Layout nichts ändert.
+
+    Bug-Formen: (a) die Handlungen hängen wieder an ``busy``, also verschwinden die
+    Knöpfe; (b) die Rückmeldung ändert wieder Masse statt Deckkraft.
+    """
+    src = _beleg()
+    rec = _code(_component(src, "Recipients"))
+    for form in ("!busy ?", "&& !busy", "!busy &&"):
+        assert form not in rec, (
+            f"Eine Handlung des Chips hängt wieder am Speichern (a): «{form}» – damit "
+            f"verschwindet ein Knopf mitten im Vorgang und die Reihe fliesst neu."
+        )
+    chip = _code(_component(src, "Chip"))
+    assert "opacity: busy" in chip, (
+        "Der Chip meldet das Speichern nicht über die Deckkraft (b)."
+    )
+    # **Kein Mass hängt am Speichern** – Polsterung, Breite, Höhe und Anzeigeart sind
+    # genau die Angaben, die eine Zeile umbrechen lassen.
+    for prop in ("padding", "width", "height", "display", "fontSize", "gap"):
+        assert not re.search(prop + r":\s*busy", chip), (
+            f"«{prop}» hängt am Speichern (b) – das verschiebt die Zeile unter dem Zeiger."
+        )
+
+
+def test_a_date_stands_right_of_the_row_never_in_the_flow():
+    """►►► **Datum und Fälligkeit stehen RECHTS, links vom Betrag** (#1011/#1012). ◄◄◄
+
+    *«Datum/Fälligkeit stehen links im Fliesstext. Das Datum gehört rechtsbündig direkt
+    links neben den Betrag; der Betrag bleibt ganz rechts auf fester Flucht.»*
+
+    Es ist die **zweite Zahl** der Zeile, und zwei Zahlen gehören nebeneinander: so
+    stehen sie über alle Zeilen hinweg in zwei Spalten, ohne dass jemand eine
+    Spaltenbreite pflegt.
+
+    Bug-Formen: (a) das Datum steckt wieder im Fliesstext (``meta``); (b) es gibt den
+    Platz gar nicht; (c) es schrumpft mit und malt sich über seine Box hinaus.
+    """
+    row = _code(_component(_module_ui(), "LedgerRow"))
+    assert "date" in row, "Die Zeilen-Grammatik kennt keinen Platz für das Datum (b)."
+    # Der Betrag bleibt das **letzte** Element – daran hängt seine Flucht (#996).
+    assert row.rindex("{date}") < row.rindex("{amount}"), (
+        "Das Datum steht hinter dem Betrag (b) – dort sucht das Auge die Zahl."
+    )
+    entry = _code(_component(_beleg(), "EntryRow"))
+    assert "date={stamp.text}" in entry, (
+        "Die Geld-Zeile füllt den Platz nicht (b)."
+    )
+    assert "meta={[stamp.text" not in entry, (
+        "Das Datum steckt wieder im Fliesstext (a) – dann springt der Blick zweimal."
+    )
+    # (c) Ein Datum hat keine Umbruchstelle; schrumpfen darf allein das Meta.
+    block = row[row.index("{date}") - 400:row.index("{date}")]
+    assert "flex: 'none'" in block and "nowrap" in block, (
+        "Das Datum darf schrumpfen (c) – «20.8.2026» malt sich dann über seine Box hinaus."
+    )
+
+
+def test_a_section_head_is_a_bar_not_only_a_word():
+    """►►► **Der Abschnittskopf ist eine LEISTE** (Testnotiz #1015). ◄◄◄
+
+    *«Die Bereichsüberschriften sind immer noch zu wenig ausgeprägt … eine klare, ruhige
+    Bereichsüberschrift über die volle Modulbreite, schmale Leiste, deutlich vom Inhalt
+    darunter abgesetzt.»*
+
+    Der dritte Anlauf – die beiden davor (Gewicht 800, mehr Luft) galten dem **Text**.
+    Eine Überschrift, die eine Zone eröffnet, braucht eine **Fläche**: gedämpfte Füllung,
+    dunkle Schrift, kräftige Trennlinie. Nicht Vollschwarz: in einer Spalte mit fünf
+    Modulen stünden fünf schwarze Balken untereinander, und die ERP-Regel heisst
+    *Struktur vor Fläche*.
+
+    Bug-Formen: (a) die Leiste hat keine Fläche; (b) die Trennlinie ist wieder eine
+    Haarlinie wie jede andere; (c) sie endet an der Satzkante statt an der Karte;
+    (d) die Regel steht an einer Aufrufstelle statt in `ModuleSection`.
+    """
+    src = _module_ui()
+    sec = _code(_component(src, "ModuleSection"))
+    assert "background: 'var(--bg-3)'" in sec, (
+        "Der Abschnittskopf hat keine Fläche (a) – dann ist er wieder nur ein Wort."
+    )
+    assert "borderBottom: '2px solid var(--border-2)'" in sec, (
+        "Die Trennlinie ist eine Haarlinie wie jede andere (b)."
+    )
+    # **Volle Modulbreite** – der negative Seitenrand ist die Polsterung der Karte.
+    pad = re.search(r"padding:\s*'16px (\d+)px'", _code(src))
+    assert pad, "Die Karte nennt ihre Polsterung nicht mehr – dann rät die Leiste."
+    assert f"-{pad.group(1)}px" in sec, (
+        f"Die Leiste endet an der Satzkante (c) statt an der Karte "
+        f"(erwartet -{pad.group(1)}px aus `MODULE_CARD`)."
+    )
+    # (d) Keine zweite Fassung daneben: jedes künftige Modul erbt sie.
+    assert "var(--bg-3)" not in _code(_beleg()), (
+        "Ein Modul baut sich seinen eigenen Abschnittskopf (d)."
+    )
+
+
+def test_a_refund_that_fails_says_so():
+    """►►► **«Online erstatten» sagt, was daraus wurde** (Testnotiz #1013). ◄◄◄
+
+    *«Der Button ‹Online erstatten› hat keine Wirkung. Ein Fehlschlag muss eine sichtbare
+    Meldung erzeugen, nicht stillschweigend scheitern.»*
+
+    Zwei Ursachen: der Aufruf endete auf ``.catch(() => {})`` – ein 409 des Dienstes kam
+    nirgends an –, und **gebucht wird vom Webhook**, nicht vom Aufruf: ein einzelnes
+    Neuladen direkt danach zeigt verlässlich nichts. Nachgefragt wird jetzt mit derselben
+    Mechanik wie bei einer Zahlung, und die Meldung steht da, wo man sie sieht.
+
+    Bug-Formen: (a) der Fehler wird wieder verschluckt; (b) es wird nicht nachgefragt,
+    also sieht man die gebuchte Zeile nie; (c) die Meldung wird gefangen, aber nirgends
+    gerendert.
+    """
+    money = _code(_component(_beleg(), "Money"))
+    assert "catch (e)" in money and "setFailed" in money, (
+        "Der Fehlschlag wird gefangen und weggeworfen (a) – ein stiller Nicht-Effekt ist "
+        "schlimmer als ein Fehler."
+    )
+    assert "catch(() => {})" not in _code(_beleg()), (
+        "Irgendwo wird ein Fehlschlag wieder verschluckt (a)."
+    )
+    assert re.search(r"refundVoucherPayment[\s\S]{0,200}setWaiting\(WAIT_TRIES\)", money), (
+        "Nach der Erstattung wird nicht nachgefragt (b) – gebucht wird vom Webhook."
+    )
+    # (c) Gefragt ist das **Rendern**, nicht der Zustand: `setFailed` allein steht auch
+    #     dann noch da, wenn niemand die Meldung zeigt (gegengeprüft).
+    assert "{failed}" in money, "Die Meldung wird nirgends gezeigt (c)."

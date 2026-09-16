@@ -253,3 +253,10 @@ Wer ihn eines Tages wirklich entfernen will, misst zuerst – `SELECT count(*) F
 instance_units WHERE status = 'verkauft'` **und** dasselbe über `process_events` – und
 entscheidet dann. Eine Migration, die bestehende Zeilen «heilt», ist genau die
 Fehlerklasse aus Migration 110.
+
+## Folge-Deploy: `voucher_entries.charge_id`
+
+Seit Migration `137` ist **`voucher_allocations` die Wahrheit** über «welche Zahlung geht
+auf welchen Beleg»; `charge_id` wird von `voucher.allocate` noch **mitgeschrieben** (die
+Abkürzung für den einfachen Fall) und von **niemandem** mehr gelesen. Sie kann fallen,
+sobald das Mapping ein Deploy lang draussen war – die Zwei-Deploy-Regel gilt unverändert.

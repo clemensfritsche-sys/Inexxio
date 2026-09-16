@@ -322,13 +322,26 @@ class VoucherEntry(Base, TimestampMixin):
     reverses_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    #: **Welche RECHNUNG diese Zahlung begleicht** – nur bei ``kind = payment``. Eine
-    #: Zahlung gehört zu genau einer Forderung; der Weg für «eine Überweisung über zwei
-    #: Rechnungen» ist eine **Stornorechnung und eine gemeinsame neue**. ``balance`` bleibt
-    #: davon unberührt – es rechnet über die Summen; diese Spalte beantwortet «worauf»,
-    #: nicht «wie viel».
+    #: **Welche RECHNUNG diese Zahlung begleicht** – nur bei ``kind = payment``.
+    #:
+    #: ►►► **Sie ist der einfache Fall der Aufteilung, nicht ihr Gegenstück.** ◄◄◄ Eine
+    #: Zahlung darf auf **mehrere** Belege gehen (Sammelzahlung), und das steht in
+    #: ``voucher_allocations``; diese Spalte trägt weiterhin die eine Zuordnung, wenn es
+    #: nur eine gibt – sie ist die Abkürzung, die jeder Aufrufer ohnehin schreibt.
+    #: ``balance`` bleibt von beidem unberührt: es rechnet über die **Summen**; hier steht
+    #: «worauf», nicht «wie viel».
     charge_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    #: ►►► **WARUM diese Zeile korrigiert** – Freitext, ohne Logik dahinter. ◄◄◄
+    #:
+    #: *Retoure · Mangel · Kulanz · Rechnungsfehler · uneinbringlich · Rundungsdifferenz* –
+    #: ``domain/voucher.REASONS`` ist ein **Vorschlag**, keine Aufzählung. Nichts im System
+    #: verzweigt darauf; er steht auf dem Beleg und im Nachweis.
+    #:
+    #: Das ist die Stelle, an der ein **Belegtyp** stünde, wenn es einen gäbe. Es gibt
+    #: keinen: positiv fordert, negativ korrigiert, und der Grund sagt warum.
+    reason: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
     #: **WIE bezahlt wurde** – bar · Überweisung · Karte. Nur bei ``kind = payment``.
     #: **Kein zweites Modell**: gebucht wird in jedem Fall dieselbe Zeile – bei der einen
@@ -351,3 +364,43 @@ class VoucherEntry(Base, TimestampMixin):
     #: Rechnungsdatum: über den Jahreswechsel entscheidet es die Steuerperiode. Abgeleitet
     #: aus dem Prozess (der Tag, an dem die Stücke das Modul erreicht haben).
     service_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+
+class VoucherAllocation(Base, TimestampMixin):
+    """►►► **Wie viel dieser Zahlung auf WELCHEN Beleg geht** – die Sammelzahlung.
+
+    *«Eine Zahlung muss auf mehrere Belege aufteilbar sein.»*
+
+    Eine Überweisung über 1'500 begleicht eine Rechnung über 1'000 und eine über 500 –
+    das ist **eine** Zahlung mit **zwei** Zuordnungen, nicht zwei Zahlungen: auf dem
+    Kontoauszug steht eine Zeile, und eine zweite zu erfinden hiesse, die Wirklichkeit dem
+    Datenmodell anzupassen.
+
+    **Es ist eine Zuordnung, keine zweite Buchung.** ``balance`` rechnet unverändert über
+    die **Summen** aller Zeilen – diese Tabelle beantwortet allein «was ist auf dieser
+    Rechnung noch offen». Ohne Zuordnung bleibt eine Zahlung gültig (sie ist geflossen),
+    sie mindert dann nur keine bestimmte Forderung.
+
+    **Und sie ersetzt ``charge_id`` nicht, sie verallgemeinert es**: wo genau eine
+    Zuordnung besteht, steht sie in beiden – die Spalte ist die Abkürzung, ``_paid_on``
+    liest die Tabelle. Zwei Wahrheiten sind es nicht, weil **eine** Stelle schreibt
+    (``allocate``).
+    """
+
+    __tablename__ = "voucher_allocations"
+    __table_args__ = (
+        # **Eine Zeile je Paar.** Zweimal dieselbe Rechnung aus derselben Zahlung zu
+        # bedienen ist keine zweite Zuordnung, sondern ein höherer Betrag.
+        Index("uq_voucher_allocations", "payment_id", "charge_id", unique=True,
+              postgresql_where=text("is_active")),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    payment_id: Mapped[int] = mapped_column(
+        ForeignKey("voucher_entries.id", ondelete="CASCADE"), index=True, nullable=False)
+    charge_id: Mapped[int] = mapped_column(
+        ForeignKey("voucher_entries.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    #: **Darf negativ sein** – eine Erstattung nimmt von einer Rechnung zurück, was auf
+    #: sie geflossen war. Dieselbe Regel wie beim Betrag der Zeile selbst.
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)

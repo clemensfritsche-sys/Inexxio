@@ -148,6 +148,14 @@ class VoucherLineOut(BaseModel):
     vat_note: Optional[str] = None
 
 
+class VoucherAllocationIn(BaseModel):
+    """Ein Teil einer **Sammelzahlung**: welcher Beleg, wie viel."""
+
+    charge_id: int
+    #: Als **String**, wie jeder Betrag: wo es auf den Rappen ankommt, kein ``float``.
+    amount: Optional[str] = None
+
+
 class VoucherPrice(BaseModel):
     """Was an **einer** Position geändert wird (``price``).
 
@@ -162,6 +170,13 @@ class VoucherPrice(BaseModel):
     vat: Optional[str] = None
     hs_code: Optional[str] = None
     origin_country: Optional[str] = None
+
+
+class VoucherAllocationOut(BaseModel):
+    """**Wie viel dieser Zahlung auf WELCHEN Beleg geht** – eine Zeile der Aufteilung."""
+
+    charge_id: int
+    amount: str
 
 
 class VoucherEntryOut(BaseModel):
@@ -184,8 +199,17 @@ class VoucherEntryOut(BaseModel):
     reverses: Optional[int] = None
     #: … und ob sie selbst storniert wurde.
     reversed: bool = False
-    #: Welche Rechnung diese Zahlung begleicht.
+    #: Welche Rechnung diese Zahlung begleicht – die **Abkürzung** für den einfachen Fall.
     charge_id: Optional[int] = None
+    #: ►►► **Die Aufteilung einer Sammelzahlung** – je Beleg ein Teilbetrag. ◄◄◄
+    #: Eine Zahlung bleibt **eine** Zeile: auf dem Kontoauszug steht auch eine.
+    allocations: list[VoucherAllocationOut] = Field(default_factory=list)
+    #: **Warum korrigiert wurde** – Freitext, ohne Logik dahinter. Es gibt keinen
+    #: Belegtyp: positiv fordert, negativ korrigiert, und dies sagt warum.
+    reason: Optional[str] = None
+    #: **Wann die Zeile erfasst wurde** (#1014) – der Moment, nicht der Belegtag. Aus ihm
+    #: kommt «vor 5 Minuten»; ein Datum ohne Uhrzeit kann das nicht sagen.
+    booked_at: Optional[datetime] = None
     method: Optional[str] = None
     method_label: Optional[str] = None
     #: **Storno ODER Gutschrift** – das Wort hängt an der Zahl, nicht an einem zweiten Verb.
@@ -389,6 +413,17 @@ class VoucherEmbed(BaseModel):
     #: die Frage hat also genau eine Antwort, und sie gehört dem Dienst.
     settle_charge: Optional[int] = None
     method_label: str = ""
+    #: **Die üblichen Gründe einer Korrektur** – ein Vorschlag, keine Aufzählung: nichts
+    #: im System verzweigt darauf, und getippt darf jeder andere Satz auch werden.
+    reasons: list[str] = Field(default_factory=list)
+    reason_label: str = ""
+    #: ►►► **Kleinbetragstoleranz** – der Betrag, mit dem sich ein Restsaldo unter einem
+    #: Franken **ausbuchen** liesse (schon mit dem richtigen Vorzeichen). ``None`` heisst
+    #: «liegt nicht vor». **Angeboten, nie automatisch**: wer automatisch ausbucht,
+    #: verliert die eine Zeile, an der man sieht, dass jemand entschieden hat.
+    write_off: Optional[str] = None
+    write_off_reason: str = ""
+    write_off_word: str = ""
     # ─── Der Beleg selbst ───────────────────────────────────────────────────────
     allowed: list[VoucherParty] = Field(default_factory=list)
     quotes: list[VoucherQuoteOut] = Field(default_factory=list)
@@ -474,8 +509,15 @@ class VoucherUpdate(BaseModel):
     due_on: Optional[date] = None
     #: Welche Zeile storniert wird (``reverse``).
     entry: Optional[int] = None
-    #: Welche Rechnung eine Zahlung begleicht (``pay``).
+    #: Welche Rechnung eine Zahlung begleicht (``pay``) – der einfache Fall.
     charge_id: Optional[int] = None
+    #: ►►► **Die Aufteilung einer Sammelzahlung** (``pay``). ◄◄◄ Je Zeile ein Beleg und
+    #: ein Teilbetrag; die Summe muss den Betrag der Zahlung ergeben – eine Zahlung wird
+    #: vollständig zugeordnet oder gar nicht.
+    allocations: Optional[list[VoucherAllocationIn]] = None
+    #: **Warum korrigiert wird** (``charge`` · ``pay`` · ``reverse``) – Freitext, ohne
+    #: Logik dahinter. ``VoucherEmbed.reasons`` ist ein Vorschlag, keine Aufzählung.
+    reason: Optional[str] = None
     #: **Die Positionen** (``price``) – je Zeile ihre Id und was sich ändert.
     lines: Optional[list[VoucherPrice]] = None
     #: **Der Steuersatz einer Forderung**, wo es keine bepreisten Positionen gibt (eine

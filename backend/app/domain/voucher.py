@@ -426,6 +426,14 @@ def assert_method(value: Any) -> Optional[str]:
 #
 # Ein zweites Verb wäre eine zweite Regel für eine Buchung, die gleich aussieht; ein
 # einziges Wort wäre an der Hälfte der Belege falsch.
+#
+# ►►► **Und beides sind KEINE Belegarten.** ◄◄◄ Es gibt in diesem Modul keinen Typ
+# «Rechnung ↔ Storno ↔ Gutschrift ↔ Ausbuchung» und keine Verzweigung darauf: ein Beleg
+# ist eine Zeile mit einem **Vorzeichen** – positiv fordert, negativ korrigiert. Die
+# beiden Wörter hier sind **Beschriftungen** derselben Buchung, abgeleitet aus der Zahl,
+# und `reason` sagt, **warum** korrigiert wurde. Ein Typfeld daneben wäre die zweite
+# Aussage über etwas, das Vorzeichen und Grund längst sagen – und die Stelle, an der ein
+# `if typ ==` entsteht, das der nächste Fall nicht kennt.
 STORNO_WORD = "Stornieren"
 CREDIT_WORD = "Gutschrift"
 REFUND_ONLINE_WORD = "Online erstatten"
@@ -440,6 +448,53 @@ REFUND_ONLINE_WORD = "Online erstatten"
 def reverse_word(paid: Decimal) -> str:
     """**Wie die Gegenbuchung an DIESER Rechnung heisst** – die eine Lesestelle."""
     return CREDIT_WORD if paid > 0 else STORNO_WORD
+
+
+# ---------------------------------------------------------------------------
+# ►►► DER GRUND EINER KORREKTUR — ein Wort, keine Logik
+# ---------------------------------------------------------------------------
+#
+# *«Der Grund einer Korrektur ist ein Freitext-/Auswahlfeld ohne Logik dahinter.»*
+#
+# Und das ist die ganze Aussage: **nichts** im System verzweigt auf diesen Wert. Er steht
+# auf dem Beleg, er steht im Nachweis, und er beantwortet die Frage, die ein
+# Buchhalter in drei Jahren stellt. Wäre er ein Typ, müsste jede neue Lage eine neue
+# Zeile Code sein – so ist sie ein Wort.
+#
+# Die Liste ist ein **Vorschlag**, keine Aufzählung: wer etwas anderes meint, schreibt es
+# hin. Eine geschlossene Liste wäre dieselbe Falle wie ein Typfeld, nur höflicher.
+REASON_LABEL = "Grund"
+REASONS: tuple[str, ...] = (
+    "Retoure",
+    "Mangel",
+    "Kulanz",
+    "Rechnungsfehler",
+    "uneinbringlich",
+    "Rundungsdifferenz",
+)
+MAX_REASON = 120
+
+#: **Die Kleinbetragstoleranz** – bis hierher darf ein Restsaldo als Differenz ausgebucht
+#: werden (negativer Beleg, Grund «Rundungsdifferenz»).
+#:
+#: ►►► **Sie ist eine Erlaubnis, kein Automatismus.** ◄◄◄ Ausgebucht wird nichts von
+#: selbst: das System **bietet** die Zeile an, ein Mensch bucht sie. Eine automatische
+#: Ausbuchung wäre eine Forderung, die verschwindet, ohne dass jemand es entschieden hat –
+#: und genau das ist der Unterschied zwischen einer Toleranz und einem Datenverlust.
+#:
+#: **Nicht zu verwechseln mit `SETTLED_TOLERANCE`**: die sagt, ab wann eine Rechnung
+#: *beglichen heisst* (drei Rappen sind keine Mahnung wert); diese hier sagt, bis wohin
+#: man die Differenz **wegbuchen darf**. Zwei Fragen, zwei Zahlen.
+WRITE_OFF_LIMIT = Decimal("1.00")
+WRITE_OFF_REASON = "Rundungsdifferenz"
+WRITE_OFF_WORD = "Differenz ausbuchen"
+
+
+def assert_reason(value: Any) -> Optional[str]:
+    """Der Grund als Text – gekappt, sonst unangetastet. **Keine Prüfung gegen die Liste.**"""
+    if value in (None, ""):
+        return None
+    return str(value).strip()[:MAX_REASON] or None
 
 
 # ---------------------------------------------------------------------------
@@ -1008,6 +1063,30 @@ class Balance:
     def next_payment(self) -> Optional[Decimal]:
         """**Was als nächstes zu zahlen wäre** – dieselbe Regel wie ``next_charge``."""
         return self.open if self.open > 0 else None
+
+    @property
+    def write_off(self) -> Optional[Decimal]:
+        """►►► **Der Restsaldo, den man als Differenz ausbuchen dürfte** – oder ``None``.
+
+        *«Kleinbetragstoleranz: Restsaldo unter 1.00 CHF kann als Differenz ausgebucht
+        werden. Nicht automatisch.»*
+
+        Es ist **kein neuer Mechanismus**: ausgebucht wird über einen ganz gewöhnlichen
+        Beleg mit Gegenvorzeichen und dem Grund «Rundungsdifferenz». Diese Zahl sagt nur,
+        **ob** die Lage vorliegt und **wie viel** – damit die Oberfläche es anbieten kann,
+        ohne die Regel ein zweites Mal zu rechnen.
+
+        Über der Toleranz gibt es sie nicht: eine Forderung über zwanzig Franken bucht
+        niemand «versehentlich» aus, und ein Feld, das es zuliesse, wäre die stille
+        Abschreibung.
+
+        Zurück kommt der Betrag, **wie er zu buchen ist** – also mit dem Gegenvorzeichen
+        des Restsaldos. Eine Zahl, die man erst noch drehen muss, wäre die Stelle, an der
+        ein Aufrufer sie einmal nicht dreht.
+        """
+        if self.open == 0 or abs(self.open) >= WRITE_OFF_LIMIT:
+            return None
+        return -self.open
 
     @property
     def settled(self) -> bool:

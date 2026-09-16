@@ -56,6 +56,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # Die Datums-Ausgabe ist die eine Stelle, an der jede Zeitangabe des Hauses
+      # entsteht (#1014 war die dritte Meldung zu ihr) – sie hat darum einen Wächter
+      # je Stufe, gefahren gegen die echte Quelle.
+      - name: Unit-Tests (Frontend)
+        working-directory: frontend
+        run: npm test
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

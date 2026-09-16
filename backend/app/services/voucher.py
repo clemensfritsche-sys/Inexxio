@@ -41,7 +41,7 @@ from ..domain import modules
 from ..domain import voucher as vo
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep,
-    UserProfile, Voucher, VoucherEntry, VoucherLine, VoucherQuote,
+    UserProfile, Voucher, VoucherAllocation, VoucherEntry, VoucherLine, VoucherQuote,
 )
 from ..models.process_event import KIND_START, KIND_STEP
 from . import address, lookup, people, qrbill, sites
@@ -1171,6 +1171,11 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         voucher_id=row.id, kind=vo.CHARGE, amount=value, booked_on=booked,
         due_on=_day(data.get("due_on")) or _due(booked, due_days_of(db, row)),
         reference=number, note=_text(data.get("note"), 200),
+        # ►►► **Der Grund einer Korrektur – Freitext, ohne Logik dahinter.** ◄◄◄ Es gibt
+        # keinen Belegtyp: **positiv fordert, negativ korrigiert**, und warum, sagt dieses
+        # Feld (Retoure · Mangel · Kulanz · Rechnungsfehler · uneinbringlich ·
+        # Rundungsdifferenz). Nichts im System verzweigt darauf.
+        reason=vo.assert_reason(data.get("reason")),
         vat=split,
         # **Das Leistungsdatum kommt aus dem PROZESS**, nicht aus einem Feld: der Tag, an
         # dem die Stücke dieses Modul erreicht haben. Das Rechnungsdatum ist es nicht –
@@ -1183,16 +1188,29 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """Eine **Zahlung** buchen. Negativ ist die Erstattung.
 
-    Vorgabe ist der **offene** Betrag, und auch er nie negativ. **Und sie gehört zu genau
-    EINER Rechnung** – seit es je Modul höchstens eine lebende gibt, ist sie gemeint.
+    Vorgabe ist der **offene** Betrag, und auch er nie negativ.
+
+    ►►► **Sie darf auf MEHRERE Belege gehen** (Sammelzahlung). ◄◄◄ ``allocations`` nennt
+    je Beleg einen Teilbetrag; ohne die Angabe ist die eine lebende Rechnung gemeint. Die
+    Zahlung selbst bleibt **eine** Zeile – zugeordnet wird in ``voucher_allocations``.
     """
-    charge = _charge_for_payment(db, row, data.get("charge_id"))
+    split = _split(db, row, data.get("allocations"))
+    charge = (None if split is not None
+              else _charge_for_payment(db, row, data.get("charge_id")))
     given = _amount(data.get("amount"), row.currency, allow_negative=True)
     value = given if given is not None else (
-        open_of(db, row, charge) if charge is not None
+        sum((a for _, a in split), Decimal("0")) if split is not None
+        else open_of(db, row, charge) if charge is not None
         else balance_of(db, row).next_payment)
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Zahlung.")
+    if split is not None and sum((a for _, a in split), Decimal("0")) != value:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Die Aufteilung ergibt "
+                    f"{cur.money(sum((a for _, a in split), Decimal('0')), row.currency)}, "
+                    f"die Zahlung lautet über {cur.money(value, row.currency)}. Eine "
+                    f"Zahlung wird vollständig zugeordnet oder gar nicht."))
     flow = vo.of(row.direction)
     # **Die Karte tippt niemand ab**: sie entsteht beim Zahlungsdienst und kommt über den
     # Webhook – von Hand erfasst wäre sie eine Behauptung über eine Belastung, für die es
@@ -1201,15 +1219,20 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         method = vo.assert_method(data.get("method"))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    db.add(VoucherEntry(
+    entry = VoucherEntry(
         voucher_id=row.id, kind=vo.PAYMENT, amount=value,
         booked_on=_day(data.get("booked_on")) or date.today(),
         reference=(None if flow.reference is None
                    else _text(data.get("reference"), 120)),
         note=_text(data.get("note"), 200),
-        charge_id=charge.id if charge is not None else None,
+        reason=vo.assert_reason(data.get("reason")),
         method=method,
-    ))
+    )
+    db.add(entry)
+    pairs = split if split is not None else (
+        [(charge, value)] if charge is not None else [])
+    if pairs:
+        allocate(db, payment=entry, pairs=pairs)
 
 
 def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1257,6 +1280,7 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         booked_on=date.today(), due_on=None,
         reference=(_our_number(db, order) if flow.reference is None else None),
         note=f"Storno zu {entry.reference}" if entry.reference else "Storno",
+        reason=vo.assert_reason(data.get("reason")),
         reverses_id=entry.id,
         # **Die Gegenbuchung spiegelt die ganze Steuerzeile**, nicht nur ihre Zahlen:
         # Schlüssel, Name und Pflichtsatz gehören zur stornierten Aussage – sonst verlöre
@@ -1371,10 +1395,11 @@ def open_charges(db: Session, row: Voucher) -> list[VoucherEntry]:
     und auf eine zurückgenommene Rechnung zahlt niemand.
     """
     entries = entries_of(db, row)
+    paid = paid_map(db, entries)
     undone = {e.reverses_id for e in entries if e.reverses_id is not None}
     return [e for e in entries
             if e.kind == vo.CHARGE and e.reverses_id is None and e.id not in undone
-            and _open_of(entries, e) > 0]
+            and _open_of(paid, e) > 0]
 
 
 def paid_on(db: Session, row: Voucher, charge: VoucherEntry) -> Decimal:
@@ -1383,12 +1408,12 @@ def paid_on(db: Session, row: Voucher, charge: VoucherEntry) -> Decimal:
     Eine bezahlte Rechnung nimmt man nicht «zurück», man schreibt sie **gut**; welches der
     beiden Wörter gilt, hängt an genau dieser Zahl.
     """
-    return _paid_on(entries_of(db, row), charge)
+    return _paid_on(paid_map(db, entries_of(db, row)), charge)
 
 
 def open_of(db: Session, row: Voucher, charge: VoucherEntry) -> Decimal:
     """Was auf **dieser** Rechnung noch offen ist – Betrag minus ihre Zahlungen."""
-    return _open_of(entries_of(db, row), charge)
+    return _open_of(paid_map(db, entries_of(db, row)), charge)
 
 
 def refundable(db: Session, row: Voucher) -> list[VoucherEntry]:
@@ -1428,13 +1453,87 @@ def card_payment(db: Session, row: Voucher,
     return found
 
 
-def _paid_on(entries: list[VoucherEntry], charge: VoucherEntry) -> Decimal:
-    return sum((e.amount for e in entries
-                if e.kind == vo.PAYMENT and e.charge_id == charge.id), Decimal("0"))
+def paid_map(db: Session, entries: list[VoucherEntry]) -> dict[int, Decimal]:
+    """►►► **Was je Beleg zugeordnet ist – EINE Abfrage, EINE Lesart.** ◄◄◄
+
+    Gelesen wird ``voucher_allocations``, nie ``VoucherEntry.charge_id``: die Spalte ist
+    die Abkürzung für den einfachen Fall, die Tabelle die allgemeine Aussage. Zwei
+    Lesestellen wären genau die Stelle, an der eine **Sammelzahlung** halb ankommt.
+    """
+    out: dict[int, Decimal] = {}
+    ids = [e.id for e in entries]
+    if not ids:
+        return out
+    rows = (
+        db.query(VoucherAllocation)
+        .filter(VoucherAllocation.payment_id.in_(ids),
+                VoucherAllocation.is_active.is_(True))
+        .all()
+    )
+    for a in rows:
+        out[a.charge_id] = out.get(a.charge_id, Decimal("0")) + a.amount
+    return out
 
 
-def _open_of(entries: list[VoucherEntry], charge: VoucherEntry) -> Decimal:
-    return charge.amount - _paid_on(entries, charge)
+def allocate(db: Session, *, payment: VoucherEntry,
+             pairs: list[tuple[VoucherEntry, Decimal]]) -> None:
+    """►►► **Die EINE Schreibstelle der Zuordnung.** ◄◄◄
+
+    Eine Zahlung darf auf **mehrere** Belege gehen: eine Überweisung über 1'500 begleicht
+    eine Rechnung über 1'000 und eine über 500 – auf dem Kontoauszug steht **eine** Zeile,
+    und eine zweite zu erfinden hiesse, die Wirklichkeit dem Datenmodell anzupassen.
+
+    ``charge_id`` wird hier mitgeschrieben, wo es genau eine Zuordnung gibt – als
+    Abkürzung, nie als zweite Wahrheit: gelesen wird ausschliesslich ``paid_map``.
+    """
+    db.flush()
+    for charge, amount in pairs:
+        db.add(VoucherAllocation(payment_id=payment.id, charge_id=charge.id,
+                                 amount=amount))
+    payment.charge_id = pairs[0][0].id if len(pairs) == 1 else None
+
+
+def _paid_on(paid: dict[int, Decimal], charge: VoucherEntry) -> Decimal:
+    return paid.get(charge.id, Decimal("0"))
+
+
+def _open_of(paid: dict[int, Decimal], charge: VoucherEntry) -> Decimal:
+    return charge.amount - _paid_on(paid, charge)
+
+
+def _split(db: Session, row: Voucher,
+           value: Any) -> Optional[list[tuple[VoucherEntry, Decimal]]]:
+    """►►► **Die Aufteilung einer Sammelzahlung** – oder ``None``, wenn keine genannt ist.
+
+    Jede Zeile nennt einen Beleg **dieses** Vorgangs und einen Teilbetrag. Ein fremder
+    Beleg wird abgewiesen statt still ignoriert: eine Zuordnung, die nicht ankommt, sieht
+    aus wie eine, die gilt.
+    """
+    if not value:
+        return None
+    entries = {e.id: e for e in entries_of(db, row) if e.kind == vo.CHARGE}
+    out: list[tuple[VoucherEntry, Decimal]] = []
+    for item in value:
+        data = item if isinstance(item, dict) else {}
+        charge = entries.get(_int(data.get("charge_id")))
+        if charge is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Diese Rechnung gehört nicht zu diesem Beleg.")
+        amount = _amount(data.get("amount"), row.currency, allow_negative=True)
+        if amount is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Ohne Betrag keine Zuordnung – die Rechnung "
+                        f"«{charge.reference or charge.id}» steht ohne Zahl da."))
+        out.append((charge, amount))
+    seen = {c.id for c, _ in out}
+    if len(seen) != len(out):
+        raise HTTPException(
+            status_code=400,
+            detail=("Dieselbe Rechnung steht zweimal in der Aufteilung – das ist keine "
+                    "zweite Zuordnung, sondern ein höherer Betrag."))
+    return out
 
 
 def _charge_for_payment(db: Session, row: Voucher,
@@ -1511,11 +1610,14 @@ def record_payment(db: Session, *, row: Voucher, amount: Decimal,
             return seen
     entry = VoucherEntry(
         voucher_id=row.id, kind=vo.PAYMENT, amount=amount,
-        booked_on=date.today(), reference=reference, note=note,
-        charge_id=charge_id, method=method,
+        booked_on=date.today(), reference=reference, note=note, method=method,
     )
     db.add(entry)
     db.flush()
+    charge = next((e for e in entries_of(db, row)
+                   if e.id == charge_id and e.kind == vo.CHARGE), None)
+    if charge is not None:
+        allocate(db, payment=entry, pairs=[(charge, amount)])
     return entry
 
 
@@ -1839,7 +1941,7 @@ def transfer_info(db: Session, row: Voucher, charge: VoucherEntry) -> dict[str, 
     company = issuer_company(db, row)
     iban = getattr(company, "iban_encrypted", None)
     number = charge.reference or str(charge.id)
-    amount = _open_of(entries_of(db, row), charge)
+    amount = open_of(db, row, charge)
     creditor = {
         "name": sites.legal_name(company) or "",
         "street": getattr(company, "street", None),
@@ -2127,6 +2229,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     flow = vo.of(row.direction)
     sync_lines(db, row, order)
     entries = entries_of(db, row)
+    paid = paid_map(db, entries)
+    alloc: dict[int, list[VoucherAllocation]] = {}
+    for a in (db.query(VoucherAllocation)
+              .filter(VoucherAllocation.payment_id.in_([e.id for e in entries] or [0]),
+                      VoucherAllocation.is_active.is_(True)).all()):
+        alloc.setdefault(a.payment_id, []).append(a)
     money = balance_of(db, row)
     chosen = chosen_quote(db, row)
     reversed_ids = {e.reverses_id for e in entries if e.reverses_id is not None}
@@ -2256,6 +2364,18 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # Knöpfe standen sie im selben Rang wie eine Buchung und wie eine Korrektur.
         "ways": _ways(allowed, collects=flow.collects) if settle is not None else [],
         "settle_charge": settle.id if settle is not None else None,
+        # ►►► **Der Grund einer Korrektur ist ein Vorschlag, keine Aufzählung.** ◄◄◄
+        # Nichts verzweigt darauf – er steht auf dem Beleg und im Nachweis.
+        "reasons": list(vo.REASONS),
+        "reason_label": vo.REASON_LABEL,
+        # ►►► **Kleinbetragstoleranz – angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo
+        # unter einem Franken darf als **Differenz ausgebucht** werden: eine ganz
+        # gewöhnliche negative Forderung mit dem Grund «Rundungsdifferenz» – kein neuer
+        # Mechanismus, kein Automatismus. Wer automatisch ausbucht, verliert die eine
+        # Zeile, an der man später sieht, dass jemand entschieden hat.
+        "write_off": _money(money.write_off, row.currency) if won else None,
+        "write_off_reason": vo.WRITE_OFF_REASON,
+        "write_off_word": vo.WRITE_OFF_WORD,
         "method_label": vo.METHOD_LABEL,
         "refund_online_word": vo.REFUND_ONLINE_WORD,
         # **Die Freigabe-Liste ist die Konkurrenzliste** – sie geht eine Gegenpartei nichts
@@ -2350,6 +2470,16 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 # **Worauf diese Zahlung geht** – nur die Id; die Nummer steht an der
                 # Rechnung, und die Karte hat die ganze Liste.
                 "charge_id": e.charge_id,
+                # ►►► **Eine Zahlung darf auf mehrere Belege gehen.** ◄◄◄ Die Aufteilung
+                # steht hier, nicht als zweite Zahlung: auf dem Kontoauszug ist es eine.
+                "allocations": [{"charge_id": a.charge_id,
+                                 "amount": _money(a.amount, row.currency)}
+                                for a in alloc.get(e.id, [])],
+                # **Der Grund einer Korrektur** – Freitext, ohne Logik dahinter.
+                "reason": e.reason,
+                # **Wann die Zeile erfasst wurde** – der Moment, nicht der Belegtag
+                # (#1014): «vor 5 Minuten» ist eine Auskunft, ein Datum ist es nicht.
+                "booked_at": e.created_at,
                 "vat": list(e.vat or []),
                 "service_date": e.service_date,
                 "method": e.method,
@@ -2357,16 +2487,16 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 # **Storno ODER Gutschrift** – dieselbe Zeile, zwei Lagen: was bezahlt
                 # ist, nimmt man nicht zurück, man schreibt es gut. Welches Wort gilt,
                 # hängt an der Zahl, nicht an einem zweiten Verb.
-                "reverse_word": (vo.reverse_word(_paid_on(entries, e))
+                "reverse_word": (vo.reverse_word(_paid_on(paid, e))
                                  if e.kind == vo.CHARGE else None),
-                "open": (_money(_open_of(entries, e), row.currency)
+                "open": (_money(_open_of(paid, e), row.currency)
                          if e.kind == vo.CHARGE else None),
                 # ►►► **Der Zustand kommt vom Server, nicht aus dem Browser** (#991). ◄◄◄
                 # Die Oberfläche rechnete ihn selbst – eine zweite Ableitung derselben
                 # Zahlen, ohne Rundungstoleranz und ohne «teilweise bezahlt». Eine Zahlung
                 # bekommt keinen: sie ist ein Ereignis, kein Beleg mit einem Stand.
                 **(vo.charge_state(
-                    e.amount, _open_of(entries, e),
+                    e.amount, _open_of(paid, e),
                     reversed_=e.id in reversed_ids,
                     overdue=bool(e.due_on and e.due_on < today and money.open > 0),
                 ) if e.kind == vo.CHARGE else {}),

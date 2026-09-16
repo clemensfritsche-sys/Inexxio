@@ -3696,6 +3696,26 @@ export interface components {
             tax: string;
         };
         /**
+         * VoucherAllocationIn
+         * @description Ein Teil einer **Sammelzahlung**: welcher Beleg, wie viel.
+         */
+        VoucherAllocationIn: {
+            /** Charge Id */
+            charge_id: number;
+            /** Amount */
+            amount?: string | null;
+        };
+        /**
+         * VoucherAllocationOut
+         * @description **Wie viel dieser Zahlung auf WELCHEN Beleg geht** – eine Zeile der Aufteilung.
+         */
+        VoucherAllocationOut: {
+            /** Charge Id */
+            charge_id: number;
+            /** Amount */
+            amount: string;
+        };
+        /**
          * VoucherEmbed
          * @description **Der ganze Beleg, wie die Ausführungsstelle ihn braucht.**
          *
@@ -3907,6 +3927,25 @@ export interface components {
              * @default
              */
             method_label: string;
+            /** Reasons */
+            reasons?: string[];
+            /**
+             * Reason Label
+             * @default
+             */
+            reason_label: string;
+            /** Write Off */
+            write_off?: string | null;
+            /**
+             * Write Off Reason
+             * @default
+             */
+            write_off_reason: string;
+            /**
+             * Write Off Word
+             * @default
+             */
+            write_off_word: string;
             /** Allowed */
             allowed?: components["schemas"]["VoucherParty"][];
             /** Quotes */
@@ -4008,6 +4047,12 @@ export interface components {
             reversed: boolean;
             /** Charge Id */
             charge_id?: number | null;
+            /** Allocations */
+            allocations?: components["schemas"]["VoucherAllocationOut"][];
+            /** Reason */
+            reason?: string | null;
+            /** Booked At */
+            booked_at?: string | null;
             /** Method */
             method?: string | null;
             /** Method Label */
@@ -4279,6 +4324,10 @@ export interface components {
             entry?: number | null;
             /** Charge Id */
             charge_id?: number | null;
+            /** Allocations */
+            allocations?: components["schemas"]["VoucherAllocationIn"][] | null;
+            /** Reason */
+            reason?: string | null;
             /** Lines */
             lines?: components["schemas"]["VoucherPrice"][] | null;
             /** Vat */

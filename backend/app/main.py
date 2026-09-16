@@ -128,6 +128,9 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "lead_days", "INTEGER"),
     ("vouchers", "payment_days", "INTEGER"),
     ("vouchers", "parties", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    # **Der Grund einer Korrektur** – Freitext, ohne Logik dahinter. Es gibt keinen
+    # Belegtyp: positiv fordert, negativ korrigiert, und dies sagt warum.
+    ("voucher_entries", "reason", "VARCHAR(120)"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

@@ -1152,3 +1152,42 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > bestehende prüften die **Form** der alten Lösung (jede Handlung an ihrer Zeile · die
 > Einrückung der Zahlung · der Schieber im Formular · beide Seiten mit «Lieferadresse»)
 > und hätten die bessere Fassung verboten.
+
+> ►►► **ZWEI ENTITÄTEN, KEIN BELEGTYP** (Migration `137`, `voucher_allocations`). ◄◄◄
+> ```
+> Beleg    (Betrag ±, MWST, Belegnummer, Fälligkeit, Grund, Referenz-Beleg)
+> Zahlung  (Betrag ±, Zuordnung zu Beleg(en), Zahlungsart)
+> Saldo  = Σ Beleg − Σ Zahlung   → immer gerechnet, NIE gespeichert
+> ```
+> **Das war das Modell schon** – `voucher_entries.kind` kennt genau `charge` und
+> `payment`, und **das Vorzeichen** sagt, was eine Zeile tut: es gibt keine Aufzählung
+> *Rechnung · Storno · Gutschrift · Ausbuchung* und keine Verzweigung darauf. Neu sind
+> zwei Dinge:
+> * **`voucher_entries.reason`** – *warum* korrigiert wird (`vo.REASONS`: Retoure ·
+>   Mangel · Kulanz · Rechnungsfehler · uneinbringlich · Rundungsdifferenz). **Freitext
+>   ohne Logik dahinter**, der Katalog ein **Vorschlag**; ein Quelltext-Wächter verbietet
+>   jede Verzweigung. Das ist die Stelle, an der ein Belegtyp stünde – der Unterschied
+>   ist, dass ein Grund nichts *tut*.
+> * **`voucher_allocations`** – eine Zahlung darf auf **mehrere** Belege gehen. Auf dem
+>   Kontoauszug steht eine Zeile, also bleibt es **eine** Zahlung; die Aufteilung ist eine
+>   eigene Tabelle. `VoucherEntry.charge_id` bleibt als **Abkürzung** für den einfachen
+>   Fall und wird von derselben einen Stelle geschrieben (`voucher.allocate`);
+>   **gelesen wird ausschliesslich `voucher.paid_map`** – zwei Lesestellen wären der Ort,
+>   an dem eine Sammelzahlung halb ankommt. Eine Zahlung wird **vollständig zugeordnet
+>   oder gar nicht**, und ein fremder Beleg wird **genannt** statt übersprungen.
+>   *Damit ist die Regel aus #858 auf ausdrückliche Weisung zurückgenommen; «je Modul
+>   höchstens eine lebende Forderung» (#866) bleibt.*
+> **Die Kleinbetragstoleranz ist kein Mechanismus** (`Balance.write_off`,
+> `WRITE_OFF_LIMIT = 1.00`): sie sagt nur, **ob** die Lage vorliegt und **wie viel** –
+> ausgebucht wird über eine ganz gewöhnliche negative Forderung mit dem Grund
+> «Rundungsdifferenz». **Angeboten, nie automatisch**: wer automatisch ausbucht, verliert
+> die eine Zeile, an der man sieht, dass jemand entschieden hat. Die Zahl kommt **mit dem
+> Gegenvorzeichen** – eine, die man erst noch drehen muss, wird einmal nicht gedreht.
+> **Und die Geld-Zeile trägt ihren Zeitpunkt** (`booked_at` ← `created_at`, Testnotiz
+> #1014): `booked_on` ist der **Belegtag**, und aus einem Tag ohne Uhrzeit lässt sich «vor
+> 5 Minuten» nicht ableiten. Zwei Angaben, zwei Fragen – die eine gehört aufs Papier, die
+> andere in die Auskunft.
+> Wächter: `tests/test_voucher_module.py` (4 neue, **12 Bug-Formen gegengeprüft**);
+> Migration `137` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
+> verifiziert, samt **Backfill** der bestehenden Zuordnungen (ohne ihn stünde jede
+> bezahlte Rechnung wieder auf «offen»).

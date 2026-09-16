@@ -9152,6 +9152,50 @@
         "title": "VatShare",
         "description": "Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl."
       },
+      "VoucherAllocationIn": {
+        "properties": {
+          "charge_id": {
+            "type": "integer",
+            "title": "Charge Id"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "charge_id"
+        ],
+        "title": "VoucherAllocationIn",
+        "description": "Ein Teil einer **Sammelzahlung**: welcher Beleg, wie viel."
+      },
+      "VoucherAllocationOut": {
+        "properties": {
+          "charge_id": {
+            "type": "integer",
+            "title": "Charge Id"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "charge_id",
+          "amount"
+        ],
+        "title": "VoucherAllocationOut",
+        "description": "**Wie viel dieser Zahlung auf WELCHEN Beleg geht** – eine Zeile der Aufteilung."
+      },
       "VoucherEmbed": {
         "properties": {
           "direction": {
@@ -9486,6 +9530,39 @@
           "method_label": {
             "type": "string",
             "title": "Method Label",
+            "default": ""
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "reason_label": {
+            "type": "string",
+            "title": "Reason Label",
+            "default": ""
+          },
+          "write_off": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Write Off"
+          },
+          "write_off_reason": {
+            "type": "string",
+            "title": "Write Off Reason",
+            "default": ""
+          },
+          "write_off_word": {
+            "type": "string",
+            "title": "Write Off Word",
             "default": ""
           },
           "allowed": {
@@ -9870,6 +9947,36 @@
               }
             ],
             "title": "Charge Id"
+          },
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherAllocationOut"
+            },
+            "type": "array",
+            "title": "Allocations"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "booked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked At"
           },
           "method": {
             "anyOf": [
@@ -10549,6 +10656,31 @@
               }
             ],
             "title": "Charge Id"
+          },
+          "allocations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/VoucherAllocationIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocations"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           },
           "lines": {
             "anyOf": [

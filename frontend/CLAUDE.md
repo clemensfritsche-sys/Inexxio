@@ -812,3 +812,70 @@ melden wieder (+45,5 px bzw. `null`).
   Jetzt annulliert der durchgestrichene Kreis (`CircleSlash`, das Zeichen, mit dem das
   Haus «storniert» schreibt), der Kreispfeil gegen den Uhrzeiger nimmt eine Buchung
   zurück (`RotateCcw`), der Rückwärtspfeil schickt Geld zurück (`Undo2`).
+
+### Ein Auto-Save blendet nichts aus (#1016)
+►►► **`busy` sperrt Handlungen, nie Geometrie.** ◄◄◄ *«Der Partner-Block springt beim
+Autosave weiterhin.»* – Die Ursache stand im Chip: `onAsk`/`onDrop` hingen an `!busy`,
+waren also während **jedes** Speicherns `undefined`; die beiden Zeichen verschwanden, die
+rechte Polsterung wechselte von 4 auf 8 px, jeder Chip wurde schmaler, die umbrechende
+Reihe floss neu – und danach zurück.
+
+Es ist dieselbe Fehlerform wie `disabled={busy}` an einem Eingabefeld (#1009), nur eine
+Stufe gröber, und die Regel gilt ab hier dem **ganzen Modul**: Platz für Status- und
+Hinweistexte wird reserviert, Rückmeldung kommt über **Deckkraft** (die am Layout nichts
+ändert), Felder werden nicht neu gemountet, Fokus und Cursorposition bleiben.
+
+**Gemessen an der echten Komponente**: mit der Bug-Form verschwinden 4 Knöpfe je Karte,
+danach **0** verschobene Kanten. *Und die Messung selbst musste zweimal nachgeschärft
+werden – sie zählte nullflächige `<option>`-Knoten (2454 «verschobene Kanten», von denen
+keine eine war) und mass absolut statt karten-relativ; ein Messstand, der seinen eigenen
+Klick als Sprung liest, meldet alles und nichts.*
+
+### Die Zeilen-Grammatik hat einen fünften Platz (#1011/#1012)
+`[ Identifikator ] [ Meta ] … [ Aktion ] [ Datum ] [ Betrag ]`. Das Datum ist die
+**zweite Zahl** der Zeile, und zwei Zahlen gehören nebeneinander: so stehen sie über alle
+Zeilen hinweg in zwei Spalten, ohne dass jemand eine Spaltenbreite pflegt. Im Fliesstext
+links war es eine Angabe unter Angaben, und der Blick sprang für *wann* und *wie viel*
+zweimal. Es **schrumpft nicht** (`flex: none`) – «20.8.2026» hat keine Umbruchstelle.
+
+### Der Abschnittskopf ist eine Leiste (#1015)
+Der dritte Anlauf, und die beiden davor (Gewicht 800, mehr Luft) galten dem **Text**: eine
+Überschrift, die eine Zone eröffnet, braucht eine **Fläche**. Gedämpfte Füllung
+(`--bg-3`), dunkle Schrift, kräftige Trennlinie (2 px `--border-2`), über die **volle
+Modulbreite** (negativer Seitenrand = Polsterung der Karte). **Nicht Vollschwarz**: in
+einer Spalte mit fünf Modulen stünden fünf schwarze Balken untereinander, und die
+ERP-Regel heisst *Struktur vor Fläche*. Sie steht in `ModuleSection`, also erbt sie jedes
+künftige Modul – ein eigener Kopf an einer Aufrufstelle ist verboten.
+
+### Kein Betrag ohne Währung – auch keiner, den man tippt (#1010/#1017)
+`Amount` nimmt jetzt ein **Eingabefeld als Kind**: die Währung steht dann als Suffix
+**innerhalb** des Feldrahmens (`Editable` liegt aussen), in derselben Hülle wie die Zahl
+und damit zwingend in derselben Farbe. *Das nimmt #921 zurück («nicht an jedem
+Einzelpreis») – der Nutzer hat es ausdrücklich anders entschieden: **keine
+Betrags-Ausgabe und kein Betrags-Feld ohne Währung**.*
+
+### «Online erstatten» sagt, was daraus wurde (#1013)
+Zwei Ursachen in einer Zeile: der Aufruf endete auf `.catch(() => {})` – ein 409 des
+Zahlungsdienstes kam nirgends an –, und **gebucht wird vom Webhook**, nicht vom Aufruf:
+ein einzelnes Neuladen direkt danach zeigt verlässlich nichts. Jetzt eine **sichtbare
+Meldung** und dasselbe Nachfragen wie bei einer Zahlung (`WAIT_TRIES`/`WAIT_STEP`), das an
+der **Zeile** endet und nicht an einer Uhr.
+
+### Die Datums-Ausgabe hat einen Wächter je Stufe (#1014)
+►►► **Der Fehler lag nicht in `when()`** – und genau darum wurde er dreimal gemeldet.◄◄◄
+Die Funktion bekam `booked_on`, einen **reinen Tag**, und aus einem Tag ohne Uhrzeit lässt
+sich «vor 5 Minuten» nicht ableiten; sie überspringt die Stunden-Kaskade bewusst, statt
+Genauigkeit zu erfinden. Gefehlt hat der **Zeitpunkt** (`booked_at` ← `created_at`).
+
+`frontend/scripts/when.test.mjs` hält seither **jede Stufe** fest (12 Prüfungen, `npm
+test`, in der CI) – gefahren gegen die **echte** Quelle: `src/lib/when.ts` wird mit dem
+TypeScript des Hauses transpiliert, nicht nachgebaut. Eine zweite Fassung wäre die Stelle,
+an der ein Wächter grün bleibt, während die Oberfläche etwas anderes tut.
+
+### Der Grund und die Sammelzahlung im Formular
+**Der Grund steht immer da, auch leer** – ein Feld, das beim Vorzeichenwechsel erscheint,
+wäre genau die Geometrie-Änderung mitten im Tippen, die #1016 gemeldet hat. Als
+`datalist`, nicht als Auswahlfeld: der Katalog ist ein **Vorschlag**, nichts verzweigt
+darauf. **Die Aufteilung** fragt das Formular nur, wo es überhaupt etwas zu verteilen gibt
+(mehr als ein lebender Beleg) – bei einem hat die Frage genau eine Antwort, und der Server
+kennt sie (`settle_charge`).

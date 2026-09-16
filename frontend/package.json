@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "test": "node --test scripts/*.test.mjs",
     "generate:types": "openapi-typescript ../backend/openapi.json -o ./src/types/api.ts"
   },
   "dependencies": {
