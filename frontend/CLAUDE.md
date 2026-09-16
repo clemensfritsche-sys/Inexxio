@@ -253,6 +253,14 @@ sich an fünf Stellen anders.
 - **Die Wörter stehen im Modul, nicht im ICU.** `toLocaleDateString('de-CH', {month:
   'short'})` liefert je nach ICU-Fassung «Sep.» oder «Sept.» – dieselbe Falle wie beim
   Tausender-Trenner in `formatAmount`. Ein Wächter verbietet jede zweite Formatierung.
+- ►►► **`lib/when.ts` ist der EINZIGE erlaubte Weg, ein Datum anzuzeigen** – im ganzen
+  System, Backend wie Frontend (der Server liefert ausschliesslich ISO-Zeitstempel,
+  formatiert wird allein hier). Einzige Ausnahme ist die **Dokumentgenerierung**
+  (Rechnung, Offerte, PDF), wo das Format zum Dokument gehört und nicht zur Oberfläche.
+  *Gemessen zu #1004: **null** Fundstellen daneben – kein `toLocaleDateString`, kein
+  `Intl.DateTimeFormat`, kein `strftime`, kein eigenes Format im Backend. Die gemeldete
+  «13.09.2026» kam nicht von einer zweiten Formatierung, sondern von der **falschen der
+  beiden Funktionen**: eine Geld-Zeile ist eine Auskunft (`when`), kein Papier (`day`).*
 
 ## Bezahlen (`components/erp/pay-online.tsx`)
 **Die Bezahlkarte ist unsere** – kein Zahllink, keine fremde Seite. Vom Dienst kommen nur
@@ -305,6 +313,7 @@ jeder Aufrufstelle mit leicht anderen Werten – die Lehre aus `MICRO_LABEL`.
 | `ConfirmButton` | **Was nicht rückgängig zu machen ist, fragt einmal nach** – derselbe Knopf, ein zweiter Klick, das Wort daneben; die Frage schliesst sich von selbst (ein stehender Zustand müsste weggeklickt werden). Kein Dialog: die Rückfrage gehört an die Zeile, an der sie entsteht. |
 | `FIELD_GAP` | Der Abstand zwischen zwei Feldern einer Formular-Zeile (#987/#990). **Unter** der Beschriftung gibt es keinen: `fields.Label` bringt seine 4 px mit, und ein `gap` daneben kommt obendrauf – genau das waren die 7 px, die gemeldet wurden. |
 | `ACT_H` · `MODULE_GRID` | Knopfhöhen und Werteraster an einer Stelle statt als `style={{height: 30}}` an dreissig. |
+| `Amount` | ►►► **EIN Betrag — Zahl, Währung, Zustandsfarbe** (#1007). ◄◄◄ *«Zahl und Währung immer in derselben Farbe; die Währung darf zurücktreten, nie in einer anderen Farbe.»* Die Regel steckt in der **Bauart**: die Währung ist ein **Kind** der Zahl (`color: inherit`) – sie *kann* keine eigene mehr haben und tritt allein über Grösse, Gewicht und Deckkraft zurück. `currency` darf auch ein **Knoten** sein: am Total ist der Code zugleich der Wähler (#917), und der gehört in dieselbe Hülle statt daneben. Formatiert wird hier, sonst nirgends (`formatAmount` kommt im Beleg nicht mehr vor). |
 | `ActionButton` · `Actions` | ►►► **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name DANEBEN auf** (#877–#896, #900). ◄◄◄ Acht Notizen, ein Satz – also **ein** Bauteil und **eine** Geste: `.ix-tuck` in `globals.css`, von der die Modul-Palette (`.ix-palette`) die getönte Ausprägung ist. Ein Anlauf lang stand der Name in der Blase, weil ein wachsender Knopf in einer **umbrechenden** Zeile schwingt (gemessen 32 → 63 → 51 → 59 px in 800 ms, mit kippendem `:hover`) – #900 hat das zu Recht zurückgewiesen: die Antwort ist nicht, die Geste aufzugeben, sondern **Platz** zu geben. `Actions` ist eine Zeile mit `flex-wrap: nowrap`; wo sie in einer umbrechenden Zeile steht, bekommt sie zusätzlich `flex: 1 1 100%` (eine eigene Zeile, **linksbündig** – rechts angeschlagen wanderte die Gruppe beim Aufklappen unter dem Zeiger weg). Gemessen dann: **148 px, acht Messungen lang unverändert**, bei 1440 · 375 · 320 px. Der **Grund** hängt an einer Hülle, nicht am Knopf: `.ix-tuck` ist `overflow: hidden`, und das schneidet ein `::after` weg (#790). |
 
 - ►►► **Die Karte ist weiss – wie jeder Datensatz im Haus.** ◄◄◄ Sie war getönt, Rahmen
@@ -767,3 +776,39 @@ Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
 - **Beide Anschriften auf beiden Seiten** (#975): `Party` reicht `address_label` und
   `shipping_label` nur noch **durch**; ob es eine Beschriftung gibt, entscheidet der Server.
   Die Wörter stehen nirgends als Literal in der Karte.
+
+### Ein Auto-Save verändert die Geometrie nicht (#1009)
+►►► **Die Regel gilt dem Modul und jedem künftigen.** ◄◄◄ *«Beim Autosave springt das
+Layout: Felder verändern ihre Höhe, wodurch das nächste Feld nicht mehr getroffen wird.»*
+Gemessen in Chromium an der echten Komponente – **zwei** Ursachen, beide behoben:
+
+- **Was erst mit der Serverantwort entsteht, springt.** Die Aufstellung (Netto · Steuer je
+  Satz · Total) gab es nicht, solange kein Preis gebucht war; die Antwort liess sie in den
+  Beleg wachsen und schob die drei Konditionen-Felder um **45,5 px** nach unten. Welche
+  Zeilen es gibt, sagen die **Positionen** – jede trägt ihren Satz –, also steht der Platz
+  von Anfang an, und wo noch nichts gebucht ist, steht ein «—». *Platz für Status- und
+  Hinweistexte wird reserviert, auch wenn sie leer sind.*
+- **`disabled` nimmt dem Feld den Fokus**, und es bekommt ihn nicht zurück (gemessen:
+  `document.activeElement` war nach jedem Auto-Save `null`, mitten im Tippen). `busy`
+  sperrt darum nur noch **Handlungen** – Knöpfe –, nie einen Wert; `DocPick`, `Term`,
+  `Customs` und `Sums` kennen es gar nicht mehr. Das Speicher-Feedback bleibt, was es ist:
+  Farbe, nie ein Element, das Platz belegt.
+
+Gemessen danach: **0 px** Verschiebung über den ganzen Speichervorgang, und das Feld
+behält Fokus **und** Cursorposition (`Einzelpreis`, «150.00», Cursor 6). Beide Bug-Formen
+melden wieder (+45,5 px bzw. `null`).
+
+### Kleineres aus derselben Runde
+- **Die Angebotszeile beginnt auf derselben Kante wie jede andere** (#1005): davor stand
+  ein 6-px-Zustandspunkt, der den Namen um 16 px einrückte (gemessen 525 statt 509).
+  Dieselbe Frage wie in der Geld-Zeile (#996) – **der Punkt geht, die Aussage bleibt**:
+  als Preis, und wo keiner dasteht, als **Wort** (*Angefragt* · *Abgesagt*).
+- **Der Abschnittskopf trägt Gewicht 800 und 34 px Luft über sich** (#1006, in
+  `ModuleSection`, also erbt es jedes Modul). Von den vier erlaubten Mitteln zwei: die
+  Trennlinie steht seit jeher, eine Nummerierung behauptete eine Reihenfolge, die ein
+  Inhalts-Abschnitt nicht hat. **800, nicht 700** – gemessen: `MICRO_LABEL` steht bereits
+  auf 700, ein «höheres Gewicht» dorthin wäre ein wirkungsloser Fix gewesen.
+- **Ein Symbol zeigt, was die Handlung tut** (#1008): «Korrigieren» trug ein **Plus**.
+  Jetzt annulliert der durchgestrichene Kreis (`CircleSlash`, das Zeichen, mit dem das
+  Haus «storniert» schreibt), der Kreispfeil gegen den Uhrzeiger nimmt eine Buchung
+  zurück (`RotateCcw`), der Rückwärtspfeil schickt Geld zurück (`Undo2`).

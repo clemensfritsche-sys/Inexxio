@@ -1304,14 +1304,22 @@ def test_the_swiss_thousands_separator_is_pinned():
         "Die Nachkommastellen sind wieder fest – dann zeigt ein Yen-Betrag zwei Stellen, "
         "die es nicht gibt."
     )
-    for name in ("beleg-work.tsx",):
+    # **Die eine Formatierung steht in `module-ui.Amount`** (#1007) – vorher formatierte
+    # jede Aufrufstelle des Belegs selbst. Der Wächter fragt darum die **Regel** an ihrem
+    # heutigen Ort: niemand formatiert daneben, und die Stellenzahl kommt von der Währung.
+    for name in ("beleg-work.tsx", "module-ui.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
         assert "toLocaleString" not in src, (
             f"{name} formatiert selbst – dann gilt die Regel dort nicht."
         )
-        assert "formatAmount(" in src and "d.currency_decimals" in src, (
-            f"{name} formatiert ohne die Nachkommastellen der Währung."
-        )
+    money = _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
+    assert "formatAmount(value, decimals)" in money, (
+        "Das Betrags-Bauteil formatiert nicht über `formatAmount`."
+    )
+    beleg = _beleg()
+    assert "d.currency_decimals" in beleg, (
+        "Der Beleg reicht die Nachkommastellen der Währung nicht durch."
+    )
 
 
 def test_a_module_shows_its_own_matter_in_every_state():
@@ -6910,17 +6918,24 @@ def test_every_summed_amount_names_its_currency():
     # **JEDE Summenzeile**, nicht irgendeine: mit einem blossen «kommt vor» genügte eine
     # von dreien, und die Netto-Zeile hätte ihre Währung verlieren können, ohne dass es
     # auffällt (gemessen – die erste Fassung liess genau das durch).
-    assert sums.count("${code}") >= sums.count("<SumRow"), (
-        f"Nicht jede Summenzeile nennt ihre Währung (a): {sums.count('${code}')} von "
-        f"{sums.count('<SumRow')}."
+    #
+    # Gefragt wird die **Regel an ihrem heutigen Ort** (#1007): die Währung reist als
+    # Angabe des einen Betrags-Bauteils (``Amount``), nicht mehr als Zeichenkette neben
+    # der Zahl. Die frühere Fassung zählte ``${code}`` und hätte damit die bessere Lösung
+    # verboten, obwohl sie dieselbe Regel besser erfüllt.
+    assert sums.count("code={d.currency}") >= sums.count("<SumRow"), (
+        f"Nicht jede Summenzeile nennt ihre Währung (a): "
+        f"{sums.count('code={d.currency}')} von {sums.count('<SumRow')}."
     )
-    assert "<Currency" in sums, "Das Total nennt seine Währung nicht (a)."
+    assert "currency={<Currency" in sums, "Das Total nennt seine Währung nicht (a)."
     row = _component(src, "LineRow")
-    assert "{d.currency}" not in row, (
+    # Gefragt ist die **Angabe**, nicht das Wort: ``currency_decimals`` steht hier
+    # zu Recht (die Stellenzahl der Währung), und ein blosses «kommt vor» schlug darauf an.
+    assert "currency={" not in _code(row), (
         "Der Einzelpreis trägt die Währung (b) – zwanzig Zeilen, zwanzigmal dasselbe Wort."
     )
     entry = _component(src, "EntryRow")
-    assert "{d.currency}" in entry, "Eine Geld-Zeile nennt ihre Währung nicht (a)."
+    assert "currency={d.currency}" in entry, "Eine Geld-Zeile nennt ihre Währung nicht (a)."
     assert "'CHF'" not in _code(_component(src, "Money")), (
         "Die Geld-Zeile schreibt «CHF» fest (c) – ein Yen-Beleg läse sich als Franken."
     )
@@ -8883,3 +8898,176 @@ def test_choosing_a_party_writes_it_instead_of_asking():
     assert "removable" in who and "allowed.some" in who, (
         "Ein nur gewählter Partner lässt sich nicht mehr abwählen (b)."
     )
+
+
+def _module_ui() -> str:
+    return _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
+
+
+def test_an_autosave_never_moves_the_page():
+    """►►► **Ein Auto-Save darf die Geometrie der Seite nicht verändern** (#1009). ◄◄◄
+
+    *«Beim Autosave im Zahlungsmodul springt das Layout: Felder verändern ihre Höhe,
+    wodurch das nächste Feld nicht mehr getroffen wird.»*
+
+    Gemessen in Chromium an der echten Komponente – zwei Ursachen, beide hier festgehalten:
+
+    (a) **Die Aufstellung entstand erst mit dem ersten Preis.** Netto- und Steuerzeile
+        gab es nicht, solange nichts gebucht war; kam die Antwort des Servers, wuchsen sie
+        in den Beleg und schoben die drei Konditionen-Felder um **45,5 px** nach unten.
+        Welche Zeilen es gibt, sagen die **Positionen** (jede trägt ihren Satz) – der Platz
+        steht damit von Anfang an, und wo noch kein Betrag gebucht ist, steht ein «—».
+
+    (b) **`disabled` nimmt dem Feld den Fokus**, und es bekommt ihn nicht zurück: gemessen
+        war ``document.activeElement`` nach jedem Auto-Save ``null`` – mitten im Tippen.
+        `busy` sperrt darum nur noch **Handlungen** (Knöpfe), nie einen Wert.
+
+    Bug-Formen: (a) die Netto-Zeile hängt wieder an einer Bedingung; (b) ein änderbarer
+    Wert ist wieder `disabled={busy}`.
+    """
+    src = _beleg()
+    sums = _code(_component(src, "Sums"))
+    assert '<SumRow label="Netto"' in sums and "{d.net != null &&" not in sums, (
+        "Die Netto-Zeile erscheint erst mit einem Wert (a) – dann springt alles darunter."
+    )
+    # **Die Zeilen kommen aus den Positionen**, nicht aus der Antwort des Servers allein:
+    # sonst steht die Aufstellung erst, wenn der erste Preis gebucht ist. Gefragt ist die
+    # **Schleife**, nicht der blosse Name: `d.lines` steht auch in der Abhängigkeitsliste,
+    # und die erste Fassung war schon dadurch erfüllt (gegengeprüft).
+    assert "for (const ln of d.lines)" in sums, (
+        "Die Steuerzeilen kommen allein aus der Server-Aufteilung (a) – vor dem ersten "
+        "Preis gibt es sie damit nicht."
+    )
+    # (b) **Kein Wert wird beim Speichern gesperrt.** Gefragt ist das Bedienelement, nicht
+    # der Knopf: ein `<input>`/`<select>` hält Fokus und Cursor, ein Knopf nicht.
+    for tag in ("<input", "<select"):
+        for chunk in _code(src).split(tag)[1:]:
+            head = chunk.split(">")[0]
+            assert "disabled={busy}" not in head, (
+                f"Ein Eingabefeld wird beim Speichern gesperrt (b): {tag}{head[:70]} – "
+                "es verliert dabei Fokus und Cursorposition."
+            )
+
+
+def test_a_money_row_says_when_it_was_not_which_day():
+    """►►► **In einer Geld-Zeile ist das Datum eine AUSKUNFT** (Testnotiz #1004). ◄◄◄
+
+    *«‹Begleichen› zeigt weiterhin ‹13.09.2026› statt der relativen Form.»* – Und die
+    Ursache war nicht der Server (er liefert ISO-Zeitstempel, formatiert wird allein im
+    Browser): die Zeile rief ``day()``, also die **Tatsache**, die auf ein Papier gehört
+    (MWSTG Art. 26). Gefragt ist hier aber *wann war das* – «vor 3 Tagen», wie eine Zeile
+    höher bei der Fälligkeit. Das Datum verschwindet nicht, es steht im Hover.
+
+    Bug-Form: der Buchungstag steht wieder als Datum in der Zeile.
+    """
+    entry = _code(_component(_beleg(), "EntryRow"))
+    assert "when(e.booked_on)" in entry, (
+        "Der Buchungstag steht als Datum in der Zeile statt als Aussage."
+    )
+    assert "text: day(e.booked_on)" not in entry, (
+        "Der Buchungstag steht wieder als Tatsache in der Zeile."
+    )
+    # Gefragt ist der Hover **dieser** Zeile: `day(e.booked_on)` steht auch im Hover der
+    # Rechnungs-Zeile, und ein blosses «kommt vor» war schon dadurch erfüllt
+    # (gegengeprüft).
+    assert "`Gebucht ${day(e.booked_on)}`" in entry, (
+        "Die Tatsache fehlt im Hover – eine Aussage ohne sie kann niemand nachprüfen."
+    )
+
+
+def test_an_amount_is_one_component_and_wears_one_colour():
+    """►►► **EIN Betrag — Zahl, Währung, Zustandsfarbe** (Testnotiz #1007). ◄◄◄
+
+    *«Zahl und Währung immer in derselben Farbe. Die Währung darf zurücktreten, aber nie
+    in einer anderen Farbe.»* – Genau das war passiert: die Geld-Zeile färbte beide
+    zusammen, der Saldo darunter setzte die Währung auf ``--fg-2`` und die Zahl auf ihren
+    Ampelton.
+
+    Die Regel steckt in der **Bauart**, nicht in einer Verabredung: die Währung ist ein
+    **Kind** der Zahl und erbt ihre Farbe – sie kann gar keine andere mehr haben.
+
+    Bug-Formen: (a) eine Aufrufstelle formatiert wieder selbst; (b) die Währung bekommt
+    eine eigene Farbe.
+    """
+    assert "formatAmount(" not in _code(_beleg()), (
+        "Eine Aufrufstelle des Belegs formatiert ihren Betrag selbst (a) – dann gibt es "
+        "wieder zwei Schreibweisen für dieselbe Sache."
+    )
+    amount = _code(_component(_module_ui(), "Amount"))
+    assert "color: 'inherit'" in amount, (
+        "Die Währung trägt eine eigene Farbe (b) statt der der Zahl."
+    )
+
+
+def test_a_row_begins_on_the_same_edge_as_every_other():
+    """►►► **Der Name der Angebotszeile ist nicht eingerückt** (Testnotiz #1005). ◄◄◄
+
+    Ursache war ein **Icon-Platzhalter**: ein 6-px-Zustandspunkt mit 10 px Abstand davor –
+    der Name begann damit 16 px weiter rechts als der Identifikator einer Geld-Zeile, die
+    Menge einer Position oder die Beschriftung einer Kondition (gemessen: 525 statt 509).
+
+    Es ist dieselbe Frage wie in der Geld-Zeile (#996), und die Antwort ist dieselbe: der
+    Punkt geht, die Aussage bleibt – als Preis, und wo keiner dasteht, als **Wort**.
+
+    Bug-Form: der Punkt steht wieder vor dem Namen.
+    """
+    quote = _code(_component(_beleg(), "QuoteRow"))
+    assert "background: look.color" not in quote, (
+        "Vor dem Namen steht wieder ein Zustandspunkt – er rückt die Zeile ein."
+    )
+    # Gefragt ist der **Textknoten**, nicht das Vorkommen: `tip={look.label}` steht
+    # daneben am Betrag, und ein blosses «kommt vor» war schon dadurch erfüllt
+    # (gegengeprüft) – dieselbe Falle wie bei `data-tip` in der Vorrunde.
+    shown = re.sub(r"\b\w+=\{[^}]*\}", "", quote)
+    assert "{look.label}" in shown, (
+        "Ohne Punkt und ohne Wort sagt die Zeile ihren Zustand gar nicht mehr."
+    )
+
+
+def test_a_section_head_carries_weight():
+    """►►► **Die Abschnittsköpfe tragen mehr Gewicht** (Testnotiz #1006). ◄◄◄
+
+    Erlaubt waren vier Mittel (Gewicht · Abstand · Trennlinie · Nummerierung), zu wählen
+    war eine **Kombination, nicht alles**. Die Trennlinie steht seit jeher, eine
+    Nummerierung behauptete eine Reihenfolge, die es bei Inhalts-Abschnitten nicht gibt –
+    bleiben Gewicht und Abstand. Beide gehören der **Gattung** und stehen darum in
+    ``ModuleSection``, nicht an der Aufrufstelle.
+
+    **800, nicht 700** – gemessen: ``MICRO_LABEL`` steht bereits auf 700; ein «höheres
+    Gewicht» dorthin wäre wirkungslos gewesen und hätte ausgesehen wie ein Fix.
+
+    Bug-Formen: (a) das Gewicht ist zurück auf dem von ``MICRO_LABEL``; (b) der Abstand
+    steht an der Aufrufstelle statt an der Gattung.
+    """
+    ui = _module_ui()
+    micro = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "font: '700 11px var(--font-body)'" in micro, (
+        "MICRO_LABEL hat sein Gewicht geändert – dann ist die Zahl unten neu zu messen."
+    )
+    head = _code(_component(ui, "ModuleSection"))
+    assert "fontWeight: 800" in head, (
+        "Der Abschnittskopf trägt kein eigenes Gewicht (a) – 700 ist der Wert, den "
+        "MICRO_LABEL ohnehin setzt."
+    )
+    assert "SECTION_GAP" in head and "const SECTION_GAP" in _code(ui), (
+        "Der Abstand über einem Abschnitt steht nicht als eine Zahl an der Gattung (b)."
+    )
+
+
+def test_an_undoing_action_never_looks_like_an_adding_one():
+    """►►► **Ein Symbol zeigt, was die Handlung TUT** (Testnotiz #1008). ◄◄◄
+
+    «Korrigieren» trug ein **Plus** – das Zeichen des Hinzufügens für eine Handlung, die
+    eine Buchung zurücknimmt. Drei Korrekturen stehen in dieser Zeilengattung, und jede
+    tut etwas anderes: annullieren (durchgestrichener Kreis, dasselbe Zeichen, mit dem
+    das Haus «storniert» schreibt), zurücknehmen (Kreispfeil gegen den Uhrzeiger),
+    Geld zurückschicken (Rückwärtspfeil).
+
+    Bug-Form: eine Korrektur trägt wieder ein Plus.
+    """
+    entry = _code(_component(_beleg(), "EntryRow"))
+    assert "icon={Plus}" not in entry, (
+        "Eine rückgängig machende Handlung trägt das Zeichen des Hinzufügens."
+    )
+    for icon in ("icon={CircleSlash}", "icon={RotateCcw}", "icon={Undo2}"):
+        assert icon in entry, f"Der Zeile fehlt ihr Symbol: {icon}."

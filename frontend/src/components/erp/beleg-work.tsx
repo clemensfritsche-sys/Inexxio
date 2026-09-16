@@ -18,12 +18,11 @@ import {
   Label, MICRO_LABEL, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
-  ACT_H, ActionButton, ConfirmButton, FIELD_GAP, LedgerRow, ModuleSection,
+  ACT_H, ActionButton, Amount, ConfirmButton, FIELD_GAP, LedgerRow, ModuleSection,
 } from '@/components/erp/module-ui';
 import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { TONE } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
-import { formatAmount } from '@/lib/utils';
 import { day, formatWhen, when } from '@/lib/when';
 
 /**
@@ -360,7 +359,7 @@ const DOC_FIELD: CSSProperties = {
  */
 const MIN_PICK = 44;
 
-function DocPick({ on, value, text, options, face, tip, busy, aria, missing, onChange }: {
+function DocPick({ on, value, text, options, face, tip, aria, missing, onChange }: {
   on: boolean;
   value: string;
   /** Was dasteht – der **kurze** Name, nie die Zeile des Auswahlfelds. */
@@ -368,7 +367,6 @@ function DocPick({ on, value, text, options, face, tip, busy, aria, missing, onC
   options: { value: string; label: string }[];
   face?: CSSProperties;
   tip?: string;
-  busy?: boolean;
   aria: string;
   /** Pflichtangabe und noch leer (#964) – siehe `Editable.missing`. */
   missing?: boolean;
@@ -383,7 +381,7 @@ function DocPick({ on, value, text, options, face, tip, busy, aria, missing, onC
     <Editable title={tip} missing={missing}
       style={{ position: 'relative', minWidth: MIN_PICK, maxWidth: '100%' }}>
       {shown}
-      <select value={value} disabled={busy} aria-label={aria}
+      <select value={value} aria-label={aria}
         onChange={(e) => onChange(e.target.value)}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
                  opacity: 0, cursor: 'pointer' }}>
@@ -996,7 +994,7 @@ function Goods({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send
             </span>
           </div>
         )}
-        <Sums d={d} busy={busy} onAction={onAction} />
+        <Sums d={d} onAction={onAction} />
       </div>
     </ModuleSection>
   );
@@ -1060,9 +1058,9 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
                 Voraussetzung der Ausfuhr – sie stehen offen in der Zeile, nicht hinter
                 einem Klick. */}
             <Customs label="Zolltarif" value={hs} on={customs} width={86}
-              busy={busy} onChange={setHs} onDone={now} />
+              onChange={setHs} onDone={now} />
             <Customs label="Ursprung" value={origin} on={customs} width={64}
-              busy={busy} onChange={setOrigin} onDone={now} />
+              onChange={setOrigin} onDone={now} />
           </span>
         </div>
       </div>
@@ -1100,7 +1098,7 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
               längst in den Daten (`label` + `rate`); zusammengesetzt wird es an **einer**
               Stelle (`vatText`), damit Auswahl und Anzeige nicht auseinanderlaufen. */}
           <DocPick on={editable} value={vat} text={vatText(line.vat_label, line.vat_rate)}
-            busy={busy} aria={d.vat_label} tip={line.vat_note || d.vat_label}
+            aria={d.vat_label} tip={line.vat_note || d.vat_label}
             face={{ fontSize: 12, color: 'var(--fg-3)' }}
             options={(d.vat_rates ?? []).map((v) => ({
               value: v.key, label: vatText(v.label, v.rate) }))}
@@ -1113,7 +1111,10 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
               // JPY hat null, KWD drei; die Zahl steht im Vorgang (`currency_decimals`).
               // Die vier kamen aus der Spalte `NUMERIC(18, 4)` – behoben ist das am
               // **Dienst**; hier wird verhindert, dass man sie überhaupt tippen kann.
-              <input {...numericInputProps} value={price} disabled={busy}
+              // ►►► **Beim Speichern wird nicht gesperrt** (Testnotiz #1009). ◄◄◄ Ein
+              // `disabled` nimmt dem Feld den **Fokus**, und es bekommt ihn nicht zurück:
+              // gemessen war `document.activeElement` nach jedem Auto-Save `null`.
+              <input {...numericInputProps} value={price}
                 onChange={(e) => setPrice(
                   numericOnly(e.target.value, { decimals: d.currency_decimals ?? 2 }))}
                 onBlur={now}
@@ -1122,9 +1123,8 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
                 style={{ ...DOC_FIELD, width: 92, textAlign: 'right', fontSize: 13,
                          fontVariantNumeric: 'tabular-nums' }} />
             ) : (
-              <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
-                {line.price ? formatAmount(line.price, d.currency_decimals ?? 2) : '—'}
-              </span>
+              <Amount value={line.price} decimals={d.currency_decimals ?? 2}
+                weight={400} />
             )}
           </Editable>
         </div>
@@ -1167,8 +1167,8 @@ function vatText(label?: string | null, rate?: string | null): string {
  * Beschriftung und Wert sind darum **eine** Zeile in beiden Zuständen – dieselbe Grösse,
  * dieselbe Farbe; nur der Wert trägt die Auszeichnung, denn nur er ist änderbar.
  */
-function Customs({ label, value, on, width, busy, onChange, onDone }: {
-  label: string; value: string; on: boolean; width: number; busy: boolean;
+function Customs({ label, value, on, width, onChange, onDone }: {
+  label: string; value: string; on: boolean; width: number;
   onChange: (v: string) => void; onDone: () => void;
 }) {
   if (!on) {
@@ -1180,7 +1180,7 @@ function Customs({ label, value, on, width, busy, onChange, onDone }: {
     <span className="inline-flex items-baseline" style={{ gap: 4, minWidth: 0 }}>
       <span style={{ fontSize: 11.5, color: 'var(--fg-3)', flex: 'none' }}>{label}</span>
       <Editable title={label} missing={value.trim() === ''}>
-        <input value={value} disabled={busy} aria-label={label}
+        <input value={value} aria-label={label}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onDone}
           onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
@@ -1201,45 +1201,71 @@ function Customs({ label, value, on, width, busy, onChange, onDone }: {
  * Tabelle, in der sonst nur Zahlen stehen – der Code am Total, in derselben Schrift wie
  * die Zahl daneben, mit der Auszeichnung aus #922.
  */
-function Sums({ d, busy, onAction }: {
-  d: Filled; busy: boolean; onAction: Send;
-}) {
-  const splits = d.vat_split ?? [];
-  const code = d.currency;
+function Sums({ d, onAction }: { d: Filled; onAction: Send }) {
+  const splits = useMemo(() => d.vat_split ?? [], [d.vat_split]);
   const dec = d.currency_decimals ?? 2;
+  // ►►► **Die Aufstellung steht von Anfang an da** (Testnotiz #1009). ◄◄◄
+  //
+  // Gemessen war die Ursache des Layout-Sprungs genau hier: solange kein Preis dastand,
+  // gab es weder eine Netto- noch eine Steuerzeile – und als der Server nach dem ersten
+  // Auto-Save antwortete, wuchsen sie in den Beleg hinein und schoben alles darunter
+  // (Zahlungsfrist, Lieferfrist, Lieferbedingung) um **45,5 px** nach unten. Wer gerade
+  // auf das nächste Feld zielte, traf es nicht mehr.
+  //
+  // **Welche Zeilen es gibt, sagen die POSITIONEN**, nicht die Preise: jede Position
+  // trägt ihren Satz, also steht die Aufstellung fest, sobald der Beleg seine Positionen
+  // hat. Erfunden wird dabei nichts – wo noch kein Betrag gebucht ist, steht ein «—».
+  // Die Zeilen des Servers gewinnen; was er (noch) nicht nennt, kommt aus den Positionen.
+  const rows = useMemo(() => {
+    const out = splits.map((v) => ({
+      key: v.vat, rate: v.rate, label: v.label, note: v.note,
+      tax: v.tax as string | null,
+    }));
+    if (d.we_quote) {
+      for (const ln of d.lines) {
+        if (!ln.vat || out.some((r) => r.key === ln.vat)) continue;
+        out.push({ key: ln.vat, rate: ln.vat_rate, label: ln.vat_label,
+                   note: ln.vat_note, tax: null });
+      }
+    }
+    // Dieselbe Reihenfolge wie beim Server (`domain/voucher.vat_split`): der höhere Satz
+    // zuerst – sonst sprängen die Zeilen, sobald seine Fassung eintrifft.
+    return out.sort((a, b) => Number(b.rate ?? 0) - Number(a.rate ?? 0));
+  }, [splits, d.lines, d.we_quote]);
+
   if (!d.we_quote && !d.amount) return null;
-  const total = d.amount ?? sum(splits, dec);
+  const total = d.amount ?? (splits.length ? sum(splits, dec) : null);
   return (
     <div className="flex flex-col" style={{
       gap: 4, marginTop: 4, paddingTop: 9, borderTop: '1px solid var(--border-1)',
     }}>
-      {d.net != null && (
-        <SumRow label="Netto" value={`${formatAmount(d.net, dec)} ${code}`} />
-      )}
-      {splits.map((v, i) => (
-        <SumRow key={i} label={`${d.vat_label} ${v.label ?? v.rate} (${v.rate} %)`}
-          value={`${formatAmount(v.tax, dec)} ${code}`} hint={v.note ?? undefined} />
+      <SumRow label="Netto" value={d.net} code={d.currency} dec={dec} />
+      {rows.map((v) => (
+        <SumRow key={v.key} label={`${d.vat_label} ${v.label ?? v.rate} (${v.rate} %)`}
+          value={v.tax} code={d.currency} dec={dec} hint={v.note ?? undefined} />
       ))}
       <div className="flex items-baseline" style={{
         gap: 10, marginTop: 4, paddingTop: 7, borderTop: '1px solid var(--border-1)',
       }}>
         <span style={{ ...MICRO_LABEL, flex: 1 }}>Total</span>
-        <span style={{ font: '700 14px var(--font-body)',
-                       fontVariantNumeric: 'tabular-nums' }}>
-          {formatAmount(total, dec)}
-        </span>
-        <Currency d={d} busy={busy} onAction={onAction} />
+        {/* **Der Währungscode ist hier zugleich der Wähler** (#917) – und darum steht er
+            im Währungs-Platz des Betrags, nicht als eigenes Geschwister daneben (#1007). */}
+        <Amount value={total} decimals={dec} size={14} weight={700}
+          currency={<Currency d={d} onAction={onAction} />} />
       </div>
     </div>
   );
 }
 
-function SumRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function SumRow({ label, value, code, dec, hint }: {
+  label: string; value: string | null | undefined; code: string; dec: number;
+  hint?: string;
+}) {
   return (
     <div className="flex items-baseline" style={{ gap: 10 }}>
       <span style={{ fontSize: 12, color: 'var(--fg-3)', flex: 1, minWidth: 0 }}
         {...(hint ? { 'data-tip': hint } : {})}>{label}</span>
-      <span style={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <Amount value={value} currency={code} decimals={dec} size={12.5} weight={400} />
     </div>
   );
 }
@@ -1260,13 +1286,14 @@ function sum(rows: NonNullable<Filled['vat_split']>, dec: number): string {
  * Steht die Zusage, gibt es nichts mehr zu wählen – dann ist es eine Tatsache, und die
  * Auszeichnung fällt mit ihr weg.
  */
-function Currency({ d, busy, onAction }: {
-  d: Filled; busy: boolean; onAction: Send;
-}) {
+function Currency({ d, onAction }: { d: Filled; onAction: Send }) {
   return (
     <DocPick on={may(d, 'currency')} value={d.currency} text={d.currency}
-      face={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}
-      tip={d.currency_label} busy={busy} aria={d.currency_label}
+      /* ►►► **Er erbt die Schrift und die FARBE des Betrags** (Testnotiz #1007). ◄◄◄
+         Er stand auf `--fg-2`, während die Zahl daneben `--fg-1` trug – zwei Farben für
+         eine Angabe. Als Kind von `Amount` kann er gar keine eigene mehr haben. */
+      face={{ font: 'inherit', color: 'inherit' }}
+      tip={d.currency_label} aria={d.currency_label}
       options={(d.currencies ?? []).map((c) => ({ value: c.code, label: c.label }))}
       onChange={(currency) => void onAction({ action: 'currency', currency })} />
   );
@@ -1350,7 +1377,7 @@ function SavedTerm({ label, on, busy, field, days, terms, hint, freeMin, freeLab
   useAutosave(`${field}:${draft}`, draft !== remote && !busy, save);
 
   return (
-    <Term label={label} on={on} busy={busy} value={draft} days={days} terms={terms}
+    <Term label={label} on={on} value={draft} days={days} terms={terms}
       hint={hint} freeMin={freeMin} freeLabel={freeLabel} onChange={setDraft} />
   );
 }
@@ -1376,8 +1403,8 @@ function SavedTerm({ label, on, busy, field, days, terms, hint, freeMin, freeLab
  */
 const TERM_FREE = 'frei';
 
-function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, onChange }: {
-  label: string; on: boolean; busy: boolean;
+function Term({ label, on, value, days, terms, hint, freeMin, freeLabel, onChange }: {
+  label: string; on: boolean;
   /** Der Entwurf (leer = noch nichts gewählt) – die gebuchte Zahl steht in `days`. */
   value: string;
   days: number | null | undefined;
@@ -1399,7 +1426,7 @@ function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, o
       <span style={MICRO_LABEL}>{label}</span>
       {on && (free || typing) ? (
         <Editable title={label} missing={current === ''}>
-          <input {...numericInputProps} autoFocus value={current} disabled={busy}
+          <input {...numericInputProps} autoFocus value={current}
             aria-label={label}
             onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
             onBlur={() => {
@@ -1412,7 +1439,7 @@ function Term({ label, on, busy, value, days, terms, hint, freeMin, freeLabel, o
                      fontVariantNumeric: 'tabular-nums' }} />
         </Editable>
       ) : (
-        <DocPick on={on} value={named ? current : ''} text={word} busy={busy} aria={label}
+        <DocPick on={on} value={named ? current : ''} text={word} aria={label}
           missing={current === ''}
           face={{ fontSize: 13, color: 'var(--fg-1)' }} tip={hint}
           options={[
@@ -1479,7 +1506,7 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
           eingerückt» – ein natives Auswahlfeld nimmt die Breite seiner längsten Zeile,
           und die heisst hier «DPU · Geliefert entladen». Sichtbar ist jetzt, was auf dem
           Beleg steht; die Erklärung folgt darunter als Satz. */}
-      <DocPick on value={key} text={chosen ? chosen.key : '—'} busy={busy}
+      <DocPick on value={key} text={chosen ? chosen.key : '—'}
         aria={d.incoterm_label} face={{ fontSize: 13, color: 'var(--fg-1)' }}
         missing={key === ''}
         options={[{ value: '', label: '—' },
@@ -1488,7 +1515,7 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
         onChange={setKey} />
       {key !== '' && (
         <Editable as="div" missing={place.trim() === ''}>
-          <input value={place} disabled={busy}
+          <input value={place}
             placeholder={d.incoterm_place_label} aria-label={d.incoterm_place_label}
             onChange={(e) => setPlace(e.target.value)}
             onBlur={now}
@@ -1636,10 +1663,15 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
       gap: 6, padding: '0 0 7px', borderBottom: '1px solid var(--border-1)', minWidth: 0,
     }}>
       <div className="flex flex-wrap items-baseline" style={{ gap: '4px 10px', minWidth: 0 }}>
-        <span aria-hidden className="rounded-full" style={{
-          width: 6, height: 6, flex: 'none', background: look.color,
-          alignSelf: 'center',
-        }} />
+        {/* ►►► **Die Zeile beginnt auf derselben Kante wie jede andere** (#1005). ◄◄◄
+            *«Der Name in der Angebotszeile schaut eingerückt aus statt linksbündig.»* –
+            Und er war es: hier stand ein 6-px-Zustandspunkt mit 10 px Abstand davor, also
+            begann der Name **16 px** weiter rechts als der Identifikator einer Geld-Zeile,
+            die Menge einer Position oder die Beschriftung einer Kondition.
+            Der Punkt ist damit dieselbe Frage wie in der Geld-Zeile (#996), und die
+            Antwort ist dieselbe: **weg mit dem Punkt, die Aussage bleibt.** Steht ein
+            Preis da, ist er die Aussage; steht keiner (angefragt, abgesagt), sagt es das
+            **Wort** – an derselben Stelle, an der sonst der Betrag steht. */}
         {/* ►►► **Nummer neben dem Namen — als EINE Gruppe** (Testnotiz #953). ◄◄◄ Beide
             benennen **einen** Datensatz; als Geschwister in einer umbrechenden Zeile
             rutschte die Nummer auf die nächste, sobald es eng wurde. Gekappt wird der
@@ -1662,10 +1694,12 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
         {chosen && d.agreed_at && (
           <Note tip={formatWhen(d.agreed_at).title}>angenommen · {when(d.agreed_at)}</Note>
         )}
-        {d.amount != null && !declined && (
-          <span style={{ font: '600 13px var(--font-body)',
-                         fontVariantNumeric: 'tabular-nums' }}>
-            {formatAmount(d.amount, dec)} {v.currency}
+        {d.amount != null && !declined ? (
+          <Amount value={d.amount} currency={v.currency} decimals={dec}
+            tip={look.label} />
+        ) : (
+          <span style={{ ...MICRO_LABEL, color: look.color, flex: 'none' }}>
+            {look.label}
           </span>
         )}
       </div>
@@ -1677,7 +1711,7 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
       {canQuote && (
         <div className="flex flex-wrap items-end" style={{ gap: 10, minWidth: 0 }}>
           <Editable as="div" missing={amount.trim() === ''}>
-            <input {...numericInputProps} value={amount} disabled={busy}
+            <input {...numericInputProps} value={amount}
               onChange={(e) => setAmount(numericOnly(e.target.value))}
               aria-label="Betrag"
               style={{ ...DOC_FIELD, width: 110, textAlign: 'right', fontSize: 13,
@@ -1686,11 +1720,11 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
           {/* **Dieselbe Frist-Form wie im Beleg** – zwei Bauarten für dieselbe Frage
               liefen beim nächsten üblichen Wert auseinander, und die Zeile des Partners
               ist derselbe Beleg, nur seine Seite davon. */}
-          <Term label={v.payment_term_label} on busy={busy} value={pay} days={null}
+          <Term label={v.payment_term_label} on value={pay} days={null}
             terms={v.payment_terms ?? []} onChange={setPay}
             freeMin={v.term_free_min ?? 1}
             freeLabel={v.term_free_label ?? 'Individuell'} />
-          <Term label={v.lead_term_label} on busy={busy} value={lead} days={null}
+          <Term label={v.lead_term_label} on value={lead} days={null}
             terms={v.lead_terms ?? []} onChange={setLead}
             freeMin={v.term_free_min ?? 1}
             freeLabel={v.term_free_label ?? 'Individuell'} />
@@ -1988,14 +2022,14 @@ function Balance({ d }: { d: Filled }) {
       <span style={{ ...MICRO_LABEL, flex: 1, color: credit ? tone : undefined }}>
         {credit ? d.open_state_label : ''}
       </span>
-      <span data-tip={d.open_state_label ?? undefined}
-        style={{ font: '700 14px var(--font-body)',
-                 fontVariantNumeric: 'tabular-nums', color: tone }}>
-        {formatAmount(credit ? negate(d.open) : d.open, dec)}
-      </span>
-      <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}>
-        {d.currency}
-      </span>
+      {/* ►►► **Zahl und Währung tragen EINE Farbe** (Testnotiz #1007). ◄◄◄ Sie standen
+          hier als zwei Geschwister – die Zahl im Ampelton, der Code auf `--fg-2`; in der
+          Geld-Zeile darüber färbte dieselbe Angabe beides zusammen. `Amount` ist die eine
+          Form, und die Währung ist darin ein **Kind** der Zahl: sie kann keine eigene
+          Farbe mehr haben, sie tritt nur zurück. */}
+      <Amount value={credit ? negate(d.open) : d.open} currency={d.currency}
+        decimals={dec} size={14} weight={700} color={tone}
+        tip={d.open_state_label ?? undefined} />
     </div>
   );
 }
@@ -2034,11 +2068,21 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
                                      ?? 'var(--fg-4)' }
     : null;
   // **EIN Datum je Zeile** (#890) – die Aussage steht da, die beiden Tatsachen im Hover.
+  //
+  // ►►► **Und die Aussage ist «wann war das», nicht «welcher Tag»** (Testnotiz #1004).◄◄◄
+  //
+  // Hier stand `day()` – die **Tatsache**, die auf ein Papier gehört (MWSTG Art. 26). In
+  // einer Geld-Zeile ist der Buchungstag aber eine **Auskunft**: «vor 3 Tagen» ist die
+  // Antwort auf die Frage, die man wirklich stellt, und «13.09.2026» ist die Zahl, aus
+  // der man sie selbst ausrechnet. Dieselbe Regel wie eine Zeile höher bei der
+  // Fälligkeit. Das Datum verschwindet nicht – es steht, wie überall, im Hover.
   const stamp = charge && e.due_on
     ? { text: `fällig ${when(e.due_on).toLowerCase()}`,
         tip: `Rechnung ${day(e.booked_on)} · fällig ${day(e.due_on)}` }
-    : { text: day(e.booked_on), tip: e.service_date
-        ? `${d.service_date_label} ${day(e.service_date)}` : '' };
+    : { text: when(e.booked_on),
+        tip: [`Gebucht ${day(e.booked_on)}`,
+              e.service_date ? `${d.service_date_label} ${day(e.service_date)}` : '']
+          .filter(Boolean).join(' · ') };
 
   return (
     <LedgerRow
@@ -2056,8 +2100,15 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
          standen sie dort, wo das Auge die Zahl sucht – und bei drei Zeilen dreimal. */
       actions={(
         <>
+          {/* ►►► **Ein Symbol zeigt, was die Handlung TUT** (Testnotiz #1008). ◄◄◄
+              Drei Korrekturen in einer Zeilengattung, drei verschiedene Dinge – und eine
+              davon trug ein **Plus**, also das Zeichen des Hinzufügens für eine Handlung,
+              die etwas zurücknimmt. Jetzt: der **durchgestrichene Kreis** annulliert
+              (dasselbe Zeichen, mit dem das Haus «storniert» schreibt – der Beleg bleibt
+              stehen, er fordert nur nichts mehr), der **Kreispfeil gegen den Uhrzeiger**
+              nimmt eine Buchung zurück, und der **Rückwärtspfeil** schickt Geld zurück. */}
           {charge && !e.reversed && may(d, 'reverse') && (
-            <ConfirmButton icon={RotateCcw} label={e.reverse_word ?? 'Stornieren'}
+            <ConfirmButton icon={CircleSlash} label={e.reverse_word ?? 'Stornieren'}
               disabled={busy}
               tip="Eine Gegenbuchung – der Beleg bleibt stehen, er fordert nur nichts mehr."
               onConfirm={() => void onAction({ action: 'reverse', entry: e.id })} />
@@ -2069,7 +2120,7 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
                 .then(onPaid).catch(() => {})} />
           )}
           {!charge && may(d, 'pay') && (
-            <ActionButton icon={Plus} label="Korrigieren" disabled={busy}
+            <ActionButton icon={RotateCcw} label="Korrigieren" disabled={busy}
               tip="Eine zweite Zahlung mit dem negativen Betrag – ein Ereignis der
                    Aussenwelt macht man nicht ungeschehen."
               onClick={() => void onAction({
@@ -2084,9 +2135,8 @@ function EntryRow({ d, e, busy, onAction, orderObjectId, stepId, onPaid }: {
          ist kein zugängliches Signal (WCAG 1.4.1). */
       tip={[state?.label, stamp.tip].filter(Boolean).join(' · ') || undefined}
       amount={(
-        <span style={{
-          color: state?.color ?? (Number(e.amount) < 0 ? 'var(--fg-3)' : 'var(--fg-1)'),
-        }}>{formatAmount(e.amount, dec)} {d.currency}</span>
+        <Amount value={e.amount} currency={d.currency} decimals={dec}
+          color={state?.color ?? (Number(e.amount) < 0 ? 'var(--fg-3)' : 'var(--fg-1)')} />
       )} />
   );
 }

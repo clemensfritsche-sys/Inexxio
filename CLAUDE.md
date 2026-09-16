@@ -4070,6 +4070,54 @@
 > beim Zeigen **Δ 0.00 px** – und die Messung **in beide Richtungen** gegengeprüft (ein
 > unteilbares Wort in freiem Text meldet, dasselbe hinter `truncate` zu Recht nicht).
 
+> ►►► **EIN AUTO-SAVE VERÄNDERT DIE GEOMETRIE NICHT — und ein Betrag hat EINE Farbe**
+> (Testnotizen #1004–#1009). ◄◄◄ Sechs Notizen, und die grösste hatte **zwei** Ursachen,
+> beide gemessen statt vermutet.
+> **(1) #1009 – «Felder verändern ihre Höhe, wodurch das nächste Feld nicht mehr getroffen
+> wird.»** Gemessen in Chromium an der echten Komponente: **(a)** die Aufstellung (Netto ·
+> Steuer je Satz · Total) gab es nicht, solange kein Preis gebucht war – die Antwort des
+> Servers liess sie in den Beleg wachsen und schob die drei Konditionen-Felder um
+> **45,5 px** nach unten; **(b)** `disabled={busy}` nahm dem Feld den **Fokus**, und es
+> bekam ihn nicht zurück (`document.activeElement` war nach jedem Auto-Save `null`, mitten
+> im Tippen).
+> **Die Regel gilt dem Rahmen, nicht dem Modul**: *was erst mit der Serverantwort entsteht,
+> springt* – also steht der Platz von Anfang an, und **welche Zeilen es gibt, sagen die
+> POSITIONEN** (jede trägt ihren Satz), nicht die Preise; wo nichts gebucht ist, steht ein
+> «—», erfunden wird nichts. Und **`busy` sperrt nur noch Handlungen** – Knöpfe –, nie
+> einen Wert: `DocPick`, `Term`, `Customs` und `Sums` kennen es gar nicht mehr. Gemessen
+> danach: **0 px** Verschiebung, und das Feld behält Fokus **und** Cursorposition.
+> **(2) #1007 – EIN Betrag** (`module-ui.Amount`): die Geld-Zeile färbte Zahl und Währung
+> zusammen, der Saldo darunter setzte die Währung auf `--fg-2` und die Zahl auf ihren
+> Ampelton – zwei Schreibweisen für dieselbe Sache auf demselben Beleg. Jetzt ist die
+> Währung ein **Kind** der Zahl (`color: inherit`): sie *kann* keine eigene Farbe mehr
+> haben und tritt allein über Grösse, Gewicht und Deckkraft zurück. `formatAmount` kommt
+> im Beleg nicht mehr vor – formatiert wird an **einer** Stelle.
+> **(3) #1004 – und es war keine zweite Formatierung.** Gesucht wurde über die ganze
+> Codebase (`toLocaleDateString` · `toLocaleString` · `Intl.DateTimeFormat` · `strftime` ·
+> Handformate · eigene Helfer): **null** Fundstellen neben `lib/when.ts`, im Backend
+> ebenso. Die gemeldete «13.09.2026» kam von der **falschen der beiden Funktionen** – eine
+> Geld-Zeile ist eine **Auskunft** (`when`: «vor 3 Tagen»), kein Papier (`day`); die
+> Tatsache steht wie überall im Hover. Als Satz festgehalten: *`lib/when.ts` ist der
+> einzige erlaubte Weg, ein Datum anzuzeigen; einzige Ausnahme ist die
+> **Dokumentgenerierung**, wo das Format zum Dokument gehört.*
+> **(4) Kleineres, jedes an einer Stelle:** die **Angebotszeile beginnt auf derselben
+> Kante** wie jede andere (#1005 – ein 6-px-Zustandspunkt rückte den Namen um 16 px ein,
+> gemessen 525 statt 509; dieselbe Antwort wie in der Geld-Zeile: der Punkt geht, die
+> Aussage bleibt – als Preis, und wo keiner dasteht, als **Wort**); der **Abschnittskopf**
+> trägt Gewicht **800** und 34 px Luft über sich (#1006, in `ModuleSection`, also erbt es
+> jedes Modul – von den vier erlaubten Mitteln zwei, und **800 statt 700**, weil
+> `MICRO_LABEL` bereits auf 700 steht und ein «höheres Gewicht» dorthin wirkungslos
+> gewesen wäre); und ein **Symbol zeigt, was die Handlung tut** (#1008 – «Korrigieren»
+> trug ein **Plus**, also das Zeichen des Hinzufügens für eine Handlung, die zurücknimmt).
+> Wächter: 6 neue in `test_frontend_mirrors.py`, 2 auf die neue Regel gezogen –
+> **12 Bug-Formen gegengeprüft, jede meldet**; *drei der neuen waren dabei stumpf und
+> liessen ihre eigene durch* (ein `d.lines`, das auch in der Abhängigkeitsliste steht; ein
+> `day(e.booked_on)`, das auch im Hover der Rechnungs-Zeile steht; ein `look.label`, das
+> auch als `tip={…}` danebensteht). Suite grün (277). Gemessen in Chromium an der
+> **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter
+> Überlauf über acht Beleg-Zustände; Zahl und Währung in jeder der sechs Geld-Angaben
+> farbgleich, jede Zeile jedes Abschnitts auf derselben linken Kante.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

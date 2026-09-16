@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { MICRO_LABEL } from '@/components/erp/fields';
+import { formatAmount } from '@/lib/utils';
 
 /**
  * ►►► **Die Bauteile, aus denen ein Prozessschrittmodul besteht.** ◄◄◄
@@ -312,6 +313,56 @@ const STEP_COLOR: Record<StepState, string> = {
 };
 
 /**
+ * **Die Luft über einem Abschnitt** (#971/#1006) – eine Zahl, weil der Abstand der
+ * **Gattung** gehört und nicht der Aufrufstelle. Sie stand auf 18, dann auf 26; mit dem
+ * kräftigeren Kopf (#1006) braucht die Beschriftung mehr Raum über sich als unter sich,
+ * sonst bindet die Linie darunter sie optisch an das Falsche.
+ */
+const SECTION_GAP = 34;
+
+/**
+ * ►►► **EIN Betrag — Zahl, Währung, Zustandsfarbe** (Testnotiz #1007). ◄◄◄
+ *
+ * *«Zahl und Währung immer in derselben Farbe. Die Währung darf zurücktreten, aber nie in
+ * einer anderen Farbe.»* – Und genau das war passiert: die Geld-Zeile färbte beide
+ * zusammen, der Saldo darunter setzte die Währung auf `--fg-2` und die Zahl auf ihren
+ * Ampelton; im selben Beleg standen damit zwei Schreibweisen für dieselbe Sache.
+ *
+ * Also **ein** Bauteil, und die Regel steckt in seiner Bauart statt in einer Verabredung:
+ * die Währung ist ein **Kind** der Zahl und erbt ihre Farbe (`color: inherit`) – sie kann
+ * gar keine andere mehr haben. Zurücktreten tut sie über Grösse, Gewicht und Deckkraft,
+ * und das ändert den Farbton nicht.
+ *
+ * `currency` darf auch ein **Knoten** sein: am Total ist der Währungscode zugleich der
+ * Wähler (#917), und der gehört in dieselbe Hülle statt daneben.
+ */
+export function Amount({ value, currency, decimals = 2, color, size = 13, weight = 600,
+                         tip }: {
+  value: string | number | null | undefined;
+  /** Der Code – oder der Wähler, wo er einer ist. Ohne Angabe steht nur die Zahl. */
+  currency?: ReactNode;
+  decimals?: number;
+  /** Der Ampelton des Zustands; ohne Angabe die Schriftfarbe der Umgebung. */
+  color?: string;
+  size?: number;
+  weight?: number;
+  tip?: string;
+}) {
+  return (
+    <span {...(tip ? { 'data-tip': tip } : {})} style={{
+      color, font: `${weight} ${size}px var(--font-body)`,
+      fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+    }}>
+      {formatAmount(value, decimals)}
+      {currency != null && currency !== '' && (
+        <span style={{ color: 'inherit', opacity: 0.72, fontSize: size - 1,
+                       fontWeight: 500, marginLeft: 4 }}>{currency}</span>
+      )}
+    </span>
+  );
+}
+
+/**
  * **Ein Abschnitt einer Modul-Karte** – Versalien-Beschriftung über einer Haarlinie,
  * rechts Platz für das, was zum Abschnitt gehört (die Währung, eine Gegenhandlung).
  *
@@ -357,7 +408,7 @@ export function ModuleSection({ title, state, right, children, first }: {
     // Versalien-Beschriftung fast so nah am Inhalt darüber wie an ihrem eigenen; der
     // Strich darunter band sie an das Falsche.
     <section data-fb-section={title || undefined}
-      style={{ marginTop: first ? 0 : 26, minWidth: 0 }}>
+      style={{ marginTop: first ? 0 : SECTION_GAP, minWidth: 0 }}>
       {(title || right) && (
         <div className="flex items-center gap-2" style={{
           paddingBottom: 8, marginBottom: 12, borderBottom: '1px solid var(--border-1)',
@@ -374,6 +425,22 @@ export function ModuleSection({ title, state, right, children, first }: {
           }} />
           <span style={{
             ...MICRO_LABEL, flex: 1, minWidth: 0,
+            // ►►► **Ein Abschnittskopf trägt mehr Gewicht** (Testnotiz #1006). ◄◄◄
+            //
+            // *«Die Bereichsüberschriften sind zu schwach.»* – Erlaubt waren vier Mittel
+            // (Gewicht · Abstand · Trennlinie · Nummerierung), und zu wählen war eine
+            // **Kombination, nicht alles**: die Trennlinie steht seit jeher, eine
+            // Nummerierung behauptete eine Reihenfolge, die es bei Inhalts-Abschnitten
+            // nicht gibt. Bleiben **Gewicht und Abstand** – beide gehören der **Gattung**
+            // «Abschnitt einer Modul-Karte» und stehen darum hier, nicht an der
+            // Aufrufstelle (`MICRO_LABEL` bleibt unangetastet: es trägt im ganzen Haus
+            // die leisen Beschriftungen).
+            //
+            // **800, nicht 700** – gemessen, nicht geschätzt: `MICRO_LABEL` steht bereits
+            // auf 700, ein «höheres Gewicht» dorthin wäre ein Wirkungsloser gewesen. Die
+            // Schriftfamilie führt 800 (`colors_and_type.css` lädt sie), es wird also
+            // nichts synthetisiert.
+            fontWeight: 800,
             // **Wo man steht, ist die lauteste Zeile** – dieselbe Geste wie in der
             // Bestandsleiste: der offene Ausschnitt tritt hervor, die übrigen bleiben da.
             color: state === 'active' ? 'var(--fg-1)' : undefined,
