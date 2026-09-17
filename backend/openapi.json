@@ -9532,18 +9532,6 @@
             "title": "Method Label",
             "default": ""
           },
-          "reasons": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Reasons"
-          },
-          "reason_label": {
-            "type": "string",
-            "title": "Reason Label",
-            "default": ""
-          },
           "write_off": {
             "anyOf": [
               {
@@ -9554,11 +9542,6 @@
               }
             ],
             "title": "Write Off"
-          },
-          "write_off_reason": {
-            "type": "string",
-            "title": "Write Off Reason",
-            "default": ""
           },
           "write_off_word": {
             "type": "string",
@@ -9954,17 +9937,6 @@
             },
             "type": "array",
             "title": "Allocations"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
           },
           "booked_at": {
             "anyOf": [
@@ -10670,17 +10642,6 @@
               }
             ],
             "title": "Allocations"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
           },
           "lines": {
             "anyOf": [

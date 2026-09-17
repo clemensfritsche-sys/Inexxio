@@ -430,10 +430,9 @@ def assert_method(value: Any) -> Optional[str]:
 # ►►► **Und beides sind KEINE Belegarten.** ◄◄◄ Es gibt in diesem Modul keinen Typ
 # «Rechnung ↔ Storno ↔ Gutschrift ↔ Ausbuchung» und keine Verzweigung darauf: ein Beleg
 # ist eine Zeile mit einem **Vorzeichen** – positiv fordert, negativ korrigiert. Die
-# beiden Wörter hier sind **Beschriftungen** derselben Buchung, abgeleitet aus der Zahl,
-# und `reason` sagt, **warum** korrigiert wurde. Ein Typfeld daneben wäre die zweite
-# Aussage über etwas, das Vorzeichen und Grund längst sagen – und die Stelle, an der ein
-# `if typ ==` entsteht, das der nächste Fall nicht kennt.
+# beiden Wörter hier sind **Beschriftungen** derselben Buchung, abgeleitet aus der Zahl.
+# Ein Typfeld daneben wäre die zweite Aussage über etwas, das das Vorzeichen längst sagt –
+# und die Stelle, an der ein `if typ ==` entsteht, das der nächste Fall nicht kennt.
 STORNO_WORD = "Stornieren"
 CREDIT_WORD = "Gutschrift"
 REFUND_ONLINE_WORD = "Online erstatten"
@@ -451,31 +450,23 @@ def reverse_word(paid: Decimal) -> str:
 
 
 # ---------------------------------------------------------------------------
-# ►►► DER GRUND EINER KORREKTUR — ein Wort, keine Logik
+# ►►► EINEN «GRUND» GIBT ES NICHT — er war die Belegart mit anderem Namen
 # ---------------------------------------------------------------------------
 #
-# *«Der Grund einer Korrektur ist ein Freitext-/Auswahlfeld ohne Logik dahinter.»*
+# *«Beim Stellen einer Rechnung ist er überflüssig – er ergibt sich aus den Positionen.
+# Bei einer Korrektur genügt der Bezug auf den Originalbeleg.»*
 #
-# Und das ist die ganze Aussage: **nichts** im System verzweigt auf diesen Wert. Er steht
-# auf dem Beleg, er steht im Nachweis, und er beantwortet die Frage, die ein
-# Buchhalter in drei Jahren stellt. Wäre er ein Typ, müsste jede neue Lage eine neue
-# Zeile Code sein – so ist sie ein Wort.
-#
-# Die Liste ist ein **Vorschlag**, keine Aufzählung: wer etwas anderes meint, schreibt es
-# hin. Eine geschlossene Liste wäre dieselbe Falle wie ein Typfeld, nur höflicher.
-REASON_LABEL = "Grund"
-REASONS: tuple[str, ...] = (
-    "Retoure",
-    "Mangel",
-    "Kulanz",
-    "Rechnungsfehler",
-    "uneinbringlich",
-    "Rundungsdifferenz",
-)
-MAX_REASON = 120
+# Hier stand ein Freitextfeld (`reason`) samt Vorschlagsliste *Retoure · Mangel · Kulanz ·
+# Rechnungsfehler · uneinbringlich · Rundungsdifferenz*. Es ist **ersatzlos entfallen**,
+# und zwar aus demselben Grund, aus dem es keinen Belegtyp gibt: es beantwortete eine
+# Frage, die der Beleg schon beantwortet. **Was** gefordert wird, sagen die Positionen;
+# **dass** korrigiert wird, sagt das Vorzeichen; **was** korrigiert wird, sagt
+# `reverses_id` – eine Gegenbuchung heisst schlicht «Korrektur» und trägt die Referenz auf
+# den Beleg, den sie korrigiert. Ein Feld, das an jeder Rechnung dasteht und nur bei jeder
+# zehnten etwas aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest.
 
 #: **Die Kleinbetragstoleranz** – bis hierher darf ein Restsaldo als Differenz ausgebucht
-#: werden (negativer Beleg, Grund «Rundungsdifferenz»).
+#: werden (eine ganz gewöhnliche Forderung mit Gegenvorzeichen).
 #:
 #: ►►► **Sie ist eine Erlaubnis, kein Automatismus.** ◄◄◄ Ausgebucht wird nichts von
 #: selbst: das System **bietet** die Zeile an, ein Mensch bucht sie. Eine automatische
@@ -486,15 +477,7 @@ MAX_REASON = 120
 #: *beglichen heisst* (drei Rappen sind keine Mahnung wert); diese hier sagt, bis wohin
 #: man die Differenz **wegbuchen darf**. Zwei Fragen, zwei Zahlen.
 WRITE_OFF_LIMIT = Decimal("1.00")
-WRITE_OFF_REASON = "Rundungsdifferenz"
 WRITE_OFF_WORD = "Differenz ausbuchen"
-
-
-def assert_reason(value: Any) -> Optional[str]:
-    """Der Grund als Text – gekappt, sonst unangetastet. **Keine Prüfung gegen die Liste.**"""
-    if value in (None, ""):
-        return None
-    return str(value).strip()[:MAX_REASON] or None
 
 
 # ---------------------------------------------------------------------------

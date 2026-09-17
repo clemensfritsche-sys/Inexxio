@@ -333,15 +333,12 @@ class VoucherEntry(Base, TimestampMixin):
     charge_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    #: ►►► **WARUM diese Zeile korrigiert** – Freitext, ohne Logik dahinter. ◄◄◄
-    #:
-    #: *Retoure · Mangel · Kulanz · Rechnungsfehler · uneinbringlich · Rundungsdifferenz* –
-    #: ``domain/voucher.REASONS`` ist ein **Vorschlag**, keine Aufzählung. Nichts im System
-    #: verzweigt darauf; er steht auf dem Beleg und im Nachweis.
-    #:
-    #: Das ist die Stelle, an der ein **Belegtyp** stünde, wenn es einen gäbe. Es gibt
-    #: keinen: positiv fordert, negativ korrigiert, und der Grund sagt warum.
-    reason: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    #: ►►► **Ein «Grund» ist hier NICHT mehr gemappt.** ◄◄◄ Die Spalte
+    #: ``voucher_entries.reason`` steht noch in der Datenbank (Zwei-Deploy-Regel,
+    #: ``docs/backlog.md``) und wird von keiner Zeile Code mehr gelesen oder geschrieben.
+    #: Warum sie entfallen ist, steht in ``domain/voucher`` bei den beiden Wörtern
+    #: *Storno* ↔ *Gutschrift*: sie beantwortete eine Frage, die der Beleg selbst
+    #: beantwortet – Vorzeichen und ``reverses_id``.
 
     #: **WIE bezahlt wurde** – bar · Überweisung · Karte. Nur bei ``kind = payment``.
     #: **Kein zweites Modell**: gebucht wird in jedem Fall dieselbe Zeile – bei der einen

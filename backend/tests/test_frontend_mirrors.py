@@ -6439,8 +6439,8 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
     # steht in ihr. Seit die Grammatik die Zeile baut (#996–#1002), reicht die
     # Aufrufstelle sie als `actions` durch – geprüft wird der Platz, nicht das Markup.
     inner = row[row.index("actions={"):row.index("amount={")]
-    n = row.count("<ActionButton") + row.count("<ConfirmButton")
-    assert n == inner.count("<ActionButton") + inner.count("<ConfirmButton"), (
+    n = row.count("<ActionButton")
+    assert n == inner.count("<ActionButton"), (
         "Ein Symbol-Knopf steht ausserhalb der nicht umbrechenden Zeile (d)."
     )
     grammar = _body(_code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx")),
@@ -8653,9 +8653,15 @@ def test_a_row_action_stands_at_the_end_of_its_row():
     Grammatik. Ein Wächter, der die frühere Flexzeile in `EntryRow` sucht, verböte genau
     diese Lösung – gefragt ist darum die Regel an ihrem neuen Ort.
 
+    ►►► **Eine Rückfrage gibt es nicht mehr** (Testnotiz #1022). ◄◄◄ Sie stand hier als
+    (c)/(d) – zweiter Klick am Storno, nach vier Sekunden zurückfallend. *«Die Sicherheit
+    kommt aus den Guards, nicht aus einem zusätzlichen Klick.»* Und die Guards gibt es:
+    ein Storno schreibt eine Gegenbuchung (eine zweite lehnt der Dienst ab), eine
+    Erstattung ist beim Zahlungsdienst idempotent. Der Wächter prüft das jetzt als Regel –
+    **keine zweite Stufe an irgendeiner Handlung dieses Moduls**.
+
     Bug-Formen: (a) die Knöpfe stehen wieder als eigener Block unter der Zeile; (b) sie
-    stehen dauerhaft da; (c) der Storno fragt nicht nach; (d) die Rückfrage bleibt stehen,
-    bis man sie wegklickt.
+    stehen dauerhaft da; (c) eine Handlung bekommt wieder eine zweite Stufe.
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     row = _component(work, "EntryRow")
@@ -8675,22 +8681,17 @@ def test_a_row_action_stands_at_the_end_of_its_row():
     assert "ix-rowactions" in _body(ui, "RowActions", kind="export function"), (
         "Die Knöpfe stehen dauerhaft da (b) – die Regel steht im Blatt, nicht hier."
     )
-    # (c) **Destruktives fragt einmal nach** – der Storno vergibt eine Rechnungsnummer.
+    # (c) ►►► **Ein Klick löst aus** – einheitlich, an jeder Handlung des Moduls. ◄◄◄
     #
-    # *Gefragt ist DIESE Handlung, nicht das blosse Vorkommen des Bauteils: daneben steht
-    # eine zweite (die Erstattung), und «`<ConfirmButton` kommt vor» liess die eigene
-    # Bug-Form durch – gemessen, nachgeschärft.*
-    at = row.index("action: 'reverse'")
-    assert row.rfind("<ConfirmButton", 0, at) > row.rfind("<ActionButton", 0, at), (
-        "Der Storno fragt nicht nach (c) – er vergibt eine Rechnungsnummer und geht nach "
-        "aussen."
+    # Gefragt wird die **Regel**, nicht die Form: weder darf das Bauteil zurückkommen noch
+    # darf eine Aufrufstelle sich eine eigene zweite Stufe bauen. Genau daran hing die
+    # Meldung – der Storno fragte nach, die Korrektur daneben nicht, und die Erstattung
+    # wieder doch.
+    assert "ConfirmButton" not in ui and "armed" not in ui, (
+        "Die zweite Stufe ist wieder da (c) – die Sicherheit kommt aus den Guards."
     )
-    confirm = _body(ui, "ConfirmButton", kind="export function")
-    assert "armed" in confirm, "Die Rückfrage ist keine (c)."
-    # (d) **Und sie schliesst sich von selbst** – sonst ist sie ein Zustand.
-    assert "setTimeout" in confirm and "RESET_MS" in confirm, (
-        "Die Rückfrage bleibt stehen (d) – eine Frage, die man wegklicken muss, ist ein "
-        "Zustand mehr."
+    assert "ConfirmButton" not in work and "onConfirm" not in work, (
+        "Eine Handlung des Geld-Moduls fragt wieder nach (c)."
     )
 
 
@@ -9228,3 +9229,105 @@ def test_a_refund_that_fails_says_so():
     # (c) Gefragt ist das **Rendern**, nicht der Zustand: `setFailed` allein steht auch
     #     dann noch da, wenn niemand die Meldung zeigt (gegengeprüft).
     assert "{failed}" in money, "Die Meldung wird nirgends gezeigt (c)."
+
+
+def test_a_refund_button_closes_at_the_click():
+    """►►► **Ab dem Klick zu — die dritte Ebene von dreien** (Testnotiz #1018). ◄◄◄
+
+    *«Der Button lässt sich mehrfach drücken, dann erscheint ein technischer Fehlertext
+    des Zahlungsdienstes.»*
+
+    Die beiden anderen Ebenen stehen im Dienst (der erstattbare **Rest**) und beim Dienst
+    (der **Idempotenz-Schlüssel**). Hier fehlt die dritte: zwischen Klick und Buchung
+    liegt die Meldung des Webhooks, und in diesem Fenster sagt niemand etwas – also sagt
+    es der Knopf selbst. Dass er danach ganz **verschwindet**, sagt weiterhin der Server
+    (``refundable``); eine Oberfläche, die das selbst rechnete, wäre der zweite Massstab.
+
+    Bug-Formen: (a) der Knopf kennt seinen Zustand nicht; (b) er wird nicht gesperrt;
+    (c) die Sperre fällt nach einem Fehler nicht zurück (dann ist ein Netzwerkfehler eine
+    Sackgasse).
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    row = _component(work, "EntryRow")
+    money = _component(work, "Money")
+    # (a) **Die Aufrufstelle sagt es der Zeile** – je Zeile, nicht je Karte: es geht um
+    #     genau diese Zahlung.
+    assert "refunding" in row and "refunding={" in money, (
+        "Die Geld-Zeile weiss nicht, dass ihre Erstattung unterwegs ist (a)."
+    )
+    at = row.index("onRefund(e.id)")
+    near = row[row.rfind("<ActionButton", 0, at):at]
+    assert "refunding" in near, (
+        "Der Erstattungs-Knopf bleibt beim Klick offen (b) – dann geht sie zweimal hinaus."
+    )
+    # (c) **Und nach einem Fehler kommt er zurück.** Gesucht wird die Reihenfolge: gesperrt
+    #     **vor** dem Aufruf, freigegeben im `catch`.
+    refund = money[money.index("const refund ="):money.index("const charges =")]
+    lock = refund.index("setSent")
+    assert lock < refund.index("await api.refundVoucherPayment"), (
+        "Gesperrt wird erst nach der Antwort (b) – das Fenster ist genau davor."
+    )
+    assert "s.filter((id) => id !== entryId)" in refund[refund.index("catch"):], (
+        "Nach einem Fehler bleibt der Knopf zu (c) – dann ist ein Netzwerkfehler eine "
+        "Sackgasse."
+    )
+
+
+def test_what_is_still_open_stands_above_the_way_to_settle_it():
+    """►►► **Der Saldo steht ÜBER der Zahlungsart** (Testnotiz #1019). ◄◄◄
+
+    *«Der Saldo-Container gehört über den Bereich Zahlungsart, nicht darunter.»*
+
+    Er war die **Fusszeile der ganzen Karte** und stand damit hinter allem, was in ihr
+    wächst: man wählte einen Weg zum Geld, ohne die Zahl zu sehen, um die es geht. Die
+    Reihenfolge im Fach «Begleichen» ist jetzt fest – erfasste Zahlungen → **Saldo** →
+    Zahlungsart → Auskunft/Karte → Handlung.
+
+    Bug-Formen: (a) der Saldo steht wieder ausserhalb des Fachs; (b) er steht darin, aber
+    unter der Wahl; (c) die Ausbuchung, die von genau dieser Zahl handelt, wandert weg.
+    """
+    money = _code(_component(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"),
+                             "Money"))
+    body = money[money.index("return ("):]
+    settle = body.index("d.settle_title")
+    close = body.index("</ModuleSection>", settle)
+    fach = body[settle:close]
+    # (a)
+    assert "<Balance" in fach, (
+        "Der Saldo steht wieder ausserhalb des Fachs «Begleichen» (a) – dann hängt er "
+        "hinter allem, was darin wächst."
+    )
+    assert "<Balance" not in body[close:], "Der Saldo steht zweimal (a)."
+    # (b) **und (c)** – die Reihenfolge ist die Aussage.
+    assert fach.index("<Balance") < fach.index("<Segmented"), (
+        "Der Saldo steht unter der Zahlungsart (b) – man wählt, ohne die Zahl zu sehen."
+    )
+    assert "{writeOff}" in fach and fach.index("{writeOff}") < fach.index("<Segmented"), (
+        "Die Ausbuchung steht nicht mehr bei der Zahl, von der sie handelt (c)."
+    )
+
+
+def test_the_way_to_the_money_needs_no_label():
+    """►►► **«Zahlungsart» sagt nichts, was nicht darunter steht** (Testnotiz #1020). ◄◄◄
+
+    *«Das Label ‹Zahlungsart› entfernen – der Bereich ist selbsterklärend.»*
+
+    «Bar», «Überweisung», «Karte» sagen jede für sich, was sie sind, und der Abschnitt
+    darüber heisst «Begleichen». Ein Wort, das nur wiederholt, ist Höhe ohne Aussage.
+
+    **Und der Platz geht mit**: eine leere Beschriftungszeile wäre dieselbe Höhe ohne
+    denselben Inhalt.
+
+    Bug-Formen: (a) die Beschriftung ist wieder da; (b) sie ist weg, die Zeile bleibt.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    at = work.index("<Segmented")
+    assert "label=" not in work[at:work.index("/>", at)], (
+        "Die Zahlungsart trägt wieder eine Beschriftung (a)."
+    )
+    seg = _body(_code(_read(FRONTEND / "components" / "erp" / "fields.tsx")),
+                "Segmented", kind="export function")
+    assert "{label && <Label" in seg, (
+        "Ohne Beschriftung bleibt die leere Zeile stehen (b) – dieselbe Höhe ohne "
+        "denselben Inhalt."
+    )

@@ -879,3 +879,27 @@ wäre genau die Geometrie-Änderung mitten im Tippen, die #1016 gemeldet hat. Al
 darauf. **Die Aufteilung** fragt das Formular nur, wo es überhaupt etwas zu verteilen gibt
 (mehr als ein lebender Beleg) – bei einem hat die Frage genau eine Antwort, und der Server
 kennt sie (`settle_charge`).
+
+### Ein Klick löst aus, und der Knopf schliesst sich (#1018/#1020/#1021/#1022)
+- ►►► **`ConfirmButton` ist ersatzlos entfernt.** ◄◄◄ *«Die Sicherheit kommt aus den
+  Guards, nicht aus einem zusätzlichen Klick — einheitlich für alle Aktionen im Modul.»*
+  Und die Guards gibt es: ein **Storno** schreibt eine Gegenbuchung (eine zweite lehnt
+  der Dienst ab), eine **Erstattung** ist beim Zahlungsdienst idempotent und kennt ihren
+  Rest. Eine Rückfrage, die nichts verhindert, ist ein Klick für ein Gefühl — und sie
+  stand an zwei von drei Korrekturen derselben Zeile, was die dritte harmloser aussehen
+  liess, als sie ist.
+- **Der Erstattungs-Knopf ist ab dem Klick zu** (`refunding` je Zeile) — die dritte von
+  drei Ebenen: dass er danach ganz **verschwindet**, sagt der Server (`refundable`), aber
+  zwischen Klick und Meldung des Webhooks sagt niemand etwas. Nach einem Fehler kommt er
+  **zurück**, sonst wäre ein Netzwerkfehler eine Sackgasse. Und was schiefging, sagt ein
+  Satz **unseres** Dienstes: ein Rohtext des Zahlungsdienstes erreicht die Oberfläche nie.
+- ►►► **Der Saldo steht ÜBER der Zahlungsart** (#1019). ◄◄◄ Er war die Fusszeile der
+  ganzen Karte und stand damit hinter allem, was in ihr wächst: man wählte einen Weg zum
+  Geld, ohne die Zahl zu sehen, um die es geht. Feste Reihenfolge im Fach «Begleichen»:
+  **erfasste Zahlungen → Saldo → Ausbuchung → Zahlungsart → Auskunft/Karte → Handlung**.
+- **Der Schieber trägt keine Beschriftung** (#1020, `Segmented.label` ist optional):
+  «Bar», «Überweisung», «Karte» sagen jede für sich, was sie sind. Ohne Beschriftung gibt
+  es die Zeile **gar nicht** — eine leere wäre dieselbe Höhe ohne denselben Inhalt.
+- **Und das Feld «Grund» ist weg** (#1021): beim Stellen einer Rechnung überflüssig, bei
+  einer Korrektur genügt die Referenz auf den Beleg, den sie korrigiert («Korrektur zu …»,
+  vom Server). Mit ihm sind `datalist`, `reasons` und `write_off_reason` entfallen.

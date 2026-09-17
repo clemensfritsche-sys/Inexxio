@@ -260,3 +260,15 @@ Seit Migration `137` ist **`voucher_allocations` die Wahrheit** über «welche Z
 auf welchen Beleg»; `charge_id` wird von `voucher.allocate` noch **mitgeschrieben** (die
 Abkürzung für den einfachen Fall) und von **niemandem** mehr gelesen. Sie kann fallen,
 sobald das Mapping ein Deploy lang draussen war – die Zwei-Deploy-Regel gilt unverändert.
+
+## Folge-Deploy: `voucher_entries.reason`
+
+Der «Grund» einer Korrektur ist mit Testnotiz **#1021** ersatzlos entfallen – Vokabel
+(`REASONS` · `REASON_LABEL` · `assert_reason` · `WRITE_OFF_REASON`), Mapping, Schema und
+Eingabefeld. Er war die **Belegart mit anderem Namen**: beim Stellen einer Rechnung
+überflüssig (die Positionen sagen es), bei einer Korrektur genügt die Referenz auf den
+Beleg, den sie korrigiert (`reverses_id` und «Korrektur zu …»).
+
+Die **Spalte steht noch** (Migration `137` hat sie angelegt) und wird von keiner Zeile
+Code mehr gelesen oder geschrieben. Sie fällt im Folge-Deploy – Zwei-Deploy-Regel;
+bestehende Werte sind bis dahin lesbar, falls jemand sie noch braucht.

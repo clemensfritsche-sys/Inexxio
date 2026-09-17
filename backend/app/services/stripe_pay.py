@@ -64,8 +64,10 @@ Frage. Dieselbe Regel wie überall im Haus: die Genauigkeit ist die der Quelle.
 eingerichtet.
 """
 
+import logging
+from contextlib import contextmanager
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -78,9 +80,10 @@ from . import voucher as voucher_svc
 
 # ►►► **Der Adapter kennt EIN Geld-Modul – als Schnittstelle, nicht als Namen.** ◄◄◄
 #
-# Ein Geld-Modul bietet sechs Funktionen an: ``open_charges`` · ``open_of`` ·
-# ``card_payment`` · ``billing_of`` · ``record_payment`` · ``of_reference``. Diese Datei
-# bekommt es darum **übergeben** und fragt nie, welches es ist.
+# Ein Geld-Modul bietet sieben Funktionen an: ``open_charges`` · ``open_of`` ·
+# ``card_payment`` · ``refundable_amount`` · ``billing_of`` · ``record_payment`` ·
+# ``of_reference``. Diese Datei bekommt es darum **übergeben** und fragt nie, welches es
+# ist.
 #
 # Der **Faden zurück** ist ein Schlüssel in den Metadaten der Zahlungsabsicht; er nennt
 # zugleich das Modul. Es waren eine Runde lang zwei (das alte ``deal`` daneben) – und
@@ -93,6 +96,74 @@ MONEY: tuple[tuple[str, Any, Any], ...] = (
 def key_of(svc: Any) -> str:
     """Unter welchem Schlüssel dieses Modul in den Metadaten steht."""
     return next(k for k, mod, _ in MONEY if mod is svc)
+
+
+log = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► EIN ROHFEHLER DES DIENSTES ERREICHT NIE DEN BILDSCHIRM (Testnotiz #1018)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# *«Charge has already been refunded»* stand als Meldung in der Oberfläche – englisch,
+# technisch, und über eine Lage, die **wir** kennen. Ein Fehlertext des Zahlungsdienstes
+# ist für einen Entwickler geschrieben, nicht für den, der am Beleg steht.
+#
+# ►►► **Zwei Wege, und sie trennen sich hier.** ◄◄◄ Der **technische** Text geht ins Log
+# (dort sucht ihn, wer ihn braucht), der **verständliche** Satz an die Tür. Und er kommt
+# aus einer Zuordnung statt aus einer Übersetzung: ein Dienst-Fehler hat einen ``code``,
+# und der ist stabil – sein Wortlaut nicht.
+#
+# **Die Vorgabe nennt keine Ursache.** «Der Zahlungsdienst hat die Anfrage abgelehnt» sagt
+# weniger als eine geratene Erklärung, und weniger ist hier richtig: ein Satz, der eine
+# falsche Ursache behauptet, schickt jemanden in die falsche Richtung.
+STRIPE_TROUBLE = ("Der Zahlungsdienst hat die Anfrage abgelehnt. Die technischen Angaben "
+                  "stehen im Protokoll.")
+STRIPE_OFFLINE = ("Der Zahlungsdienst ist gerade nicht erreichbar. Bitte in einem Moment "
+                  "erneut versuchen.")
+#: Was wir auf Deutsch sagen können – der Rest bleibt bewusst allgemein.
+STRIPE_REASONS: dict[str, str] = {
+    "charge_already_refunded": ("Diese Zahlung ist bereits vollständig zurückerstattet."),
+    "charge_already_captured": ("Diese Zahlung ist bereits abgeschlossen und lässt sich "
+                                "nicht mehr ändern."),
+    "charge_disputed": ("Zu dieser Zahlung läuft eine Rückbuchung des Karteninhabers – "
+                        "solange lässt sie sich nicht erstatten."),
+    "amount_too_large": "Der Betrag ist grösser als das, was gezahlt wurde.",
+    "amount_too_small": "Der Betrag ist kleiner als der kleinste, den der Dienst annimmt.",
+    "balance_insufficient": ("Das Guthaben beim Zahlungsdienst reicht für diese Erstattung "
+                            "nicht aus."),
+    "resource_missing": ("Der Zahlungsdienst kennt diesen Vorgang nicht (mehr)."),
+    "card_declined": "Die Karte wurde abgelehnt.",
+    "expired_card": "Die Karte ist abgelaufen.",
+    "rate_limit": STRIPE_OFFLINE,
+}
+
+
+def _message(exc: Exception) -> str:
+    """**Ein Satz, den ein Mensch versteht** – nie der Wortlaut des Dienstes."""
+    code = str(getattr(exc, "code", "") or "")
+    if code in STRIPE_REASONS:
+        return STRIPE_REASONS[code]
+    if type(exc).__name__ in ("APIConnectionError", "RateLimitError"):
+        return STRIPE_OFFLINE
+    return STRIPE_TROUBLE
+
+
+@contextmanager
+def _speaking(what: str) -> Iterator[None]:
+    """►►► **Die eine Naht zum Dienst** – und alles, was durch sie kommt, spricht Deutsch.
+
+    Sie steht um **jeden** Aufruf, der Geld bewegt (Vorbereiten, Erstatten): eine Stelle,
+    die sie vergisst, ist genau die, an der wieder ein englischer Rohtext im Browser
+    steht. Eine ``HTTPException`` reist unangetastet weiter – sie ist bereits unser Satz.
+    """
+    try:
+        yield
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 – die Tür gibt nichts Technisches weiter
+        log.warning("Zahlungsdienst: %s fehlgeschlagen – %s: %s",
+                    what, type(exc).__name__, exc)
+        raise HTTPException(status_code=409, detail=_message(exc))
 
 #: Was wir vom Zahlungsdienst hören wollen — und sonst nichts. Jede weitere Meldung wird
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
@@ -184,34 +255,35 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order,
     owed = svc.open_of(db, row, charge)
     code = cur.assert_code(row.currency)
     number = charge.reference or str(charge.id)
-    intent = stripe.PaymentIntent.create(
-        amount=_minor(owed, code),
-        currency=code.lower(),
-        # **Welche Arten angeboten werden, entscheidet das Konto** – Karte, TWINT, was
-        # dort freigeschaltet ist. Eine Liste hier wäre die zweite Stelle, an der beim
-        # nächsten Freischalten jemand nichts sieht.
-        automatic_payment_methods={"enabled": True},
-        # ►►► **Der Faden zurück – und er nennt die RECHNUNG** (Testnotiz #858). ◄◄◄
-        #
-        # Metadaten sind der **maschinelle** Ort: hier sucht man beim Dienst, hierüber
-        # findet der Webhook den Vorgang, und hier steht, welche Rechnung gemeint war –
-        # ohne eine ``stripe_*``-Spalte bei uns.
-        metadata={key_of(svc): str(row.id), "charge_id": str(charge.id),
-                  "invoice": number, "order": str(order.object_id)},
-        # ►►► **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer.** ◄◄◄
-        #
-        # Sie lautete ``f"{order.name} {order.object_id}"`` – und weil der Name des
-        # Auftrags seine Nummer bereits enthält, stand dort «Auftrag 100000884 100000884».
-        # Zusammengesetzt wird darum **selbst**, aus den Angaben, die eine Aussage haben:
-        # welche Rechnung, welcher Auftrag.
-        #
-        # *Nicht hier: die «Zahlungsbeschreibung in der Abrechnung»
-        # (``statement_descriptor``). Das ist der Name, den die **Bank** dem Karteninhaber
-        # zeigt – höchstens 22 Zeichen, und er gehört dem Konto, nicht der einzelnen
-        # Zahlung; er lautet «Stripe», solange das Konto nicht aktiviert ist
-        # (``docs/stripe-setup.md`` §2).*
-        description=f"Rechnung {number} · Auftrag {order.object_id}",
-    )
+    with _speaking("Zahlung vorbereiten"):
+        intent = stripe.PaymentIntent.create(
+            amount=_minor(owed, code),
+            currency=code.lower(),
+            # **Welche Arten angeboten werden, entscheidet das Konto** – Karte, TWINT, was
+            # dort freigeschaltet ist. Eine Liste hier wäre die zweite Stelle, an der beim
+            # nächsten Freischalten jemand nichts sieht.
+            automatic_payment_methods={"enabled": True},
+            # ►►► **Der Faden zurück – und er nennt die RECHNUNG** (Testnotiz #858). ◄◄◄
+            #
+            # Metadaten sind der **maschinelle** Ort: hier sucht man beim Dienst, hierüber
+            # findet der Webhook den Vorgang, und hier steht, welche Rechnung gemeint war –
+            # ohne eine ``stripe_*``-Spalte bei uns.
+            metadata={key_of(svc): str(row.id), "charge_id": str(charge.id),
+                      "invoice": number, "order": str(order.object_id)},
+            # ►►► **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer.** ◄◄◄
+            #
+            # Sie lautete ``f"{order.name} {order.object_id}"`` – und weil der Name des
+            # Auftrags seine Nummer bereits enthält, stand dort «Auftrag 100000884 100000884».
+            # Zusammengesetzt wird darum **selbst**, aus den Angaben, die eine Aussage haben:
+            # welche Rechnung, welcher Auftrag.
+            #
+            # *Nicht hier: die «Zahlungsbeschreibung in der Abrechnung»
+            # (``statement_descriptor``). Das ist der Name, den die **Bank** dem Karteninhaber
+            # zeigt – höchstens 22 Zeichen, und er gehört dem Konto, nicht der einzelnen
+            # Zahlung; er lautet «Stripe», solange das Konto nicht aktiviert ist
+            # (``docs/stripe-setup.md`` §2).*
+            description=f"Rechnung {number} · Auftrag {order.object_id}",
+        )
     return {
         "client_secret": str(intent.client_secret),
         "publishable_key": get_settings().stripe_publishable_key,
@@ -242,12 +314,35 @@ def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
     (``charge.refunded``), und der Webhook schreibt die negative Zeile – dieselbe Regel wie
     beim Einziehen, und aus demselben Grund: die Buchung folgt dem Geld, nicht dem Klick.
 
-    **Der Betrag ist optional**: ohne Angabe die ganze Zahlung. Eine Teilerstattung ist
+    **Der Betrag ist optional**: ohne Angabe der ganze **Rest**. Eine Teilerstattung ist
     dieselbe Handlung mit einer kleineren Zahl – kein zweites Verb.
+
+    ►►► **Zweimal geklickt ist EINE Erstattung** (Testnotiz #1018). ◄◄◄ Der Knopf liess
+    sich mehrfach drücken, und der zweite Aufruf brachte den Rohfehler des Dienstes
+    («Charge has already been refunded») auf den Bildschirm. Drei Ebenen, und alle drei
+    sind nötig, weil jede eine andere Lücke schliesst:
+
+    * **Der Rest** (``svc.refundable_amount``) – die fachliche Wahrheit, sobald die
+      Erstattung gebucht ist. Sie schliesst den Knopf.
+    * **Der Idempotenz-Schlüssel** – das Fenster davor: zwischen Klick und Buchung liegt
+      die Meldung des Webhooks, und in dieser Zeit sieht auch der Server noch nichts.
+      Zwei Klicks in diesem Fenster tragen **denselben** Schlüssel, also entsteht beim
+      Dienst genau eine Erstattung.
+    * **Die deutsche Meldung** (``_speaking``) – das Netz darunter: was dem Dienst sonst
+      noch missfällt, sagt er auf Englisch, und das gehört ins Log, nicht ins Bild.
+
+    **Der Schlüssel nennt den Stand VOR dem Aufruf** (``refunded``): damit ist ein
+    Doppelklick dasselbe Vorhaben (gleicher Stand, gleicher Betrag) – und zwei
+    *nacheinander* gewollte Teilerstattungen über denselben Betrag sind es nicht, weil der
+    Stand dazwischen gewachsen ist. Ein Schlüssel ohne ihn schluckte die zweite still.
     """
     stripe = _api()
     entry = svc.card_payment(db, row, entry_id)
     code = cur.assert_code(row.currency)
+    # **Der Rest, nicht der Betrag der Zahlung** – eine teilweise erstattete Karte darf
+    # nur noch um den Rest zurückgehen.
+    rest = svc.refundable_amount(db, row, entry)
+    done = entry.amount - rest
     # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest ein
     # Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser* Währung.
     # Ein blosses ``Decimal(...)`` daneben wäre eine zweite Lesart – und bei einem
@@ -260,19 +355,26 @@ def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
         named = dm.amount(amount, code, allow_negative=True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    back = entry.amount if named is None else named
-    if not Decimal("0") < back <= entry.amount:
+    back = rest if named is None else named
+    if not Decimal("0") < back <= rest:
         raise HTTPException(
-            status_code=400,
-            detail=(f"Eine Erstattung liegt über null und höchstens bei dem, was gezahlt "
-                    f"wurde – {cur.money(entry.amount, code)} {code}."),
+            status_code=409,
+            detail=(f"Eine Erstattung liegt über null und höchstens bei dem, was von "
+                    f"dieser Zahlung noch offen ist – {cur.money(rest, code)} {code}."
+                    + (f" ({cur.money(done, code)} {code} sind bereits zurückgegangen.)"
+                       if done > 0 else "")),
         )
     # **Die Referenz IST die Zahlungsabsicht** (``pi_…``): sie steht in derselben Spalte,
     # in der bei einer Überweisung der Zahlungszweck steht – ein Feld, zwei Wege, keine
     # ``stripe_*``-Spalte. Der Dienst findet über sie die Belastung selbst; wir müssen
     # die ``ch_…`` gar nicht kennen.
-    stripe.Refund.create(payment_intent=str(entry.reference),
-                         amount=_minor(back, code))
+    with _speaking("Erstattung"):
+        stripe.Refund.create(
+            payment_intent=str(entry.reference),
+            amount=_minor(back, code),
+            idempotency_key=(f"refund:{key_of(svc)}:{row.id}:{entry.id}"
+                             f":{_minor(done, code)}:{_minor(back, code)}"),
+        )
 
 
 def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
@@ -357,19 +459,53 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
                     (None, None))
     if row is None:
         return "unknown"
-    amount = _amount_of(data.get("amount_refunded"), row.currency)
-    if amount <= 0:
+    booked = 0
+    for ref, amount in _refunds(data, intent, row.currency):
+        svc.record_payment(
+            db, row=row, amount=-amount,
+            # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung
+            # zusammen, und die Idempotenz würfe sie weg.
+            reference=ref,
+            note="Erstattung",
+            method=dm.CARD,
+        )
+        booked += 1
+    if not booked:
         return "ignored"
-    svc.record_payment(
-        db, row=row, amount=-amount,
-        # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung zusammen,
-        # und die Idempotenz würfe sie weg.
-        reference=f"{intent}:refund",
-        note="Erstattung",
-        method=dm.CARD,
-    )
     db.commit()
     return "refunded"
+
+
+def _refunds(data: dict[str, Any], intent: str, code: Any) -> list[tuple[str, Decimal]]:
+    """►►► **Je Erstattung eine Zeile — nicht die kumulierte Summe.** ◄◄◄
+
+    ``amount_refunded`` an der Belastung ist **kumulativ**: nach zwei Teilerstattungen über
+    je 30 steht dort 60. Gebucht wurde daraus eine einzige Zeile mit der Referenz
+    ``pi_…:refund`` – und die zweite Meldung fand sie wieder (Idempotenz über die Referenz)
+    und schrieb **nichts**. Der Betrag im Haus stand damit auf 30, während 60 zurückgingen;
+    unauffällig, solange nur vollständig erstattet wird, und genau die Zahl, auf der
+    ``refundable_amount`` beruht.
+
+    Gelesen wird darum die **Liste** der Erstattungen; jede trägt ihre eigene Id, also
+    ihre eigene Referenz, und die Idempotenz greift je Erstattung statt je Belastung.
+
+    **Die älteste behält die alte Referenz** (``pi_…:refund``): eine Zeile aus der Zeit
+    davor bedeutet genau sie – sonst entstünde bei der nächsten Zustellung eine zweite,
+    und die Erstattung wäre doppelt gebucht. ``refunds.data`` kommt neueste zuerst.
+    """
+    rows = ((data.get("refunds") or {}).get("data")) or []
+    if not rows:
+        # **Eine Meldung ohne Liste** – dann ist die kumulierte Summe alles, was wir haben.
+        amount = _amount_of(data.get("amount_refunded"), code)
+        return [(f"{intent}:refund", amount)] if amount > 0 else []
+    out: list[tuple[str, Decimal]] = []
+    for i, r in enumerate(reversed(rows)):
+        amount = _amount_of(r.get("amount"), code)
+        if amount <= 0:
+            continue
+        out.append((f"{intent}:refund" if i == 0 else f"{intent}:refund:{r.get('id')}",
+                    amount))
+    return out
 
 
 def _amount_of(value: Any, code: Any) -> Decimal:

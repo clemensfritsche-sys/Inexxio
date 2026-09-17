@@ -4205,6 +4205,68 @@
 > Kanten», von denen keine eine war) und mass absolut statt karten-relativ – ein
 > Messstand, der seinen eigenen Klick als Sprung liest, meldet alles und nichts.*
 
+> ►►► **EINE ERSTATTUNG, EIN KLICK, KEIN GRUND** (Testnotizen #1018–#1022). ◄◄◄
+> Fünf Notizen, und die grösste war ein **Rohfehler auf dem Bildschirm**: *«Charge has
+> already been refunded»* – englisch, technisch, und über eine Lage, die **wir** kennen.
+> **(1) Der Knopf liess sich mehrfach drücken** – behoben auf **drei** Ebenen, und alle
+> drei sind nötig, weil jede eine andere Lücke schliesst. **Der erstattbare Rest**
+> (`voucher.refunded_on`/`refundable_amount`) ist die fachliche Wahrheit, sobald gebucht
+> ist: `refundable` filtert danach, `can` liest dieselbe Liste, also **verschwindet der
+> Knopf von selbst**. **Der Idempotenz-Schlüssel** ist das Fenster davor – zwischen Klick
+> und Meldung des Webhooks sieht auch der Server nichts, und zwei Klicks darin tragen
+> denselben Schlüssel. ►►► **Er nennt dabei den Stand VOR dem Aufruf** ◄◄◄ – ohne ihn
+> trügen zwei *nacheinander gewollte* Teilerstattungen über denselben Betrag denselben
+> Schlüssel, und die zweite verschwände still. Und **im Browser** ist der Knopf ab dem
+> Klick zu; nach einem Fehler kommt er zurück, sonst wäre ein Netzwerkfehler eine
+> Sackgasse.
+> **Der Rohfehler geht ins LOG, der Satz an die Tür** (`stripe_pay._speaking`):
+> übersetzt wird über den **`code`** des Fehlers – der ist stabil, sein Wortlaut nicht –,
+> und was wir nicht kennen, bleibt **allgemein**: eine geratene Ursache schickt jemanden
+> in die falsche Richtung. Die Naht steht um **jeden** geldbewegenden Aufruf; eine Stelle,
+> die sie vergisst, ist genau die, an der wieder Englisch im Bild steht.
+> **Ein Fund beim Bauen:** `amount_refunded` ist **kumulativ**, und der Webhook buchte
+> daraus **eine** Zeile mit der Referenz `pi_…:refund`. Die zweite Teilerstattung fiel
+> damit auf die Referenz der ersten und wurde von der Idempotenz weggeworfen – im Haus
+> standen 30, zurückgegangen waren 60. Gebucht wird jetzt **je Erstattung**; die älteste
+> behält die alte Referenz, damit eine Zeile aus der Zeit davor nicht doppelt entsteht.
+> **(2) Ein Klick löst aus** (#1022): `ConfirmButton` ist **ersatzlos entfernt**. *«Die
+> Sicherheit kommt aus den Guards, nicht aus einem zusätzlichen Klick.»* Und genau so ist
+> es: ein Storno **löscht nichts** (er schreibt eine Gegenbuchung, und eine zweite lehnt
+> der Dienst ab), eine Erstattung ist idempotent und kennt ihren Rest. Eine Rückfrage, die
+> nichts verhindert, ist ein Klick für ein Gefühl – und sie stand an zwei von **drei**
+> Korrekturen derselben Zeile, was die dritte harmloser aussehen liess, als sie ist.
+> **(3) Der «Grund» war die Belegart mit anderem Namen** (#1021) – und ist mitsamt Vokabel
+> (`REASONS` · `REASON_LABEL` · `assert_reason` · `WRITE_OFF_REASON`), Mapping, drei
+> Schema-Feldern, Netz-Eintrag und Eingabefeld **entfallen**. Beim Stellen einer Rechnung
+> ist er überflüssig (die **Positionen** sagen es), bei einer Korrektur genügt die
+> **Referenz** auf den Beleg, den sie korrigiert: eine Gegenbuchung heisst schlicht
+> «Korrektur zu …» und trägt `reverses_id`. Ein trotzdem gesendeter Wert wird
+> **verworfen**; die Spalte fällt im Folge-Deploy (`docs/backlog.md`). *Er stand erst seit
+> einer Runde – das ist der Preis dafür, ein Feld zu bauen, weil man es «vielleicht
+> braucht».*
+> **(4) Was noch offen ist, steht ÜBER der Wahl** (#1019): der Saldo war die Fusszeile der
+> **ganzen Karte** und damit hinter allem, was in ihr wächst – man wählte einen Weg zum
+> Geld, ohne die Zahl zu sehen, um die es geht. Feste Reihenfolge im Fach «Begleichen»:
+> erfasste Zahlungen → **Saldo** → Ausbuchung → Zahlungsart → Auskunft/Karte → Handlung.
+> **Und der Schieber trägt keine Beschriftung** (#1020): «Bar», «Überweisung», «Karte»
+> sagen jede für sich, was sie sind, und der Abschnitt darüber heisst «Begleichen» – ein
+> Wort, das nur wiederholt, ist Höhe ohne Aussage. Ohne Beschriftung gibt es die Zeile
+> **gar nicht** (`Segmented.label` ist optional), statt dass sie leer dasteht.
+> Wächter: 3 neue in `tests/test_voucher_module.py`, 3 neue in `test_frontend_mirrors.py`,
+> dazu 3 auf die neue Regel gezogene – **14 Bug-Formen gegengeprüft, jede meldet**. Suite
+> grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen
+> (je 577); **keine Migration** in dieser Runde. Gemessen in Chromium an der **echten**
+> Komponente (Karte im `ModuleShell`, Zustände aus den echten Dienstpfaden): 1440 · 1280 ·
+> 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **sieben** Beleg-Zustände;
+> der Saldo steht in **6 von 6** Fächern über der Wahl, «Zahlungsart» kommt **0×** vor,
+> und der Erstattungs-Knopf ist 60 ms nach dem Klick gesperrt – die Messung gegen ihre
+> eigene Bug-Form gegengeprüft (+44,6 px bei 1440, +169,6 px bei 375, +224,6 px bei 320).
+>
+> **Dazu eine Logikanalyse ohne Code** (`ANALYSE_RETOURE_20260917.md`): Teilkorrektur,
+> Gutschrift ohne Positionsbezug, die Retoure als Prozess, die Referenzpflicht aus
+> MWSTG Art. 26, die Stripe-Grenze und die Summenregel über mehrere Korrekturen – je eine
+> Empfehlung, kein Variantenvergleich.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

@@ -1171,11 +1171,6 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         voucher_id=row.id, kind=vo.CHARGE, amount=value, booked_on=booked,
         due_on=_day(data.get("due_on")) or _due(booked, due_days_of(db, row)),
         reference=number, note=_text(data.get("note"), 200),
-        # ►►► **Der Grund einer Korrektur – Freitext, ohne Logik dahinter.** ◄◄◄ Es gibt
-        # keinen Belegtyp: **positiv fordert, negativ korrigiert**, und warum, sagt dieses
-        # Feld (Retoure · Mangel · Kulanz · Rechnungsfehler · uneinbringlich ·
-        # Rundungsdifferenz). Nichts im System verzweigt darauf.
-        reason=vo.assert_reason(data.get("reason")),
         vat=split,
         # **Das Leistungsdatum kommt aus dem PROZESS**, nicht aus einem Feld: der Tag, an
         # dem die Stücke dieses Modul erreicht haben. Das Rechnungsdatum ist es nicht –
@@ -1225,7 +1220,6 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         reference=(None if flow.reference is None
                    else _text(data.get("reference"), 120)),
         note=_text(data.get("note"), 200),
-        reason=vo.assert_reason(data.get("reason")),
         method=method,
     )
     db.add(entry)
@@ -1279,8 +1273,10 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         voucher_id=row.id, kind=entry.kind, amount=-entry.amount,
         booked_on=date.today(), due_on=None,
         reference=(_our_number(db, order) if flow.reference is None else None),
-        note=f"Storno zu {entry.reference}" if entry.reference else "Storno",
-        reason=vo.assert_reason(data.get("reason")),
+        # ►►► **Eine Korrektur trägt die REFERENZ auf den Beleg, den sie korrigiert.** ◄◄◄
+        # Mehr braucht sie nicht: ein «Grund» daneben wäre die Belegart mit anderem Namen
+        # – *was* zurückgenommen wird, steht hier und in ``reverses_id``.
+        note=f"Korrektur zu {entry.reference}" if entry.reference else "Korrektur",
         reverses_id=entry.id,
         # **Die Gegenbuchung spiegelt die ganze Steuerzeile**, nicht nur ihre Zahlen:
         # Schlüssel, Name und Pflichtsatz gehören zur stornierten Aussage – sonst verlöre
@@ -1416,6 +1412,29 @@ def open_of(db: Session, row: Voucher, charge: VoucherEntry) -> Decimal:
     return _open_of(paid_map(db, entries_of(db, row)), charge)
 
 
+def refunded_on(db: Session, row: Voucher, entry: VoucherEntry) -> Decimal:
+    """►►► **Was von DIESER Karten-Zahlung schon zurückgegangen ist.** ◄◄◄
+
+    Gelesen werden die **negativen Karten-Zeilen**, die der Webhook zu ihr gebucht hat –
+    ihre Referenz ist die der Zahlung mit dem Zusatz ``:refund``
+    (``stripe_pay._note_refund``). Eine eigene Spalte wäre die zweite Wahrheit über eine
+    Zahl, die als Summe längst dasteht.
+    """
+    if not entry.reference:
+        return Decimal("0")
+    mark = f"{entry.reference}:refund"
+    return -sum((e.amount for e in entries_of(db, row)
+                 if e.kind == vo.PAYMENT and e.amount < 0 and e.reference
+                 and (e.reference == mark or e.reference.startswith(f"{mark}:"))),
+                Decimal("0"))
+
+
+def refundable_amount(db: Session, row: Voucher, entry: VoucherEntry) -> Decimal:
+    """**Wie viel von dieser Zahlung noch zurückgegeben werden kann** – nie unter null."""
+    rest = entry.amount - refunded_on(db, row, entry)
+    return rest if rest > 0 else Decimal("0")
+
+
 def refundable(db: Session, row: Voucher) -> list[VoucherEntry]:
     """**Die Karten-Zahlungen, die man zurückgeben kann** – jüngste zuerst.
 
@@ -1423,10 +1442,16 @@ def refundable(db: Session, row: Voucher) -> list[VoucherEntry]:
     negative Zahlung, die ein Mensch erfasst. Und nur eine **positive**: eine Erstattung
     erstattet man nicht. Ihre Referenz ist die Zahlungsabsicht – ohne sie fände der Dienst
     die Belastung nicht.
+
+    ►►► **Und nur, solange etwas übrig ist** (Testnotiz #1018). ◄◄◄ Eine vollständig
+    erstattete Zahlung stand hier weiter drin: der Knopf blieb, ein zweiter Klick ging
+    hinaus, und der Dienst antwortete mit «Charge has already been refunded» – ein
+    **Rohfehler** für eine Lage, die wir selbst kennen. Der erstattbare Rest ist die
+    Bedingung, und weil ``can`` diese Liste liest, verschwindet der Knopf von selbst.
     """
     return [e for e in reversed(entries_of(db, row))
             if e.kind == vo.PAYMENT and e.method == vo.CARD and e.amount > 0
-            and e.reference]
+            and e.reference and refundable_amount(db, row, e) > 0]
 
 
 def card_payment(db: Session, row: Voucher,
@@ -1440,16 +1465,18 @@ def card_payment(db: Session, row: Voucher,
     if not rows:
         raise HTTPException(
             status_code=409,
-            detail=("Hier ist keine Karten-Zahlung erfasst. Bar und per Überweisung ist "
-                    "eine Erstattung eine gewöhnliche Zahlung mit negativem Betrag."))
+            detail=("Hier ist keine Karten-Zahlung offen, die sich erstatten liesse. Bar "
+                    "und per Überweisung ist eine Erstattung eine gewöhnliche Zahlung mit "
+                    "negativem Betrag."))
     if entry_id in (None, ""):
         return rows[0]
     found = next((e for e in rows if e.id == entry_id), None)
     if found is None:
         raise HTTPException(
-            status_code=400,
-            detail=("Diese Zahlung lässt sich nicht über den Zahlungsdienst erstatten – "
-                    "sie gehört zu einem anderen Beleg oder kam nicht per Karte."))
+            status_code=409,
+            detail=("Diese Zahlung lässt sich nicht (mehr) über den Zahlungsdienst "
+                    "erstatten – sie ist bereits zurückgegeben, gehört zu einem anderen "
+                    "Beleg oder kam nicht per Karte."))
     return found
 
 
@@ -2366,15 +2393,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "settle_charge": settle.id if settle is not None else None,
         # ►►► **Der Grund einer Korrektur ist ein Vorschlag, keine Aufzählung.** ◄◄◄
         # Nichts verzweigt darauf – er steht auf dem Beleg und im Nachweis.
-        "reasons": list(vo.REASONS),
-        "reason_label": vo.REASON_LABEL,
         # ►►► **Kleinbetragstoleranz – angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo
         # unter einem Franken darf als **Differenz ausgebucht** werden: eine ganz
         # gewöhnliche negative Forderung mit dem Grund «Rundungsdifferenz» – kein neuer
         # Mechanismus, kein Automatismus. Wer automatisch ausbucht, verliert die eine
         # Zeile, an der man später sieht, dass jemand entschieden hat.
         "write_off": _money(money.write_off, row.currency) if won else None,
-        "write_off_reason": vo.WRITE_OFF_REASON,
         "write_off_word": vo.WRITE_OFF_WORD,
         "method_label": vo.METHOD_LABEL,
         "refund_online_word": vo.REFUND_ONLINE_WORD,
@@ -2476,7 +2500,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                                  "amount": _money(a.amount, row.currency)}
                                 for a in alloc.get(e.id, [])],
                 # **Der Grund einer Korrektur** – Freitext, ohne Logik dahinter.
-                "reason": e.reason,
                 # **Wann die Zeile erfasst wurde** – der Moment, nicht der Belegtag
                 # (#1014): «vor 5 Minuten» ist eine Auskunft, ein Datum ist es nicht.
                 "booked_at": e.created_at,

@@ -1191,3 +1191,38 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > Migration `137` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
 > verifiziert, samt **Backfill** der bestehenden Zuordnungen (ohne ihn stünde jede
 > bezahlte Rechnung wieder auf «offen»).
+
+> ►►► **EINE ERSTATTUNG GEHT GENAU EINMAL HINAUS — und der Rohfehler bleibt im LOG**
+> (Testnotizen #1018/#1021/#1022). ◄◄◄
+> Gemeldet war *«Charge has already been refunded»* — ein englischer, technischer Satz
+> über eine Lage, die **wir** kennen. Drei Ebenen, und jede schliesst eine andere Lücke:
+> * **Der erstattbare Rest** (`voucher.refunded_on`/`refundable_amount`) – die fachliche
+>   Wahrheit, sobald die Erstattung gebucht ist. `refundable` filtert danach, also
+>   verschwindet der Knopf von selbst: `can` liest dieselbe Liste.
+> * **Der Idempotenz-Schlüssel** (`stripe_pay.refund`) – das **Fenster** davor: zwischen
+>   Klick und Meldung des Webhooks sieht auch der Server nichts. Zwei Klicks darin tragen
+>   denselben Schlüssel, also entsteht beim Dienst genau eine Erstattung. **Er nennt den
+>   Stand VOR dem Aufruf** – sonst würden zwei nacheinander gewollte Teilerstattungen über
+>   denselben Betrag still verschluckt.
+> * **Die deutsche Meldung** (`stripe_pay._speaking`/`_message`) – die eine Naht zum
+>   Dienst: übersetzt wird über den **`code`** (stabil), nicht über den Wortlaut; was wir
+>   nicht kennen, bleibt allgemein (eine geratene Ursache schickt jemanden in die falsche
+>   Richtung), und das Technische geht ins **Log**.
+> **Und der Webhook bucht je ERSTATTUNG eine Zeile** (`_refunds`): `amount_refunded` ist
+> **kumulativ**, also fiel die zweite Teilerstattung auf die Referenz der ersten und wurde
+> von der Idempotenz weggeworfen – der Betrag im Haus stand auf 30, während 60 zurückgingen.
+> Die **älteste** behält die alte Referenz (`pi_…:refund`), damit eine Zeile aus der Zeit
+> davor nicht doppelt entsteht.
+> ►►► **Und einen «Grund» gibt es nicht mehr** (#1021). ◄◄◄ `REASONS` · `REASON_LABEL` ·
+> `assert_reason` · `WRITE_OFF_REASON`, das Mapping, drei Schema-Felder und der
+> Netz-Eintrag sind **ersatzlos entfallen**; die Spalte fällt im Folge-Deploy
+> (`docs/backlog.md`). Er war **die Belegart mit anderem Namen**: beim Stellen einer
+> Rechnung überflüssig (die Positionen sagen es), bei einer Korrektur genügt die
+> **Referenz** auf den Beleg, den sie korrigiert – eine Gegenbuchung heisst schlicht
+> «Korrektur zu …» und trägt `reverses_id`. Ein trotzdem gesendeter Wert wird **verworfen**.
+> **Und eine Rückfrage vor einer Handlung gibt es ebenso wenig** (#1022): die Sicherheit
+> kommt aus den Guards, nicht aus einem zweiten Klick – ein Storno löscht nichts (er
+> schreibt eine Gegenbuchung, und eine zweite lehnt der Dienst ab), eine Erstattung ist
+> idempotent und kennt ihren Rest.
+> Wächter: `tests/test_voucher_module.py` (3 neue, **sechs Bug-Formen gegengeprüft**) +
+> `test_frontend_mirrors.py`.

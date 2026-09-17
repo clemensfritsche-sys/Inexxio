@@ -18,7 +18,7 @@ import {
   Label, MICRO_LABEL, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
-  ACT_H, ActionButton, Amount, ConfirmButton, FIELD_GAP, LedgerRow, ModuleSection,
+  ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, ModuleSection,
 } from '@/components/erp/module-ui';
 import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { TONE } from '@/lib/status-flow';
@@ -1907,14 +1907,29 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   // Mechanik wie bei einer Zahlung (`WAIT_TRIES`/`WAIT_STEP`), und sie endet an der
   // **Zeile**, nicht an einer Uhr: bleibt die Meldung aus, steht der Hinweis da, statt
   // eine Buchung zu behaupten.
+  //
+  // ►►► **Und sie lässt sich nicht zweimal auslösen** (Testnotiz #1018). ◄◄◄
+  //
+  // *«Der Button lässt sich mehrfach drücken, dann erscheint ein technischer Fehlertext
+  // des Zahlungsdienstes.»* – Die Ebene hier ist die **dritte** von dreien (Rest im
+  // Dienst · Idempotenz beim Dienst · Knopf): ab dem Klick ist er zu, und er bleibt es.
+  // Dass er danach **ganz verschwindet**, sagt der Server (`e.refundable`) – aber
+  // zwischen Klick und Buchung liegt die Meldung des Webhooks, und in diesem Fenster
+  // sagt niemand etwas. Eine Zeile lokal ist genau dieses Fenster.
+  const [sent, setSent] = useState<number[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const refund = useCallback(async (entryId: number) => {
     setFailed(null);
+    setSent((s) => (s.includes(entryId) ? s : [...s, entryId]));
     try {
       await api.refundVoucherPayment(orderObjectId, stepId, entryId);
       setWaiting(WAIT_TRIES);
       onPaid();
     } catch (e) {
+      // **Der Knopf kommt zurück, wenn es nicht geklappt hat** – sonst wäre ein
+      // Netzwerkfehler eine Sackgasse. Der Satz daneben sagt, was war (und er kommt vom
+      // Dienst der *uns* gehört: ein Rohtext des Zahlungsdienstes erreicht ihn nie).
+      setSent((s) => s.filter((id) => id !== entryId));
       setFailed(e instanceof Error ? e.message : String(e));
     }
   }, [orderObjectId, stepId, onPaid]);
@@ -1971,6 +1986,29 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
     return (kind === 'charge') === canCharge ? actionBody : null;
   };
 
+  /**
+   * ►►► **Kleinbetragstoleranz — angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo unter
+   * einem Franken darf als **Differenz ausgebucht** werden: eine ganz gewöhnliche
+   * negative Forderung – kein neuer Mechanismus und **kein Automatismus**. Wer
+   * automatisch ausbucht, verliert die eine Zeile, an der man später sieht, dass jemand
+   * entschieden hat; und «unter einem Franken» wäre als stille Regel die Stelle, an der
+   * ein systematischer Fehler nie auffällt.
+   *
+   * **Ob die Lage vorliegt, sagt der Server** (`write_off`, `Balance.write_off`) – samt
+   * Vorzeichen. Hier gerechnet wäre es die zweite Ableitung derselben Zahl. Er steht
+   * direkt unter dem Saldo, denn er handelt von genau dieser Zahl (#1019).
+   */
+  const writeOff = d.write_off && may(d, 'charge') ? (
+    <div className="flex justify-end">
+      <ActionButton icon={Eraser} label={d.write_off_word ?? 'Differenz ausbuchen'}
+        disabled={busy}
+        tip={`Bucht ${d.write_off} ${d.currency} als Differenz aus.`}
+        onClick={() => void onAction({
+          action: 'charge', amount: d.write_off as string,
+        })} />
+    </div>
+  ) : null;
+
   return (
     <>
       {/* ►►► **Fach 1 — was schuldet uns jemand?** ◄◄◄ Es gehört uns: stellen,
@@ -1984,7 +2022,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
           )}
           {charges.map((e) => (
             <EntryRow key={e.id} d={d} e={e} busy={busy} onAction={onAction}
-              onRefund={refund} />
+              onRefund={refund} refunding={sent.includes(e.id)} />
           ))}
           {slot('charge')}
         </div>
@@ -2013,7 +2051,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               ist), und je Modul lebt ohnehin höchstens **eine** offene Forderung. */}
           {payments.map((p) => (
             <EntryRow key={p.id} d={d} e={p} busy={busy} onAction={onAction}
-              onRefund={refund} />
+              onRefund={refund} refunding={sent.includes(p.id)} />
           ))}
           {failed && (
             <span className="flex items-center" style={{
@@ -2023,8 +2061,20 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               <span style={{ minWidth: 0 }}>{failed}</span>
             </span>
           )}
+          {/* ►►► **Was noch offen ist, steht ÜBER der Wahl** (Testnotiz #1019). ◄◄◄ Der
+              Saldo war die Fusszeile der ganzen Karte und stand damit hinter allem, was
+              in ihr wächst – man wählte einen Weg zum Geld, ohne die Zahl zu sehen, um
+              die es geht. Die Reihenfolge im Fach ist jetzt fest: **erfasste Zahlungen →
+              Saldo → Zahlungsart → Auskunft/Karte → Handlung** – erst was aussteht, dann
+              womit man es begleicht. */}
+          <Balance d={d} />
+          {writeOff}
+          {/* ►►► **Ohne Beschriftung** (Testnotiz #1020): ◄◄◄ die drei Antworten heissen
+              «Bar», «Überweisung», «Karte» – dass das eine Zahlungsart ist, sagt jede von
+              ihnen, und der Abschnitt darüber heisst «Begleichen». Ein Wort, das nur
+              wiederholt, was darunter steht, ist Höhe ohne Aussage. */}
           {ways.length > 1 && way && (
-            <Segmented label={d.method_label} value={way.key}
+            <Segmented value={way.key}
               onChange={(v) => { setPicked(v); setCard(false); }}
               options={ways.map((w) => ({ value: w.key, label: w.label }))} />
           )}
@@ -2043,28 +2093,6 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
           {slot('pay')}
         </div>
       </ModuleSection>
-
-      <Balance d={d} />
-      {/* ►►► **Kleinbetragstoleranz — angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo
-          unter einem Franken darf als **Differenz ausgebucht** werden: eine ganz
-          gewöhnliche negative Forderung mit dem Grund «Rundungsdifferenz» – kein neuer
-          Mechanismus und **kein Automatismus**. Wer automatisch ausbucht, verliert die
-          eine Zeile, an der man später sieht, dass jemand entschieden hat; und
-          «unter einem Franken» wäre als stille Regel die Stelle, an der ein
-          systematischer Fehler nie auffällt.
-          **Ob die Lage vorliegt, sagt der Server** (`write_off`, `Balance.write_off`) –
-          samt Vorzeichen. Hier gerechnet wäre es die zweite Ableitung derselben Zahl. */}
-      {d.write_off && may(d, 'charge') && (
-        <div className="flex justify-end" style={{ marginTop: 8 }}>
-          <ActionButton icon={Eraser} label={d.write_off_word ?? 'Differenz ausbuchen'}
-            disabled={busy}
-            tip={`Bucht ${d.write_off} ${d.currency} als «${d.write_off_reason}» aus.`}
-            onClick={() => void onAction({
-              action: 'charge', amount: d.write_off as string,
-              reason: d.write_off_reason,
-            })} />
-        </div>
-      )}
     </>
   );
 }
@@ -2098,7 +2126,7 @@ function Balance({ d }: { d: Filled }) {
   const tone = TONE[d.open_state_tone as keyof typeof TONE]?.color ?? 'var(--fg-1)';
   return (
     <div className="flex items-baseline" style={{
-      gap: 10, marginTop: 14, paddingTop: 8, borderTop: '1px solid var(--border-1)',
+      gap: 10, paddingTop: 8, borderTop: '1px solid var(--border-1)',
     }}>
       <span style={{ ...MICRO_LABEL, flex: 1, color: credit ? tone : undefined }}>
         {credit ? d.open_state_label : ''}
@@ -2134,11 +2162,13 @@ function Balance({ d }: { d: Filled }) {
  * das, was *diese* Zeile korrigiert: die Gegenbuchung an einer Rechnung, die zweite
  * Zahlung an einer Zahlung.
  */
-function EntryRow({ d, e, busy, onAction, onRefund }: {
+function EntryRow({ d, e, busy, onAction, onRefund, refunding = false }: {
   d: Filled; e: Filled['entries'][number]; busy: boolean;
   onAction: Send;
   /** Erstatten über den Zahlungsdienst – samt Warten und sichtbarer Meldung (#1013). */
   onRefund: (entryId: number) => void;
+  /** **Ab dem Klick zu** (#1018) – bis der Server sagt, dass es nichts mehr gibt. */
+  refunding?: boolean;
 }) {
   const dec = d.currency_decimals ?? 2;
   const charge = e.kind === 'charge';
@@ -2184,11 +2214,11 @@ function EntryRow({ d, e, busy, onAction, onRefund }: {
          man sie wiedererkennt, und bei einer Barzahlung gibt es gar keine Referenz. */
       ident={(charge ? e.reference : e.method_label)
              || e.reference || (charge ? 'Rechnung' : 'Zahlung')}
-      /* Was sonst noch **nur hier** steht – Vermerk und, bei einer Korrektur, ihr
-         **Grund** (Retoure · Mangel · Kulanz …). Er ist Freitext ohne Logik dahinter:
-         es gibt keinen Belegtyp, das Vorzeichen sagt *was*, der Grund *warum*. Eine
+      /* Was sonst noch **nur hier** steht – der Vermerk. Bei einer Korrektur ist das
+         die **Referenz auf den Beleg, den sie korrigiert** («Korrektur zu …»), und mehr
+         braucht sie nicht: es gibt keinen Belegtyp, das Vorzeichen sagt *was*. Eine
          zweite Zeile gibt es nicht – dort landete die Angabe aus #999. */
-      meta={[e.reason, e.note].filter(Boolean).join(' · ')}
+      meta={e.note ?? ''}
       /* ►►► **Datum rechtsbündig, direkt links vom Betrag** (#1011/#1012). ◄◄◄ Es ist
          die zweite **Zahl** der Zeile; im Fliesstext links stand sie unter Angaben, und
          der Blick musste für *wann* und *wie viel* zweimal springen. */
@@ -2204,16 +2234,25 @@ function EntryRow({ d, e, busy, onAction, onRefund }: {
               (dasselbe Zeichen, mit dem das Haus «storniert» schreibt – der Beleg bleibt
               stehen, er fordert nur nichts mehr), der **Kreispfeil gegen den Uhrzeiger**
               nimmt eine Buchung zurück, und der **Rückwärtspfeil** schickt Geld zurück. */}
+          {/* ►►► **Ein Klick löst aus — es gibt keine zweite Stufe** (#1022). ◄◄◄
+              Storno und Erstattung fragten zuvor nach («armed», zweiter Klick). Die
+              Sicherheit kommt aber nicht aus einem zusätzlichen Klick, sondern aus den
+              **Guards**: der Storno schreibt eine Gegenbuchung (nichts verschwindet, und
+              eine zweite lehnt der Dienst ab), die Erstattung ist beim Dienst
+              idempotent und kennt ihren Rest (#1018). Eine Rückfrage, die nichts
+              verhindert, ist ein Klick für ein Gefühl – und sie stand ausserdem an zwei
+              von drei Korrekturen derselben Zeile. */}
           {charge && !e.reversed && may(d, 'reverse') && (
-            <ConfirmButton icon={CircleSlash} label={e.reverse_word ?? 'Stornieren'}
+            <ActionButton icon={CircleSlash} label={e.reverse_word ?? 'Stornieren'}
               disabled={busy}
               tip="Eine Gegenbuchung – der Beleg bleibt stehen, er fordert nur nichts mehr."
-              onConfirm={() => void onAction({ action: 'reverse', entry: e.id })} />
+              onClick={() => void onAction({ action: 'reverse', entry: e.id })} />
           )}
           {e.refundable && (
-            <ConfirmButton icon={Undo2} label={d.refund_online_word ?? 'Online erstatten'}
-              disabled={busy}
-              onConfirm={() => onRefund(e.id)} />
+            <ActionButton icon={Undo2} label={d.refund_online_word ?? 'Online erstatten'}
+              disabled={busy || refunding}
+              tip="Geht über den Zahlungsdienst zurück – gebucht wird sie, wenn er sie meldet."
+              onClick={() => onRefund(e.id)} />
           )}
           {!charge && may(d, 'pay') && (
             <ActionButton icon={RotateCcw} label="Korrigieren" disabled={busy}
@@ -2334,7 +2373,6 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
 }) {
   const [amount, setAmount] = useState(preset);
   const [reference, setReference] = useState('');
-  const [reason, setReason] = useState('');
   const [split, setSplit] = useState<Record<number, string>>({});
   const [vat, setVat] = useState(d.vat_rate ?? 'normal');
   // **Der Satz wird nur gefragt, wo es keine bepreisten Positionen gibt** – sonst kommt
@@ -2360,7 +2398,6 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
     ...(splits && allocations.length ? { allocations } : {}),
     ...(asksVat ? { vat } : {}),
     ...(reference.trim() ? { reference: reference.trim() } : {}),
-    ...(reason.trim() ? { reason: reason.trim() } : {}),
   });
   const ready = !busy && amount.trim() !== ''
     && (!splits || allocations.length > 0);
@@ -2398,24 +2435,6 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
               onChange={(e) => setReference(e.target.value)} />
           </Ask>
         )}
-        {/* ►►► **Der Grund – Freitext, ohne Logik dahinter.** ◄◄◄ Es gibt keinen
-            **Belegtyp**: positiv fordert, negativ korrigiert, und hier steht *warum*
-            (Retoure · Mangel · Kulanz · Rechnungsfehler · uneinbringlich ·
-            Rundungsdifferenz). Die Liste ist ein **Vorschlag** – darum ein `datalist`
-            und kein Auswahlfeld: nichts im System verzweigt darauf, also darf jeder
-            andere Satz auch dastehen.
-            **Er steht immer da, auch leer** – ein Feld, das beim Vorzeichenwechsel
-            erscheint, wäre genau die Geometrie-Änderung mitten im Tippen, die #1016
-            gemeldet hat. */}
-        <Ask label={d.reason_label || 'Grund'} grow>
-          <input value={reason} className={inputCls} list="voucher-reasons"
-            aria-label={d.reason_label || 'Grund'}
-            onKeyDown={(e) => { if (e.key === 'Enter' && ready) book(); }}
-            onChange={(e) => setReason(e.target.value)} />
-          <datalist id="voucher-reasons">
-            {(d.reasons ?? []).map((r) => <option key={r} value={r} />)}
-          </datalist>
-        </Ask>
       </div>
       {splits && (
         // ►►► **Die Aufteilung einer Sammelzahlung.** ◄◄◄ Je Beleg ein Teilbetrag; die

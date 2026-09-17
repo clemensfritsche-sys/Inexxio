@@ -3927,20 +3927,8 @@ export interface components {
              * @default
              */
             method_label: string;
-            /** Reasons */
-            reasons?: string[];
-            /**
-             * Reason Label
-             * @default
-             */
-            reason_label: string;
             /** Write Off */
             write_off?: string | null;
-            /**
-             * Write Off Reason
-             * @default
-             */
-            write_off_reason: string;
             /**
              * Write Off Word
              * @default
@@ -4049,8 +4037,6 @@ export interface components {
             charge_id?: number | null;
             /** Allocations */
             allocations?: components["schemas"]["VoucherAllocationOut"][];
-            /** Reason */
-            reason?: string | null;
             /** Booked At */
             booked_at?: string | null;
             /** Method */
@@ -4326,8 +4312,6 @@ export interface components {
             charge_id?: number | null;
             /** Allocations */
             allocations?: components["schemas"]["VoucherAllocationIn"][] | null;
-            /** Reason */
-            reason?: string | null;
             /** Lines */
             lines?: components["schemas"]["VoucherPrice"][] | null;
             /** Vat */

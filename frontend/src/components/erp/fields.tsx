@@ -1049,14 +1049,20 @@ const glyph: React.CSSProperties = {
  * (Bar ↔ Überweisung), und dort ist die gleichmässige Aufteilung richtig.
  */
 export function Segmented({ label, value, onChange, options, required }: {
-  label: string; value: string; onChange: (v: string) => void;
+  /**
+   * ►►► **Die Beschriftung ist freiwillig** (Testnotiz #1020). ◄◄◄ Wo die Antworten für
+   * sich sprechen («Bar», «Überweisung», «Karte»), sagt ein Wort darüber nur noch
+   * einmal, was darunter steht – und kostet eine Zeile Höhe. **Kein leerer Platz
+   * dafür**: ohne Beschriftung gibt es die Zeile nicht, statt dass sie leer dasteht.
+   */
+  label?: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string; icon?: LucideIcon }[];
   required?: boolean;
 }) {
   const tucked = options.some((o) => o.icon);
   return (
     <div>
-      <Label required={required}>{label}</Label>
+      {label && <Label required={required}>{label}</Label>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {options.map((o) => {
           const active = value === o.value;

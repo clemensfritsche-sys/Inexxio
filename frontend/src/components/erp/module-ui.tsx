@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { MICRO_LABEL } from '@/components/erp/fields';
@@ -268,43 +268,22 @@ export function RowActions({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * ►►► **Was nicht rückgängig zu machen ist, fragt einmal nach** (#989/#993). ◄◄◄
+/*
+ * ►►► **Eine Rückfrage gibt es NICHT** (Testnotiz #1022). ◄◄◄
  *
- * Ein Storno vergibt eine Rechnungsnummer und geht nach aussen; ein Fehlklick an einer
- * Zeile, die beim Zeigen erscheint, ist wahrscheinlicher als an einem Knopf, der
- * dauerhaft dasteht. Die Rückfrage ist darum **an der Zeile** und nicht in einem Dialog:
- * derselbe Knopf, ein zweiter Klick, und daneben steht das Wort.
+ * Hier stand `ConfirmButton`: derselbe Knopf, ein zweiter Klick, das Wort daneben, und
+ * nach vier Sekunden fiel die Frage von selbst zurück. Er ist **ersatzlos entfernt**.
  *
- * Sie **schliesst sich von selbst** (`RESET_MS`) – eine Frage, die stehen bleibt, ist ein
- * Zustand, den man wieder wegklicken muss.
+ * *«Die Sicherheit kommt aus den Guards, nicht aus einem zusätzlichen Klick.»* – Und das
+ * ist im Geld-Modul buchstäblich so: ein **Storno** löscht nichts, er schreibt eine
+ * Gegenbuchung (und eine zweite lehnt der Dienst ab); eine **Erstattung** ist beim
+ * Zahlungsdienst idempotent und kennt ihren Rest (#1018). Eine Rückfrage vor einer
+ * Handlung, die ohnehin nicht doppelt passieren kann, verhindert nichts – sie kostet
+ * einen Klick und stand ausserdem an zwei von drei Korrekturen derselben Zeile, was die
+ * dritte harmloser aussehen liess, als sie ist.
+ *
+ * Wo eine Handlung wirklich unumkehrbar wäre, ist die Antwort ein **Guard**, keine Frage.
  */
-const RESET_MS = 4000;
-
-export function ConfirmButton({ icon, label, tone = 'danger', height, tip, disabled,
-                               onConfirm }: {
-  icon: LucideIcon;
-  label: string;
-  tone?: 'primary' | 'neutral' | 'danger';
-  height?: number;
-  tip?: string;
-  disabled?: boolean;
-  onConfirm: () => void;
-}) {
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!armed) return;
-    const id = setTimeout(() => setArmed(false), RESET_MS);
-    return () => clearTimeout(id);
-  }, [armed]);
-
-  return (
-    <ActionButton icon={icon} label={armed ? `${label}: bestätigen` : label}
-      tone={tone} height={height} disabled={disabled}
-      tip={armed ? undefined : tip}
-      onClick={() => { if (armed) { setArmed(false); onConfirm(); } else setArmed(true); }} />
-  );
-}
 
 /**
  * **Die Zeile, in der Handlungs-Knöpfe stehen.** Sie bricht **nicht** um – genau daran

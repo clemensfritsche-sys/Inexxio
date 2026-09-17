@@ -204,9 +204,6 @@ class VoucherEntryOut(BaseModel):
     #: ►►► **Die Aufteilung einer Sammelzahlung** – je Beleg ein Teilbetrag. ◄◄◄
     #: Eine Zahlung bleibt **eine** Zeile: auf dem Kontoauszug steht auch eine.
     allocations: list[VoucherAllocationOut] = Field(default_factory=list)
-    #: **Warum korrigiert wurde** – Freitext, ohne Logik dahinter. Es gibt keinen
-    #: Belegtyp: positiv fordert, negativ korrigiert, und dies sagt warum.
-    reason: Optional[str] = None
     #: **Wann die Zeile erfasst wurde** (#1014) – der Moment, nicht der Belegtag. Aus ihm
     #: kommt «vor 5 Minuten»; ein Datum ohne Uhrzeit kann das nicht sagen.
     booked_at: Optional[datetime] = None
@@ -413,16 +410,11 @@ class VoucherEmbed(BaseModel):
     #: die Frage hat also genau eine Antwort, und sie gehört dem Dienst.
     settle_charge: Optional[int] = None
     method_label: str = ""
-    #: **Die üblichen Gründe einer Korrektur** – ein Vorschlag, keine Aufzählung: nichts
-    #: im System verzweigt darauf, und getippt darf jeder andere Satz auch werden.
-    reasons: list[str] = Field(default_factory=list)
-    reason_label: str = ""
     #: ►►► **Kleinbetragstoleranz** – der Betrag, mit dem sich ein Restsaldo unter einem
     #: Franken **ausbuchen** liesse (schon mit dem richtigen Vorzeichen). ``None`` heisst
     #: «liegt nicht vor». **Angeboten, nie automatisch**: wer automatisch ausbucht,
     #: verliert die eine Zeile, an der man sieht, dass jemand entschieden hat.
     write_off: Optional[str] = None
-    write_off_reason: str = ""
     write_off_word: str = ""
     # ─── Der Beleg selbst ───────────────────────────────────────────────────────
     allowed: list[VoucherParty] = Field(default_factory=list)
@@ -515,9 +507,6 @@ class VoucherUpdate(BaseModel):
     #: ein Teilbetrag; die Summe muss den Betrag der Zahlung ergeben – eine Zahlung wird
     #: vollständig zugeordnet oder gar nicht.
     allocations: Optional[list[VoucherAllocationIn]] = None
-    #: **Warum korrigiert wird** (``charge`` · ``pay`` · ``reverse``) – Freitext, ohne
-    #: Logik dahinter. ``VoucherEmbed.reasons`` ist ein Vorschlag, keine Aufzählung.
-    reason: Optional[str] = None
     #: **Die Positionen** (``price``) – je Zeile ihre Id und was sich ändert.
     lines: Optional[list[VoucherPrice]] = None
     #: **Der Steuersatz einer Forderung**, wo es keine bepreisten Positionen gibt (eine
