@@ -123,10 +123,16 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   // **Der Fokus richtet sich nach der Kamera** (§3.2): läuft sie, bleibt er am Dialog –
   // auf dem Telefon poppte sonst die Tastatur sofort über das Bild, um das es geht.
   // Läuft sie nicht, ist die Tastatur der einzige Weg und bekommt den Fokus.
+  //
+  // ►►► **Und nach dem SCHRITT** (Testnotiz #1029). ◄◄◄ *«Beim ersten Scan kann man
+  // sofort tippen, beim zweiten nicht mehr.»* – Der Fokus hing allein am Kamerazustand,
+  // und der ändert sich zwischen zwei Schritten nicht; wer den ersten per Klick auf
+  // einen Vorschlag erledigt hatte, stand danach mit dem Fokus auf einem Knopf. Ein
+  // neuer Schritt ist eine neue Frage – also dieselbe Regel, nur auch dann.
   useEffect(() => {
     if (cameraLive) sheetRef.current?.focus();
     else inputRef.current?.focus();
-  }, [cameraLive]);
+  }, [cameraLive, stepIndex]);
 
   // Esc schliesst – am Fenster, damit es unabhängig davon gilt, wo der Fokus gerade steht.
   useEffect(() => {

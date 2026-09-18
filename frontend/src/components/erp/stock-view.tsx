@@ -94,9 +94,11 @@ export function StockView({ scope }: { scope: StockScope }) {
   if (total === 0) {
     return (
       <Card>
-        <p className="text-sm text-fg-3">
-          Noch kein Bestand – Einzelinstanzen entstehen mit der Freigabe eines Auftrags.
-        </p>
+        {/* ►►► **«Kein Bestand» ist die Auskunft** (Testnotiz #1030). ◄◄◄ Der Satz
+            daneben erklärte, *woher* Einzelinstanzen kommen – eine Belehrung über das
+            Datenmodell an der Stelle, an der jemand eine Zahl sucht. Wer einen Auftrag
+            anlegt, lernt es dort. */}
+        <p className="text-sm text-fg-3">Kein Bestand</p>
       </Card>
     );
   }

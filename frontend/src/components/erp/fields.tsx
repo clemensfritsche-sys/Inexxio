@@ -742,6 +742,40 @@ export function Label({ children, required }: { children: React.ReactNode; requi
   );
 }
 
+/**
+ * ►►► **Eine Aktion sitzt IM Feld, nicht daneben** (Testnotizen #738/#1026). ◄◄◄
+ *
+ * *«Sollte hier nicht auch die global gültige UI/UX-Logik für Suchfelder angewendet
+ * werden, welche nach Objektnummer suchen können?»* – Die Antwort stand schon im
+ * Referenzfeld (`SearchSelect.action`): die Kamera ersetzt das Zierzeichen am rechten
+ * Innenrand. Dass es eine Liste gibt, sagt der Klick; eine echte Aktion ist den Platz
+ * wert. Ein eigener Knopf daneben sind **zwei Flächen für eine Frage**.
+ *
+ * Sie steht darum als **Bauteil** hier und nicht als Markup in `SearchSelect`: die
+ * Stück-Auswahl (`StockPicker`) hatte ihre eigene Fassung daneben, und das ist genau die
+ * Form, in der zwei Suchfelder unterschiedlich aussehen, obwohl sie dasselbe tun.
+ *
+ * `onMouseDown` verhindert, dass der Fokus ins Eingabefeld springt (das öffnete sonst
+ * eine Liste, während sich der Dialog davorlegt).
+ */
+export function FieldAction({ icon, label, disabled, onClick }: {
+  icon: ReactNode; label: string; disabled?: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="erp-fieldaction"
+      data-tip={label}
+      aria-label={label}
+      disabled={disabled}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      {icon}
+    </button>
+  );
+}
+
 export function ErrorText({ msg }: { msg: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#dc2626' }}>
@@ -961,21 +995,10 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
           style={{ borderColor: 'var(--border-2)', paddingRight: action ? 34 : 28 }}
         />
         {action ? (
-          // Der Klick gehört der Aktion, nicht dem Feld: `onMouseDown` verhindert, dass
-          // der Fokus ins Eingabefeld springt (das öffnete sonst die Liste, während sich
-          // der Dialog davorlegt), und die Liste schliesst, bevor die Aktion läuft – sie
-          // steht INNERHALB des Feldes, also greift der Klick-daneben-Schliesser nicht.
-          <button
-            type="button"
-            className="erp-fieldaction"
-            data-tip={action.label}
-            aria-label={action.label}
-            disabled={action.disabled}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { setOpen(false); setQuery(''); action.onClick(); }}
-          >
-            {action.icon}
-          </button>
+          // Die Liste schliesst, bevor die Aktion läuft – sie steht INNERHALB des Feldes,
+          // also greift der Klick-daneben-Schliesser nicht.
+          <FieldAction {...action}
+            onClick={() => { setOpen(false); setQuery(''); action.onClick(); }} />
         ) : open
           ? <Search size={14} style={glyph} />
           : <ChevronDown size={14} style={glyph} />}

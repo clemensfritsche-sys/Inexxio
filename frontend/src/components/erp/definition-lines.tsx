@@ -5,7 +5,7 @@ import { ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, X } fr
 import { api } from '@/lib/api';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
-import { IconSwitch, inputCls } from '@/components/erp/fields';
+import { FieldAction, IconSwitch, inputCls } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { useScan } from '@/components/scan/scan-provider';
@@ -92,14 +92,10 @@ export function toPayload(lines: DefinitionLine[]) {
     }));
 }
 
-export function DefinitionLines({ lines, setLines, onArticlesChosen, refreshKey = 0,
+export function DefinitionLines({ lines, setLines, refreshKey = 0,
                                   perUnit = false }: {
   lines: DefinitionLine[];
   setLines: (l: DefinitionLine[]) => void;
-  /** Meldet die Artikelliste nach oben – der Entwurf spiegelt daraus die Vorlage. */
-  /** Die **gewählten** Artikel – nicht mehr alle: der Entwurf lädt keine Liste mehr,
-   *  er sucht (#738). Wer den Namen des Erzeugungs-Artikels braucht, findet ihn hier. */
-  onArticlesChosen?: (options: ArticleOption[]) => void;
   /**
    * **Dieselbe Zeile als Stückliste** – die Menge gilt dann **je Einzelinstanz**
    * («4× Schraube M6 pro Getriebe»), und zwei der drei Fragen entfallen:
@@ -130,8 +126,6 @@ export function DefinitionLines({ lines, setLines, onArticlesChosen, refreshKey 
   const remember = useCallback((o: ArticleOption) => {
     setChosen((prev) => (prev[o.object_id] ? prev : { ...prev, [o.object_id]: o }));
   }, []);
-
-  useEffect(() => { onArticlesChosen?.(Object.values(chosen)); }, [chosen, onArticlesChosen]);
 
   const patch = useCallback((key: number, next: Partial<DefinitionLine>) => {
     setLines(lines.map((l) => (l.key === key ? { ...l, ...next } : l)));
@@ -277,8 +271,12 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
         {/* 1 — Artikel. Sperrt alles Weitere, bis er steht.
             **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738): tippen sucht auf
             dem Server – Nummer oder Name –, und die Kamera sitzt IM Feld. */}
+        {/* ►►► **Das Feld sagt selbst, wonach es fragt** (Testnotiz #1023). ◄◄◄ Über ihm
+            stand «Artikel» – und im Feld steht «Nummer oder Name». Zwei Zeilen für eine
+            Auskunft; die Sorte gehört in den Platzhalter, wo der Blick ohnehin ist
+            (dieselbe Regel wie im Scanner, #758). Sobald gewählt ist, sagt die Zeile es
+            ohnehin: «100000741 · Schraubendreher». */}
         <div className="flex-1" style={{ minWidth: perUnit ? 190 : 240 }}>
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Artikel</span>
           <ObjectSelect<ArticleOption>
             value={line.articleObjectId}
             selected={article}
@@ -299,11 +297,15 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
           />
         </div>
 
-        {/* 2 — Menge. Immer exakt Einzelinstanzen – in der Stückliste **je Stück**. */}
-        <label style={{ width: perUnit ? 104 : 96 }}>
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>
-            {perUnit ? 'Menge je Einzelinstanz' : 'Menge'}
-          </span>
+        {/* 2 — Menge. Immer exakt Einzelinstanzen – in der Stückliste **je Stück**.
+            ►►► **Was die Zahl bedeutet, steht im Hover** (Testnotiz #1024). ◄◄◄ Eine
+            Beschriftung über einem Zahlenfeld von 96 px kostet eine ganze Zeile für ein
+            Wort; das Feld enthält eine Zahl und sonst nichts, und wonach sie zählt, ist
+            genau die Art Auskunft, die im Haus in die Blase gehört. */}
+        <label style={{ width: perUnit ? 104 : 96 }}
+          data-tip={perUnit
+            ? 'Menge je Einzelinstanz – «4» heisst vier Stück je Erzeugnis'
+            : 'Menge – wie viele Einzelinstanzen dieser Auftrag bearbeitet'}>
           <QuantityInput
             value={line.quantity}
             disabled={!hasArticle}
@@ -315,8 +317,10 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
             (Testnotiz #694): zwei sich ausschliessende Antworten, und dass sie einander
             ausschliessen, zeigt die Bewegung des Reiters statt zweier gleich aussehender
             Knöpfe. Dieselbe Komponente, nicht nachgebaut. */}
+        {/* **Und die dritte Beschriftung geht mit** – ein Regler mit Symbol und Wort je
+            Seite sagt selbst, was er fragt, und jede Seite hat ihren Hinweis. Eine
+            stehengelassene Beschriftung neben zwei entfallenen läse sich als Rest. */}
         <div style={{ display: perUnit ? 'none' : undefined }}>
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Herkunft</span>
           <IconSwitch<typeof NEU | typeof LAGER>
             value={line.origin}
             onChange={(v) => onChange(v === NEU
@@ -418,7 +422,6 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   onChange: (picks: UnitPick[]) => void;
 }) {
   const [page, setPage] = useState<UnitChoices | null>(null);
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -474,6 +477,25 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
 
   const picked = new Set(chosen.map((u) => u.number));
   const enough = chosen.length === quantity;
+
+  /**
+   * ►►► **Offen ist, was noch nicht entschieden ist** (Testnotiz #1025). ◄◄◄
+   *
+   * *«Beim Selektieren der ersten Einzelinstanz schliesst sich das Auswahlfenster
+   * sofort; danach gehen die zweite und dritte problemlos.»* – Und der Grund lag nicht
+   * hier, sondern **um** diese Komponente herum: nimmt die Auswahl einem laufenden
+   * Auftrag ein Stück ab, wird aus dem Entwurfsbild eine Vorschau mit Spuren
+   * (`ProcessColumns`, §8.1c) – und ein React-Baum, der seine **Gestalt** wechselt,
+   * nimmt den Zustand seiner Kinder mit. Genau beim **ersten** geliehenen Stück ist das
+   * der Fall, danach nie wieder.
+   *
+   * Ein gemerktes «offen» überlebt das nicht. Eine **Ableitung** schon – und sie sagt
+   * dasselbe: solange die Auswahl unvollständig ist, wählt man. `touch` ist allein die
+   * Übersteuerung von Hand (zu- oder wieder aufklappen), und dass sie einen Neuaufbau
+   * nicht überlebt, ist richtig: danach gilt wieder die Lage.
+   */
+  const [touched, setTouched] = useState<boolean | null>(null);
+  const open = touched ?? (page !== null && !enough && (page.total ?? 0) > 0);
   // **Die Rückführung ist nur eine Frage, wenn es etwas zurückzugeben gibt.** Ein freies
   // Stück kommt aus keinem Auftrag – eine Wahl anzubieten, die nichts bewirkt, wäre eine
   // Behauptung, hier passiere etwas.
@@ -482,6 +504,10 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   const total = page?.total ?? 0;
 
   function toggle(o: UnitOption) {
+    // **Wer wählt, will weiterwählen** – auch wenn die Auswahl damit vollständig ist:
+    // das Fenster im Moment des letzten Klicks zuzuklappen wäre genau die Bewegung,
+    // aus der die Notiz entstand.
+    setTouched(true);
     onChange(picked.has(o.number)
       ? chosen.filter((c) => c.number !== o.number)
       : [...chosen, { number: o.number, fromOrder: o.in_order ?? null }]);
@@ -507,7 +533,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
             </button>
           </span>
         ))}
-        <button type="button" onClick={() => setOpen(!open)}
+        <button type="button" onClick={() => setTouched(!open)}
           className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
           style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}>
           <ChevronDown size={12} /> Auswählen
@@ -538,21 +564,22 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
 
       {open && (
         <div className="mt-2" style={{ borderTop: '1px solid var(--border-1)' }}>
-          {/* **Suchen und scannen stehen nebeneinander** – dieselbe Haltung wie im
-              Referenzfeld (`ObjectSelect`). Gescannt wird die **Instanz**: eine
+          {/* ►►► **Die Kamera sitzt IM Feld** (Testnotiz #1026, dieselbe Bauart wie
+              `ObjectSelect`): sie stand als eigener Knopf daneben – zwei Flächen für
+              eine Frage, und ein Suchfeld, das anders aussieht als jedes andere im Haus.
+              Gescannt wird die **Instanz**: eine
               Einzelinstanz zieht bewusst keine Objektnummer, es kann für sie gar kein
               Etikett geben (PROCESS_CORE, Einzelinstanz-Regel). Der Treffer setzt die
               Suche – die Stücke der Instanz stehen dann untereinander. */}
-          <div className="flex items-center gap-2 py-2">
+          <div className="py-2" style={{ position: 'relative' }}>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Nummer suchen…"
+              placeholder="Nummer suchen"
               className={inputCls}
-              style={{ flex: 1, minWidth: 0 }}
+              style={{ width: '100%', paddingRight: 34 }}
             />
-            <button type="button" className="erp-idbtn" data-tip="Instanz scannen"
-              aria-label="Instanz scannen"
+            <FieldAction icon={<ScanLine size={15} />} label="Instanz scannen"
               onClick={() => scan({
                 steps: [{
                   // Kein `label`: die Sorte kommt aus dem Typ (`scanKindLabel` →
@@ -568,9 +595,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
                     .catch(() => false),
                 }],
                 onComplete: (ids) => { if (ids[0] != null) setQuery(String(ids[0])); },
-              })}>
-              <ScanLine size={15} />
-            </button>
+              })} />
           </div>
 
           {/* **Eine Gruppe je Zustand, mit der Menge aus dem Aggregat** – nicht aus der

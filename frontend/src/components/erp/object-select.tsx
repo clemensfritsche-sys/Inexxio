@@ -4,7 +4,7 @@ import { useCallback, useRef } from 'react';
 import { ScanLine } from 'lucide-react';
 import { SearchSelect, type SelectOption } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
-import { LOOKUP_HINT, type ScanKind } from '@/lib/scan';
+import { LOOKUP_HINT, lookupHint, type ScanKind } from '@/lib/scan';
 import { formatObjectId } from '@/lib/utils';
 
 /**
@@ -156,7 +156,11 @@ export function ObjectSelect<T extends ObjectOption>({
           : []}
       search={search}
       emptyOption={emptyOption}
-      placeholder={placeholder ?? LOOKUP_HINT}
+      // ►►► **Die Sorte steht GENAU EINMAL** (Testnotiz #1023). ◄◄◄ Gibt es eine
+      // Beschriftung, nennt sie sie; gibt es keine, ist der Platzhalter die einzige
+      // Stelle, die es noch kann – und dort steht sie dann auch. Beides zusammen wäre
+      // dieselbe Auskunft zweimal in zwei Zeilen.
+      placeholder={placeholder ?? (label ? LOOKUP_HINT : lookupHint(scanLabel))}
       action={{
         icon: <ScanLine size={15} />,
         label: 'Scannen',

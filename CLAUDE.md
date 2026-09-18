@@ -4267,6 +4267,72 @@
 > MWSTG Art. 26, die Stripe-Grenze und die Summenregel über mehrere Korrekturen – je eine
 > Empfehlung, kein Variantenvergleich.
 
+> ►►► **DER BESTAND IST EIN TOPF — also ist die Messlatte der Bedarf des MODULS**
+> (Testnotizen #1023–#1031). ◄◄◄ Neun Notizen, und die einzige fachliche war **#1027**:
+> *«Bei jeder der drei Einzelinstanzen steht ‹aus Charge 00741›, obwohl von diesem Artikel
+> nur ein Stück freigegeben ist. Ist das richtig, oder müsste es zugewiesen sein?»*
+> **Der Topf ist richtig, die Messlatte war es nicht.** Zugeteilt wird beim **Bestätigen**
+> (`consumption.plan`, FIFO, je Produkt-Stück) und aufgeschrieben im **Log**
+> (`payload.into`) – vorher gehört kein Stück irgendwem: **Reservierungen gibt es im
+> System nirgends**, die Freigabe *ist* die Verfügbarkeitsprüfung, und eine Zuweisung vor
+> der Ausführung wäre eine zweite Wahrheit neben dem Bestand (spätestens falsch, sobald
+> ein anderer Auftrag dazwischenkommt). Falsch war, dass jede Zeile den **gemeinsamen**
+> freien Bestand gegen **ihren eigenen** Anteil hielt: ein freier Schraubendreher las sich
+> unter drei Instanzen dreimal als «genug», und die Unterdeckung fiel erst bei der
+> Bestätigung auf – mit einem 409, nachdem man den Scanner schon in der Hand hatte.
+> `StepNeed.required` ist genau die Zahl, gegen die auch der Dienst prüft (Menge je Stück ×
+> **alle** Stücke vor dem Modul); die Zeile sagt jetzt **beide** («1× Schraubendreher …
+> 1 von 3 verfügbar»), denn *was in dieses Stück geht* und *ob es überhaupt reicht* sind
+> zwei Fragen. Zwei Formen einer Regel, ein Massstab.
+> **Weniger Beschriftung, dieselbe Auskunft** (#1023/#1024): über dem Artikelfeld stand
+> «Artikel» und **im** Feld «Nummer oder Name» – zwei Zeilen für eine Auskunft, und in
+> einer engen Stücklisten-Zeile kostet die obere eine ganze Zeile. Die Sorte steht jetzt
+> **genau einmal**: als Beschriftung, wo es eine gibt, sonst im **Platzhalter**
+> (`scan.lookupHint`, dieselbe Quelle, aus der der Scanner seinen Satz baut – zwei
+> Schreibweisen wären zwei Felder, die sich ähnlich sehen sollen und es nicht tun). Über
+> dem Zahlenfeld gar keine mehr: **«Menge je Einzelinstanz» steht im Hover**, das Wort
+> bleibt (#725). Die dritte Beschriftung («Herkunft») geht mit – ein Regler mit Symbol und
+> Wort je Seite sagt selbst, was er fragt, und eine stehengelassene läse sich als Rest.
+> **Ein Suchfeld sieht aus wie jedes andere** (#1026): die Stück-Auswahl hatte ihr eigenes
+> Feld mit einem **Knopf daneben** – zwei Flächen für eine Frage, also genau die Form, die
+> #738 im Referenzfeld abgeschafft hat. Die Kamera sitzt jetzt am rechten **Innenrand**,
+> und die Aktion steht als **Bauteil** (`fields.FieldAction`) statt als Markup in
+> `SearchSelect`: sonst baut die nächste Aufrufstelle sie wieder selbst.
+> ►►► **Und «offen» ist eine ABLEITUNG, kein gemerkter Zustand** (#1025). ◄◄◄ *«Beim
+> Selektieren der ersten Einzelinstanz schliesst sich das Auswahlfenster sofort; danach
+> gehen die zweite und dritte problemlos.»* – Der Grund lag **um** die Komponente herum:
+> nimmt die Auswahl einem laufenden Auftrag ein Stück ab, wird aus dem Entwurfsbild eine
+> Vorschau mit Spuren (`ProcessColumns`, §8.1c) – und ein React-Baum, der seine **Gestalt**
+> wechselt, nimmt den Zustand seiner Kinder mit. Genau beim **ersten** geliehenen Stück,
+> danach nie wieder. Ein gemerktes «offen» überlebt das nicht, eine Ableitung schon – und
+> sie sagt dasselbe: *solange die Auswahl unvollständig ist, wählt man.*
+> **Kleineres, jedes an einer Stelle:** die Nummer in «aus 100000741» führt zu ihrem
+> Datensatz (#1028, `ObjId` – eine zweite Schreibweise wäre der erste Schritt zurück zu
+> «Nummern sehen je nach Ort anders aus»); der Fokus im Scanner folgt dem **Schritt** und
+> nicht nur der Kamera (#1029 – wer den ersten per Klick erledigt hatte, stand danach mit
+> dem Fokus auf einem Knopf; die Telefon-Regel «läuft die Kamera, bleibt er am Dialog»
+> gilt unverändert); der leere Bestand sagt **«Kein Bestand»** (#1030 – der Satz daneben
+> erklärte das Datenmodell an der Stelle, an der jemand eine Zahl sucht); und der Satz
+> unter dem Entwurfsbild ist **gelöscht** (#1031), samt dem Weg, der nur ihn gefüttert hat
+> (`onArticlesChosen` – eine Leitung ohne Leser).
+> **Punkt 1 der Vereinfachungs-Übersicht ist NICHT umgesetzt, weil er nicht existiert.**
+> Behauptet war: «ist nichts offen, wird trotzdem ‹Zahlung erfassen› angeboten». **Gemessen
+> über die echten Dienstpfade** (vier Zustände): nach Vollzahlung ist `ways` **leer** und
+> `settle_charge` **`None`** – `open_charges` filtert längst auf `open > 0` –, und
+> `canCharge` ist falsch, weil `credit_only` steht. Es gibt dort **weder** Schieber **noch**
+> Knopf. Dass `pay` in `can` bleibt, ist richtig und nötig: daran hängt die **Korrektur**
+> einer erfassten Zahlung. Eine ungeprüfte Vermutung wird beim nächsten Mal als Tatsache
+> gelesen – darum steht sie hier als das, was sie war.
+> Wächter: 8 neue in `test_frontend_mirrors.py`, 3 auf die neue Regel gezogen (sie prüften
+> die **Form** der alten Lösung: `const required = need.per_unit * pieces`, die
+> Beschriftung statt des Wortes, `LOOKUP_HINT` statt der gemeinsamen Quelle) – **14
+> Bug-Formen gegengeprüft, jede meldet**. Suite grün gegen die gewachsene Datenbank **und**
+> gegen ein Schema nur aus den Migrationen (je 582); **keine Migration** in dieser Runde.
+> Gemessen in Chromium an den **echten** Komponenten in einer Prozessspur von 460 · 360 ·
+> 300 px: **0 px** waagrechter Überlauf, Kamera **im** Feld (4 px Luft), Platzhalter
+> «Artikel – Nummer oder Name», **0** verbliebene Beschriftungen – und die Messung gegen
+> ihre eigene Bug-Form gegengeprüft (+46 px bei einem unteilbaren Wort).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

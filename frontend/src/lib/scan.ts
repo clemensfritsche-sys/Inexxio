@@ -82,6 +82,22 @@ export function scanKindLabel(step?: ScanStep | null): string {
 export const LOOKUP_HINT = 'Nummer oder Name';
 
 /**
+ * ►►► **Wo keine Beschriftung steht, nennt der Platzhalter die Sorte** (#1023). ◄◄◄
+ *
+ * Der Satz oben bleibt, wie er ist – die Sorte gehört über das Feld, **wenn** dort etwas
+ * steht. Steht dort nichts (weil die Zeile eng ist und ein Wort eine ganze Zeile kostet),
+ * ist der Platzhalter die einzige Stelle, die sie noch nennen kann; er verschwindet beim
+ * ersten Zeichen, aber genau dann steht die Antwort ja im Feld.
+ *
+ * Gebaut wird er **einmal**: der Scanner setzt denselben Satz zusammen
+ * (`objectCodes.prompt`), und zwei Schreibweisen wären zwei Felder, die sich ähnlich
+ * sehen sollen und es nicht tun.
+ */
+export function lookupHint(kind?: string | null): string {
+  return kind ? `${kind} – ${LOOKUP_HINT}` : LOOKUP_HINT;
+}
+
+/**
  * **Die eine Wahl «das entscheidet sich erst am Band».**
  *
  * Ein Referenzfeld in einer **Definition** hat immer zwei sinnvolle Antworten: einen
@@ -286,6 +302,6 @@ export const objectCodes: ScanReading = {
   prompt(step) {
     const kind = scanKindLabel(step);
     if (step && typeof step.expected === 'number') return `${kind} ${nr(step.expected)} suchen`;
-    return `${kind} – ${LOOKUP_HINT}`;
+    return lookupHint(kind);
   },
 };

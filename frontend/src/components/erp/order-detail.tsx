@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ClipboardList, Layers, MessageSquareText } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
-  ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
+  ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
@@ -338,7 +338,6 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
   /** Die Quell-Aufträge, wie sie nach der Freigabe aussähen (Auftrag §2). */
   parents: RelatedOrder[];
 }) {
-  const [articles, setArticles] = useState<ArticleOption[]>([]);
   const [template, setTemplate] = useState<ArticleProcess | null>(null);
 
   // Welcher Artikel bringt den Prozess mit? Der erste mit Herkunft «Neu».
@@ -365,7 +364,6 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
   }, [template]);
 
   const isMake = sourceArticle !== null;
-  const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
   /**
    * **Die Rückführung schaltet man am Ziel** (§5) – und das Ziel ist seit der Vorschau
@@ -384,8 +382,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
   }, [lines, setLines]);
 
   const head = (
-    <DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey}
-      onArticlesChosen={setArticles} />
+    <DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} />
   );
 
   // Bringt eine Zeile «Neu» mit, ist der Prozess die **Vorlage des Artikels** – dann nur
@@ -414,15 +411,6 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
           head={head}
         />
       )}
-
-      {isMake ? (
-        <p className="mt-3 text-xs text-center" style={{ color: 'var(--fg-3)' }}>
-          {mirrored?.length
-            ? <>Erzeugungsprozess von <strong>{articleName}</strong> (Stand {template?.version}).
-              Er wird bei der Freigabe als Kopie übernommen – geändert wird er am Artikel.</>
-            : 'Lädt den Erzeugungsprozess …'}
-        </p>
-      ) : null}
     </>
   );
 }

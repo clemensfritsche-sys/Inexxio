@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { CapturePoint, PlaceRef, StepNeed, StepWork } from '@/types';
 import { MOVE_MODULE } from '@/lib/modules';
 import { formatObjectId } from '@/lib/utils';
+import { ObjId } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
 import type { OrderSeed } from '@/components/erp/order-detail';
@@ -328,9 +329,35 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
 }) {
   const [open, setOpen] = useState(false);
   // Gerechnet wird auf **diese** Instanz: die Menge gilt je Stück.
-  const required = need.per_unit * pieces;
+  const mine = need.per_unit * pieces;
   const sources = need.sources ?? [];
-  const plan = chosen ?? planBoxes(need, required);
+  const plan = chosen ?? planBoxes(need, mine);
+
+  /**
+   * ►►► **Verglichen wird gegen den Bedarf des MODULS, nicht gegen den Anteil dieser
+   * Zeile** (Testnotiz #1027). ◄◄◄
+   *
+   * *«Bei jeder der drei Einzelinstanzen steht ‹aus Charge 00741›, obwohl von diesem
+   * Artikel nur ein Stück freigegeben ist. Ist das richtig, oder müsste es zugewiesen
+   * sein?»*
+   *
+   * **Der Topf ist richtig, die Messlatte war es nicht.** Zugeteilt wird beim
+   * Bestätigen (`consumption.plan`, FIFO, je Produkt-Stück) und **aufgeschrieben** im
+   * Log (`payload.into`) – vorher gehört kein Stück irgendwem: Reservierungen gibt es
+   * im System nirgends, die Freigabe *ist* die Verfügbarkeitsprüfung. Eine Zuweisung
+   * vor der Ausführung wäre eine zweite Wahrheit neben dem Bestand, und sie wäre
+   * spätestens falsch, wenn ein anderer Auftrag dazwischenkommt.
+   *
+   * Falsch war, dass jede Zeile den **gemeinsamen** freien Bestand gegen **ihren
+   * eigenen** Anteil hielt: ein freier Schraubendreher las sich unter drei Instanzen
+   * dreimal als «genug», und die Unterdeckung fiel erst bei der Bestätigung auf – mit
+   * einem 409, nachdem man den Scanner schon in der Hand hatte. `need.required` ist
+   * genau diese Zahl (Menge je Stück × **alle** Stücke vor dem Modul, vom Server), und
+   * sie ist dieselbe, gegen die `plan` prüft. Zwei Formen einer Regel, ein Massstab.
+   */
+  const required = need.required;
+  /** Wie viele Produkt-Stücke an diesem Modul davorstehen – die Bezugsgrösse der Zahl. */
+  const units = need.per_unit > 0 ? required / need.per_unit : 0;
 
   // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt** (#723). ◄◄
   //
@@ -349,16 +376,21 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
     <div className="flex flex-col gap-1 py-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Boxes size={13} style={{ flex: 'none', color: 'var(--fg-4)' }} />
-        <span className="text-xs" style={{ color: 'var(--fg-2)', fontWeight: 600 }}>
-          {required}×
+        {/* **Die Zahl vorn gilt DIESER Instanz** – sie sagt, was in die Stücke geht, die
+            hier stehen. Die Deckung daneben gilt dem Modul: zwei verschiedene Fragen,
+            und beide gehören in die Zeile. */}
+        <span className="text-xs" style={{ color: 'var(--fg-2)', fontWeight: 600 }}
+          data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>
+          {mine}×
         </span>
         <span className="text-xs truncate" style={{ color: 'var(--fg-3)' }}>
           {need.article_name}
         </span>
         {!enough && (
           <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
-            data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>
-            {need.available} verfügbar
+            data-tip={`Gebraucht an diesem Modul: ${need.per_unit} je Einzelinstanz × `
+              + `${units} Stück`}>
+            {need.available} von {required} verfügbar
           </span>
         )}
         {/* **Der Ort ist das Problem, nicht die Menge** – und die Zeile sagt beides:
@@ -374,9 +406,20 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}>
+        {/* ►►► **Eine Objektnummer führt zu ihrem Datensatz – überall** (#1028). ◄◄◄
+            Hier stand sie als blosser Text: dieselbe Kennung wie in jeder anderen Zeile,
+            nur ohne Ziel. `ObjId` ist die eine Form (Grösse, Tabellenziffern, Auszeichnung
+            erst beim Zeigen) – eine zweite Schreibweise wäre der erste Schritt zurück zu
+            «Nummern sehen je nach Ort anders aus». */}
+        <span className="text-[11.5px] flex flex-wrap items-center gap-x-1"
+          style={{ color: 'var(--fg-4)' }}>
           {plan.length
-            ? <>aus {plan.map((id) => formatObjectId(id)).join(' · ')}</>
+            ? <>aus {plan.map((id, i) => (
+                <span key={id} className="inline-flex items-center gap-1">
+                  {i > 0 && <span aria-hidden>·</span>}
+                  <ObjId value={id} />
+                </span>
+              ))}</>
             : 'kein Bestand'}
         </span>
         {(misplaced || (!enough && !empty)) && (

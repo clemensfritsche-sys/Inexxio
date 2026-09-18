@@ -3739,7 +3739,12 @@ def test_the_parts_list_uses_the_very_same_component_as_the_demand():
 
     # Und die Menge heisst, was sie ist – **die Einzelinstanz**, denn das ist das
     # Arbeitsobjekt des Systems (Testnotiz #725). «Stück» war das Wort daneben.
-    assert "'Menge je Einzelinstanz'" in ui
+    #
+    # Gefragt ist das **Wort**, nicht sein Ort: seit #1024 steht es im Hover über dem
+    # Feld statt als Beschriftung darüber – eine Beschriftung über einem 96-px-Zahlenfeld
+    # kostet eine ganze Zeile für ein Wort. Wer hier auf die Beschriftung bestünde,
+    # verböte genau die Lösung, um die der Nutzer gebeten hat.
+    assert "Menge je Einzelinstanz" in ui
 
 
 def test_a_shortage_is_shown_not_turned_into_a_state():
@@ -3812,8 +3817,46 @@ def test_the_flow_is_first_where_then_what():
     )
 
     # Und die Menge ist die **dieser** Instanz, nicht die des Auftrags.
-    assert "const required = need.per_unit * pieces;" in work, (
+    assert "need.per_unit * pieces" in work, (
         "Die Menge wird nicht mehr auf die Stücke dieser Instanz gerechnet."
+    )
+
+
+def test_the_shortfall_is_measured_against_the_module_not_against_one_row():
+    """►►► **Der Bestand ist ein TOPF – also ist die Messlatte der Bedarf des Moduls**
+    (Testnotiz #1027). ◄◄◄
+
+    *«Bei jeder der drei Einzelinstanzen steht ‹aus Charge 00741›, obwohl von diesem
+    Artikel nur ein Stück freigegeben ist. Ist das richtig, oder müsste es zugewiesen
+    sein?»*
+
+    **Der Topf ist richtig**: zugeteilt wird beim Bestätigen (``consumption.plan``, FIFO,
+    je Produkt-Stück) und aufgeschrieben im Log (``payload.into``). Reservierungen gibt
+    es im System nirgends – die Freigabe *ist* die Verfügbarkeitsprüfung.
+
+    Falsch war die **Messlatte**: jede Zeile hielt den gemeinsamen freien Bestand gegen
+    ihren **eigenen** Anteil, also las sich ein freier Schraubendreher unter drei
+    Instanzen dreimal als «genug». ``need.required`` ist die Zahl, gegen die auch der
+    Dienst prüft (Menge je Stück × alle Stücke vor dem Modul) – zwei Formen einer Regel,
+    ein Massstab.
+
+    Bug-Form: ``enough`` (und damit «Andere Instanz wählen» / «Nachschub») wieder aus dem
+    Anteil dieser Zeile rechnen.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    row = work.split("function NeedRow")[-1].split("function InstanceRow")[0]
+    assert "const required = need.required;" in row, (
+        "Die Deckung wird wieder gegen den Anteil EINER Instanz gehalten – dann liest "
+        "sich ein einziges freies Stück unter drei Instanzen dreimal als «genug»."
+    )
+    assert "need.available >= required" in row, (
+        "«Reicht es?» fragt nicht mehr den Bedarf des Moduls."
+    )
+    # Und die Zeile sagt beide Zahlen: sonst steht dort «1 verfügbar» über einem Bedarf,
+    # den niemand sieht.
+    assert "von {required} verfügbar" in row, (
+        "Die Unterdeckung nennt die Bezugsgrösse nicht – «1 verfügbar» ist wahr und "
+        "nutzlos, wenn 3 gebraucht werden."
     )
 
 
@@ -4584,9 +4627,16 @@ def test_the_dialog_is_the_same_field_only_big():
     )
     prompt = _body(lib, "prompt", kind="function") if "function prompt" in lib else lib[
         lib.index("prompt(step) {"):lib.index("prompt(step) {") + 260]
-    assert "LOOKUP_HINT" in prompt and "scannen" not in prompt, (
+    # Gefragt ist die **Quelle**, nicht ihre Schreibweise: seit #1023 setzt `lookupHint`
+    # den Satz zusammen (Sorte + Platzhalter), und beide Oberflächen rufen ihn. Wer hier
+    # auf das Wort `LOOKUP_HINT` bestünde, verböte ausgerechnet die gemeinsame Quelle.
+    assert ("LOOKUP_HINT" in prompt or "lookupHint(" in prompt) and "scannen" not in prompt, (
         "`objectCodes.prompt` ist wieder ein Handlungsauftrag statt eines Platzhalters – "
         "in einem Textfeld steht dann «scannen»."
+    )
+    assert "export function lookupHint" in lib, (
+        "Der Satz «<Sorte> – Nummer oder Name» wird wieder an jeder Stelle einzeln "
+        "zusammengesetzt."
     )
 
     # (2) EINE Zeilenform – buchstäblich dasselbe Bauteil, nicht dieselbe Absicht.
@@ -9330,4 +9380,183 @@ def test_the_way_to_the_money_needs_no_label():
     assert "{label && <Label" in seg, (
         "Ohne Beschriftung bleibt die leere Zeile stehen (b) – dieselbe Höhe ohne "
         "denselben Inhalt."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #1023–#1031 — weniger Beschriftung, EIN Suchfeld, EINE Nummer
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_field_names_its_subject_exactly_once():
+    """►►► **Die Sorte steht einmal – als Beschriftung ODER im Platzhalter** (#1023). ◄◄◄
+
+    *«Ich denke, die Info kann entfallen oder ggf. als Hover-Information über dem
+    Eingabefeld.»* – Über dem Artikelfeld stand «Artikel», **im** Feld «Nummer oder
+    Name»: zwei Zeilen für eine Auskunft, und die obere kostete in einer engen
+    Stücklisten-Zeile eine ganze Zeile.
+
+    Der Platzhalter kann es tragen, und er verschwindet genau dann, wenn die Antwort
+    dasteht («100000741 · Schraubendreher»). Gebaut wird der Satz **einmal**
+    (``lookupHint``), damit Feld und Scanner ihn nicht getrennt zusammensetzen.
+
+    Bug-Formen: (a) die hand-gebaute Beschriftung ist wieder da; (b) der Platzhalter
+    nennt die Sorte **zusätzlich** zur Beschriftung; (c) der Satz wird an der
+    Aufrufstelle zusammengesetzt.
+    """
+    lib = _code(_read(FRONTEND / "lib" / "scan.ts"))
+    picker = _code(_read(FRONTEND / "components" / "erp" / "object-select.tsx"))
+    ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+
+    assert "export function lookupHint" in lib, "Der eine Satz fehlt (c)."
+    assert "label ? LOOKUP_HINT : lookupHint(scanLabel)" in picker, (
+        "Das Feld nennt die Sorte nicht genau einmal – entweder gar nicht oder zweimal (b)."
+    )
+    assert ">Artikel</span>" not in ui, (
+        "Über dem Artikelfeld steht wieder eine hand-gebaute Beschriftung (a)."
+    )
+    assert "scanLabel=\"Artikel\"" in ui, (
+        "Ohne Sorte am Feld nennt sie auch der Platzhalter nicht mehr."
+    )
+
+
+def test_what_a_number_counts_is_a_hover_not_a_line():
+    """►►► **Ein Wort über einem Zahlenfeld kostet eine Zeile** (Testnotiz #1024). ◄◄◄
+
+    Das Feld enthält eine Zahl und sonst nichts; wonach sie zählt, ist genau die Art
+    Auskunft, die im Haus in die Blase gehört. Das **Wort** bleibt unverändert – «Menge je
+    Einzelinstanz», denn das ist das Arbeitsobjekt des Systems (#725).
+
+    Bug-Formen: (a) die Beschriftung ist wieder da; (b) sie ist weg und die Auskunft mit
+    ihr – dann steht dort ein Zahlenfeld ohne Bezugsgrösse.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    row = ui.split("function LineRow")[-1]
+    assert "{perUnit ? 'Menge je Einzelinstanz' : 'Menge'}" not in row, (
+        "Die Beschriftung steht wieder über dem Zahlenfeld (a)."
+    )
+    assert "data-tip" in row and "Menge je Einzelinstanz" in row, (
+        "Die Bezugsgrösse der Zahl steht nirgends mehr (b)."
+    )
+
+
+def test_the_unit_picker_searches_like_every_other_field():
+    """►►► **Die Kamera sitzt IM Feld, nicht daneben** (Testnotiz #1026). ◄◄◄
+
+    *«Sollte hier nicht auch die global gültige UI/UX-Logik für Suchfelder angewendet
+    werden, welche nach Objektnummer suchen können? Bitte den globalen Standard
+    etablieren und den jetzigen endgültig löschen.»*
+
+    Die Stück-Auswahl hatte ihr eigenes Suchfeld mit einem **Knopf daneben** – zwei
+    Flächen für eine Frage, also genau die Form, die #738 im Referenzfeld abgeschafft
+    hat. Die Aktion steht seither als **Bauteil** (``FieldAction``), nicht als Markup in
+    ``SearchSelect``: sonst baut die nächste Aufrufstelle sie wieder selbst.
+
+    Bug-Formen: (a) der eigene Knopf daneben ist zurück; (b) die Aktion wird in
+    ``SearchSelect`` wieder ausgeschrieben.
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+
+    assert "export function FieldAction" in fields, "Das Bauteil fehlt (b)."
+    assert "<FieldAction {...action}" in fields, (
+        "`SearchSelect` schreibt seine Aktion wieder selbst aus (b)."
+    )
+    assert "<FieldAction" in ui and "erp-idbtn" not in ui, (
+        "Die Stück-Auswahl hat wieder ihren eigenen Knopf neben dem Feld (a)."
+    )
+    assert "paddingRight: 34" in ui, (
+        "Das Feld macht der Kamera keinen Platz – der Text läuft unter das Symbol."
+    )
+
+
+def test_the_unit_picker_stays_open_while_the_choice_is_incomplete():
+    """►►► **Offen ist, was noch nicht entschieden ist** (Testnotiz #1025). ◄◄◄
+
+    *«Beim Selektieren der ersten Einzelinstanz schliesst sich das Auswahlfenster sofort;
+    danach gehen die zweite und dritte problemlos.»*
+
+    Der Grund lag **um** die Komponente herum: nimmt die Auswahl einem laufenden Auftrag
+    ein Stück ab, wird aus dem Entwurfsbild eine Vorschau mit Spuren
+    (``ProcessColumns``) – und ein React-Baum, der seine Gestalt wechselt, nimmt den
+    Zustand seiner Kinder mit. Genau beim **ersten** geliehenen Stück, danach nie wieder.
+
+    Ein gemerktes «offen» überlebt das nicht, eine **Ableitung** schon. Und sie sagt
+    dasselbe: solange die Auswahl unvollständig ist, wählt man.
+
+    Bug-Formen: (a) «offen» ist wieder ein reiner Zustand; (b) ein Klick auf ein Stück
+    lässt die Ableitung zuschlagen, sobald die Auswahl voll ist.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    picker = ui.split("function StockPicker")[-1]
+    assert "useState(false);" not in picker.split("const picked")[0], (
+        "«offen» ist wieder ein gemerkter Zustand (a) – und der stirbt mit dem Neuaufbau."
+    )
+    assert "const open = touched ??" in picker, "Die Ableitung fehlt (a)."
+    assert "!enough" in picker, "Die Ableitung fragt nicht, ob die Auswahl vollständig ist."
+    assert "setTouched(true);" in _body(picker, "toggle", kind="function"), (
+        "Wer wählt, will weiterwählen – der letzte Klick klappt das Fenster wieder zu (b)."
+    )
+
+
+def test_a_number_in_the_parts_list_leads_to_its_record():
+    """►►► **Eine Objektnummer sieht überall gleich aus – und führt** (Testnotiz #1028).
+
+    In der Zeile «aus 100000741» stand sie als blosser Text: dieselbe Kennung wie
+    überall, nur ohne Ziel. ``ObjId`` ist die eine Form; eine zweite Schreibweise wäre
+    der erste Schritt zurück zu «Nummern sehen je nach Ort anders aus» (#282/#784).
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    row = work.split("function NeedRow")[-1].split("function InstanceRow")[0]
+    assert "<ObjId value={id} />" in row, (
+        "Die Nummer der Quell-Instanz ist wieder nackter Text – sie führt nirgendwohin."
+    )
+    assert "plan.map((id) => formatObjectId(id)).join" not in row, (
+        "Die alte Schreibweise steht daneben."
+    )
+
+
+def test_an_empty_stock_says_so_and_nothing_more():
+    """**«Kein Bestand» ist die Auskunft** (Testnotiz #1030).
+
+    Der Satz daneben erklärte, *woher* Einzelinstanzen kommen – eine Belehrung über das
+    Datenmodell an der Stelle, an der jemand eine Zahl sucht.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
+    assert ">Kein Bestand<" in ui, "Die Auskunft fehlt."
+    assert "entstehen mit der Freigabe" not in ui, "Die Belehrung steht wieder da."
+
+
+def test_the_draft_does_not_explain_where_its_process_comes_from():
+    """**Der Satz unter dem Entwurfsbild ist gelöscht** (Testnotiz #1031).
+
+    *«Ich checke nicht, warum diese Info kommt – bitte gänzlich aus dem Code sauber
+    löschen.»* Und «sauber» heisst: mit dem, was nur ihn gefüttert hat – der Artikelname
+    kam über ``onArticlesChosen`` aus dem Zeilen-Editor nach oben, und dieser Weg hat
+    danach keinen Leser mehr.
+    """
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    lines = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    assert "Erzeugungsprozess von" not in detail, "Der Satz steht wieder da."
+    assert "onArticlesChosen" not in detail and "onArticlesChosen" not in lines, (
+        "Der Weg, der nur ihn gefüttert hat, steht noch – eine Leitung ohne Leser."
+    )
+
+
+def test_the_focus_follows_the_step_not_only_the_camera():
+    """**Ein neuer Schritt ist eine neue Frage** (Testnotiz #1029).
+
+    *«Beim ersten Scan kann man am Laptop sofort tippen, beim zweiten nicht mehr.»* – Der
+    Fokus hing allein am Kamerazustand, und der ändert sich zwischen zwei Schritten
+    nicht; wer den ersten per Klick auf einen Vorschlag erledigt hatte, stand danach mit
+    dem Fokus auf einem Knopf.
+
+    **Die Regel bleibt dieselbe**: läuft die Kamera, bleibt der Fokus am Dialog (sonst
+    poppt auf dem Telefon die Tastatur über das Bild).
+    """
+    dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    assert "}, [cameraLive, stepIndex]);" in dialog, (
+        "Der Fokus folgt dem Schritt nicht – ab dem zweiten muss man ins Feld klicken."
+    )
+    assert "if (cameraLive) sheetRef.current?.focus();" in dialog, (
+        "Die Kamera-Regel ist weg – auf dem Telefon steht die Tastatur über dem Bild."
     )
