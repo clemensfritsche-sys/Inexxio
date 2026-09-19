@@ -249,10 +249,12 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
     if not user:
         raise HTTPException(403, detail="Konto nicht aktiv.")
 
-    now = datetime.now(timezone.utc)
+    # **Wann dieser Passkey zuletzt benutzt wurde, gehört dem Passkey.** Der *Login* des
+    # Benutzers steht dagegen an genau einer Stelle (`core/auth._sync_user_profile`, aus
+    # `auth_time` des Firebase-Tokens) – hier stand er ein zweites Mal, und damit war die
+    # Angabe je nach Anmeldeweg gesetzt oder eben nicht (Testnotiz #1040).
     row.sign_count = verified.new_sign_count
-    row.last_used_at = now
-    user.last_login_at = now
+    row.last_used_at = datetime.now(timezone.utc)
     db.commit()
 
     return mint_firebase_token(user)

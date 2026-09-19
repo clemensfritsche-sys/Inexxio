@@ -9805,3 +9805,109 @@ def test_the_owner_is_named_only_when_it_is_not_us():
     assert re.search(r"\{o\.owner_name\s*&&\s*\(", picks), (
         "Die Auswahl-Liste zeigt den Eigentuemer nicht – dort entscheidet sich, mit "
         "wessen Material gearbeitet wird.")
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #1038-#1040
+# ---------------------------------------------------------------------------
+
+_QUOTE_STATE_WORDS = (
+    "angenommen", "zugesagt", "abgesagt", "offeriert", "unterlegen",
+    "unbeantwortet", "angefragt",
+)
+
+
+def test_a_quote_row_names_its_state_exactly_once():
+    """►►► **EIN Zustand, EIN Wort** (Testnotiz #1038). ◄◄◄
+
+    *«Jetzt haben wir Doppelstatus. Ein absolutes No-Go. Du hast einmal ‹angenommen› und
+    einmal ‹Zugesagt›. Es darf nur einen Status fuer eine Sache geben.»*
+
+    Und das Wort, das bleibt, ist **Zugesagt** – es kommt aus der einen Aufloesung
+    (``quoteLook``, #1032), die **alle vier** Ausgaenge derselben Zeile benennt.
+    «angenommen» stand daneben als Vorsatz einer **Zeitangabe** und war damit ein zweiter
+    Wortschatz fuer dieselbe Sache, einer, der die anderen drei Ausgaenge gar nicht kennt.
+
+    **Geprueft wird die Regel, nicht der Einzelfall**: die Zeile schreibt **kein**
+    Zustandswort selbst – sie hat genau eine Quelle dafuer. Ein Wort auf einem *Knopf*
+    («Absage», «Offerte annehmen») ist eine Handlung und bleibt erlaubt.
+
+    **Und die Zeit bleibt** (#968/#969): sie hat seit der Aufloesung der Chronik keinen
+    anderen Ort, und *wann* zugesagt wurde, sagt das Wort nicht.
+
+    Bug-Formen: (a) ein Zustandswort steht wieder als Literal in der Zeile; (b) mit ihm
+    faellt die Zeitangabe weg.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    row = _component(src, "QuoteRow")
+    for word in _QUOTE_STATE_WORDS:
+        assert word not in row.lower(), (
+            f"(a) Die Angebotszeile schreibt «{word}» selbst hin – ihr Zustand hat "
+            "genau eine Quelle (`quoteLook`), und ein zweites Wort daneben ist ein "
+            "zweiter Status fuer dieselbe Sache.")
+    assert "d.agreed_at" in row and "when(" in row, (
+        "(b) Mit dem Wort ist auch die Zeitangabe verschwunden – seit der Aufloesung "
+        "der Chronik (#970) ist diese Zeile ihr einziger Ort.")
+
+
+def test_the_billing_email_exists_exactly_once():
+    """►►► **Die Rechnungs-E-Mail gibt es EINMAL** (Testnotiz #1039). ◄◄◄
+
+    *«Wir haben eine Doppelspurigkeit. Ein absolutes No-Go … entscheide dich fuer eines
+    der beiden, und das andere muss vollkommen und endgueltig aus dem Code eliminiert
+    werden.»*
+
+    Geblieben ist ``invoice_email`` – bei der **Rechnungsadresse**, wo die Frage entsteht,
+    und die einzige der beiden, die ueberhaupt **gelesen** wurde (``voucher.billing_of``).
+    ``company_billing_email`` ist ersatzlos entfallen: Formular, Nutzlast, Pydantic-Schema
+    und ORM-Mapping; die Spalte faellt im Folge-Deploy.
+
+    Bug-Form: das zweite Feld ist zurueck – dann beantwortet wieder niemand, welches gilt.
+    """
+    for path in (
+        FRONTEND / "components" / "erp" / "user-detail.tsx",
+        FRONTEND / "components" / "account" / "sections" / "profile-section.tsx",
+        BACKEND / "app" / "schemas" / "admin.py",
+        BACKEND / "app" / "models" / "user.py",
+    ):
+        assert "company_billing_email" not in _code(_read(path)), (
+            f"{path.name} kennt die zweite Rechnungs-E-Mail wieder – zwei Felder fuer "
+            "dieselbe Frage, und gelesen wird nur eines.")
+    # **Und die verbliebene ist wirklich die, die der Beleg liest.**
+    voucher = _code(_read(BACKEND / "app" / "services" / "voucher.py"))
+    assert "invoice_email" in voucher, (
+        "Der Beleg liest die Rechnungs-E-Mail nicht mehr – dann war die Wahl zwischen "
+        "den beiden Feldern eine Muenze.")
+
+
+def test_the_last_login_comes_from_the_token():
+    """►►► **Wann jemand sich angemeldet hat, sagt Firebase** (Testnotiz #1040). ◄◄◄
+
+    *«Wieso ist dort kein Wert hinterlegt, diese Funktion funktioniert nicht. Am besten
+    waere eigentlich, wenn es aus Firebase kommen wuerde insofern es geht.»*
+
+    Es **geht**: ``auth_time`` steht in jedem ID-Token und nennt den Moment der
+    **Anmeldung**, nicht den dieser Anfrage. Geschrieben hat das Feld vorher genau eine
+    Stelle – die Passkey-Zeremonie –, also blieb es bei Anmeldelink und Google SSO fuer
+    immer leer. Der Anmelde**weg** wurde zwei Zeilen daneben schon aus demselben Token
+    mitgeschrieben; die Uhrzeit dazu wurde weggeworfen.
+
+    Bug-Formen: (a) die Angabe kommt wieder aus einer eigenen Uhr statt aus dem Token;
+    (b) sie hat wieder zwei Schreibstellen; (c) sie wird bei jedem Aufruf geschrieben
+    statt nur bei einer Aenderung.
+    """
+    auth = _code(_read(BACKEND / "app" / "core" / "auth.py"))
+    assert '"auth_time"' in auth or "'auth_time'" in auth, (
+        "(a) Der letzte Login kommt nicht mehr aus dem Token – eine eigene Uhr im Backend "
+        "kennt nur die Anmeldewege, an die jemand gedacht hat.")
+    assert re.search(r"user\.last_login_at\s*!=", auth), (
+        "(c) Geschrieben wird ohne Vergleich – dann schreibt jede einzelne Anfrage.")
+    # **(b) EINE Schreibstelle im ganzen Backend.**
+    writers = sorted(
+        p.relative_to(BACKEND).as_posix()
+        for p in (BACKEND / "app").rglob("*.py")
+        if re.search(r"\.last_login_at\s*=", _code(_read(p)))
+    )
+    assert writers == ["app/core/auth.py"], (
+        f"(b) Der letzte Login wird an mehreren Stellen geschrieben: {writers} – dann ist "
+        "er je nach Anmeldeweg gesetzt oder eben nicht, und genau das war der Befund.")

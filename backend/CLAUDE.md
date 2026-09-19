@@ -1287,3 +1287,24 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > idempotent und kennt ihren Rest.
 > Wächter: `tests/test_voucher_module.py` (3 neue, **sechs Bug-Formen gegengeprüft**) +
 > `test_frontend_mirrors.py`.
+
+> ►►► **Der letzte Login kommt aus dem TOKEN** (Testnotiz #1040). ◄◄◄
+> `auth_time` ist eine Standard-Angabe im Firebase-ID-Token: der Moment der **Anmeldung**,
+> nicht der dieser Anfrage. Er bleibt über die ganze Sitzung konstant und überlebt jede
+> Token-Erneuerung – daraus folgt beides, was die Angabe braucht: sie ist **richtig** (ein
+> eigener Zeitstempel im Backend kennt nur die Anmeldewege, an die jemand gedacht hat),
+> und sie schreibt **einmal je Anmeldung** statt bei jedem Aufruf (`_sync_user_profile`
+> vergleicht, wie bei Rolle, E-Mail, Foto und Anmeldeweg).
+> **Vorher schrieb sie genau eine Stelle, und zwar die falsche**: die Passkey-Zeremonie.
+> Bei Anmeldelink und Google SSO blieb `last_login_at` damit für immer leer – während der
+> Anmelde**weg** zwei Zeilen daneben schon aus demselben Token mitgeschrieben wurde. Am
+> Passkey bleibt, was ihm gehört (`PasskeyCredential.last_used_at`); ein Quelltext-Wächter
+> zählt die Schreibstellen von `last_login_at` über das ganze Backend und verlangt **eine**.
+
+> ►►► **Die Rechnungs-E-Mail gibt es EINMAL** (Testnotiz #1039). ◄◄◄
+> `company_billing_email` ist ersatzlos entfallen – aus `UserProfileResponse`,
+> `UserProfileUpdate` und dem ORM-Mapping; die Spalte fällt im Folge-Deploy
+> (`docs/backlog.md`). Es war die zweite Rechnungs-E-Mail neben `invoice_email`: dieselbe
+> Frage, zwei Felder, und welches gilt, konnte niemand beantworten. **Die Wahl war keine
+> Münze** – gelesen wurde ohnehin nur `invoice_email` (`voucher.billing_of`), das zweite
+> hatte null Leser in der Fachlogik.

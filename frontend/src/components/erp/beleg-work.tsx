@@ -1745,19 +1745,29 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
           </span>
           <span style={{ flex: 'none' }}><ObjId value={d.party_object_id} /></span>
         </span>
-        {/* ►►► **Wann diese Zeile den Zuschlag bekam – NEBEN dem Betrag** (#969/#978).◄◄◄
-            *«Kann das nicht irgendwo neben dem Betrag oder so stehen – und den Hovertext
-            direkt darüber und nicht wie jetzt irgendwo.»*
-            Beides hat **eine** Ursache: die Zeile stand als eigenes Kind der Spalte, und
-            ein Kind einer Flex-Spalte wird auf die volle Breite gezogen. Die Blase sitzt
-            über der **Mitte ihres Elements** – bei einer 460 px breiten Zeile also weit
-            weg von den drei Wörtern, die sie erklärt. In der Kopfzeile ist die Angabe so
-            breit wie ihr Text, und die Blase steht damit **konstruktiv** darüber. */}
-        {chosen && d.agreed_at && (
-          <Note tip={formatWhen(d.agreed_at).title}>angenommen · {when(d.agreed_at)}</Note>
-        )}
+        {/* ►►► **EIN Zustand, EIN Wort — und daneben die Zeit** (Testnotiz #1038). ◄◄◄
+            *«Jetzt haben wir Doppelstatus. Ein absolutes No-Go. Du hast einmal
+            ‹angenommen› und einmal ‹Zugesagt›. Es darf nur einen Status für eine Sache
+            geben.»* – Und das Wort, das bleibt, ist **Zugesagt**: es kommt aus der einen
+            Auflösung (`quoteLook`, #1032), die **alle vier** Ausgänge derselben Zeile
+            benennt. «angenommen» stand daneben als Vorsatz einer **Zeitangabe** und war
+            damit ein zweiter Wortschatz für dieselbe Sache – einer, der die anderen drei
+            Ausgänge gar nicht kennt.
+            **Die Zeit bleibt** (#968/#969): sie hat seit der Auflösung der Chronik keinen
+            anderen Ort, und *wann* zugesagt wurde, sagt das Wort nicht. Sie steht darum
+            **hinter** ihm – «Zugesagt · vor 3 Tagen» ist ein Satz, «vor 3 Tagen Zugesagt»
+            zwei Angaben in falscher Reihenfolge –, und die Tatsache (Datum **und**
+            Uhrzeit) steht wie überall im Hover. */}
         {word && (
           <span style={{ ...MICRO_LABEL, color: look.color, flex: 'none' }}>{word}</span>
+        )}
+        {/* ►►► **Die Blase steht über ihrer Auskunft** (#978). ◄◄◄ Sie sitzt über der
+            **Mitte ihres Elements** – als eigenes Kind der Spalte wäre das eine 460 px
+            breite Zeile, also weit weg von den zwei Wörtern, die sie erklärt. In der
+            Kopfzeile ist die Angabe so breit wie ihr Text, und die Blase steht damit
+            **konstruktiv** darüber. */}
+        {chosen && d.agreed_at && (
+          <Note tip={formatWhen(d.agreed_at).title}>{when(d.agreed_at)}</Note>
         )}
         {/* **Der Betrag steht zuletzt** – dieselbe Flucht wie in jeder Geld-Zeile. Er
             bleibt auch an einer unterlegenen Zeile stehen: *warum* so entschieden wurde,

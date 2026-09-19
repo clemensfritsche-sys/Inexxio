@@ -69,7 +69,10 @@ class UserProfile(Base, TimestampMixin):
     trade_register_nr: Mapped[Optional[str]] = mapped_column(String(50))
     trade_register_canton: Mapped[Optional[str]] = mapped_column(String(50))
     company_website: Mapped[Optional[str]] = mapped_column(String(255))
-    company_billing_email: Mapped[Optional[str]] = mapped_column(String(255))
+    # ►►► **`company_billing_email` ist ENTFALLEN** (Testnotiz #1039). ◄◄◄ Es war die
+    # zweite Rechnungs-E-Mail neben `invoice_email` – dieselbe Frage, zwei Felder, und
+    # **gelesen** wurde nur das andere (`voucher.billing_of`). Die Spalte fällt im
+    # Folge-Deploy (Zwei-Deploy-Regel, `docs/backlog.md`).
 
     # Supplier bank details
     bank_account_holder: Mapped[Optional[str]] = mapped_column(String(255))

@@ -980,3 +980,22 @@ benutzte Variable; `var(--x, right)` ist eine Angabe mit Vorgabe und bleibt erla
   ist die Gegenrichtung derselben Abfrage, die «was mir fehlt» beantwortet.
 - **Die Zeile «1 Instanzen mit je einer Einzelinstanz (-1).» ist gelöscht** (#1033): das
   ist das Datenmodell, nicht die Sache. Dritter Anlauf an derselben Zeile (#722, #725).
+
+### Ein Zustand hat EIN Wort (#1038)
+Die Angebotszeile nannte ihren Zustand zweimal: **Zugesagt** (aus `quoteLook`, der einen
+Auflösung für **alle vier** Ausgänge) und daneben «angenommen · vor 3 Tagen». Das zweite
+war ein Vorsatz einer **Zeitangabe** und damit ein zweiter Wortschatz – einer, der
+*Unterlegen*, *Unbeantwortet* und *Abgesagt* gar nicht kennt.
+
+Geblieben ist das Wort aus der Auflösung; **die Zeit bleibt daneben** (#968/#970: seit der
+Auflösung der Chronik ist diese Zeile ihr einziger Ort) und steht **hinter** ihm –
+«Zugesagt · vor 3 Tagen» ist ein Satz. Der Wächter prüft die **Regel**: `QuoteRow` schreibt
+kein Zustandswort selbst. Ein Wort auf einem **Knopf** («Absage», «Offerte annehmen») ist
+eine Handlung und bleibt erlaubt.
+
+### Die Rechnungs-E-Mail steht bei der Rechnungsadresse (#1039)
+Das zweite Feld «Rechnungs-E-Mail (Firma)» in den Firmendaten des Lieferanten ist
+vollständig entfallen – im ERP (`user-detail.tsx`) **und** im Konto
+(`sections/profile-section.tsx`), samt Formularzustand und Nutzlast. Gelesen wurde ohnehin
+nur `invoice_email`; zwei Felder für dieselbe Frage sind keine Redundanz, sondern eine
+offene Frage in der Oberfläche.

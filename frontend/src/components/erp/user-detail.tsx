@@ -123,7 +123,6 @@ interface ERPForm {
   phone: string;
   company_name: string;
   uid_number: string;
-  company_billing_email: string;
   address_line1: string;
   address_line2: string;
   postal_code: string;
@@ -163,7 +162,6 @@ function buildForm(p: UserProfile): ERPForm {
     phone: p.phone ?? '',
     company_name: p.company_name ?? '',
     uid_number: p.uid_number ?? '',
-    company_billing_email: p.company_billing_email ?? '',
     address_line1: p.address_line1 ?? '',
     address_line2: p.address_line2 ?? '',
     postal_code: p.postal_code ?? '',
@@ -280,7 +278,6 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
   if (isSupplier) {
     data.company_name = nn(v.company_name);
     data.uid_number = nn(v.uid_number);
-    data.company_billing_email = nn(v.company_billing_email);
     data.bank_account_holder = nn(v.bank_account_holder);
     data.bank_name = nn(v.bank_name);
     data.bank_iban = nn(v.bank_iban);
@@ -386,12 +383,15 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
         {isSupplier && (
           <SubBlock icon={Building2} title="Firmendaten">
+            {/* ►►► **Die Rechnungs-E-Mail steht bei der RECHNUNGSADRESSE** (#1039). ◄◄◄
+                Hier stand eine zweite («Rechnungs-E-Mail (Firma)», `company_billing_email`)
+                – dieselbe Frage, zwei Felder, und welches gilt, konnte niemand
+                beantworten. Gelesen wurde ohnehin nur die andere (`voucher.billing_of`),
+                also ist dieses Feld **vollständig entfallen**: Formular, Nutzlast,
+                Pydantic-Schema und ORM-Mapping. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="Firmenname" value={form.company_name} onChange={str('company_name')} readOnly={ro} placeholder="Muster AG" onEnter={saveNow} />
               <AField label="UID-Nummer" value={form.uid_number} onChange={str('uid_number')} readOnly={ro} placeholder="CHE-123.456.789" onEnter={saveNow} />
-              <div className="sm:col-span-2">
-                <AField label="Rechnungs-E-Mail (Firma)" value={form.company_billing_email} onChange={str('company_billing_email')} readOnly={ro} type="email" onEnter={saveNow} />
-              </div>
             </div>
           </SubBlock>
         )}

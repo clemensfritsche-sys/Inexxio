@@ -4532,6 +4532,49 @@
 > musste erst repariert werden: ohne Firebase-Variablen rendert die App eine
 > **Fehlerseite**, und «0 px Überlauf» wäre die Messung einer leeren Seite gewesen.*
 
+> ►►► **EIN Status, EIN Feld, EINE Schreibstelle** (Testnotizen #1038–#1040). ◄◄◄
+> Drei Notizen, und alle drei sagen dasselbe aus drei Richtungen: **eine Sache, eine
+> Stelle** – einmal am Wort, einmal am Feld, einmal am Schreiber.
+> **(1) Die Angebotszeile nannte ihren Zustand ZWEIMAL** (#1038 – *«jetzt haben wir
+> Doppelstatus, ein absolutes No-Go … du hast einmal angenommen und einmal zugesagt»*).
+> Geblieben ist **Zugesagt**: es kommt aus der einen Auflösung (`quoteLook`, #1032), die
+> **alle vier** Ausgänge derselben Zeile benennt – «angenommen» stand daneben als Vorsatz
+> einer **Zeitangabe** und war damit ein zweiter Wortschatz, einer, der die anderen drei
+> Ausgänge gar nicht kennt. **Die Zeit bleibt** (#968/#970: seit der Auflösung der Chronik
+> ist diese Zeile ihr einziger Ort) und steht **hinter** dem Wort – «Zugesagt · vor 3
+> Tagen» ist ein Satz, umgekehrt sind es zwei Angaben in falscher Reihenfolge; die
+> Tatsache steht wie überall im Hover. Der Wächter prüft die **Regel**: die Zeile schreibt
+> **kein** Zustandswort selbst (ein Wort auf einem *Knopf* ist eine Handlung und bleibt).
+> **(2) Die Rechnungs-E-Mail gab es zweimal** (#1039 – *«eine Doppelspurigkeit, ein
+> absolutes No-Go»*). `invoice_email` bei der Rechnungsadresse ↔ `company_billing_email`
+> in den Firmendaten des Lieferanten: dieselbe Frage, zwei Felder, und **welches gilt,
+> konnte niemand beantworten.** Die Wahl war keine Münze – **gelesen** wurde ohnehin nur
+> das erste (`voucher.billing_of`), das zweite hatte **null** Leser in der Fachlogik. Es
+> ist ersatzlos entfallen: Formular im ERP **und** im Konto, Nutzlast,
+> `UserProfileResponse`, `UserProfileUpdate` und das ORM-Mapping; die Spalte fällt im
+> Folge-Deploy (`docs/backlog.md`).
+> **(3) «Letzter Login» war leer – und der Wunsch war die Lösung** (#1040 – *«am besten
+> wäre eigentlich, wenn es aus Firebase kommen würde insofern es geht»*). **Es geht**:
+> `auth_time` steht in jedem ID-Token und nennt den Moment der **Anmeldung**, nicht den
+> dieser Anfrage – er bleibt über die ganze Sitzung konstant, also schreibt die Zeile
+> **einmal je Anmeldung** statt bei jedem Aufruf. Geschrieben hat das Feld vorher genau
+> **eine** Stelle, und zwar die falsche: die Passkey-Zeremonie. Bei Anmeldelink und Google
+> SSO blieb es damit für immer «—», obwohl der Anmelde**weg** zwei Zeilen daneben schon
+> aus demselben Token mitgeschrieben wurde; die Uhrzeit dazu wurde weggeworfen. Jetzt
+> `core/auth._sync_user_profile` als **einzige** Schreibstelle (der Wächter zählt sie über
+> das ganze Backend) – und sie deckt jeden Anmeldeweg ab, auch den, den niemand
+> vorhergesehen hat: *sie fragt nicht, wie angemeldet wurde.* Am Passkey bleibt, was ihm
+> gehört (`last_used_at`).
+> Wächter: 3 neue in `test_frontend_mirrors.py` – **sieben Bug-Formen gegengeprüft, jede
+> meldet**. Suite grün gegen die gewachsene Datenbank (601) **und** gegen ein Schema nur
+> aus den Migrationen (609); **keine Migration** in dieser Runde. Gemessen in Chromium an
+> der **echten** Komponente (Karte im `ModuleShell`, Beleg aus den echten Dienstpfaden):
+> Prozessspur 460 · 420 · 380 · 340 · 300 px, **0 px** waagrechter Überlauf; die Zeile
+> liest «Muster Maschinenbau AG · 100009853 · **Zugesagt** · vor 1 Minute · 4'165.63 CHF».
+> *Und die Messung musste zweimal laufen: ein 42-stelliges «unteilbares Wort» **passt** in
+> eine 300-px-Spur – die erste Gegenprobe meldete darum nichts, und das sah aus wie eine
+> blinde Messung. Mit 86 Zeichen meldet sie +77,2 px (460) bis +237,2 px (300).*
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

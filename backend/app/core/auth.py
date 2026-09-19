@@ -1,4 +1,7 @@
 
+from datetime import datetime, timezone
+from typing import Optional
+
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 from fastapi import Depends, HTTPException, Request, status
@@ -35,6 +38,26 @@ def _detect_language(request: Request) -> str:
     header = request.headers.get("accept-language", "")
     tag = header.split(",")[0].split(";")[0].split("-")[0].lower().strip()
     return tag if tag in ("de", "en") else "de"
+
+
+def _auth_time(decoded: dict) -> Optional[datetime]:
+    """**Wann sich diese Person angemeldet hat – laut Firebase.**
+
+    ``auth_time`` ist eine Standard-Angabe im ID-Token: der Moment der **Anmeldung**,
+    nicht der dieser Anfrage. Er bleibt über die ganze Sitzung konstant und überlebt jede
+    Token-Erneuerung – daraus folgt beides, was die Angabe braucht: sie ist **richtig**
+    (ein eigener Zeitstempel im Backend kennt nur die Wege, an die jemand gedacht hat),
+    und sie schreibt **einmal je Anmeldung** statt bei jedem Aufruf.
+
+    Unlesbares wird zu ``None`` statt zu einem Fehler: eine fehlende Auskunft ist
+    hinnehmbar, eine abgewiesene Anmeldung wegen eines Zeitstempels nicht."""
+    raw = decoded.get("auth_time")
+    if raw is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(raw), tz=timezone.utc)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
 
 
 def _no_admin_exists(db: Session) -> bool:
@@ -137,6 +160,18 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
     provider = (decoded.get("firebase") or {}).get("sign_in_provider")
     if provider and user.last_sign_in_provider != provider:
         user.last_sign_in_provider = provider
+        changed = True
+
+    # ►►► **Der letzte Login kommt aus dem TOKEN** (Testnotiz #1040). ◄◄◄
+    # Er stand am Benutzer und war **leer** – geschrieben hat ihn genau eine Stelle
+    # (die Passkey-Zeremonie), und damit blieb er bei Anmeldelink und Google SSO für
+    # immer «—». Der Anmeldeweg daneben wurde hier schon mitgeschrieben; die Uhrzeit
+    # dazu stand zwei Zeilen weiter im selben Token und wurde weggeworfen.
+    # **Eine Stelle, ein Wert** – und sie deckt jeden Anmeldeweg ab, auch den, den
+    # niemand vorhergesehen hat: sie fragt nicht, *wie* angemeldet wurde.
+    signed_in = _auth_time(decoded)
+    if signed_in and user.last_login_at != signed_in:
+        user.last_login_at = signed_in
         changed = True
 
     if changed:

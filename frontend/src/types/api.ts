@@ -1887,8 +1887,6 @@ export interface components {
             company_name?: string | null;
             /** Uid Number */
             uid_number?: string | null;
-            /** Company Billing Email */
-            company_billing_email?: string | null;
             /** Bank Account Holder */
             bank_account_holder?: string | null;
             /** Bank Iban */
@@ -3573,8 +3571,6 @@ export interface components {
             trade_register_canton: string | null;
             /** Company Website */
             company_website: string | null;
-            /** Company Billing Email */
-            company_billing_email: string | null;
             /** Bank Account Holder */
             bank_account_holder: string | null;
             /** Bank Iban */
@@ -3658,8 +3654,6 @@ export interface components {
             company_name?: string | null;
             /** Uid Number */
             uid_number?: string | null;
-            /** Company Billing Email */
-            company_billing_email?: string | null;
             /** Bank Account Holder */
             bank_account_holder?: string | null;
             /** Bank Iban */

@@ -5129,17 +5129,6 @@
             ],
             "title": "Uid Number"
           },
-          "company_billing_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Billing Email"
-          },
           "bank_account_holder": {
             "anyOf": [
               {
@@ -8534,17 +8523,6 @@
             ],
             "title": "Company Website"
           },
-          "company_billing_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Billing Email"
-          },
           "bank_account_holder": {
             "anyOf": [
               {
@@ -8743,7 +8721,6 @@
           "trade_register_nr",
           "trade_register_canton",
           "company_website",
-          "company_billing_email",
           "bank_account_holder",
           "bank_iban",
           "bank_bic",
@@ -9007,17 +8984,6 @@
               }
             ],
             "title": "Uid Number"
-          },
-          "company_billing_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Billing Email"
           },
           "bank_account_holder": {
             "anyOf": [

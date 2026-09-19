@@ -33,7 +33,6 @@ interface Form {
   // Firma (nur Lieferant)
   company_name: string;
   uid_number: string;
-  company_billing_email: string;
   // Adresse
   address_line1: string;
   address_line2: string;
@@ -64,7 +63,6 @@ function buildForm(p: UserProfile): Form {
     phone: p.phone ?? '',
     company_name: p.company_name ?? '',
     uid_number: p.uid_number ?? '',
-    company_billing_email: p.company_billing_email ?? '',
     address_line1: p.address_line1 ?? '',
     address_line2: p.address_line2 ?? '',
     postal_code: p.postal_code ?? '',
@@ -118,7 +116,6 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
       if (!isSupplier) {
         delete data.company_name;
         delete data.uid_number;
-        delete data.company_billing_email;
       }
       // «Gleich wie Lieferadresse»: die Rechnungsfelder werden aus der Adresse gespiegelt,
       // damit Rechnung/Versand nie auseinanderlaufen (EIN Datensatz, eine Wahrheit).

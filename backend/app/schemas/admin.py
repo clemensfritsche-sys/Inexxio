@@ -202,7 +202,6 @@ class UserProfileResponse(BaseModel):
     trade_register_nr: Optional[str]
     trade_register_canton: Optional[str]
     company_website: Optional[str]
-    company_billing_email: Optional[str]
 
     # Supplier bank details
     bank_account_holder: Optional[str]
@@ -259,9 +258,11 @@ class UserProfileUpdate(BaseModel):
     invoice_same_as_shipping: Optional[bool] = None
 
     # Business / company info (supplier-visible fields)
+    # ►►► **Die Rechnungs-E-Mail gibt es genau EINMAL** (#1039): `invoice_email`, oben bei
+    # der Rechnungsadresse. Ein zweites Feld daneben («Rechnungs-E-Mail (Firma)») stellte
+    # dieselbe Frage, und gelesen wurde nur das erste. ◄◄◄
     company_name: Optional[str] = None
     uid_number: Optional[str] = None
-    company_billing_email: Optional[str] = None
 
     # Supplier bank details
     bank_account_holder: Optional[str] = None

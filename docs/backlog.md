@@ -272,3 +272,17 @@ Beleg, den sie korrigiert (`reverses_id` und «Korrektur zu …»).
 Die **Spalte steht noch** (Migration `137` hat sie angelegt) und wird von keiner Zeile
 Code mehr gelesen oder geschrieben. Sie fällt im Folge-Deploy – Zwei-Deploy-Regel;
 bestehende Werte sind bis dahin lesbar, falls jemand sie noch braucht.
+
+## Folge-Deploy: `user_profiles.company_billing_email`
+
+Die Rechnungs-E-Mail gab es **zweimal** (Testnotiz #1039): `invoice_email` bei der
+Rechnungsadresse und `company_billing_email` in den Firmendaten des Lieferanten.
+Dieselbe Frage, zwei Felder – und welches gilt, konnte niemand beantworten. **Gelesen**
+wurde ohnehin nur das erste (`voucher.billing_of`), also ist das zweite ersatzlos
+entfallen: Formular (ERP **und** Konto), Nutzlast, `UserProfileResponse`,
+`UserProfileUpdate` und das ORM-Mapping.
+
+Die **Spalte steht noch** (Migration `001` hat sie angelegt) und wird von keiner Zeile
+Code mehr gelesen oder geschrieben. Sie fällt im Folge-Deploy – Zwei-Deploy-Regel;
+bestehende Werte sind bis dahin lesbar, falls jemand eine abweichende Adresse von Hand
+nach `invoice_email` übernehmen will.
