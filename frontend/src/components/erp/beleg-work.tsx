@@ -562,7 +562,7 @@ function DocHead({ d, busy, orderObjectId, stepId, onAction, onAsk }: {
             storniert · {when(d.cancelled_on)}
           </span>
         )}
-        <Correction d={d} busy={busy} orderObjectId={orderObjectId} stepId={stepId}
+        <Correction d={d} orderObjectId={orderObjectId} stepId={stepId}
           onAction={onAction} />
         <Parties d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
         <Gaps rows={d.gaps ?? []} />
@@ -596,11 +596,15 @@ function DocHead({ d, busy, orderObjectId, stepId, onAction, onAsk }: {
  */
 const NO_CORRECTION = '';
 
-function Correction({ d, busy, orderObjectId, stepId, onAction }: {
-  d: Filled; busy: boolean; orderObjectId: number; stepId: number; onAction: Send;
+function Correction({ d, orderObjectId, stepId, onAction }: {
+  d: Filled; orderObjectId: number; stepId: number; onAction: Send;
 }) {
   const [options, setOptions] = useState<VoucherCorrectable[] | null>(null);
-  const on = may(d, 'correct') && !busy;
+  // ►►► **`busy` gehört hier NICHT hinein** (Testnotiz #1016). ◄◄◄ Hinge die
+  // Auszeichnung am Speichern, verschwände sie mitten im Vorgang – und mit ihr die
+  // Untergrenze `MIN_PICK`: die Zeile schrumpfte und sprang zurück. `busy` sperrt
+  // Handlungen, nie Geometrie; dieselbe Regel wie am Währungs-Wähler.
+  const on = may(d, 'correct');
   useEffect(() => {
     if (!on) return;
     let stale = false;

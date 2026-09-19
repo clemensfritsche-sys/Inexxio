@@ -9241,6 +9241,23 @@ def test_a_save_never_hides_a_control_in_the_party_block():
             f"Eine Handlung des Chips hängt wieder am Speichern (a): «{form}» – damit "
             f"verschwindet ein Knopf mitten im Vorgang und die Reihe fliesst neu."
         )
+    # ►►► **Und die Regel gilt der ganzen KARTE, nicht diesem einen Block.** ◄◄◄ Sie ist
+    # zweimal gebrochen worden – einmal an den Chips (#1016), einmal am Korrektur-Verweis,
+    # dessen Auszeichnung samt ihrer Mindestbreite (`MIN_PICK`) beim Speichern verschwand
+    # und die Zeile schrumpfen liess. `busy` sperrt **Handlungen** (`disabled`) und pausiert
+    # das Speichern selbst; es entscheidet nie, **ob** etwas dasteht.
+    #
+    # *Gelesen wird ein **Fenster** vor der Fundstelle, nicht die Zeile: ein
+    # `useAutosave(…)`-Aufruf bricht um, und ein zeilenweiser Wächter meldete
+    # ausgerechnet seine Fortsetzung (gemessen, nachgeschärft).*
+    allowed = ("useAutosave(", "const ready =")
+    code = _code(src)
+    for m in re.finditer(r"!busy", code):
+        window = code[max(0, m.start() - 160):m.start()]
+        assert any(a in window for a in allowed), (
+            f"«{code[m.start() - 40:m.start() + 40].strip()}»: `busy` entscheidet wieder, "
+            f"ob etwas gezeichnet wird (a) – das verschiebt die Zeile unter dem Zeiger."
+        )
     chip = _code(_component(src, "Chip"))
     assert "opacity: busy" in chip, (
         "Der Chip meldet das Speichern nicht über die Deckkraft (b)."
