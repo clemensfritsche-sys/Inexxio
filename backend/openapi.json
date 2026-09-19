@@ -2478,22 +2478,6 @@
               "type": "integer",
               "title": "Step Id"
             }
-          },
-          {
-            "name": "charge",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Charge"
-            }
           }
         ],
         "responses": {
@@ -2593,7 +2577,7 @@
           "orders"
         ],
         "summary": "Voucher Transfer Details",
-        "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar\nKilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.",
+        "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar\nKilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.\n\n*Ein ``entry``-Parameter stand hier einmal: welche Rechnung gemeint ist. Es gibt\neine, und sie ist der Beleg.*",
         "operationId": "voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get",
         "security": [
           {
@@ -2618,15 +2602,6 @@
               "type": "integer",
               "title": "Step Id"
             }
-          },
-          {
-            "name": "entry",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Entry"
-            }
           }
         ],
         "responses": {
@@ -2636,6 +2611,67 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransferInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/correctable": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Voucher Correctable",
+        "description": "►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄\n\nDas ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware\n**zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle\nAufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert\nkeine fremde Forderung und das Geld fliesst nicht andersherum.\n\n**Personal-only**: es ist eine Liste fremder Belege desselben Partners.",
+        "operationId": "voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VoucherCorrectable"
+                  },
+                  "title": "Response Voucher Correctable Api V1 Erp Orders  Object Id  Steps  Step Id  Voucher Correctable Get"
                 }
               }
             }
@@ -9152,11 +9188,98 @@
         "title": "VatShare",
         "description": "Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl."
       },
-      "VoucherAllocationIn": {
+      "VoucherCorrectable": {
         "properties": {
-          "charge_id": {
+          "id": {
             "type": "integer",
-            "title": "Charge Id"
+            "title": "Id"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "billed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billed On"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "VoucherCorrectable",
+        "description": "**Ein Beleg, den dieser hier mindern könnte** – die Auswahl der Korrektur.\n\nEr steht in der Regel in einem **anderen Auftrag**; darum reist dessen Objektnummer\nmit, sonst stünden mehrere Zeilen mit derselben Rechnungsnummer-Form nebeneinander\nund niemand wüsste, welche gemeint ist."
+      },
+      "VoucherCorrects": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "billed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billed On"
           },
           "amount": {
             "anyOf": [
@@ -9172,29 +9295,10 @@
         },
         "type": "object",
         "required": [
-          "charge_id"
+          "id"
         ],
-        "title": "VoucherAllocationIn",
-        "description": "Ein Teil einer **Sammelzahlung**: welcher Beleg, wie viel."
-      },
-      "VoucherAllocationOut": {
-        "properties": {
-          "charge_id": {
-            "type": "integer",
-            "title": "Charge Id"
-          },
-          "amount": {
-            "type": "string",
-            "title": "Amount"
-          }
-        },
-        "type": "object",
-        "required": [
-          "charge_id",
-          "amount"
-        ],
-        "title": "VoucherAllocationOut",
-        "description": "**Wie viel dieser Zahlung auf WELCHEN Beleg geht** – eine Zeile der Aufteilung."
+        "title": "VoucherCorrects",
+        "description": "**Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört.\n\nMWSTG Art. 26 verlangt, dass Leistung und Entgelt eindeutig bestimmbar sind; ohne den\nVerweis wäre eine Gutschrift eine zweite Rechnung mit negativem Vorzeichen. Nummer und\nBetrag reisen mit, damit der Satz ohne einen zweiten Aufruf dasteht."
       },
       "VoucherEmbed": {
         "properties": {
@@ -9470,6 +9574,16 @@
             "title": "Refund Online Word",
             "default": ""
           },
+          "issue_word": {
+            "type": "string",
+            "title": "Issue Word",
+            "default": ""
+          },
+          "unbill_word": {
+            "type": "string",
+            "title": "Unbill Word",
+            "default": ""
+          },
           "prepaid": {
             "type": "boolean",
             "title": "Prepaid",
@@ -9516,17 +9630,6 @@
             "type": "array",
             "title": "Ways"
           },
-          "settle_charge": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Settle Charge"
-          },
           "method_label": {
             "type": "string",
             "title": "Method Label",
@@ -9546,6 +9649,11 @@
           "write_off_word": {
             "type": "string",
             "title": "Write Off Word",
+            "default": ""
+          },
+          "write_off_note": {
+            "type": "string",
+            "title": "Write Off Note",
             "default": ""
           },
           "allowed": {
@@ -9776,22 +9884,6 @@
             ],
             "title": "Uncharged"
           },
-          "credit_only": {
-            "type": "boolean",
-            "title": "Credit Only",
-            "default": false
-          },
-          "next_charge": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Charge"
-          },
           "next_payment": {
             "anyOf": [
               {
@@ -9807,6 +9899,36 @@
             "type": "boolean",
             "title": "Settled",
             "default": false
+          },
+          "invoice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherInvoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrects": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherCorrects"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrects_label": {
+            "type": "string",
+            "title": "Corrects Label",
+            "default": ""
+          },
+          "corrects_hint": {
+            "type": "string",
+            "title": "Corrects Hint",
+            "default": ""
           },
           "entries": {
             "items": {
@@ -9826,10 +9948,6 @@
             "type": "integer",
             "title": "Id"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "amount": {
             "type": "string",
             "title": "Amount"
@@ -9845,18 +9963,6 @@
               }
             ],
             "title": "Booked On"
-          },
-          "due_on": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due On"
           },
           "reference": {
             "anyOf": [
@@ -9879,64 +9985,6 @@
               }
             ],
             "title": "Note"
-          },
-          "overdue": {
-            "type": "boolean",
-            "title": "Overdue",
-            "default": false
-          },
-          "vat": {
-            "items": {
-              "$ref": "#/components/schemas/VatShare"
-            },
-            "type": "array",
-            "title": "Vat"
-          },
-          "service_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Service Date"
-          },
-          "reverses": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reverses"
-          },
-          "reversed": {
-            "type": "boolean",
-            "title": "Reversed",
-            "default": false
-          },
-          "charge_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Id"
-          },
-          "allocations": {
-            "items": {
-              "$ref": "#/components/schemas/VoucherAllocationOut"
-            },
-            "type": "array",
-            "title": "Allocations"
           },
           "booked_at": {
             "anyOf": [
@@ -9972,7 +10020,23 @@
             ],
             "title": "Method Label"
           },
-          "reverse_word": {
+          "refundable": {
+            "type": "boolean",
+            "title": "Refundable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "amount"
+        ],
+        "title": "VoucherEntryOut",
+        "description": "**Eine Zahlung** – und nur noch das.\n\nDie Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,\nund sie *ist* der Beleg. Damit sind ``kind`` · ``due_on`` · ``vat`` ·\n``service_date`` · ``reverses``/``reversed`` · ``charge_id`` · ``allocations`` ·\n``reverse_word`` · ``open`` und die drei Zustandsfelder **ersatzlos entfallen** –\njedes von ihnen beschrieb eine Rechnung, die hier keine mehr ist."
+      },
+      "VoucherInvoice": {
+        "properties": {
+          "number": {
             "anyOf": [
               {
                 "type": "string"
@@ -9981,9 +10045,45 @@
                 "type": "null"
               }
             ],
-            "title": "Reverse Word"
+            "title": "Number"
           },
-          "open": {
+          "billed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billed On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "issued_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued On"
+          },
+          "amount": {
             "anyOf": [
               {
                 "type": "string"
@@ -9992,7 +10092,31 @@
                 "type": "null"
               }
             ],
-            "title": "Open"
+            "title": "Amount"
+          },
+          "vat": {
+            "items": {
+              "$ref": "#/components/schemas/VatShare"
+            },
+            "type": "array",
+            "title": "Vat"
+          },
+          "service_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Date"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "default": false
           },
           "state": {
             "anyOf": [
@@ -10026,21 +10150,11 @@
               }
             ],
             "title": "State Tone"
-          },
-          "refundable": {
-            "type": "boolean",
-            "title": "Refundable",
-            "default": false
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "kind",
-          "amount"
-        ],
-        "title": "VoucherEntryOut",
-        "description": "**Eine Zeile Geld** – eine Forderung oder eine Zahlung."
+        "title": "VoucherInvoice",
+        "description": "►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄\n\nHier stand ``VoucherAllocationOut`` und darunter eine Geld-Zeile, die *entweder* eine\nForderung *oder* eine Zahlung war: Betrag, Steuer, Nummer, Datum und Fälligkeit\nstanden damit auf **beiden** Ebenen, und die Oberfläche musste aus einer Liste\nheraussuchen, welche Zeile *die* Rechnung ist.\n\nJetzt ist es **ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort\nauf «gibt es hier eine Rechnung?». Zweimal vorkommen kann sie nicht mehr; niemand\nzählt es, es ist die **Struktur**."
       },
       "VoucherLineOut": {
         "properties": {
@@ -10595,18 +10709,6 @@
             ],
             "title": "Booked On"
           },
-          "due_on": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due On"
-          },
           "entry": {
             "anyOf": [
               {
@@ -10618,7 +10720,31 @@
             ],
             "title": "Entry"
           },
-          "charge_id": {
+          "billed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billed On"
+          },
+          "issued_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued On"
+          },
+          "corrects": {
             "anyOf": [
               {
                 "type": "integer"
@@ -10627,21 +10753,7 @@
                 "type": "null"
               }
             ],
-            "title": "Charge Id"
-          },
-          "allocations": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/VoucherAllocationIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Allocations"
+            "title": "Corrects"
           },
           "lines": {
             "anyOf": [
@@ -10729,7 +10841,7 @@
           "action"
         ],
         "title": "VoucherUpdate",
-        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden\n             nennt; **nicht** dasselbe wie ``ask`` (#1000)\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``charge``   eine **Forderung** buchen (negativ = Gutschrift)\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden\n             nennt; **nicht** dasselbe wie ``ask`` (#1000)\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)\n``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist\n``unbill``   sie zurücknehmen, solange sie im Haus ist (nicht versendet, nichts\n             geflossen) – die Gegenhandlung zu ``bill``\n``issue``    *«Rechnung ist versendet»* – danach unveränderlich\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
       },
       "VoucherWay": {
         "properties": {

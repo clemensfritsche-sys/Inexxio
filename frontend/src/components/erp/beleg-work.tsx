@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {
-  TransferInfo, VoucherEmbed, VoucherParty, VoucherQuoteOut, VoucherSide,
+  TransferInfo, VoucherCorrectable, VoucherEmbed, VoucherParty, VoucherQuoteOut,
+  VoucherSide,
 } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -114,6 +115,20 @@ function may(d: Filled, action: string): boolean {
   return d.can.includes(action);
 }
 
+/**
+ * ►►► **Eine Aussage mitten im Satz beginnt klein — das erste Zeichen, nicht alles.** ◄◄◄
+ *
+ * `when()` liefert «In 30 Tagen» ebenso wie «12. Sep.»; hinter «fällig» gehört das eine
+ * klein, das andere unverändert. `toLowerCase()` über die ganze Zeichenkette machte
+ * daraus «fällig 12. sep.» – ein Monatsname, den es so nicht gibt.
+ *
+ * Gesenkt wird darum genau das erste Zeichen: bei einer Ziffer ändert sich nichts, bei
+ * «In» / «Heute» / «Vor» genau das, was gemeint war.
+ */
+function lower(text: string): string {
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
 /** Das Vorzeichen drehen – die Vorbelegung einer Korrektur bzw. Erstattung. */
 function negate(amount: string): string {
   const clean = amount.trim();
@@ -153,7 +168,8 @@ export function BelegWork({
 
   return (
     <div className="flex flex-col" style={{ minWidth: 0 }}>
-      <DocHead d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
+      <DocHead d={d} busy={busy} orderObjectId={orderObjectId} stepId={stepId}
+        onAction={onAction} onAsk={onAsk} />
       <Goods d={d} busy={busy} onAction={onAction} />
       <Terms d={d} busy={busy} onAction={onAction} />
       <Quotes d={d} busy={busy} active={active} onAsk={onAsk} onAction={onAction} />
@@ -533,8 +549,9 @@ const PARTY_ROWS = 8;
  * gefordert, und «Offen 0.00» liest sich wie «bezahlt»; er steht an der Rechnung) und die
  * **Vorauszahlungs-Pille** (#924/#925 – das sagt die Zahlungsfrist, wo man sie ändert).
  */
-function DocHead({ d, busy, onAction, onAsk }: {
-  d: Filled; busy: boolean; onAction: Send; onAsk: Ask;
+function DocHead({ d, busy, orderObjectId, stepId, onAction, onAsk }: {
+  d: Filled; busy: boolean; orderObjectId: number; stepId: number;
+  onAction: Send; onAsk: Ask;
 }) {
   return (
     <ModuleSection first>
@@ -545,10 +562,83 @@ function DocHead({ d, busy, onAction, onAsk }: {
             storniert · {when(d.cancelled_on)}
           </span>
         )}
+        <Correction d={d} busy={busy} orderObjectId={orderObjectId} stepId={stepId}
+          onAction={onAction} />
         <Parties d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
         <Gaps rows={d.gaps ?? []} />
       </div>
     </ModuleSection>
+  );
+}
+
+/**
+ * ►►► **«Korrektur zu …» — der Verweis, der auf das PAPIER gehört.** ◄◄◄
+ *
+ * *«Gerade bei Retouren wäre der Warenverkehr getrennt von der monetären Abwicklung. Ich
+ * müsste im originalen Zahlungsmodul stornieren – aber dort, wo das Geschehen ist, soll
+ * ich es auch abwickeln können.»*
+ *
+ * Genau das ist diese eine Zeile. Wo sie steht, **mindert** der Beleg den genannten: sein
+ * Betrag wird negativ gespeichert, seine Steuer gespiegelt – und die **Positionen tragen
+ * positive Preise**, niemand tippt ein Minus. MWSTG Art. 26 verlangt, dass Leistung und
+ * Entgelt eindeutig bestimmbar sind; ohne den Verweis wäre eine Gutschrift eine zweite
+ * Rechnung mit negativem Vorzeichen.
+ *
+ * ►►► **Und die genannte Rechnung steht in einem ANDEREN Auftrag.** ◄◄◄ Das ist der Sinn:
+ * die Gutschrift gehört dorthin, wo die Ware zurückkommt. Dort entstehen ihre Positionen
+ * **von selbst** aus den zurückkommenden Stücken – die Warenlogik ist damit die
+ * Mengenkontrolle des Geldes, und man kann nicht mehr zurücknehmen, als geliefert wurde.
+ *
+ * **Die Liste kommt erst auf Klick** (`voucherCorrectable`): sie geht über alle Aufträge
+ * desselben Partners, und sie interessiert genau dann, wenn jemand wirklich korrigiert.
+ * Die erste Zeile ist **«keine»** – eine Wahl, die man nicht wählen kann, ist keine
+ * (#734–#736).
+ */
+const NO_CORRECTION = '';
+
+function Correction({ d, busy, orderObjectId, stepId, onAction }: {
+  d: Filled; busy: boolean; orderObjectId: number; stepId: number; onAction: Send;
+}) {
+  const [options, setOptions] = useState<VoucherCorrectable[] | null>(null);
+  const on = may(d, 'correct') && !busy;
+  useEffect(() => {
+    if (!on) return;
+    let stale = false;
+    void api.voucherCorrectable(orderObjectId, stepId)
+      .then((r) => { if (!stale) setOptions(r); })
+      .catch(() => { if (!stale) setOptions([]); });
+    return () => { stale = true; };
+  }, [on, orderObjectId, stepId]);
+
+  // **Gibt es nichts zu korrigieren und ist nichts gesetzt, gibt es die Zeile nicht.**
+  // Ein Wähler ohne Wahl ist eine Frage, die niemand beantworten kann.
+  if (!d.corrects && (!on || (options != null && options.length === 0))) return null;
+
+  const label = (r: VoucherCorrectable) => [
+    r.number ?? `Beleg ${r.id}`,
+    r.amount ? `${r.amount} ${r.currency}` : null,
+    r.order_object_id ? `Auftrag ${r.order_object_id}` : null,
+  ].filter(Boolean).join(' · ');
+  const text = d.corrects
+    ? [d.corrects.number ?? `Beleg ${d.corrects.id}`,
+       d.corrects.billed_on ? day(d.corrects.billed_on) : null]
+      .filter(Boolean).join(' · ')
+    : '—';
+
+  return (
+    <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
+      <span style={MICRO_LABEL}>{d.corrects_label || 'Korrektur zu'}</span>
+      <DocPick on={on} value={d.corrects ? String(d.corrects.id) : NO_CORRECTION}
+        text={text} aria={d.corrects_label || 'Korrektur zu'}
+        tip={d.corrects_hint ?? undefined}
+        face={{ fontSize: 12.5, color: 'var(--fg-2)' }}
+        options={[{ value: NO_CORRECTION, label: 'keine' },
+                  ...(options ?? []).map((r) => ({ value: String(r.id),
+                                                   label: label(r) }))]}
+        onChange={(v) => void onAction({
+          action: 'correct', corrects: v === NO_CORRECTION ? null : Number(v),
+        })} />
+    </span>
   );
 }
 
@@ -1850,46 +1940,47 @@ const WAIT_TRIES = 10;
 const WAIT_STEP = 1500;
 
 /**
- * ►►► **ZWEI FÄCHER, EINE HANDLUNG, EINE WAHL** — der Umbau von «Rechnung & Zahlung». ◄◄◄
+ * ►►► **ZWEI FÄCHER, EINE HANDLUNG, EINE WAHL** — und die Rechnung IST der Beleg. ◄◄◄
  *
  * *«Zu komplex, zu unstrukturiert, zu wirr, zu viele Optionen, die sich gegeneinander
  * stören, kannibalisieren.»*
  *
- * Gezählt, nicht vermutet: an einer Rechnung standen bis zu **sechs** gleich aussehende
- * Knöpfe, und sie bedeuteten **drei** verschiedene Dinge – eine Buchung («Rechnung
- * erfassen»), eine Korrektur («Stornieren») und eine blosse **Auskunft** («Überweisen»
- * zeigt IBAN und QR und bucht gar nichts). Dazu standen **zwei Rollen** in einer Zeile:
- * «Rechnung erfassen» ist unsere Handlung, «Jetzt bezahlen» die des Zahlenden – jeder sah
- * Knöpfe, die ihm nicht gehören. Und einen **Fortschritt** gab es nicht, obwohl es drei
- * klare Zustände gibt (nichts gefordert → gefordert → bezahlt).
- *
- * Drei Regeln räumen das auf:
+ * Drei Regeln räumen das auf, und die dritte ist seit dem Umbau eine **Struktur** statt
+ * einer Vereinbarung:
  *
  * **(1) Zwei Fächer statt einer Knopfreihe.** Es sind nur zwei Fragen, und jede gehört
- * genau einer Seite: **Fordern** – *was schuldet uns jemand?* (uns: stellen, stornieren,
- * gutschreiben) – und **Begleichen** – *wie kommt das Geld hierher?* (dem Zahlenden: bar,
+ * genau einer Seite: **Fordern** – *was schuldet uns jemand?* (uns: stellen, zurücknehmen,
+ * versenden) – und **Begleichen** – *wie kommt das Geld hierher?* (dem Zahlenden: bar,
  * Überweisung, Karte). Beide sind ein ganz gewöhnlicher `ModuleSection` und tragen damit
- * denselben Fortschritts-Punkt wie jeder andere Abschnitt des Belegs. Dazwischen die
- * Zeile «Offen».
+ * denselben Fortschritts-Punkt wie jeder andere Abschnitt des Belegs.
  *
- * **(2) Genau eine Handlung bringt weiter** – unten, breit, als `StageAction`: *Rechnung
- * stellen* → *Zahlung erfassen* → nichts mehr. Alles andere ist eine **Korrektur** und
- * steht klein bei der Zeile, die sie korrigiert; nie im selben Rang.
+ * **(2) Genau eine Handlung bringt jedes Fach weiter** – unten, breit, als `StageAction`:
+ * *Rechnung stellen* → *Rechnung ist versendet* im einen, *Zahlung erfassen* bzw. *Jetzt
+ * bezahlen* im anderen. Alles andere ist eine **Korrektur** und steht klein bei der
+ * Zeile, die sie korrigiert. **Und sie überlappen nicht**: kassiert wird erst auf eine
+ * Rechnung, die draussen ist – das sagt `can`, nicht diese Datei.
  *
  * **(3) Der Weg zum Geld ist eine Wahl, kein Verb** – ein Schieber statt dreier Knöpfe.
- * Was dahinter passiert, ist verschieden (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen),
- * die **Frage** ist dieselbe. Welche Antworten es gibt, sagt der Server (`ways`) – aus
- * `can`, der Liste, die ohnehin Auskunft **und** Tor ist.
+ * Welche Antworten es gibt, sagt der Server (`ways`).
  *
- * **Und alles hängt weiter an `can`, nicht an «ist dran»**: ein Zahlungsziel läuft weiter,
- * wenn die Ware längst draussen ist. Eine erfundene Sperre hätte keinen Schlüssel –
- * dieselbe Fehlerform wie damals bei «nicht bestanden».
+ * ►►► **Und es gibt hier keine Liste aus Forderungen mehr.** ◄◄◄
+ *
+ * Bis hierher stand im Fach «Fordern» eine Liste von Geld-Zeilen, aus der die Karte
+ * heraussuchen musste, welche davon *die* Rechnung ist (`kind === 'charge'`, nicht
+ * storniert, nicht Gegenbuchung, nicht negativ) – und daneben eine zweite Liste für die
+ * Zahlungen. Die Rechnung **ist** jetzt der Beleg (`d.invoice`): eine Zeile oder keine,
+ * und `null` ist die vollständige Antwort auf «gibt es eine?».
+ *
+ * Damit sind `negate()` an der Forderung, der Zustandspunkt je Rechnung, der
+ * «Korrigieren»-Knopf an ihr und die Aufteilungs-Eingabe **ersatzlos entfallen**. Was
+ * eine gestellte Rechnung mindert, ist ein **eigener Beleg in einem eigenen Modul** – er
+ * steht dort, wo die Ware zurückkommt.
  */
 function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   d: Filled; busy: boolean; orderObjectId: number; stepId: number;
   onAction: Send; onPaid: () => void;
 }) {
-  const [form, setForm] = useState<{ kind: 'charge' | 'pay'; preset: string;
+  const [form, setForm] = useState<{ kind: 'bill' | 'pay'; preset: string;
                                      method?: string } | null>(null);
   const [card, setCard] = useState(false);
   // **Die gewählte Antwort ist eine ABLEITUNG, kein zweiter Zustand**: fällt der Weg weg
@@ -1912,30 +2003,13 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   }, [waiting, onPaid]);
   useEffect(() => { setWaiting(0); }, [paid]);
 
-  // ►►► **«Online erstatten» sagt jetzt, was daraus wurde** (Testnotiz #1013). ◄◄◄
-  //
-  // *«Der Button ‹Online erstatten› hat keine Wirkung.»* – Zwei Ursachen, beide hier:
-  //
-  // **(1) Der Fehler wurde verschluckt.** Der Aufruf endete auf `.catch(() => {})` – ein
-  // 409 des Zahlungsdienstes («schon erstattet», «Belastung zu alt») kam damit nirgends
-  // an, und der Knopf sah aus, als täte er nichts. **Ein stiller Nicht-Effekt ist
-  // schlimmer als ein Fehler** – die Regel steht wörtlich in `record_payment`.
-  //
-  // **(2) Gebucht wird vom Webhook, nicht vom Aufruf.** Wie bei der Bezahlkarte meldet
-  // der Dienst `charge.refunded`, und **dann** entsteht die Zeile. Ein einzelnes Neuladen
-  // direkt danach zeigt darum verlässlich – nichts. Nachgefragt wird jetzt mit derselben
-  // Mechanik wie bei einer Zahlung (`WAIT_TRIES`/`WAIT_STEP`), und sie endet an der
-  // **Zeile**, nicht an einer Uhr: bleibt die Meldung aus, steht der Hinweis da, statt
-  // eine Buchung zu behaupten.
-  //
-  // ►►► **Und sie lässt sich nicht zweimal auslösen** (Testnotiz #1018). ◄◄◄
-  //
-  // *«Der Button lässt sich mehrfach drücken, dann erscheint ein technischer Fehlertext
-  // des Zahlungsdienstes.»* – Die Ebene hier ist die **dritte** von dreien (Rest im
-  // Dienst · Idempotenz beim Dienst · Knopf): ab dem Klick ist er zu, und er bleibt es.
-  // Dass er danach **ganz verschwindet**, sagt der Server (`e.refundable`) – aber
-  // zwischen Klick und Buchung liegt die Meldung des Webhooks, und in diesem Fenster
-  // sagt niemand etwas. Eine Zeile lokal ist genau dieses Fenster.
+  // ►►► **«Online erstatten» sagt, was daraus wurde** (Testnotizen #1013/#1018). ◄◄◄ Der
+  // Aufruf endete einmal auf `.catch(() => {})`, und gebucht wird ohnehin erst, wenn der
+  // Dienst es meldet – ein einzelnes Neuladen zeigt darum verlässlich nichts. Nachgefragt
+  // wird mit derselben Mechanik wie bei einer Zahlung, und ab dem Klick ist der Knopf zu:
+  // dass er danach **ganz verschwindet**, sagt der Server (`e.refundable`), aber zwischen
+  // Klick und Buchung liegt die Meldung des Webhooks, und in diesem Fenster sagt niemand
+  // etwas.
   const [sent, setSent] = useState<number[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const refund = useCallback(async (entryId: number) => {
@@ -1954,121 +2028,118 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
     }
   }, [orderObjectId, stepId, onPaid]);
 
-  const charges = d.entries.filter((e) => e.kind === 'charge');
-  const payments = d.entries.filter((e) => e.kind === 'payment');
-  const settle = d.settle_charge ?? null;
-  const canCharge = may(d, 'charge') && !d.credit_only;
+  const invoice = d.invoice ?? null;
+  const payments = d.entries;
 
-  // ►►► **Genau EINE Handlung bringt weiter** (Regel 2) – und welche, sagen die Daten:
-  // erst fordern, dann kassieren. Alles andere ist eine Korrektur und steht bei ihrer
-  // Zeile. Ein Rang, den die Oberfläche selbst vergäbe, wäre die zweite Regel neben `can`.
-  const forward = canCharge
+  // ►►► **Fach «Fordern»: stellen → versenden → nichts mehr.** ◄◄◄ Wo **wir** den Preis
+  // nennen, ist der Betrag die Summe der Positionen – dann gibt es nichts zu fragen, und
+  // die Handlung geht direkt hinaus. Wo **er** ihn nennt, schreiben wir seine Rechnung ab,
+  // und dafür braucht es ein Formular.
+  const claimAction = may(d, 'bill')
     ? { icon: FileText, label: d.charge_word,
-        run: () => setForm({ kind: 'charge', preset: d.next_charge ?? '' }) }
-    : way?.action === 'pay' && way.verb
-      ? { icon: Wallet, label: way.verb,
-          run: () => setForm({ kind: 'pay', preset: d.next_payment ?? '',
-                               method: way.key }) }
-      : way?.action === 'pay_online'
-        ? { icon: CreditCard, label: way.verb ?? d.pay_online_word,
-            run: () => setCard(true) }
-        : null;
+        run: () => (d.we_quote
+          ? void onAction({ action: 'bill' })
+          : setForm({ kind: 'bill', preset: d.amount ?? '' })) }
+    : may(d, 'issue')
+      ? { icon: Send, label: d.issue_word || 'Rechnung ist versendet',
+          run: () => void onAction({ action: 'issue' }) }
+      : null;
 
-  /**
-   * ►►► **Die Handlung steht in dem Fach, zu dem sie gehört** (Testnotiz #1001). ◄◄◄
-   *
-   * *«Eine erfasste Teilzahlung schiebt sich zwischen die Zahlungsart-Buttons und den
-   * Button ‹Zahlung erfassen›.»* – Und das stimmte: die eine Handlung stand **unter
-   * beiden** Abschnitten, also hinter allem, was in ihnen wächst. Jede neue Zahlung
-   * rückte sie weiter weg von der Wahl, zu der sie gehört.
-   *
-   * Sie ist damit keine Fusszeile der Karte, sondern der **Abschluss ihres Fachs**:
-   * *Rechnung stellen* gehört zu «Fordern», *Zahlung erfassen* und *Jetzt bezahlen* zu
-   * «Begleichen». Dort steht sie zuunterst – nach den erfassten Zeilen und direkt unter
-   * der Zahlungsart, mit der sie eine Einheit bildet.
-   */
-  const formBody = form && (
-    <div style={{ marginTop: 2 }}>
-      <Entry kind={form.kind} d={d} busy={busy} preset={form.preset}
-        method={form.method ?? null} chargeId={settle}
-        onCancel={() => setForm(null)}
-        onSubmit={(body) => { setForm(null); void onAction(body); }} />
-    </div>
-  );
-  const actionBody = forward && (
-    <div style={{ marginTop: 2 }}>
-      <StageAction icon={forward.icon} label={forward.label} disabled={busy}
-        onClick={forward.run} />
-    </div>
-  );
-  const slot = (kind: 'charge' | 'pay') => {
-    if (form) return form.kind === kind ? formBody : null;
-    return (kind === 'charge') === canCharge ? actionBody : null;
+  // ►►► **Fach «Begleichen»: was der gewählte Weg auslöst.** ◄◄◄ Jeder Weg sagt es selbst
+  // (`action`/`verb`); beides leer heisst *reine Auskunft*, und dann steht dort kein
+  // Knopf, der nach Buchung aussieht.
+  const settleAction = way?.action === 'pay' && way.verb
+    ? { icon: Wallet, label: way.verb,
+        run: () => setForm({ kind: 'pay', preset: d.next_payment ?? '',
+                             method: way.key }) }
+    : way?.action === 'pay_online'
+      ? { icon: CreditCard, label: way.verb ?? d.pay_online_word,
+          run: () => setCard(true) }
+      : null;
+
+  const slot = (kind: 'bill' | 'pay') => {
+    if (form) {
+      return form.kind === kind ? (
+        <div style={{ marginTop: 2 }}>
+          <Entry kind={form.kind} d={d} busy={busy} preset={form.preset}
+            method={form.method ?? null}
+            onCancel={() => setForm(null)}
+            onSubmit={(body) => { setForm(null); void onAction(body); }} />
+        </div>
+      ) : null;
+    }
+    const act = kind === 'bill' ? claimAction : settleAction;
+    return act && (
+      <div style={{ marginTop: 2 }}>
+        <StageAction icon={act.icon} label={act.label} disabled={busy}
+          onClick={act.run} />
+      </div>
+    );
   };
 
   /**
    * ►►► **Kleinbetragstoleranz — angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo unter
-   * einem Franken darf als **Differenz ausgebucht** werden: eine ganz gewöhnliche
-   * negative Forderung – kein neuer Mechanismus und **kein Automatismus**. Wer
-   * automatisch ausbucht, verliert die eine Zeile, an der man später sieht, dass jemand
-   * entschieden hat; und «unter einem Franken» wäre als stille Regel die Stelle, an der
-   * ein systematischer Fehler nie auffällt.
+   * einem Franken darf als **Differenz ausgebucht** werden – als ganz gewöhnliche Zahlung
+   * mit Gegenvorzeichen und dem Vermerk «Rundungsdifferenz». Kein neuer Mechanismus und
+   * **kein Automatismus**: wer automatisch ausbucht, verliert die eine Zeile, an der man
+   * später sieht, dass jemand entschieden hat.
    *
-   * **Ob die Lage vorliegt, sagt der Server** (`write_off`, `Balance.write_off`) – samt
-   * Vorzeichen. Hier gerechnet wäre es die zweite Ableitung derselben Zahl. Er steht
-   * direkt unter dem Saldo, denn er handelt von genau dieser Zahl (#1019).
+   * **Ob die Lage vorliegt, sagt der Server** (`write_off`) – samt Vorzeichen. Hier
+   * gerechnet wäre es die zweite Ableitung derselben Zahl. Er steht direkt unter dem
+   * Saldo, denn er handelt von genau dieser Zahl (#1019).
    */
-  const writeOff = d.write_off && may(d, 'charge') ? (
+  const writeOff = d.write_off && may(d, 'pay') ? (
     <div className="flex justify-end">
       <ActionButton icon={Eraser} label={d.write_off_word ?? 'Differenz ausbuchen'}
         disabled={busy}
         tip={`Bucht ${d.write_off} ${d.currency} als Differenz aus.`}
         onClick={() => void onAction({
-          action: 'charge', amount: d.write_off as string,
+          action: 'pay', amount: d.write_off as string,
+          note: d.write_off_note || undefined,
         })} />
     </div>
   ) : null;
 
   return (
     <>
-      {/* ►►► **Fach 1 — was schuldet uns jemand?** ◄◄◄ Es gehört uns: stellen,
-          stornieren, gutschreiben. Der Punkt sagt, wo man steht – *aktiv*, solange nichts
-          gefordert ist, *vorbei*, sobald die Forderung dasteht. */}
+      {/* ►►► **Fach 1 — was schuldet uns jemand?** ◄◄◄ Es gehört uns. Der Punkt sagt, wo
+          man steht: *aktiv*, solange nichts gestellt ist, *vorbei*, sobald die Rechnung
+          draussen ist. */}
       <ModuleSection title={d.claim_title || 'Fordern'}
-        state={charges.length ? 'past' : 'active'}>
+        state={invoice ? (invoice.issued_on ? 'past' : 'active') : 'active'}>
         <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
-          {charges.length === 0 && (
+          {!invoice && (
             <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Nichts berechnet</span>
           )}
-          {charges.map((e) => (
-            <EntryRow key={e.id} d={d} e={e} busy={busy} onAction={onAction}
-              onRefund={refund} refunding={sent.includes(e.id)} />
-          ))}
-          {slot('charge')}
+          {invoice && (
+            <InvoiceRow d={d} invoice={invoice} busy={busy} onAction={onAction} />
+          )}
+          {slot('bill')}
         </div>
       </ModuleSection>
 
       {/* ►►► **Fach 2 — wie kommt das Geld hierher?** ◄◄◄ Es gehört dem Zahlenden. Der
-          Weg ist eine **Wahl** (Regel 3), und was er zeigt, sagt er selbst: eine Auskunft
+          Weg ist eine **Wahl**, und was er zeigt, sagt er selbst: eine Auskunft
           (Einzahlungsschein) oder ein Formular (Karte). Bei genau einer Antwort gibt es
           nichts zu wählen – dann steht der Schieber nicht da (dieselbe Regel wie #793).
 
           ►►► **Und die Reihenfolge ist fest** (Testnotiz #1001): ◄◄◄ erst die erfassten
-          Zahlungen, dann die Wahl, dann der Knopf. Wahl und Knopf gehören zusammen und
-          dürfen nie durch etwas getrennt werden, das mit jeder Buchung wächst. */}
+          Zahlungen, dann der Saldo, dann die Wahl, dann der Knopf. Wahl und Knopf gehören
+          zusammen und dürfen nie durch etwas getrennt werden, das mit jeder Buchung
+          wächst. */}
       <ModuleSection title={d.settle_title || 'Begleichen'}
-        state={!charges.length ? 'ahead' : (settle == null ? 'past' : 'active')}>
+        state={!ways.length && !payments.length
+          ? 'ahead' : (d.open_state === 'settled' ? 'past' : 'active')}>
         <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
-          {ways.length === 0 && payments.length === 0 && (
+          {/* **Der leere Zustand sagt nur, was wahr ist.** Ohne Rechnung gibt es nichts
+              zu begleichen; mit einer beglichenen sagt es die Zahl darunter, und jedes
+              Wort daneben wäre die zweite Aussage – «Nichts mehr offen» über einem
+              Saldo von −324.30 war genau das. */}
+          {!invoice && payments.length === 0 && (
             <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-              {charges.length ? 'Nichts mehr offen' : 'Noch nichts zu begleichen'}
+              Noch nichts zu begleichen
             </span>
           )}
-          {/* ►►► **Was schon erfasst ist, steht zuoberst** – neueste unten, in der
-              Reihenfolge, in der sie gebucht wurden. Bis #861 standen sie eingerückt
-              unter ihrer Rechnung; die Antwort auf «welche Zahlung gehört zu welcher?»
-              steht **an der Rechnung selbst** (ihre Zeile sagt, wie viel von *ihr* offen
-              ist), und je Modul lebt ohnehin höchstens **eine** offene Forderung. */}
           {payments.map((p) => (
             <EntryRow key={p.id} d={d} e={p} busy={busy} onAction={onAction}
               onRefund={refund} refunding={sent.includes(p.id)} />
@@ -2081,18 +2152,11 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               <span style={{ minWidth: 0 }}>{failed}</span>
             </span>
           )}
-          {/* ►►► **Was noch offen ist, steht ÜBER der Wahl** (Testnotiz #1019). ◄◄◄ Der
-              Saldo war die Fusszeile der ganzen Karte und stand damit hinter allem, was
-              in ihr wächst – man wählte einen Weg zum Geld, ohne die Zahl zu sehen, um
-              die es geht. Die Reihenfolge im Fach ist jetzt fest: **erfasste Zahlungen →
-              Saldo → Zahlungsart → Auskunft/Karte → Handlung** – erst was aussteht, dann
-              womit man es begleicht. */}
           <Balance d={d} />
           {writeOff}
           {/* ►►► **Ohne Beschriftung** (Testnotiz #1020): ◄◄◄ die drei Antworten heissen
               «Bar», «Überweisung», «Karte» – dass das eine Zahlungsart ist, sagt jede von
-              ihnen, und der Abschnitt darüber heisst «Begleichen». Ein Wort, das nur
-              wiederholt, was darunter steht, ist Höhe ohne Aussage. */}
+              ihnen, und der Abschnitt darüber heisst «Begleichen». */}
           {ways.length > 1 && way && (
             <Segmented value={way.key}
               onChange={(v) => { setPicked(v); setCard(false); }}
@@ -2101,11 +2165,11 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
           {/* **Die Auskunft kommt mit dem Weg** – nicht aus einem Vergleich auf
               «transfer»: ein Schlüssel-Vergleich hier wäre der Spiegel über die
               API-Grenze, der beim nächsten Weg still falsch wird. */}
-          {way?.info && settle != null && (
-            <Transfer orderObjectId={orderObjectId} stepId={stepId} entryId={settle} />
+          {way?.info && (
+            <Transfer orderObjectId={orderObjectId} stepId={stepId} />
           )}
-          {card && settle != null && (
-            <PayOnline orderObjectId={orderObjectId} stepId={stepId} chargeId={settle}
+          {card && (
+            <PayOnline orderObjectId={orderObjectId} stepId={stepId}
               prepare={api.prepareVoucherPayment} label={d.pay_online_word}
               onDone={() => { setCard(false); setWaiting(WAIT_TRIES); onPaid(); }}
               onClose={() => setCard(false)} />
@@ -2118,31 +2182,82 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
 }
 
 /**
+ * ►►► **DIE Rechnung — eine Zeile, und es kann keine zweite geben.** ◄◄◄
+ *
+ * Sie trägt dieselbe Grammatik wie jede Geld-Zeile im Haus (`LedgerRow`: Identifikator ·
+ * Vermerk · Datum · Korrekturen · Betrag) – nur ist sie kein Eintrag *in* einer Liste
+ * mehr, sondern **der Beleg selbst**.
+ *
+ * **Die einzige Korrektur an ihr ist die Rücknahme** (`unbill`), und sie gibt es nur,
+ * solange die Rechnung **im Haus** ist: nicht versendet, kein Geld geflossen. Was danach
+ * falsch bleibt, korrigiert ein **eigener Beleg** – in dem Auftrag, in dem der Vorfall
+ * passiert. Ob es sie gibt, sagt `can`; eine Bedingung hier wäre der zweite Massstab.
+ */
+function InvoiceRow({ d, invoice, busy, onAction }: {
+  d: Filled; invoice: NonNullable<Filled['invoice']>; busy: boolean; onAction: Send;
+}) {
+  const dec = d.currency_decimals ?? 2;
+  const tone = TONE[invoice.state_tone as keyof typeof TONE]?.color ?? 'var(--fg-1)';
+  // **EIN Datum je Zeile** (#890) – die Aussage steht da, die Tatsachen im Hover.
+  const stamp = invoice.due_on
+    ? { text: `fällig ${lower(when(invoice.due_on))}`,
+        tip: `Rechnung ${day(invoice.billed_on)} · fällig ${day(invoice.due_on)}` }
+    : { text: when(invoice.billed_on),
+        tip: `Rechnung ${day(invoice.billed_on)}` };
+  return (
+    <LedgerRow
+      ident={invoice.number || 'Rechnung'}
+      /* **Was sonst noch nur hier steht**: ob die Rechnung schon draussen ist. *Der
+         Verweis auf den Beleg, den dieser mindert, stand hier einen Anlauf lang daneben
+         – er steht aber im **Belegkopf**, wo er auf das Papier gehört, und eine zweite
+         Fassung nahm der Nummer den Platz (sie schrumpfte auf «10000…»).* */
+      meta={invoice.issued_on ? `versendet ${lower(when(invoice.issued_on))}` : ''}
+      date={stamp.text}
+      actions={may(d, 'unbill') ? (
+        <ActionButton icon={Undo2} label={d.unbill_word || 'Rechnung zurücknehmen'}
+          disabled={busy}
+          tip="Sie ist nie hinausgegangen – die Nummer bleibt, der Beleg wird wieder
+               änderbar."
+          onClick={() => void onAction({ action: 'unbill' })} />
+      ) : null}
+      /* ►►► **Der Zustand trägt die FARBE des Betrags** (#996/#997). ◄◄◄ Das **Wort**
+         steht im Hover; Farbe allein ist kein zugängliches Signal (WCAG 1.4.1). */
+      tip={[invoice.state_label, stamp.tip,
+            invoice.service_date
+              ? `${d.service_date_label} ${day(invoice.service_date)}` : '']
+        .filter(Boolean).join(' · ')}
+      amount={(
+        <Amount value={invoice.amount ?? ''} currency={d.currency} decimals={dec}
+          color={tone} />
+      )} />
+  );
+}
+
+/**
  * ►►► **Der Saldo — eine Zahl, und ihre FARBE ist die Aussage** (Testnotiz #997). ◄◄◄
  *
  * *«Das Wort ‹Offen› entfällt, der Status wird ausschliesslich über die Farbe des Betrags
  * getragen.»*
  *
  * «Offen 0.00» stand da und las sich wie «bezahlt» – dieselbe Zahl, zwei Bedeutungen. Und
- * das Wort war ohnehin nur an einem der vier Zustände richtig: beglichen ist nichts
- * offen, überzahlt ist es das Gegenteil. Also sagt es die **Zahl** selbst: orange, solange
- * etwas aussteht · rot, sobald ein Termin vorbei ist · grün, wenn es aufgeht.
+ * das Wort war ohnehin nur an einem der Zustände richtig. Also sagt es die **Zahl**
+ * selbst: orange, solange etwas aussteht · rot, sobald ein Termin vorbei ist · grün, wenn
+ * es aufgeht.
  *
- * **Der Zustand kommt vom Server** (`open_state*`, `domain/voucher.balance_state`) – hier
- * gerechnet wäre er die zweite Ableitung derselben Zahlen und die erste, die eine
- * Rundungstoleranz vergisst. Das **Wort** reist mit und steht im Hover: Farbe allein ist
- * kein zugängliches Signal (WCAG 1.4.1).
+ * **Der Zustand kommt vom Server** (`open_state*`, `domain/voucher.invoice_state`) – und
+ * er ist seit dem Umbau **derselbe** wie der der Rechnung: Betrag und Saldo sind dieselben
+ * zwei Zahlen. Das **Wort** reist mit und steht im Hover: Farbe allein ist kein
+ * zugängliches Signal (WCAG 1.4.1).
  *
- * ►►► **Und ein Guthaben nennt sich beim Namen.** ◄◄◄ Es ist die eine Lage, in der die
- * blosse Zahl nicht reicht – «250.00» in Grün sagt nicht, wer wem etwas schuldet. Ein
+ * ►►► **Und eine Überzahlung nennt sich beim Namen.** ◄◄◄ Es ist die eine Lage, in der
+ * die blosse Zahl nicht reicht – «250.00» sagt nicht, wer wem etwas schuldet. Ein
  * **Minus** wäre hier die schlechtere Antwort: ein offener Posten ist eine Forderung und
- * kein negativer Wert, und ein «−250.00» neben dem Wort «Guthaben» wäre eine doppelte
- * Verneinung.
+ * kein negativer Wert.
  */
 function Balance({ d }: { d: Filled }) {
-  if (d.open == null || !d.entries.some((e) => e.kind === 'charge')) return null;
+  if (d.open == null || !d.invoice) return null;
   const dec = d.currency_decimals ?? 2;
-  const credit = d.open_state === 'credit';
+  const credit = d.open_state === 'overpaid';
   const tone = TONE[d.open_state_tone as keyof typeof TONE]?.color ?? 'var(--fg-1)';
   return (
     <div className="flex items-baseline" style={{
@@ -2151,11 +2266,9 @@ function Balance({ d }: { d: Filled }) {
       <span style={{ ...MICRO_LABEL, flex: 1, color: credit ? tone : undefined }}>
         {credit ? d.open_state_label : ''}
       </span>
-      {/* ►►► **Zahl und Währung tragen EINE Farbe** (Testnotiz #1007). ◄◄◄ Sie standen
-          hier als zwei Geschwister – die Zahl im Ampelton, der Code auf `--fg-2`; in der
-          Geld-Zeile darüber färbte dieselbe Angabe beides zusammen. `Amount` ist die eine
-          Form, und die Währung ist darin ein **Kind** der Zahl: sie kann keine eigene
-          Farbe mehr haben, sie tritt nur zurück. */}
+      {/* ►►► **Zahl und Währung tragen EINE Farbe** (Testnotiz #1007). ◄◄◄ `Amount` ist
+          die eine Form, und die Währung ist darin ein **Kind** der Zahl: sie kann keine
+          eigene Farbe mehr haben, sie tritt nur zurück. */}
       <Amount value={credit ? negate(d.open) : d.open} currency={d.currency}
         decimals={dec} size={14} weight={700} color={tone}
         tip={d.open_state_label ?? undefined} />
@@ -2164,23 +2277,16 @@ function Balance({ d }: { d: Filled }) {
 }
 
 /**
- * **Eine Geld-Zeile** – und sie hat dieselbe Grammatik wie jede andere.
+ * **Eine Zahlung** – und sie hat dieselbe Grammatik wie jede andere Zeile.
  *
- * ►►► **Eine Zeile, vier Plätze** (`module-ui.LedgerRow`, #996/#998/#999/#1002). ◄◄◄ Sie
- * baut hier nichts selbst: sie sagt nur, **was** an den vier Platz gehört – Rechnungsnummer
- * bzw. Zahlungsart · Datum · Korrekturen · Betrag. Vorher war es eine umbrechende
- * Flexzeile mit einer **zweiten Zeile** darunter, und jede der vier gemeldeten Notizen
- * betraf einen anderen Platz darin.
+ * ►►► **Eine Zeile, fünf Plätze** (`module-ui.LedgerRow`). ◄◄◄ Sie baut hier nichts
+ * selbst: sie sagt nur, **was** an welchen Platz gehört – Zahlungsart · Vermerk · Datum ·
+ * Korrektur · Betrag.
  *
- * ►►► **EIN Datum je Zeile** (#890). ◄◄◄ «6.9.2026 · fällig 6.9.2026» waren zwei Zahlen,
- * die man vergleichen muss, um die eine Aussage zu bekommen. Hier steht «fällig in 30
- * Tagen» bzw. «überfällig seit 17 Tagen»; die beiden Daten stehen im Hover.
- *
- * ►►► **Und hier stehen nur noch KORREKTUREN** (Regel 2). ◄◄◄ Bezahlen, überweisen und
- * online bezahlen sind Wege zum Geld und stehen im Fach «Begleichen» – als **eine** Wahl,
- * nicht als drei Knöpfe, die neben einem Storno im selben Rang stehen. Was bleibt, ist
- * das, was *diese* Zeile korrigiert: die Gegenbuchung an einer Rechnung, die zweite
- * Zahlung an einer Zahlung.
+ * ►►► **Und hier steht nur noch, was DIESE Zeile korrigiert.** ◄◄◄ Eine Zahlung ist die
+ * Aufzeichnung dessen, was auf dem Konto passiert ist – ein Ereignis der Aussenwelt macht
+ * man nicht ungeschehen (#842); korrigiert wird sie durch eine **zweite, negative
+ * Zahlung**, und eine **Karten**-Zahlung gibt der Dienst zurück, der sie eingezogen hat.
  */
 function EntryRow({ d, e, busy, onAction, onRefund, refunding = false }: {
   d: Filled; e: Filled['entries'][number]; busy: boolean;
@@ -2191,107 +2297,47 @@ function EntryRow({ d, e, busy, onAction, onRefund, refunding = false }: {
   refunding?: boolean;
 }) {
   const dec = d.currency_decimals ?? 2;
-  const charge = e.kind === 'charge';
-  // ►►► **Der Zustand kommt vom Server** (Testnotiz #991) – Wort und Ampelton
-  // (`domain/voucher.charge_state`). Hier gerechnet wäre er die zweite Ableitung
-  // derselben Zahlen, und die erste, die eine Rundungstoleranz vergisst.
-  const state = e.state_label
-    ? { label: e.state_label, color: TONE[e.state_tone as keyof typeof TONE]?.color
-                                     ?? 'var(--fg-4)' }
-    : null;
-  // **EIN Datum je Zeile** (#890) – die Aussage steht da, die beiden Tatsachen im Hover.
-  //
-  // ►►► **Und die Aussage ist «wann war das», nicht «welcher Tag»** (Testnotiz #1004).◄◄◄
-  //
-  // Hier stand `day()` – die **Tatsache**, die auf ein Papier gehört (MWSTG Art. 26). In
-  // einer Geld-Zeile ist der Buchungstag aber eine **Auskunft**: «vor 3 Tagen» ist die
-  // Antwort auf die Frage, die man wirklich stellt, und «13.09.2026» ist die Zahl, aus
-  // der man sie selbst ausrechnet. Dieselbe Regel wie eine Zeile höher bei der
-  // Fälligkeit. Das Datum verschwindet nicht – es steht, wie überall, im Hover.
-  //
-  // ►►► **Und sie braucht einen ZEITPUNKT, kein Datum** (Testnotiz #1014). ◄◄◄
-  //
-  // *«Ein Ereignis von vor wenigen Minuten wird als ‹Heute› angezeigt.»* – Dreimal
-  // gemeldet, und dreimal lag es **nicht** an `when()`: die Funktion bekam `booked_on`,
-  // einen **reinen Tag**, und ein Tag ohne Uhrzeit kann «vor 5 Minuten» nicht sagen. Ihn
-  // zu erfinden wäre schlimmer als «Heute» – sie überspringt die Stunden-Kaskade darum
-  // bewusst. Gefehlt hat der Zeitpunkt; er reist jetzt als `booked_at` mit (`created_at`
-  // der Zeile). Im **Hover** steht weiterhin der Belegtag: dort ist er die Tatsache.
-  const stamp = charge && e.due_on
-    ? { text: `fällig ${when(e.due_on).toLowerCase()}`,
-        tip: `Rechnung ${day(e.booked_on)} · fällig ${day(e.due_on)}` }
-    : { text: when(e.booked_at ?? e.booked_on),
-        tip: [`Gebucht ${day(e.booked_on)}`,
-              e.service_date ? `${d.service_date_label} ${day(e.service_date)}` : '']
-          .filter(Boolean).join(' · ') };
+  // ►►► **Die Aussage ist «wann war das», nicht «welcher Tag»** (Testnotizen
+  // #1004/#1014). ◄◄◄ `when()` bekommt darum `booked_at` – den **Zeitpunkt**; aus einem
+  // Tag ohne Uhrzeit lässt sich «vor 5 Minuten» nicht ableiten. Im **Hover** steht der
+  // Belegtag: dort ist er die Tatsache.
+  const stamp = {
+    text: when(e.booked_at ?? e.booked_on),
+    tip: `Gebucht ${day(e.booked_on)}`,
+  };
 
   return (
     <LedgerRow
-      faded={e.reversed ?? false}
-      /* ►►► **Der Identifikator** – was diese Zeile ist. ◄◄◄ Bei einer Rechnung ihre
-         **Nummer**, linksbündig und ohne Zeichen davor (#996); bei einer Zahlung ihre
-         **Art** (#994/#999): «die Karte», «die Überweisung» – das ist die Angabe, an der
-         man sie wiedererkennt, und bei einer Barzahlung gibt es gar keine Referenz. */
-      ident={(charge ? e.reference : e.method_label)
-             || e.reference || (charge ? 'Rechnung' : 'Zahlung')}
-      /* Was sonst noch **nur hier** steht – der Vermerk. Bei einer Korrektur ist das
-         die **Referenz auf den Beleg, den sie korrigiert** («Korrektur zu …»), und mehr
-         braucht sie nicht: es gibt keinen Belegtyp, das Vorzeichen sagt *was*. Eine
-         zweite Zeile gibt es nicht – dort landete die Angabe aus #999. */
+      /* ►►► **Der Identifikator** – was diese Zeile ist: ihre **Art** (#994/#999), die
+         Angabe, an der man sie wiedererkennt; bei einer Barzahlung gibt es gar keine
+         Referenz. */
+      ident={e.method_label || e.reference || 'Zahlung'}
       meta={e.note ?? ''}
-      /* ►►► **Datum rechtsbündig, direkt links vom Betrag** (#1011/#1012). ◄◄◄ Es ist
-         die zweite **Zahl** der Zeile; im Fliesstext links stand sie unter Angaben, und
-         der Blick musste für *wann* und *wie viel* zweimal springen. */
+      /* ►►► **Datum rechtsbündig, direkt links vom Betrag** (#1011/#1012). ◄◄◄ */
       date={stamp.text}
-      /* ►►► **Die Korrekturen stehen VOR dem Betrag** (#998/#1002). ◄◄◄ Hinter ihm
-         standen sie dort, wo das Auge die Zahl sucht – und bei drei Zeilen dreimal. */
+      /* ►►► **Die Korrekturen stehen VOR dem Betrag** (#998/#1002). ◄◄◄ */
       actions={(
         <>
-          {/* ►►► **Ein Symbol zeigt, was die Handlung TUT** (Testnotiz #1008). ◄◄◄
-              Drei Korrekturen in einer Zeilengattung, drei verschiedene Dinge – und eine
-              davon trug ein **Plus**, also das Zeichen des Hinzufügens für eine Handlung,
-              die etwas zurücknimmt. Jetzt: der **durchgestrichene Kreis** annulliert
-              (dasselbe Zeichen, mit dem das Haus «storniert» schreibt – der Beleg bleibt
-              stehen, er fordert nur nichts mehr), der **Kreispfeil gegen den Uhrzeiger**
-              nimmt eine Buchung zurück, und der **Rückwärtspfeil** schickt Geld zurück. */}
-          {/* ►►► **Ein Klick löst aus — es gibt keine zweite Stufe** (#1022). ◄◄◄
-              Storno und Erstattung fragten zuvor nach («armed», zweiter Klick). Die
-              Sicherheit kommt aber nicht aus einem zusätzlichen Klick, sondern aus den
-              **Guards**: der Storno schreibt eine Gegenbuchung (nichts verschwindet, und
-              eine zweite lehnt der Dienst ab), die Erstattung ist beim Dienst
-              idempotent und kennt ihren Rest (#1018). Eine Rückfrage, die nichts
-              verhindert, ist ein Klick für ein Gefühl – und sie stand ausserdem an zwei
-              von drei Korrekturen derselben Zeile. */}
-          {charge && !e.reversed && may(d, 'reverse') && (
-            <ActionButton icon={CircleSlash} label={e.reverse_word ?? 'Stornieren'}
-              disabled={busy}
-              tip="Eine Gegenbuchung – der Beleg bleibt stehen, er fordert nur nichts mehr."
-              onClick={() => void onAction({ action: 'reverse', entry: e.id })} />
-          )}
           {e.refundable && (
             <ActionButton icon={Undo2} label={d.refund_online_word ?? 'Online erstatten'}
               disabled={busy || refunding}
               tip="Geht über den Zahlungsdienst zurück – gebucht wird sie, wenn er sie meldet."
               onClick={() => onRefund(e.id)} />
           )}
-          {!charge && may(d, 'pay') && (
+          {may(d, 'pay') && (
             <ActionButton icon={RotateCcw} label="Korrigieren" disabled={busy}
               tip="Eine zweite Zahlung mit dem negativen Betrag – ein Ereignis der
                    Aussenwelt macht man nicht ungeschehen."
               onClick={() => void onAction({
-                action: 'pay', amount: negate(e.amount), charge_id: e.charge_id ?? null,
+                action: 'pay', amount: negate(e.amount),
               })} />
           )}
         </>
       )}
-      /* ►►► **Der Zustand trägt die FARBE des Betrags** (#996/#997). ◄◄◄ Der Punkt ist
-         weg, die Aussage nicht: dieselbe Regel wie beim offenen Betrag darunter – die
-         Zahl ist die Sache, also sagt sie es. Das **Wort** steht im Hover; Farbe allein
-         ist kein zugängliches Signal (WCAG 1.4.1). */
-      tip={[state?.label, stamp.tip].filter(Boolean).join(' · ') || undefined}
+      tip={stamp.tip}
       amount={(
         <Amount value={e.amount} currency={d.currency} decimals={dec}
-          color={state?.color ?? (Number(e.amount) < 0 ? 'var(--fg-3)' : 'var(--fg-1)')} />
+          color={Number(e.amount) < 0 ? 'var(--fg-3)' : 'var(--fg-1)'} />
       )} />
   );
 }
@@ -2299,19 +2345,22 @@ function EntryRow({ d, e, busy, onAction, onRefund, refunding = false }: {
 /**
  * **Wie man diese Rechnung überweist** – Bankverbindung, Referenz und, wo er gilt, die
  * Swiss QR-Rechnung. Eine Auskunft, keine Buchung – erst auf Klick.
+ *
+ * *Ein `entryId` stand hier einmal: welche Rechnung gemeint ist. Es gibt eine, und sie ist
+ * der Beleg.*
  */
-function Transfer({ orderObjectId, stepId, entryId }: {
-  orderObjectId: number; stepId: number; entryId: number;
+function Transfer({ orderObjectId, stepId }: {
+  orderObjectId: number; stepId: number;
 }) {
   const [info, setInfo] = useState<TransferInfo | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let stale = false;
-    void api.voucherTransfer(orderObjectId, stepId, entryId)
+    void api.voucherTransfer(orderObjectId, stepId)
       .then((r) => { if (!stale) setInfo(r); })
       .catch(() => { if (!stale) setFailed(true); });
     return () => { stale = true; };
-  }, [orderObjectId, stepId, entryId]);
+  }, [orderObjectId, stepId]);
 
   if (failed) {
     return <span style={{ fontSize: 12, color: 'var(--danger)' }}>
@@ -2356,71 +2405,46 @@ function Transfer({ orderObjectId, stepId, entryId }: {
 /**
  * **Eine Geld-Zeile erfassen** – Betrag, und was sonst noch niemand gesagt hat.
  *
- * Die Vorgabe kommt vom Server (`next_charge` ↔ `next_payment`) und ist **nie negativ**:
- * überberechnet ist eine gültige Aussage, aber kein Vorschlag in einem Eingabefeld.
+ * ►►► **Die Rechnung fragt es nur, wo SIE von aussen kommt.** ◄◄◄ Wo **wir** den Preis je
+ * Position nennen, *ist* der Betrag ihre Brutto-Summe, und die Steuer folgt aus den
+ * Sätzen der Positionen – dann geht «Rechnung stellen» ohne ein einziges Feld hinaus. Wo
+ * die Gegenpartei ihn nennt, schreiben wir **ihre** Rechnung ab: Summe, Satz und ihre
+ * Nummer stehen auf ihrem Papier.
  *
- * ►►► **Die Zahlungsart fragt es NICHT mehr** (Regel 3). ◄◄◄ Sie ist die Wahl im Fach
- * «Begleichen» und damit längst getroffen, bevor dieses Formular aufgeht – ein zweites
- * Bedienelement dafür wäre die zweite Aussage über dieselbe Sache, und die getippte
- * gewänne auch dann, wenn sie der Wahl widerspricht. Der Schieber selbst ist geblieben,
- * er steht nur dort, wo die Frage entsteht (#967).
+ * ►►► **Die Zahlungsart fragt es NICHT.** ◄◄◄ Sie ist die Wahl im Fach «Begleichen» und
+ * damit längst getroffen, bevor dieses Formular aufgeht – ein zweites Bedienelement dafür
+ * wäre die zweite Aussage über dieselbe Sache, und die getippte gewänne auch dann, wenn
+ * sie der Wahl widerspricht.
  *
- * **Und welche Rechnung gemeint ist, fragt es ebenso wenig** (#859/#866): je Modul lebt
- * höchstens eine offene, und der Server nennt sie (`settle_charge`).
+ * **Und welche Rechnung gemeint ist, fragt es ebenso wenig**: je Modul gibt es eine, und
+ * sie *ist* der Beleg. Die Aufteilungs-Eingabe ist damit ersatzlos entfallen.
  *
- * ►►► **Es ist EIN Formular, und es sieht aus wie jedes andere im Haus** (#987/#990).◄◄◄
- *
- * *«Beide Erfassungsformulare bitte auf den Standard der übrigen Module ziehen –
- * Feldhöhen, Spacing, Button-Hierarchie: eine Primäraktion, Abbrechen dezent.»*
- *
- * «Rechnung stellen» und «Zahlung erfassen» waren schon dieselbe Komponente; auseinander
- * lagen die **Masse**. Sie kommen jetzt aus den Bauteilen statt aus Zahlen an dieser
- * Stelle: `inputCls` als Feld (das Formularfeld des Hauses, unverändert), `FIELD_GAP`
- * zwischen zwei Feldern, **kein** eigener Abstand unter der Beschriftung (`Label` bringt
- * seine 4 px mit – der frühere `gap: 3` kam obendrauf), und die Fusszeile ist
- * **`StageRow`**: buchstäblich dieselbe Zeile wie der Abschluss der Karte und der
- * Zuschlag an einer Angebotszeile – **eine** Handlung nimmt die Breite, alles andere
- * steht als Quadrat daneben.
- *
- * Zwei gleich grosse Knöpfe nebeneinander sind keine Hierarchie, sondern eine Frage.
+ * ►►► **Es sieht aus wie jedes andere Formular im Haus** (#987/#990). ◄◄◄ Die Masse
+ * kommen aus den Bauteilen statt aus Zahlen an dieser Stelle: `inputCls` als Feld,
+ * `FIELD_GAP` zwischen zwei Feldern, **kein** eigener Abstand unter der Beschriftung
+ * (`Label` bringt seine 4 px mit), und die Fusszeile ist **`StageRow`** – dieselbe Zeile
+ * wie der Abschluss der Karte und der Zuschlag an einer Angebotszeile.
  */
-function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: {
-  kind: 'charge' | 'pay'; d: Filled; busy: boolean; preset: string;
-  /** Der im Fach «Begleichen» gewählte Weg – bei einer Forderung `null`. */
+function Entry({ kind, d, busy, preset, method, onCancel, onSubmit }: {
+  kind: 'bill' | 'pay'; d: Filled; busy: boolean; preset: string;
+  /** Der im Fach «Begleichen» gewählte Weg – bei einer Rechnung `null`. */
   method: string | null;
-  chargeId: number | null;
   onCancel: () => void; onSubmit: (body: Action) => void;
 }) {
   const [amount, setAmount] = useState(preset);
   const [reference, setReference] = useState('');
-  const [split, setSplit] = useState<Record<number, string>>({});
   const [vat, setVat] = useState(d.vat_rate ?? 'normal');
   // **Der Satz wird nur gefragt, wo es keine bepreisten Positionen gibt** – sonst kommt
   // die Aufteilung aus ihnen, und ein Feld daneben wäre eine zweite Aussage.
-  const asksVat = kind === 'charge' && !d.we_quote;
-
-  // ►►► **Eine Zahlung darf auf MEHRERE Belege gehen** (Sammelzahlung). ◄◄◄ Gefragt wird
-  // nur, wo es überhaupt etwas zu verteilen gibt: bei **einem** Beleg hat die Frage genau
-  // eine Antwort, und der Server kennt sie (`settle_charge`). Die Zahlung bleibt **eine**
-  // Zeile – auf dem Kontoauszug steht auch eine.
-  const targets = kind === 'pay'
-    ? d.entries.filter((x) => x.kind === 'charge' && !x.reversed && x.reverses == null)
-    : [];
-  const splits = targets.length > 1;
-  const allocations = targets
-    .map((t) => ({ charge_id: t.id, amount: (split[t.id] ?? '').trim() }))
-    .filter((a) => a.amount !== '');
+  const asksVat = kind === 'bill' && !d.we_quote;
 
   const book = () => onSubmit({
     action: kind, amount,
     ...(kind === 'pay' && method ? { method } : {}),
-    ...(kind === 'pay' && !splits && chargeId != null ? { charge_id: chargeId } : {}),
-    ...(splits && allocations.length ? { allocations } : {}),
     ...(asksVat ? { vat } : {}),
     ...(reference.trim() ? { reference: reference.trim() } : {}),
   });
-  const ready = !busy && amount.trim() !== ''
-    && (!splits || allocations.length > 0);
+  const ready = !busy && amount.trim() !== '';
 
   return (
     <div className="flex flex-col" style={{
@@ -2428,7 +2452,7 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
       border: '1px solid var(--border-1)', minWidth: 0,
     }}>
       <div className="flex flex-wrap items-end" style={{ gap: FIELD_GAP, minWidth: 0 }}>
-        <Ask label={kind === 'charge' ? d.charge_word : d.payment_word}>
+        <Ask label={kind === 'bill' ? d.charge_word : d.payment_word}>
           <input {...numericInputProps} value={amount} autoFocus
             onChange={(e) => setAmount(numericOnly(e.target.value, { signed: true }))}
             onKeyDown={(e) => { if (e.key === 'Enter' && ready) book(); }}
@@ -2456,31 +2480,6 @@ function Entry({ kind, d, busy, preset, method, chargeId, onCancel, onSubmit }: 
           </Ask>
         )}
       </div>
-      {splits && (
-        // ►►► **Die Aufteilung einer Sammelzahlung.** ◄◄◄ Je Beleg ein Teilbetrag; die
-        // Summe muss den Betrag der Zahlung ergeben – der Dienst weist alles andere ab
-        // (eine Zahlung wird vollständig zugeordnet oder gar nicht). Kein Automatismus:
-        // welcher Beleg wie viel bekommt, weiss nur, wer den Zahlungszweck gelesen hat.
-        <div className="flex flex-col" style={{ gap: 6, minWidth: 0 }}>
-          <Label>Zuordnung</Label>
-          {targets.map((t) => (
-            <LedgerRow key={t.id}
-              ident={t.reference || `Beleg ${t.id}`}
-              meta={t.state_label}
-              date={t.open ? `offen ${t.open} ${d.currency}` : undefined}
-              amount={(
-                <input {...numericInputProps} value={split[t.id] ?? ''}
-                  aria-label={`Anteil auf ${t.reference || t.id}`}
-                  onChange={(e) => setSplit((s) => ({
-                    ...s, [t.id]: numericOnly(e.target.value, { signed: true }) }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && ready) book(); }}
-                  className={inputCls}
-                  style={{ width: 110, textAlign: 'right',
-                           fontVariantNumeric: 'tabular-nums' }} />
-              )} />
-          ))}
-        </div>
-      )}
       {/* **Eine Primäraktion, Abbrechen dezent** – dieselbe Zeile wie am Abschluss der
           Karte und am Zuschlag (#976). */}
       <StageRow aside={

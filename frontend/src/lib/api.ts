@@ -3,6 +3,7 @@ import type {
   OrderSummary,
   OrderDraft,
   OrderValidation,
+  VoucherCorrectable,
   VoucherParty,
   UnitChoices,
   ArticleOption,
@@ -400,14 +401,14 @@ class ApiClient {
    * **Eine Zahlung über den offenen Betrag vorbereiten** – für unsere eigene Karte.
    *
    * Sie ändert am Beleg **nichts**; gebucht wird erst, wenn das Geld da ist – und das
-   * meldet der Webhook, nicht dieser Browser. `chargeId` ist die Zeile, an der geklickt
-   * wurde; ohne Angabe die älteste offene.
+   * meldet der Webhook, nicht dieser Browser.
+   *
+   * *Ein `chargeId` stand hier einmal: welche Rechnung bezahlt wird. Je Modul gibt es
+   * eine, und sie **ist** der Beleg – die Frage hat genau eine Antwort.*
    */
-  prepareVoucherPayment(objectId: number, stepId: number,
-                        chargeId?: number | null): Promise<PaymentSetup> {
-    const q = chargeId != null ? `?charge=${chargeId}` : '';
+  prepareVoucherPayment(objectId: number, stepId: number): Promise<PaymentSetup> {
     return this.post(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/payment${q}`, {});
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/payment`, {});
   }
 
   /**
@@ -415,10 +416,21 @@ class ApiClient {
    * **QR-Rechnung** als fertiges Bild. Erzeugt wird sie im Backend: die Nutzlast ist eine
    * Liste von einunddreissig Zeilen in fester Reihenfolge.
    */
-  voucherTransfer(objectId: number, stepId: number,
-                  entryId: number): Promise<TransferInfo> {
+  voucherTransfer(objectId: number, stepId: number): Promise<TransferInfo> {
     return this.get(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/transfer?entry=${entryId}`);
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/transfer`);
+  }
+
+  /**
+   * ►►► **Welche Rechnung mindert dieser Beleg?** ◄◄◄
+   *
+   * Gesucht wird über **alle Aufträge** – das ist der Kern: eine Gutschrift gehört in den
+   * Auftrag, in dem die Ware **zurückkommt**, nicht in den, der sie geliefert hat.
+   */
+  voucherCorrectable(objectId: number,
+                     stepId: number): Promise<VoucherCorrectable[]> {
+    return this.get(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/correctable`);
   }
 
   /**

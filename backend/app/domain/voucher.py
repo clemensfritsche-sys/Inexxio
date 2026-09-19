@@ -60,20 +60,35 @@ IN = "in"
 OUT = "out"
 
 # ---------------------------------------------------------------------------
-# ►►► DIE STUFEN — ZWEI, weil zwei Dinge unumkehrbar sind ◄◄◄
+# ►►► DIE STUFEN — DREI, weil drei Dinge unumkehrbar sind ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# **nichts zugesagt · zugesagt.** ``DONE`` und ``CANCELLED`` sind **Ausgänge, keine
-# Stufen** – man kommt dort an, statt hindurchzugehen. Und das **Geld** ist eine Zeile,
-# keine dritte Stufe: eine Zahlung macht aus einem Angebot keine Zusage, sie ist
+# **nichts zugesagt · zugesagt · berechnet.** ``DONE`` und ``CANCELLED`` sind **Ausgänge,
+# keine Stufen** – man kommt dort an, statt hindurchzugehen. Und das **Geld** ist eine
+# Zeile, keine vierte Stufe: eine Zahlung macht aus einer Rechnung keine andere, sie ist
 # reversibel, und sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach.
+#
+# ►►► **Warum die dritte Stufe keine Wiederholung eines alten Fehlers ist.** ◄◄◄
+#
+# Hier standen einmal zwei, und «Abgeschlossen» war als dritte zu Recht entfallen: das war
+# ein **Zustand** in einer Reihe von **Schritten** – man tut nichts, um ihn zu erreichen.
+# Eine Rechnung zu stellen ist das Gegenteil: eine **Handlung mit einem unumkehrbaren
+# Ergebnis** – eine Nummer ist vergeben, die Steuer steht fest, ein Papier existiert.
+# Dieselbe Art Schwelle wie die Zusage.
+#
+# **Und sie ersetzt eine Zeile**: die Forderung war bis hierher ein Datensatz *im* Beleg,
+# mit Betrag, Nummer, Datum, Fälligkeit und Steuer – also eine Kopie des Belegs, der sie
+# enthielt. Jetzt **ist** der Beleg die Rechnung, und «berechnet» ist der Moment, in dem
+# er zu einer wird.
 
 OFFER = "offer"
 AGREED = "agreed"
+#: **Die Rechnung steht** – Nummer, Betrag, Steuer und Fälligkeit sind eingefroren.
+BILLED = "billed"
 DONE = "done"
 CANCELLED = "cancelled"
 
-STAGES: tuple[str, ...] = (OFFER, AGREED)
+STAGES: tuple[str, ...] = (OFFER, AGREED, BILLED)
 
 #: **Ab hier ist eine zweite Partei gebunden.** Davor darf man frei ändern; ab hier ist
 #: eine Änderung ein Storno – draussen liegt eine Zusage, die jemand gelesen hat.
@@ -95,20 +110,19 @@ ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaeh
 QUOTE_STATES: tuple[str, ...] = (ASKED, QUOTED, DECLINED, CHOSEN)
 
 # ---------------------------------------------------------------------------
-# ►►► DIE GELD-ZEILEN — zwei Arten, ein Vorzeichen ◄◄◄
+# ►►► DIE GELD-ZEILEN — nur noch EINE Art: die ZAHLUNG ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# ``CHARGE``   die **Forderung** (Rechnung). Negativ = Gutschrift.
-# ``PAYMENT``  das **Geld**. Negativ = Erstattung.
+# Hier standen zwei (``CHARGE`` · ``PAYMENT``), und die erste war die **Forderung**. Sie
+# ist keine Zeile mehr, sondern der **Beleg selbst** – mit Nummer, Datum, Fälligkeit,
+# Betrag und eingefrorener Steuer. Damit kann es sie nicht zweimal geben, und «eine
+# Rechnung je Modul» ist keine Regel mehr, die jemand durchsetzt, sondern die Struktur.
 #
-# Zwei Arten und nicht zwei Tabellen: beide sind «eine Zeile Geld an diesem Beleg». Und
-# zwei Arten und nicht eine: ohne die Unterscheidung liesse sich «wie viel hat er wirklich
-# gezahlt» nicht beantworten, und eine Gutschrift sähe aus wie eine offene Rechnung.
-
-CHARGE = "charge"
-PAYMENT = "payment"
-
-KINDS: tuple[str, ...] = (CHARGE, PAYMENT)
+# Übrig bleibt die **Zahlung**: eine Zeile Geld am Beleg, negativ = Erstattung. Ein
+# ``kind`` daneben wäre ein Feld mit genau einem Wert.
+#
+# ►►► **Und damit gibt es keine Gegenbuchung mehr** – die Korrektur ist ein **eigener
+# Beleg** in einem eigenen Modul (``corrects_id``), dort, wo der Vorfall passiert. ◄◄◄
 
 # ---------------------------------------------------------------------------
 # ►►► WER DEN PREIS NENNT ◄◄◄
@@ -210,7 +224,7 @@ UNDO = "Auftrag stornieren"
 #: Auftrag da, den man stornieren könnte – hinausgegangen ist ein Angebot. Das Wort hängt
 #: damit an der **Stufe**, nicht an der Richtung: in beiden Richtungen bricht man denselben
 #: Vorgang ab, und ein Wert je Richtung wäre einer, den man falsch setzen kann.
-UNDO_AT = {OFFER: "Vorgang abbrechen", AGREED: UNDO}
+UNDO_AT = {OFFER: "Vorgang abbrechen", AGREED: UNDO, BILLED: UNDO}
 
 
 def undo_word(stage: str) -> str:
@@ -417,56 +431,49 @@ def assert_method(value: Any) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# ►►► STORNO ODER GUTSCHRIFT — dieselbe Gegenbuchung, zwei Lagen ◄◄◄
+# ►►► STORNO ODER KORREKTUR — zwei Sachverhalte, zwei Wege ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# * **unbezahlt** → *Stornorechnung*: die Forderung war falsch, sie wird zurückgenommen.
-# * **bezahlt**  → *Gutschrift*: die Forderung war richtig, das Geschäft ändert sich –
-#   danach ist der offene Betrag negativ, also folgt die **Erstattung**.
+# Hier standen zwei **Wörter für dieselbe Buchung** (``STORNO_WORD``/``CREDIT_WORD``),
+# unterschieden durch eine Zahl: bezahlt ↔ unbezahlt. Das war die Stelle, an der zwei
+# verschiedene Sachverhalte so taten, als wären sie einer:
 #
-# Ein zweites Verb wäre eine zweite Regel für eine Buchung, die gleich aussieht; ein
-# einziges Wort wäre an der Hälfte der Belege falsch.
+# * **Storno** – *diese Rechnung war falsch, sie gilt nicht.* Derselbe Vorgang, kein
+#   neues Geschäft. Das ist ``unbill``: solange der Beleg nicht hinausgegangen ist und
+#   nichts darauf geflossen, wird er zurückgenommen – spurlos nach aussen.
+# * **Korrektur** – *die Rechnung war richtig, die Leistung wurde gemindert.* Ein
+#   **neuer** Geschäftsvorfall mit eigenem Datum, eigener Ware und eigener Steuerperiode:
+#   ein **eigener Beleg in einem eigenen Modul**, mit ``corrects_id`` auf den, den er
+#   mindert – und er steht dort, wo der Vorfall passiert (Retoure → Retourenauftrag).
 #
-# ►►► **Und beides sind KEINE Belegarten.** ◄◄◄ Es gibt in diesem Modul keinen Typ
-# «Rechnung ↔ Storno ↔ Gutschrift ↔ Ausbuchung» und keine Verzweigung darauf: ein Beleg
-# ist eine Zeile mit einem **Vorzeichen** – positiv fordert, negativ korrigiert. Die
-# beiden Wörter hier sind **Beschriftungen** derselben Buchung, abgeleitet aus der Zahl.
-# Ein Typfeld daneben wäre die zweite Aussage über etwas, das das Vorzeichen längst sagt –
-# und die Stelle, an der ein `if typ ==` entsteht, das der nächste Fall nicht kennt.
-STORNO_WORD = "Stornieren"
-CREDIT_WORD = "Gutschrift"
+# Damit entscheidet niemand mehr zwischen den beiden Wörtern: der **Zeitpunkt** tut es.
+#
+# *Nebenbei behoben: ``CREDIT_WORD`` stand zweimal in dieser Datei («Gutschrift» und, 130
+# Zeilen weiter, «Guthaben»). Die zweite Zuweisung gewinnt beim Laden des Moduls – also
+# hiess der Knopf seit #997 still «Guthaben». Ein Name, der zweimal vergeben wird, ist
+# kein Tippfehler, sondern eine Stelle, an der zwei Bedeutungen denselben Platz haben.*
 REFUND_ONLINE_WORD = "Online erstatten"
-#: ►►► **«Überweisen» und «Erstattung erfassen» sind entfallen.** ◄◄◄ Beides waren
-#: Knopf-Beschriftungen aus der Zeit, als jede Bezahlart ein eigener Knopf an der
-#: Rechnungszeile war. Die Überweisung ist seither eine **Antwort** im Fach «Begleichen»
-#: und heisst dort, wie sie in ``METHODS`` heisst; «Erstattung erfassen» hatte **keinen
-#: Leser** – erstattet wird über die gewöhnliche negative Zahlung bzw. über den Dienst.
-#: Ein Wort ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau abweicht.
 
+#: ►►► **Die drei Handlungen an der Rechnung.** ◄◄◄
+#:
+#: *stellen* → *versenden*, und dazwischen die Gegenhandlung. Sie ist dieselbe Anatomie
+#: wie ``ask``/``unask``: **jede Zusage nach aussen hat ihre Gegenhandlung an derselben
+#: Stelle** – und sie endet genau dort, wo der Beleg wirklich hinausgeht.
+ISSUE_WORD = "Rechnung ist versendet"
+UNBILL_WORD = "Rechnung zurücknehmen"
+#: Was an einer zurückgenommenen Zeile steht – sie bleibt als Nachweis, dass die Nummer
+#: vergeben **war**: eine Serie muss lückenlos *belegbar* sein, nicht lückenlos gezählt.
+WITHDRAWN_NOTE = "zurückgenommen"
 
-def reverse_word(paid: Decimal) -> str:
-    """**Wie die Gegenbuchung an DIESER Rechnung heisst** – die eine Lesestelle."""
-    return CREDIT_WORD if paid > 0 else STORNO_WORD
-
-
-# ---------------------------------------------------------------------------
-# ►►► EINEN «GRUND» GIBT ES NICHT — er war die Belegart mit anderem Namen
-# ---------------------------------------------------------------------------
-#
-# *«Beim Stellen einer Rechnung ist er überflüssig – er ergibt sich aus den Positionen.
-# Bei einer Korrektur genügt der Bezug auf den Originalbeleg.»*
-#
-# Hier stand ein Freitextfeld (`reason`) samt Vorschlagsliste *Retoure · Mangel · Kulanz ·
-# Rechnungsfehler · uneinbringlich · Rundungsdifferenz*. Es ist **ersatzlos entfallen**,
-# und zwar aus demselben Grund, aus dem es keinen Belegtyp gibt: es beantwortete eine
-# Frage, die der Beleg schon beantwortet. **Was** gefordert wird, sagen die Positionen;
-# **dass** korrigiert wird, sagt das Vorzeichen; **was** korrigiert wird, sagt
-# `reverses_id` – eine Gegenbuchung heisst schlicht «Korrektur» und trägt die Referenz auf
-# den Beleg, den sie korrigiert. Ein Feld, das an jeder Rechnung dasteht und nur bei jeder
-# zehnten etwas aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest.
+#: **Der Verweis auf den Beleg, den dieser hier mindert.** Er steht auf dem Papier
+#: (MWSTG Art. 26: die Leistung und das Entgelt müssen eindeutig bestimmbar sein) und ist
+#: eine **Ableitung** aus ``corrects_id`` – kein zweites Feld, das jemand abtippt.
+CORRECTS_LABEL = "Korrektur zu"
+CORRECTS_HINT = ("Welche Rechnung dieser Beleg mindert – sie darf in einem anderen "
+                 "Auftrag stehen: die Gutschrift gehört dorthin, wo die Ware zurückkommt.")
 
 #: **Die Kleinbetragstoleranz** – bis hierher darf ein Restsaldo als Differenz ausgebucht
-#: werden (eine ganz gewöhnliche Forderung mit Gegenvorzeichen).
+#: werden.
 #:
 #: ►►► **Sie ist eine Erlaubnis, kein Automatismus.** ◄◄◄ Ausgebucht wird nichts von
 #: selbst: das System **bietet** die Zeile an, ein Mensch bucht sie. Eine automatische
@@ -476,8 +483,15 @@ def reverse_word(paid: Decimal) -> str:
 #: **Nicht zu verwechseln mit `SETTLED_TOLERANCE`**: die sagt, ab wann eine Rechnung
 #: *beglichen heisst* (drei Rappen sind keine Mahnung wert); diese hier sagt, bis wohin
 #: man die Differenz **wegbuchen darf**. Zwei Fragen, zwei Zahlen.
+#:
+#: ►►► **Gebucht wird sie als ZAHLUNG mit Vermerk.** ◄◄◄ Sie war eine negative Forderung –
+#: und die gibt es nicht mehr, seit der Beleg selbst die Rechnung ist. Eine Zahlung ist
+#: hier ohnehin definiert als *was den offenen Betrag mindert*, und der Vermerk sagt, dass
+#: kein Geld geflossen ist. Ein dritter Zeilentyp für achtzig Rappen wäre ein Mechanismus
+#: für einen Rundungsfehler.
 WRITE_OFF_LIMIT = Decimal("1.00")
 WRITE_OFF_WORD = "Differenz ausbuchen"
+WRITE_OFF_NOTE = "Rundungsdifferenz"
 
 
 # ---------------------------------------------------------------------------
@@ -512,12 +526,8 @@ WRITE_OFF_WORD = "Differenz ausbuchen"
 #: Entscheidung, keine Anzeigefrage – und wer mahnt, liest denselben Zustand.
 SETTLED_TOLERANCE = Decimal("0.05")
 
-#: Die Zustände einer Forderung – Schlüssel, Wort, Ton.
-CHARGE_STATES: dict[str, tuple[str, str]] = {
-    #: Zurückgenommen: die Zeile steht weiterhin da (eine Rechnungsnummer ist vergeben),
-    #: aber sie fordert nichts mehr. **Rot wie jeder «Stopp»-Zustand im Haus** – der
-    #: Datensatz ist nicht mehr zu verwenden (dieselbe Lesart wie *inaktiv*).
-    "reversed": ("Storniert", "danger"),
+#: Die Zustände einer Rechnung – Schlüssel, Wort, Ton.
+INVOICE_STATES: dict[str, tuple[str, str]] = {
     "settled": ("Beglichen", "done"),
     "partial": ("Teilweise bezahlt", "pending"),
     "overdue": ("Überfällig", "danger"),
@@ -526,14 +536,21 @@ CHARGE_STATES: dict[str, tuple[str, str]] = {
 }
 
 
-def charge_state(total: Decimal, remaining: Decimal, *,
-                 reversed_: bool = False, overdue: bool = False) -> dict[str, str]:
-    """**Wie steht diese Forderung?** – Schlüssel, Wort und Ampelton aus zwei Zahlen.
+def invoice_state(total: Decimal, remaining: Decimal, *,
+                  overdue: bool = False) -> dict[str, str]:
+    """**Wie steht diese Rechnung?** – Schlüssel, Wort und Ampelton aus zwei Zahlen.
 
     ``total`` ist ihr Betrag, ``remaining`` was von ihr offen ist.
 
-    ►►► **Gerechnet wird mit dem VORZEICHEN, nicht mit «grösser null».** ◄◄◄ Eine
-    **Gutschrift** ist eine negative Rechnung (§9.11); bei ihr ist auch der offene Betrag
+    ►►► **Eine Funktion, nicht zwei.** ◄◄◄ Hier standen ``charge_state`` (je Forderungs-
+    Zeile) und ``balance_state`` (über den Saldo des Belegs) nebeneinander – zwei
+    Ableitungen mit geteilten Wörtern und geteilter Toleranz, weil ein Beleg mehrere
+    Forderungen tragen konnte und die Summe eine eigene Aussage war. Seit der Beleg **die**
+    Rechnung ist, sind Betrag und Saldo dieselben zwei Zahlen: eine Frage, eine Antwort.
+    Der frühere Saldo-Zustand «Guthaben» ist damit derselbe wie «Überzahlt».
+
+    ►►► **Gerechnet wird mit dem VORZEICHEN, nicht mit «grösser null».** ◄◄◄ Ein
+    **Korrekturbeleg** trägt einen negativen Betrag; bei ihm ist auch der offene Betrag
     negativ, und «offen < 0 heisst überzahlt» nennte jede unbeglichene Gutschrift
     «Überzahlt». Überzahlt ist, wo Rest und Betrag **verschiedene** Vorzeichen tragen –
     dann ist mehr geflossen als gefordert, in welche Richtung auch immer.
@@ -542,8 +559,6 @@ def charge_state(total: Decimal, remaining: Decimal, *,
     gefordert. Ohne sie sähe eine Rechnung, auf die eine Anzahlung eingegangen ist,
     genauso aus wie eine, auf die nichts eingegangen ist.
     """
-    if reversed_:
-        return _state("reversed")
     if abs(remaining) <= SETTLED_TOLERANCE:
         return _state("settled")
     if total != 0 and (remaining < 0) != (total < 0):
@@ -556,41 +571,8 @@ def charge_state(total: Decimal, remaining: Decimal, *,
 
 
 def _state(key: str) -> dict[str, str]:
-    label, tone = CHARGE_STATES[key]
+    label, tone = INVOICE_STATES[key]
     return {"state": key, "state_label": label, "state_tone": tone}
-
-
-#: Wer mehr bezahlt hat, als gefordert war, hat kein Problem – er hat etwas gut.
-CREDIT = "credit"
-CREDIT_WORD = "Guthaben"
-
-
-def balance_state(open_amount: Decimal, *, overdue: bool = False) -> dict[str, str]:
-    """►►► **Wie steht der Beleg im Ganzen?** – aus **einer** Zahl (Testnotiz #997). ◄◄◄
-
-    *«Das Wort ‹Offen› entfällt, der Status wird ausschliesslich über die Farbe des
-    Betrags getragen: offen orange · überfällig rot · beglichen grün · überzahlt grün mit
-    ausgewiesenem Guthaben.»*
-
-    **Warum das eine zweite Funktion neben ``charge_state`` ist und keine zweite Regel:**
-    beide teilen Toleranz, Wörter und Ampeltöne; verschieden ist, was sie **kennen**. Eine
-    Forderung hat einen Betrag, also lässt sich «teilweise bezahlt» von «nichts bezahlt»
-    unterscheiden und «überzahlt» am Vorzeichenwechsel erkennen. Der Saldo ist eine
-    **Differenz** – *gefordert minus geflossen* –, und daraus folgen genau drei Aussagen:
-    es steht etwas aus, es ist ausgeglichen, oder es ist zu viel geflossen. Sie mit
-    ``total=0`` durch dieselbe Funktion zu schicken hiesse, ihr eine Zahl zu erfinden.
-
-    ►►► **Und ein Guthaben ist GRÜN, nicht rot.** ◄◄◄ An einer einzelnen Forderung ist
-    «Überzahlt» ein Problem: dort stimmt der Beleg nicht mit dem Geld überein. Im Saldo
-    ist es eine Tatsache über den Vorgang – niemand schuldet mehr etwas, und was zu viel
-    kam, steht als Guthaben da. Zurückgegeben wird es über die gewöhnliche negative
-    Zahlung; verrechnet wird nie automatisch.
-    """
-    if abs(open_amount) <= SETTLED_TOLERANCE:
-        return _state("settled")
-    if open_amount < 0:
-        return {"state": CREDIT, "state_label": CREDIT_WORD, "state_tone": "done"}
-    return _state("overdue" if overdue else "open")
 
 
 @dataclass(frozen=True)
@@ -670,7 +652,8 @@ DIRECTIONS: dict[str, Direction] = {
         # Die **Auftragsbestätigung IST diese Stufe**: sie hat Datum, Nummer, bestätigte
         # Positionen mit Preis und Satz und beide Fristen. Eine eigene Stufe wäre ein
         # **Zustand** in einer Reihe von **Schritten**, den man nicht *tut*.
-        stage_labels={OFFER: "Offerte", AGREED: "Auftragsbestätigung"},
+        stage_labels={OFFER: "Offerte", AGREED: "Auftragsbestätigung",
+                      BILLED: "Rechnung"},
         ask_verb="Anbieten",
         quoted_by=BY_US,
         # **Wir stellen sie** – sie entsteht hier, bekommt unsere Nummer und geht hinaus.
@@ -684,7 +667,9 @@ DIRECTIONS: dict[str, Direction] = {
         key=OUT,
         label="Ausgabe",
         hint="Ausgabe – wir bekommen Rechnung, Geld geht hinaus.",
-        stage_labels={OFFER: "Anfrage", AGREED: "Bestellung"},
+        stage_labels={OFFER: "Anfrage", AGREED: "Bestellung",
+                      # **Seine Rechnung** – sie entsteht bei ihm, wir schreiben sie ab.
+                      BILLED: "Rechnung"},
         ask_verb="Anfragen",
         quoted_by=BY_PARTY,
         # **Seine Rechnung schreiben wir ab** – der Beleg entsteht bei ihm.
@@ -715,14 +700,6 @@ def assert_direction(direction: Any) -> str:
         f"«{direction}» ist keine Richtung. Erlaubt: "
         + ", ".join(f"{d.label} ({k})" for k, d in DIRECTIONS.items()) + "."
     )
-
-
-def assert_kind(kind: Any) -> str:
-    """Die Schreibprüfung für eine Geld-Zeile."""
-    if kind in KINDS:
-        return str(kind)
-    raise ValueError(f"«{kind}» ist keine Art einer Geld-Zeile. Erlaubt: "
-                     + ", ".join(KINDS) + ".")
 
 
 # ---------------------------------------------------------------------------
@@ -1029,22 +1006,20 @@ class Balance:
     #: zugesagt − berechnet (``None``, solange nichts zugesagt ist)
     uncharged: Optional[Decimal]
 
-    @property
-    def next_charge(self) -> Optional[Decimal]:
-        """**Was als nächstes zu fordern wäre** – und niemals ein negativer Vorschlag.
-
-        ``uncharged`` darf negativ sein (es wurde mehr berechnet als zugesagt); als
-        **Vorgabe** in einem Eingabefeld ist es das nicht – niemand will eine Rechnung
-        über minus 250 stellen. Eingebbar bleiben negative Beträge (Gutschrift), sie
-        werden nur nie vorgeschlagen.
-        """
-        if self.uncharged is None or self.uncharged <= 0:
-            return None
-        return self.uncharged
+    # ►►► **``next_charge`` ist entfallen.** ◄◄◄ Es schlug vor, *was als nächstes zu
+    # fordern wäre* – eine Zahl, die nur Sinn ergab, solange ein Beleg mehrere Rechnungen
+    # tragen konnte. Es gibt eine, und was auf ihr steht, sagen die Positionen (wo **wir**
+    # den Preis nennen) bzw. die Zusage (wo die Gegenpartei ihn nennt). Ein Vorschlag
+    # daneben wäre eine dritte Quelle für dieselbe Zahl.
 
     @property
     def next_payment(self) -> Optional[Decimal]:
-        """**Was als nächstes zu zahlen wäre** – dieselbe Regel wie ``next_charge``."""
+        """**Was als nächstes zu zahlen wäre** – und niemals ein negativer Vorschlag.
+
+        Ein negativer offener Betrag ist eine gültige Aussage (wir schulden); als
+        **Vorgabe** in einem Eingabefeld ist er es nicht. Eingebbar bleiben negative
+        Beträge – das ist die Erstattung –, sie werden nur nie vorgeschlagen.
+        """
         return self.open if self.open > 0 else None
 
     @property
@@ -1082,20 +1057,23 @@ class Balance:
         return self.paid >= (self.agreed or Decimal("0"))
 
 
-def balance(agreed: Optional[Decimal],
-            entries: list[tuple[str, Decimal]]) -> Balance:
-    """Zusage und Geld-Zeilen zu vier Zahlen. **Die eine Rechenstelle.**
+def balance(agreed: Optional[Decimal], charged: Optional[Decimal],
+            payments: list[Decimal]) -> Balance:
+    """Zusage, Rechnung und Zahlungen zu vier Zahlen. **Die eine Rechenstelle.**
 
-    ``entries`` ist eine Liste ``(Art, Betrag)`` – dieselbe Form, in der die Zeilen in der
-    Datenbank stehen. Diese Funktion kennt keine Datenbank; sie rechnet, und der Dienst
-    liest.
+    ``charged`` ist der Betrag der **einen** Rechnung dieses Belegs (``None``, solange
+    keine gestellt ist); ``payments`` sind die Zahlungen darauf. Diese Funktion kennt keine
+    Datenbank; sie rechnet, und der Dienst liest.
+
+    *Hier stand einmal eine Liste ``(Art, Betrag)`` und eine Summierung je Art – die Art
+    gibt es nicht mehr: es gibt eine Rechnung und n Zahlungen.*
     """
-    charged = sum((a for k, a in entries if k == CHARGE), Decimal("0"))
-    paid = sum((a for k, a in entries if k == PAYMENT), Decimal("0"))
+    total = charged or Decimal("0")
+    paid = sum(payments, Decimal("0"))
     return Balance(
         agreed=agreed,
-        charged=charged,
+        charged=total,
         paid=paid,
-        open=charged - paid,
-        uncharged=None if agreed is None else agreed - charged,
+        open=total - paid,
+        uncharged=None if agreed is None else agreed - total,
     )

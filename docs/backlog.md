@@ -254,21 +254,46 @@ instance_units WHERE status = 'verkauft'` **und** dasselbe über `process_events
 entscheidet dann. Eine Migration, die bestehende Zeilen «heilt», ist genau die
 Fehlerklasse aus Migration 110.
 
-## Folge-Deploy: `voucher_entries.charge_id`
+## Folge-Deploy: die Geld-Zeile verliert sechs Spalten und eine Tabelle
 
-Seit Migration `137` ist **`voucher_allocations` die Wahrheit** über «welche Zahlung geht
-auf welchen Beleg»; `charge_id` wird von `voucher.allocate` noch **mitgeschrieben** (die
-Abkürzung für den einfachen Fall) und von **niemandem** mehr gelesen. Sie kann fallen,
-sobald das Mapping ein Deploy lang draussen war – die Zwei-Deploy-Regel gilt unverändert.
+Seit Migration `138` **ist der Beleg die Rechnung**
+(`docs/konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q): Betrag, Steuer, Nummer,
+Datum, Fälligkeit und Leistungsdatum stehen an `vouchers`, und `voucher_entries` trägt nur
+noch **Zahlungen**. Ohne Mapping und ohne Leser stehen damit still:
 
-## Folge-Deploy: `voucher_entries.reason`
+| Objekt | seit | Bemerkung |
+|---|---|---|
+| `voucher_entries.kind` | `138` | nullable + Server-Default `'payment'` gemacht, damit ein Insert ohne sie durchgeht |
+| `voucher_entries.due_on` · `vat` · `service_date` · `reverses_id` | `138` | die Angaben stehen am Beleg |
+| `voucher_entries.charge_id` | `137` | die Frage «welche Rechnung?» hat genau eine Antwort |
+| `voucher_entries.reason` | `137` | der «Grund» war die Belegart mit anderem Namen (#1021) |
+| **Tabelle** `voucher_allocations` | `137` | die modulinterne Sammelzahlung ist gegenstandslos (siehe unten) |
 
-Der «Grund» einer Korrektur ist mit Testnotiz **#1021** ersatzlos entfallen – Vokabel
-(`REASONS` · `REASON_LABEL` · `assert_reason` · `WRITE_OFF_REASON`), Mapping, Schema und
-Eingabefeld. Er war die **Belegart mit anderem Namen**: beim Stellen einer Rechnung
-überflüssig (die Positionen sagen es), bei einer Korrektur genügt die Referenz auf den
-Beleg, den sie korrigiert (`reverses_id` und «Korrektur zu …»).
+Sie fallen im **Folge-Deploy** – Zwei-Deploy-Regel; bis dahin sind die Werte lesbar. Die
+**Tabelle** bleibt darüber hinaus so lange stehen, bis klar ist, dass niemand ihre
+Historie braucht: ein Tabellen-Drop kostet die Vergangenheit.
 
-Die **Spalte steht noch** (Migration `137` hat sie angelegt) und wird von keiner Zeile
-Code mehr gelesen oder geschrieben. Sie fällt im Folge-Deploy – Zwei-Deploy-Regel;
-bestehende Werte sind bis dahin lesbar, falls jemand sie noch braucht.
+## Die offene-Posten-Liste je Partner (und mit ihr die Sammelzahlung)
+
+**Benannt, nicht versteckt** (PROCESS_CORE §9.15q). Seit eine Rechnung *der Beleg* ist,
+liegen zwei Rechnungen desselben Kunden zwingend in **verschiedenen Modulen** – meist in
+verschiedenen Aufträgen. Zwei Fragen haben damit keinen Ort mehr an *einem* Modul:
+
+1. **«Was schuldet mir dieser Kunde insgesamt?»** Rechnung 10'000 (bezahlt) steht in Modul
+   A, Gutschrift 600 (offen) in Modul B. Beide für sich sind korrekt; die Summe ist
+   **Debitorenbuchhaltung**.
+2. **Eine Überweisung über mehrere Rechnungen.** Auf dem Kontoauszug steht eine Zeile. Die
+   modulinterne Aufteilung (#1010–#1017) beantwortete das innerhalb eines Belegs und ist
+   gegenstandslos geworden; die **modulübergreifende** kommt mit der Liste zurück.
+
+Der Umbau verursacht das nicht – er macht es sichtbar nötig: spätestens beim zweiten
+Auftrag je Kunde wäre es ohnehin fällig. Bis dahin sind es zwei erfasste Zahlungen statt
+einer: eine Zeile mehr auf dem Bildschirm, **keine falsche Zahl**.
+
+## Der reine Rechnungsfehler nach dem Versand
+
+Er braucht heute einen Auftrag über die **betroffenen Stücke** – das funktioniert und
+dokumentiert sogar, worauf sich die Korrektur bezieht, fühlt sich aber schief an. Es ist
+derselbe offene Punkt wie **«ein Beleg ganz ohne Ware»** (Miete, Lohn, Gebühr):
+`assert_releasable` verlangt mindestens eine Einzelinstanz, also kann das System das auch
+ohne diesen Umbau nicht. Fällt die Regel eines Tages, fällt sie für beide.

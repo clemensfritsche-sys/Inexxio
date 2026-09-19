@@ -6102,10 +6102,13 @@ def test_the_paying_card_names_the_invoice_it_settles():
     # Frage. Die Regel bleibt («kassiert wird über eine Rechnung, nicht über einen
     # Saldo») – geprüft wird sie dort, wo sie wirkt: an der **Vorbereitung**, die die
     # Nummer an den Zahlungsdienst trägt.
+    # ►►► **Die Frage hat genau eine Antwort — also stellt sie niemand mehr.** ◄◄◄ Hier
+    # stand ``chargeId``: welche Rechnung bezahlt wird. Seit der Beleg **die** Rechnung
+    # ist, kann die Karte gar nicht mehr die falsche meinen; geprüft wird darum, dass
+    # die **Nummer** beim Zahlungsdienst ankommt – dort wirkt die Regel.
     src = _read(FRONTEND / "components" / "erp" / "pay-online.tsx")
-    assert "chargeId" in _code(src), (
-        "Die Bezahlkarte nennt die Rechnung nicht mehr – dann kassiert sie wieder einen "
-        "Saldo statt eines Belegs."
+    assert "chargeId" not in _code(src), (
+        "Die Bezahlkarte nennt wieder eine Rechnung – es gibt eine, und sie ist der Beleg."
     )
     assert "Rechnung {setup.invoice}" not in _code(src), (
         "Die Nummer steht wieder in der Karte (#891) – zwanzig Pixel unter derselben "
@@ -6127,52 +6130,55 @@ DEAL_WORK = FRONTEND / "components" / "erp" / "beleg-work.tsx"
 
 
 def test_the_money_actions_stand_at_the_invoice_they_belong_to():
-    """►►► **Welche Rechnung bezahle ich?** — der Knopf steht an ihr (Testnotiz #859).
+    """►►► **Welche Rechnung bezahle ich?** — die Frage stellt niemand mehr (#859). ◄◄◄
 
     *«Wie kann ich bestimmen, welche Rechnung ich bezahle?»* – Gar nicht: die Knöpfe
     standen **unter** der Liste, galten also dem Vorgang, und kassiert wurde immer die
-    älteste offene. Ein Knopf **an** der Zeile beantwortet die Frage, indem er sie nicht
-    stellt – und die Karte nennt die Rechnung, die sie meint (`chargeId`).
+    älteste offene. Ein Knopf **an** der Zeile beantwortete die Frage, indem er sie nicht
+    stellte.
 
-    ►►► **Und die Antwort kommt jetzt vom SERVER** (der Umbau von «Rechnung & Zahlung»).
-    ◄◄◄ Je Modul lebt höchstens **eine** offene Forderung (#866) – die Frage hat damit
-    genau eine Antwort, und sie gehört dem Dienst (`settle_charge`). Der Wächter verlangte
-    bis hierher, dass **jede** Handlung an ihrer Zeile steht (`onPay}`, `onPanel(…)`) –
-    also die Form der damaligen Lösung; sie war der Grund, warum an einer Rechnung sechs
-    gleich aussehende Knöpfe standen. Die **Regel** – *keine Handlung, die rät, welche
-    Rechnung gemeint ist* – gilt unverändert und wird hier gefragt.
+    ►►► **Und jetzt gibt es sie gar nicht mehr.** ◄◄◄ Der Beleg **ist** die Rechnung – es
+    kann keine zweite geben, also kann auch keine Handlung die falsche meinen. Damit sind
+    ``chargeId``, ``entryId`` und ``settle_charge`` ersatzlos entfallen; die **Regel**
+    (*keine Handlung, die rät, welche Rechnung gemeint ist*) gilt unverändert und ist
+    strukturell erfüllt statt durchgesetzt.
 
-    Bug-Formen: (a) die Bezahlkarte nennt die Rechnung nicht; (b) das Formular fragt
-    wieder nach ihr; (c) eine Korrektur verlässt ihre Zeile.
+    Bug-Formen: (a) eine Handlung nennt wieder eine Rechnung, also gibt es wieder mehrere;
+    (b) das Formular fragt nach ihr; (c) eine Korrektur verlässt ihre Zeile.
     """
     src = _code(_read(DEAL_WORK))
     money = _component(src, "Money")
-
-    def _tag(where: str, opening: str) -> str:
-        cut = where[where.index(opening):]
-        return cut[:cut.index("/>")]
-
-    assert "chargeId={settle}" in _tag(money, "<PayOnline"), (
-        "Die Bezahlkarte nennt die Rechnung nicht (a) – dann kassiert sie wieder die "
-        "älteste offene, egal worauf jemand gezeigt hat."
-    )
-    assert "entryId={settle}" in _tag(money, "<Transfer"), (
-        "Der Einzahlungsschein nennt die Rechnung nicht (a)."
-    )
+    # *Gefragt ist die **Weitergabe an ein Bauteil** (`chargeId={…}`), nicht das blosse
+    # Vorkommen eines Namens: `entryId` steht weiterhin an der Erstattung – dort ist es
+    # die **Karten-Zahlung**, die zurückgegeben wird, und davon gibt es mehrere.*
+    for gone in ("chargeId={", "entryId={", "settle_charge", "open_charges"):
+        assert gone not in money, (
+            f"«{gone}» ist zurück (a) – dann gibt es die Rechnung wieder mehrfach, und "
+            f"eine Handlung muss raten, welche gemeint ist."
+        )
     entry = _component(src, "Entry")
     assert "open_invoices" not in entry and "Rechnung</Label>" not in entry, (
         "Das Formular fragt wieder, worauf die Zahlung geht (b) – die Frage ist "
         "beantwortet, bevor es aufgeht."
     )
-    # (c) **Was eine Zeile korrigiert, steht an ihr.** Das ist die andere Hälfte derselben
-    # Regel: eine Gegenbuchung meint **diese** Rechnung, eine zweite Zahlung **diese**
-    # Zahlung – beide könnten gar nicht raten, und darum gehören sie nicht nach unten.
+    # (c) **Was eine Zeile korrigiert, steht an ihr.** Eine zweite Zahlung meint **diese**
+    # Zahlung, die Rücknahme **diese** Rechnung – beide könnten gar nicht raten, und darum
+    # gehören sie nicht nach unten.
     row = _body(src, "EntryRow", kind="function")
-    for action in ("action: 'reverse'", "entry: e.id", "action: 'pay'", "negate(e.amount)"):
+    for action in ("action: 'pay'", "negate(e.amount)"):
         assert action in row, (
             f"«{action}» steht nicht mehr an der Zeile (c) – dann gilt die Korrektur "
             f"wieder dem ganzen Vorgang."
         )
+    # *Gefragt ist der **Knopf samt seinem Tor**, nicht das blosse Vorkommen der
+    # Handlung: der erste Anlauf prüfte nur `action: 'unbill'` und liess eine Bug-Form
+    # durch, die die Bedingung auf `false` setzte – der Knopf war weg, der Wächter
+    # schwieg. Gemessen, nachgeschärft.*
+    invoice = _body(src, "InvoiceRow", kind="function")
+    assert "action: 'unbill'" in invoice and "may(d, 'unbill')" in invoice, (
+        "Die Rücknahme steht nicht mehr an der Rechnung (c) – oder sie hängt nicht mehr "
+        "an `can`, und dann ist sie entweder immer oder nie da."
+    )
 
 
 def test_a_payment_stands_in_the_compartment_it_belongs_to():
@@ -6197,22 +6203,24 @@ def test_a_payment_stands_in_the_compartment_it_belongs_to():
     """
     src = _code(_read(DEAL_WORK))
     money = _component(src, "Money")
-    assert "d.entries.map(" not in money, (
-        "Die Buchungen stehen wieder als eine Liste (a)."
-    )
-    for split in ("e.kind === 'charge'", "e.kind === 'payment'"):
-        assert split in money, f"«{split}»: die beiden Fächer sind nicht getrennt (a)."
-    # (b) **Alle Zahlungen, ohne Bedingung** – Zahlungen aus der Zeit vor #858 tragen keine
-    # Zuordnung, und eine Online-Zahlung auf eine inzwischen stornierte Rechnung ebenso
-    # wenig. Geraten wird nichts, gezeigt schon.
+    # ►►► **Die Trennung ist jetzt STRUKTURELL** – ein Beleg trägt eine Rechnung, und
+    # ``entries`` sind ausschliesslich Zahlungen. Ein Filter auf eine «Art» wäre der
+    # Rückweg zu der Liste, aus der man die eine Rechnung heraussuchen musste.
+    for gone in ("e.kind === 'charge'", "e.kind === 'payment'", "d.entries.filter("):
+        assert gone not in money, (
+            f"«{gone}» ist zurück (a) – dann steckt die Rechnung wieder in der Liste "
+            f"ihrer Zahlungen."
+        )
+    assert "<InvoiceRow" in money, "Das Fach «Fordern» zeigt die Rechnung nicht (a)."
+    # (b) **Alle Zahlungen, ohne Bedingung** – eine Online-Zahlung auf eine inzwischen
+    # zurückgenommene Rechnung gehört dazu: sie ist passiert. Geraten wird nichts,
+    # gezeigt schon.
     assert "payments.map(" in money and "payments.filter(" not in money, (
         "Eine Zahlung fällt aus der Ansicht (b) – dann verschwindet Geld, das geflossen ist."
     )
-    # (c) **Der Stand gehört der Rechnung** – das ist die Antwort auf «welche Zahlung
-    # gehört wohin», und sie steht als Ergebnis da statt als Gruppierung.
-    # ►►► **Und der Stand kommt vom Server** (#991) – die Zeile zeigt ihn, sie rechnet
-    # ihn nicht: `state_label`/`state_tone` aus `domain/voucher.charge_state`.
-    assert "e.state_label" in _body(src, "EntryRow", kind="function"), (
+    # (c) **Der Stand gehört der Rechnung** – und er kommt vom Server (#991): die Zeile
+    # zeigt ihn, sie rechnet ihn nicht (`domain/voucher.invoice_state`).
+    assert "invoice.state_tone" in _body(src, "InvoiceRow", kind="function"), (
         "Die Rechnung sagt ihren eigenen Stand nicht mehr (c)."
     )
     assert "auf {chargeRef" not in src and "function chargeRef" not in src, (
@@ -6383,6 +6391,51 @@ def test_the_payment_reference_says_where_it_comes_from():
     )
 
 
+def test_the_invoice_lives_on_the_voucher_not_in_a_money_line():
+    """►►► **DIE Rechnung IST der Beleg — die Karte baut sie nicht mehr zusammen.** ◄◄◄
+
+    Bis hierher stand im Fach «Fordern» eine Liste von Geld-Zeilen, und die Oberfläche
+    musste heraussuchen, welche davon *die* Rechnung ist: ``kind === 'charge'``, nicht
+    storniert, nicht Gegenbuchung, nicht negativ. Genau diese Suche ist die Form, in der
+    eine Regel («eine Rechnung je Modul») von zwei Stellen unterschiedlich beantwortet
+    wird.
+
+    Jetzt reist sie als **ein Objekt** mit (``VoucherEmbed.invoice``), und ``null`` ist
+    die vollständige Antwort auf «gibt es eine?».
+
+    Bug-Formen: (a) die Karte sucht sich die Rechnung wieder aus den Zeilen; (b) sie liest
+    Nummer, Fälligkeit oder Steuer von einer Geld-Zeile; (c) das Feld gibt es an der Tür
+    gar nicht, also käme es nie an.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.voucher import VoucherEmbed, VoucherEntryOut
+
+    src = _code(_beleg())
+    # (a) **Keine Suche mehr** – weder nach einer Art noch nach einem Vorzeichen.
+    for guess in ("kind === 'charge'", "kind === 'payment'", "e.reversed", "e.reverses"):
+        assert guess not in src, (
+            f"«{guess}»: die Karte sucht sich die Rechnung wieder aus den Zeilen (a)."
+        )
+    # (b) **Die Angaben der Rechnung kommen von ihr** – geprüft an der Zeile, die sie
+    # zeichnet: sie liest ``invoice``, nicht ``e``.
+    row = _component(src, "InvoiceRow")
+    for field in ("invoice.number", "invoice.billed_on", "invoice.due_on",
+                  "invoice.amount"):
+        assert field in row, f"«{field}» steht nicht an der Rechnung (b)."
+    # (c) **Und die Tür kennt sie.** Ein Feld, das das Schema nicht führt, käme nie an –
+    # dieselbe Falle wie bei einer Pydantic-Klasse, die ein Feld nicht kennt.
+    assert "invoice" in VoucherEmbed.model_fields, (
+        "Der Beleg liefert seine Rechnung nicht (c)."
+    )
+    for gone in ("kind", "due_on", "vat", "service_date", "reverses", "reversed",
+                 "charge_id", "allocations", "reverse_word", "state"):
+        assert gone not in VoucherEntryOut.model_fields, (
+            f"«{gone}» steht wieder an der Geld-Zeile (a) – dann gibt es die Rechnung "
+            f"zweimal, und die Karte muss wieder wählen."
+        )
+
+
 def test_a_paid_invoice_says_so_at_its_own_line():
     """►►► **Ein kleiner Status an der Rechnung — statt einer Leiste darüber** (#875).
 
@@ -6413,8 +6466,8 @@ def test_a_paid_invoice_says_so_at_its_own_line():
         "Der Stand wird wieder im Browser gerechnet (c) – zwei Ableitungen derselben "
         "Zahlen, und die zweite vergisst die Toleranz."
     )
-    row = _body(src, "EntryRow", kind="function")
-    assert "e.state_label" in row and "e.state_tone" in row, (
+    row = _body(src, "InvoiceRow", kind="function")
+    assert "invoice.state_label" in row and "invoice.state_tone" in row, (
         "Die Zeile sagt ihren Stand nicht (b)."
     )
 
@@ -7639,12 +7692,14 @@ def test_recording_a_payment_exists_exactly_once_and_names_its_invoice():
     *Der Wächter verlangte damals, dass `d.payment_word` **in `EntryRow`** steht und
     **nicht in `Money`** – also die Form der damaligen Lösung. Seit der Umbau die Geld-
     Handlungen in zwei Fächer sortiert (eine Buchung ist keine Korrektur), steht das Verb
-    genau einmal, nämlich als die **eine** Handlung, die weiterbringt; und welche Rechnung
-    sie meint, sagt der Server (`settle_charge`). Der Wächter hätte die bessere Fassung
-    verboten – er fragt jetzt die Regel.*
+    genau einmal, nämlich als die **eine** Handlung, die ihr Fach weiterbringt.*
 
-    Bug-Formen: (a) das Verb steht wieder an zwei Stellen; (b) die Buchung nennt die
-    Rechnung nicht mehr; (c) die Oberfläche sucht sie sich selbst aus den Zeilen.
+    ►►► **Und «welche Rechnung» ist keine Frage mehr.** ◄◄◄ Der Beleg **ist** die
+    Rechnung – es kann keine zweite geben, also kann die Buchung nicht die falsche
+    treffen. `settle_charge` ist damit entfallen, und die Regel gilt strukturell.
+
+    Bug-Formen: (a) das Verb steht wieder an zwei Stellen; (b) die Oberfläche sucht sich
+    eine Rechnung aus den Zeilen; (c) eine Handlung nennt wieder eine.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
     # (a) **Gezählt, nicht gesucht** – und gezählt wird die **Handlung**, nicht das Wort:
@@ -7656,18 +7711,11 @@ def test_recording_a_payment_exists_exactly_once_and_names_its_invoice():
         f"eine Stelle."
     )
     money = _component(src, "Money")
-    # (b/c) **Die Rechnung kommt vom Server** – sie in den Zeilen zu suchen wäre die
-    # zweite Regel neben `open_charges`, und genau daraus kam #859.
-    assert "d.settle_charge" in money, (
-        "Die Buchung nennt die Rechnung nicht mehr (b) – dann entscheidet wieder der "
-        "Dienst, worauf sie geht."
-    )
-    assert "chargeId={settle}" in money, (
-        "Das Formular bekommt sie nicht durchgereicht (b)."
-    )
-    for guess in ("charges.find(", "charges[0]", "open_charges"):
+    for guess in ("charges.find(", "charges[0]", "open_charges", "settle_charge",
+                  "chargeId={"):
         assert guess not in money, (
-            f"«{guess}»: die Oberfläche sucht sich die Rechnung selbst (c)."
+            f"«{guess}»: die Oberfläche sucht sich eine Rechnung (b/c) – es gibt eine, "
+            f"und sie ist der Beleg."
         )
 
 
@@ -8297,8 +8345,14 @@ def test_exactly_one_money_action_moves_the_voucher_on():
     im selben Rang. Es ist dasselbe Bauteil, das den Zuschlag und den Modul-Abschluss
     trägt (`StageAction`, #923): eine Handlung, die weiterbringt, sieht überall gleich aus.
 
-    Bug-Formen: (a) die Handlung ist wieder ein Knopf unter vielen; (b) es gibt zwei
-    dominante gleichzeitig; (c) das Formular steht neben dem Knopf, der es öffnet.
+    ►►► **Je Fach eine** – und sie überlappen nicht. ◄◄◄ *Rechnung stellen* → *Rechnung
+    ist versendet* im einen, *Zahlung erfassen* bzw. *Jetzt bezahlen* im anderen; dass man
+    erst auf eine Rechnung kassiert, die **draussen** ist, sagt `can` und nicht diese
+    Datei.
+
+    Bug-Formen: (a) die Handlung ist wieder ein Knopf unter vielen; (b) der Rang wird
+    nicht abgeleitet, sondern nebeneinandergestellt; (c) das Formular steht neben dem
+    Knopf, der es öffnet; (d) sie steht ausserhalb ihres Fachs.
     """
     src = _code(_beleg())
     money = _component(src, "Money")
@@ -8306,26 +8360,26 @@ def test_exactly_one_money_action_moves_the_voucher_on():
         "Die Geld-Handlung ist keine Stufen-Handlung mehr (a) – dann steht sie wieder im "
         "Rang einer Korrektur."
     )
+    # **Eine Stelle rendert sie** – welche der beiden es ist, entscheidet `slot`.
     assert money.count("<StageAction") == 1, (
-        f"Es gibt {money.count('<StageAction')} dominante Handlungen (b) – die eine, die "
-        f"weiterbringt, ist genau eine."
+        f"Es gibt {money.count('<StageAction')} Stellen, an denen eine dominante "
+        f"Handlung entsteht (a) – es ist eine Form, kein Knopf je Fall."
     )
-    # (b) **Und sie wird abgeleitet, nicht nebeneinandergestellt**: erst fordern, dann
+    # (b) **Abgeleitet, nicht nebeneinandergestellt**: erst stellen, dann versenden, dann
     # kassieren – ein Rang, den die Oberfläche vergäbe, wäre die zweite Regel neben `can`.
-    assert "const forward =" in money, "Der Rang wird nicht abgeleitet (b)."
+    for derived in ("const claimAction =", "const settleAction ="):
+        assert derived in money, f"Der Rang wird nicht abgeleitet (b): «{derived}»."
     # (c) **Das Formular tritt an ihre Stelle**, es steht nicht daneben – entschieden an
-    # **einer** Stelle. *Gefragt ist die Regel, nicht ihre Schreibweise: sie stand einmal
-    # als `{form ? (…) : (…)}` im JSX, und seit die Handlung in ihrem eigenen Fach steht
-    # (#1001), entscheidet dieselbe Bedingung eine Ebene höher.*
-    assert "if (form)" in money and money.count("<StageAction") == 1, (
+    # **einer** Stelle.
+    assert "if (form)" in money, (
         "Formular und Knopf stehen gleichzeitig da (c) – zwei Handlungen für dieselbe "
         "Sache."
     )
-    # ►►► **Und sie steht in dem Fach, zu dem sie gehört** (Testnotiz #1001). ◄◄◄ Unter
-    # **beiden** Abschnitten stand sie hinter allem, was in ihnen wächst: jede erfasste
-    # Zahlung schob sie weiter weg von der Zahlungsart, mit der sie eine Einheit bildet.
-    assert money.count("slot('charge')") == 1 and money.count("slot('pay')") == 1, (
-        "Die Handlung steht wieder ausserhalb der beiden Fächer (a) – dann trennt sie "
+    # (d) ►►► **Und sie steht in dem Fach, zu dem sie gehört** (Testnotiz #1001). ◄◄◄
+    # Unter **beiden** Abschnitten stand sie hinter allem, was in ihnen wächst: jede
+    # erfasste Zahlung schob sie weiter weg von der Wahl, mit der sie eine Einheit bildet.
+    assert money.count("slot('bill')") == 1 and money.count("slot('pay')") == 1, (
+        "Die Handlung steht wieder ausserhalb der beiden Fächer (d) – dann trennt sie "
         "jede neue Zeile von der Wahl, zu der sie gehört."
     )
 
@@ -8813,8 +8867,11 @@ def test_a_payment_row_begins_with_how_it_was_paid():
     assert "state.label" not in row, (
         "Der Zustand steht wieder als eigene Zeile darunter (b)."
     )
-    # (c) **Aber sie sagt ihn weiterhin** – als Farbe des Betrags und als Wort im Hover.
-    assert "state?.color" in row and "state?.label" in row, (
+    # (c) **Und die RECHNUNG sagt ihren Zustand weiterhin** – als Farbe ihres Betrags und
+    # als Wort im Hover. *Sie steht seit dem Umbau nicht mehr in derselben Liste wie die
+    # Zahlungen: eine Zahlung ist ein Ereignis, kein Beleg mit einem Stand.*
+    invoice = _component(work, "InvoiceRow")
+    assert "invoice.state_tone" in invoice and "invoice.state_label" in invoice, (
         "Die Rechnung sagt ihren Zustand gar nicht mehr (c)."
     )
 
@@ -9141,14 +9198,22 @@ def test_an_undoing_action_never_looks_like_an_adding_one():
     das Haus «storniert» schreibt), zurücknehmen (Kreispfeil gegen den Uhrzeiger),
     Geld zurückschicken (Rückwärtspfeil).
 
+    *Seit der Beleg **die** Rechnung ist, sind es zwei statt drei: der durchgestrichene
+    Kreis gehörte der Gegenbuchung an einer Forderungs-Zeile, und die gibt es nicht mehr.
+    An der **Rechnung** steht die Rücknahme (Rückwärtspfeil – sie ist nie hinausgegangen),
+    an der **Zahlung** die Korrektur (Kreispfeil) und die Online-Erstattung.*
+
     Bug-Form: eine Korrektur trägt wieder ein Plus.
     """
-    entry = _code(_component(_beleg(), "EntryRow"))
-    assert "icon={Plus}" not in entry, (
+    src = _code(_beleg())
+    entry = _component(src, "EntryRow")
+    invoice = _component(src, "InvoiceRow")
+    assert "icon={Plus}" not in entry and "icon={Plus}" not in invoice, (
         "Eine rückgängig machende Handlung trägt das Zeichen des Hinzufügens."
     )
-    for icon in ("icon={CircleSlash}", "icon={RotateCcw}", "icon={Undo2}"):
-        assert icon in entry, f"Der Zeile fehlt ihr Symbol: {icon}."
+    for icon in ("icon={RotateCcw}", "icon={Undo2}"):
+        assert icon in entry, f"Der Zahlungszeile fehlt ihr Symbol: {icon}."
+    assert "icon={Undo2}" in invoice, "Der Rechnung fehlt ihr Rücknahme-Symbol."
 
 
 def test_a_save_never_hides_a_control_in_the_party_block():
@@ -9321,7 +9386,7 @@ def test_a_refund_button_closes_at_the_click():
     )
     # (c) **Und nach einem Fehler kommt er zurück.** Gesucht wird die Reihenfolge: gesperrt
     #     **vor** dem Aufruf, freigegeben im `catch`.
-    refund = money[money.index("const refund ="):money.index("const charges =")]
+    refund = money[money.index("const refund ="):money.index("const invoice =")]
     lock = refund.index("setSent")
     assert lock < refund.index("await api.refundVoucherPayment"), (
         "Gesperrt wird erst nach der Antwort (b) – das Fenster ist genau davor."

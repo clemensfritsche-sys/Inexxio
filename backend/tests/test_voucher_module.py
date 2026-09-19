@@ -216,15 +216,15 @@ def test_a_verb_is_declared_in_exactly_one_place():
             f"sind genau die Form, in der die vierte ein neues nicht mitbekommt."
         )
     # (b) **Jedes Verb, das irgendwo vorkommt, steht in `VERBS`.**
-    for verb in ("ask", "quote", "decline", "agree", "revoke", "charge", "pay",
-                 "reverse", "price", "currency", "issuer", "incoterm", "terms",
-                 "pay_online", "refund_online"):
+    for verb in ("ask", "quote", "decline", "agree", "revoke", "bill", "unbill",
+                 "issue", "correct", "pay", "price", "currency", "issuer", "incoterm",
+                 "terms", "pay_online", "refund_online"):
         assert verb in svc.VERBS, f"«{verb}» fehlt in VERBS (b)."
     # (c) **`can` liest genau diese Tabelle** – geprüft an der Stufe, nicht am Namen.
     for key, verb in svc.VERBS.items():
         assert verb.stages, f"«{key}» gilt in keiner Stufe (b)."
         for stage in verb.stages:
-            assert stage in ("offer", "agreed", "done", "cancelled"), (
+            assert stage in ("offer", "agreed", "billed", "done", "cancelled"), (
                 f"«{key}» nennt die Stufe «{stage}», die es nicht gibt (b)."
             )
 
@@ -379,17 +379,28 @@ def test_three_columns_became_derivations():
 
     Bug-Formen: (a) eine der drei Spalten ist zurück; (b) die Ableitung liest eine andere
     Zeile als die gewählte; (c) der Betrag weicht von der Summe der Positionen ab.
+
+    *``vouchers.amount`` gibt es seit dem Umbau wieder – es ist aber **eine andere
+    Sache**: der eingefrorene Betrag der **Rechnung**, nicht der der Zusage. Geprüft wird
+    darum die Ableitung selbst (``agreed_amount`` liest die Zeile), nicht die Abwesenheit
+    eines Namens.*
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.models import Voucher
     from app.services import voucher as svc
 
-    for gone in ("party_id", "amount", "due_days"):
+    for gone in ("party_id", "due_days"):
         assert not hasattr(Voucher, gone), (
             f"«{gone}» steht wieder als Spalte am Beleg (a) – dann kann der Beleg "
             f"etwas anderes sagen als seine gewählte Angebotszeile."
         )
+    src = _code(BACKEND / "app" / "services" / "voucher.py")
+    body = src[src.index("def agreed_amount("):src.index("def due_days_of(")]
+    assert "row.amount" not in body, (
+        "Der zugesagte Betrag liest die Rechnung (a) – das sind zwei Zahlen zu zwei "
+        "Zeitpunkten, und die Zusage steht an ihrer Angebotszeile."
+    )
     db = _db()
     try:
         a, b = _party(db, "Kunde A", "customer"), _party(db, "Kunde B", "customer")
@@ -454,7 +465,9 @@ def test_it_does_not_import_a_line_of_the_old_module():
                  "app/models/voucher.py", "app/schemas/voucher.py"):
         code = _code(BACKEND / name)
         for forbidden in ("import deal", "from .deal", "from ..domain import deal",
-                          "domain import deal", "purchase", "invoices", "payments",
+                          "domain import deal", "import purchase", "from .purchase",
+                          "import invoices", "from .invoices",
+                          "import payments", "from .payments",
                           "domain import money"):
             assert forbidden not in code, (
                 f"{name} hängt an «{forbidden}» – dann kostet das Löschen des alten "
@@ -520,14 +533,16 @@ def test_an_income_runs_from_offer_to_paid():
         assert row.stage == "agreed" and row.agreed_on is not None
         money = svc.balance_of(db, row)
         assert money.agreed == Decimal("324.3000"), f"6 × 50.00 + 8.1 % ≠ {money.agreed}."
-        svc.apply(db, order=order, step=step, action="charge", payload={})
+        svc.apply(db, order=order, step=step, action="bill", payload={})
         db.flush()
-        charge = svc.live_charge(db, row)
-        assert charge is not None and charge.amount == Decimal("324.3000")
-        assert charge.reference == f"{order.object_id}-1", (
-            f"Die Rechnungsnummer trägt nicht ihr Suffix: {charge.reference}."
+        assert row.stage == "billed", "Die Rechnung ist keine Schwelle geworden."
+        assert row.amount == Decimal("324.3000")
+        assert row.number == f"{order.object_id}-1", (
+            f"Die Rechnungsnummer trägt nicht ihr Suffix: {row.number}."
         )
-        assert charge.vat, "Die Steuer-Aufteilung ist nicht eingefroren."
+        assert row.vat, "Die Steuer-Aufteilung ist nicht eingefroren."
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        db.flush()
         svc.apply(db, order=order, step=step, action="pay", payload={"method": "cash"})
         db.flush()
         assert svc.balance_of(db, row).open == Decimal("0.0000"), "Offen nach Vollzahlung."
@@ -639,11 +654,60 @@ def test_a_missing_master_record_is_a_line_not_a_state():
         db.rollback(); db.close()
 
 
-def test_a_charge_is_reversed_by_a_counter_entry_never_deleted():
-    """►►► **Gelöscht wird nichts.** ◄◄◄ Eine Rechnungsnummer ist vergeben.
+def _agreed(db, *, direction: str = "in", quantity: int = 2, price: str = "100.00",
+            parties=None):
+    """Eine Szene bis zur **Zusage** – bepreist, angeboten, angenommen."""
+    from app.services import voucher as svc
+    order, step, row, who, art = _scene(db, direction=direction, quantity=quantity,
+                                        parties=parties)
+    if direction == "in":
+        _price(db, order, step, row, price=price)
+    svc.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    svc.apply(db, order=order, step=step, action="ask", payload={})
+    if direction != "in":
+        svc.apply(db, order=order, step=step, action="quote",
+                  payload={"party": who[0].object_id, "amount": price,
+                           "lead_days": 7, "payment_days": 30})
+    svc.apply(db, order=order, step=step, action="agree",
+              payload={"party": who[0].object_id})
+    db.flush()
+    return order, step, row, who, art
 
-    Bug-Formen: (a) es gibt einen Löschweg; (b) die Gegenzeile kopiert die Nummer;
-    (c) sie spiegelt die Steuer nicht; (d) eine Zahlung lässt sich stornieren.
+
+def _credit(db, *, target, who, price: str = "40.00"):
+    """Eine **Gutschrift** zu ``target`` – in einem **eigenen** Auftrag.
+
+    Die Reihenfolge ist die des Belegs: erst zuordnen (das Verb ``correct`` gilt in der
+    Stufe «Angebot»), dann bepreisen, anbieten und annehmen.
+    """
+    from app.services import voucher as svc
+    order, step, row, _w, _a = _scene(db, quantity=1, parties=[who])
+    svc.apply(db, order=order, step=step, action="correct",
+              payload={"corrects": target.id})
+    _price(db, order, step, row, price=price)
+    svc.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    svc.apply(db, order=order, step=step, action="ask", payload={})
+    svc.apply(db, order=order, step=step, action="agree",
+              payload={"party": who.object_id})
+    db.flush()
+    return order, step, row
+
+
+def test_a_module_carries_exactly_one_invoice():
+    """►►► **Eine Rechnung je Modul — nicht als Regel, sondern als STRUKTUR.** ◄◄◄
+
+    *«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich
+    einfach 2 Zahlungsmodule.»*
+
+    Bis hierher musste eine Funktion **zählen**, was eine «Forderung nach aussen» ist
+    (nicht die Gegenbuchung, nicht die stornierte, nicht die negative) – eine Regel, die
+    jemand durchsetzt und die man vergessen kann. Jetzt **ist** der Beleg die Rechnung:
+    ``bill`` ist eine Schwelle von ``agreed`` nach ``billed``, und danach steht das Verb
+    gar nicht mehr in ``can``.
+
+    Bug-Form: ein zweites ``bill`` am selben Beleg geht durch.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -651,57 +715,62 @@ def test_a_charge_is_reversed_by_a_counter_entry_never_deleted():
     from app.services import voucher as svc
     db = _db()
     try:
-        order, step, row, who, _art = _scene(db, quantity=2)
-        _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 0, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask",
-                  payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge", payload={})
+        order, step, row, _who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
         db.flush()
-        first = svc.live_charge(db, row)
-        assert first is not None
-        # (a) **Es gibt keinen Löschweg** – die Verben sind eine Liste, kein Glaube.
-        assert "void" not in svc.VERBS and "delete" not in svc.VERBS, (
-            "Ein Löschweg ist zurück (a)."
+        assert row.stage == "billed" and row.amount == Decimal("216.2000")
+        assert "bill" not in svc.can(db, row, None), (
+            "«Rechnung stellen» steht nach der Rechnung noch da – dann ist die Regel "
+            "wieder eine Zählung statt der Struktur."
         )
-        svc.apply(db, order=order, step=step, action="reverse",
-                  payload={"entry": first.id})
-        db.flush()
-        rows = svc.entries_of(db, row)
-        back = next(e for e in rows if e.reverses_id == first.id)
-        assert back.amount == -first.amount
-        assert back.reference != first.reference, "Die Gegenzeile kopiert die Nummer (b)."
-        assert back.vat and Decimal(back.vat[0]["net"]) < 0, (
-            "Die Gegenbuchung spiegelt die Steuer nicht (c)."
-        )
-        assert svc.balance_of(db, row).charged == Decimal("0.0000")
-        # **Und danach darf die nächste entstehen** – die Regel ist keine Sackgasse.
-        assert svc.live_charge(db, row) is None
-        # (d) **Eine Zahlung ist ein Ereignis, kein Beleg.**
-        svc.apply(db, order=order, step=step, action="charge", payload={})
-        svc.apply(db, order=order, step=step, action="pay", payload={"method": "cash"})
-        db.flush()
-        payment = next(e for e in svc.entries_of(db, row) if e.kind == "payment")
         with pytest.raises(HTTPException) as e:
-            svc.apply(db, order=order, step=step, action="reverse",
-                      payload={"entry": payment.id})
-        assert e.value.status_code == 409 and "zweite Zahlung" in str(e.value.detail), (
-            "Eine Zahlung lässt sich stornieren (d) – und der Satz nennt nicht den Weg."
+            svc.apply(db, order=order, step=step, action="bill", payload={})
+        assert e.value.status_code == 409, "Eine zweite Rechnung geht durch."
+    finally:
+        db.rollback(); db.close()
+
+
+def test_an_issued_invoice_cannot_be_taken_back():
+    """►►► **Ab dem Versenden ist die Rechnung unveränderlich.** ◄◄◄
+
+    Davor gibt es ``unbill`` – dieselbe Anatomie wie ``ask``/``unask``: *jede Zusage nach
+    aussen hat ihre Gegenhandlung an derselben Stelle*, und sie endet genau dort, wo der
+    Beleg wirklich hinausgeht. Was danach falsch bleibt, korrigiert ein **eigener Beleg**.
+
+    Bug-Form: ``unbill`` nach ``issue`` geht durch.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, _who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        db.flush()
+        assert "unbill" in svc.can(db, row, None), (
+            "Eine Rechnung im Haus lässt sich nicht zurücknehmen – dann ist ein "
+            "Tippfehler eine Sackgasse."
+        )
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        db.flush()
+        assert row.issued_on is not None
+        assert "unbill" not in svc.can(db, row, None)
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="unbill", payload={})
+        assert e.value.status_code == 409, (
+            "Eine versendete Rechnung lässt sich zurücknehmen – draussen liegt ein "
+            "Papier, das jemand gelesen hat."
         )
     finally:
         db.rollback(); db.close()
 
 
-def test_one_live_invoice_per_module():
-    """►►► **Je Modul genau EINE offene Forderung** – und das ist keine Sackgasse. ◄◄◄
+def test_an_invoice_with_a_payment_cannot_be_taken_back():
+    """**Wo Geld geflossen ist, war die Rechnung draussen** – was immer jemand angeklickt
+    hat.
 
-    Gesperrt ist die zweite **positive** Forderung; eine **Gutschrift** bleibt möglich,
-    und was falsch ist, wird storniert und neu gestellt.
-
-    Bug-Formen: (a) eine zweite Rechnung geht durch; (b) eine Gutschrift wird mitgesperrt.
+    Bug-Form: ``unbill`` bei eingegangener Zahlung geht durch.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -709,28 +778,299 @@ def test_one_live_invoice_per_module():
     from app.services import voucher as svc
     db = _db()
     try:
-        order, step, row, who, _art = _scene(db, quantity=2)
-        _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 0, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask",
-                  payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "100.00"})
+        order, step, row, _who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"method": "cash", "amount": "10.00"})
         db.flush()
+        # Selbst ohne das Versand-Datum bliebe sie stehen: die Zahlung allein genügt.
+        row.issued_on = None
+        db.flush()
+        assert "unbill" not in svc.can(db, row, None)
         with pytest.raises(HTTPException) as e:
-            svc.apply(db, order=order, step=step, action="charge",
-                      payload={"amount": "50.00"})
-        assert e.value.status_code == 409, "Eine zweite Rechnung geht durch (a)."
-        # (b) **Die Gutschrift bleibt** – sie ist eine Minderung, keine zweite Rechnung.
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "-20.00"})
-        db.flush()
-        assert svc.balance_of(db, row).charged == Decimal("80.0000"), (
-            "Die Gutschrift wurde mitgesperrt (b)."
+            svc.apply(db, order=order, step=step, action="unbill", payload={})
+        assert e.value.status_code == 409, (
+            "Eine bezahlte Rechnung lässt sich zurücknehmen – dann steht Geld auf einem "
+            "Beleg, den es nicht mehr gibt."
         )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_withdrawn_invoice_keeps_its_number():
+    """►►► **Die Nummer bleibt am Beleg — und wird wiederverwendet.** ◄◄◄
+
+    Eine zurückgenommene Rechnung ist **nie hinausgegangen**: es gibt sie nach aussen
+    nicht, niemand kann nach ihr fragen, und die neu gestellte ist **derselbe Beleg**,
+    korrigiert, bevor er das Haus verliess.
+
+    *Das Konzept hatte «sie verbraucht ihre Nummer» notiert – aus der Zeit, als eine
+    Rechnung eine Zeile war. Seit sie der Beleg ist, gäbe es keine zweite Zeile, die die
+    verbrauchte Nummer halten könnte: man bräuchte eine Spalte nur dafür.*
+
+    Bug-Form: die neu gestellte Rechnung bekommt eine andere Nummer.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, _who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        db.flush()
+        first = row.number
+        assert first == f"{order.object_id}-1"
+        svc.apply(db, order=order, step=step, action="unbill", payload={})
+        db.flush()
+        assert row.stage == "agreed" and row.billed_on is None and row.amount is None
+        assert row.number == first, "Die Nummer ist mit der Rücknahme verschwunden."
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        db.flush()
+        assert row.number == first, (
+            f"Die neu gestellte Rechnung heisst «{row.number}» statt «{first}» – dann "
+            f"hat die Serie eine Lücke, zu der es keinen Datensatz gibt."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_there_is_no_reverse_verb_at_the_module():
+    """►►► **Die Entscheidung «Storno oder Gutschrift» trifft niemand mehr.** ◄◄◄
+
+    Sie fällt aus dem **Zeitpunkt** heraus: vor dem Versenden gibt es nur ``unbill``,
+    danach nur den Korrekturbeleg. Ein Verb, das je nach Bezahlstatus «Stornieren» oder
+    «Gutschrift» hiess, waren zwei Sachverhalte, die so taten, als wären sie einer.
+
+    Bug-Form: ``reverse`` steht wieder in ``VERBS``.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+
+    assert "reverse" not in svc.VERBS, "«reverse» ist zurück."
+    for gone in ("reverse_word", "CREDIT_WORD", "STORNO_WORD"):
+        assert not hasattr(vo, gone), f"«{gone}» ist zurück."
+
+
+def test_a_payment_needs_no_allocation():
+    """►►► **Welche Rechnung diese Zahlung meint, fragt niemand mehr.** ◄◄◄
+
+    Je Modul gibt es **eine**, und sie *ist* der Beleg – die Frage hat genau eine Antwort,
+    und eine Frage mit genau einer Antwort stellt man nicht. *Die Aufteilung über mehrere
+    Rechnungen bleibt real; sie liegt jetzt zwingend über Modulgrenzen und gehört damit
+    zur offenen-Posten-Liste (``docs/backlog.md``).*
+
+    Bug-Form: eine Zuordnungs-Tabelle wird wieder gelesen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    import app.models as models
+    from app.models import VoucherEntry
+    from app.services import voucher as svc
+
+    assert not hasattr(models, "VoucherAllocation"), "Die Zuordnungs-Tabelle ist zurück."
+    for gone in ("charge_id", "kind"):
+        assert not hasattr(VoucherEntry, gone), (
+            f"«{gone}» steht wieder an der Geld-Zeile – dann gibt es die Rechnung "
+            f"zweimal."
+        )
+    code = _code(BACKEND / "app" / "services" / "voucher.py")
+    for gone in ("paid_map", "allocate(", "live_charge", "open_charges"):
+        assert gone not in code, f"«{gone}» wird wieder gelesen."
+    for gone in ("allocate", "paid_map", "live_charge", "open_charges", "open_of"):
+        assert not hasattr(svc, gone), f"«{gone}» ist zurück."
+
+
+def test_a_correction_carries_the_reference_to_what_it_corrects():
+    """►►► **Der Verweis steht auf dem PAPIER** (MWSTG Art. 26). ◄◄◄
+
+    Eine **Ableitung** über ``corrects_id``, kein zweites Feld, das jemand abtippt: ohne
+    ihn wäre eine Gutschrift eine zweite Rechnung mit negativem Vorzeichen, und niemand
+    könnte sagen, was sie mindert.
+
+    Bug-Formen: (a) ``corrects_id`` kommt nicht an; (b) der Verweis steht nicht in der
+    Antwort; (c) ein Beleg korrigiert sich selbst; (d) eine Kette läuft im Kreis.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        db.flush()
+        back_order, back_step, back, _w, _a = _scene(db, quantity=1, parties=[who[0]])
+        svc.apply(db, order=back_order, step=back_step, action="correct",
+                  payload={"corrects": row.id})
+        db.flush()
+        assert back.corrects_id == row.id, "Der Verweis kommt nicht an (a)."
+        seen = svc.embed_data(db, order=back_order, step=back_step, viewer=None)
+        assert seen is not None and seen["corrects"] is not None, (
+            "Der Verweis steht nicht in der Antwort (b) – dann kann er nicht auf dem "
+            "Papier stehen."
+        )
+        assert seen["corrects"]["number"] == row.number
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=back_order, step=back_step, action="correct",
+                      payload={"corrects": back.id})
+        assert e.value.status_code == 400, "Ein Beleg korrigiert sich selbst (c)."
+        # (d) **Kein Kreis** – die Kette muss irgendwo enden. Dafür braucht es einen
+        # zweiten gestellten Beleg, der auf den ersten zurückzeigt; der Verweis wird dort
+        # von Hand gesetzt, weil das Verb in der Stufe «Rechnung» keinen Zugang mehr hat
+        # (das hat seinen eigenen Wächter).
+        credit_order, credit_step, credit = _credit(db, target=row, who=who[0])
+        svc.apply(db, order=credit_order, step=credit_step, action="bill", payload={})
+        db.flush()
+        row.corrects_id = credit.id
+        db.flush()
+        third_order, third_step, _third, _w2, _a2 = _scene(db, quantity=1,
+                                                           parties=[who[0]])
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=third_order, step=third_step, action="correct",
+                      payload={"corrects": credit.id})
+        assert e.value.status_code == 400 and "Kreis" in str(e.value.detail), (
+            "Eine Kette aus Korrekturen läuft im Kreis (d)."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_correction_may_live_in_another_order():
+    """►►► **Die Gutschrift gehört dorthin, wo die Ware zurückkommt.** ◄◄◄
+
+    *«Gerade bei Retouren wäre der Warenverkehr getrennt von der monetären Abwicklung –
+    aber dort, wo das Geschehen ist, soll ich es auch abwickeln können.»*
+
+    Und das Modell wird dadurch **kleiner**: die Positionen der Gutschrift entstehen von
+    selbst aus den Stücken, die zurückkommen (``sync_lines``). Die **Warenlogik ist die
+    Mengenkontrolle des Geldes** – man kann nicht mehr zurücknehmen, als geliefert wurde.
+
+    Bug-Form: der Dienst weist einen Beleg aus einem fremden Auftrag ab.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        db.flush()
+        back_order, back_step, back, _w, _a = _scene(db, quantity=1, parties=[who[0]])
+        assert back_order.id != order.id, "Die Szene liegt im selben Auftrag."
+        svc.apply(db, order=back_order, step=back_step, action="correct",
+                  payload={"corrects": row.id})
+        db.flush()
+        assert back.corrects_id == row.id
+        # **Und die Auswahl findet ihn** – gesucht wird über alle Aufträge desselben
+        # Partners, nicht in dem einen, in dem man gerade steht.
+        svc.apply(db, order=back_order, step=back_step, action="correct",
+                  payload={"corrects": None})
+        db.flush()
+        found = svc.correctable(db, back, back_step)
+        assert row.id in [r["id"] for r in found], (
+            "Die Auswahl findet die Rechnung des anderen Auftrags nicht – dann müsste "
+            "man die Gutschrift dort stellen, wo die Ware nicht ist."
+        )
+        assert found[0]["order_object_id"] == order.object_id
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_correction_is_stored_with_a_negative_amount():
+    """►►► **Die Positionen tragen positive Preise — das Vorzeichen setzt ``bill``.** ◄◄◄
+
+    «3 × Getriebe à 200» ist die Aussage, und sie ist MWST-korrekt. Danach rechnet **jede**
+    Zahl vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
+
+    Bug-Form: ``amount`` bleibt positiv, der Saldo addiert statt zu mindern.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        db.flush()
+        back_order, back_step, back = _credit(db, target=row, who=who[0])
+        svc.apply(db, order=back_order, step=back_step, action="bill", payload={})
+        db.flush()
+        assert back.amount is not None and back.amount < 0, (
+            f"Die Gutschrift steht mit {back.amount} da – positiv addiert sie, statt zu "
+            f"mindern."
+        )
+        assert svc.balance_of(db, back).open < 0, "Der Saldo mindert nicht."
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_correction_mirrors_the_tax_split():
+    """**Gespiegelt wird die ganze Zeile, nicht nur ihre Zahlen.**
+
+    Schlüssel, Name und Pflichtsatz gehören zur Aussage, die zurückgenommen wird – sonst
+    verlöre die Gutschrift ausgerechnet den Rechtsgrund, den sie mindert.
+
+    Bug-Form: die Steuer wird nicht gespiegelt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        db.flush()
+        back_order, back_step, back = _credit(db, target=row, who=who[0])
+        svc.apply(db, order=back_order, step=back_step, action="bill", payload={})
+        db.flush()
+        assert back.vat, "Die Gutschrift trägt keine Steuer-Aufteilung."
+        one = back.vat[0]
+        assert Decimal(one["net"]) < 0 and Decimal(one["tax"]) < 0, (
+            f"Die Steuer ist nicht gespiegelt: {one}."
+        )
+        assert one["vat"] == row.vat[0]["vat"] and one["label"] == row.vat[0]["label"], (
+            "Der Rechtsgrund ist beim Spiegeln verlorengegangen."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_frozen_tax_survives_a_price_change():
+    """►►► **Ein Beleg behält, was auf ihm stand.** ◄◄◄
+
+    Nachgerechnet wäre die Vergangenheit eine Funktion der Gegenwart, und eine Abrechnung
+    über ein abgeschlossenes Quartal ergäbe beim zweiten Lauf andere Zahlen.
+
+    Bug-Form: die Steuer wird beim Lesen nachgerechnet.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, _who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        db.flush()
+        before = [dict(r) for r in row.vat]
+        amount = row.amount
+        # Die Positionen **hinter** dem Beleg verändern – so, wie es eine geänderte
+        # Rechenregel täte.
+        for line in svc.lines_of(db, row):
+            line.price = Decimal("1.00")
+        db.flush()
+        seen = svc.embed_data(db, order=order, step=step, viewer=None)
+        assert seen is not None and seen["invoice"] is not None
+        assert seen["invoice"]["vat"] == before, (
+            "Die Steuer der gestellten Rechnung wurde nachgerechnet."
+        )
+        assert row.amount == amount
     finally:
         db.rollback(); db.close()
 
@@ -757,8 +1097,9 @@ def test_a_counterparty_sees_its_own_line_and_no_foreign_price():
                                "lead_days": 7, "payment_days": 30})
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": b.object_id})
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "99.00", "vat": "normal"})
+        svc.apply(db, order=order, step=step, action="bill",
+                  payload={"amount": "99.00", "vat": "normal",
+                           "reference": "R-2026-7"})
         db.flush()
         seen = svc.embed_data(db, order=order, step=step, viewer=a)
         assert seen is not None
@@ -772,7 +1113,8 @@ def test_a_counterparty_sees_its_own_line_and_no_foreign_price():
             "Er liest den Namen des Gewählten im Belegkopf (b)."
         )
         assert seen["customer"]["name"], "Uns sieht jeder – ein Beleg ohne Aussteller ist keiner."
-        assert seen["charged"] is None and seen["paid"] is None and seen["entries"] == [], (
+        assert (seen["charged"] is None and seen["paid"] is None
+                and seen["entries"] == [] and seen["invoice"] is None), (
             "Er liest Zahlen über Forderung und Geld (c)."
         )
         assert seen["allowed"] == [], "Er liest die Konkurrenzliste (d)."
@@ -842,7 +1184,8 @@ def test_the_door_knows_every_field_it_accepts():
     from app.schemas.voucher import VoucherUpdate
     known = set(VoucherUpdate.model_fields)
     for field in ("party", "parties", "lead_days", "payment_days", "amount",
-                  "reference", "note", "booked_on", "due_on", "entry", "charge_id",
+                  "reference", "note", "booked_on", "billed_on", "issued_on",
+                  "corrects", "entry",
                   "lines", "vat", "currency", "method", "incoterm", "incoterm_place",
                   "issuer"):
         assert field in known, (
@@ -1674,21 +2017,26 @@ def test_the_ways_to_the_money_come_from_can_and_say_what_they_do():
                   payload={"party": who[0].object_id}, actor=staff)
         db.flush()
 
-        # (a) **Ohne offene Forderung gibt es nichts zu begleichen.**
+        # (a) **Ohne gestellte Rechnung gibt es nichts zu begleichen.**
         empty = svc.embed_data(db, order=order, step=step, viewer=staff)
-        assert empty["ways"] == [] and empty["settle_charge"] is None, (
+        assert empty["ways"] == [], (
             "Es gibt Wege, obwohl nichts gefordert ist (a) – dann zeigt die Karte eine "
             "Wahl, die ins Leere führt."
         )
 
-        svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
+        # ►►► **Und auch die gestellte Rechnung genügt nicht: sie muss DRAUSSEN sein.**
+        # ◄◄◄ Man kassiert nicht auf ein Papier, das der Zahlende nie gesehen hat.
+        svc.apply(db, order=order, step=step, action="bill", payload={}, actor=staff)
         db.flush()
-        charge = svc.live_charge(db, row)
-        assert charge is not None
+        assert svc.embed_data(db, order=order, step=step, viewer=staff)["ways"] == [], (
+            "Es gibt Wege, obwohl die Rechnung noch im Haus liegt (a)."
+        )
+        svc.apply(db, order=order, step=step, action="issue", payload={}, actor=staff)
+        db.flush()
 
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
-        assert seen["settle_charge"] == charge.id, (
-            "Der Beleg nennt die Rechnung nicht, die begleichen werden soll."
+        assert seen["invoice"] is not None, (
+            "Der Beleg trägt keine Rechnung – sie IST er."
         )
         ours = {w["key"]: w for w in seen["ways"]}
         assert vo.CASH in ours and vo.TRANSFER in ours, (
@@ -1730,16 +2078,16 @@ def test_the_ways_to_the_money_come_from_can_and_say_what_they_do():
         db.close()
 
 
-def test_the_settle_charge_is_named_by_the_service_not_guessed():
-    """►►► **Welche Rechnung begleicht man?** – der Dienst sagt es (#859/#866). ◄◄◄
+def test_nobody_asks_which_invoice_is_meant():
+    """►►► **Die Frage hat genau eine Antwort — also stellt man sie nicht.** ◄◄◄
 
-    Je Modul lebt höchstens **eine** offene Forderung, die Frage hat damit genau eine
-    Antwort. Sie in der Oberfläche zu suchen wäre eine zweite Regel neben ``open_charges``
-    – und genau daraus kam #859 («kassiert wurde immer die älteste offene, egal an welchem
-    Knopf jemand geklickt hat»).
+    Hier stand ``settle_charge``: *welche Rechnung meint das Fach «Begleichen»?* Sie war
+    nötig, solange ein Beleg mehrere Forderungszeilen tragen konnte – und genau daraus kam
+    #859 («kassiert wurde immer die älteste offene, egal an welchem Knopf jemand geklickt
+    hat»). Seit der Beleg **die** Rechnung ist, gibt es nichts mehr zu benennen.
 
-    Bug-Formen: (a) eine stornierte Rechnung wird zum Ziel; (b) eine bezahlte bleibt es;
-    (c) eine Gegenpartei ohne Zuschlag bekommt eine genannt.
+    Bug-Formen: (a) die Angabe ist zurück; (b) eine bezahlte Rechnung bietet weiter Wege
+    an; (c) ein unterlegener Angefragter liest sie.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -1757,40 +2105,26 @@ def test_the_settle_charge_is_named_by_the_service_not_guessed():
                   payload={"parties": [one.object_id, two.object_id]}, actor=staff)
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": one.object_id}, actor=staff)
-        svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
+        svc.apply(db, order=order, step=step, action="bill", payload={}, actor=staff)
+        svc.apply(db, order=order, step=step, action="issue", payload={}, actor=staff)
         db.flush()
-        first = svc.live_charge(db, row)
-        assert svc.embed_data(db, order=order, step=step,
-                              viewer=staff)["settle_charge"] == first.id
-
-        # (c) **Wer den Zuschlag nicht hat, sieht nichts** – auch keine Rechnungsnummer.
-        assert svc.embed_data(db, order=order, step=step,
-                              viewer=two)["settle_charge"] is None, (
-            "Ein unterlegener Angefragter bekommt eine Rechnung genannt (c)."
-        )
-
-        # (a) **Storniert ist kein Ziel mehr.**
-        svc.apply(db, order=order, step=step, action="reverse",
-                  payload={"entry": first.id}, actor=staff)
-        db.flush()
-        assert svc.embed_data(db, order=order, step=step,
-                              viewer=staff)["settle_charge"] is None, (
-            "Eine stornierte Rechnung bleibt das Ziel (a) – auf sie zahlt niemand."
-        )
-
-        # (b) **Bezahlt ist kein Ziel mehr.**
-        svc.apply(db, order=order, step=step, action="charge", payload={}, actor=staff)
-        db.flush()
-        second = svc.live_charge(db, row)
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
-        assert seen["settle_charge"] == second.id
+        assert "settle_charge" not in seen, "Die Angabe ist zurück (a)."
+        assert seen["ways"], "Nach dem Versenden gibt es keinen Weg zum Geld."
+
+        # (c) **Wer den Zuschlag nicht hat, sieht die Rechnung gar nicht.**
+        assert svc.embed_data(db, order=order, step=step,
+                              viewer=two)["invoice"] is None, (
+            "Ein unterlegener Angefragter liest die Rechnung (c)."
+        )
+
+        # (b) **Bezahlt heisst: nichts mehr zu begleichen.**
         svc.apply(db, order=order, step=step, action="pay",
                   payload={"amount": seen["open"], "method": "cash"}, actor=staff)
         db.flush()
         done = svc.embed_data(db, order=order, step=step, viewer=staff)
-        assert done["settle_charge"] is None and done["ways"] == [], (
-            "Eine bezahlte Rechnung bleibt das Ziel (b) – dann bietet die Karte an, "
-            "etwas zu begleichen, das beglichen ist."
+        assert done["open"] == "0.00" and done["invoice"]["state"] == "settled", (
+            "Eine vollständig bezahlte Rechnung steht nicht auf «beglichen» (b)."
         )
     finally:
         db.rollback()
@@ -1887,22 +2221,25 @@ def test_a_term_typed_on_the_voucher_survives_a_reload():
         db.close()
 
 
-def test_a_charge_says_how_it_stands():
-    """►►► **Der Zustand einer Forderung – abgeleitet, mit Toleranz** (Testnotiz #991).◄◄◄
+def test_an_invoice_says_how_it_stands():
+    """►►► **Der Zustand einer Rechnung – abgeleitet, mit Toleranz** (Testnotiz #991).◄◄◄
 
-    *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert* – aus
-    zwei Zahlen (Betrag und Rest), **null Spalten**. Und in den **drei** Ampeltönen des
-    Hauses: eine vierte Farbe für Geld wäre eine zweite Farbsprache.
+    *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt* – aus zwei Zahlen
+    (Betrag und Rest), **null Spalten**. Und in den **drei** Ampeltönen des Hauses: eine
+    vierte Farbe für Geld wäre eine zweite Farbsprache.
 
-    ►►► **Die Überzahlung ist ein GUTHABEN** – der negative offene Betrag *ist* die Zahl.
-    Eine eigene Guthaben-Tabelle wäre ein zweites Modell dafür; zurückgezahlt wird über
-    die gewöhnliche negative Zahlung bzw. den Zahlungsdienst.
+    ►►► **EINE Funktion, nicht zwei.** ◄◄◄ Hier standen ``charge_state`` (je
+    Forderungs-Zeile) und ``balance_state`` (über den Saldo) nebeneinander – zwei
+    Ableitungen mit geteilten Wörtern und geteilter Toleranz, weil ein Beleg mehrere
+    Forderungen tragen konnte. Seit der Beleg **die** Rechnung ist, sind Betrag und Saldo
+    dieselben zwei Zahlen: eine Frage, eine Antwort.
 
     Bug-Formen: (a) «teilweise bezahlt» gibt es nicht – eine angezahlte Rechnung sieht aus
     wie eine unberührte; (b) drei Rappen Restdifferenz halten sie für immer offen;
     (c) eine unbeglichene **Gutschrift** (negative Rechnung) heisst «Überzahlt»;
     (d) der Ton kommt aus einer eigenen Farbliste statt aus den drei des Hauses;
-    (e) der Zustand erreicht die Oberfläche nicht.
+    (e) der Zustand erreicht die Oberfläche nicht; (f) die beiden Ableitungen sind wieder
+    zwei.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -1911,29 +2248,31 @@ def test_a_charge_says_how_it_stands():
     from app.services import voucher as svc
 
     d = Decimal
+    # (f) **Eine Ableitung, nicht zwei.**
+    for gone in ("charge_state", "balance_state", "CHARGE_STATES", "BALANCE_STATES"):
+        assert not hasattr(vo, gone), f"«{gone}» ist zurück (f)."
     # (a) **Angezahlt ist ein eigener Zustand.**
-    assert vo.charge_state(d("100"), d("40"))["state"] == "partial", (
+    assert vo.invoice_state(d("100"), d("40"))["state"] == "partial", (
         "Eine angezahlte Rechnung sieht aus wie eine unberührte (a)."
     )
-    assert vo.charge_state(d("100"), d("100"))["state"] == "open"
+    assert vo.invoice_state(d("100"), d("100"))["state"] == "open"
     # (b) **Rundungstoleranz** – sonst mahnt man wegen drei Rappen.
-    assert vo.charge_state(d("100"), d("0.03"))["state"] == "settled", (
+    assert vo.invoice_state(d("100"), d("0.03"))["state"] == "settled", (
         "Drei Rappen halten die Rechnung offen (b)."
     )
-    assert vo.charge_state(d("100"), d("0.00"))["state"] == "settled"
+    assert vo.invoice_state(d("100"), d("0.00"))["state"] == "settled"
     # (c) **Eine Gutschrift ist eine negative Rechnung** – und unbeglichen ist sie offen,
     #     nicht überzahlt. Gerechnet wird mit dem Vorzeichen, nicht mit «grösser null».
-    assert vo.charge_state(d("-100"), d("-100"))["state"] == "open", (
+    assert vo.invoice_state(d("-100"), d("-100"))["state"] == "open", (
         "Eine unbeglichene Gutschrift heisst «Überzahlt» (c)."
     )
-    assert vo.charge_state(d("-100"), d("-40"))["state"] == "partial"
-    assert vo.charge_state(d("100"), d("-20"))["state"] == "overpaid"
-    assert vo.charge_state(d("-100"), d("20"))["state"] == "overpaid"
-    # Überfällig schlägt «offen», storniert schlägt alles.
-    assert vo.charge_state(d("100"), d("100"), overdue=True)["state"] == "overdue"
-    assert vo.charge_state(d("100"), d("0"), reversed_=True)["state"] == "reversed"
+    assert vo.invoice_state(d("-100"), d("-40"))["state"] == "partial"
+    assert vo.invoice_state(d("100"), d("-20"))["state"] == "overpaid"
+    assert vo.invoice_state(d("-100"), d("20"))["state"] == "overpaid"
+    # Überfällig schlägt «offen».
+    assert vo.invoice_state(d("100"), d("100"), overdue=True)["state"] == "overdue"
     # (d) **Drei Töne, keine vierte Farbe.**
-    tones = {tone for _, tone in vo.CHARGE_STATES.values()}
+    tones = {tone for _, tone in vo.INVOICE_STATES.values()}
     assert tones <= {"done", "pending", "danger"}, (
         f"Ein Ton ausserhalb der drei des Hauses (d): {tones}."
     )
@@ -1941,30 +2280,27 @@ def test_a_charge_says_how_it_stands():
     # (e) **Und er reist mit** – gemessen über den echten Dienstpfad.
     db = _db()
     try:
-        order, step, row, who, _art = _scene(db, quantity=2)
-        _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 5, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge", payload={})
+        order, step, row, _who, _art = _agreed(db, price="100.00")
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
         db.flush()
         staff = _party(db, "Personal", "admin")
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
-        entry = seen["entries"][0]
-        assert entry["state_label"] and entry["state_tone"], (
+        assert seen["invoice"]["state_label"] and seen["invoice"]["state_tone"], (
             "Der Zustand erreicht die Oberfläche nicht (e) – dann rechnet sie ihn "
             "wieder selbst."
+        )
+        # ►►► **Und der Saldo sagt DASSELBE** – es ist dieselbe Zahl. ◄◄◄
+        assert seen["open_state"] == seen["invoice"]["state"], (
+            "Rechnung und Saldo geben zwei Antworten auf dieselbe Frage (f)."
         )
         # Eine Anzahlung macht daraus «teilweise bezahlt».
         svc.apply(db, order=order, step=step, action="pay",
                   payload={"amount": "50.00", "method": "cash"})
         db.flush()
         again = svc.embed_data(db, order=order, step=step, viewer=staff)
-        charge = next(e for e in again["entries"] if e["kind"] == "charge")
-        assert charge["state"] == "partial", (
-            f"Die angezahlte Rechnung sagt «{charge['state']}» (a/e)."
+        assert again["invoice"]["state"] == "partial", (
+            f"Die angezahlte Rechnung sagt «{again['invoice']['state']}» (a/e)."
         )
     finally:
         db.rollback()
@@ -2079,55 +2415,27 @@ def test_the_balance_says_how_it_stands_in_one_number():
     Betrags getragen: offen orange · überfällig rot · beglichen grün · überzahlt grün mit
     ausgewiesenem Guthaben.»*
 
-    **Es ist keine zweite Regel neben ``charge_state``, sondern dieselbe über eine andere
-    Zahl**: dort ein Betrag und sein Rest, hier die blosse Differenz. Toleranz, Wörter und
-    Ampeltöne sind geteilt – verschieden ist nur, was sich daraus sagen lässt.
+    ►►► **Und es ist DIESELBE Ableitung wie an der Rechnung.** ◄◄◄ Es waren einmal zwei
+    (``charge_state`` je Zeile, ``balance_state`` über den Saldo), weil ein Beleg mehrere
+    Forderungen tragen konnte. Seit er **die** Rechnung ist, sind Betrag und Saldo
+    dieselben zwei Zahlen – zwei Funktionen dafür wären zwei Massstäbe.
 
     Bug-Formen: (a) der Zustand wird gar nicht geliefert, also rechnet ihn die Oberfläche
-    wieder selbst; (b) drei Rappen Rest heissen «offen»; (c) ein Guthaben ist rot wie ein
-    Problem; (d) eine Gegenpartei ohne Zuschlag liest die Zahl mit.
+    wieder selbst; (b) Rechnung und Saldo geben zwei Antworten; (c) eine Gegenpartei ohne
+    Zuschlag liest die Zahl mit.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from decimal import Decimal
-    from app.domain import voucher as vo
     from app.services import voucher as svc
-
-    # (b) **Die Toleranz gehört ins Fachmodell** – eine Rechnung, die wegen drei Rappen
-    #     «offen» heisst, ist eine Mahnliste voller Geister.
-    assert vo.balance_state(Decimal("0.03"))["state"] == "settled", (
-        "Drei Rappen Rest heissen «offen» (b)."
-    )
-    assert vo.balance_state(Decimal("100.00"))["state_tone"] == "pending", (
-        "Ein offener Posten ist nicht mehr die Warnfarbe (a)."
-    )
-    assert vo.balance_state(Decimal("100.00"), overdue=True)["state_tone"] == "danger", (
-        "Überfällig ist nicht mehr rot (a)."
-    )
-    # (c) **Ein Guthaben ist grün** – niemand schuldet mehr etwas.
-    credit = vo.balance_state(Decimal("-250.00"))
-    assert credit["state"] == vo.CREDIT and credit["state_tone"] == "done", (
-        f"Das Guthaben ist ein Problem statt einer Tatsache (c): {credit}."
-    )
-    assert credit["state_label"] == vo.CREDIT_WORD, (
-        "Das Guthaben nennt sich nicht beim Namen (c) – «250.00» in Grün sagt nicht, wer "
-        "wem etwas schuldet."
-    )
-
     db = _db()
     try:
-        # Zwei Angefragte, einer bekommt den Zuschlag – (d) braucht einen Unterlegenen.
+        # Zwei Angefragte, einer bekommt den Zuschlag – (c) braucht einen Unterlegenen.
         winner = _party(db, "Muster AG", "customer")
         loser = _party(db, "Zweiter", "customer")
-        order, step, row, who, _art = _scene(db, quantity=1,
-                                             parties=[winner, loser])
-        _price(db, order, step, row, price="100.00")
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 5, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge", payload={})
+        order, step, row, who, _art = _agreed(db, quantity=1, price="100.00",
+                                              parties=[winner, loser])
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
         db.flush()
         staff = _party(db, "Personal", "admin")
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
@@ -2139,26 +2447,30 @@ def test_the_balance_says_how_it_stands_in_one_number():
                   payload={"amount": "150.00", "method": "cash"})
         db.flush()
         over = svc.embed_data(db, order=order, step=step, viewer=staff)
-        assert over["open_state"] == vo.CREDIT and over["open_state_tone"] == "done", (
-            f"Die Überzahlung ist ein Problem statt eines Guthabens (c): "
-            f"{over['open_state']}/{over['open_state_tone']}."
+        assert over["open_state"] == "overpaid", (
+            f"Die Überzahlung wird nicht erkannt: {over['open_state']}."
         )
-        # (d) **Wer keinen Zuschlag hat, liest keine Zahl** – und damit auch keinen
+        # (b) **Eine Frage, eine Antwort.**
+        assert over["open_state"] == over["invoice"]["state"], (
+            "Rechnung und Saldo geben zwei Antworten auf dieselbe Frage (b)."
+        )
+        # (c) **Wer keinen Zuschlag hat, liest keine Zahl** – und damit auch keinen
         #     Zustand über sie.
         blind = svc.embed_data(db, order=order, step=step, viewer=loser)
-        # *Gefragt sind **alle drei** Angaben: der erste Anlauf prüfte nur den Schlüssel
-        # und liess das Wort («Guthaben») und den Ton durch – gemessen, nachgeschärft.*
+        # *Gefragt sind **alle** Angaben: der erste Anlauf prüfte nur den Schlüssel und
+        # liess Wort und Ton durch – gemessen, nachgeschärft.*
         leaked = {k: blind[k] for k in
                   ("open", "open_state", "open_state_label", "open_state_tone")
                   if blind[k] is not None}
-        assert not leaked, f"Ein Unterlegener liest den Saldo mit (d): {leaked}."
+        assert not leaked, f"Ein Unterlegener liest den Saldo mit (c): {leaked}."
+        assert blind["invoice"] is None, "Er liest die Rechnung mit (c)."
     finally:
         db.rollback()
         db.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ►► ZWEI ENTITÄTEN, KEIN BELEGTYP — Sammelzahlung · Grund · Kleinbetragstoleranz
+# ►► ZWEI ENTITÄTEN, KEIN BELEGTYP — Rechnung · Zahlung · Kleinbetragstoleranz
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_there_is_no_document_type_only_a_sign_and_a_reference():
@@ -2166,17 +2478,18 @@ def test_there_is_no_document_type_only_a_sign_and_a_reference():
 
     *«Kein Belegtyp im Code. Vorzeichen positiv = Forderung, negativ = Korrektur.»*
 
-    Das Datenmodell trägt genau die beiden Entitäten des Auftrags – ``charge`` (Beleg) und
-    ``payment`` (Zahlung) –, und **das Vorzeichen** sagt, was eine Zeile tut.
+    Das Datenmodell trägt genau **zwei** Dinge: den Beleg (der *ist* die Rechnung) und
+    seine Zahlungen. Das **Vorzeichen** sagt, was jedes von beiden tut – eine Gutschrift
+    ist eine negative Rechnung, eine Erstattung eine negative Zahlung.
 
     ►►► **Der «Grund» ist mitgegangen** (Testnotiz #1021). ◄◄◄ Er war ein Freitextfeld mit
     Vorschlagsliste – also die Belegart mit anderem Namen, nur ohne Wirkung. Beim Stellen
     einer Rechnung ist er überflüssig (die Positionen sagen es), bei einer Korrektur
-    genügt die **Referenz auf den Beleg**, den sie korrigiert.
+    genügt die **Referenz auf den Beleg**, den sie korrigiert (``corrects_id``).
 
     Bug-Formen: (a) irgendwo steht wieder eine Belegart-Aufzählung; (b) der Grund ist
-    wieder da (Vokabel, Modell, Tür oder Dienst); (c) die Korrektur nennt den Beleg nicht
-    mehr, den sie korrigiert.
+    wieder da (Vokabel, Modell, Tür oder Dienst); (c) die Geld-Zeile trägt wieder eine
+    **Art**, und damit gibt es die Rechnung zweimal.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -2184,14 +2497,15 @@ def test_there_is_no_document_type_only_a_sign_and_a_reference():
     from app.models.voucher import VoucherEntry
     from app.schemas.voucher import VoucherEmbed, VoucherEntryOut, VoucherUpdate
 
-    # (a) Die Vokabel kennt zwei Arten, und das sind die beiden Entitäten.
-    assert set(vo.KINDS) == {vo.CHARGE, vo.PAYMENT}, (
-        f"Es gibt mehr als Beleg und Zahlung (a): {vo.KINDS}."
-    )
-    for word in ("storno", "gutschrift", "ausbuchung", "belegtyp", "doc_type"):
-        assert not any(word == str(k).lower() for k in vo.KINDS), (
-            f"«{word}» ist wieder eine Art (a) statt eines Vorzeichens."
+    # (a)/(c) **Es gibt keine Art mehr** – die beiden Entitäten sind zwei Tabellen.
+    for name in ("KINDS", "CHARGE", "PAYMENT", "assert_kind"):
+        assert not hasattr(vo, name), (
+            f"«{name}» ist zurück (a/c) – eine Art an der Zeile heisst, dass die Rechnung "
+            f"wieder in ihr steckt."
         )
+    assert "kind" not in VoucherEntry.__mapper__.columns, (
+        "Die Geld-Zeile trägt wieder eine Art (c)."
+    )
     # (b) **Den Grund gibt es nirgends mehr.** Geprüft wird die Vokabel, das **Mapping**
     #     (eine Spalte in der Datenbank ist kein Feld im Code) und die **Tür** – ein Feld,
     #     das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre die Hintertür
@@ -2206,114 +2520,26 @@ def test_there_is_no_document_type_only_a_sign_and_a_reference():
             f"«{schema.__name__}» führt den Grund wieder (b): "
             f"{[f for f in schema.model_fields if 'reason' in f]}."
         )
-    assert VoucherUpdate(action="charge", amount="-12.00",
+    assert VoucherUpdate(action="pay", amount="-12.00",
                          **{"reason": "Retoure"}).changes().get("reason") is None, (
         "Ein gesendeter Grund kommt wieder an (b) – dann gibt es ihn faktisch doch."
     )
-    # (c) **Die Korrektur trägt die Referenz** – das ist, was an ihre Stelle tritt.
-    code = _code(BACKEND / "app" / "services" / "voucher.py")
-    assert "Korrektur zu {entry.reference}" in code, (
-        "Eine Gegenbuchung nennt den Beleg nicht mehr, den sie korrigiert (c)."
-    )
-
-
-def test_a_payment_may_be_split_over_several_documents():
-    """►►► **Sammelzahlung — eine Zahlung, mehrere Belege.** ◄◄◄
-
-    *«Eine Zahlung muss auf mehrere Belege aufteilbar sein.»*
-
-    Eine Überweisung über 1'500 begleicht eine Rechnung über 1'000 und eine über 500: auf
-    dem Kontoauszug steht **eine** Zeile. Sie bleibt darum **eine** Zeile, und die
-    Aufteilung steht in ``voucher_allocations``.
-
-    Bug-Formen: (a) die Aufteilung kommt nicht an und die zweite Rechnung bleibt offen;
-    (b) die Summe darf vom Betrag abweichen (dann behauptet der Beleg zwei Dinge);
-    (c) ein fremder Beleg wird still ignoriert statt abgewiesen; (d) der einfache Fall
-    ohne Aufteilung verliert seine Zuordnung.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
-    from app.services import voucher as svc
-    db = _db()
-    try:
-        order, step, row, who, _art = _scene(db, direction="in", quantity=2)
-        _price(db, order, step, row, price="500.00", vat="export")   # 0 % – runde Zahlen
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 5, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge", payload={})
-        db.flush()
-        first = svc.live_charge(db, row)
-        assert first is not None and first.amount == Decimal("1000.0000")
-        # Eine **zweite** Forderung entsteht über die Gutschrift-Achse: negativ ist keine
-        # zweite Rechnung, also nehmen wir die erste zurück und stellen zwei.
-        svc.apply(db, order=order, step=step, action="reverse",
-                  payload={"entry": first.id})
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": "1000.00"})
-        db.flush()
-        second = svc.live_charge(db, row)
-        assert second is not None and second.id != first.id
-
-        # (c) Ein fremder Beleg wird **genannt**, nicht verschluckt.
-        with pytest.raises(HTTPException) as bad:
-            svc.apply(db, order=order, step=step, action="pay", payload={
-                "amount": "100.00", "method": "cash",
-                "allocations": [{"charge_id": 10_000_000, "amount": "100.00"}]})
-        # *Gefragt ist der **Grund**, nicht der Code: eine übersprungene Zeile läuft
-        # danach in «die Summe stimmt nicht» – also ebenfalls in einen 400, und der
-        # Wächter wäre stumpf (gemessen, nachgeschärft).*
-        assert bad.value.status_code == 400 and "gehört nicht" in bad.value.detail, (
-            f"Ein fremder Beleg wird still übersprungen (c): {bad.value.detail}"
-        )
-
-        # (b) Die Summe muss den Betrag ergeben – sonst ist es keine Zuordnung.
-        with pytest.raises(HTTPException) as off:
-            svc.apply(db, order=order, step=step, action="pay", payload={
-                "amount": "1500.00", "method": "cash",
-                "allocations": [{"charge_id": second.id, "amount": "100.00"}]})
-        assert off.value.status_code == 400
-
-        # (a) **Eine** Zahlung über beide Belege.
-        svc.apply(db, order=order, step=step, action="pay", payload={
-            "amount": "1500.00", "method": "transfer",
-            "allocations": [{"charge_id": first.id, "amount": "1000.00"},
-                            {"charge_id": second.id, "amount": "500.00"}]})
-        db.flush()
-        payments = [e for e in svc.entries_of(db, row) if e.kind == "payment"]
-        assert len(payments) == 1, (
-            f"Aus einer Zahlung wurden {len(payments)} (a) – das erfindet einen "
-            f"Kontoauszug, den es nicht gibt."
-        )
-        assert svc.open_of(db, row, second) == Decimal("500.0000"), (
-            f"Die Aufteilung kam nicht an (a): offen {svc.open_of(db, row, second)}."
-        )
-        # (d) **Der einfache Fall bleibt** – ohne Aufteilung ist die lebende Rechnung
-        #     gemeint, und sie wird ebenso zugeordnet.
-        svc.apply(db, order=order, step=step, action="pay",
-                  payload={"amount": "500.00", "method": "cash"})
-        db.flush()
-        assert svc.open_of(db, row, second) == Decimal("0.0000"), (
-            f"Der einfache Fall verlor seine Zuordnung (d): "
-            f"offen {svc.open_of(db, row, second)}."
-        )
-    finally:
-        db.rollback()
-        db.close()
 
 
 def test_a_small_residue_may_be_written_off_but_never_by_itself():
     """►►► **Kleinbetragstoleranz — angeboten, nie automatisch.** ◄◄◄
 
-    *«Restsaldo unter 1.00 CHF kann als Differenz ausgebucht werden (negativer Beleg,
-    Grund ‹Rundungsdifferenz›). Nicht automatisch.»*
+    *«Restsaldo unter 1.00 CHF kann als Differenz ausgebucht werden. Nicht automatisch.»*
 
     Es ist **kein neuer Mechanismus**: ausgebucht wird über eine ganz gewöhnliche
-    Forderung mit Gegenvorzeichen. ``Balance.write_off`` sagt nur, **ob** die Lage
-    vorliegt und **wie viel** – damit die Oberfläche es anbieten kann.
+    **Zahlung** mit Gegenvorzeichen und dem Vermerk «Rundungsdifferenz» – eine Zahlung ist
+    hier definiert als *was den offenen Betrag mindert*, und der Vermerk sagt, dass kein
+    Geld geflossen ist. ``Balance.write_off`` sagt nur, **ob** die Lage vorliegt und **wie
+    viel**.
+
+    *Sie war einmal eine negative **Forderung**; die gibt es nicht mehr, seit der Beleg
+    selbst die Rechnung ist – ein dritter Zeilentyp für achtzig Rappen wäre ein
+    Mechanismus für einen Rundungsfehler.*
 
     Bug-Formen: (a) über der Toleranz wird es trotzdem angeboten (die stille
     Abschreibung); (b) die Zahl kommt ohne Gegenvorzeichen und bucht die Differenz
@@ -2325,14 +2551,12 @@ def test_a_small_residue_may_be_written_off_but_never_by_itself():
     from app.services import voucher as svc
     db = _db()
     try:
-        order, step, row, who, _art = _scene(db, direction="in", quantity=1)
-        _price(db, order, step, row, price="100.00", vat="export")
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 5, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge", payload={})
+        order, step, row, _who, _art = _agreed(db, quantity=1, price="100.00")
+        for line in svc.lines_of(db, row):
+            line.vat = "export"          # 0 % – runde Zahlen
+        db.flush()
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
         db.flush()
         # (a) Zwanzig Franken bucht niemand «versehentlich» aus.
         svc.apply(db, order=order, step=step, action="pay",
@@ -2354,15 +2578,16 @@ def test_a_small_residue_may_be_written_off_but_never_by_itself():
         assert svc.balance_of(db, row).open == Decimal("0.0300"), (
             "Die Differenz wurde von selbst ausgebucht (c)."
         )
-        svc.apply(db, order=order, step=step, action="charge",
-                  payload={"amount": str(offer)})
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": str(-offer), "method": "cash",
+                           "note": vo.WRITE_OFF_NOTE})
         db.flush()
         assert svc.balance_of(db, row).open == Decimal("0.0000")
-        # **Es ist eine ganz gewöhnliche Forderung** – kein eigener Mechanismus, kein
-        # eigenes Feld: dieselbe Zeile wie jede andere, nur mit Gegenvorzeichen.
+        # **Es ist eine ganz gewöhnliche Zahlung** – kein eigener Mechanismus, kein
+        # eigenes Feld: dieselbe Zeile wie jede andere, nur mit dem Vermerk.
         booked = svc.entries_of(db, row)[-1]
-        assert booked.kind == vo.CHARGE and booked.amount == offer, (
-            f"Die Ausbuchung ist keine gewöhnliche Forderung: {booked.kind} {booked.amount}."
+        assert booked.note == vo.WRITE_OFF_NOTE and booked.amount == -offer, (
+            f"Die Ausbuchung ist keine gewöhnliche Zahlung: {booked.note} {booked.amount}."
         )
     finally:
         db.rollback()
@@ -2384,14 +2609,11 @@ def test_a_money_line_carries_the_moment_it_was_booked():
     from app.services import voucher as svc
     db = _db()
     try:
-        order, step, row, who, _art = _scene(db, direction="in", quantity=1)
-        _price(db, order, step, row, price="10.00", vat="export")
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 5, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who[0].object_id})
-        svc.apply(db, order=order, step=step, action="charge", payload={})
+        order, step, row, _who, _art = _agreed(db, quantity=1, price="10.00")
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        svc.apply(db, order=order, step=step, action="issue", payload={})
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "1.00", "method": "cash"})
         db.flush()
         staff = _party(db, "Personal", "admin")
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
@@ -2451,14 +2673,9 @@ def _card_scene(db):
     **einer** Zahlung im Haus, und das ist eine Regel des Dienstes, kein Fixture-Detail.
     """
     from app.services import voucher as svc
-    order, step, row, who, _art = _scene(db, direction="in", quantity=1)
-    _price(db, order, step, row, price="100.00", vat="export")
-    svc.apply(db, order=order, step=step, action="terms",
-              payload={"lead_days": 5, "payment_days": 30})
-    svc.apply(db, order=order, step=step, action="ask", payload={})
-    svc.apply(db, order=order, step=step, action="agree",
-              payload={"party": who[0].object_id})
-    svc.apply(db, order=order, step=step, action="charge", payload={})
+    order, step, row, _who, _art = _agreed(db, quantity=1, price="100.00")
+    svc.apply(db, order=order, step=step, action="bill", payload={})
+    svc.apply(db, order=order, step=step, action="issue", payload={})
     db.flush()
     from app.domain import voucher as vo
     intent = f"pi_{uuid.uuid4().hex[:12]}"

@@ -1226,3 +1226,72 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > idempotent und kennt ihren Rest.
 > Wächter: `tests/test_voucher_module.py` (3 neue, **sechs Bug-Formen gegengeprüft**) +
 > `test_frontend_mirrors.py`.
+
+> ►►► **DER BELEG IST DIE RECHNUNG — eine je Modul, und die Korrektur ist ein eigener**
+> (`docs/konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q, Migration `138`). ◄◄◄
+> *«Nur eine Rechnung pro Zahlungsmodul – wirklich nur eine, auch keine
+> Stornierungsrechnung. Gibt es eine Korrektur, dann durch ein zweites Zahlungsmodul.
+> Insbesondere bei Retouren wäre sonst der Warenverkehr getrennt von der monetären
+> Abwicklung.»*
+> **Der Befund war eine Doppelung**: Betrag, Steuer, Nummer, Datum und Fälligkeit standen
+> auf **beiden** Ebenen – die Forderungs-Zeile (`voucher_entries.kind = 'charge'`) war
+> eine Kopie des Belegs, der sie enthielt. Dieselbe Fehlerform, die der Neuaufbau bei den
+> Positionen schon einmal beseitigt hat (dort dreimal). Daraus kam die gefühlte Unordnung:
+> eine Funktion musste **zählen**, was eine Forderung nach aussen ist (`live_charge`), eine
+> zweite beantwortete «welche Rechnung meint diese Zahlung» (`_charge_for_payment` ·
+> `_split` · `allocate` · `paid_map`), und **ein Verb machte zwei Dinge** – `reverse` hiess
+> je nach Bezahlstatus «Stornieren» oder «Gutschrift», unterschieden von **einer Zahl**.
+> **Acht Angaben wandern eine Ebene hoch** (`billed_on` · `due_on` · `number` ·
+> `issued_on` · `amount` · `vat` · `service_date` · `corrects_id`), und damit kann es sie
+> nicht zweimal geben: «eine Rechnung je Modul» ist keine Regel mehr, die jemand
+> durchsetzt, sondern die **Struktur**.
+> **Drei Stufen statt zwei** (`offer → agreed → billed`) – und die dritte ist **keine**
+> Wiederholung des Fehlers von damals: «Abgeschlossen» war ein *Zustand* in einer Reihe von
+> *Schritten*, den man nicht *tut*; eine Rechnung zu stellen ist eine **Handlung mit
+> unumkehrbarem Ergebnis**. Drei Verben: `bill` · `issue` («Rechnung ist versendet») ·
+> `unbill`.
+> **`unbill` endet dort, wo der Beleg wirklich hinausgeht** – versendet oder Geld
+> geflossen –, und die **Nummer bleibt**: die zurückgenommene Rechnung ist nie
+> hinausgegangen, es gibt sie nach aussen nicht, und die neu gestellte ist derselbe Beleg.
+> *Das Konzept hatte «sie verbraucht ihre Nummer» notiert – noch aus der Zeit, als eine
+> Rechnung eine Zeile war; ohne zweite Zeile bräuchte es eine Spalte nur dafür.*
+> **`issue` gibt es nur, wo WIR stellen** (`Direction.collects`): eine Lieferantenrechnung
+> ist längst draussen, wenn wir sie abschreiben. Und **kassiert wird auf eine Rechnung, die
+> draussen ist** – daraus fällt die Sicherheit von `unbill` heraus, ohne eine zweite Regel.
+> **Die Steuer wird EINGEFROREN, nicht gerechnet**: die Summe wäre ab der Zusage stabil,
+> die **Aufteilung** nicht – eine künftige Änderung an `vat_split` änderte rückwirkend die
+> Steuer einer längst gestellten Rechnung.
+> ►►► **Die Korrektur ist ein eigener Beleg in einem eigenen Modul** (`corrects_id`), ◄◄◄
+> und er darf **über Auftragsgrenzen** zeigen: die Gutschrift gehört dorthin, wo die Ware
+> zurückkommt. Die Positionen tragen **positive** Preise (niemand tippt ein Minus),
+> `bill` dreht das Vorzeichen und **spiegelt** die Steuer, und der Verweis «Korrektur zu …»
+> ist eine **Ableitung** (MWSTG Art. 26).
+> **Und die Retoure macht das Modell KLEINER**: steht der Gutschriftsbeleg im
+> Retourenauftrag, entstehen seine Positionen von selbst aus den zurückkommenden Stücken
+> (`sync_lines`) – *die Warenlogik ist die Mengenkontrolle des Geldes*. Damit entfällt, was
+> `ANALYSE_RETOURE_20260917.md` §1/§2/§6 auflistete.
+> **Die Entscheidung «Storno oder Gutschrift» trifft niemand mehr** – sie fällt aus dem
+> **Zeitpunkt** heraus: vor dem Versenden `unbill`, danach der Korrekturbeleg.
+> **`charge_state` und `balance_state` sind EINE Funktion geworden** (`invoice_state`):
+> es waren zwei, weil ein Beleg mehrere Forderungen tragen konnte – seit er **die**
+> Rechnung ist, sind Betrag und Saldo dieselben zwei Zahlen.
+> **Ersatzlos entfallen**: `live_charge` · `open_charges` · `_charge_for_payment` ·
+> `_split` · `allocate` · `paid_map` · `_reversal_of` · `reverse_word` · `settle_charge` ·
+> `credit_only` · `Balance.next_charge` · das Verb `reverse` · `VoucherAllocation` ·
+> sechs Mappings an `VoucherEntry`. **Und ein Fund nebenbei**: `CREDIT_WORD` stand
+> **zweimal** in `domain/voucher` («Gutschrift», dann «Guthaben») – die zweite Zuweisung
+> gewinnt beim Laden, also gab `reverse_word()` seit #997 still «Guthaben» zurück.
+> ⚠ **Eine Funktion wird zurückgenommen, und das steht ausdrücklich da**: die
+> **modulinterne Sammelzahlung** (#1010–#1017) wird gegenstandslos – sie teilte eine
+> Zahlung auf mehrere Rechnungen **desselben** Belegs auf, und davon gibt es künftig eine.
+> Der Fall bleibt real, liegt jetzt aber über **Modulgrenzen**: das ist die
+> **offene-Posten-Liste** je Partner (`docs/backlog.md`).
+> Wächter: `tests/test_voucher_module.py` (11 neue) + `test_frontend_mirrors.py` –
+> **21 Bug-Formen gegengeprüft, jede meldet**; *einer war dabei stumpf und liess seine
+> eigene durch* (er fragte nach dem Vorkommen von `action: 'unbill'` und übersah eine
+> Bug-Form, die die Bedingung auf `false` setzte – er fragt jetzt das **Tor**). Suite grün
+> gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen (je 598);
+> Migration `138` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
+> verifiziert, samt **Backfill** (Summe aller lebenden Forderungen, Kopfangaben von der
+> ältesten geltenden Zeile, alte `charge`-Zeilen inaktiv – ohne den letzten Schritt läse
+> der Dienst sie als Zahlungen).

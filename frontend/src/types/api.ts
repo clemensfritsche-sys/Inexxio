@@ -1004,8 +1004,38 @@ export interface paths {
          *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
          *     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
          *     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+         *
+         *     *Ein ``entry``-Parameter stand hier einmal: welche Rechnung gemeint ist. Es gibt
+         *     eine, und sie ist der Beleg.*
          */
         get: operations["voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/correctable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Voucher Correctable
+         * @description ►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄
+         *
+         *     Das ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware
+         *     **zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle
+         *     Aufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert
+         *     keine fremde Forderung und das Geld fliesst nicht andersherum.
+         *
+         *     **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
+         */
+        get: operations["voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3696,24 +3726,47 @@ export interface components {
             tax: string;
         };
         /**
-         * VoucherAllocationIn
-         * @description Ein Teil einer **Sammelzahlung**: welcher Beleg, wie viel.
+         * VoucherCorrectable
+         * @description **Ein Beleg, den dieser hier mindern könnte** – die Auswahl der Korrektur.
+         *
+         *     Er steht in der Regel in einem **anderen Auftrag**; darum reist dessen Objektnummer
+         *     mit, sonst stünden mehrere Zeilen mit derselben Rechnungsnummer-Form nebeneinander
+         *     und niemand wüsste, welche gemeint ist.
          */
-        VoucherAllocationIn: {
-            /** Charge Id */
-            charge_id: number;
+        VoucherCorrectable: {
+            /** Id */
+            id: number;
+            /** Number */
+            number?: string | null;
+            /** Billed On */
+            billed_on?: string | null;
             /** Amount */
             amount?: string | null;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Order Object Id */
+            order_object_id?: number | null;
         };
         /**
-         * VoucherAllocationOut
-         * @description **Wie viel dieser Zahlung auf WELCHEN Beleg geht** – eine Zeile der Aufteilung.
+         * VoucherCorrects
+         * @description **Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört.
+         *
+         *     MWSTG Art. 26 verlangt, dass Leistung und Entgelt eindeutig bestimmbar sind; ohne den
+         *     Verweis wäre eine Gutschrift eine zweite Rechnung mit negativem Vorzeichen. Nummer und
+         *     Betrag reisen mit, damit der Satz ohne einen zweiten Aufruf dasteht.
          */
-        VoucherAllocationOut: {
-            /** Charge Id */
-            charge_id: number;
+        VoucherCorrects: {
+            /** Id */
+            id: number;
+            /** Number */
+            number?: string | null;
+            /** Billed On */
+            billed_on?: string | null;
             /** Amount */
-            amount: string;
+            amount?: string | null;
         };
         /**
          * VoucherEmbed
@@ -3890,6 +3943,16 @@ export interface components {
              */
             refund_online_word: string;
             /**
+             * Issue Word
+             * @default
+             */
+            issue_word: string;
+            /**
+             * Unbill Word
+             * @default
+             */
+            unbill_word: string;
+            /**
              * Prepaid
              * @default false
              */
@@ -3920,8 +3983,6 @@ export interface components {
             lead_term_label: string;
             /** Ways */
             ways?: components["schemas"]["VoucherWay"][];
-            /** Settle Charge */
-            settle_charge?: number | null;
             /**
              * Method Label
              * @default
@@ -3934,6 +3995,11 @@ export interface components {
              * @default
              */
             write_off_word: string;
+            /**
+             * Write Off Note
+             * @default
+             */
+            write_off_note: string;
             /** Allowed */
             allowed?: components["schemas"]["VoucherParty"][];
             /** Quotes */
@@ -3981,13 +4047,6 @@ export interface components {
             open_state_tone?: string | null;
             /** Uncharged */
             uncharged?: string | null;
-            /**
-             * Credit Only
-             * @default false
-             */
-            credit_only: boolean;
-            /** Next Charge */
-            next_charge?: string | null;
             /** Next Payment */
             next_payment?: string | null;
             /**
@@ -3995,69 +4054,93 @@ export interface components {
              * @default false
              */
             settled: boolean;
+            invoice?: components["schemas"]["VoucherInvoice"] | null;
+            corrects?: components["schemas"]["VoucherCorrects"] | null;
+            /**
+             * Corrects Label
+             * @default
+             */
+            corrects_label: string;
+            /**
+             * Corrects Hint
+             * @default
+             */
+            corrects_hint: string;
             /** Entries */
             entries?: components["schemas"]["VoucherEntryOut"][];
         };
         /**
          * VoucherEntryOut
-         * @description **Eine Zeile Geld** – eine Forderung oder eine Zahlung.
+         * @description **Eine Zahlung** – und nur noch das.
+         *
+         *     Die Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,
+         *     und sie *ist* der Beleg. Damit sind ``kind`` · ``due_on`` · ``vat`` ·
+         *     ``service_date`` · ``reverses``/``reversed`` · ``charge_id`` · ``allocations`` ·
+         *     ``reverse_word`` · ``open`` und die drei Zustandsfelder **ersatzlos entfallen** –
+         *     jedes von ihnen beschrieb eine Rechnung, die hier keine mehr ist.
          */
         VoucherEntryOut: {
             /** Id */
             id: number;
-            /** Kind */
-            kind: string;
             /** Amount */
             amount: string;
             /** Booked On */
             booked_on?: string | null;
-            /** Due On */
-            due_on?: string | null;
             /** Reference */
             reference?: string | null;
             /** Note */
             note?: string | null;
-            /**
-             * Overdue
-             * @default false
-             */
-            overdue: boolean;
-            /** Vat */
-            vat?: components["schemas"]["VatShare"][];
-            /** Service Date */
-            service_date?: string | null;
-            /** Reverses */
-            reverses?: number | null;
-            /**
-             * Reversed
-             * @default false
-             */
-            reversed: boolean;
-            /** Charge Id */
-            charge_id?: number | null;
-            /** Allocations */
-            allocations?: components["schemas"]["VoucherAllocationOut"][];
             /** Booked At */
             booked_at?: string | null;
             /** Method */
             method?: string | null;
             /** Method Label */
             method_label?: string | null;
-            /** Reverse Word */
-            reverse_word?: string | null;
-            /** Open */
-            open?: string | null;
+            /**
+             * Refundable
+             * @default false
+             */
+            refundable: boolean;
+        };
+        /**
+         * VoucherInvoice
+         * @description ►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄
+         *
+         *     Hier stand ``VoucherAllocationOut`` und darunter eine Geld-Zeile, die *entweder* eine
+         *     Forderung *oder* eine Zahlung war: Betrag, Steuer, Nummer, Datum und Fälligkeit
+         *     standen damit auf **beiden** Ebenen, und die Oberfläche musste aus einer Liste
+         *     heraussuchen, welche Zeile *die* Rechnung ist.
+         *
+         *     Jetzt ist es **ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort
+         *     auf «gibt es hier eine Rechnung?». Zweimal vorkommen kann sie nicht mehr; niemand
+         *     zählt es, es ist die **Struktur**.
+         */
+        VoucherInvoice: {
+            /** Number */
+            number?: string | null;
+            /** Billed On */
+            billed_on?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Issued On */
+            issued_on?: string | null;
+            /** Amount */
+            amount?: string | null;
+            /** Vat */
+            vat?: components["schemas"]["VatShare"][];
+            /** Service Date */
+            service_date?: string | null;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
             /** State */
             state?: string | null;
             /** State Label */
             state_label?: string | null;
             /** State Tone */
             state_tone?: string | null;
-            /**
-             * Refundable
-             * @default false
-             */
-            refundable: boolean;
         };
         /**
          * VoucherLineOut
@@ -4273,9 +4356,12 @@ export interface components {
          *     ``decline``  eine Angebotszeile absagen – auch von der Gegenpartei
          *     ``agree``    den **Zuschlag** geben (``party``)
          *     ``revoke``   stornieren – die eine Gegenhandlung
-         *     ``charge``   eine **Forderung** buchen (negativ = Gutschrift)
+         *     ``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)
+         *     ``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist
+         *     ``unbill``   sie zurücknehmen, solange sie im Haus ist (nicht versendet, nichts
+         *                  geflossen) – die Gegenhandlung zu ``bill``
+         *     ``issue``    *«Rechnung ist versendet»* – danach unveränderlich
          *     ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
-         *     ``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung
          *     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
          *
          *     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
@@ -4304,14 +4390,14 @@ export interface components {
             note?: string | null;
             /** Booked On */
             booked_on?: string | null;
-            /** Due On */
-            due_on?: string | null;
             /** Entry */
             entry?: number | null;
-            /** Charge Id */
-            charge_id?: number | null;
-            /** Allocations */
-            allocations?: components["schemas"]["VoucherAllocationIn"][] | null;
+            /** Billed On */
+            billed_on?: string | null;
+            /** Issued On */
+            issued_on?: string | null;
+            /** Corrects */
+            corrects?: number | null;
             /** Lines */
             lines?: components["schemas"]["VoucherPrice"][] | null;
             /** Vat */
@@ -5821,9 +5907,7 @@ export interface operations {
     };
     prepare_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_payment_post: {
         parameters: {
-            query?: {
-                charge?: number | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 object_id: number;
@@ -5891,9 +5975,7 @@ export interface operations {
     };
     voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get: {
         parameters: {
-            query: {
-                entry: number;
-            };
+            query?: never;
             header?: never;
             path: {
                 object_id: number;
@@ -5910,6 +5992,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransferInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoucherCorrectable"][];
                 };
             };
             /** @description Validation Error */

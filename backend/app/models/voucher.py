@@ -7,11 +7,19 @@ sogar in drei verschiedenen Formen (abgeleitet · je Angebot kopiert · eingefro
 Hier ist jede Sache eine Zeile:
 
 =================  ==========================================================
-``vouchers``       der Beleg selbst – je Modul einer
+``vouchers``       der Beleg selbst – je Modul einer, **und er IST die Rechnung**
 ``voucher_quotes`` der Angebotsspiegel – je angefragter Partei eine Zeile
 ``voucher_lines``  die Positionen – **eine** Form, nicht drei
-``voucher_entries``Forderungen **und** Zahlungen
+``voucher_entries``die Zahlungen darauf
 =================  ==========================================================
+
+►►► **Die Forderung ist keine Zeile mehr.** ◄◄◄ Sie stand als ``voucher_entries`` mit
+``kind = 'charge'`` **im** Beleg und trug Betrag, Nummer, Datum, Fälligkeit und Steuer –
+also eine Kopie des Belegs, der sie enthielt. Jetzt steht sie am Beleg selbst, und damit
+kann es sie nicht zweimal geben: «eine Rechnung je Modul» ist keine Regel mehr, die eine
+Funktion zählt, sondern die **Struktur**. Eine **Korrektur** ist ein eigener Beleg
+(``corrects_id``), der über Auftragsgrenzen zeigen darf – sie gehört dorthin, wo die Ware
+zurückkommt.
 
 **Ohne Bezug zu ``deals``.** Das ist Absicht: dieses Modul soll bestehen bleiben, wenn
 das alte Zahlungsmodul eines Tages ersatzlos gelöscht wird.
@@ -88,7 +96,8 @@ class Voucher(Base, TimestampMixin):
     #: und heisst «der Betreiber».
     issuer_company_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
-    #: ``offer`` · ``agreed`` · ``done`` · ``cancelled`` (``domain/voucher``).
+    #: ``offer`` · ``agreed`` · ``billed`` · ``done`` · ``cancelled``
+    #: (``domain/voucher``).
     #:
     #: ►►► **Sie ist zugleich der Einfrier-Schalter der Positionen.** ◄◄◄ Solange
     #: ``offer``, ziehen die Mengen aus dem Prozess nach; ab ``agreed`` nie wieder. Damit
@@ -150,6 +159,77 @@ class Voucher(Base, TimestampMixin):
     #: gewählt».
     lead_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     payment_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # -----------------------------------------------------------------------
+    # ►►► DIE RECHNUNG — acht Angaben, die eine Ebene tiefer standen ◄◄◄
+    # -----------------------------------------------------------------------
+    #
+    # Sie hingen an einer Zeile in ``voucher_entries`` (``kind = 'charge'``) – also an
+    # einem Datensatz **im** Beleg, der Betrag, Nummer, Datum, Fälligkeit und Steuer noch
+    # einmal trug. Eine Kopie des Belegs, der sie enthielt; dieselbe Fehlerform, die der
+    # Neuaufbau bei den Positionen schon einmal beseitigt hat.
+    #
+    # ►►► **Jetzt IST der Beleg die Rechnung.** ◄◄◄ Damit kann es sie nicht zweimal geben,
+    # und «eine Rechnung je Modul» ist keine Regel mehr, die eine Funktion zählt, sondern
+    # die Struktur. Eine **Korrektur** ist ein eigener Beleg (``corrects_id``).
+
+    #: **Das Rechnungsdatum.** ``NULL`` = es gibt noch keine Rechnung; das ist zugleich
+    #: die Antwort auf «ist schon gestellt?», ohne ein zweites Ja/Nein daneben.
+    billed_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    #: **Die Fälligkeit** = Rechnungsdatum + vereinbarte Zahlungsfrist. Eingefroren, nicht
+    #: gerechnet: eine nachträglich geänderte Frist verschöbe sonst die Fälligkeit einer
+    #: längst gestellten Rechnung.
+    due_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    #: **Die Belegnummer.** Wer sie vergibt, sagt die Richtung: bei einer **Einnahme**
+    #: nummerieren wir (``<Auftragsnummer>-<laufend>``), bei einer **Ausgabe** erfassen wir
+    #: seine. Sie bleibt auch an einer zurückgenommenen Rechnung stehen – eine einmal
+    #: vergebene Nummer wird nicht erneut vergeben.
+    number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+
+    #: ►►► **Wann die Rechnung hinausging.** ◄◄◄ ``NULL`` = sie liegt noch im Haus, und
+    #: genau dann lässt sie sich zurücknehmen (``unbill``). Danach ist sie unveränderlich –
+    #: ein Papier ist draussen, und was daran falsch ist, korrigiert ein eigener Beleg.
+    #:
+    #: **Die Spalte ist bewusst eine Spalte.** Die Hausregel lautet «der Moment braucht
+    #: keine Spalte» – hier gibt ihn nichts anderes her, weil eine Zustellung (PDF,
+    #: E-Mail) nicht gebaut ist. Sobald sie es ist, setzt **sie** das Datum.
+    issued_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    #: **Der Rechnungsbetrag, brutto** – eingefroren mit dem Stellen. Bei einem
+    #: **Korrekturbeleg** negativ: die Positionen tragen positive Preise (niemand tippt ein
+    #: Minus), und das Vorzeichen setzt ``bill`` aus ``corrects_id``. Danach rechnet jede
+    #: Zahl vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
+    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
+
+    #: **Die Steuer-Aufteilung – EINGEFROREN**, nicht nachgerechnet.
+    #: ``[{"vat": "normal", "rate": "8.10", "net": "60.00", "tax": "4.86"}]``
+    #:
+    #: Die Positionen stehen ab der Zusage ohnehin fest; die **Steuer** tut es nicht: eine
+    #: künftige Änderung an der Rundungsregel oder am Katalog änderte sonst rückwirkend die
+    #: Steuer einer längst gestellten Rechnung (MWSTG Art. 26). Ein Beleg behält, was auf
+    #: ihm stand.
+    vat: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(JSONB, nullable=True)
+
+    #: **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Abs. 2 Bst. c) – **nicht** das
+    #: Rechnungsdatum: über den Jahreswechsel entscheidet es die Steuerperiode. Abgeleitet
+    #: aus dem Prozess und mit dem Stellen eingefroren.
+    service_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    #: ►►► **Welchen Beleg dieser hier MINDERT.** ◄◄◄
+    #:
+    #: Das ist die ganze Korrektur-Mechanik: kein Belegtyp, keine Gegenbuchung an einer
+    #: Zeile, keine Summenregel. Ein Beleg mit gesetztem Verweis ist eine **Gutschrift** –
+    #: sein Betrag ist negativ, seine Steuer gespiegelt, und auf dem Papier steht
+    #: «Korrektur zu <Nummer>» (MWSTG Art. 26: die Leistung und das Entgelt müssen
+    #: eindeutig bestimmbar sein).
+    #:
+    #: **Er darf über Auftragsgrenzen zeigen** – und das ist der Sinn: die Gutschrift
+    #: gehört in den Auftrag, in dem die Ware zurückkommt, nicht in den, der sie geliefert
+    #: hat. Dort entstehen ihre Positionen von selbst aus den zurückkommenden Stücken.
+    corrects_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("vouchers.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
 class VoucherQuote(Base, TimestampMixin):
@@ -275,17 +355,21 @@ class VoucherLine(Base, TimestampMixin):
 
 
 class VoucherEntry(Base, TimestampMixin):
-    """**Eine Zeile Geld** – eine Forderung oder eine Zahlung.
+    """**Eine Zahlung** – eine Zeile Geld am Beleg. Negativ ist die Erstattung.
 
-    ``kind`` sagt, welche Achse: ``charge`` ist die **Forderung** (Rechnung, negativ =
-    Gutschrift), ``payment`` das **Geld** (negativ = Erstattung).
+    ►►► **Hier standen einmal zwei Arten.** ◄◄◄ ``kind = 'charge'`` war die **Forderung**,
+    also eine Rechnung als Datensatz *im* Beleg – mit Betrag, Nummer, Datum, Fälligkeit und
+    Steuer, allesamt Angaben, die der Beleg selbst trug. Sie ist eine Ebene höher gewandert
+    (``Voucher.billed_on`` & Co.), und damit ist dies die einzige verbliebene Art: ein
+    ``kind`` daneben wäre ein Feld mit genau einem Wert.
 
-    ►►► **Storniert wird durch eine GEGENBUCHUNG, nie durch Löschen.** ◄◄◄
+    **Gelöscht wird nichts** – auch eine Erstattung ist eine neue Zeile mit negativem
+    Betrag, nie eine Änderung an der alten: eine Zahlung ist die Aufzeichnung dessen, was
+    auf dem Konto passiert ist, und ein Ereignis der Aussenwelt macht man nicht ungeschehen.
 
-    Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen – wer die Zeile verschwinden
-    lässt, behauptet, sie sei nie passiert. Eine Stornierung ist darum eine zweite Zeile:
-    dieselbe Art, der negative Betrag, ``reverses_id`` auf die stornierte. Das ist **keine
-    neue Mechanik** – eine Gutschrift ist längst eine negative Rechnung.
+    *Die Spalten ``kind`` · ``due_on`` · ``vat`` · ``service_date`` · ``reverses_id`` ·
+    ``charge_id`` stehen noch in der Datenbank (Zwei-Deploy-Regel, ``docs/backlog.md``) und
+    werden von keiner Zeile Code mehr gelesen oder geschrieben.*
     """
 
     __tablename__ = "voucher_entries"
@@ -294,110 +378,37 @@ class VoucherEntry(Base, TimestampMixin):
     voucher_id: Mapped[int] = mapped_column(
         ForeignKey("vouchers.id", ondelete="CASCADE"), index=True, nullable=False)
 
-    #: ``charge`` · ``payment`` (``domain/voucher.KINDS``).
-    kind: Mapped[str] = mapped_column(String(10), nullable=False)
-
-    #: **Darf negativ sein** – das ist die Gutschrift bzw. die Erstattung.
+    #: **Darf negativ sein** – das ist die Erstattung.
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
-    #: Wann die Zeile gilt – Rechnungsdatum bzw. Valuta.
+    #: Wann das Geld geflossen ist (Valuta).
     booked_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    #: **Nur bei einer Forderung**: wann sie fällig ist. Je Rechnung eine eigene, weil eine
-    #: Anzahlung und eine Schlussrechnung zu zwei Zeitpunkten fällig sind.
-    due_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-
-    #: **Die Nummer dieser Zeile.** Wer sie vergibt, sagt die Richtung: bei einer
-    #: **Einnahme** nummerieren wir (``<Auftragsnummer>-<laufend>``), bei einer **Ausgabe**
-    #: erfassen wir seine. Eine Zahlung trägt hier ihren Zahlungszweck bzw. die Referenz
-    #: des Zahlungsdienstes.
+    #: Der Zahlungszweck bzw. die Referenz des Zahlungsdienstes. **Idempotenz hängt an
+    #: ihr**: dieselbe Referenz gehört zu genau einer Zahlung im Haus.
     reference: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
     note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
-    #: **Welche Zeile diese hier storniert** – und zugleich die **Sperre**: eine Zeile mit
-    #: ``reverses_id`` lässt sich nicht stornieren, und eine, zu der es schon eine
-    #: Gegenzeile gibt, ebenso wenig – sonst entstünde eine Kette aus Vorzeichen, in der
-    #: niemand mehr sagen kann, was gilt.
-    reverses_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True, index=True)
-
-    #: **Welche RECHNUNG diese Zahlung begleicht** – nur bei ``kind = payment``.
-    #:
-    #: ►►► **Sie ist der einfache Fall der Aufteilung, nicht ihr Gegenstück.** ◄◄◄ Eine
-    #: Zahlung darf auf **mehrere** Belege gehen (Sammelzahlung), und das steht in
-    #: ``voucher_allocations``; diese Spalte trägt weiterhin die eine Zuordnung, wenn es
-    #: nur eine gibt – sie ist die Abkürzung, die jeder Aufrufer ohnehin schreibt.
-    #: ``balance`` bleibt von beidem unberührt: es rechnet über die **Summen**; hier steht
-    #: «worauf», nicht «wie viel».
-    charge_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True, index=True)
-
-    #: ►►► **Ein «Grund» ist hier NICHT mehr gemappt.** ◄◄◄ Die Spalte
-    #: ``voucher_entries.reason`` steht noch in der Datenbank (Zwei-Deploy-Regel,
-    #: ``docs/backlog.md``) und wird von keiner Zeile Code mehr gelesen oder geschrieben.
-    #: Warum sie entfallen ist, steht in ``domain/voucher`` bei den beiden Wörtern
-    #: *Storno* ↔ *Gutschrift*: sie beantwortete eine Frage, die der Beleg selbst
-    #: beantwortet – Vorzeichen und ``reverses_id``.
-
-    #: **WIE bezahlt wurde** – bar · Überweisung · Karte. Nur bei ``kind = payment``.
-    #: **Kein zweites Modell**: gebucht wird in jedem Fall dieselbe Zeile – bei der einen
-    #: ruft ein Mensch, bei der anderen der Webhook.
+    #: **WIE bezahlt wurde** – bar · Überweisung · Karte. **Kein zweites Modell**:
+    #: gebucht wird in jedem Fall dieselbe Zeile – bei der einen ruft ein Mensch, bei der
+    #: anderen der Webhook.
     method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
-    #: **Die Steuer-Aufteilung dieses Belegs – EINGEFROREN.**
-    #:
-    #: ``[{"vat": "normal", "rate": "8.10", "net": "60.00", "tax": "4.86"}]``. Aus den
-    #: Positionen nachgerechnet änderte sich die Steuer einer längst gestellten Rechnung,
-    #: sobald jemand eine Position anfasst – eine rückwirkend geänderte Steuerangabe, und
-    #: genau das darf es nicht geben (MWSTG Art. 26).
-    #:
-    #: Hier **JSONB und nicht eine Tabelle**, und das ist kein Widerspruch zu den Zeilen
-    #: oben: dies ist ein eingefrorener **Rechenstand**, keine Sache mit Zustand und
-    #: Lebenslauf. ``None`` bei einer Zahlung – Geld trägt keine Steuer, es begleicht sie.
-    vat: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(JSONB, nullable=True)
 
-    #: **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Abs. 2 Bst. c) – **nicht** das
-    #: Rechnungsdatum: über den Jahreswechsel entscheidet es die Steuerperiode. Abgeleitet
-    #: aus dem Prozess (der Tag, an dem die Stücke das Modul erreicht haben).
-    service_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-
-
-class VoucherAllocation(Base, TimestampMixin):
-    """►►► **Wie viel dieser Zahlung auf WELCHEN Beleg geht** – die Sammelzahlung.
-
-    *«Eine Zahlung muss auf mehrere Belege aufteilbar sein.»*
-
-    Eine Überweisung über 1'500 begleicht eine Rechnung über 1'000 und eine über 500 –
-    das ist **eine** Zahlung mit **zwei** Zuordnungen, nicht zwei Zahlungen: auf dem
-    Kontoauszug steht eine Zeile, und eine zweite zu erfinden hiesse, die Wirklichkeit dem
-    Datenmodell anzupassen.
-
-    **Es ist eine Zuordnung, keine zweite Buchung.** ``balance`` rechnet unverändert über
-    die **Summen** aller Zeilen – diese Tabelle beantwortet allein «was ist auf dieser
-    Rechnung noch offen». Ohne Zuordnung bleibt eine Zahlung gültig (sie ist geflossen),
-    sie mindert dann nur keine bestimmte Forderung.
-
-    **Und sie ersetzt ``charge_id`` nicht, sie verallgemeinert es**: wo genau eine
-    Zuordnung besteht, steht sie in beiden – die Spalte ist die Abkürzung, ``_paid_on``
-    liest die Tabelle. Zwei Wahrheiten sind es nicht, weil **eine** Stelle schreibt
-    (``allocate``).
-    """
-
-    __tablename__ = "voucher_allocations"
-    __table_args__ = (
-        # **Eine Zeile je Paar.** Zweimal dieselbe Rechnung aus derselben Zahlung zu
-        # bedienen ist keine zweite Zuordnung, sondern ein höherer Betrag.
-        Index("uq_voucher_allocations", "payment_id", "charge_id", unique=True,
-              postgresql_where=text("is_active")),
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    payment_id: Mapped[int] = mapped_column(
-        ForeignKey("voucher_entries.id", ondelete="CASCADE"), index=True, nullable=False)
-    charge_id: Mapped[int] = mapped_column(
-        ForeignKey("voucher_entries.id", ondelete="CASCADE"), index=True, nullable=False)
-
-    #: **Darf negativ sein** – eine Erstattung nimmt von einer Rechnung zurück, was auf
-    #: sie geflossen war. Dieselbe Regel wie beim Betrag der Zeile selbst.
-    amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+# ---------------------------------------------------------------------------
+# ►►► EINE AUFTEILUNGS-TABELLE GIBT ES NICHT MEHR ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Hier stand ``VoucherAllocation``: *wie viel dieser Zahlung auf welchen Beleg geht*. Sie
+# beantwortete eine Frage, die es **innerhalb eines Belegs** nicht mehr gibt – dort lebt
+# genau eine Rechnung, also ist jede Zahlung dieses Moduls ihre.
+#
+# **Der Fall bleibt real**: eine Überweisung über 1'500 begleicht eine Rechnung über 1'000
+# und eine über 500. Nach diesem Umbau liegen die beiden zwingend in **verschiedenen
+# Modulen**, also ist es eine Zuordnung über Modulgrenzen – und das ist die
+# **offene-Posten-Liste je Partner**, nicht eine Tabelle an einem Prozessschritt. Bis es
+# sie gibt, erfasst man zwei Zahlungen, wo im Kontoauszug eine steht: eine Zeile mehr auf
+# dem Bildschirm, keine falsche Zahl (``docs/backlog.md``).
+#
+# Die **Tabelle** bleibt stehen (Zwei-Deploy-Regel); kein Modell verweist mehr auf sie.

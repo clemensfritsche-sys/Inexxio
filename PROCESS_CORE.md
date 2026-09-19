@@ -3244,6 +3244,107 @@ Zahlungsart, mit der sie eine Einheit bildet. Unter **beiden** Abschnitten stand
 hinter allem, was in ihnen wächst: jede erfasste Zahlung schob sie weiter weg von der
 Wahl, zu der sie gehört.
 
+#### 9.15q Der Beleg IST die Rechnung — eine je Modul
+
+> `docs/konzept-eine-rechnung-je-modul.md` · Migration `138` ·
+> `vouchers.billed_on`/`due_on`/`number`/`issued_on`/`amount`/`vat`/`service_date`/
+> `corrects_id`
+
+*«Nur eine Rechnung pro Zahlungsmodul — wirklich nur eine, auch keine
+Stornierungsrechnung. Wenn es eine Korrektur gibt, dann durch ein zweites Zahlungsmodul.
+Insbesondere bei Retouren wäre sonst der Warenverkehr getrennt von der monetären
+Abwicklung: ich müsste im originalen Modul stornieren — aber dort, wo das Geschehen ist,
+soll ich es auch abwickeln können.»*
+
+**Der Befund war eine Doppelung, keine Geschmacksfrage.** Betrag, Steuer, Nummer, Datum
+und Fälligkeit standen auf **beiden** Ebenen: die Forderungs-Zeile
+(`voucher_entries.kind = 'charge'`) war eine Kopie des Belegs, der sie enthielt — genau
+die Fehlerform, die der Neuaufbau bei den Positionen schon einmal beseitigt hat (dort gab
+es sie dreimal). Daraus folgte fast alles, was sich «zu komplex» anfühlte: eine Funktion
+musste **zählen**, was eine «Forderung nach aussen» ist (`live_charge`), eine zweite
+beantwortete «welche Rechnung meint diese Zahlung» (`_charge_for_payment` · `_split` ·
+`allocate` · `paid_map`), und **ein Verb machte zwei Dinge** — `reverse` hiess je nach
+Bezahlstatus «Stornieren» oder «Gutschrift», auseinandergehalten von **einer Zahl**.
+
+**Danach ist der Beleg die Rechnung.** Acht Angaben wandern eine Ebene hoch, und damit
+kann es sie nicht zweimal geben: «eine Rechnung je Modul» ist keine Regel mehr, die
+jemand durchsetzt, sondern die **Struktur**.
+
+```
+offer     Angebot        schreiben · anfragen · zusagen
+agreed    Auftrag        → bill    (Nummer, Betrag, Steuer, Fälligkeit einfrieren)
+billed    Rechnung       → issue   («Rechnung ist versendet»)   · unbill · pay
+done / cancelled         Ausgänge (unverändert)
+```
+
+- **Die dritte Stufe ist keine Wiederholung des Fehlers von damals.** «Abgeschlossen» war
+  ein *Zustand* in einer Reihe von *Schritten* — man tat nichts, um ihn zu erreichen. Eine
+  Rechnung zu stellen ist eine **Handlung mit unumkehrbarem Ergebnis**: eine Nummer ist
+  vergeben, die Steuer steht fest, ein Papier existiert.
+- **`unbill` ist die Gegenhandlung zu `bill`**, und sie endet dort, wo der Beleg wirklich
+  hinausgeht: **versendet** oder **Geld geflossen**. Die **Nummer bleibt** — die
+  zurückgenommene Rechnung ist nie hinausgegangen, es gibt sie nach aussen nicht, und die
+  neu gestellte ist derselbe Beleg, korrigiert, bevor er das Haus verliess.
+- **`issue` gibt es nur, wo WIR stellen** (`Direction.collects`). Eine Lieferantenrechnung
+  ist längst draussen, wenn wir sie abschreiben — ein Knopf «ist versendet» wäre dort eine
+  Handlung ohne Gegenstand.
+- **Kassiert wird auf eine Rechnung, die DRAUSSEN ist.** Daraus fällt die Sicherheit von
+  `unbill` heraus, ohne eine zweite Regel: vor dem Versenden kann gar kein Geld eingegangen
+  sein.
+- **Die Steuer wird EINGEFROREN, nicht gerechnet.** Die Positionen stehen ab der Zusage
+  fest, die Summe wäre also stabil — die **Aufteilung** ist es nicht: eine künftige
+  Änderung an `vat_split` oder am Katalog änderte rückwirkend die Steuer einer längst
+  gestellten Rechnung. Ein Beleg behält, was auf ihm stand.
+
+►►► **Die Korrektur ist ein eigener Beleg in einem eigenen Modul** (`corrects_id`). ◄◄◄
+
+- **Die Positionen tragen positive Preise** — niemand tippt ein Minus. «3 × Getriebe à 200»
+  ist die Aussage, und sie ist MWST-korrekt.
+- **`bill` dreht das Vorzeichen**: wo `corrects_id` steht, wird `amount` negativ
+  gespeichert und die Steueraufteilung **gespiegelt**. Danach rechnet jede Zahl
+  vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
+- **Der Verweis steht auf dem Papier** («Korrektur zu …») — eine **Ableitung**, kein
+  zweites Feld. MWSTG Art. 26 verlangt die eindeutige Bestimmbarkeit von Leistung und
+  Entgelt; ohne Verweis wäre es eine zweite Rechnung mit negativem Vorzeichen.
+- ►►► **Und `corrects_id` darf über Auftragsgrenzen zeigen.** ◄◄◄ Das ist der Kern: die
+  Gutschrift gehört dorthin, wo die Ware **zurückkommt**.
+
+**Und die Retoure macht das Modell KLEINER, nicht grösser.** Steht der Gutschriftsbeleg im
+Retourenauftrag, entstehen seine Positionen **von selbst** aus den Stücken, die
+zurückkommen (`sync_lines`) — der Auftrag greift drei Getriebe, der Beleg hat drei
+Getriebe, und er kann keine fünf greifen, wenn nur drei existieren.
+
+> **Die Warenlogik ist die Mengenkontrolle des Geldes.**
+
+Damit entfällt ersatzlos, was `ANALYSE_RETOURE_20260917.md` als Arbeit auflistete:
+Teilkorrektur mit Positionsauswahl (§1 — die Teilmenge **ist** die zurückgenommene Ware),
+Gutschrift ohne Positionsbezug (§2 — es gibt immer Positionen) und die Summenregel
+«Σ Gegenbuchungen ≤ Betrag» (§6 — man kann nicht mehr zurücknehmen, als geliefert wurde).
+
+**Die Entscheidung «Storno oder Gutschrift» trifft damit niemand mehr** — sie fällt aus
+dem **Zeitpunkt** heraus: vor dem Versenden gibt es nur `unbill`, danach nur den
+Korrekturbeleg.
+
+**Was ersatzlos entfällt:** `live_charge` · `open_charges` · `charge_state` (aufgegangen in
+`invoice_state`) · `balance_state` (dieselbe Funktion) · `_charge_for_payment` · `_split` ·
+`allocate` · `paid_map` · `_reversal_of` · `reverse_word` · `settle_charge` ·
+`credit_only` · `Balance.next_charge` · das Verb `reverse` · `VoucherAllocation` ·
+`VoucherEntry.kind`/`charge_id`/`due_on`/`vat`/`service_date`/`reverses_id`.
+
+⚠ **Eine Funktion wird dabei zurückgenommen, und das steht hier ausdrücklich:** die
+**Sammelzahlung innerhalb eines Moduls** (#1010–#1017) wird gegenstandslos — sie teilte
+eine Zahlung auf mehrere Rechnungen **desselben Belegs** auf, und davon gibt es künftig
+eine. **Der Fall selbst bleibt real** (eine Überweisung über 1'500 begleicht 1'000 und
+500), liegt aber zwingend über **Modulgrenzen**: das ist die **offene-Posten-Liste** je
+Partner, und die ist Buchhaltung (`docs/backlog.md`). Bis dahin sind es zwei erfasste
+Zeilen, wo im Kontoauszug eine steht — eine Zeile mehr auf dem Bildschirm, keine falsche
+Zahl.
+
+**Was offen bleibt, benannt statt versteckt:** die offene-Posten-Liste je Partner · der
+reine Rechnungsfehler **nach** dem Versand (er braucht einen Auftrag über die betroffenen
+Stücke — derselbe offene Punkt wie «ein Beleg ganz ohne Ware», weil `assert_releasable`
+mindestens eine Einzelinstanz verlangt) · Mahnwesen, camt.053 und die PDF-Zustellung.
+
 
 ## 10. Darstellung
 

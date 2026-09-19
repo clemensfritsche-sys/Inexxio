@@ -80,10 +80,14 @@ from . import voucher as voucher_svc
 
 # ►►► **Der Adapter kennt EIN Geld-Modul – als Schnittstelle, nicht als Namen.** ◄◄◄
 #
-# Ein Geld-Modul bietet sieben Funktionen an: ``open_charges`` · ``open_of`` ·
-# ``card_payment`` · ``refundable_amount`` · ``billing_of`` · ``record_payment`` ·
-# ``of_reference``. Diese Datei bekommt es darum **übergeben** und fragt nie, welches es
-# ist.
+# Ein Geld-Modul bietet sechs Funktionen an: ``balance_of`` · ``card_payment`` ·
+# ``refundable_amount`` · ``billing_of`` · ``record_payment`` · ``of_reference``. Diese
+# Datei bekommt es darum **übergeben** und fragt nie, welches es ist.
+#
+# *Es waren einmal sieben: ``open_charges`` und ``open_of`` beantworteten «welche Rechnung
+# ist gemeint und wie viel steht auf ihr offen». Die Frage hat seit dem Umbau genau eine
+# Antwort – der Beleg **ist** die Rechnung –, und eine Frage mit genau einer Antwort
+# stellt man nicht.*
 #
 # Der **Faden zurück** ist ein Schlüssel in den Metadaten der Zahlungsabsicht; er nennt
 # zugleich das Modul. Es waren eine Runde lang zwei (das alte ``deal`` daneben) – und
@@ -204,8 +208,7 @@ def _minor(amount: Decimal, code: str) -> int:
     return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def prepare(db: Session, *, svc: Any, row: Any, order: Order,
-            charge_id: Optional[int] = None) -> dict[str, Any]:
+def prepare(db: Session, *, svc: Any, row: Any, order: Order) -> dict[str, Any]:
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten.** ◄◄◄
 
     Zurück kommt, was **unsere** Karte zum Zeichnen braucht: das ``client_secret`` der
@@ -215,46 +218,31 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order,
     **Der offene Betrag, nicht die Zusage**: eine Anzahlung ist längst gebucht, und wer
     die volle Summe verlangte, kassierte zweimal.
 
-    **Gebucht wird hier nichts.** Diese Funktion ändert am Geldvorgang keine Zeile; die
-    Zahlung entsteht, wenn der Dienst sie meldet (``handle_webhook``). Der Browser des
-    Zahlenden ist keine Quelle – wer ihn nach der Zahlung schliesst, darf keine Buchung
-    verschlucken.
+    ►►► **Welche Rechnung gemeint ist, fragt niemand mehr.** ◄◄◄ Hier stand eine
+    Auswahl über die offenen Forderungen des Vorgangs samt einem ``charge_id`` am
+    Aufrufer – aus der Zeit, als ein Beleg mehrere Rechnungen tragen konnte. Seit er
+    **die** Rechnung ist, ist der offene Betrag des Belegs der offene Betrag der
+    Rechnung, und der frühere Fehler («kassiert wurde immer die älteste, egal an welchem
+    Knopf man klickte», #859) kann gar nicht mehr entstehen.
+
+    **Gebucht wird hier nichts.** Diese Funktion ändert am Beleg keine Zeile; die Zahlung
+    entsteht, wenn der Dienst sie meldet (``handle_webhook``). Der Browser des Zahlenden
+    ist keine Quelle – wer ihn nach der Zahlung schliesst, darf keine Buchung verschlucken.
 
     **Ohne Zustand bei uns**: jeder Aufruf erzeugt eine neue Absicht. Eine gespeicherte Id
     wäre eine zweite Wahrheit über eine Sache, die dem Dienst gehört; eine unbenutzte
     Absicht kostet nichts und verfällt dort von selbst.
     """
     stripe = _api()
-    # ►►► **Bezahlt wird EINE Rechnung, nicht ein Saldo** (Testnotiz #858). ◄◄◄
-    #
-    # Vorher war es der offene Betrag des **ganzen Vorgangs** – bei zwei offenen
-    # Rechnungen also eine Zahlung, die auf zwei Belege zeigt, und genau die soll es nicht
-    # geben.
-    #
-    # ►►► **Und WELCHE, sagt der Aufrufer** (Testnotiz #859). ◄◄◄ Hier stand
-    # ``charges[0]`` – die älteste offene. Damit war die zweite Rechnung **unbezahlbar**,
-    # obwohl ihr Knopf danebenstand: wer ihn drückte, bezahlte die erste. Eine
-    # Reihenfolge, die niemand angeordnet hat, ist keine Regel, sondern ein Zufall der
-    # Sortierung. Ohne Angabe bleibt sie die Vorgabe – bei genau einer offenen ist das die
-    # einzig mögliche Antwort.
-    charges = svc.open_charges(db, row)
-    if not charges:
+    owed = svc.balance_of(db, row).open
+    if owed <= 0:
         raise HTTPException(
             status_code=409,
-            detail=("An diesem Vorgang ist keine Rechnung offen – man kassiert nicht, "
-                    "was niemand gefordert hat."),
+            detail=("An diesem Beleg ist nichts offen – man kassiert nicht, was niemand "
+                    "gefordert hat."),
         )
-    charge = next((c for c in charges if c.id == charge_id), None) if charge_id \
-        else charges[0]
-    if charge is None:
-        raise HTTPException(
-            status_code=409,
-            detail=("Auf diese Rechnung ist nichts mehr offen – sie ist beglichen oder "
-                    "storniert."),
-        )
-    owed = svc.open_of(db, row, charge)
     code = cur.assert_code(row.currency)
-    number = charge.reference or str(charge.id)
+    number = row.number or str(row.id)
     with _speaking("Zahlung vorbereiten"):
         intent = stripe.PaymentIntent.create(
             amount=_minor(owed, code),
@@ -263,12 +251,11 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order,
             # dort freigeschaltet ist. Eine Liste hier wäre die zweite Stelle, an der beim
             # nächsten Freischalten jemand nichts sieht.
             automatic_payment_methods={"enabled": True},
-            # ►►► **Der Faden zurück – und er nennt die RECHNUNG** (Testnotiz #858). ◄◄◄
-            #
-            # Metadaten sind der **maschinelle** Ort: hier sucht man beim Dienst, hierüber
-            # findet der Webhook den Vorgang, und hier steht, welche Rechnung gemeint war –
-            # ohne eine ``stripe_*``-Spalte bei uns.
-            metadata={key_of(svc): str(row.id), "charge_id": str(charge.id),
+            # ►►► **Der Faden zurück.** ◄◄◄ Metadaten sind der **maschinelle** Ort: hier
+            # sucht man beim Dienst, hierüber findet der Webhook den Beleg – ohne eine
+            # ``stripe_*``-Spalte bei uns. Die Rechnungsnummer steht daneben, weil sie im
+            # Dashboard lesbar sein soll; **gefunden** wird über den Beleg.
+            metadata={key_of(svc): str(row.id),
                       "invoice": number, "order": str(order.object_id)},
             # ►►► **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer.** ◄◄◄
             #
@@ -430,11 +417,13 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
         # der man sie wiedererkennt) und einmal als Wort daneben. Ein Vermerk ist für das
         # da, was **sonst nirgends** steht.
         note=None,
-        # ►►► **Die Rechnung reist mit** (Testnotiz #858). ◄◄◄ Welche gemeint war, stand
-        # beim Vorbereiten fest – sie hier erneut zu suchen hiesse raten, denn zwischen
-        # der Zahlung und ihrer Meldung kann eine zweite Rechnung entstanden sein.
-        charge_id=_still_open(svc, db, row,
-                              (data.get("metadata") or {}).get("charge_id")),
+        # ►►► **Eine Zuordnung braucht es nicht mehr.** ◄◄◄ Hier stand ``charge_id``:
+        # welche Rechnung diese Zahlung meint, samt einer Prüfung, ob es sie noch gibt
+        # (``_still_open``). Seit der Beleg **die** Rechnung ist, gehört die Zahlung
+        # dorthin, wo sie hängt – und zwar auch dann, wenn die Rechnung inzwischen
+        # zurückgenommen wurde: das Geld ist geflossen, ein Ereignis der Aussenwelt macht
+        # man nicht ungeschehen (#842). Der offene Betrag wird dann **negativ** – wir
+        # schulden –, und die Erstattung steht als Handlung da.
         # **Wie bezahlt wurde, weiss der Dienst** – und nur er: von Hand erfasst wäre die
         # Karte eine Behauptung ohne Beleg (``dm.MANUAL_METHODS`` weist sie darum ab).
         method=dm.CARD,
@@ -535,31 +524,3 @@ def _row_of(db: Session, meta: dict[str, Any]) -> tuple[Any, Any]:
         if found is not None:
             return mod, found
     return None, None
-
-
-def _still_open(svc: Any, db: Session, row: Any, value: Any) -> Optional[int]:
-    """►►► **Die Rechnung aus den Metadaten – falls es sie noch gibt.** ◄◄◄
-
-    Metadaten sind Strings, und eine ältere Absicht (vor dieser Regel) trägt den Schlüssel
-    gar nicht. Eine fehlende Zuordnung ist ehrlicher als eine geratene.
-
-    **Und sie kann inzwischen storniert sein.** Zwischen «Jetzt bezahlen» und der Meldung
-    des Dienstes liegen Minuten, in denen jemand die Rechnung zurücknehmen kann. Dann ist
-    die Zahlung **trotzdem passiert** – Geld ist auf dem Konto, und ein Ereignis der
-    Aussenwelt macht man nicht ungeschehen (#842). Gebucht wird sie darum in jedem Fall,
-    nur **ohne** Zuordnung: sie gehört keiner Rechnung, weil die, für die sie gedacht war,
-    nicht mehr steht.
-
-    Was daraus folgt, ist genau das Richtige und braucht keine eigene Regel: der offene
-    Betrag wird **negativ** – wir schulden –, und die Erstattung steht als Handlung da
-    (``refund_online``, Testnotiz #860). Eine Sperre im Webhook wäre die Alternative
-    gewesen, und sie wäre falsch: Geld, das wir nicht buchen, fehlt in der Buchhaltung
-    und niemandem fällt es auf.
-    """
-    try:
-        wanted = None if value in (None, "") else int(value)
-    except (TypeError, ValueError):
-        return None
-    if wanted is None:
-        return None
-    return wanted if any(c.id == wanted for c in svc.open_charges(db, row)) else None

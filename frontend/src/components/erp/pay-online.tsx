@@ -39,17 +39,14 @@ import type { PaymentSetup } from '@/types';
  * und nicht «gebucht» – und lädt den Auftrag nach, damit die Zeile erscheint, sobald sie
  * da ist.
  */
-export function PayOnline({ orderObjectId, stepId, chargeId, prepare, label, onDone, onClose }: {
+export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClose }: {
   orderObjectId: number;
   stepId: number;
-  /**
-   * ►►► **Welche Rechnung bezahlt wird** (Testnotiz #859). ◄◄◄
-   *
-   * Der Knopf steht **an** ihr, also nennt er sie. Ohne Angabe die älteste offene – so
-   * war es vorher **immer**, und damit war die zweite Rechnung unbezahlbar, obwohl ihr
-   * Knopf danebenstand.
+  /*
+   * *Ein `chargeId` stand hier einmal (#859): welche Rechnung bezahlt wird. Je Modul gibt
+   * es eine, und sie **ist** der Beleg – die Frage hat genau eine Antwort, und eine Frage
+   * mit genau einer Antwort stellt man nicht.*
    */
-  chargeId?: number | null;
   /**
    * ►►► **WELCHES Modul bezahlt wird, sagt der Aufrufer** (Testnotiz #959). ◄◄◄
    *
@@ -63,8 +60,7 @@ export function PayOnline({ orderObjectId, stepId, chargeId, prepare, label, onD
    * stabile Referenz – eine hier gebaute Pfeilfunktion wäre bei jedem Rendern eine neue
    * und liesse die Vorbereitung endlos laufen.
    */
-  prepare: (objectId: number, stepId: number,
-            chargeId?: number | null) => Promise<PaymentSetup>;
+  prepare: (objectId: number, stepId: number) => Promise<PaymentSetup>;
   /** Das Wort des Servers («Jetzt bezahlen») – die Karte hält keine eigene Konstante. */
   label: string;
   /** Der Auftrag soll neu geladen werden – die Zahlung kommt über den Webhook. */
@@ -82,11 +78,11 @@ export function PayOnline({ orderObjectId, stepId, chargeId, prepare, label, onD
   // Absicht über den offenen Betrag und ändert an unserem Vorgang keine Zeile.
   useEffect(() => {
     let dead = false;
-    prepare(orderObjectId, stepId, chargeId)
+    prepare(orderObjectId, stepId)
       .then((s) => { if (!dead) setSetup(s); })
       .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
     return () => { dead = true; };
-  }, [prepare, orderObjectId, stepId, chargeId]);
+  }, [prepare, orderObjectId, stepId]);
 
   // **Das SDK kommt erst auf Klick** (`await import`) – dieselbe Regel wie beim Decoder
   // des Scanners: was niemand öffnet, kostet niemanden etwas.

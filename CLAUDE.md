@@ -4416,6 +4416,112 @@
 > Überlauf über alle vier Angebots-Zustände, Zugesagt `#1F8A4C` · Abgesagt `#E51A14`,
 > **0** Aufklapper.
 
+> ►►► **DER BELEG IST DIE RECHNUNG — eine je Modul, und die Korrektur ist ein eigener**
+> (`docs/konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q, Migration `138`). ◄◄◄
+> *«Nur eine Rechnung pro Zahlungsmodul – wirklich nur eine, auch keine
+> Stornierungsrechnung. Gibt es eine Korrektur, dann durch ein zweites Zahlungsmodul …
+> Insbesondere bei Retouren wäre sonst der Warenverkehr getrennt von der monetären
+> Abwicklung: ich müsste im originalen Modul stornieren – aber dort, wo das Geschehen ist,
+> soll ich es auch abwickeln können.»*
+> **Der Befund war eine Doppelung, keine Geschmacksfrage.** Betrag, Steuer, Nummer, Datum
+> und Fälligkeit standen auf **beiden** Ebenen: die Forderungs-Zeile
+> (`voucher_entries.kind = 'charge'`) war eine Kopie des Belegs, der sie enthielt – genau
+> die Fehlerform, die der Neuaufbau bei den **Positionen** schon einmal beseitigt hat
+> (dort gab es sie dreimal). Daraus kam die gefühlte Unordnung, und sie war zählbar: eine
+> Funktion musste **zählen**, was eine «Forderung nach aussen» ist (`live_charge`), eine
+> zweite beantwortete «welche Rechnung meint diese Zahlung» (`_charge_for_payment` ·
+> `_split` · `allocate` · `paid_map`), und **ein Verb machte zwei Dinge** – `reverse` hiess
+> je nach Bezahlstatus «Stornieren» oder «Gutschrift», auseinandergehalten von **einer
+> Zahl**. Das sind zwei verschiedene Sachverhalte: ein **Storno** sagt «diese Rechnung war
+> falsch», eine **Gutschrift** «sie war richtig, die Leistung wurde gemindert» – eigenes
+> Datum, eigene Ware, eigene Steuerperiode.
+> **Acht Angaben wandern eine Ebene hoch** (`billed_on` · `due_on` · `number` ·
+> `issued_on` · `amount` · `vat` · `service_date` · `corrects_id`). Damit **kann** es die
+> Rechnung nicht zweimal geben: «eine Rechnung je Modul» ist keine Regel mehr, die jemand
+> durchsetzt, sondern die **Struktur**.
+> **Drei Stufen statt zwei** (`offer → agreed → billed`), und die dritte ist **keine**
+> Wiederholung des Fehlers von damals: «Abgeschlossen» war ein *Zustand* in einer Reihe
+> von *Schritten* – man tat nichts, um ihn zu erreichen. Eine Rechnung zu stellen ist eine
+> **Handlung mit unumkehrbarem Ergebnis**: eine Nummer ist vergeben, die Steuer steht fest,
+> ein Papier existiert. Drei neue Verben: `bill` · `issue` («Rechnung ist versendet») ·
+> `unbill`.
+> **`unbill` ist die Gegenhandlung zu `bill`** – dieselbe Anatomie wie `ask`/`unask` – und
+> sie endet dort, wo der Beleg wirklich hinausgeht: **versendet** oder **Geld geflossen**.
+> ►►► **Die Nummer bleibt** ◄◄◄ und wird wiederverwendet: die zurückgenommene Rechnung ist
+> nie hinausgegangen, es gibt sie nach aussen nicht, und die neu gestellte ist **derselbe
+> Beleg**, korrigiert, bevor er das Haus verliess. *Das Konzept hatte «sie verbraucht ihre
+> Nummer» notiert – noch aus der Zeit, als eine Rechnung eine **Zeile** war; ohne zweite
+> Zeile bräuchte es eine Spalte, die nur die verbrauchte Nummer hält.*
+> **`issue` gibt es nur, wo WIR stellen** (`Direction.collects`): eine Lieferantenrechnung
+> ist längst draussen, wenn wir sie abschreiben – ein Knopf «ist versendet» wäre dort eine
+> Handlung ohne Gegenstand. Und **kassiert wird auf eine Rechnung, die draussen ist**:
+> daraus fällt die Sicherheit von `unbill` heraus, ohne eine zweite Regel – vor dem
+> Versenden kann gar kein Geld eingegangen sein.
+> **Die Steuer wird EINGEFROREN, nicht gerechnet.** Die Positionen stehen ab der Zusage
+> fest, die Summe wäre also stabil – die **Aufteilung** ist es nicht: eine künftige
+> Änderung an `vat_split` oder am Katalog änderte rückwirkend die Steuer einer längst
+> gestellten Rechnung. Ein Beleg behält, was auf ihm stand.
+> ►►► **Die Korrektur ist ein eigener Beleg in einem eigenen Modul** (`corrects_id`) – und
+> er darf **über Auftragsgrenzen** zeigen. ◄◄◄ Das ist der Kern dieser Runde: die
+> Gutschrift gehört dorthin, wo die Ware **zurückkommt**. Die Positionen tragen **positive**
+> Preise (niemand tippt ein Minus, «3 × Getriebe à 200» ist die Aussage), `bill` dreht das
+> Vorzeichen und **spiegelt** die Steuer – danach rechnet jede Zahl vorzeichenrichtig, ohne
+> eine einzige Fallunterscheidung beim Lesen –, und der Verweis «Korrektur zu …» ist eine
+> **Ableitung**, kein zweites Feld (MWSTG Art. 26: Leistung und Entgelt müssen eindeutig
+> bestimmbar sein).
+> **Und die Retoure macht das Modell KLEINER, nicht grösser.** Steht der Gutschriftsbeleg
+> im Retourenauftrag, entstehen seine Positionen **von selbst** aus den Stücken, die
+> zurückkommen (`sync_lines`): der Auftrag greift drei Getriebe, der Beleg hat drei
+> Getriebe – und er kann keine fünf greifen, wenn nur drei existieren. *Die Warenlogik ist
+> die Mengenkontrolle des Geldes.* Damit entfällt ersatzlos, was
+> `ANALYSE_RETOURE_20260917.md` als Arbeit auflistete: Teilkorrektur mit Positionsauswahl
+> (§1), Gutschrift ohne Positionsbezug (§2) und die Summenregel «Σ Gegenbuchungen ≤
+> Betrag» (§6).
+> **Die Entscheidung «Storno oder Gutschrift» trifft damit niemand mehr** – sie fällt aus
+> dem **Zeitpunkt** heraus: vor dem Versenden gibt es nur `unbill`, danach nur den
+> Korrekturbeleg.
+> **`charge_state` und `balance_state` sind EINE Funktion geworden** (`invoice_state`):
+> es waren zwei, weil ein Beleg mehrere Forderungen tragen konnte und die Summe eine eigene
+> Aussage war. Seit er **die** Rechnung ist, sind Betrag und Saldo dieselben zwei Zahlen –
+> eine Frage, eine Antwort.
+> **Ersatzlos entfallen**: `live_charge` · `open_charges` · `_charge_for_payment` ·
+> `_split` · `allocate` · `paid_map` · `_reversal_of` · `reverse_word` · `settle_charge` ·
+> `credit_only` · `Balance.next_charge` · das Verb `reverse` · `VoucherAllocation` · sechs
+> Mappings an `VoucherEntry` – und im Browser die Unterscheidung `charge`/`payment` in der
+> Geld-Zeile, der Zustandspunkt je Rechnung und die Aufteilungs-Eingabe.
+> **Ein Fund nebenbei, und er war still**: `CREDIT_WORD` stand **zweimal** in
+> `domain/voucher` – erst «Gutschrift», 128 Zeilen später «Guthaben». Die zweite Zuweisung
+> gewinnt beim Laden des Moduls, also gab `reverse_word()` seit #997 stillschweigend
+> «Guthaben» zurück, wo «Gutschrift» gemeint war. Mit dem Verb ist beides gegangen.
+> ⚠ **Eine Funktion wird dabei zurückgenommen, und das steht ausdrücklich hier**: die
+> **Sammelzahlung innerhalb eines Moduls** (#1010–#1017) wird gegenstandslos – sie teilte
+> eine Zahlung auf mehrere Rechnungen **desselben Belegs** auf, und davon gibt es künftig
+> eine. **Der Fall selbst bleibt real** (eine Überweisung über 1'500 begleicht 1'000 und
+> 500), liegt aber zwingend über **Modulgrenzen**: das ist die **offene-Posten-Liste** je
+> Partner, und die ist Buchhaltung (`docs/backlog.md`). Bis dahin sind es zwei erfasste
+> Zeilen, wo im Kontoauszug eine steht – eine Zeile mehr auf dem Bildschirm, **keine
+> falsche Zahl**.
+> **Zwei kleinere Funde beim Messen**: «fällig 12. **sep.**» – `toLowerCase()` über die
+> ganze Zeichenkette machte aus einem Monatsnamen einen, den es nicht gibt (gesenkt wird
+> jetzt genau das erste Zeichen: bei einer Ziffer ändert sich nichts, bei «In»/«Heute»
+> genau das, was gemeint war); und «Nichts mehr offen» stand über einem Saldo von −324.30.
+> Wächter: 11 neue in `tests/test_voucher_module.py`, 1 neuer und 8 auf die neue Regel
+> gezogene in `test_frontend_mirrors.py` – **21 Bug-Formen gegengeprüft, jede meldet**;
+> *einer war dabei stumpf und liess seine eigene durch* (er fragte nach dem **Vorkommen**
+> von `action: 'unbill'` und übersah eine Bug-Form, die die Bedingung auf `false` setzte –
+> er fragt jetzt das **Tor**). Suite grün gegen die gewachsene Datenbank **und** gegen ein
+> Schema nur aus den Migrationen (je 598); Migration `138` von null · idempotent ·
+> downgrade · re-upgrade · über das Lifespan-Netz verifiziert, samt **Backfill** an echten
+> Daten (Summe aller lebenden Forderungen, Kopfangaben von der ältesten geltenden Zeile,
+> alte `charge`-Zeilen inaktiv – ohne den letzten Schritt läse der Dienst sie als
+> Zahlungen). Gemessen in Chromium an der **echten** Komponente (Karte im `ModuleShell`):
+> 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht**
+> Beleg-Zustände (Auftrag ohne Rechnung · Rechnung im Haus · versendet · teilweise bezahlt ·
+> Korrekturbeleg · überzahlt in JPY · gemeldete Lücken · Sicht der Gegenpartei) – und die
+> Messung **in beide Richtungen** gegengeprüft: ein unteilbares Wort in freiem Text meldet
+> +100,2 px bei 375 und +155,2 px bei 320, dasselbe Wort hinter `truncate` zu Recht
+> **nichts**.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -4693,14 +4799,21 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   der Zeile «Offen» dazwischen; jedes trägt seinen Fortschritts-Punkt. **Genau eine
   Handlung bringt weiter** – unten, breit: *Rechnung stellen* → *Zahlung erfassen* →
   nichts mehr; alles andere ist eine Korrektur und steht klein bei ihrer Zeile.
-- **Drei Wege zum Geld, eine Rechnung je Modul** (§9.14): *bar* wird erfasst, die *Karte*
-  ausgeführt, die *Überweisung* ist eine **Auskunft** – Bankverbindung, RF-Referenz und
-  die **Swiss QR-Rechnung**. Sie sind **eine Wahl, kein Verb** (§9.15i): ein Schieber, und
-  jeder Weg sagt selbst, was er auslöst – beides leer heisst *reine Auskunft*, und so
-  sieht die Gegenpartei die Überweisung. Welche Rechnung sie meinen, sagt der Dienst
-  (`settle_charge`); je Modul lebt höchstens eine, und die Anzahlung ist darum ein
-  **zweites Modul** mit seinen **eigenen Positionspreisen** (einen «Anteil» gibt es
-  nicht, #867).
+- ►►► **Der Beleg IST die Rechnung — eine je Modul** (§9.15q, Migration `138`). ◄◄◄
+  Betrag, Steuer, Nummer, Datum und Fälligkeit stehen **am Beleg**, nicht in einer Zeile
+  darin: damit kann es sie nicht zweimal geben – die Regel ist die **Struktur**, nicht
+  etwas, das jemand zählt. Drei Stufen (`offer → agreed → billed`), drei Verben
+  (`bill` · `issue` · `unbill`); die Rücknahme endet, wo der Beleg wirklich hinausgeht
+  (versendet oder Geld geflossen), und die **Nummer bleibt**. Eine **Korrektur** ist ein
+  eigener Beleg in einem eigenen Modul (`corrects_id`) – und er steht dort, wo die Ware
+  **zurückkommt**, auch über Auftragsgrenzen. Die Anzahlung ist darum ein **zweites
+  Modul** mit seinen **eigenen Positionspreisen** (einen «Anteil» gibt es nicht, #867).
+- **Drei Wege zum Geld** (§9.14): *bar* wird erfasst, die *Karte* ausgeführt, die
+  *Überweisung* ist eine **Auskunft** – Bankverbindung, RF-Referenz und die **Swiss
+  QR-Rechnung**. Sie sind **eine Wahl, kein Verb** (§9.15i): ein Schieber, und jeder Weg
+  sagt selbst, was er auslöst – beides leer heisst *reine Auskunft*, und so sieht die
+  Gegenpartei die Überweisung. **Welche Rechnung sie meinen, fragt niemand mehr**: es gibt
+  eine, und sie ist der Beleg.
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.

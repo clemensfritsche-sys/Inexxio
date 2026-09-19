@@ -18,7 +18,9 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
-from ..schemas.voucher import VoucherEmbed, VoucherParty, VoucherUpdate
+from ..schemas.voucher import (
+    VoucherCorrectable, VoucherEmbed, VoucherParty, VoucherUpdate,
+)
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
@@ -948,7 +950,6 @@ def update_voucher(
 def prepare_voucher_payment(
     object_id: int,
     step_id: int,
-    charge: Optional[int] = None,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
@@ -966,8 +967,9 @@ def prepare_voucher_payment(
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
     voucher_svc.assert_allowed(db, row, "pay_online", user)
-    return PaymentSetup(**stripe_pay.prepare(db, svc=voucher_svc, row=row, order=order,
-                                             charge_id=charge))
+    # *Ein ``charge``-Parameter stand hier einmal: welche Rechnung bezahlt wird. Je Modul
+    # gibt es eine, und sie **ist** der Beleg – die Frage hat genau eine Antwort.*
+    return PaymentSetup(**stripe_pay.prepare(db, svc=voucher_svc, row=row, order=order))
 
 
 @router.post("/{object_id}/steps/{step_id}/voucher/refund",
@@ -1000,7 +1002,6 @@ def refund_voucher_payment(
 def voucher_transfer_details(
     object_id: int,
     step_id: int,
-    entry: int,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
@@ -1009,13 +1010,37 @@ def voucher_transfer_details(
     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+
+    *Ein ``entry``-Parameter stand hier einmal: welche Rechnung gemeint ist. Es gibt
+    eine, und sie ist der Beleg.*
     """
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
-    charge = next((e for e in voucher_svc.open_charges(db, row) if e.id == entry), None)
-    if charge is None:
+    if not voucher_svc.is_billed(row):
         raise HTTPException(
             status_code=404,
-            detail="Zu dieser Rechnung gibt es nichts zu überweisen – sie ist beglichen "
-                   "oder gehört nicht zu diesem Beleg.")
-    return TransferInfo(**voucher_svc.transfer_info(db, row, charge))
+            detail="Zu diesem Beleg gibt es nichts zu überweisen – es steht keine "
+                   "Rechnung.")
+    return TransferInfo(**voucher_svc.transfer_info(db, row))
+
+
+@router.get("/{object_id}/steps/{step_id}/voucher/correctable",
+            response_model=list[VoucherCorrectable])
+def voucher_correctable(
+    object_id: int,
+    step_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄
+
+    Das ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware
+    **zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle
+    Aufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert
+    keine fremde Forderung und das Geld fliesst nicht andersherum.
+
+    **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
+    """
+    order = orders_svc.get(db, object_id)
+    step, row = _voucher_step(db, order, step_id, user)
+    return [VoucherCorrectable(**r) for r in voucher_svc.correctable(db, row, step)]

@@ -2,6 +2,28 @@
 
 **Stand:** 17.09.2026 · **Geltungsbereich:** Zahlungsmodul (`beleg`) · **Keine Code-Änderung.**
 
+> ## ⚠ ÜBERHOLT durch «Der Beleg IST die Rechnung» (19.09.2026)
+>
+> Diese Analyse beschreibt das Modell, in dem ein Beleg **mehrere** Forderungszeilen
+> tragen konnte. Seit Migration `138` ist der Beleg **die** Rechnung
+> (`docs/konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q), und eine Korrektur ist
+> ein **eigener Beleg in einem eigenen Modul** – dort, wo die Ware zurückkommt.
+>
+> **Drei der hier geplanten Arbeiten entfallen damit ersatzlos**, weil die Positionen der
+> Gutschrift aus den zurückkommenden Stücken entstehen (*die Warenlogik ist die
+> Mengenkontrolle des Geldes*):
+>
+> | Hier geplant | Entfällt, weil … |
+> |---|---|
+> | §1 Teilkorrektur mit Positionsauswahl `[{line_id, quantity}]` | die Teilmenge **ist** die zurückgenommene Ware |
+> | §2 Gutschrift ohne Positionsbezug (`split_at` mit freiem Betrag) | es gibt immer Positionen – die der zurückkommenden Stücke |
+> | §6 Summenregel «Σ Gegenbuchungen ≤ Betrag» | man kann nicht mehr zurücknehmen, als geliefert wurde |
+>
+> **Was weiter gilt:** die Referenzpflicht aus MWSTG Art. 26 (sie steht jetzt als
+> `corrects_id` und als Satz «Korrektur zu …» auf dem Papier), die Stripe-Grenze und die
+> Trennung *Ware · Forderung · Geld*. **Nicht als Vorlage verwenden**, ohne §9.15q daneben
+> zu lesen.
+
 Randbedingungen, die für jede Antwort unten gelten: genau **zwei gespeicherte Entitäten**
 (Beleg = `voucher_entries.kind = charge`, Zahlung = `kind = payment`), **kein Belegtyp**,
 das **Vorzeichen** entscheidet, der **Saldo ist immer abgeleitet**, **kein Grund-Feld**

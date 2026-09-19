@@ -128,6 +128,18 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "lead_days", "INTEGER"),
     ("vouchers", "payment_days", "INTEGER"),
     ("vouchers", "parties", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    # ►► **Die Rechnung am Beleg** (Migration 138). Acht Angaben, die bis dahin an einer
+    #    Zeile hingen (``voucher_entries.kind = 'charge'``) – also eine Kopie des Belegs,
+    #    der sie enthielt. Das Modell kennt sie, also scheitert ohne sie **jede** Abfrage
+    #    auf einen Beleg, und die trägt jedes Zahlungsmodul in jeder Auftrags-Antwort.
+    ("vouchers", "billed_on", "DATE"),
+    ("vouchers", "due_on", "DATE"),
+    ("vouchers", "number", "VARCHAR(120)"),
+    ("vouchers", "issued_on", "DATE"),
+    ("vouchers", "amount", "NUMERIC(18, 4)"),
+    ("vouchers", "vat", "JSONB"),
+    ("vouchers", "service_date", "DATE"),
+    ("vouchers", "corrects_id", "BIGINT"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -150,6 +162,8 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
     ("voucher_entries", "amount", 18, 4),
     ("voucher_lines", "price", 18, 4),
     ("voucher_quotes", "amount", 18, 4),
+    # Der **Rechnungsbetrag** steht seit Migration 138 am Beleg selbst.
+    ("vouchers", "amount", 18, 4),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -175,6 +189,12 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     # der Zustand eines Artikels ist die Projektion von ``replaced_by_id``. Die Spalte hat
     # ihr Mapping verloren; gedroppt wird sie im Folge-Deploy.
     ("articles", "status"),
+    # ►► **Die Art einer Geld-Zeile** (Migration 138): es gibt nur noch eine – die
+    #    **Zahlung**. Die Forderung ist der Beleg selbst geworden, also kennt das Modell
+    #    ``kind`` nicht mehr; die Spalte ist ``NOT NULL`` **ohne** Server-Default, und ohne
+    #    diesen Eintrag liefe auf dev jedes Insert einer Zahlung auf. Gedroppt wird sie im
+    #    Folge-Deploy (dieselbe Zwei-Schritte-Regel wie bei ``purchases.quantity``).
+    ("voucher_entries", "kind"),
     # ``payments``/``invoices``/``purchases`` haben mit dem Handel ihr Mapping verloren –
     # es schreibt niemand mehr hinein, also kann auch kein Insert an einer ``NOT NULL``
     # auflaufen. Die Tabellen bleiben stehen (Zwei-Deploy-Regel).

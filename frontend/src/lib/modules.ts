@@ -174,15 +174,23 @@ export function dealDirection(direction: string | undefined | null) {
 /**
  * **Die Stufen eines Geldvorgangs — als Schlüssel, nicht als Wort.**
  *
- * Wie sie *heissen*, sagt der Server (`DealEmbed.stages[].label`) – das hängt an der
+ * Wie sie *heissen*, sagt der Server (`VoucherEmbed.stages[].label`) – das hängt an der
  * Richtung. Was die Oberfläche braucht, ist die **Identität**: an welcher Stufe die
- * Zusage steht und an welcher der Scan. `test_frontend_mirrors` hält sie mit
- * `domain/deal.STAGES` deckungsgleich; deutsche Wörter im Rumpf wären an einem Vorgang
+ * Zusage steht und an welcher die Rechnung. `test_frontend_mirrors` hält sie mit
+ * `domain/voucher.STAGES` deckungsgleich; deutsche Wörter im Rumpf wären an einem Vorgang
  * der anderen Richtung still falsch.
  */
 export const DEAL_STAGE = {
   offer: 'offer',
   agreed: 'agreed',
+  /**
+   * ►►► **Die Rechnung steht** – Nummer, Betrag, Steuer und Fälligkeit sind eingefroren.
+   * ◄◄◄ Die dritte Stufe ist keine Wiederholung des alten Fehlers «Abgeschlossen»: das
+   * war ein *Zustand* in einer Reihe von *Schritten*, den man nicht *tut*. Eine Rechnung
+   * zu stellen ist eine **Handlung mit unumkehrbarem Ergebnis** – dieselbe Art Schwelle
+   * wie die Zusage.
+   */
+  billed: 'billed',
   /** **Ausgänge, keine Stufen** – man kommt dort an, statt hindurchzugehen. */
   done: 'done',
   cancelled: 'cancelled',

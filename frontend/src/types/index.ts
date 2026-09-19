@@ -227,6 +227,18 @@ export type VoucherEntryOut = components['schemas']['VoucherEntryOut'];
 export type VoucherQuoteOut = components['schemas']['VoucherQuoteOut'];
 /** **Eine Position** – und es gibt sie in genau dieser einen Form. */
 export type VoucherLineOut = components['schemas']['VoucherLineOut'];
+/**
+ * ►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄
+ *
+ * Nummer, Datum, Fälligkeit, Betrag und Steuer standen einmal an einer Geld-Zeile, also
+ * auf **beiden** Ebenen. `null` heisst «noch keine gestellt» – und das ist die
+ * vollständige Antwort: zweimal vorkommen kann sie nicht mehr.
+ */
+export type VoucherInvoice = components['schemas']['VoucherInvoice'];
+/** **Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört. */
+export type VoucherCorrects = components['schemas']['VoucherCorrects'];
+/** **Ein Beleg, den dieser hier mindern könnte** – meist aus einem anderen Auftrag. */
+export type VoucherCorrectable = components['schemas']['VoucherCorrectable'];
 /** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
 export type VoucherParty = components['schemas']['VoucherParty'];
 /** **Eine Partei des Belegkopfs** – Leistungserbringer bzw. -empfänger (MWSTG Art. 26). */

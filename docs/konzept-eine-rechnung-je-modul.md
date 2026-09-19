@@ -1,6 +1,6 @@
 # Eine Rechnung je Zahlungsmodul — der Beleg IST die Rechnung
 
-**Status:** Konzept, freigegeben zur Umsetzung · **Stand:** 19.09.2026
+**Status:** **UMGESETZT** (19.09.2026, Migration `138`) · **Stand:** 19.09.2026
 **Geltungsbereich:** Zahlungsmodul (`beleg`) — `domain/voucher` · `services/voucher` ·
 `schemas/voucher` · `models/voucher` · `beleg-work.tsx`
 **Ersetzt:** #866 (die Regel als Zählung), #823/#824/#841/#842 (`reverse` am Modul),
@@ -120,16 +120,23 @@ wie `agreed`.
 | `unbill` | `billed`, solange `issued_on IS NULL` **und** keine Zahlung eingegangen | die Rechnung zurücknehmen → zurück auf `agreed` |
 
 `unbill` ist die Gegenhandlung zu `bill` und folgt derselben Anatomie wie `unask` — *jede
-Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle*. Sie ist ein **Soft-Delete
-mit Protokoll**, kein Löschen: die zurückgenommene Rechnung bleibt als inaktive Zeile
-stehen und **verbraucht ihre Nummer**.
+Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle*.
 
-> **Warum die Nummer verbraucht ist.** Eine Rechnungsserie muss lückenlos *belegbar* sein,
-> nicht lückenlos *durchgezählt*: zu jeder vergebenen Nummer muss ein Datensatz
-> existieren. Eine zurückgenommene, nie versendete Rechnung ist genau das — ein Datensatz
-> mit Vermerk «zurückgenommen am …». Die Nummer beim Versenden statt beim Stellen zu
-> vergeben wäre die Alternative und ist falsch: man druckt und prüft ein Papier, auf dem
-> die Nummer schon steht.
+> **Beim Umsetzen korrigiert: die Nummer bleibt am Beleg und wird wiederverwendet.**
+> Hier stand «sie verbraucht ihre Nummer, die zurückgenommene Rechnung bleibt als inaktive
+> Zeile stehen» — und das war noch aus der Zeit gedacht, als eine Rechnung eine *Zeile*
+> war. Seit sie **der Beleg** ist, gibt es keine zweite Zeile, die die Nummer halten
+> könnte: man bräuchte eine eigene Spalte «verbrauchte Nummer» nur dafür.
+>
+> Der Grund für «verbraucht» trägt hier ohnehin nicht. Eine Serie muss lückenlos
+> *belegbar* sein — zu jeder vergebenen Nummer muss ein Datensatz existieren. Eine
+> zurückgenommene Rechnung **ist nie hinausgegangen**: es gibt sie nach aussen nicht, und
+> niemand kann nach ihr fragen. Und die neu gestellte ist **derselbe Beleg**, korrigiert,
+> bevor er das Haus verliess. `unbill` räumt darum Datum, Fälligkeit, Betrag, Steuer und
+> Leistungsdatum ab — `number` bleibt stehen, und `bill` nimmt sie wieder.
+>
+> Die Alternative bleibt falsch: die Nummer erst beim Versenden zu vergeben hiesse, ein
+> Papier zu drucken und zu prüfen, auf dem sie noch nicht steht.
 
 > **Warum `issued_on` eine Spalte braucht.** Die Hausregel lautet «der Moment braucht
 > keine Spalte» — hier gibt ihn nichts anderes her: eine Zustellung (PDF, E-Mail) ist
@@ -324,7 +331,7 @@ nur aus den Migrationen.
 | `test_a_module_carries_exactly_one_invoice` | ein zweites `bill` am selben Beleg geht durch |
 | `test_an_issued_invoice_cannot_be_taken_back` | `unbill` nach `issue` geht durch |
 | `test_an_invoice_with_a_payment_cannot_be_taken_back` | `unbill` bei eingegangener Zahlung geht durch |
-| `test_a_withdrawn_invoice_keeps_its_number` | die Nummer wird wiederverwendet |
+| `test_a_withdrawn_invoice_keeps_its_number` | die neu gestellte Rechnung bekommt eine andere Nummer |
 | `test_a_correction_carries_the_reference_to_what_it_corrects` | `corrects_id` fehlt oder der Verweis steht nicht auf dem Beleg |
 | `test_a_correction_may_live_in_another_order` | der Dienst weist einen Beleg aus einem fremden Auftrag ab |
 | `test_a_correction_is_stored_with_a_negative_amount` | `amount` bleibt positiv, der Saldo addiert statt zu mindern |
@@ -356,3 +363,54 @@ Gegenpartei*), und die Messung gegen ihre eigene Bug-Form gegengeprüft.
    dokumentiert damit zugleich, worauf sich die Korrektur bezieht.
 
 **Offen zur Freigabe:** die Rücknahme der modulinternen Sammelzahlung (§5).
+
+
+---
+
+## 11 · Umgesetzt — was beim Bauen anders wurde
+
+Drei Abweichungen vom Text oben, jede mit ihrem Grund. Sie stehen hier, weil eine
+ungeprüfte Vermutung beim nächsten Mal als Tatsache gelesen wird.
+
+**(1) Die Nummer bleibt am Beleg** (§2.4, dort korrigiert). Das Konzept schrieb «sie
+verbraucht ihre Nummer» – noch aus der Zeit, als eine Rechnung eine *Zeile* war. Seit sie
+**der Beleg** ist, gibt es keine zweite Zeile, die die verbrauchte Nummer halten könnte:
+man bräuchte eine Spalte nur dafür. Und der Grund trägt hier ohnehin nicht – eine
+zurückgenommene Rechnung ist **nie hinausgegangen**, niemand kann nach ihr fragen, und die
+neu gestellte ist derselbe Beleg.
+
+**(2) `issue` gibt es nur, wo WIR stellen**, und **kassiert wird erst auf eine Rechnung,
+die draussen ist.** Beides stand nicht im Konzept und fiel beim Bauen heraus: an einer
+Lieferantenrechnung wäre «ist versendet» eine Handlung ohne Gegenstand, und aus der zweiten
+Regel fällt die Sicherheit von `unbill` heraus, ohne eine zweite zu brauchen – vor dem
+Versenden kann gar kein Geld eingegangen sein.
+
+**(3) `charge_state` und `balance_state` sind EINE Funktion geworden** (`invoice_state`).
+§6 nannte nur `charge_state` als entfallend; beim Bauen zeigte sich, dass auch die zweite
+keinen eigenen Gegenstand mehr hat – Betrag und Saldo sind dieselben zwei Zahlen, sobald
+es eine Rechnung gibt. Mit ihr ist `Balance.next_charge` gegangen (der Vorschlag «was als
+nächstes zu fordern wäre» hat keinen Leser mehr: wo **wir** den Preis nennen, sagen ihn
+die Positionen, sonst die Zusage).
+
+**Und ein Fund, der still war:** `CREDIT_WORD` stand **zweimal** in `domain/voucher` –
+erst «Gutschrift», 128 Zeilen später «Guthaben». Die zweite Zuweisung gewinnt beim Laden
+des Moduls, also gab `reverse_word()` seit #997 stillschweigend «Guthaben» zurück, wo
+«Gutschrift» gemeint war. Mit dem Verb ist beides gegangen.
+
+### Gemessen, nicht behauptet
+
+* Suite grün gegen die **gewachsene** Datenbank **und** gegen ein Schema nur aus den
+  Migrationen (je 598 Prüfungen).
+* Migration `138` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
+  verifiziert, dazu der **Backfill an echten Daten**: Summe aller lebenden Forderungen
+  (ein Storno-Paar hebt sich auf), Kopfangaben von der ältesten geltenden Zeile, alte
+  `charge`-Zeilen inaktiv – ohne den letzten Schritt läse der Dienst sie als Zahlungen.
+* **21 Bug-Formen gegengeprüft, jede meldet.** *Einer war dabei stumpf* und liess seine
+  eigene durch (er fragte nach dem Vorkommen von `action: 'unbill'` und übersah eine
+  Bug-Form, die die Bedingung auf `false` setzte) – gemessen, nachgeschärft, erneut
+  gegengeprüft.
+* In Chromium an der **echten** Komponente (Karte im `ModuleShell`): 1440 · 1280 · 1024 ·
+  834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht** Beleg-Zustände – und die
+  Messung **in beide Richtungen** gegengeprüft: ein unteilbares Wort in freiem Text meldet
+  +100,2 px bei 375 und +155,2 px bei 320, dasselbe Wort hinter `truncate` zu Recht
+  **nichts**.

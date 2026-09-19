@@ -148,14 +148,6 @@ class VoucherLineOut(BaseModel):
     vat_note: Optional[str] = None
 
 
-class VoucherAllocationIn(BaseModel):
-    """Ein Teil einer **Sammelzahlung**: welcher Beleg, wie viel."""
-
-    charge_id: int
-    #: Als **String**, wie jeder Betrag: wo es auf den Rappen ankommt, kein ``float``.
-    amount: Optional[str] = None
-
-
 class VoucherPrice(BaseModel):
     """Was an **einer** Position geändert wird (``price``).
 
@@ -172,66 +164,99 @@ class VoucherPrice(BaseModel):
     origin_country: Optional[str] = None
 
 
-class VoucherAllocationOut(BaseModel):
-    """**Wie viel dieser Zahlung auf WELCHEN Beleg geht** – eine Zeile der Aufteilung."""
+class VoucherInvoice(BaseModel):
+    """►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄
 
-    charge_id: int
-    amount: str
+    Hier stand ``VoucherAllocationOut`` und darunter eine Geld-Zeile, die *entweder* eine
+    Forderung *oder* eine Zahlung war: Betrag, Steuer, Nummer, Datum und Fälligkeit
+    standen damit auf **beiden** Ebenen, und die Oberfläche musste aus einer Liste
+    heraussuchen, welche Zeile *die* Rechnung ist.
 
+    Jetzt ist es **ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort
+    auf «gibt es hier eine Rechnung?». Zweimal vorkommen kann sie nicht mehr; niemand
+    zählt es, es ist die **Struktur**.
+    """
 
-class VoucherEntryOut(BaseModel):
-    """**Eine Zeile Geld** – eine Forderung oder eine Zahlung."""
-
-    id: int
-    kind: str
-    amount: str
-    booked_on: Optional[date] = None
+    #: ``<Auftragsnummer>-<laufend>``, wo **wir** nummerieren – sonst die seine.
+    number: Optional[str] = None
+    #: Das Rechnungsdatum. Dass es dasteht, *ist* die Antwort auf «gestellt?».
+    billed_on: Optional[date] = None
+    #: Fälligkeit = Rechnungsdatum + vereinbarte Zahlungsfrist.
     due_on: Optional[date] = None
-    reference: Optional[str] = None
-    note: Optional[str] = None
-    #: **Überfällig ist eine Ableitung, kein Zustand**: fällig *und* noch etwas offen.
-    overdue: bool = False
-    #: Die eingefrorene Steuer-Aufteilung dieses Belegs.
+    #: Wann sie hinausging. ``None`` = noch im Haus, also zurücknehmbar.
+    issued_on: Optional[date] = None
+    #: Der Betrag **brutto**, eingefroren. Negativ heisst: dieser Beleg **mindert**.
+    amount: Optional[str] = None
+    #: Die eingefrorene Steuer-Aufteilung. **Nicht nachgerechnet**: ein Beleg behält, was
+    #: auf ihm stand – sonst wäre die Vergangenheit eine Funktion der Gegenwart.
     vat: list[VatShare] = Field(default_factory=list)
     #: Wann die Leistung erbracht wurde (MWSTG Art. 26 Abs. 2 Bst. c).
     service_date: Optional[date] = None
-    #: Welche Zeile diese hier storniert …
-    reverses: Optional[int] = None
-    #: … und ob sie selbst storniert wurde.
-    reversed: bool = False
-    #: Welche Rechnung diese Zahlung begleicht – die **Abkürzung** für den einfachen Fall.
-    charge_id: Optional[int] = None
-    #: ►►► **Die Aufteilung einer Sammelzahlung** – je Beleg ein Teilbetrag. ◄◄◄
-    #: Eine Zahlung bleibt **eine** Zeile: auf dem Kontoauszug steht auch eine.
-    allocations: list[VoucherAllocationOut] = Field(default_factory=list)
+    #: **Überfällig ist eine Ableitung, kein Zustand**: fällig *und* noch etwas offen.
+    overdue: bool = False
+    #: ►►► **Ihr Zustand – Wort und Ampelton vom Server.** ◄◄◄
+    #:
+    #: *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt* – abgeleitet aus
+    #: Betrag und Rest (``domain/voucher.invoice_state``), inklusive der Rundungstoleranz.
+    #: Der Ton ist einer der **drei** des Hauses (``done`` · ``pending`` · ``danger``).
+    state: Optional[str] = None
+    state_label: Optional[str] = None
+    state_tone: Optional[str] = None
+
+
+class VoucherCorrects(BaseModel):
+    """**Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört.
+
+    MWSTG Art. 26 verlangt, dass Leistung und Entgelt eindeutig bestimmbar sind; ohne den
+    Verweis wäre eine Gutschrift eine zweite Rechnung mit negativem Vorzeichen. Nummer und
+    Betrag reisen mit, damit der Satz ohne einen zweiten Aufruf dasteht.
+    """
+
+    id: int
+    number: Optional[str] = None
+    billed_on: Optional[date] = None
+    amount: Optional[str] = None
+
+
+class VoucherCorrectable(BaseModel):
+    """**Ein Beleg, den dieser hier mindern könnte** – die Auswahl der Korrektur.
+
+    Er steht in der Regel in einem **anderen Auftrag**; darum reist dessen Objektnummer
+    mit, sonst stünden mehrere Zeilen mit derselben Rechnungsnummer-Form nebeneinander
+    und niemand wüsste, welche gemeint ist.
+    """
+
+    id: int
+    number: Optional[str] = None
+    billed_on: Optional[date] = None
+    amount: Optional[str] = None
+    currency: str = "CHF"
+    order_object_id: Optional[int] = None
+
+
+class VoucherEntryOut(BaseModel):
+    """**Eine Zahlung** – und nur noch das.
+
+    Die Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,
+    und sie *ist* der Beleg. Damit sind ``kind`` · ``due_on`` · ``vat`` ·
+    ``service_date`` · ``reverses``/``reversed`` · ``charge_id`` · ``allocations`` ·
+    ``reverse_word`` · ``open`` und die drei Zustandsfelder **ersatzlos entfallen** –
+    jedes von ihnen beschrieb eine Rechnung, die hier keine mehr ist.
+    """
+
+    id: int
+    #: Negativ heisst **Erstattung** – ein Ereignis der Aussenwelt, kein zweites Verb.
+    amount: str
+    booked_on: Optional[date] = None
+    reference: Optional[str] = None
+    note: Optional[str] = None
     #: **Wann die Zeile erfasst wurde** (#1014) – der Moment, nicht der Belegtag. Aus ihm
     #: kommt «vor 5 Minuten»; ein Datum ohne Uhrzeit kann das nicht sagen.
     booked_at: Optional[datetime] = None
     method: Optional[str] = None
     method_label: Optional[str] = None
-    #: **Storno ODER Gutschrift** – das Wort hängt an der Zahl, nicht an einem zweiten Verb.
-    reverse_word: Optional[str] = None
-    #: Was auf **dieser** Rechnung noch offen ist.
-    open: Optional[str] = None
-    #: ►►► **Der Zustand dieser Forderung – Wort und Ampelton vom Server** (#991). ◄◄◄
-    #:
-    #: *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert* –
-    #: abgeleitet aus Betrag und Rest (``domain/voucher.charge_state``), inklusive der
-    #: Rundungstoleranz. Der Ton ist einer der **drei** des Hauses (``done`` · ``pending``
-    #: · ``danger``); die Farbe dazu steht in den Tokens, nicht hier.
-    #:
-    #: Vorher rechnete die Oberfläche ihn selbst – eine zweite Ableitung derselben Sache,
-    #: ohne Toleranz und ohne «teilweise bezahlt». `None` bei einer Zahlung: sie ist ein
-    #: Ereignis, kein Beleg mit einem Stand.
-    state: Optional[str] = None
-    state_label: Optional[str] = None
-    state_tone: Optional[str] = None
     #: Lässt sie sich über den Zahlungsdienst zurückgeben?
     refundable: bool = False
-    #: ►►► **``transferable`` ist entfallen.** ◄◄◄ Es sagte je Zeile, ob sie einen
-    #: Einzahlungsschein trägt – aus der Zeit, als jede Bezahlart ein eigener Knopf an
-    #: jeder Rechnung war. Welche Rechnung das Fach «Begleichen» meint, sagt jetzt
-    #: ``VoucherEmbed.settle_charge``: **eine** Antwort statt einer je Zeile.
 
 
 class VoucherWay(BaseModel):
@@ -390,6 +415,10 @@ class VoucherEmbed(BaseModel):
     payment_word: str = ""
     pay_online_word: str = ""
     refund_online_word: str = ""
+    #: ►►► **Die beiden Gegenstücke zur Rechnung.** ◄◄◄ *stellen → versenden*, und
+    #: dazwischen die Gegenhandlung – dieselbe Anatomie wie ``ask``/``unask``.
+    issue_word: str = ""
+    unbill_word: str = ""
     # ─── Fristen ────────────────────────────────────────────────────────────────
     #: **Eine Ableitung der Zahlungsfrist**, keine Einstellung: null Tage ab Zusage *ist*
     #: die Vorauszahlung.
@@ -405,10 +434,10 @@ class VoucherEmbed(BaseModel):
     #: begleichen» (keine offene Forderung). Der frühere ``methods`` war die halbe Liste:
     #: er kannte nur die beiden Arten, die ein Mensch **erfasst**, und die Karte und die
     #: Überweisungs-Auskunft standen daneben als eigene Knöpfe.
+    #:
+    #: ►►► **Welche Rechnung sie meinen, fragt niemand mehr.** ◄◄◄ ``settle_charge`` ist
+    #: entfallen: je Modul gibt es **eine** Rechnung, und sie *ist* der Beleg.
     ways: list[VoucherWay] = Field(default_factory=list)
-    #: **Welche Rechnung die Wege meinen** – je Modul lebt höchstens eine offene (#866),
-    #: die Frage hat also genau eine Antwort, und sie gehört dem Dienst.
-    settle_charge: Optional[int] = None
     method_label: str = ""
     #: ►►► **Kleinbetragstoleranz** – der Betrag, mit dem sich ein Restsaldo unter einem
     #: Franken **ausbuchen** liesse (schon mit dem richtigen Vorzeichen). ``None`` heisst
@@ -416,6 +445,9 @@ class VoucherEmbed(BaseModel):
     #: verliert die eine Zeile, an der man sieht, dass jemand entschieden hat.
     write_off: Optional[str] = None
     write_off_word: str = ""
+    #: Der Vermerk, mit dem die Ausbuchung gebucht wird – **ein** Wort, aus **einer**
+    #: Quelle: im Browser getippt wäre es die zweite Schreibweise.
+    write_off_note: str = ""
     # ─── Der Beleg selbst ───────────────────────────────────────────────────────
     allowed: list[VoucherParty] = Field(default_factory=list)
     quotes: list[VoucherQuoteOut] = Field(default_factory=list)
@@ -444,20 +476,28 @@ class VoucherEmbed(BaseModel):
     charged: Optional[str] = None
     paid: Optional[str] = None
     open: Optional[str] = None
-    #: ►►► **Wie der Beleg im Ganzen steht** (Testnotiz #997) – ``offen`` · ``überfällig``
-    #: · ``beglichen`` · ``credit``. Die Anzeige nennt allein die **Zahl** und färbt sie;
-    #: das Wort steht im Hover und, wo es etwas Neues sagt (ein **Guthaben**), daneben.
+    #: ►►► **Wie der Beleg im Ganzen steht** (Testnotiz #997). ◄◄◄ Dieselbe Ableitung wie
+    #: an der Rechnung, weil es **dieselbe** ist (``invoice.state``): Betrag und Saldo sind
+    #: seit dem Umbau dieselben zwei Zahlen. Die Anzeige nennt allein die **Zahl** und
+    #: färbt sie; das Wort steht im Hover und, wo es etwas Neues sagt, daneben.
     open_state: Optional[str] = None
     open_state_label: Optional[str] = None
     open_state_tone: Optional[str] = None
     #: *zugesagt − berechnet* – die Zahl, die es ohne die Trennung von Forderung und Geld
     #: gar nicht geben könnte.
     uncharged: Optional[str] = None
-    #: **Eine Rechnung je Modul**: steht sie, bleibt nur die Gutschrift.
-    credit_only: bool = False
-    next_charge: Optional[str] = None
     next_payment: Optional[str] = None
     settled: bool = False
+    #: ►►► **DIE Rechnung – oder ``None``.** ◄◄◄ Die acht Angaben, die einmal an einer
+    #: Geld-Zeile hingen, stehen jetzt am Beleg; ``None`` heisst «noch keine gestellt».
+    #: ``credit_only`` und ``next_charge`` sind damit **entfallen**: sie waren die
+    #: Notbehelfe einer Regel, die jemand zählen musste.
+    invoice: Optional[VoucherInvoice] = None
+    #: **Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört.
+    corrects: Optional[VoucherCorrects] = None
+    corrects_label: str = ""
+    corrects_hint: str = ""
+    #: **Nur noch Zahlungen** – die Forderung steht eine Ebene höher.
     entries: list[VoucherEntryOut] = Field(default_factory=list)
 
 
@@ -473,9 +513,12 @@ class VoucherUpdate(BaseModel):
     ``decline``  eine Angebotszeile absagen – auch von der Gegenpartei
     ``agree``    den **Zuschlag** geben (``party``)
     ``revoke``   stornieren – die eine Gegenhandlung
-    ``charge``   eine **Forderung** buchen (negativ = Gutschrift)
+    ``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)
+    ``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist
+    ``unbill``   sie zurücknehmen, solange sie im Haus ist (nicht versendet, nichts
+                 geflossen) – die Gegenhandlung zu ``bill``
+    ``issue``    *«Rechnung ist versendet»* – danach unveränderlich
     ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
-    ``reverse``  eine Geld-Zeile stornieren – als **Gegenbuchung**, nie als Löschung
     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
 
     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
@@ -498,15 +541,16 @@ class VoucherUpdate(BaseModel):
     reference: Optional[str] = None
     note: Optional[str] = None
     booked_on: Optional[date] = None
-    due_on: Optional[date] = None
-    #: Welche Zeile storniert wird (``reverse``).
+    #: Welche **Karten-Zahlung** erstattet wird (``refund_online``).
     entry: Optional[int] = None
-    #: Welche Rechnung eine Zahlung begleicht (``pay``) – der einfache Fall.
-    charge_id: Optional[int] = None
-    #: ►►► **Die Aufteilung einer Sammelzahlung** (``pay``). ◄◄◄ Je Zeile ein Beleg und
-    #: ein Teilbetrag; die Summe muss den Betrag der Zahlung ergeben – eine Zahlung wird
-    #: vollständig zugeordnet oder gar nicht.
-    allocations: Optional[list[VoucherAllocationIn]] = None
+    #: Das **Rechnungsdatum** (``bill``) – vorbelegt mit heute.
+    billed_on: Optional[date] = None
+    #: Wann sie hinausging (``issue``) – vorbelegt mit heute.
+    issued_on: Optional[date] = None
+    #: ►►► **Welchen Beleg dieser hier mindert** (``correct``). ◄◄◄ Die **Id** eines
+    #: Belegs, und er darf in einem **anderen Auftrag** stehen: die Gutschrift gehört
+    #: dorthin, wo die Ware zurückkommt. ``null`` nimmt den Verweis zurück.
+    corrects: Optional[int] = None
     #: **Die Positionen** (``price``) – je Zeile ihre Id und was sich ändert.
     lines: Optional[list[VoucherPrice]] = None
     #: **Der Steuersatz einer Forderung**, wo es keine bepreisten Positionen gibt (eine
