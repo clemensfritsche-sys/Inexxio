@@ -238,16 +238,36 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
   // Kante in der Mitte. Findet sich keine (ein übergeordneter Auftrag hängt an unserem
   // Start), spannt er über alles: er ist vorher gelaufen und gehört nicht in den Takt.
   const span = useMemo(() => {
-    const all = { from: 0, to: Math.max(0, mid.rows.length - 1) };
+    const last = Math.max(0, mid.rows.length - 1);
+    const all = { from: 0, to: last };
     const out = new Map<string, Span>();
     [...left, ...right].forEach((c) => {
       const ref = `order:${c.objectId}`;
-      const rows = (mid.graph.edges ?? [])
-        .filter((e) => (e.kind === 'out' && e.to === ref) || (e.kind === 'back' && e.frm === ref))
+      const edges = (mid.graph.edges ?? [])
+        .filter((e) => (e.kind === 'out' && e.to === ref) || (e.kind === 'back' && e.frm === ref));
+      const rows = edges
         .map((e) => rowOfNode(mid.rows, (e.kind === 'out' ? e.frm : e.to) ?? ''))
         .filter((r) => r >= 0);
-      out.set(c.prefix, rows.length
-        ? { from: Math.min(...rows), to: Math.max(...rows) } : all);
+      if (!rows.length) { out.set(c.prefix, all); return; }
+      // ►►► **Ohne Rückfluss keine Klammer** (Testnotiz #1036). ◄◄◄
+      //
+      // Ein Nachbar, der zurückkehrt, **klammert** einen Abschnitt der Achse ein: fork
+      // oben, join unten, dazwischen der Bypass. Diese Zeilen wachsen auf seine Höhe,
+      // und genau das ist die Aussage – zwei parallele Wege.
+      //
+      // Eine **gekappte Ausleihe** hat keinen join (`flow._branches`: kein Rückweg, also
+      // kein Punkt). Ihre Spanne war damit **eine einzige Zeile** – und die wuchs auf die
+      // volle Höhe des Nachbarn: hinter dem Abzweigepunkt klaffte ein leerer Streifen
+      // (gemessen 424 px), an dessen Ende die Pille «In Abweichung · 3» stand, sichtbar
+      // getrennt von dem Punkt, an dem sie passiert ist. Der Graph war korrekt; es war
+      // allein das Raster.
+      //
+      // Sie läuft darum **von ihrem fork bis ans Ende** neben der Achse her – dieselbe
+      // Spanne, die ein übergeordneter Auftrag ohne eigenen Punkt bekommt. Keine Zeile
+      // wird dadurch gezwungen zu wachsen: die Achse behält ihren Takt, und der Nachbar
+      // steht daneben, solange er Platz braucht.
+      const returns = edges.some((e) => e.kind === 'back');
+      out.set(c.prefix, { from: Math.min(...rows), to: returns ? Math.max(...rows) : last });
     });
     return out;
   }, [left, right, mid]);

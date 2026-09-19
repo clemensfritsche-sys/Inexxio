@@ -369,17 +369,14 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
         </button>
       </div>
 
-      {/* Was die Menge an Datensätzen bedeutet – gesagt, nicht geraten. */}
-      {/* **Kein Erklärtext** (#722): «Menge je Einzelinstanz» steht als Beschriftung am Feld –
-          was die Zahl bedeutet, sagt sie damit selbst. Ein Rechenbeispiel darunter
-          erklärt eine Beschriftung, die keiner Erklärung bedarf. */}
-      {!perUnit && hasArticle && line.origin === NEU && line.quantity > 0 && (
-        <p className="mt-2 text-[11px]" style={{ color: 'var(--fg-3)' }}>
-          {article!.serialization === 'batch'
-            ? `Eine Instanz mit ${line.quantity} Einzelinstanzen (${line.quantity === 1 ? '-1' : `-1 … -${line.quantity}`}).`
-            : `${line.quantity} Instanzen mit je einer Einzelinstanz (-1).`}
-        </p>
-      )}
+      {/* ►►► **Wie das System zählt, ist keine Auskunft für den Anwender** (#1033). ◄◄◄
+          *«Diese Info wird nicht gebraucht. Ist gut zum Verständnis im Hintergrund, aber
+          der User muss das nicht wissen.»* – Hier stand «1 Instanzen mit je einer
+          Einzelinstanz (-1).»: die Übersetzung der eingegebenen Menge in Datensätze und
+          Nummern-Suffixe. Das ist das **Datenmodell**, nicht die Sache: wer «3» eintippt,
+          will drei Stück, und wie sie intern heissen, ändert an seiner Eingabe nichts.
+          Es ist zugleich der dritte Anlauf an derselben Zeile (#722 nahm ihr das
+          Rechenbeispiel, #725 gab ihr das richtige Wort) – jetzt gibt es sie nicht mehr. */}
 
       {!perUnit && hasArticle && line.origin === LAGER && (
         <StockPicker

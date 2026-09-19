@@ -748,9 +748,8 @@ function ContextStrip({ objectId, version }: { objectId: number | null; version?
   const bom: ArticleBom | null | undefined = full.bom;
   const before = full.replaces ?? null;
   const after = full.replaced_by ?? null;
-  const usedIn = bom?.used_in ?? [];
   const gaps = bom?.retired_inputs ?? [];
-  if (!before && !after && usedIn.length === 0 && gaps.length === 0) return null;
+  if (!before && !after && gaps.length === 0) return null;
 
   return (
     <div style={STRIP}>
@@ -766,16 +765,13 @@ function ContextStrip({ objectId, version }: { objectId: number | null; version?
         </div>
       )}
 
-      {/* **Wer mich verbaut** – die Antwort auf «was mache ich kaputt, wenn ich diesen
-          Artikel inaktiv setze». Sie steht darum bei der Aktion, nicht hinter ihr. */}
-      {usedIn.length > 0 && (
-        <div style={STRIP_ROW}>
-          <span style={STRIP_LABEL} data-tip="Artikel, deren Stückliste diesen hier nennt">
-            Wird verbaut in
-          </span>
-          {usedIn.map((a) => <LinkChip key={a.object_id} link={a} />)}
-        </div>
-      )}
+      {/* ►►► **«Wird verbaut in» steht heute nicht da** (Testnotiz #1034). ◄◄◄
+          *«Diese Info, dieser Container, kann im Moment ausgeblendet werden – dies kommt
+          zu einem späteren Zeitpunkt.»*
+          Die **Ableitung bleibt** (`services/bom.used_in`): sie ist die Gegenrichtung
+          derselben Abfrage, die «was mir fehlt» darunter beantwortet, kommt also ohne
+          eine zweite Abfrage mit – und sie ist ausdrücklich vertagt, nicht verworfen.
+          Gezeigt wird sie wieder, wenn die Stückliste selbst dran ist. */}
 
       {/* **Was mir fehlt** – transitiv, mit dem Weg dorthin und dem Nachfolger, falls es
           einen gibt. Warnfarbe, aber keine Sperre: der Artikel bleibt erzeugbar. */}

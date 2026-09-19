@@ -369,7 +369,10 @@ def test_the_process_lines_are_computed_from_measured_anchors():
         f"absolut – erlaubt ist nur das Linien-Overlay."
     )
 
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    # **Der Code, nicht die Prosa.** Ohne ``_code`` las dieser Waechter seine eigene
+    # Begruendung mit: eine Erklaerung, die sagt «ohne absolute Position», enthaelt das
+    # Wort – und er schlug an, weil jemand die Regel *beschreibt*, die er schuetzt.
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
     assert "absolute" not in diagram, (
         "Das Diagramm positioniert einen Knoten absolut – Knoten liegen im Fluss."
     )
@@ -9088,7 +9091,13 @@ def test_a_row_begins_on_the_same_edge_as_every_other():
     # daneben am Betrag, und ein blosses «kommt vor» war schon dadurch erfüllt
     # (gegengeprüft) – dieselbe Falle wie bei `data-tip` in der Vorrunde.
     shown = re.sub(r"\b\w+=\{[^}]*\}", "", quote)
-    assert "{look.label}" in shown, (
+    # **Wie das Wort heisst, ist der Zeile ueberlassen** – gefragt ist, dass es dasteht.
+    # Der Waechter verlangte woertlich ``{look.label}`` und verbot damit die bessere
+    # Fassung von #1032: dort entscheidet eine Zeile hoeher, **wann** das Wort noetig ist
+    # (waehrend verhandelt wird, IST der Preis die Aussage), und es steht unter einem
+    # eigenen Namen da. Also: die Aufloesung, direkt oder unter ihrem Alias.
+    names = {"look.label", *re.findall(r"const (\w+) = [^;]*look\.label", quote)}
+    assert any("{%s}" % n in shown for n in names), (
         "Ohne Punkt und ohne Wort sagt die Zeile ihren Zustand gar nicht mehr."
     )
 
@@ -9559,4 +9568,128 @@ def test_the_focus_follows_the_step_not_only_the_camera():
     )
     assert "if (cameraLive) sheetRef.current?.focus();" in dialog, (
         "Die Kamera-Regel ist weg – auf dem Telefon steht die Tastatur über dem Bild."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #1032-#1036
+# ---------------------------------------------------------------------------
+
+
+def test_a_cut_deviation_does_not_stretch_the_axis():
+    """►►► **Ohne Rueckfluss keine Klammer** (Testnotiz #1036). ◄◄◄
+
+    Ein Nachbar, der zurueckkehrt, klammert einen Abschnitt der Achse ein (fork oben,
+    join unten) – diese Zeilen duerfen auf seine Hoehe wachsen, das ist der Bypass. Eine
+    **gekappte** Ausleihe hat keinen join, ihre Spanne war damit **eine** Zeile, und die
+    wuchs auf die volle Hoehe des Nachbarn: gemessen 424 px leerer Streifen, an dessen
+    Ende die Pille «In Abweichung» stand – getrennt von dem Punkt, an dem sie passiert
+    ist.
+    """
+    cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    span = cols.split("const span = useMemo")[1].split("const wires = useMemo")[0]
+    assert "kind === 'back'" in span, (
+        "Die Spanne fragt nicht mehr, ob der Nachbar zurueckkommt."
+    )
+    assert "to: Math.max(...rows) }" not in span, (
+        "Eine gekappte Abweichung endet wieder an ihrem Abzweigepunkt – die Zeile "
+        "wächst auf ihre Hoehe, und die Pille faellt dahinter."
+    )
+    assert "last" in span, "Der Nachbar ohne Rueckweg laeuft nicht mehr bis ans Ende."
+
+
+def test_the_journey_row_holds_only_branches():
+    """►►► **Der Rest ist kein Ast** (Testnotiz #1035). ◄◄◄
+
+    Die Chip-Reihe zentriert ihre Kinder auf dem Stamm. Stand der «… N»-Hinweis als
+    gleichberechtigtes Kind darin, rutschte die ganze Gruppe um seine halbe Breite zur
+    Seite (gemessen: der mittlere Ast 14,1 px neben dem Startsymbol), und seine Linie
+    bekam einen Knick. Er hat keine Linie – also steht er nicht in der Reihe der Aeste.
+    """
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    row = _component(diagram, "JourneyRow")
+    chips = row.split("items-start justify-center")[1].split("</div>")[0]
+    assert "{note}" not in chips, "Der Hinweis steht wieder in der Reihe der Aeste."
+    assert "rest" not in chips, "Der Hinweis steht wieder in der Reihe der Aeste."
+
+
+def test_the_definition_line_does_not_explain_the_data_model():
+    """►►► **Wie das System zaehlt, ist keine Auskunft** (Testnotiz #1033). ◄◄◄"""
+    ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    for word in ("Einzelinstanzen (", "mit je einer Einzelinstanz", "Eine Instanz mit"):
+        assert word not in ui, (
+            f"Die Menge wird wieder in Datensaetze uebersetzt («{word}»)."
+        )
+
+
+def test_the_article_does_not_show_yet_where_it_is_built_in():
+    """►►► **Vertagt, nicht verworfen** (Testnotiz #1034). ◄◄◄
+
+    Der Streifen zeigt «Wird verbaut in» heute nicht – die **Ableitung** bleibt aber:
+    sie ist die Gegenrichtung derselben Abfrage, die «was mir fehlt» beantwortet, und
+    kommt ohne eine zweite Abfrage mit.
+    """
+    art = _code(_read(FRONTEND / "components" / "erp" / "article-detail.tsx"))
+    assert "Wird verbaut in" not in art, "Der Container ist wieder da."
+    assert "used_in" not in art, "Der Artikel liest die Liste wieder."
+    bom = _code(_read(BACKEND / "app" / "services" / "bom.py"))
+    assert "used_in" in bom, "Die Ableitung ist geloescht statt ausgeblendet."
+
+
+def test_every_offer_stays_visible_and_names_its_outcome():
+    """►►► **Kein Aufklapper im Angebotsspiegel** (Testnotiz #1032). ◄◄◄
+
+    Nach dem Zuschlag stand hier eine Zeile und darunter «1 von 2 Angeboten gewaehlt».
+    Die unterlegenen Zeilen sind aber der Nachweis, warum so entschieden wurde – und ein
+    Nachweis hinter einem Klick beantwortet die Frage erst, wenn man sie gestellt hat.
+    Unterschieden wird ueber das **Wort**, und das kommt aus der EINEN Aufloesung.
+    """
+    ui = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    assert "Angeboten gewählt" not in ui, "Der Aufklapper ist wieder da."
+    assert "ChevronDown" not in ui, "Der Beleg klappt wieder etwas auf."
+    quotes = _component(ui, "Quotes")
+    assert quotes.count("<QuoteRow") == 1, (
+        "Die Angebote werden wieder fallweise gerendert – eine Zeile fehlt je nach Stufe."
+    )
+    look = _body(ui, "quoteLook", kind="function")
+    for word in ("Unterlegen", "Unbeantwortet"):
+        assert word in look, f"Der Ausgang «{word}» hat kein Wort."
+    assert re.search(r"quoteLook\([^)]*decided", _component(ui, "QuoteRow")), (
+        "Die Zeile fragt die Aufloesung ohne die gefallene Entscheidung – nach dem "
+        "Zuschlag heisst «Offeriert» dann immer noch «offeriert»."
+    )
+
+
+def test_every_css_variable_is_defined_somewhere():
+    """►►► **Eine unbekannte CSS-Variable ist kein Fehler – sie erzeugt schlicht nichts.**
+
+    Dieselbe Lehre wie bei der unbekannten Tailwind-Klasse (`bg-bg-dark`): der Build
+    schweigt, und was herauskommt, sieht **fast** richtig aus. Gefunden beim Messen von
+    #1032: ``quoteLook`` faerbte «Zugesagt» mit ``var(--ok)`` und «Offeriert» mit
+    ``var(--warn)`` – beide gibt es nicht (sie heissen ``--success`` und ``--warning``).
+    Das Wort erbte damit die Farbe seiner Umgebung, und die **Gaps**-Box daneben verlor
+    ueber ``border: 1px solid var(--warn)`` ihren Rahmen ganz: eine ungueltige Angabe
+    macht die **ganze** Deklaration ungueltig.
+
+    Geprueft wird die Regel, nicht die Liste: jede benutzte Variable muss irgendwo
+    definiert sein – im Token-Blatt, in `globals.css` oder als eigene Angabe am Element.
+
+    **Gefragt ist der Gebrauch OHNE Rueckfall.** ``var(--x, right)`` ist eine Angabe mit
+    Vorgabe – ein Haken, den eine Aufrufstelle setzen *darf* (``--ix-live`` am Statuspunkt,
+    ``--ix-fade`` an der Maske); dort rendert immer etwas. Genau das fehlt bei ``var(--x)``:
+    ist der Name falsch, faellt die Deklaration aus, und nichts sagt es.
+    """
+    used, defined = {}, set()
+    for path in sorted(FRONTEND.rglob("*")):
+        if path.suffix not in (".css", ".ts", ".tsx") or not path.is_file():
+            continue
+        src = _read(path)
+        defined |= set(re.findall(r"(--[a-z0-9-]+)\s*:", src))
+        defined |= set(re.findall(r"['\"](--[a-z0-9-]+)['\"]", src))
+        for name in re.findall(r"var\((--[a-z0-9-]+)\s*\)", src):
+            used.setdefault(name, path.name)
+    missing = sorted((n, f) for n, f in used.items() if n not in defined)
+    assert not missing, (
+        "Diese CSS-Variablen werden benutzt, aber nirgends definiert – sie erzeugen "
+        f"stillschweigend nichts: {missing}"
     )

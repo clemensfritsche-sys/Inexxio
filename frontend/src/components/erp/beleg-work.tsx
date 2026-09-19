@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
-  AlertTriangle, Check, ChevronDown, CircleSlash, ClipboardList,
+  AlertTriangle, Check, CircleSlash, ClipboardList,
   CreditCard, Eraser, FileText, Loader2, Plus, RotateCcw, Send, Undo2,
   Wallet, X,
 } from 'lucide-react';
@@ -874,13 +874,40 @@ function Chip({ name, number, state, active, busy, onShow, onAsk, onDrop }: {
   );
 }
 
-/** Der Zustand einer Angebotszeile als Punkt + Wort – die eine Auflösung. */
-function quoteLook(state: string | null): { label: string; color: string } {
-  if (state === QUOTE_STATE.chosen) return { label: 'Zugesagt', color: 'var(--ok)' };
+/**
+ * Der Zustand einer Angebotszeile als Wort – **die eine Auflösung** (#1032).
+ *
+ * ►►► **Dasselbe Wort bedeutet vor und nach dem Zuschlag Verschiedenes.** ◄◄◄ Solange
+ * verhandelt wird, ist «Offeriert» eine Aussage über den Stand: der Preis liegt vor, die
+ * Entscheidung steht aus. Ist sie gefallen, sagt derselbe Zustand etwas anderes – **diese
+ * Zeile hat den Zuschlag nicht bekommen**, und das ist der Grund, warum sie überhaupt
+ * noch dasteht (der Nachweis, warum so entschieden wurde).
+ *
+ * Darum nimmt die Auflösung die Entscheidung als zweite Angabe entgegen, statt dass eine
+ * zweite Zuordnung daneben entsteht: es bleibt **ein** Wortschatz, und jede Zeile des
+ * Belegs nennt ihren Ausgang in **einem** Wort.
+ *
+ * | | offen | entschieden |
+ * |---|---|---|
+ * | zugesagt | – | **Zugesagt** (grün) |
+ * | offeriert | **Offeriert** (gelb) | **Unterlegen** (gedämpft) |
+ * | angefragt | **Angefragt** (gedämpft) | **Unbeantwortet** (gedämpft) |
+ * | abgesagt | **Abgesagt** (rot) | **Abgesagt** (rot) |
+ *
+ * «Unterlegen» und «Unbeantwortet» sind bewusst **richtungsneutral**: bei einer Ausgabe
+ * hat der Lieferant nicht geantwortet, bei einer Einnahme der Kunde – dasselbe Wort, und
+ * kein `if` auf die Richtung.
+ */
+function quoteLook(state: string | null, decided = false): { label: string; color: string } {
+  if (state === QUOTE_STATE.chosen) return { label: 'Zugesagt', color: 'var(--success)' };
   if (state === QUOTE_STATE.declined) return { label: 'Abgesagt', color: 'var(--danger)' };
-  if (state === QUOTE_STATE.quoted) return { label: 'Offeriert', color: 'var(--warn)' };
+  if (state === QUOTE_STATE.quoted) {
+    return decided
+      ? { label: 'Unterlegen', color: 'var(--fg-4)' }
+      : { label: 'Offeriert', color: 'var(--warning)' };
+  }
   if (state === null) return { label: 'Noch nicht angefragt', color: 'var(--fg-4)' };
-  return { label: 'Angefragt', color: 'var(--fg-4)' };
+  return { label: decided ? 'Unbeantwortet' : 'Angefragt', color: 'var(--fg-4)' };
 }
 
 /**
@@ -938,12 +965,12 @@ function Gaps({ rows }: { rows: NonNullable<Filled['gaps']> }) {
   return (
     <div className="flex flex-col" style={{
       gap: 6, padding: '9px 11px', borderRadius: 'var(--r-md)',
-      background: 'var(--warn-bg)', border: '1px solid var(--warn)',
+      background: 'var(--warning-bg)', border: '1px solid var(--warning)',
     }}>
       {rows.map((g, i) => (
         <div key={i} className="flex flex-col" style={{ gap: 2 }}>
           <span className="flex items-center" style={{ gap: 6, fontSize: 12.5 }}>
-            <AlertTriangle size={12} style={{ color: 'var(--warn)', flex: 'none' }} />
+            <AlertTriangle size={12} style={{ color: 'var(--warning)', flex: 'none' }} />
             <strong style={{ fontWeight: 600 }}>{g.field_label}</strong>
             <span style={{ color: 'var(--fg-3)' }}>bei</span>
             {g.record_object_id
@@ -1567,17 +1594,24 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
  * **Der Angebotsspiegel** – wir fragen an bzw. bieten an, sie nennen ihren Preis oder
  * sagen ab, wir geben den Zuschlag.
  *
- * **Zusammengeklappt wird erst NACH dem Zuschlag**: solange verhandelt wird, versteckt der
- * Beleg nichts; danach sind die unterlegenen Zeilen der **Nachweis**, warum so entschieden
- * wurde – und der gehört auf Klick, nicht auf den Bildschirm.
+ * ►►► **Es wird nichts zusammengeklappt** (Testnotiz #1032). ◄◄◄ *«Ich bin kein grosser
+ * Fan von Infos auf Bedarf – ich mag lieber, dass man sofort alle Informationen hat,
+ * jedoch mit der Kunst, diese dann extrem einfach und simpel darzustellen.»*
+ *
+ * Nach dem Zuschlag stand hier **eine** Zeile und darunter ein Aufklapper «1 von 2
+ * Angeboten gewählt». Die unterlegenen Zeilen sind aber der **Nachweis**, warum so
+ * entschieden wurde – und ein Nachweis hinter einem Klick beantwortet die Frage «warum
+ * dieser?» erst, wenn man sie schon gestellt hat.
+ *
+ * Die Kunst ist nicht das Verstecken, sondern das **Unterscheiden**: jede Zeile nennt
+ * ihren Ausgang in **einem** Wort (`quoteLook`), die zugesagte trägt es in Grün, die
+ * übrigen gedämpft. Damit liest sich der Abschnitt in einem Blick, ohne dass eine Zeile
+ * fehlt.
  */
 function Quotes({ d, busy, active, onAsk, onAction }: {
   d: Filled; busy: boolean; active: boolean; onAsk: Ask; onAction: Send;
 }) {
   const open = d.stage === DEAL_STAGE.offer;
-  const [shown, setShown] = useState(false);
-  const chosen = d.quotes.find((q) => q.state === QUOTE_STATE.chosen);
-  const rest = d.quotes.filter((q) => q.state !== QUOTE_STATE.chosen);
 
   if (!d.quotes.length && !may(d, 'ask')) return null;
   // ►►► **Wann offeriert wurde, steht AM Abschnitt** (Testnotiz #968). ◄◄◄
@@ -1601,36 +1635,9 @@ function Quotes({ d, busy, active, onAsk, onAction }: {
         <Note tip={formatWhen(first).title}>offeriert · {when(first)}</Note>
       )}>
       <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
-        {open
-          ? d.quotes.map((q) => (
-            <QuoteRow key={q.id} d={q} voucher={d} busy={busy} onAction={onAction} />
-          ))
-          : (
-            <>
-              {chosen && (
-                <QuoteRow d={chosen} voucher={d} busy={busy} onAction={onAction} />
-              )}
-              {rest.length > 0 && (
-                <>
-                  <button type="button"
-                    className="inline-flex items-center self-start"
-                    style={{ gap: 6, fontSize: 12, color: 'var(--fg-3)',
-                             background: 'transparent', border: 0, cursor: 'pointer' }}
-                    onClick={() => setShown((v) => !v)}>
-                    <ChevronDown size={12} style={{
-                      transform: shown ? 'rotate(180deg)' : undefined,
-                      transition: 'transform .12s',
-                    }} />
-                    {d.quotes.length - rest.length} von {d.quotes.length} Angeboten gewählt
-                  </button>
-                  {shown && rest.map((q) => (
-                    <QuoteRow key={q.id} d={q} voucher={d} busy={busy}
-                      onAction={onAction} />
-                  ))}
-                </>
-              )}
-            </>
-          )}
+        {d.quotes.map((q) => (
+          <QuoteRow key={q.id} d={q} voucher={d} busy={busy} onAction={onAction} />
+        ))}
         {open && <Offer d={d} busy={busy} active={active} onAsk={onAsk} />}
       </div>
     </ModuleSection>
@@ -1646,9 +1653,16 @@ function Quotes({ d, busy, active, onAsk, onAction }: {
 function QuoteRow({ d, voucher: v, busy, onAction }: {
   d: VoucherQuoteOut; voucher: Filled; busy: boolean; onAction: Send;
 }) {
-  const look = quoteLook(d.state ?? QUOTE_STATE.asked);
+  // **Ist die Entscheidung gefallen?** – eine Frage an den Beleg, kein Rang, den diese
+  // Zeile sich selbst gibt. Ab der Zusage sagt der Zustand jeder Zeile ihren **Ausgang**.
+  const decided = v.stage !== DEAL_STAGE.offer;
+  const look = quoteLook(d.state ?? QUOTE_STATE.asked, decided);
   const declined = d.state === QUOTE_STATE.declined;
   const chosen = d.state === QUOTE_STATE.chosen;
+  // **Das Wort steht da, sobald der Preis die Aussage nicht mehr trägt** (#1005/#1032):
+  // während verhandelt wird, IST der Preis die Aussage; danach sagt er nicht mehr, wer
+  // den Zuschlag bekam. Und wo gar kein Preis steht, war er es nie.
+  const word = decided || declined || d.amount == null ? look.label : null;
   const dec = v.currency_decimals ?? 2;
   // **Offerieren darf, wer den Preis nennt** – und bei einer Einnahme nennen wir ihn
   // bereits in den Positionen; dort ist an dieser Zeile nichts einzutragen.
@@ -1685,8 +1699,12 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
     // keinen Sinn – ich würde ihn pro Container unten setzen.»* – Und er war zugleich die
     // **zweite** Linie direkt unter der Trennlinie des Abschnitts.
     // ►►► **Und die Zeile ist kompakter** (#954): weniger Polsterung, weniger Abstand.
+    // ►►► **Die zugesagte Zeile ist die laute** (#1032). ◄◄◄ Sichtbar bleiben alle – die
+    // übrigen treten zurück, sobald die Entscheidung gefallen ist. Über **Deckkraft**,
+    // die am Layout nichts ändert: der Nachweis soll lesbar sein, nicht gleich laut.
     <div className="flex flex-col" style={{
       gap: 6, padding: '0 0 7px', borderBottom: '1px solid var(--border-1)', minWidth: 0,
+      opacity: decided && !chosen ? 0.6 : 1,
     }}>
       <div className="flex flex-wrap items-baseline" style={{ gap: '4px 10px', minWidth: 0 }}>
         {/* ►►► **Die Zeile beginnt auf derselben Kante wie jede andere** (#1005). ◄◄◄
@@ -1720,13 +1738,15 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
         {chosen && d.agreed_at && (
           <Note tip={formatWhen(d.agreed_at).title}>angenommen · {when(d.agreed_at)}</Note>
         )}
-        {d.amount != null && !declined ? (
+        {word && (
+          <span style={{ ...MICRO_LABEL, color: look.color, flex: 'none' }}>{word}</span>
+        )}
+        {/* **Der Betrag steht zuletzt** – dieselbe Flucht wie in jeder Geld-Zeile. Er
+            bleibt auch an einer unterlegenen Zeile stehen: *warum* so entschieden wurde,
+            ist genau diese Zahl. Nur eine **Absage** trägt keine mehr (#811). */}
+        {d.amount != null && !declined && (
           <Amount value={d.amount} currency={v.currency} decimals={dec}
-            tip={look.label} />
-        ) : (
-          <span style={{ ...MICRO_LABEL, color: look.color, flex: 'none' }}>
-            {look.label}
-          </span>
+            tip={word ? undefined : look.label} />
         )}
       </div>
       {/* **Wie man bei ihm bestellt** – seine Artikelnummer, sein Shop-Link. Es gibt sie

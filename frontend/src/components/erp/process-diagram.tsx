@@ -788,7 +788,32 @@ function JourneyRow({ where, stops, origins, prefix, rest }: {
   // dieselbe, mit der jede Objektnummer im ERP ihren Datensatz öffnet. Ein eigener
   // Handler wäre ein zweiter Weg zur selben Sache.
   const nav = useErpNav();
+  // ►►► **Der Rest ist kein Ast — also steht er nicht in der Reihe der Äste** (#1035).◄◄◄
+  //
+  // *«Bei mehr als 3 Voraufträgen verhaut es das UI, weil das ‹… X› das Ganze verzerrt
+  // und der mittlere Auftrag die Prozesslinie nicht auf das Startsymbol trifft.»*
+  //
+  // Und genau so war es: die Zeile zentriert ihre Kinder, und der Hinweis stand als
+  // gleichberechtigtes Kind darin – die Chips rutschten um seine halbe Breite zur Seite,
+  // der mittlere Ast stand nicht mehr über dem Stamm, und seine Linie bekam einen Knick.
+  //
+  // Er hat **keine Linie**: er ist die Fussnote zu den gekappten Nachbarn, kein Ast. Also
+  // steht er auf einer eigenen Zeile – und zwar auf der Seite **weg vom Stamm** (oben bei
+  // der Herkunft, unten beim Verbleib), damit er nicht zwischen die Chips und den Bus
+  // gerät. Dieselbe Frage wie überall in dieser Zeile beantwortet dasselbe `where`.
+  //
+  // Damit ist die Chip-Reihe wieder **rein** und exakt auf dem Stamm zentriert – ohne
+  // Gegengewicht, ohne absolute Position, ohne zusätzliche Breite.
+  const note = rest > 0 && (
+    <span className="inline-flex items-center gap-1 text-[11px]"
+      style={{ color: 'var(--fg-4)', whiteSpace: 'nowrap' }}
+      data-tip="Weitere Nachbarn – sie stehen im jeweiligen Auftrag">
+      <MoreHorizontal size={12} /> {rest}
+    </span>
+  );
   return (
+    <div className="flex flex-col items-center" style={{ gap: 4 }}>
+    {where === 'in' && note}
     <div className="flex items-start justify-center gap-1.5" style={{ flexWrap: 'nowrap' }}>
       {origins.map((o, i) => (
         <FlowNode key={`new-${i}`} id={`${prefix}${journeyId(where, `new:${i}`)}`}>
@@ -820,13 +845,8 @@ function JourneyRow({ where, stops, origins, prefix, rest }: {
           </button>
         </FlowNode>
       ))}
-      {rest > 0 && (
-        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-1"
-          style={{ color: 'var(--fg-4)', whiteSpace: 'nowrap' }}
-          data-tip="Weitere Nachbarn – sie stehen im jeweiligen Auftrag">
-          <MoreHorizontal size={12} /> {rest}
-        </span>
-      )}
+    </div>
+    {where === 'out' && note}
     </div>
   );
 }

@@ -193,8 +193,8 @@ function HighlightBox({ el }: { el: Element }) {
       className="pointer-events-none fixed z-[2010] rounded-ds-xs"
       style={{
         top: rect.top, left: rect.left, width: rect.width, height: rect.height,
-        outline: '2px solid var(--inexxio, #E51A14)', outlineOffset: 1,
-        background: 'color-mix(in srgb, var(--inexxio, #E51A14) 8%, transparent)',
+        outline: '2px solid var(--inexxio-red)', outlineOffset: 1,
+        background: 'color-mix(in srgb, var(--inexxio-red) 8%, transparent)',
       }}
     />
   );

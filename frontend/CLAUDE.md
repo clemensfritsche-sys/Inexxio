@@ -903,3 +903,45 @@ kennt sie (`settle_charge`).
 - **Und das Feld «Grund» ist weg** (#1021): beim Stellen einer Rechnung überflüssig, bei
   einer Korrektur genügt die Referenz auf den Beleg, den sie korrigiert («Korrektur zu …»,
   vom Server). Mit ihm sind `datalist`, `reasons` und `write_off_reason` entfallen.
+
+### Ohne Rückfluss keine Klammer (#1036) · der Rest ist kein Ast (#1035)
+- **`process-columns.span`**: ein Nachbar, der **zurückkehrt**, klammert einen Abschnitt
+  der Achse ein (fork oben, join unten, dazwischen der Bypass) – diese Zeilen dürfen auf
+  seine Höhe wachsen, das *ist* die Aussage. Eine **gekappte** Ausleihe hat keinen join,
+  ihre Spanne war damit **eine** Zeile, und die wuchs auf die volle Höhe des Nachbarn:
+  gemessen **424 px** leerer Streifen, an dessen Ende die Pille «In Abweichung · 3»
+  stand. Sie läuft jetzt von ihrem fork **bis ans Ende** neben der Achse her – dieselbe
+  Spanne, die ein übergeordneter Auftrag ohne eigenen Punkt bekommt. *Der Graph war
+  korrekt; es war allein das Raster.*
+- **`JourneyRow`**: der «… N»-Hinweis stand als gleichberechtigtes Kind in der
+  zentrierten Chip-Reihe, also rutschte die Gruppe um seine halbe Breite zur Seite und
+  der mittlere Ast traf das Startsymbol nicht mehr (gemessen 605,9 statt 620). Er hat
+  **keine Linie** – also steht er auf einer eigenen Zeile, auf der Seite **weg vom
+  Stamm** (`where`, dieselbe Frage wie überall in dieser Zeile).
+
+### Es wird nichts zusammengeklappt (#1032)
+`Quotes` zeigt **alle** Angebote, in jeder Stufe. Der Aufklapper «1 von 2 Angeboten
+gewählt» ist weg: die unterlegenen Zeilen sind der **Nachweis**, warum so entschieden
+wurde, und ein Nachweis hinter einem Klick beantwortet die Frage erst, wenn man sie
+gestellt hat.
+
+**`quoteLook(state, decided)` ist die eine Auflösung.** Dasselbe Wort bedeutet vor und
+nach dem Zuschlag Verschiedenes – «Offeriert» ist ein **Stand**, nach der Entscheidung
+heisst derselbe Zustand «diese Zeile hat den Zuschlag nicht bekommen». Vier Ausgänge, je
+ein Wort: **Zugesagt** (grün) · **Unterlegen** · **Unbeantwortet** · **Abgesagt** (rot),
+**richtungsneutral**. Der Betrag bleibt an einer unterlegenen Zeile stehen – *warum* so
+entschieden wurde, ist genau diese Zahl; die übrigen Zeilen treten über **Deckkraft**
+zurück.
+
+### Eine unbekannte CSS-Variable erzeugt stillschweigend nichts
+`var(--ok)` und `var(--warn)` gibt es nicht (`--success`/`--warning`) – «Zugesagt» war nie
+grün, und die Lücken-Box verlor über `border: 1px solid var(--warn)` ihren Rahmen **ganz**
+(eine ungültige Angabe macht die *ganze* Deklaration ungültig). Dieselbe Lehre wie bei der
+unbekannten Tailwind-Klasse: der Build schweigt. Ein Wächter prüft jede **ohne Rückfall**
+benutzte Variable; `var(--x, right)` ist eine Angabe mit Vorgabe und bleibt erlaubt.
+
+### Kleineres
+- **«Wird verbaut in» ist ausgeblendet** (#1034) – die Ableitung im Backend bleibt; sie
+  ist die Gegenrichtung derselben Abfrage, die «was mir fehlt» beantwortet.
+- **Die Zeile «1 Instanzen mit je einer Einzelinstanz (-1).» ist gelöscht** (#1033): das
+  ist das Datenmodell, nicht die Sache. Dritter Anlauf an derselben Zeile (#722, #725).

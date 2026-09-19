@@ -4333,6 +4333,89 @@
 > «Artikel – Nummer oder Name», **0** verbliebene Beschriftungen – und die Messung gegen
 > ihre eigene Bug-Form gegengeprüft (+46 px bei einem unteilbaren Wort).
 
+> ►►► **OHNE RÜCKFLUSS KEINE KLAMMER — und was zweimal dasteht, steht nicht hinter
+> einem Klick** (Testnotizen #1032–#1036). ◄◄◄ Fünf Notizen, und die grösste war eine
+> **Modellfrage**, die der Nutzer selbst richtig gestellt hat.
+> ►►► **(1) #1036 — der Weg war richtig, das BILD war falsch.** ◄◄◄ *«Ich habe die
+> Einzelinstanzen im Zahlungsmodul bearbeitet und im letzten Moment storniert … jetzt
+> bleiben sie vor dem Modul … also habe ich einen Abweichungsauftrag mit allen angelegt,
+> so dass sie nicht mehr zurückkommen. Ich denke, das ist der Weg, wie er gehen sollte –
+> hinterfrage die bestehende Logik.»*
+> **Er ist es, und das System sagt es selbst.** Es gibt keine «Auftrag abbrechen»-Funktion
+> (SYSTEM_LOGIC §4.4): der Ausweg ist ein **ganz gewöhnlicher Auftrag**, der die Stücke
+> greift, mit **gekappter Rückführung** – `Abgebrochen` fällt danach ohne eine Zeile Code
+> aus `_derive` (unterwegs 0 · verliehen 0 · angekommen 0). Ein Knopf «abbrechen»
+> beantwortete nicht, was mit den Stücken geschieht; die Abweichung erzwingt genau diese
+> Entscheidung und ist im Log nachvollziehbar. Und `voucher.completion_problem` **nennt
+> diesen Weg wörtlich**, wenn der Beleg storniert ist.
+> **Der Graph war ebenfalls korrekt** – nachgestellt über die echten Dienstpfade:
+> `problems: []`, der Nachbar mit drei Stücken, fork + gegangene `out`-Kante. Der Fehler
+> lag **allein im Raster**: ein Nachbar, der zurückkehrt, **klammert** einen Abschnitt der
+> Achse ein (fork oben, join unten, dazwischen der Bypass) – diese Zeilen dürfen auf seine
+> Höhe wachsen, das *ist* die Aussage. Eine **gekappte** Ausleihe hat keinen join
+> (`flow._branches`: kein Rückweg, also kein Punkt), ihre Spanne war damit **eine einzige
+> Zeile**, und die wuchs auf die volle Höhe des Nachbarn: gemessen **424 px** leerer
+> Streifen, an dessen Ende die Pille «In Abweichung · 3» stand – sichtbar getrennt von dem
+> Punkt, an dem sie passiert ist.
+> Sie läuft jetzt **von ihrem fork bis ans Ende** neben der Achse her – dieselbe Spanne,
+> die ein übergeordneter Auftrag ohne eigenen Punkt längst bekommt. Keine Zeile wird
+> gezwungen zu wachsen. Gemessen: fork 120 → Pille **197,8** (statt 544) → Modul 292,5,
+> der Nachbar daneben von 176 bis 410.
+> ►►► **(2) #1035 — der Rest ist kein Ast.** ◄◄◄ Die Chip-Reihe der Herkunft zentriert
+> ihre Kinder auf dem Stamm; der «… N»-Hinweis stand als **gleichberechtigtes Kind**
+> darin, also rutschte die ganze Gruppe um seine halbe Breite zur Seite und der mittlere
+> Ast traf das Startsymbol nicht mehr (gemessen **605,9 statt 620**, ab vier Nachbarn).
+> Er hat **keine Linie** – er ist die Fussnote zu den gekappten Nachbarn. Also steht er
+> auf einer eigenen Zeile, und zwar auf der Seite **weg vom Stamm** (oben bei der
+> Herkunft, unten beim Verbleib), damit er nicht zwischen Chips und Bus gerät: dieselbe
+> Frage, die `where` in dieser Zeile ohnehin beantwortet. Kein Gegengewicht, keine
+> absolute Position, keine zusätzliche Breite – die Chip-Reihe ist wieder **rein** und
+> exakt zentriert (620 == 620).
+> ►►► **(3) #1032 — es wird nichts zusammengeklappt.** ◄◄◄ *«Ich bin kein grosser Fan von
+> Infos auf Bedarf … lass dir was einfallen, wie man alle Angebote anzeigen kann und
+> trotzdem differenzieren kann – im besten Fall nur ein Wort.»*
+> Nach dem Zuschlag stand **eine** Zeile und darunter ein Aufklapper «1 von 2 Angeboten
+> gewählt». Die unterlegenen Zeilen sind aber der **Nachweis**, warum so entschieden
+> wurde – und ein Nachweis hinter einem Klick beantwortet die Frage «warum dieser?» erst,
+> wenn man sie schon gestellt hat. Die Kunst ist nicht das Verstecken, sondern das
+> **Unterscheiden**.
+> **Dasselbe Wort bedeutet vor und nach dem Zuschlag Verschiedenes**: solange verhandelt
+> wird, ist «Offeriert» eine Aussage über den **Stand**; ist die Entscheidung gefallen,
+> sagt derselbe Zustand, dass diese Zeile den Zuschlag **nicht** bekam. `quoteLook` nimmt
+> die Entscheidung darum als zweite Angabe entgegen, statt dass eine zweite Zuordnung
+> daneben entsteht – **Zugesagt** (grün) · **Unterlegen** · **Unbeantwortet** ·
+> **Abgesagt** (rot), je ein Wort, **richtungsneutral** (bei einer Ausgabe hat der
+> Lieferant nicht geantwortet, bei einer Einnahme der Kunde – kein `if`). Der Betrag
+> bleibt auch an einer unterlegenen Zeile stehen: *warum* so entschieden wurde, ist genau
+> diese Zahl. Die zugesagte Zeile ist die laute, die übrigen treten über **Deckkraft**
+> zurück.
+> **(4) Kleineres:** «Wird verbaut in» ist am Artikel **ausgeblendet** (#1034 – die
+> Ableitung `services/bom.used_in` **bleibt**: sie ist die Gegenrichtung derselben
+> Abfrage, die «was mir fehlt» beantwortet, und ausdrücklich vertagt, nicht verworfen);
+> die Zeile «1 Instanzen mit je einer Einzelinstanz (-1).» ist **gelöscht** (#1033 – das
+> ist das Datenmodell, nicht die Sache: wer «3» eintippt, will drei Stück; der dritte
+> Anlauf an derselben Zeile nach #722 und #725).
+> ►►► **Zwei Funde beim MESSEN, beide still.** ◄◄◄ `quoteLook` färbte «Zugesagt» mit
+> `var(--ok)` und «Offeriert» mit `var(--warn)` – **beide gibt es nicht** (sie heissen
+> `--success` und `--warning`). Das Wort erbte damit die Farbe seiner Umgebung, und die
+> **Lücken-Box** daneben verlor über `border: 1px solid var(--warn)` ihren Rahmen **ganz**:
+> eine ungültige Angabe macht die *ganze* Deklaration ungültig. Dazu `var(--inexxio,
+> #E51A14)` am Testnotiz-Pin – eine hart kodierte Farbe durch die Hintertür, weil der
+> Token `--inexxio-red` heisst. **Dieselbe Lehre wie bei der unbekannten Tailwind-Klasse**
+> (`bg-bg-dark`): der Build schweigt, und was herauskommt, sieht *fast* richtig aus. Der
+> neue Wächter prüft die Regel: jede **ohne Rückfall** benutzte CSS-Variable muss
+> definiert sein (`var(--x, right)` ist eine Angabe mit Vorgabe und bleibt erlaubt).
+> Wächter: 6 neue in `test_frontend_mirrors.py`, 2 auf die neue Regel gezogen –
+> **10 Bug-Formen gegengeprüft, jede meldet**; *einer der bestehenden las seine eigene
+> Prosa mit* («ohne absolute Position» in einem Kommentar) und liest jetzt den **Code**,
+> ein zweiter verlangte wörtlich `{look.label}` und hätte damit die bessere Fassung
+> verboten – er fragt jetzt nach dem **Wort**, gleich unter welchem Namen es dasteht.
+> Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den
+> Migrationen (je 588); **keine Migration** in dieser Runde. Gemessen in Chromium an den
+> **echten** Komponenten: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter
+> Überlauf über alle vier Angebots-Zustände, Zugesagt `#1F8A4C` · Abgesagt `#E51A14`,
+> **0** Aufklapper.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
