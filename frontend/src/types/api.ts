@@ -1555,6 +1555,11 @@ export interface components {
         ArticleStock: {
             /** States */
             states: components["schemas"]["StockState"][];
+            /**
+             * Owners
+             * @default []
+             */
+            owners: components["schemas"]["OwnerShare"][];
             /** Total */
             total: number;
             /** Instance Total */
@@ -2274,6 +2279,11 @@ export interface components {
              */
             states: components["schemas"]["StockState"][];
             /**
+             * Owners
+             * @default []
+             */
+            owners: components["schemas"]["OwnerShare"][];
+            /**
              * Created At
              * Format: date-time
              */
@@ -2347,6 +2357,7 @@ export interface components {
              */
             parts_count: number;
             place?: components["schemas"]["UnitPlace"] | null;
+            owner?: components["schemas"]["PlaceRef"] | null;
             /**
              * Created At
              * Format: date-time
@@ -2646,6 +2657,27 @@ export interface components {
              * @description **Die Vorschau**: die laufenden Aufträge, aus denen dieser Entwurf Stücke nähme – jeder mit dem Bild, das er nach der Freigabe hätte (Abzweigung, und Rückführpunkt nur, wenn zurückgeführt wird). Damit zeigt der Entwurf dieselbe Darstellung wie der freigegebene Auftrag; sie kommt aus derselben Ableitung (``flow.build``) und wird nicht daneben nachgebaut.
              */
             parents?: components["schemas"]["RelatedOrder"][];
+        };
+        /**
+         * OwnerShare
+         * @description **Wem gehört wie viel?** – ein Segment der Eigentums-Leiste.
+         *
+         *     ``owner_object_id = None`` heisst **uns** (das Haus); ``ours`` ist trotzdem ein
+         *     eigenes Feld, denn es gilt auch für eine unserer Gesellschaften: kaufen zwei von uns
+         *     Material, gehört jedes Stück *einer* von beiden – und beides ist «unseres». Die
+         *     Auflösung gehört dem **Server** (``owners.is_ours``), wie die Bestands-Zugehörigkeit
+         *     eines Status: eine Liste unserer Gesellschaften in der Oberfläche wäre die zweite
+         *     Wahrheit, und die veraltet bei der ersten neuen Gesellschaft.
+         */
+        OwnerShare: {
+            /** Owner Object Id */
+            owner_object_id?: number | null;
+            /** Name */
+            name: string;
+            /** Ours */
+            ours: boolean;
+            /** Quantity */
+            quantity: number;
         };
         /**
          * PasskeyLoginResult
@@ -3372,6 +3404,8 @@ export interface components {
             in_stock: boolean;
             /** In Order */
             in_order?: number | null;
+            /** Owner Name */
+            owner_name?: string | null;
         };
         /**
          * UnitPage
@@ -3781,6 +3815,8 @@ export interface components {
              * @default
              */
             task: string;
+            /** Transfer */
+            transfer?: string | null;
             /**
              * Order Label
              * @default

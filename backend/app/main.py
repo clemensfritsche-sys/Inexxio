@@ -102,6 +102,10 @@ _COLUMN_SAFETY_NET = (
     ("instance_units", "place_object_id", "BIGINT"),
     # Der Träger (Migration 112) – dieselbe Tabelle, dieselbe Ausfallklasse.
     ("instance_units", "place_unit_id", "BIGINT"),
+    # ►► **Der Besitz** (Migration 138) – der zweite Zeiger neben dem Ort, dieselbe
+    # Tabelle, dieselbe Ausfallklasse: das Modell kennt die Spalte, also scheitert ohne
+    # sie jede Abfrage auf Einzelinstanzen, und die trägt den halben ERP-Feed.
+    ("instance_units", "owner_object_id", "BIGINT"),
     # ►►► **Die Netze für ``purchases`` sind mitgegangen** (September 2026). ◄◄◄
     #
     # Sie schützten Lesezugriffe auf den Beschaffungs-Beleg – und den gibt es nicht mehr:
@@ -246,6 +250,9 @@ _INDEX_SAFETY_NET = (
     # Einzelinstanzen einer Instanz. Beides ohne Index ein Seq-Scan über den Bestand.
     ("ix_instances_article_id", "instances", "article_id"),
     ("ix_instance_units_instance_id", "instance_units", "instance_id"),
+    # Die Eigentums-Aufstellung des Bestands gruppiert danach (Migration 138) – ohne
+    # Index ein Seq-Scan über alle Einzelinstanzen des Hauses.
+    ("ix_instance_units_owner_object_id", "instance_units", "owner_object_id"),
     ("ix_captures_instance_unit_id", "captures", "instance_unit_id"),
     ("ix_captures_order_id", "captures", "order_id"),
     ("ix_captures_step_id", "captures", "step_id"),
@@ -404,6 +411,21 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"
                     ))
+            # ►►► **Die Reflexion CACHET – und die Netze darunter lesen sie.** ◄◄◄
+            #
+            # Der Kommentar oben verspricht, die Reflexion sehe, «was diese Funktion eben
+            # geändert hat». Das stimmte nur für die *Verbindung*, nicht für den
+            # ``Inspector``: er hält ``get_columns`` je Tabelle fest, und jede Schleife
+            # darunter bekam den Stand **vor** dem Spalten-Netz.
+            #
+            # Latent, solange keine Runde auf **derselben** Tabelle eine Spalte anlegt
+            # **und** etwas darauf aufbaut. Migration 138 tut genau das (Spalte + Index),
+            # und gemessen fehlte der Index danach – dieselbe Ausfallklasse wie #778, nur
+            # eine Ebene tiefer: das Netz war da und hat nichts gefangen.
+            #
+            # Eine Zeile, und sie gilt für **alle** folgenden Netze statt nur für das,
+            # das es gerade getroffen hat.
+            insp.clear_cache()
             for table, col, precision, scale in _NUMERIC_SAFETY_NET:
                 if table not in tables:
                     continue

@@ -98,3 +98,38 @@ class InstanceUnit(Base, TimestampMixin):
     place_unit_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, index=True,
     )
+
+    #: ►►► **Wem dieses Stück gehört** – der zweite Zeiger (``services/owners``). ◄◄◄
+    #:
+    #: **Besitz ist kein Status**, und genau daran scheiterte der naheliegende Weg: «Wo
+    #: liegt es» und «wem gehört es» sind zwei Aussagen, die einander nicht bedingen –
+    #: ein Muster beim Kunden gehört uns, eine Beistellung in unserem Regal gehört ihm.
+    #: In ``status`` gepresst hätte das Feld **zwei Chefs**: der Prozess schreibt bei
+    #: jedem Modul, das Geschäft einmal – und solange ein Auftrag läuft, steht dort
+    #: ``Im Prozess``, völlig zu Recht. Der Prozess gewinnt immer, und der Besitz wäre
+    #: die Angabe, die stillschweigend verschwindet.
+    #:
+    #: Es ist darum dieselbe Bauart wie der **Ort**: ein Zeiger, den keine Prozessregel
+    #: liest. Er ändert nie einen Status, nie eine Zugehörigkeit, nie den Ort – genau
+    #: deshalb muss keine andere Regel im System von ihm wissen.
+    #:
+    #: **``NULL`` heisst «uns»** und ist ein regulärer Zustand, kein fehlender Wert:
+    #: alles, was wir selbst erzeugen, gehört uns, bis jemand es verkauft.
+    #:
+    #: **Sonst die Objektnummer einer Rechtsperson** – ein **Benutzer** oder ein
+    #: **Unternehmen**. Mehr kann es nicht geben: besitzen kann nur eine natürliche oder
+    #: eine juristische Person. Eine **Instanz** steht hier nie (ein Regal besitzt
+    #: nichts), und ein *Stück* kann es gar nicht: es zieht bewusst keine Objektnummer.
+    #: Kein Typfeld daneben – Objektnummern sind systemweit eindeutig, der Typ ist
+    #: ableitbar (dieselbe Regel wie beim Halter).
+    #:
+    #: **Zeigt sie auf eine unserer Gesellschaften**, gehört das Stück *dieser*
+    #: Gesellschaft – und damit weiterhin uns. So beantwortet **ein** Zeiger beide
+    #: Fragen: «gehört es uns?» und «welcher von uns?».
+    #:
+    #: **Geschrieben wird er an genau einer Stelle** (``services/owners.transfer``), und
+    #: ausgelöst wird er vom **Zahlungsmodul**: ein Eigentumsübergang ist die Folge eines
+    #: Geschäfts, und das Geschäft ist der Beleg.
+    owner_object_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, index=True,
+    )

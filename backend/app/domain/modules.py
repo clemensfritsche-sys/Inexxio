@@ -114,6 +114,20 @@ class Module:
     #: als eine Zeile. Die Oberfläche fragt danach und nie nach dem Modultyp.
     moves: bool = False
 
+    def transfers_ownership(self, config: Optional[dict[str, Any]]) -> bool:
+        """►►► **Wechselt an diesem Modul der EIGENTÜMER?** Vorgabe: nein. ◄◄◄
+
+        Dieselbe Bauart wie ``movement_for``: die Ausführungsstelle fragt die
+        **Eigenschaft** und nie den Modultyp; ein Modul, das nichts überträgt, antwortet
+        schlicht mit ``nein``, und es gibt keine Fallunterscheidung im Ablauf.
+
+        **An wen** steht hier nicht – das weiss diese Stelle nicht: sie hat keine
+        Datenbanksitzung, und beim Beleg ist es die Gegenpartei *dieses* Vorgangs. Die
+        Antwort darauf gibt der Fach-Dienst (``voucher.transfer_for``), und die
+        Schreibstelle kennt beides nicht (``services/owners``).
+        """
+        return False
+
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
                  tone: str):
         self.key = key
@@ -550,6 +564,11 @@ class Beleg(Module):
                      (``Direction.party_ref``): sie gehört der **Paarung** Modul × Partner,
                      denn derselbe Lieferant führt je Teil eine andere Nummer.
     ``instruction``  **Was ist zu tun?** (``vo.TASK``) – ein Satz am **Modul**, freiwillig.
+    ``transfer``     ►►► **Wechselt hier der Eigentümer?** ◄◄◄ Ein Bit, Vorgabe **aus**.
+                     Ein Eigentumsübergang ist die **Folge eines Geschäfts**, und das
+                     Geschäft ist dieser Beleg – ein eigenes Modul dafür beschriebe
+                     nichts, was nicht schon dasteht (§9.13). **An wen**, sagt die
+                     Richtung: wer kassiert, gibt die Ware ab; kein zweites Feld.
 
     ►►► **Ein Feld stellte zwei Fragen** ◄◄◄ – «Härten auf 58 HRC» lautet für *jeden*
     Lieferanten gleich und ist damit eine Eigenschaft **dieses Schritts**, nicht der
@@ -573,6 +592,11 @@ class Beleg(Module):
     DIRECTION = "direction"
     PARTIES = "parties"
     INSTRUCTION = "instruction"
+    #: ►►► **Wechselt hier der Eigentümer?** (``vo.TRANSFER_LABEL``) ◄◄◄ Ein Bit, Vorgabe
+    #: **aus**. Es ist nicht ableitbar: die Positionen eines Belegs sind immer die Stücke
+    #: davor – bei einer **Vermietung** genauso wie bei einem Verkauf, und dort bleibt
+    #: die Maschine unsere.
+    TRANSFER = "transfer"
     #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
     PARTY = "party"
     REF = "ref"
@@ -616,8 +640,25 @@ class Beleg(Module):
             self.DIRECTION: direction,
             self.PARTIES: self._clean_parties(data.get(self.PARTIES), flow),
             self.INSTRUCTION: self._clean_instruction(data.get(self.INSTRUCTION)),
+            # **Ein Bit, streng gelesen.** Alles, was nicht ausdrücklich wahr ist, heisst
+            # «Eigentum bleibt»: die sichere Vorgabe ist die, bei der nichts geschieht.
+            self.TRANSFER: bool(data.get(self.TRANSFER)),
             "points": [], "sample": dict(sampling.DEFAULT),
         }
+
+    @classmethod
+    def transfers_of(cls, config: Optional[dict[str, Any]]) -> bool:
+        """**Wechselt an diesem Modul der Eigentümer?** – die eine Lesestelle.
+
+        Tolerant: eine Definition aus der Zeit davor kennt den Schlüssel nicht und
+        bedeutet **nein** – genau das, was sie bisher getan hat. Damit ändert sich an
+        keinem laufenden Auftrag etwas.
+        """
+        return bool((config or {}).get(cls.TRANSFER))
+
+    def transfers_ownership(self, config: Optional[dict[str, Any]]) -> bool:
+        """Die Eigenschaft, die der Rahmen fragt – beantwortet aus der Konfiguration."""
+        return self.transfers_of(config)
 
     def _clean_instruction(self, value: Any) -> str:
         """**Was ist zu tun?** – freiwillig, in beiden Richtungen, am Modul.

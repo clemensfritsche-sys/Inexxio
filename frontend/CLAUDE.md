@@ -123,6 +123,41 @@ für Zustände von Einzelinstanzen und trägt nur noch, was wirklich am Bestand 
 und welchen Teil sehe ich mir an» ist nicht die des Bestands; die Stufen eines Moduls
 stellen sie ebenso.
 
+## Der Besitz — die zweite Leiste und der Eigentümer je Zeile
+►►► **Zwei Fragen über DIESELBEN Stücke, zwei Leisten übereinander.** ◄◄◄ Die
+**Zustands**-Leiste teilt sie nach *was passiert damit*, die **Eigentums**-Leiste
+(`components/erp/owner-bar.tsx`) nach *wem gehören sie*. Beide lesen denselben Umfang und
+summieren sich darum auf dieselbe Zahl – sonst wären es zwei Auskünfte über zwei Dinge,
+und niemand könnte sie nebeneinander lesen.
+
+- **Dasselbe Bauteil** (`module-ui.ValueBar`), nur andere Segmente – `StockBar` und
+  `OwnerBar` sind zwei Ausprägungen, keine zwei Leisten-Bauarten.
+- **Eine Auskunft, kein Bedienelement**: kein `onPick`. Der Durchgriff auf die Nummern
+  gehört der Zustands-Leiste; zwei Leisten mit je einem Auswahlzustand über derselben
+  Liste wären zwei Antworten auf «welcher Ausschnitt gilt jetzt». Ohne Handler ist
+  `ValueBar` von sich aus reine Anzeige (dieselbe Bauart wie der Verlauf eines Moduls).
+- **Es gibt sie nur, wenn es etwas zu unterscheiden gibt** – und das entscheidet der
+  **Server** (`owners.shares` liefert eine leere Liste, wenn alles uns gehört), nicht eine
+  Bedingung in der Karte: sonst stünde die Regel zweimal.
+- **Kein Ampelton**: fremdes Eigentum ist kein *Problem* – eine Beistellung ist der
+  Normalfall der Lohnfertigung, und die drei Farben des Hauses sagen «gut · offen ·
+  Problem». Die leise Stimme (`--accent`) für das Eigene, gedämpftes Neutral (`--fg-4`)
+  für das Fremde; **unterschieden wird über das Wort** – dieselbe Antwort wie bei drei
+  Ampeltönen für sechs Zustände (#789).
+- **`null` heisst uns, und das spricht niemand aus** (`unit-numbers`, `definition-lines`):
+  den Normalfall an jeder von sechzig Zeilen zu nennen wäre dasselbe Wort sechzigmal.
+  Genannt wird, was eine **Aussage** ist.
+
+**Im Editor ist es ein Schieber, im Beleg eine Auskunft.** `Segmented` trägt dafür neu ein
+freiwilliges `hint` je Wert (im **Hover**, die ERP-Regel des Hauses) – wo eine Wahl eine
+**Folge** hat, die man dem Wort nicht ansieht, ist ein Satz beim Zeigen genau der richtige
+Ort. **Keine Beschriftung darüber** (#1020): «Eigentum bleibt» ↔ «Eigentum wechselt»
+benennen die Entscheidung selbst.
+**Und die Karte fragt keine Richtung ab**: *an wen* das Eigentum geht, hängt an Richtung
+und Adressat, und beides weiss der Server – `VoucherEmbed.transfer` ist ein **fertiger
+Satz**. Selbst gebaut stünde die Regel ein zweites Mal im Browser. Bleibt das Eigentum,
+steht dort **nichts**.
+
 ## Datenerfassung (`components/erp/capture-work.tsx`)
 Eine Zeile **je Instanz**, denn ein Vorgang ist eine Instanz (PROCESS_CORE §4.4): das
 Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnummer. Charge

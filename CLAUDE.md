@@ -4416,6 +4416,122 @@
 > Überlauf über alle vier Angebots-Zustände, Zugesagt `#1F8A4C` · Abgesagt `#E51A14`,
 > **0** Aufklapper.
 
+> ►►► **WEM GEHÖRT DAS STÜCK — der zweite Zeiger, gesetzt vom ZAHLUNGSMODUL**
+> (Migration `138`, `docs/arbeitsauftrag-besitz.md`, `services/owners.py`). ◄◄◄
+>
+> *«Mein Wunsch war es immer, dies in den Status reinzupacken, quasi als Verkaufsstatus …
+> nur weil es beim Kunden ist, heisst das noch nicht, dass es verkauft ist. Und umgekehrt
+> auch. Aber das beisst sich eben ziemlich häufig mit diesem Prozessmodell.»*
+>
+> **Es beisst sich, weil der Status schon einen Chef hat.** Er ist die **Prozess**-Achse,
+> und solange ein Auftrag läuft, steht dort `Im Prozess` – völlig zu Recht. Der Prozess
+> schreibt bei jedem Modul, das Geschäft einmal; ein Feld mit zwei Chefs verliert immer
+> gegen den, der öfter schreibt. **Der Ort hat dieses Problem nie gehabt**, weil er kein
+> Zustand ist, sondern ein Zeiger, den keine Prozessregel liest – und genau diese Bauart
+> bekommt der Besitz.
+>
+> ```
+> Einzelinstanz
+>   ├── status              Im Prozess     ← was passiert damit   (der Prozess)
+>   ├── place_object_id     → 100000741    ← wo liegt es          (Bewegen)
+>   └── owner_object_id     → 100000512    ← wem gehört es        (Zahlung)   NEU
+> ```
+>
+> Die beiden Achsen sind **wirklich** unabhängig, und alle vier Felder kommen im Alltag
+> vor: *Lager* · *Muster · Leihgabe · Konsignation* (uns, beim Kunden) · **Beistellung**
+> (ihm, bei uns) · *verkauft*. Keines davon lässt sich mit einer Angabe ausdrücken.
+> **`NULL` heisst «uns»** und ist ein regulärer Zustand – kein Backfill, und am Bestand
+> ändert die Migration nichts. **Sonst die Objektnummer einer Rechtsperson** (Benutzer
+> oder Unternehmen; mehr kann rechtlich nicht besitzen), kein Typfeld daneben – dieselbe
+> Regel wie beim Halter. **Zeigt sie auf eine unserer Gesellschaften**, gehört das Stück
+> *dieser* – so beantwortet **ein** Zeiger «gehört es uns?» **und** «welcher von uns?».
+> **Zyklen gibt es nicht**: ein Eigentümer ist nie wieder ein Stück, also entfällt die
+> `seen`/`MAX_STATIONS`-Mechanik des Ortes ersatzlos.
+>
+> ►►► **Ausgelöst wird er vom Zahlungsmodul – ein eigenes Modul gibt es NICHT.** ◄◄◄
+> Ein Eigentumsübergang ist die **Folge eines Geschäfts**, und das Geschäft ist der Beleg;
+> ein Modul, dessen ganze Aussage eine Folge ist, beschreibt nichts, was nicht schon
+> dasteht – genau daran ist «Ausliefern» gestorben (§9.13). Die Deklaration ist **ein Bit**
+> am Modul (`Beleg.TRANSFER`, «Eigentum bleibt» ↔ «Eigentum wechselt», Vorgabe **aus**) und
+> **nicht ableitbar**: die Positionen eines Belegs sind immer die Stücke davor – bei einer
+> **Vermietung** genauso wie bei einem Verkauf, und dort bleibt die Maschine unsere.
+> **An wen, sagt die Richtung** (`collects`) und kein zweites Feld: wer kassiert, gibt die
+> Ware ab (Einnahme → Gegenpartei), wer zahlt, bekommt sie (Ausgabe → unsere ausstellende
+> Gesellschaft).
+> ►►► **Und WO im Prozess, entscheidet der Modellierer.** ◄◄◄ Steht die Zahlung vor dem
+> Bewegen, wechselt das Eigentum vor der Lieferung; steht sie danach, ist es der
+> **Eigentumsvorbehalt**. *Die Reihenfolge IST der Prozess* – kein Schalter, keine
+> Einstellung. Die **Retoure** braucht dafür keine Regel: ein gewöhnlicher Auftrag greift
+> die Stücke (*das Greifen IST die Rücknahme*) und trägt ein Zahlungsmodul in der
+> Gegenrichtung.
+>
+> **`services/owners.py` ist die EINE Schreibstelle** (Quelltext-Wächter), Zwilling von
+> `places.py`, und sie **kennt kein Zahlungsmodul**: die Antwort «an wen» kommt vom
+> Fach-Dienst (`voucher.transfer_for`), der Zeiger wird hier gesetzt. Dieselbe Regel, die
+> den Beleg von seinem Vorgänger unabhängig gehalten hat. *Wer besitzen kann, ist genau
+> wer eine **Anschrift** trägt* – dieselbe Menge wie `places.ADDRESS_HOLDERS`, und sie wird
+> **geteilt** statt nachgebaut. **Geschrieben wird vor `_pass`**, wie der Ort, und der
+> Übergang reist als Payload (`owner: {from, to, label}`) in den **Log**: eine zweite
+> Tabelle daneben wäre eine zweite Wahrheit. Der **Name** reist mit, weil er eingefroren
+> gehört – er überlebt eine Umfirmierung.
+>
+> ►►► **Und `places.forget` bekommt KEIN Gegenstück.** ◄◄◄ Wer zur Historie zählt, verliert
+> seinen **Ort**; sein **Eigentum** behält er. Sonst verlöre eine Beistellung ihren
+> Eigentümer genau in dem Moment, in dem sie in unser Produkt wandert – der Ort ist eine
+> Aussage über ein Regal, der Besitz eine über eine Rechtsperson.
+>
+> ►►► **Der Bestand: zwei Fragen, zwei Leisten über DERSELBEN Menge.** ◄◄◄
+> *«Ich muss den globalen Überblick behalten und zugleich wissen, mit was ich als
+> jeweiliges Unternehmen wirtschaften kann.»* – Die **Zustands**-Leiste teilt die Stücke
+> nach *was passiert damit*, die **Eigentums**-Leiste nach *wem gehören sie*; beide gehen
+> über denselben Umfang und **summieren sich auf dieselbe Zahl** (Wächter), sonst wären es
+> zwei Auskünfte über zwei Dinge. Es ist buchstäblich dasselbe Bauteil (`ValueBar`), und
+> die zweite ist eine **Auskunft, kein Bedienelement**: der Durchgriff auf die Nummern
+> gehört der ersten, und dort nennt **jede Nummer ihren Eigentümer** – aber nur, wenn er
+> nicht uns ist (`null` heisst uns, und den Normalfall spricht niemand aus). Gehört alles
+> uns, kommt die Liste **leer** und es gibt die Leiste gar nicht: ein einziges Segment
+> «Uns 20» sagt nichts. **Kein Ampelton** – fremdes Eigentum ist kein *Problem*, eine
+> Beistellung ist der Normalfall der Lohnfertigung; die leise Stimme für das Eigene,
+> gedämpftes Neutral für das Fremde, **unterschieden wird über das Wort** (#789).
+> Dieselbe Angabe steht in der **Auswahl-Liste**: die **Vorauswahl bleibt unberührt** –
+> eine Regel «fremdes nie vorschlagen» wäre bei der Lohnfertigung falsch, dort *ist*
+> fremdes Material das Richtige. Das System bietet an, der Mensch entscheidet.
+>
+> **`Verkauft` bleibt schreiberlos im Katalog** (§9.13, unverändert): der Besitz sagt es
+> jetzt genauer, ohne mit dem Prozess um dieselbe Spalte zu streiten. Und **`pick_problem`
+> bleibt unangetastet** – ein fremdes Stück ist greifbar: Beistellung wird verarbeitet,
+> Verkauftes zurückgenommen.
+>
+> ►►► **Ein Fund im eigenen Netz, und er war still** (`main._ensure_columns`). ◄◄◄ Der
+> Kommentar dort verspricht, die Reflexion sehe, «was diese Funktion eben geändert hat» –
+> das stimmte für die *Verbindung*, nicht für den `Inspector`: er **cachet** `get_columns`
+> je Tabelle, und jedes Netz darunter bekam den Stand **vor** dem Spalten-Netz. Latent,
+> solange keine Runde auf derselben Tabelle eine Spalte anlegt **und** etwas darauf
+> aufbaut. Migration `138` tut genau das (Spalte + Index), und **gemessen fehlte der Index
+> danach** – dieselbe Ausfallklasse wie #778, nur eine Ebene tiefer: das Netz war da und
+> hat nichts gefangen. Ein `insp.clear_cache()` behebt es für **alle** folgenden Netze.
+>
+> **Bewusst offen, benannt statt vergessen:** eine **Beistellung, die in unser Produkt
+> verbaut wird**, macht es anteilig fremd – das ist eine Frage der Bewertung, nicht der
+> Zuordnung, und hier wird nichts geraten (das verbaute Stück behält seinen Eigentümer,
+> das Produkt den seinen). Ebenso die **Bestandsbewertung** und eine Mengenaussage
+> «fremdes Material am Standort» über alle Artikel hinweg.
+>
+> Wächter: `tests/test_ownership.py` (12 Prüfungen, **14 Bug-Formen gegengeprüft, jede
+> meldet** – eine war dabei stumpf: die Stücke der Szene hatten gar keinen Ort, also war
+> «der Übergang hat den Ort nicht angefasst» wahr, ohne etwas zu heissen) + 5 in
+> `test_frontend_mirrors.py` (*zwei davon waren beim ersten Anlauf stumpf und fragten nach
+> dem **Vorkommen** eines Namens statt nach dem **Rendern** – nachgeschärft, erneut
+> gegengeprüft*) + Invariante **I16**. Suite grün gegen die gewachsene Datenbank **und**
+> gegen ein Schema nur aus den Migrationen (je 606); Migration `138` von null · idempotent
+> · downgrade · re-upgrade · **über das Lifespan-Netz** verifiziert. Gemessen in Chromium
+> an den **echten** Komponenten: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
+> waagrechter Überlauf über vier Eigentums-Fälle – und die Messung gegen ihre eigene
+> Bug-Form gegengeprüft (+59,9 px bei 375, +114,9 px bei 320 mit einem unteilbaren Wort;
+> derselbe lange Name hinter `truncate` meldet zu Recht nichts). *Und der Messstand selbst
+> musste erst repariert werden: ohne Firebase-Variablen rendert die App eine
+> **Fehlerseite**, und «0 px Überlauf» wäre die Messung einer leeren Seite gewesen.*
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -4701,6 +4817,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`settle_charge`); je Modul lebt höchstens eine, und die Anzahlung ist darum ein
   **zweites Modul** mit seinen **eigenen Positionspreisen** (einen «Anteil» gibt es
   nicht, #867).
+- **Besitz** (§9.16): ein **zweiter Zeiger** an der Einzelinstanz neben dem Ort –
+  *wo liegt es* und *wem gehört es* sind zwei Aussagen, und keine ist ein Status.
+  Geschrieben wird er ausschliesslich vom **Zahlungsmodul**, wenn die Stücke es passieren
+  («Eigentum wechselt», Vorgabe aus); **an wen**, sagt die Richtung. `NULL` heisst uns.
+  Der **Bestand** zeigt darum zwei Leisten über derselben Menge: *was passiert damit* und
+  *wem gehört es* – und die zweite nur, wenn es etwas zu unterscheiden gibt.
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.

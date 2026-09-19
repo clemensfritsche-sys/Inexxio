@@ -3247,6 +3247,134 @@ Wahl, zu der sie gehört.
 
 ## 10. Darstellung
 
+### 9.16 Der BESITZ — ein zweiter Zeiger, gesetzt vom Zahlungsmodul
+
+> **Der Ort sagt, wo ein Stück liegt. Der Besitz sagt, wem es gehört. Das sind zwei
+> Aussagen, und keine von beiden ist ein Status.**
+
+#### 9.16a Warum kein Status
+
+Der naheliegende Weg war, «Verkauft» in `instance_units.status` zu legen. Er scheitert,
+und zwar strukturell: der Status ist die **Prozess-Achse**, und solange ein Auftrag läuft,
+steht dort `Im Prozess` — völlig zu Recht. Der Prozess schreibt ihn bei **jedem** Modul,
+das Geschäft schreibt einmal. Ein Feld mit zwei Chefs verliert immer gegen den, der öfter
+schreibt; der Besitz wäre die Angabe, die stillschweigend verschwindet.
+
+**Der Ort hatte dieses Problem nie**, weil er kein Zustand ist, sondern ein Zeiger, den
+keine Prozessregel liest (§9.8). Genau diese Bauart bekommt der Besitz — und damit gilt
+dieselbe Begründung: **keine andere Regel im System muss von ihm wissen.**
+
+Dass es zwei Achsen sein müssen, zeigt die Matrix. Alle vier Felder kommen im Alltag eines
+Maschinenbauers vor, und keines lässt sich mit einer Angabe ausdrücken:
+
+|                  | liegt bei uns | liegt beim Partner              |
+|------------------|---------------|---------------------------------|
+| **gehört uns**   | Lager         | Muster · Leihgabe · Konsignation |
+| **gehört ihm**   | Beistellung   | verkauft                        |
+
+#### 9.16b Die Form
+
+`instance_units.owner_object_id` (Migration `138`), geschrieben ausschliesslich von
+`services/owners.py` — Zwilling von `services/places.py`, Quelltext-Wächter.
+
+* **`NULL` heisst «uns»**, und das ist regulär: alles, was wir erzeugen, gehört uns, bis
+  jemand es verkauft. Kein Backfill, kein Wanderungsschritt.
+* **Sonst die Objektnummer einer Rechtsperson** — ein **Benutzer** oder ein
+  **Unternehmen**; mehr kann rechtlich nicht besitzen. **Kein Typfeld daneben**, der Typ
+  ist ableitbar (dieselbe Regel wie beim Halter). *Wer besitzen kann, ist genau wer eine
+  **Anschrift** trägt* — dieselbe Menge, die `places.ADDRESS_HOLDERS` führt, und sie wird
+  **geteilt** statt nachgebaut: eine Instanz kann Halter sein (ein Regal hält Schrauben),
+  besitzen kann sie nichts.
+* **Zeigt er auf eine unserer Gesellschaften**, gehört das Stück *dieser* — und damit
+  weiterhin uns. So beantwortet **ein** Zeiger beide Fragen: «gehört es uns?» und «welcher
+  von uns?». Eine zweite Spalte «ist das unseres» wäre die zweite Wahrheit.
+* **Am Stück, nicht an der Gruppe**: zwei Schrauben derselben Charge dürfen verschiedenen
+  gehören — Beistellung neben eigenem Material.
+* **Keine Zyklen möglich.** Die einzige Regel des sonst dummen Ortsfeldes entfällt hier
+  ersatzlos: ein Eigentümer ist nie wieder ein Stück. Was es nicht gibt, braucht kein Netz.
+
+#### 9.16c Ausgelöst wird er vom Zahlungsmodul — ein eigenes Modul gibt es NICHT
+
+Ein Eigentumsübergang ist die **Folge eines Geschäfts**, und das Geschäft ist der Beleg
+(§9.15). Ein Modul, dessen ganze Aussage eine Folge ist, beschreibt nichts, was nicht schon
+dasteht — genau daran ist «Ausliefern» gestorben (§9.9).
+
+**Eine Deklaration am Modul** (`Beleg.TRANSFER`, Vorgabe **aus**), gelesen über die
+Eigenschaft `Module.transfers_ownership(config)`: die Ausführungsstelle fragt sie und nie
+den Modultyp, und jedes künftige Modul erbt die Vorgabe ohne eine Zeile.
+
+**Sie ist nicht ableitbar**, und das ist der Grund, warum es ein Bit gibt: die Positionen
+eines Belegs sind immer die Stücke, die davorstehen — bei einer **Vermietung** genauso wie
+bei einem Verkauf, und dort bleibt die Maschine unsere. Miete, Lohn, Gebühr und eine
+eingekaufte Spedition sind die Regel, nicht die Ausnahme; die sichere Vorgabe ist die, bei
+der nichts geschieht. *Ein falsches Ja verschenkt stillschweigend Eigentum, ein falsches
+Nein ist eine fehlende Buchung, die jemand bemerkt — das Stück steht noch im Bestand.*
+
+**An wen, sagt die Richtung** (`Direction.collects`) und kein zweites Feld:
+
+| Richtung  | Geld          | Eigentum geht an                           |
+|-----------|---------------|--------------------------------------------|
+| Einnahme  | kommt herein  | die **Gegenpartei** des Belegs             |
+| Ausgabe   | geht hinaus   | **unsere** ausstellende Gesellschaft       |
+
+**Wann:** wenn die Einzelinstanzen das Modul **passieren** (`confirm_step`) — dieselbe
+Stelle und dieselbe Reihenfolge wie beim Ort: erst schreiben, dann `_pass`, damit der
+Vorgang als Payload (`owner: {from, to, label}`) im **Log** des `step`-Ereignisses steht
+und nicht in einer zweiten Tabelle daneben. Der **Name** reist mit, weil er eingefroren
+gehört: er überlebt eine spätere Umfirmierung.
+
+**Wo im Prozess, entscheidet der Modellierer** — und das ist der Gewinn gegenüber jeder
+Automatik: steht die Zahlung **vor** dem Bewegen, wechselt das Eigentum vor der Lieferung;
+steht sie **danach**, ist es der Eigentumsvorbehalt. **Die Reihenfolge IST der Prozess.**
+
+**Die Retoure braucht keine Regel**: ein ganz gewöhnlicher Auftrag greift die Stücke (*das
+Greifen IST die Rücknahme*, §9.12) und trägt ein Zahlungsmodul in der Gegenrichtung mit
+«Eigentum wechselt» — das Eigentum kommt zurück, weil die Richtung es sagt.
+
+#### 9.16d Was ausdrücklich NICHT geändert wird
+
+* **`Verkauft` bleibt im Katalog und bleibt schreiberlos** (§9.9). Er ist das Vokabular
+  des append-only Logs; der Besitz sagt es jetzt genauer, ohne mit dem Prozess um dieselbe
+  Spalte zu streiten.
+* **Der Ort wird nicht berührt.** Verkauft ≠ beim Kunden — beides bleibt getrennt
+  schreibbar, und genau das war die Anforderung.
+* **`places.forget` bekommt kein Gegenstück.** Wer zur Historie zählt, verliert seinen
+  **Ort**; sein **Eigentum** behält er — sonst verlöre eine Beistellung ihren Eigentümer
+  genau in dem Moment, in dem sie in unser Produkt wandert. Der Ort ist eine Aussage über
+  ein Regal, der Besitz eine über eine Rechtsperson.
+* **`pick_problem` bleibt unangetastet**: ein fremdes Stück ist greifbar — Beistellung
+  wird verarbeitet, Verkauftes zurückgenommen.
+* **Die FIFO-Vorauswahl bleibt unangetastet.** Eine Regel «fremdes nie vorschlagen» wäre
+  bei der Lohnfertigung falsch; dort *ist* fremdes Material das Richtige. Das System bietet
+  an, der Mensch entscheidet — er sieht den Eigentümer an der Zeile.
+
+#### 9.16e Der Bestand — zwei Fragen, zwei Leisten, EINE Menge
+
+Die **Zustands**-Leiste teilt die Stücke nach *was passiert damit*, die **Eigentums**-
+Leiste nach *wem gehören sie*. Beide gehen über **denselben Umfang** und summieren sich
+darum auf dieselbe Zahl; täten sie es nicht, wären es zwei Auskünfte über zwei Dinge, und
+niemand könnte sie übereinander lesen.
+
+Es ist buchstäblich dasselbe Bauteil (`ValueBar`), und die zweite ist eine **Auskunft,
+kein Bedienelement**: der Durchgriff auf die Nummern gehört der ersten, und dort nennt
+jede Nummer ihren Eigentümer — aber nur, wenn er nicht uns ist. **Gehört alles uns, gibt
+es die Leiste gar nicht**: ein einziges Segment «Uns 20» über einer Leiste, die ohnehin
+die Gesamtmenge zeigt, sagt nichts. **Kein Ampelton** — fremdes Eigentum ist kein
+Problem; unterschieden wird über das **Wort** (§10.3).
+
+#### 9.16f Bewusst offen
+
+* Eine **Beistellung, die in unser Produkt verbaut wird**, macht es anteilig fremd. Das
+  ist eine Frage der **Bewertung**, nicht der Zuordnung — hier wird nichts geraten: das
+  verbaute Stück behält seinen Eigentümer, das Produkt den seinen.
+* Die **Bestandsbewertung** (wie viel Geld liegt im Regal) folgt später; der Zeiger ist
+  ihre Voraussetzung, nicht ihre Antwort.
+* Eine Mengenaussage «fremdes Material am Standort» über **alle** Artikel hinweg gibt es
+  noch nicht — die Frage stellt heute niemand, und eine Ansicht auf Verdacht wäre die
+  zweite, die man pflegen müsste.
+
+---
+
 ### 10.1 Regeln
 
 - **Nur Vergangenheit und Gegenwart.** Oberhalb der aktuellen Stelle steht, was war; an

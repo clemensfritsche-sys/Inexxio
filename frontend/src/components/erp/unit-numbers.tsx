@@ -179,6 +179,22 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
                   Stück, nicht an der Gruppe: zwei Schrauben derselben Charge dürfen an
                   zwei Orten liegen, und genau darum steht er hier und nicht oben. */}
               <PlaceTrail place={u.place} />
+              {/* ►►► **Wem es gehört – aber nur, wenn es nicht uns gehört.** ◄◄◄
+                  ``null`` heisst uns, und das ist der Normalfall: ihn an jeder von
+                  sechzig Zeilen auszusprechen wäre dasselbe Wort sechzigmal. Die Zeile
+                  ist der **Durchgriff** der Eigentums-Leiste – hier sieht man einer
+                  Beistellung an, dass sie fremd ist, bevor man sie einplant. */}
+              {u.owner ? (
+                <span className="flex items-center gap-1.5 text-[12.5px]"
+                  style={{ color: 'var(--fg-3)' }}
+                  data-tip={`Fremdes Eigentum – gehört ${u.owner.label}`}>
+                  <span className="text-fg-4">gehört</span>
+                  <ObjId value={u.owner.object_id} />
+                  <span className="truncate" style={{ maxWidth: 140 }}>
+                    {u.owner.label}
+                  </span>
+                </span>
+              ) : null}
               {(statuses ?? []).length !== 1 && (
                 <span
                   className="ml-auto flex items-center gap-1.5 text-[12.5px]"

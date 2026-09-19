@@ -142,6 +142,8 @@ export type InstanceSummary = components['schemas']['InstanceSummary'];
 export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
 // Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.
 export type StockState = components['schemas']['StockState'];
+// Wem gehört wie viel – ein Segment der **zweiten** Aufteilung derselben Stücke.
+export type OwnerShare = components['schemas']['OwnerShare'];
 // Der Bestand eines Artikels: Aufstellung über alles + eine Seite Instanzen.
 export type ArticleStock = components['schemas']['ArticleStock'];
 // Eine Seite Einzelinstanz-Nummern (Ebene 3, auf Klick).

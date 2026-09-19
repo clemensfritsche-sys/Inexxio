@@ -31,13 +31,14 @@ from ..schemas.article import (
     ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate, ArticleValidation,
     RetiredInput,
 )
-from ..schemas.instance import ArticleStock, InstanceSummary, stock_states
+from ..schemas.instance import ArticleStock, InstanceSummary, OwnerShare, stock_states
 from ..services import article_names
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import bom as bom_svc
 from ..services import instances as inst_svc
 from ..services import lookup
+from ..services import owners as owners_svc
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_version
 
@@ -238,8 +239,13 @@ def article_stock(
     )
     by_instance = inst_svc.states(db, [i.id for i in rows])
     counts = inst_svc.article_states(db, article_id=article.id)
+    # ►► **Dieselbe Menge, zweite Aufteilung** – nach Eigentümer statt nach Zustand. Sie
+    # geht bewusst über **denselben** Umfang wie ``counts``: nur dann summieren sich die
+    # beiden Leisten auf dieselbe Zahl, und nur dann lassen sie sich nebeneinander lesen.
     return ArticleStock(
         states=stock_states(counts),
+        owners=[OwnerShare(**s) for s in owners_svc.shares(
+            db, owners_svc.counts_for_article(db, article_id=article.id))],
         total=sum(counts.values()),
         instance_total=int(total_instances),
         instances=[

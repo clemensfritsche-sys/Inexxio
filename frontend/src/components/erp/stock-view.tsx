@@ -7,6 +7,7 @@ import type { ArticleStock, Instance, InstanceSummary, StockState } from '@/type
 import { statusCfg } from '@/lib/process-status';
 import { SPEC, SpecHead } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { OwnerBar } from '@/components/erp/owner-bar';
 import { StockBar } from '@/components/erp/stock-bar';
 import { UnitNumbers } from '@/components/erp/unit-numbers';
 
@@ -81,6 +82,9 @@ export function StockView({ scope }: { scope: StockScope }) {
 
   const states = scope.kind === 'article' ? stock?.states : scope.record.states;
   const total = scope.kind === 'article' ? stock?.total : scope.record.quantity;
+  // **Derselbe Umfang wie `states`** – am Artikel alle seine Stücke, an der Instanz ihre.
+  // Ein anderer Umfang wäre eine zweite Leiste, die sich auf etwas anderes summiert.
+  const owners = (scope.kind === 'article' ? stock?.owners : scope.record.owners) ?? [];
 
   if (err) {
     return (
@@ -121,6 +125,20 @@ export function StockView({ scope }: { scope: StockScope }) {
           **ein** Ausschnitt darunter. Kein Filter: was man nicht anklickt, steht
           weiterhin in der Leiste. */}
       <StockBar states={states} height={10} onPick={toggle} active={picked} />
+
+      {/* ►►► **Die zweite Aufteilung derselben Stücke: wem gehören sie?** ◄◄◄
+
+          *«Wenn Einzelinstanzen einfach freigegeben sind, obwohl sie nicht bei mir
+          liegen, dann ist das sehr verwirrend.»* – Die Leiste darüber beantwortet **was
+          passiert damit**, diese **wem gehört es**; erst beide zusammen sagen, womit man
+          wirtschaften kann. Beide gehen über denselben Umfang und summieren sich darum
+          auf dieselbe Zahl – zwei Aufteilungen einer Menge, nicht zwei Auskünfte über
+          zwei Dinge.
+
+          Sie steht **nicht** da, wenn alles uns gehört: das entscheidet der Server
+          (`owners.shares` liefert dann eine leere Liste), nicht eine Bedingung hier –
+          sonst stünde die Regel zweimal. */}
+      <div className="pt-2.5"><OwnerBar owners={owners} /></div>
 
       {unknown.length > 0 && (
         <div className="pt-3"><UnknownStates states={unknown} /></div>

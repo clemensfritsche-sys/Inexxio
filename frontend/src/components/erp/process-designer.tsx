@@ -9,7 +9,8 @@ import { api } from '@/lib/api';
 import type { ModuleCatalog, VoucherParty } from '@/types';
 import {
   CAPTURE_ICON, DEAL_DIRECTION, DEAL_ORDER_REF, DEAL_ORDER_REF_HINT, DEAL_PARTY,
-  DEAL_TASK, DEAL_TASK_HINT, dealDirection,
+  DEAL_TASK, DEAL_TASK_HINT, DEAL_TRANSFER_KEEP, DEAL_TRANSFER_KEEP_HINT,
+  DEAL_TRANSFER_MOVE, DEAL_TRANSFER_MOVE_HINT, dealDirection,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
@@ -27,7 +28,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
 import {
-  IconSwitch, Label, inputCls, numericInputProps, numericOnly,
+  IconSwitch, Label, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -573,6 +574,28 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
           aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
           onChange={(e) => onChange({ instruction: e.target.value })} />
       </div>
+      {/* ►►► **Wechselt hier der Eigentümer?** ◄◄◄
+
+          *«Haben die Einzelinstanzen das Modul passiert, steht ein Eigentümerwechsel.»* –
+          Er gehört **hierher** und nicht in ein eigenes Modul: ein Eigentumsübergang ist
+          die Folge eines Geschäfts, und das Geschäft ist dieser Beleg. Ein Modul, dessen
+          ganze Aussage eine Folge ist, beschreibt nichts, was nicht schon dasteht – genau
+          daran ist «Ausliefern» gestorben.
+
+          **An wen, steht hier nicht**: das sagt die Richtung eine Zeile weiter oben – wer
+          kassiert, gibt die Ware ab. Ein zweites Feld daneben wäre die Stelle, an der
+          jemand «Einnahme» mit «kommt zu uns» kombiniert.
+
+          **Keine Beschriftung** (#1020): die beiden Werte benennen die Entscheidung
+          selbst, und ein Wort darüber sagte nur noch einmal, was darunter steht. */}
+      <Segmented
+        value={m.transfer ? 'move' : 'keep'}
+        onChange={(v) => onChange({ transfer: v === 'move' })}
+        options={[
+          { value: 'keep', label: DEAL_TRANSFER_KEEP, hint: DEAL_TRANSFER_KEEP_HINT },
+          { value: 'move', label: DEAL_TRANSFER_MOVE, hint: DEAL_TRANSFER_MOVE_HINT },
+        ]}
+      />
       {/* ►►► **Die Sperre steht hier NICHT mehr** (Testnotiz #854). ◄◄◄
 
           Hier stand ein Schalter «Zahlung abwarten ↔ nicht abwarten» – und er sagte, was

@@ -290,6 +290,47 @@ MAX_TASK = 400
 ORDER_REF = "Wie bestellen?"
 ORDER_REF_HINT = "Seine Artikelnummer oder der Link zu seinem Shop"
 
+#: ►►► **DER EIGENTUMSÜBERGANG — eine Deklaration, kein eigenes Modul.** ◄◄◄
+#:
+#: *«Also haben die Einzelinstanzen das Modul passiert, steht ein Eigentümerwechsel. Das
+#: muss in das Zahlungsmodul hinein.»*
+#:
+#: Ein Eigentumsübergang ist die **Folge eines Geschäfts**, und das Geschäft ist dieser
+#: Beleg. Ein eigenes Modul dafür beschriebe nichts, was nicht schon dasteht – genau
+#: daran ist «Ausliefern» gestorben (§9.13): ein Scan und ein Statuswechsel, beides die
+#: Folge dessen, was die Nachbarn längst sagen.
+#:
+#: **Es ist EIN Bit, und es muss eines sein.** Abgeleitet ginge es nicht: die Positionen
+#: eines Belegs sind immer die Stücke, die davorstehen – bei einer **Vermietung** ebenso
+#: wie bei einem Verkauf, und dort bleibt die Maschine unsere. Miete, Lohn, Gebühr und
+#: eine eingekaufte Spedition sind die Regel und nicht die Ausnahme, also ist die Vorgabe
+#: **aus**: ein falsches *Ja* verschenkt stillschweigend Eigentum, ein falsches *Nein*
+#: ist eine fehlende Buchung, die jemand bemerkt, weil das Stück noch im Bestand steht.
+#:
+#: ►►► **An WEN, sagt die Richtung – kein zweites Feld.** ◄◄◄ ``collects`` beantwortet es
+#: längst: wer kassiert, gibt die Ware ab. Damit erbt jede künftige Richtung die Regel,
+#: und es gibt keine Stelle, an der jemand «Einnahme» mit «kommt zu uns» kombinieren kann.
+TRANSFER_LABEL = "Eigentum"
+TRANSFER_KEEP_WORD = "Eigentum bleibt"
+TRANSFER_MOVE_WORD = "Eigentum wechselt"
+TRANSFER_KEEP_HINT = (
+    "Die Stücke bleiben, wem sie gehören – Miete, Lohn, Gebühr, Transport, "
+    "eine Leistung an fremdem Material."
+)
+TRANSFER_MOVE_HINT = (
+    "Mit dem Passieren dieses Moduls wechselt der Eigentümer – wohin, sagt die Richtung."
+)
+
+
+def transfer_sentence(label: str) -> str:
+    """**Was auf dem Beleg über den Eigentumsübergang steht** – die eine Formulierung.
+
+    **Kein ``if`` auf die Richtung**: wer der neue Eigentümer ist, steht im Namen – bei
+    einer Einnahme die Gegenpartei, bei einer Ausgabe unsere Gesellschaft. Zwei Sätze für
+    dieselbe Aussage wären zwei Stellen, an denen einer beim nächsten Umbau stehenbleibt.
+    """
+    return f"Mit diesem Vorgang geht das Eigentum an den Positionen an «{label}» über."
+
 #: Die Nummer, unter der die **Gegenpartei** diesen Geldfluss führt. Das Feld gibt es nur,
 #: wo die Nummer von aussen kommt – eine, die **wir** vergeben, tippt niemand ab.
 PARTY_REFERENCE = "Zahlungsreferenz des Partners"

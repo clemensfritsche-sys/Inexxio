@@ -41,7 +41,34 @@ class InstanceUnitResponse(BaseModel):
     #: bringt. Aufgelöst wird die Kette je **Halter**, nicht je Stück – 60 Schrauben in
     #: einem Regal sind eine Kette, nicht sechzig.
     place: Optional[UnitPlace] = None
+    #: ►►► **Wem dieses Stück gehört** – die zweite Achse neben dem Ort. ◄◄◄
+    #:
+    #: ``None`` heisst **uns**, und das ist der Normalfall: alles, was wir erzeugen,
+    #: gehört uns, bis jemand es verkauft. Sonst steht hier die Rechtsperson, der es
+    #: gehört – eine Beistellung in unserem Regal, ein verkauftes Stück beim Kunden.
+    #:
+    #: Es ist **nicht** dasselbe wie der Ort: ein Muster beim Kunden gehört uns, eine
+    #: Beistellung bei uns gehört ihm. Und es ist kein Status: der Prozess schreibt den
+    #: bei jedem Modul, hier steht das Geschäft.
+    owner: Optional[PlaceRef] = None
     created_at: datetime
+
+
+class OwnerShare(BaseModel):
+    """**Wem gehört wie viel?** – ein Segment der Eigentums-Leiste.
+
+    ``owner_object_id = None`` heisst **uns** (das Haus); ``ours`` ist trotzdem ein
+    eigenes Feld, denn es gilt auch für eine unserer Gesellschaften: kaufen zwei von uns
+    Material, gehört jedes Stück *einer* von beiden – und beides ist «unseres». Die
+    Auflösung gehört dem **Server** (``owners.is_ours``), wie die Bestands-Zugehörigkeit
+    eines Status: eine Liste unserer Gesellschaften in der Oberfläche wäre die zweite
+    Wahrheit, und die veraltet bei der ersten neuen Gesellschaft.
+    """
+
+    owner_object_id: Optional[int] = None
+    name: str
+    ours: bool
+    quantity: int
 
 
 class StockState(BaseModel):
@@ -97,6 +124,10 @@ class InstanceResponse(BaseModel):
     label: Optional[str] = None
     quantity: int
     states: list[StockState] = []
+    #: Dieselbe zweite Aufteilung wie am Artikel, eine Ebene tiefer – damit die
+    #: Bestandsansicht an der **Instanz** dieselbe Karte zeigt wie am Artikel und nicht
+    #: eine ärmere (``StockView`` ist EIN Modul mit zwei Umfängen).
+    owners: list[OwnerShare] = []
     created_at: datetime
     updated_at: datetime
     is_active: bool
@@ -174,6 +205,18 @@ class ArticleStock(BaseModel):
     """
 
     states: list[StockState]
+    #: ►►► **Die zweite Aufteilung DERSELBEN Menge: wem gehört sie?** ◄◄◄
+    #:
+    #: *«Ich muss den globalen Überblick behalten und zugleich wissen, mit was ich als
+    #: jeweiliges Unternehmen wirtschaften kann.»* – Das sind zwei Fragen über dieselben
+    #: Stücke, und darum ist es dieselbe Gesamtzahl: ``states`` teilt sie nach **Zustand**
+    #: auf, ``owners`` nach **Eigentümer**. Summierten sie sich verschieden, wären es
+    #: zwei Auskünfte über zwei Dinge, und niemand könnte sie nebeneinander lesen.
+    #:
+    #: **Eine Liste mit einem einzigen Eintrag ist keine Aussage** – gehört alles uns,
+    #: kommt sie leer, und die Oberfläche zeigt dort nichts. Dieselbe Regel wie bei den
+    #: Zuständen: was es nicht gibt, steht nicht da.
+    owners: list[OwnerShare] = []
     total: int
     instance_total: int
     instances: list[InstanceSummary]

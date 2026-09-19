@@ -20,11 +20,11 @@ from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit, UserProfile
 from ..schemas.instance import (
     Genealogy, GenealogyHost, GenealogyPart, InstanceResponse, InstanceSummary,
-    InstanceUnitResponse, UnitPage, stock_states,
+    InstanceUnitResponse, OwnerShare, UnitPage, stock_states,
 )
 from ..schemas.place import PlaceRef, UnitPlace
 from ..services import (genealogy, instances as inst_svc, lookup,
-                        places as places_svc, process)
+                        owners as owners_svc, places as places_svc, process)
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -43,7 +43,8 @@ def _place_out(chain: list) -> UnitPlace | None:
 
 def _unit_out(instance: Instance, unit: InstanceUnit,
               holders: dict[int, int], parts: dict[int, int],
-              places: dict[int, list]) -> InstanceUnitResponse:
+              places: dict[int, list],
+              owners: dict[int, "PlaceRef"]) -> InstanceUnitResponse:
     return InstanceUnitResponse(
         id=unit.id,
         suffix=unit.suffix,
@@ -52,8 +53,27 @@ def _unit_out(instance: Instance, unit: InstanceUnit,
         order_object_id=holders.get(unit.id),
         parts_count=parts.get(unit.id, 0),
         place=_place_out(places.get(unit.id, [])),
+        # **``None`` heisst uns** – und darum wird hier nichts erfunden: die Zeile zeigt
+        # einen Eigentümer nur, wenn es einen gibt. Der Normalfall braucht kein Wort.
+        owner=owners.get(unit.id),
         created_at=unit.created_at,
     )
+
+
+def _owners_out(db: Session, units: list[InstanceUnit]) -> dict[int, PlaceRef]:
+    """Je Stück sein Eigentümer – aufgelöst **je Nummer, nicht je Zeile**.
+
+    Dieselbe Regel wie beim Ort (``places.for_units``): sechzig Schrauben eines Kunden
+    sind **eine** Auflösung. Je Zeile nachzuschlagen wäre die N+1-Falle, und sie fällt
+    ausgerechnet dort auf, wo eine Charge gross ist.
+    """
+    wanted = {u.id: owners_svc.owner_of(u) for u in units}
+    stations = places_svc.stations_for(db, [o for o in wanted.values() if o])
+    return {
+        uid: ref
+        for uid, owner in wanted.items()
+        if owner and (ref := PlaceRef.of(stations.get(owner))) is not None
+    }
 
 
 def _detail(db: Session, instance: Instance) -> InstanceResponse:
@@ -69,6 +89,10 @@ def _detail(db: Session, instance: Instance) -> InstanceResponse:
         label=instance.label,
         quantity=sum(by_status.values()),
         states=stock_states(by_status),
+        # Dieselbe zweite Aufteilung wie am Artikel – damit die Bestandsansicht an der
+        # Instanz dieselbe Karte zeigt und nicht eine ärmere (EIN Modul, zwei Umfänge).
+        owners=[OwnerShare(**s) for s in owners_svc.shares(
+            db, owners_svc.counts_for_instance(db, instance_id=instance.id))],
         created_at=instance.created_at,
         updated_at=instance.updated_at,
         is_active=instance.is_active,
@@ -164,8 +188,13 @@ def instance_units(
     # 60 Schrauben in einem Regal sind eine Kette; je Zeile aufzulösen wäre die
     # N+1-Falle, an der die Ortsanzeige des Vorgängers hing.
     places = places_svc.for_units(db, rows)
+    # **Und wem sie gehören** – dieselbe Bauart: je Eigentümer eine Auflösung, nicht je
+    # Stück. Der Durchgriff auf die Nummern ist die Stelle, an der man einer Beistellung
+    # ansehen muss, dass sie nicht unsere ist.
+    holders_by_owner = _owners_out(db, rows)
     return UnitPage(
-        units=[_unit_out(instance, u, holders, parts, places) for u in rows],
+        units=[_unit_out(instance, u, holders, parts, places, holders_by_owner)
+               for u in rows],
         total=total)
 
 

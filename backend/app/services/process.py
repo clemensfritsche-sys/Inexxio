@@ -28,7 +28,7 @@ from . import (
     article_process, articles as articles_svc, capture as capture_svc,
     consumption as consumption_svc, materialize,
     voucher as voucher_svc,
-    places as places_svc, sampling,
+    owners as owners_svc, places as places_svc, sampling,
 )
 from .instances import unit_number
 
@@ -170,6 +170,13 @@ def _pass(
     # Die Regel hängt am **Status** und steht an der EINEN Stelle, an der ein Status
     # geschrieben wird – jedes künftige Modul erbt sie, ohne eine Zeile dafür. Wer einen
     # *neuen* Ort hat, setzt ihn im selben Zug (der Verbrauch seinen Träger).
+    #
+    # ►►► **Der BESITZ hat kein Gegenstück dazu – mit Absicht.** ◄◄◄ Wer zur Historie
+    # zählt, liegt nicht mehr im Regal; **wem** er gehörte, bleibt trotzdem wahr. Ein
+    # verschrottetes Stück gehörte jemandem, als es verschrottet wurde, und ein verbautes
+    # gehört weiterhin dem, dem es gehörte – sonst verlöre eine Beistellung ihren
+    # Eigentümer genau in dem Moment, in dem sie in unser Produkt wandert. Der Ort ist
+    # eine Aussage über ein Regal, der Besitz eine über eine Rechtsperson.
     if st.stock_kind(status_after) == st.HISTORY:
         places_svc.forget(db, units)
     return len(units)
@@ -1089,7 +1096,29 @@ def confirm_step(
     # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
     # ein Geldvorgang (``domain/voucher``) – dieses Modul sagt allein, wohin.
     moved = places_svc.apply_for_step(db, step=step, units=units, target=place)
-    marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
+
+    # ►► **Und wem gehören sie danach?** ◄◄
+    #
+    # Derselbe Aufruf für **jedes** Modul, ohne Frage nach dem Typ – wie beim Ort: was
+    # nichts überträgt, gibt nichts zurück. Die **Antwort** kommt vom Fach-Dienst, weil
+    # nur er die Gegenpartei kennt; die **Schreibstelle** (``services/owners``) weiss von
+    # keinem Zahlungsmodul, und dieser Ablauf weiss nicht, wem etwas gehört.
+    #
+    # ►►► **Es gibt dafür kein eigenes Modul.** ◄◄◄ Ein Eigentumsübergang ist die Folge
+    # eines Geschäfts, und das Geschäft ist der Beleg – genau daran ist «Ausliefern»
+    # gestorben (§9.13). Wo im Prozess er passiert, entscheidet damit der Modellierer:
+    # steht die Zahlung vor dem Bewegen, wechselt das Eigentum vor der Lieferung; steht
+    # sie danach, ist es der Eigentumsvorbehalt. **Die Reihenfolge IST der Prozess.**
+    #
+    # Geschrieben wird **vor** ``_pass``, wie der Ort: der Übergang reist als Payload in
+    # den Ereignis-Log und steht damit dort, wo die Historie ohnehin steht (§7.2).
+    owned = owners_svc.apply_for_step(
+        db, units=units, move=voucher_svc.transfer_for(db, step=step))
+    marks = {
+        u.id: {"verification": verification,
+               **moved.get(u.id, {}), **owned.get(u.id, {})}
+        for u in units
+    }
 
     # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
     #

@@ -341,6 +341,16 @@ class VoucherEmbed(BaseModel):
     #: Spezifikation»: der Beleg sagt über seine Positionen längst, *was* es ist.
     task_label: str = ""
     task: str = ""
+    #: ►►► **Wechselt mit diesem Vorgang das Eigentum – und an wen?** ◄◄◄
+    #:
+    #: Ein fertiger **Satz** und kein Bit: *an wen* hängt an der Richtung und am
+    #: Adressaten, und beides weiss der Server. Die Karte fragt keine Richtung ab und
+    #: baut keinen Satz – sonst stünde die Regel ein zweites Mal im Browser.
+    #:
+    #: ``None`` heisst «das Eigentum bleibt, wem es gehört» – der Normalfall (Miete,
+    #: Lohn, Gebühr, Transport). Dann steht dort **nichts**: eine Selbstverständlichkeit
+    #: auszusprechen kostet eine Zeile und sagt nichts.
+    transfer: Optional[str] = None
     #: **Wie bestellen?** – die Beschriftung der Angabe an **einer Partner-Zeile**. Sie
     #: steht auch, wo es die Angabe nicht gibt: was der Beleg **anbietet**, entscheidet
     #: das Feld selbst (``quotes[].ref``), nicht eine zweite Bedingung daneben.

@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, X } from 'lucide-react';
+import {
+  ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, UserRound, X,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
@@ -631,8 +633,13 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
               // (Abweichungsauftrag §3.5). **Ein verbautes ebenso** – das Greifen IST der
               // Ausbau. Gesagt wird es trotzdem: was der Klick bewirkt, gehört vor den
               // Klick, nicht danach.
+              // ►►► **Und wem es gehört, ist die dritte Angabe derselben Art.** ◄◄◄
+              // Kein Hindernis – eine Beistellung wird verarbeitet, ein verkauftes Stück
+              // zurückgenommen –, aber es gehört **vor** den Klick: hier entscheidet
+              // sich, mit wessen Material gearbeitet wird.
               const why = o.in_order
                 ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – daraus wird eine Abweichung`
+                : o.owner_name ? `Gehört ${o.owner_name} – fremdes Eigentum`
                 : !o.available ? `Steht auf «${statusLabel(o.status)}»`
                   : !o.in_stock ? `Steht auf «${statusLabel(o.status)}» – liegt nicht im Regal und müsste erst ausgebaut werden`
                     : undefined;
@@ -650,6 +657,14 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
                   <span style={{ minWidth: 110 }}><UnitNumber value={o.number} /></span>
                   <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
                   <span style={{ color: statusCfg(o.status).color }}>{statusLabel(o.status)}</span>
+                  {/* **Leer heisst uns** – der Normalfall bekommt kein Wort; genannt
+                      wird nur, was eine Aussage ist. */}
+                  {o.owner_name && (
+                    <span className="inline-flex items-center gap-1 truncate"
+                      style={{ color: 'var(--fg-3)', maxWidth: 120 }}>
+                      <UserRound size={11} style={{ flex: 'none' }} />{o.owner_name}
+                    </span>
+                  )}
                   {o.in_order && (
                     <span className="inline-flex items-center gap-1 ix-tnum"
                       style={{ color: 'var(--warning)' }}>

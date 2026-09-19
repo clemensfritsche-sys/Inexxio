@@ -366,6 +366,28 @@ def i15(db: Session) -> list[str]:
     return out
 
 
+@_check("I16", "Ein Eigentümer ist eine Rechtsperson",
+        "Besitzen kann nur ein Benutzer oder ein Unternehmen – ein Regal hält Schrauben, "
+        "es besitzt sie nicht. Geprüft am ZEIGER, nicht an der Absicht: "
+        "``owners.assert_ownable`` weist das beim Schreiben ab, aber ein Fremdschreiber "
+        "kennt sie nicht.")
+def i16(db: Session) -> list[str]:
+    # **Gesucht wird der Widerspruch**, nicht die gültige Menge: eine Nummer, die in
+    # `objects` steht, aber weder Benutzer noch Unternehmen ist – oder gar nicht existiert.
+    rows = db.execute(text(f"""
+        SELECT u.id, u.owner_object_id
+          FROM instance_units u
+         WHERE u.owner_object_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM user_profiles p
+                            WHERE p.object_id = u.owner_object_id)
+           AND NOT EXISTS (SELECT 1 FROM company_settings c
+                            WHERE c.object_id = u.owner_object_id)
+         LIMIT {LIMIT + 1}
+    """)).all()
+    return [f"Einzelinstanz #{uid}: Eigentümer {owner} ist weder Person noch Unternehmen"
+            for uid, owner in rows]
+
+
 # ---------------------------------------------------------------------------
 # Aufruf
 # ---------------------------------------------------------------------------

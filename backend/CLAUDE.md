@@ -922,6 +922,67 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > die Stelle, an der eines beim Umbenennen stehenbleibt.
 > Wächter: ``tests/test_voucher_module.py`` (2 neue, **11 Bug-Formen gegengeprüft**).
 
+> ►►► **WEM GEHÖRT DAS STÜCK — `instance_units.owner_object_id`** (Migration `138`,
+> `services/owners.py`, `docs/arbeitsauftrag-besitz.md`). ◄◄◄
+>
+> **Besitz ist kein Status.** Der Status ist die **Prozess**-Achse und hat damit schon
+> einen Chef, der bei jedem Modul schreibt; das Geschäft schreibt einmal. «Verkauft» dort
+> hineinzulegen heisst, dass der Prozess es beim nächsten Schritt überschreibt – und
+> solange ein Auftrag läuft, steht dort völlig zu Recht `Im Prozess`. Also dieselbe Bauart
+> wie der **Ort**: ein Zeiger, den keine Prozessregel liest.
+>
+> * **`NULL` heisst «uns»** – regulär, kein fehlender Wert, kein Backfill.
+> * **Sonst die Objektnummer einer Rechtsperson** (Benutzer · Unternehmen). Kein Typfeld
+>   daneben; *wer besitzen kann, ist wer eine **Anschrift** trägt* – dieselbe Menge wie
+>   `places.ADDRESS_HOLDERS`, und die Auflösung wird **geteilt** (`places.stations_for`),
+>   nicht nachgebaut.
+> * **Zeigt sie auf eine unserer Gesellschaften**, gehört das Stück *dieser* – ein Zeiger
+>   beantwortet «gehört es uns?» **und** «welcher von uns?» (`owners.is_ours`/`ours`).
+> * **Keine Zyklen möglich**: ein Eigentümer ist nie wieder ein Stück.
+>
+> **`services/owners.py` ist die EINE Schreibstelle** (Quelltext-Wächter über `app/`) und
+> **importiert kein Zahlungsmodul**: `apply_for_step(units, move)` bekommt die Antwort
+> «an wen» als Parameter. Die fachliche Antwort gibt `voucher.transfer_for(step)` –
+> `None` für jedes andere Modul, denn `of_step` findet dort keinen Beleg.
+>
+> **Ausgelöst wird er vom Zahlungsmodul, und ein eigenes Modul gibt es nicht** (§9.13):
+> `Beleg.TRANSFER` ist ein Bit, Vorgabe **aus**, gelesen über die Eigenschaft
+> `Module.transfers_ownership(config)` – die Ausführungsstelle fragt sie und nie den
+> Modultyp. Es ist **nicht ableitbar**: die Positionen sind immer die Stücke davor, auch
+> bei einer Vermietung. **An wen, sagt `Direction.collects`** – kein zweites Feld: Einnahme
+> → Gegenpartei, Ausgabe → `issuer_company`. Fehlt bei einer Einnahme die Gegenpartei, ist
+> das ein **Satz** (409) und kein stiller Nicht-Effekt.
+>
+> **Der vierte Berührungspunkt im Rahmen** steht neben den drei bestehenden und ist
+> dieselbe Bauart wie `places.apply_for_step`: eine Zeile in `confirm_step`, **vor**
+> `_pass`, und der Übergang reist als Payload (`owner: {from, to, label}`) in den
+> `step`-Eintrag des Logs. **`places.forget` bekommt kein Gegenstück** – wer zur Historie
+> zählt, verliert seinen *Ort*, nicht sein *Eigentum*.
+>
+> **Gelesen wird in zwei Körnungen** (`owners.counts_for_article`/`counts_for_instance`,
+> beide über **denselben** Umfang wie `instances.article_states`/`states`) und zu Segmenten
+> gemacht von `owners.shares` – die **leer** zurückkommt, wenn es nur einen Eigentümer
+> gibt: eine Liste mit einem Eintrag ist keine Aussage. `schemas.instance.OwnerShare` trägt
+> `ours` vom **Server**, wie die Bestands-Zugehörigkeit eines Status.
+> Dazu `InstanceUnitResponse.owner` (die Zeile) und `UnitOption.owner_name` (die Auswahl);
+> die **FIFO-Vorauswahl bleibt unberührt** – bei der Lohnfertigung *ist* fremdes Material
+> das Richtige.
+>
+> Wächter: `tests/test_ownership.py` (12 Prüfungen, 14 Bug-Formen gegengeprüft) +
+> Invariante **I16** («ein Eigentümer ist eine Rechtsperson», geprüft am **Widerspruch**:
+> eine Nummer, die weder Benutzer noch Unternehmen ist).
+
+> ►►► **Und ein Fund im eigenen Netz: die Reflexion CACHET.** ◄◄◄
+> `main._ensure_columns` legt einen `Inspector` an und liest ihn in **fünf** Schleifen –
+> Spalten, Numerik, Nullable, Drop, Index. Der `Inspector` hält `get_columns` je Tabelle
+> aber **fest**: jede Schleife nach dem Spalten-Netz bekam den Stand **vor** ihm, obwohl
+> der Kommentar dort das Gegenteil verspricht. Latent, solange keine Runde auf derselben
+> Tabelle eine Spalte anlegt **und** etwas darauf aufbaut; Migration `138` tut genau das,
+> und **gemessen fehlte der Index danach** (dieselbe Ausfallklasse wie #778, nur eine Ebene
+> tiefer – das Netz war da und hat nichts gefangen). `insp.clear_cache()` nach dem
+> Spalten-Netz behebt es für **alle** folgenden, nicht nur für das, das es gerade getroffen
+> hat.
+
 ## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
 
 Drei Netze, drei verschiedene Fänge: die **Migration** ist die Wahrheit · `create_all` im

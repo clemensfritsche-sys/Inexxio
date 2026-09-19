@@ -614,6 +614,18 @@ class UnitOption(BaseModel):
     #: **Liegt es im Regal?** Die Frage, die FIFO stellt – siehe Klassen-Docstring.
     in_stock: bool = False
     in_order: Optional[int] = None
+    #: ►►► **Wem gehört es?** ``None`` heisst **uns**. ◄◄◄
+    #:
+    #: Die dritte Frage an derselben Zeile, und sie ist **kein Hindernis**: eine
+    #: Beistellung wird verarbeitet, ein verkauftes Stück zurückgenommen – beides sind
+    #: Aufträge, die genau dieses Stück greifen müssen. Sie steht hier, damit die
+    #: Oberfläche sagen kann, **mit wessen Material** gearbeitet wird, statt es geschehen
+    #: zu lassen; dieselbe Begründung wie bei ``in_order``.
+    #:
+    #: **Die Vorauswahl bleibt davon unberührt.** Eine Regel «fremdes nie vorschlagen»
+    #: wäre bei der Lohnfertigung falsch – dort *ist* fremdes Material das Richtige. Das
+    #: System bietet an, der Mensch entscheidet.
+    owner_name: Optional[str] = None
 
 
 class UnitChoices(BaseModel):

@@ -9693,3 +9693,115 @@ def test_every_css_variable_is_defined_somewhere():
         "Diese CSS-Variablen werden benutzt, aber nirgends definiert – sie erzeugen "
         f"stillschweigend nichts: {missing}"
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DER BESITZ — ein zweiter Zeiger, gesetzt vom Zahlungsmodul
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_ownership_words_are_mirrored_not_invented():
+    """►►► **Die beiden Woerter stehen im Backend, der Editor spiegelt sie.** ◄◄◄
+
+    «Eigentum bleibt» ↔ «Eigentum wechselt» benennen die **Entscheidung** – darum braucht
+    der Schieber keine Beschriftung darueber (#1020). Erfunden werden sie hier nicht: der
+    Satz auf dem Beleg baut derselbe Katalog (`domain/voucher.transfer_sentence`), und
+    zwei Fassungen desselben Wortes laufen beim ersten Umbenennen auseinander.
+
+    Bug-Form: der Editor schreibt seine eigenen Woerter hin.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "backend"))
+    from app.domain import voucher as vo
+
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    for word in (vo.TRANSFER_KEEP_WORD, vo.TRANSFER_MOVE_WORD):
+        assert word in src, (
+            f"«{word}» steht im Backend, aber nicht im Spiegel – dann heisst dieselbe "
+            f"Wahl an zwei Stellen verschieden.")
+
+
+def test_the_ownership_switch_asks_no_direction():
+    """►►► **An WEN das Eigentum geht, fragt die Oberflaeche nicht.** ◄◄◄
+
+    Das sagt die Richtung (`Direction.collects`), und der Beleg liefert den fertigen Satz
+    (`VoucherEmbed.transfer`). Ein `if direction ===` im Editor oder in der Karte waere
+    die Regel ein zweites Mal – und die zweite Fassung ist die, die beim naechsten Umbau
+    stehenbleibt.
+
+    Bug-Form: die Karte baut den Satz selbst («geht an » + Name).
+    """
+    card = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    assert "Eigentum" not in card, (
+        "Die Beleg-Karte formuliert etwas ueber das Eigentum selbst. Der Satz kommt "
+        "fertig vom Server – hier wird gezeichnet, nicht entschieden.")
+    # **Gefragt ist das RENDERN, nicht das Vorkommen.** «`d.transfer` steht irgendwo im
+    # Rumpf» ist schon erfuellt, wenn die Bedingung davor auf `false` steht – gemessen:
+    # die Bug-Form «der Block wird nie gezeichnet» kam genau so durch.
+    body = _component(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"), "Goods")
+    assert re.search(r"\{d\.transfer\s*&&\s*\(", body), (
+        "Die Positionen zeichnen den Eigentumsuebergang nicht bedingt aus `d.transfer` – "
+        "dann bewegt dieser Vorgang das Eigentum unbemerkt.")
+
+
+def test_the_owner_bar_is_information_not_a_control():
+    """►►► **Zwei Leisten, aber nur EINE oeffnet einen Ausschnitt.** ◄◄◄
+
+    Der Durchgriff auf die Nummern gehoert der **Zustands**-Leiste; dort nennt jede Zeile
+    ihren Eigentuemer. Zwei Leisten mit je einem Auswahlzustand ueber derselben Liste
+    waeren zwei Antworten auf «welcher Ausschnitt gilt jetzt».
+
+    Bug-Form: die Eigentums-Leiste bekommt ein `onPick` – dann gibt es zwei offene
+    Ausschnitte und keine Regel, welcher gewinnt.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "owner-bar.tsx"))
+    assert "onPick" not in src, (
+        "Die Eigentums-Leiste ist ein Bedienelement geworden – sie ist eine Auskunft.")
+    assert "var(--danger)" not in src and "statusCfg" not in src, (
+        "Sie benutzt die Ampeltoene. Fremdes Eigentum ist kein Problem – eine "
+        "Beistellung ist der Normalfall der Lohnfertigung.")
+
+
+def test_the_stock_card_shows_both_bars_over_the_same_pieces():
+    """►►► **Der globale Ueberblick UND «womit kann ich wirtschaften».** ◄◄◄
+
+    Beide Leisten lesen denselben Umfang (am Artikel alle seine Stuecke, an der Instanz
+    ihre) – nur dann summieren sie sich auf dieselbe Zahl und lassen sich uebereinander
+    lesen.
+
+    Bug-Formen: (a) die zweite Leiste fehlt; (b) sie liest einen anderen Umfang als die
+    erste.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "stock-view.tsx")
+    assert "<OwnerBar" in src, (
+        "(a) Die Eigentums-Leiste fehlt – dann sagt die Karte «Freigegeben 12», ohne zu "
+        "sagen, dass fuenf davon dem Kunden gehoeren.")
+    code = _code(src)
+    assert "scope.kind === 'article' ? stock?.owners : scope.record.owners" in code, (
+        "(b) Die beiden Leisten lesen verschiedene Umfaenge – dann summieren sie sich "
+        "auf zwei Zahlen, und niemand kann sie nebeneinander lesen.")
+
+
+def test_the_owner_is_named_only_when_it_is_not_us():
+    """►►► **``null`` heisst uns, und das spricht niemand aus.** ◄◄◄
+
+    Der Normalfall bekommt kein Wort: ihn an jeder von sechzig Zeilen zu nennen waere
+    dasselbe Wort sechzigmal. Genannt wird, was eine **Aussage** ist.
+
+    Bug-Form: die Zeile zeigt «Uns» an jedem Stueck – dann ist die eine Zeile, auf die es
+    ankommt, nicht mehr zu finden.
+    """
+    for name in ("unit-numbers.tsx", "definition-lines.tsx"):
+        src = _code(_read(FRONTEND / "components" / "erp" / name))
+        assert "'Uns'" not in src and '"Uns"' not in src, (
+            f"{name} schreibt «Uns» an eine Zeile – der Normalfall braucht kein Wort.")
+    # **Gefragt ist das bedingte RENDERN, nicht das Vorkommen des Namens.** «`o.owner_name`
+    # steht irgendwo» ist schon durch den Hover-Satz erfuellt – gemessen: die Bug-Form «die
+    # Zeile zeigt ihn gar nicht» kam genau so durch.
+    numbers = _code(_read(FRONTEND / "components" / "erp" / "unit-numbers.tsx"))
+    assert re.search(r"\{u\.owner\s*\?", numbers), (
+        "Die Nummern nennen ihren Eigentuemer nicht – und genau dort ist der Durchgriff "
+        "der Eigentums-Leiste.")
+    picks = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    assert re.search(r"\{o\.owner_name\s*&&\s*\(", picks), (
+        "Die Auswahl-Liste zeigt den Eigentuemer nicht – dort entscheidet sich, mit "
+        "wessen Material gearbeitet wird.")

@@ -38,6 +38,7 @@ from ..services import consumption as consumption_svc
 from ..services import voucher as voucher_svc
 from ..services import flow as flow_svc
 from ..services import lookup
+from ..services import owners as owners_svc
 from ..services import places as places_svc
 from ..services import record as record_svc
 from ..services import journey as journey_svc
@@ -575,6 +576,9 @@ def _unit_options(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
     Seite stehen (``ix_order_units_instance_unit_id``).
     """
     ids = [u.id for u, _i, _a in rows]
+    # **Wem gehören sie?** – eine Auflösung je Eigentümer, nicht je Zeile (dieselbe
+    # Regel wie beim Ort). Sechzig Stücke eines Kunden sind ein Name.
+    owned = owners_svc.names_for(db, [u.owner_object_id for u, _i, _a in rows])
     running = {
         m.instance_unit_id: o.object_id
         for m, o in db.query(OrderUnit, Order)
@@ -595,6 +599,10 @@ def _unit_options(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
             # **Und die zweite, die FIFO stellt**: liegt es im Regal? Verbaut heisst nein.
             in_stock=st.stock_kind(unit.status) == st.LIVE,
             in_order=running.get(unit.id),
+            # **Leer heisst uns** – der Normalfall bekommt kein Wort; genannt wird nur,
+            # was eine Aussage ist.
+            owner_name=(owned.get(int(unit.owner_object_id))
+                        if unit.owner_object_id else None),
         )
         for unit, instance, art in rows
     ]

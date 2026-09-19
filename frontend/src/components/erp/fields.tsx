@@ -1079,7 +1079,16 @@ export function Segmented({ label, value, onChange, options, required }: {
    * dafür**: ohne Beschriftung gibt es die Zeile nicht, statt dass sie leer dasteht.
    */
   label?: string; value: string; onChange: (v: string) => void;
-  options: { value: string; label: string; icon?: LucideIcon }[];
+  /**
+   * ►►► **`hint` ist die Erklärung, nicht die Beschriftung.** ◄◄◄
+   *
+   * Sie steht im **Hover** – die ERP-Regel des Hauses –, und sie ist freiwillig: wo eine
+   * Wahl für sich spricht («Bar» ↔ «Überweisung»), gibt es nichts zu erklären. Wo sie
+   * eine **Folge** hat, die man dem Wort nicht ansieht (ob ein Vorgang Eigentum
+   * überträgt), ist ein Satz beim Zeigen genau der richtige Ort: er kostet keine Zeile
+   * und ist da, wenn man ihn braucht. Dieselbe Bauart wie bei `IconSwitch`.
+   */
+  options: { value: string; label: string; icon?: LucideIcon; hint?: string }[];
   required?: boolean;
 }) {
   const tucked = options.some((o) => o.icon);
@@ -1097,6 +1106,7 @@ export function Segmented({ label, value, onChange, options, required }: {
               onClick={() => onChange(o.value)}
               aria-label={o.label}
               aria-pressed={active}
+              data-tip={o.hint}
               style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 gap: 6,

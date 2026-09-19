@@ -44,7 +44,7 @@ from ..models import (
     UserProfile, Voucher, VoucherAllocation, VoucherEntry, VoucherLine, VoucherQuote,
 )
 from ..models.process_event import KIND_START, KIND_STEP
-from . import address, lookup, people, qrbill, sites
+from . import address, lookup, owners, people, qrbill, sites
 
 #: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
 #: ERP, und dort steht der ganze Auftrag.
@@ -1719,6 +1719,65 @@ def finish(db: Session, *, order: Order, step: ProcessStep) -> None:
     db.flush()
 
 
+def transfer_for(db: Session, *, step: ProcessStep) -> Optional[owners.Transfer]:
+    """►►► **Wechselt hier der Eigentümer – und an wen?** ◄◄◄ Der vierte Berührungspunkt.
+
+    ``None`` heisst «nichts zu tun», und das ist die Antwort für **jedes** andere Modul:
+    ``of_step`` findet dort keinen Beleg, und die Ausführungsstelle bekommt eine leere
+    Auskunft, ohne nach dem Modultyp zu fragen.
+
+    **An wen, sagt die Richtung** (``collects``) – nicht ein zweites Feld:
+
+    * **Einnahme** (wir kassieren) → die **Gegenpartei** des Belegs. Wer kassiert, gibt
+      die Ware ab.
+    * **Ausgabe** (wir zahlen) → **unsere** Gesellschaft, und zwar die, die den Beleg
+      stellt (``issuer_company``). Damit beantwortet derselbe Zeiger auch «welche von
+      uns» – die Frage, die es ohne mehrere Gesellschaften gar nicht gäbe.
+
+    **Die Gegenpartei muss dastehen.** Ab der Zusage tut sie das immer (``_agree`` setzt
+    die gewählte Zeile in einem Zug mit der Stufe), und vor der Zusage kommt hier niemand
+    an: ``assert_completable`` weist ein Modul in der Stufe ``offer`` ab. Bleibt sie
+    trotzdem leer, ist das ein **Satz** und kein stiller Nicht-Effekt – Eigentum, das
+    niemandem übertragen wird, wäre eine verlorene Buchung.
+    """
+    row = of_step(db, step.id)
+    if row is None or not modules.get(step.module_type).transfers_ownership(step.config):
+        return None
+    flow = vo.of(row.direction)
+    if flow.collects:
+        party = party_of(db, row)
+        if party is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(f"«{flow.label}»: das Eigentum soll wechseln, aber es steht "
+                        f"kein {vo.PARTY} fest. Erst zusagen, dann übertragen."),
+            )
+        return owners.Transfer(to=int(party))
+    company = issuer_company(db, row)
+    return owners.Transfer(to=int(company.object_id) if company and company.object_id
+                           else None)
+
+
+def transfer_note(db: Session, row: Voucher, step: ProcessStep) -> Optional[str]:
+    """**Was auf dem Beleg über den Eigentumsübergang steht** – oder ``None``.
+
+    Eine **Auskunft**, kein Feld: entschieden wird es beim Modellieren, hier wird es
+    gelesen. Sie steht auch dann da, wenn die Gegenpartei noch fehlt – dann nennt sie den
+    Umstand statt einen Namen zu erfinden; wer den Beleg schreibt, soll vorher wissen,
+    dass dieser Schritt das Eigentum bewegt.
+    """
+    if not modules.get(step.module_type).transfers_ownership(step.config):
+        return None
+    flow = vo.of(row.direction)
+    if flow.collects:
+        party = party_of(db, row)
+        label = (_named(db, [party])[0]["name"] if party else None)
+    else:
+        company = issuer_company(db, row)
+        label = sites.legal_name(company) if company else None
+    return vo.transfer_sentence(label or vo.PARTY)
+
+
 def service_day(db: Session, step: ProcessStep) -> Optional[date]:
     """►►► **Wann wurde die Leistung erbracht?** – aus dem Prozess, nicht getippt. ◄◄◄
 
@@ -2360,6 +2419,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # bestellt, steht an seiner Zeile – und nur, wo wir bestellen.
         "task_label": vo.TASK,
         "task": modules.Beleg.instruction_of(step.config),
+        # ►►► **Dass dieser Vorgang das Eigentum bewegt, muss auf dem Beleg stehen.**◄◄◄
+        # Eine **Auskunft**, kein Feld: entschieden wird es beim Modellieren – und wer
+        # den Beleg schreibt, soll vorher wissen, dass dieser Schritt mehr tut als Geld
+        # buchen. ``None`` heisst «das Eigentum bleibt, wem es gehört»; dann steht dort
+        # nichts, statt eine Selbstverständlichkeit auszusprechen.
+        "transfer": transfer_note(db, row, step),
         "order_label": vo.ORDER_REF,
         # **Das Wort der Gegenhandlung hängt an DEN HANDLUNGEN DIESES BETRACHTERS**, nicht
         # an der Stufe: sonst liest eine Gegenpartei «Auftrag stornieren» an einem Knopf,

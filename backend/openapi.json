@@ -4098,6 +4098,14 @@
             "type": "array",
             "title": "States"
           },
+          "owners": {
+            "items": {
+              "$ref": "#/components/schemas/OwnerShare"
+            },
+            "type": "array",
+            "title": "Owners",
+            "default": []
+          },
           "total": {
             "type": "integer",
             "title": "Total"
@@ -5939,6 +5947,14 @@
             "title": "States",
             "default": []
           },
+          "owners": {
+            "items": {
+              "$ref": "#/components/schemas/OwnerShare"
+            },
+            "type": "array",
+            "title": "Owners",
+            "default": []
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -6087,6 +6103,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UnitPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceRef"
               },
               {
                 "type": "null"
@@ -6653,6 +6679,41 @@
         ],
         "title": "OrderValidation",
         "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
+      },
+      "OwnerShare": {
+        "properties": {
+          "owner_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ours": {
+            "type": "boolean",
+            "title": "Ours"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "ours",
+          "quantity"
+        ],
+        "title": "OwnerShare",
+        "description": "**Wem gehört wie viel?** – ein Segment der Eigentums-Leiste.\n\n``owner_object_id = None`` heisst **uns** (das Haus); ``ours`` ist trotzdem ein\neigenes Feld, denn es gilt auch für eine unserer Gesellschaften: kaufen zwei von uns\nMaterial, gehört jedes Stück *einer* von beiden – und beides ist «unseres». Die\nAuflösung gehört dem **Server** (``owners.is_ours``), wie die Bestands-Zugehörigkeit\neines Status: eine Liste unserer Gesellschaften in der Oberfläche wäre die zweite\nWahrheit, und die veraltet bei der ersten neuen Gesellschaft."
       },
       "PasskeyLoginResult": {
         "properties": {
@@ -7909,6 +7970,17 @@
               }
             ],
             "title": "In Order"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
           }
         },
         "type": "object",
@@ -9263,6 +9335,17 @@
             "type": "string",
             "title": "Task",
             "default": ""
+          },
+          "transfer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer"
           },
           "order_label": {
             "type": "string",

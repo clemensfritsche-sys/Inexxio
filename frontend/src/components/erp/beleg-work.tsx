@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
-  AlertTriangle, Check, CircleSlash, ClipboardList,
+  AlertTriangle, ArrowLeftRight, Check, CircleSlash, ClipboardList,
   CreditCard, Eraser, FileText, Loader2, Plus, RotateCcw, Send, Undo2,
   Wallet, X,
 } from 'lucide-react';
@@ -1037,6 +1037,24 @@ function Goods({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send
             <span style={{ ...MICRO_LABEL, flex: 'none' }}>{d.task_label}</span>
             <span style={{ fontSize: 12.5, color: 'var(--fg-2)', minWidth: 0 }}>
               {d.task}
+            </span>
+          </div>
+        )}
+        {/* ►►► **Wechselt hier das Eigentum?** ◄◄◄ Es handelt von **diesen** Positionen,
+            also steht es hier – und es steht da, weil dieser Schritt mehr tut, als Geld
+            zu buchen: wer den Beleg schreibt, soll es vorher wissen.
+
+            Eine **Auskunft**, kein Feld: entschieden wird es beim Modellieren. Und ein
+            fertiger **Satz** vom Server – *an wen* hängt an Richtung und Adressat, und
+            beides weiss er; hier gebaut stünde die Regel ein zweites Mal im Browser.
+            Bleibt das Eigentum, steht hier **nichts**: eine Selbstverständlichkeit
+            auszusprechen kostet eine Zeile und sagt nichts. */}
+        {d.transfer && (
+          <div className="flex" style={{ gap: 8, minWidth: 0,
+                                         paddingTop: 2, alignItems: 'baseline' }}>
+            <ArrowLeftRight size={13} style={{ flex: 'none', color: 'var(--accent)' }} />
+            <span style={{ fontSize: 12.5, color: 'var(--fg-2)', minWidth: 0 }}>
+              {d.transfer}
             </span>
           </div>
         )}

@@ -166,6 +166,25 @@ export const DEAL_TASK_HINT =
 export const DEAL_ORDER_REF = 'Wie bestellen?';
 export const DEAL_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
 
+/**
+ * ►►► **Der Eigentumsübergang — zwei Werte, die die Entscheidung benennen.** ◄◄◄
+ *
+ * Nicht «Eigentumsübergang: ja/nein»: ein Wert, der die *Entscheidung* nennt, liest sich
+ * ohne die Beschriftung darüber (dieselbe Lehre wie bei «Zahlung abwarten», #834). Damit
+ * braucht der Schieber keine – und eine Zeile, die nur wiederholt, was darunter steht,
+ * gibt es dann gar nicht (#1020).
+ *
+ * **An wen** steht hier nicht: das sagt die Richtung, und der Beleg schreibt den Satz
+ * (`VoucherEmbed.transfer`). Gespiegelt von `domain/voucher.TRANSFER_*`.
+ */
+export const DEAL_TRANSFER_KEEP = 'Eigentum bleibt';
+export const DEAL_TRANSFER_MOVE = 'Eigentum wechselt';
+export const DEAL_TRANSFER_KEEP_HINT =
+  'Die Stücke bleiben, wem sie gehören – Miete, Lohn, Gebühr, Transport, '
+  + 'eine Leistung an fremdem Material.';
+export const DEAL_TRANSFER_MOVE_HINT =
+  'Mit dem Passieren dieses Moduls wechselt der Eigentümer – wohin, sagt die Richtung.';
+
 /** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`deal.of`). */
 export function dealDirection(direction: string | undefined | null) {
   return DEAL_DIRECTION[direction ?? ''] ?? DEAL_DIRECTION.out;
@@ -451,6 +470,18 @@ export interface ModuleDraft {
    * zwei Fragen auf einmal – beim Verkauf eine, die niemand beantworten kann.
    */
   instruction: string;
+  /**
+   * ►►► **Nur «Zahlung»: wechselt hier der EIGENTÜMER?** ◄◄◄
+   *
+   * Ein Eigentumsübergang ist die **Folge eines Geschäfts**, und das Geschäft ist dieser
+   * Beleg – ein eigenes Modul dafür beschriebe nichts, was nicht schon dasteht (genau
+   * daran ist «Ausliefern» gestorben).
+   *
+   * **An wen, sagt die Richtung** – kein zweites Feld: wer kassiert, gibt die Ware ab.
+   * Und **die Vorgabe ist aus**: ein Zahlungsmodul ist auch Miete, Lohn, Gebühr und
+   * Spedition, und dort bleibt alles, wem es gehört.
+   */
+  transfer: boolean;
   /*
    * ►►► **`prepaid` ist entfallen** (Testnotiz #854). ◄◄◄
    *
@@ -524,11 +555,16 @@ const MONEY_FORM = {
       party: Number(r.party ?? r), ref: String(r.ref ?? ''),
     })).filter((r) => Number.isFinite(r.party)),
     instruction: String(c.instruction ?? ''),
+    // **Tolerant gelesen**: eine Definition aus der Zeit davor kennt den Schlüssel nicht
+    // und bedeutet **nein** – genau das, was sie bisher getan hat. Ein freigegebener
+    // Prozess ist eingefroren, und an ihm darf sich rückwirkend nichts ändern.
+    transfer: c.transfer === true,
   }),
   config: (m: ModuleDraft) => ({
     direction: m.direction,
     parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
     instruction: m.instruction.trim(),
+    transfer: m.transfer,
   }),
 };
 
@@ -648,6 +684,10 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
     // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
     direction: 'in', parties: [], instruction: '',
+    // **Die sichere Vorgabe ist die, bei der nichts geschieht**: ein falsches *Ja*
+    // verschenkt stillschweigend Eigentum, ein falsches *Nein* ist eine fehlende
+    // Buchung, die jemand bemerkt – das Stück steht noch im eigenen Bestand.
+    transfer: false,
   };
 }
 
