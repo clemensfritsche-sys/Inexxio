@@ -269,6 +269,11 @@ noch **Zahlungen**. Ohne Mapping und ohne Leser stehen damit still:
 | `voucher_entries.reason` | `137` | der «Grund» war die Belegart mit anderem Namen (#1021) |
 | **Tabelle** `voucher_allocations` | `137` | die modulinterne Sammelzahlung ist gegenstandslos (siehe unten) |
 
+**`kind` bleibt dabei bis zuletzt stehen**, und das ist kein Versehen: der Backfill
+(`domain/voucher.invoice_backfill_sql`) liest sie – auf **dev** läuft er erst beim
+nächsten Start, weil dort kein `alembic upgrade head` fährt. Gedroppt wird sie also erst,
+wenn jede Umgebung ihn einmal gesehen hat.
+
 Sie fallen im **Folge-Deploy** – Zwei-Deploy-Regel; bis dahin sind die Werte lesbar. Die
 **Tabelle** bleibt darüber hinaus so lange stehen, bis klar ist, dass niemand ihre
 Historie braucht: ein Tabellen-Drop kostet die Vergangenheit.

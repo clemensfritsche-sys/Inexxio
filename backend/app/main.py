@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .domain import statuses as st
+from .domain import voucher as vo
 from .models import UserProfile
 from .routers import (
     admin, articles, attachments, auth, contact, erp, feedback, health,
@@ -505,6 +506,31 @@ def _ensure_columns() -> None:
                     ),
                     {"fallback": st.INITIAL_UNIT_STATUS, "known": list(st.UNIT_STATUSES)},
                 )
+            if "vouchers" in tables and "voucher_entries" in tables:
+                # ►►► **Die Rechnung wandert an ihren Beleg** (Migration ``138``). ◄◄◄
+                #
+                # Die dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778):
+                # dort zieht das Spalten-Netz die acht neuen Spalten **leer** nach, und die
+                # alten Forderungs-Zeilen blieben stehen. Der Dienst liest seit dem Umbau
+                # **jede aktive Zeile als Zahlung** – jede alte Rechnung wäre damit ein
+                # Geldeingang, und der offene Betrag stünde im Minus. Das ist kein
+                # Schema-Problem, also fängt es kein Schema-Netz.
+                #
+                # Die Ableitung steht in ``domain/voucher`` und wird von der Migration
+                # **und** von hier gelesen – zweimal ausgeschrieben wären es zwei
+                # Wahrheiten. Sie ist **selbstbegrenzend**: der erste Lauf setzt jede
+                # ``charge``-Zeile inaktiv, der zweite findet nichts mehr. Eine Reparatur
+                # mit einer gepflegten Liste veraltet (die Lehre aus Migration ``110``) –
+                # diese hier kann es nicht, weil sie ihre eigene Voraussetzung wegnimmt.
+                v_cols = {r[0] for r in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='vouchers'"))}
+                e_cols = {r[0] for r in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='voucher_entries'"))}
+                if "amount" in v_cols and "kind" in e_cols:
+                    for stmt in vo.invoice_backfill_sql():
+                        conn.execute(text(stmt))
             if "company_settings" in tables:
                 # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
                 # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht

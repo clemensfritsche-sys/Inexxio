@@ -695,6 +695,55 @@ def _credit(db, *, target, who, price: str = "40.00"):
     return order, step, row
 
 
+def test_the_backfill_is_written_once_and_read_by_both():
+    """►►► **Eine Datenänderung einer Migration braucht IMMER auch ein Netz.** ◄◄◄
+
+    Die dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778) – sie lebt von
+    ``create_all`` plus den Netzen in ``main``. Für **Schema** gibt es vier davon; für
+    **Daten** gab es keines, und genau hier zählt es: das Spalten-Netz zöge die acht neuen
+    Spalten **leer** nach, während die alten Forderungs-Zeilen stehenblieben. Der Dienst
+    liest seit dem Umbau jede aktive Zeile als **Zahlung** – jede alte Rechnung wäre ein
+    Geldeingang, und der offene Betrag stünde im Minus.
+
+    Geschrieben steht die Ableitung darum **einmal** (``domain/voucher``) und wird von
+    **zwei** Stellen gelesen – dieselbe Bauart wie ``statuses.terminal_guard_sql``.
+
+    Bug-Formen: (a) die Migration schreibt ihr eigenes SQL; (b) das Netz ruft sie gar
+    nicht; (c) der Backfill ist nicht selbstbegrenzend, läuft also bei jedem Start erneut.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+
+    mig = (BACKEND / "alembic" / "versions"
+           / "138_der_beleg_ist_die_rechnung.py").read_text()
+    net = _code(BACKEND / "app" / "main.py")
+    assert "invoice_backfill_sql" in mig, (
+        "Die Migration schreibt ihr eigenes SQL (a) – zwei Fassungen laufen beim nächsten "
+        "Feld auseinander."
+    )
+    assert "invoice_backfill_sql()" in net, (
+        "Das Lifespan-Netz zieht den Bestand nicht nach (b) – auf dev läse der Dienst "
+        "jede alte Rechnung als Zahlung."
+    )
+    # *Gefragt ist der **Aufwärtsweg**: die Rücknahme setzt die Stufe zurück und darf
+    # darum sehr wohl ein ``UPDATE vouchers`` tragen (gemessen, nachgeschärft).*
+    up = mig[mig.index("def upgrade("):mig.index("def downgrade(")]
+    assert "UPDATE vouchers" not in up, (
+        "Die Migration führt eine zweite Fassung des Backfills (a)."
+    )
+    # (c) **Selbstbegrenzend**: der erste Lauf nimmt seine eigene Voraussetzung weg.
+    first, *rest = vo.invoice_backfill_sql()
+    assert "v.amount IS NULL" in first, (
+        "Der Backfill greift auch nach dem ersten Lauf (c) – dann überschreibt jeder "
+        "Start eine Rechnung, die inzwischen jemand bearbeitet hat."
+    )
+    assert any("is_active = false" in r and "kind = 'charge'" in r for r in rest), (
+        "Die alten Forderungs-Zeilen bleiben aktiv (c) – der Dienst liest sie als "
+        "Zahlungen."
+    )
+
+
 def test_a_module_carries_exactly_one_invoice():
     """►►► **Eine Rechnung je Modul — nicht als Regel, sondern als STRUKTUR.** ◄◄◄
 

@@ -4501,6 +4501,21 @@
 > Partner, und die ist Buchhaltung (`docs/backlog.md`). Bis dahin sind es zwei erfasste
 > Zeilen, wo im Kontoauszug eine steht – eine Zeile mehr auf dem Bildschirm, **keine
 > falsche Zahl**.
+> ►►► **Und eine Datenänderung einer Migration braucht IMMER auch ein Netz.** ◄◄◄ Die
+> dev-Datenbank fährt kein `alembic upgrade head` (#778): dort zöge das Spalten-Netz die
+> acht Spalten **leer** nach, während die alten Forderungs-Zeilen stehenblieben – und der
+> Dienst liest seit dem Umbau **jede aktive Zeile als Zahlung**: jede alte Rechnung wäre
+> ein Geldeingang, der offene Betrag stünde im Minus. Das ist kein Schema-Problem, also
+> fängt es keines der vier Schema-Netze. Der Backfill steht darum **einmal**
+> (`domain/voucher.invoice_backfill_sql`) und wird von der **Migration** und vom
+> **Lifespan-Netz** gelesen – dieselbe Bauart wie `statuses.terminal_guard_sql`. Er ist
+> **selbstbegrenzend**: der erste Lauf setzt jede `charge`-Zeile inaktiv, der zweite
+> findet nichts mehr. Eine Reparatur mit einer gepflegten Liste veraltet (die Lehre aus
+> Migration `110`) – diese hier kann es nicht, weil sie ihre eigene Voraussetzung
+> wegnimmt. Gemessen an einem Schema auf Stand `137`: Betrag 120.00 (Summe, das
+> Storno-Paar hebt sich auf), Nummer und Daten von der ältesten **geltenden** Zeile,
+> Stufe «billed», alle drei `charge`-Zeilen inaktiv, die Zahlung aktiv – und der zweite
+> Start ändert nichts.
 > **Zwei kleinere Funde beim Messen**: «fällig 12. **sep.**» – `toLowerCase()` über die
 > ganze Zeichenkette machte aus einem Monatsnamen einen, den es nicht gibt (gesenkt wird
 > jetzt genau das erste Zeichen: bei einer Ziffer ändert sich nichts, bei «In»/«Heute»

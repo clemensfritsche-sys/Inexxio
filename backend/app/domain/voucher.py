@@ -984,6 +984,78 @@ def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:
             "gross": cur.money(net + tax, code)}
 
 
+# ---------------------------------------------------------------------------
+# ►►► DER BESTAND ZIEHT NACH — EINE Ableitung, zwei Leser ◄◄◄
+# ---------------------------------------------------------------------------
+
+def invoice_backfill_sql() -> tuple[str, ...]:
+    """►►► **Wie ein alter Beleg zu seiner Rechnung kommt.** ◄◄◄
+
+    Bis Migration ``138`` stand die Rechnung als **Zeile** im Beleg
+    (``voucher_entries.kind = 'charge'``); danach ist der Beleg die Rechnung. Diese beiden
+    Anweisungen sind der Weg von dort nach hier – und sie stehen **hier**, weil sie von
+    **zwei** Stellen gebraucht werden:
+
+    * der **Migration** – sie ist die Wahrheit;
+    * dem **Lifespan-Netz** – die dev-Datenbank fährt kein ``alembic upgrade head``
+      (Testnotiz #778), und dort zöge sonst das Spalten-Netz die acht Spalten leer nach,
+      während die alten Forderungs-Zeilen stehenbleiben. **Der Dienst läse sie als
+      Zahlungen**: jede alte Rechnung wäre ein Geldeingang, und der offene Betrag stünde
+      im Minus.
+
+    Zweimal ausgeschrieben wären es zwei Wahrheiten – dieselbe Bauart wie
+    ``statuses.terminal_guard_sql``.
+
+    **Zwei Ableitungen über dieselben Zeilen:** die **Summe** sagt, wie viel gefordert ist
+    (ein Storno-Paar hebt sich auf, eine Gutschrift mindert); die **älteste geltende**
+    Zeile – nicht selbst Gegenbuchung, und es gibt keine zu ihr – sagt, wie die Rechnung
+    heisst und wann sie entstand. Den Betrag der ersten Zeile zu nehmen verfälschte jeden
+    Beleg, an dem je korrigiert wurde.
+
+    **Selbstbegrenzend und damit idempotent**: der erste Lauf setzt jede ``charge``-Zeile
+    inaktiv, der zweite findet nichts mehr. Eine Reparatur mit einer gepflegten Liste
+    veraltet (die Lehre aus Migration ``110``) – diese hier kann es nicht, weil sie ihre
+    eigene Voraussetzung wegnimmt.
+
+    ``issued_on`` bekommt das Rechnungsdatum: **was gebucht ist, gilt als hinausgegangen**
+    – die vorsichtigere Annahme, sonst liesse sich eine längst versendete Rechnung
+    zurücknehmen.
+    """
+    return (
+        """
+        WITH total AS (
+            SELECT voucher_id, SUM(amount) AS amount
+              FROM voucher_entries
+             WHERE kind = 'charge' AND is_active
+             GROUP BY voucher_id
+        ), head AS (
+            SELECT DISTINCT ON (e.voucher_id)
+                   e.voucher_id, e.booked_on, e.due_on, e.reference, e.vat,
+                   e.service_date
+              FROM voucher_entries e
+             WHERE e.kind = 'charge' AND e.is_active AND e.reverses_id IS NULL
+               AND NOT EXISTS (SELECT 1 FROM voucher_entries r
+                                WHERE r.reverses_id = e.id AND r.is_active)
+             ORDER BY e.voucher_id, e.booked_on NULLS LAST, e.id
+        )
+        UPDATE vouchers v
+           SET amount       = t.amount,
+               billed_on    = h.booked_on,
+               issued_on    = h.booked_on,
+               due_on       = h.due_on,
+               number       = h.reference,
+               vat          = h.vat,
+               service_date = h.service_date,
+               stage        = CASE WHEN v.stage = 'agreed' THEN 'billed' ELSE v.stage END
+          FROM total t
+          JOIN head h ON h.voucher_id = t.voucher_id
+         WHERE v.id = t.voucher_id
+           AND v.amount IS NULL
+        """,
+        "UPDATE voucher_entries SET is_active = false WHERE kind = 'charge'",
+    )
+
+
 @dataclass(frozen=True)
 class Balance:
     """**Die Rechnung dieses Belegs — vier Zahlen, null Spalten.**
