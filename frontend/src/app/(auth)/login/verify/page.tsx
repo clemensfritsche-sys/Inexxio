@@ -79,36 +79,35 @@ export default function VerifyPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 360 }}>
-        <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #E2E8F0', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', padding: 40, textAlign: 'center' }}>
-          {/* Logo */}
+    <>
+      <div className="ix-login-bg" />
+      <div className="ix-login-lightbox">
+        <div className="ix-login-card" style={{ textAlign: 'center' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Inexxio" style={{ height: 28, margin: '0 auto 28px', display: 'block' }} />
 
           {status === 'loading' && (
             <>
-              <Loader2 style={{ width: 36, height: 36, color: '#E51A14', margin: '0 auto 16px', animation: 'spin 0.7s linear infinite' }} />
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>Anmeldung wird verarbeitet…</h1>
-              <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Bitte einen Moment warten.</p>
+              <Loader2 style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px', animation: 'ix-spin 0.7s linear infinite' }} />
+              <h1 style={vTitle}>Anmeldung wird verarbeitet…</h1>
+              <p style={vMuted}>Bitte einen Moment warten.</p>
             </>
           )}
 
           {status === 'success' && (
             <>
-              <CheckCircle2 style={{ width: 36, height: 36, color: '#16a34a', margin: '0 auto 16px' }} />
-              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>Erfolgreich angemeldet!</h1>
-              <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Sie werden weitergeleitet…</p>
+              <CheckCircle2 style={{ width: 36, height: 36, color: 'var(--success)', margin: '0 auto 16px' }} />
+              <h1 style={vTitle}>Erfolgreich angemeldet!</h1>
+              <p style={vMuted}>Sie werden weitergeleitet…</p>
             </>
           )}
 
           {status === 'error' && (
             <>
-              <AlertCircle style={{ width: 36, height: 36, color: '#E51A14', margin: '0 auto 16px' }} />
-              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>Anmeldung fehlgeschlagen</h1>
-              <p style={{ fontSize: 14, color: '#E51A14', margin: '0 0 20px' }}>{error}</p>
-              <a href="/login" style={{ fontSize: 13, color: '#E51A14', textDecoration: 'none', fontWeight: 500 }}>
+              <AlertCircle style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px' }} />
+              <h1 style={vTitle}>Anmeldung fehlgeschlagen</h1>
+              <p style={{ ...vMuted, color: 'var(--inexxio-red)' }}>{error}</p>
+              <a href="/login" style={{ fontSize: 13, color: 'var(--inexxio-red)', textDecoration: 'none', fontWeight: 500 }}>
                 ← Zurück zur Anmeldung
               </a>
             </>
@@ -116,39 +115,35 @@ export default function VerifyPage() {
 
           {status === 'needs-email' && (
             <>
-              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 8px' }}>E-Mail bestätigen</h1>
-              <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 20px' }}>
+              <h1 style={vTitle}>E-Mail bestätigen</h1>
+              <p style={vMuted}>
                 Bitte geben Sie Ihre E-Mail-Adresse ein, um die Anmeldung abzuschliessen.
               </p>
-              <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}>
+              <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', marginTop: 4 }}>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="ihre@email.ch"
+                  autoComplete="email"
                   autoFocus
-                  style={{
-                    padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0',
-                    fontSize: 14, color: '#0F172A', outline: 'none', width: '100%',
-                    boxSizing: 'border-box',
-                  }}
+                  className="ix-email-input"
                 />
-                <button
-                  type="submit"
-                  style={{
-                    padding: '11px 20px', borderRadius: 8, border: 'none',
-                    background: '#E51A14', color: '#fff', fontSize: 14,
-                    fontWeight: 600, cursor: 'pointer', width: '100%',
-                  }}
-                >
-                  Anmelden
-                </button>
+                <button type="submit" className="ix-submit-btn">Anmelden</button>
               </form>
             </>
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
+
+const vTitle: React.CSSProperties = {
+  font: '700 18px/1.3 var(--font-display)', letterSpacing: '-0.02em',
+  color: 'var(--fg-1)', margin: '0 0 8px',
+};
+const vMuted: React.CSSProperties = {
+  font: '400 14px/1.6 var(--font-body)', color: 'var(--fg-3)', margin: '0 0 20px',
+};

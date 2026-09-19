@@ -3,15 +3,21 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown, Settings, Package } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
+import { LoginDialog } from '@/components/auth/login-dialog';
 import { api } from '@/lib/api';
 import type { User } from 'firebase/auth';
+
+// Elegantes Warenkorb-Symbol für den Header: dezenter Icon-Button, Badge nur bei Inhalt.
 
 const ROLE_KEY = 'inexxio_user_role';
 const NAME_KEY = 'inexxio_user_fullname';
 
+// Nur Seiten, die es wirklich gibt. «Shop» stand hier als erster Eintrag und führte ins
+// Leere – der Shop ist mit dem Verkaufs-Modul entfallen (docs/attic.md), und ein Link auf
+// eine Route, die der statische Export gar nicht kennt, ist ein 404 an prominentester Stelle.
 const navLinks = [
   { href: '/ueber-uns', label: 'Über uns' },
   { href: '/kontakt', label: 'Kontakt' },
@@ -23,9 +29,9 @@ export function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [roleFetched, setRoleFetched] = useState(false);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [profileName, setProfileName] = useState('');
+  const [loginOpen, setLoginOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -63,12 +69,9 @@ export function Navbar() {
           }
         } catch {
           // keep cached values
-        } finally {
-          setRoleFetched(true);
         }
       } else {
         setUserRole(null);
-        setRoleFetched(true);
         setProfileName('');
         localStorage.removeItem(ROLE_KEY);
         localStorage.removeItem(NAME_KEY);
@@ -104,9 +107,17 @@ export function Navbar() {
     router.push('/');
   }
 
-  const loginHref = pathname.startsWith('/login')
-    ? '/login'
-    : `/login?from=${encodeURIComponent(pathname)}`;
+  /**
+   * **Anmelden öffnet ein Pop-up, es navigiert nicht** (Notiz vom 28.8.).
+   *
+   * Vorher führte der Knopf auf `/login` – man verlor die Seite, auf der man stand, und
+   * fand nur über einen eigenen Link zurück. Jetzt legt sich der Dialog darüber; ein
+   * Klick daneben bringt einen zurück, ohne dass es dafür ein Bedienelement braucht.
+   *
+   * Nach der Anmeldung bleibt man, wo man war (`fallback`) – die Route dagegen schickt
+   * zur Startseite, weil hinter ihr nichts steht.
+   */
+  const openLogin = () => setLoginOpen(true);
 
   const nameForDisplay = profileName || user?.displayName || '';
   const initials = nameForDisplay
@@ -114,10 +125,6 @@ export function Navbar() {
     : user?.email?.slice(0, 2).toUpperCase() || 'IX';
 
   const displayName = nameForDisplay || user?.email?.split('@')[0] || 'Benutzer';
-
-  // Show ERP when role allows, or when role is unknown (still loading / backend down).
-  // The ERP layout is the real security gate — it redirects customer/supplier away.
-  const canAccessERP = userRole === 'employee' || userRole === 'admin' || userRole === null;
 
   return (
     <>
@@ -158,18 +165,12 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              {authLoaded && user && canAccessERP && (
+              {(userRole === 'admin' || userRole === 'employee' || userRole === 'supplier') && (
                 <Link
                   href="/erp"
-                  className={cn('ix-nav-link', pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'ix-nav-link-active' : '')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    ...(pathname.startsWith('/erp') || pathname.startsWith('/admin') ? { color: 'var(--ix-red)' } : {}),
-                  }}
+                  className={cn('ix-nav-link', pathname.startsWith('/erp') && 'ix-nav-link-active')}
+                  style={pathname.startsWith('/erp') ? { color: 'var(--ix-red)' } : {}}
                 >
-                  <LayoutGrid style={{ width: 13, height: 13 }} />
                   ERP
                 </Link>
               )}
@@ -183,6 +184,7 @@ export function Navbar() {
                 <span style={{ color: 'var(--border-2)' }}>|</span>
                 <button style={{ color: 'var(--fg-3)' }}>EN</button>
               </div>
+
 
               {authLoaded && (
                 user ? (
@@ -201,7 +203,7 @@ export function Navbar() {
                           cursor: 'pointer',
                           transition: 'background 0.15s',
                         }}
-                        className="hover:bg-slate-50"
+                        className="hover:bg-bg-2"
                       >
                         {user.photoURL ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
@@ -263,25 +265,11 @@ export function Navbar() {
                               color: 'var(--fg-2)',
                               textDecoration: 'none',
                             }}
-                            className="hover:bg-slate-50"
+                            className="hover:bg-bg-2"
                           >
                             <Settings style={{ width: 14, height: 14 }} />
                             Kontoeinstellungen
                           </Link>
-                          {userRole === 'admin' && (
-                            <>
-                              <div style={{ margin: '4px 10px', borderTop: '1px solid var(--border-1)' }} />
-                              <p style={{ padding: '2px 10px', font: '600 11px var(--font-body)', color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admin</p>
-                              <Link
-                                href="/admin/einstellungen"
-                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, font: '500 13px var(--font-body)', color: 'var(--fg-2)', textDecoration: 'none' }}
-                                className="hover:bg-slate-50"
-                              >
-                                <Package style={{ width: 14, height: 14 }} />
-                                Systemkonfiguration
-                              </Link>
-                            </>
-                          )}
                           <div style={{ margin: '4px 10px', borderTop: '1px solid var(--border-1)' }} />
                           <button
                             onClick={handleLogout}
@@ -299,7 +287,7 @@ export function Navbar() {
                               color: 'var(--fg-2)',
                               textAlign: 'left',
                             }}
-                            className="hover:bg-slate-50"
+                            className="hover:bg-bg-2"
                           >
                             <LogOut style={{ width: 14, height: 14 }} />
                             Abmelden
@@ -309,14 +297,15 @@ export function Navbar() {
                     </div>
                   </div>
                 ) : (
-                  <Link
-                    href={loginHref}
+                  <button
+                    type="button"
+                    onClick={openLogin}
                     className="ix-btn ix-btn-primary"
                     style={{ padding: '10px 20px', fontSize: 14 }}
                   >
                     <LogIn style={{ width: 15, height: 15 }} />
                     Anmelden
-                  </Link>
+                  </button>
                 )
               )}
             </div>
@@ -360,8 +349,7 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-
-            {authLoaded && user && canAccessERP && (
+            {(userRole === 'admin' || userRole === 'employee' || userRole === 'supplier') && (
               <Link
                 href="/erp"
                 style={{
@@ -369,17 +357,15 @@ export function Navbar() {
                   letterSpacing: '-0.02em',
                   padding: '14px 0',
                   borderBottom: '1px solid var(--border-1)',
-                  color: pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'var(--ix-red)' : 'var(--fg-1)',
+                  color: pathname.startsWith('/erp') ? 'var(--ix-red)' : 'var(--fg-1)',
                   textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
                 }}
               >
-                <LayoutGrid style={{ width: 16, height: 16 }} />
                 ERP
               </Link>
             )}
+
+
 
             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
@@ -442,10 +428,12 @@ export function Navbar() {
                     </button>
                   </div>
                 ) : (
-                  <Link href={loginHref} className="ix-btn ix-btn-primary" style={{ justifyContent: 'center' }}>
+                  <button type="button" className="ix-btn ix-btn-primary"
+                    style={{ justifyContent: 'center' }}
+                    onClick={() => { setMobileOpen(false); openLogin(); }}>
                     <LogIn style={{ width: 16, height: 16 }} />
                     Anmelden
-                  </Link>
+                  </button>
                 )
               )}
             </div>
@@ -488,6 +476,12 @@ export function Navbar() {
         >
           <X style={{ width: 18, height: 18 }} />
         </button>
+      )}
+
+      {/* **Dasselbe Fenster wie auf `/login`** – nur schliesst es hier, statt zur
+          Startseite zu gehen: die Seite dahinter ist ja noch da. */}
+      {loginOpen && (
+        <LoginDialog onClose={() => setLoginOpen(false)} fallback={pathname} />
       )}
     </>
   );

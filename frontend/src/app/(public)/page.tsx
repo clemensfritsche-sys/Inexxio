@@ -125,7 +125,7 @@ export default function HomePage() {
                 <br />
                 <span style={{ color: 'var(--ix-red)' }}>anspruchsvolle</span>
                 <br />
-                Industrie
+                Industrie&nbsp;4.0
               </h1>
 
               <p

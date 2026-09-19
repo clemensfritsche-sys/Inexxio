@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { CookieSettingsButton } from '@/components/layout/cookie-settings-link';
 
 export const metadata: Metadata = {
   title: 'Datenschutzerklärung',
@@ -13,10 +14,10 @@ export default function DatenschutzPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
-      <section className="bg-slate-900 py-16">
+      <section className="bg-bg-dark py-16">
         <div className="container">
           <h1 className="text-4xl font-bold text-white">Datenschutzerklärung</h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-2 text-fg-4">
             Gemäss DSGVO und Schweizer DSG (01.09.2023) | Version {VERSION} | Stand {VALID_FROM}
           </p>
         </div>
@@ -24,8 +25,11 @@ export default function DatenschutzPage() {
 
       <section className="section">
         <div className="container max-w-3xl">
-          <div className="mb-8 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-            <p className="text-sm text-blue-800">
+          {/* Gültige Datenschutzerklärung – wenn hinterlegt – aus dem Dokument-Modul
+              (Zeiger am Unternehmen, D); sonst der eingebaute Text als Fallback. */}
+          <>
+          <div className="mb-8 rounded-lg bg-accent-soft border border-border-1 px-4 py-3">
+            <p className="text-sm text-accent-ink">
               Wir nehmen den Schutz Ihrer persönlichen Daten sehr ernst. Diese Datenschutzerklärung
               informiert Sie über Art, Umfang und Zweck der Verarbeitung Ihrer personenbezogenen
               Daten durch die Inexxio AG.
@@ -36,9 +40,9 @@ export default function DatenschutzPage() {
             <p>
               Verantwortliche Stelle im Sinne der DSGVO und des Schweizer DSG ist:
             </p>
-            <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm">
+            <div className="mt-3 rounded-lg bg-bg-2 border border-border-1 p-4 text-sm">
               <p className="font-medium">Inexxio AG</p>
-              <p className="text-slate-600 mt-1">
+              <p className="text-fg-3 mt-1">
                 [Strasse Nr.], [PLZ Ort], Schweiz<br />
                 E-Mail: info@inexxio.com<br />
                 Website: https://inexxio.com
@@ -105,7 +109,7 @@ export default function DatenschutzPage() {
                   href="https://firebase.google.com/support/privacy"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+                  className="text-accent hover:underline"
                 >
                   firebase.google.com/support/privacy
                 </a>
@@ -126,7 +130,7 @@ export default function DatenschutzPage() {
                   href="https://stripe.com/ch/privacy"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+                  className="text-accent hover:underline"
                 >
                   stripe.com/ch/privacy
                 </a>
@@ -148,8 +152,10 @@ export default function DatenschutzPage() {
               <p className="mt-3">
                 <strong>Zweck:</strong> Verstehen, wie unsere Website genutzt wird, um sie zu
                 verbessern.<br />
-                <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
-                Interesse). Kein Cookie-Banner erforderlich.<br />
+                <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. a DSGVO (Einwilligung) bzw.
+                Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse). Obwohl Plausible cookielos
+                arbeitet, laden wir das Skript erst, wenn Sie der Kategorie «Statistik» zustimmen
+                (siehe Ziffer 3). Ihre Einwilligung ist jederzeit widerrufbar.<br />
                 <strong>Anbieter:</strong> Plausible Analytics, Tallinn, Estland.
               </p>
             </SubSection>
@@ -161,7 +167,7 @@ export default function DatenschutzPage() {
                 (IP-Adresse, Zeitstempel, Anfrage-Details) für den Betrieb der Infrastruktur.
               </p>
               <p className="mt-3">
-                <strong>Anbieter:</strong> Google Cloud EMEA Limited, 70 Sir John Rogerson's
+                <strong>Anbieter:</strong> Google Cloud EMEA Limited, 70 Sir John Rogerson&rsquo;s
                 Quay, Dublin 2, Irland.<br />
                 <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
                 Interesse an sicherem Hosting).
@@ -169,41 +175,72 @@ export default function DatenschutzPage() {
             </SubSection>
           </Section>
 
-          <Section title="3. Cookies">
+          <Section title="3. Cookies &amp; Einwilligung">
             <p>
-              Wir verwenden nur technisch notwendige Cookies für den Betrieb der Website:
+              Inexxio ist bewusst «cookie-arm». Wir unterscheiden zwei Kategorien, die Sie beim
+              ersten Besuch selbst wählen und jederzeit ändern können:
             </p>
-            <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+            <ul className="mt-3 space-y-2 text-fg-2">
+              <li>
+                <strong>Notwendig (immer aktiv):</strong> Anmeldung/Session, Warenkorb, die
+                Speicherung Ihrer Cookie-Einwilligung sowie – nur an der Kasse – die sichere
+                Zahlungsabwicklung über Stripe. Ohne diese funktioniert die Website nicht; eine
+                Einwilligung ist dafür rechtlich nicht erforderlich.
+              </li>
+              <li>
+                <strong>Statistik (optional):</strong> cookielose Reichweitenmessung mit Plausible
+                (siehe Ziffer 2.5). Wird nur nach Ihrer Zustimmung geladen.
+              </li>
+            </ul>
+            <p className="mt-4">
+              Ihre Einwilligung speichern wir in einem technisch notwendigen Erstanbieter-Cookie
+              (<span className="font-mono text-xs">inexxio_consent</span>, Laufzeit 6 Monate). Sie
+              können Ihre Wahl jederzeit anpassen: <CookieSettingsButton />.
+            </p>
+            <p className="mt-4">
+              Technisch notwendige Cookies bzw. lokale Speicher-Einträge im Überblick:
+            </p>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-border-1">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-2 text-left font-medium text-slate-600">Cookie</th>
-                    <th className="px-4 py-2 text-left font-medium text-slate-600">Zweck</th>
-                    <th className="px-4 py-2 text-left font-medium text-slate-600">Dauer</th>
+                  <tr className="bg-bg-2 border-b border-border-1">
+                    <th className="px-4 py-2 text-left font-medium text-fg-3">Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-fg-3">Speicher</th>
+                    <th className="px-4 py-2 text-left font-medium text-fg-3">Zweck</th>
+                    <th className="px-4 py-2 text-left font-medium text-fg-3">Dauer</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-slate-100">
-                    <td className="px-4 py-3 font-mono text-xs">session_token</td>
-                    <td className="px-4 py-3 text-slate-700">Authentifizierung</td>
-                    <td className="px-4 py-3 text-slate-600">Session</td>
+                  <tr className="border-b border-border-1">
+                    <td className="px-4 py-3 font-mono text-xs">inexxio_consent</td>
+                    <td className="px-4 py-3 text-fg-3">Cookie</td>
+                    <td className="px-4 py-3 text-fg-2">Speichert Ihre Cookie-Einwilligung</td>
+                    <td className="px-4 py-3 text-fg-3">6 Monate</td>
                   </tr>
-                  <tr className="border-b border-slate-100">
-                    <td className="px-4 py-3 font-mono text-xs">lang</td>
-                    <td className="px-4 py-3 text-slate-700">Spracheinstellung</td>
-                    <td className="px-4 py-3 text-slate-600">1 Jahr</td>
+                  <tr className="border-b border-border-1">
+                    <td className="px-4 py-3 font-mono text-xs">inexxio_token / Firebase</td>
+                    <td className="px-4 py-3 text-fg-3">localStorage</td>
+                    <td className="px-4 py-3 text-fg-2">Anmeldung / Session</td>
+                    <td className="px-4 py-3 text-fg-3">bis zur Abmeldung</td>
+                  </tr>
+                  <tr className="border-b border-border-1">
+                    <td className="px-4 py-3 font-mono text-xs">inexxio.cart.v1</td>
+                    <td className="px-4 py-3 text-fg-3">localStorage</td>
+                    <td className="px-4 py-3 text-fg-2">Warenkorb</td>
+                    <td className="px-4 py-3 text-fg-3">bis geleert</td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-mono text-xs">cart</td>
-                    <td className="px-4 py-3 text-slate-700">Warenkorb (Gäste)</td>
-                    <td className="px-4 py-3 text-slate-600">7 Tage</td>
+                    <td className="px-4 py-3 font-mono text-xs">__stripe_mid / __stripe_sid</td>
+                    <td className="px-4 py-3 text-fg-3">Cookie</td>
+                    <td className="px-4 py-3 text-fg-2">Betrugsprävention (nur an der Kasse)</td>
+                    <td className="px-4 py-3 text-fg-3">Session – 1 Jahr</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-sm text-slate-600">
-              Es werden keine Tracking-Cookies gesetzt. Ein Cookie-Banner ist daher nicht
-              erforderlich.
+            <p className="mt-3 text-sm text-fg-3">
+              Wir setzen keine Werbe- oder website­übergreifenden Tracking-Cookies. Nicht notwendige
+              Dienste (Statistik) werden erst nach Ihrer Einwilligung geladen.
             </p>
           </Section>
 
@@ -212,7 +249,7 @@ export default function DatenschutzPage() {
               Wir speichern Ihre Daten nur so lange, wie es für die jeweiligen Zwecke erforderlich
               ist:
             </p>
-            <ul className="mt-3 space-y-2 text-slate-700">
+            <ul className="mt-3 space-y-2 text-fg-2">
               <li>
                 <strong>Buchhaltungsunterlagen:</strong> 10 Jahre (gesetzliche Pflicht gem.
                 OR Art. 958f) – unveränderlich archiviert
@@ -236,7 +273,7 @@ export default function DatenschutzPage() {
             <p>
               Eine Weitergabe Ihrer personenbezogenen Daten an Dritte erfolgt nur, wenn:
             </p>
-            <ul className="mt-3 space-y-2 text-slate-700">
+            <ul className="mt-3 space-y-2 text-fg-2">
               <li>Sie ausdrücklich eingewilligt haben</li>
               <li>Es zur Vertragserfüllung notwendig ist (Lieferanten, Logistikpartner)</li>
               <li>Wir gesetzlich dazu verpflichtet sind</li>
@@ -263,9 +300,9 @@ export default function DatenschutzPage() {
                 { title: 'Datenübertragbarkeit (Art. 20 DSGVO)', desc: 'Sie haben das Recht, Ihre Daten in einem strukturierten, maschinenlesbaren Format zu erhalten.' },
                 { title: 'Widerspruchsrecht (Art. 21 DSGVO)', desc: 'Sie haben das Recht, gegen die Verarbeitung Ihrer Daten Widerspruch einzulegen.' },
               ].map((right) => (
-                <div key={right.title} className="rounded-lg border border-slate-200 p-3">
-                  <p className="font-medium text-slate-900 text-sm">{right.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{right.desc}</p>
+                <div key={right.title} className="rounded-lg border border-border-1 p-3">
+                  <p className="font-medium text-fg-1 text-sm">{right.title}</p>
+                  <p className="mt-1 text-sm text-fg-3">{right.desc}</p>
                 </div>
               ))}
             </div>
@@ -277,7 +314,7 @@ export default function DatenschutzPage() {
             </p>
             <p className="mt-3">
               <strong>Zur Ausübung Ihrer Rechte</strong> wenden Sie sich bitte an:{' '}
-              <a href="mailto:info@inexxio.com" className="text-blue-600 hover:underline">
+              <a href="mailto:info@inexxio.com" className="text-accent hover:underline">
                 info@inexxio.com
               </a>
             </p>
@@ -306,15 +343,16 @@ export default function DatenschutzPage() {
             </p>
             <p className="mt-3">
               Die aktuelle Version dieser Datenschutzerklärung ist stets unter{' '}
-              <Link href="/datenschutz" className="text-blue-600 hover:underline">
+              <Link href="/datenschutz" className="text-accent hover:underline">
                 inexxio.com/datenschutz
               </Link>{' '}
               abrufbar.
             </p>
-            <p className="mt-4 text-sm text-slate-500">
+            <p className="mt-4 text-sm text-fg-3">
               Version {VERSION} | Stand {VALID_FROM} | Inexxio AG
             </p>
           </Section>
+          </>
         </div>
       </section>
     </div>
@@ -331,9 +369,9 @@ function Section({
   isLast?: boolean;
 }) {
   return (
-    <div className={`${isLast ? '' : 'mb-10 pb-10 border-b border-slate-100'}`}>
-      <h2 className="mb-4 text-xl font-bold text-slate-900">{title}</h2>
-      <div className="text-slate-700 leading-relaxed text-sm space-y-0">{children}</div>
+    <div className={`${isLast ? '' : 'mb-10 pb-10 border-b border-border-1'}`}>
+      <h2 className="mb-4 text-xl font-bold text-fg-1">{title}</h2>
+      <div className="text-fg-2 leading-relaxed text-sm space-y-0">{children}</div>
     </div>
   );
 }
@@ -341,7 +379,7 @@ function Section({
 function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
-      <h3 className="mb-2 font-semibold text-slate-800">{title}</h3>
+      <h3 className="mb-2 font-semibold text-fg-1">{title}</h3>
       {children}
     </div>
   );
@@ -349,7 +387,7 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
 
 function DataList({ items }: { items: string[] }) {
   return (
-    <ul className="mt-2 ml-4 space-y-1 text-slate-700">
+    <ul className="mt-2 ml-4 space-y-1 text-fg-2">
       {items.map((item) => (
         <li key={item} className="list-disc">{item}</li>
       ))}

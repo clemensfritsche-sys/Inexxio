@@ -194,11 +194,50 @@ This ensures schema is always up-to-date on every deploy.
 
 | Setting          | dev     | staging | prod     |
 |------------------|---------|---------|----------|
-| Min instances    | 0       | 0       | 1        |
+| Min instances    | 1       | 0       | 1        |
 | Max instances    | 3       | 5       | 10       |
 | Memory           | 512Mi   | 512Mi   | 1Gi      |
 | CPU              | 1       | 1       | 2        |
 | Concurrency      | 80      | 80      | 80       |
+
+Massgeblich sind die Workflows (`deploy-*.yml`), nicht `setup.sh` — der Deploy
+überschreibt die Werte bei jedem Lauf.
+
+---
+
+## Laufende Kosten
+
+> **Die Regel: was nicht auf null skaliert, kostet rund um die Uhr.** Cloud Run tut es
+> (ausser mit `--min-instances ≥ 1`), Cloud SQL nie.
+
+Eine ungenutzte Umgebung ist darum nicht gratis, sondern fast so teuer wie eine
+benutzte — und genau das ist im Sommer 2026 passiert: `inexxio-prod` wurde am
+5. Juni deployt, danach lief die Entwicklung ausschliesslich auf `develop`/dev, und
+die Prod-Umgebung rechnete zweieinhalb Monate lang ~108 CHF/Monat ab, ohne dass
+jemand sie aufrief. Das waren ~85 % der Gesamtrechnung.
+
+Grössenordnungen in **europe-west6 (Zürich)** — der teuersten EU-Region, ca. 25–35 %
+über europe-west1/west4:
+
+| Posten                                   | grob CHF/Monat |
+|------------------------------------------|----------------|
+| Cloud SQL `db-custom-2-7680` (2 vCPU/7,5 GB) | ~100       |
+| Cloud SQL `db-g1-small`                  | ~35            |
+| Cloud SQL `db-f1-micro`                  | ~10            |
+| Cloud Run, `--min-instances 1`, je Dienst | ~7–9          |
+| Cloud Run, `--min-instances 0`, im Leerlauf | ~0          |
+| Artifact Registry                        | ~0,2 (1,8 GB)  |
+| Firebase Hosting, Secret Manager, GCS    | ~1–2           |
+
+Daraus die drei Regeln:
+
+1. **Eine Umgebung, die nicht gebraucht wird, wird gestoppt oder gelöscht** — nicht
+   „stehen gelassen, kostet ja nichts". Eine gestoppte Cloud-SQL-Instanz
+   (`--activation-policy=NEVER`) spart rund 95 %; nur der Speicher läuft weiter.
+2. **Klein starten.** Eine Tier-Änderung ist ein Befehl und ein Neustart; zu gross
+   zu starten ist ein Dauerauftrag, der niemandem auffällt.
+3. **Ein Budget-Alarm ist die einzige Instanz, die es merkt.** Abrechnung → Budgets &
+   Benachrichtigungen. Ohne ihn fällt so etwas erst auf, wenn das Testguthaben leer ist.
 
 ---
 

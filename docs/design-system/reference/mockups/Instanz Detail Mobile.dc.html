@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/inexxio-design-system-13cf37de-bcf0-4c5b-a86b-f47d84b44883/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/inexxio-design-system-13cf37de-bcf0-4c5b-a86b-f47d84b44883/styles.css">
+  <script src="_ds/inexxio-design-system-13cf37de-bcf0-4c5b-a86b-f47d84b44883/_ds_bundle.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    .stage{min-height:100vh;background:var(--bg-3);display:flex;align-items:center;justify-content:center;padding:32px;font-family:var(--font-body);color:var(--fg-1);-webkit-font-smoothing:antialiased}
+    .phone{width:390px;height:844px;background:#fff;border-radius:44px;box-shadow:0 40px 90px rgba(16,14,12,.28);border:1px solid var(--border-2);position:relative;overflow:hidden;display:flex;flex-direction:column}
+    /* status bar */
+    .statusbar{height:52px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;font:700 15px var(--font-body)}
+    .statusbar .rr{display:flex;align-items:center;gap:6px}
+    .statusbar .lucide{width:16px;height:16px}
+    /* app bar */
+    .appbar{flex:none;display:flex;align-items:center;gap:10px;padding:6px 14px 12px}
+    .abtn{width:40px;height:40px;border-radius:var(--r-md);border:none;background:transparent;display:flex;align-items:center;justify-content:center;color:var(--fg-2);cursor:pointer}
+    .abtn:hover{background:var(--bg-2)}
+    .abtn .lucide{width:22px;height:22px}
+    .abtitle{flex:1;text-align:center;font:700 15px var(--font-body);color:var(--fg-2)}
+    /* scroll */
+    .screen{flex:1;overflow-y:auto;min-height:0;padding:0 20px 108px}
+    /* hero */
+    .hero{position:sticky;top:0;z-index:5;display:flex;flex-direction:column;gap:12px;margin:0 -20px;padding:8px 20px 14px;background:#fff;border-bottom:1px solid var(--border-1)}
+    .hero-top{display:flex;align-items:center;gap:14px}
+    .hico{width:52px;height:52px;border-radius:var(--r-md);background:#E9EDEC;color:#5E6B66;display:flex;align-items:center;justify-content:center;flex:none}
+    .hico .lucide{width:25px;height:25px}
+    .eyebrow{font:var(--overline);letter-spacing:var(--tracking-overline);text-transform:uppercase;color:var(--inexxio-red);margin-bottom:4px}
+    .htitle{font:800 26px var(--font-display);letter-spacing:-.03em;margin:0;line-height:1.04;color:var(--fg-1)}
+    .hsub{display:flex;align-items:center;gap:8px;color:var(--fg-3)}
+    .hsub .n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--fg-3);font-size:13px}
+    .idbtn{width:28px;height:28px;border-radius:var(--r-sm);border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;color:var(--fg-4);cursor:pointer;padding:0}
+    .idbtn .lucide{width:15px;height:15px}
+    .idbtn:hover{background:var(--bg-2);color:var(--fg-1)}
+    .idbtn-flag:hover{color:var(--warning);background:var(--warning-bg)}
+    .idsep{width:1px;height:16px;background:var(--border-2);margin:0 1px}
+    .statusrow{display:flex}
+    .statusbig{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:var(--r-pill);font:600 12.5px var(--font-body)}
+    .statusbig .lucide{width:14px;height:14px}
+    .b-success{background:var(--success-bg);color:var(--success)}
+    .b-warning{background:var(--warning-bg);color:var(--warning)}
+    .b-danger{background:var(--danger-bg);color:var(--danger)}
+    .b-neutral{background:var(--bg-3);color:var(--fg-2)}
+    /* lifecycle */
+    .life{border:1px solid var(--border-1);border-radius:var(--r-lg);padding:18px 16px 16px;margin-bottom:18px;background:var(--sand-50)}
+    .life-h{font:var(--overline);letter-spacing:var(--tracking-overline);text-transform:uppercase;color:var(--fg-3);margin-bottom:16px;display:flex;align-items:center;gap:7px}
+    .life-h .lucide{width:13px;height:13px;color:var(--fg-4)}
+    .steps{display:flex;align-items:flex-start}
+    .step{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;text-align:center}
+    .step .node{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff;border:2px solid var(--border-2);color:var(--fg-4);z-index:2}
+    .step .node .lucide{width:17px;height:17px}
+    .step .lbl{font:600 10.5px var(--font-body);color:var(--fg-4);margin-top:8px;line-height:1.2}
+    .step .line{position:absolute;top:17px;left:50%;width:100%;height:2px;background:var(--border-2);z-index:1}
+    .step:last-child .line{display:none}
+    .step.done .node{background:var(--success);border-color:var(--success);color:#fff}
+    .step.done .line{background:var(--success)}
+    .step.done .lbl{color:var(--fg-2)}
+    .step.current .node{background:var(--inexxio-black);border-color:var(--inexxio-black);color:#fff;box-shadow:0 0 0 4px rgba(10,10,11,.07)}
+    .step.current .lbl{color:var(--fg-1);font-weight:700}
+    .step.current.danger .node{background:var(--inexxio-red);border-color:var(--inexxio-red);box-shadow:0 0 0 4px rgba(229,26,20,.10)}
+    /* glance */
+    .glance{display:flex;flex-direction:column;border:1px solid var(--border-1);border-radius:var(--r-lg);overflow:hidden;margin:18px 0 22px}
+    .tile{background:#fff;padding:15px 16px;display:flex;gap:13px;align-items:flex-start;border-bottom:1px solid var(--border-1)}
+    .tile:last-child{border-bottom:none}
+    .tile-ico{width:38px;height:38px;border-radius:var(--r-sm);background:var(--bg-2);color:var(--fg-2);display:flex;align-items:center;justify-content:center;flex:none}
+    .tile-ico .lucide{width:18px;height:18px}
+    .tile-main{min-width:0;flex:1}
+    .tile-k{font:600 11px var(--font-body);text-transform:uppercase;letter-spacing:.07em;color:var(--fg-3);display:flex;align-items:center;gap:6px}
+    .tile-k .hint{width:13px;height:13px;color:var(--fg-4);display:inline-flex}
+    .tile-k .hint .lucide{width:13px;height:13px}
+    .tile-v{font:700 16px var(--font-body);color:var(--fg-1);margin-top:4px;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:7px}
+    .tile-v .unit{font:600 12px var(--font-body);color:var(--fg-3)}
+    .tile-sub{font:500 12.5px var(--font-body);color:var(--fg-3);margin-top:2px;font-variant-numeric:tabular-nums}
+    .mono{font-family:var(--font-mono)}
+    .goto{margin-left:auto;color:var(--accent);display:flex;align-items:center;align-self:center}
+    .goto .lucide{width:17px;height:17px}
+    /* orders */
+    .osec-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .osec-head .ic{width:34px;height:34px;border-radius:var(--r-sm);background:var(--bg-2);color:var(--fg-2);display:flex;align-items:center;justify-content:center}
+    .osec-head .ic .lucide{width:17px;height:17px}
+    .osec-head h3{font:800 18px var(--font-display);letter-spacing:-.02em;margin:0}
+    .ocount{font:700 13px var(--font-body);color:var(--fg-2);background:var(--bg-3);border-radius:var(--r-pill);padding:2px 11px;font-variant-numeric:tabular-nums}
+    .sortchip{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font:600 11.5px var(--font-body);color:var(--fg-3);background:var(--bg-2);border:1px solid var(--border-1);border-radius:var(--r-pill);padding:4px 10px}
+    .sortchip .lucide{width:13px;height:13px;color:var(--fg-4)}
+    .olist{border:1px solid var(--border-1);border-radius:var(--r-lg);overflow:hidden}
+    .orow{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--border-1);background:#fff}
+    .orow:last-child{border-bottom:none}
+    .oico{width:34px;height:34px;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;flex:none}
+    .oico .lucide{width:16px;height:16px}
+    .o-main{flex:1;min-width:0}
+    .o-t{font:700 13.5px var(--font-body);color:var(--fg-1)}
+    .o-n{font:var(--mono-sm);color:var(--fg-3);font-variant-numeric:tabular-nums;margin-top:2px}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 7px;border-radius:var(--r-pill);font:600 11.5px var(--font-body);line-height:1}
+    .badge .lucide{width:12px;height:12px}
+    .o-arrow{color:var(--fg-4);display:flex}
+    .o-arrow .lucide{width:16px;height:16px}
+    /* bottom bar */
+    .tabbar{position:absolute;left:0;right:0;bottom:0;height:82px;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-top:1px solid var(--border-1);display:flex;align-items:flex-start;justify-content:space-around;padding:12px 18px 0}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:transparent;color:var(--fg-4);cursor:pointer;font:600 10px var(--font-body)}
+    .tab.active{color:var(--fg-1)}
+    .tab .lucide{width:23px;height:23px}
+    .tab-fab{width:54px;height:54px;border-radius:50%;background:var(--inexxio-red);color:#fff;display:flex;align-items:center;justify-content:center;margin-top:-14px;box-shadow:0 8px 20px rgba(179,18,15,.30);border:none;cursor:pointer}
+    .tab-fab .lucide{width:26px;height:26px}
+  </style>
+</helmet>
+<div class="stage">
+  <div class="phone">
+    <div class="statusbar">
+      <span>9:41</span>
+      <span class="rr"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span>
+    </div>
+    <div class="appbar">
+      <button class="abtn"><i data-lucide="chevron-left"></i></button>
+      <div class="abtitle">Datensatz</div>
+      <button class="abtn"><i data-lucide="search"></i></button>
+    </div>
+
+    <div class="screen">
+      <!-- Hero -->
+      <div class="hero">
+        <div class="hero-top">
+          <div class="hico"><i data-lucide="boxes"></i></div>
+          <div>
+            <div class="eyebrow">Instanz</div>
+            <h1 class="htitle">Schraubendreher</h1>
+          </div>
+        </div>
+        <div class="hsub">
+          <span class="n">100000393</span>
+          <span class="idsep"></span>
+          <button class="idbtn"><i data-lucide="qr-code"></i></button>
+          <button class="idbtn idbtn-flag"><i data-lucide="triangle-alert"></i></button>
+          <span class="statusbig {{ status.cls }}"><i data-lucide="{{ status.icon }}"></i>{{ status.label }}</span>
+        </div>
+      </div>
+
+      <!-- Glance -->
+      <div class="glance">
+        <div class="tile">
+          <div class="tile-ico"><i data-lucide="file-text"></i></div>
+          <div class="tile-main">
+            <div class="tile-k">Spezifikation</div>
+            <div class="tile-v">Schraubendreher</div>
+            <div class="tile-sub mono">100000320</div>
+          </div>
+          <div class="goto"><i data-lucide="arrow-up-right"></i></div>
+        </div>
+        <div class="tile">
+          <div class="tile-ico"><i data-lucide="map-pin"></i></div>
+          <div class="tile-main">
+            <div class="tile-k">Standort</div>
+            <div class="tile-v">Clemens Fritsche</div>
+            <div class="tile-sub mono">100000001</div>
+          </div>
+          <div class="goto"><i data-lucide="arrow-up-right"></i></div>
+        </div>
+        <div class="tile">
+          <div class="tile-ico"><i data-lucide="package"></i></div>
+          <div class="tile-main">
+            <div class="tile-k">Bestand <span class="hint"><i data-lucide="info"></i></span></div>
+            <div class="tile-v">0 <span class="unit">Stk</span></div>
+            <div class="tile-sub">Nicht mehr am Lager</div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tile-ico"><i data-lucide="calendar-days"></i></div>
+          <div class="tile-main">
+            <div class="tile-k">Erstellt</div>
+            <div class="tile-v">02.07.2026</div>
+            <div class="tile-sub">vor 1 Tag</div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tile-ico"><i data-lucide="history"></i></div>
+          <div class="tile-main">
+            <div class="tile-k">Letzte Bewegung</div>
+            <div class="tile-v">Verkauft</div>
+            <div class="tile-sub">vor 2 Std · Auftrag 100000398</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders -->
+      <div class="orders">
+        <div class="osec-head">
+          <div class="ic"><i data-lucide="clipboard-list"></i></div>
+          <h3>Aufträge</h3>
+          <span class="sortchip"><i data-lucide="arrow-down-wide-narrow"></i>Neueste</span>
+        </div>
+        <div class="olist">
+          <sc-for list="{{ orders }}" as="o" hint-placeholder-count="5">
+            <div class="orow">
+              <div class="oico"><i data-lucide="clipboard-list"></i></div>
+              <div class="o-main">
+                <div class="o-t">Auftrag</div>
+                <div class="o-n">{{ o.num }}</div>
+              </div>
+              <span class="badge {{ o.cls }}"><i data-lucide="{{ o.icon }}"></i>{{ o.label }}</span>
+              <span class="o-arrow"><i data-lucide="chevron-right"></i></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom tab bar -->
+    <div class="tabbar">
+      <button class="tab active"><i data-lucide="layers"></i>Datensätze</button>
+      <button class="tab"><i data-lucide="scan-line"></i>Scan</button>
+      <button class="tab-fab"><i data-lucide="plus"></i></button>
+      <button class="tab"><i data-lucide="history"></i>Verlauf</button>
+      <button class="tab"><i data-lucide="user"></i>Konto</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:454,&quot;height&quot;:908},&quot;statusVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Verkauft&quot;,&quot;options&quot;:[&quot;Am Lager&quot;,&quot;Reserviert&quot;,&quot;Verkauft&quot;,&quot;Verschrottet&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Instanz&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const variant = this.props.statusVariant ?? 'Verkauft';
+    const showLifecycle = this.props.showLifecycle ?? true;
+
+    const statusConfig = {
+      'Am Lager':     { label: 'Am Lager',     cls: 'b-success', icon: 'warehouse' },
+      'Reserviert':   { label: 'Reserviert',   cls: 'b-warning', icon: 'bookmark' },
+      'Verkauft':     { label: 'Verkauft',     cls: 'b-success', icon: 'circle-check' },
+      'Verschrottet': { label: 'Verschrottet', cls: 'b-danger',  icon: 'trash-2' },
+    };
+    const status = statusConfig[variant] || statusConfig['Verkauft'];
+
+    const seq = [
+      { label: 'Erstellt',   icon: 'sparkles' },
+      { label: 'Am Lager',   icon: 'warehouse' },
+      { label: 'Reserviert', icon: 'bookmark' },
+      { label: variant === 'Verschrottet' ? 'Verschrottet' : 'Verkauft',
+        icon: variant === 'Verschrottet' ? 'trash-2' : 'circle-check' },
+    ];
+    const currentIndex = { 'Am Lager': 1, 'Reserviert': 2, 'Verkauft': 3, 'Verschrottet': 3 }[variant] ?? 3;
+    const steps = seq.map((s, i) => {
+      let state = i < currentIndex ? 'done' : (i === currentIndex ? 'current' : 'todo');
+      let cls = 'step ' + state;
+      if (state === 'current' && variant === 'Verschrottet') cls += ' danger';
+      return { label: s.label, icon: s.icon, cls };
+    });
+
+    const orders = [
+      { num: '100000398', label: 'Abgeschlossen', cls: 'b-success', icon: 'circle-check' },
+      { num: '100000396', label: 'Inaktiv',       cls: 'b-neutral', icon: 'ban' },
+      { num: '100000394', label: 'Inaktiv',       cls: 'b-neutral', icon: 'ban' },
+      { num: '100000388', label: 'Abgeschlossen', cls: 'b-success', icon: 'circle-check' },
+      { num: '100000392', label: 'Abgeschlossen', cls: 'b-success', icon: 'circle-check' },
+    ];
+
+    return { status, steps, orders, showLifecycle };
+  }
+
+  componentDidMount() { this._icons(); }
+  componentDidUpdate() { this._icons(); }
+  _icons() { setTimeout(() => { if (window.lucide) window.lucide.createIcons(); }, 0); }
+}
+</script>
+</body>
+</html>

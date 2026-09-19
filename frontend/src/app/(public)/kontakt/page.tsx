@@ -69,16 +69,16 @@ export default function KontaktPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-slate-900 pt-28 pb-16">
+      <section className="bg-bg-dark pt-28 pb-16">
         <div className="container">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold text-blue-400 uppercase tracking-widest mb-4">
+            <p className="text-sm font-semibold text-inexxio-bright uppercase tracking-widest mb-4">
               Kontakt
             </p>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Wir freuen uns auf Ihre Anfrage
             </h1>
-            <p className="text-xl text-slate-300">
+            <p className="text-xl text-fg-on-dark">
               Ob Angebotsanfrage, technische Fragen oder ein erstes Kennenlernen – sprechen
               Sie uns an.
             </p>
@@ -97,16 +97,16 @@ export default function KontaktPage() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-6">
                     <CheckCircle2 className="h-8 w-8 text-green-600" />
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-900 mb-3">
+                  <h2 className="text-2xl font-bold text-fg-1 mb-3">
                     Nachricht erfolgreich gesendet!
                   </h2>
-                  <p className="text-slate-600 max-w-md">
+                  <p className="text-fg-3 max-w-md">
                     Vielen Dank für Ihre Anfrage. Wir haben Ihre Nachricht an{' '}
                     <strong>{submittedEmail}</strong> erhalten und melden uns baldmöglichst
                     bei Ihnen zurück – üblicherweise innerhalb von 24 Stunden.
                   </p>
                   <button
-                    className="mt-8 text-blue-600 hover:underline text-sm font-medium"
+                    className="mt-8 text-accent hover:underline text-sm font-medium"
                     onClick={() => setSubmitted(false)}
                   >
                     Weitere Nachricht senden
@@ -115,8 +115,8 @@ export default function KontaktPage() {
               ) : (
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Schreiben Sie uns</h2>
-                    <p className="text-slate-600">
+                    <h2 className="text-2xl font-bold text-fg-1 mb-2">Schreiben Sie uns</h2>
+                    <p className="text-fg-3">
                       Füllen Sie das Formular aus und wir melden uns so schnell wie möglich.
                     </p>
                   </div>
@@ -168,7 +168,7 @@ export default function KontaktPage() {
                   />
 
                   {/* hCaptcha placeholder */}
-                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 text-sm text-slate-500 text-center">
+                  <div className="border border-border-1 rounded-lg p-4 bg-bg-2 text-sm text-fg-3 text-center">
                     [hCaptcha Sicherheitsabfrage wird hier eingebunden]
                   </div>
 
@@ -177,15 +177,15 @@ export default function KontaktPage() {
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                        className="mt-0.5 h-4 w-4 rounded border-border-2 text-accent focus:ring-accent shrink-0"
                         {...register('privacyAccepted')}
                       />
-                      <span className="text-sm text-slate-600">
+                      <span className="text-sm text-fg-3">
                         Ich habe die{' '}
                         <a
                           href="/datenschutz"
                           target="_blank"
-                          className="text-blue-600 hover:underline"
+                          className="text-accent hover:underline"
                         >
                           Datenschutzerklärung
                         </a>{' '}
@@ -216,18 +216,18 @@ export default function KontaktPage() {
 
             {/* Sidebar contact info */}
             <div className="space-y-6">
-              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-                <h3 className="font-semibold text-slate-900 mb-5 text-lg">Kontaktinformation</h3>
+              <div className="bg-bg-2 rounded-2xl p-6 border border-border-1">
+                <h3 className="font-semibold text-fg-1 mb-5 text-lg">Kontaktinformation</h3>
                 <div className="space-y-5">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent shrink-0">
                       <MapPin className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">
+                      <p className="text-xs font-semibold text-fg-3 uppercase tracking-wide mb-0.5">
                         Adresse
                       </p>
-                      <p className="text-sm text-slate-700">
+                      <p className="text-sm text-fg-2">
                         Inexxio AG
                         <br />
                         Musterstrasse 1
@@ -240,16 +240,16 @@ export default function KontaktPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent shrink-0">
                       <Mail className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">
+                      <p className="text-xs font-semibold text-fg-3 uppercase tracking-wide mb-0.5">
                         E-Mail
                       </p>
                       <a
                         href="mailto:info@inexxio.com"
-                        className="text-sm text-blue-600 hover:underline"
+                        className="text-sm text-accent hover:underline"
                       >
                         info@inexxio.com
                       </a>
@@ -257,16 +257,16 @@ export default function KontaktPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent shrink-0">
                       <Phone className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">
+                      <p className="text-xs font-semibold text-fg-3 uppercase tracking-wide mb-0.5">
                         Telefon
                       </p>
                       <a
                         href="tel:+41441234567"
-                        className="text-sm text-blue-600 hover:underline"
+                        className="text-sm text-accent hover:underline"
                       >
                         +41 44 123 45 67
                       </a>
@@ -274,19 +274,19 @@ export default function KontaktPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent shrink-0">
                       <Clock className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">
+                      <p className="text-xs font-semibold text-fg-3 uppercase tracking-wide mb-0.5">
                         Öffnungszeiten
                       </p>
-                      <p className="text-sm text-slate-700">
+                      <p className="text-sm text-fg-2">
                         Montag – Freitag
                         <br />
                         08:00 – 17:00 Uhr
                         <br />
-                        <span className="text-slate-500">Samstag & Sonntag geschlossen</span>
+                        <span className="text-fg-3">Samstag & Sonntag geschlossen</span>
                       </p>
                     </div>
                   </div>
@@ -294,19 +294,19 @@ export default function KontaktPage() {
               </div>
 
               {/* Map placeholder */}
-              <div className="bg-slate-100 rounded-2xl overflow-hidden border border-slate-200">
-                <div className="h-48 flex items-center justify-center text-sm text-slate-500">
+              <div className="bg-border-1 rounded-2xl overflow-hidden border border-border-1">
+                <div className="h-48 flex items-center justify-center text-sm text-fg-3">
                   <div className="text-center">
-                    <MapPin className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+                    <MapPin className="h-8 w-8 text-fg-4 mx-auto mb-2" />
                     <p className="font-medium">Inexxio AG</p>
                     <p>Musterstrasse 1, 8001 Zürich</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
-                <h4 className="font-semibold text-slate-900 mb-2">Schnelle Reaktionszeit</h4>
-                <p className="text-sm text-slate-600">
+              <div className="bg-accent-soft rounded-2xl p-5 border border-border-1">
+                <h4 className="font-semibold text-fg-1 mb-2">Schnelle Reaktionszeit</h4>
+                <p className="text-sm text-fg-3">
                   Wir beantworten alle Anfragen üblicherweise innert{' '}
                   <strong>24 Stunden</strong> an Werktagen.
                 </p>
