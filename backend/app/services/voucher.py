@@ -1793,8 +1793,7 @@ def billing_of(db: Session, row: Voucher,
         return empty
     # Eine Rechnungsadresse gilt als hinterlegt, sobald irgendein Feld davon steht – sonst
     # mischte sich die eine Hälfte mit der anderen zu einer Adresse, die es nirgends gibt.
-    own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1
-               or u.invoice_company)
+    own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1)
     named = " ".join(x for x in (u.invoice_first_name, u.invoice_last_name) if x).strip()
     line1 = (u.invoice_address_line1 if own else u.address_line1) or ""
     line2 = (u.invoice_address_line2 if own else u.address_line2) or ""
@@ -1809,13 +1808,20 @@ def billing_of(db: Session, row: Voucher,
                         zip=u.postal_code or "", city=u.city or "", country=u.country)
     shipped = address.lines(main) if own and address.has_content(main) else []
     return {
-        "name": (named or u.invoice_company if own else None) or people.name(u),
+        "name": (named if own else None) or people.name(u),
         # **Auf dem Beleg steht die Rechtsperson, nicht ihr Vertreter**: ``people.name``
         # ist person-first (im ERP richtig), Schuldner ist die *Muster AG*.
         # ``billing_name`` liefert darum Zeilen – **neben** ``name``, nicht an seiner
-        # Stelle: zwei Formen einer Regel, nicht zwei Regeln.
+        # Stelle: zwei Formen einer Regel, nicht zwei Regeln. **Die Firma kommt aus dem
+        # Kontotyp**, nicht aus einem zweiten Feld an der Rechnungsadresse (#1042).
         "lines": people.billing_name(u),
-        "email": (u.invoice_email if own else None) or u.email,
+        # ►►► **Die Rechnungs-E-Mail gilt IMMER** (Testnotiz #1042). ◄◄◄ Sie hing an
+        # ``own`` – also daran, ob eine **eigene Rechnungsadresse** dasteht. Wer bei
+        # «Rechnung = Lieferung» eine Rechnungs-E-Mail eintrug (die Oberfläche bietet sie
+        # unabhängig davon an), schrieb damit in ein Feld, das niemand las: der Beleg ging
+        # still an die Login-Adresse. Ein Feld, das nur unter einer unsichtbaren Bedingung
+        # wirkt, ist schlimmer als keines.
+        "email": u.invoice_email or u.email,
         "phone": u.phone,
         # Dieselbe Rangfolge wie bei uns – die MWST-Nummer trägt den Vorsteuerabzug.
         "uid": u.vat_number or u.uid_number,

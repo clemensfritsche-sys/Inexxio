@@ -123,6 +123,23 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: zwei Spalten am Benutzer droppen (Folge-Deploy nach #1042)
+
+`user_profiles.company_billing_email` und `user_profiles.invoice_company` haben mit
+Testnotiz #1042 ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**: die
+Rechnungs-E-Mail ist ein Attribut der Rechnungsadresse (`invoice_email`), und den
+Firmennamen der Rechnungsadresse trägt bei Kontotyp «Geschäft» `company_name` über
+`people.billing_name`.
+
+**Gedroppt werden sie im FOLGE-Deploy** (Zwei-Deploy-Regel): beides in einem Deploy
+träfe die während des Cloud-Run-Rollouts noch laufende Vorgänger-Revision – die
+Ausfallklasse von Migration `090`. Beide sind `NULL`-fähig, also läuft in der
+Zwischenzeit kein Insert auf.
+
+*Ein Backfill gab es bewusst nicht: die Notiz nennt es ausdrücklich («es muss nicht
+rückwärtskompatibel sein»), und `company_billing_email` hatte **keinen einzigen Leser** —
+was dort steht, hat nie einen Beleg erreicht.*
+
 ## Offen: die Tabellen der gelöschten Handels-Module
 
 `purchases`, `invoices`, `payments` — die Module «Beschaffen» und «Verkauf» sind

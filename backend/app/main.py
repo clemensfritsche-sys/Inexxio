@@ -141,6 +141,14 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "vat", "JSONB"),
     ("vouchers", "service_date", "DATE"),
     ("vouchers", "corrects_id", "BIGINT"),
+    # ►► **Der Kontotyp und die Rechtsform** (Migration 139, Testnotiz #1042). Das Modell
+    #    kennt sie, also scheitert ohne sie **jede** Benutzer-Abfrage – der halbe ERP-Feed,
+    #    `/auth/me` und jeder Belegkopf. Dieselbe Ausfallklasse wie Migration 090.
+    #    **Ohne Default**: ``NULL`` heisst «noch nicht entschieden», und dann leitet
+    #    ``domain/accounts.effective`` aus dem Firmennamen ab – genau darum braucht diese
+    #    Runde keinen Backfill, der bei jedem Start eine Wahl überschreiben würde.
+    ("user_profiles", "account_type", "VARCHAR(20)"),
+    ("user_profiles", "legal_form", "VARCHAR(50)"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

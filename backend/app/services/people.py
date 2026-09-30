@@ -18,6 +18,7 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..domain import accounts
 from ..models import UserProfile
 from . import sites
 from .admin import log_audit
@@ -29,6 +30,22 @@ STAFF_ROLES = ("admin", "employee")
 def name(u: Optional[UserProfile]) -> Optional[str]:
     """Anzeigename einer bereits geladenen Person (``None`` bleibt ``None``)."""
     return u.display_name if u else None
+
+
+def account_type(u: UserProfile) -> str:
+    """►►► **Welcher Kontotyp GILT für diese Person?** ◄◄◄ Die eine Lesestelle.
+
+    Die Regel steht in ``domain/accounts`` (Rolle erzwingt → gespeichert → abgeleitet);
+    hier wird sie auf einen geladenen Datensatz angewandt. Jeder Leser fragt **diese**
+    Funktion – ein eigenes ``u.account_type or …`` an einer Aufrufstelle wäre die Stelle,
+    an der die Ableitung für Altbestand fehlt.
+    """
+    return accounts.effective(u.role, u.account_type, company_name=u.company_name)
+
+
+def is_business(u: Optional[UserProfile]) -> bool:
+    """Tritt diese Person als **Firma** auf? (Der Kontotyp, nicht die Rolle.)"""
+    return u is not None and account_type(u) == accounts.BUSINESS
 
 
 def billing_name(u: Optional[UserProfile]) -> list[str]:
@@ -45,13 +62,25 @@ def billing_name(u: Optional[UserProfile]) -> list[str]:
     «z. H.», wenn beide da sind. Ohne Firma bleibt die Person – das ist der B2C-Fall und
     korrekt.
 
+    ►►► **Und ob eine Firma dasteht, sagt der KONTOTYP** (Testnotiz #1042) ◄◄◄ – nicht
+    das blosse Vorhandensein des Feldes: wer auf «Privat» wechselt, behält seinen
+    Firmennamen in der Zeile, und er darf danach nicht mehr auf dem Beleg stehen.
+    ``B2B und B2C brauchen keinen Schalter`` (#914) gilt unverändert: die **Reihenfolge**
+    (Firma zuerst, Person als «z. H.») ist dieselbe – gefragt wird nur, *ob* es eine
+    Firma gibt, und das ist genau die Frage, die der Kontotyp beantwortet.
+
+    Die **Rechtsform** gehört dazu: «Muster AG» ist eine Rechtsperson, «Muster» ist
+    keine. Zusammengesetzt wird sie an derselben einen Stelle wie bei unserer eigenen
+    Seite (``sites.legal_name``) – auch mit derselben Ausnahme, damit aus «Muster AG» +
+    «AG» nicht «Muster AG AG» wird.
+
     *Zwei Formen einer Regel sind in Ordnung; zwei Regeln nicht – darum steht sie hier
     neben ``display_name`` und nicht im Geldvorgang.*
     """
     if u is None:
         return []
     person = " ".join(p for p in (u.first_name, u.last_name) if p).strip()
-    company = (u.company_name or "").strip()
+    company = sites.legal_name(u) if is_business(u) else ""
     if company and person:
         return [company, f"z. H. {person}"]
     return [company or person or u.email]
@@ -98,6 +127,51 @@ def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) ->
         )
 
 
+def assert_account(user: UserProfile, fields: dict[str, Any]) -> None:
+    """►►► **Ein Geschäftskonto nennt seine Rechtsperson** (Testnotiz #1042). ◄◄◄
+
+    *«Kontotyp ‹Geschäft› macht Firmenname und Rechtsform zu Pflichtfeldern, UID
+    optional.»* – Geprüft **serverseitig**, nicht nur am Feld: die Oberfläche ist die
+    freundliche Hälfte derselben Regel, und sie ist nicht der einzige Aufrufer (Konto,
+    ERP, künftig ein Shop-Checkout schreiben denselben Datensatz).
+
+    ►►► **Geprüft wird der ÜBERGANG, nicht der Bestand** – wie bei
+    ``assert_employment``, und aus demselben Grund: ◄◄◄ eine Prüfung auf den *Zustand*
+    machte jeden bestehenden Lieferanten ohne Rechtsform unbearbeitbar – man käme nicht
+    einmal dazu, sie nachzutragen, ohne sie im selben Zug mitzuschicken. Abgewiesen wird
+    darum, wer den **neuen** schlechten Zustand herstellt: wer auf «Geschäft»
+    *umschaltet* oder eine Pflichtangabe *leert*. Den bestehenden meldet der Beleg als
+    ``DataGap`` – *streng schreiben, tolerant lesen, Fehlendes benennen.*
+    """
+    if "account_type" in fields and fields["account_type"] not in accounts.KEYS:
+        raise HTTPException(
+            400, detail=f"«{fields['account_type']}» ist kein Kontotyp.")
+    after = {f: fields[f] if f in fields else getattr(user, f)
+             for f, _ in accounts.REQUIRED_FIELDS}
+    role = fields.get("role", user.role)
+    stored = fields.get("account_type", user.account_type)
+    if accounts.effective(role, stored, company_name=after["company_name"]) \
+            != accounts.BUSINESS:
+        return
+    # Nur den Übergang: entweder wird gerade umgeschaltet (Kontotyp bzw. Rolle), oder eine
+    # Pflichtangabe wird gerade geleert. Ein Datensatz, der schon so dasteht, bleibt
+    # editierbar.
+    switching = (fields.get("account_type", user.account_type) != user.account_type
+                 or role != user.role)
+    emptying = any(f in fields and not (fields[f] or "").strip()
+                   for f, _ in accounts.REQUIRED_FIELDS)
+    if not (switching or emptying):
+        return
+    gaps = accounts.missing(after)
+    if gaps:
+        raise HTTPException(
+            400,
+            detail=(f"«{user.display_name}» ist ein Geschäftskonto – "
+                    f"{' und '.join(gaps)} {'fehlen' if len(gaps) > 1 else 'fehlt'}: "
+                    f"auf einem Beleg steht die Rechtsperson, nicht ihr Vertreter."),
+        )
+
+
 def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) -> UserProfile:
     """Profil-Felder schreiben – **EIN** Pfad für beide Oberflächen.
 
@@ -112,9 +186,10 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) ->
 
     **Die Anstellungsregel steht hier und nicht im Router** (``assert_employment``): die
     Tür ist nicht der einzige Aufrufer, und zwei Oberflächen schreiben denselben
-    Datensatz."""
+    Datensatz. **Dasselbe gilt für den Kontotyp** (``assert_account``)."""
     fields = data.model_dump(exclude_unset=True)
     assert_employment(db, user, fields)
+    assert_account(user, fields)
     for key, value in fields.items():
         old_val = getattr(user, key, None)
         old_str = str(old_val) if old_val is not None else None

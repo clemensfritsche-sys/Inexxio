@@ -945,3 +945,40 @@ benutzte Variable; `var(--x, right)` ist eine Angabe mit Vorgabe und bleibt erla
   ist die Gegenrichtung derselben Abfrage, die «was mir fehlt» beantwortet.
 - **Die Zeile «1 Instanzen mit je einer Einzelinstanz (-1).» ist gelöscht** (#1033): das
   ist das Datenmodell, nicht die Sache. Dritter Anlauf an derselben Zeile (#722, #725).
+
+## Der Kontotyp und die EINE Rechnungs-E-Mail (Testnotiz #1042)
+
+►►► **Firmenfelder hängen am KONTOTYP, nicht an der Rolle.** ◄◄◄ Sie hingen an
+`role === 'supplier'`: ein **Geschäftskunde** hatte damit keinen Firmennamen, und ein
+Mitarbeiter sah die Firma seines Arbeitgebers. Der Kontotyp (*Privat ↔ Geschäft*) ist eine
+**Stammdaten**frage und steht als `Segmented` unter der Rolle – erst «Geschäft» blendet
+Firmenname, Rechtsform und UID ein.
+
+- **Die Oberfläche leitet ihn NICHT ab.** Dass ein Lieferant immer eine Firma ist und dass
+  ein leerer Wert aus dem Firmennamen folgt, löst der Server: die Antwort trägt den
+  **effektiven** Kontotyp (`UserProfileResponse.account_type`). `lib/accounts.ts`
+  spiegelt nur Beschriftung und Erklärung – ein Wächter vergleicht beide Seiten.
+- **Ein Lieferant sieht keinen Schalter, sondern den Wert** mit dem Grund daneben: ein
+  Bedienelement, das nichts tun kann, ist kein Angebot.
+- **Die Rechnungs-E-Mail gibt es genau einmal** – bei den Adressen, für jeden Kontotyp,
+  **freiwillig**. Dass sie leer die Login-Adresse erbt, sagt der **Platzhalter**
+  (`lib/accounts.inheritedEmail` – ein Satz, zwei Aufrufstellen), nicht ein zweites Feld
+  und keine Checkbox. Das frühere «Rechnungs-E-Mail (Firma)» ist ersatzlos entfernt.
+- **Kein zweites Firmennamen-Feld an der Rechnungsadresse**: bei «Geschäft» trägt sie den
+  Firmennamen als erste Zeile, und der steht in den Firmendaten (`people.billing_name`).
+  Die frühere Kopie (`invoice_company`) veraltete beim ersten Umfirmieren.
+- **Die Rechtsformen stehen EINMAL** (`lib/legal-forms.ts`) – Freitext mit `datalist`,
+  Vorschläge je Land (#303). Sie lag in `organization-detail.tsx`; seit der Benutzer
+  dieselbe Angabe trägt, lesen beide dieselbe Liste.
+- **Die Bankverbindung bleibt an der Rolle**: eine IBAN braucht, wen **wir** bezahlen.
+
+**Gemessen in Chromium an den echten Komponenten** (`UserDetail`, `ProfileSection`):
+1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **acht**
+Zustände; «Rechnungs-E-Mail» in jedem genau **1×**, «(Firma)» **0×**, Firmenblock genau
+dort, wo der Kontotyp «Geschäft» ist. *Die Messung musste dreimal nachgeschärft werden:
+sie gab allen Szenen dieselbe Objektnummer (das Formular baut sich nur beim **Wechsel**
+des Datensatzes neu auf, also blieb der Stand der ersten stehen und sie meldete
+«Firmendaten false» für ein Geschäftskonto), und ihre Bug-Form fand keinen Anker – ein
+Eingabefeld-Wert scrollt im Feld statt überzulaufen, und der Name steht in einer
+Kopfzeile mit `overflow: hidden`. Die Karte kappt ihre Kinder, also ist die echte
+Bug-Form die **Karte selbst**: gedehnt meldet die Messung +360 bis +1480 px.*

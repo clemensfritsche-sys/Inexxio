@@ -5025,17 +5025,6 @@
             ],
             "title": "Country"
           },
-          "invoice_company": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Company"
-          },
           "invoice_first_name": {
             "anyOf": [
               {
@@ -5135,6 +5124,21 @@
             ],
             "title": "Invoice Same As Shipping"
           },
+          "account_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "private",
+                  "business"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Type"
+          },
           "company_name": {
             "anyOf": [
               {
@@ -5146,6 +5150,17 @@
             ],
             "title": "Company Name"
           },
+          "legal_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Form"
+          },
           "uid_number": {
             "anyOf": [
               {
@@ -5156,17 +5171,6 @@
               }
             ],
             "title": "Uid Number"
-          },
-          "company_billing_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Billing Email"
           },
           "bank_account_holder": {
             "anyOf": [
@@ -8313,17 +8317,6 @@
             ],
             "title": "Ship Country"
           },
-          "invoice_company": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Company"
-          },
           "invoice_first_name": {
             "anyOf": [
               {
@@ -8428,6 +8421,17 @@
             ],
             "title": "Date Of Birth"
           },
+          "account_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Type"
+          },
           "company_name": {
             "anyOf": [
               {
@@ -8438,6 +8442,17 @@
               }
             ],
             "title": "Company Name"
+          },
+          "legal_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Form"
           },
           "uid_number": {
             "anyOf": [
@@ -8497,17 +8512,6 @@
               }
             ],
             "title": "Company Website"
-          },
-          "company_billing_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Billing Email"
           },
           "bank_account_holder": {
             "anyOf": [
@@ -8689,7 +8693,6 @@
           "ship_postal_code",
           "ship_state_region",
           "ship_country",
-          "invoice_company",
           "invoice_first_name",
           "invoice_last_name",
           "invoice_address_line1",
@@ -8700,14 +8703,15 @@
           "invoice_email",
           "invoice_same_as_shipping",
           "date_of_birth",
+          "account_type",
           "company_name",
+          "legal_form",
           "uid_number",
           "vat_number",
           "vat_registered",
           "trade_register_nr",
           "trade_register_canton",
           "company_website",
-          "company_billing_email",
           "bank_account_holder",
           "bank_iban",
           "bank_bic",
@@ -8840,17 +8844,6 @@
             ],
             "title": "Country"
           },
-          "invoice_company": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Company"
-          },
           "invoice_first_name": {
             "anyOf": [
               {
@@ -8950,6 +8943,21 @@
             ],
             "title": "Invoice Same As Shipping"
           },
+          "account_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "private",
+                  "business"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Type"
+          },
           "company_name": {
             "anyOf": [
               {
@@ -8961,6 +8969,17 @@
             ],
             "title": "Company Name"
           },
+          "legal_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Form"
+          },
           "uid_number": {
             "anyOf": [
               {
@@ -8971,17 +8990,6 @@
               }
             ],
             "title": "Uid Number"
-          },
-          "company_billing_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Billing Email"
           },
           "bank_account_holder": {
             "anyOf": [

@@ -1295,3 +1295,70 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > verifiziert, samt **Backfill** (Summe aller lebenden Forderungen, Kopfangaben von der
 > ältesten geltenden Zeile, alte `charge`-Zeilen inaktiv – ohne den letzten Schritt läse
 > der Dienst sie als Zahlungen).
+
+> ►►► **DER KONTOTYP — und die EINE Rechnungs-E-Mail** (Testnotiz #1042, Migration
+> `139`). ◄◄◄
+> *«Eine Information existiert genau einmal.»* Zwei Dinge waren vermischt, und beide am
+> **Benutzer-Datensatz**:
+> **(1) Die Rechnungs-E-Mail gab es ZWEIMAL** – bei den Adressen (`invoice_email`) und
+> unter den Unternehmensinformationen (`company_billing_email`, «Rechnungs-E-Mail
+> (Firma)»). Das zweite Feld hatte **keinen einzigen Leser**: wer es ausfüllte, schrieb
+> in eine Spalte, die nie einen Beleg erreichte. Es ist ersatzlos entfernt – Modell,
+> beide Schemas, beide Oberflächen –, und ein trotzdem gesendeter Wert wird **verworfen**.
+> **Und die eine gilt jetzt wirklich immer**: `billing_of` las sie nur, wenn eine
+> **eigene Rechnungsadresse** dastand (`own`) – die Oberfläche bietet sie aber unabhängig
+> davon an. Wer bei «Rechnung = Lieferung» eine eintrug, schrieb ebenso ins Leere.
+> *Ein Feld, das nur unter einer unsichtbaren Bedingung wirkt, ist schlimmer als keines.*
+> **(2) Die Firmenfelder hingen an der ROLLE** (`role == 'supplier'`) – also an einer
+> Berechtigungsfrage, obwohl «wer bin ich wirtschaftlich» eine **Stammdatenfrage** ist.
+> Ein Geschäftskunde hatte damit keinen Firmennamen, und ein Mitarbeiter sah die Firma
+> seines Arbeitgebers. Neu ist der **Kontotyp** (`domain/accounts.py`,
+> `user_profiles.account_type`): *Privat ↔ Geschäft*, unabhängig von jeder Rolle, jederzeit
+> umschaltbar, ohne neuen Datensatz – so macht es jeder grosse Anbieter (Amazon Business,
+> Stripe, Shopify). «Geschäft» macht **Firmenname und Rechtsform** zu Pflichtfeldern, die
+> **UID bleibt freiwillig** (nur MWST-pflichtige Firmen haben eine); «Privat» blendet die
+> Firmenfelder aus und **löscht nichts**.
+> ►►► **`NULL` heisst «noch nicht entschieden» – und dann IST der Firmenname die
+> Antwort.** ◄◄◄ Das ist der Grund, warum diese Runde **keinen Backfill** braucht und
+> **keinen Default** auf beiden Seiten, der auseinanderlaufen könnte: es gibt keinen. Ein
+> `UPDATE … WHERE company_name <> ''` müsste im Lifespan-Netz stehen (die dev-Datenbank
+> fährt kein `alembic upgrade head`, #778) und liefe damit bei **jedem** Start – es
+> flippte jeden zurück, der bewusst auf «Privat» gestellt hat, ohne den Namen zu löschen.
+> Dieselbe Bauart wie `Voucher.issuer_company_id = NULL` («der Betreiber»): *tolerant
+> lesen, streng schreiben.*
+> **Die Rolle `supplier` ERZWINGT «Geschäft»** (`accounts.FORCED_BUSINESS`) – man bestellt
+> nicht bei einer Privatperson. Gelesen, nicht geschrieben: ein zweites Feld «ist das
+> gesperrt?» wäre dieselbe Aussage zweimal. **Die Antwort trägt darum den EFFEKTIVEN
+> Kontotyp** (`UserProfileResponse._effective_account_type`), nie die rohe Spalte – sonst
+> müsste jede Oberfläche die Ableitung nachbauen, und die erste, die es vergisst, zeigt
+> einem Lieferanten «Privat».
+> **Geprüft wird der ÜBERGANG, nicht der Bestand** (`people.assert_account`, neben
+> `assert_employment` und aus demselben Grund): eine Prüfung auf den *Zustand* machte
+> jeden bestehenden Lieferanten ohne Rechtsform unbearbeitbar – man käme nicht einmal
+> dazu, sie nachzutragen. Abgewiesen wird, wer den **neuen** schlechten Zustand herstellt
+> (umschalten oder eine Pflichtangabe leeren); den bestehenden meldet der Beleg als
+> `DataGap`. Die Regel wohnt im **Dienst**, nicht im Router: Konto und ERP schreiben
+> denselben Datensatz.
+> **`sites.legal_name` gilt jetzt für BEIDE Seiten des Belegs** – «Muster» ist keine
+> Rechtsperson, «Muster AG» ist eine (`user_profiles.legal_form`). Dieselbe eine Funktion,
+> dieselbe Ausnahme («Muster AG» + «AG» ≠ «Muster AG AG»); `people.billing_name` ruft sie
+> und fragt dabei den **Kontotyp**, nicht das blosse Feld. *Damit ist #914 («B2B und B2C
+> brauchen keinen Schalter») nicht gebrochen, sondern präzisiert: die **Reihenfolge**
+> (Firma zuerst, Person als «z. H.») ist dieselbe – gefragt wird nur, ob es eine Firma
+> gibt, und genau das beantwortet der Kontotyp.*
+> **Und ein zweiter Firmenname ist mitgegangen**: `invoice_company` war ein eigenes Feld,
+> das die Oberfläche bei «Rechnung = Lieferung» aus `company_name` **kopierte** – zwei
+> Wahrheiten über dieselbe Firma, und die Kopie veraltete beim ersten Umfirmieren. Bei
+> «Geschäft» trägt die Rechnungsadresse den Firmennamen als erste Zeile, und zusammengesetzt
+> wird sie an einer Stelle. Beide Spalten fallen im **Folge-Deploy** (`docs/backlog.md`).
+> **Die Bankverbindung bleibt an der Rolle** – bewusst: eine IBAN braucht, wen **wir**
+> bezahlen; ein Geschäftskunde gibt uns seine nicht.
+> Wächter: `tests/test_account_type.py` (14 Prüfungen) + 5 in `test_frontend_mirrors.py` –
+> **22 Bug-Formen gegengeprüft, jede meldet**; *einer war dabei zweimal stumpf* (er zählte
+> erst **Dateien** mit der Rechtsform-Liste und liess eine zweite Definition in derselben
+> Datei durch, dann nur den **Namen** und liess jede anders heissende Kopie durch – er
+> fragt jetzt Name **und** Inhalt). Ein bestehender prüfte die **Form** der alten Lösung
+> («nirgends steht `is_business`», #914) und hätte damit die bessere Fassung verboten – er
+> fragt jetzt die Regel. Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema
+> nur aus den Migrationen (je 618); Migration `139` von null · idempotent · downgrade ·
+> re-upgrade · über das Lifespan-Netz verifiziert.

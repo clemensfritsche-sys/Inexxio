@@ -4537,6 +4537,68 @@
 > +100,2 px bei 375 und +155,2 px bei 320, dasselbe Wort hinter `truncate` zu Recht
 > **nichts**.
 
+> ►►► **DER KONTOTYP — Rolle und Stammdaten sind ZWEI Fragen** (Testnotiz #1042,
+> Migration `139`). ◄◄◄
+> *«Eine Information existiert genau einmal.»* Zwei Doppelungen am Benutzer-Datensatz,
+> und beide hatten dieselbe Wurzel: **eine Angabe hing an der falschen Frage.**
+> **(1) Die Rechnungs-E-Mail gab es ZWEIMAL** – bei den Adressen und unter den
+> Unternehmensinformationen als «Rechnungs-E-Mail (Firma)». Das zweite Feld hatte **keinen
+> einzigen Leser**: wer es ausfüllte, schrieb in eine Spalte, die nie einen Beleg
+> erreichte. Es ist **ersatzlos entfernt** (UI, Modell, Tür), und ein trotzdem gesendeter
+> Wert wird verworfen. **Und die eine gilt jetzt wirklich immer**: `billing_of` las sie nur,
+> wenn eine *eigene Rechnungsadresse* dastand – wer bei «Rechnung = Lieferung» eine eintrug
+> (die Oberfläche bietet sie unabhängig davon an), schrieb ebenso ins Leere. *Ein Feld, das
+> nur unter einer unsichtbaren Bedingung wirkt, ist schlimmer als keines.* Leer erbt sie die
+> **Login-Adresse**, und das sagt der **Platzhalter** – kein zweites Feld, keine Checkbox.
+> **(2) Die Firmenfelder hingen an der ROLLE** (`supplier`), also an einer
+> **Berechtigungs**frage, obwohl «wer bin ich wirtschaftlich» eine **Stammdaten**frage ist.
+> Ein Geschäftskunde hatte damit keinen Firmennamen, ein Mitarbeiter sah die Firma seines
+> Arbeitgebers. Neu: der **Kontotyp** (`domain/accounts.py`) – *Privat ↔ Geschäft*,
+> unabhängig von jeder Rolle, jederzeit umschaltbar, ohne neuen Datensatz. «Geschäft» macht
+> **Firmenname und Rechtsform** zu Pflichtfeldern, die **UID bleibt freiwillig** (nur
+> MWST-pflichtige Firmen haben eine); «Privat» blendet die Firmenfelder aus und **löscht
+> nichts**. Die Rolle **Lieferant erzwingt** «Geschäft» – man bestellt nicht bei einer
+> Privatperson.
+> ►►► **`NULL` heisst «noch nicht entschieden» – und dann IST der Firmenname die
+> Antwort.** ◄◄◄ Darum braucht diese Runde **keinen Backfill** und **keinen Default**, der
+> auseinanderlaufen könnte: es gibt keinen. Ein `UPDATE … WHERE company_name <> ''` müsste
+> im Lifespan-Netz stehen (die dev-Datenbank fährt kein `alembic upgrade head`, #778) und
+> liefe bei **jedem** Start – es flippte jeden zurück, der bewusst auf «Privat» gestellt
+> hat, ohne den Namen zu löschen. Dieselbe Bauart wie `issuer_company_id = NULL`: *tolerant
+> lesen, streng schreiben.* **Die Antwort trägt den EFFEKTIVEN Kontotyp**, nie die rohe
+> Spalte – sonst baut jede Oberfläche die Ableitung nach, und die erste, die es vergisst,
+> zeigt einem Lieferanten «Privat».
+> **Geprüft wird der ÜBERGANG, nicht der Bestand** (`people.assert_account`, neben
+> `assert_employment` und aus demselben Grund): eine Zustandsprüfung machte jeden
+> bestehenden Lieferanten ohne Rechtsform unbearbeitbar – man käme nicht einmal dazu, sie
+> nachzutragen. Abgewiesen wird, wer den **neuen** schlechten Zustand herstellt; den
+> bestehenden meldet der Beleg als `DataGap`. Im **Dienst**, nicht im Router: Konto und ERP
+> schreiben denselben Datensatz.
+> **`sites.legal_name` gilt jetzt für BEIDE Seiten des Belegs** («Muster» ist keine
+> Rechtsperson, «Muster AG» ist eine) – dieselbe eine Funktion, dieselbe Ausnahme gegen
+> «Muster AG AG». Und **ein zweiter Firmenname ist mitgegangen**: `invoice_company` war ein
+> Feld, das die Oberfläche aus `company_name` **kopierte** – zwei Wahrheiten über dieselbe
+> Firma, und die Kopie veraltete beim ersten Umfirmieren; bei «Geschäft» trägt die
+> Rechnungsadresse den Firmennamen als erste Zeile. Beide Spalten fallen im **Folge-Deploy**.
+> *Damit ist #914 («B2B und B2C brauchen keinen Schalter») nicht gebrochen, sondern
+> präzisiert: die **Reihenfolge** (Firma zuerst, Person als «z. H.») ist dieselbe – gefragt
+> wird nur, ob es eine Firma gibt, und genau das beantwortet der Kontotyp. Die
+> **Bankverbindung** bleibt dagegen an der Rolle: eine IBAN braucht, wen **wir** bezahlen.*
+> **Die Rechtsformen stehen EINMAL** (`lib/legal-forms.ts`, Freitext mit Vorschlägen je
+> Land, #303) – sie lagen am Unternehmen; seit der Benutzer dieselbe Angabe trägt, lesen
+> beide dieselbe Liste.
+> Wächter: `tests/test_account_type.py` (14 Prüfungen) + 5 in `test_frontend_mirrors.py` –
+> **22 Bug-Formen gegengeprüft, jede meldet**; *einer war zweimal stumpf* (er zählte erst
+> **Dateien** mit der Rechtsform-Liste, dann nur ihren **Namen** – er fragt jetzt Name
+> **und** Inhalt). Ein bestehender prüfte die **Form** der alten Lösung («nirgends steht
+> `is_business`») und hätte die bessere Fassung verboten. Suite grün gegen die gewachsene
+> Datenbank **und** gegen ein Schema nur aus den Migrationen (je 618); Migration `139` von
+> null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz verifiziert. Gemessen
+> in Chromium an den **echten** Komponenten: 1440 · 1280 · 1024 · 834 · 375 · 320 px,
+> **0 px** waagrechter Überlauf über **acht** Zustände, «Rechnungs-E-Mail» je genau **1×**,
+> «(Firma)» **0×** – und die Messung gegen ihre eigene Bug-Form gegengeprüft (+360 bis
+> +1480 px), nachdem sie dreimal nachgeschärft werden musste.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -4685,6 +4747,9 @@ Universell 9-stellig: 100'000'001–999'999'999. Gilt für ALLE Objekte.
 Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by, is_active)
 
 ## Wichtige Entscheide
+- **Rolle ≠ Kontotyp** (#1042): die **Rolle** sagt, was jemand im System darf (Kunde ·
+  Lieferant · Mitarbeiter · Admin), der **Kontotyp**, wer er wirtschaftlich ist (Privat ↔
+  Geschäft). Firmenfelder hängen am zweiten, die Bankverbindung an der ersten.
 - **Artikel haben keine Versionierung**: Änderung → neuer Artikel, und der **Nachfolger**
   nennt seinen Vorgänger (`replaces_object_id` bei der Anlage → `replaced_by_id`). Ersetzen
   **bedeutet** ausser Betrieb nehmen – ein Vorgang, ein Aufruf.

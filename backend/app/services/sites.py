@@ -32,6 +32,8 @@ hier:
     sie» ist genau ``by_object_id`` ↔ ``operator``.
 """
 
+from typing import Any
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -100,12 +102,18 @@ def website_url() -> str:
 PLATFORM_FIELDS = ("plausible_domain", "google_maps_api_key")
 
 
-def legal_name(company: CompanySettings | None) -> str:
+def legal_name(company: Any) -> str:
     """►►► **Der Name der Rechtsperson** – so, wie er auf einen Beleg gehört. ◄◄◄
 
     «Inexxio» ist keine Rechtsperson, «Inexxio AG» ist eine, und auf einer Rechnung
     steht die, die haftet. Beide Angaben liegen längst am Unternehmen; hier werden sie
     zu **einem** Namen.
+
+    ►►► **Und es ist dieselbe Frage bei einem GESCHÄFTSKONTO** (Testnotiz #1042). ◄◄◄
+    Seit der Benutzer-Datensatz eine ``legal_form`` trägt, gilt die Zusammensetzung für
+    beide Seiten des Belegs – darum nimmt sie jeden Träger von ``company_name`` +
+    ``legal_form`` (``getattr`` mit Vorgabe, wie von Anfang an). Eine zweite Fassung für
+    die Gegenpartei wäre genau die Stelle, an der «Muster AG AG» wieder entsteht.
 
     ►►► **Und die Rechtsform steht GENAU EINMAL da.** ◄◄◄ Fast jeder trägt sie schon im
     Firmennamen («Muster AG»), und stumpf angehängt käme «Muster AG AG» heraus – gemessen

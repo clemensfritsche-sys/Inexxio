@@ -1888,8 +1888,6 @@ export interface components {
             state_region?: string | null;
             /** Country */
             country?: string | null;
-            /** Invoice Company */
-            invoice_company?: string | null;
             /** Invoice First Name */
             invoice_first_name?: string | null;
             /** Invoice Last Name */
@@ -1908,12 +1906,14 @@ export interface components {
             invoice_email?: string | null;
             /** Invoice Same As Shipping */
             invoice_same_as_shipping?: boolean | null;
+            /** Account Type */
+            account_type?: ("private" | "business") | null;
             /** Company Name */
             company_name?: string | null;
+            /** Legal Form */
+            legal_form?: string | null;
             /** Uid Number */
             uid_number?: string | null;
-            /** Company Billing Email */
-            company_billing_email?: string | null;
             /** Bank Account Holder */
             bank_account_holder?: string | null;
             /** Bank Iban */
@@ -3533,8 +3533,6 @@ export interface components {
             ship_state_region: string | null;
             /** Ship Country */
             ship_country: string | null;
-            /** Invoice Company */
-            invoice_company: string | null;
             /** Invoice First Name */
             invoice_first_name: string | null;
             /** Invoice Last Name */
@@ -3555,8 +3553,12 @@ export interface components {
             invoice_same_as_shipping: boolean;
             /** Date Of Birth */
             date_of_birth: string | null;
+            /** Account Type */
+            account_type: string | null;
             /** Company Name */
             company_name: string | null;
+            /** Legal Form */
+            legal_form: string | null;
             /** Uid Number */
             uid_number: string | null;
             /** Vat Number */
@@ -3569,8 +3571,6 @@ export interface components {
             trade_register_canton: string | null;
             /** Company Website */
             company_website: string | null;
-            /** Company Billing Email */
-            company_billing_email: string | null;
             /** Bank Account Holder */
             bank_account_holder: string | null;
             /** Bank Iban */
@@ -3630,8 +3630,6 @@ export interface components {
             state_region?: string | null;
             /** Country */
             country?: string | null;
-            /** Invoice Company */
-            invoice_company?: string | null;
             /** Invoice First Name */
             invoice_first_name?: string | null;
             /** Invoice Last Name */
@@ -3650,12 +3648,14 @@ export interface components {
             invoice_email?: string | null;
             /** Invoice Same As Shipping */
             invoice_same_as_shipping?: boolean | null;
+            /** Account Type */
+            account_type?: ("private" | "business") | null;
             /** Company Name */
             company_name?: string | null;
+            /** Legal Form */
+            legal_form?: string | null;
             /** Uid Number */
             uid_number?: string | null;
-            /** Company Billing Email */
-            company_billing_email?: string | null;
             /** Bank Account Holder */
             bank_account_holder?: string | null;
             /** Bank Iban */

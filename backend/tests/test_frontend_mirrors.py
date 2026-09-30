@@ -6872,27 +6872,45 @@ def test_the_suggestion_list_hangs_on_the_body_not_in_the_field():
 
 
 def test_a_private_customer_is_named_by_his_own_name():
-    """►►► **B2B und B2C – und dafür gibt es keinen Schalter** (Testnotiz #914). ◄◄◄
+    """►►► **Der Name auf dem Beleg entsteht an EINER Stelle** (#914, #1042). ◄◄◄
 
-    Die Regel steht längst da (`people.billing_name`): *Firma zuerst, Person als «z. H.»;
-    ohne Firma bleibt die Person.* Ein Privatkunde trägt keinen Firmennamen – also steht
-    dort sein Name, und zwar **ohne dass jemand ein Häkchen setzt**.
+    Die Regel steht in `people.billing_name`: *Firma zuerst, Person als «z. H.»; ohne
+    Firma bleibt die Person.* Ein Privatkunde trägt keine Firma – also steht dort sein
+    Name.
 
-    Ein `is_business`-Feld wäre eine **zweite Aussage** über etwas, das die Daten schon
-    sagen – und es wäre die Stelle, an der jemand es falsch setzt.
+    ►►► **Und ob eine Firma dasteht, sagt der KONTOTYP** – nicht die Rolle. ◄◄◄ Dieser
+    Wächter verbot einmal jedes `is_business` mit der Begründung «die Daten sagen es
+    bereits» (#914). Das war die **Form** der damaligen Lösung, nicht die Regel: gefragt
+    wurde das blosse Vorhandensein von `company_name`, und *sichtbar* waren die
+    Firmenfelder nur bei `role == 'supplier'` – ein Geschäftskunde hatte damit keinen
+    Firmennamen, und ein Mitarbeiter sah die Firma seines Arbeitgebers. Genau daraus
+    entstand #1042. Der **Kontotyp** ist jetzt die eine Angabe, und was unverändert gilt,
+    ist die Zahl der Stellen: **eine**.
 
-    *Gemessen in Chromium: der Beleg einer Privatperson nennt ihren Namen und hat **keine**
-    «z. H.»-Zeile; der einer Firma beide.*
-
-    Bug-Formen: (a) irgendwo steht doch ein B2B/B2C-Schalter; (b) die Oberfläche
-    entscheidet selbst, was in den Namen gehört, statt zu lesen, was der Server schickt.
+    Bug-Formen: (a) der Beleg fragt wieder die **Rolle**, statt den Kontotyp;
+    (b) er fragt das blosse Feld (dann trägt ein Privatkonto seinen alten Firmennamen
+    wieder auf dem Beleg); (c) die Oberfläche entscheidet selbst, was in den Namen gehört,
+    statt zu lesen, was der Server schickt.
     """
-    for where in ("services/voucher.py", "services/people.py", "schemas/voucher.py"):
-        src = _code(_read(BACKEND / "app" / where))
-        assert "is_business" not in src and "is_company" not in src, (
-            f"«{where}» führt einen B2B/B2C-Schalter (a) – die Daten sagen es bereits."
-        )
     people = _code(_read(BACKEND / "app" / "services" / "people.py"))
+    voucher = _code(_read(BACKEND / "app" / "services" / "voucher.py"))
+    # **Die Rolle, nicht die Beleg-Rolle.** ``voucher`` kennt «supplier»/«customer» als die
+    # MWSTG-Rollen des Papiers (Leistungserbringer ↔ -empfänger) – gemeint ist hier die
+    # Rolle des *Benutzers*, und die steht als ``.role`` am Datensatz.
+    for name, block in (("people.billing_name", _body(people, "billing_name")),
+                        ("voucher.billing_of", _body(voucher, "billing_of"))):
+        assert ".role" not in block, (
+            f"«{name}» fragt die Rolle des Benutzers (a) – der Kontotyp ist die Angabe."
+        )
+    block = " ".join(_body(people, "billing_name").split())
+    assert "is_business(u)" in block, (
+        "``billing_name`` fragt nicht den Kontotyp (b) – ein Privatkonto behält seinen "
+        "Firmennamen in der Zeile, und er darf nicht mehr auf den Beleg."
+    )
+    assert "u.company_name" not in block, (
+        "``billing_name`` liest das Firmenfeld roh (b) – die Frage lautet, ob der "
+        "**Kontotyp** «Geschäft» ist; ``sites.legal_name`` setzt den Namen zusammen."
+    )
     block = _body(people, "billing_name")
     assert "z. H." in block, (
         "Die Regel «Firma zuerst, Person als z. H.» steht nicht mehr in "
@@ -9775,3 +9793,171 @@ def test_every_css_variable_is_defined_somewhere():
         "Diese CSS-Variablen werden benutzt, aber nirgends definiert – sie erzeugen "
         f"stillschweigend nichts: {missing}"
     )
+
+
+# ===========================================================================
+# ►► Der Kontotyp und die EINE Rechnungs-E-Mail (Testnotiz #1042)
+# ===========================================================================
+
+def _accounts_ts() -> str:
+    return _read(FRONTEND / "lib" / "accounts.ts")
+
+
+def test_the_account_type_catalog_is_mirrored_word_for_word():
+    """►►► **Der Spiegel des Kontotyps** (Testnotiz #1042). ◄◄◄
+
+    Schlüssel **und** Wörter kommen aus ``domain/accounts.CATALOG``; das Frontend pflegt
+    sie von Hand (schnell, ohne Generierung). Ein Spiegel, den niemand prüft, läuft
+    auseinander – und dann heisst dasselbe Konto an zwei Stellen anders.
+
+    Bug-Formen: (a) ein Schlüssel fehlt oder heisst anders; (b) eine Beschriftung weicht
+    ab; (c) das ``Literal`` an der Tür kennt andere Werte als der Katalog.
+    """
+    # **Der Katalog selbst, nicht sein Quelltext**: ``domain/accounts`` ist ein reines
+    # Fachmodul (keine DB, keine Dienste), also ist der Import die genauere Messung – ein
+    # Ausdruck über die Datei hätte gelesen, wie sie geschrieben ist, nicht was sie sagt.
+    from app.domain import accounts as acc
+
+    keys = [(a.key, a.label) for a in acc.CATALOG]
+    ts = _accounts_ts()
+    for key, label in keys:
+        assert f"value: '{key}', label: '{label}'" in ts, (
+            f"«{key}» heisst im Frontend nicht «{label}» (a/b) – "
+            "``lib/accounts.ACCOUNT_TYPES`` spiegelt ``domain/accounts.CATALOG``."
+        )
+        assert f"  {key}: {{" in ts, f"«{key}» fehlt in ``ACCOUNT_TYPE`` (a)."
+    order = [k for k, _ in keys]
+    assert [m for m in re.findall(r"value: '(\w+)'", ts)] == order, (
+        "Die Reihenfolge des Schalters weicht vom Katalog ab (a) – sie IST die "
+        "Reihenfolge der Antworten."
+    )
+    door = re.search(r'AccountType = Literal\[([^\]]+)\]',
+                     _read(BACKEND / "app" / "schemas" / "admin.py"))
+    assert door and sorted(re.findall(r'"(\w+)"', door.group(1))) == sorted(order), (
+        "Das ``Literal`` an der Tür kennt andere Werte als der Katalog (c)."
+    )
+
+
+def test_the_billing_email_is_one_field_in_every_surface():
+    """►►► **Eine Information existiert genau einmal** (Testnotiz #1042). ◄◄◄
+
+    *«Aktuell gibt es die Rechnungs-E-Mail zweimal als Eingabefeld im Benutzerdatensatz:
+    einmal im Abschnitt Adressen und einmal unter den Unternehmensinformationen als
+    ‹Rechnungs-E-Mail (Firma)›. Das ist ersatzlos aufzulösen.»*
+
+    Geprüft wird die **Regel**, nicht die gemeldete Zeile: in jeder Oberfläche, die den
+    Benutzer-Datensatz schreibt, gibt es **genau ein** Eingabefeld für sie – und kein
+    Feld mehr, das «(Firma)» heisst.
+
+    Bug-Formen: (a) ``company_billing_email`` ist wieder da; (b) es gibt zwei Felder für
+    ``invoice_email``; (c) ein zweites Firmennamen-Feld an der Rechnungsadresse
+    (``invoice_company``) – dieselbe Doppelung eine Angabe weiter.
+    """
+    for where in ("components/erp/user-detail.tsx",
+                  "components/account/sections/profile-section.tsx"):
+        src = _code(_read(FRONTEND / where))
+        assert "company_billing_email" not in src, (
+            f"«{where}» führt die Firmen-Rechnungs-E-Mail wieder (a)."
+        )
+        assert "invoice_company" not in src, (
+            f"«{where}» führt ein zweites Firmennamen-Feld (c) – bei «Geschäft» trägt "
+            "die Rechnungsadresse den Firmennamen aus den Firmendaten."
+        )
+        fields = re.findall(r"label=\"Rechnungs-E-Mail[^\"]*\"", src)
+        assert len(fields) == 1, (
+            f"«{where}» hat {len(fields)} Felder «Rechnungs-E-Mail» (b) – es ist eines."
+        )
+        assert "(Firma)" not in src, (
+            f"«{where}» beschriftet noch ein Feld mit «(Firma)» (a)."
+        )
+
+
+def test_the_inheritance_of_the_billing_email_is_visible():
+    """**Ist sie leer, wird die Login-/Kontakt-E-Mail verwendet – und das steht da.**
+
+    *«Das Feld ist also optional und trägt einen Platzhalter, der die Vererbung sichtbar
+    macht. Kein zweites Feld, keine Checkbox.»* Der Satz steht an **einer** Stelle
+    (``lib/accounts.inheritedEmail``) und wird von beiden Oberflächen gelesen – zwei
+    Formulierungen wären zwei Aussagen über dieselbe Vererbung.
+
+    Bug-Formen: (a) der Platzhalter nennt nur die Adresse (das sieht aus wie eine
+    Vorbelegung, nicht wie eine Regel); (b) daneben steht doch eine Checkbox oder ein
+    zweites Feld; (c) eine Oberfläche baut den Satz selbst.
+    """
+    assert "übernimmt" in _accounts_ts(), (
+        "Der Satz nennt die Vererbung nicht (a) – «rechnung@…» allein ist eine "
+        "Vorbelegung, keine Regel."
+    )
+    for where in ("components/erp/user-detail.tsx",
+                  "components/account/sections/profile-section.tsx"):
+        src = _code(_read(FRONTEND / where))
+        assert "inheritedEmail(" in src, f"«{where}» baut den Satz selbst (c)."
+        assert "übernimmt" not in src, f"«{where}» formuliert die Vererbung zweimal (c)."
+        assert not re.search(r"(ToggleField|Segmented)[^>]*Rechnungs-E-Mail", src), (
+            f"«{where}» stellt die Vererbung als Schalter daneben (b)."
+        )
+
+
+def test_the_company_fields_hang_on_the_account_type_not_on_the_role():
+    """►►► **Kontotyp statt Rollenvermischung** (Testnotiz #1042). ◄◄◄
+
+    *«Rolle: was jemand im System darf – eine Berechtigungsfrage. Kontotyp: wer jemand
+    wirtschaftlich ist – eine Stammdatenfrage, unabhängig von der Rolle.»* Die
+    Firmenfelder hingen an ``role === 'supplier'``: ein **Geschäftskunde** hatte damit
+    keinen Firmennamen.
+
+    ►►► **Und die Bankverbindung bleibt an der Rolle** – bewusst: eine IBAN braucht, wen
+    **wir** bezahlen; ein Geschäftskunde gibt uns seine nicht. ◄◄◄
+
+    Bug-Formen: (a) der Firmenblock fragt wieder die Rolle; (b) er fragt gar nichts
+    (dann sieht jede Privatperson Firmenfelder); (c) die Oberfläche leitet den Kontotyp
+    selbst aus der Rolle ab, statt den effektiven Wert des Servers zu lesen.
+    """
+    for where, gate in (("components/erp/user-detail.tsx", "business &&"),
+                        ("components/account/sections/profile-section.tsx",
+                         "isBusiness(form.account_type) &&")):
+        src = _code(_read(FRONTEND / where))
+        block = src[_at(src, "Firmendaten") - 400:_at(src, "Firmendaten")]
+        assert gate in block, (
+            f"«{where}» blendet die Firmendaten nicht über den Kontotyp ein (a/b)."
+        )
+        assert "isSupplier &&" not in block, (
+            f"«{where}» fragt am Firmenblock die Rolle (a)."
+        )
+        # (c) – der effektive Wert kommt vom Server; abgeleitet wird hier nichts.
+        assert "'supplier' ? 'business'" not in src and "? 'business'" not in src, (
+            f"«{where}» leitet den Kontotyp selbst ab (c) – die Antwort trägt ihn."
+        )
+
+
+def test_the_legal_form_suggestions_exist_exactly_once():
+    """**EINE Liste Rechtsformen, zwei Aufrufstellen** (Testnotiz #1042, #303).
+
+    Sie lag in ``organization-detail.tsx`` – dort wird die Rechtsform **unserer**
+    Gesellschaften gepflegt. Seit ein Geschäftskonto am Benutzer dieselbe Angabe trägt,
+    fragt eine zweite Stelle sie; kopiert wäre sie die Liste, die beim nächsten Land
+    auseinanderläuft.
+
+    Bug-Form: eine zweite Definition (dann kennt der Benutzer andere Rechtsformen als das
+    Unternehmen).
+    """
+    # ►►► **Gefragt sind NAME und INHALT.** ◄◄◄ Beide Anläufe davor waren stumpf, und
+    # zwar gegen je eine der zwei Formen, in denen eine Kopie entsteht: nach Dateien
+    # gezählt blieb eine zweite Definition in derselben Datei grün, und nach dem **Namen**
+    # gezählt blieb jede Kopie grün, die anders heisst. Also beides – der Name findet die
+    # abgeschriebene Funktion, eine Rechtsform, die es nur hier gibt, die abgeschriebenen
+    # Werte.
+    def _spots(needle: str) -> list[tuple[str, int]]:
+        return [(p.relative_to(FRONTEND).as_posix(), n)
+                for p in sorted(FRONTEND.rglob("*.ts*")) if p.is_file()
+                for n in [len(re.findall(needle, _code(_read(p))))] if n]
+
+    for needle in (r"LEGAL_FORMS_BY_ISO2\s*(?::|=)", r"Kollektivgesellschaft"):
+        assert _spots(needle) == [("lib/legal-forms.ts", 1)], (
+            f"Die Rechtsform-Liste steht nicht genau einmal: {_spots(needle)}"
+        )
+    for where in ("components/erp/organization-detail.tsx",
+                  "components/erp/user-detail.tsx",
+                  "components/account/sections/profile-section.tsx"):
+        src = _code(_read(FRONTEND / where))
+        assert "legalForms(" in src, f"«{where}» fragt die gemeinsame Liste nicht."

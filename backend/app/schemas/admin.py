@@ -2,7 +2,16 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from ..domain import accounts
+
+#: ►►► **Die zwei Kontotypen an der Tür** (Testnotiz #1042). ◄◄◄ Dieselbe Bauart wie
+#: ``Role``: eine Whitelist, damit ein Tippfehler nicht stillschweigend ankommt – und
+#: damit die generierten Frontend-Typen die Union tragen statt eines freien Strings.
+#: Der **Katalog** steht in ``domain/accounts``; ein Wächter hält beides deckungsgleich
+#: (ein handgepflegtes ``Literal`` ist genau die Form, die beim nächsten Wert veraltet).
+AccountType = Literal["private", "business"]
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -180,7 +189,6 @@ class UserProfileResponse(BaseModel):
     ship_country: Optional[str]
 
     # Invoice
-    invoice_company: Optional[str]
     invoice_first_name: Optional[str]
     invoice_last_name: Optional[str]
     invoice_address_line1: Optional[str]
@@ -188,6 +196,7 @@ class UserProfileResponse(BaseModel):
     invoice_city: Optional[str]
     invoice_postal_code: Optional[str]
     invoice_country: Optional[str]
+    #: Die **eine** Rechnungs-E-Mail (Testnotiz #1042). Leer = die Login-/Kontakt-Adresse.
     invoice_email: Optional[str]
     invoice_same_as_shipping: bool
 
@@ -195,14 +204,19 @@ class UserProfileResponse(BaseModel):
     date_of_birth: Optional[date]
 
     # Business / company info
+    #: ►►► **Der Kontotyp, der GILT** – nie die rohe Spalte. ◄◄◄ ``NULL`` heisst «noch
+    #: nicht entschieden», und die Rolle ``supplier`` erzwingt «Geschäft»; beides löst
+    #: ``_effective_account_type`` unten auf. Die Oberfläche bekommt damit immer einen
+    #: Wert und muss die Ableitung nicht ein zweites Mal kennen.
+    account_type: Optional[str]
     company_name: Optional[str]
+    legal_form: Optional[str]
     uid_number: Optional[str]
     vat_number: Optional[str]
     vat_registered: bool
     trade_register_nr: Optional[str]
     trade_register_canton: Optional[str]
     company_website: Optional[str]
-    company_billing_email: Optional[str]
 
     # Supplier bank details
     bank_account_holder: Optional[str]
@@ -229,6 +243,21 @@ class UserProfileResponse(BaseModel):
     terms_accepted_at: Optional[datetime]
     terms_version: Optional[str]
 
+    @model_validator(mode="after")
+    def _effective_account_type(self) -> "UserProfileResponse":
+        """►►► **Die Antwort trägt den Kontotyp, der GILT** (Testnotiz #1042). ◄◄◄
+
+        Die rohe Spalte ist ``NULL``, solange niemand gewählt hat, und die Rolle
+        ``supplier`` überstimmt sie ohnehin. Beides hier aufzulösen ist der Unterschied
+        zwischen **einer** Regel und zwei: sonst müsste jede Oberfläche die Ableitung
+        nachbauen – und die erste, die es vergisst, zeigt einem Lieferanten «Privat».
+
+        Es ist eine Auskunft, kein zweites Feld: geschrieben wird weiterhin die Spalte.
+        """
+        self.account_type = accounts.effective(
+            self.role, self.account_type, company_name=self.company_name)
+        return self
+
 
 class UserProfileUpdate(BaseModel):
     """Self-service update — only fields a user may edit themselves.
@@ -247,7 +276,6 @@ class UserProfileUpdate(BaseModel):
     country: Optional[str] = None
 
     # Invoice / billing address
-    invoice_company: Optional[str] = None
     invoice_first_name: Optional[str] = None
     invoice_last_name: Optional[str] = None
     invoice_address_line1: Optional[str] = None
@@ -255,13 +283,22 @@ class UserProfileUpdate(BaseModel):
     invoice_city: Optional[str] = None
     invoice_postal_code: Optional[str] = None
     invoice_country: Optional[str] = None
+    #: ►►► **Die EINE Rechnungs-E-Mail** (Testnotiz #1042). ◄◄◄ Sie ist ein Attribut der
+    #: **Rechnungsadresse** – nicht der Firma und nicht des Logins –, gilt für jeden
+    #: Kontotyp gleichermassen, und leer erbt sie die Login-/Kontakt-Adresse. Das frühere
+    #: zweite Feld ``company_billing_email`` ist ersatzlos entfallen; ein trotzdem
+    #: gesendeter Wert wird **verworfen**.
     invoice_email: Optional[str] = None
     invoice_same_as_shipping: Optional[bool] = None
 
-    # Business / company info (supplier-visible fields)
+    # ─── Kontotyp + Firmenangaben ──────────────────────────────────────────────
+    #: **Privat ↔ Geschäft** – die Person entscheidet es selbst (darum hier und nicht in
+    #: ``ErpAdminUpdate``): es ist eine Stammdaten-, keine Berechtigungsfrage. Ein
+    #: unbekannter Wert wird von der Tür abgewiesen, nicht stillschweigend geschluckt.
+    account_type: Optional[AccountType] = None
     company_name: Optional[str] = None
+    legal_form: Optional[str] = None
     uid_number: Optional[str] = None
-    company_billing_email: Optional[str] = None
 
     # Supplier bank details
     bank_account_holder: Optional[str] = None
