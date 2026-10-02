@@ -123,6 +123,21 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: `vouchers.issued_on` droppen (Folge-Deploy nach #1047)
+
+Die Spalte hat ihr ORM-Mapping verloren. Sie trug «wann die Rechnung hinausging», gesetzt
+von einem eigenen Knopf («Rechnung ist versendet») – und die Hausregel sagte dazu selbst,
+dass sie eine Ausnahme ist: *der Moment braucht keine Spalte*. Gebraucht hat ihn niemand;
+die Fälligkeit kommt aus dem **Rechnungsdatum**, und **gestellt ist draussen**.
+
+Mit ihr ist die Zeile `issued_on = h.booked_on` aus `voucher.invoice_backfill_sql`
+entfallen – **das war Pflicht, nicht Kosmetik**: dieses SQL läuft bei jedem Start über
+das Lifespan-Netz, und nach dem Drop wäre es ein Fehler an einer Spalte, die es nicht mehr
+gibt. Der Eintrag im `_COLUMN_SAFETY_NET` ist ebenfalls gegangen (ein Netz für eine
+Spalte, die kein Modell kennt, schützt nichts).
+
+Sie ist `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf.
+
 ## Offen: zwölf Spalten am Benutzer droppen (Folge-Deploy nach #1042/#1043)
 
 Alle zwölf haben ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**:
@@ -132,7 +147,7 @@ Alle zwölf haben ihr ORM-Mapping verloren — **eine Angabe existiert genau ein
 | `company_billing_email` | Die Rechnungs-E-Mail ist ein Attribut der **Rechnungsadresse** (`invoice_email`); dieses Feld hatte **keinen einzigen Leser** (#1042). |
 | `invoice_company` | Den Firmennamen der Rechnungsadresse trägt `company_name` über `people.billing_name` – die Kopie veraltete beim ersten Umfirmieren (#1042). |
 | `account_type` | **Der Firmenname ist die Erklärung** (#1043): steht er da, ist es eine Firma. Ein Schalter daneben sagte dasselbe und konnte ihm widersprechen. |
-| `invoice_same_as_shipping` | Ob eine eigene Rechnungsadresse hinterlegt ist, sagen **die Felder selbst** (`voucher.billing_of` liest genau das). Der Schalter liess zudem eine **Kopie** der Lieferadresse hineinschreiben (#1043). |
+| `invoice_same_as_shipping` | Ob eine eigene Rechnungsadresse hinterlegt ist, sagen **die Felder selbst** (`voucher.billing_of` liest genau das). Der Schalter liess zudem eine **Kopie** der Lieferadresse hineinschreiben (#1043). *Der Schalter in der Oberfläche ist auf Wunsch zurück – als **Ableitung** aus diesen Feldern, nicht als gespeicherte Angabe: «Aus» räumt sie.* |
 | die acht `ship_*` | Es gibt **zwei** Anschriften, nicht drei: die Lieferadresse **ist** die Hauptadresse. Der dritte Satz hatte weder Leser noch Schreiber (#1043). |
 
 **Gedroppt werden sie im FOLGE-Deploy** (Zwei-Deploy-Regel): beides in einem Deploy

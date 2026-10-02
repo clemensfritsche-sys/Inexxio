@@ -1363,6 +1363,40 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > nur aus den Migrationen (je 618); Migration `139` von null · idempotent · downgrade ·
 > re-upgrade · über das Lifespan-Netz verifiziert.
 
+> ►►► **GESTELLT IST DRAUSSEN — und der Grund steht am KNOPF** (Testnotizen
+> #1046/#1047). ◄◄◄
+> **Das Verb `issue` ist gelöscht**, mit ihm `vo.ISSUE_WORD`, `svc.is_issued` und das
+> Mapping `vouchers.issued_on` (Drop im Folge-Deploy, `docs/backlog.md`). Es setzte ein
+> **Datum** und sonst nichts – eine Handlung, die ein Mensch *für das System* ausführte,
+> damit das System sie protokolliert; die Hausregel nannte es selbst eine Ausnahme (*der
+> Moment braucht keine Spalte*).
+> **Zwei Regeln lasen es, und beide sind einfacher geworden**: `can` gibt `pay`/`pay_online`
+> frei, sobald die Rechnung **gestellt** ist (gestellt **ist** draussen, in beide Richtungen
+> gleich), und `unbill` endet an der stärkeren der beiden Bedingungen, die dort standen –
+> es ist **Geld geflossen**. `out_there` ist damit `billed`.
+> **Und die Zeile `issued_on = h.booked_on` fällt aus `invoice_backfill_sql`** – Pflicht,
+> nicht Kosmetik: das SQL läuft bei **jedem** Start über das Lifespan-Netz, und nach dem
+> Drop wäre es ein Fehler an einer Spalte, die es nicht mehr gibt. Ihr Eintrag im
+> `_COLUMN_SAFETY_NET` ist ebenfalls gegangen (ein Netz für eine Spalte, die kein Modell
+> kennt, schützt nichts).
+> ►►► **`voucher.ask_problem` — der Grund, BEVOR geklickt wird.** ◄◄◄ *«Diese Meldung
+> erscheint nicht an der Stelle des Geschehens. Besser wäre, der Submit-Button ist
+> deaktiviert, bis alles vollständig ist, und beim Hover erklärt er warum.»*
+> Die Prüfung gab es längst (`_assert_complete`, #964), nur **erst beim Klick** – der 400er
+> landete als rote Zeile am Kopf des Auftrags. Jetzt ist sie eine **Ableitung**, die als
+> `VoucherEmbed.ask_problem` mitreist, und **derselbe Satz ist das Tor** (`_assert_ask`):
+> *zwei Formen einer Regel, ein Namensstamm.* Sie fasst alles, was `_ask` abweisen kann –
+> Gegenpartei · Preis je Position · beide Zoll-Angaben · Lieferbedingung · beide Fristen –,
+> und **nennt die Position**. `_assert_complete` ist darin aufgegangen; `_assert_terms` hat
+> seine Problem-Form bekommen (`terms_problem`), damit `_quote` unverändert wirft.
+> **Gelesen wird nur, wo es den Knopf gibt** (`"ask" in allowed`) – ein Grund ohne Handlung
+> ist eine Mängelliste –, und die Antwort gibt die Positionen **einmal** aus
+> (`lines = embed_lines(…)`, an `ask_problem` durchgereicht).
+> Wächter: `test_a_billed_invoice_is_out_there` ·
+> `test_the_reason_stands_at_the_button_not_after_the_click` (**8 Bug-Formen
+> gegengeprüft**; eine war stumpf – sie liess einen *vageren* Satz durch, der die Position
+> nicht nennt).
+
 > ►►► **DIE ROLLE IST DER ZUGANG — und der Firmenname die Erklärung** (Testnotiz #1043,
 > Migration `140`). ◄◄◄ Zwei Vereinfachungen, und beide nehmen etwas **weg**; die Hälfte
 > der Vorrunde ist damit zurückgenommen (`domain/accounts.py` ist **gelöscht**).

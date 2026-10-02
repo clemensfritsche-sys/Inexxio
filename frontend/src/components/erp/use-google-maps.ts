@@ -50,12 +50,19 @@ function loadScript(apiKey: string): Promise<void> {
  * Authentifizierungs-/Freischaltungsfehler (z. B. Places API nicht aktiviert oder der Key
  * per API-Restriktion auf »Maps JavaScript API« beschränkt). Bei ``'auth'`` fallen die
  * Adressfelder auf reine Texteingabe zurück – nie kaputt.
+ *
+ * ►►► **Ein `undefined` ist keine Antwort** (Testnotiz #1044). ◄◄◄ Solange der Schlüssel
+ * noch geladen wird, ist *weder* `loaded` *noch* `error` gesetzt – und genau das ist die
+ * Auskunft: «frag später nochmal». Vorher traf dieser Fall dieselbe Antwort wie «es gibt
+ * keinen Schlüssel», und der Aufrufer schaltete auf einen Rückfall, den er nie wieder
+ * verliess.
  */
 export function useGoogleMaps(apiKey: string | null | undefined): { loaded: boolean; error: string | null } {
   const [loaded, setLoaded] = useState(isReady());
   const [error, setError] = useState<string | null>(authFailed ? 'auth' : null);
 
   useEffect(() => {
+    if (apiKey === undefined) return;
     if (!apiKey) { setError('no-key'); return; }
     let cancelled = false;
     setError(authFailed ? 'auth' : null);

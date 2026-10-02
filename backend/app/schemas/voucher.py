@@ -183,8 +183,6 @@ class VoucherInvoice(BaseModel):
     billed_on: Optional[date] = None
     #: Fälligkeit = Rechnungsdatum + vereinbarte Zahlungsfrist.
     due_on: Optional[date] = None
-    #: Wann sie hinausging. ``None`` = noch im Haus, also zurücknehmbar.
-    issued_on: Optional[date] = None
     #: Der Betrag **brutto**, eingefroren. Negativ heisst: dieser Beleg **mindert**.
     amount: Optional[str] = None
     #: Die eingefrorene Steuer-Aufteilung. **Nicht nachgerechnet**: ein Beleg behält, was
@@ -350,6 +348,13 @@ class VoucherEmbed(BaseModel):
     label: str = ""
     party_word: str = ""
     ask_verb: str = ""
+    #: ►►► **Warum der Anfrage-Knopf gesperrt ist** (Testnotiz #1046) – oder ``None``. ◄◄◄
+    #:
+    #: Derselbe Satz, mit dem ``_ask`` abweist (``voucher.ask_problem``): er stand bis
+    #: hierher **erst nach dem Klick** als rote Zeile am Kopf des Auftrags – weit weg von
+    #: der Position, die er nennt. Ein zweiter Massstab im Browser wäre die Stelle, an der
+    #: Knopf und Tür auseinanderlaufen.
+    ask_problem: Optional[str] = None
     #: **Wer den Preis nennt** – daraus folgt die ganze Abfolge.
     we_quote: bool = False
     #: Wie das Nummernfeld heisst. ``None`` = **wir** nummerieren, also kein Feld.
@@ -415,9 +420,9 @@ class VoucherEmbed(BaseModel):
     payment_word: str = ""
     pay_online_word: str = ""
     refund_online_word: str = ""
-    #: ►►► **Die beiden Gegenstücke zur Rechnung.** ◄◄◄ *stellen → versenden*, und
-    #: dazwischen die Gegenhandlung – dieselbe Anatomie wie ``ask``/``unask``.
-    issue_word: str = ""
+    #: Das Gegenstück zur Rechnung – dieselbe Anatomie wie ``ask``/``unask``.
+    #: *Daneben stand ``issue_word`` («Rechnung ist versendet»); der Knopf ist mit seinem
+    #: Datum entfallen (#1047) – **gestellt ist draussen**.*
     unbill_word: str = ""
     # ─── Fristen ────────────────────────────────────────────────────────────────
     #: **Eine Ableitung der Zahlungsfrist**, keine Einstellung: null Tage ab Zusage *ist*
@@ -515,9 +520,8 @@ class VoucherUpdate(BaseModel):
     ``revoke``   stornieren – die eine Gegenhandlung
     ``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)
     ``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist
-    ``unbill``   sie zurücknehmen, solange sie im Haus ist (nicht versendet, nichts
-                 geflossen) – die Gegenhandlung zu ``bill``
-    ``issue``    *«Rechnung ist versendet»* – danach unveränderlich
+    ``unbill``   sie zurücknehmen, solange **nichts geflossen** ist – die Gegenhandlung
+                 zu ``bill``
     ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
 
@@ -545,8 +549,6 @@ class VoucherUpdate(BaseModel):
     entry: Optional[int] = None
     #: Das **Rechnungsdatum** (``bill``) – vorbelegt mit heute.
     billed_on: Optional[date] = None
-    #: Wann sie hinausging (``issue``) – vorbelegt mit heute.
-    issued_on: Optional[date] = None
     #: ►►► **Welchen Beleg dieser hier mindert** (``correct``). ◄◄◄ Die **Id** eines
     #: Belegs, und er darf in einem **anderen Auftrag** stehen: die Gutschrift gehört
     #: dorthin, wo die Ware zurückkommt. ``null`` nimmt den Verweis zurück.

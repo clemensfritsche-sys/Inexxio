@@ -3769,6 +3769,8 @@ export interface components {
              * @default
              */
             ask_verb: string;
+            /** Ask Problem */
+            ask_problem?: string | null;
             /**
              * We Quote
              * @default false
@@ -3914,11 +3916,6 @@ export interface components {
              * @default
              */
             refund_online_word: string;
-            /**
-             * Issue Word
-             * @default
-             */
-            issue_word: string;
             /**
              * Unbill Word
              * @default
@@ -4094,8 +4091,6 @@ export interface components {
             billed_on?: string | null;
             /** Due On */
             due_on?: string | null;
-            /** Issued On */
-            issued_on?: string | null;
             /** Amount */
             amount?: string | null;
             /** Vat */
@@ -4330,9 +4325,8 @@ export interface components {
          *     ``revoke``   stornieren – die eine Gegenhandlung
          *     ``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)
          *     ``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist
-         *     ``unbill``   sie zurücknehmen, solange sie im Haus ist (nicht versendet, nichts
-         *                  geflossen) – die Gegenhandlung zu ``bill``
-         *     ``issue``    *«Rechnung ist versendet»* – danach unveränderlich
+         *     ``unbill``   sie zurücknehmen, solange **nichts geflossen** ist – die Gegenhandlung
+         *                  zu ``bill``
          *     ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
          *     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
          *
@@ -4366,8 +4360,6 @@ export interface components {
             entry?: number | null;
             /** Billed On */
             billed_on?: string | null;
-            /** Issued On */
-            issued_on?: string | null;
             /** Corrects */
             corrects?: number | null;
             /** Lines */

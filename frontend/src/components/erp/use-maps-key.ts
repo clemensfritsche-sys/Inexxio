@@ -8,8 +8,20 @@ import { api } from '@/lib/api';
 let cached: string | null | undefined;
 let inflight: Promise<string | null> | null = null;
 
-export function useMapsApiKey(): string | null {
-  const [key, setKey] = useState<string | null>(cached ?? null);
+/**
+ * ►►► **`undefined` heisst «noch nicht bekannt», `null` «es gibt keinen»** (Testnotiz
+ * #1044). ◄◄◄
+ *
+ * Beides war einmal `null`, und die Unterscheidung fehlte an genau einer Stelle: ein
+ * Adressfeld meldete beim **ersten** Rendern «kein Schlüssel» und schaltete auf die
+ * manuelle Erfassung – auch dort, wo der Schlüssel eine Zehntelsekunde später eintraf.
+ * Wer den Datensatz als Erstes in der Sitzung öffnete, bekam darum das Formular, beim
+ * zweiten Mal die Suche: dieselbe Oberfläche, zwei Gesichter.
+ *
+ * Ein dritter Wert ist dafür genug – eine Antwort, die man noch nicht hat, ist keine.
+ */
+export function useMapsApiKey(): string | null | undefined {
+  const [key, setKey] = useState<string | null | undefined>(cached);
   useEffect(() => {
     if (cached !== undefined) { setKey(cached); return; }
     inflight ??= api.getPublicSettings()

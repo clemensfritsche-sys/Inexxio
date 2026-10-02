@@ -454,12 +454,16 @@ def assert_method(value: Any) -> Optional[str]:
 # kein Tippfehler, sondern eine Stelle, an der zwei Bedeutungen denselben Platz haben.*
 REFUND_ONLINE_WORD = "Online erstatten"
 
-#: ►►► **Die drei Handlungen an der Rechnung.** ◄◄◄
+#: ►►► **Zwei Handlungen an der Rechnung — stellen, und sie zurücknehmen.** ◄◄◄
 #:
-#: *stellen* → *versenden*, und dazwischen die Gegenhandlung. Sie ist dieselbe Anatomie
-#: wie ``ask``/``unask``: **jede Zusage nach aussen hat ihre Gegenhandlung an derselben
-#: Stelle** – und sie endet genau dort, wo der Beleg wirklich hinausgeht.
-ISSUE_WORD = "Rechnung ist versendet"
+#: Dieselbe Anatomie wie ``ask``/``unask``: **jede Zusage nach aussen hat ihre
+#: Gegenhandlung an derselben Stelle.**
+#:
+#: *Hier stand als dritte ``ISSUE_WORD`` («Rechnung ist versendet») – ein Knopf, dessen
+#: ganze Wirkung ein Datum war, das niemand brauchte (Testnotiz #1047). Die Fälligkeit
+#: kommt aus dem **Rechnungsdatum**, und ob ein Papier den Briefkasten erreicht hat, weiss
+#: das System ohnehin erst, wenn es die Zustellung selbst erledigt. Bis dahin gilt die
+#: einfachere Aussage: **gestellt ist draussen.***
 UNBILL_WORD = "Rechnung zurücknehmen"
 #: Was an einer zurückgenommenen Zeile steht – sie bleibt als Nachweis, dass die Nummer
 #: vergeben **war**: eine Serie muss lückenlos *belegbar* sein, nicht lückenlos gezählt.
@@ -1017,9 +1021,10 @@ def invoice_backfill_sql() -> tuple[str, ...]:
     veraltet (die Lehre aus Migration ``110``) – diese hier kann es nicht, weil sie ihre
     eigene Voraussetzung wegnimmt.
 
-    ``issued_on`` bekommt das Rechnungsdatum: **was gebucht ist, gilt als hinausgegangen**
-    – die vorsichtigere Annahme, sonst liesse sich eine längst versendete Rechnung
-    zurücknehmen.
+    *Hier stand einmal ``issued_on = h.booked_on`` – «was gebucht ist, gilt als
+    hinausgegangen». Die Spalte ist mit ihrem Knopf entfallen (Testnotiz #1047), und mit
+    ihr diese Zeile: sie zu behalten hiesse, dass der Folge-Deploy ihren Drop nicht
+    überlebt – dieses SQL läuft bei **jedem** Start.*
     """
     return (
         """
@@ -1041,7 +1046,6 @@ def invoice_backfill_sql() -> tuple[str, ...]:
         UPDATE vouchers v
            SET amount       = t.amount,
                billed_on    = h.booked_on,
-               issued_on    = h.booked_on,
                due_on       = h.due_on,
                number       = h.reference,
                vat          = h.vat,

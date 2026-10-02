@@ -9957,39 +9957,87 @@ def test_the_inheritance_of_the_billing_email_is_visible():
         )
 
 
-def test_the_billing_address_is_optional_and_never_copied():
-    """►►► **Leer heisst erben – und es wird nichts kopiert** (Testnotiz #1043). ◄◄◄
+def test_the_billing_switch_shows_the_fields_and_never_copies():
+    """►►► **Der Schalter ist zurück — die Kopie nicht.** ◄◄◄
 
-    Der Schalter «Rechnungsadresse = Lieferadresse» war die **zweite Aussage** über
-    dieselbe Sache: ob eine eigene hinterlegt ist, sagen die Felder selbst (und
-    ``voucher.billing_of`` liest genau das). Schlimmer – bei «gleich wie» schrieb die
-    Oberfläche eine **Kopie** der Lieferadresse in die Rechnungsfelder, und die veraltete
-    beim nächsten Umzug, genau wie damals ``invoice_company``.
+    *«rechnungsadresse bitte wieder mit schalter»* – und das ist kein Rückschritt hinter
+    #1043: dort war das Problem nicht der Schalter, sondern dass er eine **gespeicherte**
+    Angabe war und bei «gleich wie» eine **Kopie** der Lieferadresse in die
+    Rechnungsfelder schrieb; die veraltete beim nächsten Umzug, genau wie damals
+    ``invoice_company``.
 
-    Dieselbe Hausregel wie bei der Rechnungs-E-Mail (#1042): *das sagt das Feld selbst –
-    kein zweites Feld, keine Checkbox.*
+    Jetzt ist er eine **Ableitung** aus den Feldern (``hasOwnBilling`` – dieselbe Frage,
+    die ``voucher.billing_of`` stellt), und «Aus» **räumt** sie: es gibt weiterhin genau
+    eine Wahrheit, und nirgends eine Kopie.
 
-    Bug-Formen: (a) der Schalter ist wieder da; (b) die Oberfläche spiegelt die Adresse
-    in die Rechnungsfelder; (c) die Vererbung steht nirgends (dann sieht ein leerer Block
-    wie eine Lücke aus); (d) ein Feld der Rechnungsadresse ist Pflicht.
+    *Dieser Wächter löst den von #1043 ab, der das **Fehlen** des Schalters verlangte – er
+    prüfte die Form der damaligen Lösung.*
+
+    Bug-Formen: (a) der Schalter fehlt; (b) er ist wieder eine gespeicherte Angabe;
+    (c) die Oberfläche spiegelt die Lieferadresse in die Rechnungsfelder; (d) «Aus» räumt
+    die Felder nicht (dann sagt der Schalter etwas anderes als die Daten); (e) ein Feld
+    der Rechnungsadresse ist Pflicht; (f) die Frage wird je Oberfläche selbst gestellt.
     """
-    assert "Leer" in _accounts_ts(), "Der Satz zur Vererbung fehlt (c)."
+    acc = _accounts_ts()
+    assert "hasOwnBilling" in acc and "invoice_address_line1" in acc, (
+        "Die Frage «steht eine eigene da?» steht nicht an einer Stelle (f)."
+    )
     for where in _USER_SURFACES:
         src = _code(_read(FRONTEND / where))
-        assert "invoice_same_as_shipping" not in src, f"«{where}» führt den Schalter (a)."
+        # ►►► **Gefragt ist das Rendern, nicht das Vorkommen.** ◄◄◄ Der erste Anlauf
+        # fragte, ob «ToggleField» und «OWN_ADDRESS» irgendwo in der Datei stehen – das
+        # erfüllt schon der Newsletter-Schalter plus der Import, und die eigene Bug-Form
+        # (ein anderes Bauteil an dieser Stelle) ging durch.
+        assert re.search(r"<ToggleField label=\{OWN_ADDRESS\}", src), (
+            f"«{where}» hat keinen Schalter über der Rechnungsadresse (a)."
+        )
+        assert "invoice_same_as_shipping" not in src, (
+            f"«{where}» führt den Schalter wieder als gespeicherte Angabe (b)."
+        )
+        # **Abgeleitet heisst: der Startwert UND der Wechsel kommen aus den Feldern.**
+        # «``hasOwnBilling`` kommt vor» ist zu wenig – es steht auch in der Lese-Ansicht,
+        # und die Bug-Form (ein fester Startwert) ging damit durch.
+        assert re.search(r"useState\(\(\) => hasOwnBilling\(", src), (
+            f"«{where}» leitet den Startwert des Schalters nicht aus den Feldern ab (b/f)."
+        )
+        assert "setOwnBilling(hasOwnBilling(" in src, (
+            f"«{where}» zieht den Schalter beim Datensatz-Wechsel nicht nach (b/f)."
+        )
         # ►►► **Die Kopie kommt durch einen Helfer** (gemessen): der erste Anlauf verlangte
         # ``v.`` direkt hinter dem Doppelpunkt und liess ``invoice_city: nn(v.city)``
         # durch – also genau die Form, in der die Spiegelung wirklich dastand.
         assert not re.search(r"invoice_\w+:\s*(?:nn\()?\s*(?:v|form)\.(?!invoice)", src), (
-            f"«{where}» kopiert die Lieferadresse in die Rechnungsfelder (b)."
+            f"«{where}» kopiert die Lieferadresse in die Rechnungsfelder (c)."
         )
-        # Gefragt ist das **Rendern**, nicht der Import – der steht sonst allein da.
-        assert "{INHERITED_ADDRESS}" in src, f"«{where}» nennt die Vererbung nicht (c)."
+        # (d) **«Aus» schreibt eine Leere** – und zwar aus der einen Quelle.
+        assert re.search(r"\.\.\.NO_OWN_BILLING", src), (
+            f"«{where}» räumt die Felder nicht, wenn der Schalter aus ist (d) – der Import allein tut es nicht."
+        )
         for field in ("invoice_first_name", "invoice_last_name"):
             at = _at(src, f"form.{field}")
             assert "required" not in src[at:at + 200], (
-                f"«{where}» macht «{field}» zur Pflicht (d) – der Block ist freiwillig."
+                f"«{where}» macht «{field}» zur Pflicht (e) – der Block ist freiwillig."
             )
+
+
+def test_a_field_explains_itself_without_a_paragraph():
+    """►►► **Zusatzinfo entfallen lassen** (Testnotizen #1043/#1045). ◄◄◄
+
+    Zwei Erklärtexte standen im Benutzer-Formular und beschrieben das **Datenmodell**: was
+    die Rolle bedeutet und was ein leerer Firmenname heisst. Beide sagten nichts, was das
+    Feld darunter nicht selbst sagt – und ein Formular, das sich erklärt, ist eines, das
+    man nicht versteht.
+
+    Bug-Formen: (a) der Satz zur Rolle ist zurück; (b) der zu den Firmendaten.
+    """
+    for where in _USER_SURFACES:
+        src = _read(FRONTEND / where)
+        assert "entscheidet der Vorgang" not in src, (
+            f"«{where}» erklärt die Rolle wieder in Prosa (a)."
+        )
+        assert "Leer: eine Privatperson" not in src, (
+            f"«{where}» erklärt die Firmendaten wieder in Prosa (b)."
+        )
 
 
 def test_the_bank_details_hang_on_nothing():
@@ -10046,3 +10094,181 @@ def test_the_legal_form_suggestions_exist_exactly_once():
                   "components/account/sections/profile-section.tsx"):
         src = _code(_read(FRONTEND / where))
         assert "legalForms(" in src, f"«{where}» fragt die gemeinsame Liste nicht."
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZ #1044 — das Adressfeld hat EIN Gesicht, und die Region kommt an
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _address_field() -> str:
+    return _code(_read(FRONTEND / "components" / "erp" / "address-field.tsx"))
+
+
+def test_the_address_mode_is_a_derivation_not_a_latch():
+    """►►► **Manchmal Suche, manchmal Formular — das war ein WETTLAUF.** ◄◄◄
+
+    *«Die Adresse wird manchmal mit dem Google-Maps-Suchdesign gerendert und manchmal
+    wechselt sie zu einem einfachen Eingabeformular.»* (Testnotiz #1044)
+
+    Der Schlüssel kommt aus den Einstellungen und ist beim **ersten** Rendern noch nicht
+    da; ``useGoogleMaps`` meldete dafür ``no-key``, und ein Effekt setzte daraufhin
+    ``manual = true`` – **für immer**. Wer den Datensatz als Erstes in der Sitzung
+    öffnete, bekam das Formular, beim zweiten Mal (Schlüssel gecacht) die Suche: dieselbe
+    Oberfläche, zwei Gesichter.
+
+    Jetzt trägt der Zustand nur die **Wahl des Menschen**, der Modus folgt daraus – und
+    solange die Antwort fehlt, wird **nicht entschieden** (``pending``).
+
+    Bug-Formen: (a) der Latch ist zurück (ein Effekt setzt den Modus aus ``error``);
+    (b) der Modus ist wieder ein Zustand statt einer Ableitung; (c) «noch nicht bekannt»
+    und «es gibt keinen» sind wieder derselbe Wert; (d) ``useGoogleMaps`` antwortet auf
+    ein unbekanntes ``undefined`` mit ``no-key``.
+    """
+    src = _address_field()
+    assert "setManual(" not in src, (
+        "Der Modus wird wieder gesetzt (a/b) – ein Einbahn-Schalter aus einem "
+        "vorübergehenden Zustand ist genau der gemeldete Fehler."
+    )
+    assert re.search(r"const manual = wantsManual \|\|", src), (
+        "Der Modus ist keine Ableitung mehr (b)."
+    )
+    assert "pending" in src, "Ohne «noch nicht bekannt» entscheidet er zu früh (c)."
+    key = _code(_read(FRONTEND / "components" / "erp" / "use-maps-key.ts"))
+    assert re.search(r"useMapsApiKey\(\): string \| null \| undefined", key), (
+        "Der Schlüssel unterscheidet «noch nicht bekannt» nicht von «es gibt keinen» (c) "
+        "– gefragt ist seine ANTWORT, nicht der Typ seines inneren Zustands."
+    )
+    maps = _code(_read(FRONTEND / "components" / "erp" / "use-google-maps.ts"))
+    assert "if (apiKey === undefined) return;" in maps, (
+        "Ein unbekannter Schlüssel wird wie ein fehlender behandelt (d)."
+    )
+
+
+def test_a_google_hit_fills_the_region():
+    """►►► **Die Region kam von Google nie an** (Testnotiz #1044). ◄◄◄
+
+    *«Zudem wird in dieser Variante die Region nicht korrekt befüllt.»* – Sie stand als
+    Feld im manuellen Modus, wurde aber beim Einlesen eines Treffers **nicht gelesen**:
+    ein Treffer liess sie unberührt, also blieb die des *vorherigen* Ortes stehen. Und in
+    der Zusammenfassung des gefüllten Feldes fehlte sie ganz – was von einer nicht
+    gespeicherten Angabe nicht zu unterscheiden ist.
+
+    Bug-Formen: (a) der Treffer wird nicht nach der Region gefragt; (b) sie wird nicht
+    übernommen; (c) die Zusammenfassung verschweigt sie.
+    """
+    src = _address_field()
+    assert "administrative_area_level_1" in src, (
+        "Der Treffer wird nicht nach der Region gefragt (a)."
+    )
+    apply = _body(src, "applyPlace", kind="function")
+    assert re.search(r"region: p\.region", apply), (
+        "Die Region eines Treffers wird nicht übernommen (b)."
+    )
+    assert "showRegion && value.region" in src, (
+        "Die Zusammenfassung zeigt die Region nicht (c) – wer sie erfasst, sieht sie "
+        "beim nächsten Blick nicht mehr."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #1046/#1047/#1049 — am Beleg
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_blocked_request_says_why_at_the_button():
+    """►►► **Der Grund steht am Knopf, nicht als rote Zeile oben** (Testnotiz #1046). ◄◄◄
+
+    *«Diese Meldung erscheint nicht an der Stelle des Geschehens. Besser wäre, der
+    Submit-Button ist deaktiviert/ausgegraut, bis alles vollständig ist, und beim Hover
+    erklärt er, warum.»*
+
+    **Der Satz kommt vom Server** (``ask_problem``) – dieselbe Ableitung, mit der ``_ask``
+    abweist. Ein zweiter Massstab im Browser wäre die Stelle, an der Knopf und Tür
+    auseinanderlaufen.
+
+    *Und ein gesperrter Knopf ist hier richtig, obwohl «ein Knopf, der nie etwas tun kann,
+    ist kein Angebot» die Hausregel ist (#950): dieser **kann** – sobald die Angaben
+    stehen.*
+
+    Bug-Formen: (a) der Knopf ist nicht gesperrt; (b) der Grund steht nicht in seiner
+    Blase; (c) die Oberfläche baut ihn selbst; (d) der `+` am Chip fragt trotzdem an.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    offer = _component(src, "Offer")
+    assert "d.ask_problem" in offer, f"Der Knopf fragt den Server nicht (a/c): {offer[:200]}"
+    assert re.search(r"disabled=\{busy \|\| !!problem\}", offer), (
+        "Der Knopf ist nicht gesperrt, solange etwas fehlt (a)."
+    )
+    assert re.search(r"tip=\{problem", offer), (
+        "Der Grund steht nicht in der Blase des Knopfes (b)."
+    )
+    # (c) **Kein zweiter Massstab**: die Karte zählt keine Pflichtangaben selbst auf.
+    assert "Zolltarifnummer» fehlt" not in src and "anzubieten." not in src, (
+        "Die Karte formuliert den Grund selbst (c)."
+    )
+    # (d) **Dieselbe Sperre am Chip** – er löst dieselbe Handlung aus.
+    chip = _component(src, "Chip")
+    assert "askProblem" in chip and "const askOff = busy || !!askProblem;" in chip, (
+        "Der `+` am Chip fragt an, obwohl der Beleg unvollständig ist (d)."
+    )
+    assert "data-tip={askProblem || 'Anfragen'}" in chip, (
+        "Der `+` sagt nicht, warum er nicht geht (b/d)."
+    )
+
+
+def test_the_invoice_is_out_there_once_it_is_billed():
+    """►►► **«Rechnung ist versendet» ist gelöscht** (Testnotiz #1047). ◄◄◄
+
+    *«Ich sehe nicht wirklich, wozu es diesen extra Button braucht … bitte komplett und
+    vollständig aus dem Code eliminieren.»*
+
+    Bug-Formen: (a) das Verb ist wieder da; (b) der Fortschritts-Punkt des Fachs hängt
+    wieder am Versand-Datum; (c) die Zeile zeigt es wieder an.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    assert "'issue'" not in src and "issue_word" not in src, (
+        "Das Verb ist wieder da (a) – ein Knopf, dessen ganze Wirkung ein Datum ist."
+    )
+    assert "issued_on" not in src, (
+        "Das Versand-Datum wird wieder gelesen (b/c) – und es gibt es nicht mehr."
+    )
+    assert "state={invoice ? 'past' : 'active'}" in src, (
+        "Der Punkt des Fachs «Fordern» hängt nicht an der gestellten Rechnung (b)."
+    )
+
+
+def test_every_amount_field_names_its_currency():
+    """►►► **Kein Betrags-Feld ohne Währung — auch das der Offerte** (Testnotiz #1049).◄◄◄
+
+    *«Dieses Eingabefeld ist nicht ganz sauber konfiguriert. Die Währung fehlt hier
+    gänzlich. Etabliere auch im Kontext Ausgabe eine passende Option für Währungen.»*
+
+    Drei Dinge fehlten, und alle drei gibt es im Haus längst: die **Währung** als Suffix in
+    derselben Hülle wie die Zahl (#1010/#1017), die **Stellenzahl dieser Währung** (#931)
+    und die **Beschriftung** (daneben stehen zwei Fristen mit ihrer).
+
+    **Und der Währungs-Wähler ist der Code am Total** (#917) – den Block gab es bei einer
+    **Ausgabe** gar nicht, also war die Währung in dieser Richtung nie wählbar.
+
+    Bug-Formen: (a) das Feld trägt keine Währung; (b) es nimmt vier Nachkommastellen;
+    (c) es steht ohne Beschriftung da; (d) die Aufstellung verschwindet bei einer Ausgabe
+    (dann gibt es dort keinen Wähler – und beim Buchen springt das Layout, #1009).
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    quote = _component(src, "QuoteRow")
+    at = _at(quote, 'aria-label={AMOUNT_LABEL}')
+    around = quote[max(0, at - 400):at + 200]
+    assert "<Amount currency={v.currency}" in around, (
+        "Das Betragsfeld der Offerte trägt keine Währung (a)."
+    )
+    assert "decimals: dec" in around, (
+        "Es nimmt mehr Nachkommastellen, als die Währung hat (b)."
+    )
+    assert "<Stacked label={AMOUNT_LABEL}>" in around, (
+        "Es steht ohne Beschriftung da (c) – daneben tragen zwei Fristen ihre."
+    )
+    # (d) **Die Aufstellung steht immer** – sie trägt den Währungs-Wähler.
+    sums = _component(src, "Sums")
+    assert "return null" not in sums, (
+        "Die Aufstellung verschwindet (d) – mit ihr der Währungs-Wähler bei einer "
+        "Ausgabe, und beim Buchen wächst sie in den Beleg hinein."
+    )

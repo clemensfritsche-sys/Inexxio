@@ -328,6 +328,10 @@ function StageRow({ children, aside }: { children?: ReactNode; aside?: ReactNode
 /** Was man an einer Angebotszeile tut, wenn man den Preis nennt – in beiden Richtungen. */
 const QUOTE_VERB = 'Offerte erfassen';
 
+/** Die Beschriftung des Betrags an einer Angebotszeile (#1049) – in beiden Richtungen
+ *  dieselbe: was der Betrag *ist*, sagt der Abschnitt, in dem er steht. */
+const AMOUNT_LABEL = 'Betrag';
+
 /**
  * ►►► **Ein Feld auf dem Beleg sieht aus wie der Beleg** (Testnotiz #922). ◄◄◄
  *
@@ -859,6 +863,7 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
             active={number === current} busy={busy}
             onShow={() => onShow(number)}
             onAsk={!quote && canAsk ? () => onAsk([number]) : undefined}
+            askProblem={d.ask_problem ?? undefined}
             onDrop={canDrop && removable
               ? () => void onAction({ action: 'unask', party: number })
               : undefined} />
@@ -908,7 +913,9 @@ function Recipients({ d, side, busy, current, onAsk, onShow, onAction }: {
  * Ein 6-px-Punkt in einer Reihe von Pillen ist genau die Form, in der «Punkt + Wort» nicht
  * mehr gilt: das Wort fehlt, und was bleibt, ist ein Zeichen, das man deuten muss.
  */
-function Chip({ name, number, state, active, busy, onShow, onAsk, onDrop }: {
+function Chip({
+  name, number, state, active, busy, askProblem, onShow, onAsk, onDrop,
+}: {
   name: string; number: number;
   /** Der Zustand der Angebotszeile – `null` heisst «noch nicht angefragt». */
   state: string | null;
@@ -929,11 +936,20 @@ function Chip({ name, number, state, active, busy, onShow, onAsk, onDrop }: {
    * am Layout nichts ändert.
    */
   busy?: boolean;
+  /**
+   * ►►► **Warum gerade nicht angefragt werden kann** (Testnotiz #1046) – oder leer. ◄◄◄
+   *
+   * Der `+` **bleibt stehen** und trägt den Satz in seiner Blase: ihn verschwinden
+   * zu lassen wäre dieselbe Geometrie-Änderung wie bei `busy` (#1016), und ein Knopf, der
+   * ohne Begründung nichts tut, ist die Form, aus der die Meldung oben entstand.
+   */
+  askProblem?: string;
   onShow?: () => void;
   onAsk?: () => void;
   onDrop?: () => void;
 }) {
   const look = quoteLook(state);
+  const askOff = busy || !!askProblem;
   return (
     <span className="inline-flex items-center" style={{
       gap: 6, padding: `3px ${onAsk || onDrop ? 4 : 8}px 3px 8px`, borderRadius: 999,
@@ -947,10 +963,10 @@ function Chip({ name, number, state, active, busy, onShow, onAsk, onDrop }: {
         {name || number}
       </button>
       {onAsk && (
-        <button type="button" onClick={busy ? undefined : onAsk} aria-disabled={busy}
-          aria-label="Anfragen" data-tip="Anfragen"
+        <button type="button" onClick={askOff ? undefined : onAsk} aria-disabled={askOff}
+          aria-label="Anfragen" data-tip={askProblem || 'Anfragen'}
           style={{ ...DOC_FIELD, display: 'inline-flex', color: 'var(--accent)',
-                   cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.45 : 1,
+                   cursor: askOff ? 'default' : 'pointer', opacity: askOff ? 0.45 : 1,
                    padding: '0 2px' }}>
           <Plus size={11} />
         </button>
@@ -1380,7 +1396,18 @@ function Sums({ d, onAction }: { d: Filled; onAction: Send }) {
     return out.sort((a, b) => Number(b.rate ?? 0) - Number(a.rate ?? 0));
   }, [splits, d.lines, d.we_quote]);
 
-  if (!d.we_quote && !d.amount) return null;
+  // ►►► **Die Aufstellung steht IMMER da – und mit ihr die Währung** (#1049). ◄◄◄
+  //
+  // *«Etabliere auch im Kontext Ausgabe eine passende Option für Währungen.»* – Und das
+  // war keine Gestaltungsfrage, sondern eine **Lücke**: der Währungs-Wähler ist der Code
+  // am Total (#917), und dieser Block gab es bei einer **Ausgabe** gar nicht (dort nennt
+  // die Gegenpartei den Preis, es gibt also keine bepreisten Positionen). Damit war die
+  // Währung in dieser Richtung **nie** wählbar, obwohl der Dienst sie bis zur Zusage
+  // annimmt – und sobald der Betrag gebucht war, wuchs der Block in den Beleg hinein und
+  // schob alles darunter nach unten (genau die Geometrie-Änderung aus #1009).
+  //
+  // Jetzt steht er von Anfang an; wo noch nichts gebucht ist, steht ein «—». Der Ort
+  // bleibt derselbe: die Währung gehört zu den Zahlen, auf die sie sich bezieht.
   const total = d.amount ?? (splits.length ? sum(splits, dec) : null);
   return (
     <div className="flex flex-col" style={{
@@ -1569,8 +1596,7 @@ function Term({ label, on, value, days, terms, hint, freeMin, freeLabel, onChang
     : (named ? named.label : `${current} Tag${current === '1' ? '' : 'e'}`);
 
   return (
-    <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
-      <span style={MICRO_LABEL}>{label}</span>
+    <Stacked label={label}>
       {on && (free || typing) ? (
         <Editable title={label} missing={current === ''}>
           <input {...numericInputProps} autoFocus value={current}
@@ -1599,6 +1625,23 @@ function Term({ label, on, value, days, terms, hint, freeMin, freeLabel, onChang
             onChange(v);
           }} />
       )}
+    </Stacked>
+  );
+}
+
+/**
+ * **Beschriftung über dem Wert** – die Anatomie jeder benannten Angabe dieses Belegs.
+ *
+ * Sie stand zweimal ausgeschrieben (Frist, feststehender Wert) und beim **Betrag** einer
+ * Angebotszeile gar nicht (#1049): dort war ein nackter Zahlenkasten, während daneben
+ * zwei Fristen ihre Beschriftung trugen. Dasselbe Mass an mehreren Stellen ist die Form,
+ * in der die nächste um zwei Pixel daneben liegt.
+ */
+function Stacked({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
+      <span style={MICRO_LABEL}>{label}</span>
+      {children}
     </div>
   );
 }
@@ -1606,11 +1649,10 @@ function Term({ label, on, value, days, terms, hint, freeMin, freeLabel, onChang
 /** Ein feststehender Wert – Versalien-Beschriftung, Wert darunter. Wie eine Beleg-Fusszeile. */
 function Fixed({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
-      <span style={MICRO_LABEL}>{label}</span>
+    <Stacked label={label}>
       <span style={{ fontSize: 13, color: 'var(--fg-1)' }}
         {...(hint ? { 'data-tip': hint } : {})}>{value}</span>
-    </div>
+    </Stacked>
   );
 }
 
@@ -1850,13 +1892,26 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
       )}
       {canQuote && (
         <div className="flex flex-wrap items-end" style={{ gap: 10, minWidth: 0 }}>
-          <Editable as="div" missing={amount.trim() === ''}>
-            <input {...numericInputProps} value={amount}
-              onChange={(e) => setAmount(numericOnly(e.target.value))}
-              aria-label="Betrag"
-              style={{ ...DOC_FIELD, width: 110, textAlign: 'right', fontSize: 13,
-                       fontVariantNumeric: 'tabular-nums' }} />
-          </Editable>
+          {/* ►►► **Kein Betrags-Feld ohne Währung – und keines ohne Beschriftung**
+              (Testnotiz #1049). ◄◄◄ *«Dieses Eingabefeld ist nicht ganz sauber
+              konfiguriert. Die Währung fehlt hier gänzlich.»*
+              Drei Dinge fehlten, und alle drei gibt es im Haus längst: die **Währung** als
+              Suffix in derselben Hülle wie die Zahl (`Amount`, #1010/#1017 – sie *kann*
+              dann keine andere Farbe haben), die **Stellenzahl dieser Währung** (#931 –
+              ohne sie tippt man vier Nachkommastellen, die der Dienst wegrundet) und die
+              **Beschriftung**: daneben stehen zwei Fristen mit ihrer, dieses Feld war ein
+              nackter Zahlenkasten. */}
+          <Stacked label={AMOUNT_LABEL}>
+            <Editable as="div" missing={amount.trim() === ''}>
+              <Amount currency={v.currency} size={13}>
+                <input {...numericInputProps} value={amount}
+                  onChange={(e) => setAmount(numericOnly(e.target.value, { decimals: dec }))}
+                  aria-label={AMOUNT_LABEL}
+                  style={{ ...DOC_FIELD, width: 92, textAlign: 'right', fontSize: 13,
+                           fontVariantNumeric: 'tabular-nums' }} />
+              </Amount>
+            </Editable>
+          </Stacked>
           {/* **Dieselbe Frist-Form wie im Beleg** – zwei Bauarten für dieselbe Frage
               liefen beim nächsten üblichen Wert auseinander, und die Zeile des Partners
               ist derselbe Beleg, nur seine Seite davon. */}
@@ -1928,10 +1983,23 @@ function Offer({ d, busy, active, onAsk }: {
   const label = allowed.length > 1
     ? `${d.ask_verb} (${fresh.length})`
     : d.ask_verb;
+  // ►►► **Was fehlt, steht am Knopf – nicht als rote Zeile am Kopf des Auftrags**
+  // (Testnotiz #1046). ◄◄◄ *«Diese Meldung erscheint nicht an der Stelle des Geschehens.
+  // Besser wäre, der Button ist deaktiviert, bis alles vollständig ist, und beim Hover
+  // erklärt er warum.»*
+  //
+  // **Der Satz kommt vom Server** (`ask_problem`) – dieselbe Ableitung, mit der `_ask`
+  // abweist. Ein zweiter Massstab im Browser wäre die Stelle, an der Knopf und Tür
+  // auseinanderlaufen; vorher gab es ihn gar nicht, und darum erfuhr man den Grund erst
+  // **nach** dem Klick.
+  //
+  // *Und ein gesperrter Knopf ist hier richtig, obwohl «ein Knopf, der nie etwas tun kann,
+  // ist kein Angebot» die Hausregel ist (#950): dieser **kann** – sobald die Angaben
+  // stehen. Dieselbe Form wie «Freigeben» am Auftragsentwurf.*
+  const problem = d.ask_problem ?? null;
   return (
-    <StageAction icon={Send} label={label} disabled={busy}
-      tip={allowed.length === 0
-        ? `Wähle oben den ${d.party_word}` : undefined}
+    <StageAction icon={Send} label={label} disabled={busy || !!problem}
+      tip={problem ?? undefined}
       onClick={() => onAsk(fresh.map((p) => p.object_id))} />
   );
 }
@@ -2035,7 +2103,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   const invoice = d.invoice ?? null;
   const payments = d.entries;
 
-  // ►►► **Fach «Fordern»: stellen → versenden → nichts mehr.** ◄◄◄ Wo **wir** den Preis
+  // ►►► **Fach «Fordern»: stellen → nichts mehr.** ◄◄◄ Wo **wir** den Preis
   // nennen, ist der Betrag die Summe der Positionen – dann gibt es nichts zu fragen, und
   // die Handlung geht direkt hinaus. Wo **er** ihn nennt, schreiben wir seine Rechnung ab,
   // und dafür braucht es ein Formular.
@@ -2044,10 +2112,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
         run: () => (d.we_quote
           ? void onAction({ action: 'bill' })
           : setForm({ kind: 'bill', preset: d.amount ?? '' })) }
-    : may(d, 'issue')
-      ? { icon: Send, label: d.issue_word || 'Rechnung ist versendet',
-          run: () => void onAction({ action: 'issue' }) }
-      : null;
+    : null;
 
   // ►►► **Fach «Begleichen»: was der gewählte Weg auslöst.** ◄◄◄ Jeder Weg sagt es selbst
   // (`action`/`verb`); beides leer heisst *reine Auskunft*, und dann steht dort kein
@@ -2109,8 +2174,11 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
       {/* ►►► **Fach 1 — was schuldet uns jemand?** ◄◄◄ Es gehört uns. Der Punkt sagt, wo
           man steht: *aktiv*, solange nichts gestellt ist, *vorbei*, sobald die Rechnung
           draussen ist. */}
+      {/* ►►► **Gestellt ist draussen** (Testnotiz #1047). ◄◄◄ Der Punkt stand auf
+          *aktiv*, bis jemand «Rechnung ist versendet» geklickt hatte – ein Knopf, dessen
+          ganze Wirkung ein Datum war. Jetzt sagt das **Rechnungsdatum** es selbst. */}
       <ModuleSection title={d.claim_title || 'Fordern'}
-        state={invoice ? (invoice.issued_on ? 'past' : 'active') : 'active'}>
+        state={invoice ? 'past' : 'active'}>
         <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
           {!invoice && (
             <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Nichts berechnet</span>
@@ -2193,7 +2261,7 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
  * mehr, sondern **der Beleg selbst**.
  *
  * **Die einzige Korrektur an ihr ist die Rücknahme** (`unbill`), und sie gibt es nur,
- * solange die Rechnung **im Haus** ist: nicht versendet, kein Geld geflossen. Was danach
+ * solange **kein Geld geflossen** ist. Was danach
  * falsch bleibt, korrigiert ein **eigener Beleg** – in dem Auftrag, in dem der Vorfall
  * passiert. Ob es sie gibt, sagt `can`; eine Bedingung hier wäre der zweite Massstab.
  */
@@ -2211,11 +2279,10 @@ function InvoiceRow({ d, invoice, busy, onAction }: {
   return (
     <LedgerRow
       ident={invoice.number || 'Rechnung'}
-      /* **Was sonst noch nur hier steht**: ob die Rechnung schon draussen ist. *Der
-         Verweis auf den Beleg, den dieser mindert, stand hier einen Anlauf lang daneben
-         – er steht aber im **Belegkopf**, wo er auf das Papier gehört, und eine zweite
-         Fassung nahm der Nummer den Platz (sie schrumpfte auf «10000…»).* */
-      meta={invoice.issued_on ? `versendet ${lower(when(invoice.issued_on))}` : ''}
+      /* *Hier stand «versendet …» (`issued_on`) – ein Datum, das ein eigener Knopf
+         setzte und das sonst niemand brauchte (#1047). Und einen Anlauf lang der Verweis
+         auf den Beleg, den dieser mindert: der steht im **Belegkopf**, wo er auf das
+         Papier gehört, und nahm der Nummer hier den Platz («10000…»).* */
       date={stamp.text}
       actions={may(d, 'unbill') ? (
         <ActionButton icon={Undo2} label={d.unbill_word || 'Rechnung zurücknehmen'}

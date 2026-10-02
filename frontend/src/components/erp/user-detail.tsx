@@ -9,7 +9,9 @@ import { day, when } from '@/lib/when';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
-import { INHERITED_ADDRESS, inheritedEmail } from '@/lib/accounts';
+import {
+  NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
+} from '@/lib/accounts';
 import { legalForms } from '@/lib/legal-forms';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
@@ -303,13 +305,19 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   const [form, setForm] = useState<ERPForm>(() => buildForm(record));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | null | undefined>(undefined);
+  // ►►► **Der Schalter ist eine Ableitung aus den Feldern** – mit einem Gedächtnis für
+  // genau einen Fall: «An» geklickt, aber noch nichts getippt. Nachgezogen wird er beim
+  // **Wechsel** des Datensatzes, nicht bei jedem Rendern – wie das Formular selbst.
+  const [ownBilling, setOwnBilling] = useState(() => hasOwnBilling(buildForm(record)));
 
   // Nur bei Datensatz-Wechsel neu aufbauen (nicht bei jedem `record`-Prop) – sonst
   // klobbert ein Auto-Save → onSaved → neuer Prop die gerade getippte Eingabe.
   useEffect(() => {
     if (record.object_id !== prevId.current) {
       prevId.current = record.object_id;
-      setForm(buildForm(record));
+      const next = buildForm(record);
+      setForm(next);
+      setOwnBilling(hasOwnBilling(next));
       setResetKey((k) => k + 1);
     }
   }, [record.object_id, record]);
@@ -373,10 +381,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         ) : (
           <AField label="Rolle" value={ROLE_CFG[role]?.label ?? role} readOnly />
         )}
-        <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)', marginTop: -12 }}>
-          Admin und Mitarbeiter arbeiten im ERP. Ob jemand Kunde oder Lieferant ist,
-          entscheidet der Vorgang, in dem er vorkommt.
-        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AField label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} />
@@ -392,10 +396,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
             Regel, die bleibt, und der Server weist sie ab), ist er leer, ist es eine
             Privatperson. Ein Feld statt Schalter plus Feld. */}
         <SubBlock icon={Building2} title="Firmendaten">
-          <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)', marginBottom: 14, marginTop: -6 }}>
-            Leer: eine Privatperson. Mit Firmennamen steht auf dem Beleg die Rechtsperson,
-            die Person darunter als «z. H.».
-          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AField label="Firmenname" value={form.company_name} onChange={str('company_name')} readOnly={ro} placeholder="Muster AG" onEnter={saveNow} />
             {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – dieselbe
@@ -463,30 +463,39 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
         <div style={{ height: 1, background: 'var(--border-1)' }} />
 
-        {/* ►►► **Die Rechnungsadresse ist freiwillig – leer gilt die Lieferadresse**
-            (Testnotiz #1043). ◄◄◄ Hier stand ein Schalter «Rechnungsadresse =
-            Lieferadresse», und er war die zweite Aussage über dieselbe Sache: ob eine
-            eigene hinterlegt ist, sagen die Felder selbst (`voucher.billing_of` liest
-            genau das). Schlimmer, bei «gleich wie» **kopierte** die Oberfläche die
-            Lieferadresse hinein – und die Kopie veraltete beim nächsten Umzug, genau wie
-            damals `invoice_company`. Jetzt gilt dieselbe Regel wie bei der
-            Rechnungs-E-Mail (#1042): **leer heisst erben**, und das sagt das Feld.
+        {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
+            Er war einmal eine **gespeicherte** Angabe (`invoice_same_as_shipping`) und
+            schrieb bei «gleich wie» eine **Kopie** der Lieferadresse in die
+            Rechnungsfelder; die veraltete beim nächsten Umzug, genau wie damals
+            `invoice_company`. Darum ist er mit #1043 verschwunden.
+
+            Jetzt ist er eine **Ableitung**: *steht eine eigene da?* – dieselbe Frage, die
+            der Dienst stellt (`voucher.billing_of`). «Aus» **räumt** die Felder, schreibt
+            also in die Daten, was er anzeigt; eine Kopie entsteht nirgends, und es gibt
+            weiterhin genau eine Wahrheit.
 
             **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
             Rechnungsadresse ihn als erste Zeile (`people.billing_name`). */}
-        <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)' }}>
-          {INHERITED_ADDRESS}
-        </div>
         {canEdit ? (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="Vorname" value={form.invoice_first_name} onChange={str('invoice_first_name')} onEnter={saveNow} />
-              <AField label="Nachname" value={form.invoice_last_name} onChange={str('invoice_last_name')} onEnter={saveNow} />
-            </div>
-            <AddressField value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
-              countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+            <ToggleField label={OWN_ADDRESS} description={OWN_ADDRESS_HINT}
+              checked={ownBilling}
+              onChange={(on) => {
+                setOwnBilling(on);
+                if (!on) setForm((p) => ({ ...p, ...NO_OWN_BILLING }));
+              }} />
+            {ownBilling && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <AField label="Vorname" value={form.invoice_first_name} onChange={str('invoice_first_name')} onEnter={saveNow} />
+                  <AField label="Nachname" value={form.invoice_last_name} onChange={str('invoice_last_name')} onEnter={saveNow} />
+                </div>
+                <AddressField value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
+                  countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+              </>
+            )}
           </>
-        ) : (
+        ) : hasOwnBilling(form) ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="Vorname" value={form.invoice_first_name} readOnly />
@@ -494,12 +503,16 @@ function ProfileForm({ record, isAdmin, onSaved }: {
             </div>
             <AddrSummary label="Rechnungsadresse" a={invoiceAddress} />
           </>
+        ) : (
+          // **Wer nicht ändern darf, sieht die Entscheidung als Satz** – ein Schalter, der
+          // nichts tun kann, ist kein Angebot; eine leere Fläche wäre keine Aussage.
+          <AField label={OWN_ADDRESS} value={OWN_ADDRESS_HINT} readOnly />
         )}
 
         {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Sie ist ein Attribut der
-            Rechnungsadresse – nicht der Firma –, gilt für jeden Kontotyp gleichermassen
-            und ist **freiwillig**: leer erbt sie die Login-/Kontakt-Adresse. Das sagt der
-            **Platzhalter**, nicht ein zweites Feld und keine Checkbox. */}
+            Rechnungsadresse – nicht der Firma – und **freiwillig**: leer erbt sie die
+            Login-/Kontakt-Adresse. Das sagt der **Platzhalter**, nicht ein zweites Feld
+            und keine Checkbox. */}
         <AField label="Rechnungs-E-Mail" value={form.invoice_email} onChange={str('invoice_email')}
           readOnly={ro} type="email" placeholder={inheritedEmail(record.email)} onEnter={saveNow} />
       </Card>

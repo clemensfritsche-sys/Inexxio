@@ -69,7 +69,10 @@ export function toIso2(country: string | null | undefined): string {
   return _TO_ISO2[c.toLowerCase()] ?? (c.length === 2 ? c.toUpperCase() : c);
 }
 
-type PlacePick = { street: string; zip: string; city: string; country: string; lat?: number; lng?: number };
+type PlacePick = {
+  street: string; zip: string; city: string; region: string; country: string;
+  lat?: number; lng?: number;
+};
 
 function parsePlace(place: google.maps.places.PlaceResult): PlacePick {
   const comps = place.address_components ?? [];
@@ -80,6 +83,13 @@ function parsePlace(place: google.maps.places.PlaceResult): PlacePick {
     street: [get('route'), get('street_number')].filter(Boolean).join(' ').trim(),
     zip: get('postal_code'),
     city: get('locality') || get('postal_town') || get('administrative_area_level_2'),
+    // ►►► **Die Region kam von Google nie an** (Testnotiz #1044). ◄◄◄ Sie stand als Feld
+    // im manuellen Modus, wurde aber hier **nicht gelesen** – ein Treffer liess sie
+    // unberührt, also blieb die des *vorherigen* Ortes stehen: die gemeldete «Region wird
+    // nicht korrekt befüllt». Das ist der Kanton bzw. Bundesstaat
+    // (`administrative_area_level_1`), und **kurz vor lang**: auf einer Anschrift steht
+    // «ZH» bzw. «CA», nicht «Zürich» oder «California».
+    region: short('administrative_area_level_1') || get('administrative_area_level_1'),
     country: short('country') || get('country'),
     lat: loc ? loc.lat() : undefined,
     lng: loc ? loc.lng() : undefined,
@@ -107,7 +117,30 @@ export function AddressField({
 }) {
   const { loaded, error } = useGoogleMaps(apiKey);
   const usable = loaded && !error;
-  const [manual, setManual] = useState(false);
+  /**
+   * ►►► **Der Modus ist eine ABLEITUNG, kein Einbahn-Schalter** (Testnotiz #1044). ◄◄◄
+   *
+   * *«Die Adresse wird manchmal mit dem Google-Maps-Suchdesign gerendert und manchmal
+   * wechselt sie zu einem einfachen Eingabeformular.»* – Und das war ein **Wettlauf**,
+   * kein Zufall: `apiKey` kommt aus den Einstellungen und ist beim **ersten** Rendern
+   * `null` (`useMapsApiKey` lädt ihn und cacht ihn modulweit). `useGoogleMaps` meldet
+   * dafür zu Recht `no-key` – und ein Effekt setzte daraufhin `manual = true`, **für
+   * immer**. Traf der Schlüssel danach ein, wurde die Suche nutzbar, aber niemand nahm
+   * den Schalter zurück. Wer den Datensatz als Erstes in der Sitzung öffnete, bekam das
+   * Formular; beim zweiten Mal (Schlüssel gecacht) die Suche.
+   *
+   * Darum trägt der Zustand jetzt nur noch die **Wahl des Menschen**, und der Modus folgt
+   * daraus: *manuell ist, wer es will – oder wer keine Suche hat.* Wird die Suche
+   * nutzbar, ist sie wieder der Standardweg, ohne dass es jemand zurücksetzen muss.
+   *
+   * **Und solange die Antwort fehlt, wird nicht entschieden** (`pending`): die Suche ist
+   * der Standardweg, also steht sie da – das Eingabefeld ist dasselbe, der Autocomplete
+   * hängt sich an, sobald er kann. Erst wenn feststeht, dass es keinen Schlüssel gibt,
+   * wechselt die Ansicht ein einziges Mal; auf einem eingerichteten System nie.
+   */
+  const [wantsManual, setWantsManual] = useState(false);
+  const pending = !loaded && !error;
+  const manual = wantsManual || (!usable && !pending);
   const [searching, setSearching] = useState(!hasAddress(value));
   const [street2Open, setStreet2Open] = useState(false);
   const [query, setQuery] = useState('');
@@ -172,6 +205,9 @@ export function AddressField({
     onChangeRef.current({
       ...valueRef.current,
       street: p.street, zip: p.zip, city: p.city,
+      // **Auch leer überschreibt** – wie Strasse, PLZ und Ort: ein Treffer ersetzt die
+      // ganze Anschrift, und eine stehengebliebene Region gehörte zur vorherigen.
+      region: p.region,
       country: matched ? matched[0] : (p.country || valueRef.current.country),
       lat: p.lat, lng: p.lng,
     });
@@ -183,11 +219,6 @@ export function AddressField({
   // Effekt nicht bei jedem Render neu aufgesetzt werden muss.
   const applyPlaceRef = useRef(applyPlace);
   applyPlaceRef.current = applyPlace;
-
-  // Ohne nutzbare Google-Suche gibt es keinen Standardweg – dann direkt manuell.
-  useEffect(() => {
-    if (error) setManual(true);
-  }, [error]);
 
   useEffect(() => {
     if (!usable || manual || !searching || !inputRef.current || !google.maps.places) return;
@@ -213,7 +244,7 @@ export function AddressField({
           <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
           {labelNode}
           {usable && (
-            <button type="button" onClick={() => { setManual(false); setSearching(true); }} style={ST.link}>
+            <button type="button" onClick={() => { setWantsManual(false); setSearching(true); }} style={ST.link}>
               <Search size={12} /> Stattdessen suchen
             </button>
           )}
@@ -270,7 +301,7 @@ export function AddressField({
               {locating ? 'Standort wird ermittelt…' : 'Aktuellen Standort verwenden'}
             </button>
           )}
-          <button type="button" onClick={() => setManual(true)} style={ST.escape}>
+          <button type="button" onClick={() => setWantsManual(true)} style={ST.escape}>
             Adresse nicht gefunden? Manuell erfassen
           </button>
         </div>
@@ -301,6 +332,11 @@ export function AddressField({
           <div style={ST.line1}>{value.street}</div>
           {showStreet2 && value.street2 && <div style={ST.line2}>{value.street2}</div>}
           <div style={ST.line2}>{[value.zip, value.city].filter(Boolean).join(' ')}</div>
+          {/* ►►► **Die Region stand im Feld und fehlte in der Zusammenfassung**
+              (Testnotiz #1044). ◄◄◄ Wer sie erfasste, sah sie beim nächsten Blick nicht
+              mehr – was von einer nicht gespeicherten Angabe nicht zu unterscheiden ist.
+              Eine Zusammenfassung, die ein Feld verschweigt, ist keine. */}
+          {showRegion && value.region && <div style={ST.line2}>{value.region}</div>}
           <div style={ST.line2}>{countryLabel}</div>
         </div>
       </div>

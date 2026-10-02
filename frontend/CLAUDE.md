@@ -1020,3 +1020,44 @@ Zustände; «Kontotyp» und «Rechnungsadresse =» kommen **0×** vor, «Rechnun
 genau **1×**, der Firmenblock steht in **9 von 9**, und das Rollen-Dropdown trägt genau
 die drei Werte der Tür. Die Messung gegen ihre eigene Bug-Form gegengeprüft (+520 bis
 +1480 px; ein gekappter Name meldet zu Recht nichts).
+
+## Der Grund am Knopf, das Adressfeld mit einem Gesicht (Testnotizen #1043–#1049)
+
+- ►►► **Der Anfrage-Knopf ist gesperrt und sagt, warum** (#1046, `d.ask_problem`). ◄◄◄
+  Der Satz kommt vom **Server** – dieselbe Ableitung, mit der `_ask` abweist; ein zweiter
+  Massstab im Browser wäre die Stelle, an der Knopf und Tür auseinanderlaufen. Derselbe
+  Grund hängt am `+` des Chips, und er **bleibt stehen** statt zu verschwinden (`askOff` –
+  die Lehre aus #1016: nichts, was fehlt, darf Geometrie ändern). *Ein gesperrter Knopf
+  ist hier richtig, obwohl «ein Knopf, der nie etwas tun kann, ist kein Angebot» gilt
+  (#950): dieser **kann** – sobald die Angaben stehen; dieselbe Form wie «Freigeben» am
+  Auftragsentwurf.* **Gemessen**: die Blase erscheint an einem `disabled`-Knopf – eine
+  Eigenschaft des Browsers, keine des Codes.
+- **«Rechnung ist versendet» gibt es nicht mehr** (#1047): der Knopf, `issue_word`,
+  `invoice.issued_on` und die Meta-Zeile «versendet …» sind weg; der Punkt des Fachs
+  «Fordern» hängt an der **gestellten** Rechnung.
+- ►►► **Kein Betrags-Feld ohne Währung – auch nicht das der Offerte** (#1049). ◄◄◄ Es
+  hatte drei Mängel, und alle drei gibt es im Haus längst: Währung als Suffix **in** der
+  Hülle (`Amount`), die **Stellenzahl** der Währung (`numericOnly({decimals})`) und eine
+  **Beschriftung** – `Stacked` ist jetzt die eine Form «Beschriftung über dem Wert» (aus
+  `Term` und `Fixed` gezogen). **Und `Sums` steht immer da**: der Währungs-Wähler ist der
+  Code am Total (#917), und den Block gab es bei einer **Ausgabe** gar nicht – die Währung
+  war dort nie wählbar, obwohl der Dienst sie bis zur Zusage annimmt.
+- ►►► **Der Schalter über der Rechnungsadresse ist zurück – die Kopie nicht.** ◄◄◄
+  *«rechnungsadresse bitte wieder mit schalter»*. Er ist eine **Ableitung** aus den
+  Feldern (`accounts.hasOwnBilling` – dieselbe Frage, die `voucher.billing_of` stellt),
+  und «Aus» **räumt** sie (`NO_OWN_BILLING`): er schreibt in die Daten, was er anzeigt.
+  Damit gibt es weiterhin genau **eine** Wahrheit und nirgends eine veraltende Kopie.
+- ►►► **Das Adressfeld hat EIN Gesicht** (#1044, `address-field.tsx`). ◄◄◄ *«Manchmal
+  das Google-Maps-Suchdesign, manchmal ein einfaches Eingabeformular.»* – Ein **Wettlauf**:
+  der Maps-Schlüssel kommt aus den Einstellungen, ist beim ersten Rendern `null`, und ein
+  Effekt machte daraus `manual = true` – **für immer**. Jetzt trägt der Zustand nur die
+  **Wahl des Menschen**, der Modus ist eine Ableitung, und solange die Antwort fehlt, wird
+  **nicht entschieden** (`pending`; `useMapsApiKey` unterscheidet dafür `undefined` =
+  «noch nicht bekannt» von `null` = «es gibt keinen»).
+  **Und die Region kam von Google nie an**: `parsePlace` las `administrative_area_level_1`
+  nicht (es blieb die des vorherigen Ortes stehen), und die **Zusammenfassung** zeigte sie
+  gar nicht – wer sie erfasste, sah sie beim nächsten Blick nicht mehr. Übernommen wird
+  **kurz vor lang** («ZH», nicht «Zürich») und **auch leer**: ein Treffer ersetzt die ganze
+  Anschrift.
+- **Zwei Erklärtexte sind gelöscht** (#1043/#1045): sie beschrieben das Datenmodell
+  (Rolle, leerer Firmenname) und sagten nichts, was das Feld darunter nicht selbst sagt.

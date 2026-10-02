@@ -188,14 +188,16 @@ class Voucher(Base, TimestampMixin):
     #: vergebene Nummer wird nicht erneut vergeben.
     number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
-    #: ►►► **Wann die Rechnung hinausging.** ◄◄◄ ``NULL`` = sie liegt noch im Haus, und
-    #: genau dann lässt sie sich zurücknehmen (``unbill``). Danach ist sie unveränderlich –
-    #: ein Papier ist draussen, und was daran falsch ist, korrigiert ein eigener Beleg.
-    #:
-    #: **Die Spalte ist bewusst eine Spalte.** Die Hausregel lautet «der Moment braucht
-    #: keine Spalte» – hier gibt ihn nichts anderes her, weil eine Zustellung (PDF,
-    #: E-Mail) nicht gebaut ist. Sobald sie es ist, setzt **sie** das Datum.
-    issued_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # ►►► **Hier stand ``issued_on`` – «wann die Rechnung hinausging»** (Testnotiz
+    # #1047). ◄◄◄ Gesetzt wurde es von einem eigenen Knopf («Rechnung ist versendet»), und
+    # die Hausregel sagte dazu selbst, dass sie eine Ausnahme ist: *der Moment braucht
+    # keine Spalte.* Gebraucht hat ihn niemand – das **Fälligkeitsdatum** kommt aus dem
+    # Rechnungsdatum, und der Rest war eine Handlung, die der Mensch für das System
+    # ausführte, damit das System sie protokolliert.
+    #
+    # Was sie trug, sagt jetzt ``billed_on``: **gestellt ist draussen.** Die Rücknahme
+    # endet damit an der stärkeren der beiden Bedingungen, die sie ohnehin hatte – es ist
+    # **Geld geflossen**. Die Spalte selbst fällt im Folge-Deploy (Zwei-Deploy-Regel).
 
     #: **Der Rechnungsbetrag, brutto** – eingefroren mit dem Stellen. Bei einem
     #: **Korrekturbeleg** negativ: die Positionen tragen positive Preise (niemand tippt ein

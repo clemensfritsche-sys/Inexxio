@@ -217,7 +217,7 @@ def test_a_verb_is_declared_in_exactly_one_place():
         )
     # (b) **Jedes Verb, das irgendwo vorkommt, steht in `VERBS`.**
     for verb in ("ask", "quote", "decline", "agree", "revoke", "bill", "unbill",
-                 "issue", "correct", "pay", "price", "currency", "issuer", "incoterm",
+                 "correct", "pay", "price", "currency", "issuer", "incoterm",
                  "terms", "pay_online", "refund_online"):
         assert verb in svc.VERBS, f"«{verb}» fehlt in VERBS (b)."
     # (c) **`can` liest genau diese Tabelle** – geprüft an der Stufe, nicht am Namen.
@@ -541,8 +541,6 @@ def test_an_income_runs_from_offer_to_paid():
             f"Die Rechnungsnummer trägt nicht ihr Suffix: {row.number}."
         )
         assert row.vat, "Die Steuer-Aufteilung ist nicht eingefroren."
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         svc.apply(db, order=order, step=step, action="pay", payload={"method": "cash"})
         db.flush()
         assert svc.balance_of(db, row).open == Decimal("0.0000"), "Offen nach Vollzahlung."
@@ -779,42 +777,6 @@ def test_a_module_carries_exactly_one_invoice():
         db.rollback(); db.close()
 
 
-def test_an_issued_invoice_cannot_be_taken_back():
-    """►►► **Ab dem Versenden ist die Rechnung unveränderlich.** ◄◄◄
-
-    Davor gibt es ``unbill`` – dieselbe Anatomie wie ``ask``/``unask``: *jede Zusage nach
-    aussen hat ihre Gegenhandlung an derselben Stelle*, und sie endet genau dort, wo der
-    Beleg wirklich hinausgeht. Was danach falsch bleibt, korrigiert ein **eigener Beleg**.
-
-    Bug-Form: ``unbill`` nach ``issue`` geht durch.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
-    from app.services import voucher as svc
-    db = _db()
-    try:
-        order, step, row, _who, _art = _agreed(db)
-        svc.apply(db, order=order, step=step, action="bill", payload={})
-        db.flush()
-        assert "unbill" in svc.can(db, row, None), (
-            "Eine Rechnung im Haus lässt sich nicht zurücknehmen – dann ist ein "
-            "Tippfehler eine Sackgasse."
-        )
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
-        assert row.issued_on is not None
-        assert "unbill" not in svc.can(db, row, None)
-        with pytest.raises(HTTPException) as e:
-            svc.apply(db, order=order, step=step, action="unbill", payload={})
-        assert e.value.status_code == 409, (
-            "Eine versendete Rechnung lässt sich zurücknehmen – draussen liegt ein "
-            "Papier, das jemand gelesen hat."
-        )
-    finally:
-        db.rollback(); db.close()
-
-
 def test_an_invoice_with_a_payment_cannot_be_taken_back():
     """**Wo Geld geflossen ist, war die Rechnung draussen** – was immer jemand angeklickt
     hat.
@@ -829,12 +791,8 @@ def test_an_invoice_with_a_payment_cannot_be_taken_back():
     try:
         order, step, row, _who, _art = _agreed(db)
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
         svc.apply(db, order=order, step=step, action="pay",
                   payload={"method": "cash", "amount": "10.00"})
-        db.flush()
-        # Selbst ohne das Versand-Datum bliebe sie stehen: die Zahlung allein genügt.
-        row.issued_on = None
         db.flush()
         assert "unbill" not in svc.can(db, row, None)
         with pytest.raises(HTTPException) as e:
@@ -950,8 +908,6 @@ def test_a_correction_carries_the_reference_to_what_it_corrects():
     try:
         order, step, row, who, art = _agreed(db)
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         back_order, back_step, back, _w, _a = _scene(db, quantity=1, parties=[who[0]])
         svc.apply(db, order=back_order, step=back_step, action="correct",
                   payload={"corrects": row.id})
@@ -1007,8 +963,6 @@ def test_a_correction_may_live_in_another_order():
     try:
         order, step, row, who, _art = _agreed(db)
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         back_order, back_step, back, _w, _a = _scene(db, quantity=1, parties=[who[0]])
         assert back_order.id != order.id, "Die Szene liegt im selben Auftrag."
         svc.apply(db, order=back_order, step=back_step, action="correct",
@@ -1045,8 +999,6 @@ def test_a_correction_is_stored_with_a_negative_amount():
     try:
         order, step, row, who, _art = _agreed(db)
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         back_order, back_step, back = _credit(db, target=row, who=who[0])
         svc.apply(db, order=back_order, step=back_step, action="bill", payload={})
         db.flush()
@@ -1074,8 +1026,6 @@ def test_a_correction_mirrors_the_tax_split():
     try:
         order, step, row, who, _art = _agreed(db)
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         back_order, back_step, back = _credit(db, target=row, who=who[0])
         svc.apply(db, order=back_order, step=back_step, action="bill", payload={})
         db.flush()
@@ -1233,7 +1183,7 @@ def test_the_door_knows_every_field_it_accepts():
     from app.schemas.voucher import VoucherUpdate
     known = set(VoucherUpdate.model_fields)
     for field in ("party", "parties", "lead_days", "payment_days", "amount",
-                  "reference", "note", "booked_on", "billed_on", "issued_on",
+                  "reference", "note", "booked_on", "billed_on",
                   "corrects", "entry",
                   "lines", "vat", "currency", "method", "incoterm", "incoterm_place",
                   "issuer"):
@@ -2073,14 +2023,10 @@ def test_the_ways_to_the_money_come_from_can_and_say_what_they_do():
             "Wahl, die ins Leere führt."
         )
 
-        # ►►► **Und auch die gestellte Rechnung genügt nicht: sie muss DRAUSSEN sein.**
-        # ◄◄◄ Man kassiert nicht auf ein Papier, das der Zahlende nie gesehen hat.
+        # ►►► **Und mit der gestellten Rechnung gibt es sie** (Testnotiz #1047). ◄◄◄
+        # Hier stand eine zweite Bedingung – «sie muss **versendet** sein» –, und sie hing
+        # an einem Knopf, dessen ganze Wirkung ein Datum war. **Gestellt ist draussen.**
         svc.apply(db, order=order, step=step, action="bill", payload={}, actor=staff)
-        db.flush()
-        assert svc.embed_data(db, order=order, step=step, viewer=staff)["ways"] == [], (
-            "Es gibt Wege, obwohl die Rechnung noch im Haus liegt (a)."
-        )
-        svc.apply(db, order=order, step=step, action="issue", payload={}, actor=staff)
         db.flush()
 
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
@@ -2155,8 +2101,6 @@ def test_nobody_asks_which_invoice_is_meant():
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": one.object_id}, actor=staff)
         svc.apply(db, order=order, step=step, action="bill", payload={}, actor=staff)
-        svc.apply(db, order=order, step=step, action="issue", payload={}, actor=staff)
-        db.flush()
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
         assert "settle_charge" not in seen, "Die Angabe ist zurück (a)."
         assert seen["ways"], "Nach dem Versenden gibt es keinen Weg zum Geld."
@@ -2331,8 +2275,6 @@ def test_an_invoice_says_how_it_stands():
     try:
         order, step, row, _who, _art = _agreed(db, price="100.00")
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         staff = _party(db, "Personal", "admin")
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
         assert seen["invoice"]["state_label"] and seen["invoice"]["state_tone"], (
@@ -2484,8 +2426,6 @@ def test_the_balance_says_how_it_stands_in_one_number():
         order, step, row, who, _art = _agreed(db, quantity=1, price="100.00",
                                               parties=[winner, loser])
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         staff = _party(db, "Personal", "admin")
         seen = svc.embed_data(db, order=order, step=step, viewer=staff)
         assert seen["open_state"] == "open" and seen["open_state_tone"] == "pending", (
@@ -2605,8 +2545,6 @@ def test_a_small_residue_may_be_written_off_but_never_by_itself():
             line.vat = "export"          # 0 % – runde Zahlen
         db.flush()
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
-        db.flush()
         # (a) Zwanzig Franken bucht niemand «versehentlich» aus.
         svc.apply(db, order=order, step=step, action="pay",
                   payload={"amount": "80.00", "method": "cash"})
@@ -2660,7 +2598,6 @@ def test_a_money_line_carries_the_moment_it_was_booked():
     try:
         order, step, row, _who, _art = _agreed(db, quantity=1, price="10.00")
         svc.apply(db, order=order, step=step, action="bill", payload={})
-        svc.apply(db, order=order, step=step, action="issue", payload={})
         svc.apply(db, order=order, step=step, action="pay",
                   payload={"amount": "1.00", "method": "cash"})
         db.flush()
@@ -2724,8 +2661,6 @@ def _card_scene(db):
     from app.services import voucher as svc
     order, step, row, _who, _art = _agreed(db, quantity=1, price="100.00")
     svc.apply(db, order=order, step=step, action="bill", payload={})
-    svc.apply(db, order=order, step=step, action="issue", payload={})
-    db.flush()
     from app.domain import voucher as vo
     intent = f"pi_{uuid.uuid4().hex[:12]}"
     svc.record_payment(db, row=row, amount=Decimal("100.00"),
@@ -2909,3 +2844,141 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch
     finally:
         db.rollback()
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #1046/#1047 — der Grund am Knopf, und «versendet» ist weg
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_billed_invoice_is_out_there():
+    """►►► **Gestellt IST draussen — es gibt kein «ist versendet» mehr** (#1047). ◄◄◄
+
+    *«Ich sehe nicht wirklich, wozu es diesen extra Button braucht und wofür man
+    mitprotokollieren muss, dass die Rechnung versendet wurde.»*
+
+    Der Knopf setzte ein Datum (``issued_on``) und sonst nichts – eine Handlung, die ein
+    Mensch **für das System** ausführte, damit das System sie protokolliert. Zwei Regeln
+    lasen es, und beide sind einfacher geworden: **kassiert** wird auf eine *gestellte*
+    Rechnung, **zurückgenommen** wird, solange *nichts geflossen* ist (die stärkere der
+    beiden Bedingungen, die dort standen).
+
+    Bug-Formen: (a) das Verb ist wieder da; (b) die Spalte ist wieder am Modell; (c) das
+    Kassieren hängt an einer zweiten Bedingung – dann steht der Weg zum Geld nicht da,
+    obwohl die Rechnung existiert.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.models import Voucher
+    from app.services import voucher as svc
+
+    # (a) + (b) – und beides zusammen: ein Verb ohne Spalte wäre so halb wie umgekehrt.
+    assert "issue" not in svc.VERBS, (
+        "«issue» steht wieder in VERBS (a) – ein Knopf, dessen ganze Wirkung ein Datum "
+        "ist, das niemand liest."
+    )
+    assert not hasattr(vo, "ISSUE_WORD"), "Das Wort ist wieder da (a)."
+    assert not hasattr(svc, "is_issued"), "Die Frage ist wieder da (a)."
+    assert "issued_on" not in Voucher.__mapper__.columns, (
+        "Die Spalte ist wieder am Modell (b) – und damit die zweite Aussage darüber, ob "
+        "ein Beleg draussen ist."
+    )
+
+    db = _db()
+    try:
+        order, step, row, who, _art = _agreed(db)
+        staff = _party(db, "Personal", "admin")
+        assert "pay" not in svc.can(db, row, None), (
+            "Ohne Rechnung lässt sich kassieren – man kassiert nicht, was niemand "
+            "gefordert hat."
+        )
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        db.flush()
+        # (c) **Mit der gestellten Rechnung steht der Weg zum Geld da** – ohne einen
+        # zweiten Klick, der nur ein Datum setzt.
+        allowed = svc.can(db, row, None)
+        assert "pay" in allowed, (
+            f"Eine gestellte Rechnung lässt sich nicht kassieren (c): {allowed}."
+        )
+        ways = svc.embed_data(db, order=order, step=step, viewer=staff)["ways"]
+        assert ways, "Es gibt keinen Weg zum Geld (c), obwohl die Rechnung steht."
+        # **Und die Rücknahme endet an der einen Bedingung, die bleibt.**
+        assert "unbill" in allowed, "Eine Rechnung im Haus lässt sich nicht zurücknehmen."
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"method": "cash", "amount": "10.00"})
+        db.flush()
+        assert "unbill" not in svc.can(db, row, None), (
+            "Nach einer Zahlung lässt sich die Rechnung zurücknehmen – dann steht Geld "
+            "auf einem Beleg, den es nicht mehr gibt."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_reason_stands_at_the_button_not_after_the_click():
+    """►►► **Warum der Anfrage-Knopf gesperrt ist — am Knopf** (Testnotiz #1046). ◄◄◄
+
+    *«Diese Meldung erscheint nicht an der Stelle des Geschehens. Besser wäre, der
+    Submit-Button ist deaktiviert/ausgegraut, bis alles vollständig ist, und beim Hover
+    erklärt er, warum.»*
+
+    Die Prüfung gab es längst, nur **erst beim Klick**: ``_ask`` wies ab, und der Satz
+    landete als rote Zeile am Kopf des Auftrags – weit weg von der Position, die er
+    nennt. Jetzt ist er eine **Ableitung** (``ask_problem``), die mitreist, und derselbe
+    Satz ist das Tor. **Zwei Formen einer Regel, ein Namensstamm.**
+
+    Bug-Formen: (a) die Ableitung schweigt, obwohl der Beleg unvollständig ist; (b) sie
+    nennt einen Grund, den die Tür nicht kennt (oder umgekehrt); (c) sie steht nicht in
+    der Antwort; (d) sie bleibt stehen, obwohl alles da ist.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, _who, art = _scene(db, quantity=2)
+        staff = _party(db, "Personal", "admin")
+        svc.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 0, "payment_days": 30})
+        db.flush()
+        # (a) + (c) **Die Antwort trägt den Grund** – nur dort, wo es den Knopf
+        #     überhaupt gibt, und die Oberfläche liest ohnehin, bevor jemand klickt.
+        seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert "ask" in (seen["can"] or []), "Ohne das Verb gibt es nichts zu erklären."
+        problem = seen["ask_problem"]
+        # **Und er nennt die Position**, nicht nur das Feld: über einem Beleg mit zwölf
+        # Zeilen wäre «ohne Preis» eine Sackgasse mit Ausrufezeichen.
+        assert problem and "Preis" in problem and art.name in problem, (
+            f"Der Grund fehlt oder nennt die Position nicht (a/c): {problem!r}."
+        )
+        assert problem == svc.ask_problem(db, row, step), (
+            "Die Antwort baut den Satz selbst – dann ist er die zweite Fassung."
+        )
+        # (b) **Derselbe Satz ist das Tor** – ein zweiter, milderer Massstab wäre ein
+        #     Knopf, der bereitsteht und dann scheitert.
+        with pytest.raises(HTTPException) as err:
+            svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+        assert err.value.detail == problem, (
+            f"Tür und Knopf sagen Verschiedenes (b): {err.value.detail!r} ≠ {problem!r}."
+        )
+        # **Dasselbe für die Zoll-Angabe** – sie steht am Artikel und reist von dort auf
+        # jeden Beleg; fehlt sie, nennt der Satz die Zeile, um die es geht.
+        art.hs_code = None
+        db.flush()
+        _price(db, order, step, row)
+        gone = svc.ask_problem(db, row, step)
+        assert gone and art.name in gone, (
+            f"Der Satz nennt die Position nicht: {gone!r}."
+        )
+        # (d) **Steht alles da, schweigt er** – sonst wäre der Knopf für immer gesperrt.
+        art.hs_code = "848210"
+        db.flush()
+        assert svc.ask_problem(db, row, step) is None, (
+            "Der Grund bleibt stehen, obwohl der Beleg vollständig ist (d)."
+        )
+        svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+        db.flush()
+        assert svc.quotes_of(db, row), "Der vollständige Beleg geht nicht hinaus (d)."
+    finally:
+        db.rollback(); db.close()

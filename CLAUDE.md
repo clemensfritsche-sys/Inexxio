@@ -4694,6 +4694,109 @@
 > Rollen-Dropdown trägt genau die drei Werte der Tür –, und die Messung gegen ihre eigene
 > Bug-Form gegengeprüft (+520 bis +1480 px; ein gekappter Name meldet zu Recht nichts).
 
+> ►►► **WAS EIN MENSCH FÜR DAS SYSTEM TUT, GEHÖRT GELÖSCHT — und der Grund steht am
+> KNOPF** (Testnotizen #1043–#1049). ◄◄◄ Sieben Punkte, und drei davon nehmen etwas
+> **weg**.
+> **(1) #1047 «Rechnung ist versendet» ist ersatzlos gelöscht** – Verb, Wort, Knopf,
+> Spalten-Mapping (`vouchers.issued_on`, Drop im Folge-Deploy), Netz-Eintrag und die
+> Zeile im Backfill. *«Ich sehe nicht wirklich, wozu es diesen extra Button braucht und
+> wofür man hier mitprotokollieren muss, dass die Rechnung versendet wurde.»* – Er setzte
+> ein **Datum** und sonst nichts: eine Handlung, die ein Mensch **für das System**
+> ausführte, damit das System sie protokolliert. Die Hausregel sagte dazu selbst, dass
+> sie eine Ausnahme ist (*der Moment braucht keine Spalte*).
+> **Und das System wurde dabei kleiner, nicht nur kürzer**: zwei Regeln lasen das Datum,
+> und beide sind **einfacher** geworden – **kassiert** wird auf eine *gestellte* Rechnung
+> (gestellt **ist** draussen, in beide Richtungen gleich; eine Bedingung, die nur ein
+> eigener Klick erfüllt, sperrte am Ende den Zahlungseingang eines Kunden, der die
+> Rechnung längst vor sich hat), **zurückgenommen** wird, solange *nichts geflossen* ist –
+> die stärkere der beiden Bedingungen, die dort standen. *Die Zeile im Backfill zu
+> entfernen war Pflicht, nicht Kosmetik: er läuft bei **jedem** Start, und nach dem Drop
+> wäre sie ein Fehler an einer Spalte, die es nicht mehr gibt.*
+> ►►► **(2) #1046 — die Meldung stand am falschen Ort, nicht zu viel.** ◄◄◄ *«Diese
+> Meldung erscheint nicht an der Stelle des Geschehens. Besser wäre, der Submit-Button
+> ist deaktiviert, bis alles vollständig ist, und beim Hover erklärt er warum.»* Die
+> Prüfung gab es längst (`_assert_complete`, #964), nur **erst beim Klick**: der Satz
+> landete als rote Zeile am **Kopf des Auftrags** – weit weg von der Position, die er
+> nennt. Jetzt ist er eine **Ableitung** (`voucher.ask_problem` → `VoucherEmbed.
+> ask_problem`), und **derselbe Satz ist das Tor** (`_assert_ask`): zwei Formen einer
+> Regel, ein Namensstamm – nie zwei Massstäbe. Mit ihm ist `_assert_complete` aufgegangen
+> und `_assert_terms` hat seine Problem-Form bekommen (`terms_problem`).
+> **Ein gesperrter Knopf ist hier richtig**, obwohl «ein Knopf, der nie etwas tun kann,
+> ist kein Angebot» die Hausregel ist (#950): dieser **kann** – sobald die Angaben
+> stehen. Dieselbe Form wie «Freigeben» am Auftragsentwurf, der seit jeher gesperrt
+> dasteht und im Hover sagt, was fehlt. Derselbe Grund hängt am `+` des Chips, und er
+> **bleibt stehen** statt zu verschwinden (die Lehre aus #1016: `busy` und ein fehlender
+> Grund dürfen keine Geometrie ändern). **Gemessen in Chromium**: die Blase erscheint an
+> einem **disabled**-Knopf – das ist eine Eigenschaft des Browsers, keine des Codes, und
+> darum geprüft statt geglaubt.
+> ►►► **(3) #1049 — ein Betragsfeld ohne Währung, und ein Wähler, den es in einer
+> Richtung nie gab.** ◄◄◄ Das Feld der Angebotszeile hatte **drei** Mängel, und alle drei
+> hat das Haus längst gelöst: die **Währung** als Suffix in derselben Hülle wie die Zahl
+> (`Amount`, #1010/#1017 – sie *kann* dann keine andere Farbe haben), die **Stellenzahl
+> dieser Währung** (#931) und die **Beschriftung** (daneben tragen zwei Fristen ihre;
+> `Stacked` ist jetzt die eine Form «Beschriftung über dem Wert», aus `Term` und `Fixed`
+> gezogen).
+> **Der Währungs-Wähler ist der Code am Total** (#917) – und die Aufstellung gab es bei
+> einer **Ausgabe** gar nicht (dort nennt die Gegenpartei den Preis, es gibt also keine
+> bepreisten Positionen): die Währung war in dieser Richtung **nie wählbar**, obwohl der
+> Dienst sie bis zur Zusage annimmt. Sie steht jetzt **immer** da, mit «—», wo nichts
+> gebucht ist – das behebt zugleich einen offenen Fall von #1009 (sie wuchs beim Buchen
+> in den Beleg hinein und schob alles darunter nach unten).
+> ►►► **(4) Die Rechnungsadresse hat wieder einen Schalter — die Kopie nicht.** ◄◄◄
+> *«rechnungsadresse bitte wieder mit schalter»* – und das ist kein Rückschritt hinter
+> #1043: dort war das Problem nicht der Schalter, sondern dass er eine **gespeicherte**
+> Angabe war (`invoice_same_as_shipping`) und bei «gleich wie» eine **Kopie** der
+> Lieferadresse in die Rechnungsfelder schrieb; die veraltete beim nächsten Umzug, genau
+> wie damals `invoice_company`. Jetzt ist er eine **Ableitung** aus den Feldern
+> (`hasOwnBilling` – dieselbe Frage, die `voucher.billing_of` stellt), und **«Aus» räumt
+> sie** (`NO_OWN_BILLING`): er schreibt in die Daten, was er anzeigt, es gibt weiterhin
+> genau **eine** Wahrheit, und nirgends eine Kopie. Ein Gedächtnis braucht er für genau
+> einen Fall – «An» geklickt, aber noch nichts getippt.
+> ►►► **(5) #1044 war ein WETTLAUF, kein Zufall.** ◄◄◄ *«Die Adresse wird manchmal mit
+> dem Google-Maps-Suchdesign gerendert und manchmal wechselt sie zu einem einfachen
+> Eingabeformular.»* – Der Maps-Schlüssel kommt aus den Einstellungen und ist beim
+> **ersten** Rendern noch nicht da; `useGoogleMaps` meldete dafür `no-key`, und ein Effekt
+> setzte daraufhin `manual = true` – **für immer**. Wer den Datensatz als Erstes in der
+> Sitzung öffnete, bekam das Formular; beim zweiten Mal (Schlüssel modulweit gecacht) die
+> Suche. **Dieselbe Oberfläche, zwei Gesichter, und beides war «richtig».**
+> Die Lösung ist eine **Ableitung statt eines Einbahn-Schalters**: der Zustand trägt nur
+> noch die **Wahl des Menschen** (`wantsManual`), und *manuell ist, wer es will – oder wer
+> keine Suche hat*. Dazu ein dritter Wert, wo zwei zu wenig waren: **`undefined` heisst
+> «noch nicht bekannt», `null` «es gibt keinen»** – solange die Antwort fehlt, wird
+> **nicht entschieden**. Auf einem eingerichteten System wechselt die Ansicht damit nie.
+> **Und die Region kam von Google nie an**: `parsePlace` las
+> `administrative_area_level_1` nicht, also liess ein Treffer sie unberührt – es blieb die
+> des *vorherigen* Ortes stehen (die gemeldete «Region wird nicht korrekt befüllt»). Sie
+> wird jetzt gelesen (**kurz vor lang**: auf einer Anschrift steht «ZH», nicht «Zürich»),
+> **auch leer übernommen** (wie Strasse, PLZ und Ort – ein Treffer ersetzt die ganze
+> Anschrift) und steht in der **Zusammenfassung**: dort fehlte sie ganz, und wer sie
+> erfasste, sah sie beim nächsten Blick nicht mehr – was von einer nicht gespeicherten
+> Angabe nicht zu unterscheiden ist.
+> **(6) Zwei Erklärtexte sind gelöscht** (#1043/#1045): was die Rolle bedeutet und was ein
+> leerer Firmenname heisst. Beide beschrieben das **Datenmodell** und sagten nichts, was
+> das Feld darunter nicht selbst sagt – ein Formular, das sich erklärt, ist eines, das man
+> nicht versteht.
+> Wächter: 2 neue in `tests/test_voucher_module.py` (**8 Bug-Formen gegengeprüft**, eine
+> war dabei stumpf: sie liess einen *vageren* Satz durch, der die Position nicht nennt),
+> 5 neue und 2 auf die neue Regel gezogene in `test_frontend_mirrors.py` (**21
+> Bug-Formen**, *vier waren stumpf und liessen ihre eigene durch* – dreimal genügte das
+> blosse **Vorkommen** eines Namens, den auch der Import oder der Newsletter-Schalter
+> liefert, einmal prüfte der Wächter den Typ eines **inneren Zustands** statt der
+> **Antwort** der Funktion). 19 `issue`-Aufrufe aus bestehenden Prüfungen entfernt, einer
+> auf die neue Regel gezogen; **keine Migration** in dieser Runde (ein Mapping fällt, die
+> Spalte im Folge-Deploy). Suite grün gegen die gewachsene Datenbank **und** gegen ein
+> Schema nur aus den Migrationen (je 624).
+> **Gemessen in Chromium an den echten Komponenten**: der Beleg (Karte im `ModuleShell`)
+> bei 1440 · 1280 · 1024 · 834 · 375 · 320 px über **neun** Zustände – neu darunter ein
+> unvollständiger Beleg und eine **Ausgabe**, bei der die Gegenpartei den Preis nennt –,
+> **0 px** waagrechter Überlauf; dazu 11 Aussagen am gerenderten Baum (gesperrter Knopf ·
+> Grund in der Blase · Blase an einem disabled-Knopf · Betragsfeld mit Währung und
+> Beschriftung · Aufstellung und Währungs-Wähler bei einer Ausgabe · «versendet» in
+> keinem Zustand). Die Benutzer-Oberflächen über **neun** Zustände ebenso **0 px**, mit
+> Schalter, 2 → 4 Feldern und **0×** Prosa. Und der Wettlauf selbst mit **verzögert
+> zugestelltem** Schlüssel: solange er fehlt, steht kein Formular da, und die Region ist
+> in **beiden** Modi sichtbar – gegengeprüft, dass der alte Latch meldet.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

@@ -328,11 +328,6 @@ def is_billed(row: Voucher) -> bool:
     return row.billed_on is not None
 
 
-def is_issued(row: Voucher) -> bool:
-    """**Ist die Rechnung hinausgegangen?** Danach ist sie unveränderlich."""
-    return row.issued_on is not None
-
-
 def corrects(db: Session, row: Voucher) -> Optional[Voucher]:
     """**Welchen Beleg mindert dieser hier?** – oder ``None``.
 
@@ -684,27 +679,20 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     # also fragt die Bedingung nach beiden.
     if not (quotes_of(db, row) or parties_on(row)):
         out = [a for a in out if a != "unask"]
-    # ►►► **Versendet wird nur, was WIR stellen.** ◄◄◄ Eine Lieferantenrechnung ist
-    # längst draussen, als wir sie abschreiben – ein Knopf «ist versendet» wäre dort eine
-    # Handlung ohne Gegenstand. Die Frage steht damit an der Richtung, nicht an einem
-    # Datum, das wir für ihn setzen.
-    if not flow.collects:
-        out = [a for a in out if a != "issue"]
-    # ►►► **Kassiert wird auf eine Rechnung, die DRAUSSEN ist.** ◄◄◄ Man kassiert nicht,
-    # was niemand gefordert hat – und ebenso wenig auf ein Papier, das noch im Haus
-    # liegt: der Zahlende hat es gar nicht gesehen. Wo **er** die Rechnung stellt, ist sie
-    # mit dem Erfassen draussen; wo **wir** sie stellen, sagt es ``issued_on``.
+    # ►►► **Kassiert wird auf eine Rechnung, die GESTELLT ist.** ◄◄◄ Man kassiert nicht,
+    # was niemand gefordert hat.
     #
-    # Daraus fällt die Sicherheit von ``unbill`` heraus, ohne eine zweite Regel: vor dem
-    # Versenden kann gar kein Geld eingegangen sein.
-    if not (is_billed(row) and (is_issued(row) or not flow.collects)):
+    # *Hier stand eine zweite Hälfte – «und versendet» (``issued_on``). Sie ist mit dem
+    # Knopf dahinter entfallen (#1047): gestellt **ist** draussen, in beide Richtungen
+    # gleich. Eine Bedingung, die nur ein eigener Klick erfüllt, sperrt am Ende den
+    # Zahlungseingang eines Kunden, der die Rechnung längst vor sich hat.*
+    if not is_billed(row):
         out = [a for a in out if a not in ("pay", "pay_online")]
-    # ►►► **Die Rechnung lässt sich zurücknehmen, solange sie im Haus ist.** ◄◄◄ Zwei
-    # Dinge schliessen es aus, und beide sind eine Frage an die **Daten**, keine an die
-    # Stufe: sie ist **versendet** (dann liegt ein Papier draussen, das jemand gelesen
-    # hat), oder es ist **Geld geflossen** (dann war sie draussen, was immer jemand
-    # angeklickt hat). Danach korrigiert ein **eigener Beleg**.
-    if is_issued(row) or rows:
+    # ►►► **Die Rechnung lässt sich zurücknehmen, solange nichts geflossen ist.** ◄◄◄
+    # Eine Frage an die **Daten**, keine an die Stufe – und die stärkere der beiden, die
+    # hier einmal standen: ist **Geld geflossen**, war sie draussen, was immer jemand
+    # angeklickt hat. Danach korrigiert ein **eigener Beleg**.
+    if rows:
         out = [a for a in out if a != "unbill"]
     # ►►► **Online bezahlen: drei Bedingungen, alle hier.** ◄◄◄ Nur wo das Geld **zu uns**
     # fliesst (ein Zahlungsdienst zieht ein, er überweist nicht in unserem Namen), nur mit
@@ -969,25 +957,14 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     # dritte müsste ein gewählter Partner beim Anfragen ein zweites Mal genannt werden –
     # dieselbe Angabe zweimal, und die zweite kann fehlen.
     wanted = list(data.get("parties") or []) or allowed or parties_on(row)
-    if not wanted:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Ohne {vo.PARTY} gibt es nichts anzufragen – dieses Modul lässt "
-                    f"jeden zu, also muss hier stehen, wen es betrifft."))
+    # ►►► **Ein unvollständiger Beleg geht nicht hinaus** (Testnotizen #964/#1046). ◄◄◄
+    # Geprüft wird an der einen Stelle, an der er nach aussen geht – nicht bei jedem
+    # Tippen: der Beleg **entsteht** unvollständig, und eine Meldung dabei sagte nur, dass
+    # man noch nicht fertig ist. **Derselbe Satz steht am gesperrten Knopf**
+    # (``ask_problem``); hier ist er das Tor.
+    _assert_ask(db, row, step, wanted)
     lead, days = row.lead_days, row.payment_days
-    # ►►► **Ein unvollständiger Beleg geht nicht hinaus** (Testnotiz #964). ◄◄◄ Geprüft
-    # wird an der einen Stelle, an der er nach aussen geht – nicht bei jedem Tippen: der
-    # Beleg **entsteht** unvollständig, und eine Meldung dabei sagte nur, dass man noch
-    # nicht fertig ist.
-    _assert_complete(db, row)
     priced = priced_dicts(db, row) if flow.quoted_by == vo.BY_US else []
-    if flow.quoted_by == vo.BY_US:
-        if not priced:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
-                        f"nennen wir ihn, nicht der {vo.PARTY}."))
-        _assert_terms(lead, days)
     amount = vo.gross_of(priced, row.currency) if priced else None
     seen = {q.party_id for q in quotes_of(db, row)}
     for value in wanted:
@@ -1251,39 +1228,20 @@ def _mirror(split: list[dict[str, str]], code: str) -> list[dict[str, str]]:
             for r in split]
 
 
-def _issue(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
-           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Die Rechnung ist hinausgegangen.** ◄◄◄
-
-    Ab hier ist sie **unveränderlich**: ein Papier ist draussen, jemand hat es gelesen, und
-    was daran falsch ist, korrigiert ein **eigener Beleg**. Davor gibt es ``unbill`` –
-    dieselbe Anatomie wie ``ask``/``unask``.
-
-    **Warum es diesen Knopf gibt**, obwohl «der Moment braucht keine Spalte» die Hausregel
-    ist: nichts anderes gibt ihn her. Eine Zustellung (PDF, E-Mail) ist nicht gebaut; eine
-    **Frist** («innerhalb fünf Minuten») wäre eine erfundene Regel mit einer Uhr darin, und
-    «sobald eine Zahlung eingeht» käme zu spät für den Tippfehler, um den es geht. Sobald
-    es die Zustellung gibt, setzt **sie** das Datum, und der Knopf verschwindet.
-    """
-    row.issued_on = _day(data.get("issued_on")) or date.today()
-
-
 def _unbill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Die Rechnung zurücknehmen — solange sie im Haus ist.** ◄◄◄
+    """►►► **Die Rechnung zurücknehmen — solange nichts geflossen ist.** ◄◄◄
 
     *Jede Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle* – und diese endet
-    genau dort, wo der Beleg wirklich hinausgeht. Zwei Dinge schliessen sie aus, und beide
-    stehen in ``can``: die Rechnung ist **versendet**, oder es ist **Geld geflossen**
-    (dann war sie draussen, was immer jemand angeklickt hat).
+    an einer Frage an die **Daten**, die in ``can`` steht: ist **Geld geflossen**, war der
+    Beleg draussen, was immer jemand angeklickt hat.
 
-    **Die Nummer bleibt stehen.** Sie ist nie hinausgegangen – es gibt sie nach aussen
-    nicht, und die neu gestellte Rechnung ist derselbe Beleg, korrigiert, bevor er das Haus
-    verliess. Damit bleibt die Serie lückenlos, ohne dass eine zurückgenommene Nummer
+    **Die Nummer bleibt stehen.** Die neu gestellte Rechnung ist derselbe Beleg,
+    korrigiert; damit bleibt die Serie lückenlos, ohne dass eine zurückgenommene Nummer
     irgendwo als Leiche steht.
 
-    **Was danach falsch bleibt, korrigiert ein eigener Beleg** – das ist der Weg ab dem
-    Versenden, und er hat seinen eigenen Ort: den Auftrag, in dem die Ware zurückkommt.
+    **Was danach falsch bleibt, korrigiert ein eigener Beleg** – er hat seinen eigenen Ort:
+    den Auftrag, in dem die Ware zurückkommt.
     """
     row.billed_on = None
     row.due_on = None
@@ -1429,9 +1387,11 @@ VERBS: dict[str, Verb] = {
     # **Die Gegenhandlung zu ``bill``** – ohne Stammdaten-Bedingung (wer zurücknimmt, soll
     # nicht an einer fehlenden Angabe scheitern); *ob* sie noch geht, sagt ``can``.
     "unbill": Verb(stages=(vo.BILLED,), run=_unbill),
-    # **Und ab hier ist sie draussen.** Danach ändert sie niemand mehr; was falsch ist,
-    # korrigiert ein eigener Beleg in dem Auftrag, in dem der Vorfall passiert.
-    "issue": Verb(stages=(vo.BILLED,), run=_issue),
+    # *Hier stand ``issue`` – «Rechnung ist versendet» (Testnotiz #1047). Es setzte ein
+    # Datum und sonst nichts: eine Handlung, die ein Mensch **für das System** ausführte,
+    # damit das System sie protokolliert. **Gestellt ist draussen**; wer die Rechnung
+    # danach korrigieren muss, nimmt sie zurück (solange nichts geflossen ist) oder stellt
+    # einen eigenen Korrekturbeleg dort, wo der Vorfall passiert.*
     "pay": Verb(stages=(vo.BILLED, vo.DONE, vo.CANCELLED), run=_pay),
     # ``run=None``: **sie ändern den Beleg nicht.** Die eine **löst** eine Zahlung aus,
     # die andere gibt sie zurück – gebucht wird beides erst, wenn der Zahlungsdienst es
@@ -2103,54 +2063,77 @@ def _days(value: Any) -> Optional[int]:
     return found
 
 
-def _assert_complete(db: Session, row: Voucher) -> None:
-    """►►► **Was auf dem Beleg steht, ist PFLICHT** (Testnotiz #964). ◄◄◄
+def ask_problem(db: Session, row: Voucher, step: ProcessStep,
+                parties: Optional[list[int]] = None,
+                lines: Optional[list[dict[str, Any]]] = None) -> Optional[str]:
+    """►►► **Was fehlt noch, damit dieser Beleg HINAUSGEHEN kann?** ◄◄◄ – oder ``None``.
 
-    *«Alle Eingabefelder hier in diesem Modul – also alles, was so leicht blau hinterlegt
-    ist – sollen Muss-Felder sein.»*
+    *«Diese Meldung erscheint nicht an der Stelle des Geschehens. Besser wäre, der
+    Submit-Button ist deaktiviert, bis alles vollständig ist – und beim Hover erklärt er
+    warum.»* (Testnotiz #1046)
 
-    «Leicht blau hinterlegt» ist die Auszeichnung **änderbarer Werte** (``.ix-editable``,
-    #922) – die Regel gilt also jedem Wert, den dieser Beleg trägt: Preis und Steuersatz
-    je Position, die beiden **Zoll**-Angaben, die beiden **Fristen** und die
-    **Lieferbedingung** samt ihrem Ort. Geprüft wird **hier**, an der einen Stelle, an der
-    ein Beleg nach aussen geht; die Auszeichnung im Browser ist die freundliche Hälfte
-    derselben Regel (zwei Formen, ein Namensstamm – nie zwei Massstäbe).
+    Die Prüfung gab es längst, nur **erst beim Klick**: `_ask` wies ab, und der Satz landete
+    als rote Zeile am Kopf des Auftrags – weit weg von der Position, die er nennt. Jetzt ist
+    er eine **Ableitung**, die mitreist (``VoucherEmbed.ask_problem``), und derselbe Satz
+    ist das Tor: ``_assert_ask`` wirft ihn. **Zwei Formen einer Regel, ein Namensstamm** –
+    nie zwei Massstäbe.
+
+    *Warum hier ein gesperrter Knopf richtig ist, obwohl «ein Knopf, der nie etwas tun kann,
+    ist kein Angebot» die Hausregel ist (#950): dieser hier **kann** – sobald die Angaben
+    stehen. Dieselbe Form wie «Freigeben» am Auftragsentwurf, der seit jeher gesperrt
+    dasteht und im Hover sagt, was fehlt.*
+
+    **Was auf dem Beleg steht, ist Pflicht** (#964): Preis je Position, die beiden
+    **Zoll**-Angaben, die **Lieferbedingung** und die beiden **Fristen**. Gelesen wird
+    dabei der Wert, der auf dem Beleg **steht** (``embed_lines``: die Zeile, wo sie etwas
+    trägt, sonst der Artikel) – die rohe Spalte zu prüfen hiesse, eine Angabe zu
+    verlangen, die sichtbar längst dasteht.
 
     **Der Satz nennt die Position**, nicht nur das Feld: «Ohne Zolltarifnummer …» über
     einem Beleg mit zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
 
-    *Bewusst ohne Ausnahme für den Inlandfall:* die Zoll-Angaben sind eine Voraussetzung
-    der **Ausfuhr**, und man könnte sie am Ziel festmachen. Verlangt war «alle» – und ein
-    Pflichtfeld, das je nach Empfänger eines ist oder nicht, ist keins, sondern eine
-    Regel, die man erst beim Scheitern kennenlernt. Sie stehen ohnehin am **Artikel** und
-    reisen von dort auf jeden Beleg: wer sie einmal pflegt, tippt sie nie wieder.
+    ``parties``/``lines`` sind die Angaben, die der Aufrufer ohnehin hat – ``_ask`` kennt
+    die genannten Parteien, die Antwort kennt die Positionen. Ohne sie werden sie gelesen.
     """
-    priced = vo.of(row.direction).quoted_by == vo.BY_US
-    # **Gelesen wird der Wert, der auf dem Beleg STEHT** (``embed_lines``): die Zeile, wo
-    # sie etwas trägt, sonst der Artikel. Die rohe Spalte zu prüfen hiesse, eine Angabe zu
-    # verlangen, die sichtbar längst dasteht.
-    for ln in embed_lines(db, row):
+    flow = vo.of(row.direction)
+    # **Ohne Gegenpartei gibt es nichts anzufragen** – zwei Quellen, dieselben wie in
+    # ``_ask``: was die Definition zulässt und wen der Beleg selbst schon trägt (#1000).
+    if parties is None:
+        parties = modules.Beleg.parties_allowed(step.config) or parties_on(row)
+    if not parties:
+        return (f"Ohne {vo.PARTY} gibt es nichts anzufragen – dieses Modul lässt "
+                f"jeden zu, also muss hier stehen, wen es betrifft.")
+    priced = flow.quoted_by == vo.BY_US
+    for ln in (lines if lines is not None else embed_lines(db, row)):
         what = f"Position «{ln['article_name'] or ln['id']}»"
         if priced and ln["price"] is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{what}: ohne Preis gibt es nichts anzubieten.")
+            return f"{what}: ohne Preis gibt es nichts anzubieten."
         for key, label in (("hs_code", vo.HS_CODE_LABEL),
                            ("origin_country", vo.ORIGIN_LABEL)):
             if not str(ln.get(key) or "").strip():
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{what}: «{label}» fehlt. Sie steht am Artikel und reist von "
-                            f"dort auf jeden Beleg – einmal gepflegt, nie wieder getippt."))
+                return (f"{what}: «{label}» fehlt. Sie steht am Artikel und reist von "
+                        f"dort auf jeden Beleg – einmal gepflegt, nie wieder getippt.")
     if not row.incoterm:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Ohne {inc.LABEL} ist nicht vereinbart, wer Fracht, Versicherung und "
-                    f"Zoll trägt – und genau darüber wird sonst gestritten."))
+        return (f"Ohne {inc.LABEL} ist nicht vereinbart, wer Fracht, Versicherung und "
+                f"Zoll trägt – und genau darüber wird sonst gestritten.")
+    if priced:
+        if not priced_dicts(db, row):
+            return (f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
+                    f"nennen wir ihn, nicht der {vo.PARTY}.")
+        return terms_problem(row.lead_days, row.payment_days)
+    return None
 
 
-def _assert_terms(lead: Optional[int], days: Optional[int]) -> None:
-    """►►► **Ein Angebot nennt beide Fristen.** ◄◄◄
+def _assert_ask(db: Session, row: Voucher, step: ProcessStep,
+                parties: list[int]) -> None:
+    """Das Tor zu ``ask_problem`` – **derselbe Satz**, nur geworfen."""
+    problem = ask_problem(db, row, step, parties=parties)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+
+
+def terms_problem(lead: Optional[int], days: Optional[int]) -> Optional[str]:
+    """►►► **Ein Angebot nennt beide Fristen.** ◄◄◄ – der Satz, oder ``None``.
 
     Sie sind kein Beiwerk: aus der **Lieferfrist** kommt der Termin, aus der
     **Zahlungsfrist** die Fälligkeit jeder Rechnung – und, wenn sie null ist, die
@@ -2158,14 +2141,23 @@ def _assert_terms(lead: Optional[int], days: Optional[int]) -> None:
 
     **Null ist ein gültiger Wert und hat einen Namen** («Sofort» · «Vorauszahlung»): darum
     steht die Prüfung auf ``is None`` und nicht auf ``not value``.
+
+    **Zwei Formen, ein Namensstamm**: ``_assert_terms`` wirft ihn an einer Angebotszeile,
+    ``ask_problem`` trägt ihn an den gesperrten Knopf (#1046).
     """
     for value, label in ((lead, vo.LEAD_TERM_LABEL), (days, vo.PAYMENT_TERM_LABEL)):
         if value is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Ohne {label} ist es kein Angebot – aus ihr folgt der Termin "
-                        f"bzw. die Fälligkeit. «{vo.LEAD_TERMS[0][1]}» und "
-                        f"«{vo.PAYMENT_TERMS[0][1]}» sind gültige Antworten (0 Tage)."))
+            return (f"Ohne {label} ist es kein Angebot – aus ihr folgt der Termin "
+                    f"bzw. die Fälligkeit. «{vo.LEAD_TERMS[0][1]}» und "
+                    f"«{vo.PAYMENT_TERMS[0][1]}» sind gültige Antworten (0 Tage).")
+    return None
+
+
+def _assert_terms(lead: Optional[int], days: Optional[int]) -> None:
+    """Das Tor zu ``terms_problem`` – derselbe Satz, nur geworfen."""
+    problem = terms_problem(lead, days)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
 
 
 def _day(value: Any) -> Optional[date]:
@@ -2280,9 +2272,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                        and party == viewer.object_id)
     allowed = can(db, row, viewer)
     billed = is_billed(row)
-    # **Ist die Rechnung draussen?** – dieselbe Bedingung, an der ``can`` das Kassieren
-    # festmacht. Wo **er** sie stellt, ist sie mit dem Erfassen draussen.
-    out_there = billed and (is_issued(row) or not flow.collects)
     overdue = bool(billed and row.due_on and row.due_on < today
                    and abs(money.open) > vo.SETTLED_TOLERANCE)
     # ►►► **Wie die Rechnung steht — EINE Ableitung aus zwei Zahlen.** ◄◄◄ Hier standen
@@ -2298,6 +2287,9 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                   if "refund_online" in allowed else set())
     priced = priced_dicts(db, row)
     sums = vo.totals(vo.vat_split(priced, row.currency), row.currency)
+    # **Einmal gelesen, zweimal gebraucht** – die Positionen stehen in der Antwort und
+    # beantworten die Frage, ob der Beleg hinausgehen kann (``ask_problem``).
+    lines = embed_lines(db, row)
     # ►►► **Der Verweis steht auf dem PAPIER** (MWSTG Art. 26). ◄◄◄ Eine **Ableitung**
     # über ``corrects_id``, kein zweites Feld: ohne ihn wäre eine Gutschrift eine zweite
     # Rechnung mit negativem Vorzeichen, und niemand könnte sagen, was sie mindert.
@@ -2356,7 +2348,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "charge_word": flow.charge_verb,
         "payment_word": vo.PAYMENT_WORD,
         "pay_online_word": vo.PAY_ONLINE_WORD,
-        "issue_word": vo.ISSUE_WORD,
         "unbill_word": vo.UNBILL_WORD,
         # ►►► **Zwei Fächer statt einer Überschrift über allem.** ◄◄◄ *Was schuldet uns
         # jemand* und *wie kommt das Geld hierher* sind zwei Fragen, und jede gehört einer
@@ -2388,7 +2379,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
             "number": row.number,
             "billed_on": row.billed_on,
             "due_on": row.due_on,
-            "issued_on": row.issued_on,
             "amount": _money(row.amount, row.currency),
             "vat": list(row.vat or []),
             "service_date": row.service_date,
@@ -2423,7 +2413,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         #
         # **Es gibt sie, sobald die Rechnung steht** – welche gemeint ist, fragt niemand
         # mehr: je Modul gibt es eine.
-        "ways": _ways(allowed, collects=flow.collects) if (out_there and won) else [],
+        "ways": _ways(allowed, collects=flow.collects) if (billed and won) else [],
         # ►►► **Kleinbetragstoleranz – angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo
         # unter einem Franken darf als **Differenz ausgebucht** werden: eine ganz
         # gewöhnliche Zahlung mit Gegenvorzeichen und dem Vermerk «Rundungsdifferenz» –
@@ -2454,7 +2444,13 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # **Nur für das Personal**: die Liste ist die Konkurrenzliste.
         "recipients": ([their_side(db, row, n) for n in _possible_parties(db, row, step)]
                        if internal else []),
-        "lines": embed_lines(db, row),
+        "lines": lines,
+        # ►►► **Warum der Anfrage-Knopf gesperrt ist – am Knopf, nicht als rote Zeile
+        # oben** (Testnotiz #1046). ◄◄◄ Dieselbe Ableitung, die ``_ask`` als Tor benutzt;
+        # ein zweiter Massstab im Browser wäre die Stelle, an der beide auseinanderlaufen.
+        # Nur, wo es den Knopf überhaupt gibt: ein Grund ohne Handlung ist eine Mängelliste.
+        "ask_problem": (ask_problem(db, row, step, lines=lines)
+                        if "ask" in allowed else None),
         # **Der Belegkopf** – die beiden Parteien mit ihren Rollen (MWSTG Art. 26).
         # **Uns** sieht jeder: ein Beleg ohne Aussteller ist keiner, und wer bezahlen soll,
         # muss wissen, an wen. Die **Gegenseite** hängt an ``won``.

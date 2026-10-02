@@ -137,7 +137,6 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "billed_on", "DATE"),
     ("vouchers", "due_on", "DATE"),
     ("vouchers", "number", "VARCHAR(120)"),
-    ("vouchers", "issued_on", "DATE"),
     ("vouchers", "amount", "NUMERIC(18, 4)"),
     ("vouchers", "vat", "JSONB"),
     ("vouchers", "service_date", "DATE"),

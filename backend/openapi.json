@@ -9164,6 +9164,17 @@
             "title": "Ask Verb",
             "default": ""
           },
+          "ask_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask Problem"
+          },
           "we_quote": {
             "type": "boolean",
             "title": "We Quote",
@@ -9414,11 +9425,6 @@
           "refund_online_word": {
             "type": "string",
             "title": "Refund Online Word",
-            "default": ""
-          },
-          "issue_word": {
-            "type": "string",
-            "title": "Issue Word",
             "default": ""
           },
           "unbill_word": {
@@ -9912,18 +9918,6 @@
               }
             ],
             "title": "Due On"
-          },
-          "issued_on": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Issued On"
           },
           "amount": {
             "anyOf": [
@@ -10574,18 +10568,6 @@
             ],
             "title": "Billed On"
           },
-          "issued_on": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Issued On"
-          },
           "corrects": {
             "anyOf": [
               {
@@ -10683,7 +10665,7 @@
           "action"
         ],
         "title": "VoucherUpdate",
-        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden\n             nennt; **nicht** dasselbe wie ``ask`` (#1000)\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)\n``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist\n``unbill``   sie zurücknehmen, solange sie im Haus ist (nicht versendet, nichts\n             geflossen) – die Gegenhandlung zu ``bill``\n``issue``    *«Rechnung ist versendet»* – danach unveränderlich\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden\n             nennt; **nicht** dasselbe wie ``ask`` (#1000)\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)\n``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist\n``unbill``   sie zurücknehmen, solange **nichts geflossen** ist – die Gegenhandlung\n             zu ``bill``\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
       },
       "VoucherWay": {
         "properties": {
