@@ -22,8 +22,7 @@ import { Field, ToggleField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
 import { AddressField, type Address } from '@/components/erp/address-field';
-import { Segmented } from '@/components/erp/fields';
-import { ACCOUNT_TYPE, ACCOUNT_TYPES, inheritedEmail, isBusiness, type AccountType } from '@/lib/accounts';
+import { INHERITED_ADDRESS, inheritedEmail } from '@/lib/accounts';
 import { legalForms } from '@/lib/legal-forms';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
@@ -33,8 +32,7 @@ interface Form {
   last_name: string;
   date_of_birth: string;
   phone: string;
-  // Firma – nur bei Kontotyp «Geschäft» (#1042), nicht nach Rolle
-  account_type: AccountType;
+  // Firma – **der Name ist die Erklärung** (#1043): steht er da, ist es eine Firma.
   company_name: string;
   legal_form: string;
   uid_number: string;
@@ -45,8 +43,7 @@ interface Form {
   city: string;
   state_region: string;
   country: string;
-  // Rechnungsadresse
-  invoice_same_as_shipping: boolean;
+  // Rechnungsadresse – **freiwillig: leer gilt die Lieferadresse** (#1043)
   invoice_first_name: string;
   invoice_last_name: string;
   invoice_address_line1: string;
@@ -65,8 +62,6 @@ function buildForm(p: UserProfile): Form {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    // Der **effektive** Kontotyp vom Server – die Ableitung wohnt dort.
-    account_type: (p.account_type as AccountType | null) ?? 'private',
     company_name: p.company_name ?? '',
     legal_form: p.legal_form ?? '',
     uid_number: p.uid_number ?? '',
@@ -76,7 +71,6 @@ function buildForm(p: UserProfile): Form {
     city: p.city ?? '',
     state_region: p.state_region ?? '',
     country: p.country ?? 'CH',
-    invoice_same_as_shipping: p.invoice_same_as_shipping ?? true,
     invoice_first_name: p.invoice_first_name ?? '',
     invoice_last_name: p.invoice_last_name ?? '',
     invoice_address_line1: p.invoice_address_line1 ?? '',
@@ -97,11 +91,10 @@ const COUNTRIES: [string, string][] = [
 interface Props {
   profile: UserProfile;
   isEmployee: boolean;
-  isSupplier: boolean;
   onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
-export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Props) {
+export function ProfileSection({ profile, isEmployee, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
@@ -117,32 +110,13 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
 
   const { status, errorMsg, saveNow } = useAutosave(
     form,
-    (v) => {
-      const data = { ...v } as Partial<UserProfile>;
-      // **Firmenfelder nach Kontotyp, nicht nach Rolle** (#1042). Der Kontotyp selbst
-      // reist immer mit – sonst käme ein Wechsel zurück auf «Privat» nie an.
-      if (!isBusiness(v.account_type)) {
-        delete data.company_name;
-        delete data.legal_form;
-        delete data.uid_number;
-      }
-      // «Gleich wie Lieferadresse»: die Rechnungsfelder werden aus der Adresse gespiegelt,
-      // damit Rechnung/Versand nie auseinanderlaufen (EIN Datensatz, eine Wahrheit).
-      // **Ohne Firmennamen**: den trägt bei «Geschäft» die erste Zeile der Anschrift, und
-      // die kommt aus den Firmendaten (#1042) – eine Kopie wäre die zweite Wahrheit.
-      if (v.invoice_same_as_shipping) {
-        Object.assign(data, {
-          invoice_first_name: v.first_name,
-          invoice_last_name: v.last_name,
-          invoice_address_line1: v.address_line1,
-          invoice_address_line2: v.address_line2,
-          invoice_postal_code: v.postal_code,
-          invoice_city: v.city,
-          invoice_country: v.country,
-        });
-      }
-      return onSave(data);
-    },
+    // ►►► **Keine Bedingung, keine Kopie** (Testnotiz #1043). ◄◄◄ Hier standen zwei:
+    // die Firmenfelder wurden nach Kontotyp weggelassen, und bei «Rechnungsadresse =
+    // Lieferadresse» schrieb die Oberfläche eine **Kopie** der Lieferadresse in die
+    // Rechnungsfelder – die beim nächsten Umzug veraltete. Beides ist weg: der
+    // Firmenname ist die Erklärung, und eine leere Rechnungsadresse **ist** die Aussage
+    // «es gilt die Lieferadresse» (`voucher.billing_of` liest genau das).
+    (v) => onSave({ ...v } as Partial<UserProfile>),
     3000,
     resetKey,
   );
@@ -204,39 +178,34 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
           <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
         </div>
 
-        {/* ►►► **Kontotyp: Privat ↔ Geschäft** (#1042) ◄◄◄ – die Person entscheidet es
-            selbst, es ist eine Stammdaten-, keine Berechtigungsfrage. Erst «Geschäft»
-            blendet die Firmenfelder ein. Ein Lieferant ist immer eine Firma; dann steht
-            der Wert als Auskunft da statt als Schalter, der nichts tut. */}
-        {isSupplier ? (
-          <Field label="Kontotyp" value={ACCOUNT_TYPE[form.account_type].label} readOnly
-            hint="Ein Lieferant ist immer eine Firma – der Kontotyp folgt der Rolle." />
-        ) : (
-          <Segmented label="Kontotyp" value={form.account_type}
-            onChange={(v) => set('account_type', v as AccountType)}
-            options={ACCOUNT_TYPES} />
-        )}
-
-        {isBusiness(form.account_type) && (
-          <SubBlock icon={Building2} title="Firmendaten">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" required={!form.company_name.trim()} onEnter={saveNow} />
-              {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – **dieselbe**
-                  Liste wie am Unternehmen (`lib/legal-forms`). */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Field label="Rechtsform" value={form.legal_form} onChange={(v) => set('legal_form', v)}
-                  placeholder={forms[0] ?? 'AG'} required={!form.legal_form.trim()} onEnter={saveNow} list="account-legal-forms" />
-                <datalist id="account-legal-forms">
-                  {forms.map((f) => <option key={f} value={f} />)}
-                </datalist>
-              </div>
-              {/* Die UID ist **freiwillig**: nur MWST-pflichtige Firmen haben eine. */}
-              <div className="sm:col-span-2">
-                <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" onEnter={saveNow} />
-              </div>
+        {/* ►►► **Der FIRMENNAME ist die Erklärung** (Testnotiz #1043). ◄◄◄ Darüber stand
+            ein Schalter «Privat ↔ Geschäft», der diesen Block ein- und ausblendete – eine
+            zweite Angabe über dieselbe Sache. Jetzt steht er immer da: **ist der Name
+            gesetzt, ist die Rechtsform Pflicht**, ist er leer, ist es eine Privatperson.
+            Ein Feld statt Schalter plus Feld. */}
+        <SubBlock icon={Building2} title="Firmendaten">
+          <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)', marginBottom: 14, marginTop: -6 }}>
+            Leer: eine Privatperson. Mit Firmennamen steht auf dem Beleg die Rechtsperson,
+            Sie darunter als «z. H.».
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" onEnter={saveNow} />
+            {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – **dieselbe**
+                Liste wie am Unternehmen (`lib/legal-forms`). Pflicht genau dann, wenn ein
+                Firmenname dasteht (`people.assert_company` weist es sonst ab). */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Field label="Rechtsform" value={form.legal_form} onChange={(v) => set('legal_form', v)}
+                placeholder={forms[0] ?? 'AG'} required={!!form.company_name.trim() && !form.legal_form.trim()} onEnter={saveNow} list="account-legal-forms" />
+              <datalist id="account-legal-forms">
+                {forms.map((f) => <option key={f} value={f} />)}
+              </datalist>
             </div>
-          </SubBlock>
-        )}
+            {/* Die UID ist **freiwillig**: nur MWST-pflichtige Firmen haben eine. */}
+            <div className="sm:col-span-2">
+              <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" onEnter={saveNow} />
+            </div>
+          </div>
+        </SubBlock>
 
         {isEmployee && (
           <SubBlock icon={Briefcase} title="Anstellung · wird vom Administrator gepflegt">
@@ -258,26 +227,25 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
 
         <div style={{ height: 1, background: 'var(--border-1)' }} />
 
-        <ToggleField
-          label="Rechnungsadresse = Lieferadresse"
-          checked={form.invoice_same_as_shipping}
-          onChange={(v) => set('invoice_same_as_shipping', v)}
-        />
+        {/* ►►► **Die Rechnungsadresse ist freiwillig – leer gilt die Lieferadresse**
+            (Testnotiz #1043). ◄◄◄ Hier stand ein Schalter, und er war die zweite Aussage
+            über dieselbe Sache: ob eine eigene hinterlegt ist, sagen die Felder selbst.
+            Schlimmer, bei «gleich wie» **kopierte** die Oberfläche die Lieferadresse
+            hinein – und die Kopie veraltete beim nächsten Umzug. Dieselbe Regel wie bei
+            der Rechnungs-E-Mail (#1042): **leer heisst erben**, und das sagt das Feld.
 
-        {!form.invoice_same_as_shipping && (
-          <>
-            {/* **Kein zweites Firmennamen-Feld** (#1042): bei «Geschäft» trägt die
-                Rechnungsadresse den Firmennamen als erste Zeile, und der steht in den
-                Firmendaten. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} required={!form.invoice_first_name.trim()} onEnter={saveNow} />
-              <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} required={!form.invoice_last_name.trim()} onEnter={saveNow} />
-            </div>
-            <AddressField
-              value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
-              countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
-          </>
-        )}
+            **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
+            Rechnungsadresse ihn als erste Zeile. */}
+        <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)' }}>
+          {INHERITED_ADDRESS}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} onEnter={saveNow} />
+          <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} onEnter={saveNow} />
+        </div>
+        <AddressField
+          value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
+          countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
 
         {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Leer erbt sie die Login-/
             Kontakt-Adresse – das sagt der **Platzhalter**, nicht ein zweites Feld und

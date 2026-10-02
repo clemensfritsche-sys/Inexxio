@@ -982,3 +982,41 @@ des Datensatzes neu auf, also blieb der Stand der ersten stehen und sie meldete
 Eingabefeld-Wert scrollt im Feld statt überzulaufen, und der Name steht in einer
 Kopfzeile mit `overflow: hidden`. Die Karte kappt ihre Kinder, also ist die echte
 Bug-Form die **Karte selbst**: gedehnt meldet die Messung +360 bis +1480 px.*
+
+## Die Rolle ist der Zugang — und der Firmenname die Erklärung (Testnotiz #1043)
+
+►►► **Die Rolle beantwortet GENAU EINE Frage: darf diese Person ins ERP?** ◄◄◄
+Admin · Mitarbeiter · Benutzer. «Lieferant» und «Kunde» sind weg – *Lieferant ↔ Kunde ist
+eine Eigenschaft des **Vorgangs**, nicht der Person*. Gefragt wird an **einer** Stelle
+(`record-status.isStaff`, der Spiegel von `people.STAFF_ROLES`), und zwar **erlaubend**:
+die Frage stand an vier Stellen ausgeschrieben, und eine davon war **verneinend** («ausser
+Kunden dürfen alle») – sie liess damit jeden Wert durch, den sie nicht kannte, und die
+Navbar gab einem Lieferanten einen ERP-Link, den er nie öffnen kann.
+
+- **`lib/accounts.ts` trägt nur noch die Vererbung** (`inheritedEmail`,
+  `INHERITED_ADDRESS`): zwei Angaben des Datensatzes sind freiwillig und fallen auf eine
+  andere zurück. Der Spiegel des **Kontotyps** ist mitgegangen – es gibt keinen mehr.
+- ►►► **Der Firmenblock steht IMMER da** – kein Schalter darüber. ◄◄◄ Steht ein Name
+  drin, ist es eine Firma; ist er leer, eine Privatperson. **Pflicht ist dann die
+  Rechtsform** (`required={!!form.company_name.trim() && !form.legal_form.trim()}`) – die
+  freundliche Hälfte von `people.assert_company`, nie ein zweiter Massstab. Der
+  **Firmenname selbst ist nicht Pflicht**: sonst könnte niemand privat sein.
+- ►►► **Die Rechnungsadresse ist freiwillig – und wird NIE kopiert.** ◄◄◄ Der Schalter
+  «Rechnungsadresse = Lieferadresse» liess die Oberfläche eine **Kopie** der Lieferadresse
+  in die Rechnungsfelder schreiben, und die veraltete beim nächsten Umzug (dieselbe
+  Fehlerform wie `invoice_company`). Jetzt gilt die Regel aus #1042 eine Angabe weiter:
+  **leer heisst erben**, und das sagt der Satz über dem Block – *kein zweites Feld, keine
+  Checkbox*. `mapUpdate` trägt damit nur noch **eine** Bedingung: die Anstellung.
+- **Die Bankverbindung hängt an nichts** – wen *wir* bezahlen, sagt der Vorgang: eine
+  Erstattung geht an einen Privatkunden, eine Spesenabrechnung an einen Mitarbeiter.
+  *Damit ist die Ausnahme aus #1042 zurückgenommen.*
+- **`useProfileCompletion` zählt keine Rolle mehr**: sieben Zeilen sind entfallen (die
+  Rechnungsadresse ist freiwillig, Firmenangaben hängen am Namen), geblieben ist die
+  Rechtsform – und nur, wenn ein Name dasteht.
+
+**Gemessen in Chromium an den echten Komponenten** (`UserDetail`, `ProfileSection`):
+1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **neun**
+Zustände; «Kontotyp» und «Rechnungsadresse =» kommen **0×** vor, «Rechnungs-E-Mail» je
+genau **1×**, der Firmenblock steht in **9 von 9**, und das Rollen-Dropdown trägt genau
+die drei Werte der Tür. Die Messung gegen ihre eigene Bug-Form gegengeprüft (+520 bis
++1480 px; ein gekappter Name meldet zu Recht nichts).

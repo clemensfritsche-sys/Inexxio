@@ -4553,7 +4553,11 @@
 > **(2) Die Firmenfelder hingen an der ROLLE** (`supplier`), also an einer
 > **Berechtigungs**frage, obwohl «wer bin ich wirtschaftlich» eine **Stammdaten**frage ist.
 > Ein Geschäftskunde hatte damit keinen Firmennamen, ein Mitarbeiter sah die Firma seines
-> Arbeitgebers. Neu: der **Kontotyp** (`domain/accounts.py`) – *Privat ↔ Geschäft*,
+> Arbeitgebers.
+> ⚠ **Die Hälfte davon ist mit #1043 zurückgenommen** (siehe unten): die Einsicht gilt,
+> der **Kontotyp** nicht – der **Firmenname** ist die Erklärung, und `domain/accounts.py`
+> ist gelöscht. Was hier folgt, ist Historie.
+> Neu war damals: der **Kontotyp** (`domain/accounts.py`) – *Privat ↔ Geschäft*,
 > unabhängig von jeder Rolle, jederzeit umschaltbar, ohne neuen Datensatz. «Geschäft» macht
 > **Firmenname und Rechtsform** zu Pflichtfeldern, die **UID bleibt freiwillig** (nur
 > MWST-pflichtige Firmen haben eine); «Privat» blendet die Firmenfelder aus und **löscht
@@ -4598,6 +4602,97 @@
 > **0 px** waagrechter Überlauf über **acht** Zustände, «Rechnungs-E-Mail» je genau **1×**,
 > «(Firma)» **0×** – und die Messung gegen ihre eigene Bug-Form gegengeprüft (+360 bis
 > +1480 px), nachdem sie dreimal nachgeschärft werden musste.
+
+> ►►► **DIE ROLLE IST DER ZUGANG — UND DER FIRMENNAME DIE ERKLÄRUNG** (Testnotiz #1043,
+> Migration `140`). ◄◄◄ Zwei Vereinfachungen am Benutzerdatensatz, und **beide nehmen
+> etwas weg**. Sie nehmen damit die halbe Vorrunde (#1042) zurück – das ist kein
+> Rückschritt, sondern ihr zweiter Schritt: dort wurde erkannt, dass «wer bin ich
+> wirtschaftlich» nicht an der Rolle hängen darf, und ein **Kontotyp** daneben gestellt.
+> Der war eine Angabe zu viel.
+>
+> **(1) Die Rolle «Lieferant» ist gelöscht** – und mit ihr «Kunde». Übrig bleiben
+> **Admin · Mitarbeiter · Benutzer**, also die **eine** Frage, die das Haus wirklich
+> stellt: *darf diese Person ins ERP?* (`people.STAFF_ROLES`, das einzige echte Tor).
+> **Lieferant ↔ Kunde ist eine Eigenschaft des VORGANGS, nicht der Person**: wer Partner
+> einer Ausgabe ist, ist dort Lieferant, bei einer Einnahme Kunde – dieselbe Person kann
+> beides sein, und zwar gleichzeitig. Eine Spalte am Datensatz muss sich für eines
+> entscheiden und liegt damit in der Hälfte der Fälle falsch. Dieselbe Bauart wie
+> `order_units.return_to_order_id`: die **Verbindung** trägt es.
+> *Gemessen, nicht erinnert*: im Backend trug die Unterscheidung **nichts** – vier
+> Fundstellen (`Role`-Literal, Modell-Default, `core/auth`, der Kontotyp-Zwang), und
+> keine davon war ein Tor. Zwei **lebende Widersprüche** fielen damit heraus: die Navbar
+> gab einem Lieferanten den ERP-Link, den er nie öffnen kann, und das ERP-Layout sperrte
+> verneinend («ausser Kunden dürfen alle») – es liess damit **jeden** Wert durch, den es
+> nicht kannte. Gefragt wird jetzt an einer Stelle (`record-status.isStaff`), und
+> *erlaubend*: ein neuer Rollenwert kommt nicht versehentlich herein.
+>
+> **(2) Der Kontotyp ist gelöscht – der Firmenname IST die Erklärung.** Steht er da,
+> tritt der Datensatz als Firma auf; ist er leer, als Privatperson. **Ein Feld statt
+> Schalter plus Feld**, und die Firmendaten stehen damit **immer** da statt hinter einer
+> Bedingung. Geblieben ist die eine Regel, um die es ging: **Firma gesetzt ⇒ Rechtsform
+> Pflicht** (`people.assert_company`, serverseitig; «Muster» ist keine Rechtsperson,
+> «Muster AG» ist eine – MWSTG Art. 26). Die **UID bleibt freiwillig**.
+> ►►► **Nicht so: den Kontotyp aus «sind alle Felder gefüllt?» ableiten.** ◄◄◄ Das war
+> der Vorschlag, und er ist der eine Punkt, an dem diese Runde widerspricht: dann ist
+> **nie etwas unvollständig** – der Server könnte nie sagen, dass die Rechtsform fehlt,
+> der Datensatz fiele still auf «privat» zurück, und der Beleg wechselte still seinen
+> Empfänger. Eine Prüfung braucht eine **erklärte Absicht**, und das ist der Firmenname.
+> **Und das Leeren ist der Ausweg**: wer den Namen löscht, sagt «keine Firma mehr», und
+> dann gibt es nichts zu verlangen – genau das ersetzt den Schalter (ein Vorab-Ausstieg in
+> `assert_company`, sonst wäre ein versehentlich getippter Name endgültig).
+>
+> **(3) Zwei Anschriften, nicht drei – und die Rechnungsadresse ist FREIWILLIG.** Das war
+> die Zusatzfrage («harmonieren die Adressen, ist das state of the art?»), und die Antwort
+> war dreimal nein:
+> * Ein **dritter** Satz `ship_*` (acht Spalten mit eigenem Namen und eigener Firma) hatte
+>   **keinen Leser und keinen Schreiber** – die Oberfläche bot ihn nie an, und
+>   `voucher.billing_of` liest als Lieferadresse die **Hauptadresse**. Eine dritte Adresse,
+>   die niemand füllt, ist keine Vorsorge, sondern die Stelle, an der jemand künftig die
+>   falsche erwischt.
+> * Der Schalter **«Rechnungsadresse = Lieferadresse»** war die **zweite Wahrheit** über
+>   dieselbe Sache: ob eine eigene hinterlegt ist, sagen die Felder selbst – und genau das
+>   liest der Dienst. Schlimmer: bei «gleich wie» schrieb die Oberfläche eine **Kopie** der
+>   Lieferadresse in die Rechnungsfelder, und die veraltete beim nächsten Umzug (dieselbe
+>   Fehlerform wie `invoice_company` eine Runde früher). Jetzt gilt die Hausregel aus
+>   #1042 eine Angabe weiter: **leer heisst erben**, und das sagt das Feld – *kein zweites
+>   Feld, keine Checkbox.*
+> * **Die Kopie wird geräumt** – aber nur die **exakte** (alle sieben Felder gleich der
+>   Hauptadresse), sonst wäre es Datenverlust. Gemessen: ein Datensatz mit abweichender
+>   Rechnungsadresse bleibt unangetastet.
+>
+> **(4) Die Bankverbindung hängt an NICHTS mehr.** Sie war die letzte Rolle im Formular
+> («eine IBAN braucht, wen *wir* bezahlen») – und genau das ist die Eigenschaft eines
+> **Vorgangs**: eine Erstattung geht an einen Privatkunden, eine Spesenabrechnung an einen
+> Mitarbeiter. *Damit ist die ausdrückliche Ausnahme aus #1042 zurückgenommen, und die
+> Nutzlast trägt nur noch **eine** Bedingung – die Anstellung.*
+>
+> ►►► **Eine Datenänderung braucht IMMER auch ein Netz** (`people.repair_sql`). ◄◄◄ Die
+> dev-Datenbank fährt kein `alembic upgrade head` (#778), also stehen beide Reparaturen an
+> **einer** Stelle und werden von der Migration **und** vom Lifespan-Netz gelesen. Ohne die
+> erste bliebe `role = 'customer'` stehen – und `Role` an der Tür kennt den Wert nicht
+> mehr: **jedes** Speichern an so einer Zeile wäre ein 422 an einer Angabe, die niemand
+> angefasst hat. **Und die Liste kommt aus dem Katalog**: die erste Fassung stand auf
+> `WHERE role NOT IN ('admin','employee')` und schrieb damit bei *jedem* Start jede
+> Nicht-Personal-Zeile neu, auch die längst richtigen (gemessen: zweiter Lauf 2 statt 0
+> Zeilen) – dieselbe Fehlerform wie die Stück-Reparatur in Migration `110`, nur eine
+> Nummer harmloser. Geheilt wird, was `ROLES` **nicht kennt**.
+> Wächter: `tests/test_user_record.py` (11 Prüfungen, aus `test_account_type.py`
+> hervorgegangen) + 4 in `test_frontend_mirrors.py` – **29 Bug-Formen gegengeprüft, jede
+> meldet**; *sechs Wächter waren dabei stumpf und liessen ihre eigene Form durch*: zwei
+> schnitten am `<SubBlock` und lasen das Stück **hinter** der Bedingung statt davor, einer
+> verlangte `v.` direkt hinter dem Doppelpunkt und liess `nn(v.city)` durch, einer prüfte
+> den **Import** statt des Renderns, einer traf mit seinem Anker eine fremde Klasse
+> (`CompanySettingsUpdate` trägt dieselben zwei Zeilen), und ein Testfall nahm eine
+> *vollständige* Firma – dort fällt die Regel ohnehin nicht an. Gemessen, nachgeschärft,
+> erneut gegengeprüft. Suite grün gegen die gewachsene Datenbank (609) **und** gegen ein
+> Schema nur aus den Migrationen (617); Migration `140` von null · idempotent · downgrade ·
+> re-upgrade · **über das Lifespan-Netz** verifiziert, und ihre **Wirkung** gemessen
+> (Kunde → Benutzer, Kopie geräumt, abweichende Rechnungsadresse behalten, Admin
+> unberührt). Gemessen in Chromium an den **echten** Komponenten: 1440 · 1280 · 1024 ·
+> 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **neun** Zustände – «Kontotyp»
+> und «Rechnungsadresse =» kommen **0×** vor, «Rechnungs-E-Mail» je genau **1×**, das
+> Rollen-Dropdown trägt genau die drei Werte der Tür –, und die Messung gegen ihre eigene
+> Bug-Form gegengeprüft (+520 bis +1480 px; ein gekappter Name meldet zu Recht nichts).
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
@@ -4747,9 +4842,10 @@ Universell 9-stellig: 100'000'001–999'999'999. Gilt für ALLE Objekte.
 Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by, is_active)
 
 ## Wichtige Entscheide
-- **Rolle ≠ Kontotyp** (#1042): die **Rolle** sagt, was jemand im System darf (Kunde ·
-  Lieferant · Mitarbeiter · Admin), der **Kontotyp**, wer er wirtschaftlich ist (Privat ↔
-  Geschäft). Firmenfelder hängen am zweiten, die Bankverbindung an der ersten.
+- **Die Rolle ist der Zugang** (#1043): *darf diese Person ins ERP?* – Admin ·
+  Mitarbeiter · Benutzer, und das ist alles. **Lieferant ↔ Kunde ist eine Eigenschaft des
+  Vorgangs**, nicht der Person. Ob jemand als **Firma** auftritt, sagt sein
+  **Firmenname** (gesetzt ⇒ Rechtsform Pflicht); die Bankverbindung hängt an nichts.
 - **Artikel haben keine Versionierung**: Änderung → neuer Artikel, und der **Nachfolger**
   nennt seinen Vorgänger (`replaces_object_id` bei der Anlage → `replaced_by_id`). Ersetzen
   **bedeutet** ausser Betrieb nehmen – ein Vorgang, ein Aufruf.

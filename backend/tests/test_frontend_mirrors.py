@@ -9803,39 +9803,98 @@ def _accounts_ts() -> str:
     return _read(FRONTEND / "lib" / "accounts.ts")
 
 
-def test_the_account_type_catalog_is_mirrored_word_for_word():
-    """►►► **Der Spiegel des Kontotyps** (Testnotiz #1042). ◄◄◄
+_USER_SURFACES = ("components/erp/user-detail.tsx",
+                  "components/account/sections/profile-section.tsx")
 
-    Schlüssel **und** Wörter kommen aus ``domain/accounts.CATALOG``; das Frontend pflegt
-    sie von Hand (schnell, ohne Generierung). Ein Spiegel, den niemand prüft, läuft
-    auseinander – und dann heisst dasselbe Konto an zwei Stellen anders.
 
-    Bug-Formen: (a) ein Schlüssel fehlt oder heisst anders; (b) eine Beschriftung weicht
-    ab; (c) das ``Literal`` an der Tür kennt andere Werte als der Katalog.
+def _unconditional(src: str, title: str) -> str:
+    """Steht dieser ``SubBlock`` **ohne Bedingung** da? Sonst der Grund als Satz.
+
+    ►►► **Gefragt ist die Zeile DAVOR, nicht die danach.** ◄◄◄ Der erste Anlauf schnitt
+    am ``<SubBlock`` und las den Rest – also genau das Stück **hinter** der Bedingung, und
+    liess damit seine eigene Bug-Form durch (gemessen). Ein `{cond && (` steht entweder
+    auf derselben Zeile oder am Ende der vorigen; beide werden geprüft.
     """
-    # **Der Katalog selbst, nicht sein Quelltext**: ``domain/accounts`` ist ein reines
-    # Fachmodul (keine DB, keine Dienste), also ist der Import die genauere Messung – ein
-    # Ausdruck über die Datei hätte gelesen, wie sie geschrieben ist, nicht was sie sagt.
-    from app.domain import accounts as acc
+    line = src.rfind("\n", 0, _at(src, f'title="{title}"')) + 1
+    head = src[line:src.index("\n", line)].strip()
+    before = src[:line].rstrip().rsplit("\n", 1)[-1].strip()
+    if not head.startswith("<SubBlock"):
+        return f"«{title}» steht hinter einer Bedingung: {head[:80]}"
+    if before.endswith(("&& (", "? (", "&&", "?")):
+        return f"«{title}» steht hinter einer Bedingung: {before[-80:]}"
+    return ""
 
-    keys = [(a.key, a.label) for a in acc.CATALOG]
-    ts = _accounts_ts()
-    for key, label in keys:
-        assert f"value: '{key}', label: '{label}'" in ts, (
-            f"«{key}» heisst im Frontend nicht «{label}» (a/b) – "
-            "``lib/accounts.ACCOUNT_TYPES`` spiegelt ``domain/accounts.CATALOG``."
+
+def test_the_role_is_the_access_in_every_surface():
+    """►►► **Die Rolle beantwortet GENAU EINE Frage: darf sie ins ERP?** (#1043) ◄◄◄
+
+    *«Lieferant ↔ Kunde ist eine Eigenschaft des VORGANGS, nicht der Person.»* Die
+    Oberfläche fragte sie an **vier** Stellen – Navbar zweimal, ERP-Layout, ERP-Feed –, und
+    eine davon war **verneinend** formuliert («ausser Kunden dürfen alle»): sie liess damit
+    jeden Wert durch, den sie nicht kannte, und ein «Lieferant» landete auf einer
+    Oberfläche, die ihm der Server danach leer beantwortet.
+
+    Bug-Formen: (a) die Union kennt wieder einen Vorgangs-Wert; (b) sie weicht von der Tür
+    ab; (c) eine Stelle fragt die Rolle selbst, statt ``isStaff`` zu rufen; (d) das
+    Rollen-Dropdown bietet einen Wert an, den die Tür abweist.
+    """
+    from app.services import people as pp
+
+    union = re.search(r"export type UserRole = ([^;]+);", _read(FRONTEND / "types" / "index.ts"))
+    assert union and sorted(re.findall(r"'(\w+)'", union.group(1))) == sorted(pp.ROLES), (
+        f"Die Rollen-Union weicht vom Dienst ab (a/b): {union and union.group(1)}"
+    )
+    # (c) – **eine** Auflösung, und die anderen rufen sie.
+    gate = _code(_read(FRONTEND / "lib" / "record-status.ts"))
+    assert "export function isStaff(" in gate, "``isStaff`` fehlt (c)."
+    for where in ("app/(erp)/layout.tsx", "components/layout/navbar.tsx",
+                  "app/(erp)/erp/page.tsx"):
+        src = _code(_read(FRONTEND / where))
+        assert "isStaff(" in src, f"«{where}» fragt die Rolle selbst (c)."
+        # ►►► **Gefragt ist die ZWEIER-Aufzählung, nicht «admin».** ◄◄◄ Der erste Anlauf
+        # verbot auch ``=== 'admin'`` und schlug am ERP-Feed an – der fragt dort eine
+        # **andere** Frage («darf ich die Gesellschaften laden?»), und die ist wirklich
+        # admin-only. «employee» allein hat dagegen keine eigene Bedeutung: wo es steht,
+        # wird das Personal-Paar nachgebaut.
+        assert "'employee'" not in src, (
+            f"«{where}» zählt die Personal-Rollen daneben auf (c)."
         )
-        assert f"  {key}: {{" in ts, f"«{key}» fehlt in ``ACCOUNT_TYPE`` (a)."
-    order = [k for k, _ in keys]
-    assert [m for m in re.findall(r"value: '(\w+)'", ts)] == order, (
-        "Die Reihenfolge des Schalters weicht vom Katalog ab (a) – sie IST die "
-        "Reihenfolge der Antworten."
+    # (d) – das Dropdown bietet genau die Werte der Tür an.
+    detail = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))
+    block = detail[_at(detail, 'label="Rolle"'):_at(detail, 'label="Rolle"') + 400]
+    assert sorted(re.findall(r"value: '(\w+)'", block)) == sorted(pp.ROLES), (
+        f"Das Rollen-Dropdown weicht von der Tür ab (d): {block[:200]}"
     )
-    door = re.search(r'AccountType = Literal\[([^\]]+)\]',
-                     _read(BACKEND / "app" / "schemas" / "admin.py"))
-    assert door and sorted(re.findall(r'"(\w+)"', door.group(1))) == sorted(order), (
-        "Das ``Literal`` an der Tür kennt andere Werte als der Katalog (c)."
-    )
+
+
+def test_the_company_name_is_the_declaration_in_every_surface():
+    """►►► **Ein Feld statt Schalter plus Feld** (Testnotiz #1043). ◄◄◄
+
+    Die Firmenfelder hingen an einem Kontotyp-Schalter (*Privat ↔ Geschäft*), und der
+    sagte dasselbe wie der Firmenname darunter. Jetzt steht der Block **immer** da; was
+    folgt, ist die **Rechtsform** – Pflicht genau dann, wenn ein Name dasteht (und der
+    Server weist sie ab, ``people.assert_company``; dies ist die freundliche Hälfte).
+
+    *Dieser Wächter löst den von #1042 ab, der die Kontotyp-Bedingung VERLANGTE – er
+    prüfte die Form der damaligen Lösung.*
+
+    Bug-Formen: (a) der Firmenblock hängt wieder an einer Bedingung; (b) es gibt wieder
+    einen Kontotyp; (c) der Firmenname ist Pflicht (dann kann niemand privat sein);
+    (d) die Rechtsform ist **nicht** Pflicht, obwohl ein Name dasteht.
+    """
+    for where in _USER_SURFACES:
+        src = _code(_read(FRONTEND / where))
+        assert "account_type" not in src and "isBusiness" not in src, (
+            f"«{where}» führt wieder einen Kontotyp (b)."
+        )
+        problem = _unconditional(src, "Firmendaten")
+        assert not problem, f"«{where}» (a): {problem}"
+        name = src[_at(src, 'label="Firmenname"'):_at(src, 'label="Firmenname"') + 320]
+        assert "required" not in name, f"«{where}» macht den Firmennamen zur Pflicht (c)."
+        form = src[_at(src, 'label="Rechtsform"'):_at(src, 'label="Rechtsform"') + 400]
+        assert "required={!!form.company_name.trim() && !form.legal_form.trim()}" in form, (
+            f"«{where}» verlangt die Rechtsform nicht am Firmennamen (d)."
+        )
 
 
 def test_the_billing_email_is_one_field_in_every_surface():
@@ -9898,36 +9957,62 @@ def test_the_inheritance_of_the_billing_email_is_visible():
         )
 
 
-def test_the_company_fields_hang_on_the_account_type_not_on_the_role():
-    """►►► **Kontotyp statt Rollenvermischung** (Testnotiz #1042). ◄◄◄
+def test_the_billing_address_is_optional_and_never_copied():
+    """►►► **Leer heisst erben – und es wird nichts kopiert** (Testnotiz #1043). ◄◄◄
 
-    *«Rolle: was jemand im System darf – eine Berechtigungsfrage. Kontotyp: wer jemand
-    wirtschaftlich ist – eine Stammdatenfrage, unabhängig von der Rolle.»* Die
-    Firmenfelder hingen an ``role === 'supplier'``: ein **Geschäftskunde** hatte damit
-    keinen Firmennamen.
+    Der Schalter «Rechnungsadresse = Lieferadresse» war die **zweite Aussage** über
+    dieselbe Sache: ob eine eigene hinterlegt ist, sagen die Felder selbst (und
+    ``voucher.billing_of`` liest genau das). Schlimmer – bei «gleich wie» schrieb die
+    Oberfläche eine **Kopie** der Lieferadresse in die Rechnungsfelder, und die veraltete
+    beim nächsten Umzug, genau wie damals ``invoice_company``.
 
-    ►►► **Und die Bankverbindung bleibt an der Rolle** – bewusst: eine IBAN braucht, wen
-    **wir** bezahlen; ein Geschäftskunde gibt uns seine nicht. ◄◄◄
+    Dieselbe Hausregel wie bei der Rechnungs-E-Mail (#1042): *das sagt das Feld selbst –
+    kein zweites Feld, keine Checkbox.*
 
-    Bug-Formen: (a) der Firmenblock fragt wieder die Rolle; (b) er fragt gar nichts
-    (dann sieht jede Privatperson Firmenfelder); (c) die Oberfläche leitet den Kontotyp
-    selbst aus der Rolle ab, statt den effektiven Wert des Servers zu lesen.
+    Bug-Formen: (a) der Schalter ist wieder da; (b) die Oberfläche spiegelt die Adresse
+    in die Rechnungsfelder; (c) die Vererbung steht nirgends (dann sieht ein leerer Block
+    wie eine Lücke aus); (d) ein Feld der Rechnungsadresse ist Pflicht.
     """
-    for where, gate in (("components/erp/user-detail.tsx", "business &&"),
-                        ("components/account/sections/profile-section.tsx",
-                         "isBusiness(form.account_type) &&")):
+    assert "Leer" in _accounts_ts(), "Der Satz zur Vererbung fehlt (c)."
+    for where in _USER_SURFACES:
         src = _code(_read(FRONTEND / where))
-        block = src[_at(src, "Firmendaten") - 400:_at(src, "Firmendaten")]
-        assert gate in block, (
-            f"«{where}» blendet die Firmendaten nicht über den Kontotyp ein (a/b)."
+        assert "invoice_same_as_shipping" not in src, f"«{where}» führt den Schalter (a)."
+        # ►►► **Die Kopie kommt durch einen Helfer** (gemessen): der erste Anlauf verlangte
+        # ``v.`` direkt hinter dem Doppelpunkt und liess ``invoice_city: nn(v.city)``
+        # durch – also genau die Form, in der die Spiegelung wirklich dastand.
+        assert not re.search(r"invoice_\w+:\s*(?:nn\()?\s*(?:v|form)\.(?!invoice)", src), (
+            f"«{where}» kopiert die Lieferadresse in die Rechnungsfelder (b)."
         )
-        assert "isSupplier &&" not in block, (
-            f"«{where}» fragt am Firmenblock die Rolle (a)."
-        )
-        # (c) – der effektive Wert kommt vom Server; abgeleitet wird hier nichts.
-        assert "'supplier' ? 'business'" not in src and "? 'business'" not in src, (
-            f"«{where}» leitet den Kontotyp selbst ab (c) – die Antwort trägt ihn."
-        )
+        # Gefragt ist das **Rendern**, nicht der Import – der steht sonst allein da.
+        assert "{INHERITED_ADDRESS}" in src, f"«{where}» nennt die Vererbung nicht (c)."
+        for field in ("invoice_first_name", "invoice_last_name"):
+            at = _at(src, f"form.{field}")
+            assert "required" not in src[at:at + 200], (
+                f"«{where}» macht «{field}» zur Pflicht (d) – der Block ist freiwillig."
+            )
+
+
+def test_the_bank_details_hang_on_nothing():
+    """►►► **Wen WIR bezahlen, sagt der Vorgang** (Testnotiz #1043). ◄◄◄
+
+    Der Block hing an ``role === 'supplier'`` mit der Begründung «eine IBAN braucht, wen
+    wir bezahlen» – und genau das ist die Eigenschaft eines **Vorgangs**: eine Erstattung
+    geht an einen Privatkunden, eine Spesenabrechnung an einen Mitarbeiter. *Damit ist die
+    Ausnahme aus #1042 zurückgenommen – sie war die letzte Rolle im Formular.*
+
+    Bug-Formen: (a) der Block hängt wieder an einer Rolle; (b) die Nutzlast lässt die
+    Felder unter einer Bedingung weg (dann kommt eine Löschung nie an).
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))
+    problem = _unconditional(src, "Bankverbindung")
+    assert not problem, f"(a): {problem}"
+    assert "isSupplier" not in src, "Die Rolle «Lieferant» lebt noch (a)."
+    payload = _body(src, "mapUpdate", kind="function")
+    for field in ("bank_iban", "bank_bic", "bank_name", "bank_account_holder"):
+        assert f"{field}: nn(" in payload, f"«{field}» fehlt in der Nutzlast (b)."
+    assert payload.count("if (") == 1, (
+        "Die Nutzlast trägt mehr als eine Bedingung (b) – geblieben ist die Anstellung."
+    )
 
 
 def test_the_legal_form_suggestions_exist_exactly_once():

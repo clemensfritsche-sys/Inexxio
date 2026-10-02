@@ -1904,10 +1904,6 @@ export interface components {
             invoice_country?: string | null;
             /** Invoice Email */
             invoice_email?: string | null;
-            /** Invoice Same As Shipping */
-            invoice_same_as_shipping?: boolean | null;
-            /** Account Type */
-            account_type?: ("private" | "business") | null;
             /** Company Name */
             company_name?: string | null;
             /** Legal Form */
@@ -1929,7 +1925,7 @@ export interface components {
             /** Newsletter Opt In */
             newsletter_opt_in?: boolean | null;
             /** Role */
-            role?: ("admin" | "employee" | "supplier" | "customer") | null;
+            role?: ("admin" | "employee" | "user") | null;
             /** Company Object Id */
             company_object_id?: number | null;
             /** Department */
@@ -3517,22 +3513,6 @@ export interface components {
             state_region: string | null;
             /** Country */
             country: string;
-            /** Ship Name */
-            ship_name: string | null;
-            /** Ship Company */
-            ship_company: string | null;
-            /** Ship Address Line1 */
-            ship_address_line1: string | null;
-            /** Ship Address Line2 */
-            ship_address_line2: string | null;
-            /** Ship City */
-            ship_city: string | null;
-            /** Ship Postal Code */
-            ship_postal_code: string | null;
-            /** Ship State Region */
-            ship_state_region: string | null;
-            /** Ship Country */
-            ship_country: string | null;
             /** Invoice First Name */
             invoice_first_name: string | null;
             /** Invoice Last Name */
@@ -3549,12 +3529,8 @@ export interface components {
             invoice_country: string | null;
             /** Invoice Email */
             invoice_email: string | null;
-            /** Invoice Same As Shipping */
-            invoice_same_as_shipping: boolean;
             /** Date Of Birth */
             date_of_birth: string | null;
-            /** Account Type */
-            account_type: string | null;
             /** Company Name */
             company_name: string | null;
             /** Legal Form */
@@ -3646,10 +3622,6 @@ export interface components {
             invoice_country?: string | null;
             /** Invoice Email */
             invoice_email?: string | null;
-            /** Invoice Same As Shipping */
-            invoice_same_as_shipping?: boolean | null;
-            /** Account Type */
-            account_type?: ("private" | "business") | null;
             /** Company Name */
             company_name?: string | null;
             /** Legal Form */

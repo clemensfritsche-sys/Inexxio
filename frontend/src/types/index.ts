@@ -9,10 +9,13 @@ import type { components } from './api';
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 
-// Von Menschen belegbare Rollen (Rollen-Dropdown). Die System-KI (role='ai',
-// entferntes KI-Modul) ist bewusst NICHT wählbar – sie erscheint nur als Anzeige.
-export type UserPlatformRole = 'admin' | 'employee' | 'supplier' | 'customer';
-export type UserRole = UserPlatformRole | 'ai';
+// ►►► **Die Rolle beantwortet GENAU EINE Frage: darf diese Person ins ERP?** ◄◄◄
+//
+// (Testnotiz #1043) «Lieferant» und «Kunde» standen hier und waren beide eine Aussage
+// über **Vorgänge**, nicht über die Person: wer Partner einer Ausgabe ist, ist dort
+// Lieferant, bei einer Einnahme Kunde – dieselbe Person kann beides sein. Der Spiegel von
+// `schemas/admin.Role`; ein Wächter hält beide deckungsgleich.
+export type UserRole = 'admin' | 'employee' | 'user';
 
 type UserProfileApi = components['schemas']['UserProfileResponse'];
 

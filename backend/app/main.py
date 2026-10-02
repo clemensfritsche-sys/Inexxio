@@ -16,6 +16,7 @@ from .core.database import Base, SessionLocal, engine
 from .domain import statuses as st
 from .domain import voucher as vo
 from .models import UserProfile
+from .services import people
 from .routers import (
     admin, articles, attachments, auth, contact, erp, feedback, health,
     instances, orders, passkey, payments, places,
@@ -141,13 +142,11 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "vat", "JSONB"),
     ("vouchers", "service_date", "DATE"),
     ("vouchers", "corrects_id", "BIGINT"),
-    # ►► **Der Kontotyp und die Rechtsform** (Migration 139, Testnotiz #1042). Das Modell
-    #    kennt sie, also scheitert ohne sie **jede** Benutzer-Abfrage – der halbe ERP-Feed,
+    # ►► **Die Rechtsform am Benutzer** (Migration 139, Testnotiz #1042). Das Modell kennt
+    #    sie, also scheitert ohne sie **jede** Benutzer-Abfrage – der halbe ERP-Feed,
     #    `/auth/me` und jeder Belegkopf. Dieselbe Ausfallklasse wie Migration 090.
-    #    **Ohne Default**: ``NULL`` heisst «noch nicht entschieden», und dann leitet
-    #    ``domain/accounts.effective`` aus dem Firmennamen ab – genau darum braucht diese
-    #    Runde keinen Backfill, der bei jedem Start eine Wahl überschreiben würde.
-    ("user_profiles", "account_type", "VARCHAR(20)"),
+    #    *``account_type`` stand hier daneben und ist mitgegangen (#1043): ein Netz für
+    #    eine Spalte, die kein Modell kennt, schützt nichts.*
     ("user_profiles", "legal_form", "VARCHAR(50)"),
 )
 
@@ -204,6 +203,13 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     #    diesen Eintrag liefe auf dev jedes Insert einer Zahlung auf. Gedroppt wird sie im
     #    Folge-Deploy (dieselbe Zwei-Schritte-Regel wie bei ``purchases.quantity``).
     ("voucher_entries", "kind"),
+    # ►► **Die Rechnungsadresse ist freiwillig** (Testnotiz #1043, Migration 140): der
+    #    Schalter «Rechnungsadresse = Lieferadresse» war die zweite Aussage über dieselbe
+    #    Sache – ob eine eigene hinterlegt ist, sagen die Felder selbst. Die Spalte ist
+    #    ``NOT NULL`` **ohne** Server-Default, und ihr Mapping ist weg: ohne diesen
+    #    Eintrag liefe auf dev jedes Insert eines neuen Benutzers auf. Gedroppt wird sie
+    #    im Folge-Deploy.
+    ("user_profiles", "invoice_same_as_shipping"),
     # ``payments``/``invoices``/``purchases`` haben mit dem Handel ihr Mapping verloren –
     # es schreibt niemand mehr hinein, also kann auch kein Insert an einer ``NOT NULL``
     # auflaufen. Die Tabellen bleiben stehen (Zwei-Deploy-Regel).
@@ -538,6 +544,25 @@ def _ensure_columns() -> None:
                     "WHERE table_name='voucher_entries'"))}
                 if "amount" in v_cols and "kind" in e_cols:
                     for stmt in vo.invoice_backfill_sql():
+                        conn.execute(text(stmt))
+            if "user_profiles" in tables:
+                # ►►► **Die Rolle ist der Zugang** (Testnotiz #1043, Migration ``140``).◄◄◄
+                #
+                # Zwei Daten-Reparaturen, und keine davon fängt ein Schema-Netz: eine
+                # Rolle «customer»/«supplier» kennt ``Role`` an der Tür nicht mehr (jedes
+                # Speichern an so einer Zeile wäre ein 422 an einer Angabe, die niemand
+                # angefasst hat), und eine Rechnungsadresse, die eine **Kopie** der
+                # Hauptadresse ist, liest ``billing_of`` seither als eigene – der Beleg
+                # zeigt dieselbe Anschrift zweimal.
+                #
+                # Die Anweisungen stehen in ``services/people.repair_sql`` und werden von
+                # der Migration **und** von hier gelesen; die dev-Datenbank fährt kein
+                # ``alembic upgrade head`` (#778). Beide sind **selbstbegrenzend**.
+                up_cols = {r[0] for r in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='user_profiles'"))}
+                for stmt in people.repair_sql():
+                    if all(w in up_cols for w in ("role", "invoice_address_line1")):
                         conn.execute(text(stmt))
             if "company_settings" in tables:
                 # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt

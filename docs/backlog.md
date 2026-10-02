@@ -123,22 +123,29 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
-## Offen: zwei Spalten am Benutzer droppen (Folge-Deploy nach #1042)
+## Offen: zwölf Spalten am Benutzer droppen (Folge-Deploy nach #1042/#1043)
 
-`user_profiles.company_billing_email` und `user_profiles.invoice_company` haben mit
-Testnotiz #1042 ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**: die
-Rechnungs-E-Mail ist ein Attribut der Rechnungsadresse (`invoice_email`), und den
-Firmennamen der Rechnungsadresse trägt bei Kontotyp «Geschäft» `company_name` über
-`people.billing_name`.
+Alle zwölf haben ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**:
+
+| Spalte(n) | Warum sie weg ist |
+|---|---|
+| `company_billing_email` | Die Rechnungs-E-Mail ist ein Attribut der **Rechnungsadresse** (`invoice_email`); dieses Feld hatte **keinen einzigen Leser** (#1042). |
+| `invoice_company` | Den Firmennamen der Rechnungsadresse trägt `company_name` über `people.billing_name` – die Kopie veraltete beim ersten Umfirmieren (#1042). |
+| `account_type` | **Der Firmenname ist die Erklärung** (#1043): steht er da, ist es eine Firma. Ein Schalter daneben sagte dasselbe und konnte ihm widersprechen. |
+| `invoice_same_as_shipping` | Ob eine eigene Rechnungsadresse hinterlegt ist, sagen **die Felder selbst** (`voucher.billing_of` liest genau das). Der Schalter liess zudem eine **Kopie** der Lieferadresse hineinschreiben (#1043). |
+| die acht `ship_*` | Es gibt **zwei** Anschriften, nicht drei: die Lieferadresse **ist** die Hauptadresse. Der dritte Satz hatte weder Leser noch Schreiber (#1043). |
 
 **Gedroppt werden sie im FOLGE-Deploy** (Zwei-Deploy-Regel): beides in einem Deploy
 träfe die während des Cloud-Run-Rollouts noch laufende Vorgänger-Revision – die
-Ausfallklasse von Migration `090`. Beide sind `NULL`-fähig, also läuft in der
-Zwischenzeit kein Insert auf.
+Ausfallklasse von Migration `090`. Alle zwölf sind `NULL`-fähig (Migration `140` hat
+`invoice_same_as_shipping` seine `NOT NULL` genommen, dazu ein Eintrag im
+`_NULLABLE_SAFETY_NET`), also läuft in der Zwischenzeit kein Insert auf.
 
-*Ein Backfill gab es bewusst nicht: die Notiz nennt es ausdrücklich («es muss nicht
-rückwärtskompatibel sein»), und `company_billing_email` hatte **keinen einzigen Leser** —
-was dort steht, hat nie einen Beleg erreicht.*
+*Ein Backfill der Rechnungs-E-Mail gab es bewusst nicht: die Notiz nennt es ausdrücklich
+(«es muss nicht rückwärtskompatibel sein»). Die **Rolle** und die **kopierte
+Rechnungsadresse** brauchten dagegen einen – beide stehen in
+`services/people.repair_sql` und laufen über Migration `140` **und** das Lifespan-Netz
+(die dev-Datenbank fährt kein `alembic upgrade head`).*
 
 ## Offen: die Tabellen der gelöschten Handels-Module
 

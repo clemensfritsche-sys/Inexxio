@@ -1,4 +1,4 @@
-import { Briefcase, Shield, Truck, UserCircle } from 'lucide-react';
+import { Briefcase, Shield, UserCircle } from 'lucide-react';
 import type { Article, CompanySettings, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
@@ -38,17 +38,36 @@ import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
  * - **Unternehmen** → Freigegeben · Inaktiv, dieselben zwei Wörter wie überall (#364).
  */
 
-/** Rolle = Identität, nicht Ampel – aber ein aktiver Datensatz ist gültig, also grün. */
+/**
+ * Rolle = Identität, nicht Ampel – aber ein aktiver Datensatz ist gültig, also grün.
+ *
+ * ►►► **Drei Werte, und sie sagen den ZUGANG** (Testnotiz #1043). ◄◄◄ «Lieferant» und
+ * «Kunde» standen hier und behaupteten eine Eigenschaft der **Person**; sie ist eine des
+ * **Vorgangs** – derselbe Mensch ist in einer Ausgabe Lieferant und in einer Einnahme
+ * Kunde. «Benutzer» ist darum keine schwächere Aussage, sondern die einzige richtige.
+ */
 export const ROLE_CFG: Record<string, StatusCfg> = {
   admin: { label: 'Admin', ...TONE.done, icon: Shield },
   employee: { label: 'Mitarbeiter', ...TONE.done, icon: Briefcase },
-  supplier: { label: 'Lieferant', ...TONE.done, icon: Truck },
-  customer: { label: 'Kunde', ...TONE.done, icon: UserCircle },
+  user: { label: 'Benutzer', ...TONE.done, icon: UserCircle },
 };
 
 export function userStatus(u: Pick<UserProfile, 'role'> & { is_active?: boolean }): StatusCfg {
   if (u.is_active === false) return INACTIVE;
-  return ROLE_CFG[u.role] ?? ROLE_CFG.customer;
+  return ROLE_CFG[u.role] ?? ROLE_CFG.user;
+}
+
+/**
+ * ►►► **Darf diese Person ins ERP?** ◄◄◄ Die EINE Frage, die die Rolle beantwortet
+ * (Testnotiz #1043) – und der Spiegel von `people.STAFF_ROLES`.
+ *
+ * Sie stand an vier Stellen ausgeschrieben (Navbar zweimal, ERP-Layout, ERP-Feed), und
+ * eine davon war **verneinend** formuliert («ausser Kunden dürfen alle») – also liess sie
+ * jeden Wert durch, den sie nicht kannte. Eine Aufzählung, die etwas erlaubt, ist die
+ * robustere Form: ein neuer Rollenwert kommt nicht versehentlich herein.
+ */
+export function isStaff(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'employee';
 }
 
 /** «Ausser Betrieb» – dieselben zwei Wörter und derselbe Ton für Person und Gesellschaft. */

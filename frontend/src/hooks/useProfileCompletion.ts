@@ -11,6 +11,17 @@ interface RequiredField {
   condition?: (p: UserProfile) => boolean;
 }
 
+// ►►► **Pflicht ist, was wirklich fehlt** (Testnotiz #1043). ◄◄◄ Hier standen sieben
+// weitere Zeilen, und jede fragte die **Rolle**: Firmenname und UID «für einen
+// Lieferanten», die fünf Felder der Rechnungsadresse «für Kunden und Lieferanten».
+// Beides ist weg, und zwar aus demselben Grund wie im Formular darunter:
+//
+// * Die **Firmenangaben** hängen am Firmennamen, nicht an einer Rolle – und er ist
+//   freiwillig (eine Privatperson hat keinen). Was folgt, ist die **Rechtsform**: ohne
+//   sie weist der Server ab (`people.assert_company`), also ist sie hier eine Pflicht –
+//   aber nur, wenn ein Name dasteht.
+// * Die **Rechnungsadresse** ist freiwillig: leer gilt die Lieferadresse. Ein Pflichtfeld
+//   in einem Block, den man gar nicht ausfüllen muss, zählte Lücken, die keine sind.
 const REQUIRED: RequiredField[] = [
   // Mein Profil – Person
   { section: 'profile', field: 'first_name' },
@@ -20,15 +31,11 @@ const REQUIRED: RequiredField[] = [
   { section: 'profile', field: 'address_line1' },
   { section: 'profile', field: 'city' },
   { section: 'profile', field: 'postal_code' },
-  // Mein Profil – Firmendaten (Lieferant)
-  { section: 'profile', field: 'company_name', condition: (p) => p.role === 'supplier' },
-  { section: 'profile', field: 'uid_number', condition: (p) => p.role === 'supplier' },
-  // Mein Profil – Rechnungsadresse (wenn nicht = Lieferadresse)
-  { section: 'profile', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'profile', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'profile', field: 'invoice_address_line1', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'profile', field: 'invoice_city', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'profile', field: 'invoice_postal_code', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  // Mein Profil – Firmendaten: der Name ist die Erklärung, die Rechtsform seine Folge.
+  {
+    section: 'profile', field: 'legal_form',
+    condition: (p) => !!(p.company_name ?? '').trim(),
+  },
 ];
 
 function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {
@@ -46,8 +53,7 @@ export interface ProfileCompletion {
 }
 
 /** Wie weit ist das Profil ausgefüllt? Gezählt werden **nur** die Pflichtangaben, die
- *  für diese Rolle gelten – ein Feld, das für einen Kunden gar nicht erscheint, fehlt ihm
- *  auch nicht. */
+ *  für diesen Datensatz gelten – ein Feld, das gar nicht erscheint, fehlt auch nicht. */
 export function useProfileCompletion(profile: UserProfile | null): ProfileCompletion {
   return useMemo(() => {
     if (!profile) return { percentage: 0, completedCount: 0, totalCount: 0, missingBySection: {} };

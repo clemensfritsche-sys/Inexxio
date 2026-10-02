@@ -47,7 +47,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const completion = useProfileCompletion(profile);
 
   const isEmployee = profile?.role === 'employee';
-  const isSupplier = profile?.role === 'supplier';
 
   const sections = useMemo(() => {
     const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
@@ -68,7 +67,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   function renderSection() {
     if (!profile) return null;
     switch (activeSection) {
-      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
+      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} />;
       case 'security': return <SecuritySection profile={profile} />;
     }
   }

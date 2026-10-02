@@ -6,7 +6,6 @@ from sqlalchemy import BigInteger, Boolean, Date, DateTime, Numeric, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from ..domain import accounts
 from .base import TimestampMixin
 
 
@@ -22,7 +21,18 @@ class UserProfile(Base, TimestampMixin):
     # google.com | password | emailLink | custom = Passkey). Rein deskriptiv – die
     # Support-Frage «wie kommt der überhaupt rein?» war sonst nicht beantwortbar.
     last_sign_in_provider: Mapped[Optional[str]] = mapped_column(String(40))
-    role: Mapped[str] = mapped_column(String(20), default="customer", nullable=False)
+    #: ►►► **Die Rolle beantwortet GENAU EINE Frage: darf diese Person ins ERP?** ◄◄◄
+    #:
+    #: ``admin`` · ``employee`` · ``user`` – mehr nicht. «Lieferant» und «Kunde» standen
+    #: hier einmal daneben und waren beide eine **Lüge über die Person**: *Lieferant ↔
+    #: Kunde ist eine Eigenschaft des VORGANGS*. Wer Partner einer Ausgabe ist, ist dort
+    #: Lieferant; bei einer Einnahme Kunde – dieselbe Person kann beides sein, und zwar
+    #: gleichzeitig. Eine Spalte am Datensatz muss sich für eines entscheiden und liegt
+    #: damit in der Hälfte der Fälle falsch. Dieselbe Bauart wie
+    #: ``order_units.return_to_order_id``: die **Verbindung** trägt es, nicht der Datensatz.
+    #:
+    #: Gelesen wird sie ausschliesslich als Zugang (``people.STAFF_ROLES``).
+    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
 
     # Personal identity
     first_name: Mapped[Optional[str]] = mapped_column(String(100))
@@ -37,23 +47,26 @@ class UserProfile(Base, TimestampMixin):
     state_region: Mapped[Optional[str]] = mapped_column(String(100))
     country: Mapped[str] = mapped_column(String(100), default="CH")
 
-    # Unified shipping address
-    ship_name: Mapped[Optional[str]] = mapped_column(String(255))
-    ship_company: Mapped[Optional[str]] = mapped_column(String(255))
-    ship_address_line1: Mapped[Optional[str]] = mapped_column(String(255))
-    ship_address_line2: Mapped[Optional[str]] = mapped_column(String(255))
-    ship_city: Mapped[Optional[str]] = mapped_column(String(100))
-    ship_postal_code: Mapped[Optional[str]] = mapped_column(String(20))
-    ship_state_region: Mapped[Optional[str]] = mapped_column(String(100))
-    ship_country: Mapped[Optional[str]] = mapped_column(String(100))
+    # ►►► **ZWEI Anschriften, nicht drei** (Testnotiz #1043). ◄◄◄
+    #
+    # Hier stand ein dritter Satz ``ship_*`` (acht Spalten mit eigenem Namen und eigener
+    # Firma). Er hatte **keinen einzigen Leser und keinen Schreiber**: die Oberfläche hat
+    # ihn nie angeboten, und ``voucher.billing_of`` liest als Lieferadresse die
+    # **Hauptadresse** darüber. Eine dritte Adresse, die niemand füllt, ist keine
+    # Vorsorge – sie ist die Stelle, an der jemand künftig die falsche erwischt. Das
+    # Mapping ist weg, die Spalten fallen im Folge-Deploy.
 
     # Invoice / billing address
-    #: ►►► **Der Firmenname der Rechnungsadresse ist ABGELEITET** (Testnotiz #1042) ◄◄◄
-    #: – die erste Zeile trägt bei Kontotyp «Geschäft» die Firma, und die steht in
-    #: ``company_name``. Daneben stand ein eigenes Feld ``invoice_company``, das die
-    #: Oberfläche bei «Rechnung = Lieferung» aus ``company_name`` **kopierte**: zwei
-    #: Wahrheiten über dieselbe Firma, und die Kopie veraltete beim ersten Umfirmieren.
-    #: Zusammengesetzt wird die Anschrift an einer Stelle (``people.billing_name``).
+    #: ►►► **Die Rechnungsadresse ist FREIWILLIG – leer gilt die Lieferadresse.** ◄◄◄
+    #:
+    #: Daneben stand ein Schalter ``invoice_same_as_shipping``, und er war eine **zweite
+    #: Wahrheit über dieselbe Sache**: ob eine eigene Rechnungsadresse hinterlegt ist,
+    #: sagen die Felder selbst (``billing_of`` liest genau das). Schlimmer, er liess die
+    #: Oberfläche bei «gleich wie» die Hauptadresse **hineinkopieren** – und die Kopie
+    #: veraltete beim nächsten Umzug, genau wie damals ``invoice_company``.
+    #:
+    #: Jetzt gilt dieselbe Regel wie bei der Rechnungs-E-Mail (#1042): **leer heisst
+    #: erben**, und das sagt das Feld. Kein Schalter, keine Checkbox, keine Kopie.
     invoice_first_name: Mapped[Optional[str]] = mapped_column(String(100))
     invoice_last_name: Mapped[Optional[str]] = mapped_column(String(100))
     invoice_address_line1: Mapped[Optional[str]] = mapped_column(String(255))
@@ -70,29 +83,30 @@ class UserProfile(Base, TimestampMixin):
     #: **Leer heisst «die Login-/Kontakt-Adresse»** (``billing_of``) – darum kein zweites
     #: Feld und keine Checkbox: die Vererbung steht als Platzhalter im Feld.
     invoice_email: Mapped[Optional[str]] = mapped_column(String(255))
-    invoice_same_as_shipping: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Personal extras
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    # ─── Kontotyp + Firmenangaben ──────────────────────────────────────────────
-    #: ►►► **Privat ↔ Geschäft – eine STAMMDATEN-, keine Berechtigungsfrage.** ◄◄◄
+    # ─── Firmenangaben ─────────────────────────────────────────────────────────
+    #: ►►► **Der FIRMENNAME ist die Erklärung** (Testnotiz #1043). ◄◄◄
     #:
-    #: ``NULL`` heisst «noch nicht entschieden»; dann leitet ``domain/accounts.effective``
-    #: ab (steht ein Firmenname da, war es ein Geschäftskonto). Darum **kein** Backfill
-    #: und **kein** Default auf beiden Seiten, der auseinanderlaufen könnte: es gibt
-    #: keinen. Die Rolle ``supplier`` **erzwingt** «Geschäft» – gelesen, nicht
-    #: geschrieben, sonst stünde dieselbe Aussage zweimal da.
-    account_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-
-    # Business / company info – nur bei Kontotyp «Geschäft» sichtbar. **Vorhandene Werte
-    # bleiben**, wenn jemand auf «Privat» wechselt: gelöscht wird nichts, benutzt wird
-    # nichts (``people.is_business`` ist die eine Frage danach).
+    #: Steht er da, tritt diese Person als Firma auf; ist er leer, als Privatperson.
+    #: **Ein Feld statt Schalter plus Feld** – hier stand eine Spalte ``account_type``
+    #: daneben (*Privat ↔ Geschäft*), und sie beantwortete dieselbe Frage ein zweites Mal:
+    #: zwei Angaben über eine Sache geraten in Widerspruch, sobald jemand nur eine davon
+    #: setzt. ``people.is_business`` ist die eine Frage danach.
+    #:
+    #: *Nicht so: «sind alle Firmenfelder gefüllt?» als Erklärung lesen. Dann ist nie
+    #: etwas unvollständig – der Server könnte nie sagen, dass die Rechtsform fehlt, und
+    #: der Beleg wechselte still seinen Empfänger. Eine Prüfung braucht eine **erklärte
+    #: Absicht**, und das ist der Firmenname.*
     company_name: Mapped[Optional[str]] = mapped_column(String(255))
     #: Die Rechtsform der Firma – dieselbe Angabe, die ``sites.legal_name`` an unserer
     #: eigenen Seite an den Namen hängt: «Muster» + «AG» ist die Rechtsperson, «Muster»
     #: allein ist keine. Freitext mit Vorschlägen je Land (#303), keine Auswahlliste –
     #: die verbindliche Quelle (ISO 20275) hat 2600 Einträge und keinen Endpunkt.
+    #: **Pflicht, sobald ein Firmenname dasteht** (``people.assert_company``) – die
+    #: Rechtsform macht aus einem Namen eine Rechtsperson.
     legal_form: Mapped[Optional[str]] = mapped_column(String(50))
     uid_number: Mapped[Optional[str]] = mapped_column(String(20))
     vat_number: Mapped[Optional[str]] = mapped_column(String(20))
@@ -101,7 +115,11 @@ class UserProfile(Base, TimestampMixin):
     trade_register_canton: Mapped[Optional[str]] = mapped_column(String(50))
     company_website: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # Supplier bank details
+    # ►►► **Die Bankverbindung hängt an NICHTS** (Testnotiz #1043). ◄◄◄ Sie hing an der
+    # Rolle «Lieferant» mit der Begründung «eine IBAN braucht, wen *wir* bezahlen» – und
+    # genau das ist die Eigenschaft eines **Vorgangs**, nicht der Person: eine Erstattung
+    # geht an einen Privatkunden, eine Spesenabrechnung an einen Mitarbeiter. Also ohne
+    # Bedingung, wie jede andere Angabe des Datensatzes.
     bank_account_holder: Mapped[Optional[str]] = mapped_column(String(255))
     bank_iban: Mapped[Optional[str]] = mapped_column(String(50))
     bank_bic: Mapped[Optional[str]] = mapped_column(String(20))
@@ -146,15 +164,12 @@ class UserProfile(Base, TimestampMixin):
         Person hinterlegt ist. (Der Versand-Empfängername bleibt firmen-first – eigene Regel in
         ``stripe_provider._full_name`` – denn das Paket geht an die Firma.)
 
-        ►►► **Der Rückfall gilt nur einem GESCHÄFTSKONTO** (Testnotiz #1042). ◄◄◄ Wer auf
-        «Privat» steht, behält seinen Firmennamen in der Zeile – **benutzt** wird er nicht,
-        und das gilt auch hier: sonst trüge derselbe Datensatz an einer Stelle die Firma und
-        auf dem Beleg die Person."""
+        ►►► **Der Firmenname IST die Erklärung** (Testnotiz #1043) ◄◄◄ – steht er da, ist
+        dieser Datensatz eine Firma, und dann darf er als Rückfall dienen. Hier stand
+        einmal eine zweite Angabe (``account_type``) daneben, die dasselbe sagte."""
         name = " ".join(p for p in [self.first_name, self.last_name] if p).strip()
         if name:
             return name
-        business = accounts.effective(self.role, self.account_type,
-                                      company_name=self.company_name)
-        if business == accounts.BUSINESS and (self.company_name or "").strip():
+        if (self.company_name or "").strip():
             return self.company_name  # type: ignore[return-value]
         return self.email

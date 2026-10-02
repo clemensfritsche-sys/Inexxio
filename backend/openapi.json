@@ -5113,32 +5113,6 @@
             ],
             "title": "Invoice Email"
           },
-          "invoice_same_as_shipping": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Same As Shipping"
-          },
-          "account_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "private",
-                  "business"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Account Type"
-          },
           "company_name": {
             "anyOf": [
               {
@@ -5256,8 +5230,7 @@
                 "enum": [
                   "admin",
                   "employee",
-                  "supplier",
-                  "customer"
+                  "user"
                 ]
               },
               {
@@ -8229,94 +8202,6 @@
             "type": "string",
             "title": "Country"
           },
-          "ship_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship Name"
-          },
-          "ship_company": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship Company"
-          },
-          "ship_address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship Address Line1"
-          },
-          "ship_address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship Address Line2"
-          },
-          "ship_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship City"
-          },
-          "ship_postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship Postal Code"
-          },
-          "ship_state_region": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship State Region"
-          },
-          "ship_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ship Country"
-          },
           "invoice_first_name": {
             "anyOf": [
               {
@@ -8405,10 +8290,6 @@
             ],
             "title": "Invoice Email"
           },
-          "invoice_same_as_shipping": {
-            "type": "boolean",
-            "title": "Invoice Same As Shipping"
-          },
           "date_of_birth": {
             "anyOf": [
               {
@@ -8420,17 +8301,6 @@
               }
             ],
             "title": "Date Of Birth"
-          },
-          "account_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Account Type"
           },
           "company_name": {
             "anyOf": [
@@ -8685,14 +8555,6 @@
           "postal_code",
           "state_region",
           "country",
-          "ship_name",
-          "ship_company",
-          "ship_address_line1",
-          "ship_address_line2",
-          "ship_city",
-          "ship_postal_code",
-          "ship_state_region",
-          "ship_country",
           "invoice_first_name",
           "invoice_last_name",
           "invoice_address_line1",
@@ -8701,9 +8563,7 @@
           "invoice_postal_code",
           "invoice_country",
           "invoice_email",
-          "invoice_same_as_shipping",
           "date_of_birth",
-          "account_type",
           "company_name",
           "legal_form",
           "uid_number",
@@ -8931,32 +8791,6 @@
               }
             ],
             "title": "Invoice Email"
-          },
-          "invoice_same_as_shipping": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Same As Shipping"
-          },
-          "account_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "private",
-                  "business"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Account Type"
           },
           "company_name": {
             "anyOf": [

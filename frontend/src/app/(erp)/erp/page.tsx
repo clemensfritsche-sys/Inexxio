@@ -5,7 +5,7 @@ import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 }
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
-import { articleStatus, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
+import { articleStatus, isStaff, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
@@ -162,7 +162,7 @@ export default function ErpPage() {
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
+  const [viewerRole, setViewerRole] = useState<'staff' | 'party'>('staff');
   const [plusOpen, setPlusOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(50);
   const plusRef = useRef<HTMLDivElement>(null);
@@ -185,7 +185,7 @@ export default function ErpPage() {
       if (o.status === 'fulfilled') setOrders(o.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
-        setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
+        setViewerRole(isStaff(me.value.role) ? 'staff' : 'party');
         // Unternehmen erst laden, wenn die Rolle feststeht – der Endpunkt ist admin-only.
         if (me.value.role === 'admin') api.getCompanies().then(setCompanies).catch(() => {});
       }

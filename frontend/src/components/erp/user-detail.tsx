@@ -8,8 +8,8 @@ import { userDisplayName } from '@/lib/utils';
 import { day, when } from '@/lib/when';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { Card, DetailBody, DetailHeader, Segmented } from '@/components/erp/fields';
-import { ACCOUNT_TYPE, ACCOUNT_TYPES, inheritedEmail, isBusiness, type AccountType } from '@/lib/accounts';
+import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
+import { INHERITED_ADDRESS, inheritedEmail } from '@/lib/accounts';
 import { legalForms } from '@/lib/legal-forms';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
@@ -123,7 +123,6 @@ interface ERPForm {
   last_name: string;
   date_of_birth: string;
   phone: string;
-  account_type: AccountType;
   company_name: string;
   legal_form: string;
   uid_number: string;
@@ -133,7 +132,6 @@ interface ERPForm {
   city: string;
   state_region: string;
   country: string;
-  invoice_same_as_shipping: boolean;
   invoice_first_name: string;
   invoice_last_name: string;
   invoice_address_line1: string;
@@ -163,9 +161,6 @@ function buildForm(p: UserProfile): ERPForm {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    // Der Server liefert den **effektiven** Kontotyp – die Ableitung («Lieferant ist
-    // immer eine Firma», «leer heisst: der Firmenname sagt es») wohnt dort, nicht hier.
-    account_type: (p.account_type as AccountType | null) ?? 'private',
     company_name: p.company_name ?? '',
     legal_form: p.legal_form ?? '',
     uid_number: p.uid_number ?? '',
@@ -175,7 +170,6 @@ function buildForm(p: UserProfile): ERPForm {
     city: p.city ?? '',
     state_region: p.state_region ?? '',
     country: p.country ?? 'CH',
-    invoice_same_as_shipping: p.invoice_same_as_shipping ?? true,
     invoice_first_name: p.invoice_first_name ?? '',
     invoice_last_name: p.invoice_last_name ?? '',
     invoice_address_line1: p.invoice_address_line1 ?? '',
@@ -239,21 +233,23 @@ function CompanyPick({ value, readOnly, onChange }: {
   );
 }
 
-/** Form → Update-Payload. **Dieselbe Spiegel-Logik wie im Profil:** «Rechnung =
- *  Lieferung» kopiert die Rechnungsfelder aus der Adresse (EIN Datensatz, eine
- *  Wahrheit); was nicht zum Datensatz gehört, wird nicht mitgeschickt – die Firmenfelder
- *  nach **Kontotyp** (nicht nach Rolle, Testnotiz #1042), Bank nach Rolle (eine
- *  Bankverbindung ist für den, den wir bezahlen), Anstellung nur für Personal. */
+/**
+ * Form → Update-Payload.
+ *
+ * ►►► **Nur noch EINE Bedingung** (Testnotiz #1043). ◄◄◄ Hier standen vier: Firmenfelder
+ * nach Kontotyp, Bankverbindung nach Rolle, und die Rechnungsadresse wurde bei «gleich
+ * wie Lieferadresse» aus der Hauptadresse **kopiert**. Alle drei sind weg – der
+ * Firmenname ist die Erklärung (also wird er geschickt wie jedes andere Feld), eine
+ * Bankverbindung braucht man für jeden, den man bezahlt, und eine leere Rechnungsadresse
+ * **ist** die Aussage «es gilt die Lieferadresse». Eine Kopie veraltete beim nächsten
+ * Umzug, genau wie damals `invoice_company`.
+ *
+ * Geblieben ist die **Anstellung**: sie gehört nicht zu jedem Datensatz.
+ */
 function mapUpdate(v: ERPForm): Partial<UserProfile> {
-  const isSupplier = v.role === 'supplier';
   const isStaff = v.role === 'employee' || v.role === 'admin';
-  const business = isBusiness(v.account_type);
   const data: Record<string, unknown> = {
     role: v.role,
-    // ►►► **Der Kontotyp reist IMMER mit.** ◄◄◄ Er ist eine Stammdatenangabe jeder
-    // Person, nicht ein Zusatz einer Rolle – ihn nur bei «Geschäft» zu senden hiesse,
-    // dass ein Wechsel zurück auf «Privat» nie ankommt.
-    account_type: v.account_type,
     first_name: nn(v.first_name),
     last_name: nn(v.last_name),
     date_of_birth: nn(v.date_of_birth),
@@ -264,41 +260,24 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     city: nn(v.city),
     state_region: nn(v.state_region),
     country: v.country || 'CH',
-    invoice_same_as_shipping: v.invoice_same_as_shipping,
     // Die **eine** Rechnungs-E-Mail (#1042) – leer erbt sie die Login-Adresse.
     invoice_email: nn(v.invoice_email),
     newsletter_opt_in: v.newsletter_opt_in,
+    invoice_first_name: nn(v.invoice_first_name),
+    invoice_last_name: nn(v.invoice_last_name),
+    invoice_address_line1: nn(v.invoice_address_line1),
+    invoice_address_line2: nn(v.invoice_address_line2),
+    invoice_postal_code: nn(v.invoice_postal_code),
+    invoice_city: nn(v.invoice_city),
+    invoice_country: nn(v.invoice_country),
+    company_name: nn(v.company_name),
+    legal_form: nn(v.legal_form),
+    uid_number: nn(v.uid_number),
+    bank_account_holder: nn(v.bank_account_holder),
+    bank_name: nn(v.bank_name),
+    bank_iban: nn(v.bank_iban),
+    bank_bic: nn(v.bank_bic),
   };
-  if (v.invoice_same_as_shipping) {
-    data.invoice_first_name = nn(v.first_name);
-    data.invoice_last_name = nn(v.last_name);
-    data.invoice_address_line1 = nn(v.address_line1);
-    data.invoice_address_line2 = nn(v.address_line2);
-    data.invoice_postal_code = nn(v.postal_code);
-    data.invoice_city = nn(v.city);
-    data.invoice_country = v.country || 'CH';
-  } else {
-    data.invoice_first_name = nn(v.invoice_first_name);
-    data.invoice_last_name = nn(v.invoice_last_name);
-    data.invoice_address_line1 = nn(v.invoice_address_line1);
-    data.invoice_address_line2 = nn(v.invoice_address_line2);
-    data.invoice_postal_code = nn(v.invoice_postal_code);
-    data.invoice_city = nn(v.invoice_city);
-    data.invoice_country = v.invoice_country || 'CH';
-  }
-  if (business) {
-    data.company_name = nn(v.company_name);
-    data.legal_form = nn(v.legal_form);
-    data.uid_number = nn(v.uid_number);
-  }
-  if (isSupplier) {
-    // Eine Bankverbindung braucht, wen **wir** bezahlen – das ist eine Rollenfrage und
-    // bleibt eine: ein Geschäftskunde gibt uns seine IBAN nicht.
-    data.bank_account_holder = nn(v.bank_account_holder);
-    data.bank_name = nn(v.bank_name);
-    data.bank_iban = nn(v.bank_iban);
-    data.bank_bic = nn(v.bank_bic);
-  }
   if (isStaff) {
     // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
     //
@@ -352,13 +331,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   const str = (k: StrKey) => (canEdit ? (val: string) => setForm((prev) => ({ ...prev, [k]: val })) : undefined);
 
   const role = form.role;
-  const isSupplier = role === 'supplier';
   const isStaff = role === 'employee' || role === 'admin';
-  // **Firmenfelder hängen am Kontotyp, nicht an der Rolle** (#1042); dass ein Lieferant
-  // immer eine Firma ist, steht in `domain/accounts.FORCED_BUSINESS` und kommt über den
-  // effektiven Wert der Antwort hier an – hier wird es nur noch **angezeigt**.
-  const forcedBusiness = isSupplier;
-  const business = isBusiness(form.account_type);
   const forms = legalForms(form.country);
 
   const address: Address = {
@@ -387,14 +360,23 @@ function ProfileForm({ record, isAdmin, onSaved }: {
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
       <Card icon={User} title="Persönliche Angaben" right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
         {/* Rolle – ERP-Extra (das Konto kennt sie nicht, die eigene Rolle ändert man nicht). */}
+        {/* ►►► **Die Rolle ist der ZUGANG** (Testnotiz #1043). ◄◄◄ «Lieferant» und
+            «Kunde» standen hier und waren eine Aussage über **Vorgänge**: wer Partner
+            einer Ausgabe ist, ist dort Lieferant, bei einer Einnahme Kunde – dieselbe
+            Person kann beides sein. Übrig bleibt die eine Frage, die das Haus wirklich
+            stellt (`people.STAFF_ROLES`). */}
         {canEdit ? (
           <SelectField label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
             { value: 'admin', label: 'Admin' }, { value: 'employee', label: 'Mitarbeiter' },
-            { value: 'supplier', label: 'Lieferant' }, { value: 'customer', label: 'Kunde' },
+            { value: 'user', label: 'Benutzer' },
           ]} />
         ) : (
           <AField label="Rolle" value={ROLE_CFG[role]?.label ?? role} readOnly />
         )}
+        <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)', marginTop: -12 }}>
+          Admin und Mitarbeiter arbeiten im ERP. Ob jemand Kunde oder Lieferant ist,
+          entscheidet der Vorgang, in dem er vorkommt.
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AField label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} />
@@ -403,44 +385,35 @@ function ProfileForm({ record, isAdmin, onSaved }: {
           <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} />
         </div>
 
-        {/* ►►► **Kontotyp – eine Stammdaten-, keine Berechtigungsfrage** (#1042). ◄◄◄
-            Er steht **unter** der Rolle, weil das die beiden Fragen sind, die man an
-            einem Benutzer zuerst stellt – und **erst «Geschäft» blendet die Firmenfelder
-            ein**. Ein Lieferant ist immer eine Firma: dann gibt es nichts zu wählen, und
-            der Wert steht als Auskunft da statt als Schalter, der nichts tut. */}
-        {canEdit && !forcedBusiness ? (
-          <Segmented label="Kontotyp" value={form.account_type}
-            onChange={(x) => set('account_type', x as AccountType)}
-            options={ACCOUNT_TYPES} />
-        ) : (
-          <AField label="Kontotyp" value={ACCOUNT_TYPE[form.account_type].label} readOnly />
-        )}
-        <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)', marginTop: -12 }}>
-          {forcedBusiness
-            ? 'Ein Lieferant ist immer eine Firma – der Kontotyp folgt der Rolle.'
-            : ACCOUNT_TYPE[form.account_type].hint}
-        </div>
-
-        {business && (
-          <SubBlock icon={Building2} title="Firmendaten">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="Firmenname" value={form.company_name} onChange={str('company_name')} readOnly={ro} placeholder="Muster AG" required={!form.company_name.trim()} onEnter={saveNow} />
-              {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – dieselbe
-                  Liste wie am Unternehmen (`lib/legal-forms`), nicht eine zweite. */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <AField label="Rechtsform" value={form.legal_form} onChange={str('legal_form')} readOnly={ro}
-                  placeholder={forms[0] ?? 'AG'} required={!form.legal_form.trim()} onEnter={saveNow} list="user-legal-forms" />
-                <datalist id="user-legal-forms">
-                  {forms.map((f) => <option key={f} value={f} />)}
-                </datalist>
-              </div>
-              {/* Die UID ist **freiwillig**: nur MWST-pflichtige Firmen haben eine. */}
-              <div className="sm:col-span-2">
-                <AField label="UID-Nummer" value={form.uid_number} onChange={str('uid_number')} readOnly={ro} placeholder="CHE-123.456.789" onEnter={saveNow} />
-              </div>
+        {/* ►►► **Der FIRMENNAME ist die Erklärung** (Testnotiz #1043). ◄◄◄ Hier stand
+            ein Schalter «Privat ↔ Geschäft» darüber, der die Felder darunter ein- und
+            ausblendete – also eine zweite Angabe über dieselbe Sache. Jetzt steht der
+            Block immer da: **ist der Name gesetzt, ist die Rechtsform Pflicht** (die eine
+            Regel, die bleibt, und der Server weist sie ab), ist er leer, ist es eine
+            Privatperson. Ein Feld statt Schalter plus Feld. */}
+        <SubBlock icon={Building2} title="Firmendaten">
+          <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)', marginBottom: 14, marginTop: -6 }}>
+            Leer: eine Privatperson. Mit Firmennamen steht auf dem Beleg die Rechtsperson,
+            die Person darunter als «z. H.».
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AField label="Firmenname" value={form.company_name} onChange={str('company_name')} readOnly={ro} placeholder="Muster AG" onEnter={saveNow} />
+            {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – dieselbe
+                Liste wie am Unternehmen (`lib/legal-forms`), nicht eine zweite.
+                **Pflicht genau dann, wenn ein Firmenname dasteht.** */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <AField label="Rechtsform" value={form.legal_form} onChange={str('legal_form')} readOnly={ro}
+                placeholder={forms[0] ?? 'AG'} required={!!form.company_name.trim() && !form.legal_form.trim()} onEnter={saveNow} list="user-legal-forms" />
+              <datalist id="user-legal-forms">
+                {forms.map((f) => <option key={f} value={f} />)}
+              </datalist>
             </div>
-          </SubBlock>
-        )}
+            {/* Die UID ist **freiwillig**: nur MWST-pflichtige Firmen haben eine. */}
+            <div className="sm:col-span-2">
+              <AField label="UID-Nummer" value={form.uid_number} onChange={str('uid_number')} readOnly={ro} placeholder="CHE-123.456.789" onEnter={saveNow} />
+            </div>
+          </div>
+        </SubBlock>
 
         {/* Anstellung: im Profil read-only, **im ERP admin-pflegbar** (Notiz #295 –
             «das ERP muss ALLES können»; ``ErpAdminUpdate`` erbt + ergänzt genau das). */}
@@ -465,16 +438,18 @@ function ProfileForm({ record, isAdmin, onSaved }: {
           </SubBlock>
         )}
 
-        {isSupplier && (
-          <SubBlock icon={CreditCard} title="Bankverbindung">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="Kontoinhaber" value={form.bank_account_holder} onChange={str('bank_account_holder')} readOnly={ro} onEnter={saveNow} />
-              <AField label="Bank" value={form.bank_name} onChange={str('bank_name')} readOnly={ro} onEnter={saveNow} />
-              <AField label="IBAN" value={form.bank_iban} onChange={str('bank_iban')} readOnly={ro} onEnter={saveNow} />
-              <AField label="BIC/SWIFT" value={form.bank_bic} onChange={str('bank_bic')} readOnly={ro} onEnter={saveNow} />
-            </div>
-          </SubBlock>
-        )}
+        {/* ►►► **Die Bankverbindung hängt an NICHTS** (Testnotiz #1043). ◄◄◄ Sie hing an
+            der Rolle «Lieferant» – «eine IBAN braucht, wen *wir* bezahlen» –, und genau
+            das ist die Eigenschaft eines **Vorgangs**: eine Erstattung geht an einen
+            Privatkunden, eine Spesenabrechnung an einen Mitarbeiter. */}
+        <SubBlock icon={CreditCard} title="Bankverbindung">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AField label="Kontoinhaber" value={form.bank_account_holder} onChange={str('bank_account_holder')} readOnly={ro} onEnter={saveNow} />
+            <AField label="Bank" value={form.bank_name} onChange={str('bank_name')} readOnly={ro} onEnter={saveNow} />
+            <AField label="IBAN" value={form.bank_iban} onChange={str('bank_iban')} readOnly={ro} onEnter={saveNow} />
+            <AField label="BIC/SWIFT" value={form.bank_bic} onChange={str('bank_bic')} readOnly={ro} onEnter={saveNow} />
+          </div>
+        </SubBlock>
       </Card>
 
       {/* ── 2. Adressen (Lieferung + Rechnung in EINEM Container) ───────────── */}
@@ -488,18 +463,22 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
         <div style={{ height: 1, background: 'var(--border-1)' }} />
 
-        {canEdit ? (
-          <ToggleField label="Rechnungsadresse = Lieferadresse" checked={form.invoice_same_as_shipping}
-            onChange={(x) => set('invoice_same_as_shipping', x)} />
-        ) : (
-          <AField label="Rechnungsadresse = Lieferadresse" value={form.invoice_same_as_shipping ? 'Ja' : 'Nein'} readOnly />
-        )}
+        {/* ►►► **Die Rechnungsadresse ist freiwillig – leer gilt die Lieferadresse**
+            (Testnotiz #1043). ◄◄◄ Hier stand ein Schalter «Rechnungsadresse =
+            Lieferadresse», und er war die zweite Aussage über dieselbe Sache: ob eine
+            eigene hinterlegt ist, sagen die Felder selbst (`voucher.billing_of` liest
+            genau das). Schlimmer, bei «gleich wie» **kopierte** die Oberfläche die
+            Lieferadresse hinein – und die Kopie veraltete beim nächsten Umzug, genau wie
+            damals `invoice_company`. Jetzt gilt dieselbe Regel wie bei der
+            Rechnungs-E-Mail (#1042): **leer heisst erben**, und das sagt das Feld.
 
-        {!form.invoice_same_as_shipping && (canEdit ? (
+            **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
+            Rechnungsadresse ihn als erste Zeile (`people.billing_name`). */}
+        <div style={{ font: '400 12px var(--font-body)', color: 'var(--fg-4)' }}>
+          {INHERITED_ADDRESS}
+        </div>
+        {canEdit ? (
           <>
-            {/* **Kein zweites Firmennamen-Feld** (#1042): bei Kontotyp «Geschäft» trägt
-                die Rechnungsadresse den Firmennamen als erste Zeile, und der steht in den
-                Firmendaten. Eine Kopie daneben veraltete beim ersten Umfirmieren. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="Vorname" value={form.invoice_first_name} onChange={str('invoice_first_name')} onEnter={saveNow} />
               <AField label="Nachname" value={form.invoice_last_name} onChange={str('invoice_last_name')} onEnter={saveNow} />
@@ -515,7 +494,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
             </div>
             <AddrSummary label="Rechnungsadresse" a={invoiceAddress} />
           </>
-        ))}
+        )}
 
         {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Sie ist ein Attribut der
             Rechnungsadresse – nicht der Firma –, gilt für jeden Kontotyp gleichermassen

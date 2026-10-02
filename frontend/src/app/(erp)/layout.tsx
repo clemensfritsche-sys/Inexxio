@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
+import { isStaff } from '@/lib/record-status';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { ScanProvider } from '@/components/scan/scan-provider';
@@ -28,14 +29,18 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
       try {
         const profile = await api.getMe();
         localStorage.setItem(ROLE_KEY, profile.role);
-        // Lieferanten dürfen ins ERP (sehen nur ihre Bestellungen); Kunden nicht.
-        if (profile.role === 'customer') {
+        // ►►► **Ins ERP darf, wer im Haus arbeitet** (Testnotiz #1043). ◄◄◄ Vorher
+        // stand hier «ausser Kunden dürfen alle» – also liess die Sperre jeden Wert
+        // durch, den sie nicht kannte, und ein «Lieferant» landete auf einer Oberfläche,
+        // die ihm der Server danach leer beantwortet. Gefragt wird jetzt dasselbe wie im
+        // Backend (`people.STAFF_ROLES`): zwei Rollen, nicht «nicht diese eine».
+        if (!isStaff(profile.role)) {
           router.replace('/');
           return;
         }
       } catch {
-        const cached = localStorage.getItem(ROLE_KEY);
-        if (cached === 'customer') {
+        // Ohne Antwort gilt der letzte bekannte Stand – und ein unbekannter ist keiner.
+        if (!isStaff(localStorage.getItem(ROLE_KEY))) {
           router.replace('/');
           return;
         }

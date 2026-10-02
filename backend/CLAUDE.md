@@ -1362,3 +1362,55 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > fragt jetzt die Regel. Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema
 > nur aus den Migrationen (je 618); Migration `139` von null · idempotent · downgrade ·
 > re-upgrade · über das Lifespan-Netz verifiziert.
+
+> ►►► **DIE ROLLE IST DER ZUGANG — und der Firmenname die Erklärung** (Testnotiz #1043,
+> Migration `140`). ◄◄◄ Zwei Vereinfachungen, und beide nehmen etwas **weg**; die Hälfte
+> der Vorrunde ist damit zurückgenommen (`domain/accounts.py` ist **gelöscht**).
+>
+> **(1) `Role = Literal["admin", "employee", "user"]`** – «Lieferant» und «Kunde» sind
+> weg. **Lieferant ↔ Kunde ist eine Eigenschaft des VORGANGS**: wer Partner einer Ausgabe
+> ist, ist dort Lieferant, bei einer Einnahme Kunde – dieselbe Person kann beides sein, und
+> eine Spalte am Datensatz muss sich für eines entscheiden. *Gemessen*: die Unterscheidung
+> trug im Backend **nichts** – vier Fundstellen, keine davon ein Tor; jedes echte fragt
+> `people.STAFF_ROLES`. `people.ROLES` ist der Katalog daneben, und ein Wächter hält ihn
+> mit der Tür deckungsgleich.
+>
+> **(2) `people.is_business(u)` = «es steht ein Firmenname da»** – eine Lesestelle, eine
+> Regel. Die dreistufige Auflösung des Kontotyps (Rolle erzwingt → gespeichert →
+> abgeleitet) ist entfallen, mit ihr `AccountType` an der Tür und
+> `UserProfileResponse._effective_account_type`. Geblieben ist **`people.assert_company`**:
+> *Firma gesetzt ⇒ Rechtsform Pflicht* (MWSTG Art. 26), geprüft am **Übergang**, nicht am
+> Bestand – und mit einem **Vorab-Ausstieg**, der das Leeren erlaubt: wer den Namen löscht,
+> sagt «keine Firma mehr», und dann gibt es nichts zu verlangen (genau das ersetzt den
+> Schalter).
+> *Nicht aus «alle Felder gefüllt» ableiten: dann ist nie etwas unvollständig – der Server
+> könnte nie sagen, dass die Rechtsform fehlt. Eine Prüfung braucht eine erklärte Absicht.*
+>
+> **(3) Zwei Anschriften, nicht drei.** Die acht `ship_*` hatten **keinen Leser und keinen
+> Schreiber** (`billing_of` liest als Lieferadresse die **Hauptadresse**), und
+> `invoice_same_as_shipping` war die zweite Aussage darüber, ob eine eigene Rechnungsadresse
+> dasteht – die Felder sagen es, und genau das liest der Dienst. Die Rechnungsadresse ist
+> damit **freiwillig: leer gilt die Lieferadresse**, dieselbe Hausregel wie bei der
+> Rechnungs-E-Mail (#1042). **Die Bankverbindung hängt an nichts** – wen *wir* bezahlen,
+> sagt der Vorgang.
+>
+> ►►► **`people.repair_sql` – eine Datenänderung braucht IMMER auch ein Netz.** ◄◄◄ Zwei
+> Anweisungen an **einer** Stelle, gelesen von Migration `140` **und** vom Lifespan-Netz
+> (die dev-Datenbank fährt kein `alembic upgrade head`, #778): die **Rolle** auf den Zugang
+> ziehen (ohne das wäre jedes Speichern an einer Alt-Zeile ein 422 an einer Angabe, die
+> niemand angefasst hat) und die **kopierte** Rechnungsadresse räumen – nur die exakte
+> Kopie (alle sieben Felder gleich), sonst wäre es Datenverlust.
+> **Und die Liste kommt aus dem Katalog** (`ROLES`): die erste Fassung stand auf
+> `WHERE role NOT IN ('admin','employee')` und schrieb damit bei *jedem* Start jede
+> Nicht-Personal-Zeile neu (gemessen: zweiter Lauf 2 statt 0 Zeilen) – dieselbe Fehlerform
+> wie die Stück-Reparatur in Migration `110`. Geheilt wird, was der Katalog **nicht kennt**.
+> Dazu nimmt `140` dem `invoice_same_as_shipping` seine `NOT NULL` (plus Eintrag im
+> `_NULLABLE_SAFETY_NET`); gedroppt werden die **zwölf** Spalten im Folge-Deploy
+> (`docs/backlog.md`).
+> Wächter: `tests/test_user_record.py` (11 Prüfungen, aus `test_account_type.py`
+> hervorgegangen) – **29 Bug-Formen gegengeprüft, jede meldet**; *sechs waren dabei stumpf*
+> (u. a. ein Anker, der `CompanySettingsUpdate` traf, und ein Testfall mit einer
+> *vollständigen* Firma, wo die Regel ohnehin nicht anfällt). Suite grün gegen die
+> gewachsene Datenbank (609) **und** gegen ein Schema nur aus den Migrationen (617);
+> Migration `140` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
+> verifiziert, ihre **Wirkung** gemessen.

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { isStaff } from '@/lib/record-status';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { LoginDialog } from '@/components/auth/login-dialog';
@@ -165,7 +166,7 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              {(userRole === 'admin' || userRole === 'employee' || userRole === 'supplier') && (
+              {isStaff(userRole) && (
                 <Link
                   href="/erp"
                   className={cn('ix-nav-link', pathname.startsWith('/erp') && 'ix-nav-link-active')}
@@ -349,7 +350,7 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            {(userRole === 'admin' || userRole === 'employee' || userRole === 'supplier') && (
+            {isStaff(userRole) && (
               <Link
                 href="/erp"
                 style={{
