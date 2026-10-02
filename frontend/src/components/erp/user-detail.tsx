@@ -504,9 +504,9 @@ function ProfileForm({ record, isAdmin, onSaved }: {
             <AddrSummary label="Rechnungsadresse" a={invoiceAddress} />
           </>
         ) : (
-          // **Wer nicht ändern darf, sieht die Entscheidung als Satz** – ein Schalter, der
-          // nichts tun kann, ist kein Angebot; eine leere Fläche wäre keine Aussage.
-          <AField label={OWN_ADDRESS} value={OWN_ADDRESS_HINT} readOnly />
+          // **Wer nicht ändern darf, sieht die Entscheidung als Antwort** – ein Schalter,
+          // der nichts tun kann, ist kein Angebot; eine leere Fläche wäre keine Aussage.
+          <AField label={OWN_ADDRESS} value="Nein" hint={OWN_ADDRESS_HINT} readOnly />
         )}
 
         {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Sie ist ein Attribut der
