@@ -544,6 +544,15 @@ def _ensure_columns() -> None:
                 if "amount" in v_cols and "kind" in e_cols:
                     for stmt in vo.invoice_backfill_sql():
                         conn.execute(text(stmt))
+                # ►►► **Jede Zahl ist eine MENGE** (Migration ``141``, #1054–#1056). ◄◄◄
+                #
+                # Ein Korrekturbeleg stand bis hierher im Minus. Die Leser lesen ihn
+                # seither als Menge – ohne diese Drehung wäre der offene Betrag das
+                # Doppelte, und das fängt kein Schema-Netz. Selbstbegrenzend: gedreht
+                # wird nur, was negativ ist.
+                if {"amount", "vat", "corrects_id"} <= v_cols:
+                    for stmt in vo.magnitude_sql():
+                        conn.execute(text(stmt))
             if "user_profiles" in tables:
                 # ►►► **Die Rolle ist der Zugang** (Testnotiz #1043, Migration ``140``).◄◄◄
                 #

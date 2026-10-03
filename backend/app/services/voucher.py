@@ -339,6 +339,27 @@ def corrects(db: Session, row: Voucher) -> Optional[Voucher]:
     return db.query(Voucher).filter(Voucher.id == row.corrects_id).first()
 
 
+def minus(row: Voucher) -> bool:
+    """**Mindert dieser Beleg?** – die eine Lesestelle, und sie fragt kein eigenes Feld.
+
+    Dass ein Verweis dasteht, *ist* die Antwort (``corrects_id``) – ein Flag «ist
+    Gutschrift» daneben wäre die zweite Wahrheit, und die eine vergessene Nachzieh-Stelle
+    fällt erst auf, wenn ein Beleg das Falsche behauptet.
+    """
+    return row.corrects_id is not None
+
+
+def inbound(row: Voucher) -> bool:
+    """►►► **Kommt das Geld zu UNS?** ◄◄◄ Richtung **und** Minderung, an einer Stelle.
+
+    Daran hängen die drei Dinge, die eine Gutschrift wirklich anders machen: der
+    **Zahlungsdienst** (er zieht ein), der **Einzahlungsschein** (er trägt unsere
+    Bankverbindung) und das Wort am Geld-Knopf. Nicht daran hängt, wer den Beleg
+    **ausstellt** – das bleibt ``collects``.
+    """
+    return vo.inbound(collects=vo.of(row.direction).collects, minus=minus(row))
+
+
 # ---------------------------------------------------------------------------
 # ►►► DIE POSITIONEN — eine Form, und die Stufe friert sie ein ◄◄◄
 # ---------------------------------------------------------------------------
@@ -698,11 +719,16 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     # fliesst (ein Zahlungsdienst zieht ein, er überweist nicht in unserem Namen), nur mit
     # eingerichtetem Dienst (sonst ein Knopf, der garantiert in einem leeren Dialog
     # endet), und nur wenn etwas **offen** ist.
-    if not (flow.collects and payment_service_ready() and balance_of(db, row).open > 0):
+    #
+    # ►►► **Gefragt ist ``inbound``, nicht ``collects``.** ◄◄◄ An einer **Gutschrift**
+    # zahlen *wir* zurück – dort gibt es den Knopf also nicht, und das ist richtig. Bis
+    # hierher fiel er ebenfalls weg, aber aus dem falschen Grund: der Betrag war negativ,
+    # und ``open > 0`` traf nie zu (#1054). Ein Zufall, der stimmt, ist keine Regel.
+    if not (inbound(row) and payment_service_ready() and balance_of(db, row).open > 0):
         out = [a for a in out if a != "pay_online"]
     # **Zurückerstatten geht nur, wo auch eingezogen wurde** – und nur, wenn eine
     # Karten-Zahlung dasteht, die man zurückgeben kann.
-    if not (flow.collects and payment_service_ready() and refundable(db, row)):
+    if not (inbound(row) and payment_service_ready() and refundable(db, row)):
         out = [a for a in out if a != "refund_online"]
     if viewer is not None and viewer.role not in STAFF_ROLES:
         # Die Gegenpartei darf nur, was ihre Rolle im Beleg hergibt – und nur, solange sie
@@ -743,6 +769,18 @@ def assert_allowed(db: Session, row: Voucher, action: str,
                        f"{'n' if len(missing) > 2 else ''})" if len(missing) > 1 else "")),
         )
     flow = vo.of(row.direction)
+    # ►►► **Und der Satz nennt den RICHTIGEN Grund** (gemessen bei #1057). ◄◄◄ Er sprach
+    # immer von der Stufe – auch dort, wo sie stimmte und allein der **Zugang** fehlte: ein
+    # Lieferant, der die Währung ändern wollte, las «geht hier nicht: der Beleg steht auf
+    # ‹Anfrage›», und genau dort stand er ja. Eine Begründung, die nicht stimmt, schickt
+    # jemanden in die falsche Richtung.
+    if (action in VERBS and not VERBS[action].allows(flow)
+            and viewer is not None and viewer.role not in STAFF_ROLES):
+        raise HTTPException(
+            status_code=409,
+            detail=(f"«{action}» ist an diesem Beleg nicht Ihre Handlung – darüber "
+                    f"entscheidet die andere Seite."),
+        )
     raise HTTPException(
         status_code=409,
         detail=(f"«{action}» geht hier nicht: der Beleg steht auf "
@@ -1157,10 +1195,12 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     Rechnung. Wo die Gegenpartei ihn nennt, schreiben wir ihre Summe ab, und der Satz wird
     dabei gefragt: die Steuer steht auf *ihrem* Papier.
 
-    ►►► **Eine Korrektur MINDERT — und das Vorzeichen setzt diese Stelle.** ◄◄◄ Die
-    Positionen tragen positive Preise (niemand tippt ein Minus), und wo ``corrects_id``
-    steht, wird daraus ein negativer Betrag samt gespiegelter Steuer. Danach rechnet jede
-    Zahl vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
+    ►►► **Eine Korrektur MINDERT — und trägt trotzdem eine Menge.** ◄◄◄ Hier stand das
+    Vorzeichen: wo ``corrects_id`` steht, wurde aus der Summe ein **negativer** Betrag
+    samt gespiegelter Steuer. Das war die Grundursache von #1054/#1055/#1056 – drei Leser
+    fragen «grösser null?», und bei einer Gutschrift ist der Betrag das nie. Jetzt steht
+    hier die Menge, und *dass* der Beleg mindert, sagt ``corrects_id`` – dem Wort auf dem
+    Knopf («Gutschrift stellen») und, wenn es sie einmal gibt, der Buchhaltung.
 
     **Die Nummer wird genau einmal vergeben** und bleibt danach am Beleg – auch wenn die
     Rechnung zurückgenommen und neu gestellt wird: sie ist nie hinausgegangen, es gibt sie
@@ -1203,11 +1243,10 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     elif not row.number:
         row.number = _our_number(db, order)
     booked = _day(data.get("billed_on")) or date.today()
-    minus = row.corrects_id is not None
     row.billed_on = booked
     row.due_on = _due(booked, due_days_of(db, row))
-    row.amount = -gross if minus else gross
-    row.vat = _mirror(split, row.currency) if minus else split
+    row.amount = gross
+    row.vat = split
     # **Das Leistungsdatum kommt aus dem PROZESS** – der Tag, an dem die Stücke dieses
     # Modul erreicht haben. Das Rechnungsdatum ist es nicht: eine zwei Wochen später
     # geschriebene Rechnung verschöbe die Steuerperiode (MWSTG Art. 26 Bst. c).
@@ -1215,17 +1254,10 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.stage = vo.BILLED
 
 
-def _mirror(split: list[dict[str, str]], code: str) -> list[dict[str, str]]:
-    """Die Steuer-Aufteilung **gespiegelt** – für einen Beleg, der mindert.
-
-    Gespiegelt wird die ganze Zeile, nicht nur ihre Zahlen: Schlüssel, Name und
-    Pflichtsatz gehören zur Aussage, die zurückgenommen wird – sonst verlöre die
-    Gutschrift ausgerechnet den Rechtsgrund, den sie mindert.
-    """
-    return [{**r,
-             "net": cur.money(-Decimal(r["net"]), code),
-             "tax": cur.money(-Decimal(r["tax"]), code)}
-            for r in split]
+# *Hier stand ``_mirror`` – die Steuer-Aufteilung gespiegelt, für einen Beleg, der
+# mindert. Mit dem Vorzeichen ist sie entfallen (Testnotizen #1054–#1056): eine Gutschrift
+# nennt Netto und Steuer als **Menge**, so wie sie auf dem Papier steht, und das Minus
+# gehört der Buchhaltung.*
 
 
 def _unbill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1346,7 +1378,16 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 #: erklärt. Beim Vorgänger waren es vier Stellen, und die vierte vergass man.
 VERBS: dict[str, Verb] = {
     # **Vor der Zusage** – hier wird der Beleg geschrieben.
-    "currency": Verb(stages=(vo.OFFER,), run=_currency),
+    # ►►► **Die Währung gehört dem, der den Preis nennt** (Testnotiz #1057). ◄◄◄
+    #
+    # *«Ich denke, die Währung, in der ein Lieferant etwas offeriert, soll er selbst wählen
+    # können – das obliegt nicht mir.»* – Richtig, und es ist genau die Regel, die ``quote``
+    # schon trägt: wer den Preis nennt, nennt ihn in seiner Währung. Es ist damit **ein
+    # Wert** in dieser Tabelle und keine Zeile Code daneben – die Oberfläche fragt längst
+    # ``may(d, 'currency')``.
+    #
+    # Bei einer **Einnahme** bleibt sie unsere: dort nennen wir den Preis.
+    "currency": Verb(stages=(vo.OFFER,), run=_currency, party=IF_THEY_PRICE),
     "issuer": Verb(stages=(vo.OFFER,), run=_issuer),
     "incoterm": Verb(stages=(vo.OFFER,), run=_incoterm),
     # **Die beiden Fristen** (Testnotiz #985) – wie jeder andere änderbare Wert des Belegs
@@ -1560,7 +1601,7 @@ def record_payment(db: Session, *, row: Voucher, amount: Decimal,
 
 
 def correctable(db: Session, row: Voucher, step: ProcessStep, *,
-                limit: int = 20) -> list[dict[str, Any]]:
+                search: str = "", limit: int = 20) -> list[dict[str, Any]]:
     """►►► **Welche Rechnungen lassen sich mit diesem Beleg korrigieren?** ◄◄◄
 
     Gesucht wird über **alle Aufträge** – das ist der Kern dieser Runde: die Gutschrift
@@ -1580,21 +1621,31 @@ def correctable(db: Session, row: Voucher, step: ProcessStep, *,
     Der Partner eines Ziels ist eine **Ableitung** (die gewählte Angebotszeile), also
     lässt er sich nicht in der Datenbank filtern; gelesen wird darum eine grosszügige
     Seite und danach gefiltert. Bei einer Handvoll Belegen je Partner kostet das nichts.
+
+    ►►► **``search`` sucht die Rechnungsnummer** (Testnotiz #1050). ◄◄◄ Dieselbe Bedingung
+    wie jede Referenz-Suche im Haus – ein Teilstring, nicht eine fertige Liste. Gesucht
+    wird in der **Datenbank**, nicht nachträglich im Python: sonst filterte man die Seite,
+    die man ohnehin schon gekappt hat, und der gesuchte Beleg wäre genau der, der nicht
+    mehr darin steht.
+
+    *Eine **Kamera** gibt es dafür nicht: eine Rechnung zieht keine Objektnummer, es kann
+    für sie gar kein Etikett geben – dieselbe Regel wie bei der Einzelinstanz.*
     """
     wanted = set(_possible_parties(db, row, step))
     if not wanted:
         return []
-    rows = (
+    q = (
         db.query(Voucher)
         .filter(Voucher.is_active.is_(True),
                 Voucher.direction == row.direction,
                 Voucher.billed_on.isnot(None),
                 Voucher.corrects_id.is_(None),
                 Voucher.id != row.id)
-        .order_by(Voucher.billed_on.desc(), Voucher.id.desc())
-        .limit(limit * 5)
-        .all()
     )
+    text = (search or "").strip()
+    if text:
+        q = q.filter(Voucher.number.ilike(f"%{text}%"))
+    rows = q.order_by(Voucher.billed_on.desc(), Voucher.id.desc()).limit(limit * 5).all()
     found = [r for r in rows if party_of(db, r) in wanted][:limit]
     numbers = {
         o.id: o.object_id
@@ -1648,9 +1699,15 @@ def completion_problem(db: Session, *, step: ProcessStep) -> Optional[str]:
         return None
     money = balance_of(db, row)
     if not money.settled:
-        return (f"«{flow.label}» wartet auf den Zahlungseingang: {money.paid} von "
-                f"{money.agreed} bezahlt. So ist es vereinbart – "
-                f"{vo.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter.")
+        # ►►► **Und die Zahlen stehen als Beträge da, nicht als rohe Dezimalzahl.** ◄◄◄
+        # «0 von 43.2400 bezahlt» ist die Spalte, nicht das Geld. Das **Wort** folgt aus
+        # derselben einen Frage wie überall (mindert der Beleg?): eine Gutschrift wartet
+        # auf die **Erstattung**, nicht auf einen Zahlungseingang.
+        noun = vo.REFUND_NOUN if minus(row) else vo.PAYMENT_NOUN
+        return (f"«{flow.label}» wartet auf die {noun}: "
+                f"{_money(money.paid, row.currency)} von "
+                f"{_money(money.agreed, row.currency)} {row.currency}. So ist es "
+                f"vereinbart – {vo.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter.")
     return None
 
 
@@ -2345,8 +2402,18 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # ►►► **«Rechnung stellen» ↔ «Rechnung erfassen»** – die eine Angabe der Richtung
         # an dieser Stelle: im einen Fall entsteht der Beleg hier, im anderen schreiben
         # wir einen fremden ab.
-        "charge_word": flow.charge_verb,
-        "payment_word": vo.PAYMENT_WORD,
+        # ►►► **Hier wird eine Gutschrift SICHTBAR** (Testnotizen #1054–#1056). ◄◄◄ Der
+        # Belegkopf nennt bewusst keine Belegart (#974/#977), also sagen es die Wörter auf
+        # den Knöpfen – dort, wo man handelt: «Gutschrift stellen» statt «Rechnung
+        # stellen», «Erstattung erfassen» statt «Zahlung erfassen». Beide aus Bits
+        # zusammengesetzt, nicht aus einer Tabelle mit vier Sätzen.
+        "charge_word": vo.charge_word(collects=flow.collects, minus=minus(row)),
+        "payment_word": vo.payment_word(minus=minus(row)),
+        # **Die drei Momente, die der Beleg erzählt** (#1052) – als Wörter, denn die Form
+        # («Vor 3 Tagen offeriert») baut die Oberfläche, und zwar an einer Stelle.
+        "sent_word": vo.SENT_WORD,
+        "taken_word": vo.TAKEN_WORD,
+        "cancelled_word": vo.CANCELLED_WORD,
         "pay_online_word": vo.PAY_ONLINE_WORD,
         "unbill_word": vo.UNBILL_WORD,
         # ►►► **Zwei Fächer statt einer Überschrift über allem.** ◄◄◄ *Was schuldet uns
@@ -2413,7 +2480,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         #
         # **Es gibt sie, sobald die Rechnung steht** – welche gemeint ist, fragt niemand
         # mehr: je Modul gibt es eine.
-        "ways": _ways(allowed, collects=flow.collects) if (billed and won) else [],
+        "ways": (_ways(allowed, inbound=inbound(row), minus=minus(row))
+                 if (billed and won) else []),
         # ►►► **Kleinbetragstoleranz – angeboten, nie automatisch.** ◄◄◄ Ein Restsaldo
         # unter einem Franken darf als **Differenz ausgebucht** werden: eine ganz
         # gewöhnliche Zahlung mit Gegenvorzeichen und dem Vermerk «Rundungsdifferenz» –
@@ -2517,7 +2585,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     }
 
 
-def _ways(allowed: list[str], *, collects: bool) -> list[dict[str, Any]]:
+def _ways(allowed: list[str], *, inbound: bool, minus: bool) -> list[dict[str, Any]]:
     """►►► **Die Wege zum Geld – als EINE Frage mit mehreren Antworten.** ◄◄◄
 
     *«Bar · Überweisung · Karte»* standen als drei Knöpfe an der Rechnungszeile, in
@@ -2539,6 +2607,7 @@ def _ways(allowed: list[str], *, collects: bool) -> list[dict[str, Any]]:
     Massstab, und der bekäme die nächste Regel nicht mit.
     """
     books = "pay" in allowed
+    word = vo.payment_word(minus=minus)
     out: list[dict[str, Any]] = []
 
     def way(key: str, action: Optional[str], verb: Optional[str],
@@ -2547,13 +2616,15 @@ def _ways(allowed: list[str], *, collects: bool) -> list[dict[str, Any]]:
                 "action": action, "verb": verb, "info": info}
 
     if books:
-        out.append(way(vo.CASH, "pay", vo.PAYMENT_WORD))
+        out.append(way(vo.CASH, "pay", word))
     # **Der Einzahlungsschein trägt UNSERE Bankverbindung** – es gibt ihn also nur, wo das
-    # Geld zu uns fliesst. Als *Buchungsart* bleibt die Überweisung trotzdem überall
-    # wählbar: auch eine Ausgabe wird überwiesen.
-    if books or collects:
+    # Geld **zu uns** fliesst (``inbound``, nicht ``collects``: an einer Gutschrift zahlen
+    # wir zurück, und ein Einzahlungsschein über unser Konto wäre dort die Aufforderung,
+    # uns zu bezahlen). Als *Buchungsart* bleibt die Überweisung trotzdem überall wählbar:
+    # auch eine Ausgabe wird überwiesen.
+    if books or inbound:
         out.append(way(vo.TRANSFER, "pay" if books else None,
-                       vo.PAYMENT_WORD if books else None, info=collects))
+                       word if books else None, info=inbound))
     if "pay_online" in allowed:
         out.append(way(vo.CARD, "pay_online", vo.PAY_ONLINE_WORD))
     return out
@@ -2626,7 +2697,10 @@ def _stages(row: Voucher, flow: vo.Direction) -> list[dict[str, Any]]:
     wie einen, bei dem nie etwas geschehen ist.
     """
     order = list(vo.STAGES)
-    verbs = {vo.OFFER: vo.AGREE_VERB, vo.AGREED: flow.charge_verb,
+    # **Das Verb der mittleren Stufe nennt die Belegart** – «Rechnung stellen» ↔
+    # «Gutschrift stellen» (``charge_word``): zwei Bits, nicht vier fertige Sätze.
+    verbs = {vo.OFFER: vo.AGREE_VERB,
+             vo.AGREED: vo.charge_word(collects=flow.collects, minus=minus(row)),
              vo.BILLED: vo.FINISH_VERB}
     # Storniert und erledigt wird erst ab der Zusage – so weit war er also. **Wie weit
     # genau, sagt die Rechnung**: ein erledigter Beleg mit Rechnung hat alle drei hinter

@@ -8107,12 +8107,16 @@ def test_the_chronicle_is_gone_and_its_dates_stand_where_they_belong():
     # `localDateTime(`, also die Namen der damaligen Helfer in dieser Datei. Sie gibt es
     # nicht mehr: Datum und Uhrzeit haben im Haus **eine** Stelle.
     quotes = _component(src, "Quotes")
-    assert "q.sent_at" in quotes and "when(" in quotes, (
+    # **Die Form heisst seit #1052 `happened`** («Vor 3 Tagen offeriert») – gefragt ist
+    # die Regel «der Abschnitt sagt es», nicht der Name des damaligen Helfers.
+    assert "q.sent_at" in quotes and "happened(" in quotes, (
         "Der Abschnitt sagt nicht mehr, wann offeriert wurde (b/c)."
     )
-    assert "formatWhen(" in quotes, "Die genaue Zeit fehlt im Hover (d)."
+    assert re.search(r"happened\([^)]*\)\.title", quotes), (
+        "Die genaue Zeit fehlt im Hover (d)."
+    )
     row = _component(src, "QuoteRow")
-    assert "d.agreed_at" in row and "when(" in row and "formatWhen(" in row, (
+    assert "d.agreed_at" in row and re.search(r"happened\([^)]*\)\.title", row), (
         "Die Zeile sagt nicht, wann sie den Zuschlag bekam (b/c/d)."
     )
     # **Und der Storno steht im Kopf** – er war die dritte Zeile der Chronik.
@@ -8240,7 +8244,12 @@ def test_a_hover_note_is_as_wide_as_its_own_text():
     assert "d.agreed_at" in head, (
         "Die Angabe steht wieder unter der Kopfzeile (b) statt neben dem Betrag."
     )
-    assert "formatWhen(d.agreed_at)" in head, "Die Tatsache fehlt im Hover (c)."
+    # **Die Tatsache steht im Hover** – seit #1052 liefert sie `happened(…).title`, die
+    # eine Form für «Zeit + Vorgang». Gefragt ist, dass sie **da** ist, nicht welcher
+    # Helfer sie baut: ein Wächter auf den Namen verbietet die bessere Fassung.
+    assert re.search(r"happened\(d\.agreed_at[^)]*\)\.title", head), (
+        "Die Tatsache fehlt im Hover (c)."
+    )
     # (d) **Ein Bauteil, drei Aufrufstellen** – wann offeriert, wann angenommen, wie
     # bestellt. Dreimal dieselben vier Werte wären dreimal die Chance, dass einer abweicht.
     assert src.count("<Note ") + src.count("<Note>") >= 3, (
@@ -8451,21 +8460,28 @@ def test_an_invoice_is_issued_here_and_recorded_there():
     sys.path.insert(0, str(BACKEND))
     from app.domain import voucher as vo
 
-    assert vo.of("in").charge_verb != vo.of("out").charge_verb, (
-        "Beide Richtungen sagen dasselbe (a)."
-    )
-    assert vo.of("in").charge_verb == "Rechnung stellen", (
+    # **Zwei Bits statt vier Sätzen** (#1054–#1056): mit der **Gutschrift** kam eine
+    # zweite Frage dazu, und vier fertige Sätze wären vier Stellen, an denen einer
+    # stehenbleibt. Gefragt ist die Regel, nicht die Form von damals.
+    issued = vo.charge_word(collects=True, minus=False)
+    recorded = vo.charge_word(collects=False, minus=False)
+    assert issued != recorded, "Beide Richtungen sagen dasselbe (a)."
+    assert issued == "Rechnung stellen", (
         "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
+    )
+    assert vo.charge_word(collects=True, minus=True) == "Gutschrift stellen", (
+        "Eine Gutschrift nennt sich nicht – dann sagt nichts auf der Karte, dass dieser "
+        "Beleg mindert (a)."
     )
     assert not hasattr(vo, "CHARGE_WORD"), (
         "Das Wort steht wieder als eine Konstante für beide Richtungen da (b)."
     )
     src = (BACKEND / "app" / "services" / "voucher.py").read_text()
-    assert '"charge_word": flow.charge_verb' in src, (
-        "Der Beleg schickt nicht das Wort seiner Richtung (b)."
+    assert '"charge_word": vo.charge_word(' in src, (
+        "Der Beleg schickt nicht das Wort seiner Lage (b)."
     )
     card = _code(_beleg())
-    for word in ("Rechnung stellen", "Rechnung erfassen"):
+    for word in ("Rechnung stellen", "Rechnung erfassen", "Gutschrift stellen"):
         assert word not in card, f"«{word}» steht als Literal in der Karte (c)."
 
 
@@ -10271,4 +10287,169 @@ def test_every_amount_field_names_its_currency():
     assert "return null" not in sums, (
         "Die Aufstellung verschwindet (d) – mit ihr der Währungs-Wähler bei einer "
         "Ausgabe, und beim Buchen wächst sie in den Beleg hinein."
+    )
+
+
+def test_time_comes_before_what_happened():
+    """►►► **Zeit zuerst, dann der Vorgang — und die Form steht EINMAL** (#1052). ◄◄◄
+
+    *«Kann man das hier und sonst überall, wo diese Logik vorhanden ist, umdrehen und
+    sagen: Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»*
+
+    Es stand andersherum («offeriert · vor 3 Tagen»), und zwar an **drei** Stellen von
+    Hand. Das ist keine Eigenschaft einer Zeile, sondern die Form einer Aussage über einen
+    Vorgang – also wohnt sie bei der einen Datums-Ausgabe des Hauses (`lib/when.happened`)
+    und nicht dreimal in der Karte.
+
+    Bug-Formen: (a) `happened` gibt es nicht; (b) eine Aufrufstelle baut «Wort · Zeit»
+    wieder selbst; (c) der Satzanfang wird nicht gross geschrieben (dann stehen «Gerade
+    eben» und «vor 3 Tagen» nebeneinander).
+    """
+    when_src = _read(FRONTEND / "lib" / "when.ts")
+    assert "export function happened(" in when_src, (
+        "Die Form steht nicht bei der Datums-Ausgabe (a) – dann baut sie jede "
+        "Aufrufstelle selbst."
+    )
+    assert "toUpperCase()" in _code(_body(when_src, "happened", kind="function")), (
+        "Der Satzanfang bleibt klein (c): «vor 3 Tagen offeriert» neben «Gerade eben "
+        "zugesagt» sind zwei Formen derselben Aussage."
+    )
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    # (b) **Niemand baut es mehr selbst** – gesucht wird die alte Form «Wort · {when(…)}».
+    assert not re.search(r"[a-zäöü]+ · \{when\(", work), (
+        "Eine Aufrufstelle setzt «Wort · Zeit» wieder von Hand zusammen (b)."
+    )
+    assert work.count("happened(") >= 3, (
+        f"Nur {work.count('happened(')} Aufrufstellen nennen die Form – es sind drei "
+        f"(storniert · offeriert · angenommen)."
+    )
+    # ►►► **Und die WÖRTER kommen vom Server.** ◄◄◄ Sie standen in der Karte, und ein
+    # bestehender Wächter hat genau das gemeldet: so entsteht der zweite Ort für dasselbe
+    # Wort. Die **Form** baut die Oberfläche, die Wörter reisen mit.
+    from app.domain import voucher as dm
+    for word in (dm.SENT_WORD, dm.TAKEN_WORD, dm.CANCELLED_WORD):
+        assert f"'{word}'" not in work, (
+            f"«{word}» steht in der Karte – damit gibt es das Wort zweimal."
+        )
+    for field in ("d.sent_word", "v.taken_word", "d.cancelled_word"):
+        assert field in work, f"Die Karte liest «{field}» nicht."
+
+
+def test_a_state_stands_once_per_line():
+    """►►► **Ein Zustand steht EINMAL je Zeile** (Testnotiz #1053). ◄◄◄
+
+    *«Braucht es diesen Status, denn ich habe gleich links daneben nochmals ‹angenommen›?
+    Ich möchte einfach Doppelspurigkeiten vermeiden.»*
+
+    An der zugesagten Angebotszeile stand «Vor 3 Tagen angenommen» **und** daneben das
+    Wort «Zugesagt». Die Aussage mit der Zeit sagt mehr, also bleibt sie – und trägt den
+    Ton des Zustands, damit nichts verlorengeht. **`quoteLook` bleibt**: es benennt die
+    drei übrigen Ausgänge (unterlegen · unbeantwortet · abgesagt) und den Hover.
+
+    Bug-Formen: (a) beide stehen wieder da; (b) das Wort ist ganz gelöscht, und die
+    übrigen Zeilen sagen nichts mehr.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "beleg-work.tsx")
+    row = _code(_component(src, "QuoteRow"))
+    assert "!taken" in row, (
+        "Das Wort steht neben der Aussage, die es wiederholt (a)."
+    )
+    assert "quoteLook(" in row and "look.label" in row, (
+        "Die übrigen Ausgänge haben ihr Wort verloren (b) – «unbeantwortet» und "
+        "«abgesagt» stehen an keiner Zahl."
+    )
+
+
+def test_the_section_head_is_one_step_above_a_field_label():
+    """►►► **Kopf und Feld-Label waren dieselbe Schrift** (Testnotiz #1051). ◄◄◄
+
+    *«Kann man die Überschriften der Kategorien etwas prägnanter machen – im Stil, nicht
+    im Text? Es geht irgendwie so unter.»*
+
+    Gemessen war die Hierarchie flach: der Abschnittskopf trug `MICRO_LABEL`, und genau
+    dasselbe trägt jede Beschriftung **in** einem Abschnitt. Er trägt jetzt das
+    **Overline**-Register des Design-Systems – eine Stufe darüber, und als **Token**, nicht
+    als geratene Zahl.
+
+    Bug-Formen: (a) der Kopf trägt wieder `MICRO_LABEL`; (b) die Grösse steht als Zahl
+    da; (c) `MICRO_LABEL` selbst wird angefasst – dann wandert die Beschriftung mit, und
+    der Abstand zwischen den Ebenen ist wieder null.
+    """
+    ui = _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
+    head = _code(_component(ui, "ModuleSection"))
+    assert "var(--overline)" in head and "var(--tracking-overline)" in head, (
+        "Der Abschnittskopf trägt nicht das Overline-Register (a/b) – dann steht er auf "
+        "derselben Stufe wie die Beschriftung eines Feldes darunter."
+    )
+    assert "MICRO_LABEL" not in head, "Der Kopf trägt wieder die leise Beschriftung (a)."
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    assert "font: '700 11px var(--font-body)'" in fields, (
+        "`MICRO_LABEL` ist angefasst worden (c) – es trägt im ganzen Haus die leisen "
+        "Beschriftungen, und von ihnen soll sich der Kopf abheben."
+    )
+
+
+def test_the_form_asks_for_the_number_the_service_demands():
+    """►►► **Eine Rechnung hat immer eine Nummer** (Testnotiz #1058). ◄◄◄
+
+    *«Wenn die Zahlungsreferenz nicht ausgefüllt war, dann war der Button zum die Rechnung
+    erstellen trotzdem aktiv und nicht deaktiviert mit entsprechendem Hinweis.»*
+
+    Gemessen: der Dienst weist `bill` ohne sie mit **400** ab, und das Formular liess
+    «Buchen» zu. Zwei Formen einer Regel, ein Massstab – der Grund steht **am Knopf**,
+    nicht nach dem Klick (dieselbe Regel wie #1046).
+
+    Bug-Formen: (a) der Knopf bleibt offen; (b) es gibt keinen Grund im Hover; (c) die
+    **Zahlung** verlangt sie plötzlich auch (eine Barzahlung hat keine Referenz).
+    """
+    src = _read(FRONTEND / "components" / "erp" / "beleg-work.tsx")
+    entry = _code(_component(src, "Entry"))
+    assert "missingRef" in entry and "&& !missingRef" in entry, (
+        "«Buchen» bleibt offen, obwohl der Dienst gleich darauf mit 400 abweist (a)."
+    )
+    assert re.search(r"tip=\{missingRef", entry), (
+        "Der gesperrte Knopf sagt nicht, warum (b)."
+    )
+    assert "kind === 'bill' && !!d.ref_label" in entry, (
+        "Die Pflicht hängt nicht an der Rechnung (c) – eine Barzahlung hat keine Referenz."
+    )
+
+
+def test_the_correction_target_is_searched_like_every_reference():
+    """►►► **«Korrektur zu» ist das Suchfeld des Hauses** (Testnotiz #1050). ◄◄◄
+
+    *«Es wäre schön, wenn dies wie jedes andere Suchfeld wäre – hier haben wir ja eine
+    global gültige Logik, etablieren mit Suchfeld, Scan-Possibility usw.»*
+
+    Es war ein natives `<select>` mit einer fertigen Liste – richtig bei einer Handvoll
+    Belegen, falsch beim hundertsten. Jetzt dieselbe Bauart wie jede Referenz:
+    `SearchSelect` mit Server-Suche.
+
+    ►►► **Und bewusst OHNE Kamera.** ◄◄◄ Eine Rechnung zieht keine Objektnummer – es kann
+    für sie gar kein Etikett geben (dieselbe Regel wie bei der Einzelinstanz). Ein
+    Scan-Knopf wäre ein Angebot, das nie etwas treffen kann.
+
+    Bug-Formen: (a) wieder eine fertige Liste ohne Suche; (b) der Suchtext erreicht den
+    Server nicht; (c) jemand hängt eine Kamera daran.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "beleg-work.tsx")
+    find = _code(_component(src, "DocFind"))
+    assert "<SearchSelect" in find and "search={search}" in find, (
+        "Der Wähler ist kein Suchfeld (a)."
+    )
+    assert "ObjectSelect" not in find, (
+        "Eine Kamera an einem Beleg, der kein Etikett haben kann (c)."
+    )
+    correction = _code(_component(src, "Correction"))
+    assert "<DocFind" in correction, "«Korrektur zu» ist wieder ein `<select>` (a)."
+    # **Und der Suchtext erreicht den Server** – gelesen im Rumpf **dieser** Methode:
+    # `?search=${encodeURIComponent(…)}` steht in `api.ts` auch an der Halter-Suche, und
+    # ein Wächter, der die ganze Datei liest, war damit von ihr erfüllt (gemessen – die
+    # eigene Bug-Form ging durch).
+    whole = _read(FRONTEND / "lib" / "api.ts")
+    start = _at(whole, "voucherCorrectable")
+    api = _code(whole[start:whole.index("\n  }", start)])
+    assert re.search(r"search=\$\{encodeURIComponent", api), (
+        "Der Suchtext erreicht den Server nicht (b) – dann filtert der Browser eine "
+        "Seite, die ohnehin gekappt ist."
     )

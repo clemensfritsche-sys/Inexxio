@@ -258,6 +258,20 @@ def test_who_may_act_follows_from_who_names_the_price():
         assert svc.VERBS["decline"].allows(flow), (
             "Absagen ist die eine Antwort, die in beide Richtungen dasselbe bedeutet (c)."
         )
+    # ►►► **Und die WÄHRUNG folgt derselben Regel** (Testnotiz #1057). ◄◄◄
+    #
+    # *«Ich denke, die Währung, in der ein Lieferant etwas offeriert, soll er selbst wählen
+    # können – das obliegt nicht mir.»* – Es ist genau die Regel, die ``quote`` schon
+    # trägt: wer den Preis nennt, nennt ihn in seiner Währung. Darum **ein Wert** in der
+    # Tabelle und keine Zeile daneben – die Oberfläche fragt längst ``may(d,'currency')``.
+    #
+    # Bug-Formen: (d) sie bleibt überall unsere; (e) sie wird bei einer Einnahme seine.
+    assert svc.VERBS["currency"].allows(expense), (
+        "Der Lieferant offeriert in einer Währung, die wir für ihn festlegen (d)."
+    )
+    assert not svc.VERBS["currency"].allows(income), (
+        "Der Kunde wählt die Währung unserer Offerte (e)."
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -980,44 +994,44 @@ def test_a_correction_may_live_in_another_order():
             "man die Gutschrift dort stellen, wo die Ware nicht ist."
         )
         assert found[0]["order_object_id"] == order.object_id
-    finally:
-        db.rollback(); db.close()
-
-
-def test_a_correction_is_stored_with_a_negative_amount():
-    """►►► **Die Positionen tragen positive Preise — das Vorzeichen setzt ``bill``.** ◄◄◄
-
-    «3 × Getriebe à 200» ist die Aussage, und sie ist MWST-korrekt. Danach rechnet **jede**
-    Zahl vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
-
-    Bug-Form: ``amount`` bleibt positiv, der Saldo addiert statt zu mindern.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.services import voucher as svc
-    db = _db()
-    try:
-        order, step, row, who, _art = _agreed(db)
-        svc.apply(db, order=order, step=step, action="bill", payload={})
-        back_order, back_step, back = _credit(db, target=row, who=who[0])
-        svc.apply(db, order=back_order, step=back_step, action="bill", payload={})
-        db.flush()
-        assert back.amount is not None and back.amount < 0, (
-            f"Die Gutschrift steht mit {back.amount} da – positiv addiert sie, statt zu "
-            f"mindern."
+        # ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄
+        #
+        # *«Hier haben wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Eine
+        # fertige Liste war bei einer Handvoll Belegen richtig und ist es beim hundertsten
+        # nicht mehr. Gesucht wird in der **Datenbank**: nachträglich im Python gefiltert
+        # wäre es die Seite, die ohnehin schon gekappt ist – und der gesuchte Beleg genau
+        # der, der nicht mehr darin steht.
+        #
+        # Bug-Formen: die Suche wird verworfen · sie trifft die Nummer nicht.
+        assert row.number, "Die Rechnung trägt keine Nummer."
+        hit = svc.correctable(db, back, back_step, search=row.number[-4:])
+        assert [r["id"] for r in hit] == [row.id], (
+            f"Die Suche nach «{row.number[-4:]}» findet {len(hit)} Belege statt genau den "
+            f"gesuchten."
         )
-        assert svc.balance_of(db, back).open < 0, "Der Saldo mindert nicht."
+        assert svc.correctable(db, back, back_step, search="zzz-gibt-es-nicht") == [], (
+            "Die Suche wird verworfen – die Liste kommt unverändert zurück."
+        )
     finally:
         db.rollback(); db.close()
 
 
-def test_a_correction_mirrors_the_tax_split():
-    """**Gespiegelt wird die ganze Zeile, nicht nur ihre Zahlen.**
+def test_a_correction_is_a_magnitude_like_every_other_number():
+    """►►► **Jede Zahl auf dem Beleg ist eine MENGE** (Testnotizen #1054–#1056). ◄◄◄
 
-    Schlüssel, Name und Pflichtsatz gehören zur Aussage, die zurückgenommen wird – sonst
-    verlöre die Gutschrift ausgerechnet den Rechtsgrund, den sie mindert.
+    *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben – denn am Anfang sage ich
+    ja, ob es eine Ein- oder Ausgabe ist.»*
 
-    Bug-Form: die Steuer wird nicht gespiegelt.
+    Hier stand das Gegenteil (*«das Vorzeichen setzt ``bill``»*), und genau daraus kamen
+    **drei** Meldungen: drei Leser fragen «grösser null?», und bei einer Gutschrift ist der
+    Betrag das nie – ``pay_online`` fiel weg, ``next_payment`` blieb leer, und ``settled``
+    war strukturell unerreichbar.
+
+    Geprüft wird darum die **ganze Kette**, nicht nur die Spalte: Betrag, Steuer, der
+    Vorschlag, die Erstattung ohne Minus und der Abschluss danach.
+
+    Bug-Formen: ``bill`` dreht wieder · die Steuer wird gespiegelt · ``next_payment``
+    schlägt nichts vor · ``settled`` bleibt falsch, obwohl der Saldo aufgeht.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -1029,13 +1043,85 @@ def test_a_correction_mirrors_the_tax_split():
         back_order, back_step, back = _credit(db, target=row, who=who[0])
         svc.apply(db, order=back_order, step=back_step, action="bill", payload={})
         db.flush()
+        assert back.amount is not None and back.amount > 0, (
+            f"Die Gutschrift steht mit {back.amount} da – ein Minus im Beleg, und drei "
+            f"Leser fragen «grösser null?»."
+        )
+        # **Die Steuer steht als Menge da** – so, wie sie auf dem Papier steht; und der
+        # **Rechtsgrund** bleibt derselbe wie an der Rechnung, die sie mindert.
         assert back.vat, "Die Gutschrift trägt keine Steuer-Aufteilung."
         one = back.vat[0]
-        assert Decimal(one["net"]) < 0 and Decimal(one["tax"]) < 0, (
-            f"Die Steuer ist nicht gespiegelt: {one}."
+        assert Decimal(one["net"]) > 0 and Decimal(one["tax"]) > 0, (
+            f"Die Steuer ist gespiegelt: {one}."
         )
         assert one["vat"] == row.vat[0]["vat"] and one["label"] == row.vat[0]["label"], (
-            "Der Rechtsgrund ist beim Spiegeln verlorengegangen."
+            "Der Rechtsgrund ist verlorengegangen."
+        )
+        # ►►► **Niemand tippt ein Minus**: der Vorschlag ist der offene Betrag. ◄◄◄
+        money = svc.balance_of(db, back)
+        assert money.open > 0 and money.next_payment == money.open, (
+            f"Die Erstattung wird nicht vorgeschlagen (offen {money.open}, "
+            f"Vorschlag {money.next_payment})."
+        )
+        svc.apply(db, order=back_order, step=back_step, action="pay",
+                  payload={"amount": str(money.open), "method": "transfer"})
+        db.flush()
+        after = svc.balance_of(db, back)
+        assert after.open == 0 and after.settled, (
+            f"Saldo {after.open}, bezahlt {after.paid} von {after.agreed} – und das Modul "
+            f"liesse sich nicht abschliessen (#1056)."
+        )
+        assert svc.completion_problem(db, step=back_step) is None, (
+            "Der Saldo geht auf, und der Abschluss ist trotzdem gesperrt."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_credit_note_says_so_on_its_buttons():
+    """►►► **Der Belegkopf nennt keine Belegart – also sagen es die WÖRTER** (#974/#977).◄◄◄
+
+    *«Irgendwie hat sich die Funktion voll verändert.»* (#1054) – Und das stimmte: wer
+    «Korrektur zu …» setzt, macht aus dem Beleg eine Gutschrift, und nichts sagte es. Die
+    Stelle dafür ist der **Knopf**, denn dort handelt man: «Gutschrift stellen» statt
+    «Rechnung stellen», «Erstattung erfassen» statt «Zahlung erfassen».
+
+    **Und ``inbound`` ist nicht ``collects``**: an einer Gutschrift zahlen *wir* zurück –
+    also gibt es dort keinen Zahlungsdienst und keinen Einzahlungsschein. Bis hierher fiel
+    beides ebenfalls weg, aber aus dem falschen Grund (der Betrag war negativ); ein
+    Zufall, der stimmt, ist keine Regel.
+
+    Bug-Formen: ein Wort für beide Belegarten · ``collects`` statt ``inbound``.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        order, step, row, who, _art = _agreed(db)
+        svc.apply(db, order=order, step=step, action="bill", payload={})
+        back_order, back_step, back = _credit(db, target=row, who=who[0])
+        db.flush()
+        plain = svc.embed_data(db, order=order, step=step)
+        credit = svc.embed_data(db, order=back_order, step=back_step)
+        assert plain is not None and credit is not None
+        assert vo.INVOICE_NOUN in plain["charge_word"], plain["charge_word"]
+        assert vo.CREDIT_NOUN in credit["charge_word"], (
+            f"Eine Gutschrift nennt sich «{credit['charge_word']}» – damit sagt nichts "
+            f"auf der Karte, dass dieser Beleg mindert."
+        )
+        assert vo.PAYMENT_NOUN in plain["payment_word"]
+        assert vo.REFUND_NOUN in credit["payment_word"], credit["payment_word"]
+        # **Beide Richtungen, beide Belegarten** – vier Fälle, zwei Bits.
+        assert vo.charge_word(collects=False, minus=True).startswith(vo.CREDIT_NOUN)
+        assert vo.charge_word(collects=False, minus=False).endswith(vo.RECORD_VERB)
+        # ►►► **Das Geld fliesst andersherum – und nur das hängt an ``inbound``.** ◄◄◄
+        assert svc.inbound(row) is True and svc.inbound(back) is False, (
+            "Eine Gutschrift auf eine Einnahme zieht Geld ein."
+        )
+        assert vo.inbound(collects=False, minus=True) is True, (
+            "Eine Gutschrift des Lieferanten bringt Geld zu uns."
         )
     finally:
         db.rollback(); db.close()
@@ -1957,24 +2043,35 @@ def test_an_invoice_is_issued_here_and_recorded_there():
     wird, klang nach Abtippen. **Die Zahlung wird weiterhin in beiden Richtungen
     erfasst**: das System bucht eine Zeile, es überweist nichts.
 
+    ►►► **Und es sind ZWEI Bits, keine vier Sätze** (Testnotizen #1054–#1056). ◄◄◄ Mit der
+    **Gutschrift** kam eine zweite Frage dazu (*mindert der Beleg?*), und vier fertige
+    Sätze wären vier Stellen, an denen einer stehenbleibt. Zusammengesetzt wird aus Nomen
+    und Infinitiv – in allen vier Fällen richtiges Deutsch, anders als eine gerechnete
+    Beugung («Kundeen», #787).
+
     Bug-Formen: (a) beide Richtungen sagen dasselbe; (b) das Wort steht wieder als eine
-    Konstante für beide da; (c) auch die Zahlung bekommt zwei Wörter.
+    Konstante für beide da; (c) auch die Zahlung bekommt zwei Wörter je Richtung.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import voucher as vo
 
-    assert vo.of("in").charge_verb == vo.CHARGE_ISSUE, (
+    issued = vo.charge_word(collects=True, minus=False)
+    recorded = vo.charge_word(collects=False, minus=False)
+    assert issued.endswith(vo.ISSUE_VERB), (
         "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
     )
-    assert vo.of("out").charge_verb == vo.CHARGE_RECORD, (
+    assert recorded.endswith(vo.RECORD_VERB), (
         "Eine fremde Rechnung wird abgeschrieben, nicht gestellt (a)."
     )
-    assert vo.of("in").charge_verb != vo.of("out").charge_verb, (
-        "Beide Richtungen sagen dasselbe (a)."
-    )
+    assert issued != recorded, "Beide Richtungen sagen dasselbe (a)."
     assert not hasattr(vo, "CHARGE_WORD"), (
         "Das Wort steht wieder als eine Konstante für beide Richtungen da (b)."
+    )
+    # **Die Richtung trägt das Verb nicht mehr selbst** – sonst gäbe es es zweimal, und
+    # die Gutschrift bekäme die zweite Fassung nicht mit.
+    assert "charge_verb" not in vo.Direction.__dataclass_fields__, (
+        "Die Richtung trägt wieder einen fertigen Satz (b)."
     )
     # (c) **Nur die Forderung ist verschieden** – ein zweites Feld für die Zahlung wäre
     # ein Wert, den jemand einzeln falsch setzen kann.
@@ -2254,14 +2351,15 @@ def test_an_invoice_says_how_it_stands():
         "Drei Rappen halten die Rechnung offen (b)."
     )
     assert vo.invoice_state(d("100"), d("0.00"))["state"] == "settled"
-    # (c) **Eine Gutschrift ist eine negative Rechnung** – und unbeglichen ist sie offen,
-    #     nicht überzahlt. Gerechnet wird mit dem Vorzeichen, nicht mit «grösser null».
-    assert vo.invoice_state(d("-100"), d("-100"))["state"] == "open", (
-        "Eine unbeglichene Gutschrift heisst «Überzahlt» (c)."
-    )
-    assert vo.invoice_state(d("-100"), d("-40"))["state"] == "partial"
+    # (c) ►►► **Der Vorzeichen-Fall ist GEGENSTANDSLOS** (Testnotizen #1054–#1056). ◄◄◄
+    #     Hier stand «eine Gutschrift ist eine negative Rechnung», und die Funktion musste
+    #     Rest und Betrag auf **verschiedene** Vorzeichen prüfen. Seit jede Zahl auf dem
+    #     Beleg eine Menge ist, kann der Betrag nicht negativ sein – und ein negativer Rest
+    #     heisst genau eine Sache: es ist mehr geflossen als gefordert.
     assert vo.invoice_state(d("100"), d("-20"))["state"] == "overpaid"
-    assert vo.invoice_state(d("-100"), d("20"))["state"] == "overpaid"
+    assert vo.invoice_state(d("100"), d("40"))["state"] == "partial", (
+        "Eine angezahlte Rechnung sieht aus wie eine unberührte (c)."
+    )
     # Überfällig schlägt «offen».
     assert vo.invoice_state(d("100"), d("100"), overdue=True)["state"] == "overdue"
     # (d) **Drei Töne, keine vierte Farbe.**

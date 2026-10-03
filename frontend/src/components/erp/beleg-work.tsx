@@ -16,7 +16,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { PayOnline } from '@/components/erp/pay-online';
 import {
-  Label, MICRO_LABEL, Segmented, inputCls, numericInputProps, numericOnly,
+  Label, MICRO_LABEL, SearchSelect, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
   ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, ModuleSection,
@@ -24,7 +24,7 @@ import {
 import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { TONE } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
-import { day, formatWhen, when } from '@/lib/when';
+import { day, happened, when } from '@/lib/when';
 
 /**
  * ►►► **Der Beleg an der Ausführungsstelle — EIN Dokument, das WÄCHST.** ◄◄◄
@@ -469,6 +469,69 @@ function DocRef<T extends { object_id: number; name: string }>({
   );
 }
 
+/**
+ * ►►► **Eine Liste, die zu gross für eine Aufzählung ist** (Testnotiz #1050). ◄◄◄
+ *
+ * *«Es wäre schön, wenn dies wie jedes andere Suchfeld wäre – hier haben wir ja eine global
+ * gültige Logik, etablieren mit Suchfeld, Scan-Possibility usw.»*
+ *
+ * Die dritte Hülle neben `DocPick` (eine **Aufzählung**: Währung, Frist, Lieferbedingung)
+ * und `DocRef` (ein **Datensatz**: Partner, Aussteller). Sie ist dazwischen: eine Liste
+ * von **Belegen**, die mit jeder Rechnung wächst, also kommt sie vom Server
+ * (`SearchSelect.search` – dieselbe Bauart, die jedes Referenzfeld im Haus benutzt).
+ *
+ * ►►► **Und es gibt dafür KEINE Kamera.** ◄◄◄ Eine Rechnung zieht keine Objektnummer – es
+ * kann für sie gar kein Etikett geben; das ist dieselbe Regel wie bei der Einzelinstanz.
+ * `DocRef` trägt sie (über `ObjectSelect`), weil dort ein Datensatz gemeint ist, der eine
+ * hat. Ein Scan-Knopf hier wäre ein Angebot, das nie etwas treffen kann.
+ *
+ * Im Ruhezustand steht der gedruckte Wert da, mit der Auszeichnung aus #922 – wie bei
+ * jedem änderbaren Wert des Belegs; der Klick macht daraus die Suche.
+ */
+function DocFind({ on, text, value, options, placeholder, emptyOption, face, tip,
+                  search, onChange }: {
+  on: boolean;
+  text: ReactNode;
+  value: string;
+  /** Nur die **gewählte** Zeile – alles andere kommt aus `search` (#730). */
+  options: { value: string; label: string }[];
+  placeholder: string;
+  emptyOption: string;
+  face?: CSSProperties;
+  tip?: string;
+  search: (query: string) => Promise<{ value: string; label: string }[]>;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // **Wer klickt, will tippen** – dieselbe Zeile wie in `DocRef`: ohne den Sprung ins Feld
+  // kostet die Wahl zwei Klicks, und der erste sieht aus wie ein Aussetzer.
+  const focus = useCallback((node: HTMLDivElement | null) => {
+    node?.querySelector('input')?.focus();
+  }, []);
+
+  if (!on) return <span style={face}>{text}</span>;
+  if (!open) {
+    return (
+      <Editable title={tip} style={{ minWidth: MIN_PICK }}>
+        <button type="button" onClick={() => setOpen(true)}
+          style={{ ...DOC_FIELD, ...face, cursor: 'pointer', textAlign: 'left',
+                   maxWidth: '100%' }}>
+          {text}
+        </button>
+      </Editable>
+    );
+  }
+  return (
+    <div ref={focus} style={{ minWidth: 0 }}>
+      <Editable as="div" style={{ minWidth: 190 }}>
+        <SearchSelect value={value} options={options} placeholder={placeholder}
+          emptyOption={emptyOption} search={search}
+          onChange={(v) => { setOpen(false); onChange(v); }} />
+      </Editable>
+    </div>
+  );
+}
+
 /** Eine Pflichtangabe, die fehlt – klein, rot, an ihrer Stelle. Erfunden wird nichts. */
 function Missing({ what }: { what: string }) {
   return (
@@ -495,12 +558,21 @@ function Missing({ what }: { what: string }) {
  * angenommen, wie bestellt) – dreimal dieselben vier Werte wären dreimal die Chance, dass
  * einer abweicht.
  */
-function Note({ tip, icon: Icon, children }: {
-  tip?: string | null; icon?: typeof ClipboardList; children: ReactNode;
+function Note({ tip, icon: Icon, color, children }: {
+  tip?: string | null; icon?: typeof ClipboardList;
+  /**
+   * ►►► **Wo die Aussage zugleich der Zustand ist** (Testnotiz #1053). ◄◄◄
+   *
+   * An der zugesagten Angebotszeile stand «Vor 3 Tagen angenommen» **und** daneben das
+   * Wort «Zugesagt» – dieselbe Aussage zweimal. Übrig bleibt die Aussage, und damit sie
+   * nicht nur leiser Text ist, trägt sie den Ton des Zustands.
+   */
+  color?: string;
+  children: ReactNode;
 }) {
   return (
     <span className="inline-flex items-center"
-      style={{ gap: 6, fontSize: 11.5, color: 'var(--fg-3)', width: 'fit-content',
+      style={{ gap: 6, fontSize: 11.5, color: color ?? 'var(--fg-3)', width: 'fit-content',
                flex: 'none', minWidth: 0 }}
       {...(tip ? { 'data-tip': tip } : {})}>
       {Icon && <Icon size={11} style={{ flex: 'none' }} />}
@@ -560,12 +632,16 @@ function DocHead({ d, busy, orderObjectId, stepId, onAction, onAsk }: {
   return (
     <ModuleSection first>
       <div className="flex flex-col" style={{ gap: 14, minWidth: 0 }}>
-        {d.cancelled_on && (
-          <span style={{ ...MICRO_LABEL, color: 'var(--danger)', width: 'fit-content' }}
-            data-tip={formatWhen(d.cancelled_on).title}>
-            storniert · {when(d.cancelled_on)}
-          </span>
-        )}
+        {/* ►►► **Zeit zuerst, dann was passiert ist** (Testnotiz #1052). ◄◄◄ Die Form
+            steht in `lib/when.happened` – hier wie an den Angeboten dieselbe eine
+            Auflösung, statt dreimal «Wort · Zeit» von Hand. */}
+        {d.cancelled_on && (() => {
+          const w = happened(d.cancelled_on, d.cancelled_word);
+          return (
+            <span style={{ ...MICRO_LABEL, color: 'var(--danger)', width: 'fit-content' }}
+              data-tip={w.title}>{w.text}</span>
+          );
+        })()}
         <Correction d={d} orderObjectId={orderObjectId} stepId={stepId}
           onAction={onAction} />
         <Parties d={d} busy={busy} onAction={onAction} onAsk={onAsk} />
@@ -603,30 +679,38 @@ const NO_CORRECTION = '';
 function Correction({ d, orderObjectId, stepId, onAction }: {
   d: Filled; orderObjectId: number; stepId: number; onAction: Send;
 }) {
-  const [options, setOptions] = useState<VoucherCorrectable[] | null>(null);
+  const [any, setAny] = useState<boolean | null>(null);
   // ►►► **`busy` gehört hier NICHT hinein** (Testnotiz #1016). ◄◄◄ Hinge die
   // Auszeichnung am Speichern, verschwände sie mitten im Vorgang – und mit ihr die
   // Untergrenze `MIN_PICK`: die Zeile schrumpfte und sprang zurück. `busy` sperrt
   // Handlungen, nie Geometrie; dieselbe Regel wie am Währungs-Wähler.
   const on = may(d, 'correct');
+  const label = useCallback((r: VoucherCorrectable) => [
+    r.number ?? `Beleg ${r.id}`,
+    r.amount ? `${r.amount} ${r.currency}` : null,
+    r.order_object_id ? `Auftrag ${r.order_object_id}` : null,
+  ].filter(Boolean).join(' · '), []);
+  // ►►► **Die Liste wird GESUCHT** (Testnotiz #1050) – dieselbe Bauart wie jedes
+  // Referenzfeld im Haus: tippen fragt den Server. Gefragt wird hier nur **einmal**, und
+  // zwar «gibt es überhaupt etwas zu korrigieren?»: ohne diese Antwort stünde eine Zeile
+  // da, die für fast jeden Beleg leer bleibt.
+  const find = useCallback(
+    (query: string) => api.voucherCorrectable(orderObjectId, stepId, query)
+      .then((rows) => rows.map((r) => ({ value: String(r.id), label: label(r) }))),
+    [orderObjectId, stepId, label]);
   useEffect(() => {
     if (!on) return;
     let stale = false;
     void api.voucherCorrectable(orderObjectId, stepId)
-      .then((r) => { if (!stale) setOptions(r); })
-      .catch(() => { if (!stale) setOptions([]); });
+      .then((r) => { if (!stale) setAny(r.length > 0); })
+      .catch(() => { if (!stale) setAny(false); });
     return () => { stale = true; };
   }, [on, orderObjectId, stepId]);
 
   // **Gibt es nichts zu korrigieren und ist nichts gesetzt, gibt es die Zeile nicht.**
   // Ein Wähler ohne Wahl ist eine Frage, die niemand beantworten kann.
-  if (!d.corrects && (!on || (options != null && options.length === 0))) return null;
+  if (!d.corrects && (!on || any === false)) return null;
 
-  const label = (r: VoucherCorrectable) => [
-    r.number ?? `Beleg ${r.id}`,
-    r.amount ? `${r.amount} ${r.currency}` : null,
-    r.order_object_id ? `Auftrag ${r.order_object_id}` : null,
-  ].filter(Boolean).join(' · ');
   const text = d.corrects
     ? [d.corrects.number ?? `Beleg ${d.corrects.id}`,
        d.corrects.billed_on ? day(d.corrects.billed_on) : null]
@@ -636,13 +720,15 @@ function Correction({ d, orderObjectId, stepId, onAction }: {
   return (
     <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
       <span style={MICRO_LABEL}>{d.corrects_label || 'Korrektur zu'}</span>
-      <DocPick on={on} value={d.corrects ? String(d.corrects.id) : NO_CORRECTION}
-        text={text} aria={d.corrects_label || 'Korrektur zu'}
+      <DocFind on={on} value={d.corrects ? String(d.corrects.id) : NO_CORRECTION}
+        text={text} placeholder="Rechnungsnummer"
         tip={d.corrects_hint ?? undefined}
         face={{ fontSize: 12.5, color: 'var(--fg-2)' }}
-        options={[{ value: NO_CORRECTION, label: 'keine' },
-                  ...(options ?? []).map((r) => ({ value: String(r.id),
-                                                   label: label(r) }))]}
+        emptyOption="keine"
+        options={d.corrects
+          ? [{ value: String(d.corrects.id), label: text }]
+          : []}
+        search={find}
         onChange={(v) => void onAction({
           action: 'correct', corrects: v === NO_CORRECTION ? null : Number(v),
         })} />
@@ -1768,7 +1854,9 @@ function Quotes({ d, busy, active, onAsk, onAction }: {
     <ModuleSection title={d.quotes_title || 'Angebote'}
       state={open ? 'active' : 'past'}
       right={first && (
-        <Note tip={formatWhen(first).title}>offeriert · {when(first)}</Note>
+        <Note tip={happened(first, d.sent_word).title}>
+          {happened(first, d.sent_word).text}
+        </Note>
       )}>
       <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
         {d.quotes.map((q) => (
@@ -1799,6 +1887,12 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
   // während verhandelt wird, IST der Preis die Aussage; danach sagt er nicht mehr, wer
   // den Zuschlag bekam. Und wo gar kein Preis steht, war er es nie.
   const word = decided || declined || d.amount == null ? look.label : null;
+  // ►►► **Ein Zustand steht EINMAL je Zeile** (Testnotiz #1053). ◄◄◄ *«Braucht es diesen
+  // Status, denn ich habe gleich links daneben nochmals ‹angenommen›? Ich möchte
+  // Doppelspurigkeiten vermeiden.»* – Zu Recht: «Vor 3 Tagen angenommen» sagt bereits,
+  // dass diese Zeile den Zuschlag hat, und sagt zusätzlich **wann**. Die ärmere der beiden
+  // Aussagen geht; `quoteLook` bleibt, es trägt die übrigen drei Ausgänge und den Hover.
+  const taken = chosen && !!d.agreed_at;
   const dec = v.currency_decimals ?? 2;
   // **Offerieren darf, wer den Preis nennt** – und bei einer Einnahme nennen wir ihn
   // bereits in den Positionen; dort ist an dieser Zeile nichts einzutragen.
@@ -1871,10 +1965,12 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
             über der **Mitte ihres Elements** – bei einer 460 px breiten Zeile also weit
             weg von den drei Wörtern, die sie erklärt. In der Kopfzeile ist die Angabe so
             breit wie ihr Text, und die Blase steht damit **konstruktiv** darüber. */}
-        {chosen && d.agreed_at && (
-          <Note tip={formatWhen(d.agreed_at).title}>angenommen · {when(d.agreed_at)}</Note>
+        {taken && (
+          <Note tip={happened(d.agreed_at, v.taken_word).title} color={look.color}>
+            {happened(d.agreed_at, v.taken_word).text}
+          </Note>
         )}
-        {word && (
+        {word && !taken && (
           <span style={{ ...MICRO_LABEL, color: look.color, flex: 'none' }}>{word}</span>
         )}
         {/* **Der Betrag steht zuletzt** – dieselbe Flucht wie in jeder Geld-Zeile. Er
@@ -2508,6 +2604,19 @@ function Entry({ kind, d, busy, preset, method, onCancel, onSubmit }: {
   // **Der Satz wird nur gefragt, wo es keine bepreisten Positionen gibt** – sonst kommt
   // die Aufteilung aus ihnen, und ein Feld daneben wäre eine zweite Aussage.
   const asksVat = kind === 'bill' && !d.we_quote;
+  // ►►► **Eine Rechnung hat immer eine Nummer** (Testnotiz #1058). ◄◄◄
+  //
+  // *«Wenn die Zahlungsreferenz nicht ausgefüllt war, dann war der Button zum die Rechnung
+  // erstellen trotzdem aktiv und nicht deaktiviert mit entsprechendem Hinweis.»*
+  //
+  // Gemessen: der Dienst weist `bill` ohne sie mit 400 ab («Ohne Zahlungsreferenz des
+  // Partners lässt sich diese Rechnung nicht zuordnen – sie steht auf seinem Beleg»), und
+  // dieses Formular liess «Buchen» zu. Die Regel ist dieselbe wie überall: **wo wir
+  // nummerieren, erzeugt der Server die Nummer; wo sie von aussen kommt, muss sie da
+  // sein** – und das Feld gibt es ohnehin nur dort (`ref_label`). Bei einer **Zahlung**
+  // ist sie freiwillig: eine Barzahlung hat keine.
+  const needsRef = kind === 'bill' && !!d.ref_label;
+  const missingRef = needsRef && reference.trim() === '';
 
   const book = () => onSubmit({
     action: kind, amount,
@@ -2515,7 +2624,7 @@ function Entry({ kind, d, busy, preset, method, onCancel, onSubmit }: {
     ...(asksVat ? { vat } : {}),
     ...(reference.trim() ? { reference: reference.trim() } : {}),
   });
-  const ready = !busy && amount.trim() !== '';
+  const ready = !busy && amount.trim() !== '' && !missingRef;
 
   return (
     <div className="flex flex-col" style={{
@@ -2544,7 +2653,7 @@ function Entry({ kind, d, busy, preset, method, onCancel, onSubmit }: {
         {/* **Das Nummernfeld gibt es nur, wo die Nummer von AUSSEN kommt** – eine, die wir
             vergeben, tippt niemand ab. */}
         {d.ref_label && (
-          <Ask label={d.ref_label} grow>
+          <Ask label={d.ref_label} grow required={needsRef}>
             <input value={reference} className={inputCls} aria-label={d.ref_label}
               onKeyDown={(e) => { if (e.key === 'Enter' && ready) book(); }}
               onChange={(e) => setReference(e.target.value)} />
@@ -2557,7 +2666,13 @@ function Entry({ kind, d, busy, preset, method, onCancel, onSubmit }: {
         <ActionButton icon={X} label="Abbrechen" height={ACT_H.stage} square
           disabled={busy} onClick={onCancel} />
       }>
-        <StageAction icon={Check} label="Buchen" disabled={!ready} onClick={book} />
+        {/* **Der Grund steht am Knopf, nicht nach dem Klick** (#1058/#1046) – derselbe
+            Satz, den der Dienst sagen würde, nur vorher. */}
+        <StageAction icon={Check} label="Buchen" disabled={!ready} onClick={book}
+          tip={missingRef
+            ? `Ohne ${d.ref_label} lässt sich diese Rechnung nicht zuordnen – sie steht `
+              + `auf seinem Beleg.`
+            : undefined} />
       </StageRow>
     </div>
   );
@@ -2569,8 +2684,11 @@ function Entry({ kind, d, busy, preset, method, onCancel, onSubmit }: {
  * Sie steht als Bauteil da und nicht dreimal als `<div className="flex flex-col"
  * style={{ gap: 3 }}>`: genau so laufen Masse auseinander, und genau das war #987/#990.
  */
-function Ask({ label, grow, children }: {
-  label?: string; grow?: boolean; children: ReactNode;
+function Ask({ label, grow, required, children }: {
+  label?: string; grow?: boolean;
+  /** **Pflicht, und zwar dieselbe wie im Dienst** (#1058) – `Label` trägt die Form. */
+  required?: boolean;
+  children: ReactNode;
 }) {
   return (
     // **Kein `gap` hier**: `Label` bringt seine eigenen 4 px mit (`fields.tsx`). Der
@@ -2578,7 +2696,7 @@ function Ask({ label, grow, children }: {
     // einen Stelle anders als überall sonst im Haus. Genau das war die Meldung.
     <div className="flex flex-col"
       style={{ minWidth: 0, ...(grow ? { flex: '1 1 160px' } : {}) }}>
-      <Label>{label}</Label>
+      <Label required={required}>{label}</Label>
       {children}
     </div>
   );

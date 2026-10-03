@@ -4797,6 +4797,97 @@
 > zugestelltem** Schlüssel: solange er fehlt, steht kein Formular da, und die Region ist
 > in **beiden** Modi sichtbar – gegengeprüft, dass der alte Latch meldet.
 
+> ►►► **JEDE ZAHL AUF DEM BELEG IST EINE MENGE — und das war die Grundursache von drei
+> Meldungen auf einmal** (Testnotizen #1050–#1059, Migration `141`, PROCESS_CORE §9.15r).
+> ◄◄◄
+> *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend — denn
+> am Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»*
+> **Gemessen über die echten Dienstpfade, nicht vermutet.** Ein Korrekturbeleg trug einen
+> **negativen** Betrag (`bill` drehte das Vorzeichen, `_mirror` spiegelte die Steuer), und
+> drei Leser fragen «ist der Betrag grösser als null?» – bei einer Gutschrift ist er das
+> nie: `pay_online` fiel weg («Stripe ist nicht mehr verfügbar», #1054), `next_payment`
+> blieb leer (man musste **−43.24** tippen, #1055), und `settled` (`paid >= agreed`) war
+> **strukturell unerreichbar** – bei einem Saldo von 0 liess sich das Modul nicht
+> abschliessen (#1056). Drei Symptome, eine Ursache, und keines war ein Zufall.
+> **Die Regel löst alle drei auf, ohne etwas zu bauen**: der Betrag ist eine **Menge**,
+> wohin das Geld fliesst sagt der Beleg – einmal. Damit stimmen die drei Leser
+> **unverändert**, und **vier** Sonderfälle sind gefallen: die drei plus der
+> Vorzeichen-Vergleich in `invoice_state` («überzahlt ist, wo Rest und Betrag verschiedene
+> Vorzeichen tragen» → wieder schlicht `remaining < 0`); `_mirror` ist gelöscht.
+> **Das Minus verschwindet nicht, es bekommt einen Ort**: die Buchhaltung sieht eine
+> Gutschrift negativ und leitet das aus `corrects_id` ab – an **einer** Stelle, wenn es sie
+> gibt. Eine Spalte mit Vorzeichen daneben wäre die zweite Wahrheit, ein `signed()` ohne
+> Leser die zweite Wahrheit ohne Nutzen. **Was ein Mensch tippt, ist nie negativ**; die
+> eine Ausnahme ist die Korrektur einer erfassten Zahlung, und dort **setzt das System**
+> den Betrag.
+> ►►► **Und eine Gutschrift wird dadurch SICHTBAR.** ◄◄◄ #1054 war auch eine Meldung über
+> Unsichtbarkeit (*«irgendwie hat sich die Funktion voll verändert»*): wer «Korrektur zu …»
+> setzt, macht aus dem Beleg eine Gutschrift, und **nichts sagte es**. Der Belegkopf nennt
+> bewusst keine Belegart (#974/#977), also sagen es die **Wörter auf den Knöpfen** – dort,
+> wo man handelt: **«Gutschrift stellen»** statt «Rechnung stellen», **«Erstattung
+> erfassen»** statt «Zahlung erfassen». Zusammengesetzt aus **zwei Bits** (`charge_word`)
+> statt als Tabelle mit vier fertigen Sätzen – die Fuge ist ein Leerzeichen vor einem
+> Infinitiv, in allen vier Fällen richtiges Deutsch (anders als eine gerechnete Beugung,
+> «Kundeen» #787). `Direction.charge_verb` ist damit entfallen.
+> **`inbound` ist nicht `collects`** (`collects != minus`): wer den Beleg **ausstellt**,
+> bleibt bei einer Gutschrift derselbe – nur fliesst das Geld andersherum. Nur die zweite
+> Frage entscheidet über den **Zahlungsdienst** (er *zieht ein*) und den
+> **Einzahlungsschein** (er trägt unsere Bankverbindung). Bis hierher fiel beides an einer
+> Gutschrift ebenfalls weg, aber aus dem falschen Grund: der Betrag war negativ. *Ein
+> Zufall, der stimmt, ist keine Regel.*
+> **#1059, validiert**: die Gutschrift bleibt in der **Einnahme**-Logik, und das ist
+> richtig – steuerlich ist sie eine *Umsatzminderung*, keine Ausgabe. Was sie unangenehm
+> machte, war nicht der Ort, sondern das Minus.
+> **#1057 ist EIN Wert in der Tabelle**: *«Die Währung, in der ein Lieferant etwas
+> offeriert, soll er selbst wählen können – das obliegt nicht mir.»* Es ist genau die
+> Regel, die `quote` schon trägt (`Verb.party = IF_THEY_PRICE`), also **null Zeilen im
+> Frontend** – die Oberfläche fragt längst `may(d,'currency')`. Gemessen war es vorher ein
+> **409, dessen Satz den falschen Grund nannte** (die Stufe statt der Rolle); er nennt sie
+> jetzt, wo die Stufe stimmt und nur der Zugang fehlt.
+> **#1058 – zwei Formen einer Regel**: der Dienst weist `bill` ohne Zahlungsreferenz mit
+> **400** ab, und das Formular liess «Buchen» zu. Der Grund steht jetzt **am Knopf**
+> (dieselbe Regel wie #1046), die Beschriftung nennt sie als Pflicht – und nur an der
+> **Rechnung**: eine Barzahlung hat keine Referenz.
+> **#1052/#1053 – Zeit zuerst, Zustand einmal**: *«Zeit und dann Status – beispielsweise
+> ‹gerade eben zugesagt›.»* Die **Form** steht einmal (`lib/when.happened`), die **Wörter**
+> kommen vom Server (`sent_word`/`taken_word`/`cancelled_word` – ein bestehender Wächter
+> hat gemeldet, dass «storniert» in der Karte stand, und zu Recht). An der **zugesagten**
+> Zeile steht das Wort «Zugesagt» dann **nicht** zusätzlich daneben: die Aussage mit der
+> Zeit sagt mehr und trägt den Ton des Zustands; `quoteLook` bleibt für die drei übrigen
+> Ausgänge.
+> **#1051 – der Abschnittskopf ist eine Stufe über dem Feld-Label**: beide trugen
+> `MICRO_LABEL` (11 px · 700 · Versalien · .07em) – zwei Ebenen, eine Schriftgrösse, und
+> genau daraus kam *«es geht irgendwie so unter»*. Er trägt jetzt das **Overline**-Register
+> des Design-Systems (`--overline` · `--tracking-overline`) – ein **Token**, keine geratene
+> Zahl; `MICRO_LABEL` bleibt unangetastet, denn von ihm soll sich der Kopf abheben.
+> Gemessen: 12 px ↔ 11 px, 2.16 px ↔ 0.77 px Laufweite, 800 ↔ 700, dunkel ↔ gedämpft.
+> **#1050 – «Korrektur zu» ist das Suchfeld des Hauses** (`DocFind` auf `SearchSelect`,
+> Server-Suche über `correctable?search=`): eine fertige Liste war bei einer Handvoll
+> Belegen richtig und ist es beim hundertsten nicht mehr. **Keine Kamera**: eine Rechnung
+> zieht keine Objektnummer – es kann für sie gar kein Etikett geben (dieselbe Regel wie bei
+> der Einzelinstanz), und ein Scan-Knopf wäre ein Angebot, das nie etwas treffen kann.
+> **Auf Weisung NICHT angefasst**: «Wie bestellen?» je Partner (`config.parties[].ref`) und
+> die Frage, ob «Was ist zu tun?» freiwillig bleibt. Der Vorschlag dazu (die Bestellangabe
+> ersatzlos löschen, weil eine Lieferanten-Artikelnummer eine Eigenschaft der Paarung
+> *Artikel × Lieferant* ist und nicht *Modul × Lieferant*) steht in dieser Sitzung und ist
+> bewusst zurückgestellt.
+> Wächter: 2 neue in `tests/test_voucher_module.py`, 5 neue in
+> `test_frontend_mirrors.py`, 2 neue in `frontend/scripts/when.test.mjs`, dazu **sieben**
+> auf die neue Regel gezogene – *fünf davon prüften die **Form** der alten Lösung*
+> (`charge_verb`, der Vorzeichen-Fall in `invoice_state`, `formatWhen(` in drei Wächtern)
+> und hätten die bessere Fassung verboten. **23 Bug-Formen gegengeprüft, jede meldet**;
+> *eine war dabei stumpf* (`search=${encodeURIComponent` steht in `api.ts` auch an der
+> Halter-Suche, also war der Wächter von ihr erfüllt – er liest jetzt den Rumpf **dieser**
+> Methode). Suite grün gegen die gewachsene Datenbank (628) **und** gegen ein Schema nur
+> aus den Migrationen (629); Migration `141` von null · idempotent · downgrade ·
+> re-upgrade · über das Lifespan-Netz verifiziert, ihre **Wirkung** an echten Daten
+> gemessen. Gemessen in Chromium an der **echten** Komponente (Karte im `ModuleShell`):
+> 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über **13**
+> Beleg-Zustände – und die Messung in **beide** Richtungen gegengeprüft (ein unteilbares
+> Wort in freiem Text meldet +155,2 px, dasselbe hinter `truncate` zu Recht nichts); dazu
+> 21 Aussagen am gerenderten Baum (kein Minus auf der Karte, kein Zahlungsdienst an einer
+> Gutschrift, «Buchen» gesperrt mit Grund, der Wähler wird zum Suchfeld).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

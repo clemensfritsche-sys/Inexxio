@@ -414,10 +414,19 @@ class VoucherEmbed(BaseModel):
     can: list[str] = Field(default_factory=list)
     #: Das Wort der Gegenhandlung – ``None``, wo es sie für diesen Betrachter nicht gibt.
     undo: Optional[str] = None
-    #: **«Rechnung stellen» ↔ «Rechnung erfassen»** – im einen Fall entsteht der Beleg
-    #: hier, im anderen schreiben wir einen fremden ab (``Direction.charge_verb``).
+    #: **«Rechnung stellen» ↔ «Gutschrift erfassen»** (``voucher.charge_word``): *wer* den
+    #: Beleg ausstellt und *ob* er mindert, in einem Wort – und damit die Stelle, an der
+    #: eine Gutschrift sichtbar wird, denn der Belegkopf nennt keine Belegart (#977).
     charge_word: str = ""
+    #: **«Zahlung erfassen» ↔ «Erstattung erfassen»** – ein Bit: mindert der Beleg?
     payment_word: str = ""
+    #: **Die drei Momente, die der Beleg erzählt** (#1052): «Vor 3 Tagen *offeriert*»,
+    #: «Gerade eben *angenommen*», «Gestern *storniert*». Die **Form** baut die Oberfläche
+    #: (`lib/when.happened`), die Wörter stehen im Fachmodell – hineingeschrieben wären sie
+    #: der zweite Ort für dasselbe Wort.
+    sent_word: str = ""
+    taken_word: str = ""
+    cancelled_word: str = ""
     pay_online_word: str = ""
     refund_online_word: str = ""
     #: Das Gegenstück zur Rechnung – dieselbe Anatomie wie ``ask``/``unask``.

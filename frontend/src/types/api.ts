@@ -1034,6 +1034,12 @@ export interface paths {
          *     keine fremde Forderung und das Geld fliesst nicht andersherum.
          *
          *     **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
+         *
+         *     ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄ *«Hier haben
+         *     wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Dieselbe Bauart wie jede
+         *     andere Referenz im Haus: tippen fragt den Server (``search`` – Rechnungsnummer oder
+         *     Auftragsnummer), und die Liste trägt nur, was passt. Eine fertige Liste war bei einer
+         *     Handvoll Belegen richtig und ist es beim hundertsten nicht mehr.
          */
         get: operations["voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get"];
         put?: never;
@@ -3907,6 +3913,21 @@ export interface components {
              */
             payment_word: string;
             /**
+             * Sent Word
+             * @default
+             */
+            sent_word: string;
+            /**
+             * Taken Word
+             * @default
+             */
+            taken_word: string;
+            /**
+             * Cancelled Word
+             * @default
+             */
+            cancelled_word: string;
+            /**
              * Pay Online Word
              * @default
              */
@@ -5971,7 +5992,9 @@ export interface operations {
     };
     voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get: {
         parameters: {
-            query?: never;
+            query?: {
+                search?: string;
+            };
             header?: never;
             path: {
                 object_id: number;

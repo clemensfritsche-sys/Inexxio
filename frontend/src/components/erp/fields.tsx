@@ -737,7 +737,9 @@ export const numericInputProps = { inputMode: 'decimal' as const, autoComplete: 
 export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)', marginBottom: 4 }}>
-      {children}{required && <span style={{ color: '#dc2626' }}> *</span>}
+      {/* **Die Warnfarbe kommt aus dem Token**, nicht als Hex: eine zweite Rotstufe
+          neben `--danger` wäre eine zweite Farbsprache (Design-System §4). */}
+      {children}{required && <span style={{ color: 'var(--danger)' }}> *</span>}
     </div>
   );
 }

@@ -427,10 +427,14 @@ class ApiClient {
    * Gesucht wird über **alle Aufträge** – das ist der Kern: eine Gutschrift gehört in den
    * Auftrag, in dem die Ware **zurückkommt**, nicht in den, der sie geliefert hat.
    */
-  voucherCorrectable(objectId: number,
-                     stepId: number): Promise<VoucherCorrectable[]> {
+  voucherCorrectable(objectId: number, stepId: number,
+                     search = ''): Promise<VoucherCorrectable[]> {
+    // **Gesucht wird auf dem Server** (#1050): dieselbe Bauart wie jede Referenz-Suche im
+    // Haus – eine fertige Liste war bei einer Handvoll Belegen richtig und ist es beim
+    // hundertsten nicht mehr.
+    const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
     return this.get(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/correctable`);
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/correctable${q}`);
   }
 
   /**

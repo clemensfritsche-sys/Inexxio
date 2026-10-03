@@ -1448,3 +1448,40 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > gewachsene Datenbank (609) **und** gegen ein Schema nur aus den Migrationen (617);
 > Migration `140` von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz
 > verifiziert, ihre **Wirkung** gemessen.
+
+> ►►► **JEDE ZAHL AUF DEM BELEG IST EINE MENGE** (Testnotizen #1054–#1056/#1059,
+> Migration `141`, PROCESS_CORE §9.15r). ◄◄◄
+> Ein Korrekturbeleg trug einen **negativen** Betrag (`_bill` drehte, `_mirror` spiegelte
+> die Steuer) – und drei Leser fragen «grösser null?»: `pay_online` (`open > 0`),
+> `next_payment` und `settled` (`paid >= agreed`). Bei einer Gutschrift stimmt das nie,
+> also fiel der Zahlungsdienst weg (#1054), blieb das Betragsfeld leer (#1055) und liess
+> sich das Modul bei Saldo 0 nicht abschliessen (#1056). **Gemessen über die echten
+> Dienstpfade, nicht vermutet.**
+> **Die Regel baut nichts, sie nimmt weg**: der Betrag ist eine Menge, und *dass* der
+> Beleg mindert, sagt `corrects_id` (`svc.minus` ist die eine Lesestelle). Damit stimmen
+> die drei Leser **unverändert**, `_mirror` ist gelöscht und `invoice_state` fragt wieder
+> schlicht `remaining < 0` statt zwei Vorzeichen zu vergleichen.
+> **Das Minus gehört der Buchhaltung** – abgeleitet aus `corrects_id`, an einer Stelle,
+> wenn es sie gibt. Ein `signed()` ohne Leser wäre die zweite Wahrheit ohne Nutzen.
+> **Die Wörter machen es sichtbar** (`vo.charge_word`/`payment_word`): «Gutschrift
+> stellen» ↔ «Rechnung erfassen», «Erstattung erfassen» ↔ «Zahlung erfassen» –
+> zusammengesetzt aus **zwei Bits**, nicht als Tabelle mit vier Sätzen;
+> `Direction.charge_verb` ist entfallen. Der Belegkopf nennt bewusst keine Belegart
+> (#974/#977), also sagt es der Knopf, an dem man handelt.
+> **`vo.inbound` (= `collects != minus`) ist nicht `collects`**: wer den Beleg ausstellt,
+> bleibt bei einer Gutschrift derselbe – nur fliesst das Geld andersherum. Daran hängen
+> `pay_online`, `refund_online` und der Einzahlungsschein (`_ways`). Vorher fiel beides an
+> einer Gutschrift ebenfalls weg, aber weil der Betrag negativ war; *ein Zufall, der
+> stimmt, ist keine Regel.*
+> **#1057 ist ein Wert in `VERBS`**: `currency` trägt `party=IF_THEY_PRICE` – wer den
+> Preis nennt, nennt ihn in seiner Währung. Dazu nennt `assert_allowed` bei einer
+> Gegenpartei jetzt den **Zugang** als Grund, wo die Stufe stimmt (gemessen: der 409 sprach
+> von der Stufe, und die war richtig).
+> **#1050**: `correctable(…, search=…)` filtert die Rechnungsnummer **in der Datenbank** –
+> nachträglich im Python gefiltert wäre es die Seite, die ohnehin gekappt ist.
+> **#1052**: die drei Partizipien (`SENT_WORD`/`TAKEN_WORD`/`CANCELLED_WORD`) stehen im
+> Fachmodell und reisen mit; die **Form** («Vor 3 Tagen offeriert») baut das Frontend.
+> Sie sind **nicht** `label_of(CANCELLED)` – das ist die Beschriftung einer Stufe.
+> Wächter: `tests/test_voucher_module.py` (2 neue, 10 Bug-Formen) – und Migration `141`
+> von null · idempotent · downgrade · re-upgrade · über das Lifespan-Netz verifiziert,
+> samt **Wirkung** an echten Daten.

@@ -2634,7 +2634,7 @@
           "orders"
         ],
         "summary": "Voucher Correctable",
-        "description": "►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄\n\nDas ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware\n**zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle\nAufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert\nkeine fremde Forderung und das Geld fliesst nicht andersherum.\n\n**Personal-only**: es ist eine Liste fremder Belege desselben Partners.",
+        "description": "►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄\n\nDas ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware\n**zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle\nAufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert\nkeine fremde Forderung und das Geld fliesst nicht andersherum.\n\n**Personal-only**: es ist eine Liste fremder Belege desselben Partners.\n\n►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄ *«Hier haben\nwir ja eine global gültige Logik – etablieren mit Suchfeld.»* Dieselbe Bauart wie jede\nandere Referenz im Haus: tippen fragt den Server (``search`` – Rechnungsnummer oder\nAuftragsnummer), und die Liste trägt nur, was passt. Eine fertige Liste war bei einer\nHandvoll Belegen richtig und ist es beim hundertsten nicht mehr.",
         "operationId": "voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get",
         "security": [
           {
@@ -2658,6 +2658,16 @@
             "schema": {
               "type": "integer",
               "title": "Step Id"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Search"
             }
           }
         ],
@@ -9415,6 +9425,21 @@
           "payment_word": {
             "type": "string",
             "title": "Payment Word",
+            "default": ""
+          },
+          "sent_word": {
+            "type": "string",
+            "title": "Sent Word",
+            "default": ""
+          },
+          "taken_word": {
+            "type": "string",
+            "title": "Taken Word",
+            "default": ""
+          },
+          "cancelled_word": {
+            "type": "string",
+            "title": "Cancelled Word",
             "default": ""
           },
           "pay_online_word": {

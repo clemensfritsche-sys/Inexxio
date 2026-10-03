@@ -1061,3 +1061,39 @@ die drei Werte der Tür. Die Messung gegen ihre eigene Bug-Form gegengeprüft (+
   Anschrift.
 - **Zwei Erklärtexte sind gelöscht** (#1043/#1045): sie beschrieben das Datenmodell
   (Rolle, leerer Firmenname) und sagten nichts, was das Feld darunter nicht selbst sagt.
+
+## Der Beleg rechnet mit Mengen (Testnotizen #1050–#1058)
+
+- ►►► **Kein Minus auf der Karte – und keines im Feld** (#1054–#1056). ◄◄◄ Eine Gutschrift
+  trägt positive Zahlen; dass sie mindert, sagen die **Wörter vom Server** (`charge_word` =
+  «Gutschrift stellen», `payment_word` = «Erstattung erfassen») und der Verweis im
+  Belegkopf. Die Karte rechnet dafür **nichts**: `negate()` steht weiterhin nur dort, wo
+  das **System** einen Gegenwert vorbelegt (die Korrektur einer erfassten Zahlung, der
+  Guthaben-Saldo). Gemessen: 0 Minus-Zeichen über alle Beleg-Zustände.
+- ►►► **Zeit zuerst, dann der Vorgang** (#1052, `lib/when.happened`). ◄◄◄ *«Zeit und dann
+  Status – beispielsweise ‹gerade eben zugesagt›.»* Die Form steht **einmal** bei der
+  Datums-Ausgabe, drei Aufrufstellen nennen sie (storniert · offeriert · angenommen), und
+  der erste Buchstabe wird gross – ohne diese Zeile stünden «Gerade eben» und «vor 3 Tagen»
+  nebeneinander. **Die Wörter kommen vom Server** (`sent_word`/`taken_word`/
+  `cancelled_word`): sie standen in der Karte, und ein bestehender Wächter hat es gemeldet.
+- **Ein Zustand steht einmal je Zeile** (#1053): an der **zugesagten** Angebotszeile sagt
+  «Vor 3 Tagen angenommen» bereits alles – das Wort «Zugesagt» daneben ist entfallen, und
+  die Aussage trägt dafür den Ton des Zustands (`Note color`). `quoteLook` bleibt: es
+  benennt die drei übrigen Ausgänge und den Hover.
+- ►►► **Der Abschnittskopf ist eine Stufe über dem Feld-Label** (#1051, `ModuleSection`).
+  ◄◄◄ Beide trugen `MICRO_LABEL` – zwei Ebenen, eine Schriftgrösse. Er trägt jetzt das
+  **Overline**-Register (`--overline` · `--tracking-overline`), also ein **Token** statt
+  einer geratenen Zahl; `MICRO_LABEL` bleibt unangetastet, denn von ihm soll sich der Kopf
+  abheben. Gemessen: 12 px ↔ 11 px, 2.16 ↔ 0.77 px Laufweite, 800 ↔ 700, dunkel ↔ gedämpft.
+- **«Buchen» verlangt, was der Dienst verlangt** (#1058): ohne die Zahlungsreferenz des
+  Partners weist `bill` mit 400 ab – der Knopf ist jetzt **vorher** gesperrt und sagt
+  warum, und nur an der **Rechnung** (eine Barzahlung hat keine Referenz). `Ask` trägt
+  dafür `required` und damit die Form, die `fields.Label` im ganzen Haus hat.
+- ►►► **`DocFind` – die dritte Hülle für einen änderbaren Wert** (#1050). ◄◄◄ `DocPick`
+  ist eine **Aufzählung**, `DocRef` ein **Datensatz**, `DocFind` eine **Liste, die wächst**:
+  `SearchSelect` mit Server-Suche. **Keine Kamera** – eine Rechnung zieht keine
+  Objektnummer, es kann für sie kein Etikett geben (dieselbe Regel wie bei der
+  Einzelinstanz), und ein Scan-Knopf wäre ein Angebot, das nie etwas trifft.
+- **Die Währung wählt, wer den Preis nennt** (#1057): null Zeilen hier – `Currency` fragt
+  längst `may(d, 'currency')`, und das Recht steht als **ein Wert** in der VERBS-Tabelle
+  des Dienstes.

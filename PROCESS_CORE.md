@@ -3345,6 +3345,67 @@ reine Rechnungsfehler **nach** dem Versand (er braucht einen Auftrag über die b
 Stücke — derselbe offene Punkt wie «ein Beleg ganz ohne Ware», weil `assert_releasable`
 mindestens eine Einzelinstanz verlangt) · Mahnwesen, camt.053 und die PDF-Zustellung.
 
+#### 9.15r Jede Zahl auf dem Beleg ist eine MENGE
+
+> Testnotizen #1054/#1055/#1056/#1059 · Migration `141` ·
+> `domain/voucher.inbound`/`charge_word`/`payment_word` · `services/voucher.minus`
+
+*«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend — denn am
+Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»*
+
+**Der Betrag ist eine Menge. Wohin das Geld fliesst, sagt der Beleg — einmal.**
+
+Das war die **Grundursache von drei Meldungen auf einmal**. Ein Korrekturbeleg trug einen
+**negativen** Betrag (`bill` drehte das Vorzeichen, `_mirror` spiegelte die Steuer), und
+drei Leser fragen «ist der Betrag grösser als null?» — bei einer Gutschrift ist er das nie:
+
+| Leser | fragt | bei einer Gutschrift |
+|---|---|---|
+| `pay_online` | `open > 0` | fällt weg → «Stripe ist nicht mehr verfügbar» (#1054) |
+| `next_payment` | `open > 0` | leer → man musste **−43.24** tippen (#1055) |
+| `settled` | `paid >= agreed` | `−43.24 >= +43.24` ist **nie** wahr → bei Saldo 0 kein
+  Abschluss (#1056) |
+
+Gemessen über die echten Dienstpfade, nicht vermutet. Mit der Menge stimmen alle drei
+**unverändert**: es ist nichts gebaut worden, **vier** Sonderfälle sind gefallen — die
+drei oben plus der Vorzeichen-Vergleich in `invoice_state` («überzahlt ist, wo Rest und
+Betrag verschiedene Vorzeichen tragen» → wieder schlicht `remaining < 0`).
+
+**Das Minus verschwindet nicht, es bekommt einen Ort:** die Buchhaltung sieht eine
+Gutschrift negativ, und sie leitet das aus `corrects_id` ab — an **einer** Stelle, wenn es
+sie gibt. Eine Spalte mit Vorzeichen daneben wäre die zweite Wahrheit, und ein `signed()`
+ohne Leser die zweite Wahrheit ohne Nutzen.
+
+**Was ein Mensch tippt, ist nie negativ.** Die eine Ausnahme ist die Korrektur einer
+erfassten Zahlung — und dort **setzt das System** den Betrag (die Oberfläche belegt ihn mit
+dem Gegenwert vor); niemand schreibt ein Minus.
+
+**Und eine Gutschrift wird dadurch SICHTBAR** (#1054 war auch eine Meldung über
+Unsichtbarkeit: *«irgendwie hat sich die Funktion voll verändert»*). Der Belegkopf nennt
+bewusst keine Belegart (§9.15b), also sagen es die **Wörter auf den Knöpfen** — dort, wo
+man handelt: **«Gutschrift stellen»** statt «Rechnung stellen», **«Erstattung erfassen»**
+statt «Zahlung erfassen». Zusammengesetzt aus **zwei Bits** (`charge_word`), nicht als
+Tabelle mit vier fertigen Sätzen: mit der Gutschrift kam eine zweite Frage dazu, und vier
+Sätze wären vier Stellen, an denen einer stehenbleibt. Die Fuge ist ein Leerzeichen vor
+einem Infinitiv — in allen vier Fällen richtiges Deutsch, anders als eine gerechnete
+Beugung («Kundeen», #787).
+
+**`inbound` ist nicht `collects`** (`vo.inbound` = `collects != minus`): wer den Beleg
+**ausstellt**, bleibt bei einer Gutschrift derselbe (wir schreiben unserem Kunden gut), nur
+fliesst das Geld andersherum. Zwei Fragen, zwei Antworten — und nur die zweite entscheidet
+über den **Zahlungsdienst** (er *zieht ein*) und den **Einzahlungsschein** (er trägt unsere
+Bankverbindung). *Bis hierher fiel beides an einer Gutschrift ebenfalls weg, aber aus dem
+falschen Grund: der Betrag war negativ. Ein Zufall, der stimmt, ist keine Regel.*
+
+**#1059, validiert:** die Gutschrift bleibt in der **Einnahme**-Logik, und das ist richtig
+— steuerlich ist sie eine *Umsatzminderung*, keine Ausgabe (eine Ausgabe wäre Vorsteuer).
+Was sie unangenehm machte, war nicht der Ort, sondern das Minus.
+
+**Migration `141`** dreht bestehende Gutschriften und die Erstattungen darauf; die
+Anweisungen stehen in `domain/voucher.magnitude_sql` und werden von der Migration **und**
+vom Lifespan-Netz gelesen (die dev-Datenbank fährt kein `alembic upgrade head`, #778).
+Selbstbegrenzend: gedreht wird nur, was negativ ist.
+
 
 ## 10. Darstellung
 

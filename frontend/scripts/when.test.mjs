@@ -31,7 +31,7 @@ const source = readFileSync(resolve(here, '../src/lib/when.ts'), 'utf8');
 const js = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { when, day, whenTitle, formatWhen, NOTHING } =
+const { when, day, whenTitle, formatWhen, happened, NOTHING } =
   await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 
 /** Der feste Bezugspunkt aller Prüfungen – ein Zeitpunkt, keine Uhr. */
@@ -111,4 +111,23 @@ test('die Wörter stehen im Modul, nicht im ICU', () => {
   // server- und clientseitig verschieden gerendert wirft React die Seite weg.
   assert.equal(when(at(2025, 8, 13), NOW), '13. Sep. 2025');
   assert.equal(when(at(2025, 2, 13), NOW), '13. März 2025');
+});
+
+test('happened() stellt die Zeit vor den Vorgang (#1052)', () => {
+  // *«Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»*
+  assert.equal(happened(at(2026, 8, 16, 17, 58, 10), 'zugesagt', NOW).text,
+               'Gerade eben zugesagt');
+  assert.equal(happened(at(2026, 8, 13), 'offeriert', NOW).text, 'Vor 3 Tagen offeriert');
+  assert.equal(happened(at(2026, 8, 15), 'angenommen', NOW).text, 'Gestern angenommen');
+  // Eine Ziffer bleibt eine Ziffer – gross geschrieben wird genau ein Zeichen.
+  assert.equal(happened(at(2025, 8, 13), 'offeriert', NOW).text,
+               '13. Sep. 2025 offeriert');
+  // Und die Tatsache steht im Hover, wie bei jeder Aussage dieses Moduls.
+  assert.equal(happened(at(2026, 8, 13), 'offeriert', NOW).title, '13.09.2026, 00:00');
+});
+
+test('happened() ohne Zeitpunkt sagt nur, was war', () => {
+  // «— offeriert» wäre eine Aussage über ein Datum, das es nicht gibt.
+  assert.equal(happened(null, 'offeriert', NOW).text, 'offeriert');
+  assert.equal(happened(null, 'offeriert', NOW).title, undefined);
 });

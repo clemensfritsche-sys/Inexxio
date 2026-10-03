@@ -3,7 +3,8 @@
 import { createContext, useContext } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { MICRO_LABEL } from '@/components/erp/fields';
+// *MICRO_LABEL stand hier für den Abschnittskopf – er trägt seit #1051 das
+// **Overline**-Register, eine Stufe darüber (siehe ModuleSection).*
 import { formatAmount } from '@/lib/utils';
 
 /**
@@ -461,27 +462,32 @@ export function ModuleSection({ title, state, right, children, first }: {
             width: 7, height: 7, flex: 'none',
             background: state ? STEP_COLOR[state] : 'transparent',
           }} />
+          {/* ►►► **Der Kopf ist eine STUFE über dem Feld-Label** (Testnotiz #1051).◄◄◄
+              *«Kann man die Überschriften der Kategorien etwas prägnanter machen – im
+              Stil, nicht im Text? Es geht irgendwie so unter, und man erkennt die
+              verschiedenen Kategorien nicht so gut.»*
+
+              Gemessen war die Hierarchie **flach**: der Kopf trug `MICRO_LABEL`
+              (11 px · 700 · Versalien · .07em) – und genau dasselbe trägt jede
+              Beschriftung **in** einem Abschnitt («Rechnungsadresse», «Zahlungsfrist»).
+              Der Unterschied war ein Gewichtsschritt und die Leiste; zwei Ebenen, eine
+              Schriftgrösse.
+
+              Die Antwort steht im Design-System und heisst **Overline** (`--overline`:
+              12 px · 600 · Versalien, `--tracking-overline` .18em) – das Register für
+              eine Überschrift über einem Block, eine Stufe über der leisen
+              Beschriftung. Geraten wird dafür keine Zahl: ein Token sagt, welches
+              Register gemeint ist. Dazu wie bisher **800** statt 600 (die Familie führt
+              es, es wird nichts synthetisiert) und die dunkle Schrift – gedämpft wäre
+              sie leiser als der Inhalt, den sie eröffnet.
+
+              `MICRO_LABEL` bleibt unangetastet: es trägt im ganzen Haus die leisen
+              Beschriftungen, und genau von ihnen soll sich dieser Kopf abheben. */}
           <span style={{
-            ...MICRO_LABEL, flex: 1, minWidth: 0,
-            // ►►► **Ein Abschnittskopf trägt mehr Gewicht** (Testnotiz #1006). ◄◄◄
-            //
-            // *«Die Bereichsüberschriften sind zu schwach.»* – Erlaubt waren vier Mittel
-            // (Gewicht · Abstand · Trennlinie · Nummerierung), und zu wählen war eine
-            // **Kombination, nicht alles**: die Trennlinie steht seit jeher, eine
-            // Nummerierung behauptete eine Reihenfolge, die es bei Inhalts-Abschnitten
-            // nicht gibt. Bleiben **Gewicht und Abstand** – beide gehören der **Gattung**
-            // «Abschnitt einer Modul-Karte» und stehen darum hier, nicht an der
-            // Aufrufstelle (`MICRO_LABEL` bleibt unangetastet: es trägt im ganzen Haus
-            // die leisen Beschriftungen).
-            //
-            // **800, nicht 700** – gemessen, nicht geschätzt: `MICRO_LABEL` steht bereits
-            // auf 700, ein «höheres Gewicht» dorthin wäre ein Wirkungsloser gewesen. Die
-            // Schriftfamilie führt 800 (`colors_and_type.css` lädt sie), es wird also
-            // nichts synthetisiert.
-            fontWeight: 800,
-            // **Auf der Leiste trägt jede Überschrift die dunkle Schrift** – gedämpft
-            // wäre sie leiser als der Inhalt darunter, den sie eröffnet. Wo man steht,
-            // sagt der Punkt links; die Farbe ist nicht mehr das Mittel dafür.
+            flex: 1, minWidth: 0,
+            font: 'var(--overline)', fontWeight: 800,
+            letterSpacing: 'var(--tracking-overline)',
+            textTransform: 'uppercase',
             color: 'var(--fg-1)',
           }}>{title}</span>
           {right}

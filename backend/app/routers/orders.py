@@ -1029,6 +1029,7 @@ def voucher_transfer_details(
 def voucher_correctable(
     object_id: int,
     step_id: int,
+    search: str = "",
     db: Session = Depends(get_db),
     user: UserProfile = Depends(require_employee),
 ):
@@ -1040,7 +1041,14 @@ def voucher_correctable(
     keine fremde Forderung und das Geld fliesst nicht andersherum.
 
     **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
+
+    ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄ *«Hier haben
+    wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Dieselbe Bauart wie jede
+    andere Referenz im Haus: tippen fragt den Server (``search`` – Rechnungsnummer oder
+    Auftragsnummer), und die Liste trägt nur, was passt. Eine fertige Liste war bei einer
+    Handvoll Belegen richtig und ist es beim hundertsten nicht mehr.
     """
     order = orders_svc.get(db, object_id)
     step, row = _voucher_step(db, order, step_id, user)
-    return [VoucherCorrectable(**r) for r in voucher_svc.correctable(db, row, step)]
+    return [VoucherCorrectable(**r)
+            for r in voucher_svc.correctable(db, row, step, search=search)]

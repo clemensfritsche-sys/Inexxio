@@ -180,3 +180,32 @@ export function formatWhen(value: string | Date | null | undefined,
                            now: Date = new Date()): { text: string; title?: string } {
   return { text: when(value, now), title: whenTitle(value) };
 }
+
+/**
+ * ►►► **ZEIT zuerst, dann was passiert ist** (Testnotiz #1052). ◄◄◄
+ *
+ * *«Kann man das hier und sonst überall, wo diese Logik vorhanden ist, umdrehen und sagen:
+ * Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»*
+ *
+ * Es stand andersherum («offeriert · vor 3 Tagen»), und das ist keine Eigenschaft einer
+ * Zeile, sondern die **Form einer Aussage über einen Vorgang**: man liest zuerst, wie
+ * frisch sie ist, dann was es war. Also steht sie **hier**, bei der einen Datums-Ausgabe,
+ * und nicht an drei Aufrufstellen.
+ *
+ * ```tsx
+ * const w = happened(quote.sent_at, 'offeriert');   // «Vor 3 Tagen offeriert»
+ * ```
+ *
+ * **Der erste Buchstabe wird gross**, weil daraus ein Satzanfang wird: `when()` liefert
+ * «vor 3 Tagen» klein (dort steht es hinter «fällig») und «Gerade eben» gross – ohne diese
+ * eine Zeile stünden beide Formen nebeneinander. Gross geschrieben wird genau **ein
+ * Zeichen**; bei einer Ziffer («13. Sep. offeriert») ändert sich nichts.
+ */
+export function happened(value: string | Date | null | undefined, what: string,
+                         now: Date = new Date()): { text: string; title?: string } {
+  const said = when(value, now);
+  const text = said === NOTHING
+    ? what
+    : `${said.charAt(0).toUpperCase()}${said.slice(1)} ${what}`;
+  return { text, title: whenTitle(value) };
+}

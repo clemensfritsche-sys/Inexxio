@@ -231,20 +231,103 @@ def undo_word(stage: str) -> str:
     """Wie die Gegenhandlung in **dieser** Stufe heisst – die eine Auflösung."""
     return UNDO_AT.get(stage, UNDO)
 
-#: ►►► **«Rechnung STELLEN» ↔ «Rechnung ERFASSEN» — zwei Vorgänge, zwei Wörter.** ◄◄◄
+# ---------------------------------------------------------------------------
+# ►►► JEDE ZAHL IST EINE MENGE — das Vorzeichen sagt der BELEG, einmal ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend – denn
+# am Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»* (Testnotiz #1055)
+#
+# **Und das war die Grundursache von drei Meldungen auf einmal.** Ein Korrekturbeleg trug
+# bis hierher einen **negativen** Betrag (``bill`` drehte das Vorzeichen), und drei Leser
+# fragen «ist der Betrag grösser als null?» – bei einer Gutschrift ist er das nie:
+#
+# * ``pay_online`` verlangt ``open > 0`` → der Zahlungsdienst verschwand (#1054),
+# * ``next_payment`` ebenso → das Feld blieb leer, und man musste **−43.24** tippen (#1055),
+# * ``settled`` fragt ``paid >= agreed`` → ``−43.24 >= +43.24`` ist **nie** wahr, und das
+#   Modul liess sich bei Saldo 0 nicht abschliessen (#1056).
+#
+# ►►► **Die Regel, die alle drei auflöst: der Betrag ist eine MENGE.** ◄◄◄ Wohin das Geld
+# fliesst, sagt der Beleg – mit seiner **Richtung** und mit der Frage, ob er **mindert**.
+# Damit stimmen die drei Leser **unverändert**: es wird nichts gebaut, vier Sonderfälle
+# fallen weg (die drei oben plus der Vorzeichen-Vergleich in ``invoice_state``).
+#
+# **Das Minus verschwindet nicht, es bekommt einen Ort**: die **Buchhaltung** sieht eine
+# Gutschrift negativ, und sie leitet das aus ``corrects_id`` ab – an **einer** Stelle, wenn
+# es sie gibt. Eine Spalte mit Vorzeichen daneben wäre die zweite Wahrheit, und ein
+# ``signed()`` ohne Leser die zweite Wahrheit ohne Nutzen.
+#
+# **Was ein Mensch tippt, ist nie negativ.** Die eine Ausnahme ist die Korrektur einer
+# erfassten Zahlung – und dort **setzt das System** den Betrag (die Oberfläche belegt ihn
+# mit dem Gegenwert vor); niemand schreibt ein Minus.
+
+#: Wie der Beleg heisst, der **fordert** – und wie der, der **mindert**.
+INVOICE_NOUN = "Rechnung"
+CREDIT_NOUN = "Gutschrift"
+#: Was man mit ihm tut: **wir** stellen ihn aus ↔ wir schreiben einen **fremden** ab.
+#: Bis hierher standen dafür zwei fertige Sätze (``CHARGE_ISSUE``/``CHARGE_RECORD``) – mit
+#: der Gutschrift wären es vier geworden. Zusammengesetzt sind es **zwei Bits**, und die
+#: Fuge ist ein Leerzeichen vor einem Infinitiv: das ist in allen vier Fällen richtiges
+#: Deutsch, anders als eine gerechnete Beugung («Kundeen», #787).
+ISSUE_VERB = "stellen"
+RECORD_VERB = "erfassen"
+
+#: Was auf das Konto kommt ↔ was zurückgeht. Es hängt an **einem** Bit – daran, ob der
+#: Beleg mindert –, nicht an der Richtung: eine Lieferantenrechnung zu bezahlen ist eine
+#: **Zahlung**, auch wenn das Geld hinausgeht.
+PAYMENT_NOUN = "Zahlung"
+REFUND_NOUN = "Erstattung"
+
+#: ►►► **Die drei Momente, die der Beleg erzählt** (Testnotiz #1052). ◄◄◄
 #:
-#: Bis hierher hiess beides «Rechnung erfassen», und das ist kein Geschmack, sondern eine
-#: Verwechslung: bei einer **Einnahme** entsteht der Beleg **hier** und geht hinaus; bei
-#: einer **Ausgabe** schreiben wir ab, was der Lieferant uns geschickt hat. Ein Wort für
-#: beides lässt den einen Fall wie den anderen aussehen – und ausgerechnet der, in dem
-#: eine Rechnungsnummer vergeben wird, klang nach Abtippen.
+#: *«Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»* Die **Form** dieser
+#: Aussage steht im Frontend (`lib/when.happened`), die **Wörter** stehen hier: sie waren
+#: in die Karte geschrieben, und ein Wächter hat es gemeldet – zu Recht, denn genau so
+#: entsteht der zweite Ort für dasselbe Wort.
 #:
-#: Es ist damit die eine Angabe der Richtung an dieser Stelle (``Direction.charge_verb``);
-#: **erfasst** wird die Zahlung weiterhin in beiden Richtungen – das System bucht eine
-#: Zeile, es überweist nichts.
-CHARGE_ISSUE = "Rechnung stellen"
-CHARGE_RECORD = "Rechnung erfassen"
-PAYMENT_WORD = "Zahlung erfassen"
+#: Es sind **Partizipien in einem Satz** («Vor 3 Tagen storniert»), darum klein – und
+#: darum nicht dieselbe Angabe wie `label_of(CANCELLED)` («Storniert»): das ist die
+#: **Beschriftung einer Stufe**, und sie steht für sich.
+SENT_WORD = "offeriert"
+TAKEN_WORD = "angenommen"
+CANCELLED_WORD = "storniert"
+
+
+def charge_word(*, collects: bool, minus: bool) -> str:
+    """**Wie die Forderung entsteht** – aus zwei Bits, nicht aus einer Tabelle mit vieren.
+
+    *«Rechnung stellen»* · *«Gutschrift stellen»* · *«Rechnung erfassen»* · *«Gutschrift
+    erfassen»*. Das ist zugleich die Stelle, an der eine Gutschrift **sichtbar** wird: der
+    Belegkopf nennt bewusst keine Belegart (#974/#977), also sagt es das Wort auf dem
+    Knopf – dort, wo man handelt.
+    """
+    return (f"{CREDIT_NOUN if minus else INVOICE_NOUN} "
+            f"{ISSUE_VERB if collects else RECORD_VERB}")
+
+
+def payment_word(*, minus: bool) -> str:
+    """**Zahlung ↔ Erstattung erfassen.** Ein Bit: mindert dieser Beleg?
+
+    **Erfasst** wird beides – das System bucht eine Zeile, es überweist nichts.
+    """
+    return f"{REFUND_NOUN if minus else PAYMENT_NOUN} {RECORD_VERB}"
+
+
+def inbound(*, collects: bool, minus: bool) -> bool:
+    """►►► **Kommt das Geld zu UNS?** – die eine Ableitung aus Richtung und Minderung. ◄◄◄
+
+    Sie ist **nicht** dasselbe wie ``collects``: wer den Beleg ausstellt, bleibt bei einer
+    Gutschrift derselbe (wir schreiben unserem Kunden gut), nur fliesst das Geld
+    andersherum. Also zwei Fragen, zwei Antworten – und diese hier beantwortet:
+
+    * ob ein **Zahlungsdienst** hier etwas zu tun hat (er **zieht ein**, er überweist
+      nicht in unserem Namen),
+    * ob ein **Einzahlungsschein** Sinn ergibt (er trägt unsere Bankverbindung).
+
+    Ein ``!=`` über zwei Bits ist das exklusive Oder, und damit stimmen alle vier Fälle
+    ohne eine Fallunterscheidung.
+    """
+    return collects != minus
 #: Und die dritte Handlung am Geld: sie **auslösen**. «Erfassen» heisst *aufschreiben, was
 #: geschehen ist*; hier geschieht es, und gebucht wird erst, wenn der Dienst es meldet.
 PAY_ONLINE_WORD = "Jetzt bezahlen"
@@ -553,23 +636,24 @@ def invoice_state(total: Decimal, remaining: Decimal, *,
     Rechnung ist, sind Betrag und Saldo dieselben zwei Zahlen: eine Frage, eine Antwort.
     Der frühere Saldo-Zustand «Guthaben» ist damit derselbe wie «Überzahlt».
 
-    ►►► **Gerechnet wird mit dem VORZEICHEN, nicht mit «grösser null».** ◄◄◄ Ein
-    **Korrekturbeleg** trägt einen negativen Betrag; bei ihm ist auch der offene Betrag
-    negativ, und «offen < 0 heisst überzahlt» nennte jede unbeglichene Gutschrift
-    «Überzahlt». Überzahlt ist, wo Rest und Betrag **verschiedene** Vorzeichen tragen –
-    dann ist mehr geflossen als gefordert, in welche Richtung auch immer.
+    ►►► **Und sie fragt wieder schlicht «grösser null».** ◄◄◄ Hier stand ein
+    Vorzeichen-Vergleich (*«überzahlt ist, wo Rest und Betrag verschiedene Vorzeichen
+    tragen»*), weil ein **Korrekturbeleg** einen negativen Betrag trug. Seit jede Zahl auf
+    dem Beleg eine **Menge** ist (Testnotizen #1054–#1056), kann der Betrag nicht mehr
+    negativ sein – und der Rest nur dann, wenn **mehr geflossen** ist als gefordert. Das
+    ist genau «überzahlt», und es braucht keine Fallunterscheidung mehr.
 
-    «Teilweise bezahlt» ist die Mitte: gleiches Vorzeichen, aber weniger übrig als
-    gefordert. Ohne sie sähe eine Rechnung, auf die eine Anzahlung eingegangen ist,
-    genauso aus wie eine, auf die nichts eingegangen ist.
+    «Teilweise bezahlt» ist die Mitte: etwas ist eingegangen, aber nicht alles. Ohne sie
+    sähe eine Rechnung, auf die eine Anzahlung eingegangen ist, genauso aus wie eine, auf
+    die nichts eingegangen ist.
     """
     if abs(remaining) <= SETTLED_TOLERANCE:
         return _state("settled")
-    if total != 0 and (remaining < 0) != (total < 0):
+    if remaining < 0:
         return _state("overpaid")
     if overdue:
         return _state("overdue")
-    if abs(remaining) + SETTLED_TOLERANCE < abs(total):
+    if remaining + SETTLED_TOLERANCE < total:
         return _state("partial")
     return _state("open")
 
@@ -606,11 +690,10 @@ class Direction:
     ask_verb: str
     #: ►►► **Wer den Preis nennt** – ``BY_US`` ↔ ``BY_PARTY``. ◄◄◄
     quoted_by: str
-    #: ►►► **Wie die Forderung entsteht** – «Rechnung stellen» ↔ «Rechnung erfassen». ◄◄◄
-    #: Im einen Fall entsteht der Beleg hier, im anderen schreiben wir einen fremden ab.
-    #: Das ist der einzige der Geld-Wörter, der wirklich verschieden ist – die Zahlung
-    #: wird in beiden Richtungen **erfasst**, und darum steht sie als Konstante daneben.
-    charge_verb: str
+    #: *Hier stand ``charge_verb`` – «Rechnung stellen» ↔ «Rechnung erfassen». Mit der
+    #: **Gutschrift** wäre es ein vierter fertiger Satz geworden; zusammengesetzt sind es
+    #: zwei Bits (``charge_word``), und die Richtung trägt nur noch eines davon
+    #: (``collects``).*
     #: **Wie die Nummer einer Geld-Zeile entsteht.** ``None`` heisst «wir nummerieren» –
     #: dann gibt es kein Eingabefeld, weder an der Rechnung noch an der Zahlung.
     reference: Optional[str]
@@ -660,8 +743,6 @@ DIRECTIONS: dict[str, Direction] = {
                       BILLED: "Rechnung"},
         ask_verb="Anbieten",
         quoted_by=BY_US,
-        # **Wir stellen sie** – sie entsteht hier, bekommt unsere Nummer und geht hinaus.
-        charge_verb=CHARGE_ISSUE,
         reference=None,
         collects=True,
         # **Wir liefern** – es gibt nichts zu bestellen, also auch keine Bestellangabe.
@@ -676,8 +757,6 @@ DIRECTIONS: dict[str, Direction] = {
                       BILLED: "Rechnung"},
         ask_verb="Anfragen",
         quoted_by=BY_PARTY,
-        # **Seine Rechnung schreiben wir ab** – der Beleg entsteht bei ihm.
-        charge_verb=CHARGE_RECORD,
         # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
         reference=PARTY_REFERENCE,
         collects=False,
@@ -1057,6 +1136,52 @@ def invoice_backfill_sql() -> tuple[str, ...]:
            AND v.amount IS NULL
         """,
         "UPDATE voucher_entries SET is_active = false WHERE kind = 'charge'",
+    )
+
+
+def magnitude_sql() -> tuple[str, ...]:
+    """►►► **Aus einem negativen Beleg wird eine Menge** (Migration ``141``). ◄◄◄
+
+    Bis hierher drehte ``bill`` bei einer Gutschrift das Vorzeichen: der Beleg trug
+    ``−43.24``, seine Steueraufteilung war gespiegelt, und die Erstattung darauf war eine
+    **negative** Zahlung. Seit jede Zahl eine **Menge** ist, zeigt dasselbe Geschäft
+    positiv – und nur die Buchhaltung dreht es, aus ``corrects_id``.
+
+    Zwei Anweisungen, und sie stehen **hier**, weil zwei Stellen sie brauchen: die
+    **Migration** (sie ist die Wahrheit) und das **Lifespan-Netz** – die dev-Datenbank
+    fährt kein ``alembic upgrade head`` (Testnotiz #778), und dort stünde sonst ein
+    Korrekturbeleg weiter im Minus, während die Leser ihn als Menge lesen: der offene
+    Betrag wäre das Doppelte.
+
+    **Beide sind selbstbegrenzend** – sie fassen nur, was negativ ist, und machen es
+    positiv; der zweite Lauf findet nichts mehr. Das gilt auch für die Steuer: gespiegelt
+    heisst dort «Netto und Steuer tragen ein Minus», und ein ``ltrim`` nimmt es weg.
+
+    *Die eine benannte Annahme:* eine **negative Zahlung an einem Korrekturbeleg** wird als
+    Erstattung gelesen und mitgedreht. Eine von Hand gebuchte Gegen-Zahlung an einer
+    Gutschrift (die Korrektur einer Korrektur) sieht gleich aus und wird mitgedreht – sie
+    ist in dieser Lage nicht von ihr zu unterscheiden, und die Alternative wäre ein
+    falscher Saldo an jedem bestehenden Beleg.
+    """
+    return (
+        """
+        UPDATE vouchers v
+           SET amount = -v.amount,
+               vat = CASE WHEN v.vat IS NULL THEN NULL ELSE (
+                   SELECT jsonb_agg(e || jsonb_build_object(
+                              'net', ltrim(e->>'net', '-'),
+                              'tax', ltrim(e->>'tax', '-')))
+                     FROM jsonb_array_elements(v.vat) e
+               ) END
+         WHERE v.corrects_id IS NOT NULL AND v.amount < 0
+        """,
+        """
+        UPDATE voucher_entries e
+           SET amount = -e.amount
+         WHERE e.amount < 0
+           AND e.voucher_id IN (SELECT id FROM vouchers
+                                 WHERE corrects_id IS NOT NULL)
+        """,
     )
 
 
