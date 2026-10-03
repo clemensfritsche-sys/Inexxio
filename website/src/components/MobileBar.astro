@@ -1,29 +1,37 @@
 ---
 /**
  * Feste Aktionsleiste unten – nur mobil: [Anrufen] [Anfrage], 56 px hoch.
- * Erscheint, sobald der Seitenkopf (data-hero) aus dem Bild ist. Ohne JS ist sie immer da.
+ * Erscheint, sobald der Seitenkopf aus dem Bild ist: das EINE Element mit data-hero – H1 und
+ * die erste Handlung, nie der ganze Artikel (sonst käme sie erst am Seitenende; check-site
+ * prüft es). Ohne JS ist sie immer da.
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
 ---
-<div class="mobilebar" data-mobilebar>
+<nav class="mobilebar" aria-label="Schnellkontakt" data-mobilebar>
   <a class="mobilebar__btn mobilebar__btn--tel" href={`tel:${site.phone.e164}`} data-track="tel_click">
     <Icon name="phone" size={20} /> Anrufen
   </a>
   <a class="mobilebar__btn mobilebar__btn--cta" href={site.cta.href}>
     Anfrage <Icon name="arrow-right" size={20} />
   </a>
-</div>
+</nav>
 
 <style>
   .mobilebar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
     display: grid; grid-template-columns: 1fr 1fr; height: calc(56px + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom); background: var(--white); border-top: 1px solid var(--line-2);
-    transition: transform 260ms var(--ease);
+    transition: transform 260ms var(--ease), visibility 0s linear 0s;
   }
-  :global(.js) .mobilebar:not(.is-visible) { transform: translateY(100%); }
-  :global(html.menu-open) .mobilebar { transform: translateY(100%); }
+  /* Versteckt heisst auch: nicht fokussierbar. Nur verschoben blieben beide Links mit der
+     Tabulatortaste erreichbar – der Fokus stünde unsichtbar unter dem Bildrand. `visibility`
+     schaltet erst um, wenn die Leiste draussen ist (Verzögerung = Dauer der Bewegung). */
+  :global(.js) .mobilebar:not(.is-visible),
+  :global(html.menu-open) .mobilebar {
+    transform: translateY(100%); visibility: hidden;
+    transition: transform 260ms var(--ease), visibility 0s linear 260ms;
+  }
   .mobilebar__btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     font-weight: 600; font-size: 1rem; text-decoration: none; min-height: 56px;

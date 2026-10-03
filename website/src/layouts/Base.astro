@@ -110,7 +110,7 @@ const csp = [
   <body>
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
     {mode === 'preview' && (
-      <p class="mode-banner">Vorschau – nicht öffentlich. Gelb markierte Stellen sind offene Punkte.</p>
+      <aside class="mode-banner" aria-label="Vorschau">Vorschau – nicht öffentlich. Gelb markierte Stellen sind offene Punkte.</aside>
     )}
     {site.features.announcement && <Announcement />}
     <Header />

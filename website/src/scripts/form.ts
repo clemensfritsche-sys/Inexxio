@@ -81,7 +81,6 @@ function setup(form: HTMLFormElement): void {
 
   if (useSteps) {
     form.classList.add('iform--steps');
-    if (progress) progress.hidden = false;
     show(0, false);
     next?.addEventListener('click', () => {
       const errors = validate(form, steps[current], isMain, vocab);

@@ -92,6 +92,45 @@
 19. **FAQ ohne Antwort fällt aus dem JSON-LD**: eine Frage, deren Antwort noch ganz offen
     ist, wäre dort eine leere Aussage.
 
+*Entscheidungen aus Phase 6 – jede aus einer Messung, nicht aus Geschmack:*
+
+20. **Ein Stylesheet für die ganze Website** (`cssCodeSplit: false`, rund 13 KB gzip): vorher
+    lud jede Seite ein Dutzend Teil-Dateien, und jede blockiert das erste Zeichnen. Lighthouse
+    mobil: LCP 2.1–2.4 s → 1.5–1.8 s; ab der zweiten Seite kommt es aus dem Cache.
+21. **Was JavaScript einblendet, hat seinen Platz von Anfang an** (Schliessen-Knopf der
+    Ankündigung, Schrittanzeige des Formulars: `visibility` statt `hidden`): sonst springt die
+    Seite, sobald das Skript läuft – gemessen bis 0.073 CLS, danach 0 auf allen 24 Seiten.
+22. **Logo-Lockup gestapelt**: nebeneinander brauchte die Kopfzeile 1254 px bei 1240 px
+    Inhaltsbreite – «Über uns» und die Nummer brachen um. Gestapelt entspricht es zugleich
+    der Vorgabe (Zusatz und «ehemals HS Steiner» *darunter*).
+23. **`data-hero` markiert den Seitenkopf, nicht den Inhalt**: daran hängt, wann die
+    Aktionsleiste unten erscheint. Stand es am ganzen Artikel (Ratgeber, Rechtstexte), kam
+    sie erst nach rund 1700 px. `check-site` verlangt jetzt genau einen Seitenkopf je Seite,
+    nie an `<article>`/`<main>`/`<body>`, und vor der H1.
+24. **Versteckt heisst nicht fokussierbar**: die Aktionsleiste unten war nur verschoben – mit
+    der Tabulatortaste blieben beide Links erreichbar, der Fokus stand unsichtbar unter dem
+    Bildrand. Jetzt zusätzlich `visibility: hidden`, umgeschaltet erst nach der Bewegung.
+25. **Die Prüffristen-Tabelle wird unter 768 px zu Blöcken** (Kranart, darunter beide Fristen
+    mit Beschriftung): als Tabelle lag ausgerechnet die Spalte «Kontrolle durch
+    Kranexperten» bei 390 px ausserhalb des Bildes. Die Beschriftung bleibt für Vorleser
+    hörbar – verliert ein Browser mit `display: block` die Tabellen-Semantik, sagt sie, welche
+    Frist gemeint ist. (Ausdrückliche ARIA-Rollen an `th`/`td` waren der erste Anlauf; die
+    HTML-Validierung meldet sie als ungültig.) Je Altersstufe eine Zeile statt eines Satzes
+    mit «·».
+26. **Die Karte zeigt schmal nur die grossen Orte, dafür lesbar** (unter 600 px 3.4 statt
+    2.7 Einheiten → rund 10 statt 8 px; die Liste darunter nennt alle Orte), mit
+    Freistellung wie auf jeder Karte: Kreis und Rhein laufen nicht mehr durch die Buchstaben.
+27. **Das rote Quadrat gehört der Kranbahn-Linie** (Kap. 9.6: «soll auffallen, weil es selten
+    ist»): die Auswahl-Kacheln im Formular tragen einen runden Auswahlpunkt (ein Quadrat las
+    sich zudem als Mehrfachauswahl), die Vertrauensleiste neutrale Punkte, die hervorgehobene
+    Abo-Stufe keine rote Ecke mehr.
+28. **Telefon-Symbol auch auf dem Tablet** (600–899 px): dort hatte weder die ausgeschriebene
+    Nummer noch die Aktionsleiste unten Platz – die Kopfzeile bot keinen Weg zum Telefon. Der
+    Link heisst für Vorleser immer «052 378 22 47 anrufen».
+29. **Externe Links sind von hier aus nicht prüfbar**: die Netzwerkrichtlinie dieser Umgebung
+    sperrt fedlex.admin.ch, suva.ch, seco.admin.ch, eur-lex.europa.eu, bul.ch und google.com.
+    Die Prüfung steht in der Start-Checkliste des Berichts, statt dass sie als «geprüft» gilt.
+
 ## 3. Änderungen ausserhalb von `website/`
 
 | Datei | Änderung | Warum zwingend |
@@ -106,7 +145,8 @@
 | `frontend/src/components/ui/{button,input,select,textarea}.tsx`, `CookieSettingsButton` | entfernt | nur von gelöschten Seiten benutzt |
 | `frontend/package.json` (+ Lock) | `react-hook-form`, `zod`, `@hookform/resolvers` entfernt | nur vom gelöschten Kontaktformular benutzt |
 | `firebase.json` | `redirects` der alten hs-steiner.ch-Pfade (12 Regeln, Regex, Gross-/Kleinschreibung egal) | alte URLs auffangen (Auftrag Kap. 3.3); Firebase ist die einzige Stelle, die sie ausführen kann |
-| `.github/workflows/deploy-dev.yml`, `deploy-prod.yml` | Job «Quality gates (Website)» (Node 22: Tests, astro check, Vokabular, Build mit Prüfungen); beim Deploy Website bauen und mit `website/scripts/merge-hosting.mjs` in `frontend/out` übernehmen | ohne diesen Schritt hätte die Domain keine Startseite mehr |
+| `.github/workflows/deploy-dev.yml` | Job «Quality gates (Website)» (Node 22: Tests, astro check, Vokabular, Build mit Prüfungen); der Backend-Deploy wartet darauf | ein Fehler der Website hält den Deploy an, statt live zu gehen |
+| `.github/workflows/deploy-dev.yml`, `deploy-prod.yml` | im Frontend-Job: Website **zuerst** bauen (Node 22), danach alles Bisherige unverändert mit Node 20 (auch die Firebase-CLI); nach dem ERP-Build mit `website/scripts/merge-hosting.mjs` in `frontend/out` übernehmen | ohne diesen Schritt hätte die Domain keine Startseite mehr; die Reihenfolge lässt jeden bestehenden Schritt auf seiner Node-Version |
 | `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md` | Abschnitt «Website», Endpunkt-Zeile, entfernte Seiten | jede Sitzung liest sie zuerst |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router), Datenbank, Modelle, Migrationen,
@@ -149,5 +189,13 @@ Erhoben über die Websuche (hs-steiner.ch selbst ist von hier aus gesperrt). Vol
 - [x] **5 – SEO und KI**: Meta, JSON-LD, Sitemap, robots.txt, llms.txt + llms-full.txt, Redirects
       (lokal mit superstatic, der Engine des Firebase-Emulators: 22/22), OG-Bilder, `check-site.mjs`
       (16 Fehlerformen gegengeprüft, jede meldet), Seitenliste `src/lib/pages.ts`
-- [ ] **6 – Prüfung und Feinschliff**
+- [x] **6 – Prüfung und Feinschliff** (Ergebnisse im Bericht): Build in beiden Modi – «live»
+      bricht an den offenen Markierungen ab, wie verlangt; 24/24 Seiten vollständig ohne JS;
+      HTML-Validierung 0 Fehler; axe 0 Verstösse; 0 px Überlauf und 0 zu kleine Klickflächen
+      bei 360–2560 px; CLS 0 auf allen Seiten (gedrosselt, schlimmster Fall); Lighthouse mobil
+      Leistung 99–100, Barrierefreiheit/Best Practices 100, SEO 100 in der Live-Simulation;
+      Formular 30/30 inkl. Störung und ohne JS; Weiterleitungen 16/16; CSP 0 Verstösse;
+      Sichtprüfung aller Seiten – 7 Befunde behoben (Entscheidungen 22–28).
+      *Nicht prüfbar von hier:* externe Links (Netzwerkrichtlinie), echte Geräte und andere
+      Browser-Engines als Chromium.
 - [ ] **7 – Abschlussbericht** und Deploy

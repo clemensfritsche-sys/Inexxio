@@ -1,8 +1,9 @@
 ---
 /**
  * Seitenkopf: links Text (Eyebrow, H1, Lead, Hauptaktion), rechts ein grosses echtes Foto.
- * Asymmetrisch, kein Slider, kein Video. Markiert sich als data-hero (mobile Aktionsleiste
- * erscheint, sobald er aus dem Bild ist).
+ * Asymmetrisch, kein Slider, kein Video. Die Textspalte ist der Seitenkopf (data-hero): ist sie
+ * mit ihren Knöpfen aus dem Bild, erscheint die mobile Aktionsleiste – nicht erst nach Foto
+ * und Einstiegs-Kacheln (auf der Startseite gemessen: sonst erst nach rund 1700 px).
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
@@ -24,9 +25,9 @@ interface Props {
 const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md' } = Astro.props;
 const second = secondary === false ? null : (secondary ?? { label: site.phone.display, href: `tel:${site.phone.e164}`, track: 'tel_click' });
 ---
-<section class:list={['hero', `hero--${size}`]} data-hero>
+<section class:list={['hero', `hero--${size}`]}>
   <div class="wrap hero__grid">
-    <div class="hero__text">
+    <div class="hero__text" data-hero>
       <Rich as="p" class="label hero__eyebrow" text={eyebrow} />
       <Rich as="h1" class="hero__title" text={title} />
       <Rich as="p" class="lead hero__lead" text={lead} />

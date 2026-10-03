@@ -24,7 +24,7 @@ import Rich from './Rich.astro';
       <ul role="list" class="catalog__items">
         {g.items.map((it) => (
           <li class="part">
-            <Photo id={it.photo} sizes="(min-width: 960px) 25vw, 100vw" class="part__img" />
+            <Photo id={it.photo} sizes="(min-width: 1024px) 400px, (min-width: 720px) 50vw, 100vw" class="part__img" />
             <div class="part__body">
               <h4 class="part__name">{it.name}</h4>
               <Rich as="p" class="part__text" text={it.text} />
@@ -58,6 +58,9 @@ import Rich from './Rich.astro';
   .catalog__intro { color: var(--ink-2); }
   .catalog__items { list-style: none; padding: 0; display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 720px) { .catalog__items { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* Ein Katalog ist dicht: drei Teile je Zeile – zwei Fotos à 600 px machten die Seite 8000 px
+     lang und fast nur aus Bildfläche. */
+  @media (min-width: 1024px) { .catalog__items { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .part { display: grid; gap: var(--s-4); align-content: start; }
   .part__body { display: grid; gap: var(--s-2); }
   .part__name { font-size: 1.25rem; }

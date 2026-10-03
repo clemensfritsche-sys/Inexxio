@@ -228,6 +228,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Die Website zuerst – mit Node 22 (Astro 7 verlangt ≥ 22.12). Danach läuft alles Weitere
+      # unverändert mit Node 20, auch die Firebase-CLI: so wechselt kein bestehender Schritt
+      # seine Node-Version. Zusammengeführt wird erst nach dem ERP-Build (siehe unten).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build website (Vorschau)
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: https://inexxio-dev.web.app
+        run: npm run build
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -263,21 +281,6 @@ jobs:
 
       # Die Website kommt in DIESELBE Hosting-Ausgabe: sie besitzt «/» und ihre Seiten,
       # das ERP behält /erp, /konto, /login, /agb. Der Merge bricht bei jeder Kollision ab.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install website dependencies
-        working-directory: website
-        run: npm ci
-
-      - name: Build website (Vorschau)
-        working-directory: website
-        env:
-          SITE_MODE: preview
-          SITE_URL: https://inexxio-dev.web.app
-        run: npm run build
-
       - name: Website in die Hosting-Ausgabe übernehmen
         working-directory: website
         run: node scripts/merge-hosting.mjs

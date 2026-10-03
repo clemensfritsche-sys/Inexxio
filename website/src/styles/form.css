@@ -30,13 +30,15 @@
   border: 1px solid var(--line-2); border-radius: var(--radius); position: relative;
   transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
+/* Einfachauswahl = runder Radio-Punkt. Das rote QUADRAT gehört der Kranbahn-Linie (Auftrag 9.6:
+   selten, damit es auffällt) – als Auswahlmarke sähe es zudem nach Mehrfachauswahl aus. */
 .tile__body::after {
-  content: ''; position: absolute; top: 18px; right: 18px; width: 14px; height: 14px;
-  border: 1px solid var(--ink-3); border-radius: 1px; background: var(--white);
+  content: ''; position: absolute; top: 18px; right: 18px; width: 16px; height: 16px;
+  border: 1.5px solid var(--ink-3); border-radius: 50%; background: var(--white);
 }
 .tile:hover .tile__body { border-color: var(--ink-3); }
 .tile input:checked + .tile__body { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.tile input:checked + .tile__body::after { background: var(--red); border-color: var(--red); }
+.tile input:checked + .tile__body::after { background: var(--red); border-color: var(--red); box-shadow: inset 0 0 0 3px var(--white); }
 .tile input:focus-visible + .tile__body { outline: 2px solid var(--ink); outline-offset: 2px; }
 .tile__label { font-weight: 650; color: var(--ink); }
 .tile__hint { font-size: 0.9rem; color: var(--ink-3); line-height: 1.4; }
@@ -53,7 +55,7 @@
 }
 .chip:hover span { border-color: var(--ink-3); }
 .chip input:checked + span { background: var(--ink); border-color: var(--ink); color: var(--white); }
-.chip input:checked + span::before { content: ''; width: 8px; height: 8px; background: var(--red); flex: none; }
+.chip input:checked + span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
 .chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 .iform__group, .iform__sub { display: grid; gap: 10px; }
@@ -91,7 +93,7 @@
 }
 .pikett-box__num:hover { text-decoration: underline; text-decoration-thickness: 2px; }
 
-/* Schritte (nur mit JS) */
+/* Schritte (nur mit JS); die Leiste darüber steht immer da – ohne JS als Überblick */
 .iform--steps .iform__step:not(.is-current) { display: none; }
 .iform__progress { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .iform__progress li {

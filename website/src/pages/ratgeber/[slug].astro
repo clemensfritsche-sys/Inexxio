@@ -37,9 +37,9 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
   article={{ published: a.published, updated: a.updated }}
   jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated })]}
 >
-  <article class="section art" data-hero>
+  <article class="section art">
     <div class="wrap">
-      <header class="art__head">
+      <header class="art__head" data-hero>
         <p class="label">Ratgeber · aktualisiert <time datetime={a.updated}>{formatDay(a.updated)}</time></p>
         <h1 class="art__title">{a.title}</h1>
         <Rich as="p" class="lead" text={a.description} />
@@ -65,9 +65,10 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
 
   <CtaBlock title={ctaTitle[a.cta.kind]} lead="Schreiben Sie uns – wir melden uns innert {{promises.responseTime}}." kind={a.cta.kind} need={a.cta.need} />
 
-  <section class="section section--tight">
+  <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
+  <div class="section section--tight">
     <div class="wrap"><RelatedLinks items={related} /></div>
-  </section>
+  </div>
 </Base>
 
 <style>

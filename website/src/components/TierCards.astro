@@ -36,12 +36,13 @@ const { compact = false } = Astro.props;
     background: var(--white); border: 1px solid var(--line-2);
   }
   .tier--featured { border: 2px solid var(--ink); }
-  .tier--featured::before { content: ''; position: absolute; top: -1px; right: -1px; width: 13px; height: 13px; background: var(--red); }
   .tier__name { font-size: 1.5rem; }
   .tier__summary { color: var(--ink-2); }
   .tier__price { font-weight: 650; color: var(--ink); padding-bottom: var(--s-3); border-bottom: 1px solid var(--line); }
   .tier__includes { font-size: 0.9375rem; color: var(--ink-3); }
-  .tier .checklist { flex: 1; }
+  /* Die Liste füllt die Karte (Knopf unten bündig), ihre Zeilen behalten aber ihren Abstand –
+     sonst standen drei Punkte weiter auseinander als vier. */
+  .tier .checklist { flex: 1; align-content: start; }
   .tier__cta { margin-top: var(--s-4); align-self: flex-start; }
   .tiers--compact .tier { padding: var(--s-5); }
   :global(.section--dark) .tier { background: var(--dark-2); border-color: var(--line-dark); }

@@ -123,6 +123,9 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 }
 .prose a:hover, .link:hover { text-decoration-color: currentColor; }
 .link-quiet { text-decoration: none; }
+/* Telefon und E-Mail im Fliesstext: 44 px hohe Trefferfläche. Vertikales Padding an einem
+   Inline-Element verschiebt keine Zeile – es vergrössert nur die Fläche, die den Finger trifft. */
+.tap { padding-block: 13px; }
 .link-quiet:hover { text-decoration: underline; }
 
 /* Sichtbarer Fokus: 2 px Rahmen mit Abstand. */
@@ -236,7 +239,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .prose ul, .prose ol { padding-left: 1.25em; max-width: var(--measure); }
 .prose li + li { margin-top: 0.4em; }
 .prose li::marker { color: var(--ink-3); }
-.prose table { width: 100%; border-collapse: collapse; font-size: 0.97rem; display: block; overflow-x: auto; }
+.prose table { width: 100%; border-collapse: collapse; font-size: 0.97rem; }
 .prose th, .prose td { text-align: left; vertical-align: top; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); }
 .prose thead th { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; border-bottom: 1px solid var(--ink); }
 .prose blockquote { border-left: 2px solid var(--red); padding-left: var(--s-4); color: var(--ink); }
@@ -295,4 +298,6 @@ html.menu-open { overflow: hidden; }
 @media print {
   .site-header, .announce, .mobilebar, .site-footer nav, .no-print { display: none !important; }
   body { font-size: 11pt; color: #000; }
+  /* Gedruckt wird auch, was noch nicht ins Bild gescrollt wurde – also im Endzustand. */
+  .reveal-pending, .is-armed, .is-armed * { opacity: 1 !important; transform: none !important; }
 }

@@ -95,17 +95,23 @@ const a = site.address;
   @media (min-width: 1100px) { .site-footer__grid { grid-template-columns: 1.5fr 1fr 1fr 1.35fr; } }
   .site-footer__home { display: inline-flex; min-height: 44px; align-items: center; }
   .site-footer__claim { margin-top: var(--s-4); max-width: 34ch; color: rgba(244, 243, 241, 0.72); line-height: 1.55; }
+  /* Jeder Spaltentitel hat dieselbe 44-px-Zeile – ob verlinkt oder nicht. Sonst stand
+     «Kontakt» 15 px höher als «Krane», weil nur der Link die Klickfläche trug. */
   .site-footer__title {
     font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; letter-spacing: 0.08em;
-    text-transform: uppercase; color: rgba(244, 243, 241, 0.6); margin-bottom: var(--s-3);
+    text-transform: uppercase; color: rgba(244, 243, 241, 0.6);
+    display: flex; align-items: center; min-height: 44px; margin: 0;
   }
-  .site-footer__title a { color: inherit; }
+  .site-footer__title a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
   .site-footer__title--gap { margin-top: var(--s-6); }
-  .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 2px; }
-  .site-footer__col li a { display: inline-flex; align-items: center; min-height: 36px; }
+  .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 0; }
+  .site-footer__col li a { display: inline-flex; align-items: center; min-height: 44px; }
   .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }
   .site-footer__contact p { display: grid; grid-template-columns: 22px 1fr; gap: 8px; max-width: none; line-height: 1.5; }
   .site-footer__k { color: rgba(244, 243, 241, 0.55); padding-top: 3px; }
+  /* Im Fliesstext: unterstrichen (nicht nur über die Farbe erkennbar) und mit 44 px hoher
+     Trefferfläche – vertikales Padding an einem Inline-Element verschiebt keine Zeile. */
+  .site-footer__contact a { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-color: rgba(255, 255, 255, 0.45); padding-block: 13px; }
   .site-footer__bottom {
     display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-6); justify-content: space-between; align-items: center;
     padding-block: var(--s-5) var(--s-6); font-size: 0.875rem; color: rgba(244, 243, 241, 0.6);

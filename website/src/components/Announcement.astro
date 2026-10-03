@@ -4,6 +4,11 @@
  * Schliessen merkt sich der Browser (localStorage, mit try/catch). Damit eine geschlossene
  * Leiste beim nächsten Seitenaufruf nicht kurz aufblitzt und den Inhalt verschiebt, liest
  * das kleine Kopf-Skript (scripts/early.js) den Wert schon vor dem ersten Zeichnen.
+ *
+ * Der Schliessen-Knopf belegt seinen Platz von Anfang an und wird nur UNSICHTBAR gehalten,
+ * bis das Skript ihn bedienbar macht (`is-ready`): erschiene er erst dann, würde der Text
+ * schmaler, bräche um und schöbe die ganze Seite nach unten (gemessen: bis 0.07 CLS).
+ * Ohne JavaScript bleibt er unsichtbar – ein Knopf, der nichts tun kann, ist kein Angebot.
  */
 import { site } from '../config/site.mjs';
 import { rich } from '../lib/text.mjs';
@@ -18,7 +23,7 @@ const a = site.announcement;
       <span set:html={rich(a.review)} />
       <a href={a.link.href} class="announce__link">{a.link.label} <Icon name="arrow-right" size={16} /></a>
     </p>
-    <button type="button" class="announce__close" data-announce-close hidden>
+    <button type="button" class="announce__close" data-announce-close>
       <Icon name="x" size={18} />
       <span class="visually-hidden">Hinweis schliessen</span>
     </button>
@@ -38,7 +43,11 @@ const a = site.announcement;
   .announce__link:hover { text-decoration-color: currentColor; }
   .announce__close {
     flex: none; display: inline-flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; margin-right: -12px; color: rgba(255, 255, 255, 0.8);
+    /* 44 × 44 Klickfläche, die negative Marge nimmt die Polsterung der Leiste auf –
+       so ist die Leiste mit Knopf genau so hoch wie ohne. */
+    width: 44px; height: 44px; margin-block: -6px; margin-right: -12px;
+    color: rgba(255, 255, 255, 0.8); visibility: hidden;
   }
+  .announce.is-ready .announce__close { visibility: visible; }
   .announce__close:hover { color: var(--white); }
 </style>

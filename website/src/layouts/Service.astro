@@ -37,14 +37,15 @@ const jsonLd = [
     note={page.hero.note}
   />
 
-  <section class="section section--tight" aria-label="Auf einen Blick">
+  <!-- div: die Überschrift «Auf einen Blick» trägt die Glance-Sektion selbst -->
+  <div class="section section--tight">
     <div class="wrap grid">
       <div class="col-8">
         <Glance summary={page.summary} rows={glanceRows(page.glance)} />
       </div>
     </div>
     <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>
-  </section>
+  </div>
 
   <slot name="intro" />
 
@@ -81,9 +82,10 @@ const jsonLd = [
     pikettFirst={page.cta.pikettFirst}
   />
 
-  <section class="section section--tight">
+  <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
+  <div class="section section--tight">
     <div class="wrap"><RelatedLinks items={page.related} /></div>
-  </section>
+  </div>
 </Base>
 
 <style>

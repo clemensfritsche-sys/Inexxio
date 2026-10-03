@@ -1,57 +1,47 @@
 ---
 /**
- * Logo-Lockup: Wortmarke + beschreibender Zusatz + «ehemals HS Steiner».
+ * Logo-Lockup: Wortmarke, darunter klein der beschreibende Zusatz und «ehemals HS Steiner»
+ * (Auftrag 7.1) – der Name steht nie allein.
  *
  * Die Wortmarke ist TEXT aus der Konfiguration (Inter 700, enge Laufweite) – ein
  * Namenswechsel ist damit eine Zeile in site.mjs, kein neues Logo. Die SVG-Fassungen
  * (public/logo/) dienen JSON-LD, Open Graph und Druck.
  * Variante «b» färbt das «XX» rot (Alternative, über `brand.logoVariant`).
+ *
+ * Gestapelt statt nebeneinander, und das ist nicht nur die Vorgabe: nebeneinander brauchte
+ * das Lockup 322 px, und mit Navigation, Telefon und Knopf passte die Kopfzeile in KEINE
+ * Breite (gemessen: 1254 px Bedarf bei 1240 px Inhaltsbreite – «Über uns» und die Nummer
+ * brachen um). Gestapelt ist es so breit wie seine längste Zeile.
  */
 import { site } from '../config/site.mjs';
 import { plain } from '../lib/text.mjs';
 
 interface Props {
   tone?: 'light' | 'dark';
-  size?: 'md' | 'lg';
 }
-const { tone = 'light', size = 'md' } = Astro.props;
+const { tone = 'light' } = Astro.props;
 const name = site.brand.name;
 const variantB = site.brand.logoVariant === 'b' && name.includes('XX');
 const [before, after] = variantB ? name.split('XX') : [name, ''];
 ---
-<span class:list={['lockup', `lockup--${tone}`, `lockup--${size}`]}>
+<span class:list={['lockup', `lockup--${tone}`]}>
   <span class="lockup__mark" translate="no">
     {variantB ? <>{before}<span class="lockup__xx">XX</span>{after}</> : name}
   </span>
-  <span class="lockup__text">
-    <span class="lockup__descriptor">{plain(site.brand.descriptor)}</span>
-    <span class="lockup__formerly">{plain(site.brand.formerly)}</span>
-  </span>
+  <span class="lockup__descriptor">{plain(site.brand.descriptor)}</span>
+  <span class="lockup__formerly">{plain(site.brand.formerly)}</span>
 </span>
 
 <style>
-  .lockup { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); line-height: 1; }
+  .lockup { display: inline-grid; justify-items: start; color: var(--ink); line-height: 1; white-space: nowrap; }
   .lockup--dark { color: var(--white); }
-  .lockup__mark {
-    font-weight: 700; letter-spacing: -0.035em; font-size: 22px; line-height: 1;
-    padding-right: 12px; border-right: 1px solid var(--line-2);
-  }
-  .lockup--dark .lockup__mark { border-right-color: var(--line-dark); }
+  .lockup__mark { font-weight: 700; letter-spacing: -0.035em; font-size: 24px; line-height: 1; margin-bottom: 5px; }
   .lockup__xx { color: var(--red); }
-  .lockup__text { display: grid; gap: 3px; }
-  .lockup__descriptor {
-    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
-  }
-  .lockup__formerly { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+  .lockup__descriptor { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+  .lockup__formerly { font-size: 11.5px; color: var(--ink-3); }
   .lockup--dark .lockup__formerly { color: rgba(244, 243, 241, 0.66); }
-  .lockup--lg .lockup__mark { font-size: 30px; padding-right: 16px; }
-  .lockup--lg .lockup__descriptor { font-size: 12px; }
-  .lockup--lg .lockup__formerly { font-size: 13px; }
-  /* Schmal: Wortmarke oben, Zusatz und «ehemals» darunter – der Name steht nie allein. */
   @media (max-width: 479px) {
-    .lockup { display: inline-grid; gap: 3px; justify-items: start; }
-    .lockup__mark { font-size: 19px; padding-right: 0; border-right: 0; }
-    .lockup__text { gap: 1px; }
+    .lockup__mark { font-size: 20px; margin-bottom: 4px; }
     .lockup__descriptor { font-size: 9.5px; letter-spacing: 0.05em; }
     .lockup__formerly { font-size: 10.5px; }
   }

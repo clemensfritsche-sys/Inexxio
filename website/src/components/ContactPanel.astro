@@ -48,10 +48,11 @@ const pikett = site.features.pikett;
   .cpanel__num {
     font-size: clamp(1.625rem, 1.4rem + 1vw, 2.25rem); font-weight: 700; letter-spacing: -0.02em;
     color: var(--ink); text-decoration: none; line-height: 1.15; width: fit-content;
+    display: inline-flex; align-items: center; min-height: 44px;
   }
   .cpanel__num--sm { font-size: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem); }
   .cpanel__num:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.15em; }
-  .cpanel__mail { color: var(--ink); font-weight: 600; word-break: break-all; }
+  .cpanel__mail { color: var(--ink); font-weight: 600; word-break: break-all; display: inline-flex; align-items: center; min-height: 44px; }
   :global(.section--dark) .cpanel, :global(.section--dark) .cpanel__block { border-color: var(--line-dark); }
   :global(.section--dark) .cpanel__num, :global(.section--dark) .cpanel__mail { color: var(--white); }
   .cpanel--compact .cpanel__block { padding: var(--s-4) 0; }

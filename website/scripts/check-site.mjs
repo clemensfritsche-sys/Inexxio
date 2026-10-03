@@ -134,6 +134,15 @@ function checkHeadings(p) {
   }
   const kranbahn = (p.html.match(/data-kranbahn/g) ?? []).length;
   if (kranbahn > 3) fail(p.path, `${kranbahn} Kranbahn-Linien (höchstens 3)`);
+  // Die mobile Aktionsleiste erscheint, sobald der Seitenkopf aus dem Bild ist (mobilebar.ts).
+  // Markiert war einmal der ganze Artikel – dann kam sie erst am Seitenende.
+  const heroes = [...p.html.matchAll(/<([a-z0-9]+)\b[^>]*\sdata-hero(?=[\s>=])/g)];
+  if (heroes.length !== 1) fail(p.path, `${heroes.length} Seitenköpfe (data-hero) statt genau einem`);
+  else if (['article', 'main', 'body'].includes(heroes[0][1])) {
+    fail(p.path, `data-hero an <${heroes[0][1]}> – gemeint ist der Seitenkopf (H1 und erste Handlung), nicht der ganze Inhalt`);
+  } else if (p.html.indexOf('<h1', heroes[0].index) < 0) {
+    fail(p.path, 'die H1 steht vor dem Seitenkopf (data-hero)');
+  }
 }
 
 /** Kapitel 8.1/8.2: verbotene Wörter, Ausrufezeichen, Emojis, ß – und die erste Nennung. */

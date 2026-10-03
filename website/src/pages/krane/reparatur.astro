@@ -32,7 +32,7 @@ import { site, contactEmail } from '../../config/site.mjs';
         </div>
         <div class="stop__tip">
           <p class="stop__tiptitle"><Icon name="camera" size={20} /> Foto mitschicken</p>
-          <p class="small">Typenschild (Hersteller, Typ, Baujahr) und Schadensstelle – per Formular unten oder an <a class="link" href={`mailto:${contactEmail()}`} data-track="mailto_click">{contactEmail()}</a>.</p>
+          <p class="small">Typenschild (Hersteller, Typ, Baujahr) und Schadensstelle – per Formular unten oder an <a class="link tap" href={`mailto:${contactEmail()}`} data-track="mailto_click">{contactEmail()}</a>.</p>
         </div>
       </div>
     </div>
@@ -76,6 +76,7 @@ import { site, contactEmail } from '../../config/site.mjs';
   .stop__tel {
     font-size: clamp(1.75rem, 1.45rem + 1.3vw, 2.5rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;
     color: var(--ink); text-decoration: none; width: fit-content;
+    display: inline-flex; align-items: center; min-height: 44px;
   }
   .stop__tel:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.15em; }
   .stop__tip { display: grid; gap: var(--s-2); }

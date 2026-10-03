@@ -8,11 +8,13 @@ interface Props { doc: LegalDoc; path: string }
 const { doc, path } = Astro.props;
 ---
 <Base title={doc.title} description={doc.description} crumbs={[{ name: doc.title, path }]}>
-  <article class="section legal" data-hero>
+  <article class="section legal">
     <div class="wrap">
       <div class="legal__inner">
-        <h1 class="legal__title">{doc.title}</h1>
-        <p class="label">Stand: <time datetime={doc.updated}>{formatDay(doc.updated)}</time></p>
+        <header class="legal__head" data-hero>
+          <h1 class="legal__title">{doc.title}</h1>
+          <p class="label">Stand: <time datetime={doc.updated}>{formatDay(doc.updated)}</time></p>
+        </header>
         <div class="prose legal__body" set:html={doc.html} />
       </div>
     </div>
@@ -22,6 +24,7 @@ const { doc, path } = Astro.props;
 <style>
   .legal { padding-top: var(--s-6); }
   .legal__inner { max-width: 760px; display: grid; gap: var(--s-4); }
+  .legal__head { display: grid; gap: var(--s-4); }
   .legal__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
   .legal__body { margin-top: var(--s-5); }
 </style>

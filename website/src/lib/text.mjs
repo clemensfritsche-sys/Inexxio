@@ -124,7 +124,8 @@ function linkHtml(label, href) {
   const external = /^https?:\/\//.test(href);
   const track = href.startsWith('tel:') ? ' data-track="tel_click"'
     : href.startsWith('mailto:') ? ' data-track="mailto_click"' : '';
-  return `<a href="${href}"${external ? ' rel="noopener"' : ''}${track}>${label}</a>`;
+  const tap = /^(tel|mailto):/.test(href) ? ' class="tap"' : '';
+  return `<a href="${href}"${tap}${external ? ' rel="noopener"' : ''}${track}>${label}</a>`;
 }
 
 /**
@@ -136,7 +137,7 @@ export function rich(text) {
   let html = escapeHtml(resolve(text, { links: 'keep' }));
   html = html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
     const link = LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]();
-    return `<a href="${escapeHtml(link.href)}" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
+    return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
   });
   html = html.replace(MARKER_RE, (_, kind, note) => markerHtml(kind, note));
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -177,6 +178,7 @@ export function hasMarker(text) {
  * @param {string} html
  */
 export function processHtml(html) {
+  let tables = 0;
   return html
     .split(/(<[^>]+>)/g)
     .map((part) => {
@@ -191,9 +193,11 @@ export function processHtml(html) {
       return withValues
         .replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
           const link = LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]();
-          return `<a href="${escapeHtml(link.href)}" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
+          return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
         })
         .replace(MARKER_RE, (_, kind, note) => markerHtml(kind, note));
     })
-    .join('');
+    .join('')
+    .replace(/<table>/g, () => `<div class="table-scroll" tabindex="0" role="region" aria-label="Tabelle ${++tables}"><table>`)
+    .replace(/<\/table>/g, '</table></div>');
 }

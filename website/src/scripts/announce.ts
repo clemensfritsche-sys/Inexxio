@@ -1,4 +1,4 @@
-/** Ankündigungsleiste: Schliessen-Knopf zeigen und die Entscheidung merken. */
+/** Ankündigungsleiste: Schliessen-Knopf bedienbar machen und die Entscheidung merken. */
 const KEY = 'ix-announce';
 
 export function initAnnouncement(): void {
@@ -6,7 +6,8 @@ export function initAnnouncement(): void {
   const close = bar?.querySelector<HTMLButtonElement>('[data-announce-close]');
   if (!bar || !close) return;
   const id = document.documentElement.dataset.announce ?? '';
-  close.hidden = false;
+  // Sichtbar statt eingeblendet: der Platz ist seit dem ersten Zeichnen reserviert.
+  bar.classList.add('is-ready');
   close.addEventListener('click', () => {
     document.documentElement.classList.add('announce-off');
     try {

@@ -60,10 +60,11 @@ const tel = `tel:${site.phone.e164}`;
     </nav>
 
     <div class="site-header__actions">
-      <a class="site-header__tel" href={tel} data-track="tel_click">
+      <!-- Der Name nennt die Nummer immer: schmal steht nur das Symbol da, und ein «anrufen»
+           ohne Nummer wäre für einen Vorleser keine Auskunft. -->
+      <a class="site-header__tel" href={tel} data-track="tel_click" aria-label={`${site.phone.display} anrufen`}>
         <Icon name="phone" size={18} />
         <span class="site-header__tel-num">{site.phone.display}</span>
-        <span class="visually-hidden">anrufen</span>
       </a>
       <a class="btn btn--primary btn--sm site-header__cta" href={site.cta.href}>
         {site.cta.label}
@@ -121,7 +122,10 @@ const tel = `tel:${site.phone.e164}`;
   :global(.js) .site-header.is-hidden { transform: translateY(-100%); }
   :global(.js) .site-header.is-scrolled { box-shadow: 0 1px 0 rgba(10, 10, 11, 0.02); }
 
-  .site-header__bar { height: var(--header-h); display: flex; align-items: center; gap: var(--s-5); }
+  /* Nichts in der Kopfzeile bricht um: ein umgebrochener Navigationspunkt oder eine
+     zweizeilige Telefonnummer ist kein Layout, sondern ein Fehler. Platz schafft die
+     Breite, ab der die volle Navigation erscheint (1200 px, gemessen: Bedarf 1121 px). */
+  .site-header__bar { height: var(--header-h); display: flex; align-items: center; gap: var(--s-5); white-space: nowrap; }
   .site-header__home { text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; flex: none; }
   .site-header__actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
 
@@ -141,7 +145,7 @@ const tel = `tel:${site.phone.e164}`;
   .nav__link[aria-current='page']::after { background: var(--red); }
   .dd .nav__link { padding-right: 2px; }
   .dd__toggle {
-    display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
     color: var(--ink-3); border-radius: var(--radius);
   }
   .dd__toggle :global(.icon) { transition: transform var(--t-fast) var(--ease); }
@@ -151,7 +155,7 @@ const tel = `tel:${site.phone.e164}`;
     position: absolute; top: calc(100% + 6px); left: 0; width: 360px;
     background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
     box-shadow: 0 14px 34px rgba(16, 14, 12, 0.1);
-    padding: var(--s-2);
+    padding: var(--s-2); white-space: normal;
     opacity: 0; visibility: hidden; transform: translateY(-4px);
     transition: opacity 150ms var(--ease), transform 150ms var(--ease), visibility 0s linear 150ms;
   }
@@ -197,11 +201,13 @@ const tel = `tel:${site.phone.e164}`;
     position: fixed; top: calc((var(--header-h) - 44px) / 2); right: var(--gutter); z-index: 62;
   }
   .mnav__panel {
-    position: fixed; inset: 0; z-index: 61; background: var(--white);
+    position: fixed; inset: 0; z-index: 61; background: var(--white); white-space: normal;
     display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain;
   }
   .mnav__top { height: var(--header-h); display: flex; align-items: center; flex: none; border-bottom: 1px solid var(--line); }
-  .mnav__nav { display: grid; padding-top: var(--s-4); padding-bottom: var(--s-6); flex: 1 0 auto; }
+  /* füllt das Overlay (Aktionen bleiben unten), die Zeilen behalten aber ihre 56 px –
+     ohne align-content verteilte das Raster die Resthöhe und jede Zeile wurde 111 px hoch. */
+  .mnav__nav { display: grid; align-content: start; padding-top: var(--s-4); padding-bottom: var(--s-6); flex: 1 0 auto; }
   .mnav__link {
     display: flex; align-items: center; justify-content: space-between; min-height: 56px;
     font-size: 1.25rem; font-weight: 650; letter-spacing: -0.015em; color: var(--ink);
@@ -230,10 +236,17 @@ const tel = `tel:${site.phone.e164}`;
   @media (min-width: 1200px) {
     .nav { display: block; }
     .mnav { display: none; }
-    .site-header__bar { gap: var(--s-6); }
   }
-  @media (max-width: 599px) {
+  /* Unter 900 px steht die Nummer nicht ausgeschrieben, aber das Telefon-Symbol bleibt – auch
+     auf dem Tablet, wo weder die Nummer noch die Aktionsleiste unten Platz hat (vorher fehlte
+     zwischen 600 und 899 px jede Telefon-Möglichkeit in der Kopfzeile). */
+  @media (max-width: 899px) {
     .site-header__tel { display: inline-flex; width: 44px; justify-content: center; padding: 0; }
     .site-header__tel-num { display: none; }
+  }
+  /* Sehr schmal (320 px): das Lockup braucht seine Breite, die Abstände geben nach. */
+  @media (max-width: 479px) {
+    .site-header__bar { gap: var(--s-3); }
+    .site-header__actions { gap: var(--s-1); }
   }
 </style>

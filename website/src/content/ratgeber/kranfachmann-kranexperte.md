@@ -58,7 +58,7 @@ Kranexperten kontrollieren **Fahrzeug- und Turmdrehkrane** in festen Abständen.
 
 ## Der Unterschied auf einen Blick
 
-| | Kranfachleute | Kranexperten |
+| Im Vergleich | Kranfachleute | Kranexperten |
 |---|---|---|
 | Für welche Krane | alle Krane | Fahrzeug- und Turmdrehkrane |
 | Wie oft | nach Herstellerangabe; bei Fahrzeug- und Turmdrehkranen jährlich | je nach Alter alle 4 Jahre, alle 2 Jahre oder jährlich |
