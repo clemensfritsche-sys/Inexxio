@@ -8,7 +8,7 @@
 //           CC BY, CC BY-SA) und je Stelle einen Kontaktbogen schreiben
 //           (scripts/.sample-review/<id>.jpg + candidates.json). Ein Mensch – oder Claude –
 //           schaut sie an und wählt.
-//   fetch   Die gewählten Dateien in voller Grösse (lange Seite 2400 px) nach
+//   fetch   Die gewählten Dateien in voller Grösse (lange Seite 2000 px – mehr erzeugt der Build ohnehin nicht) nach
 //           src/assets/photos/samples/<id>.jpg holen und den Bildnachweis nach
 //           scripts/.sample-review/credits.json schreiben.
 //
@@ -126,15 +126,15 @@ async function fetchChosen(choose) {
   for (const [id, file] of Object.entries(choose)) {
     const data = await api({
       action: 'query', titles: file, prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata',
-      iiurlwidth: '2400', iiextmetadatafilter: 'LicenseShortName|LicenseUrl|Artist|ImageDescription',
+      iiurlwidth: '2000', iiextmetadatafilter: 'LicenseShortName|LicenseUrl|Artist|ImageDescription',
     });
     const c = info(data.query.pages[0]);
     if (!c || !FREE.test(c.license)) throw new Error(`${id}: ${file} – keine freie Lizenz (${c?.license})`);
-    const src = c.width > 2400 || c.height > 2400 ? c.thumb : (await api({
+    const src = c.width > 2000 || c.height > 2000 ? c.thumb : (await api({
       action: 'query', titles: file, prop: 'imageinfo', iiprop: 'url',
     })).query.pages[0].imageinfo[0].url;
-    await sharp(await download(src)).rotate().resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, mozjpeg: true }).toFile(resolve(OUT, `${id}.jpg`));
+    await sharp(await download(src)).rotate().resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 78, mozjpeg: true }).toFile(resolve(OUT, `${id}.jpg`));
     credits[id] = { file: c.file, author: c.author, license: c.license, licenseUrl: c.licenseUrl, page: c.page, description: c.description };
     console.log(`${id}: ${c.file} (${c.license})`);
     await sleep(400);
