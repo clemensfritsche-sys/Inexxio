@@ -1,0 +1,51 @@
+<!-- @dsCard group="ERP / App" viewport="620x340" name="Status & Tooltips" subtitle="Icon + colour + text status semantics, with hover tooltips instead of inline explanation" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body{margin:0;background:#fff;font-family:var(--font-body);padding:28px;}
+  h4{font:var(--overline);letter-spacing:var(--tracking-overline);text-transform:uppercase;color:var(--fg-3);margin:0 0 14px;}
+  .sec+.sec{margin-top:26px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+  /* Status badges: icon + tint fill + label */
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:5px 11px 5px 9px;border-radius:var(--r-pill);font:600 12.5px var(--font-body);line-height:1;}
+  .badge .lucide{width:13px;height:13px;}
+  .badge.success{background:var(--success-bg);color:var(--success);}
+  .badge.warning{background:var(--warning-bg);color:var(--warning);}
+  .badge.danger{background:var(--danger-bg);color:var(--danger);}
+  .badge.info{background:var(--info-bg);color:var(--accent-ink);}
+  .badge.neutral{background:var(--bg-3);color:var(--fg-2);}
+
+  /* Icon-only actions with tooltip — Symbole vor Text */
+  .toolbar{display:flex;gap:6px;}
+  .iconbtn{position:relative;width:38px;height:38px;border:1px solid var(--border-1);background:#fff;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--fg-2);cursor:pointer;transition:all .15s;}
+  .iconbtn .lucide{width:17px;height:17px;}
+  .iconbtn:hover{background:var(--bg-2);color:var(--inexxio-red);border-color:var(--border-2);}
+  .iconbtn::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(3px);background:var(--inexxio-black);color:#fff;font:500 12px var(--font-body);white-space:nowrap;padding:6px 10px;border-radius:var(--r-sm);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;}
+  .iconbtn:hover::after{opacity:1;transform:translateX(-50%) translateY(0);}
+</style></head>
+<body>
+  <div class="sec">
+    <h4>Status — Icon + Farbe + Text</h4>
+    <div class="row">
+      <span class="badge success"><i data-lucide="check"></i>On Track</span>
+      <span class="badge warning"><i data-lucide="alert-triangle"></i>At Risk</span>
+      <span class="badge danger"><i data-lucide="x"></i>Überfällig</span>
+      <span class="badge info"><i data-lucide="info"></i>In Prüfung</span>
+      <span class="badge neutral"><i data-lucide="circle-dashed"></i>Entwurf</span>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h4>Icon-Aktionen mit Tooltip</h4>
+    <div class="toolbar">
+      <button class="iconbtn" data-tip="Bearbeiten"><i data-lucide="pencil"></i></button>
+      <button class="iconbtn" data-tip="Duplizieren"><i data-lucide="copy"></i></button>
+      <button class="iconbtn" data-tip="Archivieren"><i data-lucide="archive"></i></button>
+      <button class="iconbtn" data-tip="Freigeben"><i data-lucide="share-2"></i></button>
+      <button class="iconbtn" data-tip="Löschen"><i data-lucide="trash-2"></i></button>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body></html>

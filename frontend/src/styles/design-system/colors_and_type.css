@@ -1,0 +1,150 @@
+/* ============================================================
+   INEXXIO — Colors & Type Foundations
+   "Klein wohnen. Gross leben." — Maximale Wohnqualität auf kleinem Raum
+   ============================================================ */
+
+/* ----- Webfonts: Inter superfamily (brand font, confirmed) ----- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@500;600;700;800;900&display=swap');
+
+/* Mono index numerals & kickers use the system monospace stack (see --font-mono).
+   No custom webfont is bundled — a clean OS mono (SF Mono / Menlo / Cascadia)
+   renders the small red index numerals identically. If a branded mono is ever
+   desired, add its @font-face here and prepend it to --font-mono. */
+
+:root {
+  /* ---------- BRAND CORE ---------- */
+  --inexxio-red:        #E51A14;   /* primary brand red (logo XX swoosh) */
+  --inexxio-red-bright: #FA3030;   /* highlight red (gradient top) */
+  --inexxio-red-deep:   #B3120F;   /* shadow red (gradient bottom / press) */
+  --inexxio-black:      #0A0A0B;   /* logo black */
+  --inexxio-white:      #FFFFFF;
+
+  /* ---------- INK / FOREGROUND (warm-neutral) ---------- */
+  --fg-1: #0A0A0B;   /* primary text — near-black */
+  --fg-2: #3A3A3D;   /* secondary text / body */
+  --fg-3: #6E6E73;   /* muted captions, meta */
+  --fg-4: #A7A7AC;   /* disabled, placeholder */
+  --fg-on-red:   #FFFFFF;
+  --fg-on-dark:  #F4F3F1;
+
+  /* ---------- SURFACES / BACKGROUNDS (warm Scandinavian neutrals) ---------- */
+  --bg-1:    #FFFFFF;   /* base canvas */
+  --bg-2:    #F4F3F0;   /* paper off-white section */
+  --bg-3:    #ECEAE4;   /* sand / panel */
+  --bg-4:    #E0DBD2;   /* deeper sand / borders-as-fill */
+  --bg-dark: #0E0E10;   /* near-black inverse section */
+  --bg-dark-2: #18181B;
+
+  /* ---------- WARM NEUTRAL SCALE (oak / stone / sand) ---------- */
+  --sand-50:  #FBF9F6;
+  --sand-100: #F5F1EB;
+  --sand-200: #EBE4DA;
+  --sand-300: #DACFC0;
+  --sand-400: #B9AB97;
+  --oak:      #C9A27A;   /* light-oak accent from imagery */
+  --stone:    #9AA0A0;   /* cool grey from imagery */
+
+  /* ---------- COOL ACCENT (trust / ERP) ----------
+     A restrained slate-blue as the quiet third voice: used for informational
+     accents, active-nav states and links inside the ERP where red would be
+     too loud or read as an alert. Never competes with brand red. */
+  --accent:      #2C6E8F;   /* slate teal-blue — competence, calm */
+  --accent-soft: #E7F0F4;   /* tinted fill for active rows, info chips */
+  --accent-ink:  #1C4D66;   /* text/icons on soft fill */
+
+  /* ---------- SEMANTIC ---------- */
+  --success: #1F8A4C;
+  --success-bg: #E8F4EC;
+  --warning: #C8861A;
+  --warning-bg: #FBF1DE;
+  --info:    #2C6E8F;
+  --info-bg: #E7F0F4;
+  --danger:  var(--inexxio-red);
+  --danger-bg: #FCE9E8;
+
+  /* ---------- BORDERS / LINES ---------- */
+  --border-1: #E9E7E1;   /* hairline on light */
+  --border-2: #D7D4CC;   /* standard divider */
+  --border-strong: #0E0E10;
+  --border-on-dark: rgba(255,255,255,0.13);
+
+  /* ---------- RADII ---------- */
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* ---------- SHADOWS (soft, warm, low-contrast — restrained by design) ---------- */
+  --shadow-xs: 0 1px 2px rgba(16,14,12,0.04);
+  --shadow-sm: 0 1px 3px rgba(16,14,12,0.05);
+  --shadow-md: 0 4px 14px rgba(16,14,12,0.07);
+  --shadow-lg: 0 14px 34px rgba(16,14,12,0.10);
+  --shadow-xl: 0 22px 48px rgba(16,14,12,0.13);
+  /* Red shadow/glow — a hover/press accent only, never a resting glow. Extra dezent: tight, low-alpha, tinted toward ink so it reads as lift, not neon. */
+  --shadow-red: 0 2px 8px rgba(179,18,15,0.14);
+  --glow-sm: 0 0 4px rgba(229,26,20,0.06);
+  --glow-md: 0 0 7px rgba(229,26,20,0.09);
+  --glow-lg: 0 0 11px rgba(229,26,20,0.12);
+
+  /* ---------- SPACING (8pt base) ---------- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+  --sp-9: 96px; --sp-10: 128px;
+
+  /* ---------- TYPE FAMILIES (Inter superfamily) ---------- */
+  --font-display: 'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif; /* tight optical cut — headlines */
+  --font-body:    'Inter', 'Helvetica Neue', Arial, sans-serif;                /* body, UI */
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, monospace; /* index numerals, kickers */
+
+  /* ---------- TYPE TOKENS — Swiss-editorial scale ---------- */
+  /* Headlines: heavy Inter Tight, very tight tracking, near-solid leading */
+  --display-1: 800 clamp(52px, 7.6vw, 112px)/0.94 var(--font-display);
+  --display-2: 800 clamp(40px, 5.4vw, 76px)/0.98 var(--font-display);
+  --h1: 800 clamp(36px, 4.4vw, 60px)/1.0 var(--font-display);
+  --h2: 700 clamp(28px, 3.2vw, 44px)/1.04 var(--font-display);
+  --h3: 700 21px/1.18 var(--font-display);
+  --h4: 600 17px/1.3 var(--font-body);
+  --body-lg: 400 19px/1.6 var(--font-body);
+  --body:    400 16px/1.65 var(--font-body);
+  --body-sm: 400 14px/1.55 var(--font-body);
+  --caption: 500 13px/1.45 var(--font-body);
+  --overline: 600 12px/1.2 var(--font-body); /* uppercase, tracked */
+  --label:   600 15px/1.2 var(--font-body);
+  --mono-sm: 500 12px/1.5 var(--font-mono);
+
+  --tracking-tight: -0.035em;   /* big display */
+  --tracking-snug:  -0.02em;    /* sub-heads */
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-overline: 0.18em;
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT DEFAULTS — apply .ix-prose or use vars
+   ============================================================ */
+.ix-display-1 { font: var(--display-1); letter-spacing: var(--tracking-tight); color: var(--fg-1); }
+.ix-display-2 { font: var(--display-2); letter-spacing: var(--tracking-tight); color: var(--fg-1); }
+.ix-h1 { font: var(--h1); letter-spacing: var(--tracking-tight); color: var(--fg-1); }
+.ix-h2 { font: var(--h2); letter-spacing: var(--tracking-snug); color: var(--fg-1); }
+.ix-h3 { font: var(--h3); letter-spacing: var(--tracking-snug); color: var(--fg-1); }
+.ix-h4 { font: var(--h4); color: var(--fg-1); }
+.ix-body-lg { font: var(--body-lg); color: var(--fg-2); }
+.ix-body { font: var(--body); color: var(--fg-2); }
+.ix-body-sm { font: var(--body-sm); color: var(--fg-3); }
+.ix-caption { font: var(--caption); color: var(--fg-3); }
+.ix-overline {
+  font: var(--overline); letter-spacing: var(--tracking-overline);
+  text-transform: uppercase; color: var(--inexxio-red);
+}
+.ix-tnum { font-feature-settings: 'tnum' 1, 'cv01' 1; font-variant-numeric: tabular-nums; }
+
+/* Red accent word, as used in headlines */
+.ix-accent { color: var(--inexxio-red); }
+.ix-mark   { color: var(--inexxio-red); }
+
+/* Swiss-editorial primitives */
+.ix-index  { font: var(--mono-sm); letter-spacing: 0.06em; color: var(--inexxio-red); font-variant-numeric: tabular-nums; }
+.ix-rule   { height: 1px; background: var(--border-2); border: 0; }
+.ix-rule-strong { height: 2px; background: var(--inexxio-black); border: 0; }

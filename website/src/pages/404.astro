@@ -1,0 +1,39 @@
+---
+/**
+ * 404 – hilfreich statt leer: kurze Entschuldigung, die vier Einstiege, Telefonnummer.
+ * Gilt für die ganze Domain (auch für unbekannte Pfade ausserhalb der Website).
+ */
+import Base from '../layouts/Base.astro';
+import EntryTiles from '../components/EntryTiles.astro';
+import Icon from '../components/Icon.astro';
+import { site } from '../config/site.mjs';
+import { start } from '../content/start';
+---
+<Base title="Seite nicht gefunden" description="Diese Seite gibt es nicht (mehr). Hier geht es weiter zu Kranprüfung, Reparatur, Fahrmischer-Service und Verschleissteilen." noindex>
+  <section class="section nf">
+    <div class="wrap">
+      <div class="nf__head" data-hero>
+        <p class="label">Fehler 404</p>
+        <h1 class="nf__title">Diese Seite gibt es nicht.</h1>
+        <p class="lead">
+          Entschuldigung – die Adresse ist falsch oder die Seite wurde verschoben. Vielleicht hilft einer dieser Einstiege weiter:
+        </p>
+      </div>
+      <EntryTiles items={start.entries} />
+      <div class="nf__more">
+        <p>
+          Oder rufen Sie an: <a class="nf__tel tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
+        </p>
+        <a class="arrow-link" href="/">Zur Startseite <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .nf { padding-top: var(--s-7); }
+  .nf__head { display: grid; gap: var(--s-4); margin-bottom: var(--s-7); max-width: 46rem; }
+  .nf__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+  .nf__more { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-7); align-items: center; margin-top: var(--s-6); }
+  .nf__tel { font-weight: 700; font-size: 1.25rem; color: var(--ink); padding-block: 10px; }
+</style>

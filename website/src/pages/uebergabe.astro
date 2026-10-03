@@ -1,0 +1,127 @@
+---
+/**
+ * /uebergabe – die Geschichte der Übergabe: Zeitstrahl, Zitat Heiri, Botschaft von Clemens,
+ * Was bleibt / was neu ist, «Nicht mehr im Angebot» (#nicht-mehr-im-angebot), Fragen (#fragen).
+ * Soll bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und «HS Krananlagen» gefunden werden.
+ */
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Timeline from '../components/Timeline.astro';
+import Quote from '../components/Quote.astro';
+import Photo from '../components/Photo.astro';
+import Faq from '../components/Faq.astro';
+import CtaBlock from '../components/CtaBlock.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { uebergabe as u, heiriQuote, message, news, stays } from '../content/uebergabe';
+import { faqPage } from '../lib/seo.mjs';
+---
+<Base title={u.title} description={u.description} crumbs={[{ name: 'Übergabe', path: '/uebergabe' }]} jsonLd={[faqPage(u.faq)]}>
+  <Hero
+    eyebrow={u.hero.eyebrow}
+    title={u.hero.h1}
+    lead={u.hero.lead}
+    photo="clemens-heiri-quer"
+    primary={{ label: 'Fragen zur Übergabe', href: '#fragen' }}
+  />
+
+  <section class="section section--tight" aria-label="Auf einen Blick">
+    <div class="wrap">
+      <p class="label">Auf einen Blick</p>
+      <Rich as="p" class="lead ue-summary" text={u.summary} />
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="geschichte">
+    <div class="wrap">
+      <SectionHead eyebrow="Geschichte" title="Über 40 Jahre in Tuttwil" id="geschichte" />
+      <Timeline items={u.timeline} />
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="botschaft">
+    <div class="wrap grid ue-msg">
+      <div class="col-4">
+        <Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" />
+      </div>
+      <div class="col-7 ue-msg__text">
+        <p class="label">Persönlich</p>
+        <h2 id="botschaft">Eine Botschaft von Clemens Fritsche</h2>
+        <div class="ue-msg__body">
+          {message.paragraphs.map((p) => <Rich as="p" text={p} />)}
+        </div>
+        <Rich as="p" class="ue-msg__sig" text={message.signature} />
+        <Rich as="p" class="small" text={message.review} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark" aria-labelledby="bleibt">
+    <div class="wrap">
+      <div class="grid ue-heiri">
+        <div class="col-6">
+          <Quote text={heiriQuote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
+        </div>
+        {site.features.heiriAdvisory && (
+          <div class="col-5 ue-heiri__adv"><Rich as="p" class="lead" text={site.people.founder.advisory} /></div>
+        )}
+      </div>
+      <div class="ue-lists">
+        <div>
+          <h2 class="h3" id="bleibt">Was bleibt</h2>
+          <ul class="checklist" role="list">
+            {stays.map((s) => <li><Icon name="check" size={20} /><Rich as="span" text={s} /></li>)}
+          </ul>
+        </div>
+        <div>
+          <h2 class="h3">Was neu ist</h2>
+          <ul class="checklist" role="list">
+            {news.map((s) => <li><Icon name="plus" size={20} /><Rich as="span" text={s} /></li>)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="nicht-mehr-im-angebot" aria-labelledby="angebot-title">
+    <div class="wrap grid">
+      <div class="col-5">
+        <SectionHead eyebrow="Schwerpunkt" title={u.discontinued.title} lead={u.discontinued.lead} id="angebot-title" />
+      </div>
+      <div class="col-7 ue-disc">
+        <ul role="list" class="rule-list">
+          {u.discontinued.items.map((i) => <li>{i}</li>)}
+        </ul>
+        <Rich as="p" class="small" text={u.discontinued.review} />
+        <Rich as="p" text={u.discontinued.after} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--rule" id="fragen" aria-labelledby="fragen-title">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Bestandskunden" title="Fragen zur Übergabe" id="fragen-title" /></div>
+      <div class="col-8"><Faq items={u.faq} /></div>
+    </div>
+  </section>
+
+  <CtaBlock title={u.cta.title} lead={u.cta.lead} kind="waehlen" />
+</Base>
+
+<style>
+  .ue-summary { margin-top: var(--s-3); max-width: 46em; }
+  .ue-msg { align-items: start; }
+  @media (min-width: 960px) { .ue-msg__text { grid-column: 6 / span 7; } }
+  .ue-msg__text { display: grid; gap: var(--s-4); }
+  .ue-msg__body { display: grid; gap: var(--s-4); font-size: clamp(1.125rem, 1.08rem + 0.25vw, 1.25rem); line-height: 1.55; color: var(--ink); }
+  .ue-msg__sig { font-weight: 650; color: var(--ink); }
+  .ue-heiri { align-items: center; margin-bottom: var(--s-8); }
+  @media (min-width: 960px) { .ue-heiri__adv { grid-column: 8 / span 5; } }
+  .ue-lists { display: grid; gap: var(--s-7); padding-top: var(--s-7); border-top: 1px solid var(--line-dark); }
+  @media (min-width: 720px) { .ue-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .ue-lists h2 { margin-bottom: var(--s-4); }
+  .ue-disc { display: grid; gap: var(--s-4); align-content: start; }
+  @media (min-width: 960px) { .ue-disc { grid-column: 7 / span 6; } }
+</style>

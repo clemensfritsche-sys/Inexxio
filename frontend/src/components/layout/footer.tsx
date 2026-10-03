@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import { CookieSettingsLink } from './cookie-settings-link';
 
 const currentYear = new Date().getFullYear();
 
@@ -73,15 +73,18 @@ export function Footer() {
                 { href: '/impressum', label: 'Impressum' },
               ].map((l) => (
                 <li key={l.href}>
-                  <Link
+                  <a
                     href={l.href}
                     style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
                     className="footer-link"
                   >
                     {l.label}
-                  </Link>
+                  </a>
                 </li>
               ))}
+              <li>
+                <CookieSettingsLink className="footer-link" />
+              </li>
             </ul>
           </div>
 
@@ -105,13 +108,13 @@ export function Footer() {
                 { href: '/kontakt', label: 'Kontakt' },
               ].map((l) => (
                 <li key={l.href}>
-                  <Link
+                  <a
                     href={l.href}
                     style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
                     className="footer-link"
                   >
                     {l.label}
-                  </Link>
+                  </a>
                 </li>
               ))}
             </ul>

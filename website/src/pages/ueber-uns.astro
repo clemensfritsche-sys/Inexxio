@@ -1,0 +1,119 @@
+---
+/** /ueber-uns – Clemens (Porträt, Werdegang, Botschaft), Team (abgeschaltet), Geschichte, Zusagen, Werkstatt, Ausbildung. */
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Photo from '../components/Photo.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { ueberUns as u } from '../content/ueber-uns';
+import { message } from '../content/uebergabe';
+import { owner } from '../lib/seo.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const o = site.people.owner;
+const a = site.address;
+const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
+---
+<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl)]}>
+  <Hero eyebrow={u.hero.eyebrow} title={u.hero.h1} lead={u.hero.lead} photo="werkstatt-aussen" primary={{ label: 'Kontakt aufnehmen', href: '/kontakt' }} />
+
+  <section class="section section--tight" aria-label="Auf einen Blick">
+    <div class="wrap"><p class="label">Auf einen Blick</p><Rich as="p" class="lead uu-summary" text={u.summary} /></div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="clemens">
+    <div class="wrap grid uu-owner">
+      <div class="col-4"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
+      <div class="col-7 uu-owner__text">
+        <p class="label">{o.role}</p>
+        <h2 id="clemens">{o.name}</h2>
+        <ul role="list" class="rule-list uu-career">
+          {o.career.map((c) => <li>{c}</li>)}
+        </ul>
+        <Rich as="p" class="small" text={`${o.titles} ${o.linkedin}`} />
+        <div class="uu-msg">
+          {message.paragraphs.map((p) => <Rich as="p" text={p} />)}
+          <Rich as="p" class="small" text={message.review} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="zusagen">
+    <div class="wrap">
+      <SectionHead eyebrow="Zusagen" title={u.promises.title} lead={u.promises.lead} id="zusagen" />
+      <ol role="list" class="uu-promises">
+        {u.promises.items.map((p, i) => (
+          <li>
+            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{p.title}</h3>
+            <Rich as="p" text={p.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section section--dark" aria-labelledby="geschichte">
+    <div class="wrap grid">
+      <div class="col-6">
+        <SectionHead eyebrow={`Seit ${site.history.founded}`} title={u.history.title} id="geschichte" class="head--flush" />
+      </div>
+      <div class="col-6 uu-history">
+        <Rich as="p" class="lead" text={u.history.text} />
+        <a class="arrow-link" href="/uebergabe">{u.history.link} <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="werkstatt">
+    <div class="wrap grid uu-ws">
+      <div class="col-6"><Photo id="arbeit-werkstatt" sizes="(min-width: 960px) 50vw, 100vw" /></div>
+      <div class="col-5 uu-ws__text">
+        <SectionHead eyebrow="Standort" title={u.workshop.title} id="werkstatt" class="head--flush" />
+        <Rich as="p" text={u.workshop.text} />
+        <address class="uu-addr">
+          <strong>{site.brand.name}</strong><br />
+          {a.street}<br />
+          {a.zip} {a.city} ({a.municipality} {a.canton})
+        </address>
+        <Rich as="p" class="small muted" text={`${site.hours.text} ${site.hours.review}`} />
+        <div class="uu-links">
+          <a class="arrow-link" href={route} rel="noopener">Route in Google Maps öffnen <Icon name="external-link" size={16} /></a>
+          <a class="arrow-link" href="/einsatzgebiet">Einsatzgebiet <Icon name="arrow-right" size={18} /></a>
+        </div>
+        <div class="uu-training">
+          <h3>{u.training.title}</h3>
+          <Rich as="p" text={u.training.text} />
+          <a class="arrow-link" href="/karriere">Arbeiten bei uns <Icon name="arrow-right" size={18} /></a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .uu-summary { margin-top: var(--s-3); max-width: 46em; }
+  .uu-owner { align-items: start; }
+  @media (min-width: 960px) { .uu-owner__text { grid-column: 6 / span 7; } }
+  .uu-owner__text { display: grid; gap: var(--s-4); }
+  .uu-career { margin-top: var(--s-2); }
+  .uu-career li { padding: var(--s-3) 0; color: var(--ink); }
+  .uu-msg { display: grid; gap: var(--s-3); margin-top: var(--s-4); padding-left: var(--s-5); border-left: 2px solid var(--red); }
+  .uu-msg p:not(.small) { color: var(--ink); font-size: 1.0625rem; }
+  .uu-promises { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .uu-promises { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .uu-promises { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .uu-promises li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
+  .uu-promises h3 { font-size: 1.25rem; }
+  .head--flush { margin-bottom: 0; }
+  .uu-history { display: grid; gap: var(--s-4); justify-items: start; }
+  .uu-ws { align-items: start; }
+  @media (min-width: 960px) { .uu-ws__text { grid-column: 8 / span 5; } }
+  .uu-ws__text { display: grid; gap: var(--s-4); }
+  .uu-addr { font-style: normal; color: var(--ink); line-height: 1.6; }
+  .uu-links { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); }
+  .uu-training { display: grid; gap: var(--s-2); margin-top: var(--s-4); padding-top: var(--s-5); border-top: 1px solid var(--line-2); justify-items: start; }
+  .uu-training h3 { font-size: 1.125rem; }
+</style>

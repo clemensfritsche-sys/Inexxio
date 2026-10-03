@@ -1,0 +1,76 @@
+---
+/** /einsatzgebiet – schematische Karte, Regionen mit Orten, Ausland, Fragen. */
+import Base from '../layouts/Base.astro';
+import SectionHead from '../components/SectionHead.astro';
+import AreaMap from '../components/AreaMap.astro';
+import Faq from '../components/Faq.astro';
+import CtaBlock from '../components/CtaBlock.astro';
+import Rich from '../components/Rich.astro';
+import Btn from '../components/Btn.astro';
+import { site } from '../config/site.mjs';
+import { einsatzgebiet as e } from '../content/einsatzgebiet';
+import { faqPage } from '../lib/seo.mjs';
+---
+<Base title={e.title} description={e.description} crumbs={[{ name: 'Einsatzgebiet', path: '/einsatzgebiet' }]} jsonLd={[faqPage(e.faq)]}>
+  <section class="section page-head">
+    <div class="wrap grid eg">
+      <div class="col-5 eg__text" data-hero>
+        <Rich as="p" class="label" text={e.hero.eyebrow} />
+        <Rich as="h1" class="eg__title" text={e.hero.h1} />
+        <Rich as="p" class="lead" text={e.hero.lead} />
+        <div class="btn-row">
+          <Btn href="#anfrage">Service anfragen</Btn>
+          <Btn href={`tel:${site.phone.e164}`} variant="secondary" icon="phone" track="tel_click">{site.phone.display}</Btn>
+        </div>
+      </div>
+      <div class="col-7 eg__map">
+        <AreaMap />
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight" aria-label="Auf einen Blick">
+    <div class="wrap"><p class="label">Auf einen Blick</p><Rich as="p" class="lead eg-summary" text={e.summary} /></div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="regionen">
+    <div class="wrap">
+      <SectionHead eyebrow="Regionen" title="Wo wir unterwegs sind" id="regionen" />
+      <dl class="eg-regions">
+        {e.regions.map((r) => (
+          <div class="eg-regions__row">
+            <dt>{r.name}</dt>
+            <dd>{r.places}</dd>
+          </div>
+        ))}
+      </dl>
+      <Rich as="p" class="small eg-note" text={e.regionsReview} />
+      <Rich as="p" class="eg-abroad" text={`${site.area.abroad} ${site.area.abroadReview}`} />
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="fragen">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
+      <div class="col-8"><Faq items={e.faq} /></div>
+    </div>
+  </section>
+
+  <CtaBlock title="Service in Ihrer Region anfragen" lead="Nennen Sie PLZ und Ort – wir melden uns innert {{promises.responseTime}}." kind="waehlen" />
+</Base>
+
+<style>
+  .page-head { padding-block: var(--s-6) var(--s-8); }
+  .eg { align-items: center; }
+  .eg__text { display: grid; gap: var(--s-4); justify-items: start; }
+  .eg__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+  @media (min-width: 960px) { .eg__map { grid-column: 7 / span 6; } }
+  .eg-summary { margin-top: var(--s-3); max-width: 46em; }
+  .eg-regions { display: grid; border-top: 1px solid var(--ink); }
+  .eg-regions__row { display: grid; gap: 4px var(--s-5); padding: var(--s-4) 0; border-bottom: 1px solid var(--line-2); }
+  @media (min-width: 720px) { .eg-regions__row { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); } }
+  .eg-regions dt { font-weight: 650; color: var(--ink); font-size: 1.125rem; }
+  .eg-regions dd { color: var(--ink-2); margin: 0; }
+  .eg-note { margin-top: var(--s-3); }
+  .eg-abroad { margin-top: var(--s-5); }
+</style>

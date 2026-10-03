@@ -1,0 +1,49 @@
+---
+/**
+ * Vorher/Nachher-Regler – auf <input type="range">, also per Tastatur voll bedienbar.
+ * Abgeschaltet (features.beforeAfter = false), bis echte Fotopaare vorliegen.
+ * Ohne JavaScript stehen beide Bilder nebeneinander.
+ */
+import { site } from '../config/site.mjs';
+import Photo from './Photo.astro';
+
+interface Props {
+  before: string;
+  after: string;
+  caption?: string;
+}
+const { before, after, caption } = Astro.props;
+---
+{site.features.beforeAfter && (
+  <figure class="ba" data-ba>
+    <div class="ba__stage" data-ba-stage>
+      <div class="ba__pane ba__pane--before"><Photo id={before} sizes="(min-width: 960px) 60vw, 100vw" /><span class="ba__tag label">Vorher</span></div>
+      <div class="ba__pane ba__pane--after"><Photo id={after} sizes="(min-width: 960px) 60vw, 100vw" /><span class="ba__tag label">Nachher</span></div>
+      <span class="ba__handle" aria-hidden="true"></span>
+    </div>
+    <label class="ba__control">
+      <span class="visually-hidden">Vorher und Nachher vergleichen: Regler nach links zeigt mehr «Nachher»</span>
+      <input type="range" min="0" max="100" value="50" step="1" data-ba-range />
+    </label>
+    {caption && <figcaption class="small muted">{caption}</figcaption>}
+  </figure>
+)}
+
+<script>
+  import { initBeforeAfter } from '../scripts/compare';
+  initBeforeAfter();
+</script>
+
+<style>
+  .ba { display: grid; gap: var(--s-3); }
+  .ba__stage { display: grid; gap: var(--s-3); grid-template-columns: 1fr 1fr; position: relative; }
+  .ba__pane { position: relative; }
+  .ba__tag { position: absolute; left: 12px; top: 12px; background: var(--white); color: var(--ink); padding: 4px 8px; }
+  .ba__control, .ba__handle { display: none; }
+  :global(.js) .ba__stage { display: block; --pos: 50%; }
+  :global(.js) .ba__pane--after { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--pos)); }
+  :global(.js) .ba__pane--after .ba__tag { left: auto; right: 12px; }
+  :global(.js) .ba__handle { display: block; position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: var(--white); box-shadow: 0 0 0 1px rgba(10, 10, 11, 0.3); pointer-events: none; }
+  :global(.js) .ba__control { display: block; }
+  .ba__control input { width: 100%; accent-color: var(--red); min-height: 44px; }
+</style>

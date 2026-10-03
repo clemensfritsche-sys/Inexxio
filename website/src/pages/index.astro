@@ -1,0 +1,217 @@
+---
+/**
+ * Startseite – Reihenfolge nach Auftrag Kap. 7.2: Hero mit Einstiegen → Übergabe →
+ * zwei Standbeine → Service-Abo → Warum → Ratgeber → Fragen → Anfrage.
+ * Texte: src/content/start.ts.
+ */
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import EntryTiles from '../components/EntryTiles.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Photo from '../components/Photo.astro';
+import Quote from '../components/Quote.astro';
+import PillarCard from '../components/PillarCard.astro';
+import TierCards from '../components/TierCards.astro';
+import KranbuchIllustration from '../components/KranbuchIllustration.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import Faq from '../components/Faq.astro';
+import CtaBlock from '../components/CtaBlock.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { start } from '../content/start';
+import { article, formatDay } from '../lib/ratgeber';
+import { faqPage } from '../lib/seo.mjs';
+
+const group = (href: string) => {
+  const g = site.nav.find((n) => n.href === href);
+  if (!g?.children) throw new Error(`Navigation «${href}» fehlt.`);
+  return g;
+};
+const krane = group('/krane');
+const mixer = group('/fahrmischer');
+const teasers = start.ratgeber.slugs.map((slug) => article(slug));
+const h = start.handover;
+---
+<Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]}>
+  <Hero
+    size="lg"
+    index={start.hero.index}
+    eyebrow={start.hero.eyebrow}
+    stats={start.hero.stats}
+    title={start.hero.h1}
+    lead={start.hero.lead}
+    photo="pruefung-hallenkran"
+    primary={{ label: site.cta.label, href: site.cta.href }}
+    note={site.features.pikett ? start.hero.note : undefined}
+  >
+    <nav slot="after" aria-label="Einstieg nach Anliegen"><EntryTiles items={start.entries} /></nav>
+  </Hero>
+
+  <section class="start-entries" aria-label="Auf einen Blick">
+    <div class="wrap">
+      <div class="start-facts">
+        <Rich as="p" class="start-facts__summary" text={start.summary} />
+      </div>
+      <SeasonNotice page="/" />
+    </div>
+  </section>
+
+  <section class="section section--dark glow" aria-labelledby="uebergabe">
+    <div class="wrap grid start-handover">
+      <div class="col-6 start-handover__text">
+        <SectionHead index="02" eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe" class="head--flush" />
+        {site.features.heiriAdvisory && <Rich as="p" text={site.people.founder.advisory} />}
+        <Quote text={h.quote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
+      </div>
+      <div class="col-6 start-handover__media">
+        <Photo id="clemens-heiri-quer" sizes="(min-width: 960px) 50vw, 100vw" />
+      </div>
+      <div class="col-12 start-handover__lists">
+        <div>
+          <h3 class="start-handover__h">Was bleibt</h3>
+          <ul class="checklist" role="list">
+            {h.stays.map((s) => <li><Icon name="check" size={20} /><Rich as="span" text={s} /></li>)}
+          </ul>
+        </div>
+        <div>
+          <h3 class="start-handover__h">Was neu ist</h3>
+          <ul class="checklist" role="list">
+            {h.news.map((s) => <li><Icon name="plus" size={20} /><Rich as="span" text={s} /></li>)}
+          </ul>
+        </div>
+        <div class="start-handover__links">
+          <a class="arrow-link" href="/uebergabe">Die ganze Geschichte <Icon name="arrow-right" size={18} /></a>
+          <a class="arrow-link" href="/uebergabe#fragen">Fragen zur Übergabe <Icon name="arrow-right" size={18} /></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="leistungen">
+    <div class="wrap">
+      <SectionHead index="03" eyebrow="Leistungen" title={start.pillars.h2} id="leistungen" />
+      <div class="cardgrid cardgrid--2 start-pillars">
+        <PillarCard
+          index="01"
+          title={start.pillars.krane.title}
+          href={krane.href}
+          text={start.pillars.krane.text}
+          photo={start.pillars.krane.photo}
+          links={krane.children}
+          more={start.pillars.krane.more}
+        />
+        <PillarCard
+          index="02"
+          title={start.pillars.fahrmischer.title}
+          href={mixer.href}
+          text={start.pillars.fahrmischer.text}
+          photo={start.pillars.fahrmischer.photo}
+          links={mixer.children}
+          more={start.pillars.fahrmischer.more}
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="abo">
+    <div class="wrap">
+      <div class="grid start-abo">
+        <div class="col-6">
+          <SectionHead index="04" eyebrow={start.abo.eyebrow} title={start.abo.h2} lead={start.abo.lead} id="abo" class="head--flush" />
+        </div>
+        <div class="col-5 start-abo__ill">
+          <KranbuchIllustration />
+        </div>
+      </div>
+      <TierCards compact />
+      <div class="btn-row start-abo__cta">
+        <a class="btn btn--primary" href="/service-abo">{start.abo.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="warum">
+    <div class="wrap">
+      <SectionHead index="05" eyebrow={start.why.eyebrow} title={start.why.h2} id="warum" />
+      <div class="grid">
+        <ol class="col-8 start-why" role="list">
+          {start.why.items.map((it, i) => (
+            <li class="start-why__item">
+              <p class="idx">{String(i + 1).padStart(2, '0')}</p>
+              <h3 class="start-why__title">{it.title}</h3>
+              <Rich as="p" text={it.text} />
+            </li>
+          ))}
+        </ol>
+        <aside class="col-4 start-portrait" aria-label="Clemens Fritsche">
+          <Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 60vw" />
+          <Rich as="p" class="start-portrait__text" text={start.why.portrait.text} />
+          <p class="small muted">{site.people.owner.name}, {site.people.owner.role}</p>
+          <a class="arrow-link" href="/ueber-uns">{start.why.portrait.link} <Icon name="arrow-right" size={18} /></a>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="ratgeber">
+    <div class="wrap">
+      <SectionHead index="06" eyebrow={start.ratgeber.eyebrow} title={start.ratgeber.h2} id="ratgeber" />
+      <div class="cols-3">
+        {teasers.map((a) => (
+          <ArticleCard href={a.path} title={a.title} text={a.kurz[0]} date={a.updated} dateLabel={formatDay(a.updated)} />
+        ))}
+      </div>
+      <p class="start-more"><a class="arrow-link" href="/ratgeber">{start.ratgeber.all} <Icon name="arrow-right" size={18} /></a></p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="fragen">
+    <div class="wrap">
+      <SectionHead index="07" eyebrow="Fragen" title="Häufige Fragen" id="fragen" />
+      <div class="start-faq"><Faq items={start.faq} /></div>
+    </div>
+  </section>
+
+  <CtaBlock title={start.cta.h2} lead={start.cta.lead} kind="waehlen" />
+</Base>
+
+<style>
+  .start-entries { padding-block: var(--s-6) var(--s-7); }
+  .start-facts { display: grid; gap: var(--s-4); }
+  @media (min-width: 960px) {
+    .start-facts { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: var(--s-6); align-items: start; }
+  }
+  .start-facts__summary { color: var(--ink-2); font-size: 1.0625rem; }
+  .start-entries :global(.season) { margin-top: var(--s-6); }
+
+  .head--flush { margin-bottom: 0; }
+  .start-handover { align-items: start; row-gap: var(--s-7); }
+  .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
+  .start-handover__lists { display: grid; gap: var(--s-6); padding-top: var(--s-6); border-top: 1px solid var(--line-dark); }
+  @media (min-width: 720px) { .start-handover__lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .start-handover__h { font-size: 1.125rem; margin-bottom: var(--s-4); }
+  .start-handover__links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-6); }
+  @media (min-width: 720px) { .start-handover__links { grid-column: 1 / -1; } }
+
+  .start-rule { margin-bottom: var(--s-7); }
+
+
+  .start-abo { align-items: center; margin-bottom: var(--s-6); }
+  @media (min-width: 960px) { .start-abo__ill { grid-column: 8 / span 5; } }
+  .start-abo__ill { max-width: 480px; }
+  .start-abo__cta { margin-top: var(--s-6); }
+
+  .start-why { display: grid; gap: 0 var(--s-6); grid-template-columns: minmax(0, 1fr); align-content: start; }
+  @media (min-width: 720px) { .start-why { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .start-why__item { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0 var(--s-6); border-top: 1px solid var(--line-2); }
+  .start-why__title { font-size: 1.25rem; }
+  .start-portrait { display: grid; gap: var(--s-3); align-content: start; justify-items: start; }
+  .start-portrait :global(.ph), .start-portrait :global(picture) { max-width: 320px; }
+  .start-portrait__text { font-size: 1.125rem; line-height: 1.45; color: var(--ink); font-weight: 500; letter-spacing: -0.01em; }
+  @media (min-width: 960px) { .start-portrait { padding-left: var(--s-5); border-left: 1px solid var(--line); } }
+
+  .start-more { margin-top: var(--s-6); }
+  @media (min-width: 760px) { .start-faq { margin-left: calc(min(180px, 20%) + var(--s-6)); max-width: 52rem; } }
+</style>

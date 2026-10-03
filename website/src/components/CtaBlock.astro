@@ -1,0 +1,39 @@
+---
+/**
+ * Abschluss jeder Leistungsseite: Kurzformular (Typ und Thema vorausgewählt) und daneben
+ * Telefon und Pikett. Eine Hauptaktion: die Anfrage.
+ */
+import SectionHead from './SectionHead.astro';
+import ShortForm from './ShortForm.astro';
+import ContactPanel from './ContactPanel.astro';
+
+interface Props {
+  id?: string;
+  title: string;
+  lead?: string;
+  kind: 'kran' | 'fahrmischer' | 'teile' | 'abo' | 'anderes' | 'waehlen';
+  need?: string;
+  urgency?: 'dringend' | 'wochen' | 'planung';
+  messageLabel?: string;
+  pikettFirst?: boolean;
+  tone?: 'paper' | 'white';
+}
+const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, pikettFirst, tone = 'paper' } = Astro.props;
+---
+<section class:list={['section', tone === 'paper' && 'section--paper']} id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap grid">
+    <div class="col-7">
+      <SectionHead title={title} lead={lead} id={`${id}-title`} />
+      <ShortForm id={`${id}-form`} kind={kind} need={need} urgency={urgency} messageLabel={messageLabel} />
+    </div>
+    <aside class="col-4 start-9 cta-aside" aria-label="Direkter Kontakt">
+      <ContactPanel pikettFirst={pikettFirst} />
+    </aside>
+  </div>
+</section>
+
+<style>
+  @media (min-width: 960px) {
+    .cta-aside { grid-column: 9 / span 4; padding-top: var(--s-2); }
+  }
+</style>

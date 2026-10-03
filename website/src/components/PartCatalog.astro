@@ -1,0 +1,73 @@
+---
+/**
+ * Verschleissteile-Katalog aus der Konfiguration – gruppiert nach Teileart, ohne Filter:
+ * die Gruppierung ist so klar, dass niemand filtern muss. Kein Preis, kein Warenkorb.
+ * «Teil anfragen» öffnet das Formular mit vorausgefülltem Teil.
+ */
+import { catalog } from '../config/catalog.mjs';
+import Icon from './Icon.astro';
+import Photo from './Photo.astro';
+import Rich from './Rich.astro';
+---
+<div class="catalog">
+  <nav class="catalog__toc" aria-label="Teilearten">
+    <ul role="list">
+      {catalog.groups.map((g) => <li><a href={`#${g.id}`}>{g.title}</a></li>)}
+    </ul>
+  </nav>
+  {catalog.groups.map((g) => (
+    <section class="catalog__group" id={g.id} aria-labelledby={`${g.id}-title`}>
+      <header class="catalog__head">
+        <h3 id={`${g.id}-title`} class="h3">{g.title}</h3>
+        <Rich as="p" class="catalog__intro" text={g.intro} />
+      </header>
+      <ul role="list" class="catalog__items">
+        {g.items.map((it) => (
+          <li class="part">
+            <Photo id={it.photo} sizes="(min-width: 1024px) 400px, (min-width: 720px) 50vw, 100vw" class="part__img" />
+            <div class="part__body">
+              <h4 class="part__name">{it.name}</h4>
+              <Rich as="p" class="part__text" text={it.text} />
+              <dl class="part__spec">
+                <div><dt>Material</dt><Rich as="dd" text={it.material} /></div>
+                <div><dt>Passend für</dt><dd>{catalog.fits.join(' · ')} <Rich as="span" text={catalog.fitsReview} /></dd></div>
+              </dl>
+              <a
+                class="btn btn--secondary btn--sm part__cta"
+                href={`/kontakt?typ=teile&teil=${encodeURIComponent(it.name)}`}
+                data-track="part_inquiry"
+                data-track-prop-part={it.id}
+              >
+                Teil anfragen <Icon name="arrow-right" size={18} class="btn__arrow" />
+              </a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</div>
+
+<style>
+  .catalog { display: grid; gap: var(--s-8); }
+  .catalog__toc ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .catalog__toc a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-2); text-decoration: none; color: var(--ink); font-weight: 500; }
+  .catalog__toc a:hover { border-color: var(--ink); }
+  .catalog__group { display: grid; gap: var(--s-5); scroll-margin-top: calc(var(--header-h) + 24px); }
+  .catalog__head { display: grid; gap: var(--s-2); padding-top: var(--s-4); border-top: 1px solid var(--ink); }
+  .catalog__intro { color: var(--ink-2); }
+  .catalog__items { list-style: none; padding: 0; display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .catalog__items { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* Ein Katalog ist dicht: drei Teile je Zeile – zwei Fotos à 600 px machten die Seite 8000 px
+     lang und fast nur aus Bildfläche. */
+  @media (min-width: 1024px) { .catalog__items { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .part { display: grid; gap: var(--s-4); align-content: start; }
+  .part__body { display: grid; gap: var(--s-2); }
+  .part__name { font-size: 1.25rem; }
+  .part__text { color: var(--ink-2); }
+  .part__spec { margin: var(--s-2) 0 0; border-top: 1px solid var(--line); }
+  .part__spec div { display: grid; grid-template-columns: 120px 1fr; gap: var(--s-3); padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9375rem; }
+  .part__spec dt { font-family: var(--font-sans); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .part__spec dd { margin: 0; color: var(--ink); }
+  .part__cta { justify-self: start; margin-top: var(--s-2); }
+</style>

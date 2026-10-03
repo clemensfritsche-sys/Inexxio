@@ -1,0 +1,278 @@
+---
+/**
+ * Kopfzeile: Lockup · Navigation · Telefon · «Service anfragen».
+ *
+ * Ohne JavaScript voll bedienbar: Dropdowns öffnen per Hover/Fokus, das Mobil-Menü ist ein
+ * natives <details>. Das Skript ergänzt nur Komfort (Klick-Öffnen, Esc, Ein-/Ausblenden
+ * beim Scrollen, Scroll-Sperre im Menü).
+ */
+import { site } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import Lockup from './Lockup.astro';
+
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => path === href || path.startsWith(`${href}/`);
+const tel = `tel:${site.phone.e164}`;
+---
+<header class="site-header" data-header>
+  <div class="wrap site-header__bar">
+    <a href="/" class="site-header__home" aria-label={`${site.brand.name}, ${site.brand.formerly} – zur Startseite`}>
+      <Lockup />
+    </a>
+
+    <nav class="nav" aria-label="Hauptnavigation">
+      <ul role="list" class="nav__list">
+        {site.nav.map((item, i) =>
+          item.children ? (
+            <li class="nav__item dd" data-dd>
+              <a href={item.href} class="nav__link" aria-current={isActive(item.href) ? 'page' : undefined}>{item.label}</a>
+              <button
+                type="button"
+                class="dd__toggle"
+                aria-expanded="false"
+                aria-controls={`dd-${i}`}
+                data-dd-toggle
+              >
+                <span class="visually-hidden">Untermenü {item.label}</span>
+                <Icon name="chevron-down" size={16} />
+              </button>
+              <div class="dd__panel" id={`dd-${i}`} data-dd-panel>
+                <ul role="list" class="dd__list">
+                  {item.children.map((c) => (
+                    <li>
+                      <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
+                        <span class="dd__label">{c.label}</span>
+                        <span class="dd__text">{c.text}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                <a href={item.href} class="dd__overview">{item.overview} <Icon name="arrow-right" size={16} /></a>
+              </div>
+            </li>
+          ) : (
+            <li class="nav__item">
+              <a href={item.href} class="nav__link" aria-current={isActive(item.href) ? 'page' : undefined}>{item.label}</a>
+            </li>
+          ),
+        )}
+      </ul>
+    </nav>
+
+    <div class="site-header__actions">
+      <!-- Der Name nennt die Nummer immer: schmal steht nur das Symbol da, und ein «anrufen»
+           ohne Nummer wäre für einen Vorleser keine Auskunft. -->
+      <a class="site-header__tel" href={tel} data-track="tel_click" aria-label={`${site.phone.display} anrufen`}>
+        <Icon name="phone" size={18} />
+        <span class="site-header__tel-num">{site.phone.display}</span>
+      </a>
+      <!-- Anmelden führt ins Kundenkonto bzw. ins ERP (Next-App, gleiche Domain). Die Website
+           selbst kennt keine Anmeldung – sie zeigt nur den Weg dorthin. -->
+      <a class="site-header__login" href={site.login.href} rel="nofollow" aria-label={site.login.aria} title={site.login.aria}>
+        <Icon name="circle-user" size={20} />
+        <span class="site-header__login-txt">{site.login.short}</span>
+      </a>
+      <a class="btn btn--primary btn--sm site-header__cta" href={site.cta.href}>
+        {site.cta.label}
+        <Icon name="arrow-right" size={18} class="btn__arrow" />
+      </a>
+
+      <details class="mnav" data-mnav>
+        <summary class="mnav__toggle">
+          <span class="mnav__icon-open"><Icon name="menu" size={24} /></span>
+          <span class="mnav__icon-close"><Icon name="x" size={24} /></span>
+          <span class="visually-hidden">Menü</span>
+        </summary>
+        <div class="mnav__panel">
+          <div class="mnav__top wrap"><Lockup /></div>
+          <nav class="mnav__nav wrap" aria-label="Hauptnavigation (mobil)">
+            {site.nav.map((item) =>
+              item.children ? (
+                <details class="mnav__group" open={isActive(item.href) ? true : undefined}>
+                  <summary class="mnav__link">
+                    {item.label}
+                    <Icon name="chevron-down" size={20} />
+                  </summary>
+                  <ul role="list" class="mnav__sub">
+                    {item.children.map((c) => (
+                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}>{c.label}<span>{c.text}</span></a></li>
+                    ))}
+                    <li><a href={item.href} class="mnav__overview">{item.overview}</a></li>
+                  </ul>
+                </details>
+              ) : (
+                <a href={item.href} class="mnav__link" aria-current={isActive(item.href) ? 'page' : undefined}>{item.label}</a>
+              ),
+            )}
+            <a href="/kontakt" class="mnav__link" aria-current={isActive('/kontakt') ? 'page' : undefined}>Kontakt</a>
+            <a href={site.login.href} class="mnav__link mnav__login" rel="nofollow">{site.login.label} <Icon name="circle-user" size={20} /></a>
+          </nav>
+          <div class="mnav__actions">
+            <a class="btn btn--secondary" href={tel} data-track="tel_click"><Icon name="phone" size={18} /> Anrufen</a>
+            <a class="btn btn--primary" href={site.cta.href}>Anfrage <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  /* Milchglas wie im Website-Kit: weiss zu 86 %, dahinter verschwimmt die Seite. */
+  .site-header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255, 255, 255, 0.86);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    border-bottom: 1px solid var(--line);
+    transition: transform 260ms var(--ease), box-shadow var(--t-fast) var(--ease);
+  }
+  /* Mit JS: beim Runterscrollen ausblenden, beim Hochscrollen zurück. */
+  :global(.js) .site-header.is-hidden { transform: translateY(-100%); }
+  :global(.js) .site-header.is-scrolled { box-shadow: var(--shadow-sm); }
+
+  /* Nichts in der Kopfzeile bricht um: ein umgebrochener Navigationspunkt oder eine
+     zweizeilige Telefonnummer ist kein Layout, sondern ein Fehler. Platz schafft die
+     Breite, ab der die volle Navigation erscheint (1200 px, gemessen: Bedarf 1121 px). */
+  .site-header__bar { height: var(--header-h); display: flex; align-items: center; gap: var(--s-5); white-space: nowrap; }
+  .site-header__home { text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; flex: none; }
+  .site-header__actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
+
+  /* ---- Desktop-Navigation (ab 1200 px) ---- */
+  .nav { display: none; }
+  .nav__list { display: flex; align-items: center; gap: 2px; list-style: none; padding: 0; }
+  .nav__item { position: relative; display: flex; align-items: center; }
+  /* Navigation: leise Stimme (ink-2), beim Zeigen dunkel – und die rote Linie wächst von links. */
+  .nav__link {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px;
+    font-size: 0.9375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink-2);
+    text-decoration: none; position: relative; transition: color var(--t-fast) var(--ease);
+  }
+  .nav__link::after {
+    content: ''; position: absolute; left: 10px; right: calc(100% - 10px); bottom: 7px; height: 2px;
+    background: var(--red); transition: right 200ms var(--ease);
+  }
+  .nav__link:hover { color: var(--ink); }
+  .nav__link:hover::after, .nav__link[aria-current='page']::after { right: 10px; }
+  .nav__link[aria-current='page'] { color: var(--ink); }
+  .dd .nav__link { padding-right: 2px; }
+  .dd__toggle {
+    display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+    color: var(--ink-3); border-radius: var(--radius);
+  }
+  .dd__toggle :global(.icon) { transition: transform var(--t-fast) var(--ease); }
+  .dd__toggle[aria-expanded='true'] :global(.icon) { transform: rotate(180deg); }
+
+  .dd__panel {
+    position: absolute; top: calc(100% + 6px); left: 0; width: 360px;
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
+    padding: var(--s-2); white-space: normal;
+    opacity: 0; visibility: hidden; transform: translateY(-4px);
+    transition: opacity 150ms var(--ease), transform 150ms var(--ease), visibility 0s linear 150ms;
+  }
+  /* Hover-Brücke zwischen Eintrag und Panel */
+  .dd__panel::before { content: ''; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
+  /* Ohne JS öffnet auch der Tastaturfokus; mit JS übernimmt der Pfeil-Knopf (aria-expanded). */
+  :global(html:not(.js)) .dd:focus-within .dd__panel,
+  .dd:hover .dd__panel, .dd.is-open .dd__panel {
+    opacity: 1; visibility: visible; transform: none; transition-delay: 0s;
+  }
+  .dd.is-closed .dd__panel { opacity: 0; visibility: hidden; transform: translateY(-4px); }
+  .dd__list { list-style: none; padding: 0; }
+  .dd__link { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--radius); text-decoration: none; }
+  .dd__link:hover, .dd__link:focus-visible { background: var(--paper); }
+  .dd__label { font-weight: 600; color: var(--ink); font-size: 0.97rem; }
+  .dd__link[aria-current='page'] .dd__label { text-decoration: underline; text-decoration-color: var(--red); text-decoration-thickness: 2px; }
+  .dd__text { font-size: 0.875rem; color: var(--ink-3); }
+  .dd__overview {
+    display: flex; align-items: center; justify-content: space-between; margin-top: 4px;
+    padding: 12px 12px 8px; border-top: 1px solid var(--line); font-size: 0.9rem; font-weight: 600;
+    color: var(--ink); text-decoration: none;
+  }
+  .dd__overview:hover { text-decoration: underline; }
+
+  .site-header__tel {
+    display: none; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px;
+    font-weight: 600; color: var(--ink); text-decoration: none; font-variant-numeric: tabular-nums;
+  }
+  .site-header__tel:hover .site-header__tel-num { text-decoration: underline; }
+  .site-header__cta { display: none; }
+  /* In der Leiste erst ab 768 px – schmaler steht «Anmelden» im Menü (gemessen: sonst 349 px
+     Bedarf bei 320 px Breite). */
+  .site-header__login {
+    display: none; align-items: center; justify-content: center; gap: 6px;
+    min-width: 44px; min-height: 44px; padding: 0 6px; color: var(--ink-2); text-decoration: none;
+    font-size: 0.97rem; font-weight: 550;
+  }
+  .site-header__login:hover { color: var(--ink); }
+  .site-header__login:hover .site-header__login-txt { text-decoration: underline; }
+  .site-header__login-txt { display: none; }
+  .mnav__login { color: var(--ink-2); }
+
+  /* ---- Mobil-Menü ---- */
+  .mnav { display: block; }
+  .mnav__toggle {
+    list-style: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; color: var(--ink); cursor: pointer; border-radius: var(--radius);
+  }
+  .mnav__toggle::-webkit-details-marker { display: none; }
+  .mnav__icon-close { display: none; }
+  .mnav[open] .mnav__icon-open { display: none; }
+  .mnav[open] .mnav__icon-close { display: inline-flex; }
+  .mnav[open] > .mnav__toggle {
+    position: fixed; top: calc((var(--header-h) - 44px) / 2); right: var(--gutter); z-index: 62;
+  }
+  .mnav__panel {
+    position: fixed; inset: 0; z-index: 61; background: var(--white); white-space: normal;
+    display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain;
+  }
+  .mnav__top { height: var(--header-h); display: flex; align-items: center; flex: none; border-bottom: 1px solid var(--line); }
+  /* füllt das Overlay (Aktionen bleiben unten), die Zeilen behalten aber ihre 56 px –
+     ohne align-content verteilte das Raster die Resthöhe und jede Zeile wurde 111 px hoch. */
+  .mnav__nav { display: grid; align-content: start; padding-top: var(--s-4); padding-bottom: var(--s-6); flex: 1 0 auto; }
+  .mnav__link {
+    display: flex; align-items: center; justify-content: space-between; min-height: 56px;
+    font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink);
+    text-decoration: none; border-bottom: 1px solid var(--line); list-style: none; cursor: pointer;
+  }
+  .mnav__link::-webkit-details-marker { display: none; }
+  .mnav__link[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); padding-left: 12px; }
+  .mnav__group[open] > .mnav__link :global(.icon) { transform: rotate(180deg); }
+  .mnav__sub { list-style: none; padding: var(--s-2) 0 var(--s-3); border-bottom: 1px solid var(--line); }
+  .mnav__sub a { display: grid; gap: 2px; padding: 10px 0 10px 12px; text-decoration: none; color: var(--ink); font-weight: 600; }
+  .mnav__sub a span { font-weight: 400; font-size: 0.9rem; color: var(--ink-3); }
+  .mnav__sub a[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); }
+  .mnav__overview { color: var(--ink-2) !important; font-weight: 500 !important; }
+  .mnav__actions {
+    position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3);
+    padding: var(--s-3) var(--gutter) calc(var(--s-3) + env(safe-area-inset-bottom));
+    background: var(--white); border-top: 1px solid var(--line);
+  }
+
+  @media (min-width: 600px) {
+    .site-header__cta { display: inline-flex; }
+  }
+  @media (min-width: 768px) {
+    .site-header__login { display: inline-flex; }
+  }
+  @media (min-width: 900px) {
+    .site-header__tel { display: inline-flex; }
+  }
+  @media (min-width: 1200px) {
+    .nav { display: block; }
+    .mnav { display: none; }
+  }
+  /* Unter 900 px steht die Nummer nicht ausgeschrieben, aber das Telefon-Symbol bleibt – auch
+     auf dem Tablet, wo weder die Nummer noch die Aktionsleiste unten Platz hat (vorher fehlte
+     zwischen 600 und 899 px jede Telefon-Möglichkeit in der Kopfzeile). */
+  @media (max-width: 899px) {
+    .site-header__tel { display: inline-flex; width: 44px; justify-content: center; padding: 0; }
+    .site-header__tel-num { display: none; }
+  }
+  /* Sehr schmal (320 px): das Lockup braucht seine Breite, die Abstände geben nach. */
+  @media (max-width: 479px) {
+    .site-header__bar { gap: var(--s-3); }
+    .site-header__actions { gap: var(--s-1); }
+  }
+</style>

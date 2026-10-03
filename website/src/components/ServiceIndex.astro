@@ -1,0 +1,41 @@
+---
+/**
+ * Übersicht der Leistungen eines Standbeins (Krane / Fahrmischer): je Leistung eine Zeile
+ * mit Nummer, Titel, einem Satz und Pfeil – die ganze Zeile ist der Link.
+ * Bewusst keine Kartenreihe mit Symbolen: Nummer und Haarlinie tragen die Ordnung.
+ */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  items: { href: string; label: string; text?: string }[];
+}
+const { items } = Astro.props;
+---
+<ul role="list" class="sindex">
+  {items.map((it, i) => (
+    <li>
+      <a class="sindex__link" href={it.href}>
+        <span class="label sindex__nr">{String(i + 1).padStart(2, '0')}</span>
+        <span class="sindex__title">{it.label}</span>
+        {it.text && <Rich as="span" class="sindex__text" text={it.text} />}
+        <Icon name="arrow-right" size={22} class="sindex__arrow" />
+      </a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .sindex { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--s-5); border-top: 1px solid var(--ink); }
+  @media (min-width: 720px) { .sindex { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .sindex li { border-bottom: 1px solid var(--line-2); }
+  .sindex__link {
+    position: relative; display: grid; gap: 6px; padding: var(--s-5) var(--s-8) var(--s-5) 0; height: 100%;
+    color: var(--ink); text-decoration: none;
+  }
+  .sindex__title { font-size: clamp(1.25rem, 1.15rem + 0.4vw, 1.5rem); font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; }
+  .sindex__text { color: var(--ink-3); }
+  .sindex__arrow { position: absolute; right: var(--s-2); top: 50%; margin-top: -11px; transition: transform var(--t-fast) var(--ease); }
+  .sindex__link:hover .sindex__title { text-decoration: underline; text-underline-offset: 0.18em; text-decoration-thickness: 2px; }
+  .sindex__link:hover .sindex__arrow { transform: translateX(3px); }
+</style>

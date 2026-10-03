@@ -1,0 +1,28 @@
+---
+/** Leistungsumfang: klare Liste, je Punkt ein Titel und ein Satz Nutzen. */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props { items: { title: string; text: string }[] }
+const { items } = Astro.props;
+---
+<ul class="scope" role="list" data-reveal-stagger>
+  {items.map((it) => (
+    <li class="scope__item">
+      <Icon name="check" size={20} class="scope__icon" />
+      <div>
+        <Rich as="h3" class="scope__title" text={it.title} />
+        <Rich as="p" class="scope__text" text={it.text} />
+      </div>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .scope { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line-2); }
+  @media (min-width: 840px) { .scope { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--s-7); } }
+  .scope__item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-5) 0; border-bottom: 1px solid var(--line); }
+  .scope__icon { color: var(--ink); margin-top: 3px; }
+  .scope__title { font-size: 1.125rem; font-weight: 650; letter-spacing: -0.01em; }
+  .scope__text { margin-top: 4px; color: var(--ink-2); }
+</style>

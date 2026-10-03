@@ -1,0 +1,13 @@
+---
+/** Text aus Konfiguration/Content mit {{Werten}}, Markierungen und Inline-Markup. */
+import { rich } from '../lib/text.mjs';
+
+interface Props {
+  text: string | undefined;
+  as?: 'p' | 'span' | 'h1' | 'h2' | 'h3' | 'li' | 'dt' | 'dd' | 'div' | 'strong';
+  class?: string;
+  id?: string;
+}
+const { text, as: Tag = 'p', class: cls, id } = Astro.props;
+---
+{text ? <Tag class={cls} id={id} set:html={rich(text)} /> : null}

@@ -1,0 +1,61 @@
+---
+/**
+ * Schlichte Linien-Illustration: QR-Code am Kran → Prüfbericht auf dem Handy.
+ * Eigene Zeichnung (kein Stock, keine KI), Strich 1.5 wie die Symbole.
+ */
+interface Props { class?: string }
+const { class: cls } = Astro.props;
+---
+<figure class:list={['kb', cls]}>
+  <svg viewBox="0 0 480 290" role="img" aria-labelledby="kb-title kb-desc" class="kb__svg">
+    <title id="kb-title">Digitales Kranbuch</title>
+    <desc id="kb-desc">Ein QR-Code am Kran führt per Handy zum digitalen Kranbuch mit Prüfberichten, Wartungen und dem nächsten Termin.</desc>
+    <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Kranbahn mit Stütze -->
+      <path d="M24 46h176" stroke-width="2" />
+      <path d="M24 40v12M200 40v12" />
+      <path d="M36 52v222" stroke-width="2" />
+      <!-- Seil und Haken -->
+      <path d="M103 54v86" />
+      <rect x="91" y="140" width="24" height="18" rx="2" />
+      <path d="M103 158v10a8 8 0 1 0 8 8" />
+      <!-- QR-Etikett an der Stütze -->
+      <rect x="48" y="186" width="56" height="56" rx="2" />
+      <rect x="55" y="193" width="13" height="13" />
+      <rect x="84" y="193" width="13" height="13" />
+      <rect x="55" y="222" width="13" height="13" />
+      <path d="M84 222h4M92 222h5M84 230h5M93 230v5M84 235h3" />
+      <!-- Pfeil zum Handy -->
+      <path d="M118 214h132" />
+      <path d="M242 207l8 7-8 7" />
+      <!-- Handy -->
+      <rect x="268" y="16" width="190" height="262" rx="20" stroke-width="2" />
+      <path d="M342 30h42" />
+      <path d="M286 92h154M286 140h154M286 188h154" stroke-width="1" opacity="0.35" />
+      <path d="M292 112l5 5 9-10M292 160l5 5 9-10M292 208l5 5 9-10" />
+      <rect x="286" y="226" width="154" height="34" rx="2" />
+    </g>
+    <rect x="96" y="39" width="14" height="14" class="kb__cat" />
+    <g class="kb__text" fill="currentColor">
+      <text x="78" y="262" text-anchor="middle" class="kb__mono">QR AM KRAN</text>
+      <text x="184" y="204" text-anchor="middle" class="kb__mono">SCANNEN</text>
+      <text x="286" y="62" class="kb__h">Kranbuch</text>
+      <text x="286" y="80" class="kb__s">Brückenkran · Halle 2</text>
+      <text x="316" y="118" class="kb__r">Prüfbericht</text>
+      <text x="316" y="166" class="kb__r">Wartung</text>
+      <text x="316" y="214" class="kb__r">Reparatur</text>
+      <text x="298" y="248" class="kb__r">Nächste Prüfung</text>
+    </g>
+  </svg>
+</figure>
+
+<style>
+  .kb { margin: 0; color: var(--ink); }
+  :global(.section--dark) .kb { color: var(--white); }
+  .kb__svg { width: 100%; height: auto; }
+  .kb__cat { fill: var(--red); }
+  .kb__mono { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; }
+  .kb__h { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+  .kb__s { font-size: 12px; opacity: 0.65; }
+  .kb__r { font-size: 14px; font-weight: 500; }
+</style>

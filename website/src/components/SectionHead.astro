@@ -1,0 +1,35 @@
+---
+/**
+ * Abschnittskopf des Design-Systems: 2 px schwarze Linie, Overline, grosser Titel, Satz.
+ * Mit `index` («01») zweispaltig wie im Website-Kit: links Index + Overline, rechts Titel –
+ * der Takt einer langen Seite. Ob zweispaltig, entscheidet die Breite des KOPFES
+ * (Container-Abfrage), nicht die des Fensters – in einer halben Spalte bleibt er gestapelt.
+ */
+import Rich from './Rich.astro';
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  id?: string;
+  level?: 'h1' | 'h2';
+  index?: string;
+  class?: string;
+}
+const { eyebrow, title, lead, id, level = 'h2', index, class: cls } = Astro.props;
+---
+<header class:list={['head', index && 'head--indexed', cls]}>
+  <div class="head__in">
+  {index ? (
+    <div class="head__meta">
+      <span class="idx" aria-hidden="true">{index}</span>
+      {eyebrow && <Rich as="p" class="label" text={eyebrow} />}
+    </div>
+  ) : (
+    eyebrow && <Rich as="p" class="label" text={eyebrow} />
+  )}
+  <Rich as={level} id={id} text={title} />
+  {lead && <Rich as="p" class="lead" text={lead} />}
+  <slot />
+  </div>
+</header>

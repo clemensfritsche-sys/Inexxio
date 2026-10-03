@@ -1,0 +1,53 @@
+---
+/** /krane – Übersicht der vier Kranleistungen, Hinweis «alle Marken», Einstieg für HS-Bestandskunden. */
+import Service from '../layouts/Service.astro';
+import SectionHead from '../components/SectionHead.astro';
+import ServiceIndex from '../components/ServiceIndex.astro';
+import Photo from '../components/Photo.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { krane, hsModules } from '../content/krane';
+---
+<Service page={krane}>
+  <section slot="intro" class="section" aria-labelledby="leistungen">
+    <div class="wrap">
+      <SectionHead
+        eyebrow="Leistungen"
+        title="Vier Leistungen. Krane aller Marken."
+        lead="Von der jährlichen Prüfung bis zum Umbau – für Ihren ganzen Kranbestand ein Ansprechpartner."
+        id="leistungen"
+      />
+      <ServiceIndex items={krane.services} />
+    </div>
+  </section>
+
+  <section slot="module" class="section section--dark" aria-labelledby="hs-bestand">
+    <div class="wrap grid krane-hs">
+      <div class="col-6 krane-hs__text">
+        <p class="label">Bestandskunden</p>
+        <h2 id="hs-bestand">Sie haben eine HS-Krananlage?</h2>
+        <p class="lead">
+          Service, Ersatzteile und Saison-Check für alle HS-Krananlagen führen wir weiter – mit denselben Teilen ab
+          Lager. Die Übergabe ändert daran nichts.
+        </p>
+        <div class="btn-row">
+          <a class="btn btn--secondary" href="/krane/hs-krananlagen">Zu den HS-Krananlagen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+        </div>
+        <div class="krane-hs__new">
+          <h3>{hsModules.newPlants.title}</h3>
+          <Rich as="p" text={hsModules.newPlants.text} />
+          <a class="arrow-link" href="/kontakt?typ=kran&thema=neuanlage">Neuanlage anfragen <Icon name="arrow-right" size={18} /></a>
+        </div>
+      </div>
+      <div class="col-6">
+        <Photo id="heukran-einsatz" sizes="(min-width: 960px) 50vw, 100vw" />
+      </div>
+    </div>
+  </section>
+</Service>
+
+<style>
+  .krane-hs { align-items: center; }
+  .krane-hs__text { display: grid; gap: var(--s-4); justify-items: start; }
+  .krane-hs__new { display: grid; gap: var(--s-2); justify-items: start; margin-top: var(--s-5); padding-top: var(--s-5); border-top: 1px solid var(--line-dark); width: 100%; }
+</style>

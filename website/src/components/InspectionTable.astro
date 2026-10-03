@@ -1,0 +1,71 @@
+---
+/**
+ * Prüfpflicht als Tabelle – immer sichtbar, auch ohne JavaScript. Daten: config/inspection.mjs
+ *
+ * Unter 768 px wird jede Zeile zu einem Block (Kranart, darunter beide Fristen mit ihrer
+ * Beschriftung): als Tabelle verlangte die dritte Spalte seitliches Scrollen, und genau
+ * sie – die Kontrolle durch den Kranexperten – lag dann ausserhalb des Bildes (gemessen bei
+ * 390 px). Die Beschriftung im Block bleibt für Vorleser hörbar: verliert ein Browser mit
+ * `display: block` die Tabellen-Semantik, sagt sie, welche Frist gemeint ist; behält er sie,
+ * hört man die Spalte zweimal – doppelt ist besser als ohne. (Ausdrückliche ARIA-Rollen an
+ * `th`/`td` wären die andere Lösung, sind aber ungültiges HTML – die Validierung meldet sie.)
+ */
+import { inspection } from '../config/inspection.mjs';
+import Rich from './Rich.astro';
+
+const COLS = ['Überprüfung durch Kranfachleute', 'Kontrolle durch Kranexperten (von der Suva anerkannt)'];
+---
+<div class="table-scroll" tabindex="0" role="region" aria-label="Prüffristen nach Kranart">
+  <table class="facts ptable">
+    <caption class="visually-hidden">Prüfpflicht nach Kranart</caption>
+    <thead>
+      <tr>
+        <th scope="col">Kranart</th>
+        <th scope="col">{COLS[0]}</th>
+        <th scope="col">{COLS[1]}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {inspection.types.map((t) => (
+        <tr>
+          <th scope="row"><span class="ptable__type">{t.label}</span><span class="ptable__hint">{t.hint}</span></th>
+          <td data-label={COLS[0]}>{t.expert ? 'jährlich' : 'regelmässig, nach Herstellerangaben'}</td>
+          <td data-label={COLS[1]}>
+            {t.expert
+              ? <ul class="ptable__ages">{inspection.ages.map((a) => <li>{a.label}: {a.expertEvery}</li>)}</ul>
+              : 'nicht vorgesehen'}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+<p class="small muted ptable__note"><Rich as="span" text={`${inspection.note} ${inspection.review}`} /></p>
+
+<style>
+  .ptable__type, .ptable__hint { display: block; }
+  /* Je Altersstufe eine Zeile – als Fliesstext mit «·» las sich die Frist wie ein Satz. Eine
+     echte Liste, damit auch ein Vorleser oder ein Textauszug die Stufen getrennt bekommt. */
+  .ptable__ages { list-style: none; margin: 0; padding: 0; }
+  .ptable__hint { margin-top: 2px; }
+  .ptable__hint { font-weight: 400; font-size: 0.875rem; color: var(--ink-3); }
+  .ptable td { min-width: 12rem; }
+  .ptable__note { margin-top: var(--s-3); }
+
+  @media (max-width: 767px) {
+    .ptable, .ptable tbody, .ptable tr, .ptable th, .ptable td { display: block; }
+    .ptable thead {
+      position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+    }
+    .ptable tbody tr { padding-block: var(--s-4); border-bottom: 1px solid var(--line); }
+    .ptable tbody tr:first-child { border-top: 1px solid var(--ink); }
+    .ptable tbody th, .ptable td { width: auto; min-width: 0; padding: 0; border-bottom: 0; }
+    .ptable td { margin-top: var(--s-3); }
+    .ptable td::before {
+      content: attr(data-label);
+      display: block; margin-bottom: 2px;
+      font-family: var(--font-sans); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--ink-3);
+    }
+  }
+</style>

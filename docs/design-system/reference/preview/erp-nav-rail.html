@@ -1,0 +1,25 @@
+<!-- @dsCard group="ERP / App" viewport="140x420" name="Icon Nav Rail" subtitle="Compact vertical navigation — icon-first, minimal chrome" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body{margin:0;background:var(--bg-2);font-family:var(--font-body);display:flex;justify-content:center;padding:20px 0;}
+  .rail{width:80px;background:#fff;border-right:1px solid var(--border-1);display:flex;flex-direction:column;align-items:center;gap:2px;padding:16px 0;}
+  .item{width:100%;display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 0;position:relative;color:var(--fg-3);cursor:pointer;transition:color .15s;}
+  .item .lucide{width:19px;height:19px;}
+  .item span{font:var(--caption);font-size:10.5px;letter-spacing:.01em;}
+  .item.on{color:var(--inexxio-red);}
+  .item.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;background:var(--inexxio-red);border-radius:0 2px 2px 0;}
+  .item:not(.on):hover{color:var(--fg-1);}
+</style></head>
+<body>
+  <div class="rail">
+    <div class="item on"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></div>
+    <div class="item"><i data-lucide="folder-kanban"></i><span>Projekte</span></div>
+    <div class="item"><i data-lucide="users"></i><span>Team</span></div>
+    <div class="item"><i data-lucide="wallet"></i><span>Finanzen</span></div>
+    <div class="item"><i data-lucide="bar-chart-3"></i><span>Reports</span></div>
+    <div class="item"><i data-lucide="settings"></i><span>Optionen</span></div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body></html>

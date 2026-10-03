@@ -1,0 +1,47 @@
+---
+/**
+ * Ablauf in Schritten (Anfrage → Termin → Arbeit vor Ort → Bericht) wie im Website-Kit:
+ * grosse rote Ziffer, Titel, ein Satz – getrennt durch Haarlinien. Auf breitem Schirm
+ * nebeneinander, darunter gestapelt.
+ */
+import Rich from './Rich.astro';
+
+interface Props {
+  steps: { title: string; text: string }[];
+}
+const { steps } = Astro.props;
+---
+<ol class="steps" role="list" style={`--n: ${steps.length}`}>
+  {steps.map((s, i) => (
+    <li class="steps__item">
+      <span class="steps__no" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+      <h3 class="steps__title">{s.title}</h3>
+      <Rich as="p" class="steps__text" text={s.text} />
+    </li>
+  ))}
+</ol>
+
+<style>
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; border-top: 1px solid var(--line); }
+  .steps__item {
+    display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: var(--s-5); row-gap: var(--s-2);
+    align-content: start; padding: var(--s-6) 0; border-bottom: 1px solid var(--line);
+  }
+  .steps__no {
+    grid-row: 1 / span 2; font-family: var(--font-display); font-weight: 800; font-size: 2.5rem;
+    line-height: 0.9; letter-spacing: -0.04em; color: var(--red); font-variant-numeric: tabular-nums;
+  }
+  .steps__title { font-size: 1.3125rem; }
+  .steps__text { color: var(--ink-2); max-width: 36ch; }
+  :global(.section--paper) .steps__no { color: var(--red-deep); }
+  :global(.section--dark) .steps, :global(.section--dark) .steps__item { border-color: var(--line-dark); }
+  :global(.section--dark) .steps__no { color: var(--red-bright); }
+
+  @media (min-width: 900px) {
+    .steps { grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+    .steps__item { grid-template-columns: minmax(0, 1fr); padding: var(--s-6) var(--s-5) var(--s-6) 0; border-bottom: 0; }
+    .steps__item + .steps__item { border-left: 1px solid var(--line); padding-left: var(--s-5); }
+    .steps__no { grid-row: auto; margin-bottom: var(--s-3); }
+    :global(.section--dark) .steps__item + .steps__item { border-left-color: var(--line-dark); }
+  }
+</style>
