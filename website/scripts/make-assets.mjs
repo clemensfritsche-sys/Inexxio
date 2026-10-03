@@ -31,7 +31,7 @@ function loadPlaywright() {
 
 const fontUrl = pathToFileURL(resolve(root, 'src/assets/fonts/inter-latin-wght-normal.woff2')).href;
 const favicon = readFileSync(pub('favicon.svg'), 'utf8');
-const wordmark = readFileSync(pub('logo/inexxio-wortmarke.svg'), 'utf8');
+const wordmark = readFileSync(pub('logo/inexxio-wortmarke.svg'), 'utf8').replace(/\s(width|height)="[^"]*"/g, '');
 
 const base = `
   @font-face { font-family: Inter; src: url('${fontUrl}') format('woff2'); font-weight: 100 900; }
@@ -59,22 +59,25 @@ const OG = [
 
 function ogHtml({ eyebrow, title }) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${base}
-    body { width: 1200px; height: 630px; background: #F4F3F0; color: #0A0A0B; position: relative; overflow: hidden; }
+    body { width: 1200px; height: 630px; background: #F7F6F4; color: #0A0A0B; position: relative; overflow: hidden; }
     .pad { position: absolute; inset: 64px 72px; display: flex; flex-direction: column; }
-    .eyebrow { font-family: ui-monospace, Menlo, monospace; font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: #6E6E73; }
+    .eyebrow { font-size: 20px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #C8140F; }
     h1 { margin-top: 28px; font-size: 68px; line-height: 1.04; letter-spacing: -0.03em; font-weight: 700; max-width: 960px; }
-    .rail { position: absolute; left: 72px; right: 72px; bottom: 170px; height: 1px; background: #0A0A0B; }
-    .cat { position: absolute; left: 300px; bottom: 164px; width: 13px; height: 13px; background: #E51A14; }
+    /* Signatur des Design-Systems v3: Punktraster, zum Rand hin ausgeblendet; Haarlinie über dem Fuss. */
+    .dots { position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, #D1CEC8 1.5px, transparent 0); background-size: 28px 28px;
+      -webkit-mask-image: radial-gradient(ellipse at 85% 30%, #000 0%, transparent 65%); }
+    .rail { position: absolute; left: 72px; right: 72px; bottom: 170px; height: 1px; background: #D1CEC8; }
     .foot { position: absolute; left: 72px; right: 72px; bottom: 64px; display: flex; align-items: center; justify-content: space-between; }
     .lock { display: flex; align-items: center; gap: 22px; }
     .lock svg { height: 40px; width: auto; }
-    .lock .t { border-left: 1px solid #D7D4CC; padding-left: 22px; display: grid; gap: 6px; }
+    .lock .t { border-left: 1px solid #D1CEC8; padding-left: 22px; display: grid; gap: 6px; }
     .lock .d { font-size: 17px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-    .lock .f { font-size: 19px; color: #6E6E73; }
-    .tel { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .lock .f { font-size: 19px; color: #5F5C58; }
+    .tel { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
   </style></head><body>
+    <div class="dots"></div>
     <div class="pad"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1></div>
-    <div class="rail"></div><div class="cat"></div>
+    <div class="rail"></div>
     <div class="foot">
       <div class="lock">${wordmark}<div class="t"><span class="d">${plain(site.brand.descriptor)}</span><span class="f">${plain(site.brand.formerly)}</span></div></div>
       <span class="tel">${site.phone.display}</span>

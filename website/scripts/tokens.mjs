@@ -23,6 +23,9 @@ const MAP = {
   '--inexxio-red': '--red',
   '--inexxio-red-deep': '--red-deep',
   '--inexxio-red-bright': '--red-bright',
+  '--color-primary-hover': '--red-hover',
+  '--color-border-focus': '--line-focus',
+  '--danger': '--danger',
   '--inexxio-black': '--black',
   '--fg-1': '--ink',
   '--fg-2': '--ink-2',
@@ -48,11 +51,13 @@ const MAP = {
   '--r-sm': '--r-sm',
   '--r-md': '--r-md',
   '--r-lg': '--r-lg',
-  '--r-pill': '--r-pill',
   '--shadow-sm': '--shadow-sm',
   '--shadow-md': '--shadow-md',
   '--shadow-lg': '--shadow-lg',
   '--shadow-red': '--shadow-red',
+  '--dur-fast': '--t-fast',
+  '--dur-base': '--t-base',
+  '--ease-out': '--ease',
   '--tracking-tight': '--tracking-tight',
   '--tracking-snug': '--tracking-snug',
   '--tracking-overline': '--tracking-overline',
@@ -73,10 +78,15 @@ if (missing.length) {
 const lines = Object.entries(MAP).map(([from, to]) => {
   let value = values.get(from);
   // `var(--x)` verweist innerhalb des DS – hier gibt es nur die übernommenen Namen.
-  value = value.replace(/var\((--[\w-]+)\)/g, (_, ref) => {
-    if (!values.has(ref)) throw new Error(`${from} verweist auf unbekanntes ${ref}`);
-    return values.get(ref);
-  });
+  // Seit v3 sind die Verweise mehrstufig (--fg-1 → --color-text → --gray-950): auflösen,
+  // bis kein var() mehr übrig ist. Eine Schleife (Verweis auf sich selbst) bricht ab.
+  for (let depth = 0; value.includes('var('); depth++) {
+    if (depth > 8) throw new Error(`${from}: Verweiskette zu tief oder zyklisch`);
+    value = value.replace(/var\((--[\w-]+)\)/g, (_, ref) => {
+      if (!values.has(ref)) throw new Error(`${from} verweist auf unbekanntes ${ref}`);
+      return values.get(ref);
+    });
+  }
   return `  ${to}: ${value}; /* ${from} */`;
 });
 

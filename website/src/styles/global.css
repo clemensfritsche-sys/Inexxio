@@ -1,9 +1,11 @@
 /* ==========================================================================
    INEXXIO Website – globales Stylesheet
-   Formsprache = die des Design-Systems («Swiss editorial», Website-Kit in
-   docs/design-system/reference/ui-kit-website): Inter Tight 800 für Titel, Inter für Text,
-   Pillen-Knöpfe, rote Overlines, Abschnittsköpfe mit 2 px schwarzer Linie und Index,
-   Karten aus 1-px-Linien, ein dunkles Band je Seite. Werte: tokens.css (generiert).
+   Formsprache = Design-System v3 («Swiss editorial», ruhig und leicht; Regeln in
+   docs/design-system/README.md): Inter Tight 700/600 für Titel (kein 800), Inter für Text,
+   Knöpfe 8 px (keine Pillen), rote Overlines, Abschnittsköpfe mit 2 px schwarzer Linie und
+   Index, Karten aus 1-px-Linien, flach statt Schatten, ein dunkles Band je Seite.
+   Signatur: Swoosh unter dem EINEN roten Titelwort, Punktraster hinter dem Hero.
+   Werte: tokens.css (generiert).
    ========================================================================== */
 @import './tokens.css';
 
@@ -17,14 +19,14 @@
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
     U+FEFF, U+FFFD;
 }
-/* Titelschrift: Inter Tight, die enge Schnittvariante derselben Familie – auf 700–800
-   beschnitten (32 KB statt 45 KB), mehr braucht kein Titel. */
+/* Titelschrift: Inter Tight, die enge Schnittvariante derselben Familie – auf 600–700
+   beschnitten (32 KB statt 45 KB): v3 setzt Titel 700, Zwischentitel 600, nie 800. */
 @font-face {
   font-family: 'Inter Tight';
   font-style: normal;
-  font-weight: 700 800;
+  font-weight: 600 700;
   font-display: swap;
-  src: url('../assets/fonts/inter-tight-latin-wght-700-800.woff2') format('woff2');
+  src: url('../assets/fonts/inter-tight-latin-wght-600-700.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
     U+FEFF, U+FFFD;
@@ -32,7 +34,7 @@
 @font-face {
   font-family: 'Inter Tight Fallback';
   src: local('Arial Bold'), local('Arial');
-  font-weight: 700 800;
+  font-weight: 600 700;
   ascent-override: 96.9%;
   descent-override: 24.1%;
   line-gap-override: 0%;
@@ -54,9 +56,7 @@
   --maxw: 1240px;
   --gutter: 16px;
   --header-h: 60px;
-  --radius: var(--r-sm);
-  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
-  --t-fast: 180ms;
+  --radius: var(--r-md); /* Bedienelemente 8 px */
   --t-slow: 520ms;
   /* Abstandsskala 4/8/12/16/24/32/48/64/96/128 */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px;
@@ -103,32 +103,41 @@ ul[role='list'], ol[role='list'] { list-style: none; padding: 0; }
 [hidden] { display: none !important; }
 
 /* ---------- Typografie ---------- */
-/* Titel: Inter Tight 800, sehr eng gesetzt, fast kompakter Zeilenabstand (DS --h1/--h2/--h3). */
+/* Titel: Inter Tight 700 (Zwischentitel 600), Laufweite −0.03 em, ruhiger Zeilenabstand
+   (DS v3 --h1/--h2/--h3, Leiter 24·32·48·64). */
 h1, h2, h3, h4, .h1, .h2, .h3 { color: var(--ink); text-wrap: balance; }
 h1, h2, h3, .h1, .h2, .h3 { font-family: var(--font-display); }
 h1, .h1 {
-  font-size: clamp(2.375rem, 1.5rem + 3.4vw, 3.75rem);
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-size: clamp(2.125rem, 1.45rem + 2.6vw, 3rem); /* 34 → 48 px */
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
 }
 h2, .h2 {
-  font-size: clamp(1.875rem, 1.2rem + 2.6vw, 3.25rem);
-  line-height: 1.02;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem); /* 28 → 40 px */
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
 }
 h3, .h3 {
-  font-size: 1.3125rem; /* 21 px */
-  line-height: 1.18;
+  font-size: clamp(1.25rem, 1.15rem + 0.35vw, 1.5rem); /* 20 → 24 px */
+  line-height: 1.3;
   letter-spacing: var(--tracking-snug);
-  font-weight: 700;
+  font-weight: 600;
 }
-h4 { font-size: 1.0625rem; line-height: 1.3; font-weight: 600; }
+h4 { font-size: 1.125rem; line-height: 1.55; font-weight: 600; }
 /* Das EINE rote Wort im Titel (im Text: ==Wort==). */
 .mark { color: var(--red); }
+/* Signatur (DS .ix-swoosh): der Logo-Schwung als Unterstrich unter genau EINEM Titelwort –
+   im Seitenkopf trägt das markierte Wort (==Wort==) ihn statt roter Schrift. */
+.swoosh, .hero__title .mark { color: inherit; position: relative; white-space: nowrap; }
+.swoosh::after, .hero__title .mark::after {
+  content: ''; position: absolute; left: -0.04em; right: -0.06em; bottom: -0.08em; height: 0.11em;
+  border-radius: 999px; transform: rotate(-1.6deg); transform-origin: left;
+  background: linear-gradient(90deg, var(--red-bright), var(--red) 40%, var(--red-deep));
+}
 p { max-width: var(--measure); text-wrap: pretty; }
-strong { font-weight: 650; color: var(--ink); }
+strong { font-weight: 600; color: var(--ink); }
 .lead { font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.1875rem); line-height: 1.6; color: var(--ink-2); max-width: 36em; }
 .small { font-size: 0.875rem; line-height: 1.55; }
 .muted { color: var(--ink-3); }
@@ -238,30 +247,31 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 @media (min-width: 1200px) { .head { margin-bottom: 56px; } }
 
 /* ---------- Knöpfe ---------- */
-/* Pille wie im Logo (runde Strichenden): Rot = die eine Hauptaktion, Umriss = alles andere.
-   Der rote Schein erscheint nur beim Zeigen, nie in Ruhe. */
+/* DS v3: 8 px Radius (keine Pillen), Höhe 48. Rot = die eine Hauptaktion, Umriss = alles
+   andere. Der rote Knopf bekommt nur beim Zeigen einen sehr dezenten Schatten. */
 .btn {
   --btn-h: 48px;
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   min-height: var(--btn-h); padding: 0 24px;
   font-size: 0.9375rem; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em;
-  border: 1.5px solid transparent; border-radius: var(--r-pill);
+  border: 1px solid transparent; border-radius: var(--r-md);
   text-decoration: none; white-space: nowrap;
-  transition: transform 160ms var(--ease), box-shadow 200ms var(--ease), background-color 200ms var(--ease), color 200ms var(--ease), border-color 200ms var(--ease);
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-base) var(--ease), background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
-.btn:active { transform: scale(0.97); }
+.btn:active { transform: translateY(1px); }
 .btn .icon { flex: none; }
-.btn .btn__arrow { transition: transform 200ms var(--ease); }
+.btn .btn__arrow { transition: transform var(--t-base) var(--ease); }
 .btn:hover .btn__arrow { transform: translateX(2px); }
 .btn--primary { background: var(--red); color: var(--white); }
-.btn--primary:hover { background: var(--red-deep); box-shadow: var(--shadow-red); }
-.btn--secondary { border-color: var(--line-strong); color: var(--ink); background: transparent; }
-.btn--secondary:hover { background: var(--black); color: var(--white); border-color: var(--black); }
-.on-dark .btn--secondary, .section--dark .btn--secondary { border-color: rgba(255, 255, 255, 0.4); color: var(--white); }
-.on-dark .btn--secondary:hover, .section--dark .btn--secondary:hover { background: var(--white); color: var(--black); border-color: var(--white); }
+.btn--primary:hover { background: var(--red-hover); box-shadow: var(--shadow-red); }
+.btn--primary:active { background: var(--red-deep); box-shadow: none; }
+.btn--secondary { border-color: var(--line-2); color: var(--ink); background: var(--white); }
+.btn--secondary:hover { background: var(--paper); border-color: var(--ink-4); }
+.on-dark .btn--secondary, .section--dark .btn--secondary { background: transparent; border-color: rgba(255, 255, 255, 0.32); color: var(--white); }
+.on-dark .btn--secondary:hover, .section--dark .btn--secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.6); }
 .btn--dark { background: var(--black); color: var(--white); }
-.btn--dark:hover { background: #000; box-shadow: var(--shadow-md); }
-.btn--lg { --btn-h: 54px; padding: 0 30px; font-size: 1rem; }
+.btn--dark:hover { background: var(--dark-2); }
+.btn--lg { --btn-h: 52px; padding: 0 26px; font-size: 1rem; }
 .btn--block { width: 100%; }
 .btn--sm { --btn-h: 44px; padding: 0 18px; font-size: 0.9375rem; }
 .btn-row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
@@ -271,7 +281,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
   display: inline-block; padding-block: 10px; line-height: 1.5; font-weight: 600; color: var(--red-deep);
   text-decoration: none;
 }
-.arrow-link .icon { display: inline-block; vertical-align: -0.22em; margin-left: 6px; transition: transform 200ms var(--ease); }
+.arrow-link .icon { display: inline-block; vertical-align: -0.22em; margin-left: 6px; transition: transform var(--t-base) var(--ease); }
 .arrow-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 .arrow-link:hover .icon { transform: translateX(4px); }
 .section--dark .arrow-link, .on-dark .arrow-link { color: var(--white); }
@@ -286,12 +296,15 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 @media (min-width: 760px) { .cardgrid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1024px) { .cardgrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-/* Roter Schein in einem dunklen Band (Website-Kit «cta-band») – Dekor, kein Inhalt. */
-.glow { position: relative; overflow: hidden; isolation: isolate; }
-.glow::after {
-  content: ''; position: absolute; z-index: -1; right: -120px; bottom: -160px; width: 460px; height: 460px;
-  border-radius: 50%; background: radial-gradient(circle, rgba(229, 26, 20, 0.38), transparent 68%);
-  pointer-events: none;
+/* Signatur (DS .ix-grid-bg--fade): feines Schweizer Punktraster, zum Rand hin ausgeblendet.
+   Ersetzt den roten Schein aus v2 – v3 kennt keinen Glow. Dekor, kein Inhalt. */
+.dots { position: relative; isolation: isolate; }
+.dots::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse at 75% 35%, #000 0%, transparent 70%);
+  mask-image: radial-gradient(ellipse at 75% 35%, #000 0%, transparent 70%);
 }
 
 /* ---------- Listen ---------- */
@@ -313,14 +326,14 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 /* Faktentabelle («Auf einen Blick», Fristen) */
 .facts { width: 100%; border-collapse: collapse; font-size: 1rem; }
 .facts th, .facts td { text-align: left; vertical-align: top; padding: var(--s-3) var(--s-4) var(--s-3) 0; border-bottom: 1px solid var(--line); }
-.facts thead th { font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 2px solid var(--ink); }
-.facts tbody th { color: var(--ink); font-weight: 650; width: 34%; }
+.facts thead th { font-size: 0.75rem; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 2px solid var(--ink); }
+.facts tbody th { color: var(--ink); font-weight: 600; width: 34%; }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ---------- Prosa (Ratgeber, Rechtliches) ---------- */
 .prose { color: var(--ink-2); }
 .prose > * + * { margin-top: 1em; }
-.prose h2 { font-size: clamp(1.625rem, 1.4rem + 0.9vw, 2.25rem); margin-top: 2em; }
+.prose h2 { font-size: clamp(1.5rem, 1.3rem + 0.8vw, 2rem); margin-top: 2em; }
 .prose h3 { margin-top: 1.8em; }
 .prose h2 + *, .prose h3 + * { margin-top: 0.6em; }
 .prose ul, .prose ol { padding-left: 1.25em; max-width: var(--measure); }
@@ -328,7 +341,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .prose li::marker { color: var(--ink-3); }
 .prose table { width: 100%; border-collapse: collapse; font-size: 0.97rem; }
 .prose th, .prose td { text-align: left; vertical-align: top; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); }
-.prose thead th { font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 2px solid var(--ink); }
+.prose thead th { font-size: 0.75rem; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 2px solid var(--ink); }
 .prose blockquote { border-left: 2px solid var(--red); padding-left: var(--s-4); color: var(--ink); }
 .prose hr { border: 0; border-top: 1px solid var(--line); margin-block: 2em; }
 
@@ -339,14 +352,15 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .field__error { font-size: 0.875rem; color: var(--red-deep); font-weight: 600; display: flex; gap: 6px; align-items: flex-start; }
 .input, .select, .textarea {
   width: 100%; min-height: 48px; padding: 11px 15px;
-  background: var(--white); border: 1.5px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--white); border: 1px solid var(--line-2); border-radius: var(--r-md);
   color: var(--ink); font-size: 1rem; line-height: 1.4;
   transition: border-color var(--t-fast) var(--ease);
 }
 .textarea { min-height: 132px; resize: vertical; }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--ink-3); }
-.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px rgba(229, 26, 20, 0.13); }
-.input[aria-invalid='true'], .select[aria-invalid='true'], .textarea[aria-invalid='true'] { border-color: var(--red-deep); }
+/* Fokus = schwarzer Ring, nie rot (DS v3) – Rot bleibt dem Fehler vorbehalten. */
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: none; border-color: var(--line-focus); box-shadow: 0 0 0 3px rgba(10, 10, 11, 0.08); }
+.input[aria-invalid='true'], .select[aria-invalid='true'], .textarea[aria-invalid='true'] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--red-bg); }
 .select { appearance: none; padding-right: 40px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%230A0A0B' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
 
 /* ---------- Markierungen im Modus «preview» ---------- */
@@ -369,10 +383,10 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 
 /* ---------- Bewegung (nur mit JS, nur ohne reduzierte Bewegung) ---------- */
 @media (prefers-reduced-motion: no-preference) {
-  .reveal-pending { opacity: 0; transform: translateY(16px); }
+  .reveal-pending { opacity: 0; transform: translateY(12px); }
   .reveal-in {
     opacity: 1; transform: none;
-    transition: opacity 600ms ease, transform 600ms var(--ease);
+    transition: opacity 480ms var(--ease), transform 480ms var(--ease);
   }
 }
 

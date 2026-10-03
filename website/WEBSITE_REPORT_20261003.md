@@ -25,6 +25,13 @@
 > Entscheide 30–33. Nachgemessen: HTML 0 Fehler, axe 0, Überlauf 0, Klickflächen 0, CLS 0
 > auf allen 24 Seiten, Lighthouse mobil 94–96 Leistung, 100 Barrierefreiheit.
 
+> **Nachtrag 03.10. (Design-System v3):** Website vollständig auf das neue Design-System
+> umgestellt – Titel 700/600 statt 800, Knöpfe 8 px statt Pille, flach, kein Glow, echtes
+> Logo (v3.1), Logo-Schwung und Punktraster als einzige Signaturen (`WEBSITE_PLAN.md`,
+> Entscheid 34). Nachgemessen: Build in beiden Prüfskripten grün, `astro check` 0 Fehler,
+> 20 Seiten × 6 Breiten (360–2560 px) ohne Überlauf und ohne Gewicht 800; JS max 2.2 KB,
+> CSS max 15.0 KB, Schriften 78.7 KB, Startseite 631 KB. ERP-Frontend baut mit v3.
+
 ## 1. Was gebaut wurde
 
 ### Seiten (24)

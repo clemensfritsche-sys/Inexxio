@@ -48,7 +48,7 @@ const { index, title, href, text, photo, links, more } = Astro.props;
     font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   }
   .pillar__body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); padding: 26px 28px 30px; flex: 1; }
-  .pillar__title { font-size: clamp(1.625rem, 1.35rem + 1vw, 2.25rem); letter-spacing: -0.03em; font-weight: 800; }
+  .pillar__title { font-size: clamp(1.625rem, 1.35rem + 1vw, 2.25rem); letter-spacing: var(--tracking-tight); font-weight: 700; }
   .pillar__title a { color: var(--ink); text-decoration: none; }
   .pillar__title a:hover { color: var(--red-deep); }
   .pillar__text { color: var(--ink-2); font-size: 0.9375rem; }

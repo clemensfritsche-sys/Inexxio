@@ -35,7 +35,7 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
 ---
 <section class:list={['hero', `hero--${size}`]}>
   <div class="wrap hero__grid">
-    <div class="hero__text" data-hero>
+    <div class="hero__text dots" data-hero>
       <div class="hero__kicker">
         {index && <span class="idx">{index}</span>}
         <Rich as="p" class="label hero__eyebrow" text={eyebrow} />
@@ -83,14 +83,15 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
   }
   .hero__kicker :global(.idx), .hero__eyebrow { white-space: nowrap; }
   .hero__title { margin: 0; }
-  .hero--lg .hero__title { font-size: clamp(2.5rem, 1.35rem + 4.6vw, 4.75rem); line-height: 0.96; letter-spacing: -0.04em; }
+  /* Startseite: Display-Stufe des DS (700, bis 64 px, Laufweite −0.03 em). */
+  .hero--lg .hero__title { font-size: clamp(2.375rem, 1.5rem + 3.2vw, 4rem); line-height: 1.04; }
   .hero__lead {
     font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.1875rem); line-height: 1.6; color: var(--ink-2);
     margin-top: var(--s-5); max-width: 32em;
   }
   .hero__actions { margin-top: var(--s-6); }
   .hero__note { margin-top: var(--s-4); font-size: 0.9375rem; color: var(--ink-2); }
-  .hero__note :global(a) { font-weight: 650; color: var(--ink); white-space: nowrap; }
+  .hero__note :global(a) { font-weight: 600; color: var(--ink); white-space: nowrap; }
 
   /* Zahlenreihe: grosse Ziffern, darunter die Beschriftung; oben eine Haarlinie. */
   .hero__stats {
@@ -100,10 +101,10 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
   /* Im Code zuerst die Beschriftung (dt vor dd), im Bild zuerst die Zahl. */
   .hero__stats > div { display: flex; flex-direction: column-reverse; justify-content: flex-end; padding-right: var(--s-4); }
   .hero__stat-n {
-    font-family: var(--font-display); font-weight: 800; font-size: clamp(1.5rem, 1.2rem + 1vw, 1.875rem);
-    line-height: 1; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums;
+    font-family: var(--font-display); font-weight: 700; font-size: clamp(1.5rem, 1.25rem + 0.8vw, 1.875rem);
+    line-height: 1.1; letter-spacing: var(--tracking-tight); color: var(--ink); font-variant-numeric: tabular-nums;
   }
-  .hero__stat-l { margin-top: 7px; font-size: 0.8125rem; line-height: 1.45; font-weight: 500; color: var(--ink-3); }
+  .hero__stat-l { margin-top: 6px; font-size: 0.8125rem; line-height: 1.45; font-weight: 400; color: var(--ink-3); }
 
   /* Foto: mobil eigenes Band in fester Höhe, ab 960 px über die ganze Höhe der Textspalte. */
   .hero__media { position: relative; overflow: hidden; margin-inline: calc(var(--gutter) * -1); min-height: 300px; background: var(--paper-2); }

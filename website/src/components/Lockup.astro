@@ -1,33 +1,34 @@
 ---
 /**
- * Logo-Lockup: Wortmarke, darunter klein der beschreibende Zusatz und «ehemals HS Steiner»
- * (Auftrag 7.1) – der Name steht nie allein.
+ * Logo-Lockup: die offizielle Wortmarke (Design-System v3.1, Logo mit rotem «XX»-Schwung),
+ * darunter klein der beschreibende Zusatz und «ehemals HS Steiner» (Auftrag 7.1) – der
+ * Name steht nie allein.
  *
- * Die Wortmarke ist TEXT aus der Konfiguration (Inter 700, enge Laufweite) – ein
- * Namenswechsel ist damit eine Zeile in site.mjs, kein neues Logo. Die SVG-Fassungen
- * (public/logo/) dienen JSON-LD, Open Graph und Druck.
- * Variante «b» färbt das «XX» rot (Alternative, über `brand.logoVariant`).
- *
- * Gestapelt statt nebeneinander, und das ist nicht nur die Vorgabe: nebeneinander brauchte
- * das Lockup 322 px, und mit Navigation, Telefon und Knopf passte die Kopfzeile in KEINE
- * Breite (gemessen: 1254 px Bedarf bei 1240 px Inhaltsbreite – «Über uns» und die Nummer
- * brachen um). Gestapelt ist es so breit wie seine längste Zeile.
+ * Die Wortmarke ist das gelieferte SVG, unverändert (nur die unsichtbaren Herkunftsdaten
+ * sind entfernt) und direkt eingebettet: keine Extra-Anfrage, kein Springen beim Laden.
+ * Zusatz und «ehemals» bleiben TEXT aus der Konfiguration – lesbar in jeder Grösse und in
+ * Minuten änderbar. (Das gestapelte Logo mit «ehemals HS Steiner» liegt in
+ * docs/design-system/reference/assets/logo/; in Kopfzeilenhöhe wäre «ehemals» darin
+ * unlesbar klein.)
  */
 import { site } from '../config/site.mjs';
 import { plain } from '../lib/text.mjs';
+import markLight from '../../public/logo/inexxio-wortmarke.svg?raw';
+import markDark from '../../public/logo/inexxio-wortmarke-weiss.svg?raw';
 
 interface Props {
   tone?: 'light' | 'dark';
 }
 const { tone = 'light' } = Astro.props;
-const name = site.brand.name;
-const variantB = site.brand.logoVariant === 'b' && name.includes('XX');
-const [before, after] = variantB ? name.split('XX') : [name, ''];
+// Feste Masse raus (die Höhe setzt das CSS), Rolle und Name rein; <title> im SVG entfällt,
+// damit der Name nicht doppelt vorgelesen wird.
+const svg = (tone === 'dark' ? markDark : markLight)
+  .replace(/\s(width|height)="[^"]*"/g, '')
+  .replace(/<title>[^<]*<\/title>/, '')
+  .replace('<svg ', `<svg class="lockup__svg" role="img" aria-label="${site.brand.name}" focusable="false" `);
 ---
 <span class:list={['lockup', `lockup--${tone}`]}>
-  <span class="lockup__mark" translate="no">
-    {variantB ? <>{before}<span class="lockup__xx">XX</span>{after}</> : name}
-  </span>
+  <span class="lockup__mark" translate="no" set:html={svg} />
   <span class="lockup__descriptor">{plain(site.brand.descriptor)}</span>
   <span class="lockup__formerly">{plain(site.brand.formerly)}</span>
 </span>
@@ -35,13 +36,14 @@ const [before, after] = variantB ? name.split('XX') : [name, ''];
 <style>
   .lockup { display: inline-grid; justify-items: start; color: var(--ink); line-height: 1; white-space: nowrap; }
   .lockup--dark { color: var(--white); }
-  .lockup__mark { font-weight: 700; letter-spacing: -0.035em; font-size: 24px; line-height: 1; margin-bottom: 5px; }
-  .lockup__xx { color: var(--red); }
+  /* Seitenverhältnis des Logos 4618 : 1573 – Höhe fest, Breite folgt. */
+  .lockup__mark { display: block; height: 28px; aspect-ratio: 4618 / 1573; margin-bottom: 6px; }
+  .lockup__mark :global(.lockup__svg) { display: block; width: 100%; height: 100%; }
   .lockup__descriptor { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
   .lockup__formerly { font-size: 11.5px; color: var(--ink-3); }
   .lockup--dark .lockup__formerly { color: rgba(244, 243, 241, 0.66); }
   @media (max-width: 479px) {
-    .lockup__mark { font-size: 20px; margin-bottom: 4px; }
+    .lockup__mark { height: 24px; margin-bottom: 5px; }
     .lockup__descriptor { font-size: 9.5px; letter-spacing: 0.05em; }
     .lockup__formerly { font-size: 10.5px; }
   }

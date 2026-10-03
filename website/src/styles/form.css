@@ -14,7 +14,7 @@
 .input--file { padding: 9px 10px; background: var(--paper); }
 .input--file::file-selector-button {
   font: inherit; font-weight: 600; margin-right: 12px; padding: 8px 14px; border: 1px solid var(--ink);
-  border-radius: var(--r-pill); background: var(--white); color: var(--ink); cursor: pointer;
+  border-radius: var(--r-md); background: var(--white); color: var(--ink); cursor: pointer;
 }
 .iform__files { list-style: none; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
 .iform__files li { display: flex; gap: 8px; }
@@ -27,7 +27,7 @@
 .tile input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .tile__body {
   display: grid; gap: 4px; min-height: 76px; padding: 16px 48px 16px 18px; background: var(--white);
-  border: 1.5px solid var(--line-2); border-radius: var(--r-md); position: relative;
+  border: 1px solid var(--line-2); border-radius: var(--r-lg); position: relative;
   transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 /* Einfachauswahl = runder Radio-Punkt (ein Quadrat sähe nach Mehrfachauswahl aus). */
@@ -36,7 +36,7 @@
   border: 1.5px solid var(--ink-3); border-radius: 50%; background: var(--white);
 }
 .tile:hover .tile__body { border-color: var(--ink-3); }
-.tile input:checked + .tile__body { border-color: var(--red); box-shadow: 0 0 0 3px rgba(229, 26, 20, 0.13); }
+.tile input:checked + .tile__body { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
 .tile input:checked + .tile__body::after { background: var(--red); border-color: var(--red); box-shadow: inset 0 0 0 3px var(--white); }
 .tile input:focus-visible + .tile__body { outline: 2px solid var(--ink); outline-offset: 2px; }
 .tile__label { font-family: var(--font-display); font-weight: 700; font-size: 1.0625rem; letter-spacing: -0.02em; color: var(--ink); }
@@ -48,7 +48,7 @@
 .chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .chip span {
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px;
-  border: 1.5px solid var(--line-2); border-radius: var(--r-pill); background: var(--white);
+  border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--white);
   font-weight: 500; color: var(--ink); cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
@@ -85,10 +85,10 @@
   background: var(--paper); border-left: 3px solid var(--red); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--ink); --overline: var(--red-deep);
 }
 .pikett-box .icon { flex: none; color: var(--red-deep); margin-top: 4px; }
-.pikett-box__title { font-weight: 650; color: var(--ink); }
+.pikett-box__title { font-weight: 600; color: var(--ink); }
 .pikett-box__num {
   display: inline-block; margin-top: 4px; font-size: clamp(1.75rem, 1.45rem + 1.3vw, 2.5rem);
-  font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; line-height: 1.1;
+  font-family: var(--font-display); font-weight: 700; letter-spacing: var(--tracking-snug); color: var(--ink); text-decoration: none; line-height: 1.1;
 }
 .pikett-box__num:hover { text-decoration: underline; text-decoration-thickness: 2px; }
 

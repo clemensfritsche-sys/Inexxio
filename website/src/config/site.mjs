@@ -39,9 +39,7 @@ export const site = {
     formerly: 'ehemals HS Steiner',
     /** Erste Nennung auf jeder Seite. */
     full: '{{brand.name}} ({{brand.formerly}})',
-    /** Wortmarke: 'a' = schwarz, 'b' = rotes «XX» (Alternative). */
-    logoVariant: 'a',
-    logoReview: '[[PLATZHALTER: finales Logo]]',
+    /** Logo: offizielle Wortmarke v3.1 aus dem Design-System (public/logo/, Lockup.astro). */
     legalName: '[[PLATZHALTER: künftiger Name im Handelsregister]]',
     formerLegalName: 'HS Steiner Fahrzeug- und Kranbau GmbH',
     alternateNames: ['HS Steiner', 'HS Steiner Fahrzeug- und Kranbau GmbH', 'HS Krananlagen'],

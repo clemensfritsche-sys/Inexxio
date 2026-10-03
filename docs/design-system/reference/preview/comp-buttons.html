@@ -1,31 +1,27 @@
-<!-- @dsCard group="Components" -->
+<!-- @dsCard group="Components" viewport="720x330" name="Buttons" subtitle="Primary (Web) · Ink (ERP primary) · Secondary · Tertiary · Danger — 3 sizes + icon" -->
 <!DOCTYPE html><html><head><meta charset="utf-8">
-<link rel="stylesheet" href="../colors_and_type.css">
-<style>
-  body{margin:0;background:#fff;padding:20px;font-family:var(--font-body);}
-  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
-  .row+.row{margin-top:14px;}
-  .btn{font:var(--label);border:0;cursor:pointer;border-radius:var(--r-pill);padding:13px 26px;transition:box-shadow .2s ease,transform .16s ease,background .2s ease;}
-  .primary{background:var(--inexxio-red);color:#fff;box-shadow:var(--shadow-sm);}
-  .primary:hover{background:var(--inexxio-red-deep);box-shadow:var(--shadow-red);transform:translateY(-1px);}
-  .dark{background:var(--inexxio-black);color:#fff;box-shadow:var(--shadow-sm);}
-  .dark:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
-  .ghost{background:transparent;color:var(--fg-1);border:1.5px solid var(--border-strong);}
-  .ghost:hover{background:var(--inexxio-black);color:#fff;border-color:var(--inexxio-black);}
-  .soft{background:var(--bg-3);color:var(--fg-1);}
-  .soft:hover{background:var(--border-2);}
-  .lg{padding:16px 32px;font-size:17px;}
-  .link{background:none;border:0;color:var(--inexxio-red);font:var(--label);cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
-</style></head>
-<body>
-  <div class="row">
-    <button class="btn primary lg">Projekt starten</button>
-    <button class="btn dark">Jetzt Scannen</button>
-    <button class="btn ghost">Inspirieren lassen</button>
-  </div>
-  <div class="row">
-    <button class="btn soft">Mehr erfahren</button>
-    <button class="btn primary" style="opacity:.5">Disabled</button>
-    <button class="link">Konzept anfordern →</button>
-  </div>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>body{margin:0;padding:28px;}.sec+.sec{margin-top:22px;}.cap{font:500 12px/16px var(--font-body);color:var(--color-text-muted);margin:0 0 10px;}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}</style>
+</head><body class="ix-root">
+<div class="sec"><p class="cap">Varianten</p><div class="row">
+<button class="ix-btn ix-btn--primary">Projekt starten<i data-lucide="arrow-right" class="ix-btn__arrow"></i></button>
+<button class="ix-btn ix-btn--ink"><i data-lucide="plus"></i>Neues Projekt</button>
+<button class="ix-btn ix-btn--secondary">Exportieren</button>
+<button class="ix-btn ix-btn--tertiary">Abbrechen</button>
+<button class="ix-btn ix-btn--danger"><i data-lucide="trash-2"></i>Löschen</button>
+</div></div>
+<div class="sec"><p class="cap">Grössen — 32 / 40 / 48 px</p><div class="row">
+<button class="ix-btn ix-btn--ink ix-btn--sm">Speichern</button>
+<button class="ix-btn ix-btn--ink">Speichern</button>
+<button class="ix-btn ix-btn--primary ix-btn--lg">Jetzt 3D-Scan starten</button>
+</div></div>
+<div class="sec"><p class="cap">Icon-only · mit Tooltip · Zustände</p><div class="row">
+<button class="ix-btn ix-btn--secondary ix-btn--icon" data-tip="Filtern"><i data-lucide="sliders-horizontal"></i></button>
+<button class="ix-btn ix-btn--tertiary ix-btn--icon" data-tip="Teilen"><i data-lucide="share-2"></i></button>
+<button class="ix-btn ix-btn--tertiary ix-btn--icon" data-tip="Mehr"><i data-lucide="more-horizontal"></i></button>
+<button class="ix-btn ix-btn--ink" disabled>Deaktiviert</button>
+<button class="ix-btn ix-btn--ink"><span class="ix-spinner"></span>Speichert…</button>
+</div></div>
+<script>lucide.createIcons();</script>
 </body></html>

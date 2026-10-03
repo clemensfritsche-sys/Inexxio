@@ -20,7 +20,7 @@ const { items } = Astro.props;
   .tl__rail { position: absolute; left: 6px; top: 8px; bottom: 8px; width: 13px; }
   .tl__line { position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--ink); transform-origin: top center; }
   .tl__cat { position: absolute; left: 0; bottom: 0; width: 13px; height: 13px; background: var(--red); }
-  .tl__year { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; letter-spacing: -0.03em; color: var(--red); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tl__year { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; letter-spacing: var(--tracking-tight); color: var(--red); font-weight: 700; font-variant-numeric: tabular-nums; }
   .tl__text { margin-top: 4px; color: var(--ink-2); max-width: 30ch; }
   :global(.section--dark) .tl__line { background: rgba(255, 255, 255, 0.5); }
   :global(.section--dark) .tl__year { color: var(--red-bright); }

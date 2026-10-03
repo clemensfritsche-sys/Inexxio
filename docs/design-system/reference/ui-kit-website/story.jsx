@@ -115,7 +115,7 @@ function Footer() {
       <div className="wrap">
         <div className="footer-top">
           <div>
-            <img className="footer-logo" src={ASSET + 'logo.png'} alt="INEXXIO" />
+            <img className="footer-logo" src={ASSET + 'logo/inexxio-horizontal-dark.svg'} alt="INEXXIO" />
             <p className="footer-tag">Innovative Raumlösungen. Maximale Wohnqualität auf kleinem Raum.</p>
             <div className="footer-contact">
               <span><Icon name="phone" size={15} />+41 79 505 83 02</span>

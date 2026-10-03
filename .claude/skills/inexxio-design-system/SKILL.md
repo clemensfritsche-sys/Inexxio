@@ -26,7 +26,7 @@ Design, in den Code übernommen). **Bevor** du UI schreibst oder änderst:
 - **Tailwind-Utilities (bevorzugt):** `bg-bg-1/2/3/4`, `text-fg-1/2/3/4`,
   `text-accent` / `bg-accent-soft` / `text-accent-ink`, `text-inexxio` (Marke-Rot),
   `border-border-1/2`, `rounded-ds-xs/sm/md/lg/xl/ds-pill`, `shadow-ds-xs/sm/md/lg`,
-  `shadow-ds-red` / `shadow-glow-*` (nur Hover/Press), `font-display` / `font-body` /
+  `shadow-ds-red` (nur Hover; Glow = none in v3), `font-display` / `font-body` /
   `font-mono`, semantisch `text-success/warning/info/danger` + `bg-*-bg`.
 - **CSS-Variablen:** `var(--fg-2)`, `var(--bg-2)`, `var(--accent)`, `var(--r-lg)` …
 - **`.ix-*`-Typo-Helper:** `.ix-h1/h2/h3`, `.ix-overline`, `.ix-index`, `.ix-tnum`
@@ -44,7 +44,7 @@ Design, in den Code übernommen). **Bevor** du UI schreibst oder änderst:
   die Fläche.
 - **Icons: nur Lucide** (`lucide-react`), funktional & sparsam, neutral `fg-3`/`fg-2`;
   Rot nur aktiv/selektiert. **Keine Emoji**, kein Deko-Icon-Set.
-- **Typo:** Headlines `font-display` (Inter Tight, 800, enges Tracking), Body
+- **Typo:** Headlines `font-display` (Inter Tight 700, Zwischentitel 600, kein 800+), Body
   `font-body` (Inter). **Zahlen immer tabellarisch** (`.ix-tnum`), wo sie ausrichten.
 - **Schweiz:** CHF mit `'`-Trennung (`9'999 CHF`), `25 m²`; **du** in Headlines/CTA,
   **Sie** im erklärenden Service-Text — nicht mischen.

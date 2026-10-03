@@ -18,7 +18,8 @@
 | `frontend/src/app/globals.css` | Nur noch app-lokale Komponenten-Styles (Login, Public-Site, Buttons) + die Alias-Map `--ix-* → --inexxio-*`. **Definiert keine Token-Werte mehr.** |
 | `docs/design-system/brand-foundations.md` | Vollständige Marken-/Content-/Visual-Doku (Stimme, Farben, Typo, Bildsprache, ERP-Muster). Zum Lesen, nicht zum Bauen. |
 | **`frontend/public/brand/`** | Echte Marken-Assets für die App: `inexxio-logo.svg` (bevorzugt), `favicon.svg`, `inexxio-logo.png`. Produktiv nutzbar. |
-| `docs/design-system/reference/` | Read-only Referenz: Instanz-Detail-Mockups (`mockups/*.dc.html`), Referenz-React-Komponenten (`components/`), Website-UI-Kit (`ui-kit-website/`), Design-Specimens (`preview/`), offizielle Claude-Design-Skill (`inexxio-design.SKILL.md`), Token-Manifest. Vorlage, **nicht** direkt importieren. |
+| `docs/design-system/reference/assets/logo/` | **Logo-System v3.1** (vektoriell, nie umfärben): Wortmarke `inexxio-horizontal-light|dark|red.svg`, mit «ehemals HS Steiner» `inexxio-stacked-*.svg` (nur Übergangszeit), Symbol `inexxio-symbol*.svg`, `favicon.svg`. Min. Breite 96 px (horizontal), 16 px (Symbol). |
+| `docs/design-system/reference/` | Read-only Referenz: `components.css` (v3-Bausteine `.ix-*`), `claude-design-README.md` (Original-Doku v3), Instanz-Detail-Mockups (`mockups/*.dc.html`), Referenz-React-Komponenten (`components/`), Website-UI-Kit (`ui-kit-website/`), Design-Specimens (`preview/`), offizielle Claude-Design-Skill (`inexxio-design.SKILL.md`), Token-Manifest. Vorlage, **nicht** direkt importieren. |
 | `.claude/skills/inexxio-design-system/SKILL.md` | Auto-Skill: legt jeder künftigen Claude-Session bei UI-Arbeit diese Regeln vor. |
 
 > **Marketing-Bildmaterial** (Interior-Renders `room1–7.png`, `hero_scan.png`,
@@ -50,16 +51,27 @@ Komponenten hart kodieren.
   Kartenrahmen + Schlagschatten. `shadow-ds-*` nur für echte Overlays (Modals, Menüs).
 - **Status: Punkt statt Badge**, wo möglich (6px farbiger Dot + ein Wort). Gefüllte
   Pillen sparsam. Symbol + Farbe + Label (semantische Config), Infotexte in den Hover.
-- **Typo:** Headlines in `font-display` (Inter Tight, 800, enges Tracking), Body in
-  `font-body` (Inter). Zahlen **immer tabellarisch** (`.ix-tnum` /
+- **Typo (v3):** Titel in `font-display` (Inter Tight **700**, Zwischentitel **600**,
+  Laufweite −0.03 em), Body in `font-body` (Inter 400, Labels 500). **Kein Gewicht 800+.**
+  Leiter 12·14·16·18·24·32·48·64. Zahlen **immer tabellarisch** (`.ix-tnum` /
   `font-variant-numeric: tabular-nums`), wo Werte ausgerichtet sind.
 - **Icons:** ausschliesslich **Lucide** (`lucide-react`), funktional & sparsam,
   neutral `fg-3`/`fg-2`; Rot nur für aktiv/selektiert. Keine Emoji, kein Deko-Icon-Set.
 - **Schweizer Konventionen:** CHF mit `'`-Tausendertrennung (`9'999 CHF`), `25 m²`;
   Headlines/CTA in **du**, erklärender Service-Text in **Sie** (nicht mischen).
-- **Radien/Schatten:** Karten `rounded-ds-lg` (20px), Buttons `rounded-ds-md`/Pille;
-  Schatten weich, warm, zurückhaltend. Roter Glow (`shadow-ds-red`/`shadow-glow-*`)
+- **Radien/Schatten (v3):** Bedienelemente 8 px (`rounded-ds-md`), Karten 12 px
+  (`rounded-ds-lg`), Dialoge 16 px. **Keine Pillen-Knöpfe.** Flach als Standard – Linien
+  trennen, Schatten nur für schwebende Ebenen (Menü, Dialog, Toast). Glow-Tokens sind
+  `none`. Der rote Knopf bekommt `shadow-ds-red` (= `--elev-primary`, sehr dezent)
   nur als Hover/Press-Akzent, **nie** als Ruhezustand.
+
+## 3a. Version
+
+**v3 (Oktober 2026)** – ruhiger und leichter: Titel 700/600 statt 800, Radien 8/12/16 statt
+12/20/28, keine Pillen, flach statt Schatten, Glow entfernt, eine warme Grau-Rampe
+(`--gray-*`, AA-geprüft) und eine Rot-Rampe (`--red-50…900`), drei Token-Schichten
+(Primitive → semantisch `--color-*` → v2-Aliase). **Alle v2-Namen lösen weiter auf** –
+kein Komponenten-Refactor nötig. Vollständige Regeln: `reference/claude-design-README.md` §0.
 
 ## 4. Migration der Bestands-Komponenten — **abgeschlossen** (August 2026)
 

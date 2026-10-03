@@ -156,11 +156,27 @@
     besitzt, fand man den Weg ins Konto bzw. ERP nur noch im Fuss – und nach der Anmeldung
     landete man wieder auf der Website, ohne jedes Zeichen, angemeldet zu sein (behoben im
     Frontend, `lib/login-target.ts`).
+34. **Design-System v3 übernommen** (Auftrag 03.10.: «die ganze Webseite gemäss neuem
+    Design-System»). Der neue Claude-Design-Export (v3, Logo-System v3.1) ist ruhiger und
+    leichter, und die Website folgt ihm jetzt ohne eigene Abweichung: Titel Inter Tight
+    **700/600 statt 800** (Schrift neu auf 600–700 beschnitten, wieder 32 KB), kleinere
+    Titelstufen (bis 64 px), Knöpfe und Felder **8 px statt Pille**, Karten 12 px, flach
+    (Schatten nur an Kopfzeile und Dropdown), **kein Glow** mehr – der rote Schein im dunklen
+    Band entfällt ersatzlos, der rote Knopf bekommt nur beim Zeigen den sehr dezenten
+    `--elev-primary`. Fokus in Feldern = schwarzer Ring (Rot bleibt dem Fehler). Die zwei
+    Signaturen des Systems stehen je **einmal**: der **Logo-Schwung** unter dem markierten
+    Titelwort der Startseite («Ostschweiz») und das **Punktraster** hinter der Textspalte
+    des Seitenkopfs. **Logo:** die offizielle Wortmarke ersetzt die selbst gesetzte
+    Text-Wortmarke (Platzhalter «finales Logo» erledigt); Zusatz und «ehemals HS Steiner»
+    bleiben darunter als Text – im gestapelten Logo wären sie in Kopfzeilenhöhe unlesbar.
+    Favicons, Logo-PNG und OG-Bilder neu erzeugt (`scripts/make-assets.mjs`, jetzt mit
+    Punktraster statt Kranbahn-Linie). `tokens.mjs` löst die mehrstufigen v3-Verweise auf.
 
 ## 3. Änderungen ausserhalb von `website/`
 
 | Datei | Änderung | Warum zwingend |
 |---|---|---|
+| `frontend/src/styles/design-system/colors_and_type.css`, `docs/design-system/` | Design-System v3 eingespielt (Re-Sync nach `docs/design-system/README.md` §5); alle v2-Namen lösen weiter auf, ERP-Build geprüft | Die Website liest ihre Tokens aus dieser einen Quelle (Entscheid 34) |
 | `backend/app/routers/contact.py` | neu geschrieben: Anfrage-Endpunkt (Validierung, Honeypot, Mindestzeit, Rate-Limit, SMTP, Bestätigung, No-JS-Antworten) | Formular braucht eine Verarbeitung; die Datei ist bereits der isolierte Endpunkt der öffentlichen Website |
 | `backend/app/assets/website_contact.json` | neu, generiert | E-Mail-Vorlagen lesen die Website-Konfiguration |
 | `backend/tests/test_contact.py` | neu | Wächter für den Endpunkt |

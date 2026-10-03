@@ -28,10 +28,10 @@ const { steps } = Astro.props;
     align-content: start; padding: var(--s-6) 0; border-bottom: 1px solid var(--line);
   }
   .steps__no {
-    grid-row: 1 / span 2; font-family: var(--font-display); font-weight: 800; font-size: 2.5rem;
-    line-height: 0.9; letter-spacing: -0.04em; color: var(--red); font-variant-numeric: tabular-nums;
+    grid-row: 1 / span 2; font-family: var(--font-display); font-weight: 600; font-size: 2rem;
+    line-height: 1; letter-spacing: var(--tracking-tight); color: var(--red); font-variant-numeric: tabular-nums;
   }
-  .steps__title { font-size: 1.3125rem; }
+  .steps__title { font-size: 1.25rem; }
   .steps__text { color: var(--ink-2); max-width: 36ch; }
   :global(.section--paper) .steps__no { color: var(--red-deep); }
   :global(.section--dark) .steps, :global(.section--dark) .steps__item { border-color: var(--line-dark); }

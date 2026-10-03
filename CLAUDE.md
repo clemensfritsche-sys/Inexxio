@@ -4973,7 +4973,8 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
   Kollision ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`,
   `/login`, `/agb`. Die eine `robots.txt` und die `404.html` kommen von der Website.
 - **Formsprache = Website-Kit des Design-Systems** (`docs/design-system/reference/ui-kit-website/`):
-  Inter Tight 800, rote Overlines, Abschnittsköpfe mit Index, Pillen-Knöpfe. **Bilder:** bis zum
+  Design-System **v3**: Inter Tight 700/600 (kein 800), rote Overlines, Abschnittsköpfe mit
+  Index, Knöpfe 8 px (keine Pillen), flach, echtes Logo (`public/logo/`, mit «ehemals HS Steiner»). **Bilder:** bis zum
   Fototag gekennzeichnete Beispielbilder (Wikimedia Commons, Nachweis im Impressum) – im Modus
   `live` ein Build-Fehler wie ein fehlendes Foto.
 - **Das Formular** geht an `POST /api/v1/contact` (`backend/app/routers/contact.py`) – ein

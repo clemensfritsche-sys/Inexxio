@@ -6,7 +6,7 @@ function Header({ onScan }) {
     <header className="hdr">
       <div className="wrap hdr-in">
         <div className="hdr-left">
-          <img className="hdr-logo" src={ASSET + 'logo.png'} alt="INEXXIO" />
+          <img className="hdr-logo" src={ASSET + 'logo/inexxio-horizontal-light.svg'} alt="INEXXIO" />
           <nav className="nav">{links.map(l => <a key={l} href="#">{l}</a>)}</nav>
         </div>
         <div className="hdr-cta">
