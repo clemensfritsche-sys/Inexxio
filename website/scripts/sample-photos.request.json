@@ -1,5 +1,6 @@
 {
   "mode": "search",
+  "run": 2,
   "slots": {
     "pruefung-hallenkran": { "q": ["Brückenkran Halle", "overhead crane factory hall", "bridge crane workshop"] },
     "reparatur-vor-ort": { "q": ["electric chain hoist crane", "crane hoist trolley", "Laufkatze Hubwerk"] },
