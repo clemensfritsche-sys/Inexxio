@@ -34,14 +34,16 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
         // durch, den sie nicht kannte, und ein «Lieferant» landete auf einer Oberfläche,
         // die ihm der Server danach leer beantwortet. Gefragt wird jetzt dasselbe wie im
         // Backend (`people.STAFF_ROLES`): zwei Rollen, nicht «nicht diese eine».
+        // Wer nicht hinein darf, landet in seinem **Konto**, nicht auf «/»: dort steht die
+        // Website, und die kennt keine Anmeldung (`lib/login-target`).
         if (!isStaff(profile.role)) {
-          router.replace('/');
+          router.replace('/konto');
           return;
         }
       } catch {
         // Ohne Antwort gilt der letzte bekannte Stand – und ein unbekannter ist keiner.
         if (!isStaff(localStorage.getItem(ROLE_KEY))) {
-          router.replace('/');
+          router.replace('/konto');
           return;
         }
       }

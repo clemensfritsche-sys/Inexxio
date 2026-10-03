@@ -1,22 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
+import { goTo, loginTarget } from '@/lib/login-target';
 
-const REDIRECT_KEY = 'inexxio_login_redirect';
 const ROLE_KEY = 'inexxio_user_role';
 
-function getRedirectTarget(): string {
-  const saved = localStorage.getItem(REDIRECT_KEY);
-  localStorage.removeItem(REDIRECT_KEY);
-  return saved || '/';
+/** Rolle holen und das Ziel bestimmen – dieselbe Antwort wie Dialog und Route. */
+async function finish(): Promise<string> {
+  let role: string | null = null;
+  try {
+    role = (await api.getMe()).role;
+    localStorage.setItem(ROLE_KEY, role);
+  } catch {
+    role = localStorage.getItem(ROLE_KEY); // wird beim nächsten Laden nachgeholt
+  }
+  return loginTarget(role);
 }
 
 export default function VerifyPage() {
-  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'needs-email'>('loading');
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
@@ -26,20 +30,14 @@ export default function VerifyPage() {
       try {
         const result = await completeMagicLink();
         if (!result) {
-          router.replace('/login');
+          goTo('/login');
           return;
         }
         api.setToken(result.token);
         localStorage.setItem('inexxio_token', result.token);
-        try {
-          const profile = await api.getMe();
-          localStorage.setItem(ROLE_KEY, profile.role);
-        } catch {
-          // role fetch failed — will be retried on next page load
-        }
+        const target = await finish();
         setStatus('success');
-        const target = getRedirectTarget();
-        setTimeout(() => router.replace(target), 1500);
+        setTimeout(() => goTo(target), 1500);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : '';
         if (msg.includes('E-Mail-Adresse nicht gefunden')) {
@@ -51,7 +49,7 @@ export default function VerifyPage() {
       }
     }
     verify();
-  }, [router]);
+  }, []);
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,15 +60,9 @@ export default function VerifyPage() {
       if (result) {
         api.setToken(result.token);
         localStorage.setItem('inexxio_token', result.token);
-        try {
-          const profile = await api.getMe();
-          localStorage.setItem(ROLE_KEY, profile.role);
-        } catch {
-          // role fetch failed — will be retried on next page load
-        }
+        const target = await finish();
         setStatus('success');
-        const target = getRedirectTarget();
-        setTimeout(() => router.replace(target), 1500);
+        setTimeout(() => goTo(target), 1500);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.');

@@ -230,7 +230,7 @@ export const site = {
   },
 
   /** Kundenbereich des ERP (eigene Anwendung auf derselben Domain). */
-  login: { label: 'Kunden-Login', href: '/login' },
+  login: { label: 'Anmelden', short: 'Login', aria: 'Anmelden – Kundenkonto und ERP', href: '/login' },
   /** Pfade, die nicht zur Website gehören – robots.txt sperrt sie im Modus «live». */
   privatePaths: ['/erp', '/konto', '/login', '/api/'],
 

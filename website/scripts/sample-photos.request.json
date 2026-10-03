@@ -1,0 +1,27 @@
+{
+  "mode": "search",
+  "slots": {
+    "pruefung-hallenkran": { "q": ["Brückenkran Halle", "overhead crane factory hall", "bridge crane workshop"] },
+    "reparatur-vor-ort": { "q": ["electric chain hoist crane", "crane hoist trolley", "Laufkatze Hubwerk"] },
+    "steuerung-funk": { "q": ["crane radio remote control", "Kranfernsteuerung", "crane pendant control"] },
+    "heukran-einsatz": { "q": ["Heukran", "hay crane barn", "Heugreifer Scheune"] },
+    "typenschild-hs": { "q": ["crane nameplate", "Typenschild Kran", "Typenschild Maschine"] },
+    "ersatzteillager": { "q": ["Ersatzteillager", "spare parts warehouse shelves", "Lager Regal Werkstatt"] },
+    "fahrmischer-werkstatt": { "q": ["Fahrmischer", "concrete mixer truck", "Betonmischer Lastwagen"] },
+    "verschleissteile-detail": { "q": ["concrete mixer truck chute", "Fahrmischer Rinne", "concrete truck chute detail"] },
+    "teil-auslaufrinne": { "q": ["concrete chute", "Betonrinne Fahrmischer", "concrete truck pouring chute"] },
+    "teil-verlaengerungsrinne": { "q": ["concrete pouring chute extension", "concrete truck chute pouring", "Beton Rinne"] },
+    "teil-einfuelltrichter": { "q": ["concrete mixer truck hopper", "mixer truck loading hopper", "Fahrmischer Trichter"] },
+    "teil-auslaufschurre": { "q": ["concrete mixer truck rear", "mixer truck drum rear", "Fahrmischer Heck"] },
+    "teil-spiralschutz": { "q": ["concrete mixer drum interior", "mixer drum blades", "Mischtrommel"] },
+    "clemens-heiri-quer": { "q": ["workshop hall overhead crane", "Werkstatthalle", "metal workshop interior"] },
+    "clemens-heiri-hoch": { "q": ["overhead crane hook", "Kranhaken", "crane hall"], "portrait": true },
+    "werkstatt-aussen": { "q": ["Werkstatt Gebäude Schweiz", "Gewerbehalle Thurgau", "workshop building rural Switzerland"] },
+    "servicefahrzeug": { "q": ["Kastenwagen Service", "service van workshop", "Servicefahrzeug"] },
+    "portraet-clemens": { "q": ["crane hook detail", "Kranhaken", "welding sparks"], "portrait": true },
+    "team": { "q": ["workshop tools wall", "Werkstatt Werkzeug", "mechanical workshop interior"] },
+    "vorher-kran": { "q": ["crane pendant control station", "Hängetaster Kran", "old electrical control panel"] },
+    "nachher-kran": { "q": ["frequency inverter cabinet", "Schaltschrank Frequenzumrichter", "industrial control cabinet"] },
+    "arbeit-werkstatt": { "q": ["welding workshop steel", "Schweissen Werkstatt", "metalworking steel construction"] }
+  }
+}

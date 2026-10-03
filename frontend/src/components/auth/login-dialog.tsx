@@ -18,8 +18,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Fingerprint } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
 import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
@@ -28,6 +26,7 @@ import {
   passkeySupported, passkeyAutofillSupported, isPasskeyCancellation,
 } from '@/lib/passkey';
 import { api } from '@/lib/api';
+import { goTo, loginTarget, rememberFrom } from '@/lib/login-target';
 
 type Step = 'input' | 'loading' | 'sent';
 
@@ -41,7 +40,6 @@ function getMailUrl(email: string): string {
   return `mailto:${email}`;
 }
 
-const REDIRECT_KEY = 'inexxio_login_redirect';
 const ROLE_KEY = 'inexxio_user_role';
 
 function getGoogleErrorMessage(code: string): string {
@@ -59,13 +57,15 @@ function getGoogleErrorMessage(code: string): string {
   }
 }
 
-export function LoginDialog({ onClose, fallback = '/' }: {
+export function LoginDialog({ onClose, fallback }: {
   /** Was «daneben klicken» bedeutet: schliessen (Pop-up) bzw. zur Startseite (Route). */
   onClose: () => void;
-  /** Wohin nach der Anmeldung, wenn kein `?from=` gemerkt ist. */
+  /**
+   * Wohin nach der Anmeldung, wenn kein `?from=` gemerkt ist. Ohne Angabe: der Startplatz
+   * der Rolle (`login-target.startPage`) – nie «/», dort steht die Website.
+   */
   fallback?: string;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [step, setStep] = useState<Step>('input');
   const [error, setError] = useState('');
@@ -76,12 +76,8 @@ export function LoginDialog({ onClose, fallback = '/' }: {
 
   useEffect(() => {
     setShowPasskey(passkeySupported());
-    // Store the ?from= param so verify page and Google login can redirect back
-    const params = new URLSearchParams(window.location.search);
-    const from = params.get('from');
-    if (from && from !== '/login' && !from.startsWith('/login/')) {
-      localStorage.setItem(REDIRECT_KEY, from);
-    }
+    // `?from=` merken: der Magic Link kommt oft in einem neuen Tab zurück, ohne Parameter.
+    rememberFrom();
   }, []);
 
   // **Esc schliesst** – dieselbe Aussage wie der Klick daneben, nur mit der Tastatur.
@@ -113,23 +109,24 @@ export function LoginDialog({ onClose, fallback = '/' }: {
   }, []);
 
   // Gemeinsamer Abschluss für Token-basierte Logins (Google, Passkey): Token setzen,
-  // Profil (Rolle/Name) cachen und zur Ursprungsseite weiterleiten.
+  // Profil (Rolle/Name) cachen und **hart** weiter (`login-target`). Bewusst ohne
+  // `onClose()`: an der Route heisst «schliessen» «zur Website», und diese Navigation
+  // überholte die Weiterleitung – der Login landete auf der Startseite statt im ERP.
   async function finishTokenLogin(token: string) {
     api.setToken(token);
     localStorage.setItem('inexxio_token', token);
+    let role: string | null = null;
     try {
       const profile = await api.getMe();
+      role = profile.role;
       localStorage.setItem(ROLE_KEY, profile.role);
       const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
       if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
     } catch {
-      // role/name fetch failed — will retry on next page load
+      // Rolle unbekannt – dann führt der Startplatz ins Konto; das ERP prüft selbst.
+      role = localStorage.getItem(ROLE_KEY);
     }
-    const redirect = localStorage.getItem(REDIRECT_KEY) || fallback;
-    localStorage.removeItem(REDIRECT_KEY);
-    onClose();
-    router.push(redirect);
-    router.refresh();
+    goTo(loginTarget(role, fallback));
   }
 
   async function handlePasskeyLogin() {
@@ -366,9 +363,9 @@ export function LoginDialog({ onClose, fallback = '/' }: {
               {/* ── Footer ── */}
               <p className="ix-login-footer">
                 Mit der Anmeldung stimmen Sie unseren{' '}
-                <Link href="/agb">AGB</Link>{' '}
+                <a href="/agb">AGB</a>{' '}
                 und der{' '}
-                <Link href="/datenschutz">Datenschutzerklärung</Link>{' '}
+                <a href="/datenschutz">Datenschutzerklärung</a>{' '}
                 zu.
               </p>
             </>

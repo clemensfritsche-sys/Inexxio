@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { isStaff } from '@/lib/record-status';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,8 @@ import type { User } from 'firebase/auth';
 const ROLE_KEY = 'inexxio_user_role';
 const NAME_KEY = 'inexxio_user_fullname';
 
-// Nur Seiten, die es wirklich gibt. «Shop» stand hier als erster Eintrag und führte ins
+// Nur Seiten, die es wirklich gibt – sie gehören der Website (`website/`), also ein
+// schlichtes `<a>` statt `next/link`: der Router kennt sie nicht. «Shop» stand hier als erster Eintrag und führte ins
 // Leere – der Shop ist mit dem Verkaufs-Modul entfallen (docs/attic.md), und ein Link auf
 // eine Route, die der statische Export gar nicht kennt, ist ein 404 an prominentester Stelle.
 const navLinks = [
@@ -34,7 +35,6 @@ export function Navbar() {
   const [profileName, setProfileName] = useState('');
   const [loginOpen, setLoginOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,7 +105,8 @@ export function Navbar() {
     setUserMenuOpen(false);
     setMobileOpen(false);
     await logout();
-    router.push('/');
+    // Hart: «/» ist die Website, keine Next-Seite (`lib/login-target`).
+    window.location.assign('/');
   }
 
   /**
@@ -145,26 +146,26 @@ export function Navbar() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 72 }}>
 
             {/* Logo */}
-            <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
+            <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo.png"
                 alt="Inexxio AG"
                 style={{ height: 28, width: 'auto', display: 'block' }}
               />
-            </Link>
+            </a>
 
             {/* Desktop nav */}
             <nav style={{ alignItems: 'center', gap: 28 }} className="hidden md:flex">
               {navLinks.map((link) => (
-                <Link
+                <a
                   key={link.href}
                   href={link.href}
                   className={cn('ix-nav-link', pathname === link.href && 'ix-nav-link-active')}
                   style={pathname === link.href ? { color: 'var(--ix-red)' } : {}}
                 >
                   {link.label}
-                </Link>
+                </a>
               ))}
               {isStaff(userRole) && (
                 <Link
@@ -335,7 +336,7 @@ export function Navbar() {
             }}
           >
             {navLinks.map((link) => (
-              <Link
+              <a
                 key={link.href}
                 href={link.href}
                 style={{
@@ -348,7 +349,7 @@ export function Navbar() {
                 }}
               >
                 {link.label}
-              </Link>
+              </a>
             ))}
             {isStaff(userRole) && (
               <Link

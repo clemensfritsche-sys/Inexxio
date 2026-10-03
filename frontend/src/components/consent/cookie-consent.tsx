@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Cookie, Settings2, ShieldCheck, BarChart3, X } from 'lucide-react';
 import {
   getConsent,
@@ -82,7 +81,7 @@ export function CookieConsent() {
                 <p style={bannerText}>
                   Wir setzen nur technisch notwendige Cookies für Anmeldung und Warenkorb. Optional
                   hilft uns cookielose Statistik, die Website zu verbessern. Details in der{' '}
-                  <Link href="/datenschutz" style={linkStyle}>Datenschutzerklärung</Link>.
+                  <a href="/datenschutz" style={linkStyle}>Datenschutzerklärung</a>.
                 </p>
               </div>
             </div>

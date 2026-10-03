@@ -1,0 +1,51 @@
+name: Beispielbilder holen (Website)
+
+# Ein Werkzeug, kein Deploy: die Arbeitsumgebung hat keinen Zugang zu Bildquellen, dieser
+# Job schon. Er läuft nur, wenn sich die Anfrage ändert, und schreibt sein Ergebnis als
+# Commit zurück (Kontaktbögen bzw. die gewählten Bilder samt Bildnachweis). Ein Commit mit
+# dem GITHUB_TOKEN löst keinen weiteren Lauf aus – auch keinen Deploy.
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - website/scripts/sample-photos.request.json
+
+concurrency:
+  group: sample-photos
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  photos:
+    name: Wikimedia Commons → Kontaktbogen / Bilder
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Bilder suchen bzw. holen
+        working-directory: website
+        run: node scripts/sample-photos.mjs
+
+      - name: Ergebnis zurückschreiben
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/scripts/.sample-review website/src/assets/photos/samples 2>/dev/null || true
+          if git diff --cached --quiet; then echo "Nichts Neues."; exit 0; fi
+          git commit -m "Beispielbilder: Ergebnis des Laufs $GITHUB_RUN_ID"
+          for i in 1 2 3; do
+            git pull --rebase origin develop && git push origin HEAD:develop && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

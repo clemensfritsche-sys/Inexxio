@@ -66,6 +66,12 @@ const tel = `tel:${site.phone.e164}`;
         <Icon name="phone" size={18} />
         <span class="site-header__tel-num">{site.phone.display}</span>
       </a>
+      <!-- Anmelden führt ins Kundenkonto bzw. ins ERP (Next-App, gleiche Domain). Die Website
+           selbst kennt keine Anmeldung – sie zeigt nur den Weg dorthin. -->
+      <a class="site-header__login" href={site.login.href} rel="nofollow" aria-label={site.login.aria} title={site.login.aria}>
+        <Icon name="circle-user" size={20} />
+        <span class="site-header__login-txt">{site.login.short}</span>
+      </a>
       <a class="btn btn--primary btn--sm site-header__cta" href={site.cta.href}>
         {site.cta.label}
         <Icon name="arrow-right" size={18} class="btn__arrow" />
@@ -99,6 +105,7 @@ const tel = `tel:${site.phone.e164}`;
               ),
             )}
             <a href="/kontakt" class="mnav__link" aria-current={isActive('/kontakt') ? 'page' : undefined}>Kontakt</a>
+            <a href={site.login.href} class="mnav__link mnav__login" rel="nofollow">{site.login.label} <Icon name="circle-user" size={20} /></a>
           </nav>
           <div class="mnav__actions">
             <a class="btn btn--secondary" href={tel} data-track="tel_click"><Icon name="phone" size={18} /> Anrufen</a>
@@ -186,6 +193,17 @@ const tel = `tel:${site.phone.e164}`;
   }
   .site-header__tel:hover .site-header__tel-num { text-decoration: underline; }
   .site-header__cta { display: none; }
+  /* In der Leiste erst ab 768 px – schmaler steht «Anmelden» im Menü (gemessen: sonst 349 px
+     Bedarf bei 320 px Breite). */
+  .site-header__login {
+    display: none; align-items: center; justify-content: center; gap: 6px;
+    min-width: 44px; min-height: 44px; padding: 0 6px; color: var(--ink-2); text-decoration: none;
+    font-size: 0.97rem; font-weight: 550;
+  }
+  .site-header__login:hover { color: var(--ink); }
+  .site-header__login:hover .site-header__login-txt { text-decoration: underline; }
+  .site-header__login-txt { display: none; }
+  .mnav__login { color: var(--ink-2); }
 
   /* ---- Mobil-Menü ---- */
   .mnav { display: block; }
@@ -229,6 +247,9 @@ const tel = `tel:${site.phone.e164}`;
 
   @media (min-width: 600px) {
     .site-header__cta { display: inline-flex; }
+  }
+  @media (min-width: 768px) {
+    .site-header__login { display: inline-flex; }
   }
   @media (min-width: 900px) {
     .site-header__tel { display: inline-flex; }
