@@ -46,6 +46,61 @@ export const inquiry = {
   },
   /** Mindestausfüllzeit in Sekunden (Schutz vor Bots, ohne CAPTCHA). */
   minSeconds: 3,
+  /**
+   * Beschriftung je Feld in E-Mail und mailto-Text – in dieser Reihenfolge. Dieselben
+   * Wörter in der E-Mail an uns, in der Bestätigung und im Notfall-mailto.
+   */
+  labels: [
+    ['kind', 'Worum geht es'],
+    ['need', 'Was'],
+    ['part', 'Teil'],
+    ['mixer', 'Für Fahrmischer'],
+    ['cranes', 'Anzahl Krane'],
+    ['urgency', 'Dringlichkeit'],
+    ['maker', 'Hersteller / Typ'],
+    ['year', 'Baujahr'],
+    ['place', 'Standort'],
+    ['message', 'Beschreibung'],
+    ['name', 'Name'],
+    ['company', 'Firma'],
+    ['phone', 'Telefon'],
+    ['email', 'E-Mail'],
+    ['contact_pref', 'Rückmeldung per'],
+  ],
+  /** Fehlermeldungen – im Browser direkt am Feld und vom Server, wortgleich. */
+  messages: {
+    kind: 'Bitte wählen Sie aus, worum es geht.',
+    need: 'Bitte wählen Sie, was gemacht werden soll.',
+    part: 'Bitte nennen Sie das Teil, das Sie brauchen.',
+    urgency: 'Bitte wählen Sie, wie dringend es ist.',
+    year: 'Bitte das Baujahr vierstellig angeben, z. B. 1998.',
+    cranes: 'Bitte die Anzahl Krane als Zahl angeben, z. B. 3.',
+    place: 'Bitte geben Sie PLZ und Ort an – dort, wo die Anlage steht.',
+    message: 'Bitte beschreiben Sie kurz Ihr Anliegen.',
+    name: 'Bitte geben Sie Ihren Namen an.',
+    contact: 'Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.',
+    phone: 'Diese Telefonnummer sieht unvollständig aus.',
+    email: 'Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).',
+    prefPhone: 'Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.',
+    prefEmail: 'Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.',
+    tooLong: 'Dieser Text ist zu lang – höchstens {max} Zeichen.',
+    photosCount: 'Bitte höchstens {max} Fotos auswählen (jetzt {count}).',
+    photosType: '«{name}» ist kein unterstütztes Bild (JPG, PNG, WEBP oder HEIC).',
+    photosSize: 'Die Fotos sind zusammen {size} gross – erlaubt sind {max}.',
+    tooFast: 'Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal.',
+  },
+  /**
+   * Texte der Bestätigung an die anfragende Person. Werte mit {{…}} aus site.mjs; fehlt
+   * ein Wert noch (Markierung), gilt `fallback` – eine E-Mail enthält nie eine Markierung.
+   */
+  mail: {
+    confirmSubject: 'Ihre Anfrage bei {{brand.full}}',
+    confirmIntro: 'Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.',
+    confirmNext: { text: 'Wir melden uns innert {{promises.responseTime}}.', fallback: 'Wir melden uns so bald wie möglich.' },
+    urgent: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.display}}.',
+    urgentPikett: 'Ausserhalb der Bürozeiten erreichen Sie unser Pikett: {{pikett.display}}.',
+    closing: 'Freundliche Grüsse',
+  },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */
   limits: {
     name: 120,

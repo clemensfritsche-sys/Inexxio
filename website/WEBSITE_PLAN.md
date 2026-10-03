@@ -20,11 +20,13 @@
 
 ## 2. Entscheidungen (je ein Satz Begründung nach den drei Grundsätzen)
 
-1. **Astro 5 als eigenständiges Teilprojekt in `website/`** – liefert reines HTML ohne
+1. **Astro 7 als eigenständiges Teilprojekt in `website/`** – liefert reines HTML ohne
    Laufzeit-JavaScript; ein Neubau in Next hätte jede Seite um das React-Paket (≈ 90 KB gzip)
-   schwerer gemacht und die Website an den ERP-Root-Layout gebunden. *Astro 5 statt 7*: läuft
-   auf dem Node 20 der bestehenden CI ohne Umbau der Pipeline, die API ist stabil, und eine
-   statische Ausgabe hat keine Server-Laufzeit, die Sicherheits-Updates bräuchte.
+   schwerer gemacht und die Website an den ERP-Root-Layout gebunden. *Korrigiert in Phase 1*:
+   geplant war Astro 5 auf dem Node 20 der CI; die aktuelle, gepflegte Fassung ist 7 und
+   verlangt **Node ≥ 22.12**. Der Website-Schritt der CI läuft darum mit Node 22 – das ERP
+   baut unverändert mit Node 20. Eine statische Ausgabe hat keine Server-Laufzeit, die
+   Sicherheits-Updates bräuchte.
 2. **Gleiche Firebase-Hosting-Site, zusammengeführte Ausgabe** – die CI baut beide Teile und
    kopiert `website/dist` in `frontend/out`; die Website besitzt «/» und ihre Pfade, das ERP
    behält `/erp`, `/konto`, `/login`, `/agb`. Null neue Infrastruktur, null Zusatzkosten; ein
@@ -96,7 +98,7 @@
 | `firebase.json` | `redirects` der alten hs-steiner.ch-Pfade | alte URLs auffangen (Auftrag Kap. 3.3) |
 | `.github/workflows/deploy-dev.yml`, `deploy-prod.yml` | Website prüfen, bauen, zusammenführen | ohne diesen Schritt hätte die Domain keine Startseite mehr |
 | `.gitignore` | `website/dist`, `website/.astro`, generierte Tokens | Build-Ausgaben gehören nicht ins Repo |
-| `CLAUDE.md` | Abschnitt «Website» | jede Sitzung liest ihn zuerst |
+| `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md` | Abschnitt «Website», Endpunkt-Zeile, entfernte Seiten | jede Sitzung liest sie zuerst |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router), Datenbank, Modelle, Migrationen,
 ERP-Frontend-Logik, Auth, die globalen Header in `firebase.json`.
@@ -132,7 +134,9 @@ Erhoben über die Websuche (hs-steiner.ch selbst ist von hier aus gesperrt). Vol
 - [x] **3 – Seiten**: Start → Übergabe → Krane (5) → Fahrmischer (3) → Service-Abo →
       Über uns → Einsatzgebiet → Kontakt → Karriere → Ratgeber (4) → Rechtliches → 404
       (24 Seiten inkl. `/kontakt/danke`; Feinschliff der Darstellung in Phase 6)
-- [ ] **4 – Formular-Backend und Tracking**
+- [x] **4 – Formular-Backend und Tracking**: Endpunkt neu (19 Wächter, jeder gegen seine
+      Fehlerform gegengeprüft), Vokabular-Export, alte Next-Seiten entfernt; Ende-zu-Ende in
+      Chromium gegen einen echten SMTP-Briefkasten (30/30 inkl. Störungsfall und ohne JS)
 - [ ] **5 – SEO und KI**: Meta, JSON-LD, Sitemap, robots.txt, llms.txt, Redirects, OG-Bilder
 - [ ] **6 – Prüfung und Feinschliff**
 - [ ] **7 – Abschlussbericht** und Deploy

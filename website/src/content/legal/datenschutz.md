@@ -43,6 +43,8 @@ Schreiben Sie uns über das Formular, bearbeiten wir Ihre Angaben: Anliegen, Ort
 
 Die Anfrage geht per E-Mail an uns; haben Sie eine E-Mail-Adresse angegeben, erhalten Sie eine Bestätigung mit Ihren Angaben. Für den Versand nutzen wir [[PLATZHALTER: E-Mail-Anbieter für den Versand]].
 
+Kann der Server eine Anfrage nicht per E-Mail weiterleiten (Störung beim Versand), schreibt er sie – ohne Fotos – in sein Protokoll, damit sie nicht verloren geht; Sie sehen in diesem Fall unsere Telefonnummer und einen vorbereiteten E-Mail-Text. Die Protokolle werden nach [[PLATZHALTER: Aufbewahrungsdauer der Server-Protokolle, z. B. 30 Tage]] gelöscht.
+
 Zum Schutz vor Missbrauch zählt der Server kurzzeitig, wie viele Anfragen von einer IP-Adresse kommen; die Zählung liegt nur im Arbeitsspeicher und wird nicht gespeichert.
 
 Wir bewahren Anfragen so lange auf, wie es für die Bearbeitung und einen allfälligen Auftrag nötig ist, danach nach den gesetzlichen Aufbewahrungsfristen. [[PRÜFEN: Aufbewahrungsdauer von Anfragen]]

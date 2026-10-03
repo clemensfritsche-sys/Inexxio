@@ -804,18 +804,6 @@ class ApiClient {
   clearFeedback(scope: 'done' | 'all'): Promise<{ deleted: number }> {
     return this.delete(`/api/v1/feedback?scope=${scope}`);
   }
-
-  // ─── Contact form ──────────────────────────────────────────────────────────
-
-  sendContactForm(data: {
-    name: string;
-    email: string;
-    phone?: string;
-    subject: string;
-    message: string;
-  }): Promise<{ ok: boolean }> {
-    return this.post('/api/v1/contact', data);
-  }
 }
 
 

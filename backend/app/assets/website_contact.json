@@ -1,0 +1,234 @@
+{
+  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:contact» – nicht von Hand ändern.",
+  "brand": {
+    "name": "INEXXIO",
+    "full": "INEXXIO (ehemals HS Steiner)"
+  },
+  "phone": {
+    "display": "052 378 22 47",
+    "e164": "+41523782247"
+  },
+  "pikett": {
+    "display": "076 563 22 47",
+    "e164": "+41765632247"
+  },
+  "email": "fahrzeug-kranbau@hs-steiner.ch",
+  "address": [
+    "Waldweg 1",
+    "9546 Tuttwil (Wängi TG)"
+  ],
+  "pages": {
+    "thanks": "/kontakt/danke",
+    "contact": "/kontakt"
+  },
+  "kinds": [
+    {
+      "value": "kran",
+      "label": "Kran",
+      "subject": "Kran"
+    },
+    {
+      "value": "fahrmischer",
+      "label": "Fahrmischer",
+      "subject": "Fahrmischer"
+    },
+    {
+      "value": "teile",
+      "label": "Verschleiss- oder Ersatzteile",
+      "subject": "Teile"
+    },
+    {
+      "value": "abo",
+      "label": "Service-Abo",
+      "subject": "Abo"
+    },
+    {
+      "value": "anderes",
+      "label": "Anderes",
+      "subject": "Anderes"
+    }
+  ],
+  "needs": {
+    "kran": [
+      {
+        "value": "pruefung",
+        "label": "Prüfung"
+      },
+      {
+        "value": "wartung",
+        "label": "Wartung"
+      },
+      {
+        "value": "stoerung",
+        "label": "Störung / Reparatur"
+      },
+      {
+        "value": "modernisierung",
+        "label": "Modernisierung"
+      },
+      {
+        "value": "neuanlage",
+        "label": "Neuanlage"
+      }
+    ],
+    "fahrmischer": [
+      {
+        "value": "service",
+        "label": "Service"
+      },
+      {
+        "value": "reparatur",
+        "label": "Reparatur"
+      },
+      {
+        "value": "trommel",
+        "label": "Trommel-Revision"
+      }
+    ]
+  },
+  "urgencies": [
+    {
+      "value": "dringend",
+      "label": "Steht still – dringend",
+      "subject": "DRINGEND"
+    },
+    {
+      "value": "wochen",
+      "label": "In den nächsten Wochen",
+      "subject": "BALD"
+    },
+    {
+      "value": "planung",
+      "label": "Planung",
+      "subject": "PLANUNG"
+    }
+  ],
+  "contactPrefs": [
+    {
+      "value": "telefon",
+      "label": "Telefon"
+    },
+    {
+      "value": "email",
+      "label": "E-Mail"
+    }
+  ],
+  "photos": {
+    "max": 3,
+    "maxTotalBytes": 10485760,
+    "accept": "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif",
+    "extensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".heic",
+      ".heif"
+    ]
+  },
+  "minSeconds": 3,
+  "limits": {
+    "name": 120,
+    "company": 160,
+    "phone": 40,
+    "email": 160,
+    "place": 120,
+    "maker": 160,
+    "year": 4,
+    "message": 4000,
+    "part": 200,
+    "mixer": 160,
+    "cranes": 3
+  },
+  "labels": [
+    [
+      "kind",
+      "Worum geht es"
+    ],
+    [
+      "need",
+      "Was"
+    ],
+    [
+      "part",
+      "Teil"
+    ],
+    [
+      "mixer",
+      "Für Fahrmischer"
+    ],
+    [
+      "cranes",
+      "Anzahl Krane"
+    ],
+    [
+      "urgency",
+      "Dringlichkeit"
+    ],
+    [
+      "maker",
+      "Hersteller / Typ"
+    ],
+    [
+      "year",
+      "Baujahr"
+    ],
+    [
+      "place",
+      "Standort"
+    ],
+    [
+      "message",
+      "Beschreibung"
+    ],
+    [
+      "name",
+      "Name"
+    ],
+    [
+      "company",
+      "Firma"
+    ],
+    [
+      "phone",
+      "Telefon"
+    ],
+    [
+      "email",
+      "E-Mail"
+    ],
+    [
+      "contact_pref",
+      "Rückmeldung per"
+    ]
+  ],
+  "messages": {
+    "kind": "Bitte wählen Sie aus, worum es geht.",
+    "need": "Bitte wählen Sie, was gemacht werden soll.",
+    "part": "Bitte nennen Sie das Teil, das Sie brauchen.",
+    "urgency": "Bitte wählen Sie, wie dringend es ist.",
+    "year": "Bitte das Baujahr vierstellig angeben, z. B. 1998.",
+    "cranes": "Bitte die Anzahl Krane als Zahl angeben, z. B. 3.",
+    "place": "Bitte geben Sie PLZ und Ort an – dort, wo die Anlage steht.",
+    "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
+    "name": "Bitte geben Sie Ihren Namen an.",
+    "contact": "Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.",
+    "phone": "Diese Telefonnummer sieht unvollständig aus.",
+    "email": "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).",
+    "prefPhone": "Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.",
+    "prefEmail": "Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.",
+    "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
+    "photosCount": "Bitte höchstens {max} Fotos auswählen (jetzt {count}).",
+    "photosType": "«{name}» ist kein unterstütztes Bild (JPG, PNG, WEBP oder HEIC).",
+    "photosSize": "Die Fotos sind zusammen {size} gross – erlaubt sind {max}.",
+    "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
+  },
+  "mail": {
+    "confirmSubject": "Ihre Anfrage bei INEXXIO (ehemals HS Steiner)",
+    "confirmIntro": "Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.",
+    "confirmNext": "Wir melden uns so bald wie möglich.",
+    "urgent": "Steht eine Anlage still, rufen Sie am besten direkt an: 052 378 22 47.",
+    "urgentPikett": null,
+    "closing": "Freundliche Grüsse"
+  }
+}

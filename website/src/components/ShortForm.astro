@@ -6,6 +6,7 @@
  */
 import { contactEmail } from '../config/site.mjs';
 import { inquiry } from '../config/inquiry.mjs';
+import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
 import FormResult from './FormResult.astro';
 import '../styles/form.css';
@@ -27,15 +28,8 @@ if (need && !(inquiry.needs as Record<string, { value: string }[]>)[kind]?.some(
   throw new Error(`Thema «${need}» passt nicht zu «${kind}»`);
 }
 const L = inquiry.limits;
-/** Beschriftungen für den mailto-Text im Fehlerfall – dieselben wie im Formular. */
-const vocab = JSON.stringify({
-  kind: Object.fromEntries(inquiry.kinds.map((k) => [k.value, k.label])),
-  kindSubject: Object.fromEntries(inquiry.kinds.map((k) => [k.value, k.subject])),
-  need: Object.fromEntries(Object.values(inquiry.needs).flat().map((n) => [n.value, n.label])),
-  urgency: Object.fromEntries(inquiry.urgencies.map((u) => [u.value, u.label])),
-  urgencySubject: Object.fromEntries(inquiry.urgencies.map((u) => [u.value, u.subject])),
-  pref: Object.fromEntries(inquiry.contactPrefs.map((p) => [p.value, p.label])),
-});
+/** Vokabular für Prüfung und mailto im Browser – dasselbe, das der Server bekommt. */
+const vocab = JSON.stringify(formVocab());
 const f = (name: string) => `${id}-${name}`;
 ---
 <div class="iform-wrap" data-inquiry-root>
@@ -59,7 +53,7 @@ const f = (name: string) => `${id}-${name}`;
     {need && <input type="hidden" name="need" value={need} />}
     {urgency && <input type="hidden" name="urgency" value={urgency} />}
     <div class="iform__hp" aria-hidden="true">
-      <label>Bitte leer lassen <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
     </div>
 
     {choose && (

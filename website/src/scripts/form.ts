@@ -3,10 +3,12 @@
  * vollständig klassisch an den Server geht.
  *
  *  - Hauptformular: vier Schritte mit Fortschritt; «Weiter» prüft nur den aktuellen Schritt
- *  - Fehler erscheinen direkt am Feld (aria-invalid + aria-describedby)
+ *  - Fehler erscheinen direkt am Feld (aria-invalid + aria-describedby); die Wörter kommen
+ *    aus der Konfiguration (data-vocab) – der Server meldet wortgleich
  *  - Senden im Hintergrund; Erfolg ersetzt das Formular, ein Fehler lässt alle Eingaben
  *    stehen und bietet Telefon und einen vorausgefüllten mailto-Link an
- *  - Vorbelegung aus der Adresse: /kontakt?typ=teile&teil=…&fahrmischer=…, ?typ=kran&thema=pruefung
+ *  - Vorbelegung aus der Adresse: /kontakt?typ=teile&teil=…&fahrmischer=…, ?typ=kran&thema=pruefung,
+ *    ?typ=abo&stufe=service, ?krane=3, ?dringend=1
  */
 import { track } from './track';
 
@@ -18,6 +20,9 @@ interface Vocab {
   urgency: Record<string, string>;
   urgencySubject: Record<string, string>;
   pref: Record<string, string>;
+  tiers?: Record<string, string>;
+  labels: [string, string][];
+  messages: Record<string, string>;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -38,9 +43,8 @@ function setup(form: HTMLFormElement): void {
   const isMain = form.dataset.form === 'haupt';
   const steps = Array.from(form.querySelectorAll<HTMLElement>('[data-step]'));
   const vocab: Vocab = JSON.parse(form.dataset.vocab ?? '{}');
+  const loadedAt = Date.now();
   let current = 0;
-
-  setValue(form, 't', String(Date.now()));
 
   // ---------- Schritte ----------
   const prev = form.querySelector<HTMLButtonElement>('[data-prev]');
@@ -80,13 +84,13 @@ function setup(form: HTMLFormElement): void {
     if (progress) progress.hidden = false;
     show(0, false);
     next?.addEventListener('click', () => {
-      const errors = validate(form, steps[current], isMain);
+      const errors = validate(form, steps[current], isMain, vocab);
       if (render(form, errors)) show(current + 1, true);
     });
     prev?.addEventListener('click', () => show(current - 1, true));
   }
 
-  if (isMain) prefill(form, (stepIndex) => useSteps && show(stepIndex, false));
+  if (isMain) prefill(form, vocab, (stepIndex) => useSteps && show(stepIndex, false));
 
   // ---------- Live: Fehler verschwinden beim Korrigieren ----------
   form.addEventListener('input', (e) => clearError(form, (e.target as HTMLInputElement).name));
@@ -95,14 +99,14 @@ function setup(form: HTMLFormElement): void {
     clearError(form, input.name);
     if (input.type === 'file') {
       listFiles(form, input);
-      render(form, photoErrors(form, input), false);
+      render(form, photoErrors(form, input, vocab), false);
     }
   });
 
   // ---------- Senden ----------
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const errors = validate(form, form, isMain);
+    const errors = validate(form, form, isMain, vocab);
     if (!render(form, errors)) {
       if (useSteps) {
         const first = steps.findIndex((s) => Object.keys(errors).some((n) => s.querySelector(`[name="${n}"]`)));
@@ -114,6 +118,9 @@ function setup(form: HTMLFormElement): void {
       return;
     }
 
+    // Ausfüllzeit in Millisekunden – gemessen mit der Uhr DIESES Geräts, also unabhängig
+    // davon, ob sie mit der des Servers übereinstimmt.
+    setValue(form, 't', String(Date.now() - loadedAt));
     const data = new FormData(form);
     prune(data);
     form.setAttribute('aria-busy', 'true');
@@ -143,9 +150,9 @@ function setup(form: HTMLFormElement): void {
         }
         return;
       }
-      fail(form, failPanel, vocab, res.status === 429 ? 'rate' : 'send', body.message);
+      fail(form, failPanel, vocab, res.status, body.message);
     } catch {
-      fail(form, failPanel, vocab, 'send');
+      fail(form, failPanel, vocab, 0);
     } finally {
       form.removeAttribute('aria-busy');
       if (submit) submit.disabled = false;
@@ -155,52 +162,61 @@ function setup(form: HTMLFormElement): void {
 
 // ------------------------------------------------------------------ Prüfen
 
-function validate(form: HTMLFormElement, scope: Element, isMain: boolean): Errors {
+function validate(form: HTMLFormElement, scope: Element, isMain: boolean, vocab: Vocab): Errors {
+  const m = vocab.messages;
   const errors: Errors = {};
   const has = (name: string) => Boolean(scope.querySelector(`[name="${name}"]`));
   const kind = checked(form, 'kind') || value(form, 'kind');
 
-  if (has('kind') && !kind) errors.kind = 'Bitte wählen Sie aus, worum es geht.';
-  if (isMain && has('need') && (kind === 'kran' || kind === 'fahrmischer') && !checked(form, 'need')) {
-    errors.need = 'Bitte wählen Sie, was gemacht werden soll.';
+  if (has('kind') && !kind) errors.kind = m.kind;
+  if (isMain && has('need') && (kind === 'kran' || kind === 'fahrmischer') && !checked(form, 'need')) errors.need = m.need;
+  if (has('part') && kind === 'teile' && !value(form, 'part')) errors.part = m.part;
+  const cranesEl = scope.querySelector<HTMLInputElement>('[name="cranes"]');
+  if (cranesEl && kind === 'abo') {
+    const cranes = cranesEl.value.trim();
+    if ((!cranes && cranesEl.required) || (cranes && !/^[1-9]\d{0,2}$/.test(cranes))) errors.cranes = m.cranes;
   }
-  if (has('part') && kind === 'teile' && !value(form, 'part')) errors.part = 'Bitte nennen Sie das Teil, das Sie brauchen.';
-  if (isMain && has('urgency') && !checked(form, 'urgency')) errors.urgency = 'Bitte wählen Sie, wie dringend es ist.';
+  if (isMain && has('urgency') && !checked(form, 'urgency')) errors.urgency = m.urgency;
   const year = value(form, 'year');
-  if (has('year') && year && !/^(19|20)\d{2}$/.test(year)) errors.year = 'Bitte das Baujahr vierstellig angeben, z. B. 1998.';
-  if (has('place') && !value(form, 'place')) errors.place = 'Bitte geben Sie PLZ und Ort an – dort, wo die Anlage steht.';
-  if (!isMain && has('message') && !value(form, 'message')) errors.message = 'Bitte beschreiben Sie kurz Ihr Anliegen.';
+  if (has('year') && year && !/^(19|20)\d{2}$/.test(year)) errors.year = m.year;
+  if (has('place') && !value(form, 'place')) errors.place = m.place;
+  if (!isMain && has('message') && !value(form, 'message')) errors.message = m.message;
   const photos = scope.querySelector<HTMLInputElement>('input[type="file"][name="photos"]');
-  if (photos) Object.assign(errors, photoErrors(form, photos));
+  if (photos) Object.assign(errors, photoErrors(form, photos, vocab));
 
-  if (has('name') && !value(form, 'name')) errors.name = 'Bitte geben Sie Ihren Namen an.';
+  if (has('name') && !value(form, 'name')) errors.name = m.name;
   if (has('phone') || has('email')) {
     const phone = value(form, 'phone');
     const email = value(form, 'email');
     const pref = checked(form, 'contact_pref');
     if (!phone && !email) {
-      errors.phone = 'Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.';
+      errors.phone = m.contact;
     } else {
-      if (phone && !PHONE.test(phone)) errors.phone = 'Diese Telefonnummer sieht unvollständig aus.';
-      if (email && !EMAIL.test(email)) errors.email = 'Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).';
-      if (pref === 'telefon' && !phone) errors.phone = 'Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.';
-      if (pref === 'email' && !email) errors.email = 'Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.';
+      if (phone && !PHONE.test(phone)) errors.phone = m.phone;
+      if (email && !EMAIL.test(email)) errors.email = m.email;
+      if (pref === 'telefon' && !phone) errors.phone = m.prefPhone;
+      if (pref === 'email' && !email) errors.email = m.prefEmail;
     }
   }
   return errors;
 }
 
-function photoErrors(form: HTMLFormElement, input: HTMLInputElement): Errors {
+/** «{max} Zeichen» → «4000 Zeichen» */
+const fill = (text: string, values: Record<string, string | number>) =>
+  text.replace(/\{(\w+)\}/g, (_, k: string) => String(values[k] ?? ''));
+
+function photoErrors(form: HTMLFormElement, input: HTMLInputElement, vocab: Vocab): Errors {
+  const m = vocab.messages;
   const files = Array.from(input.files ?? []);
   if (!files.length) return {};
   const max = Number(form.dataset.maxFiles ?? 3);
   const maxBytes = Number(form.dataset.maxBytes ?? 10 * 1024 * 1024);
   const exts = (form.dataset.extensions ?? '').split(',');
-  if (files.length > max) return { photos: `Bitte höchstens ${max} Fotos auswählen (jetzt ${files.length}).` };
+  if (files.length > max) return { photos: fill(m.photosCount, { max, count: files.length }) };
   const wrong = files.find((f) => !exts.some((x) => f.name.toLowerCase().endsWith(x)));
-  if (wrong) return { photos: `«${wrong.name}» ist kein unterstütztes Bild (JPG, PNG, WEBP oder HEIC).` };
+  if (wrong) return { photos: fill(m.photosType, { name: wrong.name }) };
   const total = files.reduce((s, f) => s + f.size, 0);
-  if (total > maxBytes) return { photos: `Die Fotos sind zusammen ${mb(total)} gross – erlaubt sind ${mb(maxBytes)}.` };
+  if (total > maxBytes) return { photos: fill(m.photosSize, { size: mb(total), max: mb(maxBytes) }) };
   return {};
 }
 
@@ -242,7 +258,7 @@ function checked(form: HTMLFormElement, name: string): string {
   return form.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)?.value ?? '';
 }
 function setValue(form: HTMLFormElement, name: string, v: string): void {
-  const el = form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+  const el = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`);
   if (el) el.value = v;
 }
 const str = (v: FormDataEntryValue | null) => (typeof v === 'string' ? v : '');
@@ -280,7 +296,7 @@ function listFiles(form: HTMLFormElement, input: HTMLInputElement): void {
   list.hidden = files.length === 0;
 }
 
-function prefill(form: HTMLFormElement, goTo: (stepIndex: number) => void): void {
+function prefill(form: HTMLFormElement, vocab: Vocab, goTo: (stepIndex: number) => void): void {
   const q = new URLSearchParams(location.search);
   const pick = (name: string, v: string | null) => {
     if (!v) return false;
@@ -293,18 +309,24 @@ function prefill(form: HTMLFormElement, goTo: (stepIndex: number) => void): void
   if (q.get('dringend') === '1') pick('urgency', 'dringend');
   if (q.get('teil')) setValue(form, 'part', q.get('teil')!.slice(0, 200));
   if (q.get('fahrmischer')) setValue(form, 'mixer', q.get('fahrmischer')!.slice(0, 160));
-  if (q.get('krane') && /^\d{1,3}$/.test(q.get('krane')!)) setValue(form, 'cranes', q.get('krane')!);
+  if (q.get('krane') && /^[1-9]\d{0,2}$/.test(q.get('krane')!)) setValue(form, 'cranes', q.get('krane')!);
+  const tier = vocab.tiers?.[q.get('stufe') ?? ''];
+  if (tier && !value(form, 'message')) setValue(form, 'message', `Interesse an der Abo-Stufe «${tier}».`);
   if (kindSet) goTo(1);
 }
 
-function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, reason: 'send' | 'rate', serverMessage?: string): void {
+/**
+ * Fehlerfläche. `status` 0 = keine Antwort (Netz weg). Eine Ablehnung des Servers (4xx)
+ * nennt ihren Grund – z. B. «zu schnell abgeschickt» –, eine Störung (5xx, Netz) die
+ * Grundtexte; die Fläche wird wiederverwendet, also werden diese einmal gemerkt.
+ */
+function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, status: number, serverMessage?: string): void {
   if (!panel) return;
-  const title = panel.querySelector('[data-fail-title]');
-  const text = panel.querySelector('[data-fail-text]');
-  if (reason === 'rate' && title && text) {
-    title.textContent = 'Zu viele Anfragen in kurzer Zeit.';
-    text.textContent = serverMessage ?? 'Bitte rufen Sie uns an oder schicken Sie Ihre Angaben per E-Mail – der Text ist bereits vorbereitet.';
-  }
+  const title = panel.querySelector<HTMLElement>('[data-fail-title]');
+  const text = panel.querySelector<HTMLElement>('[data-fail-text]');
+  for (const el of [title, text]) if (el && el.dataset.default === undefined) el.dataset.default = el.textContent ?? '';
+  if (title) title.textContent = status === 429 ? 'Zu viele Anfragen in kurzer Zeit.' : title.dataset.default ?? '';
+  if (text) text.textContent = status >= 400 && status < 500 && serverMessage ? serverMessage : text.dataset.default ?? '';
   const mail = panel.querySelector<HTMLAnchorElement>('[data-mailto]');
   if (mail) mail.href = mailto(form, vocab);
   panel.hidden = false;
@@ -312,7 +334,7 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, re
   panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** mailto-Link mit allen Eingaben – derselbe Betreff wie die E-Mail des Servers. */
+/** mailto-Link mit allen Eingaben – derselbe Betreff und dieselben Wörter wie die E-Mail des Servers. */
 function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
   prune(data);
@@ -322,23 +344,14 @@ function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const who = get('company') || get('name');
   const tags = ['Anfrage', vocab.kindSubject?.[kind] ?? kind, urgency ? vocab.urgencySubject?.[urgency] : ''].filter(Boolean);
   const subject = `${tags.map((t) => `[${t}]`).join('')} ${who}${get('place') ? ` – ${get('place')}` : ''}`.trim();
-  const lines: [string, string][] = [
-    ['Worum geht es', vocab.kind?.[kind] ?? kind],
-    ['Was', vocab.need?.[get('need')] ?? ''],
-    ['Teil', get('part')],
-    ['Für Fahrmischer', get('mixer')],
-    ['Anzahl Krane', get('cranes')],
-    ['Dringlichkeit', vocab.urgency?.[urgency] ?? ''],
-    ['Hersteller / Typ', get('maker')],
-    ['Baujahr', get('year')],
-    ['Standort', get('place')],
-    ['Beschreibung', get('message').slice(0, 1200)],
-    ['Name', get('name')],
-    ['Firma', get('company')],
-    ['Telefon', get('phone')],
-    ['E-Mail', get('email')],
-    ['Rückmeldung per', vocab.pref?.[get('contact_pref')] ?? ''],
-  ];
+  const shown: Record<string, string> = {
+    kind: vocab.kind?.[kind] ?? kind,
+    need: vocab.need?.[get('need')] ?? '',
+    urgency: vocab.urgency?.[urgency] ?? '',
+    contact_pref: vocab.pref?.[get('contact_pref')] ?? '',
+    message: get('message').slice(0, 1200),
+  };
+  const lines = vocab.labels.map(([field, label]) => [label, field in shown ? shown[field] : get(field)] as const);
   const photos = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.length ?? 0;
   const body = lines.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n') +
     (photos ? `\n\nFotos: bitte ${photos === 1 ? 'das Foto' : `die ${photos} Fotos`} an diese E-Mail anhängen.` : '');

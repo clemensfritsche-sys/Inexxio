@@ -185,8 +185,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send Contact */
-        post: operations["send_contact_api_v1_contact_post"];
+        /** Anfrage der Website (Formular, multipart) */
+        post: operations["submit_inquiry_api_v1_contact_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1785,22 +1785,6 @@ export interface components {
             plausible_domain?: string | null;
             /** Google Maps Api Key */
             google_maps_api_key?: string | null;
-        };
-        /** ContactRequest */
-        ContactRequest: {
-            /** Name */
-            name: string;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Phone */
-            phone?: string | null;
-            /** Subject */
-            subject: string;
-            /** Message */
-            message: string;
         };
         /**
          * CurrencyOut
@@ -4680,18 +4664,14 @@ export interface operations {
             };
         };
     };
-    send_contact_api_v1_contact_post: {
+    submit_inquiry_api_v1_contact_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ContactRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -4700,15 +4680,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

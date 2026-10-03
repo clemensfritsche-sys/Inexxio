@@ -19,7 +19,7 @@ const { compact = false } = Astro.props;
           <ul class="checklist" role="list">
             {t.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}
           </ul>
-          <a class:list={['btn', t.featured ? 'btn--primary' : 'btn--secondary', 'tier__cta']} href={`/kontakt?typ=abo`} data-track="abo_interest" data-track-prop-tier={t.id}>
+          <a class:list={['btn', t.featured ? 'btn--primary' : 'btn--secondary', 'tier__cta']} href={`/kontakt?typ=abo&stufe=${t.id}`} data-track="abo_interest" data-track-prop-tier={t.id}>
             Abo-Offerte anfragen <Icon name="arrow-right" size={18} class="btn__arrow" />
           </a>
         </>

@@ -337,34 +337,14 @@
         "tags": [
           "contact"
         ],
-        "summary": "Send Contact",
-        "operationId": "send_contact_api_v1_contact_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ContactRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "summary": "Anfrage der Website (Formular, multipart)",
+        "operationId": "submit_inquiry_api_v1_contact_post",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
               }
             }
           }
@@ -4785,53 +4765,6 @@
         "type": "object",
         "title": "CompanySettingsUpdate",
         "description": "Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).\n\n**Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,\nAktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto\nsind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was\nUID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist\ndie Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen\nmit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.\n\n``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**\n(``sites.website_url`` = die Deployment-Adresse), keine Eingabe."
-      },
-      "ContactRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          },
-          "subject": {
-            "type": "string",
-            "maxLength": 300,
-            "minLength": 1,
-            "title": "Subject"
-          },
-          "message": {
-            "type": "string",
-            "maxLength": 5000,
-            "minLength": 1,
-            "title": "Message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "email",
-          "subject",
-          "message"
-        ],
-        "title": "ContactRequest"
       },
       "CurrencyOut": {
         "properties": {

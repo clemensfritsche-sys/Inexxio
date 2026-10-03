@@ -21,17 +21,3 @@ export function CookieSettingsLink({ className }: { className?: string }) {
     </button>
   );
 }
-
-/** Inline-Text-Button für helle Flächen (z. B. in der Datenschutzerklärung). */
-export function CookieSettingsButton({ label = 'Cookie-Einstellungen öffnen' }: { label?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={openCookieSettings}
-      className="font-medium text-inexxio underline underline-offset-2"
-      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-    >
-      {label}
-    </button>
-  );
-}

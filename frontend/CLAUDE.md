@@ -3,8 +3,17 @@
 ## Technologie
 Next.js 14 (statischer Export), TypeScript strict, Tailwind CSS, App Router.
 Dazu **punktuell**, nicht flächendeckend: React Query (nur `konto/page.tsx`),
-react-hook-form + zod (nur das Kontaktformular), ZXing (nur als dynamisch geladener
-Rückfall des Scanners).
+ZXing (nur als dynamisch geladener Rückfall des Scanners).
+
+> ►►► **Die öffentliche Website ist NICHT mehr hier** (Oktober 2026). ◄◄◄ Startseite,
+> Über uns, Kontakt, Impressum und Datenschutz liefert das eigenständige Astro-Projekt in
+> `website/` (siehe `website/WEBSITE_PLAN.md`); die CI kopiert dessen Ausgabe in
+> `frontend/out`. Hier bleiben `/login`, `/konto`, `/erp` und **`/agb`** (der
+> Anmeldedialog verweist darauf). Links auf `/kontakt`, `/datenschutz` usw. in Navbar,
+> Footer und Einwilligung führen damit zur Website – das ist gewollt, nicht kaputt.
+> Mit den Seiten sind `react-hook-form`, `zod`, `@hookform/resolvers`, die
+> `components/ui/*`-Formularbausteine, `app/robots.ts` und `public/robots.txt` gegangen
+> (die Website liefert die eine `robots.txt`).
 
 ## Starten
 ```bash
@@ -17,14 +26,9 @@ npm run build      # Production Build
 ## Struktur
 ```
 src/app/
-├── (public)/       ← Öffentliche Website (kein Auth)
+├── (public)/       ← nur noch die AGB (die Website liegt in `website/`)
 │   ├── layout.tsx  ← Navbar + Footer
-│   ├── page.tsx    ← Homepage
-│   ├── ueber-uns/  ← Über uns
-│   ├── kontakt/    ← Kontaktformular
-│   ├── impressum/  ← Impressum (dynamisch aus API)
-│   ├── agb/        ← AGB (B2B + B2C Tabs)
-│   └── datenschutz/← Datenschutzerklärung
+│   └── agb/        ← AGB (B2B + B2C Tabs) – der Anmeldedialog verweist darauf
 ├── (auth)/
 │   └── login/      ← Magic Link + Google SSO + Passkey (als Pop-up ODER als Route)
 │       └── verify/ ← Rückkehr aus dem Magic Link
@@ -675,8 +679,8 @@ Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
   `useState`-Destrukturierung ist die Form, in der ein Knopf ohne Wirkung auftritt.
 - Server Components für statische Seiten
 - **Im ERP wird nicht abgeschickt, sondern gespeichert** (`use-autosave`, debounced, grüner
-  Rahmen-Flash): ein Detailfenster hat keinen Speichern-Knopf. react-hook-form + zod gelten
-  nur dort, wo es ein echtes **Absenden** gibt – heute allein das Kontaktformular.
+  Rahmen-Flash): ein Detailfenster hat keinen Speichern-Knopf. Ein echtes **Absenden** gibt
+  es nur noch auf der Website (`website/`, Anfrage-Formular) – ohne Formular-Bibliothek.
 - Lucide React für alle Icons
 - TypeScript strict: kein 'any'
 - **Eine Abhängigkeit ohne Import ist Altlast** (`npm ls <name>` sagt nichts darüber, ob sie
@@ -685,9 +689,11 @@ Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
   und der **dynamische** Import (`await import('@zxing/browser')`); beide sind echte Nutzung.
 
 ## Rechtliche Seiten
-- Impressum: Daten dynamisch von /api/v1/admin/settings/public
-- AGB: Vollständiger Schweizer Rechtstext (B2B + B2C)
-- Datenschutz: Vollständig DSGVO + CH DSG konform
+- AGB: Vollständiger Schweizer Rechtstext (B2B + B2C) – bleibt hier, der Anmeldedialog
+  verweist darauf.
+- Impressum und Datenschutz liefert die Website (`website/src/content/legal/`); die
+  Datenschutzerklärung deckt den Kundenbereich mit ab (Anmeldung, Stripe,
+  `inexxio_consent`, Plausible nach Einwilligung).
 
 ### Testnotizen #961–#974 — eine Ursache, zwei Symptome; und der Beleg wird ruhiger
 

@@ -12,8 +12,8 @@ import Rich from './Rich.astro';
   <Icon name="check" size={32} class="iresult__icon" />
   <Rich as="h3" class="iresult__title" text={`Danke. Wir melden uns innert ${site.promises.responseTime}.`} />
   <p>
-    Wir sehen uns Ihre Angaben an und melden uns so, wie Sie es gewählt haben – per Telefon
-    oder E-Mail. Mit E-Mail-Adresse erhalten Sie gleich eine Bestätigung mit Ihren Angaben.
+    Wir sehen uns Ihre Angaben an und melden uns per Telefon oder E-Mail. Haben Sie eine
+    E-Mail-Adresse angegeben, erhalten Sie gleich eine Bestätigung mit Ihren Angaben.
   </p>
   <p>Eilt es? Rufen Sie uns an: <a class="link tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a></p>
 </div>

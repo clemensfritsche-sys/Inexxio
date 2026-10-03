@@ -10,6 +10,7 @@
  */
 import { site, contactEmail } from '../config/site.mjs';
 import { inquiry } from '../config/inquiry.mjs';
+import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
 import FormResult from './FormResult.astro';
@@ -18,15 +19,8 @@ import '../styles/form.css';
 interface Props { id?: string }
 const { id = 'anfrage' } = Astro.props;
 const L = inquiry.limits;
-/** Beschriftungen für den mailto-Text im Fehlerfall – dieselben wie im Formular. */
-const vocab = JSON.stringify({
-  kind: Object.fromEntries(inquiry.kinds.map((k) => [k.value, k.label])),
-  kindSubject: Object.fromEntries(inquiry.kinds.map((k) => [k.value, k.subject])),
-  need: Object.fromEntries(Object.values(inquiry.needs).flat().map((n) => [n.value, n.label])),
-  urgency: Object.fromEntries(inquiry.urgencies.map((u) => [u.value, u.label])),
-  urgencySubject: Object.fromEntries(inquiry.urgencies.map((u) => [u.value, u.subject])),
-  pref: Object.fromEntries(inquiry.contactPrefs.map((p) => [p.value, p.label])),
-});
+/** Vokabular für Prüfung und mailto im Browser – dasselbe, das der Server bekommt. */
+const vocab = JSON.stringify(formVocab());
 const f = (name: string) => `${id}-${name}`;
 ---
 <div class="iform-wrap" data-inquiry-root>
@@ -50,7 +44,7 @@ const f = (name: string) => `${id}-${name}`;
     <input type="hidden" name="source" value={Astro.url.pathname.replace(/\.html$/, '')} />
     <input type="hidden" name="t" value="" />
     <div class="iform__hp" aria-hidden="true">
-      <label>Bitte leer lassen <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
     </div>
 
     <ol class="iform__progress" data-progress hidden aria-label="Fortschritt">
@@ -175,7 +169,7 @@ const f = (name: string) => `${id}-${name}`;
       <div class="field">
         <label class="field__label" for={f('photos')}>Fotos <span class="field__opt">freiwillig, bis zu {inquiry.photos.max}</span></label>
         <input class="input input--file" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
-        <p class="field__hint" id={f('photos-hint')}>Typenschild oder Schaden – JPG, PNG, WEBP oder HEIC, zusammen höchstens 10 MB.</p>
+        <p class="field__hint" id={f('photos-hint')}>Typenschild oder Schaden – JPG, PNG, WEBP oder HEIC, zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
         <ul class="iform__files" data-file-list hidden></ul>
         <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
       </div>
@@ -209,11 +203,13 @@ const f = (name: string) => `${id}-${name}`;
       </div>
       <p class="field__hint" id={f('contact-hint')}>Telefon oder E-Mail genügt. Mit E-Mail erhalten Sie eine Bestätigung Ihrer Angaben.</p>
       <div class="iform__sub">
-        <p class="iform__grouptitle" id={f('pref-title')}>Wie sollen wir uns melden?</p>
+        <p class="iform__grouptitle" id={f('pref-title')}>Wie sollen wir uns melden? <span class="field__opt">freiwillig</span></p>
+        <!-- Bewusst ohne Vorauswahl: «Telefon» vorgewählt verlangte eine Nummer von jemandem,
+             der nur seine E-Mail angibt – obwohl darüber steht, dass eines genügt. -->
         <div class="chips" role="radiogroup" aria-labelledby={f('pref-title')}>
-          {inquiry.contactPrefs.map((p, i) => (
+          {inquiry.contactPrefs.map((p) => (
             <label class="chip">
-              <input type="radio" name="contact_pref" value={p.value} checked={i === 0} />
+              <input type="radio" name="contact_pref" value={p.value} />
               <span>{p.label}</span>
             </label>
           ))}
