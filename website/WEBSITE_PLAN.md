@@ -198,4 +198,4 @@ Erhoben über die Websuche (hs-steiner.ch selbst ist von hier aus gesperrt). Vol
       Sichtprüfung aller Seiten – 7 Befunde behoben (Entscheidungen 22–28).
       *Nicht prüfbar von hier:* externe Links (Netzwerkrichtlinie), echte Geräte und andere
       Browser-Engines als Chromium.
-- [ ] **7 – Abschlussbericht** und Deploy
+- [x] **7 – Abschlussbericht** (`WEBSITE_REPORT_20261003.md`) und Deploy (Push auf `develop`)

@@ -4960,7 +4960,9 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
 > Astro 7 (Node ≥ 22.12), reines HTML ohne Laufzeit-Framework, Progressive Enhancement.
 > **Zuerst lesen:** `website/WEBSITE_PLAN.md` (Entscheidungen, Änderungen ausserhalb von
 > `website/`, Phasen), danach `website/AUFTRAG.md` (der Auftrag im Wortlaut). Offene
-> Punkte: `website/OFFENE_PUNKTE.md` (generiert – nie von Hand ändern).
+> Punkte: `website/OFFENE_PUNKTE.md` (generiert – nie von Hand ändern). Testergebnisse,
+> was nicht geprüft werden konnte, und die **Start-Checkliste** (Mailversand, Domain,
+> `SITE_MODE=live`): `website/WEBSITE_REPORT_20261003.md`.
 
 - **Eine Quelle**: `website/src/config/site.mjs` (Name, Telefon, Adresse, Navigation,
   Schalter, SEO). Texte setzen Werte mit `{{schlüssel}}` ein; offene Punkte sind
