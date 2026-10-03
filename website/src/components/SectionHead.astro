@@ -1,0 +1,19 @@
+---
+import Rich from './Rich.astro';
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  id?: string;
+  level?: 'h1' | 'h2';
+  class?: string;
+}
+const { eyebrow, title, lead, id, level = 'h2', class: cls } = Astro.props;
+---
+<header class:list={['head', cls]}>
+  {eyebrow && <Rich as="p" class="label" text={eyebrow} />}
+  <Rich as={level} id={id} text={title} />
+  {lead && <Rich as="p" class="lead" text={lead} />}
+  <slot />
+</header>

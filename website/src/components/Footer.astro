@@ -1,0 +1,115 @@
+---
+import { site, contactEmail } from '../config/site.mjs';
+import { plain, rich } from '../lib/text.mjs';
+import Icon from './Icon.astro';
+import Lockup from './Lockup.astro';
+
+const [krane, fahrmischer] = site.nav;
+const year = new Date().getFullYear();
+const company = [
+  { label: plain('Aus HS Steiner wird {{brand.name}}'), href: '/uebergabe' },
+  { label: 'Über uns', href: '/ueber-uns' },
+  { label: 'Einsatzgebiet', href: '/einsatzgebiet' },
+  { label: 'Ratgeber', href: '/ratgeber' },
+  { label: 'Karriere', href: '/karriere' },
+];
+const a = site.address;
+---
+<footer class="site-footer on-dark">
+  <div class="wrap">
+    <div class="site-footer__grid">
+      <div class="site-footer__brand">
+        <a href="/" class="site-footer__home" aria-label={`${site.brand.name} – zur Startseite`}><Lockup tone="dark" /></a>
+        <p class="site-footer__claim" set:html={rich(site.footer.claim)} />
+      </div>
+
+      <nav class="site-footer__col" aria-label="Krane">
+        <h2 class="site-footer__title"><a href={krane.href}>Krane</a></h2>
+        <ul role="list">
+          {krane.children?.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+          <li><a href="/service-abo">Service-Abo &amp; Kranbuch</a></li>
+        </ul>
+      </nav>
+
+      <nav class="site-footer__col" aria-label="Fahrmischer und Unternehmen">
+        <h2 class="site-footer__title"><a href={fahrmischer.href}>Fahrmischer</a></h2>
+        <ul role="list">
+          {fahrmischer.children?.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+        </ul>
+        <h2 class="site-footer__title site-footer__title--gap">Unternehmen</h2>
+        <ul role="list">
+          {company.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+        </ul>
+      </nav>
+
+      <div class="site-footer__col">
+        <h2 class="site-footer__title">Kontakt</h2>
+        <address class="site-footer__contact">
+          <p>
+            <span class="site-footer__k"><Icon name="map-pin" size={16} /></span>
+            <span>{a.street}<br />{a.zip} {a.city} ({a.municipality} {a.canton})</span>
+          </p>
+          <p>
+            <span class="site-footer__k"><Icon name="phone" size={16} /></span>
+            <span>Telefon <a href={`tel:${site.phone.e164}`} data-track="tel_click" class="tnum">{site.phone.display}</a></span>
+          </p>
+          {site.features.pikett && (
+            <p>
+              <span class="site-footer__k"><Icon name="siren" size={16} /></span>
+              <span>Pikett <a href={`tel:${site.pikett.e164}`} data-track="pikett_click" class="tnum">{site.pikett.display}</a> <span set:html={rich(site.pikett.review)} /></span>
+            </p>
+          )}
+          <p>
+            <span class="site-footer__k"><Icon name="mail" size={16} /></span>
+            <span><a href={`mailto:${contactEmail()}`} data-track="mailto_click">{contactEmail()}</a> <span set:html={rich(site.email.primary)} /></span>
+          </p>
+          <p>
+            <span class="site-footer__k"><Icon name="clock" size={16} /></span>
+            <span>{site.hours.text} <span set:html={rich(site.hours.review)} /></span>
+          </p>
+        </address>
+      </div>
+    </div>
+
+    <div class="site-footer__bottom">
+      <p>© {year} {site.brand.name}</p>
+      <ul role="list">
+        <li><a href="/impressum">Impressum</a></li>
+        <li><a href="/datenschutz">Datenschutz</a></li>
+        <li>UID <span set:html={rich(site.brand.uid)} /></li>
+        <li><a href={site.login.href} rel="nofollow">{site.login.label}</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer { background: var(--dark); color: rgba(244, 243, 241, 0.78); padding-top: var(--s-8); font-size: 0.9375rem; }
+  .site-footer a { color: var(--white); text-decoration: none; }
+  .site-footer a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .site-footer__grid {
+    display: grid; gap: var(--s-7) var(--s-6); grid-template-columns: minmax(0, 1fr);
+    padding-bottom: var(--s-7); border-bottom: 1px solid var(--line-dark);
+  }
+  @media (min-width: 720px) { .site-footer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .site-footer__grid { grid-template-columns: 1.5fr 1fr 1fr 1.35fr; } }
+  .site-footer__home { display: inline-flex; min-height: 44px; align-items: center; }
+  .site-footer__claim { margin-top: var(--s-4); max-width: 34ch; color: rgba(244, 243, 241, 0.72); line-height: 1.55; }
+  .site-footer__title {
+    font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; letter-spacing: 0.08em;
+    text-transform: uppercase; color: rgba(244, 243, 241, 0.6); margin-bottom: var(--s-3);
+  }
+  .site-footer__title a { color: inherit; }
+  .site-footer__title--gap { margin-top: var(--s-6); }
+  .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 2px; }
+  .site-footer__col li a { display: inline-flex; align-items: center; min-height: 36px; }
+  .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }
+  .site-footer__contact p { display: grid; grid-template-columns: 22px 1fr; gap: 8px; max-width: none; line-height: 1.5; }
+  .site-footer__k { color: rgba(244, 243, 241, 0.55); padding-top: 3px; }
+  .site-footer__bottom {
+    display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-6); justify-content: space-between; align-items: center;
+    padding-block: var(--s-5) var(--s-6); font-size: 0.875rem; color: rgba(244, 243, 241, 0.6);
+  }
+  .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); align-items: center; }
+  .site-footer__bottom a { color: rgba(244, 243, 241, 0.85); display: inline-flex; min-height: 44px; align-items: center; }
+</style>

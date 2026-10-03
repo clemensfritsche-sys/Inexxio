@@ -1,0 +1,45 @@
+---
+/**
+ * ►►► Das Erkennungsmerkmal: die Kranbahn-Linie. ◄◄◄
+ * Eine 1-px-Linie mit einem kleinen roten Quadrat – die Laufkatze auf der Kranbahn.
+ * Höchstens dreimal pro Seite (scripts/check-site.mjs zählt nach). Zeichnet sich beim
+ * Hineinscrollen einmal ein: die Linie wächst (scaleX), dann fährt die Katze ein –
+ * nur transform/opacity, bei reduzierter Bewegung sofort fertig, ohne JS sofort da.
+ */
+interface Props {
+  /** Position der Laufkatze auf der Bahn, 0–100. */
+  at?: number;
+  class?: string;
+}
+const { at = 18, class: cls } = Astro.props;
+const pos = `kranbahn--at-${Math.max(0, Math.min(100, Math.round(at / 2) * 2))}`;
+---
+<div class:list={['kranbahn', pos, cls]} data-kranbahn aria-hidden="true">
+  <span class="kranbahn__rail"></span>
+  <span class="kranbahn__cat"></span>
+</div>
+
+<style>
+  .kranbahn { position: relative; height: 13px; width: 100%; }
+  .kranbahn__rail {
+    position: absolute; left: 0; right: 0; top: 6px; height: 1px; background: var(--ink);
+    transform-origin: left center;
+  }
+  .kranbahn__cat { position: absolute; top: 0; width: 13px; height: 13px; background: var(--red); left: 18%; }
+  :global(.section--dark) .kranbahn__rail, :global(.on-dark) .kranbahn__rail { background: rgba(255, 255, 255, 0.5); }
+  .kranbahn.is-armed .kranbahn__rail { transform: scaleX(0); }
+  .kranbahn.is-armed .kranbahn__cat { opacity: 0; transform: translateX(-28px); }
+  .kranbahn.is-drawn .kranbahn__rail { transform: scaleX(1); transition: transform 800ms var(--ease); }
+  .kranbahn.is-drawn .kranbahn__cat {
+    opacity: 1; transform: none;
+    transition: opacity 400ms var(--ease) 450ms, transform 600ms var(--ease) 400ms;
+  }
+  .kranbahn--at-0 .kranbahn__cat { left: 0; }
+  .kranbahn--at-10 .kranbahn__cat { left: 10%; }
+  .kranbahn--at-18 .kranbahn__cat { left: 18%; }
+  .kranbahn--at-30 .kranbahn__cat { left: 30%; }
+  .kranbahn--at-42 .kranbahn__cat { left: 42%; }
+  .kranbahn--at-58 .kranbahn__cat { left: 58%; }
+  .kranbahn--at-70 .kranbahn__cat { left: 70%; }
+  .kranbahn--at-82 .kranbahn__cat { left: 82%; }
+</style>

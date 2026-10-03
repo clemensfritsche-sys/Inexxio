@@ -1,0 +1,44 @@
+---
+/**
+ * Ankündigungsleiste über dem Header – per `features.announcement` schaltbar.
+ * Schliessen merkt sich der Browser (localStorage, mit try/catch). Damit eine geschlossene
+ * Leiste beim nächsten Seitenaufruf nicht kurz aufblitzt und den Inhalt verschiebt, liest
+ * das kleine Kopf-Skript (scripts/early.js) den Wert schon vor dem ersten Zeichnen.
+ */
+import { site } from '../config/site.mjs';
+import { rich } from '../lib/text.mjs';
+import Icon from './Icon.astro';
+
+const a = site.announcement;
+---
+<div class="announce on-dark" data-announce-bar role="region" aria-label="Hinweis">
+  <div class="wrap announce__inner">
+    <p class="announce__text">
+      <span set:html={rich(a.text)} />
+      <span set:html={rich(a.review)} />
+      <a href={a.link.href} class="announce__link">{a.link.label} <Icon name="arrow-right" size={16} /></a>
+    </p>
+    <button type="button" class="announce__close" data-announce-close hidden>
+      <Icon name="x" size={18} />
+      <span class="visually-hidden">Hinweis schliessen</span>
+    </button>
+  </div>
+</div>
+
+<style>
+  .announce { background: var(--dark); color: var(--on-dark); font-size: 0.9375rem; }
+  :global(html.announce-off) .announce { display: none; }
+  .announce__inner { display: flex; align-items: center; gap: var(--s-3); min-height: 44px; padding-block: 6px; }
+  .announce__text { flex: 1; max-width: none; color: var(--on-dark); line-height: 1.4; }
+  .announce__link {
+    display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; font-weight: 600;
+    color: var(--white); text-decoration: underline; text-decoration-color: rgba(255, 255, 255, 0.4);
+    text-underline-offset: 0.2em; white-space: nowrap;
+  }
+  .announce__link:hover { text-decoration-color: currentColor; }
+  .announce__close {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; margin-right: -12px; color: rgba(255, 255, 255, 0.8);
+  }
+  .announce__close:hover { color: var(--white); }
+</style>

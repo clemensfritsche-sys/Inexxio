@@ -1,0 +1,124 @@
+---
+/**
+ * Grundgerüst jeder Seite: Kopf (Meta, CSP, JSON-LD), Ankündigung, Header, Inhalt,
+ * Footer, mobile Aktionsleiste.
+ *
+ * - Modus «preview»: noindex, Markierungen sichtbar, Hinweisbalken oben.
+ * - Modus «live»:    indexierbar, keine Markierungen (der Build bricht sonst vorher ab).
+ */
+import '../styles/global.css';
+import fontUrl from '../assets/fonts/inter-latin-wght-normal.woff2?url';
+import earlyUrl from '../scripts/early.js?url';
+import { site } from '../config/site.mjs';
+import { plain, siteMode } from '../lib/text.mjs';
+import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from '../lib/seo.mjs';
+import Announcement from '../components/Announcement.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import MobileBar from '../components/MobileBar.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+
+export interface Crumb { name: string; path: string }
+
+interface Props {
+  /** Seitentitel ohne Zusatz; der Zusatz «| INEXXIO (ehemals HS Steiner)» kommt von selbst. */
+  title: string;
+  /** Vollständiger Titel, wenn der Zusatz anders lauten muss (Startseite). */
+  titleFull?: string;
+  description: string;
+  /** Pfad-Kette für Breadcrumbs (ohne Startseite); leer = keine Breadcrumbs. */
+  crumbs?: Crumb[];
+  og?: 'default' | 'krane' | 'fahrmischer';
+  /** Zusätzliche JSON-LD-Knoten dieser Seite. */
+  jsonLd?: object[];
+  noindex?: boolean;
+}
+
+const { title, titleFull, description, crumbs = [], og = 'default', jsonLd = [], noindex = false } = Astro.props;
+const mode = siteMode();
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '').replace(/\/$/, '') || '/';
+const canonical = abs(siteUrl, path);
+const fullTitle = plain(titleFull ?? `${title} | ${site.brand.full}`);
+const desc = plain(description);
+const ogImage = `${siteUrl}/og/${og}.png`;
+const indexable = mode === 'live' && !noindex;
+
+const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [breadcrumbNode(siteUrl, crumbs)] : []), ...jsonLd];
+
+// Strenge Richtlinie der Website (zusätzlich zur globalen Header-CSP): Skripte nur vom
+// eigenen Ursprung, keine Fremd-Einbettungen. Im Dev-Server nicht, dort braucht Vite Inline-Skripte.
+const csp = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  'upgrade-insecure-requests',
+].join('; ');
+---
+<!doctype html>
+<html lang="de-CH" data-announce={site.features.announcement ? site.announcement.id : undefined}>
+  <head>
+    <meta charset="utf-8" />
+    {import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={csp} />}
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={desc} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={indexable ? 'index, follow' : 'noindex, nofollow'} />
+    <meta name="theme-color" content="#FFFFFF" />
+    <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
+    <script is:inline src={earlyUrl}></script>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="de_CH" />
+    <meta property="og:site_name" content={plain(site.brand.full)} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={plain(`${site.brand.full} – ${site.brand.descriptor}`)} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={desc} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={graph(nodes)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+    {mode === 'preview' && (
+      <p class="mode-banner">Vorschau – nicht öffentlich. Gelb markierte Stellen sind offene Punkte.</p>
+    )}
+    {site.features.announcement && <Announcement />}
+    <Header />
+    <main id="inhalt" tabindex="-1">
+      {crumbs.length > 0 && <Breadcrumbs crumbs={crumbs} />}
+      <slot />
+    </main>
+    <Footer />
+    <MobileBar />
+    <script>
+      // EIN Einstieg für das, was jede Seite braucht – eine Anfrage statt fünf.
+      import { initHeader } from '../scripts/header';
+      import { initAnnouncement } from '../scripts/announce';
+      import { initMobileBar } from '../scripts/mobilebar';
+      import { initTracking } from '../scripts/track';
+      import { initReveal } from '../scripts/reveal';
+      initHeader();
+      initAnnouncement();
+      initMobileBar();
+      initTracking();
+      initReveal();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+---
+/** Sichtbare Pfadnavigation; die strukturierte Fassung (BreadcrumbList) setzt Base.astro. */
+import { plain } from '../lib/text.mjs';
+
+interface Props { crumbs: { name: string; path: string }[] }
+const { crumbs } = Astro.props;
+const all = [{ name: 'Startseite', path: '/' }, ...crumbs];
+---
+<nav class="crumbs wrap" aria-label="Pfadnavigation">
+  <ol>
+    {all.map((c, i) => (
+      <li>
+        {i < all.length - 1
+          ? <a href={c.path}>{plain(c.name)}</a>
+          : <span aria-current="page">{plain(c.name)}</span>}
+      </li>
+    ))}
+  </ol>
+</nav>
+
+<style>
+  .crumbs { padding-top: var(--s-4); }
+  .crumbs ol { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0 2px; font-size: 0.875rem; color: var(--ink-3); }
+  .crumbs li { display: inline-flex; align-items: center; }
+  .crumbs li + li::before { content: '/'; margin: 0 8px; color: var(--line-2); }
+  .crumbs a { color: var(--ink-3); text-decoration: none; display: inline-flex; min-height: 32px; align-items: center; }
+  .crumbs a:hover { color: var(--ink); text-decoration: underline; }
+  .crumbs [aria-current] { color: var(--ink); }
+</style>
