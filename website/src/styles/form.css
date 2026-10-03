@@ -1,0 +1,119 @@
+/* Formulare (Anfrage, Kurzformular, Prüfpflicht-Check) – geteilt, einmal je Seite geladen. */
+
+.iform { display: grid; gap: var(--s-7); position: relative; }
+.iform--short { gap: var(--s-4); }
+.iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.iform__step { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--s-4); }
+.iform__legend { display: grid; gap: 6px; padding: 0; margin-bottom: var(--s-2); float: left; width: 100%; }
+.iform__legend + * { clear: both; }
+.iform__legend .h3 { color: var(--ink); }
+.iform__row { display: grid; gap: var(--s-4); }
+@media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.field--narrow { max-width: 220px; }
+.field__opt { font-weight: 400; color: var(--ink-3); font-size: 0.875rem; }
+.input--file { padding: 9px 10px; background: var(--paper); }
+.input--file::file-selector-button {
+  font: inherit; font-weight: 600; margin-right: 12px; padding: 8px 14px; border: 1px solid var(--ink);
+  border-radius: var(--radius); background: var(--white); color: var(--ink); cursor: pointer;
+}
+.iform__files { list-style: none; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
+.iform__files li { display: flex; gap: 8px; }
+.iform__files li span:last-child { color: var(--ink-3); margin-left: auto; }
+
+/* Auswahlkacheln (Schritt 1) */
+.tiles { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { position: relative; display: block; cursor: pointer; }
+.tile input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.tile__body {
+  display: grid; gap: 4px; min-height: 76px; padding: 16px 48px 16px 18px; background: var(--white);
+  border: 1px solid var(--line-2); border-radius: var(--radius); position: relative;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.tile__body::after {
+  content: ''; position: absolute; top: 18px; right: 18px; width: 14px; height: 14px;
+  border: 1px solid var(--ink-3); border-radius: 1px; background: var(--white);
+}
+.tile:hover .tile__body { border-color: var(--ink-3); }
+.tile input:checked + .tile__body { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.tile input:checked + .tile__body::after { background: var(--red); border-color: var(--red); }
+.tile input:focus-visible + .tile__body { outline: 2px solid var(--ink); outline-offset: 2px; }
+.tile__label { font-weight: 650; color: var(--ink); }
+.tile__hint { font-size: 0.9rem; color: var(--ink-3); line-height: 1.4; }
+
+/* Auswahl-Chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; display: inline-flex; }
+.chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.chip span {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px;
+  border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--white);
+  font-weight: 500; color: var(--ink); cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.chip:hover span { border-color: var(--ink-3); }
+.chip input:checked + span { background: var(--ink); border-color: var(--ink); color: var(--white); }
+.chip input:checked + span::before { content: ''; width: 8px; height: 8px; background: var(--red); flex: none; }
+.chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.iform__group, .iform__sub { display: grid; gap: 10px; }
+.iform__sub { margin-top: var(--s-3); }
+.iform__plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+.iform__plain legend { padding: 0; margin-bottom: 10px; }
+.iform__grouptitle { font-weight: 600; color: var(--ink); font-size: 0.97rem; }
+.iform__pick-first { color: var(--ink-3); }
+
+/* Passende Zusatzfragen und Pikett-Hinweis – ohne JS, per :has(). Ohne :has bleibt alles sichtbar. */
+@supports selector(:has(*)) {
+  .iform__group { display: none; }
+  .iform:has(input[name='kind'][value='kran']:checked) [data-group='kran'],
+  .iform:has(input[name='kind'][value='fahrmischer']:checked) [data-group='fahrmischer'],
+  .iform:has(input[name='kind'][value='teile']:checked) [data-group='teile'],
+  .iform:has(input[name='kind'][value='abo']:checked) [data-group='abo'],
+  .iform:has(input[name='kind'][value='anderes']:checked) [data-group='anderes'] { display: grid; }
+  .iform:has(input[name='kind']:checked) .iform__pick-first { display: none; }
+  .pikett-box { display: none !important; }
+  .iform:has(input[name='urgency'][value='dringend']:checked) .pikett-box { display: flex !important; }
+}
+@supports not selector(:has(*)) {
+  .iform__pick-first { display: none; }
+}
+
+.pikett-box {
+  display: flex; gap: var(--s-4); align-items: flex-start; padding: var(--s-5);
+  background: var(--paper); border-left: 3px solid var(--red); color: var(--ink);
+}
+.pikett-box .icon { flex: none; color: var(--red-deep); margin-top: 4px; }
+.pikett-box__title { font-weight: 650; color: var(--ink); }
+.pikett-box__num {
+  display: inline-block; margin-top: 4px; font-size: clamp(1.75rem, 1.45rem + 1.3vw, 2.5rem);
+  font-weight: 700; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; line-height: 1.1;
+}
+.pikett-box__num:hover { text-decoration: underline; text-decoration-thickness: 2px; }
+
+/* Schritte (nur mit JS) */
+.iform--steps .iform__step:not(.is-current) { display: none; }
+.iform__progress { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.iform__progress li {
+  padding-top: 10px; border-top: 2px solid var(--line-2); font-size: 0.875rem; color: var(--ink-3);
+  display: grid; gap: 2px;
+}
+.iform__progress li.is-done { border-top-color: var(--ink); color: var(--ink-2); }
+.iform__progress li.is-current { border-top-color: var(--red); color: var(--ink); font-weight: 600; }
+@media (max-width: 479px) { .iform__progress li { font-size: 0; } .iform__progress li .label { font-size: 0.72rem; } }
+
+.iform__nav { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+.iform__nav [data-submit], .iform__nav [data-next] { margin-left: auto; }
+.iform__foot { display: grid; gap: var(--s-3); justify-items: start; }
+.iform[aria-busy='true'] [data-submit] { opacity: 0.6; pointer-events: none; }
+
+/* Ergebnis */
+.iresult {
+  display: grid; gap: var(--s-3); padding: var(--s-6); background: var(--white);
+  border: 1px solid var(--line-2); border-left: 3px solid var(--ok);
+}
+.iresult--fail { border-left-color: var(--red); margin-bottom: var(--s-6); }
+.iresult__icon { color: var(--ok); }
+.iresult--fail .iresult__icon { color: var(--red-deep); }
+.iresult__title { font-size: 1.375rem; }
+.iresult:focus { outline: none; }

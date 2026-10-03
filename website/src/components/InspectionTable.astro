@@ -1,0 +1,37 @@
+---
+/** Prüfpflicht als Tabelle – immer sichtbar, auch ohne JavaScript. Daten: config/inspection.mjs */
+import { inspection } from '../config/inspection.mjs';
+import Rich from './Rich.astro';
+
+const ages = inspection.ages.map((a) => `${a.label}: ${a.expertEvery}`).join(' · ');
+---
+<div class="table-scroll">
+  <table class="facts ptable">
+    <caption class="visually-hidden">Prüfpflicht nach Kranart</caption>
+    <thead>
+      <tr>
+        <th scope="col">Kranart</th>
+        <th scope="col">Überprüfung durch Kranfachleute</th>
+        <th scope="col">Kontrolle durch Kranexperten (von der Suva anerkannt)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {inspection.types.map((t) => (
+        <tr>
+          <th scope="row"><span class="ptable__type">{t.label}</span><span class="ptable__hint">{t.hint}</span></th>
+          <td>{t.expert ? 'jährlich' : 'regelmässig, nach Herstellerangaben'}</td>
+          <td>{t.expert ? ages : 'nicht vorgesehen'}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+<p class="small muted ptable__note"><Rich as="span" text={`${inspection.note} ${inspection.review}`} /></p>
+
+<style>
+  .ptable__type, .ptable__hint { display: block; }
+  .ptable__hint { margin-top: 2px; }
+  .ptable__hint { font-weight: 400; font-size: 0.875rem; color: var(--ink-3); }
+  .ptable td { min-width: 12rem; }
+  .ptable__note { margin-top: var(--s-3); }
+</style>

@@ -58,6 +58,31 @@ export const photos = {
     brief: 'Detail Verschleissteile: neue Rinne, Schurre und Spiralschutz nebeneinander auf der Werkbank, quer',
     ratio: '4/3',
   },
+  'teil-auslaufrinne': {
+    alt: 'Auslaufrinne für Fahrmischer',
+    brief: 'Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer',
+    ratio: '4/3',
+  },
+  'teil-verlaengerungsrinne': {
+    alt: 'Verlängerungsrinne für Fahrmischer',
+    brief: 'Produktfoto Verlängerungsrinne, quer',
+    ratio: '4/3',
+  },
+  'teil-einfuelltrichter': {
+    alt: 'Einfülltrichter eines Fahrmischers',
+    brief: 'Produktfoto Einfülltrichter, quer',
+    ratio: '4/3',
+  },
+  'teil-auslaufschurre': {
+    alt: 'Auslaufschurre eines Fahrmischers',
+    brief: 'Produktfoto Auslaufschurre, quer',
+    ratio: '4/3',
+  },
+  'teil-spiralschutz': {
+    alt: 'Spiralschutz für die Mischspiralen eines Fahrmischers',
+    brief: 'Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer',
+    ratio: '4/3',
+  },
   'clemens-heiri-quer': {
     alt: 'Clemens Fritsche und Heiri Steiner vor der Werkstatt in Tuttwil',
     brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Querformat',

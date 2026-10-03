@@ -1,0 +1,6 @@
+---
+import Legal from '../layouts/Legal.astro';
+import { legalDoc } from '../lib/legal';
+const doc = await legalDoc('impressum');
+---
+<Legal doc={doc} path="/impressum" />

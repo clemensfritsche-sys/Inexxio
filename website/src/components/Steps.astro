@@ -1,0 +1,46 @@
+---
+/**
+ * Ablauf in vier Schritten (Anfrage → Termin → Arbeit vor Ort → Bericht), verbunden durch
+ * die Kranbahn-Linie: waagrecht über den Schritten, mobil senkrecht daneben.
+ * Zählt als EINE der höchstens drei Kranbahn-Linien einer Seite.
+ */
+import Rich from './Rich.astro';
+
+interface Props {
+  steps: { title: string; text: string }[];
+}
+const { steps } = Astro.props;
+---
+<ol class="steps" role="list">
+  <li class="steps__rail" aria-hidden="true" data-kranbahn><span class="steps__line"></span><span class="steps__cat"></span></li>
+  {steps.map((s, i) => (
+    <li class="steps__item">
+      <p class="label">{String(i + 1).padStart(2, '0')} — {s.title}</p>
+      <Rich as="p" class="steps__text" text={s.text} />
+    </li>
+  ))}
+</ol>
+
+<style>
+  .steps { list-style: none; padding: 0 0 0 28px; margin: 0; display: grid; gap: var(--s-6); position: relative; }
+  .steps__rail { position: absolute; left: 6px; top: 6px; bottom: 6px; width: 13px; }
+  .steps__line { position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--ink); transform-origin: top center; }
+  .steps__cat { position: absolute; left: 0; top: 0; width: 13px; height: 13px; background: var(--red); }
+  .steps__item { display: grid; gap: var(--s-2); align-content: start; }
+  .steps__item .label { color: var(--ink); font-weight: 600; }
+  .steps__text { color: var(--ink-2); max-width: 34ch; }
+  :global(.section--dark) .steps__line { background: rgba(255, 255, 255, 0.5); }
+  :global(.section--dark) .steps__item .label { color: var(--white); }
+
+  .steps__rail:global(.is-armed) .steps__line { transform: scaleY(0); }
+  .steps__rail:global(.is-armed) .steps__cat { opacity: 0; }
+  .steps__rail:global(.is-drawn) .steps__line { transform: none; transition: transform 800ms var(--ease); }
+  .steps__rail:global(.is-drawn) .steps__cat { opacity: 1; transition: opacity 400ms var(--ease) 450ms; }
+
+  @media (min-width: 900px) {
+    .steps { grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); padding: 34px 0 0; gap: var(--s-5); }
+    .steps__rail { left: 0; right: 0; top: 0; bottom: auto; width: auto; height: 13px; }
+    .steps__line { left: 0; right: 0; top: 6px; bottom: auto; width: auto; height: 1px; transform-origin: left center; }
+    .steps__rail:global(.is-armed) .steps__line { transform: scaleX(0); }
+  }
+</style>

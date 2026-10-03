@@ -35,6 +35,8 @@ const MAP = {
   '--border-1': '--line',
   '--border-2': '--line-2',
   '--border-on-dark': '--line-dark',
+  '--accent': '--slate',
+  '--accent-soft': '--slate-soft',
   '--success': '--ok',
   '--warning': '--amber',
   '--warning-bg': '--amber-bg',

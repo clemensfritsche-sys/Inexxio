@@ -1,0 +1,51 @@
+---
+/** Abo-Stufen als Karten (Desktop nebeneinander, mobil gestapelt), mittlere hervorgehoben. */
+import { abo } from '../config/abo.mjs';
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+---
+<div class:list={['tiers', compact && 'tiers--compact']}>
+  {abo.tiers.map((t) => (
+    <article class:list={['tier', t.featured && 'tier--featured']} aria-labelledby={`tier-${t.id}`}>
+      <h3 class="tier__name" id={`tier-${t.id}`}>{t.name}</h3>
+      <Rich as="p" class="tier__summary" text={t.summary} />
+      <Rich as="p" class="tier__price" text={abo.price} />
+      {!compact && (
+        <>
+          {t.includes && <p class="tier__includes">{t.includes}</p>}
+          <ul class="checklist" role="list">
+            {t.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}
+          </ul>
+          <a class:list={['btn', t.featured ? 'btn--primary' : 'btn--secondary', 'tier__cta']} href={`/kontakt?typ=abo`} data-track="abo_interest" data-track-prop-tier={t.id}>
+            Abo-Offerte anfragen <Icon name="arrow-right" size={18} class="btn__arrow" />
+          </a>
+        </>
+      )}
+    </article>
+  ))}
+</div>
+
+<style>
+  .tiers { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  @media (min-width: 900px) { .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); } }
+  .tier {
+    position: relative; display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-6);
+    background: var(--white); border: 1px solid var(--line-2);
+  }
+  .tier--featured { border: 2px solid var(--ink); }
+  .tier--featured::before { content: ''; position: absolute; top: -1px; right: -1px; width: 13px; height: 13px; background: var(--red); }
+  .tier__name { font-size: 1.5rem; }
+  .tier__summary { color: var(--ink-2); }
+  .tier__price { font-weight: 650; color: var(--ink); padding-bottom: var(--s-3); border-bottom: 1px solid var(--line); }
+  .tier__includes { font-size: 0.9375rem; color: var(--ink-3); }
+  .tier .checklist { flex: 1; }
+  .tier__cta { margin-top: var(--s-4); align-self: flex-start; }
+  .tiers--compact .tier { padding: var(--s-5); }
+  :global(.section--dark) .tier { background: var(--dark-2); border-color: var(--line-dark); }
+  :global(.section--dark) .tier--featured { border-color: var(--white); }
+  :global(.section--dark) .tier__price { border-color: var(--line-dark); color: var(--white); }
+  :global(.section--dark) .tier__summary { color: rgba(244, 243, 241, 0.78); }
+</style>

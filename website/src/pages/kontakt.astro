@@ -1,0 +1,67 @@
+---
+/** /kontakt – Hauptformular, direkte Kontakte, Pikett gross, Öffnungszeiten, Anfahrt (statische Karte + Routen-Link), Adresse. */
+import Base from '../layouts/Base.astro';
+import InquiryForm from '../components/InquiryForm.astro';
+import ContactPanel from '../components/ContactPanel.astro';
+import AreaMap from '../components/AreaMap.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { kontakt as k } from '../content/kontakt';
+const a = site.address;
+const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
+---
+<Base title={k.title} description={k.description} crumbs={[{ name: 'Kontakt', path: '/kontakt' }]}>
+  <section class="section kt-head" data-hero>
+    <div class="wrap">
+      <p class="label">Kontakt</p>
+      <h1 class="kt-title">{k.h1}</h1>
+      <Rich as="p" class="lead" text={k.lead} />
+    </div>
+  </section>
+
+  <section class="section kt-main" aria-label="Anfrage">
+    <div class="wrap grid">
+      <div class="col-7">
+        <InquiryForm />
+      </div>
+      <aside class="col-4 kt-aside" aria-label="Direkter Kontakt">
+        <ContactPanel pikettFirst={site.features.pikett} />
+      </aside>
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="anfahrt">
+    <div class="wrap grid kt-map">
+      <div class="col-5 kt-map__text">
+        <SectionHead eyebrow="Anfahrt" title="So finden Sie uns" id="anfahrt" class="head--flush" />
+        <address class="kt-addr">
+          <strong>{site.brand.name}</strong> <span class="muted">({site.brand.formerly})</span><br />
+          {a.street}<br />
+          {a.zip} {a.city}<br />
+          {a.municipality} {a.canton}, {a.countryName}
+        </address>
+        <Rich as="p" class="small" text={`${site.hours.text} ${site.hours.review}`} />
+        <a class="btn btn--secondary" href={route} rel="noopener">{k.route} <Icon name="external-link" size={18} /></a>
+        <Rich as="p" class="small muted" text={k.summary} />
+      </div>
+      <div class="col-7 kt-map__map">
+        <AreaMap />
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .kt-head { padding-block: var(--s-6) var(--s-5); }
+  .kt-head .wrap { display: grid; gap: var(--s-3); }
+  .kt-title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+  .kt-main { padding-top: var(--s-5); }
+  @media (min-width: 960px) { .kt-aside { grid-column: 9 / span 4; } }
+  .kt-map { align-items: center; }
+  .kt-map__text { display: grid; gap: var(--s-4); justify-items: start; }
+  .head--flush { margin-bottom: 0; }
+  .kt-addr { font-style: normal; color: var(--ink); font-size: 1.125rem; line-height: 1.6; }
+  @media (min-width: 960px) { .kt-map__map { grid-column: 7 / span 6; } }
+</style>

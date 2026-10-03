@@ -21,6 +21,14 @@
  * lesen dieselbe Datei ohne Übersetzungsschritt.
  */
 
+/** Werdegang von Clemens Fritsche – als Liste (Über uns) und als Satz (JSON-LD, llms.txt). */
+const ownerCareer = [
+  'Maschinenbauingenieur',
+  'Produktentwicklung bei Liebherr (Baumaschinen)',
+  'Produkt- und Plattformmanagement im IoT-Umfeld',
+  'Weiterbildung in Betriebswirtschaft',
+];
+
 export const site = {
   brand: {
     name: 'INEXXIO',
@@ -52,6 +60,8 @@ export const site = {
     handoverDate: '[[PLATZHALTER: Übergabedatum]]',
     /** Formulierung statt einer Zahl, die jedes Jahr nachgeführt werden müsste. */
     experience: 'über 40 Jahre',
+    /** Dieselbe Angabe im Dativ («nach über 40 Jahren»). */
+    experienceDative: 'über 40 Jahren',
     markets: 'in der Schweiz, in Deutschland, Österreich und im Südtirol',
   },
 
@@ -59,14 +69,17 @@ export const site = {
     owner: {
       name: 'Clemens Fritsche',
       role: 'Geschäftsführer',
-      short:
-        'Maschinenbauingenieur, Produktentwicklung bei Liebherr (Baumaschinen), Produkt- und Plattformmanagement im IoT-Umfeld, betriebswirtschaftliche Weiterbildung.',
+      career: ownerCareer,
+      short: `${ownerCareer.join(', ')}.`,
       titles: '[[PLATZHALTER: genaue Titel und Abschlüsse]]',
       linkedin: '[[PLATZHALTER: LinkedIn-Link]]',
     },
     founder: {
       name: 'Heiri Steiner',
       role: 'Gründer',
+      /** Nur solange `features.heiriAdvisory` an ist – danach verschwindet der Satz überall. */
+      advisory:
+        'Heiri Steiner bleibt in der Übergangszeit beratend dabei. [[PRÜFEN: Dauer und Rolle der Übergangszeit]]',
     },
   },
 

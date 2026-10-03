@@ -202,10 +202,10 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 
 /* Pfeil-Textlink */
 .arrow-link {
-  display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink);
-  text-decoration: none; min-height: 44px;
+  display: inline-block; padding-block: 10px; line-height: 1.5; font-weight: 600; color: var(--ink);
+  text-decoration: none;
 }
-.arrow-link .icon { transition: transform var(--t-fast) var(--ease); }
+.arrow-link .icon { display: inline-block; vertical-align: -0.22em; margin-left: 6px; transition: transform var(--t-fast) var(--ease); }
 .arrow-link:hover { text-decoration: underline; }
 .arrow-link:hover .icon { transform: translateX(2px); }
 .section--dark .arrow-link, .on-dark .arrow-link { color: var(--white); }

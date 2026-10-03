@@ -23,6 +23,7 @@ export function initReveal(): void {
         if (!entry.isIntersecting) continue;
         const el = entry.target as HTMLElement;
         if (el.hasAttribute('data-kranbahn')) {
+          el.classList.remove('is-armed');
           el.classList.add('is-drawn');
         } else {
           el.classList.add('reveal-in');

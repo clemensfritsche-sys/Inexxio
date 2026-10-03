@@ -1,0 +1,44 @@
+---
+/** /fahrmischer/service-reparatur – Trommel, Antrieb, Hydraulik, Rinnen, Aufbau; Winter-Revision; Markenliste mit Hinweis. */
+import Service from '../../layouts/Service.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { serviceReparatur, winterRevision } from '../../content/fahrmischer';
+import { site } from '../../config/site.mjs';
+const w = winterRevision;
+---
+<Service page={serviceReparatur}>
+  <section slot="module" class="section section--dark" id="winter-revision" aria-labelledby="winter-title">
+    <div class="wrap grid wr">
+      <div class="col-6 wr__text">
+        <SectionHead eyebrow="November bis Februar" title={w.title} lead={w.text} id="winter-title" class="head--flush" />
+        <div class="btn-row">
+          <a class="btn btn--primary" href="#anfrage">{w.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+        </div>
+      </div>
+      <div class="col-5 wr__list">
+        <h3 class="label">Was wir überholen</h3>
+        <ul class="checklist" role="list">
+          {w.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}
+        </ul>
+      </div>
+      <div class="col-12 wr__brands">
+        <h3 class="label">Marken</h3>
+        <p class="wr__brandlist">{site.marks.mixers.join(' · ')} <span class="wr__more">und weitere auf Anfrage</span></p>
+        <Rich as="p" class="small" text={`${site.marks.mixerNotice} ${site.marks.mixerReview}`} />
+      </div>
+    </div>
+  </section>
+</Service>
+
+<style>
+  .wr { row-gap: var(--s-7); }
+  .wr__text { display: grid; gap: var(--s-5); justify-items: start; }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .wr__list { grid-column: 8 / span 5; } }
+  .wr__list { display: grid; gap: var(--s-4); align-content: start; }
+  .wr__brands { display: grid; gap: var(--s-3); padding-top: var(--s-6); border-top: 1px solid var(--line-dark); }
+  .wr__brandlist { font-size: clamp(1.125rem, 1.05rem + 0.4vw, 1.375rem); font-weight: 650; color: var(--white); max-width: none; }
+  .wr__more { font-weight: 400; color: rgba(244, 243, 241, 0.65); }
+</style>

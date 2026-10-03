@@ -1,0 +1,239 @@
+---
+/**
+ * Hauptformular (/kontakt): vier kurze Schritte mit Fortschrittsanzeige.
+ *
+ * Ohne JavaScript ist es EIN langes Formular mit Fieldsets, das klassisch an den Server
+ * geht (multipart, Validierung dort). Welche Zusatzfragen zu «Worum geht es?» passen und
+ * dass bei «Steht still» die Pikett-Nummer erscheint, regelt CSS (:has) – auch ohne JS.
+ * Das Skript (scripts/form.ts) macht daraus Schritte, prüft direkt am Feld und sendet
+ * im Hintergrund; schlägt das Senden fehl, steht ein vorausgefüllter mailto-Link da.
+ */
+import { site, contactEmail } from '../config/site.mjs';
+import { inquiry } from '../config/inquiry.mjs';
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import FormResult from './FormResult.astro';
+import '../styles/form.css';
+
+interface Props { id?: string }
+const { id = 'anfrage' } = Astro.props;
+const L = inquiry.limits;
+/** Beschriftungen für den mailto-Text im Fehlerfall – dieselben wie im Formular. */
+const vocab = JSON.stringify({
+  kind: Object.fromEntries(inquiry.kinds.map((k) => [k.value, k.label])),
+  kindSubject: Object.fromEntries(inquiry.kinds.map((k) => [k.value, k.subject])),
+  need: Object.fromEntries(Object.values(inquiry.needs).flat().map((n) => [n.value, n.label])),
+  urgency: Object.fromEntries(inquiry.urgencies.map((u) => [u.value, u.label])),
+  urgencySubject: Object.fromEntries(inquiry.urgencies.map((u) => [u.value, u.subject])),
+  pref: Object.fromEntries(inquiry.contactPrefs.map((p) => [p.value, p.label])),
+});
+const f = (name: string) => `${id}-${name}`;
+---
+<div class="iform-wrap" data-inquiry-root>
+  <FormResult />
+  <form
+    id={id}
+    class="iform"
+    method="post"
+    action="/api/v1/contact"
+    enctype="multipart/form-data"
+    data-form="haupt"
+    data-inquiry
+    data-min-seconds={inquiry.minSeconds}
+    data-max-files={inquiry.photos.max}
+    data-max-bytes={inquiry.photos.maxTotalBytes}
+    data-extensions={inquiry.photos.extensions.join(',')}
+    data-mail={contactEmail()}
+    data-vocab={vocab}
+  >
+    <input type="hidden" name="form" value="haupt" />
+    <input type="hidden" name="source" value={Astro.url.pathname.replace(/\.html$/, '')} />
+    <input type="hidden" name="t" value="" />
+    <div class="iform__hp" aria-hidden="true">
+      <label>Bitte leer lassen <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+    </div>
+
+    <ol class="iform__progress" data-progress hidden aria-label="Fortschritt">
+      <li data-progress-item="1"><span class="label">01</span> Anliegen</li>
+      <li data-progress-item="2"><span class="label">02</span> Bedarf</li>
+      <li data-progress-item="3"><span class="label">03</span> Details</li>
+      <li data-progress-item="4"><span class="label">04</span> Kontakt</li>
+    </ol>
+    <p class="visually-hidden" aria-live="polite" data-step-status></p>
+
+    <!-- 1 · Worum geht es? -->
+    <fieldset class="iform__step" data-step="1">
+      <legend class="iform__legend"><span class="label">01 — Anliegen</span><span class="h3">Worum geht es?</span></legend>
+      <div class="tiles" data-field="kind">
+        {inquiry.kinds.map((k) => (
+          <label class="tile">
+            <input type="radio" name="kind" value={k.value} required aria-describedby={f('kind-error')} />
+            <span class="tile__body">
+              <span class="tile__label">{k.label}</span>
+              <span class="tile__hint">{k.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <p class="field__error" id={f('kind-error')} data-error-for="kind" hidden></p>
+    </fieldset>
+
+    <!-- 2 · Was brauchen Sie? -->
+    <fieldset class="iform__step" data-step="2">
+      <legend class="iform__legend"><span class="label">02 — Bedarf</span><span class="h3">Was brauchen Sie?</span></legend>
+      <p class="iform__pick-first">Wählen Sie oben zuerst, worum es geht.</p>
+
+      {(['kran', 'fahrmischer'] as const).map((kind) => (
+        <div class="iform__group" data-group={kind}>
+          <p class="iform__grouptitle">{inquiry.kinds.find((k) => k.value === kind)?.label}</p>
+          <div class="chips">
+            {inquiry.needs[kind].map((n) => (
+              <label class="chip">
+                <input type="radio" name="need" value={n.value} aria-describedby={f('need-error')} />
+                <span>{n.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p class="field__error" id={f('need-error')} data-error-for="need" hidden></p>
+
+      <div class="iform__group" data-group="teile">
+        <div class="iform__row">
+          <div class="field">
+            <label class="field__label" for={f('part')}>Welches Teil?</label>
+            <input class="input" id={f('part')} name="part" type="text" maxlength={L.part} aria-describedby={f('part-error')} />
+            <p class="field__error" id={f('part-error')} data-error-for="part" hidden></p>
+          </div>
+          <div class="field">
+            <label class="field__label" for={f('mixer')}>Für welchen Fahrmischer? <span class="field__opt">freiwillig</span></label>
+            <input class="input" id={f('mixer')} name="mixer" type="text" maxlength={L.mixer} placeholder="Marke, Typ" />
+          </div>
+        </div>
+      </div>
+
+      <div class="iform__group" data-group="abo">
+        <div class="field field--narrow">
+          <label class="field__label" for={f('cranes')}>Anzahl Krane <span class="field__opt">freiwillig</span></label>
+          <input class="input" id={f('cranes')} name="cranes" type="number" min="1" max="999" inputmode="numeric" />
+        </div>
+      </div>
+
+      <div class="iform__group" data-group="anderes">
+        <p class="muted">Beschreiben Sie Ihr Anliegen im nächsten Schritt unter «Beschreibung».</p>
+      </div>
+
+      <div class="iform__sub" data-field="urgency">
+        <p class="iform__grouptitle" id={f('urgency-title')}>Wie dringend ist es?</p>
+        <div class="chips" role="radiogroup" aria-labelledby={f('urgency-title')}>
+          {inquiry.urgencies.map((u) => (
+            <label class="chip">
+              <input type="radio" name="urgency" value={u.value} required aria-describedby={f('urgency-error')} />
+              <span>{u.label}</span>
+            </label>
+          ))}
+        </div>
+        <p class="field__error" id={f('urgency-error')} data-error-for="urgency" hidden></p>
+      </div>
+
+      {site.features.pikett && (
+        <div class="pikett-box" data-pikett>
+          <Icon name="siren" size={28} />
+          <div>
+            <p class="pikett-box__title">Steht still? Rufen Sie direkt den Pikett an.</p>
+            <a class="pikett-box__num tnum" href={`tel:${site.pikett.e164}`} data-track="pikett_click">{site.pikett.display}</a>
+            <Rich as="p" class="small" text={site.pikett.review} />
+          </div>
+        </div>
+      )}
+    </fieldset>
+
+    <!-- 3 · Details -->
+    <fieldset class="iform__step" data-step="3">
+      <legend class="iform__legend"><span class="label">03 — Details</span><span class="h3">Details zur Anlage</span></legend>
+      <div class="iform__row">
+        <div class="field">
+          <label class="field__label" for={f('maker')}>Hersteller / Typ <span class="field__opt">freiwillig</span></label>
+          <input class="input" id={f('maker')} name="maker" type="text" maxlength={L.maker} />
+        </div>
+        <div class="field field--narrow">
+          <label class="field__label" for={f('year')}>Baujahr <span class="field__opt">freiwillig</span></label>
+          <input class="input" id={f('year')} name="year" type="text" inputmode="numeric" maxlength={L.year} pattern="[0-9]{4}" aria-describedby={f('year-error')} />
+          <p class="field__error" id={f('year-error')} data-error-for="year" hidden></p>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label" for={f('place')}>Standort (PLZ und Ort)</label>
+        <input class="input" id={f('place')} name="place" type="text" required maxlength={L.place} placeholder="z. B. 8500 Frauenfeld" aria-describedby={f('place-error')} />
+        <p class="field__error" id={f('place-error')} data-error-for="place" hidden></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for={f('message')}>Beschreibung <span class="field__opt">freiwillig</span></label>
+        <textarea class="textarea" id={f('message')} name="message" rows="5" maxlength={L.message} aria-describedby={f('message-hint')}></textarea>
+        <p class="field__hint" id={f('message-hint')}>Was ist passiert, was soll gemacht werden? Stichworte genügen.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for={f('photos')}>Fotos <span class="field__opt">freiwillig, bis zu {inquiry.photos.max}</span></label>
+        <input class="input input--file" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
+        <p class="field__hint" id={f('photos-hint')}>Typenschild oder Schaden – JPG, PNG, WEBP oder HEIC, zusammen höchstens 10 MB.</p>
+        <ul class="iform__files" data-file-list hidden></ul>
+        <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
+      </div>
+    </fieldset>
+
+    <!-- 4 · Kontakt -->
+    <fieldset class="iform__step" data-step="4">
+      <legend class="iform__legend"><span class="label">04 — Kontakt</span><span class="h3">Wie erreichen wir Sie?</span></legend>
+      <div class="iform__row">
+        <div class="field">
+          <label class="field__label" for={f('name')}>Name</label>
+          <input class="input" id={f('name')} name="name" type="text" required maxlength={L.name} autocomplete="name" aria-describedby={f('name-error')} />
+          <p class="field__error" id={f('name-error')} data-error-for="name" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for={f('company')}>Firma <span class="field__opt">freiwillig</span></label>
+          <input class="input" id={f('company')} name="company" type="text" maxlength={L.company} autocomplete="organization" />
+        </div>
+      </div>
+      <div class="iform__row">
+        <div class="field">
+          <label class="field__label" for={f('phone')}>Telefon</label>
+          <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={`${f('contact-hint')} ${f('phone-error')}`} />
+          <p class="field__error" id={f('phone-error')} data-error-for="phone" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for={f('email')}>E-Mail</label>
+          <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" aria-describedby={`${f('contact-hint')} ${f('email-error')}`} />
+          <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
+        </div>
+      </div>
+      <p class="field__hint" id={f('contact-hint')}>Telefon oder E-Mail genügt. Mit E-Mail erhalten Sie eine Bestätigung Ihrer Angaben.</p>
+      <div class="iform__sub">
+        <p class="iform__grouptitle" id={f('pref-title')}>Wie sollen wir uns melden?</p>
+        <div class="chips" role="radiogroup" aria-labelledby={f('pref-title')}>
+          {inquiry.contactPrefs.map((p, i) => (
+            <label class="chip">
+              <input type="radio" name="contact_pref" value={p.value} checked={i === 0} />
+              <span>{p.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <p class="iform__privacy small muted">
+        Wir verwenden Ihre Angaben nur, um Ihre Anfrage zu beantworten. Mehr dazu in der
+        <a class="link" href="/datenschutz">Datenschutzerklärung</a>.
+      </p>
+    </fieldset>
+
+    <div class="iform__nav">
+      <button type="button" class="btn btn--secondary" data-prev hidden>Zurück</button>
+      <button type="button" class="btn btn--primary" data-next hidden>Weiter <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+      <button type="submit" class="btn btn--primary" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+    </div>
+  </form>
+</div>
+
+<script>
+  import { initInquiryForms } from '../scripts/form';
+  initInquiryForms();
+</script>

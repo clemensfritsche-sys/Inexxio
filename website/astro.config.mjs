@@ -32,6 +32,10 @@ export default defineConfig({
     inlineStylesheets: 'never',
   },
   compressHTML: true,
+  // Bereichsstile per Klasse: ein `class` an einer Kind-Komponente (z. B. <Rich class="…">)
+  // trägt den Bereich der Eltern mit – mit dem Standard «attribute» griffe das Stil der
+  // Eltern-Komponente auf diesem Element nicht.
+  scopedStyleStrategy: 'class',
   devToolbar: { enabled: false },
   prefetch: false,
   markdown: {

@@ -1,0 +1,33 @@
+---
+/** «Auf einen Blick»: Faktenbox – Für wen · Was wir tun · Wie schnell · Was Sie erhalten. */
+import Rich from './Rich.astro';
+
+interface Props {
+  rows: { label: string; text: string }[];
+  summary?: string;
+}
+const { rows, summary } = Astro.props;
+---
+<section class="glance" aria-labelledby="auf-einen-blick">
+  <h2 id="auf-einen-blick" class="label">Auf einen Blick</h2>
+  {summary && <Rich as="p" class="glance__summary" text={summary} />}
+  <dl class="glance__list">
+    {rows.map((r) => (
+      <div class="glance__row">
+        <dt>{r.label}</dt>
+        <Rich as="dd" text={r.text} />
+      </div>
+    ))}
+  </dl>
+</section>
+
+<style>
+  .glance { display: grid; gap: var(--s-4); }
+  .glance > .label { color: var(--ink); }
+  .glance__summary { font-size: 1.125rem; color: var(--ink); max-width: 60ch; }
+  .glance__list { border-top: 1px solid var(--ink); margin: 0; }
+  .glance__row { display: grid; gap: 4px var(--s-5); padding: var(--s-4) 0; border-bottom: 1px solid var(--line); }
+  .glance__row dt { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .glance__row dd { margin: 0; color: var(--ink); }
+  @media (min-width: 720px) { .glance__row { grid-template-columns: 200px minmax(0, 1fr); } }
+</style>

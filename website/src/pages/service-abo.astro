@@ -1,0 +1,56 @@
+---
+/** /service-abo – drei Abo-Stufen, digitales Kranbuch, FAQ; Hauptaktion «Abo-Offerte anfragen». */
+import Service from '../layouts/Service.astro';
+import SectionHead from '../components/SectionHead.astro';
+import TierCards from '../components/TierCards.astro';
+import KranbuchIllustration from '../components/KranbuchIllustration.astro';
+import Rich from '../components/Rich.astro';
+import { serviceAbo, kranbuch } from '../content/service-abo';
+import { abo } from '../config/abo.mjs';
+---
+<Service page={serviceAbo}>
+  <section slot="intro" class="section" aria-labelledby="stufen">
+    <div class="wrap">
+      <SectionHead
+        eyebrow="Drei Stufen"
+        title="Wählen Sie, wie viel wir übernehmen"
+        lead="Alle Stufen mit Prüfbericht und digitalem Kranbuch – der Unterschied liegt darin, was wir zusätzlich übernehmen."
+        id="stufen"
+      />
+      <TierCards />
+      <Rich as="p" class="small muted abo-note" text={`${abo.price}. ${abo.review}`} />
+    </div>
+  </section>
+
+  <section slot="module" class="section section--dark" aria-labelledby="kranbuch">
+    <div class="wrap grid kb-sec">
+      <div class="col-6 kb-sec__text">
+        <SectionHead eyebrow="Digitales Kranbuch" title={kranbuch.title} lead={kranbuch.lead} id="kranbuch" class="head--flush" />
+        <ol role="list" class="kb-steps">
+          {kranbuch.items.map((it, i) => (
+            <li>
+              <span class="label">{String(i + 1).padStart(2, '0')}</span>
+              <div><h3>{it.title}</h3><Rich as="p" text={it.text} /></div>
+            </li>
+          ))}
+        </ol>
+        <Rich as="p" class="small" text={kranbuch.review} />
+      </div>
+      <div class="col-5 kb-sec__ill">
+        <KranbuchIllustration />
+      </div>
+    </div>
+  </section>
+</Service>
+
+<style>
+  .abo-note { margin-top: var(--s-5); }
+  .kb-sec { align-items: center; }
+  .kb-sec__text { display: grid; gap: var(--s-5); }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .kb-sec__ill { grid-column: 8 / span 5; } }
+  .kb-steps { list-style: none; padding: 0; display: grid; gap: 0; border-top: 1px solid var(--line-dark); }
+  .kb-steps li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-4) 0; border-bottom: 1px solid var(--line-dark); }
+  .kb-steps .label { padding-top: 4px; }
+  .kb-steps h3 { font-size: 1.125rem; margin-bottom: 4px; }
+</style>

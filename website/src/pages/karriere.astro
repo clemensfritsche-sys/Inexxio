@@ -1,0 +1,95 @@
+---
+/**
+ * /karriere – Warum hier arbeiten, Stelleninserat (abgeschaltet bis es echt ist; JobPosting nur dann),
+ * Bewerbung per E-Mail.
+ */
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site, contactEmail } from '../config/site.mjs';
+import { karriere as c } from '../content/karriere';
+import { plain } from '../lib/text.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const a = site.address;
+const jobLd = site.features.jobPosting
+  ? [{
+      '@type': 'JobPosting',
+      title: c.posting.title,
+      description: plain(c.posting.text),
+      datePosted: plain(c.posting.datePosted),
+      employmentType: c.posting.employmentType,
+      hiringOrganization: { '@id': `${siteUrl}/#organisation` },
+      jobLocation: {
+        '@type': 'Place',
+        address: { '@type': 'PostalAddress', streetAddress: a.street, postalCode: a.zip, addressLocality: a.city, addressRegion: a.canton, addressCountry: a.country },
+      },
+    }]
+  : [];
+---
+<Base title={c.title} description={c.description} crumbs={[{ name: 'Karriere', path: '/karriere' }]} jsonLd={jobLd}>
+  <Hero
+    eyebrow={c.hero.eyebrow}
+    title={c.hero.h1}
+    lead={c.hero.lead}
+    photo="arbeit-werkstatt"
+    primary={{ label: 'Jetzt bewerben', href: `mailto:${contactEmail()}?subject=${encodeURIComponent('Bewerbung')}`, track: 'mailto_click' }}
+  />
+
+  <section class="section section--paper" aria-labelledby="warum">
+    <div class="wrap">
+      <SectionHead eyebrow="Arbeiten bei uns" title={c.why.title} id="warum" />
+      <ol role="list" class="kr-why">
+        {c.why.items.map((it, i) => (
+          <li>
+            <span class="label">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{it.title}</h3>
+            <Rich as="p" text={it.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  {site.features.jobPosting && (
+    <section class="section" aria-labelledby="stelle">
+      <div class="wrap">
+        <SectionHead eyebrow="Offene Stelle" title={c.posting.title} id="stelle" />
+        <Rich as="div" class="prose" text={c.posting.text} />
+      </div>
+    </section>
+  )}
+
+  <section class="section" aria-labelledby="bewerbung">
+    <div class="wrap grid kr-apply">
+      <div class="col-7">
+        <SectionHead eyebrow="Bewerbung" title={c.apply.title} id="bewerbung" class="head--flush" />
+        <Rich as="p" class="lead kr-apply__text" text={c.apply.text} />
+        <Rich as="p" class="kr-apply__text" text={c.apply.unsolicited} />
+        <div class="btn-row kr-apply__cta">
+          <a class="btn btn--primary" href={`mailto:${contactEmail()}?subject=${encodeURIComponent('Bewerbung')}`} data-track="mailto_click">
+            <Icon name="mail" size={18} /> Bewerbung per E-Mail
+          </a>
+          <a class="btn btn--secondary" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} /> {site.phone.display}</a>
+        </div>
+      </div>
+      <aside class="col-4 kr-aside" aria-label="Ausbildung">
+        <p class="label">Ausbildung</p>
+        <Rich as="p" text={c.training} />
+      </aside>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .kr-why { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .kr-why { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .kr-why li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0 var(--s-6); border-top: 1px solid var(--line-2); }
+  .kr-why h3 { font-size: 1.25rem; }
+  .head--flush { margin-bottom: var(--s-4); }
+  .kr-apply__text { margin-top: var(--s-3); }
+  .kr-apply__cta { margin-top: var(--s-5); }
+  @media (min-width: 960px) { .kr-aside { grid-column: 9 / span 4; } }
+  .kr-aside { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 1px solid var(--ink); }
+</style>

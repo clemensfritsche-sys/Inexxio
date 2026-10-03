@@ -1,0 +1,51 @@
+---
+/**
+ * Häufige Fragen – native <details>/<summary>, die Frage als echte Überschrift.
+ * Die strukturierte Fassung (FAQPage) baut die Seite aus DENSELBEN Einträgen
+ * (lib/seo.faqPage), damit nur steht, was auch sichtbar ist.
+ */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  items: { q: string; a: string }[];
+  level?: 'h3' | 'h4';
+}
+const { items, level = 'h3' } = Astro.props;
+---
+<div class="faq">
+  {items.map((item) => (
+    <details class="faq__item">
+      <summary class="faq__q">
+        <Rich as={level === 'h3' ? 'h3' : 'strong'} class="faq__title" text={item.q} />
+        <Icon name="plus" size={20} class="faq__icon" />
+      </summary>
+      <div class="faq__a">
+        {item.a.split('\n\n').map((para) => <Rich text={para} />)}
+      </div>
+    </details>
+  ))}
+</div>
+
+<style>
+  .faq { border-top: 1px solid var(--line-2); }
+  :global(.section--dark) .faq, :global(.section--dark) .faq__item { border-color: var(--line-dark); }
+  .faq__item { border-bottom: 1px solid var(--line-2); }
+  .faq__q {
+    list-style: none; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
+    min-height: 64px; padding: var(--s-4) 0; cursor: pointer;
+  }
+  .faq__q::-webkit-details-marker { display: none; }
+  .faq__title { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); line-height: 1.35; }
+  .faq__icon { flex: none; color: var(--ink-3); transition: transform var(--t-fast) var(--ease); }
+  .faq__item[open] .faq__icon { transform: rotate(45deg); color: var(--ink); }
+  .faq__q:hover .faq__title { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 0.2em; }
+  .faq__a { padding: 0 var(--s-8) var(--s-5) 0; display: grid; gap: var(--s-3); }
+  @supports (interpolate-size: allow-keywords) {
+    @media (prefers-reduced-motion: no-preference) {
+      .faq { interpolate-size: allow-keywords; }
+      .faq__item::details-content { height: 0; overflow: clip; transition: height 260ms var(--ease), content-visibility 260ms allow-discrete; }
+      .faq__item[open]::details-content { height: auto; }
+    }
+  }
+</style>

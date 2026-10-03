@@ -127,10 +127,11 @@ Erhoben über die Websuche (hs-steiner.ch selbst ist von hier aus gesperrt). Vol
 - [x] **0 – Analyse** und dieser Plan
 - [x] **1 – Fundament**: Projekt, Konfiguration, Tokens, Schrift, Layout, Header, Footer,
       Navigation, Platzhalter-System, `SITE_MODE`
-- [ ] **2 – Komponenten**: Buttons, Karten, Sektionen, FAQ, ImagePlaceholder,
+- [x] **2 – Komponenten**: Buttons, Karten, Sektionen, FAQ, ImagePlaceholder,
       Kranbahn-Linie, Formular-UI, Prüfpflicht-Check, Vorher/Nachher
-- [ ] **3 – Seiten**: Start → Übergabe → Krane (5) → Fahrmischer (3) → Service-Abo →
+- [x] **3 – Seiten**: Start → Übergabe → Krane (5) → Fahrmischer (3) → Service-Abo →
       Über uns → Einsatzgebiet → Kontakt → Karriere → Ratgeber (4) → Rechtliches → 404
+      (24 Seiten inkl. `/kontakt/danke`; Feinschliff der Darstellung in Phase 6)
 - [ ] **4 – Formular-Backend und Tracking**
 - [ ] **5 – SEO und KI**: Meta, JSON-LD, Sitemap, robots.txt, llms.txt, Redirects, OG-Bilder
 - [ ] **6 – Prüfung und Feinschliff**

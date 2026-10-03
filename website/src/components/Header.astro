@@ -65,7 +65,7 @@ const tel = `tel:${site.phone.e164}`;
         <span class="site-header__tel-num">{site.phone.display}</span>
         <span class="visually-hidden">anrufen</span>
       </a>
-      <a class="btn btn--primary btn--sm site-header__cta" href={site.cta.href} data-track="cta_click">
+      <a class="btn btn--primary btn--sm site-header__cta" href={site.cta.href}>
         {site.cta.label}
         <Icon name="arrow-right" size={18} class="btn__arrow" />
       </a>
@@ -101,7 +101,7 @@ const tel = `tel:${site.phone.e164}`;
           </nav>
           <div class="mnav__actions">
             <a class="btn btn--secondary" href={tel} data-track="tel_click"><Icon name="phone" size={18} /> Anrufen</a>
-            <a class="btn btn--primary" href={site.cta.href} data-track="cta_click">Anfrage <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+            <a class="btn btn--primary" href={site.cta.href}>Anfrage <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
           </div>
         </div>
       </details>

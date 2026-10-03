@@ -1,0 +1,45 @@
+---
+/** Grosse Karte für ein Standbein (Krane / Fahrmischer): Foto, Titel, Satz, Unterlinks. */
+import Icon from './Icon.astro';
+import Photo from './Photo.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  title: string;
+  href: string;
+  text: string;
+  photo: string;
+  links: { href: string; label: string }[];
+  more: string;
+}
+const { title, href, text, photo, links, more } = Astro.props;
+---
+<article class="pillar">
+  <a href={href} class="pillar__media" tabindex="-1" aria-hidden="true"><Photo id={photo} sizes="(min-width: 960px) 50vw, 100vw" /></a>
+  <div class="pillar__body">
+    <h3 class="pillar__title"><a href={href}>{title}</a></h3>
+    <Rich as="p" class="pillar__text" text={text} />
+    <ul role="list" class="pillar__links">
+      {links.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+    </ul>
+    <a class="arrow-link" href={href}>{more} <Icon name="arrow-right" size={18} /></a>
+  </div>
+</article>
+
+<style>
+  .pillar { display: grid; gap: var(--s-5); align-content: start; }
+  .pillar__media { display: block; overflow: hidden; text-decoration: none; color: inherit; }
+  .pillar__media :global(img), .pillar__media :global(.ph) { transition: transform 600ms var(--ease); }
+  @media (prefers-reduced-motion: no-preference) {
+    .pillar:hover .pillar__media :global(img), .pillar:hover .pillar__media :global(.ph) { transform: scale(1.03); }
+  }
+  .pillar__body { display: grid; gap: var(--s-3); justify-items: start; }
+  .pillar__title { font-size: clamp(1.5rem, 1.3rem + 0.9vw, 2.125rem); letter-spacing: -0.025em; }
+  .pillar__title a { color: var(--ink); text-decoration: none; }
+  .pillar__title a:hover { text-decoration: underline; text-underline-offset: 0.15em; text-decoration-thickness: 2px; }
+  .pillar__text { color: var(--ink-2); }
+  .pillar__links { list-style: none; padding: 0; width: 100%; border-top: 1px solid var(--line-2); }
+  .pillar__links li { border-bottom: 1px solid var(--line); }
+  .pillar__links a { display: flex; align-items: center; min-height: 48px; color: var(--ink); text-decoration: none; font-weight: 500; }
+  .pillar__links a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+</style>
