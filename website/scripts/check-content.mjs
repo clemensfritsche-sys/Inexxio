@@ -14,6 +14,7 @@ import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { site } from '../src/config/site.mjs';
 import { photos } from '../src/config/photos.mjs';
+import { samples } from '../src/config/photo-samples.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -158,7 +159,7 @@ function writeReport(entries, missingPhotos) {
   lines.push('## Fotos', '', 'Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualität der Seite.', '');
   lines.push('| Foto | Beschreibung für den Fototag | Format | Verwendet auf |', '|---|---|---|---|');
   for (const { id, p, pages } of photoRows) {
-    lines.push(`| \`${id}\` | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${pages.length ? pages.map((x) => `\`${x}\``).join(', ') : p.feature ? `abgeschaltete Sektion \`${p.feature}\`` : 'noch nicht verwendet'} |`);
+    lines.push(`| \`${id}\`${samples[id] ? ' (zurzeit Beispielbild)' : ''} | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${pages.length ? pages.map((x) => `\`${x}\``).join(', ') : p.feature ? `abgeschaltete Sektion \`${p.feature}\`` : 'noch nicht verwendet'} |`);
   }
   lines.push('', '## Abgeschaltete Sektionen (`enabled: false` in `src/config/site.mjs`)', '');
   for (const [key] of disabled) lines.push(`- \`${key}\` – ${DISABLED_TEXT[key] ?? 'ohne echten Inhalt abgeschaltet.'}`);

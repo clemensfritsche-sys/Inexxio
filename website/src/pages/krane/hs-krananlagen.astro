@@ -36,7 +36,7 @@ const m = hsModules;
             <Photo id="typenschild-hs" sizes="(min-width: 960px) 22vw, 50vw" />
             <ol class="hs-plate__steps" role="list">
               {m.plate.steps.map((s, i) => (
-                <li><span class="label">{String(i + 1).padStart(2, '0')}</span><Rich as="span" text={s} /></li>
+                <li><span class="idx">{String(i + 1).padStart(2, '0')}</span><Rich as="span" text={s} /></li>
               ))}
             </ol>
           </div>
@@ -67,7 +67,7 @@ const m = hsModules;
   @media (min-width: 560px) { .hs-plate__grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
   .hs-plate__steps { list-style: none; padding: 0; display: grid; gap: var(--s-4); }
   .hs-plate__steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--s-2); font-size: 0.97rem; }
-  .hs-plate__steps .label { padding-top: 3px; }
+  .hs-plate__steps .idx { padding-top: 3px; }
   .hs-new {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-4) var(--s-6);
     margin-top: var(--s-8); padding: var(--s-6) 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line-2);

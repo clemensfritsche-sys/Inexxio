@@ -2,12 +2,17 @@
 /**
  * Bildstelle aus der Fotoliste (src/config/photos.mjs).
  * Mit Datei: <picture> mit AVIF/WebP, srcset, festen Massen, Lazy Loading (Hero: eager +
- * fetchpriority="high"). Ohne Datei: grauer Rahmen im richtigen Seitenverhältnis mit der
- * Bildbeschreibung – im Modus «live» ein Fehler.
+ * fetchpriority="high").
+ * Ohne Datei, aber mit Beispielbild (config/photo-samples.mjs): dasselbe <picture>, sichtbar
+ * als «Beispielbild» gekennzeichnet, Alt-Text = was wirklich zu sehen ist.
+ * Ohne beides: grauer Rahmen im richtigen Seitenverhältnis mit der Bildbeschreibung.
+ * Beispielbild und Rahmen sind im Modus «live» ein Fehler – beide gelten als fehlendes Foto
+ * (data-photo-missing → OFFENE_PUNKTE.md).
  */
 import type { ImageMetadata } from 'astro';
 import { Picture } from 'astro:assets';
 import { photo } from '../config/photos.mjs';
+import { samples } from '../config/photo-samples.mjs';
 import { isLive } from '../lib/text.mjs';
 
 interface Props {
@@ -18,15 +23,20 @@ interface Props {
 }
 const { id, sizes = '(min-width: 960px) 50vw, 100vw', priority = false, class: cls } = Astro.props;
 const p = photo(id);
-const files = import.meta.glob<{ default: ImageMetadata }>('../assets/photos/*.{jpg,jpeg,png,webp}', { eager: true });
-const src = p.file ? files[`../assets/photos/${p.file}`]?.default : undefined;
-if (p.file && !src) throw new Error(`Foto «${id}»: Datei src/assets/photos/${p.file} fehlt.`);
-if (!src && isLive()) throw new Error(`Foto «${id}» fehlt – im Modus «live» nicht erlaubt.`);
+const files = import.meta.glob<{ default: ImageMetadata }>('../assets/photos/**/*.{jpg,jpeg,png,webp}', { eager: true });
+const real = p.file ? files[`../assets/photos/${p.file}`]?.default : undefined;
+if (p.file && !real) throw new Error(`Foto «${id}»: Datei src/assets/photos/${p.file} fehlt.`);
+const sample = !real ? samples[id] : undefined;
+const sampleSrc = sample ? files[`../assets/photos/${sample.file}`]?.default : undefined;
+if (sample && !sampleSrc) throw new Error(`Beispielbild «${id}»: Datei src/assets/photos/${sample.file} fehlt.`);
+if (!real && isLive()) throw new Error(`Foto «${id}» fehlt – im Modus «live» ist weder ein Platzhalter noch ein Beispielbild erlaubt.`);
+const src = real ?? sampleSrc;
+const alt = real ? p.alt : sample?.alt ?? p.alt;
 ---
 {src ? (
   <Picture
     src={src}
-    alt={p.alt}
+    alt={alt}
     formats={['avif', 'webp']}
     widths={[480, 800, 1200, 1600, 2000].filter((w) => w <= src.width)}
     sizes={sizes}
@@ -34,6 +44,7 @@ if (!src && isLive()) throw new Error(`Foto «${id}» fehlt – im Modus «live�
     fetchpriority={priority ? 'high' : 'auto'}
     decoding="async"
     class:list={['photo', cls]}
+    pictureAttributes={real ? {} : { class: 'is-sample', 'data-ratio': p.ratio, 'data-photo-missing': id, 'data-sample-label': 'Beispielbild' }}
   />
 ) : (
   <div class:list={['ph', cls]} data-ratio={p.ratio} data-photo-missing={id} role="img" aria-label={p.alt}>
@@ -44,6 +55,23 @@ if (!src && isLive()) throw new Error(`Foto «${id}» fehlt – im Modus «live�
 
 <style>
   .photo { width: 100%; height: auto; display: block; }
+  /* Beispielbild: im selben Seitenverhältnis wie das künftige Foto, beschnitten statt verzerrt,
+     und unübersehbar als Beispiel gekennzeichnet (oben links, dort ist sonst nichts). */
+  :global(picture.is-sample) { position: relative; display: block; overflow: hidden; }
+  :global(picture.is-sample[data-ratio='3/2']) { aspect-ratio: 3 / 2; }
+  :global(picture.is-sample[data-ratio='4/3']) { aspect-ratio: 4 / 3; }
+  :global(picture.is-sample[data-ratio='4/5']) { aspect-ratio: 4 / 5; }
+  :global(picture.is-sample[data-ratio='1/1']) { aspect-ratio: 1 / 1; }
+  :global(picture.is-sample[data-ratio='16/9']) { aspect-ratio: 16 / 9; }
+  :global(picture.is-sample) .photo { width: 100%; height: 100%; object-fit: cover; }
+  :global(picture.is-sample)::after {
+    content: attr(data-sample-label);
+    position: absolute; top: 10px; left: 10px; z-index: 2;
+    padding: 3px 8px; border-radius: var(--r-pill);
+    background: rgba(10, 10, 11, 0.72); color: var(--white);
+    font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    pointer-events: none;
+  }
   .ph {
     position: relative; width: 100%; display: flex; flex-direction: column; justify-content: flex-end;
     gap: 6px; padding: var(--s-5); background: var(--paper-2); border: 1px solid var(--line-2);
@@ -55,7 +83,7 @@ if (!src && isLive()) throw new Error(`Foto «${id}» fehlt – im Modus «live�
   .ph[data-ratio='1/1'] { aspect-ratio: 1 / 1; }
   .ph[data-ratio='16/9'] { aspect-ratio: 16 / 9; }
   .ph__label {
-    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em;
+    font-family: var(--font-sans); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.14em;
     text-transform: uppercase; color: var(--ink-2);
   }
   .ph__brief { font-size: 0.9375rem; line-height: 1.45; color: var(--ink-2); max-width: 36ch; }

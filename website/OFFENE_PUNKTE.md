@@ -4,7 +4,7 @@
 > die Markierung an der Fundstelle erledigen, dann verschwindet die Zeile von selbst.
 > Solange hier etwas steht, bricht ein Build im Modus `live` ab.
 
-**Stand:** 26 Entscheidungen · 64 Inhalte und Freigaben · 22 Fotos · 19 fachlich/rechtlich · 5 abgeschaltete Sektionen
+**Stand:** 25 Entscheidungen · 65 Inhalte und Freigaben · 22 Fotos · 19 fachlich/rechtlich · 5 abgeschaltete Sektionen
 
 ## Entscheidungen
 
@@ -21,7 +21,6 @@
 | MWST-Nummer, falls sie von der UID abweicht | Platzhalter | `/impressum` – Handelsregister und UID |
 | neue E-Mail-Adresse | Platzhalter | alle Seiten (24) – Kopf, Fuss oder Ankündigung |
 | Pikett weiterführen? Zeiten? | Prüfen | alle Seiten (24) – Kopf, Fuss oder Ankündigung |
-| Pikett-Service und Einsatzradius bestätigen | Prüfen | `/` – Kranservice und Fahrmischer-Reparatur für die Ostschweiz |
 | Pikett-Zeiten | Platzhalter | alle Seiten (17) – Kopf, Fuss oder Ankündigung |
 | Preis | Platzhalter | `/` – Prüfung<br>`/service-abo` – Prüfung |
 | Preis bzw. Preisrahmen der Abo-Stufen | Platzhalter | `/service-abo` – Was kostet das Service-Abo? |
@@ -60,6 +59,7 @@
 | Einsätze vor Ort bei Fahrmischern | Prüfen | `/einsatzgebiet` – Arbeiten Sie vor Ort oder in der Werkstatt? |
 | Einsätze vor Ort bei Fahrmischern – ja oder nein, in welchem Umfang | Platzhalter | `/fahrmischer/service-reparatur` – Kommen Sie auch auf die Baustelle oder ins Werk? |
 | Einsatzgebiet | Prüfen | `/einsatzgebiet` – Kranservice in Thurgau, St. Gallen, Winterthur und Zürich |
+| Einsatzradius bestätigen | Prüfen | `/` – Kranservice und Fahrmischer-Reparatur für die Ostschweiz |
 | Ersatz für den Claim «Schnell vor Ort. Sauber dokumentiert.» freigeben | Prüfen | `/` – Kranservice und Fahrmischer-Reparatur für die Ostschweiz |
 | genaue Titel und Abschlüsse | Platzhalter | `/ueber-uns` – Clemens Fritsche |
 | Google-Unternehmensprofil, LinkedIn | Platzhalter | Konfiguration `src/config/site.mjs:249` |
@@ -136,28 +136,28 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 
 | Foto | Beschreibung für den Fototag | Format | Verwendet auf |
 |---|---|---|---|
-| `pruefung-hallenkran` | Techniker bei der Prüfung eines Hallenkrans (Brückenkran), Hubwerk und Laufkatze im Bild, natürliches Licht, quer | 4:3 | `/`, `/krane/pruefung-wartung` |
-| `reparatur-vor-ort` | Techniker bei einer Reparatur vor Ort: geöffneter Schaltschrank oder Hubwerk eines Hallenkrans, quer | 4:3 | `/`, `/krane/reparatur` |
-| `steuerung-funk` | Detail: Funkfernsteuerung in der Hand, dahinter der Kran; alternativ Steuerung mit Frequenzumrichter im Schaltschrank, quer | 4:3 | `/krane/modernisierung` |
-| `heukran-einsatz` | HS-Heukran (Greifer mit Heu) im Einsatz in einer Scheune, Betriebsleiter an der Steuerung, quer | 4:3 | `/krane/hs-krananlagen`, `/krane` |
-| `typenschild-hs` | Typenschild eines HS-Krans, gut lesbar (Typ, Baujahr, Nummer), Detail | 4:3 | `/krane/hs-krananlagen` |
-| `ersatzteillager` | Ersatzteillager in Tuttwil: Regale mit Greifern, Auslegern, Fahrwerken und Drehtürmen, quer | 3:2 | `/krane/hs-krananlagen`, `/krane/reparatur` |
-| `fahrmischer-werkstatt` | Fahrmischer in der Werkstatt, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer | 4:3 | `/fahrmischer/service-reparatur`, `/fahrmischer`, `/` |
-| `verschleissteile-detail` | Detail Verschleissteile: neue Rinne, Schurre und Spiralschutz nebeneinander auf der Werkbank, quer | 4:3 | `/fahrmischer/verschleissteile` |
-| `teil-auslaufrinne` | Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer | 4:3 | `/fahrmischer/verschleissteile` |
-| `teil-verlaengerungsrinne` | Produktfoto Verlängerungsrinne, quer | 4:3 | `/fahrmischer/verschleissteile` |
-| `teil-einfuelltrichter` | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrmischer/verschleissteile` |
-| `teil-auslaufschurre` | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrmischer/verschleissteile` |
-| `teil-spiralschutz` | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrmischer/verschleissteile` |
-| `clemens-heiri-quer` | Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Querformat | 3:2 | `/`, `/uebergabe` |
-| `clemens-heiri-hoch` | Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Hochformat | 4:5 | noch nicht verwendet |
-| `werkstatt-aussen` | Werkstatt in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | `/ueber-uns` |
-| `servicefahrzeug` | Servicefahrzeug, beschriftet, vor einer Kundenhalle oder der Werkstatt, quer | 3:2 | `/service-abo` |
-| `portraet-clemens` | Porträt Clemens Fritsche, hoch, neutraler Hintergrund, Arbeitskleidung oder Hemd | 4:5 | `/`, `/ueber-uns`, `/uebergabe` |
-| `team` | Teamfoto in der Werkstatt (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | abgeschaltete Sektion `team` |
-| `vorher-kran` | Vorher/Nachher-Paar 1/2: ältere Kransteuerung bzw. Hängetaster vor der Modernisierung (gleicher Bildausschnitt wie «nachher») | 4:3 | abgeschaltete Sektion `beforeAfter` |
-| `nachher-kran` | Vorher/Nachher-Paar 2/2: dieselbe Anlage nach der Modernisierung (Funk, Umrichter), gleicher Bildausschnitt | 4:3 | abgeschaltete Sektion `beforeAfter` |
-| `arbeit-werkstatt` | Mechaniker bei der Arbeit (Schweissen oder Montage an einem Kranteil) in der Werkstatt, quer | 4:3 | `/karriere`, `/krane`, `/ueber-uns` |
+| `pruefung-hallenkran` (zurzeit Beispielbild) | Techniker bei der Prüfung eines Hallenkrans (Brückenkran), Hubwerk und Laufkatze im Bild, natürliches Licht, quer | 4:3 | `/`, `/krane/pruefung-wartung` |
+| `reparatur-vor-ort` (zurzeit Beispielbild) | Techniker bei einer Reparatur vor Ort: geöffneter Schaltschrank oder Hubwerk eines Hallenkrans, quer | 4:3 | `/`, `/krane/reparatur` |
+| `steuerung-funk` (zurzeit Beispielbild) | Detail: Funkfernsteuerung in der Hand, dahinter der Kran; alternativ Steuerung mit Frequenzumrichter im Schaltschrank, quer | 4:3 | `/krane/modernisierung` |
+| `heukran-einsatz` (zurzeit Beispielbild) | HS-Heukran (Greifer mit Heu) im Einsatz in einer Scheune, Betriebsleiter an der Steuerung, quer | 4:3 | `/krane/hs-krananlagen`, `/krane` |
+| `typenschild-hs` (zurzeit Beispielbild) | Typenschild eines HS-Krans, gut lesbar (Typ, Baujahr, Nummer), Detail | 4:3 | `/krane/hs-krananlagen` |
+| `ersatzteillager` (zurzeit Beispielbild) | Ersatzteillager in Tuttwil: Regale mit Greifern, Auslegern, Fahrwerken und Drehtürmen, quer | 3:2 | `/krane/hs-krananlagen`, `/krane/reparatur` |
+| `fahrmischer-werkstatt` (zurzeit Beispielbild) | Fahrmischer in der Werkstatt, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer | 4:3 | `/fahrmischer/service-reparatur`, `/fahrmischer`, `/` |
+| `verschleissteile-detail` (zurzeit Beispielbild) | Detail Verschleissteile: neue Rinne, Schurre und Spiralschutz nebeneinander auf der Werkbank, quer | 4:3 | `/fahrmischer/verschleissteile` |
+| `teil-auslaufrinne` (zurzeit Beispielbild) | Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer | 4:3 | `/fahrmischer/verschleissteile` |
+| `teil-verlaengerungsrinne` (zurzeit Beispielbild) | Produktfoto Verlängerungsrinne, quer | 4:3 | `/fahrmischer/verschleissteile` |
+| `teil-einfuelltrichter` (zurzeit Beispielbild) | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrmischer/verschleissteile` |
+| `teil-auslaufschurre` (zurzeit Beispielbild) | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrmischer/verschleissteile` |
+| `teil-spiralschutz` (zurzeit Beispielbild) | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrmischer/verschleissteile` |
+| `clemens-heiri-quer` (zurzeit Beispielbild) | Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Querformat | 3:2 | `/`, `/uebergabe` |
+| `clemens-heiri-hoch` (zurzeit Beispielbild) | Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Hochformat | 4:5 | noch nicht verwendet |
+| `werkstatt-aussen` (zurzeit Beispielbild) | Werkstatt in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | `/ueber-uns` |
+| `servicefahrzeug` (zurzeit Beispielbild) | Servicefahrzeug, beschriftet, vor einer Kundenhalle oder der Werkstatt, quer | 3:2 | `/service-abo` |
+| `portraet-clemens` (zurzeit Beispielbild) | Porträt Clemens Fritsche, hoch, neutraler Hintergrund, Arbeitskleidung oder Hemd | 4:5 | `/`, `/ueber-uns`, `/uebergabe` |
+| `team` (zurzeit Beispielbild) | Teamfoto in der Werkstatt (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | abgeschaltete Sektion `team` |
+| `vorher-kran` (zurzeit Beispielbild) | Vorher/Nachher-Paar 1/2: ältere Kransteuerung bzw. Hängetaster vor der Modernisierung (gleicher Bildausschnitt wie «nachher») | 4:3 | abgeschaltete Sektion `beforeAfter` |
+| `nachher-kran` (zurzeit Beispielbild) | Vorher/Nachher-Paar 2/2: dieselbe Anlage nach der Modernisierung (Funk, Umrichter), gleicher Bildausschnitt | 4:3 | abgeschaltete Sektion `beforeAfter` |
+| `arbeit-werkstatt` (zurzeit Beispielbild) | Mechaniker bei der Arbeit (Schweissen oder Montage an einem Kranteil) in der Werkstatt, quer | 4:3 | `/karriere`, `/krane`, `/ueber-uns` |
 
 ## Abgeschaltete Sektionen (`enabled: false` in `src/config/site.mjs`)
 

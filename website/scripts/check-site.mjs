@@ -364,12 +364,35 @@ function checkErpPaths() {
 const gz = (file) => gzipSync(readFileSync(file)).length;
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
 
+/**
+ * Bildgewicht wie im Browser: je <picture> genau EINE Datei – die AVIF-Fassung, die ein
+ * Desktop-Bildschirm (1440 px, halbe Breite, doppelte Dichte ≈ 1200 px) lädt. Die JPEG-Rückfall-
+ * datei im <img src> lädt ein Browser mit AVIF nie; sie zu zählen hiesse, jedes Bild doppelt
+ * und in voller Grösse zu rechnen. Ein <img> ohne <picture> zählt mit seiner Datei.
+ */
+function imageWeight(html, local) {
+  let sum = 0;
+  const pictures = [...html.matchAll(/<picture\b[\s\S]*?<\/picture>/g)].map((m) => m[0]);
+  for (const pic of pictures) {
+    const srcset = pic.match(/<source\b[^>]*type="image\/avif"[^>]*srcset="([^"]+)"/)?.[1]
+      ?? pic.match(/<source\b[^>]*srcset="([^"]+)"[^>]*type="image\/avif"/)?.[1];
+    if (!srcset) continue;
+    const cands = decode(srcset).split(',').map((c) => c.trim().split(/\s+/)).map(([url, w]) => ({ url, w: parseInt(w, 10) || 0 }));
+    const fit = cands.filter((c) => c.w <= 1200).sort((a, b) => b.w - a.w)[0] ?? cands.sort((a, b) => a.w - b.w)[0];
+    const file = fit && fit.url.startsWith('/') ? fileFor(fit.url) : null;
+    if (file) sum += statSync(file).size;
+  }
+  const bare = html.replace(/<picture\b[\s\S]*?<\/picture>/g, '');
+  sum += local(/<img\b[^>]*\ssrc="([^"]+)"/g, bare).reduce((s, f) => s + statSync(f).size, 0);
+  return sum;
+}
+
 function checkBudget() {
   const fonts = files.filter((f) => f.endsWith('.woff2')).reduce((s, f) => s + statSync(f).size, 0);
   if (fonts > BUDGET.fonts) fail('Budget', `Schriften ${kb(fonts)} (höchstens ${kb(BUDGET.fonts)})`);
   let report = { js: 0, css: 0, home: 0 };
   for (const p of pages) {
-    const local = (re) => [...new Set([...p.html.matchAll(re)].map((m) => decode(m[1])))].filter((h) => h.startsWith('/')).map(fileFor).filter(Boolean);
+    const local = (re, html = p.html) => [...new Set([...html.matchAll(re)].map((m) => decode(m[1])))].filter((h) => h.startsWith('/')).map(fileFor).filter(Boolean);
     const js = local(/<script\b[^>]*\ssrc="([^"]+)"/g).concat(local(/<link rel="modulepreload" href="([^"]+)"/g)).reduce((s, f) => s + gz(f), 0);
     const css = local(/<link rel="stylesheet" href="([^"]+)"/g).reduce((s, f) => s + gz(f), 0);
     if (js > BUDGET.jsGzip) fail(p.path, `JavaScript ${kb(js)} gzip (höchstens ${kb(BUDGET.jsGzip)})`);
@@ -377,7 +400,7 @@ function checkBudget() {
     report.js = Math.max(report.js, js);
     report.css = Math.max(report.css, css);
     if (p.path === '/') {
-      const imgs = local(/<img\b[^>]*\ssrc="([^"]+)"/g).reduce((s, f) => s + statSync(f).size, 0);
+      const imgs = imageWeight(p.html, local);
       report.home = Buffer.byteLength(p.html) + js + css + fonts + imgs;
       if (report.home > BUDGET.home) fail('/', `Startseite ${kb(report.home)} (höchstens ${kb(BUDGET.home)})`);
     }

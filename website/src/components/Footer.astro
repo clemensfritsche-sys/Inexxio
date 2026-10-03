@@ -3,6 +3,8 @@ import { site, contactEmail } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
+import { photos } from '../config/photos.mjs';
+import { samples } from '../config/photo-samples.mjs';
 
 const [krane, fahrmischer] = site.nav;
 const year = new Date().getFullYear();
@@ -14,6 +16,8 @@ const company = [
   { label: 'Karriere', href: '/karriere' },
 ];
 const a = site.address;
+/** Solange Beispielbilder stehen, führt der Fuss zu ihrem Nachweis (CC BY/BY-SA). */
+const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].file);
 ---
 <footer class="site-footer on-dark">
   <div class="wrap">
@@ -76,6 +80,7 @@ const a = site.address;
       <ul role="list">
         <li><a href="/impressum">Impressum</a></li>
         <li><a href="/datenschutz">Datenschutz</a></li>
+        {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
         <li>UID <span set:html={rich(site.brand.uid)} /></li>
         <li><a href={site.login.href} rel="nofollow">{site.login.label}</a></li>
       </ul>
@@ -84,8 +89,9 @@ const a = site.address;
 </footer>
 
 <style>
-  .site-footer { background: var(--dark); color: rgba(244, 243, 241, 0.78); padding-top: var(--s-8); font-size: 0.9375rem; }
-  .site-footer a { color: var(--white); text-decoration: none; }
+  .site-footer { background: var(--dark); color: rgba(244, 243, 241, 0.78); padding-top: 80px; font-size: 0.875rem; }
+  .site-footer a { color: rgba(255, 255, 255, 0.78); text-decoration: none; transition: color var(--t-fast) var(--ease); }
+  .site-footer a:hover { color: var(--white); }
   .site-footer a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .site-footer__grid {
     display: grid; gap: var(--s-7) var(--s-6); grid-template-columns: minmax(0, 1fr);
@@ -98,7 +104,7 @@ const a = site.address;
   /* Jeder Spaltentitel hat dieselbe 44-px-Zeile – ob verlinkt oder nicht. Sonst stand
      «Kontakt» 15 px höher als «Krane», weil nur der Link die Klickfläche trug. */
   .site-footer__title {
-    font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; letter-spacing: 0.08em;
+    font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.14em;
     text-transform: uppercase; color: rgba(244, 243, 241, 0.6);
     display: flex; align-items: center; min-height: 44px; margin: 0;
   }
@@ -108,10 +114,10 @@ const a = site.address;
   .site-footer__col li a { display: inline-flex; align-items: center; min-height: 44px; }
   .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }
   .site-footer__contact p { display: grid; grid-template-columns: 22px 1fr; gap: 8px; max-width: none; line-height: 1.5; }
-  .site-footer__k { color: rgba(244, 243, 241, 0.55); padding-top: 3px; }
+  .site-footer__k { color: var(--red-bright); padding-top: 3px; }
   /* Im Fliesstext: unterstrichen (nicht nur über die Farbe erkennbar) und mit 44 px hoher
      Trefferfläche – vertikales Padding an einem Inline-Element verschiebt keine Zeile. */
-  .site-footer__contact a { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-color: rgba(255, 255, 255, 0.45); padding-block: 13px; }
+  .site-footer__contact a { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-color: rgba(255, 255, 255, 0.45); padding-block: 14px; }
   .site-footer__bottom {
     display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-6); justify-content: space-between; align-items: center;
     padding-block: var(--s-5) var(--s-6); font-size: 0.875rem; color: rgba(244, 243, 241, 0.6);

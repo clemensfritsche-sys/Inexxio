@@ -1,5 +1,5 @@
 ---
-/** Zeitstrahl (Übergabe): Jahr in Mono, ein Satz dazu; die Bahn ist die Kranbahn-Linie. */
+/** Zeitstrahl (Übergabe): Jahr gross in der Titelschrift (rot), ein Satz dazu; die Bahn ist die Kranbahn-Linie. */
 import Rich from './Rich.astro';
 
 interface Props { items: { year: string; text: string }[] }
@@ -20,10 +20,11 @@ const { items } = Astro.props;
   .tl__rail { position: absolute; left: 6px; top: 8px; bottom: 8px; width: 13px; }
   .tl__line { position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--ink); transform-origin: top center; }
   .tl__cat { position: absolute; left: 0; bottom: 0; width: 13px; height: 13px; background: var(--red); }
-  .tl__year { font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.06em; color: var(--ink); font-weight: 600; }
+  .tl__year { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; letter-spacing: -0.03em; color: var(--red); font-weight: 800; font-variant-numeric: tabular-nums; }
   .tl__text { margin-top: 4px; color: var(--ink-2); max-width: 30ch; }
   :global(.section--dark) .tl__line { background: rgba(255, 255, 255, 0.5); }
-  :global(.section--dark) .tl__year { color: var(--white); }
+  :global(.section--dark) .tl__year { color: var(--red-bright); }
+  :global(.section--paper) .tl__year { color: var(--red-deep); }
   .tl__rail:global(.is-armed) .tl__line { transform: scaleY(0); }
   .tl__rail:global(.is-armed) .tl__cat { opacity: 0; }
   .tl__rail:global(.is-drawn) .tl__line { transform: none; transition: transform 800ms var(--ease); }

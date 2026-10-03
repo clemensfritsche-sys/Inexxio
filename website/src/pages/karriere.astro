@@ -43,7 +43,7 @@ const jobLd = site.features.jobPosting
       <ol role="list" class="kr-why">
         {c.why.items.map((it, i) => (
           <li>
-            <span class="label">{String(i + 1).padStart(2, '0')}</span>
+            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
             <h3>{it.title}</h3>
             <Rich as="p" text={it.text} />
           </li>

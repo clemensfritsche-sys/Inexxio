@@ -8,9 +8,10 @@
 //           CC BY, CC BY-SA) und je Stelle einen Kontaktbogen schreiben
 //           (scripts/.sample-review/<id>.jpg + candidates.json). Ein Mensch – oder Claude –
 //           schaut sie an und wählt.
-//   fetch   Die gewählten Dateien in voller Grösse (lange Seite 2000 px – mehr erzeugt der Build ohnehin nicht) nach
-//           src/assets/photos/samples/<id>.jpg holen und den Bildnachweis nach
-//           scripts/.sample-review/credits.json schreiben.
+//   fetch   Die gewählten Dateien (lange Seite 2000 px – mehr erzeugt der Build ohnehin nicht)
+//           nach src/assets/photos/samples/<id>.jpg holen und Urheber, Lizenz und Quelle in
+//           src/config/photo-credits.json eintragen (Bildnachweis im Impressum). Den Alt-Text
+//           – was wirklich zu sehen ist – schreibt ein Mensch in src/config/photo-samples.mjs.
 //
 // Commons statt Openverse: eine Anfrage je Stelle liefert Vorschaubild, Masse und Lizenz
 // zugleich, und es gibt keine enge Anfragegrenze für anonyme Nutzer.
@@ -24,6 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const REQUEST = resolve(here, 'sample-photos.request.json');
 const REVIEW = resolve(here, '.sample-review');
 const OUT = resolve(here, '../src/assets/photos/samples');
+const CREDITS = resolve(here, '../src/config/photo-credits.json');
 const API = 'https://commons.wikimedia.org/w/api.php';
 const UA = 'InexxioWebsite-SamplePhotos/1.0 (https://inexxio-dev.web.app; build tool)';
 const FREE = /^(CC0|Public domain|PD|CC BY(?:-SA)? \d)/i;
@@ -121,8 +123,7 @@ async function search(slots) {
 
 async function fetchChosen(choose) {
   mkdirSync(OUT, { recursive: true });
-  mkdirSync(REVIEW, { recursive: true });
-  const credits = {};
+  const credits = JSON.parse(readFileSync(CREDITS, 'utf8'));
   for (const [id, file] of Object.entries(choose)) {
     const data = await api({
       action: 'query', titles: file, prop: 'imageinfo', iiprop: 'url|size|mime|extmetadata',
@@ -135,11 +136,11 @@ async function fetchChosen(choose) {
     })).query.pages[0].imageinfo[0].url;
     await sharp(await download(src)).rotate().resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 78, mozjpeg: true }).toFile(resolve(OUT, `${id}.jpg`));
-    credits[id] = { file: c.file, author: c.author, license: c.license, licenseUrl: c.licenseUrl, page: c.page, description: c.description };
+    credits[id] = { file: c.file, author: c.author, license: c.license, licenseUrl: c.licenseUrl, page: c.page };
     console.log(`${id}: ${c.file} (${c.license})`);
     await sleep(400);
   }
-  writeFileSync(resolve(REVIEW, 'credits.json'), `${JSON.stringify(credits, null, 2)}\n`);
+  writeFileSync(CREDITS, `${JSON.stringify(credits, null, 2)}\n`);
 }
 
 const req = JSON.parse(readFileSync(REQUEST, 'utf8'));

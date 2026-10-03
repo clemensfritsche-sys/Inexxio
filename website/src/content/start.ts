@@ -11,11 +11,18 @@ export const start = {
     'Kranprüfung, Wartung und Reparatur für Krananlagen und Fahrmischer aller Marken in der Ostschweiz. Seit 1982 in Tuttwil-Wängi TG. Jetzt Service anfragen.',
 
   hero: {
+    index: '01',
     eyebrow: 'Tuttwil-Wängi TG · seit {{history.founded}}',
-    h1: 'Kranservice und Fahrmischer-Reparatur für die Ostschweiz',
+    h1: 'Kranservice und Fahrmischer-Reparatur für die ==Ostschweiz==',
     lead:
       'Prüfung, Wartung, Reparatur und Modernisierung für Krananlagen und Fahrmischer aller Marken. Aus der Region, mit Bericht zu jeder Arbeit. [[PRÜFEN: Ersatz für den Claim «Schnell vor Ort. Sauber dokumentiert.» freigeben]]',
     note: 'Notfall? Pikett: {{pikett.link}} {{pikett.review}}',
+    /** Nur belegte Fakten. */
+    stats: [
+      { value: '{{history.founded}}', label: 'gegründet in Tuttwil-Wängi' },
+      { value: 'Alle', label: 'Marken – Krane und Fahrmischer' },
+      { value: 'rund 1 h', label: 'Einsatzradius ab Tuttwil [[PRÜFEN: Einsatzradius bestätigen]]' },
+    ],
   },
 
   summary:
@@ -28,8 +35,6 @@ export const start = {
     { title: 'Verschleissteile', text: 'Rinnen, Schurren, Spiralschutz', href: '/fahrmischer/verschleissteile', icon: 'package' },
   ] satisfies Entry[],
 
-  trust: ['Seit {{history.founded}}', 'Alle Marken', 'Ersatzteillager vor Ort', 'Pikett-Service', 'rund 1 Stunde Einsatzradius'],
-  trustReview: '[[PRÜFEN: Pikett-Service und Einsatzradius bestätigen]]',
 
   handover: {
     eyebrow: 'Nachfolge geregelt',

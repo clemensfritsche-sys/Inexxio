@@ -592,6 +592,14 @@ der zweite Weg (Umleitung, Lesezeichen) und sagt, was «daneben klicken» dort h
 Startseite. Der Knopf «Zurück zur Startseite» ist damit entfallen – daneben klicken und
 `Esc` sind der Ausweg.
 
+**Nach der Anmeldung geht es nie auf «/»** (`lib/login-target.ts`, EINE Antwort für Dialog,
+Route und Magic Link): «/» ist seit Oktober 2026 die Website und kennt keine Anmeldung. Ziel ist
+`?from=` · das gemerkte Ziel · die Vorgabe des Aufrufers · sonst der Startplatz der Rolle
+(Mitarbeitende → `/erp`, alle anderen → `/konto`). Navigiert wird **hart** (`window.location`):
+`router.push` auf eine Nicht-Next-Seite endet in einer nachgelagerten Seitennavigation, die eine
+spätere überholt – genau so landete der Login auf der Website. Wer an `/login` schon angemeldet
+ist, sieht keinen Dialog. Links auf Website-Seiten sind schlichte `<a>`.
+
 **Zentriert wird über `margin: auto` an der Karte, nie über `align-items` am Schleier.**
 Gemessen in Chromium (375×420): mit `align-items: center` wird eine Karte, die höher als
 das Fenster ist, oben **abgeschnitten**, und in einem Scroll-Container ist alles vor der

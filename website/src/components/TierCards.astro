@@ -29,24 +29,35 @@ const { compact = false } = Astro.props;
 </div>
 
 <style>
-  .tiers { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); align-items: stretch; }
-  @media (min-width: 900px) { .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); } }
-  .tier {
-    position: relative; display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-6);
-    background: var(--white); border: 1px solid var(--line-2);
+  /* Karten aus Linien wie im Website-Kit; die hervorgehobene Stufe ist die dunkle Karte. */
+  .tiers {
+    display: grid; gap: 1px; grid-template-columns: minmax(0, 1fr); align-items: stretch;
+    background: var(--line); border: 1px solid var(--line);
   }
-  .tier--featured { border: 2px solid var(--ink); }
-  .tier__name { font-size: 1.5rem; }
-  .tier__summary { color: var(--ink-2); }
-  .tier__price { font-weight: 650; color: var(--ink); padding-bottom: var(--s-3); border-bottom: 1px solid var(--line); }
-  .tier__includes { font-size: 0.9375rem; color: var(--ink-3); }
+  @media (min-width: 900px) { .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .tier {
+    position: relative; display: flex; flex-direction: column; gap: var(--s-3); padding: 34px 30px;
+    background: var(--white);
+  }
+  .tier__name { font-size: clamp(1.625rem, 1.4rem + 0.8vw, 2.125rem); font-weight: 800; letter-spacing: -0.03em; }
+  .tier__summary { color: var(--ink-2); font-size: 0.9375rem; }
+  .tier__price {
+    font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--ink);
+    padding-bottom: var(--s-3); border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums;
+  }
+  .tier__includes { font-size: 0.875rem; color: var(--ink-3); }
   /* Die Liste füllt die Karte (Knopf unten bündig), ihre Zeilen behalten aber ihren Abstand –
      sonst standen drei Punkte weiter auseinander als vier. */
   .tier .checklist { flex: 1; align-content: start; }
   .tier__cta { margin-top: var(--s-4); align-self: flex-start; }
-  .tiers--compact .tier { padding: var(--s-5); }
-  :global(.section--dark) .tier { background: var(--dark-2); border-color: var(--line-dark); }
-  :global(.section--dark) .tier--featured { border-color: var(--white); }
-  :global(.section--dark) .tier__price { border-color: var(--line-dark); color: var(--white); }
-  :global(.section--dark) .tier__summary { color: rgba(244, 243, 241, 0.78); }
+  .tiers--compact .tier { padding: 28px 26px; }
+
+  .tier--featured { background: var(--black); color: rgba(244, 243, 241, 0.78); --overline: var(--red-bright); }
+  .tier--featured .tier__name, .tier--featured .tier__price, .tier--featured :global(strong) { color: var(--white); }
+  .tier--featured .tier__summary, .tier--featured .tier__includes { color: rgba(244, 243, 241, 0.72); }
+  .tier--featured .tier__price { border-color: var(--line-dark); }
+  .tier--featured :global(.checklist li) { border-top-color: var(--line-dark); }
+  .tier--featured :global(.checklist .icon) { color: var(--red-bright); }
+  .tier--featured :global(.btn--secondary) { border-color: rgba(255, 255, 255, 0.4); color: var(--white); }
+  .tier--featured :global(:focus-visible) { outline-color: var(--white); }
 </style>

@@ -11,7 +11,8 @@
  * eintragen. AVIF/WebP, srcset und feste Masse erzeugt der Build.
  *
  * Nur echte Fotos: Werkstatt, Team bei der Arbeit, Krane im Einsatz. Keine Stockfotos mit
- * Menschen, keine KI-Bilder.
+ * Menschen, keine KI-Bilder. Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
+ * (config/photo-samples.mjs) – im Modus «live» ist das, wie ein fehlendes Foto, ein Fehler.
  *
  * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/1' | '16/9', file?: string, feature?: string }} Photo
  */

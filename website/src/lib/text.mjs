@@ -10,7 +10,8 @@
  *  2. **Markierungen** – `[[PLATZHALTER: …]]` / `[[PRÜFEN: …]]` werden im Modus
  *     «preview» sichtbar (gelb gestrichelt, mit Label). Im Modus «live» ist eine
  *     Markierung ein Fehler: der Build bricht ab.
- *  3. **Minimales Inline-Markup** in Content-Dateien: `**fett**` und `[Text](/pfad)`.
+ *  3. **Minimales Inline-Markup** in Content-Dateien: `**fett**`, `[Text](/pfad)` und
+ *     `==Wort==` – das EINE rote Wort eines Titels (Design-System: «one red accent word»).
  *
  * `rich()` liefert HTML (für `set:html`), `plain()` liefert Text (für Meta-Tags,
  * Alt-Texte, JSON-LD, llms.txt). Beide lesen dieselben Werte.
@@ -141,6 +142,7 @@ export function rich(text) {
   });
   html = html.replace(MARKER_RE, (_, kind, note) => markerHtml(kind, note));
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/==(.+?)==/g, '<span class="mark">$1</span>');
   html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, href) => linkHtml(label, href));
   return html;
 }
@@ -154,6 +156,7 @@ export function plain(text) {
   return resolve(text)
     .replace(MARKER_RE, '')
     .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/==(.+?)==/g, '$1')
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([.,;:])/g, '$1')

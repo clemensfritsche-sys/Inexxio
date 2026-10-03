@@ -120,16 +120,42 @@
 26. **Die Karte zeigt schmal nur die grossen Orte, dafür lesbar** (unter 600 px 3.4 statt
     2.7 Einheiten → rund 10 statt 8 px; die Liste darunter nennt alle Orte), mit
     Freistellung wie auf jeder Karte: Kreis und Rhein laufen nicht mehr durch die Buchstaben.
-27. **Das rote Quadrat gehört der Kranbahn-Linie** (Kap. 9.6: «soll auffallen, weil es selten
-    ist»): die Auswahl-Kacheln im Formular tragen einen runden Auswahlpunkt (ein Quadrat las
-    sich zudem als Mehrfachauswahl), die Vertrauensleiste neutrale Punkte, die hervorgehobene
-    Abo-Stufe keine rote Ecke mehr.
+27. ~~Das rote Quadrat gehört der Kranbahn-Linie~~ – mit Entscheid 30 entfallen: die
+    Kranbahn-Linie war eine eigene Formsprache neben dem Design-System. Geblieben ist der
+    runde Auswahlpunkt der Formular-Kacheln (ein Quadrat las sich als Mehrfachauswahl).
 28. **Telefon-Symbol auch auf dem Tablet** (600–899 px): dort hatte weder die ausgeschriebene
     Nummer noch die Aktionsleiste unten Platz – die Kopfzeile bot keinen Weg zum Telefon. Der
     Link heisst für Vorleser immer «052 378 22 47 anrufen».
 29. **Externe Links sind von hier aus nicht prüfbar**: die Netzwerkrichtlinie dieser Umgebung
     sperrt fedlex.admin.ch, suva.ch, seco.admin.ch, eur-lex.europa.eu, bul.ch und google.com.
     Die Prüfung steht in der Start-Checkliste des Berichts, statt dass sie als «geprüft» gilt.
+30. **Die Formsprache ist die des Design-Systems, nicht eine eigene** (Rückmeldung 03.10.:
+    «entspricht nicht dem Inexxio Design System», «etwas langweilig»). Das Claude-Design-
+    Projekt selbst ist von hier aus nicht lesbar (Anmeldung nötig); sein Export liegt aber im
+    Repo – samt **Website-Kit** (`docs/design-system/reference/ui-kit-website/`). Danach
+    richtet sich jetzt alles: Inter Tight 800 für Titel (selbst gehostet, auf 700–800
+    beschnitten, 32 KB), rote Overlines, Abschnittsköpfe mit 2 px schwarzer Linie und Index
+    («01»), Pillen-Knöpfe mit rotem Schein nur beim Zeigen, Karten aus 1-px-Linien, grosse
+    rote Schrittziffern, Milchglas-Kopfzeile, ein dunkles Band mit rotem Schein, ein rotes
+    Wort je Seitentitel (`==Wort==`). Die frühere «Industrielle Präzision» (2 px Radius,
+    Mono-Etiketten, Kranbahn-Linie mit rotem Quadrat) ist entfallen. Overlines auf getöntem
+    Grund stehen in der tiefen Rotstufe – das hellere Rot hätte dort 4.2:1 statt 4.5:1.
+31. **Der Seitenkopf trägt eine Zahlenreihe – nur aus belegten Fakten** (1982 · alle Marken ·
+    rund 1 h Einsatzradius, letzteres weiterhin `[[PRÜFEN]]`). Die Vertrauensleiste darunter
+    ist entfallen: sie sagte dasselbe ein zweites Mal.
+32. **Beispielbilder statt grauer Rahmen** (Rückmeldung 03.10.). Die Arbeitsumgebung hat
+    keinen Zugang zu Bildquellen; ein einmaliger Actions-Job (`.github/workflows/
+    sample-photos.yml`) sucht auf Wikimedia Commons nur frei lizenzierte Fotos (CC0,
+    gemeinfrei, CC BY, CC BY-SA), schreibt Kontaktbögen zurück, und nach der Auswahl die
+    Bilder samt Urheber und Lizenz. 22 Stellen, jede **sichtbar «Beispielbild»**, Alt-Text =
+    was wirklich zu sehen ist, Bildnachweis im Impressum (Link im Fuss). Wo eine Person
+    gemeint ist (Porträt, Übergabe, Team), zeigt das Beispiel bewusst eine Sache – ein
+    fremdes Gesicht unter «Clemens Fritsche» wäre eine erfundene Tatsache. Im Modus `live`
+    bricht der Build ab, solange ein Beispielbild steht – genau wie bei einem fehlenden Foto.
+33. **«Login» steht in der Kopfzeile** (ab 768 px, schmaler im Menü). Seit die Website «/»
+    besitzt, fand man den Weg ins Konto bzw. ERP nur noch im Fuss – und nach der Anmeldung
+    landete man wieder auf der Website, ohne jedes Zeichen, angemeldet zu sein (behoben im
+    Frontend, `lib/login-target.ts`).
 
 ## 3. Änderungen ausserhalb von `website/`
 
@@ -148,9 +174,12 @@
 | `.github/workflows/deploy-dev.yml` | Job «Quality gates (Website)» (Node 22: Tests, astro check, Vokabular, Build mit Prüfungen); der Backend-Deploy wartet darauf | ein Fehler der Website hält den Deploy an, statt live zu gehen |
 | `.github/workflows/deploy-dev.yml`, `deploy-prod.yml` | im Frontend-Job: Website **zuerst** bauen (Node 22), danach alles Bisherige unverändert mit Node 20 (auch die Firebase-CLI); nach dem ERP-Build mit `website/scripts/merge-hosting.mjs` in `frontend/out` übernehmen | ohne diesen Schritt hätte die Domain keine Startseite mehr; die Reihenfolge lässt jeden bestehenden Schritt auf seiner Node-Version |
 | `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md` | Abschnitt «Website», Endpunkt-Zeile, entfernte Seiten | jede Sitzung liest sie zuerst |
+| `frontend/src/lib/login-target.ts` (neu), Login-Dialog, `/login`, `/login/verify`, ERP-Layout, Navbar, Footer, Cookie-Hinweis, 404 | Ziel nach der Anmeldung = Startplatz der Rolle (ERP bzw. Konto) statt «/»; harte Navigation; Links auf Website-Seiten als `<a>` | «/» ist seit der Website keine Next-Seite mehr – die Anmeldung endete dort, ohne Weg ins ERP |
+| `frontend/scripts/login-target.test.mjs` | neu | Wächter: nie wieder «/» als Ziel, keine fremde Adresse |
+| `.github/workflows/sample-photos.yml` | neu: holt Beispielbilder (nur bei Änderung der Anfrage-Datei, schreibt per Commit zurück, löst keinen Deploy aus) | die Arbeitsumgebung erreicht keine Bildquelle |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router), Datenbank, Modelle, Migrationen,
-ERP-Frontend-Logik, Auth, die globalen Header in `firebase.json`.
+ERP-Fachlogik, die globalen Header in `firebase.json`.
 
 ## 4. Laufende Kosten
 

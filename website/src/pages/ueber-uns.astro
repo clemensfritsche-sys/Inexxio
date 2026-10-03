@@ -4,7 +4,6 @@ import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
-import Kranbahn from '../components/Kranbahn.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
@@ -43,12 +42,11 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
 
   <section class="section" aria-labelledby="zusagen">
     <div class="wrap">
-      <Kranbahn at={42} class="uu-rule" />
       <SectionHead eyebrow="Zusagen" title={u.promises.title} lead={u.promises.lead} id="zusagen" />
       <ol role="list" class="uu-promises">
         {u.promises.items.map((p, i) => (
           <li>
-            <span class="label">{String(i + 1).padStart(2, '0')}</span>
+            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
             <h3>{p.title}</h3>
             <Rich as="p" text={p.text} />
           </li>
@@ -104,7 +102,6 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   .uu-career li { padding: var(--s-3) 0; color: var(--ink); }
   .uu-msg { display: grid; gap: var(--s-3); margin-top: var(--s-4); padding-left: var(--s-5); border-left: 2px solid var(--red); }
   .uu-msg p:not(.small) { color: var(--ink); font-size: 1.0625rem; }
-  .uu-rule { margin-bottom: var(--s-7); }
   .uu-promises { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 720px) { .uu-promises { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (min-width: 1100px) { .uu-promises { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

@@ -5,6 +5,8 @@ import Photo from './Photo.astro';
 import Rich from './Rich.astro';
 
 interface Props {
+  /** Kleine Nummer oben links im Bild («01»). */
+  index?: string;
   title: string;
   href: string;
   text: string;
@@ -12,34 +14,53 @@ interface Props {
   links: { href: string; label: string }[];
   more: string;
 }
-const { title, href, text, photo, links, more } = Astro.props;
+const { index, title, href, text, photo, links, more } = Astro.props;
 ---
 <article class="pillar">
-  <a href={href} class="pillar__media" tabindex="-1" aria-hidden="true"><Photo id={photo} sizes="(min-width: 960px) 50vw, 100vw" /></a>
+  <a href={href} class="pillar__media" tabindex="-1" aria-hidden="true">
+    <Photo id={photo} sizes="(min-width: 960px) 50vw, 100vw" />
+    {index && <span class="pillar__no">{index}</span>}
+  </a>
   <div class="pillar__body">
     <h3 class="pillar__title"><a href={href}>{title}</a></h3>
     <Rich as="p" class="pillar__text" text={text} />
     <ul role="list" class="pillar__links">
-      {links.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+      {links.map((l) => <li><a href={l.href}><span>{l.label}</span><Icon name="arrow-right" size={16} /></a></li>)}
     </ul>
     <a class="arrow-link" href={href}>{more} <Icon name="arrow-right" size={18} /></a>
   </div>
 </article>
 
 <style>
-  .pillar { display: grid; gap: var(--s-5); align-content: start; }
-  .pillar__media { display: block; overflow: hidden; text-decoration: none; color: inherit; }
-  .pillar__media :global(img), .pillar__media :global(.ph) { transition: transform 600ms var(--ease); }
+  /* Karte des Website-Kits: Bild oben (16:10, beim Zeigen leicht vergrössert), Text darunter. */
+  .pillar { display: flex; flex-direction: column; height: 100%; transition: background-color 200ms var(--ease); }
+  .pillar:hover { background: var(--paper); }
+  .pillar__media { position: relative; display: block; overflow: hidden; aspect-ratio: 16 / 10; text-decoration: none; color: inherit; }
+  .pillar__media :global(picture), .pillar__media :global(.photo), .pillar__media :global(.ph) { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pillar__media :global(.photo) { object-fit: cover; }
+  .pillar__media :global(img), .pillar__media :global(.ph) { transition: transform 500ms var(--ease); }
   @media (prefers-reduced-motion: no-preference) {
-    .pillar:hover .pillar__media :global(img), .pillar:hover .pillar__media :global(.ph) { transform: scale(1.03); }
+    .pillar:hover .pillar__media :global(img), .pillar:hover .pillar__media :global(.ph) { transform: scale(1.04); }
   }
-  .pillar__body { display: grid; gap: var(--s-3); justify-items: start; }
-  .pillar__title { font-size: clamp(1.5rem, 1.3rem + 0.9vw, 2.125rem); letter-spacing: -0.025em; }
+  .pillar__no {
+    position: absolute; top: 14px; left: 16px; z-index: 1;
+    font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; color: var(--white);
+    font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+  .pillar__body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); padding: 26px 28px 30px; flex: 1; }
+  .pillar__title { font-size: clamp(1.625rem, 1.35rem + 1vw, 2.25rem); letter-spacing: -0.03em; font-weight: 800; }
   .pillar__title a { color: var(--ink); text-decoration: none; }
-  .pillar__title a:hover { text-decoration: underline; text-underline-offset: 0.15em; text-decoration-thickness: 2px; }
-  .pillar__text { color: var(--ink-2); }
-  .pillar__links { list-style: none; padding: 0; width: 100%; border-top: 1px solid var(--line-2); }
-  .pillar__links li { border-bottom: 1px solid var(--line); }
-  .pillar__links a { display: flex; align-items: center; min-height: 48px; color: var(--ink); text-decoration: none; font-weight: 500; }
-  .pillar__links a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .pillar__title a:hover { color: var(--red-deep); }
+  .pillar__text { color: var(--ink-2); font-size: 0.9375rem; }
+  .pillar__links { list-style: none; padding: 0; width: 100%; margin-top: auto; }
+  .pillar__links li { border-top: 1px solid var(--line); }
+  .pillar__links a {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 46px;
+    color: var(--ink-2); text-decoration: none; font-size: 0.9375rem; font-weight: 500;
+  }
+  .pillar__links a :global(.icon) { color: var(--red); transition: transform 200ms var(--ease); }
+  .pillar__links a:hover { color: var(--ink); }
+  .pillar__links a:hover :global(.icon) { transform: translateX(3px); }
+  .pillar :global(.arrow-link) { margin-top: var(--s-2); }
+  @media (max-width: 599px) { .pillar__body { padding: 22px 18px 24px; } }
 </style>

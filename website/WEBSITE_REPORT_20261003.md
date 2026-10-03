@@ -18,6 +18,13 @@
 - **Gemessen, nicht behauptet:** Lighthouse mobil 99–100, axe 0 Verstösse, HTML-Validierung
   0 Fehler, CLS 0, Formular 30/30 inklusive Störungsfall und ohne JavaScript.
 
+> **Nachtrag 03.10. (Rückmeldung):** Formsprache auf das Design-System umgestellt (Website-Kit,
+> Inter Tight, Overlines, Abschnittsköpfe mit Index, Pillen-Knöpfe), Beispielbilder an allen
+> 22 Bildstellen, «Login» in der Kopfzeile und der Anmelde-Fehler im Frontend behoben (nach
+> der Anmeldung ging es auf die Website statt ins ERP). Begründung: `WEBSITE_PLAN.md`,
+> Entscheide 30–33. Nachgemessen: HTML 0 Fehler, axe 0, Überlauf 0, Klickflächen 0, CLS 0
+> auf allen 24 Seiten, Lighthouse mobil 94–96 Leistung, 100 Barrierefreiheit.
+
 ## 1. Was gebaut wurde
 
 ### Seiten (24)
@@ -202,7 +209,9 @@ Vollständig und mit Fundstelle in `OFFENE_PUNKTE.md` (wird bei jedem Build neu 
 **Vor dem Umschalten**
 
 - [ ] Freigabe von Heiri Steiner: Texte, Zitat, Fotos, Namenswechsel
-- [ ] Fototag; Fotos in `src/config/photos.mjs` eintragen
+- [ ] Fototag; Fotos in `src/config/photos.mjs` eintragen – jedes echte Foto ersetzt ein
+      Beispielbild (Nachtrag 03.10.: 22 gekennzeichnete Beispielbilder aus Wikimedia Commons,
+      Bildnachweis im Impressum; im Modus `live` bricht der Build ab, solange eines steht)
 - [ ] alle Markierungen erledigt (`OFFENE_PUNKTE.md` leer), dann `SITE_MODE=live` und
       `SITE_URL=https://<Domain>` im Produktions-Workflow (`deploy-prod.yml`)
 - [ ] Mailversand einrichten: `INQUIRY_SMTP_HOST`, `INQUIRY_SMTP_PORT`, `INQUIRY_SMTP_USER`,

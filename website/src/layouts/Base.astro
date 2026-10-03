@@ -8,6 +8,7 @@
  */
 import '../styles/global.css';
 import fontUrl from '../assets/fonts/inter-latin-wght-normal.woff2?url';
+import displayFontUrl from '../assets/fonts/inter-tight-latin-wght-700-800.woff2?url';
 import earlyUrl from '../scripts/early.js?url';
 import { site } from '../config/site.mjs';
 import { plain, siteMode } from '../lib/text.mjs';
@@ -85,6 +86,7 @@ const csp = [
     <meta name="robots" content={indexable ? 'index, follow' : 'noindex, nofollow'} />
     <meta name="theme-color" content="#FFFFFF" />
     <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={displayFontUrl} as="font" type="font/woff2" crossorigin />
     <script is:inline src={earlyUrl}></script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />

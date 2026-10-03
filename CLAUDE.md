@@ -4972,6 +4972,10 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
   `website/dist` in `frontend/out` (`website/scripts/merge-hosting.mjs`, bricht bei jeder
   Kollision ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`,
   `/login`, `/agb`. Die eine `robots.txt` und die `404.html` kommen von der Website.
+- **Formsprache = Website-Kit des Design-Systems** (`docs/design-system/reference/ui-kit-website/`):
+  Inter Tight 800, rote Overlines, Abschnittsköpfe mit Index, Pillen-Knöpfe. **Bilder:** bis zum
+  Fototag gekennzeichnete Beispielbilder (Wikimedia Commons, Nachweis im Impressum) – im Modus
+  `live` ein Build-Fehler wie ein fehlendes Foto.
 - **Das Formular** geht an `POST /api/v1/contact` (`backend/app/routers/contact.py`) – ein
   isolierter Endpunkt ohne ERP-Import und ohne Tabelle. Sein Vokabular ist generiert
   (`website/scripts/export-contact.mjs` → `backend/app/assets/website_contact.json`, CI

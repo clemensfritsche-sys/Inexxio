@@ -118,16 +118,18 @@ const tel = `tel:${site.phone.e164}`;
 </header>
 
 <style>
+  /* Milchglas wie im Website-Kit: weiss zu 86 %, dahinter verschwimmt die Seite. */
   .site-header {
     position: sticky; top: 0; z-index: 50;
-    background: var(--white);
+    background: rgba(255, 255, 255, 0.86);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
     border-bottom: 1px solid var(--line);
-    transition: transform 260ms var(--ease), background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+    transition: transform 260ms var(--ease), box-shadow var(--t-fast) var(--ease);
   }
-  /* Mit JS: oben transparent, ab 8 px weiss mit Linie; beim Runterscrollen ausblenden. */
-  :global(.js) .site-header:not(.is-scrolled) { background: transparent; border-bottom-color: transparent; }
+  /* Mit JS: beim Runterscrollen ausblenden, beim Hochscrollen zurück. */
   :global(.js) .site-header.is-hidden { transform: translateY(-100%); }
-  :global(.js) .site-header.is-scrolled { box-shadow: 0 1px 0 rgba(10, 10, 11, 0.02); }
+  :global(.js) .site-header.is-scrolled { box-shadow: var(--shadow-sm); }
 
   /* Nichts in der Kopfzeile bricht um: ein umgebrochener Navigationspunkt oder eine
      zweizeilige Telefonnummer ist kein Layout, sondern ein Fehler. Platz schafft die
@@ -140,16 +142,19 @@ const tel = `tel:${site.phone.e164}`;
   .nav { display: none; }
   .nav__list { display: flex; align-items: center; gap: 2px; list-style: none; padding: 0; }
   .nav__item { position: relative; display: flex; align-items: center; }
+  /* Navigation: leise Stimme (ink-2), beim Zeigen dunkel – und die rote Linie wächst von links. */
   .nav__link {
     display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px;
-    font-size: 0.97rem; font-weight: 550; color: var(--ink); text-decoration: none; position: relative;
+    font-size: 0.9375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink-2);
+    text-decoration: none; position: relative; transition: color var(--t-fast) var(--ease);
   }
   .nav__link::after {
-    content: ''; position: absolute; left: 10px; right: 10px; bottom: 6px; height: 2px;
-    background: transparent; transition: background-color var(--t-fast) var(--ease);
+    content: ''; position: absolute; left: 10px; right: calc(100% - 10px); bottom: 7px; height: 2px;
+    background: var(--red); transition: right 200ms var(--ease);
   }
-  .nav__link:hover::after { background: var(--line-2); }
-  .nav__link[aria-current='page']::after { background: var(--red); }
+  .nav__link:hover { color: var(--ink); }
+  .nav__link:hover::after, .nav__link[aria-current='page']::after { right: 10px; }
+  .nav__link[aria-current='page'] { color: var(--ink); }
   .dd .nav__link { padding-right: 2px; }
   .dd__toggle {
     display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
@@ -160,8 +165,8 @@ const tel = `tel:${site.phone.e164}`;
 
   .dd__panel {
     position: absolute; top: calc(100% + 6px); left: 0; width: 360px;
-    background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: 0 14px 34px rgba(16, 14, 12, 0.1);
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
     padding: var(--s-2); white-space: normal;
     opacity: 0; visibility: hidden; transform: translateY(-4px);
     transition: opacity 150ms var(--ease), transform 150ms var(--ease), visibility 0s linear 150ms;
@@ -228,7 +233,7 @@ const tel = `tel:${site.phone.e164}`;
   .mnav__nav { display: grid; align-content: start; padding-top: var(--s-4); padding-bottom: var(--s-6); flex: 1 0 auto; }
   .mnav__link {
     display: flex; align-items: center; justify-content: space-between; min-height: 56px;
-    font-size: 1.25rem; font-weight: 650; letter-spacing: -0.015em; color: var(--ink);
+    font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink);
     text-decoration: none; border-bottom: 1px solid var(--line); list-style: none; cursor: pointer;
   }
   .mnav__link::-webkit-details-marker { display: none; }

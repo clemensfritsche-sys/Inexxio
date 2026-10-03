@@ -1,9 +1,10 @@
 ---
 /**
- * Seitenkopf: links Text (Eyebrow, H1, Lead, Hauptaktion), rechts ein grosses echtes Foto.
- * Asymmetrisch, kein Slider, kein Video. Die Textspalte ist der Seitenkopf (data-hero): ist sie
- * mit ihren Knöpfen aus dem Bild, erscheint die mobile Aktionsleiste – nicht erst nach Foto
- * und Einstiegs-Kacheln (auf der Startseite gemessen: sonst erst nach rund 1700 px).
+ * Seitenkopf im Stil des Website-Kits («Swiss editorial»): links Kicker (Index · Overline),
+ * grosser Titel mit EINEM roten Wort, Satz, Aktionen, unten optional eine Zahlenreihe;
+ * rechts ein grosses Foto über die volle Höhe, durch eine Haarlinie getrennt.
+ * Kein Slider, kein Video. Die Textspalte ist der Seitenkopf (data-hero): ist sie mit ihren
+ * Knöpfen aus dem Bild, erscheint die mobile Aktionsleiste.
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
@@ -11,6 +12,7 @@ import Photo from './Photo.astro';
 import Rich from './Rich.astro';
 
 interface Action { label: string; href: string; track?: string }
+interface Stat { value: string; label: string }
 interface Props {
   eyebrow: string;
   title: string;
@@ -21,59 +23,107 @@ interface Props {
   secondary?: Action | false;
   note?: string;
   size?: 'lg' | 'md';
+  /** Kleiner Index vor der Overline («01 / Kranservice»). */
+  index?: string;
+  /** Zahlenreihe am Fuss der Textspalte – nur belegte Fakten. */
+  stats?: Stat[];
+  /** Bildzeile unten rechts im Foto (Ort, Anlage). */
+  caption?: string;
 }
-const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md' } = Astro.props;
+const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md', index, stats, caption } = Astro.props;
 const second = secondary === false ? null : (secondary ?? { label: site.phone.display, href: `tel:${site.phone.e164}`, track: 'tel_click' });
 ---
 <section class:list={['hero', `hero--${size}`]}>
   <div class="wrap hero__grid">
     <div class="hero__text" data-hero>
-      <Rich as="p" class="label hero__eyebrow" text={eyebrow} />
+      <div class="hero__kicker">
+        {index && <span class="idx">{index}</span>}
+        <Rich as="p" class="label hero__eyebrow" text={eyebrow} />
+      </div>
       <Rich as="h1" class="hero__title" text={title} />
-      <Rich as="p" class="lead hero__lead" text={lead} />
+      <Rich as="p" class="hero__lead" text={lead} />
       <div class="btn-row hero__actions">
-        <a class="btn btn--primary" href={primary.href} data-track={primary.track}>
+        <a class:list={['btn btn--primary', size === 'lg' && 'btn--lg']} href={primary.href} data-track={primary.track}>
           {primary.label} <Icon name="arrow-right" size={18} class="btn__arrow" />
         </a>
         {second && (
-          <a class="btn btn--secondary" href={second.href} data-track={second.track}>
+          <a class:list={['btn btn--secondary', size === 'lg' && 'btn--lg']} href={second.href} data-track={second.track}>
             {second.href.startsWith('tel:') && <Icon name="phone" size={18} />}{second.label}
           </a>
         )}
       </div>
       {note && <Rich as="p" class="hero__note" text={note} />}
+      {stats && stats.length > 0 && (
+        <dl class="hero__stats">
+          {stats.map((s) => (
+            <div>
+              <Rich as="dt" class="hero__stat-l" text={s.label} />
+              <Rich as="dd" class="hero__stat-n" text={s.value} />
+            </div>
+          ))}
+        </dl>
+      )}
       <slot />
     </div>
     <div class="hero__media">
-      <Photo id={photo} priority sizes="(min-width: 960px) 56vw, 100vw" />
+      <Photo id={photo} priority sizes="(min-width: 960px) 50vw, 100vw" class="hero__photo" />
+      {caption && <Rich as="p" class="hero__cap" text={caption} />}
     </div>
-    {Astro.slots.has('after') && <div class="hero__after"><slot name="after" /></div>}
   </div>
+  {Astro.slots.has('after') && <div class="wrap hero__after"><slot name="after" /></div>}
 </section>
 
 <style>
-  .hero { padding-block: var(--s-6) var(--s-8); }
-  .hero__grid { display: grid; gap: var(--s-6); align-items: center; }
-  .hero__text { display: grid; gap: var(--s-4); justify-items: start; }
-  .hero__eyebrow { color: var(--ink-2); }
-  .hero__lead { margin-top: var(--s-1); }
-  .hero__actions { margin-top: var(--s-3); }
-  .hero__note { font-size: 0.9375rem; color: var(--ink-2); }
-  .hero__note :global(a) { font-weight: 650; color: var(--ink); white-space: nowrap; }
-  /* Mobil: Einstiege direkt unter dem Text, das Foto danach – sie sind der Zweck der Seite. */
-  .hero__text { order: 1; }
-  .hero__after { order: 2; min-width: 0; }
-  .hero__media { order: 3; }
-  @media (min-width: 960px) {
-    .hero__text, .hero__media { order: 0; grid-row: 1; }
-    .hero__after { order: 0; grid-row: 2; grid-column: 1 / -1; margin-top: var(--s-6); }
-    .hero { padding-block: var(--s-7) var(--s-9); }
-    .hero__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--s-5); }
-    .hero__text { grid-column: 1 / span 6; padding-right: var(--s-5); }
-    .hero__media { grid-column: 7 / span 6; }
-    .hero--lg .hero__text { grid-column: 1 / span 6; }
+  .hero { border-bottom: 1px solid var(--line); }
+  .hero__grid { display: grid; }
+  .hero__text { display: flex; flex-direction: column; align-items: flex-start; padding-block: var(--s-6) var(--s-7); }
+  .hero__kicker {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; align-self: stretch;
+    padding-bottom: 18px; margin-bottom: var(--s-6); border-bottom: 1px solid var(--line);
   }
-  @media (min-width: 1200px) {
-    .hero--md .hero__title { font-size: clamp(2.5rem, 1.6rem + 2.4vw, 3.75rem); }
+  .hero__kicker :global(.idx), .hero__eyebrow { white-space: nowrap; }
+  .hero__title { margin: 0; }
+  .hero--lg .hero__title { font-size: clamp(2.5rem, 1.35rem + 4.6vw, 4.75rem); line-height: 0.96; letter-spacing: -0.04em; }
+  .hero__lead {
+    font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.1875rem); line-height: 1.6; color: var(--ink-2);
+    margin-top: var(--s-5); max-width: 32em;
+  }
+  .hero__actions { margin-top: var(--s-6); }
+  .hero__note { margin-top: var(--s-4); font-size: 0.9375rem; color: var(--ink-2); }
+  .hero__note :global(a) { font-weight: 650; color: var(--ink); white-space: nowrap; }
+
+  /* Zahlenreihe: grosse Ziffern, darunter die Beschriftung; oben eine Haarlinie. */
+  .hero__stats {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: stretch;
+    margin-top: var(--s-7); padding-top: var(--s-5); border-top: 1px solid var(--line);
+  }
+  /* Im Code zuerst die Beschriftung (dt vor dd), im Bild zuerst die Zahl. */
+  .hero__stats > div { display: flex; flex-direction: column-reverse; justify-content: flex-end; padding-right: var(--s-4); }
+  .hero__stat-n {
+    font-family: var(--font-display); font-weight: 800; font-size: clamp(1.5rem, 1.2rem + 1vw, 1.875rem);
+    line-height: 1; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .hero__stat-l { margin-top: 7px; font-size: 0.8125rem; line-height: 1.45; font-weight: 500; color: var(--ink-3); }
+
+  /* Foto: mobil eigenes Band in fester Höhe, ab 960 px über die ganze Höhe der Textspalte. */
+  .hero__media { position: relative; overflow: hidden; margin-inline: calc(var(--gutter) * -1); min-height: 300px; background: var(--paper-2); }
+  .hero__media :global(picture), .hero__media :global(.photo), .hero__media :global(.ph) {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+  }
+  .hero__media :global(.photo) { object-fit: cover; }
+  .hero__media :global(.ph) { aspect-ratio: auto; border: 0; }
+  .hero__cap {
+    position: absolute; right: var(--s-5); bottom: var(--s-4); z-index: 1; max-width: 70%;
+    font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--white); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); text-align: right;
+  }
+  .hero__after { padding-block: 0; }
+
+  @media (min-width: 600px) { .hero__media { min-height: 420px; } }
+  @media (min-width: 960px) {
+    .hero__grid { grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr); }
+    .hero__text { padding: var(--s-8) var(--s-8) var(--s-7) 0; }
+    .hero__media { margin-inline: 0; border-left: 1px solid var(--line); min-height: 560px; }
+    .hero--md .hero__media { min-height: 460px; }
   }
 </style>

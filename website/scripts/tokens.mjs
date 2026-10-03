@@ -22,6 +22,8 @@ const TARGET = resolve(here, '../src/styles/tokens.css');
 const MAP = {
   '--inexxio-red': '--red',
   '--inexxio-red-deep': '--red-deep',
+  '--inexxio-red-bright': '--red-bright',
+  '--inexxio-black': '--black',
   '--fg-1': '--ink',
   '--fg-2': '--ink-2',
   '--fg-3': '--ink-3',
@@ -35,6 +37,7 @@ const MAP = {
   '--border-1': '--line',
   '--border-2': '--line-2',
   '--border-on-dark': '--line-dark',
+  '--border-strong': '--line-strong',
   '--accent': '--slate',
   '--accent-soft': '--slate-soft',
   '--success': '--ok',
@@ -42,6 +45,17 @@ const MAP = {
   '--warning-bg': '--amber-bg',
   '--danger-bg': '--red-bg',
   '--font-mono': '--font-mono',
+  '--r-sm': '--r-sm',
+  '--r-md': '--r-md',
+  '--r-lg': '--r-lg',
+  '--r-pill': '--r-pill',
+  '--shadow-sm': '--shadow-sm',
+  '--shadow-md': '--shadow-md',
+  '--shadow-lg': '--shadow-lg',
+  '--shadow-red': '--shadow-red',
+  '--tracking-tight': '--tracking-tight',
+  '--tracking-snug': '--tracking-snug',
+  '--tracking-overline': '--tracking-overline',
 };
 
 const css = readFileSync(SOURCE, 'utf8');

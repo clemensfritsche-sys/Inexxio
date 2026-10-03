@@ -16,6 +16,7 @@ const { doc, path } = Astro.props;
           <p class="label">Stand: <time datetime={doc.updated}>{formatDay(doc.updated)}</time></p>
         </header>
         <div class="prose legal__body" set:html={doc.html} />
+        <slot />
       </div>
     </div>
   </article>

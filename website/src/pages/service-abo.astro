@@ -29,7 +29,7 @@ import { abo } from '../config/abo.mjs';
         <ol role="list" class="kb-steps">
           {kranbuch.items.map((it, i) => (
             <li>
-              <span class="label">{String(i + 1).padStart(2, '0')}</span>
+              <span class="idx">{String(i + 1).padStart(2, '0')}</span>
               <div><h3>{it.title}</h3><Rich as="p" text={it.text} /></div>
             </li>
           ))}
@@ -51,6 +51,6 @@ import { abo } from '../config/abo.mjs';
   @media (min-width: 960px) { .kb-sec__ill { grid-column: 8 / span 5; } }
   .kb-steps { list-style: none; padding: 0; display: grid; gap: 0; border-top: 1px solid var(--line-dark); }
   .kb-steps li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-4) 0; border-bottom: 1px solid var(--line-dark); }
-  .kb-steps .label { padding-top: 4px; }
+  .kb-steps .idx { padding-top: 4px; }
   .kb-steps h3 { font-size: 1.125rem; margin-bottom: 4px; }
 </style>
