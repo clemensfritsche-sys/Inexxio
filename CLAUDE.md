@@ -4925,11 +4925,12 @@ wieder entfernt wurde, steht mit seinen Entscheidungen in `docs/attic.md`.
 ```
 inexxio/
 ├── CLAUDE.md              ← Haupt-Kontext (IMMER zuerst lesen)
-├── frontend/              ← Next.js 14 App
+├── website/               ← Öffentliche Website (Astro, statisch) – siehe «Website» unten
+├── frontend/              ← Next.js 14 App (Kundenbereich + ERP)
 │   ├── CLAUDE.md          ← Frontend-spezifischer Kontext
 │   └── src/
 │       ├── app/
-│       │   ├── (public)/  ← Öffentliche Website-Seiten
+│       │   ├── (public)/  ← nur noch /agb
 │       │   ├── (auth)/    ← Login
 │       │   └── (erp)/     ← ERP / Auth-geschützte Seiten
 │       ├── components/    ← UI-Komponenten
@@ -4952,6 +4953,32 @@ inexxio/
 
 Messwerkzeug: `backend/scripts/deadcode.py` beantwortet «was liest eigentlich niemand
 mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
+
+## Website (`website/`, Oktober 2026)
+
+> ►►► **Die öffentliche Website ist ein eigenes Teilprojekt – getrennt vom ERP.** ◄◄◄
+> Astro 7 (Node ≥ 22.12), reines HTML ohne Laufzeit-Framework, Progressive Enhancement.
+> **Zuerst lesen:** `website/WEBSITE_PLAN.md` (Entscheidungen, Änderungen ausserhalb von
+> `website/`, Phasen), danach `website/AUFTRAG.md` (der Auftrag im Wortlaut). Offene
+> Punkte: `website/OFFENE_PUNKTE.md` (generiert – nie von Hand ändern).
+
+- **Eine Quelle**: `website/src/config/site.mjs` (Name, Telefon, Adresse, Navigation,
+  Schalter, SEO). Texte setzen Werte mit `{{schlüssel}}` ein; offene Punkte sind
+  `[[PLATZHALTER: …]]` bzw. `[[PRÜFEN: …]]` – sichtbar im Modus `preview`, im Modus `live`
+  bricht der Build ab.
+- **Dieselbe Hosting-Site wie das ERP**: die CI baut beide Teile und kopiert
+  `website/dist` in `frontend/out` (`website/scripts/merge-hosting.mjs`, bricht bei jeder
+  Kollision ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`,
+  `/login`, `/agb`. Die eine `robots.txt` und die `404.html` kommen von der Website.
+- **Das Formular** geht an `POST /api/v1/contact` (`backend/app/routers/contact.py`) – ein
+  isolierter Endpunkt ohne ERP-Import und ohne Tabelle. Sein Vokabular ist generiert
+  (`website/scripts/export-contact.mjs` → `backend/app/assets/website_contact.json`, CI
+  prüft). **Ohne `INQUIRY_SMTP_*` antwortet er 503**, die Seite zeigt Telefon und einen
+  vorausgefüllten mailto-Link, und die Anfrage steht als `INQUIRY_UNSENT` im Log.
+- **Jede Seite steht in `website/src/lib/pages.ts`** (Sitemap, llms.txt) oder trägt
+  `noindex` – sonst bricht der Build. `check-site.mjs` prüft nach jedem Build Links,
+  JSON-LD, Titel, H1, Sitemap/robots/llms, die Weiterleitungen alter hs-steiner.ch-Pfade
+  in `firebase.json` und das Leistungsbudget.
 
 ## Design System (VERBINDLICH)
 
@@ -5116,8 +5143,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 ### Was heute steht (Stand August 2026)
 
 **Fundament, produktiv nutzbar**
-- **Öffentliche Website**: Startseite, Über uns, Kontakt (Formular), Impressum, AGB,
-  Datenschutz – statisch exportiert, Firmendaten dynamisch aus dem ERP.
+- **Öffentliche Website** (`website/`, Oktober 2026): INEXXIO (ehemals HS Steiner) –
+  24 Seiten (Krane, Fahrmischer, Service-Abo, Übergabe, Ratgeber, Rechtliches …),
+  Anfrage-Formular mit eigenem Endpunkt, Sitemap, robots.txt, llms.txt, Weiterleitungen
+  der alten hs-steiner.ch-Pfade. Modus `preview`, bis die offenen Punkte erledigt sind.
+  Die AGB bleiben im Next-Frontend.
 - **Anmeldung**: Firebase (Magic Link · Google SSO · **Passkeys/WebAuthn**), als Pop-up
   über der Seite, auf der man steht. Cookie-/Einwilligungs-Layer ohne Fremd-CMP.
 - **Konto**: «Mein Profil» (Person · Adressen · Kommunikation, ein Auto-Save) und

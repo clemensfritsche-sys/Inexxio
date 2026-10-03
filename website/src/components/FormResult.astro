@@ -7,10 +7,17 @@
 import { site, contactEmail } from '../config/site.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
+
+interface Props {
+  /** 2 = Formular direkt unter der H1 (/kontakt), 3 = in einer Sektion mit H2 (Kurzformular). */
+  level?: 2 | 3;
+}
+const { level = 3 } = Astro.props;
+const H = `h${level}` as 'h2' | 'h3';
 ---
 <div class="iresult iresult--ok" data-result="ok" hidden tabindex="-1">
   <Icon name="check" size={32} class="iresult__icon" />
-  <Rich as="h3" class="iresult__title" text={`Danke. Wir melden uns innert ${site.promises.responseTime}.`} />
+  <Rich as={H} class="iresult__title h3" text={`Danke. Wir melden uns innert ${site.promises.responseTime}.`} />
   <p>
     Wir sehen uns Ihre Angaben an und melden uns per Telefon oder E-Mail. Haben Sie eine
     E-Mail-Adresse angegeben, erhalten Sie gleich eine Bestätigung mit Ihren Angaben.
@@ -20,7 +27,7 @@ import Rich from './Rich.astro';
 
 <div class="iresult iresult--fail" data-result="fail" hidden tabindex="-1" role="alert">
   <Icon name="alert" size={32} class="iresult__icon" />
-  <h3 class="iresult__title" data-fail-title>Das Senden hat nicht geklappt.</h3>
+  <H class="iresult__title h3" data-fail-title>Das Senden hat nicht geklappt.</H>
   <p data-fail-text>
     Ihre Angaben sind nicht verloren. Rufen Sie uns an oder schicken Sie sie per E-Mail –
     der Text ist bereits vorbereitet.

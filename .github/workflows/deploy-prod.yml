@@ -156,6 +156,28 @@ jobs:
           NEXT_PUBLIC_APP_URL: https://inexxio-prod.web.app
         run: npm run build
 
+      # Die Website kommt in DIESELBE Hosting-Ausgabe (siehe deploy-dev.yml). Modus
+      # «preview», bis die Domain verbunden und jede Markierung erledigt ist – dann
+      # SITE_MODE=live und SITE_URL=https://<Domain> (website/WEBSITE_REPORT_*.md, Launch).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build website (Vorschau)
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: https://inexxio-prod.web.app
+        run: npm run build
+
+      - name: Website in die Hosting-Ausgabe übernehmen
+        working-directory: website
+        run: node scripts/merge-hosting.mjs
+
       - name: Deploy to Firebase Hosting (prod)
         run: firebase deploy --only hosting --project inexxio-prod --non-interactive
 

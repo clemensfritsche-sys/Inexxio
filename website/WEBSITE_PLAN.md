@@ -81,6 +81,16 @@
     prüft, dass die Datei aktuell ist (gleiches Muster wie `api.ts`).
 16. **Kein Testnotizen-Pin auf der Website** – er hängt an der ERP-Anmeldung (React +
     Firebase) und würde jede Seite um ein Vielfaches schwerer machen.
+17. **Eine Seitenliste** (`src/lib/pages.ts`) speist Sitemap, llms.txt und llms-full.txt;
+    `Base.astro` bricht den Build, wenn eine Seite weder dort steht noch `noindex` trägt –
+    eine neue Seite kann nicht still aus der Sitemap fallen. `lastmod` = eigenes Datum
+    (Ratgeber, Rechtstexte) bzw. `site.seo.contentUpdated` – ein Datum aus Git wäre in der
+    CI (flacher Checkout) für jede Seite das Datum des letzten Commits, also falsch.
+18. **robots.txt als reine Funktion** (`src/lib/robots.mjs`): der Zweig «live» lässt sich
+    so prüfen (`npm test`), obwohl ein echter live-Build heute an den offenen Markierungen
+    abbricht.
+19. **FAQ ohne Antwort fällt aus dem JSON-LD**: eine Frage, deren Antwort noch ganz offen
+    ist, wäre dort eine leere Aussage.
 
 ## 3. Änderungen ausserhalb von `website/`
 
@@ -95,9 +105,8 @@
 | `frontend/src/lib/api.ts` | `sendContactForm` entfernt | hatte nur die gelöschte Kontaktseite als Aufrufer |
 | `frontend/src/components/ui/{button,input,select,textarea}.tsx`, `CookieSettingsButton` | entfernt | nur von gelöschten Seiten benutzt |
 | `frontend/package.json` (+ Lock) | `react-hook-form`, `zod`, `@hookform/resolvers` entfernt | nur vom gelöschten Kontaktformular benutzt |
-| `firebase.json` | `redirects` der alten hs-steiner.ch-Pfade | alte URLs auffangen (Auftrag Kap. 3.3) |
-| `.github/workflows/deploy-dev.yml`, `deploy-prod.yml` | Website prüfen, bauen, zusammenführen | ohne diesen Schritt hätte die Domain keine Startseite mehr |
-| `.gitignore` | `website/dist`, `website/.astro`, generierte Tokens | Build-Ausgaben gehören nicht ins Repo |
+| `firebase.json` | `redirects` der alten hs-steiner.ch-Pfade (12 Regeln, Regex, Gross-/Kleinschreibung egal) | alte URLs auffangen (Auftrag Kap. 3.3); Firebase ist die einzige Stelle, die sie ausführen kann |
+| `.github/workflows/deploy-dev.yml`, `deploy-prod.yml` | Job «Quality gates (Website)» (Node 22: Tests, astro check, Vokabular, Build mit Prüfungen); beim Deploy Website bauen und mit `website/scripts/merge-hosting.mjs` in `frontend/out` übernehmen | ohne diesen Schritt hätte die Domain keine Startseite mehr |
 | `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md` | Abschnitt «Website», Endpunkt-Zeile, entfernte Seiten | jede Sitzung liest sie zuerst |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router), Datenbank, Modelle, Migrationen,
@@ -137,6 +146,8 @@ Erhoben über die Websuche (hs-steiner.ch selbst ist von hier aus gesperrt). Vol
 - [x] **4 – Formular-Backend und Tracking**: Endpunkt neu (19 Wächter, jeder gegen seine
       Fehlerform gegengeprüft), Vokabular-Export, alte Next-Seiten entfernt; Ende-zu-Ende in
       Chromium gegen einen echten SMTP-Briefkasten (30/30 inkl. Störungsfall und ohne JS)
-- [ ] **5 – SEO und KI**: Meta, JSON-LD, Sitemap, robots.txt, llms.txt, Redirects, OG-Bilder
+- [x] **5 – SEO und KI**: Meta, JSON-LD, Sitemap, robots.txt, llms.txt + llms-full.txt, Redirects
+      (lokal mit superstatic, der Engine des Firebase-Emulators: 22/22), OG-Bilder, `check-site.mjs`
+      (16 Fehlerformen gegengeprüft, jede meldet), Seitenliste `src/lib/pages.ts`
 - [ ] **6 – Prüfung und Feinschliff**
 - [ ] **7 – Abschlussbericht** und Deploy

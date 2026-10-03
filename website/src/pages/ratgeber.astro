@@ -4,27 +4,22 @@ import Base from '../layouts/Base.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Rich from '../components/Rich.astro';
 import { articles, formatDay } from '../lib/ratgeber';
+import { ratgeberUebersicht as r } from '../content/ratgeber-uebersicht';
 const list = articles();
-const description =
-  'Ratgeber zu Kranprüfung, Kranfachmann und Kranexperte, Heukran-Saison-Check und Verschleissteilen am Fahrmischer – kurz erklärt, mit Quellen von Suva und Fedlex.';
 ---
-<Base title="Ratgeber" description={description} crumbs={[{ name: 'Ratgeber', path: '/ratgeber' }]}>
+<Base title={r.title} description={r.description} crumbs={[{ name: r.title, path: '/ratgeber' }]}>
   <section class="section rg-head" data-hero>
     <div class="wrap rg-head__inner">
       <p class="label">Ratgeber</p>
-      <h1 class="rg-title">Ratgeber: Krane und Fahrmischer</h1>
-      <Rich
-        as="p"
-        class="lead"
-        text="Kurz erklärt, mit Quellen: was die Prüfpflicht verlangt, wer Krane prüft, worauf es beim Heukran vor der Saison ankommt und wann Verschleissteile am Fahrmischer fällig sind. Geschrieben von {{people.owner.name}}, {{brand.full}}."
-      />
+      <h1 class="rg-title">{r.h1}</h1>
+      <Rich as="p" class="lead" text={r.summary} />
     </div>
   </section>
   <section class="section rg-list" aria-label="Artikel">
     <div class="wrap">
       <div class="cols-2 rg-grid">
         {list.map((a) => (
-          <ArticleCard href={a.path} title={a.title} text={a.description} date={a.updated} dateLabel={formatDay(a.updated)} />
+          <ArticleCard level={2} href={a.path} title={a.title} text={a.description} date={a.updated} dateLabel={formatDay(a.updated)} />
         ))}
       </div>
     </div>

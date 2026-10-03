@@ -13,10 +13,10 @@
 | Adresse für Bewerbungen | Platzhalter | `/karriere` – Bewerbung per E-Mail |
 | anpassen, sobald ein Analytics-Anbieter gewählt ist | Prüfen | `/datenschutz` – Statistik |
 | Antwortzeit, z. B. einem Arbeitstag | Platzhalter | alle Seiten (19) – Kopf, Fuss oder Ankündigung |
-| Domain | Platzhalter | Konfiguration `src/config/site.mjs:238` |
+| Domain | Platzhalter | Konfiguration `src/config/site.mjs:247` |
 | finales Logo | Platzhalter | Konfiguration `src/config/site.mjs:44` |
 | Handelsregisteramt | Prüfen | `/impressum` – Handelsregister und UID |
-| kostenlose oder günstige cookielose Analytics-Lösung wählen | Prüfen | Konfiguration `src/config/site.mjs:257` |
+| kostenlose oder günstige cookielose Analytics-Lösung wählen | Prüfen | Konfiguration `src/config/site.mjs:266` |
 | künftiger Name im Handelsregister | Platzhalter | `/datenschutz` – 1. Wer verantwortlich ist<br>`/impressum` – Anbieter |
 | MWST-Nummer, falls sie von der UID abweicht | Platzhalter | `/impressum` – Handelsregister und UID |
 | neue E-Mail-Adresse | Platzhalter | alle Seiten (24) – Kopf, Fuss oder Ankündigung |
@@ -32,7 +32,7 @@
 | Teileliste, Material, passende Typen | Prüfen | `/fahrmischer/verschleissteile` – Verschleissteile nach Teileart |
 | UID | Platzhalter | alle Seiten (24) – Kopf, Fuss oder Ankündigung |
 | Weiterleitung der E-Mail-Adressen bestätigen | Prüfen | `/` – Bleibt die Telefonnummer gleich?<br>`/uebergabe` – Bleibt die Telefonnummer gleich? |
-| WhatsApp-Kontakt – ja oder nein, mit welcher Nummer? | Platzhalter | Konfiguration `src/config/site.mjs:163` |
+| WhatsApp-Kontakt – ja oder nein, mit welcher Nummer? | Platzhalter | Konfiguration `src/config/site.mjs:166` |
 | Zeichnungsberechtigung gemäss Handelsregister | Prüfen | `/impressum` – Vertretungsberechtigte Person |
 | Zusagen definieren und freigeben | Platzhalter | `/ueber-uns` – Worauf Sie sich verlassen können |
 | Zusatz zum Markennamen – Alternativen «Krantechnik» oder «Kran- und Fahrzeugtechnik» | Prüfen | Konfiguration `src/config/site.mjs:38` |
@@ -62,11 +62,11 @@
 | Einsatzgebiet | Prüfen | `/einsatzgebiet` – Kranservice in Thurgau, St. Gallen, Winterthur und Zürich |
 | Ersatz für den Claim «Schnell vor Ort. Sauber dokumentiert.» freigeben | Prüfen | `/` – Kranservice und Fahrmischer-Reparatur für die Ostschweiz |
 | genaue Titel und Abschlüsse | Platzhalter | `/ueber-uns` – Clemens Fritsche |
-| Google-Unternehmensprofil, LinkedIn | Platzhalter | Konfiguration `src/config/site.mjs:240` |
+| Google-Unternehmensprofil, LinkedIn | Platzhalter | Konfiguration `src/config/site.mjs:249` |
 | Grundlage der Übermittlung, z. B. Swiss-U.S. Data Privacy Framework oder Standardvertragsklauseln | Prüfen | `/datenschutz` – 7. Weitergabe und Bearbeitung im Ausland |
 | Gründungsjahr der GmbH | Prüfen | `/uebergabe` – Über 40 Jahre in Tuttwil |
 | Inhalt des Prüfberichts | Prüfen | `/krane/pruefung-wartung` – Was steht im Prüfbericht? |
-| Koordinaten | Prüfen | Konfiguration `src/config/site.mjs:111` |
+| Koordinaten | Prüfen | Konfiguration `src/config/site.mjs:114` |
 | Lager für andere Hersteller | Prüfen | `/krane/reparatur` – Haben Sie Ersatzteile an Lager? |
 | Lagerbestand für ältere Typen | Prüfen | `/krane/hs-krananlagen` – Gibt es für meinen alten HS-Kran noch Ersatzteile?<br>`/uebergabe` – Bekomme ich weiterhin Ersatzteile für ältere Anlagen? |
 | Lagerumfang für andere Hersteller | Prüfen | `/krane/reparatur` – Viele Teile liegen in Tuttwil an Lager |

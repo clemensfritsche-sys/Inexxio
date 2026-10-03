@@ -16,7 +16,7 @@ import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import type { ServicePage } from '../content/types';
+import { glanceRows, type ServicePage } from '../content/types';
 
 interface Props { page: ServicePage }
 const { page } = Astro.props;
@@ -26,7 +26,6 @@ const jsonLd = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
 ];
-const g = page.glance;
 ---
 <Base title={page.title} description={page.description} crumbs={crumbs} og={page.og} jsonLd={jsonLd}>
   <Hero
@@ -41,15 +40,7 @@ const g = page.glance;
   <section class="section section--tight" aria-label="Auf einen Blick">
     <div class="wrap grid">
       <div class="col-8">
-        <Glance
-          summary={page.summary}
-          rows={[
-            { label: 'Für wen', text: g.forWhom },
-            { label: 'Was wir tun', text: g.what },
-            { label: 'Wie schnell', text: g.speed },
-            { label: 'Was Sie erhalten', text: g.deliverables },
-          ]}
-        />
+        <Glance summary={page.summary} rows={glanceRows(page.glance)} />
       </div>
     </div>
     <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>

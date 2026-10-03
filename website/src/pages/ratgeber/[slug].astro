@@ -34,6 +34,7 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
   title={a.seoTitle}
   description={a.description}
   crumbs={[{ name: 'Ratgeber', path: '/ratgeber' }, { name: a.seoTitle, path: a.path }]}
+  article={{ published: a.published, updated: a.updated }}
   jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated })]}
 >
   <article class="section art" data-hero>

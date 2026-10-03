@@ -1,7 +1,7 @@
 ---
 title: 'Kranprüfung in der Schweiz: Wer muss wann was prüfen?'
 seoTitle: 'Kranprüfung in der Schweiz'
-description: 'Kranbuch, Kranfachleute, Kranexperte: welche Prüfungen für Hallenkrane, Heukrane, Fahrzeug- und Turmdrehkrane in der Schweiz gelten – mit Fristen und Quellen.'
+description: 'Kranbuch, Kranfachleute, Kranexperte: welche Prüfungen für Hallen-, Heu-, Fahrzeug- und Turmdrehkrane in der Schweiz gelten – mit Fristen und Quellen.'
 published: 2026-10-03
 updated: 2026-10-03
 kurz:

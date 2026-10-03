@@ -11,16 +11,27 @@ interface MdModule {
 
 const modules = import.meta.glob<MdModule>('../content/legal/*.md', { eager: true });
 
-export interface LegalDoc { title: string; description: string; updated: string; html: string }
+export type LegalName = 'impressum' | 'datenschutz';
+export interface LegalMeta { title: string; description: string; updated: string }
+export interface LegalDoc extends LegalMeta { html: string }
 
-export async function legalDoc(name: 'impressum' | 'datenschutz'): Promise<LegalDoc> {
-  const mod = modules[`../content/legal/${name}.md`];
-  if (!mod) throw new Error(`Rechtstext «${name}» fehlt (src/content/legal/${name}.md).`);
-  const fm = mod.frontmatter;
+const mod = (name: LegalName): MdModule => {
+  const m = modules[`../content/legal/${name}.md`];
+  if (!m) throw new Error(`Rechtstext «${name}» fehlt (src/content/legal/${name}.md).`);
+  return m;
+};
+
+/** Kopfangaben ohne Text – für Sitemap und llms.txt. */
+export function legalMeta(name: LegalName): LegalMeta {
+  const fm = mod(name).frontmatter;
   const updatedRaw = fm.updated instanceof Date ? fm.updated.toISOString() : String(fm.updated ?? '');
   const updated = /^(\d{4}-\d{2}-\d{2})/.exec(updatedRaw)?.[1];
   if (typeof fm.title !== 'string' || typeof fm.description !== 'string' || !updated) {
     throw new Error(`Rechtstext «${name}»: title, description und updated (JJJJ-MM-TT) sind Pflicht.`);
   }
-  return { title: fm.title, description: fm.description, updated, html: processHtml(await mod.compiledContent()) };
+  return { title: fm.title, description: fm.description, updated };
+}
+
+export async function legalDoc(name: LegalName): Promise<LegalDoc> {
+  return { ...legalMeta(name), html: processHtml(await mod(name).compiledContent()) };
 }

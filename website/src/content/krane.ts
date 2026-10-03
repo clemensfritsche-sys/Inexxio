@@ -265,7 +265,7 @@ export const modernisierung: ServicePage = {
   crumb: 'Modernisierung',
   title: 'Kran modernisieren',
   description:
-    'Älteren Kran modernisieren: Funkfernsteuerung, Frequenzumrichter, Überlastsicherung und neue Steuerung für Hallen- und Heukrane aller Marken. Jetzt anfragen.',
+    'Älteren Kran modernisieren: Funkfernsteuerung, Frequenzumrichter, Überlastsicherung und neue Steuerung für Hallen- und Heukrane aller Marken. Anfragen.',
   og: 'krane',
   parent,
   hero: {
@@ -357,7 +357,7 @@ export const hsKrananlagen: ServicePage = {
   crumb: 'HS-Krananlagen',
   title: 'HS-Krananlagen und Heukrane',
   description:
-    'Service, Ersatzteile und Saison-Check für HS-Krananlagen und Heukrane – aus der Werkstatt, in der sie entstanden sind. Teile ab Lager, Neuanlagen auf Anfrage.',
+    'Service, Ersatzteile, Saison-Check für HS-Krananlagen und Heukrane – aus der Werkstatt, in der sie entstanden sind. Teile ab Lager, Neuanlagen auf Anfrage.',
   og: 'krane',
   parent,
   hero: {

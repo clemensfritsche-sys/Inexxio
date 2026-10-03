@@ -63,8 +63,7 @@ export function organization(siteUrl) {
     name: site.brand.name,
     alternateName: [plain(site.brand.full), ...site.brand.alternateNames],
     legalName: isMissing(site.brand.legalName) ? undefined : site.brand.legalName,
-    description:
-      'Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen und Fahrmischern aller Marken in der Ostschweiz. Seit 1982 in Tuttwil-Wängi TG.',
+    description: site.brand.summary,
     disambiguatingDescription: site.brand.notToConfuse,
     url: abs(siteUrl),
     logo: `${siteUrl}/logo/inexxio-wortmarke.png`,
@@ -128,14 +127,22 @@ export function breadcrumbs(siteUrl, trail) {
   };
 }
 
-/** @param {{ q: string, a: string }[]} faqs – nur, was auch sichtbar auf der Seite steht. */
+/**
+ * @param {{ q: string, a: string }[]} faqs – nur, was auch sichtbar auf der Seite steht.
+ * Eine Frage, deren Antwort noch ganz offen ist (nur eine Markierung), fällt weg: eine
+ * leere Antwort wäre keine – und ohne beantwortete Frage gibt es keinen FAQPage-Knoten.
+ */
 export function faqPage(faqs) {
+  const answered = faqs
+    .map((f) => ({ q: plain(f.q), a: plain(f.a) }))
+    .filter((f) => f.q && f.a);
+  if (!answered.length) return null;
   return {
     '@type': 'FAQPage',
-    mainEntity: faqs.map((f) => ({
+    mainEntity: answered.map((f) => ({
       '@type': 'Question',
-      name: plain(f.q),
-      acceptedAnswer: { '@type': 'Answer', text: plain(f.a) },
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
     })),
   };
 }
@@ -190,7 +197,7 @@ export function article(siteUrl, a) {
   });
 }
 
-/** @param {object[]} nodes */
+/** @param {(object | null)[]} nodes – null fällt weg */
 export function graph(nodes) {
   return JSON.stringify({ '@context': 'https://schema.org', '@graph': nodes.filter(Boolean) })
     .replace(/</g, '\\u003c');

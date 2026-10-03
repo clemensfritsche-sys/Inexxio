@@ -9,12 +9,15 @@ interface Props {
   text: string;
   date?: string;
   dateLabel?: string;
+  /** Überschriften-Ebene: 3 unter einer H2-Sektion (Startseite), 2 direkt unter der H1 (Übersicht). */
+  level?: 2 | 3;
 }
-const { href, title, text, date, dateLabel } = Astro.props;
+const { href, title, text, date, dateLabel, level = 3 } = Astro.props;
+const H = `h${level}` as 'h2' | 'h3';
 ---
 <article class="acard">
   <p class="label">Ratgeber{dateLabel && <> · <time datetime={date}>{dateLabel}</time></>}</p>
-  <h3 class="acard__title"><a href={href}>{title}</a></h3>
+  <H class="acard__title h3"><a href={href}>{title}</a></H>
   <Rich as="p" class="acard__text" text={text} />
   <span class="acard__more" aria-hidden="true">Lesen <Icon name="arrow-right" size={18} /></span>
 </article>

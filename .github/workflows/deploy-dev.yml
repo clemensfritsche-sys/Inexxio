@@ -112,10 +112,50 @@ jobs:
           git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
             (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
 
+  # Die öffentliche Website (website/, Astro) – eigenständig, eigener Build, Node 22
+  # (Astro 7 verlangt ≥ 22.12; das ERP baut unverändert mit Node 20). Der Build selbst
+  # prüft: offene Punkte (check-content), Links, JSON-LD, Sitemap, robots.txt, llms.txt,
+  # Weiterleitungen in firebase.json und das Leistungsbudget (check-site).
+  website:
+    name: Quality gates (Website)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website deps
+        working-directory: website
+        run: npm ci
+
+      - name: Unit-Tests (Website)
+        working-directory: website
+        run: npm test
+
+      - name: Astro/TypeScript check
+        working-directory: website
+        run: npm run check
+
+      # Die E-Mails des Formulars schreibt das Backend mit den Wörtern der Website.
+      - name: Formular-Vokabular aktuell (backend/app/assets/website_contact.json)
+        working-directory: website
+        run: node scripts/export-contact.mjs --check
+
+      - name: Build (Vorschau) inkl. Prüfungen
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: https://inexxio-dev.web.app
+        run: npm run build
+
   deploy-backend:
     name: Backend → Cloud Run (dev)
     runs-on: ubuntu-latest
-    needs: quality
+    needs: [quality, website]
     permissions:
       contents: read
       id-token: write
@@ -220,6 +260,27 @@ jobs:
           # Build-Commit: beantwortet bei einer Testnotiz «welchen Stand hast du gesehen?»
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: npm run build
+
+      # Die Website kommt in DIESELBE Hosting-Ausgabe: sie besitzt «/» und ihre Seiten,
+      # das ERP behält /erp, /konto, /login, /agb. Der Merge bricht bei jeder Kollision ab.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build website (Vorschau)
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: https://inexxio-dev.web.app
+        run: npm run build
+
+      - name: Website in die Hosting-Ausgabe übernehmen
+        working-directory: website
+        run: node scripts/merge-hosting.mjs
 
       - name: Deploy to Firebase Hosting (dev)
         run: firebase deploy --only hosting --project inexxio-dev --non-interactive

@@ -41,7 +41,7 @@ export const message = {
 export const uebergabe = {
   title: 'Aus HS Steiner wird INEXXIO',
   description:
-    'HS Steiner Fahrzeug- und Kranbau GmbH in Tuttwil heisst jetzt INEXXIO: gleiche Nummer, gleicher Standort, Service für alle HS-Krananlagen. Antworten zur Nachfolge.',
+    'HS Steiner Fahrzeug- und Kranbau GmbH heisst jetzt INEXXIO: gleiche Nummer, gleicher Standort, Service für alle HS-Krananlagen. Antworten zur Nachfolge.',
   hero: {
     eyebrow: 'Nachfolge geregelt',
     h1: 'Aus HS Steiner wird {{brand.name}}',

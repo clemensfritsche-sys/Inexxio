@@ -47,6 +47,9 @@ export const site = {
     alternateNames: ['HS Steiner', 'HS Steiner Fahrzeug- und Kranbau GmbH', 'HS Krananlagen'],
     /** Abgrenzung für Suchmaschinen und KI-Assistenten. */
     notToConfuse: 'Nicht zu verwechseln mit inexio (Telekommunikation, Deutschland).',
+    /** Wer wir sind, in einem Satz – JSON-LD (description) und llms.txt lesen ihn. */
+    summary:
+      'Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen und Fahrmischern aller Marken in der Ostschweiz. Seit {{history.founded}} in Tuttwil-Wängi TG.',
     uid: '[[PLATZHALTER: UID]]',
   },
 
@@ -232,6 +235,12 @@ export const site = {
   privatePaths: ['/erp', '/konto', '/login', '/api/'],
 
   seo: {
+    /**
+     * Stand der Seiteninhalte (JJJJ-MM-TT) – `lastmod` in der Sitemap für jede Seite ohne
+     * eigenes Datum. Ratgeber und Rechtstexte tragen ihr eigenes (`updated`). Wer eine Seite
+     * inhaltlich überarbeitet, zieht dieses Datum nach.
+     */
+    contentUpdated: '2026-10-03',
     /** Bisherige Domain – wird später auf die neue weitergeleitet. */
     oldDomain: 'hs-steiner.ch',
     /** Künftige Domain (ohne https://). Im Modus «live» muss SITE_URL darauf zeigen. */

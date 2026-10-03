@@ -35,3 +35,11 @@ export interface ServicePage {
 }
 
 export interface Entry { title: string; text: string; href: string; icon: IconName }
+
+/** «Auf einen Blick» – die vier Zeilen in fester Reihenfolge (Seite und llms-full.txt). */
+export const glanceRows = (g: ServicePage['glance']): { label: string; text: string }[] => [
+  { label: 'Für wen', text: g.forWhom },
+  { label: 'Was wir tun', text: g.what },
+  { label: 'Wie schnell', text: g.speed },
+  { label: 'Was Sie erhalten', text: g.deliverables },
+];

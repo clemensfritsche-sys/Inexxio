@@ -8,6 +8,68 @@
     ],
     "cleanUrls": true,
     "trailingSlash": false,
+    "redirects": [
+      {
+        "regex": "(?i)^/heuentnahmekran(?:/.*)?$",
+        "destination": "/krane/hs-krananlagen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/drehkran-hydraulisch(?:/.*)?$",
+        "destination": "/krane/hs-krananlagen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/bruecken-kran(?:/.*)?$",
+        "destination": "/krane",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/einschienen-kran(?:/.*)?$",
+        "destination": "/krane",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/betonfordertechnik/betonfahrmischer(?:/.*)?$",
+        "destination": "/fahrmischer",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/betonfordertechnik/verschleissteile(?:/.*)?$",
+        "destination": "/fahrmischer/verschleissteile",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/betonfordertechnik(?:/.*)?$",
+        "destination": "/fahrmischer",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/antrieb-und-steuerung/elektrosteuerung(?:/.*)?$",
+        "destination": "/krane/modernisierung",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/antrieb-und-steuerung/getriebe-und-antrieb(?:/.*)?$",
+        "destination": "/krane/reparatur",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/antrieb-und-steuerung(?:/.*)?$",
+        "destination": "/krane",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/unsere-einsatzorte(?:/.*)?$",
+        "destination": "/einsatzgebiet",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/(?:wahrschaftes|sachtransporter-anhanger|hebebuhnen|kleintransporter-pw)(?:/.*)?$",
+        "destination": "/uebergabe",
+        "type": 301
+      }
+    ],
     "headers": [
       {
         "source": "**",
