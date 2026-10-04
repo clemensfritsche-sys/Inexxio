@@ -1,17 +1,15 @@
 ---
 /**
- * Startseite – Reihenfolge nach Auftrag Kap. 7.3: Hero mit Vertrauensleiste → die drei
- * Bereiche → Übergabe → Warum → Ausgewählte Arbeiten (Schalter) → Wo wir arbeiten → Ratgeber →
- * Fragen → Anfrage. Texte: src/content/start.ts, Bereiche aus src/config/site.mjs.
+ * Startseite – Reihenfolge nach Auftrag Kap. 7.3: Hero mit Laufkran, den drei Bereichen und
+ * der Vertrauensleiste (HomeHero) → Übergabe → Warum → Ausgewählte Arbeiten (Schalter) →
+ * Wo wir arbeiten → Ratgeber → Fragen → Anfrage. Texte: src/content/start.ts, Bereiche aus src/config/site.mjs.
  */
 import Base from '../layouts/Base.astro';
-import Hero from '../components/Hero.astro';
-import SeasonNotice from '../components/SeasonNotice.astro';
+import HomeHero from '../components/HomeHero.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
 import LocationMap from '../components/LocationMap.astro';
 import Quote from '../components/Quote.astro';
-import AreaCard from '../components/AreaCard.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
 import ContactSection from '../components/ContactSection.astro';
@@ -26,35 +24,15 @@ const teasers = start.ratgeber.slugs.map((slug) => article(slug));
 const h = start.handover;
 ---
 <Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]}>
-  <Hero
-    size="lg"
+  <HomeHero
     eyebrow={start.hero.eyebrow}
     title={start.hero.h1}
     lead={start.hero.lead}
-    photo="pruefung-hallenkran"
-    primary={{ label: site.cta.label, href: '#anfrage' }}
     trust={start.hero.trust}
+    areasTitle={start.areas.h2}
+    areasHint={start.areas.hint}
+    more={start.areas.more}
   />
-
-  <section class="section" aria-labelledby="bereiche">
-    <div class="wrap">
-      <SectionHead eyebrow="Bereiche" title={start.areas.h2} lead={start.summary} id="bereiche" />
-      <div class="cardgrid cardgrid--2 home-areas">
-        {site.areas.map((a, i) => (
-          <AreaCard
-            title={a.label}
-            href={a.href}
-            text={a.text}
-            photo={a.photo}
-            links={a.children}
-            more={start.areas.more}
-            wide={i === site.areas.length - 1}
-          />
-        ))}
-      </div>
-      <div class="home-season"><SeasonNotice page="/" /></div>
-    </div>
-  </section>
 
   <section class="section section--dark" aria-labelledby="uebergabe">
     <div class="wrap grid start-handover">
@@ -144,9 +122,6 @@ const h = start.handover;
 
 <style>
   .head--flush { margin-bottom: 0; }
-  /* Krantechnik und Fahrzeugtechnik gleich gross nebeneinander, Sonderlösungen darunter breit. */
-  .home-areas > :global(:last-child) { grid-column: 1 / -1; }
-  .home-season :global(.season) { margin-top: var(--s-6); }
 
   .start-handover { align-items: start; row-gap: var(--s-7); }
   .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }

@@ -31,6 +31,8 @@ export const start = {
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
+    /** Nur auf Geräten mit Maus sichtbar – erklärt den Laufkran. */
+    hint: 'Fahren Sie mit der Maus über einen Bereich – der Kran hängt ihn an.',
     more: 'Zum Bereich',
   },
 
