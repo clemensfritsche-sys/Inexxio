@@ -244,3 +244,233 @@ Erhoben über die Websuche (hs-steiner.ch selbst ist von hier aus gesperrt). Vol
       *Nicht prüfbar von hier:* externe Links (Netzwerkrichtlinie), echte Geräte und andere
       Browser-Engines als Chromium.
 - [x] **7 – Abschlussbericht** (`WEBSITE_REPORT_20261003.md`) und Deploy (Push auf `develop`)
+
+---
+
+## 7. Umbau v2 (Auftrag Fassung 2 vom 04.10.2026)
+
+> Die Website wurde nach der ersten Fassung des Auftrags gebaut (Abschnitte 1–6 oben). Die
+> zweite Fassung (`AUFTRAG.md`) ist ab 04.10.2026 die **einzige** gültige Vorgabe. Dieser
+> Abschnitt ist der Abgleich (Phase 0, nur gelesen), die Architekturentscheidung und die
+> Checkliste des Umbaus. Arbeitsbranch: `website` (Kap. 2.7) – kein Merge ohne Freigabe.
+
+### 7.1 Was sich am Auftrag geändert hat (Kurzfassung)
+
+| Thema | Fassung 1 | Fassung 2 |
+|---|---|---|
+| Ausrichtung | zwei Standbeine: Krane · Fahrmischer | **drei Bereiche**: Krantechnik · Fahrzeugtechnik · Sonderlösungen, je mit Lösungen · Service & Reparatur · Ersatz-/Verschleissteile |
+| Krane | «HS-Krananlagen» als eigene Seite, Service-Fokus | **Heukrananlagen an erster Stelle**, Neuanlagen aktiv verkaufen, «HS» kein Produktname mehr |
+| Abo, Kranbuch | Service-Abo mit drei Stufen, digitales Kranbuch | **entfällt vollständig** |
+| Notdienst | «Pikett» | **«Notfall-Service» / «Notfallnummer»**, «Pikett» verboten |
+| Name | INEXXIO, Zusatz «Kran- und Fahrmischertechnik» | **INEXXIO AG**, immer «ehemals HS Steiner»; Zusatz entfällt (Weisung 04.10.: Logo mit «ehemals HS Steiner») |
+| Header | einzeilig, Ankündigungsleiste darüber | **zweizeilig**: dunkle Servicezeile (36 px) + Hauptzeile (72 px), Mega-Dropdowns mit Foto |
+| Konto | nur ein Link «Login» | **Anmeldezustand im Header**, Profilmenü, «ERP» in der Menüleiste; Login/Profil/ERP im selben Design (Kap. 6) |
+| Seiten | /krane/*, /fahrmischer/*, /service-abo, /einsatzgebiet | neue URL-Struktur (Kap. 7.1), /service + /service/notfall, Einsatzgebiet auf «Über uns» |
+| Ratgeber | 4 Artikel | **3 Artikel** (neu: «Neue Heukrananlage planen») |
+| Formular | Kran · Fahrmischer · Teile · Abo · Anderes | **Bereich**: Krantechnik · Fahrzeugtechnik · Sonderlösungen · Teile · Anderes; Skizzen als PDF; Vorausfüllen bei Login |
+| Redirects | 12 Regeln auf /krane, /fahrmischer | neue Tabelle (Kap. 14) auf die neuen URLs |
+
+### 7.2 Abgleich – bleibt unverändert
+
+- **Architektur**: Astro 7 als statisches Teilprojekt in `website/`, gleiche Firebase-Site,
+  `merge-hosting.mjs` mit Kollisionswächter (Entscheide 1, 2). Kap. 5.2 Variante B.
+- **Fundament**: Tokens aus dem Design-System (`tokens.mjs`), selbst gehostete Schriften,
+  strenge CSP per `<meta>`, `SITE_MODE`, Platzhalter-System mit `check-content.mjs` →
+  `OFFENE_PUNKTE.md`, Seitenliste `lib/pages.ts` mit Build-Wächter, Werte im Fliesstext über
+  `{{…}}` (`lib/text.mjs`), `check-site.mjs` (Links, JSON-LD, Titel, H1, Budget …).
+- **Komponenten**: Photo (inkl. Bildplatzhalter, Beispielbilder, Bildnachweis), Breadcrumbs,
+  Faq (`<details>`), Glance, ScopeList, RelatedLinks, ArticleCard, Sources, Quote, Timeline,
+  AreaMap (eigenes SVG), InspectionCheck + InspectionTable (Prüfpflicht-Check), BeforeAfter
+  (abgeschaltet), PartCatalog, SeasonNotice, Hero, SectionHead, MobileBar, Reveal, Tracking.
+- **Formular-Mechanik**: Haupt- (4 Schritte, ohne JS ein langes Formular) und Kurzformular,
+  Validierung im Browser und auf dem Server mit denselben Sätzen, Honeypot, Mindestzeit,
+  Rate-Limit, SMTP, Bestätigung, `mailto:`-Rückfall, JSON-Datensatz im Log
+  (`backend/app/routers/contact.py`, isoliert, kein ERP-Import).
+- **Inhalte, die passen** (übernommen, nur verschoben bzw. sprachlich angepasst):
+  Prüfpflicht und Prüffristen, Modernisierung inkl. EU-Maschinenverordnung, Fahrmischer-
+  Service und Winter-Revision, Teilekatalog (Datenstruktur schon «ERP-tauglich»), Übergabe
+  (Zeitstrahl, Zitat-Platzhalter, Botschaft), Ratgeber «Kranprüfung» und «Verschleissteile»,
+  Impressum, Datenschutz, Karriere, Einsatzgebiet-Karte.
+
+### 7.3 Abgleich – wird angepasst
+
+- **`config/site.mjs`**: `brand.legalName` = «INEXXIO AG `[[PRÜFEN: Eintrag im
+  Handelsregister]]`», `descriptor` entfällt; `pikett` → `notfall` (gleiche Nummer, neue
+  Wörter); `nav` → **`areas`** (drei Bereiche mit Unterseiten, Ebene, Foto, Kurztext) +
+  `service`, `ueberUns`, `kontakt` – Navigation, Übersichten, Footer, JSON-LD und llms.txt
+  entstehen daraus (Kap. 5.3); `cta` = «Anfrage stellen»; Saison-Hinweise (Jan.–Apr. neu:
+  Heukrananlage planen); Footer-Satz; `account` (Pfade `/login`, `/konto`, `/erp`,
+  `/abmelden`); `/shop` reserviert (nur in `privatePaths`, keine Seite, kein Link).
+- **Header**: zweizeilig (Kap. 7.1): dunkle **Servicezeile** (Ankündigung links per Schalter;
+  rechts Notfall · Telefon · ERP · Anmelden/Profilmenü) und weisse **Hauptzeile** mit
+  Mega-Dropdowns (Unterseiten, je eine Zeile, «Alle Leistungen …», kleines Foto). Die
+  Servicezeile klappt beim Runterscrollen weg. **Deckend weiss statt Milchglas** (Kap. 9.7
+  verbietet Glas-Effekte) – das behebt zugleich den gemeldeten Fehler des Mobil-Menüs
+  (§7.6, Entscheid 35).
+- **Logo** (Weisung 04.10.): das **gestapelte Logo mit «ehemals HS Steiner»**, ohne den
+  Zusatz «Kran- und Fahrmischertechnik» (Entscheid 36).
+- **Footer**: fünf Spalten (Lockup + Satz · drei Bereiche · Kontakt mit Notfallnummer),
+  unterste Zeile © · Impressum · Datenschutz · UID · Anmelden.
+- **`layouts/Service.astro`** → Unterseiten-Vorlage nach Kap. 7.5 («Auf einen Blick» mit
+  drei Zeilen: Für wen · Was wir tun · Was Sie erhalten; der Ablauf ist kein Pflichtteil
+  mehr, sondern seitenspezifisches Modul, wo der Auftrag ihn verlangt).
+- **Steps**: wieder mit der **Kranbahn-Linie** (Kap. 9.6), nur als Verbindung von
+  Ablauf-Schritten (Entscheid 38).
+- **Startseite** (Reihenfolge Kap. 7.3): Hero mit Vertrauensleiste → drei Bereichskarten →
+  Übergabe → Warum (4 Belege + Porträt) → Ausgewählte Arbeiten (`enabled: false`) →
+  Einsatzgebiet kompakt (Karte) → Ratgeber → Fragen → Abschluss-CTA.
+- **Übergabe, Über uns** (nimmt das Einsatzgebiet auf), **Karriere, Kontakt, 404,
+  Impressum, Datenschutz** (Konto/Session-Cookie, INEXXIO AG) nach Kap. 7.7.
+- **Formular**: Vokabular nach Kap. 11.1 (Bereich → Anliegen, Teile «welches/wofür»),
+  Notfallnummer gross bei «Steht still», PDF für Skizzen, Vorausfüllen aus dem Konto,
+  Messpunkte `notfall_click` statt `pikett_click`, `abo_interest` entfällt, `form_submit`
+  mit Bereich. Backend: Abo-Zweig raus, PDF erlaubt, Notfall-Satz statt Pikett-Satz.
+- **SEO/KI**: Titel, Beschreibungen, Suchbegriffe je neue Seite (Kap. 12.2), OG-Bild je
+  Bereich, `hasOfferCatalog` aus den drei Bereichen, `Product` für Heukrananlagen,
+  `robots.txt` sperrt Konto- und ERP-Pfade in **beiden** Modi, llms.txt mit drei Bereichen.
+- **Weiterleitungen** (`firebase.json`): Tabelle aus Kap. 14 (Entscheid 40).
+- **Prüfskripte**: «Pikett» in die Liste verbotener Wörter, neue ERP-/Konto-Pfade, alte
+  Seiten-URLs als «darf nicht mehr existieren», höchstens drei Kranbahn-Linien je Seite.
+- **Konto, Profil, ERP im Next-Frontend – nur Darstellung** (Kap. 6.2, Phase 3): Kopf und
+  Fuss (`components/layout/navbar.tsx`, `footer.tsx`) bekommen dieselbe Struktur und
+  dieselben Inhalte wie die Website (heute: altes Logo, «Präzisionsfertigung», falsche
+  Telefonnummer); Anmeldedialog mit dem neuen Logo. Logik, Validierung und Datenfluss
+  bleiben unverändert (Entscheid 39).
+
+### 7.4 Abgleich – wird neu gebaut oder entfernt
+
+**Neu**
+
+| Was | Wo |
+|---|---|
+| Bereichsseiten mit gleicher Struktur (Kap. 7.4) | `/krantechnik`, `/fahrzeugtechnik`, `/sonderloesungen` |
+| Unterseiten | `/krantechnik/heukrananlagen`, `/krantechnik/industriekrane`, `/fahrzeugtechnik/aufbauten-reparatur`, `/sonderloesungen/konstruktion-engineering`, `/sonderloesungen/schweiss-stahlbau`, `/sonderloesungen/baumaschinen` |
+| Verschoben (Inhalt übernommen) | `/krane/pruefung-wartung` → `/krantechnik/pruefung-wartung`, `/krane/modernisierung` → `/krantechnik/modernisierung`, `/fahrmischer/service-reparatur` → `/fahrzeugtechnik/fahrmischer`, `/fahrmischer/verschleissteile` → `/fahrzeugtechnik/verschleiss-ersatzteile` |
+| Service | `/service` (vier Kacheln nach Anliegen), `/service/notfall` |
+| Ratgeber | «Neue Heukrananlage planen: Bauformen, Platzbedarf, Ablauf» |
+| Komponenten | Servicezeile mit Anmeldezustand und Profilmenü, Mega-Dropdown, Bereichskarte, «Drei Ebenen», Kranbahn-Linie |
+| Skript | `scripts/account.ts` – liest den Anzeige-Cache (Schnittstelle S1/S2), setzt Profilmenü und ERP-Punkt, sonst bleibt «Anmelden» |
+| Next-Frontend | Route `/abmelden` (Schnittstelle S3) |
+
+**Entfernt** (vollständig – Seite, Inhalt, Komponente, Konfiguration, Links)
+
+`/krane`, `/krane/reparatur` (Inhalt geht in Industriekrane und Notfall-Service),
+`/krane/hs-krananlagen` (→ Heukrananlagen), `/fahrmischer`, `/service-abo` samt
+`config/abo.mjs`, `content/service-abo.ts`, `TierCards`, `KranbuchIllustration` und allen
+Abo-/Kranbuch-Texten, `/einsatzgebiet` (→ «Über uns»), Ratgeber «Kranfachmann oder
+Kranexperte» (die Definition wandert in den Prüf-Artikel) und «Heukran-Saison-Check» (der
+Saison-Check bleibt als Abschnitt auf «Heukrananlagen»), `Announcement` + `announce.ts`
+(→ Servicezeile), `EntryTiles` auf der Startseite (die vier Anliegen-Kacheln stehen jetzt auf
+`/service`), die Zahlenreihe im Hero (Kap. 7.3 verlangt die Vertrauensleiste), der
+Formular-Typ «Abo» mit dem Feld «Anzahl Krane», alle Wörter «Pikett».
+
+### 7.5 Architektur und Schnittstellen zum ERP
+
+**Variante B bleibt** (Kap. 5.2). Variante A schied schon in Fassung 1 aus: das Next-Frontend
+liefert zwar statisches HTML, lädt aber auf jeder Seite das React-Laufzeitpaket (≈ 90 KB
+gzip, Budget 30 KB). Für die Einbettung von Login, Profil und ERP muss **nichts** an der
+Architektur geändert werden – darum kein Halt nach Kap. 2.
+
+**Wie das Konto heute funktioniert** (gelesen): Anmeldung über Firebase (Magic Link, Google,
+Passkey), Persistenz `browserLocalPersistence` – der Anmeldezustand liegt **im Browser**, eine
+Server-Session gibt es nicht. Das Backend prüft je Anfrage ein Firebase-ID-Token
+(`Authorization: Bearer`). Die Rolle kommt aus `GET /api/v1/auth/me`; «ERP» heisst
+`isStaff(role)` = `admin` oder `employee` (`frontend/src/lib/record-status.ts`, Spiegel von
+`people.STAFF_ROLES`). Routen: `/login` (+ `/login/verify`), `/konto`, `/erp`; der Schutz von
+`/konto` und `/erp` liegt in deren Layouts (Redirect auf `/login`) und im Backend.
+
+**Warum keine Server-Schnittstelle `GET /api/session/me`** (Kap. 6.3 nennt sie als Beispiel):
+eine statische Seite hat kein Token. Sie müsste entweder das Firebase-SDK laden (≈ 60 KB gzip
+auf **jeder** öffentlichen Seite – doppeltes Budget) oder das Backend müsste ein
+Session-Cookie ausstellen (eine Änderung an Auth-Logik und Sessions – Kap. 2.3). Beides
+verletzt einen Grundsatz. Es gibt aber **schon** eine Schnittstelle, die genau die Frage
+beantwortet («wer ist angemeldet, darf er ins ERP?»):
+
+| # | Schnittstelle | Art | Was | Änderung am ERP |
+|---|---|---|---|---|
+| S1 | Anzeige-Cache `localStorage['inexxio_user_role']` und `['inexxio_user_fullname']` (gleiche Domain) | **besteht**, rein lesend | Das ERP-Frontend schreibt ihn nach jeder Anmeldung und bei jedem Laden von Konto/ERP (Anmeldedialog, `/login/verify`, Navigation, ERP-Layout, Konto) und löscht ihn beim Abmelden. Die Website liest daraus Name/Initialen und «ERP ja/nein» – nichts anderes. | keine |
+| S2 | Anzeige-Cache `localStorage['inexxio_user_contact']` = `{ email, phone, company }` | **neu, additiv** | Für das Vorausfüllen des Formulars (Kap. 11.1). Geschrieben an **derselben** Stelle, an der die Navigation schon Rolle und Name aus `/auth/me` speichert; gelöscht mit ihnen. | eine Zeile schreiben, eine löschen |
+| S3 | Route `/abmelden` (Next) | **neu, additiv** | Die Website kann ohne Firebase-SDK nicht abmelden; der Menüpunkt «Abmelden» führt dorthin, die Seite ruft das **bestehende** `logout()` und kehrt zu «/» zurück. `logout()` räumt dabei den Anzeige-Cache (bisher tat das nur der Listener der Navigation). | neue Seite; `logout()` löscht drei Anzeige-Schlüssel |
+
+Die Website **zeigt** die Berechtigung nur an (Kap. 6.3): Wer den Cache von Hand fälscht, sieht
+einen Menüpunkt «ERP», den `/erp` und das Backend trotzdem abweisen. Fehlt der Cache, ist er
+unlesbar oder ist JavaScript aus, steht «Anmelden» da – der Platz ist reserviert, nichts
+springt. Kein Token, keine ID verlässt das ERP-Frontend. Der Spiegel (Schlüsselnamen,
+Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quellen).
+
+### 7.6 Sofortpunkte (Rückmeldung 04.10.)
+
+1. **Logo mit «ehemals HS Steiner»** – siehe Entscheid 36.
+2. **Burger-Menü mobil funktionierte nicht** – gemessen: das Menü öffnete, war aber nur
+   **60 px** hoch (so hoch wie die Kopfzeile). Ursache: `backdrop-filter` (Milchglas) macht
+   die Kopfzeile zum Bezugsrahmen für `position: fixed` darin; das Vollbild-Menü war damit in
+   ihr eingesperrt. Entscheid 35.
+
+### 7.7 Entscheidungen des Umbaus
+
+35. **Kopfzeile deckend weiss, Einklappen ohne `transform`**: Glas-Effekte verbietet Kap. 9.7,
+    und `backdrop-filter` wie `transform` sperren jedes `position: fixed` darin ein (der
+    gemeldete Fehler). Die Servicezeile klappt über den Sticky-Versatz (`top`) weg, nicht über
+    eine Verschiebung – so kann das Vollbild-Menü nie wieder in der Kopfzeile landen. Ein
+    Wächter in `check-site` misst die Menühöhe nicht, darum steht die Regel als Kommentar am
+    Ort und im Browser-Test des Berichts.
+36. **Logo = das gestapelte Logo mit «ehemals HS Steiner»** (Weisung 04.10.: «dann lieber
+    das ‹Kran- und Fahrmischertechnik› weglassen, damit genügend Platz ist»). Der Zusatz
+    entfällt überall (Kopf, Fuss, OG-Bild); «ehemals HS Steiner» steht damit im Zeichen
+    selbst und im zugänglichen Namen des Logos.
+37. **Formsprache bleibt die des Design-Systems v3** (8 px Radien, Karten 12 px, flach):
+    Kap. 9.4 nennt 2 px, Kap. 9.1/9.2 verlangen zugleich das bestehende Design-System und
+    dass Website und Konto «wie aus einem Guss» wirken – und Konto und ERP stehen im
+    Design-System. Zwei Radien für dieselbe Marke wären zwei Formsprachen (Entscheid 30, 34).
+38. **Die Kranbahn-Linie kommt zurück – nur als Verbindung der Ablauf-Schritte** (Kap. 9.6
+    und 7.4 verlangen sie dort ausdrücklich). Als Sektionstrenner nicht: das Design-System
+    erlaubt als Zierde nur Logo-Schwung und Punktraster, und drei Signaturen wären keine mehr.
+    Höchstens eine je Seite; `check-site` erlaubt drei.
+39. **Kopf und Fuss des Konto-/ERP-Bereichs werden nachgebaut, nicht geteilt**: Astro und
+    React können keine Komponente teilen. Damit sie nicht auseinanderlaufen, kommen **alle
+    Inhalte** (Bereiche, Unterseiten, Telefon, Notfallnummer, Adresse, Öffnungszeiten,
+    Footer-Satz, Pfade) aus einer generierten Datei (`scripts/export-contact.mjs` →
+    `frontend/src/lib/site-shell.json`), die die CI schon heute auf Aktualität prüft
+    (derselbe Schritt wie das Formular-Vokabular). Nur Darstellung – kein Zustand, keine
+    Logik der Navigation wird geändert.
+40. **Weiterleitungen: Tabelle aus Kap. 14, ohne «alles andere → /»**: Firebase führt
+    Weiterleitungen **vor** den statischen Dateien aus – eine Regel für «alles andere» auf
+    derselben Site würde jede Seite der neuen Website auf die Startseite umleiten. Sie gehört
+    auf die **alte** Domain: beim Domainwechsel bekommt hs-steiner.ch eine eigene, kostenlose
+    Hosting-Site mit derselben Tabelle plus Fangregel (Launch-Checkliste). `/kontakt` wird
+    nicht umgeleitet: der Pfad ist alt wie neu derselbe (eine Regel darauf wäre eine
+    Schleife).
+41. **Neue Bildstellen ohne Beispielbild** (Industriekran, Aufbau, Schweissarbeit,
+    Konstruktion): bis echte Fotos vorliegen, zeigt der Bildplatzhalter die Beschreibung –
+    so wie Kap. 9.5 es vorsieht. Neue Beispielbilder müsste der Actions-Job holen; das wäre
+    ein zusätzlicher Zwischenstand, den der Fototag ohnehin ersetzt.
+
+### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
+
+| Datei | Änderung | Warum |
+|---|---|---|
+| `backend/app/routers/contact.py`, `backend/tests/test_contact.py` | Abo-Zweig und «Anzahl Krane» raus, PDF als Anhang, Notfall- statt Pikett-Satz | Formular nach Kap. 11 (eigener, isolierter Endpunkt – keine ERP-Logik) |
+| `backend/app/assets/website_contact.json` | regeneriert | Vokabular aus der Website-Konfiguration |
+| `frontend/src/lib/site-shell.json` | neu, generiert | Inhalte für Kopf und Fuss des Konto-/ERP-Bereichs (Entscheid 39) |
+| `frontend/src/components/layout/navbar.tsx`, `footer.tsx`, Anmeldedialog, Auth-Layout | nur Darstellung (Kap. 6.2) | gleicher Kopf und Fuss wie die Website |
+| `frontend/src/lib/firebase.ts` (`logout`), Navigation | S2 schreiben, Anzeige-Cache beim Abmelden räumen | Schnittstellen S2/S3 |
+| `frontend/src/app/(auth)/abmelden/page.tsx` | neu | Schnittstelle S3 |
+| `frontend/public/brand/` | gestapeltes Logo | Konto/ERP zeigen dasselbe Zeichen |
+| `firebase.json` | Weiterleitungen nach Kap. 14 | Entscheid 40 |
+
+Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
+Migrationen, Auth-Logik, Rechte, Prozesse, Module.
+
+### 7.9 Phasen-Checkliste (Kap. 17)
+
+- [x] **0 – Analyse** und dieser Abschnitt
+- [ ] **1 – Fundament**: Konfiguration (Bereiche als Datenstruktur), Header zweizeilig mit
+      Servicezeile und Anmeldezustand, Footer, Navigation, Logo, Begriffe, SITE_MODE
+- [ ] **2 – Komponenten**: Mega-Dropdown, Profilmenü, Bereichskarte, Drei Ebenen,
+      Kranbahn-Linie, Unterseiten-Vorlage, Bereichs-Vorlage
+- [ ] **3 – Konto, Profil, ERP** im neuen Design (nur Darstellung) + S2/S3
+- [ ] **4 – Seiten** in der Reihenfolge von Kap. 17
+- [ ] **5 – Formular und Tracking**
+- [ ] **6 – SEO und KI** (Meta, JSON-LD, Sitemap, robots, llms, Redirects, OG-Bilder)
+- [ ] **7 – Prüfung** nach Kap. 17.1
+- [ ] **8 – Bericht** `WEBSITE_REPORT_20261004.md`
