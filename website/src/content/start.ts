@@ -17,12 +17,12 @@ export const start = {
     h1: 'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der ==Schweiz==',
     lead:
       'Wir planen und bauen Krananlagen, warten und reparieren Fahrmischer und Aufbauten aller Marken und konstruieren Lösungen, die es nicht von der Stange gibt. Mit Ingenieurwissen und kurzen Wegen.',
-    /** Vertrauensleiste – nur belegte Fakten. */
+    /** Vertrauensleiste – nur belegte Fakten, je eine Zahl (oder ein Wort) und was sie sagt. */
     trust: [
-      'Seit {{history.founded}}',
-      'Eigene Krananlagen seit {{history.cranesSince}}',
-      'Fahrmischer aller Marken',
-      'Verschleissteile ab Lager',
+      { value: '{{history.founded}}', label: 'Gegründet in Tuttwil-Wängi' },
+      { value: '{{history.cranesSince}}', label: 'Eigene Krananlagen' },
+      { value: 'Alle Marken', label: 'Fahrmischer und Aufbauten' },
+      { value: 'Ab Lager', label: 'Verschleissteile' },
     ],
   },
 
@@ -31,8 +31,6 @@ export const start = {
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
-    /** Nur auf Geräten mit Maus sichtbar – erklärt den Laufkran. */
-    hint: 'Fahren Sie mit der Maus über einen Bereich – der Kran hängt ihn an.',
     more: 'Zum Bereich',
   },
 

@@ -53,14 +53,23 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
         <ul role="list" class="nav__list">
           {groups.map((g) => (
             <li class:list={['nav__item dd', g.id === site.about.id && 'dd--end']} data-dd>
+              {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugtechnik» klickt, erwartet
+                  sie), der Pfeil daneben öffnet das Untermenü für Tastatur und Touch. Mit der Maus
+                  öffnet es beim Zeigen. Darum braucht das Panel keinen «Alle …»-Link mehr. */}
+              <a
+                href={g.href}
+                class:list={['nav__link nav__link--dd', groupActive(g) && 'is-current']}
+                aria-current={path === g.href ? 'page' : undefined}
+              >{g.label}</a>
               <button
                 type="button"
-                class:list={['nav__link', groupActive(g) && 'is-current']}
+                class="nav__toggle"
                 aria-expanded="false"
                 aria-controls={`dd-${g.id}`}
+                aria-label={`Untermenü ${g.label}`}
                 data-dd-toggle
               >
-                {g.label} <Icon name="chevron-down" size={16} class="nav__chev" />
+                <Icon name="chevron-down" size={16} class="nav__chev" />
               </button>
               <div class="dd__panel" id={`dd-${g.id}`} data-dd-panel>
                 <div class="dd__main">
@@ -74,9 +83,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                       </li>
                     ))}
                   </ul>
-                  <a href={g.href} class="dd__overview" aria-current={path === g.href ? 'page' : undefined}>
-                    {g.overview} <Icon name="arrow-right" size={16} />
-                  </a>
                 </div>
                 {/* Ein Bild je Unterpunkt (Testnotiz #1111): das des Bereichs steht, bis man auf
                     einen Unterpunkt zeigt – dann seines. Reines CSS (:has), so hoch wie das Panel. */}
@@ -226,8 +232,18 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   }
   .nav__link:hover, .nav__link.is-current, .nav__link[aria-expanded='true'] { color: var(--ink); }
   .nav__link:hover::after, .nav__link.is-current::after { right: 11px; }
-  .nav__link :global(.nav__chev) { color: var(--ink-3); transition: transform var(--t-fast) var(--ease); }
-  .nav__link[aria-expanded='true'] :global(.nav__chev) { transform: rotate(180deg); }
+  /* Name + Pfeil: der Name rückt an den Pfeil heran, der Pfeil ist ein eigenes Ziel. */
+  .nav__link--dd { padding-right: 2px; }
+  .nav__link--dd::after { right: calc(100% - 11px); }
+  .nav__link--dd:hover::after, .nav__link--dd.is-current::after { right: 2px; }
+  .nav__toggle {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; min-height: 44px;
+    margin-right: 6px; color: var(--ink-3); border-radius: var(--r-sm);
+  }
+  .nav__toggle:hover, .nav__toggle[aria-expanded='true'] { color: var(--ink); }
+  .nav__toggle :global(.nav__chev) { transition: transform var(--t-fast) var(--ease); }
+  .nav__toggle[aria-expanded='true'] :global(.nav__chev) { transform: rotate(180deg); }
+  .dd:hover .nav__link--dd, .dd.is-open .nav__link--dd { color: var(--ink); }
 
   /* Mega-Dropdown (schlicht): Unterseiten links, kleines Foto rechts. Geschlossen ist es
      `display: none` – dann lädt auch das Foto erst, wenn jemand das Menü öffnet. */
@@ -251,12 +267,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   .dd__label { font-weight: 600; color: var(--ink); font-size: 0.9375rem; }
   .dd__link[aria-current='page'] .dd__label { text-decoration: underline; text-decoration-color: var(--red); text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
   .dd__text { font-size: 0.8125rem; color: var(--ink-3); }
-  .dd__overview {
-    display: flex; align-items: center; justify-content: space-between; margin-top: auto;
-    padding: 12px 12px 6px; border-top: 1px solid var(--line); font-size: 0.875rem; font-weight: 600;
-    color: var(--red-deep); text-decoration: none;
-  }
-  .dd__overview:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   /* Das Bild steht so hoch wie das Panel (#1111): die Spalte streckt sich, die Bilder liegen
      übereinander und füllen sie. Sichtbar ist das des Bereichs – oder das des Unterpunkts,
      auf den man zeigt. */

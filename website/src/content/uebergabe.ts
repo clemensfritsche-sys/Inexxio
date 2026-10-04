@@ -65,6 +65,7 @@ export const sharedFaq = {
 export const message = {
   paragraphs: [
     'Ich bin Maschinenbauingenieur und habe bei Liebherr Baumaschinen entwickelt. Krane und schwere Maschinen begleiten mich mein ganzes Berufsleben. Als ich Heiri Steiner kennengelernt habe, war schnell klar: Hier stimmt die Basis – treue Kunden, solide Anlagen, ehrliches Handwerk.',
+    'Danach habe ich im IoT-Umfeld Produkte und Plattformen verantwortet – also Maschinen, die vernetzt sind und ihren Zustand melden. Dieses Wissen bringe ich mit: bei der Modernisierung von Steuerung und Funk ebenso wie dort, wo eine Anlage künftig mehr über sich verraten soll als heute.',
     'Was Heiri in {{history.experienceDative}} aufgebaut hat, führe ich mit derselben Sorgfalt weiter. Und ich ergänze es dort, wo es Ihnen nützt: mit Ingenieurwissen, sauberer Dokumentation und Lösungen, die es nicht von der Stange gibt.',
   ],
   signature: '{{people.owner.name}}',

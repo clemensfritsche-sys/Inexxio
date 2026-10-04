@@ -1,9 +1,10 @@
 ---
 /**
  * Seitenkopf der Startseite mit Laufkran (Claude-Design «Startseite Redesign», Okt. 2026):
- * Über dem Kopf läuft eine Kranbahn; die Katze mit der INEXXIO-Wortmarke folgt der Maus und
- * senkt den Haken auf den Bereich (oder Knopf), über dem sie steht – der hängt dann am Haken.
- * Ohne Maus fährt der Kran die drei Bereiche der Reihe nach an (nicht die Knöpfe).
+ * Über dem Kopf läuft eine Kranbahn; die Katze mit der INEXXIO-Wortmarke folgt dem Zeiger.
+ * Über einem Knopf senkt sie den Haken und hängt ihn an. Über einem **Bereich** spielt sie
+ * dessen Szene im Bildfeld der Karte: Heu einlagern (Greifer) · Mischtrommel tauschen ·
+ * Ausleger nach Mass montieren. Ohne Zeiger fährt der Kran die drei Bereiche nacheinander ab.
  * Bewegung: src/scripts/crane.ts. Ohne JS oder bei reduzierter Bewegung steht der Kran still,
  * die Karten reagieren dann auf das Zeigen wie gewohnt.
  */
@@ -12,21 +13,48 @@ import Icon from './Icon.astro';
 import Photo from './Photo.astro';
 import Rich from './Rich.astro';
 import SeasonNotice from './SeasonNotice.astro';
+import greifer from '../assets/crane/greifer.html?raw';
+import lastBale from '../assets/crane/last-bale.svg?raw';
+import lastOld from '../assets/crane/last-old.svg?raw';
+import lastNew from '../assets/crane/last-new.svg?raw';
+import lastJib from '../assets/crane/last-jib.svg?raw';
+import szeneKran from '../assets/crane/szene-krantechnik.svg?raw';
+import szeneFahrzeug from '../assets/crane/szene-fahrzeugtechnik.svg?raw';
+import szeneSonder from '../assets/crane/szene-sonderloesungen.svg?raw';
 
 interface Props {
   eyebrow: string;
   title: string;
   lead: string;
-  trust: string[];
+  trust: { value: string; label: string }[];
   areasTitle: string;
-  areasHint: string;
   more: string;
 }
-const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props;
+const { eyebrow, title, lead, trust, areasTitle, more } = Astro.props;
+
+/** Szene je Bereich – die Reihenfolge der Bühnen folgt der Reihenfolge der Karten. */
+const scenes: Record<string, { svg: string; done: string }> = {
+  krantechnik: { svg: szeneKran, done: 'Heu eingelagert' },
+  fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel' },
+  sonderloesungen: { svg: szeneSonder, done: 'Sonderlösung montiert' },
+};
+/** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */
+const loads = [
+  { name: 'bale', svg: lastBale, w: 48, h: 32, mx: -24, my: -16, ox: 24, oy: 4 },
+  { name: 'old', svg: lastOld, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  { name: 'new', svg: lastNew, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  { name: 'jib', svg: lastJib, w: 150, h: 62, mx: -68, my: -6, ox: 68, oy: 6 },
+];
 ---
 <section class="hh" data-crane>
   <div class="hh__crane" aria-hidden="true">
     <div class="hh__rail"></div>
+    {loads.map((l) => (
+      <div
+        class="hh__load" data-obj={l.name} set:html={l.svg}
+        style={`width:${l.w}px;height:${l.h}px;margin:${l.my}px 0 0 ${l.mx}px;transform-origin:${l.ox}px ${l.oy}px`}
+      />
+    ))}
     <div class="hh__trolley" data-crane-trolley>
       <span class="hh__wheel hh__wheel--l"></span>
       <span class="hh__wheel hh__wheel--r"></span>
@@ -35,7 +63,10 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
         <div class="hh__line" data-crane-line></div>
         <div class="hh__block"></div>
         <div class="hh__shank"></div>
-        <div class="hh__eye"></div>
+        <div class="hh__tool">
+          <div class="hh__eye" data-tool="ring"></div>
+          <Fragment set:html={greifer} />
+        </div>
       </div>
     </div>
   </div>
@@ -59,35 +90,48 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
   </div>
 
   <div class="wrap hh__areas">
-    <div class="hh__areas-head">
-      <h2 class="h3" id="bereiche">{areasTitle}</h2>
-      <p class="hh__hint">{areasHint}</p>
-    </div>
+    <h2 class="h3 hh__areas-title" id="bereiche">{areasTitle}</h2>
     <ul role="list" class="hh__cards">
-      {site.areas.map((a) => (
-        <li class="hh__card" data-tile="area">
-          <div class="hh__media">
-            <Photo id={a.photo} sizes="(min-width: 1024px) 33vw, (min-width: 700px) 50vw, 100vw" />
-            <span class="hh__notch"></span>
-          </div>
-          <div class="hh__body-text">
-            <h3 class="hh__card-title"><a href={a.href}>{a.label}</a></h3>
-            <Rich as="p" class="hh__card-text" text={a.text} />
-            <ul role="list" class="hh__chips">
-              {a.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
-            </ul>
-            <span class="hh__more" aria-hidden="true">{more}<Icon name="arrow-right" size={16} /></span>
-          </div>
-        </li>
-      ))}
+      {site.areas.map((a, i) => {
+        const scene = scenes[a.id];
+        return (
+          <li class="hh__card" data-tile={String(i)} data-scene-id={scene ? a.id : undefined}>
+            <div class="hh__media">
+              <Photo id={a.photo} sizes="(min-width: 760px) 33vw, 100vw" />
+              {scene && (
+                <div class="hh__stage" data-scene aria-hidden="true">
+                  <div class="hh__stage-in" data-stagein set:html={scene.svg} />
+                  <span class="hh__done" data-b><Icon name="check" size={14} />{scene.done}</span>
+                </div>
+              )}
+              <span class="hh__notch"></span>
+            </div>
+            <div class="hh__body-text">
+              <h3 class="hh__card-title"><a href={a.href}>{a.label}</a></h3>
+              <Rich as="p" class="hh__card-text" text={a.text} />
+              <ul role="list" class="hh__chips">
+                {a.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+              </ul>
+              <span class="hh__more" aria-hidden="true">{more}<Icon name="arrow-right" size={16} /></span>
+            </div>
+          </li>
+        );
+      })}
     </ul>
     <div class="hh__season"><SeasonNotice page="/" /></div>
   </div>
 
   <div class="hh__trust">
-    <ul role="list" class="wrap" aria-label="Kurz zu uns">
-      {trust.map((t) => <li><Icon name="check" size={16} /><Rich as="span" text={t} /></li>)}
+    <div class="wrap">
+    <ul role="list" class="hh__facts" aria-label="Kurz zu uns">
+      {trust.map((t) => (
+        <li>
+          <Rich as="span" class="hh__fact-v tnum" text={t.value} />
+          <Rich as="span" class="hh__fact-l" text={t.label} />
+        </li>
+      ))}
     </ul>
+    </div>
   </div>
 </section>
 
@@ -107,7 +151,7 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
     border-block: 3px solid var(--ink-4);
     background: repeating-linear-gradient(90deg, transparent 0 22px, var(--line-2) 22px 24px);
   }
-  .hh__trolley { position: absolute; top: 24px; left: 0; width: 88px; height: 50px; will-change: transform; transform: translateX(var(--park, 160px)); }
+  .hh__trolley { position: absolute; top: 24px; left: 0; width: 88px; height: 50px; will-change: transform; transform: translateX(160px); }
   .hh__wheel {
     position: absolute; top: 0; width: 14px; height: 14px; border-radius: 50%;
     border: 3px solid var(--ink); background: var(--white);
@@ -123,7 +167,11 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
   .hh__line { width: 2px; height: 60px; background: var(--ink-3); }
   .hh__block { position: relative; left: -11px; width: 24px; height: 16px; border-radius: 3px; background: var(--red); }
   .hh__shank { position: relative; left: -1px; width: 4px; height: 8px; background: var(--ink); }
-  .hh__eye { position: relative; left: -10px; width: 22px; height: 22px; border: 4px solid var(--ink); border-radius: 50%; }
+  .hh__tool { position: relative; left: -10px; width: 22px; height: 22px; }
+  .hh__eye { position: absolute; inset: 0; border: 4px solid var(--ink); border-radius: 50%; }
+  /* Lasten: liegen im Kran-Rahmen und werden vom Skript an Haken oder Boden gesetzt. */
+  .hh__load { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
+  .hh__load :global(svg) { display: block; overflow: visible; }
 
   /* ---------- Kopf: Titel links, Satz und Knöpfe rechts, unten bündig ---------- */
   .hh__top {
@@ -143,13 +191,9 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
 
   /* ---------- Drei Bereiche = drei Lasten am Haken ---------- */
   .hh__areas { position: relative; z-index: 10; padding-top: var(--s-7); padding-bottom: var(--s-8); }
-  .hh__areas-head {
-    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--s-2) var(--s-4);
-    padding-bottom: 20px;
-  }
-  .hh__hint { font-size: 0.8125rem; color: var(--ink-3); }
-  @media (hover: none) { .hh__hint { display: none; } }
-  .hh__cards { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .hh__areas-title { padding-bottom: 20px; }
+  .hh__cards { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .hh__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .hh__card {
     position: relative; display: flex; flex-direction: column; min-height: 400px; overflow: hidden;
     border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--paper);
@@ -158,6 +202,18 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
   .hh__media { position: relative; height: 200px; overflow: hidden; background: var(--paper-2); }
   .hh__media :global(picture), .hh__media :global(.photo), .hh__media :global(.ph) { position: absolute; inset: 0; width: 100%; height: 100%; }
   .hh__media :global(.photo) { object-fit: cover; filter: grayscale(0.85); transition: filter 280ms var(--ease); }
+  /* Bühne der Szene: Punktraster über dem Foto, ausgeblendet, bis der Kran hier arbeitet. */
+  .hh__stage {
+    position: absolute; inset: 0; z-index: 1; opacity: 0; background-color: var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0); background-size: 24px 24px;
+  }
+  .hh__stage-in { position: absolute; left: 0; top: 0; width: 380px; height: 200px; transform-origin: 0 0; }
+  .hh__stage-in :global(svg) { display: block; overflow: visible; }
+  .hh__done {
+    position: absolute; right: 12px; top: 12px; z-index: 2; opacity: 0;
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--r-sm);
+    background: var(--white); border: 1px solid var(--ok); color: var(--ok); font-size: 0.75rem; font-weight: 600;
+  }
   /* Die Öse oben an der Last: hier greift der Haken. */
   .hh__notch {
     position: absolute; left: 50%; top: -1px; z-index: 2; width: 28px; height: 8px; margin-left: -14px;
@@ -167,11 +223,11 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
   .hh__card-title { margin: 0; }
   /* Der Titel-Link deckt die ganze Karte ab; die Unterseiten-Links liegen darüber. */
   .hh__card-title a { color: var(--ink); text-decoration: none; }
-  .hh__card-title a::after { content: ''; position: absolute; inset: 0; z-index: 1; }
+  .hh__card-title a::after { content: ''; position: absolute; inset: 0; z-index: 3; }
   .hh__card-text { font-size: 0.9375rem; line-height: 1.6; color: var(--ink-2); }
   .hh__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: var(--s-2); }
   .hh__chips a {
-    position: relative; z-index: 2; display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px;
+    position: relative; z-index: 4; display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px;
     border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--white);
     font-size: 0.8125rem; font-weight: 500; line-height: 1.3; color: var(--ink-2); text-decoration: none;
   }
@@ -192,14 +248,24 @@ const { eyebrow, title, lead, trust, areasTitle, areasHint, more } = Astro.props
   .hh__btn[data-hooked] { transform: translateY(-2px); box-shadow: var(--focus-ring); }
   .btn--secondary.hh__btn[data-hooked] { border-color: var(--ink); }
 
-  /* ---------- Vertrauensleiste ---------- */
+  /* ---------- Vertrauensleiste: Zahl und Wort, durch Haarlinien getrennt ---------- */
   .hh__trust { position: relative; z-index: 10; border-top: 1px solid var(--line); }
-  .hh__trust ul {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3) 40px;
-    padding-block: 20px;
+  .hh__facts { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .hh__facts li { display: flex; flex-direction: column; gap: 4px; padding-block: var(--s-5); }
+  .hh__facts li + li { border-top: 1px solid var(--line); }
+  @media (min-width: 560px) {
+    .hh__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hh__facts li + li { border-top: 0; }
+    .hh__facts li:nth-child(even) { border-left: 1px solid var(--line); padding-left: var(--s-5); }
+    .hh__facts li:nth-child(n + 3) { border-top: 1px solid var(--line); }
   }
-  .hh__trust li { display: flex; align-items: center; gap: 10px; font-size: 0.875rem; font-weight: 500; color: var(--ink-2); }
-  .hh__trust li :global(.icon) { color: var(--ok); flex: none; }
+  @media (min-width: 960px) {
+    .hh__facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .hh__facts li:nth-child(n + 3) { border-top: 0; }
+    .hh__facts li + li { border-left: 1px solid var(--line); padding-left: var(--s-5); }
+  }
+  .hh__fact-v { font-family: var(--font-display); font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; color: var(--ink); }
+  .hh__fact-l { font-size: 0.875rem; color: var(--ink-3); }
 
   @media (prefers-reduced-motion: reduce) {
     .hh__card, .hh__media :global(.photo) { transition: none; }

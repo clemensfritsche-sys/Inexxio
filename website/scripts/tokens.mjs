@@ -46,6 +46,10 @@ const MAP = {
   '--success': '--ok',
   '--warning': '--amber',
   '--warning-bg': '--amber-bg',
+  // Zeichnungen der Kran-Szenen auf der Startseite (Heu, Stahl): Stufen der Grundskala.
+  '--gray-500': '--gray-500',
+  '--amber-50': '--amber-50',
+  '--amber-500': '--amber-500',
   '--danger-bg': '--red-bg',
   '--font-mono': '--font-mono',
   '--r-sm': '--r-sm',

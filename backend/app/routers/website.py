@@ -24,15 +24,20 @@ from ..services import address as addr
 
 router = APIRouter(prefix="/api/v1/public", tags=["website"])
 
-# Vorwahl je Land – nur für die Wahl-Adresse (`tel:`), die Anzeige bleibt wie erfasst.
+# Vorwahl je Land – für die Wahl-Adresse (`tel:`).
 _CALLING = {"CH": "41", "LI": "423", "DE": "49", "AT": "43", "IT": "39", "FR": "33"}
+
+# Anzeige: so, wie man die Nummer im Land schreibt (Testnotiz #1187 – «+41795058302» liest
+# niemand). Gruppen nach der Vorwahl; ein Land ohne Eintrag bleibt wie erfasst – eine
+# geratene Gruppierung wäre schlechter als keine.
+_GROUPS = {"41": (2, 3, 2, 2), "423": (3, 2, 2)}
 
 
 class PublicContact(BaseModel):
     country: str | None          # erkanntes Land des Besuchers (ISO-2) oder None
     company_object_id: int | None
     name: str
-    phone: str | None            # wie im ERP erfasst
+    phone: str | None            # zur Anzeige gruppiert (CH/LI), sonst wie im ERP erfasst
     phone_e164: str | None       # für `tel:`
     email: str | None
     address_lines: list[str]     # Strasse, PLZ Ort, Land
@@ -50,6 +55,19 @@ def _e164(phone: str | None, country: str | None) -> str | None:
     return f"+{code}{raw.lstrip('0')}" if code and raw.startswith("0") else raw
 
 
+def _display(phone: str | None, e164: str | None) -> str | None:
+    """«+41 79 505 83 02» statt «+41795058302» – nur, wo die Gruppierung feststeht."""
+    for code, groups in _GROUPS.items():
+        rest = (e164 or "")[1 + len(code):]
+        if (e164 or "").startswith(f"+{code}") and rest.isdigit() and len(rest) == sum(groups):
+            parts, i = [], 0
+            for n in groups:
+                parts.append(rest[i:i + n])
+                i += n
+            return f"+{code} " + " ".join(parts)
+    return phone
+
+
 @router.get("/contact", response_model=PublicContact)
 def public_contact(request: Request, response: Response, country: str | None = None,
                    db: Session = Depends(get_db)):
@@ -64,12 +82,13 @@ def public_contact(request: Request, response: Response, country: str | None = N
                              phone=None, phone_e164=None, email=None, address_lines=[])
     a = addr.of_company(company)
     phone = (company.phone or "").strip() or None
+    e164 = _e164(phone, company.country)
     return PublicContact(
         country=country or None,
         company_object_id=company.object_id,
         name=sites.legal_name(company),
-        phone=phone,
-        phone_e164=_e164(phone, company.country),
+        phone=_display(phone, e164),
+        phone_e164=e164,
         email=(company.email or "").strip() or None,
         address_lines=[line for line in addr.lines(a) if line.strip("— ")],
     )
