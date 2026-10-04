@@ -2,35 +2,37 @@
 /**
  * ►►► Der Kontaktbereich – EINER für die ganze Website (Testnotizen #1107/#1129). ◄◄◄
  * Auf /kontakt und am Ende jeder Seite dasselbe: dieselbe Überschrift, derselbe Satz,
- * dasselbe Formular (InquiryForm) und daneben Telefon und E-Mail. Was sich je Seite
- * unterscheiden darf, ist allein das vorgewählte Anliegen (`need`) bzw. die Dringlichkeit.
- * Auf /kontakt ist die Überschrift die H1 der Seite.
+ * dasselbe Formular (ein Feld, Anhänge, wer fragt an) und daneben Telefon, E-Mail und
+ * Anschrift mit Route (#1144). Auf /kontakt ist die Überschrift die H1 der Seite, und unter
+ * der Anschrift steht die Karte – sie zeigt, wo die Route hinführt.
  */
 import SectionHead from './SectionHead.astro';
 import InquiryForm from './InquiryForm.astro';
 import ContactPanel from './ContactPanel.astro';
+import LocationMap from './LocationMap.astro';
 import { kontakt } from '../content/kontakt';
 
 interface Props {
-  need?: string;
-  urgency?: 'dringend' | 'wochen' | 'planung';
   level?: 'h1' | 'h2';
 }
-const { need, urgency, level = 'h2' } = Astro.props;
+const { level = 'h2' } = Astro.props;
+const main = level === 'h1';
 ---
-<section class="section section--paper contact" id="anfrage" aria-labelledby="anfrage-title" data-hero={level === 'h1' ? true : undefined}>
+<section class="section section--paper contact" id="anfrage" aria-labelledby="anfrage-title" data-hero={main ? true : undefined}>
   <div class="wrap grid">
     <div class="col-7">
       <SectionHead eyebrow="Kontakt" title={kontakt.h1} lead={kontakt.lead} id="anfrage-title" level={level} />
-      <InquiryForm need={need} urgency={urgency} resultLevel={level === 'h1' ? 2 : 3} />
+      <InquiryForm resultLevel={main ? 2 : 3} />
     </div>
     <aside class="col-4 contact__aside" aria-label="Direkter Kontakt">
       <ContactPanel />
+      {main && <LocationMap class="contact__map" />}
     </aside>
   </div>
 </section>
 
 <style>
+  .contact__aside { display: grid; gap: var(--s-5); align-content: start; }
   @media (min-width: 960px) {
     .contact__aside { grid-column: 9 / span 4; padding-top: var(--s-2); }
   }

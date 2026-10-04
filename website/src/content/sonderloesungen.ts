@@ -49,7 +49,7 @@ export const sonderloesungen: AreaPage = {
       text: 'Gibt es ein Teil nicht mehr zu kaufen, fertigen wir es nach Muster oder Zeichnung. [[PRÜFEN: Nachfertigung von Teilen]]',
       links: [
         { href: '/sonderloesungen/schweiss-stahlbau#leistungen', label: 'Einzelstücke und Kleinserien' },
-        { href: '/kontakt?thema=teil', label: 'Teil anfragen' },
+        { href: '/kontakt', label: 'Teil anfragen' },
       ],
     },
   ],
@@ -77,7 +77,6 @@ export const sonderloesungen: AreaPage = {
       a: '[[PRÜFEN: Materialien – Stahl, Inox, Alu?]]',
     },
   ],
-  cta: {},
   service: { name: 'Sonderlösungen', serviceType: 'Konstruktion, Stahlbau und Umbau von Baumaschinen' },
   keywords: ['Sondermaschinenbau Thurgau', 'Stahlbau', 'Schweissarbeiten', 'Baumaschinen Umbau'],
 };
@@ -134,7 +133,6 @@ export const konstruktion: SubPage = {
       a: '[[PRÜFEN: rechtlich – Rechte an Zeichnungen und Konstruktionen]]',
     },
   ],
-  cta: { need: 'konstruktion' },
   related: [
     { href: '/sonderloesungen/schweiss-stahlbau', label: 'Schweiss- und Stahlbau', text: 'Die Fertigung in der eigenen Werkstatt.' },
     { href: '/krantechnik/modernisierung', label: 'Kran modernisieren', text: 'Umbauten an bestehenden Kranen – mit Dokumentation.' },
@@ -207,7 +205,6 @@ export const stahlbau: SubPage = {
       a: 'Das hängt von Teil und Auslastung ab. Steht eine Maschine still, rufen Sie an: {{phone.link}}.',
     },
   ],
-  cta: { need: 'stahlbau' },
   related: [
     { href: '/sonderloesungen/konstruktion-engineering', label: 'Konstruktion und Engineering', text: 'Wenn es noch keine Zeichnung gibt.' },
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbauten reparieren', text: 'Mulden, Kipper und Hydraulik.' },
@@ -268,7 +265,6 @@ export const baumaschinen: SubPage = {
       a: '[[PLATZHALTER: Einsätze vor Ort bei Baumaschinen – ja oder nein, in welchem Umfang]]',
     },
   ],
-  cta: { need: 'baumaschine' },
   related: [
     { href: '/sonderloesungen/konstruktion-engineering', label: 'Konstruktion und Engineering', text: 'Berechnung und Dokumentation für den Umbau.' },
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbauten reparieren', text: 'Mulden, Kipper und Hydraulik.' },

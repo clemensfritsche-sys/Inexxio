@@ -73,10 +73,6 @@ const jobLd = site.features.jobPosting
           <a class="btn btn--secondary" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} /> {site.phone.display}</a>
         </div>
       </div>
-      <aside class="col-4 kr-aside" aria-label="Ausbildung">
-        <p class="label">Ausbildung</p>
-        <Rich as="p" text={c.training} />
-      </aside>
     </div>
   </section>
 </Base>
@@ -89,6 +85,4 @@ const jobLd = site.features.jobPosting
   .head--flush { margin-bottom: var(--s-4); }
   .kr-apply__text { margin-top: var(--s-3); }
   .kr-apply__cta { margin-top: var(--s-5); }
-  @media (min-width: 960px) { .kr-aside { grid-column: 9 / span 4; } }
-  .kr-aside { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 1px solid var(--ink); }
 </style>

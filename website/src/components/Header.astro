@@ -2,7 +2,7 @@
 /**
  * Kopfzeile – EINE Zeile (Rückmeldung 04.10.2026: Servicezeile, Arbeitsleiste und
  * Vorschau-Banner sind ersatzlos entfallen):
- *   Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Sonderlösungen ▾ · Service ▾ · Über uns ·
+ *   Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Sonderlösungen ▾ · Service ▾ · Über uns ▾ ·
  *   Kontakt · ERP (nur Personal, ein Link) · Telefon · Anmelden bzw. Profilmenü · «Anfrage stellen».
  * Schmaler: Logo, Telefon, Konto, Menü.
  *
@@ -13,6 +13,9 @@
  * Jede dieser Eigenschaften macht sie zum Bezugsrahmen für `position: fixed` – das
  * Vollbild-Menü war genau so in der 60 px hohen Kopfzeile eingesperrt (WEBSITE_PLAN
  * Entscheid 35).
+ *
+ * ►►► Derselbe Kopf trägt das Konto/ERP ◄◄◄ (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60) –
+ * es gibt keinen Nachbau im Frontend.
  *
  * Anmeldezustand: `html[data-account]` setzt scripts/early.js vor dem ersten Zeichnen aus
  * dem Anzeige-Cache des Kontos (Schnittstelle S1) – darum springt nichts. Sichtbar wird je
@@ -31,10 +34,11 @@ const tel = `tel:${site.phone.e164}`;
 const acct = site.account;
 const erp = acct.erp;
 
-/** Die vier Dropdowns: drei Bereiche, dann Service. */
+/** Die fünf Menüs: drei Bereiche, Service, Über uns (#1154) – jede Seite ist darin erreichbar. */
 const groups = [
   ...site.areas.map((a) => ({ id: a.id, label: a.label, href: a.href, overview: a.overview, photo: a.photo, children: a.children })),
   { id: 'service', label: site.service.label, href: site.service.href, overview: site.service.overview, photo: site.service.photo, children: site.service.children },
+  { id: site.about.id, label: site.about.label, href: site.about.href, overview: site.about.overview, photo: site.about.photo, children: site.about.children },
 ];
 const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children.some((c) => c.href === path);
 ---
@@ -48,7 +52,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
       <nav class="nav" aria-label="Hauptnavigation">
         <ul role="list" class="nav__list">
           {groups.map((g) => (
-            <li class="nav__item dd" data-dd>
+            <li class:list={['nav__item dd', g.id === site.about.id && 'dd--end']} data-dd>
               <button
                 type="button"
                 class:list={['nav__link', groupActive(g) && 'is-current']}
@@ -64,7 +68,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                     {g.children.map((c) => (
                       <li>
                         <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
-                          <span class="dd__label">{c.label}</span>
+                          <span class="dd__label">{plain(c.label)}</span>
                           <span class="dd__text">{c.text}</span>
                         </a>
                       </li>
@@ -138,7 +142,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                   </summary>
                   <ul role="list" class="mnav__sub">
                     {g.children.map((c) => (
-                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}>{c.label}<span>{c.text}</span></a></li>
+                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}>{plain(c.label)}<span>{c.text}</span></a></li>
                     ))}
                     <li><a href={g.href} class="mnav__overview" aria-current={path === g.href ? 'page' : undefined}>{g.overview}</a></li>
                   </ul>
@@ -148,11 +152,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                 <a href={m.href} class="mnav__link" aria-current={within(m.href) ? 'page' : undefined}>{m.label}</a>
               ))}
               <a href={erp.href} class="mnav__link" rel="nofollow" data-acct="staff">{erp.label}</a>
-              <ul role="list" class="mnav__more">
-                {site.company.filter((c) => !site.menu.some((m) => m.href === c.href)).map((c) => (
-                  <li><a href={c.href} aria-current={within(c.href) ? 'page' : undefined}>{plain(c.label)}</a></li>
-                ))}
-              </ul>
               <ul role="list" class="mnav__account">
                 <li data-acct="login"><a href={acct.login.href} rel="nofollow"><Icon name="circle-user" size={20} /> {acct.login.label}</a></li>
                 <li data-acct="user"><a href={acct.profile.href} rel="nofollow"><Icon name="user" size={20} /> {acct.profile.label} <span class="mnav__who" data-acct-name></span></a></li>

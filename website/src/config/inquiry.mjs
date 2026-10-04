@@ -2,61 +2,20 @@
 /**
  * ►►► Das Vokabular des Anfrage-Formulars – an EINER Stelle. ◄◄◄
  *
- * Das Formular (InquiryForm) baut daraus seine Auswahl, das Backend
+ * Das Formular (InquiryForm) baut daraus seine Felder, das Backend
  * (backend/app/routers/contact.py) prüft gegen dieselbe Liste und schreibt mit denselben
  * Beschriftungen die E-Mail – `scripts/export-contact.mjs` überträgt sie nach
- * backend/app/assets/website_contact.json. Ein neuer Wert ist damit eine Zeile hier.
+ * backend/app/assets/website_contact.json.
  *
- * Die drei Bereiche heissen wie in der Navigation (Auftrag Kap. 5.4 und 11.1).
+ * ►►► Ein Feld für das Anliegen, sonst nur «wer fragt an» (Rückmeldung 04.10.2026). ◄◄◄
+ * Bereich, Anliegen, Dringlichkeit, Standort, Hersteller und Baujahr sind ersatzlos
+ * entfallen: «die Anfrage muss extrem einfach sein … ich plane, Anfragen KI-basiert zu
+ * analysieren, dann weiss ich sofort, um was es geht». Was der Mensch schreibt, ist die
+ * Angabe; eine Auswahl davor wäre eine zweite, die er erst treffen muss.
  */
 
 export const inquiry = {
-  /**
-   * Die Bereiche. Gefragt wird nicht mehr nach ihnen (Testnotiz #1102: kein Schritt
-   * «Bereich») – das gewählte ANLIEGEN sagt, welcher es ist (`kindOf`). Sie bleiben für
-   * Betreff und E-Mail. `group` fasst im Formular zusammen, was keinen eigenen Titel braucht.
-   */
-  kinds: [
-    { value: 'krantechnik', label: 'Krantechnik', subject: 'Krantechnik' },
-    { value: 'fahrzeugtechnik', label: 'Fahrzeugtechnik', subject: 'Fahrzeugtechnik' },
-    { value: 'sonderloesungen', label: 'Sonderlösungen', subject: 'Sonderlösungen' },
-    { value: 'teile', label: 'Ersatz- oder Verschleissteile', subject: 'Teile', group: 'Weiteres' },
-    { value: 'anderes', label: 'Anderes', subject: 'Anderes', group: 'Weiteres' },
-  ],
-  /** Schritt 1 «Anliegen» – je Bereich. Jeder Wert kommt genau einmal vor. */
-  needs: {
-    krantechnik: [
-      { value: 'heukrananlage', label: 'Neue Heukrananlage' },
-      { value: 'industriekran', label: 'Neuer Industriekran' },
-      { value: 'pruefung', label: 'Prüfung' },
-      { value: 'wartung', label: 'Wartung' },
-      { value: 'stoerung', label: 'Störung / Reparatur' },
-      { value: 'modernisierung', label: 'Modernisierung' },
-    ],
-    fahrzeugtechnik: [
-      { value: 'fahrmischer-service', label: 'Fahrmischer-Service' },
-      { value: 'reparatur', label: 'Reparatur' },
-      { value: 'trommel', label: 'Trommel-Revision' },
-      { value: 'aufbau', label: 'Aufbau-Reparatur' },
-    ],
-    sonderloesungen: [
-      { value: 'konstruktion', label: 'Konstruktion' },
-      { value: 'stahlbau', label: 'Schweiss-/Stahlbau' },
-      { value: 'baumaschine', label: 'Baumaschine Umbau/Reparatur' },
-    ],
-    teile: [{ value: 'teil', label: 'Ersatz- oder Verschleissteil' }],
-    anderes: [{ value: 'anderes', label: 'Anderes' }],
-  },
-  urgencies: [
-    { value: 'dringend', label: 'Steht still – dringend', subject: 'DRINGEND' },
-    { value: 'wochen', label: 'In den nächsten Wochen', subject: 'BALD' },
-    { value: 'planung', label: 'Planung', subject: 'PLANUNG' },
-  ],
-  contactPrefs: [
-    { value: 'telefon', label: 'Telefon' },
-    { value: 'email', label: 'E-Mail' },
-  ],
-  /** Fotos oder Skizzen (Auftrag 11.1): Bilder und PDF. */
+  /** Anhänge (freiwillig): Fotos, Skizzen, PDF. */
   photos: {
     max: 3,
     maxTotalBytes: 10 * 1024 * 1024,
@@ -67,38 +26,22 @@ export const inquiry = {
   minSeconds: 3,
   /**
    * Beschriftung je Feld in E-Mail und mailto-Text – in dieser Reihenfolge. Dieselben
-   * Wörter in der E-Mail an uns, in der Bestätigung und im Notfall-mailto.
+   * Wörter in der E-Mail an uns, in der Bestätigung und im mailto-Ausweg.
    */
   labels: [
-    ['kind', 'Bereich'],
-    ['need', 'Anliegen'],
-    ['part', 'Teil'],
-    ['usage', 'Wofür'],
-    ['urgency', 'Dringlichkeit'],
-    ['maker', 'Hersteller / Typ'],
-    ['year', 'Baujahr'],
-    ['place', 'Standort'],
-    ['message', 'Beschreibung'],
+    ['message', 'Anliegen'],
     ['name', 'Name'],
     ['company', 'Firma'],
     ['phone', 'Telefon'],
     ['email', 'E-Mail'],
-    ['contact_pref', 'Rückmeldung per'],
   ],
   /** Fehlermeldungen – im Browser direkt am Feld und vom Server, wortgleich. */
   messages: {
-    need: 'Bitte wählen Sie Ihr Anliegen.',
-    part: 'Bitte nennen Sie das Teil, das Sie brauchen.',
-    urgency: 'Bitte wählen Sie, wie dringend es ist.',
-    year: 'Bitte das Baujahr vierstellig angeben, z. B. 1998.',
-    place: 'Bitte geben Sie PLZ und Ort an – dort, wo die Anlage oder Maschine steht.',
     message: 'Bitte beschreiben Sie kurz Ihr Anliegen.',
     name: 'Bitte geben Sie Ihren Namen an.',
     contact: 'Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.',
     phone: 'Diese Telefonnummer sieht unvollständig aus.',
     email: 'Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).',
-    prefPhone: 'Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.',
-    prefEmail: 'Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.',
     tooLong: 'Dieser Text ist zu lang – höchstens {max} Zeichen.',
     photosCount: 'Bitte höchstens {max} Dateien auswählen (jetzt {count}).',
     photosType: '«{name}» ist kein unterstütztes Format (JPG, PNG, WEBP, HEIC oder PDF).',
@@ -114,39 +57,14 @@ export const inquiry = {
     confirmIntro: 'Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.',
     confirmNext: { text: 'Wir melden uns innert {{promises.responseTime}}.', fallback: 'Wir melden uns so bald wie möglich.' },
     urgent: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.display}}.',
-    urgentNotfall: 'Steht etwas still? Rufen Sie uns direkt an: {{phone.display}}.',
     closing: 'Freundliche Grüsse',
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */
   limits: {
+    message: 4000,
     name: 120,
     company: 160,
     phone: 40,
     email: 160,
-    place: 120,
-    maker: 160,
-    year: 4,
-    message: 4000,
-    part: 200,
-    usage: 160,
   },
 };
-
-/** Anliegen → Bereich: das Anliegen sagt, worum es geht (#1102). */
-export const kindOf = Object.fromEntries(
-  Object.entries(inquiry.needs).flatMap(([kind, needs]) => needs.map((n) => [n.value, kind])),
-);
-if (Object.keys(kindOf).length !== Object.values(inquiry.needs).flat().length) {
-  throw new Error('inquiry.mjs: ein Anliegen steht in zwei Bereichen.');
-}
-
-/** Gruppen im Formular: Titel → Anliegen, in der Reihenfolge der Bereiche. */
-export const needGroups = (() => {
-  /** @type {Map<string, { value: string, label: string }[]>} */
-  const groups = new Map();
-  for (const k of inquiry.kinds) {
-    const title = 'group' in k && k.group ? k.group : k.label;
-    groups.set(title, [...(groups.get(title) ?? []), ...inquiry.needs[/** @type {keyof typeof inquiry.needs} */ (k.value)]]);
-  }
-  return [...groups].map(([title, needs]) => ({ title, needs }));
-})();

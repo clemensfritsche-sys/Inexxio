@@ -59,7 +59,7 @@ export const fahrzeugtechnik: AreaPage = {
       text: 'Rinnen, Schurren, Trichter und Spiralschutz ab Lager – auf Wunsch mit Einbau.',
       links: [
         { href: '/fahrzeugtechnik/verschleiss-ersatzteile', label: 'Teilekatalog' },
-        { href: '/kontakt?thema=teil', label: 'Teil anfragen' },
+        { href: '/kontakt', label: 'Teil anfragen' },
       ],
     },
   ],
@@ -85,7 +85,6 @@ export const fahrzeugtechnik: AreaPage = {
       a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz können Sie auch als Teil anfragen. [[PRÜFEN: Teileverkauf ohne Montage]]',
     },
   ],
-  cta: {},
   service: { name: 'Fahrzeugtechnik', serviceType: 'Service und Reparatur von Fahrmischern und Aufbauten' },
   keywords: ['Fahrmischer Service', 'Fahrmischer Reparatur', 'Trommel Revision'],
 };
@@ -141,7 +140,6 @@ export const fahrmischer: SubPage = {
       a: 'Nein. {{marks.mixerNotice}} {{marks.mixerReview}}',
     },
   ],
-  cta: { need: 'fahrmischer-service' },
   related: [
     { href: '/fahrzeugtechnik/verschleiss-ersatzteile', label: 'Verschleiss- und Ersatzteile', text: 'Rinnen, Schurren und Spiralschutz ab Lager.' },
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbauten: Reparatur und Service', text: 'Mulden, Kipper und Hydraulik.' },
@@ -207,7 +205,6 @@ export const aufbauten: SubPage = {
       a: '[[PLATZHALTER: Einsätze vor Ort bei Aufbauten – ja oder nein, in welchem Umfang]]',
     },
   ],
-  cta: { need: 'aufbau' },
   related: [
     { href: '/sonderloesungen/schweiss-stahlbau', label: 'Schweiss- und Stahlbau', text: 'Wenn ein Teil neu angefertigt werden muss.' },
     { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer', text: 'Service, Reparatur und Trommel-Revision.' },
@@ -268,7 +265,6 @@ export const verschleissteile: SubPage = {
       a: 'Ja, in unserer Werkstatt – auf Wunsch zusammen mit einem Service oder einer Revision.',
     },
   ],
-  cta: { need: 'teil' },
   related: [
     { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer-Service', text: 'Einbau und Trommel-Revision in der Werkstatt.' },
     { href: '/krantechnik/heukrananlagen#bestehende-anlagen', label: 'Ersatzteile für HS-Krananlagen', text: 'An Lager oder für Sie neu gefertigt.' },

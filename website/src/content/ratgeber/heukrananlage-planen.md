@@ -25,8 +25,6 @@ related:
   - href: '/ratgeber/kranpruefung-schweiz'
     label: 'Kranprüfung in der Schweiz'
     text: 'Was nach der Inbetriebnahme gilt.'
-cta:
-  need: heukrananlage
 ---
 
 [[PRÜFEN: fachlich – ganzer Artikel]]

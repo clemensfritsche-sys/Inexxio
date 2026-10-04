@@ -47,7 +47,37 @@ function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
+/**
+ * Rolle → `html[data-account]` – dieselbe Regel wie scripts/early.js (das vor dem ersten
+ * Zeichnen läuft und nichts importieren kann). Hier für den Fall, dass sich der Cache NACH dem
+ * Laden ändert: im Konto/ERP schreibt ihn das Frontend nach der Anmeldung und ruft dann
+ * `window.inexxioShell.account()`. Beide Fassungen prüft scripts/account.test.mjs.
+ */
+function syncRole(): void {
+  const d = document.documentElement;
+  let role: string | null = null;
+  try { role = localStorage.getItem(ACCOUNT_KEYS.role); } catch { /* gesperrt */ }
+  if (role) d.dataset.account = role === 'admin' || role === 'employee' ? 'staff' : 'user';
+  else delete d.dataset.account;
+}
+
+/** «Anmelden» führt nach der Anmeldung dorthin zurück, wo man war (frontend/lib/login-target). */
+function loginReturns(): void {
+  const here = location.pathname + location.search;
+  if (here.startsWith('/login')) return;
+  document.querySelectorAll<HTMLAnchorElement>('a[href^="/login"]').forEach((a) => {
+    a.href = `/login?from=${encodeURIComponent(here)}`;
+  });
+}
+
+/** Anmeldezustand neu lesen und zeigen – beim Laden und nach jeder Änderung des Caches. */
+export function syncAccount(): void {
+  syncRole();
+  initAccount();
+}
+
 export function initAccount(): void {
+  loginReturns();
   const info = accountInfo();
   if (!info || !document.documentElement.dataset.account) return;
   const ini = initials(info.name);

@@ -351,6 +351,20 @@ function checkSitemap() {
   return listed;
 }
 
+/**
+ * ►►► Jede Seite ist über das Menü im Kopf erreichbar (Testnotiz #1154). ◄◄◄
+ * Ausgenommen sind nur die Startseite (das Logo), Impressum und Datenschutz (Fuss, Pflicht-
+ * angaben) und die einzelnen Ratgeber-Artikel (sie stehen auf /ratgeber, das im Menü ist).
+ * Eine neue Seite ohne Menüpunkt bricht den Build ab, statt unauffindbar zu werden.
+ */
+function checkMenu(listed) {
+  const home = pages.find((p) => p.path === '/');
+  const header = home?.html.match(/<header class="site-header[\s\S]*?<\/header>/)?.[0] ?? '';
+  const inMenu = new Set([...header.matchAll(/href="([^"#?]+)/g)].map((m) => m[1].replace(/\/$/, '') || '/'));
+  const exempt = (path) => path === '/' || path === '/impressum' || path === '/datenschutz' || path.startsWith('/ratgeber/');
+  for (const path of listed) if (!exempt(path) && !inMenu.has(path)) fail(path, 'nicht über das Menü im Kopf erreichbar');
+}
+
 function checkRobots() {
   const txt = read('robots.txt');
   if (!LIVE) {
@@ -488,6 +502,7 @@ function checkMailTexts() {
 // ---------------------------------------------------------------- Ablauf
 /** Was im Modus «live» indexiert wird = was in der Sitemap steht (im Modus preview ist alles noindex). */
 const INDEXED = checkSitemap();
+checkMenu(INDEXED);
 const titles = new Map();
 for (const p of pages) {
   const title = checkHead(p);

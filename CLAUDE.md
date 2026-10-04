@@ -4972,11 +4972,12 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
   `website/dist` in `frontend/out` (`website/scripts/merge-hosting.mjs`, bricht bei jeder
   Kollision ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`,
   `/login`, `/abmelden`, `/agb`. Die eine `robots.txt` und die `404.html` kommen von der Website.
-- **Konto und ERP tragen denselben Kopf und Fuss wie die Website** – nachgebaut in React
-  (`components/layout/navbar.tsx`, `footer.tsx`), Inhalte und Logo aus
-  `website/src/config/site.mjs` (generiert: `frontend/src/lib/site-shell.json`,
-  `frontend/public/brand/`). Der Anmeldezustand im Website-Kopf kommt aus einem
-  **Anzeige-Cache** (`frontend/src/lib/account-cache.ts`, drei localStorage-Schlüssel) –
+- **Konto und ERP tragen DENSELBEN Kopf und Fuss wie die Website – kein Nachbau**
+  (WEBSITE_PLAN Entscheid 60): der Website-Build exportiert sie samt Skript und
+  beschränktem Stylesheet (`website/scripts/export-shell.mjs` → `dist/_shell/`), das
+  Frontend setzt sie ein (`frontend/scripts/site-shell.mjs`,
+  `components/layout/site-shell.tsx`). Der Anmeldezustand im Kopf kommt aus einem
+  **Anzeige-Cache** (`frontend/src/lib/account-cache.ts`, vier localStorage-Schlüssel) –
   nur Anzeige, den Schutz von `/konto` und `/erp` hat das ERP; `/abmelden` ruft das
   bestehende `logout()`.
 - **Telefon, E-Mail und Anschrift kommen aus dem ERP** (Testnotiz #1094):

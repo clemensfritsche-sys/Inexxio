@@ -67,7 +67,7 @@ export const krantechnik: AreaPage = {
       text: 'Für die bestehenden HS-Anlagen liegen die Teile entweder an Lager, oder wir fertigen sie neu an.',
       links: [
         { href: '/krantechnik/heukrananlagen#bestehende-anlagen', label: 'Bestehende HS-Anlagen' },
-        { href: '/kontakt?thema=teil', label: 'Teil anfragen' },
+        { href: '/kontakt', label: 'Teil anfragen' },
       ],
     },
   ],
@@ -90,7 +90,6 @@ export const krantechnik: AreaPage = {
     },
     faqSpeed,
   ],
-  cta: {},
   service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen' },
   keywords: ['Krananlagen', 'Kranbau Thurgau', 'Kranservice Schweiz'],
 };
@@ -150,7 +149,6 @@ export const heukrananlagen: SubPage = {
       a: 'Ja. Krananlagen planen und bauen wir {{area.summary}} – fragen Sie an.',
     },
   ],
-  cta: { need: 'heukrananlage' },
   related: [
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funkfernsteuerung, Umrichter und neue Steuerung für ältere Anlagen.' },
     { href: '/krantechnik/pruefung-wartung', label: 'Prüfung und Wartung', text: 'Jährliche Überprüfung mit Bericht.' },
@@ -237,10 +235,9 @@ export const industriekrane: SubPage = {
     faqSpeed,
     {
       q: 'Bauen Sie neue Industriekrane?',
-      a: 'Ja, nach Mass – abgestimmt auf Halle, Last und Arbeitsplatz.',
+      a: 'Ja – abgestimmt auf Halle, Last und Arbeitsplatz.',
     },
   ],
-  cta: { need: 'industriekran' },
   related: [
     { href: '/service/notfall', label: 'Notfall-Service', text: 'Wenn der Kran heute stillsteht.' },
     { href: '/krantechnik/pruefung-wartung', label: 'Prüfung und Wartung', text: 'Prüfpflicht erfüllen, Ausfälle vermeiden.' },
@@ -254,7 +251,7 @@ export const industriekrane: SubPage = {
 export const industrieModules = {
   service: {
     title: 'Service und Reparatur',
-    text: 'Wir suchen die Ursache und reparieren vor Ort – zuerst für die HS- und unsere eigenen Anlagen, auf Anfrage auch für andere. Steht ein Kran still, rufen Sie direkt an.',
+    text: 'Wir suchen die Ursache und reparieren vor Ort – für die HS- und unsere eigenen Anlagen, auf Anfrage auch für andere. Steht ein Kran still, rufen Sie direkt an.',
   },
   photoHint: {
     title: 'Foto vom Typenschild oder vom Schaden mitschicken',
@@ -321,7 +318,6 @@ export const pruefung: SubPage = {
       a: 'Das hängt von Kranart, Grösse und Anfahrt ab. Fragen Sie uns an. [[PLATZHALTER: Preisrahmen für eine Kranprüfung – nur nennen, wenn er belastbar ist]]',
     },
   ],
-  cta: { need: 'pruefung' },
   related: [
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Wenn bei der Prüfung Steuerung oder Antrieb auffallen.' },
     { href: '/service/notfall', label: 'Notfall-Service', text: 'Wenn der Kran stillsteht.' },
@@ -385,7 +381,6 @@ export const modernisierung: SubPage = {
       a: 'Sie gilt in der EU ab dem 20. Januar 2027; die Schweiz passt ihre Maschinenverordnung an. Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen. [[PRÜFEN: fachlich – Übernahme durch die Schweiz und Folgen für Umbauten]]',
     },
   ],
-  cta: { need: 'modernisierung' },
   related: [
     { href: '/krantechnik/industriekrane', label: 'Industriekrane', text: 'Wenn ein neuer Kran die bessere Lösung ist.' },
     { href: '/sonderloesungen/konstruktion-engineering', label: 'Konstruktion und Engineering', text: 'Berechnung und Dokumentation für Umbauten.' },

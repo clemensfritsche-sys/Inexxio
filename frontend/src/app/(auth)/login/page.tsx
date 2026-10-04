@@ -9,10 +9,10 @@ import { goTo, loginTarget } from '@/lib/login-target';
 /**
  * **Die Route ist der zweite Weg zum selben Dialog.**
  *
- * Angemeldet wird im Pop-up über der Seite, auf der man steht (`Navbar`). Hierher kommt,
- * wer von einem geschützten Bereich umgeleitet wurde, ein Lesezeichen öffnet – oder auf der
- * Website «Login» wählt. Dort gibt es keine Seite dahinter, also heisst «daneben klicken»
- * hier **zur Website** (hart: sie ist keine Next-Seite).
+ * Seit Website und ERP EINEN Kopf tragen (WEBSITE_PLAN Entscheid 60), führt «Anmelden» von
+ * überall hierher – der Kopf hängt die Seite an, auf der man stand (`?from=`). Dorthin geht es
+ * nach der Anmeldung (`loginTarget`) und ebenso beim Danebenklicken; ohne Angabe zur Website
+ * (hart: sie ist keine Next-Seite).
  *
  * **Wer schon angemeldet ist, sieht keinen Dialog**, sondern geht direkt an seinen
  * Startplatz (ERP bzw. Konto). Vorher zeigte die Route jedem den Dialog, auch dem, der
@@ -38,5 +38,11 @@ export default function LoginPage() {
   }, []);
 
   if (!ready) return null;
-  return <LoginDialog onClose={() => window.location.assign('/')} />;
+  return <LoginDialog onClose={() => window.location.assign(cameFrom())} />;
+}
+
+/** Daneben klicken führt dorthin zurück, wo man war (`?from=`, vom Kopf gesetzt) – sonst zur Website. */
+function cameFrom(): string {
+  const from = new URLSearchParams(window.location.search).get('from');
+  return from && from.startsWith('/') && !from.startsWith('//') && !from.startsWith('/login') ? from : '/';
 }

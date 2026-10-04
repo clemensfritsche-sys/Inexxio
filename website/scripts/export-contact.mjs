@@ -6,12 +6,11 @@
 // 1. backend/app/assets/website_contact.json – das Vokabular der Anfrage: der Endpunkt
 //    backend/app/routers/contact.py prüft gegen DIESELBEN Listen und schreibt die E-Mails mit
 //    DENSELBEN Wörtern wie das Formular im Browser.
-// 2. frontend/src/lib/site-shell.json – Inhalt von Kopf und Fuss im Konto- und ERP-Bereich
-//    (Bereiche, Telefon, Notfallnummer, Adresse, Pfade): dort wird derselbe Kopf in React
-//    nachgebaut (WEBSITE_PLAN Entscheid 39), die Inhalte kommen von hier.
+// 2. frontend/src/lib/site-meta.json – Name und Satz für die Metadaten des Konto-/ERP-
+//    Bereichs. Kopf und Fuss sind die der Website selbst (scripts/export-shell.mjs, Entscheid 60).
 //
-// 3. frontend/public/brand/inexxio-ehemals-hs-steiner(-weiss).svg – das Logo für Kopf, Fuss
-//    und Anmeldedialog des ERP. Ein Abdruck von public/logo/, damit Konto und ERP dasselbe
+// 3. frontend/public/brand/inexxio-ehemals-hs-steiner.svg – das Logo für den
+//    Anmeldedialog des ERP. Ein Abdruck von public/logo/, damit Konto und ERP dasselbe
 //    Zeichen tragen und es auch ohne die Website (npm run dev im Frontend) da ist.
 //
 // Die Quelle bleibt src/config (site.mjs, inquiry.mjs) und public/logo – die Dateien
@@ -29,8 +28,8 @@ import { hasMarker, plain } from '../src/lib/text.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = resolve(ROOT, '../backend/app/assets/website_contact.json');
-const SHELL = resolve(ROOT, '../frontend/src/lib/site-shell.json');
-const LOGOS = ['inexxio-ehemals-hs-steiner.svg', 'inexxio-ehemals-hs-steiner-weiss.svg'];
+const SHELL = resolve(ROOT, '../frontend/src/lib/site-meta.json');
+const LOGOS = ['inexxio-ehemals-hs-steiner.svg'];
 const BRAND = resolve(ROOT, '../frontend/public/brand');
 
 /** Text mit Werten; enthält er eine offene Markierung, gilt `fallback` (oder nichts). */
@@ -49,12 +48,6 @@ const data = {
   email: contactEmail(),
   address: [a.street, `${a.zip} ${a.city} (${a.municipality} ${a.canton})`],
   pages: { thanks: '/kontakt/danke', contact: '/kontakt' },
-  kinds: inquiry.kinds.map((k) => ({ value: k.value, label: k.label, subject: k.subject })),
-  needs: inquiry.needs,
-  /** Anliegen → Bereich: der Server leitet den Bereich daraus ab (#1102). */
-  kindOf: v.kindOf,
-  urgencies: inquiry.urgencies.map((u) => ({ value: u.value, label: u.label, subject: u.subject })),
-  contactPrefs: inquiry.contactPrefs,
   photos: inquiry.photos,
   minSeconds: inquiry.minSeconds,
   limits: inquiry.limits,
@@ -65,32 +58,19 @@ const data = {
     confirmIntro: textOr(mail.confirmIntro),
     confirmNext: textOr(mail.confirmNext.text, mail.confirmNext.fallback),
     urgent: textOr(mail.urgent),
-    // Steht etwas still: die eine Telefonnummer (es gibt keine eigene Notfallnummer mehr).
-    urgentNotfall: textOr(mail.urgentNotfall),
     closing: mail.closing,
   },
 };
 
-/** Kopf und Fuss des Konto-/ERP-Bereichs – nur Anzeige, ohne Markierungen. */
-const link = (/** @type {{ label: string, href: string, text?: string }} */ l) => ({
-  label: plain(l.label), href: l.href, ...(l.text ? { text: plain(l.text) } : {}),
-});
+/**
+ * Name und Satz für die Metadaten des Konto-/ERP-Bereichs (Titel, Beschreibung). Kopf und
+ * Fuss selbst kommen NICHT von hier – sie sind die der Website (scripts/export-shell.mjs).
+ */
 const shell = {
   _comment:
-    'Generiert aus website/src/config/site.mjs mit «npm run export:contact» – nicht von Hand ändern. Kopf und Fuss des Konto-/ERP-Bereichs spiegeln die Website (WEBSITE_PLAN Entscheid 39).',
+    'Generiert aus website/src/config/site.mjs mit «npm run export:contact» – nicht von Hand ändern. Nur Name und Satz für die Metadaten; Kopf und Fuss liefert scripts/export-shell.mjs.',
   brand: { name: site.brand.name, full: plain(site.brand.full), legalName: plain(site.brand.legalName) },
-  logo: { dark: `/brand/${LOGOS[0]}`, light: `/brand/${LOGOS[1]}` },
   claim: plain(site.footer.claim),
-  phone: { display: site.phone.display, e164: site.phone.e164 },
-  email: contactEmail(),
-  address: [plain(site.brand.legalName), a.street, `${a.zip} ${a.city}`],
-  areas: site.areas.map((ar) => ({ ...link(ar), overview: ar.overview, children: ar.children.map(link) })),
-  service: { ...link(site.service), overview: site.service.overview, children: site.service.children.map(link) },
-  menu: site.menu.map(link),
-  company: site.company.map(link),
-  cta: link(site.cta),
-  account: site.account,
-  legal: [{ label: 'Impressum', href: '/impressum' }, { label: 'Datenschutz', href: '/datenschutz' }],
 };
 
 const outputs = [

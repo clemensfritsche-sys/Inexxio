@@ -14,6 +14,7 @@ import { site, contactEmail } from '../config/site.mjs';
 import { plain, siteMode } from '../lib/text.mjs';
 import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from '../lib/seo.mjs';
 import { isListed } from '../lib/pages';
+import { hostingCsp } from '../lib/csp.mjs';
 import type { OgImage } from '../content/types';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
@@ -26,6 +27,13 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
  * (`frontend/scripts/build-islands.mjs`); hier wird es bloss nachgeladen.
  */
 const feedback = process.env.SITE_FEEDBACK === 'on';
+/**
+ * Stand des Werkzeugs für Testnotizen: `/islands/feedback.js` hat keinen Hash im Namen, und
+ * die Hosting-Regel gibt jedem .js ein Jahr Cache («immutable») – ohne diese Angabe behielt
+ * der Browser die alte Fassung (daher «die Notizen gehen beim Seitenwechsel verloren»).
+ * Website und Insel entstehen im selben Deploy, also nennt der Commit die passende Fassung.
+ */
+const feedbackVersion = (process.env.GITHUB_SHA ?? 'lokal').slice(0, 12);
 
 /** Die Kontaktdaten dieses Builds – scripts/contact.ts tauscht sie gegen die aus dem ERP. */
 const builtContact = JSON.stringify({
@@ -83,7 +91,9 @@ const csp = [
   "default-src 'self'",
   `script-src 'self'${FIREBASE.script}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  // Bild-Quellen wie der Hosting-Header (EINE Quelle, src/lib/csp.mjs) – sonst blockiert
+  // diese Liste das Profilbild im gemeinsamen Kopf (#1139).
+  `img-src ${hostingCsp()['img-src']}`,
   "font-src 'self'",
   `connect-src 'self'${FIREBASE.connect}`,
   "form-action 'self'",
@@ -128,7 +138,7 @@ const csp = [
     <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" is:inline set:html={graph(nodes)} />
   </head>
-  <body data-feedback={feedback ? '' : undefined} data-contact={builtContact}>
+  <body data-feedback={feedback ? feedbackVersion : undefined} data-contact={builtContact}>
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
     <Header />
     <main id="inhalt" tabindex="-1" data-erp-fixed={legalPage ? '' : undefined}>
@@ -140,7 +150,7 @@ const csp = [
     <script>
       // EIN Einstieg für das, was jede Seite braucht – eine Anfrage statt fünf.
       import { initHeader } from '../scripts/header';
-      import { initAccount } from '../scripts/account';
+      import { initAccount, syncAccount } from '../scripts/account';
       import { initMobileBar } from '../scripts/mobilebar';
       import { initTracking } from '../scripts/track';
       import { initReveal } from '../scripts/reveal';
@@ -153,6 +163,11 @@ const csp = [
       initReveal();
       initFeedback();
       initContact();
+      // Dasselbe Skript trägt Kopf und Fuss im Konto/ERP (WEBSITE_PLAN Entscheid 60): dort
+      // setzt React sie nach einem Seitenwechsel neu ein bzw. ändert den Anmeldezustand.
+      Object.assign(window, {
+        inexxioShell: { init: () => { initHeader(); initAccount(); initContact(); }, account: syncAccount },
+      });
     </script>
   </body>
 </html>

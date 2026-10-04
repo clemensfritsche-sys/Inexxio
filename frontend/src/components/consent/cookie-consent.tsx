@@ -8,6 +8,7 @@ import {
   acceptAll,
   acceptNecessaryOnly,
   saveConsent,
+  openCookieSettings,
   OPEN_SETTINGS_EVENT,
 } from '@/lib/consent';
 
@@ -15,7 +16,7 @@ import {
  * Cookie-/Einwilligungs-Banner + Einstellungs-Dialog.
  *
  * Erscheint beim ersten Besuch (nicht blockierend), respektiert die Wahl und lässt
- * sich jederzeit über den Footer-Link «Cookie-Einstellungen» erneut öffnen. Bewusst
+ * sich jederzeit über den Eintrag «Cookie-Einstellungen» im Fuss erneut öffnen. Bewusst
  * schlank: EINE optionale Kategorie (Statistik), «Ablehnen» ist so einfach wie
  * «Akzeptieren» (gleichwertige Buttons, keine Dark Patterns).
  */
@@ -23,6 +24,19 @@ export function CookieConsent() {
   const [showBanner, setShowBanner] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [analytics, setAnalytics] = useState(false);
+
+  // Der Fuss ist der der Website (components/layout/site-shell.tsx) – er trägt den Eintrag
+  // «Cookie-Einstellungen» verborgen; nur hier, wo es eine Einwilligung gibt, wird er sichtbar
+  // und öffnet diesen Dialog. So bleibt die Wahl jederzeit änderbar (DSG/DSGVO).
+  useEffect(() => {
+    const items = Array.from(document.querySelectorAll<HTMLElement>('[data-consent-settings]'));
+    const open = (e: Event) => { e.preventDefault(); openCookieSettings(); };
+    for (const li of items) {
+      li.hidden = false;
+      li.querySelector('button')?.addEventListener('click', open);
+    }
+    return () => items.forEach((li) => li.querySelector('button')?.removeEventListener('click', open));
+  }, []);
 
   useEffect(() => {
     setShowBanner(!hasDecided());

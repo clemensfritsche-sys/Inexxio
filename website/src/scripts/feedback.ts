@@ -8,7 +8,8 @@
 export function initFeedback(): void {
   if (!('feedback' in document.body.dataset) || !document.documentElement.dataset.account) return;
   const s = document.createElement('script');
-  s.src = '/islands/feedback.js';
+  // Mit Stand in der Adresse – sonst liefert der Browser-Cache eine alte Fassung (Base.astro).
+  s.src = `/islands/feedback.js?v=${encodeURIComponent(document.body.dataset.feedback ?? '')}`;
   s.async = true;
   document.body.appendChild(s);
 }

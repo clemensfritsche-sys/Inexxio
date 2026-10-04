@@ -22,11 +22,11 @@ export const karriere = {
       },
       {
         title: 'Kleines Team',
-        text: 'Kurze Wege, klare Absprachen, jeder kennt jeden. [[PRÜFEN: Teamgrösse und Wortlaut]]',
+        text: 'Kurze Wege, klare Absprachen, jeder kennt jeden.',
       },
       {
-        title: 'Der Chef arbeitet mit',
-        text: 'Clemens Fritsche ist Maschinenbauingenieur und kennt die Arbeit an der Maschine. [[PRÜFEN: Wortlaut freigeben]]',
+        title: 'Ingenieurwissen im Haus',
+        text: 'Konstruktion und Werkstatt arbeiten Hand in Hand – Fragen klären wir am Werkstück, gemeinsam.',
       },
     ],
   },
@@ -38,8 +38,7 @@ export const karriere = {
   },
   apply: {
     title: 'Bewerbung per E-Mail',
-    text: 'Schicken Sie uns Ihren Lebenslauf und ein paar Sätze zu Ihnen an {{email.link}} {{jobsEmailReview}} – oder rufen Sie an: {{phone.link}}.',
-    unsolicited: 'Auch ohne ausgeschriebene Stelle: Gute Mechanikerinnen, Mechaniker und Servicetechniker sind bei uns jederzeit willkommen.',
+    text: 'Schicken Sie uns Ihren Lebenslauf und ein paar Sätze zu Ihnen an {{email.link}} – oder rufen Sie an: {{phone.link}}.',
+    unsolicited: 'Auch ohne ausgeschriebene Stelle: Gute Mechanikerinnen und Mechaniker, Servicetechniker sowie Konstrukteurinnen und Konstrukteure sind bei uns jederzeit willkommen.',
   },
-  training: '[[PRÜFEN: Ausbildungsbetrieb – Lehrstellen und Berufe]]',
 };

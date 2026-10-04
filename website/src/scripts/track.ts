@@ -3,7 +3,7 @@
  * gesendet – das Ereignis geht nur als DOM-Event `ix:track` durch die Seite (prüfbar,
  * ohne dass Daten das Gerät verlassen).
  *
- * Ereignisse: form_start · form_submit (Typ, Dringlichkeit) · tel_click · pikett_click ·
+ * Ereignisse: form_start · form_submit · tel_click · pikett_click ·
  * mailto_click · abo_interest · part_inquiry
  */
 export type TrackProps = Record<string, string | number | boolean | undefined>;

@@ -15,14 +15,22 @@ ZXing (nur als dynamisch geladener Rückfall des Scanners).
 > `components/ui/*`-Formularbausteine, `app/robots.ts` und `public/robots.txt` gegangen
 > (die Website liefert die eine `robots.txt`).
 >
-> **Navbar und Footer sind ein Spiegel des Website-Kopfs** (Oktober 2026, Umbau v2):
-> EINE Zeile (Servicezeile und Arbeitsleiste sind seit 04.10.2026 entfallen; ERP ist für
-> Personal ein gewöhnlicher Menüpunkt), Inhalte aus `lib/site-shell.json` und Logo aus
-> `public/brand/` – **beides generiert** von `website/scripts/export-contact.mjs`, also nie
-> von Hand ändern. Die Kopfhöhe steht als `--site-header-h` in `globals.css` (60 px, ab
-> 768 px 72 px); wer sie abzieht, nimmt die Variable, nie eine Zahl. Der Anzeige-Cache
-> für die Website (Rolle, Name, Kontakt) wohnt in `lib/account-cache.ts`; `/abmelden` ist
-> die Abmelde-Adresse für die Website und ruft das bestehende `logout()`.
+> ►►► **Kopf und Fuss SIND die der Website – kein Nachbau** (WEBSITE_PLAN Entscheid 60,
+> 04.10.2026: «Ein Header für beides. Eine globale Funktion, Logik, Design.»). ◄◄◄
+> `navbar.tsx` und `footer.tsx` sind gelöscht. Der Website-Build legt Kopf-/Fuss-HTML,
+> Skripte und sein auf `.ix-shell` beschränktes Stylesheet nach `website/dist/_shell/`;
+> `scripts/site-shell.mjs` (läuft vor `dev`, `build`, `lint`, `type-check`, `test`)
+> übernimmt es nach `src/generated/site-shell.json` (**nicht im Repo**; ohne Website-Build
+> ein leerer Platzhalter, im Deploy Pflicht über `SHELL_REQUIRED=1`).
+> `components/layout/site-shell.tsx` setzt es im Wurzel-Layout ein – kein eigenes Wort,
+> kein eigener Stil, keine eigene Logik. Wer Kopf oder Fuss ändern will, ändert
+> `website/src/components/Header.astro`/`Footer.astro`.
+> Das Frontend gibt nur den **Anzeige-Cache** dazu (`account-sync.tsx` →
+> `lib/account-cache.ts`, vier Schlüssel inkl. Profilbild) und ruft danach
+> `window.inexxioShell.account()`. Anmelden ist überall der Link `/login?from=…`.
+> Die Kopfhöhe kommt als `--site-header-h` mit dem Shell-Stylesheet; wer sie abzieht,
+> nimmt die Variable, nie eine Zahl. Name und Satz der Metadaten stehen in
+> `lib/site-meta.json` (generiert von `website/scripts/export-contact.mjs`).
 
 ## Starten
 ```bash
@@ -36,7 +44,6 @@ npm run build      # Production Build
 ```
 src/app/
 ├── (public)/       ← nur noch die AGB (die Website liegt in `website/`)
-│   ├── layout.tsx  ← Navbar + Footer
 │   └── agb/        ← AGB (B2B + B2C Tabs) – der Anmeldedialog verweist darauf
 ├── (auth)/
 │   └── login/      ← Magic Link + Google SSO + Passkey (als Pop-up ODER als Route)
@@ -595,11 +602,11 @@ eine **Kürzungs**grenze an einer Zeile (`maxWidth: 180` mit `ellipsis`) bleibt 
 das ist eine andere Sache.
 
 ## Anmelden ist ein Pop-up (`components/auth/login-dialog.tsx`)
-EIN Bauteil, zwei Aufrufer: die **Navbar** öffnet es über der Seite, auf der man steht
-(`fallback={pathname}` – nach dem Anmelden landet man dort wieder), die Route `/login` ist
-der zweite Weg (Umleitung, Lesezeichen) und sagt, was «daneben klicken» dort heisst: zur
-Startseite. Der Knopf «Zurück zur Startseite» ist damit entfallen – daneben klicken und
-`Esc` sind der Ausweg.
+EIN Bauteil, EIN Weg: seit Website und ERP denselben Kopf tragen (WEBSITE_PLAN Entscheid
+60), führt «Anmelden» von überall auf die Route `/login`, und der Kopf hängt die Seite an,
+auf der man stand (`?from=`). Dorthin geht es nach der Anmeldung **und** beim
+Danebenklicken (`cameFrom`); ohne Angabe zur Website. Ein Knopf «Zurück zur Startseite»
+gibt es nicht – daneben klicken und `Esc` sind der Ausweg.
 
 **Nach der Anmeldung geht es nie auf «/»** (`lib/login-target.ts`, EINE Antwort für Dialog,
 Route und Magic Link): «/» ist seit Oktober 2026 die Website und kennt keine Anmeldung. Ziel ist

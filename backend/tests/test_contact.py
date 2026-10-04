@@ -70,8 +70,8 @@ def mailbox(monkeypatch):
 
 def short(**extra) -> dict:
     data = {
-        "form": "haupt", "source": "/krantechnik/industriekrane", "t": "8000", "need": "stoerung", "urgency": "wochen",
-        "message": "Hubwerk bleibt stehen.", "place": "8500 Frauenfeld", "name": "Anna Muster",
+        "source": "/krantechnik/industriekrane", "t": "8000",
+        "message": "Hubwerk bleibt stehen.", "name": "Anna Muster",
         "phone": "052 000 00 00", "email": "anna@muster.ch",
     }
     data.update(extra)
@@ -80,10 +80,9 @@ def short(**extra) -> dict:
 
 def main_form(**extra) -> dict:
     data = {
-        "form": "haupt", "source": "/kontakt", "t": "45000", "need": "pruefung",
-        "urgency": "dringend", "maker": "Demag", "year": "1998", "place": "9546 Tuttwil",
-        "message": "Jährliche Prüfung fällig.", "name": "Beat Beispiel", "company": "Beispiel AG",
-        "phone": "+41 52 000 00 00", "email": "beat@beispiel.ch", "contact_pref": "telefon",
+        "source": "/kontakt", "t": "45000", "message": "Jährliche Prüfung fällig.",
+        "name": "Beat Beispiel", "company": "Beispiel AG",
+        "phone": "+41 52 000 00 00", "email": "beat@beispiel.ch",
     }
     data.update(extra)
     return data
@@ -100,7 +99,7 @@ def test_a_short_inquiry_reaches_us_and_the_customer_gets_a_copy(client, mailbox
     assert res.status_code == 200, res.text
     assert res.json()["ok"] is True
     internal, confirmation = mailbox.sent
-    assert internal["Subject"] == "[Anfrage][Krantechnik][BALD] Anna Muster – 8500 Frauenfeld"
+    assert internal["Subject"] == "[Anfrage] Anna Muster"
     assert internal["To"] == contact.VOCAB["email"]
     assert "anna@muster.ch" in internal["Reply-To"]
     assert attachments(internal) == [("anfrage.json", "application/json")]
@@ -111,61 +110,35 @@ def test_a_short_inquiry_reaches_us_and_the_customer_gets_a_copy(client, mailbox
     assert mailbox.logins == [("website@test.ch", "geheim")]
 
 
-def test_the_main_form_carries_urgency_photos_and_a_documented_record(client, mailbox):
+def test_the_form_carries_photos_and_a_documented_record(client, mailbox):
     photos = [("photos", ("typenschild.jpg", b"\xff\xd8\xff" + b"0" * 2000, "image/jpeg")),
               ("photos", ("Schaden 1.HEIC", b"heic" * 100, "application/octet-stream"))]
     res = client.post("/api/v1/contact", data=main_form(), files=photos, headers=JSON)
     assert res.status_code == 200, res.text
     internal, confirmation = mailbox.sent
-    assert internal["Subject"] == "[Anfrage][Krantechnik][DRINGEND] Beispiel AG – 9546 Tuttwil"
+    assert internal["Subject"] == "[Anfrage] Beispiel AG"
     assert attachments(internal) == [
         ("typenschild.jpg", "image/jpeg"), ("Schaden_1.HEIC", "image/heic"), ("anfrage.json", "application/json"),
     ]
     record = json.loads(next(p for p in internal.iter_attachments() if p.get_filename() == "anfrage.json").get_content())
     assert record["schema"] == contact.SCHEMA
-    assert record["kind"] == {"value": "krantechnik", "label": "Krantechnik"}
-    assert record["urgency"]["value"] == "dringend"
-    assert record["asset"] == {"maker": "Demag", "year": "1998", "part": None, "usage": None}
-    assert record["contact"]["preference"]["value"] == "telefon"
+    assert record["message"] == "Jährliche Prüfung fällig."
+    assert record["contact"] == {"name": "Beat Beispiel", "company": "Beispiel AG",
+                                 "phone": "+41 52 000 00 00", "email": "beat@beispiel.ch"}
+    assert not {"kind", "need", "urgency", "asset", "place"} & set(record)
     assert [p["filename"] for p in record["photos"]] == ["typenschild.jpg", "Schaden_1.HEIC"]
-    # Steht es still, nennt die Bestätigung Telefon und – falls bestätigt – die Notfallnummer.
-    text = confirmation.get_content()
-    assert contact.VOCAB["mail"]["urgent"] in text
-    if contact.VOCAB["mail"]["urgentNotfall"]:
-        assert contact.VOCAB["mail"]["urgentNotfall"] in text
+    # Die Bestätigung nennt immer den direkten Weg bei einem Stillstand: das Telefon.
+    assert contact.VOCAB["mail"]["urgent"] in confirmation.get_content()
 
 
 def test_a_sketch_as_pdf_is_attached(client, mailbox):
     """Skizzen dürfen als PDF kommen (Auftrag 11.1) – sie landen als Anhang bei uns."""
     sketch = [("photos", ("skizze.pdf", b"%PDF-1.4 " + b"0" * 500, "application/pdf"))]
-    res = client.post("/api/v1/contact", data=main_form(need="konstruktion"), files=sketch, headers=JSON)
+    res = client.post("/api/v1/contact", data=main_form(), files=sketch, headers=JSON)
     assert res.status_code == 200, res.text
     internal = mailbox.sent[0]
     assert ("skizze.pdf", "application/pdf") in attachments(internal)
-    assert internal["Subject"].startswith("[Anfrage][Sonderlösungen][DRINGEND]")
-
-
-def test_a_part_inquiry_carries_part_and_usage(client, mailbox):
-    res = client.post("/api/v1/contact", data=main_form(need="teil", part="Auslaufrinne", usage="Liebherr HTM 904"), headers=JSON)
-    assert res.status_code == 200, res.text
-    record = json.loads(next(p for p in mailbox.sent[0].iter_attachments() if p.get_filename() == "anfrage.json").get_content())
-    assert record["kind"]["value"] == "teile"
-    assert record["asset"]["part"] == "Auslaufrinne" and record["asset"]["usage"] == "Liebherr HTM 904"
-
-
-def test_the_need_decides_the_kind_a_sent_kind_is_never_believed(client, mailbox):
-    """#1102: das Formular fragt keinen Bereich mehr – das Anliegen sagt ihn. Ein trotzdem
-    mitgeschickter Bereich (alte Seite, Bastler) wird überschrieben, nicht geglaubt."""
-    res = client.post("/api/v1/contact", data=short(kind="fahrzeugtechnik"), headers=JSON)
-    assert res.status_code == 200, res.text
-    record = json.loads(next(p for p in mailbox.sent[0].iter_attachments()).get_content())
-    assert record["kind"]["value"] == "krantechnik" and record["need"]["value"] == "stoerung"
-
-
-def test_an_unknown_need_is_refused(client, mailbox):
-    for need in ("", "kran", "abo"):
-        res = client.post("/api/v1/contact", data=short(need=need), headers=JSON)
-        assert res.status_code == 422 and res.json()["fields"]["need"] == MSG["need"], need
+    assert internal["Subject"] == "[Anfrage] Beispiel AG"
 
 
 def test_without_javascript_success_redirects_to_the_thank_you_page(client, mailbox):
@@ -184,17 +157,20 @@ def test_no_confirmation_without_an_email_address(client, mailbox):
 # ------------------------------------------------------------------ Prüfen
 
 def test_missing_fields_come_back_with_the_websites_own_words(client, mailbox):
-    res = client.post("/api/v1/contact", data=short(name="", place="", phone="", email=""), headers=JSON)
+    res = client.post("/api/v1/contact", data=short(message="", name="", phone="", email=""), headers=JSON)
     assert res.status_code == 422
     fields = res.json()["fields"]
-    assert fields == {"name": MSG["name"], "place": MSG["place"], "phone": MSG["contact"]}
+    assert fields == {"message": MSG["message"], "name": MSG["name"], "phone": MSG["contact"]}
     assert mailbox.sent == []
 
 
-def test_the_main_form_asks_for_need_and_urgency(client, mailbox):
-    res = client.post("/api/v1/contact", data=main_form(need="", urgency=""), headers=JSON)
-    assert res.status_code == 422
-    assert res.json()["fields"] == {"need": MSG["need"], "urgency": MSG["urgency"]}
+def test_old_choice_fields_are_ignored_not_believed(client, mailbox):
+    """Bereich, Anliegen und Dringlichkeit gibt es nicht mehr (04.10.2026) – eine alte Seite,
+    die sie noch schickt, kommt trotzdem an; gelesen wird nur, was das Formular heute fragt."""
+    res = client.post("/api/v1/contact", data=short(kind="kran", need="pruefung", urgency="dringend", place="9546"), headers=JSON)
+    assert res.status_code == 200, res.text
+    record = json.loads(next(p for p in mailbox.sent[0].iter_attachments()).get_content())
+    assert not {"kind", "need", "urgency", "place"} & set(record)
 
 
 def test_without_javascript_errors_come_back_as_a_readable_page(client, mailbox):
@@ -218,11 +194,11 @@ def test_photos_are_limited_by_count_type_and_size(client, mailbox):
 
 
 def test_text_is_cleaned_before_it_reaches_a_mail_header(client, mailbox):
-    res = client.post("/api/v1/contact", data=short(name="Anna\r\nBcc: x@y.z", place="8500\x00 Frauenfeld"), headers=JSON)
+    res = client.post("/api/v1/contact", data=short(name="Anna\r\nBcc:\x00 x@y.z"), headers=JSON)
     assert res.status_code == 200, res.text
     subject = mailbox.sent[0]["Subject"]
     assert "\n" not in subject and "\x00" not in subject
-    assert subject == "[Anfrage][Krantechnik][BALD] Anna Bcc: x@y.z – 8500 Frauenfeld"
+    assert subject == "[Anfrage] Anna Bcc: x@y.z"
 
 
 def test_overlong_text_is_refused_with_the_limit(client, mailbox):
@@ -275,7 +251,7 @@ def test_a_failing_mail_server_shows_phone_and_a_prefilled_mailto(client, monkey
     assert res.status_code == 503
     assert "tel:" + contact.VOCAB["phone"]["e164"] in res.text
     assert "mailto:" + contact.VOCAB["email"] in res.text
-    assert "Anfrage%5D%5BKrantechnik%5D" in res.text  # derselbe Betreff wie die E-Mail, im Link
+    assert "%5BAnfrage%5D" in res.text  # derselbe Betreff wie die E-Mail, im Link
     assert "INQUIRY_UNSENT" in capsys.readouterr().out
 
 
@@ -316,8 +292,8 @@ def _texts(value):
 def test_the_vocabulary_is_complete_and_consistent():
     """Jedes Feld, das die Website beschriftet, prüft der Server – und umgekehrt."""
     labelled = {name for name, _ in contact.VOCAB["labels"]}
-    assert labelled == set(contact.FIELDS) | {"kind"}  # der Bereich wird abgeleitet, nicht gelesen
-    for key in ("need", "urgency", "place", "name", "contact", "phone", "email",
+    assert labelled == set(contact.FIELDS)
+    for key in ("message", "name", "contact", "phone", "email",
                 "photosCount", "photosType", "photosSize", "tooFast", "tooLong"):
         assert contact.MSG.get(key), key
     # Nie eine Markierung ([[PLATZHALTER: …]]) in einer E-Mail – gefragt wird jeder TEXT,

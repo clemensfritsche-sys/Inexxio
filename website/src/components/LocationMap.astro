@@ -9,6 +9,7 @@
 interface Props { class?: string }
 const { class: cls } = Astro.props;
 
+/** Nur die grösseren Städte (#1143) – zur Orientierung, nicht als Liste von Einsatzorten. */
 const towns = [
   { name: 'Frauenfeld', x: -2.8, y: -7.8, dx: -2, dy: -2, end: true },
   { name: 'Wil', x: 8.2, y: 2.5, dx: 2, dy: 3.6 },
@@ -16,13 +17,6 @@ const towns = [
   { name: 'Zürich', x: -29.6, y: 11.9, dx: -2, dy: -2, end: true },
   { name: 'St. Gallen', x: 33.0, y: 6.6, dx: 2, dy: 3.8 },
   { name: 'Schaffhausen', x: -22.7, y: -23.6, dx: -2, dy: -2.5, end: true },
-  { name: 'Weinfelden', x: 12.9, y: -9.2, dx: 2, dy: 3.6, minor: true },
-  { name: 'Kreuzlingen', x: 18.0, y: -18.5, dx: 2, dy: 3.8 },
-  { name: 'Romanshorn', x: 33.3, y: -9.1, dx: 2, dy: 4, minor: true },
-  { name: 'Uster', x: -16.1, y: 15.2, dx: 2, dy: 3.6, minor: true },
-  { name: 'Rapperswil', x: -8.8, y: 28.6, dx: 2, dy: 3.6 },
-  { name: 'Herisau', x: 25.8, y: 10.8, dx: -2, dy: 4, end: true, minor: true },
-  { name: 'Wattwil', x: 11.3, y: 20.5, dx: 2, dy: 3.6, minor: true },
 ];
 const lake =
   '18,-20.2 22.1,-17.4 26.6,-12.9 33.4,-9.2 37.4,-3.7 42,0.6 46.9,-0.7 57.4,-2.4 56.3,-6.9 48.4,-11.8 40.9,-18.5 29.6,-21.8 23.6,-24.1 16.9,-31.8 9.3,-36.9 8.6,-34.1 16.1,-27.4 18.7,-24.1 17.6,-21.8';
@@ -41,7 +35,7 @@ const desc = 'Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil u
     <text x="-50" y="-41" class="amap__region">DEUTSCHLAND</text>
     <text x="-50" y="44" class="amap__region">SCHWEIZ</text>
     {towns.map((t) => (
-      <g class:list={[t.minor && 'amap__minor']}>
+      <g>
         <circle cx={t.x} cy={t.y} r="0.9" class="amap__dot" />
         <text x={t.x + t.dx} y={t.y + t.dy} text-anchor={t.end ? 'end' : 'start'} class="amap__town">{t.name}</text>
       </g>
@@ -61,22 +55,16 @@ const desc = 'Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil u
   .amap__water { fill: var(--slate-soft); stroke: none; }
   .amap__river { fill: none; stroke: var(--slate); stroke-opacity: 0.35; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round; }
   .amap__dot { fill: var(--ink); }
-  .amap__town { font-size: 2.7px; fill: var(--ink-2); font-weight: 500; }
+  .amap__town { fill: var(--ink-2); font-weight: 500; }
   /* Freistellung wie auf jeder Karte: wo der Kreis oder der Rhein eine Beschriftung kreuzt,
      unterbricht ein Rand in der Grundfarbe die Linie, statt durch die Buchstaben zu laufen. */
   .amap__town, .amap__hometext { paint-order: stroke; stroke: var(--map-bg); stroke-width: 0.9px; stroke-linejoin: round; }
   .amap__home { fill: var(--red); }
-  .amap__hometext { font-size: 3.4px; font-weight: 700; fill: var(--ink); }
-  .amap__region { font-family: var(--font-mono); font-size: 2.1px; letter-spacing: 0.2px; fill: var(--ink-3); }
-  /* Die Schrift skaliert mit der Zeichnung: bei 390 px Breite wären die Ortsnamen 8 px gross
-     (gemessen). Schmal darum grösser und nur mit den grossen Orten – alle zusammen fänden
-     in dieser Grösse keinen Platz, und die Liste unter der Karte nennt sie ohnehin. Gefragt
-     wird die Bildschirmbreite: breiter als 600 px wird die Karte nie, und schmal steht sie
-     immer allein in ihrer Spalte. */
-  @media (max-width: 599px) {
-    .amap__minor { display: none; }
-    .amap__town { font-size: 3.4px; }
-    .amap__hometext { font-size: 4px; }
-    .amap__region { font-size: 2.5px; }
-  }
+  .amap__hometext { font-weight: 700; fill: var(--ink); }
+  .amap__region { font-family: var(--font-mono); letter-spacing: 0.2px; fill: var(--ink-3); }
+  /* Die Schrift skaliert mit der Zeichnung – mit nur noch den grossen Städten (#1143) darf sie
+     überall gross sein, auch in der schmalen Spalte neben dem Formular. */
+  .amap__town { font-size: 3.6px; }
+  .amap__hometext { font-size: 4.2px; }
+  .amap__region { font-size: 2.6px; }
 </style>

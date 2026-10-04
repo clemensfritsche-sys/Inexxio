@@ -28,8 +28,6 @@ related:
   - href: '/ratgeber/heukrananlage-planen'
     label: 'Neue Heukrananlage planen'
     text: 'Bauformen, Platzbedarf, Ablauf.'
-cta:
-  need: pruefung
 ---
 
 [[PRÜFEN: fachlich – ganzer Artikel]]

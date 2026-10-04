@@ -13,6 +13,10 @@
  * ersetzt, wo `data-erp="address"` steht. Impressum und Datenschutz (`data-erp-fixed`)
  * bleiben unberührt: dort steht der Betreiber, nicht die Gesellschaft des Besucherlandes.
  *
+ * Getauscht wird in jedem Bereich mit `data-contact` (die Vorgabe dieses Builds als JSON): auf
+ * der Website ist das `<body>`, im Konto/ERP sind es Kopf und Fuss – derselbe Code an beiden
+ * Orten (EIN Kopf, EIN Fuss). `data-erp="route"` bekommt den Routen-Link zur Anschrift.
+ *
  * Fehlt eine Angabe im ERP oder ist der Server nicht erreichbar, bleibt die Vorgabe stehen.
  * Zwischengespeichert für fünf Minuten in sessionStorage – eine Anfrage je Besuch.
  */
@@ -56,10 +60,10 @@ async function load(): Promise<Contact | null> {
   }
 }
 
-/** Text in der Seite ersetzen – nicht in Skripten und nicht in festen Bereichen. */
-function replaceText(from: string, to: string): void {
+/** Text ersetzen – nicht in Skripten und nicht in festen Bereichen. */
+function replaceText(root: HTMLElement, from: string, to: string): void {
   if (!from || !to || from === to) return;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) => {
       const p = n.parentElement;
       if (!p || p.closest('script, style, [data-erp-fixed]')) return NodeFilter.FILTER_REJECT;
@@ -71,25 +75,37 @@ function replaceText(from: string, to: string): void {
   for (const t of hits) t.nodeValue = (t.nodeValue ?? '').split(from).join(to);
 }
 
-function replaceHref(prefix: string, to: string): void {
-  document.querySelectorAll<HTMLAnchorElement>(`a[href^="${prefix}"]`).forEach((a) => {
+function replaceHref(root: HTMLElement, prefix: string, to: string): void {
+  root.querySelectorAll<HTMLAnchorElement>(`a[href^="${prefix}"]`).forEach((a) => {
     if (a.closest('[data-erp-fixed]')) return;
     a.setAttribute('href', to + a.getAttribute('href')!.slice(prefix.length));
   });
 }
 
-export function apply(built: Built, c: Contact): void {
+export function apply(built: Built, c: Contact, root: HTMLElement = document.body): void {
   if (c.phone && c.phone_e164) {
-    replaceHref(`tel:${built.e164}`, `tel:${c.phone_e164}`);
-    replaceText(built.phone, c.phone);
+    replaceHref(root, `tel:${built.e164}`, `tel:${c.phone_e164}`);
+    replaceText(root, built.phone, c.phone);
   }
   if (c.email) {
-    replaceHref(`mailto:${built.email}`, `mailto:${c.email}`);
-    replaceText(built.email, c.email);
+    replaceHref(root, `mailto:${built.email}`, `mailto:${c.email}`);
+    replaceText(root, built.email, c.email);
   }
   const lines = c.address_lines.filter((l) => l.trim() && l.trim().toUpperCase() !== built.country.toUpperCase());
+  if (lines.length) {
+    // Route zur Anschrift aus dem ERP – öffnet in einem neuen Tab, die Website bleibt offen.
+    const dest = encodeURIComponent(lines.join(', '));
+    root.querySelectorAll<HTMLAnchorElement>('[data-erp="route"]').forEach((a) => {
+      if (!a.closest('[data-erp-fixed]')) a.href = `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+    });
+    // Der Ort allein (z. B. im Fliesstext): die Zeile mit der Postleitzahl, ohne die Zahl.
+    const city = lines.find((l) => /^\d{4,5}\s/.test(l.trim()))?.trim().replace(/^\d{4,5}\s+/, '');
+    if (city) root.querySelectorAll<HTMLElement>('[data-erp="city"]').forEach((el) => {
+      if (!el.closest('[data-erp-fixed]')) el.textContent = city;
+    });
+  }
   if (c.name && lines.length) {
-    document.querySelectorAll<HTMLElement>('[data-erp="address"]').forEach((el) => {
+    root.querySelectorAll<HTMLElement>('[data-erp="address"]').forEach((el) => {
       if (el.closest('[data-erp-fixed]')) return;
       el.replaceChildren();
       [c.name, ...lines].forEach((line, i) => {
@@ -101,13 +117,14 @@ export function apply(built: Built, c: Contact): void {
 }
 
 export function initContact(): void {
-  const raw = document.body.dataset.contact;
-  if (!raw) return;
-  let built: Built;
-  try {
-    built = JSON.parse(raw) as Built;
-  } catch {
-    return;
-  }
-  void load().then((c) => { if (c) apply(built, c); });
+  const roots = Array.from(document.querySelectorAll<HTMLElement>('[data-contact]'));
+  if (!roots.length) return;
+  void load().then((c) => {
+    if (!c) return;
+    for (const root of roots) {
+      try {
+        apply(JSON.parse(root.dataset.contact ?? '') as Built, c, root);
+      } catch { /* unlesbare Vorgabe – dieser Bereich bleibt, wie er ist */ }
+    }
+  });
 }

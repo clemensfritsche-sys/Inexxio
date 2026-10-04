@@ -6,7 +6,8 @@
  *  5. Unternehmen: Übergabe, Über uns, Ratgeber, Karriere, Service – eine eigene Spalte wie
  *     die Bereiche (Rückmeldung 04.10.2026: unter dem Satz wirkte die Liste wie angehängt)
  *  6. Kontakt: Anschrift, Telefon, E-Mail – zur Laufzeit aus dem ERP (scripts/contact.ts)
- * Unterste Zeile: © Jahr · Impressum · Datenschutz. Die UID steht im Impressum (#1103).
+ * Unterste Zeile: © Jahr · Impressum · Datenschutz · AGB. Die UID steht im Impressum (#1103).
+ * Derselbe Fuss trägt das Konto/ERP (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
  */
 import { site, contactEmail, isMissing } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
@@ -17,7 +18,8 @@ import { samples } from '../config/photo-samples.mjs';
 
 const year = new Date().getFullYear();
 const company = [
-  ...site.company,
+  { label: site.about.label, href: site.about.href },
+  ...site.about.children,
   { label: site.service.overview, href: site.service.href },
 ];
 const a = site.address;
@@ -72,6 +74,11 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
       <ul role="list">
         <li><a href="/impressum">Impressum</a></li>
         <li><a href="/datenschutz">Datenschutz</a></li>
+        <li><a href="/agb">AGB</a></li>
+        {/* Nur im Konto/ERP sichtbar: dort gibt es eine Einwilligung (Statistik), und die muss
+            jederzeit änderbar sein. Das Frontend blendet den Eintrag ein und öffnet den Dialog
+            (components/consent/cookie-consent.tsx) – derselbe Fuss an beiden Orten. */}
+        <li data-consent-settings hidden><button type="button">Cookie-Einstellungen</button></li>
         {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
       </ul>
     </div>
@@ -111,5 +118,8 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
     padding-block: var(--s-5) var(--s-6); font-size: 0.875rem; color: rgba(244, 243, 241, 0.6);
   }
   .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); align-items: center; }
-  .site-footer__bottom a { color: rgba(244, 243, 241, 0.85); display: inline-flex; min-height: 44px; align-items: center; }
+  .site-footer__bottom a, .site-footer__bottom button {
+    color: rgba(244, 243, 241, 0.85); display: inline-flex; min-height: 44px; align-items: center;
+  }
+  .site-footer__bottom button { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
 </style>

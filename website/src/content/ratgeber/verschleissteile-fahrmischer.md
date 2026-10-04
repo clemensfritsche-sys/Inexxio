@@ -23,8 +23,6 @@ related:
   - href: '/fahrzeugtechnik'
     label: 'Fahrzeugtechnik'
     text: 'Alles, was wir an Fahrmischern und Aufbauten machen.'
-cta:
-  need: teil
 ---
 
 [[PRÜFEN: fachlich – ganzer Artikel]]

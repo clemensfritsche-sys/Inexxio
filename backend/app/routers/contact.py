@@ -1,4 +1,4 @@
-"""Anfragen der öffentlichen Website (``/kontakt`` und die Kurzformulare der Leistungsseiten).
+"""Anfragen der öffentlichen Website (das EINE Anfrage-Formular auf /kontakt und am Ende jeder Seite).
 
 ►►► Strikt getrennt vom ERP. ◄◄◄ Dieses Modul importiert nichts aus ``app.models``,
 ``app.services`` oder ``app.core`` und berührt keine Tabelle: eine Anfrage wird geprüft,
@@ -29,15 +29,9 @@ spätere Übernahme ins ERP)::
     {
       "schema": "inexxio.website.inquiry/1",
       "id": "uuid", "received_at": "ISO-8601 UTC",
-      "form": "haupt", "source": "/pfad/der/seite",
-      "kind":    {"value": "krantechnik", "label": "Krantechnik"},   # der Bereich (aus dem Anliegen)
-      "need":    {"value": "...", "label": "..."} | null,            # das Anliegen
-      "urgency": {"value": "...", "label": "..."} | null,
-      "asset":   {"maker": str|null, "year": str|null, "part": str|null,
-                  "usage": str|null},
-      "place": str, "message": str | null,
-      "contact": {"name": str, "company": str|null, "phone": str|null,
-                  "email": str|null, "preference": {"value", "label"} | null},
+      "source": "/pfad/der/seite",
+      "message": str,                       # das Anliegen – EIN Feld (Rückmeldung 04.10.2026)
+      "contact": {"name": str, "company": str|null, "phone": str|null, "email": str|null},
       "photos":  [{"filename": str, "content_type": str, "size": int}]
     }
 """
@@ -75,9 +69,10 @@ MSG: dict[str, str] = VOCAB["messages"]
 LIMITS: dict[str, int] = VOCAB["limits"]
 PHOTOS: dict = VOCAB["photos"]
 
-#: Version 2 (04.10.2026): Bereiche statt «Kran/Fahrmischer», «Wofür» statt «Für welchen
-#: Fahrmischer», keine «Anzahl Krane» mehr (das Service-Abo ist entfallen).
-SCHEMA = "inexxio.website.inquiry/2"
+#: Version 3 (04.10.2026): EIN Feld für das Anliegen, dazu Anhänge und «wer fragt an».
+#: Bereich, Anliegen, Dringlichkeit, Standort, Hersteller und Baujahr sind entfallen – was
+#: der Mensch schreibt, ist die Angabe (später KI-gestützt ausgewertet).
+SCHEMA = "inexxio.website.inquiry/3"
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 PHONE_RE = re.compile(r"^[+()\d][\d\s/().-]{5,}$")
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
@@ -160,7 +155,6 @@ class Photo:
 
 @dataclass
 class Inquiry:
-    form: str
     source: str
     values: dict[str, str]
     photos: list[Photo] = field(default_factory=list)
@@ -178,40 +172,15 @@ def _clean(raw: object, multiline: bool = False) -> str:
     return text.strip()
 
 
-def _options(key: str) -> dict[str, str]:
-    return {o["value"]: o["label"] for o in VOCAB[key]}
-
-
-def _check_choices(values: dict[str, str], errors: dict[str, str]) -> None:
-    """Den Bereich fragt das Formular nicht mehr (Testnotiz #1102) – das ANLIEGEN sagt ihn
-    (``kindOf``). Ein mitgeschickter Bereich wird darum überschrieben, nie geglaubt."""
-    kind = VOCAB["kindOf"].get(values["need"], "")
-    values["kind"] = kind
-    if not kind:
-        values["need"] = ""
-        errors["need"] = MSG["need"]
-    if values["urgency"] not in _options("urgencies"):
-        values["urgency"] = ""
-        errors["urgency"] = MSG["urgency"]
-    if values["contact_pref"] and values["contact_pref"] not in _options("contactPrefs"):
-        values["contact_pref"] = ""
-    if kind != "teile":
-        values["part"] = values["usage"] = ""
-    elif not values["part"]:
-        errors["part"] = MSG["part"]
-
-
 def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
     for name, limit in LIMITS.items():
         if name in values and len(values[name]) > limit:
             errors.setdefault(name, MSG["tooLong"].replace("{max}", str(limit)))
-    if values["year"] and not re.fullmatch(r"(19|20)\d{2}", values["year"]):
-        errors.setdefault("year", MSG["year"])
-    if not values["place"]:
-        errors.setdefault("place", MSG["place"])
+    if not values["message"]:
+        errors.setdefault("message", MSG["message"])
     if not values["name"]:
         errors.setdefault("name", MSG["name"])
-    phone, email, pref = values["phone"], values["email"], values["contact_pref"]
+    phone, email = values["phone"], values["email"]
     if not phone and not email:
         errors.setdefault("phone", MSG["contact"])
         return
@@ -219,10 +188,6 @@ def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
         errors.setdefault("phone", MSG["phone"])
     if email and not EMAIL_RE.match(email):
         errors.setdefault("email", MSG["email"])
-    if pref == "telefon" and not phone:
-        errors.setdefault("phone", MSG["prefPhone"])
-    if pref == "email" and not email:
-        errors.setdefault("email", MSG["prefEmail"])
 
 
 def _mb(n: int) -> str:
@@ -254,48 +219,28 @@ async def _read_photos(uploads: list, errors: dict[str, str]) -> list[Photo]:
     return photos
 
 
-FIELDS = ("need", "urgency", "part", "usage", "maker", "year", "place",
-          "message", "name", "company", "phone", "email", "contact_pref")
+FIELDS = ("message", "name", "company", "phone", "email")
 
 
 async def _parse(form_data, errors: dict[str, str]) -> Inquiry:
-    form = "haupt"  # es gibt EIN Formular (#1107/#1129); das Feld bleibt im Schema
     source = _clean(form_data.get("source")).lower()
     values = {name: _clean(form_data.get(name), multiline=(name == "message")) for name in FIELDS}
-    _check_choices(values, errors)
     _check_fields(values, errors)
     photos = await _read_photos(form_data.getlist("photos"), errors)
-    return Inquiry(form=form, source=source if SOURCE_RE.match(source) else "/kontakt",
+    return Inquiry(source=source if SOURCE_RE.match(source) else "/kontakt",
                    values=values, photos=photos)
 
 
 # ------------------------------------------------------------------ Darstellung
 
 def _shown(inq: Inquiry) -> list[tuple[str, str, str]]:
-    """(Feld, Beschriftung, angezeigter Wert) in der Reihenfolge der Website, ohne Leeres."""
-    v = inq.values
-    display = {
-        "kind": _options("kinds").get(v["kind"], v["kind"]),
-        "need": {n["value"]: n["label"] for ns in VOCAB["needs"].values() for n in ns}.get(v["need"], ""),
-        "urgency": _options("urgencies").get(v["urgency"], ""),
-        "contact_pref": _options("contactPrefs").get(v["contact_pref"], ""),
-    }
-    rows = []
-    for name, label in VOCAB["labels"]:
-        value = display.get(name, v.get(name, ""))
-        if value:
-            rows.append((name, label, value))
-    return rows
+    """(Feld, Beschriftung, Wert) in der Reihenfolge der Website, ohne Leeres."""
+    return [(name, label, inq.values[name]) for name, label in VOCAB["labels"] if inq.values.get(name)]
 
 
 def _subject(inq: Inquiry) -> str:
     v = inq.values
-    kinds = {k["value"]: k["subject"] for k in VOCAB["kinds"]}
-    urgencies = {u["value"]: u["subject"] for u in VOCAB["urgencies"]}
-    tags = ["Anfrage", kinds.get(v["kind"], v["kind"]), urgencies.get(v["urgency"], "")]
-    who = v["company"] or v["name"]
-    place = f" – {v['place']}" if v["place"] else ""
-    return f"{''.join(f'[{t}]' for t in tags if t)} {who}{place}".strip()
+    return f"[Anfrage] {v['company'] or v['name']}".strip()
 
 
 def _summary(inq: Inquiry, *, include_message_block: bool) -> str:
@@ -322,23 +267,14 @@ def _mailto(inq: Inquiry) -> str:
 def as_record(inq: Inquiry) -> dict:
     """Die Anfrage als JSON-Objekt (Schema siehe Moduldoku) – ohne Fotodaten."""
     v = inq.values
-    opt = lambda key, value: ({"value": value, "label": _options(key)[value]} if value else None)  # noqa: E731
-    needs = {n["value"]: n["label"] for ns in VOCAB["needs"].values() for n in ns}
     return {
         "schema": SCHEMA,
         "id": inq.id,
         "received_at": inq.received_at.isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "form": inq.form,
         "source": inq.source,
-        "kind": opt("kinds", v["kind"]),
-        "need": {"value": v["need"], "label": needs[v["need"]]} if v["need"] else None,
-        "urgency": opt("urgencies", v["urgency"]),
-        "asset": {"maker": v["maker"] or None, "year": v["year"] or None, "part": v["part"] or None,
-                  "usage": v["usage"] or None},
-        "place": v["place"],
-        "message": v["message"] or None,
+        "message": v["message"],
         "contact": {"name": v["name"], "company": v["company"] or None, "phone": v["phone"] or None,
-                    "email": v["email"] or None, "preference": opt("contactPrefs", v["contact_pref"])},
+                    "email": v["email"] or None},
         "photos": [{"filename": p.filename, "content_type": p.content_type, "size": len(p.data)}
                    for p in inq.photos],
     }
@@ -369,7 +305,7 @@ def _internal_mail(inq: Inquiry, s: InquirySettings) -> EmailMessage:
     msg["Message-ID"] = make_msgid(domain=(s.mail_from or s.smtp_user or "website").split("@")[-1])
     photos = f"Dateien: {len(inq.photos)} (im Anhang)" if inq.photos else "Dateien: keine"
     msg.set_content("\n".join([
-        f"Neue Anfrage über die Website – Seite {inq.source}, Formular «{inq.form}».",
+        f"Neue Anfrage über die Website – Seite {inq.source}.",
         "",
         _summary(inq, include_message_block=True),
         "",
@@ -394,15 +330,12 @@ def _confirmation(inq: Inquiry, s: InquirySettings) -> EmailMessage:
     msg["Reply-To"] = s.mail_to or VOCAB["email"]
     msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = make_msgid(domain=(s.mail_from or s.smtp_user or "website").split("@")[-1])
-    urgent = inq.values["urgency"] == "dringend"
     body = [f"Guten Tag {inq.values['name']}", "", m["confirmIntro"], "", _summary(inq, include_message_block=True)]
     if inq.photos:
         body += ["", f"Dateien: {len(inq.photos)} übermittelt"]
     body += ["", m["confirmNext"]]
-    if urgent and m.get("urgent"):
+    if m.get("urgent"):
         body.append(m["urgent"])
-    if urgent and m.get("urgentNotfall"):
-        body.append(m["urgentNotfall"])
     body += ["", m["closing"], VOCAB["brand"]["full"], *VOCAB["address"],
              f"Telefon {VOCAB['phone']['display']}", VOCAB["email"]]
     msg.set_content("\n".join(body))
@@ -549,8 +482,8 @@ async def _send(inq: Inquiry, settings: InquirySettings, wants_json: bool) -> Re
         print(f"INQUIRY_UNSENT {json.dumps(record, ensure_ascii=False)}", flush=True)
         return _failed(inq, 503, "Das Senden ist gerade nicht möglich.", wants_json)
     print(
-        f"INFO: INQUIRY sent id={inq.id} form={inq.form} kind={inq.values['kind']} "
-        f"urgency={inq.values['urgency'] or '-'} photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}",
+        f"INFO: INQUIRY sent id={inq.id} source={inq.source} "
+        f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}",
         flush=True,
     )
     return _done(inq, wants_json)

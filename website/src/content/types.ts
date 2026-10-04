@@ -13,14 +13,6 @@ export interface LinkItem { href: string; label: string; text?: string; kind?: '
 export interface Action { label: string; href: string; track?: string }
 export interface Step { title: string; text: string }
 
-/**
- * Abschluss jeder Seite: der EINE Kontaktbereich (ContactSection, #1107/#1129). Je Seite
- * darf nur das passende Anliegen vorgewählt sein – Überschrift, Satz und Formular sind
- * überall dieselben.
- */
-export interface Cta {
-  need?: string;
-}
 
 /** Bereichsseite (Auftrag Kap. 7.4) – alle drei mit derselben Struktur. */
 export interface AreaPage {
@@ -36,7 +28,6 @@ export interface AreaPage {
   /** Ablauf in vier Schritten: Anfrage → Abklärung → Umsetzung → Bericht. */
   steps: Step[];
   faq: Faq[];
-  cta: Cta;
   service: { name: string; serviceType: string };
   keywords?: string[];
 }
@@ -57,7 +48,6 @@ export interface SubPage {
   glance: { forWhom: string; what: string; deliverables: string };
   scope: { title: string; lead?: string; items: { title: string; text: string }[] };
   faq: Faq[];
-  cta: Cta;
   /** 2–3 verwandte Leistungen, mindestens ein Ratgeber-Artikel. */
   related: LinkItem[];
   service: { name: string; serviceType: string };

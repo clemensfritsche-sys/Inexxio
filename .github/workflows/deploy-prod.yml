@@ -176,6 +176,8 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-FS0STKLEJC
           NEXT_PUBLIC_API_URL: ${{ secrets.BACKEND_URL_PROD }}
           NEXT_PUBLIC_APP_URL: https://inexxio-prod.web.app
+          # Kopf und Fuss sind die der Website (oben gebaut) – ohne sie wird nicht ausgeliefert.
+          SHELL_REQUIRED: "1"
         run: npm run build
 
       # Die Website kommt in DIESELBE Hosting-Ausgabe: sie besitzt «/» und ihre Seiten,

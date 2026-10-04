@@ -4694,7 +4694,6 @@ def test_the_login_is_a_popup_over_the_page_behind_it():
     """
     dialog = _code(_read(FRONTEND / "components" / "auth" / "login-dialog.tsx"))
     page = _code(_read(FRONTEND / "app" / "(auth)" / "login" / "page.tsx"))
-    navbar = _code(_read(FRONTEND / "components" / "layout" / "navbar.tsx"))
     css = _read(FRONTEND / "app" / "globals.css")
 
     # (1) Die Fläche dahinter bleibt sichtbar – ein Schleier, keine Wand.
@@ -4750,24 +4749,20 @@ def test_the_login_is_a_popup_over_the_page_behind_it():
         "Umweg, den es gerade nicht braucht."
     )
 
-    # (4) EIN Dialog, zwei Aufrufer: die Navbar öffnet ihn an Ort und Stelle, die Route
-    #     ist der zweite Weg (Umleitung/Lesezeichen) und sagt, was «daneben» dort heisst.
+    # (4) EIN Dialog, EIN Weg: seit Website und ERP denselben Kopf tragen (WEBSITE_PLAN
+    #     Entscheid 60), führt «Anmelden» von überall auf die Route – und der Kopf hängt die
+    #     Seite an, auf der man stand (`?from=`). Dorthin geht es danach, und ebenso beim
+    #     Danebenklicken: «was man vorher tat, steht noch da» gilt damit weiter.
     assert "export function LoginDialog" in dialog, "Der Dialog ist kein eigenes Bauteil."
-    # **Geprüft wird das Rendern, nicht der Name.** Gemessen: mit `"LoginDialog" in
-    # navbar` liess der Wächter seine eigene Bug-Form durch – der Name kommt auch im
-    # Import vor, und importiert ist noch nicht gezeichnet.
-    assert "<LoginDialog" in navbar and "setLoginOpen(true)" in navbar, (
-        "Die Navbar öffnet das Pop-up nicht – sie verlinkt wieder auf eine Seite."
-    )
-    assert 'href={loginHref}' not in navbar and "const loginHref" not in navbar, (
-        "Der alte Link auf die Anmelde-Seite steht wieder in der Navbar."
-    )
     assert "<LoginDialog" in page, (
         "Die Route baut die Anmeldung wieder selbst – dann gibt es sie zweimal."
     )
-    assert "fallback={pathname}" in navbar, (
-        "Nach dem Anmelden muss man dort landen, wo man war – sonst ist das Pop-up nur "
-        "eine hübschere Umleitung."
+    assert "onClose={() => window.location.assign(cameFrom())}" in page, (
+        "Daneben klicken führt nicht mehr dorthin zurück, wo man war."
+    )
+    shell = _code(_read(ROOT / "website" / "src" / "scripts" / "account.ts"))
+    assert "/login?from=" in shell, (
+        "Der gemeinsame Kopf nennt der Anmeldung nicht mehr, woher man kam."
     )
 
 
@@ -9804,6 +9799,10 @@ def test_every_css_variable_is_defined_somewhere():
         defined |= set(re.findall(r"['\"](--[a-z0-9-]+)['\"]", src))
         for name in re.findall(r"var\((--[a-z0-9-]+)\s*\)", src):
             used.setdefault(name, path.name)
+    # Die Kopfhöhe kommt mit dem Stylesheet des gemeinsamen Kopfs (WEBSITE_PLAN Entscheid
+    # 60): `export-shell.mjs` schreibt sie als `--site-header-h` aus der Website-Angabe.
+    defined |= set(re.findall(r"(--[a-z0-9-]+)\s*:",
+                              _read(ROOT / "website" / "scripts" / "export-shell.mjs")))
     missing = sorted((n, f) for n, f in used.items() if n not in defined)
     assert not missing, (
         "Diese CSS-Variablen werden benutzt, aber nirgends definiert – sie erzeugen "
@@ -9863,8 +9862,7 @@ def test_the_role_is_the_access_in_every_surface():
     # (c) – **eine** Auflösung, und die anderen rufen sie.
     gate = _code(_read(FRONTEND / "lib" / "record-status.ts"))
     assert "export function isStaff(" in gate, "``isStaff`` fehlt (c)."
-    for where in ("app/(erp)/layout.tsx", "components/layout/navbar.tsx",
-                  "app/(erp)/erp/page.tsx"):
+    for where in ("app/(erp)/layout.tsx", "app/(erp)/erp/page.tsx"):
         src = _code(_read(FRONTEND / where))
         assert "isStaff(" in src, f"«{where}» fragt die Rolle selbst (c)."
         # ►►► **Gefragt ist die ZWEIER-Aufzählung, nicht «admin».** ◄◄◄ Der erste Anlauf
@@ -9874,6 +9872,15 @@ def test_the_role_is_the_access_in_every_surface():
         # wird das Personal-Paar nachgebaut.
         assert "'employee'" not in src, (
             f"«{where}» zählt die Personal-Rollen daneben auf (c)."
+        )
+    # (c′) Der gemeinsame Kopf (Website **und** ERP, WEBSITE_PLAN Entscheid 60) zeigt den
+    # ERP-Link nach derselben Frage – er läuft vor jedem Framework und kann `isStaff` nicht
+    # importieren, also zählt er das Paar auf; gefragt ist, dass es **dasselbe** ist.
+    for where in ("early.js", "account.ts"):
+        src = _code(_read(ROOT / "website" / "src" / "scripts" / where))
+        pair = re.findall(r"role === '(\w+)'", src)
+        assert sorted(pair) == sorted(pp.STAFF_ROLES), (
+            f"Der Kopf («{where}») fragt ein anderes Personal-Paar als der Dienst (c′): {pair}"
         )
     # (d) – das Dropdown bietet genau die Werte der Tür an.
     detail = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))

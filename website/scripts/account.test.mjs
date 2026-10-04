@@ -35,6 +35,10 @@ test('early.js liest denselben Rollen-Schlüssel und dieselben Personal-Rollen w
   const front = staff(body.slice(0, body.indexOf('}')));
   assert.ok(front.length > 0, 'isStaff nennt keine Rolle mehr – der Wächter muss nachgezogen werden');
   assert.deepEqual(staff(early), front);
+  // Dieselbe Regel steht in account.ts (syncRole) – für einen Cache, der sich NACH dem Laden
+  // ändert (Konto/ERP schreiben ihn nach der Anmeldung).
+  const sync = website.slice(website.indexOf('function syncRole('));
+  assert.deepEqual(staff(sync.slice(0, sync.indexOf('\n}'))), front);
 });
 
 test('Abmelden räumt den ganzen Anzeige-Cache, und zwar vor allem anderen', () => {

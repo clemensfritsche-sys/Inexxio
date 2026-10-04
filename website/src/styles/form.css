@@ -1,11 +1,7 @@
-/* Formulare (Anfrage, Prüfpflicht-Check) – geteilt, einmal je Seite geladen. */
+/* Formulare (Anfrage, Prüfpflicht-Check – die Chips braucht nur noch er) – geteilt, einmal je Seite geladen. */
 
-.iform { display: grid; gap: var(--s-7); position: relative; }
+.iform { display: grid; gap: var(--s-5); position: relative; }
 .iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
-.iform__step { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--s-4); }
-.iform__legend { display: grid; gap: 6px; padding: 0; margin-bottom: var(--s-2); float: left; width: 100%; }
-.iform__legend + * { clear: both; }
-.iform__legend .h3 { color: var(--ink); }
 .iform__row { display: grid; gap: var(--s-4); }
 @media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .field--narrow { max-width: 220px; }
@@ -34,45 +30,7 @@
 .chip input:checked + span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
 .chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-.iform__group, .iform__sub { display: grid; gap: 10px; }
-.iform__sub { margin-top: var(--s-3); }
-.iform__grouptitle { font-weight: 600; color: var(--ink); font-size: 0.97rem; }
 
-/* Zusatzfragen zum Anliegen (Teil · Anderes) und Notfall-Hinweis – ohne JS, per :has().
-   Ohne :has bleibt alles sichtbar. */
-@supports selector(:has(*)) {
-  .iform__group { display: none; }
-  .iform:has(input[name='need'][value='teil']:checked) [data-group='teile'],
-  .iform:has(input[name='need'][value='anderes']:checked) [data-group='anderes'] { display: grid; }
-  .notfall-box { display: none !important; }
-  .iform:has(input[name='urgency'][value='dringend']:checked) .notfall-box { display: flex !important; }
-}
-
-.notfall-box {
-  display: flex; gap: var(--s-4); align-items: flex-start; padding: var(--s-5);
-  background: var(--paper); border-left: 3px solid var(--red); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--ink); --overline: var(--red-deep);
-}
-.notfall-box .icon { flex: none; color: var(--red-deep); margin-top: 4px; }
-.notfall-box__title { font-weight: 600; color: var(--ink); }
-.notfall-box__num {
-  display: inline-block; margin-top: 4px; font-size: clamp(1.75rem, 1.45rem + 1.3vw, 2.5rem);
-  font-family: var(--font-display); font-weight: 700; letter-spacing: var(--tracking-snug); color: var(--ink); text-decoration: none; line-height: 1.1;
-}
-.notfall-box__num:hover { text-decoration: underline; text-decoration-thickness: 2px; }
-
-/* Schritte (nur mit JS); die Leiste darüber steht immer da – ohne JS als Überblick */
-.iform--steps .iform__step:not(.is-current) { display: none; }
-.iform__progress { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.iform__progress li {
-  padding-top: 10px; border-top: 2px solid var(--line-2); font-size: 0.875rem; color: var(--ink-3);
-  display: grid; gap: 2px;
-}
-.iform__progress li.is-done { border-top-color: var(--ink); color: var(--ink-2); }
-.iform__progress li.is-current { border-top-color: var(--red); color: var(--ink); font-weight: 600; }
-@media (max-width: 479px) { .iform__progress li { font-size: 0; } .iform__progress li .idx { font-size: 0.75rem; } }
-
-.iform__nav { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
-.iform__nav [data-submit], .iform__nav [data-next] { margin-left: auto; }
 .iform__foot { display: grid; gap: var(--s-3); justify-items: start; }
 .iform[aria-busy='true'] [data-submit] { opacity: 0.6; pointer-events: none; }
 

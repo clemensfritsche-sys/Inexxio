@@ -84,7 +84,7 @@ export const start = {
   area: {
     eyebrow: 'Wo wir arbeiten',
     h2: 'Aus Tuttwil-Wängi in die ==ganze Welt==',
-    text: 'Zuhause sind wir in Tuttwil-Wängi: Hier steht unsere Werkstatt, und in der Nähe sind wir am schnellsten bei Ihnen. Im Einsatz sind wir {{area.summary}} – für Krananlagen, Service und Sonderlösungen.',
+    text: 'Zuhause sind wir in {{erp.city}}: Hier steht unsere Werkstatt, und in der Nähe sind wir am schnellsten bei Ihnen. Im Einsatz sind wir {{area.summary}} – für Krananlagen, Service und Sonderlösungen.',
     link: 'Mehr über uns',
   },
 

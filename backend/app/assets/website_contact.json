@@ -17,149 +17,6 @@
     "thanks": "/kontakt/danke",
     "contact": "/kontakt"
   },
-  "kinds": [
-    {
-      "value": "krantechnik",
-      "label": "Krantechnik",
-      "subject": "Krantechnik"
-    },
-    {
-      "value": "fahrzeugtechnik",
-      "label": "Fahrzeugtechnik",
-      "subject": "Fahrzeugtechnik"
-    },
-    {
-      "value": "sonderloesungen",
-      "label": "Sonderlösungen",
-      "subject": "Sonderlösungen"
-    },
-    {
-      "value": "teile",
-      "label": "Ersatz- oder Verschleissteile",
-      "subject": "Teile"
-    },
-    {
-      "value": "anderes",
-      "label": "Anderes",
-      "subject": "Anderes"
-    }
-  ],
-  "needs": {
-    "krantechnik": [
-      {
-        "value": "heukrananlage",
-        "label": "Neue Heukrananlage"
-      },
-      {
-        "value": "industriekran",
-        "label": "Neuer Industriekran"
-      },
-      {
-        "value": "pruefung",
-        "label": "Prüfung"
-      },
-      {
-        "value": "wartung",
-        "label": "Wartung"
-      },
-      {
-        "value": "stoerung",
-        "label": "Störung / Reparatur"
-      },
-      {
-        "value": "modernisierung",
-        "label": "Modernisierung"
-      }
-    ],
-    "fahrzeugtechnik": [
-      {
-        "value": "fahrmischer-service",
-        "label": "Fahrmischer-Service"
-      },
-      {
-        "value": "reparatur",
-        "label": "Reparatur"
-      },
-      {
-        "value": "trommel",
-        "label": "Trommel-Revision"
-      },
-      {
-        "value": "aufbau",
-        "label": "Aufbau-Reparatur"
-      }
-    ],
-    "sonderloesungen": [
-      {
-        "value": "konstruktion",
-        "label": "Konstruktion"
-      },
-      {
-        "value": "stahlbau",
-        "label": "Schweiss-/Stahlbau"
-      },
-      {
-        "value": "baumaschine",
-        "label": "Baumaschine Umbau/Reparatur"
-      }
-    ],
-    "teile": [
-      {
-        "value": "teil",
-        "label": "Ersatz- oder Verschleissteil"
-      }
-    ],
-    "anderes": [
-      {
-        "value": "anderes",
-        "label": "Anderes"
-      }
-    ]
-  },
-  "kindOf": {
-    "heukrananlage": "krantechnik",
-    "industriekran": "krantechnik",
-    "pruefung": "krantechnik",
-    "wartung": "krantechnik",
-    "stoerung": "krantechnik",
-    "modernisierung": "krantechnik",
-    "fahrmischer-service": "fahrzeugtechnik",
-    "reparatur": "fahrzeugtechnik",
-    "trommel": "fahrzeugtechnik",
-    "aufbau": "fahrzeugtechnik",
-    "konstruktion": "sonderloesungen",
-    "stahlbau": "sonderloesungen",
-    "baumaschine": "sonderloesungen",
-    "teil": "teile",
-    "anderes": "anderes"
-  },
-  "urgencies": [
-    {
-      "value": "dringend",
-      "label": "Steht still – dringend",
-      "subject": "DRINGEND"
-    },
-    {
-      "value": "wochen",
-      "label": "In den nächsten Wochen",
-      "subject": "BALD"
-    },
-    {
-      "value": "planung",
-      "label": "Planung",
-      "subject": "PLANUNG"
-    }
-  ],
-  "contactPrefs": [
-    {
-      "value": "telefon",
-      "label": "Telefon"
-    },
-    {
-      "value": "email",
-      "label": "E-Mail"
-    }
-  ],
   "photos": {
     "max": 3,
     "maxTotalBytes": 10485760,
@@ -176,53 +33,16 @@
   },
   "minSeconds": 3,
   "limits": {
+    "message": 4000,
     "name": 120,
     "company": 160,
     "phone": 40,
-    "email": 160,
-    "place": 120,
-    "maker": 160,
-    "year": 4,
-    "message": 4000,
-    "part": 200,
-    "usage": 160
+    "email": 160
   },
   "labels": [
     [
-      "kind",
-      "Bereich"
-    ],
-    [
-      "need",
-      "Anliegen"
-    ],
-    [
-      "part",
-      "Teil"
-    ],
-    [
-      "usage",
-      "Wofür"
-    ],
-    [
-      "urgency",
-      "Dringlichkeit"
-    ],
-    [
-      "maker",
-      "Hersteller / Typ"
-    ],
-    [
-      "year",
-      "Baujahr"
-    ],
-    [
-      "place",
-      "Standort"
-    ],
-    [
       "message",
-      "Beschreibung"
+      "Anliegen"
     ],
     [
       "name",
@@ -239,25 +59,14 @@
     [
       "email",
       "E-Mail"
-    ],
-    [
-      "contact_pref",
-      "Rückmeldung per"
     ]
   ],
   "messages": {
-    "need": "Bitte wählen Sie Ihr Anliegen.",
-    "part": "Bitte nennen Sie das Teil, das Sie brauchen.",
-    "urgency": "Bitte wählen Sie, wie dringend es ist.",
-    "year": "Bitte das Baujahr vierstellig angeben, z. B. 1998.",
-    "place": "Bitte geben Sie PLZ und Ort an – dort, wo die Anlage oder Maschine steht.",
     "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
     "name": "Bitte geben Sie Ihren Namen an.",
     "contact": "Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.",
     "phone": "Diese Telefonnummer sieht unvollständig aus.",
     "email": "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).",
-    "prefPhone": "Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.",
-    "prefEmail": "Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.",
     "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
     "photosCount": "Bitte höchstens {max} Dateien auswählen (jetzt {count}).",
     "photosType": "«{name}» ist kein unterstütztes Format (JPG, PNG, WEBP, HEIC oder PDF).",
@@ -269,7 +78,6 @@
     "confirmIntro": "Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.",
     "confirmNext": "Wir melden uns innert kurzer Zeit.",
     "urgent": "Steht eine Anlage still, rufen Sie am besten direkt an: 052 378 22 47.",
-    "urgentNotfall": "Steht etwas still? Rufen Sie uns direkt an: 052 378 22 47.",
     "closing": "Freundliche Grüsse"
   }
 }

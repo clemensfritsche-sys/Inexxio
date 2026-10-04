@@ -9,7 +9,10 @@ type Disclosure = { root: HTMLElement; toggle: HTMLButtonElement | null; hover: 
 
 export function initHeader(): void {
   const header = document.querySelector<HTMLElement>('[data-header]');
-  if (!header) return;
+  // Einmal je Kopf: im Konto/ERP kann ihn React nach einem Seitenwechsel neu einsetzen –
+  // dann ist es ein neues Element ohne `data-ready`, und es wird erneut verdrahtet.
+  if (!header || header.dataset.ready) return;
+  header.dataset.ready = '1';
   const menu = header.querySelector<HTMLDetailsElement>('[data-mnav]');
 
   // ---------- Aufklappbares (Dropdowns + Profilmenü) ----------

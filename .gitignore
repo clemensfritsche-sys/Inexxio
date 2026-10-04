@@ -17,6 +17,8 @@ frontend/out/
 frontend/build/
 # Inseln für die Website – gebaut von frontend/scripts/build-islands.mjs
 frontend/public/islands/
+# Kopf und Fuss der Website – übernommen von frontend/scripts/site-shell.mjs
+frontend/src/generated/
 
 # Python
 __pycache__/

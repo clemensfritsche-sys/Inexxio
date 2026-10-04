@@ -28,7 +28,7 @@ export const service = {
   /** Zweite Ziele zu den Kacheln, die zwei Wege haben (Auftrag 7.6). */
   alsoLinks: [
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbau reparieren lassen' },
-    { href: '/kontakt?thema=teil', label: 'Teil direkt anfragen' },
+    { href: '/kontakt', label: 'Teil direkt anfragen' },
   ],
   how: {
     title: 'So arbeiten wir',
@@ -41,7 +41,7 @@ export const service = {
   },
   area: {
     title: 'Wo wir arbeiten',
-    text: 'Zuhause sind wir in {{area.home}}, im Einsatz {{area.summary}}. Krane prüfen und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt.',
+    text: 'Zuhause sind wir in {{erp.city}}, im Einsatz {{area.summary}}. Krane prüfen und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt.',
     link: 'Mehr über uns',
   },
 };

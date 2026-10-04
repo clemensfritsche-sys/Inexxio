@@ -1,41 +1,13 @@
 ---
 /**
- * /kontakt – der EINE Kontaktbereich (derselbe wie am Ende jeder Seite, hier mit der H1)
- * und darunter die Anfahrt: Anschrift aus dem ERP (#1108) und die Karte.
+ * /kontakt – der EINE Kontaktbereich (derselbe wie am Ende jeder Seite), hier mit der H1 und
+ * der Karte. «So finden Sie uns» steht nicht mehr getrennt darunter (#1144): Anschrift und
+ * Route gehören zum Kontakt und stehen darum im Kontaktbereich selbst.
  */
 import Base from '../layouts/Base.astro';
 import ContactSection from '../components/ContactSection.astro';
-import LocationMap from '../components/LocationMap.astro';
-import SectionHead from '../components/SectionHead.astro';
-import Icon from '../components/Icon.astro';
-import { site } from '../config/site.mjs';
-import { plain } from '../lib/text.mjs';
 import { kontakt as k } from '../content/kontakt';
-const a = site.address;
-const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
 ---
 <Base title={k.title} description={k.description} crumbs={[{ name: 'Kontakt', path: '/kontakt' }]}>
   <ContactSection level="h1" />
-
-  <section class="section" aria-labelledby="anfahrt">
-    <div class="wrap grid kt-map">
-      <div class="col-5 kt-map__text">
-        <SectionHead eyebrow="Anfahrt" title="So finden Sie uns" lead={k.where} id="anfahrt" class="head--flush" />
-        <!-- Die Anschrift kommt aus dem ERP (#1108, scripts/contact.ts); hier die Vorgabe. -->
-        <address class="kt-addr"><span data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</span></address>
-        <a class="btn btn--secondary" href={route} rel="noopener">{k.route} <Icon name="external-link" size={18} /></a>
-      </div>
-      <div class="col-7 kt-map__map">
-        <LocationMap />
-      </div>
-    </div>
-  </section>
 </Base>
-
-<style>
-  .kt-map { align-items: center; }
-  .kt-map__text { display: grid; gap: var(--s-4); justify-items: start; }
-  .head--flush { margin-bottom: 0; }
-  .kt-addr { font-style: normal; color: var(--ink); font-size: 1.125rem; line-height: 1.6; }
-  @media (min-width: 960px) { .kt-map__map { grid-column: 7 / span 6; } }
-</style>

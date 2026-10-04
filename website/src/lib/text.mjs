@@ -79,6 +79,12 @@ export const TOKENS = {
 const LINK_TOKENS = {
   'phone.link': () => ({ href: `tel:${site.phone.e164}`, label: site.phone.display, track: 'tel_click' }),
   'email.link': () => ({ href: `mailto:${contactEmail()}`, label: contactEmail(), track: 'mailto_click' }),
+  /**
+   * Der Ort aus dem ERP (#1146/#1153): im HTML die Vorgabe dieses Builds in einem
+   * `data-erp="city"`, das scripts/contact.ts gegen den Ort der Anschrift im ERP tauscht.
+   * Zieht die Werkstatt um, steht der neue Ort überall – ohne Textänderung.
+   */
+  'erp.city': () => ({ href: '', label: a.city, track: '', erp: 'city' }),
 };
 
 /**
@@ -137,6 +143,7 @@ export function rich(text) {
   let html = escapeHtml(resolve(text, { links: 'keep' }));
   html = html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
     const link = LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]();
+    if ('erp' in link) return `<span data-erp="${link.erp}">${escapeHtml(link.label)}</span>`;
     return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
   });
   html = html.replace(MARKER_RE, (_, kind, note) => markerHtml(kind, note));

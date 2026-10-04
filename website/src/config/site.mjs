@@ -262,18 +262,29 @@ export const site = {
     ],
   },
 
+  /**
+   * Unternehmen – im Kopf als Menü «Über uns» mit Bild je Unterpunkt, im Fuss als Spalte.
+   * Testnotiz #1154: Übergabe, Ratgeber und Karriere waren vorher nur im Fuss und im
+   * Mobil-Menü zu finden. Jede Seite muss über den Kopf erreichbar sein – geprüft beim Bauen
+   * (scripts/check-site.mjs, «über das Menü erreichbar»).
+   */
+  about: {
+    id: 'unternehmen',
+    label: 'Über uns',
+    href: '/ueber-uns',
+    overview: 'Mehr über uns',
+    text: 'Werkstatt, Team und Geschichte.',
+    photo: 'werkstatt-aussen',
+    children: [
+      { label: 'Aus HS Steiner wird {{brand.name}}', href: '/uebergabe', text: 'Die Übergabe – was bleibt, was neu ist', photo: 'clemens-heiri-quer' },
+      { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran' },
+      { label: 'Karriere', href: '/karriere', text: 'Arbeiten in unserer Werkstatt', photo: 'team' },
+    ],
+  },
+
   /** Übrige Punkte der Hauptzeile (Auftrag Kap. 7.1). */
   menu: [
-    { label: 'Über uns', href: '/ueber-uns' },
     { label: 'Kontakt', href: '/kontakt' },
-  ],
-
-  /** Unternehmen – im Footer unter dem Satz und im Mobil-Menü. */
-  company: [
-    { label: 'Aus HS Steiner wird {{brand.name}}', href: '/uebergabe' },
-    { label: 'Über uns', href: '/ueber-uns' },
-    { label: 'Ratgeber', href: '/ratgeber' },
-    { label: 'Karriere', href: '/karriere' },
   ],
 
   /** Hauptaktion überall: Anfrage. */

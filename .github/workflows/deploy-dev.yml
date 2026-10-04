@@ -281,6 +281,8 @@ jobs:
           NEXT_PUBLIC_ENVIRONMENT: development
           # Build-Commit: beantwortet bei einer Testnotiz «welchen Stand hast du gesehen?»
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
+          # Kopf und Fuss sind die der Website (oben gebaut) – ohne sie wird nicht ausgeliefert.
+          SHELL_REQUIRED: "1"
         run: npm run build
 
       # Die Website kommt in DIESELBE Hosting-Ausgabe: sie besitzt «/» und ihre Seiten,

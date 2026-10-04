@@ -529,6 +529,42 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     im Impressum (#1103); ein Bild je Unterpunkt im Mega-Dropdown, so hoch wie das Panel
     (#1111, reines CSS über `:has`).
 
+60. **EIN Kopf und EIN Fuss für Website UND Konto/ERP** (Rückmeldung 04.10.2026: «Ein
+    Header für beides. Eine globale Funktion, Logik, Design.»). Der React-Nachbau
+    (`navbar.tsx`, `footer.tsx`) ist **gelöscht**. Der Website-Build schreibt Kopf- und
+    Fuss-HTML, Skripte und sein Stylesheet (auf `.ix-shell` beschränkt, damit es im ERP
+    nur Kopf und Fuss trifft) nach `dist/_shell/` (`scripts/export-shell.mjs`); das
+    Frontend übernimmt es beim Bauen (`frontend/scripts/site-shell.mjs`, im Deploy Pflicht
+    über `SHELL_REQUIRED=1`) und setzt es im Wurzel-Layout ein. Dasselbe Skript
+    (`window.inexxioShell`) bedient beide Seiten; das Frontend schreibt nur den
+    Anzeige-Cache (`account-sync.tsx`). **Anmelden ist damit überall der Link auf
+    `/login?from=…`** – nach der Anmeldung und beim Danebenklicken geht es dorthin
+    zurück. AGB und Cookie-Einstellungen stehen im gemeinsamen Fuss.
+61. **Das Profilbild fehlte auf der Website, weil die CSP es blockierte** (#1139): das
+    `<meta>`-CSP der Website erlaubte für Bilder nur `'self' data:`. Es liest `img-src`
+    jetzt aus `firebase.json` (`src/lib/csp.mjs`) – EINE Quelle für beide Teile.
+62. **Das Anfrage-Formular ist ein Feld** (Rückmeldung 04.10.2026): «Ihr Anliegen»,
+    Anhänge (freiwillig) und «wer fragt an» (für Angemeldete vorbelegt). Bereich, Anliegen,
+    Dringlichkeit, Kontaktweg, Schritte und Fortschritt sind **aus Code und Logik
+    entfernt** – auch im Endpunkt (`inquiry/3`): ein mitgeschicktes Altfeld wird ignoriert.
+    Die Auswertung der Anfrage soll später eine KI übernehmen; dafür genügt der Text.
+    *Entscheid 57 ist damit abgelöst.*
+63. **/kontakt ist ein Abschnitt** (#1142–#1145): «Wie finden Sie uns» ist im Kontaktbereich
+    aufgegangen – Karte (nur grössere Städte) und Anschrift stehen neben dem Formular, die
+    Route öffnet **Google Maps in einem neuen Tab** (Ziel = Anschrift aus dem ERP). Kein
+    eingebettetes Google-Maps-Fenster: kostet API und Einwilligung und bricht bei Ausfall.
+64. **Der Ort kommt aus dem ERP** (#1146/#1153): `{{erp.city}}` setzt den Ort der Anschrift
+    beim Build ein und lässt `contact.ts` ihn zur Laufzeit ersetzen – wie Telefon und
+    E-Mail. «Über uns» spricht als **Wir**, nicht über eine Person.
+65. **Jede Seite der Sitemap ist über das Menü erreichbar** (#1154): `check-site.mjs`
+    bricht ab, wenn eine indexierte Seite nicht im Kopf verlinkt ist (ausgenommen Start,
+    Impressum, Datenschutz und einzelne Ratgeber-Artikel, die über die Übersicht laufen).
+    «Über uns» ist dafür ein Dropdown mit Übergabe, Ratgeber und Karriere.
+66. **Testnotizen gehen beim Seitenwechsel mit** (Rückmeldung 04.10.2026): die Insel
+    `/islands/feedback.js` hat keinen Hash im Namen, und `firebase.json` cacht `.js` ein
+    Jahr – der Browser hielt eine alte Fassung. Sie wird jetzt mit dem Stand geladen
+    (`?v=<Commit>`, `body[data-feedback]`).
+
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
 | Datei | Änderung | Warum |
@@ -555,6 +591,11 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `frontend/src/components/layout/navbar.tsx`, `footer.tsx`, `globals.css`, `lib/api.ts`, `types/index.ts` | Kopf eine Zeile, ERP im Menü, Fuss mit Unternehmen-Spalte und Kontaktdaten aus dem ERP | Entscheide 50/56 |
 | `firebase.json` | Garten-/Reifen-Weiterleitungen auf `/uebergabe` | Entscheid 55 |
 | `.github/workflows/deploy-*.yml` | `SITE_API` für den Build | Entscheid 56 |
+| `frontend/scripts/site-shell.mjs`, `src/components/layout/site-shell.tsx`, `account-sync.tsx`, `app/layout.tsx`, Layouts | Kopf/Fuss aus dem Website-Build einsetzen; `navbar.tsx`, `footer.tsx`, `cookie-settings-link.tsx` und das weisse Logo gelöscht; `lib/site-shell.json` → `lib/site-meta.json` | Entscheid 60 |
+| `frontend/src/app/globals.css`, `cookie-consent.tsx`, `(auth)/login/page.tsx` | Kopf-/Fuss-Stile entfernt; Cookie-Einstellungen im gemeinsamen Fuss; Danebenklicken führt zu `?from=` zurück | Entscheid 60 |
+| `backend/app/routers/contact.py`, `tests/test_contact.py`, `app/assets/website_contact.json` | Formular auf ein Feld reduziert (`inquiry/3`) | Entscheid 62 |
+| `backend/tests/test_frontend_mirrors.py` | drei Wächter auf den gemeinsamen Kopf gezogen | Entscheid 60 |
+| `.github/workflows/deploy-*.yml` | `SHELL_REQUIRED=1` | Entscheid 60 |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
 Migrationen, Auth-Logik, Rechte, Prozesse, Module.

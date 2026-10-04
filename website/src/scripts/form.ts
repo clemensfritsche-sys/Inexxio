@@ -2,14 +2,12 @@
  * Das Anfrage-Formular (überall dasselbe, #1107/#1129) – Komfort auf einem Formular, das
  * ohne JS vollständig klassisch an den Server geht.
  *
- *  - drei Schritte mit Fortschritt; «Weiter» prüft nur den aktuellen Schritt. Einen Bereich
- *    fragt es nicht (#1102) – das Anliegen sagt, worum es geht (`kindOf`)
+ *  - EIN Feld für das Anliegen, Anhänge, wer fragt an (Rückmeldung 04.10.2026)
  *  - Fehler erscheinen direkt am Feld (aria-invalid + aria-describedby); die Wörter kommen
  *    aus der Konfiguration (data-vocab) – der Server meldet wortgleich
  *  - Senden im Hintergrund; Erfolg ersetzt das Formular, ein Fehler lässt alle Eingaben
  *    stehen und bietet Telefon und einen vorausgefüllten mailto-Link an
- *  - Vorbelegung aus der Adresse: /kontakt?thema=teil&teil=…&wofuer=…,
- *    ?thema=heukrananlage, ?dringend=1
+ *  - Vorbelegung aus der Adresse: /kontakt?teil=… (Teile-Katalog) schreibt das Teil ins Anliegen
  *  - Vorbelegung aus dem Konto (Auftrag 11.1): ist jemand angemeldet, stehen Name, Firma,
  *    Telefon und E-Mail schon da – gelesen aus dem Anzeige-Cache (scripts/account.ts),
  *    nur in leere Felder, änderbar wie jede Eingabe
@@ -19,13 +17,6 @@ import { accountInfo } from './account';
 
 type Errors = Record<string, string>;
 interface Vocab {
-  kind: Record<string, string>;
-  kindSubject: Record<string, string>;
-  need: Record<string, string>;
-  urgency: Record<string, string>;
-  urgencySubject: Record<string, string>;
-  pref: Record<string, string>;
-  kindOf: Record<string, string>;
   labels: [string, string][];
   messages: Record<string, string>;
 }
@@ -45,53 +36,9 @@ function setup(form: HTMLFormElement): void {
   const root = form.closest<HTMLElement>('[data-inquiry-root]') ?? form.parentElement!;
   const okPanel = root.querySelector<HTMLElement>('[data-result="ok"]');
   const failPanel = root.querySelector<HTMLElement>('[data-result="fail"]');
-  const steps = Array.from(form.querySelectorAll<HTMLElement>('[data-step]'));
+  const submit = form.querySelector<HTMLButtonElement>('[data-submit]');
   const vocab: Vocab = JSON.parse(form.dataset.vocab ?? '{}');
   const loadedAt = Date.now();
-  let current = 0;
-
-  // ---------- Schritte ----------
-  const prev = form.querySelector<HTMLButtonElement>('[data-prev]');
-  const next = form.querySelector<HTMLButtonElement>('[data-next]');
-  const submit = form.querySelector<HTMLButtonElement>('[data-submit]');
-  const progress = form.querySelector<HTMLElement>('[data-progress]');
-  const status = form.querySelector<HTMLElement>('[data-step-status]');
-  const useSteps = steps.length > 1;
-
-  const show = (index: number, moveFocus: boolean) => {
-    current = Math.max(0, Math.min(steps.length - 1, index));
-    steps.forEach((s, i) => s.classList.toggle('is-current', i === current));
-    progress?.querySelectorAll<HTMLElement>('[data-progress-item]').forEach((li, i) => {
-      li.classList.toggle('is-done', i < current);
-      li.classList.toggle('is-current', i === current);
-      if (i === current) li.setAttribute('aria-current', 'step');
-      else li.removeAttribute('aria-current');
-    });
-    if (prev) prev.hidden = current === 0;
-    if (next) next.hidden = current === steps.length - 1;
-    if (submit) submit.hidden = current !== steps.length - 1;
-    const title = steps[current].querySelector('.iform__legend .h3')?.textContent ?? '';
-    if (status) status.textContent = `Schritt ${current + 1} von ${steps.length}: ${title}`;
-    if (moveFocus) {
-      const legend = steps[current].querySelector<HTMLElement>('.iform__legend');
-      if (legend) {
-        legend.tabIndex = -1;
-        legend.focus({ preventScroll: true });
-      }
-      const top = form.getBoundingClientRect().top + window.scrollY - 120;
-      if (form.getBoundingClientRect().top < 80) window.scrollTo({ top, behavior: 'smooth' });
-    }
-  };
-
-  if (useSteps) {
-    form.classList.add('iform--steps');
-    show(0, false);
-    next?.addEventListener('click', () => {
-      const errors = validate(form, steps[current], vocab);
-      if (render(form, errors)) show(current + 1, true);
-    });
-    prev?.addEventListener('click', () => show(current - 1, true));
-  }
 
   prefill(form);
   prefillAccount(form);
@@ -110,30 +57,19 @@ function setup(form: HTMLFormElement): void {
   // ---------- Senden ----------
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const errors = validate(form, form, vocab);
-    if (!render(form, errors)) {
-      if (useSteps) {
-        const first = steps.findIndex((s) => Object.keys(errors).some((n) => s.querySelector(`[name="${n}"]`)));
-        if (first >= 0 && first !== current) {
-          show(first, false);
-          render(form, errors);
-        }
-      }
-      return;
-    }
+    if (!render(form, validate(form, vocab))) return;
 
-    // Ausfüllzeit in Millisekunden – gemessen mit der Uhr DIESES Geräts, also unabhängig
-    // davon, ob sie mit der des Servers übereinstimmt.
+    // Ausfüllzeit in Millisekunden – gemessen mit der Uhr DIESES Geräts.
     setValue(form, 't', String(Date.now() - loadedAt));
     const data = new FormData(form);
-    prune(data, vocab);
+    prune(data);
     form.setAttribute('aria-busy', 'true');
     if (submit) submit.disabled = true;
     try {
       const res = await fetch(form.action, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; fields?: Errors; message?: string };
       if (res.ok && body.ok) {
-        track('form_submit', { form: form.dataset.form, bereich: vocab.kindOf[str(data.get('need'))] ?? '', dringlichkeit: str(data.get('urgency')) || 'keine' });
+        track('form_submit', { form: 'anfrage' });
         form.hidden = true;
         if (failPanel) failPanel.hidden = true;
         if (okPanel) {
@@ -145,13 +81,6 @@ function setup(form: HTMLFormElement): void {
       }
       if (res.status === 422 && body.fields) {
         render(form, body.fields);
-        if (useSteps) {
-          const first = steps.findIndex((s) => Object.keys(body.fields!).some((n) => s.querySelector(`[name="${n}"]`)));
-          if (first >= 0) {
-            show(first, true);
-            render(form, body.fields);
-          }
-        }
         return;
       }
       fail(form, failPanel, vocab, res.status, body.message);
@@ -166,34 +95,20 @@ function setup(form: HTMLFormElement): void {
 
 // ------------------------------------------------------------------ Prüfen
 
-function validate(form: HTMLFormElement, scope: Element, vocab: Vocab): Errors {
+function validate(form: HTMLFormElement, vocab: Vocab): Errors {
   const m = vocab.messages;
   const errors: Errors = {};
-  const has = (name: string) => Boolean(scope.querySelector(`[name="${name}"]`));
-  const kind = vocab.kindOf[checked(form, 'need')] ?? '';
-
-  if (has('need') && !kind) errors.need = m.need;
-  if (has('part') && kind === 'teile' && !value(form, 'part')) errors.part = m.part;
-  if (has('urgency') && !checked(form, 'urgency')) errors.urgency = m.urgency;
-  const year = value(form, 'year');
-  if (has('year') && year && !/^(19|20)\d{2}$/.test(year)) errors.year = m.year;
-  if (has('place') && !value(form, 'place')) errors.place = m.place;
-  const photos = scope.querySelector<HTMLInputElement>('input[type="file"][name="photos"]');
+  if (!value(form, 'message')) errors.message = m.message;
+  const photos = form.querySelector<HTMLInputElement>('input[type="file"][name="photos"]');
   if (photos) Object.assign(errors, photoErrors(form, photos, vocab));
-
-  if (has('name') && !value(form, 'name')) errors.name = m.name;
-  if (has('phone') || has('email')) {
-    const phone = value(form, 'phone');
-    const email = value(form, 'email');
-    const pref = checked(form, 'contact_pref');
-    if (!phone && !email) {
-      errors.phone = m.contact;
-    } else {
-      if (phone && !PHONE.test(phone)) errors.phone = m.phone;
-      if (email && !EMAIL.test(email)) errors.email = m.email;
-      if (pref === 'telefon' && !phone) errors.phone = m.prefPhone;
-      if (pref === 'email' && !email) errors.email = m.prefEmail;
-    }
+  if (!value(form, 'name')) errors.name = m.name;
+  const phone = value(form, 'phone');
+  const email = value(form, 'email');
+  if (!phone && !email) {
+    errors.phone = m.contact;
+  } else {
+    if (phone && !PHONE.test(phone)) errors.phone = m.phone;
+    if (email && !EMAIL.test(email)) errors.email = m.email;
   }
   return errors;
 }
@@ -237,7 +152,7 @@ function render(form: HTMLFormElement, errors: Errors, focus = true): boolean {
 
 function clearError(form: HTMLFormElement, name: string): void {
   if (!name) return;
-  const related = name === 'phone' || name === 'email' || name === 'contact_pref' ? ['phone', 'email'] : [name];
+  const related = name === 'phone' || name === 'email' ? ['phone', 'email'] : [name];
   for (const n of related) {
     const box = form.querySelector<HTMLElement>(`[data-error-for="${n}"]`);
     if (box) box.hidden = true;
@@ -251,9 +166,6 @@ function value(form: HTMLFormElement, name: string): string {
   const el = form.querySelector<HTMLInputElement>(`[name="${name}"]:not([type="radio"]):not([type="file"])`);
   return el?.value.trim() ?? '';
 }
-function checked(form: HTMLFormElement, name: string): string {
-  return form.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)?.value ?? '';
-}
 function setValue(form: HTMLFormElement, name: string, v: string): void {
   const el = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`);
   if (el) el.value = v;
@@ -261,12 +173,8 @@ function setValue(form: HTMLFormElement, name: string, v: string): void {
 const str = (v: FormDataEntryValue | null) => (typeof v === 'string' ? v : '');
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 
-/** Angaben, die zum gewählten Anliegen nicht passen, gar nicht erst senden. */
-function prune(data: FormData, vocab: Vocab): void {
-  if (vocab.kindOf[str(data.get('need'))] !== 'teile') {
-    data.delete('part');
-    data.delete('usage');
-  }
+/** Leere Datei-Felder nicht senden (ein Browser schickt sonst eine leere Datei mit). */
+function prune(data: FormData): void {
   for (const [k, v] of Array.from(data.entries())) {
     if (v instanceof File && v.size === 0) data.delete(k);
   }
@@ -290,18 +198,10 @@ function listFiles(form: HTMLFormElement, input: HTMLInputElement): void {
   list.hidden = files.length === 0;
 }
 
+/** /kontakt?teil=Auslaufrinne (aus dem Teile-Katalog) – das Teil steht schon im Anliegen. */
 function prefill(form: HTMLFormElement): void {
-  const q = new URLSearchParams(location.search);
-  const pick = (name: string, v: string | null) => {
-    if (!v) return false;
-    const radio = form.querySelector<HTMLInputElement>(`input[name="${name}"][value="${CSS.escape(v)}"]`);
-    if (radio) radio.checked = true;
-    return Boolean(radio);
-  };
-  pick('need', q.get('thema'));
-  if (q.get('dringend') === '1') pick('urgency', 'dringend');
-  if (q.get('teil')) setValue(form, 'part', q.get('teil')!.slice(0, 200));
-  if (q.get('wofuer')) setValue(form, 'usage', q.get('wofuer')!.slice(0, 160));
+  const part = new URLSearchParams(location.search).get('teil');
+  if (part) setValue(form, 'message', `Anfrage zu: ${part.slice(0, 200)}\n`);
 }
 
 /** Kontaktangaben aus dem Konto – nur in leere Felder (Schnittstelle S2, nur lesend). */
@@ -341,24 +241,12 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, st
 /** mailto-Link mit allen Eingaben – derselbe Betreff und dieselben Wörter wie die E-Mail des Servers. */
 function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
-  prune(data, vocab);
+  prune(data);
   const get = (n: string) => str(data.get(n)).trim();
-  const kind = vocab.kindOf[get('need')] ?? '';
-  const urgency = get('urgency');
-  const who = get('company') || get('name');
-  const tags = ['Anfrage', vocab.kindSubject?.[kind] ?? kind, urgency ? vocab.urgencySubject?.[urgency] : ''].filter(Boolean);
-  const subject = `${tags.map((t) => `[${t}]`).join('')} ${who}${get('place') ? ` – ${get('place')}` : ''}`.trim();
-  const shown: Record<string, string> = {
-    kind: vocab.kind?.[kind] ?? kind,
-    need: vocab.need?.[get('need')] ?? '',
-    urgency: vocab.urgency?.[urgency] ?? '',
-    contact_pref: vocab.pref?.[get('contact_pref')] ?? '',
-    message: get('message').slice(0, 1200),
-  };
-  const lines = vocab.labels.map(([field, label]) => [label, field in shown ? shown[field] : get(field)] as const);
+  const subject = `[Anfrage] ${get('company') || get('name')}`.trim();
+  const lines = vocab.labels.map(([field, label]) => [label, field === 'message' ? get(field).slice(0, 1200) : get(field)] as const);
   const photos = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.length ?? 0;
-  const body = lines.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n') +
+  const body = lines.filter(([, v]) => v).map(([l, v]) => `${l}: ${v}`).join('\n') +
     (photos ? `\n\nDateien: bitte ${photos === 1 ? 'die Datei' : `die ${photos} Dateien`} an diese E-Mail anhängen.` : '');
-  const to = form.dataset.mail ?? '';
-  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return `mailto:${form.dataset.mail ?? ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

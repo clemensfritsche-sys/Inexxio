@@ -8,31 +8,42 @@ import './globals.css';
 import { ChunkReloadGuard } from '@/components/chunk-reload-guard';
 import { PlausibleAnalytics } from '@/components/analytics/plausible';
 import { CookieConsent } from '@/components/consent/cookie-consent';
-import shell from '@/lib/site-shell.json';
+import meta from '@/lib/site-meta.json';
+import { SiteFooter, SiteHeader, SiteShellHead } from '@/components/layout/site-shell';
+import { AccountSync } from '@/components/layout/account-sync';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
-// Der Konto-/ERP-Bereich trägt den Namen und den Satz der Website (`lib/site-shell.json`,
+// Der Konto-/ERP-Bereich trägt den Namen und den Satz der Website (`lib/site-meta.json`,
 // aus `website/src/config/site.mjs`). Hier stand der Text eines anderen Geschäfts
 // («Präzisionsfertigung», «CNC») – ein Spiegel kann das nicht mehr.
 export const metadata: Metadata = {
-  title: { template: `%s | ${shell.brand.legalName}`, default: shell.brand.legalName },
-  description: shell.claim,
-  authors: [{ name: shell.brand.legalName }],
+  title: { template: `%s | ${meta.brand.legalName}`, default: meta.brand.legalName },
+  description: meta.claim,
+  authors: [{ name: meta.brand.legalName }],
   robots: isDev ? { index: false, follow: false } : { index: true, follow: true },
   openGraph: {
     type: 'website',
     locale: 'de_CH',
-    siteName: shell.brand.legalName,
+    siteName: meta.brand.legalName,
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    // `suppressHydrationWarning`: early.js der Website setzt am <html> «js» und den
+    // Anmeldezustand, bevor React übernimmt – gewollt, nicht verschieden.
+    <html lang="de" suppressHydrationWarning>
+      <head>
+        <SiteShellHead />
+      </head>
       <body>
         <ChunkReloadGuard />
+        {/* EIN Kopf, EIN Fuss: die der Website (components/layout/site-shell.tsx). */}
+        <SiteHeader />
+        <AccountSync />
         {children}
+        <SiteFooter />
         <CookieConsent />
         <PlausibleAnalytics />
       </body>
