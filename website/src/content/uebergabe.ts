@@ -61,9 +61,8 @@ export const sharedFaq = {
   },
 } satisfies Record<string, Faq>;
 
-/** Persönliche Botschaft von Clemens Fritsche (Entwurf, Auftrag Kap. 7.8). */
+/** Persönliche Botschaft von Clemens Fritsche (Auftrag Kap. 7.8). */
 export const message = {
-  review: '[[PRÜFEN: von Clemens anpassen und freigeben]]',
   paragraphs: [
     'Ich bin Maschinenbauingenieur und habe bei Liebherr Baumaschinen entwickelt. Krane und schwere Maschinen begleiten mich mein ganzes Berufsleben. Als ich Heiri Steiner kennengelernt habe, war schnell klar: Hier stimmt die Basis – treue Kunden, solide Anlagen, ehrliches Handwerk.',
     'Was Heiri in {{history.experienceDative}} aufgebaut hat, führe ich mit derselben Sorgfalt weiter. Und ich ergänze es dort, wo es Ihnen nützt: mit Ingenieurwissen, sauberer Dokumentation und Lösungen, die es nicht von der Stange gibt.',
@@ -81,12 +80,12 @@ export const uebergabe = {
     lead: handoverLead,
   },
   summary:
-    '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} in Tuttwil-Wängi TG gegründet hat – bisher als {{brand.formerLegalName}}, früher auch bekannt für die HS-Krananlagen. Mit der Übergabe an Clemens Fritsche tritt es als {{brand.legalName}} auf: dieselbe Werkstatt, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen. {{brand.legalNameReview}}',
+    '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} in Tuttwil-Wängi TG gegründet hat – bisher als {{brand.formerLegalName}}, früher auch bekannt für die HS-Krananlagen. Mit der Übergabe an Clemens Fritsche tritt es als {{brand.legalName}} auf: dieselbe Werkstatt, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
   timeline: [
     { year: String(site.history.founded), text: site.history.foundedText },
     { year: String(site.history.cranesSince), text: site.history.cranesText },
-    { year: `${site.history.gmbhYear} ${site.history.gmbhReview}`, text: 'Das Unternehmen wird zur {{brand.formerLegalName}}.' },
-    { year: site.history.handoverDate, text: 'Heiri Steiner übergibt an Clemens Fritsche – aus HS Steiner wird die {{brand.legalName}}.' },
+    { year: `${site.history.gmbhYear}`, text: 'Das Unternehmen wird zur {{brand.formerLegalName}}.' },
+    { year: 'Heute', text: 'Heiri Steiner übergibt an Clemens Fritsche – aus HS Steiner wird die {{brand.legalName}}.' },
   ],
   faq: [
     sharedFaq.phone,
@@ -95,10 +94,6 @@ export const uebergabe = {
     ...(site.features.heiriAdvisory
       ? [{ q: 'Bleibt Heiri Steiner dabei?', a: '{{people.founder.advisory}}' }]
       : []),
-    {
-      q: 'Ändern sich Rechnungsadresse oder Bankverbindung?',
-      a: '[[PLATZHALTER: Rechnungsstellung und Bankverbindung nach der Übergabe]]',
-    },
     sharedFaq.parts,
     { q: sharedFaq.newCranes.q, a: `${sharedFaq.newCranes.a} Mehr dazu unter [Heukrananlagen](/krantechnik/heukrananlagen).` },
   ] satisfies Faq[],

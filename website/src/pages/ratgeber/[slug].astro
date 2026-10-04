@@ -66,7 +66,8 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
 
 <style>
   .art { padding-top: var(--s-6); }
-  .art .wrap > * { max-width: 760px; }
+  /* Eine Lesespalte, mittig platziert – der Text bleibt linksbündig (#1183). */
+  .art .wrap > * { max-width: 760px; margin-inline: auto; }
   .art__head { display: grid; gap: var(--s-4); }
   .art__title { font-size: clamp(2rem, 1.6rem + 1.9vw, 3.25rem); line-height: 1.1; }
   .art__by { font-size: 0.9375rem; color: var(--ink-3); }

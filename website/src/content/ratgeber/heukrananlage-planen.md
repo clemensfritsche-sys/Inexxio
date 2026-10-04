@@ -27,8 +27,6 @@ related:
     text: 'Was nach der Inbetriebnahme gilt.'
 ---
 
-[[PRÜFEN: fachlich – ganzer Artikel]]
-
 Eine Heukrananlage arbeitet zwanzig, dreissig Jahre und länger. Darum lohnt es sich, vor dem Bauen gründlich zu klären, wie sie zum Gebäude und zur Arbeit auf dem Betrieb passt. Dieser Artikel fasst zusammen, welche Bauformen es gibt, was die Anlage an Platz braucht und wie die Planung abläuft.
 
 ## Welche Bauform passt?
@@ -50,9 +48,9 @@ Feste Masse gibt es nicht – jede Scheune ist anders. Diese Punkte entscheiden,
 
 - **Hubhöhe:** Zwischen dem vollen Stock und dem Dach muss der Greifer mit seiner Last Platz haben. Massgebend ist die höchste Stelle, die der Stock erreichen soll.
 - **Spannweite und Fahrweg:** Wie breit und wie lang ist der Bereich, den der Kran erreichen muss – vom Abladeplatz bis in die hinterste Ecke?
-- **Tragfähigkeit:** Die Kranbahn hängt am Dachstuhl oder steht auf eigenen Stützen. Ob der Dachstuhl die Lasten trägt, muss geprüft werden. [[PRÜFEN: fachlich – wer die Statik prüft]]
+- **Tragfähigkeit:** Die Kranbahn hängt am Dachstuhl oder steht auf eigenen Stützen. Ob der Dachstuhl die Lasten trägt, muss geprüft werden.
 - **Abladeplatz:** Wo kommt das Futter an, und wie kommt der Greifer dorthin, ohne Hindernisse im Weg?
-- **Strom und Steuerung:** Welcher Anschluss ist vorhanden, und von wo aus soll bedient werden – mit Kabel oder mit Funkfernsteuerung? [[PRÜFEN: fachlich – Anforderungen an den Stromanschluss]]
+- **Strom und Steuerung:** Welcher Anschluss ist vorhanden, und von wo aus soll bedient werden – mit Kabel oder mit Funkfernsteuerung?
 
 Wer Pläne oder Fotos der Scheune hat, sollte sie zur Besichtigung bereitlegen. Ein Mass zu Firsthöhe, Breite und Länge hilft schon bei der ersten Einschätzung.
 
@@ -66,7 +64,7 @@ Wer Pläne oder Fotos der Scheune hat, sollte sie zur Besichtigung bereitlegen. 
 
 ## Wann ist der richtige Zeitpunkt?
 
-Im Winter. Dann bleibt genug Zeit für Besichtigung, Offerte und Fertigung, und die Montage passt in die ruhige Zeit vor dem ersten Schnitt. Wer erst im Frühling anfängt, wartet die Saison oft mit der alten Anlage ab. [[PLATZHALTER: typische Dauer von der Bestellung bis zur Inbetriebnahme]]
+Im Winter. Dann bleibt genug Zeit für Besichtigung, Offerte und Fertigung, und die Montage passt in die ruhige Zeit vor dem ersten Schnitt. Wer erst im Frühling anfängt, wartet die Saison oft mit der alten Anlage ab.
 
 ## Und nach der Inbetriebnahme?
 

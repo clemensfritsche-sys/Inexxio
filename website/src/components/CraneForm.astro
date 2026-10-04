@@ -1,0 +1,28 @@
+---
+/**
+ * Bauform eines Heukrans als Illustration (Claude Design, «Vier Bauformen, eine Bildsprache»):
+ * isometrisch, in Markenfarben – Rot ist immer das Bauteil, das die Bauform ausmacht, Gebäude
+ * und Schienen grau, Seil und Greifer schwarz. Statische SVGs, gezeichnet aus dem Export
+ * (src/assets/illustrations/), inline eingesetzt: kein Bild-Request, kein JavaScript.
+ */
+import einschiene from '../assets/illustrations/heukran-einschiene.svg?raw';
+import bruecke from '../assets/illustrations/heukran-bruecke.svg?raw';
+import drehkran from '../assets/illustrations/heukran-drehkran.svg?raw';
+import angepasst from '../assets/illustrations/heukran-angepasst.svg?raw';
+
+const SVGS = { einschiene, bruecke, drehkran, angepasst } as const;
+export type CraneIllo = keyof typeof SVGS;
+
+interface Props { illo: CraneIllo; label: string }
+const { illo, label } = Astro.props;
+const svg = SVGS[illo].replace('<svg ', `<svg role="img" aria-label="${label}" `);
+---
+<div class="crane-illo" set:html={svg} />
+
+<style>
+  .crane-illo {
+    aspect-ratio: 4 / 3; background: var(--paper); border: 1px solid var(--line);
+    border-radius: var(--r-lg); overflow: hidden;
+  }
+  .crane-illo :global(svg) { display: block; width: 100%; height: 100%; }
+</style>

@@ -1,23 +1,19 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
-import { site } from './src/config/site.mjs';
 
 /**
  * SITE_MODE   preview (Standard) | live – siehe README.md
  * SITE_URL    wohin DIESER Build ausgeliefert wird (Canonical, Sitemap, Open Graph).
- *             Im Modus «live» muss er auf die Domain aus der Konfiguration zeigen.
+ *             Im Modus «live» muss er eine https-Adresse sein.
  */
 const MODE = process.env.SITE_MODE ?? 'preview';
 if (MODE !== 'preview' && MODE !== 'live') {
   throw new Error(`SITE_MODE muss «preview» oder «live» sein, nicht «${MODE}».`);
 }
 const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:4321').replace(/\/+$/, '');
-if (MODE === 'live' && SITE_URL !== `https://${site.seo.domain}`) {
-  throw new Error(
-    `Modus «live»: SITE_URL (${SITE_URL}) muss https://${site.seo.domain} sein – ` +
-      'die Domain aus src/config/site.mjs.',
-  );
+if (MODE === 'live' && !SITE_URL.startsWith('https://')) {
+  throw new Error(`Modus «live»: SITE_URL (${SITE_URL}) muss eine https-Adresse sein.`);
 }
 
 export default defineConfig({

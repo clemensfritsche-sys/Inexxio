@@ -30,13 +30,11 @@ related:
     text: 'Bauformen, Platzbedarf, Ablauf.'
 ---
 
-[[PRÜFEN: fachlich – ganzer Artikel]]
-
 Ein Kran ist ein Arbeitsmittel, und für Arbeitsmittel gilt in der Schweiz: Wer sie einsetzt, sorgt dafür, dass sie sicher sind. Für Krane konkretisiert das die **Kranverordnung** (SR 832.312.15). Für Fahrzeug- und Turmdrehkrane kommt die **EKAS-Richtlinie 6511** dazu. Dieser Artikel fasst zusammen, was das im Alltag heisst.
 
 ## Wer ist verantwortlich?
 
-Verantwortlich ist der Betrieb, der den Kran einsetzt – auch wenn der Kran gemietet oder geliehen ist. Er muss sicherstellen, dass der Kran regelmässig überprüft wird, dass Mängel behoben werden und dass alles im Kranbuch steht. Die Prüfung selbst darf er an Fachleute vergeben, die Verantwortung nicht. [[PRÜFEN: rechtlich – Verantwortung bei Miete und Leihe]]
+Verantwortlich ist der Betrieb, der den Kran einsetzt – auch wenn der Kran gemietet oder geliehen ist. Er muss sicherstellen, dass der Kran regelmässig überprüft wird, dass Mängel behoben werden und dass alles im Kranbuch steht. Die Prüfung selbst darf er an Fachleute vergeben, die Verantwortung nicht.
 
 ## Was gilt für alle Krane?
 
@@ -46,7 +44,7 @@ Ob Brückenkran in der Produktionshalle, Hängekran in der Werkstatt oder Heukra
 2. **Mängel beheben**, bevor der Kran wieder arbeitet.
 3. **Alles ins Kranbuch eintragen.** Zu jedem Kran gehört ein Kranbuch. Welche Form es hat, ist frei: ein Ordner im Büro oder eine digitale Lösung – Hauptsache, es ist vollständig und für Kranfachleute und Kontrollpersonen greifbar.
 
-Fehlt die Betriebsanleitung eines älteren Krans, lohnt es sich, die Prüfpunkte und Fristen einmal festzulegen und schriftlich festzuhalten. Ohne Vorgabe ist eine jährliche Überprüfung der übliche Rhythmus. [[PRÜFEN: fachlich – Empfehlung bei fehlender Herstellerangabe]]
+Fehlt die Betriebsanleitung eines älteren Krans, lohnt es sich, die Prüfpunkte und Fristen einmal festzulegen und schriftlich festzuhalten. Ohne Vorgabe ist eine jährliche Überprüfung der übliche Rhythmus.
 
 ## Was gilt zusätzlich für Fahrzeug- und Turmdrehkrane?
 
@@ -75,7 +73,7 @@ Die beiden Begriffe klingen fast gleich und werden oft verwechselt. Im Kranbuch 
 | Voraussetzung | Ausbildung und Erfahrung als Kranfachperson | Anerkennung durch die Suva |
 | Nachweis | Eintrag im Kranbuch | Eintrag im Kranbuch |
 
-Für einen **Hallenkran** (Brücken-, Hänge-, Schwenk- oder Drehkran) und einen **Heukran** genügt damit die Überprüfung durch Kranfachleute nach Herstellerangabe; eine periodische Kontrolle durch einen Kranexperten ist für diese Krane nicht vorgesehen. [[PRÜFEN: fachlich]]
+Für einen **Hallenkran** (Brücken-, Hänge-, Schwenk- oder Drehkran) und einen **Heukran** genügt damit die Überprüfung durch Kranfachleute nach Herstellerangabe; eine periodische Kontrolle durch einen Kranexperten ist für diese Krane nicht vorgesehen.
 
 ## Was gehört ins Kranbuch?
 
@@ -88,6 +86,6 @@ Ins Kranbuch gehört alles, was den Zustand des Krans belegt: die Konformitätse
 3. Die Überprüfung an Kranfachleute vergeben und das Ergebnis im Kranbuch festhalten.
 4. Termin für das nächste Mal setzen – am besten gleich, bevor er vergessen geht.
 
-Die Überprüfung und die Wartung übernehmen wir – mit Prüfbericht für das Kranbuch, vor allem für die HS- und unsere eigenen Krananlagen, auf Anfrage auch für andere. [[PRÜFEN: Qualifikation der Kranfachleute im Team bestätigen]] Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte; diese Kontrolle bieten wir nicht an.
+Die Überprüfung und die Wartung übernehmen wir – mit Prüfbericht für das Kranbuch, vor allem für die HS- und unsere eigenen Krananlagen, auf Anfrage auch für andere. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte; diese Kontrolle bieten wir nicht an.
 
 Unverbindliche Orientierung. Massgebend sind die Angaben des Herstellers und die Vorgaben der Suva.

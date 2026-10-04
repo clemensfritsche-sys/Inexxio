@@ -33,8 +33,8 @@ export const service = {
   how: {
     title: 'So arbeiten wir',
     items: [
-      { title: 'Offerte vor Arbeitsbeginn', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte – Sie entscheiden, bevor wir anfangen. [[PRÜFEN: Zusage freigeben]]' },
-      { title: 'Bericht nach jeder Arbeit', text: 'Sie erhalten einen Bericht mit Arbeiten und Teilen; bei Kranen gehört er ins Kranbuch. [[PRÜFEN: Zusage freigeben]]' },
+      { title: 'Offerte vor Arbeitsbeginn', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte – Sie entscheiden, bevor wir anfangen.' },
+      { title: 'Bericht nach jeder Arbeit', text: 'Sie erhalten einen Bericht mit Arbeiten und Teilen; bei Kranen gehört er ins Kranbuch.' },
       { title: 'Teile ab Lager', text: 'Verschleissteile für Fahrmischer und Teile für HS-Krananlagen liegen in Tuttwil – das verkürzt Stillstände.' },
       { title: 'Ein Ansprechpartner', text: 'Fahrmischer der gängigen Marken, HS- und eigene Krananlagen – auf Anfrage auch Krane anderer Hersteller.' },
     ],
@@ -70,7 +70,7 @@ export const notfall = {
   },
   safety: {
     title: 'Bis wir da sind',
-    text: 'Anlage ausser Betrieb nehmen und sichern, Last – wenn möglich – sicher absetzen, Bereich absperren. Nicht unter Last weiterarbeiten. [[PRÜFEN: fachlich – Verhalten bei einer Störung]]',
+    text: 'Anlage ausser Betrieb nehmen und sichern, Last – wenn möglich – sicher absetzen, Bereich absperren. Nicht unter Last weiterarbeiten.',
   },
   faq: [
     {
@@ -80,10 +80,6 @@ export const notfall = {
     {
       q: 'Helfen Sie auch bei Kranen anderer Hersteller?',
       a: 'Auf Anfrage. Unser Schwerpunkt sind die HS- und unsere eigenen Krananlagen; bei Kranen anderer Hersteller klären wir im Einzelfall, ob und wie wir helfen können. Bei Fahrmischern arbeiten wir an allen gängigen Marken.',
-    },
-    {
-      q: 'Was kostet ein Notfalleinsatz?',
-      a: '[[PLATZHALTER: Berechnung von Notfalleinsätzen ausserhalb der Bürozeiten]]',
     },
   ] satisfies Faq[],
 };

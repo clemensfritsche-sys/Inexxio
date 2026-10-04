@@ -46,7 +46,7 @@ export const sonderloesungen: AreaPage = {
     },
     {
       title: 'Ersatz- und Verschleissteile',
-      text: 'Gibt es ein Teil nicht mehr zu kaufen, fertigen wir es nach Muster oder Zeichnung. [[PRÜFEN: Nachfertigung von Teilen]]',
+      text: 'Gibt es ein Teil nicht mehr zu kaufen, fertigen wir es nach Muster oder Zeichnung.',
       links: [
         { href: '/sonderloesungen/schweiss-stahlbau#leistungen', label: 'Einzelstücke und Kleinserien' },
         { href: '/kontakt', label: 'Teil anfragen' },
@@ -56,7 +56,7 @@ export const sonderloesungen: AreaPage = {
   steps: [
     { title: 'Anfrage', text: 'Sie schildern das Problem – eine Skizze, ein Foto oder ein Muster genügt.' },
     { title: 'Abklärung', text: 'Wir prüfen die Machbarkeit und nennen eine Richtofferte.' },
-    { title: 'Umsetzung', text: 'Wir konstruieren, fertigen und bauen ein – in der eigenen Werkstatt oder mit Partnern aus der Region. [[PRÜFEN: Fertigung mit Partnern]]' },
+    { title: 'Umsetzung', text: 'Wir konstruieren, fertigen und bauen ein – in der eigenen Werkstatt oder mit Partnern aus der Region.' },
     { title: 'Bericht', text: 'Sie erhalten die Lösung mit Zeichnung und Dokumentation.' },
   ],
   faq: [
@@ -70,11 +70,7 @@ export const sonderloesungen: AreaPage = {
     },
     {
       q: 'Rechnen Sie auch nach?',
-      a: 'Ja. Zur Konstruktion gehören Berechnung und Dokumentation. [[PRÜFEN: Umfang der Berechnungen und Nachweise]]',
-    },
-    {
-      q: 'Welche Materialien verarbeiten Sie?',
-      a: '[[PRÜFEN: Materialien – Stahl, Inox, Alu?]]',
+      a: 'Ja. Zur Konstruktion gehören Berechnung und Dokumentation.',
     },
   ],
   service: { name: 'Sonderlösungen', serviceType: 'Konstruktion, Stahlbau und Umbau von Baumaschinen' },
@@ -98,7 +94,7 @@ export const konstruktion: SubPage = {
     primary: anfrage('Anliegen schildern'),
   },
   summary:
-    '{{brand.full}} entwickelt und konstruiert Sonderlösungen: Konzept, Konstruktion, Berechnung und Dokumentation, gefertigt in der eigenen Werkstatt in Tuttwil-Wängi TG oder mit Partnern aus der Region. {{people.owner.name}} ist Maschinenbauingenieur und hat bei Liebherr Baumaschinen entwickelt. [[PRÜFEN: Fertigung mit Partnern aus der Region]]',
+    '{{brand.full}} entwickelt und konstruiert Sonderlösungen: Konzept, Konstruktion, Berechnung und Dokumentation, gefertigt in der eigenen Werkstatt in Tuttwil-Wängi TG oder mit Partnern aus der Region. {{people.owner.name}} ist Maschinenbauingenieur und hat bei Liebherr Baumaschinen entwickelt.',
   glance: {
     forWhom: 'Bau- und Industriebetriebe mit einem Problem, für das es kein fertiges Produkt gibt.',
     what: 'Konzept, Konstruktion, Berechnung, Dokumentation – und auf Wunsch die Fertigung.',
@@ -106,10 +102,9 @@ export const konstruktion: SubPage = {
   },
   scope: {
     title: 'Was dazugehört',
-    lead: '[[PRÜFEN: Leistungsumfang Konstruktion und Engineering]]',
     items: [
       { title: 'Konzept', text: 'Wir verstehen das Problem, bevor wir zeichnen – vor Ort, am Teil, im Gespräch.' },
-      { title: 'Konstruktion', text: 'Zeichnungen und 3D-Modelle für Einzelteile, Baugruppen und Umbauten. [[PRÜFEN: eingesetzte Werkzeuge]]' },
+      { title: 'Konstruktion', text: 'Zeichnungen und 3D-Modelle für Einzelteile, Baugruppen und Umbauten.' },
       { title: 'Berechnung', text: 'Festigkeit, Tragfähigkeit und Auslegung – nachvollziehbar dokumentiert.' },
       { title: 'Dokumentation', text: 'Unterlagen, die auch in zehn Jahren noch sagen, was gebaut wurde und warum.' },
       { title: 'Fertigung', text: 'In unserer Werkstatt oder mit Partnern aus der Region.' },
@@ -122,15 +117,11 @@ export const konstruktion: SubPage = {
     },
     {
       q: 'Konstruieren Sie auch, ohne dass Sie fertigen?',
-      a: 'Ja. Sie können die Zeichnungen auch selbst oder anderswo fertigen lassen. [[PRÜFEN: Konstruktion als eigene Leistung]]',
+      a: 'Ja. Sie können die Zeichnungen auch selbst oder anderswo fertigen lassen.',
     },
     {
       q: 'Was kostet eine Konstruktion?',
       a: 'Nach der Abklärung erhalten Sie eine Richtofferte – vor jeder weiteren Arbeit.',
-    },
-    {
-      q: 'Wem gehören die Zeichnungen?',
-      a: '[[PRÜFEN: rechtlich – Rechte an Zeichnungen und Konstruktionen]]',
     },
   ],
   related: [
@@ -171,7 +162,7 @@ export const stahlbau: SubPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} fertigt Stahlkonstruktionen, Schweissarbeiten, Einzelstücke und Kleinserien in der Werkstatt in Tuttwil-Wängi TG – nach Zeichnung, nach Muster oder mit eigener Konstruktion. [[PRÜFEN: Materialien – Stahl, Inox, Alu?]]',
+    '{{brand.full}} fertigt Stahlkonstruktionen, Schweissarbeiten, Einzelstücke und Kleinserien in der Werkstatt in Tuttwil-Wängi TG – nach Zeichnung, nach Muster oder mit eigener Konstruktion.',
   glance: {
     forWhom: 'Gewerbe-, Bau- und Landwirtschaftsbetriebe, die ein Stahlteil oder eine Konstruktion brauchen.',
     what: 'Stahlkonstruktionen, Schweissarbeiten, Einzelstücke, Kleinserien, Reparaturschweissen.',
@@ -179,7 +170,6 @@ export const stahlbau: SubPage = {
   },
   scope: {
     title: 'Was wir fertigen',
-    lead: '[[PRÜFEN: Leistungsumfang, Materialien und Verfahren]]',
     items: [
       { title: 'Stahlkonstruktionen', text: 'Gestelle, Bühnen, Halterungen und Tragwerke – passend zum Einsatzort.' },
       { title: 'Schweissarbeiten', text: 'Neuteile und Reparaturschweissen an Maschinen, Aufbauten und Konstruktionen.' },
@@ -189,16 +179,8 @@ export const stahlbau: SubPage = {
   },
   faq: [
     {
-      q: 'Welche Materialien verarbeiten Sie?',
-      a: '[[PRÜFEN: Materialien – Stahl, Inox, Alu?]]',
-    },
-    {
       q: 'Machen Sie auch grössere Stahlbauprojekte?',
       a: 'Unsere Werkstatt ist auf Einzelstücke, Umbauten und Kleinserien eingerichtet. Für grosse Projekte sagen wir offen, wenn ein anderer Betrieb besser passt.',
-    },
-    {
-      q: 'Montieren Sie auch vor Ort?',
-      a: '[[PRÜFEN: Montage vor Ort – ja oder nein, in welchem Umfang]]',
     },
     {
       q: 'Wie schnell geht eine Reparatur?',
@@ -231,15 +213,14 @@ export const baumaschinen: SubPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} baut Baumaschinen um, rüstet sie nach, fertigt Anbauteile und repariert sie – in Tuttwil-Wängi TG. {{people.owner.name}} hat als Maschinenbauingenieur bei Liebherr Baumaschinen entwickelt. [[PRÜFEN: Umfang Baumaschinen – welche Maschinen, welche Arbeiten]]',
+    '{{brand.full}} baut Baumaschinen um, rüstet sie nach, fertigt Anbauteile und repariert sie – in Tuttwil-Wängi TG. {{people.owner.name}} hat als Maschinenbauingenieur bei Liebherr Baumaschinen entwickelt.',
   glance: {
     forWhom: 'Bauunternehmen und Betriebe mit eigenen Baumaschinen.',
-    what: 'Umbauten, Nachrüstungen, Anbauteile und Reparaturen. [[PRÜFEN: Umfang]]',
+    what: 'Umbauten, Nachrüstungen, Anbauteile und Reparaturen.',
     deliverables: 'Die umgebaute oder reparierte Maschine mit Unterlagen zum Umbau.',
   },
   scope: {
     title: 'Was wir an Baumaschinen machen',
-    lead: '[[PRÜFEN: Umfang – welche Maschinen, welche Arbeiten]]',
     items: [
       { title: 'Umbauten', text: 'Maschinen an eine neue Aufgabe anpassen – geplant, gerechnet und dokumentiert.' },
       { title: 'Nachrüstungen', text: 'Zusätzliche Funktionen, Schutzeinrichtungen oder Hydraulikkreise nachrüsten.' },
@@ -249,20 +230,12 @@ export const baumaschinen: SubPage = {
   },
   faq: [
     {
-      q: 'An welchen Baumaschinen arbeiten Sie?',
-      a: '[[PRÜFEN: Maschinenarten und Marken – nur nennen, was wir wirklich machen]]',
-    },
-    {
       q: 'Was ist bei einem Umbau zu beachten?',
-      a: 'Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen – ab 2027 gilt in der EU dazu die neue Maschinenverordnung. Wir dokumentieren jeden Umbau. [[PRÜFEN: fachlich – Übernahme durch die Schweiz und Folgen für Umbauten]]',
+      a: 'Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen – ab 2027 gilt in der EU dazu die neue Maschinenverordnung. Wir dokumentieren jeden Umbau.',
     },
     {
       q: 'Sind Sie Vertragswerkstatt einer Marke?',
-      a: 'Nein. Wir sind unabhängig. [[PRÜFEN: bestehende Partnerschaften]]',
-    },
-    {
-      q: 'Kommen Sie auf die Baustelle?',
-      a: '[[PLATZHALTER: Einsätze vor Ort bei Baumaschinen – ja oder nein, in welchem Umfang]]',
+      a: 'Nein. Wir sind unabhängig.',
     },
   ],
   related: [

@@ -3,14 +3,11 @@
  * Text-Werkzeuge der Website – die EINE Stelle, an der aus einem geschriebenen Text
  * HTML (oder reiner Text) wird.
  *
- * Drei Dinge passieren hier, und nur hier:
+ * Zwei Dinge passieren hier, und nur hier:
  *  1. **Werte aus der Konfiguration** – `{{phone.display}}` wird zu «052 378 22 47».
  *     So steht eine Telefonnummer auch im Fliesstext genau einmal (in `site.mjs`).
  *     Ein unbekannter Schlüssel bricht den Build ab.
- *  2. **Markierungen** – `[[PLATZHALTER: …]]` / `[[PRÜFEN: …]]` werden im Modus
- *     «preview» sichtbar (gelb gestrichelt, mit Label). Im Modus «live» ist eine
- *     Markierung ein Fehler: der Build bricht ab.
- *  3. **Minimales Inline-Markup** in Content-Dateien: `**fett**`, `[Text](/pfad)` und
+ *  2. **Minimales Inline-Markup** in Content-Dateien: `**fett**`, `[Text](/pfad)` und
  *     `==Wort==` – das EINE rote Wort eines Titels (Design-System: «one red accent word»).
  *
  * `rich()` liefert HTML (für `set:html`), `plain()` liefert Text (für Meta-Tags,
@@ -18,7 +15,6 @@
  */
 import { site, contactEmail } from '../config/site.mjs';
 
-export const MARKER_RE = /\[\[(PLATZHALTER|PRÜFEN):\s*([^\]]*?)\s*\]\]/g;
 const TOKEN_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
 
 /** @returns {'preview' | 'live'} */
@@ -115,16 +111,6 @@ export function resolve(text, opts = {}) {
   return out;
 }
 
-/** @param {string} kind @param {string} note */
-function markerHtml(kind, note) {
-  if (isLive()) {
-    throw new Error(`Offene Markierung im Modus «live»: [[${kind}: ${note}]]`);
-  }
-  const label = kind === 'PRÜFEN' ? 'Prüfen' : 'Platzhalter';
-  const cls = kind === 'PRÜFEN' ? 'mk mk--check' : 'mk mk--ph';
-  return `<span class="${cls}"><span class="mk__label">${label}</span> ${note}</span>`;
-}
-
 /** @param {string} label @param {string} href */
 function linkHtml(label, href) {
   const external = /^https?:\/\//.test(href);
@@ -146,7 +132,6 @@ export function rich(text) {
     if ('erp' in link) return `<span data-erp="${link.erp}">${escapeHtml(link.label)}</span>`;
     return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
   });
-  html = html.replace(MARKER_RE, (_, kind, note) => markerHtml(kind, note));
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/==(.+?)==/g, '<span class="mark">$1</span>');
   html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, href) => linkHtml(label, href));
@@ -154,13 +139,12 @@ export function rich(text) {
 }
 
 /**
- * Text → reiner Text (Meta, Alt, JSON-LD, llms.txt): Werte eingesetzt, Markierungen weg.
+ * Text → reiner Text (Meta, Alt, JSON-LD, llms.txt): Werte eingesetzt, Markup weg.
  * @param {string | undefined | null} text
  */
 export function plain(text) {
   if (text == null) return '';
   return resolve(text)
-    .replace(MARKER_RE, '')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/==(.+?)==/g, '$1')
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1')
@@ -170,20 +154,8 @@ export function plain(text) {
 }
 
 /**
- * Enthält der Text (nach dem Einsetzen) eine Markierung?
- * @param {string | undefined | null} text
- */
-export function hasMarker(text) {
-  if (text == null) return false;
-  MARKER_RE.lastIndex = 0;
-  const found = MARKER_RE.test(resolve(String(text)));
-  MARKER_RE.lastIndex = 0;
-  return found;
-}
-
-/**
- * Fertig gerendertes HTML (z. B. aus Markdown) nachbearbeiten: Werte einsetzen und
- * Markierungen sichtbar machen – aber nur im TEXT, nie innerhalb eines Tags.
+ * Fertig gerendertes HTML (z. B. aus Markdown) nachbearbeiten: Werte einsetzen – aber nur
+ * im TEXT, nie innerhalb eines Tags.
  * @param {string} html
  */
 export function processHtml(html) {
@@ -203,8 +175,7 @@ export function processHtml(html) {
         .replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
           const link = LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]();
           return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
-        })
-        .replace(MARKER_RE, (_, kind, note) => markerHtml(kind, note));
+        });
     })
     .join('')
     .replace(/<table>/g, () => `<div class="table-scroll" tabindex="0" role="region" aria-label="Tabelle ${++tables}"><table>`)

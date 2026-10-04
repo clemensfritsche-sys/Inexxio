@@ -25,9 +25,7 @@ const rhine = 'M-5.7,-19.5 L-11.7,-21.8 L-17.7,-23.7 L-22.7,-23.6 L-26,-21.8 L-3
 const desc = 'Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil und St. Gallen, nahe dem Bodensee.';
 ---
 <figure class:list={['amap', cls]}>
-  <svg viewBox="-56 -48 120 98" role="img" aria-labelledby="amap-title amap-desc" class="amap__svg">
-    <title id="amap-title">Standort Tuttwil</title>
-    <desc id="amap-desc">{desc}</desc>
+  <svg viewBox="-56 -48 120 98" role="img" aria-label={`Standort Tuttwil. ${desc}`} class="amap__svg">
     <polygon points={lake} class="amap__water" />
     <polygon points={untersee} class="amap__water" />
     <path d={rhine} class="amap__river" />

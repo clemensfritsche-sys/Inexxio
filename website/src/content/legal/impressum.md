@@ -1,10 +1,8 @@
 ---
 title: 'Impressum'
-description: 'Impressum von INEXXIO (ehemals HS Steiner), Waldweg 1, 9546 Tuttwil (Wängi TG): Anbieter, Kontakt, vertretungsberechtigte Person, UID und Haftungshinweise.'
+description: 'Impressum von INEXXIO (ehemals HS Steiner), Waldweg 1, 9546 Tuttwil (Wängi TG): Anbieter, Kontakt, Vertretung, Handelsregister, Haftung.'
 updated: 2026-10-03
 ---
-
-[[PRÜFEN: rechtlich – ganzes Impressum]]
 
 ## Anbieter
 
@@ -21,13 +19,11 @@ E-Mail: {{email.link}}
 
 ## Vertretungsberechtigte Person
 
-{{people.owner.name}}, {{people.owner.role}} [[PRÜFEN: Zeichnungsberechtigung gemäss Handelsregister]]
+{{people.owner.name}}, {{people.owner.role}}
 
-## Handelsregister und UID
+## Handelsregister
 
-UID: {{brand.uid}}<br>
-Eingetragen im Handelsregister des Kantons Thurgau. [[PRÜFEN: Handelsregisteramt]]<br>
-MWST-Nummer: [[PLATZHALTER: MWST-Nummer, falls sie von der UID abweicht]]
+Eingetragen im Handelsregister des Kantons Thurgau.
 
 ## Haftung für Inhalte
 

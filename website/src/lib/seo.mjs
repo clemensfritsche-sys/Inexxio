@@ -2,9 +2,7 @@
 /**
  * Strukturierte Daten (JSON-LD) – generiert aus der Konfiguration, nie von Hand.
  *
- * Eine fehlende Angabe (Markierung) wird WEGGELASSEN statt als Text hineingeschrieben:
- * ein JSON-LD mit «[[PLATZHALTER …]]» wäre eine falsche Aussage über das Unternehmen.
- * Im Modus «live» gibt es keine Markierungen mehr (der Build bricht sonst vorher ab).
+ * Eine fehlende Angabe wird WEGGELASSEN statt leer hineingeschrieben.
  * Keine Review- und keine AggregateRating-Angaben – es gibt keine echten.
  */
 import { site, contactEmail, isMissing } from '../config/site.mjs';
@@ -187,7 +185,6 @@ export function owner(siteUrl) {
     jobTitle: o.role,
     worksFor: { '@id': `${siteUrl}/#organisation` },
     description: o.short,
-    sameAs: isMissing(o.linkedin) ? undefined : [o.linkedin],
   });
 }
 

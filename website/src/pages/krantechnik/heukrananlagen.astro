@@ -1,6 +1,6 @@
 ---
 /**
- * /krantechnik/heukrananlagen (Auftrag 7.5): Bauformen mit Bild und Einsatzfall, Ablauf
+ * /krantechnik/heukrananlagen (Auftrag 7.5): Bauformen als Illustration mit Einsatzfall, Ablauf
  * einer Neuanlage, Saison-Check, Hinweis für Besitzer bestehender HS-Anlagen. Hauptaktion:
  * «Anlage anfragen». Die Abschnitte «Ersatzteile» und «Typenschild» sind entfallen
  * (#1121/#1124).
@@ -8,7 +8,7 @@
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Steps from '../../components/Steps.astro';
-import Photo from '../../components/Photo.astro';
+import CraneForm from '../../components/CraneForm.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
 import { heukrananlagen, heukranModules as m } from '../../content/krantechnik';
@@ -25,19 +25,19 @@ const productNode = product(siteUrl, {
   <section slot="intro" class="section" id="neuanlage" aria-labelledby="bauformen">
     <div class="wrap">
       <SectionHead eyebrow="Neuanlagen nach Mass" title={m.forms.title} lead={m.forms.lead} id="bauformen" />
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Bauformen im Vergleich">
-        <table class="facts forms">
-          <thead><tr><th scope="col">Bauform</th><th scope="col">So arbeitet sie</th><th scope="col">Passt, wenn …</th></tr></thead>
-          <tbody>
-            {m.forms.items.map((f) => (
-              <tr>
-                <th scope="row"><span class="forms__pic"><Photo id={f.photo} sizes="200px" /></span>{f.title}</th>
-                <td>{f.text}</td><td>{f.use}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ul class="forms" role="list">
+        {m.forms.items.map((f) => (
+          <li class="forms__row">
+            <CraneForm illo={f.illo} label={f.title} />
+            <div class="forms__text">
+              <h3>{f.title}</h3>
+              <p>{f.text}</p>
+              <p class="label forms__label">Passt, wenn …</p>
+              <p class="forms__use">{f.use}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   </section>
 
@@ -81,12 +81,20 @@ const productNode = product(siteUrl, {
 </SubPage>
 
 <style>
-  .forms th[scope='row'] { width: 24%; }
-  /* Ein Bild je Bauform (#1117): über dem Namen, so breit wie die Spalte. */
-  .forms__pic { display: block; max-width: 200px; margin-bottom: var(--s-2); border-radius: var(--r-sm); overflow: hidden; }
-  .forms__pic :global(.ph) { padding: var(--s-2); }
-  .forms__pic :global(.ph__brief) { display: none; }
-  .forms td:last-child { color: var(--ink-3); }
+  /* Bauformen (#1186): Illustration gross links, «Passt, wenn …» UNTER «So arbeitet sie». */
+  .forms { list-style: none; padding: 0; display: grid; }
+  .forms__row { display: grid; gap: var(--s-4); padding: var(--s-6) 0; border-top: 1px solid var(--line); }
+  .forms__row:last-child { border-bottom: 1px solid var(--line); }
+  .forms__row :global(.crane-illo) { max-width: 420px; }
+  @media (min-width: 768px) {
+    .forms__row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--s-7); align-items: center; }
+    .forms__row :global(.crane-illo) { max-width: none; }
+  }
+  .forms__text { display: grid; gap: var(--s-2); align-content: center; max-width: 60ch; }
+  .forms__text h3 { margin: 0; }
+  .forms__text p { margin: 0; }
+  .forms__label { margin-top: var(--s-3) !important; }
+  .forms__use { color: var(--ink-3); }
   .hk-cta { margin-top: var(--s-7); }
   .head--flush { margin-bottom: 0; }
   .hk-row { align-items: start; }

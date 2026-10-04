@@ -4965,9 +4965,9 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
 > `SITE_MODE=live`): `website/WEBSITE_REPORT_20261004.md` (Umbau v2, Auftrag Fassung 2).
 
 - **Eine Quelle**: `website/src/config/site.mjs` (Name, Telefon, Adresse, Navigation,
-  Schalter, SEO). Texte setzen Werte mit `{{schlüssel}}` ein; offene Punkte sind
-  `[[PLATZHALTER: …]]` bzw. `[[PRÜFEN: …]]` – sichtbar im Modus `preview`, im Modus `live`
-  bricht der Build ab.
+  Schalter, SEO). Texte setzen Werte mit `{{schlüssel}}` ein. **Gelbe Prüf-/Platzhalter-
+  Vermerke gibt es nicht mehr** (Oktober 2026, ersatzlos entfernt): was nicht feststeht, steht
+  nicht da. Offen ist allein die Fotoliste (`OFFENE_PUNKTE.md`).
 - **Dieselbe Hosting-Site wie das ERP**: die CI baut beide Teile und kopiert
   `website/dist` in `frontend/out` (`website/scripts/merge-hosting.mjs`, bricht bei jeder
   Kollision ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`,

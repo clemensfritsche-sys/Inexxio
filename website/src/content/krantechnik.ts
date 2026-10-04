@@ -73,7 +73,7 @@ export const krantechnik: AreaPage = {
   ],
   steps: [
     { title: 'Anfrage', text: 'Sie schildern Ihr Anliegen – per Formular oder am Telefon. Ein Foto vom Typenschild hilft.' },
-    { title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht, und machen eine Offerte. [[PRÜFEN: Offerte vor Arbeitsbeginn als Regel freigeben]]' },
+    { title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht, und machen eine Offerte.' },
     { title: 'Umsetzung', text: 'Wir bauen, montieren, prüfen oder reparieren – mit den nötigen Teilen im Fahrzeug.' },
     { title: 'Bericht', text: 'Sie erhalten einen Bericht zu jeder Arbeit; der Eintrag gehört ins Kranbuch.' },
   ],
@@ -86,7 +86,7 @@ export const krantechnik: AreaPage = {
     { q: 'Betreuen Sie auch Krane anderer Hersteller?', a: otherMakes },
     {
       q: 'Wie oft muss ein Kran geprüft werden?',
-      a: 'Alle Krane regelmässig, nach den Angaben des Herstellers, durch Kranfachleute. Für Fahrzeug- und Turmdrehkrane gelten zusätzlich feste Fristen. Die Übersicht steht auf der Seite [Prüfung und Wartung](/krantechnik/pruefung-wartung). [[PRÜFEN: fachlich]]',
+      a: 'Alle Krane regelmässig, nach den Angaben des Herstellers, durch Kranfachleute. Für Fahrzeug- und Turmdrehkrane gelten zusätzlich feste Fristen. Die Übersicht steht auf der Seite [Prüfung und Wartung](/krantechnik/pruefung-wartung).',
     },
     faqSpeed,
   ],
@@ -164,10 +164,10 @@ export const heukranModules = {
     title: 'Bauformen',
     lead: 'Welche Bauform passt, hängt vom Gebäude und von der Arbeit ab. Bei der Besichtigung klären wir es gemeinsam.',
     items: [
-      { title: 'Einschienenkran', photo: 'heukran-einschiene', text: 'Der Kran fährt auf einer Laufschiene unter dem Dach.', use: 'Lange, schmale Scheunen; ein Heustock entlang der Fahrbahn.' },
-      { title: 'Brückenkran', photo: 'heukran-bruecke', text: 'Eine Kranbrücke fährt über die ganze Breite des Gebäudes, die Katze quer dazu.', use: 'Breite Scheunen; mehrere Stöcke oder Abladeplätze, die Fläche wird ganz erreicht.' },
-      { title: 'Drehkran, hydraulisch', photo: 'heukran-drehkran', text: 'Ein Drehturm mit Ausleger fährt in Längs- und Querrichtung und dreht zusätzlich um die eigene Achse; der Antrieb ist hydraulisch.', use: 'Der Greifer soll auch Ecken, Nischen und Abladeplätze neben der Fahrbahn erreichen.' },
-      { title: 'An das Gebäude angepasst', photo: 'heukran-angepasst', text: 'Fahrbahn, Stützen und Spannweite richten sich nach dem bestehenden Bau.', use: 'Umbauten, ungewöhnliche Grundrisse, Erweiterungen bestehender Anlagen.' },
+      { title: 'Einschienenkran', illo: 'einschiene' as const, text: 'Der Kran fährt auf einer Laufschiene unter dem Dach.', use: 'Lange, schmale Scheunen; ein Heustock entlang der Fahrbahn.' },
+      { title: 'Brückenkran', illo: 'bruecke' as const, text: 'Eine Kranbrücke fährt über die ganze Breite des Gebäudes, die Katze quer dazu.', use: 'Breite Scheunen; mehrere Stöcke oder Abladeplätze, die Fläche wird ganz erreicht.' },
+      { title: 'Drehkran, hydraulisch', illo: 'drehkran' as const, text: 'Ein Drehturm mit Ausleger fährt in Längs- und Querrichtung und dreht zusätzlich um die eigene Achse; der Antrieb ist hydraulisch.', use: 'Der Greifer soll auch Ecken, Nischen und Abladeplätze neben der Fahrbahn erreichen.' },
+      { title: 'An das Gebäude angepasst', illo: 'angepasst' as const, text: 'Fahrbahn, Stützen und Spannweite richten sich nach dem bestehenden Bau.', use: 'Umbauten, ungewöhnliche Grundrisse, Erweiterungen bestehender Anlagen.' },
     ],
   },
   steps: {
@@ -280,12 +280,11 @@ export const pruefung: SubPage = {
   glance: {
     forWhom: 'Betriebe mit Hallen-, Werkhof- oder Heukranen – vom Gewerbebetrieb bis zum Bauernhof.',
     what:
-      'Überprüfung nach Herstellerangaben, Wartung, Schmierung und Verschleiss-Check durch Kranfachleute. [[PRÜFEN: Qualifikation der Kranfachleute im Team bestätigen]]',
-    deliverables: 'Einen Prüfbericht für das Kranbuch – auf Papier oder digital.',
+      'Überprüfung nach Herstellerangaben, Wartung, Schmierung und Verschleiss-Check durch Kranfachleute.',
+    deliverables: 'Einen einwandfreien, sicheren Kran – gewartet, geprüft und mit Prüfbericht für das Kranbuch.',
   },
   scope: {
     title: 'Was wir prüfen und warten',
-    lead: 'Je nach Kranart und Angaben des Herstellers. [[PRÜFEN: fachlich – Leistungsumfang]]',
     items: [
       { title: 'Tragwerk und Kranbahn', text: 'Risse, Verformungen und lose Verbindungen; Zustand von Schienen, Puffern und Endanschlägen.' },
       { title: 'Hubwerk, Seil und Kette', text: 'Seil oder Kette, Haken und Hakensicherung, Bremse und Getriebe.' },
@@ -298,24 +297,24 @@ export const pruefung: SubPage = {
   faq: [
     {
       q: 'Wie oft muss ich meinen Hallenkran prüfen lassen?',
-      a: 'Regelmässig, nach den Angaben des Herstellers – in der Praxis meist einmal im Jahr. Massgebend sind die Betriebsanleitung und die Vorgaben der Suva. [[PRÜFEN: fachlich]]',
+      a: 'Regelmässig, nach den Angaben des Herstellers – in der Praxis meist einmal im Jahr. Massgebend sind die Betriebsanleitung und die Vorgaben der Suva.',
     },
     { q: 'Prüfen Sie auch Krane anderer Hersteller?', a: otherMakes },
     {
       q: 'Was steht im Prüfbericht?',
-      a: 'Was geprüft wurde, in welchem Zustand der Kran ist und was zu beheben ist. Der Bericht gehört ins Kranbuch. [[PRÜFEN: Inhalt des Prüfberichts]]',
+      a: 'Was geprüft wurde, in welchem Zustand der Kran ist und was zu beheben ist. Der Bericht gehört ins Kranbuch.',
     },
     {
       q: 'Darf das Kranbuch digital sein?',
-      a: 'Ja. Die Form des Kranbuchs ist frei – Papier oder digital. [[PRÜFEN: fachlich]]',
+      a: 'Ja. Die Form des Kranbuchs ist frei – Papier oder digital.',
     },
     {
       q: 'Machen Sie auch die Kontrolle durch den Kranexperten?',
-      a: 'Nein. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte. Wir übernehmen die Überprüfung durch Kranfachleute und die Wartung. Den Unterschied erklärt unser Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz#kranfachmann-oder-kranexperte). [[PRÜFEN: fachlich – Abgrenzung zum Kranexperten]]',
+      a: 'Nein. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte. Wir übernehmen die Überprüfung durch Kranfachleute und die Wartung. Den Unterschied erklärt unser Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz#kranfachmann-oder-kranexperte).',
     },
     {
       q: 'Was kostet eine Kranprüfung?',
-      a: 'Das hängt von Kranart, Grösse und Anfahrt ab. Fragen Sie uns an. [[PLATZHALTER: Preisrahmen für eine Kranprüfung – nur nennen, wenn er belastbar ist]]',
+      a: 'Das hängt von Kranart und Grösse ab. Fragen Sie uns an.',
     },
   ],
   related: [
@@ -348,11 +347,10 @@ export const modernisierung: SubPage = {
   glance: {
     forWhom: 'Betriebe mit älteren Hallen- oder Heukranen, deren Steuerung oder Antrieb an Grenzen stösst.',
     what: 'Bestandsaufnahme, Offerte, Umbau, Inbetriebnahme und Dokumentation.',
-    deliverables: 'Einen modernisierten Kran mit Unterlagen zum Umbau. [[PRÜFEN: Umfang der Dokumentation]]',
+    deliverables: 'Einen modernisierten Kran mit allen Unterlagen zum Umbau.',
   },
   scope: {
     title: 'Was wir nachrüsten',
-    lead: 'Je Punkt der Nutzen in einem Satz. [[PRÜFEN: fachlich – Leistungsumfang]]',
     items: [
       { title: 'Funkfernsteuerung', text: 'Wer bedient, steht dort, wo er die Last sieht – nicht dort, wo das Kabel endet.' },
       { title: 'Frequenzumrichter', text: 'Sanftes Anfahren und Bremsen: Die Last pendelt weniger, Getriebe und Bremsen verschleissen langsamer.' },
@@ -365,11 +363,11 @@ export const modernisierung: SubPage = {
   faq: [
     {
       q: 'Lohnt sich eine Modernisierung bei einem alten Kran?',
-      a: 'Oft ja: Der Stahlbau hält meist viel länger als Steuerung und Antrieb. Ob es sich lohnt, zeigt die Bestandsaufnahme – ist ein neuer Kran die bessere Lösung, sagen wir das. [[PRÜFEN: fachlich]]',
+      a: 'Oft ja: Der Stahlbau hält meist viel länger als Steuerung und Antrieb. Ob es sich lohnt, zeigt die Bestandsaufnahme – ist ein neuer Kran die bessere Lösung, sagen wir das.',
     },
     {
       q: 'Kann man jeden Kran mit Funk nachrüsten?',
-      a: 'Die meisten Brücken-, Hänge- und Drehkrane ja. Vor Ort klären wir, welche Steuerung vorhanden ist und was es dafür braucht. [[PRÜFEN: fachlich]]',
+      a: 'Die meisten Brücken-, Hänge- und Drehkrane ja. Vor Ort klären wir, welche Steuerung vorhanden ist und was es dafür braucht.',
     },
     {
       q: 'Was bringt ein Frequenzumrichter?',
@@ -378,7 +376,7 @@ export const modernisierung: SubPage = {
     { q: 'Rüsten Sie auch Krane anderer Hersteller um?', a: otherMakes },
     {
       q: 'Was ändert sich mit der neuen EU-Maschinenverordnung?',
-      a: 'Sie gilt in der EU ab dem 20. Januar 2027; die Schweiz passt ihre Maschinenverordnung an. Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen. [[PRÜFEN: fachlich – Übernahme durch die Schweiz und Folgen für Umbauten]]',
+      a: 'Sie gilt in der EU ab dem 20. Januar 2027; die Schweiz passt ihre Maschinenverordnung an. Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen.',
     },
   ],
   related: [
@@ -395,7 +393,7 @@ export const machineryNote = {
   title: 'Umbauten sauber dokumentieren',
   text: [
     'Ab dem 20. Januar 2027 gilt in der EU die neue Maschinenverordnung (EU) 2023/1230. Die Schweiz revidiert ihre Maschinenverordnung, damit die Regeln gleichwertig und gleichzeitig gelten.',
-    'Wer eine Maschine wesentlich verändert, übernimmt dafür Verantwortung – und braucht saubere Unterlagen: was umgebaut wurde, mit welchen Teilen, mit welchen Einstellungen. Diese Unterlagen liefern wir mit jedem Umbau. [[PRÜFEN: fachlich – wesentliche Veränderung, Übernahme durch die Schweiz, Folgen für Umbauten]]',
+    'Wer eine Maschine wesentlich verändert, übernimmt dafür Verantwortung – und braucht saubere Unterlagen: was umgebaut wurde, mit welchen Teilen, mit welchen Einstellungen. Diese Unterlagen liefern wir mit jedem Umbau.',
   ],
   sources: [
     { label: 'SECO: Maschinen', href: 'https://www.seco.admin.ch/de/maschinen' },

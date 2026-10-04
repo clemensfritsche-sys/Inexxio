@@ -1,6 +1,6 @@
 ---
 /**
- * /ueber-uns (Auftrag 7.7): Wer wir sind (das Team, #1147) · Zusagen · Geschichte ·
+ * /ueber-uns (Auftrag 7.7): Wer wir sind (das Team, #1147) · Werte (#1182) · Zusagen · Geschichte ·
  * Werkstatt und Standort · Wo wir arbeiten (zuhause in der Werkstatt, im Einsatz überall).
  */
 import Base from '../layouts/Base.astro';
@@ -39,7 +39,21 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
     </div>
   </section>
 
-  <section class="section" aria-labelledby="zusagen">
+  <section class="section" aria-labelledby="werte">
+    <div class="wrap">
+      <SectionHead eyebrow="Werte" title={u.values.title} id="werte" />
+      <ol role="list" class="uu-promises">
+        {u.values.items.map((p) => (
+          <li>
+            <h3>{p.title}</h3>
+            <Rich as="p" text={p.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="zusagen">
     <div class="wrap">
       <SectionHead eyebrow="Zusagen" title={u.promises.title} lead={u.promises.lead} id="zusagen" />
       <ol role="list" class="uu-promises">

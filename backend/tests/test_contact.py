@@ -296,7 +296,7 @@ def test_the_vocabulary_is_complete_and_consistent():
     for key in ("message", "name", "contact", "phone", "email",
                 "photosCount", "photosType", "photosSize", "tooFast", "tooLong"):
         assert contact.MSG.get(key), key
-    # Nie eine Markierung ([[PLATZHALTER: …]]) in einer E-Mail – gefragt wird jeder TEXT,
+    # Kein unaufgelöster Wert ({{…}}) in einer E-Mail – gefragt wird jeder TEXT,
     # nicht das JSON: dort steht «[[» schon in jeder Liste von Paaren.
     marked = [t for t in _texts(contact.VOCAB) if "[[" in t or "{{" in t]
     assert marked == []

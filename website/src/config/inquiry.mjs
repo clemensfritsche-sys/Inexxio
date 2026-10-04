@@ -48,14 +48,11 @@ export const inquiry = {
     photosSize: 'Die Dateien sind zusammen {size} gross – erlaubt sind {max}.',
     tooFast: 'Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal.',
   },
-  /**
-   * Texte der Bestätigung an die anfragende Person. Werte mit {{…}} aus site.mjs; fehlt
-   * ein Wert noch (Markierung), gilt `fallback` – eine E-Mail enthält nie eine Markierung.
-   */
+  /** Texte der Bestätigung an die anfragende Person. Werte mit {{…}} aus site.mjs. */
   mail: {
     confirmSubject: 'Ihre Anfrage bei {{brand.full}}',
     confirmIntro: 'Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.',
-    confirmNext: { text: 'Wir melden uns innert {{promises.responseTime}}.', fallback: 'Wir melden uns so bald wie möglich.' },
+    confirmNext: 'Wir melden uns innert {{promises.responseTime}}.',
     urgent: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.display}}.',
     closing: 'Freundliche Grüsse',
   },

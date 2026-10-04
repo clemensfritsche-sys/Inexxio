@@ -3,7 +3,7 @@
  * Prüfpflicht für Krane in der Schweiz – Daten für den Prüfpflicht-Check, die Tabelle auf
  * /krane/pruefung-wartung und den Ratgeber. Eine Quelle, drei Darstellungen.
  *
- * Grundlage (Stand der Recherche Oktober 2026, fachlich zu prüfen):
+ * Grundlage (Stand der Recherche Oktober 2026):
  *  - Kranverordnung (SR 832.312.15): zu jedem Kran gehört ein Kranbuch; die Form ist frei.
  *  - EKAS-Richtlinie 6511 (Ausgabe 17.10.2023): Fahrzeug- und Turmdrehkrane jährlich durch
  *    Kranfachleute überprüfen; periodische Kontrolle durch einen Kranexperten – bis 20 Jahre
@@ -12,7 +12,6 @@
  * Nicht behaupten: dass INEXXIO Kranexperten-Kontrollen durchführt oder Suva-anerkannt ist.
  */
 export const inspection = {
-  review: '[[PRÜFEN: fachlich – Prüfpflicht-Tabelle und Prüfpflicht-Check]]',
   note: 'Unverbindliche Orientierung. Massgebend sind die Angaben des Herstellers und die Vorgaben der Suva.',
   types: [
     {

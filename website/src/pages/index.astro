@@ -109,25 +109,7 @@ const h = start.handover;
     </div>
   </section>
 
-  {site.features.projects && (
-    <section class="section section--paper" aria-labelledby="arbeiten">
-      <div class="wrap">
-        <SectionHead eyebrow={start.projects.eyebrow} title={start.projects.h2} id="arbeiten" />
-        <ul role="list" class="cols-3 start-projects">
-          {start.projects.items.map((p) => (
-            <li>
-              <Photo id={p.photo} sizes="(min-width: 1024px) 33vw, 100vw" />
-              <p class="label">{p.area}</p>
-              <Rich as="h3" text={p.title} />
-              <Rich as="p" text={p.text} />
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  )}
-
-  <section class:list={['section', site.features.projects ? '' : 'section--paper']} aria-labelledby="wo-wir-arbeiten">
+  <section class="section section--paper" aria-labelledby="wo-wir-arbeiten">
     <div class="wrap grid start-area">
       <div class="col-6 start-area__text">
         <SectionHead eyebrow={start.area.eyebrow} title={start.area.h2} id="wo-wir-arbeiten" class="head--flush" />
@@ -138,7 +120,7 @@ const h = start.handover;
     </div>
   </section>
 
-  <section class:list={['section', site.features.projects ? 'section--paper' : '']} aria-labelledby="ratgeber">
+  <section class="section" aria-labelledby="ratgeber">
     <div class="wrap">
       <SectionHead eyebrow={start.ratgeber.eyebrow} title={start.ratgeber.h2} id="ratgeber" />
       <div class="cols-3">
@@ -182,9 +164,6 @@ const h = start.handover;
   .start-portrait :global(.ph), .start-portrait :global(picture) { max-width: 320px; }
   .start-portrait__text { font-size: 1.125rem; line-height: 1.45; color: var(--ink); font-weight: 500; letter-spacing: -0.01em; }
   @media (min-width: 960px) { .start-portrait { padding-left: var(--s-5); border-left: 1px solid var(--line); } }
-
-  .start-projects { list-style: none; padding: 0; }
-  .start-projects li { display: grid; gap: var(--s-2); align-content: start; }
 
   .start-area { align-items: center; }
   .start-area__text { display: grid; gap: var(--s-4); justify-items: start; }

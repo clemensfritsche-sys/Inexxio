@@ -59,7 +59,7 @@ const f = (name: string) => `${id}-${name}`;
     </div>
 
     <div class="field">
-      <label class="field__label" for={f('photos')}>Anhänge <span class="field__opt">freiwillig, bis zu {inquiry.photos.max}</span></label>
+      <label class="field__label" for={f('photos')}>Anhänge <span class="field__opt">optional, bis zu {inquiry.photos.max}</span></label>
       <input class="input input--file" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
       <p class="field__hint" id={f('photos-hint')}>Foto, Skizze oder PDF – zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
       <ul class="iform__files" data-file-list hidden></ul>
@@ -73,23 +73,22 @@ const f = (name: string) => `${id}-${name}`;
         <p class="field__error" id={f('name-error')} data-error-for="name" hidden></p>
       </div>
       <div class="field">
-        <label class="field__label" for={f('company')}>Firma <span class="field__opt">freiwillig</span></label>
+        <label class="field__label" for={f('company')}>Firma <span class="field__opt">optional</span></label>
         <input class="input" id={f('company')} name="company" type="text" maxlength={L.company} autocomplete="organization" />
       </div>
     </div>
     <div class="iform__row">
       <div class="field">
         <label class="field__label" for={f('phone')}>Telefon</label>
-        <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={`${f('contact-hint')} ${f('phone-error')}`} />
+        <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={f('phone-error')} />
         <p class="field__error" id={f('phone-error')} data-error-for="phone" hidden></p>
       </div>
       <div class="field">
         <label class="field__label" for={f('email')}>E-Mail</label>
-        <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" aria-describedby={`${f('contact-hint')} ${f('email-error')}`} />
+        <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" aria-describedby={f('email-error')} />
         <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
       </div>
     </div>
-    <p class="field__hint" id={f('contact-hint')}>Telefon oder E-Mail genügt. Mit E-Mail erhalten Sie eine Bestätigung Ihrer Angaben.</p>
 
     <div class="iform__foot">
       <button type="submit" class="btn btn--primary" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>

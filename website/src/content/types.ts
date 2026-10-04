@@ -1,8 +1,7 @@
 /**
  * Typen der Content-Dateien. Seitentexte stehen in src/content/*.ts (strukturiert) bzw.
  * src/content/**\/*.md (lange Texte) – getrennt von den Layout-Komponenten. Werte aus der
- * Konfiguration werden mit {{schlüssel}} eingesetzt, offene Punkte mit [[PLATZHALTER: …]]
- * bzw. [[PRÜFEN: …]] markiert.
+ * Konfiguration werden mit {{schlüssel}} eingesetzt.
  */
 import type { IconName } from '../components/Icon.astro';
 export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen';

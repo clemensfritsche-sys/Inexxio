@@ -15,16 +15,13 @@
 //
 // Die Quelle bleibt src/config (site.mjs, inquiry.mjs) und public/logo – die Dateien
 // drüben sind ihr Abdruck.
-//
-// Eine E-Mail enthält nie eine Markierung: ist ein Wert noch offen ([[…]]), gilt die
-// hinterlegte Ausweichformulierung bzw. die Angabe fällt weg.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { site, contactEmail } from '../src/config/site.mjs';
 import { inquiry } from '../src/config/inquiry.mjs';
 import { formVocab } from '../src/lib/inquiry-vocab.mjs';
-import { hasMarker, plain } from '../src/lib/text.mjs';
+import { plain } from '../src/lib/text.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = resolve(ROOT, '../backend/app/assets/website_contact.json');
@@ -32,9 +29,6 @@ const SHELL = resolve(ROOT, '../frontend/src/lib/site-meta.json');
 const LOGOS = ['inexxio-ehemals-hs-steiner.svg'];
 const BRAND = resolve(ROOT, '../frontend/public/brand');
 
-/** Text mit Werten; enthält er eine offene Markierung, gilt `fallback` (oder nichts). */
-const textOr = (/** @type {string} */ text, /** @type {string | null} */ fallback = null) =>
-  hasMarker(text) ? fallback : plain(text);
 
 const a = site.address;
 const v = formVocab();
@@ -54,10 +48,10 @@ const data = {
   labels: v.labels,
   messages: v.messages,
   mail: {
-    confirmSubject: textOr(mail.confirmSubject, `Ihre Anfrage bei ${site.brand.name}`),
-    confirmIntro: textOr(mail.confirmIntro),
-    confirmNext: textOr(mail.confirmNext.text, mail.confirmNext.fallback),
-    urgent: textOr(mail.urgent),
+    confirmSubject: plain(mail.confirmSubject),
+    confirmIntro: plain(mail.confirmIntro),
+    confirmNext: plain(mail.confirmNext),
+    urgent: plain(mail.urgent),
     closing: mail.closing,
   },
 };

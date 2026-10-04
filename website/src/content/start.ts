@@ -70,16 +70,6 @@ export const start = {
     },
   },
 
-  /** Ausgewählte Arbeiten – abgeschaltet (features.projects), bis echte Projekte mit Fotos vorliegen. */
-  projects: {
-    eyebrow: 'Ausgewählte Arbeiten',
-    h2: 'Drei Arbeiten aus der Werkstatt',
-    items: [
-      { area: 'Krantechnik', title: '[[PLATZHALTER: Projekt 1 – Titel]]', text: '[[PLATZHALTER: ein Satz Ergebnis, nur mit Freigabe des Kunden]]', photo: 'heukran-einsatz' },
-      { area: 'Fahrzeugtechnik', title: '[[PLATZHALTER: Projekt 2 – Titel]]', text: '[[PLATZHALTER: ein Satz Ergebnis, nur mit Freigabe des Kunden]]', photo: 'fahrmischer-werkstatt' },
-      { area: 'Sonderlösungen', title: '[[PLATZHALTER: Projekt 3 – Titel]]', text: '[[PLATZHALTER: ein Satz Ergebnis, nur mit Freigabe des Kunden]]', photo: 'arbeit-werkstatt' },
-    ],
-  },
 
   area: {
     eyebrow: 'Wo wir arbeiten',

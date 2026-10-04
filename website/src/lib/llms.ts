@@ -9,7 +9,7 @@
  * Modus «live» gibt es keine mehr – der Build bricht vorher ab.
  */
 import { site, contactEmail } from '../config/site.mjs';
-import { MARKER_RE, plain, resolve } from './text.mjs';
+import { plain, resolve } from './text.mjs';
 import { pages, type PageEntry, type Section } from './pages';
 import { article } from './ratgeber';
 import { glanceRows } from '../content/types';
@@ -19,7 +19,6 @@ const raw = import.meta.glob<string>('../content/ratgeber/*.md', { query: '?raw'
 /** Text mit Zeilenumbrüchen: Werte eingesetzt, Markierungen weg, Links absolut. */
 function md(text: string, base: string): string {
   return resolve(text)
-    .replace(MARKER_RE, '')
     .replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, (_, label: string, href: string) => `[${label}](${base}${href})`)
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/[ \t]+([.,;:])/g, '$1')

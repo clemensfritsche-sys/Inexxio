@@ -32,6 +32,16 @@ export const ueberUns = {
     text: 'Heiri Steiner hat die Reparaturwerkstätte {{history.founded}} gebaut. Seit {{history.cranesSince}} entstehen hier eigene Krananlagen für Landwirtschaft und Industrie – vermarktet {{history.markets}}. Mit der Übergabe wird aus HS Steiner die {{brand.legalName}}.',
     link: 'Die ganze Geschichte der Übergabe',
   },
+  /** Die Werte der Firma (#1182) – wofür wir stehen; die Zusagen darunter machen sie prüfbar. */
+  values: {
+    title: 'Die Werte der {{brand.legalName}}',
+    items: [
+      { title: 'Qualität', text: 'Qualität in allem, was wir tun – vom ersten Gespräch bis zum Bericht.' },
+      { title: 'Verlässlichkeit', text: 'Was wir zusagen, halten wir. Termine, Preise und Absprachen gelten.' },
+      { title: 'Ehrlichkeit', text: 'Wir sagen offen, was es braucht – auch wenn das heisst: ersetzen statt reparieren.' },
+      { title: 'Verantwortung', text: 'Krane und Fahrzeuge müssen sicher laufen. Dafür stehen wir mit unserer Arbeit ein.' },
+    ],
+  },
   promises: {
     title: 'Worauf Sie sich verlassen können',
     lead: 'Konkrete Zusagen statt schöner Worte.',

@@ -565,6 +565,25 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     Jahr – der Browser hielt eine alte Fassung. Sie wird jetzt mit dem Stand geladen
     (`?v=<Commit>`, `body[data-feedback]`).
 
+67. **Keine gelben Vermerke mehr** (Rückmeldung 04.10.2026: «vollständig eliminieren»):
+    `[[PRÜFEN: …]]`/`[[PLATZHALTER: …]]` sind samt Mechanik entfernt (`text.mjs`, `.mk`,
+    Quellen-Prüfung in `check-content.mjs`). Was nicht feststeht, steht nicht da – leere
+    Werte (UID, LinkedIn, Stellenanzeige, Projekte, Preisrahmen) sind gestrichen, nicht
+    ersetzt. Offen bleibt allein die Fotoliste (`OFFENE_PUNKTE.md`).
+68. **Bauformen der Heukrane als Illustration** (Claude-Design-Export «Krantypen»): vier
+    statische SVGs (`src/assets/illustrations/heukran-*.svg`, `CraneForm.astro`), inline –
+    kein Bild-Request, kein JavaScript. Je Bauform eine Zeile: Bild gross links, rechts
+    «So arbeitet sie», darunter «Passt, wenn …» (#1186). Die vier Fotowünsche dafür sind
+    entfallen.
+69. **Die Standortkarte steht in JEDEM Kontaktbereich** (#1162/#1181), nicht nur auf
+    `/kontakt`. Ohne `id` im SVG (Name über `aria-label`), weil sie auf einer Seite zweimal
+    vorkommen kann.
+70. **Marken als Referenz-Band** (#1185): je Marke eine Kachel. Liegt ein Logo in
+    `src/assets/marken/<name>.svg`, erscheint es, sonst der Schriftzug – Logo-Dateien
+    müssen geliefert werden (Markenrecht, keine Quelle im Repo).
+71. **Werte auf /ueber-uns** (#1182): Qualität · Verlässlichkeit · Ehrlichkeit ·
+    Verantwortung – vor den Zusagen, die sie prüfbar machen.
+
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
 | Datei | Änderung | Warum |

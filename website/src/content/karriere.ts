@@ -1,4 +1,4 @@
-/** Karriere (Auftrag Kap. 7.7). Das Stelleninserat ist abgeschaltet (features.jobPosting), bis es echt ist. */
+/** Karriere (Auftrag Kap. 7.7). */
 export const karriere = {
   title: 'Karriere',
   description:
@@ -29,12 +29,6 @@ export const karriere = {
         text: 'Konstruktion und Werkstatt arbeiten Hand in Hand – Fragen klären wir am Werkstück, gemeinsam.',
       },
     ],
-  },
-  posting: {
-    title: 'Servicetechniker/in',
-    text: '[[PLATZHALTER: Stelleninserat – Aufgaben, Anforderungen, Pensum, Eintritt]]',
-    employmentType: 'FULL_TIME',
-    datePosted: '[[PLATZHALTER: Datum des Inserats]]',
   },
   apply: {
     title: 'Bewerbung per E-Mail',

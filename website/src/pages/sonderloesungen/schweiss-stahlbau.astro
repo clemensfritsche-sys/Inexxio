@@ -4,7 +4,6 @@ import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Photo from '../../components/Photo.astro';
 import Icon from '../../components/Icon.astro';
-import Rich from '../../components/Rich.astro';
 import { stahlbau } from '../../content/sonderloesungen';
 ---
 <SubPage page={stahlbau}>
@@ -14,7 +13,6 @@ import { stahlbau } from '../../content/sonderloesungen';
       <div class="col-5 sb__text">
         <SectionHead eyebrow="Vorlage" title="Zeichnung, Skizze oder Muster" id="vorlage" class="head--flush" />
         <p>Sie haben eine Zeichnung? Dann fertigen wir danach. Sie haben nur ein altes Teil oder eine Skizze? Dann messen wir auf, zeichnen und fertigen. Für Teile, die es nicht mehr zu kaufen gibt, ist das oft der schnellste Weg.</p>
-        <Rich as="p" class="small muted" text="Materialien: [[PRÜFEN: Stahl, Inox, Alu?]]" />
         <a class="arrow-link" href="/sonderloesungen/konstruktion-engineering">Mehr zu Konstruktion und Engineering <Icon name="arrow-right" size={18} /></a>
       </div>
     </div>

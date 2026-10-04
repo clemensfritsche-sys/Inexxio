@@ -25,8 +25,6 @@ related:
     text: 'Alles, was wir an Fahrmischern und Aufbauten machen.'
 ---
 
-[[PRÜFEN: fachlich – ganzer Artikel]]
-
 Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, in der Trommel an den Mischspiralen, beim Entleeren an Schurre und Rinne. Das ist kein Mangel, sondern Betrieb. Entscheidend ist, die Teile zu ersetzen, bevor sie die Arbeit behindern oder angrenzende Teile beschädigen.
 
 ## Woran Sie Verschleiss erkennen
@@ -46,8 +44,8 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 
 ### Mischspiralen und Spiralschutz
 
-- Die Spiralen in der Trommel verlieren an der Kante an Höhe. Mit niedrigeren Spiralen mischt die Trommel schlechter, sie entleert langsamer, und es bleibt mehr Restbeton zurück. [[PRÜFEN: fachlich – Wirkung abgenutzter Spiralen]]
-- Ein Spiralschutz an der Kante nimmt den Verschleiss auf und lässt sich ersetzen, bevor die Spirale selbst angegriffen wird. [[PRÜFEN: fachlich – Ausführung und Einsatz des Spiralschutzes]]
+- Die Spiralen in der Trommel verlieren an der Kante an Höhe. Mit niedrigeren Spiralen mischt die Trommel schlechter, sie entleert langsamer, und es bleibt mehr Restbeton zurück.
+- Ein Spiralschutz an der Kante nimmt den Verschleiss auf und lässt sich ersetzen, bevor die Spirale selbst angegriffen wird.
 - Ob eine Spirale noch genügt, messen wir an den Vorgaben des Trommelherstellers. Die Grenzwerte sind je nach Trommel verschieden – darum nennen wir hier bewusst keine Zahl.
 
 ## Wann der richtige Zeitpunkt ist

@@ -3,8 +3,8 @@
  * ►►► Der Kontaktbereich – EINER für die ganze Website (Testnotizen #1107/#1129). ◄◄◄
  * Auf /kontakt und am Ende jeder Seite dasselbe: dieselbe Überschrift, derselbe Satz,
  * dasselbe Formular (ein Feld, Anhänge, wer fragt an) und daneben Telefon, E-Mail und
- * Anschrift mit Route (#1144). Auf /kontakt ist die Überschrift die H1 der Seite, und unter
- * der Anschrift steht die Karte – sie zeigt, wo die Route hinführt.
+ * Anschrift mit Route (#1144). Auf /kontakt ist die Überschrift die H1 der Seite. Unter der Anschrift
+ * steht überall die Karte (#1162/#1181) – sie zeigt, wo die Route hinführt.
  */
 import SectionHead from './SectionHead.astro';
 import InquiryForm from './InquiryForm.astro';
@@ -26,7 +26,7 @@ const main = level === 'h1';
     </div>
     <aside class="col-4 contact__aside" aria-label="Direkter Kontakt">
       <ContactPanel />
-      {main && <LocationMap class="contact__map" />}
+      <LocationMap class="contact__map" />
     </aside>
   </div>
 </section>

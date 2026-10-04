@@ -7,6 +7,7 @@ import Rich from '../../components/Rich.astro';
 import { fahrmischer, winterRevision } from '../../content/fahrzeugtechnik';
 import { site } from '../../config/site.mjs';
 const w = winterRevision;
+const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: true, query: '?raw', import: 'default' });
 ---
 <SubPage page={fahrmischer}>
   <section slot="module" class="section section--dark" id="winter-revision" aria-labelledby="winter-title">
@@ -25,8 +26,15 @@ const w = winterRevision;
       </div>
       <div class="col-12 wr__brands">
         <h3 class="label">Marken</h3>
-        <p class="wr__brandlist">{site.marks.mixers.join(' · ')} <span class="wr__more">und weitere auf Anfrage</span></p>
-        <Rich as="p" class="small" text={`${site.marks.mixerNotice} ${site.marks.mixerReview}`} />
+        <!-- Referenz-Band (#1185): je Marke eine Kachel; liegt ihr Logo in src/assets/marken/<name>.svg, steht es dort, sonst der Schriftzug. -->
+        <ul class="wr__brandlist" role="list">
+          {site.marks.mixers.map((b) => {
+            const logo = LOGOS[`../../assets/marken/${b.toLowerCase()}.svg`];
+            return <li class="wr__brand" title={b}>{logo ? <span class="wr__logo" set:html={logo} aria-label={b} role="img" /> : <span class="wr__word">{b}</span>}</li>;
+          })}
+          <li class="wr__brand wr__brand--more">und weitere auf Anfrage</li>
+        </ul>
+        <Rich as="p" class="small" text={site.marks.mixerNotice} />
       </div>
     </div>
   </section>
@@ -39,6 +47,10 @@ const w = winterRevision;
   @media (min-width: 960px) { .wr__list { grid-column: 8 / span 5; } }
   .wr__list { display: grid; gap: var(--s-4); align-content: start; }
   .wr__brands { display: grid; gap: var(--s-3); padding-top: var(--s-6); border-top: 1px solid var(--line-dark); }
-  .wr__brandlist { font-size: clamp(1.125rem, 1.05rem + 0.4vw, 1.375rem); font-weight: 600; color: var(--white); max-width: none; }
-  .wr__more { font-weight: 400; color: rgba(244, 243, 241, 0.65); }
+  .wr__brandlist { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1px; background: var(--line-dark); border: 1px solid var(--line-dark); border-radius: var(--r-md); overflow: hidden; }
+  .wr__brand { display: grid; place-items: center; min-height: 84px; padding: var(--s-4); background: var(--ink); text-align: center; }
+  .wr__word { font-family: var(--font-display, inherit); font-weight: 700; font-size: 1.125rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--white); opacity: 0.85; }
+  .wr__logo { display: block; width: 100%; max-width: 120px; color: var(--white); }
+  .wr__logo :global(svg) { display: block; width: 100%; height: auto; max-height: 40px; }
+  .wr__brand--more { font-size: 0.875rem; color: rgba(244, 243, 241, 0.65); }
 </style>

@@ -16,7 +16,7 @@ import { catalog } from '../../config/catalog.mjs';
         lead="Je Teil: kurze Beschreibung, Material und passende Marken. «Teil anfragen» öffnet die Anfrage mit dem Teil schon eingetragen."
         id="katalog-title"
       />
-      <Rich as="p" class="small cat-note" text={`${catalog.priceNote} ${catalog.review}`} />
+      <Rich as="p" class="small cat-note" text={catalog.priceNote} />
       <PartCatalog />
     </div>
   </section>

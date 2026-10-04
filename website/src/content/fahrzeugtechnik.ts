@@ -10,11 +10,11 @@ const anfrage = (label: string) => ({ label, href: '#anfrage' });
 
 const faqBrands: Faq = {
   q: 'Welche Marken betreuen Sie?',
-  a: '{{marks.mixerList}} – und weitere auf Anfrage. {{marks.mixerNotice}} {{marks.mixerReview}}',
+  a: '{{marks.mixerList}} – und weitere auf Anfrage. {{marks.mixerNotice}}',
 };
 const faqSpeed: Faq = {
   q: 'Wie schnell ist mein Fahrzeug wieder auf der Strasse?',
-  a: 'Das hängt vom Schaden und von den Teilen ab. Viele Verschleiss- und Ersatzteile haben wir an Lager. [[PLATZHALTER: typische Standzeit bei Service und Reparatur]]',
+  a: 'Das hängt vom Schaden und von den Teilen ab. Viele Verschleiss- und Ersatzteile haben wir an Lager.',
 };
 const ratgeberTeile = { href: '/ratgeber/verschleissteile-fahrmischer', label: 'Verschleissteile am Fahrmischer', text: 'Wann Rinne, Schurre und Spiralschutz ersetzen?', kind: 'ratgeber' as const };
 
@@ -65,7 +65,7 @@ export const fahrzeugtechnik: AreaPage = {
   ],
   steps: [
     { title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.' },
-    { title: 'Abklärung', text: 'Wir klären, was es braucht, halten die Teile bereit und planen den Termin. [[PRÜFEN: Offerte vor Arbeitsbeginn als Regel freigeben]]' },
+    { title: 'Abklärung', text: 'Wir klären, was es braucht, halten die Teile bereit und planen den Termin.' },
     { title: 'Umsetzung', text: 'Wir warten oder reparieren in der Werkstatt und ersetzen verschlissene Teile.' },
     { title: 'Bericht', text: 'Sie erhalten einen Rapport mit Arbeiten und Teilen.' },
   ],
@@ -82,7 +82,7 @@ export const fahrzeugtechnik: AreaPage = {
     },
     {
       q: 'Liefern Sie auch Verschleissteile ohne Montage?',
-      a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz können Sie auch als Teil anfragen. [[PRÜFEN: Teileverkauf ohne Montage]]',
+      a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz können Sie auch als Teil anfragen.',
     },
   ],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Service und Reparatur von Fahrmischern und Aufbauten' },
@@ -114,7 +114,7 @@ export const fahrmischer: SubPage = {
   },
   scope: {
     title: 'Leistungsumfang',
-    lead: 'Für alle gängigen Marken. [[PRÜFEN: fachlich – Leistungsumfang]]',
+    lead: 'Für alle gängigen Marken.',
     items: [
       { title: 'Trommel', text: 'Trommel-Revision: Lager, Dichtungen, Laufring und Rollen; Mischspiralen prüfen und aufbauen.' },
       { title: 'Antrieb', text: 'Trommelgetriebe, Hydraulikmotor und Pumpe – Fehlersuche, Reparatur, Ersatz.' },
@@ -129,15 +129,11 @@ export const fahrmischer: SubPage = {
     faqSpeed,
     {
       q: 'Was gehört zu einer Trommel-Revision?',
-      a: 'Wir prüfen Lager, Dichtungen, Laufring und Rollen sowie die Mischspiralen und ersetzen, was verschlissen ist. Den genauen Umfang besprechen wir nach der ersten Kontrolle. [[PRÜFEN: fachlich – Umfang Trommel-Revision]]',
-    },
-    {
-      q: 'Kommen Sie auch auf die Baustelle oder ins Werk?',
-      a: '[[PLATZHALTER: Einsätze vor Ort bei Fahrmischern – ja oder nein, in welchem Umfang]]',
+      a: 'Wir prüfen Lager, Dichtungen, Laufring und Rollen sowie die Mischspiralen und ersetzen, was verschlissen ist. Den genauen Umfang besprechen wir nach der ersten Kontrolle.',
     },
     {
       q: 'Sind Sie Vertragshändler einer Marke?',
-      a: 'Nein. {{marks.mixerNotice}} {{marks.mixerReview}}',
+      a: 'Nein. {{marks.mixerNotice}}',
     },
   ],
   related: [
@@ -174,15 +170,15 @@ export const aufbauten: SubPage = {
     primary: anfrage('Reparatur anfragen'),
   },
   summary:
-    '{{brand.full}} repariert LKW-Aufbauten, Mulden und Kipper, Hydraulik und Aufbauten von Baustellenfahrzeugen in der Werkstatt in Tuttwil-Wängi TG. Reparatur und Instandsetzung, keine Neuaufbauten. [[PRÜFEN: genauer Umfang Aufbauten-Reparatur]]',
+    '{{brand.full}} repariert LKW-Aufbauten, Mulden und Kipper, Hydraulik und Aufbauten von Baustellenfahrzeugen in der Werkstatt in Tuttwil-Wängi TG. Reparatur und Instandsetzung, keine Neuaufbauten.',
   glance: {
     forWhom: 'Bau- und Transportunternehmen, Kies- und Betonwerke mit Kippern, Mulden und Baustellenfahrzeugen.',
-    what: 'Fehlersuche, Reparatur und Instandsetzung von Aufbau, Hydraulik und Stahlbau – keine Neuaufbauten. [[PRÜFEN: Umfang]]',
+    what: 'Fehlersuche, Reparatur und Instandsetzung von Aufbau, Hydraulik und Stahlbau – keine Neuaufbauten.',
     deliverables: 'Einen Rapport mit Arbeiten und Teilen.',
   },
   scope: {
     title: 'Woran wir arbeiten',
-    lead: 'Reparatur und Instandsetzung. [[PRÜFEN: Umfang – welche Aufbauten, welche Arbeiten]]',
+    lead: 'Reparatur und Instandsetzung.',
     items: [
       { title: 'Mulden und Kipper', text: 'Kippbrücken, Mulden, Bordwände und Verschlüsse instand stellen.' },
       { title: 'Hydraulik', text: 'Kippzylinder, Pumpen, Ventile, Schläuche und Leitungen – Lecks finden und beheben.' },
@@ -197,13 +193,9 @@ export const aufbauten: SubPage = {
     },
     {
       q: 'Welche Aufbauten reparieren Sie?',
-      a: 'Mulden, Kipper, Hydraulik und Aufbauten von Baustellenfahrzeugen. Fragen Sie an, wenn Ihr Aufbau nicht dabei ist. [[PRÜFEN: Umfang]]',
+      a: 'Mulden, Kipper, Hydraulik und Aufbauten von Baustellenfahrzeugen. Fragen Sie an, wenn Ihr Aufbau nicht dabei ist.',
     },
     faqSpeed,
-    {
-      q: 'Kommen Sie zum Fahrzeug?',
-      a: '[[PLATZHALTER: Einsätze vor Ort bei Aufbauten – ja oder nein, in welchem Umfang]]',
-    },
   ],
   related: [
     { href: '/sonderloesungen/schweiss-stahlbau', label: 'Schweiss- und Stahlbau', text: 'Wenn ein Teil neu angefertigt werden muss.' },
@@ -234,7 +226,7 @@ export const verschleissteile: SubPage = {
     '{{brand.full}} führt Verschleiss- und Ersatzteile für Fahrmischer: Auslauf- und Verlängerungsrinnen, Auslaufschurren, Einfülltrichter und Spiralschutz. Das Programm ist im Aufbau; passende Typen klären wir je Anfrage. Preise nennen wir auf Anfrage.',
   glance: {
     forWhom: 'Werkstätten und Fuhrparks mit Fahrmischern.',
-    what: 'Verschleiss- und Ersatzteile ab Lager oder auf Bestellung – auf Wunsch mit Einbau. [[PRÜFEN: Teileliste, Material, passende Typen]]',
+    what: 'Verschleiss- und Ersatzteile ab Lager oder auf Bestellung – auf Wunsch mit Einbau.',
     deliverables: 'Das passende Teil – und auf Wunsch den Einbau mit Rapport.',
   },
   scope: {
@@ -250,7 +242,7 @@ export const verschleissteile: SubPage = {
   faq: [
     {
       q: 'Für welche Marken passen die Teile?',
-      a: 'Für gängige Marken wie {{marks.mixerList}}. Die genaue Passung klären wir je Teil und Typ. [[PRÜFEN: passende Marken und Typen je Teil]]',
+      a: 'Für gängige Marken wie {{marks.mixerList}}. Die genaue Passung klären wir je Teil und Typ.',
     },
     {
       q: 'Gibt es Preise?',
@@ -258,7 +250,7 @@ export const verschleissteile: SubPage = {
     },
     {
       q: 'Kann ich ein Teil abholen?',
-      a: 'Ja, in Tuttwil – am besten vorher kurz anrufen: {{phone.link}}. [[PRÜFEN: Abholung und Versand]]',
+      a: 'Ja, in Tuttwil – am besten vorher kurz anrufen: {{phone.link}}.',
     },
     {
       q: 'Bauen Sie die Teile auch ein?',

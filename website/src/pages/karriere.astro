@@ -1,7 +1,6 @@
 ---
 /**
- * /karriere – Warum hier arbeiten, Stelleninserat (abgeschaltet bis es echt ist; JobPosting nur dann),
- * Bewerbung per E-Mail.
+ * /karriere – Warum hier arbeiten, Bewerbung per E-Mail.
  */
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
@@ -10,25 +9,8 @@ import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site, contactEmail } from '../config/site.mjs';
 import { karriere as c } from '../content/karriere';
-import { plain } from '../lib/text.mjs';
-const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
-const a = site.address;
-const jobLd = site.features.jobPosting
-  ? [{
-      '@type': 'JobPosting',
-      title: c.posting.title,
-      description: plain(c.posting.text),
-      datePosted: plain(c.posting.datePosted),
-      employmentType: c.posting.employmentType,
-      hiringOrganization: { '@id': `${siteUrl}/#organisation` },
-      jobLocation: {
-        '@type': 'Place',
-        address: { '@type': 'PostalAddress', streetAddress: a.street, postalCode: a.zip, addressLocality: a.city, addressRegion: a.canton, addressCountry: a.country },
-      },
-    }]
-  : [];
 ---
-<Base title={c.title} description={c.description} crumbs={[{ name: 'Karriere', path: '/karriere' }]} jsonLd={jobLd}>
+<Base title={c.title} description={c.description} crumbs={[{ name: 'Karriere', path: '/karriere' }]}>
   <Hero
     eyebrow={c.hero.eyebrow}
     title={c.hero.h1}
@@ -50,15 +32,6 @@ const jobLd = site.features.jobPosting
       </ol>
     </div>
   </section>
-
-  {site.features.jobPosting && (
-    <section class="section" aria-labelledby="stelle">
-      <div class="wrap">
-        <SectionHead eyebrow="Offene Stelle" title={c.posting.title} id="stelle" />
-        <Rich as="div" class="prose" text={c.posting.text} />
-      </div>
-    </section>
-  )}
 
   <section class="section" aria-labelledby="bewerbung">
     <div class="wrap grid kr-apply">

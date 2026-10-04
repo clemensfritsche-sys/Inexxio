@@ -11,13 +11,6 @@
  * Ein Namenswechsel (z. B. «HS Steiner – Teil von INEXXIO») ist eine Änderung in
  * `brand` – Texte setzen den Namen über `{{brand.name}}` bzw. `{{brand.full}}` ein.
  *
- * Markierungen:
- *   [[PLATZHALTER: …]]  Information fehlt.
- *   [[PRÜFEN: …]]       vorhanden, aber freizugeben bzw. fachlich/rechtlich zu prüfen.
- * Im Modus «live» bricht der Build ab, solange eine davon existiert
- * (`scripts/check-content.mjs`). Ein Wert, der NUR aus einer Markierung besteht, gilt
- * als «fehlt» – Links darauf werden nicht gebaut.
- *
  * Bewusst .mjs statt .ts: die Node-Skripte (Prüfung, Export für Formular und Konto-Kopf)
  * lesen dieselbe Datei ohne Übersetzungsschritt.
  */
@@ -121,7 +114,6 @@ export const site = {
     full: '{{brand.name}} ({{brand.formerly}})',
     /** Logo: das gestapelte Zeichen mit «ehemals HS Steiner» (public/logo/, Lockup.astro). */
     legalName: 'INEXXIO AG',
-    legalNameReview: '[[PRÜFEN: Eintrag im Handelsregister]]',
     formerLegalName: 'HS Steiner Fahrzeug- und Kranbau GmbH',
     alternateNames: ['HS Steiner', 'HS Steiner Fahrzeug- und Kranbau GmbH', 'HS Krananlagen'],
     /** Abgrenzung für Suchmaschinen und KI-Assistenten. */
@@ -131,8 +123,6 @@ export const site = {
       'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Heukrananlagen und Industriekrane, Service und Reparatur von Fahrmischern und Aufbauten, Konstruktion und Stahlbau. Seit {{history.founded}}.',
     /** Claim (Vorschlag des Auftrags) – OG-Bild und llms.txt. */
     claim: 'Krane. Fahrzeuge. Sonderlösungen. Aus einer Werkstatt mit Ingenieurwissen.',
-    claimReview: '[[PRÜFEN: Claim freigeben]]',
-    uid: '[[PLATZHALTER: UID]]',
   },
 
   history: {
@@ -141,8 +131,6 @@ export const site = {
     cranesSince: 1985,
     cranesText: 'Die erste eigene Krananlage entsteht – für Landwirtschaft und Industrie, vorwiegend Sonderanfertigungen.',
     gmbhYear: 1993,
-    gmbhReview: '[[PRÜFEN: Gründungsjahr der GmbH]]',
-    handoverDate: '[[PLATZHALTER: Übergabedatum]]',
     /** Formulierung statt einer Zahl, die jedes Jahr nachgeführt werden müsste. */
     experience: 'über 40 Jahre',
     /** Dieselbe Angabe im Dativ («nach über 40 Jahren»). */
@@ -156,8 +144,6 @@ export const site = {
       role: 'Geschäftsführer',
       career: ownerCareer,
       short: `${ownerCareer.join(', ')}.`,
-      titles: '[[PLATZHALTER: genaue Titel und Abschlüsse]]',
-      linkedin: '[[PLATZHALTER: LinkedIn-Link]]',
     },
     founder: {
       name: 'Heiri Steiner',
@@ -173,12 +159,10 @@ export const site = {
     ? { display: erp.phone, intl: erp.phone_e164, e164: erp.phone_e164 }
     : { display: '052 378 22 47', intl: '+41 52 378 22 47', e164: '+41523782247' },
   email: {
-    /** Die neue Adresse ist offen; bis dahin bleibt die bisherige erreichbar. */
-    primary: erp.email || '[[PLATZHALTER: neue E-Mail-Adresse]]',
+    /** Aus dem ERP; ohne Angabe dort bleibt die bisherige erreichbar. */
+    primary: erp.email || '',
     legacy: 'fahrzeug-kranbau@hs-steiner.ch',
   },
-  /** Bewerbungen: dieselbe Adresse, bis eine eigene feststeht. */
-  jobsEmailReview: '[[PLATZHALTER: Adresse für Bewerbungen]]',
 
   address: {
     street: 'Waldweg 1',
@@ -189,7 +173,7 @@ export const site = {
     country: 'CH',
     countryName: 'Schweiz',
   },
-  geo: { lat: 47.4836, lng: 8.9357, review: '[[PRÜFEN: Koordinaten]]' },
+  geo: { lat: 47.4836, lng: 8.9357 },
 
   /**
    * Wo wir arbeiten: zuhause in Tuttwil-Wängi, im Einsatz überall (Rückmeldung 04.10.2026:
@@ -209,7 +193,6 @@ export const site = {
     mixers: ['Intermix', 'Putzmeister', 'Cifa', 'Stetter', 'Liebherr', 'Belmix', 'Peter'],
     mixerNotice:
       'Markennamen gehören ihren Inhabern. Wir sind unabhängig und kein Vertragshändler.',
-    mixerReview: '[[PRÜFEN: bestehende Partnerschaften, z. B. Cifa?]]',
   },
 
   /** Elemente, die sich per Schalter abschalten lassen. */
@@ -217,10 +200,8 @@ export const site = {
     /** Heiri Steiner bleibt in der Übergangszeit beratend dabei – alles dazu hängt hier. */
     heiriAdvisory: true,
     /** Ohne echten Inhalt aus: */
-    projects: false,
     beforeAfter: false,
     team: false,
-    jobPosting: false,
   },
 
   /** Saison-Hinweise: von/bis als MM-TT, über den Jahreswechsel erlaubt. */
@@ -325,10 +306,7 @@ export const site = {
     contentUpdated: '2026-10-04',
     /** Bisherige Domain – wird später auf die neue weitergeleitet. */
     oldDomain: 'hs-steiner.ch',
-    /** Künftige Domain (ohne https://). Im Modus «live» muss SITE_URL darauf zeigen. */
-    domain: '[[PLATZHALTER: Domain]]',
     sameAs: [],
-    sameAsReview: '[[PLATZHALTER: Google-Unternehmensprofil, LinkedIn]]',
     /** robots.txt im Modus «live»: diese Crawler ausdrücklich zugelassen. */
     bots: [
       'Googlebot', 'Bingbot', 'Google-Extended', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User',
@@ -347,16 +325,15 @@ export const site = {
   analytics: {
     /** null = aus. Mögliche Werte später: 'plausible'. */
     provider: null,
-    review: '[[PRÜFEN: kostenlose oder günstige cookielose Analytics-Lösung wählen]]',
   },
 };
 
 /**
- * Ist dieser Wert nur eine Markierung (also: die Angabe fehlt)?
+ * Fehlt diese Angabe?
  * @param {unknown} value
  */
 export function isMissing(value) {
-  return typeof value !== 'string' || /^\s*\[\[(PLATZHALTER|PRÜFEN):[^\]]*\]\]\s*$/.test(value);
+  return typeof value !== 'string' || value.trim() === '';
 }
 
 /** Die E-Mail-Adresse, die heute funktioniert. */
