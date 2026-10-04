@@ -19,9 +19,7 @@ import { site } from '../../config/site.mjs';
         <Rich as="p" text={m.service.text} />
         <div class="btn-row">
           <a class="btn btn--secondary" href="/service/notfall">Zum Notfall-Service <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
-          {site.features.notfall && (
-            <a class="btn btn--secondary" href={`tel:${site.notfall.e164}`} data-track="notfall_click"><Icon name="siren" size={18} /> {site.notfall.display}</a>
-          )}
+          <a class="btn btn--secondary" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} /> {site.phone.display}</a>
         </div>
       </div>
       <div class="col-5 ik__hint">

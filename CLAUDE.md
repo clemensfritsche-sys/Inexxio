@@ -4979,6 +4979,12 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
   **Anzeige-Cache** (`frontend/src/lib/account-cache.ts`, drei localStorage-Schlüssel) –
   nur Anzeige, den Schutz von `/konto` und `/erp` hat das ERP; `/abmelden` ruft das
   bestehende `logout()`.
+- **Telefon, E-Mail und Anschrift kommen aus dem ERP** (Testnotiz #1094):
+  `GET /api/v1/public/contact` liefert die Gesellschaft zum Land des Besuchers (IP → Land,
+  DB-IP Lite im Docker-Build → `sites.company_for_country`, sonst der Betreiber). Der Build
+  holt die Angaben des Betreibers als Vorgabe (`website/scripts/erp-contact.mjs`,
+  `SITE_API`), `website/src/scripts/contact.ts` tauscht sie zur Laufzeit aus. **Eine
+  Telefonnummer für alles**, keine Öffnungszeiten, kein Einsatzgebiet (WEBSITE_PLAN 50–56).
 - **Formsprache = Website-Kit des Design-Systems** (`docs/design-system/reference/ui-kit-website/`):
   Design-System **v3**: Inter Tight 700/600 (kein 800), rote Overlines, Abschnittsköpfe mit
   Index, Knöpfe 8 px (keine Pillen), flach, echtes Logo (`public/logo/`, mit «ehemals HS Steiner»). **Bilder:** bis zum

@@ -111,7 +111,7 @@ export const inquiry = {
     confirmIntro: 'Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.',
     confirmNext: { text: 'Wir melden uns innert {{promises.responseTime}}.', fallback: 'Wir melden uns so bald wie möglich.' },
     urgent: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.display}}.',
-    urgentNotfall: 'Ausserhalb der Bürozeiten erreichen Sie unsere Notfallnummer: {{notfall.display}}.',
+    urgentNotfall: 'Steht etwas still? Rufen Sie uns direkt an: {{phone.display}}.',
     closing: 'Freundliche Grüsse',
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */

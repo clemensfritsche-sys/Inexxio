@@ -2,11 +2,11 @@
 export const kontakt = {
   title: 'Kontakt und Anfrage',
   description:
-    'Kontakt zu INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Anfrage in vier Schritten, Telefon 052 378 22 47, Notfallnummer bei Stillstand und Anfahrt.',
+    'Kontakt zu INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Anfrage in vier Schritten, Telefon 052 378 22 47 und Anfahrt. Antwort innert kurzer Zeit.',
   h1: 'Kontakt und Anfrage',
   lead: 'Beschreiben Sie Ihr Anliegen in vier kurzen Schritten – oder rufen Sie an: {{phone.link}}.',
   summary:
-    '{{brand.full}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}, Öffnungszeiten {{hours.text}}.',
+    '{{brand.full}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.',
   route: 'Route in Google Maps öffnen',
   danke: {
     title: 'Danke für Ihre Anfrage',

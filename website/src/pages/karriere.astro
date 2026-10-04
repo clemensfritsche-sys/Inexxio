@@ -41,9 +41,8 @@ const jobLd = site.features.jobPosting
     <div class="wrap">
       <SectionHead eyebrow="Arbeiten bei uns" title={c.why.title} id="warum" />
       <ol role="list" class="kr-why">
-        {c.why.items.map((it, i) => (
+        {c.why.items.map((it) => (
           <li>
-            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
             <h3>{it.title}</h3>
             <Rich as="p" text={it.text} />
           </li>

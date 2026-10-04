@@ -10,7 +10,7 @@ import '../styles/global.css';
 import fontUrl from '../assets/fonts/inter-latin-wght-normal.woff2?url';
 import displayFontUrl from '../assets/fonts/inter-tight-latin-wght-600-700.woff2?url';
 import earlyUrl from '../scripts/early.js?url';
-import { site } from '../config/site.mjs';
+import { site, contactEmail } from '../config/site.mjs';
 import { plain, siteMode } from '../lib/text.mjs';
 import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from '../lib/seo.mjs';
 import { isListed } from '../lib/pages';
@@ -26,6 +26,11 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
  * (`frontend/scripts/build-islands.mjs`); hier wird es bloss nachgeladen.
  */
 const feedback = process.env.SITE_FEEDBACK === 'on';
+
+/** Die Kontaktdaten dieses Builds – scripts/contact.ts tauscht sie gegen die aus dem ERP. */
+const builtContact = JSON.stringify({
+  phone: site.phone.display, e164: site.phone.e164, email: contactEmail(), country: site.address.country,
+});
 
 export interface Crumb { name: string; path: string }
 
@@ -62,6 +67,8 @@ const fullTitle = plain(titleFull ?? `${title} | ${site.brand.full}`);
 const desc = plain(description);
 const ogImage = `${siteUrl}/og/${og}.png`;
 const indexable = mode === 'live' && !noindex;
+/** Impressum und Datenschutz nennen den Betreiber – dort tauscht scripts/contact.ts nichts. */
+const legalPage = path === '/impressum' || path === '/datenschutz';
 
 const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [breadcrumbNode(siteUrl, crumbs)] : []), ...jsonLd];
 
@@ -121,13 +128,10 @@ const csp = [
     <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" is:inline set:html={graph(nodes)} />
   </head>
-  <body data-feedback={feedback ? '' : undefined}>
+  <body data-feedback={feedback ? '' : undefined} data-contact={builtContact}>
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
-    {mode === 'preview' && (
-      <aside class="mode-banner" aria-label="Vorschau">Vorschau – nicht öffentlich. Gelb markierte Stellen sind offene Punkte.</aside>
-    )}
     <Header />
-    <main id="inhalt" tabindex="-1">
+    <main id="inhalt" tabindex="-1" data-erp-fixed={legalPage ? '' : undefined}>
       {crumbs.length > 0 && <Breadcrumbs crumbs={crumbs} />}
       <slot />
     </main>
@@ -141,12 +145,14 @@ const csp = [
       import { initTracking } from '../scripts/track';
       import { initReveal } from '../scripts/reveal';
       import { initFeedback } from '../scripts/feedback';
+      import { initContact } from '../scripts/contact';
       initHeader();
       initAccount();
       initMobileBar();
       initTracking();
       initReveal();
       initFeedback();
+      initContact();
     </script>
   </body>
 </html>

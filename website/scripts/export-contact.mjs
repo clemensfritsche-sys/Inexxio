@@ -46,7 +46,6 @@ const data = {
     'Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:contact» – nicht von Hand ändern.',
   brand: { name: site.brand.name, full: plain(site.brand.full) },
   phone: { display: site.phone.display, e164: site.phone.e164 },
-  notfall: site.features.notfall ? { display: site.notfall.display, e164: site.notfall.e164 } : null,
   email: contactEmail(),
   address: [a.street, `${a.zip} ${a.city} (${a.municipality} ${a.canton})`],
   pages: { thanks: '/kontakt/danke', contact: '/kontakt' },
@@ -64,13 +63,8 @@ const data = {
     confirmIntro: textOr(mail.confirmIntro),
     confirmNext: textOr(mail.confirmNext.text, mail.confirmNext.fallback),
     urgent: textOr(mail.urgent),
-    // Die Notfallnummer steht in einer E-Mail erst, wenn sie bestätigt ist: auf der Website
-    // trägt sie ihre Prüf-Markierung sichtbar, eine E-Mail kann keine tragen – sie verspräche
-    // sonst einen Dienst, dessen Weiterführung noch offen ist.
-    urgentNotfall:
-      site.features.notfall && !isMissing(site.notfall.display) && !hasMarker(site.notfall.review)
-        ? textOr(mail.urgentNotfall)
-        : null,
+    // Steht etwas still: die eine Telefonnummer (es gibt keine eigene Notfallnummer mehr).
+    urgentNotfall: textOr(mail.urgentNotfall),
     closing: mail.closing,
   },
 };
@@ -85,21 +79,16 @@ const shell = {
   brand: { name: site.brand.name, full: plain(site.brand.full), legalName: plain(site.brand.legalName) },
   logo: { dark: `/brand/${LOGOS[0]}`, light: `/brand/${LOGOS[1]}` },
   claim: plain(site.footer.claim),
-  announcement: site.features.announcement
-    ? { text: plain(site.announcement.text), link: link(site.announcement.link) }
-    : null,
   phone: { display: site.phone.display, e164: site.phone.e164 },
-  notfall: site.features.notfall ? { display: site.notfall.display, e164: site.notfall.e164 } : null,
   email: contactEmail(),
-  hours: plain(site.hours.text),
-  address: [plain(site.brand.legalName), a.street, `${a.zip} ${a.city} (${a.municipality} ${a.canton})`],
+  address: [plain(site.brand.legalName), a.street, `${a.zip} ${a.city}`],
   uid: isMissing(site.brand.uid) ? null : site.brand.uid,
   areas: site.areas.map((ar) => ({ ...link(ar), overview: ar.overview, children: ar.children.map(link) })),
   service: { ...link(site.service), overview: site.service.overview, children: site.service.children.map(link) },
   menu: site.menu.map(link),
   company: site.company.map(link),
   cta: link(site.cta),
-  account: site.account,
+  account: { ...site.account, erp: { ...link(site.account.erp), overview: site.account.erp.overview, children: site.account.erp.children.map(link) } },
   legal: [{ label: 'Impressum', href: '/impressum' }, { label: 'Datenschutz', href: '/datenschutz' }],
 };
 

@@ -4,7 +4,7 @@
  *
  * Ohne JavaScript ist es EIN langes Formular mit Fieldsets, das klassisch an den Server
  * geht (multipart, Validierung dort). Welche Zusatzfragen zum gewählten Bereich passen und
- * dass bei «Steht still» die Notfallnummer gross erscheint, regelt CSS (:has) – auch ohne JS.
+ * dass bei «Steht still» die Telefonnummer gross erscheint, regelt CSS (:has) – auch ohne JS.
  * Das Skript (scripts/form.ts) macht daraus Schritte, prüft direkt am Feld und sendet
  * im Hintergrund; schlägt das Senden fehl, steht ein vorausgefüllter mailto-Link da.
  */
@@ -12,7 +12,6 @@ import { site, contactEmail } from '../config/site.mjs';
 import { inquiry, kindsWithNeeds } from '../config/inquiry.mjs';
 import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
-import Rich from './Rich.astro';
 import FormResult from './FormResult.astro';
 import '../styles/form.css';
 
@@ -126,16 +125,13 @@ const f = (name: string) => `${id}-${name}`;
         <p class="field__error" id={f('urgency-error')} data-error-for="urgency" hidden></p>
       </div>
 
-      {site.features.notfall && (
-        <div class="notfall-box" data-notfall>
-          <Icon name="siren" size={28} />
-          <div>
-            <p class="notfall-box__title">Steht still? Rufen Sie direkt unsere Notfallnummer an.</p>
-            <a class="notfall-box__num tnum" href={`tel:${site.notfall.e164}`} data-track="notfall_click">{site.notfall.display}</a>
-            <Rich as="p" class="small" text={`${site.notfall.hours} ${site.notfall.review}`} />
-          </div>
+      <div class="notfall-box" data-notfall>
+        <Icon name="phone" size={28} />
+        <div>
+          <p class="notfall-box__title">Steht etwas still? Rufen Sie uns direkt an.</p>
+          <a class="notfall-box__num tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
         </div>
-      )}
+      </div>
     </fieldset>
 
     <!-- 3 · Details -->

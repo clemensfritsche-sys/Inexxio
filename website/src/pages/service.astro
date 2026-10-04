@@ -8,7 +8,6 @@ import Hero from '../components/Hero.astro';
 import EntryTiles from '../components/EntryTiles.astro';
 import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
-import AreaMap from '../components/AreaMap.astro';
 import CtaBlock from '../components/CtaBlock.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
@@ -25,9 +24,7 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
     title={s.hero.h1}
     lead={s.hero.lead}
     photo={s.hero.photo}
-    primary={site.features.notfall
-      ? { label: `Notfall ${site.notfall.display}`, href: `tel:${site.notfall.e164}`, track: 'notfall_click' }
-      : { label: site.cta.label, href: '#anfrage' }}
+    primary={{ label: `Anrufen ${site.phone.display}`, href: `tel:${site.phone.e164}`, track: 'tel_click' }}
   />
 
   <section class="section section--tight" aria-labelledby="anliegen">
@@ -46,9 +43,8 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
     <div class="wrap">
       <SectionHead eyebrow="Auf einen Blick" title={s.how.title} lead={s.summary} id="so-arbeiten-wir" />
       <ol role="list" class="sv-how">
-        {s.how.items.map((it, i) => (
+        {s.how.items.map((it) => (
           <li>
-            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
             <h3>{it.title}</h3>
             <Rich as="p" text={it.text} />
           </li>
@@ -57,14 +53,11 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
     </div>
   </section>
 
-  <section class="section" aria-labelledby="einsatzgebiet">
-    <div class="wrap grid sv-area">
-      <div class="col-5 sv-area__text">
-        <SectionHead eyebrow="Einsatzgebiet" title={s.area.title} id="einsatzgebiet" class="head--flush" />
-        <Rich as="p" text={s.area.text} />
-        <a class="arrow-link" href="/ueber-uns#einsatzgebiet">{s.area.link} <Icon name="arrow-right" size={18} /></a>
-      </div>
-      <div class="col-7 sv-area__map"><AreaMap caption={false} /></div>
+  <section class="section" aria-labelledby="wo-wir-arbeiten">
+    <div class="wrap sv-area">
+      <SectionHead eyebrow="Wo wir arbeiten" title={s.area.title} id="wo-wir-arbeiten" class="head--flush" />
+      <Rich as="p" text={s.area.text} />
+      <a class="arrow-link" href="/ueber-uns#wo-wir-arbeiten">{s.area.link} <Icon name="arrow-right" size={18} /></a>
     </div>
   </section>
 
@@ -79,8 +72,6 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
   @media (min-width: 1100px) { .sv-how { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   .sv-how li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
   .sv-how h3 { font-size: 1.1875rem; }
-  .sv-area { align-items: center; }
-  .sv-area__text { display: grid; gap: var(--s-4); justify-items: start; }
+  .sv-area { display: grid; gap: var(--s-4); justify-items: start; max-width: 48rem; }
   .head--flush { margin-bottom: 0; }
-  @media (min-width: 960px) { .sv-area__map { grid-column: 7 / span 6; } }
 </style>

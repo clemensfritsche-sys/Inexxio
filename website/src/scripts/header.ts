@@ -1,8 +1,6 @@
 /**
  * Kopfzeile – Komfort auf einer ohne JS voll funktionsfähigen Navigation:
- *  - ab 8 px Scroll eine Linie unten; beim Runterscrollen klappt die Servicezeile weg
- *    (über den Sticky-Versatz, nie über `transform` – siehe Header.astro), beim
- *    Hochscrollen kommt sie zurück
+ *  - ab 8 px Scroll eine Linie unten
  *  - Mega-Dropdowns und Profilmenü: öffnen per Klick (Dropdowns auch beim Zeigen), Esc
  *    schliesst und gibt den Fokus zurück, Klick daneben schliesst
  *  - Mobil-Menü (<details>): Scroll-Sperre, Esc, schliesst bei Klick auf einen Link
@@ -30,7 +28,6 @@ export function initHeader(): void {
     d.toggle?.setAttribute('aria-expanded', String(open));
   };
   const closeAll = (except?: Disclosure) => items.filter((d) => d !== except).forEach((d) => setOpen(d, false));
-  const isOpen = () => items.some((d) => d.root.classList.contains('is-open'));
 
   for (const d of items) {
     d.toggle?.addEventListener('click', () => {
@@ -61,15 +58,9 @@ export function initHeader(): void {
   });
 
   // ---------- Scrollen ----------
-  let lastY = window.scrollY;
   let ticking = false;
   const onScroll = () => {
-    const y = Math.max(0, window.scrollY);
-    header.classList.toggle('is-scrolled', y > 8);
-    const busy = Boolean(menu?.open) || isOpen();
-    if (y > lastY + 2 && y > 120 && !busy) header.classList.add('is-compact');
-    else if (y < lastY - 2 || y <= 120) header.classList.remove('is-compact');
-    lastY = y;
+    header.classList.toggle('is-scrolled', window.scrollY > 8);
     ticking = false;
   };
   window.addEventListener('scroll', () => {
@@ -79,8 +70,6 @@ export function initHeader(): void {
     }
   }, { passive: true });
   onScroll();
-  // Wer per Tastatur in die eingeklappte Servicezeile springt, soll sie sehen.
-  header.addEventListener('focusin', () => header.classList.remove('is-compact'));
 
   // ---------- Mobil-Menü ----------
   if (menu) {

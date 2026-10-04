@@ -53,8 +53,8 @@ const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href ===
     <div class="wrap">
       <SectionHead eyebrow="Im Einzelnen" title="Unsere Leistungen im Detail" id="seiten" />
       <div class:list={['cardgrid', subpages.length === 3 ? 'cardgrid--3' : 'cardgrid--2']}>
-        {subpages.map((p, i) => (
-          <AreaCard index={String(i + 1).padStart(2, '0')} title={p.crumb} href={p.path} text={teaser(p.path)} photo={p.hero.photo} more={`Mehr zu ${p.crumb}`} />
+        {subpages.map((p) => (
+          <AreaCard title={p.crumb} href={p.path} text={teaser(p.path)} photo={p.hero.photo} more={`Mehr zu ${p.crumb}`} />
         ))}
       </div>
     </div>

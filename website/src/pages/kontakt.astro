@@ -1,9 +1,9 @@
 ---
-/** /kontakt – Hauptformular, direkte Kontakte, Notfallnummer, Öffnungszeiten, Anfahrt (statische Karte + Routen-Link), Adresse. */
+/** /kontakt – Hauptformular, direkte Kontakte, Anfahrt (statische Karte + Routen-Link), Adresse. */
 import Base from '../layouts/Base.astro';
 import InquiryForm from '../components/InquiryForm.astro';
 import ContactPanel from '../components/ContactPanel.astro';
-import AreaMap from '../components/AreaMap.astro';
+import LocationMap from '../components/LocationMap.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
@@ -28,7 +28,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
         <InquiryForm />
       </div>
       <aside class="col-4 kt-aside" aria-label="Direkter Kontakt">
-        <ContactPanel notfallFirst={site.features.notfall} />
+        <ContactPanel />
       </aside>
     </div>
   </section>
@@ -43,12 +43,11 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
           {a.zip} {a.city}<br />
           {a.municipality} {a.canton}, {a.countryName}
         </address>
-        <Rich as="p" class="small" text={`${site.hours.text} ${site.hours.review}`} />
         <a class="btn btn--secondary" href={route} rel="noopener">{k.route} <Icon name="external-link" size={18} /></a>
         <Rich as="p" class="small muted" text={k.summary} />
       </div>
       <div class="col-7 kt-map__map">
-        <AreaMap />
+        <LocationMap />
       </div>
     </div>
   </section>

@@ -351,6 +351,55 @@
         }
       }
     },
+    "/api/v1/public/contact": {
+      "get": {
+        "tags": [
+          "website"
+        ],
+        "summary": "Public Contact",
+        "operationId": "public_contact_api_v1_public_contact_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicContact"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/settings": {
       "get": {
         "tags": [
@@ -7128,6 +7177,87 @@
         ],
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
+      },
+      "PublicContact": {
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "phone_e164": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone E164"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "address_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Address Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "company_object_id",
+          "name",
+          "phone",
+          "phone_e164",
+          "email",
+          "address_lines"
+        ],
+        "title": "PublicContact"
       },
       "RecordEntry": {
         "properties": {

@@ -9,7 +9,7 @@ export const service = {
   path: '/service',
   title: 'Service und Reparatur',
   description:
-    'Kran steht still, Prüfung fällig, Fahrmischer defekt oder Teil gesucht? Der schnelle Einstieg zum Service von INEXXIO (ehemals HS Steiner) – Ostschweiz.',
+    'Kran steht still, Prüfung fällig, Fahrmischer defekt oder Teil gesucht? Der schnelle Einstieg zum Service von INEXXIO (ehemals HS Steiner) in Tuttwil.',
   hero: {
     eyebrow: 'Service',
     h1: 'Service: Was steht bei Ihnen ==an==?',
@@ -18,9 +18,9 @@ export const service = {
     photo: 'servicefahrzeug',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer, Aufbauten und Baumaschinen in der Ostschweiz und liefert Ersatz- und Verschleissteile ab Lager in Tuttwil-Wängi TG. Für Stillstände gibt es eine Notfallnummer.',
+    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer, Aufbauten und Baumaschinen und liefert Ersatz- und Verschleissteile ab Lager in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an.',
   entries: [
-    { title: 'Etwas steht still', text: 'Notfall-Service und Notfallnummer', href: '/service/notfall', icon: 'siren' },
+    { title: 'Etwas steht still', text: 'Notfall-Service – rufen Sie direkt an', href: '/service/notfall', icon: 'siren' },
     { title: 'Kran prüfen oder warten lassen', text: 'Jährliche Überprüfung mit Bericht', href: '/krantechnik/pruefung-wartung', icon: 'shield-check' },
     { title: 'Fahrmischer oder Aufbau reparieren', text: 'Alle gängigen Marken, Teile ab Lager', href: '/fahrzeugtechnik/fahrmischer', icon: 'truck' },
     { title: 'Ersatz- oder Verschleissteil gesucht', text: 'Katalog oder Teil direkt anfragen', href: '/fahrzeugtechnik/verschleiss-ersatzteile', icon: 'package' },
@@ -41,8 +41,8 @@ export const service = {
   },
   area: {
     title: 'Wo wir arbeiten',
-    text: 'Im Einsatz sind wir in der {{area.summary}}. {{area.abroad}} {{area.abroadReview}}',
-    link: 'Einsatzgebiet ansehen',
+    text: 'Zuhause sind wir in {{area.home}}, im Einsatz {{area.summary}}. Krane prüfen und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt.',
+    link: 'Mehr über uns',
   },
 };
 
@@ -50,15 +50,15 @@ export const notfall = {
   path: '/service/notfall',
   title: 'Notfall-Service',
   description:
-    'Kran, Fahrmischer oder Maschine steht still? Die Notfallnummer, was Sie bereithalten sollten, und das Formular für dringende Fälle. INEXXIO, Tuttwil TG.',
+    'Kran, Fahrmischer oder Maschine steht still? Die Telefonnummer, was Sie bereithalten sollten, und das Formular für dringende Fälle. INEXXIO, Tuttwil TG.',
   hero: {
     eyebrow: 'Service · Notfall',
     h1: 'Notfall-Service: wenn etwas stillsteht',
     lead:
-      'Rufen Sie uns an. Bürozeiten: {{phone.link}}. Ausserhalb der Bürozeiten: unsere Notfallnummer. Je genauer Sie beschreiben, was passiert ist, desto schneller können wir helfen.',
+      'Rufen Sie uns an: {{phone.link}}. Je genauer Sie beschreiben, was passiert ist, desto schneller können wir helfen.',
   },
   summary:
-    '{{brand.full}} hilft bei Stillständen von Kranen, Fahrmischern, Aufbauten und Baumaschinen in der Ostschweiz. Notfallnummer: {{notfall.display}}. {{notfall.hours}}',
+    '{{brand.full}} hilft bei Stillständen von Kranen, Fahrmischern, Aufbauten und Baumaschinen. Telefon: {{phone.display}}.',
   prepare: {
     title: 'Was Sie bereithalten sollten',
     items: [
@@ -73,10 +73,6 @@ export const notfall = {
     text: 'Anlage ausser Betrieb nehmen und sichern, Last – wenn möglich – sicher absetzen, Bereich absperren. Nicht unter Last weiterarbeiten. [[PRÜFEN: fachlich – Verhalten bei einer Störung]]',
   },
   faq: [
-    {
-      q: 'Wann ist die Notfallnummer erreichbar?',
-      a: '{{notfall.hours}} {{notfall.review}}',
-    },
     {
       q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
       a: '{{promises.reactionTime}}',

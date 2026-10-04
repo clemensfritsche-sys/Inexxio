@@ -13,9 +13,8 @@ interface Props {
 const { levels } = Astro.props;
 ---
 <ol class="levels" role="list">
-  {levels.map((l, i) => (
+  {levels.map((l) => (
     <li class="levels__item">
-      <p class="idx">{String(i + 1).padStart(2, '0')}</p>
       <h3 class="levels__title">{l.title}</h3>
       <Rich as="p" class="levels__text" text={l.text} />
       <ul role="list" class="levels__links">

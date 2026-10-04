@@ -1,7 +1,7 @@
 ---
 /**
  * /uebergabe – die Geschichte der Übergabe: Zeitstrahl, Zitat Heiri, Botschaft von Clemens,
- * Was bleibt / was neu ist, «Nicht mehr im Angebot» (#nicht-mehr-im-angebot), Fragen (#fragen).
+ * Was bleibt / was neu ist, Fragen (#fragen).
  * Soll bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und «HS Krananlagen» gefunden werden.
  */
 import Base from '../layouts/Base.astro';
@@ -85,21 +85,6 @@ import { faqPage } from '../lib/seo.mjs';
     </div>
   </section>
 
-  <section class="section" id="nicht-mehr-im-angebot" aria-labelledby="angebot-title">
-    <div class="wrap grid">
-      <div class="col-5">
-        <SectionHead eyebrow="Schwerpunkt" title={u.discontinued.title} lead={u.discontinued.lead} id="angebot-title" />
-      </div>
-      <div class="col-7 ue-disc">
-        <ul role="list" class="rule-list">
-          {u.discontinued.items.map((i) => <li>{i}</li>)}
-        </ul>
-        <Rich as="p" class="small" text={u.discontinued.review} />
-        <Rich as="p" text={u.discontinued.after} />
-      </div>
-    </div>
-  </section>
-
   <section class="section section--rule" id="fragen" aria-labelledby="fragen-title">
     <div class="wrap grid">
       <div class="col-4"><SectionHead eyebrow="Bestandskunden" title="Fragen zur Übergabe" id="fragen-title" /></div>
@@ -122,6 +107,4 @@ import { faqPage } from '../lib/seo.mjs';
   .ue-lists { display: grid; gap: var(--s-7); padding-top: var(--s-7); border-top: 1px solid var(--line-dark); }
   @media (min-width: 720px) { .ue-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .ue-lists h2 { margin-bottom: var(--s-4); }
-  .ue-disc { display: grid; gap: var(--s-4); align-content: start; }
-  @media (min-width: 960px) { .ue-disc { grid-column: 7 / span 6; } }
 </style>

@@ -246,6 +246,8 @@ jobs:
           SITE_URL: https://inexxio-dev.web.app
           # Testnotizen auch auf der Website (nur hier, nur für Angemeldete).
           SITE_FEEDBACK: 'on'
+          # Telefon und E-Mail als Vorgabe ins HTML – aus dem ERP (Testnotiz #1094).
+          SITE_API: https://inexxio-dev.web.app
         run: npm run build
 
       - uses: actions/setup-node@v4

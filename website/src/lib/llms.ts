@@ -36,11 +36,9 @@ function facts(base: string): string[] {
     `- Rechtlicher Name: ${plain(site.brand.legalName)} – früher ${site.brand.alternateNames.join(' · ')}`,
     `- Gegründet ${site.history.founded} von ${site.people.founder.name} in Tuttwil-Wängi TG; heute geführt von ${o.name} (${o.role}).`,
     `- Telefon: ${site.phone.display} (${site.phone.intl})`,
-    ...(site.features.notfall ? [`- Notfallnummer: ${site.notfall.display} (${site.notfall.intl})`] : []),
     `- E-Mail: ${contactEmail()}`,
     `- Adresse: ${a.street}, ${a.zip} ${a.city} (${a.municipality} ${a.canton}), ${a.countryName}`,
-    `- Öffnungszeiten: ${plain(site.hours.text)}`,
-    `- Einsatzgebiet: ${plain(site.area.summary)}. ${plain(site.area.abroad)}`,
+    `- Im Einsatz: ${plain(site.area.summary)}`,
     `- Anfrage: ${url(base, site.cta.href)}`,
   ];
   return lines.map((l) => plain(l));

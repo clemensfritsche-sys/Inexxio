@@ -78,7 +78,6 @@ export const TOKENS = {
 /** Tokens, die im HTML zu einem Link werden (im Text: nur die Anzeige). */
 const LINK_TOKENS = {
   'phone.link': () => ({ href: `tel:${site.phone.e164}`, label: site.phone.display, track: 'tel_click' }),
-  'notfall.link': () => ({ href: `tel:${site.notfall.e164}`, label: site.notfall.display, track: 'notfall_click' }),
   'email.link': () => ({ href: `mailto:${contactEmail()}`, label: contactEmail(), track: 'mailto_click' }),
 };
 

@@ -3,6 +3,10 @@
  * Häufige Fragen – native <details>/<summary>, die Frage als echte Überschrift.
  * Die strukturierte Fassung (FAQPage) baut die Seite aus DENSELBEN Einträgen
  * (lib/seo.faqPage), damit nur steht, was auch sichtbar ist.
+ *
+ * ►►► Es ist immer nur EINE Antwort offen (Rückmeldung 04.10.2026). ◄◄◄ Das macht der
+ * Browser selbst: <details> mit demselben `name` bilden eine Gruppe, in der das Öffnen der
+ * einen die andere schliesst. Ältere Browser ohne diese Fähigkeit bekommt das Skript unten.
  */
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
@@ -12,10 +16,14 @@ interface Props {
   level?: 'h3' | 'h4';
 }
 const { items, level = 'h3' } = Astro.props;
+/** Eine Gruppe je FAQ-Block – zwei Blöcke auf einer Seite schliessen sich nicht gegenseitig. */
+const counter = globalThis as { __ixFaq?: number };
+counter.__ixFaq = (counter.__ixFaq ?? 0) + 1;
+const group = `faq-${counter.__ixFaq}`;
 ---
 <div class="faq">
   {items.map((item) => (
-    <details class="faq__item">
+    <details class="faq__item" name={group}>
       <summary class="faq__q">
         <Rich as={level === 'h3' ? 'h3' : 'strong'} class="faq__title" text={item.q} />
         <Icon name="plus" size={20} class="faq__icon" />
@@ -26,6 +34,18 @@ const { items, level = 'h3' } = Astro.props;
     </details>
   ))}
 </div>
+
+<script>
+  // Rückfall für Browser ohne `<details name>`: öffnet eine Antwort, schliessen sich die
+  // anderen derselben Gruppe. Wo der Browser es selbst kann, ist das ein Leerlauf.
+  document.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!(d instanceof HTMLDetailsElement) || !d.open || !d.name) return;
+    document.querySelectorAll<HTMLDetailsElement>(`details[name="${d.name}"][open]`).forEach((o) => {
+      if (o !== d) o.open = false;
+    });
+  }, true);
+</script>
 
 <style>
   .faq { border-top: 1px solid var(--line-2); }

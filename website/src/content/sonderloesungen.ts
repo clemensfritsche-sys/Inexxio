@@ -26,7 +26,7 @@ export const sonderloesungen: AreaPage = {
     primary: anfrage('Anliegen schildern'),
   },
   summary:
-    '{{brand.full}} entwickelt und baut Sonderlösungen: Konstruktion und Berechnung, Schweiss- und Stahlbau, Umbauten und Reparaturen an Baumaschinen. Für Bau- und Industriebetriebe in der Ostschweiz, die eine Einzelanfertigung oder einen Umbau brauchen. Geführt von {{people.owner.name}}, Maschinenbauingenieur mit Erfahrung in der Baumaschinen-Entwicklung.',
+    '{{brand.full}} entwickelt und baut Sonderlösungen: Konstruktion und Berechnung, Schweiss- und Stahlbau, Umbauten und Reparaturen an Baumaschinen. Für Bau- und Industriebetriebe, die eine Einzelanfertigung oder einen Umbau brauchen. Geführt von {{people.owner.name}}, Maschinenbauingenieur mit Erfahrung in der Baumaschinen-Entwicklung.',
   levels: [
     {
       title: 'Lösungen',

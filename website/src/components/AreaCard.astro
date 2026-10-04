@@ -10,8 +10,6 @@ import Photo from './Photo.astro';
 import Rich from './Rich.astro';
 
 interface Props {
-  /** Kleine Nummer oben links im Bild («01»). */
-  index?: string;
   title: string;
   href: string;
   text: string;
@@ -21,13 +19,12 @@ interface Props {
   wide?: boolean;
   level?: 'h2' | 'h3';
 }
-const { index, title, href, text, photo, links = [], more, wide = false, level = 'h3' } = Astro.props;
+const { title, href, text, photo, links = [], more, wide = false, level = 'h3' } = Astro.props;
 const H = level;
 ---
 <article class:list={['acard', wide && 'acard--wide']}>
   <a href={href} class="acard__media" tabindex="-1" aria-hidden="true">
     <Photo id={photo} sizes={wide ? '(min-width: 960px) 40vw, 100vw' : '(min-width: 760px) 50vw, 100vw'} />
-    {index && <span class="acard__no">{index}</span>}
   </a>
   <div class="acard__body">
     <H class="acard__title"><a href={href}>{title}</a></H>
@@ -52,14 +49,6 @@ const H = level;
   @media (prefers-reduced-motion: no-preference) {
     .acard:hover .acard__media :global(img), .acard:hover .acard__media :global(.ph) { transform: scale(1.03); }
   }
-  .acard__no {
-    position: absolute; top: 14px; right: 16px; z-index: 3;
-    font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; color: var(--white);
-    font-variant-numeric: tabular-nums;
-    /* Eigener dunkler Grund: der Kontrast hängt nicht vom Bild ab (auf einem hellen Foto oder
-       dem Platzhalter war weiss auf hell 1.5:1). */
-    background: var(--dark); padding: 2px 6px; border-radius: var(--r-sm);
-  }
   .acard__body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); padding: 26px 28px 30px; flex: 1; }
   .acard__title { font-size: clamp(1.5rem, 1.3rem + 0.9vw, 2.125rem); letter-spacing: var(--tracking-tight); font-weight: 700; }
   .acard__title a { color: var(--ink); text-decoration: none; }
@@ -82,6 +71,5 @@ const H = level;
   @media (min-width: 900px) {
     .acard--wide { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
     .acard--wide .acard__media { aspect-ratio: auto; min-height: 280px; }
-    .acard--wide .acard__links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--s-5); }
   }
 </style>

@@ -18,7 +18,7 @@ from .domain import voucher as vo
 from .models import UserProfile
 from .services import people
 from .routers import (
-    admin, articles, attachments, auth, contact, erp, feedback, health,
+    admin, articles, attachments, auth, contact, erp, feedback, health, website,
     instances, orders, passkey, payments, places,
 )
 
@@ -1007,6 +1007,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(passkey.router)
 app.include_router(contact.router)
+app.include_router(website.router)
 app.include_router(admin.router)
 app.include_router(erp.router)
 app.include_router(articles.router)

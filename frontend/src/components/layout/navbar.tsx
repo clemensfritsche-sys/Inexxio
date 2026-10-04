@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, type KeyboardEvent as ReactKeyboardEv
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  ArrowRight, ChevronDown, CircleUser, LayoutDashboard, LogOut, Menu, Phone, Siren, User as UserIcon, X,
+  ArrowRight, ChevronDown, CircleUser, LogOut, Menu, Phone, User as UserIcon, X,
 } from 'lucide-react';
 import { isStaff } from '@/lib/record-status';
 import { onAuthChange, logout } from '@/lib/firebase';
@@ -17,10 +17,12 @@ import type { User } from 'firebase/auth';
 /**
  * ►►► Der Kopf des Konto-/ERP-Bereichs – ein Spiegel der Website-Kopfzeile. ◄◄◄
  *
- * Dieselbe Struktur wie `website/src/components/Header.astro` (Auftrag Kap. 7.1/6.2):
- * dunkle **Servicezeile** (Ankündigung · Notfall · Telefon · Anmelden bzw. Profilmenü) und weisse **Hauptzeile** (Logo · drei Bereiche und Service als Dropdowns ·
- * Über uns · Kontakt · «Anfrage stellen»). Die Inhalte kommen aus `lib/site-shell.json`,
- * generiert aus `website/src/config/site.mjs` – hier steht kein eigenes Wort.
+ * Dieselbe Struktur wie `website/src/components/Header.astro`: EINE Zeile – Logo · drei
+ * Bereiche und Service als Dropdowns · Über uns · Kontakt · ERP (nur Personal) · Telefon ·
+ * Anmelden bzw. Profilmenü · «Anfrage stellen». Servicezeile und Arbeitsleiste sind
+ * ersatzlos entfallen (Rückmeldung 04.10.2026). Die Inhalte kommen aus
+ * `lib/site-shell.json`, generiert aus `website/src/config/site.mjs` – hier steht kein
+ * eigenes Wort.
  *
  * **Geändert ist nur die Darstellung.** Anmeldung, Rolle und Abmelden laufen wie vorher:
  * dieselbe Anmeldeprüfung, derselbe `/auth/me`, derselbe Anmeldedialog. Neu ist eine
@@ -29,17 +31,16 @@ import type { User } from 'firebase/auth';
  *
  * Seiten der Website sind schlichte `<a>` – der Router kennt sie nicht.
  *
- * Für Personal steht darüber die **Arbeitsleiste** (`WorkBar`) – dieselbe wie auf der
- * Website; einen ERP-Knopf in Servicezeile oder Profilmenü gibt es nicht mehr.
+ * **ERP ist ein ganz gewöhnlicher Menüpunkt** – sichtbar, wer ins ERP darf (`isStaff`).
  */
 
-type Group = (typeof shell.areas)[number];
+type Group = Pick<(typeof shell.areas)[number], 'label' | 'href' | 'overview' | 'children'>;
 const GROUPS: Group[] = [...shell.areas, shell.service];
+const ERP: Group = shell.account.erp;
 const TEL = `tel:${shell.phone.e164}`;
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
-  const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +54,7 @@ export function Navbar() {
   const toggle = useCallback((id: string) => (o: boolean) =>
     setOpen((cur) => (o ? id : cur === id ? null : cur)), []);
 
-  useScrollState(setScrolled, setCompact);
+  useScrollState(setScrolled);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -133,7 +134,6 @@ export function Navbar() {
     : user?.email?.slice(0, 2).toUpperCase() || 'IX';
   const displayName = nameForDisplay || user?.email?.split('@')[0] || 'Benutzer';
   const staff = isStaff(userRole);
-  const busy = open !== null || mobileOpen;
 
   const account: Account = {
     loaded: authLoaded, user: !!user, staff, initials, displayName,
@@ -142,12 +142,7 @@ export function Navbar() {
 
   return (
     <>
-      {staff && <WorkBar />}
-      <header
-        className={['sh', scrolled && 'is-scrolled', compact && !busy && 'is-compact'].filter(Boolean).join(' ')}
-        onFocus={() => setCompact(false)}
-      >
-        <ServiceBar account={account} pmOpen={open === 'pm'} onPm={toggle('pm')} />
+      <header className={['sh', scrolled && 'is-scrolled'].filter(Boolean).join(' ')}>
         <div className="sh-main">
           <div className="site-wrap sh-main-in">
             <a href="/" className="sh-home" aria-label={`${shell.brand.full} – zur Startseite`}>
@@ -156,22 +151,29 @@ export function Navbar() {
             </a>
             <nav className="sh-nav" aria-label="Hauptnavigation">
               <ul className="sh-nav-list">
-                {GROUPS.map((g, i) => (
-                  <Dropdown
-                    key={g.href}
-                    group={g}
-                    end={i === GROUPS.length - 1}
-                    open={open === g.href}
-                    onOpen={toggle(g.href)}
-                  />
+                {GROUPS.map((g) => (
+                  <Dropdown key={g.href} group={g} end={false} open={open === g.href} onOpen={toggle(g.href)} />
                 ))}
                 {shell.menu.map((m) => (
                   <li key={m.href} className="sh-item"><a href={m.href} className="sh-nav-link">{m.label}</a></li>
                 ))}
+                {staff && <Dropdown group={ERP} end open={open === ERP.href} onOpen={toggle(ERP.href)} />}
               </ul>
             </nav>
             <div className="sh-actions">
-              <a className="sh-tel" href={TEL} aria-label={`${shell.phone.display} anrufen`}><Phone size={20} /></a>
+              <a className="sh-tel" href={TEL} aria-label={`${shell.phone.display} anrufen`}>
+                <Phone size={20} /> <span className="sh-telnum sh-tnum">{shell.phone.display}</span>
+              </a>
+              {!account.loaded ? (
+                // Der Platz ist reserviert, bis die Sitzung bekannt ist – nichts springt.
+                <span aria-hidden className="sh-acct" style={{ visibility: 'hidden' }}><CircleUser size={22} /></span>
+              ) : account.user ? (
+                <ProfileMenu account={account} open={open === 'pm'} onOpen={toggle('pm')} />
+              ) : (
+                <button type="button" className="sh-acct" onClick={openLogin} aria-label={shell.account.login.label}>
+                  <CircleUser size={22} />
+                </button>
+              )}
               <a className="sh-cta" href={shell.cta.href}>{shell.cta.label} <ArrowRight size={18} /></a>
               <button type="button" className="sh-burger" onClick={() => setMobileOpen(true)} aria-label="Menü öffnen" aria-expanded={mobileOpen}>
                 <Menu size={24} />
@@ -197,45 +199,18 @@ type Account = {
   onLogin: () => void; onLogout: () => void;
 };
 
-/**
- * Arbeitsleiste für Personal – scrollt mit der Seite weg, sticky bleibt der Kopf.
- * Schlichte `<a>`: `?typ=` liest das ERP beim Laden; ein Router-Wechsel auf derselben
- * Route liesse den Filter stehen.
- */
-function WorkBar() {
-  const work = shell.account.workbar;
-  return (
-    <nav className="sh-work" aria-label="Arbeitsleiste">
-      <div className="site-wrap sh-work-in">
-        <a className="sh-work-home" href={work.href}><LayoutDashboard size={16} /> {work.label}</a>
-        <ul className="sh-work-list">
-          {work.links.map((l) => <li key={l.href}><a href={l.href}>{l.label}</a></li>)}
-        </ul>
-      </div>
-    </nav>
-  );
-}
-
-/** Ab 8 px eine Linie unten; beim Runterscrollen klappt die Servicezeile weg (wie die Website). */
-function useScrollState(setScrolled: (v: boolean) => void, setCompact: (v: boolean) => void) {
+/** Ab 8 px eine Linie unten (wie die Website). */
+function useScrollState(setScrolled: (v: boolean) => void) {
   useEffect(() => {
-    let lastY = window.scrollY;
     let ticking = false;
-    const update = () => {
-      const y = Math.max(0, window.scrollY);
-      setScrolled(y > 8);
-      if (y > lastY + 2 && y > 120) setCompact(true);
-      else if (y < lastY - 2 || y <= 120) setCompact(false);
-      lastY = y;
-      ticking = false;
-    };
+    const update = () => { setScrolled(window.scrollY > 8); ticking = false; };
     const onScroll = () => {
       if (!ticking) { ticking = true; requestAnimationFrame(update); }
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     update();
     return () => window.removeEventListener('scroll', onScroll);
-  }, [setScrolled, setCompact]);
+  }, [setScrolled]);
 }
 
 /** Esc schliesst und gibt den Fokus an den Knopf zurück. */
@@ -247,58 +222,18 @@ function escCloses(isOpen: boolean, close: () => void) {
   };
 }
 
-function ServiceBar({ account, pmOpen, onPm }: { account: Account; pmOpen: boolean; onPm: (open: boolean) => void }) {
-  return (
-    <div className="sh-service">
-      <div className="site-wrap sh-service-in">
-        {shell.announcement && (
-          <p className="sh-news">
-            <span>{shell.announcement.text}</span>
-            <a href={shell.announcement.link.href}>{shell.announcement.link.label} <ArrowRight size={14} /></a>
-          </p>
-        )}
-        <ul className="sh-links">
-          {shell.notfall && (
-            <li>
-              <a className="sh-link sh-notfall" href={`tel:${shell.notfall.e164}`}>
-                <Siren size={16} /> Notfall <span className="sh-tnum">{shell.notfall.display}</span>
-              </a>
-            </li>
-          )}
-          <li>
-            <a className="sh-link" href={TEL}><Phone size={16} /> <span className="sh-tnum">{shell.phone.display}</span></a>
-          </li>
-          {!account.loaded ? (
-            // Der Platz ist reserviert, bis die Sitzung bekannt ist – nichts springt.
-            <li aria-hidden className="sh-link" style={{ visibility: 'hidden' }}><CircleUser size={16} /> {shell.account.login.label}</li>
-          ) : account.user ? (
-            <ProfileMenu account={account} open={pmOpen} onOpen={onPm} />
-          ) : (
-            <li>
-              <button type="button" className="sh-link" onClick={account.onLogin}>
-                <CircleUser size={16} /> {shell.account.login.label}
-              </button>
-            </li>
-          )}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
 function ProfileMenu({ account, open, onOpen }: { account: Account; open: boolean; onOpen: (open: boolean) => void }) {
   return (
-    <li className="sh-pm" data-disclosure onKeyDown={escCloses(open, () => onOpen(false))}>
+    <div className="sh-pm" data-disclosure onKeyDown={escCloses(open, () => onOpen(false))}>
       <button
         type="button"
-        className="sh-link sh-pm-toggle"
+        className="sh-acct sh-pm-toggle"
         aria-expanded={open}
         aria-controls="profilmenu"
         onClick={() => onOpen(!open)}
       >
         <span className="sh-initials" aria-hidden>{account.initials}</span>
         <span className="sr-only">Profilmenü</span>
-        <ChevronDown size={14} className="sh-chev" />
       </button>
       {open && (
         <div className="sh-pm-panel" id="profilmenu">
@@ -314,7 +249,7 @@ function ProfileMenu({ account, open, onOpen }: { account: Account; open: boolea
           </ul>
         </div>
       )}
-    </li>
+    </div>
   );
 }
 
@@ -362,7 +297,7 @@ function Dropdown({ group, end, open, onOpen }: { group: Group; end: boolean; op
   );
 }
 
-/** Vollbild-Menü unter 1200 px: Bereiche als Akkordeons, dann Konto, Notfall, Aktionen. */
+/** Vollbild-Menü unter 1200 px: Bereiche als Akkordeons, ERP (Personal), Konto, Aktionen. */
 function MobileMenu({ account, pathname, onClose }: { account: Account; pathname: string; onClose: () => void }) {
   useEffect(() => {
     const root = document.documentElement;
@@ -390,14 +325,17 @@ function MobileMenu({ account, pathname, onClose }: { account: Account; pathname
           </details>
         ))}
         {shell.menu.map((m) => <a key={m.href} href={m.href} className="sh-m-link">{m.label}</a>)}
+        {account.staff && (
+          <details>
+            <summary className="sh-m-link">{ERP.label} <ChevronDown size={20} /></summary>
+            <ul className="sh-m-sub">
+              {ERP.children.map((c) => <li key={c.href}><a href={c.href}>{c.label}<span>{c.text}</span></a></li>)}
+              <li><a href={ERP.href} className="sh-m-overview">{ERP.overview}</a></li>
+            </ul>
+          </details>
+        )}
         <ul className="sh-m-more">{more.map((c) => <li key={c.href}><a href={c.href}>{c.label}</a></li>)}</ul>
         <MobileAccount account={account} pathname={pathname} onClose={onClose} />
-        {shell.notfall && (
-          <p className="sh-m-notfall">
-            <Siren size={18} /> Notfall bei Stillstand:
-            <a href={`tel:${shell.notfall.e164}`} className="sh-tnum">{shell.notfall.display}</a>
-          </p>
-        )}
       </nav>
       <div className="sh-m-actions">
         <a className="sh-m-btn" href={TEL}><Phone size={18} /> Anrufen</a>

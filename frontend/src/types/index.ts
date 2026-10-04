@@ -81,6 +81,8 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
 
 // Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
+/** Kontaktdaten der Website aus dem ERP (`GET /api/v1/public/contact`, Testnotiz #1094). */
+export type PublicContact = components['schemas']['PublicContact'];
 
 // Die **geplante** Stückliste in beide Richtungen (`services/bom.py`) – nur am Detail.
 // `Article.bom === null` heisst «nicht geladen», nicht «nichts gefunden».

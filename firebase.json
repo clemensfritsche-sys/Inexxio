@@ -56,7 +56,7 @@
       },
       {
         "regex": "(?i)^/wahrschaftes/gelaender-und-verglasung(?:/.*)?$",
-        "destination": "/uebergabe#nicht-mehr-im-angebot",
+        "destination": "/uebergabe",
         "type": 301
       },
       {
@@ -71,7 +71,7 @@
       },
       {
         "regex": "(?i)^/(?:haus-und-garten|kleintransporter-pw|hebebuhnen|sachtransporter-anhanger|camping)(?:/.*)?$",
-        "destination": "/uebergabe#nicht-mehr-im-angebot",
+        "destination": "/uebergabe",
         "type": 301
       },
       {

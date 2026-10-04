@@ -1,6 +1,6 @@
 ---
 /**
- * /service/notfall (Auftrag 7.6): Notfallnummer gross, wann erreichbar, was man bereithalten
+ * /service/notfall (Auftrag 7.6): die eine Telefonnummer gross, was man bereithalten
  * sollte (Standort, Maschine, Typenschild, Foto), Kurzformular mit Dringlichkeit «Steht still».
  */
 import Base from '../../layouts/Base.astro';
@@ -18,7 +18,6 @@ const nodes = [
   serviceNode(siteUrl, { name: 'Notfall-Service', serviceType: 'Notfall-Service bei Stillstand von Kranen, Fahrmischern und Maschinen', path: n.path, description: plain(n.summary) }),
   faqPage(n.faq),
 ];
-const on = site.features.notfall;
 ---
 <Base title={n.title} description={n.description} crumbs={[{ name: 'Service', path: '/service' }, { name: 'Notfall-Service', path: n.path }]} jsonLd={nodes}>
   <section class="nf-head dots">
@@ -29,17 +28,9 @@ const on = site.features.notfall;
         <Rich as="p" class="lead" text={n.hero.lead} />
       </div>
       <div class="col-5 nf-num">
-        {on && (
-          <div class="nf-num__box">
-            <p class="label label--red"><Icon name="siren" size={16} /> Notfallnummer</p>
-            <a class="nf-num__big tnum" href={`tel:${site.notfall.e164}`} data-track="notfall_click">{site.notfall.display}</a>
-            <Rich as="p" class="small" text={`${site.notfall.hours} ${site.notfall.review}`} />
-          </div>
-        )}
-        <div class="nf-num__office">
-          <p class="label">Bürozeiten</p>
-          <a class="nf-num__mid tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
-          <Rich as="p" class="small muted" text={`${site.hours.text} ${site.hours.review}`} />
+        <div class="nf-num__box">
+          <p class="label label--red"><Icon name="phone" size={16} /> Rufen Sie uns an</p>
+          <a class="nf-num__big tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
         </div>
       </div>
     </div>
@@ -53,9 +44,8 @@ const on = site.features.notfall;
     <div class="wrap">
       <SectionHead eyebrow="Damit es schnell geht" title={n.prepare.title} id="bereithalten" />
       <ol role="list" class="nf-prep">
-        {n.prepare.items.map((it, i) => (
+        {n.prepare.items.map((it) => (
           <li>
-            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
             <h3>{it.title}</h3>
             <Rich as="p" text={it.text} />
           </li>
@@ -78,7 +68,7 @@ const on = site.features.notfall;
     </div>
   </section>
 
-  <CtaBlock title={n.cta.title} lead={n.cta.lead} kind="waehlen" urgency="dringend" messageLabel={n.cta.messageLabel} notfallFirst />
+  <CtaBlock title={n.cta.title} lead={n.cta.lead} kind="waehlen" urgency="dringend" messageLabel={n.cta.messageLabel} />
 </Base>
 
 <style>
@@ -95,9 +85,6 @@ const on = site.features.notfall;
     display: inline-flex; align-items: center; min-height: 56px; width: fit-content;
   }
   .nf-num__big:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.12em; }
-  .nf-num__office { display: grid; gap: 4px; padding: 0 var(--s-6); }
-  .nf-num__mid { font-size: 1.5rem; font-weight: 700; color: var(--ink); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; width: fit-content; }
-  .nf-num__mid:hover { text-decoration: underline; }
   .nf-summary { margin-top: var(--s-3); max-width: 46em; }
   .nf-prep { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 720px) { .nf-prep { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -193,6 +193,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Contact */
+        get: operations["public_contact_api_v1_public_contact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/settings": {
         parameters: {
             query?: never;
@@ -2974,6 +2991,23 @@ export interface components {
              */
             readonly open_actions: boolean;
         };
+        /** PublicContact */
+        PublicContact: {
+            /** Country */
+            country: string | null;
+            /** Company Object Id */
+            company_object_id: number | null;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Phone E164 */
+            phone_e164: string | null;
+            /** Email */
+            email: string | null;
+            /** Address Lines */
+            address_lines: string[];
+        };
         /**
          * RecordEntry
          * @description Ein Vorgang an einem Modul, an **einer** Einzelinstanz.
@@ -4680,6 +4714,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    public_contact_api_v1_public_contact_get: {
+        parameters: {
+            query?: {
+                country?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicContact"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

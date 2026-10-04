@@ -1,15 +1,15 @@
 ---
 /**
  * /ueber-uns (Auftrag 7.7): Clemens (Porträt, Werdegang, Botschaft) · Team (abgeschaltet) ·
- * Zusagen · Geschichte · Werkstatt und Standort · Einsatzgebiet mit Karte und Regionen als
- * Fliesstext (keine Ortsseiten) · Ausbildung.
+ * Zusagen · Geschichte · Werkstatt und Standort · Wo wir arbeiten (zuhause in Tuttwil, im
+ * Einsatz überall) · Ausbildung.
  */
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
 import Icon from '../components/Icon.astro';
-import AreaMap from '../components/AreaMap.astro';
+import LocationMap from '../components/LocationMap.astro';
 import Faq from '../components/Faq.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
@@ -52,9 +52,8 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
     <div class="wrap">
       <SectionHead eyebrow="Zusagen" title={u.promises.title} lead={u.promises.lead} id="zusagen" />
       <ol role="list" class="uu-promises">
-        {u.promises.items.map((p, i) => (
+        {u.promises.items.map((p) => (
           <li>
-            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
             <h3>{p.title}</h3>
             <Rich as="p" text={p.text} />
           </li>
@@ -86,10 +85,9 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
           {a.street}<br />
           {a.zip} {a.city} ({a.municipality} {a.canton})
         </address>
-        <Rich as="p" class="small muted" text={`${site.hours.text} ${site.hours.review}`} />
         <div class="uu-links">
           <a class="arrow-link" href={route} rel="noopener">Route in Google Maps öffnen <Icon name="external-link" size={16} /></a>
-          <a class="arrow-link" href="#einsatzgebiet">Einsatzgebiet <Icon name="arrow-right" size={18} /></a>
+          <a class="arrow-link" href="#wo-wir-arbeiten">Wo wir arbeiten <Icon name="arrow-right" size={18} /></a>
         </div>
         <div class="uu-training">
           <h3>{u.training.title}</h3>
@@ -100,27 +98,17 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
     </div>
   </section>
 
-  <section class="section section--paper" id="einsatzgebiet" aria-labelledby="einsatzgebiet-title">
+  <section class="section section--paper" id="wo-wir-arbeiten" aria-labelledby="wo-wir-arbeiten-title">
     <div class="wrap">
       <div class="grid uu-area">
         <div class="col-5 uu-area__text">
-          <SectionHead eyebrow="Einsatzgebiet" title={u.area.title} lead={u.area.lead} id="einsatzgebiet-title" class="head--flush" />
+          <SectionHead eyebrow="Wo wir arbeiten" title={u.area.title} id="wo-wir-arbeiten-title" class="head--flush" />
           <Rich as="p" text={u.area.text} />
-          <Rich as="p" text={u.area.abroad} />
         </div>
-        <div class="col-7 uu-area__map"><AreaMap /></div>
+        <div class="col-7 uu-area__map"><LocationMap /></div>
       </div>
-      <dl class="uu-regions">
-        {u.area.regions.map((r) => (
-          <div class="uu-regions__row">
-            <dt>{r.name}</dt>
-            <dd>{r.places}</dd>
-          </div>
-        ))}
-      </dl>
-      <Rich as="p" class="small uu-note" text={u.area.regionsReview} />
       <div class="grid uu-areafaq">
-        <div class="col-4"><h3 class="h3">Fragen zum Einsatzgebiet</h3></div>
+        <div class="col-4"><h3 class="h3">Fragen zu Einsätzen</h3></div>
         <div class="col-8"><Faq items={u.areaFaq} level="h4" /></div>
       </div>
     </div>
@@ -153,11 +141,5 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   .uu-area { align-items: center; }
   .uu-area__text { display: grid; gap: var(--s-4); }
   @media (min-width: 960px) { .uu-area__map { grid-column: 7 / span 6; } }
-  .uu-regions { display: grid; margin-top: var(--s-7); border-top: 1px solid var(--ink); }
-  .uu-regions__row { display: grid; gap: 4px var(--s-5); padding: var(--s-4) 0; border-bottom: 1px solid var(--line-2); }
-  @media (min-width: 720px) { .uu-regions__row { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); } }
-  .uu-regions dt { font-weight: 600; color: var(--ink); font-size: 1.0625rem; }
-  .uu-regions dd { color: var(--ink-2); margin: 0; }
-  .uu-note { margin-top: var(--s-3); }
   .uu-areafaq { margin-top: var(--s-7); }
 </style>

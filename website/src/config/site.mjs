@@ -22,6 +22,25 @@
  * lesen dieselbe Datei ohne Übersetzungsschritt.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+/**
+ * ►►► Telefon und E-Mail kommen aus dem ERP (Testnotiz #1094). ◄◄◄ `scripts/erp-contact.mjs`
+ * holt beim Build die Angaben des Betreibers (`GET /api/v1/public/contact?country=`) und
+ * legt sie hier ab; zur Laufzeit tauscht `src/scripts/contact.ts` sie gegen die des
+ * Besucherlandes. Ohne ERP (lokal, CI-Prüfung) gelten die Vorgaben unten.
+ * @type {{ phone?: string | null, phone_e164?: string | null, email?: string | null }}
+ */
+const erp = (() => {
+  const file = resolve(process.cwd(), 'src/config/erp-contact.json');
+  try {
+    return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  } catch {
+    return {};
+  }
+})();
+
 /** Werdegang von Clemens Fritsche – als Liste (Über uns) und als Satz (JSON-LD, llms.txt). */
 const ownerCareer = [
   'Maschinenbauingenieur',
@@ -145,22 +164,17 @@ export const site = {
       role: 'Gründer',
       /** Nur solange `features.heiriAdvisory` an ist – danach verschwindet der Satz überall. */
       advisory:
-        'Heiri Steiner bleibt in der Übergangszeit beratend dabei. [[PRÜFEN: Dauer und Rolle der Übergangszeit]]',
+        'Heiri Steiner bleibt in der Übergangszeit beratend dabei.',
     },
   },
 
-  phone: { display: '052 378 22 47', intl: '+41 52 378 22 47', e164: '+41523782247' },
-  /** Notfallnummer – nie «Pikett» (Auftrag Kap. 5.4). */
-  notfall: {
-    display: '076 563 22 47',
-    intl: '+41 76 563 22 47',
-    e164: '+41765632247',
-    review: '[[PRÜFEN: Notfallnummer weiterführen? Erreichbar wann?]]',
-    hours: '[[PLATZHALTER: Erreichbarkeit der Notfallnummer]]',
-  },
+  /** Vorgabe – das ERP gewinnt (siehe oben). Eine Nummer für alles, auch bei Stillstand. */
+  phone: erp.phone && erp.phone_e164
+    ? { display: erp.phone, intl: erp.phone_e164, e164: erp.phone_e164 }
+    : { display: '052 378 22 47', intl: '+41 52 378 22 47', e164: '+41523782247' },
   email: {
     /** Die neue Adresse ist offen; bis dahin bleibt die bisherige erreichbar. */
-    primary: '[[PLATZHALTER: neue E-Mail-Adresse]]',
+    primary: erp.email || '[[PLATZHALTER: neue E-Mail-Adresse]]',
     legacy: 'fahrzeug-kranbau@hs-steiner.ch',
   },
   /** Bewerbungen: dieselbe Adresse, bis eine eigene feststeht. */
@@ -177,30 +191,18 @@ export const site = {
   },
   geo: { lat: 47.4836, lng: 8.9357, review: '[[PRÜFEN: Koordinaten]]' },
 
-  hours: {
-    /** Für Menschen. */
-    text: 'Mo–Fr 7.00–12.00 und 13.15–17.30 Uhr',
-    /** Für JSON-LD (openingHoursSpecification). */
-    spec: [
-      { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '07:00', closes: '12:00' },
-      { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '13:15', closes: '17:30' },
-    ],
-    review: '[[PRÜFEN: Öffnungszeiten]]',
-  },
-
+  /**
+   * Wo wir arbeiten: zuhause in Tuttwil-Wängi, im Einsatz überall (Rückmeldung 04.10.2026:
+   * «uns nicht limitieren, ich will ja wachsen»). Keine Regionenliste, keine Grenzen.
+   */
   area: {
-    summary: 'Ostschweiz, Raum Winterthur/Zürich und Schaffhausen',
-    regions: ['Thurgau', 'St. Gallen', 'Raum Winterthur', 'Raum Zürich', 'Schaffhausen'],
-    review: '[[PRÜFEN: Grenzen des Einsatzgebiets]]',
-    abroad: 'Krananlagen auch in Deutschland, Österreich und im Südtirol.',
-    abroadReview: '[[PRÜFEN: Krananlagen im Ausland]]',
-    /** Für JSON-LD: Kantone und Länder. */
-    served: ['Thurgau', 'St. Gallen', 'Zürich', 'Schaffhausen', 'Appenzell Ausserrhoden'],
+    home: 'Tuttwil-Wängi TG',
+    summary: 'in der ganzen Schweiz und weltweit',
   },
 
   promises: {
     /** «Wir melden uns innert …» */
-    responseTime: '[[PLATZHALTER: Antwortzeit, z. B. einem Arbeitstag]]',
+    responseTime: 'kurzer Zeit',
     /** «Wie schnell sind Sie bei einem Stillstand vor Ort?» */
     reactionTime: '[[PLATZHALTER: realistische Reaktionszeit bei einem Stillstand]]',
   },
@@ -215,23 +217,13 @@ export const site = {
 
   /** Elemente, die sich per Schalter abschalten lassen. */
   features: {
-    /** «HS Steiner heisst jetzt INEXXIO» links in der Servicezeile. */
-    announcement: true,
     /** Heiri Steiner bleibt in der Übergangszeit beratend dabei – alles dazu hängt hier. */
     heiriAdvisory: true,
-    /** Notfallnummer in Servicezeile, Footer, Formular und auf /service/notfall. */
-    notfall: true,
     /** Ohne echten Inhalt aus: */
     projects: false,
     beforeAfter: false,
     team: false,
     jobPosting: false,
-  },
-
-  /** Links in der Servicezeile (per Schalter `features.announcement`). */
-  announcement: {
-    text: 'HS Steiner heisst jetzt {{brand.name}}',
-    link: { label: 'Mehr erfahren', href: '/uebergabe' },
   },
 
   /** Saison-Hinweise: von/bis als MM-TT, über den Jahreswechsel erlaubt. */
@@ -266,7 +258,7 @@ export const site = {
     text: 'Einstieg nach Anliegen – wenn etwas still steht, geprüft oder repariert werden muss.',
     photo: 'servicefahrzeug',
     children: [
-      { label: 'Notfall-Service', href: '/service/notfall', text: 'Etwas steht still – Notfallnummer' },
+      { label: 'Notfall-Service', href: '/service/notfall', text: 'Etwas steht still – rufen Sie direkt an' },
       { label: 'Kran prüfen oder warten', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung mit Bericht' },
       { label: 'Fahrmischer reparieren', href: '/fahrzeugtechnik/fahrmischer', text: 'Alle gängigen Marken, Teile ab Lager' },
       { label: 'Ersatz- oder Verschleissteil', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Katalog, Teil anfragen' },
@@ -304,20 +296,20 @@ export const site = {
     profile: { label: 'Profil', href: '/konto' },
     logout: { label: 'Abmelden', href: '/abmelden' },
     /**
-     * Arbeitsleiste: eine eigene, schmale Leiste über dem Kopf – nur für Personal (Admin,
-     * Mitarbeiter). Sie ersetzt den ERP-Knopf in Servicezeile und Profilmenü (Rückmeldung
-     * 04.10.2026: «eigentlich ist das eine weitere Menüleiste für die jeweiligen Personen»).
-     * `?typ=` stellt im ERP-Feed den Filter vor; die Werte sind die Datensatztypen des ERP.
+     * ERP – ein ganz gewöhnlicher Hauptmenüpunkt neben «Über uns» und «Kontakt», sichtbar nur
+     * für Personal (Admin, Mitarbeiter). Rückmeldung 04.10.2026: keine eigene Leiste, kein
+     * Knopf im Profilmenü. `?typ=` stellt im ERP-Feed den Filter vor.
      */
-    workbar: {
+    erp: {
       label: 'ERP',
       href: '/erp',
-      links: [
-        { label: 'Benutzer', href: '/erp?typ=user' },
-        { label: 'Artikel', href: '/erp?typ=article' },
-        { label: 'Aufträge', href: '/erp?typ=order' },
-        { label: 'Instanzen', href: '/erp?typ=instance' },
-        { label: 'Unternehmen', href: '/erp?typ=organization' },
+      overview: 'ERP öffnen',
+      children: [
+        { label: 'Benutzer', href: '/erp?typ=user', text: 'Personen und Zugänge' },
+        { label: 'Artikel', href: '/erp?typ=article', text: 'Stammdaten und Bestand' },
+        { label: 'Aufträge', href: '/erp?typ=order', text: 'Prozesse und Belege' },
+        { label: 'Instanzen', href: '/erp?typ=instance', text: 'Stücke und Chargen' },
+        { label: 'Unternehmen', href: '/erp?typ=organization', text: 'Gesellschaften und Gebiete' },
       ],
     },
   },

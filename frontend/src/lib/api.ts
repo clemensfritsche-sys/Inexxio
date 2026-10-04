@@ -1,5 +1,6 @@
 import type {
   Order,
+  PublicContact,
   OrderSummary,
   OrderDraft,
   OrderValidation,
@@ -253,6 +254,13 @@ class ApiClient {
 
   delete<T>(path: string) {
     return this.request<T>(path, { method: 'DELETE' });
+  }
+
+  // ─── Website ───────────────────────────────────────────────────────────────
+
+  /** Kontaktdaten zum Land des Besuchers – aus dem ERP, ohne Anmeldung (Testnotiz #1094). */
+  getPublicContact(): Promise<PublicContact> {
+    return this.get('/api/v1/public/contact');
   }
 
   // ─── Auth / Profile ────────────────────────────────────────────────────────

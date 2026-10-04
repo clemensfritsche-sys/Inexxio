@@ -68,3 +68,8 @@ backend/alembic/versions/__pycache__/
 
 # Firebase CLI cache
 .firebase/
+# IP→Land-Tabelle – gebaut im Docker-Build (backend/scripts/build_geoip.py)
+backend/app/assets/geoip/
+
+# Kontaktdaten aus dem ERP – beim Build geholt (scripts/erp-contact.mjs)
+website/src/config/erp-contact.json

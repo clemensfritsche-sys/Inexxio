@@ -10,27 +10,15 @@
     "light": "/brand/inexxio-ehemals-hs-steiner-weiss.svg"
   },
   "claim": "INEXXIO AG (ehemals HS Steiner Fahrzeug- und Kranbau GmbH) – Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG. Seit 1982.",
-  "announcement": {
-    "text": "HS Steiner heisst jetzt INEXXIO",
-    "link": {
-      "label": "Mehr erfahren",
-      "href": "/uebergabe"
-    }
-  },
   "phone": {
     "display": "052 378 22 47",
     "e164": "+41523782247"
   },
-  "notfall": {
-    "display": "076 563 22 47",
-    "e164": "+41765632247"
-  },
   "email": "fahrzeug-kranbau@hs-steiner.ch",
-  "hours": "Mo–Fr 7.00–12.00 und 13.15–17.30 Uhr",
   "address": [
     "INEXXIO AG",
     "Waldweg 1",
-    "9546 Tuttwil (Wängi TG)"
+    "9546 Tuttwil"
   ],
   "uid": null,
   "areas": [
@@ -118,7 +106,7 @@
       {
         "label": "Notfall-Service",
         "href": "/service/notfall",
-        "text": "Etwas steht still – Notfallnummer"
+        "text": "Etwas steht still – rufen Sie direkt an"
       },
       {
         "label": "Kran prüfen oder warten",
@@ -182,29 +170,35 @@
       "label": "Abmelden",
       "href": "/abmelden"
     },
-    "workbar": {
+    "erp": {
       "label": "ERP",
       "href": "/erp",
-      "links": [
+      "overview": "ERP öffnen",
+      "children": [
         {
           "label": "Benutzer",
-          "href": "/erp?typ=user"
+          "href": "/erp?typ=user",
+          "text": "Personen und Zugänge"
         },
         {
           "label": "Artikel",
-          "href": "/erp?typ=article"
+          "href": "/erp?typ=article",
+          "text": "Stammdaten und Bestand"
         },
         {
           "label": "Aufträge",
-          "href": "/erp?typ=order"
+          "href": "/erp?typ=order",
+          "text": "Prozesse und Belege"
         },
         {
           "label": "Instanzen",
-          "href": "/erp?typ=instance"
+          "href": "/erp?typ=instance",
+          "text": "Stücke und Chargen"
         },
         {
           "label": "Unternehmen",
-          "href": "/erp?typ=organization"
+          "href": "/erp?typ=organization",
+          "text": "Gesellschaften und Gebiete"
         }
       ]
     }

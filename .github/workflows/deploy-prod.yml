@@ -141,6 +141,8 @@ jobs:
         env:
           SITE_MODE: preview
           SITE_URL: https://inexxio-prod.web.app
+          # Telefon und E-Mail als Vorgabe ins HTML – aus dem ERP (Testnotiz #1094).
+          SITE_API: https://inexxio-prod.web.app
         run: npm run build
 
       - uses: actions/setup-node@v4

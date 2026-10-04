@@ -1,11 +1,10 @@
 ---
 /**
- * Schematische Karte des Einsatzgebiets – eigene SVG-Zeichnung aus echten Koordinaten
+ * Schematische Karte des Standorts – eigene SVG-Zeichnung aus echten Koordinaten
  * (Projektion in km ab Tuttwil). Kein Kartendienst, keine Fremdanfrage, kein Cookie.
- * Der Kreis ist eine Annäherung an «rund 1 Stunde»: massgebend ist die Fahrzeit.
+ * Sie zeigt, wo wir zuhause sind – kein Einsatzgebiet und keine Grenze (Rückmeldung
+ * 04.10.2026: «uns nicht limitieren»).
  */
-import { site } from '../config/site.mjs';
-import { plain } from '../lib/text.mjs';
 
 interface Props { class?: string; caption?: boolean }
 const { class: cls, caption = true } = Astro.props;
@@ -29,20 +28,18 @@ const lake =
   '18,-20.2 22.1,-17.4 26.6,-12.9 33.4,-9.2 37.4,-3.7 42,0.6 46.9,-0.7 57.4,-2.4 56.3,-6.9 48.4,-11.8 40.9,-18.5 29.6,-21.8 23.6,-24.1 16.9,-31.8 9.3,-36.9 8.6,-34.1 16.1,-27.4 18.7,-24.1 17.6,-21.8';
 const untersee = '15.4,-20.2 10.8,-21 3.7,-20.5 -0.8,-18.2 -5.5,-19.6 -4.2,-23 2.6,-28 4.8,-28.5 10.1,-25.7 13.8,-23.5';
 const rhine = 'M-5.7,-19.5 L-11.7,-21.8 L-17.7,-23.7 L-22.7,-23.6 L-26,-21.8 L-30.5,-11.8 L-38,-4';
-const desc = `Schematische Karte: Tuttwil in der Mitte, ein Kreis von rund einer Stunde Fahrzeit umfasst ${plain(site.area.regions.join(', '))}.`;
+const desc = 'Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil und St. Gallen, nahe dem Bodensee.';
 ---
 <figure class:list={['amap', cls]}>
   <svg viewBox="-56 -48 120 98" role="img" aria-labelledby="amap-title amap-desc" class="amap__svg">
-    <title id="amap-title">Einsatzgebiet rund um Tuttwil</title>
+    <title id="amap-title">Standort Tuttwil</title>
     <desc id="amap-desc">{desc}</desc>
-    <circle cx="0" cy="0" r="46" class="amap__radius" />
     <polygon points={lake} class="amap__water" />
     <polygon points={untersee} class="amap__water" />
     <path d={rhine} class="amap__river" />
     <text x="40" y="-10.5" class="amap__region">BODENSEE</text>
     <text x="-50" y="-41" class="amap__region">DEUTSCHLAND</text>
     <text x="-50" y="44" class="amap__region">SCHWEIZ</text>
-    <text x="0" y="-41" text-anchor="middle" class="amap__note">≈ 1 STUNDE</text>
     {towns.map((t) => (
       <g class:list={[t.minor && 'amap__minor']}>
         <circle cx={t.x} cy={t.y} r="0.9" class="amap__dot" />
@@ -53,7 +50,7 @@ const desc = `Schematische Karte: Tuttwil in der Mitte, ein Kreis von rund einer
     <text x="2.4" y="-2.2" class="amap__hometext">Tuttwil</text>
   </svg>
   {caption && (
-    <figcaption class="small muted">Schematisch. Massgebend ist die Fahrzeit, nicht die Luftlinie.</figcaption>
+    <figcaption class="small muted">Schematisch, nicht massstabsgetreu.</figcaption>
   )}
 </figure>
 
@@ -61,18 +58,16 @@ const desc = `Schematische Karte: Tuttwil in der Mitte, ein Kreis von rund einer
   .amap { margin: 0; display: grid; gap: var(--s-2); max-width: 600px; }
   .amap__svg { width: 100%; height: auto; background: var(--white); border: 1px solid var(--line-2); }
   :global(.section--paper) .amap__svg { background: var(--white); }
-  .amap__radius { fill: var(--paper); stroke: var(--ink); stroke-width: 0.25; }
   .amap__water { fill: var(--slate-soft); stroke: none; }
   .amap__river { fill: none; stroke: var(--slate); stroke-opacity: 0.35; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round; }
   .amap__dot { fill: var(--ink); }
   .amap__town { font-size: 2.7px; fill: var(--ink-2); font-weight: 500; }
   /* Freistellung wie auf jeder Karte: wo der Kreis oder der Rhein eine Beschriftung kreuzt,
      unterbricht ein Rand in der Grundfarbe die Linie, statt durch die Buchstaben zu laufen. */
-  .amap__town, .amap__hometext { paint-order: stroke; stroke: var(--paper); stroke-width: 0.9px; stroke-linejoin: round; }
+  .amap__town, .amap__hometext { paint-order: stroke; stroke: var(--white); stroke-width: 0.9px; stroke-linejoin: round; }
   .amap__home { fill: var(--red); }
   .amap__hometext { font-size: 3.4px; font-weight: 700; fill: var(--ink); }
   .amap__region { font-family: var(--font-mono); font-size: 2.1px; letter-spacing: 0.2px; fill: var(--ink-3); }
-  .amap__note { font-family: var(--font-mono); font-size: 2.3px; letter-spacing: 0.2px; fill: var(--ink); }
   /* Die Schrift skaliert mit der Zeichnung: bei 390 px Breite wären die Ortsnamen 8 px gross
      (gemessen). Schmal darum grösser und nur mit den grossen Orten – alle zusammen fänden
      in dieser Grösse keinen Platz, und die Liste unter der Karte nennt sie ohnehin. Gefragt
@@ -83,6 +78,5 @@ const desc = `Schematische Karte: Tuttwil in der Mitte, ein Kreis von rund einer
     .amap__town { font-size: 3.4px; }
     .amap__hometext { font-size: 4px; }
     .amap__region { font-size: 2.5px; }
-    .amap__note { font-size: 2.6px; }
   }
 </style>

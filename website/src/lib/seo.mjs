@@ -88,25 +88,12 @@ export function organization(siteUrl) {
       addressCountry: a.country,
     },
     geo: { '@type': 'GeoCoordinates', latitude: site.geo.lat, longitude: site.geo.lng },
-    openingHoursSpecification: site.hours.spec.map((h) => ({
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: h.days.map((d) => `https://schema.org/${d}`),
-      opens: h.opens,
-      closes: h.closes,
-    })),
-    areaServed: [
-      ...site.area.served.map((name) => ({ '@type': 'AdministrativeArea', name: `Kanton ${name}` })),
-      { '@type': 'Country', name: 'Schweiz' },
-    ],
     foundingDate: String(site.history.founded),
     founder: { '@type': 'Person', name: site.people.founder.name },
     knowsAbout: site.seo.knowsAbout,
     hasOfferCatalog: offerCatalog(siteUrl),
     contactPoint: [
-      { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', areaServed: 'CH', availableLanguage: 'de' },
-      site.features.notfall
-        ? { '@type': 'ContactPoint', telephone: site.notfall.intl, contactType: 'emergency', areaServed: 'CH', availableLanguage: 'de' }
-        : undefined,
+      { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', availableLanguage: 'de' },
     ],
     sameAs: site.seo.sameAs,
   });
@@ -168,7 +155,6 @@ export function service(siteUrl, s) {
     description: s.description,
     url: abs(siteUrl, s.path),
     provider: { '@id': `${siteUrl}/#organisation` },
-    areaServed: site.area.served.map((name) => ({ '@type': 'AdministrativeArea', name: `Kanton ${name}` })),
   });
 }
 

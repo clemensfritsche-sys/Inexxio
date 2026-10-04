@@ -376,16 +376,15 @@
 
    **Kein `transform`, kein `backdrop-filter`, kein `filter` auf der Kopfzeile** – jede
    dieser Eigenschaften macht sie zum Bezugsrahmen für `position: fixed`, und das
-   Vollbild-Menü wäre in ihr eingesperrt (WEBSITE_PLAN Entscheid 35). Die Servicezeile
-   klappt darum über den Sticky-Versatz (`top`) weg. */
+   Vollbild-Menü wäre in ihr eingesperrt (WEBSITE_PLAN Entscheid 35). Seit 04.10.2026
+   ist der Kopf EINE Zeile – Servicezeile und Arbeitsleiste sind entfallen. */
 :root {
   --site-gutter: 16px;
   --site-bar-h: 60px;
-  --site-servicebar-h: 36px;
   --site-header-h: 60px;
 }
 @media (min-width: 768px) {
-  :root { --site-gutter: 24px; --site-bar-h: 72px; --site-header-h: 108px; }
+  :root { --site-gutter: 24px; --site-bar-h: 72px; --site-header-h: 72px; }
 }
 .site-wrap {
   width: 100%; max-width: calc(1240px + 2 * var(--site-gutter));
@@ -402,46 +401,28 @@
 }
 
 /* Kopf */
-.sh { position: sticky; top: 0; z-index: 50; background: var(--bg-1); transition: top 220ms ease, box-shadow 120ms ease; }
+.sh { position: sticky; top: 0; z-index: 50; background: var(--bg-1); transition: box-shadow 120ms ease; }
 .sh.is-scrolled { box-shadow: 0 1px 0 var(--border-1); }
-@media (min-width: 768px) { .sh.is-compact { top: calc(-1 * var(--site-servicebar-h)); } }
 @media (prefers-reduced-motion: reduce) { .sh { transition: none; } }
 
-.sh-service { display: none; background: var(--bg-dark); color: rgba(244, 243, 241, 0.8); font-size: 13px; }
-@media (min-width: 768px) { .sh-service { display: block; } }
-.sh-service-in { height: var(--site-servicebar-h); display: flex; align-items: center; gap: 24px; white-space: nowrap; }
-.sh-news { display: none; align-items: center; gap: 10px; margin: 0 auto 0 0; color: rgba(244, 243, 241, 0.72); }
-@media (min-width: 900px) { .sh-news { display: inline-flex; } }
-.sh-news a { display: inline-flex; align-items: center; gap: 4px; color: #fff; font-weight: 600; text-decoration: none; }
-.sh-news a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
-.sh-links { display: flex; align-items: center; gap: 2px; margin: 0 0 0 auto; padding: 0; list-style: none; }
-.sh-link {
-  display: inline-flex; align-items: center; gap: 6px; height: var(--site-servicebar-h); padding: 0 10px;
-  color: rgba(244, 243, 241, 0.86); text-decoration: none; font-weight: 500; background: none; border: 0; cursor: pointer; font-size: 13px;
-}
-.sh-link:hover { color: #fff; text-decoration: underline; text-underline-offset: 0.2em; }
-.sh-notfall svg { color: var(--inexxio-red-bright); }
-/* Arbeitsleiste (nur Personal) – Spiegel von `.workbar` in Header.astro */
-.sh-work { background: var(--accent-soft); color: var(--accent); font-size: 13px; border-bottom: 1px solid var(--border-1); }
-.sh-work-in { height: 32px; display: flex; align-items: center; gap: 16px; white-space: nowrap; }
-.sh-work a { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; color: inherit; text-decoration: none; }
-.sh-work a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
-.sh-work-home { font-weight: 700; }
-.sh-work-list { display: none; gap: 16px; margin: 0; padding: 0; list-style: none; }
-@media (min-width: 640px) { .sh-work-list { display: flex; } }
 .sh-tnum { font-variant-numeric: tabular-nums; }
 
 /* Profilmenü: Initialen im roten Kreis, Liste darunter */
 .sh-pm { position: relative; }
-.sh-pm-toggle { gap: 6px; padding: 0 6px 0 10px; }
+.sh-acct {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px;
+  color: var(--fg-2); background: none; border: 0; cursor: pointer; padding: 0;
+}
+.sh-acct:hover { color: var(--fg-1); }
+.sh-pm-toggle[aria-expanded='true'] .sh-initials { box-shadow: 0 0 0 2px var(--bg-1), 0 0 0 4px var(--inexxio-red); }
 .sh-initials {
-  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
   background: var(--inexxio-red); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
 }
 .sh-chev { transition: transform 120ms ease; }
 [aria-expanded='true'] > .sh-chev { transform: rotate(180deg); }
 .sh-pm-panel {
-  position: absolute; right: 0; top: 100%; z-index: 60; width: 260px; white-space: normal;
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: 260px; white-space: normal;
   background: var(--bg-1); color: var(--fg-1); border: 1px solid var(--border-1); border-radius: var(--r-md);
   box-shadow: var(--shadow-lg); padding: 8px; animation: sh-drop 150ms ease;
 }
@@ -465,7 +446,7 @@
 .sh-home { display: inline-flex; align-items: center; min-height: 44px; flex: none; text-decoration: none; }
 .sh-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .sh-nav { display: none; }
-@media (min-width: 1200px) { .sh-nav { display: block; } .sh-main-in { gap: 32px; } }
+@media (min-width: 1200px) { .sh-nav { display: block; } .sh-main-in { gap: 24px; } }
 .sh-nav-list { display: flex; align-items: center; margin: 0; padding: 0; list-style: none; }
 .sh-item { position: relative; display: flex; align-items: center; }
 .sh-nav-link {
@@ -500,8 +481,13 @@
 }
 .sh-dd-overview:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 
-.sh-tel { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--fg-1); }
-@media (min-width: 768px) { .sh-tel { display: none; } }
+.sh-tel {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; height: 44px;
+  color: var(--fg-1); font: 600 15px var(--font-body); text-decoration: none;
+}
+.sh-tel:hover .sh-telnum { text-decoration: underline; text-underline-offset: 0.2em; }
+.sh-telnum { display: none; }
+@media (min-width: 1440px) { .sh-telnum { display: inline; } .sh-tel { padding: 0 6px; } }
 .sh-cta {
   display: none; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: var(--r-md);
   background: var(--inexxio-red); color: #fff; font: 600 15px var(--font-body); text-decoration: none;
@@ -537,9 +523,6 @@ details[open] > .sh-m-link > svg { transform: rotate(180deg); }
 }
 .sh-m-account svg { color: var(--fg-3); flex: none; }
 .sh-m-who { font-weight: 400; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; }
-.sh-m-notfall { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding-top: 16px; color: var(--fg-2); }
-.sh-m-notfall svg { color: var(--inexxio-red); }
-.sh-m-notfall a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: var(--fg-1); }
 .sh-m-actions {
   position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
   padding: 12px var(--site-gutter) calc(12px + env(safe-area-inset-bottom));
@@ -560,12 +543,12 @@ details[open] > .sh-m-link > svg { transform: rotate(180deg); }
   padding-bottom: 48px; border-bottom: 1px solid var(--border-on-dark);
 }
 @media (min-width: 720px) { .sf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1100px) { .sf-grid { grid-template-columns: 1.45fr 1fr 1fr 1fr 1.3fr; } }
+@media (min-width: 960px) { .sf-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1200px) { .sf-grid { grid-template-columns: 1.3fr repeat(4, minmax(0, 1fr)) 1.3fr; } }
 .sf-home { display: inline-flex; align-items: center; min-height: 44px; }
 .sf-home .site-lockup { height: 64px; }
 .sf-claim { margin: 16px 0 0; max-width: 36ch; line-height: 1.55; color: rgba(244, 243, 241, 0.72); }
-.sf-company { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 16px 0 0; padding: 0; list-style: none; }
-.sf-company a, .sf-col li a { display: inline-flex; align-items: center; min-height: 44px; }
+.sf-col li a { display: inline-flex; align-items: center; min-height: 44px; }
 .sf-title {
   display: flex; align-items: center; min-height: 44px; margin: 0;
   font: 600 12px var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(244, 243, 241, 0.6);

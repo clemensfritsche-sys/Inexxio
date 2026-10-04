@@ -56,7 +56,6 @@
   --maxw: 1240px;
   --gutter: 16px;
   --header-h: 60px;
-  --servicebar-h: 36px;
   --radius: var(--r-md); /* Bedienelemente 8 px */
   --t-slow: 520ms;
   /* Abstandsskala 4/8/12/16/24/32/48/64/96/128 */
@@ -226,10 +225,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
   .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-/* Abschnittskopf: 2 px schwarze Linie darüber, Overline, grosser Titel, Satz darunter.
-   Mit Index (SectionHead index=…) ab 720 px KOPF-Breite zweispaltig: links Index +
-   Overline, rechts Titel – gemessen am Kopf selbst, damit er in einer halben Spalte
-   gestapelt bleibt. */
+/* Abschnittskopf: 2 px schwarze Linie darüber, Overline, grosser Titel, Satz darunter. */
 .head {
   margin-bottom: var(--s-7);
   border-top: 2px solid var(--ink); padding-top: 22px;
@@ -239,14 +235,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .section--dark .head { border-top-color: var(--white); }
 .head .lead { margin-top: var(--s-1); color: var(--ink-3); }
 .section--dark .head .lead { color: rgba(255, 255, 255, 0.62); }
-.head--indexed { container-type: inline-size; }
-.head--indexed .head__in { max-width: none; }
-.head__meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
-@container (min-width: 720px) {
-  .head--indexed .head__in { grid-template-columns: minmax(120px, 180px) minmax(0, 52rem); column-gap: var(--s-6); }
-  .head--indexed .head__meta { grid-row: 1 / span 3; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
-  .head--indexed .head__in > :not(.head__meta) { grid-column: 2; }
-}
 @media (min-width: 1200px) { .head { margin-bottom: 56px; } }
 
 /* ---------- Knöpfe ---------- */
@@ -379,10 +367,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
   text-transform: uppercase; color: #7a5200; margin-right: 2px;
 }
 .section--dark .mk, .on-dark .mk { color: #5a3b00; }
-.mode-banner {
-  background: var(--amber-bg); color: #5a3b00; border-bottom: 1px dashed var(--amber);
-  font-size: 0.8125rem; padding: 6px var(--gutter); text-align: center; max-width: none;
-}
 
 /* ---------- Bewegung (nur mit JS, nur ohne reduzierte Bewegung) ---------- */
 @media (prefers-reduced-motion: no-preference) {

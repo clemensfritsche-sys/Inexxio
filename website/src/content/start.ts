@@ -1,21 +1,20 @@
 /**
  * Startseite – Texte. Reihenfolge der Sektionen ist verbindlich (Auftrag Kap. 7.3):
  * Hero → drei Bereiche → Übergabe → Warum → Ausgewählte Arbeiten (abgeschaltet) →
- * Einsatzgebiet → Ratgeber → Fragen → Anfrage.
+ * Wo wir arbeiten → Ratgeber → Fragen → Anfrage.
  * Werte aus der Konfiguration mit {{…}}, offene Punkte mit [[…]].
  */
 import type { Faq } from './types';
-import { heiriQuote, news, stays } from './uebergabe';
+import { handoverLead, heiriQuote, news, sharedFaq, stays } from './uebergabe';
 
 export const start = {
-  title: 'Krantechnik Ostschweiz | {{brand.full}}',
+  title: 'Krantechnik Schweiz | {{brand.full}}',
   description:
     'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Heukrananlagen, Kranservice, Fahrmischer-Reparatur. Seit 1982. Jetzt Anfrage stellen.',
 
   hero: {
-    index: '01',
     eyebrow: 'Tuttwil-Wängi TG · seit {{history.founded}}',
-    h1: 'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der ==Ostschweiz==',
+    h1: 'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der ==Schweiz==',
     lead:
       'Wir planen und bauen Krananlagen, warten und reparieren Fahrmischer und Aufbauten aller Marken und konstruieren Lösungen, die es nicht von der Stange gibt. Mit Ingenieurwissen und kurzen Wegen.',
     /** Vertrauensleiste – nur belegte Fakten. */
@@ -28,7 +27,7 @@ export const start = {
   },
 
   summary:
-    '{{brand.full}} plant und baut Krananlagen, wartet und repariert Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Werkstatt und Ersatzteillager stehen in Tuttwil-Wängi TG; im Einsatz sind wir in der {{area.summary}}.',
+    '{{brand.full}} plant und baut Krananlagen, wartet und repariert Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Werkstatt und Ersatzteillager stehen in Tuttwil-Wängi TG.',
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
@@ -38,8 +37,7 @@ export const start = {
   handover: {
     eyebrow: 'Nachfolge geregelt',
     h2: 'Aus HS Steiner wird {{brand.name}}.',
-    lead:
-      'Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Gleiches Team, gleiche Telefonnummer, gleicher Standort – und neue Möglichkeiten. [[PRÜFEN: Aussage «gleiches Team» und Wortlaut freigeben]]',
+    lead: handoverLead,
     quote: heiriQuote,
     stays,
     news,
@@ -51,7 +49,7 @@ export const start = {
     items: [
       {
         title: 'Ingenieurwissen statt Rätselraten.',
-        text: 'Clemens Fritsche hat bei Liebherr Baumaschinen entwickelt. Wir verstehen, wie eine Maschine gebaut ist – nicht nur, wo sie klemmt.',
+        text: 'Clemens Fritsche ist Maschinenbauingenieur und hat bei Liebherr Baumaschinen entwickelt. Dieses Wissen steckt in jeder Reparatur, jeder Modernisierung und jeder neuen Anlage.',
       },
       {
         title: 'Eigene Krananlagen seit {{history.cranesSince}}.',
@@ -59,15 +57,15 @@ export const start = {
       },
       {
         title: 'Alle Marken, kurze Wege.',
-        text: 'Ein Ansprechpartner für Krane, Fahrmischer und Aufbauten. Ersatzteillager vor Ort, Notfallnummer für Stillstände.',
+        text: 'Ein Ansprechpartner für Krane, Fahrmischer und Aufbauten. Ersatzteillager vor Ort und eine Nummer für alles – auch wenn etwas stillsteht.',
       },
       {
         title: 'Sauber dokumentiert.',
-        text: 'Jede Arbeit mit Bericht. Das zählt bei Versicherung und Suva – und ab 2027 auch bei Umbauten. [[PRÜFEN: fachlich – Hinweis auf die EU-Maschinenverordnung]]',
+        text: 'Jede Arbeit mit Bericht. Das zählt bei Versicherung und Suva – und ab 2027 auch bei Umbauten.',
       },
     ],
     portrait: {
-      text: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – und ergänze es dort, wo es Ihnen nützt. [[PRÜFEN: von Clemens freigeben]]',
+      text: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – und ergänze es dort, wo es Ihnen nützt.',
       link: 'Mehr über Clemens Fritsche und das Unternehmen',
     },
   },
@@ -84,11 +82,11 @@ export const start = {
   },
 
   area: {
-    eyebrow: 'Einsatzgebiet',
-    h2: 'Aus Tuttwil-Wängi in die ganze Ostschweiz',
-    text: 'Im Einsatz sind wir im Thurgau, im Kanton St. Gallen, im Raum Winterthur und Zürich und in Schaffhausen. {{area.review}}',
-    abroad: '{{area.abroad}} {{area.abroadReview}}',
-    link: 'Mehr zum Einsatzgebiet',
+    eyebrow: 'Wo wir arbeiten',
+    h2: 'Aus Tuttwil-Wängi in die ==ganze Welt==',
+    text: 'Zuhause sind wir in Tuttwil-Wängi: Hier stehen Werkstatt und Ersatzteillager, und in der Nähe sind wir am schnellsten bei Ihnen. Im Einsatz sind wir {{area.summary}} – für Krananlagen, Service und Sonderlösungen.',
+    note: 'Nicht jeder Einsatz ist innert Stunden möglich, aber jeder lässt sich planen. Fragen Sie an.',
+    link: 'Mehr über uns',
   },
 
   ratgeber: {
@@ -99,38 +97,22 @@ export const start = {
   },
 
   faq: [
-    {
-      q: 'Wer betreut meine HS-Krananlage in Zukunft?',
-      a: 'Wir. Service und Ersatzteile führen wir weiter, mit demselben Wissen und denselben Teilen ab Lager.',
-    },
-    {
-      q: 'Bauen Sie weiterhin neue Krananlagen?',
-      a: 'Ja. Heukrananlagen und Industriekrane planen und bauen wir nach Mass.',
-    },
-    {
-      q: 'Bleibt die Telefonnummer gleich?',
-      a: 'Ja, {{phone.display}}. Auch die bisherigen E-Mail-Adressen erreichen uns weiterhin. [[PRÜFEN: Weiterleitung der E-Mail-Adressen bestätigen]]',
-    },
-    {
-      q: 'Gelten bestehende Verträge weiter?',
-      a: 'Ja. Das Unternehmen bleibt dasselbe, nur der Name ändert sich. [[PRÜFEN: rechtlich – Aussage zu laufenden Verträgen]]',
-    },
+    sharedFaq.whoCares,
+    sharedFaq.newCranes,
+    sharedFaq.phone,
+    sharedFaq.contracts,
     {
       q: 'Welche Marken betreuen Sie?',
-      a: 'Krane aller Hersteller. Bei Fahrmischern: {{marks.mixerList}}.',
+      a: 'Bei Fahrmischern: {{marks.mixerList}} – weitere Marken auf Anfrage.',
     },
     {
       q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
       a: '{{promises.reactionTime}} Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
     },
-    {
-      q: 'Führen Sie noch Garten- und Motorgeräte oder Reifen?',
-      a: 'Nein. Wir konzentrieren uns auf Krantechnik, Fahrzeugtechnik und Sonderlösungen. Was nicht mehr zu unserem Angebot gehört, steht auf der Seite [Aus HS Steiner wird {{brand.name}}](/uebergabe#nicht-mehr-im-angebot).',
-    },
   ] satisfies Faq[],
 
   cta: {
-    h2: 'Was steht bei Ihnen an?',
+    h2: 'Wie können wir Ihnen helfen?',
     lead: 'Beschreiben Sie Ihr Anliegen in zwei Minuten. Wir melden uns innert {{promises.responseTime}}.',
   },
 };

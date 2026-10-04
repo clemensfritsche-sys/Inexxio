@@ -11,7 +11,7 @@
     "tokens": "node scripts/tokens.mjs",
     "predev": "npm run tokens",
     "dev": "astro dev",
-    "prebuild": "npm run tokens && node scripts/check-content.mjs --sources",
+    "prebuild": "npm run tokens && node scripts/erp-contact.mjs && node scripts/check-content.mjs --sources",
     "build": "astro build",
     "postbuild": "node scripts/check-content.mjs --dist && node scripts/check-site.mjs",
     "preview": "astro preview",

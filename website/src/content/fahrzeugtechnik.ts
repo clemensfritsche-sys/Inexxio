@@ -34,7 +34,7 @@ export const fahrzeugtechnik: AreaPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} wartet und repariert Fahrmischer der Marken {{marks.mixerList}} und repariert LKW-Aufbauten, Mulden und Kipper in der Werkstatt in Tuttwil-Wängi TG. Verschleissteile wie Rinnen, Schurren und Spiralschutz liegen an Lager. Für Betonwerke, Bau- und Transportunternehmen in der Ostschweiz.',
+    '{{brand.full}} wartet und repariert Fahrmischer der Marken {{marks.mixerList}} und repariert LKW-Aufbauten, Mulden und Kipper in der Werkstatt in Tuttwil-Wängi TG. Verschleissteile wie Rinnen, Schurren und Spiralschutz liegen an Lager. Für Betonwerke, Bau- und Transportunternehmen in der ganzen Schweiz.',
   levels: [
     {
       title: 'Reparatur & Instandsetzung',
@@ -275,7 +275,7 @@ export const verschleissteile: SubPage = {
     },
     {
       q: 'Kann ich ein Teil abholen?',
-      a: 'Ja, in Tuttwil während der Öffnungszeiten: {{hours.text}}. [[PRÜFEN: Abholung und Versand]]',
+      a: 'Ja, in Tuttwil – am besten vorher kurz anrufen: {{phone.link}}. [[PRÜFEN: Abholung und Versand]]',
     },
     {
       q: 'Bauen Sie die Teile auch ein?',

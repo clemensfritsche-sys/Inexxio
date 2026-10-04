@@ -8,10 +8,6 @@
     "display": "052 378 22 47",
     "e164": "+41523782247"
   },
-  "notfall": {
-    "display": "076 563 22 47",
-    "e164": "+41765632247"
-  },
   "email": "fahrzeug-kranbau@hs-steiner.ch",
   "address": [
     "Waldweg 1",
@@ -243,9 +239,9 @@
   "mail": {
     "confirmSubject": "Ihre Anfrage bei INEXXIO (ehemals HS Steiner)",
     "confirmIntro": "Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.",
-    "confirmNext": "Wir melden uns so bald wie möglich.",
+    "confirmNext": "Wir melden uns innert kurzer Zeit.",
     "urgent": "Steht eine Anlage still, rufen Sie am besten direkt an: 052 378 22 47.",
-    "urgentNotfall": null,
+    "urgentNotfall": "Steht etwas still? Rufen Sie uns direkt an: 052 378 22 47.",
     "closing": "Freundliche Grüsse"
   }
 }

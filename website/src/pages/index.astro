@@ -1,7 +1,7 @@
 ---
 /**
  * Startseite – Reihenfolge nach Auftrag Kap. 7.3: Hero mit Vertrauensleiste → die drei
- * Bereiche → Übergabe → Warum → Ausgewählte Arbeiten (Schalter) → Einsatzgebiet → Ratgeber →
+ * Bereiche → Übergabe → Warum → Ausgewählte Arbeiten (Schalter) → Wo wir arbeiten → Ratgeber →
  * Fragen → Anfrage. Texte: src/content/start.ts, Bereiche aus src/config/site.mjs.
  */
 import Base from '../layouts/Base.astro';
@@ -11,7 +11,6 @@ import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
 import Quote from '../components/Quote.astro';
 import AreaCard from '../components/AreaCard.astro';
-import AreaMap from '../components/AreaMap.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
 import CtaBlock from '../components/CtaBlock.astro';
@@ -24,14 +23,10 @@ import { faqPage } from '../lib/seo.mjs';
 
 const teasers = start.ratgeber.slugs.map((slug) => article(slug));
 const h = start.handover;
-/** Abschnitts-Index: fortlaufend, auch wenn eine Sektion abgeschaltet ist. */
-let n = 1;
-const next = () => String(++n).padStart(2, '0');
 ---
 <Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]}>
   <Hero
     size="lg"
-    index="01"
     eyebrow={start.hero.eyebrow}
     title={start.hero.h1}
     lead={start.hero.lead}
@@ -42,11 +37,10 @@ const next = () => String(++n).padStart(2, '0');
 
   <section class="section" aria-labelledby="bereiche">
     <div class="wrap">
-      <SectionHead index={next()} eyebrow="Bereiche" title={start.areas.h2} lead={start.summary} id="bereiche" />
+      <SectionHead eyebrow="Bereiche" title={start.areas.h2} lead={start.summary} id="bereiche" />
       <div class="cardgrid cardgrid--2 home-areas">
         {site.areas.map((a, i) => (
           <AreaCard
-            index={String(i + 1).padStart(2, '0')}
             title={a.label}
             href={a.href}
             text={a.text}
@@ -64,7 +58,7 @@ const next = () => String(++n).padStart(2, '0');
   <section class="section section--dark" aria-labelledby="uebergabe">
     <div class="wrap grid start-handover">
       <div class="col-6 start-handover__text">
-        <SectionHead index={next()} eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe" class="head--flush" />
+        <SectionHead eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe" class="head--flush" />
         {site.features.heiriAdvisory && <Rich as="p" text={site.people.founder.advisory} />}
         <Quote text={h.quote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
       </div>
@@ -94,12 +88,11 @@ const next = () => String(++n).padStart(2, '0');
 
   <section class="section" aria-labelledby="warum">
     <div class="wrap">
-      <SectionHead index={next()} eyebrow={start.why.eyebrow} title={start.why.h2} id="warum" />
+      <SectionHead eyebrow={start.why.eyebrow} title={start.why.h2} id="warum" />
       <div class="grid">
         <ol class="col-8 start-why" role="list">
-          {start.why.items.map((it, i) => (
+          {start.why.items.map((it) => (
             <li class="start-why__item">
-              <p class="idx">{String(i + 1).padStart(2, '0')}</p>
               <Rich as="h3" class="start-why__title" text={it.title} />
               <Rich as="p" text={it.text} />
             </li>
@@ -118,7 +111,7 @@ const next = () => String(++n).padStart(2, '0');
   {site.features.projects && (
     <section class="section section--paper" aria-labelledby="arbeiten">
       <div class="wrap">
-        <SectionHead index={next()} eyebrow={start.projects.eyebrow} title={start.projects.h2} id="arbeiten" />
+        <SectionHead eyebrow={start.projects.eyebrow} title={start.projects.h2} id="arbeiten" />
         <ul role="list" class="cols-3 start-projects">
           {start.projects.items.map((p) => (
             <li>
@@ -133,21 +126,21 @@ const next = () => String(++n).padStart(2, '0');
     </section>
   )}
 
-  <section class:list={['section', site.features.projects ? '' : 'section--paper']} aria-labelledby="einsatzgebiet">
+  <section class:list={['section', site.features.projects ? '' : 'section--paper']} aria-labelledby="wo-wir-arbeiten">
     <div class="wrap grid start-area">
-      <div class="col-5 start-area__text">
-        <SectionHead index={next()} eyebrow={start.area.eyebrow} title={start.area.h2} id="einsatzgebiet" class="head--flush" />
+      <div class="col-6 start-area__text">
+        <SectionHead eyebrow={start.area.eyebrow} title={start.area.h2} id="wo-wir-arbeiten" class="head--flush" />
         <Rich as="p" text={start.area.text} />
-        <Rich as="p" class="small muted" text={start.area.abroad} />
-        <a class="arrow-link" href="/ueber-uns#einsatzgebiet">{start.area.link} <Icon name="arrow-right" size={18} /></a>
+        <Rich as="p" class="small muted" text={start.area.note} />
+        <a class="arrow-link" href="/ueber-uns#wo-wir-arbeiten">{start.area.link} <Icon name="arrow-right" size={18} /></a>
       </div>
-      <div class="col-7 start-area__map"><AreaMap caption={false} /></div>
+      <div class="col-6 start-area__media"><Photo id="arbeit-werkstatt" sizes="(min-width: 960px) 50vw, 100vw" /></div>
     </div>
   </section>
 
   <section class:list={['section', site.features.projects ? 'section--paper' : '']} aria-labelledby="ratgeber">
     <div class="wrap">
-      <SectionHead index={next()} eyebrow={start.ratgeber.eyebrow} title={start.ratgeber.h2} id="ratgeber" />
+      <SectionHead eyebrow={start.ratgeber.eyebrow} title={start.ratgeber.h2} id="ratgeber" />
       <div class="cols-3">
         {teasers.map((a) => (
           <ArticleCard href={a.path} title={a.title} text={a.kurz[0]} date={a.updated} dateLabel={formatDay(a.updated)} />
@@ -159,7 +152,7 @@ const next = () => String(++n).padStart(2, '0');
 
   <section class="section section--rule" aria-labelledby="fragen">
     <div class="wrap">
-      <SectionHead index={next()} eyebrow="Fragen" title="Häufige Fragen" id="fragen" />
+      <SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" />
       <div class="start-faq"><Faq items={start.faq} /></div>
     </div>
   </section>
@@ -195,8 +188,7 @@ const next = () => String(++n).padStart(2, '0');
 
   .start-area { align-items: center; }
   .start-area__text { display: grid; gap: var(--s-4); justify-items: start; }
-  @media (min-width: 960px) { .start-area__map { grid-column: 7 / span 6; } }
 
   .start-more { margin-top: var(--s-6); }
-  @media (min-width: 760px) { .start-faq { margin-left: calc(min(180px, 20%) + var(--s-6)); max-width: 52rem; } }
+  .start-faq { max-width: 52rem; }
 </style>

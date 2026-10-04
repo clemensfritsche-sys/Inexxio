@@ -25,13 +25,17 @@ Beim Aufruf einer Seite verarbeitet unser Hosting-Anbieter technische Daten: IP-
 
 Die Website liegt bei Google (Firebase Hosting); der Server, der Anfragen entgegennimmt, läuft in der Google-Cloud-Region Zürich (europe-west6). [[PRÜFEN: Vertragspartner und Serverstandorte]]
 
+### Kontaktangaben passend zu Ihrem Land
+
+Damit Sie die Telefonnummer, E-Mail-Adresse und Anschrift der für Ihr Land zuständigen Gesellschaft sehen, leitet unser Server aus Ihrer IP-Adresse das Land ab (zum Beispiel «CH»). Dafür nutzen wir eine Tabelle, die auf unserem eigenen Server liegt – Ihre IP-Adresse geht dabei an niemanden weiter. Weder die IP-Adresse noch das Land werden gespeichert. Grundlage der Tabelle ist «IP to Country Lite» von [DB-IP](https://db-ip.com) (Lizenz CC BY 4.0).
+
 ### Keine Cookies, keine fremden Inhalte
 
 Die öffentliche Website setzt keine Cookies. Die Schrift liegt auf unserem eigenen Server, und wir betten keine Inhalte von Dritten ein – keine Karten, keine Videos, keine Social-Media-Knöpfe. Der Link «Route in Google Maps öffnen» führt zu Google; erst wenn Sie ihn anklicken, gelten dort die Bestimmungen von Google.
 
 ### Lokaler Speicher
 
-Die öffentliche Website legt selbst nichts im Speicher Ihres Browsers ab. Sind Sie im Kundenbereich angemeldet, liest sie dort, was der Kundenbereich abgelegt hat (siehe Abschnitt 6): Ihren Namen und Ihre Rolle, um oben «Anmelden» bzw. Ihr Profilmenü zu zeigen, und Ihre Kontaktangaben, um das Anfrageformular vorauszufüllen. Diese Angaben bleiben auf Ihrem Gerät – an uns gehen sie nur, wenn Sie das Formular absenden.
+Die öffentliche Website legt selbst nur die eben genannten Kontaktangaben unseres Unternehmens für einige Minuten im Sitzungsspeicher Ihres Browsers ab, damit sie nicht bei jeder Seite neu geladen werden – keine Angaben über Sie. Sind Sie im Kundenbereich angemeldet, liest sie dort, was der Kundenbereich abgelegt hat (siehe Abschnitt 6): Ihren Namen und Ihre Rolle, um oben «Anmelden» bzw. Ihr Profilmenü zu zeigen, und Ihre Kontaktangaben, um das Anfrageformular vorauszufüllen. Diese Angaben bleiben auf Ihrem Gerät – an uns gehen sie nur, wenn Sie das Formular absenden.
 
 ### Statistik
 

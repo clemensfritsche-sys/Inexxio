@@ -1,7 +1,7 @@
 ---
 /**
  * Abschluss jeder Leistungsseite: Kurzformular (Bereich und Thema vorausgewählt) und daneben
- * Telefon und Notfallnummer. Eine Hauptaktion: die Anfrage.
+ * Telefon und E-Mail. Eine Hauptaktion: die Anfrage.
  */
 import SectionHead from './SectionHead.astro';
 import ShortForm from './ShortForm.astro';
@@ -16,10 +16,9 @@ interface Props {
   need?: string;
   urgency?: 'dringend' | 'wochen' | 'planung';
   messageLabel?: string;
-  notfallFirst?: boolean;
   tone?: 'paper' | 'white';
 }
-const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, notfallFirst, tone = 'paper' } = Astro.props;
+const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, tone = 'paper' } = Astro.props;
 ---
 <section class:list={['section', tone === 'paper' && 'section--paper']} id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap grid">
@@ -28,7 +27,7 @@ const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, notfallF
       <ShortForm id={`${id}-form`} kind={kind} need={need} urgency={urgency} messageLabel={messageLabel} />
     </div>
     <aside class="col-4 start-9 cta-aside" aria-label="Direkter Kontakt">
-      <ContactPanel notfallFirst={notfallFirst} />
+      <ContactPanel />
     </aside>
   </div>
 </section>

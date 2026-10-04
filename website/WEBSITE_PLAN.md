@@ -482,6 +482,37 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     nofollow, noarchive` (Website, Konto, ERP, Bilder, PDFs) und bricht ab, falls die Zeile
     fehlt. Prod liest dieselbe `firebase.json` ohne sie. Unabhängig davon bleibt der
     Vorschau-Modus (`noindex`-Meta, gesperrte `robots.txt`).
+50. **Testnotizen #1060–#1094 (04.10.2026) – der Kopf ist EINE Zeile.** Vorschau-Banner,
+    Servicezeile und Arbeitsleiste sind **aus dem Code gelöscht**. ERP ist für Personal ein
+    gewöhnlicher Hauptmenüpunkt (Dropdown neben «Kontakt», `account.erp`); Telefon,
+    Anmelden/Profilmenü und «Anfrage stellen» stehen in der Hauptzeile. *Entscheid 47
+    (eigene Arbeitsleiste) ist damit abgelöst.* Die Ankündigung «HS Steiner heisst jetzt
+    INEXXIO» ging mit der Servicezeile.
+51. **Eine Telefonnummer für alles.** `site.notfall` und `features.notfall` sind entfallen;
+    der Notfall-Service bleibt als Seite und nennt die eine Nummer. **Öffnungszeiten**
+    stehen nirgends mehr (auch nicht in JSON-LD).
+52. **Kein Einsatzgebiet mehr, das uns begrenzt.** «Wo wir arbeiten»: zuhause in
+    Tuttwil-Wängi, im Einsatz in der ganzen Schweiz und weltweit (`site.area`). Die
+    Regionenliste, der 1-Stunden-Kreis und `areaServed` sind entfallen; die Karte heisst
+    jetzt `LocationMap` und zeigt nur noch den Standort (Kontaktseite, Über uns).
+53. **Keine laufenden Nummern «01/02»** an Abschnitten, Karten, Hero und Aufzählungen ohne
+    Reihenfolge. Geblieben sind sie dort, wo sie eine Reihenfolge sagen (Formular-Schritte,
+    Ablauf, nächste Schritte).
+54. **FAQ: immer nur eine Antwort offen** – `<details name>` je FAQ-Block, mit kleinem
+    Rückfall-Skript für ältere Browser.
+55. **Die Startseite spiegelt die Unterseiten – eine Antwort an einer Stelle.**
+    `uebergabe.ts` hält `handoverLead`, `heiriQuote` (Entwurf, markiert bis zur Freigabe
+    durch Heiri) und `sharedFaq`; Startseite und Übergabe-Seite lesen sie. «Nicht mehr im
+    Angebot» ist entfallen; die alten Garten-/Reifen-Pfade leiten still auf `/uebergabe`.
+56. **Kontaktdaten aus dem ERP** (Testnotiz #1094): `GET /api/v1/public/contact` (Backend,
+    rein lesend, ohne Anmeldung) liefert Telefon, E-Mail und Anschrift der Gesellschaft zum
+    Land des Besuchers (IP → Land über DB-IP Lite im Docker-Build, dann
+    `sites.company_for_country`; ohne Treffer der Betreiber). **Beim Build** holt
+    `scripts/erp-contact.mjs` (mit `SITE_API`) die Angaben des Betreibers als Vorgabe ins
+    HTML; **zur Laufzeit** tauscht `src/scripts/contact.ts` sie nach Wert aus –
+    Impressum und Datenschutz ausgenommen. Konto/ERP-Fuss liest dieselbe Antwort. Die
+    IP-Adresse wird nicht gespeichert; Datenschutz und DB-IP-Nachweis stehen in
+    `datenschutz.md`.
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
@@ -505,6 +536,10 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `frontend/src/app/(erp)/erp/page.tsx` | `?typ=` stellt den Feed-Filter vor (wie ein Klick auf den Chip) | Entscheid 47 |
 | `frontend/src/islands/`, `frontend/scripts/build-islands.mjs`, `package.json` (esbuild) | Testnotizen als Insel für die Website | Entscheid 48 |
 | `.github/workflows/deploy-dev.yml` | `SITE_FEEDBACK=on`, `X-Robots-Tag` nur auf Dev | Entscheide 48/49 |
+| `backend/app/routers/website.py`, `services/geoip.py`, `scripts/build_geoip.py`, `Dockerfile`, `main.py` | öffentlicher, rein lesender Endpunkt für Kontaktdaten; IP→Land im Docker-Build | Entscheid 56 |
+| `frontend/src/components/layout/navbar.tsx`, `footer.tsx`, `globals.css`, `lib/api.ts`, `types/index.ts` | Kopf eine Zeile, ERP im Menü, Fuss mit Unternehmen-Spalte und Kontaktdaten aus dem ERP | Entscheide 50/56 |
+| `firebase.json` | Garten-/Reifen-Weiterleitungen auf `/uebergabe` | Entscheid 55 |
+| `.github/workflows/deploy-*.yml` | `SITE_API` für den Build | Entscheid 56 |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
 Migrationen, Auth-Logik, Rechte, Prozesse, Module.

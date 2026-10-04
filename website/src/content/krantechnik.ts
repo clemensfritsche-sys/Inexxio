@@ -27,7 +27,7 @@ export const krantechnik: AreaPage = {
   path: '/krantechnik',
   title: 'Krananlagen und Kranservice',
   description:
-    'Heukrananlagen und Industriekrane nach Mass, Prüfung, Wartung und Modernisierung für Krane aller Marken in der Ostschweiz. Teile ab Lager. Jetzt anfragen.',
+    'Heukrananlagen und Industriekrane nach Mass, Prüfung, Wartung und Modernisierung für Krane aller Marken in der Schweiz. Teile ab Lager. Jetzt anfragen.',
   hero: {
     eyebrow: 'Krantechnik',
     h1: 'Krantechnik: Heukrananlagen und ==Industriekrane==',
@@ -37,7 +37,7 @@ export const krantechnik: AreaPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} plant, baut und montiert Heukrananlagen für die Landwirtschaft und Industriekrane für Gewerbe, Industrie und Gemeinden. Dazu kommen Prüfung, Wartung, Reparatur und Modernisierung für Krane aller Hersteller. Werkstatt und Ersatzteillager stehen in Tuttwil-Wängi TG; im Einsatz sind wir in der Ostschweiz, Krananlagen liefern wir auch nach Deutschland, Österreich und ins Südtirol. {{area.abroadReview}}',
+    '{{brand.full}} plant, baut und montiert Heukrananlagen für die Landwirtschaft und Industriekrane für Gewerbe, Industrie und Gemeinden. Dazu kommen Prüfung, Wartung, Reparatur und Modernisierung für Krane aller Hersteller. Werkstatt und Ersatzteillager stehen in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
   levels: [
     {
       title: 'Lösungen',
@@ -94,7 +94,7 @@ export const krantechnik: AreaPage = {
     kind: 'krantechnik',
   },
   service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen' },
-  keywords: ['Krananlagen', 'Kranbau Thurgau', 'Kranservice Ostschweiz'],
+  keywords: ['Krananlagen', 'Kranbau Thurgau', 'Kranservice Schweiz'],
 };
 
 /* ------------------------------------------------------------------ Heukrananlagen */
@@ -152,7 +152,7 @@ export const heukrananlagen: SubPage = {
     },
     {
       q: 'Bauen Sie auch Anlagen im Ausland?',
-      a: '{{area.abroad}} {{area.abroadReview}}',
+      a: 'Ja. Krananlagen planen und bauen wir {{area.summary}} – fragen Sie an.',
     },
   ],
   cta: {
@@ -224,7 +224,7 @@ export const industriekrane: SubPage = {
   crumb: 'Industriekrane',
   title: 'Industriekrane aller Marken',
   description:
-    'Brückenkran, Hallenkran, Schwenkkran: neue Industriekrane nach Mass und Service, Reparatur und Notfall-Service für Krane aller Marken in der Ostschweiz.',
+    'Brückenkran, Hallenkran, Schwenkkran: neue Industriekrane nach Mass und Service, Reparatur und Notfall-Service für Krane aller Marken in der Schweiz.',
   hero: {
     eyebrow: 'Krantechnik · Industriekrane',
     h1: 'Industriekrane: neue Anlagen und Service für alle Marken',
@@ -234,7 +234,7 @@ export const industriekrane: SubPage = {
     primary: anfrage('Kran anfragen'),
   },
   summary:
-    '{{brand.full}} plant und baut Industriekrane – Brücken-, Hänge-, Schwenk- und Drehkrane – und prüft, wartet und repariert Krane aller Hersteller in Gewerbe, Industrie und Gemeinden der Ostschweiz. Viele Ersatzteile liegen in Tuttwil an Lager; für Stillstände gibt es eine Notfallnummer.',
+    '{{brand.full}} plant und baut Industriekrane – Brücken-, Hänge-, Schwenk- und Drehkrane – und prüft, wartet und repariert Krane aller Hersteller in Gewerbe, Industrie und Gemeinden. Viele Ersatzteile liegen in Tuttwil an Lager; steht ein Kran still, rufen Sie direkt an.',
   glance: {
     forWhom: 'Instandhaltungs- und Betriebsleiter in Produktions- und Gewerbebetrieben, Werkhöfe von Gemeinden.',
     what: 'Neuanlagen nach Mass, Prüfung, Wartung, Fehlersuche und Reparatur, Ersatzteile – für Krane aller Marken. [[PRÜFEN: Umfang Neuanlagen Industriekrane]]',
@@ -290,7 +290,7 @@ export const industriekrane: SubPage = {
 export const industrieModules = {
   service: {
     title: 'Service und Reparatur für Krane aller Marken',
-    text: 'Wir finden die Ursache, reparieren vor Ort und haben viele Teile an Lager. Wir sind aus der Region und kennen Krane – nicht nur eine Marke. Steht ein Kran still, erreichen Sie uns über die Notfallnummer.',
+    text: 'Wir finden die Ursache, reparieren vor Ort und haben viele Teile an Lager. Wir sind aus der Region und kennen Krane – nicht nur eine Marke. Steht ein Kran still, rufen Sie direkt an.',
   },
   photoHint: {
     title: 'Foto vom Typenschild oder vom Schaden mitschicken',
@@ -305,7 +305,7 @@ export const pruefung: SubPage = {
   crumb: 'Prüfung & Wartung',
   title: 'Kranprüfung und Kranwartung',
   description:
-    'Kranprüfung und Wartung für Brücken-, Hänge-, Dreh- und Heukrane aller Marken in der Ostschweiz – Prüfpflicht einfach erklärt, mit Bericht. Jetzt anfragen.',
+    'Kranprüfung und Wartung für Brücken-, Hänge-, Dreh- und Heukrane aller Marken in der Schweiz – Prüfpflicht einfach erklärt, mit Bericht. Jetzt anfragen.',
   hero: {
     eyebrow: 'Krantechnik · Prüfung & Wartung',
     h1: 'Kranprüfung und Wartung – Prüfpflicht erfüllt',
@@ -315,7 +315,7 @@ export const pruefung: SubPage = {
     primary: anfrage('Prüfung anfragen'),
   },
   summary:
-    '{{brand.full}} prüft und wartet Krane aller Marken in der Ostschweiz: Brücken-, Hänge-, Schwenk- und Drehkrane in Industrie und Gewerbe sowie Heukrane in der Landwirtschaft. Jede Prüfung endet mit einem Bericht für das Kranbuch.',
+    '{{brand.full}} prüft und wartet Krane aller Marken: Brücken-, Hänge-, Schwenk- und Drehkrane in Industrie und Gewerbe sowie Heukrane in der Landwirtschaft. Jede Prüfung endet mit einem Bericht für das Kranbuch.',
   glance: {
     forWhom: 'Betriebe mit Hallen-, Werkhof- oder Heukranen – vom Gewerbebetrieb bis zum Bauernhof.',
     what:

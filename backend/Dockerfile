@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# IP→Land für die Kontaktdaten der Website (DB-IP Lite). Scheitert der Download, läuft
+# alles weiter – dann zeigt die Website die Angaben des Betreibers (scripts/build_geoip.py).
+RUN python scripts/build_geoip.py || true
+
 EXPOSE 8080
 COPY start.sh .
 RUN chmod +x start.sh

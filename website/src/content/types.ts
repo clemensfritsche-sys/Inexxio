@@ -24,8 +24,6 @@ export interface Cta {
   need?: string;
   urgency?: 'dringend' | 'wochen' | 'planung';
   messageLabel?: string;
-  /** Notfallnummer zuoberst neben dem Formular (Störung, Notfall-Service). */
-  notfallFirst?: boolean;
 }
 
 /** Bereichsseite (Auftrag Kap. 7.4) – alle drei mit derselben Struktur. */

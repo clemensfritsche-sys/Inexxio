@@ -22,14 +22,12 @@ interface Props {
   secondary?: Action | false;
   note?: string;
   size?: 'lg' | 'md';
-  /** Kleiner Index vor der Overline («01 / Kranservice»). */
-  index?: string;
   /** Vertrauensleiste am Fuss der Textspalte – nur belegte Fakten. */
   trust?: string[];
   /** Bildzeile unten rechts im Foto (Ort, Anlage). */
   caption?: string;
 }
-const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md', index, trust, caption } = Astro.props;
+const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md', trust, caption } = Astro.props;
 const isTel = (href: string) => href.startsWith('tel:');
 const second = secondary === false ? null : (secondary ?? { label: site.phone.display, href: `tel:${site.phone.e164}`, track: 'tel_click' });
 ---
@@ -37,7 +35,6 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
   <div class="wrap hero__grid">
     <div class="hero__text dots" data-hero>
       <div class="hero__kicker">
-        {index && <span class="idx">{index}</span>}
         <Rich as="p" class="label hero__eyebrow" text={eyebrow} />
       </div>
       <Rich as="h1" class="hero__title" text={title} />
