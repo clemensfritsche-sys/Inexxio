@@ -19,6 +19,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { api } from './api';
+import { clearAccountCache } from './account-cache';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -104,6 +105,10 @@ export async function signInWithPasskey(firebaseToken: string): Promise<{ token:
 }
 
 export async function logout(): Promise<void> {
+  // Der Anzeige-Cache zuerst und unbedingt: die Website liest ihn, um «Anmelden» bzw. das
+  // Profilmenü zu zeigen (`lib/account-cache`). Bliebe er stehen, zeigte sie nach dem
+  // Abmelden weiter einen Namen.
+  clearAccountCache();
   if (!auth) return;
   await signOut(auth);
   localStorage.removeItem('inexxio_token');

@@ -14,7 +14,7 @@ export default function AGBPage() {
       {/* Hero */}
       <section className="bg-bg-dark py-16">
         <div className="container">
-          <h1 className="text-4xl font-bold text-white">Allgemeine Geschäftsbedingungen</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold text-white hyphens-auto break-words">Allgemeine Geschäftsbedingungen</h1>
           <p className="mt-2 text-fg-4">
             Version {VERSION} | Gültig ab {VALID_FROM}
           </p>

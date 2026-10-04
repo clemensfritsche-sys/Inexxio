@@ -3,7 +3,7 @@
 //   node scripts/merge-hosting.mjs [ziel]      Standard-Ziel: ../frontend/out
 //
 // Firebase Hosting hat EINE Site je Umgebung (firebase.json: public = frontend/out). Die
-// Website besitzt «/» und ihre Seiten, das ERP behält /erp, /konto, /login, /agb, /_next.
+// Website besitzt «/» und ihre Seiten, das ERP behält /erp, /konto, /login, /abmelden, /agb, /_next.
 // Kollidiert eine Datei, bricht das Skript ab – mit zwei bewusst erlaubten Ausnahmen:
 //   404.html   die Fehlerseite der Website gilt für die ganze Domain
 //   robots.txt die EINE robots.txt (das ERP liefert keine mehr)
@@ -16,7 +16,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const TARGET = resolve(process.argv[2] ?? join(ROOT, '..', 'frontend', 'out'));
 const OVERRIDES = new Set(['404.html', 'robots.txt']);
-const ERP = /^(erp|konto|login|agb|api|_next)(\/|\.html$|$)/;
+const ERP = /^(erp|konto|login|abmelden|agb|api|_next)(\/|\.html$|$)/;
 
 function walk(dir) {
   const out = [];

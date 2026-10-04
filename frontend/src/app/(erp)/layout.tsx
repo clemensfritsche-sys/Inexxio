@@ -57,7 +57,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
     return (
       <>
         <Navbar />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 72px - 280px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - var(--site-header-h) - 280px)' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ display: 'inline-block', height: 32, width: 32, borderRadius: '50%', border: '4px solid #E51A14', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
             <p style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>Wird geladen…</p>
@@ -72,7 +72,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
   return (
     <ScanProvider>
       <Navbar />
-      <main style={{ minHeight: 'calc(100vh - 72px - 280px)', background: '#FAFAF8' }}>
+      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: '#FAFAF8' }}>
         {children}
       </main>
       <Footer />

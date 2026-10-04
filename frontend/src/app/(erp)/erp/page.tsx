@@ -487,7 +487,7 @@ export default function ErpPage() {
     <ErpNavContext.Provider value={openByObjectId}>
     {/* 100dvh statt 100vh: auf Mobile berücksichtigt die dynamische Viewport-Höhe die
         Browser-Leiste – sonst rutscht der «+»-FAB (bottom) unter die Adressleiste (unsichtbar). */}
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 72px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--site-header-h))' }}>
       <div className="flex overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
 
         {/* ── List panel ───────────────────────────────────────────────────── */}

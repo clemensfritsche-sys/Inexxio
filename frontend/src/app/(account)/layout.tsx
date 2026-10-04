@@ -29,7 +29,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
     return (
       <>
         <Navbar />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 72px - 280px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - var(--site-header-h) - 280px)' }}>
           <div style={{ height: 32, width: 32, borderRadius: '50%', border: '4px solid #E51A14', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
@@ -41,7 +41,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   return (
     <>
       <Navbar />
-      <main style={{ minHeight: 'calc(100vh - 72px - 280px)', background: '#FAFAF8' }}>
+      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: '#FAFAF8' }}>
         {children}
       </main>
       <Footer />

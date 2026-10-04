@@ -1,51 +1,61 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
+import {
+  ArrowRight, ChevronDown, CircleUser, LayoutDashboard, LogOut, Menu, Phone, Siren, User as UserIcon, X,
+} from 'lucide-react';
 import { isStaff } from '@/lib/record-status';
-import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
+import { ROLE_KEY, NAME_KEY, rememberContact, clearAccountCache } from '@/lib/account-cache';
 import { LoginDialog } from '@/components/auth/login-dialog';
 import { api } from '@/lib/api';
+import shell from '@/lib/site-shell.json';
 import type { User } from 'firebase/auth';
 
-// Elegantes Warenkorb-Symbol für den Header: dezenter Icon-Button, Badge nur bei Inhalt.
+/**
+ * ►►► Der Kopf des Konto-/ERP-Bereichs – ein Spiegel der Website-Kopfzeile. ◄◄◄
+ *
+ * Dieselbe Struktur wie `website/src/components/Header.astro` (Auftrag Kap. 7.1/6.2):
+ * dunkle **Servicezeile** (Ankündigung · Notfall · Telefon · ERP · Anmelden bzw.
+ * Profilmenü) und weisse **Hauptzeile** (Logo · drei Bereiche und Service als Dropdowns ·
+ * Über uns · Kontakt · «Anfrage stellen»). Die Inhalte kommen aus `lib/site-shell.json`,
+ * generiert aus `website/src/config/site.mjs` – hier steht kein eigenes Wort.
+ *
+ * **Geändert ist nur die Darstellung.** Anmeldung, Rolle und Abmelden laufen wie vorher:
+ * dieselbe Anmeldeprüfung, derselbe `/auth/me`, derselbe Anmeldedialog. Neu ist eine
+ * Zeile, die die Kontaktangaben für das Anfrage-Formular der Website merkt (S2), und dass
+ * beim Abmelden der ganze Anzeige-Cache geräumt wird (S3).
+ *
+ * Seiten der Website sind schlichte `<a>` – der Router kennt sie nicht.
+ */
 
-const ROLE_KEY = 'inexxio_user_role';
-const NAME_KEY = 'inexxio_user_fullname';
-
-// Nur Seiten, die es wirklich gibt – sie gehören der Website (`website/`), also ein
-// schlichtes `<a>` statt `next/link`: der Router kennt sie nicht. «Shop» stand hier als erster Eintrag und führte ins
-// Leere – der Shop ist mit dem Verkaufs-Modul entfallen (docs/attic.md), und ein Link auf
-// eine Route, die der statische Export gar nicht kennt, ist ein 404 an prominentester Stelle.
-const navLinks = [
-  { href: '/ueber-uns', label: 'Über uns' },
-  { href: '/kontakt', label: 'Kontakt' },
-];
+type Group = (typeof shell.areas)[number];
+const GROUPS: Group[] = [...shell.areas, shell.service];
+const TEL = `tel:${shell.phone.e164}`;
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [loginOpen, setLoginOpen] = useState(false);
   const pathname = usePathname();
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  /** Öffnet `id` – oder schliesst es, aber nur, wenn gerade es offen ist. */
+  const toggle = useCallback((id: string) => (o: boolean) =>
+    setOpen((cur) => (o ? id : cur === id ? null : cur)), []);
 
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  useScrollState(setScrolled, setCompact);
 
   useEffect(() => {
     setMobileOpen(false);
-    setUserMenuOpen(false);
+    setOpen(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -63,6 +73,7 @@ export function Navbar() {
           const profile = await api.getMe();
           setUserRole(profile.role);
           localStorage.setItem(ROLE_KEY, profile.role);
+          rememberContact(profile);
           const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
           if (fullName) {
             localStorage.setItem(NAME_KEY, fullName);
@@ -74,18 +85,17 @@ export function Navbar() {
       } else {
         setUserRole(null);
         setProfileName('');
-        localStorage.removeItem(ROLE_KEY);
-        localStorage.removeItem(NAME_KEY);
+        clearAccountCache();
       }
     });
     return unsubscribe;
   }, []);
 
+  // Klick daneben schliesst Dropdown und Profilmenü.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
+      const target = e.target as Element | null;
+      if (!target?.closest('[data-disclosure]')) setOpen(null);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -102,7 +112,7 @@ export function Navbar() {
   }, []);
 
   async function handleLogout() {
-    setUserMenuOpen(false);
+    setOpen(null);
     setMobileOpen(false);
     await logout();
     // Hart: «/» ist die Website, keine Next-Seite (`lib/login-target`).
@@ -110,14 +120,8 @@ export function Navbar() {
   }
 
   /**
-   * **Anmelden öffnet ein Pop-up, es navigiert nicht** (Notiz vom 28.8.).
-   *
-   * Vorher führte der Knopf auf `/login` – man verlor die Seite, auf der man stand, und
-   * fand nur über einen eigenen Link zurück. Jetzt legt sich der Dialog darüber; ein
-   * Klick daneben bringt einen zurück, ohne dass es dafür ein Bedienelement braucht.
-   *
-   * Nach der Anmeldung bleibt man, wo man war (`fallback`) – die Route dagegen schickt
-   * zur Startseite, weil hinter ihr nichts steht.
+   * **Anmelden öffnet ein Pop-up, es navigiert nicht** (Notiz vom 28.8.): der Dialog legt
+   * sich über die Seite, und nach der Anmeldung bleibt man, wo man war (`fallback`).
    */
   const openLogin = () => setLoginOpen(true);
 
@@ -125,360 +129,56 @@ export function Navbar() {
   const initials = nameForDisplay
     ? nameForDisplay.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : user?.email?.slice(0, 2).toUpperCase() || 'IX';
-
   const displayName = nameForDisplay || user?.email?.split('@')[0] || 'Benutzer';
+  const staff = isStaff(userRole);
+  const busy = open !== null || mobileOpen;
+
+  const account: Account = {
+    loaded: authLoaded, user: !!user, staff, initials, displayName,
+    email: user?.email ?? '', onLogin: openLogin, onLogout: handleLogout,
+  };
 
   return (
     <>
       <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
-          background: scrolled ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.88)',
-          backdropFilter: 'blur(12px) saturate(1.2)',
-          borderBottom: '1px solid var(--border-1)',
-          boxShadow: scrolled ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
-          transition: 'box-shadow 0.3s',
-        }}
+        className={['sh', scrolled && 'is-scrolled', compact && !busy && 'is-compact'].filter(Boolean).join(' ')}
+        onFocus={() => setCompact(false)}
       >
-        <div className="ix-wrap">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 72 }}>
-
-            {/* Logo */}
-            <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
+        <ServiceBar account={account} pmOpen={open === 'pm'} onPm={toggle('pm')} />
+        <div className="sh-main">
+          <div className="site-wrap sh-main-in">
+            <a href="/" className="sh-home" aria-label={`${shell.brand.full} – zur Startseite`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/logo.png"
-                alt="Inexxio AG"
-                style={{ height: 28, width: 'auto', display: 'block' }}
-              />
+              <img src={shell.logo.dark} alt={shell.brand.full} className="site-lockup" />
             </a>
-
-            {/* Desktop nav */}
-            <nav style={{ alignItems: 'center', gap: 28 }} className="hidden md:flex">
-              {navLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className={cn('ix-nav-link', pathname === link.href && 'ix-nav-link-active')}
-                  style={pathname === link.href ? { color: 'var(--ix-red)' } : {}}
-                >
-                  {link.label}
-                </a>
-              ))}
-              {isStaff(userRole) && (
-                <Link
-                  href="/erp"
-                  className={cn('ix-nav-link', pathname.startsWith('/erp') && 'ix-nav-link-active')}
-                  style={pathname.startsWith('/erp') ? { color: 'var(--ix-red)' } : {}}
-                >
-                  ERP
-                </Link>
-              )}
+            <nav className="sh-nav" aria-label="Hauptnavigation">
+              <ul className="sh-nav-list">
+                {GROUPS.map((g, i) => (
+                  <Dropdown
+                    key={g.href}
+                    group={g}
+                    end={i === GROUPS.length - 1}
+                    open={open === g.href}
+                    onOpen={toggle(g.href)}
+                  />
+                ))}
+                {shell.menu.map((m) => (
+                  <li key={m.href} className="sh-item"><a href={m.href} className="sh-nav-link">{m.label}</a></li>
+                ))}
+              </ul>
             </nav>
-
-            {/* Desktop right */}
-            <div className="hidden md:flex" style={{ alignItems: 'center', gap: 16 }}>
-              {/* Language selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
-                <button style={{ color: 'var(--fg-1)', fontWeight: 600 }}>DE</button>
-                <span style={{ color: 'var(--border-2)' }}>|</span>
-                <button style={{ color: 'var(--fg-3)' }}>EN</button>
-              </div>
-
-
-              {authLoaded && (
-                user ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div ref={userMenuRef} style={{ position: 'relative' }}>
-                      <button
-                        onClick={() => setUserMenuOpen((o) => !o)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          background: 'none',
-                          border: '1px solid var(--border-1)',
-                          borderRadius: 40,
-                          padding: '5px 10px 5px 5px',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s',
-                        }}
-                        className="hover:bg-bg-2"
-                      >
-                        {user.photoURL ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={user.photoURL}
-                            alt={initials}
-                            style={{ width: 28, height: 28, borderRadius: '50%', display: 'block' }}
-                          />
-                        ) : (
-                          <div style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            background: 'var(--ix-red, #E51A14)',
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            letterSpacing: '0.02em',
-                          }}>
-                            {initials}
-                          </div>
-                        )}
-                        <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-1)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {displayName}
-                        </span>
-                        <ChevronDown style={{ width: 13, height: 13, color: 'var(--fg-3)', transition: 'transform 0.2s', transform: userMenuOpen ? 'rotate(180deg)' : 'none' }} />
-                      </button>
-
-                      {userMenuOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: 'calc(100% + 8px)',
-                          background: '#fff',
-                          border: '1px solid var(--border-1)',
-                          borderRadius: 12,
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                          padding: '6px',
-                          minWidth: 220,
-                          zIndex: 100,
-                        }}>
-                          <div style={{ padding: '8px 10px 10px', borderBottom: '1px solid var(--border-1)', marginBottom: 4 }}>
-                            <p style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)', margin: 0 }}>{displayName}</p>
-                            <p style={{ font: '12px var(--font-body)', color: 'var(--fg-3)', margin: '2px 0 0' }}>{user.email}</p>
-                          </div>
-                          <Link
-                            href="/konto"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: 8,
-                              font: '500 13px var(--font-body)',
-                              color: 'var(--fg-2)',
-                              textDecoration: 'none',
-                            }}
-                            className="hover:bg-bg-2"
-                          >
-                            <Settings style={{ width: 14, height: 14 }} />
-                            Kontoeinstellungen
-                          </Link>
-                          <div style={{ margin: '4px 10px', borderTop: '1px solid var(--border-1)' }} />
-                          <button
-                            onClick={handleLogout}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              width: '100%',
-                              padding: '8px 10px',
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 8,
-                              cursor: 'pointer',
-                              font: '500 13px var(--font-body)',
-                              color: 'var(--fg-2)',
-                              textAlign: 'left',
-                            }}
-                            className="hover:bg-bg-2"
-                          >
-                            <LogOut style={{ width: 14, height: 14 }} />
-                            Abmelden
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={openLogin}
-                    className="ix-btn ix-btn-primary"
-                    style={{ padding: '10px 20px', fontSize: 14 }}
-                  >
-                    <LogIn style={{ width: 15, height: 15 }} />
-                    Anmelden
-                  </button>
-                )
-              )}
+            <div className="sh-actions">
+              <a className="sh-tel" href={TEL} aria-label={`${shell.phone.display} anrufen`}><Phone size={20} /></a>
+              <a className="sh-cta" href={shell.cta.href}>{shell.cta.label} <ArrowRight size={18} /></a>
+              <button type="button" className="sh-burger" onClick={() => setMobileOpen(true)} aria-label="Menü öffnen" aria-expanded={mobileOpen}>
+                <Menu size={24} />
+              </button>
             </div>
-
-            {/* Mobile hamburger */}
-            <button
-              className="md:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Navigation öffnen"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--fg-1)' }}
-            >
-              <Menu style={{ width: 22, height: 22 }} />
-            </button>
           </div>
         </div>
-
-        {/* Mobile menu */}
-        {mobileOpen && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              padding: '8px 20px 28px',
-              borderTop: '1px solid var(--border-1)',
-              background: '#fff',
-            }}
-          >
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                style={{
-                  font: '600 19px/1 var(--font-display)',
-                  letterSpacing: '-0.02em',
-                  padding: '14px 0',
-                  borderBottom: '1px solid var(--border-1)',
-                  color: pathname === link.href ? 'var(--ix-red)' : 'var(--fg-1)',
-                  textDecoration: 'none',
-                }}
-              >
-                {link.label}
-              </a>
-            ))}
-            {isStaff(userRole) && (
-              <Link
-                href="/erp"
-                style={{
-                  font: '600 19px/1 var(--font-display)',
-                  letterSpacing: '-0.02em',
-                  padding: '14px 0',
-                  borderBottom: '1px solid var(--border-1)',
-                  color: pathname.startsWith('/erp') ? 'var(--ix-red)' : 'var(--fg-1)',
-                  textDecoration: 'none',
-                }}
-              >
-                ERP
-              </Link>
-            )}
-
-
-
-            <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
-                <button style={{ color: 'var(--fg-1)', fontWeight: 600 }}>DE</button>
-                <span>|</span>
-                <button>EN</button>
-              </div>
-
-              {authLoaded && (
-                user ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      {user.photoURL ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={user.photoURL} alt={initials} style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                      ) : (
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--ix-red, #E51A14)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
-                          {initials}
-                        </div>
-                      )}
-                      <div>
-                        <p style={{ margin: 0, font: '600 14px var(--font-body)', color: 'var(--fg-1)' }}>{displayName}</p>
-                        <p style={{ margin: 0, font: '12px var(--font-body)', color: 'var(--fg-3)' }}>{user.email}</p>
-                      </div>
-                    </div>
-                    <Link
-                      href="/konto"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        border: '1px solid var(--border-1)',
-                        borderRadius: 8,
-                        padding: '10px 16px',
-                        font: '500 14px var(--font-body)',
-                        color: 'var(--fg-2)',
-                        textDecoration: 'none',
-                      }}
-                    >
-                      <Settings style={{ width: 15, height: 15 }} />
-                      Kontoeinstellungen
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        background: 'none',
-                        border: '1px solid var(--border-1)',
-                        borderRadius: 8,
-                        padding: '10px 16px',
-                        cursor: 'pointer',
-                        font: '500 14px var(--font-body)',
-                        color: 'var(--fg-2)',
-                      }}
-                    >
-                      <LogOut style={{ width: 15, height: 15 }} />
-                      Abmelden
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" className="ix-btn ix-btn-primary"
-                    style={{ justifyContent: 'center' }}
-                    onClick={() => { setMobileOpen(false); openLogin(); }}>
-                    <LogIn style={{ width: 16, height: 16 }} />
-                    Anmelden
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-        )}
       </header>
 
-      {mobileOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 49,
-            background: 'rgba(0,0,0,0.3)',
-            backdropFilter: 'blur(4px)',
-          }}
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-      {mobileOpen && (
-        <button
-          onClick={() => setMobileOpen(false)}
-          aria-label="Navigation schliessen"
-          style={{
-            position: 'fixed',
-            top: 20,
-            right: 20,
-            zIndex: 51,
-            background: '#fff',
-            border: 'none',
-            borderRadius: '50%',
-            width: 40,
-            height: 40,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: 'var(--shadow-md)',
-          }}
-        >
-          <X style={{ width: 18, height: 18 }} />
-        </button>
-      )}
+      {mobileOpen && <MobileMenu account={account} pathname={pathname} onClose={closeMobile} />}
 
       {/* **Dasselbe Fenster wie auf `/login`** – nur schliesst es hier, statt zur
           Startseite zu gehen: die Seite dahinter ist ja noch da. */}
@@ -486,5 +186,235 @@ export function Navbar() {
         <LoginDialog onClose={() => setLoginOpen(false)} fallback={pathname} />
       )}
     </>
+  );
+}
+
+type Account = {
+  loaded: boolean; user: boolean; staff: boolean; initials: string; displayName: string; email: string;
+  onLogin: () => void; onLogout: () => void;
+};
+
+/** Ab 8 px eine Linie unten; beim Runterscrollen klappt die Servicezeile weg (wie die Website). */
+function useScrollState(setScrolled: (v: boolean) => void, setCompact: (v: boolean) => void) {
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const update = () => {
+      const y = Math.max(0, window.scrollY);
+      setScrolled(y > 8);
+      if (y > lastY + 2 && y > 120) setCompact(true);
+      else if (y < lastY - 2 || y <= 120) setCompact(false);
+      lastY = y;
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [setScrolled, setCompact]);
+}
+
+/** Esc schliesst und gibt den Fokus an den Knopf zurück. */
+function escCloses(isOpen: boolean, close: () => void) {
+  return (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Escape' || !isOpen) return;
+    close();
+    e.currentTarget.querySelector<HTMLButtonElement>('button[aria-expanded]')?.focus();
+  };
+}
+
+function ServiceBar({ account, pmOpen, onPm }: { account: Account; pmOpen: boolean; onPm: (open: boolean) => void }) {
+  return (
+    <div className="sh-service">
+      <div className="site-wrap sh-service-in">
+        {shell.announcement && (
+          <p className="sh-news">
+            <span>{shell.announcement.text}</span>
+            <a href={shell.announcement.link.href}>{shell.announcement.link.label} <ArrowRight size={14} /></a>
+          </p>
+        )}
+        <ul className="sh-links">
+          {shell.notfall && (
+            <li>
+              <a className="sh-link sh-notfall" href={`tel:${shell.notfall.e164}`}>
+                <Siren size={16} /> Notfall <span className="sh-tnum">{shell.notfall.display}</span>
+              </a>
+            </li>
+          )}
+          <li>
+            <a className="sh-link" href={TEL}><Phone size={16} /> <span className="sh-tnum">{shell.phone.display}</span></a>
+          </li>
+          {account.staff && (
+            <li>
+              <Link className="sh-link sh-erp" href={shell.account.erp.href}>
+                <LayoutDashboard size={16} /> {shell.account.erp.label}
+              </Link>
+            </li>
+          )}
+          {!account.loaded ? (
+            // Der Platz ist reserviert, bis die Sitzung bekannt ist – nichts springt.
+            <li aria-hidden className="sh-link" style={{ visibility: 'hidden' }}><CircleUser size={16} /> {shell.account.login.label}</li>
+          ) : account.user ? (
+            <ProfileMenu account={account} open={pmOpen} onOpen={onPm} />
+          ) : (
+            <li>
+              <button type="button" className="sh-link" onClick={account.onLogin}>
+                <CircleUser size={16} /> {shell.account.login.label}
+              </button>
+            </li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ProfileMenu({ account, open, onOpen }: { account: Account; open: boolean; onOpen: (open: boolean) => void }) {
+  return (
+    <li className="sh-pm" data-disclosure onKeyDown={escCloses(open, () => onOpen(false))}>
+      <button
+        type="button"
+        className="sh-link sh-pm-toggle"
+        aria-expanded={open}
+        aria-controls="profilmenu"
+        onClick={() => onOpen(!open)}
+      >
+        <span className="sh-initials" aria-hidden>{account.initials}</span>
+        <span className="sr-only">Profilmenü</span>
+        <ChevronDown size={14} className="sh-chev" />
+      </button>
+      {open && (
+        <div className="sh-pm-panel" id="profilmenu">
+          <p className="sh-pm-who">
+            <strong>{account.displayName}</strong>
+            {account.email && <span>{account.email}</span>}
+          </p>
+          <ul className="sh-pm-list">
+            <li><Link href={shell.account.profile.href}><UserIcon size={18} /> {shell.account.profile.label}</Link></li>
+            {account.staff && (
+              <li><Link href={shell.account.erp.href}><LayoutDashboard size={18} /> {shell.account.erp.label}</Link></li>
+            )}
+            <li className="sh-pm-sep">
+              <button type="button" onClick={account.onLogout}><LogOut size={18} /> {shell.account.logout.label}</button>
+            </li>
+          </ul>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Ein Bereich als Dropdown: öffnet beim Zeigen und per Klick, Esc schliesst. Wer per Klick
+ * schliesst, während der Zeiger noch darauf steht, will es zu haben (`closedByUser`).
+ */
+function Dropdown({ group, end, open, onOpen }: { group: Group; end: boolean; open: boolean; onOpen: (open: boolean) => void }) {
+  const [hover, setHover] = useState(false);
+  const [closedByUser, setClosedByUser] = useState(false);
+  const shown = open || (hover && !closedByUser);
+  return (
+    <li
+      className={['sh-item', end && 'sh-dd-end'].filter(Boolean).join(' ')}
+      data-disclosure
+      onMouseEnter={() => { setHover(true); setClosedByUser(false); }}
+      onMouseLeave={() => { setHover(false); setClosedByUser(false); onOpen(false); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onOpen(false); }}
+      onKeyDown={escCloses(shown, () => { setClosedByUser(true); onOpen(false); })}
+    >
+      <button
+        type="button"
+        className="sh-nav-link"
+        aria-expanded={shown}
+        onClick={() => { const next = !open; setClosedByUser(!next); onOpen(next); }}
+      >
+        {group.label} <ChevronDown size={16} className="sh-chev" />
+      </button>
+      {shown && (
+        <div className="sh-dd-panel">
+          <ul className="sh-dd-list">
+            {group.children.map((c) => (
+              <li key={c.href}>
+                <a href={c.href} className="sh-dd-link">
+                  <span className="sh-dd-label">{c.label}</span>
+                  <span className="sh-dd-text">{c.text}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <a href={group.href} className="sh-dd-overview">{group.overview} <ArrowRight size={16} /></a>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Vollbild-Menü unter 1200 px: Bereiche als Akkordeons, dann Konto, Notfall, Aktionen. */
+function MobileMenu({ account, pathname, onClose }: { account: Account; pathname: string; onClose: () => void }) {
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => { root.style.overflow = ''; window.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+  const more = shell.company.filter((c) => !shell.menu.some((m) => m.href === c.href));
+  return (
+    <div className="sh-m" role="dialog" aria-modal="true" aria-label="Menü">
+      <div className="site-wrap sh-m-top">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={shell.logo.dark} alt={shell.brand.full} className="site-lockup" />
+        <button type="button" className="sh-burger" onClick={onClose} aria-label="Menü schliessen" autoFocus><X size={24} /></button>
+      </div>
+      <nav className="site-wrap sh-m-nav" aria-label="Hauptnavigation (mobil)">
+        {GROUPS.map((g) => (
+          <details key={g.href}>
+            <summary className="sh-m-link">{g.label} <ChevronDown size={20} /></summary>
+            <ul className="sh-m-sub">
+              {g.children.map((c) => <li key={c.href}><a href={c.href}>{c.label}<span>{c.text}</span></a></li>)}
+              <li><a href={g.href} className="sh-m-overview">{g.overview}</a></li>
+            </ul>
+          </details>
+        ))}
+        {shell.menu.map((m) => <a key={m.href} href={m.href} className="sh-m-link">{m.label}</a>)}
+        <ul className="sh-m-more">{more.map((c) => <li key={c.href}><a href={c.href}>{c.label}</a></li>)}</ul>
+        <MobileAccount account={account} pathname={pathname} onClose={onClose} />
+        {shell.notfall && (
+          <p className="sh-m-notfall">
+            <Siren size={18} /> Notfall bei Stillstand:
+            <a href={`tel:${shell.notfall.e164}`} className="sh-tnum">{shell.notfall.display}</a>
+          </p>
+        )}
+      </nav>
+      <div className="sh-m-actions">
+        <a className="sh-m-btn" href={TEL}><Phone size={18} /> Anrufen</a>
+        <a className="sh-m-btn sh-m-btn-primary" href={shell.cta.href}>Anfrage <ArrowRight size={18} /></a>
+      </div>
+    </div>
+  );
+}
+
+function MobileAccount({ account, pathname, onClose }: { account: Account; pathname: string; onClose: () => void }) {
+  if (!account.loaded) return null;
+  if (!account.user) {
+    return (
+      <ul className="sh-m-account">
+        <li><button type="button" onClick={() => { onClose(); account.onLogin(); }}><CircleUser size={20} /> {shell.account.login.label}</button></li>
+      </ul>
+    );
+  }
+  return (
+    <ul className="sh-m-account">
+      <li>
+        <Link href={shell.account.profile.href} onClick={onClose} aria-current={pathname === shell.account.profile.href ? 'page' : undefined}>
+          <UserIcon size={20} /> {shell.account.profile.label} <span className="sh-m-who">{account.displayName}</span>
+        </Link>
+      </li>
+      {account.staff && (
+        <li><Link href={shell.account.erp.href} onClick={onClose}><LayoutDashboard size={20} /> {shell.account.erp.label}</Link></li>
+      )}
+      <li><button type="button" onClick={account.onLogout}><LogOut size={20} /> {shell.account.logout.label}</button></li>
+    </ul>
   );
 }

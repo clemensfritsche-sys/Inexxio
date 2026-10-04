@@ -79,7 +79,7 @@ export function CookieConsent() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h2 style={bannerTitle}>Datenschutz &amp; Cookies</h2>
                 <p style={bannerText}>
-                  Wir setzen nur technisch notwendige Cookies für Anmeldung und Warenkorb. Optional
+                  Wir setzen nur technisch notwendige Cookies für die Anmeldung. Optional
                   hilft uns cookielose Statistik, die Website zu verbessern. Details in der{' '}
                   <a href="/datenschutz" style={linkStyle}>Datenschutzerklärung</a>.
                 </p>
@@ -129,7 +129,7 @@ export function CookieConsent() {
               <CategoryRow
                 icon={<ShieldCheck style={{ width: 18, height: 18, color: 'var(--success)' }} />}
                 title="Notwendig"
-                description="Anmeldung (Session), Warenkorb und das Speichern dieser Einwilligung. Ohne diese funktioniert die Website nicht – daher immer aktiv."
+                description="Anmeldung (Session) und das Speichern dieser Einwilligung. Ohne diese funktioniert die Website nicht – daher immer aktiv."
                 locked
                 checked
               />

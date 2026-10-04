@@ -256,7 +256,7 @@ export function LoginDialog({ onClose, fallback }: {
               {/* ── Header ── */}
               <div className="ix-login-header">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="Inexxio" className="ix-login-logo" />
+                <img src="/brand/inexxio-ehemals-hs-steiner.svg" alt="INEXXIO (ehemals HS Steiner)" className="ix-login-logo" />
                 <h1>Anmelden</h1>
                 <p>Geben Sie Ihre E-Mail-Adresse ein</p>
               </div>

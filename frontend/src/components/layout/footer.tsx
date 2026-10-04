@@ -1,157 +1,89 @@
-import { Mail, Phone, MapPin } from 'lucide-react';
+import { Clock, Mail, MapPin, Phone, Siren } from 'lucide-react';
 import { CookieSettingsLink } from './cookie-settings-link';
+import shell from '@/lib/site-shell.json';
 
-const currentYear = new Date().getFullYear();
-
+/**
+ * ►►► Der Fuss des Konto-/ERP-Bereichs – ein Spiegel des Website-Fusses. ◄◄◄
+ *
+ * Dieselbe Anordnung wie `website/src/components/Footer.astro` (Logo und Satz · drei
+ * Bereiche · Kontakt; unten © · Impressum · Datenschutz · UID), dieselben Inhalte aus
+ * `lib/site-shell.json` (generiert aus `website/src/config/site.mjs`). Hier stand vorher
+ * ein Fuss eines anderen Geschäfts – «Präzisionsfertigung», eine fremde Telefonnummer und
+ * ein Handelsregister-Satz, der nirgends belegt war. Ein Spiegel kann das nicht mehr: er
+ * hat keine eigenen Wörter.
+ *
+ * Der Anmelde-Link der Website fehlt hier bewusst – wer diesen Fuss sieht, ist schon im
+ * Konto oder im ERP. Dafür steht hier, was nur dieser Bereich setzt: die
+ * Cookie-Einstellungen (Einwilligung `inexxio_consent`).
+ */
 export function Footer() {
+  const year = new Date().getFullYear();
+  const company = [...shell.company, { label: shell.service.overview, href: shell.service.href }];
   return (
-    <footer style={{ background: 'var(--bg-dark)', color: 'var(--fg-on-dark)' }}>
-      <div className="ix-wrap" style={{ paddingTop: 80, paddingBottom: 0 }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1.5fr 1fr 1fr',
-            gap: 40,
-            paddingBottom: 48,
-            borderBottom: '1px solid var(--border-on-dark)',
-          }}
-          className="footer-grid"
-        >
-          {/* Brand column */}
+    <footer className="sf">
+      <div className="site-wrap">
+        <div className="sf-grid">
           <div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.png"
-              alt="Inexxio AG"
-              style={{ height: 26, filter: 'brightness(0) invert(1)', marginBottom: 20 }}
-            />
-            <p style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.6)', maxWidth: 280, lineHeight: 1.65 }}>
-              Präzisionsfertigung und Maschinenbau. Qualität made in Switzerland.
-            </p>
-            <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <a
-                href="mailto:info.inexxio@gmail.com"
-                style={{ display: 'flex', alignItems: 'center', gap: 10, font: 'var(--body-sm)', color: 'rgba(255,255,255,0.8)', textDecoration: 'none' }}
-              >
-                <Mail style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0 }} />
-                info.inexxio@gmail.com
-              </a>
-              <a
-                href="tel:+41795058302"
-                style={{ display: 'flex', alignItems: 'center', gap: 10, font: 'var(--body-sm)', color: 'rgba(255,255,255,0.8)', textDecoration: 'none' }}
-              >
-                <Phone style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0 }} />
-                +41 79 505 83 02
-              </a>
-              <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10, font: 'var(--body-sm)', color: 'rgba(255,255,255,0.8)' }}>
-                <MapPin style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0, marginTop: 2 }} />
-                Schweiz
-              </span>
-              <p style={{ font: '500 12px var(--font-body)', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', margin: 0, marginTop: 4 }}>
-                MO – FR · 08:00 – 17:00
+            <a href="/" className="sf-home" aria-label={`${shell.brand.full} – zur Startseite`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={shell.logo.light} alt={shell.brand.full} className="site-lockup" />
+            </a>
+            <p className="sf-claim">{shell.claim}</p>
+            <nav aria-label="Unternehmen">
+              <ul className="sf-company">
+                {company.map((c) => <li key={c.href}><a href={c.href}>{c.label}</a></li>)}
+              </ul>
+            </nav>
+          </div>
+
+          {shell.areas.map((area) => (
+            <nav key={area.href} className="sf-col" aria-label={area.label}>
+              <h2 className="sf-title"><a href={area.href}>{area.label}</a></h2>
+              <ul>
+                {area.children.map((c) => <li key={c.href}><a href={c.href}>{c.label}</a></li>)}
+              </ul>
+            </nav>
+          ))}
+
+          <div className="sf-col">
+            <h2 className="sf-title">Kontakt</h2>
+            <address className="sf-contact">
+              <p>
+                <MapPin size={16} aria-hidden />
+                <span>{shell.address.map((line, i) => <span key={line}>{i > 0 && <br />}{line}</span>)}</span>
               </p>
-            </div>
+              <p>
+                <Phone size={16} aria-hidden />
+                <span>Telefon <a href={`tel:${shell.phone.e164}`} className="sf-tnum">{shell.phone.display}</a></span>
+              </p>
+              {shell.notfall && (
+                <p>
+                  <Siren size={16} aria-hidden />
+                  <span>Notfall <a href={`tel:${shell.notfall.e164}`} className="sf-tnum">{shell.notfall.display}</a></span>
+                </p>
+              )}
+              <p>
+                <Mail size={16} aria-hidden />
+                <span><a href={`mailto:${shell.email}`}>{shell.email}</a></span>
+              </p>
+              <p>
+                <Clock size={16} aria-hidden />
+                <span>{shell.hours}</span>
+              </p>
+            </address>
           </div>
-
-          {/* Rechtliches */}
-          <div>
-            <h5
-              style={{
-                font: '600 11px var(--font-body)',
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: '0 0 18px',
-              }}
-            >
-              Rechtliches
-            </h5>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[
-                { href: '/agb', label: 'AGB' },
-                { href: '/datenschutz', label: 'Datenschutz' },
-                { href: '/impressum', label: 'Impressum' },
-              ].map((l) => (
-                <li key={l.href}>
-                  <a
-                    href={l.href}
-                    style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
-                    className="footer-link"
-                  >
-                    {l.label}
-                  </a>
-                </li>
-              ))}
-              <li>
-                <CookieSettingsLink className="footer-link" />
-              </li>
-            </ul>
-          </div>
-
-          {/* Navigation */}
-          <div>
-            <h5
-              style={{
-                font: '600 11px var(--font-body)',
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: '0 0 18px',
-              }}
-            >
-              Navigation
-            </h5>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[
-                { href: '/', label: 'Startseite' },
-                { href: '/ueber-uns', label: 'Über uns' },
-                { href: '/kontakt', label: 'Kontakt' },
-              ].map((l) => (
-                <li key={l.href}>
-                  <a
-                    href={l.href}
-                    style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
-                    className="footer-link"
-                  >
-                    {l.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
         </div>
 
-        {/* Bottom bar */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingTop: 24,
-            paddingBottom: 32,
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <p style={{ font: 'var(--caption)', color: 'rgba(255,255,255,0.4)', margin: 0 }}>
-            © {currentYear} Inexxio AG. Alle Rechte vorbehalten.
-          </p>
-          <p style={{ font: 'var(--caption)', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
-            Eingetragen im Handelsregister des Kantons Zürich
-          </p>
+        <div className="sf-bottom">
+          <p>© {year} {shell.brand.legalName}</p>
+          <ul>
+            {shell.legal.map((l) => <li key={l.href}><a href={l.href}>{l.label}</a></li>)}
+            <li><a href="/agb">AGB</a></li>
+            <li><CookieSettingsLink /></li>
+            {shell.uid && <li>UID {shell.uid}</li>}
+          </ul>
         </div>
       </div>
-
-      <style>{`
-        .footer-link:hover { color: #fff !important; }
-        @media (max-width: 760px) {
-          .footer-grid { grid-template-columns: 1fr 1fr !important; }
-        }
-        @media (max-width: 480px) {
-          .footer-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </footer>
   );
 }

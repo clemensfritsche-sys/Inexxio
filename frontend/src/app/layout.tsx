@@ -8,20 +8,22 @@ import './globals.css';
 import { ChunkReloadGuard } from '@/components/chunk-reload-guard';
 import { PlausibleAnalytics } from '@/components/analytics/plausible';
 import { CookieConsent } from '@/components/consent/cookie-consent';
+import shell from '@/lib/site-shell.json';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
+// Der Konto-/ERP-Bereich trägt den Namen und den Satz der Website (`lib/site-shell.json`,
+// aus `website/src/config/site.mjs`). Hier stand der Text eines anderen Geschäfts
+// («Präzisionsfertigung», «CNC») – ein Spiegel kann das nicht mehr.
 export const metadata: Metadata = {
-  title: { template: '%s | Inexxio AG', default: 'Inexxio AG – Präzisionsfertigung' },
-  description:
-    'Inexxio AG – Ihr Schweizer Spezialist für Präzisionsfertigung und Maschinenbau. Qualität made in Switzerland.',
-  keywords: 'Präzisionsfertigung, Maschinenbau, Schweiz, Swiss Made, CNC, Qualität',
-  authors: [{ name: 'Inexxio AG' }],
+  title: { template: `%s | ${shell.brand.legalName}`, default: shell.brand.legalName },
+  description: shell.claim,
+  authors: [{ name: shell.brand.legalName }],
   robots: isDev ? { index: false, follow: false } : { index: true, follow: true },
   openGraph: {
     type: 'website',
     locale: 'de_CH',
-    siteName: 'Inexxio AG',
+    siteName: shell.brand.legalName,
   },
 };
 

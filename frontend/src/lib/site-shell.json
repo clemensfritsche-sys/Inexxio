@@ -5,6 +5,10 @@
     "full": "INEXXIO (ehemals HS Steiner)",
     "legalName": "INEXXIO AG"
   },
+  "logo": {
+    "dark": "/brand/inexxio-ehemals-hs-steiner.svg",
+    "light": "/brand/inexxio-ehemals-hs-steiner-weiss.svg"
+  },
   "claim": "INEXXIO AG (ehemals HS Steiner Fahrzeug- und Kranbau GmbH) – Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG. Seit 1982.",
   "announcement": {
     "text": "HS Steiner heisst jetzt INEXXIO",

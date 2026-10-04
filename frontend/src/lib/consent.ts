@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 // ─── Cookie-/Einwilligungs-Verwaltung (erstanbieter, versioniert) ───────────────
 //
-// Inexxio ist bewusst «cookie-arm»: für Anmeldung, Warenkorb und die Speicherung
+// Inexxio ist bewusst «cookie-arm»: für Anmeldung und die Speicherung
 // dieser Einwilligung braucht es KEINE Zustimmung (technisch notwendig). Die EINZIGE
 // optionale Kategorie ist **Statistik** (Plausible – cookielos, aber wir geben die
 // Wahl). Diese Datei ist die eine Wahrheit über den Einwilligungs-Status; sie liegt

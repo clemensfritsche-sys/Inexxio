@@ -76,7 +76,7 @@ export default function VerifyPage() {
       <div className="ix-login-lightbox">
         <div className="ix-login-card" style={{ textAlign: 'center' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Inexxio" style={{ height: 28, margin: '0 auto 28px', display: 'block' }} />
+          <img src="/brand/inexxio-ehemals-hs-steiner.svg" alt="INEXXIO (ehemals HS Steiner)" style={{ height: 44, margin: '0 auto 28px', display: 'block' }} />
 
           {status === 'loading' && (
             <>

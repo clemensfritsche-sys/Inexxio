@@ -1,6 +1,6 @@
 // ►►► Überträgt, was ausserhalb der Website dieselben Wörter braucht. ◄◄◄
 //
-//   node scripts/export-contact.mjs           schreibt beide Dateien
+//   node scripts/export-contact.mjs           schreibt alle Abdrucke
 //   node scripts/export-contact.mjs --check   bricht ab (Exit 1), wenn eine veraltet ist (CI)
 //
 // 1. backend/app/assets/website_contact.json – das Vokabular der Anfrage: der Endpunkt
@@ -10,7 +10,12 @@
 //    (Bereiche, Telefon, Notfallnummer, Adresse, Pfade): dort wird derselbe Kopf in React
 //    nachgebaut (WEBSITE_PLAN Entscheid 39), die Inhalte kommen von hier.
 //
-// Die Quelle bleibt src/config (site.mjs, inquiry.mjs) – die JSON-Dateien sind ihr Abdruck.
+// 3. frontend/public/brand/inexxio-ehemals-hs-steiner(-weiss).svg – das Logo für Kopf, Fuss
+//    und Anmeldedialog des ERP. Ein Abdruck von public/logo/, damit Konto und ERP dasselbe
+//    Zeichen tragen und es auch ohne die Website (npm run dev im Frontend) da ist.
+//
+// Die Quelle bleibt src/config (site.mjs, inquiry.mjs) und public/logo – die Dateien
+// drüben sind ihr Abdruck.
 //
 // Eine E-Mail enthält nie eine Markierung: ist ein Wert noch offen ([[…]]), gilt die
 // hinterlegte Ausweichformulierung bzw. die Angabe fällt weg.
@@ -25,6 +30,8 @@ import { hasMarker, plain } from '../src/lib/text.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = resolve(ROOT, '../backend/app/assets/website_contact.json');
 const SHELL = resolve(ROOT, '../frontend/src/lib/site-shell.json');
+const LOGOS = ['inexxio-ehemals-hs-steiner.svg', 'inexxio-ehemals-hs-steiner-weiss.svg'];
+const BRAND = resolve(ROOT, '../frontend/public/brand');
 
 /** Text mit Werten; enthält er eine offene Markierung, gilt `fallback` (oder nichts). */
 const textOr = (/** @type {string} */ text, /** @type {string | null} */ fallback = null) =>
@@ -76,6 +83,7 @@ const shell = {
   _comment:
     'Generiert aus website/src/config/site.mjs mit «npm run export:contact» – nicht von Hand ändern. Kopf und Fuss des Konto-/ERP-Bereichs spiegeln die Website (WEBSITE_PLAN Entscheid 39).',
   brand: { name: site.brand.name, full: plain(site.brand.full), legalName: plain(site.brand.legalName) },
+  logo: { dark: `/brand/${LOGOS[0]}`, light: `/brand/${LOGOS[1]}` },
   claim: plain(site.footer.claim),
   announcement: site.features.announcement
     ? { text: plain(site.announcement.text), link: link(site.announcement.link) }
@@ -98,6 +106,7 @@ const shell = {
 const outputs = [
   [TARGET, `${JSON.stringify(data, null, 2)}\n`],
   [SHELL, `${JSON.stringify(shell, null, 2)}\n`],
+  ...LOGOS.map((f) => [resolve(BRAND, f), readFileSync(resolve(ROOT, 'public/logo', f), 'utf8')]),
 ];
 const rel = (/** @type {string} */ p) => p.replace(resolve(ROOT, '..') + '/', '');
 
