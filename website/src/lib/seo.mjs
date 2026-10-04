@@ -40,17 +40,26 @@ function clean(obj) {
   return obj;
 }
 
-/** Leistungen für hasOfferCatalog – dieselbe Navigation, die der Header zeigt. */
-function offerCatalog() {
-  const items = [];
-  for (const group of site.nav) {
-    if (!group.children) continue;
-    for (const c of group.children) {
-      items.push({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: `${group.label}: ${c.label}`, description: c.text } });
-    }
-  }
-  items.push({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Service-Abo für Krane mit digitalem Kranbuch' } });
-  return { '@type': 'OfferCatalog', name: 'Leistungen', itemListElement: items };
+/**
+ * Leistungen für hasOfferCatalog – die drei Bereiche mit ihren Unterleistungen, aus
+ * derselben Datenstruktur, die auch die Navigation zeigt (site.areas).
+ * @param {string} siteUrl
+ */
+function offerCatalog(siteUrl) {
+  return {
+    '@type': 'OfferCatalog',
+    name: 'Leistungen',
+    itemListElement: site.areas.map((a) => ({
+      '@type': 'OfferCatalog',
+      name: a.label,
+      description: a.text,
+      url: abs(siteUrl, a.href),
+      itemListElement: a.children.map((c) => ({
+        '@type': 'Offer',
+        itemOffered: { '@type': 'Service', name: `${a.label}: ${c.label}`, description: c.text, url: abs(siteUrl, c.href) },
+      })),
+    })),
+  };
 }
 
 /** @param {string} siteUrl */
@@ -66,7 +75,7 @@ export function organization(siteUrl) {
     description: site.brand.summary,
     disambiguatingDescription: site.brand.notToConfuse,
     url: abs(siteUrl),
-    logo: `${siteUrl}/logo/inexxio-wortmarke.png`,
+    logo: `${siteUrl}/logo/inexxio-ehemals-hs-steiner.png`,
     image: `${siteUrl}/og/default.png`,
     telephone: site.phone.intl,
     email,
@@ -92,11 +101,11 @@ export function organization(siteUrl) {
     foundingDate: String(site.history.founded),
     founder: { '@type': 'Person', name: site.people.founder.name },
     knowsAbout: site.seo.knowsAbout,
-    hasOfferCatalog: offerCatalog(),
+    hasOfferCatalog: offerCatalog(siteUrl),
     contactPoint: [
       { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', areaServed: 'CH', availableLanguage: 'de' },
-      site.features.pikett
-        ? { '@type': 'ContactPoint', telephone: site.pikett.intl, contactType: 'emergency', areaServed: 'CH', availableLanguage: 'de' }
+      site.features.notfall
+        ? { '@type': 'ContactPoint', telephone: site.notfall.intl, contactType: 'emergency', areaServed: 'CH', availableLanguage: 'de' }
         : undefined,
     ],
     sameAs: site.seo.sameAs,
@@ -160,6 +169,25 @@ export function service(siteUrl, s) {
     url: abs(siteUrl, s.path),
     provider: { '@id': `${siteUrl}/#organisation` },
     areaServed: site.area.served.map((name) => ({ '@type': 'AdministrativeArea', name: `Kanton ${name}` })),
+  });
+}
+
+/**
+ * Produkt «Heukrananlage» (Auftrag 12.4): nur belegbare Angaben – Name, Beschreibung,
+ * Hersteller, Bild. Keine Preise, keine Bewertungen.
+ * @param {string} siteUrl
+ * @param {{ name: string, description: string, path: string }} p
+ */
+export function product(siteUrl, p) {
+  return clean({
+    '@type': 'Product',
+    name: p.name,
+    description: p.description,
+    url: abs(siteUrl, p.path),
+    image: `${siteUrl}/og/krantechnik.png`,
+    brand: { '@type': 'Brand', name: site.brand.name },
+    manufacturer: { '@id': `${siteUrl}/#organisation` },
+    category: 'Krananlage',
   });
 }
 

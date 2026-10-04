@@ -1,0 +1,120 @@
+---
+/**
+ * /krantechnik/heukrananlagen (Auftrag 7.5): Bauformen mit Einsatzfall, Ablauf einer
+ * Neuanlage, Ersatzteile und Saison-Check, Hinweis für Besitzer bestehender HS-Anlagen mit
+ * «So finden Sie Typ und Baujahr». Hauptaktion: «Anlage anfragen».
+ */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Steps from '../../components/Steps.astro';
+import Photo from '../../components/Photo.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { heukrananlagen, heukranModules as m } from '../../content/krantechnik';
+import { product } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const productNode = product(siteUrl, {
+  name: 'Heukrananlage nach Mass',
+  description: plain(heukrananlagen.summary),
+  path: heukrananlagen.path,
+});
+---
+<SubPage page={heukrananlagen} jsonLd={[productNode]}>
+  <section slot="intro" class="section" id="neuanlage" aria-labelledby="bauformen">
+    <div class="wrap">
+      <SectionHead eyebrow="Neuanlagen nach Mass" title={m.forms.title} lead={m.forms.lead} id="bauformen" />
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Bauformen im Vergleich">
+        <table class="facts forms">
+          <thead><tr><th scope="col">Bauform</th><th scope="col">So arbeitet sie</th><th scope="col">Passt, wenn …</th></tr></thead>
+          <tbody>
+            {m.forms.items.map((f) => (
+              <tr><th scope="row">{f.title}</th><td>{f.text}</td><td>{f.use}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Rich as="p" class="forms__comp" text={m.forms.components} />
+    </div>
+  </section>
+
+  <div slot="module">
+    <section class="section section--dark" aria-labelledby="ablauf-neuanlage">
+      <div class="wrap">
+        <SectionHead eyebrow="Ablauf" title={m.steps.title} id="ablauf-neuanlage" />
+        <Steps steps={m.steps.items} />
+        <div class="btn-row hk-cta">
+          <a class="btn btn--primary" href="#anfrage">Anlage anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="ersatzteile-title">
+      <div class="wrap">
+        <div class="grid hk-row" id="ersatzteile">
+          <div class="col-6"><Photo id="ersatzteillager" sizes="(min-width: 960px) 50vw, 100vw" /></div>
+          <div class="col-5 hk-row__text">
+            <SectionHead eyebrow="Ersatzteile" title={m.parts.title} id="ersatzteile-title" class="head--flush" />
+            <Rich as="p" text={m.parts.text} />
+            <a class="arrow-link" href="/kontakt?typ=teile" data-track="part_inquiry">Ersatzteil anfragen <Icon name="arrow-right" size={18} /></a>
+          </div>
+        </div>
+
+        <div class="grid hk-row" id="saison-check">
+          <div class="col-6 hk-row__text">
+            <SectionHead eyebrow="März bis Mai" title={m.season.title} class="head--flush" />
+            <Rich as="p" text={m.season.text} />
+          </div>
+          <div class="col-5 hk-season">
+            <h3 class="label">Was wir anschauen</h3>
+            <ul class="checklist" role="list">
+              {m.season.checks.map((c) => <li><Icon name="check" size={20} /><span>{c}</span></li>)}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--paper" aria-labelledby="bestehende-anlagen">
+      <div class="wrap grid hk-own">
+        <div class="col-6 hk-own__text">
+          <SectionHead eyebrow="Bestehende Anlagen" title={m.owners.title} id="bestehende-anlagen" class="head--flush" />
+          <Rich as="p" text={m.owners.text} />
+        </div>
+        <div class="col-6 hk-plate" id="typenschild">
+          <h3>{m.plate.title}</h3>
+          <div class="hk-plate__grid">
+            <Photo id="typenschild-hs" sizes="(min-width: 960px) 22vw, 50vw" />
+            <ol class="hk-plate__steps" role="list">
+              {m.plate.steps.map((s, i) => (
+                <li><span class="idx">{String(i + 1).padStart(2, '0')}</span><Rich as="span" text={s} /></li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</SubPage>
+
+<style>
+  .forms th[scope='row'] { width: 22%; }
+  .forms td:last-child { color: var(--ink-3); }
+  .forms__comp { margin-top: var(--s-5); color: var(--ink-2); }
+  .hk-cta { margin-top: var(--s-7); }
+  .head--flush { margin-bottom: 0; }
+  .hk-row { align-items: center; }
+  .hk-row + .hk-row { margin-top: var(--s-8); padding-top: var(--s-8); border-top: 1px solid var(--line-2); align-items: start; }
+  .hk-row__text { display: grid; gap: var(--s-4); justify-items: start; }
+  @media (min-width: 960px) { .hk-row:first-child .hk-row__text { grid-column: 8 / span 5; } .hk-season { grid-column: 8 / span 5; } }
+  .hk-season { display: grid; gap: var(--s-4); align-content: start; }
+  .hk-own { align-items: start; }
+  .hk-own__text { display: grid; gap: var(--s-4); }
+  .hk-plate { display: grid; gap: var(--s-4); }
+  .hk-plate h3 { font-size: 1.25rem; }
+  .hk-plate__grid { display: grid; gap: var(--s-5); }
+  @media (min-width: 560px) { .hk-plate__grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
+  .hk-plate__steps { list-style: none; padding: 0; display: grid; gap: var(--s-4); }
+  .hk-plate__steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--s-2); font-size: 0.97rem; }
+  .hk-plate__steps .idx { padding-top: 3px; }
+</style>

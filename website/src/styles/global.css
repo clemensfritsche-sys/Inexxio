@@ -56,6 +56,7 @@
   --maxw: 1240px;
   --gutter: 16px;
   --header-h: 60px;
+  --servicebar-h: 36px;
   --radius: var(--r-md); /* Bedienelemente 8 px */
   --t-slow: 520ms;
   /* Abstandsskala 4/8/12/16/24/32/48/64/96/128 */
@@ -154,7 +155,7 @@ strong { font-weight: 600; color: var(--ink); }
   text-transform: uppercase;
   color: var(--overline);
 }
-.label--red { color: var(--red-deep); } /* steht auf getöntem Grund (Pikett-Kasten) */
+.label--red { color: var(--red-deep); } /* steht auf getöntem Grund (Notfall-Kasten) */
 /* Index (01 / …): Mono, rot, tabellarisch – der kleine Takt der Abschnitte. */
 .idx {
   font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.08em;
@@ -390,6 +391,16 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
   }
 }
 
+/* Einblenden von Dropdown und Profilmenü (150 ms, nur Deckkraft und Versatz). */
+@keyframes drop-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+
+/* Anmeldezustand (nur Anzeige): scripts/early.js setzt html[data-account] = user | staff aus
+   dem Anzeige-Cache des Kontos. Ohne JS oder ohne Cache bleibt «Anmelden» stehen. */
+html[data-account] [data-acct='login'],
+html:not([data-account]) [data-acct='user'],
+html:not([data-account='staff']) [data-acct='staff'] { display: none !important; }
+
 /* Offenes Mobil-Menü: die Seite dahinter scrollt nicht mit. */
 html.menu-open { overflow: hidden; }
 
@@ -397,7 +408,7 @@ html.menu-open { overflow: hidden; }
 @media (max-width: 767px) { body { padding-bottom: 56px; } }
 
 @media print {
-  .site-header, .announce, .mobilebar, .site-footer nav, .no-print { display: none !important; }
+  .site-header, .mobilebar, .site-footer nav, .no-print { display: none !important; }
   body { font-size: 11pt; color: #000; }
   /* Gedruckt wird auch, was noch nicht ins Bild gescrollt wurde – also im Endzustand. */
   .reveal-pending, .is-armed, .is-armed * { opacity: 1 !important; transform: none !important; }

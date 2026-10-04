@@ -2,11 +2,20 @@
 /**
  * Verschleissteile für Fahrmischer – das Programm ist im Aufbau. Teileliste, Material und
  * passende Typen sind fachlich zu bestätigen; Preise gibt es bewusst keine (kein Shop).
- * Gruppiert nach Teileart; «passend für» je Teil.
+ * Gruppiert nach Teileart.
+ *
+ * Die Felder je Teil sind die eines ERP-Artikels (Auftrag 6.4), damit der Katalog später 1:1
+ * aus dem ERP gefüllt werden kann: `sku` (Artikelnummer, solange keine vergeben ist: leer),
+ * `name` (Bezeichnung), `fits` (passend für – fehlt es, gilt `catalog.fits`), `material`,
+ * `photo` (Bild).
+ *
+ * @typedef {{ id: string, sku?: string, name: string, text: string, fits?: string[], material: string, photo: string }} Part
+ * @typedef {{ id: string, title: string, intro: string, items: Part[] }} PartGroup
  */
 export const catalog = {
   review: '[[PRÜFEN: Teileliste, Material, passende Typen]]',
   priceNote: 'Preise auf Anfrage [[PLATZHALTER: Preise für Verschleissteile]]',
+  /** @type {PartGroup[]} */
   groups: [
     {
       id: 'rinnen',

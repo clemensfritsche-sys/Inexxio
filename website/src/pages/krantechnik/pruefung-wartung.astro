@@ -1,15 +1,18 @@
 ---
-/** /krane/pruefung-wartung – Prüfpflicht mit Tabelle, Prüfpflicht-Check, Quellen und Abo-Hinweis. */
-import Service from '../../layouts/Service.astro';
+/**
+ * /krantechnik/pruefung-wartung (Auftrag 7.5): Prüfpflicht einfach erklärt mit Tabelle und
+ * Quellen, Prüfpflicht-Check (zwei Fragen → Ergebnis). Nicht behaupten, dass INEXXIO
+ * Kranexperten-Kontrollen durchführt oder von der Suva anerkannt ist.
+ */
+import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import InspectionTable from '../../components/InspectionTable.astro';
 import InspectionCheck from '../../components/InspectionCheck.astro';
 import Sources from '../../components/Sources.astro';
-import Icon from '../../components/Icon.astro';
-import { pruefung } from '../../content/krane';
+import { pruefung } from '../../content/krantechnik';
 import { inspection } from '../../config/inspection.mjs';
 ---
-<Service page={pruefung}>
+<SubPage page={pruefung}>
   <section slot="module" class="section section--paper" aria-labelledby="pruefpflicht">
     <div class="wrap">
       <SectionHead
@@ -38,13 +41,13 @@ import { inspection } from '../../config/inspection.mjs';
       <InspectionTable />
       <h3 class="pflicht__h">Was ist bei Ihrem Kran fällig?</h3>
       <InspectionCheck />
-      <div class="pflicht__abo">
-        <p><strong>Nie mehr einen Prüftermin vergessen:</strong> Mit dem Service-Abo erinnern wir Sie, prüfen und tragen alles ins digitale Kranbuch ein.</p>
-        <a class="arrow-link" href="/service-abo">Service-Abo ansehen <Icon name="arrow-right" size={18} /></a>
-      </div>
+      <p class="pflicht__who small">
+        Wir übernehmen die Überprüfung durch Kranfachleute und die Wartung. Die periodische Kontrolle von Fahrzeug- und
+        Turmdrehkranen macht ein von der Suva anerkannter Kranexperte – sie gehört nicht zu unserem Angebot.
+      </p>
     </div>
   </section>
-</Service>
+</SubPage>
 
 <style>
   .pflicht { margin-bottom: var(--s-7); }
@@ -54,9 +57,5 @@ import { inspection } from '../../config/inspection.mjs';
   @media (min-width: 960px) { .pflicht__aside { grid-column: 9 / span 4; padding-left: var(--s-5); border-left: 1px solid var(--line-2); } }
   .pflicht__h { font-size: 1.25rem; margin: var(--s-7) 0 var(--s-4); }
   .pflicht__h:first-of-type { margin-top: 0; }
-  .pflicht__abo {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3) var(--s-6);
-    margin-top: var(--s-7); padding: var(--s-5) 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line-2);
-  }
-  .pflicht__abo p { max-width: 52ch; }
+  .pflicht__who { margin-top: var(--s-6); padding-top: var(--s-4); border-top: 1px solid var(--line-2); color: var(--ink-2); }
 </style>

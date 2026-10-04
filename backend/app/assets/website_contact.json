@@ -8,7 +8,7 @@
     "display": "052 378 22 47",
     "e164": "+41523782247"
   },
-  "pikett": {
+  "notfall": {
     "display": "076 563 22 47",
     "e164": "+41765632247"
   },
@@ -23,24 +23,24 @@
   },
   "kinds": [
     {
-      "value": "kran",
-      "label": "Kran",
-      "subject": "Kran"
+      "value": "krantechnik",
+      "label": "Krantechnik",
+      "subject": "Krantechnik"
     },
     {
-      "value": "fahrmischer",
-      "label": "Fahrmischer",
-      "subject": "Fahrmischer"
+      "value": "fahrzeugtechnik",
+      "label": "Fahrzeugtechnik",
+      "subject": "Fahrzeugtechnik"
+    },
+    {
+      "value": "sonderloesungen",
+      "label": "Sonderlösungen",
+      "subject": "Sonderlösungen"
     },
     {
       "value": "teile",
-      "label": "Verschleiss- oder Ersatzteile",
+      "label": "Ersatz- oder Verschleissteile",
       "subject": "Teile"
-    },
-    {
-      "value": "abo",
-      "label": "Service-Abo",
-      "subject": "Abo"
     },
     {
       "value": "anderes",
@@ -49,7 +49,15 @@
     }
   ],
   "needs": {
-    "kran": [
+    "krantechnik": [
+      {
+        "value": "heukrananlage",
+        "label": "Neue Heukrananlage"
+      },
+      {
+        "value": "industriekran",
+        "label": "Neuer Industriekran"
+      },
       {
         "value": "pruefung",
         "label": "Prüfung"
@@ -65,16 +73,12 @@
       {
         "value": "modernisierung",
         "label": "Modernisierung"
-      },
-      {
-        "value": "neuanlage",
-        "label": "Neuanlage"
       }
     ],
-    "fahrmischer": [
+    "fahrzeugtechnik": [
       {
-        "value": "service",
-        "label": "Service"
+        "value": "fahrmischer-service",
+        "label": "Fahrmischer-Service"
       },
       {
         "value": "reparatur",
@@ -83,6 +87,24 @@
       {
         "value": "trommel",
         "label": "Trommel-Revision"
+      },
+      {
+        "value": "aufbau",
+        "label": "Aufbau-Reparatur"
+      }
+    ],
+    "sonderloesungen": [
+      {
+        "value": "konstruktion",
+        "label": "Konstruktion"
+      },
+      {
+        "value": "stahlbau",
+        "label": "Schweiss-/Stahlbau"
+      },
+      {
+        "value": "baumaschine",
+        "label": "Baumaschine Umbau/Reparatur"
       }
     ]
   },
@@ -116,14 +138,15 @@
   "photos": {
     "max": 3,
     "maxTotalBytes": 10485760,
-    "accept": "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif",
+    "accept": "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf,.pdf",
     "extensions": [
       ".jpg",
       ".jpeg",
       ".png",
       ".webp",
       ".heic",
-      ".heif"
+      ".heif",
+      ".pdf"
     ]
   },
   "minSeconds": 3,
@@ -137,29 +160,24 @@
     "year": 4,
     "message": 4000,
     "part": 200,
-    "mixer": 160,
-    "cranes": 3
+    "usage": 160
   },
   "labels": [
     [
       "kind",
-      "Worum geht es"
+      "Bereich"
     ],
     [
       "need",
-      "Was"
+      "Anliegen"
     ],
     [
       "part",
       "Teil"
     ],
     [
-      "mixer",
-      "Für Fahrmischer"
-    ],
-    [
-      "cranes",
-      "Anzahl Krane"
+      "usage",
+      "Wofür"
     ],
     [
       "urgency",
@@ -203,13 +221,12 @@
     ]
   ],
   "messages": {
-    "kind": "Bitte wählen Sie aus, worum es geht.",
-    "need": "Bitte wählen Sie, was gemacht werden soll.",
+    "kind": "Bitte wählen Sie den Bereich.",
+    "need": "Bitte wählen Sie Ihr Anliegen.",
     "part": "Bitte nennen Sie das Teil, das Sie brauchen.",
     "urgency": "Bitte wählen Sie, wie dringend es ist.",
     "year": "Bitte das Baujahr vierstellig angeben, z. B. 1998.",
-    "cranes": "Bitte die Anzahl Krane als Zahl angeben, z. B. 3.",
-    "place": "Bitte geben Sie PLZ und Ort an – dort, wo die Anlage steht.",
+    "place": "Bitte geben Sie PLZ und Ort an – dort, wo die Anlage oder Maschine steht.",
     "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
     "name": "Bitte geben Sie Ihren Namen an.",
     "contact": "Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.",
@@ -218,9 +235,9 @@
     "prefPhone": "Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.",
     "prefEmail": "Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.",
     "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
-    "photosCount": "Bitte höchstens {max} Fotos auswählen (jetzt {count}).",
-    "photosType": "«{name}» ist kein unterstütztes Bild (JPG, PNG, WEBP oder HEIC).",
-    "photosSize": "Die Fotos sind zusammen {size} gross – erlaubt sind {max}.",
+    "photosCount": "Bitte höchstens {max} Dateien auswählen (jetzt {count}).",
+    "photosType": "«{name}» ist kein unterstütztes Format (JPG, PNG, WEBP, HEIC oder PDF).",
+    "photosSize": "Die Dateien sind zusammen {size} gross – erlaubt sind {max}.",
     "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
   },
   "mail": {
@@ -228,7 +245,7 @@
     "confirmIntro": "Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.",
     "confirmNext": "Wir melden uns so bald wie möglich.",
     "urgent": "Steht eine Anlage still, rufen Sie am besten direkt an: 052 378 22 47.",
-    "urgentPikett": null,
+    "urgentNotfall": null,
     "closing": "Freundliche Grüsse"
   }
 }

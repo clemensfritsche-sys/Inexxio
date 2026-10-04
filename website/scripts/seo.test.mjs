@@ -15,6 +15,12 @@ test('Vorschau: alles gesperrt, keine Sitemap', () => {
   assert.doesNotMatch(txt, /Allow: \//);
 });
 
+test('Vorschau: Konto- und ERP-Pfade trotzdem ausdrücklich gesperrt (Auftrag 12.5: immer)', () => {
+  const txt = robotsTxt('preview', BASE);
+  for (const p of site.privatePaths) assert.ok(txt.includes(`Disallow: ${p}\n`), p);
+  for (const p of ['/erp', '/konto', '/login', '/abmelden', '/shop']) assert.ok(site.privatePaths.includes(p), `${p} fehlt in site.privatePaths`);
+});
+
 test('live: jeder Crawler der Liste ausdrücklich zugelassen', () => {
   const txt = robotsTxt('live', BASE);
   for (const bot of site.seo.bots) assert.ok(txt.includes(`User-agent: ${bot}\n`), bot);

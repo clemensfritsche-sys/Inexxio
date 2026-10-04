@@ -88,7 +88,7 @@ function scanDist() {
 }
 
 // ---------------------------------------------------------------- Einordnung
-const DECISION = /zusatz zum markennamen|logo|domain|e-mail-adresse|adresse für bewerbungen|pikett|antwortzeit|reaktionszeit|zusagen|abo-stufen|stufennamen|preis|teileliste|analytics|whatsapp|handelsregister|uid\b/i;
+const DECISION = /logo|domain|e-mail-adresse|adresse für bewerbungen|notfallnummer|erreichbarkeit|antwortzeit|reaktionszeit|zusagen|claim|umfang|preis|teileliste|materialien|einsatzgebiet|im ausland|analytics|handelsregister|uid\b/i;
 const EXPERT = /fachlich|rechtlich/i;
 
 function category(note) {
@@ -131,11 +131,10 @@ function writeReport(entries, missingPhotos) {
     .map(([id, p]) => ({ id, p, pages: [...(missingPhotos.get(id) ?? [])] }));
   const disabled = Object.entries(site.features).filter(([, on]) => on === false);
   const DISABLED_TEXT = {
-    references: 'Referenzkunden – nur mit schriftlicher Freigabe der Kunden.',
+    projects: 'Ausgewählte Arbeiten (Startseite) – drei Projekte mit Foto, nur mit Freigabe der Kunden.',
     beforeAfter: 'Vorher/Nachher-Regler (Modernisierung) – braucht echte Fotopaare.',
     team: 'Team auf «Über uns» – Namen und Fotos nur mit Einverständnis.',
-    jobPosting: 'Stelleninserat «Servicetechniker/in Krane und Fahrmischer» – Text und Konditionen fehlen.',
-    whatsapp: 'WhatsApp-Kontakt – Entscheidung offen.',
+    jobPosting: 'Stelleninserat «Servicetechniker/in» – Text und Konditionen fehlen.',
   };
 
   const lines = [

@@ -1,0 +1,86 @@
+---
+/**
+ * /service – Einstieg nach Anliegen, nicht nach Bereich (Auftrag 7.6): vier grosse Kacheln,
+ * darunter wie wir arbeiten, das Einsatzgebiet und der Kontakt.
+ */
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import EntryTiles from '../components/EntryTiles.astro';
+import SectionHead from '../components/SectionHead.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import AreaMap from '../components/AreaMap.astro';
+import CtaBlock from '../components/CtaBlock.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { service as s } from '../content/service';
+import { service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 'Prüfung, Wartung, Reparatur und Notfall-Service', path: s.path, description: plain(s.summary) });
+---
+<Base title={s.title} description={s.description} crumbs={[{ name: 'Service', path: s.path }]} jsonLd={[node]}>
+  <Hero
+    eyebrow={s.hero.eyebrow}
+    title={s.hero.h1}
+    lead={s.hero.lead}
+    photo={s.hero.photo}
+    primary={site.features.notfall
+      ? { label: `Notfall ${site.notfall.display}`, href: `tel:${site.notfall.e164}`, track: 'notfall_click' }
+      : { label: site.cta.label, href: '#anfrage' }}
+  />
+
+  <section class="section section--tight" aria-labelledby="anliegen">
+    <div class="wrap">
+      <h2 id="anliegen" class="label">Ihr Anliegen</h2>
+      <nav aria-label="Einstieg nach Anliegen" class="sv-tiles"><EntryTiles items={s.entries} /></nav>
+      <p class="sv-also">
+        Ausserdem:
+        {s.alsoLinks.map((l) => <a class="arrow-link" href={l.href} data-track={l.href.includes('teile') ? 'part_inquiry' : undefined}>{l.label} <Icon name="arrow-right" size={16} /></a>)}
+      </p>
+      <SeasonNotice page={s.path} />
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="so-arbeiten-wir">
+    <div class="wrap">
+      <SectionHead eyebrow="Auf einen Blick" title={s.how.title} lead={s.summary} id="so-arbeiten-wir" />
+      <ol role="list" class="sv-how">
+        {s.how.items.map((it, i) => (
+          <li>
+            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{it.title}</h3>
+            <Rich as="p" text={it.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="einsatzgebiet">
+    <div class="wrap grid sv-area">
+      <div class="col-5 sv-area__text">
+        <SectionHead eyebrow="Einsatzgebiet" title={s.area.title} id="einsatzgebiet" class="head--flush" />
+        <Rich as="p" text={s.area.text} />
+        <a class="arrow-link" href="/ueber-uns#einsatzgebiet">{s.area.link} <Icon name="arrow-right" size={18} /></a>
+      </div>
+      <div class="col-7 sv-area__map"><AreaMap caption={false} /></div>
+    </div>
+  </section>
+
+  <CtaBlock title="Anfrage stellen" lead="Beschreiben Sie Ihr Anliegen – wir melden uns innert {{promises.responseTime}}." kind="waehlen" />
+</Base>
+
+<style>
+  .sv-tiles { margin-top: var(--s-4); }
+  .sv-also { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s-5); margin: var(--s-4) 0 var(--s-6); color: var(--ink-3); max-width: none; }
+  .sv-how { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .sv-how { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .sv-how { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .sv-how li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
+  .sv-how h3 { font-size: 1.1875rem; }
+  .sv-area { align-items: center; }
+  .sv-area__text { display: grid; gap: var(--s-4); justify-items: start; }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .sv-area__map { grid-column: 7 / span 6; } }
+</style>

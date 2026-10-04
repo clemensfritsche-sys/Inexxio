@@ -29,8 +29,9 @@ import Rich from './Rich.astro';
               <h4 class="part__name">{it.name}</h4>
               <Rich as="p" class="part__text" text={it.text} />
               <dl class="part__spec">
+                {it.sku && <div><dt>Artikel-Nr.</dt><dd class="tnum">{it.sku}</dd></div>}
                 <div><dt>Material</dt><Rich as="dd" text={it.material} /></div>
-                <div><dt>Passend für</dt><dd>{catalog.fits.join(' · ')} <Rich as="span" text={catalog.fitsReview} /></dd></div>
+                <div><dt>Passend für</dt><dd>{(it.fits ?? catalog.fits).join(' · ')} {!it.fits && <Rich as="span" text={catalog.fitsReview} />}</dd></div>
               </dl>
               <a
                 class="btn btn--secondary btn--sm part__cta"

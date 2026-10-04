@@ -10,21 +10,22 @@
  * liest – hier wird nichts zweimal geschrieben, nur zusammengestellt.
  */
 import { site } from '../config/site.mjs';
-import type { Faq, ServicePage } from '../content/types';
+import type { AreaPage, Faq, SubPage } from '../content/types';
 import { start } from '../content/start';
-import { krane, pruefung, reparatur, modernisierung, hsKrananlagen } from '../content/krane';
-import { fahrmischer, serviceReparatur, verschleissteile } from '../content/fahrmischer';
-import { serviceAbo } from '../content/service-abo';
+import { krantechnik, krantechnikPages } from '../content/krantechnik';
+import { fahrzeugtechnik, fahrzeugtechnikPages } from '../content/fahrzeugtechnik';
+import { sonderloesungen, sonderloesungenPages } from '../content/sonderloesungen';
+import { service, notfall } from '../content/service';
 import { uebergabe } from '../content/uebergabe';
 import { ueberUns } from '../content/ueber-uns';
-import { einsatzgebiet } from '../content/einsatzgebiet';
 import { kontakt } from '../content/kontakt';
 import { karriere } from '../content/karriere';
 import { ratgeberUebersicht } from '../content/ratgeber-uebersicht';
 import { articles } from './ratgeber';
 import { legalMeta } from './legal';
 
-export type Section = 'Start' | 'Leistungen' | 'Unternehmen' | 'Ratgeber' | 'Rechtliches';
+export type Section =
+  | 'Start' | 'Krantechnik' | 'Fahrzeugtechnik' | 'Sonderlösungen' | 'Service' | 'Unternehmen' | 'Ratgeber' | 'Rechtliches';
 
 export interface PageEntry {
   path: string;
@@ -37,31 +38,36 @@ export interface PageEntry {
   /** Was llms-full.txt über die Seite schreibt (dieselben Texte, die auf ihr stehen). */
   summary?: string;
   faq?: Faq[];
-  service?: ServicePage;
+  /** Bereichsseite: die drei Ebenen und der Ablauf (llms-full.txt). */
+  area?: AreaPage;
+  /** Unterseite: «Auf einen Blick» und Leistungsumfang (llms-full.txt). */
+  subpage?: SubPage;
   /** Slug eines Ratgeber-Artikels: llms-full.txt bringt ihn im Wortlaut. */
   article?: string;
 }
 
 const day = site.seo.contentUpdated;
 
-const servicePage = (p: ServicePage): PageEntry => ({
-  path: p.path,
-  name: p.title,
-  description: p.description,
-  updated: day,
-  section: 'Leistungen',
-  summary: p.summary,
-  faq: p.faq,
-  service: p,
+const areaEntry = (p: AreaPage, section: Section): PageEntry => ({
+  path: p.path, name: p.title, description: p.description, updated: day, section, summary: p.summary, faq: p.faq, area: p,
+});
+const subEntry = (p: SubPage, section: Section): PageEntry => ({
+  path: p.path, name: p.title, description: p.description, updated: day, section, summary: p.summary, faq: p.faq, subpage: p,
 });
 
 function build(): PageEntry[] {
   const list: PageEntry[] = [
     { path: '/', name: 'Startseite', description: start.description, updated: day, section: 'Start', summary: start.summary, faq: start.faq },
-    ...[krane, pruefung, reparatur, modernisierung, hsKrananlagen, fahrmischer, serviceReparatur, verschleissteile, serviceAbo].map(servicePage),
+    areaEntry(krantechnik, 'Krantechnik'),
+    ...krantechnikPages.map((p) => subEntry(p, 'Krantechnik')),
+    areaEntry(fahrzeugtechnik, 'Fahrzeugtechnik'),
+    ...fahrzeugtechnikPages.map((p) => subEntry(p, 'Fahrzeugtechnik')),
+    areaEntry(sonderloesungen, 'Sonderlösungen'),
+    ...sonderloesungenPages.map((p) => subEntry(p, 'Sonderlösungen')),
+    { path: service.path, name: service.title, description: service.description, updated: day, section: 'Service', summary: service.summary },
+    { path: notfall.path, name: notfall.title, description: notfall.description, updated: day, section: 'Service', summary: notfall.summary, faq: notfall.faq },
     { path: '/uebergabe', name: uebergabe.title, description: uebergabe.description, updated: day, section: 'Unternehmen', summary: uebergabe.summary, faq: uebergabe.faq },
-    { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary },
-    { path: '/einsatzgebiet', name: einsatzgebiet.title, description: einsatzgebiet.description, updated: day, section: 'Unternehmen', summary: einsatzgebiet.summary, faq: einsatzgebiet.faq },
+    { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary, faq: ueberUns.areaFaq },
     { path: '/kontakt', name: kontakt.title, description: kontakt.description, updated: day, section: 'Unternehmen', summary: kontakt.summary },
     { path: '/karriere', name: karriere.title, description: karriere.description, updated: day, section: 'Unternehmen' },
     { path: '/ratgeber', name: ratgeberUebersicht.title, description: ratgeberUebersicht.description, updated: day, section: 'Ratgeber', summary: ratgeberUebersicht.summary },

@@ -10,63 +10,73 @@
     "trailingSlash": false,
     "redirects": [
       {
-        "regex": "(?i)^/heuentnahmekran(?:/.*)?$",
-        "destination": "/krane/hs-krananlagen",
+        "regex": "(?i)^/heuentnahmekran/kran-dem-geb(?:ä|ae|a|%c3%a4)ude-angepasst(?:/.*)?$",
+        "destination": "/krantechnik/industriekrane",
         "type": 301
       },
       {
-        "regex": "(?i)^/drehkran-hydraulisch(?:/.*)?$",
-        "destination": "/krane/hs-krananlagen",
+        "regex": "(?i)^/heuentnahmekran/matagematerial(?:/.*)?$",
+        "destination": "/krantechnik/pruefung-wartung",
         "type": 301
       },
       {
-        "regex": "(?i)^/bruecken-kran(?:/.*)?$",
-        "destination": "/krane",
+        "regex": "(?i)^/(?:heuentnahmekran|forst-und-landwirtschaft|drehkran-hydraulisch|bruecken-kran|einschienen-kran)(?:/.*)?$",
+        "destination": "/krantechnik/heukrananlagen",
         "type": 301
       },
       {
-        "regex": "(?i)^/einschienen-kran(?:/.*)?$",
-        "destination": "/krane",
+        "regex": "(?i)^/application/files/.*$",
+        "destination": "/krantechnik/heukrananlagen",
         "type": 301
       },
       {
-        "regex": "(?i)^/betonfordertechnik/betonfahrmischer(?:/.*)?$",
-        "destination": "/fahrmischer",
+        "regex": "(?i)^/betonfordertechnik/euro-k(?:ö|oe|o|%c3%b6)?pper(?:/.*)?$",
+        "destination": "/fahrzeugtechnik/aufbauten-reparatur",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik/verschleissteile(?:/.*)?$",
-        "destination": "/fahrmischer/verschleissteile",
+        "destination": "/fahrzeugtechnik/verschleiss-ersatzteile",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik(?:/.*)?$",
-        "destination": "/fahrmischer",
-        "type": 301
-      },
-      {
-        "regex": "(?i)^/antrieb-und-steuerung/elektrosteuerung(?:/.*)?$",
-        "destination": "/krane/modernisierung",
-        "type": 301
-      },
-      {
-        "regex": "(?i)^/antrieb-und-steuerung/getriebe-und-antrieb(?:/.*)?$",
-        "destination": "/krane/reparatur",
+        "destination": "/fahrzeugtechnik/fahrmischer",
         "type": 301
       },
       {
         "regex": "(?i)^/antrieb-und-steuerung(?:/.*)?$",
-        "destination": "/krane",
+        "destination": "/krantechnik/modernisierung",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/baumaschinen(?:/.*)?$",
+        "destination": "/sonderloesungen/baumaschinen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/wahrschaftes/gelaender-und-verglasung(?:/.*)?$",
+        "destination": "/uebergabe#nicht-mehr-im-angebot",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/wahrschaftes(?:/.*)?$",
+        "destination": "/sonderloesungen/schweiss-stahlbau",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/sachtransporter-anhanger/reparaturen(?:/.*)?$",
+        "destination": "/fahrzeugtechnik/aufbauten-reparatur",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/(?:haus-und-garten|kleintransporter-pw|hebebuhnen|sachtransporter-anhanger|camping)(?:/.*)?$",
+        "destination": "/uebergabe#nicht-mehr-im-angebot",
         "type": 301
       },
       {
         "regex": "(?i)^/unsere-einsatzorte(?:/.*)?$",
-        "destination": "/einsatzgebiet",
-        "type": 301
-      },
-      {
-        "regex": "(?i)^/(?:wahrschaftes|sachtransporter-anhanger|hebebuhnen|kleintransporter-pw)(?:/.*)?$",
-        "destination": "/uebergabe",
+        "destination": "/ueber-uns",
         "type": 301
       }
     ],

@@ -30,11 +30,11 @@ spätere Übernahme ins ERP)::
       "schema": "inexxio.website.inquiry/1",
       "id": "uuid", "received_at": "ISO-8601 UTC",
       "form": "haupt" | "kurz", "source": "/pfad/der/seite",
-      "kind":    {"value": "kran", "label": "Kran"},
-      "need":    {"value": "...", "label": "..."} | null,
+      "kind":    {"value": "krantechnik", "label": "Krantechnik"},   # der Bereich
+      "need":    {"value": "...", "label": "..."} | null,            # das Anliegen
       "urgency": {"value": "...", "label": "..."} | null,
       "asset":   {"maker": str|null, "year": str|null, "part": str|null,
-                  "mixer": str|null, "cranes": int|null},
+                  "usage": str|null},
       "place": str, "message": str | null,
       "contact": {"name": str, "company": str|null, "phone": str|null,
                   "email": str|null, "preference": {"value", "label"} | null},
@@ -75,13 +75,15 @@ MSG: dict[str, str] = VOCAB["messages"]
 LIMITS: dict[str, int] = VOCAB["limits"]
 PHOTOS: dict = VOCAB["photos"]
 
-SCHEMA = "inexxio.website.inquiry/1"
+#: Version 2 (04.10.2026): Bereiche statt «Kran/Fahrmischer», «Wofür» statt «Für welchen
+#: Fahrmischer», keine «Anzahl Krane» mehr (das Service-Abo ist entfallen).
+SCHEMA = "inexxio.website.inquiry/2"
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 PHONE_RE = re.compile(r"^[+()\d][\d\s/().-]{5,}$")
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
-        ".heic": "image/heic", ".heif": "image/heif"}
+        ".heic": "image/heic", ".heif": "image/heif", ".pdf": "application/pdf"}
 #: Obergrenze der ganzen Anfrage: Fotos plus grosszügig Platz für die Textfelder.
 MAX_BODY = int(PHOTOS["maxTotalBytes"]) + 1024 * 1024
 WINDOW_SECONDS = 3600
@@ -187,7 +189,7 @@ def _check_choices(values: dict[str, str], form: str, errors: dict[str, str]) ->
         return
     needs = {n["value"] for n in VOCAB["needs"].get(kind, [])}
     if not needs:
-        values["need"] = ""  # ein Thema gibt es nur bei Kran und Fahrmischer
+        values["need"] = ""  # ein Anliegen gibt es nur bei den drei Bereichen
     elif values["need"] and values["need"] not in needs:
         errors["need"] = MSG["need"]
     elif form == "haupt" and not values["need"]:
@@ -199,15 +201,9 @@ def _check_choices(values: dict[str, str], form: str, errors: dict[str, str]) ->
     if values["contact_pref"] and values["contact_pref"] not in _options("contactPrefs"):
         values["contact_pref"] = ""
     if kind != "teile":
-        values["part"] = values["mixer"] = ""
+        values["part"] = values["usage"] = ""
     elif form == "haupt" and not values["part"]:
         errors["part"] = MSG["part"]
-    if kind != "abo":
-        values["cranes"] = ""
-    elif values["cranes"] and not re.fullmatch(r"[1-9]\d{0,2}", values["cranes"]):
-        errors["cranes"] = MSG["cranes"]
-    elif form == "kurz" and not values["cranes"]:
-        errors["cranes"] = MSG["cranes"]
 
 
 def _check_fields(values: dict[str, str], form: str, errors: dict[str, str]) -> None:
@@ -265,7 +261,7 @@ async def _read_photos(uploads: list, errors: dict[str, str]) -> list[Photo]:
     return photos
 
 
-FIELDS = ("kind", "need", "urgency", "part", "mixer", "cranes", "maker", "year", "place",
+FIELDS = ("kind", "need", "urgency", "part", "usage", "maker", "year", "place",
           "message", "name", "company", "phone", "email", "contact_pref")
 
 
@@ -326,7 +322,7 @@ def _mailto(inq: Inquiry) -> str:
     body = "\n".join(lines)
     if inq.photos:
         n = len(inq.photos)
-        body += f"\n\nFotos: bitte {'das Foto' if n == 1 else f'die {n} Fotos'} an diese E-Mail anhängen."
+        body += f"\n\nDateien: bitte {'die Datei' if n == 1 else f'die {n} Dateien'} an diese E-Mail anhängen."
     return f"mailto:{VOCAB['email']}?subject={quote(_subject(inq))}&body={quote(body)}"
 
 
@@ -345,7 +341,7 @@ def as_record(inq: Inquiry) -> dict:
         "need": {"value": v["need"], "label": needs[v["need"]]} if v["need"] else None,
         "urgency": opt("urgencies", v["urgency"]),
         "asset": {"maker": v["maker"] or None, "year": v["year"] or None, "part": v["part"] or None,
-                  "mixer": v["mixer"] or None, "cranes": int(v["cranes"]) if v["cranes"] else None},
+                  "usage": v["usage"] or None},
         "place": v["place"],
         "message": v["message"] or None,
         "contact": {"name": v["name"], "company": v["company"] or None, "phone": v["phone"] or None,
@@ -378,7 +374,7 @@ def _internal_mail(inq: Inquiry, s: InquirySettings) -> EmailMessage:
         msg["Reply-To"] = formataddr((inq.values["name"], inq.values["email"]))
     msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = make_msgid(domain=(s.mail_from or s.smtp_user or "website").split("@")[-1])
-    photos = f"Fotos: {len(inq.photos)} (im Anhang)" if inq.photos else "Fotos: keine"
+    photos = f"Dateien: {len(inq.photos)} (im Anhang)" if inq.photos else "Dateien: keine"
     msg.set_content("\n".join([
         f"Neue Anfrage über die Website – Seite {inq.source}, Formular «{inq.form}».",
         "",
@@ -408,12 +404,12 @@ def _confirmation(inq: Inquiry, s: InquirySettings) -> EmailMessage:
     urgent = inq.values["urgency"] == "dringend"
     body = [f"Guten Tag {inq.values['name']}", "", m["confirmIntro"], "", _summary(inq, include_message_block=True)]
     if inq.photos:
-        body += ["", f"Fotos: {len(inq.photos)} übermittelt"]
+        body += ["", f"Dateien: {len(inq.photos)} übermittelt"]
     body += ["", m["confirmNext"]]
     if urgent and m.get("urgent"):
         body.append(m["urgent"])
-    if urgent and m.get("urgentPikett"):
-        body.append(m["urgentPikett"])
+    if urgent and m.get("urgentNotfall"):
+        body.append(m["urgentNotfall"])
     body += ["", m["closing"], VOCAB["brand"]["full"], *VOCAB["address"],
              f"Telefon {VOCAB['phone']['display']}", VOCAB["email"]]
     msg.set_content("\n".join(body))
@@ -520,7 +516,7 @@ async def submit_inquiry(request: Request) -> Response:
     length = request.headers.get("content-length", "")
     if length.isdigit() and int(length) > MAX_BODY:
         limit = _mb(int(PHOTOS["maxTotalBytes"]))
-        return _failed(None, 413, f"Die Anfrage ist zu gross – Fotos zusammen höchstens {limit}.", wants_json)
+        return _failed(None, 413, f"Die Anfrage ist zu gross – Dateien zusammen höchstens {limit}.", wants_json)
     try:
         form_data = await request.form(max_files=int(PHOTOS["max"]) + 5, max_fields=60)
     except Exception as exc:  # zu viele Teile, kaputtes multipart

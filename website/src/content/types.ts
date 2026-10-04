@@ -5,30 +5,66 @@
  * bzw. [[PRÜFEN: …]] markiert.
  */
 import type { IconName } from '../components/Icon.astro';
+import type { InquiryKind } from '../config/inquiry.mjs';
 
-export type InquiryKind = 'kran' | 'fahrmischer' | 'teile' | 'abo' | 'anderes';
+export type { InquiryKind };
+export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen';
+/** OG-Bild: Standard oder das des Bereichs (public/og/, scripts/make-assets.mjs). */
+export type OgImage = 'default' | AreaId;
 export interface Faq { q: string; a: string }
 export interface LinkItem { href: string; label: string; text?: string; kind?: 'leistung' | 'ratgeber' }
 export interface Action { label: string; href: string; track?: string }
+export interface Step { title: string; text: string }
 
-/** Vorlage für alle Leistungsseiten (Kapitel 7.3 des Auftrags). */
-export interface ServicePage {
+/** Abschluss jeder Leistungsseite: Kurzformular mit vorausgewähltem Bereich und Thema. */
+export interface Cta {
+  title: string;
+  lead?: string;
+  kind: InquiryKind;
+  need?: string;
+  urgency?: 'dringend' | 'wochen' | 'planung';
+  messageLabel?: string;
+  /** Notfallnummer zuoberst neben dem Formular (Störung, Notfall-Service). */
+  notfallFirst?: boolean;
+}
+
+/** Bereichsseite (Auftrag Kap. 7.4) – alle drei mit derselben Struktur. */
+export interface AreaPage {
+  id: AreaId;
   path: string;
-  /** Kurzname für Breadcrumbs und Navigation. */
+  title: string;
+  description: string;
+  hero: { eyebrow: string; h1: string; lead: string; photo: string; primary: Action };
+  /** «Auf einen Blick»: 2–3 sachliche Sätze – was, für wen, wo. */
+  summary: string;
+  /** Die drei Ebenen: Lösungen · Service & Reparatur · Ersatz- und Verschleissteile. */
+  levels: { title: string; text: string; links: LinkItem[] }[];
+  /** Ablauf in vier Schritten: Anfrage → Abklärung → Umsetzung → Bericht. */
+  steps: Step[];
+  faq: Faq[];
+  cta: Cta;
+  service: { name: string; serviceType: string };
+  keywords?: string[];
+}
+
+/** Unterseite (Auftrag Kap. 7.5). */
+export interface SubPage {
+  area: AreaId;
+  path: string;
+  /** Kurzname für Breadcrumbs und Karten. */
   crumb: string;
   /** Titel ohne Zusatz (der Zusatz «| INEXXIO (ehemals HS Steiner)» kommt von selbst). */
   title: string;
   description: string;
-  og: 'default' | 'krane' | 'fahrmischer';
-  parent?: { name: string; path: string };
-  hero: { eyebrow: string; h1: string; lead: string; photo: string; primary: Action; note?: string };
+  hero: { eyebrow: string; h1: string; lead: string; photo: string; primary: Action };
   /** 2–3 sachliche Sätze: wer, was, wo – zitierfähig für Suchmaschinen und KI. */
   summary: string;
-  glance: { forWhom: string; what: string; speed: string; deliverables: string };
+  /** «Auf einen Blick»: Für wen · Was wir tun · Was Sie erhalten. */
+  glance: { forWhom: string; what: string; deliverables: string };
   scope: { title: string; lead?: string; items: { title: string; text: string }[] };
-  steps: { title: string; text: string }[];
   faq: Faq[];
-  cta: { title: string; lead?: string; kind: InquiryKind; need?: string; urgency?: 'dringend' | 'wochen' | 'planung'; messageLabel?: string; pikettFirst?: boolean };
+  cta: Cta;
+  /** 2–3 verwandte Leistungen, mindestens ein Ratgeber-Artikel. */
   related: LinkItem[];
   service: { name: string; serviceType: string };
   keywords?: string[];
@@ -36,10 +72,12 @@ export interface ServicePage {
 
 export interface Entry { title: string; text: string; href: string; icon: IconName }
 
-/** «Auf einen Blick» – die vier Zeilen in fester Reihenfolge (Seite und llms-full.txt). */
-export const glanceRows = (g: ServicePage['glance']): { label: string; text: string }[] => [
+/** «Auf einen Blick» – die drei Zeilen in fester Reihenfolge (Seite und llms-full.txt). */
+export const glanceRows = (g: SubPage['glance']): { label: string; text: string }[] => [
   { label: 'Für wen', text: g.forWhom },
   { label: 'Was wir tun', text: g.what },
-  { label: 'Wie schnell', text: g.speed },
   { label: 'Was Sie erhalten', text: g.deliverables },
 ];
+
+/** OG-Bild einer Seite: das ihres Bereichs. */
+export const ogOf = (area: AreaId): OgImage => area;

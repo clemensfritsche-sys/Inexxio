@@ -1,0 +1,36 @@
+---
+/**
+ * /fahrzeugtechnik/aufbauten-reparatur (Auftrag 7.5): LKW-Aufbauten, Mulden und Kipper,
+ * Hydraulik, Baustellenfahrzeuge. Klar: «Reparatur und Instandsetzung, keine Neuaufbauten.»
+ */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Icon from '../../components/Icon.astro';
+import { aufbauten } from '../../content/fahrzeugtechnik';
+---
+<SubPage page={aufbauten}>
+  <section slot="module" class="section" aria-labelledby="instandsetzung">
+    <div class="wrap grid ab">
+      <div class="col-7">
+        <SectionHead
+          eyebrow="Klar abgegrenzt"
+          title="Reparatur und Instandsetzung, keine Neuaufbauten"
+          lead="Wir bringen in Ordnung, was auf Ihrem Fahrzeug ist. Neue Aufbauten, Trailer und Fahrzeughandel gehören nicht mehr zu unserem Angebot."
+          id="instandsetzung"
+          class="head--flush"
+        />
+      </div>
+      <div class="col-4 ab__links">
+        <a class="arrow-link" href="/sonderloesungen/schweiss-stahlbau">Teil neu anfertigen lassen <Icon name="arrow-right" size={18} /></a>
+        <a class="arrow-link" href="/uebergabe#nicht-mehr-im-angebot">Was wir nicht mehr anbieten <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .ab { align-items: end; }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .ab__links { grid-column: 9 / span 4; } }
+  .ab__links { display: grid; justify-items: start; }
+</style>

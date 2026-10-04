@@ -1,23 +1,24 @@
 ---
-/** Direkte Kontakte: Telefon gross, Pikett, E-Mail, Öffnungszeiten – alles aus der Konfiguration. */
+/** Direkte Kontakte: Telefon gross, Notfallnummer, E-Mail, Öffnungszeiten – alles aus der Konfiguration. */
 import { site, contactEmail } from '../config/site.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
 
 interface Props {
-  /** Pikett hervorheben (Störungsseiten). */
-  pikettFirst?: boolean;
+  /** Notfallnummer zuoberst hervorheben (Störung, Notfall-Service). */
+  notfallFirst?: boolean;
   compact?: boolean;
 }
-const { pikettFirst = false, compact = false } = Astro.props;
-const pikett = site.features.pikett;
+const { notfallFirst = false, compact = false } = Astro.props;
+const notfall = site.features.notfall;
+const n = site.notfall;
 ---
 <div class:list={['cpanel', compact && 'cpanel--compact']}>
-  {pikett && pikettFirst && (
-    <div class="cpanel__block cpanel__block--pikett">
-      <p class="label label--red"><Icon name="siren" size={16} /> Pikett bei Stillstand</p>
-      <a class="cpanel__num tnum" href={`tel:${site.pikett.e164}`} data-track="pikett_click">{site.pikett.display}</a>
-      <Rich as="p" class="small" text={`${site.pikett.hours} ${site.pikett.review}`} />
+  {notfall && notfallFirst && (
+    <div class="cpanel__block cpanel__block--notfall">
+      <p class="label label--red"><Icon name="siren" size={16} /> Notfallnummer bei Stillstand</p>
+      <a class="cpanel__num tnum" href={`tel:${n.e164}`} data-track="notfall_click">{n.display}</a>
+      <Rich as="p" class="small" text={`${n.hours} ${n.review}`} />
     </div>
   )}
   <div class="cpanel__block">
@@ -25,11 +26,11 @@ const pikett = site.features.pikett;
     <a class="cpanel__num tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
     <Rich as="p" class="small muted" text={`${site.hours.text} ${site.hours.review}`} />
   </div>
-  {pikett && !pikettFirst && (
+  {notfall && !notfallFirst && (
     <div class="cpanel__block">
-      <p class="label">Notfall – Pikett</p>
-      <a class="cpanel__num cpanel__num--sm tnum" href={`tel:${site.pikett.e164}`} data-track="pikett_click">{site.pikett.display}</a>
-      <Rich as="p" class="small muted" text={`${site.pikett.hours} ${site.pikett.review}`} />
+      <p class="label">Notfallnummer</p>
+      <a class="cpanel__num cpanel__num--sm tnum" href={`tel:${n.e164}`} data-track="notfall_click">{n.display}</a>
+      <Rich as="p" class="small muted" text={`${n.hours} ${n.review}`} />
     </div>
   )}
   <div class="cpanel__block">
@@ -42,8 +43,8 @@ const pikett = site.features.pikett;
 <style>
   .cpanel { display: grid; gap: 0; border-top: 1px solid var(--ink); }
   .cpanel__block { display: grid; gap: 4px; padding: var(--s-5) 0; border-bottom: 1px solid var(--line-2); }
-  .cpanel__block--pikett { --overline: var(--red-deep); background: var(--paper); padding: var(--s-5); border-bottom: 0; border-left: 3px solid var(--red); margin-bottom: var(--s-2); }
-  :global(.section--paper) .cpanel__block--pikett { background: var(--white); }
+  .cpanel__block--notfall { --overline: var(--red-deep); background: var(--paper); padding: var(--s-5); border-bottom: 0; border-left: 3px solid var(--red); margin-bottom: var(--s-2); }
+  :global(.section--paper) .cpanel__block--notfall { background: var(--white); }
   .cpanel__block .label { display: inline-flex; align-items: center; gap: 6px; }
   .cpanel__num {
     font-size: clamp(1.625rem, 1.4rem + 1vw, 2.25rem); font-weight: 700; letter-spacing: -0.02em;

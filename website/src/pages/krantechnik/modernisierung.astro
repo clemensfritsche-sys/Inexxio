@@ -1,14 +1,14 @@
 ---
-/** /krane/modernisierung – Nachrüstungen, Hinweis EU-Maschinenverordnung, Vorher/Nachher (abgeschaltet bis echte Fotos). */
-import Service from '../../layouts/Service.astro';
+/** /krantechnik/modernisierung – Nachrüstungen, Hinweis EU-Maschinenverordnung, Vorher/Nachher (abgeschaltet bis echte Fotos). */
+import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Sources from '../../components/Sources.astro';
 import BeforeAfter from '../../components/BeforeAfter.astro';
 import Rich from '../../components/Rich.astro';
-import { modernisierung, machineryNote } from '../../content/krane';
+import { modernisierung, machineryNote } from '../../content/krantechnik';
 import { site } from '../../config/site.mjs';
 ---
-<Service page={modernisierung}>
+<SubPage page={modernisierung}>
   <section slot="module" class="section section--paper" aria-labelledby="maschinenverordnung">
     <div class="wrap grid mod">
       <div class="col-7 mod__text">
@@ -25,7 +25,7 @@ import { site } from '../../config/site.mjs';
       )}
     </div>
   </section>
-</Service>
+</SubPage>
 
 <style>
   .mod__text { display: grid; gap: var(--s-4); }

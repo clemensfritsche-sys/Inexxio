@@ -6,27 +6,41 @@
  * (backend/app/routers/contact.py) prüft gegen dieselbe Liste und schreibt mit denselben
  * Beschriftungen die E-Mail – `scripts/export-contact.mjs` überträgt sie nach
  * backend/app/assets/website_contact.json. Ein neuer Wert ist damit eine Zeile hier.
+ *
+ * Die drei Bereiche heissen wie in der Navigation (Auftrag Kap. 5.4 und 11.1).
  */
+
+/** @typedef {'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen' | 'teile' | 'anderes'} InquiryKind */
+
 export const inquiry = {
+  /** Schritt 1 «Bereich». */
   kinds: [
-    { value: 'kran', label: 'Kran', hint: 'Prüfung, Wartung, Störung, Modernisierung, Neuanlage', subject: 'Kran' },
-    { value: 'fahrmischer', label: 'Fahrmischer', hint: 'Service, Reparatur, Trommel-Revision', subject: 'Fahrmischer' },
-    { value: 'teile', label: 'Verschleiss- oder Ersatzteile', hint: 'Rinnen, Schurren, Spiralschutz, Kranteile', subject: 'Teile' },
-    { value: 'abo', label: 'Service-Abo', hint: 'Prüfung und Wartung zum Fixpreis', subject: 'Abo' },
+    { value: 'krantechnik', label: 'Krantechnik', hint: 'Heukrananlage, Industriekran, Prüfung, Wartung, Störung, Modernisierung', subject: 'Krantechnik' },
+    { value: 'fahrzeugtechnik', label: 'Fahrzeugtechnik', hint: 'Fahrmischer-Service, Reparatur, Trommel-Revision, Aufbauten', subject: 'Fahrzeugtechnik' },
+    { value: 'sonderloesungen', label: 'Sonderlösungen', hint: 'Konstruktion, Schweiss- und Stahlbau, Baumaschinen', subject: 'Sonderlösungen' },
+    { value: 'teile', label: 'Ersatz- oder Verschleissteile', hint: 'Rinnen, Schurren, Spiralschutz, Kranteile', subject: 'Teile' },
     { value: 'anderes', label: 'Anderes', hint: 'Beschreiben Sie Ihr Anliegen im nächsten Schritt', subject: 'Anderes' },
   ],
+  /** Schritt 2 «Anliegen» – abhängig vom Bereich. Teile fragen stattdessen «welches, wofür». */
   needs: {
-    kran: [
+    krantechnik: [
+      { value: 'heukrananlage', label: 'Neue Heukrananlage' },
+      { value: 'industriekran', label: 'Neuer Industriekran' },
       { value: 'pruefung', label: 'Prüfung' },
       { value: 'wartung', label: 'Wartung' },
       { value: 'stoerung', label: 'Störung / Reparatur' },
       { value: 'modernisierung', label: 'Modernisierung' },
-      { value: 'neuanlage', label: 'Neuanlage' },
     ],
-    fahrmischer: [
-      { value: 'service', label: 'Service' },
+    fahrzeugtechnik: [
+      { value: 'fahrmischer-service', label: 'Fahrmischer-Service' },
       { value: 'reparatur', label: 'Reparatur' },
       { value: 'trommel', label: 'Trommel-Revision' },
+      { value: 'aufbau', label: 'Aufbau-Reparatur' },
+    ],
+    sonderloesungen: [
+      { value: 'konstruktion', label: 'Konstruktion' },
+      { value: 'stahlbau', label: 'Schweiss-/Stahlbau' },
+      { value: 'baumaschine', label: 'Baumaschine Umbau/Reparatur' },
     ],
   },
   urgencies: [
@@ -38,11 +52,12 @@ export const inquiry = {
     { value: 'telefon', label: 'Telefon' },
     { value: 'email', label: 'E-Mail' },
   ],
+  /** Fotos oder Skizzen (Auftrag 11.1): Bilder und PDF. */
   photos: {
     max: 3,
     maxTotalBytes: 10 * 1024 * 1024,
-    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif',
-    extensions: ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'],
+    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf,.pdf',
+    extensions: ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.pdf'],
   },
   /** Mindestausfüllzeit in Sekunden (Schutz vor Bots, ohne CAPTCHA). */
   minSeconds: 3,
@@ -51,11 +66,10 @@ export const inquiry = {
    * Wörter in der E-Mail an uns, in der Bestätigung und im Notfall-mailto.
    */
   labels: [
-    ['kind', 'Worum geht es'],
-    ['need', 'Was'],
+    ['kind', 'Bereich'],
+    ['need', 'Anliegen'],
     ['part', 'Teil'],
-    ['mixer', 'Für Fahrmischer'],
-    ['cranes', 'Anzahl Krane'],
+    ['usage', 'Wofür'],
     ['urgency', 'Dringlichkeit'],
     ['maker', 'Hersteller / Typ'],
     ['year', 'Baujahr'],
@@ -69,13 +83,12 @@ export const inquiry = {
   ],
   /** Fehlermeldungen – im Browser direkt am Feld und vom Server, wortgleich. */
   messages: {
-    kind: 'Bitte wählen Sie aus, worum es geht.',
-    need: 'Bitte wählen Sie, was gemacht werden soll.',
+    kind: 'Bitte wählen Sie den Bereich.',
+    need: 'Bitte wählen Sie Ihr Anliegen.',
     part: 'Bitte nennen Sie das Teil, das Sie brauchen.',
     urgency: 'Bitte wählen Sie, wie dringend es ist.',
     year: 'Bitte das Baujahr vierstellig angeben, z. B. 1998.',
-    cranes: 'Bitte die Anzahl Krane als Zahl angeben, z. B. 3.',
-    place: 'Bitte geben Sie PLZ und Ort an – dort, wo die Anlage steht.',
+    place: 'Bitte geben Sie PLZ und Ort an – dort, wo die Anlage oder Maschine steht.',
     message: 'Bitte beschreiben Sie kurz Ihr Anliegen.',
     name: 'Bitte geben Sie Ihren Namen an.',
     contact: 'Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.',
@@ -84,9 +97,9 @@ export const inquiry = {
     prefPhone: 'Sie möchten einen Anruf – dafür brauchen wir Ihre Telefonnummer.',
     prefEmail: 'Sie möchten eine E-Mail – dafür brauchen wir Ihre Adresse.',
     tooLong: 'Dieser Text ist zu lang – höchstens {max} Zeichen.',
-    photosCount: 'Bitte höchstens {max} Fotos auswählen (jetzt {count}).',
-    photosType: '«{name}» ist kein unterstütztes Bild (JPG, PNG, WEBP oder HEIC).',
-    photosSize: 'Die Fotos sind zusammen {size} gross – erlaubt sind {max}.',
+    photosCount: 'Bitte höchstens {max} Dateien auswählen (jetzt {count}).',
+    photosType: '«{name}» ist kein unterstütztes Format (JPG, PNG, WEBP, HEIC oder PDF).',
+    photosSize: 'Die Dateien sind zusammen {size} gross – erlaubt sind {max}.',
     tooFast: 'Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal.',
   },
   /**
@@ -98,7 +111,7 @@ export const inquiry = {
     confirmIntro: 'Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.',
     confirmNext: { text: 'Wir melden uns innert {{promises.responseTime}}.', fallback: 'Wir melden uns so bald wie möglich.' },
     urgent: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.display}}.',
-    urgentPikett: 'Ausserhalb der Bürozeiten erreichen Sie unser Pikett: {{pikett.display}}.',
+    urgentNotfall: 'Ausserhalb der Bürozeiten erreichen Sie unsere Notfallnummer: {{notfall.display}}.',
     closing: 'Freundliche Grüsse',
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */
@@ -112,7 +125,9 @@ export const inquiry = {
     year: 4,
     message: 4000,
     part: 200,
-    mixer: 160,
-    cranes: 3,
+    usage: 160,
   },
 };
+
+/** Bereiche mit einer Auswahl «Anliegen». */
+export const kindsWithNeeds = /** @type {(keyof typeof inquiry.needs)[]} */ (Object.keys(inquiry.needs));

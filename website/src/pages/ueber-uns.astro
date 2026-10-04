@@ -1,21 +1,28 @@
 ---
-/** /ueber-uns – Clemens (Porträt, Werdegang, Botschaft), Team (abgeschaltet), Geschichte, Zusagen, Werkstatt, Ausbildung. */
+/**
+ * /ueber-uns (Auftrag 7.7): Clemens (Porträt, Werdegang, Botschaft) · Team (abgeschaltet) ·
+ * Zusagen · Geschichte · Werkstatt und Standort · Einsatzgebiet mit Karte und Regionen als
+ * Fliesstext (keine Ortsseiten) · Ausbildung.
+ */
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
 import Icon from '../components/Icon.astro';
+import AreaMap from '../components/AreaMap.astro';
+import Faq from '../components/Faq.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
 import { ueberUns as u } from '../content/ueber-uns';
 import { message } from '../content/uebergabe';
-import { owner } from '../lib/seo.mjs';
+import { faqPage, owner } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const o = site.people.owner;
 const a = site.address;
 const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
 ---
-<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl)]}>
+<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(u.areaFaq)]}>
   <Hero eyebrow={u.hero.eyebrow} title={u.hero.h1} lead={u.hero.lead} photo="werkstatt-aussen" primary={{ label: 'Kontakt aufnehmen', href: '/kontakt' }} />
 
   <section class="section section--tight" aria-label="Auf einen Blick">
@@ -28,6 +35,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
       <div class="col-7 uu-owner__text">
         <p class="label">{o.role}</p>
         <h2 id="clemens">{o.name}</h2>
+        <h3 class="label">{u.owner.career}</h3>
         <ul role="list" class="rule-list uu-career">
           {o.career.map((c) => <li>{c}</li>)}
         </ul>
@@ -74,20 +82,46 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
         <SectionHead eyebrow="Standort" title={u.workshop.title} id="werkstatt" class="head--flush" />
         <Rich as="p" text={u.workshop.text} />
         <address class="uu-addr">
-          <strong>{site.brand.name}</strong><br />
+          <strong>{plain(site.brand.legalName)}</strong><br />
           {a.street}<br />
           {a.zip} {a.city} ({a.municipality} {a.canton})
         </address>
         <Rich as="p" class="small muted" text={`${site.hours.text} ${site.hours.review}`} />
         <div class="uu-links">
           <a class="arrow-link" href={route} rel="noopener">Route in Google Maps öffnen <Icon name="external-link" size={16} /></a>
-          <a class="arrow-link" href="/einsatzgebiet">Einsatzgebiet <Icon name="arrow-right" size={18} /></a>
+          <a class="arrow-link" href="#einsatzgebiet">Einsatzgebiet <Icon name="arrow-right" size={18} /></a>
         </div>
         <div class="uu-training">
           <h3>{u.training.title}</h3>
           <Rich as="p" text={u.training.text} />
           <a class="arrow-link" href="/karriere">Arbeiten bei uns <Icon name="arrow-right" size={18} /></a>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--paper" id="einsatzgebiet" aria-labelledby="einsatzgebiet-title">
+    <div class="wrap">
+      <div class="grid uu-area">
+        <div class="col-5 uu-area__text">
+          <SectionHead eyebrow="Einsatzgebiet" title={u.area.title} lead={u.area.lead} id="einsatzgebiet-title" class="head--flush" />
+          <Rich as="p" text={u.area.text} />
+          <Rich as="p" text={u.area.abroad} />
+        </div>
+        <div class="col-7 uu-area__map"><AreaMap /></div>
+      </div>
+      <dl class="uu-regions">
+        {u.area.regions.map((r) => (
+          <div class="uu-regions__row">
+            <dt>{r.name}</dt>
+            <dd>{r.places}</dd>
+          </div>
+        ))}
+      </dl>
+      <Rich as="p" class="small uu-note" text={u.area.regionsReview} />
+      <div class="grid uu-areafaq">
+        <div class="col-4"><h3 class="h3">Fragen zum Einsatzgebiet</h3></div>
+        <div class="col-8"><Faq items={u.areaFaq} level="h4" /></div>
       </div>
     </div>
   </section>
@@ -116,4 +150,14 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   .uu-links { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); }
   .uu-training { display: grid; gap: var(--s-2); margin-top: var(--s-4); padding-top: var(--s-5); border-top: 1px solid var(--line-2); justify-items: start; }
   .uu-training h3 { font-size: 1.125rem; }
+  .uu-area { align-items: center; }
+  .uu-area__text { display: grid; gap: var(--s-4); }
+  @media (min-width: 960px) { .uu-area__map { grid-column: 7 / span 6; } }
+  .uu-regions { display: grid; margin-top: var(--s-7); border-top: 1px solid var(--ink); }
+  .uu-regions__row { display: grid; gap: 4px var(--s-5); padding: var(--s-4) 0; border-bottom: 1px solid var(--line-2); }
+  @media (min-width: 720px) { .uu-regions__row { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); } }
+  .uu-regions dt { font-weight: 600; color: var(--ink); font-size: 1.0625rem; }
+  .uu-regions dd { color: var(--ink-2); margin: 0; }
+  .uu-note { margin-top: var(--s-3); }
+  .uu-areafaq { margin-top: var(--s-7); }
 </style>

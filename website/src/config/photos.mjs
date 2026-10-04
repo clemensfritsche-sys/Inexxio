@@ -25,8 +25,8 @@ export const photos = {
     ratio: '4/3',
   },
   'reparatur-vor-ort': {
-    alt: 'Techniker arbeitet an der Steuerung eines Hallenkrans',
-    brief: 'Techniker bei einer Reparatur vor Ort: geöffneter Schaltschrank oder Hubwerk eines Hallenkrans, quer',
+    alt: 'Industriekran in einer Halle, Techniker bei der Arbeit am Hubwerk',
+    brief: 'Industriekran (Brückenkran) in einer Halle, Techniker bei Service oder Reparatur am Hubwerk oder Schaltschrank, quer',
     ratio: '4/3',
   },
   'steuerung-funk': {
@@ -35,12 +35,12 @@ export const photos = {
     ratio: '4/3',
   },
   'heukran-einsatz': {
-    alt: 'HS-Heukran im Einsatz auf einem Landwirtschaftsbetrieb',
-    brief: 'HS-Heukran (Greifer mit Heu) im Einsatz in einer Scheune, Betriebsleiter an der Steuerung, quer',
+    alt: 'Heukrananlage mit vollem Greifer im Einsatz in einer Scheune',
+    brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',
   },
   'typenschild-hs': {
-    alt: 'Typenschild einer HS-Krananlage mit Typ und Baujahr',
+    alt: 'Typenschild einer Krananlage aus Tuttwil mit Typ und Baujahr',
     brief: 'Typenschild eines HS-Krans, gut lesbar (Typ, Baujahr, Nummer), Detail',
     ratio: '4/3',
   },
@@ -128,8 +128,23 @@ export const photos = {
     feature: 'beforeAfter',
   },
   'arbeit-werkstatt': {
-    alt: 'Mechaniker bei der Arbeit an einem Kranteil in der Werkstatt',
-    brief: 'Mechaniker bei der Arbeit (Schweissen oder Montage an einem Kranteil) in der Werkstatt, quer',
+    alt: 'Schweissarbeit an einer Stahlkonstruktion in der Werkstatt',
+    brief: 'Schweissarbeit oder Stahlkonstruktion in der Werkstatt in Tuttwil, Funken und Schutzschild, quer',
+    ratio: '4/3',
+  },
+  'aufbau-reparatur': {
+    alt: 'LKW-Aufbau mit Mulde in der Werkstatt bei der Reparatur',
+    brief: 'LKW-Aufbau oder Mulde/Kipper in Reparatur in der Werkstatt, Hydraulikzylinder sichtbar, quer',
+    ratio: '4/3',
+  },
+  'konstruktion': {
+    alt: 'Konstruktion am Bildschirm, daneben das Werkstück',
+    brief: 'Konstruktion am Bildschirm (3D-Modell), daneben das gefertigte Werkstück auf der Werkbank, quer',
+    ratio: '4/3',
+  },
+  'baumaschine': {
+    alt: 'Baumaschine in der Werkstatt bei einem Umbau',
+    brief: 'Baumaschine (z. B. Bagger oder Radlader) in der Werkstatt bei Umbau oder Reparatur, Anbauteil im Bild, quer',
     ratio: '4/3',
   },
 };

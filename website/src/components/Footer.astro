@@ -1,4 +1,12 @@
 ---
+/**
+ * Fuss (Auftrag Kap. 7.2), dunkel, fünf Spalten:
+ *  1. Logo und der Satz, der das Unternehmen eindeutig beschreibt – darunter die Seiten
+ *     über das Unternehmen (sonst nirgends in der Hauptzeile: Übergabe, Ratgeber, Karriere)
+ *  2.–4. je ein Bereich mit seinen Unterseiten (aus site.areas)
+ *  5. Adresse, Telefon, Notfallnummer, E-Mail, Öffnungszeiten
+ * Unterste Zeile: © Jahr · Impressum · Datenschutz · UID · Anmelden.
+ */
 import { site, contactEmail } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
 import Icon from './Icon.astro';
@@ -6,14 +14,10 @@ import Lockup from './Lockup.astro';
 import { photos } from '../config/photos.mjs';
 import { samples } from '../config/photo-samples.mjs';
 
-const [krane, fahrmischer] = site.nav;
 const year = new Date().getFullYear();
 const company = [
-  { label: plain('Aus HS Steiner wird {{brand.name}}'), href: '/uebergabe' },
-  { label: 'Über uns', href: '/ueber-uns' },
-  { label: 'Einsatzgebiet', href: '/einsatzgebiet' },
-  { label: 'Ratgeber', href: '/ratgeber' },
-  { label: 'Karriere', href: '/karriere' },
+  ...site.company,
+  { label: site.service.overview, href: site.service.href },
 ];
 const a = site.address;
 /** Solange Beispielbilder stehen, führt der Fuss zu ihrem Nachweis (CC BY/BY-SA). */
@@ -23,44 +27,39 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
   <div class="wrap">
     <div class="site-footer__grid">
       <div class="site-footer__brand">
-        <a href="/" class="site-footer__home" aria-label={`${site.brand.name} – zur Startseite`}><Lockup tone="dark" /></a>
+        <a href="/" class="site-footer__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup tone="dark" size="footer" /></a>
         <p class="site-footer__claim" set:html={rich(site.footer.claim)} />
+        <nav aria-label="Unternehmen">
+          <ul role="list" class="site-footer__company">
+            {company.map((c) => <li><a href={c.href}>{plain(c.label)}</a></li>)}
+          </ul>
+        </nav>
       </div>
 
-      <nav class="site-footer__col" aria-label="Krane">
-        <h2 class="site-footer__title"><a href={krane.href}>Krane</a></h2>
-        <ul role="list">
-          {krane.children?.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
-          <li><a href="/service-abo">Service-Abo &amp; Kranbuch</a></li>
-        </ul>
-      </nav>
-
-      <nav class="site-footer__col" aria-label="Fahrmischer und Unternehmen">
-        <h2 class="site-footer__title"><a href={fahrmischer.href}>Fahrmischer</a></h2>
-        <ul role="list">
-          {fahrmischer.children?.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
-        </ul>
-        <h2 class="site-footer__title site-footer__title--gap">Unternehmen</h2>
-        <ul role="list">
-          {company.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
-        </ul>
-      </nav>
+      {site.areas.map((area) => (
+        <nav class="site-footer__col" aria-label={area.label}>
+          <h2 class="site-footer__title"><a href={area.href}>{area.label}</a></h2>
+          <ul role="list">
+            {area.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+          </ul>
+        </nav>
+      ))}
 
       <div class="site-footer__col">
         <h2 class="site-footer__title">Kontakt</h2>
         <address class="site-footer__contact">
           <p>
             <span class="site-footer__k"><Icon name="map-pin" size={16} /></span>
-            <span>{a.street}<br />{a.zip} {a.city} ({a.municipality} {a.canton})</span>
+            <span>{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city} ({a.municipality} {a.canton})</span>
           </p>
           <p>
             <span class="site-footer__k"><Icon name="phone" size={16} /></span>
             <span>Telefon <a href={`tel:${site.phone.e164}`} data-track="tel_click" class="tnum">{site.phone.display}</a></span>
           </p>
-          {site.features.pikett && (
+          {site.features.notfall && (
             <p>
               <span class="site-footer__k"><Icon name="siren" size={16} /></span>
-              <span>Pikett <a href={`tel:${site.pikett.e164}`} data-track="pikett_click" class="tnum">{site.pikett.display}</a> <span set:html={rich(site.pikett.review)} /></span>
+              <span>Notfall <a href={`tel:${site.notfall.e164}`} data-track="notfall_click" class="tnum">{site.notfall.display}</a> <span set:html={rich(site.notfall.review)} /></span>
             </p>
           )}
           <p>
@@ -76,13 +75,14 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
     </div>
 
     <div class="site-footer__bottom">
-      <p>© {year} {site.brand.name}</p>
+      <p>© {year} {plain(site.brand.legalName)}</p>
       <ul role="list">
         <li><a href="/impressum">Impressum</a></li>
         <li><a href="/datenschutz">Datenschutz</a></li>
         {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
         <li>UID <span set:html={rich(site.brand.uid)} /></li>
-        <li><a href={site.login.href} rel="nofollow">{site.login.label}</a></li>
+        <li data-acct="login"><a href={site.account.login.href} rel="nofollow">{site.account.login.label}</a></li>
+        <li data-acct="user"><a href={site.account.profile.href} rel="nofollow">{site.account.profile.label}</a></li>
       </ul>
     </div>
   </div>
@@ -91,25 +91,24 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
 <style>
   .site-footer { background: var(--dark); color: rgba(244, 243, 241, 0.78); padding-top: 80px; font-size: 0.875rem; }
   .site-footer a { color: rgba(255, 255, 255, 0.78); text-decoration: none; transition: color var(--t-fast) var(--ease); }
-  .site-footer a:hover { color: var(--white); }
-  .site-footer a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .site-footer a:hover { color: var(--white); text-decoration: underline; text-underline-offset: 0.2em; }
   .site-footer__grid {
     display: grid; gap: var(--s-7) var(--s-6); grid-template-columns: minmax(0, 1fr);
     padding-bottom: var(--s-7); border-bottom: 1px solid var(--line-dark);
   }
   @media (min-width: 720px) { .site-footer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1100px) { .site-footer__grid { grid-template-columns: 1.5fr 1fr 1fr 1.35fr; } }
+  @media (min-width: 1100px) { .site-footer__grid { grid-template-columns: 1.45fr 1fr 1fr 1fr 1.3fr; } }
   .site-footer__home { display: inline-flex; min-height: 44px; align-items: center; }
-  .site-footer__claim { margin-top: var(--s-4); max-width: 34ch; color: rgba(244, 243, 241, 0.72); line-height: 1.55; }
-  /* Jeder Spaltentitel hat dieselbe 44-px-Zeile – ob verlinkt oder nicht. Sonst stand
-     «Kontakt» 15 px höher als «Krane», weil nur der Link die Klickfläche trug. */
+  .site-footer__claim { margin-top: var(--s-4); max-width: 36ch; color: rgba(244, 243, 241, 0.72); line-height: 1.55; }
+  .site-footer__company { list-style: none; padding: 0; margin-top: var(--s-4); display: flex; flex-wrap: wrap; gap: 0 var(--s-4); }
+  .site-footer__company a { display: inline-flex; align-items: center; min-height: 44px; }
+  /* Jeder Spaltentitel hat dieselbe 44-px-Zeile – ob verlinkt oder nicht. */
   .site-footer__title {
     font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.14em;
     text-transform: uppercase; color: rgba(244, 243, 241, 0.6);
     display: flex; align-items: center; min-height: 44px; margin: 0;
   }
   .site-footer__title a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
-  .site-footer__title--gap { margin-top: var(--s-6); }
   .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 0; }
   .site-footer__col li a { display: inline-flex; align-items: center; min-height: 44px; }
   .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }

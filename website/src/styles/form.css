@@ -64,33 +64,33 @@
 .iform__grouptitle { font-weight: 600; color: var(--ink); font-size: 0.97rem; }
 .iform__pick-first { color: var(--ink-3); }
 
-/* Passende Zusatzfragen und Pikett-Hinweis – ohne JS, per :has(). Ohne :has bleibt alles sichtbar. */
+/* Passende Zusatzfragen und Notfall-Hinweis – ohne JS, per :has(). Ohne :has bleibt alles sichtbar. */
 @supports selector(:has(*)) {
   .iform__group { display: none; }
-  .iform:has(input[name='kind'][value='kran']:checked) [data-group='kran'],
-  .iform:has(input[name='kind'][value='fahrmischer']:checked) [data-group='fahrmischer'],
+  .iform:has(input[name='kind'][value='krantechnik']:checked) [data-group='krantechnik'],
+  .iform:has(input[name='kind'][value='fahrzeugtechnik']:checked) [data-group='fahrzeugtechnik'],
+  .iform:has(input[name='kind'][value='sonderloesungen']:checked) [data-group='sonderloesungen'],
   .iform:has(input[name='kind'][value='teile']:checked) [data-group='teile'],
-  .iform:has(input[name='kind'][value='abo']:checked) [data-group='abo'],
   .iform:has(input[name='kind'][value='anderes']:checked) [data-group='anderes'] { display: grid; }
   .iform:has(input[name='kind']:checked) .iform__pick-first { display: none; }
-  .pikett-box { display: none !important; }
-  .iform:has(input[name='urgency'][value='dringend']:checked) .pikett-box { display: flex !important; }
+  .notfall-box { display: none !important; }
+  .iform:has(input[name='urgency'][value='dringend']:checked) .notfall-box { display: flex !important; }
 }
 @supports not selector(:has(*)) {
   .iform__pick-first { display: none; }
 }
 
-.pikett-box {
+.notfall-box {
   display: flex; gap: var(--s-4); align-items: flex-start; padding: var(--s-5);
   background: var(--paper); border-left: 3px solid var(--red); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--ink); --overline: var(--red-deep);
 }
-.pikett-box .icon { flex: none; color: var(--red-deep); margin-top: 4px; }
-.pikett-box__title { font-weight: 600; color: var(--ink); }
-.pikett-box__num {
+.notfall-box .icon { flex: none; color: var(--red-deep); margin-top: 4px; }
+.notfall-box__title { font-weight: 600; color: var(--ink); }
+.notfall-box__num {
   display: inline-block; margin-top: 4px; font-size: clamp(1.75rem, 1.45rem + 1.3vw, 2.5rem);
   font-family: var(--font-display); font-weight: 700; letter-spacing: var(--tracking-snug); color: var(--ink); text-decoration: none; line-height: 1.1;
 }
-.pikett-box__num:hover { text-decoration: underline; text-decoration-thickness: 2px; }
+.notfall-box__num:hover { text-decoration: underline; text-decoration-thickness: 2px; }
 
 /* Schritte (nur mit JS); die Leiste darüber steht immer da – ohne JS als Überblick */
 .iform--steps .iform__step:not(.is-current) { display: none; }

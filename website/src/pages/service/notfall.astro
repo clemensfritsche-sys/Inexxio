@@ -1,0 +1,110 @@
+---
+/**
+ * /service/notfall (Auftrag 7.6): Notfallnummer gross, wann erreichbar, was man bereithalten
+ * sollte (Standort, Maschine, Typenschild, Foto), Kurzformular mit Dringlichkeit «Steht still».
+ */
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Faq from '../../components/Faq.astro';
+import CtaBlock from '../../components/CtaBlock.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { site } from '../../config/site.mjs';
+import { notfall as n } from '../../content/service';
+import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: 'Notfall-Service', serviceType: 'Notfall-Service bei Stillstand von Kranen, Fahrmischern und Maschinen', path: n.path, description: plain(n.summary) }),
+  faqPage(n.faq),
+];
+const on = site.features.notfall;
+---
+<Base title={n.title} description={n.description} crumbs={[{ name: 'Service', path: '/service' }, { name: 'Notfall-Service', path: n.path }]} jsonLd={nodes}>
+  <section class="nf-head dots">
+    <div class="wrap grid">
+      <div class="col-7 nf-head__text" data-hero>
+        <p class="label">{n.hero.eyebrow}</p>
+        <Rich as="h1" text={n.hero.h1} />
+        <Rich as="p" class="lead" text={n.hero.lead} />
+      </div>
+      <div class="col-5 nf-num">
+        {on && (
+          <div class="nf-num__box">
+            <p class="label label--red"><Icon name="siren" size={16} /> Notfallnummer</p>
+            <a class="nf-num__big tnum" href={`tel:${site.notfall.e164}`} data-track="notfall_click">{site.notfall.display}</a>
+            <Rich as="p" class="small" text={`${site.notfall.hours} ${site.notfall.review}`} />
+          </div>
+        )}
+        <div class="nf-num__office">
+          <p class="label">Bürozeiten</p>
+          <a class="nf-num__mid tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
+          <Rich as="p" class="small muted" text={`${site.hours.text} ${site.hours.review}`} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight" aria-label="Auf einen Blick">
+    <div class="wrap"><p class="label">Auf einen Blick</p><Rich as="p" class="lead nf-summary" text={n.summary} /></div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="bereithalten">
+    <div class="wrap">
+      <SectionHead eyebrow="Damit es schnell geht" title={n.prepare.title} id="bereithalten" />
+      <ol role="list" class="nf-prep">
+        {n.prepare.items.map((it, i) => (
+          <li>
+            <span class="idx">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{it.title}</h3>
+            <Rich as="p" text={it.text} />
+          </li>
+        ))}
+      </ol>
+      <div class="nf-safety">
+        <Icon name="alert" size={22} />
+        <div>
+          <h3>{n.safety.title}</h3>
+          <Rich as="p" text={n.safety.text} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="fragen">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
+      <div class="col-8"><Faq items={n.faq} /></div>
+    </div>
+  </section>
+
+  <CtaBlock title={n.cta.title} lead={n.cta.lead} kind="waehlen" urgency="dringend" messageLabel={n.cta.messageLabel} notfallFirst />
+</Base>
+
+<style>
+  .nf-head { padding-block: var(--s-7) var(--s-8); border-bottom: 1px solid var(--line); }
+  .nf-head .grid { align-items: center; }
+  .nf-head__text { display: grid; gap: var(--s-4); }
+  .nf-num { display: grid; gap: var(--s-4); }
+  @media (min-width: 960px) { .nf-num { grid-column: 8 / span 5; } }
+  .nf-num__box { display: grid; gap: 6px; padding: var(--s-5) var(--s-6); background: var(--white); border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: 0 var(--r-lg) var(--r-lg) 0; --overline: var(--red-deep); }
+  .nf-num__box .label { display: inline-flex; align-items: center; gap: 6px; }
+  .nf-num__big {
+    font-family: var(--font-display); font-weight: 700; font-size: clamp(2.25rem, 1.7rem + 2.4vw, 3.5rem);
+    letter-spacing: var(--tracking-tight); line-height: 1.05; color: var(--ink); text-decoration: none;
+    display: inline-flex; align-items: center; min-height: 56px; width: fit-content;
+  }
+  .nf-num__big:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.12em; }
+  .nf-num__office { display: grid; gap: 4px; padding: 0 var(--s-6); }
+  .nf-num__mid { font-size: 1.5rem; font-weight: 700; color: var(--ink); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; width: fit-content; }
+  .nf-num__mid:hover { text-decoration: underline; }
+  .nf-summary { margin-top: var(--s-3); max-width: 46em; }
+  .nf-prep { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .nf-prep { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .nf-prep { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .nf-prep li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
+  .nf-prep h3 { font-size: 1.1875rem; }
+  .nf-safety { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--ink); }
+  .nf-safety :global(.icon) { color: var(--red-deep); margin-top: 3px; }
+  .nf-safety h3 { font-size: 1.125rem; margin-bottom: 4px; }
+</style>

@@ -3,13 +3,13 @@
  * Hauptformular (/kontakt): vier kurze Schritte mit Fortschrittsanzeige.
  *
  * Ohne JavaScript ist es EIN langes Formular mit Fieldsets, das klassisch an den Server
- * geht (multipart, Validierung dort). Welche Zusatzfragen zu «Worum geht es?» passen und
- * dass bei «Steht still» die Pikett-Nummer erscheint, regelt CSS (:has) – auch ohne JS.
+ * geht (multipart, Validierung dort). Welche Zusatzfragen zum gewählten Bereich passen und
+ * dass bei «Steht still» die Notfallnummer gross erscheint, regelt CSS (:has) – auch ohne JS.
  * Das Skript (scripts/form.ts) macht daraus Schritte, prüft direkt am Feld und sendet
  * im Hintergrund; schlägt das Senden fehl, steht ein vorausgefüllter mailto-Link da.
  */
 import { site, contactEmail } from '../config/site.mjs';
-import { inquiry } from '../config/inquiry.mjs';
+import { inquiry, kindsWithNeeds } from '../config/inquiry.mjs';
 import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
@@ -51,16 +51,16 @@ const f = (name: string) => `${id}-${name}`;
          in beiden Fällen von Anfang an da, sonst schöbe sein Erscheinen das Formular nach
          unten (gemessen: 0.07 CLS auf dem Telefon). -->
     <ol class="iform__progress" data-progress aria-label="Schritte">
-      <li data-progress-item="1"><span class="idx">01</span> Anliegen</li>
-      <li data-progress-item="2"><span class="idx">02</span> Bedarf</li>
+      <li data-progress-item="1"><span class="idx">01</span> Bereich</li>
+      <li data-progress-item="2"><span class="idx">02</span> Anliegen</li>
       <li data-progress-item="3"><span class="idx">03</span> Details</li>
       <li data-progress-item="4"><span class="idx">04</span> Kontakt</li>
     </ol>
     <p class="visually-hidden" aria-live="polite" data-step-status></p>
 
-    <!-- 1 · Worum geht es? -->
+    <!-- 1 · Bereich -->
     <fieldset class="iform__step" data-step="1">
-      <legend class="iform__legend"><span class="label">01 — Anliegen</span><span class="h3">Worum geht es?</span></legend>
+      <legend class="iform__legend"><span class="label">01 — Bereich</span><span class="h3">Worum geht es?</span></legend>
       <div class="tiles" data-field="kind">
         {inquiry.kinds.map((k) => (
           <label class="tile">
@@ -75,12 +75,12 @@ const f = (name: string) => `${id}-${name}`;
       <p class="field__error" id={f('kind-error')} data-error-for="kind" hidden></p>
     </fieldset>
 
-    <!-- 2 · Was brauchen Sie? -->
+    <!-- 2 · Anliegen -->
     <fieldset class="iform__step" data-step="2">
-      <legend class="iform__legend"><span class="label">02 — Bedarf</span><span class="h3">Was brauchen Sie?</span></legend>
-      <p class="iform__pick-first">Wählen Sie oben zuerst, worum es geht.</p>
+      <legend class="iform__legend"><span class="label">02 — Anliegen</span><span class="h3">Was brauchen Sie?</span></legend>
+      <p class="iform__pick-first">Wählen Sie oben zuerst den Bereich.</p>
 
-      {(['kran', 'fahrmischer'] as const).map((kind) => (
+      {kindsWithNeeds.map((kind) => (
         <div class="iform__group" data-group={kind}>
           <p class="iform__grouptitle">{inquiry.kinds.find((k) => k.value === kind)?.label}</p>
           <div class="chips">
@@ -103,16 +103,9 @@ const f = (name: string) => `${id}-${name}`;
             <p class="field__error" id={f('part-error')} data-error-for="part" hidden></p>
           </div>
           <div class="field">
-            <label class="field__label" for={f('mixer')}>Für welchen Fahrmischer? <span class="field__opt">freiwillig</span></label>
-            <input class="input" id={f('mixer')} name="mixer" type="text" maxlength={L.mixer} placeholder="Marke, Typ" />
+            <label class="field__label" for={f('usage')}>Wofür? <span class="field__opt">freiwillig</span></label>
+            <input class="input" id={f('usage')} name="usage" type="text" maxlength={L.usage} placeholder="Maschine, Marke, Typ" />
           </div>
-        </div>
-      </div>
-
-      <div class="iform__group" data-group="abo">
-        <div class="field field--narrow">
-          <label class="field__label" for={f('cranes')}>Anzahl Krane <span class="field__opt">freiwillig</span></label>
-          <input class="input" id={f('cranes')} name="cranes" type="number" min="1" max="999" inputmode="numeric" />
         </div>
       </div>
 
@@ -133,13 +126,13 @@ const f = (name: string) => `${id}-${name}`;
         <p class="field__error" id={f('urgency-error')} data-error-for="urgency" hidden></p>
       </div>
 
-      {site.features.pikett && (
-        <div class="pikett-box" data-pikett>
+      {site.features.notfall && (
+        <div class="notfall-box" data-notfall>
           <Icon name="siren" size={28} />
           <div>
-            <p class="pikett-box__title">Steht still? Rufen Sie direkt den Pikett an.</p>
-            <a class="pikett-box__num tnum" href={`tel:${site.pikett.e164}`} data-track="pikett_click">{site.pikett.display}</a>
-            <Rich as="p" class="small" text={site.pikett.review} />
+            <p class="notfall-box__title">Steht still? Rufen Sie direkt unsere Notfallnummer an.</p>
+            <a class="notfall-box__num tnum" href={`tel:${site.notfall.e164}`} data-track="notfall_click">{site.notfall.display}</a>
+            <Rich as="p" class="small" text={`${site.notfall.hours} ${site.notfall.review}`} />
           </div>
         </div>
       )}
@@ -147,7 +140,7 @@ const f = (name: string) => `${id}-${name}`;
 
     <!-- 3 · Details -->
     <fieldset class="iform__step" data-step="3">
-      <legend class="iform__legend"><span class="label">03 — Details</span><span class="h3">Details zur Anlage</span></legend>
+      <legend class="iform__legend"><span class="label">03 — Details</span><span class="h3">Details zu Anlage oder Maschine</span></legend>
       <div class="iform__row">
         <div class="field">
           <label class="field__label" for={f('maker')}>Hersteller / Typ <span class="field__opt">freiwillig</span></label>
@@ -170,9 +163,9 @@ const f = (name: string) => `${id}-${name}`;
         <p class="field__hint" id={f('message-hint')}>Was ist passiert, was soll gemacht werden? Stichworte genügen.</p>
       </div>
       <div class="field">
-        <label class="field__label" for={f('photos')}>Fotos <span class="field__opt">freiwillig, bis zu {inquiry.photos.max}</span></label>
+        <label class="field__label" for={f('photos')}>Fotos oder Skizzen <span class="field__opt">freiwillig, bis zu {inquiry.photos.max}</span></label>
         <input class="input input--file" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
-        <p class="field__hint" id={f('photos-hint')}>Typenschild oder Schaden – JPG, PNG, WEBP oder HEIC, zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
+        <p class="field__hint" id={f('photos-hint')}>Typenschild, Schaden oder Skizze – JPG, PNG, WEBP, HEIC oder PDF, zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
         <ul class="iform__files" data-file-list hidden></ul>
         <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
       </div>

@@ -1,14 +1,14 @@
 ---
-/** /fahrmischer/service-reparatur – Trommel, Antrieb, Hydraulik, Rinnen, Aufbau; Winter-Revision; Markenliste mit Hinweis. */
-import Service from '../../layouts/Service.astro';
+/** /fahrzeugtechnik/fahrmischer – Trommel, Antrieb, Hydraulik, Rinnen, Aufbau; Winter-Revision; Markenliste mit Hinweis. */
+import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
-import { serviceReparatur, winterRevision } from '../../content/fahrmischer';
+import { fahrmischer, winterRevision } from '../../content/fahrzeugtechnik';
 import { site } from '../../config/site.mjs';
 const w = winterRevision;
 ---
-<Service page={serviceReparatur}>
+<SubPage page={fahrmischer}>
   <section slot="module" class="section section--dark" id="winter-revision" aria-labelledby="winter-title">
     <div class="wrap grid wr">
       <div class="col-6 wr__text">
@@ -30,7 +30,7 @@ const w = winterRevision;
       </div>
     </div>
   </section>
-</Service>
+</SubPage>
 
 <style>
   .wr { row-gap: var(--s-7); }

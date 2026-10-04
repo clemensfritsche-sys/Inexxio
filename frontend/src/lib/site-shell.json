@@ -1,0 +1,196 @@
+{
+  "_comment": "Generiert aus website/src/config/site.mjs mit «npm run export:contact» – nicht von Hand ändern. Kopf und Fuss des Konto-/ERP-Bereichs spiegeln die Website (WEBSITE_PLAN Entscheid 39).",
+  "brand": {
+    "name": "INEXXIO",
+    "full": "INEXXIO (ehemals HS Steiner)",
+    "legalName": "INEXXIO AG"
+  },
+  "claim": "INEXXIO AG (ehemals HS Steiner Fahrzeug- und Kranbau GmbH) – Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG. Seit 1982.",
+  "announcement": {
+    "text": "HS Steiner heisst jetzt INEXXIO",
+    "link": {
+      "label": "Mehr erfahren",
+      "href": "/uebergabe"
+    }
+  },
+  "phone": {
+    "display": "052 378 22 47",
+    "e164": "+41523782247"
+  },
+  "notfall": {
+    "display": "076 563 22 47",
+    "e164": "+41765632247"
+  },
+  "email": "fahrzeug-kranbau@hs-steiner.ch",
+  "hours": "Mo–Fr 7.00–12.00 und 13.15–17.30 Uhr",
+  "address": [
+    "INEXXIO AG",
+    "Waldweg 1",
+    "9546 Tuttwil (Wängi TG)"
+  ],
+  "uid": null,
+  "areas": [
+    {
+      "label": "Krantechnik",
+      "href": "/krantechnik",
+      "text": "Heukrananlagen und Industriekrane: neue Anlagen nach Mass, Prüfung, Wartung und Modernisierung.",
+      "overview": "Alle Leistungen Krantechnik",
+      "children": [
+        {
+          "label": "Heukrananlagen",
+          "href": "/krantechnik/heukrananlagen",
+          "text": "Neuanlagen nach Mass, Umbau, Service, Ersatzteile"
+        },
+        {
+          "label": "Industriekrane",
+          "href": "/krantechnik/industriekrane",
+          "text": "Brücken-, Hänge-, Schwenk- und Drehkrane, alle Marken"
+        },
+        {
+          "label": "Prüfung & Wartung",
+          "href": "/krantechnik/pruefung-wartung",
+          "text": "Jährliche Überprüfung, Wartung, Dokumentation"
+        },
+        {
+          "label": "Modernisierung",
+          "href": "/krantechnik/modernisierung",
+          "text": "Funk, Umrichter, Überlastsicherung, Steuerung"
+        }
+      ]
+    },
+    {
+      "label": "Fahrzeugtechnik",
+      "href": "/fahrzeugtechnik",
+      "text": "Fahrmischer und Aufbauten aller Marken: Service, Reparatur, Trommel-Revision und Verschleissteile ab Lager.",
+      "overview": "Alle Leistungen Fahrzeugtechnik",
+      "children": [
+        {
+          "label": "Fahrmischer",
+          "href": "/fahrzeugtechnik/fahrmischer",
+          "text": "Service, Reparatur, Trommel-Revision"
+        },
+        {
+          "label": "Aufbauten: Reparatur & Service",
+          "href": "/fahrzeugtechnik/aufbauten-reparatur",
+          "text": "LKW-Aufbauten, Mulden, Kipper, Hydraulik"
+        },
+        {
+          "label": "Verschleiss- & Ersatzteile",
+          "href": "/fahrzeugtechnik/verschleiss-ersatzteile",
+          "text": "Rinnen, Schurren, Spiralschutz ab Lager"
+        }
+      ]
+    },
+    {
+      "label": "Sonderlösungen",
+      "href": "/sonderloesungen",
+      "text": "Konstruktion, Schweiss- und Stahlbau, Umbauten an Baumaschinen. Wenn es die Lösung nicht zu kaufen gibt.",
+      "overview": "Alle Leistungen Sonderlösungen",
+      "children": [
+        {
+          "label": "Konstruktion & Engineering",
+          "href": "/sonderloesungen/konstruktion-engineering",
+          "text": "Von der Idee bis zur Zeichnung"
+        },
+        {
+          "label": "Schweiss- & Stahlbau",
+          "href": "/sonderloesungen/schweiss-stahlbau",
+          "text": "Stahlkonstruktionen, Einzelstücke, Kleinserien"
+        },
+        {
+          "label": "Baumaschinen: Umbau & Reparatur",
+          "href": "/sonderloesungen/baumaschinen",
+          "text": "Umbauten, Nachrüstungen, Anbauteile"
+        }
+      ]
+    }
+  ],
+  "service": {
+    "label": "Service",
+    "href": "/service",
+    "text": "Einstieg nach Anliegen – wenn etwas still steht, geprüft oder repariert werden muss.",
+    "overview": "Service-Übersicht",
+    "children": [
+      {
+        "label": "Notfall-Service",
+        "href": "/service/notfall",
+        "text": "Etwas steht still – Notfallnummer"
+      },
+      {
+        "label": "Kran prüfen oder warten",
+        "href": "/krantechnik/pruefung-wartung",
+        "text": "Jährliche Überprüfung mit Bericht"
+      },
+      {
+        "label": "Fahrmischer reparieren",
+        "href": "/fahrzeugtechnik/fahrmischer",
+        "text": "Alle gängigen Marken, Teile ab Lager"
+      },
+      {
+        "label": "Ersatz- oder Verschleissteil",
+        "href": "/fahrzeugtechnik/verschleiss-ersatzteile",
+        "text": "Katalog, Teil anfragen"
+      }
+    ]
+  },
+  "menu": [
+    {
+      "label": "Über uns",
+      "href": "/ueber-uns"
+    },
+    {
+      "label": "Kontakt",
+      "href": "/kontakt"
+    }
+  ],
+  "company": [
+    {
+      "label": "Aus HS Steiner wird INEXXIO",
+      "href": "/uebergabe"
+    },
+    {
+      "label": "Über uns",
+      "href": "/ueber-uns"
+    },
+    {
+      "label": "Ratgeber",
+      "href": "/ratgeber"
+    },
+    {
+      "label": "Karriere",
+      "href": "/karriere"
+    }
+  ],
+  "cta": {
+    "label": "Anfrage stellen",
+    "href": "/kontakt"
+  },
+  "account": {
+    "login": {
+      "label": "Anmelden",
+      "href": "/login"
+    },
+    "profile": {
+      "label": "Profil",
+      "href": "/konto"
+    },
+    "erp": {
+      "label": "ERP",
+      "href": "/erp"
+    },
+    "logout": {
+      "label": "Abmelden",
+      "href": "/abmelden"
+    }
+  },
+  "legal": [
+    {
+      "label": "Impressum",
+      "href": "/impressum"
+    },
+    {
+      "label": "Datenschutz",
+      "href": "/datenschutz"
+    }
+  ]
+}

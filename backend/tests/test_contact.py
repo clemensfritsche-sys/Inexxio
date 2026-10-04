@@ -70,7 +70,7 @@ def mailbox(monkeypatch):
 
 def short(**extra) -> dict:
     data = {
-        "form": "kurz", "source": "/krane/reparatur", "t": "8000", "kind": "kran", "need": "stoerung",
+        "form": "kurz", "source": "/krantechnik/industriekrane", "t": "8000", "kind": "krantechnik", "need": "stoerung",
         "message": "Hubwerk bleibt stehen.", "place": "8500 Frauenfeld", "name": "Anna Muster",
         "phone": "052 000 00 00", "email": "anna@muster.ch",
     }
@@ -80,7 +80,7 @@ def short(**extra) -> dict:
 
 def main_form(**extra) -> dict:
     data = {
-        "form": "haupt", "source": "/kontakt", "t": "45000", "kind": "kran", "need": "pruefung",
+        "form": "haupt", "source": "/kontakt", "t": "45000", "kind": "krantechnik", "need": "pruefung",
         "urgency": "dringend", "maker": "Demag", "year": "1998", "place": "9546 Tuttwil",
         "message": "Jährliche Prüfung fällig.", "name": "Beat Beispiel", "company": "Beispiel AG",
         "phone": "+41 52 000 00 00", "email": "beat@beispiel.ch", "contact_pref": "telefon",
@@ -100,7 +100,7 @@ def test_a_short_inquiry_reaches_us_and_the_customer_gets_a_copy(client, mailbox
     assert res.status_code == 200, res.text
     assert res.json()["ok"] is True
     internal, confirmation = mailbox.sent
-    assert internal["Subject"] == "[Anfrage][Kran] Anna Muster – 8500 Frauenfeld"
+    assert internal["Subject"] == "[Anfrage][Krantechnik] Anna Muster – 8500 Frauenfeld"
     assert internal["To"] == contact.VOCAB["email"]
     assert "anna@muster.ch" in internal["Reply-To"]
     assert attachments(internal) == [("anfrage.json", "application/json")]
@@ -117,22 +117,47 @@ def test_the_main_form_carries_urgency_photos_and_a_documented_record(client, ma
     res = client.post("/api/v1/contact", data=main_form(), files=photos, headers=JSON)
     assert res.status_code == 200, res.text
     internal, confirmation = mailbox.sent
-    assert internal["Subject"] == "[Anfrage][Kran][DRINGEND] Beispiel AG – 9546 Tuttwil"
+    assert internal["Subject"] == "[Anfrage][Krantechnik][DRINGEND] Beispiel AG – 9546 Tuttwil"
     assert attachments(internal) == [
         ("typenschild.jpg", "image/jpeg"), ("Schaden_1.HEIC", "image/heic"), ("anfrage.json", "application/json"),
     ]
     record = json.loads(next(p for p in internal.iter_attachments() if p.get_filename() == "anfrage.json").get_content())
     assert record["schema"] == contact.SCHEMA
-    assert record["kind"] == {"value": "kran", "label": "Kran"}
+    assert record["kind"] == {"value": "krantechnik", "label": "Krantechnik"}
     assert record["urgency"]["value"] == "dringend"
-    assert record["asset"] == {"maker": "Demag", "year": "1998", "part": None, "mixer": None, "cranes": None}
+    assert record["asset"] == {"maker": "Demag", "year": "1998", "part": None, "usage": None}
     assert record["contact"]["preference"]["value"] == "telefon"
     assert [p["filename"] for p in record["photos"]] == ["typenschild.jpg", "Schaden_1.HEIC"]
-    # Steht es still, nennt die Bestätigung Telefon und – falls vorhanden – den Pikett.
+    # Steht es still, nennt die Bestätigung Telefon und – falls bestätigt – die Notfallnummer.
     text = confirmation.get_content()
     assert contact.VOCAB["mail"]["urgent"] in text
-    if contact.VOCAB["mail"]["urgentPikett"]:
-        assert contact.VOCAB["mail"]["urgentPikett"] in text
+    if contact.VOCAB["mail"]["urgentNotfall"]:
+        assert contact.VOCAB["mail"]["urgentNotfall"] in text
+
+
+def test_a_sketch_as_pdf_is_attached(client, mailbox):
+    """Skizzen dürfen als PDF kommen (Auftrag 11.1) – sie landen als Anhang bei uns."""
+    sketch = [("photos", ("skizze.pdf", b"%PDF-1.4 " + b"0" * 500, "application/pdf"))]
+    res = client.post("/api/v1/contact", data=main_form(kind="sonderloesungen", need="konstruktion"), files=sketch, headers=JSON)
+    assert res.status_code == 200, res.text
+    internal = mailbox.sent[0]
+    assert ("skizze.pdf", "application/pdf") in attachments(internal)
+    assert internal["Subject"].startswith("[Anfrage][Sonderlösungen][DRINGEND]")
+
+
+def test_a_part_inquiry_carries_part_and_usage(client, mailbox):
+    res = client.post("/api/v1/contact", data=main_form(kind="teile", need="", part="Auslaufrinne", usage="Liebherr HTM 904"), headers=JSON)
+    assert res.status_code == 200, res.text
+    record = json.loads(next(p for p in mailbox.sent[0].iter_attachments() if p.get_filename() == "anfrage.json").get_content())
+    assert record["kind"]["value"] == "teile"
+    assert record["asset"]["part"] == "Auslaufrinne" and record["asset"]["usage"] == "Liebherr HTM 904"
+
+
+def test_old_kinds_of_the_first_version_are_refused(client, mailbox):
+    """«kran», «fahrmischer» und «abo» gibt es seit Fassung 2 nicht mehr."""
+    for old in ("kran", "fahrmischer", "abo"):
+        res = client.post("/api/v1/contact", data=short(kind=old, need=""), headers=JSON)
+        assert res.status_code == 422 and res.json()["fields"]["kind"] == MSG["kind"], old
 
 
 def test_without_javascript_success_redirects_to_the_thank_you_page(client, mailbox):
@@ -165,7 +190,7 @@ def test_the_main_form_asks_for_need_and_urgency(client, mailbox):
 
 
 def test_a_need_that_does_not_belong_to_the_kind_is_dropped_not_refused(client, mailbox):
-    """Teile haben kein Thema – ein mitgeschicktes wird verworfen, nicht abgelehnt."""
+    """Teile haben kein Anliegen – ein mitgeschicktes wird verworfen, nicht abgelehnt."""
     res = client.post("/api/v1/contact", data=short(kind="teile", need="pruefung"), headers=JSON)
     assert res.status_code == 200, res.text
     record = json.loads(next(p for p in mailbox.sent[0].iter_attachments()).get_content())
@@ -183,9 +208,9 @@ def test_photos_are_limited_by_count_type_and_size(client, mailbox):
     many = [("photos", (f"f{i}.jpg", b"x", "image/jpeg")) for i in range(contact.PHOTOS["max"] + 1)]
     res = client.post("/api/v1/contact", data=main_form(), files=many, headers=JSON)
     assert res.status_code == 422 and "photos" in res.json()["fields"]
-    wrong = [("photos", ("lebenslauf.pdf", b"%PDF", "application/pdf"))]
+    wrong = [("photos", ("lebenslauf.docx", b"PK", "application/octet-stream"))]
     res = client.post("/api/v1/contact", data=main_form(), files=wrong, headers=JSON)
-    assert res.json()["fields"]["photos"] == MSG["photosType"].replace("{name}", "lebenslauf.pdf")
+    assert res.json()["fields"]["photos"] == MSG["photosType"].replace("{name}", "lebenslauf.docx")
     big = [("photos", ("gross.jpg", b"0" * (contact.PHOTOS["maxTotalBytes"] + 1), "image/jpeg"))]
     res = client.post("/api/v1/contact", data=main_form(), files=big, headers=JSON)
     assert res.status_code in (413, 422)
@@ -197,7 +222,7 @@ def test_text_is_cleaned_before_it_reaches_a_mail_header(client, mailbox):
     assert res.status_code == 200, res.text
     subject = mailbox.sent[0]["Subject"]
     assert "\n" not in subject and "\x00" not in subject
-    assert subject == "[Anfrage][Kran] Anna Bcc: x@y.z – 8500 Frauenfeld"
+    assert subject == "[Anfrage][Krantechnik] Anna Bcc: x@y.z – 8500 Frauenfeld"
 
 
 def test_overlong_text_is_refused_with_the_limit(client, mailbox):
@@ -250,7 +275,7 @@ def test_a_failing_mail_server_shows_phone_and_a_prefilled_mailto(client, monkey
     assert res.status_code == 503
     assert "tel:" + contact.VOCAB["phone"]["e164"] in res.text
     assert "mailto:" + contact.VOCAB["email"] in res.text
-    assert "Anfrage%5D%5BKran%5D" in res.text  # derselbe Betreff wie die E-Mail, im Link
+    assert "Anfrage%5D%5BKrantechnik%5D" in res.text  # derselbe Betreff wie die E-Mail, im Link
     assert "INQUIRY_UNSENT" in capsys.readouterr().out
 
 
@@ -293,7 +318,7 @@ def test_the_vocabulary_is_complete_and_consistent():
     labelled = {name for name, _ in contact.VOCAB["labels"]}
     assert labelled == set(contact.FIELDS)
     for key in ("kind", "need", "urgency", "place", "name", "contact", "phone", "email",
-                "photosCount", "photosType", "photosSize", "tooFast", "tooLong", "cranes"):
+                "photosCount", "photosType", "photosSize", "tooFast", "tooLong"):
         assert contact.MSG.get(key), key
     # Nie eine Markierung ([[PLATZHALTER: …]]) in einer E-Mail – gefragt wird jeder TEXT,
     # nicht das JSON: dort steht «[[» schon in jeder Liste von Paaren.

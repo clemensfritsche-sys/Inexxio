@@ -1,0 +1,29 @@
+---
+/** /sonderloesungen/schweiss-stahlbau (Auftrag 7.5): Stahlkonstruktionen, Schweissarbeiten, Einzelstücke, Kleinserien, Materialien. */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Photo from '../../components/Photo.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { stahlbau } from '../../content/sonderloesungen';
+---
+<SubPage page={stahlbau}>
+  <section slot="module" class="section" aria-labelledby="vorlage">
+    <div class="wrap grid sb">
+      <div class="col-6"><Photo id="ersatzteillager" sizes="(min-width: 960px) 50vw, 100vw" /></div>
+      <div class="col-5 sb__text">
+        <SectionHead eyebrow="Vorlage" title="Zeichnung, Skizze oder Muster" id="vorlage" class="head--flush" />
+        <p>Sie haben eine Zeichnung? Dann fertigen wir danach. Sie haben nur ein altes Teil oder eine Skizze? Dann messen wir auf, zeichnen und fertigen. Für Teile, die es nicht mehr zu kaufen gibt, ist das oft der schnellste Weg.</p>
+        <Rich as="p" class="small muted" text="Materialien: [[PRÜFEN: Stahl, Inox, Alu?]]" />
+        <a class="arrow-link" href="/sonderloesungen/konstruktion-engineering">Mehr zu Konstruktion und Engineering <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .sb { align-items: center; }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .sb__text { grid-column: 8 / span 5; } }
+  .sb__text { display: grid; gap: var(--s-4); justify-items: start; }
+</style>

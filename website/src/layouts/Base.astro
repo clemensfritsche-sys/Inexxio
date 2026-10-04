@@ -1,7 +1,7 @@
 ---
 /**
- * Grundgerüst jeder Seite: Kopf (Meta, CSP, JSON-LD), Ankündigung, Header, Inhalt,
- * Footer, mobile Aktionsleiste.
+ * Grundgerüst jeder Seite: Kopf (Meta, CSP, JSON-LD), Kopfzeile mit Servicezeile, Inhalt,
+ * Fuss, mobile Aktionsleiste.
  *
  * - Modus «preview»: noindex, Markierungen sichtbar, Hinweisbalken oben.
  * - Modus «live»:    indexierbar, keine Markierungen (der Build bricht sonst vorher ab).
@@ -14,7 +14,7 @@ import { site } from '../config/site.mjs';
 import { plain, siteMode } from '../lib/text.mjs';
 import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from '../lib/seo.mjs';
 import { isListed } from '../lib/pages';
-import Announcement from '../components/Announcement.astro';
+import type { OgImage } from '../content/types';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
@@ -30,7 +30,7 @@ interface Props {
   description: string;
   /** Pfad-Kette für Breadcrumbs (ohne Startseite); leer = keine Breadcrumbs. */
   crumbs?: Crumb[];
-  og?: 'default' | 'krane' | 'fahrmischer';
+  og?: OgImage;
   /** Zusätzliche JSON-LD-Knoten dieser Seite (null = entfällt, z. B. FAQ ohne Antworten). */
   jsonLd?: (object | null)[];
   /** Ratgeber-Artikel: Open Graph als «article» mit Datum. */
@@ -75,7 +75,7 @@ const csp = [
 ].join('; ');
 ---
 <!doctype html>
-<html lang="de-CH" data-announce={site.features.announcement ? site.announcement.id : undefined}>
+<html lang="de-CH">
   <head>
     <meta charset="utf-8" />
     {import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={csp} />}
@@ -102,7 +102,7 @@ const csp = [
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={plain(`${site.brand.full} – ${site.brand.descriptor}`)} />
+    <meta property="og:image:alt" content={plain(`${site.brand.full} – ${site.brand.claim}`)} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={desc} />
@@ -114,7 +114,6 @@ const csp = [
     {mode === 'preview' && (
       <aside class="mode-banner" aria-label="Vorschau">Vorschau – nicht öffentlich. Gelb markierte Stellen sind offene Punkte.</aside>
     )}
-    {site.features.announcement && <Announcement />}
     <Header />
     <main id="inhalt" tabindex="-1">
       {crumbs.length > 0 && <Breadcrumbs crumbs={crumbs} />}
@@ -125,12 +124,12 @@ const csp = [
     <script>
       // EIN Einstieg für das, was jede Seite braucht – eine Anfrage statt fünf.
       import { initHeader } from '../scripts/header';
-      import { initAnnouncement } from '../scripts/announce';
+      import { initAccount } from '../scripts/account';
       import { initMobileBar } from '../scripts/mobilebar';
       import { initTracking } from '../scripts/track';
       import { initReveal } from '../scripts/reveal';
       initHeader();
-      initAnnouncement();
+      initAccount();
       initMobileBar();
       initTracking();
       initReveal();

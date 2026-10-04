@@ -3,7 +3,7 @@ title: 'Verschleissteile am Fahrmischer: Wann Rinne, Schurre und Spiralschutz er
 seoTitle: 'Verschleissteile Fahrmischer'
 description: 'Rinne, Schurre und Mischspiralen verschleissen mit jeder Fuhre. Woran Sie erkennen, wann ein Teil ersetzt werden muss – und wann der Zeitpunkt passt.'
 published: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-04
 kurz:
   - 'Rinne, Schurre, Trichter und Mischspiralen verschleissen mit jeder Fuhre – wie schnell, hängt vom Beton, von der Menge und von der Reinigung ab.'
   - 'Ersetzen Sie ein Teil, bevor das Blech durch ist: Ein Loch in der Rinne oder abgenutzte Spiralen kosten im Betrieb mehr als der Tausch.'
@@ -14,15 +14,15 @@ sources:
   - label: 'Suva: Richtlinie 1416 – Arbeiten in Behältern und engen Räumen'
     href: 'https://www.suva.ch/de-ch/download/richtlinien-und-gesetze/richtlinien-fuer-das-arbeiten-in-einem-behaelter-und-engen-raeumen/standard-variante--1416.D'
 related:
-  - href: '/fahrmischer/verschleissteile'
-    label: 'Verschleissteile'
+  - href: '/fahrzeugtechnik/verschleiss-ersatzteile'
+    label: 'Verschleiss- und Ersatzteile'
     text: 'Rinnen, Schurren, Trichter und Spiralschutz – passend für gängige Marken.'
-  - href: '/fahrmischer/service-reparatur'
-    label: 'Service und Reparatur'
-    text: 'Wartung, Reparatur und Trommel-Revision für alle Marken.'
-  - href: '/fahrmischer'
-    label: 'Fahrmischer'
-    text: 'Alles, was wir an Fahrmischern machen.'
+  - href: '/fahrzeugtechnik/fahrmischer'
+    label: 'Fahrmischer-Service'
+    text: 'Wartung, Reparatur und Trommel-Revision für alle gängigen Marken.'
+  - href: '/fahrzeugtechnik'
+    label: 'Fahrzeugtechnik'
+    text: 'Alles, was wir an Fahrmischern und Aufbauten machen.'
 cta:
   kind: teile
 ---
@@ -55,7 +55,7 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 ## Wann der richtige Zeitpunkt ist
 
 - **Rinne und Schurre:** sobald die Lauffläche durch ist oder ein Teil sich nicht mehr sicher verriegeln lässt – nicht erst, wenn der Beton danebenläuft.
-- **Spiralen:** bei einer Trommel-Revision. Am besten im Winter, wenn der Fahrmischer ohnehin weniger fährt und ein paar Tage in der Werkstatt nicht stören. Mehr dazu unter [Winter-Revision](/fahrmischer/service-reparatur#winter-revision).
+- **Spiralen:** bei einer Trommel-Revision. Am besten im Winter, wenn der Fahrmischer ohnehin weniger fährt und ein paar Tage in der Werkstatt nicht stören. Mehr dazu unter [Winter-Revision](/fahrzeugtechnik/fahrmischer#winter-revision).
 
 ## Was die Lebensdauer verlängert
 
@@ -65,4 +65,4 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 
 ## Welche Teile wir führen
 
-Rinnen, Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz für gängige Marken – das Programm ist im Aufbau. Was passt, klären wir mit Marke, Typ und Baujahr des Aufbaus; ein Foto vom Typenschild hilft. Die Übersicht steht unter [Verschleissteile](/fahrmischer/verschleissteile).
+Rinnen, Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz für gängige Marken – das Programm ist im Aufbau. Was passt, klären wir mit Marke, Typ und Baujahr des Aufbaus; ein Foto vom Typenschild hilft. Die Übersicht steht unter [Verschleiss- und Ersatzteile](/fahrzeugtechnik/verschleiss-ersatzteile).

@@ -12,6 +12,7 @@ import Rich from '../../components/Rich.astro';
 import { site } from '../../config/site.mjs';
 import { articles, withBody, formatDay } from '../../lib/ratgeber';
 import { article as articleNode } from '../../lib/seo.mjs';
+import type { InquiryKind } from '../../config/inquiry.mjs';
 
 export function getStaticPaths() {
   return articles().map((a) => ({ params: { slug: a.slug } }));
@@ -21,11 +22,11 @@ const { slug } = Astro.params;
 const a = await withBody(slug!);
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const o = site.people.owner;
-const ctaTitle: Record<string, string> = {
-  kran: 'Kran prüfen oder warten lassen?',
-  fahrmischer: 'Fahrmischer-Service gesucht?',
+const ctaTitle: Record<InquiryKind, string> = {
+  krantechnik: 'Kran prüfen lassen oder eine Anlage planen?',
+  fahrzeugtechnik: 'Fahrmischer-Service gesucht?',
+  sonderloesungen: 'Eine Sonderlösung gesucht?',
   teile: 'Ein Verschleissteil gesucht?',
-  abo: 'Prüfung und Wartung zum Fixpreis?',
   anderes: 'Fragen zu Ihrer Anlage?',
 };
 const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber/') ? ('ratgeber' as const) : ('leistung' as const) }));

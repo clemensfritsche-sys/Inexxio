@@ -1,0 +1,50 @@
+---
+/**
+ * /krantechnik/industriekrane (Auftrag 7.5): Neuanlagen und Service für Krane aller Marken,
+ * Notfall-Service, Hinweis «Foto vom Typenschild oder Schaden mitschicken».
+ */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Photo from '../../components/Photo.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { industriekrane, industrieModules as m } from '../../content/krantechnik';
+import { site } from '../../config/site.mjs';
+---
+<SubPage page={industriekrane}>
+  <section slot="module" class="section" id="service" aria-labelledby="service-title">
+    <div class="wrap grid ik">
+      <div class="col-6 ik__text">
+        <SectionHead eyebrow="Service und Reparatur" title={m.service.title} id="service-title" class="head--flush" />
+        <Rich as="p" text={m.service.text} />
+        <div class="btn-row">
+          <a class="btn btn--secondary" href="/service/notfall">Zum Notfall-Service <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+          {site.features.notfall && (
+            <a class="btn btn--secondary" href={`tel:${site.notfall.e164}`} data-track="notfall_click"><Icon name="siren" size={18} /> {site.notfall.display}</a>
+          )}
+        </div>
+      </div>
+      <div class="col-5 ik__hint">
+        <Photo id="typenschild-hs" sizes="(min-width: 960px) 40vw, 100vw" />
+        <div class="ik__hintbox">
+          <Icon name="camera" size={22} />
+          <div>
+            <h3>{m.photoHint.title}</h3>
+            <Rich as="p" text={m.photoHint.text} />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .ik { align-items: start; }
+  .ik__text { display: grid; gap: var(--s-4); justify-items: start; }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .ik__hint { grid-column: 8 / span 5; } }
+  .ik__hint { display: grid; gap: var(--s-4); }
+  .ik__hintbox { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); padding-top: var(--s-4); border-top: 1px solid var(--ink); }
+  .ik__hintbox h3 { font-size: 1.125rem; margin-bottom: 4px; }
+  .ik__hintbox :global(.icon) { color: var(--red); margin-top: 2px; }
+</style>

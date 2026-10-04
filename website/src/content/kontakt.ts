@@ -1,8 +1,8 @@
-/** Kontakt (Auftrag Kap. 7.4, 11.1). */
+/** Kontakt (Auftrag Kap. 7.7, 11.1). */
 export const kontakt = {
   title: 'Kontakt und Anfrage',
   description:
-    'Kontakt zu INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Anfrage in vier kurzen Schritten, Telefon 052 378 22 47, Pikett für Notfälle und Anfahrt.',
+    'Kontakt zu INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Anfrage in vier Schritten, Telefon 052 378 22 47, Notfallnummer bei Stillstand und Anfahrt.',
   h1: 'Kontakt und Anfrage',
   lead: 'Beschreiben Sie Ihr Anliegen in vier kurzen Schritten – oder rufen Sie an: {{phone.link}}.',
   summary:

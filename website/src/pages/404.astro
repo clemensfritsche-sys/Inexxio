@@ -1,25 +1,38 @@
 ---
 /**
- * 404 – hilfreich statt leer: kurze Entschuldigung, die vier Einstiege, Telefonnummer.
+ * 404 – hilfreich statt leer (Auftrag 7.7): kurze Entschuldigung, die drei Bereiche und der
+ * Service, Telefonnummer.
  * Gilt für die ganze Domain (auch für unbekannte Pfade ausserhalb der Website).
  */
 import Base from '../layouts/Base.astro';
-import EntryTiles from '../components/EntryTiles.astro';
 import Icon from '../components/Icon.astro';
 import { site } from '../config/site.mjs';
-import { start } from '../content/start';
+const links = [
+  ...site.areas.map((a) => ({ href: a.href, label: a.label, text: a.text })),
+  { href: site.service.href, label: site.service.label, text: site.service.text },
+];
 ---
-<Base title="Seite nicht gefunden" description="Diese Seite gibt es nicht (mehr). Hier geht es weiter zu Kranprüfung, Reparatur, Fahrmischer-Service und Verschleissteilen." noindex>
+<Base title="Seite nicht gefunden" description="Diese Seite gibt es nicht (mehr). Hier geht es weiter zu Krantechnik, Fahrzeugtechnik, Sonderlösungen und Service." noindex>
   <section class="section nf">
     <div class="wrap">
       <div class="nf__head" data-hero>
         <p class="label">Fehler 404</p>
         <h1 class="nf__title">Diese Seite gibt es nicht.</h1>
         <p class="lead">
-          Entschuldigung – die Adresse ist falsch oder die Seite wurde verschoben. Vielleicht hilft einer dieser Einstiege weiter:
+          Entschuldigung – die Adresse ist falsch oder die Seite wurde verschoben. Hier geht es weiter:
         </p>
       </div>
-      <EntryTiles items={start.entries} />
+      <ul role="list" class="nf__links">
+        {links.map((l) => (
+          <li>
+            <a href={l.href}>
+              <span class="nf__label">{l.label}</span>
+              <span class="nf__text">{l.text}</span>
+              <Icon name="arrow-right" size={20} />
+            </a>
+          </li>
+        ))}
+      </ul>
       <div class="nf__more">
         <p>
           Oder rufen Sie an: <a class="nf__tel tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
@@ -34,6 +47,15 @@ import { start } from '../content/start';
   .nf { padding-top: var(--s-7); }
   .nf__head { display: grid; gap: var(--s-4); margin-bottom: var(--s-7); max-width: 46rem; }
   .nf__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+  .nf__links { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--ink); }
+  @media (min-width: 720px) { .nf__links { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--s-6); } }
+  .nf__links li { border-bottom: 1px solid var(--line-2); }
+  .nf__links a { position: relative; display: grid; gap: 4px; padding: var(--s-5) var(--s-7) var(--s-5) 0; color: var(--ink); text-decoration: none; }
+  .nf__links :global(.icon) { position: absolute; right: 4px; top: var(--s-5); color: var(--red); transition: transform var(--t-fast) var(--ease); }
+  .nf__links a:hover .nf__label { text-decoration: underline; text-underline-offset: 0.2em; }
+  .nf__links a:hover :global(.icon) { transform: translateX(3px); }
+  .nf__label { font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; letter-spacing: var(--tracking-snug); }
+  .nf__text { color: var(--ink-3); }
   .nf__more { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-7); align-items: center; margin-top: var(--s-6); }
   .nf__tel { font-weight: 700; font-size: 1.25rem; color: var(--ink); padding-block: 10px; }
 </style>

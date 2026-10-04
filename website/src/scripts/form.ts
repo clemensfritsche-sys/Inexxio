@@ -7,10 +7,14 @@
  *    aus der Konfiguration (data-vocab) – der Server meldet wortgleich
  *  - Senden im Hintergrund; Erfolg ersetzt das Formular, ein Fehler lässt alle Eingaben
  *    stehen und bietet Telefon und einen vorausgefüllten mailto-Link an
- *  - Vorbelegung aus der Adresse: /kontakt?typ=teile&teil=…&fahrmischer=…, ?typ=kran&thema=pruefung,
- *    ?typ=abo&stufe=service, ?krane=3, ?dringend=1
+ *  - Vorbelegung aus der Adresse: /kontakt?typ=teile&teil=…&wofuer=…,
+ *    ?typ=krantechnik&thema=heukrananlage, ?dringend=1
+ *  - Vorbelegung aus dem Konto (Auftrag 11.1): ist jemand angemeldet, stehen Name, Firma,
+ *    Telefon und E-Mail schon da – gelesen aus dem Anzeige-Cache (scripts/account.ts),
+ *    nur in leere Felder, änderbar wie jede Eingabe
  */
 import { track } from './track';
+import { accountInfo } from './account';
 
 type Errors = Record<string, string>;
 interface Vocab {
@@ -20,7 +24,7 @@ interface Vocab {
   urgency: Record<string, string>;
   urgencySubject: Record<string, string>;
   pref: Record<string, string>;
-  tiers?: Record<string, string>;
+  kindsWithNeeds: string[];
   labels: [string, string][];
   messages: Record<string, string>;
 }
@@ -89,7 +93,8 @@ function setup(form: HTMLFormElement): void {
     prev?.addEventListener('click', () => show(current - 1, true));
   }
 
-  if (isMain) prefill(form, vocab, (stepIndex) => useSteps && show(stepIndex, false));
+  if (isMain) prefill(form, (stepIndex) => useSteps && show(stepIndex, false));
+  prefillAccount(form);
 
   // ---------- Live: Fehler verschwinden beim Korrigieren ----------
   form.addEventListener('input', (e) => clearError(form, (e.target as HTMLInputElement).name));
@@ -121,14 +126,14 @@ function setup(form: HTMLFormElement): void {
     // davon, ob sie mit der des Servers übereinstimmt.
     setValue(form, 't', String(Date.now() - loadedAt));
     const data = new FormData(form);
-    prune(data);
+    prune(data, vocab);
     form.setAttribute('aria-busy', 'true');
     if (submit) submit.disabled = true;
     try {
       const res = await fetch(form.action, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; fields?: Errors; message?: string };
       if (res.ok && body.ok) {
-        track('form_submit', { form: form.dataset.form, kind: str(data.get('kind')), urgency: str(data.get('urgency')) || 'keine' });
+        track('form_submit', { form: form.dataset.form, bereich: str(data.get('kind')), dringlichkeit: str(data.get('urgency')) || 'keine' });
         form.hidden = true;
         if (failPanel) failPanel.hidden = true;
         if (okPanel) {
@@ -168,13 +173,8 @@ function validate(form: HTMLFormElement, scope: Element, isMain: boolean, vocab:
   const kind = checked(form, 'kind') || value(form, 'kind');
 
   if (has('kind') && !kind) errors.kind = m.kind;
-  if (isMain && has('need') && (kind === 'kran' || kind === 'fahrmischer') && !checked(form, 'need')) errors.need = m.need;
+  if (isMain && has('need') && vocab.kindsWithNeeds.includes(kind) && !checked(form, 'need')) errors.need = m.need;
   if (has('part') && kind === 'teile' && !value(form, 'part')) errors.part = m.part;
-  const cranesEl = scope.querySelector<HTMLInputElement>('[name="cranes"]');
-  if (cranesEl && kind === 'abo') {
-    const cranes = cranesEl.value.trim();
-    if ((!cranes && cranesEl.required) || (cranes && !/^[1-9]\d{0,2}$/.test(cranes))) errors.cranes = m.cranes;
-  }
   if (isMain && has('urgency') && !checked(form, 'urgency')) errors.urgency = m.urgency;
   const year = value(form, 'year');
   if (has('year') && year && !/^(19|20)\d{2}$/.test(year)) errors.year = m.year;
@@ -263,15 +263,14 @@ function setValue(form: HTMLFormElement, name: string, v: string): void {
 const str = (v: FormDataEntryValue | null) => (typeof v === 'string' ? v : '');
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 
-/** Angaben, die zum gewählten Anliegen nicht passen, gar nicht erst senden. */
-function prune(data: FormData): void {
+/** Angaben, die zum gewählten Bereich nicht passen, gar nicht erst senden. */
+function prune(data: FormData, vocab: Vocab): void {
   const kind = str(data.get('kind'));
-  if (kind !== 'kran' && kind !== 'fahrmischer') data.delete('need');
+  if (!vocab.kindsWithNeeds.includes(kind)) data.delete('need');
   if (kind !== 'teile') {
     data.delete('part');
-    data.delete('mixer');
+    data.delete('usage');
   }
-  if (kind !== 'abo') data.delete('cranes');
   for (const [k, v] of Array.from(data.entries())) {
     if (v instanceof File && v.size === 0) data.delete(k);
   }
@@ -295,7 +294,7 @@ function listFiles(form: HTMLFormElement, input: HTMLInputElement): void {
   list.hidden = files.length === 0;
 }
 
-function prefill(form: HTMLFormElement, vocab: Vocab, goTo: (stepIndex: number) => void): void {
+function prefill(form: HTMLFormElement, goTo: (stepIndex: number) => void): void {
   const q = new URLSearchParams(location.search);
   const pick = (name: string, v: string | null) => {
     if (!v) return false;
@@ -307,11 +306,23 @@ function prefill(form: HTMLFormElement, vocab: Vocab, goTo: (stepIndex: number) 
   pick('need', q.get('thema'));
   if (q.get('dringend') === '1') pick('urgency', 'dringend');
   if (q.get('teil')) setValue(form, 'part', q.get('teil')!.slice(0, 200));
-  if (q.get('fahrmischer')) setValue(form, 'mixer', q.get('fahrmischer')!.slice(0, 160));
-  if (q.get('krane') && /^[1-9]\d{0,2}$/.test(q.get('krane')!)) setValue(form, 'cranes', q.get('krane')!);
-  const tier = vocab.tiers?.[q.get('stufe') ?? ''];
-  if (tier && !value(form, 'message')) setValue(form, 'message', `Interesse an der Abo-Stufe «${tier}».`);
+  if (q.get('wofuer')) setValue(form, 'usage', q.get('wofuer')!.slice(0, 160));
   if (kindSet) goTo(1);
+}
+
+/** Kontaktangaben aus dem Konto – nur in leere Felder (Schnittstelle S2, nur lesend). */
+function prefillAccount(form: HTMLFormElement): void {
+  const info = accountInfo();
+  if (!info) return;
+  const fill = (name: string, v: unknown) => {
+    if (typeof v !== 'string' || !v.trim()) return;
+    const el = form.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+    if (el && !el.value) el.value = v.trim().slice(0, el.maxLength > 0 ? el.maxLength : 200);
+  };
+  fill('name', info.name);
+  fill('company', info.contact.company);
+  fill('phone', info.contact.phone);
+  fill('email', info.contact.email);
 }
 
 /**
@@ -336,7 +347,7 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, st
 /** mailto-Link mit allen Eingaben – derselbe Betreff und dieselben Wörter wie die E-Mail des Servers. */
 function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
-  prune(data);
+  prune(data, vocab);
   const get = (n: string) => str(data.get(n)).trim();
   const kind = get('kind');
   const urgency = get('urgency');
@@ -353,7 +364,7 @@ function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const lines = vocab.labels.map(([field, label]) => [label, field in shown ? shown[field] : get(field)] as const);
   const photos = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.length ?? 0;
   const body = lines.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n') +
-    (photos ? `\n\nFotos: bitte ${photos === 1 ? 'das Foto' : `die ${photos} Fotos`} an diese E-Mail anhängen.` : '');
+    (photos ? `\n\nDateien: bitte ${photos === 1 ? 'die Datei' : `die ${photos} Dateien`} an diese E-Mail anhängen.` : '');
   const to = form.dataset.mail ?? '';
   return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

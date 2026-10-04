@@ -1,5 +1,5 @@
 ---
-/** /kontakt – Hauptformular, direkte Kontakte, Pikett gross, Öffnungszeiten, Anfahrt (statische Karte + Routen-Link), Adresse. */
+/** /kontakt – Hauptformular, direkte Kontakte, Notfallnummer, Öffnungszeiten, Anfahrt (statische Karte + Routen-Link), Adresse. */
 import Base from '../layouts/Base.astro';
 import InquiryForm from '../components/InquiryForm.astro';
 import ContactPanel from '../components/ContactPanel.astro';
@@ -8,6 +8,7 @@ import SectionHead from '../components/SectionHead.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
+import { plain } from '../lib/text.mjs';
 import { kontakt as k } from '../content/kontakt';
 const a = site.address;
 const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
@@ -27,7 +28,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
         <InquiryForm />
       </div>
       <aside class="col-4 kt-aside" aria-label="Direkter Kontakt">
-        <ContactPanel pikettFirst={site.features.pikett} />
+        <ContactPanel notfallFirst={site.features.notfall} />
       </aside>
     </div>
   </section>
@@ -37,7 +38,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
       <div class="col-5 kt-map__text">
         <SectionHead eyebrow="Anfahrt" title="So finden Sie uns" id="anfahrt" class="head--flush" />
         <address class="kt-addr">
-          <strong>{site.brand.name}</strong> <span class="muted">({site.brand.formerly})</span><br />
+          <strong>{plain(site.brand.legalName)}</strong> <span class="muted">({site.brand.formerly})</span><br />
           {a.street}<br />
           {a.zip} {a.city}<br />
           {a.municipality} {a.canton}, {a.countryName}

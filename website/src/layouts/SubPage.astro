@@ -1,40 +1,47 @@
 ---
 /**
- * Vorlage aller Leistungsseiten (gleiche Struktur überall):
- * Hero → Auf einen Blick → Leistungsumfang → Ablauf in vier Schritten → seitenspezifisches
- * Modul (Slot «module») → FAQ → Anfrage (Kurzformular, Typ/Thema vorausgewählt) → Verwandtes.
+ * Vorlage aller Unterseiten (Auftrag Kap. 7.5), gleiche Struktur überall:
+ * Hero → Auf einen Blick (Für wen · Was wir tun · Was Sie erhalten) → Leistungsumfang →
+ * seitenspezifisches Modul (Slot «module») → FAQ → Anfrage (Kurzformular, Bereich und Thema
+ * vorausgewählt) → Verwandte Leistungen.
+ * Breadcrumb: Startseite › Bereich › Seite.
  */
 import Base from './Base.astro';
 import Hero from '../components/Hero.astro';
 import Glance from '../components/Glance.astro';
 import ScopeList from '../components/ScopeList.astro';
-import Steps from '../components/Steps.astro';
 import Faq from '../components/Faq.astro';
 import CtaBlock from '../components/CtaBlock.astro';
 import RelatedLinks from '../components/RelatedLinks.astro';
 import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
+import { areaOf } from '../config/site.mjs';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import { glanceRows, type ServicePage } from '../content/types';
+import { glanceRows, type SubPage } from '../content/types';
 
-interface Props { page: ServicePage }
-const { page } = Astro.props;
+interface Props {
+  page: SubPage;
+  /** Zusätzliche JSON-LD-Knoten (z. B. Product für Heukrananlagen). */
+  jsonLd?: (object | null)[];
+}
+const { page, jsonLd = [] } = Astro.props;
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
-const crumbs = [...(page.parent ? [page.parent] : []), { name: page.crumb, path: page.path }];
-const jsonLd = [
+const area = areaOf(page.area);
+const crumbs = [{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }];
+const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
+  ...jsonLd,
 ];
 ---
-<Base title={page.title} description={page.description} crumbs={crumbs} og={page.og} jsonLd={jsonLd}>
+<Base title={page.title} description={page.description} crumbs={crumbs} og={page.area} jsonLd={nodes}>
   <Hero
     eyebrow={page.hero.eyebrow}
     title={page.hero.h1}
     lead={page.hero.lead}
     photo={page.hero.photo}
     primary={page.hero.primary}
-    note={page.hero.note}
   />
 
   <!-- div: die Überschrift «Auf einen Blick» trägt die Glance-Sektion selbst -->
@@ -49,17 +56,10 @@ const jsonLd = [
 
   <slot name="intro" />
 
-  <section class="section section--paper" aria-labelledby="umfang">
+  <section class="section section--paper" id="leistungen" aria-labelledby="leistungen-title">
     <div class="wrap">
-      <SectionHead title={page.scope.title} lead={page.scope.lead} id="umfang" />
+      <SectionHead eyebrow="Leistungsumfang" title={page.scope.title} lead={page.scope.lead} id="leistungen-title" />
       <ScopeList items={page.scope.items} />
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="ablauf">
-    <div class="wrap">
-      <SectionHead eyebrow="Ablauf" title="So läuft es ab" id="ablauf" />
-      <Steps steps={page.steps} />
     </div>
   </section>
 
@@ -79,12 +79,12 @@ const jsonLd = [
     need={page.cta.need}
     urgency={page.cta.urgency}
     messageLabel={page.cta.messageLabel}
-    pikettFirst={page.cta.pikettFirst}
+    notfallFirst={page.cta.notfallFirst}
   />
 
   <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
   <div class="section section--tight">
-    <div class="wrap"><RelatedLinks items={page.related} /></div>
+    <div class="wrap"><RelatedLinks title="Verwandte Leistungen" items={[{ href: area.href, label: area.label, text: area.text }, ...page.related]} /></div>
   </div>
 </Base>
 

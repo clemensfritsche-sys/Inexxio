@@ -5,7 +5,7 @@
  * gleiche Ergebnis-Flächen wie das Hauptformular.
  */
 import { contactEmail } from '../config/site.mjs';
-import { inquiry } from '../config/inquiry.mjs';
+import { inquiry, type InquiryKind } from '../config/inquiry.mjs';
 import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
 import FormResult from './FormResult.astro';
@@ -13,8 +13,8 @@ import '../styles/form.css';
 
 interface Props {
   id?: string;
-  /** Vorausgewählter Typ – oder 'waehlen', dann fragt das Formular danach (Startseite). */
-  kind: 'kran' | 'fahrmischer' | 'teile' | 'abo' | 'anderes' | 'waehlen';
+  /** Vorausgewählter Bereich – oder 'waehlen', dann fragt das Formular danach (Startseite). */
+  kind: InquiryKind | 'waehlen';
   need?: string;
   urgency?: 'dringend' | 'wochen' | 'planung';
   /** Beschriftung des Anliegen-Felds. */
@@ -23,7 +23,7 @@ interface Props {
 }
 const { id = 'kurzanfrage', kind, need, urgency, messageLabel = 'Ihr Anliegen', submitLabel = 'Anfrage senden' } = Astro.props;
 const choose = kind === 'waehlen';
-if (!choose && !inquiry.kinds.some((k) => k.value === kind)) throw new Error(`Unbekannter Anfrage-Typ «${kind}»`);
+if (!choose && !inquiry.kinds.some((k) => k.value === kind)) throw new Error(`Unbekannter Bereich «${kind}»`);
 if (need && !(inquiry.needs as Record<string, { value: string }[]>)[kind]?.some((n) => n.value === need)) {
   throw new Error(`Thema «${need}» passt nicht zu «${kind}»`);
 }
@@ -58,7 +58,7 @@ const f = (name: string) => `${id}-${name}`;
 
     {choose && (
       <fieldset class="iform__sub iform__plain">
-        <legend class="iform__grouptitle">Worum geht es?</legend>
+        <legend class="iform__grouptitle">Bereich</legend>
         <div class="chips">
           {inquiry.kinds.map((k) => (
             <label class="chip">
@@ -75,13 +75,6 @@ const f = (name: string) => `${id}-${name}`;
       <textarea class="textarea" id={f('message')} name="message" rows="4" required maxlength={L.message} aria-describedby={f('message-error')}></textarea>
       <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
     </div>
-    {kind === 'abo' && (
-      <div class="field field--narrow">
-        <label class="field__label" for={f('cranes')}>Anzahl Krane</label>
-        <input class="input" id={f('cranes')} name="cranes" type="number" min="1" max="999" inputmode="numeric" required aria-describedby={f('cranes-error')} />
-        <p class="field__error" id={f('cranes-error')} data-error-for="cranes" hidden></p>
-      </div>
-    )}
     <div class="iform__row">
       <div class="field">
         <label class="field__label" for={f('place')}>PLZ und Ort</label>

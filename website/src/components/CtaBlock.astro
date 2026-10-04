@@ -1,24 +1,25 @@
 ---
 /**
- * Abschluss jeder Leistungsseite: Kurzformular (Typ und Thema vorausgewählt) und daneben
- * Telefon und Pikett. Eine Hauptaktion: die Anfrage.
+ * Abschluss jeder Leistungsseite: Kurzformular (Bereich und Thema vorausgewählt) und daneben
+ * Telefon und Notfallnummer. Eine Hauptaktion: die Anfrage.
  */
 import SectionHead from './SectionHead.astro';
 import ShortForm from './ShortForm.astro';
 import ContactPanel from './ContactPanel.astro';
+import type { InquiryKind } from '../config/inquiry.mjs';
 
 interface Props {
   id?: string;
   title: string;
   lead?: string;
-  kind: 'kran' | 'fahrmischer' | 'teile' | 'abo' | 'anderes' | 'waehlen';
+  kind: InquiryKind | 'waehlen';
   need?: string;
   urgency?: 'dringend' | 'wochen' | 'planung';
   messageLabel?: string;
-  pikettFirst?: boolean;
+  notfallFirst?: boolean;
   tone?: 'paper' | 'white';
 }
-const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, pikettFirst, tone = 'paper' } = Astro.props;
+const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, notfallFirst, tone = 'paper' } = Astro.props;
 ---
 <section class:list={['section', tone === 'paper' && 'section--paper']} id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap grid">
@@ -27,7 +28,7 @@ const { id = 'anfrage', title, lead, kind, need, urgency, messageLabel, pikettFi
       <ShortForm id={`${id}-form`} kind={kind} need={need} urgency={urgency} messageLabel={messageLabel} />
     </div>
     <aside class="col-4 start-9 cta-aside" aria-label="Direkter Kontakt">
-      <ContactPanel pikettFirst={pikettFirst} />
+      <ContactPanel notfallFirst={notfallFirst} />
     </aside>
   </div>
 </section>

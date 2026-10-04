@@ -33,10 +33,10 @@ function facts(base: string): string[] {
   const a = site.address;
   const o = site.people.owner;
   const lines = [
-    `- Früher: ${site.brand.alternateNames.join(' · ')}`,
+    `- Rechtlicher Name: ${plain(site.brand.legalName)} – früher ${site.brand.alternateNames.join(' · ')}`,
     `- Gegründet ${site.history.founded} von ${site.people.founder.name} in Tuttwil-Wängi TG; heute geführt von ${o.name} (${o.role}).`,
     `- Telefon: ${site.phone.display} (${site.phone.intl})`,
-    ...(site.features.pikett ? [`- Pikett: ${site.pikett.display} (${site.pikett.intl})`] : []),
+    ...(site.features.notfall ? [`- Notfallnummer: ${site.notfall.display} (${site.notfall.intl})`] : []),
     `- E-Mail: ${contactEmail()}`,
     `- Adresse: ${a.street}, ${a.zip} ${a.city} (${a.municipality} ${a.canton}), ${a.countryName}`,
     `- Öffnungszeiten: ${plain(site.hours.text)}`,
@@ -50,15 +50,19 @@ function header(base: string): string[] {
   return [
     `# ${plain(site.brand.full)}`,
     '',
-    `> ${plain(site.brand.full)}, ${site.brand.descriptor}: ${plain(site.brand.summary)}`,
+    `> ${plain(site.brand.full)}: ${plain(site.brand.summary)}`,
     '',
     plain(site.brand.notToConfuse),
     '',
     ...facts(base),
+    '',
+    '## Die drei Bereiche',
+    '',
+    ...site.areas.map((a) => `- **${a.label}** (${url(base, a.href)}): ${plain(a.text)} – ${a.children.map((c) => c.label).join(', ')}.`),
   ];
 }
 
-const SECTIONS: Section[] = ['Leistungen', 'Unternehmen', 'Ratgeber'];
+const SECTIONS: Section[] = ['Krantechnik', 'Fahrzeugtechnik', 'Sonderlösungen', 'Service', 'Unternehmen', 'Ratgeber'];
 
 /** /llms.txt – wer wir sind und die wichtigsten Seiten mit Links. */
 export function llmsTxt(base: string): string {
@@ -82,11 +86,18 @@ function pageText(p: PageEntry, base: string): string[] {
   const out = [`## ${plain(p.name)}`, '', `URL: ${url(base, p.path)}`, `Stand: ${p.updated}`, ''];
   if (p.article) return [...out, ...articleText(p.article, base)];
   out.push(p.summary ? md(p.summary, base) : plain(p.description), '');
-  const s = p.service;
+  const s = p.subpage;
   if (s) {
     out.push('### Auf einen Blick', '', ...glanceRows(s.glance).map((r) => `- ${r.label}: ${md(r.text, base)}`), '');
     out.push(`### ${plain(s.scope.title)}`, '', ...s.scope.items.map((i) => `- **${plain(i.title)}**: ${md(i.text, base)}`), '');
-    out.push('### So läuft es ab', '', ...s.steps.map((st, i) => `${i + 1}. **${plain(st.title)}**: ${md(st.text, base)}`), '');
+  }
+  const ar = p.area;
+  if (ar) {
+    out.push('### Die drei Ebenen', '');
+    for (const l of ar.levels) {
+      out.push(`- **${plain(l.title)}**: ${md(l.text, base)} – ${l.links.map((k) => `[${plain(k.label)}](${url(base, k.href)})`).join(', ')}`);
+    }
+    out.push('', '### So läuft es ab', '', ...ar.steps.map((st, i) => `${i + 1}. **${plain(st.title)}**: ${md(st.text, base)}`), '');
   }
   if (p.faq?.length) {
     out.push('### Häufige Fragen', '');

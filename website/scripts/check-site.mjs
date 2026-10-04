@@ -21,7 +21,7 @@ const DIST = join(ROOT, 'dist');
 const LIVE = (process.env.SITE_MODE ?? 'preview') === 'live';
 const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:4321').replace(/\/+$/, '');
 /** Pfade, die das ERP auf derselben Domain ausliefert – Links dorthin sind gültig. */
-const ERP_PATHS = ['/login', '/agb', '/konto', '/erp'];
+const ERP_PATHS = ['/login', '/agb', '/konto', '/erp', '/abmelden'];
 /** Leistungsbudget (Kapitel 15), in Bytes gzip bzw. roh. */
 const BUDGET = { jsGzip: 30 * 1024, cssGzip: 40 * 1024, fonts: 120 * 1024, home: 1024 * 1024 };
 /** Kapitel 8.2 – im sichtbaren Text verboten (klein geschrieben verglichen). */
@@ -29,14 +29,58 @@ const FORBIDDEN = [
   'innovativ', 'ganzheitlich', 'massgeschneidert', 'maßgeschneidert', 'ihr zuverlässiger partner',
   'lösungen aus einer hand', 'höchste qualität', 'leidenschaft', 'mehrwert', 'state of the art',
   'synergie', 'exzellenz', 'revolutionär', 'nahtlos', 'im herzen von', 'herzlich willkommen',
+  'pikett',
 ];
-/** Alte hs-steiner.ch-Pfade (WEBSITE_PLAN.md §5): jeder muss eine Weiterleitung oder Seite treffen. */
-const OLD_URLS = [
-  '/kontakt', '/heuentnahmekran', '/drehkran-hydraulisch', '/bruecken-kran', '/Einschienen-Kran',
-  '/betonfordertechnik/Betonfahrmischer', '/betonfordertechnik/verschleissteile',
-  '/antrieb-und-steuerung/elektrosteuerung', '/antrieb-und-steuerung/Getriebe-und-Antrieb',
-  '/unsere-einsatzorte/ch-schweiz', '/wahrschaftes/stahlbau', '/sachtransporter-anhanger/aufbau',
-  '/hebebuhnen', '/kleintransporter-pw/reifenservice',
+/**
+ * Alte hs-steiner.ch-Pfade (Auftrag Kap. 14) → das Ziel, das die Tabelle verlangt. Jeder muss
+ * die ERSTE passende Regel in ../firebase.json treffen (Firebase nimmt die erste) – oder es
+ * gibt die Seite unter demselben Pfad (/kontakt).
+ */
+const OLD_URLS = {
+  '/heuentnahmekran': '/krantechnik/heukrananlagen',
+  '/heuentnahmekran/Einschienen-Kran': '/krantechnik/heukrananlagen',
+  '/heuentnahmekran/drehkran-hydraulisch': '/krantechnik/heukrananlagen',
+  '/heuentnahmekran/bruecken-kran': '/krantechnik/heukrananlagen',
+  '/heuentnahmekran/bilder-gallerie': '/krantechnik/heukrananlagen',
+  '/heuentnahmekran/pdf-prospekte': '/krantechnik/heukrananlagen',
+  '/heuentnahmekran/Kran-dem-Gebäude-Angepasst': '/krantechnik/industriekrane',
+  '/heuentnahmekran/Kran-dem-Geb%C3%A4ude-Angepasst': '/krantechnik/industriekrane',
+  '/heuentnahmekran/matagematerial': '/krantechnik/pruefung-wartung',
+  '/betonfordertechnik': '/fahrzeugtechnik/fahrmischer',
+  '/betonfordertechnik/Betonfahrmischer': '/fahrzeugtechnik/fahrmischer',
+  '/betonfordertechnik/fahrmischerpumpen': '/fahrzeugtechnik/fahrmischer',
+  '/betonfordertechnik/service-und-reparaturen': '/fahrzeugtechnik/fahrmischer',
+  '/betonfordertechnik/bilder': '/fahrzeugtechnik/fahrmischer',
+  '/betonfordertechnik/Euro-Kpper': '/fahrzeugtechnik/aufbauten-reparatur',
+  '/betonfordertechnik/verschleissteile': '/fahrzeugtechnik/verschleiss-ersatzteile',
+  '/antrieb-und-steuerung': '/krantechnik/modernisierung',
+  '/antrieb-und-steuerung/elektrosteuerung': '/krantechnik/modernisierung',
+  '/baumaschinen': '/sonderloesungen/baumaschinen',
+  '/baumaschinen/reparaturen': '/sonderloesungen/baumaschinen',
+  '/wahrschaftes': '/sonderloesungen/schweiss-stahlbau',
+  '/wahrschaftes/stahlbau': '/sonderloesungen/schweiss-stahlbau',
+  '/wahrschaftes/Gelaender-und-Verglasung': '/uebergabe#nicht-mehr-im-angebot',
+  '/sachtransporter-anhanger/Reparaturen': '/fahrzeugtechnik/aufbauten-reparatur',
+  '/sachtransporter-anhanger': '/uebergabe#nicht-mehr-im-angebot',
+  '/sachtransporter-anhanger/aufbau': '/uebergabe#nicht-mehr-im-angebot',
+  '/forst-und-landwirtschaft': '/krantechnik/heukrananlagen',
+  '/forst-und-landwirtschaft/heukrane': '/krantechnik/heukrananlagen',
+  '/haus-und-garten': '/uebergabe#nicht-mehr-im-angebot',
+  '/haus-und-garten/rasenmaeher': '/uebergabe#nicht-mehr-im-angebot',
+  '/kleintransporter-pw': '/uebergabe#nicht-mehr-im-angebot',
+  '/kleintransporter-pw/reifenservice': '/uebergabe#nicht-mehr-im-angebot',
+  '/hebebuhnen': '/uebergabe#nicht-mehr-im-angebot',
+  '/Camping': '/uebergabe#nicht-mehr-im-angebot',
+  '/unsere-einsatzorte': '/ueber-uns',
+  '/unsere-einsatzorte/ch-schweiz': '/ueber-uns',
+  '/application/files/7615/1234/prospekt.pdf': '/krantechnik/heukrananlagen',
+  '/kontakt': '/kontakt',
+};
+/** Seiten der ersten Fassung (03.10.2026), die es nicht mehr gibt – nirgends ein Link, keine Datei. */
+const REMOVED = [
+  '/krane', '/krane/pruefung-wartung', '/krane/reparatur', '/krane/modernisierung', '/krane/hs-krananlagen',
+  '/fahrmischer', '/fahrmischer/service-reparatur', '/fahrmischer/verschleissteile', '/service-abo',
+  '/einsatzgebiet', '/ratgeber/kranfachmann-kranexperte', '/ratgeber/heukran-saison-check',
 ];
 
 const errors = [];
@@ -166,9 +210,11 @@ function checkFirstMention(p) {
   const first = text.indexOf(site.brand.name);
   if (first === -1) return;
   const full = `${site.brand.name} (${site.brand.formerly})`;
+  const legal = `${site.brand.legalName} (${site.brand.formerly})`;
   // «Aus HS Steiner wird INEXXIO» sagt dasselbe – die alte Firma steht unmittelbar davor.
   const before = text.slice(Math.max(0, first - 30), first);
-  if (text.slice(first, first + full.length) !== full && !before.includes('HS Steiner')) {
+  const at = (s) => text.slice(first, first + s.length) === s;
+  if (!at(full) && !at(legal) && !before.includes('HS Steiner')) {
     warn(p.path, `erste Nennung im Inhalt ist «${text.slice(first, first + full.length + 5)}…» statt «${full}»`);
   }
 }
@@ -339,16 +385,26 @@ function checkRedirects(listed) {
     } catch (e) {
       fail('firebase.json', `Weiterleitung ${i + 1}: Regex «${r.regex}» ungültig (${e.message})`);
     }
-    if (!listed.has(r.destination)) fail('firebase.json', `Weiterleitung ${i + 1} zeigt auf «${r.destination}» – keine Seite der Sitemap`);
+    const [destPath, destHash] = r.destination.split('#');
+    if (!listed.has(destPath)) fail('firebase.json', `Weiterleitung ${i + 1} zeigt auf «${r.destination}» – keine Seite der Sitemap`);
+    else if (destHash && !byPath.get(destPath)?.ids.has(destHash)) fail('firebase.json', `Weiterleitung ${i + 1}: Anker «#${destHash}» fehlt auf ${destPath}`);
     return { re, r };
   });
   for (const p of pages) {
     const hit = rules.find(({ re }) => re?.test(p.path));
     if (hit) fail('firebase.json', `«${hit.r.regex}» überdeckt die Seite ${p.path}`);
   }
-  for (const old of OLD_URLS) {
-    if (byPath.has(old)) continue;
-    if (!rules.some(({ re }) => re?.test(old))) fail('firebase.json', `alter Pfad «${old}» ohne Weiterleitung`);
+  for (const [old, expected] of Object.entries(OLD_URLS)) {
+    if (byPath.has(old)) {
+      if (old !== expected) fail('firebase.json', `alter Pfad «${old}» ist eine Seite, verlangt ist die Weiterleitung auf «${expected}»`);
+      continue;
+    }
+    const first = rules.find(({ re }) => re?.test(old));
+    if (!first) fail('firebase.json', `alter Pfad «${old}» ohne Weiterleitung`);
+    else if (first.r.destination !== expected) fail('firebase.json', `alter Pfad «${old}» führt auf «${first.r.destination}» statt «${expected}»`);
+  }
+  for (const gone of REMOVED) {
+    if (byPath.has(gone)) fail(gone, 'Seite der ersten Fassung gibt es noch – sie ist entfallen');
   }
   return rules.length;
 }
