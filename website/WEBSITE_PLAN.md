@@ -578,6 +578,7 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 69. **Die Standortkarte steht in JEDEM Kontaktbereich** (#1162/#1181), nicht nur auf
     `/kontakt`. Ohne `id` im SVG (Name über `aria-label`), weil sie auf einer Seite zweimal
     vorkommen kann.
+71a. **Logo aus dem Logo-System v3.2** (#1184, Claude-Design-Export 04.10.): gestapelte Fassung mit «ehemals HS Steiner» in hell/dunkel/rot ersetzt die bisherige (Seitenverhältnis 4618 : 2256); Herkunftsdaten (C2PA) entfernt, PNG und OG-Bilder neu erzeugt.
 70. **Marken als Referenz-Band** (#1185): je Marke eine Kachel. Liegt ein Logo in
     `src/assets/marken/<name>.svg`, erscheint es, sonst der Schriftzug – Logo-Dateien
     müssen geliefert werden (Markenrecht, keine Quelle im Repo).

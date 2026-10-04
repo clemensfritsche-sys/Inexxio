@@ -5,7 +5,8 @@
 //   node scripts/make-assets.mjs
 //
 // Braucht Playwright mit Chromium (nicht als Abhängigkeit der Website – der Build braucht
-// es nie). Gesucht wird in PLAYWRIGHT_MODULE oder im globalen npm-Verzeichnis.
+// es nie). Gesucht wird in PLAYWRIGHT_MODULE oder im globalen npm-Verzeichnis; ein eigenes
+// Chromium nennt CHROMIUM_PATH.
 import { createRequire } from 'node:module';
 import { readFileSync, mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -82,7 +83,7 @@ const logoHtml = `<!doctype html><html><head><style>${base}
 </style></head><body>${lockup}</body></html>`;
 
 const { chromium } = loadPlaywright();
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const tmp = mkdtempSync(resolve(tmpdir(), 'ix-assets-'));
 async function shot(html, w, h, out, needsFont = false) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
