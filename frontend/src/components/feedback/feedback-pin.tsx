@@ -36,6 +36,14 @@ const DOT: Record<FeedbackStatus, string> = {
 
 type Draft = { anchor: FeedbackAnchor; x: number; y: number };
 
+/**
+ * Steht die Notiz auf DIESER Seite? Die Liste ist global (Testnotiz: «der Zähler fängt
+ * auf jeder Seite wieder bei 1 an») – nur die Pins gehören an ihre Seite. Verglichen wird
+ * der Pfad ohne Query: `/erp?open=…` ist dieselbe Seite wie `/erp`.
+ */
+const pathOf = (route: string) => route.split('?')[0].split('#')[0];
+const onThisPage = (n: FeedbackNote, path: string) => pathOf(n.route || '') === path;
+
 export function FeedbackPin() {
   const pathname = usePathname();
   const [signedIn, setSignedIn] = useState(false);
@@ -71,7 +79,7 @@ export function FeedbackPin() {
 
   const reload = useCallback(async () => {
     if (!signedIn) return;
-    try { setNotes(await api.listFeedback(currentRoute())); } catch { setNotes([]); }
+    try { setNotes(await api.listFeedback()); } catch { setNotes([]); }
   }, [signedIn]);
 
   useEffect(() => { void reload(); }, [reload, pathname]);
@@ -160,7 +168,10 @@ export function FeedbackPin() {
     <div {...{ [UI_MARKER]: 'true' }}>
       {hover && <HighlightBox el={hover} />}
       {open && (
-        <PinLayer notes={notes} activeId={activeId} tick={tick} onSelect={setActiveId} />
+        <PinLayer
+          notes={notes.filter((n) => onThisPage(n, pathname || ''))}
+          activeId={activeId} tick={tick} onSelect={setActiveId}
+        />
       )}
       {draft && (
         <Composer
@@ -169,7 +180,8 @@ export function FeedbackPin() {
       )}
       {open ? (
         <Panel
-          notes={notes} openCount={openCount} picking={picking} activeId={activeId}
+          notes={notes} path={pathname || ''} openCount={openCount} picking={picking}
+          activeId={activeId}
           onClose={() => { setOpen(false); setPicking(false); }}
           onPick={() => setPicking((p) => !p)}
           onSelect={setActiveId}
@@ -221,14 +233,19 @@ function Launcher({ count, onClick }: { count: number; onClick: () => void }) {
   );
 }
 
-/** Notizen dieser Seite + die zwei Aktionen: anheften und exportieren. */
-function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect, onStatus, onRemove, onCleared }: {
-  notes: FeedbackNote[]; openCount: number; picking: boolean; activeId: number | null;
-  onClose: () => void; onPick: () => void; onSelect: (id: number | null) => void;
+/**
+ * Alle Notizen (global, nummeriert mit ihrer festen Nummer) + die zwei Aktionen:
+ * anheften und exportieren. Die dieser Seite stehen zuerst; die übrigen nennen ihre Seite.
+ */
+function Panel({ notes, path, openCount, picking, activeId, onClose, onPick, onSelect, onStatus, onRemove, onCleared }: {
+  notes: FeedbackNote[]; path: string; openCount: number; picking: boolean;
+  activeId: number | null; onClose: () => void; onPick: () => void; onSelect: (id: number | null) => void;
   onStatus: (id: number, status: FeedbackStatus) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
   onCleared: () => Promise<void>;
 }) {
+  const here = notes.filter((n) => onThisPage(n, path));
+  const elsewhere = notes.filter((n) => !onThisPage(n, path));
   return (
     <div
       className="fixed bottom-5 left-5 z-[2000] flex flex-col overflow-hidden rounded-ds-lg border border-border-1 bg-bg-1 shadow-ds-lg"
@@ -262,11 +279,12 @@ function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect,
       <div className="flex-1 overflow-y-auto">
         {notes.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-fg-4">
-            Noch keine Notiz auf dieser Seite.
+            Noch keine Notiz.
           </p>
         ) : (
-          notes.map((n, i) => (
-            <NoteRow key={n.id} note={n} index={i + 1} active={n.id === activeId}
+          [...here, ...elsewhere].map((n) => (
+            <NoteRow key={n.id} note={n} page={onThisPage(n, path) ? null : pathOf(n.route)}
+              active={n.id === activeId}
               onSelect={() => onSelect(n.id === activeId ? null : n.id)}
               onStatus={onStatus} onRemove={onRemove} />
           ))
@@ -278,8 +296,8 @@ function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect,
   );
 }
 
-function NoteRow({ note, index, active, onSelect, onStatus, onRemove }: {
-  note: FeedbackNote; index: number; active: boolean; onSelect: () => void;
+function NoteRow({ note, page, active, onSelect, onStatus, onRemove }: {
+  note: FeedbackNote; page: string | null; active: boolean; onSelect: () => void;
   onStatus: (id: number, status: FeedbackStatus) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
 }) {
@@ -300,8 +318,14 @@ function NoteRow({ note, index, active, onSelect, onStatus, onRemove }: {
           style={{ background: DOT[note.status] }} />
         <div className="min-w-0 flex-1">
           <p className="text-xs leading-snug text-fg-1">
-            <span className="text-fg-4">#{index}</span> {note.body}
+            <span className="text-fg-4">#{note.id}</span> {note.body}
           </p>
+          {page && (
+            <a href={note.route} onClick={(e) => e.stopPropagation()}
+              className="mt-0.5 block truncate text-[11px] text-fg-4 hover:text-fg-2">
+              Seite {page}
+            </a>
+          )}
           {note.anchor?.label && (
             <p className="mt-0.5 truncate text-[11px] text-fg-4">«{note.anchor.label}»</p>
           )}
@@ -400,7 +424,7 @@ function PinLayer({ notes, activeId, tick, onSelect }: {
   void tick;   // erzwingt die Neuvermessung bei Scroll/Resize
   return (
     <>
-      {notes.map((note, i) => {
+      {notes.map((note) => {
         const rect = locateAnchor(note);
         if (!rect) return null;
         const a = note.anchor!;
@@ -408,7 +432,7 @@ function PinLayer({ notes, activeId, tick, onSelect }: {
           <button
             key={note.id} type="button" onClick={() => onSelect(note.id)}
             title={note.body}
-            className="fixed z-[1990] flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-ds-sm transition-transform hover:scale-110"
+            className="fixed z-[1990] flex h-5 min-w-[20px] px-1 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-ds-sm transition-transform hover:scale-110"
             style={{
               top: rect.top + a.ry * rect.height,
               left: rect.left + a.rx * rect.width,
@@ -416,7 +440,7 @@ function PinLayer({ notes, activeId, tick, onSelect }: {
               outline: note.id === activeId ? '2px solid var(--fg-1)' : 'none',
             }}
           >
-            {i + 1}
+            {note.id}
           </button>
         );
       })}

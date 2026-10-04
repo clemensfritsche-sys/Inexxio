@@ -1,7 +1,6 @@
-/* Formulare (Anfrage, Kurzformular, Prüfpflicht-Check) – geteilt, einmal je Seite geladen. */
+/* Formulare (Anfrage, Prüfpflicht-Check) – geteilt, einmal je Seite geladen. */
 
 .iform { display: grid; gap: var(--s-7); position: relative; }
-.iform--short { gap: var(--s-4); }
 .iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 .iform__step { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--s-4); }
 .iform__legend { display: grid; gap: 6px; padding: 0; margin-bottom: var(--s-2); float: left; width: 100%; }
@@ -20,28 +19,6 @@
 .iform__files li { display: flex; gap: 8px; }
 .iform__files li span:last-child { color: var(--ink-3); margin-left: auto; }
 
-/* Auswahlkacheln (Schritt 1) */
-.tiles { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.tile { position: relative; display: block; cursor: pointer; }
-.tile input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
-.tile__body {
-  display: grid; gap: 4px; min-height: 76px; padding: 16px 48px 16px 18px; background: var(--white);
-  border: 1px solid var(--line-2); border-radius: var(--r-lg); position: relative;
-  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
-}
-/* Einfachauswahl = runder Radio-Punkt (ein Quadrat sähe nach Mehrfachauswahl aus). */
-.tile__body::after {
-  content: ''; position: absolute; top: 18px; right: 18px; width: 16px; height: 16px;
-  border: 1.5px solid var(--ink-3); border-radius: 50%; background: var(--white);
-}
-.tile:hover .tile__body { border-color: var(--ink-3); }
-.tile input:checked + .tile__body { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
-.tile input:checked + .tile__body::after { background: var(--red); border-color: var(--red); box-shadow: inset 0 0 0 3px var(--white); }
-.tile input:focus-visible + .tile__body { outline: 2px solid var(--ink); outline-offset: 2px; }
-.tile__label { font-family: var(--font-display); font-weight: 700; font-size: 1.0625rem; letter-spacing: -0.02em; color: var(--ink); }
-.tile__hint { font-size: 0.9rem; color: var(--ink-3); line-height: 1.4; }
-
 /* Auswahl-Chips */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { position: relative; display: inline-flex; }
@@ -59,25 +36,16 @@
 
 .iform__group, .iform__sub { display: grid; gap: 10px; }
 .iform__sub { margin-top: var(--s-3); }
-.iform__plain { border: 0; padding: 0; margin: 0; min-width: 0; }
-.iform__plain legend { padding: 0; margin-bottom: 10px; }
 .iform__grouptitle { font-weight: 600; color: var(--ink); font-size: 0.97rem; }
-.iform__pick-first { color: var(--ink-3); }
 
-/* Passende Zusatzfragen und Notfall-Hinweis – ohne JS, per :has(). Ohne :has bleibt alles sichtbar. */
+/* Zusatzfragen zum Anliegen (Teil · Anderes) und Notfall-Hinweis – ohne JS, per :has().
+   Ohne :has bleibt alles sichtbar. */
 @supports selector(:has(*)) {
   .iform__group { display: none; }
-  .iform:has(input[name='kind'][value='krantechnik']:checked) [data-group='krantechnik'],
-  .iform:has(input[name='kind'][value='fahrzeugtechnik']:checked) [data-group='fahrzeugtechnik'],
-  .iform:has(input[name='kind'][value='sonderloesungen']:checked) [data-group='sonderloesungen'],
-  .iform:has(input[name='kind'][value='teile']:checked) [data-group='teile'],
-  .iform:has(input[name='kind'][value='anderes']:checked) [data-group='anderes'] { display: grid; }
-  .iform:has(input[name='kind']:checked) .iform__pick-first { display: none; }
+  .iform:has(input[name='need'][value='teil']:checked) [data-group='teile'],
+  .iform:has(input[name='need'][value='anderes']:checked) [data-group='anderes'] { display: grid; }
   .notfall-box { display: none !important; }
   .iform:has(input[name='urgency'][value='dringend']:checked) .notfall-box { display: flex !important; }
-}
-@supports not selector(:has(*)) {
-  .iform__pick-first { display: none; }
 }
 
 .notfall-box {
@@ -94,7 +62,7 @@
 
 /* Schritte (nur mit JS); die Leiste darüber steht immer da – ohne JS als Überblick */
 .iform--steps .iform__step:not(.is-current) { display: none; }
-.iform__progress { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.iform__progress { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .iform__progress li {
   padding-top: 10px; border-top: 2px solid var(--line-2); font-size: 0.875rem; color: var(--ink-3);
   display: grid; gap: 2px;

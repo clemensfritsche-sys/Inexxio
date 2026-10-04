@@ -33,7 +33,6 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
     <div class="wrap grid uu-owner">
       <div class="col-4"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
       <div class="col-7 uu-owner__text">
-        <p class="label">{o.role}</p>
         <h2 id="clemens">{o.name}</h2>
         <h3 class="label">{u.owner.career}</h3>
         <ul role="list" class="rule-list uu-career">
@@ -80,11 +79,8 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
       <div class="col-5 uu-ws__text">
         <SectionHead eyebrow="Standort" title={u.workshop.title} id="werkstatt" class="head--flush" />
         <Rich as="p" text={u.workshop.text} />
-        <address class="uu-addr">
-          <strong>{plain(site.brand.legalName)}</strong><br />
-          {a.street}<br />
-          {a.zip} {a.city} ({a.municipality} {a.canton})
-        </address>
+        <!-- Die Anschrift kommt aus dem ERP (#1108, scripts/contact.ts); hier die Vorgabe. -->
+        <address class="uu-addr" data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</address>
         <div class="uu-links">
           <a class="arrow-link" href={route} rel="noopener">Route in Google Maps öffnen <Icon name="external-link" size={16} /></a>
           <a class="arrow-link" href="#wo-wir-arbeiten">Wo wir arbeiten <Icon name="arrow-right" size={18} /></a>

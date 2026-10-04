@@ -22,7 +22,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { site, contactEmail, isMissing } from '../src/config/site.mjs';
+import { site, contactEmail } from '../src/config/site.mjs';
 import { inquiry } from '../src/config/inquiry.mjs';
 import { formVocab } from '../src/lib/inquiry-vocab.mjs';
 import { hasMarker, plain } from '../src/lib/text.mjs';
@@ -51,6 +51,8 @@ const data = {
   pages: { thanks: '/kontakt/danke', contact: '/kontakt' },
   kinds: inquiry.kinds.map((k) => ({ value: k.value, label: k.label, subject: k.subject })),
   needs: inquiry.needs,
+  /** Anliegen → Bereich: der Server leitet den Bereich daraus ab (#1102). */
+  kindOf: v.kindOf,
   urgencies: inquiry.urgencies.map((u) => ({ value: u.value, label: u.label, subject: u.subject })),
   contactPrefs: inquiry.contactPrefs,
   photos: inquiry.photos,
@@ -82,13 +84,12 @@ const shell = {
   phone: { display: site.phone.display, e164: site.phone.e164 },
   email: contactEmail(),
   address: [plain(site.brand.legalName), a.street, `${a.zip} ${a.city}`],
-  uid: isMissing(site.brand.uid) ? null : site.brand.uid,
   areas: site.areas.map((ar) => ({ ...link(ar), overview: ar.overview, children: ar.children.map(link) })),
   service: { ...link(site.service), overview: site.service.overview, children: site.service.children.map(link) },
   menu: site.menu.map(link),
   company: site.company.map(link),
   cta: link(site.cta),
-  account: { ...site.account, erp: { ...link(site.account.erp), overview: site.account.erp.overview, children: site.account.erp.children.map(link) } },
+  account: site.account,
   legal: [{ label: 'Impressum', href: '/impressum' }, { label: 'Datenschutz', href: '/datenschutz' }],
 };
 

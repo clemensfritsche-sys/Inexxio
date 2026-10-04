@@ -513,6 +513,21 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     Impressum und Datenschutz ausgenommen. Konto/ERP-Fuss liest dieselbe Antwort. Die
     IP-Adresse wird nicht gespeichert; Datenschutz und DB-IP-Nachweis stehen in
     `datenschutz.md`.
+57. **EIN Kontaktbereich, EIN Formular** (Testnotizen #1102/#1107/#1129): `ContactSection`
+    steht auf /kontakt (mit der H1) und am Ende jeder Seite – dieselbe Überschrift, derselbe
+    Satz, dasselbe Formular in drei Schritten. Das Kurzformular ist entfallen, und einen
+    Schritt «Bereich» gibt es nicht mehr: das **Anliegen** sagt, worum es geht
+    (`inquiry.kindOf`), der Server leitet den Bereich daraus ab und glaubt keinen
+    mitgeschickten. Je Seite ist höchstens das passende Anliegen vorgewählt.
+58. **Kranservice defensiv** (Rückmeldung 04.10.2026: «ich möchte nicht lügen»): Schwerpunkt
+    sind die HS- und die eigenen Krananlagen, Krane anderer Hersteller «auf Anfrage». Keine
+    Aussage «aller Marken/Hersteller» bei Kranen und kein Ersatzteillager für fremde Krane;
+    Ersatzteile nur für HS-Anlagen («an Lager oder neu gefertigt»). Bei Fahrmischern bleibt
+    «alle gängigen Marken».
+59. **ERP ist ein Link, kein Menü** (#1106); das Profilbild aus dem ERP steht im Profilknopf
+    (#1105, vierter Schlüssel `inexxio_user_photo` im Anzeige-Cache); die UID steht nur noch
+    im Impressum (#1103); ein Bild je Unterpunkt im Mega-Dropdown, so hoch wie das Panel
+    (#1111, reines CSS über `:has`).
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 

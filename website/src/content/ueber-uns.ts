@@ -16,7 +16,7 @@ export const ueberUns = {
       '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} gegründet hat. Heute führt es Clemens Fritsche – mit demselben Handwerk und mit Ingenieurwissen aus dem Maschinenbau.',
   },
   summary:
-    '{{brand.full}} plant und baut Krananlagen, wartet und repariert Krane, Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Werkstatt und Ersatzteillager stehen in Tuttwil-Wängi TG. Geschäftsführer ist Clemens Fritsche.',
+    '{{brand.full}} plant, baut und betreut Krananlagen, wartet und repariert Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Die Werkstatt steht in Tuttwil-Wängi TG. Das Unternehmen führt Clemens Fritsche.',
   owner: {
     title: 'Clemens Fritsche',
     career: 'Werdegang',
@@ -33,12 +33,12 @@ export const ueberUns = {
       { title: 'Rückmeldung', text: 'Wir melden uns innert {{promises.responseTime}}.' },
       { title: 'Bericht', text: 'Jede Arbeit mit Bericht – bei Kranen für das Kranbuch.' },
       { title: 'Offerte', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte. [[PRÜFEN: Zusage freigeben]]' },
-      { title: 'Ersatzteile', text: 'Für die Anlagen aus Tuttwil halten wir Ersatzteile an Lager. [[PRÜFEN: Zusage freigeben]]' },
+      { title: 'Ersatzteile', text: 'Die Ersatzteile für die Anlagen aus Tuttwil liegen an Lager, oder wir fertigen sie neu an.' },
     ],
   },
   workshop: {
     title: 'Werkstatt und Standort',
-    text: 'In Tuttwil-Wängi TG stehen Werkstatt und Ersatzteillager – Waldweg 1. Hier bauen wir Krananlagen, reparieren Fahrmischer und Aufbauten und fertigen Sonderlösungen.',
+    text: 'In Tuttwil-Wängi TG steht unsere Werkstatt. Hier bauen wir Krananlagen, reparieren Fahrmischer und Aufbauten und fertigen Sonderlösungen.',
   },
   area: {
     title: 'Zuhause in Tuttwil – im Einsatz, wo Sie uns brauchen',

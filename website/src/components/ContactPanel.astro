@@ -1,5 +1,5 @@
 ---
-/** Direkte Kontakte: Telefon gross, E-Mail – eine Nummer für alles (auch bei Stillstand). */
+/** Direkte Kontakte: Telefon und E-Mail gleich gross (#1101) – eine Nummer für alles, auch bei Stillstand. */
 import { site, contactEmail, isMissing } from '../config/site.mjs';
 import Rich from './Rich.astro';
 
@@ -24,14 +24,16 @@ const { compact = false } = Astro.props;
   .cpanel { display: grid; gap: 0; border-top: 1px solid var(--ink); }
   .cpanel__block { display: grid; gap: 4px; padding: var(--s-5) 0; border-bottom: 1px solid var(--line-2); }
   .cpanel__block .label { display: inline-flex; align-items: center; gap: 6px; }
-  .cpanel__num {
-    font-size: clamp(1.625rem, 1.4rem + 1vw, 2.25rem); font-weight: 700; letter-spacing: -0.02em;
-    color: var(--ink); text-decoration: none; line-height: 1.15; width: fit-content;
+  /* Telefon und E-Mail in EINER Grösse (#1101): zwei gleichwertige Wege, kein Haupt- und
+     Nebenweg. Die E-Mail darf umbrechen, die Nummer nie. */
+  .cpanel__num, .cpanel__mail {
+    font-size: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem); font-weight: 700; letter-spacing: -0.02em;
+    color: var(--ink); text-decoration: none; line-height: 1.2; width: fit-content;
     display: inline-flex; align-items: center; min-height: 44px;
   }
-  .cpanel__num--sm { font-size: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem); }
-  .cpanel__num:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.15em; }
-  .cpanel__mail { color: var(--ink); font-weight: 600; word-break: break-all; display: inline-flex; align-items: center; min-height: 44px; }
+  .cpanel__num { white-space: nowrap; }
+  .cpanel__mail { overflow-wrap: anywhere; }
+  .cpanel__num:hover, .cpanel__mail:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.15em; }
   :global(.section--dark) .cpanel, :global(.section--dark) .cpanel__block { border-color: var(--line-dark); }
   :global(.section--dark) .cpanel__num, :global(.section--dark) .cpanel__mail { color: var(--white); }
   .cpanel--compact .cpanel__block { padding: var(--s-4) 0; }

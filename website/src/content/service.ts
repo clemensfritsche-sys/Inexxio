@@ -18,7 +18,7 @@ export const service = {
     photo: 'servicefahrzeug',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer, Aufbauten und Baumaschinen und liefert Ersatz- und Verschleissteile ab Lager in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an.',
+    '{{brand.full}} betreut Krananlagen – vor allem die HS- und die eigenen Anlagen –, wartet und repariert Fahrmischer, Aufbauten und Baumaschinen und liefert Verschleissteile für Fahrmischer ab Lager in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an.',
   entries: [
     { title: 'Etwas steht still', text: 'Notfall-Service – rufen Sie direkt an', href: '/service/notfall', icon: 'siren' },
     { title: 'Kran prüfen oder warten lassen', text: 'Jährliche Überprüfung mit Bericht', href: '/krantechnik/pruefung-wartung', icon: 'shield-check' },
@@ -28,15 +28,15 @@ export const service = {
   /** Zweite Ziele zu den Kacheln, die zwei Wege haben (Auftrag 7.6). */
   alsoLinks: [
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbau reparieren lassen' },
-    { href: '/kontakt?typ=teile', label: 'Teil direkt anfragen' },
+    { href: '/kontakt?thema=teil', label: 'Teil direkt anfragen' },
   ],
   how: {
     title: 'So arbeiten wir',
     items: [
       { title: 'Offerte vor Arbeitsbeginn', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte – Sie entscheiden, bevor wir anfangen. [[PRÜFEN: Zusage freigeben]]' },
       { title: 'Bericht nach jeder Arbeit', text: 'Sie erhalten einen Bericht mit Arbeiten und Teilen; bei Kranen gehört er ins Kranbuch. [[PRÜFEN: Zusage freigeben]]' },
-      { title: 'Teile ab Lager', text: 'Viele Ersatz- und Verschleissteile liegen in Tuttwil – das verkürzt Stillstände.' },
-      { title: 'Alle Marken', text: 'Krane aller Hersteller, Fahrmischer der gängigen Marken – ein Ansprechpartner für Ihren Bestand.' },
+      { title: 'Teile ab Lager', text: 'Verschleissteile für Fahrmischer und Teile für HS-Krananlagen liegen in Tuttwil – das verkürzt Stillstände.' },
+      { title: 'Ein Ansprechpartner', text: 'Fahrmischer der gängigen Marken, HS- und eigene Krananlagen – auf Anfrage auch Krane anderer Hersteller.' },
     ],
   },
   area: {
@@ -75,20 +75,15 @@ export const notfall = {
   faq: [
     {
       q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
-      a: '{{promises.reactionTime}}',
+      a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
     },
     {
       q: 'Helfen Sie auch bei Kranen anderer Hersteller?',
-      a: 'Ja. Wir arbeiten an Kranen aller Marken und an Fahrmischern der gängigen Marken.',
+      a: 'Auf Anfrage. Unser Schwerpunkt sind die HS- und unsere eigenen Krananlagen; bei Kranen anderer Hersteller klären wir im Einzelfall, ob und wie wir helfen können. Bei Fahrmischern arbeiten wir an allen gängigen Marken.',
     },
     {
       q: 'Was kostet ein Notfalleinsatz?',
       a: '[[PLATZHALTER: Berechnung von Notfalleinsätzen ausserhalb der Bürozeiten]]',
     },
   ] satisfies Faq[],
-  cta: {
-    title: 'Störung melden',
-    lead: 'Beschreiben Sie kurz, was passiert ist. Eilt es, rufen Sie besser an.',
-    messageLabel: 'Was ist passiert?',
-  },
 };

@@ -102,7 +102,36 @@
         "value": "baumaschine",
         "label": "Baumaschine Umbau/Reparatur"
       }
+    ],
+    "teile": [
+      {
+        "value": "teil",
+        "label": "Ersatz- oder Verschleissteil"
+      }
+    ],
+    "anderes": [
+      {
+        "value": "anderes",
+        "label": "Anderes"
+      }
     ]
+  },
+  "kindOf": {
+    "heukrananlage": "krantechnik",
+    "industriekran": "krantechnik",
+    "pruefung": "krantechnik",
+    "wartung": "krantechnik",
+    "stoerung": "krantechnik",
+    "modernisierung": "krantechnik",
+    "fahrmischer-service": "fahrzeugtechnik",
+    "reparatur": "fahrzeugtechnik",
+    "trommel": "fahrzeugtechnik",
+    "aufbau": "fahrzeugtechnik",
+    "konstruktion": "sonderloesungen",
+    "stahlbau": "sonderloesungen",
+    "baumaschine": "sonderloesungen",
+    "teil": "teile",
+    "anderes": "anderes"
   },
   "urgencies": [
     {
@@ -217,7 +246,6 @@
     ]
   ],
   "messages": {
-    "kind": "Bitte wählen Sie den Bereich.",
     "need": "Bitte wählen Sie Ihr Anliegen.",
     "part": "Bitte nennen Sie das Teil, das Sie brauchen.",
     "urgency": "Bitte wählen Sie, wie dringend es ist.",

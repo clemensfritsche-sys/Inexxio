@@ -1,29 +1,41 @@
 ---
 /**
- * Hauptformular (/kontakt): vier kurze Schritte mit Fortschrittsanzeige.
+ * DAS Anfrage-Formular – auf /kontakt und am Ende jeder Seite dasselbe (Testnotizen
+ * #1107/#1129): drei kurze Schritte mit Fortschrittsanzeige. Einen Schritt «Bereich» gibt
+ * es nicht mehr (#1102) – das Anliegen sagt, worum es geht (`kindOf`). Eine Seite darf das
+ * passende Anliegen vorwählen (`need`), mehr nicht.
  *
  * Ohne JavaScript ist es EIN langes Formular mit Fieldsets, das klassisch an den Server
- * geht (multipart, Validierung dort). Welche Zusatzfragen zum gewählten Bereich passen und
- * dass bei «Steht still» die Telefonnummer gross erscheint, regelt CSS (:has) – auch ohne JS.
+ * geht (multipart, Validierung dort). Dass «Teil» nach dem Teil fragt und bei «Steht still»
+ * die Telefonnummer gross erscheint, regelt CSS (:has) – auch ohne JS.
  * Das Skript (scripts/form.ts) macht daraus Schritte, prüft direkt am Feld und sendet
  * im Hintergrund; schlägt das Senden fehl, steht ein vorausgefüllter mailto-Link da.
  */
 import { site, contactEmail } from '../config/site.mjs';
-import { inquiry, kindsWithNeeds } from '../config/inquiry.mjs';
+import { inquiry, needGroups } from '../config/inquiry.mjs';
 import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
 import FormResult from './FormResult.astro';
 import '../styles/form.css';
 
-interface Props { id?: string }
-const { id = 'anfrage' } = Astro.props;
+interface Props {
+  id?: string;
+  /** Vorgewähltes Anliegen (z. B. «heukrananlage» auf der Heukran-Seite). */
+  need?: string;
+  /** Vorgewählte Dringlichkeit (Notfall-Seite). */
+  urgency?: 'dringend' | 'wochen' | 'planung';
+  /** 2 = Formular direkt unter der H1 (/kontakt), 3 = in einer Sektion mit H2. */
+  resultLevel?: 2 | 3;
+}
+const { id = 'anfrage-form', need, urgency, resultLevel = 3 } = Astro.props;
+if (need && !needGroups.some((g) => g.needs.some((n) => n.value === need))) throw new Error(`Unbekanntes Anliegen «${need}»`);
 const L = inquiry.limits;
 /** Vokabular für Prüfung und mailto im Browser – dasselbe, das der Server bekommt. */
 const vocab = JSON.stringify(formVocab());
 const f = (name: string) => `${id}-${name}`;
 ---
 <div class="iform-wrap" data-inquiry-root>
-  <FormResult level={2} />
+  <FormResult level={resultLevel} />
   <form
     id={id}
     class="iform"
@@ -46,46 +58,26 @@ const f = (name: string) => `${id}-${name}`;
       <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
     </div>
 
-    <!-- Ohne JavaScript ein Überblick über die vier Teile, mit JavaScript der Fortschritt –
+    <!-- Ohne JavaScript ein Überblick über die drei Teile, mit JavaScript der Fortschritt –
          in beiden Fällen von Anfang an da, sonst schöbe sein Erscheinen das Formular nach
          unten (gemessen: 0.07 CLS auf dem Telefon). -->
     <ol class="iform__progress" data-progress aria-label="Schritte">
-      <li data-progress-item="1"><span class="idx">01</span> Bereich</li>
-      <li data-progress-item="2"><span class="idx">02</span> Anliegen</li>
-      <li data-progress-item="3"><span class="idx">03</span> Details</li>
-      <li data-progress-item="4"><span class="idx">04</span> Kontakt</li>
+      <li data-progress-item="1"><span class="idx">01</span> Anliegen</li>
+      <li data-progress-item="2"><span class="idx">02</span> Details</li>
+      <li data-progress-item="3"><span class="idx">03</span> Kontakt</li>
     </ol>
     <p class="visually-hidden" aria-live="polite" data-step-status></p>
 
-    <!-- 1 · Bereich -->
+    <!-- 1 · Anliegen -->
     <fieldset class="iform__step" data-step="1">
-      <legend class="iform__legend"><span class="label">01 — Bereich</span><span class="h3">Worum geht es?</span></legend>
-      <div class="tiles" data-field="kind">
-        {inquiry.kinds.map((k) => (
-          <label class="tile">
-            <input type="radio" name="kind" value={k.value} required aria-describedby={f('kind-error')} />
-            <span class="tile__body">
-              <span class="tile__label">{k.label}</span>
-              <span class="tile__hint">{k.hint}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-      <p class="field__error" id={f('kind-error')} data-error-for="kind" hidden></p>
-    </fieldset>
-
-    <!-- 2 · Anliegen -->
-    <fieldset class="iform__step" data-step="2">
-      <legend class="iform__legend"><span class="label">02 — Anliegen</span><span class="h3">Was brauchen Sie?</span></legend>
-      <p class="iform__pick-first">Wählen Sie oben zuerst den Bereich.</p>
-
-      {kindsWithNeeds.map((kind) => (
-        <div class="iform__group" data-group={kind}>
-          <p class="iform__grouptitle">{inquiry.kinds.find((k) => k.value === kind)?.label}</p>
+      <legend class="iform__legend"><span class="label">01 — Anliegen</span><span class="h3">Worum geht es?</span></legend>
+      {needGroups.map((g) => (
+        <div class="iform__sub">
+          <p class="iform__grouptitle">{g.title}</p>
           <div class="chips">
-            {inquiry.needs[kind].map((n) => (
+            {g.needs.map((n) => (
               <label class="chip">
-                <input type="radio" name="need" value={n.value} aria-describedby={f('need-error')} />
+                <input type="radio" name="need" value={n.value} required checked={n.value === need} aria-describedby={f('need-error')} />
                 <span>{n.label}</span>
               </label>
             ))}
@@ -117,7 +109,7 @@ const f = (name: string) => `${id}-${name}`;
         <div class="chips" role="radiogroup" aria-labelledby={f('urgency-title')}>
           {inquiry.urgencies.map((u) => (
             <label class="chip">
-              <input type="radio" name="urgency" value={u.value} required aria-describedby={f('urgency-error')} />
+              <input type="radio" name="urgency" value={u.value} required checked={u.value === urgency} aria-describedby={f('urgency-error')} />
               <span>{u.label}</span>
             </label>
           ))}
@@ -134,9 +126,9 @@ const f = (name: string) => `${id}-${name}`;
       </div>
     </fieldset>
 
-    <!-- 3 · Details -->
-    <fieldset class="iform__step" data-step="3">
-      <legend class="iform__legend"><span class="label">03 — Details</span><span class="h3">Details zu Anlage oder Maschine</span></legend>
+    <!-- 2 · Details -->
+    <fieldset class="iform__step" data-step="2">
+      <legend class="iform__legend"><span class="label">02 — Details</span><span class="h3">Details zu Anlage oder Maschine</span></legend>
       <div class="iform__row">
         <div class="field">
           <label class="field__label" for={f('maker')}>Hersteller / Typ <span class="field__opt">freiwillig</span></label>
@@ -167,9 +159,9 @@ const f = (name: string) => `${id}-${name}`;
       </div>
     </fieldset>
 
-    <!-- 4 · Kontakt -->
-    <fieldset class="iform__step" data-step="4">
-      <legend class="iform__legend"><span class="label">04 — Kontakt</span><span class="h3">Wie erreichen wir Sie?</span></legend>
+    <!-- 3 · Kontakt -->
+    <fieldset class="iform__step" data-step="3">
+      <legend class="iform__legend"><span class="label">03 — Kontakt</span><span class="h3">Wie erreichen wir Sie?</span></legend>
       <div class="iform__row">
         <div class="field">
           <label class="field__label" for={f('name')}>Name</label>

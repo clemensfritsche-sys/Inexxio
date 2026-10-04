@@ -6,9 +6,9 @@
  * Fehlt eine Pflichtangabe oder zeigt ein Link ins Leere, bricht der Build ab – lieber
  * kein Artikel als ein halber.
  */
-import { inquiry } from '../config/inquiry.mjs';
+import { kindOf } from '../config/inquiry.mjs';
 import { processHtml } from './text.mjs';
-import type { InquiryKind, LinkItem } from '../content/types';
+import type { LinkItem } from '../content/types';
 
 export interface Source { label: string; href: string }
 export interface Heading { depth: number; slug: string; text: string }
@@ -26,7 +26,8 @@ export interface Article {
   kurz: string[];
   sources: Source[];
   related: LinkItem[];
-  cta: { kind: InquiryKind; need?: string };
+  /** Vorgewähltes Anliegen im Kontaktbereich am Ende des Artikels. */
+  cta: { need?: string };
   html: string;
   headings: Heading[];
 }
@@ -77,10 +78,8 @@ function load(): Article[] {
     const slug = file.replace(/\.md$/, '');
     if (!/^[a-z0-9-]+$/.test(slug)) fail(file, 'Dateiname nur aus a–z, 0–9 und Bindestrich.');
     const fm = mod.frontmatter;
-    const cta = (fm.cta ?? {}) as { kind?: string; need?: string };
-    if (!inquiry.kinds.some((k) => k.value === cta.kind)) fail(file, `«cta.kind» ist kein Anfrage-Typ.`);
-    const needs = (inquiry.needs as Record<string, { value: string }[]>)[cta.kind!] ?? [];
-    if (cta.need && !needs.some((n) => n.value === cta.need)) fail(file, `«cta.need» passt nicht zu «${cta.kind}».`);
+    const cta = (fm.cta ?? {}) as { need?: string };
+    if (cta.need && !(cta.need in kindOf)) fail(file, `«cta.need» ist kein Anliegen des Anfrage-Formulars.`);
     const published = day(file, fm, 'published');
     const updated = day(file, fm, 'updated');
     if (updated < published) fail(file, '«updated» liegt vor «published».');
@@ -95,7 +94,7 @@ function load(): Article[] {
       kurz: list(file, fm, 'kurz', isText),
       sources: list(file, fm, 'sources', isSource),
       related: list(file, fm, 'related', isRelated),
-      cta: { kind: cta.kind as InquiryKind, need: cta.need },
+      cta: { need: cta.need },
       html: '',
       headings: mod.getHeadings(),
     });

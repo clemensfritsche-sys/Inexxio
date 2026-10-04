@@ -4,7 +4,7 @@
  * Anfrage und verwandte Seiten. Text aus src/content/ratgeber/<slug>.md.
  */
 import Base from '../../layouts/Base.astro';
-import CtaBlock from '../../components/CtaBlock.astro';
+import ContactSection from '../../components/ContactSection.astro';
 import RelatedLinks from '../../components/RelatedLinks.astro';
 import Sources from '../../components/Sources.astro';
 import Icon from '../../components/Icon.astro';
@@ -12,7 +12,6 @@ import Rich from '../../components/Rich.astro';
 import { site } from '../../config/site.mjs';
 import { articles, withBody, formatDay } from '../../lib/ratgeber';
 import { article as articleNode } from '../../lib/seo.mjs';
-import type { InquiryKind } from '../../config/inquiry.mjs';
 
 export function getStaticPaths() {
   return articles().map((a) => ({ params: { slug: a.slug } }));
@@ -22,13 +21,6 @@ const { slug } = Astro.params;
 const a = await withBody(slug!);
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const o = site.people.owner;
-const ctaTitle: Record<InquiryKind, string> = {
-  krantechnik: 'Kran prüfen lassen oder eine Anlage planen?',
-  fahrzeugtechnik: 'Fahrmischer-Service gesucht?',
-  sonderloesungen: 'Eine Sonderlösung gesucht?',
-  teile: 'Ein Verschleissteil gesucht?',
-  anderes: 'Fragen zu Ihrer Anlage?',
-};
 const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber/') ? ('ratgeber' as const) : ('leistung' as const) }));
 ---
 <Base
@@ -64,7 +56,7 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
     </div>
   </article>
 
-  <CtaBlock title={ctaTitle[a.cta.kind]} lead="Schreiben Sie uns – wir melden uns innert {{promises.responseTime}}." kind={a.cta.kind} need={a.cta.need} />
+  <ContactSection need={a.cta.need} />
 
   <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
   <div class="section section--tight">

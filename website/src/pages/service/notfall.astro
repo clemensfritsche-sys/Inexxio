@@ -6,7 +6,7 @@
 import Base from '../../layouts/Base.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Faq from '../../components/Faq.astro';
-import CtaBlock from '../../components/CtaBlock.astro';
+import ContactSection from '../../components/ContactSection.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
 import { site } from '../../config/site.mjs';
@@ -68,7 +68,7 @@ const nodes = [
     </div>
   </section>
 
-  <CtaBlock title={n.cta.title} lead={n.cta.lead} kind="waehlen" urgency="dringend" messageLabel={n.cta.messageLabel} />
+  <ContactSection need="stoerung" urgency="dringend" />
 </Base>
 
 <style>

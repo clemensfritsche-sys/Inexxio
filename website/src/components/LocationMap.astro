@@ -6,8 +6,8 @@
  * 04.10.2026: «uns nicht limitieren»).
  */
 
-interface Props { class?: string; caption?: boolean }
-const { class: cls, caption = true } = Astro.props;
+interface Props { class?: string }
+const { class: cls } = Astro.props;
 
 const towns = [
   { name: 'Frauenfeld', x: -2.8, y: -7.8, dx: -2, dy: -2, end: true },
@@ -49,22 +49,22 @@ const desc = 'Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil u
     <rect x="-1.6" y="-1.6" width="3.2" height="3.2" class="amap__home" />
     <text x="2.4" y="-2.2" class="amap__hometext">Tuttwil</text>
   </svg>
-  {caption && (
-    <figcaption class="small muted">Schematisch, nicht massstabsgetreu.</figcaption>
-  )}
 </figure>
 
 <style>
   .amap { margin: 0; display: grid; gap: var(--s-2); max-width: 600px; }
-  .amap__svg { width: 100%; height: auto; background: var(--white); border: 1px solid var(--line-2); }
-  :global(.section--paper) .amap__svg { background: var(--white); }
+  /* Durchsichtig, ohne Rahmen (#1109): die Karte liegt auf der Fläche ihrer Sektion. Die
+     Freistellung der Schrift nimmt dieselbe Farbe (--map-bg), damit sie lesbar bleibt. */
+  .amap { --map-bg: var(--white); }
+  :global(.section--paper) .amap { --map-bg: var(--paper); }
+  .amap__svg { width: 100%; height: auto; display: block; }
   .amap__water { fill: var(--slate-soft); stroke: none; }
   .amap__river { fill: none; stroke: var(--slate); stroke-opacity: 0.35; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round; }
   .amap__dot { fill: var(--ink); }
   .amap__town { font-size: 2.7px; fill: var(--ink-2); font-weight: 500; }
   /* Freistellung wie auf jeder Karte: wo der Kreis oder der Rhein eine Beschriftung kreuzt,
      unterbricht ein Rand in der Grundfarbe die Linie, statt durch die Buchstaben zu laufen. */
-  .amap__town, .amap__hometext { paint-order: stroke; stroke: var(--white); stroke-width: 0.9px; stroke-linejoin: round; }
+  .amap__town, .amap__hometext { paint-order: stroke; stroke: var(--map-bg); stroke-width: 0.9px; stroke-linejoin: round; }
   .amap__home { fill: var(--red); }
   .amap__hometext { font-size: 3.4px; font-weight: 700; fill: var(--ink); }
   .amap__region { font-family: var(--font-mono); font-size: 2.1px; letter-spacing: 0.2px; fill: var(--ink-3); }

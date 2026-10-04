@@ -24,7 +24,7 @@ related:
     label: 'Fahrzeugtechnik'
     text: 'Alles, was wir an Fahrmischern und Aufbauten machen.'
 cta:
-  kind: teile
+  need: teil
 ---
 
 [[PRÜFEN: fachlich – ganzer Artikel]]

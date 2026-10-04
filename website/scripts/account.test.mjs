@@ -1,6 +1,6 @@
 // ►►► Der Anzeige-Cache hat zwei Seiten – sie müssen dieselben Wörter sprechen. ◄◄◄
 //
-// Das Konto-/ERP-Frontend schreibt drei localStorage-Schlüssel (frontend/src/lib/
+// Das Konto-/ERP-Frontend schreibt vier localStorage-Schlüssel (frontend/src/lib/
 // account-cache.ts), die Website liest sie (src/scripts/account.ts, early.js). Benennt eine
 // Seite einen Schlüssel um, zeigt die Website still «Anmelden» für Angemeldete – kein
 // Fehler, keine Meldung. Dasselbe gilt für die Frage «darf ins ERP?»: early.js baut
@@ -22,9 +22,9 @@ const firebase = read('../frontend/src/lib/firebase.ts');
 
 const keysIn = (src) => [...src.matchAll(/'(inexxio_user_\w+)'/g)].map((m) => m[1]).sort();
 
-test('beide Seiten kennen dieselben drei Schlüssel', () => {
+test('beide Seiten kennen dieselben vier Schlüssel', () => {
   const front = keysIn(cache);
-  assert.deepEqual(front, ['inexxio_user_contact', 'inexxio_user_fullname', 'inexxio_user_role']);
+  assert.deepEqual(front, ['inexxio_user_contact', 'inexxio_user_fullname', 'inexxio_user_photo', 'inexxio_user_role']);
   assert.deepEqual(keysIn(website), front);
 });
 

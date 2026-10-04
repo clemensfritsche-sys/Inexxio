@@ -8,7 +8,9 @@ import {
 } from 'lucide-react';
 import { isStaff } from '@/lib/record-status';
 import { onAuthChange, logout } from '@/lib/firebase';
-import { ROLE_KEY, NAME_KEY, rememberContact, clearAccountCache } from '@/lib/account-cache';
+import {
+  ROLE_KEY, NAME_KEY, PHOTO_KEY, rememberContact, rememberPhoto, clearAccountCache,
+} from '@/lib/account-cache';
 import { LoginDialog } from '@/components/auth/login-dialog';
 import { api } from '@/lib/api';
 import shell from '@/lib/site-shell.json';
@@ -36,7 +38,8 @@ import type { User } from 'firebase/auth';
 
 type Group = Pick<(typeof shell.areas)[number], 'label' | 'href' | 'overview' | 'children'>;
 const GROUPS: Group[] = [...shell.areas, shell.service];
-const ERP: Group = shell.account.erp;
+/** ERP ist ein Link, kein Untermenü (#1106). */
+const ERP = shell.account.erp;
 const TEL = `tel:${shell.phone.e164}`;
 
 export function Navbar() {
@@ -47,6 +50,7 @@ export function Navbar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [profileName, setProfileName] = useState('');
+  const [photo, setPhoto] = useState('');
   const [loginOpen, setLoginOpen] = useState(false);
   const pathname = usePathname();
   const closeMobile = useCallback(() => setMobileOpen(false), []);
@@ -70,6 +74,7 @@ export function Navbar() {
         if (cachedRole) setUserRole(cachedRole);
         const cachedName = localStorage.getItem(NAME_KEY);
         if (cachedName) setProfileName(cachedName);
+        setPhoto(localStorage.getItem(PHOTO_KEY) || firebaseUser.photoURL || '');
         try {
           const token = await firebaseUser.getIdToken();
           api.setToken(token);
@@ -77,6 +82,10 @@ export function Navbar() {
           setUserRole(profile.role);
           localStorage.setItem(ROLE_KEY, profile.role);
           rememberContact(profile);
+          // Dasselbe Bild wie im ERP (#1105): erst das des Datensatzes, sonst das von Google.
+          const pic = profile.photo_url || firebaseUser.photoURL || '';
+          rememberPhoto(pic);
+          setPhoto(pic);
           const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
           if (fullName) {
             localStorage.setItem(NAME_KEY, fullName);
@@ -88,6 +97,7 @@ export function Navbar() {
       } else {
         setUserRole(null);
         setProfileName('');
+        setPhoto('');
         clearAccountCache();
       }
     });
@@ -136,7 +146,7 @@ export function Navbar() {
   const staff = isStaff(userRole);
 
   const account: Account = {
-    loaded: authLoaded, user: !!user, staff, initials, displayName,
+    loaded: authLoaded, user: !!user, staff, initials, photo, displayName,
     email: user?.email ?? '', onLogin: openLogin, onLogout: handleLogout,
   };
 
@@ -157,7 +167,7 @@ export function Navbar() {
                 {shell.menu.map((m) => (
                   <li key={m.href} className="sh-item"><a href={m.href} className="sh-nav-link">{m.label}</a></li>
                 ))}
-                {staff && <Dropdown group={ERP} end open={open === ERP.href} onOpen={toggle(ERP.href)} />}
+                {staff && <li className="sh-item"><a href={ERP.href} className="sh-nav-link">{ERP.label}</a></li>}
               </ul>
             </nav>
             <div className="sh-actions">
@@ -195,7 +205,8 @@ export function Navbar() {
 }
 
 type Account = {
-  loaded: boolean; user: boolean; staff: boolean; initials: string; displayName: string; email: string;
+  loaded: boolean; user: boolean; staff: boolean; initials: string; photo: string;
+  displayName: string; email: string;
   onLogin: () => void; onLogout: () => void;
 };
 
@@ -232,7 +243,12 @@ function ProfileMenu({ account, open, onOpen }: { account: Account; open: boolea
         aria-controls="profilmenu"
         onClick={() => onOpen(!open)}
       >
-        <span className="sh-initials" aria-hidden>{account.initials}</span>
+        <span className="sh-initials" aria-hidden>
+          {account.photo
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={account.photo} alt="" referrerPolicy="no-referrer" className="sh-avatar" />
+            : account.initials}
+        </span>
         <span className="sr-only">Profilmenü</span>
       </button>
       {open && (
@@ -325,15 +341,7 @@ function MobileMenu({ account, pathname, onClose }: { account: Account; pathname
           </details>
         ))}
         {shell.menu.map((m) => <a key={m.href} href={m.href} className="sh-m-link">{m.label}</a>)}
-        {account.staff && (
-          <details>
-            <summary className="sh-m-link">{ERP.label} <ChevronDown size={20} /></summary>
-            <ul className="sh-m-sub">
-              {ERP.children.map((c) => <li key={c.href}><a href={c.href}>{c.label}<span>{c.text}</span></a></li>)}
-              <li><a href={ERP.href} className="sh-m-overview">{ERP.overview}</a></li>
-            </ul>
-          </details>
-        )}
+        {account.staff && <a href={ERP.href} className="sh-m-link">{ERP.label}</a>}
         <ul className="sh-m-more">{more.map((c) => <li key={c.href}><a href={c.href}>{c.label}</a></li>)}</ul>
         <MobileAccount account={account} pathname={pathname} onClose={onClose} />
       </nav>

@@ -1,14 +1,15 @@
 /**
- * Anfrage-Formulare (Haupt- und Kurzformular) – Komfort auf einem Formular, das ohne JS
- * vollständig klassisch an den Server geht.
+ * Das Anfrage-Formular (überall dasselbe, #1107/#1129) – Komfort auf einem Formular, das
+ * ohne JS vollständig klassisch an den Server geht.
  *
- *  - Hauptformular: vier Schritte mit Fortschritt; «Weiter» prüft nur den aktuellen Schritt
+ *  - drei Schritte mit Fortschritt; «Weiter» prüft nur den aktuellen Schritt. Einen Bereich
+ *    fragt es nicht (#1102) – das Anliegen sagt, worum es geht (`kindOf`)
  *  - Fehler erscheinen direkt am Feld (aria-invalid + aria-describedby); die Wörter kommen
  *    aus der Konfiguration (data-vocab) – der Server meldet wortgleich
  *  - Senden im Hintergrund; Erfolg ersetzt das Formular, ein Fehler lässt alle Eingaben
  *    stehen und bietet Telefon und einen vorausgefüllten mailto-Link an
- *  - Vorbelegung aus der Adresse: /kontakt?typ=teile&teil=…&wofuer=…,
- *    ?typ=krantechnik&thema=heukrananlage, ?dringend=1
+ *  - Vorbelegung aus der Adresse: /kontakt?thema=teil&teil=…&wofuer=…,
+ *    ?thema=heukrananlage, ?dringend=1
  *  - Vorbelegung aus dem Konto (Auftrag 11.1): ist jemand angemeldet, stehen Name, Firma,
  *    Telefon und E-Mail schon da – gelesen aus dem Anzeige-Cache (scripts/account.ts),
  *    nur in leere Felder, änderbar wie jede Eingabe
@@ -24,7 +25,7 @@ interface Vocab {
   urgency: Record<string, string>;
   urgencySubject: Record<string, string>;
   pref: Record<string, string>;
-  kindsWithNeeds: string[];
+  kindOf: Record<string, string>;
   labels: [string, string][];
   messages: Record<string, string>;
 }
@@ -44,7 +45,6 @@ function setup(form: HTMLFormElement): void {
   const root = form.closest<HTMLElement>('[data-inquiry-root]') ?? form.parentElement!;
   const okPanel = root.querySelector<HTMLElement>('[data-result="ok"]');
   const failPanel = root.querySelector<HTMLElement>('[data-result="fail"]');
-  const isMain = form.dataset.form === 'haupt';
   const steps = Array.from(form.querySelectorAll<HTMLElement>('[data-step]'));
   const vocab: Vocab = JSON.parse(form.dataset.vocab ?? '{}');
   const loadedAt = Date.now();
@@ -56,7 +56,7 @@ function setup(form: HTMLFormElement): void {
   const submit = form.querySelector<HTMLButtonElement>('[data-submit]');
   const progress = form.querySelector<HTMLElement>('[data-progress]');
   const status = form.querySelector<HTMLElement>('[data-step-status]');
-  const useSteps = isMain && steps.length > 1;
+  const useSteps = steps.length > 1;
 
   const show = (index: number, moveFocus: boolean) => {
     current = Math.max(0, Math.min(steps.length - 1, index));
@@ -87,13 +87,13 @@ function setup(form: HTMLFormElement): void {
     form.classList.add('iform--steps');
     show(0, false);
     next?.addEventListener('click', () => {
-      const errors = validate(form, steps[current], isMain, vocab);
+      const errors = validate(form, steps[current], vocab);
       if (render(form, errors)) show(current + 1, true);
     });
     prev?.addEventListener('click', () => show(current - 1, true));
   }
 
-  if (isMain) prefill(form, (stepIndex) => useSteps && show(stepIndex, false));
+  prefill(form);
   prefillAccount(form);
 
   // ---------- Live: Fehler verschwinden beim Korrigieren ----------
@@ -110,7 +110,7 @@ function setup(form: HTMLFormElement): void {
   // ---------- Senden ----------
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const errors = validate(form, form, isMain, vocab);
+    const errors = validate(form, form, vocab);
     if (!render(form, errors)) {
       if (useSteps) {
         const first = steps.findIndex((s) => Object.keys(errors).some((n) => s.querySelector(`[name="${n}"]`)));
@@ -133,7 +133,7 @@ function setup(form: HTMLFormElement): void {
       const res = await fetch(form.action, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; fields?: Errors; message?: string };
       if (res.ok && body.ok) {
-        track('form_submit', { form: form.dataset.form, bereich: str(data.get('kind')), dringlichkeit: str(data.get('urgency')) || 'keine' });
+        track('form_submit', { form: form.dataset.form, bereich: vocab.kindOf[str(data.get('need'))] ?? '', dringlichkeit: str(data.get('urgency')) || 'keine' });
         form.hidden = true;
         if (failPanel) failPanel.hidden = true;
         if (okPanel) {
@@ -166,20 +166,18 @@ function setup(form: HTMLFormElement): void {
 
 // ------------------------------------------------------------------ Prüfen
 
-function validate(form: HTMLFormElement, scope: Element, isMain: boolean, vocab: Vocab): Errors {
+function validate(form: HTMLFormElement, scope: Element, vocab: Vocab): Errors {
   const m = vocab.messages;
   const errors: Errors = {};
   const has = (name: string) => Boolean(scope.querySelector(`[name="${name}"]`));
-  const kind = checked(form, 'kind') || value(form, 'kind');
+  const kind = vocab.kindOf[checked(form, 'need')] ?? '';
 
-  if (has('kind') && !kind) errors.kind = m.kind;
-  if (isMain && has('need') && vocab.kindsWithNeeds.includes(kind) && !checked(form, 'need')) errors.need = m.need;
+  if (has('need') && !kind) errors.need = m.need;
   if (has('part') && kind === 'teile' && !value(form, 'part')) errors.part = m.part;
-  if (isMain && has('urgency') && !checked(form, 'urgency')) errors.urgency = m.urgency;
+  if (has('urgency') && !checked(form, 'urgency')) errors.urgency = m.urgency;
   const year = value(form, 'year');
   if (has('year') && year && !/^(19|20)\d{2}$/.test(year)) errors.year = m.year;
   if (has('place') && !value(form, 'place')) errors.place = m.place;
-  if (!isMain && has('message') && !value(form, 'message')) errors.message = m.message;
   const photos = scope.querySelector<HTMLInputElement>('input[type="file"][name="photos"]');
   if (photos) Object.assign(errors, photoErrors(form, photos, vocab));
 
@@ -263,11 +261,9 @@ function setValue(form: HTMLFormElement, name: string, v: string): void {
 const str = (v: FormDataEntryValue | null) => (typeof v === 'string' ? v : '');
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 
-/** Angaben, die zum gewählten Bereich nicht passen, gar nicht erst senden. */
+/** Angaben, die zum gewählten Anliegen nicht passen, gar nicht erst senden. */
 function prune(data: FormData, vocab: Vocab): void {
-  const kind = str(data.get('kind'));
-  if (!vocab.kindsWithNeeds.includes(kind)) data.delete('need');
-  if (kind !== 'teile') {
+  if (vocab.kindOf[str(data.get('need'))] !== 'teile') {
     data.delete('part');
     data.delete('usage');
   }
@@ -294,7 +290,7 @@ function listFiles(form: HTMLFormElement, input: HTMLInputElement): void {
   list.hidden = files.length === 0;
 }
 
-function prefill(form: HTMLFormElement, goTo: (stepIndex: number) => void): void {
+function prefill(form: HTMLFormElement): void {
   const q = new URLSearchParams(location.search);
   const pick = (name: string, v: string | null) => {
     if (!v) return false;
@@ -302,12 +298,10 @@ function prefill(form: HTMLFormElement, goTo: (stepIndex: number) => void): void
     if (radio) radio.checked = true;
     return Boolean(radio);
   };
-  const kindSet = pick('kind', q.get('typ'));
   pick('need', q.get('thema'));
   if (q.get('dringend') === '1') pick('urgency', 'dringend');
   if (q.get('teil')) setValue(form, 'part', q.get('teil')!.slice(0, 200));
   if (q.get('wofuer')) setValue(form, 'usage', q.get('wofuer')!.slice(0, 160));
-  if (kindSet) goTo(1);
 }
 
 /** Kontaktangaben aus dem Konto – nur in leere Felder (Schnittstelle S2, nur lesend). */
@@ -349,7 +343,7 @@ function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
   prune(data, vocab);
   const get = (n: string) => str(data.get(n)).trim();
-  const kind = get('kind');
+  const kind = vocab.kindOf[get('need')] ?? '';
   const urgency = get('urgency');
   const who = get('company') || get('name');
   const tags = ['Anfrage', vocab.kindSubject?.[kind] ?? kind, urgency ? vocab.urgencySubject?.[urgency] : ''].filter(Boolean);

@@ -18,7 +18,7 @@ sources:
 related:
   - href: '/krantechnik/heukrananlagen'
     label: 'Heukrananlagen nach Mass'
-    text: 'Neuanlagen, Umbau, Service und Ersatzteile.'
+    text: 'Neuanlagen, Umbau und Service.'
   - href: '/krantechnik/modernisierung'
     label: 'Kran modernisieren'
     text: 'Wenn die bestehende Anlage noch gut ist, die Steuerung aber nicht.'
@@ -26,7 +26,6 @@ related:
     label: 'Kranprüfung in der Schweiz'
     text: 'Was nach der Inbetriebnahme gilt.'
 cta:
-  kind: krantechnik
   need: heukrananlage
 ---
 
@@ -42,7 +41,7 @@ Es gibt keine beste Bauform, nur eine, die zum Gebäude passt. Die vier gängige
 |---|---|---|
 | Einschienenkran | Der Kran fährt auf einer Laufschiene unter dem Dach. | die Scheune lang und schmal ist und der Stock entlang der Fahrbahn liegt. |
 | Brückenkran | Eine Kranbrücke fährt über die ganze Breite, die Katze quer dazu. | die Scheune breit ist und mehrere Stöcke oder Abladeplätze erreicht werden müssen. |
-| Drehkran, hydraulisch | Ein Drehturm mit Ausleger dreht um die eigene Achse. | der Arbeitsbereich rund um einen festen Standort liegt. |
+| Drehkran, hydraulisch | Ein Drehturm mit Ausleger fährt in Längs- und Querrichtung und dreht zusätzlich um die eigene Achse. | der Greifer auch Ecken, Nischen und Abladeplätze neben der Fahrbahn erreichen soll. |
 | An das Gebäude angepasst | Fahrbahn, Stützen und Spannweite folgen dem bestehenden Bau. | der Grundriss ungewöhnlich ist oder eine bestehende Anlage erweitert wird. |
 
 Zu jeder Anlage gehören Greifer, Ausleger, Fahrwerke und – beim Drehkran – der Drehturm. Wie gross der Greifer sein soll, hängt davon ab, was er fasst und wie schnell der Stock wachsen soll.
@@ -65,7 +64,7 @@ Wer Pläne oder Fotos der Scheune hat, sollte sie zur Besichtigung bereitlegen. 
 2. **Konzept und Offerte:** Sie erhalten einen Vorschlag zu Bauform, Spannweite und Hubhöhe – mit Offerte.
 3. **Fertigung:** Die Anlage entsteht in der Werkstatt.
 4. **Montage und Inbetriebnahme:** Montage vor Ort, Inbetriebnahme und Einweisung in die Bedienung.
-5. **Service:** Saison-Check, Wartung und Ersatzteile, solange die Anlage läuft.
+5. **Service:** Saison-Check und Wartung, solange die Anlage läuft.
 
 ## Wann ist der richtige Zeitpunkt?
 

@@ -50,7 +50,7 @@ const ownerCareer = [
 ];
 
 /**
- * @typedef {{ label: string, href: string, text: string }} SubPage
+ * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
  * @typedef {{
  *   id: 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen',
  *   label: string, href: string, overview: string, text: string, photo: string,
@@ -77,10 +77,10 @@ const areas = [
     photo: 'heukran-einsatz',
     ogTitle: 'Heukrananlagen und Industriekrane – neu, geprüft, modernisiert',
     children: [
-      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service, Ersatzteile' },
-      { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge-, Schwenk- und Drehkrane, alle Marken' },
-      { label: 'Prüfung & Wartung', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung, Wartung, Dokumentation' },
-      { label: 'Modernisierung', href: '/krantechnik/modernisierung', text: 'Funk, Umrichter, Überlastsicherung, Steuerung' },
+      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service', photo: 'heukran-einsatz' },
+      { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge-, Schwenk- und Drehkrane', photo: 'reparatur-vor-ort' },
+      { label: 'Prüfung & Wartung', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung, Wartung, Dokumentation', photo: 'pruefung-hallenkran' },
+      { label: 'Modernisierung', href: '/krantechnik/modernisierung', text: 'Funk, Umrichter, Überlastsicherung, Steuerung', photo: 'steuerung-funk' },
     ],
   },
   {
@@ -92,9 +92,9 @@ const areas = [
     photo: 'fahrmischer-werkstatt',
     ogTitle: 'Fahrmischer und Aufbauten: Service, Reparatur, Verschleissteile',
     children: [
-      { label: 'Fahrmischer', href: '/fahrzeugtechnik/fahrmischer', text: 'Service, Reparatur, Trommel-Revision' },
-      { label: 'Aufbauten: Reparatur & Service', href: '/fahrzeugtechnik/aufbauten-reparatur', text: 'LKW-Aufbauten, Mulden, Kipper, Hydraulik' },
-      { label: 'Verschleiss- & Ersatzteile', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Rinnen, Schurren, Spiralschutz ab Lager' },
+      { label: 'Fahrmischer', href: '/fahrzeugtechnik/fahrmischer', text: 'Service, Reparatur, Trommel-Revision', photo: 'fahrmischer-werkstatt' },
+      { label: 'Aufbauten: Reparatur & Service', href: '/fahrzeugtechnik/aufbauten-reparatur', text: 'LKW-Aufbauten, Mulden, Kipper, Hydraulik', photo: 'aufbau-reparatur' },
+      { label: 'Verschleiss- & Ersatzteile', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Rinnen, Schurren, Spiralschutz ab Lager', photo: 'verschleissteile-detail' },
     ],
   },
   {
@@ -106,9 +106,9 @@ const areas = [
     photo: 'arbeit-werkstatt',
     ogTitle: 'Konstruktion, Schweiss- und Stahlbau, Umbau von Baumaschinen',
     children: [
-      { label: 'Konstruktion & Engineering', href: '/sonderloesungen/konstruktion-engineering', text: 'Von der Idee bis zur Zeichnung' },
-      { label: 'Schweiss- & Stahlbau', href: '/sonderloesungen/schweiss-stahlbau', text: 'Stahlkonstruktionen, Einzelstücke, Kleinserien' },
-      { label: 'Baumaschinen: Umbau & Reparatur', href: '/sonderloesungen/baumaschinen', text: 'Umbauten, Nachrüstungen, Anbauteile' },
+      { label: 'Konstruktion & Engineering', href: '/sonderloesungen/konstruktion-engineering', text: 'Von der Idee bis zur Zeichnung', photo: 'konstruktion' },
+      { label: 'Schweiss- & Stahlbau', href: '/sonderloesungen/schweiss-stahlbau', text: 'Stahlkonstruktionen, Einzelstücke, Kleinserien', photo: 'arbeit-werkstatt' },
+      { label: 'Baumaschinen: Umbau & Reparatur', href: '/sonderloesungen/baumaschinen', text: 'Umbauten, Nachrüstungen, Anbauteile', photo: 'baumaschine' },
     ],
   },
 ];
@@ -203,12 +203,9 @@ export const site = {
   promises: {
     /** «Wir melden uns innert …» */
     responseTime: 'kurzer Zeit',
-    /** «Wie schnell sind Sie bei einem Stillstand vor Ort?» */
-    reactionTime: '[[PLATZHALTER: realistische Reaktionszeit bei einem Stillstand]]',
   },
 
   marks: {
-    crane: 'Krane aller Hersteller',
     mixers: ['Intermix', 'Putzmeister', 'Cifa', 'Stetter', 'Liebherr', 'Belmix', 'Peter'],
     mixerNotice:
       'Markennamen gehören ihren Inhabern. Wir sind unabhängig und kein Vertragshändler.',
@@ -258,10 +255,10 @@ export const site = {
     text: 'Einstieg nach Anliegen – wenn etwas still steht, geprüft oder repariert werden muss.',
     photo: 'servicefahrzeug',
     children: [
-      { label: 'Notfall-Service', href: '/service/notfall', text: 'Etwas steht still – rufen Sie direkt an' },
-      { label: 'Kran prüfen oder warten', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung mit Bericht' },
-      { label: 'Fahrmischer reparieren', href: '/fahrzeugtechnik/fahrmischer', text: 'Alle gängigen Marken, Teile ab Lager' },
-      { label: 'Ersatz- oder Verschleissteil', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Katalog, Teil anfragen' },
+      { label: 'Notfall-Service', href: '/service/notfall', text: 'Etwas steht still – rufen Sie direkt an', photo: 'servicefahrzeug' },
+      { label: 'Kran prüfen oder warten', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung mit Bericht', photo: 'pruefung-hallenkran' },
+      { label: 'Fahrmischer reparieren', href: '/fahrzeugtechnik/fahrmischer', text: 'Alle gängigen Marken, Teile ab Lager', photo: 'fahrmischer-werkstatt' },
+      { label: 'Ersatz- oder Verschleissteil', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Katalog, Teil anfragen', photo: 'verschleissteile-detail' },
     ],
   },
 
@@ -296,22 +293,11 @@ export const site = {
     profile: { label: 'Profil', href: '/konto' },
     logout: { label: 'Abmelden', href: '/abmelden' },
     /**
-     * ERP – ein ganz gewöhnlicher Hauptmenüpunkt neben «Über uns» und «Kontakt», sichtbar nur
-     * für Personal (Admin, Mitarbeiter). Rückmeldung 04.10.2026: keine eigene Leiste, kein
-     * Knopf im Profilmenü. `?typ=` stellt im ERP-Feed den Filter vor.
+     * ERP – ein ganz gewöhnlicher Link neben «Über uns» und «Kontakt», sichtbar nur für
+     * Personal (Admin, Mitarbeiter). Kein Untermenü (Testnotiz #1106): wer ins ERP geht,
+     * wählt dort, was er braucht.
      */
-    erp: {
-      label: 'ERP',
-      href: '/erp',
-      overview: 'ERP öffnen',
-      children: [
-        { label: 'Benutzer', href: '/erp?typ=user', text: 'Personen und Zugänge' },
-        { label: 'Artikel', href: '/erp?typ=article', text: 'Stammdaten und Bestand' },
-        { label: 'Aufträge', href: '/erp?typ=order', text: 'Prozesse und Belege' },
-        { label: 'Instanzen', href: '/erp?typ=instance', text: 'Stücke und Chargen' },
-        { label: 'Unternehmen', href: '/erp?typ=organization', text: 'Gesellschaften und Gebiete' },
-      ],
-    },
+    erp: { label: 'ERP', href: '/erp' },
   },
   /**
    * Pfade, die nicht zur Website gehören – robots.txt sperrt sie in jedem Modus. `/shop` ist

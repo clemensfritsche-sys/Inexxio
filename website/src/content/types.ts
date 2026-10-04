@@ -5,9 +5,6 @@
  * bzw. [[PRÜFEN: …]] markiert.
  */
 import type { IconName } from '../components/Icon.astro';
-import type { InquiryKind } from '../config/inquiry.mjs';
-
-export type { InquiryKind };
 export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen';
 /** OG-Bild: Standard oder das des Bereichs (public/og/, scripts/make-assets.mjs). */
 export type OgImage = 'default' | AreaId;
@@ -16,14 +13,13 @@ export interface LinkItem { href: string; label: string; text?: string; kind?: '
 export interface Action { label: string; href: string; track?: string }
 export interface Step { title: string; text: string }
 
-/** Abschluss jeder Leistungsseite: Kurzformular mit vorausgewähltem Bereich und Thema. */
+/**
+ * Abschluss jeder Seite: der EINE Kontaktbereich (ContactSection, #1107/#1129). Je Seite
+ * darf nur das passende Anliegen vorgewählt sein – Überschrift, Satz und Formular sind
+ * überall dieselben.
+ */
 export interface Cta {
-  title: string;
-  lead?: string;
-  kind: InquiryKind;
   need?: string;
-  urgency?: 'dringend' | 'wochen' | 'planung';
-  messageLabel?: string;
 }
 
 /** Bereichsseite (Auftrag Kap. 7.4) – alle drei mit derselben Struktur. */

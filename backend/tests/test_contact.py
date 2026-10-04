@@ -70,7 +70,7 @@ def mailbox(monkeypatch):
 
 def short(**extra) -> dict:
     data = {
-        "form": "kurz", "source": "/krantechnik/industriekrane", "t": "8000", "kind": "krantechnik", "need": "stoerung",
+        "form": "haupt", "source": "/krantechnik/industriekrane", "t": "8000", "need": "stoerung", "urgency": "wochen",
         "message": "Hubwerk bleibt stehen.", "place": "8500 Frauenfeld", "name": "Anna Muster",
         "phone": "052 000 00 00", "email": "anna@muster.ch",
     }
@@ -80,7 +80,7 @@ def short(**extra) -> dict:
 
 def main_form(**extra) -> dict:
     data = {
-        "form": "haupt", "source": "/kontakt", "t": "45000", "kind": "krantechnik", "need": "pruefung",
+        "form": "haupt", "source": "/kontakt", "t": "45000", "need": "pruefung",
         "urgency": "dringend", "maker": "Demag", "year": "1998", "place": "9546 Tuttwil",
         "message": "Jährliche Prüfung fällig.", "name": "Beat Beispiel", "company": "Beispiel AG",
         "phone": "+41 52 000 00 00", "email": "beat@beispiel.ch", "contact_pref": "telefon",
@@ -100,7 +100,7 @@ def test_a_short_inquiry_reaches_us_and_the_customer_gets_a_copy(client, mailbox
     assert res.status_code == 200, res.text
     assert res.json()["ok"] is True
     internal, confirmation = mailbox.sent
-    assert internal["Subject"] == "[Anfrage][Krantechnik] Anna Muster – 8500 Frauenfeld"
+    assert internal["Subject"] == "[Anfrage][Krantechnik][BALD] Anna Muster – 8500 Frauenfeld"
     assert internal["To"] == contact.VOCAB["email"]
     assert "anna@muster.ch" in internal["Reply-To"]
     assert attachments(internal) == [("anfrage.json", "application/json")]
@@ -138,7 +138,7 @@ def test_the_main_form_carries_urgency_photos_and_a_documented_record(client, ma
 def test_a_sketch_as_pdf_is_attached(client, mailbox):
     """Skizzen dürfen als PDF kommen (Auftrag 11.1) – sie landen als Anhang bei uns."""
     sketch = [("photos", ("skizze.pdf", b"%PDF-1.4 " + b"0" * 500, "application/pdf"))]
-    res = client.post("/api/v1/contact", data=main_form(kind="sonderloesungen", need="konstruktion"), files=sketch, headers=JSON)
+    res = client.post("/api/v1/contact", data=main_form(need="konstruktion"), files=sketch, headers=JSON)
     assert res.status_code == 200, res.text
     internal = mailbox.sent[0]
     assert ("skizze.pdf", "application/pdf") in attachments(internal)
@@ -146,18 +146,26 @@ def test_a_sketch_as_pdf_is_attached(client, mailbox):
 
 
 def test_a_part_inquiry_carries_part_and_usage(client, mailbox):
-    res = client.post("/api/v1/contact", data=main_form(kind="teile", need="", part="Auslaufrinne", usage="Liebherr HTM 904"), headers=JSON)
+    res = client.post("/api/v1/contact", data=main_form(need="teil", part="Auslaufrinne", usage="Liebherr HTM 904"), headers=JSON)
     assert res.status_code == 200, res.text
     record = json.loads(next(p for p in mailbox.sent[0].iter_attachments() if p.get_filename() == "anfrage.json").get_content())
     assert record["kind"]["value"] == "teile"
     assert record["asset"]["part"] == "Auslaufrinne" and record["asset"]["usage"] == "Liebherr HTM 904"
 
 
-def test_old_kinds_of_the_first_version_are_refused(client, mailbox):
-    """«kran», «fahrmischer» und «abo» gibt es seit Fassung 2 nicht mehr."""
-    for old in ("kran", "fahrmischer", "abo"):
-        res = client.post("/api/v1/contact", data=short(kind=old, need=""), headers=JSON)
-        assert res.status_code == 422 and res.json()["fields"]["kind"] == MSG["kind"], old
+def test_the_need_decides_the_kind_a_sent_kind_is_never_believed(client, mailbox):
+    """#1102: das Formular fragt keinen Bereich mehr – das Anliegen sagt ihn. Ein trotzdem
+    mitgeschickter Bereich (alte Seite, Bastler) wird überschrieben, nicht geglaubt."""
+    res = client.post("/api/v1/contact", data=short(kind="fahrzeugtechnik"), headers=JSON)
+    assert res.status_code == 200, res.text
+    record = json.loads(next(p for p in mailbox.sent[0].iter_attachments()).get_content())
+    assert record["kind"]["value"] == "krantechnik" and record["need"]["value"] == "stoerung"
+
+
+def test_an_unknown_need_is_refused(client, mailbox):
+    for need in ("", "kran", "abo"):
+        res = client.post("/api/v1/contact", data=short(need=need), headers=JSON)
+        assert res.status_code == 422 and res.json()["fields"]["need"] == MSG["need"], need
 
 
 def test_without_javascript_success_redirects_to_the_thank_you_page(client, mailbox):
@@ -189,14 +197,6 @@ def test_the_main_form_asks_for_need_and_urgency(client, mailbox):
     assert res.json()["fields"] == {"need": MSG["need"], "urgency": MSG["urgency"]}
 
 
-def test_a_need_that_does_not_belong_to_the_kind_is_dropped_not_refused(client, mailbox):
-    """Teile haben kein Anliegen – ein mitgeschicktes wird verworfen, nicht abgelehnt."""
-    res = client.post("/api/v1/contact", data=short(kind="teile", need="pruefung"), headers=JSON)
-    assert res.status_code == 200, res.text
-    record = json.loads(next(p for p in mailbox.sent[0].iter_attachments()).get_content())
-    assert record["need"] is None
-
-
 def test_without_javascript_errors_come_back_as_a_readable_page(client, mailbox):
     res = client.post("/api/v1/contact", data=short(name=""))
     assert res.status_code == 422
@@ -222,7 +222,7 @@ def test_text_is_cleaned_before_it_reaches_a_mail_header(client, mailbox):
     assert res.status_code == 200, res.text
     subject = mailbox.sent[0]["Subject"]
     assert "\n" not in subject and "\x00" not in subject
-    assert subject == "[Anfrage][Krantechnik] Anna Bcc: x@y.z – 8500 Frauenfeld"
+    assert subject == "[Anfrage][Krantechnik][BALD] Anna Bcc: x@y.z – 8500 Frauenfeld"
 
 
 def test_overlong_text_is_refused_with_the_limit(client, mailbox):
@@ -316,8 +316,8 @@ def _texts(value):
 def test_the_vocabulary_is_complete_and_consistent():
     """Jedes Feld, das die Website beschriftet, prüft der Server – und umgekehrt."""
     labelled = {name for name, _ in contact.VOCAB["labels"]}
-    assert labelled == set(contact.FIELDS)
-    for key in ("kind", "need", "urgency", "place", "name", "contact", "phone", "email",
+    assert labelled == set(contact.FIELDS) | {"kind"}  # der Bereich wird abgeleitet, nicht gelesen
+    for key in ("need", "urgency", "place", "name", "contact", "phone", "email",
                 "photosCount", "photosType", "photosSize", "tooFast", "tooLong"):
         assert contact.MSG.get(key), key
     # Nie eine Markierung ([[PLATZHALTER: …]]) in einer E-Mail – gefragt wird jeder TEXT,

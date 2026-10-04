@@ -432,8 +432,13 @@ const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
  * Desktop-Bildschirm (1440 px, halbe Breite, doppelte Dichte ≈ 1200 px) lädt. Die JPEG-Rückfall-
  * datei im <img src> lädt ein Browser mit AVIF nie; sie zu zählen hiesse, jedes Bild doppelt
  * und in voller Grösse zu rechnen. Ein <img> ohne <picture> zählt mit seiner Datei.
+ *
+ * Die Bilder der Mega-Dropdowns (`.dd__img`, #1111) zählen nicht: das Panel ist geschlossen
+ * `display: none`, die Bilder sind `loading="lazy"` – geladen werden sie erst beim Öffnen, und
+ * dann in Dropdown-Grösse (sizes="240px"), nicht in halber Bildschirmbreite.
  */
 function imageWeight(html, local) {
+  html = html.replace(/<span class="dd__img[^>]*>\s*<picture\b[\s\S]*?<\/picture>\s*<\/span>/g, '');
   let sum = 0;
   const pictures = [...html.matchAll(/<picture\b[\s\S]*?<\/picture>/g)].map((m) => m[0]);
   for (const pic of pictures) {

@@ -6,7 +6,7 @@
  *  5. Unternehmen: Übergabe, Über uns, Ratgeber, Karriere, Service – eine eigene Spalte wie
  *     die Bereiche (Rückmeldung 04.10.2026: unter dem Satz wirkte die Liste wie angehängt)
  *  6. Kontakt: Anschrift, Telefon, E-Mail – zur Laufzeit aus dem ERP (scripts/contact.ts)
- * Unterste Zeile: © Jahr · Impressum · Datenschutz · UID.
+ * Unterste Zeile: © Jahr · Impressum · Datenschutz. Die UID steht im Impressum (#1103).
  */
 import { site, contactEmail, isMissing } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
@@ -73,7 +73,6 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         <li><a href="/impressum">Impressum</a></li>
         <li><a href="/datenschutz">Datenschutz</a></li>
         {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
-        <li>UID <span set:html={rich(site.brand.uid)} /></li>
       </ul>
     </div>
   </div>

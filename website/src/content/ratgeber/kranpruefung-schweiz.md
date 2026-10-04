@@ -21,7 +21,7 @@ sources:
 related:
   - href: '/krantechnik/pruefung-wartung'
     label: 'Kranprüfung und Wartung'
-    text: 'Jährliche Überprüfung mit Prüfbericht – für alle Marken.'
+    text: 'Jährliche Überprüfung mit Prüfbericht.'
   - href: '/krantechnik/modernisierung'
     label: 'Kran modernisieren'
     text: 'Wenn bei der Prüfung mehr ansteht als ein Eintrag.'
@@ -29,7 +29,6 @@ related:
     label: 'Neue Heukrananlage planen'
     text: 'Bauformen, Platzbedarf, Ablauf.'
 cta:
-  kind: krantechnik
   need: pruefung
 ---
 
@@ -91,6 +90,6 @@ Ins Kranbuch gehört alles, was den Zustand des Krans belegt: die Konformitätse
 3. Die Überprüfung an Kranfachleute vergeben und das Ergebnis im Kranbuch festhalten.
 4. Termin für das nächste Mal setzen – am besten gleich, bevor er vergessen geht.
 
-Die Überprüfung und die Wartung übernehmen wir – mit Prüfbericht für das Kranbuch, für Krane aller Hersteller. [[PRÜFEN: Qualifikation der Kranfachleute im Team bestätigen]] Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte; diese Kontrolle bieten wir nicht an.
+Die Überprüfung und die Wartung übernehmen wir – mit Prüfbericht für das Kranbuch, vor allem für die HS- und unsere eigenen Krananlagen, auf Anfrage auch für andere. [[PRÜFEN: Qualifikation der Kranfachleute im Team bestätigen]] Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte; diese Kontrolle bieten wir nicht an.
 
 Unverbindliche Orientierung. Massgebend sind die Angaben des Herstellers und die Vorgaben der Suva.

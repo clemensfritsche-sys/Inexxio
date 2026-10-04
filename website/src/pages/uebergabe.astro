@@ -11,7 +11,7 @@ import Timeline from '../components/Timeline.astro';
 import Quote from '../components/Quote.astro';
 import Photo from '../components/Photo.astro';
 import Faq from '../components/Faq.astro';
-import CtaBlock from '../components/CtaBlock.astro';
+import ContactSection from '../components/ContactSection.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
@@ -92,7 +92,7 @@ import { faqPage } from '../lib/seo.mjs';
     </div>
   </section>
 
-  <CtaBlock title={u.cta.title} lead={u.cta.lead} kind="waehlen" />
+  <ContactSection />
 </Base>
 
 <style>

@@ -29,8 +29,8 @@ spätere Übernahme ins ERP)::
     {
       "schema": "inexxio.website.inquiry/1",
       "id": "uuid", "received_at": "ISO-8601 UTC",
-      "form": "haupt" | "kurz", "source": "/pfad/der/seite",
-      "kind":    {"value": "krantechnik", "label": "Krantechnik"},   # der Bereich
+      "form": "haupt", "source": "/pfad/der/seite",
+      "kind":    {"value": "krantechnik", "label": "Krantechnik"},   # der Bereich (aus dem Anliegen)
       "need":    {"value": "...", "label": "..."} | null,            # das Anliegen
       "urgency": {"value": "...", "label": "..."} | null,
       "asset":   {"maker": str|null, "year": str|null, "part": str|null,
@@ -182,31 +182,26 @@ def _options(key: str) -> dict[str, str]:
     return {o["value"]: o["label"] for o in VOCAB[key]}
 
 
-def _check_choices(values: dict[str, str], form: str, errors: dict[str, str]) -> None:
-    kind = values["kind"]
-    if kind not in _options("kinds"):
-        errors["kind"] = MSG["kind"]
-        return
-    needs = {n["value"] for n in VOCAB["needs"].get(kind, [])}
-    if not needs:
-        values["need"] = ""  # ein Anliegen gibt es nur bei den drei Bereichen
-    elif values["need"] and values["need"] not in needs:
+def _check_choices(values: dict[str, str], errors: dict[str, str]) -> None:
+    """Den Bereich fragt das Formular nicht mehr (Testnotiz #1102) – das ANLIEGEN sagt ihn
+    (``kindOf``). Ein mitgeschickter Bereich wird darum überschrieben, nie geglaubt."""
+    kind = VOCAB["kindOf"].get(values["need"], "")
+    values["kind"] = kind
+    if not kind:
+        values["need"] = ""
         errors["need"] = MSG["need"]
-    elif form == "haupt" and not values["need"]:
-        errors["need"] = MSG["need"]
-    if values["urgency"] and values["urgency"] not in _options("urgencies"):
-        errors["urgency"] = MSG["urgency"]
-    elif form == "haupt" and not values["urgency"]:
+    if values["urgency"] not in _options("urgencies"):
+        values["urgency"] = ""
         errors["urgency"] = MSG["urgency"]
     if values["contact_pref"] and values["contact_pref"] not in _options("contactPrefs"):
         values["contact_pref"] = ""
     if kind != "teile":
         values["part"] = values["usage"] = ""
-    elif form == "haupt" and not values["part"]:
+    elif not values["part"]:
         errors["part"] = MSG["part"]
 
 
-def _check_fields(values: dict[str, str], form: str, errors: dict[str, str]) -> None:
+def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
     for name, limit in LIMITS.items():
         if name in values and len(values[name]) > limit:
             errors.setdefault(name, MSG["tooLong"].replace("{max}", str(limit)))
@@ -214,8 +209,6 @@ def _check_fields(values: dict[str, str], form: str, errors: dict[str, str]) -> 
         errors.setdefault("year", MSG["year"])
     if not values["place"]:
         errors.setdefault("place", MSG["place"])
-    if form == "kurz" and not values["message"]:
-        errors.setdefault("message", MSG["message"])
     if not values["name"]:
         errors.setdefault("name", MSG["name"])
     phone, email, pref = values["phone"], values["email"], values["contact_pref"]
@@ -261,16 +254,16 @@ async def _read_photos(uploads: list, errors: dict[str, str]) -> list[Photo]:
     return photos
 
 
-FIELDS = ("kind", "need", "urgency", "part", "usage", "maker", "year", "place",
+FIELDS = ("need", "urgency", "part", "usage", "maker", "year", "place",
           "message", "name", "company", "phone", "email", "contact_pref")
 
 
 async def _parse(form_data, errors: dict[str, str]) -> Inquiry:
-    form = "kurz" if _clean(form_data.get("form")) == "kurz" else "haupt"
+    form = "haupt"  # es gibt EIN Formular (#1107/#1129); das Feld bleibt im Schema
     source = _clean(form_data.get("source")).lower()
     values = {name: _clean(form_data.get(name), multiline=(name == "message")) for name in FIELDS}
-    _check_choices(values, form, errors)
-    _check_fields(values, form, errors)
+    _check_choices(values, errors)
+    _check_fields(values, errors)
     photos = await _read_photos(form_data.getlist("photos"), errors)
     return Inquiry(form=form, source=source if SOURCE_RE.match(source) else "/kontakt",
                    values=values, photos=photos)

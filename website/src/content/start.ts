@@ -21,13 +21,13 @@ export const start = {
     trust: [
       'Seit {{history.founded}}',
       'Eigene Krananlagen seit {{history.cranesSince}}',
-      'Alle Marken im Service',
-      'Ersatzteillager vor Ort',
+      'Fahrmischer aller Marken',
+      'Verschleissteile ab Lager',
     ],
   },
 
   summary:
-    '{{brand.full}} plant und baut Krananlagen, wartet und repariert Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Werkstatt und Ersatzteillager stehen in Tuttwil-Wängi TG.',
+    '{{brand.full}} plant und baut Krananlagen, wartet und repariert Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Die Werkstatt steht in Tuttwil-Wängi TG.',
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
@@ -56,8 +56,8 @@ export const start = {
         text: 'Wir planen, bauen und montieren Krananlagen selbst. Dieses Wissen steckt auch in jedem Service.',
       },
       {
-        title: 'Alle Marken, kurze Wege.',
-        text: 'Ein Ansprechpartner für Krane, Fahrmischer und Aufbauten. Ersatzteillager vor Ort und eine Nummer für alles – auch wenn etwas stillsteht.',
+        title: 'Kurze Wege, eine Nummer.',
+        text: 'Ein Ansprechpartner für Krane, Fahrmischer und Aufbauten – und eine Nummer für alles, auch wenn etwas stillsteht.',
       },
       {
         title: 'Sauber dokumentiert.',
@@ -84,8 +84,7 @@ export const start = {
   area: {
     eyebrow: 'Wo wir arbeiten',
     h2: 'Aus Tuttwil-Wängi in die ==ganze Welt==',
-    text: 'Zuhause sind wir in Tuttwil-Wängi: Hier stehen Werkstatt und Ersatzteillager, und in der Nähe sind wir am schnellsten bei Ihnen. Im Einsatz sind wir {{area.summary}} – für Krananlagen, Service und Sonderlösungen.',
-    note: 'Nicht jeder Einsatz ist innert Stunden möglich, aber jeder lässt sich planen. Fragen Sie an.',
+    text: 'Zuhause sind wir in Tuttwil-Wängi: Hier steht unsere Werkstatt, und in der Nähe sind wir am schnellsten bei Ihnen. Im Einsatz sind wir {{area.summary}} – für Krananlagen, Service und Sonderlösungen.',
     link: 'Mehr über uns',
   },
 
@@ -107,12 +106,8 @@ export const start = {
     },
     {
       q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
-      a: '{{promises.reactionTime}} Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
+      a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
     },
   ] satisfies Faq[],
 
-  cta: {
-    h2: 'Wie können wir Ihnen helfen?',
-    lead: 'Beschreiben Sie Ihr Anliegen in zwei Minuten. Wir melden uns innert {{promises.responseTime}}.',
-  },
 };

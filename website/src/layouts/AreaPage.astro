@@ -11,7 +11,7 @@ import Levels from '../components/Levels.astro';
 import AreaCard from '../components/AreaCard.astro';
 import Steps from '../components/Steps.astro';
 import Faq from '../components/Faq.astro';
-import CtaBlock from '../components/CtaBlock.astro';
+import ContactSection from '../components/ContactSection.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
 import Rich from '../components/Rich.astro';
 import { areaOf } from '../config/site.mjs';
@@ -74,7 +74,7 @@ const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href ===
     </div>
   </section>
 
-  <CtaBlock title={page.cta.title} lead={page.cta.lead} kind={page.cta.kind} need={page.cta.need} />
+  <ContactSection need={page.cta.need} />
 </Base>
 
 <style>

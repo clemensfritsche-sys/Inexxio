@@ -3,7 +3,7 @@
  * Kopfzeile – EINE Zeile (Rückmeldung 04.10.2026: Servicezeile, Arbeitsleiste und
  * Vorschau-Banner sind ersatzlos entfallen):
  *   Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Sonderlösungen ▾ · Service ▾ · Über uns ·
- *   Kontakt · ERP ▾ (nur Personal) · Telefon · Anmelden bzw. Profilmenü · «Anfrage stellen».
+ *   Kontakt · ERP (nur Personal, ein Link) · Telefon · Anmelden bzw. Profilmenü · «Anfrage stellen».
  * Schmaler: Logo, Telefon, Konto, Menü.
  *
  * Ohne JavaScript voll bedienbar: Dropdowns öffnen per Zeigen/Fokus, das Mobil-Menü ist ein
@@ -74,8 +74,11 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                     {g.overview} <Icon name="arrow-right" size={16} />
                   </a>
                 </div>
+                {/* Ein Bild je Unterpunkt (Testnotiz #1111): das des Bereichs steht, bis man auf
+                    einen Unterpunkt zeigt – dann seines. Reines CSS (:has), so hoch wie das Panel. */}
                 <a href={g.href} class="dd__media" tabindex="-1" aria-hidden="true">
-                  <Photo id={g.photo} sizes="240px" />
+                  <span class="dd__img"><Photo id={g.photo} sizes="240px" /></span>
+                  {g.children.map((c) => <span class="dd__img"><Photo id={c.photo} sizes="240px" /></span>)}
                 </a>
               </div>
             </li>
@@ -85,25 +88,8 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
               <a href={m.href} class:list={['nav__link', within(m.href) && 'is-current']} aria-current={within(m.href) ? 'page' : undefined}>{m.label}</a>
             </li>
           ))}
-          <li class="nav__item dd dd--end dd--plain" data-dd data-acct="staff">
-            <button type="button" class="nav__link" aria-expanded="false" aria-controls="dd-erp" data-dd-toggle>
-              {erp.label} <Icon name="chevron-down" size={16} class="nav__chev" />
-            </button>
-            <div class="dd__panel" id="dd-erp" data-dd-panel>
-              <div class="dd__main">
-                <ul role="list" class="dd__list">
-                  {erp.children.map((c) => (
-                    <li>
-                      <a href={c.href} class="dd__link" rel="nofollow">
-                        <span class="dd__label">{c.label}</span>
-                        <span class="dd__text">{c.text}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-                <a href={erp.href} class="dd__overview" rel="nofollow">{erp.overview} <Icon name="arrow-right" size={16} /></a>
-              </div>
-            </div>
+          <li class="nav__item" data-acct="staff">
+            <a href={erp.href} class="nav__link" rel="nofollow">{erp.label}</a>
           </li>
         </ul>
       </nav>
@@ -161,13 +147,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
               {site.menu.map((m) => (
                 <a href={m.href} class="mnav__link" aria-current={within(m.href) ? 'page' : undefined}>{m.label}</a>
               ))}
-              <details class="mnav__group" data-acct="staff">
-                <summary class="mnav__link">{erp.label} <Icon name="chevron-down" size={20} /></summary>
-                <ul role="list" class="mnav__sub">
-                  {erp.children.map((c) => <li><a href={c.href} rel="nofollow">{c.label}<span>{c.text}</span></a></li>)}
-                  <li><a href={erp.href} class="mnav__overview" rel="nofollow">{erp.overview}</a></li>
-                </ul>
-              </details>
+              <a href={erp.href} class="mnav__link" rel="nofollow" data-acct="staff">{erp.label}</a>
               <ul role="list" class="mnav__more">
                 {site.company.filter((c) => !site.menu.some((m) => m.href === c.href)).map((c) => (
                   <li><a href={c.href} aria-current={within(c.href) ? 'page' : undefined}>{plain(c.label)}</a></li>
@@ -206,6 +186,8 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
     display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
     background: var(--red); color: var(--white); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.02em;
   }
+  .pm__initials { overflow: hidden; }
+  .pm__initials :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
   .pm__toggle[aria-expanded='true'] .pm__initials { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--red); }
   .pm__panel {
     display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: 260px; white-space: normal;
@@ -257,8 +239,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
     box-shadow: var(--shadow-lg); padding: var(--s-3);
   }
   .dd--end .dd__panel { left: auto; right: 0; }
-  /* Ohne Foto (ERP): eine Spalte, schmaler. */
-  .dd--plain .dd__panel { grid-template-columns: minmax(0, 1fr); width: 320px; }
   /* Brücke zwischen Eintrag und Panel, damit es beim Hinüberzeigen nicht zuklappt. */
   .dd__panel::before { content: ''; position: absolute; left: 0; right: 0; top: -12px; height: 12px; }
   /* Ohne JS öffnet auch der Tastaturfokus; mit JS übernimmt der Knopf (aria-expanded). */
@@ -278,9 +258,23 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
     color: var(--red-deep); text-decoration: none;
   }
   .dd__overview:hover { text-decoration: underline; text-underline-offset: 0.2em; }
-  .dd__media { display: block; overflow: hidden; border-radius: var(--r-md); align-self: start; }
-  .dd__media :global(.ph) { padding: var(--s-3); }
-  .dd__media :global(.ph__brief) { font-size: 0.75rem; }
+  /* Das Bild steht so hoch wie das Panel (#1111): die Spalte streckt sich, die Bilder liegen
+     übereinander und füllen sie. Sichtbar ist das des Bereichs – oder das des Unterpunkts,
+     auf den man zeigt. */
+  .dd__media { position: relative; display: block; overflow: hidden; border-radius: var(--r-md); align-self: stretch; min-height: 200px; }
+  .dd__img { position: absolute; inset: 0; opacity: 0; transition: opacity 160ms var(--ease); }
+  .dd__img:first-child { opacity: 1; }
+  .dd__img :global(picture), .dd__img :global(img), .dd__img :global(.ph) { width: 100%; height: 100%; aspect-ratio: auto !important; }
+  .dd__img :global(img) { object-fit: cover; }
+  .dd__img :global(.ph) { padding: var(--s-3); }
+  .dd__img :global(.ph__brief) { font-size: 0.75rem; }
+  .dd__panel:has(.dd__link:is(:hover, :focus-visible)) .dd__img:first-child { opacity: 0; }
+  .dd__panel:has(.dd__list > li:nth-child(1) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(2),
+  .dd__panel:has(.dd__list > li:nth-child(2) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(3),
+  .dd__panel:has(.dd__list > li:nth-child(3) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(4),
+  .dd__panel:has(.dd__list > li:nth-child(4) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(5),
+  .dd__panel:has(.dd__list > li:nth-child(5) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(6) { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .dd__img { transition: none; } }
 
   .mainbar__tel, .mainbar__acct {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; height: 44px;

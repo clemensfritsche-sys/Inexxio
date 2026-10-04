@@ -9,11 +9,12 @@ import Hero from '../components/Hero.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
+import LocationMap from '../components/LocationMap.astro';
 import Quote from '../components/Quote.astro';
 import AreaCard from '../components/AreaCard.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
-import CtaBlock from '../components/CtaBlock.astro';
+import ContactSection from '../components/ContactSection.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
@@ -101,7 +102,7 @@ const h = start.handover;
         <aside class="col-4 start-portrait" aria-label="Clemens Fritsche">
           <Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 60vw" />
           <Rich as="p" class="start-portrait__text" text={start.why.portrait.text} />
-          <p class="small muted">{site.people.owner.name}, {site.people.owner.role}</p>
+          <p class="small muted">{site.people.owner.name}</p>
           <a class="arrow-link" href="/ueber-uns">{start.why.portrait.link} <Icon name="arrow-right" size={18} /></a>
         </aside>
       </div>
@@ -131,10 +132,9 @@ const h = start.handover;
       <div class="col-6 start-area__text">
         <SectionHead eyebrow={start.area.eyebrow} title={start.area.h2} id="wo-wir-arbeiten" class="head--flush" />
         <Rich as="p" text={start.area.text} />
-        <Rich as="p" class="small muted" text={start.area.note} />
         <a class="arrow-link" href="/ueber-uns#wo-wir-arbeiten">{start.area.link} <Icon name="arrow-right" size={18} /></a>
       </div>
-      <div class="col-6 start-area__media"><Photo id="arbeit-werkstatt" sizes="(min-width: 960px) 50vw, 100vw" /></div>
+      <div class="col-6 start-area__media"><LocationMap /></div>
     </div>
   </section>
 
@@ -157,7 +157,7 @@ const h = start.handover;
     </div>
   </section>
 
-  <CtaBlock title={start.cta.h2} lead={start.cta.lead} kind="waehlen" />
+  <ContactSection />
 </Base>
 
 <style>

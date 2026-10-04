@@ -39,6 +39,27 @@ export const photos = {
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',
   },
+  /* Eine Bildstelle je Bauform (#1117) – bis zum Fototag mit Beschreibung. */
+  'heukran-einschiene': {
+    alt: 'Einschienen-Heukran unter dem Dach einer langen Scheune',
+    brief: 'Einschienenkran in einer langen, schmalen Scheune: Laufschiene unter dem First, Greifer über dem Heustock, quer',
+    ratio: '4/3',
+  },
+  'heukran-bruecke': {
+    alt: 'Brücken-Heukran über die ganze Breite einer Scheune',
+    brief: 'Brücken-Heukran: Kranbrücke über die ganze Scheunenbreite, Katze mit Greifer, mehrere Stöcke im Bild, quer',
+    ratio: '4/3',
+  },
+  'heukran-drehkran': {
+    alt: 'Hydraulischer Heudrehkran mit Drehturm und Ausleger',
+    brief: 'Hydraulischer Heudrehkran: Drehturm und Ausleger, Greifer in einer Ecke des Stocks, quer',
+    ratio: '4/3',
+  },
+  'heukran-angepasst': {
+    alt: 'An das Gebäude angepasste Heukrananlage mit eigener Fahrbahn',
+    brief: 'Heukrananlage, die einem ungewöhnlichen Grundriss folgt (eigene Stützen, verlängerte Fahrbahn), quer',
+    ratio: '4/3',
+  },
   'typenschild-hs': {
     alt: 'Typenschild einer Krananlage aus Tuttwil mit Typ und Baujahr',
     brief: 'Typenschild eines HS-Krans, gut lesbar (Typ, Baujahr, Nummer), Detail',
@@ -105,7 +126,7 @@ export const photos = {
     ratio: '3/2',
   },
   'portraet-clemens': {
-    alt: 'Clemens Fritsche, Geschäftsführer',
+    alt: 'Clemens Fritsche',
     brief: 'Porträt Clemens Fritsche, hoch, neutraler Hintergrund, Arbeitskleidung oder Hemd',
     ratio: '4/5',
   },

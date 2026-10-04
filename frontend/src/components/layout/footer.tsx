@@ -36,7 +36,7 @@ function useErpContact(): Contact {
  * ►►► Der Fuss des Konto-/ERP-Bereichs – ein Spiegel des Website-Fusses. ◄◄◄
  *
  * Dieselbe Anordnung wie `website/src/components/Footer.astro` (Logo und Satz · drei
- * Bereiche · Unternehmen · Kontakt; unten © · Impressum · Datenschutz · UID), dieselben Inhalte aus
+ * Bereiche · Unternehmen · Kontakt; unten © · Impressum · Datenschutz), dieselben Inhalte aus
  * `lib/site-shell.json` (generiert aus `website/src/config/site.mjs`). Hier stand vorher
  * ein Fuss eines anderen Geschäfts – «Präzisionsfertigung», eine fremde Telefonnummer und
  * ein Handelsregister-Satz, der nirgends belegt war. Ein Spiegel kann das nicht mehr: er
@@ -103,7 +103,6 @@ export function Footer() {
             {shell.legal.map((l) => <li key={l.href}><a href={l.href}>{l.label}</a></li>)}
             <li><a href="/agb">AGB</a></li>
             <li><CookieSettingsLink /></li>
-            {shell.uid && <li>UID {shell.uid}</li>}
           </ul>
         </div>
       </div>

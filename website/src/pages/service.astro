@@ -8,7 +8,7 @@ import Hero from '../components/Hero.astro';
 import EntryTiles from '../components/EntryTiles.astro';
 import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
-import CtaBlock from '../components/CtaBlock.astro';
+import ContactSection from '../components/ContactSection.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
@@ -61,7 +61,7 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
     </div>
   </section>
 
-  <CtaBlock title="Anfrage stellen" lead="Beschreiben Sie Ihr Anliegen – wir melden uns innert {{promises.responseTime}}." kind="waehlen" />
+  <ContactSection />
 </Base>
 
 <style>

@@ -2,7 +2,7 @@
 /**
  * ►►► Das Vokabular des Anfrage-Formulars – an EINER Stelle. ◄◄◄
  *
- * Das Formular (InquiryForm/ShortForm) baut daraus seine Auswahl, das Backend
+ * Das Formular (InquiryForm) baut daraus seine Auswahl, das Backend
  * (backend/app/routers/contact.py) prüft gegen dieselbe Liste und schreibt mit denselben
  * Beschriftungen die E-Mail – `scripts/export-contact.mjs` überträgt sie nach
  * backend/app/assets/website_contact.json. Ein neuer Wert ist damit eine Zeile hier.
@@ -10,18 +10,20 @@
  * Die drei Bereiche heissen wie in der Navigation (Auftrag Kap. 5.4 und 11.1).
  */
 
-/** @typedef {'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen' | 'teile' | 'anderes'} InquiryKind */
-
 export const inquiry = {
-  /** Schritt 1 «Bereich». */
+  /**
+   * Die Bereiche. Gefragt wird nicht mehr nach ihnen (Testnotiz #1102: kein Schritt
+   * «Bereich») – das gewählte ANLIEGEN sagt, welcher es ist (`kindOf`). Sie bleiben für
+   * Betreff und E-Mail. `group` fasst im Formular zusammen, was keinen eigenen Titel braucht.
+   */
   kinds: [
-    { value: 'krantechnik', label: 'Krantechnik', hint: 'Heukrananlage, Industriekran, Prüfung, Wartung, Störung, Modernisierung', subject: 'Krantechnik' },
-    { value: 'fahrzeugtechnik', label: 'Fahrzeugtechnik', hint: 'Fahrmischer-Service, Reparatur, Trommel-Revision, Aufbauten', subject: 'Fahrzeugtechnik' },
-    { value: 'sonderloesungen', label: 'Sonderlösungen', hint: 'Konstruktion, Schweiss- und Stahlbau, Baumaschinen', subject: 'Sonderlösungen' },
-    { value: 'teile', label: 'Ersatz- oder Verschleissteile', hint: 'Rinnen, Schurren, Spiralschutz, Kranteile', subject: 'Teile' },
-    { value: 'anderes', label: 'Anderes', hint: 'Beschreiben Sie Ihr Anliegen im nächsten Schritt', subject: 'Anderes' },
+    { value: 'krantechnik', label: 'Krantechnik', subject: 'Krantechnik' },
+    { value: 'fahrzeugtechnik', label: 'Fahrzeugtechnik', subject: 'Fahrzeugtechnik' },
+    { value: 'sonderloesungen', label: 'Sonderlösungen', subject: 'Sonderlösungen' },
+    { value: 'teile', label: 'Ersatz- oder Verschleissteile', subject: 'Teile', group: 'Weiteres' },
+    { value: 'anderes', label: 'Anderes', subject: 'Anderes', group: 'Weiteres' },
   ],
-  /** Schritt 2 «Anliegen» – abhängig vom Bereich. Teile fragen stattdessen «welches, wofür». */
+  /** Schritt 1 «Anliegen» – je Bereich. Jeder Wert kommt genau einmal vor. */
   needs: {
     krantechnik: [
       { value: 'heukrananlage', label: 'Neue Heukrananlage' },
@@ -42,6 +44,8 @@ export const inquiry = {
       { value: 'stahlbau', label: 'Schweiss-/Stahlbau' },
       { value: 'baumaschine', label: 'Baumaschine Umbau/Reparatur' },
     ],
+    teile: [{ value: 'teil', label: 'Ersatz- oder Verschleissteil' }],
+    anderes: [{ value: 'anderes', label: 'Anderes' }],
   },
   urgencies: [
     { value: 'dringend', label: 'Steht still – dringend', subject: 'DRINGEND' },
@@ -83,7 +87,6 @@ export const inquiry = {
   ],
   /** Fehlermeldungen – im Browser direkt am Feld und vom Server, wortgleich. */
   messages: {
-    kind: 'Bitte wählen Sie den Bereich.',
     need: 'Bitte wählen Sie Ihr Anliegen.',
     part: 'Bitte nennen Sie das Teil, das Sie brauchen.',
     urgency: 'Bitte wählen Sie, wie dringend es ist.',
@@ -129,5 +132,21 @@ export const inquiry = {
   },
 };
 
-/** Bereiche mit einer Auswahl «Anliegen». */
-export const kindsWithNeeds = /** @type {(keyof typeof inquiry.needs)[]} */ (Object.keys(inquiry.needs));
+/** Anliegen → Bereich: das Anliegen sagt, worum es geht (#1102). */
+export const kindOf = Object.fromEntries(
+  Object.entries(inquiry.needs).flatMap(([kind, needs]) => needs.map((n) => [n.value, kind])),
+);
+if (Object.keys(kindOf).length !== Object.values(inquiry.needs).flat().length) {
+  throw new Error('inquiry.mjs: ein Anliegen steht in zwei Bereichen.');
+}
+
+/** Gruppen im Formular: Titel → Anliegen, in der Reihenfolge der Bereiche. */
+export const needGroups = (() => {
+  /** @type {Map<string, { value: string, label: string }[]>} */
+  const groups = new Map();
+  for (const k of inquiry.kinds) {
+    const title = 'group' in k && k.group ? k.group : k.label;
+    groups.set(title, [...(groups.get(title) ?? []), ...inquiry.needs[/** @type {keyof typeof inquiry.needs} */ (k.value)]]);
+  }
+  return [...groups].map(([title, needs]) => ({ title, needs }));
+})();

@@ -20,7 +20,6 @@
     "Waldweg 1",
     "9546 Tuttwil"
   ],
-  "uid": null,
   "areas": [
     {
       "label": "Krantechnik",
@@ -31,12 +30,12 @@
         {
           "label": "Heukrananlagen",
           "href": "/krantechnik/heukrananlagen",
-          "text": "Neuanlagen nach Mass, Umbau, Service, Ersatzteile"
+          "text": "Neuanlagen nach Mass, Umbau, Service"
         },
         {
           "label": "Industriekrane",
           "href": "/krantechnik/industriekrane",
-          "text": "Brücken-, Hänge-, Schwenk- und Drehkrane, alle Marken"
+          "text": "Brücken-, Hänge-, Schwenk- und Drehkrane"
         },
         {
           "label": "Prüfung & Wartung",
@@ -172,35 +171,7 @@
     },
     "erp": {
       "label": "ERP",
-      "href": "/erp",
-      "overview": "ERP öffnen",
-      "children": [
-        {
-          "label": "Benutzer",
-          "href": "/erp?typ=user",
-          "text": "Personen und Zugänge"
-        },
-        {
-          "label": "Artikel",
-          "href": "/erp?typ=article",
-          "text": "Stammdaten und Bestand"
-        },
-        {
-          "label": "Aufträge",
-          "href": "/erp?typ=order",
-          "text": "Prozesse und Belege"
-        },
-        {
-          "label": "Instanzen",
-          "href": "/erp?typ=instance",
-          "text": "Stücke und Chargen"
-        },
-        {
-          "label": "Unternehmen",
-          "href": "/erp?typ=organization",
-          "text": "Gesellschaften und Gebiete"
-        }
-      ]
+      "href": "/erp"
     }
   },
   "legal": [

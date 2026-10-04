@@ -11,7 +11,7 @@ import Hero from '../components/Hero.astro';
 import Glance from '../components/Glance.astro';
 import ScopeList from '../components/ScopeList.astro';
 import Faq from '../components/Faq.astro';
-import CtaBlock from '../components/CtaBlock.astro';
+import ContactSection from '../components/ContactSection.astro';
 import RelatedLinks from '../components/RelatedLinks.astro';
 import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
@@ -72,14 +72,7 @@ const nodes = [
     </div>
   </section>
 
-  <CtaBlock
-    title={page.cta.title}
-    lead={page.cta.lead}
-    kind={page.cta.kind}
-    need={page.cta.need}
-    urgency={page.cta.urgency}
-    messageLabel={page.cta.messageLabel}
-  />
+  <ContactSection need={page.cta.need} />
 
   <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
   <div class="section section--tight">
