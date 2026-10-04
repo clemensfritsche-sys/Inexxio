@@ -18,8 +18,7 @@ import type { User } from 'firebase/auth';
  * ►►► Der Kopf des Konto-/ERP-Bereichs – ein Spiegel der Website-Kopfzeile. ◄◄◄
  *
  * Dieselbe Struktur wie `website/src/components/Header.astro` (Auftrag Kap. 7.1/6.2):
- * dunkle **Servicezeile** (Ankündigung · Notfall · Telefon · ERP · Anmelden bzw.
- * Profilmenü) und weisse **Hauptzeile** (Logo · drei Bereiche und Service als Dropdowns ·
+ * dunkle **Servicezeile** (Ankündigung · Notfall · Telefon · Anmelden bzw. Profilmenü) und weisse **Hauptzeile** (Logo · drei Bereiche und Service als Dropdowns ·
  * Über uns · Kontakt · «Anfrage stellen»). Die Inhalte kommen aus `lib/site-shell.json`,
  * generiert aus `website/src/config/site.mjs` – hier steht kein eigenes Wort.
  *
@@ -29,6 +28,9 @@ import type { User } from 'firebase/auth';
  * beim Abmelden der ganze Anzeige-Cache geräumt wird (S3).
  *
  * Seiten der Website sind schlichte `<a>` – der Router kennt sie nicht.
+ *
+ * Für Personal steht darüber die **Arbeitsleiste** (`WorkBar`) – dieselbe wie auf der
+ * Website; einen ERP-Knopf in Servicezeile oder Profilmenü gibt es nicht mehr.
  */
 
 type Group = (typeof shell.areas)[number];
@@ -140,6 +142,7 @@ export function Navbar() {
 
   return (
     <>
+      {staff && <WorkBar />}
       <header
         className={['sh', scrolled && 'is-scrolled', compact && !busy && 'is-compact'].filter(Boolean).join(' ')}
         onFocus={() => setCompact(false)}
@@ -194,6 +197,25 @@ type Account = {
   onLogin: () => void; onLogout: () => void;
 };
 
+/**
+ * Arbeitsleiste für Personal – scrollt mit der Seite weg, sticky bleibt der Kopf.
+ * Schlichte `<a>`: `?typ=` liest das ERP beim Laden; ein Router-Wechsel auf derselben
+ * Route liesse den Filter stehen.
+ */
+function WorkBar() {
+  const work = shell.account.workbar;
+  return (
+    <nav className="sh-work" aria-label="Arbeitsleiste">
+      <div className="site-wrap sh-work-in">
+        <a className="sh-work-home" href={work.href}><LayoutDashboard size={16} /> {work.label}</a>
+        <ul className="sh-work-list">
+          {work.links.map((l) => <li key={l.href}><a href={l.href}>{l.label}</a></li>)}
+        </ul>
+      </div>
+    </nav>
+  );
+}
+
 /** Ab 8 px eine Linie unten; beim Runterscrollen klappt die Servicezeile weg (wie die Website). */
 function useScrollState(setScrolled: (v: boolean) => void, setCompact: (v: boolean) => void) {
   useEffect(() => {
@@ -246,13 +268,6 @@ function ServiceBar({ account, pmOpen, onPm }: { account: Account; pmOpen: boole
           <li>
             <a className="sh-link" href={TEL}><Phone size={16} /> <span className="sh-tnum">{shell.phone.display}</span></a>
           </li>
-          {account.staff && (
-            <li>
-              <Link className="sh-link sh-erp" href={shell.account.erp.href}>
-                <LayoutDashboard size={16} /> {shell.account.erp.label}
-              </Link>
-            </li>
-          )}
           {!account.loaded ? (
             // Der Platz ist reserviert, bis die Sitzung bekannt ist – nichts springt.
             <li aria-hidden className="sh-link" style={{ visibility: 'hidden' }}><CircleUser size={16} /> {shell.account.login.label}</li>
@@ -293,9 +308,6 @@ function ProfileMenu({ account, open, onOpen }: { account: Account; open: boolea
           </p>
           <ul className="sh-pm-list">
             <li><Link href={shell.account.profile.href}><UserIcon size={18} /> {shell.account.profile.label}</Link></li>
-            {account.staff && (
-              <li><Link href={shell.account.erp.href}><LayoutDashboard size={18} /> {shell.account.erp.label}</Link></li>
-            )}
             <li className="sh-pm-sep">
               <button type="button" onClick={account.onLogout}><LogOut size={18} /> {shell.account.logout.label}</button>
             </li>
@@ -411,9 +423,6 @@ function MobileAccount({ account, pathname, onClose }: { account: Account; pathn
           <UserIcon size={20} /> {shell.account.profile.label} <span className="sh-m-who">{account.displayName}</span>
         </Link>
       </li>
-      {account.staff && (
-        <li><Link href={shell.account.erp.href} onClick={onClose}><LayoutDashboard size={20} /> {shell.account.erp.label}</Link></li>
-      )}
       <li><button type="button" onClick={account.onLogout}><LogOut size={20} /> {shell.account.logout.label}</button></li>
     </ul>
   );

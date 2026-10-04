@@ -244,6 +244,8 @@ jobs:
         env:
           SITE_MODE: preview
           SITE_URL: https://inexxio-dev.web.app
+          # Testnotizen auch auf der Website (nur hier, nur für Angemeldete).
+          SITE_FEEDBACK: 'on'
         run: npm run build
 
       - uses: actions/setup-node@v4
@@ -284,6 +286,16 @@ jobs:
       - name: Website in die Hosting-Ausgabe übernehmen
         working-directory: website
         run: node scripts/merge-hosting.mjs
+
+      # ►►► Dev wird nie indexiert – per HTTP-Kopfzeile auf JEDER Antwort. ◄◄◄
+      # Gilt für Website, Konto, ERP, Bilder und PDFs gleichermassen und hängt nicht an der
+      # Website (SITE_MODE). Nur hier gesetzt: der Prod-Deploy liest dieselbe firebase.json
+      # ohne diese Zeile. Fehlt sie danach, bricht der Schritt ab, statt still zu indexieren.
+      - name: Dev für Suchmaschinen sperren (X-Robots-Tag)
+        run: |
+          jq '(.hosting.headers[] | select(.source == "**") | .headers) += [{"key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive"}]' firebase.json > firebase.dev.json
+          mv firebase.dev.json firebase.json
+          jq -e '[.hosting.headers[] | select(.source == "**") | .headers[] | select(.key == "X-Robots-Tag")] | length == 1' firebase.json
 
       - name: Deploy to Firebase Hosting (dev)
         run: firebase deploy --only hosting --project inexxio-dev --non-interactive

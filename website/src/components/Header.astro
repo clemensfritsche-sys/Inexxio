@@ -2,10 +2,13 @@
 /**
  * Kopfzeile, zweizeilig (Auftrag Kap. 7.1):
  *  - Servicezeile (36 px, dunkel, ab 768 px): links «HS Steiner heisst jetzt INEXXIO»
- *    (Schalter), rechts Notfall · Telefon · ERP (nur mit Berechtigung) · Anmelden bzw.
- *    Profilmenü.
+ *    (Schalter), rechts Notfall · Telefon · Anmelden bzw. Profilmenü.
  *  - Hauptzeile (72 px, weiss): Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Sonderlösungen ▾ ·
  *    Service ▾ · Über uns · Kontakt · «Anfrage stellen». Schmaler: Logo, Telefon, Menü.
+ *
+ *  - Darüber, nur für Personal, die **Arbeitsleiste** (32 px, leise Slate-Fläche): «ERP» und
+ *    die Datensatztypen. Sie scrollt mit der Seite weg; sticky bleibt die Kopfzeile. Einen
+ *    ERP-Knopf in Servicezeile oder Profilmenü gibt es darum nicht mehr.
  *
  * Ohne JavaScript voll bedienbar: Dropdowns öffnen per Zeigen/Fokus, das Mobil-Menü ist ein
  * natives <details>, statt des Profilmenüs steht «Anmelden». Das Skript ergänzt nur Komfort.
@@ -33,6 +36,7 @@ const tel = `tel:${site.phone.e164}`;
 const notfallTel = `tel:${site.notfall.e164}`;
 const notfall = site.features.notfall;
 const acct = site.account;
+const work = acct.workbar;
 
 /** Die vier Dropdowns: drei Bereiche, dann Service. */
 const groups = [
@@ -41,6 +45,14 @@ const groups = [
 ];
 const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children.some((c) => c.href === path);
 ---
+<nav class="workbar" data-acct="staff" aria-label="Arbeitsleiste">
+  <div class="wrap workbar__in">
+    <a class="workbar__home" href={work.href} rel="nofollow"><Icon name="layout-dashboard" size={16} /> {work.label}</a>
+    <ul role="list" class="workbar__list">
+      {work.links.map((l) => <li><a href={l.href} rel="nofollow">{l.label}</a></li>)}
+    </ul>
+  </div>
+</nav>
 <header class="site-header" data-header>
   <div class="servicebar on-dark">
     <div class="wrap servicebar__in">
@@ -63,11 +75,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
             <Icon name="phone" size={16} /> <span class="tnum">{site.phone.display}</span>
           </a>
         </li>
-        <li data-acct="staff">
-          <a class="servicebar__link servicebar__erp" href={acct.erp.href} rel="nofollow">
-            <Icon name="layout-dashboard" size={16} /> {acct.erp.label}
-          </a>
-        </li>
         <li data-acct="login">
           <a class="servicebar__link" href={acct.login.href} rel="nofollow">
             <Icon name="circle-user" size={16} /> {acct.login.label}
@@ -86,7 +93,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
             </p>
             <ul role="list" class="pm__list">
               <li><a href={acct.profile.href} rel="nofollow"><Icon name="user" size={18} /> {acct.profile.label}</a></li>
-              <li data-acct="staff"><a href={acct.erp.href} rel="nofollow"><Icon name="layout-dashboard" size={18} /> {acct.erp.label}</a></li>
               <li class="pm__sep"><a href={acct.logout.href} rel="nofollow"><Icon name="log-out" size={18} /> {acct.logout.label}</a></li>
             </ul>
           </div>
@@ -186,7 +192,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
               <ul role="list" class="mnav__account">
                 <li data-acct="login"><a href={acct.login.href} rel="nofollow"><Icon name="circle-user" size={20} /> {acct.login.label}</a></li>
                 <li data-acct="user"><a href={acct.profile.href} rel="nofollow"><Icon name="user" size={20} /> {acct.profile.label} <span class="mnav__who" data-acct-name></span></a></li>
-                <li data-acct="staff"><a href={acct.erp.href} rel="nofollow"><Icon name="layout-dashboard" size={20} /> {acct.erp.label}</a></li>
                 <li data-acct="user"><a href={acct.logout.href} rel="nofollow"><Icon name="log-out" size={20} /> {acct.logout.label}</a></li>
               </ul>
               {notfall && (
@@ -219,6 +224,15 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   }
   @media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
 
+  /* ---------- Arbeitsleiste (nur Personal) ---------- */
+  .workbar { background: var(--slate-soft); color: var(--slate); font-size: 0.8125rem; border-bottom: 1px solid var(--line); }
+  .workbar__in { height: 32px; display: flex; align-items: center; gap: var(--s-4); white-space: nowrap; }
+  .workbar a { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; color: inherit; text-decoration: none; }
+  .workbar a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .workbar__home { font-weight: 700; }
+  .workbar__list { display: none; gap: var(--s-4); margin: 0; padding: 0; list-style: none; }
+  @media (min-width: 640px) { .workbar__list { display: flex; } }
+
   /* ---------- Servicezeile ---------- */
   .servicebar { display: none; background: var(--dark); color: rgba(244, 243, 241, 0.8); font-size: 0.8125rem; }
   .servicebar__in { height: var(--servicebar-h); display: flex; align-items: center; gap: var(--s-5); white-space: nowrap; }
@@ -232,7 +246,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   }
   .servicebar__link:hover { color: var(--white); text-decoration: underline; text-underline-offset: 0.2em; }
   .servicebar__notfall :global(.icon) { color: var(--red-bright); }
-  .servicebar__erp { color: var(--white); font-weight: 600; }
 
   /* Profilmenü: Initialen im Kreis (rot – wie im bisherigen Konto-Kopf), Liste darunter. */
   .pm { position: relative; }

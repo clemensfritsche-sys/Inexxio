@@ -20,6 +20,13 @@ import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 
+/**
+ * Testnotizen (wie im ERP) – nur, wenn der Build sie einschaltet (`SITE_FEEDBACK=on`, allein
+ * im Dev-Deploy) und nur für Angemeldete. Das Skript baut das Frontend
+ * (`frontend/scripts/build-islands.mjs`); hier wird es bloss nachgeladen.
+ */
+const feedback = process.env.SITE_FEEDBACK === 'on';
+
 export interface Crumb { name: string; path: string }
 
 interface Props {
@@ -60,17 +67,22 @@ const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [bre
 
 // Strenge Richtlinie der Website (zusätzlich zur globalen Header-CSP): Skripte nur vom
 // eigenen Ursprung, keine Fremd-Einbettungen. Im Dev-Server nicht, dort braucht Vite Inline-Skripte.
+// Mit Testnotizen (nur Dev) braucht die Firebase-Anmeldung des Werkzeugs Google-Dienste:
+// Token erneuern (googleapis), den Anmelde-Rahmen (firebaseapp) und dessen Lader (apis.google).
+const FIREBASE = feedback
+  ? { script: ' https://apis.google.com', connect: ' https://*.googleapis.com https://*.firebaseapp.com', frame: 'https://*.firebaseapp.com' }
+  : { script: '', connect: '', frame: "'none'" };
 const csp = [
   "default-src 'self'",
-  "script-src 'self'",
+  `script-src 'self'${FIREBASE.script}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",
-  "connect-src 'self'",
+  `connect-src 'self'${FIREBASE.connect}`,
   "form-action 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "frame-src 'none'",
+  `frame-src ${FIREBASE.frame}`,
   'upgrade-insecure-requests',
 ].join('; ');
 ---
@@ -109,7 +121,7 @@ const csp = [
     <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" is:inline set:html={graph(nodes)} />
   </head>
-  <body>
+  <body data-feedback={feedback ? '' : undefined}>
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
     {mode === 'preview' && (
       <aside class="mode-banner" aria-label="Vorschau">Vorschau – nicht öffentlich. Gelb markierte Stellen sind offene Punkte.</aside>
@@ -128,11 +140,13 @@ const csp = [
       import { initMobileBar } from '../scripts/mobilebar';
       import { initTracking } from '../scripts/track';
       import { initReveal } from '../scripts/reveal';
+      import { initFeedback } from '../scripts/feedback';
       initHeader();
       initAccount();
       initMobileBar();
       initTracking();
       initReveal();
+      initFeedback();
     </script>
   </body>
 </html>

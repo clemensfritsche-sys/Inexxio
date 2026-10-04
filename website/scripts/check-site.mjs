@@ -245,8 +245,9 @@ function checkTarget(p, href, kind) {
   }
   if (!path.startsWith('/')) return fail(p.path, `relativer ${kind} «${href}» – bitte absolut (/…)`);
   if (path.startsWith('/api/')) return;
-  if (ERP_PATHS.some((e) => path === e || path.startsWith(`${e}/`))) return;
-  const clean = path.split('?')[0].replace(/\/$/, '') || '/';
+  const bare = path.split('?')[0];
+  if (ERP_PATHS.some((e) => bare === e || bare.startsWith(`${e}/`))) return;
+  const clean = bare.replace(/\/$/, '') || '/';
   const file = fileFor(clean);
   if (!file) return fail(p.path, `${kind} ins Leere: «${href}»`);
   if (hash && file.endsWith('.html')) {

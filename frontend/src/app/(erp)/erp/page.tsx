@@ -193,6 +193,14 @@ export default function ErpPage() {
     });
   }, []);
 
+  // «?typ=<Datensatztyp>» aus der Arbeitsleiste: stellt nur den Filter vor, wie ein Klick
+  // auf seinen Chip. Unbekannte Werte bleiben ohne Wirkung.
+  useEffect(() => {
+    const typ = new URLSearchParams(window.location.search).get('typ');
+    const known = FILTER_TYPES.find((t) => t === typ);
+    if (known) setTypeFilter(known);
+  }, []);
+
   // Tiefer Link «?open=<Objektnummer>» (z. B. von der KI-Navigation): den Datensatz direkt
   // öffnen. Typ serverseitig auflösen (funktioniert auch, bevor der Feed geladen ist).
   useEffect(() => {

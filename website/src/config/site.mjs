@@ -302,8 +302,24 @@ export const site = {
   account: {
     login: { label: 'Anmelden', href: '/login' },
     profile: { label: 'Profil', href: '/konto' },
-    erp: { label: 'ERP', href: '/erp' },
     logout: { label: 'Abmelden', href: '/abmelden' },
+    /**
+     * Arbeitsleiste: eine eigene, schmale Leiste über dem Kopf – nur für Personal (Admin,
+     * Mitarbeiter). Sie ersetzt den ERP-Knopf in Servicezeile und Profilmenü (Rückmeldung
+     * 04.10.2026: «eigentlich ist das eine weitere Menüleiste für die jeweiligen Personen»).
+     * `?typ=` stellt im ERP-Feed den Filter vor; die Werte sind die Datensatztypen des ERP.
+     */
+    workbar: {
+      label: 'ERP',
+      href: '/erp',
+      links: [
+        { label: 'Benutzer', href: '/erp?typ=user' },
+        { label: 'Artikel', href: '/erp?typ=article' },
+        { label: 'Aufträge', href: '/erp?typ=order' },
+        { label: 'Instanzen', href: '/erp?typ=instance' },
+        { label: 'Unternehmen', href: '/erp?typ=organization' },
+      ],
+    },
   },
   /**
    * Pfade, die nicht zur Website gehören – robots.txt sperrt sie in jedem Modus. `/shop` ist

@@ -467,6 +467,21 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     den Bereichen in `site.mjs`; das ungenutzte Feld `og` (= die ID) ist dafür entfallen.
     `check-site` prüft jetzt, dass jedes Bild, auf das Meta-Angaben oder JSON-LD zeigen,
     im Build liegt – ein fehlendes fiele sonst erst beim Teilen auf.
+47. **Arbeitsleiste statt ERP-Knopf** (Rückmeldung 04.10.2026): eine schmale Leiste über
+    dem Kopf, nur für Personal – «ERP» und die fünf Datensatztypen (`/erp?typ=…` stellt im
+    Feed den Filter vor). Servicezeile, Profilmenü und Mobil-Menü tragen kein ERP mehr.
+    Inhalt in `site.mjs` (`account.workbar`), Website und Konto lesen dieselbe Liste. Sie
+    scrollt weg, sticky bleibt der Kopf – darum ändert sich keine Kopfhöhe.
+48. **Testnotizen auf der Website = dasselbe Werkzeug wie im ERP**, kein Nachbau:
+    `frontend/scripts/build-islands.mjs` bündelt `FeedbackPin` zu `/islands/feedback.js`
+    (nur in der Testumgebung gebaut, Stile auf `#ix-feedback` begrenzt). Die Website lädt es
+    nur mit `SITE_FEEDBACK=on` (allein im Dev-Deploy) und nur für Angemeldete; nur dann
+    erlaubt ihre CSP zusätzlich die Google-Dienste der Anmeldung. ~95 KB gzip, die kein
+    Besucher je lädt.
+49. **Dev wird nie indexiert**: der Dev-Deploy hängt an jede Antwort `X-Robots-Tag: noindex,
+    nofollow, noarchive` (Website, Konto, ERP, Bilder, PDFs) und bricht ab, falls die Zeile
+    fehlt. Prod liest dieselbe `firebase.json` ohne sie. Unabhängig davon bleibt der
+    Vorschau-Modus (`noindex`-Meta, gesperrte `robots.txt`).
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
@@ -486,6 +501,10 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `frontend/src/components/consent/cookie-consent.tsx`, `lib/consent.ts` | «Warenkorb» gestrichen | es gibt keinen Shop |
 | `frontend/src/app/(public)/agb/page.tsx` | Titel bricht auf dem Telefon nicht mehr seitwärts aus | 0 px Überlauf (Kap. 15) |
 | `firebase.json` | Weiterleitungen nach Kap. 14 | Entscheid 40 |
+| `frontend/src/components/layout/navbar.tsx`, `globals.css` | ERP-Knöpfe raus, Arbeitsleiste rein | Entscheid 47 |
+| `frontend/src/app/(erp)/erp/page.tsx` | `?typ=` stellt den Feed-Filter vor (wie ein Klick auf den Chip) | Entscheid 47 |
+| `frontend/src/islands/`, `frontend/scripts/build-islands.mjs`, `package.json` (esbuild) | Testnotizen als Insel für die Website | Entscheid 48 |
+| `.github/workflows/deploy-dev.yml` | `SITE_FEEDBACK=on`, `X-Robots-Tag` nur auf Dev | Entscheide 48/49 |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
 Migrationen, Auth-Logik, Rechte, Prozesse, Module.

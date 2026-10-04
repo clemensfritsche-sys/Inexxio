@@ -178,13 +178,35 @@
       "label": "Profil",
       "href": "/konto"
     },
-    "erp": {
-      "label": "ERP",
-      "href": "/erp"
-    },
     "logout": {
       "label": "Abmelden",
       "href": "/abmelden"
+    },
+    "workbar": {
+      "label": "ERP",
+      "href": "/erp",
+      "links": [
+        {
+          "label": "Benutzer",
+          "href": "/erp?typ=user"
+        },
+        {
+          "label": "Artikel",
+          "href": "/erp?typ=article"
+        },
+        {
+          "label": "Aufträge",
+          "href": "/erp?typ=order"
+        },
+        {
+          "label": "Instanzen",
+          "href": "/erp?typ=instance"
+        },
+        {
+          "label": "Unternehmen",
+          "href": "/erp?typ=organization"
+        }
+      ]
     }
   },
   "legal": [

@@ -14,7 +14,7 @@
 | anpassen, sobald ein Analytics-Anbieter gewählt ist | Prüfen | `/datenschutz` – Statistik |
 | Antwortzeit, z. B. einem Arbeitstag | Platzhalter | alle Seiten (23) – Kopf, Fuss oder Ankündigung |
 | Claim freigeben | Prüfen | Konfiguration `src/config/site.mjs:115` |
-| Domain | Platzhalter | Konfiguration `src/config/site.mjs:324` |
+| Domain | Platzhalter | Konfiguration `src/config/site.mjs:340` |
 | Einsätze vor Ort bei Aufbauten – ja oder nein, in welchem Umfang | Platzhalter | `/fahrzeugtechnik/aufbauten-reparatur` – Kommen Sie zum Fahrzeug? |
 | Einsätze vor Ort bei Baumaschinen – ja oder nein, in welchem Umfang | Platzhalter | `/sonderloesungen/baumaschinen` – Kommen Sie auf die Baustelle? |
 | Einsätze vor Ort bei Fahrmischern – ja oder nein, in welchem Umfang | Platzhalter | `/fahrzeugtechnik/fahrmischer` – Kommen Sie auch auf die Baustelle oder ins Werk? |
@@ -23,7 +23,7 @@
 | genauer Umfang Aufbauten-Reparatur | Prüfen | `/fahrzeugtechnik/aufbauten-reparatur` – Auf einen Blick |
 | Grenzen des Einsatzgebiets | Prüfen | `/` – Aus Tuttwil-Wängi in die ganze Ostschweiz<br>`/ueber-uns` – Einsatzgebiet |
 | Handelsregisteramt | Prüfen | `/impressum` – Handelsregister und UID |
-| kostenlose oder günstige cookielose Analytics-Lösung wählen | Prüfen | Konfiguration `src/config/site.mjs:345` |
+| kostenlose oder günstige cookielose Analytics-Lösung wählen | Prüfen | Konfiguration `src/config/site.mjs:361` |
 | Krananlagen im Ausland | Prüfen | `/` – Aus Tuttwil-Wängi in die ganze Ostschweiz<br>`/krantechnik/heukrananlagen` – Bauen Sie auch Anlagen im Ausland?<br>`/krantechnik` – Auf einen Blick<br>`/service` – Wo wir arbeiten<br>`/ueber-uns` – Einsatzgebiet |
 | Leistungsumfang Konstruktion und Engineering | Prüfen | `/sonderloesungen/konstruktion-engineering` – Was dazugehört |
 | Leistungsumfang, Materialien und Verfahren | Prüfen | `/sonderloesungen/schweiss-stahlbau` – Was wir fertigen |
@@ -78,7 +78,7 @@
 | Fertigung mit Partnern | Prüfen | `/sonderloesungen` – Umsetzung |
 | Fertigung mit Partnern aus der Region | Prüfen | `/sonderloesungen/konstruktion-engineering` – Auf einen Blick |
 | genaue Titel und Abschlüsse | Platzhalter | `/ueber-uns` – Werdegang |
-| Google-Unternehmensprofil, LinkedIn | Platzhalter | Konfiguration `src/config/site.mjs:326` |
+| Google-Unternehmensprofil, LinkedIn | Platzhalter | Konfiguration `src/config/site.mjs:342` |
 | Grundlage der Übermittlung, z. B. Swiss-U.S. Data Privacy Framework oder Standardvertragsklauseln | Prüfen | `/datenschutz` – 7. Weitergabe und Bearbeitung im Ausland |
 | Gründungsjahr der GmbH | Prüfen | `/uebergabe` – Über 40 Jahre in Tuttwil |
 | Inhalt des Prüfberichts | Prüfen | `/krantechnik/pruefung-wartung` – Was steht im Prüfbericht? |
