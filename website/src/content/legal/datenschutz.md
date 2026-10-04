@@ -1,7 +1,7 @@
 ---
 title: 'Datenschutz'
 description: 'Datenschutzerklärung von INEXXIO (ehemals HS Steiner) nach Schweizer DSG: Website ohne Cookies, Anfrageformular, E-Mail-Versand und Kundenbereich.'
-updated: 2026-10-03
+updated: 2026-10-04
 ---
 
 [[PRÜFEN: rechtlich – ganze Datenschutzerklärung]]
@@ -31,7 +31,7 @@ Die öffentliche Website setzt keine Cookies. Die Schrift liegt auf unserem eige
 
 ### Lokaler Speicher
 
-Schliessen Sie die Hinweisleiste oben auf der Seite, merkt sich Ihr Browser das im lokalen Speicher (Eintrag «ix-announce»). Der Eintrag bleibt auf Ihrem Gerät.
+Die öffentliche Website legt selbst nichts im Speicher Ihres Browsers ab. Sind Sie im Kundenbereich angemeldet, liest sie dort, was der Kundenbereich abgelegt hat (siehe Abschnitt 6): Ihren Namen und Ihre Rolle, um oben «Anmelden» bzw. Ihr Profilmenü zu zeigen, und Ihre Kontaktangaben, um das Anfrageformular vorauszufüllen. Diese Angaben bleiben auf Ihrem Gerät – an uns gehen sie nur, wenn Sie das Formular absenden.
 
 ### Statistik
 
@@ -39,7 +39,7 @@ Auf der öffentlichen Website messen wir derzeit keine Besuche. [[PRÜFEN: anpas
 
 ## 4. Anfrage über das Formular
 
-Schreiben Sie uns über das Formular, bearbeiten wir Ihre Angaben: Anliegen, Ort, Name, Firma, Telefon, E-Mail, Angaben zur Anlage, bevorzugter Kontaktweg und allenfalls Fotos. Zweck ist, Ihre Anfrage zu beantworten und einen Auftrag vorzubereiten.
+Schreiben Sie uns über das Formular, bearbeiten wir Ihre Angaben: Bereich und Anliegen, Dringlichkeit, Ort, Name, Firma, Telefon, E-Mail, Angaben zur Anlage oder zum gesuchten Teil, bevorzugter Kontaktweg und allenfalls Fotos oder Skizzen (Bild oder PDF). Zweck ist, Ihre Anfrage zu beantworten und einen Auftrag vorzubereiten.
 
 Die Anfrage geht per E-Mail an uns; haben Sie eine E-Mail-Adresse angegeben, erhalten Sie eine Bestätigung mit Ihren Angaben. Für den Versand nutzen wir [[PLATZHALTER: E-Mail-Anbieter für den Versand]].
 
@@ -59,7 +59,7 @@ Der Kundenbereich (Anmeldung, Konto) ist eine eigene Anwendung unter derselben A
 
 - **Anmeldung:** über Firebase Authentication (Google). Bearbeitet werden Ihre E-Mail-Adresse, der Zeitpunkt der Anmeldung und technische Angaben zur Sicherheit.
 - **Zahlungen:** über Stripe. Zahlungsdaten wie Kartennummern bearbeitet Stripe direkt; wir erhalten keine vollständigen Zahlungsdaten.
-- **Speicher im Browser:** Für die Anmeldung legt der Kundenbereich Einträge im lokalen Speicher an (z. B. «inexxio_token»). Ihre Entscheidung zur Statistik speichert er im Cookie «inexxio_consent» (Laufzeit 6 Monate).
+- **Speicher im Browser:** Für die Anmeldung legt der Kundenbereich Einträge im lokalen Speicher an (z. B. «inexxio_token»). Für die Anzeige auf der Website legt er dort Ihren Namen, Ihre Rolle und Ihre Kontaktangaben ab («inexxio_user_fullname», «inexxio_user_role», «inexxio_user_contact»); beim Abmelden löscht er sie. Ihre Entscheidung zur Statistik speichert er im Cookie «inexxio_consent» (Laufzeit 6 Monate).
 - **Statistik:** Im Kundenbereich messen wir Besuche mit Plausible (cookielos) – nur, wenn Sie zustimmen. Ihre Wahl ändern Sie dort jederzeit über «Cookie-Einstellungen».
 
 [[PRÜFEN: Angaben zum Kundenbereich mit dem Betrieb abgleichen]]

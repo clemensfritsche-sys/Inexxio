@@ -14,6 +14,14 @@ ZXing (nur als dynamisch geladener Rückfall des Scanners).
 > Mit den Seiten sind `react-hook-form`, `zod`, `@hookform/resolvers`, die
 > `components/ui/*`-Formularbausteine, `app/robots.ts` und `public/robots.txt` gegangen
 > (die Website liefert die eine `robots.txt`).
+>
+> **Navbar und Footer sind ein Spiegel des Website-Kopfs** (Oktober 2026, Umbau v2):
+> zweizeilig (Servicezeile + Hauptzeile), Inhalte aus `lib/site-shell.json` und Logo aus
+> `public/brand/` – **beides generiert** von `website/scripts/export-contact.mjs`, also nie
+> von Hand ändern. Die Kopfhöhe steht als `--site-header-h` in `globals.css` (60 px, ab
+> 768 px 108 px); wer sie abzieht, nimmt die Variable, nie eine Zahl. Der Anzeige-Cache
+> für die Website (Rolle, Name, Kontakt) wohnt in `lib/account-cache.ts`; `/abmelden` ist
+> die Abmelde-Adresse für die Website und ruft das bestehende `logout()`.
 
 ## Starten
 ```bash

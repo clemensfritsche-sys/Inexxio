@@ -35,7 +35,7 @@ const ownerCareer = [
  * @typedef {{
  *   id: 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen',
  *   label: string, href: string, overview: string, text: string, photo: string,
- *   og: 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen',
+ *   ogTitle: string,
  *   children: SubPage[],
  * }} Area
  */
@@ -56,7 +56,7 @@ const areas = [
     overview: 'Alle Leistungen Krantechnik',
     text: 'Heukrananlagen und Industriekrane: neue Anlagen nach Mass, Prüfung, Wartung und Modernisierung.',
     photo: 'heukran-einsatz',
-    og: 'krantechnik',
+    ogTitle: 'Heukrananlagen und Industriekrane – neu, geprüft, modernisiert',
     children: [
       { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service, Ersatzteile' },
       { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge-, Schwenk- und Drehkrane, alle Marken' },
@@ -71,7 +71,7 @@ const areas = [
     overview: 'Alle Leistungen Fahrzeugtechnik',
     text: 'Fahrmischer und Aufbauten aller Marken: Service, Reparatur, Trommel-Revision und Verschleissteile ab Lager.',
     photo: 'fahrmischer-werkstatt',
-    og: 'fahrzeugtechnik',
+    ogTitle: 'Fahrmischer und Aufbauten: Service, Reparatur, Verschleissteile',
     children: [
       { label: 'Fahrmischer', href: '/fahrzeugtechnik/fahrmischer', text: 'Service, Reparatur, Trommel-Revision' },
       { label: 'Aufbauten: Reparatur & Service', href: '/fahrzeugtechnik/aufbauten-reparatur', text: 'LKW-Aufbauten, Mulden, Kipper, Hydraulik' },
@@ -85,7 +85,7 @@ const areas = [
     overview: 'Alle Leistungen Sonderlösungen',
     text: 'Konstruktion, Schweiss- und Stahlbau, Umbauten an Baumaschinen. Wenn es die Lösung nicht zu kaufen gibt.',
     photo: 'arbeit-werkstatt',
-    og: 'sonderloesungen',
+    ogTitle: 'Konstruktion, Schweiss- und Stahlbau, Umbau von Baumaschinen',
     children: [
       { label: 'Konstruktion & Engineering', href: '/sonderloesungen/konstruktion-engineering', text: 'Von der Idee bis zur Zeichnung' },
       { label: 'Schweiss- & Stahlbau', href: '/sonderloesungen/schweiss-stahlbau', text: 'Stahlkonstruktionen, Einzelstücke, Kleinserien' },

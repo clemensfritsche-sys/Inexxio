@@ -46,7 +46,7 @@
 
 .ix-login-card {
   background: var(--bg-1);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.06);
   width: 100%;
   max-width: 460px;
@@ -70,15 +70,11 @@
   margin-bottom: 40px;
 }
 .ix-login-logo {
-  height: 44px;
+  /* Das gestapelte Logo (mit «ehemals HS Steiner») – ruhig, ohne Schweben (Kap. 9.7/10). */
+  height: 56px;
   width: auto;
   margin: 0 auto 20px;
   display: block;
-  animation: ix-float 3s ease-in-out infinite;
-}
-@keyframes ix-float {
-  0%,100% { transform: translateY(0); }
-  50%      { transform: translateY(-5px); }
 }
 .ix-login-header h1 {
   font: 700 22px/1.2 var(--font-display);
@@ -120,12 +116,11 @@
   font: 600 15px/1.2 var(--font-body);
   padding: 14px 20px;
   border: none;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-md); /* Design-System v3: Bedienelemente 8 px, flach */
   background: var(--ix-red);
   color: #fff;
   cursor: pointer;
-  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
-  box-shadow: var(--shadow-red);
+  transition: background 0.2s;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -133,12 +128,7 @@
   justify-content: center;
   gap: 8px;
 }
-.ix-submit-btn:hover:not(:disabled) {
-  background: var(--ix-red-deep);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-.ix-submit-btn:active:not(:disabled) { transform: scale(0.98); }
+.ix-submit-btn:hover:not(:disabled) { background: var(--ix-red-deep); }
 .ix-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Spinner */
@@ -362,7 +352,7 @@
 .ix-nudge-primary {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 14px;
-  border: none; border-radius: var(--r-pill);
+  border: none; border-radius: var(--r-md);
   background: var(--inexxio-red); color: #fff;
   font: 600 13px var(--font-body); cursor: pointer;
   transition: background 0.15s;

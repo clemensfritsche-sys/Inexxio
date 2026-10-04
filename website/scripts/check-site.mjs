@@ -158,6 +158,12 @@ function checkHead(p) {
   for (const prop of ['og:title', 'og:description', 'og:image', 'og:url']) {
     if (!new RegExp(`<meta property="${prop}" content="[^"]+"`).test(p.html)) fail(p.path, `${prop} fehlt`);
   }
+  // Ein Bild, auf das Meta-Angaben oder JSON-LD mit voller Adresse zeigen (og:image, Logo),
+  // muss es geben – ein fehlendes fällt sonst erst auf, wenn jemand die Seite teilt.
+  const own = new RegExp(`${SITE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/[^"\\s]+\\.(?:png|jpe?g|webp|avif|svg))`, 'g');
+  for (const m of p.html.matchAll(own)) {
+    if (!existsSync(join(DIST, m[1]))) fail(p.path, `Bild fehlt in dist: ${m[1]}`);
+  }
   const robots = attr(/<meta name="robots"[^>]*>/.exec(p.html)?.[0] ?? '', 'content');
   if (!LIVE && robots !== 'noindex, nofollow') fail(p.path, `Modus preview, aber robots «${robots}»`);
   return title[0] ?? '';

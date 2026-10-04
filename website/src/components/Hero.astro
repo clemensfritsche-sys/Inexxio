@@ -77,7 +77,10 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap; align-self: stretch;
     padding-bottom: 18px; margin-bottom: var(--s-6); border-bottom: 1px solid var(--line);
   }
-  .hero__kicker :global(.idx), .hero__eyebrow { white-space: nowrap; }
+  /* Der Index bleibt ganz; die Dachzeile darf umbrechen – «Fahrzeugtechnik · Verschleiss- &
+     Ersatzteile» ist bei 360 px breiter als die Spalte. */
+  .hero__kicker :global(.idx) { white-space: nowrap; }
+  .hero__eyebrow { min-width: 0; }
   .hero__title { margin: 0; }
   /* Startseite: Display-Stufe des DS (700, bis 64 px, Laufweite −0.03 em). */
   .hero--lg .hero__title { font-size: clamp(2.25rem, 1.55rem + 2.4vw, 3.5rem); line-height: 1.05; }

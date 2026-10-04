@@ -135,7 +135,9 @@ h4 { font-size: 1.125rem; line-height: 1.55; font-weight: 600; }
 .swoosh::after, .hero__title .mark::after {
   content: ''; position: absolute; left: -0.04em; right: -0.06em; bottom: -0.08em; height: 0.11em;
   border-radius: 999px; transform: rotate(-1.6deg); transform-origin: left;
-  background: linear-gradient(90deg, var(--red-bright), var(--red) 40%, var(--red-deep));
+  /* Einfarbig wie der Schwung im Logo – Kap. 9.7 verbietet Farbverläufe (der DS-Export
+     hatte hier einen Verlauf in Rot). */
+  background: var(--red);
 }
 p { max-width: var(--measure); text-wrap: pretty; }
 strong { font-weight: 600; color: var(--ink); }

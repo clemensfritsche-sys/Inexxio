@@ -444,6 +444,29 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     Konstruktion): bis echte Fotos vorliegen, zeigt der Bildplatzhalter die Beschreibung –
     so wie Kap. 9.5 es vorsieht. Neue Beispielbilder müsste der Actions-Job holen; das wäre
     ein zusätzlicher Zwischenstand, den der Fototag ohnehin ersetzt.
+42. **Die Dropdowns im Konto-/ERP-Kopf tragen kein Foto.** Die Fotos der Website sind
+    von Astro optimierte Dateien mit wechselnden Namen; das Next-Frontend kennt sie nicht.
+    Eine Kopie nur für ein 220-px-Vorschaubild wäre eine zweite Bildverwaltung. Die Listen
+    (Unterseite + eine Zeile Beschreibung + «Alle Leistungen …») sind dieselben.
+43. **Das Logo des Konto-/ERP-Bereichs ist ein Abdruck, kein zweites Original**:
+    `export-contact.mjs` kopiert die beiden SVG aus `public/logo/` nach
+    `frontend/public/brand/`, die CI prüft wie beim Vokabular, dass sie gleich sind. So ist
+    das Logo auch beim lokalen Arbeiten am Frontend da, und ändern kann man es nur an
+    einer Stelle. Das alte `frontend/public/logo.png` ist gelöscht.
+44. **Der Logo-Schwung unter dem Titelwort ist einfarbig** – der Design-System-Export
+    hatte dort einen Verlauf in Rot, Kap. 9.7 verbietet Farbverläufe, und im Logo selbst
+    ist der Schwung einfarbig.
+45. **Drei Befunde der Prüfung (Phase 7) behoben**, je eine Zeile: Ablauf-Text auf dunklem
+    Grund war dunkelgrau (Kontrast 2:1), die Nummer auf der Bereichskarte stand weiss auf
+    hellem Bild (1.5:1, jetzt eigener dunkler Grund), und die Dachzeile im Seitenkopf
+    durfte nicht umbrechen (+25/+30 px bei 360 px). Im Frontend: der AGB-Titel lief bei
+    320–375 px seitwärts über, der Cookie-Hinweis nannte einen «Warenkorb», den es nicht
+    gibt. Den AGB-Text selbst (Shop, `info@inexxio.com`) fasse ich nicht an – das ist
+    Rechtstext und steht als offener Punkt im Bericht.
+46. **Ein Teilen-Bild je Bereich** (`og/krantechnik.png` usw.), Titel als `ogTitle` an
+    den Bereichen in `site.mjs`; das ungenutzte Feld `og` (= die ID) ist dafür entfallen.
+    `check-site` prüft jetzt, dass jedes Bild, auf das Meta-Angaben oder JSON-LD zeigen,
+    im Build liegt – ein fehlendes fiele sonst erst beim Teilen auf.
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
@@ -455,7 +478,13 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `frontend/src/components/layout/navbar.tsx`, `footer.tsx`, Anmeldedialog, Auth-Layout | nur Darstellung (Kap. 6.2) | gleicher Kopf und Fuss wie die Website |
 | `frontend/src/lib/firebase.ts` (`logout`), Navigation | S2 schreiben, Anzeige-Cache beim Abmelden räumen | Schnittstellen S2/S3 |
 | `frontend/src/app/(auth)/abmelden/page.tsx` | neu | Schnittstelle S3 |
-| `frontend/public/brand/` | gestapeltes Logo | Konto/ERP zeigen dasselbe Zeichen |
+| `frontend/src/lib/account-cache.ts` | neu: die drei Schlüssel des Anzeige-Caches, Schreiben (S2) und Räumen | eine Stelle statt verstreuter Literale; `website/scripts/account.test.mjs` prüft beide Seiten |
+| `frontend/public/brand/` | gestapeltes Logo (Abdruck aus `website/public/logo`), `logo.png` gelöscht | Entscheid 43 |
+| `frontend/src/app/globals.css` | Stile für Kopf und Fuss, `--site-header-h`; tote Klassen der alten öffentlichen Seiten (`ix-wrap`, `ix-btn*`, `ix-section*`, `ix-card`, `ix-cta-band`, `ix-reveal`) entfernt | nur Darstellung |
+| `frontend/src/app/(erp)/layout.tsx`, `(account)/layout.tsx`, `(erp)/erp/page.tsx` | feste `72px` → `var(--site-header-h)` | der Kopf ist jetzt zweizeilig (108 px ab 768 px) |
+| `frontend/src/app/layout.tsx` | Titel/Beschreibung aus `site-shell.json` statt «Präzisionsfertigung» | falscher Fremdtext |
+| `frontend/src/components/consent/cookie-consent.tsx`, `lib/consent.ts` | «Warenkorb» gestrichen | es gibt keinen Shop |
+| `frontend/src/app/(public)/agb/page.tsx` | Titel bricht auf dem Telefon nicht mehr seitwärts aus | 0 px Überlauf (Kap. 15) |
 | `firebase.json` | Weiterleitungen nach Kap. 14 | Entscheid 40 |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
@@ -464,13 +493,13 @@ Migrationen, Auth-Logik, Rechte, Prozesse, Module.
 ### 7.9 Phasen-Checkliste (Kap. 17)
 
 - [x] **0 – Analyse** und dieser Abschnitt
-- [ ] **1 – Fundament**: Konfiguration (Bereiche als Datenstruktur), Header zweizeilig mit
+- [x] **1 – Fundament**: Konfiguration (Bereiche als Datenstruktur), Header zweizeilig mit
       Servicezeile und Anmeldezustand, Footer, Navigation, Logo, Begriffe, SITE_MODE
-- [ ] **2 – Komponenten**: Mega-Dropdown, Profilmenü, Bereichskarte, Drei Ebenen,
+- [x] **2 – Komponenten**: Mega-Dropdown, Profilmenü, Bereichskarte, Drei Ebenen,
       Kranbahn-Linie, Unterseiten-Vorlage, Bereichs-Vorlage
-- [ ] **3 – Konto, Profil, ERP** im neuen Design (nur Darstellung) + S2/S3
-- [ ] **4 – Seiten** in der Reihenfolge von Kap. 17
-- [ ] **5 – Formular und Tracking**
-- [ ] **6 – SEO und KI** (Meta, JSON-LD, Sitemap, robots, llms, Redirects, OG-Bilder)
-- [ ] **7 – Prüfung** nach Kap. 17.1
-- [ ] **8 – Bericht** `WEBSITE_REPORT_20261004.md`
+- [x] **3 – Konto, Profil, ERP** im neuen Design (nur Darstellung) + S2/S3
+- [x] **4 – Seiten** in der Reihenfolge von Kap. 17
+- [x] **5 – Formular und Tracking**
+- [x] **6 – SEO und KI** (Meta, JSON-LD, Sitemap, robots, llms, Redirects, OG-Bilder)
+- [x] **7 – Prüfung** nach Kap. 17.1
+- [x] **8 – Bericht** `WEBSITE_REPORT_20261004.md`

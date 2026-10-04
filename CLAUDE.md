@@ -4962,7 +4962,7 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
 > `website/`, Phasen), danach `website/AUFTRAG.md` (der Auftrag im Wortlaut). Offene
 > Punkte: `website/OFFENE_PUNKTE.md` (generiert – nie von Hand ändern). Testergebnisse,
 > was nicht geprüft werden konnte, und die **Start-Checkliste** (Mailversand, Domain,
-> `SITE_MODE=live`): `website/WEBSITE_REPORT_20261003.md`.
+> `SITE_MODE=live`): `website/WEBSITE_REPORT_20261004.md` (Umbau v2, Auftrag Fassung 2).
 
 - **Eine Quelle**: `website/src/config/site.mjs` (Name, Telefon, Adresse, Navigation,
   Schalter, SEO). Texte setzen Werte mit `{{schlüssel}}` ein; offene Punkte sind
@@ -4971,7 +4971,14 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
 - **Dieselbe Hosting-Site wie das ERP**: die CI baut beide Teile und kopiert
   `website/dist` in `frontend/out` (`website/scripts/merge-hosting.mjs`, bricht bei jeder
   Kollision ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`,
-  `/login`, `/agb`. Die eine `robots.txt` und die `404.html` kommen von der Website.
+  `/login`, `/abmelden`, `/agb`. Die eine `robots.txt` und die `404.html` kommen von der Website.
+- **Konto und ERP tragen denselben Kopf und Fuss wie die Website** – nachgebaut in React
+  (`components/layout/navbar.tsx`, `footer.tsx`), Inhalte und Logo aus
+  `website/src/config/site.mjs` (generiert: `frontend/src/lib/site-shell.json`,
+  `frontend/public/brand/`). Der Anmeldezustand im Website-Kopf kommt aus einem
+  **Anzeige-Cache** (`frontend/src/lib/account-cache.ts`, drei localStorage-Schlüssel) –
+  nur Anzeige, den Schutz von `/konto` und `/erp` hat das ERP; `/abmelden` ruft das
+  bestehende `logout()`.
 - **Formsprache = Website-Kit des Design-Systems** (`docs/design-system/reference/ui-kit-website/`):
   Design-System **v3**: Inter Tight 700/600 (kein 800), rote Overlines, Abschnittsköpfe mit
   Index, Knöpfe 8 px (keine Pillen), flach, echtes Logo (`public/logo/`, mit «ehemals HS Steiner»). **Bilder:** bis zum
@@ -5151,7 +5158,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 
 **Fundament, produktiv nutzbar**
 - **Öffentliche Website** (`website/`, Oktober 2026): INEXXIO (ehemals HS Steiner) –
-  24 Seiten (Krane, Fahrmischer, Service-Abo, Übergabe, Ratgeber, Rechtliches …),
+  26 Seiten in drei Bereichen (Krantechnik · Fahrzeugtechnik · Sonderlösungen), dazu
+  Service und Notfall-Service, Übergabe, Über uns, Karriere, Ratgeber, Rechtliches,
   Anfrage-Formular mit eigenem Endpunkt, Sitemap, robots.txt, llms.txt, Weiterleitungen
   der alten hs-steiner.ch-Pfade. Modus `preview`, bis die offenen Punkte erledigt sind.
   Die AGB bleiben im Next-Frontend.

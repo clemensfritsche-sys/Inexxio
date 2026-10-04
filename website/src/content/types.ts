@@ -78,6 +78,3 @@ export const glanceRows = (g: SubPage['glance']): { label: string; text: string 
   { label: 'Was wir tun', text: g.what },
   { label: 'Was Sie erhalten', text: g.deliverables },
 ];
-
-/** OG-Bild einer Seite: das ihres Bereichs. */
-export const ogOf = (area: AreaId): OgImage => area;
