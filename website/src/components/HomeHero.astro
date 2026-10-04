@@ -172,6 +172,11 @@ const loads = [
   /* Lasten: liegen im Kran-Rahmen und werden vom Skript an Haken oder Boden gesetzt. */
   .hh__load { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
   .hh__load :global(svg) { display: block; overflow: visible; }
+  /* Die Zeichnungen haben feste Masse und werden vom Skript skaliert. Die globale Regel
+     `svg { max-width: 100% }` quetschte sonst die Greiferarme (in 0 px breiten Gelenken) auf
+     null und die 380 px breite Bühne auf die Kartenbreite – auf dem Handy sassen Greifer und
+     Lasten darum neben der Zeichnung. */
+  .hh__crane :global(svg), .hh__stage :global(svg) { max-width: none; }
 
   /* ---------- Kopf: Titel links, Satz und Knöpfe rechts, unten bündig ---------- */
   .hh__top {

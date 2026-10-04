@@ -6,7 +6,9 @@
  * an den Startpunkt der Szene und spielt sie im Bildfeld der Karte ab – Heu einlagern
  * (Greifer) · Mischtrommel tauschen · Ausleger montieren. Eine laufende Szene wird zu Ende
  * gespielt, ausser der Zeiger wählt einen anderen Bereich.
- * Ohne Zeiger (oder 4 s ohne Bewegung) fährt der Kran die Bereiche nacheinander ab.
+ * Ohne Zeiger (oder 4 s ohne Bewegung): stehen die Bereiche nebeneinander, fährt der Kran
+ * sie nacheinander ab. Stehen sie untereinander (Handy), spielt er die Szene des Bereichs,
+ * der beim Scrollen in den Blick kommt – einmal, und erneut, wenn man wiederkommt.
  *
  * Leistung: nur transform/opacity/height; die Lage der Karten wird höchstens alle 500 ms
  * gemessen; Elemente einmal gesucht; läuft nur, solange der Kopf im Bild ist.
@@ -98,6 +100,8 @@ export function initCrane(): void {
   let originY = 0;
 
   const onPointer = (e: PointerEvent) => {
+    // Touch steuert nicht: ein Tippen öffnet die Karte, und beim Scrollen gilt der Blick.
+    if (e.pointerType === 'touch') return;
     const r = hero.getBoundingClientRect();
     mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
     lastMove = performance.now();
@@ -106,6 +110,23 @@ export function initCrane(): void {
   hero.addEventListener('pointerdown', onPointer, { passive: true });
   hero.addEventListener('pointerleave', () => { mouse = null; });
   window.addEventListener('resize', () => { tilesT = -1e9; }, { passive: true });
+
+  // Welcher Bereich ist im Blick? Sichtbarer Anteil je Karte – für die gestapelte Ansicht.
+  const seen = new Map<Element, number>();
+  const watch = new IntersectionObserver(
+    (entries) => { for (const e of entries) seen.set(e.target, e.isIntersecting ? e.intersectionRatio : 0); },
+    { threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] },
+  );
+  hero.querySelectorAll('[data-tile]').forEach((el) => { if (/^\d+$/.test((el as HTMLElement).dataset.tile ?? '')) watch.observe(el); });
+  const inFocus = (areas: Tile[]) => {
+    let best: Tile | null = null;
+    let ratio = 0.5; // mindestens die Hälfte der Karte im Bild
+    for (const tl of areas) {
+      const r = seen.get(tl.el) ?? 0;
+      if (r > ratio) { ratio = r; best = tl; }
+    }
+    return best;
+  };
 
   const measure = (t: number) => {
     if (t - tilesT < 500) return;
@@ -182,8 +203,10 @@ export function initCrane(): void {
     measure(t);
     const areas = tiles.filter((tl) => tl.k >= 0);
     const minY = Math.min(...areas.map((a) => a.y));
-    // Untere Reihen (Handy): die Szene greift nie über die Oberkante ihrer Karte hinaus.
-    const yC = (tl: Tile, y: number) => (tl.y > minY + 10 ? Math.max(y, 8) : y);
+    // Gestapelt (Handy): die Szene greift nie über die Oberkante ihrer Karte hinaus – sonst
+    // schwebt die Last über der Überschrift bzw. der Karte darüber.
+    const stacked = areas.some((a) => a.y > minY + 10);
+    const yC = (_tl: Tile, y: number) => (stacked ? Math.max(y, 8) : y);
     const sceneOf = (tl: Tile) => SCENES[tl.el.dataset.sceneId ?? ''];
 
     const mouseOn = !!mouse && t - lastMove < IDLE_MS;
@@ -194,7 +217,11 @@ export function initCrane(): void {
     }
     const lockSc = lock != null ? anim[lock] : null;
     const lockBusy = !!lockSc && lockSc.run && lockSc.p < 1;
-    if (lockBusy && !(target && target.k !== lock)) {
+    if (!mouseOn && areas.length && stacked) {
+      // Gestapelt: die Karte im Blick – sie gewinnt auch gegen eine laufende Szene, denn
+      // wer weiterscrollt, will die nächste sehen. Ist keine im Blick, wartet der Kran.
+      target = inFocus(areas);
+    } else if (lockBusy && !(target && target.k !== lock)) {
       target = areas.find((tl) => tl.k === lock) ?? target;
     } else if (!mouseOn && areas.length) {
       if (wasMouse && lock != null) {
