@@ -1,0 +1,45 @@
+---
+/**
+ * Die drei Stufen des Service-Vertrags (STRATEGIE.md) – auf der Vertragsseite und auf der
+ * Startseite dieselbe Komponente, dieselben Texte (content/krantechnik.ts → contractTiers).
+ * Jede Stufe enthält die vorherige; die mittlere ist die übliche Wahl und trägt den Rahmen.
+ * Kein Betrag: die Fixpreise je Kranklasse entstehen mit der Offerte.
+ */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import { contractTiers as t } from '../content/krantechnik';
+
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+---
+<ul role="list" class:list={['tiers', compact && 'tiers--compact']}>
+  {t.tiers.map((tier, i) => (
+    <li class:list={['tier', i === 1 && 'tier--mid']}>
+      <p class="tier__name">{tier.name}</p>
+      <p class="tier__claim">{tier.claim}</p>
+      {tier.includes && <p class="tier__inc">{tier.includes}, dazu:</p>}
+      <ul role="list" class="tier__list">
+        {tier.items.map((it) => <li><Icon name="check" size={18} /><span>{it}</span></li>)}
+      </ul>
+    </li>
+  ))}
+</ul>
+<Rich as="p" class="tiers__price" text={t.price} />
+
+<style>
+  .tiers { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .tier {
+    display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5);
+    border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--white);
+  }
+  .tier--mid { border-color: var(--ink); }
+  .tier__name { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; letter-spacing: var(--tracking-tight); color: var(--ink); }
+  .tier__claim { color: var(--ink-2); }
+  .tier__inc { margin-top: var(--s-2); font-size: 0.875rem; font-weight: 600; color: var(--ink-3); }
+  .tier__list { display: grid; gap: 6px; margin-top: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--line); }
+  .tier__list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--ink); }
+  .tier__list :global(.icon) { color: var(--ok); margin-top: 3px; }
+  .tiers__price { margin-top: var(--s-4); max-width: 46rem; font-size: 0.9375rem; color: var(--ink-3); }
+  .tiers--compact .tier { padding: var(--s-4); }
+</style>

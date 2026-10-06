@@ -8,7 +8,7 @@ import type { Faq } from './types';
 export const ueberUns = {
   title: 'Über uns',
   description:
-    'INEXXIO (ehemals HS Steiner), Tuttwil-Wängi TG: Krantechnik, Fahrzeugtechnik und Sonderlösungen seit 1982 – im Einsatz in der ganzen Schweiz und weltweit.',
+    'INEXXIO (ehemals HS Steiner), Tuttwil-Wängi TG: Hebetechnik mit Handschlagqualität seit 1982 – Kranservice, Trommeltausch und Sonderlösungen.',
   hero: {
     eyebrow: 'Über uns',
     h1: 'Werkstatt mit Ingenieurwissen – in Tuttwil seit {{history.founded}}',
@@ -16,14 +16,14 @@ export const ueberUns = {
       '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} gegründet hat – heute mit demselben Handwerk und mit Ingenieurwissen aus dem Maschinenbau.',
   },
   summary:
-    '{{brand.full}} plant, baut und betreut Krananlagen, wartet und repariert Fahrmischer und Aufbauten aller Marken und konstruiert Sonderlösungen. Die Werkstatt steht in {{erp.city}}.',
+    '{{brand.full}} ist ein Servicebetrieb mit eigenen Produkten: Wir betreuen Krane zum festen Preis pro Kran und Jahr, bauen Heukrananlagen, tauschen Trommeln von Fahrmischern und konstruieren Sonderlösungen. Die Werkstatt steht in {{erp.city}}.',
   /** Wer wir sind – das Team, nicht eine Person (#1147: «es braucht immer alle»). */
   team: {
     title: 'Wer wir sind',
     text: 'Hinter {{brand.name}} steht ein Team aus der Werkstatt: Mechanik, Schweiss- und Stahlbau, Konstruktion. Jede Anlage und jede Reparatur entsteht gemeinsam – von der ersten Skizze bis zum Service.',
     points: [
-      'Krananlagen planen, bauen und betreuen',
-      'Fahrmischer und Aufbauten warten und reparieren',
+      'Krane betreuen – mit Service-Vertrag zum Fixpreis',
+      'Fahrmischer warten, reparieren und mit neuer Trommel ausrüsten',
       'Konstruieren, schweissen, umbauen – auch, was es nicht zu kaufen gibt',
     ],
   },
@@ -36,10 +36,11 @@ export const ueberUns = {
   values: {
     title: 'Die Werte der {{brand.legalName}}',
     items: [
-      { title: 'Qualität', text: 'Qualität in allem, was wir tun – vom ersten Gespräch bis zum Bericht.' },
-      { title: 'Verlässlichkeit', text: 'Was wir zusagen, halten wir. Termine, Preise und Absprachen gelten.' },
-      { title: 'Ehrlichkeit', text: 'Wir sagen offen, was es braucht – auch wenn das heisst: ersetzen statt reparieren.' },
-      { title: 'Verantwortung', text: 'Krane und Fahrzeuge müssen sicher laufen. Dafür stehen wir mit unserer Arbeit ein.' },
+      { title: 'Handschlagqualität', text: 'Ein Wort gilt. Was wir zusagen – Termin, Preis, Absprache –, halten wir.' },
+      { title: 'Qualität', text: 'Saubere Arbeit in allem, was wir tun – vom ersten Gespräch bis zum Bericht.' },
+      { title: 'Zuverlässigkeit', text: 'Ihr Kran, Ihr Fahrzeug muss laufen. Dafür planen wir voraus und sind erreichbar, wenn etwas stillsteht.' },
+      { title: 'Innovation', text: 'Modernisieren statt ersetzen: neue Technik auf bewährtem Stahlbau, neue Trommel auf bewährtem Fahrgestell.' },
+      { title: 'Design', text: 'Eine Anlage soll gut funktionieren, sicher zu bedienen sein und gut aussehen – bis ins Detail.' },
     ],
   },
   promises: {
@@ -49,7 +50,7 @@ export const ueberUns = {
       { title: 'Rückmeldung', text: 'Wir melden uns innert {{promises.responseTime}}.' },
       { title: 'Bericht', text: 'Jede Arbeit mit Bericht.' },
       { title: 'Offerte', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte.' },
-      { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Anlagen liegen an Lager, oder wir fertigen sie neu an.' },
+      { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Krananlagen liegen an Lager, oder wir fertigen sie neu an.' },
     ],
   },
   workshop: {
@@ -63,7 +64,7 @@ export const ueberUns = {
   areaFaq: [
     {
       q: 'Kommen Sie auch ins Ausland?',
-      a: 'Ja. Krananlagen, Service und Sonderlösungen bieten wir weltweit an – geplant und zuverlässig. Fragen Sie an.',
+      a: 'Ja. Zuerst in Deutschland und Österreich, darüber hinaus dort, wo Sie uns brauchen – geplant und zuverlässig. Fragen Sie an.',
     },
     {
       q: 'Kostet die Anfahrt extra?',

@@ -104,13 +104,12 @@ const loads = [
                   <span class="hh__done" data-b><Icon name="check" size={14} />{scene.done}</span>
                 </div>
               )}
-              <span class="hh__notch"></span>
             </div>
             <div class="hh__body-text">
               <h3 class="hh__card-title"><a href={a.href}>{a.label}</a></h3>
               <Rich as="p" class="hh__card-text" text={a.text} />
               <ul role="list" class="hh__chips">
-                {a.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+                {a.children.map((c) => <li><a href={c.href}>{c.label}{c.badge && <span class="badge-new">{c.badge}</span>}</a></li>)}
               </ul>
               <span class="hh__more" aria-hidden="true">{more}<Icon name="arrow-right" size={16} /></span>
             </div>
@@ -219,11 +218,6 @@ const loads = [
     display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--r-sm);
     background: var(--white); border: 1px solid var(--ok); color: var(--ok); font-size: 0.75rem; font-weight: 600;
   }
-  /* Die Öse oben an der Last: hier greift der Haken. */
-  .hh__notch {
-    position: absolute; left: 50%; top: -1px; z-index: 2; width: 28px; height: 8px; margin-left: -14px;
-    border-radius: 0 0 4px 4px; background: var(--line-strong); transition: background-color 180ms var(--ease);
-  }
   .hh__body-text { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-5); flex: 1; }
   .hh__card-title { margin: 0; }
   /* Der Titel-Link deckt die ganze Karte ab; die Unterseiten-Links liegen darüber. */
@@ -248,8 +242,6 @@ const loads = [
   .hh:not(.is-live) .hh__card:hover { border-color: var(--ink); transform: translateY(-2px); }
   .hh__card[data-hooked] .hh__media :global(.photo),
   .hh:not(.is-live) .hh__card:hover .hh__media :global(.photo) { filter: grayscale(0); }
-  .hh__card[data-hooked] .hh__notch,
-  .hh:not(.is-live) .hh__card:hover .hh__notch { background: var(--red); }
   .hh__btn[data-hooked] { transform: translateY(-2px); box-shadow: var(--focus-ring); }
   .btn--secondary.hh__btn[data-hooked] { border-color: var(--ink); }
 

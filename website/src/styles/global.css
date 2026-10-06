@@ -157,6 +157,15 @@ strong { font-weight: 600; color: var(--ink); }
   color: var(--overline);
 }
 .label--red { color: var(--red-deep); } /* steht auf getöntem Grund (Notfall-Kasten) */
+/* «Neu» – kennzeichnet ein neues ANGEBOT (STRATEGIE.md), nie eine neue Kompetenz.
+   Leise: kleine Pille in der Akzentfarbe des Hauses, kein Rot (das bleibt der Hauptaktion). */
+.badge-new {
+  display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px; vertical-align: 0.1em;
+  border-radius: 999px; background: var(--slate-soft); color: var(--slate);
+  font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 700; line-height: 1.4;
+  letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+}
+
 /* Index (01 / …): Mono, rot, tabellarisch – der kleine Takt der Abschnitte. */
 .idx {
   font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.08em;

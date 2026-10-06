@@ -585,6 +585,34 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 71. **Werte auf /ueber-uns** (#1182): Qualität · Verlässlichkeit · Ehrlichkeit ·
     Verantwortung – vor den Zusagen, die sie prüfbar machen.
 
+### 7.7a Strategie-Umbau (06.10.2026)
+
+72. **`STRATEGIE.md` ist die Textquelle.** Widerspricht ein älterer Entscheid oder ein
+    Kapitel in `AUFTRAG.md` dem Strategiekern, gilt der Kern. Sonderlösungen bleiben als
+    dritter Bereich (Rückfrage beantwortet).
+73. **Service-Vertrag statt «Abo/Kranbuch entfällt»** (löst AUFTRAG v2 an dieser Stelle ab):
+    neue Seite `/krantechnik/service-vertrag`, drei Stufen Basis · Plus · Voll
+    (`ContractTiers.astro`, auch auf der Startseite). **Kein Betrag** – die Fixpreise sind
+    noch nicht kalkuliert.
+74. **Häfen & Werften** als neue Seite `/krantechnik/haefen-werften` (Boots- und Mastkrane,
+    Bootslifte, «Das Hafenjahr»). Die interne Grenze «über 15 t nicht im Fokus» steht nicht
+    auf der Website.
+75. **Trommeltausch ist das erste eigene Produkt**: `/fahrzeugtechnik/trommeltausch`, erste
+    Unterseite und Titel der Fahrzeugtechnik. **«Ab Lager» ist überall entfernt** – es gibt
+    kein Lager.
+76. **Entscheid 58 gelockert**: Kranservice herstellerunabhängig; kein «alle Hersteller»,
+    jeder Kran wird zuerst angeschaut, Teile werden im Einzelfall geklärt.
+77. **«Neu» markiert ein Angebot, nie eine Kompetenz** (Rückfrage beantwortet):
+    `badge` an der Unterseite in `site.mjs` → Menü, Fuss, Karten. Heute nur Service-Vertrag
+    und Häfen & Werften; Industriekrane nicht. Keine erfundenen Referenzen.
+78. **Claim, Pfeiler, Werte** aus `STRATEGIE.md`: «Hebetechnik mit Handschlagqualität.»,
+    Pfeiler Passt · Läuft · Ohne Investition (Startseite), Werte Handschlagqualität ·
+    Qualität · Zuverlässigkeit · Innovation · Design (löst Entscheid 71 ab), Markt D-A-CH.
+79. **DEV-Marke im Kopf** nur bei `SITE_ENV=dev` (gesetzt allein in `deploy-dev.yml`); über
+    den gemeinsamen Kopf gilt sie auch für Konto und ERP. Prod bleibt ohne.
+80. **#1191**: der rot-graue Aktivierungspunkt an den Karten der Startseite ist samt CSS
+    entfernt.
+
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
 | Datei | Änderung | Warum |
@@ -616,6 +644,7 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `backend/app/routers/contact.py`, `tests/test_contact.py`, `app/assets/website_contact.json` | Formular auf ein Feld reduziert (`inquiry/3`) | Entscheid 62 |
 | `backend/tests/test_frontend_mirrors.py` | drei Wächter auf den gemeinsamen Kopf gezogen | Entscheid 60 |
 | `.github/workflows/deploy-*.yml` | `SHELL_REQUIRED=1` | Entscheid 60 |
+| `.github/workflows/deploy-dev.yml` | `SITE_ENV=dev` (DEV-Marke im Kopf) | Entscheid 79 |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
 Migrationen, Auth-Logik, Rechte, Prozesse, Module.

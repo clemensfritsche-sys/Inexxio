@@ -1,0 +1,40 @@
+---
+/**
+ * /krantechnik/haefen-werften – zweiter Fokusmarkt der Krantechnik (STRATEGIE.md): Boots-
+ * und Mastkrane, Bootslifte für Häfen, Segelclubs, Gemeindehäfen und Werften. Modul: das
+ * Hafenjahr (wann wir was tun) und der Verweis auf den Service-Vertrag.
+ */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { haefen, harbourYear as y } from '../../content/krantechnik';
+---
+<SubPage page={haefen}>
+  <section slot="module" class="section" aria-labelledby="hafenjahr">
+    <div class="wrap">
+      <SectionHead eyebrow="Saison" title={y.title} lead={y.lead} id="hafenjahr" />
+      <ol role="list" class="hy">
+        {y.seasons.map((s) => (
+          <li class="hy__item">
+            <p class="label">{s.when}</p>
+            <h3>{s.title}</h3>
+            <Rich as="p" text={s.text} />
+          </li>
+        ))}
+      </ol>
+      <div class="btn-row hy__cta">
+        <a class="btn btn--primary" href="/krantechnik/service-vertrag">Zum Service-Vertrag <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+        <a class="btn btn--secondary" href="#anfrage">Anlage anfragen</a>
+      </div>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .hy { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .hy { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hy__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
+  .hy__item h3 { font-size: 1.25rem; }
+  .hy__cta { margin-top: var(--s-7); }
+</style>

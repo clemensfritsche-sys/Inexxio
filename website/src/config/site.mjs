@@ -43,7 +43,7 @@ const ownerCareer = [
 ];
 
 /**
- * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
+ * @typedef {{ label: string, href: string, text: string, photo: string, badge?: string }} SubPage
  * @typedef {{
  *   id: 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen',
  *   label: string, href: string, overview: string, text: string, photo: string,
@@ -55,9 +55,10 @@ const ownerCareer = [
 /**
  * ►►► Die drei Bereiche (Auftrag Kap. 3.3) – Navigation, Mega-Dropdowns, Bereichskarten,
  * Footer, JSON-LD (hasOfferCatalog) und llms.txt entstehen daraus. ◄◄◄
- * Reihenfolge = Gewichtung: Krantechnik und Fahrzeugtechnik gleichwertig, Sonderlösungen
- * etwas darunter. Die Unterseiten stehen in der Reihenfolge des Auftrags (Heukrananlagen
- * zuerst).
+ * Reihenfolge = Gewichtung (STRATEGIE.md, 6.10.2026): Krantechnik und Fahrzeugtechnik sind
+ * die zwei Standbeine, Sonderlösungen steht darunter. In der Krantechnik zuerst das
+ * Kernangebot (Service-Vertrag), dann die zwei Fokusmärkte, dann Heukrane und die
+ * Leistungen. `badge` markiert ein NEUES ANGEBOT («Neu») – nie eine neue Kompetenz.
  * @type {Area[]}
  */
 const areas = [
@@ -66,12 +67,14 @@ const areas = [
     label: 'Krantechnik',
     href: '/krantechnik',
     overview: 'Alle Leistungen Krantechnik',
-    text: 'Heukrananlagen und Industriekrane: neue Anlagen nach Mass, Prüfung, Wartung und Modernisierung.',
+    text: 'Service-Vertrag mit festem Preis pro Kran und Jahr. Für Industriekrane, Boots- und Mastkrane und Heukrananlagen.',
     photo: 'heukran-einsatz',
-    ogTitle: 'Heukrananlagen und Industriekrane – neu, geprüft, modernisiert',
+    ogTitle: 'Kranservice zum Fixpreis – Industrie, Häfen, Landwirtschaft',
     children: [
+      { label: 'Service-Vertrag', href: '/krantechnik/service-vertrag', text: 'Fester Preis pro Kran und Jahr, drei Stufen', photo: 'pruefung-hallenkran', badge: 'Neu' },
+      { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge- und Schwenkkrane in KMU', photo: 'reparatur-vor-ort' },
+      { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte', photo: 'hafen-bootskran', badge: 'Neu' },
       { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service', photo: 'heukran-einsatz' },
-      { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge-, Schwenk- und Drehkrane', photo: 'reparatur-vor-ort' },
       { label: 'Prüfung & Wartung', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung, Wartung, Dokumentation', photo: 'pruefung-hallenkran' },
       { label: 'Modernisierung', href: '/krantechnik/modernisierung', text: 'Funk, Umrichter, Überlastsicherung, Steuerung', photo: 'steuerung-funk' },
     ],
@@ -81,13 +84,14 @@ const areas = [
     label: 'Fahrzeugtechnik',
     href: '/fahrzeugtechnik',
     overview: 'Alle Leistungen Fahrzeugtechnik',
-    text: 'Fahrmischer und Aufbauten aller Marken: Service, Reparatur, Trommel-Revision und Verschleissteile ab Lager.',
+    text: 'Trommeltausch statt neuer Fahrmischer. Dazu Service und Reparatur für alle gängigen Marken.',
     photo: 'fahrmischer-werkstatt',
-    ogTitle: 'Fahrmischer und Aufbauten: Service, Reparatur, Verschleissteile',
+    ogTitle: 'Trommeltausch und Fahrmischer-Service für alle gängigen Marken',
     children: [
+      { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel, bestehendes Fahrgestell', photo: 'trommeltausch' },
       { label: 'Fahrmischer', href: '/fahrzeugtechnik/fahrmischer', text: 'Service, Reparatur, Trommel-Revision', photo: 'fahrmischer-werkstatt' },
       { label: 'Aufbauten: Reparatur & Service', href: '/fahrzeugtechnik/aufbauten-reparatur', text: 'LKW-Aufbauten, Mulden, Kipper, Hydraulik', photo: 'aufbau-reparatur' },
-      { label: 'Verschleiss- & Ersatzteile', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Rinnen, Schurren, Spiralschutz ab Lager', photo: 'verschleissteile-detail' },
+      { label: 'Verschleiss- & Ersatzteile', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Rinnen, Schurren, Spiralschutz – alle gängigen Marken', photo: 'verschleissteile-detail' },
     ],
   },
   {
@@ -120,9 +124,11 @@ export const site = {
     notToConfuse: 'Nicht zu verwechseln mit inexio (Telekommunikation, Deutschland).',
     /** Wer wir sind, in einem Satz – JSON-LD (description) und llms.txt lesen ihn. */
     summary:
-      'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Heukrananlagen und Industriekrane, Service und Reparatur von Fahrmischern und Aufbauten, Konstruktion und Stahlbau. Seit {{history.founded}}.',
-    /** Claim (Vorschlag des Auftrags) – OG-Bild und llms.txt. */
-    claim: 'Krane. Fahrzeuge. Sonderlösungen. Aus einer Werkstatt mit Ingenieurwissen.',
+      'Servicebetrieb mit eigenen Produkten aus Tuttwil-Wängi TG: Kranservice zum Fixpreis für Industrie, Häfen und Landwirtschaft, Heukrananlagen, Trommeltausch und Service für Fahrmischer, dazu Konstruktion und Stahlbau. Seit {{history.founded}}.',
+    /** Claim (STRATEGIE.md, Arbeitsversion 6.10.2026) – Startseite, OG-Bild und llms.txt. */
+    claim: 'Hebetechnik mit Handschlagqualität.',
+    /** Der Claim in voller Länge – Startseite. */
+    promise: 'Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
   },
 
   history: {
@@ -181,7 +187,7 @@ export const site = {
    */
   area: {
     home: 'Tuttwil-Wängi TG',
-    summary: 'in der ganzen Schweiz und weltweit',
+    summary: 'in der Schweiz, in Deutschland und Österreich – und darüber hinaus, wo Sie uns brauchen',
   },
 
   promises: {
@@ -238,7 +244,7 @@ export const site = {
     children: [
       { label: 'Notfall-Service', href: '/service/notfall', text: 'Etwas steht still – rufen Sie direkt an', photo: 'servicefahrzeug' },
       { label: 'Kran prüfen oder warten', href: '/krantechnik/pruefung-wartung', text: 'Jährliche Überprüfung mit Bericht', photo: 'pruefung-hallenkran' },
-      { label: 'Fahrmischer reparieren', href: '/fahrzeugtechnik/fahrmischer', text: 'Alle gängigen Marken, Teile ab Lager', photo: 'fahrmischer-werkstatt' },
+      { label: 'Fahrmischer reparieren', href: '/fahrzeugtechnik/fahrmischer', text: 'Alle gängigen Marken', photo: 'fahrmischer-werkstatt' },
       { label: 'Ersatz- oder Verschleissteil', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Katalog, Teil anfragen', photo: 'verschleissteile-detail' },
     ],
   },
@@ -273,7 +279,7 @@ export const site = {
 
   footer: {
     claim:
-      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
+      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Hebetechnik mit Handschlagqualität: Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
   },
 
   /**
@@ -303,7 +309,7 @@ export const site = {
      * eigenes Datum. Ratgeber und Rechtstexte tragen ihr eigenes (`updated`). Wer eine Seite
      * inhaltlich überarbeitet, zieht dieses Datum nach.
      */
-    contentUpdated: '2026-10-04',
+    contentUpdated: '2026-10-06',
     /** Bisherige Domain – wird später auf die neue weitergeleitet. */
     oldDomain: 'hs-steiner.ch',
     sameAs: [],
@@ -314,7 +320,8 @@ export const site = {
       'Applebot', 'Applebot-Extended', 'CCBot',
     ],
     knowsAbout: [
-      'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
+      'Kranservice', 'Service-Vertrag für Krane', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
+      'Bootskrane', 'Mastkrane', 'Bootslifte', 'Hafenkrane', 'Trommeltausch',
       'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung', 'Kranmodernisierung',
       'Funkfernsteuerung', 'Frequenzumrichter', 'Fahrmischer', 'Trommel-Revision',
       'Verschleissteile für Fahrmischer', 'LKW-Aufbauten', 'Konstruktion', 'Stahlbau',

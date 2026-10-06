@@ -246,6 +246,9 @@ jobs:
           SITE_URL: https://inexxio-dev.web.app
           # Testnotizen auch auf der Website (nur hier, nur für Angemeldete).
           SITE_FEEDBACK: 'on'
+          # «DEV»-Kennzeichen im Kopf (Website und – über den gemeinsamen Kopf – Konto/ERP).
+          # Nur hier gesetzt; der Prod-Deploy kennt die Variable nicht.
+          SITE_ENV: dev
           # Telefon und E-Mail als Vorgabe ins HTML – aus dem ERP (Testnotiz #1094).
           SITE_API: https://inexxio-dev.web.app
         run: npm run build

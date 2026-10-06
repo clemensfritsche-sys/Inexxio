@@ -6,6 +6,7 @@
  */
 import Base from '../layouts/Base.astro';
 import HomeHero from '../components/HomeHero.astro';
+import ContractTiers from '../components/ContractTiers.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
 import LocationMap from '../components/LocationMap.astro';
@@ -32,6 +33,28 @@ const h = start.handover;
     areasTitle={start.areas.h2}
     more={start.areas.more}
   />
+
+  <section class="section" aria-labelledby="pfeiler">
+    <div class="wrap">
+      <SectionHead eyebrow={start.pillars.eyebrow} title={start.pillars.h2} id="pfeiler" />
+      <ul role="list" class="pillars">
+        {start.pillars.items.map((p) => (
+          <li class="pillar">
+            <h3 class="pillar__title">{p.title}</h3>
+            <Rich as="p" text={p.text} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="service-vertrag">
+    <div class="wrap">
+      <SectionHead eyebrow={start.contract.eyebrow} title={start.contract.h2} lead={start.contract.lead} id="service-vertrag" />
+      <ContractTiers compact />
+      <p class="start-more"><a class="arrow-link" href="/krantechnik/service-vertrag">{start.contract.link} <Icon name="arrow-right" size={18} /></a></p>
+    </div>
+  </section>
 
   <section class="section section--dark" aria-labelledby="uebergabe">
     <div class="wrap grid start-handover">
@@ -121,6 +144,12 @@ const h = start.handover;
 
 <style>
   .head--flush { margin-bottom: 0; }
+
+  /* Drei Pfeiler: grosses Wort, ein Satz – durch eine 2-px-Linie oben getragen. */
+  .pillars { display: grid; gap: var(--s-6) var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .pillar { display: grid; gap: var(--s-3); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
+  .pillar__title { font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.5rem); letter-spacing: var(--tracking-tight); }
 
   .start-handover { align-items: start; row-gap: var(--s-7); }
   .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
