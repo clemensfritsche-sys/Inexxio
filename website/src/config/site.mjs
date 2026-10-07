@@ -55,7 +55,7 @@ const ownerCareer = [
 /**
  * ►►► Die drei Bereiche (Auftrag Kap. 3.3) – Navigation, Mega-Dropdowns, Bereichskarten,
  * Footer, JSON-LD (hasOfferCatalog) und llms.txt entstehen daraus. ◄◄◄
- * Reihenfolge = Gewichtung (STRATEGIE.md): Krantechnik und Fahrzeugtechnik sind die zwei
+ * Reihenfolge = Gewichtung (WEBSITE_PLAN §7.7a): Krantechnik und Fahrzeugtechnik sind die zwei
  * Standbeine, Sonderlösungen steht darunter. In der Krantechnik zuerst der Kranservice, dann
  * die Fokusmärkte, dann die Modernisierung. `badge` («Erweitert») markiert ein erweitertes
  * ANGEBOT – nie eine Kompetenz, die es schon immer gab.
@@ -71,7 +71,7 @@ const areas = [
     photo: 'heukran-einsatz',
     ogTitle: 'Kranservice, Heukrananlagen, Industrie- und Bootskrane',
     children: [
-      { label: 'Kranservice', href: '/krantechnik/pruefung-wartung', text: 'Prüfung, Wartung, Reparatur – einzeln oder zum Jahrespreis', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
+      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Prüfung, Wartung, Reparatur – einzeln oder zum Jahrespreis', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
       { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge- und Schwenkkrane in KMU', photo: 'reparatur-vor-ort' },
       { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte', photo: 'hafen-bootskran', badge: 'Erweitert' },
       { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service', photo: 'heukran-einsatz' },
@@ -100,11 +100,7 @@ const areas = [
     text: 'Konstruktion, Schweiss- und Stahlbau, Umbauten an Baumaschinen. Wenn es die Lösung nicht zu kaufen gibt.',
     photo: 'arbeit-werkstatt',
     ogTitle: 'Konstruktion, Schweiss- und Stahlbau, Umbau von Baumaschinen',
-    children: [
-      { label: 'Konstruktion & Engineering', href: '/sonderloesungen/konstruktion-engineering', text: 'Von der Idee bis zur Zeichnung', photo: 'konstruktion' },
-      { label: 'Schweiss- & Stahlbau', href: '/sonderloesungen/schweiss-stahlbau', text: 'Stahlkonstruktionen, Einzelstücke, Kleinserien', photo: 'arbeit-werkstatt' },
-      { label: 'Baumaschinen: Umbau & Reparatur', href: '/sonderloesungen/baumaschinen', text: 'Umbauten, Nachrüstungen, Anbauteile', photo: 'baumaschine' },
-    ],
+    children: [],
   },
 ];
 
@@ -230,24 +226,19 @@ export const site = {
 
   areas,
 
-  /** Service: Einstieg nach Anliegen (Auftrag Kap. 7.6) – im Header als vierter Punkt. */
+  /** Service: Einstieg nach Anliegen und Notfall auf EINER Seite – im Kopf ein einfacher Link. */
   service: {
     label: 'Service',
     href: '/service',
-    overview: 'Service-Übersicht',
+    overview: 'Service und Notfall',
     text: 'Einstieg nach Anliegen – wenn etwas still steht, geprüft oder repariert werden muss.',
     photo: 'servicefahrzeug',
-    children: [
-      { label: 'Notfall-Service', href: '/service/notfall', text: 'Etwas steht still – rufen Sie direkt an', photo: 'servicefahrzeug' },
-      { label: 'Kranservice', href: '/krantechnik/pruefung-wartung', text: 'Prüfen, warten, reparieren – einzeln oder zum Jahrespreis', photo: 'pruefung-hallenkran' },
-      { label: 'Fahrmischer reparieren', href: '/fahrzeugtechnik/fahrmischer', text: 'Alle gängigen Marken', photo: 'fahrmischer-werkstatt' },
-      { label: 'Ersatz- oder Verschleissteil', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Katalog, Teil anfragen', photo: 'verschleissteile-detail' },
-    ],
+    children: [],
   },
 
   /**
    * Unternehmen – im Kopf als Menü «Über uns» mit Bild je Unterpunkt, im Fuss als Spalte.
-   * Testnotiz #1154: Übergabe, Ratgeber und Karriere waren vorher nur im Fuss und im
+   * Testnotiz #1154: Ratgeber und Karriere waren vorher nur im Fuss und im
    * Mobil-Menü zu finden. Jede Seite muss über den Kopf erreichbar sein – geprüft beim Bauen
    * (scripts/check-site.mjs, «über das Menü erreichbar»).
    */
@@ -256,10 +247,9 @@ export const site = {
     label: 'Über uns',
     href: '/ueber-uns',
     overview: 'Mehr über uns',
-    text: 'Werkstatt, Team und Geschichte.',
+    text: 'Werkstatt, Team, Geschichte und die Übergabe von HS Steiner.',
     photo: 'werkstatt-aussen',
     children: [
-      { label: 'Aus HS Steiner wird {{brand.name}}', href: '/uebergabe', text: 'Die Übergabe – was bleibt, was neu ist', photo: 'clemens-heiri-quer' },
       { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran' },
       { label: 'Karriere', href: '/karriere', text: 'Arbeiten in unserer Werkstatt', photo: 'team' },
     ],

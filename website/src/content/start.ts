@@ -3,7 +3,7 @@
  * Werte aus der Konfiguration mit {{…}}.
  */
 import type { Faq } from './types';
-import { handoverLead, heiriQuote, news, sharedFaq, stays } from './uebergabe';
+import { handoverLead, heiriQuote, sharedFaq } from './uebergabe';
 
 export const start = {
   title: 'Krantechnik Schweiz | {{brand.full}}',
@@ -27,7 +27,7 @@ export const start = {
   summary:
     '{{brand.full}} plant, baut und betreut Krananlagen – mit Kranservice einzeln oder zum Jahrespreis für Industrie, Häfen und Landwirtschaft –, wartet und repariert Fahrmischer und Aufbauten aller gängigen Marken, überholt und tauscht Mischtrommeln und konstruiert Sonderlösungen. Die Werkstatt steht in Tuttwil-Wängi TG.',
 
-  /** Der Kranservice als Teaser – die Paket-Tabelle steht EINMAL, auf /krantechnik/pruefung-wartung. */
+  /** Der Kranservice als Teaser – die Paket-Tabelle steht EINMAL, auf /krantechnik/kranservice. */
   plans: {
     eyebrow: 'Erweitertes Angebot',
     h2: 'Kranservice: einzeln oder zum ==Jahrespreis==',
@@ -45,8 +45,6 @@ export const start = {
     h2: 'Aus HS Steiner wird {{brand.name}}.',
     lead: handoverLead,
     quote: heiriQuote,
-    stays,
-    news,
   },
 
   why: {

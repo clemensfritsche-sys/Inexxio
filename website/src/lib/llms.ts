@@ -55,7 +55,7 @@ function header(base: string): string[] {
     '',
     '## Die drei Bereiche',
     '',
-    ...site.areas.map((a) => `- **${a.label}** (${url(base, a.href)}): ${plain(a.text)} – ${a.children.map((c) => c.label).join(', ')}.`),
+    ...site.areas.map((a) => `- **${a.label}** (${url(base, a.href)}): ${plain(a.text)}${a.children.length ? ` – ${a.children.map((c) => c.label).join(', ')}.` : ''}`),
   ];
 }
 
@@ -90,11 +90,7 @@ function pageText(p: PageEntry, base: string): string[] {
   }
   const ar = p.area;
   if (ar) {
-    out.push('### Die drei Ebenen', '');
-    for (const l of ar.levels) {
-      out.push(`- **${plain(l.title)}**: ${md(l.text, base)} – ${l.links.map((k) => `[${plain(k.label)}](${url(base, k.href)})`).join(', ')}`);
-    }
-    out.push('', '### So läuft es ab', '', ...ar.steps.map((st, i) => `${i + 1}. **${plain(st.title)}**: ${md(st.text, base)}`), '');
+    out.push('### So läuft es ab', '', ...ar.steps.map((st, i) => `${i + 1}. **${plain(st.title)}**: ${md(st.text, base)}`), '');
   }
   if (p.faq?.length) {
     out.push('### Häufige Fragen', '');

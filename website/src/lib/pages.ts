@@ -14,9 +14,9 @@ import type { AreaPage, Faq, SubPage } from '../content/types';
 import { start } from '../content/start';
 import { krantechnik, krantechnikPages } from '../content/krantechnik';
 import { fahrzeugtechnik, fahrzeugtechnikPages } from '../content/fahrzeugtechnik';
-import { sonderloesungen, sonderloesungenPages } from '../content/sonderloesungen';
-import { service, notfall } from '../content/service';
-import { uebergabe } from '../content/uebergabe';
+import { sonderloesungen } from '../content/sonderloesungen';
+import { service } from '../content/service';
+import { handover } from '../content/uebergabe';
 import { ueberUns } from '../content/ueber-uns';
 import { kontakt } from '../content/kontakt';
 import { karriere } from '../content/karriere';
@@ -62,12 +62,9 @@ function build(): PageEntry[] {
     ...krantechnikPages.map((p) => subEntry(p, 'Krantechnik')),
     areaEntry(fahrzeugtechnik, 'Fahrzeugtechnik'),
     ...fahrzeugtechnikPages.map((p) => subEntry(p, 'Fahrzeugtechnik')),
-    areaEntry(sonderloesungen, 'Sonderlösungen'),
-    ...sonderloesungenPages.map((p) => subEntry(p, 'Sonderlösungen')),
-    { path: service.path, name: service.title, description: service.description, updated: day, section: 'Service', summary: service.summary },
-    { path: notfall.path, name: notfall.title, description: notfall.description, updated: day, section: 'Service', summary: notfall.summary, faq: notfall.faq },
-    { path: '/uebergabe', name: uebergabe.title, description: uebergabe.description, updated: day, section: 'Unternehmen', summary: uebergabe.summary, faq: uebergabe.faq },
-    { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary, faq: ueberUns.areaFaq },
+    subEntry(sonderloesungen, 'Sonderlösungen'),
+    { path: service.path, name: service.title, description: service.description, updated: day, section: 'Service', summary: service.summary, faq: service.faq },
+    { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary, faq: [...handover.faq, ...ueberUns.areaFaq] },
     { path: '/kontakt', name: kontakt.title, description: kontakt.description, updated: day, section: 'Unternehmen', summary: kontakt.summary },
     { path: '/karriere', name: karriere.title, description: karriere.description, updated: day, section: 'Unternehmen' },
     { path: '/ratgeber', name: ratgeberUebersicht.title, description: ratgeberUebersicht.description, updated: day, section: 'Ratgeber', summary: ratgeberUebersicht.summary },

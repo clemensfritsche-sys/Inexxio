@@ -49,11 +49,6 @@ export const photos = {
     brief: 'Typenschild eines HS-Krans, gut lesbar (Typ, Baujahr, Nummer), Detail',
     ratio: '4/3',
   },
-  'ersatzteillager': {
-    alt: 'Ersatzteillager mit Greifern, Auslegern und Fahrwerken',
-    brief: 'Ersatzteillager in Tuttwil: Regale mit Greifern, Auslegern, Fahrwerken und Drehtürmen, quer',
-    ratio: '3/2',
-  },
   'fahrmischer-werkstatt': {
     alt: 'Fahrmischer in der Werkstatt mit geöffneter Trommel',
     brief: 'Fahrmischer in der Werkstatt, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
@@ -93,11 +88,6 @@ export const photos = {
     alt: 'Clemens Fritsche und Heiri Steiner vor der Werkstatt in Tuttwil',
     brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Querformat',
     ratio: '3/2',
-  },
-  'clemens-heiri-hoch': {
-    alt: 'Clemens Fritsche und Heiri Steiner vor der Werkstatt in Tuttwil',
-    brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Hochformat',
-    ratio: '4/5',
   },
   'werkstatt-aussen': {
     alt: 'Werkstatt von INEXXIO in Tuttwil (Wängi TG) von aussen',
@@ -140,16 +130,6 @@ export const photos = {
   'aufbau-reparatur': {
     alt: 'LKW-Aufbau mit Mulde in der Werkstatt bei der Reparatur',
     brief: 'LKW-Aufbau oder Mulde/Kipper in Reparatur in der Werkstatt, Hydraulikzylinder sichtbar, quer',
-    ratio: '4/3',
-  },
-  'konstruktion': {
-    alt: 'Konstruktion am Bildschirm, daneben das Werkstück',
-    brief: 'Konstruktion am Bildschirm (3D-Modell), daneben das gefertigte Werkstück auf der Werkbank, quer',
-    ratio: '4/3',
-  },
-  'baumaschine': {
-    alt: 'Baumaschine in der Werkstatt bei einem Umbau',
-    brief: 'Baumaschine (z. B. Bagger oder Radlader) in der Werkstatt bei Umbau oder Reparatur, Anbauteil im Bild, quer',
     ratio: '4/3',
   },
 };

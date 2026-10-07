@@ -1,5 +1,5 @@
 /**
- * Krantechnik – Bereichsseite und fünf Unterseiten (STRATEGIE.md).
+ * Krantechnik – Bereichsseite und fünf Unterseiten (WEBSITE_PLAN §7.7a/§7.7b).
  * Zuerst der Kranservice (einzeln oder als Jahrespaket – EINE Seite für Prüfung, Wartung und
  * Pakete), dann die Fokusmärkte (Industrie-KMU, Häfen & Werften, Landwirtschaft), dann die
  * Modernisierung. «HS» ist kein Produktname mehr; Besitzer bestehender HS-Anlagen finden den
@@ -19,7 +19,7 @@ const faqOtherMakes = sharedFaq.otherMakes;
 /** Der Jahrespreis – Bereichsseite und Unterseiten verweisen gleich auf den Kranservice. */
 const faqYear: Faq = {
   q: 'Gibt es einen festen Preis pro Jahr?',
-  a: 'Ja. Neben einzelnen Einsätzen bieten wir drei Pakete zum festen Preis pro Kran und Jahr – von der Prüfung bis zum Rundum-Service. Mehr dazu unter [Kranservice](/krantechnik/pruefung-wartung#pakete).',
+  a: 'Ja. Neben einzelnen Einsätzen bieten wir drei Pakete zum festen Preis pro Kran und Jahr – von der Prüfung bis zum Rundum-Service. Mehr dazu unter [Kranservice](/krantechnik/kranservice#pakete).',
 };
 const ratgeberPruefung = { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranprüfung in der Schweiz', text: 'Wer muss wann was prüfen?', kind: 'ratgeber' as const };
 const ratgeberHeukran = { href: '/ratgeber/heukrananlage-planen', label: 'Neue Heukrananlage planen', text: 'Bauformen, Platzbedarf, Ablauf.', kind: 'ratgeber' as const };
@@ -41,34 +41,6 @@ export const krantechnik: AreaPage = {
   },
   summary:
     '{{brand.full}} prüft, wartet, repariert und modernisiert Krane – einzeln oder als Jahrespaket zum festen Preis pro Kran: Brücken-, Hänge- und Schwenkkrane in Industrie- und Gewerbebetrieben, Boots- und Mastkrane und Bootslifte in Häfen, Segelclubs und Werften sowie Heukrananlagen. Neue Heukrananlagen und Industriekrane bauen wir nach Mass. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
-  levels: [
-    {
-      title: 'Kranservice',
-      text: 'Prüfung, Wartung und Reparatur – auf Abruf oder als Paket zum festen Preis pro Kran und Jahr.',
-      links: [
-        { href: '/krantechnik/pruefung-wartung', label: 'Kranservice' },
-        { href: '/krantechnik/pruefung-wartung#pakete', label: 'Pakete' },
-        { href: '/service/notfall', label: 'Notfall-Service' },
-      ],
-    },
-    {
-      title: 'Für Ihren Kran',
-      text: 'Industrie und Gewerbe, Häfen und Werften, Landwirtschaft – mit Erfahrung aus {{history.experienceDative}} Kranbau.',
-      links: [
-        { href: '/krantechnik/industriekrane', label: 'Industriekrane' },
-        { href: '/krantechnik/haefen-werften', label: 'Häfen & Werften' },
-        { href: '/krantechnik/heukrananlagen', label: 'Heukrananlagen' },
-      ],
-    },
-    {
-      title: 'Modernisieren statt ersetzen',
-      text: 'Ein guter Stahlbau hält Jahrzehnte. Wir rüsten Steuerung und Antrieb nach – und fertigen Teile für die bestehenden HS-Anlagen.',
-      links: [
-        { href: '/krantechnik/modernisierung', label: 'Modernisierung' },
-        { href: '/krantechnik/heukrananlagen#bestehende-anlagen', label: 'Bestehende HS-Anlagen' },
-      ],
-    },
-  ],
   steps: [
     { title: 'Anfrage', text: 'Sie schildern Ihr Anliegen – per Formular oder am Telefon. Ein Foto vom Typenschild hilft.' },
     { title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht, und machen eine Offerte.' },
@@ -129,7 +101,7 @@ export const haefen: SubPage = {
     faqOtherMakes,
     {
       q: 'Gibt es einen festen Jahrespreis auch für Clubs und Gemeinden?',
-      a: 'Ja. Ein fester Betrag pro Kran und Jahr lässt sich im Budget des Clubs oder der Gemeinde planen. Die drei Pakete stehen unter [Kranservice](/krantechnik/pruefung-wartung#pakete).',
+      a: 'Ja. Ein fester Betrag pro Kran und Jahr lässt sich im Budget des Clubs oder der Gemeinde planen. Die drei Pakete stehen unter [Kranservice](/krantechnik/kranservice#pakete).',
     },
     {
       q: 'Unser Kran wird von vielen Mitgliedern bedient. Worauf achten Sie?',
@@ -141,7 +113,7 @@ export const haefen: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/pruefung-wartung', label: 'Kranservice', text: 'Einzeln oder zum festen Preis pro Jahr.' },
+    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Einzeln oder zum festen Preis pro Jahr.' },
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funk, Überlastsicherung, neue Steuerung.' },
     ratgeberPruefung,
   ],
@@ -217,7 +189,7 @@ export const heukrananlagen: SubPage = {
   ],
   related: [
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funkfernsteuerung, Umrichter und neue Steuerung für ältere Anlagen.' },
-    { href: '/krantechnik/pruefung-wartung', label: 'Kranservice', text: 'Prüfung, Wartung und Saison-Check.' },
+    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Prüfung, Wartung und Saison-Check.' },
     ratgeberHeukran,
   ],
   service: { name: 'Heukrananlagen', serviceType: 'Bau, Umbau und Service von Heukrananlagen' },
@@ -248,7 +220,7 @@ export const heukranModules = {
   },
   owners: {
     title: 'Sie haben eine HS-Krananlage? Ihre Anlage wird weiter betreut.',
-    text: 'Die Anlagen, die seit {{history.cranesSince}} in Tuttwil entstanden sind, betreuen wir weiter. Die Übergabe an {{people.owner.name}} ändert daran nichts: Service, Reparatur und Ersatzteile führen wir weiter – mit demselben Wissen. Mehr dazu auf der Seite [Aus HS Steiner wird {{brand.name}}](/uebergabe).',
+    text: 'Die Anlagen, die seit {{history.cranesSince}} in Tuttwil entstanden sind, betreuen wir weiter. Die Übergabe an {{people.owner.name}} ändert daran nichts: Service, Reparatur und Ersatzteile führen wir weiter – mit demselben Wissen. Mehr dazu unter [Aus HS Steiner wird {{brand.name}}](/ueber-uns#uebergabe).',
   },
   season: {
     title: 'Saison-Check vor dem ersten Schnitt',
@@ -305,8 +277,8 @@ export const industriekrane: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/pruefung-wartung', label: 'Kranservice', text: 'Einzeln oder zum festen Preis pro Jahr.' },
-    { href: '/service/notfall', label: 'Notfall-Service', text: 'Wenn der Kran heute stillsteht.' },
+    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Einzeln oder zum festen Preis pro Jahr.' },
+    { href: '/service#notfall', label: 'Notfall-Service', text: 'Wenn der Kran heute stillsteht.' },
     ratgeberPruefung,
   ],
   service: { name: 'Industriekrane', serviceType: 'Service, Reparatur und Bau von Industriekranen' },
@@ -333,7 +305,7 @@ export const industrieModules = {
  */
 export const kranservice: SubPage = {
   area: 'krantechnik',
-  path: '/krantechnik/pruefung-wartung',
+  path: '/krantechnik/kranservice',
   crumb: 'Kranservice',
   title: 'Kranservice und Kranprüfung',
   description:
@@ -389,7 +361,7 @@ export const kranservice: SubPage = {
   ],
   related: [
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Wenn bei der Prüfung Steuerung oder Antrieb auffallen.' },
-    { href: '/service/notfall', label: 'Notfall-Service', text: 'Wenn der Kran stillsteht.' },
+    { href: '/service#notfall', label: 'Notfall-Service', text: 'Wenn der Kran stillsteht.' },
     ratgeberPruefung,
   ],
   service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung und Kranreparatur' },
@@ -400,7 +372,7 @@ export const kranservice: SubPage = {
  * Die Pakete als Tabelle «was kann was» (Rückmeldung 07.10.2026: intuitiv zeigen, was welches
  * Paket kann). `from` = ab welchem Paket eine Zeile gilt – jedes Paket enthält das vorherige,
  * also gibt es keine Kreuzchen-Liste, die auseinanderlaufen kann. Kein Betrag: die Preise je
- * Kranklasse entstehen mit der Offerte (STRATEGIE.md).
+ * Kranklasse entstehen mit der Offerte – auf der Website steht kein Betrag.
  */
 export const servicePlans = {
   title: 'Drei Pakete – oder einzeln',
@@ -483,7 +455,7 @@ export const modernisierung: SubPage = {
   ],
   related: [
     { href: '/krantechnik/industriekrane', label: 'Industriekrane', text: 'Wenn ein neuer Kran die bessere Lösung ist.' },
-    { href: '/sonderloesungen/konstruktion-engineering', label: 'Konstruktion und Engineering', text: 'Berechnung und Dokumentation für Umbauten.' },
+    { href: '/sonderloesungen', label: 'Sonderlösungen', text: 'Konstruktion, Berechnung und Dokumentation für Umbauten.' },
     ratgeberPruefung,
   ],
   service: { name: 'Kranmodernisierung', serviceType: 'Modernisierung von Krananlagen' },

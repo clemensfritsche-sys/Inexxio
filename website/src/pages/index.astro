@@ -38,7 +38,7 @@ const h = start.handover;
     <div class="wrap">
       <SectionHead eyebrow={start.plans.eyebrow} title={start.plans.h2} lead={start.plans.lead} id="kranservice" />
       <ServicePlans compact />
-      <p class="start-more"><a class="arrow-link" href="/krantechnik/pruefung-wartung#pakete">{start.plans.link} <Icon name="arrow-right" size={18} /></a></p>
+      <p class="start-more"><a class="arrow-link" href="/krantechnik/kranservice#pakete">{start.plans.link} <Icon name="arrow-right" size={18} /></a></p>
     </div>
   </section>
 
@@ -48,27 +48,13 @@ const h = start.handover;
         <SectionHead eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe" class="head--flush" />
         {site.features.heiriAdvisory && <Rich as="p" text={site.people.founder.advisory} />}
         <Quote text={h.quote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
+        <div class="start-handover__links">
+          <a class="arrow-link" href="/ueber-uns#uebergabe">Die ganze Geschichte <Icon name="arrow-right" size={18} /></a>
+          <a class="arrow-link" href="/ueber-uns#fragen">Fragen zur Übergabe <Icon name="arrow-right" size={18} /></a>
+        </div>
       </div>
       <div class="col-6 start-handover__media">
         <Photo id="clemens-heiri-quer" sizes="(min-width: 960px) 50vw, 100vw" />
-      </div>
-      <div class="col-12 start-handover__lists">
-        <div>
-          <h3 class="start-handover__h">Was bleibt</h3>
-          <ul class="checklist" role="list">
-            {h.stays.map((s) => <li><Icon name="check" size={20} /><Rich as="span" text={s} /></li>)}
-          </ul>
-        </div>
-        <div>
-          <h3 class="start-handover__h">Was neu ist</h3>
-          <ul class="checklist" role="list">
-            {h.news.map((s) => <li><Icon name="plus" size={20} /><Rich as="span" text={s} /></li>)}
-          </ul>
-        </div>
-        <div class="start-handover__links">
-          <a class="arrow-link" href="/uebergabe">Die ganze Geschichte <Icon name="arrow-right" size={18} /></a>
-          <a class="arrow-link" href="/uebergabe#fragen">Fragen zur Übergabe <Icon name="arrow-right" size={18} /></a>
-        </div>
       </div>
     </div>
   </section>
@@ -122,11 +108,7 @@ const h = start.handover;
 
   .start-handover { align-items: start; row-gap: var(--s-7); }
   .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
-  .start-handover__lists { display: grid; gap: var(--s-6); padding-top: var(--s-6); border-top: 1px solid var(--line-dark); }
-  @media (min-width: 720px) { .start-handover__lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .start-handover__h { font-size: 1.125rem; margin-bottom: var(--s-4); }
   .start-handover__links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-6); }
-  @media (min-width: 720px) { .start-handover__links { grid-column: 1 / -1; } }
 
   .start-why { display: grid; gap: 0 var(--s-6); grid-template-columns: minmax(0, 1fr); align-content: start; }
   @media (min-width: 720px) { .start-why { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

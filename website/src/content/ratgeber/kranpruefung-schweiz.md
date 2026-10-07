@@ -19,7 +19,7 @@ sources:
   - label: 'Suva-Merkblatt 66120: Krane in Industrie und Gewerbe (z. B. Brückenkrane, Portalkrane)'
     href: 'https://www.suva.ch/de-ch/download/dokument/krane-in-industrie-und-gewerbe--z-b--brueckenkrane--portalkrane/standard-variante--66120.D'
 related:
-  - href: '/krantechnik/pruefung-wartung'
+  - href: '/krantechnik/kranservice'
     label: 'Kranprüfung und Wartung'
     text: 'Jährliche Überprüfung mit Prüfbericht.'
   - href: '/krantechnik/modernisierung'

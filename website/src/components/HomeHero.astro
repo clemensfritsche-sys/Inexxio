@@ -108,9 +108,11 @@ const loads = [
             <div class="hh__body-text">
               <h3 class="hh__card-title"><a href={a.href}>{a.label}</a></h3>
               <Rich as="p" class="hh__card-text" text={a.text} />
-              <ul role="list" class="hh__chips">
-                {a.children.map((c) => <li><a href={c.href}>{c.label}{c.badge && <span class="badge-ext">{c.badge}</span>}</a></li>)}
-              </ul>
+              {a.children.length > 0 && (
+                <ul role="list" class="hh__chips">
+                  {a.children.map((c) => <li><a href={c.href}>{c.label}{c.badge && <span class="badge-ext">{c.badge}</span>}</a></li>)}
+                </ul>
+              )}
               <span class="hh__more" aria-hidden="true">{more}<Icon name="arrow-right" size={16} /></span>
             </div>
           </li>

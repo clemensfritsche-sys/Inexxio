@@ -1,25 +1,31 @@
 ---
 /**
- * /ueber-uns (Auftrag 7.7): Wer wir sind (das Team, #1147) · Werte (#1182) · Zusagen · Geschichte ·
- * Werkstatt und Standort · Wo wir arbeiten (zuhause in der Werkstatt, im Einsatz überall).
+ * /ueber-uns: Wer wir sind (das Team, #1147) · Werte (#1182) · Zusagen · Aus HS Steiner wird
+ * INEXXIO (#uebergabe – vorher die eigene Seite /uebergabe) · Werkstatt und Einsatzgebiet ·
+ * Fragen (#fragen). Soll auch bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und
+ * «HS Krananlagen» gefunden werden.
  */
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
+import Timeline from '../components/Timeline.astro';
+import Quote from '../components/Quote.astro';
 import Icon from '../components/Icon.astro';
 import LocationMap from '../components/LocationMap.astro';
 import Faq from '../components/Faq.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
 import { ueberUns as u } from '../content/ueber-uns';
+import { handover as h, heiriQuote, message, news, stays } from '../content/uebergabe';
 import { faqPage, owner } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const a = site.address;
 const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
+const faq = [...h.faq, ...u.areaFaq];
 ---
-<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(u.areaFaq)]}>
+<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(faq)]}>
   <Hero eyebrow={u.hero.eyebrow} title={u.hero.h1} lead={u.hero.lead} photo="werkstatt-aussen" primary={{ label: 'Kontakt aufnehmen', href: '/kontakt' }} />
 
   <section class="section section--tight" aria-label="Auf einen Blick">
@@ -42,7 +48,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   <section class="section" aria-labelledby="werte">
     <div class="wrap">
       <SectionHead eyebrow="Werte" title={u.values.title} id="werte" />
-      <ol role="list" class="uu-promises">
+      <ol role="list" class="uu-list">
         {u.values.items.map((p) => (
           <li>
             <h3>{p.title}</h3>
@@ -56,7 +62,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   <section class="section section--paper" aria-labelledby="zusagen">
     <div class="wrap">
       <SectionHead eyebrow="Zusagen" title={u.promises.title} lead={u.promises.lead} id="zusagen" />
-      <ol role="list" class="uu-promises">
+      <ol role="list" class="uu-list">
         {u.promises.items.map((p) => (
           <li>
             <h3>{p.title}</h3>
@@ -67,46 +73,74 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
     </div>
   </section>
 
-  <section class="section section--dark" aria-labelledby="geschichte">
-    <div class="wrap grid">
-      <div class="col-6">
-        <SectionHead eyebrow={`Seit ${site.history.founded}`} title={u.history.title} id="geschichte" class="head--flush" />
+  <section class="section" id="uebergabe" aria-labelledby="uebergabe-title">
+    <div class="wrap">
+      <SectionHead eyebrow={h.eyebrow} title={h.title} lead={h.lead} id="uebergabe-title" />
+      <Timeline items={h.timeline} />
+    </div>
+  </section>
+
+  <section class="section section--paper" aria-labelledby="botschaft">
+    <div class="wrap grid uu-msg">
+      <div class="col-4">
+        <Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" />
       </div>
-      <div class="col-6 uu-history">
-        <Rich as="p" class="lead" text={u.history.text} />
-        <a class="arrow-link" href="/uebergabe">{u.history.link} <Icon name="arrow-right" size={18} /></a>
+      <div class="col-7 uu-msg__text">
+        <p class="label">Persönlich</p>
+        <h2 id="botschaft">Eine Botschaft von Clemens Fritsche</h2>
+        <div class="uu-msg__body">
+          {message.paragraphs.map((p) => <Rich as="p" text={p} />)}
+        </div>
+        <Rich as="p" class="uu-msg__sig" text={message.signature} />
       </div>
     </div>
   </section>
 
-  <section class="section" aria-labelledby="werkstatt">
+  <section class="section section--dark" aria-labelledby="bleibt">
+    <div class="wrap">
+      <div class="grid uu-heiri">
+        <div class="col-6">
+          <Quote text={heiriQuote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
+        </div>
+        {site.features.heiriAdvisory && (
+          <div class="col-5 uu-heiri__adv"><Rich as="p" class="lead" text={site.people.founder.advisory} /></div>
+        )}
+      </div>
+      <div class="uu-lists">
+        <div>
+          <h2 class="h3" id="bleibt">Was bleibt</h2>
+          <ul class="checklist" role="list">
+            {stays.map((s) => <li><Icon name="check" size={20} /><Rich as="span" text={s} /></li>)}
+          </ul>
+        </div>
+        <div>
+          <h2 class="h3">Was neu ist</h2>
+          <ul class="checklist" role="list">
+            {news.map((s) => <li><Icon name="plus" size={20} /><Rich as="span" text={s} /></li>)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="wo-wir-arbeiten" aria-labelledby="werkstatt">
     <div class="wrap grid uu-ws">
       <div class="col-6"><Photo id="arbeit-werkstatt" sizes="(min-width: 960px) 50vw, 100vw" /></div>
       <div class="col-5 uu-ws__text">
-        <SectionHead eyebrow="Standort" title={u.workshop.title} id="werkstatt" class="head--flush" />
+        <SectionHead eyebrow="Werkstatt und Einsatzgebiet" title={u.workshop.title} id="werkstatt" class="head--flush" />
         <Rich as="p" text={u.workshop.text} />
         <!-- Die Anschrift kommt aus dem ERP (#1108, scripts/contact.ts); hier die Vorgabe. -->
         <address class="uu-addr" data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</address>
-        <div class="uu-links">
-          <a class="arrow-link" href={route} data-erp="route" target="_blank" rel="noopener">Route anzeigen <Icon name="external-link" size={16} /></a>
-        </div>
+        <a class="arrow-link" href={route} data-erp="route" target="_blank" rel="noopener">Route anzeigen <Icon name="external-link" size={16} /></a>
       </div>
+      <div class="col-12 uu-map"><LocationMap /></div>
     </div>
   </section>
 
-  <section class="section section--paper" id="wo-wir-arbeiten" aria-labelledby="wo-wir-arbeiten-title">
-    <div class="wrap">
-      <div class="grid uu-area">
-        <div class="col-5 uu-area__text">
-          <SectionHead eyebrow="Wo wir arbeiten" title={u.area.title} id="wo-wir-arbeiten-title" class="head--flush" />
-          <Rich as="p" text={u.area.text} />
-        </div>
-        <div class="col-7 uu-area__map"><LocationMap /></div>
-      </div>
-      <div class="grid uu-areafaq">
-        <div class="col-4"><h3 class="h3">Fragen zu Einsätzen</h3></div>
-        <div class="col-8"><Faq items={u.areaFaq} level="h4" /></div>
-      </div>
+  <section class="section section--rule" id="fragen" aria-labelledby="fragen-title">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen-title" /></div>
+      <div class="col-8"><Faq items={faq} /></div>
     </div>
   </section>
 </Base>
@@ -117,20 +151,24 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   @media (min-width: 960px) { .uu-team__text { grid-column: 8 / span 5; } }
   .uu-team__text { display: grid; gap: var(--s-4); }
   .uu-team__text .rule-list li { padding: var(--s-3) 0; color: var(--ink); }
-  .uu-promises { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 720px) { .uu-promises { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1100px) { .uu-promises { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-  .uu-promises li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
-  .uu-promises h3 { font-size: 1.25rem; }
+  .uu-list { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .uu-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .uu-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .uu-list li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
+  .uu-list h3 { font-size: 1.25rem; }
   .head--flush { margin-bottom: 0; }
-  .uu-history { display: grid; gap: var(--s-4); justify-items: start; }
-  .uu-ws { align-items: start; }
+  .uu-msg { align-items: start; }
+  @media (min-width: 960px) { .uu-msg__text { grid-column: 6 / span 7; } }
+  .uu-msg__text { display: grid; gap: var(--s-4); }
+  .uu-msg__body { display: grid; gap: var(--s-4); font-size: clamp(1.125rem, 1.08rem + 0.25vw, 1.25rem); line-height: 1.55; color: var(--ink); }
+  .uu-msg__sig { font-weight: 600; color: var(--ink); }
+  .uu-heiri { align-items: center; margin-bottom: var(--s-8); }
+  @media (min-width: 960px) { .uu-heiri__adv { grid-column: 8 / span 5; } }
+  .uu-lists { display: grid; gap: var(--s-7); padding-top: var(--s-7); border-top: 1px solid var(--line-dark); }
+  @media (min-width: 720px) { .uu-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .uu-lists h2 { margin-bottom: var(--s-4); }
+  .uu-ws { align-items: start; row-gap: var(--s-7); }
   @media (min-width: 960px) { .uu-ws__text { grid-column: 8 / span 5; } }
-  .uu-ws__text { display: grid; gap: var(--s-4); }
+  .uu-ws__text { display: grid; gap: var(--s-4); justify-items: start; }
   .uu-addr { font-style: normal; color: var(--ink); line-height: 1.6; }
-  .uu-links { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); }
-  .uu-area { align-items: center; }
-  .uu-area__text { display: grid; gap: var(--s-4); }
-  @media (min-width: 960px) { .uu-area__map { grid-column: 7 / span 6; } }
-  .uu-areafaq { margin-top: var(--s-7); }
 </style>

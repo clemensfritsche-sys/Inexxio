@@ -587,9 +587,17 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 
 ### 7.7a Strategie-Umbau (06.10.2026)
 
-72. **`STRATEGIE.md` ist die Textquelle.** Widerspricht ein älterer Entscheid oder ein
-    Kapitel in `AUFTRAG.md` dem Strategiekern, gilt der Kern. Sonderlösungen bleiben als
-    dritter Bereich (Rückfrage beantwortet).
+72. **Der Strategiekern** (vorher kurzzeitig `STRATEGIE.md`, am 07.10.2026 gelöscht – dieser
+    Plan ist die eine Quelle): Servicebetrieb mit eigenen Produkten. **Krantechnik** –
+    Fokus Industrie-/Gewerbe-KMU der Ostschweiz sowie Häfen, Segelclubs, Gemeindehäfen und
+    Werften; Kernangebot ist der Kranservice (Entscheid 83); bestehende Heukrane betreuen,
+    Neuanlagen wie bisher. **Fahrzeugtechnik** – Fahrmischer-Service für alle gängigen
+    Marken, Verschleissteile ohne «ab Lager», Trommeltausch als erstes eigenes Produkt.
+    **Sonderlösungen** bleiben als dritter Bereich. Werte: Handschlagqualität, Qualität,
+    Zuverlässigkeit, Innovation, Design. Markt: zuerst D-A-CH. **Bewusst nicht:** kein
+    Preiskampf mit Katalog-Kranen; Hafenkrane über 15 t sind intern nicht im Fokus (steht
+    nicht auf der Website); keine Beträge, solange die Jahrespreise nicht kalkuliert sind;
+    keine erfundenen Referenzen.
 73. **Service-Vertrag statt «Abo/Kranbuch entfällt»** (löst AUFTRAG v2 an dieser Stelle ab):
     neue Seite `/krantechnik/service-vertrag`, drei Stufen Basis · Plus · Voll
     (`ContractTiers.astro`, auch auf der Startseite). **Kein Betrag** – die Fixpreise sind
@@ -618,8 +626,9 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 81. **Claim zurück** auf «Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der Schweiz»
     (H1, `brand.claim`, Fuss, OG) – «Hebetechnik» ist zu eng. `brand.promise` entfällt.
 82. **Pfeiler-Abschnitt entfernt** – er überschnitt sich mit «Warum INEXXIO».
-83. **Kranservice statt Service-Vertrag** (löst 73 ab): `/krantechnik/service-vertrag` ist mit
-    `/krantechnik/pruefung-wartung` zusammengeführt (Pfad bleibt, Menüname «Kranservice»).
+83. **Kranservice statt Service-Vertrag** (löst 73 ab): `/krantechnik/service-vertrag` und
+    `/krantechnik/pruefung-wartung` sind EINE Seite `/krantechnik/kranservice` – Name und
+    Adresse sagen dasselbe (Entscheid 89).
     Auf Abruf · Pflicht · Pflege · Rundum, dargestellt als Tabelle «was kann was»
     (`ServicePlans.astro`, `content/krantechnik.ts → servicePlans`; `from` = ab welchem
     Paket eine Leistung gilt). Die Startseite zeigt nur die Kurzform.
@@ -640,6 +649,44 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     `.btn--block`, `.cols-4`, `.link-quiet`, `.stack*`, `.start-7/8`, `.swoosh`, `.select`,
     `.no-print`, `.field--narrow`, `.mnav__more`), Exporte ohne fremden Leser, das Foto
     `trommeltausch`. OG-Bilder mit den neuen Bereichstiteln neu erzeugt.
+
+### 7.7c Konsolidierung (07.10.2026)
+
+Rückmeldung: «relativ viele Seiten» – zusammengelegt wurde nur, wo zwei Seiten dieselbe
+Geschichte erzählten oder eine Seite keinen eigenen Inhalt hatte. **29 → 24 Seiten.** Auf
+alte Adressen wird keine Rücksicht genommen (Dev-Umgebung); die Weiterleitungen der alten
+hs-steiner.ch-Pfade zeigen auf die neuen Ziele.
+
+89. **Name = Adresse**: «Kranservice» liegt unter `/krantechnik/kranservice`.
+90. **Sonderlösungen ist EINE Seite** (`/sonderloesungen`, Vorlage der Unterseiten): die
+    drei Unterseiten Konstruktion · Schweiss-/Stahlbau · Baumaschinen waren dünn und
+    stellten dieselben Fragen. Im Menü ist Sonderlösungen ein einfacher Link; ein Bereich
+    ohne Unterseiten wird überall so behandelt (Kopf, Fuss, Startseite, JSON-LD, llms.txt).
+91. **Service und Notfall sind EINE Seite** (`/service`, Notfall unter `#notfall`): die
+    Übersicht hatte ausser Kacheln keinen eigenen Inhalt. Im Menü ein einfacher Link – das
+    frühere Untermenü wiederholte nur Links der Bereiche.
+92. **Die Übergabe steht auf «Über uns»** (`/ueber-uns#uebergabe`): dort stand dieselbe
+    Geschichte schon als Kurzfassung. Die Startseite zeigt Satz, Zitat und den Link, die
+    Listen «Was bleibt / was neu ist» stehen nur noch auf «Über uns».
+93. **Bereichsseiten ohne «Drei Ebenen»**: sie verlinkten dieselben Unterseiten wie die
+    Karten darunter (`Levels.astro` entfernt).
+94. **Bewusst NICHT zusammengelegt**: die Krantechnik-Unterseiten (je eigene Zielgruppe und
+    Suchanfrage), Fahrmischer · Aufbauten · Verschleissteile (verschiedene Kunden, der
+    Teilekatalog braucht eine eigene Seite), Ratgeber (Suche), Karriere (eigene Absicht),
+    Kontakt und Rechtliches.
+
+**Seitenplan (Stand 07.10.2026)**
+
+| Bereich | Seiten |
+|---|---|
+| Start | `/` |
+| Krantechnik | `/krantechnik` · `/kranservice` · `/industriekrane` · `/haefen-werften` · `/heukrananlagen` · `/modernisierung` |
+| Fahrzeugtechnik | `/fahrzeugtechnik` · `/fahrmischer` · `/aufbauten-reparatur` · `/verschleiss-ersatzteile` |
+| Sonderlösungen | `/sonderloesungen` |
+| Service | `/service` |
+| Unternehmen | `/ueber-uns` · `/karriere` · `/kontakt` (+ `/kontakt/danke`, noindex) |
+| Ratgeber | `/ratgeber` + drei Artikel |
+| Rechtliches | `/impressum` · `/datenschutz` (+ `/agb` im ERP-Frontend, `/404`) |
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
@@ -665,7 +712,7 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `.github/workflows/deploy-dev.yml` | `SITE_FEEDBACK=on`, `X-Robots-Tag` nur auf Dev | Entscheide 48/49 |
 | `backend/app/routers/website.py`, `services/geoip.py`, `scripts/build_geoip.py`, `Dockerfile`, `main.py` | öffentlicher, rein lesender Endpunkt für Kontaktdaten; IP→Land im Docker-Build | Entscheid 56 |
 | `frontend/src/components/layout/navbar.tsx`, `footer.tsx`, `globals.css`, `lib/api.ts`, `types/index.ts` | Kopf eine Zeile, ERP im Menü, Fuss mit Unternehmen-Spalte und Kontaktdaten aus dem ERP | Entscheide 50/56 |
-| `firebase.json` | Garten-/Reifen-Weiterleitungen auf `/uebergabe` | Entscheid 55 |
+| `firebase.json` | Garten-/Reifen-Weiterleitungen auf `/ueber-uns` (vorher `/uebergabe`) | Entscheid 55/92 |
 | `.github/workflows/deploy-*.yml` | `SITE_API` für den Build | Entscheid 56 |
 | `frontend/scripts/site-shell.mjs`, `src/components/layout/site-shell.tsx`, `account-sync.tsx`, `app/layout.tsx`, Layouts | Kopf/Fuss aus dem Website-Build einsetzen; `navbar.tsx`, `footer.tsx`, `cookie-settings-link.tsx` und das weisse Logo gelöscht; `lib/site-shell.json` → `lib/site-meta.json` | Entscheid 60 |
 | `frontend/src/app/globals.css`, `cookie-consent.tsx`, `(auth)/login/page.tsx` | Kopf-/Fuss-Stile entfernt; Cookie-Einstellungen im gemeinsamen Fuss; Danebenklicken führt zu `?from=` zurück | Entscheid 60 |

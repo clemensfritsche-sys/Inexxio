@@ -1,5 +1,5 @@
 /**
- * Fahrzeugtechnik – Bereichsseite und drei Unterseiten (STRATEGIE.md).
+ * Fahrzeugtechnik – Bereichsseite und drei Unterseiten (WEBSITE_PLAN §7.7a/§7.7b).
  * Der Trommeltausch ist das erste eigene Produkt – er steht auf der Fahrmischer-Seite neben
  * der Revision (Rückmeldung 07.10.2026: keine eigene Seite, keine Doppelspurigkeit). Service
  * und Teile für alle gängigen Marken – Verschleissteile werden NICHT «ab Lager» beworben (es
@@ -37,33 +37,6 @@ export const fahrzeugtechnik: AreaPage = {
   },
   summary:
     '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) und wartet und repariert Fahrmischer der Marken {{marks.mixerList}}. Dazu kommen die Reparatur von LKW-Aufbauten, Mulden und Kippern und Verschleissteile für alle gängigen Marken. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
-  levels: [
-    {
-      title: 'Trommel: überholen oder tauschen',
-      text: 'Revision, solange die Trommel zu retten ist – sonst eine neue Trommel auf das bewährte Fahrgestell. Am liebsten im Winter, wenn der Bau ruht.',
-      links: [
-        { href: '/fahrzeugtechnik/fahrmischer#trommel', label: 'Revision oder Tausch' },
-        { href: '/fahrzeugtechnik/fahrmischer#winter-revision', label: 'Im Winter planen' },
-      ],
-    },
-    {
-      title: 'Service & Reparatur',
-      text: 'Service nach Herstellervorgabe, Fehlersuche und Reparatur – alle gängigen Marken an einem Ort.',
-      links: [
-        { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer-Service' },
-        { href: '/fahrzeugtechnik/aufbauten-reparatur#leistungen', label: 'Hydraulik und Aufbau' },
-        { href: '/service/notfall', label: 'Notfall-Service' },
-      ],
-    },
-    {
-      title: 'Ersatz- und Verschleissteile',
-      text: 'Rinnen, Schurren, Trichter und Spiralschutz für alle gängigen Marken – passend zu Ihrem Typ beschafft, auf Wunsch mit Einbau.',
-      links: [
-        { href: '/fahrzeugtechnik/verschleiss-ersatzteile', label: 'Teilekatalog' },
-        { href: '/kontakt', label: 'Teil anfragen' },
-      ],
-    },
-  ],
   steps: [
     { title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.' },
     { title: 'Abklärung', text: 'Wir klären, was es braucht, halten die Teile bereit und planen den Termin.' },
@@ -218,7 +191,7 @@ export const aufbauten: SubPage = {
     faqSpeed,
   ],
   related: [
-    { href: '/sonderloesungen/schweiss-stahlbau', label: 'Schweiss- und Stahlbau', text: 'Wenn ein Teil neu angefertigt werden muss.' },
+    { href: '/sonderloesungen', label: 'Sonderlösungen', text: 'Schweiss- und Stahlbau, wenn ein Teil neu angefertigt werden muss.' },
     { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer', text: 'Service, Revision und Trommeltausch.' },
     ratgeberTeile,
   ],

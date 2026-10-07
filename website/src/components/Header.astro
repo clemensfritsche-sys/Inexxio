@@ -39,13 +39,17 @@ const erp = acct.erp;
  */
 const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
 
-/** Die fünf Menüs: drei Bereiche, Service, Über uns (#1154) – jede Seite ist darin erreichbar. */
-const groups = [
+/**
+ * Die Menüpunkte: drei Bereiche, Service, Über uns (#1154) – jede Seite ist darin erreichbar.
+ * Ein Punkt ohne Unterseiten (Sonderlösungen, Service) ist ein einfacher Link.
+ */
+type Child = { label: string; href: string; text: string; photo: string; badge?: string };
+const groups: { id: string; label: string; href: string; overview: string; photo: string; children: Child[] }[] = [
   ...site.areas.map((a) => ({ id: a.id, label: a.label, href: a.href, overview: a.overview, photo: a.photo, children: a.children })),
   { id: 'service', label: site.service.label, href: site.service.href, overview: site.service.overview, photo: site.service.photo, children: site.service.children },
   { id: site.about.id, label: site.about.label, href: site.about.href, overview: site.about.overview, photo: site.about.photo, children: site.about.children },
 ];
-/** «Erweitert» an einem Unterpunkt (nur die Bereiche tragen es, STRATEGIE.md). */
+/** «Erweitert» an einem Unterpunkt (nur die Bereiche tragen es, WEBSITE_PLAN Entscheid 85). */
 const badgeOf = (c: { label: string; badge?: string }) => c.badge;
 const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children.some((c) => c.href === path);
 ---
@@ -59,7 +63,11 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
 
       <nav class="nav" aria-label="Hauptnavigation">
         <ul role="list" class="nav__list">
-          {groups.map((g) => (
+          {groups.map((g) => !g.children.length ? (
+            <li class="nav__item">
+              <a href={g.href} class:list={['nav__link', within(g.href) && 'is-current']} aria-current={path === g.href ? 'page' : undefined}>{g.label}</a>
+            </li>
+          ) : (
             <li class:list={['nav__item dd', g.id === site.about.id && 'dd--end']} data-dd>
               {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugtechnik» klickt, erwartet
                   sie), der Pfeil daneben öffnet das Untermenü für Tastatur und Touch. Mit der Maus
@@ -148,7 +156,9 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
           <div class="mnav__panel">
             <div class="mnav__top wrap"><Lockup /></div>
             <nav class="mnav__nav wrap" aria-label="Hauptnavigation (mobil)">
-              {groups.map((g) => (
+              {groups.map((g) => !g.children.length ? (
+                <a href={g.href} class="mnav__link" aria-current={path === g.href ? 'page' : undefined}>{g.label}</a>
+              ) : (
                 <details class="mnav__group" open={groupActive(g) ? true : undefined}>
                   <summary class="mnav__link">
                     {g.label}

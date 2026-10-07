@@ -37,9 +37,11 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
       {site.areas.map((area) => (
         <nav class="site-footer__col" aria-label={area.label}>
           <h2 class="site-footer__title"><a href={area.href}>{area.label}</a></h2>
-          <ul role="list">
-            {area.children.map((c) => <li><a href={c.href}>{c.label}</a>{c.badge && <span class="badge-ext">{c.badge}</span>}</li>)}
-          </ul>
+          {area.children.length ? (
+            <ul role="list">
+              {area.children.map((c) => <li><a href={c.href}>{c.label}</a>{c.badge && <span class="badge-ext">{c.badge}</span>}</li>)}
+            </ul>
+          ) : <p class="site-footer__text">{area.text}</p>}
         </nav>
       ))}
 
@@ -106,6 +108,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
   }
   .site-footer__title a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
   .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 0; }
+  .site-footer__text { font-size: 0.875rem; line-height: 1.5; color: rgba(244, 243, 241, 0.65); }
   .site-footer__col li a { display: inline-flex; align-items: center; min-height: 44px; }
   .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }
   .site-footer__contact p { display: grid; grid-template-columns: 22px 1fr; gap: 8px; max-width: none; line-height: 1.5; }

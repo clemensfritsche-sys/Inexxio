@@ -22,8 +22,6 @@ export interface AreaPage {
   hero: { eyebrow: string; h1: string; lead: string; photo: string; primary: Action };
   /** «Auf einen Blick»: 2–3 sachliche Sätze – was, für wen, wo. */
   summary: string;
-  /** Die drei Ebenen: Lösungen · Service & Reparatur · Ersatz- und Verschleissteile. */
-  levels: { title: string; text: string; links: LinkItem[] }[];
   /** Ablauf in vier Schritten: Anfrage → Abklärung → Umsetzung → Bericht. */
   steps: Step[];
   faq: Faq[];

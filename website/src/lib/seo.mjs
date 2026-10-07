@@ -52,9 +52,10 @@ function offerCatalog(siteUrl) {
       name: a.label,
       description: a.text,
       url: abs(siteUrl, a.href),
-      itemListElement: a.children.map((c) => ({
+      // Ein Bereich ohne Unterseiten (Sonderlösungen) bietet sich selbst an.
+      itemListElement: (a.children.length ? a.children : [{ label: a.label, text: a.text, href: a.href }]).map((c) => ({
         '@type': 'Offer',
-        itemOffered: { '@type': 'Service', name: `${a.label}: ${c.label}`, description: c.text, url: abs(siteUrl, c.href) },
+        itemOffered: { '@type': 'Service', name: c.href === a.href ? a.label : `${a.label}: ${c.label}`, description: c.text, url: abs(siteUrl, c.href) },
       })),
     })),
   };

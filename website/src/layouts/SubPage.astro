@@ -28,7 +28,10 @@ interface Props {
 const { page, jsonLd = [] } = Astro.props;
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
-const crumbs = [{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }];
+/** Eine Bereichsseite ohne Unterseiten (Sonderlösungen) ist selbst die Seite: ein Brotkrumen, kein Link auf sich selbst. */
+const own = page.path === area.href;
+const crumbs = own ? [{ name: area.label, path: area.href }] : [{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }];
+const related = own ? page.related : [{ href: area.href, label: area.label, text: area.text }, ...page.related];
 const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
@@ -76,7 +79,7 @@ const nodes = [
 
   <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
   <div class="section section--tight">
-    <div class="wrap"><RelatedLinks title="Verwandte Leistungen" items={[{ href: area.href, label: area.label, text: area.text }, ...page.related]} /></div>
+    <div class="wrap"><RelatedLinks title="Verwandte Leistungen" items={related} /></div>
   </div>
 </Base>
 

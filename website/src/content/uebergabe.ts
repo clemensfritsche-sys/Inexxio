@@ -1,7 +1,7 @@
 /**
- * Übergabe: Aus HS Steiner wird INEXXIO (Auftrag Kap. 7.4 und 7.5).
- * «Was bleibt / was neu ist» und die Botschaft von Clemens stehen NUR hier – die
- * Startseite und «Über uns» lesen sie von dieser Stelle.
+ * Übergabe: Aus HS Steiner wird INEXXIO – steht auf «Über uns» (#uebergabe).
+ * «Was bleibt / was neu ist», die Botschaft von Clemens und die geteilten Antworten stehen
+ * NUR hier – Startseite, «Über uns» und die Bereiche lesen sie von dieser Stelle.
  */
 import { site } from '../config/site.mjs';
 import type { Faq } from './types';
@@ -13,11 +13,11 @@ import type { Faq } from './types';
 export const heiriQuote =
   'Über 40 Jahre war diese Werkstatt mein Leben. Ich gebe sie mit gutem Gefühl weiter: Clemens bringt neues Wissen mit und hat Respekt vor dem, was hier gewachsen ist. Meine Kunden sind bei ihm in guten Händen.';
 
-/** Der eine Satz zur Übergabe – Startseite und Übergabe-Seite sagen ihn gleich. */
+/** Der eine Satz zur Übergabe – Startseite und «Über uns» sagen ihn gleich. */
 export const handoverLead =
   'Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Werkstatt, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.';
 
-/** Was bleibt – dieselbe Liste auf Startseite und Übergabe-Seite (Auftrag 7.3). */
+/** Was bleibt. */
 export const stays = [
   'Standort Tuttwil-Wängi',
   'Telefonnummer {{phone.display}}',
@@ -85,17 +85,14 @@ export const message = {
   signature: '{{people.owner.name}}',
 };
 
-export const uebergabe = {
-  title: 'Aus HS Steiner wird INEXXIO',
-  description:
-    'HS Steiner Fahrzeug- und Kranbau GmbH heisst jetzt INEXXIO AG: gleiche Nummer, gleicher Standort, Service für alle HS-Krananlagen. Fragen zur Nachfolge.',
-  hero: {
-    eyebrow: 'Nachfolge geregelt',
-    h1: 'Aus HS Steiner wird {{brand.name}}',
-    lead: handoverLead,
-  },
-  summary:
-    '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} in Tuttwil-Wängi TG gegründet hat – bisher als {{brand.formerLegalName}}, früher auch bekannt für die HS-Krananlagen. Mit der Übergabe an Clemens Fritsche tritt es als {{brand.legalName}} auf: dieselbe Werkstatt, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
+/**
+ * Die Übergabe auf «Über uns» (#uebergabe) – vorher eine eigene Seite /uebergabe, die dieselbe
+ * Geschichte erzählte wie der Abschnitt «Geschichte» daneben (Rückmeldung 07.10.2026).
+ */
+export const handover = {
+  eyebrow: 'Nachfolge geregelt',
+  title: 'Aus HS Steiner wird {{brand.name}}',
+  lead: handoverLead,
   timeline: [
     { year: String(site.history.founded), text: site.history.foundedText },
     { year: String(site.history.cranesSince), text: site.history.cranesText },

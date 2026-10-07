@@ -1,6 +1,43 @@
 ---
-/** /sonderloesungen – Bereichsseite (Auftrag 7.4). Texte: content/sonderloesungen.ts. */
-import AreaPage from '../layouts/AreaPage.astro';
-import { sonderloesungen, sonderloesungenPages } from '../content/sonderloesungen';
+/**
+ * /sonderloesungen – EINE Seite statt Bereich mit drei Unterseiten (Rückmeldung 07.10.2026).
+ * Vorlage der Unterseiten; Module: Ablauf und Hintergrund. Texte: content/sonderloesungen.ts.
+ */
+import SubPage from '../layouts/SubPage.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Steps from '../components/Steps.astro';
+import Photo from '../components/Photo.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { sonderloesungen, sonderSteps as s, sonderBackground as b } from '../content/sonderloesungen';
 ---
-<AreaPage page={sonderloesungen} subpages={sonderloesungenPages} />
+<SubPage page={sonderloesungen}>
+  <section slot="module" class="section section--dark" aria-labelledby="ablauf">
+    <div class="wrap">
+      <SectionHead eyebrow="Ablauf" title={s.title} lead={s.lead} id="ablauf" />
+      <Steps steps={s.items} />
+      <div class="btn-row so-cta">
+        <a class="btn btn--primary" href="#anfrage">Anliegen schildern <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+    </div>
+  </section>
+
+  <section slot="module" class="section" aria-labelledby="hintergrund">
+    <div class="wrap grid so-bg">
+      <div class="col-4"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
+      <div class="col-7 so-bg__text">
+        <SectionHead eyebrow="Hintergrund" title={b.title} id="hintergrund" class="head--flush" />
+        <Rich as="p" text={b.text} />
+        <a class="arrow-link" href="/ueber-uns">Mehr über uns <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .so-cta { margin-top: var(--s-7); }
+  .so-bg { align-items: center; }
+  .head--flush { margin-bottom: 0; }
+  @media (min-width: 960px) { .so-bg__text { grid-column: 6 / span 7; } }
+  .so-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
+</style>

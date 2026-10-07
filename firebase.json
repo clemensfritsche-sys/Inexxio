@@ -16,7 +16,7 @@
       },
       {
         "regex": "(?i)^/heuentnahmekran/matagematerial(?:/.*)?$",
-        "destination": "/krantechnik/pruefung-wartung",
+        "destination": "/krantechnik/kranservice",
         "type": 301
       },
       {
@@ -51,17 +51,17 @@
       },
       {
         "regex": "(?i)^/baumaschinen(?:/.*)?$",
-        "destination": "/sonderloesungen/baumaschinen",
+        "destination": "/sonderloesungen",
         "type": 301
       },
       {
         "regex": "(?i)^/wahrschaftes/gelaender-und-verglasung(?:/.*)?$",
-        "destination": "/uebergabe",
+        "destination": "/ueber-uns",
         "type": 301
       },
       {
         "regex": "(?i)^/wahrschaftes(?:/.*)?$",
-        "destination": "/sonderloesungen/schweiss-stahlbau",
+        "destination": "/sonderloesungen",
         "type": 301
       },
       {
@@ -71,7 +71,7 @@
       },
       {
         "regex": "(?i)^/(?:haus-und-garten|kleintransporter-pw|hebebuhnen|sachtransporter-anhanger|camping)(?:/.*)?$",
-        "destination": "/uebergabe",
+        "destination": "/ueber-uns",
         "type": 301
       },
       {
