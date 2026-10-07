@@ -33,7 +33,10 @@ const within = (href: string) => path === href || path.startsWith(`${href}/`);
 const tel = `tel:${site.phone.e164}`;
 const acct = site.account;
 const erp = acct.erp;
-/** Testumgebung: ein Kennzeichen neben dem Logo. Nur der Dev-Deploy setzt `SITE_ENV=dev`. */
+/**
+ * Testumgebung: ein Eckband (45°) oben rechts, wie bei App-Builds üblich. Nur der Dev-Deploy
+ * setzt `SITE_ENV=dev`; über den gemeinsamen Kopf erscheint es auch in Konto und ERP.
+ */
 const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
 
 /** Die fünf Menüs: drei Bereiche, Service, Über uns (#1154) – jede Seite ist darin erreichbar. */
@@ -42,17 +45,17 @@ const groups = [
   { id: 'service', label: site.service.label, href: site.service.href, overview: site.service.overview, photo: site.service.photo, children: site.service.children },
   { id: site.about.id, label: site.about.label, href: site.about.href, overview: site.about.overview, photo: site.about.photo, children: site.about.children },
 ];
-/** «Neu» an einem Unterpunkt (nur die Bereiche tragen es, STRATEGIE.md). */
+/** «Erweitert» an einem Unterpunkt (nur die Bereiche tragen es, STRATEGIE.md). */
 const badgeOf = (c: { label: string; badge?: string }) => c.badge;
 const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children.some((c) => c.href === path);
 ---
 <header class="site-header" data-header>
+  {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
   <div class="mainbar">
     <div class="wrap mainbar__in">
       <a href="/" class="site-header__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}>
         <Lockup />
       </a>
-      {envTag && <span class="env-tag" title="Testumgebung – nicht die öffentliche Website">{envTag}</span>}
 
       <nav class="nav" aria-label="Hauptnavigation">
         <ul role="list" class="nav__list">
@@ -82,7 +85,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                     {g.children.map((c) => (
                       <li>
                         <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
-                          <span class="dd__label">{plain(c.label)}{badgeOf(c) && <span class="badge-new">{badgeOf(c)}</span>}</span>
+                          <span class="dd__label">{plain(c.label)}{badgeOf(c) && <span class="badge-ext">{badgeOf(c)}</span>}</span>
                           <span class="dd__text">{c.text}</span>
                         </a>
                       </li>
@@ -153,7 +156,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                   </summary>
                   <ul role="list" class="mnav__sub">
                     {g.children.map((c) => (
-                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}{badgeOf(c) && <em class="badge-new">{badgeOf(c)}</em>}</strong><span>{c.text}</span></a></li>
+                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}{badgeOf(c) && <em class="badge-ext">{badgeOf(c)}</em>}</strong><span>{c.text}</span></a></li>
                     ))}
                     <li><a href={g.href} class="mnav__overview" aria-current={path === g.href ? 'page' : undefined}>{g.overview}</a></li>
                   </ul>
@@ -217,15 +220,23 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   .pm__list :global(.icon) { color: var(--ink-3); }
   .pm__sep { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
 
+  /* Eckband der Testumgebung: am Fenster fest, oben rechts, Klicks gehen hindurch. */
+  .env-ribbon { position: fixed; top: 0; right: 0; z-index: 1000; width: 72px; height: 72px; overflow: hidden; pointer-events: none; }
+  .env-ribbon span {
+    position: absolute; top: 14px; right: -30px; width: 116px; padding: 3px 0; transform: rotate(45deg);
+    background: var(--amber); color: var(--white); text-align: center;
+    font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; line-height: 1.4;
+    box-shadow: 0 1px 4px rgba(24, 20, 17, 0.3);
+  }
+  /* Auf dem Telefon kleiner – dort sitzt das Menü dicht an der Ecke. */
+  @media (max-width: 767px) {
+    .env-ribbon { width: 52px; height: 52px; }
+    .env-ribbon span { top: 9px; right: -34px; width: 104px; padding: 1px 0; font-size: 0.5625rem; }
+  }
+
   /* ---------- Hauptzeile ---------- */
   .mainbar__in { height: var(--header-h); display: flex; align-items: center; gap: var(--s-5); white-space: nowrap; }
   .site-header__home { text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; flex: none; }
-  /* Kennzeichen der Testumgebung – Warnfarbe, Schreibmaschinenschrift, klein. */
-  .env-tag {
-    flex: none; align-self: center; padding: 2px 7px; border-radius: var(--r-sm);
-    background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber);
-    font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em; line-height: 1.4;
-  }
   .mainbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
 
   .nav { display: none; }
@@ -341,13 +352,10 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   .mnav__sub { list-style: none; padding: var(--s-2) 0 var(--s-3); border-bottom: 1px solid var(--line); }
   .mnav__sub a { display: grid; gap: 2px; padding: 10px 0 10px 12px; text-decoration: none; color: var(--ink); font-weight: 600; }
   .mnav__name { font-weight: 600; }
-  .mnav__name .badge-new { font-style: normal; }
+  .mnav__name .badge-ext { font-style: normal; }
   .mnav__sub a span { font-weight: 400; font-size: 0.875rem; color: var(--ink-3); }
   .mnav__sub a[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); }
   .mnav__overview { color: var(--red-deep) !important; }
-  .mnav__more { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
-  .mnav__more a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-2); font-weight: 500; text-decoration: none; }
-  .mnav__more a[aria-current='page'] { color: var(--ink); text-decoration: underline; text-decoration-color: var(--red); }
   .mnav__account { padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
   .mnav__account a { display: flex; align-items: center; gap: 12px; min-height: 48px; color: var(--ink); font-weight: 600; text-decoration: none; }
   .mnav__account :global(.icon) { color: var(--ink-3); }

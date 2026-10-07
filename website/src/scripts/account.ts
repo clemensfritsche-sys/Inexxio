@@ -10,7 +10,7 @@
  *
  * Die Schlüssel sind ein Spiegel der Frontend-Quellen – geprüft von scripts/account.test.mjs.
  */
-export const ACCOUNT_KEYS = {
+const ACCOUNT_KEYS = {
   role: 'inexxio_user_role',
   name: 'inexxio_user_fullname',
   contact: 'inexxio_user_contact',

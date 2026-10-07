@@ -1,8 +1,9 @@
 /**
- * Fahrzeugtechnik – Bereichsseite und vier Unterseiten (STRATEGIE.md, 6.10.2026).
- * Der Trommeltausch ist das erste eigene Produkt und steht vorn. Service und Teile für alle
- * gängigen Marken – Verschleissteile werden NICHT «ab Lager» beworben (es gibt kein Lager,
- * die Teile sind individuell). Keine Neuaufbauten.
+ * Fahrzeugtechnik – Bereichsseite und drei Unterseiten (STRATEGIE.md).
+ * Der Trommeltausch ist das erste eigene Produkt – er steht auf der Fahrmischer-Seite neben
+ * der Revision (Rückmeldung 07.10.2026: keine eigene Seite, keine Doppelspurigkeit). Service
+ * und Teile für alle gängigen Marken – Verschleissteile werden NICHT «ab Lager» beworben (es
+ * gibt kein Lager, die Teile sind individuell). Keine Neuaufbauten.
  */
 import { site } from '../config/site.mjs';
 import type { AreaPage, Faq, SubPage } from './types';
@@ -23,9 +24,9 @@ const ratgeberTeile = { href: '/ratgeber/verschleissteile-fahrmischer', label: '
 export const fahrzeugtechnik: AreaPage = {
   id: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik',
-  title: 'Trommeltausch & Fahrmischer',
+  title: 'Fahrmischer und Aufbauten',
   description:
-    'Trommeltausch statt neuer Fahrmischer: neue Trommel auf dem bestehenden Fahrgestell. Dazu Service, Reparatur und Verschleissteile für alle gängigen Marken.',
+    'Trommeltausch statt neuer Fahrmischer, Trommel-Revision, Service und Reparatur von Fahrmischern und Aufbauten – für alle gängigen Marken. Tuttwil-Wängi TG.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
@@ -38,11 +39,11 @@ export const fahrzeugtechnik: AreaPage = {
     '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) und wartet und repariert Fahrmischer der Marken {{marks.mixerList}}. Dazu kommen die Reparatur von LKW-Aufbauten, Mulden und Kippern und Verschleissteile für alle gängigen Marken. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
   levels: [
     {
-      title: 'Trommeltausch',
-      text: 'Neue Trommel, bewährtes Fahrgestell: Sie sparen den neuen Fahrmischer. Am liebsten im Winter, wenn der Bau ruht.',
+      title: 'Trommel: überholen oder tauschen',
+      text: 'Revision, solange die Trommel zu retten ist – sonst eine neue Trommel auf das bewährte Fahrgestell. Am liebsten im Winter, wenn der Bau ruht.',
       links: [
-        { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch' },
-        { href: '/fahrzeugtechnik/fahrmischer#winter-revision', label: 'Winter-Revision' },
+        { href: '/fahrzeugtechnik/fahrmischer#trommel', label: 'Revision oder Tausch' },
+        { href: '/fahrzeugtechnik/fahrmischer#winter-revision', label: 'Im Winter planen' },
       ],
     },
     {
@@ -72,18 +73,10 @@ export const fahrzeugtechnik: AreaPage = {
   faq: [
     {
       q: 'Was ist ein Trommeltausch?',
-      a: 'Wir setzen eine neue Mischtrommel auf Ihr bestehendes Fahrgestell. Ist das Fahrzeug noch gut, sparen Sie so den neuen Fahrmischer. Mehr dazu auf der Seite [Trommeltausch](/fahrzeugtechnik/trommeltausch).',
+      a: 'Wir setzen eine neue Mischtrommel auf Ihr bestehendes Fahrgestell. Ist das Fahrzeug noch gut, sparen Sie so den neuen Fahrmischer. Mehr dazu unter [Fahrmischer](/fahrzeugtechnik/fahrmischer#trommel).',
     },
     faqBrands,
     faqSpeed,
-    {
-      q: 'Bauen Sie auch neue Aufbauten?',
-      a: 'Nein. Wir reparieren und setzen instand, was auf Ihrem Fahrzeug ist – Neuaufbauten und Fahrzeughandel gehören nicht mehr zu unserem Angebot.',
-    },
-    {
-      q: 'Wann ist der beste Zeitpunkt für eine Trommel-Revision?',
-      a: 'Im Winter, wenn der Bau ruht und der Fahrmischer ohnehin weniger fährt. Dann fehlt er nicht, wenn es auf der Baustelle eilt.',
-    },
     {
       q: 'Liefern Sie auch Verschleissteile ohne Montage?',
       a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz können Sie auch als Teil anfragen.',
@@ -93,112 +86,34 @@ export const fahrzeugtechnik: AreaPage = {
   keywords: ['Trommeltausch Fahrmischer', 'Fahrmischer Service', 'Fahrmischer Reparatur', 'Trommel Revision'],
 };
 
-/* ------------------------------------------------------------------ Trommeltausch */
-export const trommeltausch: SubPage = {
-  area: 'fahrzeugtechnik',
-  path: '/fahrzeugtechnik/trommeltausch',
-  crumb: 'Trommeltausch',
-  title: 'Trommeltausch für Fahrmischer',
-  description:
-    'Trommeltausch statt neuer Fahrmischer: neue Mischtrommel auf dem bestehenden Fahrgestell, für alle gängigen Marken. Werkstatt in Tuttwil-Wängi TG.',
-  hero: {
-    eyebrow: 'Fahrzeugtechnik · Trommeltausch',
-    h1: 'Neue ==Trommel==, bewährtes Fahrgestell',
-    lead:
-      'Ist die Trommel verschlissen, das Fahrgestell aber gut, braucht es keinen neuen Fahrmischer. Wir setzen eine neue Trommel auf Ihr bestehendes Fahrzeug – für alle gängigen Marken.',
-    photo: 'trommeltausch',
-    primary: anfrage('Trommeltausch anfragen'),
-  },
-  summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – für Fahrmischer der Marken {{marks.mixerList}}. Vorher prüfen wir, ob sich der Tausch lohnt. Der Umbau geschieht in der Werkstatt in Tuttwil-Wängi TG, am liebsten im Winter.',
-  glance: {
-    forWhom: 'Betonwerke, Bau- und Transportunternehmen mit Fahrmischern, deren Trommel am Ende ist.',
-    what: 'Zustand prüfen, neue Trommel beschaffen, alte ab- und neue aufbauen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',
-    deliverables: 'Einen Fahrmischer mit neuer Trommel – ohne die Investition in ein neues Fahrzeug – und einen Rapport.',
-  },
-  scope: {
-    title: 'Was zum Trommeltausch gehört',
-    lead: 'Von der ehrlichen Einschätzung bis zur ersten Fahrt.',
-    items: [
-      { title: 'Bestandsaufnahme', text: 'Fahrgestell, Antrieb und Aufbau anschauen: Lohnt sich der Tausch? Wir sagen es offen.' },
-      { title: 'Neue Trommel', text: 'Passend zu Fahrgestell, Marke und Volumen beschafft.' },
-      { title: 'Ab- und Aufbau', text: 'Alte Trommel abbauen, neue setzen und befestigen – in unserer Werkstatt.' },
-      { title: 'Antrieb und Hydraulik', text: 'Getriebe, Motor und Pumpe prüfen und anschliessen; was verschlissen ist, ersetzen wir mit.' },
-      { title: 'Rinnen und Verschleissteile', text: 'Rinnen, Schurren und Trichter auf Wunsch gleich mit erneuern.' },
-      { title: 'Inbetriebnahme', text: 'Probelauf, Kontrolle und ein Rapport mit allen Arbeiten und Teilen.' },
-    ],
-  },
-  faq: [
-    {
-      q: 'Wann lohnt sich ein Trommeltausch?',
-      a: 'Wenn die Trommel verschlissen ist, Fahrgestell, Antrieb und Aufbau aber noch gut sind. Das prüfen wir vorher und sagen es Ihnen offen – auch, wenn ein neuer Fahrmischer die bessere Lösung ist.',
-    },
-    {
-      q: 'Für welche Marken machen Sie einen Trommeltausch?',
-      a: 'Für alle gängigen Marken wie {{marks.mixerList}}. {{marks.mixerNotice}}',
-    },
-    {
-      q: 'Was kostet ein Trommeltausch?',
-      a: 'Das hängt von Trommel, Fahrzeug und Zustand ab. Nach der Bestandsaufnahme erhalten Sie eine Offerte.',
-    },
-    {
-      q: 'Wann ist der beste Zeitpunkt?',
-      a: 'Im Winter, wenn der Bau ruht. Dann fehlt der Fahrmischer nicht, wenn es auf der Baustelle eilt.',
-    },
-    {
-      q: 'Was ist der Unterschied zur Trommel-Revision?',
-      a: 'Bei der Revision überholen wir die bestehende Trommel: Lager, Dichtungen, Laufring, Mischspiralen. Beim Tausch kommt eine neue Trommel auf das Fahrzeug – wenn die alte nicht mehr zu retten ist.',
-    },
-  ],
-  related: [
-    { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer-Service', text: 'Service, Reparatur und Trommel-Revision.' },
-    { href: '/fahrzeugtechnik/verschleiss-ersatzteile', label: 'Verschleiss- und Ersatzteile', text: 'Rinnen, Schurren und Spiralschutz.' },
-    ratgeberTeile,
-  ],
-  service: { name: 'Trommeltausch für Fahrmischer', serviceType: 'Austausch der Mischtrommel auf dem bestehenden Fahrgestell' },
-  keywords: ['Trommeltausch', 'Fahrmischer Trommel ersetzen', 'Mischtrommel neu', 'Fahrmischer Trommel'],
-};
-
-/** Modul: Trommeltausch oder neuer Fahrmischer – qualitativ, ohne erfundene Zahlen. */
-export const drumCompare = {
-  title: 'Trommeltausch oder neuer Fahrmischer?',
-  lead: 'Ohne Investition in ein neues Fahrzeug: Sie erneuern nur, was verschlissen ist.',
-  rows: [
-    { topic: 'Was Sie kaufen', swap: 'Eine neue Trommel', buy: 'Ein ganzes Fahrzeug' },
-    { topic: 'Fahrgestell', swap: 'Bleibt – wenn es noch gut ist', buy: 'Wird mit ersetzt' },
-    { topic: 'Zeitpunkt', swap: 'Planbar, am liebsten im Winter', buy: 'Abhängig von der Lieferzeit' },
-    { topic: 'Wer prüft vorher', swap: 'Wir – und sagen offen, ob es sich lohnt', buy: '–' },
-  ],
-};
-
 /* ------------------------------------------------------------------ Fahrmischer */
 export const fahrmischer: SubPage = {
   area: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik/fahrmischer',
   crumb: 'Fahrmischer',
-  title: 'Fahrmischer-Reparatur',
+  title: 'Fahrmischer und Mischtrommel',
   description:
-    'Fahrmischer-Service und Reparatur: Trommel, Antrieb, Hydraulik, Rinnen und Aufbau für alle gängigen Marken. Trommel-Revision im Winter. Jetzt anfragen.',
+    'Fahrmischer-Service, Reparatur, Trommel-Revision und Trommeltausch für alle gängigen Marken – neue Trommel statt neuer Fahrmischer. Jetzt anfragen.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Fahrmischer',
-    h1: 'Fahrmischer-Service, Reparatur und Trommel-Revision',
+    h1: 'Fahrmischer: Service, Revision und ==Trommeltausch==',
     lead:
-      'Trommel, Antrieb, Hydraulik, Rinnen und Aufbau: Wir warten und reparieren Fahrmischer aller gängigen Marken – und überholen die Trommel, solange der Bau ruht.',
+      'Trommel, Antrieb, Hydraulik, Rinnen und Aufbau: Wir warten und reparieren Fahrmischer aller gängigen Marken. Ist die Trommel am Ende, das Fahrgestell aber gut, setzen wir eine neue Trommel auf – statt eines neuen Fahrmischers.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Service anfragen'),
   },
   summary:
-    '{{brand.full}} wartet und repariert Fahrmischer der Marken {{marks.mixerList}}: Trommel, Antrieb, Hydraulik, Rinnen und Aufbau. Trommel-Revisionen planen wir am liebsten im Winter – in der Werkstatt in Tuttwil-Wängi TG.',
+    '{{brand.full}} wartet und repariert Fahrmischer der Marken {{marks.mixerList}}: Trommel, Antrieb, Hydraulik, Rinnen und Aufbau. Eine verschlissene Trommel überholen wir (Trommel-Revision) oder ersetzen sie durch eine neue auf dem bestehenden Fahrgestell (Trommeltausch). Beides planen wir am liebsten im Winter – in der Werkstatt in Tuttwil-Wängi TG.',
   glance: {
     forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen.',
-    what: 'Service nach Herstellervorgabe, Fehlersuche, Reparatur, Trommel-Revision, Ersatz von Verschleissteilen.',
-    deliverables: 'Einen Rapport mit Arbeiten, Teilen und Hinweisen für den nächsten Service.',
+    what: 'Service nach Herstellervorgabe, Fehlersuche, Reparatur, Trommel-Revision und Trommeltausch, Ersatz von Verschleissteilen.',
+    deliverables: 'Einen Fahrmischer, der wieder läuft – ohne neues Fahrzeug – und einen Rapport mit Arbeiten und Teilen.',
   },
   scope: {
     title: 'Leistungsumfang',
     lead: 'Für alle gängigen Marken.',
     items: [
-      { title: 'Trommel', text: 'Trommel-Revision: Lager, Dichtungen, Laufring und Rollen; Mischspiralen prüfen und aufbauen.' },
+      { title: 'Trommel', text: 'Revision – Lager, Dichtungen, Laufring, Rollen, Mischspiralen – oder Tausch gegen eine neue Trommel.' },
       { title: 'Antrieb', text: 'Trommelgetriebe, Hydraulikmotor und Pumpe – Fehlersuche, Reparatur, Ersatz.' },
       { title: 'Hydraulik', text: 'Schläuche, Leitungen, Ventile und Ölkühler; Lecks finden und beheben.' },
       { title: 'Rinnen und Schurren', text: 'Auslauf- und Verlängerungsrinnen, Schurren und Trichter instand stellen oder ersetzen.' },
@@ -208,31 +123,54 @@ export const fahrmischer: SubPage = {
   },
   faq: [
     faqBrands,
-    faqSpeed,
     {
-      q: 'Was gehört zu einer Trommel-Revision?',
-      a: 'Wir prüfen Lager, Dichtungen, Laufring und Rollen sowie die Mischspiralen und ersetzen, was verschlissen ist. Den genauen Umfang besprechen wir nach der ersten Kontrolle.',
+      q: 'Revision oder Trommeltausch – was ist der Unterschied?',
+      a: 'Bei der Revision überholen wir die bestehende Trommel: Lager, Dichtungen, Laufring, Rollen und Mischspiralen. Beim Tausch kommt eine neue Trommel auf das bestehende Fahrgestell – wenn die alte nicht mehr zu retten ist.',
     },
+    {
+      q: 'Wann lohnt sich ein Trommeltausch?',
+      a: 'Wenn die Trommel verschlissen ist, Fahrgestell, Antrieb und Aufbau aber noch gut sind. Das prüfen wir vorher und sagen es Ihnen offen – auch, wenn ein neuer Fahrmischer die bessere Lösung ist.',
+    },
+    {
+      q: 'Was kostet eine Revision oder ein Trommeltausch?',
+      a: 'Das hängt von Trommel, Fahrzeug und Zustand ab. Nach der ersten Kontrolle erhalten Sie eine Offerte.',
+    },
+    faqSpeed,
     {
       q: 'Sind Sie Vertragshändler einer Marke?',
       a: 'Nein. {{marks.mixerNotice}}',
     },
   ],
   related: [
-    { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch', text: 'Neue Trommel statt neuer Fahrmischer.' },
     { href: '/fahrzeugtechnik/verschleiss-ersatzteile', label: 'Verschleiss- und Ersatzteile', text: 'Rinnen, Schurren und Spiralschutz für alle gängigen Marken.' },
+    { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbauten', text: 'Mulden, Kipper und Hydraulik.' },
     ratgeberTeile,
   ],
-  service: { name: 'Fahrmischer-Service und Reparatur', serviceType: 'Service und Reparatur von Fahrmischern' },
-  keywords: ['Fahrmischer Service', 'Fahrmischer Reparatur', 'Trommel Revision'],
+  service: { name: 'Fahrmischer-Service, Trommel-Revision und Trommeltausch', serviceType: 'Service, Reparatur und Trommeltausch von Fahrmischern' },
+  keywords: ['Fahrmischer Service', 'Fahrmischer Reparatur', 'Trommel Revision', 'Trommeltausch', 'Fahrmischer Trommel ersetzen'],
 };
 
-/** Modul: Winter-Revision (Anker #winter-revision) und Markenliste. */
+/**
+ * Modul (Anker #trommel): überholen, tauschen oder neu kaufen – drei Wege nebeneinander,
+ * qualitativ, ohne erfundene Zahlen. Der Trommeltausch ist das eigene Produkt (`own`).
+ */
+export const drumOptions = {
+  title: 'Die Trommel: überholen oder tauschen?',
+  lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der ersten Kontrolle – offen, auch wenn ein neuer Fahrmischer die bessere Lösung ist.',
+  topics: ['Wann sinnvoll', 'Was wir tun', 'Fahrgestell', 'Zeitpunkt'],
+  options: [
+    { name: 'Trommel-Revision', values: ['Die Trommel ist verschlissen, aber zu retten.', 'Lager, Dichtungen, Laufring, Rollen und Mischspiralen erneuern.', 'Bleibt.', 'Planbar, am liebsten im Winter.'] },
+    { name: 'Trommeltausch', own: true, values: ['Die Trommel ist am Ende, das Fahrgestell gut.', 'Eine neue Trommel auf das bestehende Fahrgestell setzen, Antrieb und Hydraulik anschliessen.', 'Bleibt.', 'Planbar, am liebsten im Winter.'] },
+    { name: 'Neuer Fahrmischer', values: ['Auch das Fahrgestell ist am Ende.', 'Nicht unser Angebot – wir sagen es Ihnen, wenn es so weit ist.', 'Wird mit ersetzt.', 'Abhängig von der Lieferzeit.'] },
+  ],
+};
+
+/** Modul: Winter (Anker #winter-revision) und Markenliste. */
 export const winterRevision = {
-  title: 'Winter-Revision: die Trommel überholen, solange der Bau ruht',
-  text: 'Im Winter fährt ein Fahrmischer weniger – der beste Moment, Trommel und Aufbau gründlich zu überholen. Wer früh plant, hat den Fahrmischer im Frühling bereit, wenn die Saison anzieht.',
+  title: 'Im Winter, wenn der Bau ruht',
+  text: 'Im Winter fährt ein Fahrmischer weniger – der beste Moment für Revision oder Trommeltausch. Wer früh plant, hat den Fahrmischer im Frühling bereit, wenn die Saison anzieht.',
   items: ['Trommel, Lager und Dichtungen', 'Mischspiralen und Spiralschutz', 'Antrieb und Hydraulik', 'Rinnen, Schurren und Aufbau'],
-  cta: 'Winter-Revision planen',
+  cta: 'Winter-Termin planen',
 };
 
 /* ------------------------------------------------------------------ Aufbauten */
@@ -281,7 +219,7 @@ export const aufbauten: SubPage = {
   ],
   related: [
     { href: '/sonderloesungen/schweiss-stahlbau', label: 'Schweiss- und Stahlbau', text: 'Wenn ein Teil neu angefertigt werden muss.' },
-    { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer', text: 'Service, Reparatur und Trommel-Revision.' },
+    { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer', text: 'Service, Revision und Trommeltausch.' },
     ratgeberTeile,
   ],
   service: { name: 'Reparatur von LKW-Aufbauten', serviceType: 'Reparatur und Instandsetzung von Aufbauten' },
@@ -340,8 +278,7 @@ export const verschleissteile: SubPage = {
     },
   ],
   related: [
-    { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch', text: 'Wenn nicht nur die Spirale, sondern die ganze Trommel verschlissen ist.' },
-    { href: '/fahrzeugtechnik/fahrmischer', label: 'Fahrmischer-Service', text: 'Einbau und Trommel-Revision in der Werkstatt.' },
+    { href: '/fahrzeugtechnik/fahrmischer#trommel', label: 'Trommel-Revision und -tausch', text: 'Wenn nicht nur die Spirale, sondern die ganze Trommel verschlissen ist.' },
     ratgeberTeile,
   ],
   service: { name: 'Verschleiss- und Ersatzteile für Fahrmischer', serviceType: 'Verschleissteile für Fahrmischer' },
@@ -349,7 +286,7 @@ export const verschleissteile: SubPage = {
 };
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
-export const fahrzeugtechnikPages = [trommeltausch, fahrmischer, aufbauten, verschleissteile];
+export const fahrzeugtechnikPages = [fahrmischer, aufbauten, verschleissteile];
 
 const nav = site.areas.find((a) => a.id === 'fahrzeugtechnik')!.children.map((c) => c.href).join();
 if (nav !== fahrzeugtechnikPages.map((p) => p.path).join()) throw new Error('Fahrzeugtechnik: Navigation und Seiten nennen andere Pfade.');

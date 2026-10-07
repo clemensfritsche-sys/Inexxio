@@ -3,6 +3,7 @@
  * Der Service ist inhaltlich in jedem Bereich beschrieben; /service ist nur der schnelle
  * Einstieg für Kunden mit einem akuten Anliegen.
  */
+import { sharedFaq } from './uebergabe';
 import type { Entry, Faq } from './types';
 
 export const service = {
@@ -18,11 +19,11 @@ export const service = {
     photo: 'servicefahrzeug',
   },
   summary:
-    '{{brand.full}} betreut Krane – auf Wunsch mit Service-Vertrag zum festen Preis pro Kran und Jahr. Wir warten und reparieren Fahrmischer, Aufbauten und Baumaschinen, tauschen Trommeln von Fahrmischern und beschaffen Verschleissteile für alle gängigen Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an.',
+    '{{brand.full}} prüft, wartet und repariert Krane – einzeln oder als Jahrespaket zum festen Preis pro Kran. Wir warten und reparieren Fahrmischer, Aufbauten und Baumaschinen, überholen und tauschen Trommeln von Fahrmischern und beschaffen Verschleissteile für alle gängigen Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an.',
   entries: [
     { title: 'Etwas steht still', text: 'Notfall-Service – rufen Sie direkt an', href: '/service/notfall', icon: 'siren' },
-    { title: 'Kran prüfen oder warten lassen', text: 'Einzeln oder mit Service-Vertrag zum Fixpreis', href: '/krantechnik/pruefung-wartung', icon: 'shield-check' },
-    { title: 'Fahrmischer oder Aufbau reparieren', text: 'Alle gängigen Marken, auch Trommeltausch', href: '/fahrzeugtechnik/fahrmischer', icon: 'truck' },
+    { title: 'Kran prüfen, warten, reparieren', text: 'Einzeln oder als Paket zum Jahrespreis', href: '/krantechnik/pruefung-wartung', icon: 'shield-check' },
+    { title: 'Fahrmischer oder Aufbau reparieren', text: 'Alle gängigen Marken, auch Trommel-Revision und -tausch', href: '/fahrzeugtechnik/fahrmischer', icon: 'truck' },
     { title: 'Ersatz- oder Verschleissteil gesucht', text: 'Katalog oder Teil direkt anfragen', href: '/fahrzeugtechnik/verschleiss-ersatzteile', icon: 'package' },
   ] satisfies Entry[],
   /** Zweite Ziele zu den Kacheln, die zwei Wege haben (Auftrag 7.6). */
@@ -30,20 +31,6 @@ export const service = {
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbau reparieren lassen' },
     { href: '/kontakt', label: 'Teil direkt anfragen' },
   ],
-  how: {
-    title: 'So arbeiten wir',
-    items: [
-      { title: 'Offerte vor Arbeitsbeginn', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte – Sie entscheiden, bevor wir anfangen.' },
-      { title: 'Bericht nach jeder Arbeit', text: 'Sie erhalten einen Bericht mit Arbeiten und Teilen; bei Kranen gehört er ins Kranbuch.' },
-      { title: 'Teile passend beschafft', text: 'Verschleissteile für alle gängigen Fahrmischer-Marken und Teile für HS-Krananlagen – passend zu Ihrem Typ, vorab bereitgelegt.' },
-      { title: 'Ein Ansprechpartner', text: 'Fahrmischer der gängigen Marken, HS- und eigene Krananlagen – auf Anfrage auch Krane anderer Hersteller.' },
-    ],
-  },
-  area: {
-    title: 'Wo wir arbeiten',
-    text: 'Zuhause sind wir in {{erp.city}}, im Einsatz {{area.summary}}. Krane prüfen und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt.',
-    link: 'Mehr über uns',
-  },
 };
 
 export const notfall = {
@@ -73,13 +60,7 @@ export const notfall = {
     text: 'Anlage ausser Betrieb nehmen und sichern, Last – wenn möglich – sicher absetzen, Bereich absperren. Nicht unter Last weiterarbeiten.',
   },
   faq: [
-    {
-      q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
-      a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
-    },
-    {
-      q: 'Helfen Sie auch bei Kranen anderer Hersteller?',
-      a: 'Auf Anfrage. Unser Schwerpunkt sind die HS- und unsere eigenen Krananlagen; bei Kranen anderer Hersteller klären wir im Einzelfall, ob und wie wir helfen können. Bei Fahrmischern arbeiten wir an allen gängigen Marken.',
-    },
+    sharedFaq.speed,
+    sharedFaq.otherMakes,
   ] satisfies Faq[],
 };

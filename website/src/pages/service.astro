@@ -1,7 +1,7 @@
 ---
 /**
  * /service – Einstieg nach Anliegen, nicht nach Bereich (Auftrag 7.6): vier grosse Kacheln,
- * darunter wie wir arbeiten, das Einsatzgebiet und der Kontakt.
+ * darunter unsere Zusagen (dieselbe Liste wie auf «Über uns») und der Kontakt.
  */
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
@@ -13,6 +13,8 @@ import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
 import { service as s } from '../content/service';
+import { ueberUns } from '../content/ueber-uns';
+const promises = ueberUns.promises;
 import { service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -39,25 +41,17 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
     </div>
   </section>
 
-  <section class="section section--paper" aria-labelledby="so-arbeiten-wir">
+  <section class="section section--paper" aria-labelledby="zusagen">
     <div class="wrap">
-      <SectionHead eyebrow="Auf einen Blick" title={s.how.title} lead={s.summary} id="so-arbeiten-wir" />
+      <SectionHead eyebrow="Zusagen" title={promises.title} lead={s.summary} id="zusagen" />
       <ol role="list" class="sv-how">
-        {s.how.items.map((it) => (
+        {promises.items.map((it) => (
           <li>
             <h3>{it.title}</h3>
             <Rich as="p" text={it.text} />
           </li>
         ))}
       </ol>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="wo-wir-arbeiten">
-    <div class="wrap sv-area">
-      <SectionHead eyebrow="Wo wir arbeiten" title={s.area.title} id="wo-wir-arbeiten" class="head--flush" />
-      <Rich as="p" text={s.area.text} />
-      <a class="arrow-link" href="/ueber-uns#wo-wir-arbeiten">{s.area.link} <Icon name="arrow-right" size={18} /></a>
     </div>
   </section>
 
@@ -72,6 +66,4 @@ const node = serviceNode(siteUrl, { name: 'Service und Reparatur', serviceType: 
   @media (min-width: 1100px) { .sv-how { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   .sv-how li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
   .sv-how h3 { font-size: 1.1875rem; }
-  .sv-area { display: grid; gap: var(--s-4); justify-items: start; max-width: 48rem; }
-  .head--flush { margin-bottom: 0; }
 </style>

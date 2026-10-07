@@ -157,10 +157,10 @@ export function service(siteUrl, s) {
 }
 
 /**
- * Produkt «Heukrananlage» (Auftrag 12.4): nur belegbare Angaben – Name, Beschreibung,
- * Hersteller, Bild. Keine Preise, keine Bewertungen.
+ * Eigenes Produkt (Heukrananlage, Trommeltausch): nur belegbare Angaben – Name, Beschreibung,
+ * Hersteller, Bild. Keine Preise, keine Bewertungen. `og` = Bereich des Vorschaubilds.
  * @param {string} siteUrl
- * @param {{ name: string, description: string, path: string }} p
+ * @param {{ name: string, description: string, path: string, category?: string, og?: string }} p
  */
 export function product(siteUrl, p) {
   return clean({
@@ -168,10 +168,10 @@ export function product(siteUrl, p) {
     name: p.name,
     description: p.description,
     url: abs(siteUrl, p.path),
-    image: `${siteUrl}/og/krantechnik.png`,
+    image: `${siteUrl}/og/${p.og ?? 'krantechnik'}.png`,
     brand: { '@type': 'Brand', name: site.brand.name },
     manufacturer: { '@id': `${siteUrl}/#organisation` },
-    category: 'Krananlage',
+    category: p.category ?? 'Krananlage',
   });
 }
 

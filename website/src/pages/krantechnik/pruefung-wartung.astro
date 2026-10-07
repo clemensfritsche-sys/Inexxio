@@ -1,19 +1,29 @@
 ---
 /**
- * /krantechnik/pruefung-wartung (Auftrag 7.5): Prüfpflicht einfach erklärt mit Tabelle und
- * Quellen, Prüfpflicht-Check (zwei Fragen → Ergebnis). Nicht behaupten, dass INEXXIO
- * Kranexperten-Kontrollen durchführt oder von der Suva anerkannt ist.
+ * /krantechnik/pruefung-wartung – der Kranservice (Rückmeldung 07.10.2026): Prüfung, Wartung
+ * und die Jahrespakete auf EINER Seite. Zuerst die Pakete (was kann was), dann – über die
+ * Vorlage – was wir prüfen, dann die Prüfpflicht mit Tabelle, Quellen und Prüfpflicht-Check.
+ * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva
+ * anerkannt ist.
  */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
+import ServicePlans from '../../components/ServicePlans.astro';
 import InspectionTable from '../../components/InspectionTable.astro';
 import InspectionCheck from '../../components/InspectionCheck.astro';
 import Sources from '../../components/Sources.astro';
-import { pruefung } from '../../content/krantechnik';
+import { kranservice, servicePlans as t } from '../../content/krantechnik';
 import { inspection } from '../../config/inspection.mjs';
 ---
-<SubPage page={pruefung}>
-  <section slot="module" class="section section--paper" aria-labelledby="pruefpflicht">
+<SubPage page={kranservice}>
+  <section slot="intro" class="section" id="pakete" aria-labelledby="pakete-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Pakete" title={t.title} lead={t.lead} id="pakete-title" />
+      <ServicePlans />
+    </div>
+  </section>
+
+  <section slot="module" class="section" aria-labelledby="pruefpflicht">
     <div class="wrap">
       <SectionHead
         eyebrow="Prüfpflicht"

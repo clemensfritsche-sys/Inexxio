@@ -4,7 +4,6 @@
 .iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 .iform__row { display: grid; gap: var(--s-4); }
 @media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.field--narrow { max-width: 220px; }
 .field__opt { font-weight: 400; color: var(--ink-3); font-size: 0.875rem; }
 .input--file { padding: 9px 10px; background: var(--paper); }
 .input--file::file-selector-button {

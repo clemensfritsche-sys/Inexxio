@@ -54,6 +54,20 @@ export const sharedFaq = {
     q: 'Gelten bestehende Verträge weiter?',
     a: 'Ja. Das Unternehmen bleibt dasselbe, nur der Name ändert sich.',
   },
+  /**
+   * Krane anderer Hersteller – EINE Antwort für Krantechnik, Service und Notfall (vorher sagte
+   * der Notfall «nur auf Anfrage», der Kranservice «unabhängig vom Hersteller»). Kein «alle
+   * Hersteller»: jeder Kran wird zuerst angeschaut, Teile werden im Einzelfall geklärt.
+   */
+  /** Stillstand – Startseite, Krantechnik und Notfall sagen es gleich. */
+  speed: {
+    q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
+    a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
+  },
+  otherMakes: {
+    q: 'Betreuen Sie auch Krane anderer Hersteller?',
+    a: 'Ja. Wir prüfen, warten und reparieren Krane unabhängig vom Hersteller. Vorher schauen wir uns jeden Kran an. Ob wir Teile für ein bestimmtes Modell beschaffen können, klären wir im Einzelfall.',
+  },
   /** Ersatzteile für HS-Anlagen (#1128) – Übergabe- und Heukran-Seite sagen es gleich. */
   parts: {
     q: 'Bekomme ich weiterhin Ersatzteile für ältere Anlagen?',

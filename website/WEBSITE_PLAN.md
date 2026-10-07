@@ -613,6 +613,34 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 80. **#1191**: der rot-graue Aktivierungspunkt an den Karten der Startseite ist samt CSS
     entfernt.
 
+### 7.7b Rückmeldung zum Strategie-Umbau (07.10.2026)
+
+81. **Claim zurück** auf «Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der Schweiz»
+    (H1, `brand.claim`, Fuss, OG) – «Hebetechnik» ist zu eng. `brand.promise` entfällt.
+82. **Pfeiler-Abschnitt entfernt** – er überschnitt sich mit «Warum INEXXIO».
+83. **Kranservice statt Service-Vertrag** (löst 73 ab): `/krantechnik/service-vertrag` ist mit
+    `/krantechnik/pruefung-wartung` zusammengeführt (Pfad bleibt, Menüname «Kranservice»).
+    Auf Abruf · Pflicht · Pflege · Rundum, dargestellt als Tabelle «was kann was»
+    (`ServicePlans.astro`, `content/krantechnik.ts → servicePlans`; `from` = ab welchem
+    Paket eine Leistung gilt). Die Startseite zeigt nur die Kurzform.
+84. **Trommeltausch ohne eigene Seite** (löst 75 ab): `/fahrzeugtechnik/trommeltausch` ist in
+    `/fahrzeugtechnik/fahrmischer` aufgegangen – Vergleich Revision · Tausch · Neukauf
+    (`#trommel`), Product-JSON-LD dort.
+85. **«Erweitert» statt «Neu»** (löst 77 ab), Klasse `.badge-ext`.
+86. **DEV als Eckband** (löst 79 ab): 45° oben rechts, `position: fixed`, Klicks gehen
+    hindurch; auf dem Telefon kleiner.
+87. **Doppelspurigkeiten bereinigt**: «Wo wir arbeiten» stand auf Start und /service neben
+    dem Kontaktbereich, der die Karte schon trägt – entfernt (bleibt auf «Über uns», dort
+    ohne den doppelten Satz «Werkstatt steht in …»). «So arbeiten wir» (/service) und
+    «Zusagen» (Über uns) sind EINE Liste. Die Antworten «Krane anderer Hersteller» (vorher
+    widersprüchlich: «nur auf Anfrage» ↔ «unabhängig vom Hersteller») und «Wie schnell bei
+    einem Stillstand» stehen einmal in `sharedFaq`. Doppelte FAQ zwischen Bereichs- und
+    Unterseiten sind entfernt.
+88. **Aufräumen**: `Btn.astro` (ohne Aufrufer), CSS ohne Verwendung (`.btn--dark`,
+    `.btn--block`, `.cols-4`, `.link-quiet`, `.stack*`, `.start-7/8`, `.swoosh`, `.select`,
+    `.no-print`, `.field--narrow`, `.mnav__more`), Exporte ohne fremden Leser, das Foto
+    `trommeltausch`. OG-Bilder mit den neuen Bereichstiteln neu erzeugt.
+
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 
 | Datei | Änderung | Warum |
@@ -644,7 +672,7 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 | `backend/app/routers/contact.py`, `tests/test_contact.py`, `app/assets/website_contact.json` | Formular auf ein Feld reduziert (`inquiry/3`) | Entscheid 62 |
 | `backend/tests/test_frontend_mirrors.py` | drei Wächter auf den gemeinsamen Kopf gezogen | Entscheid 60 |
 | `.github/workflows/deploy-*.yml` | `SHELL_REQUIRED=1` | Entscheid 60 |
-| `.github/workflows/deploy-dev.yml` | `SITE_ENV=dev` (DEV-Marke im Kopf) | Entscheid 79 |
+| `.github/workflows/deploy-dev.yml` | `SITE_ENV=dev` (DEV-Eckband im Kopf) | Entscheid 79/86 |
 
 Nicht angefasst: ERP-Backend (ausser dem Kontakt-Router der Website), Datenbank, Modelle,
 Migrationen, Auth-Logik, Rechte, Prozesse, Module.

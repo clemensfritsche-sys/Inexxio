@@ -31,7 +31,7 @@ export function siteMode() {
 export const isLive = () => siteMode() === 'live';
 
 /** @param {string} s */
-export function escapeHtml(s) {
+function escapeHtml(s) {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -62,7 +62,7 @@ const a = site.address;
  * Alle einsetzbaren Werte. Abgeleitete stehen ausdrücklich hier, nicht in den Texten.
  * @type {Record<string, string>}
  */
-export const TOKENS = {
+const TOKENS = {
   ...flatten(site),
   email: contactEmail(),
   'address.line': `${a.street}, ${a.zip} ${a.city}`,

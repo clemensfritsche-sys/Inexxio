@@ -1,8 +1,6 @@
 /**
- * Startseite – Texte. Reihenfolge der Sektionen ist verbindlich (Auftrag Kap. 7.3):
- * Hero → drei Bereiche → Übergabe → Warum → Ausgewählte Arbeiten (abgeschaltet) →
- * Wo wir arbeiten → Ratgeber → Fragen → Anfrage.
- * Werte aus der Konfiguration mit {{…}}, offene Punkte mit [[…]].
+ * Startseite – Texte, in der Reihenfolge der Sektionen (src/pages/index.astro).
+ * Werte aus der Konfiguration mit {{…}}.
  */
 import type { Faq } from './types';
 import { handoverLead, heiriQuote, news, sharedFaq, stays } from './uebergabe';
@@ -10,44 +8,31 @@ import { handoverLead, heiriQuote, news, sharedFaq, stays } from './uebergabe';
 export const start = {
   title: 'Krantechnik Schweiz | {{brand.full}}',
   description:
-    'Hebetechnik mit Handschlagqualität aus Tuttwil-Wängi TG: Kranservice zum Fixpreis, Heukrananlagen, Trommeltausch für Fahrmischer. Seit 1982. Anfragen.',
+    'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice, Heukrananlagen, Fahrmischer und Trommeltausch. Seit 1982. Anfragen.',
 
   hero: {
     eyebrow: 'Tuttwil-Wängi TG · seit {{history.founded}}',
-    /** Der Claim (STRATEGIE.md). Weiches Trennzeichen im langen Wort – sonst läuft es auf dem
-     *  Telefon bei 40 px Schrift über den Rand. */
-    h1: '==Hebetechnik== mit Handschlag\u00ADqualität.',
+    h1: 'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der ==Schweiz==',
     lead:
-      '{{brand.promise}} Wir betreuen Krane zum festen Preis pro Kran und Jahr – in Industrie, Häfen und Landwirtschaft –, setzen neue Trommeln auf bestehende Fahrmischer und konstruieren, was es nicht zu kaufen gibt.',
+      'Wir planen, bauen und betreuen Krananlagen, warten und reparieren Fahrmischer und Aufbauten aller gängigen Marken und konstruieren Lösungen, die es nicht von der Stange gibt. Mit Ingenieurwissen und kurzen Wegen.',
     /** Vertrauensleiste – nur belegte Fakten, je eine Zahl (oder ein Wort) und was sie sagt. */
     trust: [
       { value: '{{history.founded}}', label: 'Gegründet in Tuttwil-Wängi' },
       { value: '{{history.cranesSince}}', label: 'Eigene Krananlagen' },
-      { value: 'Fixpreis', label: 'Kranservice pro Kran und Jahr' },
-      { value: 'Alle Marken', label: 'Fahrmischer und Trommeltausch' },
+      { value: 'Jahrespreis', label: 'Kranservice auf Wunsch zum Fixpreis' },
+      { value: 'Alle Marken', label: 'Fahrmischer und Aufbauten' },
     ],
   },
 
   summary:
-    '{{brand.full}} ist ein Servicebetrieb mit eigenen Produkten: Kranservice zum festen Preis pro Kran und Jahr für Industrie, Häfen und Landwirtschaft, Heukrananlagen nach Mass, Trommeltausch und Service für Fahrmischer aller gängigen Marken, dazu Sonderlösungen. Die Werkstatt steht in Tuttwil-Wängi TG.',
+    '{{brand.full}} plant, baut und betreut Krananlagen – mit Kranservice einzeln oder zum Jahrespreis für Industrie, Häfen und Landwirtschaft –, wartet und repariert Fahrmischer und Aufbauten aller gängigen Marken, überholt und tauscht Mischtrommeln und konstruiert Sonderlösungen. Die Werkstatt steht in Tuttwil-Wängi TG.',
 
-  /** Die drei Pfeiler (STRATEGIE.md) – was Sie von uns bekommen, in drei Wörtern. */
-  pillars: {
-    eyebrow: 'Was Sie bekommen',
-    h2: 'Passt. Läuft. Ohne ==Investition==.',
-    items: [
-      { title: 'Passt', text: 'Eine Lösung nach Ihrem Bedarf – nicht nach unserem Katalog. Wir schauen zuerst an, was Sie haben und was Sie brauchen.' },
-      { title: 'Läuft', text: 'Zuverlässig und verfügbar: Fristen im Blick, Wartung geplant, und wenn etwas stillsteht, sind wir erreichbar.' },
-      { title: 'Ohne Investition', text: 'Service statt Neukauf, modernisieren statt ersetzen: eine neue Steuerung auf dem guten Stahlbau, eine neue Trommel auf dem guten Fahrgestell.' },
-    ],
-  },
-
-  /** Kernangebot der Krantechnik – Teaser mit den drei Stufen (Seite: /krantechnik/service-vertrag). */
-  contract: {
-    eyebrow: 'Neu: Service-Vertrag',
-    h2: 'Ein Preis pro Kran und Jahr',
-    lead: 'Sie wissen im Voraus, was Ihr Kran kostet – wir kümmern uns um Prüfung, Fristen und Kranbuch. Für Industriekrane, Boots- und Mastkrane und Heukrananlagen.',
-    link: 'Mehr zum Service-Vertrag',
+  /** Der Kranservice als Teaser – die Paket-Tabelle steht EINMAL, auf /krantechnik/pruefung-wartung. */
+  plans: {
+    eyebrow: 'Erweitertes Angebot',
+    h2: 'Kranservice: einzeln oder zum ==Jahrespreis==',
+    lead: 'Prüfung, Wartung und Reparatur für Industriekrane, Boots- und Mastkrane und Heukrananlagen – auf Abruf oder in einem von drei Paketen zum festen Preis pro Kran und Jahr.',
+    link: 'Die Pakete im Detail',
   },
 
   areas: {
@@ -92,13 +77,6 @@ export const start = {
   },
 
 
-  area: {
-    eyebrow: 'Wo wir arbeiten',
-    h2: 'Aus Tuttwil-Wängi in die ==ganze Welt==',
-    text: 'Zuhause sind wir in {{erp.city}}: Hier steht unsere Werkstatt, und in der Nähe sind wir am schnellsten bei Ihnen. Im Einsatz sind wir {{area.summary}} – für Krananlagen, Service und Sonderlösungen.',
-    link: 'Mehr über uns',
-  },
-
   ratgeber: {
     eyebrow: 'Ratgeber',
     h2: 'Kurz erklärt: Prüfpflicht, Heukran planen, Verschleiss',
@@ -115,10 +93,7 @@ export const start = {
       q: 'Welche Marken betreuen Sie?',
       a: 'Bei Fahrmischern: {{marks.mixerList}} – weitere Marken auf Anfrage.',
     },
-    {
-      q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
-      a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
-    },
+    sharedFaq.speed,
   ] satisfies Faq[],
 
 };

@@ -1,15 +1,48 @@
 ---
-/** /fahrzeugtechnik/fahrmischer – Trommel, Antrieb, Hydraulik, Rinnen, Aufbau; Winter-Revision; Markenliste mit Hinweis. */
+/**
+ * /fahrzeugtechnik/fahrmischer – Service, Reparatur, Trommel-Revision und Trommeltausch auf
+ * EINER Seite (Rückmeldung 07.10.2026). Module: die drei Wege für die Trommel (#trommel),
+ * der Winter als Zeitpunkt (#winter-revision) und das Marken-Band.
+ */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
-import { fahrmischer, winterRevision } from '../../content/fahrzeugtechnik';
+import { fahrmischer, drumOptions as d, winterRevision as w } from '../../content/fahrzeugtechnik';
 import { site } from '../../config/site.mjs';
-const w = winterRevision;
+import { product } from '../../lib/seo.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const productNode = product(siteUrl, {
+  name: 'Trommeltausch für Fahrmischer',
+  description: 'Neue Mischtrommel auf dem bestehenden Fahrgestell statt eines neuen Fahrmischers – für alle gängigen Marken.',
+  path: `${fahrmischer.path}#trommel`,
+  category: 'Fahrmischer-Trommel',
+  og: 'fahrzeugtechnik',
+});
 const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: true, query: '?raw', import: 'default' });
 ---
-<SubPage page={fahrmischer}>
+<SubPage page={fahrmischer} jsonLd={[productNode]}>
+  <section slot="module" class="section" id="trommel" aria-labelledby="trommel-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Trommel" title={d.title} lead={d.lead} id="trommel-title" />
+      <ul role="list" class="drum">
+        {d.options.map((o) => (
+          <li class:list={['drum__opt', o.own && 'drum__opt--own']}>
+            <h3 class="drum__name">{o.name}</h3>
+            <dl class="drum__list">
+              {d.topics.map((t, i) => (
+                <div><dt>{t}</dt><dd>{o.values[i]}</dd></div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <div class="btn-row drum__cta">
+        <a class="btn btn--primary" href="#anfrage">Trommel prüfen lassen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+    </div>
+  </section>
+
   <section slot="module" class="section section--dark" id="winter-revision" aria-labelledby="winter-title">
     <div class="wrap grid wr">
       <div class="col-6 wr__text">
@@ -41,6 +74,16 @@ const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: tru
 </SubPage>
 
 <style>
+  .drum { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .drum { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .drum__opt { display: grid; gap: var(--s-3); align-content: start; padding: var(--s-5); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--white); }
+  .drum__opt--own { border: 2px solid var(--ink); }
+  .drum__name { font-size: 1.375rem; }
+  .drum__list { display: grid; gap: var(--s-3); }
+  .drum__list dt { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); }
+  .drum__list dd { margin: 2px 0 0; color: var(--ink); }
+  .drum__cta { margin-top: var(--s-6); }
+
   .wr { row-gap: var(--s-7); }
   .wr__text { display: grid; gap: var(--s-5); justify-items: start; }
   .head--flush { margin-bottom: 0; }

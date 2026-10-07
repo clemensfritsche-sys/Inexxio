@@ -8,7 +8,7 @@ import type { Faq } from './types';
 export const ueberUns = {
   title: 'Über uns',
   description:
-    'INEXXIO (ehemals HS Steiner), Tuttwil-Wängi TG: Hebetechnik mit Handschlagqualität seit 1982 – Kranservice, Trommeltausch und Sonderlösungen.',
+    'INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Krantechnik, Fahrzeugtechnik und Sonderlösungen seit 1982 – eine Werkstatt mit Ingenieurwissen.',
   hero: {
     eyebrow: 'Über uns',
     h1: 'Werkstatt mit Ingenieurwissen – in Tuttwil seit {{history.founded}}',
@@ -16,13 +16,13 @@ export const ueberUns = {
       '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} gegründet hat – heute mit demselben Handwerk und mit Ingenieurwissen aus dem Maschinenbau.',
   },
   summary:
-    '{{brand.full}} ist ein Servicebetrieb mit eigenen Produkten: Wir betreuen Krane zum festen Preis pro Kran und Jahr, bauen Heukrananlagen, tauschen Trommeln von Fahrmischern und konstruieren Sonderlösungen. Die Werkstatt steht in {{erp.city}}.',
+    '{{brand.full}} ist ein Servicebetrieb mit eigenen Produkten: Wir betreuen und bauen Krane, überholen und tauschen Trommeln von Fahrmischern und konstruieren Sonderlösungen. Die Werkstatt steht in {{erp.city}}.',
   /** Wer wir sind – das Team, nicht eine Person (#1147: «es braucht immer alle»). */
   team: {
     title: 'Wer wir sind',
     text: 'Hinter {{brand.name}} steht ein Team aus der Werkstatt: Mechanik, Schweiss- und Stahlbau, Konstruktion. Jede Anlage und jede Reparatur entsteht gemeinsam – von der ersten Skizze bis zum Service.',
     points: [
-      'Krane betreuen – mit Service-Vertrag zum Fixpreis',
+      'Krane bauen, prüfen, warten und modernisieren',
       'Fahrmischer warten, reparieren und mit neuer Trommel ausrüsten',
       'Konstruieren, schweissen, umbauen – auch, was es nicht zu kaufen gibt',
     ],
@@ -43,6 +43,7 @@ export const ueberUns = {
       { title: 'Design', text: 'Eine Anlage soll gut funktionieren, sicher zu bedienen sein und gut aussehen – bis ins Detail.' },
     ],
   },
+  /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
   promises: {
     title: 'Worauf Sie sich verlassen können',
     lead: 'Konkrete Zusagen statt schöner Worte.',
@@ -59,7 +60,7 @@ export const ueberUns = {
   },
   area: {
     title: 'Zuhause in der Werkstatt – im Einsatz, wo Sie uns brauchen',
-    text: 'Unsere Werkstatt steht in {{erp.city}}. Im Einsatz sind wir {{area.summary}}: Krane prüfen, warten und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt. In der Nähe sind wir schnell bei Ihnen, für weiter entfernte Einsätze planen wir gemeinsam.',
+    text: 'Im Einsatz sind wir {{area.summary}}: Krane prüfen, warten und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt. In der Nähe sind wir schnell bei Ihnen, für weiter entfernte Einsätze planen wir gemeinsam.',
   },
   areaFaq: [
     {
@@ -69,10 +70,6 @@ export const ueberUns = {
     {
       q: 'Kostet die Anfahrt extra?',
       a: 'Ja, nach Aufwand. Sie sehen die Anfahrt vorher in der Offerte – auf der Rechnung steht keine Überraschung.',
-    },
-    {
-      q: 'Arbeiten Sie vor Ort oder in der Werkstatt?',
-      a: 'Krane prüfen, warten und reparieren wir dort, wo sie stehen. Fahrmischer kommen für Service und Reparatur in unsere Werkstatt in {{erp.city}}.',
     },
   ] satisfies Faq[],
 };

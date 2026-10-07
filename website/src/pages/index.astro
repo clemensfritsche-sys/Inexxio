@@ -1,15 +1,15 @@
 ---
 /**
- * Startseite – Reihenfolge nach Auftrag Kap. 7.3: Hero mit Laufkran, den drei Bereichen und
- * der Vertrauensleiste (HomeHero) → Übergabe → Warum → Ausgewählte Arbeiten (Schalter) →
- * Wo wir arbeiten → Ratgeber → Fragen → Anfrage. Texte: src/content/start.ts, Bereiche aus src/config/site.mjs.
+ * Startseite: Hero mit Laufkran, den drei Bereichen und der Vertrauensleiste (HomeHero) →
+ * Kranservice (Teaser der Pakete) → Übergabe → Warum → Ratgeber → Fragen → Anfrage (mit
+ * Karte – darum keine zweite «Wo wir arbeiten»-Sektion). Texte: src/content/start.ts,
+ * Bereiche aus src/config/site.mjs.
  */
 import Base from '../layouts/Base.astro';
 import HomeHero from '../components/HomeHero.astro';
-import ContractTiers from '../components/ContractTiers.astro';
+import ServicePlans from '../components/ServicePlans.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
-import LocationMap from '../components/LocationMap.astro';
 import Quote from '../components/Quote.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
@@ -34,25 +34,11 @@ const h = start.handover;
     more={start.areas.more}
   />
 
-  <section class="section" aria-labelledby="pfeiler">
+  <section class="section section--paper" aria-labelledby="kranservice">
     <div class="wrap">
-      <SectionHead eyebrow={start.pillars.eyebrow} title={start.pillars.h2} id="pfeiler" />
-      <ul role="list" class="pillars">
-        {start.pillars.items.map((p) => (
-          <li class="pillar">
-            <h3 class="pillar__title">{p.title}</h3>
-            <Rich as="p" text={p.text} />
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
-
-  <section class="section section--paper" aria-labelledby="service-vertrag">
-    <div class="wrap">
-      <SectionHead eyebrow={start.contract.eyebrow} title={start.contract.h2} lead={start.contract.lead} id="service-vertrag" />
-      <ContractTiers compact />
-      <p class="start-more"><a class="arrow-link" href="/krantechnik/service-vertrag">{start.contract.link} <Icon name="arrow-right" size={18} /></a></p>
+      <SectionHead eyebrow={start.plans.eyebrow} title={start.plans.h2} lead={start.plans.lead} id="kranservice" />
+      <ServicePlans compact />
+      <p class="start-more"><a class="arrow-link" href="/krantechnik/pruefung-wartung#pakete">{start.plans.link} <Icon name="arrow-right" size={18} /></a></p>
     </div>
   </section>
 
@@ -109,17 +95,6 @@ const h = start.handover;
     </div>
   </section>
 
-  <section class="section section--paper" aria-labelledby="wo-wir-arbeiten">
-    <div class="wrap grid start-area">
-      <div class="col-6 start-area__text">
-        <SectionHead eyebrow={start.area.eyebrow} title={start.area.h2} id="wo-wir-arbeiten" class="head--flush" />
-        <Rich as="p" text={start.area.text} />
-        <a class="arrow-link" href="/ueber-uns#wo-wir-arbeiten">{start.area.link} <Icon name="arrow-right" size={18} /></a>
-      </div>
-      <div class="col-6 start-area__media"><LocationMap /></div>
-    </div>
-  </section>
-
   <section class="section" aria-labelledby="ratgeber">
     <div class="wrap">
       <SectionHead eyebrow={start.ratgeber.eyebrow} title={start.ratgeber.h2} id="ratgeber" />
@@ -145,12 +120,6 @@ const h = start.handover;
 <style>
   .head--flush { margin-bottom: 0; }
 
-  /* Drei Pfeiler: grosses Wort, ein Satz – durch eine 2-px-Linie oben getragen. */
-  .pillars { display: grid; gap: var(--s-6) var(--s-5); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 860px) { .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .pillar { display: grid; gap: var(--s-3); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
-  .pillar__title { font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.5rem); letter-spacing: var(--tracking-tight); }
-
   .start-handover { align-items: start; row-gap: var(--s-7); }
   .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
   .start-handover__lists { display: grid; gap: var(--s-6); padding-top: var(--s-6); border-top: 1px solid var(--line-dark); }
@@ -167,9 +136,6 @@ const h = start.handover;
   .start-portrait :global(.ph), .start-portrait :global(picture) { max-width: 320px; }
   .start-portrait__text { font-size: 1.125rem; line-height: 1.45; color: var(--ink); font-weight: 500; letter-spacing: -0.01em; }
   @media (min-width: 960px) { .start-portrait { padding-left: var(--s-5); border-left: 1px solid var(--line); } }
-
-  .start-area { align-items: center; }
-  .start-area__text { display: grid; gap: var(--s-4); justify-items: start; }
 
   .start-more { margin-top: var(--s-6); }
   .start-faq { max-width: 52rem; }

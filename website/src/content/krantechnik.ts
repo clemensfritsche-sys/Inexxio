@@ -1,9 +1,9 @@
 /**
- * Krantechnik – Bereichsseite und sechs Unterseiten (STRATEGIE.md, 6.10.2026).
- * Zuerst das Kernangebot (Service-Vertrag), dann die zwei Fokusmärkte (Industrie-KMU,
- * Häfen & Werften), dann Heukrane und die Leistungen. «HS» ist kein Produktname mehr;
- * Besitzer bestehender HS-Anlagen finden den Hinweis im Text, in den FAQ und auf der
- * Übergabe-Seite.
+ * Krantechnik – Bereichsseite und fünf Unterseiten (STRATEGIE.md).
+ * Zuerst der Kranservice (einzeln oder als Jahrespaket – EINE Seite für Prüfung, Wartung und
+ * Pakete), dann die Fokusmärkte (Industrie-KMU, Häfen & Werften, Landwirtschaft), dann die
+ * Modernisierung. «HS» ist kein Produktname mehr; Besitzer bestehender HS-Anlagen finden den
+ * Hinweis im Text, in den FAQ und auf der Übergabe-Seite.
  */
 import { site } from '../config/site.mjs';
 import { inquiry } from '../config/inquiry.mjs';
@@ -14,20 +14,12 @@ const anfrage = (label: string) => ({ label, href: '#anfrage' });
 
 /** Dieselbe Antwort wie auf Startseite und Übergabe (#1127). */
 const faqHsCare = sharedFaq.whoCares;
-const faqSpeed: Faq = {
-  q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
-  a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
-};
-/**
- * Krane anderer Hersteller (STRATEGIE.md: Service für Industrie-KMU und Häfen). Ehrlich
- * bleibt es so: wir prüfen und warten unabhängig vom Hersteller, schauen jeden Kran vorher
- * an und versprechen keine Teile, die wir nicht beschaffen können (Entscheid 58 bleibt im
- * Kern: kein «alle Hersteller»).
- */
-const otherMakes = 'Ja. Wir prüfen, warten und reparieren Krane unabhängig vom Hersteller. Vorher schauen wir uns jeden Kran an. Ob wir Teile für ein bestimmtes Modell beschaffen können, klären wir im Einzelfall.';
-const faqContract: Faq = {
-  q: 'Gibt es einen Service-Vertrag mit festem Preis?',
-  a: 'Ja. Der [Service-Vertrag](/krantechnik/service-vertrag) kostet einen festen Betrag pro Kran und Jahr – in drei Stufen, von der gesetzlichen Prüfung bis zum Verfügbarkeitsversprechen.',
+const faqSpeed = sharedFaq.speed;
+const faqOtherMakes = sharedFaq.otherMakes;
+/** Der Jahrespreis – Bereichsseite und Unterseiten verweisen gleich auf den Kranservice. */
+const faqYear: Faq = {
+  q: 'Gibt es einen festen Preis pro Jahr?',
+  a: 'Ja. Neben einzelnen Einsätzen bieten wir drei Pakete zum festen Preis pro Kran und Jahr – von der Prüfung bis zum Rundum-Service. Mehr dazu unter [Kranservice](/krantechnik/pruefung-wartung#pakete).',
 };
 const ratgeberPruefung = { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranprüfung in der Schweiz', text: 'Wer muss wann was prüfen?', kind: 'ratgeber' as const };
 const ratgeberHeukran = { href: '/ratgeber/heukrananlage-planen', label: 'Neue Heukrananlage planen', text: 'Bauformen, Platzbedarf, Ablauf.', kind: 'ratgeber' as const };
@@ -36,26 +28,26 @@ const ratgeberHeukran = { href: '/ratgeber/heukrananlage-planen', label: 'Neue H
 export const krantechnik: AreaPage = {
   id: 'krantechnik',
   path: '/krantechnik',
-  title: 'Kranservice zum Fixpreis',
+  title: 'Krananlagen und Kranservice',
   description:
-    'Kranservice zum festen Preis pro Kran und Jahr: Prüfung, Wartung, Reparatur und Modernisierung für Industriekrane, Boots- und Mastkrane und Heukrane.',
+    'Kranservice einzeln oder zum Jahrespreis, neue Heukrananlagen und Industriekrane, Boots- und Mastkrane, Modernisierung – aus Tuttwil-Wängi TG.',
   hero: {
     eyebrow: 'Krantechnik',
-    h1: 'Krantechnik: Ihr Kran läuft – zum ==Fixpreis==',
+    h1: 'Krantechnik: Service, neue Anlagen und ==Modernisierung==',
     lead:
-      'Mit dem Service-Vertrag zahlen Sie einen festen Preis pro Kran und Jahr. Wir prüfen, warten, reparieren und modernisieren – für Industrie und Gewerbe, Häfen und Werften und die Landwirtschaft. Krane bauen wir seit {{history.cranesSince}} selbst.',
+      'Wir prüfen, warten und reparieren Krane – einzeln oder zum festen Preis pro Jahr. Für Industrie und Gewerbe, Häfen und Werften und die Landwirtschaft. Und wir bauen neue Anlagen: Krane entstehen bei uns seit {{history.cranesSince}}.',
     photo: 'heukran-einsatz',
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} betreut Krane mit einem Service-Vertrag zum festen Preis pro Kran und Jahr: Brücken-, Hänge- und Schwenkkrane in Industrie- und Gewerbebetrieben der Ostschweiz, Boots- und Mastkrane und Bootslifte in Häfen, Segelclubs und Werften sowie Heukrananlagen. Neue Heukrananlagen und Industriekrane bauen wir nach Mass. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} prüft, wartet, repariert und modernisiert Krane – einzeln oder als Jahrespaket zum festen Preis pro Kran: Brücken-, Hänge- und Schwenkkrane in Industrie- und Gewerbebetrieben, Boots- und Mastkrane und Bootslifte in Häfen, Segelclubs und Werften sowie Heukrananlagen. Neue Heukrananlagen und Industriekrane bauen wir nach Mass. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
   levels: [
     {
-      title: 'Service zum Fixpreis',
-      text: 'Ein Preis pro Kran und Jahr, in drei Stufen: Basis, Plus und Voll. Prüfung, Fristen und Kranbuch sind immer dabei.',
+      title: 'Kranservice',
+      text: 'Prüfung, Wartung und Reparatur – auf Abruf oder als Paket zum festen Preis pro Kran und Jahr.',
       links: [
-        { href: '/krantechnik/service-vertrag', label: 'Service-Vertrag' },
-        { href: '/krantechnik/pruefung-wartung', label: 'Prüfung & Wartung' },
+        { href: '/krantechnik/pruefung-wartung', label: 'Kranservice' },
+        { href: '/krantechnik/pruefung-wartung#pakete', label: 'Pakete' },
         { href: '/service/notfall', label: 'Notfall-Service' },
       ],
     },
@@ -84,102 +76,14 @@ export const krantechnik: AreaPage = {
     { title: 'Bericht', text: 'Sie erhalten einen Bericht zu jeder Arbeit; der Eintrag gehört ins Kranbuch.' },
   ],
   faq: [
-    faqContract,
-    {
-      q: 'Bauen Sie weiterhin neue Krananlagen?',
-      a: 'Ja. Heukrananlagen und Industriekrane planen und bauen wir nach Mass – abgestimmt auf Ihr Gebäude und Ihre Arbeit.',
-    },
+    faqYear,
+    sharedFaq.newCranes,
     faqHsCare,
-    { q: 'Betreuen Sie auch Krane anderer Hersteller?', a: otherMakes },
-    {
-      q: 'Wie oft muss ein Kran geprüft werden?',
-      a: 'Alle Krane regelmässig, nach den Angaben des Herstellers, durch Kranfachleute. Für Fahrzeug- und Turmdrehkrane gelten zusätzlich feste Fristen. Die Übersicht steht auf der Seite [Prüfung und Wartung](/krantechnik/pruefung-wartung).',
-    },
+    faqOtherMakes,
     faqSpeed,
   ],
-  service: { name: 'Krantechnik', serviceType: 'Kranservice zum Fixpreis, Bau, Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen' },
-  keywords: ['Kranservice Schweiz', 'Kran Servicevertrag', 'Krananlagen', 'Kranbau Thurgau'],
-};
-
-/* ------------------------------------------------------------------ Service-Vertrag */
-export const serviceVertrag: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/service-vertrag',
-  crumb: 'Service-Vertrag',
-  title: 'Service-Vertrag für Krane',
-  description:
-    'Kranservice zum Fixpreis: ein fester Betrag pro Kran und Jahr, in drei Stufen – Prüfung und Kranbuch, Wartung, Teile und Reparaturen. Offerte anfragen.',
-  hero: {
-    eyebrow: 'Krantechnik · Service-Vertrag',
-    h1: 'Ein Preis pro Kran und Jahr – der ==Service-Vertrag==',
-    lead:
-      'Sie wissen im Voraus, was Ihr Kran im Jahr kostet. Wir kümmern uns um Prüfung, Fristen und Kranbuch – je nach Stufe auch um Wartung, Teile, Reparaturen und Ersatz-Hebezeug.',
-    photo: 'pruefung-hallenkran',
-    primary: anfrage('Offerte anfragen'),
-  },
-  summary:
-    'Der Service-Vertrag von {{brand.full}} kostet einen festen Betrag pro Kran und Jahr. Es gibt drei Stufen: Basis (gesetzliche Prüfung, Kranbuch, Erinnerung an Fristen), Plus (dazu Wartung, feste Reaktionszeit, fester Ansprechpartner) und Voll (dazu Teile und Reparaturen, Ersatz-Hebezeug, Verfügbarkeitsversprechen). Der Preis richtet sich nach Tragkraft, Alter und Nutzung des Krans.',
-  glance: {
-    forWhom: 'Betriebe mit einem oder mehreren Kranen: Industrie und Gewerbe, Häfen, Segelclubs und Werften, Landwirtschaft.',
-    what: 'Wir übernehmen Prüfung, Kranbuch und Fristen – je nach Stufe auch Wartung, Reparaturen und Teile.',
-    deliverables: 'Einen festen Jahrespreis je Kran, einen Ansprechpartner und einen Kran, der läuft.',
-  },
-  scope: {
-    title: 'Was der Vertrag für Sie regelt',
-    lead: 'Keine Überraschungen auf der Rechnung, keine verpasste Frist.',
-    items: [
-      { title: 'Fester Preis', text: 'Ein Betrag pro Kran und Jahr. Er richtet sich nach Tragkraft, Alter und Nutzung.' },
-      { title: 'Prüfung nach Vorschrift', text: 'Die regelmässige Überprüfung durch Kranfachleute – in jeder Stufe.' },
-      { title: 'Kranbuch nachgeführt', text: 'Jede Prüfung und jede Arbeit steht im Kranbuch. Sie müssen nichts nachtragen.' },
-      { title: 'Fristen im Blick', text: 'Wir erinnern Sie an Prüfungen und planen die Termine.' },
-      { title: 'Wartung und Reaktionszeit', text: 'Ab der Stufe Plus: Wartung nach Herstellervorgabe, eine feste Reaktionszeit und ein fester Ansprechpartner.' },
-      { title: 'Teile, Reparaturen, Ersatz', text: 'In der Stufe Voll: Teile und Reparaturen sind inbegriffen. Fällt der Kran aus, stellen wir Ersatz-Hebezeug.' },
-    ],
-  },
-  faq: [
-    {
-      q: 'Was kostet der Service-Vertrag?',
-      a: 'Einen festen Betrag pro Kran und Jahr. Er richtet sich nach der Kranklasse: Tragkraft, Alter und Nutzung. Nachdem wir Ihre Krane angeschaut haben, erhalten Sie eine Offerte.',
-    },
-    {
-      q: 'Welche Stufe passt zu mir?',
-      a: 'Basis, wenn Sie vor allem die Prüfpflicht sicher erfüllen wollen. Plus, wenn der Kran gepflegt und im Störfall schnell betreut sein soll. Voll, wenn Ihr Betrieb vom Kran abhängt und Sie keine Kosten für Teile und Reparaturen einplanen wollen.',
-    },
-    { q: 'Gilt der Vertrag auch für Krane anderer Hersteller?', a: otherMakes },
-    {
-      q: 'Was heisst Verfügbarkeitsversprechen?',
-      a: 'In der Stufe Voll sagen wir Ihnen im Vertrag zu, wie wir die Verfügbarkeit Ihres Krans sichern: mit Reparatur, Teilen und, wenn nötig, Ersatz-Hebezeug. Die Einzelheiten stehen im Vertrag.',
-    },
-    {
-      q: 'Wer prüft den Kran?',
-      a: 'Kranfachleute aus unserem Team. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen durch einen von der Suva anerkannten Kranexperten ist eine eigene Pflicht. Mehr dazu im Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz).',
-    },
-  ],
-  related: [
-    { href: '/krantechnik/pruefung-wartung', label: 'Prüfung und Wartung', text: 'Was wir am Kran prüfen und warten.' },
-    { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Modernisieren statt ersetzen.' },
-    ratgeberPruefung,
-  ],
-  service: { name: 'Service-Vertrag für Krane', serviceType: 'Kranservice zum Fixpreis pro Kran und Jahr' },
-  keywords: ['Kran Servicevertrag', 'Kranservice Fixpreis', 'Wartungsvertrag Kran', 'Kranbuch führen'],
-};
-
-/** Die drei Stufen – jede enthält die vorherige. Preise: je Kran nach Offerte (STRATEGIE.md). */
-export const contractTiers = {
-  title: 'Drei Stufen – jede enthält die vorherige',
-  lead: 'Sie wählen, wie viel wir Ihnen abnehmen. Der Preis gilt pro Kran und Jahr.',
-  tiers: [
-    { name: 'Basis', claim: 'Die Pflicht ist erfüllt.', items: ['Gesetzliche Prüfung', 'Kranbuch nachgeführt', 'Erinnerung an Fristen'] },
-    { name: 'Plus', claim: 'Der Kran wird gepflegt.', includes: 'Alles aus Basis', items: ['Wartung nach Herstellervorgabe', 'Feste Reaktionszeit', 'Fester Ansprechpartner'] },
-    { name: 'Voll', claim: 'Der Kran läuft.', includes: 'Alles aus Plus', items: ['Teile und Reparaturen inbegriffen', 'Ersatz-Hebezeug bei Ausfall', 'Verfügbarkeitsversprechen'] },
-  ],
-  price: 'Den Preis rechnen wir je Kran – nach Tragkraft, Alter und Nutzung. Sie erhalten eine Offerte mit festem Jahresbetrag.',
-  steps: [
-    { title: 'Anfrage', text: 'Sie nennen uns Ihre Krane – ein Foto vom Typenschild genügt für den Anfang.' },
-    { title: 'Bestandsaufnahme', text: 'Wir schauen die Krane an und lesen das Kranbuch.' },
-    { title: 'Offerte', text: 'Je Kran ein fester Jahrespreis, in der Stufe Ihrer Wahl.' },
-    { title: 'Vertrag', text: 'Ab jetzt planen wir Prüfung und Wartung – die Fristen liegen bei uns.' },
-  ] satisfies Step[],
+  service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen' },
+  keywords: ['Kranservice Schweiz', 'Krananlagen', 'Kranbau Thurgau', 'Kranprüfung'],
 };
 
 /* ------------------------------------------------------------------ Häfen & Werften */
@@ -189,7 +93,7 @@ export const haefen: SubPage = {
   crumb: 'Häfen & Werften',
   title: 'Boots- und Mastkrane',
   description:
-    'Prüfung, Wartung und Reparatur von Bootskranen, Mastkranen und Bootsliften für Häfen, Segelclubs, Gemeinden und Werften – mit Service-Vertrag zum Fixpreis.',
+    'Prüfung, Wartung und Reparatur von Bootskranen, Mastkranen und Bootsliften für Häfen, Segelclubs, Gemeinden und Werften – einzeln oder zum Jahrespreis.',
   hero: {
     eyebrow: 'Krantechnik · Häfen & Werften',
     h1: 'Boots- und Mastkrane, die zur ==Saison== laufen',
@@ -199,10 +103,10 @@ export const haefen: SubPage = {
     primary: anfrage('Anlage anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Bootskrane, Mastkrane und Bootslifte für Häfen, Segelclubs, Gemeindehäfen und Werften – auf Wunsch mit Service-Vertrag zum festen Preis pro Kran und Jahr. Krane bauen und betreuen wir seit {{history.cranesSince}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} prüft, wartet und repariert Bootskrane, Mastkrane und Bootslifte für Häfen, Segelclubs, Gemeindehäfen und Werften – einzeln oder als Jahrespaket zum festen Preis pro Kran. Krane bauen und betreuen wir seit {{history.cranesSince}}; im Einsatz sind wir {{area.summary}}.',
   glance: {
     forWhom: 'Hafenmeister, Segel- und Bootsclubs, Gemeinden mit eigenem Hafen, Werften und Bootsbauer.',
-    what: 'Prüfung, Wartung und Reparatur von Boots- und Mastkranen und Bootsliften – mit Service-Vertrag oder einzeln.',
+    what: 'Prüfung, Wartung und Reparatur von Boots- und Mastkranen und Bootsliften – einzeln oder als Jahrespaket.',
     deliverables: 'Eine geprüfte Anlage vor dem Einwassern, ein nachgeführtes Kranbuch und einen Ansprechpartner, der sie kennt.',
   },
   scope: {
@@ -222,10 +126,10 @@ export const haefen: SubPage = {
       q: 'Wann ist der beste Zeitpunkt für die Prüfung?',
       a: 'Vor dem Einwassern im Frühling. Dann bleibt Zeit für Reparaturen, bevor alle Boote auf einmal ins Wasser wollen. Nach dem Auswassern im Herbst lohnt sich ein Blick auf das, was über den Winter repariert werden kann.',
     },
-    { q: 'Prüfen Sie auch Krane anderer Hersteller?', a: otherMakes },
+    faqOtherMakes,
     {
-      q: 'Gibt es den Service-Vertrag auch für Clubs und Gemeinden?',
-      a: 'Ja. Ein fester Betrag pro Kran und Jahr lässt sich im Budget des Clubs oder der Gemeinde planen. Die drei Stufen stehen auf der Seite [Service-Vertrag](/krantechnik/service-vertrag).',
+      q: 'Gibt es einen festen Jahrespreis auch für Clubs und Gemeinden?',
+      a: 'Ja. Ein fester Betrag pro Kran und Jahr lässt sich im Budget des Clubs oder der Gemeinde planen. Die drei Pakete stehen unter [Kranservice](/krantechnik/pruefung-wartung#pakete).',
     },
     {
       q: 'Unser Kran wird von vielen Mitgliedern bedient. Worauf achten Sie?',
@@ -237,7 +141,7 @@ export const haefen: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/service-vertrag', label: 'Service-Vertrag', text: 'Ein Preis pro Kran und Jahr.' },
+    { href: '/krantechnik/pruefung-wartung', label: 'Kranservice', text: 'Einzeln oder zum festen Preis pro Jahr.' },
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funk, Überlastsicherung, neue Steuerung.' },
     ratgeberPruefung,
   ],
@@ -251,7 +155,7 @@ export const harbourYear = {
   lead: 'Ein Bootskran arbeitet in Wellen. Wir richten den Service danach aus.',
   seasons: [
     { title: 'Vor dem Einwassern', when: 'Winter und Frühling', text: 'Prüfung und Wartung, Kranbuch nachführen, Mängel beheben – damit der Kran am ersten Krantag der Saison läuft.' },
-    { title: 'In der Saison', when: 'Frühling bis Herbst', text: 'Fällt der Kran aus, rufen Sie direkt an. Mit dem Service-Vertrag gilt eine feste Reaktionszeit.' },
+    { title: 'In der Saison', when: 'Frühling bis Herbst', text: 'Fällt der Kran aus, rufen Sie direkt an. In den Paketen Pflege und Rundum gilt eine feste Reaktionszeit.' },
     { title: 'Nach dem Auswassern', when: 'Herbst', text: 'Zustand aufnehmen, Reparaturen und Modernisierungen über den Winter planen.' },
   ],
 };
@@ -313,7 +217,7 @@ export const heukrananlagen: SubPage = {
   ],
   related: [
     { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funkfernsteuerung, Umrichter und neue Steuerung für ältere Anlagen.' },
-    { href: '/krantechnik/pruefung-wartung', label: 'Prüfung und Wartung', text: 'Jährliche Überprüfung mit Bericht.' },
+    { href: '/krantechnik/pruefung-wartung', label: 'Kranservice', text: 'Prüfung, Wartung und Saison-Check.' },
     ratgeberHeukran,
   ],
   service: { name: 'Heukrananlagen', serviceType: 'Bau, Umbau und Service von Heukrananlagen' },
@@ -360,7 +264,7 @@ export const industriekrane: SubPage = {
   crumb: 'Industriekrane',
   title: 'Industriekrane nach Mass',
   description:
-    'Brücken-, Hänge- und Schwenkkrane in KMU der Ostschweiz: Service-Vertrag zum Fixpreis, Prüfung, Wartung, Reparatur und neue Krane nach Mass. Anfragen.',
+    'Brücken-, Hänge- und Schwenkkrane in KMU der Ostschweiz: Prüfung, Wartung und Reparatur, einzeln oder zum Jahrespreis – und neue Krane nach Mass.',
   hero: {
     eyebrow: 'Krantechnik · Industriekrane',
     h1: 'Industriekrane: Service, der den Betrieb ==laufen== lässt',
@@ -370,10 +274,10 @@ export const industriekrane: SubPage = {
     primary: anfrage('Kran anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Brücken-, Hänge- und Schwenkkrane in Industrie- und Gewerbebetrieben der Ostschweiz – auf Wunsch mit Service-Vertrag zum festen Preis pro Kran und Jahr. Neue Industriekrane bauen wir nach Mass. Steht ein Kran still, rufen Sie direkt an.',
+    '{{brand.full}} prüft, wartet und repariert Brücken-, Hänge- und Schwenkkrane in Industrie- und Gewerbebetrieben der Ostschweiz – einzeln oder als Jahrespaket zum festen Preis pro Kran. Neue Industriekrane bauen wir nach Mass. Steht ein Kran still, rufen Sie direkt an.',
   glance: {
     forWhom: 'Instandhaltungs- und Betriebsleiter in Industrie- und Gewerbebetrieben (KMU) der Ostschweiz, Werkhöfe von Gemeinden.',
-    what: 'Prüfung, Wartung, Fehlersuche und Reparatur – mit Service-Vertrag oder einzeln. Neuanlagen nach Mass.',
+    what: 'Prüfung, Wartung, Fehlersuche und Reparatur – einzeln oder als Jahrespaket. Neuanlagen nach Mass.',
     deliverables: 'Einen Kran, der läuft, ein nachgeführtes Kranbuch und einen Rapport mit Ursache, Arbeiten und Teilen.',
   },
   scope: {
@@ -389,20 +293,19 @@ export const industriekrane: SubPage = {
     ],
   },
   faq: [
-    { q: 'Reparieren Sie auch Krane anderer Hersteller?', a: otherMakes },
-    faqContract,
+    faqOtherMakes,
+    faqYear,
     {
       q: 'Was tue ich, wenn der Kran stehen bleibt?',
       a: 'Den Kran ausser Betrieb nehmen und sichern, die Last – wenn möglich – sicher absetzen und uns anrufen: {{phone.link}}. Nicht unter Last weiterarbeiten.',
     },
-    faqSpeed,
     {
       q: 'Bauen Sie neue Industriekrane?',
       a: 'Ja – abgestimmt auf Halle, Last und Arbeitsplatz.',
     },
   ],
   related: [
-    { href: '/krantechnik/service-vertrag', label: 'Service-Vertrag', text: 'Ein Preis pro Kran und Jahr.' },
+    { href: '/krantechnik/pruefung-wartung', label: 'Kranservice', text: 'Einzeln oder zum festen Preis pro Jahr.' },
     { href: '/service/notfall', label: 'Notfall-Service', text: 'Wenn der Kran heute stillsteht.' },
     ratgeberPruefung,
   ],
@@ -414,7 +317,7 @@ export const industriekrane: SubPage = {
 export const industrieModules = {
   service: {
     title: 'Service und Reparatur',
-    text: 'Wir suchen die Ursache und reparieren vor Ort – unabhängig vom Hersteller. Mit dem Service-Vertrag gilt eine feste Reaktionszeit. Steht ein Kran still, rufen Sie direkt an.',
+    text: 'Wir suchen die Ursache und reparieren vor Ort – unabhängig vom Hersteller. In den Paketen Pflege und Rundum gilt eine feste Reaktionszeit. Steht ein Kran still, rufen Sie direkt an.',
   },
   photoHint: {
     title: 'Foto vom Typenschild oder vom Schaden mitschicken',
@@ -422,29 +325,33 @@ export const industrieModules = {
   },
 };
 
-/* ------------------------------------------------------------------ Prüfung & Wartung */
-export const pruefung: SubPage = {
+/* ------------------------------------------------------------------ Kranservice */
+/**
+ * EINE Seite für Prüfung, Wartung und die Jahrespakete (Rückmeldung 07.10.2026: «Prüfung
+ * und Wartung und Service-Vertrag zusammenführen»). Der Pfad bleibt `/pruefung-wartung` –
+ * er ist verlinkt und wird gesucht.
+ */
+export const kranservice: SubPage = {
   area: 'krantechnik',
   path: '/krantechnik/pruefung-wartung',
-  crumb: 'Prüfung & Wartung',
-  title: 'Kranprüfung und Kranwartung',
+  crumb: 'Kranservice',
+  title: 'Kranservice und Kranprüfung',
   description:
-    'Kranprüfung und Wartung für Brücken-, Hänge-, Dreh- und Heukrane in der Schweiz – die Prüfpflicht einfach erklärt, mit Bericht. Jetzt anfragen.',
+    'Kranprüfung, Wartung und Reparatur – einzeln oder als Paket zum festen Preis pro Kran und Jahr. Die Prüfpflicht einfach erklärt, jede Arbeit mit Bericht.',
   hero: {
-    eyebrow: 'Krantechnik · Prüfung & Wartung',
-    h1: 'Kranprüfung und Wartung – Prüfpflicht erfüllt',
+    eyebrow: 'Krantechnik · Kranservice',
+    h1: 'Kranservice, wie Sie ihn ==brauchen==',
     lead:
-      'Wir prüfen und warten Ihre Krane nach den Angaben des Herstellers und dokumentieren jede Arbeit. So ist die Prüfpflicht erfüllt – und der Kran läuft, wenn Sie ihn brauchen.',
+      'Einmal prüfen lassen oder das ganze Jahr betreut: Sie wählen, wie viel wir Ihnen abnehmen. Jede Prüfung und jede Arbeit steht danach im Kranbuch.',
     photo: 'pruefung-hallenkran',
-    primary: anfrage('Prüfung anfragen'),
+    primary: anfrage('Kranservice anfragen'),
   },
   summary:
-    '{{brand.full}} prüft und wartet Krane: Brücken-, Hänge-, Schwenk- und Drehkrane in Industrie und Gewerbe sowie Heukrane in der Landwirtschaft. Jede Prüfung endet mit einem Bericht für das Kranbuch.',
+    '{{brand.full}} prüft, wartet und repariert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Jede Leistung gibt es einzeln nach Aufwand oder als Jahrespaket zum festen Preis pro Kran – Pflicht (Prüfung, Kranbuch, Fristen), Pflege (dazu Wartung und feste Reaktionszeit) oder Rundum (dazu Teile, Reparaturen und Ersatz-Hebezeug). Jede Prüfung endet mit einem Bericht für das Kranbuch.',
   glance: {
-    forWhom: 'Betriebe mit Hallen-, Werkhof- oder Heukranen – vom Gewerbebetrieb bis zum Bauernhof.',
-    what:
-      'Überprüfung nach Herstellerangaben, Wartung, Schmierung und Verschleiss-Check durch Kranfachleute.',
-    deliverables: 'Einen einwandfreien, sicheren Kran – gewartet, geprüft und mit Prüfbericht für das Kranbuch.',
+    forWhom: 'Betriebe mit einem oder mehreren Kranen: Industrie und Gewerbe, Häfen, Segelclubs und Werften, Landwirtschaft.',
+    what: 'Prüfung nach Herstellerangaben, Wartung und Reparatur durch Kranfachleute – einzeln oder als Jahrespaket.',
+    deliverables: 'Einen sicheren Kran, ein nachgeführtes Kranbuch und – wenn Sie wollen – einen festen Preis pro Jahr.',
   },
   scope: {
     title: 'Was wir prüfen und warten',
@@ -459,25 +366,25 @@ export const pruefung: SubPage = {
   },
   faq: [
     {
+      q: 'Was kostet der Kranservice?',
+      a: 'Einzelne Arbeiten verrechnen wir nach Aufwand. Für ein Paket erhalten Sie je Kran einen festen Jahrespreis – er richtet sich nach Tragkraft, Alter und Nutzung. Nachdem wir Ihre Krane angeschaut haben, erhalten Sie eine Offerte.',
+    },
+    {
+      q: 'Welches Paket passt zu mir?',
+      a: 'Pflicht, wenn Sie vor allem die Prüfpflicht sicher erfüllen wollen. Pflege, wenn der Kran gewartet und im Störfall schnell betreut sein soll. Rundum, wenn Ihr Betrieb vom Kran abhängt und Sie Teile und Reparaturen nicht einzeln einplanen wollen.',
+    },
+    {
       q: 'Wie oft muss ich meinen Hallenkran prüfen lassen?',
       a: 'Regelmässig, nach den Angaben des Herstellers – in der Praxis meist einmal im Jahr. Massgebend sind die Betriebsanleitung und die Vorgaben der Suva.',
     },
-    { q: 'Prüfen Sie auch Krane anderer Hersteller?', a: otherMakes },
+    faqOtherMakes,
     {
       q: 'Was steht im Prüfbericht?',
-      a: 'Was geprüft wurde, in welchem Zustand der Kran ist und was zu beheben ist. Der Bericht gehört ins Kranbuch.',
-    },
-    {
-      q: 'Darf das Kranbuch digital sein?',
-      a: 'Ja. Die Form des Kranbuchs ist frei – Papier oder digital.',
+      a: 'Was geprüft wurde, in welchem Zustand der Kran ist und was zu beheben ist. Der Bericht gehört ins Kranbuch – auf Papier oder digital, die Form ist frei.',
     },
     {
       q: 'Machen Sie auch die Kontrolle durch den Kranexperten?',
       a: 'Nein. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte. Wir übernehmen die Überprüfung durch Kranfachleute und die Wartung. Den Unterschied erklärt unser Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz#kranfachmann-oder-kranexperte).',
-    },
-    {
-      q: 'Was kostet eine Kranprüfung?',
-      a: 'Das hängt von Kranart und Grösse ab. Fragen Sie uns an.',
     },
   ],
   related: [
@@ -485,8 +392,41 @@ export const pruefung: SubPage = {
     { href: '/service/notfall', label: 'Notfall-Service', text: 'Wenn der Kran stillsteht.' },
     ratgeberPruefung,
   ],
-  service: { name: 'Kranprüfung und Kranwartung', serviceType: 'Kranprüfung' },
-  keywords: ['Kranprüfung', 'Krankontrolle', 'Kranwartung'],
+  service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung und Kranreparatur' },
+  keywords: ['Kranservice', 'Kranprüfung', 'Kranwartung', 'Wartungsvertrag Kran', 'Kranbuch'],
+};
+
+/**
+ * Die Pakete als Tabelle «was kann was» (Rückmeldung 07.10.2026: intuitiv zeigen, was welches
+ * Paket kann). `from` = ab welchem Paket eine Zeile gilt – jedes Paket enthält das vorherige,
+ * also gibt es keine Kreuzchen-Liste, die auseinanderlaufen kann. Kein Betrag: die Preise je
+ * Kranklasse entstehen mit der Offerte (STRATEGIE.md).
+ */
+export const servicePlans = {
+  title: 'Drei Pakete – oder einzeln',
+  lead: 'Jedes Paket enthält das vorherige. Der Preis gilt pro Kran und Jahr.',
+  plans: [
+    { name: 'Pflicht', claim: 'Die Prüfpflicht ist erfüllt.', short: 'Prüfung, Kranbuch und Fristen.' },
+    { name: 'Pflege', claim: 'Der Kran wird gepflegt.', short: 'Dazu Wartung und feste Reaktionszeit.' },
+    { name: 'Rundum', claim: 'Wir sorgen dafür, dass er läuft.', short: 'Dazu Teile, Reparaturen und Ersatz-Hebezeug.' },
+  ],
+  rows: [
+    { label: 'Prüfung nach Herstellerangaben, mit Bericht', from: 0 },
+    { label: 'Kranbuch nachgeführt', from: 0 },
+    { label: 'Wir melden uns, wenn eine Frist kommt', from: 0 },
+    { label: 'Wartung nach Herstellervorgabe', from: 1 },
+    { label: 'Feste Reaktionszeit bei Ausfall', from: 1 },
+    { label: 'Teile und Reparaturen inbegriffen', from: 2 },
+    { label: 'Ersatz-Hebezeug, wenn der Kran ausfällt', from: 2 },
+  ],
+  single: {
+    name: 'Auf Abruf',
+    claim: 'Sie rufen an, wir kommen.',
+    short: 'Jede Leistung einzeln, nach Aufwand.',
+    title: 'Lieber einzeln?',
+    text: 'Jede Leistung gibt es auch auf Abruf: Sie rufen an, wir kommen und verrechnen nach Aufwand.',
+  },
+  price: 'Den Jahrespreis rechnen wir je Kran – nach Tragkraft, Alter und Nutzung. Sie erhalten eine Offerte.',
 };
 
 /* ------------------------------------------------------------------ Modernisierung */
@@ -536,7 +476,6 @@ export const modernisierung: SubPage = {
       q: 'Was bringt ein Frequenzumrichter?',
       a: 'Er lässt die Motoren sanft anfahren und abbremsen. Die Last pendelt weniger, Getriebe, Bremsen und Kranbahn werden geschont.',
     },
-    { q: 'Rüsten Sie auch Krane anderer Hersteller um?', a: otherMakes },
     {
       q: 'Was ändert sich mit der neuen EU-Maschinenverordnung?',
       a: 'Sie gilt in der EU ab dem 20. Januar 2027; die Schweiz passt ihre Maschinenverordnung an. Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen.',
@@ -565,7 +504,7 @@ export const machineryNote = {
 };
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
-export const krantechnikPages = [serviceVertrag, industriekrane, haefen, heukrananlagen, pruefung, modernisierung];
+export const krantechnikPages = [kranservice, industriekrane, haefen, heukrananlagen, modernisierung];
 
 // Die Navigation (site.areas) und diese Seiten müssen dieselben Pfade nennen.
 const nav = site.areas.find((a) => a.id === 'krantechnik')!.children.map((c) => c.href).join();
