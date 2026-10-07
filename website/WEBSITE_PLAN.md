@@ -752,6 +752,14 @@ Fahrzeugtechnik (Trommeltausch, Fahrmischer) die Cash-Quelle und tritt nicht zur
      `steuerung-funk` ist jetzt `anschlagmittel`.
 108. **Kein «Erweitert»** (#1195) und **kein «Beispielbild»-Etikett** (#1194) mehr – beide
      samt CSS entfernt; der Bildnachweis bleibt im Impressum.
+109. **Versprechen = «Zahlen als Anker»** (Claude Design, V1): Titel «Unser Wort hat einen
+     Preis.» links, Satz und die drei Zusagen als ruhige Zeile rechts (kein Kasten, keine
+     Häkchen); drei Spalten an einer schwarzen Linie; «365 Tage» – ohne Einheit war offen,
+     was die Zahl zählt. Titel in der normalen h2 des Hauses.
+110. **Branchen als Liste mit Bild** (Claude Design, B): links «Für alle, deren Kran laufen
+     muss.» mit Satz und Knopf zu INEXXIO 365, rechts die vier Branchen, je mit einem
+     isometrischen Bild im Stil der Heukran-Bauformen (grau der Bestand, rot die Last am
+     Haken; `src/assets/illustrations/branche-*.svg`, inline, kein Request).
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 

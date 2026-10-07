@@ -16,6 +16,8 @@ export type PromiseKey = 'erstservice' | 'garantie' | 'inexxio365';
 export interface PromiseItem {
   /** Die grosse Zahl – der Blickfang. */
   figure: string;
+  /** Kleine Einheit neben der Zahl («Tage») – sonst ist offen, was die Zahl zählt. */
+  unit?: string;
   label: string;
   title: string;
   text: string;
@@ -25,32 +27,42 @@ export interface PromiseItem {
 export const promises = {
   eyebrow: 'Unsere Versprechen',
   eyebrowOne: 'Unser Versprechen',
-  title: 'Sie tragen kein Risiko. Das tragen wir.',
+  title: 'Unser Wort hat einen Preis.',
+  lead: 'Wir sind von unserer Arbeit überzeugt. Darum hängt unser Preis an Ihrer Zufriedenheit – und an jedem Tag, an dem Ihr Kran läuft.',
   items: {
     erstservice: {
       figure: '0.–',
       label: 'Gratis-Erstservice',
       title: 'Der erste Kranservice ist gratis.',
-      text: 'Einmal pro Kunde: Service und Wartung für Industrie-, Heu-, Boots- und Mastkrane aller Marken. Sie zahlen nur das Material.',
+      text: 'Für Krane aller Marken.',
       link: { href: '/krantechnik/kranservice#stufen', label: 'Zum Kranservice' },
     },
     garantie: {
       figure: '50 %',
       label: 'INEXXIO Zufriedenheitsgarantie',
       title: 'Nicht zufrieden? Sie zahlen nur die Hälfte.',
-      text: 'Auf den ganzen Preis, ohne Einschränkung – für neue Krane und Bootslifte, Heukrananlagen, Trommeltausch und Sonderlösungen.',
+      text: 'Auf den ganzen Preis für neue Krananlagen und Trommeltausch.',
     },
     inexxio365: {
       figure: '365',
+      unit: 'Tage',
       label: 'INEXXIO 365',
       title: 'Ihr Kran läuft – oder Sie zahlen nicht.',
-      text: 'Prüfung, Wartung, Ersatzteile und Reparaturen inklusive, zur fixen Monatsrate. Jeder Tag, an dem der Kran steht, ist gratis.',
+      text: 'Alles inklusive. Jeder Tag, an dem der Kran steht, ist gratis.',
       link: { href: '/krantechnik/kranservice#inexxio-365', label: 'So funktioniert INEXXIO 365' },
     },
   } satisfies Record<PromiseKey, PromiseItem>,
   /** Gilt für alles – steht unter jedem Versprechens-Block. */
   always: ['Fixpreis vor jeder Arbeit', 'Keine Mindestlaufzeit', 'Zweitmeinung gratis'],
 };
+
+/** Die vier Branchen – je mit ihrem Bild (src/assets/illustrations/branche-*.svg). */
+export const industryList = [
+  { key: 'recycling', label: 'Recycling und Entsorgung' },
+  { key: 'holz', label: 'Sägewerke und Holzhandel' },
+  { key: 'stahl', label: 'Stahlhandel und Metallbau' },
+  { key: 'beton', label: 'Betonwerke' },
+] as const;
 
 /** Für wen INEXXIO 365 gemacht ist – Startseite, Kranservice und Industriekrane sagen es gleich. */
 export const industries =

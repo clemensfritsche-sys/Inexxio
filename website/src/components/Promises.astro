@@ -1,8 +1,9 @@
 ---
 /**
  * Die Versprechen (content/promises.ts) – ruhig und gross: eine Zahl als Anker, ein Satz, eine
- * Erklärung, darunter die Zusagen, die für alles gelten. Ohne `only` alle drei (Startseite),
- * mit `only` die, die für eine Unterseite gelten. Rot nur in der dünnen Linie über der Zahl.
+ * Erklärung. Ohne `only` alle drei (Startseite): Titel links, Satz und die Zusagen, die für
+ * alles gelten, rechts; darunter drei Spalten mit Haarlinien. Mit `only` die, die für eine
+ * Unterseite gelten – dort stehen die Zusagen als Zeile darunter.
  */
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
@@ -17,15 +18,25 @@ const full = !only;
 <section class:list={['pr', { 'pr--full': full }]} id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
     <header class="pr__head">
-      <p class="label">{items.length === 1 ? promises.eyebrowOne : promises.eyebrow}</p>
-      {full
-        ? <h2 id={`${id}-title`} class="pr__title">{promises.title}</h2>
-        : <h2 id={`${id}-title`} class="visually-hidden">{promises.eyebrow}</h2>}
+      <div class="pr__head-main">
+        <p class="label">{items.length === 1 ? promises.eyebrowOne : promises.eyebrow}</p>
+        {full
+          ? <h2 id={`${id}-title`} class="pr__title">{promises.title}</h2>
+          : <h2 id={`${id}-title`} class="visually-hidden">{promises.eyebrow}</h2>}
+      </div>
+      {full && (
+        <div class="pr__head-side">
+          <Rich as="p" class="pr__lead" text={promises.lead} />
+          <ul role="list" class="pr__always" aria-label="Gilt für alles">
+            {promises.always.map((a) => <li>{a}</li>)}
+          </ul>
+        </div>
+      )}
     </header>
     <ul role="list" class:list={['pr__list', `pr__list--${items.length}`]}>
       {items.map((p) => (
         <li class="pr__item">
-          <span class="pr__figure tnum" aria-hidden="true">{p.figure}</span>
+          <span class="pr__figure tnum" aria-hidden="true">{p.figure}{p.unit && <span class="pr__unit">{p.unit}</span>}</span>
           <p class="pr__label">{p.label}</p>
           <h3 class="pr__claim">{p.title}</h3>
           <Rich as="p" class="pr__text" text={p.text} />
@@ -33,22 +44,32 @@ const full = !only;
         </li>
       ))}
     </ul>
-    <ul role="list" class="pr__always" aria-label="Gilt für alles">
-      {promises.always.map((a) => <li><Icon name="check" size={18} />{a}</li>)}
-    </ul>
+    {!full && (
+      <ul role="list" class="pr__always pr__always--foot" aria-label="Gilt für alles">
+        {promises.always.map((a) => <li>{a}</li>)}
+      </ul>
+    )}
   </div>
 </section>
 
 <style>
   .pr { padding-block: var(--s-8); background: var(--paper); border-bottom: 1px solid var(--line); }
   .pr--full { padding-block: var(--s-9) var(--s-8); }
-  .pr__head { display: grid; gap: var(--s-3); margin-bottom: var(--s-6); }
-  .pr__title { max-width: 18em; font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.75rem); line-height: 1.08; }
+  .pr__head { display: grid; gap: var(--s-5) var(--s-8); margin-bottom: var(--s-7); align-items: end; }
+  @media (min-width: 900px) { .pr--full .pr__head { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
+  .pr__head-main, .pr__head-side { display: grid; gap: var(--s-3); }
+  .pr__title { max-width: 18em; }
+  .pr__lead { color: var(--ink-2); font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.1875rem); line-height: 1.55; }
 
-  .pr__list { display: grid; gap: 0 var(--s-6); grid-template-columns: minmax(0, 1fr); }
+  /* Drei Spalten an einer schwarzen Linie, durch Haarlinien getrennt (V1 «Zahlen als Anker»). */
+  .pr__list { display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--ink); }
   @media (min-width: 900px) {
     .pr__list--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .pr__list--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pr__list--3 .pr__item, .pr__list--2 .pr__item { border-top: 0; padding-inline: var(--s-6); }
+    .pr__list--3 .pr__item:first-child, .pr__list--2 .pr__item:first-child { padding-left: 0; }
+    .pr__list--3 .pr__item:last-child, .pr__list--2 .pr__item:last-child { padding-right: 0; }
+    .pr__list--3 .pr__item + .pr__item, .pr__list--2 .pr__item + .pr__item { border-left: 1px solid var(--line-2); }
   }
   /* Ein einzelnes Versprechen: Zahl links, Worte rechts – statt einer schmalen Spalte. */
   @media (min-width: 900px) {
@@ -56,22 +77,22 @@ const full = !only;
     .pr__list--1 .pr__figure { grid-row: span 4; }
     .pr__list--1 .pr__item > :not(.pr__figure) { grid-column: 2; }
   }
-  .pr__item { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5) 0 var(--s-6); border-top: 1px solid var(--line-2); }
+  .pr__item { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-6) 0; }
+  .pr__item + .pr__item { border-top: 1px solid var(--line-2); }
+  .pr__list--1 .pr__item { padding-bottom: 0; }
   .pr__figure {
-    display: block; width: fit-content; padding-top: var(--s-3); margin-bottom: var(--s-2);
-    border-top: 2px solid var(--red);
-    font-family: var(--font-display); font-weight: 600; letter-spacing: -0.04em; line-height: 0.95;
-    font-size: clamp(3.25rem, 2.4rem + 3.4vw, 5.5rem); color: var(--ink);
+    display: flex; align-items: baseline; gap: 0.12em; margin-bottom: var(--s-3);
+    font-family: var(--font-display); font-weight: 600; letter-spacing: -0.045em; line-height: 0.9;
+    font-size: clamp(3.5rem, 2.4rem + 3.6vw, 6rem); color: var(--ink);
   }
-  .pr__label { font-size: 0.8125rem; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); }
+  .pr__unit { font-size: 0.3em; letter-spacing: -0.01em; color: var(--ink-3); }
+  .pr__label { font-size: 0.75rem; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--red); }
   .pr__claim { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem); line-height: 1.2; }
   .pr__text { color: var(--ink-2); max-width: 30em; }
   .pr__link { margin-top: auto; padding-top: var(--s-3); }
 
-  .pr__always {
-    display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-6);
-    margin-top: var(--s-5); padding-top: var(--s-5); border-top: 1px solid var(--ink);
-  }
-  .pr__always li { display: inline-flex; align-items: center; gap: var(--s-2); font-weight: 600; color: var(--ink); }
-  .pr__always :global(.icon) { color: var(--ink-3); flex: none; }
+  /* Die Zusagen, die für alles gelten: eine ruhige Zeile, rote Punkte dazwischen. */
+  .pr__always { display: flex; flex-wrap: wrap; gap: var(--s-1) 0; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+  .pr__always li:not(:last-child)::after { content: '·'; padding-inline: 10px; color: var(--red); }
+  .pr__always--foot { margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--line-2); }
 </style>
