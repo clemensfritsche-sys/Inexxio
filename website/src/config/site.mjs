@@ -67,15 +67,16 @@ const areas = [
     label: 'Krantechnik',
     href: '/krantechnik',
     overview: 'Alle Leistungen Krantechnik',
-    text: 'Kranservice, wie Sie ihn brauchen – für Industriekrane, Boots- und Mastkrane und Heukrananlagen. Dazu neue Anlagen und Modernisierung.',
+    text: 'Vom Gratis-Erstservice bis INEXXIO 365: Kranservice für Industriekrane, Boots- und Mastkrane, Bootslifte und Heukrananlagen. Dazu neue Anlagen und Modernisierung.',
     photo: 'heukran-einsatz',
-    ogTitle: 'Kranservice, Heukrananlagen, Industrie- und Bootskrane',
+    ogTitle: 'Ihr Kran läuft – oder Sie zahlen nicht.',
     children: [
-      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Prüfung, Wartung, Reparatur – einzeln oder zum Jahrespreis', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
+      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Erster Service gratis, INEXXIO 365: Ihr Kran läuft – oder Sie zahlen nicht', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
       { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge- und Schwenkkrane in KMU', photo: 'reparatur-vor-ort' },
-      { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte', photo: 'hafen-bootskran', badge: 'Erweitert' },
+      { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte – neu und Service', photo: 'hafen-bootskran', badge: 'Erweitert' },
       { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service', photo: 'heukran-einsatz' },
       { label: 'Modernisierung', href: '/krantechnik/modernisierung', text: 'Funk, Umrichter, Überlastsicherung, Steuerung', photo: 'steuerung-funk' },
+      { label: 'Anschlagmittel', href: '/krantechnik/anschlagmittel', text: 'Ketten, Hebebänder, Haken – immer geprüft', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
     ],
   },
   {
@@ -83,9 +84,9 @@ const areas = [
     label: 'Fahrzeugtechnik',
     href: '/fahrzeugtechnik',
     overview: 'Alle Leistungen Fahrzeugtechnik',
-    text: 'Fahrmischer und Aufbauten aller gängigen Marken: Service, Reparatur, Trommel-Revision und Trommeltausch.',
+    text: 'Trommeltausch mit Garantie – dazu Service, Revision und Reparatur für Fahrmischer und Aufbauten aller gängigen Marken.',
     photo: 'fahrmischer-werkstatt',
-    ogTitle: 'Fahrmischer: Service, Reparatur, Trommel-Revision und Trommeltausch',
+    ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
     children: [
       { label: 'Fahrmischer', href: '/fahrzeugtechnik/fahrmischer', text: 'Service, Reparatur, Trommel-Revision und -tausch', photo: 'fahrmischer-werkstatt' },
       { label: 'Aufbauten: Reparatur & Service', href: '/fahrzeugtechnik/aufbauten-reparatur', text: 'LKW-Aufbauten, Mulden, Kipper, Hydraulik', photo: 'aufbau-reparatur' },
@@ -118,9 +119,9 @@ export const site = {
     notToConfuse: 'Nicht zu verwechseln mit inexio (Telekommunikation, Deutschland).',
     /** Wer wir sind, in einem Satz – JSON-LD (description) und llms.txt lesen ihn. */
     summary:
-      'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice für Industrie, Häfen und Landwirtschaft, Heukrananlagen, Service, Revision und Trommeltausch für Fahrmischer, Konstruktion und Stahlbau. Seit {{history.founded}}.',
+      'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice mit INEXXIO 365 für Industrie, Häfen und Landwirtschaft, Heukrananlagen und Bootslifte, Trommeltausch und Service für Fahrmischer, Konstruktion und Stahlbau. Seit {{history.founded}}.',
     /** Claim – OG-Bild und llms.txt. */
-    claim: 'Krane. Fahrzeuge. Sonderlösungen. Aus einer Werkstatt mit Ingenieurwissen.',
+    claim: 'Krane und Fahrmischer mit Handschlagqualität. Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
   },
 
   history: {
@@ -306,7 +307,7 @@ export const site = {
       'Applebot', 'Applebot-Extended', 'CCBot',
     ],
     knowsAbout: [
-      'Kranservice', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
+      'Kranservice', 'INEXXIO 365', 'Anschlagmittel', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
       'Bootskrane', 'Mastkrane', 'Bootslifte', 'Hafenkrane', 'Trommeltausch',
       'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung', 'Kranmodernisierung',
       'Funkfernsteuerung', 'Frequenzumrichter', 'Fahrmischer', 'Trommel-Revision',

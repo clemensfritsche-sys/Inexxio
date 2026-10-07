@@ -77,7 +77,7 @@ const nodes = [
   <section class="section" aria-labelledby="zusagen">
     <div class="wrap">
       <SectionHead eyebrow="Zusagen" title={promises.title} lead={s.summary} id="zusagen" />
-      <ol role="list" class="sv-list">
+      <ol role="list" class="sv-list sv-list--3">
         {promises.items.map((it) => (
           <li>
             <h3>{it.title}</h3>
@@ -115,7 +115,7 @@ const nodes = [
   .sv-also { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s-5); margin: var(--s-4) 0 var(--s-6); color: var(--ink-3); max-width: none; }
   .sv-list { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 720px) { .sv-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1100px) { .sv-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .sv-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } .sv-list--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .sv-list li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
   .sv-list h3 { font-size: 1.1875rem; }
   .sv-safety { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--ink); }

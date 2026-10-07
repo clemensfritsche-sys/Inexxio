@@ -30,7 +30,11 @@ const FORBIDDEN = [
   'lösungen aus einer hand', 'höchste qualität', 'leidenschaft', 'mehrwert', 'state of the art',
   'synergie', 'exzellenz', 'revolutionär', 'nahtlos', 'im herzen von', 'herzlich willkommen',
   'pikett',
+  // Rückmeldung 07.10.2026: keine Jahrespakete mehr – INEXXIO 365 ersetzt sie.
+  'jahrespreis', 'jahrespaket',
 ];
+/** Ganze Wörter, die nirgends stehen dürfen («Abo» – INEXXIO 365 ist kein Abo). */
+const FORBIDDEN_WORDS = [/\babos?\b/i];
 /**
  * Alte hs-steiner.ch-Pfade (Auftrag Kap. 14) → das Ziel, das die Tabelle verlangt. Jeder muss
  * die ERSTE passende Regel in ../firebase.json treffen (Firebase nimmt die erste) – oder es
@@ -202,6 +206,7 @@ function checkHeadings(p) {
 function checkWords(where, text) {
   const lower = text.toLowerCase();
   for (const w of FORBIDDEN) if (lower.includes(w)) fail(where, `verbotenes Wort «${w}»`);
+  for (const rx of FORBIDDEN_WORDS) { const m = rx.exec(text); if (m) fail(where, `verbotenes Wort «${m[0]}»`); }
   const bang = /[^\s]![^=]|!$/.exec(text);
   if (bang) fail(where, `Ausrufezeichen: «…${text.slice(Math.max(0, bang.index - 30), bang.index + 2)}»`);
   // Emoji-Darstellung, nicht «Pictographic»: ©, ® und ™ sind Satzzeichen, keine Emojis.
@@ -216,8 +221,10 @@ const LEGAL = new Set(['/impressum', '/datenschutz']);
 function checkFirstMention(p) {
   if (LEGAL.has(p.path)) return;
   const text = visibleText(p.main);
-  const first = text.indexOf(site.brand.name);
-  if (first === -1) return;
+  // «INEXXIO 365» ist ein Angebot, keine Nennung der Firma – es zählt nicht als erste Nennung.
+  const m = new RegExp(`${site.brand.name}(?! 365)`).exec(text);
+  if (!m) return;
+  const first = m.index;
   const full = `${site.brand.name} (${site.brand.formerly})`;
   const legal = `${site.brand.legalName} (${site.brand.formerly})`;
   // «Aus HS Steiner wird INEXXIO» sagt dasselbe – die alte Firma steht unmittelbar davor.

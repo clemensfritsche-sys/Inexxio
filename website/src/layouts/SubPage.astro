@@ -1,7 +1,8 @@
 ---
 /**
  * Vorlage aller Unterseiten (Auftrag Kap. 7.5), gleiche Struktur überall:
- * Hero → Auf einen Blick (Für wen · Was wir tun · Was Sie erhalten) → Leistungsumfang →
+ * Hero → Auf einen Blick (Für wen · Was wir tun · Was Sie erhalten) → Versprechen, die hier
+ * gelten → Leistungsumfang →
  * seitenspezifisches Modul (Slot «module») → FAQ → Anfrage (Kurzformular, Bereich und Thema
  * vorausgewählt) → Verwandte Leistungen.
  * Breadcrumb: Startseite › Bereich › Seite.
@@ -15,6 +16,7 @@ import ContactSection from '../components/ContactSection.astro';
 import RelatedLinks from '../components/RelatedLinks.astro';
 import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
+import Promises from '../components/Promises.astro';
 import { areaOf } from '../config/site.mjs';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
@@ -56,6 +58,8 @@ const nodes = [
     </div>
     <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>
   </div>
+
+  {page.promises && <Promises only={page.promises} />}
 
   <slot name="intro" />
 

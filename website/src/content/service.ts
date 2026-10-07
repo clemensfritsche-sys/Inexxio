@@ -19,10 +19,10 @@ export const service = {
       'Steht etwas still, rufen Sie direkt an. Sonst wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane – einzeln oder als Jahrespaket zum festen Preis pro Kran. Wir warten und reparieren Fahrmischer, Aufbauten und Baumaschinen, überholen und tauschen Trommeln von Fahrmischern und beschaffen Verschleissteile für alle gängigen Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
+    '{{brand.full}} prüft, wartet und repariert Krane aller Marken – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran, oder Sie zahlen nicht. Wir warten und reparieren Fahrmischer, Aufbauten und Baumaschinen, überholen und tauschen Trommeln von Fahrmischern und beschaffen Verschleissteile für alle gängigen Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
   entries: [
     { title: 'Etwas steht still', text: 'Rufen Sie direkt an – und halten Sie das Nötigste bereit', href: '#notfall', icon: 'siren' },
-    { title: 'Kran prüfen, warten, reparieren', text: 'Einzeln oder als Paket zum Jahrespreis', href: '/krantechnik/kranservice', icon: 'shield-check' },
+    { title: 'Kran prüfen, warten, reparieren', text: 'Erster Service gratis – oder INEXXIO 365: Ihr Kran läuft, oder Sie zahlen nicht', href: '/krantechnik/kranservice', icon: 'shield-check' },
     { title: 'Fahrmischer oder Aufbau reparieren', text: 'Alle gängigen Marken, auch Trommel-Revision und -tausch', href: '/fahrzeugtechnik/fahrmischer', icon: 'truck' },
     { title: 'Ersatz- oder Verschleissteil gesucht', text: 'Katalog oder Teil direkt anfragen', href: '/fahrzeugtechnik/verschleiss-ersatzteile', icon: 'package' },
   ] satisfies Entry[],

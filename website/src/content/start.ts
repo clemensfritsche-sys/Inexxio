@@ -4,36 +4,38 @@
  */
 import type { Faq } from './types';
 import { handoverLead, heiriQuote, sharedFaq } from './uebergabe';
+import { industries, promiseFaq } from './promises';
 
 export const start = {
-  title: 'Krantechnik Schweiz | {{brand.full}}',
+  title: 'Krane und Fahrmischer | {{brand.full}}',
   description:
-    'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice, Heukrananlagen, Fahrmischer und Trommeltausch. Seit 1982. Anfragen.',
+    'Krane und Fahrmischer mit Handschlagqualität: erster Kranservice gratis, INEXXIO 365, Trommeltausch mit Garantie. Aus Tuttwil-Wängi TG, seit 1982.',
 
   hero: {
     eyebrow: 'Tuttwil-Wängi TG · seit {{history.founded}}',
-    h1: 'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus der ==Schweiz==',
-    lead:
-      'Wir planen, bauen und betreuen Krananlagen, warten und reparieren Fahrmischer und Aufbauten aller gängigen Marken und konstruieren Lösungen, die es nicht von der Stange gibt. Mit Ingenieurwissen und kurzen Wegen.',
-    /** Vertrauensleiste – nur belegte Fakten, je eine Zahl (oder ein Wort) und was sie sagt. */
+    h1: 'Krane und Fahrmischer mit ==Handschlagqualität==.',
+    lead: 'Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
+    /** Vertrauensleiste – je eine Zahl (oder ein Wort) und was sie sagt. */
     trust: [
       { value: '{{history.founded}}', label: 'Gegründet in Tuttwil-Wängi' },
-      { value: '{{history.cranesSince}}', label: 'Eigene Krananlagen' },
-      { value: 'Jahrespreis', label: 'Kranservice auf Wunsch zum Fixpreis' },
-      { value: 'Alle Marken', label: 'Fahrmischer und Aufbauten' },
+      { value: 'Alle Marken', label: 'Krane und Fahrmischer' },
+      { value: 'Fixpreis', label: 'Vor jeder Arbeit' },
+      { value: '50 %', label: 'Zurück, wenn Sie nicht zufrieden sind' },
     ],
   },
 
-  summary:
-    '{{brand.full}} plant, baut und betreut Krananlagen – mit Kranservice einzeln oder zum Jahrespreis für Industrie, Häfen und Landwirtschaft –, wartet und repariert Fahrmischer und Aufbauten aller gängigen Marken, überholt und tauscht Mischtrommeln und konstruiert Sonderlösungen. Die Werkstatt steht in Tuttwil-Wängi TG.',
+  /** Die zwei Einstiege – gleichwertig. Sonderlösungen steht klein darunter. */
+  entries: {
+    krantechnik: 'Ihr Kran läuft – oder Sie zahlen nicht.',
+    fahrzeugtechnik: 'Neue Trommel statt neuer Fahrmischer.',
+  } as Record<string, string>,
+  more: { label: 'Sonderlösungen', text: 'Konstruktion, Stahlbau und Umbauten – wenn es die Lösung nicht zu kaufen gibt.', href: '/sonderloesungen' },
 
-  /** Der Kranservice als Teaser – die Paket-Tabelle steht EINMAL, auf /krantechnik/kranservice. */
-  plans: {
-    eyebrow: 'Erweitertes Angebot',
-    h2: 'Kranservice: einzeln oder zum ==Jahrespreis==',
-    lead: 'Prüfung, Wartung und Reparatur für Industriekrane, Boots- und Mastkrane und Heukrananlagen – auf Abruf oder in einem von drei Paketen zum festen Preis pro Kran und Jahr.',
-    link: 'Die Pakete im Detail',
-  },
+  summary:
+    '{{brand.full}} betreut und baut Krane und Fahrmischer: Kranservice für Industrie, Häfen und Landwirtschaft – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran, oder Sie zahlen nicht –, neue Heukrananlagen, Industriekrane und Bootslifte, Trommeltausch und Service für Fahrmischer aller gängigen Marken und Sonderlösungen. Auf alles, was Sie kaufen, gilt: nicht zufrieden, nur die Hälfte bezahlt. Die Werkstatt steht in Tuttwil-Wängi TG.',
+
+  /** Für wen INEXXIO 365 gemacht ist – eine Zeile unter den Versprechen. */
+  industries: { text: industries, link: { href: '/krantechnik/kranservice#inexxio-365', label: 'Zu INEXXIO 365' } },
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
@@ -61,7 +63,7 @@ export const start = {
       },
       {
         title: 'Kurze Wege, eine Nummer.',
-        text: 'Ein Ansprechpartner für Krane, Fahrmischer und Aufbauten – und eine Nummer für alles, auch wenn etwas stillsteht.',
+        text: 'Ein Ansprechpartner für Krane, Fahrmischer und Aufbauten – eine Nummer für alles, auch wenn etwas stillsteht.',
       },
       {
         title: 'Sauber dokumentiert.',
@@ -83,14 +85,17 @@ export const start = {
   },
 
   faq: [
+    promiseFaq.inexxio365,
+    promiseFaq.erstservice,
+    promiseFaq.garantie,
+    promiseFaq.binding,
     sharedFaq.whoCares,
-    sharedFaq.newCranes,
     sharedFaq.phone,
-    sharedFaq.contracts,
     {
       q: 'Welche Marken betreuen Sie?',
       a: 'Bei Fahrmischern: {{marks.mixerList}} – weitere Marken auf Anfrage.',
     },
+    promiseFaq.secondOpinion,
     sharedFaq.speed,
   ] satisfies Faq[],
 

@@ -7,6 +7,7 @@
  */
 import { site } from '../config/site.mjs';
 import type { Step, SubPage } from './types';
+import { promiseFaq } from './promises';
 
 export const sonderloesungen: SubPage = {
   area: 'sonderloesungen',
@@ -19,7 +20,7 @@ export const sonderloesungen: SubPage = {
     eyebrow: 'Sonderlösungen',
     h1: 'Sonderlösungen: konstruiert und gebaut, wo es nichts zu ==kaufen== gibt',
     lead:
-      'Sie haben ein Problem, für das es kein Produkt von der Stange gibt? Wir konstruieren und bauen die Lösung – mit Ingenieurwissen aus dem Baumaschinenbau und einer eigenen Werkstatt.',
+      'Es gibt kein Produkt von der Stange für Ihr Problem? Wir konstruieren und bauen die Lösung – mit Ingenieurwissen aus dem Baumaschinenbau, eigener Werkstatt und Fixpreis.',
     photo: 'arbeit-werkstatt',
     primary: { label: 'Anliegen schildern', href: '#anfrage' },
   },
@@ -30,6 +31,7 @@ export const sonderloesungen: SubPage = {
     what: 'Konzept, Konstruktion und Berechnung, Fertigung in Stahl, Umbau und Reparatur von Baumaschinen – mit Dokumentation.',
     deliverables: 'Die fertige Lösung mit Zeichnungen und Unterlagen – oder nur die Konstruktion, wenn Sie selbst fertigen.',
   },
+  promises: ['garantie'],
   scope: {
     title: 'Was wir konstruieren und bauen',
     lead: 'Vom einzelnen Teil bis zur Stahlkonstruktion für die Halle.',
@@ -57,8 +59,10 @@ export const sonderloesungen: SubPage = {
     },
     {
       q: 'Was kostet eine Sonderlösung?',
-      a: 'Nach der Abklärung erhalten Sie eine Richtofferte – vor jeder weiteren Arbeit.',
+      a: 'Nach der Abklärung erhalten Sie einen Fixpreis – vor jeder Arbeit.',
     },
+    promiseFaq.garantie,
+    promiseFaq.secondOpinion,
     {
       q: 'Was ist bei einem Umbau einer Baumaschine zu beachten?',
       a: 'Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen – ab 2027 gilt in der EU dazu die neue Maschinenverordnung. Wir dokumentieren jeden Umbau.',

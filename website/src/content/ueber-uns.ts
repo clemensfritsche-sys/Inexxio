@@ -41,11 +41,12 @@ export const ueberUns = {
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
   promises: {
     title: 'Worauf Sie sich verlassen können',
-    lead: 'Konkrete Zusagen statt schöner Worte.',
+    lead: 'Konkrete Zusagen statt schöner Worte – dazu die Garantie: Nicht zufrieden? Sie zahlen nur die Hälfte.',
     items: [
+      { title: 'Fixpreis vor jeder Arbeit', text: 'Sie wissen vorher, was es kostet. Auf der Rechnung steht keine Überraschung.' },
+      { title: 'Keine Mindestlaufzeit', text: 'Sie bleiben, weil es passt – nicht, weil ein Vertrag Sie hält.' },
       { title: 'Rückmeldung', text: 'Wir melden uns innert {{promises.responseTime}}.' },
       { title: 'Bericht', text: 'Jede Arbeit mit Bericht.' },
-      { title: 'Offerte', text: 'Vor grösseren Arbeiten erhalten Sie eine Offerte.' },
       { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Krananlagen liegen an Lager, oder wir fertigen sie neu an.' },
     ],
   },
@@ -61,7 +62,7 @@ export const ueberUns = {
     },
     {
       q: 'Kostet die Anfahrt extra?',
-      a: 'Ja, nach Aufwand. Sie sehen die Anfahrt vorher in der Offerte – auf der Rechnung steht keine Überraschung.',
+      a: 'Die Anfahrt steht im Fixpreis, den Sie vor der Arbeit erhalten – auf der Rechnung steht keine Überraschung.',
     },
   ] satisfies Faq[],
 };

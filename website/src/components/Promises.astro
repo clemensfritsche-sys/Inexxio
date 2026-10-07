@@ -1,0 +1,77 @@
+---
+/**
+ * Die Versprechen (content/promises.ts) – ruhig und gross: eine Zahl als Anker, ein Satz, eine
+ * Erklärung, darunter die Zusagen, die für alles gelten. Ohne `only` alle drei (Startseite),
+ * mit `only` die, die für eine Unterseite gelten. Rot nur in der dünnen Linie über der Zahl.
+ */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import { promises, type PromiseItem, type PromiseKey } from '../content/promises';
+
+interface Props { only?: PromiseKey[]; id?: string }
+const { only, id = 'versprechen' } = Astro.props;
+const keys = only ?? (Object.keys(promises.items) as PromiseKey[]);
+const items = keys.map((k): PromiseItem & { key: PromiseKey } => ({ key: k, ...promises.items[k] }));
+const full = !only;
+---
+<section class:list={['pr', { 'pr--full': full }]} id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap">
+    <header class="pr__head">
+      <p class="label">{items.length === 1 ? promises.eyebrowOne : promises.eyebrow}</p>
+      {full
+        ? <h2 id={`${id}-title`} class="pr__title">{promises.title}</h2>
+        : <h2 id={`${id}-title`} class="visually-hidden">{promises.eyebrow}</h2>}
+    </header>
+    <ul role="list" class:list={['pr__list', `pr__list--${items.length}`]}>
+      {items.map((p) => (
+        <li class="pr__item">
+          <span class="pr__figure tnum" aria-hidden="true">{p.figure}</span>
+          <p class="pr__label">{p.label}</p>
+          <h3 class="pr__claim">{p.title}</h3>
+          <Rich as="p" class="pr__text" text={p.text} />
+          {p.link && <a class="arrow-link pr__link" href={p.link.href}>{p.link.label} <Icon name="arrow-right" size={16} /></a>}
+        </li>
+      ))}
+    </ul>
+    <ul role="list" class="pr__always" aria-label="Gilt für alles">
+      {promises.always.map((a) => <li><Icon name="check" size={18} />{a}</li>)}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .pr { padding-block: var(--s-8); background: var(--paper); border-bottom: 1px solid var(--line); }
+  .pr--full { padding-block: var(--s-9) var(--s-8); }
+  .pr__head { display: grid; gap: var(--s-3); margin-bottom: var(--s-6); }
+  .pr__title { max-width: 18em; font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.75rem); line-height: 1.08; }
+
+  .pr__list { display: grid; gap: 0 var(--s-6); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) {
+    .pr__list--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .pr__list--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  /* Ein einzelnes Versprechen: Zahl links, Worte rechts – statt einer schmalen Spalte. */
+  @media (min-width: 900px) {
+    .pr__list--1 .pr__item { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s-2) var(--s-7); align-content: start; }
+    .pr__list--1 .pr__figure { grid-row: span 4; }
+    .pr__list--1 .pr__item > :not(.pr__figure) { grid-column: 2; }
+  }
+  .pr__item { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5) 0 var(--s-6); border-top: 1px solid var(--line-2); }
+  .pr__figure {
+    display: block; width: fit-content; padding-top: var(--s-3); margin-bottom: var(--s-2);
+    border-top: 2px solid var(--red);
+    font-family: var(--font-display); font-weight: 600; letter-spacing: -0.04em; line-height: 0.95;
+    font-size: clamp(3.25rem, 2.4rem + 3.4vw, 5.5rem); color: var(--ink);
+  }
+  .pr__label { font-size: 0.8125rem; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); }
+  .pr__claim { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem); line-height: 1.2; }
+  .pr__text { color: var(--ink-2); max-width: 30em; }
+  .pr__link { margin-top: auto; padding-top: var(--s-3); }
+
+  .pr__always {
+    display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-6);
+    margin-top: var(--s-5); padding-top: var(--s-5); border-top: 1px solid var(--ink);
+  }
+  .pr__always li { display: inline-flex; align-items: center; gap: var(--s-2); font-weight: 600; color: var(--ink); }
+  .pr__always :global(.icon) { color: var(--ink-3); flex: none; }
+</style>

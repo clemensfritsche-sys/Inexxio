@@ -1,7 +1,8 @@
 ---
 /**
  * /krantechnik/industriekrane (Auftrag 7.5): Neuanlagen und Service für bestehende Krane,
- * Notfall-Service, Hinweis «Foto vom Typenschild oder Schaden mitschicken».
+ * der Hinweis auf INEXXIO 365 mit den Branchen, Notfall-Service, Hinweis «Foto vom
+ * Typenschild oder Schaden mitschicken».
  */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
@@ -12,6 +13,17 @@ import { industriekrane, industrieModules as m } from '../../content/krantechnik
 import { site } from '../../config/site.mjs';
 ---
 <SubPage page={industriekrane}>
+  <section slot="intro" class="section section--dark" aria-labelledby="x365">
+    <div class="wrap grid ik365">
+      <div class="col-7">
+        <SectionHead eyebrow="INEXXIO 365" title={m.inexxio365.title} id="x365" class="head--flush" />
+      </div>
+      <div class="col-5 ik365__text">
+        <Rich as="p" text={m.inexxio365.text} />
+        <a class="arrow-link" href={m.inexxio365.link.href}>{m.inexxio365.link.label} <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
   <section slot="module" class="section" id="service" aria-labelledby="service-title">
     <div class="wrap grid ik">
       <div class="col-6 ik__text">
@@ -37,6 +49,8 @@ import { site } from '../../config/site.mjs';
 </SubPage>
 
 <style>
+  .ik365 { align-items: end; row-gap: var(--s-5); }
+  .ik365__text { display: grid; gap: var(--s-4); justify-items: start; }
   .ik { align-items: start; }
   .ik__text { display: grid; gap: var(--s-4); justify-items: start; }
   .head--flush { margin-bottom: 0; }

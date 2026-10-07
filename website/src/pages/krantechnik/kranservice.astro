@@ -1,27 +1,46 @@
 ---
 /**
- * /krantechnik/kranservice – der Kranservice (Rückmeldung 07.10.2026): Prüfung, Wartung
- * und die Jahrespakete auf EINER Seite. Zuerst die Pakete (was kann was), dann – über die
- * Vorlage – was wir prüfen, dann die Prüfpflicht mit Tabelle, Quellen und Prüfpflicht-Check.
+ * /krantechnik/kranservice – der Kranservice auf EINER Seite: Versprechen ① und ③ (Vorlage),
+ * die vier Stufen (#stufen), INEXXIO 365 mit seinen zwei Wegen (#inexxio-365), was wir prüfen
+ * (Vorlage), dann die Prüfpflicht mit Tabelle, Quellen und Prüfpflicht-Check.
  * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva
  * anerkannt ist.
  */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
-import ServicePlans from '../../components/ServicePlans.astro';
+import ServiceTiers from '../../components/ServiceTiers.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
 import InspectionTable from '../../components/InspectionTable.astro';
 import InspectionCheck from '../../components/InspectionCheck.astro';
 import Sources from '../../components/Sources.astro';
-import { kranservice, servicePlans as t } from '../../content/krantechnik';
+import { kranservice, serviceTiers as t, inexxio365 as x } from '../../content/krantechnik';
 import { inspection } from '../../config/inspection.mjs';
 ---
 <SubPage page={kranservice}>
-  <section slot="intro" class="section" id="pakete" aria-labelledby="pakete-title">
-    <div class="wrap">
-      <SectionHead eyebrow="Pakete" title={t.title} lead={t.lead} id="pakete-title" />
-      <ServicePlans />
-    </div>
-  </section>
+  <Fragment slot="intro">
+    <section class="section" id="stufen" aria-labelledby="stufen-title">
+      <div class="wrap">
+        <SectionHead eyebrow="Vier Stufen" title={t.title} lead={t.lead} id="stufen-title" />
+        <ServiceTiers />
+      </div>
+    </section>
+    <section class="section section--dark" id="inexxio-365" aria-labelledby="x365-title">
+      <div class="wrap">
+        <SectionHead eyebrow={x.eyebrow} title={x.title} lead={x.lead} id="x365-title" />
+        <ul role="list" class="x365">
+          {x.ways.map((w) => (
+            <li class="x365__way">
+              <h3>{w.title}</h3>
+              <Rich as="p" text={w.text} />
+            </li>
+          ))}
+        </ul>
+        <Rich as="p" class="x365__ind" text={x.industries} />
+        <div class="btn-row"><a class="btn btn--primary" href="#anfrage">{x.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a></div>
+      </div>
+    </section>
+  </Fragment>
 
   <section slot="module" class="section" aria-labelledby="pruefpflicht">
     <div class="wrap">
@@ -60,6 +79,11 @@ import { inspection } from '../../config/inspection.mjs';
 </SubPage>
 
 <style>
+  .x365 { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .x365 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .x365__way { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--white); }
+  .x365__way h3 { font-size: 1.375rem; color: var(--white); }
+  .x365__ind { margin: var(--s-7) 0 var(--s-5); max-width: 46em; font-size: 1.125rem; color: var(--white); }
   .pflicht { margin-bottom: var(--s-7); }
   .pflicht__text { display: grid; gap: var(--s-2); }
   .pflicht__text h3 { font-size: 1.125rem; margin-top: var(--s-3); }

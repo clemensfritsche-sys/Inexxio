@@ -1,7 +1,7 @@
 ---
 /**
- * /fahrzeugtechnik/fahrmischer – Service, Reparatur, Trommel-Revision und Trommeltausch auf
- * EINER Seite (Rückmeldung 07.10.2026). Module: die drei Wege für die Trommel (#trommel),
+ * /fahrzeugtechnik/fahrmischer – Trommeltausch, Trommel-Revision, Service und Reparatur auf
+ * EINER Seite. Zuerst die Trommel (#trommel, gleich nach den Versprechen), dann
  * der Winter als Zeitpunkt (#winter-revision) und das Marken-Band.
  */
 import SubPage from '../../layouts/SubPage.astro';
@@ -22,7 +22,7 @@ const productNode = product(siteUrl, {
 const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: true, query: '?raw', import: 'default' });
 ---
 <SubPage page={fahrmischer} jsonLd={[productNode]}>
-  <section slot="module" class="section" id="trommel" aria-labelledby="trommel-title">
+  <section slot="intro" class="section" id="trommel" aria-labelledby="trommel-title">
     <div class="wrap">
       <SectionHead eyebrow="Trommel" title={d.title} lead={d.lead} id="trommel-title" />
       <ul role="list" class="drum">

@@ -5165,7 +5165,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 
 **Fundament, produktiv nutzbar**
 - **Öffentliche Website** (`website/`, Oktober 2026): INEXXIO (ehemals HS Steiner) –
-  24 Seiten in drei Bereichen (Krantechnik · Fahrzeugtechnik · Sonderlösungen), dazu
+  25 Seiten in drei Bereichen (Krantechnik · Fahrzeugtechnik · Sonderlösungen), dazu
   Service und Notfall (eine Seite), Über uns samt Übergabe, Karriere, Ratgeber, Rechtliches,
   Anfrage-Formular mit eigenem Endpunkt, Sitemap, robots.txt, llms.txt, Weiterleitungen
   der alten hs-steiner.ch-Pfade. Modus `preview`, bis die offenen Punkte erledigt sind.

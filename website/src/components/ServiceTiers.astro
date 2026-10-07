@@ -1,0 +1,47 @@
+---
+/**
+ * Die vier Stufen des Kranservice (content/krantechnik.ts → serviceTiers): Auf Abruf ·
+ * Basis · Plus · INEXXIO 365. Jede Stufe nennt nur, was dazukommt; INEXXIO 365 ist die
+ * dunkle Karte. Keine Preise.
+ */
+import Icon from './Icon.astro';
+import { serviceTiers as t } from '../content/krantechnik';
+---
+<ol role="list" class="tiers">
+  {t.tiers.map((tier, i) => (
+    <li class:list={['tiers__item', { 'tiers__item--featured': tier.featured }]}>
+      <p class="tiers__step tnum">Stufe {i + 1}</p>
+      <h3 class="tiers__name">{tier.name}</h3>
+      <p class="tiers__claim">{tier.claim}</p>
+      {i > 0 && <p class="tiers__plus">Alles aus «{t.tiers[i - 1].name}», dazu:</p>}
+      <ul role="list" class="tiers__list">
+        {tier.items.map((it) => <li><Icon name="check" size={18} />{it}</li>)}
+      </ul>
+    </li>
+  ))}
+</ol>
+
+<style>
+  .tiers { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .tiers { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .tiers__item {
+    display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5);
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg);
+  }
+  .tiers__step { font-size: 0.75rem; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); }
+  .tiers__name { font-size: 1.375rem; line-height: 1.15; }
+  .tiers__claim { font-weight: 500; color: var(--ink); }
+  .tiers__plus { margin-top: var(--s-2); font-size: 0.875rem; color: var(--ink-3); }
+  .tiers__list { display: grid; gap: var(--s-2); margin-top: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--line); }
+  .tiers__list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: var(--s-2); font-size: 0.9375rem; color: var(--ink-2); }
+  .tiers__list :global(.icon) { margin-top: 3px; color: var(--ok); }
+
+  .tiers__item--featured { background: var(--ink); border-color: var(--ink); }
+  .tiers__item--featured .tiers__name, .tiers__item--featured .tiers__claim { color: var(--white); }
+  .tiers__item--featured .tiers__step, .tiers__item--featured .tiers__plus { color: var(--ink-4); }
+  .tiers__item--featured .tiers__step { color: var(--red-bright); }
+  .tiers__item--featured .tiers__list { border-color: var(--line-dark); }
+  .tiers__item--featured .tiers__list li { color: rgba(255, 255, 255, 0.86); }
+  .tiers__item--featured .tiers__list :global(.icon) { color: var(--white); }
+</style>

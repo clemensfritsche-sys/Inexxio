@@ -675,18 +675,61 @@ hs-steiner.ch-Pfade zeigen auf die neuen Ziele.
     Teilekatalog braucht eine eigene Seite), Ratgeber (Suche), Karriere (eigene Absicht),
     Kontakt und Rechtliches.
 
-**Seitenplan (Stand 07.10.2026)**
+**Seitenplan (Stand 07.10.2026, mit §7.7d: 25 Seiten)**
 
 | Bereich | Seiten |
 |---|---|
 | Start | `/` |
-| Krantechnik | `/krantechnik` · `/kranservice` · `/industriekrane` · `/haefen-werften` · `/heukrananlagen` · `/modernisierung` |
+| Krantechnik | `/krantechnik` · `/kranservice` · `/industriekrane` · `/haefen-werften` · `/heukrananlagen` · `/modernisierung` · `/anschlagmittel` |
 | Fahrzeugtechnik | `/fahrzeugtechnik` · `/fahrmischer` · `/aufbauten-reparatur` · `/verschleiss-ersatzteile` |
 | Sonderlösungen | `/sonderloesungen` |
 | Service | `/service` |
 | Unternehmen | `/ueber-uns` · `/karriere` · `/kontakt` (+ `/kontakt/danke`, noindex) |
 | Ratgeber | `/ratgeber` + drei Artikel |
 | Rechtliches | `/impressum` · `/datenschutz` (+ `/agb` im ERP-Frontend, `/404`) |
+
+### 7.7d Drei Versprechen und INEXXIO 365 (07.10.2026)
+
+Strategie: INEXXIO verkauft Mehrwert – Lösung nach Mass, zuverlässiger Betrieb, planbare
+Kosten – bei kleinem Risiko für den Kunden. Krantechnik ist das Wachstumsfeld, die
+Fahrzeugtechnik (Trommeltausch, Fahrmischer) die Cash-Quelle und tritt nicht zurück.
+
+95. **Drei Versprechen, nie vermischt** (`content/promises.ts`, die EINE Quelle):
+    ① *Service testen* – «Der erste Kranservice ist gratis.» (einmal pro Kunde, Material
+    wird verrechnet, nur Service/Wartung, keine Prüfung, nur Krane aller Marken) ·
+    ② *Kaufen mit Garantie* – «Nicht zufrieden? Sie zahlen nur die Hälfte.» (ganzer Preis,
+    ohne Einschränkung, auf alles, was man kauft) · ③ *INEXXIO 365* – «Ihr Kran läuft –
+    oder Sie zahlen nicht.» Für alles: Fixpreis vor jeder Arbeit, keine Mindestlaufzeit,
+    Zweitmeinung gratis. Keine Preise, keine Kranklassen, keine erfundenen Bedingungen.
+96. **EIN Bauteil** (`Promises.astro`): Startseite alle drei, direkt nach dem Hero; jede
+    Seite nennt in `promises` die, die für sie gelten (Vorlage der Unter- und
+    Bereichsseiten). Grosse Zahl als Anker (0.– · 50 % · 365), Rot nur als Linie darüber.
+    Ein einzelnes Versprechen steht als Zahl links, Worte rechts.
+97. **Kranservice in vier Stufen** (löst 83 ab): Auf Abruf · Service-Vertrag Basis ·
+    Service-Vertrag Plus · INEXXIO 365 (`ServiceTiers.astro`). Die Pakete Pflicht · Pflege ·
+    Rundum und jeder «Jahrespreis» sind entfernt (`ServicePlans.astro` gelöscht).
+    INEXXIO 365 hat zwei Wege: bestehender Kran (auch fremde Marken) · neuer Kran ohne
+    Kauf, zur Monatsrate (`#inexxio-365`).
+98. **Zuordnung**: Kranservice ①③ · Häfen & Werften ①②③ (Bootslifte gleichwertig, neu und
+    Service) · Industriekrane ①② + Branchenzeile und Hinweis auf 365 · Heukrananlagen ①②
+    (kein 365) · Modernisierung ①② · Fahrzeugtechnik und Fahrmischer ② (Trommeltausch
+    zuerst, kein Gratis-Erstservice) · Sonderlösungen ② + Zweitmeinung.
+99. **Startseite**: H1 «Krane und Fahrmischer mit Handschlagqualität.», zwei gleichwertige
+    Einstiege (Krantechnik · Fahrzeugtechnik), Sonderlösungen als kleiner Link darunter
+    (der Kran spielt nur noch zwei Szenen – Ausleger-Szene entfernt), Vertrauensleiste
+    1982 · Alle Marken · Fixpreis · 50 %, dann die Versprechen und die Branchenzeile
+    (Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau,
+    Betonwerke). Claim in `brand.claim` (löst 81 ab).
+100. **Neue Seite `/krantechnik/anschlagmittel`**: Ketten, Hebebänder, Haken als Set, das
+     immer geprüft ist – jährlicher Tausch, Prüfung in der eigenen Werkstatt, jedes Teil
+     gekennzeichnet. Zur Prüfpflicht nur «regelmässig geprüft». Bild vorerst das des
+     Kranservice.
+101. **Verbotene Wörter erweitert** (`check-site.mjs`): «Jahrespreis», «Jahrespaket» und
+     das ganze Wort «Abo» brechen den Build. «INEXXIO 365» zählt nicht als erste Nennung
+     der Firma.
+102. **Über uns / Service**: die Zusagen beginnen mit «Fixpreis vor jeder Arbeit» und
+     «Keine Mindestlaufzeit»; die Kran-Kachel auf /service nennt Gratis-Erstservice und
+     INEXXIO 365. Das Anfrage-Formular hat keine Themenliste – unverändert.
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 

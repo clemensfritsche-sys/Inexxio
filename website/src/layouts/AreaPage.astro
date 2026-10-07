@@ -1,7 +1,7 @@
 ---
 /**
  * Vorlage der drei Bereichsseiten (Auftrag Kap. 7.4), gleiche Struktur überall:
- * Hero → Auf einen Blick → Unterseiten als grosse Karten mit Foto →
+ * Hero → Auf einen Blick → Versprechen, die hier gelten → Unterseiten als grosse Karten mit Foto →
  * Ablauf in vier Schritten (Kranbahn-Linie) → FAQ → Anfrage mit vorausgewähltem Bereich.
  */
 import Base from './Base.astro';
@@ -13,6 +13,7 @@ import Faq from '../components/Faq.astro';
 import ContactSection from '../components/ContactSection.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
 import Rich from '../components/Rich.astro';
+import Promises from '../components/Promises.astro';
 import { areaOf } from '../config/site.mjs';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
@@ -41,10 +42,12 @@ const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href ===
     <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>
   </section>
 
+  {page.promises && <Promises only={page.promises} />}
+
   <section class="section section--paper" aria-labelledby="seiten">
     <div class="wrap">
       <SectionHead eyebrow="Leistungen" title="Unsere Leistungen im Detail" id="seiten" />
-      <div class:list={['cardgrid', subpages.length === 3 ? 'cardgrid--3' : 'cardgrid--2']}>
+      <div class:list={['cardgrid', subpages.length % 3 === 0 ? 'cardgrid--3' : 'cardgrid--2']}>
         {subpages.map((p) => (
           <AreaCard title={p.crumb} href={p.path} text={teaser(p.path)} photo={p.hero.photo} more={`Mehr zu ${p.crumb}`} />
         ))}

@@ -4,6 +4,7 @@
  * Konfiguration werden mit {{schlüssel}} eingesetzt.
  */
 import type { IconName } from '../components/Icon.astro';
+import type { PromiseKey } from './promises';
 export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen';
 /** OG-Bild: Standard oder das des Bereichs (public/og/, scripts/make-assets.mjs). */
 export type OgImage = 'default' | AreaId;
@@ -27,6 +28,8 @@ export interface AreaPage {
   faq: Faq[];
   service: { name: string; serviceType: string };
   keywords?: string[];
+  /** Welche Versprechen hier gelten (content/promises.ts) – direkt unter «Auf einen Blick». */
+  promises?: PromiseKey[];
 }
 
 /** Unterseite (Auftrag Kap. 7.5). */
@@ -49,6 +52,8 @@ export interface SubPage {
   related: LinkItem[];
   service: { name: string; serviceType: string };
   keywords?: string[];
+  /** Welche Versprechen hier gelten (content/promises.ts) – direkt unter «Auf einen Blick». */
+  promises?: PromiseKey[];
 }
 
 export interface Entry { title: string; text: string; href: string; icon: IconName }

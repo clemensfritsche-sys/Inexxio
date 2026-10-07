@@ -1,13 +1,14 @@
 ---
 /**
- * Startseite: Hero mit Laufkran, den drei Bereichen und der Vertrauensleiste (HomeHero) →
- * Kranservice (Teaser der Pakete) → Übergabe → Warum → Ratgeber → Fragen → Anfrage (mit
+ * Startseite: Hero mit Laufkran, zwei Einstiegen (Krantechnik, Fahrzeugtechnik), Sonderlösungen
+ * klein darunter und der Vertrauensleiste (HomeHero) → die drei Versprechen (Promises) →
+ * Branchenzeile → Übergabe → Warum → Ratgeber → Fragen → Anfrage (mit
  * Karte – darum keine zweite «Wo wir arbeiten»-Sektion). Texte: src/content/start.ts,
  * Bereiche aus src/config/site.mjs.
  */
 import Base from '../layouts/Base.astro';
 import HomeHero from '../components/HomeHero.astro';
-import ServicePlans from '../components/ServicePlans.astro';
+import Promises from '../components/Promises.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Photo from '../components/Photo.astro';
 import Quote from '../components/Quote.astro';
@@ -32,15 +33,18 @@ const h = start.handover;
     trust={start.hero.trust}
     areasTitle={start.areas.h2}
     more={start.areas.more}
+    claims={start.entries}
+    extra={start.more}
   />
 
-  <section class="section section--paper" aria-labelledby="kranservice">
+  <Promises />
+
+  <div class="section section--tight start-ind">
     <div class="wrap">
-      <SectionHead eyebrow={start.plans.eyebrow} title={start.plans.h2} lead={start.plans.lead} id="kranservice" />
-      <ServicePlans compact />
-      <p class="start-more"><a class="arrow-link" href="/krantechnik/kranservice#pakete">{start.plans.link} <Icon name="arrow-right" size={18} /></a></p>
+      <Rich as="p" class="start-ind__text" text={start.industries.text} />
+      <a class="arrow-link" href={start.industries.link.href}>{start.industries.link.label} <Icon name="arrow-right" size={18} /></a>
     </div>
-  </section>
+  </div>
 
   <section class="section section--dark" aria-labelledby="uebergabe">
     <div class="wrap grid start-handover">
@@ -105,6 +109,8 @@ const h = start.handover;
 
 <style>
   .head--flush { margin-bottom: 0; }
+  .start-ind .wrap { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-3) var(--s-6); }
+  .start-ind__text { max-width: 44em; font-family: var(--font-display); font-size: clamp(1.125rem, 1rem + 0.5vw, 1.375rem); font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; color: var(--ink); }
 
   .start-handover { align-items: start; row-gap: var(--s-7); }
   .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
