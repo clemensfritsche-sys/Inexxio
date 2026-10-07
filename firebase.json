@@ -46,7 +46,7 @@
       },
       {
         "regex": "(?i)^/antrieb-und-steuerung(?:/.*)?$",
-        "destination": "/krantechnik/modernisierung",
+        "destination": "/krantechnik/kranservice",
         "type": 301
       },
       {

@@ -41,7 +41,7 @@ export const ueberUns = {
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
   promises: {
     title: 'Worauf Sie sich verlassen können',
-    lead: 'Konkrete Zusagen statt schöner Worte – dazu die Garantie: Nicht zufrieden? Sie zahlen nur die Hälfte.',
+    lead: 'Konkrete Zusagen statt schöner Worte – dazu die INEXXIO Zufriedenheitsgarantie: Nicht zufrieden? Sie zahlen nur die Hälfte.',
     items: [
       { title: 'Fixpreis vor jeder Arbeit', text: 'Sie wissen vorher, was es kostet. Auf der Rechnung steht keine Überraschung.' },
       { title: 'Keine Mindestlaufzeit', text: 'Sie bleiben, weil es passt – nicht, weil ein Vertrag Sie hält.' },

@@ -3,8 +3,8 @@
  * Bildstelle aus der Fotoliste (src/config/photos.mjs).
  * Mit Datei: <picture> mit AVIF/WebP, srcset, festen Massen, Lazy Loading (Hero: eager +
  * fetchpriority="high").
- * Ohne Datei, aber mit Beispielbild (config/photo-samples.mjs): dasselbe <picture>, sichtbar
- * als «Beispielbild» gekennzeichnet, Alt-Text = was wirklich zu sehen ist.
+ * Ohne Datei, aber mit Beispielbild (config/photo-samples.mjs): dasselbe <picture>, Alt-Text =
+ * was wirklich zu sehen ist; der Bildnachweis steht im Impressum.
  * Ohne beides: grauer Rahmen im richtigen Seitenverhältnis mit der Bildbeschreibung.
  * Beispielbild und Rahmen sind im Modus «live» ein Fehler – beide gelten als fehlendes Foto
  * (data-photo-missing → OFFENE_PUNKTE.md).
@@ -44,7 +44,7 @@ const alt = real ? p.alt : sample?.alt ?? p.alt;
     fetchpriority={priority ? 'high' : 'auto'}
     decoding="async"
     class:list={['photo', cls]}
-    pictureAttributes={real ? {} : { class: 'is-sample', 'data-ratio': p.ratio, 'data-photo-missing': id, 'data-sample-label': 'Beispielbild' }}
+    pictureAttributes={real ? {} : { class: 'is-sample', 'data-ratio': p.ratio, 'data-photo-missing': id }}
   />
 ) : (
   <div class:list={['ph', cls]} data-ratio={p.ratio} data-photo-missing={id} role="img" aria-label={p.alt}>
@@ -55,8 +55,8 @@ const alt = real ? p.alt : sample?.alt ?? p.alt;
 
 <style>
   .photo { width: 100%; height: auto; display: block; }
-  /* Beispielbild: im selben Seitenverhältnis wie das künftige Foto, beschnitten statt verzerrt,
-     und unübersehbar als Beispiel gekennzeichnet (oben links, dort ist sonst nichts). */
+  /* Beispielbild: im selben Seitenverhältnis wie das künftige Foto, beschnitten statt verzerrt.
+     Ohne sichtbare Marke (Testnotiz #1194) – der Nachweis steht im Impressum. */
   :global(picture.is-sample) { position: relative; display: block; overflow: hidden; }
   :global(picture.is-sample[data-ratio='3/2']) { aspect-ratio: 3 / 2; }
   :global(picture.is-sample[data-ratio='4/3']) { aspect-ratio: 4 / 3; }
@@ -64,14 +64,6 @@ const alt = real ? p.alt : sample?.alt ?? p.alt;
   :global(picture.is-sample[data-ratio='1/1']) { aspect-ratio: 1 / 1; }
   :global(picture.is-sample[data-ratio='16/9']) { aspect-ratio: 16 / 9; }
   :global(picture.is-sample) .photo { width: 100%; height: 100%; object-fit: cover; }
-  :global(picture.is-sample)::after {
-    content: attr(data-sample-label);
-    position: absolute; top: 10px; left: 10px; z-index: 2;
-    padding: 3px 8px; border-radius: var(--r-sm);
-    background: rgba(10, 10, 11, 0.72); color: var(--white);
-    font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
-    pointer-events: none;
-  }
   .ph {
     position: relative; width: 100%; display: flex; flex-direction: column; justify-content: flex-end;
     gap: 6px; padding: var(--s-5); background: var(--paper-2); border: 1px solid var(--line-2);

@@ -13,13 +13,6 @@
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
     "page": "https://commons.wikimedia.org/wiki/File:Dieselverkstaden_interi%C3%B6r_2014b.jpg"
   },
-  "steuerung-funk": {
-    "file": "File:Unknown factory detail.jpg",
-    "author": "Streetcrane",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "page": "https://commons.wikimedia.org/wiki/File:Unknown_factory_detail.jpg"
-  },
   "heukran-einsatz": {
     "file": "File:Grange à foin, Le Crêt, Rougemont-02.jpg",
     "author": "MHM55",
@@ -118,25 +111,18 @@
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
     "page": "https://commons.wikimedia.org/wiki/File:Busy_in_the_shed_(9554295878).jpg"
   },
-  "vorher-kran": {
-    "file": "File:East Side Access Update- Queens (26082304942).jpg",
-    "author": "Metropolitan Transportation Authority of the State of New York",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
-    "page": "https://commons.wikimedia.org/wiki/File:East_Side_Access_Update-_Queens_(26082304942).jpg"
-  },
-  "nachher-kran": {
-    "file": "File:Dülmen, Kirchspiel, ehem. Sondermunitionslager Visbeck, Schaltkasten -- 2023 -- 6756.jpg",
-    "author": "Dietmar Rabich",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "page": "https://commons.wikimedia.org/wiki/File:D%C3%BClmen,_Kirchspiel,_ehem._Sondermunitionslager_Visbeck,_Schaltkasten_--_2023_--_6756.jpg"
-  },
   "arbeit-werkstatt": {
     "file": "File:Welder in a workshop (Unsplash).jpg",
     "author": "Uğur Gürcüoğlu sharkdesignstudio",
     "license": "CC0",
     "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
     "page": "https://commons.wikimedia.org/wiki/File:Welder_in_a_workshop_(Unsplash).jpg"
+  },
+  "anschlagmittel": {
+    "file": "File:Unknown factory detail.jpg",
+    "author": "Streetcrane",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Unknown_factory_detail.jpg"
   }
 }

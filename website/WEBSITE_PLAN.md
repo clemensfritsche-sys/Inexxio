@@ -675,12 +675,12 @@ hs-steiner.ch-Pfade zeigen auf die neuen Ziele.
     Teilekatalog braucht eine eigene Seite), Ratgeber (Suche), Karriere (eigene Absicht),
     Kontakt und Rechtliches.
 
-**Seitenplan (Stand 07.10.2026, mit §7.7d: 25 Seiten)**
+**Seitenplan (Stand 07.10.2026, mit §7.7d/e: 24 Seiten)**
 
 | Bereich | Seiten |
 |---|---|
 | Start | `/` |
-| Krantechnik | `/krantechnik` · `/kranservice` · `/industriekrane` · `/haefen-werften` · `/heukrananlagen` · `/modernisierung` · `/anschlagmittel` |
+| Krantechnik | `/krantechnik` · `/kranservice` · `/industriekrane` · `/haefen-werften` · `/heukrananlagen` · `/anschlagmittel` |
 | Fahrzeugtechnik | `/fahrzeugtechnik` · `/fahrmischer` · `/aufbauten-reparatur` · `/verschleiss-ersatzteile` |
 | Sonderlösungen | `/sonderloesungen` |
 | Service | `/service` |
@@ -730,6 +730,28 @@ Fahrzeugtechnik (Trommeltausch, Fahrmischer) die Cash-Quelle und tritt nicht zur
 102. **Über uns / Service**: die Zusagen beginnen mit «Fixpreis vor jeder Arbeit» und
      «Keine Mindestlaufzeit»; die Kran-Kachel auf /service nennt Gratis-Erstservice und
      INEXXIO 365. Das Anfrage-Formular hat keine Themenliste – unverändert.
+
+### 7.7e Marketing-Durchgang und Testnotizen #1192–#1198 (07.10.2026)
+
+103. **Startseite aus Sicht des Marketings** (`content/start.ts`): der Lead sagt jetzt, *was*
+     wir tun und *warum ohne Risiko* («… Fixpreis vor jeder Arbeit – und einen
+     Ansprechpartner, der erreichbar ist, wenn etwas stillsteht») statt einer Floskel. Die
+     Vertrauensleiste trägt nur **belegbare Tatsachen** (1982 · 1985 · Alle Marken · Eine
+     Nummer); «50 %» und «Fixpreis» stehen direkt darunter im Versprechens-Block, doppelt
+     wären sie schwächer. **Belege vor Übergabe**: «Warum wir» steht vor «Aus HS Steiner
+     wird INEXXIO» – erst überzeugen, dann beruhigen. Löst 99 teilweise ab (Lead, Leiste).
+104. **Drei gleichwertige Karten** (#1193, löst 99 ab): Sonderlösungen wieder mit Bild und
+     Szene; jede Karte trägt ihr Versprechen in einem Satz («Was es nicht zu kaufen gibt,
+     bauen wir.»).
+105. **Kranservice in drei Stufen** (#1197, löst 97 ab): Auf Abruf · Service-Vertrag Basis ·
+     INEXXIO 365; was «Plus» trug, steckt in Basis (Kranbuch, Fristen) bzw. 365
+     (Verschleissteile). Kein Satz «Sie erhalten eine Offerte» (#1192).
+106. **«INEXXIO Zufriedenheitsgarantie»** heisst das zweite Versprechen (#1196).
+107. **Modernisierung als Seite entfällt** (#1198): Seite, Inhalt, Vorher/Nachher-Bauteil und
+     Fotos gelöscht; `/antrieb-und-steuerung` leitet auf den Kranservice. Das Foto
+     `steuerung-funk` ist jetzt `anschlagmittel`.
+108. **Kein «Erweitert»** (#1195) und **kein «Beispielbild»-Etikett** (#1194) mehr – beide
+     samt CSS entfernt; der Bildnachweis bleibt im Impressum.
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 

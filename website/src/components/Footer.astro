@@ -39,7 +39,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
           <h2 class="site-footer__title"><a href={area.href}>{area.label}</a></h2>
           {area.children.length ? (
             <ul role="list">
-              {area.children.map((c) => <li><a href={c.href}>{c.label}</a>{c.badge && <span class="badge-ext">{c.badge}</span>}</li>)}
+              {area.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
             </ul>
           ) : <p class="site-footer__text">{area.text}</p>}
         </nav>

@@ -43,7 +43,7 @@ const ownerCareer = [
 ];
 
 /**
- * @typedef {{ label: string, href: string, text: string, photo: string, badge?: string }} SubPage
+ * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
  * @typedef {{
  *   id: 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen',
  *   label: string, href: string, overview: string, text: string, photo: string,
@@ -57,8 +57,7 @@ const ownerCareer = [
  * Footer, JSON-LD (hasOfferCatalog) und llms.txt entstehen daraus. ◄◄◄
  * Reihenfolge = Gewichtung (WEBSITE_PLAN §7.7a): Krantechnik und Fahrzeugtechnik sind die zwei
  * Standbeine, Sonderlösungen steht darunter. In der Krantechnik zuerst der Kranservice, dann
- * die Fokusmärkte, dann die Modernisierung. `badge` («Erweitert») markiert ein erweitertes
- * ANGEBOT – nie eine Kompetenz, die es schon immer gab.
+ * die Fokusmärkte, dann die Anschlagmittel.
  * @type {Area[]}
  */
 const areas = [
@@ -67,16 +66,15 @@ const areas = [
     label: 'Krantechnik',
     href: '/krantechnik',
     overview: 'Alle Leistungen Krantechnik',
-    text: 'Vom Gratis-Erstservice bis INEXXIO 365: Kranservice für Industriekrane, Boots- und Mastkrane, Bootslifte und Heukrananlagen. Dazu neue Anlagen und Modernisierung.',
+    text: 'Service für Industrie-, Boots- und Heukrane aller Marken – der erste ist gratis. Dazu neue Krananlagen und Bootslifte nach Mass.',
     photo: 'heukran-einsatz',
     ogTitle: 'Ihr Kran läuft – oder Sie zahlen nicht.',
     children: [
-      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Erster Service gratis, INEXXIO 365: Ihr Kran läuft – oder Sie zahlen nicht', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
+      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Erster Service gratis, INEXXIO 365: Ihr Kran läuft – oder Sie zahlen nicht', photo: 'pruefung-hallenkran' },
       { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge- und Schwenkkrane in KMU', photo: 'reparatur-vor-ort' },
-      { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte – neu und Service', photo: 'hafen-bootskran', badge: 'Erweitert' },
+      { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte – neu und Service', photo: 'hafen-bootskran' },
       { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service', photo: 'heukran-einsatz' },
-      { label: 'Modernisierung', href: '/krantechnik/modernisierung', text: 'Funk, Umrichter, Überlastsicherung, Steuerung', photo: 'steuerung-funk' },
-      { label: 'Anschlagmittel', href: '/krantechnik/anschlagmittel', text: 'Ketten, Hebebänder, Haken – immer geprüft', photo: 'pruefung-hallenkran', badge: 'Erweitert' },
+      { label: 'Anschlagmittel', href: '/krantechnik/anschlagmittel', text: 'Ketten, Hebebänder, Haken – immer geprüft', photo: 'anschlagmittel' },
     ],
   },
   {
@@ -84,7 +82,7 @@ const areas = [
     label: 'Fahrzeugtechnik',
     href: '/fahrzeugtechnik',
     overview: 'Alle Leistungen Fahrzeugtechnik',
-    text: 'Trommeltausch mit Garantie – dazu Service, Revision und Reparatur für Fahrmischer und Aufbauten aller gängigen Marken.',
+    text: 'Trommeltausch, Revision und Reparatur für Fahrmischer und Aufbauten aller gängigen Marken – planbar im Winter.',
     photo: 'fahrmischer-werkstatt',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
     children: [
@@ -98,7 +96,7 @@ const areas = [
     label: 'Sonderlösungen',
     href: '/sonderloesungen',
     overview: 'Alle Leistungen Sonderlösungen',
-    text: 'Konstruktion, Schweiss- und Stahlbau, Umbauten an Baumaschinen. Wenn es die Lösung nicht zu kaufen gibt.',
+    text: 'Konstruktion, Stahlbau und Umbauten an Baumaschinen – mit Ingenieurwissen und eigener Werkstatt.',
     photo: 'arbeit-werkstatt',
     ogTitle: 'Konstruktion, Schweiss- und Stahlbau, Umbau von Baumaschinen',
     children: [],
@@ -199,7 +197,6 @@ export const site = {
     /** Heiri Steiner bleibt in der Übergangszeit beratend dabei – alles dazu hängt hier. */
     heiriAdvisory: true,
     /** Ohne echten Inhalt aus: */
-    beforeAfter: false,
     team: false,
   },
 
@@ -309,7 +306,7 @@ export const site = {
     knowsAbout: [
       'Kranservice', 'INEXXIO 365', 'Anschlagmittel', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
       'Bootskrane', 'Mastkrane', 'Bootslifte', 'Hafenkrane', 'Trommeltausch',
-      'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung', 'Kranmodernisierung',
+      'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung', 
       'Funkfernsteuerung', 'Frequenzumrichter', 'Fahrmischer', 'Trommel-Revision',
       'Verschleissteile für Fahrmischer', 'LKW-Aufbauten', 'Konstruktion', 'Stahlbau',
       'Schweissarbeiten', 'Baumaschinen',

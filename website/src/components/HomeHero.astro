@@ -2,10 +2,10 @@
 /**
  * Seitenkopf der Startseite mit Laufkran (Claude-Design «Startseite Redesign», Okt. 2026):
  * Über dem Kopf läuft eine Kranbahn; die Katze mit der INEXXIO-Wortmarke folgt dem Zeiger.
- * Über einem Knopf senkt sie den Haken und hängt ihn an. Über einem **Einstieg** spielt sie
- * dessen Szene im Bildfeld der Karte: Heu einlagern (Greifer) · Mischtrommel tauschen. Zwei
- * gleichwertige Einstiege (Krantechnik, Fahrzeugtechnik), Sonderlösungen klein darunter.
- * Ohne Zeiger fährt der Kran die zwei Einstiege nacheinander ab.
+ * Über einem Knopf senkt sie den Haken und hängt ihn an. Über einem **Bereich** spielt sie
+ * dessen Szene im Bildfeld der Karte: Heu einlagern (Greifer) · Mischtrommel tauschen ·
+ * Ausleger nach Mass montieren. Drei gleichwertige Karten, je mit ihrem Versprechen in einem
+ * Satz. Ohne Zeiger fährt der Kran die drei Bereiche nacheinander ab.
  * Bewegung: src/scripts/crane.ts. Ohne JS oder bei reduzierter Bewegung steht der Kran still,
  * die Karten reagieren dann auf das Zeigen wie gewohnt.
  */
@@ -18,8 +18,10 @@ import greifer from '../assets/crane/greifer.html?raw';
 import lastBale from '../assets/crane/last-bale.svg?raw';
 import lastOld from '../assets/crane/last-old.svg?raw';
 import lastNew from '../assets/crane/last-new.svg?raw';
+import lastJib from '../assets/crane/last-jib.svg?raw';
 import szeneKran from '../assets/crane/szene-krantechnik.svg?raw';
 import szeneFahrzeug from '../assets/crane/szene-fahrzeugtechnik.svg?raw';
+import szeneSonder from '../assets/crane/szene-sonderloesungen.svg?raw';
 
 interface Props {
   eyebrow: string;
@@ -28,24 +30,23 @@ interface Props {
   trust: { value: string; label: string }[];
   areasTitle: string;
   more: string;
-  /** Satz je Einstieg (Bereichs-ID → Versprechen in einem Satz). */
+  /** Satz je Bereich (Bereichs-ID → Versprechen in einem Satz). */
   claims: Record<string, string>;
-  /** Der kleine Einstieg darunter. */
-  extra: { label: string; text: string; href: string };
 }
-const { eyebrow, title, lead, trust, areasTitle, more, claims, extra } = Astro.props;
-const entries = site.areas.filter((a) => claims[a.id]);
+const { eyebrow, title, lead, trust, areasTitle, more, claims } = Astro.props;
 
 /** Szene je Bereich – die Reihenfolge der Bühnen folgt der Reihenfolge der Karten. */
 const scenes: Record<string, { svg: string; done: string }> = {
   krantechnik: { svg: szeneKran, done: 'Heu eingelagert' },
   fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel' },
+  sonderloesungen: { svg: szeneSonder, done: 'Sonderlösung montiert' },
 };
 /** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */
 const loads = [
   { name: 'bale', svg: lastBale, w: 48, h: 32, mx: -24, my: -16, ox: 24, oy: 4 },
   { name: 'old', svg: lastOld, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
   { name: 'new', svg: lastNew, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  { name: 'jib', svg: lastJib, w: 150, h: 62, mx: -68, my: -6, ox: 68, oy: 6 },
 ];
 ---
 <section class="hh" data-crane>
@@ -94,12 +95,12 @@ const loads = [
   <div class="wrap hh__areas">
     <h2 class="h3 hh__areas-title" id="bereiche">{areasTitle}</h2>
     <ul role="list" class="hh__cards">
-      {entries.map((a, i) => {
+      {site.areas.map((a, i) => {
         const scene = scenes[a.id];
         return (
           <li class="hh__card" data-tile={String(i)} data-scene-id={scene ? a.id : undefined}>
             <div class="hh__media">
-              <Photo id={a.photo} sizes="(min-width: 760px) 50vw, 100vw" />
+              <Photo id={a.photo} sizes="(min-width: 760px) 33vw, 100vw" />
               {scene && (
                 <div class="hh__stage" data-scene aria-hidden="true">
                   <div class="hh__stage-in" data-stagein set:html={scene.svg} />
@@ -109,11 +110,11 @@ const loads = [
             </div>
             <div class="hh__body-text">
               <h3 class="hh__card-title"><a href={a.href}>{a.label}</a></h3>
-              <Rich as="p" class="hh__card-claim" text={claims[a.id]} />
+              {claims[a.id] && <Rich as="p" class="hh__card-claim" text={claims[a.id]} />}
               <Rich as="p" class="hh__card-text" text={a.text} />
               {a.children.length > 0 && (
                 <ul role="list" class="hh__chips">
-                  {a.children.map((c) => <li><a href={c.href}>{c.label}{c.badge && <span class="badge-ext">{c.badge}</span>}</a></li>)}
+                  {a.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
                 </ul>
               )}
               <span class="hh__more" aria-hidden="true">{more}<Icon name="arrow-right" size={16} /></span>
@@ -122,9 +123,6 @@ const loads = [
         );
       })}
     </ul>
-    <p class="hh__extra">
-      <a href={extra.href}><strong>{extra.label}</strong> <span>{extra.text}</span><Icon name="arrow-right" size={16} /></a>
-    </p>
     <div class="hh__season"><SeasonNotice page="/" /></div>
   </div>
 
@@ -205,7 +203,7 @@ const loads = [
   .hh__areas { position: relative; z-index: 10; padding-top: var(--s-7); padding-bottom: var(--s-8); }
   .hh__areas-title { padding-bottom: 20px; }
   .hh__cards { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 760px) { .hh__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 760px) { .hh__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .hh__card {
     position: relative; display: flex; flex-direction: column; min-height: 400px; overflow: hidden;
     border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--paper);
@@ -231,17 +229,8 @@ const loads = [
   /* Der Titel-Link deckt die ganze Karte ab; die Unterseiten-Links liegen darüber. */
   .hh__card-title a { color: var(--ink); text-decoration: none; }
   .hh__card-title a::after { content: ''; position: absolute; inset: 0; z-index: 3; }
-  .hh__card-claim { font-family: var(--font-display); font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--ink); }
+  .hh__card-claim { font-family: var(--font-display); font-size: clamp(1.125rem, 1.05rem + 0.35vw, 1.375rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--ink); }
   .hh__card-text { font-size: 0.9375rem; line-height: 1.6; color: var(--ink-2); }
-  .hh__extra { margin-top: var(--s-5); max-width: none; }
-  .hh__extra a {
-    position: relative; z-index: 4; display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
-    color: var(--ink-2); text-decoration: none; font-size: 0.9375rem;
-  }
-  .hh__extra strong { color: var(--ink); }
-  .hh__extra :global(.icon) { align-self: center; color: var(--ink); transition: transform var(--t-base) var(--ease); }
-  .hh__extra a:hover span { text-decoration: underline; text-underline-offset: 0.2em; }
-  .hh__extra a:hover :global(.icon) { transform: translateX(4px); }
   .hh__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: var(--s-2); }
   .hh__chips a {
     position: relative; z-index: 4; display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px;

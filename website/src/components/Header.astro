@@ -43,14 +43,12 @@ const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
  * Die Menüpunkte: drei Bereiche, Service, Über uns (#1154) – jede Seite ist darin erreichbar.
  * Ein Punkt ohne Unterseiten (Sonderlösungen, Service) ist ein einfacher Link.
  */
-type Child = { label: string; href: string; text: string; photo: string; badge?: string };
+type Child = { label: string; href: string; text: string; photo: string };
 const groups: { id: string; label: string; href: string; overview: string; photo: string; children: Child[] }[] = [
   ...site.areas.map((a) => ({ id: a.id, label: a.label, href: a.href, overview: a.overview, photo: a.photo, children: a.children })),
   { id: 'service', label: site.service.label, href: site.service.href, overview: site.service.overview, photo: site.service.photo, children: site.service.children },
   { id: site.about.id, label: site.about.label, href: site.about.href, overview: site.about.overview, photo: site.about.photo, children: site.about.children },
 ];
-/** «Erweitert» an einem Unterpunkt (nur die Bereiche tragen es, WEBSITE_PLAN Entscheid 85). */
-const badgeOf = (c: { label: string; badge?: string }) => c.badge;
 const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children.some((c) => c.href === path);
 ---
 <header class="site-header" data-header>
@@ -93,7 +91,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                     {g.children.map((c) => (
                       <li>
                         <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
-                          <span class="dd__label">{plain(c.label)}{badgeOf(c) && <span class="badge-ext">{badgeOf(c)}</span>}</span>
+                          <span class="dd__label">{plain(c.label)}</span>
                           <span class="dd__text">{c.text}</span>
                         </a>
                       </li>
@@ -166,7 +164,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                   </summary>
                   <ul role="list" class="mnav__sub">
                     {g.children.map((c) => (
-                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}{badgeOf(c) && <em class="badge-ext">{badgeOf(c)}</em>}</strong><span>{c.text}</span></a></li>
+                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}</strong><span>{c.text}</span></a></li>
                     ))}
                     <li><a href={g.href} class="mnav__overview" aria-current={path === g.href ? 'page' : undefined}>{g.overview}</a></li>
                   </ul>
@@ -362,7 +360,6 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   .mnav__sub { list-style: none; padding: var(--s-2) 0 var(--s-3); border-bottom: 1px solid var(--line); }
   .mnav__sub a { display: grid; gap: 2px; padding: 10px 0 10px 12px; text-decoration: none; color: var(--ink); font-weight: 600; }
   .mnav__name { font-weight: 600; }
-  .mnav__name .badge-ext { font-style: normal; }
   .mnav__sub a span { font-weight: 400; font-size: 0.875rem; color: var(--ink-3); }
   .mnav__sub a[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); }
   .mnav__overview { color: var(--red-deep) !important; }

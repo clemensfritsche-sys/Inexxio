@@ -57,8 +57,8 @@ const OLD_URLS = {
   '/betonfordertechnik/bilder': '/fahrzeugtechnik/fahrmischer',
   '/betonfordertechnik/Euro-Kpper': '/fahrzeugtechnik/aufbauten-reparatur',
   '/betonfordertechnik/verschleissteile': '/fahrzeugtechnik/verschleiss-ersatzteile',
-  '/antrieb-und-steuerung': '/krantechnik/modernisierung',
-  '/antrieb-und-steuerung/elektrosteuerung': '/krantechnik/modernisierung',
+  '/antrieb-und-steuerung': '/krantechnik/kranservice',
+  '/antrieb-und-steuerung/elektrosteuerung': '/krantechnik/kranservice',
   '/baumaschinen': '/sonderloesungen',
   '/baumaschinen/reparaturen': '/sonderloesungen',
   '/wahrschaftes': '/sonderloesungen',
@@ -87,7 +87,7 @@ const REMOVED = [
   '/einsatzgebiet', '/ratgeber/kranfachmann-kranexperte', '/ratgeber/heukran-saison-check',
   '/krantechnik/pruefung-wartung', '/krantechnik/service-vertrag', '/fahrzeugtechnik/trommeltausch',
   '/sonderloesungen/konstruktion-engineering', '/sonderloesungen/schweiss-stahlbau', '/sonderloesungen/baumaschinen',
-  '/service/notfall', '/uebergabe',
+  '/service/notfall', '/uebergabe', '/krantechnik/modernisierung',
 ];
 
 const errors = [];
@@ -221,8 +221,9 @@ const LEGAL = new Set(['/impressum', '/datenschutz']);
 function checkFirstMention(p) {
   if (LEGAL.has(p.path)) return;
   const text = visibleText(p.main);
-  // «INEXXIO 365» ist ein Angebot, keine Nennung der Firma – es zählt nicht als erste Nennung.
-  const m = new RegExp(`${site.brand.name}(?! 365)`).exec(text);
+  // «INEXXIO 365» und die «INEXXIO Zufriedenheitsgarantie» sind Angebote, keine Nennung der
+  // Firma – sie zählen nicht als erste Nennung.
+  const m = new RegExp(`${site.brand.name}(?! 365| Zufriedenheitsgarantie)`).exec(text);
   if (!m) return;
   const first = m.index;
   const full = `${site.brand.name} (${site.brand.formerly})`;

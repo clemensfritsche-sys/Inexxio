@@ -23,7 +23,7 @@ import credits from './photo-credits.json' with { type: 'json' };
 const ALT = {
   'pruefung-hallenkran': 'Gelbe Brückenkrane in einer Produktionshalle, ein Mitarbeiter mit Steuergerät',
   'reparatur-vor-ort': 'Roter Brückenkran in einer hellen Werkhalle',
-  'steuerung-funk': 'Bediener steuert einen Hallenkran mit dem Steuergerät',
+  'anschlagmittel': 'Bediener steuert einen Hallenkran mit dem Steuergerät',
   'heukran-einsatz': 'Heukran in einer Scheune (Rougemont VD)',
   'typenschild-hs': 'Typenschild an einer Maschine',
   'fahrmischer-werkstatt': 'Fahrmischer in einer Halle',
@@ -38,8 +38,6 @@ const ALT = {
   'servicefahrzeug': 'Kleinbus auf einer Strasse in Basel',
   'portraet-clemens': 'Umlenkrolle mit Kranhaken',
   'team': 'Werkhalle mit Arbeitsplätzen',
-  'vorher-kran': 'Hängetaster eines Krans in einer Halle',
-  'nachher-kran': 'Geöffneter Schaltkasten mit Verdrahtung',
   'arbeit-werkstatt': 'Schweisser bei der Arbeit in einer Werkstatt',
 };
 

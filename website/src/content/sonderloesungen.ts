@@ -73,7 +73,7 @@ export const sonderloesungen: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/modernisierung', label: 'Kran modernisieren', text: 'Umbauten an bestehenden Kranen – mit Dokumentation.' },
+    { href: '/krantechnik/industriekrane', label: 'Industriekrane nach Mass', text: 'Wenn die Lösung ein Kran ist.' },
     { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbauten reparieren', text: 'Mulden, Kipper und Hydraulik.' },
     { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranprüfung in der Schweiz', text: 'Was Prüfpflicht und Dokumentation verlangen.', kind: 'ratgeber' },
   ],

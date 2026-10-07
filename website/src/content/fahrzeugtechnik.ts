@@ -4,7 +4,7 @@
  * der Revision (Rückmeldung 07.10.2026: keine eigene Seite, keine Doppelspurigkeit). Service
  * und Teile für alle gängigen Marken – Verschleissteile werden NICHT «ab Lager» beworben (es
  * gibt kein Lager, die Teile sind individuell). Keine Neuaufbauten. Versprechen hier: ② Kaufen
- * mit Garantie (kein Gratis-Erstservice – der gilt nur für Krane).
+ * INEXXIO Zufriedenheitsgarantie (kein Gratis-Erstservice – der gilt nur für Krane).
  */
 import { site } from '../config/site.mjs';
 import type { AreaPage, Faq, SubPage } from './types';
@@ -28,7 +28,7 @@ export const fahrzeugtechnik: AreaPage = {
   path: '/fahrzeugtechnik',
   title: 'Fahrmischer und Aufbauten',
   description:
-    'Trommeltausch statt neuer Fahrmischer – mit Garantie: nicht zufrieden, nur die Hälfte bezahlt. Dazu Revision, Service und Reparatur aller gängigen Marken.',
+    'Trommeltausch statt neuer Fahrmischer – nicht zufrieden, zahlen Sie nur die Hälfte. Dazu Revision, Service und Reparatur für alle gängigen Marken.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
@@ -70,7 +70,7 @@ export const fahrmischer: SubPage = {
   crumb: 'Fahrmischer',
   title: 'Fahrmischer und Mischtrommel',
   description:
-    'Trommeltausch statt neuer Fahrmischer, mit Garantie. Dazu Trommel-Revision, Service und Reparatur für alle gängigen Marken – zum Fixpreis. Anfragen.',
+    'Trommeltausch statt neuer Fahrmischer, mit Zufriedenheitsgarantie. Dazu Revision, Service und Reparatur für alle gängigen Marken – zum Fixpreis.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Fahrmischer',
     h1: 'Fahrmischer: ==Trommeltausch==, Revision und Service',

@@ -1,7 +1,7 @@
 /**
  * ►►► Die drei Versprechen – an EINER Stelle (WEBSITE_PLAN §7.7d). ◄◄◄
  *
- * ① Service testen · ② Kaufen mit Garantie · ③ INEXXIO 365. Die Startseite zeigt alle drei,
+ * ① Gratis-Erstservice · ② INEXXIO Zufriedenheitsgarantie · ③ INEXXIO 365. Die Startseite zeigt alle drei,
  * jede Unterseite nur die, die für sie gelten (`SubPage.promises` → Promises.astro). Wer
  * einen Satz ändert, ändert ihn überall.
  *
@@ -29,16 +29,16 @@ export const promises = {
   items: {
     erstservice: {
       figure: '0.–',
-      label: 'Service testen',
+      label: 'Gratis-Erstservice',
       title: 'Der erste Kranservice ist gratis.',
       text: 'Einmal pro Kunde: Service und Wartung für Industrie-, Heu-, Boots- und Mastkrane aller Marken. Sie zahlen nur das Material.',
       link: { href: '/krantechnik/kranservice#stufen', label: 'Zum Kranservice' },
     },
     garantie: {
       figure: '50 %',
-      label: 'Kaufen mit Garantie',
+      label: 'INEXXIO Zufriedenheitsgarantie',
       title: 'Nicht zufrieden? Sie zahlen nur die Hälfte.',
-      text: 'Auf den ganzen Preis, ohne Einschränkung – für neue Krane und Bootslifte, Heukrananlagen, Trommeltausch, Modernisierung und Sonderlösungen.',
+      text: 'Auf den ganzen Preis, ohne Einschränkung – für neue Krane und Bootslifte, Heukrananlagen, Trommeltausch und Sonderlösungen.',
     },
     inexxio365: {
       figure: '365',
@@ -63,7 +63,7 @@ export const promiseFaq = {
     a: 'Service und Wartung Ihres Krans – einmal pro Kunde, für Industrie-, Heu-, Boots- und Mastkrane aller Marken. Das Material verrechnen wir. Eine Prüfung gehört nicht dazu.',
   },
   garantie: {
-    q: 'Wie funktioniert «Nicht zufrieden? Sie zahlen nur die Hälfte»?',
+    q: 'Wie funktioniert die INEXXIO Zufriedenheitsgarantie?',
     a: 'Sind Sie mit dem Ergebnis nicht zufrieden, sagen Sie es uns – dann zahlen Sie nur die Hälfte. Auf den ganzen Preis, ohne Einschränkung.',
   },
   inexxio365: {

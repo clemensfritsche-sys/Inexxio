@@ -1,7 +1,7 @@
 /**
  * Krantechnik – Bereichsseite und sechs Unterseiten (WEBSITE_PLAN §7.7a–§7.7d).
- * Zuerst der Kranservice (vier Stufen bis INEXXIO 365 – EINE Seite), dann die Fokusmärkte
- * (Industrie, Häfen & Werften, Landwirtschaft), dann Modernisierung und Anschlagmittel.
+ * Zuerst der Kranservice (drei Stufen bis INEXXIO 365 – EINE Seite), dann die Fokusmärkte
+ * (Industrie, Häfen & Werften, Landwirtschaft), dann die Anschlagmittel.
  * Welche Versprechen wo gelten, steht je Seite in `promises` (content/promises.ts). «HS» ist kein Produktname mehr; Besitzer bestehender HS-Anlagen finden den
  * Hinweis im Text, in den FAQ und auf der Übergabe-Seite.
  */
@@ -26,10 +26,10 @@ export const krantechnik: AreaPage = {
   path: '/krantechnik',
   title: 'Krananlagen und Kranservice',
   description:
-    'Kranservice mit Gratis-Erstservice und INEXXIO 365, neue Heukrananlagen, Industriekrane und Bootslifte mit Garantie, Modernisierung – aus Tuttwil-Wängi TG.',
+    'Kranservice mit Gratis-Erstservice und INEXXIO 365, neue Industriekrane, Heukrananlagen und Bootslifte mit Zufriedenheitsgarantie. Aus Tuttwil-Wängi TG.',
   hero: {
     eyebrow: 'Krantechnik',
-    h1: 'Krantechnik: Service, neue Anlagen und ==Modernisierung==',
+    h1: 'Krane bauen, betreuen und am Laufen ==halten==',
     lead:
       'Wir prüfen, warten und reparieren Krane aller Marken – der erste Service ist gratis. Mit INEXXIO 365 läuft Ihr Kran, oder Sie zahlen nicht. Und wir bauen neue Anlagen: Krane entstehen bei uns seit {{history.cranesSince}}.',
     photo: 'heukran-einsatz',
@@ -53,7 +53,7 @@ export const krantechnik: AreaPage = {
     faqOtherMakes,
     faqSpeed,
   ],
-  service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung, Reparatur und Modernisierung von Krananlagen' },
+  service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung und Reparatur von Krananlagen' },
   keywords: ['Kranservice Schweiz', 'Krananlagen', 'Kranbau Thurgau', 'Kranprüfung'],
 };
 
@@ -118,7 +118,7 @@ export const haefen: SubPage = {
   ],
   related: [
     { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Erster Service gratis, INEXXIO 365.' },
-    { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funk, Überlastsicherung, neue Steuerung.' },
+    { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
     ratgeberPruefung,
   ],
   service: { name: 'Bootslifte, Boots- und Mastkrane', serviceType: 'Bau, Prüfung, Wartung und Reparatur von Bootsliften, Bootskranen und Mastkranen' },
@@ -132,7 +132,7 @@ export const harbourYear = {
   seasons: [
     { title: 'Vor dem Einwassern', when: 'Winter und Frühling', text: 'Prüfung und Wartung, Kranbuch nachführen, Mängel beheben – damit Kran und Lift am ersten Tag der Saison laufen.' },
     { title: 'In der Saison', when: 'Frühling bis Herbst', text: 'Fällt etwas aus, rufen Sie direkt an. Mit INEXXIO 365 ist jeder Tag, an dem der Kran steht, gratis.' },
-    { title: 'Nach dem Auswassern', when: 'Herbst', text: 'Zustand aufnehmen, Reparaturen, Modernisierung und neue Anlagen über den Winter planen.' },
+    { title: 'Nach dem Auswassern', when: 'Herbst', text: 'Zustand aufnehmen, Reparaturen und neue Anlagen über den Winter planen.' },
   ],
 };
 
@@ -194,7 +194,7 @@ export const heukrananlagen: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Funkfernsteuerung, Umrichter und neue Steuerung für ältere Anlagen.' },
+    { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
     { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Der erste Service ist gratis.' },
     ratgeberHeukran,
   ],
@@ -242,7 +242,7 @@ export const industriekrane: SubPage = {
   crumb: 'Industriekrane',
   title: 'Industriekrane nach Mass',
   description:
-    'Brücken-, Hänge- und Schwenkkrane: erster Service gratis, INEXXIO 365 zur fixen Monatsrate, neue Krane nach Mass mit Garantie. Für Industrie und Gewerbe.',
+    'Brücken-, Hänge- und Schwenkkrane: erster Service gratis, INEXXIO 365 zur Monatsrate, neue Krane mit Zufriedenheitsgarantie. Für Industrie und Gewerbe.',
   hero: {
     eyebrow: 'Krantechnik · Industriekrane',
     h1: 'Industriekrane, die Ihren Betrieb ==laufen== lassen',
@@ -285,7 +285,7 @@ export const industriekrane: SubPage = {
     promiseFaq.secondOpinion,
   ],
   related: [
-    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Vier Stufen bis INEXXIO 365.' },
+    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Drei Stufen bis INEXXIO 365.' },
     { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
     ratgeberPruefung,
   ],
@@ -312,7 +312,7 @@ export const industrieModules = {
 
 /* ------------------------------------------------------------------ Kranservice */
 /**
- * EINE Seite für den Kranservice: die vier Stufen (Auf Abruf · Basis · Plus · INEXXIO 365),
+ * EINE Seite für den Kranservice: die drei Stufen (Auf Abruf · Basis · INEXXIO 365),
  * die zwei Wege zu INEXXIO 365, was wir prüfen und die Prüfpflicht. Keine Preise, keine
  * Kranklassen – vor jeder Arbeit gibt es einen Fixpreis.
  */
@@ -322,7 +322,7 @@ export const kranservice: SubPage = {
   crumb: 'Kranservice',
   title: 'Kranservice und Kranprüfung',
   description:
-    'Kranservice in vier Stufen: erster Service gratis, Service-Vertrag Basis oder Plus, INEXXIO 365 – Ihr Kran läuft oder Sie zahlen nicht. Fixpreis vorab.',
+    'Kranservice in drei Stufen: erster Service gratis, Service-Vertrag Basis oder INEXXIO 365 – Ihr Kran läuft, oder Sie zahlen nicht. Fixpreis vorab.',
   hero: {
     eyebrow: 'Krantechnik · Kranservice',
     h1: 'Ihr Kran läuft – oder Sie ==zahlen nicht==',
@@ -332,7 +332,7 @@ export const kranservice: SubPage = {
     primary: anfrage('Kranservice anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane aller Marken: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Vier Stufen: Auf Abruf (der erste Service ist gratis), Service-Vertrag Basis (Prüfung und Wartung), Service-Vertrag Plus (dazu Verschleissteile, Erinnerungen und Kranbuch) und INEXXIO 365 (alles inklusive zur fixen Monatsrate, jeder Tag Stillstand ist gratis). Fixpreis vor jeder Arbeit, keine Mindestlaufzeit.',
+    '{{brand.full}} prüft, wartet und repariert Krane aller Marken: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Drei Stufen: Auf Abruf (der erste Service ist gratis), Service-Vertrag Basis (Prüfung, Wartung und Kranbuch) und INEXXIO 365 (alles inklusive zur fixen Monatsrate, jeder Tag Stillstand ist gratis). Fixpreis vor jeder Arbeit, keine Mindestlaufzeit.',
   glance: {
     forWhom: 'Betriebe mit einem oder mehreren Kranen: Industrie und Gewerbe, Häfen, Clubs und Werften, Landwirtschaft.',
     what: 'Prüfung nach Herstellerangaben, Wartung und Reparatur durch Kranfachleute – vom einzelnen Einsatz bis INEXXIO 365.',
@@ -355,7 +355,7 @@ export const kranservice: SubPage = {
     promiseFaq.inexxio365,
     {
       q: 'Welche Stufe passt zu mir?',
-      a: 'Auf Abruf, wenn Sie selten etwas brauchen. Basis, wenn vor allem die Prüfung und Wartung sicher erledigt sein sollen. Plus, wenn Sie auch Verschleissteile und Fristen nicht mehr selbst im Blick haben wollen. INEXXIO 365, wenn Ihr Betrieb vom Kran abhängt.',
+      a: 'Auf Abruf, wenn Sie selten etwas brauchen. Basis, wenn Prüfung, Wartung und Kranbuch sicher erledigt sein sollen. INEXXIO 365, wenn Ihr Betrieb vom Kran abhängt.',
     },
     promiseFaq.price,
     promiseFaq.binding,
@@ -372,7 +372,7 @@ export const kranservice: SubPage = {
   ],
   related: [
     { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
-    { href: '/krantechnik/modernisierung', label: 'Modernisierung', text: 'Wenn bei der Prüfung Steuerung oder Antrieb auffallen.' },
+    { href: '/krantechnik/industriekrane', label: 'Industriekrane', text: 'Wenn ein neuer Kran die bessere Lösung ist.' },
     ratgeberPruefung,
   ],
   service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung und Kranreparatur' },
@@ -380,17 +380,16 @@ export const kranservice: SubPage = {
 };
 
 /**
- * Die vier Stufen des Kranservice. Jede enthält die vorherige – darum nennt jede nur, was
+ * Die drei Stufen des Kranservice. Jede enthält die vorherige – darum nennt jede nur, was
  * dazukommt. Kein Betrag, keine Kranklasse: den Fixpreis erhalten Sie mit der Offerte.
  */
 export const serviceTiers = {
-  title: 'Vier Stufen – Sie wählen, wie viel wir übernehmen',
-  lead: 'Jede Stufe enthält die vorherige. Vor jeder Arbeit erhalten Sie einen Fixpreis, gebunden sind Sie nie.',
+  title: 'Drei Stufen – Sie wählen, wie viel wir übernehmen',
+  lead: 'Jede Stufe enthält die vorherige.',
   tiers: [
     { name: 'Auf Abruf', claim: 'Sie rufen an, wir kommen.', items: ['Service, Wartung, Prüfung oder Reparatur, wenn Sie sie brauchen', 'Der erste Service ist gratis'] },
-    { name: 'Service-Vertrag Basis', claim: 'Prüfung und Wartung sind erledigt.', items: ['Prüfung nach Herstellerangaben, mit Bericht', 'Wartung nach Herstellervorgabe'] },
-    { name: 'Service-Vertrag Plus', claim: 'Sie müssen an nichts denken.', items: ['Verschleissteile inklusive', 'Wir erinnern Sie an jede Frist', 'Kranbuch nachgeführt'] },
-    { name: 'INEXXIO 365', claim: 'Ihr Kran läuft – oder Sie zahlen nicht.', items: ['Ersatzteile und Reparaturen inklusive', 'Fixe Monatsrate', 'Jeder Tag Stillstand ist gratis'], featured: true },
+    { name: 'Service-Vertrag Basis', claim: 'Prüfung und Wartung sind erledigt.', items: ['Prüfung nach Herstellerangaben, mit Bericht', 'Wartung nach Herstellervorgabe', 'Kranbuch nachgeführt, Fristen im Blick'] },
+    { name: 'INEXXIO 365', claim: 'Ihr Kran läuft – oder Sie zahlen nicht.', items: ['Ersatzteile, Verschleissteile und Reparaturen inklusive', 'Fixe Monatsrate', 'Jeder Tag Stillstand ist gratis'], featured: true },
   ],
 };
 
@@ -458,84 +457,8 @@ export const anschlagmittel: SubPage = {
   keywords: ['Anschlagmittel Prüfung', 'Anschlagkette', 'Hebeband', 'Anschlagmittel Service'],
 };
 
-/* ------------------------------------------------------------------ Modernisierung */
-export const modernisierung: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/modernisierung',
-  crumb: 'Modernisierung',
-  title: 'Kran modernisieren',
-  description:
-    'Kran modernisieren statt ersetzen: Funkfernsteuerung nachrüsten, Frequenzumrichter, Überlastsicherung und neue Steuerung für bestehende Krane. Anfragen.',
-  hero: {
-    eyebrow: 'Krantechnik · Modernisierung',
-    h1: 'Kran modernisieren statt ersetzen',
-    lead:
-      'Ein guter Stahlbau hält Jahrzehnte – Steuerung und Antrieb oft nicht. Wir rüsten ältere Krane nach: sicherer, ruhiger, einfacher zu bedienen. Zum Fixpreis.',
-    photo: 'steuerung-funk',
-    primary: anfrage('Modernisierung anfragen'),
-  },
-  summary:
-    '{{brand.full}} modernisiert ältere Krane: Funkfernsteuerung, Frequenzumrichter, Überlastsicherung, Steuerung, Endschalter und Greifer. Vorher klären wir vor Ort, was sich lohnt, und nennen einen Fixpreis; jeden Umbau dokumentieren wir. Sind Sie nicht zufrieden, zahlen Sie nur die Hälfte.',
-  glance: {
-    forWhom: 'Betriebe mit älteren Hallen- oder Heukranen, deren Steuerung oder Antrieb an Grenzen stösst.',
-    what: 'Bestandsaufnahme, Offerte, Umbau, Inbetriebnahme und Dokumentation.',
-    deliverables: 'Einen modernisierten Kran mit allen Unterlagen zum Umbau.',
-  },
-  promises: ['erstservice', 'garantie'],
-  scope: {
-    title: 'Was wir nachrüsten',
-    items: [
-      { title: 'Funkfernsteuerung', text: 'Wer bedient, steht dort, wo er die Last sieht – nicht dort, wo das Kabel endet.' },
-      { title: 'Frequenzumrichter', text: 'Sanftes Anfahren und Bremsen: Die Last pendelt weniger, Getriebe und Bremsen verschleissen langsamer.' },
-      { title: 'Überlastsicherung', text: 'Verhindert, dass mehr gehoben wird, als der Kran tragen darf.' },
-      { title: 'Steuerung', text: 'Neue Schaltschränke und Komponenten, für die es wieder Ersatzteile gibt.' },
-      { title: 'Endschalter', text: 'Begrenzen Hub- und Fahrwege zuverlässig und schützen Kran und Gebäude.' },
-      { title: 'Greifer', text: 'Ein neuer oder überholter Greifer – bei Heukranen das Teil, das am meisten arbeitet.' },
-    ],
-  },
-  faq: [
-    {
-      q: 'Lohnt sich eine Modernisierung bei einem alten Kran?',
-      a: 'Oft ja: Der Stahlbau hält meist viel länger als Steuerung und Antrieb. Ob es sich lohnt, zeigt die Bestandsaufnahme – ist ein neuer Kran die bessere Lösung, sagen wir das.',
-    },
-    promiseFaq.garantie,
-    {
-      q: 'Kann man jeden Kran mit Funk nachrüsten?',
-      a: 'Die meisten Brücken-, Hänge- und Drehkrane ja. Vor Ort klären wir, welche Steuerung vorhanden ist und was es dafür braucht.',
-    },
-    {
-      q: 'Was bringt ein Frequenzumrichter?',
-      a: 'Er lässt die Motoren sanft anfahren und abbremsen. Die Last pendelt weniger, Getriebe, Bremsen und Kranbahn werden geschont.',
-    },
-    {
-      q: 'Was ändert sich mit der neuen EU-Maschinenverordnung?',
-      a: 'Sie gilt in der EU ab dem 20. Januar 2027; die Schweiz passt ihre Maschinenverordnung an. Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen.',
-    },
-  ],
-  related: [
-    { href: '/krantechnik/industriekrane', label: 'Industriekrane', text: 'Wenn ein neuer Kran die bessere Lösung ist.' },
-    { href: '/sonderloesungen', label: 'Sonderlösungen', text: 'Konstruktion, Berechnung und Dokumentation für Umbauten.' },
-    ratgeberPruefung,
-  ],
-  service: { name: 'Kranmodernisierung', serviceType: 'Modernisierung von Krananlagen' },
-  keywords: ['Kran modernisieren', 'Funkfernsteuerung Kran nachrüsten', 'Frequenzumrichter Kran'],
-};
-
-/** Hinweis EU-Maschinenverordnung (Modul der Modernisierungsseite). */
-export const machineryNote = {
-  title: 'Umbauten sauber dokumentieren',
-  text: [
-    'Ab dem 20. Januar 2027 gilt in der EU die neue Maschinenverordnung (EU) 2023/1230. Die Schweiz revidiert ihre Maschinenverordnung, damit die Regeln gleichwertig und gleichzeitig gelten.',
-    'Wer eine Maschine wesentlich verändert, übernimmt dafür Verantwortung – und braucht saubere Unterlagen: was umgebaut wurde, mit welchen Teilen, mit welchen Einstellungen. Diese Unterlagen liefern wir mit jedem Umbau.',
-  ],
-  sources: [
-    { label: 'SECO: Maschinen', href: 'https://www.seco.admin.ch/de/maschinen' },
-    { label: 'Verordnung (EU) 2023/1230 über Maschinen, EUR-Lex', href: 'https://eur-lex.europa.eu/eli/reg/2023/1230/oj' },
-  ],
-};
-
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
-export const krantechnikPages = [kranservice, industriekrane, haefen, heukrananlagen, modernisierung, anschlagmittel];
+export const krantechnikPages = [kranservice, industriekrane, haefen, heukrananlagen, anschlagmittel];
 
 // Die Navigation (site.areas) und diese Seiten müssen dieselben Pfade nennen.
 const nav = site.areas.find((a) => a.id === 'krantechnik')!.children.map((c) => c.href).join();

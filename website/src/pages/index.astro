@@ -1,8 +1,7 @@
 ---
 /**
- * Startseite: Hero mit Laufkran, zwei Einstiegen (Krantechnik, Fahrzeugtechnik), Sonderlösungen
- * klein darunter und der Vertrauensleiste (HomeHero) → die drei Versprechen (Promises) →
- * Branchenzeile → Übergabe → Warum → Ratgeber → Fragen → Anfrage (mit
+ * Startseite: Hero mit Laufkran, drei gleichwertigen Bereichen und der Vertrauensleiste
+ * (HomeHero) → die drei Versprechen (Promises) → Branchenzeile → Warum (Belege) → Übergabe → Ratgeber → Fragen → Anfrage (mit
  * Karte – darum keine zweite «Wo wir arbeiten»-Sektion). Texte: src/content/start.ts,
  * Bereiche aus src/config/site.mjs.
  */
@@ -34,7 +33,6 @@ const h = start.handover;
     areasTitle={start.areas.h2}
     more={start.areas.more}
     claims={start.entries}
-    extra={start.more}
   />
 
   <Promises />
@@ -45,23 +43,6 @@ const h = start.handover;
       <a class="arrow-link" href={start.industries.link.href}>{start.industries.link.label} <Icon name="arrow-right" size={18} /></a>
     </div>
   </div>
-
-  <section class="section section--dark" aria-labelledby="uebergabe">
-    <div class="wrap grid start-handover">
-      <div class="col-6 start-handover__text">
-        <SectionHead eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe" class="head--flush" />
-        {site.features.heiriAdvisory && <Rich as="p" text={site.people.founder.advisory} />}
-        <Quote text={h.quote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
-        <div class="start-handover__links">
-          <a class="arrow-link" href="/ueber-uns#uebergabe">Die ganze Geschichte <Icon name="arrow-right" size={18} /></a>
-          <a class="arrow-link" href="/ueber-uns#fragen">Fragen zur Übergabe <Icon name="arrow-right" size={18} /></a>
-        </div>
-      </div>
-      <div class="col-6 start-handover__media">
-        <Photo id="clemens-heiri-quer" sizes="(min-width: 960px) 50vw, 100vw" />
-      </div>
-    </div>
-  </section>
 
   <section class="section" aria-labelledby="warum">
     <div class="wrap">
@@ -81,6 +62,23 @@ const h = start.handover;
           <p class="small muted">{site.people.owner.name}</p>
           <a class="arrow-link" href="/ueber-uns">{start.why.portrait.link} <Icon name="arrow-right" size={18} /></a>
         </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark" aria-labelledby="uebergabe">
+    <div class="wrap grid start-handover">
+      <div class="col-6 start-handover__text">
+        <SectionHead eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe" class="head--flush" />
+        {site.features.heiriAdvisory && <Rich as="p" text={site.people.founder.advisory} />}
+        <Quote text={h.quote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
+        <div class="start-handover__links">
+          <a class="arrow-link" href="/ueber-uns#uebergabe">Die ganze Geschichte <Icon name="arrow-right" size={18} /></a>
+          <a class="arrow-link" href="/ueber-uns#fragen">Fragen zur Übergabe <Icon name="arrow-right" size={18} /></a>
+        </div>
+      </div>
+      <div class="col-6 start-handover__media">
+        <Photo id="clemens-heiri-quer" sizes="(min-width: 960px) 50vw, 100vw" />
       </div>
     </div>
   </section>

@@ -2,9 +2,9 @@
  * Laufkran im Seitenkopf der Startseite (HomeHero.astro).
  *
  * Zeiger: die Katze folgt ihm. Über einem Knopf ([data-tile="btn"]) senkt sich der Haken
- * und hängt ihn an (data-hooked). Über einem Bereich ([data-tile="0|1"]) fährt der Kran
+ * und hängt ihn an (data-hooked). Über einem Bereich ([data-tile="0|1|2"]) fährt der Kran
  * an den Startpunkt der Szene und spielt sie im Bildfeld der Karte ab – Heu einlagern
- * (Greifer) · Mischtrommel tauschen. Eine laufende Szene wird zu Ende
+ * (Greifer) · Mischtrommel tauschen · Ausleger montieren. Eine laufende Szene wird zu Ende
  * gespielt, ausser der Zeiger wählt einen anderen Bereich.
  * Ohne Zeiger (oder 4 s ohne Bewegung): stehen die Bereiche nebeneinander, fährt der Kran
  * sie nacheinander ab. Stehen sie untereinander (Handy), spielt er die Szene des Bereichs,
@@ -30,6 +30,10 @@ const SCENES: Record<string, { dur: number; fr: Frame[] }> = {
     { t: 0.32, x: 245, y: -115 }, { t: 0.42, x: 245, y: -125 }, { t: 0.52, x: 245, y: -125 },
     { t: 0.62, x: 245, y: -115 }, { t: 0.78, x: 245, y: 45 }, { t: 0.84, x: 245, y: 45 },
     { t: 0.94, x: 245, y: -40 }, { t: 1, x: 245, y: -40 } ] },
+  sonderloesungen: { dur: 6400, fr: [
+    { t: 0, x: 190, y: -40 }, { t: 0.1, x: 75, y: -40 }, { t: 0.22, x: 75, y: 140 }, { t: 0.26, x: 75, y: 140 },
+    { t: 0.38, x: 75, y: -30 }, { t: 0.56, x: 296, y: -30 }, { t: 0.7, x: 296, y: 67 }, { t: 0.76, x: 296, y: 67 },
+    { t: 0.88, x: 296, y: -40 }, { t: 1, x: 296, y: -40 } ] },
 };
 
 const sm = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
@@ -76,7 +80,7 @@ export function initCrane(): void {
   const clawL = $('[data-claw="l"]');
   const clawR = $('[data-claw="r"]');
   const obj = (n: string) => $(`[data-obj="${n}"]`);
-  const loads = { bale: obj('bale'), old: obj('old'), new: obj('new') };
+  const loads = { bale: obj('bale'), old: obj('old'), new: obj('new'), jib: obj('jib') };
 
   const sim = { x: 160, vx: 0, L: BASE_L, ang: 0 };
   const anim: Scene[] = [];
@@ -86,6 +90,7 @@ export function initCrane(): void {
   let lock: number | null = null;
   let autoIdx = 0;
   let autoHold = 0;
+  let gearA = 0;
   let hooked: HTMLElement | null = null;
   let raf = 0;
   let last = 0;
@@ -150,7 +155,7 @@ export function initCrane(): void {
   const fade = (el: Element | null, o: number) => { if (el) (el as HTMLElement).style.opacity = o.toFixed(2); };
 
   /** Eine Szene zeichnen: Bühne einblenden, Lasten setzen, Zustände der Zeichnung. */
-  const draw = (tl: Tile, sc: Scene, live: boolean, tipX: number, tipY: number) => {
+  const draw = (tl: Tile, sc: Scene, live: boolean, tipX: number, tipY: number, dt: number) => {
     const id = tl.el.dataset.sceneId;
     if (!id) return;
     const { p, v } = sc;
@@ -179,6 +184,16 @@ export function initCrane(): void {
       else if (p >= 0.84) place(loads.new, g.X(245), g.Y(45), 0, g.s, oNew);
       else place(loads.new, tipX, tipY, sim.ang, g.s, 0);
       fade(q('[data-b]'), seg(p, 0.94, 1));
+    } else if (id === 'sonderloesungen') {
+      if (live && p >= 0.26 && p < 0.76) place(loads.jib, tipX, tipY, sim.ang, g.s, v);
+      else if (p < 0.26) place(loads.jib, g.X(75), g.Y(140), 0, g.s, v);
+      else place(loads.jib, g.X(296), g.Y(67), 0, g.s, v);
+      gearA = p >= 0.78 ? gearA + dt * 0.0022 : 0;
+      loads.jib?.querySelector('[data-swing]')?.setAttribute('transform', `rotate(${(-9 * (1 - Math.cos(gearA))).toFixed(2)})`);
+      loads.jib?.querySelector('[data-sling]')?.setAttribute('opacity', (1 - seg(p, 0.76, 0.82)).toFixed(2));
+      fade(q('[data-outline]'), p < 0.7 ? seg(p, 0, 0.1) : 1 - seg(p, 0.7, 0.78));
+      fade(q('[data-dims]'), seg(p, 0.04, 0.14) * (1 - seg(p, 0.56, 0.66)));
+      fade(q('[data-b]'), seg(p, 0.84, 0.92));
     }
   };
 
@@ -291,7 +306,7 @@ export function initCrane(): void {
       if (!isT) sc.run = false;
       sc.v += ((isT && sc.run ? 1 : 0) - sc.v) * 0.12;
       if (!isT && sc.v < 0.03) sc.p = 0;
-      draw(tl, sc, isT && sc.run, tipX, tipY);
+      draw(tl, sc, isT && sc.run, tipX, tipY, dt);
     }
     setHooked(attached);
   };

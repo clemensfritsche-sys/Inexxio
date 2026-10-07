@@ -34,9 +34,9 @@ export const photos = {
     brief: 'Industriekran (Brückenkran) in einer Halle, Techniker bei Service oder Reparatur am Hubwerk oder Schaltschrank, quer',
     ratio: '4/3',
   },
-  'steuerung-funk': {
-    alt: 'Funkfernsteuerung und Kransteuerung im Detail',
-    brief: 'Detail: Funkfernsteuerung in der Hand, dahinter der Kran; alternativ Steuerung mit Frequenzumrichter im Schaltschrank, quer',
+  'anschlagmittel': {
+    alt: 'Anschlagkette und Hebeband am Kranhaken',
+    brief: 'Anschlagmittel im Einsatz: Kette oder Hebeband am Kranhaken, Last wird angeschlagen, gekennzeichnete Teile sichtbar, quer',
     ratio: '4/3',
   },
   'heukran-einsatz': {
@@ -109,18 +109,6 @@ export const photos = {
     brief: 'Teamfoto in der Werkstatt (nur mit Einverständnis aller Abgebildeten), quer',
     ratio: '3/2',
     feature: 'team',
-  },
-  'vorher-kran': {
-    alt: 'Kransteuerung vor der Modernisierung',
-    brief: 'Vorher/Nachher-Paar 1/2: ältere Kransteuerung bzw. Hängetaster vor der Modernisierung (gleicher Bildausschnitt wie «nachher»)',
-    ratio: '4/3',
-    feature: 'beforeAfter',
-  },
-  'nachher-kran': {
-    alt: 'Kransteuerung nach der Modernisierung mit Funkfernsteuerung',
-    brief: 'Vorher/Nachher-Paar 2/2: dieselbe Anlage nach der Modernisierung (Funk, Umrichter), gleicher Bildausschnitt',
-    ratio: '4/3',
-    feature: 'beforeAfter',
   },
   'arbeit-werkstatt': {
     alt: 'Schweissarbeit an einer Stahlkonstruktion in der Werkstatt',
