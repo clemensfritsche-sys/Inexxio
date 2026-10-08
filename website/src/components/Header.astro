@@ -2,7 +2,7 @@
 /**
  * Kopfzeile – EINE Zeile (Rückmeldung 04.10.2026: Servicezeile, Arbeitsleiste und
  * Vorschau-Banner sind ersatzlos entfallen):
- *   Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Sonderlösungen ▾ · Service ▾ · Über uns ▾ ·
+ *   Logo · Krane ▾ · Fahrzeugbau ▾ · Sonderlösungen · Service · Über uns ▾ ·
  *   Kontakt · ERP (nur Personal, ein Link) · Telefon · Anmelden bzw. Profilmenü · «Anfrage stellen».
  * Schmaler: Logo, Telefon, Konto, Menü.
  *
@@ -22,7 +22,7 @@
  * Zustand, was `data-acct` trägt (Regeln in global.css). Durchgesetzt wird hier nichts:
  * den Schutz von /konto und /erp hat das ERP.
  */
-import { site } from '../config/site.mjs';
+import { site, navigation as groups } from '../config/site.mjs';
 import { plain } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
@@ -40,16 +40,14 @@ const erp = acct.erp;
 const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
 
 /**
- * Die Menüpunkte: drei Bereiche, Service, Über uns (#1154) – jede Seite ist darin erreichbar.
- * Ein Punkt ohne Unterseiten (Sonderlösungen, Service) ist ein einfacher Link.
+ * Die Menüpunkte (site.navigation – dieselbe Liste wie im Fuss): drei Bereiche, Service,
+ * Über uns (#1154) – jede Seite ist darin erreichbar. Ein Punkt ohne Unterseiten
+ * (Sonderlösungen, Service) ist ein einfacher Link. Aktiv ist ein Punkt nur auf seinen
+ * EIGENEN Seiten – der Verweis auf die Sonderlösungen in Krane und Fahrzeugbau (#1204) macht
+ * auf /sonderloesungen nicht drei Punkte gleichzeitig aktiv.
  */
-type Child = { label: string; href: string; text: string; photo: string };
-const groups: { id: string; label: string; href: string; overview: string; photo: string; children: Child[] }[] = [
-  ...site.areas.map((a) => ({ id: a.id, label: a.label, href: a.href, overview: a.overview, photo: a.photo, children: a.children })),
-  { id: 'service', label: site.service.label, href: site.service.href, overview: site.service.overview, photo: site.service.photo, children: site.service.children },
-  { id: site.about.id, label: site.about.label, href: site.about.href, overview: site.about.overview, photo: site.about.photo, children: site.about.children },
-];
-const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children.some((c) => c.href === path);
+const groupActive = (g: (typeof groups)[number]) => within(g.href);
+const childPath = (href: string) => href.split('#')[0];
 ---
 <header class="site-header" data-header>
   {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
@@ -67,7 +65,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
             </li>
           ) : (
             <li class:list={['nav__item dd', g.id === site.about.id && 'dd--end']} data-dd>
-              {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugtechnik» klickt, erwartet
+              {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugbau» klickt, erwartet
                   sie), der Pfeil daneben öffnet das Untermenü für Tastatur und Touch. Mit der Maus
                   öffnet es beim Zeigen. Darum braucht das Panel keinen «Alle …»-Link mehr. */}
               <a
@@ -90,7 +88,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                   <ul role="list" class="dd__list">
                     {g.children.map((c) => (
                       <li>
-                        <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
+                        <a href={c.href} class="dd__link" aria-current={path === childPath(c.href) && within(g.href) ? 'page' : undefined}>
                           <span class="dd__label">{plain(c.label)}</span>
                           <span class="dd__text">{c.text}</span>
                         </a>
@@ -164,7 +162,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
                   </summary>
                   <ul role="list" class="mnav__sub">
                     {g.children.map((c) => (
-                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}</strong><span>{c.text}</span></a></li>
+                      <li><a href={c.href} aria-current={path === childPath(c.href) && within(g.href) ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}</strong><span>{c.text}</span></a></li>
                     ))}
                     <li><a href={g.href} class="mnav__overview" aria-current={path === g.href ? 'page' : undefined}>{g.overview}</a></li>
                   </ul>
@@ -300,7 +298,9 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href) || g.children
   /* Das Bild steht so hoch wie das Panel (#1111): die Spalte streckt sich, die Bilder liegen
      übereinander und füllen sie. Sichtbar ist das des Bereichs – oder das des Unterpunkts,
      auf den man zeigt. */
-  .dd__media { position: relative; display: block; overflow: hidden; border-radius: var(--r-md); align-self: stretch; min-height: 200px; }
+  /* Das Bild füllt die Höhe der Liste – nicht umgekehrt (#1207): bei zwei Unterpunkten war
+     es höher als die Liste und machte das Panel leer hoch. */
+  .dd__media { position: relative; display: block; overflow: hidden; border-radius: var(--r-md); align-self: stretch; min-height: 0; }
   .dd__img { position: absolute; inset: 0; opacity: 0; transition: opacity 160ms var(--ease); }
   .dd__img:first-child { opacity: 1; }
   .dd__img :global(picture), .dd__img :global(img), .dd__img :global(.ph) { width: 100%; height: 100%; aspect-ratio: auto !important; }

@@ -20,12 +20,12 @@ type Scene = { p: number; v: number; run: boolean };
 
 /** Keyframes je Szene in Bühnen-Koordinaten (380 × 200, y = Spitze des Hakens). */
 const SCENES: Record<string, { dur: number; fr: Frame[] }> = {
-  krantechnik: { dur: 5200, fr: [
+  krane: { dur: 5200, fr: [
     { t: 0, x: 190, y: -30, a: 0 }, { t: 0.12, x: 76, y: -30, a: 0 }, { t: 0.27, x: 76, y: 140, a: 0 },
     { t: 0.33, x: 76, y: 140, a: -40 }, { t: 0.47, x: 76, y: -20, a: -40 }, { t: 0.66, x: 280, y: -20, a: -40 },
     { t: 0.8, x: 280, y: 104, a: -40 }, { t: 0.86, x: 280, y: 104, a: 0 }, { t: 0.93, x: 280, y: -30, a: 0 },
     { t: 1, x: 150, y: -30, a: 0 } ] },
-  fahrzeugtechnik: { dur: 7600, fr: [
+  fahrzeugbau: { dur: 7600, fr: [
     { t: 0, x: 190, y: -40 }, { t: 0.08, x: 245, y: -40 }, { t: 0.16, x: 245, y: 45 }, { t: 0.2, x: 245, y: 45 },
     { t: 0.32, x: 245, y: -115 }, { t: 0.42, x: 245, y: -125 }, { t: 0.52, x: 245, y: -125 },
     { t: 0.62, x: 245, y: -115 }, { t: 0.78, x: 245, y: 45 }, { t: 0.84, x: 245, y: 45 },
@@ -166,14 +166,14 @@ export function initCrane(): void {
     const inner = $('[data-stagein]', stage);
     if (inner) inner.style.transform = `translate(${g.ox.toFixed(1)}px,${(200 - 200 * g.s).toFixed(1)}px) scale(${g.s.toFixed(3)})`;
     const q = (sel: string) => $(sel, stage);
-    if (id === 'krantechnik') {
+    if (id === 'krane') {
       if (live && p >= 0.33 && p < 0.86) place(loads.bale, tipX, tipY + 2 * g.s, sim.ang, g.s, v);
       else if (p < 0.33) place(loads.bale, g.X(76), g.Y(148), 0, g.s, 0);
       else place(loads.bale, g.X(280), g.Y(112 + 26 * seg(p, 0.86, 0.93)), 0, g.s, v * (1 - seg(p, 0.88, 0.95)));
       q('[data-heap="l"]')?.setAttribute('transform', `translate(76 168) scale(1 ${(1 - 0.3 * seg(p, 0.33, 0.42)).toFixed(3)})`);
       q('[data-heap="r"]')?.setAttribute('transform', `translate(280 187) scale(1 ${(1 + 0.16 * seg(p, 0.88, 0.96)).toFixed(3)})`);
       fade(q('[data-b]'), seg(p, 0.86, 0.95));
-    } else if (id === 'fahrzeugtechnik') {
+    } else if (id === 'fahrzeugbau') {
       const carried = live && p >= 0.2 && p < 0.84;
       const oOld = v * (1 - seg(p, 0.42, 0.48));
       const oNew = v * (p < 0.84 ? seg(p, 0.46, 0.52) : 1);
@@ -293,7 +293,7 @@ export function initCrane(): void {
     const th = (sim.ang * Math.PI) / 180;
     const tipX = sim.x + HALF - Math.sin(th) * d;
     const tipY = originY + Math.cos(th) * d;
-    const grab = target?.el.dataset.sceneId === 'krantechnik' && k >= 0;
+    const grab = target?.el.dataset.sceneId === 'krane' && k >= 0;
     if (ring) ring.style.display = grab ? 'none' : 'block';
     if (claws) claws.style.display = grab ? 'block' : 'none';
     const ca = grab && f ? f.a ?? 0 : 0;

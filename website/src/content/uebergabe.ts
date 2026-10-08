@@ -44,7 +44,7 @@ export const sharedFaq = {
   },
   newCranes: {
     q: 'Bauen Sie weiterhin neue Krananlagen?',
-    a: 'Ja. Heukrananlagen und Industriekrane planen, bauen und montieren wir weiterhin selbst.',
+    a: 'Ja. Heukrananlagen und Krananlagen planen, bauen und montieren wir weiterhin selbst.',
   },
   phone: {
     q: 'Bleibt die Telefonnummer gleich?',
@@ -55,11 +55,11 @@ export const sharedFaq = {
     a: 'Ja. Das Unternehmen bleibt dasselbe, nur der Name ändert sich.',
   },
   /**
-   * Krane anderer Hersteller – EINE Antwort für Krantechnik, Service und Notfall (vorher sagte
+   * Krane anderer Hersteller – EINE Antwort für Krane, Service und Notfall (vorher sagte
    * der Notfall «nur auf Anfrage», der Kranservice «unabhängig vom Hersteller»). Kein «alle
    * Hersteller»: jeder Kran wird zuerst angeschaut, Teile werden im Einzelfall geklärt.
    */
-  /** Stillstand – Startseite, Krantechnik und Notfall sagen es gleich. */
+  /** Stillstand – Startseite, Krane und Notfall sagen es gleich. */
   speed: {
     q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
     a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
@@ -107,6 +107,6 @@ export const handover = {
       ? [{ q: 'Bleibt Heiri Steiner dabei?', a: '{{people.founder.advisory}}' }]
       : []),
     sharedFaq.parts,
-    { q: sharedFaq.newCranes.q, a: `${sharedFaq.newCranes.a} Mehr dazu unter [Heukrananlagen](/krantechnik/heukrananlagen).` },
+    { q: sharedFaq.newCranes.q, a: `${sharedFaq.newCranes.a} Mehr dazu unter [Heukrananlagen](/krane/heukrananlagen).` },
   ] satisfies Faq[],
 };

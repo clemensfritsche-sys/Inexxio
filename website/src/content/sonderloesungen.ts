@@ -1,9 +1,10 @@
 /**
- * Sonderlösungen – EINE Seite (Rückmeldung 07.10.2026: zu viele Seiten). Konstruktion,
- * Schweiss- und Stahlbau und Baumaschinen waren drei dünne Unterseiten mit denselben Fragen;
- * jetzt sind sie der Leistungsumfang dieser einen Seite.
- * Ton: «Sie haben ein Problem, für das es kein Produkt von der Stange gibt? Wir konstruieren
- * und bauen die Lösung.» Grossprojekte nicht aktiv bewerben – die Werkstatt ist klein.
+ * Sonderlösungen – EINE Seite, eigener Hauptmenüpunkt, und zugleich der zweite Punkt in den
+ * Untermenüs von Krane und Fahrzeugbau (Testnotizen #1204/#1205/#1206). Darum ist sie nach
+ * DEREN Fragen gegliedert: drei Felder mit eigenem Anker – #krane, #fahrzeugbau, #stahlbau –,
+ * und jeder Verweis landet bei dem Feld, das ihn betrifft.
+ * Ton: «Es gibt kein Produkt von der Stange für Ihr Problem? Wir konstruieren und bauen die
+ * Lösung.» Grossprojekte nicht aktiv bewerben – die Werkstatt ist klein.
  */
 import { site } from '../config/site.mjs';
 import type { Step, SubPage } from './types';
@@ -13,41 +14,41 @@ export const sonderloesungen: SubPage = {
   area: 'sonderloesungen',
   path: '/sonderloesungen',
   crumb: 'Sonderlösungen',
-  title: 'Sonderlösungen und Stahlbau',
+  title: 'Sonderlösungen nach Mass',
   description:
-    'Konstruktion, Schweiss- und Stahlbau, Umbau und Reparatur von Baumaschinen: Lösungen, die es nicht von der Stange gibt – aus Tuttwil-Wängi TG. Anfragen.',
+    'Sonderkrane, Sonderaufbauten, Konstruktion und Stahlbau: Lösungen, die es nicht von der Stange gibt – geplant und gebaut in Tuttwil-Wängi TG. Anfragen.',
   hero: {
     eyebrow: 'Sonderlösungen',
-    h1: 'Sonderlösungen: konstruiert und gebaut, wo es nichts zu ==kaufen== gibt',
+    h1: 'Konstruiert und gebaut, wo es nichts zu ==kaufen== gibt',
     lead:
-      'Es gibt kein Produkt von der Stange für Ihr Problem? Wir konstruieren und bauen die Lösung – mit Ingenieurwissen aus dem Baumaschinenbau, eigener Werkstatt und Fixpreis.',
+      'Ein Kran, der in kein Gebäude passt? Ein Aufbau, den kein Hersteller anbietet? Ein Teil, das es nicht mehr gibt? Wir konstruieren und bauen die Lösung – mit Ingenieurwissen aus dem Baumaschinenbau, eigener Werkstatt und Fixpreis.',
     photo: 'arbeit-werkstatt',
     primary: { label: 'Anliegen schildern', href: '#anfrage' },
   },
   summary:
-    '{{brand.full}} entwickelt und baut Sonderlösungen: Konstruktion und Berechnung, Stahlkonstruktionen und Schweissarbeiten, Einzelstücke und Kleinserien, Umbauten, Nachrüstungen und Reparaturen an Baumaschinen. Für Bau-, Industrie- und Landwirtschaftsbetriebe, die eine Einzelanfertigung oder einen Umbau brauchen. Gefertigt in der Werkstatt in Tuttwil-Wängi TG oder mit Partnern aus der Region.',
+    '{{brand.full}} konstruiert und baut Sonderlösungen in drei Feldern: Krane, die es nicht zu kaufen gibt (an das Gebäude angepasst, Ausleger und Hebezeuge nach Mass, Umbau bestehender Anlagen), Sonderaufbauten und die Reparatur von Aufbauten, Mulden, Kippern und Hydraulik, sowie Konstruktion, Stahlbau und Schweissarbeiten – vom Einzelstück bis zur Kleinserie. Gefertigt in der Werkstatt in Tuttwil-Wängi TG.',
   glance: {
-    forWhom: 'Bau-, Industrie- und Landwirtschaftsbetriebe mit einem Problem, für das es kein fertiges Produkt gibt.',
-    what: 'Konzept, Konstruktion und Berechnung, Fertigung in Stahl, Umbau und Reparatur von Baumaschinen – mit Dokumentation.',
+    forWhom: 'Betriebe in Industrie, Bau, Transport und Landwirtschaft mit einer Aufgabe, für die es kein fertiges Produkt gibt.',
+    what: 'Konzept, Konstruktion und Berechnung, Fertigung in Stahl, Montage – und auf Wunsch der Service danach.',
     deliverables: 'Die fertige Lösung mit Zeichnungen und Unterlagen – oder nur die Konstruktion, wenn Sie selbst fertigen.',
   },
   promises: ['garantie'],
   scope: {
-    title: 'Was wir konstruieren und bauen',
-    lead: 'Vom einzelnen Teil bis zur Stahlkonstruktion für die Halle.',
+    title: 'Was jede Sonderlösung mitbringt',
+    lead: 'Gleich, ob Kran, Aufbau oder Stahlkonstruktion.',
     items: [
       { title: 'Konstruktion und Berechnung', text: 'Zeichnungen und 3D-Modelle, Festigkeit und Tragfähigkeit – nachvollziehbar dokumentiert.' },
-      { title: 'Stahlkonstruktionen', text: 'Gestelle, Bühnen, Halterungen und Tragwerke – passend zum Einsatzort.' },
-      { title: 'Schweissarbeiten', text: 'Neuteile und Reparaturschweissen an Maschinen, Aufbauten und Konstruktionen.' },
-      { title: 'Einzelstücke und Kleinserien', text: 'Nach Zeichnung oder nach Muster: Ein altes Teil genügt – wir messen auf und fertigen nach.' },
-      { title: 'Baumaschinen umbauen', text: 'Umbauten, Nachrüstungen und Anbauteile, die es so nicht zu kaufen gibt.' },
-      { title: 'Baumaschinen reparieren', text: 'Stahlbau, Hydraulik und Mechanik instand stellen.' },
+      { title: 'Fertigung in der eigenen Werkstatt', text: 'In Tuttwil – oder mit Partnern aus der Region, wo es die Aufgabe verlangt.' },
+      { title: 'Nach Muster', text: 'Ein altes Teil, eine Skizze oder ein Foto genügt – wir messen auf und fertigen nach.' },
+      { title: 'Montage vor Ort', text: 'Wir bauen ein, nehmen in Betrieb und zeigen Ihnen die Bedienung.' },
+      { title: 'Dokumentation', text: 'Zeichnungen und Unterlagen zu jeder Lösung – wichtig bei jedem Umbau.' },
+      { title: 'Service danach', text: 'Wer es gebaut hat, kennt es – Wartung und Reparatur aus derselben Hand.' },
     ],
   },
   faq: [
     {
       q: 'Welche Aufträge passen zu Ihnen?',
-      a: 'Einzelanfertigungen, Umbauten und Kleinserien – vom Anbauteil bis zur Stahlkonstruktion für die Halle. Für grosse Serien und Grossprojekte ist unsere Werkstatt zu klein; das sagen wir offen.',
+      a: 'Einzelanfertigungen, Umbauten und Kleinserien – vom Anbauteil über den Sonderaufbau bis zum Kran nach Mass. Für grosse Serien und Grossprojekte ist unsere Werkstatt zu klein; das sagen wir offen.',
     },
     {
       q: 'Brauche ich eine fertige Zeichnung?',
@@ -58,13 +59,16 @@ export const sonderloesungen: SubPage = {
       a: 'Ja. Sie können die Zeichnungen auch selbst oder anderswo fertigen lassen.',
     },
     {
+      q: 'Reparieren Sie auch bestehende Aufbauten?',
+      a: 'Ja – Mulden, Kipper, Hydraulik und Aufbauten von Baustellenfahrzeugen. Was sich nicht mehr reparieren lässt, fertigen wir neu.',
+    },
+    {
       q: 'Was kostet eine Sonderlösung?',
       a: 'Nach der Abklärung erhalten Sie einen Fixpreis – vor jeder Arbeit.',
     },
     promiseFaq.garantie,
-    promiseFaq.secondOpinion,
     {
-      q: 'Was ist bei einem Umbau einer Baumaschine zu beachten?',
+      q: 'Was ist bei einem Umbau einer Maschine zu beachten?',
       a: 'Wer eine Maschine wesentlich verändert, braucht saubere Unterlagen – ab 2027 gilt in der EU dazu die neue Maschinenverordnung. Wir dokumentieren jeden Umbau.',
     },
     {
@@ -73,13 +77,47 @@ export const sonderloesungen: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/industriekrane', label: 'Industriekrane nach Mass', text: 'Wenn die Lösung ein Kran ist.' },
-    { href: '/fahrzeugtechnik/aufbauten-reparatur', label: 'Aufbauten reparieren', text: 'Mulden, Kipper und Hydraulik.' },
+    { href: '/krane/krananlagen', label: 'Krananlagen', text: 'Wenn ein Kran nach Mass genügt.' },
+    { href: '/fahrzeugbau/fahrmischer', label: 'Fahrmischer', text: 'Trommeltausch, Revision und Verschleissteile.' },
     { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranprüfung in der Schweiz', text: 'Was Prüfpflicht und Dokumentation verlangen.', kind: 'ratgeber' },
   ],
-  service: { name: 'Sonderlösungen', serviceType: 'Konstruktion, Stahlbau und Umbau von Baumaschinen' },
-  keywords: ['Sondermaschinenbau Thurgau', 'Stahlbau', 'Schweissarbeiten', 'Baumaschinen Umbau', 'Konstruktion'],
+  service: { name: 'Sonderlösungen', serviceType: 'Sonderkrane, Sonderaufbauten, Konstruktion und Stahlbau' },
+  keywords: ['Sonderkran', 'Sonderaufbau', 'Sondermaschinenbau Thurgau', 'Stahlbau', 'Schweissarbeiten', 'Aufbau Reparatur'],
 };
+
+/**
+ * Die drei Felder – die Anker sind die Adressen, auf die die Untermenüs von Krane und
+ * Fahrzeugbau zeigen (site.mjs, `special`). Ein Feld umbenennen heisst, seinen Anker dort mitzuziehen;
+ * die Prüfung der Links (check-site) meldet einen verwaisten.
+ */
+export const sonderFields = [
+  {
+    id: 'krane',
+    eyebrow: 'Krane',
+    title: 'Krane, die es nicht zu kaufen gibt',
+    text: 'Kein Katalogkran passt in Ihre Halle, an Ihren Steg oder zu Ihrer Last? Wir konstruieren und bauen ihn – und wissen seit {{history.cranesSince}}, worauf es ankommt.',
+    photo: 'reparatur-vor-ort',
+    items: ['An das Gebäude angepasst: Fahrbahn, Stützen, Spannweite', 'Ausleger und Hebezeuge nach Mass', 'Umbau und Erweiterung bestehender Anlagen', 'Kranbahnen und Tragwerke'],
+    link: { href: '/krane/krananlagen', label: 'Zu den Krananlagen' },
+  },
+  {
+    id: 'fahrzeugbau',
+    eyebrow: 'Fahrzeugbau',
+    title: 'Sonderaufbauten – und Reparatur dessen, was auf Ihrem Fahrzeug ist',
+    text: 'Aufbauten, die kein Hersteller anbietet, bauen wir nach Mass. Und wir setzen instand, was der Alltag auf der Baustelle zerlegt.',
+    photo: 'aufbau-reparatur',
+    items: ['Sonderaufbauten nach Mass', 'Mulden, Kipper, Bordwände und Verschlüsse', 'Hydraulik: Zylinder, Pumpen, Ventile, Leitungen', 'Baumaschinen umbauen und nachrüsten'],
+    link: { href: '/fahrzeugbau/fahrmischer', label: 'Zu den Fahrmischern' },
+  },
+  {
+    id: 'stahlbau',
+    eyebrow: 'Stahlbau',
+    title: 'Konstruktion und Stahlbau',
+    text: 'Vom einzelnen Teil bis zur Stahlkonstruktion für die Halle – nach Zeichnung oder nach Muster.',
+    photo: 'arbeit-werkstatt',
+    items: ['Stahlkonstruktionen: Gestelle, Bühnen, Halterungen', 'Schweissarbeiten an Maschinen und Konstruktionen', 'Einzelstücke und Kleinserien', 'Nur die Konstruktion, wenn Sie selbst fertigen'],
+  },
+];
 
 /** Modul: Ablauf. */
 export const sonderSteps = {
@@ -99,6 +137,3 @@ export const sonderBackground = {
   title: 'Wir wissen, wie eine Maschine gebaut ist',
   text: `${site.people.owner.name} hat als Maschinenbauingenieur bei Liebherr Baumaschinen entwickelt. Wer eine Maschine von innen kennt, baut sie so um, dass sie danach weiter zuverlässig arbeitet – und dokumentiert, was er verändert hat.`,
 };
-
-// Sonderlösungen hat keine Unterseiten: die Navigation nennt keine.
-if (site.areas.find((a) => a.id === 'sonderloesungen')!.children.length) throw new Error('Sonderlösungen: die Navigation nennt Unterseiten, die es nicht gibt.');

@@ -1,14 +1,17 @@
 ---
 /**
- * /fahrzeugtechnik/fahrmischer – Trommeltausch, Trommel-Revision, Service und Reparatur auf
- * EINER Seite. Zuerst die Trommel (#trommel, gleich nach den Versprechen), dann
- * der Winter als Zeitpunkt (#winter-revision) und das Marken-Band.
+ * /fahrzeugbau/fahrmischer – Trommeltausch, Trommel-Revision, Service, Reparatur und
+ * Verschleissteile auf EINER Seite (Testnotiz #1205). Zuerst die Trommel (#trommel, gleich
+ * nach den Versprechen), dann der Teilekatalog (#katalog), der Winter als Zeitpunkt
+ * (#winter-revision) und das Marken-Band.
  */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
-import { fahrmischer, drumOptions as d, winterRevision as w } from '../../content/fahrzeugtechnik';
+import PartCatalog from '../../components/PartCatalog.astro';
+import { fahrmischer, drumOptions as d, winterRevision as w } from '../../content/fahrzeugbau';
+import { catalog } from '../../config/catalog.mjs';
 import { site } from '../../config/site.mjs';
 import { product } from '../../lib/seo.mjs';
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -17,7 +20,7 @@ const productNode = product(siteUrl, {
   description: 'Neue Mischtrommel auf dem bestehenden Fahrgestell statt eines neuen Fahrmischers – für alle gängigen Marken.',
   path: `${fahrmischer.path}#trommel`,
   category: 'Fahrmischer-Trommel',
-  og: 'fahrzeugtechnik',
+  og: 'fahrzeugbau',
 });
 const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: true, query: '?raw', import: 'default' });
 ---
@@ -40,6 +43,19 @@ const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: tru
       <div class="btn-row drum__cta">
         <a class="btn btn--primary" href="#anfrage">Trommel prüfen lassen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
       </div>
+    </div>
+  </section>
+
+  <section slot="module" class="section section--paper" id="katalog" aria-labelledby="katalog-title">
+    <div class="wrap">
+      <SectionHead
+        eyebrow="Verschleissteile"
+        title="Verschleissteile nach Teileart"
+        lead="Je Teil: kurze Beschreibung, Material und passende Marken. «Teil anfragen» öffnet die Anfrage mit dem Teil schon eingetragen."
+        id="katalog-title"
+      />
+      <Rich as="p" class="small cat-note" text={catalog.priceNote} />
+      <PartCatalog />
     </div>
   </section>
 
@@ -83,6 +99,7 @@ const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: tru
   .drum__list dt { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); }
   .drum__list dd { margin: 2px 0 0; color: var(--ink); }
   .drum__cta { margin-top: var(--s-6); }
+  .cat-note { margin: calc(var(--s-5) * -1) 0 var(--s-6); }
 
   .wr { row-gap: var(--s-7); }
   .wr__text { display: grid; gap: var(--s-5); justify-items: start; }

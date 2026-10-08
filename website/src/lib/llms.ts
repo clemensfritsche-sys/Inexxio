@@ -59,7 +59,7 @@ function header(base: string): string[] {
   ];
 }
 
-const SECTIONS: Section[] = ['Krantechnik', 'Fahrzeugtechnik', 'Sonderlösungen', 'Service', 'Unternehmen', 'Ratgeber'];
+const SECTIONS: Section[] = ['Krane', 'Fahrzeugbau', 'Sonderlösungen', 'Service', 'Unternehmen', 'Ratgeber'];
 
 /** /llms.txt – wer wir sind und die wichtigsten Seiten mit Links. */
 export function llmsTxt(base: string): string {

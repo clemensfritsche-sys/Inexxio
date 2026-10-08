@@ -1,7 +1,8 @@
 ---
 /**
- * /sonderloesungen – EINE Seite statt Bereich mit drei Unterseiten (Rückmeldung 07.10.2026).
- * Vorlage der Unterseiten; Module: Ablauf und Hintergrund. Texte: content/sonderloesungen.ts.
+ * /sonderloesungen – EINE Seite, gegliedert nach den drei Feldern, auf die Krane und
+ * Fahrzeugbau verweisen (#krane, #fahrzeugbau, #stahlbau – Testnotiz #1206). Vorlage der
+ * Unterseiten; Module: die drei Felder, Ablauf, Hintergrund. Texte: content/sonderloesungen.ts.
  */
 import SubPage from '../layouts/SubPage.astro';
 import SectionHead from '../components/SectionHead.astro';
@@ -9,9 +10,31 @@ import Steps from '../components/Steps.astro';
 import Photo from '../components/Photo.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
-import { sonderloesungen, sonderSteps as s, sonderBackground as b } from '../content/sonderloesungen';
+import { sonderloesungen, sonderFields, sonderSteps as s, sonderBackground as b } from '../content/sonderloesungen';
 ---
 <SubPage page={sonderloesungen}>
+  <section slot="intro" class="section" aria-labelledby="felder">
+    <div class="wrap">
+      <SectionHead eyebrow="Drei Felder" title="Was wir nach Mass bauen" id="felder" />
+      <div class="sf">
+        {sonderFields.map((f, i) => (
+          <article class:list={['sf__field', i % 2 === 1 && 'sf__field--flip']} id={f.id} aria-labelledby={`${f.id}-title`}>
+            <div class="sf__media"><Photo id={f.photo} sizes="(min-width: 960px) 40vw, 100vw" /></div>
+            <div class="sf__text">
+              <p class="label">{f.eyebrow}</p>
+              <h3 id={`${f.id}-title`} class="sf__title">{f.title}</h3>
+              <Rich as="p" text={f.text} />
+              <ul class="checklist" role="list">
+                {f.items.map((it) => <li><Icon name="check" size={20} /><span>{it}</span></li>)}
+              </ul>
+              {f.link && <a class="arrow-link" href={f.link.href}>{f.link.label} <Icon name="arrow-right" size={18} /></a>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
   <section slot="module" class="section section--dark" aria-labelledby="ablauf">
     <div class="wrap">
       <SectionHead eyebrow="Ablauf" title={s.title} lead={s.lead} id="ablauf" />
@@ -35,6 +58,17 @@ import { sonderloesungen, sonderSteps as s, sonderBackground as b } from '../con
 </SubPage>
 
 <style>
+  .sf { display: grid; gap: var(--s-8); }
+  .sf__field { display: grid; gap: var(--s-5) var(--s-8); align-items: center; }
+  @media (min-width: 960px) {
+    .sf__field { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+    .sf__field--flip .sf__media { order: 2; }
+  }
+  .sf__media { overflow: hidden; border-radius: var(--r-lg); aspect-ratio: 4 / 3; background: var(--paper-2); }
+  .sf__media :global(picture), .sf__media :global(img), .sf__media :global(.ph) { width: 100%; height: 100%; }
+  .sf__media :global(img) { object-fit: cover; }
+  .sf__text { display: grid; gap: var(--s-3); justify-items: start; }
+  .sf__title { font-size: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem); }
   .so-cta { margin-top: var(--s-7); }
   .so-bg { align-items: center; }
   .head--flush { margin-bottom: 0; }

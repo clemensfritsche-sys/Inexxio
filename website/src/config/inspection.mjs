@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * Prüfpflicht für Krane in der Schweiz – Daten für den Prüfpflicht-Check, die Tabelle auf
- * /krantechnik/kranservice und den Ratgeber. Eine Quelle, drei Darstellungen.
+ * /krane/kranservice und den Ratgeber. Eine Quelle, drei Darstellungen.
  *
  * Grundlage (Stand der Recherche Oktober 2026):
  *  - Kranverordnung (SR 832.312.15): zu jedem Kran gehört ein Kranbuch; die Form ist frei.

@@ -74,8 +74,8 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap; align-self: stretch;
     padding-bottom: 18px; margin-bottom: var(--s-6); border-bottom: 1px solid var(--line);
   }
-  /* Der Index bleibt ganz; die Dachzeile darf umbrechen – «Fahrzeugtechnik · Verschleiss- &
-     Ersatzteile» ist bei 360 px breiter als die Spalte. */
+  /* Der Index bleibt ganz; die Dachzeile darf umbrechen – eine lange
+     Dachzeile ist bei 360 px breiter als die Spalte. */
   .hero__kicker :global(.idx) { white-space: nowrap; }
   .hero__eyebrow { min-width: 0; }
   .hero__title { margin: 0; }

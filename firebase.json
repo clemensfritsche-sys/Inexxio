@@ -11,42 +11,42 @@
     "redirects": [
       {
         "regex": "(?i)^/heuentnahmekran/kran-dem-geb(?:ä|ae|a|%c3%a4)ude-angepasst(?:/.*)?$",
-        "destination": "/krantechnik/industriekrane",
+        "destination": "/krane/krananlagen",
         "type": 301
       },
       {
         "regex": "(?i)^/heuentnahmekran/matagematerial(?:/.*)?$",
-        "destination": "/krantechnik/kranservice",
+        "destination": "/krane/kranservice",
         "type": 301
       },
       {
         "regex": "(?i)^/(?:heuentnahmekran|forst-und-landwirtschaft|drehkran-hydraulisch|bruecken-kran|einschienen-kran)(?:/.*)?$",
-        "destination": "/krantechnik/heukrananlagen",
+        "destination": "/krane/heukrananlagen",
         "type": 301
       },
       {
         "regex": "(?i)^/application/files/.*$",
-        "destination": "/krantechnik/heukrananlagen",
+        "destination": "/krane/heukrananlagen",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik/euro-k(?:ö|oe|o|%c3%b6)?pper(?:/.*)?$",
-        "destination": "/fahrzeugtechnik/aufbauten-reparatur",
+        "destination": "/sonderloesungen#fahrzeugbau",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik/verschleissteile(?:/.*)?$",
-        "destination": "/fahrzeugtechnik/verschleiss-ersatzteile",
+        "destination": "/fahrzeugbau/fahrmischer#katalog",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik(?:/.*)?$",
-        "destination": "/fahrzeugtechnik/fahrmischer",
+        "destination": "/fahrzeugbau/fahrmischer",
         "type": 301
       },
       {
         "regex": "(?i)^/antrieb-und-steuerung(?:/.*)?$",
-        "destination": "/krantechnik/kranservice",
+        "destination": "/krane/kranservice",
         "type": 301
       },
       {
@@ -66,7 +66,7 @@
       },
       {
         "regex": "(?i)^/sachtransporter-anhanger/reparaturen(?:/.*)?$",
-        "destination": "/fahrzeugtechnik/aufbauten-reparatur",
+        "destination": "/sonderloesungen#fahrzeugbau",
         "type": 301
       },
       {

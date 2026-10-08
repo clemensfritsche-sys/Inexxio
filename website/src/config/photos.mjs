@@ -19,11 +19,6 @@
 
 /** @type {Record<string, Photo>} */
 export const photos = {
-  'hafen-bootskran': {
-    alt: 'Bootskran an einem Hafensteg hebt ein Segelboot aus dem Wasser',
-    brief: 'Boots- oder Mastkran an einem Schweizer Hafen oder Segelclub, Boot am Haken über dem Wasser, Steg und Masten im Hintergrund, quer',
-    ratio: '4/3',
-  },
   'pruefung-hallenkran': {
     alt: 'Techniker prüft einen Brückenkran in einer Produktionshalle',
     brief: 'Techniker bei der Prüfung eines Hallenkrans (Brückenkran), Hubwerk und Laufkatze im Bild, natürliches Licht, quer',
@@ -32,11 +27,6 @@ export const photos = {
   'reparatur-vor-ort': {
     alt: 'Industriekran in einer Halle, Techniker bei der Arbeit am Hubwerk',
     brief: 'Industriekran (Brückenkran) in einer Halle, Techniker bei Service oder Reparatur am Hubwerk oder Schaltschrank, quer',
-    ratio: '4/3',
-  },
-  'anschlagmittel': {
-    alt: 'Anschlagkette und Hebeband am Kranhaken',
-    brief: 'Anschlagmittel im Einsatz: Kette oder Hebeband am Kranhaken, Last wird angeschlagen, gekennzeichnete Teile sichtbar, quer',
     ratio: '4/3',
   },
   'heukran-einsatz': {
@@ -52,11 +42,6 @@ export const photos = {
   'fahrmischer-werkstatt': {
     alt: 'Fahrmischer in der Werkstatt mit geöffneter Trommel',
     brief: 'Fahrmischer in der Werkstatt, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
-    ratio: '4/3',
-  },
-  'verschleissteile-detail': {
-    alt: 'Verschleissteile für Fahrmischer: Rinne, Schurre und Spiralschutz',
-    brief: 'Detail Verschleissteile: neue Rinne, Schurre und Spiralschutz nebeneinander auf der Werkbank, quer',
     ratio: '4/3',
   },
   'teil-auslaufrinne': {

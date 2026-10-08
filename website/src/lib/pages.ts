@@ -12,8 +12,8 @@
 import { site } from '../config/site.mjs';
 import type { AreaPage, Faq, SubPage } from '../content/types';
 import { start } from '../content/start';
-import { krantechnik, krantechnikPages } from '../content/krantechnik';
-import { fahrzeugtechnik, fahrzeugtechnikPages } from '../content/fahrzeugtechnik';
+import { krane, kranePages } from '../content/krane';
+import { fahrzeugbau, fahrzeugbauPages } from '../content/fahrzeugbau';
 import { sonderloesungen } from '../content/sonderloesungen';
 import { service } from '../content/service';
 import { handover } from '../content/uebergabe';
@@ -25,7 +25,7 @@ import { articles } from './ratgeber';
 import { legalMeta } from './legal';
 
 export type Section =
-  | 'Start' | 'Krantechnik' | 'Fahrzeugtechnik' | 'Sonderlösungen' | 'Service' | 'Unternehmen' | 'Ratgeber' | 'Rechtliches';
+  | 'Start' | 'Krane' | 'Fahrzeugbau' | 'Sonderlösungen' | 'Service' | 'Unternehmen' | 'Ratgeber' | 'Rechtliches';
 
 export interface PageEntry {
   path: string;
@@ -58,10 +58,10 @@ const subEntry = (p: SubPage, section: Section): PageEntry => ({
 function build(): PageEntry[] {
   const list: PageEntry[] = [
     { path: '/', name: 'Startseite', description: start.description, updated: day, section: 'Start', summary: start.summary, faq: start.faq },
-    areaEntry(krantechnik, 'Krantechnik'),
-    ...krantechnikPages.map((p) => subEntry(p, 'Krantechnik')),
-    areaEntry(fahrzeugtechnik, 'Fahrzeugtechnik'),
-    ...fahrzeugtechnikPages.map((p) => subEntry(p, 'Fahrzeugtechnik')),
+    areaEntry(krane, 'Krane'),
+    ...kranePages.map((p) => subEntry(p, 'Krane')),
+    areaEntry(fahrzeugbau, 'Fahrzeugbau'),
+    ...fahrzeugbauPages.map((p) => subEntry(p, 'Fahrzeugbau')),
     subEntry(sonderloesungen, 'Sonderlösungen'),
     { path: service.path, name: service.title, description: service.description, updated: day, section: 'Service', summary: service.summary, faq: service.faq },
     { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary, faq: [...handover.faq, ...ueberUns.areaFaq] },
@@ -76,6 +76,13 @@ function build(): PageEntry[] {
       return { path: `/${name}`, name: m.title, description: m.description, updated: m.updated, section: 'Rechtliches' };
     }),
   ];
+  // Untermenü und Seiten nennen dieselben Pfade. Ein Verweis auf einen anderen Bereich
+  // (Sonderlösungen in Krane und Fahrzeugbau, #1204) zählt nicht als Seite des Bereichs.
+  const own: Record<string, SubPage[]> = { krane: kranePages, fahrzeugbau: fahrzeugbauPages, sonderloesungen: [] };
+  for (const a of site.areas) {
+    const nav = a.children.map((c) => c.href).filter((h) => h.startsWith(`${a.href}/`)).join();
+    if (nav !== own[a.id].map((p) => p.path).join()) throw new Error(`${a.label}: Untermenü und Seiten nennen andere Pfade.`);
+  }
   const seen = new Set<string>();
   for (const p of list) {
     if (seen.has(p.path)) throw new Error(`Seite «${p.path}» steht zweimal in src/lib/pages.ts.`);

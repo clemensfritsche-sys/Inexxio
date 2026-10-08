@@ -45,7 +45,7 @@ const ownerCareer = [
 /**
  * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
  * @typedef {{
- *   id: 'krantechnik' | 'fahrzeugtechnik' | 'sonderloesungen',
+ *   id: 'krane' | 'fahrzeugbau' | 'sonderloesungen',
  *   label: string, href: string, overview: string, text: string, photo: string,
  *   ogTitle: string,
  *   children: SubPage[],
@@ -53,42 +53,47 @@ const ownerCareer = [
  */
 
 /**
- * ►►► Die drei Bereiche (Auftrag Kap. 3.3) – Navigation, Mega-Dropdowns, Bereichskarten,
- * Footer, JSON-LD (hasOfferCatalog) und llms.txt entstehen daraus. ◄◄◄
- * Reihenfolge = Gewichtung (WEBSITE_PLAN §7.7a): Krantechnik und Fahrzeugtechnik sind die zwei
- * Standbeine, Sonderlösungen steht darunter. In der Krantechnik zuerst der Kranservice, dann
- * die Fokusmärkte, dann die Anschlagmittel.
+ * Sonderlösungen steht in den Untermenüs von Krane und Fahrzeugbau (Testnotiz #1204) – als
+ * Verweis auf DIESELBE Seite, an den Abschnitt, der zum Bereich gehört. Kein eigener Inhalt.
+ */
+const special = (/** @type {string} */ anchor, /** @type {string} */ text) => (
+  { label: 'Sonderlösungen', href: `/sonderloesungen#${anchor}`, text, photo: 'arbeit-werkstatt' }
+);
+
+/**
+ * ►►► Die drei Bereiche – Kopf, Mobil-Menü, Fuss, Bereichskarten, JSON-LD (hasOfferCatalog)
+ * und llms.txt entstehen daraus. ◄◄◄
+ * Namen (Testnotiz #1202): «Krane» und «Fahrzeugbau» statt «…technik» – das Wort sagt, worum
+ * es geht, und schliesst den Bau mit ein. Je Untermenü-Text höchstens eine Zeile (#1203).
  * @type {Area[]}
  */
 const areas = [
   {
-    id: 'krantechnik',
-    label: 'Krantechnik',
-    href: '/krantechnik',
-    overview: 'Alle Leistungen Krantechnik',
-    text: 'Service für Industrie-, Boots- und Heukrane aller Marken – der erste ist gratis. Dazu neue Krananlagen und Bootslifte nach Mass.',
+    id: 'krane',
+    label: 'Krane',
+    href: '/krane',
+    overview: 'Alle Leistungen Krane',
+    text: 'Service für Krane aller Marken – der erste ist gratis. Dazu Krananlagen und Heukrananlagen nach Mass.',
     photo: 'heukran-einsatz',
     ogTitle: 'Ihr Kran läuft – oder Sie zahlen nicht.',
     children: [
-      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Erster Service gratis, INEXXIO 365: Ihr Kran läuft – oder Sie zahlen nicht', photo: 'pruefung-hallenkran' },
-      { label: 'Industriekrane', href: '/krantechnik/industriekrane', text: 'Brücken-, Hänge- und Schwenkkrane in KMU', photo: 'reparatur-vor-ort' },
-      { label: 'Häfen & Werften', href: '/krantechnik/haefen-werften', text: 'Boots- und Mastkrane, Bootslifte – neu und Service', photo: 'hafen-bootskran' },
-      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Neuanlagen nach Mass, Umbau, Service', photo: 'heukran-einsatz' },
-      { label: 'Anschlagmittel', href: '/krantechnik/anschlagmittel', text: 'Ketten, Hebebänder, Haken – immer geprüft', photo: 'anschlagmittel' },
+      { label: 'Kranservice', href: '/krane/kranservice', text: 'Erster Service gratis und INEXXIO 365', photo: 'pruefung-hallenkran' },
+      { label: 'Krananlagen', href: '/krane/krananlagen', text: 'Industrie-, Hafen- und Bootskrane nach Mass', photo: 'reparatur-vor-ort' },
+      { label: 'Heukrananlagen', href: '/krane/heukrananlagen', text: 'Neuanlagen, Umbau und Service', photo: 'heukran-einsatz' },
+      special('krane', 'Krane, die es nicht zu kaufen gibt'),
     ],
   },
   {
-    id: 'fahrzeugtechnik',
-    label: 'Fahrzeugtechnik',
-    href: '/fahrzeugtechnik',
-    overview: 'Alle Leistungen Fahrzeugtechnik',
-    text: 'Trommeltausch, Revision und Reparatur für Fahrmischer und Aufbauten aller gängigen Marken – planbar im Winter.',
+    id: 'fahrzeugbau',
+    label: 'Fahrzeugbau',
+    href: '/fahrzeugbau',
+    overview: 'Alle Leistungen Fahrzeugbau',
+    text: 'Trommeltausch, Revision und Verschleissteile für Fahrmischer – dazu Sonderaufbauten nach Mass.',
     photo: 'fahrmischer-werkstatt',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
     children: [
-      { label: 'Fahrmischer', href: '/fahrzeugtechnik/fahrmischer', text: 'Service, Reparatur, Trommel-Revision und -tausch', photo: 'fahrmischer-werkstatt' },
-      { label: 'Aufbauten: Reparatur & Service', href: '/fahrzeugtechnik/aufbauten-reparatur', text: 'LKW-Aufbauten, Mulden, Kipper, Hydraulik', photo: 'aufbau-reparatur' },
-      { label: 'Verschleiss- & Ersatzteile', href: '/fahrzeugtechnik/verschleiss-ersatzteile', text: 'Rinnen, Schurren, Spiralschutz – alle gängigen Marken', photo: 'verschleissteile-detail' },
+      { label: 'Fahrmischer', href: '/fahrzeugbau/fahrmischer', text: 'Trommeltausch, Revision und Verschleissteile', photo: 'fahrmischer-werkstatt' },
+      special('fahrzeugbau', 'Sonderaufbauten und Reparatur von Aufbauten'),
     ],
   },
   {
@@ -96,9 +101,9 @@ const areas = [
     label: 'Sonderlösungen',
     href: '/sonderloesungen',
     overview: 'Alle Leistungen Sonderlösungen',
-    text: 'Konstruktion, Stahlbau und Umbauten an Baumaschinen – mit Ingenieurwissen und eigener Werkstatt.',
+    text: 'Sonderkrane, Sonderaufbauten und Stahlbau – konstruiert und gebaut, wo es nichts zu kaufen gibt.',
     photo: 'arbeit-werkstatt',
-    ogTitle: 'Konstruktion, Schweiss- und Stahlbau, Umbau von Baumaschinen',
+    ogTitle: 'Was es nicht zu kaufen gibt, bauen wir.',
     children: [],
   },
 ];
@@ -117,7 +122,7 @@ export const site = {
     notToConfuse: 'Nicht zu verwechseln mit inexio (Telekommunikation, Deutschland).',
     /** Wer wir sind, in einem Satz – JSON-LD (description) und llms.txt lesen ihn. */
     summary:
-      'Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice mit INEXXIO 365 für Industrie, Häfen und Landwirtschaft, Heukrananlagen und Bootslifte, Trommeltausch und Service für Fahrmischer, Konstruktion und Stahlbau. Seit {{history.founded}}.',
+      'Krane, Fahrzeugbau und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice mit INEXXIO 365 für Industrie, Häfen und Landwirtschaft, Krananlagen und Heukrananlagen, Trommeltausch und Verschleissteile für Fahrmischer, Sonderaufbauten und Stahlbau. Seit {{history.founded}}.',
     /** Claim – OG-Bild und llms.txt. */
     claim: 'Krane und Fahrmischer mit Handschlagqualität. Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
   },
@@ -207,18 +212,18 @@ export const site = {
       from: '11-01',
       to: '02-28',
       text: 'Winter-Revision für Fahrmischer: Trommel und Aufbau überholen, solange der Bau ruht.',
-      href: '/fahrzeugtechnik/fahrmischer#winter-revision',
+      href: '/fahrzeugbau/fahrmischer#winter-revision',
       label: 'Revision planen',
-      pages: ['/', '/fahrzeugtechnik', '/fahrzeugtechnik/fahrmischer', '/service'],
+      pages: ['/', '/fahrzeugbau', '/fahrzeugbau/fahrmischer', '/service'],
     },
     {
       id: 'heukran-planung',
       from: '01-01',
       to: '04-30',
       text: 'Neue Heukrananlage für die nächste Saison? Jetzt planen, damit sie vor dem ersten Schnitt läuft.',
-      href: '/krantechnik/heukrananlagen#neuanlage',
+      href: '/krane/heukrananlagen#neuanlage',
       label: 'Anlage planen',
-      pages: ['/', '/krantechnik', '/krantechnik/heukrananlagen'],
+      pages: ['/', '/krane', '/krane/heukrananlagen'],
     },
   ],
 
@@ -263,7 +268,7 @@ export const site = {
 
   footer: {
     claim:
-      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Krantechnik, Fahrzeugtechnik und Sonderlösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
+      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Krane, Fahrzeugbau und Sonderlösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
   },
 
   /**
@@ -293,7 +298,7 @@ export const site = {
      * eigenes Datum. Ratgeber und Rechtstexte tragen ihr eigenes (`updated`). Wer eine Seite
      * inhaltlich überarbeitet, zieht dieses Datum nach.
      */
-    contentUpdated: '2026-10-07',
+    contentUpdated: '2026-10-08',
     /** Bisherige Domain – wird später auf die neue weitergeleitet. */
     oldDomain: 'hs-steiner.ch',
     sameAs: [],
@@ -304,11 +309,11 @@ export const site = {
       'Applebot', 'Applebot-Extended', 'CCBot',
     ],
     knowsAbout: [
-      'Kranservice', 'INEXXIO 365', 'Anschlagmittel', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
+      'Kranservice', 'INEXXIO 365', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
       'Bootskrane', 'Mastkrane', 'Bootslifte', 'Hafenkrane', 'Trommeltausch',
-      'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung', 
+      'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung',
       'Funkfernsteuerung', 'Frequenzumrichter', 'Fahrmischer', 'Trommel-Revision',
-      'Verschleissteile für Fahrmischer', 'LKW-Aufbauten', 'Konstruktion', 'Stahlbau',
+      'Verschleissteile für Fahrmischer', 'Sonderaufbauten', 'LKW-Aufbauten', 'Konstruktion', 'Stahlbau',
       'Schweissarbeiten', 'Baumaschinen',
     ],
   },
@@ -318,6 +323,20 @@ export const site = {
     provider: null,
   },
 };
+
+/**
+ * ►►► Die Navigation – EINE Liste für Kopf, Mobil-Menü und Fuss (Testnotiz #1209). ◄◄◄
+ * Der Fuss zeigt genau die Punkte des Kopfs, in derselben Reihenfolge – weil er dieselbe
+ * Liste liest, nicht weil jemand zwei Listen gleich hält. `scripts/check-site.mjs` prüft es
+ * zusätzlich am gebauten HTML.
+ * @typedef {{ id: string, label: string, href: string, overview: string, text: string, photo: string, children: SubPage[] }} NavGroup
+ * @type {NavGroup[]}
+ */
+export const navigation = [
+  ...site.areas.map(({ id, label, href, overview, text, photo, children }) => ({ id, label, href, overview, text, photo, children })),
+  { id: 'service', ...site.service },
+  site.about,
+];
 
 /**
  * Fehlt diese Angabe?

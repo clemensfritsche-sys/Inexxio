@@ -28,20 +28,20 @@ export const start = {
 
   /** Ein Satz je Bereich – das Versprechen, das ihn trägt. Drei gleichwertige Karten. */
   entries: {
-    krantechnik: 'Ihr Kran läuft – oder Sie zahlen nicht.',
-    fahrzeugtechnik: 'Neue Trommel statt neuer Fahrmischer.',
+    krane: 'Ihr Kran läuft – oder Sie zahlen nicht.',
+    fahrzeugbau: 'Neue Trommel statt neuer Fahrmischer.',
     sonderloesungen: 'Was es nicht zu kaufen gibt, bauen wir.',
   } as Record<string, string>,
 
   summary:
-    '{{brand.full}} baut, wartet und repariert Krane und Fahrmischer aller Marken: Kranservice für Industrie, Häfen und Landwirtschaft – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran, oder Sie zahlen nicht –, neue Industriekrane, Heukrananlagen und Bootslifte, Trommeltausch und Revision für Fahrmischer sowie Sonderlösungen im Stahlbau. Vor jeder Arbeit gibt es einen Fixpreis, und mit der INEXXIO Zufriedenheitsgarantie zahlen Sie nur die Hälfte, wenn Sie nicht zufrieden sind. Die Werkstatt steht in Tuttwil-Wängi TG.',
+    '{{brand.full}} baut, wartet und repariert Krane und Fahrmischer aller Marken: Kranservice für Industrie, Häfen und Landwirtschaft – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran, oder Sie zahlen nicht –, neue Krananlagen, Heukrananlagen und Bootslifte, Trommeltausch und Revision für Fahrmischer sowie Sonderkrane, Sonderaufbauten und Stahlbau. Vor jeder Arbeit gibt es einen Fixpreis, und mit der INEXXIO Zufriedenheitsgarantie zahlen Sie nur die Hälfte, wenn Sie nicht zufrieden sind. Die Werkstatt steht in Tuttwil-Wängi TG.',
 
   /** Für wen INEXXIO 365 gemacht ist – links die Aussage, rechts die vier Branchen. */
   industries: {
     eyebrow: 'Für wen wir arbeiten',
     title: 'Für alle, deren Kran laufen muss.',
     text: 'Steht der Kran, steht der ganze Betrieb. Darum gilt bei INEXXIO 365: Jeder Tag Stillstand ist gratis – Prüfung, Wartung und Ersatzteile sind inklusive.',
-    link: { href: '/krantechnik/kranservice#inexxio-365', label: 'Zu INEXXIO 365' },
+    link: { href: '/krane/kranservice#inexxio-365', label: 'Zu INEXXIO 365' },
   },
 
   areas: {

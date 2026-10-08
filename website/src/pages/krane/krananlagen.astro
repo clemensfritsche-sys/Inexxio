@@ -1,18 +1,18 @@
 ---
 /**
- * /krantechnik/industriekrane (Auftrag 7.5): Neuanlagen und Service für bestehende Krane,
- * der Hinweis auf INEXXIO 365 mit den Branchen, Notfall-Service, Hinweis «Foto vom
- * Typenschild oder Schaden mitschicken».
+ * /krane/krananlagen: Industrie- und Hafenkrane auf EINER Seite (Testnotizen #1200/#1201) –
+ * Neuanlagen und Service, der Hinweis auf INEXXIO 365 mit den Branchen, Service und Notfall
+ * mit dem Foto-Hinweis, und das Hafenjahr (wann wir am Hafen was tun).
  */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
 import Photo from '../../components/Photo.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
-import { industriekrane, industrieModules as m } from '../../content/krantechnik';
+import { krananlagen, krananlagenModules as m, harbourYear as y } from '../../content/krane';
 import { site } from '../../config/site.mjs';
 ---
-<SubPage page={industriekrane}>
+<SubPage page={krananlagen}>
   <section slot="intro" class="section section--dark" aria-labelledby="x365">
     <div class="wrap grid ik365">
       <div class="col-7">
@@ -46,6 +46,20 @@ import { site } from '../../config/site.mjs';
       </div>
     </div>
   </section>
+  <section slot="module" class="section section--paper" id="hafen" aria-labelledby="hafenjahr">
+    <div class="wrap">
+      <SectionHead eyebrow="Häfen und Werften" title={y.title} lead={y.lead} id="hafenjahr" />
+      <ol role="list" class="hy">
+        {y.seasons.map((s) => (
+          <li class="hy__item">
+            <p class="label">{s.when}</p>
+            <h3>{s.title}</h3>
+            <Rich as="p" text={s.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
 </SubPage>
 
 <style>
@@ -59,4 +73,8 @@ import { site } from '../../config/site.mjs';
   .ik__hintbox { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); padding-top: var(--s-4); border-top: 1px solid var(--ink); }
   .ik__hintbox h3 { font-size: 1.125rem; margin-bottom: 4px; }
   .ik__hintbox :global(.icon) { color: var(--red); margin-top: 2px; }
+  .hy { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .hy { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hy__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
+  .hy__item h3 { font-size: 1.25rem; }
 </style>

@@ -23,11 +23,9 @@ import credits from './photo-credits.json' with { type: 'json' };
 const ALT = {
   'pruefung-hallenkran': 'Gelbe Brückenkrane in einer Produktionshalle, ein Mitarbeiter mit Steuergerät',
   'reparatur-vor-ort': 'Roter Brückenkran in einer hellen Werkhalle',
-  'anschlagmittel': 'Bediener steuert einen Hallenkran mit dem Steuergerät',
   'heukran-einsatz': 'Heukran in einer Scheune (Rougemont VD)',
   'typenschild-hs': 'Typenschild an einer Maschine',
   'fahrmischer-werkstatt': 'Fahrmischer in einer Halle',
-  'verschleissteile-detail': 'Beton fliesst über die Rinne eines Fahrmischers',
   'teil-auslaufrinne': 'Heck eines Fahrmischers mit Auslaufrinne auf einer Baustelle',
   'teil-verlaengerungsrinne': 'Fahrmischer auf einer Baustelle',
   'teil-einfuelltrichter': 'Betonwerk mit Fahrmischern (Unterengstringen ZH)',

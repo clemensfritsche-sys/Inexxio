@@ -16,10 +16,10 @@ sources:
   - label: 'SECO: Maschinen'
     href: 'https://www.seco.admin.ch/de/maschinen'
 related:
-  - href: '/krantechnik/heukrananlagen'
+  - href: '/krane/heukrananlagen'
     label: 'Heukrananlagen nach Mass'
     text: 'Neuanlagen, Umbau und Service.'
-  - href: '/krantechnik/kranservice'
+  - href: '/krane/kranservice'
     label: 'Kranservice'
     text: 'Der erste Service ist gratis.'
   - href: '/ratgeber/kranpruefung-schweiz'

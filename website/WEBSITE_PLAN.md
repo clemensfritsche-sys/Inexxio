@@ -760,6 +760,30 @@ Fahrzeugtechnik (Trommeltausch, Fahrmischer) die Cash-Quelle und tritt nicht zur
      muss.» mit Satz und Knopf zu INEXXIO 365, rechts die vier Branchen, je mit einem
      isometrischen Bild im Stil der Heukran-Bauformen (grau der Bestand, rot die Last am
      Haken; `src/assets/illustrations/branche-*.svg`, inline, kein Request).
+111. **«Krane» und «Fahrzeugbau» statt «Krantechnik» und «Fahrzeugtechnik»** (#1202) – Name,
+     Pfad und ID gleich (`/krane`, `/fahrzeugbau`). «Technik» meint ein Fachgebiet; die
+     Besucher suchen die Sache, und «Fahrzeugbau» schliesst den Bau mit ein. Keine
+     Weiterleitungen von den alten Pfaden (ausdrücklich keine Rückwärtskompatibilität); die
+     alten hs-steiner.ch-Pfade zeigen auf die neuen Seiten.
+112. **Krananlagen statt Industriekrane + Häfen & Werften** (#1200/#1201): Industrie- und
+     Hafenkrane sind Typen derselben Leistung – eine Seite, das Hafenjahr als Modul.
+     Heukrananlagen bleiben eigen (eigener Markt).
+113. **Anschlagmittel ist ersatzlos weg** (#1199) – Seite, Inhalt, Foto, Stichwort, Verweise.
+114. **Fahrzeugbau hat zwei Punkte** (#1205): Fahrmischer (Trommeltausch, Revision und die
+     Verschleissteile samt Katalog, `#katalog`) und Sonderlösungen (`#fahrzeugbau`). Die
+     Seiten «Aufbauten» und «Verschleiss- & Ersatzteile» sind aufgelöst.
+115. **Sonderlösungen steht in den Untermenüs von Krane und Fahrzeugbau** (#1204) – als
+     Verweis auf dieselbe Seite, an den passenden Abschnitt (`#krane`, `#fahrzeugbau`). Die
+     Seite ist nach diesen drei Feldern gegliedert (#1206: Krane · Fahrzeugbau · Stahlbau).
+     Aktiv ist ein Menüpunkt nur auf seinen eigenen Seiten.
+116. **Kopf und Fuss lesen EINE Liste** (`site.navigation`, #1209); `check-site` vergleicht
+     zusätzlich am gebauten HTML Punkte und Reihenfolge. Der Fuss richtet oben aus (#1208),
+     das Bild im Untermenü wird nicht höher als die Liste (#1207).
+117. **Versprechen: «Wir stehen für unsere Arbeit ein.»** (#1210) – positiv, und der Satz
+     sagt, warum wir das Risiko tragen.
+118. **Aufgeräumt**: die REMOVED-Liste der Prüfung (tote Links meldet die Linkprüfung
+     ohnehin), drei unbenutzte Fotos samt Nachweis, die Navigations-Prüfungen je
+     Content-Datei (jetzt EINE in `src/lib/pages.ts`).
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 

@@ -70,7 +70,7 @@ def mailbox(monkeypatch):
 
 def short(**extra) -> dict:
     data = {
-        "source": "/krantechnik/industriekrane", "t": "8000",
+        "source": "/krane/krananlagen", "t": "8000",
         "message": "Hubwerk bleibt stehen.", "name": "Anna Muster",
         "phone": "052 000 00 00", "email": "anna@muster.ch",
     }

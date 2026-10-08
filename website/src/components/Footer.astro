@@ -1,15 +1,14 @@
 ---
 /**
- * Fuss (Auftrag Kap. 7.2), dunkel, sechs Spalten:
+ * Fuss (Auftrag Kap. 7.2), dunkel:
  *  1. Logo und der Satz, der das Unternehmen eindeutig beschreibt
- *  2.–4. je ein Bereich mit seinen Unterseiten (aus site.areas)
- *  5. Unternehmen: Übergabe, Über uns, Ratgeber, Karriere, Service – eine eigene Spalte wie
- *     die Bereiche (Rückmeldung 04.10.2026: unter dem Satz wirkte die Liste wie angehängt)
- *  6. Kontakt: Anschrift, Telefon, E-Mail – zur Laufzeit aus dem ERP (scripts/contact.ts)
+ *  2. je Menüpunkt des Kopfs eine Spalte – aus DERSELBEN Liste (site.navigation, Testnotiz
+ *     #1209): Titel = Menüpunkt, darunter seine Unterpunkte; ohne Unterpunkte sein Satz
+ *  3. Kontakt: Anschrift, Telefon, E-Mail – zur Laufzeit aus dem ERP (scripts/contact.ts)
  * Unterste Zeile: © Jahr · Impressum · Datenschutz · AGB. Die UID steht im Impressum (#1103).
  * Derselbe Fuss trägt das Konto/ERP (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
  */
-import { site, contactEmail, isMissing } from '../config/site.mjs';
+import { site, navigation, contactEmail, isMissing } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
@@ -17,11 +16,6 @@ import { photos } from '../config/photos.mjs';
 import { samples } from '../config/photo-samples.mjs';
 
 const year = new Date().getFullYear();
-const company = [
-  { label: site.about.label, href: site.about.href },
-  ...site.about.children,
-  { label: site.service.overview, href: site.service.href },
-];
 const a = site.address;
 /** Solange Beispielbilder stehen, führt der Fuss zu ihrem Nachweis (CC BY/BY-SA). */
 const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].file);
@@ -34,23 +28,16 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         <p class="site-footer__claim" set:html={rich(site.footer.claim)} />
       </div>
 
-      {site.areas.map((area) => (
-        <nav class="site-footer__col" aria-label={area.label}>
-          <h2 class="site-footer__title"><a href={area.href}>{area.label}</a></h2>
-          {area.children.length ? (
+      {navigation.map((g) => (
+        <nav class="site-footer__col" aria-label={g.label}>
+          <h2 class="site-footer__title"><a href={g.href}>{g.label}</a></h2>
+          {g.children.length ? (
             <ul role="list">
-              {area.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+              {g.children.map((c) => <li><a href={c.href}>{plain(c.label)}</a></li>)}
             </ul>
-          ) : <p class="site-footer__text">{area.text}</p>}
+          ) : <p class="site-footer__text">{g.text}</p>}
         </nav>
       ))}
-
-      <nav class="site-footer__col" aria-label="Unternehmen">
-        <h2 class="site-footer__title">Unternehmen</h2>
-        <ul role="list">
-          {company.map((c) => <li><a href={c.href}>{plain(c.label)}</a></li>)}
-        </ul>
-      </nav>
 
       <div class="site-footer__col">
         <h2 class="site-footer__title"><a href="/kontakt">Kontakt</a></h2>
@@ -97,7 +84,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
   }
   @media (min-width: 720px) { .site-footer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (min-width: 960px) { .site-footer__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (min-width: 1200px) { .site-footer__grid { grid-template-columns: 1.3fr repeat(4, minmax(0, 1fr)) 1.3fr; } }
+  @media (min-width: 1200px) { .site-footer__grid { grid-template-columns: 1.3fr repeat(5, minmax(0, 1fr)) 1.3fr; } }
   .site-footer__home { display: inline-flex; min-height: 44px; align-items: center; }
   .site-footer__claim { margin-top: var(--s-4); max-width: 36ch; color: rgba(244, 243, 241, 0.72); line-height: 1.55; }
   /* Jeder Spaltentitel hat dieselbe 44-px-Zeile – ob verlinkt oder nicht. */
@@ -108,8 +95,10 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
   }
   .site-footer__title a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
   .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 0; }
-  .site-footer__text { font-size: 0.875rem; line-height: 1.5; color: rgba(244, 243, 241, 0.65); }
-  .site-footer__col li a { display: inline-flex; align-items: center; min-height: 44px; }
+  .site-footer__text { font-size: 0.875rem; line-height: 1.5; color: rgba(244, 243, 241, 0.65); padding-top: 11px; }
+  /* Oben ausgerichtet (#1208): ein zweizeiliger Punkt beginnt auf derselben Höhe wie ein
+     einzeiliger daneben. Die Trefferfläche bleibt 44 px hoch. */
+  .site-footer__col li a { display: flex; align-items: flex-start; min-height: 44px; padding-block: 11px 8px; line-height: 1.4; }
   .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }
   .site-footer__contact p { display: grid; grid-template-columns: 22px 1fr; gap: 8px; max-width: none; line-height: 1.5; }
   .site-footer__k { color: var(--red-bright); padding-top: 3px; }

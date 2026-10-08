@@ -41,34 +41,34 @@ const FORBIDDEN_WORDS = [/\babos?\b/i];
  * gibt die Seite unter demselben Pfad (/kontakt).
  */
 const OLD_URLS = {
-  '/heuentnahmekran': '/krantechnik/heukrananlagen',
-  '/heuentnahmekran/Einschienen-Kran': '/krantechnik/heukrananlagen',
-  '/heuentnahmekran/drehkran-hydraulisch': '/krantechnik/heukrananlagen',
-  '/heuentnahmekran/bruecken-kran': '/krantechnik/heukrananlagen',
-  '/heuentnahmekran/bilder-gallerie': '/krantechnik/heukrananlagen',
-  '/heuentnahmekran/pdf-prospekte': '/krantechnik/heukrananlagen',
-  '/heuentnahmekran/Kran-dem-Gebäude-Angepasst': '/krantechnik/industriekrane',
-  '/heuentnahmekran/Kran-dem-Geb%C3%A4ude-Angepasst': '/krantechnik/industriekrane',
-  '/heuentnahmekran/matagematerial': '/krantechnik/kranservice',
-  '/betonfordertechnik': '/fahrzeugtechnik/fahrmischer',
-  '/betonfordertechnik/Betonfahrmischer': '/fahrzeugtechnik/fahrmischer',
-  '/betonfordertechnik/fahrmischerpumpen': '/fahrzeugtechnik/fahrmischer',
-  '/betonfordertechnik/service-und-reparaturen': '/fahrzeugtechnik/fahrmischer',
-  '/betonfordertechnik/bilder': '/fahrzeugtechnik/fahrmischer',
-  '/betonfordertechnik/Euro-Kpper': '/fahrzeugtechnik/aufbauten-reparatur',
-  '/betonfordertechnik/verschleissteile': '/fahrzeugtechnik/verschleiss-ersatzteile',
-  '/antrieb-und-steuerung': '/krantechnik/kranservice',
-  '/antrieb-und-steuerung/elektrosteuerung': '/krantechnik/kranservice',
+  '/heuentnahmekran': '/krane/heukrananlagen',
+  '/heuentnahmekran/Einschienen-Kran': '/krane/heukrananlagen',
+  '/heuentnahmekran/drehkran-hydraulisch': '/krane/heukrananlagen',
+  '/heuentnahmekran/bruecken-kran': '/krane/heukrananlagen',
+  '/heuentnahmekran/bilder-gallerie': '/krane/heukrananlagen',
+  '/heuentnahmekran/pdf-prospekte': '/krane/heukrananlagen',
+  '/heuentnahmekran/Kran-dem-Gebäude-Angepasst': '/krane/krananlagen',
+  '/heuentnahmekran/Kran-dem-Geb%C3%A4ude-Angepasst': '/krane/krananlagen',
+  '/heuentnahmekran/matagematerial': '/krane/kranservice',
+  '/betonfordertechnik': '/fahrzeugbau/fahrmischer',
+  '/betonfordertechnik/Betonfahrmischer': '/fahrzeugbau/fahrmischer',
+  '/betonfordertechnik/fahrmischerpumpen': '/fahrzeugbau/fahrmischer',
+  '/betonfordertechnik/service-und-reparaturen': '/fahrzeugbau/fahrmischer',
+  '/betonfordertechnik/bilder': '/fahrzeugbau/fahrmischer',
+  '/betonfordertechnik/Euro-Kpper': '/sonderloesungen#fahrzeugbau',
+  '/betonfordertechnik/verschleissteile': '/fahrzeugbau/fahrmischer#katalog',
+  '/antrieb-und-steuerung': '/krane/kranservice',
+  '/antrieb-und-steuerung/elektrosteuerung': '/krane/kranservice',
   '/baumaschinen': '/sonderloesungen',
   '/baumaschinen/reparaturen': '/sonderloesungen',
   '/wahrschaftes': '/sonderloesungen',
   '/wahrschaftes/stahlbau': '/sonderloesungen',
   '/wahrschaftes/Gelaender-und-Verglasung': '/ueber-uns',
-  '/sachtransporter-anhanger/Reparaturen': '/fahrzeugtechnik/aufbauten-reparatur',
+  '/sachtransporter-anhanger/Reparaturen': '/sonderloesungen#fahrzeugbau',
   '/sachtransporter-anhanger': '/ueber-uns',
   '/sachtransporter-anhanger/aufbau': '/ueber-uns',
-  '/forst-und-landwirtschaft': '/krantechnik/heukrananlagen',
-  '/forst-und-landwirtschaft/heukrane': '/krantechnik/heukrananlagen',
+  '/forst-und-landwirtschaft': '/krane/heukrananlagen',
+  '/forst-und-landwirtschaft/heukrane': '/krane/heukrananlagen',
   '/haus-und-garten': '/ueber-uns',
   '/haus-und-garten/rasenmaeher': '/ueber-uns',
   '/kleintransporter-pw': '/ueber-uns',
@@ -77,19 +77,9 @@ const OLD_URLS = {
   '/Camping': '/ueber-uns',
   '/unsere-einsatzorte': '/ueber-uns',
   '/unsere-einsatzorte/ch-schweiz': '/ueber-uns',
-  '/application/files/7615/1234/prospekt.pdf': '/krantechnik/heukrananlagen',
+  '/application/files/7615/1234/prospekt.pdf': '/krane/heukrananlagen',
   '/kontakt': '/kontakt',
 };
-/** Seiten, die es nicht mehr gibt (zusammengelegt) – nirgends ein Link, keine Datei. */
-const REMOVED = [
-  '/krane', '/krane/pruefung-wartung', '/krane/reparatur', '/krane/modernisierung', '/krane/hs-krananlagen',
-  '/fahrmischer', '/fahrmischer/service-reparatur', '/fahrmischer/verschleissteile', '/service-abo',
-  '/einsatzgebiet', '/ratgeber/kranfachmann-kranexperte', '/ratgeber/heukran-saison-check',
-  '/krantechnik/pruefung-wartung', '/krantechnik/service-vertrag', '/fahrzeugtechnik/trommeltausch',
-  '/sonderloesungen/konstruktion-engineering', '/sonderloesungen/schweiss-stahlbau', '/sonderloesungen/baumaschinen',
-  '/service/notfall', '/uebergabe', '/krantechnik/modernisierung',
-];
-
 const errors = [];
 const warnings = [];
 const fail = (where, msg) => errors.push(`${where}: ${msg}`);
@@ -376,6 +366,25 @@ function checkMenu(listed) {
   for (const path of listed) if (!exempt(path) && !inMenu.has(path)) fail(path, 'nicht über das Menü im Kopf erreichbar');
 }
 
+/**
+ * ►►► Der Fuss nennt genau die Punkte des Kopfs – in derselben Reihenfolge (Testnotiz #1209). ◄◄◄
+ * Beide lesen `site.navigation`; diese Prüfung hält es am gebauten HTML fest, damit niemand
+ * den Fuss wieder von Hand erweitert. Kontakt (eigene Spalte bzw. eigener Punkt) und ERP
+ * (nur für Personal) gehören nicht zur Liste.
+ */
+function checkFooterMatchesHeader() {
+  const home = pages.find((p) => p.path === '/');
+  const order = (html) => [...new Set([...html.matchAll(/href="([^"]+)"/g)].map((m) => decode(m[1])))]
+    .filter((h) => h.startsWith('/') && h !== '/kontakt' && !h.startsWith('/erp'));
+  const nav = home?.html.match(/<nav class="nav[ "][\s\S]*?<\/nav>/)?.[0] ?? '';
+  const grid = home?.html.match(/<div class="site-footer__grid[ "][\s\S]*?<\/address>/)?.[0] ?? '';
+  const foot = [...grid.matchAll(/<nav class="site-footer__col[ "][\s\S]*?<\/nav>/g)].map((m) => m[0]).join('');
+  const a = order(nav).join(' ');
+  const b = order(foot).join(' ');
+  if (!a) fail('/', 'Hauptnavigation im Kopf nicht gefunden');
+  else if (a !== b) fail('/', `Fuss und Kopf nennen andere Punkte:\n    Kopf: ${a}\n    Fuss: ${b}`);
+}
+
 function checkRobots() {
   const txt = read('robots.txt');
   if (!LIVE) {
@@ -434,9 +443,6 @@ function checkRedirects(listed) {
     const first = rules.find(({ re }) => re?.test(old));
     if (!first) fail('firebase.json', `alter Pfad «${old}» ohne Weiterleitung`);
     else if (first.r.destination !== expected) fail('firebase.json', `alter Pfad «${old}» führt auf «${first.r.destination}» statt «${expected}»`);
-  }
-  for (const gone of REMOVED) {
-    if (byPath.has(gone)) fail(gone, 'Seite der ersten Fassung gibt es noch – sie ist entfallen');
   }
   return rules.length;
 }
@@ -514,6 +520,7 @@ function checkMailTexts() {
 /** Was im Modus «live» indexiert wird = was in der Sitemap steht (im Modus preview ist alles noindex). */
 const INDEXED = checkSitemap();
 checkMenu(INDEXED);
+checkFooterMatchesHeader();
 const titles = new Map();
 for (const p of pages) {
   const title = checkHead(p);

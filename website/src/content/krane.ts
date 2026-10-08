@@ -1,11 +1,10 @@
 /**
- * Krantechnik – Bereichsseite und sechs Unterseiten (WEBSITE_PLAN §7.7a–§7.7d).
- * Zuerst der Kranservice (drei Stufen bis INEXXIO 365 – EINE Seite), dann die Fokusmärkte
- * (Industrie, Häfen & Werften, Landwirtschaft), dann die Anschlagmittel.
- * Welche Versprechen wo gelten, steht je Seite in `promises` (content/promises.ts). «HS» ist kein Produktname mehr; Besitzer bestehender HS-Anlagen finden den
- * Hinweis im Text, in den FAQ und auf der Übergabe-Seite.
+ * Krane – Bereichsseite und drei Unterseiten: Kranservice (drei Stufen bis INEXXIO 365),
+ * Krananlagen (Industrie, Häfen und Werften – Testnotizen #1200/#1201) und Heukrananlagen.
+ * Welche Versprechen wo gelten, steht je Seite in `promises` (content/promises.ts). «HS» ist
+ * kein Produktname mehr; Besitzer bestehender HS-Anlagen finden den Hinweis im Text, in den
+ * FAQ und auf der Übergabe-Seite.
  */
-import { site } from '../config/site.mjs';
 import { inquiry } from '../config/inquiry.mjs';
 import { sharedFaq } from './uebergabe';
 import { industries, promiseFaq } from './promises';
@@ -21,14 +20,14 @@ const ratgeberPruefung = { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranp
 const ratgeberHeukran = { href: '/ratgeber/heukrananlage-planen', label: 'Neue Heukrananlage planen', text: 'Bauformen, Platzbedarf, Ablauf.', kind: 'ratgeber' as const };
 
 /* ------------------------------------------------------------------ Bereich */
-export const krantechnik: AreaPage = {
-  id: 'krantechnik',
-  path: '/krantechnik',
-  title: 'Krananlagen und Kranservice',
+export const krane: AreaPage = {
+  id: 'krane',
+  path: '/krane',
+  title: 'Krane: Service und Anlagen',
   description:
-    'Kranservice mit Gratis-Erstservice und INEXXIO 365, neue Industriekrane, Heukrananlagen und Bootslifte mit Zufriedenheitsgarantie. Aus Tuttwil-Wängi TG.',
+    'Kranservice mit Gratis-Erstservice und INEXXIO 365, neue Krananlagen, Heukrananlagen und Bootslifte mit Zufriedenheitsgarantie. Aus Tuttwil-Wängi TG.',
   hero: {
-    eyebrow: 'Krantechnik',
+    eyebrow: 'Krane',
     h1: 'Krane bauen, betreuen und am Laufen ==halten==',
     lead:
       'Wir prüfen, warten und reparieren Krane aller Marken – der erste Service ist gratis. Mit INEXXIO 365 läuft Ihr Kran, oder Sie zahlen nicht. Und wir bauen neue Anlagen: Krane entstehen bei uns seit {{history.cranesSince}}.',
@@ -53,79 +52,11 @@ export const krantechnik: AreaPage = {
     faqOtherMakes,
     faqSpeed,
   ],
-  service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung und Reparatur von Krananlagen' },
+  service: { name: 'Krane', serviceType: 'Bau, Prüfung, Wartung und Reparatur von Krananlagen' },
   keywords: ['Kranservice Schweiz', 'Krananlagen', 'Kranbau Thurgau', 'Kranprüfung'],
 };
 
-/* ------------------------------------------------------------------ Häfen & Werften */
-export const haefen: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/haefen-werften',
-  crumb: 'Häfen & Werften',
-  title: 'Bootskrane und Bootslifte',
-  description:
-    'Bootslifte, Boots- und Mastkrane – neu und mit Service – für Häfen, Clubs und Werften am Bodensee und an den Schweizer Seen. Erster Service gratis.',
-  hero: {
-    eyebrow: 'Krantechnik · Häfen & Werften',
-    h1: 'Bootslifte, Boots- und Mastkrane – neu und mit ==Service==',
-    lead:
-      'Im Frühling müssen die Boote ins Wasser, im Herbst wieder heraus – dann muss alles laufen. Wir bauen Bootslifte und Krane und betreuen sie für Hafenmeister, Clubs und Werften am Bodensee und an den Schweizer Seen.',
-    photo: 'hafen-bootskran',
-    primary: anfrage('Anlage anfragen'),
-  },
-  summary:
-    '{{brand.full}} baut neue Bootslifte und Krane und prüft, wartet und repariert Bootslifte, Bootskrane und Mastkrane für Häfen, Segel- und Bootsclubs, Gemeinden und Werften – am Bodensee, an den Schweizer Seen und darüber hinaus. Der erste Kranservice ist gratis; mit INEXXIO 365 läuft der Clubkran zur fixen Monatsrate, oder Sie zahlen nicht. Krane bauen und betreuen wir seit {{history.cranesSince}}.',
-  glance: {
-    forWhom: 'Hafenmeister, Segel- und Bootsclubs, Gemeinden mit eigenem Hafen, Werften und Bootsbauer – am Bodensee und an den Schweizer Seen.',
-    what: 'Neue Bootslifte und Krane nach Mass. Prüfung, Wartung und Reparatur von Bootsliften, Boots- und Mastkranen.',
-    deliverables: 'Eine Anlage, die zur Saison läuft, ein nachgeführtes Kranbuch und einen Ansprechpartner, der sie kennt.',
-  },
-  promises: ['erstservice', 'garantie', 'inexxio365'],
-  scope: {
-    title: 'Was wir am Hafen bauen und betreuen',
-    lead: 'Wasser, Wetter und lange Pausen setzen Seil, Stahlbau und Elektrik zu.',
-    items: [
-      { title: 'Neue Bootslifte', text: 'Nach Mass gebaut – passend zu Steg, Boot und Platz am Ufer.' },
-      { title: 'Service für Bootslifte', text: 'Prüfung, Wartung und Reparatur, damit der Lift das Boot sicher hebt und hält.' },
-      { title: 'Bootskrane', text: 'Säulen- und Schwenkkrane am Steg oder auf dem Hafenplatz – neu oder bestehend.' },
-      { title: 'Mastkrane', text: 'Zum Stellen und Legen der Masten – sicher auch für Mitglieder, die selten kranen.' },
-      { title: 'Prüfung vor der Saison', text: 'Tragwerk, Seil oder Kette, Haken, Bremse, Endschalter, Not-Halt – und Rost an Stahlbau und Elektrik. Bevor der Ansturm kommt.' },
-      { title: 'Modernisierung', text: 'Funkfernsteuerung, Überlastsicherung und eine Bedienung, die auch Gelegenheitsnutzer sicher führt.' },
-    ],
-  },
-  faq: [
-    {
-      q: 'Bauen Sie auch neue Bootslifte?',
-      a: 'Ja – nach Mass, passend zu Steg und Boot. Und sind Sie nicht zufrieden, zahlen Sie nur die Hälfte.',
-    },
-    {
-      q: 'Gibt es INEXXIO 365 auch für den Clubkran?',
-      a: 'Ja. Eine fixe Monatsrate mit Prüfung, Wartung, Ersatzteilen und Reparaturen – planbar im Budget von Club oder Gemeinde. Steht der Kran still, ist jeder Tag gratis.',
-    },
-    {
-      q: 'Wann ist der beste Zeitpunkt für die Prüfung?',
-      a: 'Vor dem Einwassern im Frühling. Dann bleibt Zeit für Reparaturen, bevor alle Boote auf einmal ins Wasser wollen.',
-    },
-    {
-      q: 'Unser Kran wird von vielen Mitgliedern bedient. Worauf achten Sie?',
-      a: 'Auf eine klare Bedienung, sichere Endschalter und eine Überlastsicherung – und auf eine Einweisung, die der Club an seine Mitglieder weitergeben kann.',
-    },
-    faqOtherMakes,
-    {
-      q: 'Arbeiten Sie auch an Seen ausserhalb der Ostschweiz?',
-      a: 'Ja. Im Einsatz sind wir {{area.summary}}.',
-    },
-  ],
-  related: [
-    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Erster Service gratis, INEXXIO 365.' },
-    { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
-    ratgeberPruefung,
-  ],
-  service: { name: 'Bootslifte, Boots- und Mastkrane', serviceType: 'Bau, Prüfung, Wartung und Reparatur von Bootsliften, Bootskranen und Mastkranen' },
-  keywords: ['Bootslift', 'Bootslift kaufen', 'Bootskran', 'Mastkran', 'Hafenkran Service', 'Bootskran Bodensee'],
-};
-
-/** Das Hafenjahr – wann wir was tun (Modul der Häfen-Seite). */
+/** Das Hafenjahr – wann wir was tun (Modul der Krananlagen-Seite). */
 export const harbourYear = {
   title: 'Das Hafenjahr',
   lead: 'Ein Bootskran arbeitet in Wellen. Wir richten den Service danach aus.',
@@ -138,14 +69,14 @@ export const harbourYear = {
 
 /* ------------------------------------------------------------------ Heukrananlagen */
 export const heukrananlagen: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/heukrananlagen',
+  area: 'krane',
+  path: '/krane/heukrananlagen',
   crumb: 'Heukrananlagen',
   title: 'Heukrananlagen nach Mass',
   description:
     'Heukran kaufen oder umbauen: Heukrananlagen nach Mass für Heu, Silage, Hackschnitzel, Kompost und Biogas – dazu Service und Saison-Check. Anfragen.',
   hero: {
-    eyebrow: 'Krantechnik · Heukrananlagen',
+    eyebrow: 'Krane · Heukrananlagen',
     h1: 'Heukrananlagen nach Mass – neu, umgebaut, betreut',
     lead:
       'Seit {{history.cranesSince}} bauen wir in Tuttwil Heukrane für Betriebe in der Schweiz und im Ausland. Wir planen Ihre Anlage passend zum Gebäude, bauen bestehende um und halten sie mit Service am Laufen.',
@@ -194,8 +125,8 @@ export const heukrananlagen: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
-    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Der erste Service ist gratis.' },
+    { href: '/krane/kranservice', label: 'Kranservice', text: 'Der erste Service ist gratis.' },
+    { href: '/krane/krananlagen', label: 'Krananlagen', text: 'Industrie-, Hafen- und Bootskrane nach Mass.' },
     ratgeberHeukran,
   ],
   service: { name: 'Heukrananlagen', serviceType: 'Bau, Umbau und Service von Heukrananlagen' },
@@ -235,40 +166,45 @@ export const heukranModules = {
   },
 };
 
-/* ------------------------------------------------------------------ Industriekrane */
-export const industriekrane: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/industriekrane',
-  crumb: 'Industriekrane',
-  title: 'Industriekrane nach Mass',
+/* ------------------------------------------------------------------ Krananlagen */
+/**
+ * Krananlagen (Testnotizen #1200/#1201): Industrie- und Hafenkrane sind Typen DERSELBEN
+ * Leistung – neue Anlagen nach Mass und Service für bestehende. Heukrananlagen haben ihre
+ * eigene Seite, weil sie einen eigenen Markt haben.
+ */
+export const krananlagen: SubPage = {
+  area: 'krane',
+  path: '/krane/krananlagen',
+  crumb: 'Krananlagen',
+  title: 'Krananlagen nach Mass',
   description:
-    'Brücken-, Hänge- und Schwenkkrane: erster Service gratis, INEXXIO 365 zur Monatsrate, neue Krane mit Zufriedenheitsgarantie. Für Industrie und Gewerbe.',
+    'Brücken-, Hänge- und Schwenkkrane, Boots- und Mastkrane, Bootslifte: neu nach Mass und mit Service. Erster Service gratis, INEXXIO 365 zur Monatsrate.',
   hero: {
-    eyebrow: 'Krantechnik · Industriekrane',
-    h1: 'Industriekrane, die Ihren Betrieb ==laufen== lassen',
+    eyebrow: 'Krane · Krananlagen',
+    h1: 'Krananlagen, die Ihren Betrieb ==laufen== lassen',
     lead:
-      'Brücken-, Hänge- und Schwenkkrane in Industrie und Gewerbe. Wir prüfen, warten und reparieren – der erste Service ist gratis. Und wo ein neuer Kran die bessere Lösung ist, bauen wir ihn nach Mass.',
+      'Brücken-, Hänge- und Schwenkkrane in Industrie und Gewerbe, Boots- und Mastkrane und Bootslifte am Hafen. Wir bauen neue Anlagen nach Mass und prüfen, warten und reparieren bestehende – der erste Service ist gratis.',
     photo: 'reparatur-vor-ort',
     primary: anfrage('Kran anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Brücken-, Hänge- und Schwenkkrane aller Marken in Industrie und Gewerbe – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran zur fixen Monatsrate, oder Sie zahlen nicht. Neue Industriekrane bauen wir nach Mass. Steht ein Kran still, rufen Sie direkt an.',
+    '{{brand.full}} baut Krananlagen nach Mass und prüft, wartet und repariert Krane aller Marken: Brücken-, Hänge-, Schwenk- und Drehkrane in Industrie und Gewerbe, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften. Der erste Service ist gratis, mit INEXXIO 365 läuft der Kran zur fixen Monatsrate, oder Sie zahlen nicht. Steht ein Kran still, rufen Sie direkt an.',
   glance: {
-    forWhom: 'Betriebs- und Instandhaltungsleiter in Industrie und Gewerbe: Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Werkhöfe.',
-    what: 'Prüfung, Wartung, Fehlersuche und Reparatur – auf Abruf, im Service-Vertrag oder mit INEXXIO 365. Neue Krane nach Mass.',
+    forWhom: 'Industrie und Gewerbe – Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Werkhöfe – sowie Häfen, Clubs und Werften.',
+    what: 'Neue Krananlagen nach Mass. Prüfung, Wartung, Fehlersuche und Reparatur – auf Abruf, im Service-Vertrag oder mit INEXXIO 365.',
     deliverables: 'Einen Kran, der läuft, ein nachgeführtes Kranbuch und einen Rapport mit Ursache, Arbeiten und Teilen.',
   },
-  promises: ['erstservice', 'garantie'],
+  promises: ['erstservice', 'garantie', 'inexxio365'],
   scope: {
     title: 'Welche Krane wir bauen und betreuen',
-    lead: 'Neue Anlagen nach Mass – und Service für bestehende.',
+    lead: 'Neue Anlagen nach Mass – und Service für bestehende, auch von anderen Herstellern.',
     items: [
       { title: 'Brückenkrane', text: 'Ein- und Zweiträger-Brückenkrane in Produktions- und Lagerhallen.' },
       { title: 'Hängekrane', text: 'Unter der Hallendecke aufgehängt – für Hallen ohne Kranbahnstützen.' },
-      { title: 'Schwenkkrane', text: 'Säulen- und Wandschwenkkrane direkt am Arbeitsplatz.' },
-      { title: 'Drehkrane', text: 'Elektrisch oder hydraulisch, im Werkhof und auf dem Betriebsgelände.' },
-      { title: 'Hubwerk, Fahrwerke, Elektrik', text: 'Seil- und Kettenzüge, Bremsen, Getriebe, Antriebe, Schaltschrank und Steuerung.' },
-      { title: 'Tragwerk und Kranbahn', text: 'Schäden am Stahlbau und an der Kranbahn begutachten und instand stellen.' },
+      { title: 'Schwenk- und Drehkrane', text: 'Säulen- und Wandschwenkkrane am Arbeitsplatz, Drehkrane im Werkhof.' },
+      { title: 'Boots- und Mastkrane', text: 'Am Steg oder auf dem Hafenplatz – sicher auch für Mitglieder, die selten kranen.' },
+      { title: 'Bootslifte', text: 'Nach Mass gebaut – passend zu Steg, Boot und Platz am Ufer.' },
+      { title: 'Hubwerk, Elektrik, Tragwerk', text: 'Seil- und Kettenzüge, Bremsen, Antriebe, Steuerung, Stahlbau und Kranbahn.' },
     ],
   },
   faq: [
@@ -279,26 +215,30 @@ export const industriekrane: SubPage = {
       a: 'Den Kran ausser Betrieb nehmen und sichern, die Last – wenn möglich – sicher absetzen und uns anrufen: {{phone.link}}. Nicht unter Last weiterarbeiten.',
     },
     {
-      q: 'Bauen Sie neue Industriekrane?',
-      a: 'Ja – abgestimmt auf Halle, Last und Arbeitsplatz. Sind Sie nicht zufrieden, zahlen Sie nur die Hälfte. Mit INEXXIO 365 auch ohne Kauf, zur Monatsrate.',
+      q: 'Bauen Sie neue Krane und Bootslifte?',
+      a: 'Ja – abgestimmt auf Halle, Steg, Last und Arbeitsweise. Sind Sie nicht zufrieden, zahlen Sie nur die Hälfte. Mit INEXXIO 365 auch ohne Kauf, zur Monatsrate.',
+    },
+    {
+      q: 'Wann ist der beste Zeitpunkt für die Prüfung eines Bootskrans?',
+      a: 'Vor dem Einwassern im Frühling. Dann bleibt Zeit für Reparaturen, bevor alle Boote auf einmal ins Wasser wollen.',
     },
     promiseFaq.secondOpinion,
   ],
   related: [
-    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Drei Stufen bis INEXXIO 365.' },
-    { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
+    { href: '/krane/kranservice', label: 'Kranservice', text: 'Drei Stufen bis INEXXIO 365.' },
+    { href: '/sonderloesungen#krane', label: 'Sonderlösungen', text: 'Krane, die es nicht zu kaufen gibt.' },
     ratgeberPruefung,
   ],
-  service: { name: 'Industriekrane', serviceType: 'Service, Reparatur und Bau von Industriekranen' },
-  keywords: ['Brückenkran Service', 'Hallenkran Wartung', 'Schwenkkran', 'Kranreparatur', 'Kran Recycling'],
+  service: { name: 'Krananlagen', serviceType: 'Bau, Prüfung, Wartung und Reparatur von Industrie- und Hafenkranen' },
+  keywords: ['Brückenkran', 'Hallenkran Wartung', 'Schwenkkran', 'Bootslift', 'Bootskran', 'Mastkran', 'Kranreparatur'],
 };
 
-/** Module der Industriekran-Seite: INEXXIO 365, Service (Anker #service), Foto-Hinweis. */
-export const industrieModules = {
+/** Module der Krananlagen-Seite: INEXXIO 365, Service (Anker #service), Foto-Hinweis. */
+export const krananlagenModules = {
   inexxio365: {
     title: 'Ihr Kran muss laufen? INEXXIO 365.',
     text: `${industries} Prüfung, Wartung, Ersatzteile und Reparaturen sind inklusive, zur fixen Monatsrate – und jeder Tag, an dem der Kran steht, ist gratis.`,
-    link: { href: '/krantechnik/kranservice#inexxio-365', label: 'So funktioniert INEXXIO 365' },
+    link: { href: '/krane/kranservice#inexxio-365', label: 'So funktioniert INEXXIO 365' },
   },
   service: {
     title: 'Service und Reparatur',
@@ -317,14 +257,14 @@ export const industrieModules = {
  * Kranklassen – vor jeder Arbeit gibt es einen Fixpreis.
  */
 export const kranservice: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/kranservice',
+  area: 'krane',
+  path: '/krane/kranservice',
   crumb: 'Kranservice',
   title: 'Kranservice und Kranprüfung',
   description:
     'Kranservice in drei Stufen: erster Service gratis, Service-Vertrag Basis oder INEXXIO 365 – Ihr Kran läuft, oder Sie zahlen nicht. Fixpreis vorab.',
   hero: {
-    eyebrow: 'Krantechnik · Kranservice',
+    eyebrow: 'Krane · Kranservice',
     h1: 'Ihr Kran läuft – oder Sie ==zahlen nicht==',
     lead:
       'Testen Sie uns: Der erste Kranservice ist gratis. Danach wählen Sie, wie viel wir Ihnen abnehmen – bis zu INEXXIO 365, mit Prüfung, Wartung, Ersatzteilen und Reparaturen zur fixen Monatsrate.',
@@ -371,8 +311,8 @@ export const kranservice: SubPage = {
     },
   ],
   related: [
-    { href: '/krantechnik/anschlagmittel', label: 'Anschlagmittel', text: 'Ketten, Hebebänder und Haken – immer geprüft.' },
-    { href: '/krantechnik/industriekrane', label: 'Industriekrane', text: 'Wenn ein neuer Kran die bessere Lösung ist.' },
+    { href: '/krane/krananlagen', label: 'Krananlagen', text: 'Wenn ein neuer Kran die bessere Lösung ist.' },
+    { href: '/krane/heukrananlagen', label: 'Heukrananlagen', text: 'Saison-Check vor dem ersten Schnitt.' },
     ratgeberPruefung,
   ],
   service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung und Kranreparatur' },
@@ -406,60 +346,5 @@ export const inexxio365 = {
   cta: 'INEXXIO 365 anfragen',
 };
 
-/* ------------------------------------------------------------------ Anschlagmittel */
-export const anschlagmittel: SubPage = {
-  area: 'krantechnik',
-  path: '/krantechnik/anschlagmittel',
-  crumb: 'Anschlagmittel',
-  title: 'Anschlagmittel-Service',
-  description:
-    'Ketten, Hebebänder und Haken als Set, das immer geprüft ist: jährlicher Tausch, Prüfung in unserer Werkstatt, jedes Teil gekennzeichnet. Jetzt anfragen.',
-  hero: {
-    eyebrow: 'Krantechnik · Anschlagmittel',
-    h1: 'Anschlagmittel, die immer ==geprüft== sind',
-    lead:
-      'Ketten, Hebebänder und Haken als Set: Einmal im Jahr tauschen wir es gegen ein geprüftes aus. Sie müssen sich um nichts kümmern.',
-    photo: 'pruefung-hallenkran',
-    primary: anfrage('Set anfragen'),
-  },
-  summary:
-    '{{brand.full}} stellt Anschlagmittel – Ketten, Hebebänder und Haken – als Set bereit, das immer geprüft ist. Einmal im Jahr tauschen wir das Set aus und prüfen die Teile in unserer eigenen Werkstatt in Tuttwil-Wängi TG. Jedes Teil ist gekennzeichnet.',
-  glance: {
-    forWhom: 'Betriebe, die mit dem Kran Lasten anschlagen: Industrie und Gewerbe, Werkhöfe, Häfen und Werften, Landwirtschaft.',
-    what: 'Wir stellen das Set zusammen, tauschen es jährlich aus und prüfen jedes Teil in unserer Werkstatt.',
-    deliverables: 'Anschlagmittel, die regelmässig geprüft und gekennzeichnet sind – ohne dass Sie Fristen verfolgen müssen.',
-  },
-  scope: {
-    title: 'So funktioniert das Set',
-    items: [
-      { title: 'Ketten', text: 'Anschlagketten in der Länge und Tragfähigkeit, die Ihre Arbeit verlangt.' },
-      { title: 'Hebebänder', text: 'Rund- und Hebebänder – auch für empfindliche Lasten.' },
-      { title: 'Haken und Schäkel', text: 'Haken, Schäkel und Ringe, passend zum Rest des Sets.' },
-      { title: 'Jährlicher Tausch', text: 'Wir bringen ein geprüftes Set und nehmen das alte mit.' },
-      { title: 'Prüfung in unserer Werkstatt', text: 'Jedes Teil wird bei uns geprüft. Was nicht mehr hält, kommt nicht zurück in ein Set.' },
-      { title: 'Jedes Teil gekennzeichnet', text: 'Sie sehen auf einen Blick, was ein Teil trägt und dass es geprüft ist.' },
-    ],
-  },
-  faq: [
-    {
-      q: 'Müssen Anschlagmittel geprüft werden?',
-      a: 'Ja, Anschlagmittel müssen regelmässig geprüft werden. Mit dem Set kümmern Sie sich nicht darum: Wir tauschen es jährlich gegen ein geprüftes aus.',
-    },
-    promiseFaq.price,
-    promiseFaq.binding,
-  ],
-  related: [
-    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Der erste Service ist gratis.' },
-    { href: '/krantechnik/industriekrane', label: 'Industriekrane', text: 'Service und neue Krane nach Mass.' },
-    ratgeberPruefung,
-  ],
-  service: { name: 'Anschlagmittel-Service', serviceType: 'Bereitstellung, Austausch und Prüfung von Anschlagmitteln' },
-  keywords: ['Anschlagmittel Prüfung', 'Anschlagkette', 'Hebeband', 'Anschlagmittel Service'],
-};
-
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
-export const krantechnikPages = [kranservice, industriekrane, haefen, heukrananlagen, anschlagmittel];
-
-// Die Navigation (site.areas) und diese Seiten müssen dieselben Pfade nennen.
-const nav = site.areas.find((a) => a.id === 'krantechnik')!.children.map((c) => c.href).join();
-if (nav !== krantechnikPages.map((p) => p.path).join()) throw new Error('Krantechnik: Navigation und Seiten nennen andere Pfade.');
+export const kranePages = [kranservice, krananlagen, heukrananlagen];

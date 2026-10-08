@@ -19,8 +19,8 @@ import lastBale from '../assets/crane/last-bale.svg?raw';
 import lastOld from '../assets/crane/last-old.svg?raw';
 import lastNew from '../assets/crane/last-new.svg?raw';
 import lastJib from '../assets/crane/last-jib.svg?raw';
-import szeneKran from '../assets/crane/szene-krantechnik.svg?raw';
-import szeneFahrzeug from '../assets/crane/szene-fahrzeugtechnik.svg?raw';
+import szeneKran from '../assets/crane/szene-krane.svg?raw';
+import szeneFahrzeug from '../assets/crane/szene-fahrzeugbau.svg?raw';
 import szeneSonder from '../assets/crane/szene-sonderloesungen.svg?raw';
 
 interface Props {
@@ -37,8 +37,8 @@ const { eyebrow, title, lead, trust, areasTitle, more, claims } = Astro.props;
 
 /** Szene je Bereich – die Reihenfolge der Bühnen folgt der Reihenfolge der Karten. */
 const scenes: Record<string, { svg: string; done: string }> = {
-  krantechnik: { svg: szeneKran, done: 'Heu eingelagert' },
-  fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel' },
+  krane: { svg: szeneKran, done: 'Heu eingelagert' },
+  fahrzeugbau: { svg: szeneFahrzeug, done: 'Neue Trommel' },
   sonderloesungen: { svg: szeneSonder, done: 'Sonderlösung montiert' },
 };
 /** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */

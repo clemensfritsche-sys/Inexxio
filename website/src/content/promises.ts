@@ -27,15 +27,16 @@ export interface PromiseItem {
 export const promises = {
   eyebrow: 'Unsere Versprechen',
   eyebrowOne: 'Unser Versprechen',
-  title: 'Unser Wort hat einen Preis.',
-  lead: 'Wir sind von unserer Arbeit überzeugt. Darum hängt unser Preis an Ihrer Zufriedenheit – und an jedem Tag, an dem Ihr Kran läuft.',
+  /** Testnotiz #1210: kein «hat seinen Preis» – wir stehen für unsere Arbeit ein und tragen dafür das Risiko. */
+  title: 'Wir stehen für unsere Arbeit ein.',
+  lead: 'Wir sind von unserer Qualität so überzeugt, dass wir das Risiko tragen: Unser Geld hängt an Ihrer Zufriedenheit – und an jedem Tag, an dem Ihr Kran läuft.',
   items: {
     erstservice: {
       figure: '0.–',
       label: 'Gratis-Erstservice',
       title: 'Der erste Kranservice ist gratis.',
       text: 'Für Krane aller Marken.',
-      link: { href: '/krantechnik/kranservice#stufen', label: 'Zum Kranservice' },
+      link: { href: '/krane/kranservice#stufen', label: 'Zum Kranservice' },
     },
     garantie: {
       figure: '50 %',
@@ -49,7 +50,7 @@ export const promises = {
       label: 'INEXXIO 365',
       title: 'Ihr Kran läuft – oder Sie zahlen nicht.',
       text: 'Alles inklusive. Jeder Tag, an dem der Kran steht, ist gratis.',
-      link: { href: '/krantechnik/kranservice#inexxio-365', label: 'So funktioniert INEXXIO 365' },
+      link: { href: '/krane/kranservice#inexxio-365', label: 'So funktioniert INEXXIO 365' },
     },
   } satisfies Record<PromiseKey, PromiseItem>,
   /** Gilt für alles – steht unter jedem Versprechens-Block. */
@@ -64,7 +65,7 @@ export const industryList = [
   { key: 'beton', label: 'Betonwerke' },
 ] as const;
 
-/** Für wen INEXXIO 365 gemacht ist – Startseite, Kranservice und Industriekrane sagen es gleich. */
+/** Für wen INEXXIO 365 gemacht ist – Startseite, Kranservice und Krananlagen sagen es gleich. */
 export const industries =
   'Für Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke – und alle, deren Kran laufen muss.';
 

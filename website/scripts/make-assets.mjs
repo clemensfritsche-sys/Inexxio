@@ -44,7 +44,7 @@ const base = `
 
 /** Je Bereich ein Bild – der Dateiname ist die Bereichs-ID (`OgImage` in content/types.ts). */
 const OG = [
-  { file: 'og/default.png', eyebrow: 'Tuttwil-Wängi TG · seit 1982', title: 'Krantechnik, Fahrzeugtechnik und Sonderlösungen' },
+  { file: 'og/default.png', eyebrow: 'Tuttwil-Wängi TG · seit 1982', title: 'Krane, Fahrzeugbau und Sonderlösungen' },
   ...site.areas.map((a) => ({ file: `og/${a.id}.png`, eyebrow: a.label, title: a.ogTitle })),
 ];
 
