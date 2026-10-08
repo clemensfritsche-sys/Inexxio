@@ -1,62 +1,232 @@
 ---
 /**
- * /spezialloesungen – Bereichsseite ohne Unterseiten, aufgebaut wie eine Unterseite:
- * Was wir bauen (Leistungsumfang der Vorlage) → Co-Entwicklung (#co-entwicklung) → So läuft es →
- * Wer dahintersteht. Texte: content/spezialloesungen.ts.
+ * /spezialloesungen – eigenes Layout, weil die Seite in Sekunden sagen muss, worum es geht:
+ * Seitenkopf (Aussage + Bild «Grau ist die Serie, Rot ist, was wir dazubauen») mit vier
+ * belegten Fakten → Das Prinzip (warum, was Sie davon haben) → Drei Felder, ein Prinzip
+ * (Krane · Fahrzeuge · Baumaschinen) → Co-Entwicklung → Ablauf → Wer dahintersteht →
+ * Garantie → Fragen → Anfrage. Texte: content/spezialloesungen.ts.
  */
-import SubPage from '../layouts/SubPage.astro';
+import Base from '../layouts/Base.astro';
 import SectionHead from '../components/SectionHead.astro';
 import Steps from '../components/Steps.astro';
 import Photo from '../components/Photo.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
-import { spezialloesungen, specialSteps as s, coDevelopment as c, specialBackground as b } from '../content/spezialloesungen';
+import Faq from '../components/Faq.astro';
+import Promises from '../components/Promises.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { site } from '../config/site.mjs';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import krane from '../assets/illustrations/spezial-krane.svg?raw';
+import fahrzeuge from '../assets/illustrations/spezial-fahrzeuge.svg?raw';
+import baumaschinen from '../assets/illustrations/spezial-baumaschinen.svg?raw';
+import {
+  spezialloesungen as page, specialFacts as facts, specialPrinciple as pr, specialFields as fields,
+  specialSteps as s, coDevelopment as c, specialBackground as b,
+} from '../content/spezialloesungen';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
+const ILLO = { krane, fahrzeuge, baumaschinen };
+const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `<svg role="img" aria-label="${label}" `);
 ---
-<SubPage page={spezialloesungen}>
-  <section slot="module" class="section section--dark" id="co-entwicklung" aria-labelledby="co-title">
-    <div class="wrap grid co">
-      <div class="col-6 co__text">
-        <SectionHead eyebrow="Co-Entwicklung" title={c.title} id="co-title" class="head--flush" />
-        <Rich as="p" text={c.text} />
+<Base title={page.title} description={page.description} crumbs={[{ name: page.crumb, path: page.path }]} og="spezialloesungen" jsonLd={nodes}>
+  <section class="sx-hero" aria-labelledby="sx-title">
+    <div class="wrap sx-hero__grid">
+      <div class="sx-hero__text" data-hero>
+        <p class="label">{page.hero.eyebrow}</p>
+        <Rich as="h1" id="sx-title" class="hero__title sx-hero__title" text={page.hero.h1} />
+        <Rich as="p" class="sx-hero__lead" text={page.hero.lead} />
+        <div class="btn-row">
+          <a class="btn btn--primary btn--lg" href="#anfrage">{page.hero.primary.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+          <a class="btn btn--secondary btn--lg" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} />{site.phone.display}</a>
+        </div>
       </div>
-      <ul role="list" class="col-5 co__list">
-        {c.points.map((p) => <li><Icon name="check" size={20} /><span>{p}</span></li>)}
+      <figure class="sx-hero__fig">
+        <div class="sx-hero__illo" set:html={illo('baumaschinen', 'Baumaschine mit Anbaugerät nach Mass')} />
+        <figcaption class="sx-key">
+          <span><i class="sx-key__dot sx-key__dot--grey"></i>Grau: die Serie</span>
+          <span><i class="sx-key__dot sx-key__dot--red"></i>Rot: was wir dazubauen</span>
+        </figcaption>
+      </figure>
+    </div>
+    <div class="wrap">
+      <ul role="list" class="sx-facts" aria-label="Kurz gesagt">
+        {facts.map((f) => <li><span class="sx-facts__v">{f.value}</span><span class="sx-facts__l">{f.label}</span></li>)}
       </ul>
     </div>
   </section>
 
-  <section slot="module" class="section" aria-labelledby="ablauf">
+  <section class="section" aria-labelledby="prinzip">
     <div class="wrap">
-      <SectionHead eyebrow="Ablauf" title={s.title} id="ablauf" />
+      <div class="sx-principle">
+        <p class="label">{pr.eyebrow}</p>
+        <h2 id="prinzip" class="sx-principle__title">{pr.title}</h2>
+        <Rich as="p" class="lead" text={pr.lead} />
+      </div>
+      <ul role="list" class="sx-gains">
+        {pr.gains.map((g, i) => (
+          <li class="sx-gains__item">
+            <span class="sx-gains__n tnum">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{g.title}</h3>
+            <Rich as="p" text={g.text} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--paper" id="felder" aria-labelledby="felder-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Für jeden Bereich" title="Drei Felder, ein Prinzip" lead="Ob Kran, Fahrzeug oder Baumaschine: Wir nehmen, was die Serie kann, und bauen dazu, was Ihre Aufgabe braucht." id="felder-title" />
+      <ul role="list" class="sx-fields">
+        {fields.map((f) => (
+          <li class="sx-field" id={f.id}>
+            <div class="sx-field__illo" set:html={illo(f.illo, f.title)} />
+            <div class="sx-field__body">
+              <h3>{f.title}</h3>
+              <Rich as="p" text={f.text} />
+              <ul role="list" class="checklist sx-field__list">
+                {f.examples.map((e) => <li><Icon name="check" size={18} /><span>{e}</span></li>)}
+              </ul>
+              {f.link && <a class="arrow-link sx-field__link" href={f.link.href}>{f.link.label} <Icon name="arrow-right" size={18} /></a>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--dark" id="co-entwicklung" aria-labelledby="co-title">
+    <div class="wrap">
+      <div class="sx-co">
+        <div class="sx-co__head">
+          <p class="label">{c.eyebrow}</p>
+          <h2 id="co-title" class="sx-co__title">{c.title}</h2>
+        </div>
+        <Rich as="p" class="sx-co__text" text={c.text} />
+      </div>
+      <ul role="list" class="sx-co__points">
+        {c.points.map((p) => <li><h3>{p.title}</h3><Rich as="p" text={p.text} /></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ablauf">
+    <div class="wrap">
+      <SectionHead eyebrow="Ablauf" title={s.title} lead={s.lead} id="ablauf" />
       <Steps steps={s.items} />
-      <div class="btn-row so-cta">
+      <div class="btn-row sx-cta">
         <a class="btn btn--primary" href="#anfrage">Aufgabe schildern <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
       </div>
     </div>
   </section>
 
-  <section slot="module" class="section section--paper" aria-labelledby="hintergrund">
-    <div class="wrap grid so-bg">
+  <section class="section section--paper" aria-labelledby="hintergrund">
+    <div class="wrap grid sx-bg">
       <div class="col-4"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
-      <div class="col-7 so-bg__text">
-        <SectionHead eyebrow="Wer dahintersteht" title={b.title} id="hintergrund" class="head--flush" />
+      <div class="col-7 sx-bg__text">
+        <SectionHead eyebrow={b.eyebrow} title={b.title} id="hintergrund" class="head--flush" />
         <Rich as="p" text={b.text} />
+        <ul role="list" class="checklist">
+          {b.facts.map((f) => <li><Icon name="check" size={20} /><Rich as="span" text={f} /></li>)}
+        </ul>
         <a class="arrow-link" href="/ueber-uns">Mehr über uns <Icon name="arrow-right" size={18} /></a>
       </div>
     </div>
   </section>
-</SubPage>
+
+  <Promises only={page.promises} />
+
+  <section class="section section--rule" aria-labelledby="fragen">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
+      <div class="col-8"><Faq items={page.faq} /></div>
+    </div>
+  </section>
+
+  <ContactSection />
+</Base>
 
 <style>
   .head--flush { margin-bottom: 0; }
-  .co { align-items: end; row-gap: var(--s-6); }
-  .co__text { display: grid; gap: var(--s-4); }
-  @media (min-width: 960px) { .co__list { grid-column: 8 / span 5; } }
-  .co__list { display: grid; gap: var(--s-3); align-content: start; }
-  .co__list li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: var(--s-3); color: var(--white); }
-  .co__list :global(.icon) { color: var(--red-bright); margin-top: 3px; }
-  .so-cta { margin-top: var(--s-7); }
-  .so-bg { align-items: center; }
-  @media (min-width: 960px) { .so-bg__text { grid-column: 6 / span 7; } }
-  .so-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
+
+  /* Seitenkopf: Aussage links, Bild rechts, Fakten darunter an einer Haarlinie. */
+  .sx-hero { background: var(--white); border-bottom: 1px solid var(--line); padding-top: var(--s-8); }
+  .sx-hero__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; }
+  @media (min-width: 960px) { .sx-hero__grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
+  .sx-hero__text { display: grid; gap: var(--s-5); justify-items: start; }
+  .sx-hero__title { margin: 0; font-size: clamp(2.5rem, 1.5rem + 3.6vw, 4.5rem); line-height: 1.02; }
+  .sx-hero__lead { font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.25rem); line-height: 1.6; color: var(--ink-2); max-width: 34em; }
+  .sx-hero__fig { margin: 0; display: grid; gap: var(--s-3); }
+  .sx-hero__illo { aspect-ratio: 4 / 3; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+  .sx-hero__illo :global(svg), .sx-field__illo :global(svg) { display: block; width: 100%; height: 100%; max-width: none; }
+  .sx-key { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); font-size: 0.875rem; font-weight: 500; color: var(--ink-2); }
+  .sx-key span { display: inline-flex; align-items: center; gap: var(--s-2); }
+  .sx-key__dot { width: 12px; height: 12px; border-radius: 2px; }
+  .sx-key__dot--grey { background: var(--line-2); }
+  .sx-key__dot--red { background: var(--red); }
+  .sx-facts { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); border-top: 1px solid var(--line); }
+  .sx-facts li { display: grid; gap: 2px; padding-block: var(--s-5); }
+  .sx-facts li + li { border-top: 1px solid var(--line); }
+  @media (min-width: 560px) {
+    .sx-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sx-facts li + li { border-top: 0; }
+    .sx-facts li:nth-child(even) { border-left: 1px solid var(--line); padding-left: var(--s-5); }
+    .sx-facts li:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  }
+  @media (min-width: 960px) {
+    .sx-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .sx-facts li:nth-child(n + 3) { border-top: 0; }
+    .sx-facts li + li { border-left: 1px solid var(--line); padding-left: var(--s-5); }
+  }
+  .sx-facts__v { font-family: var(--font-display); font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; color: var(--ink); }
+  .sx-facts__l { font-size: 0.875rem; color: var(--ink-3); }
+
+  /* Das Prinzip: ein grosser Satz, darunter drei Gewinne an einer schwarzen Linie. */
+  .sx-principle { display: grid; gap: var(--s-4); max-width: 56rem; }
+  .sx-principle__title { font-size: clamp(1.875rem, 1.2rem + 2.4vw, 3rem); line-height: 1.1; }
+  .sx-gains { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); border-top: 1px solid var(--ink); }
+  .sx-gains__item { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-6) 0; }
+  .sx-gains__item + .sx-gains__item { border-top: 1px solid var(--line-2); }
+  @media (min-width: 900px) {
+    .sx-gains { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sx-gains__item { padding-inline: var(--s-6); }
+    .sx-gains__item:first-child { padding-left: 0; }
+    .sx-gains__item:last-child { padding-right: 0; }
+    .sx-gains__item + .sx-gains__item { border-top: 0; border-left: 1px solid var(--line-2); }
+  }
+  .sx-gains__n { font-family: var(--font-mono); font-size: 0.8125rem; letter-spacing: 0.08em; color: var(--red); }
+  .sx-gains__item h3 { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem); }
+  .sx-gains__item p { color: var(--ink-2); }
+
+  /* Drei Felder: Bild oben, gleich gross, gleich gegliedert. */
+  .sx-fields { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .sx-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .sx-field { display: flex; flex-direction: column; overflow: hidden; background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); scroll-margin-top: calc(var(--header-h) + var(--s-5)); }
+  .sx-field__illo { aspect-ratio: 4 / 3; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .sx-field__body { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-5); flex: 1; }
+  .sx-field__body h3 { font-size: 1.5rem; }
+  .sx-field__body > p { color: var(--ink-2); }
+  .sx-field__link { margin-top: auto; padding-top: var(--s-3); }
+
+  /* Co-Entwicklung: der Satz gross, drei Punkte an einer weissen Linie. */
+  .sx-co { display: grid; gap: var(--s-5) var(--s-8); align-items: end; }
+  @media (min-width: 960px) { .sx-co { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
+  .sx-co__head { display: grid; gap: var(--s-4); }
+  .sx-co__title { font-size: clamp(1.875rem, 1.2rem + 2.4vw, 3rem); line-height: 1.1; }
+  .sx-co__text { font-size: 1.0625rem; }
+  .sx-co__points { display: grid; gap: var(--s-5) var(--s-6); grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); }
+  @media (min-width: 760px) { .sx-co__points { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .sx-co__points li { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--white); }
+  .sx-co__points h3 { font-size: 1.25rem; }
+
+  .sx-cta { margin-top: var(--s-7); }
+  .sx-bg { align-items: center; }
+  @media (min-width: 960px) { .sx-bg__text { grid-column: 6 / span 7; } }
+  .sx-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
 </style>

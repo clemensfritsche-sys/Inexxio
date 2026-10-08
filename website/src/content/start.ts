@@ -28,7 +28,7 @@ export const start = {
   entries: {
     krantechnik: 'Ihr Kran läuft – oder Sie zahlen nicht.',
     fahrzeugtechnik: 'Neue Trommel statt neuer Fahrmischer.',
-    spezialloesungen: 'Maschinen nach Mass für besondere Baustellen.',
+    spezialloesungen: 'Was kein Hersteller liefert, bauen wir.',
   } as Record<string, string>,
 
   summary:

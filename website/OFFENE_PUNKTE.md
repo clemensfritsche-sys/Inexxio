@@ -28,7 +28,7 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 | `servicefahrzeug` (zurzeit Beispielbild) | Servicefahrzeug, beschriftet, vor einer Kundenhalle oder der Werkstatt, quer | 3:2 | noch nicht verwendet |
 | `portraet-clemens` (zurzeit Beispielbild) | Porträt Clemens Fritsche, hoch, neutraler Hintergrund, Arbeitskleidung oder Hemd | 4:5 | `/`, `/spezialloesungen`, `/ueber-uns` |
 | `team` (zurzeit Beispielbild) | Teamfoto in der Werkstatt (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | `/404`, `/datenschutz`, `/fahrzeugtechnik/trommeltausch`, `/fahrzeugtechnik/verschleissteile`, `/fahrzeugtechnik`, `/impressum`, `/`, `/karriere`, `/kontakt/danke`, `/kontakt`, `/krantechnik/heukrananlagen`, `/krantechnik/krane-nach-mass`, `/krantechnik/kranservice`, `/krantechnik`, `/ratgeber/heukrananlage-planen`, `/ratgeber/kranpruefung-schweiz`, `/ratgeber/verschleissteile-fahrmischer`, `/ratgeber`, `/service`, `/spezialloesungen`, `/ueber-uns` |
-| `arbeit-werkstatt` (zurzeit Beispielbild) | Schweissarbeit oder Stahlkonstruktion in der Werkstatt in Tuttwil, Funken und Schutzschild, quer | 4:3 | `/`, `/karriere`, `/krantechnik/krane-nach-mass`, `/spezialloesungen`, `/ueber-uns` |
+| `arbeit-werkstatt` (zurzeit Beispielbild) | Schweissarbeit oder Stahlkonstruktion in der Werkstatt in Tuttwil, Funken und Schutzschild, quer | 4:3 | `/`, `/karriere`, `/krantechnik/krane-nach-mass`, `/ueber-uns` |
 | `aufbau-reparatur` | LKW-Aufbau oder Mulde/Kipper in Reparatur in der Werkstatt, Hydraulikzylinder sichtbar, quer | 4:3 | noch nicht verwendet |
 
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)

@@ -96,10 +96,10 @@ const areas = [
     label: 'Speziallösungen',
     href: '/spezialloesungen',
     overview: 'Speziallösungen',
-    text: 'Spezialmaschinen und Anbauten nach Mass für besondere Baustellen.',
+    text: 'Spezialmaschinen, Anbauten und Vorrichtungen nach Mass – für Krane, Fahrzeuge und Baumaschinen.',
     photo: 'arbeit-werkstatt',
-    ogTitle: 'Maschinen nach Mass für besondere Baustellen.',
-    industries: 'Bau- und Spezialtiefbauunternehmen mit eigener Geräteflotte, Vermieter und Händler von Baugeräten.',
+    ogTitle: 'Ihre Aufgabe. Unsere Maschine.',
+    industries: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle, deren Aufgabe kein Hersteller löst.',
     children: [],
   },
 ];

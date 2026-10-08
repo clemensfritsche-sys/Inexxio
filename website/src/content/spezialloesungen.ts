@@ -1,7 +1,12 @@
 /**
- * Speziallösungen – Spezialmaschinenbau für den Bau: Maschinen, die eine bestimmte Aufgabe
- * auf einer besonderen Baustelle erledigen, oft automatisiert. Einzelstücke und Kleinserien,
- * keine Serienmaschinen. Eigene Bereichsseite ohne Unterseiten.
+ * Speziallösungen – Spezialmaschinenbau quer durch alle Bereiche: für Krane, Fahrzeuge und
+ * Baumaschinen. Maschinen, Anbauten und Vorrichtungen, die eine bestimmte Aufgabe erledigen,
+ * oft automatisiert. Einzelstücke und Kleinserien, keine Serienmaschinen.
+ *
+ * Die Seite hat ein eigenes Layout (src/pages/spezialloesungen.astro); das `SubPage`-Objekt
+ * liefert Titel, Beschreibung, Zusammenfassung, Leistungsumfang und FAQ für Sitemap,
+ * llms.txt und JSON-LD. Bildsprache: Grau ist die Serie, Rot ist, was wir dazubauen.
+ *
  * Nicht auf die Seite: Mietpool, Hinweise zu CE oder Maschinenverordnung, Konditionen der
  * Co-Entwicklung (Prozentsätze) – die gibt es im Gespräch.
  */
@@ -13,90 +18,152 @@ export const spezialloesungen: SubPage = {
   area: 'spezialloesungen',
   path: '/spezialloesungen',
   crumb: 'Speziallösungen',
-  title: 'Spezialmaschinen für den Bau',
+  title: 'Spezialmaschinen nach Mass',
   description:
-    'Sondermaschinen, Vorrichtungen und Anbauten für Baugeräte – für besondere Baustellen, als Einzelstück oder Kleinserie. Mit Garantie. Aus Tuttwil-Wängi TG.',
+    'Wenn kein Hersteller liefert, was Ihre Aufgabe braucht: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen. Mit Garantie.',
   hero: {
     eyebrow: 'Speziallösungen',
-    h1: 'Spezialmaschinen nach Mass für die ==Baustelle==',
+    h1: 'Ihre Aufgabe. Unsere ==Maschine==.',
     lead:
-      'Für Aufgaben, die kein Hersteller löst: Wir konstruieren und bauen Sondermaschinen, Vorrichtungen und Anbauten für Ihre Geräte – als Einzelstück oder Kleinserie, unabhängig von der Marke.',
+      'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen – als Einzelstück oder Kleinserie, für Geräte jeder Marke.',
     photo: 'arbeit-werkstatt',
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
   },
   summary:
-    '{{brand.full}} baut Spezialmaschinen für den Bau: Sondermaschinen und Vorrichtungen für besondere Baustellen, die Automatisierung von Abläufen und Anbauten für bestehende Geräte – etwa Rüttler, Podeste und Begehungen, Klemmen, Hilfskrane und Greifer. Einzelstücke und Kleinserien, unabhängig von der Marke des Geräts, konstruiert und gebaut in der eigenen Werkstatt in Tuttwil-Wängi TG. Nicht zufrieden, zahlen Sie nur die Hälfte.',
+    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, unabhängig von der Marke des Geräts, konstruiert von einem Maschinenbauingenieur und gebaut in der eigenen Werkstatt in Tuttwil-Wängi TG. Fixpreis vor Baubeginn; nicht zufrieden, zahlen Sie nur die Hälfte.',
   glance: {
-    forWhom: 'Bau- und Spezialtiefbauunternehmen mit eigener Geräteflotte, Vermieter und Händler von Baugeräten.',
+    forWhom: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle Betriebe mit Kranen oder Fahrzeugen, deren Aufgabe kein Hersteller löst.',
     what: 'Machbarkeit prüfen, konstruieren, in der eigenen Werkstatt bauen und bei Ihnen in Betrieb nehmen.',
-    deliverables: 'Eine Maschine oder einen Anbau, der genau Ihre Aufgabe erledigt – mit Zeichnungen und Unterlagen.',
+    deliverables: 'Eine Maschine, die genau Ihre Aufgabe erledigt – mit Zeichnungen, Unterlagen und Service aus derselben Hand.',
   },
   promises: ['garantie'],
   scope: {
     title: 'Was wir bauen',
     lead: 'Einzelstücke und Kleinserien – keine Serienmaschinen.',
     items: [
-      { title: 'Sondermaschinen', text: 'Für eine bestimmte Aufgabe auf einer besonderen Baustelle – wo es nichts zu kaufen gibt.' },
+      { title: 'Für Krane', text: 'Sonderkrane, Hilfskrane, Ausleger, Lastaufnahmen und Greifer nach Mass.' },
+      { title: 'Für Fahrzeuge', text: 'Sonderaufbauten und Anbauten, die kein Hersteller anbietet.' },
+      { title: 'Für Baumaschinen', text: 'Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen.' },
       { title: 'Vorrichtungen', text: 'Damit ein Arbeitsschritt sicher, schnell und wiederholbar gelingt.' },
       { title: 'Automatisierung', text: 'Abläufe, die heute Hand und Zeit kosten, laufen danach von selbst.' },
-      { title: 'Anbauten für bestehende Geräte', text: 'Rüttler, Podeste und Begehungen, Klemmen, Hilfskrane, Greifer.' },
-      { title: 'Markenunabhängig', text: 'Für Geräte aller Hersteller – wir passen den Anbau an Ihr Gerät an.' },
       { title: 'Service danach', text: 'Wer es gebaut hat, kennt es – Wartung und Reparatur aus derselben Hand.' },
     ],
   },
   faq: [
     {
       q: 'Welche Aufträge passen zu Ihnen?',
-      a: 'Einzelstücke und Kleinserien – vom Anbau für ein bestehendes Gerät bis zur Sondermaschine für eine besondere Baustelle. Serienmaschinen bauen wir nicht.',
+      a: 'Einzelstücke und Kleinserien – vom Anbau für ein bestehendes Gerät bis zur Maschine für eine besondere Baustelle. Serienmaschinen bauen wir nicht.',
     },
     {
       q: 'Brauche ich eine fertige Zeichnung?',
       a: 'Nein. Schildern Sie die Aufgabe – eine Skizze, ein Foto oder ein Video vom Einsatz genügt. Die Konstruktion übernehmen wir.',
     },
     {
+      q: 'Was kostet eine Speziallösung?',
+      a: 'Nach der Machbarkeitsprüfung erhalten Sie einen Fixpreis – bevor wir bauen.',
+    },
+    promiseFaq.garantie,
+    {
       q: 'Was heisst Co-Entwicklung?',
       a: 'Sie entwickeln mit und zahlen dafür weniger. Die Rechte an der Lösung bleiben bei {{brand.name}}; verkaufen wir sie weiter, erhalten Sie einen Anteil. Die Einzelheiten besprechen wir im Gespräch.',
     },
     {
-      q: 'Was kostet eine Speziallösung?',
-      a: 'Nach der Machbarkeitsprüfung erhalten Sie einen Fixpreis – vor jeder Arbeit.',
-    },
-    promiseFaq.garantie,
-    {
       q: 'Bauen Sie für Geräte jeder Marke?',
-      a: 'Ja. Wir sind unabhängig und passen den Anbau an Ihr Gerät an.',
+      a: 'Ja. Wir sind unabhängig und passen die Lösung an Ihr Gerät an.',
+    },
+    {
+      q: 'Bleibt die Lösung bei Ihnen in Betreuung?',
+      a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus derselben Werkstatt, die sie gebaut hat.',
     },
   ],
   related: [
     { href: '/krantechnik/krane-nach-mass', label: 'Krane nach Mass', text: 'Sonderkrane und Industriekrane.' },
     { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch', text: 'Neue Trommel statt neuer Fahrmischer.' },
-    { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranprüfung in der Schweiz', text: 'Was Prüfpflicht und Dokumentation verlangen.', kind: 'ratgeber' },
   ],
-  service: { name: 'Speziallösungen', serviceType: 'Spezialmaschinenbau für den Bau: Sondermaschinen, Vorrichtungen und Anbauten für Baugeräte' },
-  keywords: ['Spezialmaschinenbau Bau', 'Sondermaschine Baustelle', 'Anbaugerät Baumaschine', 'Spezialtiefbau Gerät', 'Vorrichtungsbau'],
+  service: { name: 'Speziallösungen', serviceType: 'Spezialmaschinenbau für Krane, Fahrzeuge und Baumaschinen' },
+  keywords: ['Spezialmaschinenbau', 'Sondermaschine Baustelle', 'Anbaugerät Baumaschine', 'Sonderkran', 'Sonderaufbau', 'Vorrichtungsbau'],
 };
 
-/** Modul: Ablauf – kurz. */
+/** Kurz und belegt – unter dem Seitenkopf. */
+export const specialFacts = [
+  { value: 'Einzelstück', label: 'bis Kleinserie' },
+  { value: 'Jede Marke', label: 'wir passen an Ihr Gerät an' },
+  { value: 'Fixpreis', label: 'bevor wir bauen' },
+  { value: '50 %', label: 'zurück, wenn Sie nicht zufrieden sind' },
+];
+
+/** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
+export const specialPrinciple = {
+  eyebrow: 'Das Prinzip',
+  title: 'Serienmaschinen sind für den Durchschnitt gebaut. Ihre Aufgabe ist es nicht.',
+  lead: 'Was dazwischen fehlt, erledigt heute meist ein Mensch – mit Zeit, Umwegen und Risiko. Wir bauen die Maschine, die diese Lücke schliesst.',
+  gains: [
+    { title: 'Weniger Handarbeit', text: 'Was heute von Hand geschieht, erledigt danach die Maschine – schneller und jedes Mal gleich.' },
+    { title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },
+    { title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere mit Seriengeräten ablehnen müssen.' },
+  ],
+};
+
+/** Drei Felder, ein Prinzip – je mit Bild (src/assets/illustrations/spezial-*.svg). */
+export const specialFields = [
+  {
+    id: 'krane',
+    illo: 'krane' as const,
+    title: 'Für Krane',
+    text: 'Wo der Katalogkran aufhört: Ausleger, Hilfskrane und Lastaufnahmen für die Last, die nur Sie heben.',
+    examples: ['Sonderkrane und Hilfskrane', 'Ausleger und Hebezeuge nach Mass', 'Lastaufnahmen und Greifer'],
+    link: { href: '/krantechnik/krane-nach-mass#sonderkrane', label: 'Krane nach Mass' },
+  },
+  {
+    id: 'fahrzeuge',
+    illo: 'fahrzeuge' as const,
+    title: 'Für Fahrzeuge',
+    text: 'Das Fahrgestell ist Serie, die Aufgabe nicht: Aufbauten und Anbauten, die kein Hersteller anbietet.',
+    examples: ['Sonderaufbauten', 'Ladekrane und Arbeitsbühnen am Fahrzeug', 'Anbauten am Fahrmischer'],
+    link: { href: '/fahrzeugtechnik', label: 'Fahrzeugtechnik' },
+  },
+  {
+    id: 'baumaschinen',
+    illo: 'baumaschinen' as const,
+    title: 'Für Baumaschinen',
+    text: 'Ihr Gerät kann mehr, als der Hersteller vorsieht: Anbaugeräte, Vorrichtungen und Automatisierung für die besondere Baustelle.',
+    examples: ['Rüttler, Klemmen und Greifer', 'Podeste und Begehungen', 'Vorrichtungen und Automatisierung'],
+  },
+];
+
+/** Modul: Ablauf – und was Sie dafür tun. */
 export const specialSteps = {
-  title: 'So läuft es',
+  title: 'Vom Problem zur Maschine',
+  lead: 'Ihr Aufwand zu Beginn: eine Skizze, ein Foto oder ein Video vom Einsatz.',
   items: [
-    { title: 'Aufgabe', text: 'Sie schildern, was die Maschine leisten soll – mit Skizze, Foto oder Video vom Einsatz.' },
-    { title: 'Machbarkeit', text: 'Wir prüfen, ob und wie es geht, und nennen den Rahmen.' },
-    { title: 'Konstruktion', text: 'Wir konstruieren und rechnen; Sie geben die Lösung frei.' },
+    { title: 'Aufgabe', text: 'Sie schildern, was die Maschine leisten soll.' },
+    { title: 'Machbarkeit', text: 'Wir prüfen, ob und wie es geht, und nennen den Fixpreis.' },
+    { title: 'Konstruktion', text: 'Wir konstruieren und rechnen; Sie geben frei.' },
     { title: 'Bau', text: 'In unserer eigenen Werkstatt in Tuttwil.' },
-    { title: 'Inbetriebnahme', text: 'Bei Ihnen, mit Einweisung, Zeichnungen und Unterlagen.' },
+    { title: 'Inbetriebnahme', text: 'Bei Ihnen, mit Einweisung und Unterlagen.' },
   ] satisfies Step[],
 };
 
 /** Modul: Co-Entwicklung (Anker #co-entwicklung) – ohne Prozentsätze, ohne Konditionen. */
 export const coDevelopment = {
-  title: 'Mitentwickeln und weniger zahlen',
-  text: 'Bringen Sie Ihre Erfahrung von der Baustelle ein – dafür zahlen Sie weniger. Die Rechte an der Lösung bleiben bei {{brand.name}}, und verkaufen wir sie weiter, erhalten Sie einen Anteil daran. Die Einzelheiten besprechen wir im Gespräch.',
-  points: ['Ihr Wissen aus dem Einsatz', 'Unser Ingenieurwissen und unsere Werkstatt', 'Ein Anteil an weiteren Verkäufen'],
+  eyebrow: 'Co-Entwicklung',
+  title: 'Entwickeln Sie mit – und verdienen Sie mit.',
+  text: 'Sie kennen die Baustelle, wir die Maschine. Bringen Sie Ihre Erfahrung ein und zahlen Sie dafür weniger. Die Rechte an der Lösung bleiben bei {{brand.name}} – und verkaufen wir sie weiter, erhalten Sie einen Anteil. Die Einzelheiten besprechen wir im Gespräch.',
+  points: [
+    { title: 'Sie zahlen weniger', text: 'Ihr Wissen aus dem Einsatz ist Teil der Entwicklung.' },
+    { title: 'Sie verdienen mit', text: 'An jedem weiteren Verkauf der Lösung erhalten Sie einen Anteil.' },
+    { title: 'Sie sind zuerst dran', text: 'Die Maschine entsteht an Ihrer Aufgabe – und läuft zuerst bei Ihnen.' },
+  ],
 };
 
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
 export const specialBackground = {
-  title: 'Wir kennen die Wünsche, die Hersteller nicht erfüllen',
-  text: `${site.people.owner.name} ist Maschinenbauingenieur und hat bei Liebherr Bohrgeräte mitentwickelt. Er weiss, wo Serienmaschinen an ihre Grenzen kommen – und wie man eine Lösung baut, die auf der Baustelle hält.`,
+  eyebrow: 'Wer dahintersteht',
+  title: 'Ingenieur und Werkstatt unter einem Dach',
+  text: `${site.people.owner.name} ist Maschinenbauingenieur und hat bei Liebherr Bohrgeräte mitentwickelt. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
+  facts: [
+    'Entwicklung von Bohrgeräten bei Liebherr',
+    'Krane bauen wir seit {{history.cranesSince}} selbst',
+    'Konstruktion, Stahlbau und Montage aus einer Hand',
+  ],
 };
