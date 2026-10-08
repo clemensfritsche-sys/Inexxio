@@ -1,8 +1,9 @@
 ---
 /**
  * Vorlage der drei Bereichsseiten (Auftrag Kap. 7.4), gleiche Struktur überall:
- * Hero → Auf einen Blick → Versprechen, die hier gelten → Unterseiten als grosse Karten mit Foto →
- * Ablauf in vier Schritten (Kranbahn-Linie) → FAQ → Anfrage mit vorausgewähltem Bereich.
+ * Hero → Auf einen Blick (mit der Branchen-Zeile des Bereichs) → Versprechen, die hier gelten →
+ * Unterseiten als grosse Karten mit Foto → Zusatz des Bereichs (Slot) → Ablauf in vier
+ * Schritten → FAQ → Anfrage.
  */
 import Base from './Base.astro';
 import Hero from '../components/Hero.astro';
@@ -27,7 +28,8 @@ const nodes = [
   faqPage(page.faq),
 ];
 /** Kurztext je Unterseite: derselbe wie im Menü. */
-const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href === path)?.text ?? '';
+const area = areaOf(page.id);
+const teaser = (path: string) => area.children.find((c) => c.href === path)?.text ?? '';
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
   <Hero eyebrow={page.hero.eyebrow} title={page.hero.h1} lead={page.hero.lead} photo={page.hero.photo} primary={page.hero.primary} />
@@ -37,6 +39,7 @@ const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href ===
       <div class="col-8 area-glance">
         <h2 id="auf-einen-blick" class="label">Auf einen Blick</h2>
         <Rich as="p" class="area-glance__text" text={page.summary} />
+        <p class="area-glance__ind"><span class="label">Für wen</span> <Rich as="span" text={area.industries} /></p>
       </div>
     </div>
     <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>
@@ -54,6 +57,8 @@ const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href ===
       </div>
     </div>
   </section>
+
+  <slot />
 
   <section class="section" aria-labelledby="ablauf">
     <div class="wrap">
@@ -75,6 +80,8 @@ const teaser = (path: string) => areaOf(page.id).children.find((c) => c.href ===
 <style>
   .area-glance { display: grid; gap: var(--s-3); }
   .area-glance__text { font-size: 1.125rem; color: var(--ink); max-width: 60ch; }
+  .area-glance__ind { padding-top: var(--s-3); border-top: 1px solid var(--line); color: var(--ink-2); max-width: 60ch; }
+  .area-glance__ind .label { margin-right: var(--s-2); }
   .season-slot:empty { display: none; }
   .season-slot { margin-top: var(--s-6); }
 </style>

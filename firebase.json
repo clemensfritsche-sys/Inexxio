@@ -11,47 +11,47 @@
     "redirects": [
       {
         "regex": "(?i)^/heuentnahmekran/kran-dem-geb(?:ä|ae|a|%c3%a4)ude-angepasst(?:/.*)?$",
-        "destination": "/krane/krananlagen",
+        "destination": "/krantechnik/krane-nach-mass",
         "type": 301
       },
       {
         "regex": "(?i)^/heuentnahmekran/matagematerial(?:/.*)?$",
-        "destination": "/krane/kranservice",
+        "destination": "/krantechnik/kranservice",
         "type": 301
       },
       {
         "regex": "(?i)^/(?:heuentnahmekran|forst-und-landwirtschaft|drehkran-hydraulisch|bruecken-kran|einschienen-kran)(?:/.*)?$",
-        "destination": "/krane/heukrananlagen",
+        "destination": "/krantechnik/heukrananlagen",
         "type": 301
       },
       {
         "regex": "(?i)^/application/files/.*$",
-        "destination": "/krane/heukrananlagen",
+        "destination": "/krantechnik/heukrananlagen",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik/euro-k(?:ö|oe|o|%c3%b6)?pper(?:/.*)?$",
-        "destination": "/sonderloesungen#fahrzeugbau",
+        "destination": "/fahrzeugtechnik#reparatur",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik/verschleissteile(?:/.*)?$",
-        "destination": "/fahrzeugbau/fahrmischer#katalog",
+        "destination": "/fahrzeugtechnik/verschleissteile",
         "type": 301
       },
       {
         "regex": "(?i)^/betonfordertechnik(?:/.*)?$",
-        "destination": "/fahrzeugbau/fahrmischer",
+        "destination": "/fahrzeugtechnik/trommeltausch",
         "type": 301
       },
       {
         "regex": "(?i)^/antrieb-und-steuerung(?:/.*)?$",
-        "destination": "/krane/kranservice",
+        "destination": "/krantechnik/kranservice",
         "type": 301
       },
       {
         "regex": "(?i)^/baumaschinen(?:/.*)?$",
-        "destination": "/sonderloesungen",
+        "destination": "/spezialloesungen",
         "type": 301
       },
       {
@@ -61,12 +61,12 @@
       },
       {
         "regex": "(?i)^/wahrschaftes(?:/.*)?$",
-        "destination": "/sonderloesungen",
+        "destination": "/spezialloesungen",
         "type": 301
       },
       {
         "regex": "(?i)^/sachtransporter-anhanger/reparaturen(?:/.*)?$",
-        "destination": "/sonderloesungen#fahrzeugbau",
+        "destination": "/fahrzeugtechnik#reparatur",
         "type": 301
       },
       {

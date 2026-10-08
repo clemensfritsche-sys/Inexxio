@@ -169,7 +169,7 @@ export function product(siteUrl, p) {
     name: p.name,
     description: p.description,
     url: abs(siteUrl, p.path),
-    image: `${siteUrl}/og/${p.og ?? 'krane'}.png`,
+    image: `${siteUrl}/og/${p.og ?? 'default'}.png`,
     brand: { '@type': 'Brand', name: site.brand.name },
     manufacturer: { '@id': `${siteUrl}/#organisation` },
     category: p.category ?? 'Krananlage',

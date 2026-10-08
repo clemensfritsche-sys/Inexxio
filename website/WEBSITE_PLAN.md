@@ -784,6 +784,28 @@ Fahrzeugtechnik (Trommeltausch, Fahrmischer) die Cash-Quelle und tritt nicht zur
 118. **Aufgeräumt**: die REMOVED-Liste der Prüfung (tote Links meldet die Linkprüfung
      ohnehin), drei unbenutzte Fotos samt Nachweis, die Navigations-Prüfungen je
      Content-Datei (jetzt EINE in `src/lib/pages.ts`).
+119. **Strategie-Auftrag Oktober 2026 – ersetzt 110–115.** Drei gleichwertige Bereiche
+     **Krantechnik · Fahrzeugtechnik · Speziallösungen** (`/krantechnik`, `/fahrzeugtechnik`,
+     `/spezialloesungen`; Name, Pfad und ID gleich). Keine Weiterleitungen von den
+     Zwischenpfaden (`/krane`, `/fahrzeugbau`, `/sonderloesungen`) – keine
+     Rückwärtskompatibilität; die alten hs-steiner.ch-Pfade zeigen auf die neuen Seiten.
+120. **Krantechnik**: Krane nach Mass (Sonderkrane, Industriekrane, Boots- und Mastkrane mit
+     Bootsliften, Standard = «Kran nach Mass aus Markenkomponenten»; Kauf mit Garantie oder
+     ohne Kauf zur Monatsrate) · Kranservice (vier Stufen Auf Abruf · Basis · Plus · INEXXIO
+     365, Modernisierung als Abschnitt) · Heukrananlagen (zuerst bestehende Anlagen, Neuanlagen
+     auf Anfrage, kein INEXXIO 365).
+121. **Fahrzeugtechnik**: Trommeltausch zuerst und am stärksten, Verschleissteile als eigene
+     Seite mit Katalog; Reparatur und Aufbauten nur als zurückhaltender Abschnitt der
+     Bereichsseite (`#reparatur`).
+122. **Speziallösungen = Spezialmaschinenbau für den Bau**: Sondermaschinen, Vorrichtungen,
+     Automatisierung, Anbauten für bestehende Geräte; Co-Entwicklung ohne Konditionen. Keine
+     Querverweise mehr aus den Untermenüs der anderen Bereiche.
+123. **Drei Versprechen, nicht vermischt**: ① Service testen (nur Krane) · ② Kaufen mit
+     Garantie (alles, was man kauft) · ③ INEXXIO 365. Fusszeile «Fixpreis vor jeder Arbeit ·
+     Keine Mindestlaufzeit · Zweitmeinung gratis».
+124. **Branchen als EINE Zeile je Bereich** (`site.areas[].industries`): auf der Startseite
+     alle drei unter den Eingängen, auf der Bereichsseite nur die eigene. Der Branchen-Block
+     mit Bildern ist entfallen.
 
 ### 7.8 Änderungen ausserhalb von `website/` (Umbau v2)
 

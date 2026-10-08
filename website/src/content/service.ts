@@ -11,7 +11,7 @@ export const service = {
   path: '/service',
   title: 'Service und Notfall',
   description:
-    'Kran steht still, Prüfung fällig, Fahrmischer defekt oder Teil gesucht? Die Notfall-Nummer, was Sie bereithalten sollten, und der direkte Weg zum Service.',
+    'Kran steht still, Prüfung fällig, Trommel am Ende oder Teil gesucht? Die Nummer für den Notfall und der direkte Weg zum richtigen Service.',
   hero: {
     eyebrow: 'Service und Notfall',
     h1: 'Service: Was steht bei Ihnen ==an==?',
@@ -19,17 +19,16 @@ export const service = {
       'Steht etwas still, rufen Sie direkt an. Sonst wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane aller Marken – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran, oder Sie zahlen nicht. Wir warten und reparieren Fahrmischer, Aufbauten und Baumaschinen, überholen und tauschen Trommeln von Fahrmischern und beschaffen Verschleissteile für alle gängigen Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
+    '{{brand.full}} prüft, wartet und repariert Krane aller Marken: Der erste Service ist gratis, und mit INEXXIO 365 läuft der Kran – oder Sie zahlen nicht. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile für alle Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
   entries: [
     { title: 'Etwas steht still', text: 'Rufen Sie direkt an – und halten Sie das Nötigste bereit', href: '#notfall', icon: 'siren' },
-    { title: 'Kran prüfen, warten, reparieren', text: 'Erster Service gratis – oder INEXXIO 365: Ihr Kran läuft, oder Sie zahlen nicht', href: '/krane/kranservice', icon: 'shield-check' },
-    { title: 'Fahrmischer oder Aufbau reparieren', text: 'Alle gängigen Marken, auch Trommel-Revision und -tausch', href: '/fahrzeugbau/fahrmischer', icon: 'truck' },
-    { title: 'Ersatz- oder Verschleissteil gesucht', text: 'Katalog oder Teil direkt anfragen', href: '/fahrzeugbau/fahrmischer#katalog', icon: 'package' },
+    { title: 'Kran prüfen, warten, reparieren', text: 'Der erste Service ist gratis. Mit INEXXIO 365 läuft Ihr Kran – oder Sie zahlen nicht', href: '/krantechnik/kranservice', icon: 'shield-check' },
+    { title: 'Trommel am Ende', text: 'Neue Trommel statt neuer Fahrmischer – für alle Marken', href: '/fahrzeugtechnik/trommeltausch', icon: 'truck' },
+    { title: 'Verschleissteil gesucht', text: 'Für alle Marken, schnell beschafft', href: '/fahrzeugtechnik/verschleissteile', icon: 'package' },
   ] satisfies Entry[],
   /** Zweite Ziele zu den Kacheln, die zwei Wege haben (Auftrag 7.6). */
   alsoLinks: [
-    { href: '/sonderloesungen#fahrzeugbau', label: 'Aufbau reparieren lassen' },
-    { href: '/kontakt', label: 'Teil direkt anfragen' },
+    { href: '/fahrzeugtechnik#reparatur', label: 'Aufbau reparieren lassen' },
   ],
   /** Notfall (Anker #notfall). */
   prepare: {

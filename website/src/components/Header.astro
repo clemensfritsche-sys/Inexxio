@@ -2,7 +2,7 @@
 /**
  * Kopfzeile – EINE Zeile (Rückmeldung 04.10.2026: Servicezeile, Arbeitsleiste und
  * Vorschau-Banner sind ersatzlos entfallen):
- *   Logo · Krane ▾ · Fahrzeugbau ▾ · Sonderlösungen · Service · Über uns ▾ ·
+ *   Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Speziallösungen · Service · Über uns ▾ ·
  *   Kontakt · ERP (nur Personal, ein Link) · Telefon · Anmelden bzw. Profilmenü · «Anfrage stellen».
  * Schmaler: Logo, Telefon, Konto, Menü.
  *
@@ -42,12 +42,10 @@ const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
 /**
  * Die Menüpunkte (site.navigation – dieselbe Liste wie im Fuss): drei Bereiche, Service,
  * Über uns (#1154) – jede Seite ist darin erreichbar. Ein Punkt ohne Unterseiten
- * (Sonderlösungen, Service) ist ein einfacher Link. Aktiv ist ein Punkt nur auf seinen
- * EIGENEN Seiten – der Verweis auf die Sonderlösungen in Krane und Fahrzeugbau (#1204) macht
- * auf /sonderloesungen nicht drei Punkte gleichzeitig aktiv.
+ * (Speziallösungen, Service) ist ein einfacher Link. Aktiv ist ein Punkt nur auf seinen
+ * EIGENEN Seiten.
  */
 const groupActive = (g: (typeof groups)[number]) => within(g.href);
-const childPath = (href: string) => href.split('#')[0];
 ---
 <header class="site-header" data-header>
   {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
@@ -65,7 +63,7 @@ const childPath = (href: string) => href.split('#')[0];
             </li>
           ) : (
             <li class:list={['nav__item dd', g.id === site.about.id && 'dd--end']} data-dd>
-              {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugbau» klickt, erwartet
+              {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugtechnik» klickt, erwartet
                   sie), der Pfeil daneben öffnet das Untermenü für Tastatur und Touch. Mit der Maus
                   öffnet es beim Zeigen. Darum braucht das Panel keinen «Alle …»-Link mehr. */}
               <a
@@ -88,7 +86,7 @@ const childPath = (href: string) => href.split('#')[0];
                   <ul role="list" class="dd__list">
                     {g.children.map((c) => (
                       <li>
-                        <a href={c.href} class="dd__link" aria-current={path === childPath(c.href) && within(g.href) ? 'page' : undefined}>
+                        <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
                           <span class="dd__label">{plain(c.label)}</span>
                           <span class="dd__text">{c.text}</span>
                         </a>
@@ -162,7 +160,7 @@ const childPath = (href: string) => href.split('#')[0];
                   </summary>
                   <ul role="list" class="mnav__sub">
                     {g.children.map((c) => (
-                      <li><a href={c.href} aria-current={path === childPath(c.href) && within(g.href) ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}</strong><span>{c.text}</span></a></li>
+                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}</strong><span>{c.text}</span></a></li>
                     ))}
                     <li><a href={g.href} class="mnav__overview" aria-current={path === g.href ? 'page' : undefined}>{g.overview}</a></li>
                   </ul>

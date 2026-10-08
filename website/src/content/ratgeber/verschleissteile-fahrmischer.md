@@ -14,15 +14,15 @@ sources:
   - label: 'Suva: Richtlinie 1416 – Arbeiten in Behältern und engen Räumen'
     href: 'https://www.suva.ch/de-ch/download/richtlinien-und-gesetze/richtlinien-fuer-das-arbeiten-in-einem-behaelter-und-engen-raeumen/standard-variante--1416.D'
 related:
-  - href: '/fahrzeugbau/fahrmischer#katalog'
-    label: 'Verschleiss- und Ersatzteile'
-    text: 'Rinnen, Schurren, Trichter und Spiralschutz – passend für gängige Marken.'
-  - href: '/fahrzeugbau/fahrmischer'
-    label: 'Fahrmischer-Service'
-    text: 'Wartung, Reparatur und Trommel-Revision für alle gängigen Marken.'
-  - href: '/fahrzeugbau'
-    label: 'Fahrzeugbau'
-    text: 'Alles, was wir an Fahrmischern und Aufbauten machen.'
+  - href: '/fahrzeugtechnik/verschleissteile'
+    label: 'Verschleissteile'
+    text: 'Für Fahrmischer aller Marken, schnell beschafft.'
+  - href: '/fahrzeugtechnik/trommeltausch'
+    label: 'Trommeltausch'
+    text: 'Neue Trommel statt neuer Fahrmischer.'
+  - href: '/fahrzeugtechnik'
+    label: 'Fahrzeugtechnik'
+    text: 'Alles, was wir für Fahrmischer tun.'
 ---
 
 Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, in der Trommel an den Mischspiralen, beim Entleeren an Schurre und Rinne. Das ist kein Mangel, sondern Betrieb. Entscheidend ist, die Teile zu ersetzen, bevor sie die Arbeit behindern oder angrenzende Teile beschädigen.
@@ -51,7 +51,7 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 ## Wann der richtige Zeitpunkt ist
 
 - **Rinne und Schurre:** sobald die Lauffläche durch ist oder ein Teil sich nicht mehr sicher verriegeln lässt – nicht erst, wenn der Beton danebenläuft.
-- **Spiralen:** bei einer Trommel-Revision. Am besten im Winter, wenn der Fahrmischer ohnehin weniger fährt und ein paar Tage in der Werkstatt nicht stören. Mehr dazu unter [Winter-Revision](/fahrzeugbau/fahrmischer#winter-revision).
+- **Spiralen:** bei einer Trommel-Revision. Am besten im Winter, wenn der Fahrmischer ohnehin weniger fährt und ein paar Tage in der Werkstatt nicht stören. Mehr dazu unter [Trommeltausch im Winter](/fahrzeugtechnik/trommeltausch#winter).
 
 ## Was die Lebensdauer verlängert
 
@@ -61,4 +61,4 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 
 ## Welche Teile wir führen
 
-Rinnen, Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz für gängige Marken – das Programm ist im Aufbau. Was passt, klären wir mit Marke, Typ und Baujahr des Aufbaus; ein Foto vom Typenschild hilft. Die Übersicht steht unter [Verschleiss- und Ersatzteile](/fahrzeugbau/fahrmischer#katalog).
+Rinnen, Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz für alle Marken, auf Bestellung schnell beschafft. Was passt, klären wir mit Marke, Typ und Baujahr des Aufbaus; ein Foto vom Typenschild hilft. Die Übersicht steht unter [Verschleissteile](/fahrzeugtechnik/verschleissteile#katalog).

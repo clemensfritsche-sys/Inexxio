@@ -1,8 +1,9 @@
 ---
 /**
- * /krane/kranservice – der Kranservice auf EINER Seite: Versprechen ① und ③ (Vorlage),
- * die drei Stufen (#stufen), INEXXIO 365 mit seinen zwei Wegen (#inexxio-365), was wir prüfen
- * (Vorlage), dann die Prüfpflicht mit Tabelle, Quellen und Prüfpflicht-Check.
+ * /krantechnik/kranservice – der Kranservice auf EINER Seite: Versprechen ① und ③ (Vorlage),
+ * die vier Stufen (#stufen), INEXXIO 365 mit seinen zwei Wegen (#inexxio-365), was wir prüfen
+ * (Vorlage), Modernisierung mit der Garantie (#modernisierung), dann die Prüfpflicht mit
+ * Tabelle, Quellen und Prüfpflicht-Check.
  * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva
  * anerkannt ist.
  */
@@ -14,14 +15,14 @@ import Rich from '../../components/Rich.astro';
 import InspectionTable from '../../components/InspectionTable.astro';
 import InspectionCheck from '../../components/InspectionCheck.astro';
 import Sources from '../../components/Sources.astro';
-import { kranservice, serviceTiers as t, inexxio365 as x } from '../../content/krane';
+import { kranservice, serviceTiers as t, inexxio365 as x, modernisation as m, photoHint as ph } from '../../content/krantechnik';
 import { inspection } from '../../config/inspection.mjs';
 ---
 <SubPage page={kranservice}>
   <Fragment slot="intro">
     <section class="section" id="stufen" aria-labelledby="stufen-title">
       <div class="wrap">
-        <SectionHead eyebrow="Drei Stufen" title={t.title} lead={t.lead} id="stufen-title" />
+        <SectionHead eyebrow="Vier Stufen" title={t.title} lead={t.lead} id="stufen-title" />
         <ServiceTiers />
       </div>
     </section>
@@ -36,13 +37,27 @@ import { inspection } from '../../config/inspection.mjs';
             </li>
           ))}
         </ul>
-        <Rich as="p" class="x365__ind" text={x.industries} />
-        <div class="btn-row"><a class="btn btn--primary" href="#anfrage">{x.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a></div>
+        <div class="btn-row x365__cta"><a class="btn btn--primary" href="#anfrage">{x.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a></div>
       </div>
     </section>
   </Fragment>
 
-  <section slot="module" class="section" aria-labelledby="pruefpflicht">
+  <section slot="module" class="section" id="modernisierung" aria-labelledby="modern-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Modernisierung" title={m.title} lead={m.lead} id="modern-title" />
+      <ul role="list" class="mod">
+        {m.items.map((it) => (
+          <li class="mod__item"><h3>{it.title}</h3><Rich as="p" text={it.text} /></li>
+        ))}
+      </ul>
+      <div class="mod__hint">
+        <Icon name="camera" size={22} />
+        <div><h3>{ph.title}</h3><Rich as="p" text={ph.text} /></div>
+      </div>
+    </div>
+  </section>
+
+  <section slot="module" class="section section--paper" aria-labelledby="pruefpflicht">
     <div class="wrap">
       <SectionHead
         eyebrow="Prüfpflicht"
@@ -83,7 +98,16 @@ import { inspection } from '../../config/inspection.mjs';
   @media (min-width: 760px) { .x365 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .x365__way { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--white); }
   .x365__way h3 { font-size: 1.375rem; color: var(--white); }
-  .x365__ind { margin: var(--s-7) 0 var(--s-5); max-width: 46em; font-size: 1.125rem; color: var(--white); }
+  .x365__cta { margin-top: var(--s-7); }
+  .mod { display: grid; gap: var(--s-5) var(--s-6); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .mod { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .mod { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .mod__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
+  .mod__item h3 { font-size: 1.125rem; }
+  .mod__item p { color: var(--ink-2); }
+  .mod__hint { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); max-width: 46em; margin-top: var(--s-7); padding-top: var(--s-4); border-top: 1px solid var(--line-2); }
+  .mod__hint h3 { font-size: 1.0625rem; margin-bottom: 4px; }
+  .mod__hint :global(.icon) { color: var(--red); margin-top: 2px; }
   .pflicht { margin-bottom: var(--s-7); }
   .pflicht__text { display: grid; gap: var(--s-2); }
   .pflicht__text h3 { font-size: 1.125rem; margin-top: var(--s-3); }

@@ -5,7 +5,7 @@
  */
 import type { IconName } from '../components/Icon.astro';
 import type { PromiseKey } from './promises';
-export type AreaId = 'krane' | 'fahrzeugbau' | 'sonderloesungen';
+export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen';
 /** OG-Bild: Standard oder das des Bereichs (public/og/, scripts/make-assets.mjs). */
 export type OgImage = 'default' | AreaId;
 export interface Faq { q: string; a: string }

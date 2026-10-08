@@ -16,15 +16,15 @@ export const ueberUns = {
       '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} gegründet hat – heute mit demselben Handwerk und mit Ingenieurwissen aus dem Maschinenbau.',
   },
   summary:
-    '{{brand.full}} ist ein Servicebetrieb mit eigenen Produkten: Wir betreuen und bauen Krane, überholen und tauschen Trommeln von Fahrmischern und konstruieren Sonderlösungen. Die Werkstatt steht in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – dieselbe Werkstatt, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
+    '{{brand.full}} arbeitet in drei Bereichen: Krantechnik, Fahrzeugtechnik und Speziallösungen. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen für den Bau. Die Werkstatt steht in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – dieselbe Werkstatt, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
   /** Wer wir sind – das Team, nicht eine Person (#1147: «es braucht immer alle»). */
   team: {
     title: 'Wer wir sind',
     text: 'Hinter {{brand.name}} steht ein Team aus der Werkstatt: Mechanik, Schweiss- und Stahlbau, Konstruktion. Jede Anlage und jede Reparatur entsteht gemeinsam – von der ersten Skizze bis zum Service.',
     points: [
-      'Krane bauen, prüfen, warten und modernisieren',
-      'Fahrmischer warten, reparieren und mit neuer Trommel ausrüsten',
-      'Konstruieren, schweissen, umbauen – auch, was es nicht zu kaufen gibt',
+      'Krane nach Mass bauen, prüfen, warten und modernisieren',
+      'Fahrmischer mit neuer Trommel ausrüsten, Verschleissteile beschaffen',
+      'Spezialmaschinen und Anbauten für die Baustelle konstruieren und bauen',
     ],
   },
   /** Die Werte der Firma (#1182) – wofür wir stehen; die Zusagen darunter machen sie prüfbar. */
@@ -41,7 +41,7 @@ export const ueberUns = {
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
   promises: {
     title: 'Worauf Sie sich verlassen können',
-    lead: 'Konkrete Zusagen statt schöner Worte – dazu die INEXXIO Zufriedenheitsgarantie: Nicht zufrieden? Sie zahlen nur die Hälfte.',
+    lead: 'Konkrete Zusagen statt schöner Worte – dazu die Garantie: Nicht zufrieden? Sie zahlen nur die Hälfte.',
     items: [
       { title: 'Fixpreis vor jeder Arbeit', text: 'Sie wissen vorher, was es kostet. Auf der Rechnung steht keine Überraschung.' },
       { title: 'Keine Mindestlaufzeit', text: 'Sie bleiben, weil es passt – nicht, weil ein Vertrag Sie hält.' },
@@ -53,7 +53,7 @@ export const ueberUns = {
   /** Werkstatt, Standort und Einsatzgebiet – EIN Abschnitt (vorher zwei, die beide «Werkstatt steht in …» sagten). */
   workshop: {
     title: 'Zuhause in der Werkstatt – im Einsatz, wo Sie uns brauchen',
-    text: 'In {{erp.city}} steht unsere Werkstatt. Hier bauen wir Krananlagen, reparieren Fahrmischer und Aufbauten und fertigen Sonderlösungen. Im Einsatz sind wir {{area.summary}}: Krane prüfen, warten und reparieren wir dort, wo sie stehen; Fahrmischer, Aufbauten und Baumaschinen kommen meist in unsere Werkstatt. In der Nähe sind wir schnell bei Ihnen, für weiter entfernte Einsätze planen wir gemeinsam.',
+    text: 'In {{erp.city}} steht unsere Werkstatt. Hier bauen wir Krane, tauschen Trommeln von Fahrmischern und fertigen Spezialmaschinen. Im Einsatz sind wir {{area.summary}}: Krane prüfen, warten und reparieren wir dort, wo sie stehen; Fahrmischer kommen meist in unsere Werkstatt. In der Nähe sind wir schnell bei Ihnen, für weiter entfernte Einsätze planen wir gemeinsam.',
   },
   areaFaq: [
     {

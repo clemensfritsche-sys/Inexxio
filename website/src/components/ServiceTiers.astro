@@ -1,11 +1,11 @@
 ---
 /**
- * Die drei Stufen des Kranservice (content/krane.ts → serviceTiers): Auf Abruf ·
- * Basis · INEXXIO 365. Jede Stufe nennt nur, was dazukommt; INEXXIO 365 ist die
+ * Die vier Stufen des Kranservice (content/krantechnik.ts → serviceTiers): Auf Abruf ·
+ * Basis · Plus · INEXXIO 365. Jede Stufe nennt nur, was dazukommt; INEXXIO 365 ist die
  * dunkle Karte. Keine Preise.
  */
 import Icon from './Icon.astro';
-import { serviceTiers as t } from '../content/krane';
+import { serviceTiers as t } from '../content/krantechnik';
 ---
 <ol role="list" class="tiers">
   {t.tiers.map((tier, i) => (
@@ -23,7 +23,8 @@ import { serviceTiers as t } from '../content/krane';
 
 <style>
   .tiers { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 860px) { .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 720px) { .tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .tiers { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   .tiers__item {
     display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5);
     background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg);

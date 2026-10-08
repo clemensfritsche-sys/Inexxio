@@ -7,42 +7,32 @@ import { handoverLead, heiriQuote, sharedFaq } from './uebergabe';
 import { promiseFaq } from './promises';
 
 export const start = {
-  title: 'Krane und Fahrmischer | {{brand.full}}',
+  title: '{{brand.name}}: Krane, Fahrmischer, Spezialmaschinen',
   description:
-    'Kranservice mit Gratis-Erstservice und INEXXIO 365, Trommeltausch für Fahrmischer, Sonderlösungen – mit Zufriedenheitsgarantie. Aus Tuttwil-Wängi TG.',
+    'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Fixpreis und Garantie. Aus Tuttwil-Wängi TG.',
 
   hero: {
     eyebrow: 'Tuttwil-Wängi TG · seit {{history.founded}}',
-    h1: 'Krane und Fahrmischer mit ==Handschlagqualität==.',
-    /** Was wir tun, für wen, und warum ohne Risiko – in zwei Sätzen. */
-    lead:
-      'Wir bauen, warten und reparieren Krane und Fahrmischer aller Marken. Sie erhalten vor jeder Arbeit einen Fixpreis – und einen Ansprechpartner, der erreichbar ist, wenn etwas stillsteht.',
+    h1: 'Krane, Fahrmischer und Spezialmaschinen mit ==Handschlagqualität==.',
+    lead: 'Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
     /** Vertrauensleiste – nur belegbare Tatsachen. Die Versprechen stehen gleich darunter. */
     trust: [
       { value: '{{history.founded}}', label: 'Gegründet in Tuttwil-Wängi' },
-      { value: '{{history.cranesSince}}', label: 'Erste eigene Krananlage' },
       { value: 'Alle Marken', label: 'Krane und Fahrmischer' },
-      { value: 'Eine Nummer', label: 'Auch wenn etwas stillsteht' },
+      { value: 'Fixpreis', label: 'Vor jeder Arbeit' },
+      { value: '50 %', label: 'Zurück, wenn Sie nicht zufrieden sind' },
     ],
   },
 
   /** Ein Satz je Bereich – das Versprechen, das ihn trägt. Drei gleichwertige Karten. */
   entries: {
-    krane: 'Ihr Kran läuft – oder Sie zahlen nicht.',
-    fahrzeugbau: 'Neue Trommel statt neuer Fahrmischer.',
-    sonderloesungen: 'Was es nicht zu kaufen gibt, bauen wir.',
+    krantechnik: 'Ihr Kran läuft – oder Sie zahlen nicht.',
+    fahrzeugtechnik: 'Neue Trommel statt neuer Fahrmischer.',
+    spezialloesungen: 'Maschinen nach Mass für besondere Baustellen.',
   } as Record<string, string>,
 
   summary:
-    '{{brand.full}} baut, wartet und repariert Krane und Fahrmischer aller Marken: Kranservice für Industrie, Häfen und Landwirtschaft – der erste Service ist gratis, mit INEXXIO 365 läuft der Kran, oder Sie zahlen nicht –, neue Krananlagen, Heukrananlagen und Bootslifte, Trommeltausch und Revision für Fahrmischer sowie Sonderkrane, Sonderaufbauten und Stahlbau. Vor jeder Arbeit gibt es einen Fixpreis, und mit der INEXXIO Zufriedenheitsgarantie zahlen Sie nur die Hälfte, wenn Sie nicht zufrieden sind. Die Werkstatt steht in Tuttwil-Wängi TG.',
-
-  /** Für wen INEXXIO 365 gemacht ist – links die Aussage, rechts die vier Branchen. */
-  industries: {
-    eyebrow: 'Für wen wir arbeiten',
-    title: 'Für alle, deren Kran laufen muss.',
-    text: 'Steht der Kran, steht der ganze Betrieb. Darum gilt bei INEXXIO 365: Jeder Tag Stillstand ist gratis – Prüfung, Wartung und Ersatzteile sind inklusive.',
-    link: { href: '/krane/kranservice#inexxio-365', label: 'Zu INEXXIO 365' },
-  },
+    '{{brand.full}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice für alle Marken – der erste Service ist gratis – und INEXXIO 365: Ihr Kran läuft, oder Sie zahlen nicht. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer aller Marken. Speziallösungen: Spezialmaschinen und Anbauten nach Mass für besondere Baustellen. Vor jeder Arbeit gibt es einen Fixpreis, und was Sie kaufen, ist durch die Garantie gedeckt: Nicht zufrieden, zahlen Sie nur die Hälfte. Die Werkstatt steht in Tuttwil-Wängi TG.',
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
@@ -57,12 +47,12 @@ export const start = {
   },
 
   why: {
-    eyebrow: 'Warum wir',
+    eyebrow: 'Warum INEXXIO',
     h2: 'Vier Gründe, die Sie nachprüfen können',
     items: [
       {
         title: 'Ingenieurwissen statt Rätselraten.',
-        text: 'Clemens Fritsche ist Maschinenbauingenieur und hat bei Liebherr Baumaschinen entwickelt. Wir finden die Ursache – nicht nur das Symptom.',
+        text: 'Clemens Fritsche ist Maschinenbauingenieur und hat bei Liebherr Bohrgeräte mitentwickelt. Wir finden die Ursache – nicht nur das Symptom.',
       },
       {
         title: 'Krane bauen wir seit {{history.cranesSince}} selbst.',
@@ -70,7 +60,7 @@ export const start = {
       },
       {
         title: 'Ein Ansprechpartner, eine Nummer.',
-        text: 'Für Krane, Fahrmischer und Sonderlösungen. Steht etwas still, rufen Sie an – und sprechen mit jemandem, der entscheidet.',
+        text: 'Für Krane, Fahrmischer und Spezialmaschinen. Steht etwas still, rufen Sie an – und sprechen mit jemandem, der entscheidet.',
       },
       {
         title: 'Jede Arbeit dokumentiert.',
@@ -82,7 +72,6 @@ export const start = {
       link: 'Mehr über Clemens Fritsche und das Unternehmen',
     },
   },
-
 
   ratgeber: {
     eyebrow: 'Ratgeber',
@@ -100,7 +89,7 @@ export const start = {
     sharedFaq.phone,
     {
       q: 'Welche Marken betreuen Sie?',
-      a: 'Bei Fahrmischern: {{marks.mixerList}} – weitere Marken auf Anfrage.',
+      a: 'Krane und Fahrmischer aller Marken – bei Fahrmischern etwa {{marks.mixerList}}. Speziallösungen bauen wir für Geräte jeder Marke.',
     },
     promiseFaq.secondOpinion,
     sharedFaq.speed,

@@ -1,0 +1,62 @@
+---
+/**
+ * /spezialloesungen – Bereichsseite ohne Unterseiten, aufgebaut wie eine Unterseite:
+ * Was wir bauen (Leistungsumfang der Vorlage) → Co-Entwicklung (#co-entwicklung) → So läuft es →
+ * Wer dahintersteht. Texte: content/spezialloesungen.ts.
+ */
+import SubPage from '../layouts/SubPage.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Steps from '../components/Steps.astro';
+import Photo from '../components/Photo.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { spezialloesungen, specialSteps as s, coDevelopment as c, specialBackground as b } from '../content/spezialloesungen';
+---
+<SubPage page={spezialloesungen}>
+  <section slot="module" class="section section--dark" id="co-entwicklung" aria-labelledby="co-title">
+    <div class="wrap grid co">
+      <div class="col-6 co__text">
+        <SectionHead eyebrow="Co-Entwicklung" title={c.title} id="co-title" class="head--flush" />
+        <Rich as="p" text={c.text} />
+      </div>
+      <ul role="list" class="col-5 co__list">
+        {c.points.map((p) => <li><Icon name="check" size={20} /><span>{p}</span></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section slot="module" class="section" aria-labelledby="ablauf">
+    <div class="wrap">
+      <SectionHead eyebrow="Ablauf" title={s.title} id="ablauf" />
+      <Steps steps={s.items} />
+      <div class="btn-row so-cta">
+        <a class="btn btn--primary" href="#anfrage">Aufgabe schildern <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+    </div>
+  </section>
+
+  <section slot="module" class="section section--paper" aria-labelledby="hintergrund">
+    <div class="wrap grid so-bg">
+      <div class="col-4"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
+      <div class="col-7 so-bg__text">
+        <SectionHead eyebrow="Wer dahintersteht" title={b.title} id="hintergrund" class="head--flush" />
+        <Rich as="p" text={b.text} />
+        <a class="arrow-link" href="/ueber-uns">Mehr über uns <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .head--flush { margin-bottom: 0; }
+  .co { align-items: end; row-gap: var(--s-6); }
+  .co__text { display: grid; gap: var(--s-4); }
+  @media (min-width: 960px) { .co__list { grid-column: 8 / span 5; } }
+  .co__list { display: grid; gap: var(--s-3); align-content: start; }
+  .co__list li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: var(--s-3); color: var(--white); }
+  .co__list :global(.icon) { color: var(--red-bright); margin-top: 3px; }
+  .so-cta { margin-top: var(--s-7); }
+  .so-bg { align-items: center; }
+  @media (min-width: 960px) { .so-bg__text { grid-column: 6 / span 7; } }
+  .so-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
+</style>

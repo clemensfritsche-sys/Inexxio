@@ -1,0 +1,94 @@
+---
+/**
+ * /krantechnik/krane-nach-mass – Krane, die zum Betrieb passen: vier Arten (Sonderkrane,
+ * Industriekrane, Häfen mit Booten und Bootsliften, Standardkran aus Markenkomponenten),
+ * je mit eigenem Anker; dann die zwei Wege zum neuen Kran (Kauf mit Garantie oder Monatsrate)
+ * und das Hafenjahr. Keine Katalog-Optik, keine Preise.
+ */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Photo from '../../components/Photo.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { kraneNachMass, craneKinds, newCraneWays as w, harbourYear as y } from '../../content/krantechnik';
+---
+<SubPage page={kraneNachMass}>
+  <section slot="intro" class="section" aria-labelledby="arten">
+    <div class="wrap">
+      <SectionHead eyebrow="Was wir bauen" title="Vier Wege zum passenden Kran" id="arten" />
+      <div class="kind">
+        {craneKinds.map((k, i) => (
+          <article class:list={['kind__row', i % 2 === 1 && 'kind__row--flip']} id={k.id} aria-labelledby={`${k.id}-title`}>
+            <div class="kind__media"><Photo id={k.photo} sizes="(min-width: 960px) 40vw, 100vw" /></div>
+            <div class="kind__text">
+              <p class="label">{k.eyebrow}</p>
+              <h3 id={`${k.id}-title`} class="kind__title">{k.title}</h3>
+              <Rich as="p" text={k.text} />
+              <ul class="checklist" role="list">
+                {k.items.map((it) => <li><Icon name="check" size={20} /><span>{it}</span></li>)}
+              </ul>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section slot="intro" class="section section--dark" id="wege" aria-labelledby="wege-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Neue Krane" title={w.title} lead={w.lead} id="wege-title" />
+      <ul role="list" class="ways">
+        {w.ways.map((x) => (
+          <li class="ways__item">
+            <p class="label">{x.label}</p>
+            <h3>{x.title}</h3>
+            <Rich as="p" text={x.text} />
+          </li>
+        ))}
+      </ul>
+      <div class="btn-row ways__cta">
+        <a class="btn btn--primary" href="#anfrage">Kran anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+    </div>
+  </section>
+
+  <section slot="module" class="section" aria-labelledby="hafenjahr">
+    <div class="wrap">
+      <SectionHead eyebrow="Häfen, Clubs und Werften" title={y.title} lead={y.lead} id="hafenjahr" />
+      <ol role="list" class="hy">
+        {y.seasons.map((s) => (
+          <li class="hy__item">
+            <p class="label">{s.when}</p>
+            <h3>{s.title}</h3>
+            <Rich as="p" text={s.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+</SubPage>
+
+<style>
+  .kind { display: grid; gap: var(--s-8); }
+  .kind__row { display: grid; gap: var(--s-5) var(--s-8); align-items: center; scroll-margin-top: calc(var(--header-h) + var(--s-5)); }
+  @media (min-width: 960px) {
+    .kind__row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+    .kind__row--flip .kind__media { order: 2; }
+  }
+  .kind__media { overflow: hidden; border-radius: var(--r-lg); aspect-ratio: 4 / 3; background: var(--paper-2); }
+  .kind__media :global(picture), .kind__media :global(img), .kind__media :global(.ph) { width: 100%; height: 100%; }
+  .kind__media :global(img) { object-fit: cover; }
+  .kind__text { display: grid; gap: var(--s-3); justify-items: start; }
+  .kind__title { font-size: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem); }
+
+  .ways { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .ways__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--white); }
+  .ways__item h3 { font-size: 1.375rem; color: var(--white); }
+  .ways__cta { margin-top: var(--s-7); }
+
+  .hy { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .hy { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hy__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
+  .hy__item h3 { font-size: 1.25rem; }
+</style>

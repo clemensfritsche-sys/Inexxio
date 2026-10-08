@@ -1,9 +1,8 @@
 ---
 /**
- * /krane/heukrananlagen (Auftrag 7.5): Bauformen als Illustration mit Einsatzfall, Ablauf
- * einer Neuanlage, Saison-Check, Hinweis für Besitzer bestehender HS-Anlagen. Hauptaktion:
- * «Anlage anfragen». Die Abschnitte «Ersatzteile» und «Typenschild» sind entfallen
- * (#1121/#1124).
+ * /krantechnik/heukrananlagen: zuerst die Anlage, die Sie haben (Saison-Check, bestehende
+ * HS-Anlagen), danach Neuanlagen auf Anfrage (Bauformen, Ablauf). Kein INEXXIO 365 –
+ * Heukrane laufen selten; hier gelten Versprechen ① und ②.
  */
 import SubPage from '../../layouts/SubPage.astro';
 import SectionHead from '../../components/SectionHead.astro';
@@ -11,7 +10,7 @@ import Steps from '../../components/Steps.astro';
 import CraneForm from '../../components/CraneForm.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
-import { heukrananlagen, heukranModules as m } from '../../content/krane';
+import { heukrananlagen, heukranModules as m } from '../../content/krantechnik';
 import { product } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -22,36 +21,7 @@ const productNode = product(siteUrl, {
 });
 ---
 <SubPage page={heukrananlagen} jsonLd={[productNode]}>
-  <section slot="intro" class="section" id="neuanlage" aria-labelledby="bauformen">
-    <div class="wrap">
-      <SectionHead eyebrow="Neuanlagen nach Mass" title={m.forms.title} lead={m.forms.lead} id="bauformen" />
-      <ul class="forms" role="list">
-        {m.forms.items.map((f) => (
-          <li class="forms__row">
-            <CraneForm illo={f.illo} label={f.title} />
-            <div class="forms__text">
-              <h3>{f.title}</h3>
-              <p>{f.text}</p>
-              <p class="label forms__label">Passt, wenn …</p>
-              <p class="forms__use">{f.use}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
-
-  <div slot="module">
-    <section class="section section--dark" aria-labelledby="ablauf-neuanlage">
-      <div class="wrap">
-        <SectionHead eyebrow="Ablauf" title={m.steps.title} id="ablauf-neuanlage" />
-        <Steps steps={m.steps.items} />
-        <div class="btn-row hk-cta">
-          <a class="btn btn--primary" href="#anfrage">Anlage anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
-        </div>
-      </div>
-    </section>
-
+  <div slot="intro">
     <section class="section" aria-labelledby="saison-title">
       <div class="wrap">
         <div class="grid hk-row" id="saison-check">
@@ -74,6 +44,37 @@ const productNode = product(siteUrl, {
         <div class="col-8 hk-own__text">
           <SectionHead eyebrow="Bestehende Anlagen" title={m.owners.title} id="bestehende-anlagen" class="head--flush" />
           <Rich as="p" text={m.owners.text} />
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div slot="module">
+    <section class="section" id="neuanlage" aria-labelledby="bauformen">
+      <div class="wrap">
+        <SectionHead eyebrow="Neuanlagen auf Anfrage" title={m.forms.title} lead={m.forms.lead} id="bauformen" />
+        <ul class="forms" role="list">
+          {m.forms.items.map((f) => (
+            <li class="forms__row">
+              <CraneForm illo={f.illo} label={f.title} />
+              <div class="forms__text">
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+                <p class="label forms__label">Passt, wenn …</p>
+                <p class="forms__use">{f.use}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section--dark" aria-labelledby="ablauf-neuanlage">
+      <div class="wrap">
+        <SectionHead eyebrow="Ablauf" title={m.steps.title} id="ablauf-neuanlage" />
+        <Steps steps={m.steps.items} />
+        <div class="btn-row hk-cta">
+          <a class="btn btn--primary" href="#anfrage">Neuanlage anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
         </div>
       </div>
     </section>

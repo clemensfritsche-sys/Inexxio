@@ -4,7 +4,7 @@
  * Über dem Kopf läuft eine Kranbahn; die Katze mit der INEXXIO-Wortmarke folgt dem Zeiger.
  * Über einem Knopf senkt sie den Haken und hängt ihn an. Über einem **Bereich** spielt sie
  * dessen Szene im Bildfeld der Karte: Heu einlagern (Greifer) · Mischtrommel tauschen ·
- * Ausleger nach Mass montieren. Drei gleichwertige Karten, je mit ihrem Versprechen in einem
+ * Anbau nach Mass montieren. Drei gleichwertige Karten, je mit ihrem Versprechen in einem
  * Satz. Ohne Zeiger fährt der Kran die drei Bereiche nacheinander ab.
  * Bewegung: src/scripts/crane.ts. Ohne JS oder bei reduzierter Bewegung steht der Kran still,
  * die Karten reagieren dann auf das Zeigen wie gewohnt.
@@ -19,9 +19,9 @@ import lastBale from '../assets/crane/last-bale.svg?raw';
 import lastOld from '../assets/crane/last-old.svg?raw';
 import lastNew from '../assets/crane/last-new.svg?raw';
 import lastJib from '../assets/crane/last-jib.svg?raw';
-import szeneKran from '../assets/crane/szene-krane.svg?raw';
-import szeneFahrzeug from '../assets/crane/szene-fahrzeugbau.svg?raw';
-import szeneSonder from '../assets/crane/szene-sonderloesungen.svg?raw';
+import szeneKran from '../assets/crane/szene-krantechnik.svg?raw';
+import szeneFahrzeug from '../assets/crane/szene-fahrzeugtechnik.svg?raw';
+import szeneSonder from '../assets/crane/szene-spezialloesungen.svg?raw';
 
 interface Props {
   eyebrow: string;
@@ -37,9 +37,9 @@ const { eyebrow, title, lead, trust, areasTitle, more, claims } = Astro.props;
 
 /** Szene je Bereich – die Reihenfolge der Bühnen folgt der Reihenfolge der Karten. */
 const scenes: Record<string, { svg: string; done: string }> = {
-  krane: { svg: szeneKran, done: 'Heu eingelagert' },
-  fahrzeugbau: { svg: szeneFahrzeug, done: 'Neue Trommel' },
-  sonderloesungen: { svg: szeneSonder, done: 'Sonderlösung montiert' },
+  krantechnik: { svg: szeneKran, done: 'Heu eingelagert' },
+  fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel' },
+  spezialloesungen: { svg: szeneSonder, done: 'Anbau montiert' },
 };
 /** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */
 const loads = [
@@ -123,6 +123,11 @@ const loads = [
         );
       })}
     </ul>
+    <dl class="hh__ind" aria-label="Für wen wir arbeiten">
+      {site.areas.map((a) => (
+        <div class="hh__ind-row"><dt class="label">{a.label}</dt><Rich as="dd" text={a.industries} /></div>
+      ))}
+    </dl>
     <div class="hh__season"><SeasonNotice page="/" /></div>
   </div>
 
@@ -190,7 +195,7 @@ const loads = [
   }
   /* Schmal: der Haken hängt in Ruhe mitten über dem Text – dort darunter beginnen. */
   @media (max-width: 599px) { .hh__top { padding-top: 184px; } }
-  @media (min-width: 960px) { .hh__top { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 960px) { .hh__top { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
   .hh__head { display: grid; gap: 28px; }
   .hh__title { margin: 0; font-size: clamp(2.5rem, 1.6rem + 3vw, 4rem); line-height: 1.04; }
   .hh__side { display: grid; gap: var(--s-5); justify-items: start; }
@@ -242,6 +247,11 @@ const loads = [
     display: flex; align-items: center; gap: var(--s-2); padding-top: var(--s-2); border-top: 1px solid var(--line);
     font-size: 0.875rem; font-weight: 500; color: var(--ink);
   }
+  /* Für wen: je Bereich eine Zeile, unter seiner Karte – schlicht, kein eigener Block. */
+  .hh__ind { display: grid; gap: var(--s-3) var(--s-4); grid-template-columns: minmax(0, 1fr); margin-top: var(--s-5); }
+  @media (min-width: 760px) { .hh__ind { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hh__ind-row { display: grid; gap: 4px; align-content: start; padding-top: var(--s-3); border-top: 1px solid var(--line); }
+  .hh__ind-row dd { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--ink-2); }
   .hh__season :global(.season) { margin-top: var(--s-6); }
 
   /* Angehängt: vom Kran (data-hooked) – ohne Kran beim Zeigen. */

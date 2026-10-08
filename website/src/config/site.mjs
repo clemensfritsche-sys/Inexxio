@@ -37,7 +37,7 @@ const erp = (() => {
 /** Werdegang von Clemens Fritsche – als Liste (Über uns) und als Satz (JSON-LD, llms.txt). */
 const ownerCareer = [
   'Maschinenbauingenieur',
-  'Produktentwicklung bei Liebherr (Baumaschinen)',
+  'Entwicklung von Bohrgeräten bei Liebherr',
   'Produkt- und Plattformmanagement im IoT-Umfeld',
   'Weiterbildung in Betriebswirtschaft',
 ];
@@ -45,65 +45,61 @@ const ownerCareer = [
 /**
  * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
  * @typedef {{
- *   id: 'krane' | 'fahrzeugbau' | 'sonderloesungen',
+ *   id: 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen',
  *   label: string, href: string, overview: string, text: string, photo: string,
  *   ogTitle: string,
+ *   industries: string,
  *   children: SubPage[],
  * }} Area
  */
 
 /**
- * Sonderlösungen steht in den Untermenüs von Krane und Fahrzeugbau (Testnotiz #1204) – als
- * Verweis auf DIESELBE Seite, an den Abschnitt, der zum Bereich gehört. Kein eigener Inhalt.
- */
-const special = (/** @type {string} */ anchor, /** @type {string} */ text) => (
-  { label: 'Sonderlösungen', href: `/sonderloesungen#${anchor}`, text, photo: 'arbeit-werkstatt' }
-);
-
-/**
- * ►►► Die drei Bereiche – Kopf, Mobil-Menü, Fuss, Bereichskarten, JSON-LD (hasOfferCatalog)
- * und llms.txt entstehen daraus. ◄◄◄
- * Namen (Testnotiz #1202): «Krane» und «Fahrzeugbau» statt «…technik» – das Wort sagt, worum
- * es geht, und schliesst den Bau mit ein. Je Untermenü-Text höchstens eine Zeile (#1203).
+ * ►►► Die drei Bereiche – gleichwertig: gleich viel Platz, gleiche Gliederung, gleich starke
+ * Texte. ◄◄◄ Kopf, Mobil-Menü, Fuss, Bereichskarten, JSON-LD (hasOfferCatalog) und llms.txt
+ * entstehen daraus. Je Untermenü-Text höchstens eine Zeile (#1203). `industries` ist die
+ * EINE Branchen-Zeile des Bereichs: auf der Startseite stehen alle drei, auf der
+ * Bereichsseite nur ihre eigene.
  * @type {Area[]}
  */
 const areas = [
   {
-    id: 'krane',
-    label: 'Krane',
-    href: '/krane',
-    overview: 'Alle Leistungen Krane',
-    text: 'Service für Krane aller Marken – der erste ist gratis. Dazu Krananlagen und Heukrananlagen nach Mass.',
+    id: 'krantechnik',
+    label: 'Krantechnik',
+    href: '/krantechnik',
+    overview: 'Alle Leistungen Krantechnik',
+    text: 'Krane nach Mass, Kranservice für alle Marken und Heukrananlagen.',
     photo: 'heukran-einsatz',
     ogTitle: 'Ihr Kran läuft – oder Sie zahlen nicht.',
+    industries: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs.',
     children: [
-      { label: 'Kranservice', href: '/krane/kranservice', text: 'Erster Service gratis und INEXXIO 365', photo: 'pruefung-hallenkran' },
-      { label: 'Krananlagen', href: '/krane/krananlagen', text: 'Industrie-, Hafen- und Bootskrane nach Mass', photo: 'reparatur-vor-ort' },
-      { label: 'Heukrananlagen', href: '/krane/heukrananlagen', text: 'Neuanlagen, Umbau und Service', photo: 'heukran-einsatz' },
-      special('krane', 'Krane, die es nicht zu kaufen gibt'),
+      { label: 'Krane nach Mass', href: '/krantechnik/krane-nach-mass', text: 'Für Ihre Halle, Ihren Hafen, Ihren Ablauf', photo: 'reparatur-vor-ort' },
+      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Erster Service gratis, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran' },
+      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz' },
     ],
   },
   {
-    id: 'fahrzeugbau',
-    label: 'Fahrzeugbau',
-    href: '/fahrzeugbau',
-    overview: 'Alle Leistungen Fahrzeugbau',
-    text: 'Trommeltausch, Revision und Verschleissteile für Fahrmischer – dazu Sonderaufbauten nach Mass.',
+    id: 'fahrzeugtechnik',
+    label: 'Fahrzeugtechnik',
+    href: '/fahrzeugtechnik',
+    overview: 'Alle Leistungen Fahrzeugtechnik',
+    text: 'Trommeltausch und Verschleissteile für Fahrmischer aller Marken.',
     photo: 'fahrmischer-werkstatt',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
+    industries: 'Betonwerke, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     children: [
-      { label: 'Fahrmischer', href: '/fahrzeugbau/fahrmischer', text: 'Trommeltausch, Revision und Verschleissteile', photo: 'fahrmischer-werkstatt' },
-      special('fahrzeugbau', 'Sonderaufbauten und Reparatur von Aufbauten'),
+      { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt' },
+      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Für alle Marken, schnell beschafft', photo: 'teil-auslaufrinne' },
     ],
   },
   {
-    id: 'sonderloesungen',
-    label: 'Sonderlösungen',
-    href: '/sonderloesungen',
-    overview: 'Alle Leistungen Sonderlösungen',
-    text: 'Sonderkrane, Sonderaufbauten und Stahlbau – konstruiert und gebaut, wo es nichts zu kaufen gibt.',
+    id: 'spezialloesungen',
+    label: 'Speziallösungen',
+    href: '/spezialloesungen',
+    overview: 'Speziallösungen',
+    text: 'Spezialmaschinen und Anbauten nach Mass für besondere Baustellen.',
     photo: 'arbeit-werkstatt',
-    ogTitle: 'Was es nicht zu kaufen gibt, bauen wir.',
+    ogTitle: 'Maschinen nach Mass für besondere Baustellen.',
+    industries: 'Bau- und Spezialtiefbauunternehmen mit eigener Geräteflotte, Vermieter und Händler von Baugeräten.',
     children: [],
   },
 ];
@@ -122,9 +118,9 @@ export const site = {
     notToConfuse: 'Nicht zu verwechseln mit inexio (Telekommunikation, Deutschland).',
     /** Wer wir sind, in einem Satz – JSON-LD (description) und llms.txt lesen ihn. */
     summary:
-      'Krane, Fahrzeugbau und Sonderlösungen aus Tuttwil-Wängi TG: Kranservice mit INEXXIO 365 für Industrie, Häfen und Landwirtschaft, Krananlagen und Heukrananlagen, Trommeltausch und Verschleissteile für Fahrmischer, Sonderaufbauten und Stahlbau. Seit {{history.founded}}.',
+      'Krantechnik, Fahrzeugtechnik und Speziallösungen aus Tuttwil-Wängi TG: Krane nach Mass, Kranservice mit INEXXIO 365 und Heukrananlagen, Trommeltausch und Verschleissteile für Fahrmischer, Spezialmaschinen nach Mass für die Baustelle. Seit {{history.founded}}.',
     /** Claim – OG-Bild und llms.txt. */
-    claim: 'Krane und Fahrmischer mit Handschlagqualität. Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
+    claim: 'Krane, Fahrmischer und Spezialmaschinen mit Handschlagqualität. Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
   },
 
   history: {
@@ -211,19 +207,19 @@ export const site = {
       id: 'winter-revision',
       from: '11-01',
       to: '02-28',
-      text: 'Winter-Revision für Fahrmischer: Trommel und Aufbau überholen, solange der Bau ruht.',
-      href: '/fahrzeugbau/fahrmischer#winter-revision',
-      label: 'Revision planen',
-      pages: ['/', '/fahrzeugbau', '/fahrzeugbau/fahrmischer', '/service'],
+      text: 'Trommeltausch im Winter: Der Fahrmischer ist im Frühling bereit, wenn die Saison anzieht.',
+      href: '/fahrzeugtechnik/trommeltausch#winter',
+      label: 'Termin planen',
+      pages: ['/', '/fahrzeugtechnik', '/fahrzeugtechnik/trommeltausch', '/service'],
     },
     {
       id: 'heukran-planung',
       from: '01-01',
       to: '04-30',
-      text: 'Neue Heukrananlage für die nächste Saison? Jetzt planen, damit sie vor dem ersten Schnitt läuft.',
-      href: '/krane/heukrananlagen#neuanlage',
-      label: 'Anlage planen',
-      pages: ['/', '/krane', '/krane/heukrananlagen'],
+      text: 'Saison-Check für Ihre Heukrananlage: jetzt planen, damit sie beim ersten Schnitt läuft.',
+      href: '/krantechnik/heukrananlagen#saison-check',
+      label: 'Saison-Check planen',
+      pages: ['/', '/krantechnik', '/krantechnik/heukrananlagen'],
     },
   ],
 
@@ -268,7 +264,7 @@ export const site = {
 
   footer: {
     claim:
-      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Krane, Fahrzeugbau und Sonderlösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
+      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Krantechnik, Fahrzeugtechnik und Speziallösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
   },
 
   /**
@@ -309,12 +305,10 @@ export const site = {
       'Applebot', 'Applebot-Extended', 'CCBot',
     ],
     knowsAbout: [
-      'Kranservice', 'INEXXIO 365', 'Krananlagen', 'Heukrananlagen', 'Heukrane', 'Industriekrane', 'Brückenkrane', 'Hängekrane',
-      'Bootskrane', 'Mastkrane', 'Bootslifte', 'Hafenkrane', 'Trommeltausch',
-      'Schwenkkrane', 'Drehkrane', 'Kranprüfung', 'Kranwartung',
-      'Funkfernsteuerung', 'Frequenzumrichter', 'Fahrmischer', 'Trommel-Revision',
-      'Verschleissteile für Fahrmischer', 'Sonderaufbauten', 'LKW-Aufbauten', 'Konstruktion', 'Stahlbau',
-      'Schweissarbeiten', 'Baumaschinen',
+      'Krane nach Mass', 'Sonderkrane', 'Kranservice', 'INEXXIO 365', 'Kranmodernisierung', 'Heukrananlagen',
+      'Brückenkrane', 'Hängekrane', 'Schwenkkrane', 'Bootskrane', 'Mastkrane', 'Bootslifte',
+      'Kranprüfung', 'Kranwartung', 'Funkfernsteuerung', 'Frequenzumrichter', 'Fahrmischer', 'Trommeltausch',
+      'Verschleissteile für Fahrmischer', 'Spezialmaschinenbau', 'Anbaugeräte für Baumaschinen', 'Baumaschinen',
     ],
   },
 

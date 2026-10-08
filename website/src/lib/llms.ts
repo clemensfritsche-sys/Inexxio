@@ -55,11 +55,11 @@ function header(base: string): string[] {
     '',
     '## Die drei Bereiche',
     '',
-    ...site.areas.map((a) => `- **${a.label}** (${url(base, a.href)}): ${plain(a.text)}${a.children.length ? ` – ${a.children.map((c) => c.label).join(', ')}.` : ''}`),
+    ...site.areas.map((a) => `- **${a.label}** (${url(base, a.href)}): ${plain(a.text)}${a.children.length ? ` – ${a.children.map((c) => c.label).join(', ')}.` : ''} Für: ${plain(a.industries)}`),
   ];
 }
 
-const SECTIONS: Section[] = ['Krane', 'Fahrzeugbau', 'Sonderlösungen', 'Service', 'Unternehmen', 'Ratgeber'];
+const SECTIONS: Section[] = ['Krantechnik', 'Fahrzeugtechnik', 'Speziallösungen', 'Service', 'Unternehmen', 'Ratgeber'];
 
 /** /llms.txt – wer wir sind und die wichtigsten Seiten mit Links. */
 export function llmsTxt(base: string): string {

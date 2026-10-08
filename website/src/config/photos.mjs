@@ -19,6 +19,11 @@
 
 /** @type {Record<string, Photo>} */
 export const photos = {
+  'hafen-bootskran': {
+    alt: 'Bootskran an einem Hafensteg hebt ein Segelboot aus dem Wasser',
+    brief: 'Boots- oder Mastkran an einem Schweizer Hafen oder Segelclub, Boot am Haken über dem Wasser, Steg und Masten im Hintergrund, quer',
+    ratio: '4/3',
+  },
   'pruefung-hallenkran': {
     alt: 'Techniker prüft einen Brückenkran in einer Produktionshalle',
     brief: 'Techniker bei der Prüfung eines Hallenkrans (Brückenkran), Hubwerk und Laufkatze im Bild, natürliches Licht, quer',

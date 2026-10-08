@@ -1,7 +1,7 @@
 ---
 /**
  * Startseite: Hero mit Laufkran, drei gleichwertigen Bereichen und der Vertrauensleiste
- * (HomeHero) → die drei Versprechen (Promises) → Branchenzeile → Warum (Belege) → Übergabe → Ratgeber → Fragen → Anfrage (mit
+ * und den Branchen-Zeilen (HomeHero) → die drei Versprechen (Promises) → Warum (Belege) → Übergabe → Ratgeber → Fragen → Anfrage (mit
  * Karte – darum keine zweite «Wo wir arbeiten»-Sektion). Texte: src/content/start.ts,
  * Bereiche aus src/config/site.mjs.
  */
@@ -18,19 +18,11 @@ import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
 import { start } from '../content/start';
-import { industryList } from '../content/promises';
-import recycling from '../assets/illustrations/branche-recycling.svg?raw';
-import holz from '../assets/illustrations/branche-holz.svg?raw';
-import stahl from '../assets/illustrations/branche-stahl.svg?raw';
-import beton from '../assets/illustrations/branche-beton.svg?raw';
 import { article, formatDay } from '../lib/ratgeber';
 import { faqPage } from '../lib/seo.mjs';
 
 const teasers = start.ratgeber.slugs.map((slug) => article(slug));
 const h = start.handover;
-const ind = start.industries;
-/** Branchen-Bilder im Stil der Heukran-Bauformen: grau der Bestand, rot die Last am Haken. */
-const illos: Record<string, string> = { recycling, holz, stahl, beton };
 ---
 <Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]}>
   <HomeHero
@@ -44,25 +36,6 @@ const illos: Record<string, string> = { recycling, holz, stahl, beton };
   />
 
   <Promises />
-
-  <section class="section start-ind" aria-labelledby="branchen">
-    <div class="wrap start-ind__grid">
-      <div class="start-ind__head">
-        <p class="label">{ind.eyebrow}</p>
-        <h2 id="branchen">{ind.title}</h2>
-        <Rich as="p" class="start-ind__text" text={ind.text} />
-        <a class="btn btn--secondary start-ind__btn" href={ind.link.href}>{ind.link.label}<Icon name="arrow-right" size={18} class="btn__arrow" /></a>
-      </div>
-      <ul role="list" class="start-ind__list">
-        {industryList.map((b) => (
-          <li>
-            <span class="start-ind__illo" aria-hidden="true" set:html={illos[b.key]} />
-            <span class="start-ind__name">{b.label}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
 
   <section class="section" aria-labelledby="warum">
     <div class="wrap">
@@ -127,28 +100,6 @@ const illos: Record<string, string> = { recycling, holz, stahl, beton };
 
 <style>
   .head--flush { margin-bottom: 0; }
-  /* Branchen: links die Aussage, rechts die vier Branchen mit Bild, durch Haarlinien getrennt. */
-  .start-ind__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; }
-  @media (min-width: 960px) { .start-ind__grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
-  .start-ind__head { display: grid; gap: var(--s-4); justify-items: start; }
-  .start-ind__text { color: var(--ink-2); }
-  .start-ind__btn { margin-top: var(--s-2); }
-  .start-ind__list { border-top: 1px solid var(--line-2); }
-  .start-ind__list li {
-    display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--s-5); align-items: center;
-    padding-block: 12px; border-bottom: 1px solid var(--line-2);
-  }
-  .start-ind__illo { display: block; width: 96px; height: 76px; overflow: hidden; border-radius: var(--r-md); background: var(--paper); }
-  .start-ind__illo :global(svg) { display: block; width: 100%; height: 100%; max-width: none; }
-  .start-ind__name {
-    font-family: var(--font-display); font-weight: 600; letter-spacing: var(--tracking-snug); color: var(--ink);
-    font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.75rem); line-height: 1.2;
-  }
-  @media (max-width: 479px) {
-    .start-ind__list li { grid-template-columns: 72px minmax(0, 1fr); gap: var(--s-4); }
-    .start-ind__illo { width: 72px; height: 57px; }
-  }
-
   .start-handover { align-items: start; row-gap: var(--s-7); }
   .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
   .start-handover__links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-6); }
