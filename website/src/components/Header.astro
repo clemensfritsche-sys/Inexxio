@@ -84,6 +84,12 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
               <div class="dd__panel" id={`dd-${g.id}`} data-dd-panel>
                 <div class="dd__main">
                   <ul role="list" class="dd__list">
+                    <li>
+                      <a href={g.href} class="dd__link dd__link--overview" aria-current={path === g.href ? 'page' : undefined}>
+                        <span class="dd__label">{plain(g.overview)}</span>
+                        <span class="dd__text">{g.ddText ?? g.text}</span>
+                      </a>
+                    </li>
                     {g.children.map((c) => (
                       <li>
                         <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
@@ -292,7 +298,9 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
   .dd__link:hover, .dd__link:focus-visible { background: var(--paper); }
   .dd__label { font-weight: 600; color: var(--ink); font-size: 0.9375rem; }
   .dd__link[aria-current='page'] .dd__label { text-decoration: underline; text-decoration-color: var(--red); text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
-  .dd__text { font-size: 0.8125rem; color: var(--ink-3); }
+  .dd__text { font-size: 0.8125rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dd__link { min-width: 0; }
+  .dd__link--overview { margin-bottom: var(--s-1); padding-bottom: 11px; border-bottom: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) 0 0; }
   /* Das Bild steht so hoch wie das Panel (#1111): die Spalte streckt sich, die Bilder liegen
      übereinander und füllen sie. Sichtbar ist das des Bereichs – oder das des Unterpunkts,
      auf den man zeigt. */
@@ -306,13 +314,13 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
   .dd__img :global(.ph) { padding: var(--s-3); }
   .dd__img :global(.ph__brief) { font-size: 0.75rem; }
   .dd__panel:has(.dd__link:is(:hover, :focus-visible)) .dd__img:first-child { opacity: 0; }
-  .dd__panel:has(.dd__list > li:nth-child(1) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(2),
-  .dd__panel:has(.dd__list > li:nth-child(2) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(3),
-  .dd__panel:has(.dd__list > li:nth-child(3) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(4),
-  .dd__panel:has(.dd__list > li:nth-child(4) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(5),
-  .dd__panel:has(.dd__list > li:nth-child(5) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(6),
-  .dd__panel:has(.dd__list > li:nth-child(6) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(7),
-  .dd__panel:has(.dd__list > li:nth-child(7) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(8) { opacity: 1; }
+  .dd__panel:has(.dd__list > li:nth-child(1) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(1),
+  .dd__panel:has(.dd__list > li:nth-child(2) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(2),
+  .dd__panel:has(.dd__list > li:nth-child(3) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(3),
+  .dd__panel:has(.dd__list > li:nth-child(4) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(4),
+  .dd__panel:has(.dd__list > li:nth-child(5) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(5),
+  .dd__panel:has(.dd__list > li:nth-child(6) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(6),
+  .dd__panel:has(.dd__list > li:nth-child(7) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(7) { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .dd__img { transition: none; } }
 
   .mainbar__tel, .mainbar__acct {
@@ -348,7 +356,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
   .mnav__nav { display: grid; align-content: start; padding-top: var(--s-3); padding-bottom: var(--s-6); flex: 1 0 auto; }
   .mnav__link {
     display: flex; align-items: center; justify-content: space-between; min-height: 56px;
-    font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink);
+    font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.015em; color: var(--ink);
     text-decoration: none; border-bottom: 1px solid var(--line); list-style: none; cursor: pointer;
   }
   .mnav__link::-webkit-details-marker { display: none; }
@@ -360,7 +368,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
   .mnav__name { font-weight: 600; }
   .mnav__sub a span { font-weight: 400; font-size: 0.875rem; color: var(--ink-3); }
   .mnav__sub a[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); }
-  .mnav__overview { color: var(--red-deep) !important; }
+  .mnav__overview { color: var(--red-hover) !important; }
   .mnav__account { padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
   .mnav__account a { display: flex; align-items: center; gap: 12px; min-height: 48px; color: var(--ink); font-weight: 600; text-decoration: none; }
   .mnav__account :global(.icon) { color: var(--ink-3); }

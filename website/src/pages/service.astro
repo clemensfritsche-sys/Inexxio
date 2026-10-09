@@ -103,7 +103,7 @@ const nodes = [
   .sv-head .grid { align-items: center; }
   .sv-head__text { display: grid; gap: var(--s-4); }
   @media (min-width: 960px) { .sv-num { grid-column: 8 / span 5; } }
-  .sv-num__box { display: grid; gap: 6px; padding: var(--s-5) var(--s-6); background: var(--white); border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: 0 var(--r-lg) var(--r-lg) 0; --overline: var(--red-deep); }
+  .sv-num__box { display: grid; gap: 6px; padding: var(--s-5) var(--s-6); background: var(--white); border: 1px solid var(--line); border-radius: 0 var(--r-lg) var(--r-lg) 0; --overline: var(--red-hover); }
   .sv-num__box .label { display: inline-flex; align-items: center; gap: 6px; }
   .sv-num__big {
     font-family: var(--font-display); font-weight: 700; font-size: clamp(2.25rem, 1.7rem + 2.4vw, 3.5rem);
@@ -119,6 +119,6 @@ const nodes = [
   .sv-list li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
   .sv-list h3 { font-size: 1.1875rem; }
   .sv-safety { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--ink); }
-  .sv-safety :global(.icon) { color: var(--red-deep); margin-top: 3px; }
+  .sv-safety :global(.icon) { color: var(--red-hover); margin-top: 3px; }
   .sv-safety h3 { font-size: 1.125rem; margin-bottom: 4px; }
 </style>

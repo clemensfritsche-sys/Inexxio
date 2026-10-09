@@ -46,7 +46,7 @@ const ownerCareer = [
  * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
  * @typedef {{
  *   id: 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen',
- *   label: string, href: string, overview: string, text: string, photo: string,
+ *   label: string, href: string, overview: string, ddText?: string, text: string, photo: string,
  *   ogTitle: string,
  *   industries: string,
  *   children: SubPage[],
@@ -67,13 +67,14 @@ const areas = [
     label: 'Krantechnik',
     href: '/krantechnik',
     overview: 'Alle Leistungen Krantechnik',
+    ddText: 'Übersicht des Bereichs',
     text: 'Krane nach Mass, Kranservice und Heukrananlagen.',
     photo: 'heukran-einsatz',
     ogTitle: 'Ihr Kran ist einsatzbereit. Ausfälle übernehmen wir.',
     industries: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs.',
     children: [
       { label: 'Krane nach Mass', href: '/krantechnik/krane-nach-mass', text: 'Für Ihre Halle, Ihren Hafen, Ihren Ablauf', photo: 'reparatur-vor-ort' },
-      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Erste Inspektion gratis, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran' },
+      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Inspektion, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran' },
       { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz' },
     ],
   },
@@ -82,6 +83,7 @@ const areas = [
     label: 'Fahrzeugtechnik',
     href: '/fahrzeugtechnik',
     overview: 'Alle Leistungen Fahrzeugtechnik',
+    ddText: 'Übersicht des Bereichs',
     text: 'Trommeltausch und Verschleissteile für Fahrmischer.',
     photo: 'fahrmischer-werkstatt',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
@@ -246,6 +248,7 @@ export const site = {
     label: 'Über uns',
     href: '/ueber-uns',
     overview: 'Mehr über uns',
+    ddText: 'Werkstatt, Team, Geschichte',
     text: 'Werkstatt, Team, Geschichte und die Übergabe von HS Steiner.',
     photo: 'werkstatt-aussen',
     children: [
@@ -323,11 +326,11 @@ export const site = {
  * Der Fuss zeigt genau die Punkte des Kopfs, in derselben Reihenfolge – weil er dieselbe
  * Liste liest, nicht weil jemand zwei Listen gleich hält. `scripts/check-site.mjs` prüft es
  * zusätzlich am gebauten HTML.
- * @typedef {{ id: string, label: string, href: string, overview: string, text: string, photo: string, children: SubPage[] }} NavGroup
+ * @typedef {{ id: string, label: string, href: string, overview: string, ddText?: string, text: string, photo: string, children: SubPage[] }} NavGroup
  * @type {NavGroup[]}
  */
 export const navigation = [
-  ...site.areas.map(({ id, label, href, overview, text, photo, children }) => ({ id, label, href, overview, text, photo, children })),
+  ...site.areas.map(({ id, label, href, overview, ddText, text, photo, children }) => ({ id, label, href, overview, ddText, text, photo, children })),
   { id: 'service', ...site.service },
   site.about,
 ];

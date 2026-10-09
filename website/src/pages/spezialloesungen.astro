@@ -160,8 +160,8 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
   .sx-hero__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; }
   @media (min-width: 960px) { .sx-hero__grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
   .sx-hero__text { display: grid; gap: var(--s-5); justify-items: start; }
-  .sx-hero__title { margin: 0; font-size: clamp(2.5rem, 1.5rem + 3.6vw, 4.5rem); line-height: 1.02; }
-  .sx-hero__lead { font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.25rem); line-height: 1.6; color: var(--ink-2); max-width: 34em; }
+  .sx-hero__title { margin: 0; font-size: clamp(2.25rem, 1.55rem + 2.4vw, 3.5rem); line-height: 1.05; }
+  .sx-hero__lead { font-size: 1.125rem; line-height: 1.556; color: var(--ink-2); max-width: 34em; }
   .sx-hero__fig { margin: 0; display: grid; gap: var(--s-3); }
   .sx-hero__illo { aspect-ratio: 4 / 3; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
   .sx-hero__illo :global(svg), .sx-field__illo :global(svg) { display: block; width: 100%; height: 100%; max-width: none; }
@@ -189,7 +189,7 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
 
   /* Das Prinzip: ein grosser Satz, darunter drei Gewinne an einer schwarzen Linie. */
   .sx-principle { display: grid; gap: var(--s-4); max-width: 56rem; }
-  .sx-principle__title { font-size: clamp(1.875rem, 1.2rem + 2.4vw, 3rem); line-height: 1.1; }
+  .sx-principle__title { max-width: 22em; }
   .sx-gains { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); border-top: 1px solid var(--ink); }
   .sx-gains__item { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-6) 0; }
   .sx-gains__item + .sx-gains__item { border-top: 1px solid var(--line-2); }
@@ -218,7 +218,7 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
   .sx-co { display: grid; gap: var(--s-5) var(--s-8); align-items: end; }
   @media (min-width: 960px) { .sx-co { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
   .sx-co__head { display: grid; gap: var(--s-4); }
-  .sx-co__title { font-size: clamp(1.875rem, 1.2rem + 2.4vw, 3rem); line-height: 1.1; }
+  .sx-co__title { max-width: 22em; }
   .sx-co__text { font-size: 1.0625rem; }
   .sx-co__points { display: grid; gap: var(--s-5) var(--s-6); grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); }
   @media (min-width: 760px) { .sx-co__points { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

@@ -36,11 +36,11 @@
 /* Ergebnis */
 .iresult {
   display: grid; gap: var(--s-3); padding: var(--s-6); background: var(--white);
-  border: 1px solid var(--line-2); border-left: 3px solid var(--ok); border-radius: var(--r-md);
+  border: 1px solid var(--line-2); border-radius: var(--r-lg);
 }
-.iresult--fail { border-left-color: var(--red); margin-bottom: var(--s-6); }
+.iresult--fail { border-color: var(--red-hover); margin-bottom: var(--s-6); }
 .iresult__icon { color: var(--ok); }
-.iresult--fail .iresult__icon { color: var(--red-deep); }
+.iresult--fail .iresult__icon { color: var(--red-hover); }
 .iresult__title { font-size: 1.375rem; }
 .iresult:focus { outline: none; }
 

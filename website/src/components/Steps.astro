@@ -42,10 +42,10 @@ const { steps } = Astro.props;
   }
   .steps__title { font-size: 1.1875rem; }
   .steps__text { color: var(--ink-2); max-width: 36ch; }
-  :global(.section--paper) .steps__no { color: var(--red-deep); }
+  :global(.section--paper) .steps__no { color: var(--red-hover); }
   :global(.section--dark) .steps__item { border-color: var(--line-dark); }
   :global(.section--dark) .steps__line { background: rgba(255, 255, 255, 0.5); }
-  :global(.section--dark) .steps__no { color: var(--red-bright); }
+  :global(.section--dark) .steps__no { color: var(--red-on-dark); }
   /* Der Schrittext trägt eine eigene Farbe (ink-2) – auf dunklem Grund wäre das 2:1 (axe). */
   :global(.section--dark) .steps__text { color: rgba(244, 243, 241, 0.72); }
 

@@ -1,7 +1,7 @@
 ---
 /**
  * ►►► Der Kontaktbereich – EINER für die ganze Website. ◄◄◄
- * Auf /kontakt und am Ende jeder Seite dasselbe: einladender Titel, drei kleine Schritte,
+ * Auf /kontakt und am Ende jeder Seite dasselbe: einladender Titel,
  * das Formular als weisse Karte und daneben der Ansprechpartner mit Foto, Telefon und E-Mail,
  * darunter Anschrift und Karte (Karte ohne Rahmen, direkt auf dem Grund).
  * Telefon, E-Mail und Anschrift kommen aus dem ERP (ContactPanel → scripts/contact.ts).
@@ -24,9 +24,6 @@ const main = level === 'h1';
       <p class="label">{kontakt.eyebrow}</p>
       <Rich as={level} id="anfrage-title" class="contact__title" text={kontakt.h1} />
       <Rich as="p" class="lead" text={kontakt.lead} />
-      <ol role="list" class="contact__steps">
-        {kontakt.steps.map((t, i) => <li><span class="idx">{String(i + 1).padStart(2, '0')}</span>{t}</li>)}
-      </ol>
     </header>
     <div class="contact__grid">
       <div class="contact__form"><InquiryForm resultLevel={main ? 2 : 3} /></div>
@@ -43,9 +40,6 @@ const main = level === 'h1';
   @media (max-width: 767px) { .contact { padding-block: var(--s-8); } }
   .contact__head { display: grid; gap: var(--s-4); max-width: 46rem; margin-bottom: var(--s-7); }
   .contact__head :global(.contact__title) { font-size: clamp(2rem, 1.5rem + 1.6vw, 3rem); line-height: 1.083; font-weight: 700; letter-spacing: var(--tracking-tight); }
-  .contact__steps { display: flex; flex-wrap: wrap; gap: var(--s-2) 28px; margin-top: var(--s-2); font-size: 0.875rem; color: var(--ink-2); }
-  .contact__steps li { display: flex; align-items: center; gap: var(--s-2); }
-  .contact__steps .idx { font-size: 0.75rem; }
   .contact__grid { display: grid; gap: var(--s-7) var(--s-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
   @media (min-width: 960px) { .contact__grid { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); } }
   .contact__form { padding: 32px; background: var(--white); border: 1px solid var(--line); border-radius: 16px; }

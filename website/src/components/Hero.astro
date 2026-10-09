@@ -40,12 +40,12 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
       <Rich as="h1" class="hero__title" text={title} />
       <Rich as="p" class="hero__lead" text={lead} />
       <div class="btn-row hero__actions">
-        <a class:list={['btn btn--primary', size === 'lg' && 'btn--lg']} href={primary.href} data-track={primary.track}>
+        <a class:list={['btn btn--primary btn--lg']} href={primary.href} data-track={primary.track}>
           {isTel(primary.href) && <Icon name="phone" size={18} />}{primary.label}
           {!isTel(primary.href) && <Icon name="arrow-right" size={18} class="btn__arrow" />}
         </a>
         {second && (
-          <a class:list={['btn btn--secondary', size === 'lg' && 'btn--lg']} href={second.href} data-track={second.track}>
+          <a class:list={['btn btn--secondary btn--lg']} href={second.href} data-track={second.track}>
             {second.href.startsWith('tel:') && <Icon name="phone" size={18} />}{second.label}
           </a>
         )}
@@ -82,7 +82,7 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
   /* Startseite: Display-Stufe des DS (700, bis 64 px, Laufweite −0.03 em). */
   .hero--lg .hero__title { font-size: clamp(2.25rem, 1.55rem + 2.4vw, 3.5rem); line-height: 1.05; }
   .hero__lead {
-    font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.1875rem); line-height: 1.6; color: var(--ink-2);
+    font-size: 1.125rem; line-height: 1.556; color: var(--ink-2);
     margin-top: var(--s-5); max-width: 32em;
   }
   .hero__actions { margin-top: var(--s-6); }
@@ -95,7 +95,7 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
     margin-top: var(--s-7); border-top: 1px solid var(--line); font-size: 0.875rem; font-weight: 600; color: var(--ink);
   }
   .hero__trust li { display: inline-flex; align-items: center; gap: 9px; }
-  .hero__trust li::before { content: ''; width: 5px; height: 5px; background: var(--red); flex: none; }
+  .hero__trust li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex: none; }
 
   /* Foto: mobil eigenes Band in fester Höhe, ab 960 px über die ganze Höhe der Textspalte. */
   .hero__media { position: relative; overflow: hidden; margin-inline: calc(var(--gutter) * -1); min-height: 300px; background: var(--paper-2); }

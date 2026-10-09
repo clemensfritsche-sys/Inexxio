@@ -7,8 +7,6 @@ export const kontakt = {
   eyebrow: 'Anfrage',
   h1: 'Fragen kostet ==nichts==.',
   lead: 'Schreiben Sie in ein paar Sätzen, worum es geht. Den Rest klären wir mit Ihnen.',
-  /** Drei kleine Schritte – zeigen, wie wenig man tun muss. */
-  steps: ['Sie schreiben uns', 'Sie erhalten einen Fixpreis', 'Sie entscheiden'],
   /** Die Karte mit dem Ansprechpartner neben dem Formular. */
   person: {
     label: 'Ihr Ansprechpartner',
