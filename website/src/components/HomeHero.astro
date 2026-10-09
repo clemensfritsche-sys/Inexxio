@@ -27,13 +27,16 @@ interface Props {
   eyebrow: string;
   title: string;
   lead: string;
-  trust: { value: string; label: string }[];
+  /** Kurzer Kernsatz über dem Lead («Ihr Problem. Unsere Lösung.»). */
+  subtitle: string;
+  /** Hinweis auf die Übergabe – ein Badge über dem Titel. */
+  handover: { label: string; title: string; text: string; href: string };
   areasTitle: string;
   more: string;
   /** Satz je Bereich (Bereichs-ID → Versprechen in einem Satz). */
   claims: Record<string, string>;
 }
-const { eyebrow, title, lead, trust, areasTitle, more, claims } = Astro.props;
+const { eyebrow, title, subtitle, lead, handover, areasTitle, more, claims } = Astro.props;
 
 /** Szene je Bereich – die Reihenfolge der Bühnen folgt der Reihenfolge der Karten. */
 const scenes: Record<string, { svg: string; done: string }> = {
@@ -59,9 +62,17 @@ const loads = [
       />
     ))}
     <div class="hh__trolley" data-crane-trolley>
-      <span class="hh__wheel hh__wheel--l"></span>
-      <span class="hh__wheel hh__wheel--r"></span>
-      <span class="hh__body"><img src="/logo/inexxio-wortmarke-weiss.svg" alt="" width="56" height="19" /></span>
+      <!-- Untergurt-Katze: Rollen auf dem unteren Flansch, Laschen zum Körper, Seiltrommel. -->
+      <svg class="hh__cat" width="88" height="46" viewBox="0 0 88 46">
+        <polygon points="20,7 68,7 60,22 28,22" fill="#0A0A0B" />
+        <circle cx="22" cy="7" r="6" fill="#FFFFFF" stroke="#0A0A0B" stroke-width="3" /><circle cx="22" cy="7" r="1.6" fill="#0A0A0B" />
+        <circle cx="66" cy="7" r="6" fill="#FFFFFF" stroke="#0A0A0B" stroke-width="3" /><circle cx="66" cy="7" r="1.6" fill="#0A0A0B" />
+        <rect x="2" y="20" width="84" height="26" rx="4" fill="#0A0A0B" />
+        <rect x="8" y="25" width="22" height="16" rx="3" fill="#45433F" />
+        <path d="M12 25v16M16 25v16M20 25v16M24 25v16" stroke="#7D7A75" stroke-width="1" />
+        <rect x="6" y="29" width="2" height="8" fill="#7D7A75" /><rect x="30" y="29" width="2" height="8" fill="#7D7A75" />
+      </svg>
+      <img class="hh__logo" src="/logo/inexxio-wortmarke-weiss.svg" alt="" width="46" height="16" />
       <div class="hh__rope" data-crane-rope>
         <div class="hh__line" data-crane-line></div>
         <div class="hh__block"></div>
@@ -76,10 +87,20 @@ const loads = [
 
   <div class="wrap hh__top" data-hero>
     <div class="hh__head">
+      <a class="hh__badge" href={handover.href}>
+        <span class="hh__badge-ico" aria-hidden="true"><Icon name="handshake" size={24} /></span>
+        <span class="hh__badge-text">
+          <Rich as="span" class="hh__badge-label" text={handover.label} />
+          <Rich as="span" class="hh__badge-title" text={handover.title} />
+          <Rich as="span" class="hh__badge-sub" text={handover.text} />
+        </span>
+        <Icon name="arrow-right" size={18} class="hh__badge-arrow" />
+      </a>
       <Rich as="p" class="label" text={eyebrow} />
       <Rich as="h1" class="hero__title hh__title" text={title} />
     </div>
     <div class="hh__side">
+      <Rich as="p" class="hh__subtitle" text={subtitle} />
       <Rich as="p" class="hh__lead" text={lead} />
       <div class="btn-row">
         <a class="btn btn--primary btn--lg hh__btn" href="#anfrage" data-tile="btn">
@@ -131,18 +152,6 @@ const loads = [
     <div class="hh__season"><SeasonNotice page="/" /></div>
   </div>
 
-  <div class="hh__trust">
-    <div class="wrap">
-    <ul role="list" class="hh__facts" aria-label="Kurz zu uns">
-      {trust.map((t) => (
-        <li>
-          <Rich as="span" class="hh__fact-v tnum" text={t.value} />
-          <Rich as="span" class="hh__fact-l" text={t.label} />
-        </li>
-      ))}
-    </ul>
-    </div>
-  </div>
 </section>
 
 <script>
@@ -155,25 +164,17 @@ const loads = [
 
   /* ---------- Kran (Dekor, fängt keine Maus) ---------- */
   .hh__crane { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-  /* Kranbahn: zwei Gurte mit Stegen dazwischen. */
+  /* Kranbahn als I-Träger von der Seite: Ober- und Untergurt, Steg mit Rippen. */
   .hh__rail {
-    position: absolute; left: 0; right: 0; top: 32px; height: 14px;
-    border-block: 3px solid var(--ink-4);
-    background: repeating-linear-gradient(90deg, transparent 0 22px, var(--line-2) 22px 24px);
+    position: absolute; left: 0; right: 0; top: 20px; height: 24px;
+    border-block: 4px solid var(--ink-2);
+    background: repeating-linear-gradient(90deg, var(--line) 0 70px, var(--ink-4) 70px 72px);
   }
-  .hh__trolley { position: absolute; top: 24px; left: 0; width: 88px; height: 50px; will-change: transform; transform: translateX(160px); }
-  .hh__wheel {
-    position: absolute; top: 0; width: 14px; height: 14px; border-radius: 50%;
-    border: 3px solid var(--ink); background: var(--white);
-  }
-  .hh__wheel--l { left: 10px; }
-  .hh__wheel--r { right: 10px; }
-  .hh__body {
-    position: absolute; left: 0; right: 0; top: 20px; height: 28px; padding: 6px 14px; border-radius: 4px;
-    background: var(--black); display: flex; align-items: center; justify-content: center;
-  }
-  .hh__body img { max-width: 100%; max-height: 100%; width: auto; height: auto; }
-  .hh__rope { position: absolute; left: 43px; top: 48px; width: 2px; transform-origin: 1px 0; will-change: transform; }
+  /* Die Katze hängt am Untergurt; das Seil verlässt den Körper bei 72 px (wie zuvor). */
+  .hh__trolley { position: absolute; top: 26px; left: 0; width: 88px; height: 46px; will-change: transform; transform: translateX(160px); }
+  .hh__cat { position: absolute; inset: 0; overflow: visible; }
+  .hh__logo { position: absolute; left: 36px; top: 27px; width: 46px; height: 12px; object-fit: contain; }
+  .hh__rope { position: absolute; left: 43px; top: 46px; width: 2px; transform-origin: 1px 0; will-change: transform; }
   .hh__line { width: 2px; height: 60px; background: var(--ink-3); }
   .hh__block { position: relative; left: -11px; width: 24px; height: 16px; border-radius: 3px; background: var(--red); }
   .hh__shank { position: relative; left: -1px; width: 4px; height: 8px; background: var(--ink); }
@@ -196,13 +197,27 @@ const loads = [
   /* Schmal: der Haken hängt in Ruhe mitten über dem Text – dort darunter beginnen. */
   @media (max-width: 599px) { .hh__top { padding-top: 184px; } }
   @media (min-width: 960px) { .hh__top { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
-  .hh__head { display: grid; gap: 28px; }
-  .hh__title { margin: 0; font-size: clamp(2.5rem, 1.6rem + 3vw, 4rem); line-height: 1.04; }
-  .hh__side { display: grid; gap: var(--s-5); justify-items: start; }
-  .hh__lead {
-    max-width: 520px; color: var(--ink-2);
-    font-size: clamp(1.0625rem, 0.98rem + 0.4vw, 1.1875rem); line-height: 1.6;
+  .hh__head { display: grid; gap: var(--s-5); justify-items: start; }
+  /* Langes Swoosh-Wort («Zufriedenheitsgarantie») muss in einer Zeile Platz haben – gemessen:
+     bei 56 px rund 570 px breit, die Spalte hat ab 960 px mindestens 495 px. */
+  .hh__title { margin: 0; font-size: clamp(1.625rem, 0.9rem + 3.2vw, 3.5rem); line-height: 1.06; }
+  .hh__side { display: grid; gap: var(--s-3); justify-items: start; }
+  .hh__subtitle { font-family: var(--font-display); font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; color: var(--ink); }
+  .hh__lead { max-width: 520px; color: var(--ink-2); font-size: 1.125rem; line-height: 1.556; margin-bottom: var(--s-3); }
+  /* Übergabe-Badge: ruhig, 12 px Radius, ohne Schatten in Ruhe. */
+  .hh__badge {
+    display: inline-flex; align-items: center; gap: var(--s-3); max-width: 100%;
+    padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--white);
+    color: var(--ink); text-decoration: none;
+    transition: border-color var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease), transform var(--t-base) var(--ease);
   }
+  .hh__badge:hover { border-color: var(--line-2); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .hh__badge-ico { flex: none; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--paper); display: flex; align-items: center; justify-content: center; color: var(--red); }
+  .hh__badge-text { display: grid; gap: 1px; min-width: 0; }
+  .hh__badge-label { font-size: 0.75rem; line-height: 1.333; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--red-hover); }
+  .hh__badge-title { font-family: var(--font-display); font-size: 1rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; }
+  .hh__badge-sub { font-size: 0.8125rem; line-height: 1.4; color: var(--ink-3); }
+  .hh__badge :global(.hh__badge-arrow) { flex: none; }
 
   /* ---------- Drei Bereiche = drei Lasten am Haken ---------- */
   .hh__areas { position: relative; z-index: 10; padding-top: var(--s-7); padding-bottom: var(--s-8); }
@@ -261,25 +276,6 @@ const loads = [
   .hh:not(.is-live) .hh__card:hover .hh__media :global(.photo) { filter: grayscale(0); }
   .hh__btn[data-hooked] { transform: translateY(-2px); box-shadow: var(--focus-ring); }
   .btn--secondary.hh__btn[data-hooked] { border-color: var(--ink); }
-
-  /* ---------- Vertrauensleiste: Zahl und Wort, durch Haarlinien getrennt ---------- */
-  .hh__trust { position: relative; z-index: 10; border-top: 1px solid var(--line); }
-  .hh__facts { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .hh__facts li { display: flex; flex-direction: column; gap: 4px; padding-block: var(--s-5); }
-  .hh__facts li + li { border-top: 1px solid var(--line); }
-  @media (min-width: 560px) {
-    .hh__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .hh__facts li + li { border-top: 0; }
-    .hh__facts li:nth-child(even) { border-left: 1px solid var(--line); padding-left: var(--s-5); }
-    .hh__facts li:nth-child(n + 3) { border-top: 1px solid var(--line); }
-  }
-  @media (min-width: 960px) {
-    .hh__facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .hh__facts li:nth-child(n + 3) { border-top: 0; }
-    .hh__facts li + li { border-left: 1px solid var(--line); padding-left: var(--s-5); }
-  }
-  .hh__fact-v { font-family: var(--font-display); font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; color: var(--ink); }
-  .hh__fact-l { font-size: 0.875rem; color: var(--ink-3); }
 
   @media (prefers-reduced-motion: reduce) {
     .hh__card, .hh__media :global(.photo) { transition: none; }

@@ -19,12 +19,12 @@ export const service = {
       'Steht etwas still, rufen Sie direkt an. Sonst wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane aller Marken: Der erste Service ist gratis, und mit INEXXIO 365 läuft der Kran – oder Sie zahlen nicht. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile für alle Marken – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
+    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
   entries: [
     { title: 'Etwas steht still', text: 'Rufen Sie direkt an – und halten Sie das Nötigste bereit', href: '#notfall', icon: 'siren' },
-    { title: 'Kran prüfen, warten, reparieren', text: 'Der erste Service ist gratis. Mit INEXXIO 365 läuft Ihr Kran – oder Sie zahlen nicht', href: '/krantechnik/kranservice', icon: 'shield-check' },
-    { title: 'Trommel am Ende', text: 'Neue Trommel statt neuer Fahrmischer – für alle Marken', href: '/fahrzeugtechnik/trommeltausch', icon: 'truck' },
-    { title: 'Verschleissteil gesucht', text: 'Für alle Marken, schnell beschafft', href: '/fahrzeugtechnik/verschleissteile', icon: 'package' },
+    { title: 'Kran prüfen, warten, reparieren', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir Ausfälle', href: '/krantechnik/kranservice', icon: 'shield-check' },
+    { title: 'Trommel am Ende', text: 'Neue Trommel statt neuer Fahrmischer – zum Fixpreis', href: '/fahrzeugtechnik/trommeltausch', icon: 'truck' },
+    { title: 'Verschleissteil gesucht', text: 'Auf Bestellung, schnell beschafft', href: '/fahrzeugtechnik/verschleissteile', icon: 'package' },
   ] satisfies Entry[],
   /** Zweite Ziele zu den Kacheln, die zwei Wege haben (Auftrag 7.6). */
   alsoLinks: [

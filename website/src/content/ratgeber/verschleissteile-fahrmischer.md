@@ -16,7 +16,7 @@ sources:
 related:
   - href: '/fahrzeugtechnik/verschleissteile'
     label: 'Verschleissteile'
-    text: 'Für Fahrmischer aller Marken, schnell beschafft.'
+    text: 'Für Fahrmischer, auf Bestellung schnell beschafft.'
   - href: '/fahrzeugtechnik/trommeltausch'
     label: 'Trommeltausch'
     text: 'Neue Trommel statt neuer Fahrmischer.'
@@ -61,4 +61,4 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 
 ## Welche Teile wir führen
 
-Rinnen, Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz für alle Marken, auf Bestellung schnell beschafft. Was passt, klären wir mit Marke, Typ und Baujahr des Aufbaus; ein Foto vom Typenschild hilft. Die Übersicht steht unter [Verschleissteile](/fahrzeugtechnik/verschleissteile#katalog).
+Rinnen, Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz, auf Bestellung schnell beschafft. Was passt, klären wir mit Marke, Typ und Baujahr des Aufbaus; ein Foto vom Typenschild hilft. Die Übersicht steht unter [Verschleissteile](/fahrzeugtechnik/verschleissteile#katalog).

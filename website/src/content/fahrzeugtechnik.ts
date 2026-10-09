@@ -2,8 +2,8 @@
  * Fahrzeugtechnik – Bereichsseite und zwei Unterseiten: Trommeltausch (das stärkste Angebot,
  * zuerst) und Verschleissteile. Reparatur und Aufbauten stehen zurückhaltend als Abschnitt
  * auf der Bereichsseite (`repair`, Anker #reparatur). Verschleissteile werden NICHT «ab Lager»
- * beworben – sie werden bestellt und schnell beschafft. Hier gilt Versprechen ② (Kaufen mit
- * Garantie); der Gratis-Erstservice gilt nur für Krane.
+ * beworben – sie werden bestellt und schnell beschafft. Beide Garantien und die Gratis-
+ * Inspektion gelten auch hier (content/promises.ts).
  */
 import type { AreaPage, Faq, SubPage } from './types';
 import { promiseFaq } from './promises';
@@ -26,22 +26,22 @@ export const fahrzeugtechnik: AreaPage = {
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
   description:
-    'Neue Trommel statt neuer Fahrmischer – für alle Marken, zum Fixpreis, mit Garantie. Dazu Verschleissteile, schnell beschafft. Aus Tuttwil-Wängi TG.',
+    'Neue Trommel statt neuer Fahrmischer – zum Fixpreis, mit Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus Tuttwil-Wängi TG.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
     lead:
-      'Ist die Trommel am Ende, das Fahrgestell aber gut, setzen wir eine neue Trommel auf – für alle Marken, zum Fixpreis. Nicht zufrieden? Sie zahlen nur die Hälfte. Die Verschleissteile beschaffen wir schnell.',
+      'Ist die Trommel am Ende, das Fahrgestell aber gut, setzen wir eine neue Trommel auf – zum Fixpreis. Nicht zufrieden? Die Hälfte übernehmen wir. Die Verschleissteile beschaffen wir schnell.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – für Fahrmischer aller Marken, zum Fixpreis und mit Garantie: Nicht zufrieden, zahlen Sie nur die Hälfte. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung für alle Marken. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – zum Fixpreis und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
   steps: [
     { title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.' },
     { title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und nennen einen Fixpreis.' },
     { title: 'Umsetzung', text: 'Neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, Teile ersetzen.' },
-    { title: 'Bericht', text: 'Sie erhalten einen Rapport mit Arbeiten und Teilen.' },
+    { title: 'Protokoll', text: 'Sie erhalten ein Protokoll mit Arbeiten und Teilen.' },
   ],
   faq: [
     {
@@ -60,7 +60,7 @@ export const fahrzeugtechnik: AreaPage = {
       a: 'Ja – Mulden, Kipper, Hydraulik und Aufbauten von Baufahrzeugen. Fragen Sie an.',
     },
   ],
-  promises: ['garantie'],
+  promises: ['garantie', 'inexxio365', 'erstservice'],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Trommeltausch und Verschleissteile für Fahrmischer' },
   keywords: ['Trommeltausch Fahrmischer', 'Fahrmischer Trommel', 'Fahrmischer Verschleissteile', 'Fahrmischer Reparatur'],
 };
@@ -79,33 +79,32 @@ export const trommeltausch: SubPage = {
   crumb: 'Trommeltausch',
   title: 'Trommeltausch für Fahrmischer',
   description:
-    'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – für alle Marken, zum Fixpreis. Nicht zufrieden, zahlen Sie nur die Hälfte.',
+    'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – zum Fixpreis. Nicht zufrieden? Die Hälfte übernehmen wir.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Trommeltausch',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
     lead:
-      'Das Fahrgestell bleibt, die neue Trommel kommt drauf – für Fahrmischer aller Marken. Sie erhalten vorher einen Fixpreis. Nicht zufrieden? Sie zahlen nur die Hälfte.',
+      'Das Fahrgestell bleibt, die neue Trommel kommt drauf. Sie erhalten vorher einen Fixpreis. Nicht zufrieden? Die Hälfte übernehmen wir.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – für Fahrmischer aller Marken, darunter {{marks.mixerList}}. Fixpreis vor jeder Arbeit, und mit der Garantie zahlen Sie nur die Hälfte, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – in der Werkstatt in Tuttwil-Wängi TG.',
+    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Fixpreis vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – in der Werkstatt in Tuttwil-Wängi TG.',
   glance: {
     forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Trommel und Fahrgestell prüfen, neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',
-    deliverables: 'Einen Fahrmischer, der wieder läuft – ohne neues Fahrzeug – und einen Rapport mit Arbeiten und Teilen.',
+    deliverables: 'Einen Fahrmischer, der wieder einsatzbereit ist – ohne neues Fahrzeug – und ein Protokoll mit Arbeiten und Teilen.',
   },
-  promises: ['garantie'],
+  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
     title: 'Was zum Trommeltausch gehört',
-    lead: 'Für alle Marken.',
     items: [
       { title: 'Kontrolle vorab', text: 'Trommel, Fahrgestell, Antrieb und Aufbau – Sie erfahren offen, ob sich der Tausch lohnt.' },
       { title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt in unserer Werkstatt.' },
       { title: 'Antrieb', text: 'Trommelgetriebe, Hydraulikmotor und Pumpe anschliessen – prüfen und, wo nötig, ersetzen.' },
       { title: 'Hydraulik', text: 'Schläuche, Leitungen, Ventile und Ölkühler.' },
       { title: 'Aufbau', text: 'Rahmen und Befestigung, Wassersystem, Leiter, Bedienelemente und Beleuchtung.' },
-      { title: 'Inbetriebnahme', text: 'Probelauf, Rapport, und der Fahrmischer ist wieder im Einsatz.' },
+      { title: 'Inbetriebnahme', text: 'Probelauf, Protokoll, und der Fahrmischer ist wieder im Einsatz.' },
     ],
   },
   faq: [
@@ -127,7 +126,7 @@ export const trommeltausch: SubPage = {
     promiseFaq.secondOpinion,
   ],
   related: [
-    { href: '/fahrzeugtechnik/verschleissteile', label: 'Verschleissteile', text: 'Für alle Marken, schnell beschafft.' },
+    { href: '/fahrzeugtechnik/verschleissteile', label: 'Verschleissteile', text: 'Auf Bestellung, schnell beschafft.' },
     ratgeberTeile,
   ],
   service: { name: 'Trommeltausch für Fahrmischer', serviceType: 'Trommeltausch und Trommel-Revision für Fahrmischer' },
@@ -164,17 +163,17 @@ export const verschleissteile: SubPage = {
   crumb: 'Verschleissteile',
   title: 'Fahrmischer-Verschleissteile',
   description:
-    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer aller Marken – auf Bestellung, schnell beschafft. Mit oder ohne Einbau. Anfragen.',
+    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, zum Fixpreis. Jetzt anfragen.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Verschleissteile',
-    h1: 'Verschleissteile für alle Marken – schnell ==beschafft==',
+    h1: 'Verschleissteile für Fahrmischer – schnell ==beschafft==',
     lead:
-      'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer aller Marken. Sie bestellen, wir beschaffen schnell – mit oder ohne Einbau.',
+      'Rinnen, Schurren, Trichter und Spiralschutz. Sie bestellen, wir beschaffen schnell – mit oder ohne Einbau.',
     photo: 'teil-auslaufrinne',
     primary: anfrage('Teil anfragen'),
   },
   summary:
-    '{{brand.full}} beschafft Verschleissteile für Fahrmischer aller Marken auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau in der Werkstatt in Tuttwil-Wängi TG.',
+    '{{brand.full}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau in der Werkstatt in Tuttwil-Wängi TG.',
   glance: {
     forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Teile nach Marke und Typ bestellen und schnell beschaffen – auf Wunsch mit Einbau.',
@@ -182,7 +181,6 @@ export const verschleissteile: SubPage = {
   },
   scope: {
     title: 'Welche Teile wir beschaffen',
-    lead: 'Für alle gängigen Marken – und weitere auf Anfrage.',
     items: [
       { title: 'Rinnen', text: 'Auslauf- und Verlängerungsrinnen.' },
       { title: 'Trichter und Schurren', text: 'Einfülltrichter und Auslaufschurren.' },

@@ -86,6 +86,6 @@ Ins Kranbuch gehört alles, was den Zustand des Krans belegt: die Konformitätse
 3. Die Überprüfung an Kranfachleute vergeben und das Ergebnis im Kranbuch festhalten.
 4. Termin für das nächste Mal setzen – am besten gleich, bevor er vergessen geht.
 
-Die Überprüfung und die Wartung übernehmen wir – mit Prüfbericht für das Kranbuch, für Krane aller Marken. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte; diese Kontrolle bieten wir nicht an.
+Die Überprüfung und die Wartung übernehmen wir – mit Prüfprotokoll für das Kranbuch. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte; diese Kontrolle bieten wir nicht an.
 
 Unverbindliche Orientierung. Massgebend sind die Angaben des Herstellers und die Vorgaben der Suva.

@@ -43,3 +43,21 @@
 .iresult--fail .iresult__icon { color: var(--red-deep); }
 .iresult__title { font-size: 1.375rem; }
 .iresult:focus { outline: none; }
+
+/* Anhänge als Ablagefeld: das echte Feld liegt unsichtbar über der ganzen Fläche – ein Klick
+   irgendwo öffnet die Auswahl, Tastatur und Screenreader erreichen weiterhin das Feld. */
+.iform__drop {
+  position: relative; display: flex; align-items: center; gap: 14px; padding: 16px;
+  border: 1px dashed var(--ink-4); border-radius: var(--r-md); background: #FCFBFA; cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.iform__drop:hover { border-color: var(--ink-3); background: var(--white); }
+.iform__drop:focus-within { box-shadow: var(--focus-ring); }
+.iform__drop-ico { flex: none; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--white); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink); }
+.iform__drop-text { display: grid; gap: 2px; }
+.iform__drop-title { font-size: 0.875rem; font-weight: 500; color: var(--ink); }
+.iform__drop-sub { font-size: 0.8125rem; color: var(--ink-3); }
+.iform__drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.iform__submit { width: 100%; }
+.iform__foot { justify-items: stretch; text-align: center; }
+.iform__foot p { max-width: none; }

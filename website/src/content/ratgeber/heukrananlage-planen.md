@@ -21,7 +21,7 @@ related:
     text: 'Service, Umbau und Neuanlagen.'
   - href: '/krantechnik/kranservice'
     label: 'Kranservice'
-    text: 'Der erste Service ist gratis.'
+    text: 'Die erste Inspektion ist gratis.'
   - href: '/ratgeber/kranpruefung-schweiz'
     label: 'Kranprüfung in der Schweiz'
     text: 'Was nach der Inbetriebnahme gilt.'

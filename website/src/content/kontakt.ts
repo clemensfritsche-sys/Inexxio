@@ -4,8 +4,16 @@ export const kontakt = {
   description:
     'Kontakt zu INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Anfrage stellen, anrufen oder die Route zur Werkstatt öffnen. Wir melden uns rasch.',
   /** Überschrift und Satz des EINEN Kontaktbereichs (ContactSection) – auf jeder Seite gleich. */
-  h1: 'Kontakt und Anfrage',
-  lead: 'Schreiben Sie uns kurz, worum es geht – oder rufen Sie an: {{phone.link}}.',
+  eyebrow: 'Anfrage',
+  h1: 'Fragen kostet ==nichts==.',
+  lead: 'Schreiben Sie in ein paar Sätzen, worum es geht. Den Rest klären wir mit Ihnen.',
+  /** Drei kleine Schritte – zeigen, wie wenig man tun muss. */
+  steps: ['Sie schreiben uns', 'Sie erhalten einen Fixpreis', 'Sie entscheiden'],
+  /** Die Karte mit dem Ansprechpartner neben dem Formular. */
+  person: {
+    label: 'Ihr Ansprechpartner',
+    text: 'Lieber direkt sprechen? Rufen Sie mich an – ich nehme mir Zeit für Ihr Anliegen.',
+  },
   summary:
     '{{brand.full}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.',
   danke: {

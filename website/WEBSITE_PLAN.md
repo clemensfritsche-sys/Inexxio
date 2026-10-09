@@ -171,6 +171,20 @@
     bleiben darunter als Text – im gestapelten Logo wären sie in Kopfzeilenhöhe unlesbar.
     Favicons, Logo-PNG und OG-Bilder neu erzeugt (`scripts/make-assets.mjs`, jetzt mit
     Punktraster statt Kranbahn-Linie). `tokens.mjs` löst die mehrstufigen v3-Verweise auf.
+61. **Startseite aus dem Design-Artefakt «Startseite» (09.10.2026) – Garantien statt
+    Versprechen, Design-System Oktober 2026.** Die Startseite ist die abgespeckte Fassung
+    aller Unterseiten; ihr Wording gilt überall: Titel «Krane, Fahrmischer und
+    Spezialmaschinen mit Zufriedenheitsgarantie», Kernsatz «Ihr Problem. Unsere Lösung.».
+    **Zwei Garantien gelten für alle drei Bereiche** (`content/promises.ts`):
+    Zufriedenheitsgarantie («Nicht zufrieden? Die Hälfte übernehmen wir.») und INEXXIO 365
+    («Ihre Maschine ist einsatzbereit. Ausfälle übernehmen wir.»); die **Gratis-Inspektion**
+    ist der leise Einstieg (Priorität 3, schmale Zeile). «Für alle Marken» ist gestrichen und
+    steht in `check-site.mjs` (FORBIDDEN). Kontaktbereich global neu («Fragen kostet
+    nichts.», Ansprechpartner mit Foto). Design-System: H2 600/32, Text 16/24, Knöpfe 40/48,
+    Overline Rot-600, Icons 1.75, Inhalt 1200 px – und der **Swoosh mit Verlauf**
+    (red-400 → 500 → 700), wie ihn das Design-System festlegt; damit ist die frühere
+    Abweichung (einfarbig nach Kap. 9.7) auf Wunsch aufgehoben. Der Laufkran trägt eine
+    Untergurt-Katze am I-Träger; Lasten und Szenen bleiben.
 
 ## 3. Änderungen ausserhalb von `website/`
 

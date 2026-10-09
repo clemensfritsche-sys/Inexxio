@@ -1,83 +1,87 @@
 /**
- * ►►► Die drei Versprechen – an EINER Stelle. ◄◄◄
+ * ►►► Die Garantien – an EINER Stelle. ◄◄◄
  *
- * Drei verschiedene Dinge, die nicht vermischt werden: ① Service testen (nur Krane) ·
- * ② Kaufen mit Garantie (alles, was man kauft) · ③ INEXXIO 365 (bestehende und neue Krane).
- * Die Startseite zeigt alle drei, jede Unterseite nur die, die für sie gelten
- * (`promises` der Seite → Promises.astro). Wer einen Satz ändert, ändert ihn überall.
+ * Zwei Garantien tragen das Angebot und gelten für alle drei Bereiche (Krane, Fahrmischer,
+ * Spezialmaschinen): ① INEXXIO Zufriedenheitsgarantie · ② INEXXIO 365. Die Gratis-Inspektion
+ * ist der leise Einstieg (Priorität 3) und steht als schmale Zeile darunter.
+ * Die Startseite zeigt alle, jede Unterseite die, die für sie gelten (`promises` der Seite →
+ * Promises.astro). Wer einen Satz ändert, ändert ihn überall.
  *
- * Regeln: keine Preise, keine Kranklassen, keine Tagesabrechnung, keine Laufzeit-Rabatte,
- * kein «Abo» – und keine Bedingungen, Fristen oder Kleingedrucktes, die nicht feststehen.
- * Verbotene Wörter prüft scripts/check-site.mjs (FORBIDDEN_WORDS).
+ * Regeln: keine Preise, kein «Abo», keine Markenaufzählung («aller Marken» ist gestrichen) –
+ * und keine Bedingungen, Fristen oder Kleingedrucktes, die nicht feststehen.
+ * Verbotene Wörter prüft scripts/check-site.mjs (FORBIDDEN, FORBIDDEN_WORDS).
  */
 import type { Faq } from './types';
 
-export type PromiseKey = 'erstservice' | 'garantie' | 'inexxio365';
+export type PromiseKey = 'garantie' | 'inexxio365' | 'erstservice';
 
 export interface PromiseItem {
   /** Die grosse Zahl – der Blickfang. */
   figure: string;
-  /** Kleine Einheit neben der Zahl («Tage») – sonst ist offen, was die Zahl zählt. */
+  /** Kleine Einheit neben der Zahl («Tage», «%»). */
   unit?: string;
   label: string;
   title: string;
   text: string;
+  /** Kurze Punkte unter dem Text – nur bei den beiden Garantien. */
+  checks?: string[];
   link?: { href: string; label: string };
 }
 
 export const promises = {
-  eyebrow: 'Unsere Versprechen',
-  eyebrowOne: 'Unser Versprechen',
-  title: 'Wir stehen für unsere Arbeit ein.',
-  lead: 'Wir sind von unserer Arbeit überzeugt. Darum tragen wir das Risiko: Unser Geld hängt an Ihrer Zufriedenheit – und an jedem Tag, an dem Ihr Kran läuft.',
+  eyebrow: 'Unsere Garantien',
+  eyebrowOne: 'Unsere Garantie',
+  title: 'Einsatzbereit und zufrieden mit Garantie.',
+  lead: 'Zwei Garantien für alles, was wir bauen, warten und reparieren – Krane, Fahrmischer und Spezialmaschinen.',
   items: {
-    erstservice: {
-      figure: '0.–',
-      label: 'Service testen',
-      title: 'Der erste Kranservice ist gratis.',
-      text: 'Service und Wartung für Industrie-, Heu-, Boots- und Mastkrane aller Marken. Einmal pro Kunde, das Material verrechnen wir.',
-      link: { href: '/krantechnik/kranservice#stufen', label: 'Zum Kranservice' },
-    },
     garantie: {
-      figure: '50 %',
-      label: 'Kaufen mit Garantie',
-      title: 'Nicht zufrieden? Sie zahlen nur die Hälfte.',
-      text: 'Auf den ganzen Preis – für alles, was Sie bei uns kaufen: Krane, Bootslifte, Heukrananlagen, Modernisierung, Trommeltausch und Speziallösungen.',
+      figure: '50',
+      unit: '%',
+      label: 'INEXXIO Zufriedenheitsgarantie',
+      title: 'Nicht zufrieden? Die Hälfte übernehmen wir.',
+      text: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 %. Das gilt für alles, was Sie bei uns bekommen: Krane, Bootslifte, Heukrananlagen, Modernisierung, Trommeltausch und Speziallösungen.',
+      checks: ['Gilt für alles, was Sie bei uns bekommen', 'Bezogen auf den vereinbarten Preis', 'Das Ergebnis besprechen wir gemeinsam'],
     },
     inexxio365: {
       figure: '365',
       unit: 'Tage',
       label: 'INEXXIO 365',
-      title: 'Ihr Kran läuft – oder Sie zahlen nicht.',
-      text: 'Prüfung, Wartung, Ersatzteile und Reparaturen inklusive, zur fixen Monatsrate. Für Ihren bestehenden Kran, auch fremder Marken – oder einen neuen, ohne Kauf.',
+      title: 'Ihre Maschine ist einsatzbereit. Ausfälle übernehmen wir.',
+      text: 'Sie zahlen eine fixe Monatsrate für die Einsatzbereitschaft – nicht für Ausfallzeiten und Reparaturen. Prüfung, Wartung und Ersatzteile sind inklusive, und steht die Maschine still, ist jeder Tag gratis.',
+      checks: ['Fixe Monatsrate für Einsatzbereitschaft', 'Reparaturen und Ersatzteile übernehmen wir', 'Keine Mindestlaufzeit'],
       link: { href: '/krantechnik/kranservice#inexxio-365', label: 'So funktioniert INEXXIO 365' },
     },
+    erstservice: {
+      figure: '0.–',
+      label: 'Lernen Sie uns kennen',
+      title: 'Die erste Inspektion ist gratis.',
+      text: 'Wir prüfen Ihre Maschine einmal kostenlos – Krane, Fahrmischer und Spezialmaschinen.',
+      link: { href: '#anfrage', label: 'Termin vereinbaren' },
+    },
   } satisfies Record<PromiseKey, PromiseItem>,
-  /** Gilt für alles – steht unter jedem Versprechens-Block. */
-  always: ['Fixpreis vor jeder Arbeit', 'Keine Mindestlaufzeit', 'Zweitmeinung gratis'],
 };
 
-/** Wie die Versprechen funktionieren – kurz, ohne neue Regeln. Jede Seite wählt, was passt. */
+/** Wie die Garantien funktionieren – kurz, ohne neue Regeln. Jede Seite wählt, was passt. */
 export const promiseFaq = {
   erstservice: {
-    q: 'Was ist im Gratis-Erstservice enthalten?',
-    a: 'Service und Wartung Ihres Krans – einmal pro Kunde, für Industrie-, Heu-, Boots- und Mastkrane aller Marken. Das Material verrechnen wir. Eine Prüfung gehört nicht dazu. Rufen Sie an oder schreiben Sie uns – wir vereinbaren den Termin.',
+    q: 'Was ist in der Gratis-Inspektion enthalten?',
+    a: 'Wir prüfen Ihre Maschine einmal kostenlos – Krane, Fahrmischer und Spezialmaschinen, einmal pro Kunde. Rufen Sie an oder schreiben Sie uns – wir vereinbaren den Termin.',
   },
   garantie: {
-    q: 'Wie funktioniert die Garantie «Nicht zufrieden? Sie zahlen nur die Hälfte»?',
-    a: 'Sind Sie mit dem Ergebnis nicht zufrieden, sagen Sie es uns – dann zahlen Sie nur die Hälfte. Auf den ganzen Preis, ohne Einschränkung.',
+    q: 'Wie funktioniert die Zufriedenheitsgarantie?',
+    a: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 % des vereinbarten Preises – für alles, was Sie bei uns bekommen.',
   },
   inexxio365: {
-    q: 'Was heisst «Ihr Kran läuft – oder Sie zahlen nicht»?',
-    a: 'Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate. Prüfung, Wartung, Ersatzteile und Reparaturen sind inklusive. Steht der Kran still, ist jeder Tag gratis. Einen bestehenden Kran – auch fremder Marke – übernehmen wir nach einer Eintrittsprüfung; einen neuen erhalten Sie ohne Kauf, zur Monatsrate.',
+    q: 'Was ist INEXXIO 365?',
+    a: 'Sie zahlen eine fixe Monatsrate für die Einsatzbereitschaft Ihrer Maschine. Prüfung, Wartung, Ersatzteile und Reparaturen übernehmen wir, und steht die Maschine still, ist jeder Tag gratis. Eine Mindestlaufzeit gibt es nicht.',
   },
   binding: {
     q: 'Wie lange binde ich mich?',
     a: 'Gar nicht. Es gibt keine Mindestlaufzeit.',
   },
   price: {
-    q: 'Was kostet es?',
-    a: 'Das hängt von Ihrem Kran und Ihrem Bedarf ab. Vor jeder Arbeit erhalten Sie einen Fixpreis – auf der Rechnung steht keine Überraschung.',
+    q: 'Wie erfahre ich den Preis?',
+    a: 'Vor jeder Arbeit erhalten Sie einen Fixpreis – ob Inspektion, Reparatur, neue Anlage oder Speziallösung. Auf der Rechnung steht keine Überraschung.',
   },
   secondOpinion: {
     q: 'Fremd-Offerte erhalten – prüfen Sie sie?',

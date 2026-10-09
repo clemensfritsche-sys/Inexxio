@@ -32,6 +32,8 @@ const FORBIDDEN = [
   'pikett',
   // Rückmeldung 07.10.2026: keine Jahrespakete mehr – INEXXIO 365 ersetzt sie.
   'jahrespreis', 'jahrespaket',
+  // Rückmeldung 09.10.2026: keine Markenaufzählung «für alle Marken» – offen lassen.
+  'aller marken', 'alle marken', 'jeder marke', 'fremder marke',
 ];
 /** Ganze Wörter, die nirgends stehen dürfen («Abo» – INEXXIO 365 ist kein Abo). */
 const FORBIDDEN_WORDS = [/\babos?\b/i];

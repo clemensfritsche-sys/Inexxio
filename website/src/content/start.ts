@@ -3,7 +3,7 @@
  * Werte aus der Konfiguration mit {{…}}.
  */
 import type { Faq } from './types';
-import { handoverLead, heiriQuote, sharedFaq } from './uebergabe';
+import { handoverLead, heiriQuote } from './uebergabe';
 import { promiseFaq } from './promises';
 
 export const start = {
@@ -12,27 +12,27 @@ export const start = {
     'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Fixpreis und Garantie. Aus Tuttwil-Wängi TG.',
 
   hero: {
-    eyebrow: 'Tuttwil-Wängi TG · seit {{history.founded}}',
-    h1: 'Krane, Fahrmischer und Spezialmaschinen mit ==Handschlagqualität==.',
-    lead: 'Ihr Bedarf, unsere passende Lösung. Zuverlässig und stets verfügbar.',
-    /** Vertrauensleiste – nur belegbare Tatsachen. Die Versprechen stehen gleich darunter. */
-    trust: [
-      { value: '{{history.founded}}', label: 'Gegründet in Tuttwil-Wängi' },
-      { value: 'Alle Marken', label: 'Krane und Fahrmischer' },
-      { value: 'Fixpreis', label: 'Vor jeder Arbeit' },
-      { value: '50 %', label: 'Zurück, wenn Sie nicht zufrieden sind' },
-    ],
+    eyebrow: 'Krane · Fahrmischer · Spezialmaschinen · seit {{history.founded}}',
+    h1: 'Krane, Fahrmischer und Spezialmaschinen mit ==Zufriedenheitsgarantie==.',
+    subtitle: 'Ihr Problem. Unsere Lösung.',
+    lead: 'Sie sagen uns, was nicht läuft – wir bauen, warten und reparieren, bis es läuft. Mit Fixpreis vor jeder Arbeit.',
+    handover: {
+      label: 'Nachfolge geregelt',
+      title: 'Aus HS Steiner wird {{brand.name}}.',
+      text: 'Gleiche Werkstatt, gleiche Nummer – gleicher Handschlag.',
+      href: '#uebergabe',
+    },
   },
 
   /** Ein Satz je Bereich – das Versprechen, das ihn trägt. Drei gleichwertige Karten. */
   entries: {
-    krantechnik: 'Ihr Kran läuft – oder Sie zahlen nicht.',
+    krantechnik: 'Ihr Kran ist einsatzbereit. Ausfälle übernehmen wir.',
     fahrzeugtechnik: 'Neue Trommel statt neuer Fahrmischer.',
     spezialloesungen: 'Was kein Hersteller liefert, bauen wir.',
   } as Record<string, string>,
 
   summary:
-    '{{brand.full}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice für alle Marken – der erste Service ist gratis – und INEXXIO 365: Ihr Kran läuft, oder Sie zahlen nicht. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer aller Marken. Speziallösungen: Spezialmaschinen und Anbauten nach Mass für besondere Baustellen. Vor jeder Arbeit gibt es einen Fixpreis, und was Sie kaufen, ist durch die Garantie gedeckt: Nicht zufrieden, zahlen Sie nur die Hälfte. Die Werkstatt steht in Tuttwil-Wängi TG.',
+    '{{brand.full}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis, vor jeder Arbeit gibt es einen Fixpreis. Die Werkstatt steht in Tuttwil-Wängi TG.',
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
@@ -48,29 +48,15 @@ export const start = {
 
   why: {
     eyebrow: 'Warum INEXXIO',
-    h2: 'Vier Gründe, die Sie nachprüfen können',
+    h2: 'Entwicklung, Produktion und Service aus einer Hand.',
     items: [
-      {
-        title: 'Ingenieurwissen statt Rätselraten.',
-        text: 'Clemens Fritsche ist Maschinenbauingenieur und hat bei Liebherr Bohrgeräte mitentwickelt. Wir finden die Ursache – nicht nur das Symptom.',
-      },
-      {
-        title: 'Krane bauen wir seit {{history.cranesSince}} selbst.',
-        text: 'Wer Krane plant, baut und montiert, kennt jedes Bauteil. Das macht den Service schneller und die Reparatur gründlicher.',
-      },
-      {
-        title: 'Ein Ansprechpartner, eine Nummer.',
-        text: 'Für Krane, Fahrmischer und Spezialmaschinen. Steht etwas still, rufen Sie an – und sprechen mit jemandem, der entscheidet.',
-      },
-      {
-        title: 'Jede Arbeit dokumentiert.',
-        text: 'Sie erhalten zu jeder Arbeit einen Bericht für das Kranbuch. Das zählt bei Versicherung und Suva.',
-      },
+      { icon: 'lightbulb', title: 'Entwicklung mit Know-how.', text: 'Maschinenbauingenieur – mit Erfahrung aus der Entwicklung von Liebherr-Bohrgeräten und mit vernetzten Maschinen (IoT).' },
+      { icon: 'wrench', title: 'Selbst gebaut, darum gut betreut.', text: 'Krane bauen wir seit {{history.cranesSince}} selbst. Wir kennen jedes Bauteil.' },
+      { icon: 'phone', title: 'Ein Ansprechpartner für alles.', text: 'Für Krane, Fahrmischer und Spezialmaschinen.' },
+      { icon: 'clipboard-check', title: 'Jeder Einsatz dokumentiert.', text: 'Mit Protokoll – für Versicherung, Suva und den nächsten Service.' },
     ],
-    portrait: {
-      text: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – mit demselben Handschlag und neuen Angeboten, die Ihnen das Risiko abnehmen.',
-      link: 'Mehr über Clemens Fritsche und das Unternehmen',
-    },
+    quote: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – und ergänze es dort, wo es Ihnen nützt.',
+    link: 'Mehr über uns',
   },
 
   ratgeber: {
@@ -80,19 +66,19 @@ export const start = {
     all: 'Alle Ratgeber-Artikel',
   },
 
+  /** Kompakt: die Fragen, die vor einer Anfrage wirklich auftauchen. */
   faq: [
-    promiseFaq.inexxio365,
-    promiseFaq.erstservice,
+    promiseFaq.price,
     promiseFaq.garantie,
-    promiseFaq.binding,
-    sharedFaq.whoCares,
-    sharedFaq.phone,
+    promiseFaq.inexxio365,
     {
-      q: 'Welche Marken betreuen Sie?',
-      a: 'Krane und Fahrmischer aller Marken – bei Fahrmischern etwa {{marks.mixerList}}. Speziallösungen bauen wir für Geräte jeder Marke.',
+      q: 'Unsere Maschine steht still – was tun?',
+      a: 'Rufen Sie direkt an: {{phone.link}}. Wir kümmern uns darum.',
     },
-    promiseFaq.secondOpinion,
-    sharedFaq.speed,
+    {
+      q: 'Ich bin Kunde von HS Steiner – was ändert sich?',
+      a: 'Das Bewährte bleibt: dieselbe Werkstatt und dieselbe Telefonnummer. Ihre HS-Krananlage betreuen wir ohne Unterbruch weiter – ergänzt um Ingenieurwissen, wo es Ihnen nützt.',
+    },
   ] satisfies Faq[],
 
 };

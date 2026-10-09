@@ -90,9 +90,10 @@ export const photos = {
     ratio: '3/2',
   },
   'portraet-clemens': {
+    file: 'portraet-clemens.png',
     alt: 'Clemens Fritsche',
-    brief: 'Porträt Clemens Fritsche, hoch, neutraler Hintergrund, Arbeitskleidung oder Hemd',
-    ratio: '4/5',
+    brief: 'Porträt Clemens Fritsche – rund freigestellt',
+    ratio: '1/1',
   },
   'team': {
     alt: 'Das Team von INEXXIO in der Werkstatt',

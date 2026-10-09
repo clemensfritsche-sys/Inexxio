@@ -34,7 +34,7 @@ import Rich from './Rich.astro';
                 <div><dt>Passend für</dt><dd>{(it.fits ?? catalog.fits).join(' · ')}</dd></div>
               </dl>
               <a
-                class="btn btn--secondary btn--sm part__cta"
+                class="btn btn--secondary part__cta"
                 href={`/kontakt?teil=${encodeURIComponent(it.name)}`}
                 data-track="part_inquiry"
                 data-track-prop-part={it.id}

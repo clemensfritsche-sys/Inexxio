@@ -25,18 +25,18 @@ export const spezialloesungen: SubPage = {
     eyebrow: 'Speziallösungen',
     h1: 'Ihre Aufgabe. Unsere ==Maschine==.',
     lead:
-      'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen – als Einzelstück oder Kleinserie, für Geräte jeder Marke.',
+      'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen – als Einzelstück oder Kleinserie.',
     photo: 'arbeit-werkstatt',
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
   },
   summary:
-    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, unabhängig von der Marke des Geräts, konstruiert von einem Maschinenbauingenieur und gebaut in der eigenen Werkstatt in Tuttwil-Wängi TG. Fixpreis vor Baubeginn; nicht zufrieden, zahlen Sie nur die Hälfte.',
+    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut in der eigenen Werkstatt in Tuttwil-Wängi TG. Fixpreis vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
   glance: {
     forWhom: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle Betriebe mit Kranen oder Fahrzeugen, deren Aufgabe kein Hersteller löst.',
     what: 'Machbarkeit prüfen, konstruieren, in der eigenen Werkstatt bauen und bei Ihnen in Betrieb nehmen.',
     deliverables: 'Eine Maschine, die genau Ihre Aufgabe erledigt – mit Zeichnungen, Unterlagen und Service aus derselben Hand.',
   },
-  promises: ['garantie'],
+  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
     title: 'Was wir bauen',
     lead: 'Einzelstücke und Kleinserien – keine Serienmaschinen.',
@@ -68,10 +68,6 @@ export const spezialloesungen: SubPage = {
       a: 'Sie entwickeln mit und zahlen dafür weniger. Die Rechte an der Lösung bleiben bei {{brand.name}}; verkaufen wir sie weiter, erhalten Sie einen Anteil. Die Einzelheiten besprechen wir im Gespräch.',
     },
     {
-      q: 'Bauen Sie für Geräte jeder Marke?',
-      a: 'Ja. Wir sind unabhängig und passen die Lösung an Ihr Gerät an.',
-    },
-    {
       q: 'Bleibt die Lösung bei Ihnen in Betreuung?',
       a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus derselben Werkstatt, die sie gebaut hat.',
     },
@@ -87,16 +83,16 @@ export const spezialloesungen: SubPage = {
 /** Kurz und belegt – unter dem Seitenkopf. */
 export const specialFacts = [
   { value: 'Einzelstück', label: 'bis Kleinserie' },
-  { value: 'Jede Marke', label: 'wir passen an Ihr Gerät an' },
+  { value: 'Nach Mass', label: 'passend zu Ihrem Gerät' },
   { value: 'Fixpreis', label: 'bevor wir bauen' },
-  { value: '50 %', label: 'zurück, wenn Sie nicht zufrieden sind' },
+  { value: '50 %', label: 'übernehmen wir, wenn Sie nicht zufrieden sind' },
 ];
 
 /** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
 export const specialPrinciple = {
   eyebrow: 'Das Prinzip',
   title: 'Serienmaschinen sind für den Durchschnitt gebaut. Ihre Aufgabe ist es nicht.',
-  lead: 'Was dazwischen fehlt, erledigt heute meist ein Mensch – mit Zeit, Umwegen und Risiko. Wir bauen die Maschine, die diese Lücke schliesst.',
+  lead: 'Was dazwischen fehlt, erledigt heute meist ein Mensch – mit Zeit, Umwegen und Improvisation. Wir bauen die Maschine, die diese Lücke schliesst.',
   gains: [
     { title: 'Weniger Handarbeit', text: 'Was heute von Hand geschieht, erledigt danach die Maschine – schneller und jedes Mal gleich.' },
     { title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },

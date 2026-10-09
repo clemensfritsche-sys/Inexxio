@@ -62,7 +62,7 @@ export const sharedFaq = {
   /** Stillstand – Startseite, Krane und Notfall sagen es gleich. */
   speed: {
     q: 'Wie schnell sind Sie bei einem Stillstand vor Ort?',
-    a: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.link}}.',
+    a: 'Steht eine Anlage still, rufen Sie direkt an: {{phone.link}}. Wir kümmern uns darum.',
   },
   otherMakes: {
     q: 'Betreuen Sie auch Krane anderer Hersteller?',

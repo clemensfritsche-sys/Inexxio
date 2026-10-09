@@ -53,15 +53,20 @@ const f = (name: string) => `${id}-${name}`;
     </div>
 
     <div class="field">
-      <label class="field__label" for={f('message')}>Ihr Anliegen</label>
-      <textarea class="textarea" id={f('message')} name="message" rows="6" required maxlength={L.message} aria-describedby={f('message-error')}></textarea>
+      <label class="field__label" for={f('message')}>Worum geht es?</label>
+      <textarea class="textarea" id={f('message')} name="message" rows="5" required placeholder="Beschreiben Sie kurz Ihr Anliegen – um welche Maschine es geht und was zu tun ist." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
       <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
     </div>
 
     <div class="field">
-      <label class="field__label" for={f('photos')}>Anhänge <span class="field__opt">optional, bis zu {inquiry.photos.max}</span></label>
-      <input class="input input--file" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
-      <p class="field__hint" id={f('photos-hint')}>Foto, Skizze oder PDF – zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
+      <label class="iform__drop" for={f('photos')}>
+        <span class="iform__drop-ico" aria-hidden="true"><Icon name="camera" size={20} /></span>
+        <span class="iform__drop-text">
+          <span class="iform__drop-title">Foto oder Skizze hinzufügen</span>
+          <span class="iform__drop-sub" id={f('photos-hint')}>Optional – bis zu {inquiry.photos.max} Dateien (Foto, Skizze oder PDF), zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB</span>
+        </span>
+        <input class="iform__drop-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
+      </label>
       <ul class="iform__files" data-file-list hidden></ul>
       <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
     </div>
@@ -91,7 +96,7 @@ const f = (name: string) => `${id}-${name}`;
     </div>
 
     <div class="iform__foot">
-      <button type="submit" class="btn btn--primary" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+      <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
       <p class="small muted">
         Ihre Angaben verwenden wir nur für diese Anfrage – <a class="link" href="/datenschutz">Datenschutz</a>.
       </p>

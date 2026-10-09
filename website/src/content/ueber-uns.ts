@@ -31,8 +31,8 @@ export const ueberUns = {
   values: {
     title: 'Die Werte der {{brand.legalName}}',
     items: [
-      { title: 'Handschlagqualität', text: 'Ein Wort gilt. Was wir zusagen – Termin, Preis, Absprache –, halten wir.' },
-      { title: 'Qualität', text: 'Saubere Arbeit in allem, was wir tun – vom ersten Gespräch bis zum Bericht.' },
+      { title: 'Verbindlichkeit', text: 'Ein Wort gilt. Was wir zusagen – Termin, Preis, Absprache –, halten wir.' },
+      { title: 'Qualität', text: 'Saubere Arbeit in allem, was wir tun – vom ersten Gespräch bis zum Protokoll.' },
       { title: 'Zuverlässigkeit', text: 'Ihr Kran, Ihr Fahrzeug muss laufen. Dafür planen wir voraus und sind erreichbar, wenn etwas stillsteht.' },
       { title: 'Innovation', text: 'Modernisieren statt ersetzen: neue Technik auf bewährtem Stahlbau, neue Trommel auf bewährtem Fahrgestell.' },
       { title: 'Design', text: 'Eine Anlage soll gut funktionieren, sicher zu bedienen sein und gut aussehen – bis ins Detail.' },
@@ -41,12 +41,12 @@ export const ueberUns = {
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
   promises: {
     title: 'Worauf Sie sich verlassen können',
-    lead: 'Konkrete Zusagen statt schöner Worte – dazu die Garantie: Nicht zufrieden? Sie zahlen nur die Hälfte.',
+    lead: 'Konkrete Zusagen statt schöner Worte – dazu die Zufriedenheitsgarantie: Nicht zufrieden? Die Hälfte übernehmen wir.',
     items: [
       { title: 'Fixpreis vor jeder Arbeit', text: 'Sie wissen vorher, was es kostet. Auf der Rechnung steht keine Überraschung.' },
       { title: 'Keine Mindestlaufzeit', text: 'Sie bleiben, weil es passt – nicht, weil ein Vertrag Sie hält.' },
       { title: 'Rückmeldung', text: 'Wir melden uns innert {{promises.responseTime}}.' },
-      { title: 'Bericht', text: 'Jede Arbeit mit Bericht.' },
+      { title: 'Protokoll', text: 'Jeder Einsatz dokumentiert, mit Protokoll.' },
       { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Krananlagen liegen an Lager, oder wir fertigen sie neu an.' },
     ],
   },
