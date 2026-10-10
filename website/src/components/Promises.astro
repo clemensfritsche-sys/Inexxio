@@ -1,0 +1,110 @@
+---
+/**
+ * Die Garantien (content/promises.ts). Zwei grosse Karten tragen das Angebot – die
+ * Zufriedenheitsgarantie hell, INEXXIO 365 dunkel (der Kontrast zieht den Blick zuerst dorthin).
+ * Die Gratis-Inspektion ist der leise Einstieg: eine schmale Zeile darunter (Priorität 3).
+ * Ohne `only` alles (Startseite), mit `only` nur, was für eine Unterseite gilt.
+ */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import { promises, type PromiseItem, type PromiseKey } from '../content/promises';
+
+interface Props { only?: PromiseKey[]; id?: string; /** false: ohne Einleitungssatz unter dem Titel. */ lead?: boolean }
+const { only, id = 'versprechen', lead = true } = Astro.props;
+const keys = only ?? (Object.keys(promises.items) as PromiseKey[]);
+const pick = (k: PromiseKey): (PromiseItem & { key: PromiseKey }) | null =>
+  keys.includes(k) ? { key: k, ...promises.items[k] } : null;
+const cards = [pick('garantie'), pick('inexxio365')].filter((x): x is PromiseItem & { key: PromiseKey } => !!x);
+const test = pick('erstservice');
+const full = cards.length === 2;
+---
+<section class="pr" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap">
+    <header class:list={['pr__head', { 'pr__head--full': full }]}>
+      <div class="pr__head-main">
+        <p class="label">{cards.length === 1 ? promises.eyebrowOne : promises.eyebrow}</p>
+        <h2 id={`${id}-title`} class:list={['pr__title', { 'visually-hidden': !full }]}>{full ? promises.title : promises.eyebrow}</h2>
+      </div>
+      {full && lead && <Rich as="p" class="pr__lead" text={promises.lead} />}
+    </header>
+    {cards.length > 0 && (
+      <ul role="list" class:list={['pr__cards', `pr__cards--${cards.length}`]}>
+        {cards.map((p) => (
+          <li class:list={['pr__card', { 'pr__card--dark': p.key === 'inexxio365' }]}>
+            <span class="pr__figure tnum" aria-hidden="true">{p.figure}{p.unit && <span class:list={['pr__unit', { 'pr__unit--pct': p.unit === '%' }]}>{p.unit}</span>}</span>
+            <p class="label">{p.label}</p>
+            <h3 class="pr__claim">{p.title}</h3>
+            <Rich as="p" class="pr__text" text={p.text} />
+            {p.checks && (
+              <ul role="list" class="pr__checks">
+                {p.checks.map((c) => <li><Icon name="check" size={18} /><span>{c}</span></li>)}
+              </ul>
+            )}
+            {p.link && <a class="arrow-link pr__link" href={p.link.href}>{p.link.label} <Icon name="arrow-right" size={16} /></a>}
+          </li>
+        ))}
+      </ul>
+    )}
+    {test && (
+      <div class="pr__test">
+        <span class="pr__test-fig tnum" aria-hidden="true">{test.figure}</span>
+        <div class="pr__test-text">
+          <p class="pr__test-label">{test.label}</p>
+          <h3 class="pr__test-title">{test.title}</h3>
+          <Rich as="p" class="pr__test-sub" text={test.text} />
+        </div>
+        {test.link && <a class="btn btn--secondary" href={test.link.href}>{test.link.label}<Icon name="arrow-right" size={16} class="btn__arrow" /></a>}
+      </div>
+    )}
+  </div>
+</section>
+
+<style>
+  .pr { padding-block: var(--s-9) var(--s-8); background: var(--paper); border-bottom: 1px solid var(--line); --overline: var(--red-hover); }
+  .pr__head { display: grid; gap: var(--s-5) var(--s-8); margin-bottom: var(--s-7); align-items: end; }
+  @media (min-width: 900px) { .pr__head--full { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
+  .pr__head-main { display: grid; gap: var(--s-3); }
+  .pr__title { max-width: 16em; }
+  .pr__lead { color: var(--ink-2); font-size: 1.125rem; line-height: 1.55; }
+
+  .pr__cards { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .pr__cards--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .pr__card {
+    display: flex; flex-direction: column; gap: var(--s-3); padding: 40px;
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg);
+  }
+  @media (max-width: 599px) { .pr__card { padding: 28px; } }
+  .pr__card--dark { background: var(--dark); border-color: var(--dark); color: var(--on-dark); --overline: #F47C76; }
+  .pr__figure {
+    display: flex; align-items: baseline; gap: 0.12em; margin-bottom: var(--s-2);
+    font-family: var(--font-display); font-weight: 700; letter-spacing: -0.05em; line-height: 0.85;
+    font-size: clamp(4.5rem, 3rem + 5vw, 8rem); color: var(--red);
+  }
+  .pr__card--dark .pr__figure { color: var(--white); }
+  .pr__unit { font-size: 0.24em; letter-spacing: -0.01em; color: rgba(244, 243, 241, 0.62); }
+  .pr__unit--pct { font-size: 0.55em; letter-spacing: -0.02em; color: inherit; }
+  .pr__claim { font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem); line-height: 1.15; letter-spacing: -0.025em; }
+  .pr__card--dark .pr__claim { color: var(--white); }
+  .pr__text { color: var(--ink-2); max-width: 32em; }
+  .pr__card--dark .pr__text { color: rgba(244, 243, 241, 0.72); }
+  .pr__checks { display: grid; gap: var(--s-2); margin-top: var(--s-2); font-size: 0.9375rem; color: var(--ink); }
+  .pr__checks li { display: flex; gap: 10px; }
+  .pr__checks .icon { flex: none; margin-top: 3px; color: var(--red); }
+  .pr__card--dark .pr__checks { color: var(--white); }
+  .pr__card--dark .pr__checks .icon { color: #F47C76; }
+  .pr__link { margin-top: auto; padding-top: var(--s-4); }
+  .pr__card--dark .pr__link { color: var(--white); }
+
+  /* Der leise Einstieg: eine Zeile, kein Blickfang. */
+  .pr__test {
+    display: grid; gap: var(--s-2) var(--s-6); align-items: center; grid-template-columns: minmax(0, 1fr);
+    margin-top: var(--s-4); padding: var(--s-5) var(--s-6);
+    border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--white);
+  }
+  @media (min-width: 760px) { .pr__test { grid-template-columns: auto minmax(0, 1fr) auto; } }
+  .pr__test-fig { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.04em; font-size: 2.5rem; line-height: 1; color: var(--ink); }
+  .pr__test-text { display: grid; gap: 2px; }
+  .pr__test-label { font-size: 0.75rem; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); }
+  .pr__test-title { font-size: 1.125rem; line-height: 1.4; }
+  .pr__test-sub { font-size: 0.875rem; color: var(--ink-3); }
+</style>

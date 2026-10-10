@@ -2,40 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from ..models.admin import CompanySettings
-from ..models.audit import AuditLog, Notification, UserProfile
-
-
-def get_or_create_settings(db: Session) -> CompanySettings:
-    """Return the singleton company settings row, creating it if absent."""
-    settings_obj = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
-    if not settings_obj:
-        settings_obj = CompanySettings(id=1)
-        db.add(settings_obj)
-        db.commit()
-        db.refresh(settings_obj)
-    return settings_obj
-
-
-def create_notification(
-    db: Session,
-    user_id: int,
-    notification_type: str,
-    title: str,
-    message: str,
-    link: str | None = None,
-) -> Notification:
-    """Create an in-app notification for a user."""
-    notification = Notification(
-        user_id=user_id,
-        type=notification_type,
-        title=title,
-        message=message,
-        link=link,
-    )
-    db.add(notification)
-    db.flush()
-    return notification
+from ..models import AuditLog
 
 
 def log_audit(
@@ -59,12 +26,3 @@ def log_audit(
     db.add(entry)
     db.flush()
     return entry
-
-
-def get_user_by_firebase_uid(db: Session, uid: str) -> UserProfile | None:
-    """Fetch a user profile by Firebase UID."""
-    return (
-        db.query(UserProfile)
-        .filter(UserProfile.firebase_uid == uid, UserProfile.is_active == True)
-        .first()
-    )

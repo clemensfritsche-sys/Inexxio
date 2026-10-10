@@ -1,0 +1,107 @@
+---
+/**
+ * /krantechnik/heukrananlagen: zuerst die Anlage, die Sie haben (Saison-Check, bestehende
+ * HS-Anlagen), danach Neuanlagen auf Anfrage (Bauformen, Ablauf). Kein INEXXIO 365 –
+ * Heukrane laufen selten; hier gelten Versprechen ① und ②.
+ */
+import SubPage from '../../layouts/SubPage.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Steps from '../../components/Steps.astro';
+import CraneForm from '../../components/CraneForm.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { heukrananlagen, heukranModules as m } from '../../content/krantechnik';
+import { product } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const productNode = product(siteUrl, {
+  name: 'Heukrananlage nach Mass',
+  description: plain(heukrananlagen.summary),
+  path: heukrananlagen.path,
+});
+---
+<SubPage page={heukrananlagen} jsonLd={[productNode]}>
+  <div slot="intro">
+    <section class="section" aria-labelledby="saison-title">
+      <div class="wrap">
+        <div class="grid hk-row" id="saison-check">
+          <div class="col-6 hk-row__text">
+            <SectionHead eyebrow="März bis Mai" title={m.season.title} id="saison-title" class="head--flush" />
+            <Rich as="p" text={m.season.text} />
+          </div>
+          <div class="col-5 hk-season">
+            <h3 class="label">Was wir anschauen</h3>
+            <ul class="checklist" role="list">
+              {m.season.checks.map((c) => <li><Icon name="check" size={20} /><span>{c}</span></li>)}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--paper" aria-labelledby="bestehende-anlagen">
+      <div class="wrap grid hk-own">
+        <div class="col-8 hk-own__text">
+          <SectionHead eyebrow="Bestehende Anlagen" title={m.owners.title} id="bestehende-anlagen" class="head--flush" />
+          <Rich as="p" text={m.owners.text} />
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div slot="module">
+    <section class="section" id="neuanlage" aria-labelledby="bauformen">
+      <div class="wrap">
+        <SectionHead eyebrow="Neuanlagen auf Anfrage" title={m.forms.title} lead={m.forms.lead} id="bauformen" />
+        <ul class="forms" role="list">
+          {m.forms.items.map((f) => (
+            <li class="forms__row">
+              <CraneForm illo={f.illo} label={f.title} />
+              <div class="forms__text">
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+                <p class="label forms__label">Passt, wenn …</p>
+                <p class="forms__use">{f.use}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section--dark" aria-labelledby="ablauf-neuanlage">
+      <div class="wrap">
+        <SectionHead eyebrow="Ablauf" title={m.steps.title} id="ablauf-neuanlage" />
+        <Steps steps={m.steps.items} />
+        <div class="btn-row hk-cta">
+          <a class="btn btn--primary" href="#anfrage">Neuanlage anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+        </div>
+      </div>
+    </section>
+  </div>
+</SubPage>
+
+<style>
+  /* Bauformen (#1186): Illustration gross links, «Passt, wenn …» UNTER «So arbeitet sie». */
+  .forms { list-style: none; padding: 0; display: grid; }
+  .forms__row { display: grid; gap: var(--s-4); padding: var(--s-6) 0; border-top: 1px solid var(--line); }
+  .forms__row:last-child { border-bottom: 1px solid var(--line); }
+  .forms__row :global(.crane-illo) { max-width: 420px; }
+  @media (min-width: 768px) {
+    .forms__row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--s-7); align-items: center; }
+    .forms__row :global(.crane-illo) { max-width: none; }
+  }
+  .forms__text { display: grid; gap: var(--s-2); align-content: center; max-width: 60ch; }
+  .forms__text h3 { margin: 0; }
+  .forms__text p { margin: 0; }
+  .forms__label { margin-top: var(--s-3) !important; }
+  .forms__use { color: var(--ink-3); }
+  .hk-cta { margin-top: var(--s-7); }
+  .head--flush { margin-bottom: 0; }
+  .hk-row { align-items: start; }
+  .hk-row__text { display: grid; gap: var(--s-4); justify-items: start; }
+  @media (min-width: 960px) { .hk-season { grid-column: 8 / span 5; } }
+  .hk-season { display: grid; gap: var(--s-4); align-content: start; }
+  .hk-own { align-items: start; }
+  .hk-own__text { display: grid; gap: var(--s-4); }
+</style>

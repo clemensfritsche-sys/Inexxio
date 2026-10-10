@@ -1,0 +1,45 @@
+---
+/**
+ * Saison-Aktion aus der Konfiguration (Datumsbereich MM-TT, über den Jahreswechsel erlaubt).
+ * Der Build rendert alle zur Seite passenden Aktionen und zeigt die zur Build-Zeit gültige;
+ * das Skript prüft am Gerät das heutige Datum nach (eine statische Seite wird nicht täglich
+ * neu gebaut). Ohne JavaScript gilt der Stand des Builds.
+ */
+import { site } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props { page: string }
+const { page } = Astro.props;
+const today = new Date();
+const md = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const active = (from: string, to: string) => (from <= to ? md >= from && md <= to : md >= from || md <= to);
+const seasons = site.seasons.filter((s) => s.pages.includes(page));
+---
+{seasons.length > 0 && (
+  <div class="season-wrap">
+    {seasons.map((s) => (
+      <aside class="season" data-season data-from={s.from} data-to={s.to} hidden={!active(s.from, s.to)} aria-label="Saison-Aktion">
+        <Icon name="calendar-check" size={22} class="season__icon" />
+        <Rich as="p" class="season__text" text={s.text} />
+        <a class="arrow-link season__link" href={s.href}>{s.label} <Icon name="arrow-right" size={18} /></a>
+      </aside>
+    ))}
+  </div>
+)}
+
+<script>
+  import { initSeasons } from '../scripts/season';
+  initSeasons();
+</script>
+
+<style>
+  .season {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4);
+    padding: var(--s-4) var(--s-5); background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg);
+  }
+  :global(.section--paper) .season { background: var(--white); }
+  .season__icon { flex: none; color: var(--ink); }
+  .season__text { flex: 1 1 22rem; color: var(--ink); font-weight: 500; max-width: none; }
+  .season__link { flex: none; }
+</style>

@@ -1,0 +1,53 @@
+---
+/**
+ * Direkter Kontakt neben dem Formular: der Ansprechpartner mit Foto, Telefon als grosser
+ * Knopf und E-Mail – darunter die Anschrift mit «Route anzeigen».
+ * Alles aus dem ERP (scripts/contact.ts tauscht die Vorgabe dieses Builds); die Route öffnet
+ * Google Maps in einem NEUEN Tab – die Website bleibt offen (#1145).
+ */
+import { site, contactEmail } from '../config/site.mjs';
+import { plain } from '../lib/text.mjs';
+import { kontakt } from '../content/kontakt';
+import Icon from './Icon.astro';
+import Photo from './Photo.astro';
+const a = site.address;
+const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}`)}`;
+---
+<div class="cpanel">
+  <div class="cpanel__card">
+    <div class="cpanel__who">
+      <Photo id="portraet-clemens" sizes="72px" class="cpanel__img" />
+      <span class="cpanel__name"><span class="cpanel__role">{kontakt.person.label}</span><span class="cpanel__person">{site.people.owner.name}</span></span>
+    </div>
+    <p class="cpanel__text">{kontakt.person.text}</p>
+    <a class="btn btn--secondary btn--lg cpanel__tel tnum" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} />{site.phone.display}</a>
+    <a class="cpanel__mail" href={`mailto:${contactEmail()}`} data-track="mailto_click"><Icon name="mail" size={16} />{contactEmail()}</a>
+  </div>
+  <div class="cpanel__card cpanel__card--addr">
+    <div class="cpanel__addr-row">
+      <Icon name="map-pin" size={18} />
+      <address class="cpanel__addr" data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</address>
+    </div>
+    <a class="arrow-link" href={route} data-erp="route" target="_blank" rel="noopener">Route anzeigen <Icon name="external-link" size={16} /></a>
+  </div>
+</div>
+
+<style>
+  .cpanel { display: grid; gap: var(--s-4); }
+  .cpanel__card { display: grid; gap: var(--s-4); padding: 28px; background: var(--white); border: 1px solid var(--line); border-radius: 16px; }
+  .cpanel__card--addr { gap: var(--s-2); padding-block: var(--s-5); }
+  .cpanel__who { display: flex; align-items: center; gap: var(--s-4); }
+  .cpanel__who :global(.cpanel__img), .cpanel__who :global(picture), .cpanel__who :global(.ph) { flex: none; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; }
+  .cpanel__who :global(img) { width: 72px; height: 72px; object-fit: cover; border-radius: 50%; }
+  .cpanel__name { display: grid; gap: 2px; }
+  .cpanel__role { font-size: 0.75rem; line-height: 1.333; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--red-hover); }
+  .cpanel__person { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
+  .cpanel__text { font-size: 0.9375rem; color: var(--ink-2); }
+  .cpanel__tel { width: 100%; font-size: 1.0625rem; font-weight: 600; }
+  .cpanel__mail { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); font-size: 0.875rem; color: var(--ink-2); text-decoration: none; overflow-wrap: anywhere; }
+  .cpanel__mail:hover { color: var(--ink); text-decoration: underline; }
+  .cpanel__addr-row { display: flex; gap: var(--s-3); align-items: flex-start; color: var(--ink); }
+  .cpanel__addr-row :global(.icon) { flex: none; margin-top: 3px; }
+  .cpanel__addr { font-style: normal; font-size: 0.9375rem; line-height: 1.47; color: var(--ink); }
+  .cpanel__card--addr .arrow-link { padding-block: 4px; }
+</style>

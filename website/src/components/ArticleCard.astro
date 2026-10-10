@@ -1,0 +1,37 @@
+---
+/** Ratgeber-Teaser: Titel, «Kurz gesagt»-Satz, Datum – ganze Karte ist der Link. */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  href: string;
+  title: string;
+  text: string;
+  date?: string;
+  dateLabel?: string;
+  /** Überschriften-Ebene: 3 unter einer H2-Sektion (Startseite), 2 direkt unter der H1 (Übersicht). */
+  level?: 2 | 3;
+}
+const { href, title, text, date, dateLabel, level = 3 } = Astro.props;
+const H = `h${level}` as 'h2' | 'h3';
+---
+<article class="acard">
+  <p class="label">Ratgeber{dateLabel && <> · <time datetime={date}>{dateLabel}</time></>}</p>
+  <H class="acard__title h3"><a href={href}>{title}</a></H>
+  <Rich as="p" class="acard__text" text={text} />
+  <span class="acard__more" aria-hidden="true">Lesen <Icon name="arrow-right" size={18} /></span>
+</article>
+
+<style>
+  .acard { position: relative; display: grid; gap: var(--s-3); align-content: start; padding-top: var(--s-4); border-top: 1px solid var(--ink); height: 100%; }
+  .acard__title { font-size: 1.25rem; line-height: 1.25; letter-spacing: -0.015em; }
+  .acard__title a { color: var(--ink); text-decoration: none; }
+  .acard__title a::after { content: ''; position: absolute; inset: 0; }
+  .acard:hover .acard__title a { text-decoration: underline; text-underline-offset: 0.2em; }
+  .acard__text { color: var(--ink-2); font-size: 0.97rem; }
+  .acard__more { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink); margin-top: auto; }
+  .acard__more :global(.icon) { transition: transform var(--t-fast) var(--ease); }
+  .acard:hover .acard__more :global(.icon) { transform: translateX(2px); }
+  .acard:focus-within { outline: 2px solid var(--ink); outline-offset: 6px; }
+  .acard__title a:focus-visible { outline: none; }
+</style>

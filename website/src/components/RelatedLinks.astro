@@ -1,0 +1,42 @@
+---
+/** Verwandte Leistungen und Ratgeber – beschreibende Linktexte, nie «hier klicken». */
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  title?: string;
+  items: { href: string; label: string; text?: string; kind?: 'leistung' | 'ratgeber' }[];
+}
+const { title = 'Das könnte Sie auch interessieren', items } = Astro.props;
+---
+<nav class="related" aria-label={title}>
+  <h2 class="h3 related__title">{title}</h2>
+  <ul role="list" class="related__list">
+    {items.map((it) => (
+      <li>
+        <a href={it.href} class="related__link">
+          <span class="label">{it.kind === 'ratgeber' ? 'Ratgeber' : 'Leistung'}</span>
+          <span class="related__label">{it.label}</span>
+          {it.text && <Rich as="span" class="related__text" text={it.text} />}
+          <Icon name="arrow-right" size={20} class="related__arrow" />
+        </a>
+      </li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  .related__title { margin-bottom: var(--s-5); }
+  .related__list { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--ink); }
+  @media (min-width: 840px) { .related__list { grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 0; } }
+  .related__link {
+    position: relative; display: grid; gap: 6px; padding: var(--s-5) var(--s-7) var(--s-5) 0; height: 100%;
+    text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line-2);
+  }
+  @media (min-width: 840px) { .related__link { border-top: 1px solid var(--ink); border-bottom: 0; } }
+  .related__label { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+  .related__text { color: var(--ink-3); font-size: 0.95rem; }
+  .related__arrow { position: absolute; right: 4px; top: var(--s-5); transition: transform var(--t-fast) var(--ease); }
+  .related__link:hover .related__label { text-decoration: underline; text-underline-offset: 0.2em; }
+  .related__link:hover .related__arrow { transform: translateX(2px); }
+</style>

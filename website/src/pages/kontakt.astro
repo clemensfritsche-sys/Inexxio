@@ -1,0 +1,13 @@
+---
+/**
+ * /kontakt – der EINE Kontaktbereich (derselbe wie am Ende jeder Seite), hier mit der H1 und
+ * der Karte. «So finden Sie uns» steht nicht mehr getrennt darunter (#1144): Anschrift und
+ * Route gehören zum Kontakt und stehen darum im Kontaktbereich selbst.
+ */
+import Base from '../layouts/Base.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { kontakt as k } from '../content/kontakt';
+---
+<Base title={k.title} description={k.description} crumbs={[{ name: 'Kontakt', path: '/kontakt' }]}>
+  <ContactSection level="h1" />
+</Base>

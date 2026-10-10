@@ -1,0 +1,78 @@
+---
+/**
+ * /ratgeber/[slug] – Fachartikel: Autor, Datum, «Kurz gesagt» am Anfang, Quellen am Ende,
+ * Anfrage und verwandte Seiten. Text aus src/content/ratgeber/<slug>.md.
+ */
+import Base from '../../layouts/Base.astro';
+import ContactSection from '../../components/ContactSection.astro';
+import RelatedLinks from '../../components/RelatedLinks.astro';
+import Sources from '../../components/Sources.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { site } from '../../config/site.mjs';
+import { articles, withBody, formatDay } from '../../lib/ratgeber';
+import { article as articleNode } from '../../lib/seo.mjs';
+
+export function getStaticPaths() {
+  return articles().map((a) => ({ params: { slug: a.slug } }));
+}
+
+const { slug } = Astro.params;
+const a = await withBody(slug!);
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const o = site.people.owner;
+const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber/') ? ('ratgeber' as const) : ('leistung' as const) }));
+---
+<Base
+  title={a.seoTitle}
+  description={a.description}
+  crumbs={[{ name: 'Ratgeber', path: '/ratgeber' }, { name: a.seoTitle, path: a.path }]}
+  article={{ published: a.published, updated: a.updated }}
+  jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated })]}
+>
+  <article class="section art">
+    <div class="wrap">
+      <header class="art__head" data-hero>
+        <p class="label">Ratgeber · aktualisiert <time datetime={a.updated}>{formatDay(a.updated)}</time></p>
+        <h1 class="art__title">{a.title}</h1>
+        <Rich as="p" class="lead" text={a.description} />
+        <p class="art__by">
+          Von <a class="link" href="/ueber-uns">{o.name}</a>, {o.role} · veröffentlicht <time datetime={a.published}>{formatDay(a.published)}</time>
+        </p>
+      </header>
+
+      <aside class="art__kurz" aria-labelledby="kurz-gesagt">
+        <h2 class="label art__kurztitle" id="kurz-gesagt">Kurz gesagt</h2>
+        <ul class="checklist" role="list">
+          {a.kurz.map((k) => <li><Icon name="check" size={20} /><Rich as="span" text={k} /></li>)}
+        </ul>
+      </aside>
+
+      <div class="prose art__body" set:html={a.html} />
+
+      <footer class="art__foot">
+        <Sources items={a.sources} level="h2" />
+      </footer>
+    </div>
+  </article>
+
+  <ContactSection />
+
+  <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
+  <div class="section section--tight">
+    <div class="wrap"><RelatedLinks items={related} /></div>
+  </div>
+</Base>
+
+<style>
+  .art { padding-top: var(--s-6); }
+  /* Eine Lesespalte, mittig platziert – der Text bleibt linksbündig (#1183). */
+  .art .wrap > * { max-width: 760px; margin-inline: auto; }
+  .art__head { display: grid; gap: var(--s-4); }
+  .art__title { font-size: clamp(2rem, 1.6rem + 1.9vw, 3.25rem); line-height: 1.1; }
+  .art__by { font-size: 0.9375rem; color: var(--ink-3); }
+  .art__kurz { --overline: var(--red-hover); margin-top: var(--s-7); padding: var(--s-5) var(--s-6); background: var(--paper); border-radius: var(--r-lg); display: grid; gap: var(--s-4); }
+  .art__kurztitle { color: var(--ink); font-weight: 600; }
+  .art__body { margin-top: var(--s-7); }
+  .art__foot { margin-top: var(--s-8); padding-top: var(--s-5); border-top: 1px solid var(--line-2); }
+</style>

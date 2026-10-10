@@ -1,0 +1,6 @@
+/* ============================================================
+   INEXXIO Design System v3 — Root stylesheet
+   colors_and_type.css = tokens · components.css = .ix-* components
+   ============================================================ */
+@import url('./colors_and_type.css');
+@import url('./components.css');

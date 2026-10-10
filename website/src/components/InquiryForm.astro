@@ -1,0 +1,110 @@
+---
+/**
+ * DAS Anfrage-Formular – auf /kontakt und am Ende jeder Seite dasselbe (#1107/#1129).
+ *
+ * ►►► Ein Feld für das Anliegen, dazu Anhänge und «wer fragt an» (Rückmeldung 04.10.2026). ◄◄◄
+ * Keine Schritte, keine Auswahl von Bereich, Anliegen oder Dringlichkeit: «die Anfrage muss
+ * extrem einfach sein». Ist jemand angemeldet, stehen Name, Firma, Telefon und E-Mail schon
+ * da (scripts/form.ts, aus dem Anzeige-Cache des Kontos).
+ *
+ * Ohne JavaScript geht es klassisch an den Server (multipart, Prüfung dort). Das Skript
+ * prüft direkt am Feld und sendet im Hintergrund; schlägt das Senden fehl, steht ein
+ * vorausgefüllter mailto-Link da.
+ */
+import { contactEmail } from '../config/site.mjs';
+import { inquiry } from '../config/inquiry.mjs';
+import { formVocab } from '../lib/inquiry-vocab.mjs';
+import Icon from './Icon.astro';
+import FormResult from './FormResult.astro';
+import '../styles/form.css';
+
+interface Props {
+  id?: string;
+  /** 2 = Formular direkt unter der H1 (/kontakt), 3 = in einer Sektion mit H2. */
+  resultLevel?: 2 | 3;
+}
+const { id = 'anfrage-form', resultLevel = 3 } = Astro.props;
+const L = inquiry.limits;
+/** Vokabular für Prüfung und mailto im Browser – dasselbe, das der Server bekommt. */
+const vocab = JSON.stringify(formVocab());
+const f = (name: string) => `${id}-${name}`;
+---
+<div class="iform-wrap" data-inquiry-root>
+  <FormResult level={resultLevel} />
+  <form
+    id={id}
+    class="iform"
+    method="post"
+    action="/api/v1/contact"
+    enctype="multipart/form-data"
+    data-form="anfrage"
+    data-inquiry
+    data-min-seconds={inquiry.minSeconds}
+    data-max-files={inquiry.photos.max}
+    data-max-bytes={inquiry.photos.maxTotalBytes}
+    data-extensions={inquiry.photos.extensions.join(',')}
+    data-mail={contactEmail()}
+    data-vocab={vocab}
+  >
+    <input type="hidden" name="source" value={Astro.url.pathname.replace(/\.html$/, '')} />
+    <input type="hidden" name="t" value="" />
+    <div class="iform__hp" aria-hidden="true">
+      <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for={f('message')}>Worum geht es?</label>
+      <textarea class="textarea" id={f('message')} name="message" rows="5" required placeholder="Beschreiben Sie kurz Ihr Anliegen – um welche Maschine es geht und was zu tun ist." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
+      <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
+    </div>
+
+    <div class="field">
+      <label class="iform__drop" for={f('photos')}>
+        <span class="iform__drop-ico" aria-hidden="true"><Icon name="camera" size={20} /></span>
+        <span class="iform__drop-text">
+          <span class="iform__drop-title">Foto oder Skizze hinzufügen</span>
+          <span class="iform__drop-sub" id={f('photos-hint')}>Optional – bis zu {inquiry.photos.max} Dateien (Foto, Skizze oder PDF), zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB</span>
+        </span>
+        <input class="iform__drop-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
+      </label>
+      <ul class="iform__files" data-file-list hidden></ul>
+      <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
+    </div>
+
+    <div class="iform__row">
+      <div class="field">
+        <label class="field__label" for={f('name')}>Name</label>
+        <input class="input" id={f('name')} name="name" type="text" required maxlength={L.name} autocomplete="name" aria-describedby={f('name-error')} />
+        <p class="field__error" id={f('name-error')} data-error-for="name" hidden></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for={f('company')}>Firma <span class="field__opt">optional</span></label>
+        <input class="input" id={f('company')} name="company" type="text" maxlength={L.company} autocomplete="organization" />
+      </div>
+    </div>
+    <div class="iform__row">
+      <div class="field">
+        <label class="field__label" for={f('phone')}>Telefon</label>
+        <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={f('phone-error')} />
+        <p class="field__error" id={f('phone-error')} data-error-for="phone" hidden></p>
+      </div>
+      <div class="field">
+        <label class="field__label" for={f('email')}>E-Mail</label>
+        <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" aria-describedby={f('email-error')} />
+        <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
+      </div>
+    </div>
+
+    <div class="iform__foot">
+      <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+      <p class="small muted">
+        Ihre Angaben verwenden wir nur für diese Anfrage – <a class="link" href="/datenschutz">Datenschutz</a>.
+      </p>
+    </div>
+  </form>
+</div>
+
+<script>
+  import { initInquiryForms } from '../scripts/form';
+  initInquiryForms();
+</script>

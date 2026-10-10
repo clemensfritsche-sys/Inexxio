@@ -1,0 +1,78 @@
+---
+/**
+ * Prüfpflicht-Check: zwei Fragen (Kranart, Alter) → was wann fällig ist → «Prüfung anfragen».
+ * Ohne JavaScript bleibt er verborgen; die Tabelle daneben sagt dasselbe. Alle 12 Ergebnisse
+ * stehen fertig im HTML (aus config/inspection.mjs) – das Skript zeigt nur das passende.
+ */
+import { inspection } from '../config/inspection.mjs';
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import '../styles/form.css';
+
+const T = inspection.text;
+const results = inspection.types.flatMap((type) =>
+  inspection.ages.map((age) => {
+    const lines: string[] = [];
+    if (type.expert) {
+      lines.push(T.yearly, `${T.expert} **${age.expertEvery}**.`);
+    } else {
+      lines.push(T.all);
+      if (type.value === 'heukran') lines.push(T.heukran);
+      if (age.value !== 'bis20') lines.push(T.older);
+    }
+    lines.push(T.book);
+    return { key: `${type.value}|${age.value}`, type, age, lines };
+  }),
+);
+---
+<div class="pcheck" data-pcheck hidden>
+  <div class="pcheck__q">
+    <fieldset class="pcheck__set">
+      <legend class="iform__grouptitle">1. Welche Kranart?</legend>
+      <div class="chips">
+        {inspection.types.map((t, i) => (
+          <label class="chip"><input type="radio" name="pc-type" value={t.value} checked={i === 0} /><span>{t.label}</span></label>
+        ))}
+      </div>
+    </fieldset>
+    <fieldset class="pcheck__set">
+      <legend class="iform__grouptitle">2. Wie alt ist der Kran?</legend>
+      <div class="chips">
+        {inspection.ages.map((a, i) => (
+          <label class="chip"><input type="radio" name="pc-age" value={a.value} checked={i === 0} /><span>{a.label}</span></label>
+        ))}
+      </div>
+    </fieldset>
+  </div>
+  <div class="pcheck__out" aria-live="polite">
+    {results.map((r, i) => (
+      <div class="pcheck__result" data-pcheck-result={r.key} hidden={i !== 0}>
+        <p class="label">Fällig für {r.type.label}, {r.age.label}</p>
+        <ul class="checklist" role="list">
+          {r.lines.map((line) => <li><Icon name="calendar-check" size={20} /><Rich as="span" text={line} /></li>)}
+        </ul>
+      </div>
+    ))}
+    <a class="btn btn--primary" href="/kontakt">
+      Prüfung anfragen <Icon name="arrow-right" size={18} class="btn__arrow" />
+    </a>
+    <Rich as="p" class="small muted" text={inspection.note} />
+  </div>
+</div>
+
+<script>
+  import { initInspectionCheck } from '../scripts/check';
+  initInspectionCheck();
+</script>
+
+<style>
+  .pcheck { display: grid; gap: var(--s-6); padding: var(--s-6); background: var(--white); border: 1px solid var(--line-2); }
+  @media (min-width: 900px) { .pcheck { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-7); } }
+  .pcheck__q { display: grid; gap: var(--s-5); align-content: start; }
+  .pcheck__set { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .pcheck__out { display: grid; gap: var(--s-4); align-content: start; justify-items: start; }
+  .pcheck__result { display: grid; gap: var(--s-3); }
+  .pcheck__result:not([hidden]) { animation: pc-in 400ms var(--ease); }
+  @keyframes pc-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .pcheck__result:not([hidden]) { animation: none; } }
+</style>

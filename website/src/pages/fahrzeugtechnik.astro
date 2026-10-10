@@ -1,0 +1,28 @@
+---
+/**
+ * /fahrzeugtechnik – Bereichsseite. Texte: content/fahrzeugtechnik.ts. Reparatur und
+ * Aufbauten stehen hier zurückhaltend als ein Abschnitt (#reparatur), ohne eigene Unterseite.
+ */
+import AreaPage from '../layouts/AreaPage.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Rich from '../components/Rich.astro';
+import { fahrzeugtechnik, fahrzeugtechnikPages, repair } from '../content/fahrzeugtechnik';
+---
+<AreaPage page={fahrzeugtechnik} subpages={fahrzeugtechnikPages}>
+  <section class="section" id="reparatur" aria-labelledby="reparatur-title">
+    <div class="wrap grid">
+      <div class="col-5"><SectionHead eyebrow="Ausserdem" title={repair.title} id="reparatur-title" class="head--flush" /></div>
+      <div class="col-7 rep">
+        <Rich as="p" text={repair.text} />
+        <ul role="list" class="rep__list">{repair.items.map((i) => <li>{i}</li>)}</ul>
+      </div>
+    </div>
+  </section>
+</AreaPage>
+
+<style>
+  .head--flush { margin-bottom: 0; }
+  .rep { display: grid; gap: var(--s-4); align-content: start; color: var(--ink-2); }
+  .rep__list { display: flex; flex-wrap: wrap; gap: var(--s-2) 0; font-size: 0.9375rem; color: var(--ink); }
+  .rep__list li:not(:last-child)::after { content: '·'; padding-inline: 10px; color: var(--ink-4); }
+</style>

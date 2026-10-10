@@ -1,0 +1,82 @@
+<!-- @dsCard group="ERP / App" viewport="1200x720" name="ERP shell" subtitle="Icon rail · breadcrumb top bar · KPI row · icon-led table — the system composed" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+body{margin:0;height:100vh;display:grid;grid-template-columns:var(--rail) 1fr;}
+.rail{border-right:1px solid var(--color-border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px;}
+.mark{display:block;width:28px;height:28px;margin-bottom:16px;}
+.rail .spacer{flex:1;}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--gray-200);display:flex;align-items:center;justify-content:center;font:600 12px var(--font-body);color:var(--color-text-secondary);}
+.main{display:grid;grid-template-rows:var(--topbar) 1fr;min-width:0;}
+.top{display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid var(--color-border);}
+.top-r{display:flex;align-items:center;gap:8px;}
+.top-r .ix-input-wrap{width:min(260px,30vw);}
+.top-r .ix-input{height:34px;background:var(--color-bg-subtle);border-color:transparent;}
+.content{padding:28px 32px;overflow:auto;display:grid;gap:28px;align-content:start;}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;}
+.head h1{margin:0;font:600 24px/32px var(--font-display);letter-spacing:-.015em;}
+.head p{margin:4px 0 0;color:var(--color-text-muted);}
+.head-r{display:flex;gap:8px;}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--color-border);border-radius:var(--radius-lg);}
+.kpis .ix-kpi{padding:20px 24px;}
+.kpis .ix-kpi+.ix-kpi{border-left:1px solid var(--color-border);}
+.bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.who{display:flex;align-items:center;gap:12px;}
+.ico{width:32px;height:32px;border-radius:8px;background:var(--color-bg-muted);display:flex;align-items:center;justify-content:center;color:var(--color-text-secondary);}
+.ico svg{width:16px;height:16px;}
+.who small{display:block;color:var(--color-text-muted);font-size:12px;line-height:16px;}
+.prog{display:flex;align-items:center;gap:10px;}
+.prog .ix-progress{width:80px;}
+</style></head>
+<body class="ix-root ix-ui">
+<nav class="rail">
+<img class="mark" src="../assets/favicon.svg" width="28" height="28" alt="INEXXIO">
+<div class="ix-rail-item is-active" data-tip="Übersicht" data-tip-pos="right"><i data-lucide="layout-grid"></i></div>
+<div class="ix-rail-item" data-tip="Projekte" data-tip-pos="right"><i data-lucide="folder-kanban"></i></div>
+<div class="ix-rail-item" data-tip="Kunden" data-tip-pos="right"><i data-lucide="users"></i></div>
+<div class="ix-rail-item" data-tip="Produktion" data-tip-pos="right"><i data-lucide="factory"></i></div>
+<div class="ix-rail-item" data-tip="Rechnungen" data-tip-pos="right"><i data-lucide="receipt"></i></div>
+<div class="ix-rail-item" data-tip="Berichte" data-tip-pos="right"><i data-lucide="bar-chart-3"></i></div>
+<div class="spacer"></div>
+<div class="ix-rail-item" data-tip="Einstellungen" data-tip-pos="right"><i data-lucide="settings"></i></div>
+<div class="avatar">AM</div>
+</nav>
+<div class="main">
+<header class="top">
+<nav class="ix-breadcrumb"><a href="#">INEXXIO</a><i data-lucide="chevron-right"></i><span aria-current="page">Projekte</span></nav>
+<div class="top-r">
+<label class="ix-input-wrap"><i data-lucide="search"></i><input class="ix-input" placeholder="Suchen  ⌘K"></label>
+<button class="ix-btn ix-btn--tertiary ix-btn--icon" data-tip="Benachrichtigungen"><i data-lucide="bell"></i></button>
+</div>
+</header>
+<main class="content">
+<div class="head">
+<div><h1>Projekte</h1><p>12 aktiv · 3 brauchen Aufmerksamkeit</p></div>
+<div class="head-r">
+<div class="ix-segmented"><button class="is-active" data-tip="Liste"><i data-lucide="list"></i></button><button data-tip="Board"><i data-lucide="kanban"></i></button></div>
+<button class="ix-btn ix-btn--secondary ix-btn--icon" data-tip="Filtern"><i data-lucide="sliders-horizontal"></i></button>
+<button class="ix-btn ix-btn--ink"><i data-lucide="plus"></i>Neues Projekt</button>
+</div>
+</div>
+<section class="kpis">
+<div class="ix-kpi"><span class="ix-kpi__label"><i data-lucide="folder-kanban"></i>Aktive Projekte</span><span class="ix-kpi__value">12</span><span class="ix-kpi__delta up"><i data-lucide="trending-up" style="width:14px;height:14px"></i>+3 diesen Monat</span></div>
+<div class="ix-kpi"><span class="ix-kpi__label"><i data-lucide="wallet"></i>Auftragsvolumen</span><span class="ix-kpi__value">184'200</span><span class="ix-kpi__delta">CHF · Q4</span></div>
+<div class="ix-kpi"><span class="ix-kpi__label"><i data-lucide="clock"></i>Ø Konzeptzeit</span><span class="ix-kpi__value">52 h</span><span class="ix-kpi__delta up"><i data-lucide="trending-down" style="width:14px;height:14px"></i>−8 h</span></div>
+<div class="ix-kpi"><span class="ix-kpi__label"><i data-lucide="alert-triangle"></i>Überfällig</span><span class="ix-kpi__value">2</span><span class="ix-kpi__delta down">Rechnungen</span></div>
+</section>
+<section>
+<div class="ix-tabs" style="margin-bottom:8px"><button class="ix-tab is-active">Alle</button><button class="ix-tab">Planung</button><button class="ix-tab">Produktion</button><button class="ix-tab">Abgeschlossen</button></div>
+<table class="ix-table">
+<thead><tr><th>Projekt</th><th>Status</th><th>Fortschritt</th><th class="num">Budget CHF</th><th class="num">Fällig</th><th></th></tr></thead>
+<tbody>
+<tr><td><div class="who"><span class="ico"><i data-lucide="bed-double"></i></span><span class="strong">Studio Zürich West<small>Müller · 24 m²</small></span></div></td><td><span class="ix-status ix-status--success">Im Plan</span></td><td><div class="prog"><div class="ix-progress"><span style="width:75%"></span></div>75%</div></td><td class="num strong">12'400</td><td class="num">14.10.</td><td><div class="row-actions"><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Öffnen"><i data-lucide="arrow-up-right"></i></button><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Mehr"><i data-lucide="more-horizontal"></i></button></div></td></tr>
+<tr><td><div class="who"><span class="ico"><i data-lucide="sofa"></i></span><span class="strong">Loft Basel<small>Schneider · 38 m²</small></span></div></td><td><span class="ix-status ix-status--warning">Verzögert</span></td><td><div class="prog"><div class="ix-progress"><span style="width:45%"></span></div>45%</div></td><td class="num strong">18'900</td><td class="num">21.10.</td><td><div class="row-actions"><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Öffnen"><i data-lucide="arrow-up-right"></i></button><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Mehr"><i data-lucide="more-horizontal"></i></button></div></td></tr>
+<tr><td><div class="who"><span class="ico"><i data-lucide="cooking-pot"></i></span><span class="strong">Küche Bern<small>Weber · 9 m²</small></span></div></td><td><span class="ix-status ix-status--danger">Überfällig</span></td><td><div class="prog"><div class="ix-progress"><span style="width:90%"></span></div>90%</div></td><td class="num strong">9'750</td><td class="num" style="color:var(--color-danger)">02.10.</td><td><div class="row-actions"><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Öffnen"><i data-lucide="arrow-up-right"></i></button><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Mehr"><i data-lucide="more-horizontal"></i></button></div></td></tr>
+<tr><td><div class="who"><span class="ico"><i data-lucide="home"></i></span><span class="strong">Ferienwohnung Laax<small>Keller · 42 m²</small></span></div></td><td><span class="ix-status ix-status--info">In Prüfung</span></td><td><div class="prog"><div class="ix-progress"><span style="width:20%"></span></div>20%</div></td><td class="num strong">24'300</td><td class="num">30.11.</td><td><div class="row-actions"><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Öffnen"><i data-lucide="arrow-up-right"></i></button><button class="ix-btn ix-btn--tertiary ix-btn--icon ix-btn--sm" data-tip="Mehr"><i data-lucide="more-horizontal"></i></button></div></td></tr>
+</tbody></table>
+</section>
+</main>
+</div>
+<script>lucide.createIcons();</script>
+</body></html>

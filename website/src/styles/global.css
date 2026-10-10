@@ -1,0 +1,375 @@
+/* ==========================================================================
+   INEXXIO Website – globales Stylesheet
+   Formsprache = INEXXIO Design System (Stand Oktober 2026, Artefakt «INEXXIO Design System»):
+   Inter Tight 700 für Seitentitel, 600 für Abschnittstitel (32/40), Inter für Text (16/24),
+   Knöpfe 40/48 px mit 8 px Radius (keine Pillen), Overlines in Rot-600, Icons Strich 1.75,
+   Inhalt bis 1200 px, flach statt Schatten. Signatur: Swoosh (Verlauf red-400 → 500 → 700)
+   unter dem EINEN Titelwort, Punktraster hinter dem Hero.
+   Werte: tokens.css (generiert).
+   ========================================================================== */
+@import './tokens.css';
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../assets/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+/* Titelschrift: Inter Tight, die enge Schnittvariante derselben Familie – auf 600–700
+   beschnitten (32 KB statt 45 KB): v3 setzt Titel 700, Zwischentitel 600, nie 800. */
+@font-face {
+  font-family: 'Inter Tight';
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+  src: url('../assets/fonts/inter-tight-latin-wght-600-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter Tight Fallback';
+  src: local('Arial Bold'), local('Arial');
+  font-weight: 600 700;
+  ascent-override: 96.9%;
+  descent-override: 24.1%;
+  line-gap-override: 0%;
+  size-adjust: 104%;
+}
+/* Ersatzschrift mit Inter-Metrik: verhindert, dass der Text beim Nachladen springt. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  ascent-override: 90.2%;
+  descent-override: 22.48%;
+  line-gap-override: 0%;
+  size-adjust: 107.4%;
+}
+
+:root {
+  --font-sans: 'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-display: 'Inter Tight', 'Inter Tight Fallback', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --maxw: 1200px;
+  --gutter: 16px;
+  --header-h: 60px;
+  --radius: var(--r-md); /* Bedienelemente 8 px */
+  --t-slow: 520ms;
+  /* Abstandsskala 4/8/12/16/24/32/48/64/96/128 */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px;
+  --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px; --s-10: 128px;
+  --section-y: var(--s-8);
+  --measure: 68ch;
+  --focus-ring: 0 0 0 2px var(--white), 0 0 0 4px var(--ink);
+  /* Overline/Index: Rot des Hauses – auf getöntem Grund die tiefe Stufe (Kontrast ≥ 4.5:1
+     auch bei 12 px), auf dunklem die helle. */
+  --overline: var(--red-hover);
+  /* Roter Text auf dunklem Grund (DS color-primary-text, dark). */
+  --red-on-dark: #F47C76;
+  color-scheme: light;
+}
+@media (min-width: 768px) {
+  :root { --gutter: 24px; --header-h: 72px; --section-y: var(--s-9); }
+}
+@media (min-width: 1200px) {
+  :root { --section-y: 104px; }
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: calc(var(--header-h) + 16px); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  font-family: var(--font-sans);
+  font-size: 1rem; /* 16 px – ix-body */
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  color: var(--ink-2);
+  background: var(--white);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+img, svg, video { display: block; max-width: 100%; }
+::selection { background: var(--red); color: var(--white); }
+img { height: auto; }
+input, button, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+p, li, dd, figcaption { overflow-wrap: break-word; hyphens: auto; }
+h1, h2, h3, h4 { overflow-wrap: break-word; hyphens: manual; }
+ul[role='list'], ol[role='list'] { list-style: none; padding: 0; }
+[hidden] { display: none !important; }
+
+/* ---------- Typografie ---------- */
+/* Titel: Inter Tight 700 (Zwischentitel 600), Laufweite −0.03 em, ruhiger Zeilenabstand
+   (DS v3 --h1/--h2/--h3, Leiter 24·32·48·64). */
+h1, h2, h3, h4, .h1, .h2, .h3 { color: var(--ink); text-wrap: balance; }
+h1, h2, h3, .h1, .h2, .h3 { font-family: var(--font-display); }
+h1, .h1 {
+  font-size: clamp(2.125rem, 1.45rem + 2.6vw, 3rem); /* 34 → 48 px (ix-h1 48/52) */
+  line-height: 1.083;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+h2, .h2 {
+  font-size: clamp(1.625rem, 1.4rem + 0.8vw, 2rem); /* 26 → 32 px (ix-h2 32/40) */
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+}
+h3, .h3 {
+  font-size: clamp(1.25rem, 1.15rem + 0.35vw, 1.5rem); /* 20 → 24 px (ix-h3 24/32) */
+  line-height: 1.333;
+  letter-spacing: var(--tracking-snug);
+  font-weight: 600;
+}
+h4 { font-size: 1.125rem; line-height: 1.556; font-weight: 600; } /* ix-h4 18/28 */
+/* Das EINE rote Wort im Titel (im Text: ==Wort==). */
+.mark { color: var(--red); }
+/* Signatur (DS .ix-swoosh): der Logo-Schwung als Unterstrich unter genau EINEM Titelwort –
+   im Seitenkopf trägt das markierte Wort (==Wort==) ihn statt roter Schrift. */
+.hero__title .mark, .contact__title .mark, .swoosh { color: inherit; position: relative; white-space: nowrap; }
+.hero__title .mark::after, .contact__title .mark::after, .swoosh::after {
+  content: ''; position: absolute; left: -0.04em; right: -0.06em; bottom: -0.06em; height: 0.11em;
+  border-radius: 999px; transform: rotate(-1.6deg); transform-origin: left;
+  /* Der Verlauf ist fest (DS Swoosh): red-400 → red-500 → red-700. */
+  background: linear-gradient(90deg, var(--red-bright), var(--red) 40%, var(--red-deep));
+}
+p { max-width: var(--measure); text-wrap: pretty; }
+strong { font-weight: 600; color: var(--ink); }
+.lead { font-size: 1.125rem; line-height: 1.556; color: var(--ink-2); max-width: 36em; } /* ix-lead 18/28 */
+.small { font-size: 0.875rem; line-height: 1.55; }
+.muted { color: var(--ink-3); }
+.tnum { font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+
+/* Overline (Eyebrow): Inter 600, Versalien, weit gesperrt, rot – DS --overline. */
+.label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.333;
+  font-weight: 600;
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+  color: var(--overline);
+}
+.label--red { color: var(--red-hover); } /* steht auf getöntem Grund (Notfall-Kasten) */
+/* Index (01 / …): Mono, rot, tabellarisch – der kleine Takt der Abschnitte. */
+.idx {
+  font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.08em;
+  color: var(--overline); font-variant-numeric: tabular-nums;
+}
+
+/* Links: im Fliesstext immer unterstrichen (Farbe allein ist kein Signal). */
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+.prose a, .link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  transition: text-decoration-color var(--t-fast) var(--ease);
+}
+.prose a:hover, .link:hover { text-decoration-color: currentColor; }
+/* Telefon und E-Mail im Fliesstext: 44 px hohe Trefferfläche. Vertikales Padding an einem
+   Inline-Element verschiebt keine Zeile – es vergrössert nur die Fläche, die den Finger trifft. */
+.tap { padding-block: 14px; }
+
+/* Sichtbarer Fokus: 2 px Rahmen mit Abstand. */
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 1px; }
+.on-dark :focus-visible, .on-dark:focus-visible, .section--dark :focus-visible { outline-color: var(--white); }
+
+.skip-link {
+  position: absolute; left: var(--s-4); top: -100px; z-index: 100;
+  background: var(--ink); color: var(--white); padding: 12px 16px; font-weight: 600;
+  text-decoration: none;
+}
+.skip-link:focus { top: var(--s-2); }
+
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- Layout ---------- */
+.wrap { width: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
+.section { padding-block: var(--section-y); }
+.section--tight { padding-block: calc(var(--section-y) * 0.6); }
+.section--paper { background: var(--paper); }
+.section--dark { background: var(--dark); color: var(--on-dark); --overline: var(--red-on-dark); }
+.section--dark h1, .section--dark h2, .section--dark h3, .section--dark h4, .section--dark strong { color: var(--white); }
+.section--dark .lead, .section--dark p { color: rgba(244, 243, 241, 0.72); }
+.section--rule { border-top: 1px solid var(--line); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-6) var(--s-5); }
+@media (min-width: 960px) {
+  .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .col-4 { grid-column: span 4; } .col-5 { grid-column: span 5; } .col-6 { grid-column: span 6; }
+  .col-7 { grid-column: span 7; } .col-8 { grid-column: span 8; } .col-12 { grid-column: 1 / -1; }
+}
+.cols-2, .cols-3 { display: grid; gap: var(--s-6) var(--s-5); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) {
+  .cols-2, .cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Abschnittskopf (DS): Overline, Titel, Satz darunter – ohne Linie darüber; 2 px gibt es im
+   Design-System nur als Tab-Unterlinie. */
+.head { margin-bottom: var(--s-7); }
+/* Die Linie läuft über die volle Breite, der Text behält sein Mass. */
+.head__in { display: grid; gap: var(--s-3); max-width: 52rem; }
+.head .lead { margin-top: var(--s-1); color: var(--ink-3); }
+.section--dark .head .lead { color: rgba(255, 255, 255, 0.62); }
+@media (min-width: 1200px) { .head { margin-bottom: 56px; } }
+
+/* ---------- Knöpfe ---------- */
+/* DS: 8 px Radius (keine Pillen), Höhe 40 (gross 48). Rot = die eine Hauptaktion, Umriss =
+   alles andere. Der rote Knopf bekommt nur beim Zeigen einen sehr dezenten Schatten. */
+.btn {
+  --btn-h: 40px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--btn-h); padding: 0 16px;
+  font-size: 0.875rem; font-weight: 500; line-height: 1.2; letter-spacing: -0.006em;
+  border: 1px solid transparent; border-radius: var(--r-md);
+  text-decoration: none; white-space: nowrap;
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-base) var(--ease), background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn .icon { flex: none; }
+.btn .btn__arrow { transition: transform var(--t-base) var(--ease); }
+.btn:hover .btn__arrow { transform: translateX(3px); }
+.btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn--primary { background: var(--red); color: var(--white); }
+.btn--primary:hover { background: var(--red-hover); box-shadow: var(--shadow-red); }
+.btn--primary:active { background: var(--red-deep); box-shadow: none; }
+.btn--secondary { border-color: var(--line-2); color: var(--ink); background: var(--white); }
+.btn--secondary:hover { background: var(--paper); border-color: var(--ink-4); }
+.on-dark .btn--secondary, .section--dark .btn--secondary { background: transparent; border-color: rgba(255, 255, 255, 0.32); color: var(--white); }
+.on-dark .btn--secondary:hover, .section--dark .btn--secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.6); }
+.btn--lg { --btn-h: 48px; padding: 0 22px; font-size: 0.9375rem; }
+.btn--sm { --btn-h: 32px; padding: 0 12px; font-size: 0.8125rem; gap: 6px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+
+/* Pfeil-Textlink (DS .btn-link): rot, der Pfeil rückt beim Zeigen nach. */
+.arrow-link {
+  display: inline-block; padding-block: 10px; line-height: 1.5; font-weight: 500; color: var(--red-hover);
+  text-decoration: none;
+}
+.arrow-link .icon { display: inline-block; vertical-align: -0.22em; margin-left: 6px; transition: transform var(--t-base) var(--ease); }
+.arrow-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.arrow-link:hover .icon { transform: translateX(4px); }
+.section--dark .arrow-link, .on-dark .arrow-link { color: var(--white); }
+
+/* Karten aus Linien (Website-Kit «uc-grid»): 1 px Abstand auf Linienfarbe, Karten weiss. */
+.cardgrid {
+  display: grid; gap: 1px; grid-template-columns: minmax(0, 1fr);
+  background: var(--line); border: 1px solid var(--line); list-style: none; padding: 0;
+}
+.cardgrid > * { background: var(--white); min-width: 0; }
+@media (min-width: 760px) { .cardgrid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 760px) { .cardgrid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .cardgrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Signatur (DS .ix-grid-bg--fade): feines Schweizer Punktraster, zum Rand hin ausgeblendet.
+   Ersetzt den roten Schein aus v2 – v3 kennt keinen Glow. Dekor, kein Inhalt. */
+.dots { position: relative; isolation: isolate; }
+.dots::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse at 75% 35%, #000 0%, transparent 70%);
+  mask-image: radial-gradient(ellipse at 75% 35%, #000 0%, transparent 70%);
+}
+
+/* ---------- Listen ---------- */
+/* Die Haken-Liste des Hauses: roter Haken, Haarlinie zwischen den Zeilen. */
+.checklist { list-style: none; padding: 0; display: grid; gap: 0; }
+.checklist li {
+  display: grid; grid-template-columns: 18px 1fr; gap: 12px; align-items: start;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+.checklist li:first-child { border-top: 0; padding-top: 0; }
+.checklist .icon { margin-top: 0.22em; color: var(--red); width: 18px; height: 18px; }
+.section--dark .checklist li { border-top-color: var(--line-dark); }
+.section--dark .checklist .icon { color: var(--red-on-dark); }
+
+.rule-list { list-style: none; padding: 0; border-top: 1px solid var(--line); }
+.rule-list > li { padding: var(--s-4) 0; border-bottom: 1px solid var(--line); }
+.section--dark .rule-list, .section--dark .rule-list > li { border-color: var(--line-dark); }
+
+/* Faktentabelle («Auf einen Blick», Fristen) */
+.facts { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.facts th, .facts td { text-align: left; vertical-align: top; padding: var(--s-3) var(--s-4) var(--s-3) 0; border-bottom: 1px solid var(--line); }
+.facts thead th { font-size: 0.75rem; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 2px solid var(--ink); }
+.facts tbody th { color: var(--ink); font-weight: 600; width: 34%; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ---------- Prosa (Ratgeber, Rechtliches) ---------- */
+.prose { color: var(--ink-2); }
+.prose > * + * { margin-top: 1em; }
+.prose h2 { margin-top: 2em; }
+.prose h3 { margin-top: 1.8em; }
+.prose h2 + *, .prose h3 + * { margin-top: 0.6em; }
+.prose ul, .prose ol { padding-left: 1.25em; max-width: var(--measure); }
+.prose li + li { margin-top: 0.4em; }
+.prose li::marker { color: var(--ink-3); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 0.97rem; }
+.prose th, .prose td { text-align: left; vertical-align: top; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); }
+.prose thead th { font-size: 0.75rem; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 2px solid var(--ink); }
+.prose blockquote { border-left: 2px solid var(--line-2); padding-left: var(--s-4); color: var(--ink); }
+.prose hr { border: 0; border-top: 1px solid var(--line); margin-block: 2em; }
+
+/* ---------- Formularfelder ---------- */
+.field { display: grid; gap: 6px; }
+.field__label { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.field__hint { font-size: 0.875rem; color: var(--ink-3); }
+.field__error { font-size: 0.875rem; color: var(--red-hover); font-weight: 600; display: flex; gap: 6px; align-items: flex-start; }
+.input, .textarea {
+  width: 100%; min-height: 48px; padding: 11px 15px;
+  background: var(--white); border: 1px solid var(--line-2); border-radius: var(--r-md);
+  color: var(--ink); font-size: 1rem; line-height: 1.4;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.textarea { min-height: 132px; resize: vertical; }
+.input:hover, .textarea:hover { border-color: var(--ink-3); }
+/* Fokus = schwarzer Ring, nie rot (DS v3) – Rot bleibt dem Fehler vorbehalten. */
+.input:focus-visible, .textarea:focus-visible { outline: none; border-color: var(--line-focus); box-shadow: 0 0 0 3px rgba(10, 10, 11, 0.08); }
+.input[aria-invalid='true'], .textarea[aria-invalid='true'] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--red-bg); }
+
+/* ---------- Bewegung (nur mit JS, nur ohne reduzierte Bewegung) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-pending { opacity: 0; transform: translateY(12px); }
+  .reveal-in {
+    opacity: 1; transform: none;
+    transition: opacity 480ms var(--ease), transform 480ms var(--ease);
+  }
+}
+
+/* Einblenden von Dropdown und Profilmenü (150 ms, nur Deckkraft und Versatz). */
+@keyframes drop-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+
+/* Anmeldezustand (nur Anzeige): scripts/early.js setzt html[data-account] = user | staff aus
+   dem Anzeige-Cache des Kontos. Ohne JS oder ohne Cache bleibt «Anmelden» stehen. */
+html[data-account] [data-acct='login'],
+html:not([data-account]) [data-acct='user'],
+html:not([data-account='staff']) [data-acct='staff'] { display: none !important; }
+
+/* Offenes Mobil-Menü: die Seite dahinter scrollt nicht mit. */
+html.menu-open { overflow: hidden; }
+
+/* Platz für die mobile Aktionsleiste */
+@media (max-width: 767px) { body { padding-bottom: 56px; } }
+
+@media print {
+  .site-header, .mobilebar, .site-footer nav { display: none !important; }
+  body { font-size: 11pt; color: #000; }
+  /* Gedruckt wird auch, was noch nicht ins Bild gescrollt wurde – also im Endzustand. */
+  .reveal-pending, .is-armed, .is-armed * { opacity: 1 !important; transform: none !important; }
+}

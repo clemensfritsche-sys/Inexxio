@@ -1,0 +1,26 @@
+<!-- @dsCard group="Components" viewport="720x400" name="Overlays & feedback" subtitle="Confirm dialog · context menu · toast · skeleton loading" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>body{margin:0;padding:28px;background:var(--color-bg-subtle);}.grid{display:grid;grid-template-columns:1.25fr 1fr;gap:24px;align-items:start;}.col{display:grid;gap:16px;}.sk{background:#fff;border:1px solid var(--color-border);border-radius:12px;padding:16px;display:grid;gap:10px;}</style>
+</head><body class="ix-root">
+<div class="grid">
+<div class="ix-modal" style="box-shadow:var(--elev-3)">
+<div class="ix-modal__icon"><i data-lucide="trash-2" style="width:18px;height:18px"></i></div>
+<div><h3 class="ix-modal__title">Projekt löschen?</h3><p class="ix-modal__body">«Studio Zürich West» und alle 14 Dateien werden endgültig entfernt.</p></div>
+<div class="ix-modal__actions"><button class="ix-btn ix-btn--secondary">Abbrechen</button><button class="ix-btn ix-btn--danger-solid">Löschen</button></div>
+</div>
+<div class="col">
+<div class="ix-menu">
+<div class="ix-menu__item"><i data-lucide="pencil"></i>Bearbeiten</div>
+<div class="ix-menu__item"><i data-lucide="copy"></i>Duplizieren</div>
+<div class="ix-menu__item"><i data-lucide="download"></i>Als PDF</div>
+<div class="ix-menu__sep"></div>
+<div class="ix-menu__item ix-menu__item--danger"><i data-lucide="trash-2"></i>Löschen</div>
+</div>
+<div class="ix-toast"><i data-lucide="check-circle-2"></i>Projekt gespeichert<button>Rückgängig</button></div>
+<div class="sk"><div class="ix-skeleton" style="height:12px;width:40%"></div><div class="ix-skeleton" style="height:12px;width:85%"></div><div class="ix-skeleton" style="height:12px;width:65%"></div></div>
+</div>
+</div>
+<script>lucide.createIcons();</script>
+</body></html>

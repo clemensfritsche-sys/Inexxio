@@ -1,0 +1,166 @@
+---
+/**
+ * Startseite: Hero mit Laufkran, den drei Bereichen und den Branchen-Zeilen (HomeHero) →
+ * Speziallösungen (hervorgehoben) → die drei Versprechen (Promises) → Warum (Belege) → Übergabe → Ratgeber → Fragen → Anfrage (mit
+ * Karte – darum keine zweite «Wo wir arbeiten»-Sektion). Texte: src/content/start.ts,
+ * Bereiche aus src/config/site.mjs.
+ */
+import Base from '../layouts/Base.astro';
+import HomeHero from '../components/HomeHero.astro';
+import Promises from '../components/Promises.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Photo from '../components/Photo.astro';
+import Quote from '../components/Quote.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import Faq from '../components/Faq.astro';
+import ContactSection from '../components/ContactSection.astro';
+import Icon, { type IconName } from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { start } from '../content/start';
+import { article, formatDay } from '../lib/ratgeber';
+import { faqPage } from '../lib/seo.mjs';
+import baumaschine from '../assets/illustrations/spezial-baumaschinen.svg?raw';
+
+const teasers = start.ratgeber.slugs.map((slug) => article(slug));
+const h = start.handover;
+const sp = start.special;
+const spIllo = baumaschine.replace('<svg ', '<svg role="img" aria-label="Baumaschine mit Anbaugerät nach Mass" ');
+---
+<Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]}>
+  <HomeHero
+    eyebrow={start.hero.eyebrow}
+    title={start.hero.h1}
+    subtitle={start.hero.subtitle}
+    lead={start.hero.lead}
+    handover={start.hero.handover}
+    areasTitle={start.areas.h2}
+    more={start.areas.more}
+    claims={start.entries}
+  />
+
+  <section class="section start-sp" id="spezialloesungen" aria-labelledby="spezial-title">
+    <div class="wrap start-sp__grid">
+      <div class="start-sp__text">
+        <p class="label">{sp.eyebrow}</p>
+        <Rich as="h2" id="spezial-title" class="start-sp__title" text={sp.h2} />
+        <Rich as="p" class="lead" text={sp.lead} />
+        <ul role="list" class="start-sp__fields">
+          {sp.fields.map((f) => <li>{f}</li>)}
+        </ul>
+        <ul role="list" class="checklist start-sp__facts">
+          {sp.facts.map((f) => <li><Icon name="check" size={18} /><span>{f}</span></li>)}
+        </ul>
+        <a class="btn btn--primary btn--lg" href="/spezialloesungen">{sp.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+      <a class="start-sp__illo" href="/spezialloesungen" aria-label={sp.cta} set:html={spIllo} />
+    </div>
+  </section>
+
+  <Promises />
+
+  <section class="section" aria-labelledby="warum">
+    <div class="wrap start-why">
+      <header class="start-why__head">
+        <p class="label">{start.why.eyebrow}</p>
+        <h2 id="warum">{start.why.h2}</h2>
+      </header>
+      <div class="start-why__grid">
+        <ol class="start-why__list" role="list">
+          {start.why.items.map((it) => (
+            <li class="start-why__item">
+              <span class="start-why__icon" aria-hidden="true"><Icon name={it.icon as IconName} size={24} /></span>
+              <Rich as="h3" class="start-why__title" text={it.title} />
+              <Rich as="p" class="start-why__text" text={it.text} />
+            </li>
+          ))}
+        </ol>
+        <figure class="start-quote">
+          <Photo id="portraet-clemens" sizes="112px" class="start-quote__img" />
+          <blockquote><Rich as="p" class="start-quote__text" text={`«${start.why.quote}»`} /></blockquote>
+          <figcaption class="start-quote__cap"><strong>{site.people.owner.name}</strong> · {site.brand.legalName}, Tuttwil-Wängi</figcaption>
+          <a class="arrow-link" href="/ueber-uns">{start.why.link} <Icon name="arrow-right" size={18} /></a>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark" id="uebergabe" aria-labelledby="uebergabe-title">
+    <div class="wrap grid start-handover">
+      <div class="col-6 start-handover__text">
+        <SectionHead eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe-title" class="head--flush" />
+        {site.features.heiriAdvisory && <Rich as="p" text={site.people.founder.advisory} />}
+        <Quote text={h.quote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
+        <div class="start-handover__links">
+          <a class="arrow-link" href="/ueber-uns#uebergabe">Die ganze Geschichte <Icon name="arrow-right" size={18} /></a>
+          <a class="arrow-link" href="/ueber-uns#fragen">Fragen zur Übergabe <Icon name="arrow-right" size={18} /></a>
+        </div>
+      </div>
+      <div class="col-6 start-handover__media">
+        <Photo id="clemens-heiri-quer" sizes="(min-width: 960px) 50vw, 100vw" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ratgeber">
+    <div class="wrap">
+      <SectionHead eyebrow={start.ratgeber.eyebrow} title={start.ratgeber.h2} id="ratgeber" />
+      <div class="cols-3">
+        {teasers.map((a) => (
+          <ArticleCard href={a.path} title={a.title} text={a.kurz[0]} date={a.updated} dateLabel={formatDay(a.updated)} />
+        ))}
+      </div>
+      <p class="start-more"><a class="arrow-link" href="/ratgeber">{start.ratgeber.all} <Icon name="arrow-right" size={18} /></a></p>
+    </div>
+  </section>
+
+  <section class="section section--rule" aria-labelledby="fragen">
+    <div class="wrap">
+      <SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" />
+      <div class="start-faq"><Faq items={start.faq} /></div>
+    </div>
+  </section>
+
+  <ContactSection />
+</Base>
+
+<style>
+  .head--flush { margin-bottom: 0; }
+  .start-handover { align-items: start; row-gap: var(--s-7); }
+  .start-handover__text { display: grid; gap: var(--s-5); align-content: start; }
+  .start-handover__links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-6); }
+
+  .start-why { display: grid; gap: var(--s-7); }
+  .start-why__head { display: grid; gap: var(--s-3); }
+  .start-why__head h2 { max-width: 18em; }
+  .start-why__grid { display: grid; gap: var(--s-7) var(--s-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 960px) { .start-why__grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
+  .start-why__list { border-top: 1px solid var(--line); }
+  .start-why__item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px var(--s-4); padding: 20px 0; border-bottom: 1px solid var(--line); }
+  .start-why__icon { grid-row: span 2; padding-top: 2px; color: var(--red); display: flex; }
+  .start-why__title { font-size: 1.125rem; line-height: 1.444; }
+  .start-why__text { font-size: 0.9375rem; line-height: 1.47; color: var(--ink-3); }
+  .start-quote { display: grid; gap: 20px; justify-items: start; margin: 0; padding: 32px; border-radius: var(--r-lg); background: var(--paper); }
+  @media (max-width: 599px) { .start-quote { padding: 24px; } }
+  .start-quote :global(.start-quote__img), .start-quote :global(picture), .start-quote :global(.ph) { width: 112px; height: 112px; border-radius: 50%; overflow: hidden; }
+  .start-quote :global(img) { width: 112px; height: 112px; object-fit: cover; border-radius: 50%; }
+  .start-quote blockquote { margin: 0; }
+  .start-quote__text { font-family: var(--font-display); font-size: clamp(1.125rem, 1rem + 0.5vw, 1.375rem); line-height: 1.4; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
+  .start-quote__cap { font-size: 0.875rem; color: var(--ink-3); }
+
+  .start-more { margin-top: var(--s-6); }
+  .start-faq { max-width: 52rem; }
+
+  /* Speziallösungen: hervorgehoben direkt unter dem Einstieg – eigene Fläche, Bild rechts. */
+  .start-sp { background: var(--paper); border-block: 1px solid var(--line); }
+  .start-sp__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 960px) { .start-sp__grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
+  .start-sp__text { display: grid; gap: var(--s-5); justify-items: start; }
+  .start-sp__title { font-size: clamp(2rem, 1.6rem + 1.4vw, 3rem); line-height: 1.083; font-weight: 700; letter-spacing: -0.03em; max-width: 14em; }
+  .start-sp__fields { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .start-sp__fields li { padding: 6px 12px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--white); font-size: 0.875rem; font-weight: 500; color: var(--ink); }
+  .start-sp__facts { display: grid; gap: var(--s-2); }
+  .start-sp__illo { display: block; aspect-ratio: 4 / 3; transition: transform var(--t-base) var(--ease); }
+  .start-sp__illo:hover { transform: translateY(-2px); }
+  .start-sp__illo :global(svg) { display: block; width: 100%; height: 100%; max-width: none; }
+</style>

@@ -1,0 +1,83 @@
+{
+  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:contact» – nicht von Hand ändern.",
+  "brand": {
+    "name": "INEXXIO",
+    "full": "INEXXIO (ehemals HS Steiner)"
+  },
+  "phone": {
+    "display": "052 378 22 47",
+    "e164": "+41523782247"
+  },
+  "email": "fahrzeug-kranbau@hs-steiner.ch",
+  "address": [
+    "Waldweg 1",
+    "9546 Tuttwil (Wängi TG)"
+  ],
+  "pages": {
+    "thanks": "/kontakt/danke",
+    "contact": "/kontakt"
+  },
+  "photos": {
+    "max": 3,
+    "maxTotalBytes": 10485760,
+    "accept": "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf,.pdf",
+    "extensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".heic",
+      ".heif",
+      ".pdf"
+    ]
+  },
+  "minSeconds": 3,
+  "limits": {
+    "message": 4000,
+    "name": 120,
+    "company": 160,
+    "phone": 40,
+    "email": 160
+  },
+  "labels": [
+    [
+      "message",
+      "Anliegen"
+    ],
+    [
+      "name",
+      "Name"
+    ],
+    [
+      "company",
+      "Firma"
+    ],
+    [
+      "phone",
+      "Telefon"
+    ],
+    [
+      "email",
+      "E-Mail"
+    ]
+  ],
+  "messages": {
+    "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
+    "name": "Bitte geben Sie Ihren Namen an.",
+    "contact": "Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.",
+    "phone": "Diese Telefonnummer sieht unvollständig aus.",
+    "email": "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).",
+    "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
+    "photosCount": "Bitte höchstens {max} Dateien auswählen (jetzt {count}).",
+    "photosType": "«{name}» ist kein unterstütztes Format (JPG, PNG, WEBP, HEIC oder PDF).",
+    "photosSize": "Die Dateien sind zusammen {size} gross – erlaubt sind {max}.",
+    "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
+  },
+  "mail": {
+    "confirmSubject": "Ihre Anfrage bei INEXXIO (ehemals HS Steiner)",
+    "confirmIntro": "Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.",
+    "confirmNext": "Wir melden uns innert kurzer Zeit.",
+    "urgent": "Steht eine Anlage still, rufen Sie am besten direkt an: 052 378 22 47.",
+    "closing": "Freundliche Grüsse"
+  }
+}

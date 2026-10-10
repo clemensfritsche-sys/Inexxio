@@ -1,0 +1,25 @@
+---
+/** Zitat. Ohne Text erscheint nichts – nie ein erfundener Satz in Anführungszeichen. */
+import { isMissing } from '../config/site.mjs';
+import Rich from './Rich.astro';
+
+interface Props { text: string; author: string; role?: string }
+const { text, author, role } = Astro.props;
+const missing = isMissing(text);
+---
+{!missing && (
+  <figure class="quote">
+    <blockquote class="quote__text"><Rich text={`«${text}»`} /></blockquote>
+    <figcaption class="quote__by"><span class="quote__name">{author}</span>{role && <span>, {role}</span>}</figcaption>
+  </figure>
+)}
+
+<style>
+  .quote { display: grid; gap: var(--s-3); padding-left: var(--s-5); border-left: 2px solid var(--red); }
+  .quote__text p { font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem); line-height: 1.35; letter-spacing: -0.015em; color: var(--ink); font-weight: 500; }
+  :global(.section--dark) .quote__text p { color: var(--white); }
+  .quote__by { font-size: 0.9375rem; color: var(--ink-3); }
+  :global(.section--dark) .quote__by { color: rgba(244, 243, 241, 0.7); }
+  .quote__name { font-weight: 600; color: var(--ink); }
+  :global(.section--dark) .quote__name { color: var(--white); }
+</style>

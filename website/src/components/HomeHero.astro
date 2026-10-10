@@ -1,0 +1,283 @@
+---
+/**
+ * Seitenkopf der Startseite mit Laufkran (Claude-Design «Startseite Redesign», Okt. 2026):
+ * Über dem Kopf läuft eine Kranbahn; die Katze mit der INEXXIO-Wortmarke folgt dem Zeiger.
+ * Über einem Knopf senkt sie den Haken und hängt ihn an. Über einem **Bereich** spielt sie
+ * dessen Szene im Bildfeld der Karte: Heu einlagern (Greifer) · Mischtrommel tauschen ·
+ * Anbau nach Mass montieren. Drei gleichwertige Karten, je mit ihrem Versprechen in einem
+ * Satz. Ohne Zeiger fährt der Kran die drei Bereiche nacheinander ab.
+ * Bewegung: src/scripts/crane.ts. Ohne JS oder bei reduzierter Bewegung steht der Kran still,
+ * die Karten reagieren dann auf das Zeigen wie gewohnt.
+ */
+import { site } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import Photo from './Photo.astro';
+import Rich from './Rich.astro';
+import SeasonNotice from './SeasonNotice.astro';
+import greifer from '../assets/crane/greifer.html?raw';
+import lastBale from '../assets/crane/last-bale.svg?raw';
+import lastOld from '../assets/crane/last-old.svg?raw';
+import lastNew from '../assets/crane/last-new.svg?raw';
+import lastJib from '../assets/crane/last-jib.svg?raw';
+import szeneKran from '../assets/crane/szene-krantechnik.svg?raw';
+import szeneFahrzeug from '../assets/crane/szene-fahrzeugtechnik.svg?raw';
+import szeneSonder from '../assets/crane/szene-spezialloesungen.svg?raw';
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  /** Kurzer Kernsatz über dem Lead («Ihr Problem. Unsere Lösung.»). */
+  subtitle: string;
+  /** Hinweis auf die Übergabe – ein Badge über dem Titel. */
+  handover: { label: string; title: string; text: string; href: string };
+  areasTitle: string;
+  more: string;
+  /** Satz je Bereich (Bereichs-ID → Versprechen in einem Satz). */
+  claims: Record<string, string>;
+}
+const { eyebrow, title, subtitle, lead, handover, areasTitle, more, claims } = Astro.props;
+
+/** Szene je Bereich – die Reihenfolge der Bühnen folgt der Reihenfolge der Karten. */
+const scenes: Record<string, { svg: string; done: string }> = {
+  krantechnik: { svg: szeneKran, done: 'Heu eingelagert' },
+  fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel' },
+  spezialloesungen: { svg: szeneSonder, done: 'Anbau montiert' },
+};
+/** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */
+const loads = [
+  { name: 'bale', svg: lastBale, w: 48, h: 32, mx: -24, my: -16, ox: 24, oy: 4 },
+  { name: 'old', svg: lastOld, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  { name: 'new', svg: lastNew, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  { name: 'jib', svg: lastJib, w: 150, h: 62, mx: -68, my: -6, ox: 68, oy: 6 },
+];
+---
+<section class="hh" data-crane>
+  <div class="hh__crane" aria-hidden="true">
+    <div class="hh__rail"></div>
+    {loads.map((l) => (
+      <div
+        class="hh__load" data-obj={l.name} set:html={l.svg}
+        style={`width:${l.w}px;height:${l.h}px;margin:${l.my}px 0 0 ${l.mx}px;transform-origin:${l.ox}px ${l.oy}px`}
+      />
+    ))}
+    <div class="hh__trolley" data-crane-trolley>
+      <!-- Untergurt-Katze: Rollen auf dem unteren Flansch, Laschen zum Körper, Seiltrommel. -->
+      <svg class="hh__cat" width="88" height="46" viewBox="0 0 88 46">
+        <polygon points="20,7 68,7 60,22 28,22" fill="#0A0A0B" />
+        <circle cx="22" cy="7" r="6" fill="#FFFFFF" stroke="#0A0A0B" stroke-width="3" /><circle cx="22" cy="7" r="1.6" fill="#0A0A0B" />
+        <circle cx="66" cy="7" r="6" fill="#FFFFFF" stroke="#0A0A0B" stroke-width="3" /><circle cx="66" cy="7" r="1.6" fill="#0A0A0B" />
+        <rect x="2" y="20" width="84" height="26" rx="4" fill="#0A0A0B" />
+        <rect x="8" y="25" width="22" height="16" rx="3" fill="#45433F" />
+        <path d="M12 25v16M16 25v16M20 25v16M24 25v16" stroke="#7D7A75" stroke-width="1" />
+        <rect x="6" y="29" width="2" height="8" fill="#7D7A75" /><rect x="30" y="29" width="2" height="8" fill="#7D7A75" />
+      </svg>
+      <img class="hh__logo" src="/logo/inexxio-wortmarke-weiss.svg" alt="" width="46" height="16" />
+      <div class="hh__rope" data-crane-rope>
+        <div class="hh__line" data-crane-line></div>
+        <div class="hh__block"></div>
+        <div class="hh__shank"></div>
+        <div class="hh__tool">
+          <div class="hh__eye" data-tool="ring"></div>
+          <Fragment set:html={greifer} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap hh__top" data-hero>
+    <div class="hh__head">
+      <a class="hh__badge" href={handover.href}>
+        <span class="hh__badge-ico" aria-hidden="true"><Icon name="handshake" size={24} /></span>
+        <span class="hh__badge-text">
+          <Rich as="span" class="hh__badge-label" text={handover.label} />
+          <Rich as="span" class="hh__badge-title" text={handover.title} />
+          <Rich as="span" class="hh__badge-sub" text={handover.text} />
+        </span>
+        <Icon name="arrow-right" size={18} class="hh__badge-arrow" />
+      </a>
+      <Rich as="p" class="label" text={eyebrow} />
+      <Rich as="h1" class="hero__title hh__title" text={title} />
+    </div>
+    <div class="hh__side">
+      <Rich as="p" class="hh__subtitle" text={subtitle} />
+      <Rich as="p" class="hh__lead" text={lead} />
+      <div class="btn-row">
+        <a class="btn btn--primary btn--lg hh__btn" href="#anfrage" data-tile="btn">
+          {site.cta.label}<Icon name="arrow-right" size={18} class="btn__arrow" />
+        </a>
+        <a class="btn btn--secondary btn--lg hh__btn" href={`tel:${site.phone.e164}`} data-track="tel_click" data-tile="btn">
+          <Icon name="phone" size={18} />{site.phone.display}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap hh__areas">
+    <h2 class="h3 hh__areas-title" id="bereiche">{areasTitle}</h2>
+    <ul role="list" class="hh__cards">
+      {site.areas.map((a, i) => {
+        const scene = scenes[a.id];
+        return (
+          <li class="hh__card" data-tile={String(i)} data-scene-id={scene ? a.id : undefined}>
+            <div class="hh__media">
+              <Photo id={a.photo} sizes="(min-width: 760px) 33vw, 100vw" />
+              {scene && (
+                <div class="hh__stage" data-scene aria-hidden="true">
+                  <div class="hh__stage-in" data-stagein set:html={scene.svg} />
+                  <span class="hh__done" data-b><Icon name="check" size={14} />{scene.done}</span>
+                </div>
+              )}
+            </div>
+            <div class="hh__body-text">
+              <h3 class="hh__card-title"><a href={a.href}>{a.label}</a></h3>
+              {claims[a.id] && <Rich as="p" class="hh__card-claim" text={claims[a.id]} />}
+              <Rich as="p" class="hh__card-text" text={a.text} />
+              {a.children.length > 0 && (
+                <ul role="list" class="hh__chips">
+                  {a.children.map((c) => <li><a href={c.href}>{c.label}</a></li>)}
+                </ul>
+              )}
+              <span class="hh__more" aria-hidden="true">{more}<Icon name="arrow-right" size={16} /></span>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+    <dl class="hh__ind" aria-label="Für wen wir arbeiten">
+      {site.areas.map((a) => (
+        <div class="hh__ind-row"><dt class="label">{a.label}</dt><Rich as="dd" text={a.industries} /></div>
+      ))}
+    </dl>
+    <div class="hh__season"><SeasonNotice page="/" /></div>
+  </div>
+
+</section>
+
+<script>
+  import { initCrane } from '../scripts/crane';
+  initCrane();
+</script>
+
+<style>
+  .hh { position: relative; overflow: hidden; background: var(--white); border-bottom: 1px solid var(--line); }
+
+  /* ---------- Kran (Dekor, fängt keine Maus) ---------- */
+  .hh__crane { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+  /* Kranbahn als I-Träger von der Seite: Ober- und Untergurt, Steg mit Rippen. */
+  .hh__rail {
+    position: absolute; left: 0; right: 0; top: 20px; height: 24px;
+    border-block: 4px solid var(--ink-2);
+    background: repeating-linear-gradient(90deg, var(--line) 0 70px, var(--ink-4) 70px 72px);
+  }
+  /* Die Katze hängt am Untergurt; das Seil verlässt den Körper bei 72 px (wie zuvor). */
+  .hh__trolley { position: absolute; top: 26px; left: 0; width: 88px; height: 46px; will-change: transform; transform: translateX(160px); }
+  .hh__cat { position: absolute; inset: 0; overflow: visible; }
+  .hh__logo { position: absolute; left: 36px; top: 27px; width: 46px; height: 12px; object-fit: contain; }
+  .hh__rope { position: absolute; left: 43px; top: 46px; width: 2px; transform-origin: 1px 0; will-change: transform; }
+  .hh__line { width: 2px; height: 60px; background: var(--ink-3); }
+  .hh__block { position: relative; left: -11px; width: 24px; height: 16px; border-radius: 3px; background: var(--red); }
+  .hh__shank { position: relative; left: -1px; width: 4px; height: 8px; background: var(--ink); }
+  .hh__tool { position: relative; left: -10px; width: 22px; height: 22px; }
+  .hh__eye { position: absolute; inset: 0; border: 4px solid var(--ink); border-radius: 50%; }
+  /* Lasten: liegen im Kran-Rahmen und werden vom Skript an Haken oder Boden gesetzt. */
+  .hh__load { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
+  .hh__load :global(svg) { display: block; overflow: visible; }
+  /* Die Zeichnungen haben feste Masse und werden vom Skript skaliert. Die globale Regel
+     `svg { max-width: 100% }` quetschte sonst die Greiferarme (in 0 px breiten Gelenken) auf
+     null und die 380 px breite Bühne auf die Kartenbreite – auf dem Handy sassen Greifer und
+     Lasten darum neben der Zeichnung. */
+  .hh__crane :global(svg), .hh__stage :global(svg) { max-width: none; }
+
+  /* ---------- Kopf: Titel links, Satz und Knöpfe rechts, unten bündig ---------- */
+  .hh__top {
+    position: relative; z-index: 10; display: grid; gap: var(--s-6) var(--s-8); align-items: end;
+    padding-top: 128px; padding-bottom: var(--s-7);
+  }
+  /* Schmal: der Haken hängt in Ruhe mitten über dem Text – dort darunter beginnen. */
+  @media (max-width: 599px) { .hh__top { padding-top: 184px; } }
+  @media (min-width: 960px) { .hh__top { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } }
+  .hh__head { display: grid; gap: var(--s-5); justify-items: start; }
+  /* Langes Swoosh-Wort («Zufriedenheitsgarantie») muss in einer Zeile Platz haben – gemessen:
+     bei 56 px rund 570 px breit, die Spalte hat ab 960 px mindestens 495 px. */
+  .hh__title { margin: 0; font-size: clamp(1.625rem, 0.9rem + 3.2vw, 3.5rem); line-height: 1.06; }
+  .hh__side { display: grid; gap: var(--s-3); justify-items: start; }
+  .hh__subtitle { font-family: var(--font-display); font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; color: var(--ink); }
+  .hh__lead { max-width: 520px; color: var(--ink-2); font-size: 1.125rem; line-height: 1.556; margin-bottom: var(--s-3); }
+  /* Übergabe-Badge: ruhig, 12 px Radius, ohne Schatten in Ruhe. */
+  .hh__badge {
+    display: inline-flex; align-items: center; gap: var(--s-3); max-width: 100%;
+    padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--white);
+    color: var(--ink); text-decoration: none;
+    transition: border-color var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease), transform var(--t-base) var(--ease);
+  }
+  .hh__badge:hover { border-color: var(--line-2); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .hh__badge-ico { flex: none; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--paper); display: flex; align-items: center; justify-content: center; color: var(--red); }
+  .hh__badge-text { display: grid; gap: 1px; min-width: 0; }
+  .hh__badge-label { font-size: 0.75rem; line-height: 1.333; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--red-hover); }
+  .hh__badge-title { font-family: var(--font-display); font-size: 1rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; }
+  .hh__badge-sub { font-size: 0.8125rem; line-height: 1.4; color: var(--ink-3); }
+  .hh__badge :global(.hh__badge-arrow) { flex: none; }
+
+  /* ---------- Drei Bereiche = drei Lasten am Haken ---------- */
+  .hh__areas { position: relative; z-index: 10; padding-top: var(--s-7); padding-bottom: var(--s-8); }
+  .hh__areas-title { padding-bottom: 20px; }
+  .hh__cards { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .hh__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hh__card {
+    position: relative; display: flex; flex-direction: column; min-height: 400px; overflow: hidden;
+    border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--paper);
+    transition: transform 280ms var(--ease), border-color 180ms var(--ease);
+  }
+  .hh__media { position: relative; height: 200px; overflow: hidden; background: var(--paper-2); }
+  .hh__media :global(picture), .hh__media :global(.photo), .hh__media :global(.ph) { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hh__media :global(.photo) { object-fit: cover; filter: grayscale(0.85); transition: filter 280ms var(--ease); }
+  /* Bühne der Szene: Punktraster über dem Foto, ausgeblendet, bis der Kran hier arbeitet. */
+  .hh__stage {
+    position: absolute; inset: 0; z-index: 1; opacity: 0; background-color: var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0); background-size: 24px 24px;
+  }
+  .hh__stage-in { position: absolute; left: 0; top: 0; width: 380px; height: 200px; transform-origin: 0 0; }
+  .hh__stage-in :global(svg) { display: block; overflow: visible; }
+  .hh__done {
+    position: absolute; right: 12px; top: 12px; z-index: 2; opacity: 0;
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--r-sm);
+    background: var(--white); border: 1px solid var(--ok); color: var(--ok); font-size: 0.75rem; font-weight: 600;
+  }
+  .hh__body-text { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-5); flex: 1; }
+  .hh__card-title { margin: 0; }
+  /* Der Titel-Link deckt die ganze Karte ab; die Unterseiten-Links liegen darüber. */
+  .hh__card-title a { color: var(--ink); text-decoration: none; }
+  .hh__card-title a::after { content: ''; position: absolute; inset: 0; z-index: 3; }
+  .hh__card-claim { font-family: var(--font-display); font-size: clamp(1.125rem, 1.05rem + 0.35vw, 1.375rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--ink); }
+  .hh__card-text { font-size: 0.9375rem; line-height: 1.5; color: var(--ink-2); }
+  .hh__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: var(--s-2); }
+  .hh__chips a {
+    position: relative; z-index: 4; display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px;
+    border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--white);
+    font-size: 0.8125rem; font-weight: 500; line-height: 1.3; color: var(--ink-2); text-decoration: none;
+  }
+  .hh__chips a:hover { border-color: var(--ink); color: var(--ink); }
+  .hh__more {
+    display: flex; align-items: center; gap: var(--s-2); padding-top: var(--s-2); border-top: 1px solid var(--line);
+    font-size: 0.875rem; font-weight: 500; color: var(--ink);
+  }
+  /* Für wen: je Bereich eine Zeile, unter seiner Karte – schlicht, kein eigener Block. */
+  .hh__ind { display: grid; gap: var(--s-3) var(--s-4); grid-template-columns: minmax(0, 1fr); margin-top: var(--s-5); }
+  @media (min-width: 760px) { .hh__ind { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hh__ind-row { display: grid; gap: 4px; align-content: start; padding-top: var(--s-3); border-top: 1px solid var(--line); }
+  .hh__ind-row dd { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--ink-2); }
+  .hh__season :global(.season) { margin-top: var(--s-6); }
+
+  /* Angehängt: vom Kran (data-hooked) – ohne Kran beim Zeigen. */
+  .hh__card[data-hooked],
+  .hh:not(.is-live) .hh__card:hover { border-color: var(--ink); transform: translateY(-2px); }
+  .hh__card[data-hooked] .hh__media :global(.photo),
+  .hh:not(.is-live) .hh__card:hover .hh__media :global(.photo) { filter: grayscale(0); }
+  .hh__btn[data-hooked] { transform: translateY(-2px); box-shadow: var(--focus-ring); }
+  .btn--secondary.hh__btn[data-hooked] { border-color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hh__card, .hh__media :global(.photo) { transition: none; }
+  }
+</style>

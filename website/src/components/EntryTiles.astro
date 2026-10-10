@@ -1,0 +1,55 @@
+---
+/** Vier Einstiege nach Anliegen – direkt unter dem Hero, sofort sichtbar. */
+import Icon, { type IconName } from './Icon.astro';
+
+interface Props { items: { title: string; text: string; href: string; icon: IconName }[] }
+const { items } = Astro.props;
+---
+<ul class="entries" role="list">
+  {items.map((it) => (
+    <li>
+      <a class="entry" href={it.href}>
+        <Icon name={it.icon} size={24} class="entry__icon" />
+        <span class="entry__title">{it.title}</span>
+        <span class="entry__text">{it.text}</span>
+        <Icon name="arrow-right" size={20} class="entry__arrow" />
+      </a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  /* Einstiege als Zeile aus Linien (Website-Kit): Titel in der Titelschrift, Pfeil rot. */
+  .entries { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); }
+  @media (min-width: 640px) { .entries { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .entries { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .entries li { border-bottom: 1px solid var(--line); }
+  @media (min-width: 640px) { .entries li:nth-child(odd) { border-right: 1px solid var(--line); } }
+  @media (min-width: 1100px) { .entries li { border-right: 1px solid var(--line); border-bottom: 0; } .entries li:last-child { border-right: 0; } }
+  /* Mobil kompakt: Symbol links, Text daneben – alle vier Einstiege auf einen Blick. */
+  .entry {
+    display: grid; grid-template-columns: 24px minmax(0, 1fr) 20px; gap: 2px 14px; align-items: center;
+    padding: var(--s-4) var(--s-1); height: 100%; text-decoration: none; color: var(--ink);
+    transition: background-color 200ms var(--ease);
+  }
+  .entry:hover { background: var(--paper); }
+  .entry__icon { grid-row: 1 / span 2; color: var(--ink-3); }
+  .entry__title {
+    grid-column: 2; font-family: var(--font-display); font-size: 1.125rem; font-weight: 600;
+    letter-spacing: -0.02em; line-height: 1.25;
+  }
+  .entry__text { grid-column: 2; font-size: 0.875rem; color: var(--ink-3); line-height: 1.4; }
+  .entry__arrow { grid-column: 3; grid-row: 1 / span 2; color: var(--red); transition: transform 200ms var(--ease); }
+  .entry:hover .entry__arrow { transform: translateX(3px); }
+  @media (min-width: 640px) {
+    .entry {
+      position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start;
+      min-height: 132px; padding: var(--s-5) var(--s-7) var(--s-5) var(--s-5);
+    }
+    .entry__icon, .entry__title, .entry__text { grid-column: 1; grid-row: auto; }
+    .entry__icon { margin-bottom: 6px; }
+    .entry__title { font-size: 1.25rem; }
+    .entry__arrow { position: absolute; right: var(--s-4); top: var(--s-5); }
+  }
+  @media (min-width: 1100px) { .entries li:first-child .entry { padding-left: 0; } }
+</style>

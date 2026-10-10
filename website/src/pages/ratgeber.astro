@@ -1,0 +1,35 @@
+---
+/** /ratgeber – Übersicht der Fachartikel (neueste zuerst). */
+import Base from '../layouts/Base.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import Rich from '../components/Rich.astro';
+import { articles, formatDay } from '../lib/ratgeber';
+import { ratgeberUebersicht as r } from '../content/ratgeber-uebersicht';
+const list = articles();
+---
+<Base title={r.title} description={r.description} crumbs={[{ name: r.title, path: '/ratgeber' }]}>
+  <section class="section rg-head" data-hero>
+    <div class="wrap rg-head__inner">
+      <p class="label">Ratgeber</p>
+      <h1 class="rg-title">{r.h1}</h1>
+      <Rich as="p" class="lead" text={r.summary} />
+    </div>
+  </section>
+  <section class="section rg-list" aria-label="Artikel">
+    <div class="wrap">
+      <div class="cols-2 rg-grid">
+        {list.map((a) => (
+          <ArticleCard level={2} href={a.path} title={a.title} text={a.description} date={a.updated} dateLabel={formatDay(a.updated)} />
+        ))}
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .rg-head { padding-block: var(--s-6) var(--s-6); }
+  .rg-head__inner { display: grid; gap: var(--s-3); }
+  .rg-title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+  .rg-list { padding-top: var(--s-5); }
+  .rg-grid { row-gap: var(--s-8); }
+</style>
