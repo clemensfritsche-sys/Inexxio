@@ -1,7 +1,7 @@
 ---
 /**
- * Startseite: Hero mit Laufkran, drei gleichwertigen Bereichen und der Vertrauensleiste
- * und den Branchen-Zeilen (HomeHero) → die drei Versprechen (Promises) → Warum (Belege) → Übergabe → Ratgeber → Fragen → Anfrage (mit
+ * Startseite: Hero mit Laufkran, den drei Bereichen und den Branchen-Zeilen (HomeHero) →
+ * Speziallösungen (hervorgehoben) → die drei Versprechen (Promises) → Warum (Belege) → Übergabe → Ratgeber → Fragen → Anfrage (mit
  * Karte – darum keine zweite «Wo wir arbeiten»-Sektion). Texte: src/content/start.ts,
  * Bereiche aus src/config/site.mjs.
  */
@@ -20,9 +20,12 @@ import { site } from '../config/site.mjs';
 import { start } from '../content/start';
 import { article, formatDay } from '../lib/ratgeber';
 import { faqPage } from '../lib/seo.mjs';
+import baumaschine from '../assets/illustrations/spezial-baumaschinen.svg?raw';
 
 const teasers = start.ratgeber.slugs.map((slug) => article(slug));
 const h = start.handover;
+const sp = start.special;
+const spIllo = baumaschine.replace('<svg ', '<svg role="img" aria-label="Baumaschine mit Anbaugerät nach Mass" ');
 ---
 <Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]}>
   <HomeHero
@@ -35,6 +38,24 @@ const h = start.handover;
     more={start.areas.more}
     claims={start.entries}
   />
+
+  <section class="section start-sp" id="spezialloesungen" aria-labelledby="spezial-title">
+    <div class="wrap start-sp__grid">
+      <div class="start-sp__text">
+        <p class="label">{sp.eyebrow}</p>
+        <Rich as="h2" id="spezial-title" class="start-sp__title" text={sp.h2} />
+        <Rich as="p" class="lead" text={sp.lead} />
+        <ul role="list" class="start-sp__fields">
+          {sp.fields.map((f) => <li>{f}</li>)}
+        </ul>
+        <ul role="list" class="checklist start-sp__facts">
+          {sp.facts.map((f) => <li><Icon name="check" size={18} /><span>{f}</span></li>)}
+        </ul>
+        <a class="btn btn--primary btn--lg" href="/spezialloesungen">{sp.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+      <a class="start-sp__illo" href="/spezialloesungen" aria-label={sp.cta} set:html={spIllo} />
+    </div>
+  </section>
 
   <Promises />
 
@@ -129,4 +150,17 @@ const h = start.handover;
 
   .start-more { margin-top: var(--s-6); }
   .start-faq { max-width: 52rem; }
+
+  /* Speziallösungen: hervorgehoben direkt unter dem Einstieg – eigene Fläche, Bild rechts. */
+  .start-sp { background: var(--paper); border-block: 1px solid var(--line); }
+  .start-sp__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 960px) { .start-sp__grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
+  .start-sp__text { display: grid; gap: var(--s-5); justify-items: start; }
+  .start-sp__title { font-size: clamp(2rem, 1.6rem + 1.4vw, 3rem); line-height: 1.083; font-weight: 700; letter-spacing: -0.03em; max-width: 14em; }
+  .start-sp__fields { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .start-sp__fields li { padding: 6px 12px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--white); font-size: 0.875rem; font-weight: 500; color: var(--ink); }
+  .start-sp__facts { display: grid; gap: var(--s-2); }
+  .start-sp__illo { display: block; aspect-ratio: 4 / 3; transition: transform var(--t-base) var(--ease); }
+  .start-sp__illo:hover { transform: translateY(-2px); }
+  .start-sp__illo :global(svg) { display: block; width: 100%; height: 100%; max-width: none; }
 </style>

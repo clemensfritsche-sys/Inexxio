@@ -31,6 +31,16 @@ export const start = {
     spezialloesungen: 'Was kein Hersteller liefert, bauen wir.',
   } as Record<string, string>,
 
+  /** Speziallösungen – der hervorgehobene Abschnitt direkt unter dem Einstieg. */
+  special: {
+    eyebrow: 'Speziallösungen',
+    h2: 'Ihre Aufgabe. Unsere ==Lösung==.',
+    lead: 'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es: Spezialmaschinen, Anbauten und Vorrichtungen – als Einzelstück oder Kleinserie.',
+    fields: ['Für Krane', 'Für Fahrzeuge', 'Für Baumaschinen'],
+    facts: ['Konstruktion und Bau aus einer Hand', 'Fixpreis, bevor wir bauen', '50 % Zufriedenheitsgarantie'],
+    cta: 'Speziallösungen ansehen',
+  },
+
   summary:
     '{{brand.full}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis, vor jeder Arbeit gibt es einen Fixpreis. Die Werkstatt steht in Tuttwil-Wängi TG.',
 

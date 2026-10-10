@@ -23,7 +23,7 @@ export const spezialloesungen: SubPage = {
     'Wenn kein Hersteller liefert, was Ihre Aufgabe braucht: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen. Mit Garantie.',
   hero: {
     eyebrow: 'Speziallösungen',
-    h1: 'Ihre Aufgabe. Unsere ==Maschine==.',
+    h1: 'Ihre Aufgabe. Unsere ==Lösung==.',
     lead:
       'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen – als Einzelstück oder Kleinserie.',
     photo: 'arbeit-werkstatt',
@@ -85,7 +85,7 @@ export const specialFacts = [
   { value: 'Einzelstück', label: 'bis Kleinserie' },
   { value: 'Nach Mass', label: 'passend zu Ihrem Gerät' },
   { value: 'Fixpreis', label: 'bevor wir bauen' },
-  { value: '50 %', label: 'übernehmen wir, wenn Sie nicht zufrieden sind' },
+  { value: '50 %', label: 'Zufriedenheitsgarantie' },
 ];
 
 /** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
@@ -96,7 +96,7 @@ export const specialPrinciple = {
   gains: [
     { title: 'Weniger Handarbeit', text: 'Was heute von Hand geschieht, erledigt danach die Maschine – schneller und jedes Mal gleich.' },
     { title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },
-    { title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere mit Seriengeräten ablehnen müssen.' },
+    { title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere ablehnen müssen.' },
   ],
 };
 
@@ -140,25 +140,13 @@ export const specialSteps = {
   ] satisfies Step[],
 };
 
-/** Modul: Co-Entwicklung (Anker #co-entwicklung) – ohne Prozentsätze, ohne Konditionen. */
-export const coDevelopment = {
-  eyebrow: 'Co-Entwicklung',
-  title: 'Entwickeln Sie mit – und verdienen Sie mit.',
-  text: 'Sie kennen die Baustelle, wir die Maschine. Bringen Sie Ihre Erfahrung ein und zahlen Sie dafür weniger. Die Rechte an der Lösung bleiben bei {{brand.name}} – und verkaufen wir sie weiter, erhalten Sie einen Anteil. Die Einzelheiten besprechen wir im Gespräch.',
-  points: [
-    { title: 'Sie zahlen weniger', text: 'Ihr Wissen aus dem Einsatz ist Teil der Entwicklung.' },
-    { title: 'Sie verdienen mit', text: 'An jedem weiteren Verkauf der Lösung erhalten Sie einen Anteil.' },
-    { title: 'Sie sind zuerst dran', text: 'Die Maschine entsteht an Ihrer Aufgabe – und läuft zuerst bei Ihnen.' },
-  ],
-};
-
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
 export const specialBackground = {
   eyebrow: 'Wer dahintersteht',
-  title: 'Ingenieur und Werkstatt unter einem Dach',
-  text: `${site.people.owner.name} ist Maschinenbauingenieur und hat bei Liebherr Bohrgeräte mitentwickelt. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
+  title: 'Entwicklung, Werkstatt & Montage unter einem Dach',
+  text: `${site.people.owner.name} ist Maschinenbauingenieur und hat jahrelang Baumaschinen entwickelt – von der Hydraulik bis zu vernetzten Steuerungen und IoT-Anwendungen. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
   facts: [
-    'Entwicklung von Bohrgeräten bei Liebherr',
+    'Langjährige Entwicklung von Baumaschinen',
     'Krane bauen wir seit {{history.cranesSince}} selbst',
     'Konstruktion, Stahlbau und Montage aus einer Hand',
   ],

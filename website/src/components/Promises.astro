@@ -9,8 +9,8 @@ import Icon from './Icon.astro';
 import Rich from './Rich.astro';
 import { promises, type PromiseItem, type PromiseKey } from '../content/promises';
 
-interface Props { only?: PromiseKey[]; id?: string }
-const { only, id = 'versprechen' } = Astro.props;
+interface Props { only?: PromiseKey[]; id?: string; /** false: ohne Einleitungssatz unter dem Titel. */ lead?: boolean }
+const { only, id = 'versprechen', lead = true } = Astro.props;
 const keys = only ?? (Object.keys(promises.items) as PromiseKey[]);
 const pick = (k: PromiseKey): (PromiseItem & { key: PromiseKey }) | null =>
   keys.includes(k) ? { key: k, ...promises.items[k] } : null;
@@ -25,7 +25,7 @@ const full = cards.length === 2;
         <p class="label">{cards.length === 1 ? promises.eyebrowOne : promises.eyebrow}</p>
         <h2 id={`${id}-title`} class:list={['pr__title', { 'visually-hidden': !full }]}>{full ? promises.title : promises.eyebrow}</h2>
       </div>
-      {full && <Rich as="p" class="pr__lead" text={promises.lead} />}
+      {full && lead && <Rich as="p" class="pr__lead" text={promises.lead} />}
     </header>
     {cards.length > 0 && (
       <ul role="list" class:list={['pr__cards', `pr__cards--${cards.length}`]}>

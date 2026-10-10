@@ -1,9 +1,9 @@
 ---
 /**
  * /spezialloesungen – eigenes Layout, weil die Seite in Sekunden sagen muss, worum es geht:
- * Seitenkopf (Aussage + Bild «Grau ist die Serie, Rot ist, was wir dazubauen») mit vier
+ * Seitenkopf (Aussage + Bild) mit vier
  * belegten Fakten → Das Prinzip (warum, was Sie davon haben) → Drei Felder, ein Prinzip
- * (Krane · Fahrzeuge · Baumaschinen) → Co-Entwicklung → Ablauf → Wer dahintersteht →
+ * (Krane · Fahrzeuge · Baumaschinen) → Ablauf → Wer dahintersteht →
  * Garantie → Fragen → Anfrage. Texte: content/spezialloesungen.ts.
  */
 import Base from '../layouts/Base.astro';
@@ -23,7 +23,7 @@ import fahrzeuge from '../assets/illustrations/spezial-fahrzeuge.svg?raw';
 import baumaschinen from '../assets/illustrations/spezial-baumaschinen.svg?raw';
 import {
   spezialloesungen as page, specialFacts as facts, specialPrinciple as pr, specialFields as fields,
-  specialSteps as s, coDevelopment as c, specialBackground as b,
+  specialSteps as s, specialBackground as b,
 } from '../content/spezialloesungen';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -48,10 +48,6 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
       </div>
       <figure class="sx-hero__fig">
         <div class="sx-hero__illo" set:html={illo('baumaschinen', 'Baumaschine mit Anbaugerät nach Mass')} />
-        <figcaption class="sx-key">
-          <span><i class="sx-key__dot sx-key__dot--grey"></i>Grau: die Serie</span>
-          <span><i class="sx-key__dot sx-key__dot--red"></i>Rot: was wir dazubauen</span>
-        </figcaption>
       </figure>
     </div>
     <div class="wrap">
@@ -101,21 +97,6 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
     </div>
   </section>
 
-  <section class="section section--dark" id="co-entwicklung" aria-labelledby="co-title">
-    <div class="wrap">
-      <div class="sx-co">
-        <div class="sx-co__head">
-          <p class="label">{c.eyebrow}</p>
-          <h2 id="co-title" class="sx-co__title">{c.title}</h2>
-        </div>
-        <Rich as="p" class="sx-co__text" text={c.text} />
-      </div>
-      <ul role="list" class="sx-co__points">
-        {c.points.map((p) => <li><h3>{p.title}</h3><Rich as="p" text={p.text} /></li>)}
-      </ul>
-    </div>
-  </section>
-
   <section class="section" aria-labelledby="ablauf">
     <div class="wrap">
       <SectionHead eyebrow="Ablauf" title={s.title} lead={s.lead} id="ablauf" />
@@ -140,7 +121,7 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
     </div>
   </section>
 
-  <Promises only={page.promises} />
+  <Promises only={page.promises} lead={false} />
 
   <section class="section section--rule" aria-labelledby="fragen">
     <div class="wrap grid">
@@ -156,20 +137,15 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
   .head--flush { margin-bottom: 0; }
 
   /* Seitenkopf: Aussage links, Bild rechts, Fakten darunter an einer Haarlinie. */
-  .sx-hero { background: var(--white); border-bottom: 1px solid var(--line); padding-top: var(--s-8); }
+  .sx-hero { padding-top: var(--s-8); padding-bottom: var(--s-7); }
   .sx-hero__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; }
   @media (min-width: 960px) { .sx-hero__grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
   .sx-hero__text { display: grid; gap: var(--s-5); justify-items: start; }
-  .sx-hero__title { margin: 0; font-size: clamp(2.25rem, 1.55rem + 2.4vw, 3.5rem); line-height: 1.05; }
+  .sx-hero__title { margin: 0; font-size: clamp(2.25rem, 1.8rem + 1.4vw, 3rem); line-height: 1.083; }
   .sx-hero__lead { font-size: 1.125rem; line-height: 1.556; color: var(--ink-2); max-width: 34em; }
   .sx-hero__fig { margin: 0; display: grid; gap: var(--s-3); }
-  .sx-hero__illo { aspect-ratio: 4 / 3; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+  .sx-hero__illo { aspect-ratio: 4 / 3; }
   .sx-hero__illo :global(svg), .sx-field__illo :global(svg) { display: block; width: 100%; height: 100%; max-width: none; }
-  .sx-key { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); font-size: 0.875rem; font-weight: 500; color: var(--ink-2); }
-  .sx-key span { display: inline-flex; align-items: center; gap: var(--s-2); }
-  .sx-key__dot { width: 12px; height: 12px; border-radius: 2px; }
-  .sx-key__dot--grey { background: var(--line-2); }
-  .sx-key__dot--red { background: var(--red); }
   .sx-facts { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); border-top: 1px solid var(--line); }
   .sx-facts li { display: grid; gap: 2px; padding-block: var(--s-5); }
   .sx-facts li + li { border-top: 1px solid var(--line); }
@@ -210,23 +186,39 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
   .sx-field { display: flex; flex-direction: column; overflow: hidden; background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); scroll-margin-top: calc(var(--header-h) + var(--s-5)); }
   .sx-field__illo { aspect-ratio: 4 / 3; background: var(--paper); border-bottom: 1px solid var(--line); }
   .sx-field__body { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-5); flex: 1; }
-  .sx-field__body h3 { font-size: 1.5rem; }
+  .sx-field__body h3 { font-family: var(--font-sans); font-size: 1.125rem; line-height: 1.556; letter-spacing: -0.006em; }
   .sx-field__body > p { color: var(--ink-2); }
   .sx-field__link { margin-top: auto; padding-top: var(--s-3); }
 
-  /* Co-Entwicklung: der Satz gross, drei Punkte an einer weissen Linie. */
-  .sx-co { display: grid; gap: var(--s-5) var(--s-8); align-items: end; }
-  @media (min-width: 960px) { .sx-co { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
-  .sx-co__head { display: grid; gap: var(--s-4); }
-  .sx-co__title { max-width: 22em; }
-  .sx-co__text { font-size: 1.0625rem; }
-  .sx-co__points { display: grid; gap: var(--s-5) var(--s-6); grid-template-columns: minmax(0, 1fr); margin-top: var(--s-8); }
-  @media (min-width: 760px) { .sx-co__points { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .sx-co__points li { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--white); }
-  .sx-co__points h3 { font-size: 1.25rem; }
-
-  .sx-cta { margin-top: var(--s-7); }
+  .sx-cta { margin-top: var(--s-8); justify-content: center; }
   .sx-bg { align-items: center; }
   @media (min-width: 960px) { .sx-bg__text { grid-column: 6 / span 7; } }
   .sx-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
+
+  /* Ein Hintergrund für die ganze Seite – Abschnitte trennt der Weissraum, nicht die Fläche. */
+  :global(body:has(.sx-hero) main) { background: var(--paper); }
+  :global(body:has(.sx-hero) main .section),
+  :global(body:has(.sx-hero) main .pr) { background: transparent; border-top: 0; border-bottom: 0; padding-block: clamp(64px, 4rem + 2.5vw, 96px); }
+  :global(body:has(.sx-hero) main .contact__title) { font-size: 2rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; }
+  :global(body:has(.sx-hero) main .pr__claim) { font-size: 1.5rem; line-height: 1.333; letter-spacing: -0.015em; }
+  :global(body:has(.sx-hero) main :is(.steps__title, .pr__test-title, .faq__title)) { font-family: var(--font-sans); font-size: 1.125rem; line-height: 1.556; letter-spacing: -0.006em; }
+
+  /* Ablauf als Weg: Nummern auf einer Linie, die zum Ziel hin rot wird. */
+  @media (min-width: 900px) {
+    :global(body:has(.sx-hero) .steps) { padding: 0; column-gap: var(--s-4); margin-top: var(--s-2); }
+    :global(body:has(.sx-hero) .steps__rail) { top: 20px; height: 2px; left: 10%; right: 10%; }
+    :global(body:has(.sx-hero) .steps__line) { top: 0; height: 2px; background: linear-gradient(90deg, var(--line-2), var(--red)); }
+    :global(body:has(.sx-hero) .steps__cat) { display: none; }
+    :global(body:has(.sx-hero) .steps__item) { position: relative; justify-items: center; text-align: center; padding: 0; }
+    :global(body:has(.sx-hero) .steps__no) {
+      position: relative; z-index: 1; display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: var(--s-5);
+      border-radius: 999px; background: var(--white); border: 1px solid var(--line-2); color: var(--ink);
+      font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.04em;
+      transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+    }
+    :global(body:has(.sx-hero) .steps__item:last-child .steps__no) { background: var(--red); border-color: var(--red); color: var(--white); }
+    :global(body:has(.sx-hero) .steps__item:not(:last-child):hover .steps__no) { border-color: var(--red); color: var(--red); }
+    :global(body:has(.sx-hero) .steps__title) { margin-bottom: var(--s-1); }
+    :global(body:has(.sx-hero) .steps__text) { font-size: 0.875rem; line-height: 1.43; color: var(--ink-3); max-width: 22ch; }
+  }
 </style>

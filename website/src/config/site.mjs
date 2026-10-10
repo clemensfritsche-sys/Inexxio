@@ -63,6 +63,17 @@ const ownerCareer = [
  */
 const areas = [
   {
+    id: 'spezialloesungen',
+    label: 'Speziallösungen',
+    href: '/spezialloesungen',
+    overview: 'Speziallösungen',
+    text: 'Spezialmaschinen, Anbauten und Vorrichtungen nach Mass – für Krane, Fahrzeuge und Baumaschinen.',
+    photo: 'arbeit-werkstatt',
+    ogTitle: 'Ihre Aufgabe. Unsere Lösung.',
+    industries: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle, deren Aufgabe kein Hersteller löst.',
+    children: [],
+  },
+  {
     id: 'krantechnik',
     label: 'Krantechnik',
     href: '/krantechnik',
@@ -92,17 +103,6 @@ const areas = [
       { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt' },
       { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne' },
     ],
-  },
-  {
-    id: 'spezialloesungen',
-    label: 'Speziallösungen',
-    href: '/spezialloesungen',
-    overview: 'Speziallösungen',
-    text: 'Spezialmaschinen, Anbauten und Vorrichtungen nach Mass – für Krane, Fahrzeuge und Baumaschinen.',
-    photo: 'arbeit-werkstatt',
-    ogTitle: 'Ihre Aufgabe. Unsere Maschine.',
-    industries: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle, deren Aufgabe kein Hersteller löst.',
-    children: [],
   },
 ];
 
