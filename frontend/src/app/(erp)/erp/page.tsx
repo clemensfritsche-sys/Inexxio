@@ -143,6 +143,13 @@ export default function ErpPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [instances, setInstances] = useState<InstanceSummary[]>([]);
   const [instanceLoadingMore, setInstanceLoadingMore] = useState(false);
+  // Die letzte Seite war nicht voll → es gibt nichts mehr nachzuladen. Der Server nennt
+  // keine Gesamtzahl, also ist das die eine Auskunft, die er gibt.
+  const [instancesDone, setInstancesDone] = useState(false);
+  const firstInstancePage = (rows: InstanceSummary[]) => {
+    setInstances(rows);
+    setInstancesDone(rows.length < INSTANCE_PAGE);
+  };
   // Unternehmen (Gesellschaften): ein gleichrangiger ERP-Datensatztyp `organization` –
   // der Betreiber (ältestes) + jede weitere Gesellschaft. Admin-only.
   const [companies, setCompanies] = useState<CompanySettings[]>([]);
@@ -223,7 +230,7 @@ export default function ErpPage() {
     // Der Cleanup markiert den vorherigen Effekt als veraltet – späte Antworten verfallen.
     let stale = false;
     const t = setTimeout(() => {
-      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) setInstances(rows); }).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) firstInstancePage(rows); }).catch(() => {});
     }, q ? 300 : 0);
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
@@ -247,7 +254,7 @@ export default function ErpPage() {
       api.getErpRecords().then(setUsers).catch(() => {});
       api.getArticles().then(setArticles).catch(() => {});
       api.getOrders().then(setOrders).catch(() => {});
-      api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then(firstInstancePage).catch(() => {});
     }
     // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
     // ein paar Minuten liegen liess, sah alte Daten (und musste F5 drücken). Jetzt lädt er
@@ -342,7 +349,7 @@ export default function ErpPage() {
 
   // Instanz-Pagination: nur laden, wenn Instanzen sichtbar sind (Feed «alle» oder «Instanzen»).
   const instancesRelevant = typeFilter === null || typeFilter === 'instance';
-  const hasMoreInstances = instancesRelevant && instances.length < instances.length;
+  const hasMoreInstances = instancesRelevant && !instancesDone;
   const displayCount = (t: ErpRecordType): number => (t === 'instance' ? instances.length : (counts[t] ?? 0));
 
   async function loadMoreInstances() {
@@ -350,6 +357,7 @@ export default function ErpPage() {
     setInstanceLoadingMore(true);
     try {
       const next = await api.getInstances(INSTANCE_PAGE, instances.length, search.trim());
+      setInstancesDone(next.length < INSTANCE_PAGE);
       setInstances((prev) => {
         const seen = new Set(prev.map((i) => i.id));
         return [...prev, ...next.filter((i) => !seen.has(i.id))];
