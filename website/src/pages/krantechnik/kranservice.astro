@@ -26,7 +26,7 @@ import { inspection } from '../../config/inspection.mjs';
         <ServiceTiers />
       </div>
     </section>
-    <section class="section section--dark" id="inexxio-365" aria-labelledby="x365-title">
+    <section class="section" id="inexxio-365" aria-labelledby="x365-title">
       <div class="wrap">
         <SectionHead eyebrow={x.eyebrow} title={x.title} lead={x.lead} id="x365-title" />
         <ul role="list" class="x365">
@@ -96,8 +96,8 @@ import { inspection } from '../../config/inspection.mjs';
 <style>
   .x365 { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 760px) { .x365 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .x365__way { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--white); }
-  .x365__way h3 { font-size: 1.375rem; color: var(--white); }
+  .x365__way { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
+  .x365__way h3 { font-size: 1.375rem; }
   .x365__cta { margin-top: var(--s-7); }
   .mod { display: grid; gap: var(--s-5) var(--s-6); grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 760px) { .mod { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

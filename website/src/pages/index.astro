@@ -85,7 +85,7 @@ const spIllo = baumaschine.replace('<svg ', '<svg role="img" aria-label="Baumasc
     </div>
   </section>
 
-  <section class="section section--dark" id="uebergabe" aria-labelledby="uebergabe-title">
+  <section class="section" id="uebergabe" aria-labelledby="uebergabe-title">
     <div class="wrap grid start-handover">
       <div class="col-6 start-handover__text">
         <SectionHead eyebrow={h.eyebrow} title={h.h2} lead={h.lead} id="uebergabe-title" class="head--flush" />
@@ -140,7 +140,7 @@ const spIllo = baumaschine.replace('<svg ', '<svg role="img" aria-label="Baumasc
   .start-why__icon { grid-row: span 2; padding-top: 2px; color: var(--red); display: flex; }
   .start-why__title { font-size: 1.125rem; line-height: 1.444; }
   .start-why__text { font-size: 0.9375rem; line-height: 1.47; color: var(--ink-3); }
-  .start-quote { display: grid; gap: 20px; justify-items: start; margin: 0; padding: 32px; border-radius: var(--r-lg); background: var(--paper); }
+  .start-quote { display: grid; gap: 20px; justify-items: start; margin: 0; padding: 32px; border-radius: var(--r-lg); background: var(--white); border: 1px solid var(--line); }
   @media (max-width: 599px) { .start-quote { padding: 24px; } }
   .start-quote :global(.start-quote__img), .start-quote :global(picture), .start-quote :global(.ph) { width: 112px; height: 112px; border-radius: 50%; overflow: hidden; }
   .start-quote :global(img) { width: 112px; height: 112px; object-fit: cover; border-radius: 50%; }
@@ -152,11 +152,11 @@ const spIllo = baumaschine.replace('<svg ', '<svg role="img" aria-label="Baumasc
   .start-faq { max-width: 52rem; }
 
   /* Speziallösungen: hervorgehoben direkt unter dem Einstieg – eigene Fläche, Bild rechts. */
-  .start-sp { background: var(--paper); border-block: 1px solid var(--line); }
   .start-sp__grid { display: grid; gap: var(--s-7) var(--s-8); align-items: center; grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 960px) { .start-sp__grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); } }
   .start-sp__text { display: grid; gap: var(--s-5); justify-items: start; }
-  .start-sp__title { font-size: clamp(2rem, 1.6rem + 1.4vw, 3rem); line-height: 1.083; font-weight: 700; letter-spacing: -0.03em; max-width: 14em; }
+  .start-sp__title { max-width: 14em; }
+  .start-sp__title :global(.mark) { color: inherit; }
   .start-sp__fields { display: flex; flex-wrap: wrap; gap: var(--s-2); }
   .start-sp__fields li { padding: 6px 12px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--white); font-size: 0.875rem; font-weight: 500; color: var(--ink); }
   .start-sp__facts { display: grid; gap: var(--s-2); }

@@ -43,7 +43,7 @@ const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: tru
     </div>
   </section>
 
-  <section slot="module" class="section section--dark" id="winter" aria-labelledby="winter-title">
+  <section slot="module" class="section" id="winter" aria-labelledby="winter-title">
     <div class="wrap grid wr">
       <div class="col-6 wr__text">
         <SectionHead eyebrow="November bis Februar" title={w.title} lead={w.text} id="winter-title" class="head--flush" />
@@ -89,7 +89,7 @@ const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: tru
   .head--flush { margin-bottom: 0; }
   @media (min-width: 960px) { .wr__list { grid-column: 8 / span 5; } }
   .wr__list { display: grid; gap: var(--s-4); align-content: start; }
-  .wr__brands { display: grid; gap: var(--s-3); padding-top: var(--s-6); border-top: 1px solid var(--line-dark); }
+  .wr__brands { display: grid; gap: var(--s-3); padding-top: var(--s-6); border-top: 1px solid var(--line); }
   .wr__brandlist { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1px; background: var(--line-dark); border: 1px solid var(--line-dark); border-radius: var(--r-md); overflow: hidden; }
   .wr__brand { display: grid; place-items: center; min-height: 84px; padding: var(--s-4); background: var(--ink); text-align: center; }
   .wr__word { font-family: var(--font-display, inherit); font-weight: 600; font-size: 1.125rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--white); opacity: 0.85; }

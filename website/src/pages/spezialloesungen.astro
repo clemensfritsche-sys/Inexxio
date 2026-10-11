@@ -196,7 +196,6 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
   .sx-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
 
   /* Ein Hintergrund für die ganze Seite – Abschnitte trennt der Weissraum, nicht die Fläche. */
-  :global(body:has(.sx-hero) main) { background: var(--paper); }
   :global(body:has(.sx-hero) main .section),
   :global(body:has(.sx-hero) main .pr) { background: transparent; border-top: 0; border-bottom: 0; padding-block: clamp(64px, 4rem + 2.5vw, 96px); }
   :global(body:has(.sx-hero) main .contact__title) { font-size: 2rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; }

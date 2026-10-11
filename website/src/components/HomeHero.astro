@@ -160,7 +160,7 @@ const loads = [
 </script>
 
 <style>
-  .hh { position: relative; overflow: hidden; background: var(--white); border-bottom: 1px solid var(--line); }
+  .hh { position: relative; overflow: hidden; }
 
   /* ---------- Kran (Dekor, fängt keine Maus) ---------- */
   .hh__crane { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
@@ -212,7 +212,7 @@ const loads = [
     transition: border-color var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease), transform var(--t-base) var(--ease);
   }
   .hh__badge:hover { border-color: var(--line-2); box-shadow: var(--shadow-md); transform: translateY(-2px); }
-  .hh__badge-ico { flex: none; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--paper); display: flex; align-items: center; justify-content: center; color: var(--red); }
+  .hh__badge-ico { flex: none; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--paper-2); display: flex; align-items: center; justify-content: center; color: var(--red); }
   .hh__badge-text { display: grid; gap: 1px; min-width: 0; }
   .hh__badge-label { font-size: 0.75rem; line-height: 1.333; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--red-hover); }
   .hh__badge-title { font-family: var(--font-display); font-size: 1rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; }
@@ -226,7 +226,7 @@ const loads = [
   @media (min-width: 760px) { .hh__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .hh__card {
     position: relative; display: flex; flex-direction: column; min-height: 400px; overflow: hidden;
-    border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--paper);
+    border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--white);
     transition: transform 280ms var(--ease), border-color 180ms var(--ease);
   }
   .hh__media { position: relative; height: 200px; overflow: hidden; background: var(--paper-2); }

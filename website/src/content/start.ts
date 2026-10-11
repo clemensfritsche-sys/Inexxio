@@ -15,7 +15,7 @@ export const start = {
     eyebrow: 'Krane · Fahrmischer · Spezialmaschinen · seit {{history.founded}}',
     h1: 'Krane, Fahrmischer und Spezialmaschinen mit ==Zufriedenheitsgarantie==.',
     subtitle: 'Ihr Problem. Unsere Lösung.',
-    lead: 'Sie sagen uns, was nicht läuft – wir bauen, warten und reparieren, bis es läuft. Mit Fixpreis vor jeder Arbeit.',
+    lead: 'Sie sagen uns, was nicht läuft – wir bauen, warten und reparieren, bis es läuft.',
     handover: {
       label: 'Nachfolge geregelt',
       title: 'Aus HS Steiner wird {{brand.name}}.',
