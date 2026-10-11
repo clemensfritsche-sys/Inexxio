@@ -4,12 +4,13 @@ from sqlalchemy.orm import Session
 
 from pydantic import BaseModel
 
-from ..core.auth import require_admin, require_employee
+from ..core.auth import get_current_user, require_admin, require_employee
 from ..core.database import get_db
 from ..models import UserProfile, WebAuthnCredential
-from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
+from ..schemas.admin import CompanyRef, ErpAdminUpdate, PersonCreate, UserProfileResponse
 from ..services import people
-from ..services.objects import next_object_ids, resolve_object_type
+from ..services import sites
+from ..services.objects import resolve_object_type
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
@@ -56,28 +57,11 @@ async def resolve_object(
     return ObjectResolution(object_id=object_id, object_type=otype)
 
 
-def _assign_object_ids(db: Session) -> None:
-    pending = (
-        db.query(UserProfile)
-        .filter(UserProfile.object_id.is_(None))
-        .order_by(UserProfile.id)
-        .all()
-    )
-    if not pending:
-        return
-    # Aus der gemeinsamen Sequence vergeben (atomar, über alle Objekttypen hinweg).
-    ids = next_object_ids(db, len(pending), "user")
-    for u, oid in zip(pending, ids):
-        u.object_id = oid
-    db.commit()
-
-
 @router.get("/records", response_model=list[UserProfileResponse])
 async def list_erp_records(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    _assign_object_ids(db)
     # **Auch deaktivierte Personen** – «inaktiv» ist ein **Zustand**, kein Verschwinden.
     # Genau wie ein inaktiver Artikel im Feed stehen bleibt (rote Badge «Inaktiv»), bleibt
     # eine ausser Betrieb genommene Person sichtbar: sonst liesse sie sich weder ansehen
@@ -86,6 +70,32 @@ async def list_erp_records(
     users = db.query(UserProfile).order_by(UserProfile.object_id).all()
     counts = _passkey_counts(db, [u.id for u in users])
     return [_record(u, counts.get(u.id, 0)) for u in users]
+
+
+@router.post("/records", response_model=UserProfileResponse, status_code=201)
+async def create_erp_record(
+    data: PersonCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄
+    Vorname, Nachname, E-Mail, Rolle; Objektnummer und Anmeldekonto entstehen sofort
+    (``people.create_person``). Personal-Rollen vergibt nur ein Admin."""
+    return _record(people.create_person(db, data, current_user))
+
+
+@router.get("/companies", response_model=list[CompanyRef])
+async def search_companies(
+    search: str = "",
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(get_current_user),
+):
+    """**Gibt es diese Firma schon?** – die Vorschläge, während jemand seine Firma
+    eintippt (Konto und ERP). Ab zwei Zeichen, höchstens acht, und nur, was auf einer
+    Visitenkarte steht: Name, Rechtsform, Ort – die Kundenliste gibt es hier nicht."""
+    if len(search.strip()) < 2:
+        return []
+    return [CompanyRef.model_validate(c) for c in sites.search(db, search)]
 
 
 @router.get("/records/{object_id}", response_model=UserProfileResponse)

@@ -146,7 +146,10 @@ _COLUMN_SAFETY_NET = (
     #    `/auth/me` und jeder Belegkopf. Dieselbe Ausfallklasse wie Migration 090.
     #    *``account_type`` stand hier daneben und ist mitgegangen (#1043): ein Netz für
     #    eine Spalte, die kein Modell kennt, schützt nichts.*
-    ("user_profiles", "legal_form", "VARCHAR(50)"),
+    # ►►► **«Eigenes Unternehmen»** (CRM Schritt 1, Migration ``142``). ◄◄◄ Nachgezogen mit
+    # ``DEFAULT true`` – jede Firma, die es bis hierher gab, ist eine unserer; danach setzt
+    # ``_COMPANY_DATA_FIXES`` den Default auf ``false`` (jede neue ist zuerst fremd).
+    ("company_settings", "is_own", "BOOLEAN NOT NULL DEFAULT true"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -402,10 +405,11 @@ _ARTICLE_STATUS_FIXES = (
 
 _COMPANY_DATA_FIXES = (
     "UPDATE company_settings SET is_operator = true "
-    "WHERE id = (SELECT min(id) FROM company_settings) "
+    "WHERE id = (SELECT min(id) FROM company_settings WHERE is_own) "
     "AND NOT EXISTS (SELECT 1 FROM company_settings WHERE is_operator)",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_operator "
     "ON company_settings (is_operator) WHERE is_operator",
+    "ALTER TABLE company_settings ALTER COLUMN is_own SET DEFAULT false",
 )
 
 
@@ -453,6 +457,13 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"ALTER TABLE {table} ALTER COLUMN {col} DROP NOT NULL"
                     ))
+            # ►►► **Erst übernehmen, dann fallen lassen** (CRM Schritt 1): die Firmentexte
+            # an der Person werden zu Firmen-Datensätzen, bevor das Netz ihre Spalten
+            # dropt. Selbstbegrenzend – ohne die Spalten gibt es nichts zu tun.
+            if "user_profiles" in tables and "company_settings" in tables:
+                people.move_company_texts(conn)
+                for col in people.MOVED_COLUMNS:
+                    conn.execute(text(f"ALTER TABLE user_profiles DROP COLUMN IF EXISTS {col}"))
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:
                     conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
@@ -579,7 +590,7 @@ def _ensure_columns() -> None:
                 cs_cols = {r[0] for r in conn.execute(text(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_name='company_settings'"))}
-                if "is_operator" in cs_cols:
+                if {"is_operator", "is_own"} <= cs_cols:
                     for stmt in _COMPANY_DATA_FIXES:
                         conn.execute(text(stmt))
             conn.commit()

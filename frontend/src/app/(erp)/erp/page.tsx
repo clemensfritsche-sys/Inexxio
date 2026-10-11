@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User, Home } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
@@ -20,6 +20,7 @@ import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
+import { NewCompany, NewPerson } from '@/components/erp/new-record';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
@@ -128,6 +129,11 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         <div className="flex items-center gap-2.5 mt-1">
           <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{formatObjectId(row.objectId)}</span>
           {badge && <StatusBadge cfg={badge} size={11} />}
+          {/* Eine **unserer** Gesellschaften – Kunden und Lieferanten sind derselbe Typ. */}
+          {row.type === 'organization' && row.data.is_own && (
+            <span data-tip="Eigenes Unternehmen" aria-label="Eigenes Unternehmen"
+              className="inline-flex text-accent"><Home size={12} /></span>
+          )}
         </div>
       </div>
     </button>
@@ -157,7 +163,7 @@ export default function ErpPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | 'person' | 'company' | null>(null);
   /**
    * **Der Entwurf mit einer bereits gewählten Einzelinstanz** (Abweichungsauftrag §3.1).
    *
@@ -193,8 +199,9 @@ export default function ErpPage() {
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(isStaff(me.value.role) ? 'staff' : 'party');
-        // Unternehmen erst laden, wenn die Rolle feststeht – der Endpunkt ist admin-only.
-        if (me.value.role === 'admin') api.getCompanies().then(setCompanies).catch(() => {});
+        // Firmen erst laden, wenn die Rolle feststeht – eigene wie fremde sieht jedes
+        // Personal (CRM Schritt 1); der Endpunkt ist Personal-only.
+        if (isStaff(me.value.role)) api.getCompanies().then(setCompanies).catch(() => {});
       }
       setLoading(false);
     });
@@ -292,9 +299,8 @@ export default function ErpPage() {
   useEffect(() => { setVisibleCount(50); }, [typeFilter, search]);
 
   const rows: Row[] = [
-    // Jedes **Unternehmen** ist ein nummerierter ERP-Datensatz – nur für Admins sichtbar
-    // (Firmen-/Bank-/API-Konfiguration ist sensibel, und wer Gesellschaften anlegen darf,
-    // ist ohnehin auf Admin beschränkt).
+    // Jede **Firma** ist ein nummerierter ERP-Datensatz – eigene wie fremde, für jedes
+    // Personal (CRM Schritt 1).
     ...companies.map((s): Row => ({
       type: 'organization', key: `org${s.object_id}`, objectId: s.object_id ?? null, data: s,
     })),
@@ -440,7 +446,7 @@ export default function ErpPage() {
     });
   }
 
-  function startCreate(type: 'article' | 'order', seed?: OrderSeed) {
+  function startCreate(type: 'article' | 'order' | 'person' | 'company', seed?: OrderSeed) {
     setPlusOpen(false);
     setSel(null);
     setOrderSeed(seed ?? null);
@@ -458,18 +464,17 @@ export default function ErpPage() {
     }
   }
 
-  /** Neue Gesellschaft (nur Admin). Entsteht sofort als Datensatz mit Objektnummer –
-   *  ein leeres Anlage-Formular gäbe es sonst nur hier, überall sonst legt das ERP
-   *  direkt an und man füllt danach aus. */
-  async function createCompany() {
-    setPlusOpen(false);
-    try {
-      const s = await api.createCompany('Neues Unternehmen');
-      setCompanies((prev) => [...prev, s]);
-      setCreating(null);
-      if (s.object_id != null) setSel({ type: 'organization', objectId: s.object_id });
-      setMobileView('detail');
-    } catch { /* Fehler zeigt das Detailfenster beim Speichern – hier kein Blocker */ }
+  /** Eine neu angelegte Firma bzw. Person in den Feed nehmen und öffnen. */
+  function handleCompanyCreated(c: CompanySettings) {
+    setCompanies((prev) => [...prev, c]);
+    setCreating(null);
+    if (c.object_id != null) setSel({ type: 'organization', objectId: c.object_id });
+  }
+
+  function handlePersonCreated(u: UserProfile) {
+    setUsers((prev) => [...prev, u]);
+    setCreating(null);
+    if (u.object_id != null) setSel({ type: 'user', objectId: u.object_id });
   }
 
   function handleArticleSaved(a: Article) {
@@ -608,12 +613,13 @@ export default function ErpPage() {
                   <button onClick={() => startCreate('order')} style={menuItemStyle}>
                     <ClipboardList size={15} style={{ color: 'var(--fg-3)' }} /> Auftrag
                   </button>
-                  {/* Gesellschaften anlegen ist bewusst Admin-Sache (fix vorgegeben). */}
-                  {isAdmin && (
-                    <button onClick={createCompany} style={menuItemStyle}>
-                      <Building2 size={15} style={{ color: 'var(--fg-3)' }} /> Unternehmen
-                    </button>
-                  )}
+                  <button onClick={() => startCreate('person')} style={menuItemStyle}>
+                    <User size={15} style={{ color: 'var(--fg-3)' }} /> Person
+                  </button>
+                  {/* Firmen legt jedes Personal an; «eigen» setzt nur ein Admin. */}
+                  <button onClick={() => startCreate('company')} style={menuItemStyle}>
+                    <Building2 size={15} style={{ color: 'var(--fg-3)' }} /> Unternehmen
+                  </button>
                 </div>
               )}
               <button
@@ -646,6 +652,12 @@ export default function ErpPage() {
               onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
               onBack={cancelCreate} />
           )}
+          {creating === 'person' && (
+            <NewPerson key="new-person" isAdmin={isAdmin} onSaved={handlePersonCreated} onBack={cancelCreate} />
+          )}
+          {creating === 'company' && (
+            <NewCompany key="new-company" isAdmin={isAdmin} onSaved={handleCompanyCreated} onBack={cancelCreate} />
+          )}
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={handleOrderSaved} onBack={cancelCreate} />
           )}
@@ -675,7 +687,7 @@ export default function ErpPage() {
             <InstanceDetail key={`i-${sel.objectId}`} objectId={sel.objectId} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'organization' && (
-            <OrganizationDetail key={activeRow.key} record={activeRow.data}
+            <OrganizationDetail key={activeRow.key} record={activeRow.data} isAdmin={isAdmin}
               onSaved={handleCompanySaved} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (

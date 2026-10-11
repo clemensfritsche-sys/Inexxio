@@ -265,6 +265,10 @@ export type PlaceRef = components['schemas']['PlaceRef'];
  */
 export type UnitPlace = components['schemas']['UnitPlace'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
+export type CompanyRef = components['schemas']['CompanyRef'];
+export type CompanyPerson = components['schemas']['CompanyPerson'];
+export type NewCompany = components['schemas']['NewCompany'];
+export type PersonCreate = components['schemas']['PersonCreate'];
 export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
 
 export interface CompanySettings {
@@ -276,6 +280,11 @@ export interface CompanySettings {
   has_address?: boolean;
   /** Aktiv? Eine geschlossene Gesellschaft bleibt lesbar, ist aber endgültig (keine Reaktivierung). */
   is_active?: boolean;
+  /** **Eine unserer Gesellschaften?** Nur sie stellt Belege, beschäftigt Personal, besitzt
+   *  Gebiete und kann Betreiber sein. Kunden und Lieferanten sind derselbe Datensatztyp. */
+  is_own?: boolean;
+  /** Wer zu dieser Firma gehört – abgeleitet aus der Zuordnung an der Person. */
+  people?: CompanyPerson[];
   company_name: string;
   legal_form: string | null;
   /**

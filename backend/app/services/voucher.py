@@ -31,7 +31,7 @@ from decimal import Decimal
 from typing import Any, Callable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..core.config import payment_service_ready
@@ -40,6 +40,7 @@ from ..domain import incoterms as inc
 from ..domain import modules
 from ..domain import voucher as vo
 from ..models import (
+    CompanySettings,
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep,
     UserProfile, Voucher, VoucherEntry, VoucherLine, VoucherQuote,
 )
@@ -840,9 +841,8 @@ def _issuer(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     einem Beleg schlimmer als gar keine – sie sieht aus wie eine Angabe.
     """
     value = _int(data.get("issuer"))
-    if value is not None and sites.by_object_id(db, value) is None:
-        raise HTTPException(status_code=400,
-                            detail=f"«{value}» ist keine unserer Gesellschaften.")
+    if value is not None:
+        sites.require_own(db, value)
     row.issuer_company_id = value
 
 
@@ -1841,7 +1841,7 @@ def billing_of(db: Session, row: Voucher,
         "email": u.invoice_email or u.email,
         "phone": u.phone,
         # Dieselbe Rangfolge wie bei uns – die MWST-Nummer trägt den Vorsteuerabzug.
-        "uid": u.vat_number or u.uid_number,
+        "uid": (u.company.vat_number or u.company.uid_number) if u.company else None,
         "address": {
             "line1": line1, "line2": line2 or None, "city": city,
             "postal_code": zip_code, "country": address.iso2(country),
@@ -2033,6 +2033,14 @@ def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
 # ►► DIE GEGENPARTEI
 # ---------------------------------------------------------------------------
 
+def _company_name_of_user():
+    """Der Firmenname einer Person – als Spalte für die Suche: wer «Muster» tippt, findet
+    die Personen der Muster AG. Die Firma ist ein eigener Datensatz (CRM Schritt 1)."""
+    return (select(CompanySettings.company_name)
+            .where(CompanySettings.object_id == UserProfile.company_object_id)
+            .scalar_subquery())
+
+
 def search_parties(db: Session, *, search: str = "",
                    limit: int = 20) -> list[UserProfile]:
     """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
@@ -2046,9 +2054,9 @@ def search_parties(db: Session, *, search: str = "",
         db.query(UserProfile)
         .filter(UserProfile.object_id.isnot(None),
                 UserProfile.is_active.is_(True),
-                lookup.matches(search, UserProfile.object_id,
-                               UserProfile.company_name, UserProfile.first_name,
-                               UserProfile.last_name, UserProfile.email))
+                lookup.matches(search, UserProfile.object_id, _company_name_of_user(),
+                               UserProfile.first_name, UserProfile.last_name,
+                               UserProfile.email))
         .order_by(UserProfile.object_id.desc())
         .limit(limit)
         .all()

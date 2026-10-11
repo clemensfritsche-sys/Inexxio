@@ -62,7 +62,8 @@ def _house(db):
     from app.services import objects as obj, sites
     house = sites.find_operator(db)
     if house is None:
-        house = CompanySettings(is_operator=True, object_id=obj.next_object_id(db))
+        house = CompanySettings(is_operator=True, is_own=True,
+                                object_id=obj.next_object_id(db))
         db.add(house)
     house.company_name = house.company_name or "Inexxio"
     house.legal_form = house.legal_form or "AG"
@@ -79,11 +80,16 @@ def _house(db):
 
 
 def _party(db, name: str, role: str = "supplier"):
-    from app.models import UserProfile
+    from app.models import CompanySettings, UserProfile
     from app.services import objects as obj
+    # Die Firma ist ein eigener Datensatz (CRM Schritt 1) – die Person zeigt darauf.
+    firm = CompanySettings(object_id=obj.next_object_id(db, "organization"),
+                           company_name=name, legal_form="", email="", country="CH")
+    db.add(firm)
+    db.flush()
     user = UserProfile(
         firebase_uid=f"test-{uuid.uuid4()}", email=f"{uuid.uuid4()}@example.test",
-        company_name=name, role=role, object_id=obj.next_object_id(db),
+        company_object_id=firm.object_id, role=role, object_id=obj.next_object_id(db),
         address_line1="Werkweg 3", postal_code="9000", city="St. Gallen", country="CH",
     )
     db.add(user)

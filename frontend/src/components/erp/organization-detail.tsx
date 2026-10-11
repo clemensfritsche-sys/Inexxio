@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, FolderOpen, Star, Pencil, Ban } from 'lucide-react';
+import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -11,11 +11,12 @@ import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { legalForms } from '@/lib/legal-forms';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
-import { Field as AField } from '@/components/account/field';
+import { Field as AField, SelectField } from '@/components/account/field';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
 import { SystemConfigSection } from '@/components/account/sections/system-config-section';
 import { TerritoryMap } from '@/components/erp/territory-map';
+import { ObjId } from '@/components/erp/obj-id';
 
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
@@ -155,8 +156,10 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
  * Die **Plattform-Konfiguration** (Analytics- und Karten-Schlüssel) gilt der EINEN
  * Website, nicht je Gesellschaft – sie steht im Reiter «System» am **Betreiber**.
  */
-export function OrganizationDetail({ record, onSaved, onBack }: {
+export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
   record: CompanySettings;
+  /** Eine **eigene** Gesellschaft ändert nur ein Admin; eine fremde jedes Personal. */
+  isAdmin: boolean;
   onSaved: (s: CompanySettings) => void;
   onBack: () => void;
 }) {
@@ -175,6 +178,10 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const prevId = useRef<number | null | undefined>(undefined);
 
   const isOperator = !!base.is_operator;
+  // ►►► **Eigen oder fremd** (CRM Schritt 1) – derselbe Datensatztyp für jede Firma.
+  // Bank, Währung, Gebiete und der Betreiber-Titel gibt es nur bei einer eigenen.
+  const own = !!base.is_own;
+  const canEdit = isAdmin || !own;
 
   // Nur bei Datensatz-WECHSEL neu aufbauen – sonst klobbert ein Auto-Save → onSaved →
   // neuer Prop die gerade getippte Eingabe (dieselbe Regel wie im Benutzer-Datensatz).
@@ -200,7 +207,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const { status, errorMsg, saveNow } = useAutosave(
     form,
     async (v) => {
-      if (record.object_id == null) return;
+      if (record.object_id == null || !canEdit) return;
       // Ein leerer Name ist kein speicherbarer Zustand (er ist zugleich das Halter-Label) –
       // das Feld markiert ihn als fehlend, gesendet wird er nicht. Das Backend weist ihn
       // ebenfalls ab; hier ersparen wir dem Tippenden die Fehlermeldung nach jedem Zeichen.
@@ -210,14 +217,16 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         legal_form: nn(v.legal_form),
         street: v.street, street_number: nn(v.street_number),
         zip: v.zip, city: v.city, country: v.country,
-        currency: v.currency,
         uid: nn(v.uid), vat_number: nn(v.vat_number),
         email: v.email, phone: nn(v.phone),
       };
       // **Sie wird gesendet wie jede andere Angabe** (#870) – auch leer. Der frühere
       // «nur wenn neu eingegeben»-Vorbehalt war die Folge der Maskierung: er hätte ein
       // absichtliches Löschen stillschweigend verschluckt.
-      data.iban = nn(v.iban);
+      if (own) {
+        data.iban = nn(v.iban);
+        data.currency = v.currency;
+      }
       const updated = await api.updateCompany(record.object_id, data);
       setBase(updated);
       onSaved(updated);
@@ -238,6 +247,20 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country,
       ...(suggested ? { currency: suggested } : {}),
     }));
+  }
+
+  /** «Eigenes Unternehmen» umschalten – nur ein Admin; der Dienst weist ab, wo etwas
+   *  daran hängt (Betreiber, Personal). */
+  async function setOwn(next: boolean) {
+    if (record.object_id == null) return;
+    setOpBusy(true); setOpError(null);
+    try {
+      const updated = await api.updateCompany(record.object_id, { is_own: next });
+      setBase(updated);
+      onSaved(updated);
+    } catch (e) {
+      setOpError(e instanceof Error ? e.message : 'Nicht möglich');
+    } finally { setOpBusy(false); }
   }
 
   /** Diese Gesellschaft zum Betreiber der Website machen (genau eine trägt den Titel). */
@@ -305,7 +328,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         // stehen. Gesetzt: leuchtender Stern (Tatsache, kein Knopf). Nicht gesetzt: derselbe
         // Stern als leiser Knopf, Erklärung im Hover.
         actions={<>
-          {isOperator ? (
+          {own && isAdmin && (isOperator ? (
             <span className="erp-idbtn erp-idbtn-flag" data-tip="Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration"
               data-tip-pos="bottom" style={{ cursor: 'default' }}>
               <Star size={14} fill="currentColor" />
@@ -316,14 +339,14 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
               onClick={makeOperator} disabled={opBusy}>
               <Star size={14} />
             </button>
-          )}
+          ))}
           {/* **Schliessen** (Notiz #365) – wie das Deaktivieren am Artikel, und wie dort
               **endgültig**: eine wiedereröffnete Gesellschaft ist rechtlich eine andere
               (neue UID, neues HR-Datum), also wird sie neu angelegt statt wiederbelebt.
               Ein «Ersetzen» gibt es bewusst nicht – zu heikel bei einer Rechtsperson.
               Der Betreiber trägt den Knopf gar nicht erst: ohne ihn hätte die Website
               keinen Absender (erst den Stern weitergeben, dann schliessen). */}
-          {!isOperator && record.is_active !== false && (
+          {!isOperator && canEdit && record.is_active !== false && (
             <button className="erp-idbtn erp-idbtn-danger"
               data-tip="Unternehmen schliessen – endgültig, keine Reaktivierung"
               data-tip-pos="bottom" aria-label="Unternehmen schliessen"
@@ -336,7 +359,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
           // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
           // Betreiber – es gibt ihn genau einmal.
-          ...(isOperator ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
+          ...(isOperator && isAdmin ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />}
       />
@@ -364,9 +387,17 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <SystemConfigSection settings={base} onSaved={(s) => onSaved({ ...base, ...s })} />
         )}
         {tab === 'stamm' && (
+        <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <DetailBody gap={16}>
           {/* ── 1. Allgemeine Angaben ────────────────────────────────────────── */}
           <Card title="Allgemeine Angaben" right={saveIndicator}>
+            {/* «Eigenes Unternehmen» – eine Admin-Entscheidung am Datensatz. */}
+            {isAdmin && (
+              <SelectField label="Art" value={own ? 'own' : 'foreign'} disabled={opBusy}
+                onChange={(v) => void setOwn(v === 'own')}
+                options={[{ value: 'foreign', label: 'Fremde Firma (Kunde, Lieferant)' },
+                          { value: 'own', label: 'Eigenes Unternehmen' }]} />
+            )}
             <AField label="Unternehmensname" value={form.company_name} onChange={str('company_name')}
               placeholder="Inexxio AG" required onEnter={saveNow} />
 
@@ -394,7 +425,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
             {/* Währung – **abgeleitet** aus dem Land (#304). Änderbar, aber nicht beiläufig:
                 erst der Klick auf «Ändern» macht daraus ein Feld. Wer bewusst abweicht
                 (Holding fakturiert in EUR), kommt hin; niemand verstellt sie im Vorbeitippen. */}
-            {currencyOpen ? (
+            {own && (currencyOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Währung</label>
                 <select value={form.currency} onChange={(e) => str('currency')(e.target.value)}
@@ -424,7 +455,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
                   <Pencil size={12} /> Ändern
                 </button>
               </div>
-            )}
+            ))}
 
             {/* Der Betreiber-Schalter steht seit Notiz #339 als Stern in der Kopfzeile –
                 er ist eine Rolle über dem Datensatz, keine Stammdaten-Angabe. Hier bleibt
@@ -444,10 +475,10 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Card title="Rechtliche Identifikation">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
-                placeholder={ids.uid.ph} required onEnter={saveNow} />
+                placeholder={ids.uid.ph} required={own} onEnter={saveNow} />
               {ids.vat && (
                 <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
-                  placeholder={ids.vat.ph} required onEnter={saveNow} />
+                  placeholder={ids.vat.ph} required={own} onEnter={saveNow} />
               )}
             </div>
           </Card>
@@ -456,9 +487,9 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Card title="Kontakt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="E-Mail" value={form.email} onChange={str('email')} type="email"
-                placeholder="info@inexxio.com" required onEnter={saveNow} />
+                placeholder="info@inexxio.com" required={own} onEnter={saveNow} />
               <AField label="Telefon" value={form.phone} onChange={str('phone')} type="tel"
-                placeholder="+41 44 000 00 00" required onEnter={saveNow} />
+                placeholder="+41 44 000 00 00" required={own} onEnter={saveNow} />
             </div>
             {/* Website: **abgeleitet** aus dem Deployment (#309) – die Adresse, unter der
                 diese Installation läuft. Angezeigt, weil sie im Impressum und auf dem
@@ -466,13 +497,14 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
                 Domain-Wechsel still falsch würde. */}
             {/* Ohne Hinweistext (#337): dass hier nichts einzugeben ist, sagt das Feld selbst
                 (grau, nicht fokussierbar). */}
-            <AField label="Website" value={base.website ?? ''} readOnly />
+            {own && <AField label="Website" value={base.website ?? ''} readOnly />}
           </Card>
 
           {/* ── 4. Bankverbindung ────────────────────────────────────────────── */}
           {/* EINE Zahl: die IBAN trägt Land, Bank und Konto. Bankname und BIC waren
               Abschriften daraus (#313); die **QR-Rechnung** gibt es inzwischen, und sie
               liest genau dieses Feld (`services/qrbill`). */}
+          {own && (<>
           {/* ►►► **Was gespeichert ist, steht im Feld** (#870). ◄◄◄ Der maskierte Wert
               stand als **Platzhalter** da – also genau dort, wo eine Oberfläche sagt
               «hier ist nichts». Wer die IBAN eingetragen hatte, sah ein leeres
@@ -491,7 +523,28 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Card title="Gebiete">
             <TerritoryMap highlight={record.object_id} embedded />
           </Card>
+          </>)}
+
+          {/* ►►► **Wer gehört zu dieser Firma?** – abgeleitet aus der Zuordnung an der
+              Person; gepflegt wird sie dort. */}
+          <Card icon={Users} title="Personen">
+            {(base.people ?? []).length === 0 ? (
+              <span className="text-sm text-fg-3">Keine Personen zugeordnet.</span>
+            ) : (
+              <div className="flex flex-col">
+                {(base.people ?? []).map((p) => (
+                  <div key={p.object_id}
+                    className="flex items-center gap-3 py-1.5 border-b border-border-1 last:border-b-0 text-sm">
+                    <ObjId value={p.object_id} />
+                    <span className="text-fg-1 truncate">{p.name}</span>
+                    <span className="text-fg-3 truncate ml-auto">{p.email}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </DetailBody>
+        </fieldset>
         )}
       </div>
     </div>

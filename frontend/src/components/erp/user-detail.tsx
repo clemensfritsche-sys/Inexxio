@@ -12,7 +12,6 @@ import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
 import {
   NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
 } from '@/lib/accounts';
-import { legalForms } from '@/lib/legal-forms';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
@@ -21,7 +20,7 @@ import { legalForms } from '@/lib/legal-forms';
 // Rolle, Bankverbindung, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
 import { Field as AField, ToggleField, SelectField } from '@/components/account/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
-import { ObjectSelect } from '@/components/erp/object-select';
+import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
@@ -125,9 +124,6 @@ interface ERPForm {
   last_name: string;
   date_of_birth: string;
   phone: string;
-  company_name: string;
-  legal_form: string;
-  uid_number: string;
   address_line1: string;
   address_line2: string;
   postal_code: string;
@@ -146,7 +142,6 @@ interface ERPForm {
   bank_name: string;
   bank_iban: string;
   bank_bic: string;
-  company_object_id: string;
   department: string;
   job_title: string;
   employment_start_date: string;
@@ -163,9 +158,6 @@ function buildForm(p: UserProfile): ERPForm {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    company_name: p.company_name ?? '',
-    legal_form: p.legal_form ?? '',
-    uid_number: p.uid_number ?? '',
     address_line1: p.address_line1 ?? '',
     address_line2: p.address_line2 ?? '',
     postal_code: p.postal_code ?? '',
@@ -184,7 +176,6 @@ function buildForm(p: UserProfile): ERPForm {
     bank_name: p.bank_name ?? '',
     bank_iban: p.bank_iban ?? '',
     bank_bic: p.bank_bic ?? '',
-    company_object_id: p.company_object_id != null ? String(p.company_object_id) : '',
     department: p.department ?? '',
     job_title: p.job_title ?? '',
     employment_start_date: p.employment_start_date ?? '',
@@ -194,46 +185,6 @@ function buildForm(p: UserProfile): ERPForm {
 }
 
 const nn = (s: string): string | null => (s.trim() === '' ? null : s);
-
-/**
- * ►►► **Für welche unserer Gesellschaften arbeitet diese Person?** (Testnotiz #905) ◄◄◄
- *
- * Die Angabe fehlte im Datenmodell ganz – und damit konnte ein Beleg nicht sagen, wer ihn
- * stellt: er nahm immer den **Betreiber**, also die Gesellschaft, die die Website
- * vertritt, auch wenn eine Schwestergesellschaft fakturiert.
- *
- * **Dasselbe Bauteil wie jede Referenz im Haus** (`ObjectSelect`) – ein natives
- * Auswahlfeld über Datensätze gibt es nicht. Die Liste ist kurz, also wird **im Browser**
- * gefiltert: ein eigener Such-Endpunkt für eine Handvoll Gesellschaften wäre ein Weg zu
- * viel. Geladen wird sie **einmal**, nicht bei jedem Tastendruck.
- *
- * **«Keine» bleibt wählbar** – für jeden, der nicht bei uns arbeitet; ob das an einer
- * *Rollenänderung* scheitert, entscheidet der Dienst (`people.assert_employment`).
- */
-function CompanyPick({ value, readOnly, onChange }: {
-  value: string; readOnly: boolean; onChange: (v: string) => void;
-}) {
-  const [all, setAll] = useState<{ object_id: number; name: string }[]>([]);
-  useEffect(() => {
-    let dead = false;
-    api.getCompanies()
-      .then((rows) => !dead && setAll(rows
-        .filter((c) => c.object_id != null)
-        .map((c) => ({ object_id: c.object_id as number, name: c.company_name ?? '' }))))
-      .catch(() => undefined);
-    return () => { dead = true; };
-  }, []);
-  const current = value ? Number(value) : null;
-  return (
-    <ObjectSelect<{ object_id: number; name: string }>
-      label="Gesellschaft" value={current} disabled={readOnly}
-      emptyOption="Keine"
-      selected={all.find((c) => c.object_id === current)}
-      find={async (q) => all.filter((c) => `${c.object_id}`.includes(q)
-        || c.name.toLowerCase().includes(q.toLowerCase()))}
-      onChange={(id) => onChange(id == null ? '' : String(id))} />
-  );
-}
 
 /**
  * Form → Update-Payload.
@@ -272,9 +223,6 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     invoice_postal_code: nn(v.invoice_postal_code),
     invoice_city: nn(v.invoice_city),
     invoice_country: nn(v.invoice_country),
-    company_name: nn(v.company_name),
-    legal_form: nn(v.legal_form),
-    uid_number: nn(v.uid_number),
     bank_account_holder: nn(v.bank_account_holder),
     bank_name: nn(v.bank_name),
     bank_iban: nn(v.bank_iban),
@@ -287,7 +235,6 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     // auch wenn eine Schwestergesellschaft fakturiert. **Die Regel steht im Dienst**
     // (`people.assert_employment`), nicht hier: sie gilt für jede Oberfläche, die diesen
     // Datensatz schreibt. Dies ist die freundliche Hälfte.
-    data.company_object_id = v.company_object_id ? Number(v.company_object_id) : null;
     data.department = nn(v.department);
     data.job_title = nn(v.job_title);
     data.employment_start_date = nn(v.employment_start_date);
@@ -340,7 +287,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
   const role = form.role;
   const isStaff = role === 'employee' || role === 'admin';
-  const forms = legalForms(form.country);
 
   const address: Address = {
     street: form.address_line1, street2: form.address_line2, zip: form.postal_code,
@@ -389,30 +335,15 @@ function ProfileForm({ record, isAdmin, onSaved }: {
           <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} />
         </div>
 
-        {/* ►►► **Der FIRMENNAME ist die Erklärung** (Testnotiz #1043). ◄◄◄ Hier stand
-            ein Schalter «Privat ↔ Geschäft» darüber, der die Felder darunter ein- und
-            ausblendete – also eine zweite Angabe über dieselbe Sache. Jetzt steht der
-            Block immer da: **ist der Name gesetzt, ist die Rechtsform Pflicht** (die eine
-            Regel, die bleibt, und der Server weist sie ab), ist er leer, ist es eine
-            Privatperson. Ein Feld statt Schalter plus Feld. */}
-        <SubBlock icon={Building2} title="Firmendaten">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AField label="Firmenname" value={form.company_name} onChange={str('company_name')} readOnly={ro} placeholder="Muster AG" onEnter={saveNow} />
-            {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – dieselbe
-                Liste wie am Unternehmen (`lib/legal-forms`), nicht eine zweite.
-                **Pflicht genau dann, wenn ein Firmenname dasteht.** */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <AField label="Rechtsform" value={form.legal_form} onChange={str('legal_form')} readOnly={ro}
-                placeholder={forms[0] ?? 'AG'} required={!!form.company_name.trim() && !form.legal_form.trim()} onEnter={saveNow} list="user-legal-forms" />
-              <datalist id="user-legal-forms">
-                {forms.map((f) => <option key={f} value={f} />)}
-              </datalist>
-            </div>
-            {/* Die UID ist **freiwillig**: nur MWST-pflichtige Firmen haben eine. */}
-            <div className="sm:col-span-2">
-              <AField label="UID-Nummer" value={form.uid_number} onChange={str('uid_number')} readOnly={ro} placeholder="CHE-123.456.789" onEnter={saveNow} />
-            </div>
-          </div>
+        {/* ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Gewählt oder neu
+            genannt – ihre Angaben pflegt man an ihrem eigenen Datensatz. Für Personal
+            muss sie eine unserer Gesellschaften sein (`people.assert_employment`). */}
+        <SubBlock icon={Building2} title="Firma">
+          <CompanyField company={record.company} readOnly={ro} country={form.country}
+            onLink={(id) => api.updateErpRecord(record.object_id as number,
+              { company_object_id: id } as Partial<UserProfile>).then(onSaved)}
+            onCreate={(nc) => api.updateErpRecord(record.object_id as number,
+              { new_company: nc } as Partial<UserProfile>).then(onSaved)} />
         </SubBlock>
 
         {/* Anstellung: im Profil read-only, **im ERP admin-pflegbar** (Notiz #295 –
@@ -420,16 +351,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         {isStaff && (
           <SubBlock icon={Briefcase} title="Anstellung">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* ►►► **Für welche unserer Gesellschaften?** (Testnotiz #905) ◄◄◄
-                  Es ist eine **Anstellungs**angabe – darum hier und nicht im Profil: wer
-                  für wen arbeitet, entscheidet nicht die Person selbst. Ohne sie weist
-                  der Dienst die Rollenänderung ab (`people.assert_employment`), denn auf
-                  einem Beleg steht, wer ihn stellt. Dasselbe Bauteil wie jede Referenz
-                  im Haus. */}
-              <div className="sm:col-span-2">
-                <CompanyPick value={form.company_object_id} readOnly={ro}
-                  onChange={(v) => setForm((f) => ({ ...f, company_object_id: v }))} />
-              </div>
               <AField label="Abteilung" value={form.department} onChange={str('department')} readOnly={ro} onEnter={saveNow} />
               <AField label="Funktion" value={form.job_title} onChange={str('job_title')} readOnly={ro} onEnter={saveNow} />
               <AField label="Eintrittsdatum" value={form.employment_start_date} onChange={str('employment_start_date')} readOnly={ro} type="date" onEnter={saveNow} />

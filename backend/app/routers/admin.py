@@ -6,6 +6,7 @@ from ..core.database import get_db
 from ..models import AuditLog, UserProfile
 from ..schemas.admin import (
     CompanyCreate,
+    CompanyPerson,
     CompanySettingsResponse,
     CompanySettingsUpdate,
     TerritoryAssign,
@@ -49,6 +50,14 @@ def _company_response(db: Session, company) -> CompanySettingsResponse:
     resp.has_address = address.has_content(address.of_company(company))
     resp.website = sites.website_url()
     resp.legal_name = sites.legal_name(company)
+    resp.people = [
+        CompanyPerson(object_id=u.object_id, name=u.display_name, email=u.email, role=u.role)
+        for u in db.query(UserProfile)
+        .filter(UserProfile.company_object_id == company.object_id,
+                UserProfile.object_id.isnot(None))
+        .order_by(UserProfile.last_name, UserProfile.first_name)
+        .all()
+    ]
     return resp
 
 
@@ -69,11 +78,10 @@ async def update_settings(
     current_user: UserProfile = Depends(require_admin),
 ):
     s = sites.operator(db)
+    # Nur die Plattform-Konfiguration – Entitäts-Felder (und «eigen») laufen über
+    # ``PATCH /admin/companies/{object_id}``, damit es für jede Angabe EINEN Pfad gibt.
     for key, value in data.model_dump(exclude_unset=True).items():
-        if key == "iban":
-            s.iban_encrypted = value
-            log_audit(db, "company_settings", key, "[UPDATED]", current_user.id)
-        else:
+        if key in sites.PLATFORM_FIELDS:
             setattr(s, key, value)
             log_audit(db, "company_settings", key, str(value), current_user.id)
     db.commit()
@@ -120,9 +128,10 @@ async def get_public_settings(db: Session = Depends(get_db)):
 @router.get("/companies", response_model=list[CompanySettingsResponse])
 async def list_companies(
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_admin),
+    _: UserProfile = Depends(require_employee),
 ):
-    """Alle Unternehmen, Betreiber (ältestes) zuerst."""
+    """Alle Firmen – eigene und fremde, Betreiber zuerst. **Jeder Mitarbeiter** sieht sie:
+    eine Kundenfirma ist ein ganz gewöhnlicher ERP-Datensatz."""
     return [_company_response(db, c) for c in sites.all_companies(db)]
 
 
@@ -130,7 +139,7 @@ async def list_companies(
 async def get_company(
     object_id: int,
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_admin),
+    _: UserProfile = Depends(require_employee),
 ):
     """Ein Unternehmen mit vollem Feldsatz (frisch, für die Detail-Ansicht)."""
     return _company_response(db, sites.require(db, object_id))
@@ -140,15 +149,20 @@ async def get_company(
 async def create_company(
     data: CompanyCreate,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
-    """Neue Gesellschaft anlegen (nur Admin).
+    """Neue Firma anlegen – **jeder Mitarbeiter**; eine **eigene** Gesellschaft nur ein
+    Admin (``is_own``).
 
     Sie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen
     können dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –
     sobald sie eine eigene Anschrift trägt – automatisch als Versand statt als
     innerbetriebliche Bewegung klassifiziert (ADR 005)."""
-    company = sites.create(db, data.model_dump(exclude_unset=True), current_user.id)
+    fields = data.model_dump(exclude_unset=True)
+    own = bool(fields.pop("is_own", False))
+    if own and current_user.role != "admin":
+        raise HTTPException(403, detail="Eine eigene Gesellschaft legt nur ein Admin an.")
+    company = sites.create(db, fields, current_user.id, own=own)
     return _company_response(db, company)
 
 
@@ -157,16 +171,17 @@ async def update_company(
     object_id: int,
     data: CompanySettingsUpdate,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
-    """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
+    """Felder einer Firma ändern – **derselbe Pfad für jede** (auch den
     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
 
     Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
     ignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe
     nicht an zwei Stellen editierbar ist."""
     company = sites.require(db, object_id)
-    sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id)
+    sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id,
+                       admin=current_user.role == "admin")
     return _company_response(db, company)
 
 
@@ -189,7 +204,7 @@ async def set_company_operator(
 async def deactivate_company(
     object_id: int,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
     """Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).
 
@@ -198,6 +213,8 @@ async def deactivate_company(
     **letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen
     fallen an den Betreiber zurück."""
     company = sites.require(db, object_id)
+    if company.is_own and current_user.role != "admin":
+        raise HTTPException(403, detail="Eine eigene Gesellschaft schliesst nur ein Admin.")
     sites.deactivate(db, company, current_user.id)
     return _company_response(db, company)
 

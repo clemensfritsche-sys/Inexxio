@@ -108,115 +108,6 @@ def test_the_repair_turns_an_old_role_into_access():
 # ►► Der Firmenname ist die Erklärung
 # ---------------------------------------------------------------------------
 
-def test_the_company_name_is_the_declaration():
-    """►►► **Ein Feld statt Schalter plus Feld.** ◄◄◄
-
-    Steht ein Firmenname da, tritt dieser Datensatz als Firma auf – sonst als
-    Privatperson. Der frühere Kontotyp sagte dasselbe und konnte ihm widersprechen.
-
-    *Nicht so: «sind alle Firmenfelder gefüllt?» als Erklärung lesen. Dann ist nie etwas
-    unvollständig – der Server könnte nie sagen, dass die Rechtsform fehlt, und der Beleg
-    wechselte still seinen Empfänger.*
-
-    Bug-Formen: (a) ``is_business`` liest ein zweites Feld; (b) Leerzeichen gelten als
-    Firma; (c) die Frage wird an einer Aufrufstelle selbst beantwortet.
-    """
-    db = _db()
-    try:
-        assert not people.is_business(None)
-        assert not people.is_business(_user(db, uid="d-1", email="d1@x.ch"))
-        assert not people.is_business(
-            _user(db, uid="d-2", email="d2@x.ch", company_name="   ")), "(b)"
-        assert people.is_business(
-            _user(db, uid="d-3", email="d3@x.ch", company_name="Muster"))
-        assert not hasattr(UserProfile, "account_type"), "(a)"
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_naming_a_company_needs_a_legal_form():
-    """►►► **Wer eine Firma nennt, nennt ihre Rechtsform** – serverseitig. ◄◄◄
-
-    «Muster» ist keine Rechtsperson, «Muster AG» ist eine, und auf einem Beleg steht die,
-    die haftet (MWSTG Art. 26). Das ist die **ganze** Regel, die vom Kontotyp bleibt.
-
-    Bug-Formen: (a) die Prüfung steht nur im Browser; (b) sie nennt die fehlende Angabe
-    nicht; (c) sie verlangt zusätzlich die UID (die haben nur MWST-pflichtige Firmen).
-    """
-    db = _db()
-    try:
-        u = _user(db, uid="c-1", email="c1@x.ch", first_name="Max", last_name="Muster")
-        with pytest.raises(HTTPException) as err:
-            people.apply_profile_update(
-                db, u, UserProfileUpdate(company_name="Muster"), actor_id=1)
-        assert "Rechtsform" in err.value.detail and "Muster" in err.value.detail, "(b)"
-        assert "UID" not in err.value.detail, "(c)"
-
-        people.apply_profile_update(
-            db, u, UserProfileUpdate(company_name="Muster", legal_form="AG"), actor_id=1)
-        assert people.is_business(u) and u.uid_number is None
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_an_existing_company_without_a_legal_form_stays_editable():
-    """►►► **Geprüft wird der ÜBERGANG, nicht der Bestand.** ◄◄◄
-
-    Dieselbe Feinheit wie bei ``assert_employment``, und aus demselben Grund: eine Prüfung
-    auf den *Zustand* machte jede bestehende Zeile ohne Rechtsform unbearbeitbar – man käme
-    nicht einmal dazu, sie nachzutragen.
-
-    Bug-Form: die Prüfung fragt den Zustand – dann lässt sich dort **nichts** mehr ändern,
-    auch nicht die Telefonnummer.
-    """
-    db = _db()
-    try:
-        u = _user(db, uid="c-2", email="c2@x.ch", company_name="Alt AG")
-        people.apply_profile_update(db, u, UserProfileUpdate(phone="+41 44 000 00 00"),
-                                    actor_id=1)
-        assert u.phone == "+41 44 000 00 00"
-        # Wer eine Pflichtangabe **leert**, stellt den neuen schlechten Zustand her:
-        with pytest.raises(HTTPException):
-            people.apply_profile_update(db, u, UserProfileUpdate(legal_form=""), actor_id=1)
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_clearing_the_company_name_makes_it_a_private_record():
-    """►►► **Das ersetzt den Schalter.** ◄◄◄
-
-    «Privat» war einmal eine eigene Wahl; jetzt ist es die Abwesenheit eines Firmennamens.
-    Ihn zu leeren muss darum **erlaubt** sein – sonst wäre ein versehentlich eingetragener
-    Name endgültig, und der Datensatz für immer eine Firma.
-
-    Bug-Form: die Prüfung läuft auch beim Leeren (dann verlangt sie die Rechtsform zu
-    einer Firma, die es gerade nicht mehr gibt).
-    """
-    db = _db()
-    try:
-        # ►►► **Gemessen an der Zeile, an der es ZÄHLT**: ohne Rechtsform. ◄◄◄ Der erste
-        # Anlauf nahm eine vollständige Firma – dort fällt die Regel ohnehin nicht an, und
-        # die Bug-Form (der Vorab-Ausstieg fehlt) ging durch.
-        u = _user(db, uid="c-3", email="c3@x.ch", first_name="Max", last_name="Muster",
-                  company_name="Muster")
-        people.apply_profile_update(db, u, UserProfileUpdate(company_name=""), actor_id=1)
-        assert not people.is_business(u)
-        assert people.billing_name(u) == ["Max Muster"]
-
-        # Und auch von einer vollständigen Firma weg – ohne dass etwas gelöscht wird.
-        v = _user(db, uid="c-4", email="c4@x.ch", first_name="Eva", last_name="Meier",
-                  company_name="Meier", legal_form="GmbH")
-        people.apply_profile_update(db, v, UserProfileUpdate(company_name=""), actor_id=1)
-        assert not people.is_business(v)
-        assert v.legal_form == "GmbH", "Ausblenden ist nicht löschen."
-    finally:
-        db.rollback()
-        db.close()
-
-
 def test_the_old_switches_are_gone_from_the_door():
     """►►► **Was die Oberfläche nicht anbietet, nimmt der Dienst nicht an.** ◄◄◄
 
@@ -246,49 +137,6 @@ def test_the_old_switches_are_gone_from_the_door():
 # ►► Der Leser: der Beleg
 # ---------------------------------------------------------------------------
 
-def test_a_private_record_is_named_by_his_own_name():
-    """**Firma zuerst, Person als «z. H.»; ohne Firma bleibt die Person.**
-
-    ``display_name`` ist person-first (#291) und fällt auf die Firma zurück; ``billing_name``
-    ist firmen-first, weil auf einer Rechnung die Rechtsperson steht.
-
-    Bug-Formen: (a) der Beleg trägt die Firma, obwohl keine dasteht; (b) der Anzeigename
-    bevorzugt die Firma vor der Person.
-    """
-    db = _db()
-    try:
-        firma = _user(db, uid="n-1", email="n1@x.ch", first_name="Max", last_name="Muster",
-                      company_name="Muster", legal_form="AG")
-        assert people.billing_name(firma) == ["Muster AG", "z. H. Max Muster"]
-        assert firma.display_name == "Max Muster", "(b)"
-
-        privat = _user(db, uid="n-2", email="n2@x.ch", first_name="Eva", last_name="Meier")
-        assert people.billing_name(privat) == ["Eva Meier"], "(a)"
-
-        ohne = _user(db, uid="n-3", email="n3@x.ch", company_name="Muster AG")
-        assert ohne.display_name == "Muster AG"
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_the_legal_person_is_composed_at_exactly_one_place():
-    """**«Muster AG» + «AG» ist nicht «Muster AG AG».**
-
-    Der Name der Rechtsperson entsteht in ``sites.legal_name`` – für unsere Gesellschaften
-    **und** für einen Benutzer mit Firmennamen.
-
-    Bug-Form: ``billing_name`` hängt die Rechtsform selbst an.
-    """
-    db = _db()
-    try:
-        u = _user(db, uid="n-4", email="n4@x.ch", company_name="Muster AG", legal_form="AG")
-        assert people.billing_name(u) == ["Muster AG"]
-    finally:
-        db.rollback()
-        db.close()
-
-
 def test_the_billing_email_is_read_even_without_an_own_billing_address():
     """►►► **Ein Feld, das nur unter einer unsichtbaren Bedingung wirkt, ist schlimmer
     als keines** (Testnotiz #1042). ◄◄◄
@@ -297,7 +145,7 @@ def test_the_billing_email_is_read_even_without_an_own_billing_address():
     """
     db = _db()
     try:
-        db.add(CompanySettings(company_name="Wir AG", legal_form="AG"))
+        db.add(CompanySettings(company_name="Wir AG", legal_form="AG", is_own=True))
         db.flush()
         u = _user(db, uid="b-1", email="login@kunde.ch", object_id=100000142,
                   first_name="Max", last_name="Muster",
@@ -328,7 +176,7 @@ def test_an_empty_billing_address_falls_back_to_the_delivery_address():
     """
     db = _db()
     try:
-        db.add(CompanySettings(company_name="Wir AG", legal_form="AG"))
+        db.add(CompanySettings(company_name="Wir AG", legal_form="AG", is_own=True))
         db.flush()
         row = SimpleNamespace(party_id=None, issuer_company_id=None)
 
@@ -362,6 +210,137 @@ def test_an_empty_billing_address_falls_back_to_the_delivery_address():
         db.expire_all()
         assert kopie.invoice_address_line1 is None, "Die Kopie bleibt stehen (c)."
         assert eigen.invoice_address_line1 == "Werkstrasse 3", "Datenverlust (b)."
+    finally:
+        db.rollback()
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# ►► Die Firma ist ein Datensatz (CRM Schritt 1)
+# ---------------------------------------------------------------------------
+
+def _firm(db, name="Muster", form="AG", *, own=False, uid=None) -> CompanySettings:
+    from app.services import objects as obj
+    c = CompanySettings(object_id=obj.next_object_id(db, "organization"), company_name=name,
+                        legal_form=form, is_own=own, uid_number=uid, email="", country="CH")
+    db.add(c)
+    db.flush()
+    return c
+
+
+def test_a_person_is_a_firm_through_its_link():
+    """**Firma zuerst, Person als «z. H.»** – und die Firma kommt aus ihrem Datensatz.
+    Bug-Form: die Rechtsform fehlt am Namen, oder eine Person ohne Firma gilt als Firma."""
+    db = _db()
+    try:
+        privat = _user(db, uid="f-1", email="f1@x.ch", first_name="Eva", last_name="Meier")
+        assert not people.is_business(privat)
+        assert people.billing_name(privat) == ["Eva Meier"]
+        firm = _firm(db)
+        u = _user(db, uid="f-2", email="f2@x.ch", first_name="Max", last_name="Muster",
+                  company_object_id=firm.object_id)
+        db.refresh(u)
+        assert people.billing_name(u) == ["Muster AG", "z. H. Max Muster"]
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_named_company_is_found_before_it_is_created():
+    """**Eindeutig gleich → dieselbe Firma; sonst eine neue, fremde.** Bug-Formen: (a) zwei
+    Datensätze für dieselbe Firma; (b) eine Firma ohne Rechtsform; (c) die neue ist eigen."""
+    db = _db()
+    try:
+        a = _user(db, uid="m-1", email="m1@x.ch")
+        b = _user(db, uid="m-2", email="m2@x.ch")
+        c = _user(db, uid="m-3", email="m3@x.ch")
+        new = {"company_name": "Zahnrad  Werke", "legal_form": "GmbH",
+               "uid_number": "CHE-111.222.333"}
+        people.apply_profile_update(db, a, UserProfileUpdate(new_company=new), actor_id=1)
+        people.apply_profile_update(
+            db, b, UserProfileUpdate(new_company={"company_name": "zahnrad werke",
+                                                  "legal_form": "gmbh"}), actor_id=1)
+        people.apply_profile_update(
+            db, c, UserProfileUpdate(new_company={"company_name": "Andere AG",
+                                                  "legal_form": "x",
+                                                  "uid_number": "che111222333"}), actor_id=1)
+        assert a.company_object_id == b.company_object_id == c.company_object_id, "(a)"
+        db.refresh(a)
+        assert not a.company.is_own, "(c)"
+        with pytest.raises(HTTPException):
+            people.apply_profile_update(
+                db, a, UserProfileUpdate(new_company={"company_name": "Neu",
+                                                      "legal_form": " "}), actor_id=1)
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_staff_needs_one_of_our_companies():
+    """**Personal arbeitet bei einer UNSERER Gesellschaften** – eine Kundenfirma stellt
+    keine Belege. Bug-Form: ``assert_employment`` prüft nur, ob es die Firma gibt."""
+    db = _db()
+    try:
+        foreign, own = _firm(db, "Kunde"), _firm(db, "Wir", own=True)
+        u = _user(db, uid="s-1", email="s1@x.ch", first_name="A", last_name="B")
+        with pytest.raises(HTTPException) as e:
+            people.apply_profile_update(
+                db, u, ErpAdminUpdate(role="employee", company_object_id=foreign.object_id),
+                actor_id=1)
+        assert "unserer Gesellschaften" in e.value.detail
+        people.apply_profile_update(
+            db, u, ErpAdminUpdate(role="employee", company_object_id=own.object_id),
+            actor_id=1)
+        assert u.role == "employee"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_person_is_created_without_ever_logging_in(monkeypatch):
+    """**Name + E-Mail + Rolle, Nummer sofort, E-Mail klein und einmalig.** Bug-Formen:
+    (a) keine Objektnummer; (b) die E-Mail behält Grossbuchstaben; (c) dieselbe E-Mail in
+    anderer Schreibweise gilt als neu; (d) ein Mitarbeiter vergibt eine Personal-Rolle."""
+    from app.schemas.admin import PersonCreate
+    db = _db()
+    db.commit = db.flush     # die Szene wird am Ende verworfen
+    monkeypatch.setattr(people, "firebase_uid_for", lambda email, name: f"fb-{email}")
+    try:
+        admin = SimpleNamespace(id=1, role="admin")
+        u = people.create_person(db, PersonCreate(first_name="Hans", last_name="Muster",
+                                                  email=" Hans.Muster@Firma.CH "), admin)
+        assert u.object_id, "(a)"
+        assert u.email == "hans.muster@firma.ch", "(b)"
+        assert u.firebase_uid == "fb-hans.muster@firma.ch"
+        with pytest.raises(HTTPException) as e:
+            people.create_person(db, PersonCreate(first_name="X", last_name="Y",
+                                                  email="HANS.MUSTER@firma.ch"), admin)
+        assert e.value.status_code == 409 and str(u.object_id) in e.value.detail, "(c)"
+        with pytest.raises(HTTPException) as e:
+            people.create_person(db, PersonCreate(first_name="X", last_name="Y",
+                                                  email="neu@firma.ch", role="employee"),
+                                 SimpleNamespace(id=2, role="employee"))
+        assert e.value.status_code == 403, "(d)"
+        with pytest.raises(HTTPException):
+            people.create_person(db, PersonCreate(first_name="", last_name="Y",
+                                                  email="leer@firma.ch"), admin)
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_foreign_company_never_acts_as_ours():
+    """**Belegsteller, Betreiber, Gebiet – nur eigene.** Bug-Form: ein Filter fehlt, und
+    die IBAN eines Kunden landet im Einzahlungsschein."""
+    from app.services import sites
+    db = _db()
+    try:
+        foreign = _firm(db, "Kunde")
+        with pytest.raises(HTTPException):
+            sites.require_own(db, foreign.object_id)
+        assert foreign not in sites.selectable_companies(db)
+        with pytest.raises(HTTPException):
+            sites.set_territory(db, "EUR", foreign.object_id, None)
     finally:
         db.rollback()
         db.close()

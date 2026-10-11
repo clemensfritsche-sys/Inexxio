@@ -6757,7 +6757,9 @@ def test_the_issuer_is_a_choice_at_the_document_head():
         "gibt es im Haus nicht."
     )
     user = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))
-    assert "company_object_id" in user and re.search(r"<CompanyPick[\s/>]", user), (
+    # Seit CRM Schritt 1 ist es EINE Zuordnung «Firma der Person» – für Personal muss sie
+    # eine unserer Gesellschaften sein (`people.assert_employment`).
+    assert "company_object_id" in user and re.search(r"<CompanyField[\s/>]", user), (
         "Die Gesellschaft fehlt am Benutzer-Datensatz (d) – dann kann nichts vorgewählt "
         "werden, und der Beleg nimmt still den Betreiber."
     )
@@ -9890,35 +9892,28 @@ def test_the_role_is_the_access_in_every_surface():
     )
 
 
-def test_the_company_name_is_the_declaration_in_every_surface():
-    """►►► **Ein Feld statt Schalter plus Feld** (Testnotiz #1043). ◄◄◄
+def test_the_company_is_a_record_in_every_surface():
+    """►►► **Die Firma ist ein Datensatz – gewählt, nicht abgetippt** (CRM Schritt 1). ◄◄◄
 
-    Die Firmenfelder hingen an einem Kontotyp-Schalter (*Privat ↔ Geschäft*), und der
-    sagte dasselbe wie der Firmenname darunter. Jetzt steht der Block **immer** da; was
-    folgt, ist die **Rechtsform** – Pflicht genau dann, wenn ein Name dasteht (und der
-    Server weist sie ab, ``people.assert_company``; dies ist die freundliche Hälfte).
+    Firmenname, Rechtsform und UID standen als Text an jeder Person; zwei Mitarbeiter
+    derselben Kundenfirma trugen zwei Fassungen derselben Firma. Jetzt wählen Konto und
+    ERP sie über **dasselbe** Bauteil (`CompanyField`), und ihre Angaben pflegt man an
+    ihrem eigenen Datensatz.
 
-    *Dieser Wächter löst den von #1042 ab, der die Kontotyp-Bedingung VERLANGTE – er
-    prüfte die Form der damaligen Lösung.*
-
-    Bug-Formen: (a) der Firmenblock hängt wieder an einer Bedingung; (b) es gibt wieder
-    einen Kontotyp; (c) der Firmenname ist Pflicht (dann kann niemand privat sein);
-    (d) die Rechtsform ist **nicht** Pflicht, obwohl ein Name dasteht.
+    Bug-Formen: (a) eine Oberfläche tippt den Firmennamen wieder als Feld an der Person;
+    (b) es gibt wieder einen Kontotyp; (c) eine Oberfläche baut ihr eigenes Firmenfeld.
     """
     for where in _USER_SURFACES:
         src = _code(_read(FRONTEND / where))
         assert "account_type" not in src and "isBusiness" not in src, (
             f"«{where}» führt wieder einen Kontotyp (b)."
         )
-        problem = _unconditional(src, "Firmendaten")
-        assert not problem, f"«{where}» (a): {problem}"
-        name = src[_at(src, 'label="Firmenname"'):_at(src, 'label="Firmenname"') + 320]
-        assert "required" not in name, f"«{where}» macht den Firmennamen zur Pflicht (c)."
-        form = src[_at(src, 'label="Rechtsform"'):_at(src, 'label="Rechtsform"') + 400]
-        assert "required={!!form.company_name.trim() && !form.legal_form.trim()}" in form, (
-            f"«{where}» verlangt die Rechtsform nicht am Firmennamen (d)."
+        assert 'label="Firmenname"' not in src and "company_name" not in src, (
+            f"«{where}» tippt die Firma wieder als Text an der Person (a)."
         )
-
+        assert re.search(r"<CompanyField[\s/>]", src), (
+            f"«{where}» wählt die Firma nicht über das gemeinsame Bauteil (c)."
+        )
 
 def test_the_billing_email_is_one_field_in_every_surface():
     """►►► **Eine Information existiert genau einmal** (Testnotiz #1042). ◄◄◄
@@ -10113,8 +10108,8 @@ def test_the_legal_form_suggestions_exist_exactly_once():
             f"Die Rechtsform-Liste steht nicht genau einmal: {_spots(needle)}"
         )
     for where in ("components/erp/organization-detail.tsx",
-                  "components/erp/user-detail.tsx",
-                  "components/account/sections/profile-section.tsx"):
+                  "components/erp/company-field.tsx",
+                  "components/erp/new-record.tsx"):
         src = _code(_read(FRONTEND / where))
         assert "legalForms(" in src, f"«{where}» fragt die gemeinsame Liste nicht."
 

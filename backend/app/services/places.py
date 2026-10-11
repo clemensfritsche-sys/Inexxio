@@ -228,8 +228,7 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
             UserProfile.object_id.isnot(None),
             UserProfile.is_active.is_(True),
             lookup.matches(q, UserProfile.object_id, UserProfile.first_name,
-                           UserProfile.last_name, UserProfile.company_name,
-                           UserProfile.email),
+                           UserProfile.last_name, UserProfile.email),
         )
         .order_by(UserProfile.object_id.desc())
         .limit(limit)

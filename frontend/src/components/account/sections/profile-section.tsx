@@ -25,7 +25,7 @@ import { AddressField, type Address } from '@/components/erp/address-field';
 import {
   NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
 } from '@/lib/accounts';
-import { legalForms } from '@/lib/legal-forms';
+import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
 interface Form {
@@ -35,9 +35,6 @@ interface Form {
   date_of_birth: string;
   phone: string;
   // Firma – **der Name ist die Erklärung** (#1043): steht er da, ist es eine Firma.
-  company_name: string;
-  legal_form: string;
-  uid_number: string;
   // Adresse
   address_line1: string;
   address_line2: string;
@@ -64,9 +61,6 @@ function buildForm(p: UserProfile): Form {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    company_name: p.company_name ?? '',
-    legal_form: p.legal_form ?? '',
-    uid_number: p.uid_number ?? '',
     address_line1: p.address_line1 ?? '',
     address_line2: p.address_line2 ?? '',
     postal_code: p.postal_code ?? '',
@@ -152,8 +146,6 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
     }));
   }
 
-  const forms = legalForms(form.country);
-
   const invoiceAddress: Address = {
     street: form.invoice_address_line1, street2: form.invoice_address_line2,
     zip: form.invoice_postal_code, city: form.invoice_city, country: form.invoice_country,
@@ -189,29 +181,14 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
           <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
         </div>
 
-        {/* ►►► **Der FIRMENNAME ist die Erklärung** (Testnotiz #1043). ◄◄◄ Darüber stand
-            ein Schalter «Privat ↔ Geschäft», der diesen Block ein- und ausblendete – eine
-            zweite Angabe über dieselbe Sache. Jetzt steht er immer da: **ist der Name
-            gesetzt, ist die Rechtsform Pflicht**, ist er leer, ist es eine Privatperson.
-            Ein Feld statt Schalter plus Feld. */}
-        <SubBlock icon={Building2} title="Firmendaten">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" onEnter={saveNow} />
-            {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303) – **dieselbe**
-                Liste wie am Unternehmen (`lib/legal-forms`). Pflicht genau dann, wenn ein
-                Firmenname dasteht (`people.assert_company` weist es sonst ab). */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <Field label="Rechtsform" value={form.legal_form} onChange={(v) => set('legal_form', v)}
-                placeholder={forms[0] ?? 'AG'} required={!!form.company_name.trim() && !form.legal_form.trim()} onEnter={saveNow} list="account-legal-forms" />
-              <datalist id="account-legal-forms">
-                {forms.map((f) => <option key={f} value={f} />)}
-              </datalist>
-            </div>
-            {/* Die UID ist **freiwillig**: nur MWST-pflichtige Firmen haben eine. */}
-            <div className="sm:col-span-2">
-              <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" onEnter={saveNow} />
-            </div>
-          </div>
+        {/* ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Hier wählt man sie
+            oder nennt eine neue – ihre Angaben (UID, Anschrift) pflegt das ERP an ihrem
+            Datensatz, sonst änderte jeder Kunde die Firmendaten seiner Kollegen. Wer bei
+            uns arbeitet, ändert sie nicht selbst: das ist eine Anstellungsangabe. */}
+        <SubBlock icon={Building2} title="Firma">
+          <CompanyField company={profile.company} readOnly={isEmployee} country={form.country}
+            onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
+            onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
         </SubBlock>
 
         {isEmployee && (

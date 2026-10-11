@@ -1,12 +1,15 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, Numeric, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base
 from .base import TimestampMixin
+
+if TYPE_CHECKING:
+    from .admin import CompanySettings
 
 
 class UserProfile(Base, TimestampMixin):
@@ -87,33 +90,13 @@ class UserProfile(Base, TimestampMixin):
     # Personal extras
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    # ─── Firmenangaben ─────────────────────────────────────────────────────────
-    #: ►►► **Der FIRMENNAME ist die Erklärung** (Testnotiz #1043). ◄◄◄
-    #:
-    #: Steht er da, tritt diese Person als Firma auf; ist er leer, als Privatperson.
-    #: **Ein Feld statt Schalter plus Feld** – hier stand eine Spalte ``account_type``
-    #: daneben (*Privat ↔ Geschäft*), und sie beantwortete dieselbe Frage ein zweites Mal:
-    #: zwei Angaben über eine Sache geraten in Widerspruch, sobald jemand nur eine davon
-    #: setzt. ``people.is_business`` ist die eine Frage danach.
-    #:
-    #: *Nicht so: «sind alle Firmenfelder gefüllt?» als Erklärung lesen. Dann ist nie
-    #: etwas unvollständig – der Server könnte nie sagen, dass die Rechtsform fehlt, und
-    #: der Beleg wechselte still seinen Empfänger. Eine Prüfung braucht eine **erklärte
-    #: Absicht**, und das ist der Firmenname.*
-    company_name: Mapped[Optional[str]] = mapped_column(String(255))
-    #: Die Rechtsform der Firma – dieselbe Angabe, die ``sites.legal_name`` an unserer
-    #: eigenen Seite an den Namen hängt: «Muster» + «AG» ist die Rechtsperson, «Muster»
-    #: allein ist keine. Freitext mit Vorschlägen je Land (#303), keine Auswahlliste –
-    #: die verbindliche Quelle (ISO 20275) hat 2600 Einträge und keinen Endpunkt.
-    #: **Pflicht, sobald ein Firmenname dasteht** (``people.assert_company``) – die
-    #: Rechtsform macht aus einem Namen eine Rechtsperson.
-    legal_form: Mapped[Optional[str]] = mapped_column(String(50))
-    uid_number: Mapped[Optional[str]] = mapped_column(String(20))
-    vat_number: Mapped[Optional[str]] = mapped_column(String(20))
-    vat_registered: Mapped[bool] = mapped_column(Boolean, default=False)
-    trade_register_nr: Mapped[Optional[str]] = mapped_column(String(50))
-    trade_register_canton: Mapped[Optional[str]] = mapped_column(String(50))
-    company_website: Mapped[Optional[str]] = mapped_column(String(255))
+    # ─── Firma ──────────────────────────────────────────────────────────────────
+    # ►►► **Die Firma ist ein eigener DATENSATZ, nicht ein Satz Felder an der Person**
+    # (CRM Schritt 1). ◄◄◄ Hier standen Firmenname, Rechtsform, UID, MWST-Nr.,
+    # Handelsregister und Website als Text an jeder Person – zwei Mitarbeiter derselben
+    # Kundenfirma trugen damit zwei Fassungen derselben Firma, und keine war ein
+    # Datensatz. Sie leben jetzt am Unternehmen (``company_settings``), und die Person
+    # zeigt darauf: ``company_object_id`` weiter unten, gelesen über ``company``.
 
     # ►►► **Die Bankverbindung hängt an NICHTS** (Testnotiz #1043). ◄◄◄ Sie hing an der
     # Rolle «Lieferant» mit der Begründung «eine IBAN braucht, wen *wir* bezahlen» – und
@@ -125,21 +108,20 @@ class UserProfile(Base, TimestampMixin):
     bank_bic: Mapped[Optional[str]] = mapped_column(String(20))
     bank_name: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # Employee info
-    #: ►►► **Für WELCHE Gesellschaft arbeitet diese Person?** (Testnotiz #905) ◄◄◄
+    #: ►►► **Die Firma dieser Person** – eine eigene Gesellschaft (dann arbeitet sie
+    #: bei uns) oder eine fremde (Kunde, Lieferant, Interessent). EINE Zuordnung für
+    #: beide, die Unterscheidung trägt die Firma (``is_own``). ``NULL`` = Privatperson.
     #:
-    #: Die Objektnummer eines Unternehmens (``company_settings``). Es gab sie bis hierher
-    #: nicht – und damit konnte ein Beleg nicht sagen, wer ihn stellt: er nahm immer den
-    #: **Betreiber**, also die Gesellschaft, die die Website vertritt, auch wenn eine
-    #: Schwestergesellschaft fakturiert.
-    #:
-    #: **Keine Fremdschlüssel-Spalte**, sondern die Objektnummer – dieselbe Bauart wie
-    #: ``Deal.party_id`` und ``InstanceUnit.place_object_id``: sie ist die Adresse, unter
-    #: der im Haus auf einen Datensatz gezeigt wird.
-    #:
-    #: ``NULL`` ist regulär für jeden, der **nicht** bei uns arbeitet (Kunde, Lieferant);
-    #: für Personal ist es eine **Lücke**, die der Geldvorgang meldet, statt sie zu raten.
+    #: **Keine Fremdschlüssel-Spalte**, sondern die Objektnummer – die Adresse, unter der
+    #: im Haus auf einen Datensatz gezeigt wird. Personal braucht eine **eigene** Firma
+    #: (``people.assert_employment``) – auf einem Beleg steht, wer ihn stellt.
     company_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    #: Die Firma als Datensatz – nur lesend; geschrieben wird ``company_object_id``.
+    company: Mapped[Optional["CompanySettings"]] = relationship(
+        "CompanySettings",
+        primaryjoin="foreign(UserProfile.company_object_id) == CompanySettings.object_id",
+        viewonly=True, lazy="select", uselist=False,
+    )
     department: Mapped[Optional[str]] = mapped_column(String(100))
     job_title: Mapped[Optional[str]] = mapped_column(String(100))
     employment_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -158,18 +140,8 @@ class UserProfile(Base, TimestampMixin):
 
     @property
     def display_name(self) -> str:
-        """Anzeigename – EINE Regel für alle Anzeigen und ALLE Rollen (Lieferant/Kunde/Prüfer):
-        **«Vorname Nachname» → Firma → E-Mail** (Notiz #291). Es wird immer der **Name der
-        Person** im Datensatz gezeigt, nicht der Firmenname – der ist nur Rückfall, wenn keine
-        Person hinterlegt ist. (Der Versand-Empfängername bleibt firmen-first – eigene Regel in
-        ``stripe_provider._full_name`` – denn das Paket geht an die Firma.)
-
-        ►►► **Der Firmenname IST die Erklärung** (Testnotiz #1043) ◄◄◄ – steht er da, ist
-        dieser Datensatz eine Firma, und dann darf er als Rückfall dienen. Hier stand
-        einmal eine zweite Angabe (``account_type``) daneben, die dasselbe sagte."""
+        """Anzeigename – EINE Regel für alle Anzeigen und ALLE Rollen:
+        **«Vorname Nachname» → E-Mail** (Notiz #291). Es wird immer der **Name der
+        Person** gezeigt; die Firma ist ein eigener Datensatz mit eigenem Namen."""
         name = " ".join(p for p in [self.first_name, self.last_name] if p).strip()
-        if name:
-            return name
-        if (self.company_name or "").strip():
-            return self.company_name  # type: ignore[return-value]
-        return self.email
+        return name or self.email

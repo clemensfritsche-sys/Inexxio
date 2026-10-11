@@ -266,13 +266,15 @@ export interface paths {
         };
         /**
          * List Companies
-         * @description Alle Unternehmen, Betreiber (ältestes) zuerst.
+         * @description Alle Firmen – eigene und fremde, Betreiber zuerst. **Jeder Mitarbeiter** sieht sie:
+         *     eine Kundenfirma ist ein ganz gewöhnlicher ERP-Datensatz.
          */
         get: operations["list_companies_api_v1_admin_companies_get"];
         put?: never;
         /**
          * Create Company
-         * @description Neue Gesellschaft anlegen (nur Admin).
+         * @description Neue Firma anlegen – **jeder Mitarbeiter**; eine **eigene** Gesellschaft nur ein
+         *     Admin (``is_own``).
          *
          *     Sie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen
          *     können dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –
@@ -314,7 +316,7 @@ export interface paths {
         head?: never;
         /**
          * Update Company
-         * @description Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
+         * @description Felder einer Firma ändern – **derselbe Pfad für jede** (auch den
          *     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
          *
          *     Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
@@ -454,6 +456,34 @@ export interface paths {
         };
         /** List Erp Records */
         get: operations["list_erp_records_api_v1_erp_records_get"];
+        put?: never;
+        /**
+         * Create Erp Record
+         * @description ►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄
+         *     Vorname, Nachname, E-Mail, Rolle; Objektnummer und Anmeldekonto entstehen sofort
+         *     (``people.create_person``). Personal-Rollen vergibt nur ein Admin.
+         */
+        post: operations["create_erp_record_api_v1_erp_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Companies
+         * @description **Gibt es diese Firma schon?** – die Vorschläge, während jemand seine Firma
+         *     eintippt (Konto und ERP). Ab zwei Zeichen, höchstens acht, und nur, was auf einer
+         *     Visitenkarte steht: Name, Rechtsform, Ort – die Kundenliste gibt es hier nicht.
+         */
+        get: operations["search_companies_api_v1_erp_companies_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1684,13 +1714,64 @@ export interface components {
         };
         /**
          * CompanyCreate
-         * @description Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);
-         *     alle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –
-         *     wie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen).
+         * @description Neue **Firma** anlegen: Name und Rechtsform (die Rechtsperson), die UID freiwillig.
+         *     Alles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin.
          */
         CompanyCreate: {
             /** Company Name */
             company_name: string;
+            /**
+             * Legal Form
+             * @default
+             */
+            legal_form: string;
+            /** Uid Number */
+            uid_number?: string | null;
+            /**
+             * Is Own
+             * @default false
+             */
+            is_own: boolean;
+        };
+        /**
+         * CompanyPerson
+         * @description Eine Person, die zu dieser Firma gehört – für die Liste am Firmen-Datensatz.
+         */
+        CompanyPerson: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /** Role */
+            role: string;
+        };
+        /**
+         * CompanyRef
+         * @description **Die Firma einer Person** – so viel, wie man an der Person davon sieht. Gepflegt
+         *     wird sie an ihrem eigenen Datensatz; hier steht sie als Auskunft.
+         */
+        CompanyRef: {
+            /** Object Id */
+            object_id: number;
+            /** Company Name */
+            company_name: string;
+            /** Legal Form */
+            legal_form: string;
+            /** Uid Number */
+            uid_number?: string | null;
+            /** Vat Number */
+            vat_number?: string | null;
+            /** City */
+            city?: string | null;
+            /**
+             * Is Own
+             * @default false
+             */
+            is_own: boolean;
+            /** Legal Name */
+            readonly legal_name: string;
         };
         /** CompanySettingsResponse */
         CompanySettingsResponse: {
@@ -1713,6 +1794,11 @@ export interface components {
              * @default true
              */
             is_active: boolean;
+            /**
+             * Is Own
+             * @default false
+             */
+            is_own: boolean;
             /** Company Name */
             company_name: string;
             /** Legal Form */
@@ -1756,6 +1842,11 @@ export interface components {
             plausible_domain: string | null;
             /** Google Maps Api Key */
             google_maps_api_key: string | null;
+            /**
+             * People
+             * @default []
+             */
+            people: components["schemas"]["CompanyPerson"][];
         };
         /**
          * CompanySettingsUpdate
@@ -1802,6 +1893,8 @@ export interface components {
             plausible_domain?: string | null;
             /** Google Maps Api Key */
             google_maps_api_key?: string | null;
+            /** Is Own */
+            is_own?: boolean | null;
         };
         /**
          * CurrencyOut
@@ -1911,12 +2004,9 @@ export interface components {
             invoice_country?: string | null;
             /** Invoice Email */
             invoice_email?: string | null;
-            /** Company Name */
-            company_name?: string | null;
-            /** Legal Form */
-            legal_form?: string | null;
-            /** Uid Number */
-            uid_number?: string | null;
+            /** Company Object Id */
+            company_object_id?: number | null;
+            new_company?: components["schemas"]["NewCompany"] | null;
             /** Bank Account Holder */
             bank_account_holder?: string | null;
             /** Bank Iban */
@@ -1933,8 +2023,6 @@ export interface components {
             newsletter_opt_in?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "user") | null;
-            /** Company Object Id */
-            company_object_id?: number | null;
             /** Department */
             department?: string | null;
             /** Job Title */
@@ -2500,6 +2588,19 @@ export interface components {
             place?: components["schemas"]["PlaceRef"] | null;
         };
         /**
+         * NewCompany
+         * @description Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder
+         *     wird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``).
+         */
+        NewCompany: {
+            /** Company Name */
+            company_name: string;
+            /** Legal Form */
+            legal_form: string;
+            /** Uid Number */
+            uid_number?: string | null;
+        };
+        /**
          * ObjectResolution
          * @description Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs).
          */
@@ -2801,6 +2902,29 @@ export interface components {
              */
             invoice: string;
             billing: components["schemas"]["PaymentBilling"];
+        };
+        /**
+         * PersonCreate
+         * @description ►►► **Eine Person anlegen** – das Minimum ist Vorname, Nachname, E-Mail und Rolle.
+         *     ◄◄◄ Sie bekommt sofort eine Objektnummer und ein Firebase-Konto; meldet sie sich
+         *     später mit dieser E-Mail an, ist sie **dieser** Datensatz, samt Historie.
+         */
+        PersonCreate: {
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Role
+             * @default user
+             * @enum {string}
+             */
+            role: "admin" | "employee" | "user";
+            /** Company Object Id */
+            company_object_id?: number | null;
+            new_company?: components["schemas"]["NewCompany"] | null;
         };
         /**
          * PlaceRef
@@ -3555,22 +3679,6 @@ export interface components {
             invoice_email: string | null;
             /** Date Of Birth */
             date_of_birth: string | null;
-            /** Company Name */
-            company_name: string | null;
-            /** Legal Form */
-            legal_form: string | null;
-            /** Uid Number */
-            uid_number: string | null;
-            /** Vat Number */
-            vat_number: string | null;
-            /** Vat Registered */
-            vat_registered: boolean;
-            /** Trade Register Nr */
-            trade_register_nr: string | null;
-            /** Trade Register Canton */
-            trade_register_canton: string | null;
-            /** Company Website */
-            company_website: string | null;
             /** Bank Account Holder */
             bank_account_holder: string | null;
             /** Bank Iban */
@@ -3581,6 +3689,7 @@ export interface components {
             bank_name: string | null;
             /** Company Object Id */
             company_object_id: number | null;
+            company?: components["schemas"]["CompanyRef"] | null;
             /** Department */
             department: string | null;
             /** Job Title */
@@ -3646,12 +3755,9 @@ export interface components {
             invoice_country?: string | null;
             /** Invoice Email */
             invoice_email?: string | null;
-            /** Company Name */
-            company_name?: string | null;
-            /** Legal Form */
-            legal_form?: string | null;
-            /** Uid Number */
-            uid_number?: string | null;
+            /** Company Object Id */
+            company_object_id?: number | null;
+            new_company?: components["schemas"]["NewCompany"] | null;
             /** Bank Account Holder */
             bank_account_holder?: string | null;
             /** Bank Iban */
@@ -5158,6 +5264,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"][];
+                };
+            };
+        };
+    };
+    create_erp_record_api_v1_erp_records_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_companies_api_v1_erp_companies_get: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyRef"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

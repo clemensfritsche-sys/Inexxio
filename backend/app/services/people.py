@@ -16,6 +16,7 @@ den Schlüssel **im Namen**.
 from typing import Any, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models import UserProfile
@@ -37,8 +38,6 @@ STAFF_ROLES = ("admin", "employee")
 #: Art. 26, dieselbe Angabe, die ``sites.legal_name`` an unserer eigenen Seite anhängt).
 #: Die **UID bleibt freiwillig**: nur MWST-pflichtige Firmen haben eine, und ein
 #: Pflichtfeld, das die Hälfte der Firmen nicht ausfüllen kann, ist keines.
-COMPANY_REQUIRES = (("legal_form", "Rechtsform"),)
-
 #: Die Felder der Rechnungsadresse, die der frühere Schalter als **Kopie** füllte.
 _INVOICE_COPY = ("first_name", "last_name", "address_line1", "address_line2",
                  "city", "postal_code", "country")
@@ -81,6 +80,15 @@ def repair_sql() -> tuple[str, ...]:
     clear = ", ".join(f"invoice_{f} = NULL" for f in _INVOICE_COPY)
     return (
         f"UPDATE user_profiles SET role = 'user' WHERE role NOT IN ({roles})",
+        # ►►► **Eine E-Mail ist klein geschrieben** (CRM Schritt 1) – sonst sind «Hans@x.ch»
+        # und «hans@x.ch» zwei Personen, und die Übernahme beim Login findet die erste
+        # nicht. Eine Kollision bleibt stehen (sie braucht einen Menschen); selbstbegrenzend.
+        "UPDATE user_profiles u SET email = lower(email) WHERE email <> lower(email) "
+        "AND NOT EXISTS (SELECT 1 FROM user_profiles o "
+        "WHERE o.id <> u.id AND lower(o.email) = lower(u.email))",
+        # **Jede Person hat ihre Nummer ab der Anlage** – die Registry zieht
+        # ``_backfill_object_registry`` danach nach. Vorher vergab der Feed sie beim Lesen.
+        "UPDATE user_profiles SET object_id = nextval('object_id_seq') WHERE object_id IS NULL",
         f"UPDATE user_profiles SET {clear} "
         f"WHERE coalesce(invoice_address_line1, '') <> '' AND {same}",
     )
@@ -92,51 +100,23 @@ def name(u: Optional[UserProfile]) -> Optional[str]:
 
 
 def is_business(u: Optional[UserProfile]) -> bool:
-    """►►► **Tritt diese Person als FIRMA auf?** ◄◄◄ Die eine Lesestelle – und die eine
-    Regel: *der Firmenname IST die Erklärung.*
-
-    Hier stand einmal ein Kontotyp (*Privat ↔ Geschäft*) mit einer dreistufigen Auflösung
-    daneben (Rolle erzwingt → gespeicherter Wert → aus dem Namen abgeleitet). Er sagte,
-    was der Name selbst sagt; die Frage hat genau eine Antwort, also auch nur eine Quelle.
-
-    *Jeder Leser fragt diese Funktion* – ein eigenes ``u.company_name and …`` an einer
-    Aufrufstelle wäre die Stelle, an der das Trimmen fehlt.
-    """
-    return u is not None and bool((u.company_name or "").strip())
+    """**Tritt diese Person als FIRMA auf?** – genau dann, wenn sie einer Firma zugeordnet
+    ist. Die Firma ist ein eigener Datensatz (CRM Schritt 1); ohne sie ist die Person
+    privat."""
+    return u is not None and u.company is not None
 
 
 def billing_name(u: Optional[UserProfile]) -> list[str]:
     """►►► **Wie diese Partei auf einem BELEG steht** – Firma zuerst. ◄◄◄
 
-    ``display_name`` ist bewusst **person-first** («Vorname Nachname → Firma → E-Mail»,
-    Notiz #291), und im ERP ist das richtig: man arbeitet mit Menschen.
-
-    Auf einer **Rechnung** ist es falsch. Schuldner ist die *Muster AG*, nicht der
-    Einkäufer, der dort arbeitet – und wer den Beleg bezahlt, braucht die Rechtsperson,
-    die er in seiner Buchhaltung führt.
-
-    Zurück kommen **Zeilen**, nicht ein Name: die Firma, und darunter die Person als
-    «z. H.», wenn beide da sind. Ohne Firma bleibt die Person – das ist der B2C-Fall und
-    korrekt.
-
-    ►►► **Und ob eine Firma dasteht, sagt der FIRMENNAME** (Testnotiz #1043). ◄◄◄
-    ``B2B und B2C brauchen keinen Schalter`` (#914) gilt damit wieder wörtlich: die
-    **Reihenfolge** (Firma zuerst, Person als «z. H.») ist dieselbe, und gefragt wird nur,
-    *ob* es eine Firma gibt. Gelesen wird sie über ``is_business`` und nicht roh – dort
-    steht das Trimmen.
-
-    Die **Rechtsform** gehört dazu: «Muster AG» ist eine Rechtsperson, «Muster» ist
-    keine. Zusammengesetzt wird sie an derselben einen Stelle wie bei unserer eigenen
-    Seite (``sites.legal_name``) – auch mit derselben Ausnahme, damit aus «Muster AG» +
-    «AG» nicht «Muster AG AG» wird.
-
-    *Zwei Formen einer Regel sind in Ordnung; zwei Regeln nicht – darum steht sie hier
-    neben ``display_name`` und nicht im Geldvorgang.*
-    """
+    ``display_name`` ist bewusst **person-first**, und im ERP ist das richtig. Auf einer
+    **Rechnung** ist Schuldner die *Muster AG*, nicht ihr Einkäufer: zurück kommen darum
+    **Zeilen** – die Firma (mit Rechtsform, ``sites.legal_name``) und darunter die Person
+    als «z. H.». Ohne Firma bleibt die Person – der B2C-Fall."""
     if u is None:
         return []
     person = " ".join(p for p in (u.first_name, u.last_name) if p).strip()
-    company = sites.legal_name(u) if is_business(u) else ""
+    company = sites.legal_name(u.company) if is_business(u) else ""
     if company and person:
         return [company, f"z. H. {person}"]
     return [company or person or u.email]
@@ -151,77 +131,41 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
 
 
 def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) -> None:
-    """►►► **Wer Mitarbeiter WIRD, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
+    """►►► **Personal gehört zu einer UNSERER Gesellschaften** (Testnotiz #905). ◄◄◄
 
-    Ohne diese Zuordnung kann ein Beleg nicht sagen, wer ihn stellt – er nähme still den
-    Betreiber, also die Gesellschaft, die die Website vertritt, auch wenn eine
-    Schwestergesellschaft fakturiert.
+    Die Zuordnung «Firma der Person» ist eine für alle (CRM Schritt 1): ein Kunde zeigt
+    auf seine Firma, ein Mitarbeiter auf unsere. Für Personal muss sie darum **eigen**
+    sein – auf einem Beleg steht, wer ihn stellt, und eine Kundenfirma stellt keine.
 
-    ►►► **Geprüft wird der ÜBERGANG, nicht der Bestand.** ◄◄◄ Das ist die eine
-    Feinheit, und sie ist bewusst so: eine Prüfung auf den *Zustand* machte jede
-    bestehende Personalzeile ohne Gesellschaft unbearbeitbar – man käme nicht einmal mehr
-    dazu, die Gesellschaft nachzutragen, ohne sie im selben Zug mitzuschicken. Die
-    Schreibstelle weist darum den **neuen** schlechten Zustand ab; den **bestehenden**
-    meldet der Geldvorgang als ``DataGap`` – dieselbe Arbeitsteilung wie überall:
-    *streng schreiben, tolerant lesen, Fehlendes benennen.*
-
-    Und die Gesellschaft muss es **geben**: eine Objektnummer, die auf nichts zeigt, ist
-    schlimmer als keine – sie sieht aus wie eine Zuordnung.
-    """
+    **Geprüft wird der ÜBERGANG, nicht der Bestand**: wer Personal *wird* oder als
+    Personal die Firma *wechselt*. Eine bestehende Zeile ohne Gesellschaft bleibt
+    bearbeitbar – ihre Lücke meldet der Beleg."""
+    role = fields.get("role", user.role)
+    if role not in STAFF_ROLES:
+        return
     company = fields["company_object_id"] if "company_object_id" in fields \
         else user.company_object_id
-    if company is not None and sites.by_object_id(db, company) is None:
-        raise HTTPException(
-            400, detail=f"«{company}» ist keine unserer Gesellschaften.")
-    role = fields.get("role", user.role)
-    if role in STAFF_ROLES and role != user.role and company is None:
-        raise HTTPException(
-            400,
-            detail=(f"«{user.display_name}» braucht eine Gesellschaft, um als "
-                    f"{'Administrator' if role == 'admin' else 'Mitarbeiter'} zu "
-                    f"arbeiten – auf einem Beleg steht, wer ihn stellt."),
-        )
-
-
-def assert_company(user: UserProfile, fields: dict[str, Any]) -> None:
-    """►►► **Wer eine Firma nennt, nennt ihre Rechtsform** (Testnotiz #1043). ◄◄◄
-
-    Das ist die **ganze** Regel, die vom Kontotyp übrig bleibt – und sie ist dieselbe wie
-    vorher, nur ohne den Schalter davor: «Muster» ist keine Rechtsperson, «Muster AG» ist
-    eine, und auf einem Beleg steht die, die haftet (MWSTG Art. 26). Geprüft
-    **serverseitig**, nicht nur am Feld: die Oberfläche ist die freundliche Hälfte, und sie
-    ist nicht der einzige Aufrufer (Konto, ERP, künftig ein Shop-Checkout schreiben
-    denselben Datensatz).
-
-    ►►► **Geprüft wird der ÜBERGANG, nicht der Bestand** – wie bei ``assert_employment``,
-    und aus demselben Grund: ◄◄◄ eine Prüfung auf den *Zustand* machte jede bestehende
-    Zeile ohne Rechtsform unbearbeitbar – man käme nicht einmal dazu, sie nachzutragen,
-    ohne sie im selben Zug mitzuschicken. Abgewiesen wird darum, wer den **neuen**
-    schlechten Zustand herstellt: wer einen Firmennamen *setzt* oder eine Pflichtangabe
-    *leert*. Den bestehenden meldet der Beleg als ``DataGap`` – *streng schreiben,
-    tolerant lesen, Fehlendes benennen.*
-
-    **Den Namen zu leeren ist erlaubt**: das heisst «ist keine Firma mehr», und dann gibt
-    es nichts zu verlangen. Genau das ersetzt den Schalter.
-    """
-    after = {f: fields[f] if f in fields else getattr(user, f)
-             for f in ("company_name",) + tuple(f for f, _ in COMPANY_REQUIRES)}
-    if not (after["company_name"] or "").strip():
+    if role == user.role and "company_object_id" not in fields:
         return
-    naming = ("company_name" in fields
-              and (fields["company_name"] or "").strip() != (user.company_name or "").strip())
-    emptying = any(f in fields and not (fields[f] or "").strip()
-                   for f, _ in COMPANY_REQUIRES)
-    if not (naming or emptying):
-        return
-    gaps = tuple(label for f, label in COMPANY_REQUIRES if not (after[f] or "").strip())
-    if gaps:
+    who = "Administrator" if role == "admin" else "Mitarbeiter"
+    if company is None:
         raise HTTPException(
-            400,
-            detail=(f"«{after['company_name']}» ist ein Firmenname – "
-                    f"{' und '.join(gaps)} {'fehlen' if len(gaps) > 1 else 'fehlt'}: "
-                    f"auf einem Beleg steht die Rechtsperson, nicht ihr Vertreter."),
-        )
+            400, detail=(f"«{user.display_name}» braucht eine unserer Gesellschaften, um als "
+                         f"{who} zu arbeiten – auf einem Beleg steht, wer ihn stellt."))
+    sites.require_own(db, company, what=f" – «{user.display_name}» arbeitet als {who}")
+
+
+def _company_fields(db: Session, fields: dict[str, Any], actor_id: Optional[int]) -> None:
+    """Die Firma auflösen: eine **genannte** (``new_company``) wird gefunden oder angelegt
+    und wird zur gewählten. Eine **gewählte** muss es geben. Schreibt in ``fields``."""
+    new = fields.pop("new_company", None)
+    if new:
+        fields["company_object_id"] = sites.resolve_for_person(db, new, actor_id).object_id
+    oid = fields.get("company_object_id")
+    if oid is not None:
+        company = sites.by_object_id(db, oid)
+        if company is None or not company.is_active:
+            raise HTTPException(400, detail=f"«{oid}» ist keine Firma.")
 
 
 def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) -> UserProfile:
@@ -238,10 +182,10 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) ->
 
     **Die Anstellungsregel steht hier und nicht im Router** (``assert_employment``): die
     Tür ist nicht der einzige Aufrufer, und zwei Oberflächen schreiben denselben
-    Datensatz. **Dasselbe gilt für die Rechtsperson** (``assert_company``)."""
+    Datensatz. **Dasselbe gilt für die Firma** (``_company_fields``)."""
     fields = data.model_dump(exclude_unset=True)
+    _company_fields(db, fields, actor_id)
     assert_employment(db, user, fields)
-    assert_company(user, fields)
     for key, value in fields.items():
         old_val = getattr(user, key, None)
         old_str = str(old_val) if old_val is not None else None
@@ -251,3 +195,137 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) ->
                       object_id=user.object_id, old_value=old_str)
         setattr(user, key, value)
     return user
+
+
+def normalize_email(email: Optional[str]) -> str:
+    """Eine E-Mail-Adresse, wie sie gespeichert und verglichen wird: **klein**, ohne Rand."""
+    return (email or "").strip().lower()
+
+
+def by_email(db: Session, email: Optional[str]) -> Optional[UserProfile]:
+    """Die Person zu dieser E-Mail – ohne Rücksicht auf Gross-/Kleinschreibung."""
+    key = normalize_email(email)
+    if not key:
+        return None
+    return db.query(UserProfile).filter(func.lower(UserProfile.email) == key).first()
+
+
+def firebase_uid_for(email: str, name: str) -> str:
+    """►►► **Das Firebase-Konto zu dieser E-Mail** – gefunden oder angelegt. ◄◄◄
+
+    Eine intern angelegte Person bekommt ihr Konto **sofort**: meldet sie sich später an
+    (Magic Link, Google mit derselben Adresse), ist sie über die UID direkt **dieser**
+    Datensatz – samt Historie. Gibt es das Konto schon, wird es übernommen."""
+    from firebase_admin import auth as fb
+    from ..core.auth import _init_firebase
+    _init_firebase()
+    try:
+        return fb.get_user_by_email(email).uid
+    except fb.UserNotFoundError:
+        pass
+    try:
+        return fb.create_user(email=email, display_name=name or None,
+                              email_verified=False).uid
+    except Exception as e:      # noqa: BLE001 – der Dienst nennt den Grund
+        raise HTTPException(502, detail=f"Das Anmeldekonto für «{email}» liess sich nicht "
+                                        f"anlegen: {e}")
+
+
+def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
+    """►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄
+
+    Minimum: Vorname, Nachname, E-Mail, Rolle. Die Objektnummer entsteht **sofort**, das
+    Firebase-Konto ebenso; die E-Mail ist klein geschrieben und einmalig. Personal-Rollen
+    vergibt nur ein Admin – wie an jeder anderen Stelle. Committet."""
+    from .objects import next_object_id
+    fields = data.model_dump(exclude_unset=True)
+    first = (fields.pop("first_name", "") or "").strip()
+    last = (fields.pop("last_name", "") or "").strip()
+    email = normalize_email(fields.pop("email", ""))
+    role = fields.pop("role", "user") or "user"
+    missing = [label for label, v in (("Vorname", first), ("Nachname", last),
+                                      ("E-Mail", email)) if not v]
+    if missing:
+        raise HTTPException(400, detail=f"Für eine neue Person fehlt: {', '.join(missing)}.")
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(400, detail=f"«{email}» ist keine E-Mail-Adresse.")
+    if role in STAFF_ROLES and actor.role != "admin":
+        raise HTTPException(403, detail="Personal-Rollen vergibt nur ein Admin.")
+    taken = by_email(db, email)
+    if taken is not None:
+        raise HTTPException(409, detail=f"«{email}» gehört bereits {taken.object_id} "
+                                        f"{taken.display_name}.")
+    user = UserProfile(first_name=first, last_name=last, email=email, role="user",
+                       firebase_uid="")
+    _company_fields(db, fields, actor.id)
+    assert_employment(db, user, {"role": role, **fields})
+    uid = firebase_uid_for(email, f"{first} {last}")
+    if db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first() is not None:
+        raise HTTPException(409, detail=f"Das Anmeldekonto zu «{email}» gehört bereits "
+                                        f"einer anderen Person.")
+    user.firebase_uid = uid
+    user.role = role
+    user.company_object_id = fields.get("company_object_id")
+    user.object_id = next_object_id(db, "user")
+    db.add(user)
+    db.flush()
+    log_audit(db, "user_profiles", None, f"Person «{user.display_name}» angelegt",
+              actor.id, object_id=user.object_id)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+#: ►►► **Die Firmenangaben, die von der Person zur Firma gewandert sind** (CRM Schritt 1).
+#: Migration ``142`` **und** das Lifespan-Netz lesen diese eine Liste – die dev-Datenbank
+#: fährt kein ``alembic upgrade head`` (#778).
+MOVED_COLUMNS = ("company_name", "legal_form", "uid_number", "vat_number", "vat_registered",
+                 "trade_register_nr", "trade_register_canton", "company_website")
+
+
+def move_company_texts(conn) -> int:
+    """►►► **Aus dem Firmentext an der Person wird ein Firmen-DATENSATZ.** ◄◄◄
+
+    Je Person mit Firmenname und ohne Zuordnung: gleiche UID → dieselbe Firma; sonst exakt
+    gleicher Name **und** Rechtsform → dieselbe Firma (``sites.match`` – dieselbe Regel wie
+    bei der Eingabe); sonst eine **neue, fremde** Firma. Unscharfes wird nicht
+    zusammengeführt. Läuft auf einer rohen Verbindung (Migration wie Lifespan) und ist
+    **selbstbegrenzend**: danach fallen die Spalten, und ohne sie gibt es nichts zu tun.
+    Gibt die Zahl der verknüpften Personen zurück."""
+    from sqlalchemy import text
+    cols = {r[0] for r in conn.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='user_profiles'"))}
+    if "company_name" not in cols:
+        return 0
+    pick = ", ".join(c if c in cols else f"NULL AS {c}"
+                     for c in ("company_name", "legal_form", "uid_number", "vat_number"))
+    rows = conn.execute(text(
+        f"SELECT id, {pick} FROM user_profiles "
+        "WHERE coalesce(trim(company_name), '') <> '' AND company_object_id IS NULL")).all()
+    registry = conn.execute(text("SELECT to_regclass('public.objects')")).scalar()
+    known = [list(r) for r in conn.execute(text(
+        "SELECT object_id, company_name, legal_form, uid_number, vat_number "
+        "FROM company_settings WHERE is_active AND object_id IS NOT NULL")).all()]
+    for pid, name, form, uid_nr, vat in rows:
+        key = sites._norm_uid(uid_nr) or sites._norm_uid(vat)
+        hit = next((k for k in known if key and key in
+                    (sites._norm_uid(k[3]), sites._norm_uid(k[4]))), None)
+        hit = hit or next((k for k in known if sites._norm_name(k[1]) == sites._norm_name(name)
+                           and sites._norm_name(k[2]) == sites._norm_name(form)), None)
+        if hit is None:
+            oid = conn.execute(text("SELECT nextval('object_id_seq')")).scalar()
+            conn.execute(text(
+                "INSERT INTO company_settings (object_id, is_operator, is_active, is_own, "
+                "currency, company_name, legal_form, country, uid_number, vat_number, email) "
+                "VALUES (:o, false, true, false, 'CHF', :n, :f, '', :u, :v, '')"),
+                {"o": oid, "n": name.strip(), "f": (form or "").strip(),
+                 "u": uid_nr, "v": vat})
+            if registry:    # sonst zieht ``_backfill_object_registry`` sie nach
+                conn.execute(text(
+                    "INSERT INTO objects (object_id, object_type, created_at) "
+                    "VALUES (:o, 'organization', now()) ON CONFLICT DO NOTHING"), {"o": oid})
+            hit = [oid, name, form, uid_nr, vat]
+            known.append(hit)
+        conn.execute(text("UPDATE user_profiles SET company_object_id = :o WHERE id = :i"),
+                     {"o": hit[0], "i": pid})
+    return len(rows)

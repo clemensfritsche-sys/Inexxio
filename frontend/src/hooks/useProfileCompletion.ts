@@ -31,11 +31,6 @@ const REQUIRED: RequiredField[] = [
   { section: 'profile', field: 'address_line1' },
   { section: 'profile', field: 'city' },
   { section: 'profile', field: 'postal_code' },
-  // Mein Profil – Firmendaten: der Name ist die Erklärung, die Rechtsform seine Folge.
-  {
-    section: 'profile', field: 'legal_form',
-    condition: (p) => !!(p.company_name ?? '').trim(),
-  },
 ];
 
 function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {

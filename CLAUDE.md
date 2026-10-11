@@ -4888,6 +4888,33 @@
 > 21 Aussagen am gerenderten Baum (kein Minus auf der Karte, kein Zahlungsdienst an einer
 > Gutschrift, «Buchen» gesperrt mit Grund, der Wähler wird zum Suchfeld).
 
+> ►►► **CRM SCHRITT 1 — DIE FIRMA IST EIN DATENSATZ, UND EINE PERSON BRAUCHT KEIN LOGIN**
+> (Migration `142`). ◄◄◄
+> **(1) Ein Datensatztyp für jede Firma** (`company_settings`, Typ `organization`):
+> eigene Gesellschaften, Kunden, Lieferanten. Unterschieden wird über **`is_own`**
+> («eigenes Unternehmen», setzt nur ein Admin) – Kunde ↔ Lieferant bleibt eine Eigenschaft
+> des **Vorgangs**. Nur eine eigene stellt Belege, beschäftigt Personal, besitzt Gebiete,
+> trägt Bank/Währung und kann Betreiber sein; die eine Prüfung ist `sites.require_own`,
+> und jede Auswahl (`selectable_companies`, `find_operator`) filtert darauf. Fremde Firmen
+> legt und pflegt **jedes Personal**, eigene nur ein Admin.
+> **(2) Die Firma der Person ist eine Zuordnung, kein Text** (`user_profiles.
+> company_object_id` – eine für alle; für Personal muss sie eigen sein,
+> `people.assert_employment`). Firmenname, Rechtsform, UID, MWST, Handelsregister und
+> Website an der Person sind **gefallen**; gelesen wird `u.company` (Beleg, QR, Suche).
+> Gewählt wird sie über **ein** Bauteil (`components/erp/company-field.tsx`, Konto und ERP);
+> eine **neu genannte** Firma wird erst gesucht (`sites.match`: gleiche UID, oder gleicher
+> Name **und** Rechtsform – nie unscharf) und nur sonst angelegt. Ihre Angaben ändert man
+> an ihrem Datensatz, nicht an der Person. Die Übernahme der alten Firmentexte
+> (`people.move_company_texts`) nutzt dieselbe Regel und läuft in Migration **und**
+> Lifespan-Netz.
+> **(3) Eine Person anlegen** (`POST /erp/records`, `people.create_person`): Vorname,
+> Nachname, E-Mail, Rolle – Objektnummer und **Firebase-Konto** entstehen sofort; meldet
+> sie sich später mit dieser E-Mail an, ist sie über die UID **dieser** Datensatz. Die
+> **E-Mail ist immer klein** und einmalig; die Übernahme über die E-Mail verlangt eine
+> **bestätigte** Adresse (`email_verified`). Personal-Rollen vergibt nur ein Admin. Einen
+> Status «inaktiv» für Personen gibt es nicht.
+> Wächter: `tests/test_user_record.py` (5 neue) + 3 in `test_frontend_mirrors.py`.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -5086,8 +5113,8 @@ Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by
 ## Wichtige Entscheide
 - **Die Rolle ist der Zugang** (#1043): *darf diese Person ins ERP?* – Admin ·
   Mitarbeiter · Benutzer, und das ist alles. **Lieferant ↔ Kunde ist eine Eigenschaft des
-  Vorgangs**, nicht der Person. Ob jemand als **Firma** auftritt, sagt sein
-  **Firmenname** (gesetzt ⇒ Rechtsform Pflicht); die Bankverbindung hängt an nichts.
+  Vorgangs**, nicht der Person. Ob jemand für eine **Firma** auftritt, sagt seine
+  **Zuordnung** zu einem Firmen-Datensatz (CRM Schritt 1); die Bankverbindung hängt an nichts.
 - **Artikel haben keine Versionierung**: Änderung → neuer Artikel, und der **Nachfolger**
   nennt seinen Vorgänger (`replaces_object_id` bei der Anlage → `replaced_by_id`). Ersetzen
   **bedeutet** ausser Betrieb nehmen – ein Vorgang, ein Aufruf.

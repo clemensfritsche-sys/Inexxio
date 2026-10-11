@@ -148,14 +148,15 @@ def find_operator(db: Session) -> CompanySettings | None:
     wo der Aufruf innerhalb einer fremden Transaktion läuft."""
     chosen = (
         db.query(CompanySettings)
-        .filter(CompanySettings.is_operator == True, CompanySettings.is_active == True)
+        .filter(CompanySettings.is_operator == True, CompanySettings.is_active == True,
+                CompanySettings.is_own == True)
         .first()
     )
     if chosen is not None:
         return chosen
     return (
         db.query(CompanySettings)
-        .filter(CompanySettings.is_active == True)
+        .filter(CompanySettings.is_active == True, CompanySettings.is_own == True)
         .order_by(CompanySettings.id)
         .first()
     )
@@ -174,7 +175,7 @@ def operator(db: Session) -> CompanySettings:
         # die Wahl sichtbar und stabil (der Fallback ist nur das Sicherheitsnetz).
         # Die Id kommt aus der Sequenz – eine fest gesetzte 1 liesse sie stehen, und der
         # nächste Einfüger bekäme sie ein zweites Mal.
-        company = CompanySettings(is_operator=True)
+        company = CompanySettings(is_operator=True, is_own=True)
         db.add(company)
         db.commit()
         db.refresh(company)
@@ -206,7 +207,7 @@ def selectable_companies(db: Session) -> list[CompanySettings]:
     """Die **wählbaren** Unternehmen (aktiv) – wem lässt sich ein Gebiet zuweisen, wer kann
     fakturieren? Einer geschlossenen Gesellschaft weist man nichts mehr zu; sie erscheint
     weiterhin im Feed (``all_companies``), aber nicht mehr in einer Auswahl."""
-    return [c for c in all_companies(db) if c.is_active]
+    return [c for c in all_companies(db) if c.is_active and c.is_own]
 
 
 def by_object_id(db: Session, object_id: int | None) -> CompanySettings | None:
@@ -226,6 +227,21 @@ def require(db: Session, object_id: int) -> CompanySettings:
     return company
 
 
+def require_own(db: Session, object_id: int | None, *, what: str = "") -> CompanySettings:
+    """►►► **Genau diese Gesellschaft – und sie muss eine UNSERER sein.** ◄◄◄
+
+    Seit dieselbe Tabelle jede Firma trägt (CRM Schritt 1), ist «gibt es sie?» nicht mehr
+    dieselbe Frage wie «ist sie unsere?». Wer einen Beleg stellt, Personal beschäftigt,
+    ein Gebiet besitzt oder die Website betreibt, muss eine **eigene** und **offene**
+    Gesellschaft sein – sonst stünde die IBAN eines Kunden im Einzahlungsschein. Die eine
+    Prüfung dafür; der Satz nennt die Nummer."""
+    company = by_object_id(db, object_id)
+    if company is None or not company.is_own or not company.is_active:
+        raise HTTPException(
+            400, detail=f"«{object_id}» ist keine unserer Gesellschaften{what}.")
+    return company
+
+
 def is_operator(db: Session, company: CompanySettings) -> bool:
     """Ist diese Gesellschaft der Betreiber? Liest die **effektive** Rolle (inkl. Alters-
     Fallback, falls noch keine markiert ist) – so stimmt die Anzeige mit ``find_operator``
@@ -241,6 +257,7 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
     zwei ``true`` gar nicht erst zu; das explizite Löschen macht den Wechsel atomar statt auf
     einen Constraint-Fehler zu laufen). Nur der Betreiber trägt die Plattform-Konfiguration
     – die Angaben ziehen also mit; das ist gewollt (die eine Website hat einen Absender)."""
+    require_own(db, company.object_id)
     db.query(CompanySettings).filter(CompanySettings.id != company.id).update(
         {CompanySettings.is_operator: False})
     company.is_operator = True
@@ -276,10 +293,11 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
                         "eine andere Gesellschaft zum Betreiber machen.")
     others = (
         db.query(CompanySettings.id)
-        .filter(CompanySettings.id != company.id, CompanySettings.is_active == True)
+        .filter(CompanySettings.id != company.id, CompanySettings.is_active == True,
+                CompanySettings.is_own == True)
         .count()
     )
-    if others == 0:
+    if others == 0 and company.is_own:
         raise HTTPException(409, detail="Das letzte Unternehmen kann nicht geschlossen werden")
     db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
     company.is_active = False
@@ -385,7 +403,7 @@ def set_territory(db: Session, area: str, company_object_id: int | None,
     code = geography.normalize_area(area)
     if code is None:
         raise HTTPException(400, detail="Unbekanntes Gebiet")
-    company = by_object_id(db, company_object_id) if company_object_id else None
+    company = require_own(db, company_object_id) if company_object_id else None
     row = db.query(CompanyTerritory).filter(CompanyTerritory.region == code).first()
     if company is None or company.id == _default_owner_id(db, code):
         if row is not None:
@@ -436,62 +454,172 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
             log_audit(db, "company_settings", key, str(value), actor_id, object_id=company.object_id)
 
 
-def create(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
-    """Neue **Gesellschaft** anlegen (nur Admin, siehe Router) – vollwertig, gleichrangig.
+#: Angaben, die nur eine **eigene** Gesellschaft trägt – eine fremde Firma hat bei uns
+#: keine Bankverbindung, auf die wir Rechnungen ausstellen, und keine Funktionswährung.
+OWN_FIELDS = ("iban", "currency")
 
-    ►►► **Die Id kommt aus der Sequenz.** ◄◄◄ Hier stand ``max(id) + 1`` mit der
-    Begründung, ``company_settings.id`` trage keine Sequence – *das stimmt nicht mehr*:
-    gemessen führt die Spalte in **beiden** Schemata (gewachsen wie nur aus den
-    Migrationen gebaut) ein ``nextval``. Eine zweite Nummernvergabe daneben ist ein
-    Check-then-Act, den der Lock nur zudeckt, und sie lässt die Sequenz zurückfallen –
-    der nächste Einfüger, der sie *doch* benutzt, bekommt eine vergebene Nummer.
 
-    Der Lock auf den Betreiber bleibt: er serialisiert die **Betreiber-Wahl**, nicht die
-    Nummernvergabe."""
-    op = operator(db)
-    db.query(CompanySettings).filter(CompanySettings.id == op.id).with_for_update().first()
+def _norm_uid(value: str | None) -> str:
+    """Eine UID ohne Satzzeichen, gross geschrieben – «CHE-123.456.789 MWST» und
+    «che123456789» sind dieselbe Nummer."""
+    raw = "".join(ch for ch in (value or "").upper() if ch.isalnum())
+    return raw.removesuffix("MWST").removesuffix("TVA").removesuffix("IVA")
 
+
+def _norm_name(value: str | None) -> str:
+    return " ".join((value or "").split()).casefold()
+
+
+def match(db: Session, *, name: str, legal_form: str = "",
+          uid: str | None = None) -> CompanySettings | None:
+    """►►► **Gibt es diese Firma schon?** – nur bei EINDEUTIGER Gleichheit. ◄◄◄
+
+    Gleiche UID → dieselbe Firma. Sonst exakt gleicher Name **und** gleiche Rechtsform
+    (Gross-/Kleinschreibung und Leerzeichen zählen nicht). Alles Unscharfe bleibt
+    getrennt: «Muster AG» ↔ «Muster Aktiengesellschaft» zusammenzulegen hiesse, zwei
+    Rechtspersonen zu einer zu machen, wenn man sich irrt – zwei Datensätze für eine sind
+    der harmlosere Fehler. Dieselbe Regel liest die Datenübernahme und die Eingabe."""
+    rows = db.query(CompanySettings).filter(CompanySettings.is_active == True).all()
+    key = _norm_uid(uid)
+    if key:
+        for c in rows:
+            if key in (_norm_uid(c.uid_number), _norm_uid(c.vat_number)):
+                return c
+    n, f = _norm_name(name), _norm_name(legal_form)
+    for c in rows:
+        if _norm_name(c.company_name) == n and _norm_name(c.legal_form) == f:
+            return c
+    return None
+
+
+def search(db: Session, query: str, limit: int = 8) -> list[CompanySettings]:
+    """Firmen für die Vorschlagsliste – Nummer **oder** Name (``services/lookup``), nur
+    offene. Wer eine Firma eingibt, soll die bestehende finden, bevor er eine zweite
+    anlegt."""
+    from . import lookup
+    return (
+        db.query(CompanySettings)
+        .filter(CompanySettings.is_active == True, CompanySettings.object_id.isnot(None),
+                lookup.matches(query, CompanySettings.object_id,
+                               CompanySettings.company_name, CompanySettings.uid_number))
+        .order_by(CompanySettings.is_own.desc(), CompanySettings.company_name)
+        .limit(limit)
+        .all()
+    )
+
+
+def _new(db: Session, data: dict, actor_id: int | None, *, own: bool) -> CompanySettings:
+    """Eine Firma anlegen – **ohne** zu committen (der Aufrufer führt die Transaktion).
+
+    **Name und Rechtsform sind Pflicht**: «Muster» ist keine Rechtsperson, «Muster AG» ist
+    eine, und auf einem Beleg steht die, die haftet. Eine fremde Firma erbt nichts von
+    uns – keine E-Mail, keine Währung, kein Land: was sie nicht nennt, ist leer."""
     name = (data.get("company_name") or "").strip()
+    form = (data.get("legal_form") or "").strip()
     if not name:
         raise HTTPException(400, detail="Name des Unternehmens fehlt")
-
-    # **Die Id kommt aus der Sequenz.** Hier stand ``max(id) + 1`` – eine zweite
-    # Nummernvergabe neben der, die die Spalte ohnehin hat, und bei zwei gleichzeitigen
-    # Anlagen dieselbe Zahl zweimal.
-    company = CompanySettings(company_name=name)
-    _apply_entity_fields(company, {k: v for k, v in data.items() if k != "company_name"},
+    if not form:
+        raise HTTPException(
+            400, detail=f"«{name}» braucht eine Rechtsform – auf einem Beleg steht die "
+                        f"Rechtsperson, nicht ihr Name allein.")
+    if not own and any(data.get(k) for k in OWN_FIELDS):
+        raise HTTPException(400, detail="Bankverbindung und Währung gibt es nur bei "
+                                        "einer unserer Gesellschaften.")
+    company = CompanySettings(company_name=name, legal_form=form, is_own=own,
+                              email="", country="")
+    _apply_entity_fields(company, {k: v for k, v in data.items()
+                                   if k not in ("company_name", "legal_form")},
                          db, actor_id)
-    # Ohne Land-Angabe das des Betreibers erben: die Adress-Klassifikation vergleicht Länder
-    # mit, ein leeres Land liesse einen Inland-Standort wie Ausland aussehen. (Eine US-
-    # Gesellschaft setzt ihr Land ohnehin selbst – geerbt wird nur, wenn das Feld leer bleibt.)
-    if not company.country:
-        company.country = op.country
-    # Währung aus dem Land vorbelegen, sofern nicht ausdrücklich gesetzt (US → USD, DE → EUR).
-    if "currency" not in data or not (data.get("currency") or "").strip():
-        company.currency = currency_for_country(company.country)
+    if own:
+        op = find_operator(db)
+        if not company.country and op is not None:
+            company.country = op.country
+        if not (data.get("currency") or "").strip():
+            company.currency = currency_for_country(company.country)
+    company.object_id = next_object_id(db, "organization")
     db.add(company)
-    db.commit()
-    db.refresh(company)
-    _assign_object_id(db, company)
-
-    log_audit(db, "company_settings", None, f"Unternehmen «{company.company_name}» angelegt",
+    db.flush()
+    log_audit(db, "company_settings", None, f"Unternehmen «{legal_name(company)}» angelegt",
               actor_id, object_id=company.object_id)
-    db.commit()
     return company
 
 
-def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: int | None) -> CompanySettings:
-    """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
-    Betreiber). **Plattform-Felder werden ignoriert** – die laufen über
-    ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.
+def create(db: Session, data: dict, actor_id: int | None, *,
+           own: bool = False) -> CompanySettings:
+    """Neue Firma anlegen und festschreiben. ``own`` setzt nur ein Admin (Router).
 
-    **Der Name ist hart erforderlich** (Testnotiz #301) – nicht als Formular-Kosmetik,
-    sondern weil er zugleich das **Halter-Label** ist: ``locations.location_label`` gibt
-    für einen ``company``-Halter genau dieses Feld zurück. Eine namenlose Gesellschaft
-    liesse jede Standort-Anzeige leer, die auf sie zeigt."""
+    ►►► **Die Id kommt aus der Sequenz** – nie ``max(id) + 1``. Der Lock auf den
+    Betreiber serialisiert die **Betreiber-Wahl**, nicht die Nummernvergabe."""
+    op = operator(db)
+    db.query(CompanySettings).filter(CompanySettings.id == op.id).with_for_update().first()
+    company = _new(db, data, actor_id, own=own)
+    db.commit()
+    db.refresh(company)
+    return company
+
+
+def resolve_for_person(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
+    """►►► **Die Firma, die eine Person nennt** – gefunden oder neu angelegt. ◄◄◄
+
+    Wer seine Firma eintippt, statt sie zu wählen, meint sehr oft eine, die es schon
+    gibt: zuerst wird darum **gesucht** (``match`` – eindeutige Gleichheit), und nur wenn
+    nichts passt, entsteht eine neue, **fremde** Firma. Eine eigene Gesellschaft entsteht
+    so nie – das ist eine Admin-Entscheidung am Datensatz. Committet nicht."""
+    found = match(db, name=data.get("company_name") or "",
+                  legal_form=data.get("legal_form") or "", uid=data.get("uid_number"))
+    if found is not None:
+        return found
+    allowed = {k: data.get(k) for k in ("company_name", "legal_form", "uid_number")}
+    return _new(db, allowed, actor_id, own=False)
+
+
+def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: int | None,
+                 *, admin: bool) -> CompanySettings:
+    """Felder einer Firma ändern – **derselbe Pfad für jede**.
+
+    * **Plattform-Felder werden ignoriert** – sie laufen über ``PATCH /admin/settings``.
+    * **Eine eigene Gesellschaft ändert nur ein Admin** (Bank, Rechtsidentität eines
+      Belegstellers); eine fremde Firma pflegt jeder Mitarbeiter.
+    * **«Eigenes Unternehmen» setzt nur ein Admin** – und nimmt es nur weg, wo nichts
+      daran hängt: nicht beim Betreiber, nicht bei einer Gesellschaft mit Personal. Ihre
+      Gebiete fallen dabei an den Betreiber zurück (wie beim Schliessen).
+    * **Der Name ist Pflicht** (zugleich das Halter-Label, #301)."""
+    if (company.is_own or "is_own" in data) and not admin:
+        raise HTTPException(403, detail=f"«{legal_name(company)}» ist eine unserer "
+                                        f"Gesellschaften – ändern darf sie nur ein Admin.")
     if "company_name" in data and not (data.get("company_name") or "").strip():
         raise HTTPException(400, detail="Name des Unternehmens fehlt")
+    if "legal_form" in data and not (data.get("legal_form") or "").strip():
+        raise HTTPException(400, detail=f"«{legal_name(company)}» braucht eine Rechtsform.")
+    own = bool(data.get("is_own", company.is_own))
+    if not own and any(data.get(k) for k in OWN_FIELDS):
+        raise HTTPException(400, detail="Bankverbindung und Währung gibt es nur bei "
+                                        "einer unserer Gesellschaften.")
+    if company.is_own and not own:
+        _assert_may_leave(db, company)
+    if own != company.is_own:
+        company.is_own = own
+        log_audit(db, "company_settings", "is_own", str(own).lower(), actor_id,
+                  object_id=company.object_id)
     _apply_entity_fields(company, data, db, actor_id)
     db.commit()
     db.refresh(company)
     return company
+
+
+def _assert_may_leave(db: Session, company: CompanySettings) -> None:
+    """Eine Gesellschaft hört auf, unsere zu sein – nur, wenn nichts daran hängt."""
+    from ..models import UserProfile
+    if is_operator(db, company):
+        raise HTTPException(409, detail=f"«{legal_name(company)}» betreibt die Website – "
+                                        f"zuerst eine andere Gesellschaft zum Betreiber machen.")
+    staff = (db.query(UserProfile)
+             .filter(UserProfile.company_object_id == company.object_id,
+                     UserProfile.role.in_(("admin", "employee")))
+             .count())
+    if staff:
+        raise HTTPException(409, detail=f"Bei «{legal_name(company)}» arbeiten {staff} "
+                                        f"Personen – sie brauchen zuerst eine andere "
+                                        f"unserer Gesellschaften.")
+    db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
+    company.iban_encrypted = None

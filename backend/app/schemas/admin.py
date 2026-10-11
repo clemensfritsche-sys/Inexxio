@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -32,13 +32,53 @@ class CompanySettingsUpdate(BaseModel):
     phone: Optional[str] = None
     plausible_domain: Optional[str] = None
     google_maps_api_key: Optional[str] = None
+    #: «Eigenes Unternehmen» – setzt nur ein Admin (``sites.apply_update``).
+    is_own: Optional[bool] = None
 
 
 class CompanyCreate(BaseModel):
-    """Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);
-    alle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –
-    wie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen)."""
+    """Neue **Firma** anlegen: Name und Rechtsform (die Rechtsperson), die UID freiwillig.
+    Alles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin."""
     company_name: str
+    legal_form: str = ""
+    uid_number: Optional[str] = None
+    is_own: bool = False
+
+
+class CompanyPerson(BaseModel):
+    """Eine Person, die zu dieser Firma gehört – für die Liste am Firmen-Datensatz."""
+    object_id: int
+    name: str
+    email: str
+    role: str
+
+
+class CompanyRef(BaseModel):
+    """**Die Firma einer Person** – so viel, wie man an der Person davon sieht. Gepflegt
+    wird sie an ihrem eigenen Datensatz; hier steht sie als Auskunft."""
+    model_config = ConfigDict(from_attributes=True)
+
+    object_id: int
+    company_name: str
+    legal_form: str
+    uid_number: Optional[str] = None
+    vat_number: Optional[str] = None
+    city: Optional[str] = None
+    is_own: bool = False
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def legal_name(self) -> str:
+        from ..services.sites import legal_name
+        return legal_name(self)
+
+
+class NewCompany(BaseModel):
+    """Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder
+    wird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``)."""
+    company_name: str
+    legal_form: str
+    uid_number: Optional[str] = None
 
 
 class CompanySettingsResponse(BaseModel):
@@ -55,6 +95,9 @@ class CompanySettingsResponse(BaseModel):
     # Aktiv? Eine geschlossene Gesellschaft bleibt als Datensatz lesbar (Halter historischer
     # Instanzen, Absender alter Belege), ist aber nicht mehr verwendbar – und **endgültig**.
     is_active: bool = True
+    #: Eine **unserer** Gesellschaften? Nur sie stellt Belege, beschäftigt Personal,
+    #: besitzt Gebiete und kann Betreiber sein.
+    is_own: bool = False
     company_name: str
     legal_form: str
     # ►►► **Der Datensatzname** – Unternehmensname, Abstand, Rechtsform (Testnotiz #910).
@@ -92,6 +135,8 @@ class CompanySettingsResponse(BaseModel):
     website: str = ""
     plausible_domain: Optional[str]
     google_maps_api_key: Optional[str]
+    #: Wer zu dieser Firma gehört – abgeleitet aus der Zuordnung an der Person.
+    people: list[CompanyPerson] = []
 
 
 class TerritoryRegion(BaseModel):
@@ -190,28 +235,17 @@ class UserProfileResponse(BaseModel):
     # Personal extras
     date_of_birth: Optional[date]
 
-    # Business / company info
-    #: ►►► **Der Firmenname IST die Erklärung** (Testnotiz #1043) – steht er da, tritt
-    #: dieser Datensatz als Firma auf. Ein zweites Feld ``account_type`` daneben sagte
-    #: dasselbe und konnte ihm widersprechen.
-    company_name: Optional[str]
-    legal_form: Optional[str]
-    uid_number: Optional[str]
-    vat_number: Optional[str]
-    vat_registered: bool
-    trade_register_nr: Optional[str]
-    trade_register_canton: Optional[str]
-    company_website: Optional[str]
-
     # Supplier bank details
     bank_account_holder: Optional[str]
     bank_iban: Optional[str]
     bank_bic: Optional[str]
     bank_name: Optional[str]
 
-    # Employee
-    #: Für welche unserer Gesellschaften diese Person arbeitet (Objektnummer).
+    #: ►►► **Die Firma der Person** – eigene (dann arbeitet sie bei uns) oder fremde.
     company_object_id: Optional[int]
+    company: Optional[CompanyRef] = None
+
+    # Employee
     department: Optional[str]
     job_title: Optional[str]
     employment_start_date: Optional[date]
@@ -260,15 +294,14 @@ class UserProfileUpdate(BaseModel):
     #: gesendeter Wert wird **verworfen**.
     invoice_email: Optional[str] = None
 
-    # ─── Firmenangaben ─────────────────────────────────────────────────────────
-    #: ►►► **Der Firmenname ist die Erklärung** (Testnotiz #1043). ◄◄◄ Wer ihn setzt,
-    #: tritt als Firma auf; wer ihn leert, als Privatperson. Ein Schalter ``account_type``
-    #: daneben war dieselbe Aussage ein zweites Mal – ein trotzdem gesendeter Wert wird
-    #: **verworfen**. Pflicht ist dann nur die **Rechtsform** (``people.assert_company``);
-    #: die UID bleibt freiwillig.
-    company_name: Optional[str] = None
-    legal_form: Optional[str] = None
-    uid_number: Optional[str] = None
+    # ─── Firma ─────────────────────────────────────────────────────────────────
+    #: ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Gewählt wird sie
+    #: (``company_object_id``, ``None`` = Privatperson) oder genannt (``new_company`` –
+    #: dann wird sie gefunden, wenn sie eindeutig dieselbe ist, sonst angelegt). Ihre
+    #: **Angaben** ändert man an ihrem Datensatz, nicht hier: sonst änderte jeder Kunde
+    #: die Firmendaten seiner Kollegen.
+    company_object_id: Optional[int] = None
+    new_company: Optional[NewCompany] = None
 
     # Bank details – an keine Rolle gebunden (#1043): eine Erstattung geht an einen
     # Privatkunden, eine Spesenabrechnung an einen Mitarbeiter.
@@ -308,11 +341,19 @@ class ErpAdminUpdate(UserProfileUpdate):
     # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
     # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.
     role: Optional[Role] = None
-    #: ►►► **Für welche Gesellschaft?** (Testnotiz #905) ◄◄◄ Eine Anstellungsangabe –
-    #: darum hier und **nicht** in ``UserProfileUpdate``: wer für wen arbeitet, entscheidet
-    #: nicht die Person selbst. Ohne sie wird niemand Mitarbeiter (``assert_employment``).
-    company_object_id: Optional[int] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None
     weekly_hours: Optional[Decimal] = None
+
+
+class PersonCreate(BaseModel):
+    """►►► **Eine Person anlegen** – das Minimum ist Vorname, Nachname, E-Mail und Rolle.
+    ◄◄◄ Sie bekommt sofort eine Objektnummer und ein Firebase-Konto; meldet sie sich
+    später mit dieser E-Mail an, ist sie **dieser** Datensatz, samt Historie."""
+    first_name: str
+    last_name: str
+    email: str
+    role: Role = "user"
+    company_object_id: Optional[int] = None
+    new_company: Optional[NewCompany] = None

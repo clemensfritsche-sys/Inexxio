@@ -74,6 +74,13 @@ class CompanySettings(Base):
     # eröffnet, legt ein neues Unternehmen an (Inhalte darf er abschreiben).
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False)
+    #: ►►► **Eine UNSERER Gesellschaften?** (CRM Schritt 1) ◄◄◄ Dieselbe Tabelle trägt
+    #: jede Firma – eigene, Kunden, Lieferanten. Kunde ↔ Lieferant ist eine Eigenschaft
+    #: des **Vorgangs**, «eigen» eine des **Datensatzes**: nur eine eigene stellt Belege,
+    #: beschäftigt Personal, besitzt Gebiete und kann Betreiber sein. Gesetzt nur von
+    #: Admins; gelesen ausschliesslich über ``services/sites.py``.
+    is_own: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
     # **Funktionswährung** der Gesellschaft (ISO-3, Default CHF). Wird aus dem Land
     # vorbelegt (``sites.currency_for_country``). Grundlage für «ein Preis, überall in
     # Landeswährung»: der Katalogpreis bleibt EIN kanonischer CHF-Betrag, Eingabe/Anzeige

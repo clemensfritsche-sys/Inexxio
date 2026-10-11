@@ -23,6 +23,9 @@ import type {
   Genealogy,
   StepRecord,
   CompanySettings,
+  CompanyPerson,
+  CompanyRef,
+  PersonCreate,
   UserProfile,
   TerritoryMap,
   Passkey,
@@ -348,8 +351,15 @@ class ApiClient {
     return this.get<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`).then(mapSettingsFromBackend);
   }
 
-  createCompany(companyName: string): Promise<CompanySettings> {
-    return this.post<Record<string, unknown>>('/api/v1/admin/companies', { company_name: companyName }).then(mapSettingsFromBackend);
+  /** Eine Firma anlegen – Name und Rechtsform sind Pflicht; ``is_own`` setzt nur ein Admin. */
+  createCompany(data: { company_name: string; legal_form: string; uid_number?: string | null;
+                        is_own?: boolean }): Promise<CompanySettings> {
+    return this.post<Record<string, unknown>>('/api/v1/admin/companies', data).then(mapSettingsFromBackend);
+  }
+
+  /** **Gibt es diese Firma schon?** – Vorschläge, während jemand seine Firma eintippt. */
+  searchCompanies(search: string): Promise<CompanyRef[]> {
+    return this.get(`/api/v1/erp/companies?search=${encodeURIComponent(search)}`);
   }
 
   updateCompany(objectId: number, data: Partial<CompanySettings>): Promise<CompanySettings> {
@@ -381,6 +391,11 @@ class ApiClient {
 
   getErpRecords(): Promise<UserProfile[]> {
     return this.get('/api/v1/erp/records');
+  }
+
+  /** Eine Person anlegen – Vorname, Nachname, E-Mail, Rolle; Nummer und Anmeldekonto sofort. */
+  createErpRecord(data: PersonCreate): Promise<UserProfile> {
+    return this.post('/api/v1/erp/records', data);
   }
 
   updateErpRecord(objectId: number, data: Partial<UserProfile>): Promise<UserProfile> {
@@ -824,6 +839,9 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     // has_address = trägt echte Ortsangaben (sonst logistisch stumm, ADR 005).
     is_operator: (s.is_operator as boolean) ?? false,
     is_active: (s.is_active as boolean) ?? true,
+    // «Eigenes Unternehmen» – eine unserer Gesellschaften (CRM Schritt 1).
+    is_own: (s.is_own as boolean) ?? false,
+    people: (s.people as CompanyPerson[] | undefined) ?? [],
     has_address: (s.has_address as boolean) ?? false,
     company_name: (s.company_name as string) ?? '',
     legal_form: (s.legal_form as string | null) ?? null,
@@ -869,7 +887,7 @@ function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unkno
   // `legal_name` ist ebenso abgeleitet (Name + Rechtsform, `sites.legal_name`) – es
   // zurückzuschicken wäre die zweite Wahrheit neben den beiden Feldern, aus denen es kommt.
   const skip = new Set(['iban_masked', 'website', 'is_operator', 'has_address', 'is_active',
-                        'legal_name']);
+                        'legal_name', 'people']);
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {
     if (skip.has(k)) continue;

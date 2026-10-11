@@ -164,7 +164,7 @@ def test_a_company_never_loses_its_name():
     Standort-Anzeige leer, die auf sie zeigt. Anlegen prüfte das schon immer; Ändern nicht."""
     from app.services import sites
 
-    for fn in (sites.create, sites.apply_update):
+    for fn in (sites._new, sites.apply_update):
         code = _code(fn)
         assert "company_name" in code and "400" in code, \
             f"{fn.__name__} muss einen leeren Namen ablehnen"
@@ -194,7 +194,7 @@ def test_creating_a_company_is_full_and_equal():
     """Anlegen setzt keinen Rang (kein ``is_primary=...``) und trägt volle Entitäts-Felder."""
     from app.services import sites
 
-    create_code = _code(sites.create)
+    create_code = _code(sites._new)
     assert "is_primary" not in create_code, "Anlegen darf keine Rang-Markierung setzen"
     assert "_apply_entity_fields" in create_code, "Anlegen trägt den vollen Entitäts-Feldsatz"
 

@@ -3,6 +3,7 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .config import get_settings
@@ -55,9 +56,11 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict, language: str
     name_parts = firebase_name.split(maxsplit=1) if firebase_name else []
     first = name_parts[0] if name_parts else None
     last = name_parts[1] if len(name_parts) > 1 else None
+    from ..services.objects import next_object_id
     user = UserProfile(
         firebase_uid=uid,
-        email=email,
+        email=email.strip().lower(),
+        object_id=next_object_id(db, "user"),
         first_name=first,
         last_name=last,
         photo_url=decoded.get("picture"),
@@ -88,10 +91,20 @@ def _resolve_user(db: Session, uid: str, email: str, decoded: dict, request: Req
     **Setzen kann diesen Zustand nichts mehr** (Testnotiz #755): man deaktiviert keinen
     Benutzer, man wechselt seine Rolle. Die Abweisung bleibt trotzdem stehen – sie ist
     genau der Schutz gegen das stille Wiederauferstehen, und sie kostet eine Zeile."""
+    from ..services.people import by_email
     user = db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first()
     if user is None and email:
-        # Firebase was reset: same email, new UID → reattach existing profile
-        user = db.query(UserProfile).filter(UserProfile.email == email).first()
+        # ►►► **Übernahme über die E-Mail – nur, wenn sie BESTÄTIGT ist** (CRM Schritt 1).
+        # Eine intern angelegte Person (oder ein Firebase-Reset) hat schon einen Datensatz
+        # mit dieser Adresse; wer sie nachweislich besitzt, ist diese Person. Ohne
+        # Bestätigung bekäme jeder, der eine Adresse eintippt, fremde Historie.
+        user = by_email(db, email)
+        if user is not None and not decoded.get("email_verified"):
+            raise HTTPException(
+                status_code=403,
+                detail=(f"Zu «{email}» gibt es bereits ein Konto – bitte über den "
+                        f"Anmeldelink per E-Mail anmelden, damit die Adresse bestätigt ist."),
+            )
         if user is not None and user.is_active:
             user.firebase_uid = uid
             db.commit()
@@ -119,9 +132,10 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
         user.role = "admin"
         changed = True
 
+    email = (email or "").strip().lower()
     if email and user.email != email:
         collision = db.query(UserProfile).filter(
-            UserProfile.email == email,
+            func.lower(UserProfile.email) == email,
             UserProfile.id != user.id,
             UserProfile.is_active == True,
         ).first()

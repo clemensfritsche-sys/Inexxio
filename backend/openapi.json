@@ -497,7 +497,7 @@
           "admin"
         ],
         "summary": "List Companies",
-        "description": "Alle Unternehmen, Betreiber (ältestes) zuerst.",
+        "description": "Alle Firmen – eigene und fremde, Betreiber zuerst. **Jeder Mitarbeiter** sieht sie:\neine Kundenfirma ist ein ganz gewöhnlicher ERP-Datensatz.",
         "operationId": "list_companies_api_v1_admin_companies_get",
         "responses": {
           "200": {
@@ -526,7 +526,7 @@
           "admin"
         ],
         "summary": "Create Company",
-        "description": "Neue Gesellschaft anlegen (nur Admin).\n\nSie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen\nkönnen dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –\nsobald sie eine eigene Anschrift trägt – automatisch als Versand statt als\ninnerbetriebliche Bewegung klassifiziert (ADR 005).",
+        "description": "Neue Firma anlegen – **jeder Mitarbeiter**; eine **eigene** Gesellschaft nur ein\nAdmin (``is_own``).\n\nSie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen\nkönnen dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –\nsobald sie eine eigene Anschrift trägt – automatisch als Versand statt als\ninnerbetriebliche Bewegung klassifiziert (ADR 005).",
         "operationId": "create_company_api_v1_admin_companies_post",
         "requestBody": {
           "content": {
@@ -619,7 +619,7 @@
           "admin"
         ],
         "summary": "Update Company",
-        "description": "Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.\n\nDie **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``\nignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe\nnicht an zwei Stellen editierbar ist.",
+        "description": "Felder einer Firma ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.\n\nDie **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``\nignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe\nnicht an zwei Stellen editierbar ist.",
         "operationId": "update_company_api_v1_admin_companies__object_id__patch",
         "security": [
           {
@@ -1031,6 +1031,104 @@
             "HTTPBearer": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Create Erp Record",
+        "description": "►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄\nVorname, Nachname, E-Mail, Rolle; Objektnummer und Anmeldekonto entstehen sofort\n(``people.create_person``). Personal-Rollen vergibt nur ein Admin.",
+        "operationId": "create_erp_record_api_v1_erp_records_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/companies": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Search Companies",
+        "description": "**Gibt es diese Firma schon?** – die Vorschläge, während jemand seine Firma\neintippt (Konto und ERP). Ab zwei Zeichen, höchstens acht, und nur, was auf einer\nVisitenkarte steht: Name, Rechtsform, Ort – die Kundenliste gibt es hier nicht.",
+        "operationId": "search_companies_api_v1_erp_companies_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyRef"
+                  },
+                  "title": "Response Search Companies Api V1 Erp Companies Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/erp/records/{object_id}": {
@@ -4441,6 +4539,27 @@
           "company_name": {
             "type": "string",
             "title": "Company Name"
+          },
+          "legal_form": {
+            "type": "string",
+            "title": "Legal Form",
+            "default": ""
+          },
+          "uid_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid Number"
+          },
+          "is_own": {
+            "type": "boolean",
+            "title": "Is Own",
+            "default": false
           }
         },
         "type": "object",
@@ -4448,7 +4567,104 @@
           "company_name"
         ],
         "title": "CompanyCreate",
-        "description": "Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);\nalle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –\nwie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen)."
+        "description": "Neue **Firma** anlegen: Name und Rechtsform (die Rechtsperson), die UID freiwillig.\nAlles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin."
+      },
+      "CompanyPerson": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name",
+          "email",
+          "role"
+        ],
+        "title": "CompanyPerson",
+        "description": "Eine Person, die zu dieser Firma gehört – für die Liste am Firmen-Datensatz."
+      },
+      "CompanyRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "legal_form": {
+            "type": "string",
+            "title": "Legal Form"
+          },
+          "uid_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid Number"
+          },
+          "vat_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Number"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "is_own": {
+            "type": "boolean",
+            "title": "Is Own",
+            "default": false
+          },
+          "legal_name": {
+            "type": "string",
+            "title": "Legal Name",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "company_name",
+          "legal_form",
+          "legal_name"
+        ],
+        "title": "CompanyRef",
+        "description": "**Die Firma einer Person** – so viel, wie man an der Person davon sieht. Gepflegt\nwird sie an ihrem eigenen Datensatz; hier steht sie als Auskunft."
       },
       "CompanySettingsResponse": {
         "properties": {
@@ -4481,6 +4697,11 @@
             "type": "boolean",
             "title": "Is Active",
             "default": true
+          },
+          "is_own": {
+            "type": "boolean",
+            "title": "Is Own",
+            "default": false
           },
           "company_name": {
             "type": "string",
@@ -4622,6 +4843,14 @@
               }
             ],
             "title": "Google Maps Api Key"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyPerson"
+            },
+            "type": "array",
+            "title": "People",
+            "default": []
           }
         },
         "type": "object",
@@ -4809,6 +5038,17 @@
               }
             ],
             "title": "Google Maps Api Key"
+          },
+          "is_own": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Own"
           }
         },
         "type": "object",
@@ -5105,38 +5345,26 @@
             ],
             "title": "Invoice Email"
           },
-          "company_name": {
+          "company_object_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Company Name"
+            "title": "Company Object Id"
           },
-          "legal_form": {
+          "new_company": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/NewCompany"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Legal Form"
-          },
-          "uid_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uid Number"
+            ]
           },
           "bank_account_holder": {
             "anyOf": [
@@ -5230,17 +5458,6 @@
               }
             ],
             "title": "Role"
-          },
-          "company_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Object Id"
           },
           "department": {
             "anyOf": [
@@ -6281,6 +6498,36 @@
         "title": "NeedSource",
         "description": "Eine Instanz, aus der genommen werden könnte — und wie viel dort frei liegt."
       },
+      "NewCompany": {
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "legal_form": {
+            "type": "string",
+            "title": "Legal Form"
+          },
+          "uid_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_name",
+          "legal_form"
+        ],
+        "title": "NewCompany",
+        "description": "Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder\nwird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``)."
+      },
       "ObjectResolution": {
         "properties": {
           "object_id": {
@@ -6891,6 +7138,61 @@
         ],
         "title": "PaymentSetup",
         "description": "►►► **Alles, was UNSERE Bezahlkarte braucht** – und nichts, was ihr fehlt. ◄◄◄\n\nKein Zustand am Geldvorgang: das Vorbereiten ändert dort keine Zeile. Gebucht wird\nerst, wenn das Geld wirklich da ist, und das meldet der Webhook – nicht der Browser\ndes Zahlenden.\n\nDer **öffentliche Schlüssel reist mit**, statt zur Bauzeit im Frontend zu stehen: die\nWebsite ist ein statischer Export, eine Variable darin wäre beim Schlüsselwechsel eine\nzweite Stelle – und ein Aufruf, der das Geheimnis holt, holt den Schlüssel gleich mit."
+      },
+      "PersonCreate": {
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "employee",
+              "user"
+            ],
+            "title": "Role",
+            "default": "user"
+          },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          },
+          "new_company": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NewCompany"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "email"
+        ],
+        "title": "PersonCreate",
+        "description": "►►► **Eine Person anlegen** – das Minimum ist Vorname, Nachname, E-Mail und Rolle.\n◄◄◄ Sie bekommt sofort eine Objektnummer und ein Firebase-Konto; meldet sie sich\nspäter mit dieser E-Mail an, ist sie **dieser** Datensatz, samt Historie."
       },
       "PlaceRef": {
         "properties": {
@@ -8375,87 +8677,6 @@
             ],
             "title": "Date Of Birth"
           },
-          "company_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Name"
-          },
-          "legal_form": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Legal Form"
-          },
-          "uid_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uid Number"
-          },
-          "vat_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Number"
-          },
-          "vat_registered": {
-            "type": "boolean",
-            "title": "Vat Registered"
-          },
-          "trade_register_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trade Register Nr"
-          },
-          "trade_register_canton": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trade Register Canton"
-          },
-          "company_website": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Website"
-          },
           "bank_account_holder": {
             "anyOf": [
               {
@@ -8510,6 +8731,16 @@
               }
             ],
             "title": "Company Object Id"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "department": {
             "anyOf": [
@@ -8637,14 +8868,6 @@
           "invoice_country",
           "invoice_email",
           "date_of_birth",
-          "company_name",
-          "legal_form",
-          "uid_number",
-          "vat_number",
-          "vat_registered",
-          "trade_register_nr",
-          "trade_register_canton",
-          "company_website",
           "bank_account_holder",
           "bank_iban",
           "bank_bic",
@@ -8865,38 +9088,26 @@
             ],
             "title": "Invoice Email"
           },
-          "company_name": {
+          "company_object_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Company Name"
+            "title": "Company Object Id"
           },
-          "legal_form": {
+          "new_company": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/NewCompany"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Legal Form"
-          },
-          "uid_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uid Number"
+            ]
           },
           "bank_account_holder": {
             "anyOf": [

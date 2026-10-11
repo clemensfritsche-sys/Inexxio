@@ -97,6 +97,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/auth/me | user | Eigenes Profil |
 | PATCH | /api/v1/auth/me | user | Eigenes Profil bearbeiten (Self-Service) |
 | POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
+| POST | /api/v1/erp/records | staff | **Person anlegen** (CRM Schritt 1) – Vorname, Nachname, E-Mail, Rolle (+ Firma). Objektnummer und Firebase-Konto sofort; E-Mail klein und einmalig (409 nennt den Besitzer); Personal-Rollen nur durch Admin |
+| GET | /api/v1/erp/companies?search= | user | **Firmen-Vorschläge** ab zwei Zeichen (Nummer, Name, UID), höchstens acht – für das Firmenfeld in Konto und ERP |
 | GET | /api/v1/erp/records | staff | Benutzer-Feed (Master-Detail) – **auch deaktivierte**: «inaktiv» ist ein Zustand, kein Verschwinden |
 | GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
 | GET/POST | /api/v1/erp/articles | staff | Artikel-Feed (`search`/`limit`) / Artikel anlegen – Anlegen **ist** Freigeben; `replaces_object_id` löst dabei einen Vorgänger ab (er geht im selben Zug ausser Betrieb) |
@@ -134,8 +136,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/admin/settings | admin | Die **Plattform-Konfiguration** der einen Website (Plausible-Domain, Google-Maps-Schlüssel) – sie hängt am Betreiber. Entitäts-Felder laufen über `/admin/companies/{object_id}` |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos für das Impressum – **immer der Betreiber**: das Impressum nennt die Rechtsperson hinter der Website, und die wechselt nicht nach Besucherland |
 | DELETE | /api/v1/admin/companies/{object_id} | admin | Gesellschaft **schliessen** – endgültig, keine Reaktivierung (eine Wiedereröffnung ist rechtlich eine neue Gesellschaft) |
-| GET/POST | /api/v1/admin/companies | admin | **Unternehmen** (Gesellschaften): alle lesen (Betreiber/ältestes zuerst) / neues anlegen |
-| GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität + Währung – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
+| GET/POST | /api/v1/admin/companies | staff | **Firmen** – eigene und fremde: alle lesen / neue anlegen (Name + Rechtsform Pflicht; `is_own` nur Admin) |
+| GET/PATCH | /api/v1/admin/companies/{object_id} | staff (eigene: admin) | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität + Währung – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
 | POST | /api/v1/admin/companies/{object_id}/operator | admin | Diese Gesellschaft zum **Betreiber der Website** machen (genau EINE trägt den Titel) |
 | GET | /api/v1/admin/users | staff | Benutzerliste. **Deaktivieren gibt es nicht** (Testnotiz #755): wer das Unternehmen verlässt, wechselt die **Rolle** (`PATCH /erp/records/{object_id}`) – ein Mensch hört nicht auf zu existieren, und einkaufen darf er weiterhin |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
