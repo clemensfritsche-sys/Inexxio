@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase, Bell, Check, CreditCard, Cog,
+  User, MapPin, Building2, Briefcase, Bell, Check, Cog,
 } from 'lucide-react';
 import { userDisplayName } from '@/lib/utils';
 import { day, when } from '@/lib/when';
@@ -17,14 +17,14 @@ import {
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
 // «Rechnungsadresse = Lieferadresse»-Schalter mit Spiegelung, Google-Adress-Suche. Keine
 // zweite Optik, kein zweiter Feld-Satz – nur die ERP-Extras kommen dazu (Notiz #295:
-// Rolle, Bankverbindung, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
+// Rolle, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
 import { Field as AField, ToggleField, SelectField } from '@/components/account/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
-import { CompanyBilling, CompanyField } from '@/components/erp/company-field';
+import { CompanyEditor, CompanyField, cardOf } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
-import type {UserProfile, UserRole } from '@/types';
+import type { CompanyCard, UserProfile, UserRole } from '@/types';
 
 // **Der Benutzer hat keine Reiter mehr** – aus demselben Befund, zweimal.
 //
@@ -138,10 +138,6 @@ interface ERPForm {
   invoice_city: string;
   invoice_country: string;
   invoice_email: string;
-  bank_account_holder: string;
-  bank_name: string;
-  bank_iban: string;
-  bank_bic: string;
   department: string;
   job_title: string;
   employment_start_date: string;
@@ -172,10 +168,6 @@ function buildForm(p: UserProfile): ERPForm {
     invoice_city: p.invoice_city ?? '',
     invoice_country: p.invoice_country ?? 'CH',
     invoice_email: p.invoice_email ?? '',
-    bank_account_holder: p.bank_account_holder ?? '',
-    bank_name: p.bank_name ?? '',
-    bank_iban: p.bank_iban ?? '',
-    bank_bic: p.bank_bic ?? '',
     department: p.department ?? '',
     job_title: p.job_title ?? '',
     employment_start_date: p.employment_start_date ?? '',
@@ -193,7 +185,8 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
  * nach Kontotyp, Bankverbindung nach Rolle, und die Rechnungsadresse wurde bei «gleich
  * wie Lieferadresse» aus der Hauptadresse **kopiert**. Alle drei sind weg – der
  * Firmenname ist die Erklärung (also wird er geschickt wie jedes andere Feld), eine
- * Bankverbindung braucht man für jeden, den man bezahlt, und eine leere Rechnungsadresse
+ * Bankverbindung gibt es an einer Person gar nicht mehr (nur an unseren Gesellschaften),
+ * und eine leere Rechnungsadresse
  * **ist** die Aussage «es gilt die Lieferadresse». Eine Kopie veraltete beim nächsten
  * Umzug, genau wie damals `invoice_company`.
  *
@@ -223,10 +216,6 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     invoice_postal_code: nn(v.invoice_postal_code),
     invoice_city: nn(v.invoice_city),
     invoice_country: nn(v.invoice_country),
-    bank_account_holder: nn(v.bank_account_holder),
-    bank_name: nn(v.bank_name),
-    bank_iban: nn(v.bank_iban),
-    bank_bic: nn(v.bank_bic),
   };
   if (isStaff) {
     // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
@@ -312,7 +301,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
-      <Card icon={User} title="Persönliche Angaben" right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
+      <Card icon={User} title="Person" right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
         {/* Rolle – ERP-Extra (das Konto kennt sie nicht, die eigene Rolle ändert man nicht). */}
         {/* ►►► **Die Rolle ist der ZUGANG** (Testnotiz #1043). ◄◄◄ «Lieferant» und
             «Kunde» standen hier und waren eine Aussage über **Vorgänge**: wer Partner
@@ -335,17 +324,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
           <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} />
         </div>
 
-        {/* ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Gewählt oder neu
-            genannt – ihre Angaben pflegt man an ihrem eigenen Datensatz. Für Personal
-            muss sie eine unserer Gesellschaften sein (`people.assert_employment`). */}
-        <SubBlock icon={Building2} title="Firma">
-          <CompanyField company={record.company} readOnly={ro} country={form.country}
-            onLink={(id) => api.updateErpRecord(record.object_id as number,
-              { company_object_id: id } as Partial<UserProfile>).then(onSaved)}
-            onCreate={(nc) => api.updateErpRecord(record.object_id as number,
-              { new_company: nc } as Partial<UserProfile>).then(onSaved)} />
-        </SubBlock>
-
         {/* Anstellung: im Profil read-only, **im ERP admin-pflegbar** (Notiz #295 –
             «das ERP muss ALLES können»; ``ErpAdminUpdate`` erbt + ergänzt genau das). */}
         {isStaff && (
@@ -359,22 +337,23 @@ function ProfileForm({ record, isAdmin, onSaved }: {
           </SubBlock>
         )}
 
-        {/* ►►► **Die Bankverbindung hängt an NICHTS** (Testnotiz #1043). ◄◄◄ Sie hing an
-            der Rolle «Lieferant» – «eine IBAN braucht, wen *wir* bezahlen» –, und genau
-            das ist die Eigenschaft eines **Vorgangs**: eine Erstattung geht an einen
-            Privatkunden, eine Spesenabrechnung an einen Mitarbeiter. */}
-        <SubBlock icon={CreditCard} title="Bankverbindung">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AField label="Kontoinhaber" value={form.bank_account_holder} onChange={str('bank_account_holder')} readOnly={ro} onEnter={saveNow} />
-            <AField label="Bank" value={form.bank_name} onChange={str('bank_name')} readOnly={ro} onEnter={saveNow} />
-            <AField label="IBAN" value={form.bank_iban} onChange={str('bank_iban')} readOnly={ro} onEnter={saveNow} />
-            <AField label="BIC/SWIFT" value={form.bank_bic} onChange={str('bank_bic')} readOnly={ro} onEnter={saveNow} />
-          </div>
-        </SubBlock>
       </Card>
 
-      {/* ── 2. Adressen (Lieferung + Rechnung in EINEM Container) ───────────── */}
-      <Card icon={MapPin} title="Adressen">
+      {/* ── 2. Firma & Adressen ────────────────────────────────────────────── */}
+      {/* ►►► **Für wen · wohin die Ware · wohin die Rechnung – EINE Karte, diese
+          Reihenfolge** (dieselbe Anatomie wie im Konto). ◄◄◄ Die Firma ist ein Datensatz:
+          gewählt oder neu genannt; für Personal muss sie eine unserer Gesellschaften sein
+          (`people.assert_employment`). Ihre Angaben stehen bei der Rechnung, gespeichert
+          an ihrem Datensatz. */}
+      <Card icon={Building2} title="Firma & Adressen">
+        <CompanyField company={record.company} readOnly={ro} country={form.country}
+          onLink={(id) => api.updateErpRecord(record.object_id as number,
+            { company_object_id: id } as Partial<UserProfile>).then(onSaved)}
+          onCreate={(nc) => api.updateErpRecord(record.object_id as number,
+            { new_company: nc } as Partial<UserProfile>).then(onSaved)} />
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
         {canEdit ? (
           <AddressField value={address} onChange={applyAddress} apiKey={mapsKey}
             countryOptions={COUNTRIES} showStreet2 showRegion label="Lieferadresse" />
@@ -384,7 +363,12 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
         <div style={{ height: 1, background: 'var(--border-1)' }} />
 
-        {record.company ? <CompanyBilling company={record.company} /> : (
+        {record.company ? (
+          <CompanyEditor company={record.company} mapsKey={mapsKey}
+            readOnly={ro || (record.company.is_own && !isAdmin)}
+            onSave={(d) => api.updateCompany((record.company as CompanyCard).object_id, d)
+              .then((c) => onSaved({ ...record, company: cardOf(c) }))} />
+        ) : (
           <>
           {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
               Er war einmal eine **gespeicherte** Angabe (`invoice_same_as_shipping`) und

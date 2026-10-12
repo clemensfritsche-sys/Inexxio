@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Building2, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { legalForms } from '@/lib/legal-forms';
 import { Field as AField } from '@/components/account/field';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ErrorText } from '@/components/erp/fields';
-import type { CompanyRef, NewCompany } from '@/types';
+import { AddressField, type Address } from '@/components/erp/address-field';
+import { COMPANY_COUNTRIES, splitStreet, taxIds } from '@/components/erp/organization-detail';
+import { useAutosave } from '@/components/account/use-autosave';
+import { SaveStatusIndicator } from '@/components/account/save-status';
+import type { CompanyCard, CompanyRef, CompanySettings, NewCompany } from '@/types';
 
 /**
  * ►►► **Die Firma einer Person – gewählt, nicht abgetippt** (CRM Schritt 1). ◄◄◄
@@ -17,8 +21,8 @@ import type { CompanyRef, NewCompany } from '@/types';
  * nach einer eindeutig gleichen (gleiche UID, oder gleicher Name **und** Rechtsform) und
  * legt nur sonst eine an (`sites.resolve_for_person`).
  *
- * **Die Angaben der Firma ändert man hier nicht** – an ihrem eigenen Datensatz. Sonst
- * änderte jeder Kunde die Firmendaten seiner Kollegen; hier steht sie als Auskunft.
+ * **Ihre Angaben pflegt man darunter** (`CompanyEditor`) – gespeichert am Datensatz der
+ * Firma, nie als Kopie an der Person.
  *
  * EIN Bauteil für Konto und ERP: wer speichert, sagt der Aufrufer (`onLink`/`onCreate`).
  */
@@ -127,18 +131,121 @@ export function CompanyField({ company, readOnly, country, onLink, onCreate }: {
   );
 }
 
+/** Das Formular der Firma, so weit es den Rechnungsweg betrifft. */
+interface CompanyForm {
+  company_name: string; legal_form: string; uid: string; vat_number: string;
+  street: string; street_number: string; zip: string; city: string; country: string;
+  email: string;
+}
+
+function companyForm(c: CompanyCard): CompanyForm {
+  return {
+    company_name: c.company_name ?? '', legal_form: c.legal_form ?? '',
+    uid: c.uid_number ?? '', vat_number: c.vat_number ?? '',
+    street: c.street ?? '', street_number: c.street_nr ?? '',
+    zip: c.zip_code ?? '', city: c.city ?? '', country: c.country || 'Schweiz',
+    email: c.email ?? '',
+  };
+}
+
 /**
- * ►►► **Mit Firma geht die Rechnung an die FIRMA** (`voucher._company_billing`). ◄◄◄
+ * ►►► **Mit Firma geht die Rechnung an die FIRMA – und ihre Angaben stehen hier**
+ * (`voucher._company_billing`). ◄◄◄
  *
- * Firmenname, Rechtsform, UID, Anschrift und E-Mail der Firma; die Person steht als
- * «z. H.» darunter, die **Ware** geht an ihre Lieferadresse. Eine eigene Rechnungsadresse
- * oder Rechnungs-E-Mail an der Person gäbe es dann zweimal – darum steht hier die
- * Auskunft statt der Felder. Wer privat einkaufen will, löst die Zuordnung zur Firma.
+ * Firmenname, Rechtsform, UID, Rechnungsadresse und Rechnungs-E-Mail **sind** der
+ * Rechnungsweg dieser Person – also stehen sie dort, wo man ihn sucht, statt hinter
+ * einem Sprung zum Firmen-Datensatz. **Gespeichert wird am Datensatz der Firma**
+ * (`onSave`): es gibt sie nur einmal, und sie gilt für alle Personen dieser Firma. Eine
+ * Kopie an der Person wäre die zweite Wahrheit, und eine neue Firma je Änderung die dritte.
+ *
+ * **Eine unserer Gesellschaften ändert nur ein Admin** – dann steht alles gesperrt da
+ * (`readOnly`); die Regel selbst steht im Dienst (`sites.apply_update`).
  */
-export function CompanyBilling({ company }: { company: CompanyRef }) {
+export function CompanyEditor({ company, readOnly, mapsKey, onSave }: {
+  company: CompanyCard;
+  readOnly?: boolean;
+  mapsKey?: string | null;
+  onSave: (data: Partial<CompanySettings>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState<CompanyForm>(() => companyForm(company));
+  const [resetKey, setResetKey] = useState(0);
+  const prevId = useRef(company.object_id);
+
+  // Nur beim **Wechsel** der Firma neu aufbauen – sonst klobbert ein Auto-Save die Eingabe.
+  useEffect(() => {
+    if (company.object_id === prevId.current) return;
+    prevId.current = company.object_id;
+    setForm(companyForm(company));
+    setResetKey((k) => k + 1);
+  }, [company]);
+
+  const { status, errorMsg, saveNow } = useAutosave(form, async (v) => {
+    // Ein leerer Name ist kein speicherbarer Zustand – das Feld markiert ihn.
+    if (readOnly || !v.company_name.trim()) return;
+    await onSave({
+      company_name: v.company_name.trim(), legal_form: v.legal_form.trim(),
+      uid: nn(v.uid), vat_number: nn(v.vat_number),
+      street: v.street, street_number: nn(v.street_number),
+      zip: v.zip, city: v.city, country: v.country, email: v.email.trim(),
+    });
+  }, 2500, resetKey);
+
+  const str = (k: keyof CompanyForm) => (val: string) => setForm((p) => ({ ...p, [k]: val }));
+  const ids = taxIds(form.country);
+  const forms = legalForms(form.country);
+  const address: Address = {
+    street: [form.street, form.street_number].filter(Boolean).join(' '),
+    zip: form.zip, city: form.city, country: form.country,
+  };
+  function applyAddress(a: Address) {
+    const [street, nr] = splitStreet(a.street);
+    setForm((p) => ({ ...p, street, street_number: nr, zip: a.zip, city: a.city, country: a.country }));
+  }
+
   return (
-    <AField label="Rechnungsempfänger" readOnly
-      value={company.legal_name}
-      hint="Rechnungsadresse und Rechnungs-E-Mail kommen von der Firma und werden an ihrem Datensatz gepflegt. Die Ware geht an die Lieferadresse." />
+    <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+      className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-fg-3">
+          {readOnly ? 'Eine unserer Gesellschaften – ändern darf sie nur ein Admin.'
+            : 'Rechnungsempfänger · gilt für alle Personen dieser Firma'}
+        </span>
+        {!readOnly && <SaveStatusIndicator status={status} errorMsg={errorMsg} />}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <AField label="Firmenname" value={form.company_name} onChange={str('company_name')}
+          required onEnter={saveNow} />
+        <div>
+          <AField label="Rechtsform" value={form.legal_form} onChange={str('legal_form')} required
+            list="company-editor-forms" placeholder={forms[0] ?? 'AG'} onEnter={saveNow} />
+          <datalist id="company-editor-forms">
+            {forms.map((f) => <option key={f} value={f} />)}
+          </datalist>
+        </div>
+        <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
+          placeholder={ids.uid.ph} onEnter={saveNow} />
+        {ids.vat && (
+          <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
+            placeholder={ids.vat.ph} onEnter={saveNow} />
+        )}
+      </div>
+      <AddressField value={address} onChange={applyAddress} apiKey={mapsKey}
+        countryOptions={COMPANY_COUNTRIES} label="Rechnungsadresse" />
+      <AField label="Rechnungs-E-Mail" value={form.email} onChange={str('email')} type="email"
+        placeholder="rechnung@firma.ch" onEnter={saveNow} />
+    </fieldset>
   );
+}
+
+const nn = (s: string): string | null => (s.trim() === '' ? null : s);
+
+/** Die gespeicherte Firma (Antwort von `updateCompany`) in der Form, die an der Person steht. */
+export function cardOf(s: CompanySettings): CompanyCard {
+  return {
+    object_id: s.object_id as number, company_name: s.company_name,
+    legal_form: s.legal_form ?? '', legal_name: s.legal_name ?? s.company_name,
+    uid_number: s.uid ?? null, vat_number: s.vat_number ?? null, is_own: !!s.is_own,
+    street: s.street ?? null, street_nr: s.street_number ?? null, zip_code: s.zip ?? null,
+    city: s.city ?? null, country: s.country ?? null, email: s.email ?? null,
+  };
 }

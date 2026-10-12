@@ -138,6 +138,14 @@ Spalte, die kein Modell kennt, schützt nichts).
 
 Sie ist `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf.
 
+## Offen: die Bankverbindung am Benutzer droppen (Folge-Deploy nach CRM Schritt 1b)
+
+`user_profiles.bank_account_holder`, `bank_iban`, `bank_bic`, `bank_name` haben ihr
+ORM-Mapping verloren: **eine Bankverbindung gibt es nur an einer eigenen Gesellschaft**
+(Überweisung, QR-Rechnung). An einer Person war sie sensibel und hatte keinen Leser. Alle
+vier sind `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf. Gedroppt wird im
+**Folge-Deploy** (Zwei-Deploy-Regel). *Die Werte sind danach weg – gewollt.*
+
 ## Offen: zwölf Spalten am Benutzer droppen (Folge-Deploy nach #1042/#1043)
 
 Alle zwölf haben ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**:

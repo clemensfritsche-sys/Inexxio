@@ -73,6 +73,24 @@ class CompanyRef(BaseModel):
         return legal_name(self)
 
 
+class CompanyCard(CompanyRef):
+    """**Die Firma, wie sie an IHRER Person steht** – mit Anschrift und Rechnungs-E-Mail,
+    weil sie dort gepflegt werden darf (externe Firma). Bewusst eine eigene Form neben
+    ``CompanyRef``: die Vorschlagsliste sieht jeder Angemeldete, und die braucht keine
+    Anschrift."""
+    street: Optional[str] = None
+    street_nr: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    email: Optional[str] = None
+
+
+#: Was eine Person an IHRER (externen) Firma ändern darf – die Rechtsperson und ihr
+#: Rechnungsweg. Bank, Währung, Telefon und «eigen» gehören nicht dazu.
+MEMBER_COMPANY_FIELDS = ("company_name", "legal_form", "street", "street_nr", "zip_code",
+                         "city", "country", "uid_number", "vat_number", "email")
+
+
 class NewCompany(BaseModel):
     """Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder
     wird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``)."""
@@ -235,15 +253,9 @@ class UserProfileResponse(BaseModel):
     # Personal extras
     date_of_birth: Optional[date]
 
-    # Supplier bank details
-    bank_account_holder: Optional[str]
-    bank_iban: Optional[str]
-    bank_bic: Optional[str]
-    bank_name: Optional[str]
-
     #: ►►► **Die Firma der Person** – eigene (dann arbeitet sie bei uns) oder fremde.
     company_object_id: Optional[int]
-    company: Optional[CompanyRef] = None
+    company: Optional[CompanyCard] = None
 
     # Employee
     department: Optional[str]
@@ -302,13 +314,6 @@ class UserProfileUpdate(BaseModel):
     #: die Firmendaten seiner Kollegen.
     company_object_id: Optional[int] = None
     new_company: Optional[NewCompany] = None
-
-    # Bank details – an keine Rolle gebunden (#1043): eine Erstattung geht an einen
-    # Privatkunden, eine Spesenabrechnung an einen Mitarbeiter.
-    bank_account_holder: Optional[str] = None
-    bank_iban: Optional[str] = None
-    bank_bic: Optional[str] = None
-    bank_name: Optional[str] = None
 
     # Preferences
     notification_email: Optional[bool] = None

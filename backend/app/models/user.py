@@ -98,15 +98,9 @@ class UserProfile(Base, TimestampMixin):
     # Datensatz. Sie leben jetzt am Unternehmen (``company_settings``), und die Person
     # zeigt darauf: ``company_object_id`` weiter unten, gelesen über ``company``.
 
-    # ►►► **Die Bankverbindung hängt an NICHTS** (Testnotiz #1043). ◄◄◄ Sie hing an der
-    # Rolle «Lieferant» mit der Begründung «eine IBAN braucht, wen *wir* bezahlen» – und
-    # genau das ist die Eigenschaft eines **Vorgangs**, nicht der Person: eine Erstattung
-    # geht an einen Privatkunden, eine Spesenabrechnung an einen Mitarbeiter. Also ohne
-    # Bedingung, wie jede andere Angabe des Datensatzes.
-    bank_account_holder: Mapped[Optional[str]] = mapped_column(String(255))
-    bank_iban: Mapped[Optional[str]] = mapped_column(String(50))
-    bank_bic: Mapped[Optional[str]] = mapped_column(String(20))
-    bank_name: Mapped[Optional[str]] = mapped_column(String(255))
+    # Die Bankverbindung an der Person ist entfallen: sensibel und ohne Leser. Eine
+    # IBAN gibt es nur an einer EIGENEN Gesellschaft (Überweisung, QR-Rechnung).
+    # Die vier Spalten fallen im Folge-Deploy (docs/backlog.md).
 
     #: ►►► **Die Firma dieser Person** – eine eigene Gesellschaft (dann arbeitet sie
     #: bei uns) oder eine fremde (Kunde, Lieferant, Interessent). EINE Zuordnung für

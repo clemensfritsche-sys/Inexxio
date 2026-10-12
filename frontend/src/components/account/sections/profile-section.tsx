@@ -9,13 +9,13 @@
  *
  * Jetzt: ein Formular, ein Auto-Save, eine Rückmeldung. Gruppiert nach dem, was fachlich
  * zusammengehört:
- *   1. **Persönliche Angaben** – wer bin ich (inkl. Telefon; + Firmendaten/Anstellung)
- *   2. **Adressen**          – wohin (Lieferadresse + Schalter «Eigene Rechnungsadresse»)
+ *   1. **Person**            – wer bin ich (inkl. Telefon; + Anstellung)
+ *   2. **Firma & Adressen**  – für wen · wohin die Ware · wohin die Rechnung
  *   3. **Kommunikation**     – Newsletter + Nachweis der akzeptierten Rechtstexte
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase, Building2, MapPin, Bell } from 'lucide-react';
+import { User, Briefcase, Building2, Bell } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { day } from '@/lib/when';
 import { Field, ToggleField } from '../field';
@@ -25,7 +25,9 @@ import { AddressField, type Address } from '@/components/erp/address-field';
 import {
   NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
 } from '@/lib/accounts';
-import { CompanyBilling, CompanyField } from '@/components/erp/company-field';
+import { CompanyEditor, CompanyField } from '@/components/erp/company-field';
+import { api } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
 interface Form {
@@ -95,6 +97,7 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
   const mapsKey = useMapsApiKey();
+  const qc = useQueryClient();
   // **Der Schalter ist eine Ableitung aus den Feldern** (`hasOwnBilling` – dieselbe Frage,
   // die der Dienst stellt), mit einem Gedächtnis für genau einen Fall: «An» geklickt, aber
   // noch nichts getippt. Nachgezogen wird er beim **Wechsel** des Datensatzes.
@@ -161,7 +164,7 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
-      <Card icon={User} title="Persönliche Angaben" right={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
+      <Card icon={User} title="Person" right={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
         {/* Die Objektnummer ist vergeben und unveränderlich – sie wie ein Formularfeld
             zu zeigen, lud zum Hineinklicken ein. Jetzt steht sie da wie überall sonst
             im System: Versalien-Label + monospaced Nummer. */}
@@ -181,16 +184,6 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
           <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
         </div>
 
-        {/* ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Hier wählt man sie
-            oder nennt eine neue – ihre Angaben (UID, Anschrift) pflegt das ERP an ihrem
-            Datensatz, sonst änderte jeder Kunde die Firmendaten seiner Kollegen. Wer bei
-            uns arbeitet, ändert sie nicht selbst: das ist eine Anstellungsangabe. */}
-        <SubBlock icon={Building2} title="Firma">
-          <CompanyField company={profile.company} readOnly={isEmployee} country={form.country}
-            onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
-            onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
-        </SubBlock>
-
         {isEmployee && (
           <SubBlock icon={Briefcase} title="Anstellung · wird vom Administrator gepflegt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -203,15 +196,31 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
         )}
       </Card>
 
-      {/* ── 2. Adressen (Lieferung + Rechnung in EINEM Container) ───────────── */}
-      <Card icon={MapPin} title="Adressen">
+      {/* ── 2. Firma & Adressen ────────────────────────────────────────────── */}
+      {/* ►►► **Wer · wohin die Ware · wohin die Rechnung – in EINER Karte, in dieser
+          Reihenfolge.** ◄◄◄ Die Firma entscheidet, wer die Rechnung bekommt; darum steht
+          sie zuoberst, und die Rechnung zuunterst nennt entweder die Firma (ihre Angaben,
+          gepflegt an ihrem Datensatz) oder die eigene Rechnungsadresse. */}
+      <Card icon={Building2} title="Firma & Adressen">
+        <CompanyField company={profile.company} readOnly={isEmployee} country={form.country}
+          onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
+          onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
         <AddressField
           value={address} onChange={applyAddress} apiKey={mapsKey}
           countryOptions={COUNTRIES} showStreet2 showRegion label="Lieferadresse" />
 
         <div style={{ height: 1, background: 'var(--border-1)' }} />
 
-        {profile.company ? <CompanyBilling company={profile.company} /> : (
+        {/* Eine **externe** Firma pflegt, wer ihr angehört (`people.update_member_company`);
+            eine unserer Gesellschaften nur ein Admin. */}
+        {profile.company ? (
+          <CompanyEditor company={profile.company} readOnly={profile.company.is_own}
+            mapsKey={mapsKey}
+            onSave={(d) => api.updateMyCompany(d).then((u) => qc.setQueryData(['me'], u))} />
+        ) : (
           <>
           {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
               Er war einmal eine **gespeicherte** Angabe und schrieb bei «gleich wie» eine

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import get_current_user
 from ..core.database import get_db
 from ..models import UserProfile
-from ..schemas.admin import UserProfileResponse, UserProfileUpdate
+from ..schemas.admin import CompanySettingsUpdate, UserProfileResponse, UserProfileUpdate
 from ..services import people
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -29,6 +29,16 @@ async def update_me(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.patch("/me/company", response_model=UserProfileResponse)
+async def update_my_company(
+    data: CompanySettingsUpdate,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma."""
+    return people.update_member_company(db, current_user, data.model_dump(exclude_unset=True))
 
 
 @router.post("/terms-accept", response_model=UserProfileResponse)

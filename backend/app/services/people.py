@@ -130,6 +130,22 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
     return name(db.query(UserProfile).filter(UserProfile.id == user_id).first())
 
 
+def update_member_company(db: Session, user: UserProfile, data: dict[str, Any]) -> UserProfile:
+    """►►► **Eine Person pflegt die Angaben IHRER externen Firma.** ◄◄◄
+
+    Am Datensatz der Firma, nicht an der Person – sonst entstünde bei jeder Änderung eine
+    neue Firma. Nur, was die Rechtsperson und ihren Rechnungsweg ausmacht
+    (``MEMBER_COMPANY_FIELDS``); eine **eigene** Gesellschaft ändert nur ein Admin
+    (``sites.apply_update`` weist ab). Committet."""
+    from ..schemas.admin import MEMBER_COMPANY_FIELDS
+    if user.company is None:
+        raise HTTPException(400, detail="Dieser Person ist keine Firma zugeordnet.")
+    fields = {k: v for k, v in data.items() if k in MEMBER_COMPANY_FIELDS}
+    sites.apply_update(db, user.company, fields, user.id, admin=False)
+    db.refresh(user)
+    return user
+
+
 def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) -> None:
     """►►► **Personal gehört zu einer UNSERER Gesellschaften** (Testnotiz #905). ◄◄◄
 

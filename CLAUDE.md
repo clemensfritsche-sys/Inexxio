@@ -4923,6 +4923,17 @@
 > Lieferadresse der Person. Eigene Rechnungsadresse und Rechnungs-E-Mail der Person gelten
 > dann nicht und werden in Konto und ERP nicht angeboten (`CompanyBilling`); wer privat
 > einkauft, löst die Zuordnung. Der Betreiber-Stern bleibt.
+> **Schritt 1b – eine Karte, ein Rechnungsweg:** die Person trägt **keine Bankverbindung**
+> mehr (sensibel, ohne Leser; die vier Spalten fallen im Folge-Deploy – eine IBAN gibt es
+> nur an einer **eigenen** Gesellschaft). Konto und ERP zeigen zwei Karten: **Person**
+> (Name, Telefon, Geburtsdatum, Anstellung) und **Firma & Adressen** in der Reihenfolge
+> *Firma → Lieferadresse → Rechnung*. Mit Firma stehen bei der Rechnung **ihre** Angaben
+> (Name, Rechtsform, UID/MWST, Rechnungsadresse, Rechnungs-E-Mail – `CompanyEditor`),
+> gespeichert **am Datensatz der Firma**: wer einer **externen** Firma angehört, darf sie
+> pflegen (`PATCH /api/v1/auth/me/company` → `people.update_member_company`, nur
+> `MEMBER_COMPANY_FIELDS`), eine **eigene** nur ein Admin (403). Ohne Firma bleibt der
+> Schalter «Eigene Rechnungsadresse». Am Firmen-Datensatz stehen die Kennungen in den
+> **Allgemeinen Angaben**, das Telefon nur noch bei einer eigenen Gesellschaft.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

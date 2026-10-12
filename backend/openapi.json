@@ -94,6 +94,53 @@
         ]
       }
     },
+    "/api/v1/auth/me/company": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update My Company",
+        "description": "Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma.",
+        "operationId": "update_my_company_api_v1_auth_me_company_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanySettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/terms-accept": {
       "post": {
         "tags": [
@@ -4582,6 +4629,129 @@
         "title": "CaptureTypeInfo",
         "description": "Ein wählbarer Erfassungspunkt-Typ."
       },
+      "CompanyCard": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "legal_form": {
+            "type": "string",
+            "title": "Legal Form"
+          },
+          "uid_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid Number"
+          },
+          "vat_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Number"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "is_own": {
+            "type": "boolean",
+            "title": "Is Own",
+            "default": false
+          },
+          "street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
+          },
+          "street_nr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Nr"
+          },
+          "zip_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zip Code"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "legal_name": {
+            "type": "string",
+            "title": "Legal Name",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "company_name",
+          "legal_form",
+          "legal_name"
+        ],
+        "title": "CompanyCard",
+        "description": "**Die Firma, wie sie an IHRER Person steht** – mit Anschrift und Rechnungs-E-Mail,\nweil sie dort gepflegt werden darf (externe Firma). Bewusst eine eigene Form neben\n``CompanyRef``: die Vorschlagsliste sieht jeder Angemeldete, und die braucht keine\nAnschrift."
+      },
       "CompanyCreate": {
         "properties": {
           "company_name": {
@@ -5413,50 +5583,6 @@
                 "type": "null"
               }
             ]
-          },
-          "bank_account_holder": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Account Holder"
-          },
-          "bank_iban": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Iban"
-          },
-          "bank_bic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Bic"
-          },
-          "bank_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Name"
           },
           "notification_email": {
             "anyOf": [
@@ -8725,50 +8851,6 @@
             ],
             "title": "Date Of Birth"
           },
-          "bank_account_holder": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Account Holder"
-          },
-          "bank_iban": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Iban"
-          },
-          "bank_bic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Bic"
-          },
-          "bank_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Name"
-          },
           "company_object_id": {
             "anyOf": [
               {
@@ -8783,7 +8865,7 @@
           "company": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CompanyRef"
+                "$ref": "#/components/schemas/CompanyCard"
               },
               {
                 "type": "null"
@@ -8916,10 +8998,6 @@
           "invoice_country",
           "invoice_email",
           "date_of_birth",
-          "bank_account_holder",
-          "bank_iban",
-          "bank_bic",
-          "bank_name",
           "company_object_id",
           "department",
           "job_title",
@@ -9156,50 +9234,6 @@
                 "type": "null"
               }
             ]
-          },
-          "bank_account_holder": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Account Holder"
-          },
-          "bank_iban": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Iban"
-          },
-          "bank_bic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Bic"
-          },
-          "bank_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank Name"
           },
           "notification_email": {
             "anyOf": [

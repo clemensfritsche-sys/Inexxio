@@ -344,3 +344,46 @@ def test_a_foreign_company_never_acts_as_ours():
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_member_maintains_its_external_company_but_never_ours():
+    """►►► **Wer einer externen Firma angehört, pflegt sie – am Datensatz der Firma.** ◄◄◄
+
+    Sonst entstünde bei jeder Änderung eine neue Firma. Bug-Formen: (a) die Änderung landet
+    nicht an der Firma; (b) eine unserer Gesellschaften lässt sich so ändern; (c) ohne
+    Firma passiert still nichts; (d) Felder ausserhalb des Rechnungswegs (Bank) gehen durch.
+    """
+    db = _db()
+    db.commit = db.flush  # die Szene wird verworfen, nicht gespeichert
+    try:
+        firm, own = _firm(db, "Kunde"), _firm(db, "Wir", own=True)
+        u = _user(db, uid="mc-1", email="mc1@x.ch", company_object_id=firm.object_id)
+        db.refresh(u)
+        people.update_member_company(db, u, {"city": "Bern", "email": "re@kunde.ch",
+                                             "iban": "CH93 0076 2011 6238 5295 7"})
+        db.refresh(firm)
+        assert (firm.city, firm.email) == ("Bern", "re@kunde.ch"), "(a)"
+        assert not firm.iban_encrypted, "(d)"
+        u.company_object_id = own.object_id
+        db.flush()
+        db.expire(u, ["company"])
+        with pytest.raises(HTTPException) as e:
+            people.update_member_company(db, u, {"city": "Zug"})
+        assert e.value.status_code == 403, "(b)"
+        u.company_object_id = None
+        db.flush()
+        db.expire(u, ["company"])
+        with pytest.raises(HTTPException) as e:
+            people.update_member_company(db, u, {"city": "Zug"})
+        assert e.value.status_code == 400, "(c)"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_person_carries_no_bank_details():
+    """**Eine Bankverbindung gibt es nur an UNSEREN Gesellschaften.** Bug-Form: die Person
+    trägt sie wieder (Schema oder Modell)."""
+    for cls in (UserProfileResponse, UserProfileUpdate, ErpAdminUpdate):
+        assert not [f for f in cls.model_fields if f.startswith("bank_")], cls.__name__
+    assert not [c for c in UserProfile.__mapper__.attrs.keys() if c.startswith("bank_")]

@@ -96,6 +96,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /health | – | Health Check |
 | GET | /api/v1/auth/me | user | Eigenes Profil |
 | PATCH | /api/v1/auth/me | user | Eigenes Profil bearbeiten (Self-Service) |
+| PATCH | /api/v1/auth/me/company | user | Die eigene **externe** Firma pflegen (am Firmen-Datensatz; eigene nur Admin) |
 | POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
 | POST | /api/v1/erp/records | staff | **Person anlegen** (CRM Schritt 1) – Vorname, Nachname, E-Mail, Rolle (+ Firma). Objektnummer und Firebase-Konto sofort; E-Mail klein und einmalig (409 nennt den Besitzer); Personal-Rollen nur durch Admin |
 | GET | /api/v1/erp/companies?search= | user | **Firmen-Vorschläge** ab zwei Zeichen (Nummer, Name, UID), höchstens acht – für das Firmenfeld in Konto und ERP |

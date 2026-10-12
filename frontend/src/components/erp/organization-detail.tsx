@@ -21,7 +21,7 @@ import { ObjId } from '@/components/erp/obj-id';
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
 // kann überall sitzen – daher eine breitere Auswahl als bei einer CH/EU-Personenadresse.
-const COUNTRIES: [string, string][] = [
+export const COMPANY_COUNTRIES: [string, string][] = [
   ['Schweiz', 'Schweiz'], ['Deutschland', 'Deutschland'], ['Österreich', 'Österreich'],
   ['Frankreich', 'Frankreich'], ['Italien', 'Italien'], ['Liechtenstein', 'Liechtenstein'],
   ['USA', 'USA'], ['Grossbritannien', 'Grossbritannien'], ['Spanien', 'Spanien'],
@@ -87,13 +87,13 @@ const TAX_IDS_DEFAULT: TaxIds = {
   uid: { label: 'Steuernummer', ph: '' },
   vat: { label: 'USt-Nummer (optional)', ph: '' },
 };
-function taxIds(country: string | undefined): TaxIds {
+export function taxIds(country: string | undefined): TaxIds {
   return TAX_IDS_BY_ISO2[toIso2(country)] ?? TAX_IDS_DEFAULT;
 }
 
 /** «Musterstrasse 12» → ('Musterstrasse', '12'). Das Unternehmen führt Strasse und
  *  Hausnummer getrennt; Google (und jede andere Quelle) liefert sie als eine Zeile. */
-function splitStreet(line: string): [string, string] {
+export function splitStreet(line: string): [string, string] {
   const m = line.trim().match(/^(.*?)[\s,]+(\d+[a-zA-Z]?)$/);
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
@@ -397,9 +397,20 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
               </datalist>
             </div>
 
+            {/* **Die Kennungen gehören zur Rechtsperson** – darum hier, nicht in einer eigenen
+                Karte. Gefragt wird, was es im Land gibt (#346): eine US-Gesellschaft hat
+                eine EIN und keine MWST-Nummer. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
+                placeholder={ids.uid.ph} required={own} onEnter={saveNow} />
+              {ids.vat && (
+                <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
+                  placeholder={ids.vat.ph} required={own} onEnter={saveNow} />
+              )}
+            </div>
             <div>
               <AddressField value={address} onChange={applyCompanyAddress} apiKey={mapsKey}
-                countryOptions={COUNTRIES} label="Anschrift" required />
+                countryOptions={COMPANY_COUNTRIES} label="Anschrift" required />
               {/* Eine Tatsache über DIESEN Datensatz: ohne eigene Anschrift bleibt eine
                   Bewegung hierher innerbetrieblich statt Versand zu werden (ADR 005). */}
               {!hasAddress(address) && (
@@ -452,31 +463,17 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
             )}
           </Card>
 
-          {/* ── 2. Rechtliche Identifikation ─────────────────────────────────── */}
-          {/* Was die Gesellschaft ausweist: die Kennungen stehen auf dem Beleg-Briefkopf und
-              im Impressum. Handelsregister-Nr./-Kanton und Aktienkapital sind entfallen
-              (#307) – in der Schweiz IST die HR-Nummer seit 2016 die UID, der Kanton steht
-              im Register, und Kapital ist nirgends vorgeschrieben.
-              **Gefragt wird, was es im jeweiligen Land gibt** (#346): eine US-Gesellschaft
-              hat eine EIN und keine MWST-Nummer – das Feld erscheint dort gar nicht. */}
-          <Card title="Rechtliche Identifikation">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
-                placeholder={ids.uid.ph} required={own} onEnter={saveNow} />
-              {ids.vat && (
-                <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
-                  placeholder={ids.vat.ph} required={own} onEnter={saveNow} />
-              )}
-            </div>
-          </Card>
-
-          {/* ── 3. Kontakt ───────────────────────────────────────────────────── */}
+          {/* ── 2. Kontakt ───────────────────────────────────────────────────── */}
           <Card title="Kontakt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="E-Mail" value={form.email} onChange={str('email')} type="email"
                 placeholder="info@inexxio.com" required={own} onEnter={saveNow} />
-              <AField label="Telefon" value={form.phone} onChange={str('phone')} type="tel"
-                placeholder="+41 44 000 00 00" required={own} onEnter={saveNow} />
+              {/* Telefon nur bei einer **eigenen** Gesellschaft (Impressum, Website); an
+                  einer fremden Firma liest es niemand – gefragt wird die Person. */}
+              {own && (
+                <AField label="Telefon" value={form.phone} onChange={str('phone')} type="tel"
+                  placeholder="+41 44 000 00 00" required onEnter={saveNow} />
+              )}
             </div>
             {/* Website: **abgeleitet** aus dem Deployment (#309) – die Adresse, unter der
                 diese Installation läuft. Angezeigt, weil sie im Impressum und auf dem

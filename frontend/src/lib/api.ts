@@ -276,6 +276,12 @@ class ApiClient {
     return this.patch('/api/v1/auth/me', data);
   }
 
+  /** Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma
+   *  (`people.update_member_company`); eine unserer Gesellschaften ändert nur ein Admin. */
+  updateMyCompany(data: Partial<CompanySettings>): Promise<UserProfile> {
+    return this.patch('/api/v1/auth/me/company', mapSettingsToBackend(data));
+  }
+
   // ─── Passkeys (WebAuthn/FIDO2) ──────────────────────────────────────────────
   // Registrierung/Verwaltung setzen eine Anmeldung voraus; die Anmeldung per
   // Passkey selbst ist unauthentifiziert und liefert einen Firebase Custom Token.

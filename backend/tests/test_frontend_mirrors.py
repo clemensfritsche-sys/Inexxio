@@ -10058,27 +10058,26 @@ def test_a_field_explains_itself_without_a_paragraph():
         )
 
 
-def test_the_bank_details_hang_on_nothing():
-    """►►► **Wen WIR bezahlen, sagt der Vorgang** (Testnotiz #1043). ◄◄◄
+def test_a_person_carries_no_bank_details():
+    """►►► **Eine Bankverbindung gibt es nur bei UNSEREN Gesellschaften.** ◄◄◄
 
-    Der Block hing an ``role === 'supplier'`` mit der Begründung «eine IBAN braucht, wen
-    wir bezahlen» – und genau das ist die Eigenschaft eines **Vorgangs**: eine Erstattung
-    geht an einen Privatkunden, eine Spesenabrechnung an einen Mitarbeiter. *Damit ist die
-    Ausnahme aus #1042 zurückgenommen – sie war die letzte Rolle im Formular.*
+    Sie stand an jeder Person (#1043: «hängt an nichts») – sensible Daten, die niemand
+    liest: überwiesen wird an den **Aussteller** eines Belegs, und bezahlt wird über die
+    Bankverbindung der eigenen Gesellschaft (QR-Rechnung). Eine IBAN am Kunden ist keine
+    Vorsorge, sondern eine Haftung.
 
-    Bug-Formen: (a) der Block hängt wieder an einer Rolle; (b) die Nutzlast lässt die
-    Felder unter einer Bedingung weg (dann kommt eine Löschung nie an).
+    Bug-Formen: (a) ein Bankfeld wieder im Formular einer Person; (b) wieder in der
+    Nutzlast bzw. im Schema der Person.
     """
-    src = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))
-    problem = _unconditional(src, "Bankverbindung")
-    assert not problem, f"(a): {problem}"
-    assert "isSupplier" not in src, "Die Rolle «Lieferant» lebt noch (a)."
-    payload = _body(src, "mapUpdate", kind="function")
-    for field in ("bank_iban", "bank_bic", "bank_name", "bank_account_holder"):
-        assert f"{field}: nn(" in payload, f"«{field}» fehlt in der Nutzlast (b)."
-    assert payload.count("if (") == 1, (
-        "Die Nutzlast trägt mehr als eine Bedingung (b) – geblieben ist die Anstellung."
-    )
+    for where in _USER_SURFACES:
+        src = _code(_read(FRONTEND / where))
+        for field in ("bank_iban", "bank_bic", "bank_name", "bank_account_holder"):
+            assert field not in src, f"«{where}» trägt wieder «{field}» (a)."
+    schema = _read(BACKEND / "app" / "schemas" / "admin.py")
+    for cls in ("class UserProfileResponse", "class UserProfileUpdate"):
+        body = schema[schema.index(cls):]
+        body = body[:body.index("\nclass ", 1)]
+        assert "bank_" not in body, f"«{cls}» trägt wieder eine Bankverbindung (b)."
 
 
 def test_the_legal_form_suggestions_exist_exactly_once():

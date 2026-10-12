@@ -39,6 +39,26 @@ export interface paths {
         patch: operations["update_me_api_v1_auth_me_patch"];
         trace?: never;
     };
+    "/api/v1/auth/me/company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update My Company
+         * @description Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma.
+         */
+        patch: operations["update_my_company_api_v1_auth_me_company_patch"];
+        trace?: never;
+    };
     "/api/v1/auth/terms-accept": {
         parameters: {
             query?: never;
@@ -1730,6 +1750,44 @@ export interface components {
             label: string;
         };
         /**
+         * CompanyCard
+         * @description **Die Firma, wie sie an IHRER Person steht** – mit Anschrift und Rechnungs-E-Mail,
+         *     weil sie dort gepflegt werden darf (externe Firma). Bewusst eine eigene Form neben
+         *     ``CompanyRef``: die Vorschlagsliste sieht jeder Angemeldete, und die braucht keine
+         *     Anschrift.
+         */
+        CompanyCard: {
+            /** Object Id */
+            object_id: number;
+            /** Company Name */
+            company_name: string;
+            /** Legal Form */
+            legal_form: string;
+            /** Uid Number */
+            uid_number?: string | null;
+            /** Vat Number */
+            vat_number?: string | null;
+            /** City */
+            city?: string | null;
+            /**
+             * Is Own
+             * @default false
+             */
+            is_own: boolean;
+            /** Street */
+            street?: string | null;
+            /** Street Nr */
+            street_nr?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Legal Name */
+            readonly legal_name: string;
+        };
+        /**
          * CompanyCreate
          * @description Neue **Firma** anlegen: Name und Rechtsform (die Rechtsperson), die UID freiwillig.
          *     Alles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin.
@@ -2024,14 +2082,6 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Bank Account Holder */
-            bank_account_holder?: string | null;
-            /** Bank Iban */
-            bank_iban?: string | null;
-            /** Bank Bic */
-            bank_bic?: string | null;
-            /** Bank Name */
-            bank_name?: string | null;
             /** Notification Email */
             notification_email?: boolean | null;
             /** Notification Inapp */
@@ -3696,17 +3746,9 @@ export interface components {
             invoice_email: string | null;
             /** Date Of Birth */
             date_of_birth: string | null;
-            /** Bank Account Holder */
-            bank_account_holder: string | null;
-            /** Bank Iban */
-            bank_iban: string | null;
-            /** Bank Bic */
-            bank_bic: string | null;
-            /** Bank Name */
-            bank_name: string | null;
             /** Company Object Id */
             company_object_id: number | null;
-            company?: components["schemas"]["CompanyRef"] | null;
+            company?: components["schemas"]["CompanyCard"] | null;
             /** Department */
             department: string | null;
             /** Job Title */
@@ -3775,14 +3817,6 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Bank Account Holder */
-            bank_account_holder?: string | null;
-            /** Bank Iban */
-            bank_iban?: string | null;
-            /** Bank Bic */
-            bank_bic?: string | null;
-            /** Bank Name */
-            bank_name?: string | null;
             /** Notification Email */
             notification_email?: boolean | null;
             /** Notification Inapp */
@@ -4623,6 +4657,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_my_company_api_v1_auth_me_company_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanySettingsUpdate"];
             };
         };
         responses: {
