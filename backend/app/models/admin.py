@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, text
+from sqlalchemy import BigInteger, Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -36,12 +36,6 @@ class CompanySettings(Base):
     """
 
     __tablename__ = "company_settings"
-    __table_args__ = (
-        Index("uq_company_settings_uid_key", "uid_key", unique=True,
-              postgresql_where=text("is_active AND uid_key IS NOT NULL")),
-        Index("uq_company_settings_name_key", "name_key", unique=True,
-              postgresql_where=text("is_active AND uid_key IS NULL AND name_key IS NOT NULL")),
-    )
 
     # ►►► **Die Nummer kommt aus der Sequenz, nicht aus einer Vorgabe.** ◄◄◄
     #
@@ -110,15 +104,6 @@ class CompanySettings(Base):
     # UID ohnehin sagt.
     uid_number: Mapped[Optional[str]] = mapped_column(String(30))
     vat_number: Mapped[Optional[str]] = mapped_column(String(30))
-    #: ►►► **Woran eine Firma erkannt wird – zwei Schlüssel, abgeleitet** (Migration 143).
-    #: ◄◄◄ ``uid_key`` ist die UID ohne Satzzeichen (``domain/uid.normalize``), ``name_key``
-    #: Name und Rechtsform ohne Gross-/Kleinschreibung und Satzzeichen. Beide schreibt
-    #: allein ``sites._rekey`` – nie ein Formular. **Eindeutig in der Datenbank**
-    #: (partielle Unique-Indizes): gleiche UID ist dieselbe Firma, und ohne UID gleicher
-    #: Name **und** Rechtsform. Eine Dublette ist damit nicht verboten, sondern
-    #: **unmöglich** – auch dann, wenn zwei Menschen dieselbe Firma im selben Moment nennen.
-    uid_key: Mapped[Optional[str]] = mapped_column(String(20))
-    name_key: Mapped[Optional[str]] = mapped_column(String(320))
     # Bank = **eine** Zahl: die IBAN trägt Land, Bank und Konto. QR-IBAN (die QR-Rechnung
     # ist nicht gebaut), Bankname und BIC waren Abschriften daraus.
     iban_encrypted: Mapped[Optional[str]] = mapped_column(Text)

@@ -39,24 +39,7 @@ export interface paths {
         patch: operations["update_me_api_v1_auth_me_patch"];
         trace?: never;
     };
-    "/api/v1/auth/me/addresses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add My Address */
-        post: operations["add_my_address_api_v1_auth_me_addresses_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/me/addresses/{address_id}": {
+    "/api/v1/auth/me/company": {
         parameters: {
             query?: never;
             header?: never;
@@ -66,12 +49,14 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove My Address */
-        delete: operations["remove_my_address_api_v1_auth_me_addresses__address_id__delete"];
+        delete?: never;
         options?: never;
         head?: never;
-        /** Change My Address */
-        patch: operations["change_my_address_api_v1_auth_me_addresses__address_id__patch"];
+        /**
+         * Update My Company
+         * @description Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma.
+         */
+        patch: operations["update_my_company_api_v1_auth_me_company_patch"];
         trace?: never;
     };
     "/api/v1/auth/terms-accept": {
@@ -531,12 +516,9 @@ export interface paths {
         };
         /**
          * Search Companies
-         * @description **Welche Firma ist gemeint?** – die Vorschläge, während das **Personal** einer
-         *     Person ihre Firma zuordnet. Ab zwei Zeichen, höchstens acht.
-         *
-         *     ►►► **Nur für das Personal.** ◄◄◄ Die Kundenliste ist nichts, was ein Kunde
-         *     durchblättern darf – auch nicht über Teilwörter («Ag», «Gm»). Eine Person **nennt**
-         *     ihre Firma (UID, sonst Name und Rechtsform), sie sucht sie nicht.
+         * @description **Gibt es diese Firma schon?** – die Vorschläge, während jemand seine Firma
+         *     eintippt (Konto und ERP). Ab zwei Zeichen, höchstens acht, und nur, was auf einer
+         *     Visitenkarte steht: Name, Rechtsform, Ort – die Kundenliste gibt es hier nicht.
          */
         get: operations["search_companies_api_v1_erp_companies_get"];
         put?: never;
@@ -563,41 +545,6 @@ export interface paths {
         head?: never;
         /** Update Erp Record */
         patch: operations["update_erp_record_api_v1_erp_records__object_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/erp/records/{object_id}/addresses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Record Address */
-        post: operations["add_record_address_api_v1_erp_records__object_id__addresses_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/records/{object_id}/addresses/{address_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove Record Address */
-        delete: operations["remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete"];
-        options?: never;
-        head?: never;
-        /** Change Record Address */
-        patch: operations["change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch"];
         trace?: never;
     };
     "/api/v1/erp/articles/name-suggestions": {
@@ -1460,66 +1407,6 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * AddressIn
-         * @description **Eine Anschrift im Adressbuch** – anlegen oder ändern (nur Gesendetes wirkt).
-         *
-         *     ``is_default_*: true`` macht sie zum Standard; ``false`` ist keine Handlung – einen
-         *     Standard nimmt man nicht weg, man gibt ihn einer anderen.
-         */
-        AddressIn: {
-            /** Street1 */
-            street1?: string | null;
-            /** Street2 */
-            street2?: string | null;
-            /** Zip */
-            zip?: string | null;
-            /** City */
-            city?: string | null;
-            /** Region */
-            region?: string | null;
-            /** Country */
-            country?: string | null;
-            /** Email */
-            email?: string | null;
-            /** Is Default Delivery */
-            is_default_delivery?: boolean | null;
-            /** Is Default Billing */
-            is_default_billing?: boolean | null;
-        };
-        /**
-         * AddressOption
-         * @description Eine Anschrift aus dem Adressbuch des Adressaten – Id und eine Zeile Text.
-         */
-        AddressOption: {
-            /** Id */
-            id: number;
-            /** Label */
-            label: string;
-        };
-        /** AddressOut */
-        AddressOut: {
-            /** Id */
-            id: number;
-            /** Street1 */
-            street1: string;
-            /** Street2 */
-            street2?: string | null;
-            /** Zip */
-            zip: string;
-            /** City */
-            city: string;
-            /** Region */
-            region?: string | null;
-            /** Country */
-            country: string;
-            /** Email */
-            email?: string | null;
-            /** Is Default Delivery */
-            is_default_delivery: boolean;
-            /** Is Default Billing */
-            is_default_billing: boolean;
-        };
-        /**
          * ArticleBom
          * @description Die **geplante** Stückliste in beide Richtungen (``services/bom.py``).
          *
@@ -1863,6 +1750,44 @@ export interface components {
             label: string;
         };
         /**
+         * CompanyCard
+         * @description **Die Firma, wie sie an IHRER Person steht** – mit Anschrift und Rechnungs-E-Mail,
+         *     weil sie dort gepflegt werden darf (externe Firma). Bewusst eine eigene Form neben
+         *     ``CompanyRef``: die Vorschlagsliste sieht jeder Angemeldete, und die braucht keine
+         *     Anschrift.
+         */
+        CompanyCard: {
+            /** Object Id */
+            object_id: number;
+            /** Company Name */
+            company_name: string;
+            /** Legal Form */
+            legal_form: string;
+            /** Uid Number */
+            uid_number?: string | null;
+            /** Vat Number */
+            vat_number?: string | null;
+            /** City */
+            city?: string | null;
+            /**
+             * Is Own
+             * @default false
+             */
+            is_own: boolean;
+            /** Street */
+            street?: string | null;
+            /** Street Nr */
+            street_nr?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Legal Name */
+            readonly legal_name: string;
+        };
+        /**
          * CompanyCreate
          * @description Neue **Firma** anlegen: Name und Rechtsform (die Rechtsperson), die UID freiwillig.
          *     Alles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin.
@@ -1899,11 +1824,8 @@ export interface components {
         };
         /**
          * CompanyRef
-         * @description **Die Firma einer Person** – ihre Identität, mehr nicht: Name, Rechtsform, UID.
-         *
-         *     Eine fremde Firma trägt bei uns keine Anschrift (``sites.EXTERNAL_FIELDS``); was eine
-         *     Person an ihr sieht, ist, was sie selbst genannt hat. Gepflegt wird sie am eigenen
-         *     Datensatz – vom Personal.
+         * @description **Die Firma einer Person** – so viel, wie man an der Person davon sieht. Gepflegt
+         *     wird sie an ihrem eigenen Datensatz; hier steht sie als Auskunft.
          */
         CompanyRef: {
             /** Object Id */
@@ -1914,6 +1836,10 @@ export interface components {
             legal_form: string;
             /** Uid Number */
             uid_number?: string | null;
+            /** Vat Number */
+            vat_number?: string | null;
+            /** City */
+            city?: string | null;
             /**
              * Is Own
              * @default false
@@ -2125,6 +2051,34 @@ export interface components {
             date_of_birth?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** State Region */
+            state_region?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Invoice First Name */
+            invoice_first_name?: string | null;
+            /** Invoice Last Name */
+            invoice_last_name?: string | null;
+            /** Invoice Address Line1 */
+            invoice_address_line1?: string | null;
+            /** Invoice Address Line2 */
+            invoice_address_line2?: string | null;
+            /** Invoice City */
+            invoice_city?: string | null;
+            /** Invoice Postal Code */
+            invoice_postal_code?: string | null;
+            /** Invoice Country */
+            invoice_country?: string | null;
+            /** Invoice Email */
+            invoice_email?: string | null;
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
@@ -2702,22 +2656,13 @@ export interface components {
         };
         /**
          * NewCompany
-         * @description ►►► **Eine Firma NENNEN** – die UID, sonst Name und Rechtsform. ◄◄◄
-         *
-         *     Der Server erkennt sie (gleiche UID · ohne UID gleicher Name **und** gleiche
-         *     Rechtsform) oder legt sie an (``sites.resolve``). Bei einer bekannten UID zählt der
-         *     getippte Name nicht – die Firma heisst, wie sie heisst.
+         * @description Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder
+         *     wird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``).
          */
         NewCompany: {
-            /**
-             * Company Name
-             * @default
-             */
+            /** Company Name */
             company_name: string;
-            /**
-             * Legal Form
-             * @default
-             */
+            /** Legal Form */
             legal_form: string;
             /** Uid Number */
             uid_number?: string | null;
@@ -3771,16 +3716,39 @@ export interface components {
             last_name: string | null;
             /** Phone */
             phone: string | null;
-            /**
-             * Addresses
-             * @default []
-             */
-            addresses: components["schemas"]["AddressOut"][];
+            /** Address Line1 */
+            address_line1: string | null;
+            /** Address Line2 */
+            address_line2: string | null;
+            /** City */
+            city: string | null;
+            /** Postal Code */
+            postal_code: string | null;
+            /** State Region */
+            state_region: string | null;
+            /** Country */
+            country: string;
+            /** Invoice First Name */
+            invoice_first_name: string | null;
+            /** Invoice Last Name */
+            invoice_last_name: string | null;
+            /** Invoice Address Line1 */
+            invoice_address_line1: string | null;
+            /** Invoice Address Line2 */
+            invoice_address_line2: string | null;
+            /** Invoice City */
+            invoice_city: string | null;
+            /** Invoice Postal Code */
+            invoice_postal_code: string | null;
+            /** Invoice Country */
+            invoice_country: string | null;
+            /** Invoice Email */
+            invoice_email: string | null;
             /** Date Of Birth */
             date_of_birth: string | null;
             /** Company Object Id */
             company_object_id: number | null;
-            company?: components["schemas"]["CompanyRef"] | null;
+            company?: components["schemas"]["CompanyCard"] | null;
             /** Department */
             department: string | null;
             /** Job Title */
@@ -3818,6 +3786,34 @@ export interface components {
             date_of_birth?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** State Region */
+            state_region?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Invoice First Name */
+            invoice_first_name?: string | null;
+            /** Invoice Last Name */
+            invoice_last_name?: string | null;
+            /** Invoice Address Line1 */
+            invoice_address_line1?: string | null;
+            /** Invoice Address Line2 */
+            invoice_address_line2?: string | null;
+            /** Invoice City */
+            invoice_city?: string | null;
+            /** Invoice Postal Code */
+            invoice_postal_code?: string | null;
+            /** Invoice Country */
+            invoice_country?: string | null;
+            /** Invoice Email */
+            invoice_email?: string | null;
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
@@ -3881,30 +3877,6 @@ export interface components {
              * @default 0
              */
             tax: string;
-        };
-        /**
-         * VoucherAddressing
-         * @description **An wen und wohin** – die drei Wahlen am Beleg, mit dem, was gilt.
-         */
-        VoucherAddressing: {
-            /** Company */
-            company?: string | null;
-            /**
-             * Person
-             * @default
-             */
-            person: string;
-            /**
-             * Bill To Company
-             * @default false
-             */
-            bill_to_company: boolean;
-            /** Billing Address Id */
-            billing_address_id?: number | null;
-            /** Delivery Address Id */
-            delivery_address_id?: number | null;
-            /** Options */
-            options?: components["schemas"]["AddressOption"][];
         };
         /**
          * VoucherCorrectable
@@ -4501,7 +4473,6 @@ export interface components {
             shipping_label?: string | null;
             /** Uid */
             uid?: string | null;
-            choice?: components["schemas"]["VoucherAddressing"] | null;
         };
         /**
          * VoucherStage
@@ -4601,12 +4572,6 @@ export interface components {
             incoterm_place?: string | null;
             /** Issuer */
             issuer?: number | null;
-            /** Bill To Company */
-            bill_to_company?: boolean | null;
-            /** Billing Address */
-            billing_address?: number | null;
-            /** Delivery Address */
-            delivery_address?: number | null;
         };
         /**
          * VoucherWay
@@ -4715,7 +4680,7 @@ export interface operations {
             };
         };
     };
-    add_my_address_api_v1_auth_me_addresses_post: {
+    update_my_company_api_v1_auth_me_company_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -4724,73 +4689,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AddressIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_my_address_api_v1_auth_me_addresses__address_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                address_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    change_my_address_api_v1_auth_me_addresses__address_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                address_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddressIn"];
+                "application/json": components["schemas"]["CompanySettingsUpdate"];
             };
         };
         responses: {
@@ -5591,109 +5490,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ErpAdminUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_record_address_api_v1_erp_records__object_id__addresses_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddressIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                address_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                address_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddressIn"];
             };
         };
         responses: {

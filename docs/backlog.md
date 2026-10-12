@@ -146,27 +146,6 @@ ORM-Mapping verloren: **eine Bankverbindung gibt es nur an einer eigenen Gesells
 vier sind `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf. Gedroppt wird im
 **Folge-Deploy** (Zwei-Deploy-Regel). *Die Werte sind danach weg – gewollt.*
 
-## Offen: die Anschriften am Benutzer droppen (Folge-Deploy nach Migration `143`)
-
-`user_profiles.address_line1`, `address_line2`, `city`, `postal_code`, `state_region`,
-`country` und die sieben `invoice_*` (`first_name`, `last_name`, `address_line1`,
-`address_line2`, `city`, `postal_code`, `country`) samt `invoice_email` haben ihr
-ORM-Mapping verloren: **die Anschriften stehen im Adressbuch** (`addresses`,
-`services/address_book`). Migration `143` und das Lifespan-Netz haben sie übernommen
-(`address_book.migrate_sql`) und die Felder **geleert** – der Lauf ist damit
-selbstbegrenzend. `country` war `NOT NULL` und steht dafür im `_NULLABLE_SAFETY_NET`.
-Gedroppt wird im **Folge-Deploy** (Zwei-Deploy-Regel); mit dem Drop entfällt auch der
-Aufruf von `migrate_sql` im Netz (er fragt ohnehin, ob `address_line1` noch da ist).
-
-*Bewusst nicht übernommen (nicht rückwärtskompatibel, ausdrücklich so gewollt): der
-**Name** an einer abweichenden Rechnungsadresse – Empfänger ist die Person bzw. ihre Firma
-– und eine Rechnungs-E-Mail ohne jede Anschrift.*
-
-*Ebenso stehen an **fremden** Firmen (`company_settings`, `is_own = false`) noch
-Anschrift, E-Mail und Telefon aus der Zeit davor. Gelesen wird davon nichts mehr (eine
-fremde Firma ist ihre Identität: Name, Rechtsform, UID); die Spalten bleiben, weil
-**eigene** Gesellschaften sie tragen.*
-
 ## Offen: zwölf Spalten am Benutzer droppen (Folge-Deploy nach #1042/#1043)
 
 Alle zwölf haben ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**:

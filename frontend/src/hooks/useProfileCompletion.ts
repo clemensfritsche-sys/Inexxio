@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-// Person und Adressbuch liegen gemeinsam im Reiter «Mein Profil» – darum zählen ihre
-// Pflichtangaben auf denselben Abschnitt (das Badge erscheint am Profil-Reiter).
+// Adresse + Rechnungsadresse liegen gemeinsam im Reiter «Mein Profil» – darum zählen
+// ihre Pflichtfelder auf denselben Abschnitt (das Badge erscheint am Profil-Reiter).
 type SectionId = 'profile';
 
 interface RequiredField {
@@ -26,17 +26,17 @@ const REQUIRED: RequiredField[] = [
   // Mein Profil – Person
   { section: 'profile', field: 'first_name' },
   { section: 'profile', field: 'last_name' },
+  // Mein Profil – Adresse
   { section: 'profile', field: 'phone' },
-  // **Mindestens eine Anschrift** – sie steht im Adressbuch; Strasse, PLZ und Ort prüft
-  // schon der Dienst beim Anlegen (`address_book._assert_complete`).
-  { section: 'profile', field: 'addresses' },
+  { section: 'profile', field: 'address_line1' },
+  { section: 'profile', field: 'city' },
+  { section: 'profile', field: 'postal_code' },
 ];
 
 function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {
   const val = profile[field];
   if (val === null || val === undefined) return false;
   if (typeof val === 'string') return val.trim().length > 0;
-  if (Array.isArray(val)) return val.length > 0;
   return true;
 }
 

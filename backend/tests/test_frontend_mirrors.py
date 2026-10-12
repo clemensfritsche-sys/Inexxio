@@ -8306,9 +8306,7 @@ def test_each_side_of_the_head_names_both_addresses():
     assert "BILLING_LABEL" in body and "SHIPPING_LABEL" in body, (
         "Die Beschriftungen kommen nicht mehr aus der einen Auflösung (a)."
     )
-    # **Unsere Seite entsteht in ``_ours``** (seit sie mit der Zusage einfriert,
-    # Migration 143) – ``document_head`` liest sie von dort bzw. aus dem Kopf.
-    head = src[src.index("def _ours("):src.index("def _creditor(")]
+    head = src[src.index("def document_head("):src.index("def _addresses(")]
     assert "_addresses(" in head, "Unsere Seite nennt ihre Anschriften nicht (b)."
     assert src.count("_addresses(") >= 3, (
         "Nicht beide Seiten lesen dieselbe Auflösung (a/b)."
@@ -8522,7 +8520,7 @@ def test_the_sender_side_names_the_address_the_goods_leave_from():
     assert "not vo.of(row.direction).collects" in theirs, (
         "Die Gegenseite rät ihre Rolle (b)."
     )
-    head = src[src.index("def _ours("):src.index("def _creditor(")]
+    head = src[src.index("def document_head("):src.index("def _addresses(")]
     assert "sends=flow.collects" in head, "Unsere Seite rät ihre Rolle (b)."
     assert "Versandadresse" not in _code(_beleg()), (
         "Das Wort steht als Literal in der Karte (c)."
@@ -9920,67 +9918,124 @@ def test_the_company_is_a_record_in_every_surface():
 def test_the_billing_email_is_one_field_in_every_surface():
     """►►► **Eine Information existiert genau einmal** (Testnotiz #1042). ◄◄◄
 
-    Seit dem Adressbuch (Migration 143) steht die Rechnungs-E-Mail **an der Anschrift**:
-    wohin die Rechnung per Post und wohin per E-Mail geht, ist dieselbe Entscheidung. Es
-    gibt sie darum genau einmal – im Bauteil ``AddressBook`` –, und keine Oberfläche führt
-    daneben ein eigenes Feld.
+    *«Aktuell gibt es die Rechnungs-E-Mail zweimal als Eingabefeld im Benutzerdatensatz:
+    einmal im Abschnitt Adressen und einmal unter den Unternehmensinformationen als
+    ‹Rechnungs-E-Mail (Firma)›. Das ist ersatzlos aufzulösen.»*
 
-    Bug-Formen: (a) ``company_billing_email`` ist wieder da; (b) eine Oberfläche führt
-    ein eigenes Feld ``invoice_email`` neben dem Adressbuch; (c) ein zweites
-    Firmennamen-Feld an der Rechnungsadresse (``invoice_company``); (d) das Adressbuch hat
-    das Feld nicht oder zweimal.
+    Geprüft wird die **Regel**, nicht die gemeldete Zeile: in jeder Oberfläche, die den
+    Benutzer-Datensatz schreibt, gibt es **genau ein** Eingabefeld für sie – und kein
+    Feld mehr, das «(Firma)» heisst.
+
+    Bug-Formen: (a) ``company_billing_email`` ist wieder da; (b) es gibt zwei Felder für
+    ``invoice_email``; (c) ein zweites Firmennamen-Feld an der Rechnungsadresse
+    (``invoice_company``) – dieselbe Doppelung eine Angabe weiter.
     """
-    for where in _USER_SURFACES:
+    for where in ("components/erp/user-detail.tsx",
+                  "components/account/sections/profile-section.tsx"):
         src = _code(_read(FRONTEND / where))
-        assert "company_billing_email" not in src, f"«{where}» (a)"
-        assert "invoice_company" not in src, f"«{where}» (c)"
-        assert "invoice_email" not in src and "Rechnungs-E-Mail" not in src, (
-            f"«{where}» führt die Rechnungs-E-Mail neben dem Adressbuch (b).")
-        assert "(Firma)" not in src, f"«{where}» beschriftet noch ein Feld mit «(Firma)» (a)."
-    book = _code(_read(FRONTEND / "components/erp/address-book.tsx"))
-    fields = re.findall(r"label=\"Rechnungs-E-Mail[^\"]*\"", book)
-    assert len(fields) == 1, f"Das Adressbuch hat {len(fields)} Felder «Rechnungs-E-Mail» (d)."
+        assert "company_billing_email" not in src, (
+            f"«{where}» führt die Firmen-Rechnungs-E-Mail wieder (a)."
+        )
+        assert "invoice_company" not in src, (
+            f"«{where}» führt ein zweites Firmennamen-Feld (c) – bei «Geschäft» trägt "
+            "die Rechnungsadresse den Firmennamen aus den Firmendaten."
+        )
+        fields = re.findall(r"label=\"Rechnungs-E-Mail[^\"]*\"", src)
+        assert len(fields) == 1, (
+            f"«{where}» hat {len(fields)} Felder «Rechnungs-E-Mail» (b) – es ist eines."
+        )
+        assert "(Firma)" not in src, (
+            f"«{where}» beschriftet noch ein Feld mit «(Firma)» (a)."
+        )
 
 
 def test_the_inheritance_of_the_billing_email_is_visible():
     """**Ist sie leer, wird die Login-/Kontakt-E-Mail verwendet – und das steht da.**
 
-    Der Satz steht an **einer** Stelle (``lib/accounts.inheritedEmail``) und wird vom
-    Adressbuch gelesen – zwei Formulierungen wären zwei Aussagen über dieselbe Vererbung.
+    *«Das Feld ist also optional und trägt einen Platzhalter, der die Vererbung sichtbar
+    macht. Kein zweites Feld, keine Checkbox.»* Der Satz steht an **einer** Stelle
+    (``lib/accounts.inheritedEmail``) und wird von beiden Oberflächen gelesen – zwei
+    Formulierungen wären zwei Aussagen über dieselbe Vererbung.
 
-    Bug-Formen: (a) der Platzhalter nennt nur die Adresse; (b) daneben steht eine
-    Checkbox; (c) das Adressbuch baut den Satz selbst.
+    Bug-Formen: (a) der Platzhalter nennt nur die Adresse (das sieht aus wie eine
+    Vorbelegung, nicht wie eine Regel); (b) daneben steht doch eine Checkbox oder ein
+    zweites Feld; (c) eine Oberfläche baut den Satz selbst.
     """
-    assert "übernimmt" in _accounts_ts(), "Der Satz nennt die Vererbung nicht (a)."
-    book = _code(_read(FRONTEND / "components/erp/address-book.tsx"))
-    assert "inheritedEmail(" in book, "Das Adressbuch baut den Satz selbst (c)."
-    assert "übernimmt" not in book, "Die Vererbung steht zweimal (c)."
-    assert not re.search(r"(ToggleField|Segmented)[^>]*Rechnungs-E-Mail", book), "(b)"
+    assert "übernimmt" in _accounts_ts(), (
+        "Der Satz nennt die Vererbung nicht (a) – «rechnung@…» allein ist eine "
+        "Vorbelegung, keine Regel."
+    )
+    for where in ("components/erp/user-detail.tsx",
+                  "components/account/sections/profile-section.tsx"):
+        src = _code(_read(FRONTEND / where))
+        assert "inheritedEmail(" in src, f"«{where}» baut den Satz selbst (c)."
+        assert "übernimmt" not in src, f"«{where}» formuliert die Vererbung zweimal (c)."
+        assert not re.search(r"(ToggleField|Segmented)[^>]*Rechnungs-E-Mail", src), (
+            f"«{where}» stellt die Vererbung als Schalter daneben (b)."
+        )
 
 
-def test_addresses_live_in_one_address_book():
-    """►►► **Ein Adressbuch statt zweier fester Anschriften** (Migration 143). ◄◄◄
+def test_the_billing_switch_shows_the_fields_and_never_copies():
+    """►►► **Der Schalter ist zurück — die Kopie nicht.** ◄◄◄
 
-    Eine Person hat beliebig viele Anschriften und je einen Standard für Lieferung und
-    Rechnung; wohin bei einem Beleg, entscheidet der Beleg. Konto und ERP zeigen
-    **dasselbe** Bauteil, und es gibt keinen Schalter «Eigene Rechnungsadresse» mehr – er
-    war die zweite Aussage über eine Frage, die das Adressbuch selbst beantwortet.
+    *«rechnungsadresse bitte wieder mit schalter»* – und das ist kein Rückschritt hinter
+    #1043: dort war das Problem nicht der Schalter, sondern dass er eine **gespeicherte**
+    Angabe war und bei «gleich wie» eine **Kopie** der Lieferadresse in die
+    Rechnungsfelder schrieb; die veraltete beim nächsten Umzug, genau wie damals
+    ``invoice_company``.
 
-    Bug-Formen: (a) eine Oberfläche baut ihre eigene Anschrift wieder als Formularfeld;
-    (b) der Schalter ist zurück; (c) die Frage «steht eine eigene da?» lebt weiter; (d) die
-    Oberfläche formuliert die Standards selbst, statt sie vom Server zu lesen.
+    Jetzt ist er eine **Ableitung** aus den Feldern (``hasOwnBilling`` – dieselbe Frage,
+    die ``voucher.billing_of`` stellt), und «Aus» **räumt** sie: es gibt weiterhin genau
+    eine Wahrheit, und nirgends eine Kopie.
+
+    *Dieser Wächter löst den von #1043 ab, der das **Fehlen** des Schalters verlangte – er
+    prüfte die Form der damaligen Lösung.*
+
+    Bug-Formen: (a) der Schalter fehlt; (b) er ist wieder eine gespeicherte Angabe;
+    (c) die Oberfläche spiegelt die Lieferadresse in die Rechnungsfelder; (d) «Aus» räumt
+    die Felder nicht (dann sagt der Schalter etwas anderes als die Daten); (e) ein Feld
+    der Rechnungsadresse ist Pflicht; (f) die Frage wird je Oberfläche selbst gestellt.
     """
     acc = _accounts_ts()
-    assert "hasOwnBilling" not in acc and "NO_OWN_BILLING" not in acc, "(c)"
+    assert "hasOwnBilling" in acc and "invoice_address_line1" in acc, (
+        "Die Frage «steht eine eigene da?» steht nicht an einer Stelle (f)."
+    )
     for where in _USER_SURFACES:
         src = _code(_read(FRONTEND / where))
-        assert re.search(r"<AddressBook[\s/>]", src), f"«{where}» zeigt das Adressbuch nicht (a)."
-        assert "<AddressField" not in src, f"«{where}» baut eine eigene Anschrift (a)."
-        assert "OWN_ADDRESS" not in src and "ownBilling" not in src, f"«{where}» (b)"
-        assert not re.search(r"invoice_\w+|address_line1|postal_code", src), (
-            f"«{where}» schreibt noch die alten Felder am Benutzer (a).")
-    book = _code(_read(FRONTEND / "components/erp/address-book.tsx"))
-    assert "entry[key]" in book, "Die Standards kommen nicht vom Server (d)."
+        # ►►► **Gefragt ist das Rendern, nicht das Vorkommen.** ◄◄◄ Der erste Anlauf
+        # fragte, ob «ToggleField» und «OWN_ADDRESS» irgendwo in der Datei stehen – das
+        # erfüllt schon der Newsletter-Schalter plus der Import, und die eigene Bug-Form
+        # (ein anderes Bauteil an dieser Stelle) ging durch.
+        assert re.search(r"<ToggleField label=\{OWN_ADDRESS\}", src), (
+            f"«{where}» hat keinen Schalter über der Rechnungsadresse (a)."
+        )
+        assert "invoice_same_as_shipping" not in src, (
+            f"«{where}» führt den Schalter wieder als gespeicherte Angabe (b)."
+        )
+        # **Abgeleitet heisst: der Startwert UND der Wechsel kommen aus den Feldern.**
+        # «``hasOwnBilling`` kommt vor» ist zu wenig – es steht auch in der Lese-Ansicht,
+        # und die Bug-Form (ein fester Startwert) ging damit durch.
+        assert re.search(r"useState\(\(\) => hasOwnBilling\(", src), (
+            f"«{where}» leitet den Startwert des Schalters nicht aus den Feldern ab (b/f)."
+        )
+        assert "setOwnBilling(hasOwnBilling(" in src, (
+            f"«{where}» zieht den Schalter beim Datensatz-Wechsel nicht nach (b/f)."
+        )
+        # ►►► **Die Kopie kommt durch einen Helfer** (gemessen): der erste Anlauf verlangte
+        # ``v.`` direkt hinter dem Doppelpunkt und liess ``invoice_city: nn(v.city)``
+        # durch – also genau die Form, in der die Spiegelung wirklich dastand.
+        assert not re.search(r"invoice_\w+:\s*(?:nn\()?\s*(?:v|form)\.(?!invoice)", src), (
+            f"«{where}» kopiert die Lieferadresse in die Rechnungsfelder (c)."
+        )
+        # (d) **«Aus» schreibt eine Leere** – und zwar aus der einen Quelle.
+        assert re.search(r"\.\.\.NO_OWN_BILLING", src), (
+            f"«{where}» räumt die Felder nicht, wenn der Schalter aus ist (d) – der Import allein tut es nicht."
+        )
+        for field in ("invoice_first_name", "invoice_last_name"):
+            at = _at(src, f"form.{field}")
+            assert "required" not in src[at:at + 200], (
+                f"«{where}» macht «{field}» zur Pflicht (e) – der Block ist freiwillig."
+            )
 
 
 def test_a_field_explains_itself_without_a_paragraph():
@@ -10436,47 +10491,3 @@ def test_a_late_profile_cannot_undo_a_logout():
     fb = _code(_read(FRONTEND / "lib" / "firebase.ts"))
     body = fb[fb.index("export async function logout"):fb.index("export function currentUid")]
     assert body.index("signOut(auth)") < body.index("finally") < body.index("clearAccountCache()"), "(b)"
-
-
-def test_a_customer_names_its_firm_and_only_staff_picks_from_a_list():
-    """►►► **Kunden sehen keine fremden Firmen** (CRM, Migration 143). ◄◄◄
-
-    Im **Konto** wird die Firma *genannt* (UID, sonst Name und Rechtsform) – ohne Liste
-    bestehender Firmen; im **ERP** wählt das Personal aus ihr. Und es gibt keinen Weg
-    mehr, als Kunde die Angaben einer Firma zu ändern.
-
-    Bug-Formen: (a) das Konto bekommt die Firmensuche; (b) das ERP verliert sie; (c) die
-    Suche steht ohne Bedingung im Bauteil; (d) der Pflegeweg ``updateMyCompany`` ist
-    zurück.
-    """
-    prof = _code(_read(FRONTEND / "components/account/sections/profile-section.tsx"))
-    erp = _code(_read(FRONTEND / "components/erp/user-detail.tsx"))
-    mine = re.search(r"<CompanyField(.*?)/>", prof, re.S)
-    theirs = re.search(r"<CompanyField(.*?)/>", erp, re.S)
-    assert mine and not re.search(r"\bsearch\b", mine.group(1)), "(a)"
-    assert theirs and re.search(r"\bsearch\b", theirs.group(1)), "(b)"
-    field = _code(_read(FRONTEND / "components/erp/company-field.tsx"))
-    at = field.index("<ObjectSelect")
-    assert "{search ? (" in field[max(0, at - 120):at], "(c)"
-    for where in ("components/erp/company-field.tsx", "lib/api.ts",
-                  "components/account/sections/profile-section.tsx"):
-        src = _code(_read(FRONTEND / where))
-        assert "updateMyCompany" not in src and "CompanyEditor" not in src, f"«{where}» (d)"
-
-
-def test_the_document_offers_firm_and_addresses_only_where_the_server_says_so():
-    """**An wen und wohin – am Beleg, und nur, wo der Server ``choice`` liefert.**
-
-    Der Server liefert sie am Adressaten, vor der Zusage, für das Personal; danach ist
-    der Kopf eingefroren. Die Karte formuliert die Bedingung nicht selbst nach.
-
-    Bug-Formen: (a) die Wahl hängt an der Stufe statt an ``choice``; (b) sie schickt ein
-    anderes Verb als ``address``; (c) die Anschrift ist ein Freitextfeld statt einer Wahl
-    aus dem Adressbuch.
-    """
-    src = _code(_beleg())
-    assert "view.choice?.company ?" in src and "choice={view.choice}" in src, "(a)"
-    assert src.count("action: 'address'") == 3, "(b)"
-    body = src[src.index("function Anschrift("):]
-    body = body[:body.index("\nfunction ", 1)]
-    assert "<DocPick" in body and "choice?.options" in body and "<input" not in body, "(c)"

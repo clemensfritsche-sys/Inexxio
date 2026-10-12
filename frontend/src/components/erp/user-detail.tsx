@@ -9,6 +9,9 @@ import { day, when } from '@/lib/when';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
+import {
+  NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
+} from '@/lib/accounts';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
@@ -16,12 +19,12 @@ import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
 // zweite Optik, kein zweiter Feld-Satz – nur die ERP-Extras kommen dazu (Notiz #295:
 // Rolle, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
 import { Field as AField, ToggleField, SelectField } from '@/components/account/field';
-import { AddressBook } from '@/components/erp/address-book';
-import { CompanyField } from '@/components/erp/company-field';
+import { AddressField, type Address } from '@/components/erp/address-field';
+import { CompanyEditor, CompanyField, cardOf } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
-import type { UserProfile, UserRole } from '@/types';
+import type { CompanyCard, UserProfile, UserRole } from '@/types';
 
 // **Der Benutzer hat keine Reiter mehr** – aus demselben Befund, zweimal.
 //
@@ -35,6 +38,27 @@ import type { UserProfile, UserRole } from '@/types';
 // Kommen die Bereiche zurück, kommen ihre Reiter mit ihnen.
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const COUNTRY_NAMES: Record<string, string> = {
+  CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
+  IT: 'Italien', LI: 'Liechtenstein', LU: 'Luxemburg', NL: 'Niederlande',
+  BE: 'Belgien', ES: 'Spanien', PT: 'Portugal', GB: 'Grossbritannien',
+  US: 'USA', PL: 'Polen', CZ: 'Tschechien', SK: 'Slowakei', HU: 'Ungarn',
+  HR: 'Kroatien', SI: 'Slowenien', RO: 'Rumänien', BG: 'Bulgarien',
+  SE: 'Schweden', NO: 'Norwegen', DK: 'Dänemark', FI: 'Finnland',
+};
+
+function countryName(code: string | null | undefined): string {
+  if (!code) return '';
+  return COUNTRY_NAMES[code.toUpperCase()] ?? code;
+}
+
+// Auswahl für den manuellen Adress-Modus – **ISO-2-Werte** wie in den Profileinstellungen
+// (dort werden dieselben sechs Länder geführt). Das Land-Format bestimmt `AddressField`.
+const COUNTRIES: [string, string][] = [
+  ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
+  ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
+];
 
 export function userInitials(name: string, email: string): string {
   if (name && name !== email) {
@@ -66,6 +90,32 @@ function SubBlock({ icon: Icon, title, children }: {
   );
 }
 
+/** Read-only-Adresse (Nicht-Admin sieht, ändert nicht). `AddressField` ist ein
+ *  Editier-Baustein (Suche + «Ändern») – für die reine Anzeige die kompakte
+ *  Zusammenfassung, die dieselbe Optik wie sein gefüllter Zustand trägt. */
+function AddrSummary({ label, a }: { label: string; a: Address }) {
+  const empty = !a.street?.trim() && !a.zip?.trim() && !a.city?.trim();
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
+        <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}>{label}</span>
+      </div>
+      {empty ? (
+        <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Nicht erfasst</div>
+      ) : (
+        <div style={{ padding: '11px 13px', borderRadius: 'var(--r-md)', border: '1px solid var(--border-1)', background: 'var(--bg-2)', lineHeight: 1.5 }}>
+          <div style={{ font: '600 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{a.street || '—'}</div>
+          {a.street2 && <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{a.street2}</div>}
+          <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{[a.zip, a.city].filter(Boolean).join(' ')}</div>
+          {a.region && <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{a.region}</div>}
+          <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{countryName(a.country)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Formular (Spiegel des Profils + ERP-Extras) ───────────────────────────────
 
 interface ERPForm {
@@ -74,6 +124,20 @@ interface ERPForm {
   last_name: string;
   date_of_birth: string;
   phone: string;
+  address_line1: string;
+  address_line2: string;
+  postal_code: string;
+  city: string;
+  state_region: string;
+  country: string;
+  invoice_first_name: string;
+  invoice_last_name: string;
+  invoice_address_line1: string;
+  invoice_address_line2: string;
+  invoice_postal_code: string;
+  invoice_city: string;
+  invoice_country: string;
+  invoice_email: string;
   department: string;
   job_title: string;
   employment_start_date: string;
@@ -90,6 +154,20 @@ function buildForm(p: UserProfile): ERPForm {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
+    address_line1: p.address_line1 ?? '',
+    address_line2: p.address_line2 ?? '',
+    postal_code: p.postal_code ?? '',
+    city: p.city ?? '',
+    state_region: p.state_region ?? '',
+    country: p.country ?? 'CH',
+    invoice_first_name: p.invoice_first_name ?? '',
+    invoice_last_name: p.invoice_last_name ?? '',
+    invoice_address_line1: p.invoice_address_line1 ?? '',
+    invoice_address_line2: p.invoice_address_line2 ?? '',
+    invoice_postal_code: p.invoice_postal_code ?? '',
+    invoice_city: p.invoice_city ?? '',
+    invoice_country: p.invoice_country ?? 'CH',
+    invoice_email: p.invoice_email ?? '',
     department: p.department ?? '',
     job_title: p.job_title ?? '',
     employment_start_date: p.employment_start_date ?? '',
@@ -103,10 +181,16 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
 /**
  * Form → Update-Payload.
  *
- * ►►► **Nur noch EINE Bedingung** (Testnotiz #1043): die **Anstellung** – sie gehört nicht
- * zu jedem Datensatz. Firma und Anschriften stehen nicht in diesem Formular: die Firma
- * wird zugeordnet (`CompanyField`), die Anschriften leben im Adressbuch (`AddressBook`),
- * jede mit ihrem eigenen Auto-Save.
+ * ►►► **Nur noch EINE Bedingung** (Testnotiz #1043). ◄◄◄ Hier standen vier: Firmenfelder
+ * nach Kontotyp, Bankverbindung nach Rolle, und die Rechnungsadresse wurde bei «gleich
+ * wie Lieferadresse» aus der Hauptadresse **kopiert**. Alle drei sind weg – der
+ * Firmenname ist die Erklärung (also wird er geschickt wie jedes andere Feld), eine
+ * Bankverbindung gibt es an einer Person gar nicht mehr (nur an unseren Gesellschaften),
+ * und eine leere Rechnungsadresse
+ * **ist** die Aussage «es gilt die Lieferadresse». Eine Kopie veraltete beim nächsten
+ * Umzug, genau wie damals `invoice_company`.
+ *
+ * Geblieben ist die **Anstellung**: sie gehört nicht zu jedem Datensatz.
  */
 function mapUpdate(v: ERPForm): Partial<UserProfile> {
   const isStaff = v.role === 'employee' || v.role === 'admin';
@@ -116,7 +200,22 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     last_name: nn(v.last_name),
     date_of_birth: nn(v.date_of_birth),
     phone: nn(v.phone),
+    address_line1: nn(v.address_line1),
+    address_line2: nn(v.address_line2),
+    postal_code: nn(v.postal_code),
+    city: nn(v.city),
+    state_region: nn(v.state_region),
+    country: v.country || 'CH',
+    // Die **eine** Rechnungs-E-Mail (#1042) – leer erbt sie die Login-Adresse.
+    invoice_email: nn(v.invoice_email),
     newsletter_opt_in: v.newsletter_opt_in,
+    invoice_first_name: nn(v.invoice_first_name),
+    invoice_last_name: nn(v.invoice_last_name),
+    invoice_address_line1: nn(v.invoice_address_line1),
+    invoice_address_line2: nn(v.invoice_address_line2),
+    invoice_postal_code: nn(v.invoice_postal_code),
+    invoice_city: nn(v.invoice_city),
+    invoice_country: nn(v.invoice_country),
   };
   if (isStaff) {
     // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
@@ -142,13 +241,19 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   const [form, setForm] = useState<ERPForm>(() => buildForm(record));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | null | undefined>(undefined);
+  // ►►► **Der Schalter ist eine Ableitung aus den Feldern** – mit einem Gedächtnis für
+  // genau einen Fall: «An» geklickt, aber noch nichts getippt. Nachgezogen wird er beim
+  // **Wechsel** des Datensatzes, nicht bei jedem Rendern – wie das Formular selbst.
+  const [ownBilling, setOwnBilling] = useState(() => hasOwnBilling(buildForm(record)));
 
   // Nur bei Datensatz-Wechsel neu aufbauen (nicht bei jedem `record`-Prop) – sonst
   // klobbert ein Auto-Save → onSaved → neuer Prop die gerade getippte Eingabe.
   useEffect(() => {
     if (record.object_id !== prevId.current) {
       prevId.current = record.object_id;
-      setForm(buildForm(record));
+      const next = buildForm(record);
+      setForm(next);
+      setOwnBilling(hasOwnBilling(next));
       setResetKey((k) => k + 1);
     }
   }, [record.object_id, record]);
@@ -171,6 +276,24 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
   const role = form.role;
   const isStaff = role === 'employee' || role === 'admin';
+
+  const address: Address = {
+    street: form.address_line1, street2: form.address_line2, zip: form.postal_code,
+    city: form.city, region: form.state_region, country: form.country,
+  };
+  const applyAddress = (a: Address) => setForm((p) => ({
+    ...p, address_line1: a.street, address_line2: a.street2 ?? '', postal_code: a.zip,
+    city: a.city, state_region: a.region ?? '', country: a.country,
+  }));
+
+  const invoiceAddress: Address = {
+    street: form.invoice_address_line1, street2: form.invoice_address_line2,
+    zip: form.invoice_postal_code, city: form.invoice_city, country: form.invoice_country,
+  };
+  const applyInvoiceAddress = (a: Address) => setForm((p) => ({
+    ...p, invoice_address_line1: a.street, invoice_address_line2: a.street2 ?? '',
+    invoice_postal_code: a.zip, invoice_city: a.city, invoice_country: a.country,
+  }));
 
   const termsDate = record.terms_accepted_at
     ? day(record.terms_accepted_at) : null;
@@ -216,27 +339,95 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
       </Card>
 
-      {/* ── 2. Firma ────────────────────────────────────────────────────────── */}
-      {/* ►►► **Das Personal ordnet zu – aus den bestehenden Firmen oder neu genannt.** ◄◄◄
-          Eine fremde Firma ist ihre Identität (Name, Rechtsform, UID) und wird an ihrem
-          Datensatz gepflegt; für Personal muss es eine unserer Gesellschaften sein
-          (`people.assert_employment`). */}
-      <Card icon={Building2} title="Firma">
-        <CompanyField company={record.company} readOnly={ro} search
-          country={record.addresses?.[0]?.country}
+      {/* ── 2. Firma & Adressen ────────────────────────────────────────────── */}
+      {/* ►►► **Für wen · wohin die Ware · wohin die Rechnung – EINE Karte, diese
+          Reihenfolge** (dieselbe Anatomie wie im Konto). ◄◄◄ Die Firma ist ein Datensatz:
+          gewählt oder neu genannt; für Personal muss sie eine unserer Gesellschaften sein
+          (`people.assert_employment`). Ihre Angaben stehen bei der Rechnung, gespeichert
+          an ihrem Datensatz. */}
+      <Card icon={Building2} title="Firma & Adressen">
+        <CompanyField company={record.company} readOnly={ro} country={form.country}
           onLink={(id) => api.updateErpRecord(record.object_id as number,
             { company_object_id: id } as Partial<UserProfile>).then(onSaved)}
           onCreate={(nc) => api.updateErpRecord(record.object_id as number,
             { new_company: nc } as Partial<UserProfile>).then(onSaved)} />
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
+        {canEdit ? (
+          <AddressField value={address} onChange={applyAddress} apiKey={mapsKey}
+            countryOptions={COUNTRIES} showStreet2 showRegion label="Lieferadresse" />
+        ) : (
+          <AddrSummary label="Lieferadresse" a={address} />
+        )}
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
+        {record.company ? (
+          <CompanyEditor company={record.company} mapsKey={mapsKey}
+            readOnly={ro || (record.company.is_own && !isAdmin)}
+            onSave={(d) => api.updateCompany((record.company as CompanyCard).object_id, d)
+              .then((c) => onSaved({ ...record, company: cardOf(c) }))} />
+        ) : (
+          <>
+          {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
+              Er war einmal eine **gespeicherte** Angabe (`invoice_same_as_shipping`) und
+              schrieb bei «gleich wie» eine **Kopie** der Lieferadresse in die
+              Rechnungsfelder; die veraltete beim nächsten Umzug, genau wie damals
+              `invoice_company`. Darum ist er mit #1043 verschwunden.
+
+              Jetzt ist er eine **Ableitung**: *steht eine eigene da?* – dieselbe Frage, die
+              der Dienst stellt (`voucher.billing_of`). «Aus» **räumt** die Felder, schreibt
+              also in die Daten, was er anzeigt; eine Kopie entsteht nirgends, und es gibt
+              weiterhin genau eine Wahrheit.
+
+              **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
+              Rechnungsadresse ihn als erste Zeile (`people.billing_name`). */}
+          {canEdit ? (
+            <>
+              <ToggleField label={OWN_ADDRESS} description={OWN_ADDRESS_HINT}
+                checked={ownBilling}
+                onChange={(on) => {
+                  setOwnBilling(on);
+                  if (!on) setForm((p) => ({ ...p, ...NO_OWN_BILLING }));
+                }} />
+              {ownBilling && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <AField label="Vorname" value={form.invoice_first_name} onChange={str('invoice_first_name')} onEnter={saveNow} />
+                    <AField label="Nachname" value={form.invoice_last_name} onChange={str('invoice_last_name')} onEnter={saveNow} />
+                  </div>
+                  <AddressField value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
+                    countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+                </>
+              )}
+            </>
+          ) : hasOwnBilling(form) ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <AField label="Vorname" value={form.invoice_first_name} readOnly />
+                <AField label="Nachname" value={form.invoice_last_name} readOnly />
+              </div>
+              <AddrSummary label="Rechnungsadresse" a={invoiceAddress} />
+            </>
+          ) : (
+            // **Wer nicht ändern darf, sieht die Entscheidung als Antwort** – ein Schalter,
+            // der nichts tun kann, ist kein Angebot; eine leere Fläche wäre keine Aussage.
+            <AField label={OWN_ADDRESS} value="Nein" hint={OWN_ADDRESS_HINT} readOnly />
+          )}
+
+          {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Sie ist ein Attribut der
+              Rechnungsadresse – nicht der Firma – und **freiwillig**: leer erbt sie die
+              Login-/Kontakt-Adresse. Das sagt der **Platzhalter**, nicht ein zweites Feld
+              und keine Checkbox. */}
+          <AField label="Rechnungs-E-Mail" value={form.invoice_email} onChange={str('invoice_email')}
+            readOnly={ro} type="email" placeholder={inheritedEmail(record.email)} onEnter={saveNow} />
+
+          </>
+        )}
       </Card>
 
-      {/* ── 3. Adressen – dasselbe Adressbuch wie im Konto ─────────────────────── */}
-      <Card icon={MapPin} title="Adressen">
-        <AddressBook owner={record.object_id ?? null} addresses={record.addresses ?? []}
-          loginEmail={record.email} readOnly={ro} mapsKey={mapsKey} onSaved={onSaved} />
-      </Card>
-
-      {/* ── 4. Kommunikation & Rechtliches ──────────────────────────────────── */}
+      {/* ── 3. Kommunikation & Rechtliches ──────────────────────────────────── */}
       <Card icon={Bell} title="Kommunikation">
         {canEdit ? (
           <ToggleField label="Newsletter" description="Produktneuigkeiten und Angebote per E-Mail"
@@ -256,7 +447,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         </div>
       </Card>
 
-      {/* ── 5. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}
+      {/* ── 4. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}
       <Card icon={Cog} title="System">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AField label="E-Mail" value={record.email} readOnly />

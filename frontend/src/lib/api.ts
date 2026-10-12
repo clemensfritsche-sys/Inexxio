@@ -25,7 +25,6 @@ import type {
   CompanySettings,
   CompanyPerson,
   CompanyRef,
-  AddressInput,
   PersonCreate,
   UserProfile,
   TerritoryMap,
@@ -277,25 +276,10 @@ class ApiClient {
     return this.patch('/api/v1/auth/me', data);
   }
 
-  // ─── Das Adressbuch – im Konto die eigene Person, im ERP ein Datensatz ──────
-  // Dieselben Funktionen im Dienst (`services/address_book`); die Antwort ist jedes Mal
-  // der ganze Benutzer, damit kein Aufrufer eine Liste nachführen muss.
-
-  /** `null` = die eigene Person (Konto), sonst die Objektnummer (ERP). */
-  addAddress(owner: number | null, data: AddressInput): Promise<UserProfile> {
-    return this.post(this.addressBase(owner), data);
-  }
-
-  changeAddress(owner: number | null, id: number, data: AddressInput): Promise<UserProfile> {
-    return this.patch(`${this.addressBase(owner)}/${id}`, data);
-  }
-
-  removeAddress(owner: number | null, id: number): Promise<UserProfile> {
-    return this.delete(`${this.addressBase(owner)}/${id}`);
-  }
-
-  private addressBase(owner: number | null): string {
-    return owner == null ? '/api/v1/auth/me/addresses' : `/api/v1/erp/records/${owner}/addresses`;
+  /** Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma
+   *  (`people.update_member_company`); eine unserer Gesellschaften ändert nur ein Admin. */
+  updateMyCompany(data: Partial<CompanySettings>): Promise<UserProfile> {
+    return this.patch('/api/v1/auth/me/company', mapSettingsToBackend(data));
   }
 
   // ─── Passkeys (WebAuthn/FIDO2) ──────────────────────────────────────────────
@@ -379,8 +363,7 @@ class ApiClient {
     return this.post<Record<string, unknown>>('/api/v1/admin/companies', data).then(mapSettingsFromBackend);
   }
 
-  /** **Welche Firma ist gemeint?** – Vorschläge für das **Personal** (die Tür lässt nur
-   *  Personal durch: Kunden nennen ihre Firma über die UID, sie suchen sie nicht). */
+  /** **Gibt es diese Firma schon?** – Vorschläge, während jemand seine Firma eintippt. */
   searchCompanies(search: string): Promise<CompanyRef[]> {
     return this.get(`/api/v1/erp/companies?search=${encodeURIComponent(search)}`);
   }

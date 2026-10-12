@@ -298,25 +298,6 @@ class DataGap(BaseModel):
     why: str = ""
 
 
-class AddressOption(BaseModel):
-    """Eine Anschrift aus dem Adressbuch des Adressaten – Id und eine Zeile Text."""
-    id: int
-    label: str
-
-
-class VoucherAddressing(BaseModel):
-    """**An wen und wohin** – die drei Wahlen am Beleg, mit dem, was gilt."""
-    #: Die Firma der Person (Name mit Rechtsform) – ``None``, wo es keine gibt: dann ist
-    #: «Firma» keine Möglichkeit, und es gibt nichts umzuschalten.
-    company: Optional[str] = None
-    #: Die Person – die andere Antwort auf «an wen geht die Rechnung?».
-    person: str = ""
-    bill_to_company: bool = False
-    billing_address_id: Optional[int] = None
-    delivery_address_id: Optional[int] = None
-    options: list[AddressOption] = Field(default_factory=list)
-
-
 class VoucherSide(BaseModel):
     """**Eine Seite des Belegkopfs** – Leistungserbringer bzw. -empfänger.
 
@@ -352,11 +333,6 @@ class VoucherSide(BaseModel):
     address_label: Optional[str] = None
     shipping_label: Optional[str] = None
     uid: Optional[str] = None
-    #: ►►► **Was an dieser Seite noch wählbar ist** – nur an der Gegenseite, nur vor der
-    #: Zusage und nur für das Personal (``voucher.choices_of``); sonst ``None``. ◄◄◄
-    #: Danach steht der Kopf eingefroren da, und eine Auswahl wäre ein Versprechen, das
-    #: der Dienst nicht hält.
-    choice: Optional[VoucherAddressing] = None
 
 
 class VoucherEmbed(BaseModel):
@@ -598,11 +574,6 @@ class VoucherUpdate(BaseModel):
     incoterm: Optional[str] = None
     incoterm_place: Optional[str] = None
     issuer: Optional[int] = None
-    #: **An wen und wohin** (``address``) – nur Gesendetes wirkt; ``null`` heisst «der
-    #: Standard» bzw. «die Vorgabe».
-    bill_to_company: Optional[bool] = None
-    billing_address: Optional[int] = None
-    delivery_address: Optional[int] = None
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

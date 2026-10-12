@@ -810,19 +810,7 @@ function Party({ side, d, busy, onAction, onAsk }: {
       <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
         {side.ours
           ? <Issuer d={d} side={side} onAction={onAction} />
-          : view.choice?.company ? (
-            // ►►► **An die Firma oder an die Person?** ◄◄◄ Es bestellt immer eine Person;
-            // die Firma ist der Rechnungsempfänger «im Namen von». Der gedruckte Name IST
-            // die Wahl – dieselbe Form wie jeder änderbare Wert des Belegs.
-            <DocPick on value={view.choice.bill_to_company ? FIRM : PERSON}
-              text={view.name || view.choice.person}
-              aria="Rechnung an" tip="Rechnung an die Firma oder an die Person"
-              face={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}
-              options={[{ value: FIRM, label: view.choice.company },
-                        { value: PERSON, label: view.choice.person }]}
-              onChange={(v) => void onAction({ action: 'address',
-                                               bill_to_company: v === FIRM })} />
-          ) : (
+          : (
             <span className="truncate"
               style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)',
                        minWidth: 0 }}>
@@ -837,9 +825,7 @@ function Party({ side, d, busy, onAction, onAsk }: {
         ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{view.attn}</span>
         : <div />}
       {(view.address ?? []).length
-        ? <Anschrift label={view.address_label} lines={view.address ?? []}
-            choice={view.choice} pick={view.choice?.billing_address_id}
-            onPick={(id) => void onAction({ action: 'address', billing_address: id })} />
+        ? <Anschrift label={view.address_label} lines={view.address ?? []} />
         /* ►►► **Was fehlt, wird gesagt – aber nur über jemanden, den es gibt** (#939).
             ◄◄◄ Solange kein Adressat feststeht, nennt die Seite **niemanden**; «Anschrift
             fehlt» wäre dann eine Aussage über eine leere Stelle. Dieselbe Regel wie im
@@ -852,9 +838,7 @@ function Party({ side, d, busy, onAction, onAsk }: {
           *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls; hier steht die
           Anschrift auf dem Beleg, nicht der Transport.* */}
       {(view.shipping ?? []).length
-        ? <Anschrift label={view.shipping_label} lines={view.shipping ?? []}
-            choice={view.choice} pick={view.choice?.delivery_address_id}
-            onPick={(id) => void onAction({ action: 'address', delivery_address: id })} />
+        ? <Anschrift label={view.shipping_label} lines={view.shipping ?? []} />
         : <div />}
       {/* ►►► **E-Mail und Telefon untereinander** (Testnotiz #944). ◄◄◄ Es sind zwei
           Wege, nicht ein Wert – und auf der Breite einer Beleg-Spalte brach die Zeile
@@ -873,36 +857,14 @@ function Party({ side, d, busy, onAction, onAsk }: {
   );
 }
 
-/** Die beiden Antworten auf «an wen geht die Rechnung?» – Werte des Wählers. */
-const FIRM = 'firm';
-const PERSON = 'person';
-
-/**
- * Eine Anschrift als Zeilen – mit Beschriftung (#952).
- *
- * ►►► **Und wo das Adressbuch mehr als eine kennt, IST sie die Wahl.** ◄◄◄ Dieselbe Form
- * wie jeder änderbare Wert des Belegs (`DocPick`): gedruckt steht die Anschrift da, der
- * Klick öffnet die Liste. Was wählbar ist, sagt der Server (`choice` – nur am Adressaten,
- * nur vor der Zusage, nur für das Personal); danach ist der Kopf eingefroren.
- */
-function Anschrift({ label, lines, choice, pick, onPick }: {
-  label?: string | null; lines: string[];
-  choice?: VoucherSide['choice']; pick?: number | null;
-  onPick?: (id: number) => void;
-}) {
-  const face: CSSProperties = { fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-line' };
-  const options = choice?.options ?? [];
+/** Eine Anschrift als Zeilen – mit Beschriftung nur, wo es zwei gibt (#952). */
+function Anschrift({ label, lines }: { label?: string | null; lines: string[] }) {
   return (
     <span className="flex flex-col" style={{ gap: 1, minWidth: 0 }}>
       {label && <span style={MICRO_LABEL}>{label}</span>}
-      {options.length > 1 && onPick ? (
-        <DocPick on value={String(pick ?? '')} text={lines.join('\n')} face={face}
-          aria={label ?? 'Anschrift'} tip="Andere Anschrift aus dem Adressbuch wählen"
-          options={options.map((o) => ({ value: String(o.id), label: o.label }))}
-          onChange={(v) => onPick(Number(v))} />
-      ) : (
-        <span style={face}>{lines.join('\n')}</span>
-      )}
+      <span style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-line' }}>
+        {lines.join('\n')}
+      </span>
     </span>
   );
 }

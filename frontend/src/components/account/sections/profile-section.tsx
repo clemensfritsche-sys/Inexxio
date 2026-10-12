@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * **Mein Profil – EINE Sektion, vier Container.**
+ * **Mein Profil – EINE Sektion, drei Container.**
  *
  * Vorher lagen dieselben Daten in vier Karten mit vier Auto-Saves (Profil, Adresse,
  * Rechnungsadresse, Datenschutz) – und die Rechnungsadresse spiegelte den Profil-Stand
@@ -10,20 +10,23 @@
  * Jetzt: ein Formular, ein Auto-Save, eine Rückmeldung. Gruppiert nach dem, was fachlich
  * zusammengehört:
  *   1. **Person**            – wer bin ich (inkl. Telefon; + Anstellung)
- *   2. **Firma**             – für wen (genannt über die UID, nie gesucht)
- *   3. **Adressen**          – das Adressbuch, mit Standard-Liefer- und -Rechnungsadresse
- *   4. **Kommunikation**     – Newsletter + Nachweis der akzeptierten Rechtstexte
+ *   2. **Firma & Adressen**  – für wen · wohin die Ware · wohin die Rechnung
+ *   3. **Kommunikation**     – Newsletter + Nachweis der akzeptierten Rechtstexte
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase, Building2, Bell, MapPin } from 'lucide-react';
+import { User, Briefcase, Building2, Bell } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { day } from '@/lib/when';
 import { Field, ToggleField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
-import { AddressBook } from '@/components/erp/address-book';
-import { CompanyField } from '@/components/erp/company-field';
+import { AddressField, type Address } from '@/components/erp/address-field';
+import {
+  NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
+} from '@/lib/accounts';
+import { CompanyEditor, CompanyField } from '@/components/erp/company-field';
+import { api } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
@@ -33,8 +36,23 @@ interface Form {
   last_name: string;
   date_of_birth: string;
   phone: string;
-  // ►►► **Die Anschriften stehen im Adressbuch** (`AddressBook`) – nicht in diesem
-  // Formular: jede ist ein eigener Eintrag mit eigenem Auto-Save.
+  // Firma – **der Name ist die Erklärung** (#1043): steht er da, ist es eine Firma.
+  // Adresse
+  address_line1: string;
+  address_line2: string;
+  postal_code: string;
+  city: string;
+  state_region: string;
+  country: string;
+  // Rechnungsadresse – **freiwillig: leer gilt die Lieferadresse** (#1043)
+  invoice_first_name: string;
+  invoice_last_name: string;
+  invoice_address_line1: string;
+  invoice_address_line2: string;
+  invoice_postal_code: string;
+  invoice_city: string;
+  invoice_country: string;
+  invoice_email: string;
   // Kommunikation
   newsletter_opt_in: boolean;
 }
@@ -45,9 +63,28 @@ function buildForm(p: UserProfile): Form {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
+    address_line1: p.address_line1 ?? '',
+    address_line2: p.address_line2 ?? '',
+    postal_code: p.postal_code ?? '',
+    city: p.city ?? '',
+    state_region: p.state_region ?? '',
+    country: p.country ?? 'CH',
+    invoice_first_name: p.invoice_first_name ?? '',
+    invoice_last_name: p.invoice_last_name ?? '',
+    invoice_address_line1: p.invoice_address_line1 ?? '',
+    invoice_address_line2: p.invoice_address_line2 ?? '',
+    invoice_postal_code: p.invoice_postal_code ?? '',
+    invoice_city: p.invoice_city ?? '',
+    invoice_country: p.invoice_country ?? 'CH',
+    invoice_email: p.invoice_email ?? '',
     newsletter_opt_in: p.newsletter_opt_in ?? false,
   };
 }
+
+const COUNTRIES: [string, string][] = [
+  ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
+  ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
+];
 
 interface Props {
   profile: UserProfile;
@@ -61,17 +98,32 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
   const prevId = useRef<number | undefined>(undefined);
   const mapsKey = useMapsApiKey();
   const qc = useQueryClient();
+  // **Der Schalter ist eine Ableitung aus den Feldern** (`hasOwnBilling` – dieselbe Frage,
+  // die der Dienst stellt), mit einem Gedächtnis für genau einen Fall: «An» geklickt, aber
+  // noch nichts getippt. Nachgezogen wird er beim **Wechsel** des Datensatzes.
+  const [ownBilling, setOwnBilling] = useState(() => hasOwnBilling(buildForm(profile)));
 
   useEffect(() => {
     if (profile.id !== prevId.current) {
       prevId.current = profile.id;
-      setForm(buildForm(profile));
+      const next = buildForm(profile);
+      setForm(next);
+      setOwnBilling(hasOwnBilling(next));
       setResetKey((k) => k + 1);
     }
   }, [profile.id, profile]);
 
   const { status, errorMsg, saveNow } = useAutosave(
     form,
+    // ►►► **Keine Bedingung, keine Kopie** (Testnotiz #1043). ◄◄◄ Hier standen zwei:
+    // die Firmenfelder wurden nach Kontotyp weggelassen, und bei «Rechnungsadresse =
+    // Lieferadresse» schrieb die Oberfläche eine **Kopie** der Lieferadresse in die
+    // Rechnungsfelder – die beim nächsten Umzug veraltete. Beides ist weg: der
+    // Firmenname ist die Erklärung, und eine leere Rechnungsadresse **ist** die Aussage
+    // «es gilt die Lieferadresse» (`voucher.billing_of` liest genau das).
+    //
+    // *Der **Schalter** darüber ist zurück, die Kopie nicht: er zeigt an, was in den
+    // Feldern steht, und «Aus» räumt sie – geschickt wird weiterhin schlicht alles.*
     (v) => onSave({ ...v } as Partial<UserProfile>),
     3000,
     resetKey,
@@ -84,6 +136,30 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
   const objectNumber = profile.object_id != null
     ? String(profile.object_id).padStart(9, '0')
     : String(profile.id);
+
+  const address: Address = {
+    street: form.address_line1, street2: form.address_line2, zip: form.postal_code,
+    city: form.city, region: form.state_region, country: form.country,
+  };
+  function applyAddress(a: Address) {
+    setForm((prev) => ({
+      ...prev,
+      address_line1: a.street, address_line2: a.street2 ?? '', postal_code: a.zip,
+      city: a.city, state_region: a.region ?? '', country: a.country,
+    }));
+  }
+
+  const invoiceAddress: Address = {
+    street: form.invoice_address_line1, street2: form.invoice_address_line2,
+    zip: form.invoice_postal_code, city: form.invoice_city, country: form.invoice_country,
+  };
+  function applyInvoiceAddress(a: Address) {
+    setForm((prev) => ({
+      ...prev,
+      invoice_address_line1: a.street, invoice_address_line2: a.street2 ?? '',
+      invoice_postal_code: a.zip, invoice_city: a.city, invoice_country: a.country,
+    }));
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -120,29 +196,74 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
         )}
       </Card>
 
-      {/* ── 2. Firma ────────────────────────────────────────────────────────── */}
-      {/* ►►► **Die Firma wird genannt, nicht gesucht** – über die UID, sonst Name und
-          Rechtsform; eine Liste fremder Firmen sieht ein Kunde nie. Ändern kann er sie
-          nicht, nur die Zuordnung lösen und eine andere nennen. Die Zuordnung von
-          Personal setzt ein Admin im ERP. */}
-      <Card icon={Building2} title="Firma">
-        <CompanyField company={profile.company} readOnly={isEmployee}
-          country={profile.addresses?.[0]?.country}
+      {/* ── 2. Firma & Adressen ────────────────────────────────────────────── */}
+      {/* ►►► **Wer · wohin die Ware · wohin die Rechnung – in EINER Karte, in dieser
+          Reihenfolge.** ◄◄◄ Die Firma entscheidet, wer die Rechnung bekommt; darum steht
+          sie zuoberst, und die Rechnung zuunterst nennt entweder die Firma (ihre Angaben,
+          gepflegt an ihrem Datensatz) oder die eigene Rechnungsadresse. */}
+      <Card icon={Building2} title="Firma & Adressen">
+        <CompanyField company={profile.company} readOnly={isEmployee} country={form.country}
           onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
           onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
+        <AddressField
+          value={address} onChange={applyAddress} apiKey={mapsKey}
+          countryOptions={COUNTRIES} showStreet2 showRegion label="Lieferadresse" />
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
+        {/* Eine **externe** Firma pflegt, wer ihr angehört (`people.update_member_company`);
+            eine unserer Gesellschaften nur ein Admin. */}
+        {profile.company ? (
+          <CompanyEditor company={profile.company} readOnly={profile.company.is_own}
+            mapsKey={mapsKey}
+            onSave={(d) => api.updateMyCompany(d).then((u) => qc.setQueryData(['me'], u))} />
+        ) : (
+          <>
+          {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
+              Er war einmal eine **gespeicherte** Angabe und schrieb bei «gleich wie» eine
+              **Kopie** der Lieferadresse in die Rechnungsfelder; die veraltete beim nächsten
+              Umzug. Jetzt ist er eine **Ableitung** aus den Feldern – dieselbe Frage, die
+              der Dienst stellt (`voucher.billing_of`) –, und «Aus» **räumt** sie: es gibt
+              weiterhin genau eine Wahrheit und nirgends eine Kopie.
+
+              **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
+              Rechnungsadresse ihn als erste Zeile. */}
+          <ToggleField label={OWN_ADDRESS} description={OWN_ADDRESS_HINT}
+            checked={ownBilling}
+            onChange={(on) => {
+              setOwnBilling(on);
+              if (!on) setForm((p) => ({ ...p, ...NO_OWN_BILLING }));
+            }} />
+          {ownBilling && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} onEnter={saveNow} />
+                <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} onEnter={saveNow} />
+              </div>
+              <AddressField
+                value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
+                countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+            </>
+          )}
+
+          {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Leer erbt sie die Login-/
+              Kontakt-Adresse – das sagt der **Platzhalter**, nicht ein zweites Feld und
+              keine Checkbox. */}
+          <Field
+            label="Rechnungs-E-Mail" value={form.invoice_email}
+            onChange={(v) => set('invoice_email', v)} type="email"
+            placeholder={inheritedEmail(profile.email)}
+            onEnter={saveNow}
+          />
+
+          </>
+        )}
       </Card>
 
-      {/* ── 3. Adressen ─────────────────────────────────────────────────────── */}
-      {/* ►►► **Ein Adressbuch statt zweier fester Anschriften.** ◄◄◄ Wohin die Ware und
-          wohin die Rechnung geht, entscheidet die Bestellung; hier steht, was es gibt –
-          und was gilt, wenn niemand etwas sagt. */}
-      <Card icon={MapPin} title="Adressen">
-        <AddressBook owner={null} addresses={profile.addresses ?? []}
-          loginEmail={profile.email} mapsKey={mapsKey}
-          onSaved={(u) => qc.setQueryData(['me'], u)} />
-      </Card>
-
-      {/* ── 4. Kommunikation & Rechtliches ──────────────────────────────────── */}
+      {/* ── 3. Kommunikation & Rechtliches ──────────────────────────────────── */}
       <Card icon={Bell} title="Kommunikation">
         <ToggleField
           label="Newsletter"

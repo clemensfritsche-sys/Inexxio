@@ -9,7 +9,6 @@ from ..core.database import Base
 from .base import TimestampMixin
 
 if TYPE_CHECKING:
-    from .address_book import Address
     from .admin import CompanySettings
 
 
@@ -43,18 +42,50 @@ class UserProfile(Base, TimestampMixin):
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     phone: Mapped[Optional[str]] = mapped_column(String(50))
 
-    # ►►► **Die Anschriften stehen im ADRESSBUCH** (``models/address_book.Address``,
-    # Migration 143). ◄◄◄ Hier standen zwei feste Sätze – Hauptadresse und
-    # Rechnungsadresse – samt Rechnungs-E-Mail und einer Kopie der einen in der anderen.
-    # Eine Person hat aber beliebig viele Orte (Wohnung, Büro, Lager, Baustelle), und
-    # wohin Ware und Rechnung gehen, entscheidet die Bestellung. Die Spalten haben ihr
-    # Mapping verloren und fallen im Folge-Deploy (docs/backlog.md).
-    #: Das Adressbuch – nur lesend und nur die aktiven, älteste zuerst.
-    addresses: Mapped[list["Address"]] = relationship(
-        "Address",
-        primaryjoin="and_(Address.owner_id == UserProfile.id, Address.is_active == True)",
-        viewonly=True, lazy="select", order_by="Address.id",
-    )
+    # Contact address
+    address_line1: Mapped[Optional[str]] = mapped_column(String(255))
+    address_line2: Mapped[Optional[str]] = mapped_column(String(255))
+    city: Mapped[Optional[str]] = mapped_column(String(100))
+    postal_code: Mapped[Optional[str]] = mapped_column(String(20))
+    state_region: Mapped[Optional[str]] = mapped_column(String(100))
+    country: Mapped[str] = mapped_column(String(100), default="CH")
+
+    # ►►► **ZWEI Anschriften, nicht drei** (Testnotiz #1043). ◄◄◄
+    #
+    # Hier stand ein dritter Satz ``ship_*`` (acht Spalten mit eigenem Namen und eigener
+    # Firma). Er hatte **keinen einzigen Leser und keinen Schreiber**: die Oberfläche hat
+    # ihn nie angeboten, und ``voucher.billing_of`` liest als Lieferadresse die
+    # **Hauptadresse** darüber. Eine dritte Adresse, die niemand füllt, ist keine
+    # Vorsorge – sie ist die Stelle, an der jemand künftig die falsche erwischt. Das
+    # Mapping ist weg, die Spalten fallen im Folge-Deploy.
+
+    # Invoice / billing address
+    #: ►►► **Die Rechnungsadresse ist FREIWILLIG – leer gilt die Lieferadresse.** ◄◄◄
+    #:
+    #: Daneben stand ein Schalter ``invoice_same_as_shipping``, und er war eine **zweite
+    #: Wahrheit über dieselbe Sache**: ob eine eigene Rechnungsadresse hinterlegt ist,
+    #: sagen die Felder selbst (``billing_of`` liest genau das). Schlimmer, er liess die
+    #: Oberfläche bei «gleich wie» die Hauptadresse **hineinkopieren** – und die Kopie
+    #: veraltete beim nächsten Umzug, genau wie damals ``invoice_company``.
+    #:
+    #: Jetzt gilt dieselbe Regel wie bei der Rechnungs-E-Mail (#1042): **leer heisst
+    #: erben**, und das sagt das Feld. Kein Schalter, keine Checkbox, keine Kopie.
+    invoice_first_name: Mapped[Optional[str]] = mapped_column(String(100))
+    invoice_last_name: Mapped[Optional[str]] = mapped_column(String(100))
+    invoice_address_line1: Mapped[Optional[str]] = mapped_column(String(255))
+    invoice_address_line2: Mapped[Optional[str]] = mapped_column(String(255))
+    invoice_city: Mapped[Optional[str]] = mapped_column(String(100))
+    invoice_postal_code: Mapped[Optional[str]] = mapped_column(String(20))
+    invoice_country: Mapped[Optional[str]] = mapped_column(String(100))
+    #: ►►► **Die Rechnungs-E-Mail gibt es GENAU EINMAL** (Testnotiz #1042) ◄◄◄ – und sie
+    #: ist ein Attribut der **Rechnungsadresse**, nicht der Firma und nicht des Logins.
+    #: Daneben stand einmal ``company_billing_email`` («Rechnungs-E-Mail (Firma)»): zwei
+    #: Eingabefelder für eine Angabe, von denen das zweite **keinen einzigen Leser**
+    #: hatte – wer es ausfüllte, schrieb in ein Feld, das nirgends ankam.
+    #:
+    #: **Leer heisst «die Login-/Kontakt-Adresse»** (``billing_of``) – darum kein zweites
+    #: Feld und keine Checkbox: die Vererbung steht als Platzhalter im Feld.
+    invoice_email: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Personal extras
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

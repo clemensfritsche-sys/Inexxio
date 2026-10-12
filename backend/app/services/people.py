@@ -38,6 +38,10 @@ STAFF_ROLES = ("admin", "employee")
 #: Art. 26, dieselbe Angabe, die ``sites.legal_name`` an unserer eigenen Seite anhängt).
 #: Die **UID bleibt freiwillig**: nur MWST-pflichtige Firmen haben eine, und ein
 #: Pflichtfeld, das die Hälfte der Firmen nicht ausfüllen kann, ist keines.
+#: Die Felder der Rechnungsadresse, die der frühere Schalter als **Kopie** füllte.
+_INVOICE_COPY = ("first_name", "last_name", "address_line1", "address_line2",
+                 "city", "postal_code", "country")
+
 
 def repair_sql() -> tuple[str, ...]:
     """►►► **Eine Datenänderung braucht IMMER auch ein Netz** (Testnotiz #1043). ◄◄◄
@@ -53,13 +57,16 @@ def repair_sql() -> tuple[str, ...]:
     Altwerte nicht mehr, also liefe **jedes** Speichern an so einer Zeile in ein 422,
     und zwar an einer Angabe, die niemand angefasst hat.
 
-    *(2) Die kopierte Rechnungsadresse stand hier – sie ist mit den Feldern ins Adressbuch
-    gegangen (``address_book.migrate_sql`` erkennt die Kopie selbst).*
+    **(2) Die kopierte Rechnungsadresse fällt.** «Rechnungsadresse = Lieferadresse» schrieb
+    die Hauptadresse in die Rechnungsfelder; ``billing_of`` liest sie seither als *eigene*
+    Rechnungsadresse, und der Beleg zeigt dieselbe Anschrift zweimal untereinander. Geräumt
+    wird **nur die exakte Kopie** – stimmen alle sieben Felder mit der Hauptadresse
+    überein, geht keine Angabe verloren.
 
-    Jede ist **selbstbegrenzend**: nach dem ersten Lauf trifft die Bedingung nicht mehr
+    Beide sind **selbstbegrenzend**: nach dem ersten Lauf trifft die Bedingung nicht mehr
     zu. Eine Reparatur mit einer gepflegten Liste veraltet (die Lehre aus Migration
     ``110``) – diese hier kann es nicht, weil die Liste **der Katalog selbst** ist
-    (``ROLES``).
+    (``ROLES``) und weil die zweite ihre eigene Voraussetzung wegnimmt.
 
     ►►► **Geheilt wird, was der Katalog NICHT kennt.** ◄◄◄ Gemessen, nicht geglaubt: die
     erste Fassung stand auf ``WHERE role NOT IN ('admin','employee')`` – sie schrieb damit
@@ -68,6 +75,9 @@ def repair_sql() -> tuple[str, ...]:
     Migration ``110``, nur eine Nummer harmloser.
     """
     roles = ", ".join(f"'{r}'" for r in ROLES)
+    same = " AND ".join(
+        f"coalesce(invoice_{f}, '') = coalesce({f}, '')" for f in _INVOICE_COPY)
+    clear = ", ".join(f"invoice_{f} = NULL" for f in _INVOICE_COPY)
     return (
         f"UPDATE user_profiles SET role = 'user' WHERE role NOT IN ({roles})",
         # ►►► **Eine E-Mail ist klein geschrieben** (CRM Schritt 1) – sonst sind «Hans@x.ch»
@@ -79,6 +89,8 @@ def repair_sql() -> tuple[str, ...]:
         # **Jede Person hat ihre Nummer ab der Anlage** – die Registry zieht
         # ``_backfill_object_registry`` danach nach. Vorher vergab der Feed sie beim Lesen.
         "UPDATE user_profiles SET object_id = nextval('object_id_seq') WHERE object_id IS NULL",
+        f"UPDATE user_profiles SET {clear} "
+        f"WHERE coalesce(invoice_address_line1, '') <> '' AND {same}",
     )
 
 
@@ -94,18 +106,17 @@ def is_business(u: Optional[UserProfile]) -> bool:
     return u is not None and u.company is not None
 
 
-def billing_name(u: Optional[UserProfile], *, firm: bool = True) -> list[str]:
+def billing_name(u: Optional[UserProfile]) -> list[str]:
     """►►► **Wie diese Partei auf einem BELEG steht** – Firma zuerst. ◄◄◄
 
     ``display_name`` ist bewusst **person-first**, und im ERP ist das richtig. Auf einer
     **Rechnung** ist Schuldner die *Muster AG*, nicht ihr Einkäufer: zurück kommen darum
     **Zeilen** – die Firma (mit Rechtsform, ``sites.legal_name``) und darunter die Person
-    als «z. H.». Ohne Firma bleibt die Person – der B2C-Fall, und ebenso, wo der Beleg
-    «an die Person» sagt (``firm=False``)."""
+    als «z. H.». Ohne Firma bleibt die Person – der B2C-Fall."""
     if u is None:
         return []
     person = " ".join(p for p in (u.first_name, u.last_name) if p).strip()
-    company = sites.legal_name(u.company) if (firm and is_business(u)) else ""
+    company = sites.legal_name(u.company) if is_business(u) else ""
     if company and person:
         return [company, f"z. H. {person}"]
     return [company or person or u.email]
@@ -117,6 +128,22 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
     if not user_id:
         return None
     return name(db.query(UserProfile).filter(UserProfile.id == user_id).first())
+
+
+def update_member_company(db: Session, user: UserProfile, data: dict[str, Any]) -> UserProfile:
+    """►►► **Eine Person pflegt die Angaben IHRER externen Firma.** ◄◄◄
+
+    Am Datensatz der Firma, nicht an der Person – sonst entstünde bei jeder Änderung eine
+    neue Firma. Nur, was die Rechtsperson und ihren Rechnungsweg ausmacht
+    (``MEMBER_COMPANY_FIELDS``); eine **eigene** Gesellschaft ändert nur ein Admin
+    (``sites.apply_update`` weist ab). Committet."""
+    from ..schemas.admin import MEMBER_COMPANY_FIELDS
+    if user.company is None:
+        raise HTTPException(400, detail="Dieser Person ist keine Firma zugeordnet.")
+    fields = {k: v for k, v in data.items() if k in MEMBER_COMPANY_FIELDS}
+    sites.apply_update(db, user.company, fields, user.id, admin=False)
+    db.refresh(user)
+    return user
 
 
 def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) -> None:
@@ -144,23 +171,12 @@ def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) ->
     sites.require_own(db, company, what=f" – «{user.display_name}» arbeitet als {who}")
 
 
-def _company_fields(db: Session, fields: dict[str, Any], actor_id: Optional[int], *,
-                    staff: bool) -> None:
-    """►►► **Die Firma einer Person: genannt, nicht gesucht.** ◄◄◄
-
-    Eine **genannte** Firma (``new_company`` – UID, sonst Name und Rechtsform) wird erkannt
-    oder angelegt (``sites.resolve``) und wird zur gewählten. **Eine Nummer wählt nur das
-    Personal**: eine Kundin, die eine beliebige Objektnummer schicken dürfte, könnte sich
-    jeder Firma anhängen und deren Namen lesen – die Zuordnung über die UID ist die
-    einzige, die sie selbst vornimmt. ``None`` (die Zuordnung lösen) darf jede Person.
-    Schreibt in ``fields``."""
+def _company_fields(db: Session, fields: dict[str, Any], actor_id: Optional[int]) -> None:
+    """Die Firma auflösen: eine **genannte** (``new_company``) wird gefunden oder angelegt
+    und wird zur gewählten. Eine **gewählte** muss es geben. Schreibt in ``fields``."""
     new = fields.pop("new_company", None)
-    if not staff and fields.get("company_object_id") is not None:
-        raise HTTPException(403, detail=(
-            "Die eigene Firma nennt man über ihre UID – bzw. Firmenname und Rechtsform."))
     if new:
-        fields["company_object_id"] = sites.resolve(
-            db, new, actor_id, allow_own=staff).object_id
+        fields["company_object_id"] = sites.resolve_for_person(db, new, actor_id).object_id
     oid = fields.get("company_object_id")
     if oid is not None:
         company = sites.by_object_id(db, oid)
@@ -168,8 +184,7 @@ def _company_fields(db: Session, fields: dict[str, Any], actor_id: Optional[int]
             raise HTTPException(400, detail=f"«{oid}» ist keine Firma.")
 
 
-def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
-                         staff: bool) -> UserProfile:
+def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) -> UserProfile:
     """Profil-Felder schreiben – **EIN** Pfad für beide Oberflächen.
 
     Denselben Datensatz beschreiben zwei Wege: der ERP-Benutzer-Datensatz (Personal)
@@ -185,7 +200,7 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
     Tür ist nicht der einzige Aufrufer, und zwei Oberflächen schreiben denselben
     Datensatz. **Dasselbe gilt für die Firma** (``_company_fields``)."""
     fields = data.model_dump(exclude_unset=True)
-    _company_fields(db, fields, actor_id, staff=staff)
+    _company_fields(db, fields, actor_id)
     assert_employment(db, user, fields)
     for key, value in fields.items():
         old_val = getattr(user, key, None)
@@ -258,7 +273,7 @@ def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
                                         f"{taken.display_name}.")
     user = UserProfile(first_name=first, last_name=last, email=email, role="user",
                        firebase_uid="")
-    _company_fields(db, fields, actor.id, staff=True)
+    _company_fields(db, fields, actor.id)
     assert_employment(db, user, {"role": role, **fields})
     uid = firebase_uid_for(email, f"{first} {last}")
     if db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first() is not None:
@@ -308,12 +323,11 @@ def move_company_texts(conn) -> int:
         "SELECT object_id, company_name, legal_form, uid_number, vat_number "
         "FROM company_settings WHERE is_active AND object_id IS NOT NULL")).all()]
     for pid, name, form, uid_nr, vat in rows:
-        key = sites.uid_key_of(uid_nr) or sites.uid_key_of(vat)
+        key = sites._norm_uid(uid_nr) or sites._norm_uid(vat)
         hit = next((k for k in known if key and key in
-                    (sites.uid_key_of(k[3]), sites.uid_key_of(k[4]))), None)
-        nkey = sites.name_key_of(name, form)
-        hit = hit or next((k for k in known if nkey
-                           and sites.name_key_of(k[1], k[2]) == nkey), None)
+                    (sites._norm_uid(k[3]), sites._norm_uid(k[4]))), None)
+        hit = hit or next((k for k in known if sites._norm_name(k[1]) == sites._norm_name(name)
+                           and sites._norm_name(k[2]) == sites._norm_name(form)), None)
         if hit is None:
             oid = conn.execute(text("SELECT nextval('object_id_seq')")).scalar()
             conn.execute(text(

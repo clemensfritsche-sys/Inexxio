@@ -4,13 +4,11 @@ from sqlalchemy.orm import Session
 
 from pydantic import BaseModel
 
-from ..core.auth import require_admin, require_employee
+from ..core.auth import get_current_user, require_admin, require_employee
 from ..core.database import get_db
 from ..models import UserProfile, WebAuthnCredential
-from ..schemas.admin import (
-    AddressIn, CompanyRef, ErpAdminUpdate, PersonCreate, UserProfileResponse,
-)
-from ..services import address_book, people
+from ..schemas.admin import CompanyRef, ErpAdminUpdate, PersonCreate, UserProfileResponse
+from ..services import people
 from ..services import sites
 from ..services.objects import resolve_object_type
 
@@ -90,14 +88,11 @@ async def create_erp_record(
 async def search_companies(
     search: str = "",
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
+    _: UserProfile = Depends(get_current_user),
 ):
-    """**Welche Firma ist gemeint?** – die Vorschläge, während das **Personal** einer
-    Person ihre Firma zuordnet. Ab zwei Zeichen, höchstens acht.
-
-    ►►► **Nur für das Personal.** ◄◄◄ Die Kundenliste ist nichts, was ein Kunde
-    durchblättern darf – auch nicht über Teilwörter («Ag», «Gm»). Eine Person **nennt**
-    ihre Firma (UID, sonst Name und Rechtsform), sie sucht sie nicht."""
+    """**Gibt es diese Firma schon?** – die Vorschläge, während jemand seine Firma
+    eintippt (Konto und ERP). Ab zwei Zeichen, höchstens acht, und nur, was auf einer
+    Visitenkarte steht: Name, Rechtsform, Ort – die Kundenliste gibt es hier nicht."""
     if len(search.strip()) < 2:
         return []
     return [CompanyRef.model_validate(c) for c in sites.search(db, search)]
@@ -130,62 +125,7 @@ async def update_erp_record(
     # menschliche Rolle zu geben hiesse, ihre Historie einer Person zuzuschreiben.
     if user.role == "ai" and data.model_dump(exclude_unset=True).get("role") not in (None, "ai"):
         raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
-    people.apply_profile_update(db, user, data, current_user.id, staff=True)
+    people.apply_profile_update(db, user, data, current_user.id)
     db.commit()
     db.refresh(user)
     return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
-
-
-# ─── Das Adressbuch am Datensatz – dieselben Funktionen wie im Konto ─────────────────
-
-def _person(db: Session, object_id: int) -> UserProfile:
-    user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
-    if not user:
-        raise HTTPException(404, detail="Record not found")
-    return user
-
-
-def _done(db: Session, user: UserProfile) -> UserProfileResponse:
-    db.commit()
-    db.refresh(user)
-    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
-
-
-@router.post("/records/{object_id}/addresses", response_model=UserProfileResponse)
-async def add_record_address(
-    object_id: int,
-    data: AddressIn,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    user = _person(db, object_id)
-    address_book.add(db, user, data.model_dump(exclude_unset=True), current_user.id)
-    return _done(db, user)
-
-
-@router.patch("/records/{object_id}/addresses/{address_id}",
-              response_model=UserProfileResponse)
-async def change_record_address(
-    object_id: int,
-    address_id: int,
-    data: AddressIn,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    user = _person(db, object_id)
-    address_book.change(db, user, address_id, data.model_dump(exclude_unset=True),
-                        current_user.id)
-    return _done(db, user)
-
-
-@router.delete("/records/{object_id}/addresses/{address_id}",
-               response_model=UserProfileResponse)
-async def remove_record_address(
-    object_id: int,
-    address_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    user = _person(db, object_id)
-    address_book.remove(db, user, address_id, current_user.id)
-    return _done(db, user)

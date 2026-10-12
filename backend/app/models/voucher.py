@@ -233,23 +233,6 @@ class Voucher(Base, TimestampMixin):
     corrects_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("vouchers.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    # ─── An wen und wohin – gewählt bis zur Zusage, danach eingefroren ─────────────
-    #: ►►► **Rechnung an die Firma oder an die Person?** (Migration 143) ◄◄◄ ``NULL`` =
-    #: die Vorgabe: an die Firma, wenn die Person einer zugeordnet ist. Es bestellt immer
-    #: eine Person; die Firma ist höchstens der Rechnungsempfänger «im Namen von».
-    bill_to_company: Mapped[Optional[bool]] = mapped_column(nullable=True)
-    #: **Welche Anschriften aus dem Adressbuch des Adressaten** – ``NULL`` = sein
-    #: Standard. Gilt nur, solange die Anschrift ihm gehört (``address_book.pick``).
-    billing_address_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    delivery_address_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    #: ►►► **Der Belegkopf, EINGEFROREN mit der Zusage.** ◄◄◄
-    #: ``{"party": 100000123, "ours": {...}, "billing": {...}}`` – beide Parteien, wie sie
-    #: bei der Bestätigung dastanden: Name mit Rechtsform, «z. H.», UID, Anschriften,
-    #: Kontaktweg. Ein Beleg behält, was auf ihm stand – zieht jemand um, firmiert um oder
-    #: entfernt eine Anschrift, ändert das keine bestätigte Offerte und keine Rechnung.
-    #: ``NULL`` vor der Zusage: dort ist der Kopf eine Ableitung und darf sich bewegen.
-    head: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-
 
 class VoucherQuote(Base, TimestampMixin):
     """**Eine Angebotszeile** – je angefragter Gegenpartei eine.

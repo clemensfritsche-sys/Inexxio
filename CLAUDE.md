@@ -4934,56 +4934,6 @@
 > `MEMBER_COMPANY_FIELDS`), eine **eigene** nur ein Admin (403). Ohne Firma bleibt der
 > Schalter «Eigene Rechnungsadresse». Am Firmen-Datensatz stehen die Kennungen in den
 > **Allgemeinen Angaben**, das Telefon nur noch bei einer eigenen Gesellschaft.
->
-> *Die Firmenpflege durch Kunden (`CompanyEditor`, `/me/company`) und «mit Firma gilt die
-> Firmenadresse» sind mit CRM Schritt 2 wieder entfallen – siehe unten.*
-
-> ►►► **CRM SCHRITT 2 — FIRMA = IDENTITÄT, ADRESSEN = ADRESSBUCH, DER BELEG FRIERT EIN**
-> (Migration `143`). ◄◄◄ Fünf Grundsätze, und jeder steht an genau einer Stelle:
-> **(1) Es bestellt immer eine Person** – die Firma ist höchstens der Rechnungsempfänger
-> «im Namen von» (Firma, darunter «z. H. Person»). **(2) Eine fremde Firma ist ihre
-> Identität**: Name, Rechtsform, UID – sonst nichts (`sites.EXTERNAL_FIELDS`; Anschrift,
-> E-Mail, Telefon weist der Dienst ab). **(3) Die Anschriften gehören der Person** – ein
-> Adressbuch (`addresses`, `services/address_book`), beliebig viele, je **eine**
-> Standard-Liefer- und **eine** Standard-Rechnungsadresse (partielle Unique-Indizes), die
-> Rechnungs-E-Mail an der Anschrift; eigene Gesellschaften behalten ihre Anschrift.
-> **(4) Kunden sehen keine fremden Firmen**: keine Firmensuche (`GET /erp/companies` nur
-> Personal), keine Zuordnung über eine Objektnummer (403), keine Zuordnung zu einer
-> unserer Gesellschaften. **(5) Ein Beleg behält, was auf ihm stand.**
-> ►►► **Jeder darf eine Firma anlegen – der SCHLÜSSEL entscheidet, nie ein Mensch.** ◄◄◄
-> `company_settings.uid_key` (die UID ohne Satzzeichen, `domain/uid.normalize`) und
-> `name_key` (Name + Rechtsform ohne Gross-/Kleinschreibung, Punkte und doppelte
-> Rechtsform – «Muster AG»+«AG» = «Muster»+«AG»), beide nur von `sites._rekey` geschrieben
-> und **eindeutig in der Datenbank**: gleiche UID = dieselbe Firma; ohne UID gleicher Name
-> **und** Rechtsform = dieselbe Firma. `sites.resolve` erkennt (UID zuerst; eine UID-lose
-> Firma bekommt die UID, sobald jemand sie mit Nummer nennt) oder legt an; zwei
-> gleichzeitige Anlagen laufen in den Index, die zweite findet danach die erste. Eine
-> Dublette ist damit **unmöglich, nicht verboten**. Die UID wird **selbst geprüft**
-> (Prüfziffer eCH-0097 Modulo 11 für CHE, Form für EU-Nummern) – kein Register, kein
-> fremder Dienst. Alt-Dubletten bleiben getrennt (`sites.backfill_keys` markiert die
-> jüngere mit `#id`).
-> **Der Beleg wählt** (Verb `address`, nur Personal, nur vor der Zusage): *Rechnung an
-> Firma oder Person* (`vouchers.bill_to_company`) und *welche Rechnungs-/Lieferadresse*
-> aus dem Adressbuch des Adressaten (`billing_address_id`/`delivery_address_id`, sonst
-> sein Standard; eine fremde Anschrift weist der Dienst ab). Der gedruckte Name bzw. die
-> gedruckte Anschrift **ist** der Wähler (`DocPick`), und nur, wo der Server `choice`
-> liefert.
-> ►►► **Mit der Zusage friert der Kopf ein** (`vouchers.head`, `voucher.freeze`). ◄◄◄
-> Beide Seiten (Name, Firma, «z. H.», UID, Anschriften, Kontakt), der Zahlungsempfänger
-> des Einzahlungsscheins, dazu die **Artikelnamen** und die **Zoll-Angaben** der
-> Positionen (die las der Beleg vorher live vom Artikel – ein Schlupfloch). Danach ändert
-> kein Umzug, kein Umfirmieren, keine neue Anschrift unserer Gesellschaft und kein
-> umbenannter Artikel eine bestätigte Offerte, eine Rechnung, den QR-Schein oder die
-> Vorbelegung der Bezahlkarte. **Nicht** eingefroren ist die IBAN – sie sagt, wohin
-> *heute* gezahlt wird. Ein Beleg aus der Zeit davor friert beim ersten Anzeigen ein.
-> *Geprüft wurde dabei die ganze Beleglogik: Positionen, Mengen, Preise, Satz, Fristen,
-> Währung, Lieferbedingung, Aussteller und Korrekturverweis waren schon durch die Stufe
-> gesperrt (`VERBS` = nur `offer`).*
-> Wächter: `test_user_record.py` (Adressbuch, Übernahme, Firmen-Schlüssel, Kunden ohne
-> Liste, UID-Prüfziffer), `test_voucher_module.py` (Einfrieren, Wahl am Beleg – vier
-> Bug-Formen gegengeprüft) und drei in `test_frontend_mirrors.py`. Suite grün gegen ein
-> Schema nur aus den Migrationen **und** gegen eine über das Lifespan-Netz gewachsene
-> Datenbank (je 665); Migration `143` von null · idempotent · downgrade · re-upgrade.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
@@ -5149,8 +5099,7 @@ sie besitzen nicht. Konkret:
 ### Eine Sache, eine Stelle
 Gleiches gleich behandeln: gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine**
 Implementierung (z. B. `services/address.py` für Adressen, `services/people.py` für
-Personennamen, `services/address_book.py` für die Anschriften einer Person,
-`services/places.py` für Orte und Halter, `services/lookup.py` für
+Personennamen, `services/places.py` für Orte und Halter, `services/lookup.py` für
 «welchen Datensatz meinst du» (Nummer ODER Name), `objects.obj_nr` für die Objektnummer,
 `components/erp/address-field.tsx` für jede Adress-Eingabe). Zwei Wege für dieselbe
 Sache sind ein Bug, auch wenn beide funktionieren.
@@ -5186,10 +5135,6 @@ Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by
   Mitarbeiter · Benutzer, und das ist alles. **Lieferant ↔ Kunde ist eine Eigenschaft des
   Vorgangs**, nicht der Person. Ob jemand für eine **Firma** auftritt, sagt seine
   **Zuordnung** zu einem Firmen-Datensatz (CRM Schritt 1); die Bankverbindung hängt an nichts.
-- **Es bestellt immer eine Person** (CRM Schritt 2): eine fremde Firma ist nur ihre
-  Identität (Name, Rechtsform, UID) und wird über **UID bzw. Name + Rechtsform** erkannt –
-  eindeutig in der Datenbank, jeder darf eine anlegen. Anschriften stehen im **Adressbuch
-  der Person**; der Beleg wählt daraus und **friert mit der Zusage ein**.
 - **Artikel haben keine Versionierung**: Änderung → neuer Artikel, und der **Nachfolger**
   nennt seinen Vorgänger (`replaces_object_id` bei der Anlage → `replaced_by_id`). Ersetzen
   **bedeutet** ausser Betrieb nehmen – ein Vorgang, ein Aufruf.

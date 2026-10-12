@@ -23,7 +23,6 @@ import os
 import pathlib
 import uuid
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
 
@@ -93,13 +92,10 @@ def _party(db, name: str, role: str = "supplier"):
     user = UserProfile(
         firebase_uid=f"test-{uuid.uuid4()}", email=f"{uuid.uuid4()}@example.test",
         company_object_id=firm.object_id, role=role, object_id=obj.next_object_id(db),
+        address_line1="Werkweg 3", postal_code="9000", city="St. Gallen", country="CH",
     )
     db.add(user)
     db.flush()
-    # **Die Anschrift steht im Adressbuch der Person** (Migration 143) – nicht an der Firma.
-    from app.services import address_book
-    address_book.add(db, user, {"street1": "Werkweg 3", "zip": "9000",
-                                "city": "St. Gallen", "country": "CH"}, None)
     return user
 
 
@@ -1713,13 +1709,14 @@ def test_a_recipient_carries_its_own_address():
             "Beide Seiten sagen dasselbe (#979)."
         )
 
-        # (d) Eine abweichende Rechnungsadresse macht zwei daraus – aus dem **Adressbuch**
-        # der Person (Migration 143), gleich ob mit Firma oder privat.
-        from app.services import address_book
-        first = address_book.default(db, one.id, "delivery")
-        other = address_book.add(db, one, {"street1": "Rechnungsweg 9", "zip": "9000",
-                                           "city": "St. Gallen", "country": "CH",
-                                           "is_default_billing": True}, None)
+        # (d) Eine abweichende Rechnungsadresse macht zwei daraus – an einer
+        # **Privatperson**: mit Firma ist deren Anschrift die Rechnungsadresse.
+        one.company_object_id = None
+        db.flush()
+        db.expire(one, ["company"])
+        one.invoice_address_line1 = "Rechnungsweg 9"
+        one.invoice_postal_code = "9000"
+        one.invoice_city = "St. Gallen"
         db.flush()
         both = next(r for r in svc.embed_data(db, order=order, step=step,
                                              viewer=staff)["recipients"]
@@ -1727,15 +1724,16 @@ def test_a_recipient_carries_its_own_address():
         assert any("Rechnungsweg 9" in x for x in both["address"]), (
             "Die Rechnungsadresse steht nicht auf dem Beleg – dafür ist sie da."
         )
-        assert both["shipping"] and both["shipping"] != both["address"], (
-            "Die Lieferadresse fehlt, obwohl sie abweicht (d).")
+        assert both["shipping"], "Die Lieferadresse fehlt, obwohl sie abweicht (d)."
         assert both["address_label"] == vo.BILLING_LABEL
         assert both["shipping_label"] == vo.SHIPPING_LABEL
 
         # (e) Und ist sie gleich, steht sie trotzdem unter beiden Beschriftungen – die
         # Frage «wohin die Ware» hat dann eben dieselbe Antwort (#975).
-        address_book.change(db, one, first.id, {"is_default_billing": True}, None)
-        assert other.is_default_billing is False
+        one.invoice_address_line1 = one.address_line1
+        one.invoice_postal_code = one.postal_code
+        one.invoice_city = one.city
+        one.invoice_country = one.country
         db.flush()
         same = next(r for r in svc.embed_data(db, order=order, step=step,
                                              viewer=staff)["recipients"]
@@ -3097,46 +3095,39 @@ def test_the_reason_stands_at_the_button_not_after_the_click():
 
 
 def test_a_firm_is_the_invoice_recipient():
-    """►►► **Mit Firma ist die FIRMA Rechnungsempfänger – an eine Anschrift der PERSON.** ◄◄◄
+    """►►► **Mit Firma geht die Rechnung an die FIRMA, die Ware an die Person.** ◄◄◄
 
-    Es bestellt immer eine Person; die Firma steht «im Namen von» mit Rechtsform und UID
-    darüber, die Person als «z. H.» darunter. **Die Anschriften kommen aus dem Adressbuch
-    der Person** – eine Firma trägt bei uns keine. Und der Beleg darf «an die Person»
-    sagen (``bill_to_company = False``): dann verschwinden Firma und UID, die Anschrift
-    bleibt.
+    Name mit Rechtsform, Anschrift, E-Mail und UID kommen von der Firma; die Person steht
+    als «z. H.» darunter, ihre Hauptadresse ist die Lieferadresse. Eine eigene
+    Rechnungsadresse oder -E-Mail an der Person gilt dann nicht – sonst stünde dieselbe
+    Angabe an zwei Stellen. Ohne Firma bleibt alles beim Alten.
 
-    Bug-Formen: (a) die Firma fehlt; (b) die Anschrift kommt nicht aus dem Adressbuch;
-    (c) die Rechnungs-E-Mail der Anschrift gilt nicht; (d) «an die Person» trägt die Firma.
+    Bug-Formen: (a) die Rechnungsadresse der Person gewinnt; (b) die Rechnungs-E-Mail der
+    Person gewinnt; (c) die Lieferadresse geht verloren; (d) ohne Firma ändert sich etwas.
     """
     from app.services import voucher as svc
     db = _db()
     try:
         u = _party(db, "Muster")
-        u.first_name, u.last_name = "Hans", "Muster"
         u.company.legal_form = "AG"
-        u.company.uid_number = "CHE-123.456.788"
-        from app.services import address_book
-        address_book.add(db, u, {"street1": "Rechnungsweg 9", "zip": "3000", "city": "Bern",
-                                 "email": "Buchhaltung@Muster.test",
-                                 "is_default_billing": True}, None)
+        u.company.email = "buchhaltung@muster.test"
+        u.company.uid_number = "CHE-111.222.333"
+        u.invoice_first_name, u.invoice_address_line1 = "Privat", "Privatweg 9"
+        u.invoice_postal_code, u.invoice_city = "3000", "Bern"
+        u.invoice_email = "privat@example.test"
         db.flush()
-        b = svc.billing_of(db, SimpleNamespace(head=None, bill_to_company=None,
-                                               billing_address_id=None,
-                                               delivery_address_id=None), u.object_id)
-        assert b["lines"][0] == "Muster AG" and b["lines"][1].startswith("z. H.")
-        assert b["address"]["city"] == "Bern", "Die Rechnungsadresse kommt aus dem Adressbuch."
+        b = svc.billing_of(db, None, u.object_id)
+        assert b["lines"][0] == "Muster AG"
+        assert b["address"]["city"] == "St. Gallen" and b["address"]["postal_code"] == "9000"
         assert b["email"] == "buchhaltung@muster.test"
-        assert b["uid"] == "CHE-123.456.788"
-        assert any("Werkweg 3" in line for line in b["shipping"]), (
-            "Die Ware geht an die Standard-Lieferadresse der Person.")
+        assert b["uid"] == "CHE-111.222.333"
+        assert any("Werkweg 3" in line for line in b["shipping"])
 
-        # «An die Person» – dieselbe Person, ohne Firma auf dem Beleg.
-        b = svc.billing_of(db, SimpleNamespace(head=None, bill_to_company=False,
-                                               billing_address_id=None,
-                                               delivery_address_id=None), u.object_id)
-        assert b["lines"] == ["Hans Muster"] and b["uid"] is None, (
-            "«An die Person» trägt noch die Firma (d).")
-        assert b["address"]["city"] == "Bern"
+        u.company_object_id = None
+        db.flush()
+        db.expire(u)
+        b = svc.billing_of(db, None, u.object_id)
+        assert b["address"]["city"] == "Bern" and b["email"] == "privat@example.test"
     finally:
         db.rollback()
         db.close()
@@ -3156,116 +3147,3 @@ def test_a_closed_company_can_be_reopened():
     finally:
         db.rollback()
         db.close()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ►► AN WEN UND WOHIN – UND WAS DIE ZUSAGE EINFRIERT (Migration 143)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_the_head_is_frozen_by_the_agreement():
-    """►►► **Sobald bestätigt, ist der Beleg eingefroren – ganz wichtig.** ◄◄◄
-
-    Nach der Zusage ändert **nichts** ausserhalb des Belegs, was auf ihm steht: kein Umzug
-    der Person (Anschrift entfernt, neuer Standard), kein Umfirmieren der Kundenfirma,
-    keine neue Anschrift unserer Gesellschaft, kein umbenannter Artikel, keine
-    nachgetragene Zolltarifnummer – auch nicht auf dem Einzahlungsschein und nicht in der
-    Vorbelegung der Bezahlkarte.
-
-    Bug-Formen: (a) der Kopf liest die Person live; (b) die Firma live; (c) unsere Seite
-    live; (d) der Artikelname live; (e) die Zoll-Angaben live; (f) der Einzahlungsschein
-    live; (g) vor der Zusage friert schon etwas ein (dann wäre die Offerte nicht mehr
-    änderbar).
-    """
-    from app.services import address_book, sites, voucher as svc
-    with _db() as db:
-        house = _house(db)
-        who = _party(db, "Kunde", "customer")
-        who.first_name, who.last_name = "Hans", "Kunde"
-        who.company.legal_form = "AG"
-        order, step, row, _w, art = _scene(db, parties=[who])
-        art.hs_code = None
-        db.flush()
-        _price(db, order, step, row)
-        svc.apply(db, order=order, step=step, action="price",
-                  payload={"lines": [{"id": ln.id, "hs_code": "848210"}
-                                     for ln in svc.lines_of(db, row)]})
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 0, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        assert row.head is None, "Vor der Zusage friert nichts ein (g)."
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who.object_id})
-        db.flush()
-        before = svc.embed_data(db, order=order, step=step)
-        name_before = before["lines"][0]["article_name"]
-
-        # Alles ändert sich – ausser dem Beleg.
-        old = address_book.default(db, who.id, "billing")
-        address_book.add(db, who, {"street1": "Neuweg 1", "zip": "3000", "city": "Bern",
-                                   "is_default_billing": True,
-                                   "is_default_delivery": True}, None)
-        address_book.remove(db, who, old.id, None)
-        who.company.company_name = "Umbenannt"
-        house.street = "Andere Strasse"
-        art.name = "Neuer Name"
-        db.flush()
-        db.expire_all()
-        after = svc.embed_data(db, order=order, step=step)
-        side = after["customer"]
-        assert any("Werkweg 3" in x for x in side["address"]), "(a)"
-        assert side["name"] == "Kunde AG", "(b)"
-        assert any("Bahnhofstrasse" in x for x in after["supplier"]["address"]), "(c)"
-        assert after["lines"][0]["article_name"] == name_before, "(d)"
-        assert svc.lines_of(db, row)[0].hs_code == "848210", "(e)"
-        svc.apply(db, order=order, step=step, action="bill", payload={})
-        info = svc.transfer_info(db, row)
-        assert info["creditor"] and "Werkweg" not in str(info), "(f)"
-        assert svc.billing_of(db, row)["address"]["city"] == "St. Gallen", "(f)"
-
-
-def test_the_document_chooses_firm_and_addresses_before_the_agreement():
-    """►►► **Rechnung an Privat oder Firma, und welche Anschriften – am Beleg.** ◄◄◄
-
-    Gewählt wird aus dem Adressbuch **des Adressaten**, vorbelegt mit seinen Standards; nur
-    das Personal und nur vor der Zusage.
-
-    Bug-Formen: (a) die Vorgabe ist nicht die Firma; (b) «an die Person» trägt noch die
-    Firma; (c) eine fremde Anschrift lässt sich wählen; (d) nach der Zusage geht es noch;
-    (e) die Gegenpartei sieht die Auswahl; (f) die gewählte Anschrift steht nicht drauf.
-    """
-    from fastapi import HTTPException
-    from app.services import address_book, voucher as svc
-    with _db() as db:
-        _house(db)
-        who = _party(db, "Firma", "customer")
-        who.company.legal_form = "GmbH"
-        stranger = _party(db, "Fremd", "customer")
-        order, step, row, _w, _a = _scene(db, parties=[who])
-        _price(db, order, step, row)
-        svc.apply(db, order=order, step=step, action="terms",
-                  payload={"lead_days": 0, "payment_days": 30})
-        svc.apply(db, order=order, step=step, action="ask", payload={})
-        site = address_book.add(db, who, {"street1": "Baustelle 5", "zip": "6000",
-                                          "city": "Luzern"}, None)
-        seen = svc.embed_data(db, order=order, step=step)
-        choice = seen["customer"]["choice"]
-        assert choice and choice["company"] == "Firma GmbH" and choice["bill_to_company"], "(a)"
-        assert {o["id"] for o in choice["options"]} >= {site.id}
-        svc.apply(db, order=order, step=step, action="address",
-                  payload={"bill_to_company": False, "delivery_address": site.id})
-        seen = svc.embed_data(db, order=order, step=step)
-        assert "Firma" not in seen["customer"]["name"], "(b)"
-        assert any("Baustelle 5" in x for x in seen["customer"]["shipping"]), "(f)"
-        foreign = address_book.default(db, stranger.id, "billing")
-        with pytest.raises(HTTPException):
-            svc.apply(db, order=order, step=step, action="address",
-                      payload={"billing_address": foreign.id})                     # (c)
-        assert svc.embed_data(db, order=order, step=step, viewer=who)["customer"].get(
-            "choice") is None, "(e)"
-        svc.apply(db, order=order, step=step, action="agree",
-                  payload={"party": who.object_id})
-        assert "address" not in svc.can(db, row, None), "(d)"
-        with pytest.raises(HTTPException):
-            svc.apply(db, order=order, step=step, action="address",
-                      payload={"bill_to_company": True})                            # (d)
-        assert svc.embed_data(db, order=order, step=step)["customer"]["choice"] is None
