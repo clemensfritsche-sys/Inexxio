@@ -41,14 +41,19 @@ test('early.js liest denselben Rollen-Schlüssel und dieselben Personal-Rollen w
   assert.deepEqual(staff(sync.slice(0, sync.indexOf('\n}'))), front);
 });
 
-test('Abmelden räumt den ganzen Anzeige-Cache, und zwar vor allem anderen', () => {
+test('Abmelden räumt den ganzen Anzeige-Cache – unbedingt, und erst nach dem Abmelden', () => {
+  // Die Regel: ohne Firebase und bei einem Fehler bleibt kein Name stehen (unbedingt), und
+  // ein später Profil-Abruf kann den Cache nicht zurückschreiben (erst signOut, dann räumen).
+  // Früher hiess sie «vor allem anderen» – genau diese Reihenfolge liess den Rückschreiber
+  // durch, und man musste zweimal abmelden.
   const body = firebase.slice(firebase.indexOf('export async function logout('));
-  const fn = body.slice(0, body.indexOf('\n}'));
+  // Nur der Code: die Begründung im Kommentar nennt dieselben Wörter.
+  const fn = body.slice(0, body.indexOf('\n}')).replace(/^\s*\/\/.*$/gm, '');
   assert.ok(fn.includes('clearAccountCache()'), 'logout() räumt den Anzeige-Cache nicht');
-  assert.ok(
-    fn.indexOf('clearAccountCache()') < fn.indexOf('if (!auth)'),
-    'logout() räumt erst nach der Firebase-Prüfung – ohne Firebase bliebe der Name stehen',
-  );
+  assert.ok(!/return/.test(fn.slice(0, fn.indexOf('clearAccountCache()'))),
+    'logout() kann vor dem Räumen zurückkehren – ohne Firebase bliebe der Name stehen');
+  assert.ok(fn.indexOf('signOut(') < fn.indexOf('finally') && fn.indexOf('finally') < fn.indexOf('clearAccountCache()'),
+    'logout() räumt nicht im finally nach signOut – ein später Profil-Abruf schriebe den Cache zurück');
 });
 
 test('die Website verlinkt das Abmelden auf eine Route, die es im Frontend gibt', async () => {
