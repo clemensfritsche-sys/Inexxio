@@ -268,24 +268,21 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
 
 
 def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> CompanySettings:
-    """Ein Unternehmen **schliessen** – Soft-Delete, endgültig (Testnotiz #365).
+    """Ein Unternehmen **schliessen** – Soft-Delete, **umkehrbar** (``reopen``).
 
-    Kein «Ersetzen» und **keine Reaktivierung**: der reale Vorgang ist eine Liquidation.
-    Wer am selben Ort wieder eröffnet, gründet eine neue Gesellschaft – mit neuer UID/EIN,
-    neuem Handelsregister-Datum und neuen Belegkreisen. Sie als dieselbe weiterzuführen
-    hiesse, auf ihren Belegen eine Rechtsperson zu nennen, die es so nicht mehr gab. Genau
-    wie ein inaktiver Artikel ist das damit endgültig; die Objektnummer bleibt auflösbar
-    (sie hält historische Instanzen und steht auf alten Belegen).
+    Die Objektnummer bleibt auflösbar (sie hält historische Instanzen und steht auf alten
+    Belegen); geschlossen heisst nur: in keiner Auswahl mehr.
 
     Zwei Dinge dürfen nicht passieren, beide werden geprüft:
 
-    * **Der Betreiber bleibt.** Er ist der Absender der einen Website (Impressum, Rechtstexte,
-      Systemkonfiguration) – ohne ihn hätte sie keine Rechtsperson. Erst den Titel weitergeben
-      (``set_operator``), dann schliessen.
-    * **Die letzte Gesellschaft bleibt.** Ein ERP ohne Unternehmen kennt keinen Absender.
+    * **Der Betreiber bleibt.** Er ist der Absender der einen Website – erst den Titel
+      weitergeben (``set_operator``), dann schliessen.
+    * **Die letzte eigene Gesellschaft bleibt.** Ein ERP ohne Unternehmen kennt keinen
+      Absender.
 
-    Ihre **Gebiete** fallen zurück (die Zeilen werden gelöscht): jeder Fleck der Erde gehört
-    weiterhin jemandem – ohne Anspruch dem Betreiber (``company_for_country``). Committet."""
+    Ihre **Gebiete** fallen zurück (die Zeilen werden gelöscht) und kommen beim
+    Wiederöffnen **nicht** von selbst zurück – wer fakturiert, entscheidet die Karte.
+    Committet."""
     from ..models import CompanyTerritory
     if company.is_operator:
         raise HTTPException(
@@ -306,6 +303,16 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
     db.refresh(company)
     return company
 
+
+
+def reopen(db: Session, company: CompanySettings, actor_id: int | None) -> CompanySettings:
+    """Ein geschlossenes Unternehmen **wieder öffnen** – die Gegenhandlung zu
+    ``deactivate``. Nichts zu prüfen: eine offene Firma mehr verletzt keine Regel."""
+    company.is_active = True
+    log_audit(db, "company_settings", "is_active", "true", actor_id, object_id=company.object_id)
+    db.commit()
+    db.refresh(company)
+    return company
 
 # ─── Gebiete: welche Gesellschaft fakturiert welches Kundenland (ADR 006) ─────────
 

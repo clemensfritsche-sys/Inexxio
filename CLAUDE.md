@@ -4914,6 +4914,15 @@
 > **bestätigte** Adresse (`email_verified`). Personal-Rollen vergibt nur ein Admin. Einen
 > Status «inaktiv» für Personen gibt es nicht.
 > Wächter: `tests/test_user_record.py` (5 neue) + 3 in `test_frontend_mirrors.py`.
+> **Nachtrag (Korrekturen vor Schritt 2):** Schliessen ist **umkehrbar** (`sites.reopen`,
+> `POST …/companies/{id}/reopen`, ohne Rückfrage). «Eigen ↔ Extern» ist ein **Schieber**
+> (nur Admin; beim Anlegen vorgewählt: extern). Eine eigene Gesellschaft trägt im Feed und
+> im Kopf ein **Zeichen am Symbol** wie die Abweichung (`RecordIcon own`). Und **mit Firma
+> ist die FIRMA Rechnungsempfänger** (`voucher._company_billing`): Name mit Rechtsform,
+> UID, Anschrift und E-Mail der Firma, die Person als «z. H.», die **Ware** an die
+> Lieferadresse der Person. Eigene Rechnungsadresse und Rechnungs-E-Mail der Person gelten
+> dann nicht und werden in Konto und ERP nicht angeboten (`CompanyBilling`); wer privat
+> einkauft, löst die Zuordnung. Der Betreiber-Stern bleibt.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

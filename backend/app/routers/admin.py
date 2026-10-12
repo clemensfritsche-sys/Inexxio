@@ -206,16 +206,27 @@ async def deactivate_company(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).
-
-    Eine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues
-    HR-Datum) – sie wird darum neu angelegt, nicht wiederbelebt. Der **Betreiber** und die
-    **letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen
-    fallen an den Betreiber zurück."""
+    """Ein Unternehmen **schliessen** (Soft-Delete, umkehrbar über ``…/reopen``). Der
+    **Betreiber** und die **letzte** eigene Gesellschaft lassen sich nicht schliessen."""
     company = sites.require(db, object_id)
     if company.is_own and current_user.role != "admin":
         raise HTTPException(403, detail="Eine eigene Gesellschaft schliesst nur ein Admin.")
     sites.deactivate(db, company, current_user.id)
+    return _company_response(db, company)
+
+
+@router.post("/companies/{object_id}/reopen", response_model=CompanySettingsResponse)
+async def reopen_company(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Ein geschlossenes Unternehmen **wieder öffnen** – dieselbe Berechtigung wie das
+    Schliessen."""
+    company = sites.require(db, object_id)
+    if company.is_own and current_user.role != "admin":
+        raise HTTPException(403, detail="Eine eigene Gesellschaft öffnet nur ein Admin.")
+    sites.reopen(db, company, current_user.id)
     return _company_response(db, company)
 
 

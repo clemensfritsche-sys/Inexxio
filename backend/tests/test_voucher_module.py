@@ -84,7 +84,9 @@ def _party(db, name: str, role: str = "supplier"):
     from app.services import objects as obj
     # Die Firma ist ein eigener Datensatz (CRM Schritt 1) – die Person zeigt darauf.
     firm = CompanySettings(object_id=obj.next_object_id(db, "organization"),
-                           company_name=name, legal_form="", email="", country="CH")
+                           company_name=name, legal_form="", email="", country="CH",
+                           street="Werkweg", street_nr="3", zip_code="9000",
+                           city="St. Gallen")
     db.add(firm)
     db.flush()
     user = UserProfile(
@@ -1707,7 +1709,11 @@ def test_a_recipient_carries_its_own_address():
             "Beide Seiten sagen dasselbe (#979)."
         )
 
-        # (d) Eine abweichende Rechnungsadresse macht zwei daraus.
+        # (d) Eine abweichende Rechnungsadresse macht zwei daraus – an einer
+        # **Privatperson**: mit Firma ist deren Anschrift die Rechnungsadresse.
+        one.company_object_id = None
+        db.flush()
+        db.expire(one, ["company"])
         one.invoice_address_line1 = "Rechnungsweg 9"
         one.invoice_postal_code = "9000"
         one.invoice_city = "St. Gallen"
@@ -3086,3 +3092,58 @@ def test_the_reason_stands_at_the_button_not_after_the_click():
         assert svc.quotes_of(db, row), "Der vollständige Beleg geht nicht hinaus (d)."
     finally:
         db.rollback(); db.close()
+
+
+def test_a_firm_is_the_invoice_recipient():
+    """►►► **Mit Firma geht die Rechnung an die FIRMA, die Ware an die Person.** ◄◄◄
+
+    Name mit Rechtsform, Anschrift, E-Mail und UID kommen von der Firma; die Person steht
+    als «z. H.» darunter, ihre Hauptadresse ist die Lieferadresse. Eine eigene
+    Rechnungsadresse oder -E-Mail an der Person gilt dann nicht – sonst stünde dieselbe
+    Angabe an zwei Stellen. Ohne Firma bleibt alles beim Alten.
+
+    Bug-Formen: (a) die Rechnungsadresse der Person gewinnt; (b) die Rechnungs-E-Mail der
+    Person gewinnt; (c) die Lieferadresse geht verloren; (d) ohne Firma ändert sich etwas.
+    """
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        u = _party(db, "Muster")
+        u.company.legal_form = "AG"
+        u.company.email = "buchhaltung@muster.test"
+        u.company.uid_number = "CHE-111.222.333"
+        u.invoice_first_name, u.invoice_address_line1 = "Privat", "Privatweg 9"
+        u.invoice_postal_code, u.invoice_city = "3000", "Bern"
+        u.invoice_email = "privat@example.test"
+        db.flush()
+        b = svc.billing_of(db, None, u.object_id)
+        assert b["lines"][0] == "Muster AG"
+        assert b["address"]["city"] == "St. Gallen" and b["address"]["postal_code"] == "9000"
+        assert b["email"] == "buchhaltung@muster.test"
+        assert b["uid"] == "CHE-111.222.333"
+        assert any("Werkweg 3" in line for line in b["shipping"])
+
+        u.company_object_id = None
+        db.flush()
+        db.expire(u)
+        b = svc.billing_of(db, None, u.object_id)
+        assert b["address"]["city"] == "Bern" and b["email"] == "privat@example.test"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_closed_company_can_be_reopened():
+    """**Schliessen ist umkehrbar** – ``reopen`` ist die Gegenhandlung, ohne Sperre."""
+    from app.services import sites
+    db = _db()
+    try:
+        firm = _party(db, "Zuliefer").company
+        db.commit = db.flush  # die Szene wird am Ende verworfen
+        sites.deactivate(db, firm, None)
+        assert firm.is_active is False
+        sites.reopen(db, firm, None)
+        assert firm.is_active is True
+    finally:
+        db.rollback()
+        db.close()

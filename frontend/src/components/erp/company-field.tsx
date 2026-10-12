@@ -126,3 +126,19 @@ export function CompanyField({ company, readOnly, country, onLink, onCreate }: {
     </div>
   );
 }
+
+/**
+ * ►►► **Mit Firma geht die Rechnung an die FIRMA** (`voucher._company_billing`). ◄◄◄
+ *
+ * Firmenname, Rechtsform, UID, Anschrift und E-Mail der Firma; die Person steht als
+ * «z. H.» darunter, die **Ware** geht an ihre Lieferadresse. Eine eigene Rechnungsadresse
+ * oder Rechnungs-E-Mail an der Person gäbe es dann zweimal – darum steht hier die
+ * Auskunft statt der Felder. Wer privat einkaufen will, löst die Zuordnung zur Firma.
+ */
+export function CompanyBilling({ company }: { company: CompanyRef }) {
+  return (
+    <AField label="Rechnungsempfänger" readOnly
+      value={company.legal_name}
+      hint="Rechnungsadresse und Rechnungs-E-Mail kommen von der Firma und werden an ihrem Datensatz gepflegt. Die Ware geht an die Lieferadresse." />
+  );
+}

@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users } from 'lucide-react';
+import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { DetailBody, Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
+import { DetailBody, Card, DetailHeader, Segmented } from '@/components/erp/fields';
 import { organizationStatus } from '@/lib/record-status';
 import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { legalForms } from '@/lib/legal-forms';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
-import { Field as AField, SelectField } from '@/components/account/field';
+import { Field as AField } from '@/components/account/field';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
 import { SystemConfigSection } from '@/components/account/sections/system-config-section';
@@ -34,6 +34,9 @@ const COUNTRIES: [string, string][] = [
 // Backend beim Anlegen, hier wird beim Länderwechsel nur vorgeschlagen). ISO-2, damit es
 // egal ist, ob das Land als Klarname («USA») oder Code («US») ankommt.
 const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP'];
+
+/** Die Art einer Firma – ein Schieber, keine Auswahlliste (zwei Werte sieht man). */
+export const OWN_OPTIONS = [{ value: 'foreign', label: 'Extern' }, { value: 'own', label: 'Eigen' }];
 const CURRENCY_BY_ISO2: Record<string, string> = {
   CH: 'CHF', LI: 'CHF', US: 'USD', GB: 'GBP',
   DE: 'EUR', AT: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', BE: 'EUR', LU: 'EUR',
@@ -171,7 +174,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
   const [tab, setTab] = useState<OrgTab>('stamm');
   const [opBusy, setOpBusy] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
-  const [closing, setClosing] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const mapsKey = useMapsApiKey();
@@ -276,18 +278,18 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
     } finally { setOpBusy(false); }
   }
 
-  /** Diese Gesellschaft schliessen – endgültig (keine Reaktivierung, siehe Backend). */
-  async function closeCompany() {
+  /** Schliessen ↔ wieder öffnen – ein Klick, umkehrbar (keine Rückfrage nötig). */
+  async function toggleClosed() {
     if (record.object_id == null) return;
     setCloseBusy(true); setOpError(null);
     try {
-      const updated = await api.deactivateCompany(record.object_id);
+      const updated = base.is_active === false
+        ? await api.reopenCompany(record.object_id)
+        : await api.deactivateCompany(record.object_id);
       setBase(updated);
       onSaved(updated);
-      setClosing(false);
     } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Unternehmen konnte nicht geschlossen werden');
-      setClosing(false);
+      setOpError(e instanceof Error ? e.message : 'Nicht möglich');
     } finally { setCloseBusy(false); }
   }
 
@@ -320,7 +322,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
         // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
         // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt
         // dieselben zwei Zustände wie alles andere im System, also dieselben zwei Wörter:
-        // **Freigegeben** (gültig, verwendbar) und **Inaktiv** (geschlossen, endgültig).
+        // **Freigegeben** (gültig, verwendbar) und **Inaktiv** (geschlossen, wieder zu öffnen).
         status={organizationStatus(record)}
         // **Betreiber der Website: ein Stern bei den Aktionen** (Testnotiz #339) statt eines
         // Knopfes mitten im Formular. Er ist keine Stammdaten-Angabe, sondern eine Rolle über
@@ -340,20 +342,23 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
               <Star size={14} />
             </button>
           ))}
-          {/* **Schliessen** (Notiz #365) – wie das Deaktivieren am Artikel, und wie dort
-              **endgültig**: eine wiedereröffnete Gesellschaft ist rechtlich eine andere
-              (neue UID, neues HR-Datum), also wird sie neu angelegt statt wiederbelebt.
-              Ein «Ersetzen» gibt es bewusst nicht – zu heikel bei einer Rechtsperson.
-              Der Betreiber trägt den Knopf gar nicht erst: ohne ihn hätte die Website
-              keinen Absender (erst den Stern weitergeben, dann schliessen). */}
-          {!isOperator && canEdit && record.is_active !== false && (
+          {/* **Schliessen ↔ wieder öffnen** – umkehrbar, darum ohne Rückfrage. Der
+              Betreiber trägt den Knopf nicht: ohne ihn hätte die Website keinen Absender. */}
+          {!isOperator && canEdit && (base.is_active === false ? (
+            <button className="erp-idbtn"
+              data-tip="Unternehmen wieder öffnen" data-tip-pos="bottom"
+              aria-label="Unternehmen wieder öffnen"
+              onClick={toggleClosed} disabled={closeBusy}>
+              <RotateCcw size={14} />
+            </button>
+          ) : (
             <button className="erp-idbtn erp-idbtn-danger"
-              data-tip="Unternehmen schliessen – endgültig, keine Reaktivierung"
-              data-tip-pos="bottom" aria-label="Unternehmen schliessen"
-              onClick={() => setClosing(true)} disabled={closeBusy}>
+              data-tip="Unternehmen schliessen – lässt sich wieder öffnen" data-tip-pos="bottom"
+              aria-label="Unternehmen schliessen"
+              onClick={toggleClosed} disabled={closeBusy}>
               <Ban size={14} />
             </button>
-          )}
+          ))}
         </>}
         tabs={<DetailTabs<OrgTab> active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
@@ -364,22 +369,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
         ]} />}
       />
 
-      {/* **Schliessen ist endgültig** – darum eine Frage, aber nur eine: der Klick auf den
-          Weg IST die Ausführung (wie im Deaktivieren-Dialog des Artikels, Notiz #152). */}
-      {closing && (
-        <Dialog icon={Ban} title="Unternehmen schliessen" tone="var(--danger)" width={460}
-          onClose={() => setClosing(false)}>
-          <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)', lineHeight: 1.55 }}>
-            «{form.company_name}» wird geschlossen. Der Datensatz bleibt lesbar (er hält
-            historische Instanzen und steht auf alten Belegen), seine Gebiete fallen an den
-            Betreiber zurück.
-          </span>
-          <ChoiceButton icon={Ban} tone="var(--danger)" disabled={closeBusy}
-            title="Endgültig schliessen"
-            text="Keine Reaktivierung – eine Wiedereröffnung ist rechtlich eine neue Gesellschaft (neue UID, neues HR-Datum) und wird neu angelegt."
-            onClick={closeCompany} />
-        </Dialog>
-      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
@@ -391,13 +380,11 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
         <DetailBody gap={16}>
           {/* ── 1. Allgemeine Angaben ────────────────────────────────────────── */}
           <Card title="Allgemeine Angaben" right={saveIndicator}>
-            {/* «Eigenes Unternehmen» – eine Admin-Entscheidung am Datensatz. */}
-            {isAdmin && (
-              <SelectField label="Art" value={own ? 'own' : 'foreign'} disabled={opBusy}
-                onChange={(v) => void setOwn(v === 'own')}
-                options={[{ value: 'foreign', label: 'Fremde Firma (Kunde, Lieferant)' },
-                          { value: 'own', label: 'Eigenes Unternehmen' }]} />
-            )}
+            {/* «Extern ↔ Eigen» – eine Admin-Entscheidung; alle anderen sehen sie gesperrt. */}
+            <Segmented value={own ? 'own' : 'foreign'} disabled={!isAdmin || opBusy}
+              tip={isAdmin ? undefined : 'Ob eine Firma eine unserer Gesellschaften ist, legt ein Admin fest.'}
+              onChange={(v) => void setOwn(v === 'own')}
+              options={OWN_OPTIONS} />
             <AField label="Unternehmensname" value={form.company_name} onChange={str('company_name')}
               placeholder="Inexxio AG" required onEnter={saveNow} />
 

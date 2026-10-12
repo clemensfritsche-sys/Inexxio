@@ -25,7 +25,7 @@ import { AddressField, type Address } from '@/components/erp/address-field';
 import {
   NO_OWN_BILLING, OWN_ADDRESS, OWN_ADDRESS_HINT, hasOwnBilling, inheritedEmail,
 } from '@/lib/accounts';
-import { CompanyField } from '@/components/erp/company-field';
+import { CompanyBilling, CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
 interface Form {
@@ -211,42 +211,47 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
 
         <div style={{ height: 1, background: 'var(--border-1)' }} />
 
-        {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
-            Er war einmal eine **gespeicherte** Angabe und schrieb bei «gleich wie» eine
-            **Kopie** der Lieferadresse in die Rechnungsfelder; die veraltete beim nächsten
-            Umzug. Jetzt ist er eine **Ableitung** aus den Feldern – dieselbe Frage, die
-            der Dienst stellt (`voucher.billing_of`) –, und «Aus» **räumt** sie: es gibt
-            weiterhin genau eine Wahrheit und nirgends eine Kopie.
-
-            **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
-            Rechnungsadresse ihn als erste Zeile. */}
-        <ToggleField label={OWN_ADDRESS} description={OWN_ADDRESS_HINT}
-          checked={ownBilling}
-          onChange={(on) => {
-            setOwnBilling(on);
-            if (!on) setForm((p) => ({ ...p, ...NO_OWN_BILLING }));
-          }} />
-        {ownBilling && (
+        {profile.company ? <CompanyBilling company={profile.company} /> : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} onEnter={saveNow} />
-              <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} onEnter={saveNow} />
-            </div>
-            <AddressField
-              value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
-              countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+          {/* ►►► **Der Schalter ist zurück – als sichtbare Form der einen Regel.** ◄◄◄
+              Er war einmal eine **gespeicherte** Angabe und schrieb bei «gleich wie» eine
+              **Kopie** der Lieferadresse in die Rechnungsfelder; die veraltete beim nächsten
+              Umzug. Jetzt ist er eine **Ableitung** aus den Feldern – dieselbe Frage, die
+              der Dienst stellt (`voucher.billing_of`) –, und «Aus» **räumt** sie: es gibt
+              weiterhin genau eine Wahrheit und nirgends eine Kopie.
+
+              **Kein zweites Firmennamen-Feld**: steht ein Firmenname da, trägt die
+              Rechnungsadresse ihn als erste Zeile. */}
+          <ToggleField label={OWN_ADDRESS} description={OWN_ADDRESS_HINT}
+            checked={ownBilling}
+            onChange={(on) => {
+              setOwnBilling(on);
+              if (!on) setForm((p) => ({ ...p, ...NO_OWN_BILLING }));
+            }} />
+          {ownBilling && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} onEnter={saveNow} />
+                <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} onEnter={saveNow} />
+              </div>
+              <AddressField
+                value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
+                countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+            </>
+          )}
+
+          {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Leer erbt sie die Login-/
+              Kontakt-Adresse – das sagt der **Platzhalter**, nicht ein zweites Feld und
+              keine Checkbox. */}
+          <Field
+            label="Rechnungs-E-Mail" value={form.invoice_email}
+            onChange={(v) => set('invoice_email', v)} type="email"
+            placeholder={inheritedEmail(profile.email)}
+            onEnter={saveNow}
+          />
+
           </>
         )}
-
-        {/* ►►► **Die EINE Rechnungs-E-Mail** (#1042). ◄◄◄ Leer erbt sie die Login-/
-            Kontakt-Adresse – das sagt der **Platzhalter**, nicht ein zweites Feld und
-            keine Checkbox. */}
-        <Field
-          label="Rechnungs-E-Mail" value={form.invoice_email}
-          onChange={(v) => set('invoice_email', v)} type="email"
-          placeholder={inheritedEmail(profile.email)}
-          onEnter={saveNow}
-        />
       </Card>
 
       {/* ── 3. Kommunikation & Rechtliches ──────────────────────────────────── */}

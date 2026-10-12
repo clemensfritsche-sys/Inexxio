@@ -304,12 +304,8 @@ export interface paths {
         post?: never;
         /**
          * Deactivate Company
-         * @description Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).
-         *
-         *     Eine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues
-         *     HR-Datum) – sie wird darum neu angelegt, nicht wiederbelebt. Der **Betreiber** und die
-         *     **letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen
-         *     fallen an den Betreiber zurück.
+         * @description Ein Unternehmen **schliessen** (Soft-Delete, umkehrbar über ``…/reopen``). Der
+         *     **Betreiber** und die **letzte** eigene Gesellschaft lassen sich nicht schliessen.
          */
         delete: operations["deactivate_company_api_v1_admin_companies__object_id__delete"];
         options?: never;
@@ -343,6 +339,27 @@ export interface paths {
          *     ist die Rolle **wählbar** (nicht mehr starr «das älteste»).
          */
         post: operations["set_company_operator_api_v1_admin_companies__object_id__operator_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/companies/{object_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen Company
+         * @description Ein geschlossenes Unternehmen **wieder öffnen** – dieselbe Berechtigung wie das
+         *     Schliessen.
+         */
+        post: operations["reopen_company_api_v1_admin_companies__object_id__reopen_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5079,6 +5096,37 @@ export interface operations {
         };
     };
     set_company_operator_api_v1_admin_companies__object_id__operator_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanySettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopen_company_api_v1_admin_companies__object_id__reopen_post: {
         parameters: {
             query?: never;
             header?: never;

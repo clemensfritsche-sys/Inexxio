@@ -376,6 +376,10 @@ class ApiClient {
     return this.delete<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`).then(mapSettingsFromBackend);
   }
 
+  reopenCompany(objectId: number): Promise<CompanySettings> {
+    return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/reopen`, {}).then(mapSettingsFromBackend);
+  }
+
   // ─── Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) ─────────
   getTerritories(): Promise<TerritoryMap> {
     return this.get('/api/v1/admin/territories');

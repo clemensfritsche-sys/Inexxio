@@ -5,7 +5,8 @@ import { Building2, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { legalForms } from '@/lib/legal-forms';
 import { Field as AField, SelectField } from '@/components/account/field';
-import { Card, DetailBody, DetailHeader, ErrorText, HeaderAction } from '@/components/erp/fields';
+import { Card, DetailBody, DetailHeader, ErrorText, HeaderAction, Segmented } from '@/components/erp/fields';
+import { OWN_OPTIONS } from '@/components/erp/organization-detail';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { CompanySettings, CompanyRef, UserProfile, UserRole } from '@/types';
 
@@ -144,12 +145,10 @@ export function NewCompany({ isAdmin, onSaved, onBack }: {
               </datalist>
             </div>
             <AField label="UID-Nummer" value={uid} onChange={setUid} placeholder="CHE-123.456.789" />
-            {isAdmin && (
-              <SelectField label="Art" value={own ? 'own' : 'foreign'}
-                onChange={(v) => setOwn(v === 'own')}
-                options={[{ value: 'foreign', label: 'Fremde Firma (Kunde, Lieferant)' },
-                          { value: 'own', label: 'Eigenes Unternehmen' }]} />
-            )}
+            {/* Vorgewählt: extern. «Eigen» setzt nur ein Admin. */}
+            <Segmented value={own ? 'own' : 'foreign'} disabled={!isAdmin}
+              tip={isAdmin ? undefined : 'Eine eigene Gesellschaft legt nur ein Admin an.'}
+              onChange={(v) => setOwn(v === 'own')} options={OWN_OPTIONS} />
           </div>
           {error && <ErrorText msg={error} />}
         </Card>

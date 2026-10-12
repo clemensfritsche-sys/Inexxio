@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Home, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-flow';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType } from '@/types';
@@ -423,12 +423,15 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  * weil Feed und Kopf dieselbe Komponente benutzen, können sie nicht auseinanderlaufen
  * (genau der Fehler aus #688).
  */
-export function RecordIcon({ type, size, photoUrl, initials, deviation }: {
+export function RecordIcon({ type, size, photoUrl, initials, deviation, own }: {
   type: ErpRecordType;
   size: number;
   photoUrl?: string | null;
   initials?: string;
   deviation?: boolean;
+  /** Eine **unserer** Gesellschaften – dieselbe Form wie die Abweichung: ein Zeichen
+   *  am Symbol, kein Text daneben. */
+  own?: boolean;
 }) {
   const meta = TYPE_META[type];
   const Icon = meta.icon;
@@ -449,6 +452,21 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation }: {
           ? <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : initials || <Icon size={Math.round(size * 0.46)} />}
       </div>
+      {own && (
+        <span
+          style={{
+            position: 'absolute', right: -2, bottom: -2,
+            width: mark, height: mark, borderRadius: 999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--accent)', color: '#fff',
+            boxShadow: '0 0 0 2px var(--bg-1)',
+          }}
+          data-tip="Eigenes Unternehmen – eine unserer Gesellschaften"
+          aria-label="Eigenes Unternehmen"
+        >
+          <Home size={Math.round(mark * 0.62)} />
+        </span>
+      )}
       {deviation && (
         <span
           style={{
@@ -470,7 +488,7 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation }: {
 }
 
 export function DetailHeader({
-  type, photoUrl, initials, deviation, title, placeholder = 'Ohne Bezeichnung',
+  type, photoUrl, initials, deviation, own, title, placeholder = 'Ohne Bezeichnung',
   objectId, objectIdText, objectIdHint, actions, status, right, onBack, children, tabs,
 }: {
   /**
@@ -490,6 +508,8 @@ export function DetailHeader({
   initials?: string;
   /** **Abweichung** – ein Zeichen am Symbol, siehe `RecordIcon` (#699). */
   deviation?: boolean;
+  /** **Eigenes Unternehmen** – ein Zeichen am Symbol wie die Abweichung. */
+  own?: boolean;
   /** `null` = dieser Datensatz hat (noch) keinen Namen → Platzhalter, kursiv. */
   title: string | null;
   placeholder?: string;
@@ -529,7 +549,7 @@ export function DetailHeader({
       )}
       <div style={DH.top}>
         <RecordIcon type={type} size={56} photoUrl={photoUrl} initials={initials}
-          deviation={deviation} />
+          deviation={deviation} own={own} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={DH.eyebrow}>{meta.label}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>
@@ -1073,7 +1093,7 @@ const glyph: React.CSSProperties = {
  * **Ohne Symbole bleibt alles wie bisher** – nicht jede Aufzählung hat ein Bild
  * (Bar ↔ Überweisung), und dort ist die gleichmässige Aufteilung richtig.
  */
-export function Segmented({ label, value, onChange, options, required }: {
+export function Segmented({ label, value, onChange, options, required, disabled, tip }: {
   /**
    * ►►► **Die Beschriftung ist freiwillig** (Testnotiz #1020). ◄◄◄ Wo die Antworten für
    * sich sprechen («Bar», «Überweisung», «Karte»), sagt ein Wort darüber nur noch
@@ -1083,10 +1103,13 @@ export function Segmented({ label, value, onChange, options, required }: {
   label?: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string; icon?: LucideIcon }[];
   required?: boolean;
+  /** Gesperrt – der Wert bleibt sichtbar, der Grund steht in ``tip`` (Hover). */
+  disabled?: boolean;
+  tip?: string;
 }) {
   const tucked = options.some((o) => o.icon);
   return (
-    <div>
+    <div data-tip={tip}>
       {label && <Label required={required}>{label}</Label>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {options.map((o) => {
@@ -1097,6 +1120,7 @@ export function Segmented({ label, value, onChange, options, required }: {
               key={o.value}
               type="button"
               onClick={() => onChange(o.value)}
+              disabled={disabled}
               aria-label={o.label}
               aria-pressed={active}
               style={{
@@ -1107,7 +1131,7 @@ export function Segmented({ label, value, onChange, options, required }: {
                 flex: tucked ? 'none' : 1,
                 padding: '6px 10px',
                 fontSize: 13, fontWeight: 600,
-                borderRadius: 8, cursor: 'pointer',
+                borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
                 background: active ? 'var(--accent-soft)' : '#fff',
                 color: active ? 'var(--accent-ink)' : 'var(--fg-3)',

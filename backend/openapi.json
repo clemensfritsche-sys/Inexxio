@@ -675,7 +675,7 @@
           "admin"
         ],
         "summary": "Deactivate Company",
-        "description": "Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).\n\nEine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues\nHR-Datum) – sie wird darum neu angelegt, nicht wiederbelebt. Der **Betreiber** und die\n**letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen\nfallen an den Betreiber zurück.",
+        "description": "Ein Unternehmen **schliessen** (Soft-Delete, umkehrbar über ``…/reopen``). Der\n**Betreiber** und die **letzte** eigene Gesellschaft lassen sich nicht schliessen.",
         "operationId": "deactivate_company_api_v1_admin_companies__object_id__delete",
         "security": [
           {
@@ -725,6 +725,54 @@
         "summary": "Set Company Operator",
         "description": "Diese Gesellschaft zum **Betreiber der Website** machen (Impressum + Systemkonfig).\n\nGenau EINE Gesellschaft trägt den Titel; das Setzen nimmt ihn allen anderen ab. Damit\nist die Rolle **wählbar** (nicht mehr starr «das älteste»).",
         "operationId": "set_company_operator_api_v1_admin_companies__object_id__operator_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/companies/{object_id}/reopen": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reopen Company",
+        "description": "Ein geschlossenes Unternehmen **wieder öffnen** – dieselbe Berechtigung wie das\nSchliessen.",
+        "operationId": "reopen_company_api_v1_admin_companies__object_id__reopen_post",
         "security": [
           {
             "HTTPBearer": []

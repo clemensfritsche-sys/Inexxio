@@ -1808,6 +1808,8 @@ def billing_of(db: Session, row: Voucher,
     u = db.query(UserProfile).filter(UserProfile.object_id == number).first()
     if u is None:
         return empty
+    if u.company is not None:
+        return _company_billing(u)
     # Eine Rechnungsadresse gilt als hinterlegt, sobald irgendein Feld davon steht – sonst
     # mischte sich die eine Hälfte mit der anderen zu einer Adresse, die es nirgends gibt.
     own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1)
@@ -1850,6 +1852,34 @@ def billing_of(db: Session, row: Voucher,
         # nicht diese Stelle: seit #975 steht ohnehin auf **jeder** Seite beides, und eine
         # Gleichheitsprüfung hier wäre die zweite Bedingung mit demselben Ergebnis.
         "shipping": shipped,
+    }
+
+
+def _company_billing(u: UserProfile) -> dict[str, Any]:
+    """►►► **Ist die Person einer Firma zugeordnet, ist die FIRMA Rechnungsempfänger.** ◄◄◄
+
+    Firmenname mit Rechtsform, UID, Anschrift und E-Mail der Firma; die Person steht als
+    «z. H.» darunter (``people.billing_name``). **Die Ware geht an die Person** – ihre
+    Hauptadresse ist die Lieferadresse. Eine eigene Rechnungsadresse oder Rechnungs-E-Mail
+    an der Person gilt hier nicht: sonst stünde dieselbe Angabe an zwei Stellen, und
+    gepflegt wird sie an der Firma. Wer privat einkaufen will, löst die Zuordnung."""
+    c = u.company
+    seat = address.of_company(c)
+    full = bool((c.street or "").strip() and (c.city or "").strip()
+                and (c.zip_code or "").strip())
+    main = address.make(street1=u.address_line1 or "", street2=u.address_line2 or "",
+                        zip=u.postal_code or "", city=u.city or "", country=u.country)
+    return {
+        "name": sites.legal_name(c),
+        "lines": people.billing_name(u),
+        "email": c.email or u.email,
+        "phone": c.phone or u.phone,
+        "uid": c.vat_number or c.uid_number,
+        "address": {
+            "line1": seat.get("street1") or "", "line2": None, "city": c.city or "",
+            "postal_code": c.zip_code or "", "country": address.iso2(c.country),
+        } if full else None,
+        "shipping": address.lines(main) if address.has_content(main) else [],
     }
 
 

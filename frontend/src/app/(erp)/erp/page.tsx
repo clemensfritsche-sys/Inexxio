@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User, Home } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
@@ -117,6 +117,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         photoUrl={row.type === 'user' ? row.data.photo_url : undefined}
         initials={row.type === 'user' ? userInitials(title ?? '', row.data.email) : undefined}
         deviation={row.type === 'order' && row.data.is_deviation}
+        own={row.type === 'organization' && !!row.data.is_own}
       />
       <div className="min-w-0 flex-1">
         <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
@@ -129,11 +130,6 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         <div className="flex items-center gap-2.5 mt-1">
           <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{formatObjectId(row.objectId)}</span>
           {badge && <StatusBadge cfg={badge} size={11} />}
-          {/* Eine **unserer** Gesellschaften – Kunden und Lieferanten sind derselbe Typ. */}
-          {row.type === 'organization' && row.data.is_own && (
-            <span data-tip="Eigenes Unternehmen" aria-label="Eigenes Unternehmen"
-              className="inline-flex text-accent"><Home size={12} /></span>
-          )}
         </div>
       </div>
     </button>
