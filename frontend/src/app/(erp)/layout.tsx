@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { isStaff } from '@/lib/record-status';
-import { ScanProvider } from '@/components/scan/scan-provider';
 import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
 const ROLE_KEY = 'inexxio_user_role';
@@ -66,12 +65,12 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ScanProvider>
+    <>
       <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: '#FAFAF8' }}>
         {children}
       </main>
 
       <FeedbackPin />
-    </ScanProvider>
+    </>
   );
 }

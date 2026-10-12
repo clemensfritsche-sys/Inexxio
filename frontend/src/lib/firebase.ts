@@ -105,13 +105,26 @@ export async function signInWithPasskey(firebaseToken: string): Promise<{ token:
 }
 
 export async function logout(): Promise<void> {
-  // Der Anzeige-Cache zuerst und unbedingt: die Website liest ihn, um «Anmelden» bzw. das
-  // Profilmenü zu zeigen (`lib/account-cache`). Bliebe er stehen, zeigte sie nach dem
-  // Abmelden weiter einen Namen.
-  clearAccountCache();
-  if (!auth) return;
-  await signOut(auth);
-  localStorage.removeItem('inexxio_token');
+  // ►►► **Erst die Sitzung beenden, DANN den Anzeige-Cache räumen – und das unbedingt.** ◄◄◄
+  //
+  // Die Website liest den Cache, um «Anmelden» bzw. das Profilmenü zu zeigen
+  // (`lib/account-cache`). Wurde er **vor** `signOut` geräumt, konnte ein noch laufender
+  // Profil-Abruf (`AccountSync`, er läuft auf jeder Seite – auch auf `/abmelden`) ihn in der
+  // Lücke wieder füllen: die Startseite zeigte danach weiter einen Namen, und man musste ein
+  // zweites Mal abmelden. Nach `signOut` gibt es keine Sitzung mehr, auf die ein Schreiber
+  // sich berufen könnte (`AccountSync` prüft `currentUid()` vor jedem Schreiben); das
+  // `finally` räumt auch dann, wenn das Abmelden scheitert.
+  try {
+    if (auth) await signOut(auth);
+  } finally {
+    clearAccountCache();
+    localStorage.removeItem('inexxio_token');
+  }
+}
+
+/** Wer jetzt angemeldet ist – die Frage, die ein Schreiber NACH einem `await` stellt. */
+export function currentUid(): string | null {
+  return auth?.currentUser?.uid ?? null;
 }
 
 export async function getIdToken(): Promise<string | null> {

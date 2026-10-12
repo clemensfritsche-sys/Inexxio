@@ -10,7 +10,7 @@
  * einen anderen Stand als im ERP.
  */
 import { useEffect } from 'react';
-import { onAuthChange } from '@/lib/firebase';
+import { currentUid, onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { NAME_KEY, ROLE_KEY, clearAccountCache, rememberContact, rememberPhoto } from '@/lib/account-cache';
 
@@ -42,10 +42,14 @@ export function AccountSync() {
       try {
         api.setToken(await user.getIdToken());
         const me = await api.getMe();
+        // ►►► **Nach einem `await` gilt die Voraussetzung nicht mehr von selbst.** ◄◄◄ Wer
+        // inzwischen abgemeldet hat (oder ein anderes Konto angemeldet), bekäme sonst den
+        // Cache dieser Antwort zurück – genau das war «zweimal abmelden».
+        if (currentUid() !== user.uid) return;
         localStorage.setItem(ROLE_KEY, me.role);
         const name = [me.first_name, me.last_name].filter(Boolean).join(' ');
         if (name) localStorage.setItem(NAME_KEY, name);
-        rememberContact(me);
+        rememberContact({ email: me.email, phone: me.phone, company_name: me.company?.legal_name });
         rememberPhoto(me.photo_url || user.photoURL);
       } catch {
         // Ohne Antwort bleibt der letzte bekannte Stand stehen.

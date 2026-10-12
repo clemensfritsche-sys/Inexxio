@@ -12,7 +12,8 @@ const ScanDialog = dynamic(
 );
 
 // Zentrale Scan-Funktion: ein Aufruf öffnet den globalen Scanner-Dialog.
-// Genau EINE Dialog-Instanz hängt am ERP-Wurzel-Layout; jede Funktion triggert
+// Genau EINE Dialog-Instanz hängt am Wurzel-Layout (`app/layout.tsx`) – nicht am ERP:
+// Referenzfelder mit Kamera stehen auch im Konto; jede Funktion triggert
 // sie über `useScan()` – das ist die «zentrale Grundfunktion».
 type ScanFn = (req: ScanRequest) => void;
 

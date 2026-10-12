@@ -11,6 +11,7 @@ import { CookieConsent } from '@/components/consent/cookie-consent';
 import meta from '@/lib/site-meta.json';
 import { SiteFooter, SiteHeader, SiteShellHead } from '@/components/layout/site-shell';
 import { AccountSync } from '@/components/layout/account-sync';
+import { ScanProvider } from '@/components/scan/scan-provider';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
@@ -42,7 +43,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* EIN Kopf, EIN Fuss: die der Website (components/layout/site-shell.tsx). */}
         <SiteHeader />
         <AccountSync />
-        {children}
+        {/* ►►► **Der Scanner hängt an der WURZEL, nicht am ERP.** ◄◄◄ Jedes Referenzfeld trägt
+            die Kamera (`ObjectSelect` → `useScan`), und Referenzfelder stehen auch im Konto
+            (die Firmenwahl). Hing der Provider nur am ERP-Layout, stürzte das Konto beim
+            ersten Rendern ab. Hier gibt es ihn auf jeder Seite genau einmal – der schwere
+            Dialog lädt weiterhin erst beim ersten Scan. */}
+        <ScanProvider>{children}</ScanProvider>
         <SiteFooter />
         <CookieConsent />
         <PlausibleAnalytics />

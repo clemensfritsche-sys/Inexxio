@@ -655,7 +655,7 @@ laufende `<video>` weiter; wer daraus etwas *lesen* will, hängt sich an. Darum 
 **Bild-Erfassung** (`components/erp/photo-capture.tsx`) dieselbe Kamera ohne eine Zeile
 Decoder – und ohne die Ultraweitwinkel-Falle und das Track-Leck neu lernen zu müssen.
 
-Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist eine
+Aufruf über `useScan()` (eine Instanz am **Wurzel-Layout**, lazy – nicht am ERP: Referenzfelder mit Kamera stehen auch im Konto, und ohne Provider stürzt die Seite ab). Ein Vorgang ist eine
 **Sequenz**: `steps: [{label, expected?, candidates?, restrict?, exists?, suggest?}]`.
 `expected` = Verifikation · `restrict`+`candidates` = eingeschränkte Wahl · sonst freier
 Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.

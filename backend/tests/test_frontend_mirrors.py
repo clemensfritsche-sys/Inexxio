@@ -10454,3 +10454,40 @@ def test_the_correction_target_is_searched_like_every_reference():
         "Der Suchtext erreicht den Server nicht (b) – dann filtert der Browser eine "
         "Seite, die ohnehin gekappt ist."
     )
+
+
+def test_the_scanner_hangs_at_the_root_not_at_the_erp():
+    """►►► **Ein Referenzfeld trägt die Kamera – also braucht JEDE Seite den Scanner.** ◄◄◄
+
+    Der ``ScanProvider`` hing am ERP-Layout. Seit die Firmenwahl auch im Konto steht
+    (``CompanyField`` → ``ObjectSelect`` → ``useScan``), stürzte das Konto beim ersten
+    Rendern ab («Application error»). Er steht jetzt genau einmal an der Wurzel.
+
+    Bug-Formen: (a) der Provider fehlt an der Wurzel; (b) er steht zusätzlich in einem
+    Unter-Layout (zwei Dialoge, und die Wurzel wirkt wie entbehrlich).
+    """
+    root = _code(_read(FRONTEND / "app" / "layout.tsx"))
+    assert "<ScanProvider>" in root, "Der Scanner fehlt am Wurzel-Layout (a)."
+    others = [p for p in (FRONTEND / "app").rglob("*.tsx")
+              if p != FRONTEND / "app" / "layout.tsx"
+              and "<ScanProvider" in _code(_read(p))]
+    assert not others, f"Ein zweiter Scanner steht in {others} (b)."
+
+
+def test_a_late_profile_cannot_undo_a_logout():
+    """►►► **Erst abmelden, dann räumen – und wer NACH einem ``await`` schreibt, fragt
+    nach, ob die Sitzung noch besteht.** ◄◄◄
+
+    Auf ``/abmelden`` läuft auch ``AccountSync``: sein Profil-Abruf kam nach dem Räumen des
+    Anzeige-Caches an und schrieb Name und Rolle zurück – die Website zeigte weiter einen
+    Angemeldeten, man musste zweimal abmelden.
+
+    Bug-Formen: (a) der Schreiber prüft die Sitzung nicht nach dem ``await``; (b) ``logout``
+    räumt vor ``signOut`` bzw. nicht im ``finally``.
+    """
+    sync = _code(_read(FRONTEND / "components" / "layout" / "account-sync.tsx"))
+    check, write = sync.find("currentUid() !== user.uid"), sync.find("localStorage.setItem(ROLE_KEY")
+    assert -1 < sync.find("await api.getMe()") < check < write, "(a)"
+    fb = _code(_read(FRONTEND / "lib" / "firebase.ts"))
+    body = fb[fb.index("export async function logout"):fb.index("export function currentUid")]
+    assert body.index("signOut(auth)") < body.index("finally") < body.index("clearAccountCache()"), "(b)"
