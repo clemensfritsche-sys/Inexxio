@@ -35,6 +35,8 @@ hier:
 from typing import Any
 
 from fastapi import HTTPException
+from sqlalchemy import false, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, CompanyTerritory
@@ -175,7 +177,9 @@ def operator(db: Session) -> CompanySettings:
         # die Wahl sichtbar und stabil (der Fallback ist nur das Sicherheitsnetz).
         # Die Id kommt aus der Sequenz – eine fest gesetzte 1 liesse sie stehen, und der
         # nächste Einfüger bekäme sie ein zweites Mal.
-        company = CompanySettings(is_operator=True, is_own=True)
+        company = CompanySettings(is_operator=True, is_own=True,
+                                  company_name="Inexxio AG", legal_form="AG")
+        _rekey(company)
         db.add(company)
         db.commit()
         db.refresh(company)
@@ -307,7 +311,11 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
 
 def reopen(db: Session, company: CompanySettings, actor_id: int | None) -> CompanySettings:
     """Ein geschlossenes Unternehmen **wieder öffnen** – die Gegenhandlung zu
-    ``deactivate``. Nichts zu prüfen: eine offene Firma mehr verletzt keine Regel."""
+    ``deactivate``. **Eine Regel gilt doch**: ist inzwischen eine andere Firma mit
+    derselben UID (bzw. demselben Namen und derselben Rechtsform) offen, wird sie genannt
+    – zwei offene Datensätze für eine Firma lässt die Datenbank ohnehin nicht zu."""
+    _rekey(company)
+    _assert_unique(db, company)
     company.is_active = True
     log_audit(db, "company_settings", "is_active", "true", actor_id, object_id=company.object_id)
     db.commit()
@@ -448,7 +456,12 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
     """Entitäts-Felder (inkl. Bank-Chiffren) auf die Gesellschaft schreiben + auditieren.
     Plattform-Felder werden bewusst ignoriert – die gehören der einen Website, nicht der
     Gesellschaft, und laufen über die Systemkonfiguration."""
+    from ..domain import uid
     for key, value in data.items():
+        if key == "uid_number":
+            # **Gespeichert wird die Schreibweise des Belegs** (``CHE-123.456.789``) –
+            # verglichen wird über den Schlüssel, also ist die Form nur noch Anzeige.
+            value = uid.display(value) or None
         if key == "iban":
             company.iban_encrypted = value
             log_audit(db, "company_settings", key, "[UPDATED]", actor_id, object_id=company.object_id)
@@ -459,56 +472,175 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
                 value = ""
             setattr(company, key, value)
             log_audit(db, "company_settings", key, str(value), actor_id, object_id=company.object_id)
+    _rekey(company)
 
 
 #: Angaben, die nur eine **eigene** Gesellschaft trägt – eine fremde Firma hat bei uns
 #: keine Bankverbindung, auf die wir Rechnungen ausstellen, und keine Funktionswährung.
 OWN_FIELDS = ("iban", "currency")
 
-
-def _norm_uid(value: str | None) -> str:
-    """Eine UID ohne Satzzeichen, gross geschrieben – «CHE-123.456.789 MWST» und
-    «che123456789» sind dieselbe Nummer."""
-    raw = "".join(ch for ch in (value or "").upper() if ch.isalnum())
-    return raw.removesuffix("MWST").removesuffix("TVA").removesuffix("IVA")
-
-
-def _norm_name(value: str | None) -> str:
-    return " ".join((value or "").split()).casefold()
+#: ►►► **Was eine FREMDE Firma bei uns ist: ihre Identität, sonst nichts.** ◄◄◄
+#:
+#: Name, Rechtsform, UID. **Keine Anschrift, kein Telefon, keine E-Mail**: die Adressen
+#: gehören den **Personen**, die für sie bestellen (ihr Adressbuch) – eine Firma hat viele
+#: Standorte, und welcher auf *diesem* Beleg steht, entscheidet die Bestellung, nicht der
+#: Firmendatensatz. Eine zweite Anschrift an der Firma wäre die Stelle, an der die
+#: Rechnung still an die falsche geht.
+EXTERNAL_FIELDS = ("company_name", "legal_form", "uid_number")
 
 
-def match(db: Session, *, name: str, legal_form: str = "",
-          uid: str | None = None) -> CompanySettings | None:
-    """►►► **Gibt es diese Firma schon?** – nur bei EINDEUTIGER Gleichheit. ◄◄◄
+# ─── Identität: woran eine Firma erkannt wird ─────────────────────────────────────
 
-    Gleiche UID → dieselbe Firma. Sonst exakt gleicher Name **und** gleiche Rechtsform
-    (Gross-/Kleinschreibung und Leerzeichen zählen nicht). Alles Unscharfe bleibt
-    getrennt: «Muster AG» ↔ «Muster Aktiengesellschaft» zusammenzulegen hiesse, zwei
-    Rechtspersonen zu einer zu machen, wenn man sich irrt – zwei Datensätze für eine sind
-    der harmlosere Fehler. Dieselbe Regel liest die Datenübernahme und die Eingabe."""
-    rows = db.query(CompanySettings).filter(CompanySettings.is_active == True).all()
-    key = _norm_uid(uid)
-    if key:
-        for c in rows:
-            if key in (_norm_uid(c.uid_number), _norm_uid(c.vat_number)):
-                return c
-    n, f = _norm_name(name), _norm_name(legal_form)
-    for c in rows:
-        if _norm_name(c.company_name) == n and _norm_name(c.legal_form) == f:
-            return c
-    return None
+def uid_key_of(raw: str | None) -> str | None:
+    """Die UID als Schlüssel – ``None``, wo keine steht (``domain/uid.normalize``)."""
+    from ..domain import uid
+    return uid.normalize(raw) or None
+
+
+def name_key_of(name: str | None, form: str | None) -> str | None:
+    """**Name und Rechtsform als Schlüssel** – ohne Gross-/Kleinschreibung, Satzzeichen
+    und doppelte Leerzeichen, die Rechtsform nur einmal: «Muster» + «AG» · «Muster AG» +
+    «AG» · «muster  a.g.» + «A.G.» sind eine Firma.
+
+    Unscharfes bleibt getrennt: «Muster AG» ↔ «Muster Aktiengesellschaft» zusammenzulegen
+    hiesse, zwei Rechtspersonen zu einer zu machen, wenn man sich irrt – zwei Datensätze
+    für eine sind der harmlosere Fehler, und die UID führt sie zusammen."""
+    def norm(value: str | None) -> str:
+        # Punkte fallen ersatzlos weg («A.G.» = «AG»), alles andere trennt Wörter.
+        text = (value or "").replace(".", "")
+        kept = "".join(ch if (ch.isalnum() or ch == "&") else " " for ch in text)
+        return " ".join(kept.casefold().split())
+    f = "".join(norm(form).split())
+    # **Die Rechtsform zählt einmal** – «Muster AG» mit Rechtsform «AG» ist dieselbe Firma
+    # wie «Muster» mit «AG» (dieselbe Ausnahme wie in ``legal_name``).
+    n = " ".join(w for w in norm(name).split() if w != f)
+    return f"{n}|{f}" if n and f else None
+
+
+def _rekey(company: CompanySettings) -> None:
+    """Die beiden Schlüssel nachziehen – **die eine Schreibstelle** dafür."""
+    company.uid_key = uid_key_of(company.uid_number)
+    company.name_key = name_key_of(company.company_name, company.legal_form)
+
+
+def _active(db: Session):
+    return db.query(CompanySettings).filter(CompanySettings.is_active == True)  # noqa: E712
+
+
+def by_uid(db: Session, raw: str | None) -> CompanySettings | None:
+    """Die Firma zu dieser UID – oder ``None``. **Gleiche Nummer, gleiche Firma.**"""
+    key = uid_key_of(raw)
+    return _active(db).filter(CompanySettings.uid_key == key).first() if key else None
+
+
+def by_name(db: Session, name: str | None, form: str | None) -> CompanySettings | None:
+    """Die Firma zu Name und Rechtsform – die ohne UID zuerst, sonst die älteste."""
+    key = name_key_of(name, form)
+    if key is None:
+        return None
+    return (_active(db).filter(CompanySettings.name_key == key)
+            .order_by(CompanySettings.uid_key.isnot(None), CompanySettings.id).first())
+
+
+def _assert_unique(db: Session, company: CompanySettings,
+                   changes: dict | None = None) -> None:
+    """Gibt es **eine andere** Firma mit diesem Schlüssel? – dann mit Nummer und Namen.
+
+    Die Datenbank wiese es ohnehin ab (Unique-Index); hier bekommt die Abweisung einen
+    Satz, der sagt, **wo** die Firma schon steht – «Wert bereits vergeben» schickt
+    jemanden auf die Suche."""
+    changes = changes or {}
+    uid_key = uid_key_of(changes.get("uid_number", company.uid_number))
+    name_key = name_key_of(changes.get("company_name", company.company_name),
+                           changes.get("legal_form", company.legal_form))
+    query = _active(db).filter(CompanySettings.id != company.id) if company.id \
+        else _active(db)
+    # **Ohne Autoflush** – sonst schriebe die Abfrage die geänderte Zeile zuerst, und der
+    # Index wiese sie ab, bevor dieser Satz entstehen kann.
+    with db.no_autoflush:
+        if uid_key:
+            other = query.filter(CompanySettings.uid_key == uid_key).first()
+        elif name_key:
+            other = query.filter(CompanySettings.uid_key.is_(None),
+                                 CompanySettings.name_key == name_key).first()
+        else:
+            other = None
+    if other is not None:
+        raise HTTPException(409, detail=(
+            f"Diese Firma gibt es schon: {other.object_id} «{legal_name(other)}»"
+            + (f" mit der UID {other.uid_number}." if uid_key else
+               " – gleicher Name und gleiche Rechtsform.")))
+
+
+def _assert_uid(raw: str | None) -> None:
+    from ..domain import uid
+    trouble = uid.problem(raw)
+    if trouble:
+        raise HTTPException(400, detail=trouble)
+
+
+#: **Eine Firma gibt es einmal** – als Index in der Datenbank (Migration ``143`` und
+#: Lifespan-Netz lesen dieselbe Liste). Dieselbe Bedingung wie am Modell.
+KEY_INDEXES = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_uid_key "
+    "ON company_settings (uid_key) WHERE is_active AND uid_key IS NOT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_name_key "
+    "ON company_settings (name_key) "
+    "WHERE is_active AND uid_key IS NULL AND name_key IS NOT NULL",
+)
+
+
+def backfill_keys(conn) -> int:
+    """►►► **Die Schlüssel für den Bestand** (Migration ``143`` **und** Lifespan-Netz). ◄◄◄
+
+    Auf einer rohen Verbindung, weil beide Wege eine haben; die Ableitung ist dieselbe wie
+    beim Schreiben (``uid_key_of`` · ``name_key_of``) – eine zweite in SQL hätte bei einem
+    Sonderzeichen anders entschieden als die Eingabe danach.
+
+    **Eine Alt-Dublette bleibt getrennt** – zusammengelegt wird beim Lesen nichts, das ist
+    eine Entscheidung mit Folgen für Belege. Die ältere behält den Schlüssel, die jüngere
+    bekommt ihn mit ihrer Id markiert (``…#17``): so trifft sie keine Eingabe mehr, die
+    Unique-Indizes halten, und der Lauf ist **selbstbegrenzend** – er nimmt nur Zeilen
+    ohne ``name_key``. Gibt die Zahl der bearbeiteten Zeilen zurück."""
+    from sqlalchemy import text
+    rows = conn.execute(text(
+        "SELECT id, company_name, legal_form, uid_number, is_active FROM company_settings "
+        "WHERE name_key IS NULL ORDER BY id")).all()
+    if not rows:
+        return 0
+    taken = conn.execute(text(
+        "SELECT uid_key, name_key FROM company_settings "
+        "WHERE is_active AND name_key IS NOT NULL")).all()
+    uids = {u for u, _ in taken if u}
+    names = {n for u, n in taken if not u and n}
+    for cid, name, form, raw_uid, active in rows:
+        ukey = uid_key_of(raw_uid)
+        nkey = name_key_of(name, form) or f"#{cid}"
+        if active and ukey in uids:
+            ukey = None
+        if active and ukey is None and nkey in names:
+            nkey = f"{nkey}#{cid}"
+        if active:
+            (uids.add(ukey) if ukey else names.add(nkey))
+        conn.execute(text("UPDATE company_settings SET uid_key = :u, name_key = :n "
+                          "WHERE id = :i"), {"u": ukey, "n": nkey, "i": cid})
+    return len(rows)
 
 
 def search(db: Session, query: str, limit: int = 8) -> list[CompanySettings]:
-    """Firmen für die Vorschlagsliste – Nummer **oder** Name (``services/lookup``), nur
-    offene. Wer eine Firma eingibt, soll die bestehende finden, bevor er eine zweite
-    anlegt."""
+    """Firmen für die Vorschlagsliste – Nummer, Name **oder** UID, nur offene.
+
+    **Nur für das Personal** (Router): wer eine Firma sucht, sieht, welche es gibt – und
+    die Kundenliste ist nichts, was ein Kunde durchblättern darf. Eine Person nennt ihre
+    Firma (``resolve``), sie sucht sie nicht."""
     from . import lookup
+    key = uid_key_of(query)
     return (
-        db.query(CompanySettings)
-        .filter(CompanySettings.is_active == True, CompanySettings.object_id.isnot(None),
-                lookup.matches(query, CompanySettings.object_id,
-                               CompanySettings.company_name, CompanySettings.uid_number))
+        _active(db)
+        .filter(CompanySettings.object_id.isnot(None),
+                or_(lookup.matches(query, CompanySettings.object_id,
+                                   CompanySettings.company_name, CompanySettings.uid_number),
+                    CompanySettings.uid_key == key if key else false()))
         .order_by(CompanySettings.is_own.desc(), CompanySettings.company_name)
         .limit(limit)
         .all()
@@ -519,8 +651,8 @@ def _new(db: Session, data: dict, actor_id: int | None, *, own: bool) -> Company
     """Eine Firma anlegen – **ohne** zu committen (der Aufrufer führt die Transaktion).
 
     **Name und Rechtsform sind Pflicht**: «Muster» ist keine Rechtsperson, «Muster AG» ist
-    eine, und auf einem Beleg steht die, die haftet. Eine fremde Firma erbt nichts von
-    uns – keine E-Mail, keine Währung, kein Land: was sie nicht nennt, ist leer."""
+    eine, und auf einem Beleg steht die, die haftet. **Eine fremde Firma ist ihre
+    Identität** (``EXTERNAL_FIELDS``) – sie erbt nichts von uns und trägt keine Anschrift."""
     name = (data.get("company_name") or "").strip()
     form = (data.get("legal_form") or "").strip()
     if not name:
@@ -529,9 +661,9 @@ def _new(db: Session, data: dict, actor_id: int | None, *, own: bool) -> Company
         raise HTTPException(
             400, detail=f"«{name}» braucht eine Rechtsform – auf einem Beleg steht die "
                         f"Rechtsperson, nicht ihr Name allein.")
-    if not own and any(data.get(k) for k in OWN_FIELDS):
-        raise HTTPException(400, detail="Bankverbindung und Währung gibt es nur bei "
-                                        "einer unserer Gesellschaften.")
+    _assert_uid(data.get("uid_number"))
+    if not own:
+        _assert_external(data)
     company = CompanySettings(company_name=name, legal_form=form, is_own=own,
                               email="", country="")
     _apply_entity_fields(company, {k: v for k, v in data.items()
@@ -543,12 +675,23 @@ def _new(db: Session, data: dict, actor_id: int | None, *, own: bool) -> Company
             company.country = op.country
         if not (data.get("currency") or "").strip():
             company.currency = currency_for_country(company.country)
+    _assert_unique(db, company)
     company.object_id = next_object_id(db, "organization")
     db.add(company)
     db.flush()
     log_audit(db, "company_settings", None, f"Unternehmen «{legal_name(company)}» angelegt",
               actor_id, object_id=company.object_id)
     return company
+
+
+def _assert_external(data: dict) -> None:
+    """Eine fremde Firma trägt ihre Identität und sonst nichts (``EXTERNAL_FIELDS``)."""
+    extra = [k for k, v in data.items()
+             if k not in (*EXTERNAL_FIELDS, "is_own") and v not in (None, "")]
+    if extra:
+        raise HTTPException(400, detail=(
+            "Eine fremde Firma trägt bei uns nur Name, Rechtsform und UID – Anschriften "
+            "gehören den Personen, die für sie bestellen."))
 
 
 def create(db: Session, data: dict, actor_id: int | None, *,
@@ -565,19 +708,69 @@ def create(db: Session, data: dict, actor_id: int | None, *,
     return company
 
 
-def resolve_for_person(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
-    """►►► **Die Firma, die eine Person nennt** – gefunden oder neu angelegt. ◄◄◄
+def resolve(db: Session, data: dict, actor_id: int | None, *,
+            allow_own: bool) -> CompanySettings:
+    """►►► **Die Firma, die eine Person nennt** – erkannt oder neu angelegt. ◄◄◄
 
-    Wer seine Firma eintippt, statt sie zu wählen, meint sehr oft eine, die es schon
-    gibt: zuerst wird darum **gesucht** (``match`` – eindeutige Gleichheit), und nur wenn
-    nichts passt, entsteht eine neue, **fremde** Firma. Eine eigene Gesellschaft entsteht
-    so nie – das ist eine Admin-Entscheidung am Datensatz. Committet nicht."""
-    found = match(db, name=data.get("company_name") or "",
-                  legal_form=data.get("legal_form") or "", uid=data.get("uid_number"))
-    if found is not None:
-        return found
-    allowed = {k: data.get(k) for k in ("company_name", "legal_form", "uid_number")}
-    return _new(db, allowed, actor_id, own=False)
+    *Jeder darf eine Firma anlegen* – das ist der Punkt eines CRM, das sich selbst füllt.
+    Damit daraus kein Durcheinander wird, entscheidet **der Schlüssel**, nie ein Mensch:
+
+    * **mit UID**: gleiche UID → dieselbe Firma (der getippte Name zählt dann nicht – die
+      Firma heisst, wie sie heisst). Kennen wir sie nicht, aber eine Firma **ohne** UID mit
+      gleichem Namen und gleicher Rechtsform, bekommt diese die UID (sie *war* es). Sonst
+      entsteht sie neu – dafür braucht es Name und Rechtsform.
+    * **ohne UID**: gleicher Name **und** gleiche Rechtsform → dieselbe Firma; sonst neu.
+
+    **Eine unserer Gesellschaften nennt nur das Personal** (``allow_own``): eine Kundin,
+    die unsere UID eintippt, wird nicht unsere Mitarbeiterin.
+
+    **Gleichzeitig ist kein Sonderfall**: zwei Menschen, die dieselbe neue Firma im selben
+    Moment nennen, laufen in den Unique-Index – der zweite findet danach die erste.
+    Committet nicht."""
+    _assert_uid(data.get("uid_number"))
+    name = (data.get("company_name") or "").strip()
+    form = (data.get("legal_form") or "").strip()
+    for attempt in (1, 2):
+        found = _recognize(db, data.get("uid_number"), name, form, actor_id)
+        if found is not None:
+            if found.is_own and not allow_own:
+                raise HTTPException(400, detail=(
+                    f"«{legal_name(found)}» ist eine unserer Gesellschaften – die "
+                    f"Zuordnung dazu nimmt das Personal vor."))
+            return found
+        if uid_key_of(data.get("uid_number")) and not (name and form):
+            raise HTTPException(400, detail=(
+                f"Die UID «{data.get('uid_number')}» kennen wir noch nicht – bitte "
+                f"Firmenname und Rechtsform dazu angeben."))
+        try:
+            with db.begin_nested():
+                return _new(db, {"company_name": name, "legal_form": form,
+                                 "uid_number": data.get("uid_number") or None},
+                            actor_id, own=False)
+        except IntegrityError:
+            if attempt == 2:
+                raise
+    raise HTTPException(409, detail="Die Firma liess sich nicht anlegen.")
+
+
+def _recognize(db: Session, raw_uid: str | None, name: str, form: str,
+               actor_id: int | None) -> CompanySettings | None:
+    """Die bekannte Firma zu dieser Angabe – UID zuerst, dann Name und Rechtsform."""
+    from ..domain import uid
+    if uid_key_of(raw_uid):
+        hit = by_uid(db, raw_uid)
+        if hit is not None:
+            return hit
+        same = by_name(db, name, form)
+        if same is not None and same.uid_key is None:
+            same.uid_number = uid.display(raw_uid)
+            _rekey(same)
+            log_audit(db, "company_settings", "uid_number", same.uid_number, actor_id,
+                      object_id=same.object_id)
+            db.flush()
+            return same
+        return None
+    return by_name(db, name, form)
 
 
 def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: int | None,
@@ -586,11 +779,14 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
 
     * **Plattform-Felder werden ignoriert** – sie laufen über ``PATCH /admin/settings``.
     * **Eine eigene Gesellschaft ändert nur ein Admin** (Bank, Rechtsidentität eines
-      Belegstellers); eine fremde Firma pflegt jeder Mitarbeiter.
+      Belegstellers); eine fremde Firma pflegt jeder Mitarbeiter – und an ihr gibt es
+      nur ihre Identität (``EXTERNAL_FIELDS``).
     * **«Eigenes Unternehmen» setzt nur ein Admin** – und nimmt es nur weg, wo nichts
       daran hängt: nicht beim Betreiber, nicht bei einer Gesellschaft mit Personal. Ihre
       Gebiete fallen dabei an den Betreiber zurück (wie beim Schliessen).
-    * **Der Name ist Pflicht** (zugleich das Halter-Label, #301)."""
+    * **Der Name ist Pflicht** (zugleich das Halter-Label, #301).
+    * **Die Schlüssel ziehen nach** – und eine zweite Firma mit derselben UID bzw.
+      demselben Namen und derselben Rechtsform wird mit Nummer genannt statt angelegt."""
     if (company.is_own or "is_own" in data) and not admin:
         raise HTTPException(403, detail=f"«{legal_name(company)}» ist eine unserer "
                                         f"Gesellschaften – ändern darf sie nur ein Admin.")
@@ -598,12 +794,19 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
         raise HTTPException(400, detail="Name des Unternehmens fehlt")
     if "legal_form" in data and not (data.get("legal_form") or "").strip():
         raise HTTPException(400, detail=f"«{legal_name(company)}» braucht eine Rechtsform.")
+    if "uid_number" in data:
+        _assert_uid(data.get("uid_number"))
     own = bool(data.get("is_own", company.is_own))
     if not own and any(data.get(k) for k in OWN_FIELDS):
         raise HTTPException(400, detail="Bankverbindung und Währung gibt es nur bei "
                                         "einer unserer Gesellschaften.")
+    if not own:
+        _assert_external(data)
     if company.is_own and not own:
         _assert_may_leave(db, company)
+    # **Geprüft, bevor etwas geschrieben ist** – eine abgewiesene Änderung hinterlässt
+    # keine halb geänderte Zeile in der Sitzung.
+    _assert_unique(db, company, data)
     if own != company.is_own:
         company.is_own = own
         log_audit(db, "company_settings", "is_own", str(own).lower(), actor_id,

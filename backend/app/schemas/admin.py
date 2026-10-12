@@ -45,6 +45,37 @@ class CompanyCreate(BaseModel):
     is_own: bool = False
 
 
+class AddressIn(BaseModel):
+    """**Eine Anschrift im Adressbuch** – anlegen oder ändern (nur Gesendetes wirkt).
+
+    ``is_default_*: true`` macht sie zum Standard; ``false`` ist keine Handlung – einen
+    Standard nimmt man nicht weg, man gibt ihn einer anderen."""
+    street1: Optional[str] = None
+    street2: Optional[str] = None
+    zip: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+    email: Optional[str] = None
+    is_default_delivery: Optional[bool] = None
+    is_default_billing: Optional[bool] = None
+
+
+class AddressOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    street1: str
+    street2: Optional[str] = None
+    zip: str
+    city: str
+    region: Optional[str] = None
+    country: str
+    email: Optional[str] = None
+    is_default_delivery: bool
+    is_default_billing: bool
+
+
 class CompanyPerson(BaseModel):
     """Eine Person, die zu dieser Firma gehört – für die Liste am Firmen-Datensatz."""
     object_id: int
@@ -54,16 +85,17 @@ class CompanyPerson(BaseModel):
 
 
 class CompanyRef(BaseModel):
-    """**Die Firma einer Person** – so viel, wie man an der Person davon sieht. Gepflegt
-    wird sie an ihrem eigenen Datensatz; hier steht sie als Auskunft."""
+    """**Die Firma einer Person** – ihre Identität, mehr nicht: Name, Rechtsform, UID.
+
+    Eine fremde Firma trägt bei uns keine Anschrift (``sites.EXTERNAL_FIELDS``); was eine
+    Person an ihr sieht, ist, was sie selbst genannt hat. Gepflegt wird sie am eigenen
+    Datensatz – vom Personal."""
     model_config = ConfigDict(from_attributes=True)
 
     object_id: int
     company_name: str
     legal_form: str
     uid_number: Optional[str] = None
-    vat_number: Optional[str] = None
-    city: Optional[str] = None
     is_own: bool = False
 
     @computed_field  # type: ignore[prop-decorator]
@@ -73,29 +105,14 @@ class CompanyRef(BaseModel):
         return legal_name(self)
 
 
-class CompanyCard(CompanyRef):
-    """**Die Firma, wie sie an IHRER Person steht** – mit Anschrift und Rechnungs-E-Mail,
-    weil sie dort gepflegt werden darf (externe Firma). Bewusst eine eigene Form neben
-    ``CompanyRef``: die Vorschlagsliste sieht jeder Angemeldete, und die braucht keine
-    Anschrift."""
-    street: Optional[str] = None
-    street_nr: Optional[str] = None
-    zip_code: Optional[str] = None
-    country: Optional[str] = None
-    email: Optional[str] = None
-
-
-#: Was eine Person an IHRER (externen) Firma ändern darf – die Rechtsperson und ihr
-#: Rechnungsweg. Bank, Währung, Telefon und «eigen» gehören nicht dazu.
-MEMBER_COMPANY_FIELDS = ("company_name", "legal_form", "street", "street_nr", "zip_code",
-                         "city", "country", "uid_number", "vat_number", "email")
-
-
 class NewCompany(BaseModel):
-    """Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder
-    wird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``)."""
-    company_name: str
-    legal_form: str
+    """►►► **Eine Firma NENNEN** – die UID, sonst Name und Rechtsform. ◄◄◄
+
+    Der Server erkennt sie (gleiche UID · ohne UID gleicher Name **und** gleiche
+    Rechtsform) oder legt sie an (``sites.resolve``). Bei einer bekannten UID zählt der
+    getippte Name nicht – die Firma heisst, wie sie heisst."""
+    company_name: str = ""
+    legal_form: str = ""
     uid_number: Optional[str] = None
 
 
@@ -224,38 +241,17 @@ class UserProfileResponse(BaseModel):
     last_name: Optional[str]
     phone: Optional[str]
 
-    # Contact address
-    address_line1: Optional[str]
-    address_line2: Optional[str]
-    city: Optional[str]
-    postal_code: Optional[str]
-    state_region: Optional[str]
-    country: str
-
-    # ►►► **ZWEI Anschriften, nicht drei** (Testnotiz #1043): der dritte Satz ``ship_*``
-    # hatte keinen Leser und keinen Schreiber – die Lieferadresse IST die Hauptadresse
-    # darüber (``voucher.billing_of`` liest genau sie).
-
-    # Invoice – **freiwillig: leer gilt die Lieferadresse** (#1043). Der Schalter
-    # ``invoice_same_as_shipping`` daneben war die zweite Aussage über dieselbe Sache
-    # (und liess die Oberfläche eine Kopie hineinschreiben, die beim nächsten Umzug
-    # veraltete).
-    invoice_first_name: Optional[str]
-    invoice_last_name: Optional[str]
-    invoice_address_line1: Optional[str]
-    invoice_address_line2: Optional[str]
-    invoice_city: Optional[str]
-    invoice_postal_code: Optional[str]
-    invoice_country: Optional[str]
-    #: Die **eine** Rechnungs-E-Mail (Testnotiz #1042). Leer = die Login-/Kontakt-Adresse.
-    invoice_email: Optional[str]
+    #: ►►► **Das Adressbuch** – beliebig viele Anschriften, je eine Standard-Liefer- und
+    #: Standard-Rechnungsadresse (``services/address_book``). Die festen Felder
+    #: ``address_*``/``invoice_*`` sind darin aufgegangen.
+    addresses: list[AddressOut] = []
 
     # Personal extras
     date_of_birth: Optional[date]
 
     #: ►►► **Die Firma der Person** – eigene (dann arbeitet sie bei uns) oder fremde.
     company_object_id: Optional[int]
-    company: Optional[CompanyCard] = None
+    company: Optional[CompanyRef] = None
 
     # Employee
     department: Optional[str]
@@ -282,29 +278,6 @@ class UserProfileUpdate(BaseModel):
     last_name: Optional[str] = None
     date_of_birth: Optional[date] = None
     phone: Optional[str] = None
-
-    # Contact address
-    address_line1: Optional[str] = None
-    address_line2: Optional[str] = None
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    state_region: Optional[str] = None
-    country: Optional[str] = None
-
-    # Invoice / billing address
-    invoice_first_name: Optional[str] = None
-    invoice_last_name: Optional[str] = None
-    invoice_address_line1: Optional[str] = None
-    invoice_address_line2: Optional[str] = None
-    invoice_city: Optional[str] = None
-    invoice_postal_code: Optional[str] = None
-    invoice_country: Optional[str] = None
-    #: ►►► **Die EINE Rechnungs-E-Mail** (Testnotiz #1042). ◄◄◄ Sie ist ein Attribut der
-    #: **Rechnungsadresse** – nicht der Firma und nicht des Logins –, gilt für jeden
-    #: Kontotyp gleichermassen, und leer erbt sie die Login-/Kontakt-Adresse. Das frühere
-    #: zweite Feld ``company_billing_email`` ist ersatzlos entfallen; ein trotzdem
-    #: gesendeter Wert wird **verworfen**.
-    invoice_email: Optional[str] = None
 
     # ─── Firma ─────────────────────────────────────────────────────────────────
     #: ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Gewählt wird sie
