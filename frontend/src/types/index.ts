@@ -383,3 +383,10 @@ export interface FeedbackUpdateInput {
   status?: FeedbackStatus;
   resolution?: string | null;
 }
+
+/** **Eine Nachricht** – das einzige Objekt der Kommunikation (CRM Schritt 2). */
+export type Message = components['schemas']['MessageOut'];
+export type MessageIn = components['schemas']['MessageIn'];
+export type MessageChannel = components['schemas']['ChannelOut'];
+/** Wie viele offene Nachrichten im Verlauf einer Person stehen – das Zeichen im Feed. */
+export type OpenCount = components['schemas']['OpenCount'];

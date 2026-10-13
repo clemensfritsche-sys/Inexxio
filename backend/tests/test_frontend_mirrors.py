@@ -5019,9 +5019,12 @@ def test_the_user_has_no_empty_document_tab():
     assert "Freigaben & Anerkennungen" not in src and "Abgelegte Dokumente" not in src, (
         "Die leeren Überschriften stehen wieder da."
     )
-    assert "DetailTabs" not in src, (
-        "Der Benutzer hat wieder eine Reiterleiste – mit genau einem Reiter darin."
-    )
+    # Die Regel ist «keine Reiterleiste mit genau EINEM Reiter» – seit der Kommunikation
+    # (CRM Schritt 2) trägt der Benutzer zwei: Person · Kommunikation.
+    if "DetailTabs" in src:
+        assert src.count("{ key: '") >= 2, (
+            "Der Benutzer hat wieder eine Reiterleiste – mit genau einem Reiter darin."
+        )
 
 
 def test_the_runtime_choice_is_one_sentence_in_one_place():

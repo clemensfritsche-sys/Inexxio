@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw } from 'lucide-react';
+import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare } from 'lucide-react';
+import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
 import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -98,7 +99,7 @@ export function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'system' | 'docs';
+type OrgTab = 'stamm' | 'system' | 'docs' | 'comm';
 
 /** Das Formular – nur die Felder, die es noch gibt (alles String, wie im Konto). */
 interface OrgForm {
@@ -370,12 +371,16 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
           // Betreiber – es gibt ihn genau einmal.
           ...(isOperator && isAdmin ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
+          { key: 'comm', label: 'Kommunikation', icon: MessagesSquare },
         ]} />}
       />
 
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
+        {tab === 'comm' && record.object_id != null && (
+          <DetailBody><Communication company={record.object_id} /></DetailBody>
+        )}
         {tab === 'system' && isOperator && (
           <SystemConfigSection settings={base} onSaved={(s) => onSaved({ ...base, ...s })} />
         )}

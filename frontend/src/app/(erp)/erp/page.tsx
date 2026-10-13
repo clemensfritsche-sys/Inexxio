@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User } from 'lucide-react';
-import { cn, formatObjectId } from '@/lib/utils';
+import { cn, formatObjectId, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
 import { articleStatus, isStaff, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
+import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, OpenCount } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
@@ -20,6 +20,7 @@ import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
+import { MESSAGES_CHANGED } from '@/components/erp/communication';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
@@ -91,7 +92,11 @@ const SUGGEST_LIMIT = 8;
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
 
-function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () => void }) {
+function FeedItem({ row, sel, onClick, messages }: {
+  row: Row; sel: boolean; onClick: () => void;
+  /** Offene Nachrichten im Verlauf – die Zahl am Symbol (Kommunikation). */
+  messages?: OpenCount | null;
+}) {
   const title = rowTitle(row);
 
   const badge = rowStatus(row);
@@ -118,6 +123,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         initials={row.type === 'user' ? userInitials(title ?? '', row.data.email) : undefined}
         deviation={row.type === 'order' && row.data.is_deviation}
         own={row.type === 'organization' && !!row.data.is_own}
+        messages={row.type === 'user' ? messages : null}
       />
       <div className="min-w-0 flex-1">
         <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
@@ -156,6 +162,11 @@ export default function ErpPage() {
   // der Betreiber (ältestes) + jede weitere Gesellschaft. Admin-only.
   const [companies, setCompanies] = useState<CompanySettings[]>([]);
   const [loading, setLoading] = useState(true);
+  // **Kommunikation** (CRM Schritt 2): wer gerade arbeitet, und je Person die offenen
+  // Nachrichten im Verlauf – die Zahl am Symbol, nachgeladen, sobald jemand schreibt.
+  const [me, setMe] = useState<{ object_id: number; name: string } | null>(null);
+  const [staff, setStaff] = useState(false);
+  const [openCounts, setOpenCounts] = useState<Map<number, OpenCount>>(new Map());
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
@@ -194,14 +205,26 @@ export default function ErpPage() {
       if (o.status === 'fulfilled') setOrders(o.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
+        if (me.value.object_id) setMe({ object_id: me.value.object_id, name: userDisplayName(me.value) });
         setViewerRole(isStaff(me.value.role) ? 'staff' : 'party');
         // Firmen erst laden, wenn die Rolle feststeht – eigene wie fremde sieht jedes
         // Personal (CRM Schritt 1); der Endpunkt ist Personal-only.
         if (isStaff(me.value.role)) api.getCompanies().then(setCompanies).catch(() => {});
+        if (isStaff(me.value.role)) setStaff(true);
       }
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (!staff) return;
+    const reload = () => api.openMessages()
+      .then((rows) => setOpenCounts(new Map(rows.map((r) => [r.object_id, r]))))
+      .catch(() => {});
+    reload();
+    window.addEventListener(MESSAGES_CHANGED, reload);
+    return () => window.removeEventListener(MESSAGES_CHANGED, reload);
+  }, [staff]);
 
   // «?typ=<Datensatztyp>» aus der Arbeitsleiste: stellt nur den Filter vor, wie ein Klick
   // auf seinen Chip. Unbekannte Werte bleiben ohne Wirkung.
@@ -588,6 +611,7 @@ export default function ErpPage() {
                 row={r}
                 sel={!creating && !!sel && sel.type === r.type && sel.objectId === r.objectId}
                 onClick={() => handleSelect(r.type, r.objectId)}
+                messages={r.type === 'user' && r.objectId != null ? openCounts.get(r.objectId) : null}
               />
             ))}
             {(visibleCount < filtered.length || hasMoreInstances) && (
@@ -667,7 +691,8 @@ export default function ErpPage() {
             />
           )}
           {!creating && activeRow?.type === 'user' && (
-            <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
+            <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')}
+              me={me} messages={activeRow.data.object_id != null ? openCounts.get(activeRow.data.object_id) : null} />
           )}
           {!creating && activeRow?.type === 'article' && (
             <ArticleDetail key={activeRow.key} record={activeRow.data}

@@ -423,7 +423,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  * weil Feed und Kopf dieselbe Komponente benutzen, können sie nicht auseinanderlaufen
  * (genau der Fehler aus #688).
  */
-export function RecordIcon({ type, size, photoUrl, initials, deviation, own }: {
+export function RecordIcon({ type, size, photoUrl, initials, deviation, own, messages }: {
   type: ErpRecordType;
   size: number;
   photoUrl?: string | null;
@@ -432,6 +432,9 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own }: {
   /** Eine **unserer** Gesellschaften – dieselbe Form wie die Abweichung: ein Zeichen
    *  am Symbol, kein Text daneben. */
   own?: boolean;
+  /** **Offene Nachrichten im Verlauf** (CRM Schritt 2) – eine eingekreiste Zahl an
+   *  derselben Stelle wie die Abweichung: rot, sobald eine überfällig ist, sonst orange. */
+  messages?: { open: number; overdue: number } | null;
 }) {
   const meta = TYPE_META[type];
   const Icon = meta.icon;
@@ -483,12 +486,30 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own }: {
           <GitBranch size={Math.round(mark * 0.62)} />
         </span>
       )}
+      {!!messages?.open && (
+        <span
+          className="tabular-nums"
+          style={{
+            position: 'absolute', right: -4, bottom: -4,
+            minWidth: mark + 4, height: mark + 4, padding: '0 3px', borderRadius: 999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: messages.overdue ? 'var(--danger)' : 'var(--color-warning-icon)',
+            color: '#fff', font: `700 ${Math.max(10, Math.round(mark * 0.7))}px var(--font-body)`,
+            boxShadow: '0 0 0 2px var(--bg-1)',
+          }}
+          data-tip={messages.overdue
+            ? `${messages.open} offen, davon ${messages.overdue} überfällig`
+            : `${messages.open} offen`}
+        >
+          {messages.open}
+        </span>
+      )}
     </div>
   );
 }
 
 export function DetailHeader({
-  type, photoUrl, initials, deviation, own, title, placeholder = 'Ohne Bezeichnung',
+  type, photoUrl, initials, deviation, own, messages, title, placeholder = 'Ohne Bezeichnung',
   objectId, objectIdText, objectIdHint, actions, status, right, onBack, children, tabs,
 }: {
   /**
@@ -510,6 +531,8 @@ export function DetailHeader({
   deviation?: boolean;
   /** **Eigenes Unternehmen** – ein Zeichen am Symbol wie die Abweichung. */
   own?: boolean;
+  /** **Offene Nachrichten** – die Zahl am Symbol, siehe `RecordIcon`. */
+  messages?: { open: number; overdue: number } | null;
   /** `null` = dieser Datensatz hat (noch) keinen Namen → Platzhalter, kursiv. */
   title: string | null;
   placeholder?: string;
@@ -549,7 +572,7 @@ export function DetailHeader({
       )}
       <div style={DH.top}>
         <RecordIcon type={type} size={56} photoUrl={photoUrl} initials={initials}
-          deviation={deviation} own={own} />
+          deviation={deviation} own={own} messages={messages} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={DH.eyebrow}>{meta.label}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>

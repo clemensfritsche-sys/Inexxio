@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase, Bell, Check, Cog,
+  User, MapPin, Building2, Briefcase, Bell, Check, Cog, UserRound, MessagesSquare,
 } from 'lucide-react';
+import { DetailTabs } from '@/components/erp/detail-tabs';
+import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { day, when } from '@/lib/when';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
@@ -301,12 +303,19 @@ function passkeyLabel(count: number | null | undefined): string {
 
 // Die Karte «Bestellungen» ist mit dem Verkaufs-Modul entfallen (docs/attic.md).
 
-export function UserDetail({ record, onSave, isAdmin, onBack }: {
+type UserTab = 'person' | 'comm';
+
+export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
   record: UserProfile;
   onSave: (u: UserProfile) => void;
   isAdmin: boolean;
   onBack: () => void;
+  /** Wer gerade arbeitet – Absender einer neuen Nachricht. */
+  me?: { object_id: number; name: string } | null;
+  /** Offene Nachrichten im Verlauf – die Zahl am Symbol (wie im Feed). */
+  messages?: { open: number; overdue: number } | null;
 }) {
+  const [tab, setTab] = useState<UserTab>('person');
   const rc       = userStatus(record);
   const name     = userDisplayName(record);
   const hasName  = !!name && name !== record.email;
@@ -329,7 +338,11 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
         type="user" title={hasName ? name : null} placeholder="Kein Name"
         objectId={record.object_id} onBack={onBack}
         status={rc}
-        photoUrl={record.photo_url} initials={initials}
+        photoUrl={record.photo_url} initials={initials} messages={messages}
+        tabs={<DetailTabs<UserTab> active={tab} onChange={setTab} tabs={[
+          { key: 'person', label: 'Person', icon: UserRound },
+          { key: 'comm', label: 'Kommunikation', icon: MessagesSquare },
+        ]} />}
       />
 
       {/* Content */}
@@ -338,7 +351,11 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
             Formular auf einem breiten Schirm über die volle Fensterbreite auseinander –
             und eine Zeile wurde unlesbar lang. */}
         <DetailBody>
-        <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />
+        {tab === 'person' && <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />}
+        {tab === 'comm' && record.object_id != null && (
+          <Communication me={me}
+            person={{ object_id: record.object_id, name: hasName ? name : record.email }} />
+        )}
         </DetailBody>
       </div>
     </div>

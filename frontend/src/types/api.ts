@@ -1438,6 +1438,64 @@ export interface paths {
         patch: operations["update_feedback_api_v1_feedback__note_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/messages/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Channels */
+        get: operations["list_channels_api_v1_erp_messages_channels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/messages/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Counts
+         * @description Je Person die offenen Nachrichten im Verlauf – das Zeichen am Symbol im Feed.
+         */
+        get: operations["open_counts_api_v1_erp_messages_open_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * History
+         * @description Der Verlauf einer Person oder aller Personen einer Firma – chronologisch.
+         */
+        get: operations["history_api_v1_erp_messages_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_v1_erp_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1867,6 +1925,17 @@ export interface components {
             key: string;
             /** Label */
             label: string;
+        };
+        /** ChannelOut */
+        ChannelOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Kind */
+            kind: string;
+            /** Outside */
+            outside: boolean;
         };
         /**
          * CompanyCreate
@@ -2623,6 +2692,97 @@ export interface components {
             unit_count: number;
         };
         /**
+         * MessageIn
+         * @description **Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die
+         *     Angaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort».
+         */
+        MessageIn: {
+            /** Channel */
+            channel: string;
+            /** Sender */
+            sender: number;
+            /** To */
+            to?: number[];
+            /** Cc */
+            cc?: number[];
+            /** Bcc */
+            bcc?: number[];
+            /** About */
+            about?: number[];
+            /** Subject */
+            subject?: string | null;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** At */
+            at?: string | null;
+            /** Reply To */
+            reply_to?: number[];
+        };
+        /** MessageOut */
+        MessageOut: {
+            /** Id */
+            id: number;
+            channel: components["schemas"]["ChannelOut"];
+            sender: components["schemas"]["PersonRef"];
+            /**
+             * To
+             * @default []
+             */
+            to: components["schemas"]["PersonRef"][];
+            /**
+             * Cc
+             * @default []
+             */
+            cc: components["schemas"]["PersonRef"][];
+            /**
+             * Bcc
+             * @default []
+             */
+            bcc: components["schemas"]["PersonRef"][];
+            /**
+             * About
+             * @default []
+             */
+            about: components["schemas"]["PersonRef"][];
+            /** Subject */
+            subject?: string | null;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Reply To
+             * @default []
+             */
+            reply_to: number[];
+            /** Ours */
+            ours: boolean;
+            /**
+             * Open
+             * @default false
+             */
+            open: boolean;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
+            /**
+             * Planned
+             * @default false
+             */
+            planned: boolean;
+        };
+        /**
          * ModuleCatalog
          * @description Was sich modellieren lässt. **Eine** Antwort für beide Definitionsorte.
          */
@@ -2737,6 +2897,18 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
+        };
+        /**
+         * OpenCount
+         * @description Wie viele offene Nachrichten im Verlauf dieser Person stehen.
+         */
+        OpenCount: {
+            /** Object Id */
+            object_id: number;
+            /** Open */
+            open: number;
+            /** Overdue */
+            overdue: number;
         };
         /**
          * OrderCreate
@@ -3053,6 +3225,24 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
+        };
+        /**
+         * PersonRef
+         * @description Eine beteiligte Person – Nummer, Name und ob sie zu **uns** gehört.
+         */
+        PersonRef: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Staff
+             * @default false
+             */
+            staff: boolean;
         };
         /**
          * PlaceRef
@@ -6995,6 +7185,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedbackNoteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_channels_api_v1_erp_messages_channels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelOut"][];
+                };
+            };
+        };
+    };
+    open_counts_api_v1_erp_messages_open_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenCount"][];
+                };
+            };
+        };
+    };
+    history_api_v1_erp_messages_get: {
+        parameters: {
+            query?: {
+                person?: number | null;
+                company?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_api_v1_erp_messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
                 };
             };
             /** @description Validation Error */

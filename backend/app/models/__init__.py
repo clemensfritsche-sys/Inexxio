@@ -20,6 +20,7 @@ from .webauthn import WebAuthnCredential, WebAuthnChallenge
 from .audit import AuditLog
 from .feedback import FeedbackNote
 from .object_ref import ObjectRef
+from .message import Message, MessageParty, MessageReply
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
@@ -29,4 +30,5 @@ __all__ = [
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",
     "AuditLog", "ObjectRef", "FeedbackNote",
+    "Message", "MessageParty", "MessageReply",
 ]

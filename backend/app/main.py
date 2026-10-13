@@ -18,7 +18,8 @@ from .domain import voucher as vo
 from .models import UserProfile
 from .services import address_book, people, sites
 from .routers import (
-    admin, articles, attachments, auth, contact, erp, feedback, health, website,
+    admin, articles, attachments, auth, communication, contact, erp, feedback, health,
+    website,
     instances, orders, passkey, payments, places,
 )
 
@@ -1070,6 +1071,7 @@ app.include_router(places.router)
 app.include_router(attachments.router)
 app.include_router(payments.router)
 app.include_router(feedback.router)
+app.include_router(communication.router)
 
 
 @app.get("/")

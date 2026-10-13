@@ -14,6 +14,7 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
+  Message, MessageIn, MessageChannel, OpenCount,
   ArticleInput,
   ArticleUpdateInput,
   ArticleNameSuggestion,
@@ -507,6 +508,27 @@ class ApiClient {
     const params = new URLSearchParams({ limit: String(limit) });
     if (search?.trim()) params.set('search', search.trim());
     return this.get(`/api/v1/erp/orders/voucher-parties?${params}`);
+  }
+
+  /** **Der Verlauf** einer Person bzw. aller Personen einer Firma – chronologisch. */
+  getMessages(scope: { person?: number; company?: number }): Promise<Message[]> {
+    const params = new URLSearchParams();
+    if (scope.person) params.set('person', String(scope.person));
+    if (scope.company) params.set('company', String(scope.company));
+    return this.get(`/api/v1/erp/messages?${params}`);
+  }
+
+  createMessage(data: MessageIn): Promise<Message> {
+    return this.post('/api/v1/erp/messages', data);
+  }
+
+  /** Je Person die offenen Nachrichten im Verlauf – das Zeichen am Symbol im Feed. */
+  openMessages(): Promise<OpenCount[]> {
+    return this.get('/api/v1/erp/messages/open');
+  }
+
+  messageChannels(): Promise<MessageChannel[]> {
+    return this.get('/api/v1/erp/messages/channels');
   }
 
   getArticles(search?: string, limit?: number): Promise<Article[]> {

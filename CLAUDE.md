@@ -4996,6 +4996,33 @@
 > Schema nur aus den Migrationen **und** gegen eine über das Lifespan-Netz gewachsene
 > Datenbank (je 665); Migration `143` von null · idempotent · downgrade · re-upgrade.
 
+> ►►► **CRM SCHRITT 2 — KOMMUNIKATION: alles ist eine Nachricht** (Migration `144`,
+> `domain/communication.py` · `services/communication.py` · `components/erp/communication.tsx`).
+> ◄◄◄ Drei Regeln, eine Logik, keine Sonderfälle. **(1) Alles ist eine Nachricht**
+> (`messages` + `message_parties` + `message_replies`): E-Mail, Anruf, Notiz, interne
+> Frage, Rundmail, Erinnerung und «erledigt ohne Antwort» sind dasselbe Objekt – Absender ·
+> Kanal · An/Cc/Bcc/**Betrifft** · Betreff · Text · Zeitpunkt (darf in der Zukunft liegen) ·
+> **Antwort auf (Liste)**. Keine Objektnummer, kein Status, kein Typfeld. **(2) Der
+> Verlauf einer Person** = jede Nachricht, an der sie beteiligt ist; der einer **Firma** ist
+> der ihrer Personen – ein Spiegel, ohne Eingabe und ohne offen/überfällig. **(3) Offen** =
+> an uns (von aussen, oder intern ein Mitarbeiter im «An» – auch man selbst: das ist die
+> Erinnerung), Zeitpunkt erreicht, keine Nachricht antwortet darauf; **überfällig nach
+> 2 Stunden**, rund um die Uhr. Jeder Mitarbeiter darf jede offene beantworten.
+> **Ein Kanal ist ein Katalogeintrag** (`CHANNELS`: info@inexxio.com · Telefon · Intern)
+> mit zwei Eigenschaften: `outside` (verlässt das Haus) und `live` (ein Gespräch wartet auf
+> niemanden – darum ist ein Anruf nie offen; wer zurückrufen muss, setzt eine Erinnerung).
+> **Oberfläche**: Reiter «Kommunikation» an Person und Firma; rechts steht, was von uns
+> kommt, grau, was das Haus nie verlässt; im Feed die **eingekreiste Zahl am Symbol**
+> (rot = überfällig, orange = offen), an derselben Stelle wie die Abweichung. Die Eingabe
+> hat für **E-Mail · Anruf · Intern dieselbe Form** (Von → An → Antwort auf → Text →
+> Uhr-Symbol für später/Erinnerung); «Antwort auf» belegt alle offenen vor, «Erledigt ohne
+> Antwort» steht bei Intern. Eine 9-stellige Nummer im Text wird zum Link.
+> ⚠ **Es wird noch nichts verschickt oder empfangen**: eine E-Mail wird *erfasst*, nicht
+> gesendet – die Anbindung an ein Postfach (Gmail API) ist der nächste Schritt; ein
+> eingehendes Mail erfasst man heute von Hand, indem man im Feld «Von» den Absender
+> wählt (das Feld ist bei jeder Art dasselbe). Anhänge gibt es noch nicht.
+> Wächter: `tests/test_communication.py` (10 Prüfungen, gegen ihre Bug-Formen gegengeprüft).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
