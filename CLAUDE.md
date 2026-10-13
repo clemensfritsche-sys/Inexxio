@@ -4946,9 +4946,11 @@
 > E-Mail, Telefon weist der Dienst ab). **(3) Die Anschriften gehören der Person – in
 > ZWEI Konten** (`addresses.account`, `services/address_book`): **privat** und das
 > optionale **Geschäftskonto** (gibt es nur mit Firma), dieselbe Maske (`AddressBook
-> account=…`) in Konto **und** ERP: je Konto eine **Adresse** (Standard-Lieferadresse),
-> optional eine **abweichende Rechnungsadresse** (Schalter = Ableitung; «aus» entfernt sie,
-> der Titel geht an die Adresse zurück) und unauffällig **weitere Lieferadressen**. Je
+> account=…`) in Konto **und** ERP: je Konto eine **Adresse** (Standard-Rechnungs- und
+> -Lieferadresse), optional eine **abweichende Lieferadresse** (Schalter = Ableitung; «aus»
+> entfernt sie, der Titel geht an die Adresse zurück) und unauffällig **weitere
+> Lieferadressen**. Eine neue Firma legt das Personal über «+» im Feed an, nicht im
+> Benutzer-Datensatz (#1214). Je
 > Konto genau ein Standard je Art (partielle Unique-Indizes auf `owner_id, account`). Der
 > einzige Unterschied: die **Rechnungs-E-Mail** gibt es nur im Geschäftskonto, privat geht
 > die Rechnung an die E-Mail der Person (wie bei jedem Online-Konto). Die frühere Anschrift

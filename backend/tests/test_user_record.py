@@ -149,8 +149,8 @@ def test_the_address_book_has_exactly_one_default_of_each_kind():
     Rechnungs-E-Mail, im Geschäftskonto steht sie an der Anschrift. Ein Geschäftskonto gibt
     es nur mit Firma, und seine Standards sind unabhängig von den privaten.
 
-    Bug-Formen: (a) die erste ist kein Standard; (b) zwei Standards; (c) die Rechnung geht
-    nach dem Entfernen an eine weitere Lieferadresse; (d) eine unvollständige Anschrift geht
+    Bug-Formen: (a) die erste ist kein Standard; (b) zwei Standards; (c) ein Standard geht
+    nach dem Entfernen an eine weitere Lieferadresse statt an die Hauptadresse; (d) eine unvollständige Anschrift geht
     durch; (e) eine fremde Anschrift lässt sich ändern; (f) die Datenbank liesse zwei
     Standards zu; (g) privat bleibt eine Rechnungs-E-Mail stehen; (h) ein Geschäftskonto
     ohne Firma; (i) das Geschäftskonto stiehlt den privaten Standard.
@@ -178,6 +178,14 @@ def test_the_address_book_has_exactly_one_default_of_each_kind():
         db.refresh(home)
         db.refresh(extra)
         assert home.is_default_billing and not extra.is_default_billing, "(c)"
+        # Und spiegelbildlich: «abweichende Lieferadresse aus» gibt den Liefer-Standard an
+        # die Hauptadresse zurück, nicht an eine weitere Lieferadresse.
+        ship = book.add(db, u, {"street1": "Rampe 9", "zip": "8400", "city": "Winterthur",
+                                "is_default_delivery": True}, 1)
+        book.remove(db, u, ship.id, 1)
+        db.refresh(home)
+        db.refresh(extra)
+        assert home.is_default_delivery and not extra.is_default_delivery, "(c)"
         with pytest.raises(HTTPException):
             book.add(db, u, {"street1": "Weg 3", "zip": "", "city": "Bern"}, 1)  # (d)
         with pytest.raises(HTTPException) as e:

@@ -15,15 +15,15 @@ import type { AddressEntry, AddressInput, UserProfile } from '@/types';
  * ►►► **Die Anschriften EINES Kontos – dasselbe Bauteil für Privat und Geschäftskonto,
  * für Konto und ERP.** ◄◄◄
  *
- * Je Konto: eine **Adresse** (Hauptadresse = Standard-Lieferadresse), optional eine
- * **abweichende Rechnungsadresse** (Schalter) und optional **weitere Lieferadressen**
+ * Je Konto: eine **Adresse** (Hauptadresse = Rechnungsadresse), optional eine
+ * **abweichende Lieferadresse** (Schalter) und optional **weitere Lieferadressen**
  * (unauffällig). Der einzige Unterschied zwischen den Konten: im **Geschäftskonto** steht
- * an der Rechnungsadresse eine **Rechnungs-E-Mail** – privat geht die Rechnung an die
- * E-Mail der Person.
+ * an der Adresse eine **Rechnungs-E-Mail** – privat geht die Rechnung an die E-Mail der
+ * Person.
  *
  * **Der Schalter ist eine Ableitung**, keine gespeicherte Angabe: an ist er, wo eine eigene
- * Rechnungsadresse dasteht; «aus» entfernt sie, und die Rechnung geht wieder an die
- * Adresse (`address_book.remove` gibt den Titel an die Hauptadresse zurück).
+ * Lieferadresse dasteht; «aus» entfernt sie, und geliefert wird wieder an die Adresse
+ * (`address_book.remove` gibt den Titel an die Hauptadresse zurück).
  *
  * Die Regeln stehen im Dienst (`services/address_book`); hier wird gezeichnet.
  */
@@ -45,22 +45,22 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   onSaved: (u: UserProfile) => void;
 }) {
   const mine = addresses.filter((a) => a.account === account);
-  const main = mine.find((a) => a.is_default_delivery) ?? null;
-  const billing = mine.find((a) => a.is_default_billing && a.id !== main?.id) ?? null;
-  const extra = mine.filter((a) => a.id !== main?.id && a.id !== billing?.id);
+  const main = mine.find((a) => a.is_default_billing) ?? null;
+  const delivery = mine.find((a) => a.is_default_delivery && a.id !== main?.id) ?? null;
+  const extra = mine.filter((a) => a.id !== main?.id && a.id !== delivery?.id);
   const business = account === 'business';
   // «An» geklickt, aber noch nichts getippt – das eine Gedächtnis, das der Schalter braucht.
-  const [wantsBilling, setWantsBilling] = useState(false);
+  const [wantsDelivery, setWantsDelivery] = useState(false);
   const [addingExtra, setAddingExtra] = useState(false);
   const [error, setError] = useState('');
   const row = { owner, account, loginEmail, readOnly, mapsKey, onSaved };
 
-  async function billingOff() {
-    setWantsBilling(false);
-    if (!billing) return;
+  async function deliveryOff() {
+    setWantsDelivery(false);
+    if (!delivery) return;
     setError('');
     try {
-      onSaved(await api.removeAddress(owner, billing.id));
+      onSaved(await api.removeAddress(owner, delivery.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Nicht möglich.');
     }
@@ -69,7 +69,7 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {main ? (
-        <AddressRow key={main.id} entry={main} label="Adresse" email={business && !billing}
+        <AddressRow key={main.id} entry={main} label="Adresse" email={business}
           {...row} />
       ) : readOnly ? (
         <span className="text-sm text-fg-3">Keine Adresse erfasst</span>
@@ -78,16 +78,15 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
       )}
 
       {main && !readOnly && (
-        <ToggleField label="Abweichende Rechnungsadresse"
-          checked={!!billing || wantsBilling}
-          onChange={(on) => (on ? setWantsBilling(true) : void billingOff())} />
+        <ToggleField label="Abweichende Lieferadresse"
+          checked={!!delivery || wantsDelivery}
+          onChange={(on) => (on ? setWantsDelivery(true) : void deliveryOff())} />
       )}
-      {billing ? (
-        <AddressRow key={billing.id} entry={billing} label="Rechnungsadresse" email={business}
-          {...row} />
-      ) : main && wantsBilling && !readOnly ? (
-        <NewAddress {...row} label="Rechnungsadresse" extra={{ is_default_billing: true }}
-          onDone={() => setWantsBilling(false)} />
+      {delivery ? (
+        <AddressRow key={delivery.id} entry={delivery} label="Lieferadresse" {...row} />
+      ) : main && wantsDelivery && !readOnly ? (
+        <NewAddress {...row} label="Lieferadresse" extra={{ is_default_delivery: true }}
+          onDone={() => setWantsDelivery(false)} />
       ) : null}
 
       {extra.map((a) => (
@@ -128,7 +127,7 @@ interface RowProps {
 function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnly, mapsKey,
   onSaved }: RowProps & {
   entry: AddressEntry; label: string;
-  /** Trägt diese Anschrift die Rechnungs-E-Mail? Nur im Geschäftskonto, nur die Rechnungsadresse. */
+  /** Trägt diese Anschrift die Rechnungs-E-Mail? Nur im Geschäftskonto, nur die Adresse. */
   email?: boolean;
   removable?: boolean;
 }) {
@@ -182,7 +181,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
 /** Eine neue Anschrift – sie entsteht, sobald Strasse, PLZ und Ort dastehen. */
 function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, onCancel }: RowProps & {
   label: string;
-  /** Was die neue Anschrift ausserdem ist (z. B. die Rechnungsadresse). */
+  /** Was die neue Anschrift ausserdem ist (z. B. die Lieferadresse). */
   extra: Partial<AddressInput>;
   onDone: () => void;
   onCancel?: () => void;

@@ -23,6 +23,8 @@ import type { CompanyRef, NewCompany } from '@/types';
  * die Kundenliste ist nichts, was ein Kunde durchblättert.
  *
  * EIN Bauteil für Konto und ERP: wer speichert, sagt der Aufrufer (`onLink`/`onCreate`).
+ * **Neu nennen gibt es nur ohne `search`** (Konto): das Personal legt eine Firma über den
+ * regulären Weg an («+» im Feed) und ordnet sie hier zu (Testnotiz #1214).
  */
 export function CompanyField({ company, readOnly, country, search, onLink, onCreate }: {
   company: CompanyRef | null | undefined;
@@ -32,7 +34,8 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
   /** Nur das Personal wählt aus den bestehenden Firmen. */
   search?: boolean;
   onLink: (objectId: number | null) => Promise<unknown>;
-  onCreate: (company: NewCompany) => Promise<unknown>;
+  /** Nur im Konto – im ERP entsteht eine Firma über «+» im Feed. */
+  onCreate?: (company: NewCompany) => Promise<unknown>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -55,6 +58,7 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
   }
 
   async function create() {
+    if (!onCreate) return;
     const ok = await run(() => onCreate({
       company_name: (draft.company_name ?? '').trim(),
       legal_form: (draft.legal_form ?? '').trim(),
@@ -91,14 +95,14 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
         <span className="text-xs text-fg-3 ix-tnum">{company.uid_number}</span>
       )}
 
-      {!readOnly && !adding && !(company && !search) && (
+      {!readOnly && !adding && onCreate && !company && (
         <button type="button" onClick={() => setAdding(true)}
           className="self-start inline-flex items-center gap-1.5 text-xs text-accent hover:underline">
-          <Plus size={13} /> {search ? 'Firma nicht in der Liste – neu erfassen' : 'Firma angeben'}
+          <Plus size={13} /> Firma angeben
         </button>
       )}
 
-      {!readOnly && adding && (
+      {!readOnly && adding && onCreate && (
         <div className="rounded-ds-md border border-border-1 p-3 flex flex-col gap-3">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-fg-2">
             <Building2 size={13} /> Firma

@@ -224,7 +224,8 @@ function ProfileForm({ record, isAdmin, onSaved }: {
       </Card>
 
       {/* ── 3. Geschäftskonto ───────────────────────────────────────────────── */}
-      {/* ►►► **Das Personal ordnet zu – aus den bestehenden Firmen oder neu genannt.** ◄◄◄
+      {/* ►►► **Das Personal ordnet zu – aus den bestehenden Firmen.** ◄◄◄ Eine neue legt es
+          über «+» im Feed an (Testnotiz #1214), nicht hier.
           Eine fremde Firma ist nur ihre Identität (Name, Rechtsform, UID); die Anschriften
           des Geschäftskontos gehören der Person. Für Personal muss die Firma eine unserer
           Gesellschaften sein (`people.assert_employment`). */}
@@ -232,9 +233,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         <CompanyField company={record.company} readOnly={ro} search
           country={record.addresses?.[0]?.country}
           onLink={(id) => api.updateErpRecord(record.object_id as number,
-            { company_object_id: id } as Partial<UserProfile>).then(onSaved)}
-          onCreate={(nc) => api.updateErpRecord(record.object_id as number,
-            { new_company: nc } as Partial<UserProfile>).then(onSaved)} />
+            { company_object_id: id } as Partial<UserProfile>).then(onSaved)} />
         {record.company && (
           <AddressBook owner={record.object_id ?? null} account="business"
             addresses={record.addresses ?? []} loginEmail={record.email} readOnly={ro}

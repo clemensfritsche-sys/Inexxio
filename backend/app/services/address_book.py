@@ -5,13 +5,13 @@ Konto (die Person selbst) und ERP (das Personal) schreiben **denselben** Datensa
 Anschrift gilt (``pick``), und friert sie mit der Zusage ein.
 
 **Zwei Konten, dieselbe Form** (``ACCOUNTS``): *privat* und das *Geschäftskonto*. Je Konto
-gibt es eine **Hauptadresse** (Standard-Lieferadresse), optional eine **abweichende
-Rechnungsadresse** und optional **weitere Lieferadressen**. Der einzige Unterschied: im
+gibt es eine **Hauptadresse** (Standard-Rechnungsadresse), optional eine **abweichende
+Lieferadresse** und optional **weitere Lieferadressen**. Der einzige Unterschied: im
 Geschäftskonto trägt die Rechnungsadresse eine **Rechnungs-E-Mail**; privat geht die
 Rechnung an die E-Mail der Person (wie bei jedem Online-Konto).
 
 **Zwei Standards je Konto, und es gibt sie immer, sobald es eine Anschrift gibt**: die
-erste wird beides; eine entfernte Rechnungsadresse gibt ihren Titel an die Hauptadresse
+erste wird beides; eine entfernte Lieferadresse gibt ihren Titel an die Hauptadresse
 zurück.
 """
 
@@ -208,8 +208,8 @@ def remove(db: Session, owner: UserProfile, address_id: int,
     er hat sie mit der Zusage eingefroren.
 
     War sie ein Standard, übernimmt ihn im selben Konto **die Hauptadresse** (der
-    Lieferstandard) – so ist «abweichende Rechnungsadresse aus» genau das Entfernen der
-    Rechnungsadresse –, sonst die älteste verbliebene. Committet nicht."""
+    Standard der anderen Art) – so ist «abweichende Lieferadresse aus» genau das Entfernen
+    der Lieferadresse –, sonst die älteste verbliebene. Committet nicht."""
     a = _own(db, owner, address_id)
     was = {kind: getattr(a, col) for kind, col in KINDS.items()}
     a.is_active = False
@@ -221,8 +221,8 @@ def remove(db: Session, owner: UserProfile, address_id: int,
     rest = of(db, owner, a.account)
     for kind, held in was.items():
         if held and rest:
-            heir = (default(db, owner.id, "delivery", a.account) if kind == "billing"
-                    else None) or rest[0]
+            other = "billing" if kind == "delivery" else "delivery"
+            heir = default(db, owner.id, other, a.account) or rest[0]
             _set_default(db, heir, kind, actor_id, owner.object_id)
     db.flush()
 

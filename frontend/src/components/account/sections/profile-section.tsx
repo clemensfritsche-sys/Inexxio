@@ -123,7 +123,7 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
       </Card>
 
       {/* ── 2. Adressen (privat) ─────────────────────────────────────────── */}
-      {/* ►►► **Eine Adresse, optional eine abweichende Rechnungsadresse und weitere
+      {/* ►►► **Eine Adresse, optional eine abweichende Lieferadresse und weitere
           Lieferadressen.** ◄◄◄ Privat geht die Rechnung an die E-Mail der Person. */}
       <Card icon={MapPin} title="Adressen">
         <AddressBook owner={null} account="private" addresses={profile.addresses ?? []}
