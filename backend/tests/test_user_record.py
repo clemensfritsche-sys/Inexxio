@@ -118,10 +118,11 @@ def test_the_old_switches_are_gone_from_the_door():
 
     Bug-Form: eines der Felder ist wieder im Schema – dann entsteht die Doppelung von neuem.
     """
+    from app.services import address_book
     gone = ("account_type", "invoice_same_as_shipping", "company_billing_email",
             "invoice_company", "ship_name", "ship_company", "ship_address_line1",
             "ship_address_line2", "ship_city", "ship_postal_code", "ship_state_region",
-            "ship_country")
+            "ship_country", *address_book.OLD_COLUMNS)
     for schema in (UserProfileUpdate, ErpAdminUpdate, UserProfileResponse):
         for field in gone:
             assert field not in schema.model_fields, f"{schema.__name__}.{field}"
@@ -129,87 +130,178 @@ def test_the_old_switches_are_gone_from_the_door():
         assert not hasattr(UserProfile, field), f"UserProfile.{field}"
     sent = UserProfileUpdate.model_validate(
         {"account_type": "business", "invoice_same_as_shipping": True,
-         "ship_city": "Zürich", "invoice_email": "rechnung@muster.ch"})
-    assert sent.model_dump(exclude_unset=True) == {"invoice_email": "rechnung@muster.ch"}
+         "ship_city": "Zürich", "invoice_email": "rechnung@muster.ch",
+         "address_line1": "Weg 1", "phone": "044"})
+    assert sent.model_dump(exclude_unset=True) == {"phone": "044"}, (
+        "Die Anschrift steht im Adressbuch – ein Feld am Benutzer ist eine Hintertür.")
 
 
 # ---------------------------------------------------------------------------
 # ►► Der Leser: der Beleg
 # ---------------------------------------------------------------------------
 
-def test_the_billing_email_is_read_even_without_an_own_billing_address():
-    """►►► **Ein Feld, das nur unter einer unsichtbaren Bedingung wirkt, ist schlimmer
-    als keines** (Testnotiz #1042). ◄◄◄
+def test_the_address_book_has_exactly_one_default_of_each_kind():
+    """►►► **Zwei Konten – und je Konto genau ein Standard je Art.** ◄◄◄
 
-    Bug-Form: die Lesestelle hängt wieder an ``own``.
+    Die erste Anschrift eines Kontos wird beides; eine abweichende Rechnungsadresse übernimmt
+    den Titel, die Hauptadresse gibt ihn ab; wird sie entfernt, geht er an die
+    **Hauptadresse** zurück – nicht an eine weitere Lieferadresse. Privat gibt es **keine**
+    Rechnungs-E-Mail, im Geschäftskonto steht sie an der Anschrift. Ein Geschäftskonto gibt
+    es nur mit Firma, und seine Standards sind unabhängig von den privaten.
+
+    Bug-Formen: (a) die erste ist kein Standard; (b) zwei Standards; (c) die Rechnung geht
+    nach dem Entfernen an eine weitere Lieferadresse; (d) eine unvollständige Anschrift geht
+    durch; (e) eine fremde Anschrift lässt sich ändern; (f) die Datenbank liesse zwei
+    Standards zu; (g) privat bleibt eine Rechnungs-E-Mail stehen; (h) ein Geschäftskonto
+    ohne Firma; (i) das Geschäftskonto stiehlt den privaten Standard.
     """
+    from app.services import address_book as book
     db = _db()
     try:
-        db.add(CompanySettings(company_name="Wir AG", legal_form="AG", is_own=True))
+        u = _user(db, uid="ab-1", email="ab1@x.ch")
+        other = _user(db, uid="ab-2", email="ab2@x.ch")
+        home = book.add(db, u, {"street1": "Weg 1", "zip": "8000", "city": "Zürich"}, 1)
+        assert home.is_default_delivery and home.is_default_billing, "(a)"
+        extra = book.add(db, u, {"street1": "Lager 5", "zip": "8000", "city": "Zürich"}, 1)
+        assert not extra.is_default_delivery and not extra.is_default_billing
+        office = book.add(db, u, {"street1": "Büro 2", "zip": "8400", "city": "Winterthur",
+                                  "email": "rechnung@privat.ch",
+                                  "is_default_billing": True}, 1)
+        db.refresh(home)
+        assert office.is_default_billing and not home.is_default_billing, "(b)"
+        assert office.email is None, "(g)"
+        assert book.pick(db, u.id, None, "billing", book.PRIVATE).id == office.id
+        assert book.pick(db, u.id, None, "delivery", book.PRIVATE).id == home.id
+        book.change(db, u, office.id, {"is_default_billing": False}, 1)
+        assert office.is_default_billing, "Einen Standard nimmt man nicht weg."
+        book.remove(db, u, office.id, 1)
+        db.refresh(home)
+        db.refresh(extra)
+        assert home.is_default_billing and not extra.is_default_billing, "(c)"
+        with pytest.raises(HTTPException):
+            book.add(db, u, {"street1": "Weg 3", "zip": "", "city": "Bern"}, 1)  # (d)
+        with pytest.raises(HTTPException) as e:
+            book.change(db, other, home.id, {"city": "Basel"}, 1)
+        assert e.value.status_code == 404, "(e)"
+        assert book.pick(db, other.id, home.id, "billing", book.PRIVATE) is None, "(e)"
+        with pytest.raises(HTTPException):
+            book.add(db, u, {"account": "business", "street1": "X", "zip": "1",
+                             "city": "Y"}, 1)  # (h)
+        u.company_object_id = _firm(db, "Acc").object_id
         db.flush()
-        u = _user(db, uid="b-1", email="login@kunde.ch", object_id=100000142,
-                  first_name="Max", last_name="Muster",
-                  invoice_email="rechnung@kunde.ch")
-        row = SimpleNamespace(party_id=None, issuer_company_id=None)
-        assert voucher.billing_of(db, row, party_id=u.object_id)["email"] \
-            == "rechnung@kunde.ch"
-        u.invoice_email = None
-        db.flush()
-        assert voucher.billing_of(db, row, party_id=u.object_id)["email"] \
-            == "login@kunde.ch"
+        db.refresh(u)
+        biz = book.add(db, u, {"account": "business", "street1": "Werk 1", "zip": "8400",
+                               "city": "Winterthur", "email": "Rechnung@Firma.CH"}, 1)
+        db.refresh(home)
+        assert biz.is_default_delivery and biz.is_default_billing, "(i)"
+        assert home.is_default_delivery and home.is_default_billing, "(i)"
+        assert biz.email == "rechnung@firma.ch"
+        assert book.pick(db, u.id, home.id, "billing", book.BUSINESS).id == biz.id, (
+            "Eine Anschrift aus dem anderen Konto gilt nicht.")
+        with pytest.raises(Exception):
+            with db.begin_nested():
+                db.execute(text(
+                    "INSERT INTO addresses (owner_id, account, street1, zip, city, country, "
+                    "is_default_delivery, is_default_billing, is_active, created_at, "
+                    "updated_at) VALUES (:o, 'private', 'X', '1', 'Y', 'CH', true, false, "
+                    "true, now(), now())"), {"o": u.id})
+        # (f) – nur der Index hält zwei gleichzeitige Standards auf.
     finally:
         db.rollback()
         db.close()
 
 
-def test_an_empty_billing_address_falls_back_to_the_delivery_address():
-    """►►► **Leer heisst erben – und eine KOPIE wird geräumt** (Testnotiz #1043). ◄◄◄
+def test_the_old_address_fields_move_into_the_address_book():
+    """►►► **Die beiden Anschriften am Benutzer werden Einträge – und der Lauf endet.** ◄◄◄
 
-    Die Rechnungsadresse ist freiwillig: ob eine eigene hinterlegt ist, sagen die Felder
-    selbst. Der frühere Schalter «Rechnungsadresse = Lieferadresse» liess die Oberfläche
-    die Hauptadresse **hineinkopieren** – ``billing_of`` liest sie seither als *eigene*,
-    und der Beleg zeigt dieselbe Anschrift zweimal untereinander.
+    Hauptadresse → Standard-Lieferadresse des Privatkontos (und Rechnungsadresse, wo keine
+    eigene dasteht); eine eigene Rechnungsadresse → zweiter Eintrag; eine **Kopie** der
+    Hauptadresse → keiner. Privat gibt es keine Rechnungs-E-Mail. Danach sind die Felder leer.
 
-    Bug-Formen: (a) leer wird nicht geerbt (dann steht auf dem Beleg keine Anschrift);
-    (b) die Reparatur räumt eine **abweichende** Rechnungsadresse weg (Datenverlust);
-    (c) sie räumt die Kopie nicht (dann bleibt die Doppelung).
+    Bug-Formen: (a) die Hauptadresse fehlt; (b) die eigene Rechnungsadresse fehlt oder ist
+    kein Standard; (c) die Kopie wird ein zweiter Eintrag; (d) die Anschrift landet im
+    Geschäftskonto; (e) ein zweiter Lauf legt alles noch einmal an.
     """
+    from app.services import address_book as book
     db = _db()
     try:
-        db.add(CompanySettings(company_name="Wir AG", legal_form="AG", is_own=True))
-        db.flush()
-        row = SimpleNamespace(party_id=None, issuer_company_id=None)
-
-        leer = _user(db, uid="a-1", email="a1@x.ch", object_id=100000143,
-                     first_name="Max", last_name="Muster",
-                     address_line1="Industriestrasse 12", city="Zürich",
-                     postal_code="8000", country="CH")
-        who = voucher.billing_of(db, row, party_id=leer.object_id)
-        assert who["address"]["line1"] == "Industriestrasse 12", "(a)"
-        assert who["shipping"] == [], "Zweimal dieselbe Anschrift (a)."
-
-        eigen = _user(db, uid="a-2", email="a2@x.ch", object_id=100000144,
-                      first_name="Max", last_name="Muster",
-                      address_line1="Industriestrasse 12", city="Zürich",
-                      postal_code="8000", country="CH",
-                      invoice_address_line1="Werkstrasse 3", invoice_city="Winterthur",
-                      invoice_postal_code="8400", invoice_country="CH")
-        who = voucher.billing_of(db, row, party_id=eigen.object_id)
-        assert who["address"]["line1"] == "Werkstrasse 3"
-        assert who["shipping"], "Die zweite Anschrift fehlt."
-
-        kopie = _user(db, uid="a-3", email="a3@x.ch", object_id=100000145,
-                      first_name="Max", last_name="Muster",
-                      address_line1="Industriestrasse 12", city="Zürich",
-                      postal_code="8000", country="CH",
-                      invoice_first_name="Max", invoice_last_name="Muster",
-                      invoice_address_line1="Industriestrasse 12", invoice_city="Zürich",
-                      invoice_postal_code="8000", invoice_country="CH")
-        for stmt in people.repair_sql():
+        cols = {r[0] for r in db.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='user_profiles'"))}
+        if "address_line1" not in cols:
+            pytest.skip("Die alten Felder sind bereits gedroppt – nichts zu übernehmen.")
+        rows = {
+            "eins": ("Weg 1", "8000", "Zürich", None, None, None, "re@eins.ch"),
+            "zwei": ("Weg 2", "8000", "Zürich", "Werk 9", "8400", "Winterthur", "re@zwei.ch"),
+            "kopie": ("Weg 3", "8000", "Zürich", "Weg 3", "8000", "Zürich", None),
+        }
+        ids = {}
+        for key, (l1, z, c, il1, iz, ic, mail) in rows.items():
+            ids[key] = db.execute(text(
+                "INSERT INTO user_profiles (firebase_uid, email, role, address_line1, "
+                "postal_code, city, country, invoice_address_line1, invoice_postal_code, "
+                "invoice_city, invoice_email, language, notification_email, "
+                "notification_inapp, newsletter_opt_in, created_at, updated_at, is_active) "
+                "VALUES (:u, :e, 'user', :l1, :z, :c, 'CH', :il1, :iz, :ic, :m, 'de', true, "
+                "true, false, now(), now(), true) RETURNING id"),
+                {"u": f"mv-{key}", "e": f"{key}@mv.ch", "l1": l1, "z": z, "c": c,
+                 "il1": il1, "iz": iz, "ic": ic, "m": mail}).scalar()
+        for stmt in book.migrate_sql():
             db.execute(text(stmt))
-        db.expire_all()
-        assert kopie.invoice_address_line1 is None, "Die Kopie bleibt stehen (c)."
-        assert eigen.invoice_address_line1 == "Werkstrasse 3", "Datenverlust (b)."
+
+        def book_of(key):
+            return db.execute(text(
+                "SELECT street1, account, is_default_delivery, is_default_billing "
+                "FROM addresses WHERE owner_id = :o AND is_active ORDER BY id"),
+                {"o": ids[key]}).all()
+
+        assert book_of("eins") == [("Weg 1", "private", True, True)], "(a)/(d)"
+        assert book_of("zwei") == [("Weg 2", "private", True, False),
+                                   ("Werk 9", "private", False, True)], "(b)"
+        assert book_of("kopie") == [("Weg 3", "private", True, True)], "(c)"
+        for stmt in book.migrate_sql():
+            db.execute(text(stmt))
+        assert len(book_of("zwei")) == 2, "(e)"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_address_of_a_foreign_firm_becomes_the_business_account():
+    """►►► **Die Anschrift einer fremden Firma wird die des Geschäftskontos.** ◄◄◄
+
+    Die Firma trägt nur noch ihre Identität; wer ihr zugeordnet ist, bekommt ihre Anschrift
+    als Haupt- und Rechnungsadresse seines Geschäftskontos – einmal.
+
+    Bug-Formen: (a) die Anschrift geht verloren; (b) eine eigene Gesellschaft wird
+    übernommen (ihr Personal bekäme den Firmensitz als «seine» Anschrift); (c) ein zweiter
+    Lauf legt sie noch einmal an.
+    """
+    from app.services import address_book as book
+    db = _db()
+    try:
+        firm = _firm(db, "Kunde")
+        firm.street, firm.street_nr, firm.zip_code, firm.city = "Hauptstr.", "7", "8400", \
+            "Winterthur"
+        ours = _firm(db, "Wir", own=True)
+        ours.street, ours.zip_code, ours.city = "Werkweg 1", "8000", "Zürich"
+        buyer = _user(db, uid="bs-1", email="bs1@x.ch")
+        staff = _user(db, uid="bs-2", email="bs2@x.ch")
+        buyer.company_object_id = firm.object_id
+        staff.company_object_id = ours.object_id
+        db.flush()
+
+        def rows(u):
+            return db.execute(text(
+                "SELECT street1, is_default_delivery, is_default_billing FROM addresses "
+                "WHERE owner_id = :o AND account = 'business' AND is_active"),
+                {"o": u.id}).all()
+
+        for _ in range(2):
+            for stmt in book.business_sql():
+                db.execute(text(stmt))
+        assert rows(buyer) == [("Hauptstr. 7", True, True)], "(a)/(c)"
+        assert rows(staff) == [], "(b)"
     finally:
         db.rollback()
         db.close()
@@ -218,6 +310,17 @@ def test_an_empty_billing_address_falls_back_to_the_delivery_address():
 # ---------------------------------------------------------------------------
 # ►► Die Firma ist ein Datensatz (CRM Schritt 1)
 # ---------------------------------------------------------------------------
+
+def _uid() -> str:
+    """Eine **gültige, frische** UID – eine feste kollidierte mit Daten, die schon stehen."""
+    import random
+    from app.domain import uid as u
+    while True:
+        digits = "".join(random.choice("0123456789") for _ in range(8))
+        check = u._check_digit(digits)
+        if check is not None:
+            return u.display(f"CHE{digits}{check}")
+
 
 def _firm(db, name="Muster", form="AG", *, own=False, uid=None) -> CompanySettings:
     from app.services import objects as obj
@@ -247,33 +350,139 @@ def test_a_person_is_a_firm_through_its_link():
 
 
 def test_a_named_company_is_found_before_it_is_created():
-    """**Eindeutig gleich → dieselbe Firma; sonst eine neue, fremde.** Bug-Formen: (a) zwei
-    Datensätze für dieselbe Firma; (b) eine Firma ohne Rechtsform; (c) die neue ist eigen."""
+    """►►► **Jeder darf eine Firma anlegen – der Schlüssel entscheidet, nie ein Mensch.** ◄◄◄
+
+    Gleiche UID → dieselbe Firma, egal wie der Name getippt ist; ohne UID gleicher Name
+    **und** gleiche Rechtsform (Gross-/Kleinschreibung, Leerzeichen, Punkte zählen nicht);
+    eine UID-lose Firma bekommt die UID, sobald jemand sie mit Nummer nennt.
+
+    Bug-Formen: (a) zwei Datensätze für dieselbe Firma; (b) eine Firma ohne Rechtsform;
+    (c) die neue ist eigen; (d) eine falsche Prüfziffer geht durch; (e) eine unbekannte UID
+    ohne Namen legt eine namenlose Firma an; (f) die UID-lose wird nicht übernommen.
+    """
     db = _db()
+    known = _uid()
     try:
         a = _user(db, uid="m-1", email="m1@x.ch")
         b = _user(db, uid="m-2", email="m2@x.ch")
         c = _user(db, uid="m-3", email="m3@x.ch")
-        new = {"company_name": "Zahnrad  Werke", "legal_form": "GmbH",
-               "uid_number": "CHE-111.222.333"}
-        people.apply_profile_update(db, a, UserProfileUpdate(new_company=new), actor_id=1)
-        people.apply_profile_update(
-            db, b, UserProfileUpdate(new_company={"company_name": "zahnrad werke",
-                                                  "legal_form": "gmbh"}), actor_id=1)
-        people.apply_profile_update(
-            db, c, UserProfileUpdate(new_company={"company_name": "Andere AG",
-                                                  "legal_form": "x",
-                                                  "uid_number": "che111222333"}), actor_id=1)
-        assert a.company_object_id == b.company_object_id == c.company_object_id, "(a)"
+        d = _user(db, uid="m-4", email="m4@x.ch")
+        people.apply_profile_update(db, a, UserProfileUpdate(new_company={
+            "company_name": "Zahnrad  Werke", "legal_form": "GmbH"}), 1, staff=False)
+        people.apply_profile_update(db, b, UserProfileUpdate(new_company={
+            "company_name": "zahnrad werke GmbH", "legal_form": "G.m.b.H."}), 1, staff=False)
+        assert a.company_object_id == b.company_object_id, "(a)"
+        # (f) mit Nummer genannt: die UID-lose Firma bekommt sie.
+        people.apply_profile_update(db, c, UserProfileUpdate(new_company={
+            "company_name": "Zahnrad Werke", "legal_form": "GmbH",
+            "uid_number": known.lower().replace("-", "") + " mwst"}), 1, staff=False)
+        assert c.company_object_id == a.company_object_id, "(f)"
         db.refresh(a)
-        assert not a.company.is_own, "(c)"
-        with pytest.raises(HTTPException):
-            people.apply_profile_update(
-                db, a, UserProfileUpdate(new_company={"company_name": "Neu",
-                                                      "legal_form": " "}), actor_id=1)
+        assert a.company.uid_number == known and not a.company.is_own, "(c)"
+        # Bekannte UID, anderer Name: dieselbe Firma.
+        people.apply_profile_update(db, d, UserProfileUpdate(new_company={
+            "company_name": "Ganz anders", "legal_form": "AG",
+            "uid_number": known}), 1, staff=False)
+        assert d.company_object_id == a.company_object_id, "(a)"
+        for bad in ({"company_name": "Neu", "legal_form": " "},                     # (b)
+                    {"company_name": "Neu", "legal_form": "AG",
+                     "uid_number": "CHE-123.456.789"},                               # (d)
+                    {"uid_number": _uid()}):                                         # (e)
+            with pytest.raises(HTTPException):
+                people.apply_profile_update(db, a, UserProfileUpdate(new_company=bad), 1,
+                                            staff=False)
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_firm_exists_once_even_without_the_service():
+    """**Die Dublette ist unmöglich, nicht verboten**: der Unique-Index hält zwei offene
+    Firmen mit derselben UID bzw. ohne UID mit gleichem Namen und Rechtsform auf – auch
+    dann, wenn niemand den Dienst fragt (zwei gleichzeitige Anlagen). Und der Dienst nennt
+    die bestehende Firma, statt «Wert bereits vergeben» zu sagen.
+
+    Bug-Formen: (a) der Index fehlt; (b) ``apply_update`` legt still eine zweite an;
+    (c) ein UID-loser Name kollidiert mit einer Firma, die eine UID trägt."""
+    from app.services import sites
+    db = _db()
+    db.commit = db.flush
+    known = _uid()
+    try:
+        first = sites.create(db, {"company_name": "Einmal Zufall " + known, "legal_form": "AG",
+                                  "uid_number": known}, None)
+        with pytest.raises(Exception):
+            with db.begin_nested():
+                twin = CompanySettings(company_name="Zweimal", legal_form="AG",
+                                       uid_key=first.uid_key, name_key="zweimal|ag")
+                db.add(twin)
+                db.flush()
+        other = sites.create(db, {"company_name": "Anders " + known, "legal_form": "AG"}, None)
+        with pytest.raises(HTTPException) as e:
+            sites.apply_update(db, other, {"uid_number": known}, None, admin=True)
+        assert e.value.status_code == 409 and str(first.object_id) in e.value.detail, "(b)"
+        same_name = sites.create(db, {"company_name": "Einmal Zufall " + known,
+                                      "legal_form": "AG"}, None)
+        assert same_name.id != first.id, "(c) – mit UID ist es eine andere Rechtsperson."
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_customer_names_its_firm_and_never_picks_or_edits_one():
+    """►►► **Kunden sehen keine fremden Firmen.** ◄◄◄ Keine Firmensuche (nur Personal),
+    keine Zuordnung über eine Objektnummer, keine Zuordnung zu einer unserer
+    Gesellschaften – und eine fremde Firma trägt nur ihre Identität.
+
+    Bug-Formen: (a) die Suche ist für jeden Angemeldeten offen; (b) eine Kundin hängt sich
+    über eine Nummer an eine beliebige Firma; (c) sie wird über unsere UID unsere
+    Mitarbeiterin; (d) eine fremde Firma nimmt eine Anschrift an; (e) der frühere Weg,
+    die eigene Firma zu ändern, ist zurück."""
+    import inspect
+    from app.routers import auth, erp
+    from app.services import sites
+    src = inspect.getsource(erp.search_companies)
+    assert "require_employee" in src, "(a)"
+    assert "/me/company" not in inspect.getsource(auth), "(e)"
+    assert not hasattr(people, "update_member_company"), "(e)"
+    db = _db()
+    db.commit = db.flush
+    try:
+        foreign = _firm(db, "Kunde")
+        sites._rekey(foreign)
+        ours = _uid()
+        own = _firm(db, "Wir " + ours, own=True, uid=ours)
+        sites._rekey(own)
+        db.flush()
+        u = _user(db, uid="cn-1", email="cn1@x.ch")
+        with pytest.raises(HTTPException) as e:
+            people.apply_profile_update(db, u, UserProfileUpdate(
+                company_object_id=foreign.object_id), 1, staff=False)
+        assert e.value.status_code == 403, "(b)"
+        with pytest.raises(HTTPException) as e:
+            people.apply_profile_update(db, u, UserProfileUpdate(new_company={
+                "uid_number": ours}), 1, staff=False)
+        assert "unserer Gesellschaften" in e.value.detail, "(c)"
+        with pytest.raises(HTTPException):
+            sites.apply_update(db, foreign, {"city": "Bern"}, None, admin=True)   # (d)
+        people.apply_profile_update(db, u, UserProfileUpdate(company_object_id=None), 1,
+                                    staff=False)
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_uid_check_digit_is_checked_here():
+    """**Die Prüfziffer (eCH-0097, Modulo 11) – ohne Register.** Bug-Formen: (a) eine
+    falsche Prüfziffer geht durch; (b) Schreibweisen ergeben verschiedene Schlüssel;
+    (c) eine EU-Nummer wird abgewiesen."""
+    from app.domain import uid
+    assert uid.problem("CHE-123.456.788") is None
+    assert uid.problem("CHE-123.456.789"), "(a)"
+    assert uid.normalize("che 123.456.788 MWST") == uid.normalize("CHE123456788"), "(b)"
+    assert uid.display("che123456788") == "CHE-123.456.788"
+    assert uid.problem("DE123456789") is None and uid.problem("ATU12345678") is None, "(c)"
+    assert uid.problem("Muster"), "Freitext ist keine UID."
 
 
 def test_staff_needs_one_of_our_companies():
@@ -286,11 +495,11 @@ def test_staff_needs_one_of_our_companies():
         with pytest.raises(HTTPException) as e:
             people.apply_profile_update(
                 db, u, ErpAdminUpdate(role="employee", company_object_id=foreign.object_id),
-                actor_id=1)
+                actor_id=1, staff=True)
         assert "unserer Gesellschaften" in e.value.detail
         people.apply_profile_update(
             db, u, ErpAdminUpdate(role="employee", company_object_id=own.object_id),
-            actor_id=1)
+            actor_id=1, staff=True)
         assert u.role == "employee"
     finally:
         db.rollback()
@@ -341,41 +550,6 @@ def test_a_foreign_company_never_acts_as_ours():
         assert foreign not in sites.selectable_companies(db)
         with pytest.raises(HTTPException):
             sites.set_territory(db, "EUR", foreign.object_id, None)
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_a_member_maintains_its_external_company_but_never_ours():
-    """►►► **Wer einer externen Firma angehört, pflegt sie – am Datensatz der Firma.** ◄◄◄
-
-    Sonst entstünde bei jeder Änderung eine neue Firma. Bug-Formen: (a) die Änderung landet
-    nicht an der Firma; (b) eine unserer Gesellschaften lässt sich so ändern; (c) ohne
-    Firma passiert still nichts; (d) Felder ausserhalb des Rechnungswegs (Bank) gehen durch.
-    """
-    db = _db()
-    db.commit = db.flush  # die Szene wird verworfen, nicht gespeichert
-    try:
-        firm, own = _firm(db, "Kunde"), _firm(db, "Wir", own=True)
-        u = _user(db, uid="mc-1", email="mc1@x.ch", company_object_id=firm.object_id)
-        db.refresh(u)
-        people.update_member_company(db, u, {"city": "Bern", "email": "re@kunde.ch",
-                                             "iban": "CH93 0076 2011 6238 5295 7"})
-        db.refresh(firm)
-        assert (firm.city, firm.email) == ("Bern", "re@kunde.ch"), "(a)"
-        assert not firm.iban_encrypted, "(d)"
-        u.company_object_id = own.object_id
-        db.flush()
-        db.expire(u, ["company"])
-        with pytest.raises(HTTPException) as e:
-            people.update_member_company(db, u, {"city": "Zug"})
-        assert e.value.status_code == 403, "(b)"
-        u.company_object_id = None
-        db.flush()
-        db.expire(u, ["company"])
-        with pytest.raises(HTTPException) as e:
-            people.update_member_company(db, u, {"city": "Zug"})
-        assert e.value.status_code == 400, "(c)"
     finally:
         db.rollback()
         db.close()

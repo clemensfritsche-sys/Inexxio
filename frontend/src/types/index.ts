@@ -266,7 +266,9 @@ export type PlaceRef = components['schemas']['PlaceRef'];
 export type UnitPlace = components['schemas']['UnitPlace'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type CompanyRef = components['schemas']['CompanyRef'];
-export type CompanyCard = components['schemas']['CompanyCard'];
+/** **Eine Anschrift im Adressbuch einer Person** (`services/address_book`). */
+export type AddressEntry = components['schemas']['AddressOut'];
+export type AddressInput = components['schemas']['AddressIn'];
 export type CompanyPerson = components['schemas']['CompanyPerson'];
 export type NewCompany = components['schemas']['NewCompany'];
 export type PersonCreate = components['schemas']['PersonCreate'];

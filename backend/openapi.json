@@ -94,19 +94,18 @@
         ]
       }
     },
-    "/api/v1/auth/me/company": {
-      "patch": {
+    "/api/v1/auth/me/addresses": {
+      "post": {
         "tags": [
           "auth"
         ],
-        "summary": "Update My Company",
-        "description": "Die Angaben der **eigenen externen Firma** pflegen – am Datensatz der Firma.",
-        "operationId": "update_my_company_api_v1_auth_me_company_patch",
+        "summary": "Add My Address",
+        "operationId": "add_my_address_api_v1_auth_me_addresses_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CompanySettingsUpdate"
+                "$ref": "#/components/schemas/AddressIn"
               }
             }
           },
@@ -139,6 +138,108 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/auth/me/addresses/{address_id}": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change My Address",
+        "operationId": "change_my_address_api_v1_auth_me_addresses__address_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "address_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Address Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Remove My Address",
+        "operationId": "remove_my_address_api_v1_auth_me_addresses__address_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "address_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Address Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/auth/terms-accept": {
@@ -1179,7 +1280,7 @@
           "erp"
         ],
         "summary": "Search Companies",
-        "description": "**Gibt es diese Firma schon?** – die Vorschläge, während jemand seine Firma\neintippt (Konto und ERP). Ab zwei Zeichen, höchstens acht, und nur, was auf einer\nVisitenkarte steht: Name, Rechtsform, Ort – die Kundenliste gibt es hier nicht.",
+        "description": "**Welche Firma ist gemeint?** – die Vorschläge, während das **Personal** einer\nPerson ihre Firma zuordnet. Ab zwei Zeichen, höchstens acht.\n\n►►► **Nur für das Personal.** ◄◄◄ Die Kundenliste ist nichts, was ein Kunde\ndurchblättern darf – auch nicht über Teilwörter («Ag», «Gm»). Eine Person **nennt**\nihre Firma (UID, sonst Name und Rechtsform), sie sucht sie nicht.",
         "operationId": "search_companies_api_v1_erp_companies_get",
         "security": [
           {
@@ -1304,6 +1405,183 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/records/{object_id}/addresses": {
+      "post": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Add Record Address",
+        "operationId": "add_record_address_api_v1_erp_records__object_id__addresses_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/records/{object_id}/addresses/{address_id}": {
+      "patch": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Change Record Address",
+        "operationId": "change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "address_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Address Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Remove Record Address",
+        "operationId": "remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "address_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Address Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3723,6 +4001,223 @@
   },
   "components": {
     "schemas": {
+      "AddressIn": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "street1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street1"
+          },
+          "street2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street2"
+          },
+          "zip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zip"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "is_default_delivery": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Default Delivery"
+          },
+          "is_default_billing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Default Billing"
+          }
+        },
+        "type": "object",
+        "title": "AddressIn",
+        "description": "**Eine Anschrift im Adressbuch** – anlegen oder ändern (nur Gesendetes wirkt).\n\n``is_default_*: true`` macht sie zum Standard; ``false`` ist keine Handlung – einen\nStandard nimmt man nicht weg, man gibt ihn einer anderen. ``account`` (``private`` ·\n``business``) gilt nur beim Anlegen – das Konto einer Anschrift ändert sich nie; die\n``email`` nur im Geschäftskonto."
+      },
+      "AddressOption": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "AddressOption",
+        "description": "Eine Anschrift aus dem Adressbuch des Adressaten – Id und eine Zeile Text."
+      },
+      "AddressOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "street1": {
+            "type": "string",
+            "title": "Street1"
+          },
+          "street2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street2"
+          },
+          "zip": {
+            "type": "string",
+            "title": "Zip"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "is_default_delivery": {
+            "type": "boolean",
+            "title": "Is Default Delivery"
+          },
+          "is_default_billing": {
+            "type": "boolean",
+            "title": "Is Default Billing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "account",
+          "street1",
+          "zip",
+          "city",
+          "country",
+          "is_default_delivery",
+          "is_default_billing"
+        ],
+        "title": "AddressOut"
+      },
       "ArticleBom": {
         "properties": {
           "used_in": {
@@ -4629,129 +5124,6 @@
         "title": "CaptureTypeInfo",
         "description": "Ein wählbarer Erfassungspunkt-Typ."
       },
-      "CompanyCard": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "company_name": {
-            "type": "string",
-            "title": "Company Name"
-          },
-          "legal_form": {
-            "type": "string",
-            "title": "Legal Form"
-          },
-          "uid_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uid Number"
-          },
-          "vat_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Number"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "is_own": {
-            "type": "boolean",
-            "title": "Is Own",
-            "default": false
-          },
-          "street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street"
-          },
-          "street_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street Nr"
-          },
-          "zip_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zip Code"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "legal_name": {
-            "type": "string",
-            "title": "Legal Name",
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id",
-          "company_name",
-          "legal_form",
-          "legal_name"
-        ],
-        "title": "CompanyCard",
-        "description": "**Die Firma, wie sie an IHRER Person steht** – mit Anschrift und Rechnungs-E-Mail,\nweil sie dort gepflegt werden darf (externe Firma). Bewusst eine eigene Form neben\n``CompanyRef``: die Vorschlagsliste sieht jeder Angemeldete, und die braucht keine\nAnschrift."
-      },
       "CompanyCreate": {
         "properties": {
           "company_name": {
@@ -4841,28 +5213,6 @@
             ],
             "title": "Uid Number"
           },
-          "vat_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Number"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
           "is_own": {
             "type": "boolean",
             "title": "Is Own",
@@ -4882,7 +5232,7 @@
           "legal_name"
         ],
         "title": "CompanyRef",
-        "description": "**Die Firma einer Person** – so viel, wie man an der Person davon sieht. Gepflegt\nwird sie an ihrem eigenen Datensatz; hier steht sie als Auskunft."
+        "description": "**Die Firma einer Person** – ihre Identität, mehr nicht: Name, Rechtsform, UID.\n\nEine fremde Firma trägt bei uns keine Anschrift (``sites.EXTERNAL_FIELDS``); was eine\nPerson an ihr sieht, ist, was sie selbst genannt hat. Gepflegt wird sie am eigenen\nDatensatz – vom Personal."
       },
       "CompanySettingsResponse": {
         "properties": {
@@ -5408,160 +5758,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Line1"
-          },
-          "address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Line2"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Postal Code"
-          },
-          "state_region": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State Region"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "invoice_first_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice First Name"
-          },
-          "invoice_last_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Last Name"
-          },
-          "invoice_address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Address Line1"
-          },
-          "invoice_address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Address Line2"
-          },
-          "invoice_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice City"
-          },
-          "invoice_postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Postal Code"
-          },
-          "invoice_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Country"
-          },
-          "invoice_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Email"
           },
           "company_object_id": {
             "anyOf": [
@@ -6676,11 +6872,13 @@
         "properties": {
           "company_name": {
             "type": "string",
-            "title": "Company Name"
+            "title": "Company Name",
+            "default": ""
           },
           "legal_form": {
             "type": "string",
-            "title": "Legal Form"
+            "title": "Legal Form",
+            "default": ""
           },
           "uid_number": {
             "anyOf": [
@@ -6695,12 +6893,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "company_name",
-          "legal_form"
-        ],
         "title": "NewCompany",
-        "description": "Eine Firma, die es noch nicht gibt – sie entsteht beim Speichern der Person (oder\nwird gefunden, wenn sie eindeutig dieselbe ist: ``sites.match``)."
+        "description": "►►► **Eine Firma NENNEN** – die UID, sonst Name und Rechtsform. ◄◄◄\n\nDer Server erkennt sie (gleiche UID · ohne UID gleicher Name **und** gleiche\nRechtsform) oder legt sie an (``sites.resolve``). Bei einer bekannten UID zählt der\ngetippte Name nicht – die Firma heisst, wie sie heisst."
       },
       "ObjectResolution": {
         "properties": {
@@ -8692,152 +8886,13 @@
             ],
             "title": "Phone"
           },
-          "address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Line1"
-          },
-          "address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Line2"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Postal Code"
-          },
-          "state_region": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State Region"
-          },
-          "country": {
-            "type": "string",
-            "title": "Country"
-          },
-          "invoice_first_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice First Name"
-          },
-          "invoice_last_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Last Name"
-          },
-          "invoice_address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Address Line1"
-          },
-          "invoice_address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Address Line2"
-          },
-          "invoice_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice City"
-          },
-          "invoice_postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Postal Code"
-          },
-          "invoice_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Country"
-          },
-          "invoice_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Email"
+          "addresses": {
+            "items": {
+              "$ref": "#/components/schemas/AddressOut"
+            },
+            "type": "array",
+            "title": "Addresses",
+            "default": []
           },
           "date_of_birth": {
             "anyOf": [
@@ -8865,7 +8920,7 @@
           "company": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CompanyCard"
+                "$ref": "#/components/schemas/CompanyRef"
               },
               {
                 "type": "null"
@@ -8983,20 +9038,6 @@
           "first_name",
           "last_name",
           "phone",
-          "address_line1",
-          "address_line2",
-          "city",
-          "postal_code",
-          "state_region",
-          "country",
-          "invoice_first_name",
-          "invoice_last_name",
-          "invoice_address_line1",
-          "invoice_address_line2",
-          "invoice_city",
-          "invoice_postal_code",
-          "invoice_country",
-          "invoice_email",
           "date_of_birth",
           "company_object_id",
           "department",
@@ -9059,160 +9100,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Line1"
-          },
-          "address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Line2"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Postal Code"
-          },
-          "state_region": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State Region"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "invoice_first_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice First Name"
-          },
-          "invoice_last_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Last Name"
-          },
-          "invoice_address_line1": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Address Line1"
-          },
-          "invoice_address_line2": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Address Line2"
-          },
-          "invoice_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice City"
-          },
-          "invoice_postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Postal Code"
-          },
-          "invoice_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Country"
-          },
-          "invoice_email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Email"
           },
           "company_object_id": {
             "anyOf": [
@@ -9395,6 +9282,63 @@
         "type": "object",
         "title": "VatShare",
         "description": "Eine Zeile der Steuer-Aufteilung – **je Katalogzeile**, nicht je Zahl."
+      },
+      "VoucherAddressing": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "person": {
+            "type": "string",
+            "title": "Person",
+            "default": ""
+          },
+          "bill_to_company": {
+            "type": "boolean",
+            "title": "Bill To Company",
+            "default": false
+          },
+          "billing_address_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Address Id"
+          },
+          "delivery_address_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Address Id"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/AddressOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "title": "VoucherAddressing",
+        "description": "**An wen und wohin** – die drei Wahlen am Beleg, mit dem, was gilt."
       },
       "VoucherCorrectable": {
         "properties": {
@@ -10770,6 +10714,16 @@
               }
             ],
             "title": "Uid"
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherAddressing"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -11039,6 +10993,39 @@
               }
             ],
             "title": "Issuer"
+          },
+          "bill_to_company": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill To Company"
+          },
+          "billing_address": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Address"
+          },
+          "delivery_address": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Address"
           }
         },
         "type": "object",

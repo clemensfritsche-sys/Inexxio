@@ -16,7 +16,7 @@ from .core.database import Base, SessionLocal, engine
 from .domain import statuses as st
 from .domain import voucher as vo
 from .models import UserProfile
-from .services import people
+from .services import address_book, people, sites
 from .routers import (
     admin, articles, attachments, auth, contact, erp, feedback, health, website,
     instances, orders, passkey, payments, places,
@@ -150,6 +150,20 @@ _COLUMN_SAFETY_NET = (
     # ``DEFAULT true`` – jede Firma, die es bis hierher gab, ist eine unserer; danach setzt
     # ``_COMPANY_DATA_FIXES`` den Default auf ``false`` (jede neue ist zuerst fremd).
     ("company_settings", "is_own", "BOOLEAN NOT NULL DEFAULT true"),
+    # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – zwei abgeleitete
+    # Schlüssel; das Modell kennt sie, also scheitert ohne sie **jede** Firmen-Abfrage.
+    ("company_settings", "uid_key", "VARCHAR(20)"),
+    ("company_settings", "name_key", "VARCHAR(320)"),
+    # ►►► **An wen und wohin, und der eingefrorene Kopf** (Migration ``143``). ◄◄◄ Das
+    # Modell kennt sie, also scheitert ohne sie **jede** Abfrage auf einen Beleg – und die
+    # trägt jedes Zahlungsmodul in jeder Auftrags-Antwort.
+    # ►►► **Zwei Konten je Person** – privat und Geschäftskonto. Das Modell kennt sie,
+    # also scheitert ohne sie **jede** Abfrage auf eine Anschrift.
+    ("addresses", "account", "VARCHAR(10) NOT NULL DEFAULT 'private'"),
+    ("vouchers", "bill_to_company", "BOOLEAN"),
+    ("vouchers", "billing_address_id", "BIGINT"),
+    ("vouchers", "delivery_address_id", "BIGINT"),
+    ("vouchers", "head", "JSONB"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -212,6 +226,10 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     #    Eintrag liefe auf dev jedes Insert eines neuen Benutzers auf. Gedroppt wird sie
     #    im Folge-Deploy.
     ("user_profiles", "invoice_same_as_shipping"),
+    # ►► **Die Anschriften ziehen ins Adressbuch** (Migration 143): ``country`` war
+    #    ``NOT NULL`` und hat sein Mapping verloren – ohne diesen Eintrag liefe jedes
+    #    Insert eines neuen Benutzers auf, falls die Spalte keinen Server-Default trägt.
+    ("user_profiles", "country"),
     # ``payments``/``invoices``/``purchases`` haben mit dem Handel ihr Mapping verloren –
     # es schreibt niemand mehr hinein, also kann auch kein Insert an einer ``NOT NULL``
     # auflaufen. Die Tabellen bleiben stehen (Zwei-Deploy-Regel).
@@ -403,25 +421,6 @@ _ARTICLE_STATUS_FIXES = (
     "UPDATE orders SET name = 'Auftrag ' || object_id WHERE name IS NULL OR name = ''",
 )
 
-#: Rückbau CRM Schritt 2: Standard-Liefer- bzw. -Rechnungsadresse zurück an die Person,
-#: nur wo dort nichts steht; danach ist das Adressbuch inaktiv (selbstbegrenzend).
-_ADDRESS_BOOK_RESTORE = (
-    "UPDATE user_profiles u SET address_line1 = a.street1, address_line2 = a.street2, "
-    "postal_code = a.zip, city = a.city, state_region = a.region, country = a.country "
-    "FROM addresses a WHERE a.owner_id = u.id AND a.is_active AND a.is_default_delivery "
-    "AND coalesce(trim(u.address_line1), '') = '' AND coalesce(trim(u.city), '') = ''",
-    "UPDATE user_profiles u SET invoice_address_line1 = a.street1, "
-    "invoice_address_line2 = a.street2, invoice_postal_code = a.zip, "
-    "invoice_city = a.city, invoice_country = a.country "
-    "FROM addresses a WHERE a.owner_id = u.id AND a.is_active AND a.is_default_billing "
-    "AND NOT a.is_default_delivery "
-    "AND coalesce(trim(u.invoice_address_line1), '') = ''",
-    "UPDATE user_profiles u SET invoice_email = a.email "
-    "FROM addresses a WHERE a.owner_id = u.id AND a.is_active AND a.is_default_billing "
-    "AND coalesce(a.email, '') <> '' AND coalesce(u.invoice_email, '') = ''",
-    "UPDATE addresses SET is_active = false WHERE is_active",
-)
-
 _COMPANY_DATA_FIXES = (
     "UPDATE company_settings SET is_operator = true "
     "WHERE id = (SELECT min(id) FROM company_settings WHERE is_own) "
@@ -600,18 +599,21 @@ def _ensure_columns() -> None:
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_name='user_profiles'"))}
                 for stmt in people.repair_sql():
-                    if all(w in up_cols for w in ("role", "invoice_address_line1")):
-                        conn.execute(text(stmt))
-                # Rückbau von CRM Schritt 2: das Adressbuch hatte die Anschriften von der
-                # Person übernommen und dort geleert. Zurück an die Person, danach wird
-                # das Adressbuch inaktiv – damit ist der Lauf selbstbegrenzend.
-                if "addresses" in tables and "invoice_email" in up_cols:
-                    for stmt in _ADDRESS_BOOK_RESTORE:
-                        conn.execute(text(stmt))
-            if "company_settings" in tables:
-                for stmt in ("DROP INDEX IF EXISTS uq_company_settings_uid_key",
-                             "DROP INDEX IF EXISTS uq_company_settings_name_key"):
                     conn.execute(text(stmt))
+                # ►►► **Die Anschriften ziehen ins Adressbuch** (Migration ``143``). ◄◄◄
+                # Selbstbegrenzend: die Felder werden danach geleert, ein zweiter Lauf
+                # findet nichts mehr. Fällt die Spalte im Folge-Deploy, gibt es nichts zu tun.
+                if "addresses" in tables:
+                    # Je Konto genau ein Standard – der Index ohne Konto fällt zuerst.
+                    for stmt in address_book.ADDRESS_INDEXES:
+                        conn.execute(text(stmt))
+                    if "address_line1" in up_cols:
+                        for stmt in address_book.migrate_sql():
+                            conn.execute(text(stmt))
+                    # Die Anschrift einer fremden Firma wird die des Geschäftskontos.
+                    if "company_object_id" in up_cols:
+                        for stmt in address_book.business_sql():
+                            conn.execute(text(stmt))
             if "company_settings" in tables:
                 # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
                 # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht
@@ -621,6 +623,17 @@ def _ensure_columns() -> None:
                     "WHERE table_name='company_settings'"))}
                 if {"is_operator", "is_own"} <= cs_cols:
                     for stmt in _COMPANY_DATA_FIXES:
+                        conn.execute(text(stmt))
+                # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
+                # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.
+                if {"uid_key", "name_key"} <= cs_cols:
+                    sites.backfill_keys(conn)
+                    # Die Indizes **nach** den Schlüsseln – ``backfill_keys`` hält
+                    # Alt-Dubletten auseinander; vorher angelegt, scheiterte der Index an
+                    # genau ihnen. Eine Prüfung im Dienst fängt zwei gleichzeitige Anlagen
+                    # nicht ab, der Index schon (#778: eine Index-Regel, die nur in einer
+                    # Migration steht, erreicht dev nie).
+                    for stmt in sites.KEY_INDEXES:
                         conn.execute(text(stmt))
             conn.commit()
     except Exception as e:

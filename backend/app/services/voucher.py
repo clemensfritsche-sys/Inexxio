@@ -38,6 +38,7 @@ from ..core.config import payment_service_ready
 from ..domain import currency as cur
 from ..domain import incoterms as inc
 from ..domain import modules
+from ..domain import uid as uid_fmt
 from ..domain import voucher as vo
 from ..models import (
     CompanySettings,
@@ -45,7 +46,7 @@ from ..models import (
     UserProfile, Voucher, VoucherEntry, VoucherLine, VoucherQuote,
 )
 from ..models.process_event import KIND_START, KIND_STEP
-from . import address, lookup, people, qrbill, sites
+from . import address, address_book, lookup, people, qrbill, sites
 
 #: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
 #: ERP, und dort steht der ganze Auftrag.
@@ -476,6 +477,7 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
     ids = [ln.article_id for ln in rows if ln.article_id is not None]
     found = {a.id: a for a in db.query(Article).filter(Article.id.in_(ids)).all()} \
         if ids else {}
+    frozen = (row.head or {}).get("names") or {}
     out: list[dict[str, Any]] = []
     for ln in rows:
         art = found.get(ln.article_id) if ln.article_id is not None else None
@@ -483,7 +485,9 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
             "id": ln.id,
             "article_id": ln.article_id,
             "article_object_id": art.object_id if art else None,
-            "article_name": art.name if art else "",
+            # **Nach der Zusage der Name von damals** (``_freeze_lines``).
+            "article_name": (frozen.get(str(ln.article_id))
+                             or (art.name if art else "")),
             "quantity": ln.quantity,
             "hs_code": ln.hs_code or (art.hs_code if art else None) or None,
             "origin_country": (ln.origin_country
@@ -928,6 +932,53 @@ def _add_party(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     db.flush()
 
 
+def _address(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **An wen und wohin** – die drei Wahlen am Beleg. ◄◄◄
+
+    *Rechnung an die Firma oder an die Person* und *welche Rechnungs-, welche
+    Lieferadresse* – aus dem Adressbuch **des Adressaten**, vorbelegt mit seinen
+    Standards. **Nur gesendete Felder wirken**, ``null`` heisst «die Vorgabe».
+
+    **Erst wenn der Adressat feststeht** (genau einer, ``addressee_of``): bei einem
+    Rundschreiben gibt es kein Adressbuch, aus dem man wählen könnte. **Eine fremde
+    Anschrift wird abgewiesen** – eine Nummer, die jemand anderem gehört, wäre auf einem
+    Beleg schlimmer als gar keine.
+    """
+    number = addressee_of(db, row)
+    u = (db.query(UserProfile).filter(UserProfile.object_id == number).first()
+         if number is not None else None)
+    if u is None:
+        raise HTTPException(status_code=400, detail=(
+            f"An wen der Beleg geht, steht noch nicht fest – gewählt wird, sobald genau "
+            f"ein {vo.PARTY} dasteht."))
+    if "bill_to_company" in data:
+        wanted = data.get("bill_to_company")
+        if wanted and u.company is None:
+            raise HTTPException(status_code=400, detail=(
+                f"«{u.display_name}» hat kein Geschäftskonto – die Rechnung geht an "
+                f"die Person."))
+        if wanted != row.bill_to_company:
+            # **Ein anderes Konto, andere Anschriften** – die gewählten gehörten dem
+            # bisherigen; es gelten die Standards des neuen.
+            row.billing_address_id = None
+            row.delivery_address_id = None
+        row.bill_to_company = wanted
+    account = account_for(u, row)
+    for key, col, kind in (("billing_address", "billing_address_id", "billing"),
+                           ("delivery_address", "delivery_address_id", "delivery")):
+        if key not in data:
+            continue
+        aid = _int(data.get(key))
+        hit = address_book.pick(db, u.id, aid, kind, account) if aid is not None else None
+        if aid is not None and (hit is None or hit.id != aid):
+            raise HTTPException(status_code=400, detail=(
+                f"Anschrift {aid} steht nicht im "
+                f"{'Geschäftskonto' if account == address_book.BUSINESS else 'Privatkonto'} "
+                f"von «{u.display_name}»."))
+        setattr(row, col, aid)
+
+
 def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Die Positionen bepreisen — ein eigenes Verb, und das ist der Punkt.** ◄◄◄
@@ -1119,6 +1170,10 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     for other in quotes_of(db, row):
         if other.id != line.id and other.state == vo.CHOSEN:
             other.state = vo.QUOTED
+    # ►►► **Der Kopf friert ein – VOR dem Stufenwechsel gelesen**, damit ``billing_of``
+    # noch ableitet statt eine leere Kopie zurückzugeben. ◄◄◄ Ab hier steht auf dem Beleg,
+    # was jetzt dasteht: Name, Firma, Anschriften, UID – beider Seiten.
+    row.head = freeze(db, row, number)
     line.state = vo.CHOSEN
     row.stage = vo.AGREED
     row.agreed_on = date.today()
@@ -1399,6 +1454,9 @@ VERBS: dict[str, Verb] = {
     # nicht daran scheitern, dass der Beleg noch keinen Preis trägt. Geprüft wird die Wahl
     # selbst (`_party`), nicht die Reife des Belegs – die prüft `ask`.
     "party": Verb(stages=(vo.OFFER,), run=_add_party),
+    # **An wen und wohin** – Firma oder Person, Rechnungs- und Lieferadresse aus dem
+    # Adressbuch des Adressaten. Nur vor der Zusage: danach ist der Kopf eingefroren.
+    "address": Verb(stages=(vo.OFFER,), run=_address),
     # ►►► **Welchen Beleg mindert dieser hier?** ◄◄◄ Ein änderbarer Wert wie jeder andere,
     # also **vor** dem Hinausgehen und ohne Stammdaten-Bedingung – gesetzt wird er, bevor
     # die Positionen bepreist sind.
@@ -1783,108 +1841,138 @@ def issuer_company(db: Session, row: Voucher):
     return sites.by_object_id(db, row.issuer_company_id) or sites.find_operator(db)
 
 
+def account_for(u: UserProfile, row: Voucher) -> str:
+    """►►► **Aus welchem Konto der Beleg seine Anschriften nimmt.** ◄◄◄
+
+    Wer ein **Geschäftskonto** hat (einer Firma zugeordnet ist), bestellt vorbelegt für
+    die Firma – ausser der Beleg sagt «an die Person» (``bill_to_company is False``)."""
+    if u.company is not None and row.bill_to_company is not False:
+        return address_book.BUSINESS
+    return address_book.PRIVATE
+
+
 def billing_of(db: Session, row: Voucher,
                party_id: Optional[int] = None) -> dict[str, Any]:
-    """**Was wir über den Zahlenden schon wissen** – Name, Anschrift, Kontakt, UID.
+    """**Was auf dem Beleg über den Leistungsempfänger steht** – Name, Anschriften,
+    Kontakt, UID.
 
-    Der Zahlende ist die Gegenpartei **dieses Belegs**, nicht der Betrachter: auch wenn
-    ein Mitarbeiter die Zahlung am Schalter auslöst, gehört die Rechnung dem Kunden.
+    ►►► **Es bestellt immer eine PERSON.** ◄◄◄ Ist sie einer Firma zugeordnet, ist die
+    Firma der **Rechnungsempfänger** («Muster AG, z. H. Hans Muster») – ausser der Beleg
+    sagt «an die Person» (``row.bill_to_company is False``). Die **Anschriften** kommen
+    aus **dem Konto**, an das die Rechnung geht (``account_for``): gewählt am Beleg, sonst
+    der Standard des Kontos – eine Firma trägt bei uns keine.
 
-    **Die Rechnungsadresse geht vor der Wohnadresse** – dafür ist sie da. Und geliefert
-    wird nur eine **vollständige**: eine halbe wäre eine Vorbelegung, die das Formular
-    danach doch wieder erfragt, nur falsch.
-
-    ►►► **Und wo beide stehen, sind es ZWEI Anschriften** (Testnotiz #952). ◄◄◄ Eine
-    hinterlegte Rechnungsadresse heisst, dass die **Hauptadresse** die andere ist – dorthin
-    geht die Ware, hierhin die Rechnung. ``shipping`` trägt sie darum als eigene Angabe.
-    Erfunden wird nichts – gibt es keine zweite, ist die Liste leer; dass dann **dieselbe**
-    unter beiden Beschriftungen steht, entscheidet der Belegkopf (#975), nicht diese Stelle:
-    hier wird gelesen, was am Benutzer steht.
+    ►►► **Nach der Zusage ist es eine Kopie, keine Ableitung** (``row.head``). ◄◄◄ Für die
+    gebundene Partei kommt zurück, was bei der Bestätigung dastand – zieht jemand um oder
+    firmiert um, ändert das keine bestätigte Offerte und keine Rechnung, auch nicht den
+    Einzahlungsschein und nicht die Vorbelegung der Bezahlkarte.
     """
-    empty: dict[str, Any] = {"name": None, "email": None, "address": None}
     number = party_id if party_id is not None else party_of(db, row)
+    frozen = row.head or {}
+    if frozen and number in (None, frozen.get("party")):
+        return dict(frozen.get("billing") or {})
+    empty: dict[str, Any] = {"name": None, "email": None, "address": None}
     if number is None:
         return empty
     u = db.query(UserProfile).filter(UserProfile.object_id == number).first()
     if u is None:
         return empty
-    if u.company is not None:
-        return _company_billing(u)
-    # Eine Rechnungsadresse gilt als hinterlegt, sobald irgendein Feld davon steht – sonst
-    # mischte sich die eine Hälfte mit der anderen zu einer Adresse, die es nirgends gibt.
-    own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1)
-    named = " ".join(x for x in (u.invoice_first_name, u.invoice_last_name) if x).strip()
-    line1 = (u.invoice_address_line1 if own else u.address_line1) or ""
-    line2 = (u.invoice_address_line2 if own else u.address_line2) or ""
-    city = (u.invoice_city if own else u.city) or ""
-    zip_code = (u.invoice_postal_code if own else u.postal_code) or ""
-    country = (u.invoice_country if own else u.country) or u.country
-    full = bool(line1.strip() and city.strip() and zip_code.strip())
-    # Die **zweite** Anschrift: die Hauptadresse, wenn eine eigene Rechnungsadresse
-    # dasteht. Ohne eigene Rechnungsadresse gibt es sie nicht – dann *ist* die Hauptadresse
-    # die eine, die oben schon steht.
-    main = address.make(street1=u.address_line1 or "", street2=u.address_line2 or "",
-                        zip=u.postal_code or "", city=u.city or "", country=u.country)
-    shipped = address.lines(main) if own and address.has_content(main) else []
+    account = account_for(u, row)
+    firm = u.company if account == address_book.BUSINESS else None
+    billed = address_book.pick(db, u.id, row.billing_address_id, "billing", account)
+    shipped = address_book.pick(db, u.id, row.delivery_address_id, "delivery", account)
     return {
-        "name": (named if own else None) or people.name(u),
-        # **Auf dem Beleg steht die Rechtsperson, nicht ihr Vertreter**: ``people.name``
-        # ist person-first (im ERP richtig), Schuldner ist die *Muster AG*.
-        # ``billing_name`` liefert darum Zeilen – **neben** ``name``, nicht an seiner
-        # Stelle: zwei Formen einer Regel, nicht zwei Regeln. **Die Firma kommt aus dem
-        # Kontotyp**, nicht aus einem zweiten Feld an der Rechnungsadresse (#1042).
-        "lines": people.billing_name(u),
-        # ►►► **Die Rechnungs-E-Mail gilt IMMER** (Testnotiz #1042). ◄◄◄ Sie hing an
-        # ``own`` – also daran, ob eine **eigene Rechnungsadresse** dasteht. Wer bei
-        # «Rechnung = Lieferung» eine Rechnungs-E-Mail eintrug (die Oberfläche bietet sie
-        # unabhängig davon an), schrieb damit in ein Feld, das niemand las: der Beleg ging
-        # still an die Login-Adresse. Ein Feld, das nur unter einer unsichtbaren Bedingung
-        # wirkt, ist schlimmer als keines.
-        "email": u.invoice_email or u.email,
+        "party": number,
+        "name": sites.legal_name(firm) if firm is not None else people.name(u),
+        # **Auf dem Beleg steht die Rechtsperson, nicht ihr Vertreter** – Firma zuerst,
+        # die Person als «z. H.» darunter (``people.billing_name``).
+        "lines": people.billing_name(u, firm=firm is not None),
+        # **Die Rechnungs-E-Mail steht an der Rechnungsadresse des Geschäftskontos** –
+        # leer, und privat immer, gilt die der Person.
+        "email": (billed.email if billed is not None else None) or u.email,
         "phone": u.phone,
-        # Dieselbe Rangfolge wie bei uns – die MWST-Nummer trägt den Vorsteuerabzug.
-        "uid": (u.company.vat_number or u.company.uid_number) if u.company else None,
+        "uid": (uid_fmt.display(firm.vat_number or firm.uid_number) or None)
+        if firm is not None else None,
         "address": {
-            "line1": line1, "line2": line2 or None, "city": city,
-            "postal_code": zip_code, "country": address.iso2(country),
-        } if full else None,
-        # **Die zweite Anschrift, roh.** Ob sie dasselbe sagt wie die erste, entscheidet
-        # nicht diese Stelle: seit #975 steht ohnehin auf **jeder** Seite beides, und eine
-        # Gleichheitsprüfung hier wäre die zweite Bedingung mit demselben Ergebnis.
-        "shipping": shipped,
+            "line1": billed.street1, "line2": billed.street2, "city": billed.city,
+            "postal_code": billed.zip, "country": billed.country,
+        } if billed is not None else None,
+        "shipping": address_book.lines(shipped),
+        "billing_address_id": billed.id if billed is not None else None,
+        "delivery_address_id": shipped.id if shipped is not None else None,
+        "bill_to_company": firm is not None,
     }
 
 
-def _company_billing(u: UserProfile) -> dict[str, Any]:
-    """►►► **Ist die Person einer Firma zugeordnet, ist die FIRMA Rechnungsempfänger.** ◄◄◄
-
-    Firmenname mit Rechtsform, UID, Anschrift und E-Mail der Firma; die Person steht als
-    «z. H.» darunter (``people.billing_name``). **Die Ware geht an die Person** – ihre
-    Hauptadresse ist die Lieferadresse. Eine eigene Rechnungsadresse oder Rechnungs-E-Mail
-    an der Person gilt hier nicht: sonst stünde dieselbe Angabe an zwei Stellen, und
-    gepflegt wird sie an der Firma. Wer privat einkaufen will, löst die Zuordnung."""
-    c = u.company
-    seat = address.of_company(c)
-    full = bool((c.street or "").strip() and (c.city or "").strip()
-                and (c.zip_code or "").strip())
-    main = address.make(street1=u.address_line1 or "", street2=u.address_line2 or "",
-                        zip=u.postal_code or "", city=u.city or "", country=u.country)
+def _ours(db: Session, row: Voucher) -> dict[str, Any]:
+    """**Unsere Seite des Belegkopfs** – live, bis die Zusage sie einfriert."""
+    flow = vo.of(row.direction)
+    company = issuer_company(db, row)
+    seat = address.of_company(company) if company is not None else None
     return {
-        "name": sites.legal_name(c),
-        "lines": people.billing_name(u),
-        "email": c.email or u.email,
-        "phone": c.phone or u.phone,
-        "uid": c.vat_number or c.uid_number,
-        "address": {
-            "line1": seat.get("street1") or "", "line2": None, "city": c.city or "",
-            "postal_code": c.zip_code or "", "country": address.iso2(c.country),
-        } if full else None,
-        "shipping": address.lines(main) if address.has_content(main) else [],
+        "ours": True,
+        "object_id": getattr(company, "object_id", None),
+        # **Der Name trägt die Rechtsform** – «Inexxio» ist keine Rechtsperson, «Inexxio
+        # AG» ist eine, und auf einem Beleg steht die, die haftet.
+        "name": sites.legal_name(company),
+        # Eine Adresse ohne Ort ist keine: ``of_company`` liefert immer ein Gerüst,
+        # ``has_content`` fragt, ob wirklich etwas drinsteht. **Wer liefert, versendet**
+        # – daraus folgt die Beschriftung der zweiten Anschrift (#979).
+        **_addresses(address.lines(seat) if address.has_content(seat) else [],
+                     [], sends=flow.collects),
+        "uid": (getattr(company, "vat_number", None)
+                or getattr(company, "uid_number", None)),
+        "email": getattr(company, "email", None),
+        "phone": getattr(company, "phone", None),
     }
+
+
+def _creditor(db: Session, row: Voucher) -> dict[str, Any]:
+    """**Wer das Geld bekommt** – Name und Anschrift für den Einzahlungsschein."""
+    company = issuer_company(db, row)
+    return {
+        "name": sites.legal_name(company) or "",
+        "street": getattr(company, "street", None),
+        "street_nr": getattr(company, "street_nr", None),
+        "zip": getattr(company, "zip_code", None),
+        "city": getattr(company, "city", None),
+        "country": address.iso2(getattr(company, "country", None) or "CH"),
+    }
+
+
+def freeze(db: Session, row: Voucher, party: int) -> dict[str, Any]:
+    """►►► **Der Belegkopf, wie er bei der Bestätigung dasteht** – zum Einfrieren. ◄◄◄
+
+    Beide Parteien (``ours`` · ``billing``) und der Zahlungsempfänger des Einzahlungs-
+    scheins (``creditor``). **Nicht** dabei ist die IBAN: sie sagt, wohin *heute* gezahlt
+    wird, und ein eingefrorenes altes Konto schickte das Geld an eine geschlossene Bank.
+    """
+    return {"party": party, "ours": _ours(db, row), "creditor": _creditor(db, row),
+            "billing": billing_of(db, row, party), "names": _freeze_lines(db, row)}
+
+
+def _freeze_lines(db: Session, row: Voucher) -> dict[str, str]:
+    """►►► **Auch die Positionen sagen nach der Zusage, was bei ihr dastand.** ◄◄◄
+
+    Artikel und Menge frieren durch die Stufe ein (``sync_lines``), Preis und Satz stehen
+    an der Zeile. Zwei Angaben las der Beleg aber **live vom Artikel**: die Zoll-Angaben,
+    wo die Zeile keine eigenen trug, und den **Namen**. Ein umbenannter Artikel oder eine
+    nachgetragene Zolltarifnummer hätte damit eine bestätigte Offerte geändert. Die
+    Zoll-Angaben werden darum in die Zeile geschrieben, der Name in den Kopf (je Artikel).
+    """
+    names: dict[str, str] = {}
+    for ln, shown in zip(lines_of(db, row), embed_lines(db, row)):
+        ln.hs_code = shown["hs_code"]
+        ln.origin_country = shown["origin_country"]
+        if ln.article_id is not None:
+            names[str(ln.article_id)] = shown["article_name"]
+    db.flush()
+    return names
 
 
 def document_head(db: Session, row: Voucher, *, won: bool,
-                  party_id: Optional[int] = None) -> dict[str, Any]:
+                  party_id: Optional[int] = None,
+                  internal: bool = False) -> dict[str, Any]:
     """►►► **Wer stellt den Beleg, und wer bekommt ihn** (MWSTG Art. 26). ◄◄◄
 
     Eine Rechnung ist erst eine, wenn sie **beide Seiten** nennt: Name mit Rechtsform, Ort,
@@ -1910,30 +1998,12 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     ersten Umbenennen still falsch wird; ``ours`` **ist** die Struktur.
     """
     flow = vo.of(row.direction)
-    company = issuer_company(db, row)
     # **Der Adressat, nicht der Vertragspartner** (#939): steht genau einer an, ist er es
     # längst – erst die Zusage bindet ihn.
     look = party_id if party_id is not None else addressee_of(db, row)
-    seat_ours = address.of_company(company) if company is not None else None
-    ours = {
-        "ours": True,
-        "object_id": getattr(company, "object_id", None),
-        # **Der Name trägt die Rechtsform** – «Inexxio» ist keine Rechtsperson, «Inexxio
-        # AG» ist eine, und auf einem Beleg steht die, die haftet.
-        "name": sites.legal_name(company),
-        # Eine Adresse ohne Ort ist keine: ``of_company`` liefert immer ein Gerüst,
-        # ``has_content`` fragt, ob wirklich etwas drinsteht.
-        # **Wer liefert, versendet** – daraus folgt die Beschriftung der zweiten
-        # Anschrift (#979); ``collects`` sagt es längst, ein zweites Feld wäre dieselbe
-        # Aussage ein zweites Mal.
-        **_addresses(address.lines(seat_ours) if address.has_content(seat_ours) else [],
-                     [], sends=flow.collects),
-        "uid": (getattr(company, "vat_number", None)
-                or getattr(company, "uid_number", None)),
-        "email": getattr(company, "email", None),
-        "phone": getattr(company, "phone", None),
-    }
-    theirs = their_side(db, row, look if won else None)
+    # **Nach der Zusage ist unsere Seite eine Kopie** (``freeze``) – wie die Gegenseite.
+    ours = dict((row.head or {}).get("ours") or _ours(db, row))
+    theirs = their_side(db, row, look if won else None, internal=internal)
     supplier, customer = (ours, theirs) if flow.collects else (theirs, ours)
     return {
         "supplier": {"label": vo.SUPPLIER, "hint": vo.SUPPLIER_HINT, **supplier},
@@ -1976,7 +2046,8 @@ def _addresses(billed: list[str], shipped: list[str], *, sends: bool) -> dict[st
     }
 
 
-def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, Any]:
+def their_side(db: Session, row: Voucher, party_id: Optional[int], *,
+               internal: bool = False) -> dict[str, Any]:
     """**Die Gegenseite des Belegkopfs** – als eine Stelle, weil es zwei Leser gibt.
 
     Der Belegkopf zeigt **einen** Empfänger; sind mehrere angefragt, braucht die
@@ -1987,8 +2058,11 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, 
     Seite leer, nicht erfunden.
 
     **Welche Rolle sie hat, steht in der Richtung** (#979): die Gegenpartei ist genau dann
-    der Leistungserbringer, wenn das Geld **nicht** zu uns fliesst. Ein Parameter dafür
-    wäre eine Angabe, die jeder der beiden Aufrufer einzeln falsch setzen könnte.
+    der Leistungserbringer, wenn das Geld **nicht** zu uns fliesst.
+
+    ►►► **Und am Adressaten steht, was noch wählbar ist** (``choice``) – Firma oder
+    Person, welche Rechnungs- und welche Lieferadresse. Nur für das Personal, nur vor der
+    Zusage: danach ist der Kopf eingefroren.
     """
     sends = not vo.of(row.direction).collects
     who = billing_of(db, row, party_id) if party_id is not None else {}
@@ -2008,6 +2082,34 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, 
         "uid": who.get("uid"),
         "email": who.get("email"),
         "phone": who.get("phone"),
+        "choice": (choices_of(db, row, party_id, who)
+                   if internal and party_id is not None else None),
+    }
+
+
+def choices_of(db: Session, row: Voucher, party_id: int,
+               who: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """►►► **An wen und wohin – was am Adressaten noch wählbar ist.** ◄◄◄
+
+    ``None``, wo nichts zu wählen ist: nach der Zusage (eingefroren), und an jedem
+    anderen als **dem** Adressaten (die Wahl am Beleg gilt ihm). Die Möglichkeiten sind
+    sein Adressbuch – eine fremde Anschrift kann man hier nicht wählen.
+    """
+    if row.stage != vo.OFFER or row.head or party_id != addressee_of(db, row):
+        return None
+    u = db.query(UserProfile).filter(UserProfile.object_id == party_id).first()
+    if u is None:
+        return None
+    return {
+        "company": sites.legal_name(u.company) if u.company is not None else None,
+        "person": people.name(u),
+        "bill_to_company": bool(who.get("bill_to_company")),
+        "billing_address_id": who.get("billing_address_id"),
+        "delivery_address_id": who.get("delivery_address_id"),
+        # **Die Anschriften des Kontos, an das die Rechnung geht** – eine aus dem anderen
+        # Konto schickte die Rechnung der Firma an die Wohnung.
+        "options": [{"id": a.id, "label": address_book.label(a)}
+                    for a in address_book.of(db, u, account_for(u, row))],
     }
 
 
@@ -2026,19 +2128,14 @@ def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
     # **Überwiesen wird an den Aussteller**, nicht an den Betreiber: eine zweite Lesart
     # wäre ein QR-Code, der auf ein anderes Konto zeigt als der Beleg darüber.
     company = issuer_company(db, row)
+    # **Die IBAN ist die von heute** – wohin gezahlt wird, friert nicht ein (``freeze``).
     iban = getattr(company, "iban_encrypted", None)
     # **Die Rechnung IST der Beleg** – hier stand einmal die genannte Forderungs-Zeile
     # samt der Frage, welche von ihnen gemeint sei. Es gibt eine.
     number = row.number or str(row.id)
     amount = balance_of(db, row).open
-    creditor = {
-        "name": sites.legal_name(company) or "",
-        "street": getattr(company, "street", None),
-        "street_nr": getattr(company, "street_nr", None),
-        "zip": getattr(company, "zip_code", None),
-        "city": getattr(company, "city", None),
-        "country": address.iso2(getattr(company, "country", None) or "CH"),
-    }
+    # **Name und Anschrift des Empfängers stehen auf dem Beleg** – also die eingefrorenen.
+    creditor = dict((row.head or {}).get("creditor") or _creditor(db, row))
     who = billing_of(db, row)
     seat = who.get("address") or {}
     debtor = {
@@ -2356,6 +2453,14 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         return None
     flow = vo.of(row.direction)
     sync_lines(db, row, order)
+    # ►►► **Ein Beleg aus der Zeit vor dem Einfrieren friert beim ersten Anzeigen ein.**
+    # ◄◄◄ Danach gilt für ihn dieselbe Regel wie für jeden anderen; ohne diese Zeile
+    # bliebe er die eine Lücke, durch die ein Umzug eine bestätigte Offerte änderte.
+    # Derselbe Schreibvorgang auf einem Lesepfad wie ``sync_lines`` – und wie er
+    # festgeschrieben von ``orders._keep``.
+    if row.stage != vo.OFFER and row.head is None and party_of(db, row) is not None:
+        row.head = freeze(db, row, party_of(db, row))
+        db.flush()
     entries = entries_of(db, row)
     money = balance_of(db, row)
     chosen = chosen_quote(db, row)
@@ -2548,7 +2653,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # Anschrift, die man sehen will, **bevor** man anbietet, gab es gar nicht.
         #
         # **Nur für das Personal**: die Liste ist die Konkurrenzliste.
-        "recipients": ([their_side(db, row, n) for n in _possible_parties(db, row, step)]
+        "recipients": ([their_side(db, row, n, internal=True)
+                        for n in _possible_parties(db, row, step)]
                        if internal else []),
         "lines": lines,
         # ►►► **Warum der Anfrage-Knopf gesperrt ist – am Knopf, nicht als rote Zeile
@@ -2560,7 +2666,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # **Der Belegkopf** – die beiden Parteien mit ihren Rollen (MWSTG Art. 26).
         # **Uns** sieht jeder: ein Beleg ohne Aussteller ist keiner, und wer bezahlen soll,
         # muss wissen, an wen. Die **Gegenseite** hängt an ``won``.
-        **document_head(db, row, won=won),
+        **document_head(db, row, won=won, internal=internal),
         # **Was fehlt, um weiterzukommen** – gefragt nach der **nächsten** Handlung dieser
         # Stufe. Nur für das Personal: eine Gegenpartei kann unsere Stammdaten weder sehen
         # noch pflegen, und eine Meldung über einen fremden Datensatz wäre eine Sackgasse.

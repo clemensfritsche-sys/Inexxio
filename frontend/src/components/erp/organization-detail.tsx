@@ -214,20 +214,24 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
       // das Feld markiert ihn als fehlend, gesendet wird er nicht. Das Backend weist ihn
       // ebenfalls ab; hier ersparen wir dem Tippenden die Fehlermeldung nach jedem Zeichen.
       if (!v.company_name.trim()) return;
+      // ►►► **Eine fremde Firma ist ihre Identität** – Name, Rechtsform, UID, sonst
+      // nichts (`sites.EXTERNAL_FIELDS`). Ihre Anschriften gehören den Personen, die für
+      // sie bestellen; der Dienst weist alles Weitere ab.
       const data: Partial<CompanySettings> = {
         company_name: v.company_name.trim(),
         legal_form: nn(v.legal_form),
-        street: v.street, street_number: nn(v.street_number),
-        zip: v.zip, city: v.city, country: v.country,
-        uid: nn(v.uid), vat_number: nn(v.vat_number),
-        email: v.email, phone: nn(v.phone),
+        uid: nn(v.uid),
       };
       // **Sie wird gesendet wie jede andere Angabe** (#870) – auch leer. Der frühere
       // «nur wenn neu eingegeben»-Vorbehalt war die Folge der Maskierung: er hätte ein
       // absichtliches Löschen stillschweigend verschluckt.
       if (own) {
-        data.iban = nn(v.iban);
-        data.currency = v.currency;
+        Object.assign(data, {
+          street: v.street, street_number: nn(v.street_number),
+          zip: v.zip, city: v.city, country: v.country,
+          vat_number: nn(v.vat_number), email: v.email, phone: nn(v.phone),
+          iban: nn(v.iban), currency: v.currency,
+        });
       }
       const updated = await api.updateCompany(record.object_id, data);
       setBase(updated);
@@ -403,12 +407,15 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
                 placeholder={ids.uid.ph} required={own} onEnter={saveNow} />
-              {ids.vat && (
+              {own && ids.vat && (
                 <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
-                  placeholder={ids.vat.ph} required={own} onEnter={saveNow} />
+                  placeholder={ids.vat.ph} required onEnter={saveNow} />
               )}
             </div>
-            <div>
+            {/* **Anschrift, Kontakt und Bank nur an einer EIGENEN Gesellschaft** – eine fremde
+                Firma ist bei uns ihre Identität; ihre Anschriften stehen im Adressbuch der
+                Personen, die für sie bestellen. */}
+            {own && <div>
               <AddressField value={address} onChange={applyCompanyAddress} apiKey={mapsKey}
                 countryOptions={COMPANY_COUNTRIES} label="Anschrift" required />
               {/* Eine Tatsache über DIESEN Datensatz: ohne eigene Anschrift bleibt eine
@@ -418,7 +425,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
                   Ohne Anschrift zählt eine Bewegung hierher als innerbetrieblich – kein Versand.
                 </p>
               )}
-            </div>
+            </div>}
 
             {/* Währung – **abgeleitet** aus dem Land (#304). Änderbar, aber nicht beiläufig:
                 erst der Klick auf «Ändern» macht daraus ein Feld. Wer bewusst abweicht
@@ -464,10 +471,10 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
           </Card>
 
           {/* ── 2. Kontakt ───────────────────────────────────────────────────── */}
-          <Card title="Kontakt">
+          {own && <Card title="Kontakt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="E-Mail" value={form.email} onChange={str('email')} type="email"
-                placeholder="info@inexxio.com" required={own} onEnter={saveNow} />
+                placeholder="info@inexxio.com" required onEnter={saveNow} />
               {/* Telefon nur bei einer **eigenen** Gesellschaft (Impressum, Website); an
                   einer fremden Firma liest es niemand – gefragt wird die Person. */}
               {own && (
@@ -482,7 +489,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
             {/* Ohne Hinweistext (#337): dass hier nichts einzugeben ist, sagt das Feld selbst
                 (grau, nicht fokussierbar). */}
             {own && <AField label="Website" value={base.website ?? ''} readOnly />}
-          </Card>
+          </Card>}
 
           {/* ── 4. Bankverbindung ────────────────────────────────────────────── */}
           {/* EINE Zahl: die IBAN trägt Land, Bank und Konto. Bankname und BIC waren

@@ -1,6 +1,7 @@
 from .base import TimestampMixin
 from .admin import CompanySettings, CompanyTerritory
 from .user import UserProfile
+from .address_book import Address
 from .article import Article
 from .order import Order
 from .order_line import OrderLine
@@ -21,7 +22,7 @@ from .feedback import FeedbackNote
 from .object_ref import ObjectRef
 
 __all__ = [
-    "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
+    "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
     "Order", "OrderLine", "OrderUnit", "ProcessStep", "ArticleProcessStep", "ProcessEvent",
     "Voucher", "VoucherQuote", "VoucherLine", "VoucherEntry",
     "Instance", "InstanceUnit", "Capture",
