@@ -9986,10 +9986,9 @@ def test_addresses_live_in_one_address_book():
     book = _code(_read(FRONTEND / "components/erp/address-book.tsx"))
     assert "a.is_default_delivery" in book and "a.is_default_billing" in book, (
         "Die Standards kommen nicht vom Server (d).")
-    assert re.search(r"checked=\{!!delivery", book), (
-        "Der Schalter ist keine Ableitung aus den Standards (c).")
-    assert "Abweichende Lieferadresse" in book and "Abweichende Rechnungsadresse" not in book, (
-        "Abweichend ist die Lieferadresse, nicht die Rechnungsadresse (c).")
+    assert "Abweichende" not in book and "ToggleField" not in book, (
+        "Die Lieferadressen sind eine Liste, kein Schalter (c).")
+    assert "Lieferadresse hinzufügen" in book, "Keine Lieferadresse hinzufügbar (c)."
     detail = _code(_read(FRONTEND / "components/erp/user-detail.tsx"))
     assert "onCreate" not in detail and "neu erfassen" not in _read(
         FRONTEND / "components/erp/company-field.tsx"), (

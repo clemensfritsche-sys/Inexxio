@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { inheritedEmail } from '@/lib/accounts';
-import { Field as AField, ToggleField } from '@/components/account/field';
+import { Field as AField } from '@/components/account/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
 import { ErrorText } from '@/components/erp/fields';
 import { useAutosave } from '@/components/account/use-autosave';
@@ -15,15 +15,13 @@ import type { AddressEntry, AddressInput, UserProfile } from '@/types';
  * ►►► **Die Anschriften EINES Kontos – dasselbe Bauteil für Privat und Geschäftskonto,
  * für Konto und ERP.** ◄◄◄
  *
- * Je Konto: eine **Adresse** (Hauptadresse = Rechnungsadresse), optional eine
- * **abweichende Lieferadresse** (Schalter) und optional **weitere Lieferadressen**
- * (unauffällig). Der einzige Unterschied zwischen den Konten: im **Geschäftskonto** steht
+ * Je Konto eine **Liste**: die Rechnungsadresse zuoberst, darunter die Lieferadressen
+ * (die erste ist der Standard; ohne eigene wird an die Rechnungsadresse geliefert). Der einzige Unterschied zwischen den Konten: im **Geschäftskonto** steht
  * an der Adresse eine **Rechnungs-E-Mail** – privat geht die Rechnung an die E-Mail der
  * Person.
  *
- * **Der Schalter ist eine Ableitung**, keine gespeicherte Angabe: an ist er, wo eine eigene
- * Lieferadresse dasteht; «aus» entfernt sie, und geliefert wird wieder an die Adresse
- * (`address_book.remove` gibt den Titel an die Hauptadresse zurück).
+ * Wird die Standard-Lieferadresse entfernt, geht der Titel an die Rechnungsadresse zurück
+ * (`address_book.remove`).
  *
  * Die Regeln stehen im Dienst (`services/address_book`); hier wird gezeichnet.
  */
@@ -47,58 +45,83 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   const mine = addresses.filter((a) => a.account === account);
   const main = mine.find((a) => a.is_default_billing) ?? null;
   const delivery = mine.find((a) => a.is_default_delivery && a.id !== main?.id) ?? null;
-  const extra = mine.filter((a) => a.id !== main?.id && a.id !== delivery?.id);
+  const rest = mine.filter((a) => a.id !== main?.id && a.id !== delivery?.id);
   const business = account === 'business';
-  // «An» geklickt, aber noch nichts getippt – das eine Gedächtnis, das der Schalter braucht.
-  const [wantsDelivery, setWantsDelivery] = useState(false);
-  const [addingExtra, setAddingExtra] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
   const row = { owner, account, loginEmail, readOnly, mapsKey, onSaved };
 
-  async function deliveryOff() {
-    setWantsDelivery(false);
-    if (!delivery) return;
+  async function remove(id: number) {
     setError('');
     try {
-      onSaved(await api.removeAddress(owner, delivery.id));
+      onSaved(await api.removeAddress(owner, id));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Nicht möglich.');
     }
   }
 
+  if (!main) {
+    return readOnly ? <span className="text-sm text-fg-3">Keine Adresse erfasst</span>
+      : <NewAddress {...row} label="Rechnungsadresse" extra={{}} onDone={() => {}} />;
+  }
+
+  // ►►► **Eine Liste, eine Zeile je Anschrift** – oben die Rechnungsadresse, darunter die
+  // Lieferadressen. Ob es eine eigene Lieferadresse gibt, sagt die Liste selbst; der
+  // frühere Schalter ist entfallen. Wer an die Rechnungsadresse liefert, sieht es am Wort.
+  const lines: { a: AddressEntry; tag: string; note?: string; removable: boolean }[] = [
+    { a: main, tag: delivery ? 'Rechnung' : 'Rechnung · Lieferung', removable: false,
+      note: business ? `Rechnung per E-Mail an ${main.email || loginEmail}` : `Rechnung per E-Mail an ${loginEmail}` },
+    ...(delivery ? [{ a: delivery, tag: 'Lieferung', note: 'Standard', removable: true }] : []),
+    ...rest.map((a) => ({ a, tag: 'Lieferung', removable: true })),
+  ];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {main ? (
-        <AddressRow key={main.id} entry={main} label="Adresse" email={business}
-          {...row} />
-      ) : readOnly ? (
-        <span className="text-sm text-fg-3">Keine Adresse erfasst</span>
-      ) : (
-        <NewAddress {...row} label="Adresse" extra={{}} onDone={() => {}} />
-      )}
-
-      {main && !readOnly && (
-        <ToggleField label="Abweichende Lieferadresse"
-          checked={!!delivery || wantsDelivery}
-          onChange={(on) => (on ? setWantsDelivery(true) : void deliveryOff())} />
-      )}
-      {delivery ? (
-        <AddressRow key={delivery.id} entry={delivery} label="Lieferadresse" {...row} />
-      ) : main && wantsDelivery && !readOnly ? (
-        <NewAddress {...row} label="Lieferadresse" extra={{ is_default_delivery: true }}
-          onDone={() => setWantsDelivery(false)} />
-      ) : null}
-
-      {extra.map((a) => (
-        <AddressRow key={a.id} entry={a} label="Weitere Lieferadresse" removable {...row} />
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {lines.map(({ a, tag, note, removable }, i) => (
+        <div key={a.id} style={{ display: 'flex', gap: 16, padding: '14px 0', alignItems: 'flex-start',
+          borderTop: i ? '1px solid var(--border-1)' : 'none' }}>
+          <div style={{ width: 112, flexShrink: 0, paddingTop: 1 }}>
+            <span style={{ display: 'inline-block', font: '600 11px var(--font-body)', letterSpacing: '.04em',
+              textTransform: 'uppercase', color: i ? 'var(--fg-3)' : 'var(--fg-2)',
+              background: i ? 'var(--bg-2)' : 'var(--bg-3)', borderRadius: 4, padding: '3px 7px' }}>{tag}</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing === a.id ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <AddressRow entry={a} label="Anschrift" email={business && a.id === main.id} {...row} />
+                <button type="button" className="self-start text-xs text-accent hover:underline"
+                  onClick={() => setEditing(null)}>Fertig</button>
+              </div>
+            ) : (
+              <div style={{ font: '400 13.5px/20px var(--font-body)', color: 'var(--fg-2)' }}>
+                <div style={{ fontWeight: 600, color: 'var(--fg-1)' }}>{a.street1}</div>
+                {a.street2 && <div>{a.street2}</div>}
+                <div>{[a.zip, a.city].filter(Boolean).join(' ')} · {ADDRESS_COUNTRIES.find(([c]) => c === a.country)?.[1] ?? a.country}</div>
+                {note && <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 2 }}>{note}</div>}
+              </div>
+            )}
+          </div>
+          {!readOnly && editing !== a.id && (
+            <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+              <button type="button" className="erp-actbtn erp-actbtn-icon" title="Ändern" aria-label="Ändern"
+                onClick={() => setEditing(a.id)}><Pencil size={14} /></button>
+              {removable && (
+                <button type="button" className="erp-actbtn erp-actbtn-icon" title="Entfernen" aria-label="Entfernen"
+                  onClick={() => void remove(a.id)}><Trash2 size={14} /></button>
+              )}
+            </div>
+          )}
+        </div>
       ))}
-      {main && !readOnly && (addingExtra ? (
-        <NewAddress {...row} label="Weitere Lieferadresse" extra={{}}
-          onDone={() => setAddingExtra(false)} onCancel={() => setAddingExtra(false)} />
+      {!readOnly && (adding ? (
+        <NewAddress {...row} label="Lieferadresse" extra={{ is_default_delivery: !delivery }}
+          onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
       ) : (
-        <button type="button" onClick={() => setAddingExtra(true)}
-          className="self-start inline-flex items-center gap-1.5 text-xs text-fg-3 hover:text-accent hover:underline">
-          <Plus size={13} /> Weitere Lieferadresse
+        <button type="button" onClick={() => setAdding(true)}
+          className="self-start inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+          style={{ marginTop: 4 }}>
+          <Plus size={13} /> Lieferadresse hinzufügen
         </button>
       ))}
       {error && <ErrorText msg={error} />}
