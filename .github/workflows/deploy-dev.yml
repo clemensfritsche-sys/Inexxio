@@ -198,6 +198,20 @@ jobs:
       #
       # Ein `pk_test_…` gilt nur für die Sandbox; für die Produktion tritt der
       # `pk_live_…` derselben Zeile an seine Stelle (`docs/stripe-setup.md` §5).
+      # ►►► **Die Gmail-Anbindung ist OPTIONAL** (`docs/gmail-setup.md`). ◄◄◄ Ihre beiden
+      # Secrets werden nur eingebunden, wenn es sie im Secret Manager gibt – vorher würde
+      # `--set-secrets` den ganzen Deploy abbrechen. Ohne sie wird eine Mail nur erfasst.
+      - name: Optionale Secrets (Gmail)
+        id: optsec
+        run: |
+          extra=""
+          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+            if gcloud secrets describe "$s" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then
+              extra="$extra,$s=$s:latest"
+            fi
+          done
+          echo "extra=$extra" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
@@ -208,7 +222,7 @@ jobs:
             --allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest${{ steps.optsec.outputs.extra }}" \
             --set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,STRIPE_PUBLISHABLE_KEY=pk_test_51TnjWgQr3aoUqi8iUdnZrLl9X5CvfjtUXwfKHQrXtnUEEYtMKnU74R5gGxGg0otY0GTSZZQLQLBZ1LYse95ICcO700e1hcSnsn" \
             --min-instances 1 \
             --max-instances 3 \

@@ -1455,6 +1455,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/messages/mailboxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mailboxes
+         * @description Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden?
+         */
+        get: operations["mailboxes_api_v1_erp_messages_mailboxes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/messages/mailboxes/{channel}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect
+         * @description Die Adresse bei Google, an der die Zustimmung erteilt wird.
+         */
+        post: operations["connect_api_v1_erp_messages_mailboxes__channel__connect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/messages/mailboxes/{channel}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect */
+        delete: operations["disconnect_api_v1_erp_messages_mailboxes__channel__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/messages/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync
+         * @description Die Postfächer abgleichen und Fälliges senden – höchstens alle 30 Sekunden je
+         *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
+         */
+        post: operations["sync_api_v1_erp_messages_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/messages/open": {
         parameters: {
             query?: never;
@@ -1908,6 +1986,16 @@ export interface components {
              */
             missing?: string[];
         };
+        /** Attachment */
+        Attachment: {
+            /** Name */
+            name: string;
+            /**
+             * Size
+             * @default 0
+             */
+            size: number;
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /**
@@ -1936,6 +2024,11 @@ export interface components {
             kind: string;
             /** Outside */
             outside: boolean;
+            /**
+             * Mail
+             * @default false
+             */
+            mail: boolean;
         };
         /**
          * CompanyCreate
@@ -2692,6 +2785,25 @@ export interface components {
             unit_count: number;
         };
         /**
+         * MailboxOut
+         * @description Ein Postfach, das diesen Betrachter angeht – das des Unternehmens oder sein eigenes.
+         */
+        MailboxOut: {
+            /** Channel */
+            channel: string;
+            /** Address */
+            address: string;
+            /** Connected */
+            connected: boolean;
+            /** Problem */
+            problem?: string | null;
+            /**
+             * May Connect
+             * @default false
+             */
+            may_connect: boolean;
+        };
+        /**
          * MessageIn
          * @description **Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die
          *     Angaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort».
@@ -2781,6 +2893,18 @@ export interface components {
              * @default false
              */
             planned: boolean;
+            /**
+             * Pending
+             * @default false
+             */
+            pending: boolean;
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["Attachment"][];
+            /** Gmail Url */
+            gmail_url?: string | null;
         };
         /**
          * ModuleCatalog
@@ -3688,6 +3812,11 @@ export interface components {
             quantity: number;
             /** Stock */
             stock: string;
+        };
+        /** SyncOut */
+        SyncOut: {
+            /** New */
+            new: number;
         };
         /**
          * TerritoryAssign
@@ -7214,6 +7343,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChannelOut"][];
+                };
+            };
+        };
+    };
+    mailboxes_api_v1_erp_messages_mailboxes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxOut"][];
+                };
+            };
+        };
+    };
+    connect_api_v1_erp_messages_mailboxes__channel__connect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_api_v1_erp_messages_mailboxes__channel__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_api_v1_erp_messages_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncOut"];
                 };
             };
         };

@@ -5017,11 +5017,38 @@
 > hat für **E-Mail · Anruf · Intern dieselbe Form** (Von → An → Antwort auf → Text →
 > Uhr-Symbol für später/Erinnerung); «Antwort auf» belegt alle offenen vor, «Erledigt ohne
 > Antwort» steht bei Intern. Eine 9-stellige Nummer im Text wird zum Link.
-> ⚠ **Es wird noch nichts verschickt oder empfangen**: eine E-Mail wird *erfasst*, nicht
-> gesendet – die Anbindung an ein Postfach (Gmail API) ist der nächste Schritt; ein
-> eingehendes Mail erfasst man heute von Hand, indem man im Feld «Von» den Absender
-> wählt (das Feld ist bei jeder Art dasselbe). Anhänge gibt es noch nicht.
+> *Seit CRM Schritt 3 geht eine E-Mail über ein **verbundenes Gmail-Postfach** hinaus und
+> herein – siehe unten.*
 > Wächter: `tests/test_communication.py` (10 Prüfungen, gegen ihre Bug-Formen gegengeprüft).
+
+> ►►► **CRM SCHRITT 3 — GMAIL IST DAS POSTFACH, DAS ERP DER VERLAUF** (Migration `145`,
+> `services/mailbox.py`, `docs/gmail-setup.md`). ◄◄◄ **Je Kanal ein Postfach**
+> (`mailboxes`): das des **Unternehmens** (`info`) – seine Adresse **ist** die
+> Kontakt-E-Mail des Betreibers (`company_settings.email`, heute info.inexxio@gmail.com;
+> eine andere lehnt das Verbinden mit Satz ab) – und je Mitarbeiter ein **persönliches**
+> (`u<Objektnummer>`, verbindet nur der Besitzer). OAuth mit dauerhaftem Zugang, der
+> Refresh-Token **verschlüsselt** (Schlüssel aus dem Client-Secret).
+> **Abgleich ohne Pub/Sub und ohne Uhr**: solange das ERP offen ist, ruft es jede Minute
+> `POST /erp/messages/sync` (Server drosselt auf 30 s je Postfach, `SKIP LOCKED`); Gmail
+> `history` ab dem Verbinden, alte Mails werden nicht importiert. **Ein unbekannter Absender
+> wird Person** (ohne Anmeldekonto, `firebase_uid = mail:<adresse>` – meldet er sich mit
+> der bestätigten Adresse an, übernimmt er den Datensatz); **Massenpost legt keine an**
+> (Gmail-Kategorien, `List-Unsubscribe`, `Precedence`, `Auto-Submitted`, noreply).
+> «Antwort auf» kommt aus `In-Reply-To`/`References`; **Dublettensperre** über den
+> `Message-ID`-Kopf (eine Mail in zwei Postfächern ist EINE Nachricht). Der zitierte Verlauf
+> wird abgeschnitten, **Anhänge bleiben in Gmail** (Name + «In Gmail öffnen»).
+> **Senden**: eine Mail von uns nach aussen geht über das Postfach ihres Kanals hinaus, im
+> selben Faden; `messages.outgoing` = «muss noch hinaus» (geplant oder gescheitert → beim
+> nächsten Abgleich erneut). Mit Anbindung ist das verbundene Postfach **Pflicht** (400 mit
+> Satz) – eine Mail, die als verschickt dasteht und nie hinausging, wäre schlimmer.
+> ►►► **Eine eigene Adresse ist nie eine Person** (`mailbox._ours`). ◄◄◄ Die Adressen der
+> Postfächer und die Kontakt-E-Mail des Betreibers sind «wir»: eine Mail von dort hat den
+> Mitarbeiter hinter dem Postfach als Absender, eine Mail dorthin hat sie als Kanal – auch
+> wenn ein Benutzerkonto dieselbe Adresse trägt; und dieselbe Adresse lässt sich nicht als
+> zweites Postfach verbinden. **Ohne OAuth-Client gibt es keine Anbindung** – dann wird wie
+> bisher nur erfasst; die CI bindet die Secrets nur ein, wenn es sie gibt. *Testmodus: die
+> Verbindung läuft nach 7 Tagen ab (roter Punkt, «Neu verbinden»); dauerhaft mit Workspace.*
+> Wächter: `tests/test_mailbox.py` (9 Prüfungen).
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
@@ -5049,10 +5076,12 @@ Analytics: Plausible (DSGVO-konform, lädt erst mit Einwilligung)
 Zahlung:   Stripe – **eigene Bezahlkarte im ERP** (Payment Element + Webhook), kein
            Zahllink. **Optional**: ohne Schlüssel gibt es den Dienst nicht, und bezahlt
            wird per Überweisung (`docs/stripe-setup.md`)
+E-Mail:    Gmail API – je Postfach OAuth, Abgleich + Versand (`docs/gmail-setup.md`),
+           optional: ohne OAuth-Client wird eine Mail nur erfasst
 ```
 
 **Geplant, aber NICHT verdrahtet** – hier steht heute keine Zeile Code:
-Gmail API (E-Mail) · Typesense (Suche) · Claude API (KI) · Cloud Storage (Datei-Ablage) ·
+Typesense (Suche) · Claude API (KI) · Cloud Storage (Datei-Ablage) ·
 Carrier-Anbindung (Versand). Was davon einmal gebaut und
 wieder entfernt wurde, steht mit seinen Entscheidungen in `docs/attic.md`.
 
@@ -5388,8 +5417,7 @@ konnten, kann der Geldvorgang; das dritte war ein Scan und ein Statuswechsel), d
 darum kostete die Löschung dort null Zeilen; seine Prosa liegt in
 `docs/history/2026-09-zahlungsmodul-vorgaenger.md`),
 Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent,
-Versand-Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail
-API), Typesense-Suche, Buchhaltung, HR.
+Versand-Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: Typesense-Suche, Buchhaltung, HR.
 
 **Nächste Aufgabe**: Prozess-Module nach Bedarf. Der Wiederaufbau eines entfernten
 Bereichs beginnt bei der Modellfrage in `docs/attic.md`, nicht bei der alten Datei.

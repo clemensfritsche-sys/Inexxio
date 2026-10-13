@@ -4012,6 +4012,156 @@
         ]
       }
     },
+    "/api/v1/erp/messages/mailboxes": {
+      "get": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Mailboxes",
+        "description": "Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden?",
+        "operationId": "mailboxes_api_v1_erp_messages_mailboxes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxOut"
+                  },
+                  "type": "array",
+                  "title": "Response Mailboxes Api V1 Erp Messages Mailboxes Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/messages/mailboxes/{channel}/connect": {
+      "post": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Connect",
+        "description": "Die Adresse bei Google, an der die Zustimmung erteilt wird.",
+        "operationId": "connect_api_v1_erp_messages_mailboxes__channel__connect_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Channel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Connect Api V1 Erp Messages Mailboxes  Channel  Connect Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/messages/mailboxes/{channel}": {
+      "delete": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Disconnect",
+        "operationId": "disconnect_api_v1_erp_messages_mailboxes__channel__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Channel"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/messages/sync": {
+      "post": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Sync",
+        "description": "Die Postfächer abgleichen und Fälliges senden – höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.",
+        "operationId": "sync_api_v1_erp_messages_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/erp/messages/open": {
       "get": {
         "tags": [
@@ -5271,6 +5421,24 @@
         "title": "ArticleValidation",
         "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
       },
+      "Attachment": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Attachment"
+      },
       "Body_upload_attachment_api_v1_erp_attachments_post": {
         "properties": {
           "file": {
@@ -5321,6 +5489,11 @@
           "outside": {
             "type": "boolean",
             "title": "Outside"
+          },
+          "mail": {
+            "type": "boolean",
+            "title": "Mail",
+            "default": false
           }
         },
         "type": "object",
@@ -6957,6 +7130,46 @@
         "title": "JourneyNeighbour",
         "description": "Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.\n\nBei 5000 Einzelinstanzen will niemand 5000 Verweise sehen; die Frage lautet «wie\nviele kamen woher», nicht «welche». Wer die einzelnen Stücke braucht, öffnet den\ngenannten Auftrag – dort stehen sie."
       },
+      "MailboxOut": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "may_connect": {
+            "type": "boolean",
+            "title": "May Connect",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "channel",
+          "address",
+          "connected"
+        ],
+        "title": "MailboxOut",
+        "description": "Ein Postfach, das diesen Betrachter angeht – das des Unternehmens oder sein eigenes."
+      },
       "MessageIn": {
         "properties": {
           "channel": {
@@ -7132,6 +7345,30 @@
             "type": "boolean",
             "title": "Planned",
             "default": false
+          },
+          "pending": {
+            "type": "boolean",
+            "title": "Pending",
+            "default": false
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            },
+            "type": "array",
+            "title": "Attachments",
+            "default": []
+          },
+          "gmail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmail Url"
           }
         },
         "type": "object",
@@ -8802,6 +9039,19 @@
         ],
         "title": "StockState",
         "description": "Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.\n\nDie Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese\nInstanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».\n\n``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),\n``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom\nServer**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)\nund keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau\neiner Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung."
+      },
+      "SyncOut": {
+        "properties": {
+          "new": {
+            "type": "integer",
+            "title": "New"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new"
+        ],
+        "title": "SyncOut"
       },
       "TerritoryAssign": {
         "properties": {

@@ -32,13 +32,27 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
 
 
-def channel_out(key: str) -> ChannelOut:
+def channel_out(key: str, label: Optional[str] = None) -> ChannelOut:
+    """Ein Kanal – ein Postfach heisst wie seine Adresse (``mailbox.address_of``)."""
     c = dc.channel(key)
-    return ChannelOut(key=c.key, label=c.label, kind=c.kind, outside=c.outside)
+    return ChannelOut(key=c.key, label=label or c.label, kind=c.kind, outside=c.outside,
+                      mail=dc.is_mail(key))
 
 
-def channels() -> list[ChannelOut]:
-    return [channel_out(k) for k in dc.CHANNELS]
+def _labels(db: Session, keys: Iterable[str]) -> dict[str, str]:
+    from .mailbox import address_of
+    return {k: address_of(db, k) for k in set(keys) if dc.is_mail(k)}
+
+
+def channels(db: Session, actor: UserProfile) -> list[ChannelOut]:
+    """Die Kanäle, über die dieser Mitarbeiter schreiben kann: das Unternehmen, sein
+    eigenes Postfach (wenn verbunden), Telefon, Intern."""
+    from .mailbox import active
+    keys = list(dc.CHANNELS)
+    if actor.object_id and active(db, dc.personal(actor.object_id)) is not None:
+        keys.insert(1, dc.personal(actor.object_id))
+    labels = _labels(db, keys)
+    return [channel_out(k, labels.get(k)) for k in keys]
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +108,15 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     msg = Message(sender_object_id=data.sender, channel=data.channel,
                   subject=(data.subject or "").strip() or None, body=body,
                   at=_aware(data.at) if data.at else _now(), created_by=actor.id)
+    write(db, msg, roles, replies)
+    _hand_to_mailbox(db, msg, roles)
+    return msg
+
+
+def write(db: Session, msg: Message, roles: dict[str, list[int]],
+          replies: Iterable[int]) -> Message:
+    """**Die eine Schreibstelle** – für eine erfasste wie für eine abgeglichene Nachricht
+    (``services/mailbox``): Zeile, Beteiligte (ohne Dubletten), «Antwort auf»."""
     db.add(msg)
     db.flush()
     seen: set[tuple[int, str]] = set()
@@ -102,10 +125,29 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
             if (oid, role) not in seen:
                 seen.add((oid, role))
                 db.add(MessageParty(message_id=msg.id, person_object_id=oid, role=role))
-    for rid in replies:
+    for rid in sorted(set(replies)):
         db.add(MessageReply(message_id=msg.id, reply_to_id=rid))
     db.flush()
     return msg
+
+
+def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]]) -> None:
+    """**Eine Mail von uns nach aussen geht hinaus** – über das Postfach ihres Kanals.
+
+    Nur, wo es eine Anbindung gibt (``mailbox.ready``) – sonst wird sie wie bisher nur
+    erfasst. Gibt es sie, ist das Postfach Pflicht: eine Mail, die das ERP als
+    «verschickt» zeigt und die nie hinausging, wäre schlimmer als eine Ablehnung."""
+    from . import mailbox
+    outward = roles["to"] or roles["cc"] or roles["bcc"]
+    if not (dc.is_mail(msg.channel) and outward and mailbox.ready()):
+        return
+    sender = _people(db, [msg.sender_object_id]).get(msg.sender_object_id)
+    if not (sender and sender.role in STAFF_ROLES):
+        return          # eine eingegangene Mail, von Hand erfasst – sie ging nie hinaus
+    mailbox.assert_may_send(db, msg.channel, sender)
+    msg.outgoing = True
+    if _aware(msg.at) <= _now():
+        mailbox.send(db, msg)
 
 
 # ---------------------------------------------------------------------------
@@ -143,12 +185,14 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     for r in replies:
         reply_to[r.message_id].append(r.reply_to_id)
     now = _now()
-    return [_out(m, by_msg[m.id], reply_to[m.id], m.id in answered, people, now)
+    labels = _labels(db, [m.channel for m in msgs])
+    return [_out(m, by_msg[m.id], reply_to[m.id], m.id in answered, people, now, labels)
             for m in msgs]
 
 
 def _out(m: Message, roles: dict[str, list[int]], reply_to: list[int], answered: bool,
-         people: dict[int, UserProfile], now: datetime) -> MessageOut:
+         people: dict[int, UserProfile], now: datetime, labels: dict[str, str]) -> MessageOut:
+    from .mailbox import gmail_url
     sender = _ref(people, m.sender_object_id)
     refs = {r: [_ref(people, i) for i in roles.get(r, [])] for r in dc.ROLES}
     at = _aware(m.at)
@@ -156,11 +200,13 @@ def _out(m: Message, roles: dict[str, list[int]], reply_to: list[int], answered:
         channel_key=m.channel, sender_staff=sender.staff,
         to_staff=any(p.staff for p in refs["to"])))
     return MessageOut(
-        id=m.id, channel=channel_out(m.channel), sender=sender,
+        id=m.id, channel=channel_out(m.channel, labels.get(m.channel)), sender=sender,
         to=refs["to"], cc=refs["cc"], bcc=refs["bcc"], about=refs["about"],
         subject=m.subject, body=m.body, at=at, reply_to=sorted(reply_to),
         ours=sender.staff, open=is_open,
         overdue=is_open and now - at > dc.OVERDUE_AFTER, planned=at > now,
+        pending=bool(m.outgoing), attachments=m.attachments or [],
+        gmail_url=gmail_url(labels[m.channel], m) if m.channel in labels else None,
     )
 
 

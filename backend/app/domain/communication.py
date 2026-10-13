@@ -15,7 +15,7 @@ Drei Regeln, eine Logik, keine Sonderfälle:
 
 **Ein Kanal ist ein Katalogeintrag, kein Datensatz**: ein neuer Kanal ist eine Zeile
 hier. Er gehört dem Betreiber (der eigenen Gesellschaft, die die Website vertritt);
-persönliche Adressen eines Mitarbeiters wären ein weiterer Eintrag mit derselben Form.
+persönliche Postfächer eines Mitarbeiters haben dieselbe Form (``u<Objektnummer>``).
 Zwei Eigenschaften tragen die ganze Unterscheidung:
 
 * ``outside`` – verlässt die Nachricht das Haus? (Intern: nie.)
@@ -48,21 +48,45 @@ class Channel:
     live: bool
 
 
+#: Der Kanal des Unternehmens: seine Adresse ist die **Kontakt-E-Mail des Betreibers**
+#: (``company_settings.email``) – keine zweite Angabe, die beim Domain-Wechsel stehenbleibt.
+COMPANY_MAIL = "info"
+
 CHANNELS: dict[str, Channel] = {
     c.key: c for c in (
-        Channel("info", "info@inexxio.com", "email", "info@inexxio.com",
-                outside=True, live=False),
+        Channel(COMPANY_MAIL, "Unternehmen", "email", None, outside=True, live=False),
         Channel("phone", "Telefon", "phone", None, outside=True, live=True),
         Channel("intern", "Intern", "internal", None, outside=False, live=False),
     )
 }
 
+#: Ein **persönliches Postfach** eines Mitarbeiters ist ein Kanal derselben Form –
+#: Schlüssel ``u<Objektnummer>``. Kein Katalogeintrag je Person: die Form ist die Regel.
+PERSONAL_PREFIX = "u"
+
+
+def personal(object_id: int) -> str:
+    return f"{PERSONAL_PREFIX}{object_id}"
+
+
+def owner_of(key: str) -> Optional[int]:
+    """Die Objektnummer hinter einem persönlichen Postfach – sonst ``None``."""
+    rest = key[len(PERSONAL_PREFIX):] if key.startswith(PERSONAL_PREFIX) else ""
+    return int(rest) if rest.isdigit() else None
+
 
 def channel(key: str) -> Channel:
     """Der Kanal zu einem Schlüssel – ein unbekannter ist ein Fehler, kein Rückfall."""
-    if key not in CHANNELS:
-        raise ValueError(f"Kanal «{key}» gibt es nicht.")
-    return CHANNELS[key]
+    if key in CHANNELS:
+        return CHANNELS[key]
+    if owner_of(key) is not None:
+        return Channel(key, "Persönlich", "email", None, outside=True, live=False)
+    raise ValueError(f"Kanal «{key}» gibt es nicht.")
+
+
+def is_mail(key: str) -> bool:
+    """Geht dieser Kanal über ein Postfach? (Info oder persönlich)"""
+    return key == COMPANY_MAIL or owner_of(key) is not None
 
 
 def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:

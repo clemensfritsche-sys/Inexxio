@@ -14,7 +14,7 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
-  Message, MessageIn, MessageChannel, OpenCount,
+  Message, MessageIn, MessageChannel, Mailbox, OpenCount,
   ArticleInput,
   ArticleUpdateInput,
   ArticleNameSuggestion,
@@ -529,6 +529,25 @@ class ApiClient {
 
   messageChannels(): Promise<MessageChannel[]> {
     return this.get('/api/v1/erp/messages/channels');
+  }
+
+  /** Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden? */
+  mailboxes(): Promise<Mailbox[]> {
+    return this.get('/api/v1/erp/messages/mailboxes');
+  }
+
+  /** Die Adresse bei Google, an der die Zustimmung erteilt wird. */
+  connectMailbox(channel: string): Promise<{ url: string }> {
+    return this.post(`/api/v1/erp/messages/mailboxes/${channel}/connect`, {});
+  }
+
+  disconnectMailbox(channel: string): Promise<void> {
+    return this.delete(`/api/v1/erp/messages/mailboxes/${channel}`);
+  }
+
+  /** Postfächer abgleichen und Fälliges senden – der Server drosselt selbst. */
+  syncMail(): Promise<{ new: number }> {
+    return this.post('/api/v1/erp/messages/sync', {});
   }
 
   getArticles(search?: string, limit?: number): Promise<Article[]> {

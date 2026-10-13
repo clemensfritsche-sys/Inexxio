@@ -226,6 +226,33 @@ export default function ErpPage() {
     return () => window.removeEventListener(MESSAGES_CHANGED, reload);
   }, [staff]);
 
+  // ►►► Die Postfächer werden abgeglichen, solange das ERP offen ist (der Server drosselt
+  // selbst, ohne Anbindung ist es ein No-op). Neues meldet sich wie jede andere Änderung.
+  useEffect(() => {
+    if (!staff) return;
+    const tick = () => {
+      if (document.hidden) return;
+      api.syncMail().then((r) => {
+        if (r.new > 0) window.dispatchEvent(new Event(MESSAGES_CHANGED));
+      }).catch(() => {});
+    };
+    tick();
+    const t = setInterval(tick, 60_000);
+    return () => clearInterval(t);
+  }, [staff]);
+
+  // Rückkehr von Google nach «Postfach verbinden»: ein Satz, dann ist der Parameter weg.
+  const [mailNote, setMailNote] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const note = params.get('mail');
+    if (!note) return;
+    setMailNote(note === 'ok' ? 'Postfach verbunden – neue Mails erscheinen ab jetzt im Verlauf.' : note);
+    params.delete('mail');
+    const rest = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+  }, []);
+
   // «?typ=<Datensatztyp>» aus der Arbeitsleiste: stellt nur den Filter vor, wie ein Klick
   // auf seinen Chip. Unbekannte Werte bleiben ohne Wirkung.
   useEffect(() => {
@@ -528,6 +555,15 @@ export default function ErpPage() {
     {/* 100dvh statt 100vh: auf Mobile berücksichtigt die dynamische Viewport-Höhe die
         Browser-Leiste – sonst rutscht der «+»-FAB (bottom) unter die Adressleiste (unsichtbar). */}
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--site-header-h))' }}>
+      {mailNote && (
+        <div role="status" className="flex items-center gap-3 px-5 py-2.5 text-sm border-b border-border-1 bg-bg-2 text-fg-2">
+          <span className="flex-1 min-w-0">{mailNote}</span>
+          <button onClick={() => setMailNote(null)} aria-label="Schliessen" title="Schliessen"
+            className="flex-none w-7 h-7 rounded-ds-sm flex items-center justify-center text-fg-3 hover:text-fg-1">
+            <X size={13} />
+          </button>
+        </div>
+      )}
       <div className="flex overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
 
         {/* ── List panel ───────────────────────────────────────────────────── */}

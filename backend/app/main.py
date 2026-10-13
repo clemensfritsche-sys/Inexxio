@@ -165,6 +165,13 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "billing_address_id", "BIGINT"),
     ("vouchers", "delivery_address_id", "BIGINT"),
     ("vouchers", "head", "JSONB"),
+    # ►►► **Postfach** (Migration 145): das Modell kennt sie, also scheitert ohne sie
+    # **jede** Abfrage auf eine Nachricht.
+    ("messages", "gmail_id", "VARCHAR(64)"),
+    ("messages", "thread_id", "VARCHAR(64)"),
+    ("messages", "rfc_id", "VARCHAR(255)"),
+    ("messages", "outgoing", "BOOLEAN NOT NULL DEFAULT false"),
+    ("messages", "attachments", "JSONB"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -400,6 +407,12 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "DROP INDEX uq_purchases_step; "
     "CREATE UNIQUE INDEX uq_purchases_step ON purchases (step_id) WHERE is_active; "
     "END IF; END $$;",
+    # Die Dublettensperre der Postfach-Abgleichs (Migration 145) – ohne sie legt ein
+    # zweiter Abgleich dieselbe Mail ein zweites Mal an.
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_rfc_id ON messages (rfc_id) "
+    "WHERE rfc_id IS NOT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_gmail ON messages (channel, gmail_id) "
+    "WHERE gmail_id IS NOT NULL",
 )
 
 # Gesellschaften (Migration 091): genau EIN Betreiber. Wurde die Spalte gerade erst vom
@@ -1072,6 +1085,7 @@ app.include_router(attachments.router)
 app.include_router(payments.router)
 app.include_router(feedback.router)
 app.include_router(communication.router)
+app.include_router(communication.callback_router)
 
 
 @app.get("/")

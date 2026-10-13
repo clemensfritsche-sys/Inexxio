@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""
 
+    # ── Postfach (``services/mailbox``, CRM Schritt 3) ───────────────────────────
+    #: Der **OAuth-Client** des Google-Cloud-Projekts (Typ «Webanwendung»). **Leer heisst:
+    #: es gibt keine Anbindung** – eine E-Mail wird dann wie bisher nur erfasst. Beide
+    #: aus dem Secret Manager (``docs/gmail-setup.md``), nie aus dem Repo. Das Secret
+    #: verschlüsselt zugleich die gespeicherten Refresh-Tokens.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

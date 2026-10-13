@@ -1,0 +1,622 @@
+"""►►► **Das Postfach – Gmail ist der Speicher, das ERP der Verlauf** (CRM Schritt 3). ◄◄◄
+
+Drei Dinge, und jedes an genau einer Stelle:
+
+* **Verbinden** (``connect_url`` → Google → ``callback``): je Kanal ein Postfach, OAuth
+  mit dauerhaftem Zugang. Das Postfach des **Unternehmens** (``info``) muss die
+  **Kontakt-E-Mail des Betreibers** sein – eine zweite Adresse daneben wäre die Angabe,
+  die beim Domain-Wechsel stehenbleibt. Ein **persönliches** verbindet nur sein Besitzer.
+* **Abgleichen** (``sync_all``): neue Mails seit dem letzten Stand (Gmail ``history``)
+  werden zu Nachrichten. Der Absender wird einer Person zugeordnet – **unbekannte werden
+  angelegt** (ohne Anmeldekonto: meldet sie sich später mit dieser Adresse an, übernimmt
+  sie den Datensatz). «Antwort auf» kommt aus ``In-Reply-To``/``References``.
+* **Senden** (``send``): eine Mail, die im ERP an aussen geschrieben wird, geht über das
+  Postfach ihres Kanals hinaus – im richtigen Faden.
+
+**Eine eigene Adresse ist nie eine Person.** Die Adressen der Postfächer und die
+Kontakt-E-Mail des Betreibers sind «wir» (``_ours``): eine Mail von dort hat einen
+Mitarbeiter als Absender, eine Mail dorthin hat sie als Kanal – und keine davon legt je
+eine Person an, auch nicht, wenn ein Benutzerkonto dieselbe Adresse trägt.
+
+**Kein Abo, kein Pub/Sub, keine Uhr**: abgeglichen wird, wenn jemand das ERP offen hat
+(``POST /erp/messages/sync``, höchstens alle ``SYNC_EVERY``). Bis dahin liegen die Mails
+dort, wo sie ohnehin liegen – in Gmail.
+"""
+
+import base64
+import hashlib
+import hmac
+import json
+import re
+import time
+from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
+from email.utils import formataddr, getaddresses, parseaddr
+from html.parser import HTMLParser
+from typing import Any, Optional
+from urllib.parse import urlencode
+
+import httpx
+from cryptography.fernet import Fernet, InvalidToken
+from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from ..core.config import get_settings
+from ..domain import communication as dc
+from ..models import Mailbox, Message, MessageParty, UserProfile
+from .people import STAFF_ROLES, by_email, normalize_email
+
+AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+API = "https://gmail.googleapis.com/gmail/v1/users/me"
+SCOPES = ("https://www.googleapis.com/auth/gmail.readonly "
+          "https://www.googleapis.com/auth/gmail.send")
+CALLBACK = "/api/v1/mail/callback"
+SYNC_EVERY = timedelta(seconds=30)
+STATE_TTL = 600
+MAX_BODY = 20_000
+#: Nie abgleichen: Entwürfe, Spam, Papierkorb.
+NEVER = {"DRAFT", "SPAM", "TRASH"}
+#: Was Gmail selbst als Massenpost einordnet – von aussen kommend legt es keine Kontakte an.
+BULK_LABELS = {"CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_UPDATES",
+               "CATEGORY_FORUMS"}
+_ROBOT = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounce)", re.I)
+EXPIRED = "Die Verbindung ist abgelaufen – bitte das Postfach neu verbinden."
+
+
+def ready() -> bool:
+    """Gibt es eine Anbindung? Ohne OAuth-Client nicht – dann wird eine Mail nur erfasst."""
+    s = get_settings()
+    return bool(s.google_client_id and s.google_client_secret)
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Adressen: welche sind «wir»?
+# ---------------------------------------------------------------------------
+
+def company_address(db: Session) -> str:
+    """Die Adresse des Unternehmens-Postfachs = die Kontakt-E-Mail des Betreibers."""
+    from .sites import find_operator
+    op = find_operator(db)
+    return normalize_email(op.email if op else "")
+
+
+def active(db: Session, channel: str) -> Optional[Mailbox]:
+    return db.query(Mailbox).filter(Mailbox.channel == channel,
+                                    Mailbox.is_active.is_(True)).first()
+
+
+def address_of(db: Session, channel: str) -> str:
+    """Die Adresse hinter einem Mail-Kanal – angezeigt als sein Name."""
+    if channel == dc.COMPANY_MAIL:
+        return company_address(db)
+    mb = active(db, channel)
+    if mb is not None:
+        return mb.address
+    owner = dc.owner_of(channel)
+    u = db.query(UserProfile).filter(UserProfile.object_id == owner).first() if owner else None
+    return normalize_email(u.email) if u else channel
+
+
+def _ours(db: Session) -> dict[str, Optional[int]]:
+    """Adresse → wer dahinter schreibt (Objektnummer, ``None`` = unbekannt)."""
+    out: dict[str, Optional[int]] = {}
+    company = company_address(db)
+    if company:
+        out[company] = None
+    for mb in db.query(Mailbox).filter(Mailbox.is_active.is_(True)).all():
+        out[mb.address] = mb.owner_object_id
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Verbinden
+# ---------------------------------------------------------------------------
+
+def may_connect(actor: UserProfile, channel: str) -> bool:
+    """Das Unternehmens-Postfach verbindet ein Admin, ein persönliches nur sein Besitzer."""
+    if channel == dc.COMPANY_MAIL:
+        return actor.role == "admin"
+    return actor.role in STAFF_ROLES and dc.owner_of(channel) == actor.object_id
+
+
+def _assert_may(actor: UserProfile, channel: str) -> None:
+    if not dc.is_mail(channel):
+        raise HTTPException(400, detail=f"«{channel}» ist kein Postfach.")
+    if not may_connect(actor, channel):
+        raise HTTPException(403, detail="Das Unternehmens-Postfach verbindet ein Admin, "
+                                        "ein persönliches nur sein Besitzer.")
+
+
+def _redirect_uri() -> str:
+    return get_settings().frontend_base_url.rstrip("/") + CALLBACK
+
+
+def _sign(payload: dict[str, Any]) -> str:
+    raw = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+    key = get_settings().google_client_secret.encode()
+    sig = hmac.new(key, raw.encode(), hashlib.sha256).hexdigest()
+    return f"{raw}.{sig}"
+
+
+def _unsign(state: str) -> dict[str, Any]:
+    raw, _, sig = (state or "").partition(".")
+    key = get_settings().google_client_secret.encode()
+    good = hmac.new(key, raw.encode(), hashlib.sha256).hexdigest()
+    if not raw or not hmac.compare_digest(sig, good):
+        raise ValueError("Die Anfrage ist ungültig – bitte erneut verbinden.")
+    data = json.loads(base64.urlsafe_b64decode(raw.encode()))
+    if data.get("exp", 0) < time.time():
+        raise ValueError("Die Anfrage ist abgelaufen – bitte erneut verbinden.")
+    return data
+
+
+def connect_url(db: Session, channel: str, actor: UserProfile) -> str:
+    if not ready():
+        raise HTTPException(404, detail="Es ist keine Postfach-Anbindung eingerichtet.")
+    _assert_may(actor, channel)
+    hint = company_address(db) if channel == dc.COMPANY_MAIL else normalize_email(actor.email)
+    state = _sign({"c": channel, "u": actor.object_id, "exp": time.time() + STATE_TTL})
+    return AUTH_URL + "?" + urlencode({
+        "client_id": get_settings().google_client_id, "redirect_uri": _redirect_uri(),
+        "response_type": "code", "scope": SCOPES, "access_type": "offline",
+        "prompt": "consent", "include_granted_scopes": "true",
+        "login_hint": hint, "state": state,
+    })
+
+
+def _fernet() -> Fernet:
+    digest = hashlib.sha256(b"inexxio-mailbox:" + get_settings().google_client_secret.encode())
+    return Fernet(base64.urlsafe_b64encode(digest.digest()))
+
+
+def _seal(token: str) -> str:
+    return _fernet().encrypt(token.encode()).decode()
+
+
+def _open(sealed: str) -> Optional[str]:
+    try:
+        return _fernet().decrypt(sealed.encode()).decode()
+    except InvalidToken:
+        return None
+
+
+def callback(db: Session, code: str, state: str) -> str:
+    """Google kommt zurück. Gibt den Satz zurück, den die Oberfläche zeigt (leer = gut)."""
+    try:
+        data = _unsign(state)
+    except (ValueError, json.JSONDecodeError) as exc:
+        return str(exc)
+    channel = data["c"]
+    actor = db.query(UserProfile).filter(UserProfile.object_id == data["u"]).first()
+    if actor is None or not may_connect(actor, channel):
+        return "Dieses Postfach darfst du nicht verbinden."
+    with httpx.Client(timeout=20) as http:
+        r = http.post(TOKEN_URL, data={
+            "code": code, "client_id": get_settings().google_client_id,
+            "client_secret": get_settings().google_client_secret,
+            "redirect_uri": _redirect_uri(), "grant_type": "authorization_code"})
+        if r.status_code != 200:
+            return "Google hat den Zugang nicht erteilt – bitte erneut verbinden."
+        tokens = r.json()
+        refresh = tokens.get("refresh_token")
+        if not refresh:
+            return "Google hat keinen dauerhaften Zugang erteilt – bitte erneut verbinden."
+        prof = http.get(f"{API}/profile",
+                        headers={"Authorization": f"Bearer {tokens['access_token']}"}).json()
+    return _store(db, channel, actor, normalize_email(prof.get("emailAddress")),
+                  refresh, str(prof.get("historyId") or ""))
+
+
+def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh: str,
+           history: str) -> str:
+    """Das Postfach festhalten – nach zwei Prüfungen, beide mit Satz."""
+    if channel == dc.COMPANY_MAIL and address != company_address(db):
+        return (f"Verbunden wurde «{address}», das Unternehmen führt aber "
+                f"«{company_address(db)}» als Kontakt-E-Mail – bitte mit diesem Konto "
+                f"anmelden oder die Kontakt-E-Mail am Betreiber ändern.")
+    other = db.query(Mailbox).filter(Mailbox.address == address, Mailbox.channel != channel,
+                                     Mailbox.is_active.is_(True)).first()
+    if other is not None or (channel != dc.COMPANY_MAIL and address == company_address(db)):
+        return f"«{address}» ist bereits als anderes Postfach verbunden."
+    old = active(db, channel)
+    if old is not None:
+        old.is_active = False
+        db.flush()
+    db.add(Mailbox(channel=channel, address=address, owner_object_id=actor.object_id,
+                   token=_seal(refresh), history_id=history or None))
+    db.commit()
+    return ""
+
+
+def disconnect(db: Session, channel: str, actor: UserProfile) -> None:
+    _assert_may(actor, channel)
+    mb = active(db, channel)
+    if mb is None:
+        return
+    mb.is_active = False
+    token = _open(mb.token)
+    db.commit()
+    if token:
+        try:
+            httpx.post(REVOKE_URL, data={"token": token}, timeout=10)
+        except httpx.HTTPError:
+            pass        # zurückgezogen ist es bei uns; Google räumt abgelaufene selbst
+
+
+# ---------------------------------------------------------------------------
+# Zugriff
+# ---------------------------------------------------------------------------
+
+def _access(mb: Mailbox) -> Optional[str]:
+    """Ein frisches Zugangs-Token – oder ``None``, und dann steht der Grund am Postfach."""
+    refresh = _open(mb.token)
+    if refresh is None:
+        mb.problem = EXPIRED
+        return None
+    try:
+        r = httpx.post(TOKEN_URL, timeout=20, data={
+            "client_id": get_settings().google_client_id,
+            "client_secret": get_settings().google_client_secret,
+            "refresh_token": refresh, "grant_type": "refresh_token"})
+    except httpx.HTTPError:
+        return None     # Netz weg – beim nächsten Mal; kein Grund, die Verbindung zu kappen
+    if r.status_code == 200:
+        return r.json().get("access_token")
+    if r.status_code in (400, 401) and "invalid_grant" in r.text:
+        mb.problem = EXPIRED
+    return None
+
+
+def _get(token: str, path: str, **params: Any) -> httpx.Response:
+    return httpx.get(f"{API}/{path}", params=params, timeout=20,
+                     headers={"Authorization": f"Bearer {token}"})
+
+
+# ---------------------------------------------------------------------------
+# Abgleichen
+# ---------------------------------------------------------------------------
+
+def sync_all(db: Session, *, force: bool = False) -> int:
+    """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
+    Nachrichten zurück. Ein Postfach, das gerade ein anderer abgleicht, wird übersprungen
+    (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie gleichzeitig."""
+    if not ready():
+        return 0
+    due = _now() - SYNC_EVERY
+    boxes = (db.query(Mailbox)
+             .filter(Mailbox.is_active.is_(True), Mailbox.problem.is_(None))
+             .with_for_update(skip_locked=True).all())
+    new = 0
+    for mb in boxes:
+        if force or mb.synced_at is None or mb.synced_at < due:
+            new += _sync_one(db, mb)
+    send_due(db)
+    db.commit()
+    return new
+
+
+def _sync_one(db: Session, mb: Mailbox) -> int:
+    token = _access(mb)
+    if not token:
+        return 0
+    ids, latest = _new_ids(token, mb.history_id)
+    count = 0
+    for gid in ids:
+        if db.query(Message.id).filter(Message.channel == mb.channel,
+                                       Message.gmail_id == gid).first():
+            continue
+        r = _get(token, f"messages/{gid}", format="full")
+        if r.status_code == 200 and ingest(db, mb, r.json()):
+            count += 1
+    if latest:
+        mb.history_id = latest
+    mb.synced_at = _now()
+    return count
+
+
+def _new_ids(token: str, start: Optional[str]) -> tuple[list[str], Optional[str]]:
+    """Die neuen Mail-Ids seit ``start`` – beim ersten Mal keine (es zählt ab Verbinden)."""
+    if not start:
+        prof = _get(token, "profile")
+        return [], str(prof.json().get("historyId")) if prof.status_code == 200 else None
+    ids: list[str] = []
+    page: Optional[str] = None
+    latest = start
+    while True:
+        params: dict[str, Any] = {"startHistoryId": start, "historyTypes": "messageAdded"}
+        if page:
+            params["pageToken"] = page
+        r = _get(token, "history", **params)
+        if r.status_code == 404:        # Stand zu alt: die letzten zwei Tage nachholen
+            listed = _get(token, "messages", q="newer_than:2d", maxResults=200).json()
+            prof = _get(token, "profile").json()
+            return [m["id"] for m in listed.get("messages", [])], str(prof.get("historyId"))
+        if r.status_code != 200:
+            return [], None
+        data = r.json()
+        latest = str(data.get("historyId") or latest)
+        for h in data.get("history", []):
+            ids += [a["message"]["id"] for a in h.get("messagesAdded", [])]
+        page = data.get("nextPageToken")
+        if not page:
+            return list(dict.fromkeys(ids)), latest
+
+
+def ingest(db: Session, mb: Mailbox, raw: dict[str, Any]) -> bool:
+    """**Eine Gmail-Nachricht wird eine Nachricht.** ``False`` = übersprungen."""
+    from .communication import write
+    labels = set(raw.get("labelIds") or [])
+    payload = raw.get("payload") or {}
+    head = {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
+    ours = _ours(db)
+    name, sender_addr = parseaddr(head.get("from", ""))
+    sender_addr = normalize_email(sender_addr)
+    inbound = sender_addr not in ours
+    if labels & NEVER or not sender_addr or (inbound and _bulk(labels, head, sender_addr)):
+        return False
+    rfc = (head.get("message-id") or "").strip()[:255] or None
+    if rfc and db.query(Message.id).filter(Message.rfc_id == rfc).first():
+        return False
+    sender = (_person(db, name, sender_addr) if inbound
+              else ours.get(sender_addr) or mb.owner_object_id)
+    roles: dict[str, list[int]] = {"to": [], "cc": [], "bcc": [], "about": []}
+    for role in ("to", "cc"):
+        for n, addr in getaddresses([head.get(role, "")]):
+            addr = normalize_email(addr)
+            if addr and "@" in addr and addr not in ours:
+                roles[role].append(_person(db, n, addr))
+    msg = Message(
+        sender_object_id=sender, channel=mb.channel,
+        subject=(head.get("subject") or "").strip()[:255] or None,
+        body=_strip_quote(_text(payload))[:MAX_BODY],
+        at=datetime.fromtimestamp(int(raw.get("internalDate", 0)) / 1000, timezone.utc),
+        created_by=None, gmail_id=raw.get("id"), thread_id=raw.get("threadId"),
+        rfc_id=rfc, attachments=_attachments(payload) or None)
+    try:
+        with db.begin_nested():
+            write(db, msg, roles, _replied(db, head))
+    except IntegrityError:
+        return False        # ein paralleler Abgleich war schneller – dieselbe Mail
+    return True
+
+
+def _bulk(labels: set[str], head: dict[str, str], addr: str) -> bool:
+    """Massenpost legt keine Kontakte an: Gmails eigene Einordnung, die üblichen Köpfe
+    automatischer Mails, und Absender, die niemand liest."""
+    auto = head.get("auto-submitted", "no").lower()
+    return bool(labels & BULK_LABELS or "list-unsubscribe" in head
+                or head.get("precedence", "").lower() in {"bulk", "list", "junk"}
+                or auto != "no" or _ROBOT.search(addr.split("@")[0]))
+
+
+def _person(db: Session, name: str, addr: str) -> int:
+    """Die Person zu dieser Adresse – **angelegt, wenn es sie nicht gibt**.
+
+    Ohne Anmeldekonto: der Platzhalter ``mail:<adresse>`` ist eindeutig, und meldet sie
+    sich später mit dieser (bestätigten) Adresse an, übernimmt sie genau diesen Datensatz
+    (``core/auth._resolve_user``)."""
+    from .admin import log_audit
+    from .objects import next_object_id
+    found = by_email(db, addr)
+    if found is not None and found.object_id:
+        return found.object_id
+    parts = (name or "").replace('"', "").strip().split()
+    first, last = (parts[0], " ".join(parts[1:])) if parts else (addr.split("@")[0], "")
+    user = UserProfile(firebase_uid=f"mail:{addr}"[:128], email=addr, role="user",
+                       first_name=first[:100], last_name=last[:100],
+                       object_id=next_object_id(db, "user"))
+    db.add(user)
+    db.flush()
+    log_audit(db, "user_profiles", None, f"Kontakt «{user.display_name}» aus E-Mail angelegt",
+              None, object_id=user.object_id)
+    return user.object_id
+
+
+def _replied(db: Session, head: dict[str, str]) -> list[int]:
+    """«Antwort auf» – jede Nachricht, die ``In-Reply-To``/``References`` nennt."""
+    refs = re.findall(r"<[^<>]+>", f"{head.get('in-reply-to', '')} {head.get('references', '')}")
+    if not refs:
+        return []
+    return [i for (i,) in db.query(Message.id).filter(
+        Message.rfc_id.in_(refs), Message.is_active.is_(True)).all()]
+
+
+class _Html(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.out: list[str] = []
+        self.skip = 0
+
+    def handle_starttag(self, tag: str, attrs: Any) -> None:
+        if tag in ("style", "script"):
+            self.skip += 1
+        if tag in ("br", "p", "div", "tr", "li"):
+            self.out.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("style", "script") and self.skip:
+            self.skip -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self.skip:
+            self.out.append(data)
+
+
+def _decode(part: dict[str, Any]) -> str:
+    data = (part.get("body") or {}).get("data")
+    if not data:
+        return ""
+    raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    return raw.decode("utf-8", errors="replace")
+
+
+def _parts(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    out = [payload]
+    for p in payload.get("parts") or []:
+        out += _parts(p)
+    return out
+
+
+def _text(payload: dict[str, Any]) -> str:
+    """Der lesbare Text: ``text/plain`` zuerst, sonst ``text/html`` ohne Auszeichnung."""
+    parts = [p for p in _parts(payload) if not p.get("filename")]
+    for mime in ("text/plain", "text/html"):
+        for p in parts:
+            if p.get("mimeType") == mime and (text := _decode(p)):
+                if mime == "text/html":
+                    h = _Html()
+                    h.feed(text)
+                    text = "".join(h.out)
+                return re.sub(r"\n{3,}", "\n\n", text.replace("\r", "")).strip()
+    return ""
+
+
+_QUOTE = re.compile(
+    r"\n[ \t]*(?:(?:Am|On)\b[^\n]*(?:\n[^\n]*)?(?:schrieb|wrote)[^\n]*:[ \t]*\n"
+    r"|-{2,}[ \t]*(?:Original Message|Ursprüngliche Nachricht)[ \t]*-{2,})", re.I)
+
+
+def _strip_quote(text: str) -> str:
+    """Ohne den zitierten Verlauf – der steht schon als eigene Nachricht im Verlauf."""
+    m = _QUOTE.search("\n" + text + "\n")
+    if m and m.start() > 0:
+        text = text[: m.start() - 1]
+    lines = text.rstrip().split("\n")
+    while lines and lines[-1].lstrip().startswith(">"):
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def _attachments(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    return [{"name": p["filename"], "size": (p.get("body") or {}).get("size", 0)}
+            for p in _parts(payload) if p.get("filename")]
+
+
+# ---------------------------------------------------------------------------
+# Senden
+# ---------------------------------------------------------------------------
+
+def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
+    """Hinaus geht nur, was ein verbundenes Postfach hat – und ein persönliches nur mit
+    seinem Besitzer als Absender."""
+    owner = dc.owner_of(channel)
+    if owner is not None and owner != sender.object_id:
+        raise HTTPException(400, detail=f"Über das Postfach von «{owner}» schreibt nur "
+                                        f"sein Besitzer.")
+    mb = active(db, channel)
+    if mb is None or mb.problem:
+        raise HTTPException(400, detail=f"Das Postfach «{address_of(db, channel)}» ist nicht "
+                                        f"verbunden – erst verbinden, dann senden.")
+
+
+def send_due(db: Session) -> None:
+    """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand)."""
+    due = (db.query(Message).filter(Message.outgoing.is_(True), Message.is_active.is_(True),
+                                    Message.at <= _now()).order_by(Message.at).limit(20).all())
+    for msg in due:
+        send(db, msg)
+
+
+def send(db: Session, msg: Message) -> bool:
+    """Eine Mail über das Postfach ihres Kanals hinausschicken – im Faden, auf den sie
+    antwortet. Scheitert es, bleibt ``outgoing`` stehen, und der nächste Abgleich versucht
+    es wieder; nichts geht still verloren."""
+    mb = active(db, msg.channel)
+    token = _access(mb) if mb is not None and not mb.problem else None
+    if not token:
+        return False
+    parent = _parent(db, msg)
+    mime = _mime(db, mb, msg, parent)
+    body: dict[str, Any] = {"raw": base64.urlsafe_b64encode(mime.as_bytes()).decode()}
+    if parent is not None and parent.channel == msg.channel and parent.thread_id:
+        body["threadId"] = parent.thread_id
+    try:
+        r = httpx.post(f"{API}/messages/send", json=body, timeout=30,
+                       headers={"Authorization": f"Bearer {token}"})
+    except httpx.HTTPError:
+        return False
+    if r.status_code != 200:
+        return False
+    sent = r.json()
+    meta = _get(token, f"messages/{sent['id']}", format="metadata",
+                metadataHeaders="Message-ID")
+    head = {h["name"].lower(): h["value"]
+            for h in (meta.json().get("payload") or {}).get("headers", [])} \
+        if meta.status_code == 200 else {}
+    msg.gmail_id, msg.thread_id = sent["id"], sent.get("threadId")
+    msg.rfc_id = (head.get("message-id") or "")[:255] or None
+    msg.subject = msg.subject or mime["Subject"] or None
+    msg.outgoing = False
+    db.flush()
+    return True
+
+
+def _parent(db: Session, msg: Message) -> Optional[Message]:
+    from ..models import MessageReply
+    return (db.query(Message).join(MessageReply, MessageReply.reply_to_id == Message.id)
+            .filter(MessageReply.message_id == msg.id, Message.rfc_id.isnot(None))
+            .order_by(Message.at.desc()).first())
+
+
+def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:
+    from .sites import find_operator, legal_name
+    parties = db.query(MessageParty).filter(MessageParty.message_id == msg.id).all()
+    ids = {p.person_object_id for p in parties} | {msg.sender_object_id}
+    people = {u.object_id: u for u in
+              db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
+    sender = people.get(msg.sender_object_id)
+    op = find_operator(db)
+    name = (legal_name(op) if msg.channel == dc.COMPANY_MAIL and op
+            else (sender.display_name if sender else ""))
+    mime = EmailMessage()
+    mime["From"] = formataddr((name, mb.address))
+    for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
+        addrs = [formataddr((people[p.person_object_id].display_name,
+                             people[p.person_object_id].email))
+                 for p in parties if p.role == role and p.person_object_id in people]
+        if addrs:
+            mime[header] = ", ".join(addrs)
+    subject = msg.subject or ""
+    if not subject and parent is not None and parent.subject:
+        subject = parent.subject if parent.subject.lower().startswith(("re:", "aw:")) \
+            else f"Re: {parent.subject}"
+    mime["Subject"] = subject
+    if parent is not None:
+        mime["In-Reply-To"] = parent.rfc_id
+        mime["References"] = parent.rfc_id
+    mime.set_content(msg.body or "")
+    return mime
+
+
+# ---------------------------------------------------------------------------
+# Auskunft
+# ---------------------------------------------------------------------------
+
+def status(db: Session, actor: UserProfile) -> list[dict[str, Any]]:
+    """Die Postfächer, die diesen Betrachter angehen: das des Unternehmens und sein
+    eigenes. Je mit Adresse, Zustand und ob er verbinden darf."""
+    keys = [dc.COMPANY_MAIL]
+    if actor.role in STAFF_ROLES and actor.object_id:
+        keys.append(dc.personal(actor.object_id))
+    out = []
+    for key in keys:
+        mb = active(db, key)
+        out.append({"channel": key, "address": address_of(db, key),
+                    "connected": mb is not None and not mb.problem,
+                    "problem": mb.problem if mb is not None else None,
+                    "may_connect": ready() and may_connect(actor, key)})
+    return out
+
+
+def gmail_url(address: str, msg: Message) -> Optional[str]:
+    ref = msg.thread_id or msg.gmail_id
+    if not ref:
+        return None
+    return f"https://mail.google.com/mail/?authuser={address}#all/{ref}"

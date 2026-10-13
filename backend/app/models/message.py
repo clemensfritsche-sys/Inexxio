@@ -13,7 +13,10 @@ kein Status, kein Typ. Was sie ist, sagen ihre Angaben; ob sie offen ist, ist ei
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
+from typing import Any
+
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -36,6 +39,27 @@ class Message(Base, TimestampMixin):
                                          default=utcnow, index=True)
     #: Wer sie erfasst hat (``user_profiles.id``) – nicht zwingend der Absender.
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger)
+
+    # ── Postfach (CRM Schritt 3, ``services/mailbox``) ─────────────────────────────
+    #: Die Mail selbst bleibt in Gmail; hier steht nur, wie man sie dort wiederfindet.
+    gmail_id: Mapped[Optional[str]] = mapped_column(String(64))
+    thread_id: Mapped[Optional[str]] = mapped_column(String(64))
+    #: Der ``Message-ID``-Kopf – weltweit eindeutig, also die Dublettensperre über alle
+    #: Postfächer (dieselbe Mail an info@ **und** in Cc an einen Mitarbeiter ist EINE).
+    rfc_id: Mapped[Optional[str]] = mapped_column(String(255))
+    #: **Muss noch hinaus** – gesetzt beim Anlegen einer Mail an aussen, gelöscht beim
+    #: Versand. Eine geplante Mail wartet hier, bis ihr Zeitpunkt da ist.
+    outgoing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                           server_default="false")
+    #: Anhänge: nur Name und Grösse – die Datei bleibt in Gmail.
+    attachments: Mapped[Optional[list[Any]]] = mapped_column(JSONB)
+
+    __table_args__ = (
+        Index("uq_messages_rfc_id", "rfc_id", unique=True,
+              postgresql_where=text("rfc_id IS NOT NULL")),
+        Index("uq_messages_gmail", "channel", "gmail_id", unique=True,
+              postgresql_where=text("gmail_id IS NOT NULL")),
+    )
 
 
 class MessageParty(Base):

@@ -20,6 +20,28 @@ class ChannelOut(BaseModel):
     #: ``email`` · ``phone`` · ``internal`` – bestimmt allein das Symbol.
     kind: str
     outside: bool
+    #: Ein Postfach (Unternehmen oder persönlich)? Dann ist ``label`` seine Adresse.
+    mail: bool = False
+
+
+class Attachment(BaseModel):
+    name: str
+    size: int = 0
+
+
+class MailboxOut(BaseModel):
+    """Ein Postfach, das diesen Betrachter angeht – das des Unternehmens oder sein eigenes."""
+
+    channel: str
+    address: str
+    connected: bool
+    #: Warum der Abgleich nicht geht (z. B. «Verbindung abgelaufen») – leer = in Ordnung.
+    problem: Optional[str] = None
+    may_connect: bool = False
+
+
+class SyncOut(BaseModel):
+    new: int
 
 
 class MessageIn(BaseModel):
@@ -58,6 +80,12 @@ class MessageOut(BaseModel):
     overdue: bool = False
     #: Der Zeitpunkt liegt in der Zukunft («geplant»).
     planned: bool = False
+    #: Eine Mail von uns, die noch nicht hinaus ist (geplant oder Versand gescheitert).
+    pending: bool = False
+    #: Anhänge – nur Name und Grösse; die Datei liegt in Gmail.
+    attachments: list[Attachment] = []
+    #: Wo die Mail in Gmail steht (nur für eine abgeglichene bzw. gesendete).
+    gmail_url: Optional[str] = None
 
 
 class OpenCount(BaseModel):
