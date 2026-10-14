@@ -2840,6 +2840,11 @@ export interface components {
             at?: string | null;
             /** Reply To */
             reply_to?: number | null;
+            /**
+             * Incoming
+             * @default false
+             */
+            incoming: boolean;
         };
         /** MessageOut */
         MessageOut: {

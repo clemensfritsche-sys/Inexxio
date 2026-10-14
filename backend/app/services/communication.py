@@ -160,10 +160,15 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     body = (data.body or "").strip()
     if not body and data.reply_to is None:
         raise HTTPException(400, detail="Eine Nachricht ohne Text muss etwas beantworten.")
+    sender = actor.object_id
+    if data.incoming:
+        sender, roles = _incoming_call(data, roles, actor)
+    elif body and dc.is_mail(data.channel) and actor.role in STAFF_ROLES:
+        _assert_mail(data, roles)
     replies = [data.reply_to] if data.reply_to is not None else []
     if replies:
-        _assert_answers(db, data.reply_to, roles, body, actor)
-    msg = Message(sender_object_id=actor.object_id, channel=data.channel,
+        _assert_answers(db, data.reply_to, roles, body, actor, sender)
+    msg = Message(sender_object_id=sender, channel=data.channel,
                   subject=(data.subject or "").strip() or None, body=body,
                   at=_aware(data.at) if data.at else _now(), created_by=actor.id)
     write(db, msg, roles, replies)
@@ -171,10 +176,31 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     return msg
 
 
+def _assert_mail(data: MessageIn, roles: dict[str, list[int]]) -> None:
+    """**Eine E-Mail ist erst vollständig mit Empfänger und Betreff.** Eine ohne «An»
+    hätte keinen Adressaten, eine ohne Betreff ist im Postfach des Empfängers eine leere
+    Zeile. Bei einer Antwort steht «Re: …» schon da (die Oberfläche belegt es vor)."""
+    if not roles["to"]:
+        raise HTTPException(400, detail="Eine E-Mail braucht mindestens einen Empfänger im «An».")
+    if not (data.subject or "").strip():
+        raise HTTPException(400, detail="Eine E-Mail braucht einen Betreff.")
+
+
+def _incoming_call(data: MessageIn, roles: dict[str, list[int]], actor: UserProfile
+                   ) -> tuple[int, dict[str, list[int]]]:
+    """«Wurde angerufen»: der eine Kontakt im «An» ist der Anrufer, ich der Angerufene."""
+    if not dc.channel(data.channel).live:
+        raise HTTPException(400, detail="«Wurde angerufen» gibt es nur bei einem Anruf.")
+    if len(roles["to"]) != 1:
+        raise HTTPException(400, detail="Ein eingehender Anruf hat genau einen Anrufer.")
+    return roles["to"][0], {**roles, "to": [actor.object_id]}
+
+
 def _assert_answers(db: Session, reply_to: int, roles: dict[str, list[int]], body: str,
-                    actor: UserProfile) -> None:
+                    actor: UserProfile, author: int) -> None:
     """Eine Antwort erreicht, wem sie antwortet (``answer_targets``). «Erledigt ohne
-    Antwort» (kein Text) ist an niemanden gerichtet und darum frei."""
+    Antwort» (kein Text) ist an niemanden gerichtet und darum frei. Wer selbst anruft, ist
+    erreicht – bei «wurde angerufen» ist der Kontakt der Absender."""
     parent = db.query(Message).filter(Message.id == reply_to,
                                       Message.is_active.is_(True)).first()
     if parent is None:
@@ -191,7 +217,7 @@ def _assert_answers(db: Session, reply_to: int, roles: dict[str, list[int]], bod
     targets = answer_targets(parent.sender_object_id,
                              bool(sender and sender.role in STAFF_ROLES), proles,
                              actor.object_id)
-    if targets and not targets & {*roles["to"], *roles["cc"]}:
+    if targets and not targets & {*roles["to"], *roles["cc"], author}:
         names = _people(db, targets)
         who = ", ".join(sorted(names[t].display_name for t in targets if t in names)) \
             or ", ".join(str(t) for t in sorted(targets))
@@ -325,6 +351,18 @@ def history(db: Session, *, person: Optional[int] = None,
     return load(db, _ids_for(db, persons))
 
 
+def holders(m: MessageOut) -> set[int]:
+    """►►► **Wo eine offene Nachricht zählt – dort, wo die Sache liegt.** ◄◄◄ Mit
+    «Betrifft» bei den Betroffenen (eine Notiz über Unisto an mich zählt bei Unisto, nicht
+    bei mir); sonst bei den Externen, die beteiligt sind (der Kunde, der schreibt); und nur,
+    wo es keine gibt, bei den Mitarbeitern im «An» (die interne Frage an die Kollegin)."""
+    if m.about:
+        return {p.object_id for p in m.about}
+    everyone = [m.sender, *m.to, *m.cc, *m.bcc]
+    outside = {p.object_id for p in everyone if not p.staff}
+    return outside or {p.object_id for p in m.to}
+
+
 def open_counts(db: Session) -> list[OpenCount]:
     """**Das Zeichen im Feed**: je Person die offenen Nachrichten in ihrem Verlauf.
 
@@ -338,9 +376,7 @@ def open_counts(db: Session) -> list[OpenCount]:
     for m in load(db, ids):
         if not m.open:
             continue
-        involved = {m.sender.object_id, *(p.object_id for r in (m.to, m.cc, m.bcc, m.about)
-                                          for p in r)}
-        for oid in involved:
+        for oid in holders(m):
             counts[oid][0] += 1
             counts[oid][1] += int(m.overdue)
     return [OpenCount(object_id=k, open=v[0], overdue=v[1]) for k, v in counts.items()]

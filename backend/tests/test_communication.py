@@ -31,6 +31,7 @@ def _send(db, actor, sender=None, **kw):
     """Geschrieben wird im eigenen Namen – eine Nachricht «von Lea» schreibt also Lea."""
     if sender is not None and sender != actor.object_id:
         actor = db.query(UserProfile).filter(UserProfile.object_id == sender).one()
+    kw.setdefault("subject", "Betreff")     # eine E-Mail braucht einen (``_assert_mail``)
     return svc.create(db, MessageIn(**kw), actor)
 
 
@@ -120,7 +121,7 @@ def test_history_is_every_message_a_person_takes_part_in(world):
     lea, marco = _person(db, company=firm), _person(db, company=firm)
     a = _send(db, actor, channel="c999999990", sender=lea, body="a")
     b = _send(db, actor, channel="c999999990", sender=staff, to=[marco], cc=[lea], body="b")
-    c = _send(db, actor, channel="c999999990", sender=staff, bcc=[lea], body="c")
+    c = _send(db, actor, channel="c999999990", sender=staff, to=[marco], bcc=[lea], body="c")
     d = _send(db, actor, channel="intern", sender=staff, about=[lea], body="d")
     e = _send(db, actor, channel="intern", sender=staff, body="e")
     lea_ids = [m.id for m in svc.history(db, person=lea)]
@@ -192,7 +193,9 @@ def test_an_answer_reaches_whom_it_answers(world):
     with pytest.raises(HTTPException) as e:
         _send(db, actor, channel="intern", to=[sara], body="Kannst du?", reply_to=ask.id)
     assert e.value.status_code == 400 and str(lea) in e.value.detail
-    _send(db, actor, channel="c999999990", cc=[lea], body="Antwort", reply_to=ask.id)
+    marco = _person(db)
+    _send(db, actor, channel="c999999990", to=[marco], cc=[lea], body="Antwort",
+          reply_to=ask.id)
     _send(db, actor, channel="intern", body="", reply_to=ask.id)
     me = _send(db, actor, channel="intern", to=[staff], body="zurückrufen")
     _send(db, actor, channel="intern", body="erledigt", reply_to=me.id)
@@ -217,3 +220,50 @@ def test_a_message_names_whom_an_answer_must_reach(world):
     assert m.sender.company == "Muster AG" and m.sender.email == f"p{lea}@x.ch"
     mine = _one(db, _send(db, actor, channel="c999999990", to=[lea], body="y").id)
     assert {p.object_id for p in mine.answer_to} == {staff, lea}
+
+
+def test_an_email_needs_a_recipient_and_a_subject(world):
+    """Eine E-Mail von uns ohne «An» oder ohne Betreff geht nicht hinaus (400 mit Satz) –
+    ohne «An» hätte sie keinen Adressaten, ohne Betreff steht beim Empfänger eine leere
+    Zeile. Eine Notiz braucht beides nicht."""
+    db, actor, staff = world
+    lea = _person(db)
+    with pytest.raises(HTTPException) as e:
+        _send(db, actor, channel="c999999990", cc=[lea], body="x")
+    assert "«An»" in e.value.detail
+    with pytest.raises(HTTPException) as e:
+        _send(db, actor, channel="c999999990", to=[lea], subject="  ", body="x")
+    assert "Betreff" in e.value.detail
+    _send(db, actor, channel="intern", about=[lea], subject=None, body="Notiz")
+
+
+def test_an_incoming_call_has_the_caller_as_sender(world):
+    """«Wurde angerufen»: der Kontakt ist der Absender, ich der Empfänger – nur bei einem
+    Anruf und nur mit genau einem Anrufer. Wer es erfasst hat, steht in ``created_by``."""
+    db, actor, staff = world
+    lea = _person(db)
+    m = _send(db, actor, channel="phone", to=[lea], body="Will Offerte", incoming=True)
+    out = _one(db, m.id)
+    assert out.sender.object_id == lea and [p.object_id for p in out.to] == [staff]
+    assert m.created_by == actor.id and not out.open
+    with pytest.raises(HTTPException):
+        _send(db, actor, channel="intern", to=[lea], body="x", incoming=True)
+    with pytest.raises(HTTPException):
+        _send(db, actor, channel="phone", to=[lea, staff], body="x", incoming=True)
+    # Ruft sie zurück und «antwortet» damit auf ihre Mail, ist sie als Anruferin erreicht.
+    mail = _send(db, actor, channel="c999999990", sender=lea, body="Frage")
+    _send(db, actor, channel="phone", to=[lea], body="zurückgerufen", incoming=True,
+          reply_to=mail.id)
+
+
+def test_the_feed_mark_sits_where_the_matter_is(world):
+    """Eine Notiz an mich über Unisto zählt bei Unisto, nicht bei mir; die Mail eines
+    Kunden bei ihm; die interne Frage ohne «Betrifft» bei der gefragten Kollegin."""
+    db, actor, staff = world
+    lea, unisto, sara = _person(db), _person(db), _person(db, "employee")
+    _send(db, actor, channel="intern", to=[staff], about=[unisto], body="nachfassen")
+    _send(db, actor, channel="c999999990", sender=lea, body="Frage")
+    _send(db, actor, channel="intern", to=[sara], body="Lager?")
+    rows = {c.object_id: c.open for c in svc.open_counts(db)}
+    assert rows.get(unisto) == 1 and rows.get(lea) == 1 and rows.get(sara) == 1
+    assert staff not in rows

@@ -146,16 +146,16 @@ def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
     monkeypatch.setattr(mb, "ready", lambda: True)
     monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m.id) or False)
     m = comm.create(db, MessageIn(channel=CH, sender=staff.object_id, to=[lea.object_id],
-                                  body="Offerte"), staff)
+                                  subject="Offerte", body="Offerte"), staff)
     assert sent == [m.id] and comm.load(db, [m.id])[0].pending
     box.is_active = False
     db.flush()
     with pytest.raises(HTTPException):
         comm.create(db, MessageIn(channel=CH, sender=staff.object_id,
-                                  to=[lea.object_id], body="x"), staff)
+                                  to=[lea.object_id], subject="x", body="x"), staff)
     with pytest.raises(HTTPException):          # ein persönliches nur mit seinem Besitzer
         comm.create(db, MessageIn(channel=f"u{lea.object_id}", sender=staff.object_id,
-                                  to=[lea.object_id], body="x"), staff)
+                                  to=[lea.object_id], subject="x", body="x"), staff)
 
 
 def test_every_own_company_has_its_own_mailbox_and_the_old_info_moves_to_the_operator():

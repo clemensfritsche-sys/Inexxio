@@ -5103,6 +5103,22 @@
 > sie sofort, beim Schliessen des Fensters wird gewarnt. **(6) Ein Zeichen am Symbol hat EINE
 > Form** (`fields.IconMark`): unten rechts, was der Datensatz **ist** (eigene Gesellschaft,
 > Abweichung), oben rechts, was **zu tun** ist (offene Nachrichten, ab 10 «9+»).
+>
+> ►►► **Kommunikation: eine Mail geht nur vollständig hinaus — und gezählt wird, wo die
+> Sache liegt.** ◄◄◄ **(1) Das Feed-Zeichen** (`communication.holders`): mit «Betrifft»
+> nur dort, sonst bei den Externen, sonst bei den Mitarbeitern im «An» – eine Notiz an
+> mich über Unisto zählt bei Unisto, nicht zusätzlich bei mir. Mitarbeiter tragen im
+> Verlauf keinen Firmen-Präfix. **(2) Eine E-Mail braucht «An» und Betreff** (400 im
+> Dienst, `_assert_mail`); der stille Rückfall auf die Firmenadresse ist weg. Wer
+> beantwortet wird, lässt sich nicht entfernen, aber zwischen «An» und «Cc» schieben (Bcc
+> zählt nicht). **(3) Ein Anruf hat eine Richtung** (`MessageIn.incoming`): «Ich habe
+> angerufen ↔ Wurde angerufen» tauscht Von und An; bei eingehend ist der Kontakt der
+> Absender (genau einer) und als Anrufer zugleich erreicht, `created_by` bleibt, wer es
+> erfasst hat. **(4) Senden ist ein Symbol wie im Chat**: gesperrt mit Grund im Hover
+> (dieselben Regeln wie im Dienst), nach dem Klick läuft der 3-s-Countdown **im** Knopf
+> (Ring + Sekunden), ein Klick holt die Mail zurück – der Statusbalken ist entfallen.
+> **(5) Der Hover nennt Rollen**: je Von/An/Cc/Bcc Name und darunter die Adresse, das
+> Postfach unter dem, der darüber schreibt; intern «Intern – verlässt das Haus nicht».
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

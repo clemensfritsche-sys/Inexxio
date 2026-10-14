@@ -74,6 +74,10 @@ class MessageIn(BaseModel):
     #: **Genau eine** Nachricht, die diese beantwortet – oder keine. Eine Antwort schliesst
     #: nur, worauf sie antwortet; jede andere offene Nachricht bleibt offen.
     reply_to: Optional[int] = None
+    #: **Nur bei einem Gespräch** (``live``): «wurde angerufen» – dann ist der Kontakt im
+    #: «An» der Absender und ich der Empfänger. Ein Anruf hält fest, was passiert ist; wer
+    #: ihn erfasst hat, steht weiterhin in ``created_by``. Bei jedem anderen Kanal 400.
+    incoming: bool = False
 
 
 class MessageOut(BaseModel):

@@ -7299,6 +7299,11 @@
               }
             ],
             "title": "Reply To"
+          },
+          "incoming": {
+            "type": "boolean",
+            "title": "Incoming",
+            "default": false
           }
         },
         "type": "object",
