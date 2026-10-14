@@ -31,9 +31,9 @@ keine Anbindung – eine E-Mail wird dann wie bisher nur **erfasst**, nicht gese
 Ein Postfach wird dort verbunden, wem es gehört (Reiter **Kommunikation**, Zeile
 «Postfach» → **Verbinden**):
 * **Je eigene Gesellschaft eines** – an ihrem **Unternehmens-Datensatz**, nur ein
-  **Admin**. Es muss das Konto sein, das dort als **Kontakt-E-Mail** steht (dieselbe, die
-  die Website im Land dieser Gesellschaft zeigt) – sonst lehnt das ERP ab und sagt,
-  welches.
+  **Admin**. Das verbundene Konto **wird** die **Kontakt-E-Mail** der Gesellschaft
+  (dieselbe, die die Website im Land dieser Gesellschaft zeigt); **Trennen** leert sie.
+  Ein Eingabefeld dafür gibt es nicht – die Adresse ist immer die des Postfachs.
 * **Persönlich**: jeder Mitarbeiter an seinem **eigenen** Benutzer-Datensatz.
 
 Anfragen aus dem **Kontaktformular der Website** landen im Postfach der Gesellschaft, die

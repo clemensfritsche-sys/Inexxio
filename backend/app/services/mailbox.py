@@ -4,10 +4,11 @@ Drei Dinge, und jedes an genau einer Stelle:
 
 * **Verbinden** (``connect_url`` → Google → ``callback``): je Kanal ein Postfach, OAuth
   mit dauerhaftem Zugang. **Jede eigene Gesellschaft hat eines** (``c<Objektnummer>``),
-  und es muss **ihre Kontakt-E-Mail** sein – dieselbe, die die Website im Land dieser
-  Gesellschaft zeigt; eine zweite Adresse daneben wäre die Angabe, die beim
-  Domain-Wechsel stehenbleibt. Verbunden wird es am **Firmen-Datensatz** (nur ein Admin),
-  ein **persönliches** am eigenen Datensatz (nur sein Besitzer).
+  und ►►► **ihre Kontakt-E-Mail IST seine Adresse** ◄◄◄ – gesetzt allein durch das
+  Verbinden, geleert allein durch das Trennen; ein Eingabefeld dafür gibt es nicht. So
+  kann die Website nie eine Adresse zeigen, über die nichts hinausgeht und nichts
+  hereinkommt. Verbunden wird es am **Firmen-Datensatz** (nur ein Admin), ein
+  **persönliches** am eigenen Datensatz (nur sein Besitzer).
 * **Abgleichen** (``sync_all``): neue Mails seit dem letzten Stand (Gmail ``history``)
   werden zu Nachrichten. Der Absender wird einer Person zugeordnet – **unbekannte werden
   angelegt** (ohne Anmeldekonto: meldet sie sich später mit dieser Adresse an, übernimmt
@@ -109,7 +110,7 @@ def active(db: Session, channel: str) -> Optional[Mailbox]:
 def address_of(db: Session, channel: str) -> str:
     """Die Adresse hinter einem Mail-Kanal – angezeigt als sein Name."""
     if dc.company_of(channel) is not None:
-        return company_address(db, channel) or channel
+        return company_address(db, channel)     # leer = (noch) kein Postfach verbunden
     mb = active(db, channel)
     if mb is not None:
         return mb.address
@@ -231,15 +232,16 @@ def callback(db: Session, code: str, state: str) -> str:
 
 def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh: str,
            history: str) -> str:
-    """Das Postfach festhalten – nach zwei Prüfungen, beide mit Satz."""
-    if dc.company_of(channel) is not None and address != company_address(db, channel):
-        return (f"Verbunden wurde «{address}», die Gesellschaft führt aber "
-                f"«{company_address(db, channel) or 'keine'}» als Kontakt-E-Mail – bitte mit "
-                f"diesem Konto anmelden oder die Kontakt-E-Mail an der Gesellschaft ändern.")
+    """Das Postfach festhalten. **Eine Adresse gehört genau einem Postfach** – auch nicht
+    der Kontakt-E-Mail einer anderen Gesellschaft. Am Unternehmens-Postfach wird sie
+    zugleich **die Kontakt-E-Mail der Gesellschaft** (die eine Schreibstelle dafür)."""
+    if not address:
+        return "Google hat keine Adresse genannt – bitte erneut verbinden."
     other = db.query(Mailbox).filter(Mailbox.address == address, Mailbox.channel != channel,
                                      Mailbox.is_active.is_(True)).first()
-    if other is not None or (dc.owner_of(channel) is not None
-                             and address in _company_addresses(db)):
+    firm = company(db, channel)
+    taken = _company_addresses(db) - ({normalize_email(firm.email)} if firm else set())
+    if other is not None or address in taken:
         return f"«{address}» ist bereits als anderes Postfach verbunden."
     old = active(db, channel)
     if old is not None:
@@ -247,14 +249,31 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
         db.flush()
     db.add(Mailbox(channel=channel, address=address, owner_object_id=actor.object_id,
                    token=_seal(refresh), history_id=history or None))
+    if firm is not None:
+        _contact(db, firm, address, actor)
     db.commit()
     return ""
 
 
+def _contact(db: Session, firm: Any, address: str, actor: UserProfile) -> None:
+    """Die Kontakt-E-Mail einer eigenen Gesellschaft – geschrieben NUR von hier."""
+    from .admin import log_audit
+    if normalize_email(firm.email) != address:
+        firm.email = address
+        log_audit(db, "company_settings", "email", address or "[entfernt]", actor.id,
+                  object_id=firm.object_id)
+
+
 def disconnect(db: Session, channel: str, actor: UserProfile) -> None:
+    """Trennen – und am Unternehmens-Postfach verschwindet damit seine Kontakt-E-Mail:
+    eine Adresse, über die nichts mehr hereinkommt, zeigt die Website nicht."""
     _assert_may(db, actor, channel)
     mb = active(db, channel)
+    firm = company(db, channel)
+    if firm is not None:
+        _contact(db, firm, "", actor)
     if mb is None:
+        db.commit()
         return
     mb.is_active = False
     token = _open(mb.token)
@@ -425,8 +444,7 @@ def person_for(db: Session, name: str, addr: str, phone: str = "") -> int:
         if phone and not found.phone:
             found.phone = phone[:50]
         return found.object_id
-    parts = (name or "").replace('"', "").strip().split()
-    first, last = (parts[0], " ".join(parts[1:])) if parts else (addr.split("@")[0], "")
+    first, last = split_name(name) or (addr.split("@")[0], "")
     user = UserProfile(firebase_uid=f"mail:{addr}"[:128], email=addr, role="user",
                        first_name=first[:100], last_name=last[:100],
                        phone=phone[:50] or None, object_id=next_object_id(db, "user"))
@@ -437,13 +455,30 @@ def person_for(db: Session, name: str, addr: str, phone: str = "") -> int:
     return user.object_id
 
 
+def split_name(name: str) -> Optional[tuple[str, str]]:
+    """Vor- und Nachname aus dem Namen im Mail-Kopf. «Fritsche, Clemens» ist die
+    Schreibweise «Nachname, Vorname» – das Komma sagt es, also wird gedreht und das Komma
+    fällt weg. Sonst: das erste Wort ist der Vorname. ``None`` = kein Name."""
+    raw = re.sub(r"\s+", " ", (name or "").replace('"', "")).strip()
+    if "," in raw:
+        last, _, first = raw.partition(",")
+        raw = f"{first.strip()} {last.strip()}".strip()
+    parts = raw.split(" ") if raw else []
+    return (parts[0][:100], " ".join(parts[1:])[:100]) if parts else None
+
+
 def _replied(db: Session, head: dict[str, str]) -> list[int]:
-    """«Antwort auf» – jede Nachricht, die ``In-Reply-To``/``References`` nennt."""
-    refs = re.findall(r"<[^<>]+>", f"{head.get('in-reply-to', '')} {head.get('references', '')}")
-    if not refs:
-        return []
-    return [i for (i,) in db.query(Message.id).filter(
-        Message.rfc_id.in_(refs), Message.is_active.is_(True)).all()]
+    """«Antwort auf» – **genau eine** Nachricht: die, die ``In-Reply-To`` nennt (sonst die
+    nächstjüngste aus ``References``, die es bei uns gibt). Eine Antwort beantwortet, worauf sie antwortet – nicht den
+    ganzen Faden; jede andere offene Nachricht bleibt offen."""
+    refs = (re.findall(r"<[^<>]+>", head.get("in-reply-to", ""))
+            + re.findall(r"<[^<>]+>", head.get("references", ""))[::-1])
+    for ref in refs:
+        found = db.query(Message.id).filter(
+            Message.rfc_id == ref[:255], Message.is_active.is_(True)).first()
+        if found:
+            return [found[0]]
+    return []
 
 
 class _Html(HTMLParser):

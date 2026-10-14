@@ -169,3 +169,74 @@ def test_every_own_company_has_its_own_mailbox_and_the_old_info_moves_to_the_ope
         dc.channel("info")
     sql = " ".join(dc.info_repair_sql())
     assert "is_own" in sql and "is_operator DESC" in sql and "channel = 'info'" in sql
+
+
+def test_an_answer_in_gmail_closes_only_the_mail_it_answers(world):
+    """``In-Reply-To`` nennt genau eine Mail – die übrigen im Faden (``References``)
+    bleiben offen, und die Nachfrage eines Kunden erledigt seine erste Frage nicht. Jede
+    muss für sich beantwortet oder als erledigt markiert werden."""
+    db, staff, box = world
+    first = _gmail("z@kunde.ch", to=COMPANY, rfc="<f1@kunde>")
+    second = _gmail("z@kunde.ch", to=COMPANY, rfc="<f2@kunde>", in_reply_to="<f1@kunde>")
+    mb.ingest(db, box, first)
+    mb.ingest(db, box, second)
+    answer = _gmail(COMPANY, to="z@kunde.ch", labels=("SENT",), rfc="<f3@inexxio>",
+                    in_reply_to="<f2@kunde>", references="<f1@kunde> <f2@kunde>")
+    mb.ingest(db, box, answer)
+    assert _one(db, first["id"]).open and not _one(db, second["id"]).open
+    assert _one(db, answer["id"]).reply_to == _one(db, second["id"]).id
+
+
+def test_last_comma_first_is_turned_around():
+    """«Fritsche, Clemens» ist «Nachname, Vorname» – gedreht, ohne Komma."""
+    assert mb.split_name('"Fritsche, Clemens"') == ("Clemens", "Fritsche")
+    assert mb.split_name("Lea  Maria Muster") == ("Lea", "Maria Muster")
+    assert mb.split_name("  ") is None
+
+
+def test_the_signature_folds_and_greeting_and_name_stay():
+    from app.domain.communication import split_signature
+    text = ("Hallo\n\n\n\nDanke für die Offerte.\n\nFreundliche Grüsse\n\nClemens Fritsche"
+            "\n\n\nInexxio AG\n\nStrasse 1\n\nwww.inexxio.com <http://www.inexxio.com>")
+    body, sig = split_signature(text, "Clemens Fritsche")
+    assert body == "Hallo\n\nDanke für die Offerte.\n\nFreundliche Grüsse\n\nClemens Fritsche"
+    assert sig == "Inexxio AG\nStrasse 1\nwww.inexxio.com <http://www.inexxio.com>"
+    assert split_signature("Kurz.\n--\nCF\nTel 1") == ("Kurz.", "CF\nTel 1")
+    # Nichts erkannt → der Text bleibt, wie er ist; lieber zu viel zeigen als verschlucken.
+    assert split_signature("Danke.\nBeste Grüsse\nMax") == ("Danke.\nBeste Grüsse\nMax", None)
+
+
+def test_the_contact_email_of_an_own_company_is_its_mailbox(monkeypatch):
+    """Gesetzt allein durch Verbinden, geleert allein durch Trennen – und die normale
+    Pflege schreibt sie nicht (ein zweiter Weg wäre die Adresse, die nie hinausgeht)."""
+    from app.models import CompanySettings
+    from app.services import sites
+    db = session()
+    monkeypatch.setattr(db, "commit", db.flush)
+    monkeypatch.setattr(mb, "_open", lambda _t: None)
+    try:
+        oid = random.randint(900_000_000, 999_999_999)
+        firm = CompanySettings(company_name=f"T{oid}", legal_form="AG", is_own=True,
+                               email="alt@firma.ch", country="CH", object_id=oid)
+        db.add(firm)
+        admin = _person(db, "admin")
+        db.flush()
+        key = f"c{oid}"
+        assert mb._store(db, key, admin, f"neu{oid}@firma.ch", "t", "1") == ""
+        assert firm.email == f"neu{oid}@firma.ch"
+        sites._apply_entity_fields(firm, {"email": "x@y.ch"}, db, None)
+        assert firm.email == f"neu{oid}@firma.ch"
+        # Lag beides schon vor der Kopplung auseinander, zieht der Start es nach.
+        from sqlalchemy import text
+        from app.domain.communication import contact_repair_sql
+        firm.email = "vorher@anders.ch"
+        db.flush()
+        for stmt in contact_repair_sql():
+            db.execute(text(stmt))
+        db.refresh(firm)
+        assert firm.email == f"neu{oid}@firma.ch"
+        mb.disconnect(db, key, admin)
+        assert firm.email == "" and mb.active(db, key) is None
+    finally:
+        db.rollback()
+        db.close()

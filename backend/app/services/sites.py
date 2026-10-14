@@ -65,8 +65,11 @@ ENTITY_FIELDS = (
     "street", "street_nr", "zip_code", "city", "country",
     "currency",
     "uid_number", "vat_number",
-    "email", "phone",
+    "phone",
 )
+# ``email`` steht bewusst NICHT hier: die Kontakt-E-Mail einer eigenen Gesellschaft IST die
+# Adresse ihres Postfachs – gesetzt wird sie allein beim Verbinden, geleert beim Trennen
+# (``services/mailbox``). Ein zweiter Schreibweg wäre die Adresse, die nie hinausgeht.
 
 # Land → Funktionswährung (Vorbelegung, editierbar). Bewusst klein & offensichtlich; der
 # Rest der Welt fällt auf CHF (die Heimatwährung) zurück, bis er gebraucht wird. Verglichen

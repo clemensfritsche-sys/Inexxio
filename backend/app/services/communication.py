@@ -32,31 +32,49 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
 
 
-def channel_out(key: str, label: Optional[str] = None) -> ChannelOut:
-    """Ein Kanal – ein Postfach heisst wie seine Adresse (``mailbox.address_of``)."""
+def channel_out(key: str, label: Optional[str] = None, name: Optional[str] = None
+                ) -> ChannelOut:
+    """Ein Kanal – ein Postfach heisst wie seine Adresse (``mailbox.address_of``) und
+    trägt den Namen, in dem es hinausgeht (``name``)."""
     c = dc.channel(key)
     return ChannelOut(key=c.key, label=label or c.label, kind=c.kind, outside=c.outside,
-                      mail=dc.is_mail(key), personal=dc.owner_of(key) is not None)
+                      mail=dc.is_mail(key), personal=dc.owner_of(key) is not None,
+                      name=name)
 
 
-def _labels(db: Session, keys: Iterable[str]) -> dict[str, str]:
-    from .mailbox import address_of
-    return {k: address_of(db, k) for k in set(keys) if dc.is_mail(k)}
+def _labels(db: Session, keys: Iterable[str]) -> dict[str, tuple[str, Optional[str]]]:
+    """Je Postfach seine Adresse und – bei einer Gesellschaft – ihr Name."""
+    from .mailbox import address_of, company
+    from .sites import legal_name
+    out = {}
+    for k in set(keys):
+        if dc.is_mail(k):
+            firm = company(db, k)
+            out[k] = (address_of(db, k), legal_name(firm) if firm else None)
+    return out
 
 
 def channels(db: Session, actor: UserProfile) -> list[ChannelOut]:
-    """Die Kanäle, über die dieser Mitarbeiter schreiben kann: jede eigene Gesellschaft,
-    sein eigenes Postfach (wenn verbunden), Telefon, Intern."""
-    from .mailbox import active
+    """►►► **Worüber DIESER Mitarbeiter schreiben kann** – geschrieben wird nur im eigenen
+    Namen oder in dem einer eigenen Gesellschaft, nie in fremdem. ◄◄◄
+
+    Mit Anbindung nur **verbundene** Postfächer (die Gesellschaften, Betreiber zuerst, und
+    das eigene): ein anderes könnte die Mail nicht hinausschicken. Ohne Anbindung wird nur
+    erfasst – dann jede eigene Gesellschaft. Dazu Telefon und Intern."""
+    from . import mailbox
     from .sites import find_operator, selectable_companies
     op = find_operator(db)
     firms = sorted(selectable_companies(db), key=lambda c: (op is None or c.id != op.id, c.id))
     keys = [dc.company(c.object_id) for c in firms if c.object_id]
-    if actor.object_id and active(db, dc.personal(actor.object_id)) is not None:
+    if actor.object_id:
         keys.append(dc.personal(actor.object_id))
+    if mailbox.ready():
+        keys = [k for k in keys if (mb := mailbox.active(db, k)) is not None and not mb.problem]
+    else:
+        keys = [k for k in keys if dc.company_of(k) is not None]
     keys += list(dc.CHANNELS)
     labels = _labels(db, keys)
-    return [channel_out(k, labels.get(k)) for k in keys]
+    return [channel_out(k, *labels.get(k, (None, None))) for k in keys]
 
 
 # ---------------------------------------------------------------------------
@@ -91,25 +109,32 @@ def _assert_people(db: Session, ids: set[int]) -> None:
 def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     """**Eine Nachricht – dieselbe Funktion für E-Mail, Anruf, Notiz, Frage, Erinnerung.**
 
-    Zwei Prüfungen, mehr braucht es nicht: die Angaben müssen existieren, und eine
-    Nachricht ohne Text muss etwas beantworten (sonst sagt sie nichts – mit «Antwort auf»
-    ist sie das «erledigt ohne Antwort»)."""
+    **Absender ist, wer angemeldet ist** – geschrieben wird nie in fremdem Namen; im Namen
+    einer eigenen Gesellschaft schon (ihr Postfach ist der Kanal), über das persönliche
+    Postfach eines anderen nicht. Die Angaben müssen existieren, «Antwort auf» nennt
+    **höchstens eine** Nachricht, und eine Nachricht ohne Text muss etwas beantworten
+    (sonst sagt sie nichts – mit «Antwort auf» ist sie das «erledigt ohne Antwort»)."""
     try:
         dc.channel(data.channel)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc)) from exc
+    if not actor.object_id:
+        raise HTTPException(400, detail="Ohne Objektnummer lässt sich nichts schreiben.")
+    owner = dc.owner_of(data.channel)
+    if owner is not None and owner != actor.object_id:
+        raise HTTPException(403, detail=f"Über das Postfach von «{owner}» schreibt nur "
+                                        f"sein Besitzer.")
     roles = {"to": data.to, "cc": data.cc, "bcc": data.bcc, "about": data.about}
-    _assert_people(db, {data.sender, *(i for ids in roles.values() for i in ids)})
+    _assert_people(db, {i for ids in roles.values() for i in ids})
     body = (data.body or "").strip()
-    if not body and not data.reply_to:
+    if not body and data.reply_to is None:
         raise HTTPException(400, detail="Eine Nachricht ohne Text muss etwas beantworten.")
-    replies = sorted(set(data.reply_to))
-    if replies:
-        known = {i for (i,) in db.query(Message.id).filter(
-            Message.id.in_(replies), Message.is_active.is_(True)).all()}
-        if set(replies) - known:
-            raise HTTPException(400, detail="«Antwort auf» nennt eine Nachricht, die es nicht gibt.")
-    msg = Message(sender_object_id=data.sender, channel=data.channel,
+    replies = [data.reply_to] if data.reply_to is not None else []
+    if replies and not db.query(Message.id).filter(
+            Message.id == data.reply_to, Message.is_active.is_(True)).first():
+        raise HTTPException(400, detail=f"«Antwort auf» nennt die Nachricht "
+                                        f"«{data.reply_to}», die es nicht gibt.")
+    msg = Message(sender_object_id=actor.object_id, channel=data.channel,
                   subject=(data.subject or "").strip() or None, body=body,
                   at=_aware(data.at) if data.at else _now(), created_by=actor.id)
     write(db, msg, roles, replies)
@@ -171,31 +196,40 @@ def _ids_for(db: Session, persons: list[int]) -> list[int]:
     return [r for (r,) in rows]
 
 
+def _answers(db: Session):
+    """►►► **Beantwortet ist, worauf eine Nachricht VON UNS antwortet.** ◄◄◄ Schreibt ein
+    Kunde im selben Faden nach, ist seine erste Frage damit nicht erledigt – sie wartet
+    weiter auf uns. Die eine Abfrage für Verlauf und Feed-Zeichen."""
+    return (db.query(MessageReply.reply_to_id)
+            .join(Message, Message.id == MessageReply.message_id)
+            .join(UserProfile, UserProfile.object_id == Message.sender_object_id)
+            .filter(Message.is_active.is_(True), UserProfile.role.in_(STAFF_ROLES)))
+
+
 def load(db: Session, ids: list[int]) -> list[MessageOut]:
     if not ids:
         return []
     msgs = db.query(Message).filter(Message.id.in_(ids)).order_by(Message.at, Message.id).all()
     parties = db.query(MessageParty).filter(MessageParty.message_id.in_(ids)).all()
     replies = db.query(MessageReply).filter(MessageReply.message_id.in_(ids)).all()
-    answered = {rid for (rid,) in db.query(MessageReply.reply_to_id).join(
-        Message, Message.id == MessageReply.message_id).filter(
-        MessageReply.reply_to_id.in_(ids), Message.is_active.is_(True)).all()}
+    answered = {rid for (rid,) in _answers(db).filter(MessageReply.reply_to_id.in_(ids)).all()}
     people = _people(db, [m.sender_object_id for m in msgs]
                      + [p.person_object_id for p in parties])
     by_msg: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     for p in parties:
         by_msg[p.message_id][p.role].append(p.person_object_id)
-    reply_to: dict[int, list[int]] = defaultdict(list)
-    for r in replies:
-        reply_to[r.message_id].append(r.reply_to_id)
+    reply_to: dict[int, int] = {}
+    for r in sorted(replies, key=lambda r: r.reply_to_id):
+        reply_to.setdefault(r.message_id, r.reply_to_id)
     now = _now()
     labels = _labels(db, [m.channel for m in msgs])
-    return [_out(m, by_msg[m.id], reply_to[m.id], m.id in answered, people, now, labels)
+    return [_out(m, by_msg[m.id], reply_to.get(m.id), m.id in answered, people, now, labels)
             for m in msgs]
 
 
-def _out(m: Message, roles: dict[str, list[int]], reply_to: list[int], answered: bool,
-         people: dict[int, UserProfile], now: datetime, labels: dict[str, str]) -> MessageOut:
+def _out(m: Message, roles: dict[str, list[int]], reply_to: Optional[int], answered: bool,
+         people: dict[int, UserProfile], now: datetime,
+         labels: dict[str, tuple[str, Optional[str]]]) -> MessageOut:
     from .mailbox import gmail_url
     sender = _ref(people, m.sender_object_id)
     refs = {r: [_ref(people, i) for i in roles.get(r, [])] for r in dc.ROLES}
@@ -203,14 +237,17 @@ def _out(m: Message, roles: dict[str, list[int]], reply_to: list[int], answered:
     is_open = (at <= now and not answered and dc.to_us(
         channel_key=m.channel, sender_staff=sender.staff,
         to_staff=any(p.staff for p in refs["to"])))
+    address, name = labels.get(m.channel, (None, None))
+    body, signature = (dc.split_signature(m.body or "", sender.name) if dc.is_mail(m.channel)
+                       else (m.body or "", None))
     return MessageOut(
-        id=m.id, channel=channel_out(m.channel, labels.get(m.channel)), sender=sender,
+        id=m.id, channel=channel_out(m.channel, address, name), sender=sender,
         to=refs["to"], cc=refs["cc"], bcc=refs["bcc"], about=refs["about"],
-        subject=m.subject, body=m.body, at=at, reply_to=sorted(reply_to),
+        subject=m.subject, body=body, signature=signature, at=at, reply_to=reply_to,
         ours=sender.staff, open=is_open,
         overdue=is_open and now - at > dc.OVERDUE_AFTER, planned=at > now,
         pending=bool(m.outgoing), attachments=m.attachments or [],
-        gmail_url=gmail_url(labels[m.channel], m) if m.channel in labels else None,
+        gmail_url=gmail_url(address, m) if address else None,
     )
 
 
@@ -232,11 +269,10 @@ def open_counts(db: Session) -> list[OpenCount]:
 
     Gelesen werden nur Kandidaten – Zeitpunkt erreicht und unbeantwortet –, die Regel
     selbst ist dieselbe wie im Verlauf (``_out``), keine zweite Fassung."""
-    answered = select(MessageReply.reply_to_id).join(
-        Message, Message.id == MessageReply.message_id).where(Message.is_active.is_(True))
+    answered = _answers(db).subquery()
     ids = [i for (i,) in db.query(Message.id).filter(
         Message.is_active.is_(True), Message.at <= _now(),
-        Message.id.notin_(answered)).all()]
+        Message.id.notin_(select(answered.c.reply_to_id))).all()]
     counts: dict[int, list[int]] = defaultdict(lambda: [0, 0])
     for m in load(db, ids):
         if not m.open:

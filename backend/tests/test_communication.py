@@ -27,7 +27,10 @@ def _person(db, role="user", company=None) -> int:
     return oid
 
 
-def _send(db, actor, **kw):
+def _send(db, actor, sender=None, **kw):
+    """Geschrieben wird im eigenen Namen – eine Nachricht «von Lea» schreibt also Lea."""
+    if sender is not None and sender != actor.object_id:
+        actor = db.query(UserProfile).filter(UserProfile.object_id == sender).one()
     return svc.create(db, MessageIn(**kw), actor)
 
 
@@ -54,7 +57,7 @@ def test_a_message_from_outside_is_open_until_someone_answers(world):
     assert _one(db, m.id).open
     other = _person(db, "employee")
     _send(db, actor, channel="phone", sender=other, to=[lea], body="Donnerstag.",
-          reply_to=[m.id])
+          reply_to=m.id)
     assert not _one(db, m.id).open
 
 
@@ -106,7 +109,7 @@ def test_done_without_answer_is_a_silent_reply(world):
     m = _send(db, actor, channel="c999999990", sender=lea, body="Danke!")
     with pytest.raises(HTTPException):
         _send(db, actor, channel="intern", sender=staff, body="")
-    _send(db, actor, channel="intern", sender=staff, body="", reply_to=[m.id])
+    _send(db, actor, channel="intern", sender=staff, body="", reply_to=m.id)
     assert not _one(db, m.id).open
 
 
@@ -141,7 +144,7 @@ def test_unknown_channel_and_person_are_refused(world):
     with pytest.raises(HTTPException):
         _send(db, actor, channel="fax", sender=staff, body="x")
     with pytest.raises(HTTPException):
-        _send(db, actor, channel="c999999990", sender=1, body="x")
+        _send(db, actor, channel="c999999990", to=[1], body="x")
 
 
 def test_there_is_no_kind_switch():
@@ -150,3 +153,30 @@ def test_there_is_no_kind_switch():
     for path in ("app/services/communication.py", "app/domain/communication.py"):
         src = (BACKEND / path).read_text()
         assert "kind ==" not in src and "kind==" not in src, path
+
+
+def test_one_writes_only_in_ones_own_name(world):
+    """Ein mitgesendeter Absender wird verworfen – der Absender ist, wer angemeldet ist.
+    Über das persönliche Postfach eines anderen schreibt niemand."""
+    db, actor, staff = world
+    lea, sara = _person(db), _person(db, "employee")
+    m = svc.create(db, MessageIn(channel="intern", sender=lea, body="x"), actor)
+    assert m.sender_object_id == staff
+    with pytest.raises(HTTPException) as e:
+        _send(db, actor, channel=f"u{sara}", to=[lea], body="x")
+    assert e.value.status_code == 403
+
+
+def test_an_answer_closes_only_what_it_answers(world):
+    """«Antwort auf» nennt genau eine Nachricht – die zweite offene bleibt offen, bis auch
+    sie beantwortet oder als erledigt markiert ist. Zweimal antworten ist erlaubt."""
+    db, actor, staff = world
+    lea = _person(db)
+    first = _send(db, actor, channel="c999999990", sender=lea, body="Frage 1")
+    second = _send(db, actor, channel="c999999990", sender=lea, body="Frage 2")
+    _send(db, actor, channel="c999999990", to=[lea], body="Zu 2", reply_to=second.id)
+    assert _one(db, first.id).open and not _one(db, second.id).open
+    again = _send(db, actor, channel="c999999990", to=[lea], body="Nachtrag", reply_to=second.id)
+    assert _one(db, again.id).reply_to == second.id
+    with pytest.raises(Exception):
+        MessageIn(channel="intern", body="", reply_to=[first.id, second.id])

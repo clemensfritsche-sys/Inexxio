@@ -25,6 +25,7 @@ Zwei Eigenschaften tragen die ganze Unterscheidung:
   Erinnerung – ebenfalls eine Nachricht.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Optional
@@ -111,6 +112,16 @@ def info_repair_sql() -> list[str]:
             for t in ("messages", "mailboxes")]
 
 
+def contact_repair_sql() -> list[str]:
+    """**Die Kontakt-E-Mail einer eigenen Gesellschaft IST die Adresse ihres Postfachs**
+    – wo eines verbunden ist und beide auseinanderliegen (vor der Kopplung liess sich ein
+    anderes Konto verbinden), gewinnt das Postfach. Gelesen von Migration 147 **und** vom
+    Lifespan-Netz. Selbstbegrenzend: danach stimmen beide überein."""
+    return ["UPDATE company_settings AS c SET email = m.address FROM mailboxes AS m "
+            "WHERE m.is_active AND c.is_own AND c.object_id IS NOT NULL "
+            "AND m.channel = 'c' || c.object_id AND c.email IS DISTINCT FROM m.address"]
+
+
 def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:
     """**Ist diese Nachricht an UNS gerichtet?** – die eine Frage hinter «offen».
 
@@ -121,3 +132,66 @@ def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:
     if channel(channel_key).live:
         return False
     return (not sender_staff) or to_staff
+
+
+# ---------------------------------------------------------------------------
+# Die Signatur einer Mail
+# ---------------------------------------------------------------------------
+
+#: Grussformeln, nach denen nur noch der Name steht – und dann die Signatur.
+_CLOSING = re.compile(
+    r"^(mit )?(freundlichen|herzlichen|besten|lieben|liebe|beste|viele|schöne|"
+    r"freundliche|herzliche)?\s*(grüsse|grüße|gruss|gruß|grüssen|grüßen)\b|"
+    r"^(best|kind|warm)( regards| wishes)?\b|^regards\b|^cheers\b|^thanks\b|"
+    r"^danke\b|^merci\b", re.I)
+#: Mehr Zeilen hat keine Signatur – darüber ist es Inhalt, der nicht verschwinden darf.
+SIGNATURE_MAX = 16
+
+
+def _lines(text: str) -> list[str]:
+    return [ln.rstrip() for ln in text.replace("\r", "").split("\n")]
+
+
+def tidy(text: str) -> str:
+    """Leerzeilen zusammenfassen: höchstens eine zwischen zwei Absätzen."""
+    return re.sub(r"\n[ \t]*(?:\n[ \t]*)+\n", "\n\n", "\n".join(_lines(text))).strip()
+
+
+def split_signature(text: str, sender: str = "") -> tuple[str, Optional[str]]:
+    """►►► **Text und Signatur – getrennt, damit die Signatur einklappen kann.** ◄◄◄
+
+    Drei Merkmale, in dieser Reihenfolge, und jedes nur im Schluss der Mail
+    (``SIGNATURE_MAX`` Zeilen): der Trenner ``--`` (RFC 3676), eine Grussformel mit dem
+    Namen darunter, oder der Name des Absenders allein auf einer Zeile. **Gruss und Name
+    bleiben stehen** – sie gehören zur Nachricht; eingeklappt wird, was danach kommt
+    (Firma, Anschrift, Telefon, Links). Findet sich nichts, bleibt der Text, wie er ist:
+    lieber eine Signatur zu viel zeigen als einen Satz verschlucken."""
+    lines = _lines(tidy(text))
+    filled = [i for i, ln in enumerate(lines) if ln.strip()]
+    tail = filled[-SIGNATURE_MAX:] if len(filled) > 2 else []
+    cut = _cut(lines, tail, sender)
+    if cut is None:
+        return "\n".join(lines), None
+    body, sig = "\n".join(lines[:cut]).strip(), "\n".join(
+        ln for ln in lines[cut:] if ln.strip() and ln.strip() not in ("--", "-- "))
+    if not body or not sig or len(sig.split("\n")) < 2:
+        return "\n".join(lines), None
+    return body, sig
+
+
+def _cut(lines: list[str], tail: list[int], sender: str) -> Optional[int]:
+    """Die erste Zeile der Signatur – oder ``None``."""
+    for i in tail:
+        if lines[i].strip() == "--":
+            return i
+    name = re.sub(r"\s+", " ", sender).strip().lower()
+    for i in reversed(tail):
+        line = lines[i].strip()
+        if len(line) <= 40 and _CLOSING.match(line):
+            after = [j for j in tail if j > i]
+            # Gruss + Name bleiben; was danach kommt, ist die Signatur.
+            return after[1] if len(after) > 2 else None
+    for i in tail[:-1]:
+        if name and len(name) > 3 and lines[i].strip().lower() == name:
+            return i + 1
+    return None

@@ -641,8 +641,8 @@ def _ensure_columns() -> None:
                     # Der frühere Kanal ``info`` wird der des Betreibers (Migration
                     # ``146``) – selbstbegrenzend, danach gibt es kein ``info`` mehr.
                     if {"messages", "mailboxes"} <= tables:
-                        from .domain.communication import info_repair_sql
-                        for stmt in info_repair_sql():
+                        from .domain.communication import contact_repair_sql, info_repair_sql
+                        for stmt in info_repair_sql() + contact_repair_sql():
                             conn.execute(text(stmt))
                 # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
                 # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.

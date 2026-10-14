@@ -5062,6 +5062,27 @@
 > bisher nur erfasst; die CI bindet die Secrets nur ein, wenn es sie gibt. *Testmodus: die
 > Verbindung läuft nach 7 Tagen ab (roter Punkt, «Neu verbinden»); dauerhaft mit Workspace.*
 > Wächter: `tests/test_mailbox.py` (9 Prüfungen).
+>
+> ►►► **Die Kontakt-E-Mail IST das Postfach – und «Antwort auf» nennt GENAU EINE**
+> (Migration `147`). ◄◄◄ **(1)** Die Kontakt-E-Mail einer eigenen Gesellschaft wird
+> **allein durch Verbinden gesetzt und durch Trennen geleert** (`mailbox._contact`, die
+> eine Schreibstelle); `email` steht nicht mehr in `sites.ENTITY_FIELDS`, am Datensatz ist
+> sie eine Anzeige. Lag beides schon auseinander, gewinnt das Postfach
+> (`contact_repair_sql`, Migration **und** Lifespan-Netz). **(2)** Geschrieben wird **nur im
+> eigenen Namen** – `MessageIn` hat kein `sender` mehr; «Von» wählt bei einer E-Mail unter
+> den **verbundenen** Postfächern (eigenes + eigene Gesellschaften, `channels`), die Blase
+> zeigt «Inexxio AG · Clemens Fritsche» (`ChannelOut.name`). **(3)** «Antwort auf» ist
+> **eine** Nachricht (`reply_to: int | None`), vorbelegt die jüngste offene; jede Nachricht
+> trägt beim Zeigen **Antworten** (auch eine beantwortete), eine offene zusätzlich
+> **Erledigt ohne Antwort** – der Knopf in der Eingabe ist entfallen. **Erledigt ist nur,
+> worauf eine Nachricht VON UNS antwortet** (`communication._answers`): die Nachfrage eines
+> Kunden erledigt seine erste Frage nicht. Beim Abgleich zählt `In-Reply-To` (sonst die
+> jüngste bekannte aus `References`), nie der ganze Faden. **(4)** Die **Signatur** klappt
+> hinter «…» ein (`domain.split_signature`: `--` · Grussformel + Name · Name allein, nur im
+> Schluss; Gruss und Name bleiben stehen; nichts erkannt → nichts verschluckt), Leerzeilen
+> werden zusammengefasst, und «Text <https://…>» wird ein Link ohne Klammer-URL. **(5)**
+> «Nachname, Vorname» im Mail-Kopf wird gedreht (`mailbox.split_name`). «In Gmail öffnen»
+> steht nur beim Zeigen (`.ix-rowactions`).
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

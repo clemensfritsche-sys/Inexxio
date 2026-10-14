@@ -113,7 +113,6 @@ interface OrgForm {
   currency: string;
   uid: string;
   vat_number: string;
-  email: string;
   phone: string;
   iban: string;
 }
@@ -130,7 +129,6 @@ function buildForm(s: CompanySettings): OrgForm {
     currency: s.currency || 'CHF',
     uid: s.uid ?? '',
     vat_number: s.vat_number ?? '',
-    email: s.email ?? '',
     phone: s.phone ?? '',
     // ►►► **Die IBAN steht im Feld, wie jede andere Angabe** (Testnotiz #870). ◄◄◄
     // Sie kam einmal maskiert zurück und stand darum hier als `''`: ein Unternehmen **mit**
@@ -230,7 +228,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
         Object.assign(data, {
           street: v.street, street_number: nn(v.street_number),
           zip: v.zip, city: v.city, country: v.country,
-          vat_number: nn(v.vat_number), email: v.email, phone: nn(v.phone),
+          vat_number: nn(v.vat_number), phone: nn(v.phone),
           iban: nn(v.iban), currency: v.currency,
         });
       }
@@ -478,8 +476,11 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
           {/* ── 2. Kontakt ───────────────────────────────────────────────────── */}
           {own && <Card title="Kontakt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="E-Mail" value={form.email} onChange={str('email')} type="email"
-                placeholder="info@inexxio.com" required onEnter={saveNow} />
+              {/* Die Kontakt-E-Mail IST das Postfach der Gesellschaft: gesetzt durch
+                  «Verbinden», geleert durch «Trennen» (Reiter Kommunikation) – ein
+                  Eingabefeld wäre die Adresse, über die nichts hinausgeht. */}
+              <AField label="E-Mail" value={base.email ?? ''} readOnly
+                placeholder="Postfach unter «Kommunikation» verbinden" />
               {/* Telefon nur bei einer **eigenen** Gesellschaft (Impressum, Website); an
                   einer fremden Firma liest es niemand – gefragt wird die Person. */}
               {own && (

@@ -5538,6 +5538,17 @@
             "type": "boolean",
             "title": "Personal",
             "default": false
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
           }
         },
         "type": "object",
@@ -7220,10 +7231,6 @@
             "type": "string",
             "title": "Channel"
           },
-          "sender": {
-            "type": "integer",
-            "title": "Sender"
-          },
           "to": {
             "items": {
               "type": "integer"
@@ -7283,17 +7290,20 @@
             "title": "At"
           },
           "reply_to": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Reply To"
           }
         },
         "type": "object",
         "required": [
-          "channel",
-          "sender"
+          "channel"
         ],
         "title": "MessageIn",
         "description": "**Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die\nAngaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort»."
@@ -7358,18 +7368,32 @@
             "title": "Body",
             "default": ""
           },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature"
+          },
           "at": {
             "type": "string",
             "format": "date-time",
             "title": "At"
           },
           "reply_to": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Reply To",
-            "default": []
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To"
           },
           "ours": {
             "type": "boolean",

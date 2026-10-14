@@ -2037,6 +2037,8 @@ export interface components {
              * @default false
              */
             personal: boolean;
+            /** Name */
+            name?: string | null;
         };
         /**
          * CompanyCreate
@@ -2819,8 +2821,6 @@ export interface components {
         MessageIn: {
             /** Channel */
             channel: string;
-            /** Sender */
-            sender: number;
             /** To */
             to?: number[];
             /** Cc */
@@ -2839,7 +2839,7 @@ export interface components {
             /** At */
             at?: string | null;
             /** Reply To */
-            reply_to?: number[];
+            reply_to?: number | null;
         };
         /** MessageOut */
         MessageOut: {
@@ -2874,16 +2874,15 @@ export interface components {
              * @default
              */
             body: string;
+            /** Signature */
+            signature?: string | null;
             /**
              * At
              * Format: date-time
              */
             at: string;
-            /**
-             * Reply To
-             * @default []
-             */
-            reply_to: number[];
+            /** Reply To */
+            reply_to?: number | null;
             /** Ours */
             ours: boolean;
             /**

@@ -24,6 +24,9 @@ class ChannelOut(BaseModel):
     mail: bool = False
     #: Ein persönliches Postfach? Dann schreibt nur sein Besitzer darüber.
     personal: bool = False
+    #: Im Namen von wem es hinausgeht – die Gesellschaft hinter einem Unternehmens-Postfach
+    #: («Inexxio AG»). Leer bei einem persönlichen: dort ist es der Absender selbst.
+    name: Optional[str] = None
 
 
 class Attachment(BaseModel):
@@ -54,7 +57,8 @@ class MessageIn(BaseModel):
     Angaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort»."""
 
     channel: str
-    sender: int
+    #: Kein ``sender``: geschrieben wird **immer im eigenen Namen** – der Absender ist, wer
+    #: angemeldet ist. Ein trotzdem gesendeter Wert wird verworfen.
     to: list[int] = Field(default_factory=list)
     cc: list[int] = Field(default_factory=list)
     bcc: list[int] = Field(default_factory=list)
@@ -63,7 +67,9 @@ class MessageIn(BaseModel):
     body: str = Field("", max_length=20000)
     #: Leer heisst «jetzt»; in der Zukunft ist es eine Erinnerung bzw. später gesendet.
     at: Optional[datetime] = None
-    reply_to: list[int] = Field(default_factory=list)
+    #: **Genau eine** Nachricht, die diese beantwortet – oder keine. Eine Antwort schliesst
+    #: nur, worauf sie antwortet; jede andere offene Nachricht bleibt offen.
+    reply_to: Optional[int] = None
 
 
 class MessageOut(BaseModel):
@@ -76,8 +82,11 @@ class MessageOut(BaseModel):
     about: list[PersonRef] = []
     subject: Optional[str] = None
     body: str = ""
+    #: Die Signatur einer Mail, abgetrennt vom Text (``domain.split_signature``) – die
+    #: Oberfläche klappt sie ein. Leer = keine erkannt.
+    signature: Optional[str] = None
     at: datetime
-    reply_to: list[int] = []
+    reply_to: Optional[int] = None
     #: Von uns geschrieben (rechts) ↔ von aussen (links).
     ours: bool
     #: An uns gerichtet und noch ohne Antwort, Zeitpunkt erreicht.
