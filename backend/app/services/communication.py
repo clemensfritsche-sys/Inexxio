@@ -351,18 +351,6 @@ def history(db: Session, *, person: Optional[int] = None,
     return load(db, _ids_for(db, persons))
 
 
-def holders(m: MessageOut) -> set[int]:
-    """►►► **Wo eine offene Nachricht zählt – dort, wo die Sache liegt.** ◄◄◄ Mit
-    «Betrifft» bei den Betroffenen (eine Notiz über Unisto an mich zählt bei Unisto, nicht
-    bei mir); sonst bei den Externen, die beteiligt sind (der Kunde, der schreibt); und nur,
-    wo es keine gibt, bei den Mitarbeitern im «An» (die interne Frage an die Kollegin)."""
-    if m.about:
-        return {p.object_id for p in m.about}
-    everyone = [m.sender, *m.to, *m.cc, *m.bcc]
-    outside = {p.object_id for p in everyone if not p.staff}
-    return outside or {p.object_id for p in m.to}
-
-
 def open_counts(db: Session) -> list[OpenCount]:
     """**Das Zeichen im Feed**: je Person die offenen Nachrichten in ihrem Verlauf.
 
@@ -376,7 +364,9 @@ def open_counts(db: Session) -> list[OpenCount]:
     for m in load(db, ids):
         if not m.open:
             continue
-        for oid in holders(m):
+        involved = {m.sender.object_id, *(p.object_id for r in (m.to, m.cc, m.bcc, m.about)
+                                          for p in r)}
+        for oid in involved:
             counts[oid][0] += 1
             counts[oid][1] += int(m.overdue)
     return [OpenCount(object_id=k, open=v[0], overdue=v[1]) for k, v in counts.items()]

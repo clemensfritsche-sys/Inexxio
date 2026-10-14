@@ -254,16 +254,3 @@ def test_an_incoming_call_has_the_caller_as_sender(world):
     mail = _send(db, actor, channel="c999999990", sender=lea, body="Frage")
     _send(db, actor, channel="phone", to=[lea], body="zurückgerufen", incoming=True,
           reply_to=mail.id)
-
-
-def test_the_feed_mark_sits_where_the_matter_is(world):
-    """Eine Notiz an mich über Unisto zählt bei Unisto, nicht bei mir; die Mail eines
-    Kunden bei ihm; die interne Frage ohne «Betrifft» bei der gefragten Kollegin."""
-    db, actor, staff = world
-    lea, unisto, sara = _person(db), _person(db), _person(db, "employee")
-    _send(db, actor, channel="intern", to=[staff], about=[unisto], body="nachfassen")
-    _send(db, actor, channel="c999999990", sender=lea, body="Frage")
-    _send(db, actor, channel="intern", to=[sara], body="Lager?")
-    rows = {c.object_id: c.open for c in svc.open_counts(db)}
-    assert rows.get(unisto) == 1 and rows.get(lea) == 1 and rows.get(sara) == 1
-    assert staff not in rows

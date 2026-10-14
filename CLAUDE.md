@@ -5105,9 +5105,9 @@
 > Abweichung), oben rechts, was **zu tun** ist (offene Nachrichten, ab 10 «9+»).
 >
 > ►►► **Kommunikation: eine Mail geht nur vollständig hinaus — und gezählt wird, wo die
-> Sache liegt.** ◄◄◄ **(1) Das Feed-Zeichen** (`communication.holders`): mit «Betrifft»
-> nur dort, sonst bei den Externen, sonst bei den Mitarbeitern im «An» – eine Notiz an
-> mich über Unisto zählt bei Unisto, nicht zusätzlich bei mir. Mitarbeiter tragen im
+> Sache liegt.** ◄◄◄ **(1) Das Feed-Zeichen zählt bei JEDEM Beteiligten** (Absender,
+> An, Cc, Bcc, Betrifft – `open_counts`): die einfache Regel; eine Variante «nur dort, wo
+> die Sache liegt» wurde auf Wunsch wieder zurückgenommen. Mitarbeiter tragen im
 > Verlauf keinen Firmen-Präfix. **(2) Eine E-Mail braucht «An» und Betreff** (400 im
 > Dienst, `_assert_mail`); der stille Rückfall auf die Firmenadresse ist weg. Wer
 > beantwortet wird, lässt sich nicht entfernen, aber zwischen «An» und «Cc» schieben (Bcc
