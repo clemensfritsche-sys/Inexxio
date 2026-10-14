@@ -12,6 +12,10 @@ class PersonRef(BaseModel):
     object_id: int
     name: str = ""
     staff: bool = False
+    #: Die Firma, für die sie auftritt («Muster AG») – im Kopf **vor** dem Namen.
+    company: Optional[str] = None
+    #: Ihre Adresse – nur im Hover; im Kopf steht nie eine E-Mail-Adresse.
+    email: Optional[str] = None
 
 
 class ChannelOut(BaseModel):
@@ -24,8 +28,8 @@ class ChannelOut(BaseModel):
     mail: bool = False
     #: Ein persönliches Postfach? Dann schreibt nur sein Besitzer darüber.
     personal: bool = False
-    #: Im Namen von wem es hinausgeht – die Gesellschaft hinter einem Unternehmens-Postfach
-    #: («Inexxio AG»). Leer bei einem persönlichen: dort ist es der Absender selbst.
+    #: Für wen das Postfach steht – die Gesellschaft («Inexxio AG») bzw. der Mitarbeiter
+    #: hinter einem persönlichen. Ein Verlauf nennt damit nie eine nackte Adresse.
     name: Optional[str] = None
 
 
@@ -87,6 +91,9 @@ class MessageOut(BaseModel):
     signature: Optional[str] = None
     at: datetime
     reply_to: Optional[int] = None
+    #: Wen eine Antwort auf DIESE Nachricht erreichen muss – mindestens einen davon
+    #: (``communication.answer_targets``). Die Oberfläche belegt «An» damit vor.
+    answer_to: list[PersonRef] = []
     #: Von uns geschrieben (rechts) ↔ von aussen (links).
     ours: bool
     #: An uns gerichtet und noch ohne Antwort, Zeitpunkt erreicht.

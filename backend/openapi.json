@@ -7395,6 +7395,14 @@
             ],
             "title": "Reply To"
           },
+          "answer_to": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "type": "array",
+            "title": "Answer To",
+            "default": []
+          },
           "ours": {
             "type": "boolean",
             "title": "Ours"
@@ -8301,6 +8309,28 @@
             "type": "boolean",
             "title": "Staff",
             "default": false
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           }
         },
         "type": "object",

@@ -978,3 +978,13 @@ fieldset:disabled .ix-editable.is-missing {
 .ix-row:hover .ix-rowactions,
 .ix-row:focus-within .ix-rowactions { opacity: 1; }
 @media (hover: none) { .ix-rowactions { opacity: 1; } }
+
+/* ── «Rückgängig» nach dem Senden (Kommunikation) ─────────────────────────────
+   Ein Balken, der in der Wartezeit abläuft – die Dauer setzt die Aufrufstelle
+   (``animationDuration``), damit Zahl und Zeitgeber aus derselben Konstante kommen. */
+.ix-undo-bar {
+  position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
+  background: rgba(255, 255, 255, .7); transform-origin: left;
+  animation: ix-undo linear forwards;
+}
+@keyframes ix-undo { from { transform: scaleX(1); } to { transform: scaleX(0); } }

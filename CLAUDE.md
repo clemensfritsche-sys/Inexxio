@@ -5084,6 +5084,26 @@
 > «Nachname, Vorname» im Mail-Kopf wird gedreht (`mailbox.split_name`). «In Gmail öffnen»
 > steht nur beim Zeigen (`.ix-rowactions`).
 
+> ►►► **Kommunikation: eine Antwort erreicht, wem sie antwortet** (CRM Schritt 3,
+> Feinschliff). ◄◄◄ **(1) Die Regel steht im Dienst** (`communication.answer_targets`,
+> `_assert_answers`): schrieb jemand von aussen, muss die Antwort **ihn** im An/Cc haben;
+> schrieb einer von uns, mindestens einen Beteiligten ausser mir (400 mit Satz). «Erledigt
+> ohne Antwort» und die eigene Erinnerung sind frei. Die Antwort reist als
+> `MessageOut.answer_to` mit: die Eingabe setzt ihn ins «An», und der **letzte** lässt sich
+> nicht entfernen – wer frei schreiben will, nimmt das Zitat weg. Weiterleiten gibt es
+> bewusst nicht (dafür die interne Nachricht). **(2) Die Kopfzeile ist «Absender →
+> Empfänger», immer Namen**, Firma zuerst («Muster AG · Lea Muster», `PersonRef.company`),
+> mehrere «+2», ohne bekannten Empfänger das Postfach («→ Inexxio AG»; `ChannelOut.name`
+> trägt jetzt auch beim persönlichen Postfach den Namen); Adressen, Cc, Bcc im Hover.
+> **(3) Das Zitat wie bei WhatsApp** (`Quote`, Verlauf und Eingabe): Strich, Name, eine
+> Zeile; Klick springt hin und lässt die Nachricht aufblinken; ✕ in der Eingabe. Vorbelegt
+> wird die jüngste offene **auf demselben Weg** (aussen ↔ intern). **(4) «Von» ist ein Chip
+> wie «An»** mit Liste ohne Tippen. **(5) Eine Mail wartet 3 s** («Rückgängig», im Browser):
+> Rückgängig stellt Text, Empfänger und Zitat wieder her; wer die Ansicht verlässt, schickt
+> sie sofort, beim Schliessen des Fensters wird gewarnt. **(6) Ein Zeichen am Symbol hat EINE
+> Form** (`fields.IconMark`): unten rechts, was der Datensatz **ist** (eigene Gesellschaft,
+> Abweichung), oben rechts, was **zu tun** ist (offene Nachrichten, ab 10 «9+»).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

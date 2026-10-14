@@ -43,14 +43,17 @@ def channel_out(key: str, label: Optional[str] = None, name: Optional[str] = Non
 
 
 def _labels(db: Session, keys: Iterable[str]) -> dict[str, tuple[str, Optional[str]]]:
-    """Je Postfach seine Adresse und – bei einer Gesellschaft – ihr Name."""
+    """Je Postfach seine Adresse und der Name, für den es steht – die Gesellschaft bzw.
+    der Mitarbeiter. Ein Verlauf nennt damit nie eine nackte Adresse («→ Inexxio AG»)."""
     from .mailbox import address_of, company
     from .sites import legal_name
+    keys = {k for k in keys if dc.is_mail(k)}
+    owners = _people(db, [dc.owner_of(k) for k in keys if dc.owner_of(k) is not None])
     out = {}
-    for k in set(keys):
-        if dc.is_mail(k):
-            firm = company(db, k)
-            out[k] = (address_of(db, k), legal_name(firm) if firm else None)
+    for k in keys:
+        firm, owner = company(db, k), owners.get(dc.owner_of(k) or 0)
+        name = legal_name(firm) if firm else (owner.display_name if owner else None)
+        out[k] = (address_of(db, k), name)
     return out
 
 
@@ -89,10 +92,38 @@ def _people(db: Session, ids: Iterable[int]) -> dict[int, UserProfile]:
     return {u.object_id: u for u in rows}
 
 
-def _ref(people: dict[int, UserProfile], oid: int) -> PersonRef:
+def _firms(db: Session, people: dict[int, UserProfile]) -> dict[int, str]:
+    """Objektnummer der Firma → ihr Name mit Rechtsform – einmal je Antwort, nicht je Zeile."""
+    from ..models import CompanySettings
+    from .sites import legal_name
+    ids = {u.company_object_id for u in people.values() if u.company_object_id}
+    if not ids:
+        return {}
+    rows = db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids)).all()
+    return {c.object_id: legal_name(c) for c in rows}
+
+
+def _ref(people: dict[int, UserProfile], oid: int,
+         firms: Optional[dict[int, str]] = None) -> PersonRef:
     u = people.get(oid)
     return PersonRef(object_id=oid, name=(u.display_name if u else str(oid)),
-                     staff=bool(u and u.role in STAFF_ROLES))
+                     staff=bool(u and u.role in STAFF_ROLES),
+                     company=(firms or {}).get(u.company_object_id) if u else None,
+                     email=(u.email or None) if u else None)
+
+
+def answer_targets(sender: int, sender_staff: bool, roles: dict[str, list[int]],
+                   me: Optional[int]) -> set[int]:
+    """►►► **Wen eine Antwort erreichen muss** – mindestens einen davon. ◄◄◄
+
+    Schrieb jemand **von aussen**, ist es genau er: eine Antwort, die ihn nicht erreicht,
+    ist keine (eine Notiz an einen Kollegen beantwortet die Frage des Kunden nicht). Schrieb
+    **einer von uns**, ist es jeder Beteiligte ausser mir – die Frage einer Kollegin
+    beantworte ich ihr, meine Mail an einen Kunden setze ich bei ihm fort. Bleibt niemand
+    (meine eigene Erinnerung), ist die Antwort an niemanden gebunden."""
+    if not sender_staff:
+        return {sender}
+    return ({sender, *roles.get("to", []), *roles.get("cc", [])} - {me, None})
 
 
 def _assert_people(db: Session, ids: set[int]) -> None:
@@ -130,16 +161,42 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     if not body and data.reply_to is None:
         raise HTTPException(400, detail="Eine Nachricht ohne Text muss etwas beantworten.")
     replies = [data.reply_to] if data.reply_to is not None else []
-    if replies and not db.query(Message.id).filter(
-            Message.id == data.reply_to, Message.is_active.is_(True)).first():
-        raise HTTPException(400, detail=f"«Antwort auf» nennt die Nachricht "
-                                        f"«{data.reply_to}», die es nicht gibt.")
+    if replies:
+        _assert_answers(db, data.reply_to, roles, body, actor)
     msg = Message(sender_object_id=actor.object_id, channel=data.channel,
                   subject=(data.subject or "").strip() or None, body=body,
                   at=_aware(data.at) if data.at else _now(), created_by=actor.id)
     write(db, msg, roles, replies)
     _hand_to_mailbox(db, msg, roles)
     return msg
+
+
+def _assert_answers(db: Session, reply_to: int, roles: dict[str, list[int]], body: str,
+                    actor: UserProfile) -> None:
+    """Eine Antwort erreicht, wem sie antwortet (``answer_targets``). «Erledigt ohne
+    Antwort» (kein Text) ist an niemanden gerichtet und darum frei."""
+    parent = db.query(Message).filter(Message.id == reply_to,
+                                      Message.is_active.is_(True)).first()
+    if parent is None:
+        raise HTTPException(400, detail=f"«Antwort auf» nennt die Nachricht «{reply_to}», "
+                                        f"die es nicht gibt.")
+    if not body:
+        return
+    parties = db.query(MessageParty).filter(MessageParty.message_id == parent.id).all()
+    proles: dict[str, list[int]] = defaultdict(list)
+    for p in parties:
+        proles[p.role].append(p.person_object_id)
+    people = _people(db, [parent.sender_object_id])
+    sender = people.get(parent.sender_object_id)
+    targets = answer_targets(parent.sender_object_id,
+                             bool(sender and sender.role in STAFF_ROLES), proles,
+                             actor.object_id)
+    if targets and not targets & {*roles["to"], *roles["cc"]}:
+        names = _people(db, targets)
+        who = ", ".join(sorted(names[t].display_name for t in targets if t in names)) \
+            or ", ".join(str(t) for t in sorted(targets))
+        raise HTTPException(400, detail=f"Eine Antwort geht an «{who}» – bitte ins «An» "
+                                        f"nehmen oder «Antwort auf» entfernen.")
 
 
 def write(db: Session, msg: Message, roles: dict[str, list[int]],
@@ -223,16 +280,19 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
         reply_to.setdefault(r.message_id, r.reply_to_id)
     now = _now()
     labels = _labels(db, [m.channel for m in msgs])
-    return [_out(m, by_msg[m.id], reply_to.get(m.id), m.id in answered, people, now, labels)
-            for m in msgs]
+    firms = _firms(db, people)
+    return [_out(m, by_msg[m.id], reply_to.get(m.id), m.id in answered, people, now, labels,
+                 firms) for m in msgs]
 
 
 def _out(m: Message, roles: dict[str, list[int]], reply_to: Optional[int], answered: bool,
          people: dict[int, UserProfile], now: datetime,
-         labels: dict[str, tuple[str, Optional[str]]]) -> MessageOut:
+         labels: dict[str, tuple[str, Optional[str]]],
+         firms: Optional[dict[int, str]] = None) -> MessageOut:
     from .mailbox import gmail_url
-    sender = _ref(people, m.sender_object_id)
-    refs = {r: [_ref(people, i) for i in roles.get(r, [])] for r in dc.ROLES}
+    sender = _ref(people, m.sender_object_id, firms)
+    refs = {r: [_ref(people, i, firms) for i in roles.get(r, [])] for r in dc.ROLES}
+    targets = answer_targets(m.sender_object_id, sender.staff, roles, None)
     at = _aware(m.at)
     is_open = (at <= now and not answered and dc.to_us(
         channel_key=m.channel, sender_staff=sender.staff,
@@ -244,6 +304,7 @@ def _out(m: Message, roles: dict[str, list[int]], reply_to: Optional[int], answe
         id=m.id, channel=channel_out(m.channel, address, name), sender=sender,
         to=refs["to"], cc=refs["cc"], bcc=refs["bcc"], about=refs["about"],
         subject=m.subject, body=body, signature=signature, at=at, reply_to=reply_to,
+        answer_to=[_ref(people, i, firms) for i in sorted(targets) if i in people],
         ours=sender.staff, open=is_open,
         overdue=is_open and now - at > dc.OVERDUE_AFTER, planned=at > now,
         pending=bool(m.outgoing), attachments=m.attachments or [],

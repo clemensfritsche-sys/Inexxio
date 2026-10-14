@@ -180,3 +180,40 @@ def test_an_answer_closes_only_what_it_answers(world):
     assert _one(db, again.id).reply_to == second.id
     with pytest.raises(Exception):
         MessageIn(channel="intern", body="", reply_to=[first.id, second.id])
+
+
+def test_an_answer_reaches_whom_it_answers(world):
+    """Eine Antwort erreicht den Absender der beantworteten Nachricht – sonst 400 mit
+    Satz. «Erledigt ohne Antwort» und die eigene Erinnerung sind an niemanden gebunden;
+    die Frage einer Kollegin beantworte ich ihr."""
+    db, actor, staff = world
+    lea, sara = _person(db), _person(db, "employee")
+    ask = _send(db, actor, channel="c999999990", sender=lea, body="Frage")
+    with pytest.raises(HTTPException) as e:
+        _send(db, actor, channel="intern", to=[sara], body="Kannst du?", reply_to=ask.id)
+    assert e.value.status_code == 400 and str(lea) in e.value.detail
+    _send(db, actor, channel="c999999990", cc=[lea], body="Antwort", reply_to=ask.id)
+    _send(db, actor, channel="intern", body="", reply_to=ask.id)
+    me = _send(db, actor, channel="intern", to=[staff], body="zurückrufen")
+    _send(db, actor, channel="intern", body="erledigt", reply_to=me.id)
+    q = _send(db, actor, channel="intern", sender=sara, to=[staff], body="Lager?")
+    with pytest.raises(HTTPException):
+        _send(db, actor, channel="intern", to=[lea], body="x", reply_to=q.id)
+    _send(db, actor, channel="intern", to=[sara], body="leer", reply_to=q.id)
+    assert not _one(db, q.id).open
+
+
+def test_a_message_names_whom_an_answer_must_reach(world):
+    """``answer_to`` sagt der Oberfläche, wen «An» vorbelegt und sperrt; die Firma reist
+    mit der Person (Kopf «Muster AG · Lea»), die Adresse nur für den Hover."""
+    from app.models import CompanySettings
+    db, actor, staff = world
+    firm = random.randint(900_000_000, 999_999_999)
+    db.add(CompanySettings(object_id=firm, company_name="Muster", legal_form="AG"))
+    db.flush()
+    lea = _person(db, company=firm)
+    m = _one(db, _send(db, actor, channel="c999999990", sender=lea, body="x").id)
+    assert [p.object_id for p in m.answer_to] == [lea]
+    assert m.sender.company == "Muster AG" and m.sender.email == f"p{lea}@x.ch"
+    mine = _one(db, _send(db, actor, channel="c999999990", to=[lea], body="y").id)
+    assert {p.object_id for p in mine.answer_to} == {staff, lea}

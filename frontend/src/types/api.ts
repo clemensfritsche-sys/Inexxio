@@ -2883,6 +2883,11 @@ export interface components {
             at: string;
             /** Reply To */
             reply_to?: number | null;
+            /**
+             * Answer To
+             * @default []
+             */
+            answer_to: components["schemas"]["PersonRef"][];
             /** Ours */
             ours: boolean;
             /**
@@ -3374,6 +3379,10 @@ export interface components {
              * @default false
              */
             staff: boolean;
+            /** Company */
+            company?: string | null;
+            /** Email */
+            email?: string | null;
         };
         /**
          * PlaceRef

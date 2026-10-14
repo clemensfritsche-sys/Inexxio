@@ -410,6 +410,29 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  * Zeile darunter – und die Aktionen dort, wo sie hingehören: bei der Objektnummer. Rechts
  * bleibt allein der Zustand (plus optional die Speicher-Anzeige).
  */
+/** ►►► **Ein Zeichen am Symbol – eine Form für alle.** ◄◄◄ Unten rechts steht, was der
+ *  Datensatz **ist** (eigene Gesellschaft, Abweichung), oben rechts, was **zu tun** ist
+ *  (offene Nachrichten). Gleiche Grösse im Verhältnis zum Symbol, gleicher weisser Ring,
+ *  gleiche Schrift – und zwei Ecken, also überdecken sie sich nie. Eine Zahl ab zehn
+ *  heisst «9+»: die genaue Menge sagt die Blase. */
+function IconMark({ corner, size, bg, tip, children }: {
+  corner: 'top' | 'bottom'; size: number; bg: string; tip: string; children: ReactNode;
+}) {
+  return (
+    <span className="tabular-nums" data-tip={tip} aria-label={tip}
+      style={{
+        position: 'absolute', right: -3, [corner]: -3,
+        minWidth: size, height: size, padding: '0 3px', borderRadius: 999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: bg, color: '#fff', font: `700 ${Math.round(size * 0.66)}px/1 var(--font-body)`,
+        // Der Ring hebt das Zeichen von jeder Symbolfarbe ab.
+        boxShadow: '0 0 0 2px var(--bg-1)',
+      }}>
+      {children}
+    </span>
+  );
+}
+
 /**
  * **Das Symbol eines Datensatzes — EINE Komponente für Feed und Detail-Kopf** (#697/#699).
  *
@@ -432,14 +455,14 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, mes
   /** Eine **unserer** Gesellschaften – dieselbe Form wie die Abweichung: ein Zeichen
    *  am Symbol, kein Text daneben. */
   own?: boolean;
-  /** **Offene Nachrichten im Verlauf** (CRM Schritt 2) – eine eingekreiste Zahl an
-   *  derselben Stelle wie die Abweichung: rot, sobald eine überfällig ist, sonst orange. */
+  /** **Offene Nachrichten im Verlauf** (CRM Schritt 2) – eine eingekreiste Zahl **oben**
+   *  rechts (zu tun), rot, sobald eine überfällig ist, sonst orange. */
   messages?: { open: number; overdue: number } | null;
 }) {
   const meta = TYPE_META[type];
   const Icon = meta.icon;
   const round = type === 'user';
-  const mark = Math.max(11, Math.round(size * 0.34));
+  const mark = Math.max(14, Math.round(size * 0.4));
   return (
     <div style={{ position: 'relative', width: size, height: size, flex: 'none' }}>
       <div style={{
@@ -456,53 +479,24 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, mes
           : initials || <Icon size={Math.round(size * 0.46)} />}
       </div>
       {own && (
-        <span
-          style={{
-            position: 'absolute', right: -2, bottom: -2,
-            width: mark, height: mark, borderRadius: 999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--accent)', color: '#fff',
-            boxShadow: '0 0 0 2px var(--bg-1)',
-          }}
-          data-tip="Eigenes Unternehmen – eine unserer Gesellschaften"
-          aria-label="Eigenes Unternehmen"
-        >
+        <IconMark corner="bottom" size={mark} bg="var(--accent)"
+          tip="Eigenes Unternehmen – eine unserer Gesellschaften">
           <Home size={Math.round(mark * 0.62)} />
-        </span>
+        </IconMark>
       )}
       {deviation && (
-        <span
-          style={{
-            position: 'absolute', right: -2, bottom: -2,
-            width: mark, height: mark, borderRadius: 999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--warning)', color: '#fff',
-            // Der Ring hebt das Zeichen von jeder Symbolfarbe ab – ohne ihn verschwände
-            // es auf einer getönten Fläche.
-            boxShadow: '0 0 0 2px var(--bg-1)',
-          }}
-          data-tip="Abweichung – dieser Auftrag hat Einzelinstanzen aus einem laufenden Auftrag übernommen"
-        >
+        <IconMark corner="bottom" size={mark} bg="var(--warning)"
+          tip="Abweichung – dieser Auftrag hat Einzelinstanzen aus einem laufenden Auftrag übernommen">
           <GitBranch size={Math.round(mark * 0.62)} />
-        </span>
+        </IconMark>
       )}
       {!!messages?.open && (
-        <span
-          className="tabular-nums"
-          style={{
-            position: 'absolute', right: -4, bottom: -4,
-            minWidth: mark + 4, height: mark + 4, padding: '0 3px', borderRadius: 999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: messages.overdue ? 'var(--danger)' : 'var(--color-warning-icon)',
-            color: '#fff', font: `700 ${Math.max(10, Math.round(mark * 0.7))}px var(--font-body)`,
-            boxShadow: '0 0 0 2px var(--bg-1)',
-          }}
-          data-tip={messages.overdue
-            ? `${messages.open} offen, davon ${messages.overdue} überfällig`
-            : `${messages.open} offen`}
-        >
-          {messages.open}
-        </span>
+        <IconMark corner="top" size={mark}
+          bg={messages.overdue ? 'var(--danger)' : 'var(--color-warning-icon)'}
+          tip={messages.overdue ? `${messages.open} offen, davon ${messages.overdue} überfällig`
+            : `${messages.open} offen`}>
+          {messages.open > 9 ? '9+' : messages.open}
+        </IconMark>
       )}
     </div>
   );

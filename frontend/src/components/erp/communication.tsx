@@ -8,15 +8,23 @@
  * was das Haus nie verlässt (`channel.outside`), das **Symbol** aus dem Kanal. Ob sie
  * offen oder überfällig ist, sagt der Server; gerechnet wird hier nichts.
  *
- * Die Eingabe hat für E-Mail, Anruf und Intern **dieselbe Form** (An → Antwort auf → Text →
+ * Die Eingabe hat für E-Mail, Anruf und Intern **dieselbe Form** (Von → An → Zitat → Text →
  * Zeitpunkt). Die drei Knöpfe wählen nur den Kanal und belegen vor. **Geschrieben wird nur
  * im eigenen Namen** – oder, bei einer E-Mail, in dem einer eigenen Gesellschaft: «Von»
- * wählt unter den **verbundenen** Postfächern, die der Server nennt.
+ * ist ein Chip wie «An» und wählt unter den **verbundenen** Postfächern.
  *
- * **«Antwort auf» nennt genau eine Nachricht.** Vorbelegt ist die jüngste offene; den
- * Pfeil, der eine andere wählt, trägt **jede** Nachricht beim Zeigen (auch eine schon
- * beantwortete – zweimal antworten ist erlaubt). Eine Antwort schliesst nur, worauf sie
- * antwortet; was ohne Antwort erledigt ist, markiert das Häkchen an der Nachricht selbst.
+ * **Die Kopfzeile sagt «Absender → Empfänger», immer mit Namen**, nie mit einer Adresse
+ * (Firma zuerst: «Muster AG · Lea Muster»; mehrere: «Lea Muster +2»); das Genaue steht im
+ * Hover.
+ *
+ * **Eine Antwort zitiert genau eine Nachricht** – wie bei WhatsApp: schmaler Block mit
+ * farbigem Strich, ein Klick springt hin. Vorbelegt ist die jüngste offene; den Pfeil, der
+ * eine andere wählt, trägt **jede** Nachricht beim Zeigen. **Eine Antwort erreicht, wem sie
+ * antwortet** (`answer_to`, Regel des Servers): fehlt er im «An», kommt er dazu, und der
+ * letzte lässt sich nicht entfernen – wer frei schreiben will, nimmt das Zitat weg.
+ *
+ * **Eine Mail wartet drei Sekunden** («Rückgängig», wie Gmail) – im Browser, nicht auf dem
+ * Server. Wer die Ansicht verlässt, schickt sie damit sofort; verloren geht sie nie.
  *
  * **E-Mail geht über ein Postfach** (CRM Schritt 3): Gmail ist der Speicher, abgeglichen
  * wird im Hintergrund (`erp/page`). Die Mail bleibt dort – hier stehen Text, Anhänge (nur
@@ -28,14 +36,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Clock, CornerDownRight, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
+import { Check, ChevronDown, Clock, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
   Paperclip, Phone, Reply, Send, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { day, formatWhen, when, whenTitle } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
-import type { Mailbox, Message, MessageChannel, VoucherParty } from '@/types';
+import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
 
-type Person = { object_id: number; name: string };
+type Person = { object_id: number; name: string; company?: string | null; email?: string | null };
 type Mode = 'email' | 'phone' | 'internal';
 
 /** Alle, die das Zeichen im Feed betrifft, hören hierauf und laden die Zahlen neu. */
@@ -95,29 +103,80 @@ function linkify(text: string): ReactNode[] {
   return out;
 }
 
-function names(list: Person[]): string {
-  return list.map((p) => p.name).join(', ');
+/** Wie ein Mensch im Verlauf heisst – mit Firma «Muster AG · Lea Muster», Firma zuerst.
+ *  Nie eine nackte Adresse: die steht im Hover. */
+function who(p: Person): string {
+  return p.company ? `${p.company} · ${p.name}` : p.name;
 }
 
-/** Wer hört mit – «an Lea · Cc Marco», «Bcc an 48 Personen», «Notiz». */
-function audience(m: Message): string {
-  const parts: string[] = [];
-  if (m.to.length) parts.push(`an ${names(m.to)}`);
-  if (m.cc.length) parts.push(`Cc ${names(m.cc)}`);
-  if (m.bcc.length) parts.push(m.bcc.length > 2 ? `Bcc an ${m.bcc.length} Personen` : `Bcc ${names(m.bcc)}`);
-  if (!parts.length) return m.channel.outside ? `an ${m.channel.label}` : 'Notiz';
-  return parts.join(' · ');
-}
-
-/** Wie eine Nachricht kurz heisst – im Chip «Antwort auf» und im Verweis darauf. */
-function gist(m: Message): string {
-  return m.subject || m.body.slice(0, 48) || m.sender.name;
-}
-
-/** Von uns über eine Gesellschaft: «Inexxio AG · Clemens Fritsche» – im Namen von wem,
- *  und wer es geschrieben hat. */
+/** Der Absender – über das Postfach einer Gesellschaft «Inexxio AG · Clemens Fritsche»
+ *  (in wessen Namen, und wer es geschrieben hat), sonst wie jeder Mensch. */
 function author(m: Message): string {
-  return m.ours && m.channel.name ? `${m.channel.name} · ${m.sender.name}` : m.sender.name;
+  const firm = m.ours && m.channel.mail && !m.channel.personal ? m.channel.name : null;
+  return firm ? `${firm} · ${m.sender.name}` : who(m.sender);
+}
+
+/** Der Empfänger – der erste mit Name, die übrigen gezählt («Lea Muster +2»). Ohne
+ *  bekannten Empfänger heisst eine Mail wie das Postfach, in das sie kam («Inexxio AG»),
+ *  eine interne Nachricht «Notiz»; ein Anruf ohne Gegenüber hat keinen Pfeil. */
+function recipient(m: Message): string | null {
+  const all = [...m.to, ...m.cc, ...m.bcc];
+  if (all.length) return all.length > 1 ? `${who(all[0])} +${all.length - 1}` : who(all[0]);
+  if (m.channel.mail) return m.channel.name ?? m.channel.label;
+  return m.channel.outside ? null : 'Notiz';
+}
+
+/** Alles Genaue für den Hover: Adressen, Cc, Bcc, Firma, Postfach. */
+function details(m: Message): string {
+  const line = (p: Person) => [p.name, p.email && `<${p.email}>`, p.company && `· ${p.company}`]
+    .filter(Boolean).join(' ');
+  const rows = [`Von: ${line(m.sender)}`];
+  if (m.to.length) rows.push(`An: ${m.to.map(line).join(', ')}`);
+  if (m.cc.length) rows.push(`Cc: ${m.cc.map(line).join(', ')}`);
+  if (m.bcc.length) rows.push(`Bcc: ${m.bcc.length > 3 ? `${m.bcc.length} Personen` : m.bcc.map(line).join(', ')}`);
+  if (m.channel.mail) rows.push(`Postfach: ${[m.channel.name, m.channel.label].filter(Boolean).join(' · ')}`);
+  return rows.join('\n');
+}
+
+/** Eine Zeile aus dem Text – wie die beantwortete Nachricht im Zitat heisst. */
+function snippet(m: Message): string {
+  return (m.body || m.subject || '').replace(/\s+/g, ' ').trim() || 'Erledigt ohne Antwort';
+}
+
+/** Zur beantworteten Nachricht springen – sie blinkt kurz auf, damit der Blick sie findet. */
+function jump(id: number) {
+  const el = document.getElementById(`msg-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const c = getComputedStyle(el).getPropertyValue('--accent').trim() || 'currentColor';
+  el.animate?.([{ boxShadow: `0 0 0 3px ${c}` }, { boxShadow: '0 0 0 3px transparent' }],
+    { duration: 1600, delay: 250, easing: 'ease-out' });
+}
+
+/** ►►► **Das Zitat – wie bei WhatsApp.** ◄◄◄ Schmal, mit farbigem Strich: wer geschrieben
+ *  hat und eine Zeile Text. Ein Klick springt zur Nachricht; in der Eingabe nimmt das ✕
+ *  die Antwort zurück. Dasselbe Bauteil im Verlauf und in der Eingabe. */
+function Quote({ m, onOpen, onRemove }: { m: Message; onOpen?: () => void; onRemove?: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, minWidth: 0, marginBottom: 6,
+      background: 'rgba(10, 10, 11, .04)', borderRadius: 6, overflow: 'hidden' }}>
+      <span style={{ width: 3, flex: 'none', background: 'var(--accent)' }} />
+      <button type="button" onClick={onOpen} aria-label="Zur beantworteten Nachricht"
+        style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 0, background: 'none',
+          padding: '4px 0', font: 'inherit', cursor: onOpen ? 'pointer' : 'default' }}>
+        <div className="truncate" style={{ fontSize: 12, lineHeight: '16px', fontWeight: 600,
+          color: 'var(--accent)' }}>{author(m)}</div>
+        <div className="truncate" style={{ fontSize: 12, lineHeight: '16px',
+          color: 'var(--fg-3)' }}>{snippet(m)}</div>
+      </button>
+      {onRemove && (
+        <button type="button" onClick={onRemove} aria-label="Antwort entfernen"
+          data-tip="Nicht als Antwort senden" data-tip-pos="bottom"
+          style={{ border: 0, background: 'none', padding: '0 8px', cursor: 'pointer',
+            color: 'var(--fg-3)', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
+      )}
+    </div>
+  );
 }
 
 const ICON_BTN = { border: 0, background: 'none', padding: 3, borderRadius: 6, cursor: 'pointer',
@@ -173,18 +232,25 @@ function Bubble({ m, mirror, answers, onReply, onDone }: {
   const showState = !mirror && m.open;
   const tone = m.overdue ? 'var(--danger)' : 'var(--color-warning)';
   const since = formatWhen(m.at);
+  const to = recipient(m);
   const bg = !m.channel.outside ? 'var(--bg-3)' : m.ours ? 'var(--accent-soft)' : 'var(--bg-1)';
   const border = showState ? (m.overdue ? 'var(--danger)' : 'var(--color-warning-icon)')
     : !m.channel.outside ? 'var(--bg-3)' : 'var(--border-1)';
   return (
     <div className="ix-row" style={{ display: 'flex', justifyContent: m.ours ? 'flex-end' : 'flex-start' }}>
-      <div style={{ width: '74%', minWidth: 0, background: bg, border: `1px solid ${border}`,
+      <div id={`msg-${m.id}`} style={{ width: '74%', minWidth: 0, background: bg, border: `1px solid ${border}`,
         borderRadius: 10, padding: '10px 14px 12px', opacity: m.planned ? 0.65 : 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
           lineHeight: '16px', color: 'var(--fg-3)', marginBottom: 4, minWidth: 0 }}>
           <Icon size={14} style={{ flex: 'none', color: 'var(--fg-2)' }} />
-          <b style={{ color: 'var(--fg-1)', fontWeight: 600, flex: 'none' }}>{author(m)}</b>
-          <span className="truncate">{audience(m)}</span>
+          {/* Die Blase hängt an einer Hülle ohne ``overflow`` – ``truncate`` schnitte sie weg. */}
+          <span data-tip={details(m)} data-tip-list="" data-tip-pos="bottom"
+            style={{ display: 'flex', minWidth: 0 }}>
+            <span className="truncate">
+              <b style={{ color: 'var(--fg-1)', fontWeight: 600 }}>{author(m)}</b>
+              {to && <> → {to}</>}
+            </span>
+          </span>
           <span style={{ marginLeft: 'auto' }} />
           <Actions m={m} onReply={onReply} onDone={onDone} />
           <span style={{ flex: 'none', display: 'inline-flex',
@@ -196,17 +262,11 @@ function Bubble({ m, mirror, answers, onReply, onDone }: {
               : since.text}
           </span>
         </div>
-        {answers && (
-          <div className="truncate" style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 2,
-            display: 'flex', alignItems: 'center', gap: 4 }}>
-            <CornerDownRight size={12} style={{ flex: 'none' }} />
-            {m.body ? 'Antwort auf' : 'Erledigt ohne Antwort ·'} «{gist(answers)}»
-          </div>
-        )}
+        {answers && <Quote m={answers} onOpen={() => jump(answers.id)} />}
         {m.subject && <div style={{ fontWeight: 600 }}>{m.subject}</div>}
         {m.body && <div style={{ color: 'var(--fg-2)', whiteSpace: 'pre-wrap',
           overflowWrap: 'anywhere' }}>{linkify(m.body)}</div>}
-        {!m.body && m.reply_to != null && !answers && (
+        {!m.body && m.reply_to != null && (
           <div style={{ color: 'var(--fg-3)', fontStyle: 'italic' }}>Erledigt ohne Antwort</div>
         )}
         {m.signature && <Signature text={m.signature} />}
@@ -275,12 +335,20 @@ function Timeline({ messages, mirror, onReply, onDone }: {
 
 // ─── Eingabe ────────────────────────────────────────────────────────────────
 
-function Chip({ children, onRemove, dot }: { children: ReactNode; onRemove?: () => void; dot?: string }) {
+/** Ein Chip – die eine Form für «Von» und «An». */
+const CHIP = { display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px',
+  borderRadius: 13, background: 'var(--bg-3)', fontSize: 13, maxWidth: '100%', minWidth: 0,
+  color: 'var(--fg-1)' } as const;
+/** Die Vorschlagsliste unter einem Chip-Feld – für «An» wie für «Von». */
+const LIST = { position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4,
+  background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8,
+  boxShadow: 'var(--shadow-md)', minWidth: 240, maxWidth: '100%', padding: 4 } as const;
+const HIT = { display: 'flex', gap: 10, width: '100%', textAlign: 'left', border: 0,
+  padding: '6px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--fg-1)' } as const;
+
+function Chip({ children, onRemove, tip }: { children: ReactNode; onRemove?: () => void; tip?: string }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26,
-      padding: onRemove ? '0 4px 0 10px' : '0 10px', borderRadius: 13, background: 'var(--bg-3)',
-      fontSize: 13, maxWidth: '100%' }}>
-      {dot && <span style={{ width: 8, height: 8, borderRadius: 999, background: dot, flex: 'none' }} />}
+    <span data-tip={tip} style={{ ...CHIP, padding: onRemove ? '0 4px 0 10px' : '0 10px' }}>
       <span className="truncate">{children}</span>
       {onRemove && (
         <button type="button" onClick={onRemove} aria-label="Entfernen"
@@ -292,8 +360,10 @@ function Chip({ children, onRemove, dot }: { children: ReactNode; onRemove?: () 
 }
 
 /** «An»-Feld wie in einem Mailprogramm: Chips, und tippen sucht (Nummer oder Name). */
-function People({ value, onChange, placeholder }: {
+function People({ value, onChange, placeholder, locked }: {
   value: Person[]; onChange: (v: Person[]) => void; placeholder?: string;
+  /** Wer nicht entfernt werden kann – der letzte, den die Antwort erreichen muss. */
+  locked?: ReadonlySet<number>;
 }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<VoucherParty[]>([]);
@@ -312,21 +382,16 @@ function People({ value, onChange, placeholder }: {
   return (
     <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap',
       gap: 6, alignItems: 'center', minHeight: 28 }}>
-      {value.map((p) => (
-        <Chip key={p.object_id} onRemove={() => onChange(value.filter((v) => v !== p))}>{p.name}</Chip>
-      ))}
+      {value.map((p) => locked?.has(p.object_id)
+        ? <Chip key={p.object_id} tip="Eine Antwort erreicht, wem sie antwortet – sonst das Zitat entfernen">{p.name}</Chip>
+        : <Chip key={p.object_id} onRemove={() => onChange(value.filter((v) => v !== p))}>{p.name}</Chip>)}
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value.length ? '' : placeholder}
         style={{ border: 0, outline: 'none', font: 'inherit', fontSize: 13, flex: 1, minWidth: 140,
           background: 'transparent' }} />
       {hits.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4,
-          background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8,
-          boxShadow: 'var(--shadow-md)', minWidth: 240, padding: 4 }}>
+        <div style={LIST}>
           {hits.map((h) => (
-            <button key={h.object_id} type="button" onClick={() => add(h)}
-              style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', border: 0,
-                padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                fontSize: 13 }}
+            <button key={h.object_id} type="button" onClick={() => add(h)} style={HIT}
               className="bg-transparent hover:bg-bg-2">
               <span className="tabular-nums" style={{ color: 'var(--fg-3)' }}>{h.object_id}</span>
               <span className="truncate">{h.name}</span>
@@ -379,23 +444,49 @@ function ModeSwitch({ mode, onPick }: { mode: Mode; onPick: (m: Mode) => void })
 }
 
 /** «Von»: in wessen Namen die Mail hinausgeht – mein eigenes Postfach oder das einer
- *  eigenen Gesellschaft; angeboten wird nur, was verbunden ist (sagt der Server). */
+ *  eigenen Gesellschaft; angeboten wird nur, was verbunden ist (sagt der Server). **Er sieht
+ *  aus wie «An»**: ein Chip, und bei mehr als einem Postfach klappt ein Klick dieselbe
+ *  Liste auf – getippt wird nichts, es gibt nur diese. */
 function From({ mails, value, onChange, me }: {
   mails: MessageChannel[]; value?: MessageChannel; onChange: (key: string) => void; me: Person;
 }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
   if (!mails.length) {
     return <span style={{ fontSize: 13, color: 'var(--danger)', paddingTop: 4 }}
       data-tip="Ein Postfach verbindet man am eigenen Datensatz bzw. an der Gesellschaft">
       Kein Postfach verbunden</span>;
   }
   const text = (c: MessageChannel) => `${c.name ?? me.name} · ${c.label}`;
-  if (mails.length === 1) return <span style={{ fontSize: 13, paddingTop: 4 }} className="truncate">{text(mails[0])}</span>;
+  const cur = value ?? mails[0];
+  if (mails.length === 1) return <span style={CHIP}><span className="truncate">{text(cur)}</span></span>;
   return (
-    <select value={value?.key} onChange={(e) => onChange(e.target.value)} aria-label="Von"
-      style={{ border: 0, background: 'transparent', font: 'inherit', fontSize: 13, minHeight: 28,
-        color: 'var(--fg-1)', cursor: 'pointer', maxWidth: '100%', minWidth: 0 }}>
-      {mails.map((c) => <option key={c.key} value={c.key}>{text(c)}</option>)}
-    </select>
+    <div ref={box} style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex',
+      alignItems: 'center', minHeight: 28 }}>
+      <button type="button" onClick={() => setOpen(!open)} aria-haspopup="listbox"
+        aria-expanded={open} aria-label="Von" style={{ ...CHIP, border: 0, cursor: 'pointer', font: 'inherit',
+          fontSize: 13, padding: '0 6px 0 10px' }}>
+        <span className="truncate">{text(cur)}</span>
+        <ChevronDown size={13} style={{ flex: 'none', color: 'var(--fg-3)' }} />
+      </button>
+      {open && (
+        <div role="listbox" aria-label="Von" style={LIST}>
+          {mails.map((c) => (
+            <button key={c.key} type="button" role="option" aria-selected={c.key === cur.key}
+              onClick={() => { onChange(c.key); setOpen(false); }} style={HIT}
+              className="bg-transparent hover:bg-bg-2">
+              <span className="truncate" style={{ fontWeight: c.key === cur.key ? 600 : 400 }}>{text(c)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -405,18 +496,18 @@ function Fields(p: {
   mode: Mode; me: Person; channel?: MessageChannel; mails: MessageChannel[]; setChannel: Set<string>;
   to: Person[]; setTo: Set<Person[]>; cc: Person[]; setCc: Set<Person[]>;
   bcc: Person[]; setBcc: Set<Person[]>; showCc: boolean; setShowCc: Set<boolean>;
-  subject: string; setSubject: Set<string>; reply?: Message; showReply: boolean;
-  dropReply: () => void; later: string | null; setLater: Set<string | null>;
+  subject: string; setSubject: Set<string>; locked: ReadonlySet<number>;
+  later: string | null; setLater: Set<string | null>;
 }) {
   const { mode, me, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc, showCc, setShowCc,
-    subject, setSubject, reply, showReply, dropReply, later, setLater } = p;
+    subject, setSubject, locked, later, setLater } = p;
   return (
       <div style={{ marginTop: 6 }}>
         {mode === 'email' && (
           <Row label="Von"><From mails={mails} value={channel} onChange={setChannel} me={me} /></Row>
         )}
         <Row label="An">
-          <People value={to} onChange={setTo}
+          <People value={to} onChange={setTo} locked={locked}
             placeholder={mode === 'internal' ? 'Name eintippen – leer lassen für eine Notiz' : 'Name eintippen'} />
           {mode === 'email' && !showCc && (
             <button type="button" onClick={() => setShowCc(true)}
@@ -425,7 +516,7 @@ function Fields(p: {
           )}
         </Row>
         {mode === 'email' && showCc && <>
-          <Row label="Cc"><People value={cc} onChange={setCc} /></Row>
+          <Row label="Cc"><People value={cc} onChange={setCc} locked={locked} /></Row>
           <Row label="Bcc"><People value={bcc} onChange={setBcc} /></Row>
         </>}
         {mode === 'email' && (
@@ -433,16 +524,6 @@ function Fields(p: {
             <input value={subject} onChange={(e) => setSubject(e.target.value)}
               style={{ border: 0, outline: 'none', font: 'inherit', fontSize: 13, flex: 1,
                 minWidth: 0, background: 'transparent', minHeight: 28 }} />
-          </Row>
-        )}
-        {showReply && (
-          <Row label="Antwort auf">
-            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1, minWidth: 0 }}>
-              {reply ? (
-                <Chip dot={reply.open ? (reply.overdue ? 'var(--danger)' : 'var(--color-warning-icon)') : undefined}
-                  onRemove={dropReply}>{gist(reply)}</Chip>
-              ) : <span style={{ fontSize: 12, color: 'var(--fg-4)', paddingTop: 4 }}>—</span>}
-            </span>
           </Row>
         )}
         {later !== null && (
@@ -473,6 +554,15 @@ const MODE_OF: Record<string, Mode> = { email: 'email', phone: 'phone', internal
  *  dieselbe Nachricht ein zweites Mal wirkt. */
 type Target = { m: Message; n: number };
 
+/** Wie lange «Rückgängig» steht, bevor eine Mail wirklich hinausgeht. */
+const UNDO_MS = 3000;
+
+/** Was die Eingabe trägt – genug, um sie nach «Rückgängig» genau so wiederherzustellen. */
+type Draft = {
+  to: Person[]; cc: Person[]; bcc: Person[]; showCc: boolean; subject?: string;
+  replyTo?: number | null; mailKey?: string; body: string; later: string | null;
+};
+
 function Composer({ person, me, channels, messages, open, target, onSent }: {
   person: Person; me: Person; channels: MessageChannel[]; messages: Message[]; open: Message[];
   target: Target | null; onSent: () => void;
@@ -493,10 +583,24 @@ function Composer({ person, me, channels, messages, open, target, onSent }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  // Die Mail, die gleich hinausgeht – mit allem, was «Rückgängig» wiederherstellt.
+  const [held, setHeld] = useState<Draft | null>(null);
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; payload: MessageIn } | null>(null);
+  const sent = useRef(onSent);
+  sent.current = onSent;
 
-  const newest = open.length ? open.reduce((a, b) => (b.at > a.at ? b : a)) : undefined;
+  /** Wen eine Antwort auf ``m`` erreichen muss – ohne mich (sagt der Server). */
+  const needs = (m?: Message) => (m?.answer_to ?? []).filter((p) => p.object_id !== me.object_id);
+  // Vorbelegt wird, was auf demselben Weg kam: nach aussen beantwortet man, was von aussen
+  // kam, intern die interne Frage – eine Mail an den Kunden ist keine Antwort an die Kollegin.
+  const fits = (m: Message) => (mode === 'internal') === !m.channel.outside;
+  const newest = open.filter(fits).reduce<Message | undefined>((a, b) => (!a || b.at > a.at ? b : a), undefined);
   const replyId = replyTo === undefined ? newest?.id ?? null : replyTo;
   const reply = replyId != null ? messages.find((m) => m.id === replyId) : undefined;
+  const required = needs(reply);
+  const reached = required.filter((r) => [...to, ...cc].some((p) => p.object_id === r.object_id));
+  // Gesperrt ist nur der LETZTE, den die Antwort erreichen muss – die Regel des Servers.
+  const locked = new Set(reached.length === 1 ? [reached[0].object_id] : []);
   const cameIn = reply && mails.find((c) => c.key === reply.channel.key)?.key;
   const channel = mode === 'email'
     ? mails.find((c) => c.key === (mailKey ?? cameIn)) ?? mails[0]
@@ -506,14 +610,22 @@ function Composer({ person, me, channels, messages, open, target, onSent }: {
   const openKey = open.map((m) => m.id).join(',');
   useEffect(() => { setReplyTo(undefined); setSubject(undefined); }, [openKey]);
 
-  // «Antworten» an einer Nachricht: genau sie, über den Weg, auf dem sie kam.
+  // Wer beantwortet wird, steht im «An» – fehlt er, kommt er dazu.
+  useEffect(() => {
+    if (required.length && !reached.length) {
+      setTo((t) => [...t, ...required.filter((r) => !t.some((p) => p.object_id === r.object_id))]);
+    }
+  }, [replyId, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // «Antworten» an einer Nachricht: genau sie, über den Weg, auf dem sie kam, an den, den
+  // sie erreichen muss.
   useEffect(() => {
     if (!target) return;
     const m = target.m;
     const next = MODE_OF[m.channel.kind] ?? 'email';
     setReplyTo(m.id); setSubject(undefined); setMailKey(undefined); setError(null);
     setMode(next === 'email' && !mails.length ? 'internal' : next);
-    if (!m.ours) setTo([m.sender]);
+    if (needs(m).length) setTo(needs(m));
     textRef.current?.focus();
     textRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -521,32 +633,101 @@ function Composer({ person, me, channels, messages, open, target, onSent }: {
   const pick = (m: Mode) => {
     setMode(m); setError(null);
     setTo(m === 'internal' ? [] : [person]);
+    if (m === 'internal' && reply && !needs(reply).every((p) => p.staff)) setReplyTo(null);
   };
   const verb = mode === 'phone' ? 'Anruf festhalten'
     : mode === 'internal' ? (later ? 'Erinnerung setzen' : 'Speichern')
       : (later ? 'Später senden' : 'Senden');
 
-  const send = async () => {
-    if (!channel) return;
+  const restore = (d: Draft) => {
+    setMode('email'); setTo(d.to); setCc(d.cc); setBcc(d.bcc); setShowCc(d.showCc);
+    setSubject(d.subject); setReplyTo(d.replyTo); setMailKey(d.mailKey); setBody(d.body);
+    setLater(d.later);
+  };
+  const clear = () => {
+    setBody(''); setLater(null); setSubject(undefined); setReplyTo(undefined); setMailKey(undefined);
+  };
+
+  const post = async (payload: MessageIn, draft?: Draft) => {
     setBusy(true); setError(null);
-    const named = new Set([me.object_id, ...[...to, ...cc, ...bcc].map((p) => p.object_id)]);
     try {
-      await api.createMessage({
-        channel: channel.key,
-        to: to.map((p) => p.object_id), cc: cc.map((p) => p.object_id),
-        bcc: bcc.map((p) => p.object_id),
-        about: named.has(person.object_id) ? [] : [person.object_id],
-        subject: mode === 'email' ? subject ?? reSubject(reply?.subject) : null, body,
-        at: later ? LATER.find((l) => l.key === later)!.at().toISOString() : null,
-        reply_to: replyId,
-      });
-      setBody(''); setLater(null); setSubject(undefined); setReplyTo(undefined); setMailKey(undefined);
-      onSent();
+      await api.createMessage(payload);
+      sent.current();
+      return true;
     } catch (e) {
+      if (draft) restore(draft);
       setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.');
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Die zurückgehaltene Mail sofort hinausschicken – nach Ablauf, vor einer zweiten oder
+   *  beim Verlassen der Ansicht. Eine Mail geht nie verloren, weil jemand weiterklickt. */
+  const flush = () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    const draft = held ?? undefined;
+    setHeld(null);
+    void post(p.payload, draft);
+  };
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+  useEffect(() => () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    void api.createMessage(p.payload).then(() => sent.current()).catch(() => {});
+  }, []);
+  // Wer das Fenster schliesst, während «Rückgängig» steht, wird gewarnt; geht er trotzdem,
+  // geht die Mail noch hinaus.
+  useEffect(() => {
+    if (!held) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    const leave = () => flushRef.current();
+    window.addEventListener('beforeunload', warn);
+    window.addEventListener('pagehide', leave);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      window.removeEventListener('pagehide', leave);
+    };
+  }, [held]);
+
+  const send = async () => {
+    if (!channel) return;
+    flush();
+    const named = new Set([me.object_id, ...[...to, ...cc, ...bcc].map((p) => p.object_id)]);
+    const payload: MessageIn = {
+      channel: channel.key,
+      to: to.map((p) => p.object_id), cc: cc.map((p) => p.object_id),
+      bcc: bcc.map((p) => p.object_id),
+      about: named.has(person.object_id) ? [] : [person.object_id],
+      subject: mode === 'email' ? subject ?? reSubject(reply?.subject) : null, body,
+      at: later ? LATER.find((l) => l.key === later)!.at().toISOString() : null,
+      reply_to: replyId,
+    };
+    if (mode !== 'email') {
+      if (await post(payload)) clear();
+      return;
+    }
+    // ►►► Eine Mail wartet drei Sekunden – «Rückgängig» holt sie genau so zurück. ◄◄◄
+    const draft: Draft = { to, cc, bcc, showCc, subject, replyTo: replyId, mailKey, body, later };
+    clear();
+    setError(null);
+    setHeld(draft);
+    pending.current = { payload, timer: setTimeout(() => flushRef.current(), UNDO_MS) };
+  };
+  const undo = () => {
+    const p = pending.current;
+    if (!p || !held) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    restore(held);
+    setHeld(null);
+    textRef.current?.focus();
   };
 
   return (
@@ -558,10 +739,12 @@ function Composer({ person, me, channels, messages, open, target, onSent }: {
       <Fields mode={mode} me={me} channel={channel} mails={mails} setChannel={setMailKey}
         to={to} setTo={setTo} cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc}
         showCc={showCc} setShowCc={setShowCc}
-        subject={subject ?? reSubject(reply?.subject)} setSubject={setSubject}
-        reply={reply} showReply={!!reply || open.length > 0} dropReply={() => setReplyTo(null)}
+        subject={subject ?? reSubject(reply?.subject)} setSubject={setSubject} locked={locked}
         later={later} setLater={setLater} />
 
+      {reply && <div style={{ marginTop: 10 }}>
+        <Quote m={reply} onOpen={() => jump(reply.id)} onRemove={() => setReplyTo(null)} />
+      </div>}
       <label htmlFor="msg-body" className="sr-only">Text</label>
       <textarea id="msg-body" ref={textRef} value={body} onChange={(e) => setBody(e.target.value)} rows={3}
         placeholder={mode === 'phone' ? 'Was wurde besprochen?'
@@ -570,6 +753,18 @@ function Composer({ person, me, channels, messages, open, target, onSent }: {
         style={{ width: '100%', border: 0, outline: 'none', resize: 'vertical', font: 'inherit',
           fontSize: 14, padding: '10px 0', minHeight: 64, background: 'transparent' }} />
       {error && <p style={{ color: 'var(--danger)', fontSize: 13, margin: '0 0 8px' }}>{error}</p>}
+      {held && (
+        <div role="status" style={{ position: 'relative', overflow: 'hidden', display: 'flex',
+          alignItems: 'center', gap: 10, margin: '0 0 10px', padding: '0 6px 0 12px', height: 36,
+          borderRadius: 8, background: 'var(--fg-1)', color: '#fff', fontSize: 13 }}>
+          <Send size={14} style={{ flex: 'none' }} />
+          <span className="truncate" style={{ flex: 1, minWidth: 0 }}>Wird gesendet …</span>
+          <button type="button" onClick={undo} style={{ border: 0, background: 'none', color: '#fff',
+            font: 'inherit', fontWeight: 600, cursor: 'pointer', padding: '6px 8px', flex: 'none' }}>
+            Rückgängig</button>
+          <span className="ix-undo-bar" style={{ animationDuration: `${UNDO_MS}ms` }} />
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" aria-label={mode === 'internal' ? 'Erinnerung' : 'Später'}
           data-tip={mode === 'internal' ? 'Erinnerung' : 'Später senden'}
