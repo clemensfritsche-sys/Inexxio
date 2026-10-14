@@ -19,6 +19,8 @@ from app.services import mailbox as mb
 from tests.runner import session
 
 COMPANY = "info.test@example.com"
+#: Das Postfach einer (gedachten) eigenen Gesellschaft – die Form ``c<Objektnummer>``.
+CH = "c999999990"
 
 
 def _person(db, role="user", email=None) -> UserProfile:
@@ -44,9 +46,10 @@ def _gmail(frm, to="", cc="", subject="Hallo", body="Text", labels=("INBOX",), *
 @pytest.fixture()
 def world(monkeypatch):
     db = session()
-    monkeypatch.setattr(mb, "company_address", lambda _db: COMPANY)
+    monkeypatch.setattr(mb, "company_address", lambda _db, _key: COMPANY)
+    monkeypatch.setattr(mb, "_company_addresses", lambda _db: {COMPANY})
     staff = _person(db, "employee")
-    box = Mailbox(channel="info", address=COMPANY, owner_object_id=staff.object_id, token="x")
+    box = Mailbox(channel=CH, address=COMPANY, owner_object_id=staff.object_id, token="x")
     db.add(box)
     db.flush()
     yield db, staff, box
@@ -128,8 +131,8 @@ def test_the_quoted_history_is_cut():
 
 def test_the_state_cannot_be_forged(monkeypatch):
     monkeypatch.setattr(get_settings(), "google_client_secret", "geheim")
-    state = mb._sign({"c": "info", "u": 1, "exp": 9e12})
-    assert mb._unsign(state)["c"] == "info"
+    state = mb._sign({"c": CH, "u": 1, "exp": 9e12})
+    assert mb._unsign(state)["c"] == CH
     with pytest.raises(ValueError):
         mb._unsign(state[:-1] + ("0" if state[-1] != "0" else "1"))
 
@@ -142,14 +145,27 @@ def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
     sent = []
     monkeypatch.setattr(mb, "ready", lambda: True)
     monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m.id) or False)
-    m = comm.create(db, MessageIn(channel="info", sender=staff.object_id, to=[lea.object_id],
+    m = comm.create(db, MessageIn(channel=CH, sender=staff.object_id, to=[lea.object_id],
                                   body="Offerte"), staff)
     assert sent == [m.id] and comm.load(db, [m.id])[0].pending
     box.is_active = False
     db.flush()
     with pytest.raises(HTTPException):
-        comm.create(db, MessageIn(channel="info", sender=staff.object_id,
+        comm.create(db, MessageIn(channel=CH, sender=staff.object_id,
                                   to=[lea.object_id], body="x"), staff)
     with pytest.raises(HTTPException):          # ein persönliches nur mit seinem Besitzer
         comm.create(db, MessageIn(channel=f"u{lea.object_id}", sender=staff.object_id,
                                   to=[lea.object_id], body="x"), staff)
+
+
+def test_every_own_company_has_its_own_mailbox_and_the_old_info_moves_to_the_operator():
+    """Ein Postfach je eigener Gesellschaft (``c<Objektnummer>``) – seine Adresse ist ihre
+    Kontakt-E-Mail; das alte ``info`` wird beim Start das des Betreibers."""
+    from app.domain import communication as dc
+    assert dc.channel(dc.company(100000001)).kind == "email"
+    assert dc.is_mail("c100000001") and dc.company_of("c100000001") == 100000001
+    assert not dc.is_mail("phone") and dc.owner_of("c100000001") is None
+    with pytest.raises(ValueError):
+        dc.channel("info")
+    sql = " ".join(dc.info_repair_sql())
+    assert "is_own" in sql and "is_operator DESC" in sql and "channel = 'info'" in sql

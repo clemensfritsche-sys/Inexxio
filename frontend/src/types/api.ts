@@ -1464,7 +1464,8 @@ export interface paths {
         };
         /**
          * Mailboxes
-         * @description Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden?
+         * @description Mit ``company`` das Postfach dieser (eigenen) Gesellschaft, sonst das eigene –
+         *     Adresse, Zustand, darf ich verbinden?
          */
         get: operations["mailboxes_api_v1_erp_messages_mailboxes_get"];
         put?: never;
@@ -1995,6 +1996,8 @@ export interface components {
              * @default 0
              */
             size: number;
+            /** Url */
+            url?: string | null;
         };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
@@ -2029,6 +2032,11 @@ export interface components {
              * @default false
              */
             mail: boolean;
+            /**
+             * Personal
+             * @default false
+             */
+            personal: boolean;
         };
         /**
          * CompanyCreate
@@ -2786,7 +2794,7 @@ export interface components {
         };
         /**
          * MailboxOut
-         * @description Ein Postfach, das diesen Betrachter angeht – das des Unternehmens oder sein eigenes.
+         * @description Ein Postfach – das einer eigenen Gesellschaft oder das eigene des Betrachters.
          */
         MailboxOut: {
             /** Channel */
@@ -7349,7 +7357,9 @@ export interface operations {
     };
     mailboxes_api_v1_erp_messages_mailboxes_get: {
         parameters: {
-            query?: never;
+            query?: {
+                company?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -7363,6 +7373,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MailboxOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

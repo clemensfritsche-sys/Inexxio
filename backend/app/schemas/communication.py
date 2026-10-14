@@ -22,15 +22,20 @@ class ChannelOut(BaseModel):
     outside: bool
     #: Ein Postfach (Unternehmen oder persönlich)? Dann ist ``label`` seine Adresse.
     mail: bool = False
+    #: Ein persönliches Postfach? Dann schreibt nur sein Besitzer darüber.
+    personal: bool = False
 
 
 class Attachment(BaseModel):
     name: str
     size: int = 0
+    #: Liegt die Datei bei uns (ein Bild aus dem Anfrage-Formular), ihre Adresse – sonst
+    #: liegt sie in Gmail, und der Weg dorthin ist ``gmail_url``.
+    url: Optional[str] = None
 
 
 class MailboxOut(BaseModel):
-    """Ein Postfach, das diesen Betrachter angeht – das des Unternehmens oder sein eigenes."""
+    """Ein Postfach – das einer eigenen Gesellschaft oder das eigene des Betrachters."""
 
     channel: str
     address: str

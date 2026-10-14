@@ -41,11 +41,11 @@ Auf der öffentlichen Website messen wir derzeit keine Besuche.
 
 ## 4. Anfrage über das Formular
 
-Schreiben Sie uns über das Formular, bearbeiten wir Ihre Angaben: Bereich und Anliegen, Dringlichkeit, Ort, Name, Firma, Telefon, E-Mail, Angaben zur Anlage oder zum gesuchten Teil, bevorzugter Kontaktweg und allenfalls Fotos oder Skizzen (Bild oder PDF). Zweck ist, Ihre Anfrage zu beantworten und einen Auftrag vorzubereiten.
+Schreiben Sie uns über das Formular, bearbeiten wir Ihre Angaben: Bereich und Anliegen, Dringlichkeit, Ort, Name, Firma, Telefon, E-Mail, Angaben zur Anlage oder zum gesuchten Teil, bevorzugter Kontaktweg und allenfalls Fotos oder Skizzen als Bild. Zweck ist, Ihre Anfrage zu beantworten und einen Auftrag vorzubereiten; dafür legen wir Sie in unserem Kundenverzeichnis an und bewahren die Anfrage mit den Bildern dort auf.
 
-Die Anfrage geht per E-Mail an uns; haben Sie eine E-Mail-Adresse angegeben, erhalten Sie eine Bestätigung mit Ihren Angaben. Für den Versand nutzen wir einen E-Mail-Dienstleister.
+Sie erhalten eine Bestätigung mit Ihren Angaben an die genannte E-Mail-Adresse. Für den Versand nutzen wir Gmail von Google.
 
-Kann der Server eine Anfrage nicht per E-Mail weiterleiten (Störung beim Versand), schreibt er sie – ohne Fotos – in sein Protokoll, damit sie nicht verloren geht; Sie sehen in diesem Fall unsere Telefonnummer und einen vorbereiteten E-Mail-Text. Die Protokolle löschen wir, sobald sie für den Betrieb nicht mehr nötig sind.
+Kann der Server eine Anfrage nicht speichern (Störung), schreibt er sie – ohne Fotos – in sein Protokoll, damit sie nicht verloren geht; Sie sehen in diesem Fall unsere Telefonnummer und einen vorbereiteten E-Mail-Text. Die Protokolle löschen wir, sobald sie für den Betrieb nicht mehr nötig sind.
 
 Zum Schutz vor Missbrauch zählt der Server kurzzeitig, wie viele Anfragen von einer IP-Adresse kommen; die Zählung liegt nur im Arbeitsspeicher und wird nicht gespeichert.
 

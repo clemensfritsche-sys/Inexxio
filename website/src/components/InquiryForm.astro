@@ -63,7 +63,7 @@ const f = (name: string) => `${id}-${name}`;
         <span class="iform__drop-ico" aria-hidden="true"><Icon name="camera" size={20} /></span>
         <span class="iform__drop-text">
           <span class="iform__drop-title">Foto oder Skizze hinzufügen</span>
-          <span class="iform__drop-sub" id={f('photos-hint')}>Optional – bis zu {inquiry.photos.max} Dateien (Foto, Skizze oder PDF), zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB</span>
+          <span class="iform__drop-sub" id={f('photos-hint')}>Optional – bis zu {inquiry.photos.max} Dateien (Foto oder Skizze als Bild), zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB</span>
         </span>
         <input class="iform__drop-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
       </label>
@@ -84,13 +84,13 @@ const f = (name: string) => `${id}-${name}`;
     </div>
     <div class="iform__row">
       <div class="field">
-        <label class="field__label" for={f('phone')}>Telefon</label>
+        <label class="field__label" for={f('phone')}>Telefon <span class="field__opt">optional</span></label>
         <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={f('phone-error')} />
         <p class="field__error" id={f('phone-error')} data-error-for="phone" hidden></p>
       </div>
       <div class="field">
         <label class="field__label" for={f('email')}>E-Mail</label>
-        <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" aria-describedby={f('email-error')} />
+        <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" required aria-describedby={f('email-error')} />
         <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
       </div>
     </div>

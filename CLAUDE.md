@@ -5028,6 +5028,19 @@
 > eine andere lehnt das Verbinden mit Satz ab) – und je Mitarbeiter ein **persönliches**
 > (`u<Objektnummer>`, verbindet nur der Besitzer). OAuth mit dauerhaftem Zugang, der
 > Refresh-Token **verschlüsselt** (Schlüssel aus dem Client-Secret).
+> ►►► **Ein Postfach je EIGENER GESELLSCHAFT** (Migration `146`): ◄◄◄ der Kanal heisst
+> `c<Objektnummer>`, seine Adresse ist **ihre Kontakt-E-Mail** (dieselbe, die die Website
+> im Land dieser Gesellschaft zeigt). Verbunden wird am **Firmen-Datensatz** (nur Admin),
+> das persönliche am **eigenen** Benutzer-Datensatz – nie am Datensatz eines anderen. Das
+> frühere `info` wurde das des Betreibers (`domain/communication.info_repair_sql`, auch im
+> Lifespan-Netz).
+> ►►► **Das Kontaktformular der Website schreibt ins ERP** (`services/inquiry`): ◄◄◄ die
+> Anfrage ist eine offene Nachricht der Person (angelegt, wenn neu) im Postfach der
+> Gesellschaft zum Besucherland, Fotos liegen im ERP. Die **Bestätigung** geht über dieses
+> Postfach hinaus und steht im Verlauf – **ohne «Antwort auf»**, die Anfrage bleibt offen,
+> bis ein Mensch antwortet (sonst hebelte sie das 2-h-Ziel aus). Gespeichert wird **vor**
+> jedem Versand; lässt sich nichts speichern → 503 mit Telefon und mailto, nie ein stilles
+> «Danke». Spam (Honigtopf, Mindestzeit, 5/h je IP) erzeugt weder Person noch Nachricht.
 > **Abgleich ohne Pub/Sub und ohne Uhr**: solange das ERP offen ist, ruft es jede Minute
 > `POST /erp/messages/sync` (Server drosselt auf 30 s je Postfach, `SKIP LOCKED`); Gmail
 > `history` ab dem Verbinden, alte Mails werden nicht importiert. **Ein unbekannter Absender
@@ -5155,11 +5168,14 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
   Index, Knöpfe 8 px (keine Pillen), flach, echtes Logo (`public/logo/`, mit «ehemals HS Steiner»). **Bilder:** bis zum
   Fototag gekennzeichnete Beispielbilder (Wikimedia Commons, Nachweis im Impressum) – im Modus
   `live` ein Build-Fehler wie ein fehlendes Foto.
-- **Das Formular** geht an `POST /api/v1/contact` (`backend/app/routers/contact.py`) – ein
-  isolierter Endpunkt ohne ERP-Import und ohne Tabelle. Sein Vokabular ist generiert
+- **Das Formular** geht an `POST /api/v1/contact` (`backend/app/routers/contact.py`) und
+  wird eine **Nachricht im ERP** (`services/inquiry`): Person zur E-Mail (angelegt, wenn
+  neu), offen, im Postfach der Gesellschaft zum Besucherland. **E-Mail Pflicht**, Telefon
+  freiwillig, Anhänge nur Bilder. Sein Vokabular ist generiert
   (`website/scripts/export-contact.mjs` → `backend/app/assets/website_contact.json`, CI
-  prüft). **Ohne `INQUIRY_SMTP_*` antwortet er 503**, die Seite zeigt Telefon und einen
-  vorausgefüllten mailto-Link, und die Anfrage steht als `INQUIRY_UNSENT` im Log.
+  prüft). **Lässt sich die Anfrage nicht speichern, antwortet er 503**, die Seite zeigt
+  Telefon und einen vorausgefüllten mailto-Link, und die Anfrage steht als
+  `INQUIRY_UNSENT` im Log.
 - **Jede Seite steht in `website/src/lib/pages.ts`** (Sitemap, llms.txt) oder trägt
   `noindex` – sonst bricht der Build. `check-site.mjs` prüft nach jedem Build Links,
   JSON-LD, Titel, H1, Sitemap/robots/llms, die Weiterleitungen alter hs-steiner.ch-Pfade

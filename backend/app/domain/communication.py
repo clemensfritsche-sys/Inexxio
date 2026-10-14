@@ -14,8 +14,9 @@ Drei Regeln, eine Logik, keine Sonderfälle:
    intern wie extern gleich.
 
 **Ein Kanal ist ein Katalogeintrag, kein Datensatz**: ein neuer Kanal ist eine Zeile
-hier. Er gehört dem Betreiber (der eigenen Gesellschaft, die die Website vertritt);
-persönliche Postfächer eines Mitarbeiters haben dieselbe Form (``u<Objektnummer>``).
+hier. Postfächer haben eine **Form** statt einer Zeile: jede **eigene Gesellschaft** hat
+eines (``c<Objektnummer>``, seine Adresse ist ihre Kontakt-E-Mail – dieselbe, die die
+Website je Besucherland zeigt), jeder Mitarbeiter ein persönliches (``u<Objektnummer>``).
 Zwei Eigenschaften tragen die ganze Unterscheidung:
 
 * ``outside`` – verlässt die Nachricht das Haus? (Intern: nie.)
@@ -48,45 +49,66 @@ class Channel:
     live: bool
 
 
-#: Der Kanal des Unternehmens: seine Adresse ist die **Kontakt-E-Mail des Betreibers**
-#: (``company_settings.email``) – keine zweite Angabe, die beim Domain-Wechsel stehenbleibt.
-COMPANY_MAIL = "info"
-
 CHANNELS: dict[str, Channel] = {
     c.key: c for c in (
-        Channel(COMPANY_MAIL, "Unternehmen", "email", None, outside=True, live=False),
         Channel("phone", "Telefon", "phone", None, outside=True, live=True),
         Channel("intern", "Intern", "internal", None, outside=False, live=False),
     )
 }
 
-#: Ein **persönliches Postfach** eines Mitarbeiters ist ein Kanal derselben Form –
-#: Schlüssel ``u<Objektnummer>``. Kein Katalogeintrag je Person: die Form ist die Regel.
+#: Ein **Postfach** ist ein Kanal einer festen Form – kein Katalogeintrag je Gesellschaft
+#: oder Person: die Form ist die Regel. ``c`` = eigene Gesellschaft, ``u`` = Mitarbeiter.
+COMPANY_PREFIX = "c"
 PERSONAL_PREFIX = "u"
+
+
+def company(object_id: int) -> str:
+    return f"{COMPANY_PREFIX}{object_id}"
 
 
 def personal(object_id: int) -> str:
     return f"{PERSONAL_PREFIX}{object_id}"
 
 
+def _number(key: str, prefix: str) -> Optional[int]:
+    rest = key[len(prefix):] if key.startswith(prefix) else ""
+    return int(rest) if rest.isdigit() else None
+
+
+def company_of(key: str) -> Optional[int]:
+    """Die Gesellschaft hinter einem Unternehmens-Postfach – sonst ``None``."""
+    return _number(key, COMPANY_PREFIX)
+
+
 def owner_of(key: str) -> Optional[int]:
     """Die Objektnummer hinter einem persönlichen Postfach – sonst ``None``."""
-    rest = key[len(PERSONAL_PREFIX):] if key.startswith(PERSONAL_PREFIX) else ""
-    return int(rest) if rest.isdigit() else None
+    return _number(key, PERSONAL_PREFIX)
 
 
 def channel(key: str) -> Channel:
     """Der Kanal zu einem Schlüssel – ein unbekannter ist ein Fehler, kein Rückfall."""
     if key in CHANNELS:
         return CHANNELS[key]
+    if company_of(key) is not None:
+        return Channel(key, "Unternehmen", "email", None, outside=True, live=False)
     if owner_of(key) is not None:
         return Channel(key, "Persönlich", "email", None, outside=True, live=False)
     raise ValueError(f"Kanal «{key}» gibt es nicht.")
 
 
 def is_mail(key: str) -> bool:
-    """Geht dieser Kanal über ein Postfach? (Info oder persönlich)"""
-    return key == COMPANY_MAIL or owner_of(key) is not None
+    """Geht dieser Kanal über ein Postfach? (Gesellschaft oder persönlich)"""
+    return company_of(key) is not None or owner_of(key) is not None
+
+
+def info_repair_sql() -> list[str]:
+    """Der frühere eine Unternehmens-Kanal ``info`` wird der des **Betreibers** – gelesen
+    von Migration 146 **und** vom Lifespan-Netz (die dev-Datenbank fährt keine Migration,
+    #778). Selbstbegrenzend: danach gibt es kein ``info`` mehr."""
+    op = ("(SELECT 'c' || object_id FROM company_settings WHERE is_own AND object_id "
+          "IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
+    return [f"UPDATE {t} SET channel = {op} WHERE channel = 'info' AND {op} IS NOT NULL"
+            for t in ("messages", "mailboxes")]
 
 
 def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:

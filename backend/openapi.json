@@ -4018,29 +4018,57 @@
           "communication"
         ],
         "summary": "Mailboxes",
-        "description": "Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden?",
+        "description": "Mit ``company`` das Postfach dieser (eigenen) Gesellschaft, sonst das eigene –\nAdresse, Zustand, darf ich verbinden?",
         "operationId": "mailboxes_api_v1_erp_messages_mailboxes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/MailboxOut"
                   },
-                  "type": "array",
                   "title": "Response Mailboxes Api V1 Erp Messages Mailboxes Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/erp/messages/mailboxes/{channel}/connect": {
@@ -5431,6 +5459,17 @@
             "type": "integer",
             "title": "Size",
             "default": 0
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           }
         },
         "type": "object",
@@ -5493,6 +5532,11 @@
           "mail": {
             "type": "boolean",
             "title": "Mail",
+            "default": false
+          },
+          "personal": {
+            "type": "boolean",
+            "title": "Personal",
             "default": false
           }
         },
@@ -7168,7 +7212,7 @@
           "connected"
         ],
         "title": "MailboxOut",
-        "description": "Ein Postfach, das diesen Betrachter angeht – das des Unternehmens oder sein eigenes."
+        "description": "Ein Postfach – das einer eigenen Gesellschaft oder das eigene des Betrachters."
       },
       "MessageIn": {
         "properties": {

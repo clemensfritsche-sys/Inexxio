@@ -638,6 +638,12 @@ def _ensure_columns() -> None:
                 if {"is_operator", "is_own"} <= cs_cols:
                     for stmt in _COMPANY_DATA_FIXES:
                         conn.execute(text(stmt))
+                    # Der frühere Kanal ``info`` wird der des Betreibers (Migration
+                    # ``146``) – selbstbegrenzend, danach gibt es kein ``info`` mehr.
+                    if {"messages", "mailboxes"} <= tables:
+                        from .domain.communication import info_repair_sql
+                        for stmt in info_repair_sql():
+                            conn.execute(text(stmt))
                 # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
                 # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.
                 if {"uid_key", "name_key"} <= cs_cols:

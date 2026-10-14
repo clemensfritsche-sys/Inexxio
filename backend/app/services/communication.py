@@ -36,7 +36,7 @@ def channel_out(key: str, label: Optional[str] = None) -> ChannelOut:
     """Ein Kanal – ein Postfach heisst wie seine Adresse (``mailbox.address_of``)."""
     c = dc.channel(key)
     return ChannelOut(key=c.key, label=label or c.label, kind=c.kind, outside=c.outside,
-                      mail=dc.is_mail(key))
+                      mail=dc.is_mail(key), personal=dc.owner_of(key) is not None)
 
 
 def _labels(db: Session, keys: Iterable[str]) -> dict[str, str]:
@@ -45,12 +45,16 @@ def _labels(db: Session, keys: Iterable[str]) -> dict[str, str]:
 
 
 def channels(db: Session, actor: UserProfile) -> list[ChannelOut]:
-    """Die Kanäle, über die dieser Mitarbeiter schreiben kann: das Unternehmen, sein
-    eigenes Postfach (wenn verbunden), Telefon, Intern."""
+    """Die Kanäle, über die dieser Mitarbeiter schreiben kann: jede eigene Gesellschaft,
+    sein eigenes Postfach (wenn verbunden), Telefon, Intern."""
     from .mailbox import active
-    keys = list(dc.CHANNELS)
+    from .sites import find_operator, selectable_companies
+    op = find_operator(db)
+    firms = sorted(selectable_companies(db), key=lambda c: (op is None or c.id != op.id, c.id))
+    keys = [dc.company(c.object_id) for c in firms if c.object_id]
     if actor.object_id and active(db, dc.personal(actor.object_id)) is not None:
-        keys.insert(1, dc.personal(actor.object_id))
+        keys.append(dc.personal(actor.object_id))
+    keys += list(dc.CHANNELS)
     labels = _labels(db, keys)
     return [channel_out(k, labels.get(k)) for k in keys]
 

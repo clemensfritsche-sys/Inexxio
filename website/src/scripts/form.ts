@@ -104,12 +104,9 @@ function validate(form: HTMLFormElement, vocab: Vocab): Errors {
   if (!value(form, 'name')) errors.name = m.name;
   const phone = value(form, 'phone');
   const email = value(form, 'email');
-  if (!phone && !email) {
-    errors.phone = m.contact;
-  } else {
-    if (phone && !PHONE.test(phone)) errors.phone = m.phone;
-    if (email && !EMAIL.test(email)) errors.email = m.email;
-  }
+  if (!email) errors.email = m.contact;
+  else if (!EMAIL.test(email)) errors.email = m.email;
+  if (phone && !PHONE.test(phone)) errors.phone = m.phone;
   return errors;
 }
 
@@ -152,8 +149,7 @@ function render(form: HTMLFormElement, errors: Errors, focus = true): boolean {
 
 function clearError(form: HTMLFormElement, name: string): void {
   if (!name) return;
-  const related = name === 'phone' || name === 'email' ? ['phone', 'email'] : [name];
-  for (const n of related) {
+  for (const n of [name]) {
     const box = form.querySelector<HTMLElement>(`[data-error-for="${n}"]`);
     if (box) box.hidden = true;
     form.querySelectorAll(`[name="${n}"]`).forEach((el) => el.removeAttribute('aria-invalid'));

@@ -28,10 +28,17 @@ keine Anbindung – eine E-Mail wird dann wie bisher nur **erfasst**, nicht gese
 
 ## Im ERP
 
-Ein Benutzer → Reiter **Kommunikation** → **E-Mail**: dort stehen die Postfächer.
-* **Unternehmen** (`info`): verbindet ein **Admin**. Es muss das Konto sein, das am
-  Betreiber als **Kontakt-E-Mail** steht – sonst lehnt das ERP ab und sagt, welches.
-* **Persönlich**: jeder Mitarbeiter verbindet sein eigenes.
+Ein Postfach wird dort verbunden, wem es gehört (Reiter **Kommunikation**, Zeile
+«Postfach» → **Verbinden**):
+* **Je eigene Gesellschaft eines** – an ihrem **Unternehmens-Datensatz**, nur ein
+  **Admin**. Es muss das Konto sein, das dort als **Kontakt-E-Mail** steht (dieselbe, die
+  die Website im Land dieser Gesellschaft zeigt) – sonst lehnt das ERP ab und sagt,
+  welches.
+* **Persönlich**: jeder Mitarbeiter an seinem **eigenen** Benutzer-Datensatz.
+
+Anfragen aus dem **Kontaktformular der Website** landen im Postfach der Gesellschaft, die
+die Website dem Besucher zeigt (sonst des Betreibers); die Bestätigung an den Kunden geht
+über dasselbe Postfach hinaus.
 
 ## Was dann automatisch passiert
 

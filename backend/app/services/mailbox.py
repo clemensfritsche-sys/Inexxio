@@ -3,9 +3,11 @@
 Drei Dinge, und jedes an genau einer Stelle:
 
 * **Verbinden** (``connect_url`` → Google → ``callback``): je Kanal ein Postfach, OAuth
-  mit dauerhaftem Zugang. Das Postfach des **Unternehmens** (``info``) muss die
-  **Kontakt-E-Mail des Betreibers** sein – eine zweite Adresse daneben wäre die Angabe,
-  die beim Domain-Wechsel stehenbleibt. Ein **persönliches** verbindet nur sein Besitzer.
+  mit dauerhaftem Zugang. **Jede eigene Gesellschaft hat eines** (``c<Objektnummer>``),
+  und es muss **ihre Kontakt-E-Mail** sein – dieselbe, die die Website im Land dieser
+  Gesellschaft zeigt; eine zweite Adresse daneben wäre die Angabe, die beim
+  Domain-Wechsel stehenbleibt. Verbunden wird es am **Firmen-Datensatz** (nur ein Admin),
+  ein **persönliches** am eigenen Datensatz (nur sein Besitzer).
 * **Abgleichen** (``sync_all``): neue Mails seit dem letzten Stand (Gmail ``history``)
   werden zu Nachrichten. Der Absender wird einer Person zugeordnet – **unbekannte werden
   angelegt** (ohne Anmeldekonto: meldet sie sich später mit dieser Adresse an, übernimmt
@@ -14,7 +16,7 @@ Drei Dinge, und jedes an genau einer Stelle:
   Postfach ihres Kanals hinaus – im richtigen Faden.
 
 **Eine eigene Adresse ist nie eine Person.** Die Adressen der Postfächer und die
-Kontakt-E-Mail des Betreibers sind «wir» (``_ours``): eine Mail von dort hat einen
+Kontakt-E-Mails der eigenen Gesellschaften sind «wir» (``_ours``): eine Mail von dort hat einen
 Mitarbeiter als Absender, eine Mail dorthin hat sie als Kanal – und keine davon legt je
 eine Person an, auch nicht, wenn ein Benutzerkonto dieselbe Adresse trägt.
 
@@ -80,11 +82,23 @@ def _now() -> datetime:
 # Adressen: welche sind «wir»?
 # ---------------------------------------------------------------------------
 
-def company_address(db: Session) -> str:
-    """Die Adresse des Unternehmens-Postfachs = die Kontakt-E-Mail des Betreibers."""
-    from .sites import find_operator
-    op = find_operator(db)
-    return normalize_email(op.email if op else "")
+def company(db: Session, channel: str):
+    """Die **eigene** Gesellschaft hinter einem Unternehmens-Postfach – sonst ``None``."""
+    from .sites import by_object_id
+    oid = dc.company_of(channel)
+    c = by_object_id(db, oid) if oid else None
+    return c if c is not None and c.is_own else None
+
+
+def company_address(db: Session, channel: str) -> str:
+    """Die Adresse eines Unternehmens-Postfachs = die Kontakt-E-Mail seiner Gesellschaft."""
+    c = company(db, channel)
+    return normalize_email(c.email if c else "")
+
+
+def _company_addresses(db: Session) -> set[str]:
+    from .sites import selectable_companies
+    return {a for a in (normalize_email(c.email) for c in selectable_companies(db)) if a}
 
 
 def active(db: Session, channel: str) -> Optional[Mailbox]:
@@ -94,8 +108,8 @@ def active(db: Session, channel: str) -> Optional[Mailbox]:
 
 def address_of(db: Session, channel: str) -> str:
     """Die Adresse hinter einem Mail-Kanal – angezeigt als sein Name."""
-    if channel == dc.COMPANY_MAIL:
-        return company_address(db)
+    if dc.company_of(channel) is not None:
+        return company_address(db, channel) or channel
     mb = active(db, channel)
     if mb is not None:
         return mb.address
@@ -106,10 +120,7 @@ def address_of(db: Session, channel: str) -> str:
 
 def _ours(db: Session) -> dict[str, Optional[int]]:
     """Adresse → wer dahinter schreibt (Objektnummer, ``None`` = unbekannt)."""
-    out: dict[str, Optional[int]] = {}
-    company = company_address(db)
-    if company:
-        out[company] = None
+    out: dict[str, Optional[int]] = {a: None for a in _company_addresses(db)}
     for mb in db.query(Mailbox).filter(Mailbox.is_active.is_(True)).all():
         out[mb.address] = mb.owner_object_id
     return out
@@ -120,15 +131,18 @@ def _ours(db: Session) -> dict[str, Optional[int]]:
 # ---------------------------------------------------------------------------
 
 def may_connect(actor: UserProfile, channel: str) -> bool:
-    """Das Unternehmens-Postfach verbindet ein Admin, ein persönliches nur sein Besitzer."""
-    if channel == dc.COMPANY_MAIL:
+    """Ein Unternehmens-Postfach verbindet ein Admin, ein persönliches nur sein Besitzer."""
+    if dc.company_of(channel) is not None:
         return actor.role == "admin"
     return actor.role in STAFF_ROLES and dc.owner_of(channel) == actor.object_id
 
 
-def _assert_may(actor: UserProfile, channel: str) -> None:
+def _assert_may(db: Session, actor: UserProfile, channel: str) -> None:
     if not dc.is_mail(channel):
         raise HTTPException(400, detail=f"«{channel}» ist kein Postfach.")
+    if dc.company_of(channel) is not None and company(db, channel) is None:
+        raise HTTPException(404, detail=f"«{dc.company_of(channel)}» ist keine eigene "
+                                        f"Gesellschaft – nur sie hat ein Postfach.")
     if not may_connect(actor, channel):
         raise HTTPException(403, detail="Das Unternehmens-Postfach verbindet ein Admin, "
                                         "ein persönliches nur sein Besitzer.")
@@ -160,8 +174,9 @@ def _unsign(state: str) -> dict[str, Any]:
 def connect_url(db: Session, channel: str, actor: UserProfile) -> str:
     if not ready():
         raise HTTPException(404, detail="Es ist keine Postfach-Anbindung eingerichtet.")
-    _assert_may(actor, channel)
-    hint = company_address(db) if channel == dc.COMPANY_MAIL else normalize_email(actor.email)
+    _assert_may(db, actor, channel)
+    hint = (company_address(db, channel) if dc.company_of(channel) is not None
+            else normalize_email(actor.email))
     state = _sign({"c": channel, "u": actor.object_id, "exp": time.time() + STATE_TTL})
     return AUTH_URL + "?" + urlencode({
         "client_id": get_settings().google_client_id, "redirect_uri": _redirect_uri(),
@@ -217,13 +232,14 @@ def callback(db: Session, code: str, state: str) -> str:
 def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh: str,
            history: str) -> str:
     """Das Postfach festhalten – nach zwei Prüfungen, beide mit Satz."""
-    if channel == dc.COMPANY_MAIL and address != company_address(db):
-        return (f"Verbunden wurde «{address}», das Unternehmen führt aber "
-                f"«{company_address(db)}» als Kontakt-E-Mail – bitte mit diesem Konto "
-                f"anmelden oder die Kontakt-E-Mail am Betreiber ändern.")
+    if dc.company_of(channel) is not None and address != company_address(db, channel):
+        return (f"Verbunden wurde «{address}», die Gesellschaft führt aber "
+                f"«{company_address(db, channel) or 'keine'}» als Kontakt-E-Mail – bitte mit "
+                f"diesem Konto anmelden oder die Kontakt-E-Mail an der Gesellschaft ändern.")
     other = db.query(Mailbox).filter(Mailbox.address == address, Mailbox.channel != channel,
                                      Mailbox.is_active.is_(True)).first()
-    if other is not None or (channel != dc.COMPANY_MAIL and address == company_address(db)):
+    if other is not None or (dc.owner_of(channel) is not None
+                             and address in _company_addresses(db)):
         return f"«{address}» ist bereits als anderes Postfach verbunden."
     old = active(db, channel)
     if old is not None:
@@ -236,7 +252,7 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
 
 
 def disconnect(db: Session, channel: str, actor: UserProfile) -> None:
-    _assert_may(actor, channel)
+    _assert_may(db, actor, channel)
     mb = active(db, channel)
     if mb is None:
         return
@@ -364,14 +380,14 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any]) -> bool:
     rfc = (head.get("message-id") or "").strip()[:255] or None
     if rfc and db.query(Message.id).filter(Message.rfc_id == rfc).first():
         return False
-    sender = (_person(db, name, sender_addr) if inbound
+    sender = (person_for(db, name, sender_addr) if inbound
               else ours.get(sender_addr) or mb.owner_object_id)
     roles: dict[str, list[int]] = {"to": [], "cc": [], "bcc": [], "about": []}
     for role in ("to", "cc"):
         for n, addr in getaddresses([head.get(role, "")]):
             addr = normalize_email(addr)
             if addr and "@" in addr and addr not in ours:
-                roles[role].append(_person(db, n, addr))
+                roles[role].append(person_for(db, n, addr))
     msg = Message(
         sender_object_id=sender, channel=mb.channel,
         subject=(head.get("subject") or "").strip()[:255] or None,
@@ -396,7 +412,7 @@ def _bulk(labels: set[str], head: dict[str, str], addr: str) -> bool:
                 or auto != "no" or _ROBOT.search(addr.split("@")[0]))
 
 
-def _person(db: Session, name: str, addr: str) -> int:
+def person_for(db: Session, name: str, addr: str, phone: str = "") -> int:
     """Die Person zu dieser Adresse – **angelegt, wenn es sie nicht gibt**.
 
     Ohne Anmeldekonto: der Platzhalter ``mail:<adresse>`` ist eindeutig, und meldet sie
@@ -406,15 +422,17 @@ def _person(db: Session, name: str, addr: str) -> int:
     from .objects import next_object_id
     found = by_email(db, addr)
     if found is not None and found.object_id:
+        if phone and not found.phone:
+            found.phone = phone[:50]
         return found.object_id
     parts = (name or "").replace('"', "").strip().split()
     first, last = (parts[0], " ".join(parts[1:])) if parts else (addr.split("@")[0], "")
     user = UserProfile(firebase_uid=f"mail:{addr}"[:128], email=addr, role="user",
                        first_name=first[:100], last_name=last[:100],
-                       object_id=next_object_id(db, "user"))
+                       phone=phone[:50] or None, object_id=next_object_id(db, "user"))
     db.add(user)
     db.flush()
-    log_audit(db, "user_profiles", None, f"Kontakt «{user.display_name}» aus E-Mail angelegt",
+    log_audit(db, "user_profiles", None, f"Kontakt «{user.display_name}» angelegt",
               None, object_id=user.object_id)
     return user.object_id
 
@@ -566,15 +584,14 @@ def _parent(db: Session, msg: Message) -> Optional[Message]:
 
 
 def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:
-    from .sites import find_operator, legal_name
+    from .sites import legal_name
     parties = db.query(MessageParty).filter(MessageParty.message_id == msg.id).all()
     ids = {p.person_object_id for p in parties} | {msg.sender_object_id}
     people = {u.object_id: u for u in
               db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
     sender = people.get(msg.sender_object_id)
-    op = find_operator(db)
-    name = (legal_name(op) if msg.channel == dc.COMPANY_MAIL and op
-            else (sender.display_name if sender else ""))
+    firm = company(db, msg.channel)
+    name = legal_name(firm) if firm else (sender.display_name if sender else "")
     mime = EmailMessage()
     mime["From"] = formataddr((name, mb.address))
     for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
@@ -599,12 +616,16 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
 # Auskunft
 # ---------------------------------------------------------------------------
 
-def status(db: Session, actor: UserProfile) -> list[dict[str, Any]]:
-    """Die Postfächer, die diesen Betrachter angehen: das des Unternehmens und sein
-    eigenes. Je mit Adresse, Zustand und ob er verbinden darf."""
-    keys = [dc.COMPANY_MAIL]
-    if actor.role in STAFF_ROLES and actor.object_id:
-        keys.append(dc.personal(actor.object_id))
+def status(db: Session, actor: UserProfile, company_id: Optional[int] = None
+           ) -> list[dict[str, Any]]:
+    """Das Postfach, um das es an dieser Stelle geht: am Firmen-Datensatz das der
+    Gesellschaft (nur eine eigene hat eines), sonst das eigene. Je mit Adresse, Zustand
+    und ob dieser Betrachter verbinden darf."""
+    if company_id is not None:
+        keys = [dc.company(company_id)] if company(db, dc.company(company_id)) else []
+    else:
+        keys = [dc.personal(actor.object_id)] if (
+            actor.role in STAFF_ROLES and actor.object_id) else []
     out = []
     for key in keys:
         mb = active(db, key)

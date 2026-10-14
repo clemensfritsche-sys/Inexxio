@@ -1,63 +1,53 @@
 """Anfragen der öffentlichen Website (das EINE Anfrage-Formular auf /kontakt und am Ende jeder Seite).
 
-►►► Strikt getrennt vom ERP. ◄◄◄ Dieses Modul importiert nichts aus ``app.models``,
-``app.services`` oder ``app.core`` und berührt keine Tabelle: eine Anfrage wird geprüft,
-als E-Mail an uns geschickt (Fotos im Anhang), und die anfragende Person bekommt eine
-Bestätigung. Das ist alles – keine Datenbank, kein Konto, keine Warteschlange.
+►►► **Eine Anfrage ist eine Nachricht im ERP** (``services/inquiry``). ◄◄◄ Kein
+Mailversand mehr, keine zweite Inbox: die Anfrage steht im Verlauf der anfragenden Person
+(angelegt, wenn es sie nicht gibt), **offen**, im Postfach der Gesellschaft, die die
+Website diesem Besucher zeigt (Land → Gesellschaft, sonst der Betreiber). Die Bestätigung
+geht über dasselbe Postfach hinaus und beantwortet die Anfrage **nicht** – sie bleibt
+offen, bis ein Mensch antwortet.
 
-**Die Wörter kommen von der Website.** Welche Anliegen, Themen und Dringlichkeiten es gibt,
-wie die Felder heissen und welche Fehlermeldungen erscheinen, steht in
-``website/src/config`` und wird mit ``npm run export:contact`` nach
-``app/assets/website_contact.json`` übertragen (die CI prüft, dass die Datei aktuell ist).
-Formular im Browser und Server sagen damit garantiert dasselbe.
+**Die Wörter kommen von der Website.** Welche Felder es gibt, wie sie heissen und welche
+Fehlermeldungen erscheinen, steht in ``website/src/config`` und wird mit
+``npm run export:contact`` nach ``app/assets/website_contact.json`` übertragen (die CI
+prüft, dass die Datei aktuell ist). Formular im Browser und Server sagen damit garantiert
+dasselbe.
 
 **Ohne JavaScript** schickt der Browser das Formular klassisch (multipart). Dann antwortet
 der Endpunkt mit HTML: bei Erfolg ``303`` auf ``/kontakt/danke``, sonst eine schlichte Seite
 mit den fehlenden Angaben bzw. mit Telefon und einem vorausgefüllten mailto-Link. Mit
 ``Accept: application/json`` (das Skript der Website) antwortet er mit JSON.
 
-**Keine Anfrage geht still verloren.** Ist kein Mailversand eingerichtet oder schlägt er
-fehl, antwortet der Endpunkt mit ``503`` – das Formular zeigt dann Telefon und den
-vorausgefüllten mailto-Link –, und die Anfrage steht vollständig (ohne Fotos) im Log.
+**Keine Anfrage geht still verloren.** Lässt sie sich nicht speichern, antwortet der
+Endpunkt mit ``503`` – das Formular zeigt dann Telefon und den vorausgefüllten
+mailto-Link –, und die Anfrage steht vollständig (ohne Fotos) im Log (``INQUIRY_UNSENT``).
+Nie ein stilles «Danke».
 
-**Konfiguration nur über Umgebungsvariablen** (``INQUIRY_*``, siehe ``InquirySettings``),
-Zugangsdaten nie im Repository.
-
-Schema der Anfrage (``anfrage.json`` im Anhang der E-Mail an uns; Grundlage für eine
-spätere Übernahme ins ERP)::
-
-    {
-      "schema": "inexxio.website.inquiry/1",
-      "id": "uuid", "received_at": "ISO-8601 UTC",
-      "source": "/pfad/der/seite",
-      "message": str,                       # das Anliegen – EIN Feld (Rückmeldung 04.10.2026)
-      "contact": {"name": str, "company": str|null, "phone": str|null, "email": str|null},
-      "photos":  [{"filename": str, "content_type": str, "size": int}]
-    }
+**Spam erzeugt nichts**: Honigtopf, Mindestausfüllzeit und die Begrenzung je IP stehen
+**vor** dem ersten Zugriff auf die Datenbank – keine Person, keine Nachricht.
 """
 from __future__ import annotations
 
 import json
 import re
-import smtplib
-import ssl
 import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from email.message import EmailMessage
-from email.utils import formataddr, formatdate, make_msgid
 from html import escape
 from pathlib import Path
 from threading import Lock
 from urllib.parse import quote
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
+
+from ..core.database import get_db
+from ..services import geoip, inquiry as svc
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
 
@@ -69,45 +59,15 @@ MSG: dict[str, str] = VOCAB["messages"]
 LIMITS: dict[str, int] = VOCAB["limits"]
 PHOTOS: dict = VOCAB["photos"]
 
-#: Version 3 (04.10.2026): EIN Feld für das Anliegen, dazu Anhänge und «wer fragt an».
-#: Bereich, Anliegen, Dringlichkeit, Standort, Hersteller und Baujahr sind entfallen – was
-#: der Mensch schreibt, ist die Angabe (später KI-gestützt ausgewertet).
-SCHEMA = "inexxio.website.inquiry/3"
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 PHONE_RE = re.compile(r"^[+()\d][\d\s/().-]{5,}$")
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
-        ".heic": "image/heic", ".heif": "image/heif", ".pdf": "application/pdf"}
 #: Obergrenze der ganzen Anfrage: Fotos plus grosszügig Platz für die Textfelder.
 MAX_BODY = int(PHOTOS["maxTotalBytes"]) + 1024 * 1024
 WINDOW_SECONDS = 3600
-
-
-class InquirySettings(BaseSettings):
-    """Mailversand der Website-Anfragen – ausschliesslich aus der Umgebung.
-
-    Ohne ``INQUIRY_SMTP_HOST`` ist der Versand aus: der Endpunkt antwortet dann mit 503,
-    und das Formular bietet Telefon und mailto an.
-    """
-
-    model_config = SettingsConfigDict(env_prefix="INQUIRY_", extra="ignore")
-
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    #: True = TLS von Anfang an (Port 465); sonst STARTTLS, sobald der Server es anbietet.
-    smtp_ssl: bool = False
-    smtp_timeout: float = 20.0
-    #: Absender; leer = ``smtp_user``.
-    mail_from: str = ""
-    #: Empfänger der Anfragen; leer = die E-Mail-Adresse der Website-Konfiguration.
-    mail_to: str = ""
-    #: Bestätigung an die anfragende Person (wenn sie eine E-Mail-Adresse angibt).
-    confirm: bool = True
-    #: Gesendete Anfragen je IP-Adresse und Stunde.
-    rate_limit: int = 5
+#: Gesendete Anfragen je IP-Adresse und Stunde.
+RATE_LIMIT = 5
 
 
 # ------------------------------------------------------------------ Begrenzung je IP
@@ -149,7 +109,6 @@ def _client_ip(request: Request) -> str:
 @dataclass
 class Photo:
     filename: str
-    content_type: str
     data: bytes
 
 
@@ -181,9 +140,10 @@ def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
     if not values["name"]:
         errors.setdefault("name", MSG["name"])
     phone, email = values["phone"], values["email"]
-    if not phone and not email:
-        errors.setdefault("phone", MSG["contact"])
-        return
+    # Die E-Mail ist Pflicht: über sie wird die Person gefunden (oder angelegt), und
+    # dorthin gehen Bestätigung und Antwort. Das Telefon ist freiwillig.
+    if not email:
+        errors.setdefault("email", MSG["contact"])
     if phone and not PHONE_RE.match(phone):
         errors.setdefault("phone", MSG["phone"])
     if email and not EMAIL_RE.match(email):
@@ -212,7 +172,7 @@ async def _read_photos(uploads: list, errors: dict[str, str]) -> list[Photo]:
         data = await upload.read()
         total += len(data)
         safe = re.sub(r"[^\w.\-]+", "_", name)[-80:] or f"foto{ext}"
-        photos.append(Photo(filename=safe, content_type=MIME.get(ext, "application/octet-stream"), data=data))
+        photos.append(Photo(filename=safe, data=data))
     if total > int(PHOTOS["maxTotalBytes"]):
         errors["photos"] = MSG["photosSize"].replace("{size}", _mb(total)).replace("{max}", _mb(int(PHOTOS["maxTotalBytes"])))
         return []
@@ -268,107 +228,15 @@ def as_record(inq: Inquiry) -> dict:
     """Die Anfrage als JSON-Objekt (Schema siehe Moduldoku) – ohne Fotodaten."""
     v = inq.values
     return {
-        "schema": SCHEMA,
+        "schema": "inexxio.website.inquiry/3",
         "id": inq.id,
         "received_at": inq.received_at.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "source": inq.source,
         "message": v["message"],
         "contact": {"name": v["name"], "company": v["company"] or None, "phone": v["phone"] or None,
                     "email": v["email"] or None},
-        "photos": [{"filename": p.filename, "content_type": p.content_type, "size": len(p.data)}
-                   for p in inq.photos],
+        "photos": [{"filename": p.filename, "size": len(p.data)} for p in inq.photos],
     }
-
-
-# ------------------------------------------------------------------ E-Mails
-
-def _local_time(dt: datetime) -> str:
-    try:
-        from zoneinfo import ZoneInfo
-        return dt.astimezone(ZoneInfo("Europe/Zurich")).strftime("%d.%m.%Y %H.%M Uhr")
-    except Exception:  # keine Zeitzonen-Daten im Image: dann UTC, ausdrücklich so benannt
-        return dt.strftime("%d.%m.%Y %H.%M Uhr (UTC)")
-
-
-def _sender(s: InquirySettings) -> str:
-    return formataddr((VOCAB["brand"]["full"], s.mail_from or s.smtp_user))
-
-
-def _internal_mail(inq: Inquiry, s: InquirySettings) -> EmailMessage:
-    msg = EmailMessage()
-    msg["Subject"] = _subject(inq)
-    msg["From"] = _sender(s)
-    msg["To"] = s.mail_to or VOCAB["email"]
-    if inq.values["email"]:
-        msg["Reply-To"] = formataddr((inq.values["name"], inq.values["email"]))
-    msg["Date"] = formatdate(localtime=False)
-    msg["Message-ID"] = make_msgid(domain=(s.mail_from or s.smtp_user or "website").split("@")[-1])
-    photos = f"Dateien: {len(inq.photos)} (im Anhang)" if inq.photos else "Dateien: keine"
-    msg.set_content("\n".join([
-        f"Neue Anfrage über die Website – Seite {inq.source}.",
-        "",
-        _summary(inq, include_message_block=True),
-        "",
-        photos,
-        f"Eingang: {_local_time(inq.received_at)}",
-        f"Anfrage-Nr.: {inq.id}",
-    ]))
-    for p in inq.photos:
-        maintype, subtype = p.content_type.split("/", 1)
-        msg.add_attachment(p.data, maintype=maintype, subtype=subtype, filename=p.filename)
-    record = json.dumps(as_record(inq), ensure_ascii=False, indent=2).encode("utf-8")
-    msg.add_attachment(record, maintype="application", subtype="json", filename="anfrage.json")
-    return msg
-
-
-def _confirmation(inq: Inquiry, s: InquirySettings) -> EmailMessage:
-    m = VOCAB["mail"]
-    msg = EmailMessage()
-    msg["Subject"] = m["confirmSubject"]
-    msg["From"] = _sender(s)
-    msg["To"] = formataddr((inq.values["name"], inq.values["email"]))
-    msg["Reply-To"] = s.mail_to or VOCAB["email"]
-    msg["Date"] = formatdate(localtime=False)
-    msg["Message-ID"] = make_msgid(domain=(s.mail_from or s.smtp_user or "website").split("@")[-1])
-    body = [f"Guten Tag {inq.values['name']}", "", m["confirmIntro"], "", _summary(inq, include_message_block=True)]
-    if inq.photos:
-        body += ["", f"Dateien: {len(inq.photos)} übermittelt"]
-    body += ["", m["confirmNext"]]
-    if m.get("urgent"):
-        body.append(m["urgent"])
-    body += ["", m["closing"], VOCAB["brand"]["full"], *VOCAB["address"],
-             f"Telefon {VOCAB['phone']['display']}", VOCAB["email"]]
-    msg.set_content("\n".join(body))
-    return msg
-
-
-def _smtp(s: InquirySettings) -> smtplib.SMTP:
-    context = ssl.create_default_context()
-    if s.smtp_ssl:
-        return smtplib.SMTP_SSL(s.smtp_host, s.smtp_port, timeout=s.smtp_timeout, context=context)
-    server = smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=s.smtp_timeout)
-    server.ehlo()
-    if server.has_extn("starttls"):
-        server.starttls(context=context)
-        server.ehlo()
-    return server
-
-
-def _deliver(inq: Inquiry, s: InquirySettings) -> bool:
-    """Schickt die Anfrage an uns (Pflicht) und die Bestätigung (Kür). Gibt zurück, ob die
-    Bestätigung verschickt wurde. Scheitert die E-Mail an uns, fliegt die Ausnahme weiter."""
-    with _smtp(s) as server:
-        if s.smtp_user:
-            server.login(s.smtp_user, s.smtp_password)
-        server.send_message(_internal_mail(inq, s))
-        if not (s.confirm and inq.values["email"]):
-            return False
-        try:
-            server.send_message(_confirmation(inq, s))
-            return True
-        except (smtplib.SMTPException, OSError) as exc:
-            print(f"WARNING: INQUIRY confirmation not sent id={inq.id}: {type(exc).__name__}: {exc}", flush=True)
-            return False
 
 
 # ------------------------------------------------------------------ Antworten
@@ -436,9 +304,8 @@ def _done(inq: Inquiry, wants_json: bool) -> Response:
 # ------------------------------------------------------------------ Endpunkt
 
 @router.post("", summary="Anfrage der Website (Formular, multipart)")
-async def submit_inquiry(request: Request) -> Response:
+async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Response:
     wants_json = "application/json" in request.headers.get("accept", "")
-    settings = InquirySettings()
     length = request.headers.get("content-length", "")
     if length.isdigit() and int(length) > MAX_BODY:
         limit = _mb(int(PHOTOS["maxTotalBytes"]))
@@ -449,6 +316,7 @@ async def submit_inquiry(request: Request) -> Response:
         print(f"WARNING: INQUIRY unreadable form: {type(exc).__name__}: {exc}", flush=True)
         return _failed(None, 400, "Die Anfrage konnte nicht gelesen werden.", wants_json)
 
+    # Spam erzeugt nichts: alles hier steht VOR dem ersten Zugriff auf die Datenbank.
     ip = _client_ip(request)
     if _clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
         print(f"INFO: INQUIRY spam (honeypot) ip={ip}", flush=True)
@@ -462,28 +330,51 @@ async def submit_inquiry(request: Request) -> Response:
     inq = await _parse(form_data, errors)
     if errors:
         return _invalid(errors, inq, wants_json)
-    if not _allow(ip, settings.rate_limit):
+    if not _allow(ip, RATE_LIMIT):
         print(f"INFO: INQUIRY rate limited ip={ip}", flush=True)
         msg = f"Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {VOCAB['phone']['display']}."
         return _failed(inq, 429, msg, wants_json)
-    return await _send(inq, settings, wants_json)
+    country = geoip.country_of(geoip.client_ip(request.headers, request.client.host if request.client else None))
+    return await run_in_threadpool(_store, db, inq, country, wants_json)
 
 
-async def _send(inq: Inquiry, settings: InquirySettings, wants_json: bool) -> Response:
-    record = as_record(inq)
-    if not settings.smtp_host:
-        print(f"ERROR: INQUIRY not sent (INQUIRY_SMTP_HOST fehlt) id={inq.id}", flush=True)
-        print(f"INQUIRY_UNSENT {json.dumps(record, ensure_ascii=False)}", flush=True)
-        return _failed(inq, 503, "Das Senden ist gerade nicht möglich.", wants_json)
+def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> Response:
+    """Ins ERP – und erst wenn das steht, «Danke». Scheitert es, sagt die Seite es mit
+    Telefon und mailto; die Anfrage steht dann im Log."""
+    v = inq.values
+    data = svc.Inquiry(name=v["name"], email=v["email"].lower(), message=v["message"],
+                       phone=v["phone"], company=v["company"], source=inq.source,
+                       photos=[svc.Photo(p.filename, p.data) for p in inq.photos])
     try:
-        confirmed = await run_in_threadpool(_deliver, inq, settings)
-    except (smtplib.SMTPException, OSError) as exc:
-        print(f"ERROR: INQUIRY not sent id={inq.id}: {type(exc).__name__}: {exc}", flush=True)
-        print(f"INQUIRY_UNSENT {json.dumps(record, ensure_ascii=False)}", flush=True)
-        return _failed(inq, 503, "Das Senden ist gerade nicht möglich.", wants_json)
-    print(
-        f"INFO: INQUIRY sent id={inq.id} source={inq.source} "
-        f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}",
-        flush=True,
-    )
+        msg = svc.record(db, data, country)
+    except HTTPException as exc:  # ein Bild, das sich nicht lesen lässt
+        db.rollback()
+        name = inq.photos[0].filename if len(inq.photos) == 1 else "Eine der Dateien"
+        return _invalid({"photos": MSG["photosType"].replace("{name}", name)}, inq, wants_json) \
+            if exc.status_code in (400, 413) else _unsent(db, inq, exc, wants_json)
+    except Exception as exc:
+        return _unsent(db, inq, exc, wants_json)
+    confirmed = _confirm(db, msg, v["name"])
+    print(f"INFO: INQUIRY stored id={inq.id} message={msg.id} channel={msg.channel} "
+          f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}", flush=True)
     return _done(inq, wants_json)
+
+
+def _confirm(db: Session, msg, name: str) -> bool:
+    """Die Bestätigung ist Kür: gespeichert ist die Anfrage schon. Was hier scheitert,
+    steht im Log – und eine angelegte Bestätigung holt der nächste Abgleich nach."""
+    m = VOCAB["mail"]
+    try:
+        text = svc.confirmation_text(db, msg, name, m["confirmIntro"], m["confirmNext"], m["closing"])
+        return svc.confirm(db, msg, text, m["confirmSubject"])
+    except Exception as exc:
+        db.rollback()
+        print(f"WARNING: INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}", flush=True)
+        return False
+
+
+def _unsent(db: Session, inq: Inquiry, exc: Exception, wants_json: bool) -> Response:
+    db.rollback()
+    print(f"ERROR: INQUIRY not stored id={inq.id}: {type(exc).__name__}: {exc}", flush=True)
+    print(f"INQUIRY_UNSENT {json.dumps(as_record(inq), ensure_ascii=False)}", flush=True)
+    return _failed(inq, 503, "Das Senden ist gerade nicht möglich.", wants_json)

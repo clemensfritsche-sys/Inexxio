@@ -29,9 +29,11 @@ def list_channels(db: Session = Depends(get_db),
 
 
 @router.get("/mailboxes", response_model=list[MailboxOut])
-def mailboxes(db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
-    """Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden?"""
-    return mailbox.status(db, user)
+def mailboxes(company: Optional[int] = Query(None), db: Session = Depends(get_db),
+              user: UserProfile = Depends(require_employee)):
+    """Mit ``company`` das Postfach dieser (eigenen) Gesellschaft, sonst das eigene –
+    Adresse, Zustand, darf ich verbinden?"""
+    return mailbox.status(db, user, company)
 
 
 @router.post("/mailboxes/{channel}/connect")

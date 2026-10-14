@@ -15,12 +15,16 @@
  */
 
 export const inquiry = {
-  /** Anhänge (freiwillig): Fotos, Skizzen, PDF. */
+  /**
+   * Anhänge (freiwillig): nur Bilder – sie werden im ERP gespeichert und an der Anfrage
+   * gezeigt. HEIC fehlt mit Absicht: nennt `accept` es nicht, wandelt das iPhone das Foto
+   * beim Auswählen selbst in JPEG um.
+   */
   photos: {
     max: 3,
     maxTotalBytes: 10 * 1024 * 1024,
-    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf,.pdf',
-    extensions: ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.pdf'],
+    accept: 'image/jpeg,image/png,image/webp',
+    extensions: ['.jpg', '.jpeg', '.png', '.webp'],
   },
   /** Mindestausfüllzeit in Sekunden (Schutz vor Bots, ohne CAPTCHA). */
   minSeconds: 3,
@@ -39,12 +43,12 @@ export const inquiry = {
   messages: {
     message: 'Bitte beschreiben Sie kurz Ihr Anliegen.',
     name: 'Bitte geben Sie Ihren Namen an.',
-    contact: 'Bitte geben Sie eine Telefonnummer oder eine E-Mail-Adresse an.',
+    contact: 'Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.',
     phone: 'Diese Telefonnummer sieht unvollständig aus.',
     email: 'Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).',
     tooLong: 'Dieser Text ist zu lang – höchstens {max} Zeichen.',
     photosCount: 'Bitte höchstens {max} Dateien auswählen (jetzt {count}).',
-    photosType: '«{name}» ist kein unterstütztes Format (JPG, PNG, WEBP, HEIC oder PDF).',
+    photosType: '«{name}» ist kein Bild im Format JPG, PNG oder WEBP.',
     photosSize: 'Die Dateien sind zusammen {size} gross – erlaubt sind {max}.',
     tooFast: 'Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal.',
   },

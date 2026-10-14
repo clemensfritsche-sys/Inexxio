@@ -379,7 +379,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         {tab === 'comm' && record.object_id != null && (
-          <DetailBody><Communication company={record.object_id} /></DetailBody>
+          <DetailBody><Communication company={record.object_id} ownCompany={own} /></DetailBody>
         )}
         {tab === 'system' && isOperator && (
           <SystemConfigSection settings={base} onSaved={(s) => onSaved({ ...base, ...s })} />

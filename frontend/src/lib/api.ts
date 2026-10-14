@@ -532,8 +532,9 @@ class ApiClient {
   }
 
   /** Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden? */
-  mailboxes(): Promise<Mailbox[]> {
-    return this.get('/api/v1/erp/messages/mailboxes');
+  /** Mit `company` das Postfach dieser eigenen Gesellschaft, sonst das eigene. */
+  mailboxes(company?: number): Promise<Mailbox[]> {
+    return this.get(`/api/v1/erp/messages/mailboxes${company ? `?company=${company}` : ''}`);
   }
 
   /** Die Adresse bei Google, an der die Zustimmung erteilt wird. */

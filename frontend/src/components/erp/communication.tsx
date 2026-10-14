@@ -13,7 +13,8 @@
  *
  * **E-Mail geht über ein Postfach** (CRM Schritt 3): Gmail ist der Speicher, abgeglichen
  * wird im Hintergrund (`erp/page`). Die Mail bleibt dort – hier stehen Text, Anhänge (nur
- * Namen) und der Weg zurück nach Gmail.
+ * Namen) und der Weg zurück nach Gmail. **Verbunden wird ein Postfach dort, wem es gehört**:
+ * das einer eigenen Gesellschaft an ihrem Datensatz, das persönliche am eigenen.
  *
  * An einer **Firma** ist der Verlauf ein Spiegel: dieselbe Liste, keine Eingabe und kein
  * offen/überfällig – geschrieben wird immer von Person zu Person.
@@ -112,12 +113,15 @@ function MailFoot({ m }: { m: Message }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8,
       fontSize: 12, color: 'var(--fg-3)' }}>
-      {files.map((f, i) => (
-        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%',
-          padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)' }}>
-          <Paperclip size={12} style={{ flex: 'none' }} /><span className="truncate">{f.name}</span>
-        </span>
-      ))}
+      {files.map((f, i) => {
+        const chip = { display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%',
+          padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'inherit' } as const;
+        const inner = <><Paperclip size={12} style={{ flex: 'none' }} /><span className="truncate">{f.name}</span></>;
+        // Ein Bild aus dem Anfrage-Formular liegt bei uns – es öffnet sich direkt.
+        return f.url
+          ? <a key={i} href={f.url} target="_blank" rel="noreferrer" style={chip}>{inner}</a>
+          : <span key={i} style={chip}>{inner}</span>;
+      })}
       {m.pending && <span>{m.planned ? 'wird zum Zeitpunkt gesendet' : 'wartet auf Versand'}</span>}
       {m.gmail_url && (
         <a href={m.gmail_url} target="_blank" rel="noreferrer" data-tip="In Gmail öffnen"
@@ -349,9 +353,8 @@ function Fields(p: {
   );
 }
 
-function Composer({ person, me, channels, mailboxes, open, onSent, onMailboxes }: {
-  person: Person; me: Person; channels: MessageChannel[]; mailboxes: Mailbox[];
-  open: Message[]; onSent: () => void; onMailboxes: () => void;
+function Composer({ person, me, channels, open, onSent }: {
+  person: Person; me: Person; channels: MessageChannel[]; open: Message[]; onSent: () => void;
 }) {
   const mails = channels.filter((c) => c.mail);
   // Eine Antwort geht über das Postfach, in dem die Nachricht kam.
@@ -388,7 +391,7 @@ function Composer({ person, me, channels, mailboxes, open, onSent, onMailboxes }
   // Über ein persönliches Postfach schreibt nur sein Besitzer – also bin ich der Absender.
   const pickChannel = (key: string) => {
     setMailKey(key);
-    if (key !== mails[0]?.key) setFrom([me]);
+    if (mails.find((c) => c.key === key)?.personal) setFrom([me]);
   };
   const verb = mode === 'phone' ? 'Anruf festhalten'
     : mode === 'internal' ? (later ? 'Erinnerung setzen' : 'Speichern')
@@ -422,7 +425,6 @@ function Composer({ person, me, channels, mailboxes, open, onSent, onMailboxes }
       style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 12,
         padding: '12px 16px 14px', marginTop: 16 }}>
       <ModeSwitch mode={mode} onPick={pick} />
-      {mode === 'email' && <Mailboxes boxes={mailboxes} onChange={onMailboxes} />}
 
       <Fields mode={mode} channel={channel} mails={mails} setChannel={pickChannel} from={from} setFrom={setFrom} to={to} setTo={setTo}
         cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc} showCc={showCc} setShowCc={setShowCc}
@@ -462,7 +464,7 @@ function Composer({ person, me, channels, mailboxes, open, onSent, onMailboxes }
   );
 }
 
-/** Die Postfächer, die mich angehen – mit Zustand und, wo ich darf, Verbinden/Trennen.
+/** Das Postfach dieses Datensatzes – mit Zustand und, wo ich darf, Verbinden/Trennen.
  *  Ohne Anbindung (kein OAuth-Client) steht hier nichts: dann wird eine Mail erfasst. */
 function Mailboxes({ boxes, onChange }: { boxes: Mailbox[]; onChange: () => void }) {
   const [error, setError] = useState<string | null>(null);
@@ -476,8 +478,9 @@ function Mailboxes({ boxes, onChange }: { boxes: Mailbox[]; onChange: () => void
   const link = { border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 12,
     color: 'var(--accent)', cursor: 'pointer' } as const;
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginTop: 10, fontSize: 12,
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginBottom: 16, fontSize: 12,
       color: 'var(--fg-3)' }}>
+      <span style={{ color: 'var(--fg-2)', fontWeight: 600 }}>Postfach</span>
       {shown.map((b) => (
         <span key={b.channel} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}
           data-tip={b.problem ?? (b.connected ? 'Verbunden – Mails gehen hinaus und kommen herein'
@@ -498,11 +501,13 @@ function Mailboxes({ boxes, onChange }: { boxes: Mailbox[]; onChange: () => void
 
 // ─── Die Ansicht ────────────────────────────────────────────────────────────
 
-export function Communication({ person, company, me }: {
+export function Communication({ person, company, ownCompany, me }: {
   /** Person: Verlauf mit Eingabe. */
   person?: Person;
   /** Firma: der Verlauf ihrer Personen, nur lesend. */
   company?: number;
+  /** Eine eigene Gesellschaft – dann steht hier ihr Postfach. */
+  ownCompany?: boolean;
   me?: Person | null;
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
@@ -515,11 +520,14 @@ export function Communication({ person, company, me }: {
       .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht geladen werden.'));
   }, [person, company]);
   useEffect(() => { load(); }, [load]);
+  // Das Postfach steht dort, wem es gehört: an der eigenen Gesellschaft ihres, am eigenen
+  // Datensatz das persönliche – nie am Datensatz eines anderen.
+  const mine = !!person && person.object_id === me?.object_id;
   const loadChannels = useCallback(() => {
-    if (!person) return;
-    api.messageChannels().then(setChannels).catch(() => {});
-    api.mailboxes().then(setMailboxes).catch(() => {});
-  }, [person]);
+    if (person) api.messageChannels().then(setChannels).catch(() => {});
+    if (company && ownCompany) api.mailboxes(company).then(setMailboxes).catch(() => {});
+    else if (mine) api.mailboxes().then(setMailboxes).catch(() => {});
+  }, [person, company, ownCompany, mine]);
   useEffect(() => { loadChannels(); }, [loadChannels]);
   // Neues aus dem Abgleich erscheint ohne Neuladen der Seite.
   useEffect(() => {
@@ -532,11 +540,11 @@ export function Communication({ person, company, me }: {
   if (!messages) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
   return (
     <div>
+      <Mailboxes boxes={mailboxes} onChange={loadChannels} />
       <Timeline messages={messages} mirror={!person} />
       {person && me && channels.length > 0 && (
         <Composer key={person.object_id} person={person} me={me} channels={channels}
-          mailboxes={mailboxes} open={open} onMailboxes={loadChannels}
-          onSent={() => window.dispatchEvent(new Event(MESSAGES_CHANGED))} />
+          open={open} onSent={() => window.dispatchEvent(new Event(MESSAGES_CHANGED))} />
       )}
     </div>
   );
