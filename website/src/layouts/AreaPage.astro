@@ -1,0 +1,87 @@
+---
+/**
+ * Vorlage der drei Bereichsseiten (Auftrag Kap. 7.4), gleiche Struktur überall:
+ * Hero → Auf einen Blick (mit der Branchen-Zeile des Bereichs) → Versprechen, die hier gelten →
+ * Unterseiten als grosse Karten mit Foto → Zusatz des Bereichs (Slot) → Ablauf in vier
+ * Schritten → FAQ → Anfrage.
+ */
+import Base from './Base.astro';
+import Hero from '../components/Hero.astro';
+import SectionHead from '../components/SectionHead.astro';
+import AreaCard from '../components/AreaCard.astro';
+import Steps from '../components/Steps.astro';
+import Faq from '../components/Faq.astro';
+import ContactSection from '../components/ContactSection.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import Rich from '../components/Rich.astro';
+import Promises from '../components/Promises.astro';
+import { areaOf } from '../config/site.mjs';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import type { AreaPage, SubPage } from '../content/types';
+
+interface Props { page: AreaPage; subpages: SubPage[] }
+const { page, subpages } = Astro.props;
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
+/** Kurztext je Unterseite: derselbe wie im Menü. */
+const area = areaOf(page.id);
+const teaser = (path: string) => area.children.find((c) => c.href === path)?.text ?? '';
+---
+<Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
+  <Hero eyebrow={page.hero.eyebrow} title={page.hero.h1} lead={page.hero.lead} photo={page.hero.photo} primary={page.hero.primary} />
+
+  <section class="section section--tight" aria-labelledby="auf-einen-blick">
+    <div class="wrap grid">
+      <div class="col-8 area-glance">
+        <h2 id="auf-einen-blick" class="label">Auf einen Blick</h2>
+        <Rich as="p" class="area-glance__text" text={page.summary} />
+        <p class="area-glance__ind"><span class="label">Für wen</span> <Rich as="span" text={area.industries} /></p>
+      </div>
+    </div>
+    <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>
+  </section>
+
+  {page.promises && <Promises only={page.promises} />}
+
+  <section class="section section--paper" aria-labelledby="seiten">
+    <div class="wrap">
+      <SectionHead eyebrow="Leistungen" title="Unsere Leistungen im Detail" id="seiten" />
+      <div class:list={['cardgrid', subpages.length % 3 === 0 ? 'cardgrid--3' : 'cardgrid--2']}>
+        {subpages.map((p) => (
+          <AreaCard title={p.crumb} href={p.path} text={teaser(p.path)} photo={p.hero.photo} more={`Mehr zu ${p.crumb}`} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <slot />
+
+  <section class="section" aria-labelledby="ablauf">
+    <div class="wrap">
+      <SectionHead eyebrow="Ablauf" title="In vier Schritten zur Lösung" id="ablauf" />
+      <Steps steps={page.steps} />
+    </div>
+  </section>
+
+  <section class="section section--rule" aria-labelledby="fragen">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
+      <div class="col-8"><Faq items={page.faq} /></div>
+    </div>
+  </section>
+
+  <ContactSection />
+</Base>
+
+<style>
+  .area-glance { display: grid; gap: var(--s-3); }
+  .area-glance__text { font-size: 1.125rem; color: var(--ink); max-width: 60ch; }
+  .area-glance__ind { padding-top: var(--s-3); border-top: 1px solid var(--line); color: var(--ink-2); max-width: 60ch; }
+  .area-glance__ind .label { margin-right: var(--s-2); }
+  .season-slot:empty { display: none; }
+  .season-slot { margin-top: var(--s-6); }
+</style>

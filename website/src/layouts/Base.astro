@@ -1,0 +1,173 @@
+---
+/**
+ * Grundgerüst jeder Seite: Kopf (Meta, CSP, JSON-LD), Kopfzeile mit Servicezeile, Inhalt,
+ * Fuss, mobile Aktionsleiste.
+ *
+ * - Modus «preview»: noindex, Markierungen sichtbar, Hinweisbalken oben.
+ * - Modus «live»:    indexierbar, keine Markierungen (der Build bricht sonst vorher ab).
+ */
+import '../styles/global.css';
+import fontUrl from '../assets/fonts/inter-latin-wght-normal.woff2?url';
+import displayFontUrl from '../assets/fonts/inter-tight-latin-wght-600-700.woff2?url';
+import earlyUrl from '../scripts/early.js?url';
+import { site, contactEmail } from '../config/site.mjs';
+import { plain, siteMode } from '../lib/text.mjs';
+import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from '../lib/seo.mjs';
+import { isListed } from '../lib/pages';
+import { hostingCsp } from '../lib/csp.mjs';
+import type { OgImage } from '../content/types';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import MobileBar from '../components/MobileBar.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+
+/**
+ * Testnotizen (wie im ERP) – nur, wenn der Build sie einschaltet (`SITE_FEEDBACK=on`, allein
+ * im Dev-Deploy) und nur für Angemeldete. Das Skript baut das Frontend
+ * (`frontend/scripts/build-islands.mjs`); hier wird es bloss nachgeladen.
+ */
+const feedback = process.env.SITE_FEEDBACK === 'on';
+/**
+ * Stand des Werkzeugs für Testnotizen: `/islands/feedback.js` hat keinen Hash im Namen, und
+ * die Hosting-Regel gibt jedem .js ein Jahr Cache («immutable») – ohne diese Angabe behielt
+ * der Browser die alte Fassung (daher «die Notizen gehen beim Seitenwechsel verloren»).
+ * Website und Insel entstehen im selben Deploy, also nennt der Commit die passende Fassung.
+ */
+const feedbackVersion = (process.env.GITHUB_SHA ?? 'lokal').slice(0, 12);
+
+/** Die Kontaktdaten dieses Builds – scripts/contact.ts tauscht sie gegen die aus dem ERP. */
+const builtContact = JSON.stringify({
+  phone: site.phone.display, e164: site.phone.e164, email: contactEmail(), country: site.address.country,
+});
+
+export interface Crumb { name: string; path: string }
+
+interface Props {
+  /** Seitentitel ohne Zusatz; der Zusatz «| INEXXIO (ehemals HS Steiner)» kommt von selbst. */
+  title: string;
+  /** Vollständiger Titel, wenn der Zusatz anders lauten muss (Startseite). */
+  titleFull?: string;
+  description: string;
+  /** Pfad-Kette für Breadcrumbs (ohne Startseite); leer = keine Breadcrumbs. */
+  crumbs?: Crumb[];
+  og?: OgImage;
+  /** Zusätzliche JSON-LD-Knoten dieser Seite (null = entfällt, z. B. FAQ ohne Antworten). */
+  jsonLd?: (object | null)[];
+  /** Ratgeber-Artikel: Open Graph als «article» mit Datum. */
+  article?: { published: string; updated: string };
+  noindex?: boolean;
+}
+
+const { title, titleFull, description, crumbs = [], og = 'default', jsonLd = [], article, noindex = false } = Astro.props;
+const mode = siteMode();
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '').replace(/\/$/, '') || '/';
+
+// Jede Seite steht in der EINEN Liste (Sitemap, llms.txt) – oder trägt ausdrücklich noindex.
+if (!noindex && !isListed(path)) {
+  throw new Error(`Seite «${path}» fehlt in src/lib/pages.ts – dort eintragen (Sitemap, llms.txt) oder mit noindex kennzeichnen.`);
+}
+if (noindex && isListed(path)) {
+  throw new Error(`Seite «${path}» ist noindex, steht aber in src/lib/pages.ts (und damit in der Sitemap).`);
+}
+const canonical = abs(siteUrl, path);
+const fullTitle = plain(titleFull ?? `${title} | ${site.brand.full}`);
+const desc = plain(description);
+const ogImage = `${siteUrl}/og/${og}.png`;
+const indexable = mode === 'live' && !noindex;
+/** Impressum und Datenschutz nennen den Betreiber – dort tauscht scripts/contact.ts nichts. */
+const legalPage = path === '/impressum' || path === '/datenschutz';
+
+const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [breadcrumbNode(siteUrl, crumbs)] : []), ...jsonLd];
+
+// Strenge Richtlinie der Website (zusätzlich zur globalen Header-CSP): Skripte nur vom
+// eigenen Ursprung, keine Fremd-Einbettungen. Im Dev-Server nicht, dort braucht Vite Inline-Skripte.
+// Mit Testnotizen (nur Dev) braucht die Firebase-Anmeldung des Werkzeugs Google-Dienste:
+// Token erneuern (googleapis), den Anmelde-Rahmen (firebaseapp) und dessen Lader (apis.google).
+const FIREBASE = feedback
+  ? { script: ' https://apis.google.com', connect: ' https://*.googleapis.com https://*.firebaseapp.com', frame: 'https://*.firebaseapp.com' }
+  : { script: '', connect: '', frame: "'none'" };
+const csp = [
+  "default-src 'self'",
+  `script-src 'self'${FIREBASE.script}`,
+  "style-src 'self' 'unsafe-inline'",
+  // Bild-Quellen wie der Hosting-Header (EINE Quelle, src/lib/csp.mjs) – sonst blockiert
+  // diese Liste das Profilbild im gemeinsamen Kopf (#1139).
+  `img-src ${hostingCsp()['img-src']}`,
+  "font-src 'self'",
+  `connect-src 'self'${FIREBASE.connect}`,
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  `frame-src ${FIREBASE.frame}`,
+  'upgrade-insecure-requests',
+].join('; ');
+---
+<!doctype html>
+<html lang="de-CH">
+  <head>
+    <meta charset="utf-8" />
+    {import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={csp} />}
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={desc} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={indexable ? 'index, follow' : 'noindex, nofollow'} />
+    <meta name="theme-color" content="#FFFFFF" />
+    <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={displayFontUrl} as="font" type="font/woff2" crossorigin />
+    <script is:inline src={earlyUrl}></script>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content={article ? 'article' : 'website'} />
+    {article && <meta property="article:published_time" content={article.published} />}
+    {article && <meta property="article:modified_time" content={article.updated} />}
+    <meta property="og:locale" content="de_CH" />
+    <meta property="og:site_name" content={plain(site.brand.full)} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={plain(`${site.brand.full} – ${site.brand.claim}`)} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={desc} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={graph(nodes)} />
+  </head>
+  <body data-feedback={feedback ? feedbackVersion : undefined} data-contact={builtContact}>
+    <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+    <Header />
+    <main id="inhalt" tabindex="-1" data-erp-fixed={legalPage ? '' : undefined}>
+      {crumbs.length > 0 && <Breadcrumbs crumbs={crumbs} />}
+      <slot />
+    </main>
+    <Footer />
+    <MobileBar />
+    <script>
+      // EIN Einstieg für das, was jede Seite braucht – eine Anfrage statt fünf.
+      import { initHeader } from '../scripts/header';
+      import { initAccount, syncAccount } from '../scripts/account';
+      import { initMobileBar } from '../scripts/mobilebar';
+      import { initTracking } from '../scripts/track';
+      import { initReveal } from '../scripts/reveal';
+      import { initFeedback } from '../scripts/feedback';
+      import { initContact } from '../scripts/contact';
+      initHeader();
+      initAccount();
+      initMobileBar();
+      initTracking();
+      initReveal();
+      initFeedback();
+      initContact();
+      // Dasselbe Skript trägt Kopf und Fuss im Konto/ERP (WEBSITE_PLAN Entscheid 60): dort
+      // setzt React sie nach einem Seitenwechsel neu ein bzw. ändert den Anmeldezustand.
+      Object.assign(window, {
+        inexxioShell: { init: () => { initHeader(); initAccount(); initContact(); }, account: syncAccount },
+      });
+    </script>
+  </body>
+</html>

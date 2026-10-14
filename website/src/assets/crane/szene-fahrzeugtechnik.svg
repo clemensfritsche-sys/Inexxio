@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 200" width="380" height="200">
+                    <rect x="0" y="187" width="380" height="2" fill="var(--line-2)"></rect>
+                    <g transform="translate(40 187) scale(0.377) translate(-155 -557)">
+                      <rect x="358" y="245" width="12" height="178" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></rect>
+                      <path d="M470 432 V330 L482 318 L525 330 L525 346 L492 342 L502 424 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M650 416 L745 401 L770 424 L808 424 L795 405 L843 310 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M818 282 L850 270 L878 326 L850 332 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <rect x="798" y="380" width="74" height="27" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></rect>
+                      <path d="M835 333 L885 333 L905 345 L952 366 L928 402 L900 380 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <line x1="858" y1="423" x2="918" y2="397" stroke="var(--ink)" stroke-width="6" stroke-linecap="round"></line>
+                      <circle cx="407" cy="302" r="33" fill="var(--white)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle>
+                      <path d="M392 330 L445 345 L455 390 L432 392 L410 435 L392 420 Z" fill="var(--white)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M380 358 L420 352 L424 388 L384 392 Z" fill="var(--white)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M230 420 H880 V478 H230 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <line x1="400" y1="436" x2="870" y2="436" stroke="var(--ink)" stroke-width="3"></line>
+                      <path d="M866 437 H876 V455 H888 V470 H897 V478 L915 487 L912 495 L866 480 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M160 470 L157 405 L157 372 L163 360 L180 278 Q184 262 205 258 L236 253 L237 249 L289 249 L291 253 L337 254 L341 272 L350 420 L232 420 L228 470 Z" fill="var(--white)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M166 357 L183 282 L197 282 L181 357 Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <rect x="201" y="287" width="80" height="66" rx="5" fill="var(--paper)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></rect>
+                      <path d="M196 276 L329 272 L329 352 Q329 360 320 361 L182 370" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <line x1="293" y1="274" x2="293" y2="420" stroke="var(--ink)" stroke-width="3"></line>
+                      <line x1="157" y1="404" x2="350" y2="404" stroke="var(--ink)" stroke-width="3"></line>
+                      <path d="M155 452 L182 450 L182 505 L160 503 L155 490 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M182 478 H228 V505 H182 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M228 500 Q228 424 300 421 Q372 424 373 515 L358 515 Q356 446 300 441 Q246 446 241 500 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M395 508 Q400 430 462 427 Q530 431 534 510 L520 500 Q516 450 462 447 Q410 450 406 506 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <path d="M593 502 V465 L630 426 H830 L866 462 V502 H855 V470 L825 440 H635 L605 470 V502 Z" fill="var(--ink-3)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></path>
+                      <circle cx="299" cy="502" r="55" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="299" cy="502" r="21" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="462" cy="502" r="55" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="462" cy="502" r="21" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="665" cy="502" r="55" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="665" cy="502" r="21" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="796" cy="502" r="55" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle><circle cx="796" cy="502" r="21" fill="var(--line-2)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"></circle>
+                    </g>
+                  </svg>

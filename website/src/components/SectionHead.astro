@@ -1,0 +1,26 @@
+---
+/**
+ * Abschnittskopf des Design-Systems: 2 px schwarze Linie, Overline, grosser Titel, Satz.
+ * Ohne laufende Nummer («01», «02»): sie trug auf einer Website keine Information – man
+ * navigiert nach Inhalten, nicht nach Nummern (Rückmeldung 04.10.2026).
+ */
+import Rich from './Rich.astro';
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  id?: string;
+  level?: 'h1' | 'h2';
+  class?: string;
+}
+const { eyebrow, title, lead, id, level = 'h2', class: cls } = Astro.props;
+---
+<header class:list={['head', cls]}>
+  <div class="head__in">
+  {eyebrow && <Rich as="p" class="label" text={eyebrow} />}
+  <Rich as={level} id={id} text={title} />
+  {lead && <Rich as="p" class="lead" text={lead} />}
+  <slot />
+  </div>
+</header>

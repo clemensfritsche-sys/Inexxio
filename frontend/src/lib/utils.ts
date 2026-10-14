@@ -5,57 +5,65 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date, locale = 'de-CH'): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(date));
+/**
+ * Betrag im Schweizer Zahlenformat – OHNE Währung («12'345.60»).
+ * EINE Formatier-Wahrheit (vorher in 7 Komponenten je eine eigene Kopie).
+ *
+ * ►►► **Die Nachkommastellen kommen von der WÄHRUNG** (ISO 4217 «minor units»). ◄◄◄
+ *
+ * Fast alle haben zwei – und darum stand hier eine feste `2`, und niemand hätte je
+ * gemerkt, dass sie falsch ist: **JPY und KRW haben null**, **KWD hat drei**. Ein
+ * Yen-Betrag mit zwei Nachkommastellen ist kein Schönheitsfehler, sondern ein Betrag,
+ * den es nicht gibt. Der Wert reist mit den Daten (`VoucherEmbed.currency_decimals`, aus
+ * `domain/currency`); zwei ist die Vorgabe für alles, was keine Währung nennt.
+ *
+ * **Der Tausender-Trenner wird festgeschrieben.** `toLocaleString('de-CH')` liefert je
+ * nach ICU-Fassung ein typografisches `’` (U+2019, so im Browser) oder ein gerades `'`
+ * (U+0027, so in Node) – gemessen, nicht vermutet. Das Design-System schreibt den
+ * geraden fest (`9'999 CHF`), und dieselbe Zahl darf nicht je nach Laufzeit anders
+ * aussehen: server- und clientseitig gerendert ergäbe das zwei verschiedene Texte an
+ * derselben Stelle (React meldet es als Hydrations-Fehler und wirft die Seite weg).
+ */
+export function formatAmount(v: string | number | null | undefined,
+                             decimals = 2): string {
+  if (v == null || v === '') return '—';
+  return Number(v)
+    .toLocaleString('de-CH', {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+    })
+    .replace(/\u2019/g, "'");
 }
 
-export function formatDateTime(date: string | Date, locale = 'de-CH'): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(date));
+// ►►► **Datum und Uhrzeit stehen in `lib/when`** (Testnotiz #992). ◄◄◄
+//
+// Hier standen `localDate` und `localDateTime`, und daneben lebten drei eigene Helfer im
+// Beleg und drei `toLocaleDateString` an Benutzer, Profil und Passkeys – sieben Formen
+// für eine Angabe. Sie sind ersetzt durch `when()` (die Aussage: «Gestern» · «vor 3
+// Tagen» · «13. Sep.»), `day()` (die Tatsache auf dem Papier) und `whenTitle()` (die
+// volle Angabe im Hover). Ein Wächter verbietet jede zweite Datums-Formatierung daneben.
+
+/**
+ * Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`):
+ * Firma → «Vorname Nachname» → E-Mail. Bei einem Lieferanten ist die Firma der Name, unter
+ * dem man bestellt; der Ansprechpartner steht am Datensatz (Notiz #227). Vorher wich das
+ * Frontend hier ab und zeigte die Person, wo das Backend die Firma zeigte.
+ */
+export function userDisplayName(user: {
+  company_name?: string | null; first_name?: string | null; last_name?: string | null; email: string;
+}): string {
+  // EINE Regel für ALLE Rollen (Notiz #291): «Vorname Nachname» → Firma → E-Mail. Immer der
+  // Name der Person im Datensatz, nicht der Firmenname (Firma nur als Rückfall). Spiegelt
+  // ``UserProfile.display_name`` im Backend.
+  const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
+  return full || user.company_name?.trim() || user.email.split('@')[0];
 }
 
-export function formatCurrency(amount: number | string, currency = 'CHF'): string {
-  return new Intl.NumberFormat('de-CH', { style: 'currency', currency }).format(Number(amount));
-}
-
-export function formatObjectId(id: number): string {
-  return id.toString().padStart(9, '0');
-}
-
-export function relativeTime(date: string | Date, locale = 'de-CH'): string {
-  const now = new Date();
-  const then = new Date(date);
-  const diffMs = now.getTime() - then.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-
-  if (diffMinutes < 1) return 'Gerade eben';
-  if (diffMinutes < 60) return `vor ${diffMinutes} Min.`;
-  if (diffHours < 24) return `vor ${diffHours} Std.`;
-  if (diffDays < 7) return `vor ${diffDays} Tagen`;
-  return formatDate(date, locale);
-}
-
-export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((part) => part.charAt(0))
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-}
-
-export function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
+/**
+ * **Die EINE Schreibweise einer Objektnummer**: neunstellig, führende Nullen, **ohne**
+ * Tausender-Trennung (Notiz #263). Eine Objektnummer ist ein Bezeichner, keine Menge –
+ * Trennzeichen laden zum Rechnen ein und machen sie schwerer vorlesbar/suchbar.
+ */
+export function formatObjectId(id: number | null | undefined): string {
+  if (!id) return '—';
+  return String(id).padStart(9, '0');
 }

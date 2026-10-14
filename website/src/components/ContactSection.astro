@@ -1,0 +1,49 @@
+---
+/**
+ * ►►► Der Kontaktbereich – EINER für die ganze Website. ◄◄◄
+ * Auf /kontakt und am Ende jeder Seite dasselbe: einladender Titel,
+ * das Formular als weisse Karte und daneben der Ansprechpartner mit Foto, Telefon und E-Mail,
+ * darunter Anschrift und Karte (Karte ohne Rahmen, direkt auf dem Grund).
+ * Telefon, E-Mail und Anschrift kommen aus dem ERP (ContactPanel → scripts/contact.ts).
+ */
+import InquiryForm from './InquiryForm.astro';
+import ContactPanel from './ContactPanel.astro';
+import LocationMap from './LocationMap.astro';
+import Rich from './Rich.astro';
+import { kontakt } from '../content/kontakt';
+
+interface Props {
+  level?: 'h1' | 'h2';
+}
+const { level = 'h2' } = Astro.props;
+const main = level === 'h1';
+---
+<section class="section section--paper contact" id="anfrage" aria-labelledby="anfrage-title" data-hero={main ? true : undefined}>
+  <div class="wrap">
+    <header class="contact__head">
+      <p class="label">{kontakt.eyebrow}</p>
+      <Rich as={level} id="anfrage-title" class="contact__title" text={kontakt.h1} />
+      <Rich as="p" class="lead" text={kontakt.lead} />
+    </header>
+    <div class="contact__grid">
+      <div class="contact__form"><InquiryForm resultLevel={main ? 2 : 3} /></div>
+      <aside class="contact__aside" aria-label="Direkter Kontakt">
+        <ContactPanel />
+        <LocationMap class="contact__map" />
+      </aside>
+    </div>
+  </div>
+</section>
+
+<style>
+  .contact { padding-block: 112px; }
+  @media (max-width: 767px) { .contact { padding-block: var(--s-8); } }
+  .contact__head { display: grid; gap: var(--s-4); max-width: 46rem; margin-bottom: var(--s-7); }
+  .contact__head :global(.contact__title) { font-size: clamp(2rem, 1.5rem + 1.6vw, 3rem); line-height: 1.083; font-weight: 700; letter-spacing: var(--tracking-tight); }
+  .contact__grid { display: grid; gap: var(--s-7) var(--s-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 960px) { .contact__grid { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); } }
+  .contact__form { padding: 32px; background: var(--white); border: 1px solid var(--line); border-radius: 16px; }
+  @media (max-width: 599px) { .contact__form { padding: 20px; } }
+  .contact__aside { display: grid; gap: var(--s-4); align-content: start; }
+  .contact__aside :global(.contact__map) { margin-top: var(--s-2); }
+</style>

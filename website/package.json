@@ -1,0 +1,33 @@
+{
+  "name": "inexxio-website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Öffentliche Website INEXXIO (ehemals HS Steiner) – statisch, getrennt vom ERP.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "tokens": "node scripts/tokens.mjs",
+    "predev": "npm run tokens",
+    "dev": "astro dev",
+    "prebuild": "npm run tokens && node scripts/erp-contact.mjs",
+    "build": "astro build",
+    "postbuild": "node scripts/check-content.mjs --dist && node scripts/check-site.mjs && node scripts/export-shell.mjs",
+    "preview": "astro preview",
+    "check": "npm run tokens && astro check",
+    "check:content": "node scripts/check-content.mjs --dist",
+    "export:contact": "node scripts/export-contact.mjs",
+    "merge:hosting": "node scripts/merge-hosting.mjs",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@astrojs/markdown-satteri": "0.4.2",
+    "astro": "7.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}

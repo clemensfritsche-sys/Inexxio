@@ -1,0 +1,93 @@
+---
+/**
+ * Vorlage aller Unterseiten (Auftrag Kap. 7.5), gleiche Struktur überall:
+ * Hero → Auf einen Blick (Für wen · Was wir tun · Was Sie erhalten) → Versprechen, die hier
+ * gelten → Leistungsumfang →
+ * seitenspezifisches Modul (Slot «module») → FAQ → Anfrage (Kurzformular, Bereich und Thema
+ * vorausgewählt) → Verwandte Leistungen.
+ * Breadcrumb: Startseite › Bereich › Seite.
+ */
+import Base from './Base.astro';
+import Hero from '../components/Hero.astro';
+import Glance from '../components/Glance.astro';
+import ScopeList from '../components/ScopeList.astro';
+import Faq from '../components/Faq.astro';
+import ContactSection from '../components/ContactSection.astro';
+import RelatedLinks from '../components/RelatedLinks.astro';
+import SectionHead from '../components/SectionHead.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import Promises from '../components/Promises.astro';
+import { areaOf } from '../config/site.mjs';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import { glanceRows, type SubPage } from '../content/types';
+
+interface Props {
+  page: SubPage;
+  /** Zusätzliche JSON-LD-Knoten (z. B. Product für Heukrananlagen). */
+  jsonLd?: (object | null)[];
+}
+const { page, jsonLd = [] } = Astro.props;
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const area = areaOf(page.area);
+/** Eine Bereichsseite ohne Unterseiten (Sonderlösungen) ist selbst die Seite: ein Brotkrumen, kein Link auf sich selbst. */
+const own = page.path === area.href;
+const crumbs = own ? [{ name: area.label, path: area.href }] : [{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }];
+const related = own ? page.related : [{ href: area.href, label: area.label, text: area.text }, ...page.related];
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+  ...jsonLd,
+];
+---
+<Base title={page.title} description={page.description} crumbs={crumbs} og={page.area} jsonLd={nodes}>
+  <Hero
+    eyebrow={page.hero.eyebrow}
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    photo={page.hero.photo}
+    primary={page.hero.primary}
+  />
+
+  <!-- div: die Überschrift «Auf einen Blick» trägt die Glance-Sektion selbst -->
+  <div class="section section--tight">
+    <div class="wrap grid">
+      <div class="col-8">
+        <Glance summary={page.summary} rows={glanceRows(page.glance)} />
+      </div>
+    </div>
+    <div class="wrap season-slot"><SeasonNotice page={page.path} /></div>
+  </div>
+
+  {page.promises && <Promises only={page.promises} />}
+
+  <slot name="intro" />
+
+  <section class="section section--paper" id="leistungen" aria-labelledby="leistungen-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Leistungsumfang" title={page.scope.title} lead={page.scope.lead} id="leistungen-title" />
+      <ScopeList items={page.scope.items} />
+    </div>
+  </section>
+
+  <slot name="module" />
+
+  <section class="section section--rule" aria-labelledby="fragen">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
+      <div class="col-8"><Faq items={page.faq} /></div>
+    </div>
+  </section>
+
+  <ContactSection />
+
+  <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
+  <div class="section section--tight">
+    <div class="wrap"><RelatedLinks title="Verwandte Leistungen" items={related} /></div>
+  </div>
+</Base>
+
+<style>
+  .season-slot:empty { display: none; }
+  .season-slot { margin-top: var(--s-6); }
+</style>

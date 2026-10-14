@@ -1,0 +1,28 @@
+<!-- @dsCard group="ERP / App" viewport="640x100" name="App Top Bar" subtitle="Minimal icon-only actions, no chrome" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body{margin:0;background:#fff;font-family:var(--font-body);}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border-1);}
+  .left{display:flex;align-items:center;gap:10px;}
+  .left .lucide{width:18px;height:18px;color:var(--fg-3);}
+  .left h1{font:700 17px var(--font-display);letter-spacing:-.01em;color:var(--fg-1);margin:0;}
+  .right{display:flex;align-items:center;gap:6px;}
+  .icobtn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--fg-2);position:relative;cursor:pointer;transition:background .12s;}
+  .icobtn:hover{background:var(--bg-2);}
+  .icobtn .lucide{width:18px;height:18px;}
+  .icobtn .dot{position:absolute;top:8px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--inexxio-red);}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--bg-dark);color:#fff;display:flex;align-items:center;justify-content:center;font:600 12px var(--font-body);margin-left:6px;}
+</style></head>
+<body>
+  <div class="bar">
+    <div class="left"><i data-lucide="folder-kanban"></i><h1>Projekte</h1></div>
+    <div class="right">
+      <div class="icobtn"><i data-lucide="search"></i></div>
+      <div class="icobtn"><i data-lucide="bell"></i><span class="dot"></span></div>
+      <div class="avatar">AM</div>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body></html>

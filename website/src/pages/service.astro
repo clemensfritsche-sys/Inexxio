@@ -1,0 +1,124 @@
+---
+/**
+ * /service – Service und Notfall auf EINER Seite: die Nummer gross, der Einstieg nach Anliegen,
+ * was man im Notfall bereithält (#notfall), unsere Zusagen (dieselbe Liste wie auf «Über
+ * uns»), Fragen, Kontakt.
+ */
+import Base from '../layouts/Base.astro';
+import EntryTiles from '../components/EntryTiles.astro';
+import SectionHead from '../components/SectionHead.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import Faq from '../components/Faq.astro';
+import ContactSection from '../components/ContactSection.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { service as s } from '../content/service';
+import { ueberUns } from '../content/ueber-uns';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+const promises = ueberUns.promises;
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: 'Service und Notfall', serviceType: 'Prüfung, Wartung, Reparatur und Notfall-Service bei Stillstand', path: s.path, description: plain(s.summary) }),
+  faqPage(s.faq),
+];
+---
+<Base title={s.title} description={s.description} crumbs={[{ name: 'Service', path: s.path }]} jsonLd={nodes}>
+  <section class="sv-head dots">
+    <div class="wrap grid">
+      <div class="col-7 sv-head__text" data-hero>
+        <p class="label">{s.hero.eyebrow}</p>
+        <Rich as="h1" text={s.hero.h1} />
+        <Rich as="p" class="lead" text={s.hero.lead} />
+      </div>
+      <div class="col-5 sv-num">
+        <div class="sv-num__box">
+          <p class="label label--red"><Icon name="phone" size={16} /> Steht etwas still? Rufen Sie an</p>
+          <a class="sv-num__big tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight" aria-labelledby="anliegen">
+    <div class="wrap">
+      <h2 id="anliegen" class="label">Ihr Anliegen</h2>
+      <nav aria-label="Einstieg nach Anliegen" class="sv-tiles"><EntryTiles items={s.entries} /></nav>
+      <p class="sv-also">
+        Ausserdem:
+        {s.alsoLinks.map((l) => <a class="arrow-link" href={l.href}>{l.label} <Icon name="arrow-right" size={16} /></a>)}
+      </p>
+      <SeasonNotice page={s.path} />
+    </div>
+  </section>
+
+  <section class="section section--paper" id="notfall" aria-labelledby="notfall-title">
+    <div class="wrap">
+      <SectionHead eyebrow="Notfall" title={s.prepare.title} id="notfall-title" />
+      <ol role="list" class="sv-list">
+        {s.prepare.items.map((it) => (
+          <li>
+            <h3>{it.title}</h3>
+            <Rich as="p" text={it.text} />
+          </li>
+        ))}
+      </ol>
+      <div class="sv-safety">
+        <Icon name="alert" size={22} />
+        <div>
+          <h3>{s.safety.title}</h3>
+          <Rich as="p" text={s.safety.text} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="zusagen">
+    <div class="wrap">
+      <SectionHead eyebrow="Zusagen" title={promises.title} lead={s.summary} id="zusagen" />
+      <ol role="list" class="sv-list sv-list--3">
+        {promises.items.map((it) => (
+          <li>
+            <h3>{it.title}</h3>
+            <Rich as="p" text={it.text} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section section--rule" aria-labelledby="fragen">
+    <div class="wrap grid">
+      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
+      <div class="col-8"><Faq items={s.faq} /></div>
+    </div>
+  </section>
+
+  <ContactSection />
+</Base>
+
+<style>
+  .sv-head { padding-block: var(--s-7) var(--s-8); border-bottom: 1px solid var(--line); }
+  .sv-head .grid { align-items: center; }
+  .sv-head__text { display: grid; gap: var(--s-4); }
+  @media (min-width: 960px) { .sv-num { grid-column: 8 / span 5; } }
+  .sv-num__box { display: grid; gap: 6px; padding: var(--s-5) var(--s-6); background: var(--white); border: 1px solid var(--line); border-radius: 0 var(--r-lg) var(--r-lg) 0; --overline: var(--red-hover); }
+  .sv-num__box .label { display: inline-flex; align-items: center; gap: 6px; }
+  .sv-num__big {
+    font-family: var(--font-display); font-weight: 700; font-size: clamp(2.25rem, 1.7rem + 2.4vw, 3.5rem);
+    letter-spacing: var(--tracking-tight); line-height: 1.05; color: var(--ink); text-decoration: none;
+    display: inline-flex; align-items: center; min-height: 56px; width: fit-content;
+  }
+  .sv-num__big:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.12em; }
+  .sv-tiles { margin-top: var(--s-4); }
+  .sv-also { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s-5); margin: var(--s-4) 0 var(--s-6); color: var(--ink-3); max-width: none; }
+  .sv-list { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 720px) { .sv-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .sv-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } .sv-list--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .sv-list li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
+  .sv-list h3 { font-size: 1.1875rem; }
+  .sv-safety { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--ink); }
+  .sv-safety :global(.icon) { color: var(--red-hover); margin-top: 3px; }
+  .sv-safety h3 { font-size: 1.125rem; margin-bottom: 4px; }
+</style>
