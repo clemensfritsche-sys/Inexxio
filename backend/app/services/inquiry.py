@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import communication as dc
 from ..models import Message
-from . import attachments, mailbox, sites
+from . import attachments, mail_layout, mailbox, sites
 from .communication import write
 
 SUBJECT = "Anfrage über die Website"
@@ -82,16 +82,26 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     return msg
 
 
-def confirm(db: Session, inquiry: Message, text: str, subject: str) -> bool:
+def confirm(db: Session, inquiry: Message, name: str, words: dict[str, str]) -> bool:
     """Die Bestätigung an die anfragende Person – über das Postfach der Gesellschaft, als
-    Nachricht im Verlauf, unter eigenem Betreff (sie erledigt die Anfrage nicht). Ohne verbundenes Postfach gibt es keine
-    (``False``): eine Bestätigung, die nie hinausgeht, stünde als Lüge im Verlauf."""
+    Nachricht im Verlauf, unter eigenem Betreff (sie erledigt die Anfrage nicht). Ohne
+    verbundenes Postfach gibt es keine (``False``): eine Bestätigung, die nie hinausgeht,
+    stünde als Lüge im Verlauf.
+
+    **Gestaltet in der einen Vorlage** (``mail_layout``) und **ohne Namen unterschrieben**:
+    geschrieben hat sie niemand. Die Mail, wie sie hinausgeht, steht in ``html``; der
+    Verlauf zeigt denselben Inhalt als Text."""
     box = mailbox.active(db, inquiry.channel)
     if not mailbox.ready() or box is None or box.problem:
         return False
+    body, extra = confirmation(inquiry, name, words)
+    firm = mail_layout.firm_of(mailbox.company(db, inquiry.channel), box.address)
+    subject = words["confirmSubject"]
     msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
-                  subject=subject, body=text, at=datetime.now(timezone.utc),
-                  created_by=None, outgoing=True)
+                  subject=subject, body=body, at=datetime.now(timezone.utc),
+                  created_by=None, outgoing=True,
+                  html=mail_layout.html(subject, _lead(name, words), firm, None,
+                                        kicker=words["received"], extra=extra))
     write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})
     db.commit()
     mailbox.send(db, msg)       # scheitert es, bleibt ``outgoing`` – der Abgleich holt nach
@@ -99,15 +109,22 @@ def confirm(db: Session, inquiry: Message, text: str, subject: str) -> bool:
     return True
 
 
-def confirmation_text(db: Session, inquiry: Message, name: str, intro: str, nxt: str,
-                      closing: str) -> str:
-    """Der Text der Bestätigung – Absender ist die Gesellschaft, an die sie ging."""
-    from . import address as addr
-    firm = mailbox.company(db, inquiry.channel)
-    sign = [sites.legal_name(firm)] if firm else []
-    if firm is not None:
-        sign += [line for line in addr.lines(addr.of_company(firm)) if line.strip("— ")]
-        sign += [f"Telefon {firm.phone}"] if firm.phone else []
-        sign += [firm.email] if firm.email else []
-    return "\n".join([f"Guten Tag {name}", "", intro, "", inquiry.body, "", nxt, "",
-                      closing, *sign])
+def _lead(name: str, words: dict[str, str]) -> str:
+    return f"Guten Tag {name}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
+
+
+def confirmation(inquiry: Message, name: str, words: dict[str, str]
+                 ) -> tuple[str, mail_layout.Extra]:
+    """Der Inhalt der Bestätigung – **allgemeingültig**, denn was in der Anfrage steht,
+    kennt hier niemand: Gruss, Dank, eine Kopie der Angaben, was als Nächstes geschieht
+    und der Weg, wenn es eilt. Als Text für den Verlauf und als Bausteine für die Mail."""
+    message, _, facts = (inquiry.body or "").partition("\n\n")
+    copy = [tuple(line.split(": ", 1)) for line in facts.split("\n") if ": " in line]
+    extra = mail_layout.Extra(
+        copy_title=words["copyTitle"], copy=[(k, v) for k, v in copy], quote=message.strip(),
+        steps=[(words["received"], True), (words["confirmNext"], False)],
+        note=words["urgent"])
+    text = "\n\n".join([
+        _lead(name, words), f"{words['copyTitle']}:\n{inquiry.body}",
+        f"{words['received']} · {words['confirmNext']}", words["urgent"]])
+    return text, extra

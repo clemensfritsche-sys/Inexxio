@@ -172,6 +172,9 @@ _COLUMN_SAFETY_NET = (
     ("messages", "rfc_id", "VARCHAR(255)"),
     ("messages", "outgoing", "BOOLEAN NOT NULL DEFAULT false"),
     ("messages", "attachments", "JSONB"),
+    # ►►► **Mail-Vorlage und «gelesen»** (Migration 150).
+    ("messages", "html", "TEXT"),
+    ("messages", "read_marked", "BOOLEAN NOT NULL DEFAULT false"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

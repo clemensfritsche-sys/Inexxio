@@ -56,8 +56,12 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API = "https://gmail.googleapis.com/gmail/v1/users/me"
-SCOPES = ("https://www.googleapis.com/auth/gmail.readonly "
+#: ``gmail.modify`` statt ``readonly``: erledigt im ERP heisst gelesen im Postfach
+#: (``_mark_read``) – dafür muss das ERP das Label «UNREAD» entfernen dürfen.
+SCOPES = ("https://www.googleapis.com/auth/gmail.modify "
           "https://www.googleapis.com/auth/gmail.send")
+#: Nachrichten, die älter sind, markiert niemand mehr nach – sie sind längst gelesen.
+MARK_WITHIN = timedelta(days=30)
 CALLBACK = "/api/v1/mail/callback"
 SYNC_EVERY = timedelta(seconds=30)
 STATE_TTL = 600
@@ -326,6 +330,7 @@ def sync_all(db: Session, *, force: bool = False) -> int:
     for mb in boxes:
         if force or mb.synced_at is None or mb.synced_at < due:
             new += _sync_one(db, mb)
+            _mark_read(db, mb)
     send_due(db)
     db.commit()
     return new
@@ -348,6 +353,44 @@ def _sync_one(db: Session, mb: Mailbox) -> int:
         mb.history_id = latest
     mb.synced_at = _now()
     return count
+
+
+def _mark_read(db: Session, mb: Mailbox) -> None:
+    """►►► **Erledigt im ERP = gelesen in Gmail** – in diese eine Richtung. ◄◄◄
+
+    Was hier beantwortet ist (dieselbe Ableitung wie im Verlauf, ``communication.answered``),
+    verliert in Gmail sein «UNREAD», genau einmal (``read_marked``). Umgekehrt nicht:
+    gelesen heisst nicht erledigt. Fehlt dem Postfach die Freigabe (vor dem Umstellen
+    verbunden), bleibt alles, wie es ist – bis es neu verbunden wird."""
+    from collections import defaultdict
+    from .communication import answered
+    since = _now() - MARK_WITHIN
+    msgs = db.query(Message).filter(
+        Message.channel == mb.channel, Message.gmail_id.isnot(None),
+        Message.read_marked.is_(False), Message.is_active.is_(True),
+        Message.at >= since).all()
+    if not msgs:
+        return
+    roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    for p in db.query(MessageParty).filter(
+            MessageParty.message_id.in_([m.id for m in msgs])).all():
+        roles[p.message_id][p.role].append(p.person_object_id)
+    done = [m for m in msgs if m.id in answered(db, msgs, roles)]
+    token = _access(mb) if done else None
+    if not token:
+        return
+    try:
+        r = httpx.post(f"{API}/messages/batchModify", timeout=20,
+                       headers={"Authorization": f"Bearer {token}"},
+                       json={"ids": [m.gmail_id for m in done], "removeLabelIds": ["UNREAD"]})
+    except httpx.HTTPError:
+        return
+    if r.status_code in (200, 204):
+        for m in done:
+            m.read_marked = True
+        db.flush()
+    else:
+        print(f"WARNING: MAILBOX mark-read {mb.channel} failed: {r.status_code}", flush=True)
 
 
 def _new_ids(token: str, start: Optional[str]) -> tuple[list[str], Optional[str]]:
@@ -581,6 +624,8 @@ def send(db: Session, msg: Message) -> bool:
     msg.gmail_id, msg.thread_id = sent["id"], sent.get("threadId")
     msg.rfc_id = (head.get("message-id") or "")[:255] or None
     msg.subject = msg.subject or mime["Subject"] or None
+    html_part = mime.get_body(("html",))
+    msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
     msg.outgoing = False
     db.flush()
     return True
@@ -607,17 +652,27 @@ def _parent(db: Session, msg: Message) -> Optional[Message]:
     return next((m for m in rows if dc.topic(m.subject) == key), None)
 
 
+def signer_of(sender: Optional[UserProfile], msg: Message) -> Optional[str]:
+    """Wer unterschreibt: der Mensch, der die Mail **geschrieben** hat (``created_by``),
+    sofort erkennbar als Mitarbeiter. Eine automatische Mail trägt keinen Namen."""
+    from .people import STAFF_ROLES
+    if msg.created_by is None or sender is None or sender.role not in STAFF_ROLES:
+        return None
+    return sender.display_name
+
+
 def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:
-    from .sites import legal_name
+    """Die Mail – **in der einen Vorlage des Hauses** (``mail_layout``): als Text und als
+    HTML, unterschrieben mit dem Menschen im Namen der Gesellschaft."""
+    from . import mail_layout as layout
     parties = db.query(MessageParty).filter(MessageParty.message_id == msg.id).all()
     ids = {p.person_object_id for p in parties} | {msg.sender_object_id}
     people = {u.object_id: u for u in
               db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
-    sender = people.get(msg.sender_object_id)
-    firm = company(db, msg.channel)
-    name = legal_name(firm) if firm else (sender.display_name if sender else "")
+    signer = signer_of(people.get(msg.sender_object_id), msg)
+    firm = layout.firm_of(company(db, msg.channel), mb.address)
     mime = EmailMessage()
-    mime["From"] = formataddr((name, mb.address))
+    mime["From"] = formataddr((layout.sender_name(signer), mb.address))
     for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
         addrs = [formataddr((people[p.person_object_id].display_name,
                              people[p.person_object_id].email))
@@ -625,11 +680,12 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
-
     if parent is not None:
         mime["In-Reply-To"] = parent.rfc_id
         mime["References"] = parent.rfc_id
-    mime.set_content(msg.body or "")
+    mime.set_content(layout.text(msg.subject or "", msg.body or "", firm, signer))
+    mime.add_alternative(msg.html or layout.html(msg.subject or "", msg.body or "", firm,
+                                                 signer), subtype="html")
     return mime
 
 

@@ -34,9 +34,14 @@
  * Steht eine Nachricht offen, ist die Eingabe schon die Antwort darauf (✕ = neu).
  * **Intern heisst intern**: angeboten werden nur Mitarbeiter.
  *
- * **Eine Mail wartet drei Sekunden** («Rückgängig», wie Gmail) – und zwar **dort, wo sie
- * hingehört**: blass im Verlauf, mit Uhr und «Rückgängig»; die Eingabe ist so lange
- * gesperrt. Im Browser, nicht auf dem Server – wer die Ansicht verlässt, schickt sie sofort.
+ * **Jede Nachricht wartet drei Sekunden** – Mail, Anruf, Intern («Rückgängig», wie Gmail),
+ * und zwar **dort, wo sie hingehört**: blass im Verlauf, mit Uhr und «Rückgängig»; die
+ * Eingabe ist so lange gesperrt. Im Browser, nicht auf dem Server – wer die Ansicht
+ * verlässt, schickt sie sofort.
+ *
+ * **Ein Anruf hat genau zwei**: mich und die Person dieses Datensatzes – wählbar ist nur
+ * die Richtung. **Cc/Bcc wie in Gmail**: ein Klick klappt das Feld auf, leer verlassen klappt
+ * es zu. **Intern stehen die Empfänger vorne im Text** («@Monika Fritsche …») – aus dem «An».
  *
  * **E-Mail geht über das Postfach einer eigenen Gesellschaft** (CRM Schritt 3), verbunden an
  * ihrem Datensatz. Persönliche Postfächer gibt es nicht: im Kommunikationstool ist jeder
@@ -250,7 +255,11 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
   const showState = !mirror && m.open;
   const bg = !m.channel.outside ? 'var(--bg-3)' : m.ours ? 'var(--accent-soft)' : 'var(--bg-1)';
   // Wer ausser dem einen Empfänger dabei war – das «Cc», kurz; alles Genaue im Hover.
-  const cc = m.cc.length ? `Cc ${m.cc.map(who).join(', ')}` : m.to.length > 1 ? `an ${m.to.length}` : null;
+  const cc = !m.channel.outside ? null
+    : m.cc.length ? `Cc ${m.cc.map(who).join(', ')}` : m.to.length > 1 ? `an ${m.to.length}` : null;
+  // ►►► Intern stehen die Empfänger VORNE im Text – «@Monika Fritsche …». Sie kommen aus dem
+  // «An», nicht aus dem Text: wer gefragt ist, sieht man, ohne zu zeigen. ◄◄◄
+  const mentions = !m.channel.outside ? [...m.to, ...m.cc] : [];
   return (
     <div className="ix-row" style={{ display: 'flex', justifyContent: m.ours ? 'flex-end' : 'flex-start' }}>
       <div style={{ maxWidth: '74%', minWidth: 0, background: bg, opacity: m.planned ? 0.65 : 1,
@@ -261,7 +270,10 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
           overflowWrap: 'anywhere' }}>{m.topic}</div>}
         {call && <CallHead m={m} />}
         {m.body && <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', lineHeight: '20px',
-          overflowWrap: 'anywhere' }}>{linkify(m.body)}</div>}
+          overflowWrap: 'anywhere' }}>
+          {mentions.length > 0 && <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+            {mentions.map((p) => `@${p.name}`).join(' ')}{' '}</span>}
+          {linkify(m.body)}</div>}
         {!m.body && !m.channel.outside && (
           <div style={{ color: 'var(--fg-3)', fontStyle: 'italic' }}>Erledigt ohne Antwort</div>
         )}
@@ -318,12 +330,15 @@ function Divider({ label }: { label: string }) {
 
 /** ►►► **Die Mail, die gleich hinausgeht** – blass dort, wo sie hingehört, mit Uhr und
  *  «Rückgängig». Nach drei Sekunden ist sie eine gewöhnliche Nachricht. ◄◄◄ */
-export type Sending = { topic: string; body: string; to: string; left: number; undo: () => void };
+export type Sending = { topic: string; body: string; to: string; left: number; undo: () => void;
+  /** Wie es dasteht: eine Mail hellblau, intern grau – wie die Nachricht danach. */
+  internal: boolean; verb: string };
 
 function SendingBubble({ s }: { s: Sending }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-      <div style={{ maxWidth: '74%', minWidth: 0, background: 'var(--accent-soft)', opacity: 0.6,
+      <div style={{ maxWidth: '74%', minWidth: 0, opacity: 0.6,
+        background: s.internal ? 'var(--bg-3)' : 'var(--accent-soft)',
         borderRadius: '12px 12px 4px 12px', padding: '8px 12px 6px' }}>
         {s.topic && <div style={{ fontSize: 12, fontWeight: 600, color: topicColor(s.topic),
           overflowWrap: 'anywhere' }}>{s.topic}</div>}
@@ -333,7 +348,7 @@ function SendingBubble({ s }: { s: Sending }) {
           fontSize: 11, lineHeight: '16px', color: 'var(--fg-2)', marginTop: 2 }}>
           {s.to && <span className="truncate">an {s.to}</span>}
           <span className="tabular-nums" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' }}>
-            <Clock size={12} />wird gesendet · {s.left} s</span>
+            <Clock size={12} />{s.verb} · {s.left} s</span>
           <button type="button" onClick={s.undo} style={{ border: 0, background: 'none', padding: 0,
             font: 'inherit', fontSize: 11, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer',
             flex: 'none' }}>Rückgängig</button>
@@ -404,8 +419,13 @@ function Chip({ children, onRemove, onMove, moveTip, tip }: {
 }
 
 /** «An»-Feld wie in einem Mailprogramm: Chips, und tippen sucht (Nummer oder Name). */
-function People({ value, onChange, placeholder, locked, onMove, moveTip, max, staff }: {
+function People({ value, onChange, placeholder, locked, onMove, moveTip, max, staff, autoFocus,
+  onLeave }: {
   value: Person[]; onChange: (v: Person[]) => void; placeholder?: string;
+  /** Beim Aufklappen gleich ins Feld (Cc/Bcc). */
+  autoFocus?: boolean;
+  /** Das Feld verlassen, ohne jemanden zu wählen – dann klappt Cc/Bcc wieder zu (Gmail). */
+  onLeave?: () => void;
   /** Nur Mitarbeiter anbieten – die Empfänger einer internen Nachricht. */
   staff?: boolean;
   /** Wer nicht entfernt werden kann – der Absender der Nachricht, auf die ich antworte.
@@ -435,13 +455,16 @@ function People({ value, onChange, placeholder, locked, onMove, moveTip, max, st
         ? <Chip key={p.object_id} onMove={onMove && (() => onMove(p))} moveTip={moveTip}
             tip="Eine Antwort geht an den, der geschrieben hat – wer frei schreiben will, beginnt eine neue Nachricht">{p.name}</Chip>
         : <Chip key={p.object_id} onRemove={() => onChange(value.filter((v) => v !== p))}>{p.name}</Chip>)}
-      {(max === undefined || value.length < max) && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value.length ? '' : placeholder}
+      {(max === undefined || value.length < max) && <input value={q} onChange={(e) => setQ(e.target.value)}
+        autoFocus={autoFocus} placeholder={value.length ? '' : placeholder}
+        onBlur={() => { if (!value.length && !q.trim()) onLeave?.(); }}
         style={{ border: 0, outline: 'none', font: 'inherit', fontSize: 13, flex: 1, minWidth: 140,
           background: 'transparent' }} />}
       {hits.length > 0 && (
         <div style={LIST}>
           {hits.map((h) => (
             <button key={h.object_id} type="button" onClick={() => add(h)} style={HIT}
+              onMouseDown={(e) => e.preventDefault()}
               className="bg-transparent hover:bg-bg-2">
               <span className="tabular-nums" style={{ color: 'var(--fg-3)' }}>{h.object_id}</span>
               <span className="truncate">{h.name}</span>
@@ -582,9 +605,11 @@ function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLat
 }
 
 function Fields(p: {
-  mode: Mode; me: Person; channel?: MessageChannel; mails: MessageChannel[]; setChannel: Set<string>;
+  mode: Mode; me: Person; person: Person; channel?: MessageChannel; mails: MessageChannel[];
+  setChannel: Set<string>;
   to: Person[]; setTo: Set<Person[]>; cc: Person[]; setCc: Set<Person[]>;
   bcc: Person[]; setBcc: Set<Person[]>; showCc: boolean; setShowCc: Set<boolean>;
+  showBcc: boolean; setShowBcc: Set<boolean>;
   subject: string; setSubject: Set<string>;
   /** Die Anliegen dieser Person – zur Auswahl im Betreff (oder ein neues tippen). */
   topics: string[];
@@ -593,19 +618,22 @@ function Fields(p: {
   later: string | null; setLater: Set<string | null>;
   incoming: boolean; setIncoming: Set<boolean>;
 }) {
-  const { mode, me, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc, showCc, setShowCc,
-    subject, setSubject, topics, fixed, locked, later, setLater, incoming, setIncoming } = p;
-  const meChip = <span style={CHIP}><span className="truncate">{me.name}</span></span>;
+  const { mode, me, person, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc,
+    showCc, setShowCc, showBcc, setShowBcc, subject, setSubject, topics, fixed, locked, later,
+    setLater, incoming, setIncoming } = p;
+  const chip = (x: Person) => <span style={{ flex: 1, minWidth: 0 }}>
+    <span style={CHIP}><span className="truncate">{x.name}</span></span></span>;
   // Wer beantwortet wird, lässt sich nicht entfernen – nur zwischen «An» und «Cc» schieben.
   const toCc = (x: Person) => { setTo(to.filter((v) => v !== x)); setCc([...cc, x]); setShowCc(true); };
   const toTo = (x: Person) => { setCc(cc.filter((v) => v !== x)); setTo([...to, x]); };
   const contact = (
-    <People value={to} onChange={setTo} locked={locked} max={incoming ? 1 : undefined}
+    <People value={to} onChange={setTo} locked={locked}
       onMove={mode === 'email' ? toCc : undefined} moveTip="Ins «Cc» schieben"
       staff={mode === 'internal'}
       placeholder={mode === 'internal' ? 'Kollegin oder Kollege – leer lassen für eine Notiz' : 'Name eintippen'} />
   );
-  // Ein Anruf hat eine Richtung: wer hat wen angerufen? Getauscht werden nur Von und An.
+  // ►►► Ein Anruf hat immer genau zwei: mich und die Person dieses Datensatzes. ◄◄◄ Wählbar
+  // ist nur die Richtung – wer hat wen angerufen?
   const swap = (
     <button type="button" onClick={() => setIncoming(!incoming)} aria-label="Richtung tauschen"
       data-tip="Richtung tauschen" style={{ border: 0, background: 'none', fontSize: 12,
@@ -614,29 +642,36 @@ function Fields(p: {
       <ArrowDownUp size={13} />{incoming ? 'Wurde angerufen' : 'Ich habe angerufen'}
     </button>
   );
+  const link = { border: 0, background: 'none', fontSize: 12, color: 'var(--fg-3)',
+    cursor: 'pointer', paddingTop: 4, flex: 'none', fontFamily: 'inherit' } as const;
   return (
       <div style={{ marginTop: 6 }}>
         {mode === 'email' && (
           <Row label="Von"><From mails={mails} value={channel} onChange={setChannel} me={me} /></Row>
         )}
-        {mode === 'phone' && (
-          <Row label="Von">
-            {incoming ? contact : <span style={{ flex: 1, minWidth: 0 }}>{meChip}</span>}{swap}
-          </Row>
-        )}
+        {mode === 'phone' && <Row label="Von">{chip(incoming ? person : me)}{swap}</Row>}
         <Row label="An">
-          {mode === 'phone' && incoming ? <span style={{ flex: 1, minWidth: 0 }}>{meChip}</span> : contact}
-          {mode === 'email' && !showCc && (
-            <button type="button" onClick={() => setShowCc(true)}
-              style={{ border: 0, background: 'none', fontSize: 12, color: 'var(--fg-3)',
-                cursor: 'pointer', paddingTop: 4, flex: 'none' }}>Cc&nbsp;&nbsp;Bcc</button>
+          {mode === 'phone' ? chip(incoming ? me : person) : contact}
+          {/* Cc und Bcc wie in Gmail: ein Klick klappt das Feld auf, leer verlassen klappt es zu. */}
+          {mode === 'email' && (!showCc || !showBcc) && (
+            <span style={{ display: 'inline-flex', gap: 8, flex: 'none' }}>
+              {/* Kein Fokuswechsel beim Drücken: sonst klappte ein leeres Feld schon zu, und der
+                  Klick träfe den Knopf, der dabei an seine Stelle rückt. */}
+              {!showCc && <button type="button" onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowCc(true)} style={link}>Cc</button>}
+              {!showBcc && <button type="button" onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowBcc(true)} style={link}>Bcc</button>}
+            </span>
           )}
         </Row>
-        {mode === 'email' && showCc && <>
+        {mode === 'email' && showCc && (
           <Row label="Cc"><People value={cc} onChange={setCc} locked={locked} onMove={toTo}
-            moveTip="Ins «An» schieben" /></Row>
-          <Row label="Bcc"><People value={bcc} onChange={setBcc} /></Row>
-        </>}
+            moveTip="Ins «An» schieben" autoFocus={!cc.length} onLeave={() => setShowCc(false)} /></Row>
+        )}
+        {mode === 'email' && showBcc && (
+          <Row label="Bcc"><People value={bcc} onChange={setBcc} autoFocus={!bcc.length}
+            onLeave={() => setShowBcc(false)} /></Row>
+        )}
         {!fixed && (
           <Row label="Betreff">
             {/* Ein bestehendes Anliegen wählen oder ein neues tippen – Pflicht für jede Art. */}
@@ -663,7 +698,8 @@ const UNDO_MS = 3000;
 
 /** Was die Eingabe trägt – genug, um sie nach «Rückgängig» genau so wiederherzustellen. */
 type Draft = {
-  to: Person[]; cc: Person[]; bcc: Person[]; showCc: boolean; subject: string;
+  mode: Mode; incoming: boolean;
+  to: Person[]; cc: Person[]; bcc: Person[]; showCc: boolean; showBcc: boolean; subject: string;
   reply: Message | null; mailKey?: string; body: string; later: string | null;
 };
 
@@ -683,6 +719,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   const [cc, setCc] = useState<Person[]>([]);
   const [bcc, setBcc] = useState<Person[]>([]);
   const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [subject, setSubject] = useState('');
   // ►►► Worauf geantwortet wird – nur für Betreff und Empfänger, kein «Antwort auf». ◄◄◄
   const [reply, setReply] = useState<Message | null>(null);
@@ -707,7 +744,8 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   // Pflicht bleibt nur der Absender dessen, worauf ich antworte – ausser ich bin es selbst.
   const asker = reply && reply.sender.object_id !== me.object_id ? reply.sender.object_id : null;
   // Intern geht nichts an ihn – dort ist die Antwort an ihn gar nicht gemeint.
-  const free = calledIn || mode === 'internal';
+  // Ein Anruf geht ohnehin an genau diese Person – dort wird nichts gewählt.
+  const free = mode === 'phone' || mode === 'internal';
   const locked = new Set(asker !== null && !free ? [asker] : []);
   const reached = asker === null || free || [...to, ...cc].some((p) => p.object_id === asker);
   const cameIn = reply && mails.find((c) => c.key === reply.channel.key)?.key;
@@ -729,7 +767,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     setMode(next === 'email' && !mails.length ? 'internal' : next);
     setTo(all.filter((p) => !inCc.has(p.object_id)));
     setCc(all.filter((p) => inCc.has(p.object_id)));
-    setShowCc(all.some((p) => inCc.has(p.object_id)));
+    setShowCc(all.some((p) => inCc.has(p.object_id))); setShowBcc(false);
     if (target.quiet) return;     // vorbelegt beim Öffnen – kein Sprung, kein Fokus
     textRef.current?.focus();
     textRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -738,7 +776,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   /** Eine neue Nachricht statt einer Antwort – freier Betreff, Empfänger von vorn. */
   const fresh = () => {
     setReply(null); setEdit(false); setSubject(''); setCc([]); setBcc([]); setShowCc(false);
-    setTo(mode === 'internal' ? [] : [person]);
+    setShowBcc(false); setTo(mode === 'internal' ? [] : [person]);
   };
   const pick = (m: Mode) => {
     setMode(m); setError(null); setIncoming(false);
@@ -754,18 +792,19 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   const problem = !channel ? (mode === 'email' ? 'Kein Postfach verbunden' : 'Kein Kanal verfügbar')
     : mode === 'email' && !to.length ? 'Mindestens ein Empfänger im «An»'
       : !theSubject.trim() ? 'Betreff fehlt'
-        : calledIn && to.length !== 1 ? 'Wer hat angerufen?'
           : !reached ? `${reply?.sender.name} muss im «An» oder «Cc» stehen`
             : !body.trim() ? 'Text fehlt' : null;
 
   const restore = (d: Draft) => {
-    setMode('email'); setTo(d.to); setCc(d.cc); setBcc(d.bcc); setShowCc(d.showCc);
+    setMode(d.mode); setIncoming(d.incoming); setTo(d.to); setCc(d.cc); setBcc(d.bcc);
+    setShowCc(d.showCc); setShowBcc(d.showBcc);
     setSubject(d.subject); setReply(d.reply); setMailKey(d.mailKey); setBody(d.body);
     setLater(d.later);
   };
   const clear = () => {
     setBody(''); setLater(null); setSubject(''); setReply(null); setEdit(false); setMailKey(undefined);
-    setCc([]); setBcc([]); setShowCc(false); setTo(mode === 'internal' ? [] : [person]);
+    setCc([]); setBcc([]); setShowCc(false); setShowBcc(false); setIncoming(false);
+    setTo(mode === 'internal' ? [] : [person]);
   };
 
   const post = async (payload: MessageIn, draft?: Draft) => {
@@ -819,22 +858,22 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   const send = async () => {
     if (!channel || problem) return;
     flush();
-    const named = new Set([me.object_id, ...[...to, ...cc, ...bcc].map((p) => p.object_id)]);
+    // Ein Anruf hat genau zwei: mich und diese Person (die Richtung tauscht der Server).
+    const [toP, ccP, bccP] = mode === 'phone' ? [[person], [], []] : [to, cc, bcc];
+    const named = new Set([me.object_id, ...[...toP, ...ccP, ...bccP].map((p) => p.object_id)]);
     const payload: MessageIn = {
       channel: channel.key,
-      to: to.map((p) => p.object_id), cc: cc.map((p) => p.object_id),
-      bcc: bcc.map((p) => p.object_id),
+      to: toP.map((p) => p.object_id), cc: ccP.map((p) => p.object_id),
+      bcc: bccP.map((p) => p.object_id),
       about: named.has(person.object_id) ? [] : [person.object_id],
       subject: theSubject.trim() || null, body,
       at: later ? LATER.find((l) => l.key === later)!.at().toISOString() : null,
       incoming: calledIn,
     };
-    if (mode !== 'email') {
-      if (await post(payload)) clear();
-      return;
-    }
-    // ►►► Eine Mail wartet drei Sekunden – «Rückgängig» holt sie genau so zurück. ◄◄◄
-    const draft: Draft = { to, cc, bcc, showCc, subject, reply, mailKey, body, later };
+    // ►►► Jede Nachricht wartet drei Sekunden – Mail, Anruf, Intern; «Rückgängig» holt
+    // sie genau so zurück. Eine Regel für alle Wege. ◄◄◄
+    const draft: Draft = { mode, incoming, to, cc, bcc, showCc, showBcc, subject, reply, mailKey,
+      body, later };
     clear();
     setError(null);
     setHeld(draft);
@@ -866,7 +905,9 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   useEffect(() => {
     sendingRef.current(held ? {
       topic: held.reply ? held.reply.topic : bare(held.subject), body: held.body,
-      to: held.to.map((p) => p.name).join(', '), left, undo: () => undoRef.current(),
+      to: held.mode === 'phone' ? '' : held.to.map((p) => p.name).join(', '), left,
+      undo: () => undoRef.current(), internal: held.mode === 'internal',
+      verb: held.mode === 'email' ? 'wird gesendet' : 'wird gespeichert',
     } : null);
   }, [held, left]);
   useEffect(() => () => sendingRef.current(null), []);
@@ -886,7 +927,8 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
           fontSize: 12, color: 'var(--fg-3)', minWidth: 0 }}>
           {reply.topic && <span style={{ fontWeight: 600, color: topicColor(reply.topic) }}>{reply.topic}</span>}
           {!edit && <span className="truncate" style={{ minWidth: 0 }}>
-            {to.length ? `an ${to.map((p) => p.name).join(', ')}` : 'Notiz'}
+            {mode === 'phone' ? `mit ${person.name}`
+              : to.length ? `an ${to.map((p) => p.name).join(', ')}` : 'Notiz'}
             {cc.length > 0 && `, Cc ${cc.map((p) => p.name).join(', ')}`}</span>}
           {!edit && <button type="button" onClick={() => setEdit(true)}
             style={{ border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 12,
@@ -898,8 +940,8 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
       )}
       {(!reply || edit) && (
         <Fields mode={mode} me={me} channel={channel} mails={mails} setChannel={setMailKey}
-          to={to} setTo={setTo} cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc}
-          showCc={showCc} setShowCc={setShowCc}
+          person={person} to={to} setTo={setTo} cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc}
+          showCc={showCc} setShowCc={setShowCc} showBcc={showBcc} setShowBcc={setShowBcc}
           subject={subject} setSubject={setSubject} topics={topics} fixed={fixed} locked={locked}
           later={later} setLater={setLater} incoming={incoming} setIncoming={setIncoming} />
       )}

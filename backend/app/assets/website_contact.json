@@ -71,10 +71,13 @@
     "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
   },
   "mail": {
-    "confirmSubject": "Ihre Anfrage bei INEXXIO (ehemals HS Steiner)",
-    "confirmIntro": "Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.",
+    "confirmSubject": "Ihre Anfrage ist bei uns angekommen",
+    "confirmIntro": "Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.",
     "confirmNext": "Wir melden uns innert kurzer Zeit.",
-    "urgent": "Steht eine Anlage still, rufen Sie am besten direkt an: 052 378 22 47.",
+    "confirmMore": "Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.",
+    "copyTitle": "Ihre Angaben",
+    "received": "Angekommen",
+    "urgent": "Eilt es? Dann rufen Sie uns direkt an: 052 378 22 47",
     "closing": "Freundliche Grüsse"
   }
 }

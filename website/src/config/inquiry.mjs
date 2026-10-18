@@ -54,10 +54,16 @@ export const inquiry = {
   },
   /** Texte der Bestätigung an die anfragende Person. Werte mit {{…}} aus site.mjs. */
   mail: {
-    confirmSubject: 'Ihre Anfrage bei {{brand.full}}',
-    confirmIntro: 'Danke für Ihre Anfrage. Hier ist eine Kopie Ihrer Angaben.',
+    /** Betreff = Überschrift der Mail. Bewusst ein eigenes Anliegen: die Bestätigung
+     *  beantwortet die Anfrage nicht, sie bleibt offen, bis ein Mensch antwortet. */
+    confirmSubject: 'Ihre Anfrage ist bei uns angekommen',
+    confirmIntro:
+      'Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.',
     confirmNext: 'Wir melden uns innert {{promises.responseTime}}.',
-    urgent: 'Steht eine Anlage still, rufen Sie am besten direkt an: {{phone.display}}.',
+    confirmMore: 'Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.',
+    copyTitle: 'Ihre Angaben',
+    received: 'Angekommen',
+    urgent: 'Eilt es? Dann rufen Sie uns direkt an: {{phone.display}}',
     closing: 'Freundliche Grüsse',
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */

@@ -5165,6 +5165,36 @@
 > 3 s im Verlauf** (blass, Uhr, «Rückgängig»), die Eingabe ist so lange gesperrt.
 > Wächter: `tests/test_communication.py` (4 neue, gegen ihre Bug-Formen gegengeprüft).
 
+> ►►► **EIN BRIEF – JEDER ABSENDER: die eine Mail-Vorlage, und erledigt heisst gelesen**
+> (Migration `150`, `services/mail_layout.py`, Artefakt «INEXXIO E-Mail-Design»). ◄◄◄
+> **(1) Jede Mail des ERP ist dieselbe Hülle** – Kopf (Logo, Stichwort) · Überschrift ·
+> Inhalt · Unterschrift · Fuss, als E-Mail-HTML (Tabellen, Stile am Element, Logo als PNG)
+> **und** als Text. **Die Überschrift ist der Betreff** (ohne «Re:»), eine erfundene gäbe es
+> zweimal. **Unterschrieben wird mit dem Menschen, im Namen der Gesellschaft**: «Freundliche
+> Grüsse», der Name dessen, der geschrieben hat (``created_by``), darunter die Gesellschaft
+> mit **ihrer** Telefonnummer und **ihrem** Postfach – keine Funktion, keine Direktnummer,
+> nie «Ihr Team». Eine automatische Mail trägt keinen Namen (``mailbox.signer_of``). Der
+> Absendername folgt daraus: «Clemens Fritsche · INEXXIO» bzw. «INEXXIO»; die Adresse bleibt
+> die des Postfachs, Antworten landen im ERP. Eine selbst getippte Grussformel wird nicht
+> verdoppelt. Der **Fuss** sind zwei leise Zeilen (Gesellschaft · Anschrift / Telefon · Web)
+> – kein Symbol, keine Erklärung. Die gebaute Mail steht in ``messages.html``: ein Beleg
+> behält, was auf ihm stand.
+> **(2) Die Eingangsbestätigung ist allgemeingültig** (`website/src/config/inquiry.mjs`,
+> exportiert): Gruss, Dank, «Fällt Ihnen noch etwas ein? Einfach antworten», eine Kopie der
+> Angaben, «Angekommen → wir melden uns» und «Eilt es? Dann rufen Sie uns direkt an».
+> **(3) Erledigt im ERP = gelesen in Gmail** (`mailbox._mark_read`, nur in diese Richtung):
+> was beantwortet ist (dieselbe Ableitung wie im Verlauf), verliert «UNREAD» – genau einmal
+> (``messages.read_marked``), nur der letzten 30 Tage. Dafür braucht das Postfach
+> ``gmail.modify``: **ein vorher verbundenes Postfach muss einmal neu verbunden werden**,
+> bis dahin bleibt in Gmail alles, wie es ist.
+> **(4) Die Eingabe**: **jede** Nachricht wartet 3 s mit «Rückgängig» (Mail, Anruf, Intern);
+> **ein Anruf hat genau zwei** – mich und die Person des Datensatzes, wählbar ist nur die
+> Richtung; **Cc/Bcc wie Gmail** (ein Klick klappt auf, leer verlassen klappt zu); **intern
+> stehen die Empfänger vorne im Text** («@Monika Fritsche …», aus dem «An»).
+> Wächter: `tests/test_mail_layout.py` (9 Prüfungen) + eine Erweiterung in
+> `test_contact.py`; gemessen in Chromium an der echten Komponente (12 Prüfungen, 0 px
+> waagrechter Überlauf bei 1280 und 375 px).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

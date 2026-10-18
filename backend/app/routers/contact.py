@@ -365,8 +365,7 @@ def _confirm(db: Session, msg, name: str) -> bool:
     steht im Log – und eine angelegte Bestätigung holt der nächste Abgleich nach."""
     m = VOCAB["mail"]
     try:
-        text = svc.confirmation_text(db, msg, name, m["confirmIntro"], m["confirmNext"], m["closing"])
-        return svc.confirm(db, msg, text, m["confirmSubject"])
+        return svc.confirm(db, msg, name, m)
     except Exception as exc:
         db.rollback()
         print(f"WARNING: INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}", flush=True)

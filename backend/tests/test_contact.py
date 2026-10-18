@@ -40,7 +40,7 @@ def world(monkeypatch):
     db.add(staff)
     db.flush()
     sent: list[int] = []
-    box = SimpleNamespace(owner_object_id=staff.object_id, problem=None)
+    box = SimpleNamespace(owner_object_id=staff.object_id, problem=None, address="info@example.ch")
     monkeypatch.setattr(svc, "company_for", lambda _db, _country: SimpleNamespace(object_id=FIRM))
     monkeypatch.setattr(mb, "ready", lambda: True)
     monkeypatch.setattr(mb, "active", lambda _db, ch: box if ch == CHANNEL else None)
@@ -108,6 +108,11 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     assert conf.sender_object_id == world.staff.object_id and conf.channel == CHANNEL
     assert conf.subject == contact.VOCAB["mail"]["confirmSubject"]
     assert "Hubwerk bleibt stehen." in conf.body
+    # In der Vorlage des Hauses: Überschrift = Betreff, OHNE Namen unterschrieben (geschrieben
+    # hat sie niemand), und der allgemeine Weg, wenn es eilt.
+    assert f">{conf.subject}</h1>" in conf.html
+    assert world.staff.display_name not in conf.html
+    assert contact.VOCAB["mail"]["urgent"] in conf.html
     assert dc.topic(conf.subject) != dc.topic(inq.subject)
     assert comm.load(world.db, [inq.id])[0].open
 

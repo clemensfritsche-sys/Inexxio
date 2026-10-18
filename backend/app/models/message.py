@@ -56,6 +56,13 @@ class Message(Base, TimestampMixin):
                                            server_default="false")
     #: Anhänge: nur Name und Grösse – die Datei bleibt in Gmail.
     attachments: Mapped[Optional[list[Any]]] = mapped_column(JSONB)
+    #: **Die Mail, wie sie hinausging** (``services/mail_layout``) – ein Beleg behält, was
+    #: auf ihm stand. Leer = sie wird beim Versand aus Text und Absender gebaut.
+    html: Mapped[Optional[str]] = mapped_column(Text)
+    #: **In Gmail als gelesen markiert** – erledigt im ERP heisst gelesen im Postfach,
+    #: und zwar genau einmal (``mailbox._mark_read``).
+    read_marked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                              server_default="false")
 
     __table_args__ = (
         Index("uq_messages_rfc_id", "rfc_id", unique=True,
