@@ -1,6 +1,5 @@
 import type {
   Order,
-  PublicContact,
   OrderSummary,
   OrderDraft,
   OrderValidation,
@@ -16,7 +15,6 @@ import type {
   Article,
   Message, MessageIn, MessageChannel, Mailbox, OpenCount,
   ArticleInput,
-  ArticleUpdateInput,
   ArticleNameSuggestion,
   Instance,
   ArticleStock,
@@ -59,22 +57,14 @@ export class ApiError extends Error {
   }
 }
 
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * **«Ich habe Daten geändert» – an EINER Stelle gesagt** (Testnotizen #685/#688).
  *
- * Den Mechanismus gab es längst: der ERP-Feed hört auf `inexxio:data-changed` und lädt
- * dann sofort nach. Gefeuert hat ihn nur das KI-Widget – jedes Detailfenster schrieb
- * still an ihm vorbei. Darum stand im Feed «Im Prozess», während das Detail daneben
- * längst «Abgeschlossen» zeigte (#688), und eine frisch erzeugte Instanz erschien erst
- * nach einem Reload (#685). Es waren nie **zwei Quellen** – Feed und Detail leiten den
- * Status aus derselben Ableitung ab; der Feed hatte nur einen alten Stand.
- *
- * Die Stelle, an der «geändert» mit Sicherheit zutrifft, ist hier: **jede Anfrage, die
- * kein GET ist.** Ein Aufrufer kann es damit nicht mehr vergessen – und ein zweiter
- * Melde-Weg kann nicht entstehen.
+ * Der ERP-Feed hört auf `inexxio:data-changed` und lädt dann nach. Gefeuert wird nach
+ * **jeder erfolgreichen Anfrage, die kein GET ist** – so kann ein Aufrufer es nicht
+ * vergessen, und ein zweiter Melde-Weg kann nicht entstehen.
  *
  * Ausgenommen sind die **Testnotizen**: sie sind keine ERP-Daten, und beim Anheften
  * einer Notiz vier Feed-Abfragen auszulösen wäre Arbeit ohne Ertrag.
@@ -87,22 +77,10 @@ function notifyDataChanged(path: string) {
 
 class ApiClient {
   /**
-   * ►►► **Jede Methode ist an ihren Client gebunden** (Testnotiz #927). ◄◄◄
-   *
-   * Gemeldet war «wenn ich hier etwas eingebe, kommt kein Vorschlag» – und daneben in
-   * jeder Notiz derselbe Konsolen-Fehler: *«Cannot read properties of undefined (reading
-   * ‹get›)»*. Das ist wörtlich `this.get`, wenn `this` fehlt. Eine Klassenmethode, die
-   * als **Wert** weitergereicht wird (`search={api.searchVoucherParties}`,
-   * `search = api.searchVoucherParties` als Vorgabewert), verliert ihr `this` – und dass
-   * eine solche Suchquelle stumm bleibt, sieht man ihr nicht an: der Fehler landet in
-   * der Konsole, das Feld bleibt leer.
-   *
-   * Am **Aufrufer** wäre das eine Regel, die man bei jedem neuen `search={…}` erneut
-   * einhalten muss. Hier ist es **eine Stelle**: nach dem Binden kann eine Methode
-   * dieses Clients ihr `this` gar nicht mehr verlieren – konstruktiv statt geprüft.
-   *
-   * Bewusst über den **Prototyp**, nicht über eine Liste von Namen: eine Liste ist die
-   * Form, die man beim nächsten Endpunkt vergisst.
+   * **Jede Methode ist an ihren Client gebunden** (Testnotiz #927): eine Methode, die als
+   * **Wert** weitergereicht wird (`search={api.searchVoucherParties}`), behält ihr `this`.
+   * Ohne das warf `this.get`, und das Suchfeld blieb stumm. Gebunden wird über den
+   * **Prototyp**, nicht über eine Namensliste – die vergässe den nächsten Endpunkt.
    */
   constructor() {
     const proto = Object.getPrototypeOf(this) as object;
@@ -136,10 +114,6 @@ class ApiClient {
 
   setTokenProvider(fn: () => Promise<string | null>) {
     this.tokenProvider = fn;
-  }
-
-  clearToken() {
-    this.token = null;
   }
 
   // Transiente Transportfehler (Kaltstart / Skalierung / kurz nach einem Deploy)
@@ -261,13 +235,6 @@ class ApiClient {
     return this.request<T>(path, { method: 'DELETE' });
   }
 
-  // ─── Website ───────────────────────────────────────────────────────────────
-
-  /** Kontaktdaten zum Land des Besuchers – aus dem ERP, ohne Anmeldung (Testnotiz #1094). */
-  getPublicContact(): Promise<PublicContact> {
-    return this.get('/api/v1/public/contact');
-  }
-
   // ─── Auth / Profile ────────────────────────────────────────────────────────
 
   getMe(): Promise<UserProfile> {
@@ -332,20 +299,6 @@ class ApiClient {
     return this.post('/api/v1/auth/passkeys/login/verify', { credential });
   }
 
-
-
-
-
-
-
-  // ─── Admin: Users ──────────────────────────────────────────────────────────
-
-  getUsers(): Promise<UserProfile[]> {
-    return this.get('/api/v1/admin/users');
-  }
-
-
-
   // ─── Admin: Settings ───────────────────────────────────────────────────────
 
   getSettings(): Promise<CompanySettings> {
@@ -355,7 +308,6 @@ class ApiClient {
   getPublicSettings(): Promise<Partial<CompanySettings>> {
     return this.get<Record<string, unknown>>('/api/v1/admin/settings/public').then(mapSettingsFromBackend);
   }
-
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
     return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
@@ -395,7 +347,7 @@ class ApiClient {
     return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/operator`, {}).then(mapSettingsFromBackend);
   }
 
-  /** Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung). */
+  /** Ein Unternehmen **schliessen** (Soft-Delete; `reopenCompany` macht es rückgängig). */
   deactivateCompany(objectId: number): Promise<CompanySettings> {
     return this.delete<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`).then(mapSettingsFromBackend);
   }
@@ -430,17 +382,7 @@ class ApiClient {
     return this.patch(`/api/v1/erp/records/${objectId}`, data);
   }
 
-  // ─── ERP Articles ──────────────────────────────────────────────────────────
-
-  /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
-   *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ►►► DER BELEG — das Modul «Zahlung»
-  // ─────────────────────────────────────────────────────────────────────────────
-  //
-  // Das Vorgängermodul hatte seine eigenen `deal*`-Methoden daneben – **genau deshalb
-  // liess es sich ersatzlos löschen** (Testnotiz #960): es fielen fünf Methoden weg
-  // statt einer Verzweigung in einer geteilten.
+  // ─── Der Beleg (Modul «Zahlung») ────────────────────────────────────────────
 
   /** **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (`voucher.VERBS`). */
   updateVoucher(orderObjectId: number, stepId: number,
@@ -452,10 +394,8 @@ class ApiClient {
    * **Eine Zahlung über den offenen Betrag vorbereiten** – für unsere eigene Karte.
    *
    * Sie ändert am Beleg **nichts**; gebucht wird erst, wenn das Geld da ist – und das
-   * meldet der Webhook, nicht dieser Browser.
-   *
-   * *Ein `chargeId` stand hier einmal: welche Rechnung bezahlt wird. Je Modul gibt es
-   * eine, und sie **ist** der Beleg – die Frage hat genau eine Antwort.*
+   * meldet der Webhook, nicht dieser Browser. Je Modul gibt es eine Rechnung, und sie
+   * **ist** der Beleg – darum braucht es keine Rechnungsnummer.
    */
   prepareVoucherPayment(objectId: number, stepId: number): Promise<PaymentSetup> {
     return this.post(
@@ -553,6 +493,10 @@ class ApiClient {
     return this.post('/api/v1/erp/messages/sync', {});
   }
 
+  // ─── ERP Articles ──────────────────────────────────────────────────────────
+
+  /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
+   *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
   getArticles(search?: string, limit?: number): Promise<Article[]> {
     const params = new URLSearchParams();
     if (search?.trim()) params.set('search', search.trim());
@@ -584,22 +528,6 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/name-suggestions?${params.toString()}`);
   }
 
-  updateArticle(objectId: number, data: ArticleUpdateInput): Promise<Article> {
-    return this.patch(`/api/v1/erp/articles/${objectId}`, data);
-  }
-
-
-
-
-
-
-
-
-  deleteStep(owner: 'articles' | 'orders', objectId: number, stepId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/${owner}/${objectId}/steps/${stepId}`);
-  }
-
-
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
   // Gibt eine relative URL (Token) zurück; die speichern die Verbraucher als String.
   async uploadAttachment(file: File): Promise<{ url: string; width: number | null; height: number | null }> {
@@ -611,37 +539,6 @@ class ApiClient {
     if (!res.ok) throw await this.apiError(res);
     return res.json();
   }
-
-  // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
-
-
-
-
-
-
-
-
-
-
-  // (Über eine Fehlmenge entscheidet seit Testnotiz #556 das System selbst
-  //  (``recovery.auto_resolve``): hält sie noch jemand, wird gewartet; hält sie niemand
-  //  mehr, sinkt das Soll darauf. «Ersetzen» ist bewusst zurückgestellt – der Weg existiert
-  //  im Backend weiter (`POST …/cover`), es fragt nur niemand mehr danach.)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // Bestand eines Artikels: Aufstellung über ALLE Stücke + eine Seite Instanzen.
   getArticleStock(objectId: number, limit = 50, offset = 0): Promise<ArticleStock> {
@@ -700,9 +597,8 @@ class ApiClient {
     return this.post('/api/v1/erp/orders', draft);
   }
 
-  /** Welche Einzelinstanzen kann die Definition aufnehmen? Gesperrte kommen MIT –
-   *  die Oberfläche soll den Grund zeigen, statt eine Zeile stumm verschwinden zu lassen. */
-  /** **Eine Seite wählbarer Einzelinstanzen** (#740) – nicht die Liste.
+  /** **Eine Seite wählbarer Einzelinstanzen** (#740) – nicht die Liste. Gesperrte kommen
+   *  mit: die Oberfläche zeigt den Grund, statt eine Zeile stumm verschwinden zu lassen.
    *
    *  `preselect` bittet den Server um die FIFO-Vorauswahl: sie aus einer gekappten Seite
    *  zu ziehen war der Fehler – sind die ersten Stücke verbaut, fände die Oberfläche
@@ -722,10 +618,9 @@ class ApiClient {
     return this.get(`/api/v1/erp/orders/unit-options${q ? `?${q}` : ''}`);
   }
 
-  /** Welche Artikel kann eine Definitionszeile aufnehmen? `template_steps` fährt mit,
-   *  damit «Neu» gesperrt UND begründet werden kann, ohne einen zweiten Aufruf. */
-  /** **Gesucht, nicht geladen** (#738): entweder passend zur Eingabe, oder genau der
-   *  eine gewählte Artikel (`objectId`) – damit im Feld sein Name steht. */
+  /** Welche Artikel kann eine Definitionszeile aufnehmen? **Gesucht, nicht geladen**
+   *  (#738): passend zur Eingabe, oder genau der eine gewählte (`objectId`) – damit im
+   *  Feld sein Name steht. `template_steps` fährt mit, damit «Neu» begründet gesperrt wird. */
   getArticleOptions(opts: { search?: string; objectId?: number; limit?: number } = {}):
     Promise<ArticleOption[]> {
     const p = new URLSearchParams();
@@ -736,12 +631,8 @@ class ApiClient {
     return this.get(`/api/v1/erp/orders/article-options${q ? `?${q}` : ''}`);
   }
 
-  /** Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt. Das Diagramm
-   *  selbst rechnet mit Zahlen (`unit_groups`), nicht mit 5000 Zeilen. */
   /** Die Stücke **einer Kante** des Prozessbildes – dieselbe Position, die die Pille
-   *  zählt (Befund 2.1). Die frühere Frage «Schritt X, aktiv» war gröber als das Bild:
-   *  an einem Punkt mit Teilung zählte die Pille die Gruppe, die Liste kannte die
-   *  Teilung nicht und zeigte beide. */
+   *  zählt; erst wenn jemand aufklappt (das Bild rechnet mit Zahlen, nicht Zeilen). */
   getOrderUnits(objectId: number, edge: string,
                 limit = 100, offset = 0): Promise<OrderUnitPage> {
     const p = new URLSearchParams({ edge, limit: String(limit), offset: String(offset) });
@@ -764,19 +655,11 @@ class ApiClient {
     return this.get('/api/v1/erp/orders/module-catalog');
   }
 
-  /** «Bestätigen» – der eine Ausführungs-Endpunkt, für jedes Modul derselbe. Was im
-   *  Rumpf steht, entscheidet der Modultyp (Datenerfassung: die erfassten Werte). */
   /**
-   * «Bestätigen» an einem Modul – **für genau eine Instanz** (Scan-Regel §3). Wie sie
-   * verifiziert wurde (`scan` | `manual`), reist mit: beides ist eine Bestätigung, und
-   * ohne den Vermerk wäre die Tastatur hinterher nicht von der Kamera zu unterscheiden.
-   */
-  /**
-   * «Bestätigen» – **ein Wertesatz je Einzelinstanz**.
-   *
-   * `values` ist zweistufig: Nummer der Einzelinstanz → (Punkt-`key` → Wert). Der
-   * Scan verifiziert die **Instanz**, erfasst wird je **Stück**; ein flacher Satz
-   * wäre eine Messung, aus der n gleiche würden.
+   * «Bestätigen» – der eine Ausführungs-Endpunkt, für jedes Modul derselbe, **für genau
+   * eine Instanz**. `values` ist zweistufig: Nummer der Einzelinstanz → (Punkt-`key` →
+   * Wert) – der Scan verifiziert die Instanz, erfasst wird je Stück. Wie verifiziert
+   * wurde (`scan` | `manual`), reist mit.
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
               instanceObjectId?: number | null, verification?: string,
@@ -792,16 +675,9 @@ class ApiClient {
       // festgelegtem Ziel ist sie die Verifikation, sonst die Wahl; bei jedem anderen
       // Modultyp bleibt sie `null` und wird verworfen.
       place,
-      // **Kein «womit».** Ob eingekauft wurde, sagt der Beleg an diesem Modul – eine
-      // Eingabe daneben wäre eine zweite Angabe über dieselbe Sache.
     });
   }
 
-  /**
-   * Die Nummern einer Entscheidungs-Gruppe – **erst auf Klick** (§4.1). Der «Rest» einer
-   * 6000er-Charge wären sechstausend Nummern; sie in jeder Auftrags-Antwort mitzuführen
-   * wäre der Preis dafür, dass man sie einmal braucht.
-   */
   /**
    * Die Nummern **einer Gruppe dieser Instanz an diesem Modul** – erst auf Klick.
    *
@@ -874,7 +750,6 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}`);
   }
 
-
   // ─── Testnotizen (in-app Feedback, nur Testumgebung) ────────────────────────
 
   listFeedback(route?: string): Promise<FeedbackNote[]> {
@@ -900,14 +775,13 @@ class ApiClient {
   }
 }
 
-
 // ─── CompanySettings field mapping (frontend ↔ backend) ──────────────────────
 
 function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
   return {
     object_id: (s.object_id as number | null) ?? null,
-    // Abgeleitete Rollen (kein Rang): ältestes Unternehmen = Betreiber der Website;
-    // has_address = trägt echte Ortsangaben (sonst logistisch stumm, ADR 005).
+    // Abgeleitet: Betreiber der Website (ein gewählter); has_address = trägt echte
+    // Ortsangaben (ADR 005).
     is_operator: (s.is_operator as boolean) ?? false,
     is_active: (s.is_active as boolean) ?? true,
     // «Eigenes Unternehmen» – eine unserer Gesellschaften (CRM Schritt 1).
@@ -916,16 +790,8 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     has_address: (s.has_address as boolean) ?? false,
     company_name: (s.company_name as string) ?? '',
     legal_form: (s.legal_form as string | null) ?? null,
-    // ►►► **Der Datensatzname – Name UND Rechtsform** (Testnotiz #984). ◄◄◄
-    //
-    // Er fehlte hier, und damit **überall**: dieser Mapper baut ein Objekt Feld für Feld,
-    // also verschwindet still, was er nicht nennt. `legal_name` kam vom Server (`sites.
-    // legal_name`, seit #910), erreichte den Browser aber nie – `organizationName` fiel
-    // an **jeder** Stelle auf den blossen Namen zurück, im Feed wie in der Kopfzeile. Es
-    // sah nach zwei verschiedenen Anzeigen aus und war eine gemeinsame Lücke.
-    //
-    // *Dieselbe Fehlerform wie eine Pydantic-Klasse, die ein Feld nicht kennt – nur in
-    // der anderen Richtung: eine Auflistung verwirft schweigend, was nicht in ihr steht.*
+    // Der Datensatzname – Name UND Rechtsform (#984). Dieser Mapper baut Feld für Feld:
+    // was er nicht nennt, verschwindet still.
     legal_name: (s.legal_name as string | undefined) ?? undefined,
     street: (s.street as string) ?? '',
     street_number: (s.street_nr as string | null) ?? null,
@@ -939,8 +805,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     phone: (s.phone as string | null) ?? null,
     // Abgeleitet aus dem Deployment (read-only, #309) – keine Eingabe, kein Rückweg.
     website: (s.website as string) ?? '',
-    // **Ausgeschrieben, nicht maskiert** (#870): sie stand als `iban_masked` daneben, und
-    // `iban` war immer `null` – ein Unternehmen mit Bankverbindung sah aus wie eines ohne.
+    // Ausgeschrieben, nicht maskiert (#870): die IBAN steht auf jeder Rechnung.
     iban: (s.iban as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
   };
@@ -956,7 +821,7 @@ function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unkno
   // eine zweite Wahrheit anzulegen; das Backend nähme es ohnehin nicht an.
   // `legal_name` ist ebenso abgeleitet (Name + Rechtsform, `sites.legal_name`) – es
   // zurückzuschicken wäre die zweite Wahrheit neben den beiden Feldern, aus denen es kommt.
-  const skip = new Set(['iban_masked', 'website', 'is_operator', 'has_address', 'is_active',
+  const skip = new Set(['website', 'is_operator', 'has_address', 'is_active',
                         'legal_name', 'people']);
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {

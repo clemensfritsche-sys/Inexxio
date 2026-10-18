@@ -217,9 +217,6 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   /**
    * **Eine Handlung am Beleg** – derselbe Weg wie das Bestätigen: ein Aufruf, die
    * Antwort IST der neue Auftrag. Kein eigener Zustand daneben, der veralten könnte.
-   *
-   * Das Vorgängermodul hatte seinen eigenen Aufruf daneben (`runDeal`) – genau deshalb
-   * kostete seine Löschung hier eine **Streichung** statt einer Verzweigung (#960).
    */
   const runVoucher = useCallback(async (
     stepId: number, body: { action: string } & Record<string, unknown>,
@@ -472,38 +469,20 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
     }));
   }, [order.object_id]);
 
-  // ►► **Ein Modul-Körper, zwei Wege dorthin.** ◄◄
+  // **Ein Modul-Körper, zwei Wege dorthin**: der volle Prozess in der Mitte – und die
+  // **Partner-Sicht**, die kein Prozessbild bekommt (sein Beleg ist seine Sache, der Lauf
+  // des Auftrags nicht).
   //
-  // Er hängt hier und nicht im Diagramm, weil ihn zwei Ansichten brauchen: der volle
-  // Prozess in der Mitte – und die **Lieferanten-Sicht**, die kein Prozessbild bekommt
-  // (sein Beleg ist seine Sache, der Lauf des Auftrags nicht). Zwei Körper wären zwei
-  // Darstellungen desselben Moduls, und die laufen auseinander.
-  //
-  // `internal` sagt, ob dies die **volle** Ansicht ist – und das ist keine Rollenabfrage,
-  // sondern die Aussage der Aufrufstelle über sich selbst: das Modul-Protokoll
-  // (`StepRecord`) ist der interne Lauf, sein Endpunkt ist Personal-only, und in einer
-  // verengten Antwort hat er nichts zu suchen. Was ein Lieferant im Modul **tun** darf,
-  // entscheidet dagegen der Beleg selbst (`purchase.can`).
+  // `internal` sagt, ob dies die **volle** Ansicht ist – keine Rollenabfrage, sondern die
+  // Aussage der Aufrufstelle über sich selbst: das Modul-Protokoll (`StepRecord`) ist
+  // Personal-only. Was ein Partner im Modul **tun** darf, entscheidet der Beleg selbst
+  // (`voucher.can`).
   const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => {
-    // ►►► **Ein Modul ohne Scan bekommt eine Bestätigung, kein Scan-Tor.** ◄◄◄
-    //
-    // Gefragt wird die **Eigenschaft** (`step.verifies`), nie der Modultyp – sie reist
-    // mit dem Schritt wie Farbe und Beschriftung. Ein Scan beantwortet «habe ich das
-    // richtige physische Ding vor mir»; ein Modul, das mit dem Stück gar nichts tut (ein
-    // Geldvorgang stellt etwas in Rechnung), hätte darin eine Geste ohne Aussage.
-    //
-    // Es ist **ein** Vorgang und nicht einer je Instanz: ohne Instanz bewegt
-    // `confirm_step` alles, was davorsteht – ein Auftrag wird einmal erledigt, nicht je
-    // Kiste. Durchgesetzt wird beides serverseitig (`process._verified_instance`).
-    // ►►► **Eine Gegenpartei bestätigt kein Modul.** ◄◄◄
-    //
-    // `confirm_step` ist `require_employee` – jeder Bestätigungsweg (Scan wie einfacher
-    // Knopf) endet für sie in einem 403. Ein Knopf, der nie etwas tun kann, ist kein
-    // Angebot; er stand hier trotzdem, weil `work` an `isActive` hing und sonst an nichts.
-    //
-    // Gefragt wird `internal` – die Aussage der Aufrufstelle über **sich selbst** –, nicht
-    // die Rolle: dieselbe Naht, an der auch das Modul-Protokoll hängt. Und die Regel gilt
-    // für **jedes** Modul, nicht für dieses eine.
+    // **Ein Modul ohne Scan bekommt eine Bestätigung, kein Scan-Tor**: gefragt wird die
+    // Eigenschaft (`step.verifies`), nie der Modultyp. Es ist **ein** Vorgang, nicht einer
+    // je Instanz (`process._verified_instance`).
+    // **Eine Gegenpartei bestätigt kein Modul** (`confirm_step` ist Personal-only):
+    // gefragt wird `internal`, die Aussage der Aufrufstelle über sich selbst.
     const plain = step.verifies === false;
     // **Warum jetzt nicht?** – der Satz kommt vom Server (`process.completion_problem`).
     const blocked = stepInfo(order, step.id)?.blocked ?? null;
@@ -512,27 +491,9 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
     // jedem anderen ist er leer, und es bleibt beim Inhalt allein.
     const paper = stepInfo(order, step.id)?.voucher ?? null;
     const work = !internal ? null : isActive && plain ? (
-      // ►►► **Der Modul-Knopf IST ein Knopf** (Testnotiz #813). ◄◄◄
-      //
-      // Er trug den blossen `.erp-actbtn` – und die Basisklasse hat `border: 1px solid
-      // transparent` und keine Fläche: sie sah aus wie Text. Erst eine Ausprägung macht
-      // daraus etwas, das man als Knopf erkennt. Und dieser hier ist die **eine**
-      // Handlung, die das Modul abschliesst; er trägt darum die volle Breite und die
-      // Fläche, nicht bloss eine Kontur.
-      // ►►► **Und wenn er JETZT nichts tun kann, gibt es ihn nicht** (Testnotiz #950). ◄◄◄
-      //
-      // *«Es gibt hier ja noch den Button ‹Vorgang abschliessen›, welcher bewusst ausgegraut
-      // deaktiviert ist … Ich sehe keinen Grund, warum dies sichtbar sein sollte. Wenn es
-      // die Option zum jetzigen Zeitpunkt nicht gibt, dann entfernen.»*
-      //
-      // Damit ist #945 einen Schritt weitergegangen, nicht zurückgenommen: dort war das
-      // Problem, dass der Knopf eine **Einladung** war, die der Dienst mit 409 abwies –
-      // ausgegraut löste das halb. Die Hausregel ist eindeutig: *ein Knopf, der nie etwas
-      // tun kann, ist kein Angebot.* **Was** im Weg steht, sagt die Modul-Karte selbst (die
-      // Stufe, die gemeldeten Lücken) – ein Hinweis hier wäre dieselbe Auskunft ein zweites
-      // Mal, und zwar in einer Blase, die man nur findet, wenn man auf einen toten Knopf
-      // zeigt. Gefragt wird weiterhin der **Server** (`step.blocked`, aus derselben Regel,
-      // die `confirm_step` durchsetzt) – nicht eine Heuristik hier.
+      // **Der Modul-Knopf IST ein Knopf** (#813, `erp-actbtn-primary`, volle Breite). **Und
+      // wenn er jetzt nichts tun kann, gibt es ihn nicht** (#950): was im Weg steht, sagt
+      // die Modul-Karte selbst; gefragt wird der Server (`step.blocked`).
       blocked ? null : (
         <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
           disabled={busy} style={{ height: 42, fontSize: 14 }}
@@ -560,17 +521,9 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
       />
     ) : paper ? (
-      // ►►► **Ein Modul, das seine Sache SELBST zeigt, braucht keine Aufzählung daneben**
-      // (Testnotiz #973). ◄◄◄
-      //
-      // *«Ich checke nicht, was diese Info hier soll. Zahlung war abgeschlossen, und es
-      // zeigt es immer noch an.»* – Dagestanden hatte die `PointList`, und die sagt, was
-      // ein Modul **tun wird**: seine Erfassungspunkte, seine Stichprobe, sein Verb. Ein
-      // Beleg hat nichts davon; übrig blieb sein **Verb** («Vorgang abschliessen») – also
-      // der Name eines Knopfes, den es an einem erledigten Modul gar nicht mehr gibt.
-      //
-      // Gefragt wird, ob es einen Beleg **gibt**, nie der Modultyp: jedes künftige Modul,
-      // dessen Inhalt eine eigene Karte ist, erbt die Regel ohne eine Zeile.
+      // **Ein Modul, das seine Sache selbst zeigt, braucht keine Aufzählung daneben** (#973):
+      // die `PointList` sagt, was ein Modul tun wird – ein Beleg zeigt sich selbst. Gefragt
+      // wird, ob es einen Beleg gibt, nie der Modultyp.
       null
     ) : (
       <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
@@ -589,12 +542,8 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           {work}
         </BelegWork>
       ) : work}
-      {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp.
-          ►►► **Und nur, wo es mehr zu berichten gibt als die blosse Passage** (#825):
-          bei einem Modul, das am Stück nichts ändert, nichts erfasst und nichts
-          verifiziert, blieben Nummer, Name und Uhrzeit übrig – und die Frage «warum steht
-          die hier?» war berechtigt. Gefragt wird die **Sache** (`step.records`), nie der
-          Modultyp; entfernt wird das Protokoll nicht, es ist der Nachweis. */}
+      {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp; und nur,
+          wo es mehr zu berichten gibt als die blosse Passage (#825, `step.records`). */}
       {internal && !isActive && step.records !== false
         && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
     </div>
@@ -602,7 +551,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
   };
 
   // **Ohne Prozessbild: die Module allein** – dieselbe Karte, nur ohne Achse. Der Graph
-  // fehlt genau dann, wenn die Antwort für einen Lieferanten verengt wurde
+  // fehlt genau dann, wenn die Antwort für einen Partner verengt wurde
   // (`orders._mine_only`); gezeichnet wird trotzdem `StepCard`, nicht ein Nachbau.
   if (!(order.flow?.nodes ?? []).length) {
     return (
@@ -638,18 +587,9 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           // Nachbarn ist sie gar nicht geladen, und sie gehört in seinen Datensatz.
           events: order.events ?? [],
           eventTotal: order.event_count ?? undefined,
-          // **Jedes Modul zeigt, was es tut** (Testnotiz #696) – das aktive als Formular,
-          // die übrigen als das, was in ihnen definiert ist. Ob die Karte auf- oder
-          // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
-          // steht nur der Inhalt.
-          // ►► **Ein Modul zeigt seine Sache in JEDEM Zustand.** ◄◄
-          //
-          // Vorher standen hier zwei völlig verschiedene Körper – aktiv das Formular,
-          // sonst eine **Aufzählung** dessen, was ein Modul tragen kann (Punkte, Umfang,
-          // Verb, Grund, Ziel). Diese Liste musste mit jedem neuen Modul-Fakt wachsen,
-          // und der Beschaffungs-Beleg stand nicht darin: ein abgeschlossenes Modul zeigte
-          // von ihm **nichts**. Jetzt ist es EIN Körper, und `isActive` entscheidet allein,
-          // ob **gehandelt** werden darf – nicht, ob etwas zu sehen ist.
+          // **Ein Modul zeigt seine Sache in JEDEM Zustand** (#696): EIN Körper, und
+          // `isActive` entscheidet allein, ob **gehandelt** werden darf – nicht, ob etwas
+          // zu sehen ist. Auf-/zugeklappt und gesperrt entscheidet das Diagramm.
           renderStep: (step, isActive) => stepBody(step, isActive, true),
         }}
         parents={order.parents ?? []}
@@ -816,23 +756,8 @@ function workOf(order: Order, stepId: number): StepWork[] {
 }
 
 /*
- * **Der Definitions-Container ist entfallen** (Punkt 6). Er sagte «3× Blech, neu
- * erzeugt» — dieselbe Auskunft, die jetzt oben am Baum steht: was hier entstanden ist,
- * als eigener Ast; was aus einem Auftrag kam, als Ast mit dessen Objektnummer. Beides
- * zusammen deckt jedes Stück ab (gemessen), also war es eine zweite Anzeige derselben
- * Sache — und die läuft irgendwann der ersten davon.
- */
-
-/*
- * **Die History-Box ist entfallen** (Auftrag §5). Der Ereignis-Log bleibt vollständig –
- * aufgezeichnet wird unverändert, und der Server liefert ihn weiter. Nur der ORT ist ein
- * anderer: die Einträge stehen jetzt am **Prozessobjekt**, an dem sie passiert sind
- * (`process-diagram.historyTip`). Eine Liste am Fuss zwang dazu, jede Zeile erst dem
- * Objekt zuzuordnen; am Objekt selbst IST diese Zuordnung die Position.
- *
- * Entscheidend dabei: `start` und `end` tragen **kein** Modul (`step_id = null`) – ein
- * Hover nur an Modulen hätte die Hälfte des Logs unerreichbar gemacht. Alle drei
- * Objektarten tragen darum dieselbe Blase, und die Kappungs-Notiz («die letzten N von M»)
- * steht als letzte Zeile darin.
+ * **Der Ereignis-Log steht am Prozessobjekt**, an dem er passiert ist
+ * (`process-diagram.historyTip`) – Start, Module und Ende tragen dieselbe Blase, denn
+ * `start`/`end` haben kein Modul (`step_id = null`).
  */
 

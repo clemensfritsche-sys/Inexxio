@@ -45,7 +45,7 @@ export const SCAN_RECORD_TYPE: Record<string, ErpRecordType> = {
   company: 'organization',
 };
 
-// 'organization' erscheint nur für Admins als Chip (displayCount blendet 0-Zähler aus).
+// 'organization' sieht jedes Personal (displayCount blendet 0-Zähler aus).
 export const FILTER_TYPES: ErpRecordType[] = [
   'user', 'article', 'order', 'instance', 'organization',
 ];

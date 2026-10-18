@@ -3,13 +3,13 @@
 /**
  * Testnotizen – «Pin setzen, Kommentar hinterlassen» (siehe `docs/feedback.md`).
  *
- * Ein kleiner Launcher unten LINKS (die KI sitzt rechts) öffnet die Notizen dieser
+ * Ein kleiner Launcher unten links öffnet die Notizen dieser
  * Seite. «Notiz anheften» schaltet in den Zeigemodus: das Element unter dem Cursor
  * wird umrandet, ein Klick heftet die Notiz daran – Kontext (Route, Datensatz,
  * Element, Umgebung, letzte Fehler) schneidet die Oberfläche selbst mit.
  *
  * Sichtbar nur in der **Testumgebung** und nur für angemeldete Nutzer – bewusst für
- * JEDE Rolle, damit auch aus Kunden- oder Lieferantensicht gemeldet werden kann.
+ * JEDE Rolle, damit auch aus der Sicht einer Gegenpartei gemeldet werden kann.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -58,7 +58,7 @@ export function FeedbackPin() {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [tick, setTick] = useState(0);            // Neuberechnung der Pin-Positionen
 
-  // Eigenständige Auth-Prüfung (das Widget hängt in mehreren Layouts – wie die KI).
+  // Eigenständige Auth-Prüfung (das Widget hängt in mehreren Layouts).
   useEffect(() => {
     if (!FEEDBACK_ENABLED) return;
     return onAuthChange(async (fbUser) => {

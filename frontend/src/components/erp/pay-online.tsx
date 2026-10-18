@@ -6,10 +6,7 @@ import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/strip
 import type { PaymentSetup } from '@/types';
 
 /**
- * ►►► **Bezahlen — in UNSERER Karte, nicht auf einer fremden Seite.** ◄◄◄
- *
- * Vorher war es ein **Zahllink**: der Kunde verliess das ERP und stand auf einer Seite
- * mit fremdem Namen, fremder Schrift und fremder Adresszeile. Hier bleibt er, wo er ist –
+ * **Bezahlen — in UNSERER Karte, nicht auf einer fremden Seite** (§9.13): kein Zahllink;
  * die Fläche, die Wörter, der Knopf und die Rückmeldung gehören uns.
  *
  * ## Was trotzdem vom Dienst kommt — und warum genau das
@@ -35,30 +32,19 @@ import type { PaymentSetup } from '@/types';
  *
  * Der Browser ist keine Quelle: wer ihn nach der Zahlung schliesst, darf keine Buchung
  * verschlucken. Die Zeile entsteht, wenn der Dienst sie meldet (Webhook →
- * `deal.record_payment`, idempotent über die Referenz). Diese Karte sagt darum «ausgeführt»
+ * `voucher.record_payment`, idempotent über die Referenz). Diese Karte sagt darum «ausgeführt»
  * und nicht «gebucht» – und lädt den Auftrag nach, damit die Zeile erscheint, sobald sie
  * da ist.
  */
 export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClose }: {
   orderObjectId: number;
   stepId: number;
-  /*
-   * *Ein `chargeId` stand hier einmal (#859): welche Rechnung bezahlt wird. Je Modul gibt
-   * es eine, und sie **ist** der Beleg – die Frage hat genau eine Antwort, und eine Frage
-   * mit genau einer Antwort stellt man nicht.*
-   */
   /**
-   * ►►► **WELCHES Modul bezahlt wird, sagt der Aufrufer** (Testnotiz #959). ◄◄◄
-   *
-   * Die Karte rief fest `api.preparePayment` – den Endpunkt des **alten** Zahlungsmoduls.
-   * Am Beleg gab es dort keinen Vorgang, der Dienst antwortete mit 404, und «Jetzt
-   * bezahlen» tat nichts. Es war kein Stripe-Problem: die Schlüssel, der Webhook und das
-   * Element sind unverändert – es war die falsche Tür.
-   *
-   * Die Karte kennt darum **keinen** Endpunkt mehr. Übergeben wird eine
-   * **prototypgebundene** Methode des Clients (`api.prepareVoucherPayment`), also eine
-   * stabile Referenz – eine hier gebaute Pfeilfunktion wäre bei jedem Rendern eine neue
-   * und liesse die Vorbereitung endlos laufen.
+   * **Welches Modul bezahlt wird, sagt der Aufrufer** (#959): die Karte kennt keinen
+   * Endpunkt. Übergeben wird eine **prototypgebundene** Methode des Clients
+   * (`api.prepareVoucherPayment`) – eine stabile Referenz; eine hier gebaute
+   * Pfeilfunktion wäre bei jedem Rendern neu und liesse die Vorbereitung endlos laufen.
+   * Eine Rechnungsnummer braucht es nicht: je Modul gibt es eine, und sie ist der Beleg.
    */
   prepare: (objectId: number, stepId: number) => Promise<PaymentSetup>;
   /** Das Wort des Servers («Jetzt bezahlen») – die Karte hält keine eigene Konstante. */
@@ -191,15 +177,9 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
             {setup.amount} {setup.currency}
           </span>
         )}
-        {/* ►►► **Die Rechnungsnummer steht NICHT noch einmal hier** (Testnotiz #891). ◄◄◄
-            *«Ich frage mich, ob es diese Information hier nochmals braucht, denn die
-            Rechnung wird oben gerade direkt angezeigt.»* – Sie wird: die Karte klappt
-            **unter der Zeile** dieser Rechnung auf, und deren Nummer steht zwanzig Pixel
-            höher. Sie kam aus der Zeit, als der Knopf unter der Liste stand und man nicht
-            sah, welche gemeint ist – seit #859 beantwortet die **Stelle** die Frage.
-            *Mitgeliefert wird sie weiterhin* (`setup.invoice`): sie geht beim
-            Zahlungsdienst in Beschreibung und Metadaten, damit die Zahlung mit unserem
-            Beleg zurückkommt. */}
+        {/* Die Rechnungsnummer steht nicht noch einmal hier (#891): die Karte klappt unter
+            der Zeile dieser Rechnung auf. Mitgeliefert wird sie trotzdem (`setup.invoice`,
+            Beschreibung und Metadaten beim Zahlungsdienst). */}
       </div>
 
       {/* Die Eingabefelder des Dienstes – in unserer Fläche, in unseren Farben. */}
@@ -240,20 +220,9 @@ function appearance() {
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
     theme: 'stripe' as const,
-    // ►►► **Die Beschriftung steht ÜBER dem Feld** (Testnotiz #892). ◄◄◄
-    //
-    // *«Das Design innerhalb des iframes soll condensed sein für die Eingabefelder, zudem
-    // Labels ‹above›.»* – Und das ist keine Geschmacksfrage, sondern dieselbe Anatomie wie
-    // jedes Feld daneben: im Haus steht die Beschriftung als kleine Zeile **über** der
-    // Eingabe (`fields.Label`), nie schwebend darin. Der Dienst kann genau das
-    // (`labels: 'above'`); die Vorgabe ist «floating», und damit sahen die drei Felder in
-    // der Karte anders aus als die drei Felder darüber.
+    // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `fields.Label`.
     labels: 'above' as const,
-    // ►►► **«Condensed» war nie gesetzt** (Testnotiz #901). ◄◄◄
-    //
-    // #892 verlangte zweierlei – Beschriftung oben **und** dichte Felder –, und angekommen
-    // ist nur das erste: `labels` stand da, `inputs` nicht. Die Dichte kam stattdessen aus
-    // einer kleiner gedrehten Grundschrift, und das ist der Fehler unten.
+    // Dichte Felder (#901).
     inputs: 'condensed' as const,
     variables: {
       colorPrimary: v('--accent', '#2C6E8F'),
@@ -264,16 +233,8 @@ function appearance() {
       // `inputCls` ist `rounded-md` – 6 px, nicht 8. Ein Feld des Dienstes neben einem
       // Feld des Hauses zeigt jede Abweichung sofort, weil sie **nebeneinander** stehen.
       borderRadius: '6px',
-      // ►►► **Und die Schrift war eine Nummer ZU KLEIN** (Testnotiz #901). ◄◄◄
-      //
-      // *«Zudem ist alles so klein geworden von der Schriftgrösse – ist das gewollt und im
-      // Einklang mit dem restlichen UI/UX?»* – Nein, und der Kommentar hier behauptete das
-      // Gegenteil: er nannte `inputCls` mit «13 px». `inputCls` trägt `text-sm`, und das
-      // sind **14 px** bei 20 px Zeilenhöhe. Die Felder des Dienstes standen damit einen
-      // Punkt kleiner als die Felder daneben – gemessen, nicht geschätzt.
-      //
-      // Der **Rasterschritt** war derselbe Griff ins Blaue: 3 px ist keine Zahl des
-      // Hauses. Das Haus rechnet in 8 px, die Hälfte davon ist 4.
+      // Schrift und Raster wie `inputCls` (#901): `text-sm` = 14 px; das Haus rechnet in
+      // 8 px, die Hälfte davon ist 4.
       fontSizeBase: '14px',
       spacingUnit: '4px',
     },

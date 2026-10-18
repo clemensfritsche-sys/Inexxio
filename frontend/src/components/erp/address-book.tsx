@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { inheritedEmail } from '@/lib/accounts';
 import { Field as AField } from '@/components/account/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
 import { ErrorText } from '@/components/erp/fields';
@@ -12,8 +11,8 @@ import { SaveStatusIndicator } from '@/components/account/save-status';
 import type { AddressEntry, AddressInput, UserProfile } from '@/types';
 
 /**
- * ►►► **Die Anschriften EINES Kontos – dasselbe Bauteil für Privat und Geschäftskonto,
- * für Konto und ERP.** ◄◄◄
+ * **Die Anschriften EINES Kontos – dasselbe Bauteil für Privat und Geschäftskonto, für
+ * Konto und ERP.**
  *
  * Je Konto eine **Liste**: die Rechnungsadresse zuoberst, darunter die Lieferadressen
  * (die erste ist der Standard; ohne eigene wird an die Rechnungsadresse geliefert). Der einzige Unterschied zwischen den Konten: im **Geschäftskonto** steht
@@ -31,6 +30,15 @@ export const ADDRESS_COUNTRIES: [string, string][] = [
 ];
 
 export type Account = 'private' | 'business';
+
+/**
+ * **Der Platzhalter der Rechnungs-E-Mail** (#1042/#1043): sie ist freiwillig und fällt
+ * leer auf die Login-/Kontakt-Adresse zurück – der Platzhalter nennt die **Regel**, nicht
+ * nur die Adresse (sonst sähe er aus wie eine Vorbelegung).
+ */
+function inheritedEmail(login: string | null | undefined): string {
+  return login ? `übernimmt ${login}` : 'rechnung@firma.ch';
+}
 
 export function AddressBook({ owner, account, addresses, loginEmail, readOnly, mapsKey, onSaved }: {
   /** `null` = die eigene Person (Konto), sonst ihre Objektnummer (ERP). */
@@ -66,9 +74,9 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
       : <NewAddress {...row} label="Rechnungsadresse" extra={{}} onDone={() => {}} />;
   }
 
-  // ►►► **Eine Liste, eine Zeile je Anschrift** – oben die Rechnungsadresse, darunter die
-  // Lieferadressen. Ob es eine eigene Lieferadresse gibt, sagt die Liste selbst; der
-  // frühere Schalter ist entfallen. Wer an die Rechnungsadresse liefert, sieht es am Wort.
+  // **Eine Liste, eine Zeile je Anschrift** – oben die Rechnungsadresse, darunter die
+  // Lieferadressen. Ob es eine eigene Lieferadresse gibt, sagt die Liste selbst; wer an
+  // die Rechnungsadresse liefert, sieht es am Wort.
   const lines: { a: AddressEntry; tag: string; note?: string; removable: boolean }[] = [
     { a: main, tag: delivery ? 'Rechnung' : 'Rechnung · Lieferung', removable: false,
       note: business ? `Rechnung per E-Mail an ${main.email || loginEmail}` : `Rechnung per E-Mail an ${loginEmail}` },

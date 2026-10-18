@@ -307,7 +307,7 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 @media (max-width: 640px) {
-  /* Mobil: über dem KI-Widget (unten rechts) einschweben, volle Breite mit Rand. */
+  /* Mobil: über dem unteren Rand einschweben, volle Breite mit Rand. */
   .ix-passkey-nudge { left: 12px; right: 12px; bottom: 84px; width: auto; max-width: none; }
 }
 .ix-nudge-close {
@@ -416,26 +416,6 @@
     background: var(--ix-red-deep);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
-  }
-  .btn-secondary {
-    @apply inline-flex items-center gap-2 font-medium px-5 py-2.5 rounded-xl transition-all duration-200;
-    background: #fff;
-    color: var(--fg-1);
-    border: 1.5px solid var(--border-2);
-  }
-  .btn-secondary:hover {
-    background: var(--bg-2);
-    border-color: #aaa;
-  }
-  .form-input {
-    @apply w-full rounded-xl px-3 py-2.5 outline-none transition-shadow;
-    border: 1.5px solid var(--border-2);
-    color: var(--fg-1);
-    font-family: var(--font-body);
-  }
-  .form-input:focus {
-    border-color: var(--ix-red);
-    box-shadow: 0 0 0 3px rgba(229,26,20,0.1);
   }
   .card {
     @apply rounded-xl;
@@ -558,19 +538,6 @@
 .erp-fieldaction:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .erp-fieldaction:disabled, .erp-fieldaction:disabled:hover { background: transparent; color: var(--fg-4); cursor: not-allowed; }
 
-
-/* ── «Auf einen Blick»-Kachel ── */
-.erp-tile { transition: background .15s; }
-.erp-tile-link { cursor: pointer; }
-.erp-tile-link:hover { background: var(--bg-2) !important; }
-
-/* ── Listenzeile (Aufträge/Referenzen) ── */
-.erp-orow { transition: background .12s; }
-.erp-orow:hover { background: var(--bg-2) !important; }
-
-/* ── Sortier-/Filter-Chip ── */
-.erp-chip { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
-.erp-chip:hover { background: var(--bg-3); border-color: var(--border-2); color: var(--fg-1); }
 
 /* ── Reiter (Tabs) ── */
 .erp-tab {
@@ -757,26 +724,6 @@ fieldset:disabled .ix-editable.is-missing {
    `grid-template-columns: 0fr → 1fr`-Technik greift hier nicht, weil der Knopf seine
    Breite aus dem Inhalt zieht (absolut positioniert = shrink-to-fit); in Chromium blieb
    er dabei stehen (44 → 44 statt 44 → 169). */
-/* ── Palette: Symbol jetzt, Name im Hover DARÜBER (Testnotizen #518/#624/#630) ──
-   Vier Anläufe, dieselbe Wurzel: der Name braucht Platz, den die Reihe nicht hat.
-   Wuchs der KNOPF, brach die Zeile um und zog sich unter dem Cursor weg (#502/#503);
-   wuchs er in einer festen Zelle nach rechts heraus, verdeckte er den Nachbarn (#630) –
-   und eine Namenszeile darunter schrieb ihn zweimal hin (#509/#518).
-   Der Name gehört darum dorthin, wo im ganzen Haus jede Erklärung steht: in die
-   Hover-Blase über dem Element (`[data-tip]`). Sie schwebt über der Zeile statt neben
-   dem Nachbarn, kostet KEINEN Platz im Layout – und ist damit auch dann richtig, wenn
-   die Palette wegen der Responsiveness umbricht. */
-.erp-palette {
-  width: 44px; height: 44px; flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0; border: 1px solid; border-radius: var(--r-md); cursor: pointer;
-  transition: box-shadow .15s, transform .12s ease;
-}
-.erp-palette:hover, .erp-palette:focus-visible {
-  box-shadow: var(--shadow-sm); transform: translateY(-1px);
-}
-@media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
-
 /* ── Segment-Umschalter: derselbe Hover wie an der Palette (Testnotiz #624) ────
    Wo das Wort ohnehin steht (aktive Option), passiert nichts; sonst wächst der
    Name im Hover neben dem Symbol heraus – gleiche Mechanik (`0fr → 1fr`), gleiche
@@ -817,43 +764,6 @@ fieldset:disabled .ix-editable.is-missing {
    Touch bleiben unberührt, und `:focus-visible` scrollt weiterhin mit. */
 * { scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { width: 0; height: 0; display: none; }
-
-/* ── Lieferung unterwegs: der Lastwagen fährt auf dem Fortschrittsbalken ──────
-   Eine kleine, schlichte Freude an einer Stelle, an der man ohnehin wartet
-   (Notiz #251). Er FÄHRT nicht von selbst – seine Position ist der echte
-   Fortschritt; nur das leichte Wippen und der laufende Strassenstrich sind
-   Animation. Bei `prefers-reduced-motion` steht beides still. */
-.ix-truck { animation: ix-truck-bob 1.6s ease-in-out infinite; }
-@keyframes ix-truck-bob {
-  0%, 100% { transform: translate(-50%, -50%); }
-  50%      { transform: translate(-50%, calc(-50% - 1.5px)); }
-}
-.ix-road { animation: ix-road-flow .9s linear infinite; }
-@keyframes ix-road-flow {
-  from { background-position: 0 0; }
-  to   { background-position: 12px 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ix-truck, .ix-road { animation: none; }
-}
-
-/* ── Nachbar-Prozesse im Auftrags-Fluss (Testnotizen #453/#460) ───────────────────
-   Links der übergeordnete Auftrag, rechts der Abzweig: beide gehören zum Bild, aber
-   der Fokus liegt auf dem Prozess in der MITTE. Sie treten darum als Ganzes zurück und
-   blassen zusätzlich zur Aussenkante hin aus – die Einladung, sie anzuklicken. Beim
-   Hovern kommen sie ganz nach vorn, damit man sie lesen kann, ohne zu wechseln. */
-.ix-flow-aside {
-  opacity: .55;
-  transition: opacity .18s ease;
-  -webkit-mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
-  mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
-}
-.ix-flow-aside:hover { opacity: 1; }
-/* Gestapelt (schmale Fenster) liegt der Nachbar-Prozess IN der Achse – dann sagt eine
-   Maske zur Seite etwas Falsches: dort geht nichts seitwärts weiter. Das Zurücktreten
-   bleibt, das Ausblenden zur Kante entfällt. */
-.ix-flow-aside[data-flat="1"] { -webkit-mask-image: none; mask-image: none; }
-@media (prefers-reduced-motion: reduce) { .ix-flow-aside { transition: none; } }
 
 /* ── Modulauswahl im Prozess (PROCESS_CORE §9) ──────────────────────────────
    Ein Symbol je Modultyp, in seiner Farbe; der Name klappt beim Hovern DANEBEN auf.

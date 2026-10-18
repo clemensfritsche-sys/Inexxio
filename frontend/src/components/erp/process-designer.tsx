@@ -77,10 +77,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   // übrigen sind zu; ihr Kopf klappt sie auf.
   const [justAdded, setJustAdded] = useState<number | null>(null);
 
-  // **Auch der eingefrorene Stand braucht ihn** (Testnotiz #771): die Felder eines Moduls
-  // nennen ihre Erfassungspunkte beim Namen, und die Namen stehen im Katalog. Er wurde
-  // hier übersprungen, solange ein freigegebener Prozess gar keinen Feldsatz zeigte; die
-  // Palette bleibt trotzdem weg – die hängt an `frozen`, nicht am Katalog.
+  // **Auch der eingefrorene Stand braucht den Katalog** (#771): die Felder nennen ihre
+  // Erfassungspunkte beim Namen. Die Palette hängt an `frozen`, nicht am Katalog.
   useEffect(() => {
     let dead = false;
     api.getModuleCatalog()
@@ -139,18 +137,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         onReorder: frozen ? undefined : move,
         dragging: drag,
         onDragState: setDrag,
-        // ►► **Ein Modul zeigt seine Sache in JEDEM Zustand** (Testnotiz #771). ◄◄
-        //
-        // Hier stand `frozen ? undefined : …` – im **freigegebenen** Artikel bekam ein
-        // Modul damit gar keinen Körper: der Kopf klappte auf, und darin war nichts.
-        // Genau so wurde es gemeldet («überall sonst funktioniert es, nur hier nicht»),
-        // und «überall sonst» stimmt: der laufende Auftrag zeigt seine Module längst in
-        // jedem Zustand (#749).
-        //
-        // Es ist **derselbe Feldsatz**, nicht ein zweiter zum Lesen – gesperrt über
-        // `fieldset[disabled]`, dieselbe eine Zeile, mit der auch eine wartende Modul-
-        // Karte stillgelegt wird (#698). Ein eigener Lese-Feldsatz daneben wäre die
-        // Stelle, an der die (n+1)-te Angabe fehlt.
+        // **Ein Modul zeigt seine Sache in JEDEM Zustand** (#771): derselbe Feldsatz, im
+        // freigegebenen Prozess gesperrt über `fieldset[disabled]` – kein zweiter zum Lesen.
         renderStep: (step) => {
           const m = modules.find((x) => x.id === step.id);
           if (!m) return null;
@@ -177,14 +165,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
             </fieldset>
           );
         },
-        // ►► **Hinter einem Ausgang gibt es nichts mehr anzubieten.** ◄◄
-        //
-        // Dieselbe Eigenschaft (`Module.terminal`), aus der die Freigabe ihren Fehler
-        // zieht und das Bild sein Ende: was an einem terminalen Modul ankommt, verlässt
-        // den Auftrag – ein Modul dahinter bekäme nie eine Einzelinstanz. Es hier gar
-        // nicht erst anzubieten ist die freundlichere Hälfte derselben Regel; die
-        // Prüfung bei der Freigabe bleibt das Netz (eine fehlende Schaltfläche ist keine
-        // Absicherung, sondern eine Bitte).
+        // **Hinter einem Ausgang gibt es nichts mehr anzubieten** (`Module.terminal`) – die
+        // freundliche Hälfte der Regel; die Prüfung bei der Freigabe bleibt das Netz.
         tail: frozen || steps.some((s) => s.terminal)
           ? undefined
           : <Palette catalog={catalog} onPick={add} />,
@@ -357,37 +339,19 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
 };
 
 /**
- * ►►► **Eine Zeile entfernen — dasselbe Zeichen wie am Modul selbst** (Testnotiz #844). ◄◄◄
- *
- * Der Knopf an der Partner-Zeile trug `.erp-actbtn-neutral`: ein Kasten mit Rahmen und
- * Fläche, mitten in einer Zeile aus Nummer, Name und Eingabefeld – und damit lauter als
- * das Eingabefeld daneben, obwohl er die seltenere Handlung ist. Der Knopf, mit dem man
- * ein **ganzes Modul** entfernt, sieht dagegen so aus: ein 26-px-Quadrat, kein Rahmen,
- * keine Fläche, allein die Warnfarbe.
- *
- * Beides ist «diese Sache hier wegnehmen», also sieht beides gleich aus – und weil es
- * schon **zwei** handgeschriebene Fassungen davon gab (Partner-Zeile, Erfassungspunkt),
- * steht es jetzt einmal da statt dreimal. Was sie unterscheidet, ist der Satz im Hover.
+ * **Eine Zeile entfernen — dasselbe Zeichen wie am Modul selbst** (#844): ein 26-px-
+ * Quadrat, kein Rahmen, keine Fläche, allein die Warnfarbe. Was die Aufrufstellen
+ * unterscheidet, ist der Satz im Hover.
  */
 function RowDelete({ label, hint, reveal, onClick }: {
   label: string; hint?: string;
-  /**
-   * **Erst beim Hovern** (#832) – für Zeilen, die man häufig liest und selten löscht.
-   * Die Regel steht in `globals.css` (`.ix-rowactions`, mit `@media (hover: none)` für
-   * Touch); hier wird sie nur **gewählt**, nicht formuliert. Ohne die Angabe steht der
-   * Knopf durchgehend da – so, wie der Erfassungspunkt ihn immer schon hatte.
-   */
+  /** **Erst beim Hovern** (#832, `.ix-rowactions`, auf Touch immer sichtbar). */
   reveal?: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" aria-label={label} data-tip={hint}
       className={`flex items-center justify-center rounded flex-none${reveal ? ' ix-rowactions' : ''}`}
-      // ►►► **Eine Zeilenaktion steht am ENDE ihrer Zeile** (Testnotiz #995). ◄◄◄ Sie
-      // stand links neben dem Namen, sobald die Zeile kein Eingabefeld trug (beim
-      // Verkauf gibt es keine Bestellangabe) – mitten im Text statt an dem Platz, den
-      // die Zeilen-Grammatik dafür kennt (`module-ui.LedgerRow`). `margin-left: auto`
-      // sagt es einmal am Knopf statt an jeder Aufrufstelle; wo ein Feld ohnehin die
-      // Lücke füllt (Erfassungspunkt), ändert es nichts.
+      // Eine Zeilenaktion steht am Ende ihrer Zeile (#995).
       style={{ width: 26, height: 26, color: 'var(--danger)', marginLeft: 'auto' }}
       onClick={onClick}>
       <Trash2 size={14} />
@@ -396,40 +360,17 @@ function RowDelete({ label, hint, reveal, onClick }: {
 }
 
 /**
- * ►►► **Zahlung — vier Angaben, und die erste entscheidet alles.** ◄◄◄
- *
- * *Kommt Geld herein oder geht es hinaus?* Daraus folgt jedes Wort des Moduls: wie die
- * Stufen heissen, wie die Gegenpartei heisst, wer die Rechnung stellt. Als **Schieber**
- * und nicht als zwei Kacheln in der Palette – es ist EIN Modul, und die Richtung ist
- * seine Einstellung; zwei Kacheln wären wieder die Trennung, die es gerade aufhebt.
- *
- * **Worum es geht** ist Pflicht (`subject`): ohne den Satz steht auf dem Beleg ein Betrag
- * und sonst nichts. Er gehört an das **Modul** und nicht an den Artikel – «Härten auf 58
- * HRC» ist eine Eigenschaft dieses Schritts, und ein Artikel hat mehrere.
- *
- * **Keine Menge, kein Artikel, kein Termin**: die Menge ist die Zahl der Einzelinstanzen
- * vor dem Modul, den Artikel tragen sie selbst, und der Termin ist ableitbar. Und **kein
- * Betrag**: der steht beim Modellieren nicht fest – ein hier getippter wäre bei der
- * zweiten Ausführung falsch, und zwar stillschweigend.
- *
- * ►►► **Und es gibt keinen Schalter mehr** (Testnotiz #854). ◄◄◄ «Zahlung abwarten» stand
- * hier und sagte, was die vereinbarte **Zahlungsfrist** ohnehin sagt: null Tage ab Zusage
- * *ist* die Vorauszahlung. Beim Modellieren steht sie nicht fest – derselbe Ablauf
- * verkauft einmal gegen Vorkasse und einmal auf Rechnung –, also wird sie dort gefragt,
- * wo man das Angebot **schreibt**.
+ * **Zahlung — Richtung, Partner, Auftrag.** Die Richtung (*kommt Geld herein oder geht es
+ * hinaus?*) ist ein Schieber, keine zweite Kachel: es ist EIN Modul. **Keine Menge, kein
+ * Artikel, kein Termin, kein Betrag** (das sagen die Einzelinstanzen bzw. die Ausführung),
+ * **kein Steuersatz** (#851, er hängt an der Sache) und **keine Vorauszahlungs-Sperre**
+ * (#854, sie folgt aus der Zahlungsfrist auf dem Beleg).
  */
 function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
-  /**
-   * ►►► **Woher die Gegenparteien kommen — eine Angabe, kein `if` auf den Modultyp.** ◄◄◄
-   *
-   * Als **Prop** ist die Quelle eine Zeile im Register darunter; eine Verzweigung hier
-   * wäre der Modultyp in einer Komponente, die ihn nicht kennen müsste. Solange zwei
-   * Zahlungsmodule nebeneinander liefen, war genau das der Grund, dass die Löschung des
-   * einen hier keine Zeile kostete (Testnotiz #960).
-   */
+  /** Woher die Gegenparteien kommen – eine Angabe, kein `if` auf den Modultyp. */
   search?: (q: string, limit?: number) => Promise<{ object_id: number; name: string }[]>;
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
@@ -456,11 +397,7 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
   return (
     <div className="flex flex-col gap-3">
       <div>
-        {/* ►►► **Kein Label darüber** (#816). ◄◄◄
-            Die beiden Werte heissen «Verkauf» und «Einkauf» und tragen ihre Symbole –
-            eine Zeile «Geschäft *» darüber sagt nichts, was der Schalter nicht selbst
-            sagt. Ein Bedienelement, das spricht, braucht keine Ansage; die Pflicht ist
-            ohnehin erfüllt, weil immer einer der beiden Werte steht. */}
+        {/* Kein Label darüber (#816): «Einnahme» ↔ «Ausgabe» sagen selbst, was sie sind. */}
         <IconSwitch
           value={m.direction === 'in' ? 'in' : 'out'}
           onChange={(v) => onChange({ direction: v })}
@@ -473,32 +410,10 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        {/* **«Leer heisst frei» steht in der LISTE, nicht als Satz darunter** (#786) –
-            und nur, solange sie gilt: sobald jemand zugelassen ist, wäre «Beim Ausführen
-            definieren» eine Behauptung, die die Zeilen darunter widerlegen.
-
-            **Ein Wort für beide Richtungen** (#802): «Kunde» ↔ «Lieferant» ist dieselbe
-            Rolle – der andere im Geschäft. Und Singular = Plural, damit es keine Beugung
-            gibt, die jemand rechnen könnte. */}
-        {/* **Ein Hinzufüger, kein Auswahlfeld**: `value`/`selected` sind immer `null`,
-            was man wählt, wandert in die Liste darunter – und das Feld ist danach leer
-            (gemessen in Chromium: nach zwei Klicks beide Male `""`). Genau darum steht
-            hier auch kein Zurücksetzen: `SearchSelect.pick` räumt seine Suche selbst auf.
-            Die Stelle, an der ein Name stehen blieb, ist die **Laufzeit** (#820) –
-            `beleg-work.Recipients`, wo die frische Wahl gehalten wird, bis der Server sie als
-            Zeile zurückgibt. */}
-        {/* ►►► **«Partner» steht IM Feld, nicht darüber** (Testnotiz #843). ◄◄◄
-
-            Die Beschriftung kostete eine eigene Zeile, um ein einziges Wort zu sagen –
-            und darunter stand ein Platzhalter «Nummer oder Name», der dasselbe Feld ein
-            zweites Mal erklärte. Zusammengelegt sagt der Platzhalter beides: **wen** man
-            sucht und **womit**. Er verschwindet beim ersten Zeichen, und das ist hier
-            genau richtig: dann steht die Liste der Treffer da, und die beantwortet die
-            Frage besser als jede Beschriftung.
-
-            Dieselbe Regel wie im Scan-Dialog (#758). Im **Vollbild** des Scanners bleibt
-            die Sorte als Beschriftung stehen (`scanLabel`) – dort liegt Text auf einem
-            Foto, und der Platzhalter allein trüge sie nicht. */}
+        {/* **Ein Hinzufüger, kein Auswahlfeld**: was man wählt, wandert in die Liste darunter.
+            «Leer heisst frei» steht als Zeile in der Liste (#786), solange niemand
+            zugelassen ist; «Partner» steht im Platzhalter (#843), im Scan-Vollbild als
+            Beschriftung (`scanLabel`). */}
         <ObjectSelect<VoucherParty>
           value={null}
           selected={null}
@@ -513,17 +428,8 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
           }}
         />
         {m.parties.map((row) => (
-          /* ►►► **Alles zu EINEM Partner steht auf EINER Zeile** (Testnotiz #833). ◄◄◄
-
-             Nummer, Name und «Was ist zu tun?» gehören zusammen – und bei mehreren
-             Partnern ist die Zeile die **einzige** Stelle, an der die Zugehörigkeit
-             steht. Untereinander sah es aus wie zwei Angaben, von denen die zweite zu
-             keiner bestimmten gehört.
-
-             ►►► **Und der Löschen-Knopf erscheint beim Hovern** (#832) – aber er
-             **verschwindet nie auf Touch**: `@media (hover: none)` hält ihn dort
-             sichtbar. Eine Funktion, die nur ein Zeiger findet, gibt es am Telefon
-             nicht. `focus-within` deckt den Tastaturweg. */
+          /* Alles zu einem Partner auf einer Zeile (#833); «Entfernen» erscheint beim
+             Hovern, auf Touch immer (#832). */
           <div key={row.party}
             className="ix-row flex items-center gap-2 py-1.5 flex-wrap"
             style={{ borderTop: '1px solid var(--border-1)' }}>
@@ -531,11 +437,7 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
             <span className="text-[12.5px] truncate" style={{
               color: 'var(--fg-3)', maxWidth: 180, flex: 'none',
             }}>{known[row.party] ?? ''}</span>
-            {/* ►►► **Die Bestellangabe gibt es nur, wo WIR bestellen.** ◄◄◄ Beim Verkauf
-                liefern wir – «wie bestelle ich bei ihm» hat dort keine richtige Antwort,
-                und ein Pflichtfeld ohne richtige Antwort ist eines, das man irgendwie
-                füllt. Gefragt wird die **Richtung** (`partyRef`), nicht der Modultyp; der
-                Dienst verwirft einen trotzdem gesendeten Wert. */}
+            {/* Die Bestellangabe gibt es nur, wo wir bestellen (`partyRef`). */}
             {dealDirection(m.direction).partyRef && (
               <input className={inputCls} value={row.ref} maxLength={200} required
                 aria-label={DEAL_ORDER_REF} placeholder={DEAL_ORDER_REF_HINT}
@@ -552,75 +454,23 @@ function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }:
           </div>
         ))}
       </div>
-      {/* ►►► **Was ist zu tun? — EIN Satz, freiwillig, in beiden Richtungen.** ◄◄◄
-
-          *«Gerade bei Einkaufsteilen ist es oft gemäss Spezifikation, aber wenn ein intern
-          gefertigtes Teil auswärts nachbearbeitet werden muss … bei der
-          Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll.»*
-
-          Er steht hier – in der **Definition** – und nicht am laufenden Beleg, und das ist
-          die Antwort auf die Frage dahinter: in einem Fertigungsprozess wird **vorher**
-          definiert, was zu tun ist; am Band wird er abgearbeitet.
-
-          Und er steht **einmal** statt je Partner: «Härten auf 58 HRC» lautet für jeden
-          Lieferanten gleich. **Leer ist der Normalfall** und heisst «gemäss Spezifikation»
-          – die Positionen des Belegs sagen längst, *was* es ist; dieser Satz ergänzt nur,
-          was ein Mensch weiss. Ein Pflichtfeld daneben wäre eines, das man irgendwie
-          füllt. */}
+      {/* **Was ist zu tun?** – ein Satz am Modul, freiwillig, in beiden Richtungen: in der
+          Definition wird vorher festgelegt, was zu tun ist. Leer heisst «gemäss
+          Spezifikation». */}
       <div>
         <Label>{DEAL_TASK}</Label>
         <input className={inputCls} value={m.instruction} maxLength={400}
           aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
           onChange={(e) => onChange({ instruction: e.target.value })} />
       </div>
-      {/* ►►► **Die Sperre steht hier NICHT mehr** (Testnotiz #854). ◄◄◄
-
-          Hier stand ein Schalter «Zahlung abwarten ↔ nicht abwarten» – und er sagte, was
-          die vereinbarte **Zahlungsfrist** ohnehin sagt: «zahlbar in null Tagen ab
-          Zusage» *ist* die Vorauszahlung. Zwei Angaben über eine Sache, an zwei Orten und
-          zu zwei Zeitpunkten; wer sie verschieden setzte, hatte einen Vorgang, der etwas
-          anderes sagt als er tut.
-
-          Beim **Modellieren** steht sie ohnehin nicht fest: derselbe Ablauf verkauft
-          einmal gegen Vorkasse und einmal auf Rechnung. Gefragt wird sie darum dort, wo
-          man das Angebot **schreibt** (`beleg-work.Terms`) – mit «Vorauszahlung» als
-          erster Vorgabe, und die Sperre ist dort eine Ableitung. */}
-      {/* ►►► **Der Steuersatz steht hier NICHT** (Testnotiz #851). ◄◄◄
-
-          Er stand als «Vorgabe jeder neuen Position» in der Definition und war damit
-          eine Eigenschaft des **Moduls**: eine Vorlage, die für jeden künftigen Auftrag
-          denselben Satz behauptet. Er hängt aber an der **Sache** – sechs Wellen zu
-          8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier –, und die steht erst
-          fest, wenn ein Auftrag läuft. Gefragt wird er darum **je Position an der
-          Ausführungsstelle** (`OurOffer`), wo der Katalog mit dem Vorgang mitreist.
-
-          Ein Vorgabewert, der bei der Hälfte der Aufträge überschrieben werden muss, ist
-          kein Komfort: er ist die Zahl, die stehenbleibt, wenn es niemand tut. */}
-      {/* **Kein Erklärtext** (#792). Was die Richtung bedeutet, sagt der Hover am
-          Schieber; was hier nicht gefragt wird (Betrag, Artikel, Termin), muss niemand
-          erklärt bekommen – man vermisst kein Feld, das nie dastand. Ein Absatz, der
-          begründet, warum etwas fehlt, ist die Form, in der Dokumentation in die
-          Oberfläche rutscht. */}
     </div>
   );
 }
 
 /**
- * **Verbrauch — die Stückliste: Artikel und Menge JE Einzelinstanz.**
- *
- * Es ist **dieselbe Komponente wie der Bedarf am Auftragsanfang** (`DefinitionLines`),
- * nur als Stückliste: die Menge gilt je Stück, und zwei der drei Fragen entfallen. Die
- * *Herkunft* – eine Stückliste erzeugt nichts. Und die *konkreten Stücke*: ein Modul ist
- * eine Vorlage, es läuft je Auftrag und je Produkt-Stück erneut, und ein hier
- * festgenageltes Stück wäre nach dem ersten Mal verbraucht. Welche Kiste genommen wird,
- * sagt der Lagerist beim Ausführen – dort ist es eine echte Wahl.
- *
- * **Artikel, nicht Definitionszeilen.** Dasselbe Modul wird auch in der Artikel-Vorlage
- * definiert – der Erzeugungsprozess IST der Montageplan –, und dort gibt es noch keine
- * Zeilen. Eine Vorlage kann «4× Schraube M6» meinen, aber nicht «Zeile 2».
- *
- * **Gerechnet wird beim Erreichen**, nicht hier: wie viele Erzeugnisse ankommen, steht
- * beim Modellieren nicht fest. Ob der Bestand dann reicht, sagt das Modul im Auftrag.
+ * **Verbrauch — die Stückliste: Artikel und Menge JE Einzelinstanz.** Dieselbe Komponente
+ * wie der Bedarf am Auftragsanfang (`DefinitionLines`), ohne Herkunft und ohne konkrete
+ * Stücke – die wählt der Lagerist beim Ausführen. Gerechnet wird beim Erreichen.
  */
 function ConsumptionFields({ module: m, onChange }: {
   module: ModuleDraft;
@@ -636,28 +486,17 @@ function ConsumptionFields({ module: m, onChange }: {
   );
 }
 
-
 /**
  * **Die Stichprobe — eine Zeile, keine Maske.**
  *
- * Drei Formen und **eine** Zahl: alle (Vorgabe) · Anzahl · Prozent. Mehr braucht die
- * Frage nicht, und ein Formular mit fünf Feldern wäre die falsche Antwort auf etwas,
- * das sich in einem Satz stellen lässt.
- *
- * **Die Wörter stehen ausgeschrieben da.** Ein Anteil hat kein Bild, das man ohne
- * Vorwissen liest – ein Symbol, das man raten muss, ist keines (Testnotizen #618/#636).
- *
- * **«je Instanz» ist keine Beschriftungs-Kosmetik, sondern die Regel**: eine Stichprobe
- * wird aus einem Los gezogen (ISO 2859-1), und das Los ist die Instanz. «10 %» heisst
- * 10 % **aus jeder** Charge, nicht 10 % aus dem Haufen; sonst bliebe eine ganze Charge
- * womöglich ungeprüft.
+ * EINE Zahl: der Anteil an der Gesamtmenge (alle · Hälfte · Viertel · frei, §4.4). Die
+ * Wörter stehen ausgeschrieben da – ein Anteil hat kein Bild (#618/#636).
  */
 function SampleRow({ value, onChange }: {
   value: SampleDraft; onChange: (next: SampleDraft) => void;
 }) {
   return (
-    // **Die Beschriftung steht ÜBER den Knöpfen**, nicht neben ihnen: daneben stand sie
-    // auf gleicher Höhe wie die Auswahl und las sich wie deren erste Option.
+    // Die Beschriftung steht über den Knöpfen – daneben las sie sich wie eine Option.
     <div className="flex flex-col gap-1">
       <span style={{
         font: '700 11px var(--font-body)', textTransform: 'uppercase',
@@ -741,11 +580,7 @@ function ModuleFields({ module: m, types, onChange }: {
                 <input className={inputCls} style={{ width: 76 }} value={p.tolerance ?? ''}
                   {...numericInputProps} placeholder="± Tol."
                   onChange={(e) => setPoint(i, { tolerance: numericOnly(e.target.value, { decimals: true }) })} />
-                {/* **Worin gemessen wird** – ein freies, kurzes Wort (Testnotiz #707).
-                    Bewusst keine Liste: die Mengeneinheiten des Artikels beantworten
-                    eine andere Frage («worin wird die Menge geführt») und kennen weder
-                    °C noch bar; eine zweite Liste wäre endlos, und das System rechnet
-                    nie mit der Einheit – es zeigt sie an. */}
+                {/* Worin gemessen wird – ein freies, kurzes Wort (#707). */}
                 <input className={inputCls} style={{ width: 62 }} value={p.unit ?? ''}
                   maxLength={8} placeholder="Einheit" data-tip="mm · kg · °C …"
                   onChange={(e) => setPoint(i, { unit: e.target.value })} />

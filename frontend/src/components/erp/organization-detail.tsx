@@ -130,10 +130,7 @@ function buildForm(s: CompanySettings): OrgForm {
     uid: s.uid ?? '',
     vat_number: s.vat_number ?? '',
     phone: s.phone ?? '',
-    // ►►► **Die IBAN steht im Feld, wie jede andere Angabe** (Testnotiz #870). ◄◄◄
-    // Sie kam einmal maskiert zurück und stand darum hier als `''`: ein Unternehmen **mit**
-    // Bankverbindung sah aus wie eines ohne – und die QR-Rechnung daneben wie aus dem
-    // Nichts gezaubert. Ein leeres Feld heisst jetzt wieder: da ist nichts.
+    // Die IBAN steht im Feld wie jede andere Angabe (#870): leer heisst «da ist nichts».
     iban: s.iban ?? '',
   };
 }
@@ -221,9 +218,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
         legal_form: nn(v.legal_form),
         uid: nn(v.uid),
       };
-      // **Sie wird gesendet wie jede andere Angabe** (#870) – auch leer. Der frühere
-      // «nur wenn neu eingegeben»-Vorbehalt war die Folge der Maskierung: er hätte ein
-      // absichtliches Löschen stillschweigend verschluckt.
+      // Die IBAN wird gesendet wie jede andere Angabe (#870) – auch leer, sonst ginge ein
+      // absichtliches Löschen verloren.
       if (own) {
         Object.assign(data, {
           street: v.street, street_number: nn(v.street_number),
@@ -311,15 +307,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
           Für jede Gesellschaft gleich; kein «Hauptsitz»-Rang. */}
       <DetailHeader
-        // ►►► **Der Datensatzname trägt die Rechtsform** (Testnotiz #910). ◄◄◄ Er kommt
-        // fertig vom Server (`sites.legal_name`) – hier aus Name und Rechtsform
-        // zusammengesetzt wäre er die zweite Fassung einer Regel, die eine Ausnahme
-        // kennt («Muster AG» + «AG» bleibt «Muster AG», nicht «Muster AG AG»).
-        //
-        // ►►► **Und kein Rückfall daneben** (Testnotiz #984). ◄◄◄ Hier stand
-        // `|| form.company_name`, also eine **dritte** Antwort auf dieselbe Frage – und
-        // ausgerechnet eine ohne Rechtsform. `base` ist die Zeile, die auch im Feed
-        // steht: derselbe Aufruf, derselbe Name, garantiert.
+        // **Der Datensatzname trägt die Rechtsform** (#910/#984): fertig vom Server
+        // (`sites.legal_name`), derselbe Aufruf wie im Feed – kein Rückfall daneben.
         type="organization" title={organizationName(base)}
         objectId={record.object_id} onBack={onBack}
         // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
@@ -502,12 +491,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
               Abschriften daraus (#313); die **QR-Rechnung** gibt es inzwischen, und sie
               liest genau dieses Feld (`services/qrbill`). */}
           {own && (<>
-          {/* ►►► **Was gespeichert ist, steht im Feld** (#870). ◄◄◄ Der maskierte Wert
-              stand als **Platzhalter** da – also genau dort, wo eine Oberfläche sagt
-              «hier ist nichts». Wer die IBAN eingetragen hatte, sah ein leeres
-              Pflichtfeld; wer die QR-Rechnung sah, musste glauben, das System habe die
-              Bankverbindung erfunden. Jetzt trägt das Feld den Wert, der Platzhalter ist
-              wieder ein Beispiel, und «Pflicht» hängt nicht mehr an ihm. */}
           <Card title="Bankverbindung">
             <AField label="IBAN" value={form.iban} onChange={str('iban')}
               placeholder="CH00 0000 0000 0000 0000 0"

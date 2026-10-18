@@ -158,8 +158,8 @@ export default function ErpPage() {
     setInstances(rows);
     setInstancesDone(rows.length < INSTANCE_PAGE);
   };
-  // Unternehmen (Gesellschaften): ein gleichrangiger ERP-Datensatztyp `organization` –
-  // der Betreiber (ältestes) + jede weitere Gesellschaft. Admin-only.
+  // Unternehmen: ein ERP-Datensatztyp `organization` – eigene Gesellschaften und fremde
+  // Firmen. Geladen für jedes Personal.
   const [companies, setCompanies] = useState<CompanySettings[]>([]);
   const [loading, setLoading] = useState(true);
   // **Kommunikation** (CRM Schritt 2): wer gerade arbeitet, und je Person die offenen
@@ -267,7 +267,7 @@ export default function ErpPage() {
     if (known) setTypeFilter(known);
   }, []);
 
-  // Tiefer Link «?open=<Objektnummer>» (z. B. von der KI-Navigation): den Datensatz direkt
+  // Tiefer Link «?open=<Objektnummer>» (z. B. aus einem Etikett): den Datensatz direkt
   // öffnen. Typ serverseitig auflösen (funktioniert auch, bevor der Feed geladen ist).
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('open');
@@ -302,10 +302,9 @@ export default function ErpPage() {
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
-  // KI-Live-Refresh: legt/ändert die KI im Chat einen Artikel/Auftrag/Prozessschritt,
-  // feuert das Widget 'inexxio:data-changed' – der Feed lädt sofort nach, ohne dass der
-  // Nutzer manuell aktualisieren muss (Optimierung #2). Re-Abo bei Suchänderung, damit
-  // die Instanzen mit der aktuellen Suche neu geladen werden.
+  // **Daten geändert → nachladen**: `lib/api.ts` feuert 'inexxio:data-changed' nach jeder
+  // erfolgreichen Anfrage, die kein GET ist – der Feed lädt sofort nach. Re-Abo bei
+  // Suchänderung, damit die Instanzen mit der aktuellen Suche neu geladen werden.
   useEffect(() => {
     const q = search.trim();
     function onDataChanged() {

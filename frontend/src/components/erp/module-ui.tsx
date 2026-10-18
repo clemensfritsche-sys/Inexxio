@@ -3,40 +3,24 @@
 import { createContext, useContext } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-// *MICRO_LABEL stand hier für den Abschnittskopf – er trägt seit #1051 das
-// **Overline**-Register, eine Stufe darüber (siehe ModuleSection).*
 import { formatAmount } from '@/lib/utils';
 
 /**
- * ►►► **Die Bauteile, aus denen ein Prozessschrittmodul besteht.** ◄◄◄
+ * **Die Bauteile, aus denen ein Prozessschrittmodul besteht** – die Fläche, der Kopf, ein
+ * Abschnitt, die Zeile, der Betrag, die Leiste. Jedes künftige Modul baut darauf, statt
+ * sie neu zu erfinden.
  *
- * Das Zahlungsmodul ist das erste, das in dieser Sprache gebaut ist – **alle weiteren
- * folgen**. Damit sie es nicht ein zweites Mal erfinden müssen, steht hier, was ein Modul
- * *als Modul* ausmacht, und nicht, was ein Geldvorgang ist: die Fläche, der Kopf, ein
- * Abschnitt, die Meta-Zeile, die Leiste und die Stufen.
- *
- * Es ist bewusst **kein neues Design-System**: jede Zahl kommt aus
- * `styles/design-system/colors_and_type.css`, jede Regel steht schon in
+ * Bewusst **kein neues Design-System**: jede Zahl kommt aus
+ * `styles/design-system/colors_and_type.css`, jede Regel steht in
  * `docs/design-system/README.md`. Neu ist nur, dass sie hier **einmal** angewendet sind
- * statt an jeder Aufrufstelle mit leicht anderen Werten – genau die Form, in der eine
- * Gestaltungsregel auseinanderläuft, ohne dass es jemandem auffällt (die Lehre aus
- * `MICRO_LABEL`).
- *
- * **Die Vorlage ist die Detail-Ansicht eines Datensatzes** (`fields.SPEC` am Artikel):
- * weisse Karte, Haarlinie, `--r-lg`, ein grosser Kopf mit getönter Marke, darunter stille
- * Abschnitte über einer Linie. Ein Modul ist ein Datensatz-artiges Ding in einer Spalte –
- * es soll aussehen wie das Haus, nicht wie ein Sonderfall.
+ * statt an jeder Aufrufstelle mit leicht anderen Werten. Die Vorlage ist die
+ * Detail-Ansicht eines Datensatzes (`fields.SPEC`).
  */
 
 /**
  * **Die Fläche einer Modul-Karte.** Weiss, Haarlinie, ein leiser Schatten – dieselbe
- * Karte wie `SPEC.card`, nur mit der Polsterung einer schmalen Prozessspalte statt der
- * einer Detail-Ansicht.
- *
- * *Sie war einmal getönt (die Modulfarbe als Fläche).* Bei fünf Modulen untereinander
- * standen damit fünf farbige Blöcke in der Spalte, und die ERP-Regel des Hauses lautet
- * **Struktur vor Fläche**. Die Farbe lebt weiter – in der **Marke**, wo sie das Modul
- * benennt, statt es zu übertönen.
+ * Karte wie `SPEC.card`, nur mit der Polsterung einer schmalen Prozessspalte. Die
+ * Modulfarbe lebt in der **Marke**, nicht in der Fläche (Struktur vor Fläche).
  */
 export const MODULE_CARD: CSSProperties = {
   background: 'var(--bg-1)',
@@ -57,64 +41,30 @@ export const MODULE_TITLE: CSSProperties = {
 };
 
 /**
- * **Die Höhen der Knöpfe eines Moduls** – an einer Stelle, nicht als `style={{height: 30}}`
- * an dreissig Aufrufstellen (dort standen 26, 30, 32 und 38 nebeneinander, ohne dass
- * jemand sagen konnte, warum).
- *
- * `row` sitzt in einer Tabellenzeile, `inline` in einer Handlungsleiste, `main` ist die
- * eine Handlung, die eine Karte abschliesst.
+ * **Die Höhen der Knöpfe eines Moduls** – an einer Stelle. `row` sitzt in einer
+ * Tabellenzeile, `inline` in einer Handlungsleiste, `main`/`stage` ist die eine Handlung,
+ * die eine Karte bzw. eine Stufe abschliesst.
  */
 export const ACT_H = { row: 26, inline: 30, main: 34, stage: 42 } as const;
 
 /**
- * **Der Abstand zwischen zwei Feldern einer Formular-Zeile.**
- *
- * Er steht hier und nicht an der Aufrufstelle – sonst hat das nächste Formular 10 px und
- * das übernächste 9, und niemand sieht es einzeln (Testnotizen #987/#990). **Unter** der
- * Beschriftung gibt es bewusst keinen: `fields.Label` bringt seine eigenen 4 px mit, und
- * ein `gap` daneben kommt obendrauf.
+ * **Der Abstand zwischen zwei Feldern einer Formular-Zeile** (#987/#990). **Unter** der
+ * Beschriftung gibt es keinen: `fields.Label` bringt seine 4 px mit.
  */
 export const FIELD_GAP = 12;
 
 /**
- * ►►► **Ein Knopf ist ein Symbol, und beim Zeigen steht sein Name da.** ◄◄◄
+ * **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name daneben auf** (#877–#896,
+ * #900): `.ix-tuck` in `globals.css`. Die Geste braucht **Platz** – in einer umbrechenden
+ * Zeile schwingt der Knopf (er wird breiter, die Zeile bricht um, der Zeiger fällt ab).
+ * Darum steht er in `Actions` (bricht nicht um).
  *
- * Sieben Testnotizen sagen denselben Satz (#877/#878/#880/#887/#888/#895/#896):
- * *«kann man hier so einen Button machen wie bei der Auswahl der Module – also ein Icon
- * und beim Hover der Text dazu»*. Genau das ist dieses Bauteil, und es gibt es **einmal**:
- * ein Quadrat mit dem Zeichen, der Name in der Blase des Hauses, der Name im
- * `aria-label`. Vorher stand dieselbe Form an sieben Aufrufstellen ausgeschrieben – mit
- * Höhen, Ausprägungen und Hinweisen, die schon leicht auseinanderliefen.
+ * **In einer Zeile (`RowActions`) klappt er NICHT aus** – gemessen schwang er dort bei
+ * 375 px. Die Entscheidung trifft die Zeile über `InRow`, nicht jede Aufrufstelle; der
+ * Name steht dann in der Blase, die am Layout nichts ändert.
  *
- * ►►► **Und er braucht PLATZ, sonst schwingt er — gemessen, nicht geschätzt.** ◄◄◄
- *
- * Ein erster Anlauf setzte die Geste in die dichte, **umbrechende** Geld-Zeile: der Knopf
- * wird breiter, die Zeile bricht neu um, der Zeiger fällt vom Knopf, er klappt ein, die
- * Zeile bricht zurück – gemessen **32 → 63 → 51 → 59 px** in 800 ms, mit kippendem
- * `:hover`. Ein Bedienelement, das unter dem Zeiger wegläuft, ist keines.
- *
- * Daraus wurde nicht «dann eben eine Blase» (so stand es eine Runde lang, und #900 hat es
- * zu Recht zurückgewiesen), sondern **`Actions`**: eine Zeile, die *nicht* umbricht.
- * Dort schiebt der Knopf beim Aufklappen nur seine Nachbarn zur Seite und bleibt selbst,
- * wo er ist.
- *
- * **Der Grund hängt an einer Hülle, nicht am Knopf**: `.ix-tuck` ist `overflow: hidden`
- * (sonst böte der eingeklappte Name seitwärts zu scrollen an), und das schneidet ein
- * `::after` weg – die Blase wäre unsichtbar (die Lehre aus #790).
- */
-/**
- * ►►► **In einer Zeile klappt ein Knopf seinen Namen NICHT aus** – gemessen. ◄◄◄
- *
- * `.ix-tuck` ist die Geste des Hauses (#877–#896, #900), und sie braucht Platz: in einer
- * **umbrechenden** Zeile wird der Knopf breiter, die Zeile bricht neu um, der Zeiger
- * fällt vom Knopf, er klappt ein. Gemessen an der echten Geld-Zeile bei 375 px:
- * `313/48 → 329/32 → 317/44 → 329/32 …` – der Knopf steht nicht still, bei 1440 px und
- * 320 px dagegen schon. Ein Bedienelement, das unter dem Zeiger wegläuft, ist keines.
- *
- * **Die Entscheidung trifft die Zeile, nicht die Aufrufstelle.** Als Angabe je Knopf wäre
- * sie eine Regel, an die jeder neue denken muss – und der erste, der sie vergisst,
- * schwingt wieder. `RowActions` setzt sie einmal für alles, was in ihr steht; der Name
- * steht dann in der **Blase**, die am Layout nichts ändert.
+ * Der Grund (`tip`) hängt an einer Hülle, nicht am Knopf: `.ix-tuck` ist
+ * `overflow: hidden` und schnitte ein `::after` weg (#790).
  */
 const InRow = createContext(false);
 
@@ -127,12 +77,9 @@ export function ActionButton({
   tone?: 'primary' | 'neutral' | 'danger';
   height?: number;
   /**
-   * ►►► **Ein Quadrat in der Höhe, die daneben steht** (Testnotiz #957). ◄◄◄
-   *
-   * Die Regelbreite ist 32 px – neben einem 42 px hohen Knopf sähe das wie ein Versehen
-   * aus. `square` sagt «so breit wie hoch»; gesetzt wird es über die CSS-Variable
-   * `--actbtn-w`, damit `.ix-tuck:hover { width: auto }` den Namen weiterhin ausklappen
-   * kann. Ein Inline-`width` gewinnt gegen jede Regel und nähme ihm die Geste.
+   * **Ein Quadrat in der Höhe, die daneben steht** (#957). Gesetzt über die CSS-Variable
+   * `--actbtn-w`, damit `.ix-tuck:hover { width: auto }` den Namen ausklappen kann – ein
+   * Inline-`width` gewönne gegen jede Regel.
    */
   square?: boolean;
   /**
@@ -161,47 +108,25 @@ export function ActionButton({
 }
 
 /**
- * ►►► **Eine Zeile und ihre Aktionen** (Testnotizen #989/#993). ◄◄◄
- *
- * *«‹Stornieren› und ‹Korrigieren› bitte als Zeilenaktion statt als freistehende Buttons
- * – einheitlich für beide und künftige Zeilenaktionen.»*
- *
- * Also ist es eine **Gattung**, kein Fall: `LedgerRow` ist die Zeile, `RowActions` die
- * Knöpfe darin. Im Ruhezustand sind sie unsichtbar, beim Zeigen und beim Fokus da
- * – und auf einem Gerät **ohne** Zeiger dauerhaft (die Regel steht in `globals.css`,
- * `.ix-row`/`.ix-rowactions`, #832). Eine Funktion, die nur ein Zeiger findet, gibt es am
- * Telefon nicht.
- *
- * **Sie belegen ihren Platz immer** (`opacity`, kein `display`): erschienen sie erst beim
- * Zeigen, verschöbe die Zeile ihren Inhalt unter dem Zeiger – dieselbe Falle wie beim
- * schwingenden Knopf oben.
- */
-/**
- * ►►► **DIE ZEILEN-GRAMMATIK — eine Zeile, vier Plätze, immer dieselben.** ◄◄◄
- *
- * *«Definiere EIN Zeilenlayout, das für alle Zeilen in ‹Fordern› und ‹Begleichen› gilt,
- * und implementiere es als eine Komponente.»* (Tickets #996/#998/#999/#1002)
+ * **DIE ZEILEN-GRAMMATIK — eine Zeile, fünf Plätze, immer dieselben** (#996–#1002,
+ * #1011/#1012).
  *
  * ```
- * [ Identifikator ] [ Meta ] ············ [ Aktion ] [ Betrag ]
+ * [ Identifikator ] [ Meta ] ······ [ Aktion ] [ Datum ] [ Betrag ]
  * ```
  *
- * * **Der Identifikator steht links** und sagt, was diese Zeile *ist*: die
- *   Rechnungsnummer, die Zahlungsart. Er ist die Angabe, an der man sie wiedererkennt –
- *   und darum steht **nichts** davor. Ein Zustandspunkt an dieser Stelle rückte die
- *   Nummer ein und sagte als Zeichen etwas, wofür ihm das Wort fehlt (#996).
- * * **Meta folgt in derselben Zeile**: Datum, und was sonst noch dazugehört.
- * * **Der Betrag steht IMMER ganz rechts** – in jeder Zeile auf derselben Flucht, weil er
- *   das letzte Element ist und die Zeile die volle Breite hat. Untereinander sind zwei
- *   Beträge damit vergleichbar, ohne dass jemand eine Spaltenbreite pflegt.
- * * **Die Aktion steht links davon** und **belegt ihren Platz immer** (`opacity`, kein
- *   `display`): erschiene sie erst beim Zeigen, rutschte der Betrag unter dem Zeiger zur
- *   Seite. Vorher stand sie *hinter* dem Betrag – also genau dort, wo das Auge die Zahl
- *   sucht (#998/#1002).
+ * * **Der Identifikator steht links** (Rechnungsnummer, Zahlungsart) – nichts davor.
+ * * **Meta folgt in derselben Zeile** und gibt als Erstes Platz ab.
+ * * **Die Aktionen** (`RowActions`) sind im Ruhezustand unsichtbar, bei Hover und Fokus
+ *   da, auf einem Gerät ohne Zeiger dauerhaft (`.ix-row`/`.ix-rowactions`, #832) – und
+ *   **belegen ihren Platz immer** (`opacity`, kein `display`), sonst rutschte der Betrag
+ *   unter dem Zeiger.
+ * * **Das Datum** ist die zweite Zahl der Zeile und steht direkt links vom Betrag; es
+ *   schrumpft nicht («20.8.2026» hat keine Umbruchstelle).
+ * * **Der Betrag steht IMMER ganz rechts** – auf derselben Flucht in jeder Zeile, weil er
+ *   das letzte Element ist.
  *
- * **Strikt einreihig.** Kein Umbruch, keine zweite Zeile: was nicht passt, wird gekappt
- * (Meta zuerst, dann der Identifikator). Eine zweite Zeile war die Stelle, an der die
- * Angaben aus #999 landeten – und an der zwei Zeilen wie zwei Vorgänge aussahen.
+ * **Strikt einreihig**: was nicht passt, wird gekappt (Meta zuerst).
  */
 export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
   /** Was diese Zeile **ist** – Rechnungsnummer, Zahlungsart. */
@@ -210,19 +135,7 @@ export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
   meta?: ReactNode;
   /** Korrekturen an **dieser** Zeile; sie erscheinen bei Hover und Fokus. */
   actions?: ReactNode;
-  /**
-   * ►►► **Datum und Fälligkeit stehen RECHTS, direkt links vom Betrag** (#1011/#1012).
-   * ◄◄◄
-   *
-   * *«Datum/Fälligkeit stehen links im Fliesstext … Das Datum gehört rechtsbündig direkt
-   * links neben den Betrag.»* – Es ist die **zweite** Zahl der Zeile, und zwei Zahlen
-   * gehören nebeneinander: so stehen sie über alle Zeilen hinweg in zwei Spalten, ohne
-   * dass jemand eine Spaltenbreite pflegt. Im Fliesstext links war es eine Angabe unter
-   * Angaben, und der Blick musste für *wann* und *wie viel* zweimal springen.
-   *
-   * Es **schrumpft nicht** (`flex: none`): «20.8.2026» hat keine Umbruchstelle, und ein
-   * Datum, das sich über seine Box hinaus malt, war schon einmal ein Befund.
-   */
+  /** Datum bzw. Fälligkeit – direkt links vom Betrag, schrumpft nicht. */
   date?: ReactNode;
   /** Die Zahl. Sie steht rechts, tabellarisch, und rührt sich nie. */
   amount: ReactNode;
@@ -258,7 +171,7 @@ export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
   );
 }
 
-/** Die Knöpfe **am Ende** ihrer Zeile – siehe `Row`. Sie behalten ihre Breite (`InRow`). */
+/** Die Knöpfe **am Ende** ihrer Zeile – siehe `LedgerRow`. Sie behalten ihre Breite (`InRow`). */
 export function RowActions({ children }: { children: ReactNode }) {
   return (
     <InRow.Provider value>
@@ -270,40 +183,23 @@ export function RowActions({ children }: { children: ReactNode }) {
 }
 
 /*
- * ►►► **Eine Rückfrage gibt es NICHT** (Testnotiz #1022). ◄◄◄
- *
- * Hier stand `ConfirmButton`: derselbe Knopf, ein zweiter Klick, das Wort daneben, und
- * nach vier Sekunden fiel die Frage von selbst zurück. Er ist **ersatzlos entfernt**.
- *
- * *«Die Sicherheit kommt aus den Guards, nicht aus einem zusätzlichen Klick.»* – Und das
- * ist im Geld-Modul buchstäblich so: ein **Storno** löscht nichts, er schreibt eine
- * Gegenbuchung (und eine zweite lehnt der Dienst ab); eine **Erstattung** ist beim
- * Zahlungsdienst idempotent und kennt ihren Rest (#1018). Eine Rückfrage vor einer
- * Handlung, die ohnehin nicht doppelt passieren kann, verhindert nichts – sie kostet
- * einen Klick und stand ausserdem an zwei von drei Korrekturen derselben Zeile, was die
- * dritte harmloser aussehen liess, als sie ist.
- *
- * Wo eine Handlung wirklich unumkehrbar wäre, ist die Antwort ein **Guard**, keine Frage.
+ * **Eine Rückfrage gibt es nicht** (#1022): die Sicherheit kommt aus den Guards, nicht aus
+ * einem zusätzlichen Klick – ein Storno schreibt eine Gegenbuchung (eine zweite lehnt der
+ * Dienst ab), eine Erstattung ist idempotent. Wo eine Handlung wirklich unumkehrbar wäre,
+ * ist die Antwort ein Guard, keine Frage.
  */
 
 /**
- * **Die Zeile, in der Handlungs-Knöpfe stehen.** Sie bricht **nicht** um – genau daran
- * hing das Schwingen oben. Wer einen ausklappenden Knopf in eine umbrechende Zeile setzt,
- * bekommt ihn nicht ruhig.
+ * **Die Zeile, in der Handlungs-Knöpfe stehen.** Sie bricht **nicht** um – sonst schwingt
+ * ein ausklappender Knopf (siehe `ActionButton`).
  */
 export function Actions({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return <div className="ix-actions" style={style}>{children}</div>;
 }
 
 /**
- * ►►► **Wie weit ist ein Schritt?** ◄◄◄ `past` – vorbei · `active` – dran · `ahead` –
- * steht noch aus.
- *
- * **Bewusst nicht `done`/`open`.** Das sind die Wörter, mit denen ein *Modul* seine
- * eigenen Stufen benennt (`DEAL_STAGE.done`) bzw. mit denen eine Leiste sagt, welcher
- * Abschnitt gerade **offen** ist. Hier geht es um etwas Drittes: wie weit man ist. Ein
- * Wort, das in derselben Datei zwei Dinge meint, ist die Form, in der ein Vergleich still
- * falsch wird.
+ * **Wie weit ist ein Schritt?** `past` – vorbei · `active` – dran · `ahead` – steht noch
+ * aus. Bewusst nicht `done`/`open`: das sind die Wörter der Beleg-Stufen bzw. der Leiste.
  */
 export type StepState = 'past' | 'active' | 'ahead';
 
@@ -313,29 +209,14 @@ const STEP_COLOR: Record<StepState, string> = {
   ahead: 'var(--border-2)',
 };
 
-/**
- * **Die Luft über einem Abschnitt** (#971/#1006) – eine Zahl, weil der Abstand der
- * **Gattung** gehört und nicht der Aufrufstelle. Sie stand auf 18, dann auf 26; mit dem
- * kräftigeren Kopf (#1006) braucht die Beschriftung mehr Raum über sich als unter sich,
- * sonst bindet die Linie darunter sie optisch an das Falsche.
- */
+/** **Die Luft über einem Abschnitt** (#971/#1006) – sie gehört der Gattung, nicht der Aufrufstelle. */
 const SECTION_GAP = 34;
 
 /**
- * ►►► **EIN Betrag — Zahl, Währung, Zustandsfarbe** (Testnotiz #1007). ◄◄◄
- *
- * *«Zahl und Währung immer in derselben Farbe. Die Währung darf zurücktreten, aber nie in
- * einer anderen Farbe.»* – Und genau das war passiert: die Geld-Zeile färbte beide
- * zusammen, der Saldo darunter setzte die Währung auf `--fg-2` und die Zahl auf ihren
- * Ampelton; im selben Beleg standen damit zwei Schreibweisen für dieselbe Sache.
- *
- * Also **ein** Bauteil, und die Regel steckt in seiner Bauart statt in einer Verabredung:
- * die Währung ist ein **Kind** der Zahl und erbt ihre Farbe (`color: inherit`) – sie kann
- * gar keine andere mehr haben. Zurücktreten tut sie über Grösse, Gewicht und Deckkraft,
- * und das ändert den Farbton nicht.
- *
- * `currency` darf auch ein **Knoten** sein: am Total ist der Währungscode zugleich der
- * Wähler (#917), und der gehört in dieselbe Hülle statt daneben.
+ * **EIN Betrag — Zahl, Währung, Zustandsfarbe** (#1007). Die Währung ist ein **Kind** der
+ * Zahl und erbt ihre Farbe (`color: inherit`) – sie kann keine andere haben; zurücktreten
+ * tut sie über Grösse, Gewicht und Deckkraft. Formatiert wird hier, sonst nirgends.
+ * `currency` darf ein **Knoten** sein: am Total ist der Code zugleich der Wähler (#917).
  */
 export function Amount({ value, currency, decimals = 2, color, size = 13, weight = 600,
                          tip, children }: {
@@ -349,20 +230,9 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
   weight?: number;
   tip?: string;
   /**
-   * ►►► **Derselbe Betrag, nur eingegeben** (Testnotizen #1010/#1017). ◄◄◄
-   *
-   * *«Bei den Positionen fehlt die Währungsangabe – sowohl in der Anzeige als auch beim
-   * Eingabefeld ‹Einzelpreis›.»*
-   *
-   * Steht hier ein Eingabefeld, tritt es an die Stelle der Zahl – **die Währung bleibt,
-   * wo sie ist**: als Suffix in derselben Hülle, also **innerhalb** des Feldrahmens
-   * (`Editable` liegt darum aussen). Zwei Bauteile für dieselbe Angabe wären zwei
-   * Schreibweisen, und die zweite vergisst die Währung.
-   *
-   * *Damit ist #921 («nicht an jedem Einzelpreis – dort stünde dasselbe Wort
-   * zwanzigmal») zurückgenommen: der Nutzer hat es ausdrücklich anders entschieden –
-   * **keine Betrags-Ausgabe und kein Betrags-Feld ohne Währung**. Zurücktreten tut sie
-   * weiterhin über Grösse, Gewicht und Deckkraft.*
+   * **Derselbe Betrag, nur eingegeben** (#1010/#1017): ein Eingabefeld tritt an die Stelle
+   * der Zahl, die Währung bleibt als Suffix in derselben Hülle (`Editable` liegt aussen).
+   * Keine Betrags-Ausgabe und kein Betrags-Feld ohne Währung.
    */
   children?: ReactNode;
 }) {
@@ -383,27 +253,10 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
 }
 
 /**
- * **Ein Abschnitt einer Modul-Karte** – Versalien-Beschriftung über einer Haarlinie,
- * rechts Platz für das, was zum Abschnitt gehört (die Währung, eine Gegenhandlung).
- *
- * Bewusst **ohne** Symbol und ohne Display-Schrift: in einer Karte mit drei Abschnitten
- * wären drei getönte Quadrate und drei fette Überschriften lauter als der Inhalt. Der
- * grosse Kopf steht oben, hier gliedert es nur.
- *
- * ►►► **Der Verlauf steht AN den Abschnitten, nicht als Leiste darüber** (Testnotiz
- * #868). ◄◄◄
- *
- * *«Kann man diese Anzeige nicht vertikal machen und es so visuell etwas besser
- * strukturieren – mir passt das da oben nicht.»* – Hier stand eine waagrechte
- * Stufen-Leiste (`ModuleSteps`), die dieselben drei Wörter trug wie die drei Abschnitte
- * darunter. Seit es keine Reiter mehr gibt (#863) versteckte sie nichts mehr; sie sagte
- * nur noch, **wie weit** der Vorgang ist – und dafür braucht es keine zweite Zeile mit
- * denselben Namen.
- *
- * **Die Abschnitte SIND die vertikale Fassung.** Sie stehen ohnehin untereinander, in
- * derselben Reihenfolge; ihnen einen **Punkt** voranzustellen (Punkt + Wort, die Anatomie
- * jedes Status im Haus) sagt dasselbe an der Stelle, an der man es liest. Ein Wort weniger
- * doppelt, eine Zeile weniger Fläche.
+ * **Ein Abschnitt einer Modul-Karte** – Kopfleiste mit Versalien-Beschriftung, rechts
+ * Platz für das, was zum Abschnitt gehört. **Der Verlauf steht an den Abschnitten**
+ * (#868): ein Punkt vor der Beschriftung sagt, wie weit der Abschnitt ist (Punkt + Wort,
+ * die Anatomie jedes Status im Haus) – eine eigene Stufen-Leiste gibt es nicht.
  */
 export function ModuleSection({ title, state, right, children, first }: {
   /**
@@ -419,70 +272,27 @@ export function ModuleSection({ title, state, right, children, first }: {
   children: ReactNode;
 }) {
   return (
-    // `data-fb-section` benennt den Abschnitt für eine Testnotiz – damit steht in jeder
-    // Notiz aus einer Modul-Karte «‹Modul› › ‹Abschnitt›» statt einer `nth-of-type`-Kette.
-    // ►►► **Ein Abschnitt braucht Luft über sich** (Testnotiz #971). ◄◄◄ *«Kann man ein
-    // wenig mehr Spacing einbauen oberhalb von Angebot und oberhalb von Rechnung?»* – Ja,
-    // und es ist **eine** Zahl: der Abstand gehört der **Gattung** «Abschnitt einer
-    // Modul-Karte», nicht der einzelnen Aufrufstelle. Auf 18 px stand die
-    // Versalien-Beschriftung fast so nah am Inhalt darüber wie an ihrem eigenen; der
-    // Strich darunter band sie an das Falsche.
+    // `data-fb-section` benennt den Abschnitt für eine Testnotiz («‹Modul› › ‹Abschnitt›»).
     <section data-fb-section={title || undefined}
       style={{ marginTop: first ? 0 : SECTION_GAP, minWidth: 0 }}>
       {(title || right) && (
-        // ►►► **Der Abschnittskopf ist eine LEISTE** (Testnotiz #1015). ◄◄◄
-        //
-        // *«Die Bereichsüberschriften sind immer noch zu wenig ausgeprägt … eine klare,
-        // ruhige Bereichsüberschrift über die volle Modulbreite.»* – Das ist der dritte
-        // Anlauf, und die beiden davor (Gewicht 800, mehr Luft) waren zu leise, weil sie
-        // dem **Text** galten. Eine Überschrift, die eine Zone eröffnet, braucht eine
-        // eigene **Fläche**.
-        //
-        // **Gedämpfte Füllung, dunkle Schrift, kräftige Trennlinie** – nicht Vollschwarz:
-        // in einer Spalte mit fünf Modulen stünden fünf schwarze Balken untereinander,
-        // und die ERP-Regel des Hauses heisst *Struktur vor Fläche*. `--bg-3` ist der
-        // leiseste Ton, der sich von der weissen Karte überhaupt abhebt; die Linie
-        // darunter ist die eigentliche Abgrenzung (2 px, `--border-2`).
-        //
-        // **Volle Modulbreite** über einen negativen Seitenrand in der Polsterung der
-        // Karte (`MODULE_CARD.padding` = 18 px): die Leiste gehört der Karte, nicht dem
-        // Textblock – zieht man sie nur bis zur Satzkante, sieht sie aus wie ein Kasten
-        // im Inhalt statt wie seine Überschrift.
+        // **Der Abschnittskopf ist eine LEISTE** (#1015): gedämpfte Füllung (`--bg-3`),
+        // dunkle Schrift, kräftige Trennlinie – nicht Vollschwarz (Struktur vor Fläche).
+        // Über die volle Modulbreite: der negative Seitenrand entspricht der Polsterung
+        // der Karte (`MODULE_CARD.padding` = 18 px).
         <div className="flex items-center gap-2" style={{
           padding: '6px 18px', margin: '0 -18px 14px',
           background: 'var(--bg-3)', borderBottom: '2px solid var(--border-2)',
         }}>
-          {/* ►►► **Die Status-Spalte steht immer, auch leer.** ◄◄◄
-              Ein Punkt vor der Beschriftung rückt sie um seine Breite ein – und in einer
-              Karte, in der nur *manche* Abschnitte ein Schritt sind (die übrigen sind
-              Inhalt), stünden die Überschriften dann auf zwei verschiedenen Kanten.
-              Gemessen: 18 px ↔ 33 px im selben Beleg. Der Platz wird darum reserviert;
-              was ihn füllt, sagt der Abschnitt. */}
+          {/* **Die Status-Spalte steht immer, auch leer**: sonst stünden die Überschriften
+              von Schritt- und Inhalts-Abschnitten auf zwei Kanten (gemessen 18 ↔ 33 px). */}
           <span aria-hidden className="rounded-full" style={{
             width: 7, height: 7, flex: 'none',
             background: state ? STEP_COLOR[state] : 'transparent',
           }} />
-          {/* ►►► **Der Kopf ist eine STUFE über dem Feld-Label** (Testnotiz #1051).◄◄◄
-              *«Kann man die Überschriften der Kategorien etwas prägnanter machen – im
-              Stil, nicht im Text? Es geht irgendwie so unter, und man erkennt die
-              verschiedenen Kategorien nicht so gut.»*
-
-              Gemessen war die Hierarchie **flach**: der Kopf trug `MICRO_LABEL`
-              (11 px · 700 · Versalien · .07em) – und genau dasselbe trägt jede
-              Beschriftung **in** einem Abschnitt («Rechnungsadresse», «Zahlungsfrist»).
-              Der Unterschied war ein Gewichtsschritt und die Leiste; zwei Ebenen, eine
-              Schriftgrösse.
-
-              Die Antwort steht im Design-System und heisst **Overline** (`--overline`:
-              12 px · 600 · Versalien, `--tracking-overline` .18em) – das Register für
-              eine Überschrift über einem Block, eine Stufe über der leisen
-              Beschriftung. Geraten wird dafür keine Zahl: ein Token sagt, welches
-              Register gemeint ist. Dazu wie bisher **800** statt 600 (die Familie führt
-              es, es wird nichts synthetisiert) und die dunkle Schrift – gedämpft wäre
-              sie leiser als der Inhalt, den sie eröffnet.
-
-              `MICRO_LABEL` bleibt unangetastet: es trägt im ganzen Haus die leisen
-              Beschriftungen, und genau von ihnen soll sich dieser Kopf abheben. */}
+          {/* **Der Kopf ist eine Stufe über dem Feld-Label** (#1051): das Overline-Register
+              (`--overline`, `--tracking-overline`) in 800 statt `MICRO_LABEL`, das jede
+              Beschriftung **in** einem Abschnitt trägt. */}
           <span style={{
             flex: 1, minWidth: 0,
             font: 'var(--overline)', fontWeight: 800,
@@ -498,51 +308,15 @@ export function ModuleSection({ title, state, right, children, first }: {
   );
 }
 
-/*
- * ►►► **`ModuleMeta` ist entfallen** (Testnotiz #918). ◄◄◄
- *
- * Sie war die leise Zeile unter dem Kopf – «was über den ganzen Vorgang gilt und in
- * keinen Abschnitt gehört». Zuletzt trug sie genau **eine** Angabe, das Zusagedatum; und
- * seit der Abschnitt darunter eine **Chronik** ist («wann wurde offeriert, wann wurde
- * angenommen»), stand sie dort zum zweiten Mal. Ein bestehender Wächter hat es gemeldet,
- * kaum dass die Chronik stand.
- *
- * Damit hatte sie **keinen Leser mehr**. Ein Bauteil des Design-Systems ohne Aufrufer ist
- * genau das, was beim nächsten Umbau still abweicht – und ein neues Modul, das eine
- * solche Zeile braucht, schreibt drei Zeilen Flexbox, statt eine Vorlage zu erben, deren
- * Masse niemand mehr geprüft hat.
- */
-
 /**
- * **Das Werteraster eines Moduls** – dasselbe wie am Datensatz (`SPEC.grid`), nur mit
- * einer schmaleren Mindestspalte: eine Prozessspalte ist rund 460 px breit, und mit
- * 240 px Minimum fiele sie immer auf eine Spalte zurück.
- */
-export const MODULE_GRID: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
-  gap: '16px 24px',
-};
-
-/**
- * ►►► **Ein Anteil an einem Ganzen — Leiste, Wort, Zahl.** ◄◄◄
+ * **Ein Anteil an einem Ganzen — Leiste, Wort, Zahl.** `StockBar` ist ihre Ausprägung für
+ * die Zustände von Einzelinstanzen.
  *
- * Die Bestandsleiste am Artikel beantwortet «wie viel habe ich, und wie viel davon ist
- * verfügbar» in einem Bild; **die Frage ist nicht die des Bestands**, sondern die jeder
- * Aufteilung: wie viel ist bezahlt, wie viel offen, wie viel noch nicht berechnet – wie
- * weit ist ein Vorgang. `StockBar` ist seither die Ausprägung dieser Leiste für Zustände
- * von Einzelinstanzen, und **hier steht sie einmal**.
- *
- * Die Regeln von dort gelten unverändert, weil sie nicht am Bestand hängen:
- *
- * - **Die Beschriftung gehört zur Leiste, nicht daneben.** Farbe allein unterscheidet
- *   nicht – zwei gleichfarbige Segmente sind strukturell nicht zu trennen, das **Wort**
- *   ist die Unterscheidung (Testnotiz #789).
- * - **Eine Haarlinie zwischen den Segmenten** – als `border`, nicht als `gap`: bei `gap`
- *   summierten sich die Prozentbreiten über 100 %, und das letzte Segment fiele hinter
- *   `overflow: hidden`.
- * - **Der Gewählte tritt hervor, die anderen verschwinden nicht.** Ein Segment, das aus
- *   der Zeile fällt, sobald man ein anderes ansieht, wäre ein Filter.
+ * - **Die Beschriftung gehört zur Leiste**: zwei gleichfarbige Segmente sind nur am
+ *   **Wort** zu unterscheiden (#789).
+ * - **Eine Haarlinie zwischen den Segmenten** als `border`, nicht als `gap` – sonst
+ *   summierten sich die Breiten über 100 %.
+ * - **Der Gewählte tritt hervor, die anderen verschwinden nicht** – sonst wäre es ein Filter.
  */
 export type BarSegment = {
   key: string;
@@ -566,16 +340,9 @@ export function ValueBar({ segments, height = 10, onPick, active, legendHint, tr
   /** Welches Segment gerade offen ist – es tritt hervor, die anderen zurück. */
   active?: string | null;
   /**
-   * ►►► **Treten die anderen zurück, wenn eines gewählt ist?** ◄◄◄
-   *
-   * Beim **Bestand** ja: dort ersetzt das Hervortreten einen Filter – man sieht sich
-   * einen Zustand an, die übrigen bleiben da, aber leise.
-   *
-   * Bei den **Stufen** nein, und das ist kein Geschmack: dort trägt die Farbe den
-   * Fortschritt (vorbei ↔ dran ↔ steht noch aus). Gedämpft sehen «vorbei» und «steht
-   * noch aus» gleich aus – gemessen war die halbe Leiste danach dasselbe Blassgrau, und
-   * *wie weit bin ich* war nicht mehr abzulesen. Welche Stufe **offen** ist, sagt die
-   * Beschriftung ohnehin (fett, dunkler, unterstrichen).
+   * **Treten die anderen zurück, wenn eines gewählt ist?** Beim Bestand ja (das ersetzt
+   * einen Filter); wo die Farbe einen Fortschritt trägt, nein – gedämpft sähen «vorbei»
+   * und «steht noch aus» gleich aus.
    */
   dim?: boolean;
   /** Was der Klick bedeutet, je nachdem ob dieses Segment offen ist. */
@@ -660,22 +427,3 @@ function SegmentMark({ seg, open, dimmed, hint, onPick }: {
     </button>
   );
 }
-
-/*
- * ►►► **Eine Stufen-LEISTE gibt es nicht mehr** (Testnotiz #868). ◄◄◄
- *
- * Hier stand `ModuleSteps` (+ `ModuleStep`, `ALL_STEPS`): eine waagrechte Leiste über der
- * Karte, die jeden Schritt als Segment zeigte. Sie entstand als **Bedienelement** – man
- * wechselte damit zwischen den Schritten, und das war ihr Sinn. Seit alles untereinander
- * steht (#863) hatte sie keinen Handler mehr, und was blieb, war eine Zeile, die dieselben
- * drei Wörter trug wie die drei Abschnitte darunter.
- *
- * *«Mir passt das da oben nicht.»* – Der Verlauf steht jetzt **an** den Abschnitten
- * (`ModuleSection state`), also dort, wo man den Namen ohnehin liest: Punkt + Wort, die
- * Anatomie jedes Status im Haus, und von oben nach unten gelesen ist es die vertikale
- * Fassung derselben Aussage.
- *
- * `ValueBar` bleibt, wo sie hingehört: bei einem **Anteil an einem Ganzen** (Bestand).
- * Drei Schritte sind kein Anteil – sie waren als drei gleich breite Segmente gezeichnet,
- * was schon sagt, dass die Breite nichts bedeutete.
- */

@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase, Bell, Check, Cog, UserRound, MessagesSquare,
+  User, MapPin, Building2, Briefcase, Bell, Cog, UserRound, MessagesSquare,
 } from 'lucide-react';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
-import { day, when } from '@/lib/when';
+import { when } from '@/lib/when';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
@@ -25,16 +25,8 @@ import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
 import type { UserProfile, UserRole } from '@/types';
 
-// **Der Benutzer hat keine Reiter mehr** – aus demselben Befund, zweimal.
-//
-// «Bestellungen» rendete **gar nichts**: seine Karte hing am Verkaufs-Modul, und das ist
-// mit dem Basis-Neuaufbau entfallen (docs/attic.md). «Dokumente» ebenso (Testnotiz #772):
-// zwei Überschriften über leeren Flächen, denn das Dokumentenmodul gibt es nicht mehr.
-// Übrig blieb genau ein Reiter, und der trägt das ganze Formular: es gibt hier nichts
-// mehr zu wählen. Dieselbe Auflösung wie am Artikel (Notiz #760/#761) – dort war es
-// dieselbe Ursache und nicht eine Regel über Reiter.
-//
-// Kommen die Bereiche zurück, kommen ihre Reiter mit ihnen.
+// **Reiter**: Person und Kommunikation. «Bestellungen» und «Dokumente» kommen mit ihren
+// Bereichen zurück (docs/attic.md).
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,11 +38,8 @@ export function userInitials(name: string, email: string): string {
 }
 
 // ─── Karten-Bausteine (Spiegel der Profileinstellungen) ────────────────────────
-// Gleiche Anatomie wie `account/sections/profile-section.tsx`, damit «fast eine
-// Spiegelung» entsteht (Notiz #294) – Symbol + Titel + optionaler rechter Slot. Die
-// `Card` selbst wohnt im gemeinsamen Vokabular (`fields.tsx`), seit der Unternehmens-
-// Datensatz dieselbe Anatomie nutzt; die alten `Field`/`Sec` (slate/blue-Altpalette,
-// nur noch von dort genutzt) sind damit entfallen.
+// Gleiche Anatomie wie `account/sections/profile-section.tsx` (#294) – Symbol + Titel +
+// optionaler rechter Slot; `Card` wohnt in `fields.tsx`.
 
 function SubBlock({ icon: Icon, title, children }: {
   icon: React.ElementType; title: string; children: React.ReactNode;
@@ -174,9 +163,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   const role = form.role;
   const isStaff = role === 'employee' || role === 'admin';
 
-  const termsDate = record.terms_accepted_at
-    ? day(record.terms_accepted_at) : null;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
@@ -243,7 +229,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         )}
       </Card>
 
-      {/* ── 4. Kommunikation & Rechtliches ──────────────────────────────────── */}
+      {/* ── 4. Kommunikation ────────────────────────────────────────────────── */}
       <Card icon={Bell} title="Kommunikation">
         {canEdit ? (
           <ToggleField label="Newsletter" description="Produktneuigkeiten und Angebote per E-Mail"
@@ -251,16 +237,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         ) : (
           <AField label="Newsletter" value={form.newsletter_opt_in ? 'Abonniert' : 'Nicht abonniert'} readOnly />
         )}
-        {/* Kein Schalter, sondern eine Tatsache (wie im Profil): die Rechtstexte sind
-            akzeptiert. Die vollständige, versionierte Historie führt der Reiter «Dokumente». */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--fg-3)' }}>
-          {termsDate && <Check size={15} style={{ color: 'var(--success)', flexShrink: 0 }} />}
-          <span>
-            {termsDate
-              ? `AGB und Datenschutzerklärung akzeptiert am ${termsDate}${record.terms_version ? ` · v${record.terms_version}` : ''}`
-              : 'AGB und Datenschutzerklärung noch nicht akzeptiert'}
-          </span>
-        </div>
       </Card>
 
       {/* ── 5. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}
@@ -298,10 +274,6 @@ function passkeyLabel(count: number | null | undefined): string {
   const n = count ?? 0;
   return n === 0 ? 'Keiner eingerichtet' : `${n} Gerät${n === 1 ? '' : 'e'}`;
 }
-
-// ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
-
-// Die Karte «Bestellungen» ist mit dem Verkaufs-Modul entfallen (docs/attic.md).
 
 type UserTab = 'person' | 'comm';
 

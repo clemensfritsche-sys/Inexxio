@@ -38,32 +38,6 @@ export function Card({ icon: Icon, title, right, children }: {
   );
 }
 
-export const TILE: Record<string, React.CSSProperties> = {
-  box: {
-    background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
-    padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start',
-    width: '100%', font: 'inherit', textAlign: 'left',
-  },
-  ico: {
-    width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)',
-    color: 'var(--fg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
-  },
-  k: {
-    font: '600 11.5px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em',
-    color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 6,
-  },
-  hint: { width: 13, height: 13, color: 'var(--fg-4)', cursor: 'help', display: 'inline-flex' },
-  v: {
-    font: '700 18px var(--font-body)', color: 'var(--fg-1)', marginTop: 6,
-    fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'center', gap: 8,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  sub: { font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginTop: 3, fontVariantNumeric: 'tabular-nums' },
-  goto: { marginLeft: 'auto', color: 'var(--accent)', display: 'flex', alignSelf: 'center' },
-  /** Volle Breite im Kachel-Raster (Standort-Karten, Spezifikation). */
-  wide: { gridColumn: '1 / -1' },
-};
-
 // ─── Spezifikations-Karte: die Lese-Ansicht eines Datensatzes ────────────────
 //
 // EINE Karte, in der die Angaben eines Datensatzes stehen – warme Fläche, Haarlinie,
@@ -704,42 +678,6 @@ export function Palette({ children, style }: {
 }
 
 /**
- * Ein Weg im Dialog – **der Klick IST die Ausführung**, keine zweite Bestätigung
- * darunter (Notiz #155). Nichts ist vorausgewählt oder hervorgehoben: die Wege sind
- * gleichwertig, die Entscheidung trifft der Mensch und nicht die Gestaltung (#152).
- */
-export function ChoiceButton({ icon: Icon, tone, title, text, disabled, onClick }: {
-  /** Symbol des Weges – auf einen Blick erkennbar, noch vor dem Lesen (Notiz #284). */
-  icon?: ElementType;
-  /** Farbe des Symbols (z. B. `var(--danger)` für den endgültigen Weg). */
-  tone?: string;
-  title: string; text?: string; disabled?: boolean; onClick: () => void;
-}) {
-  return (
-    <button type="button" disabled={disabled} onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-        textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
-        border: '1px solid var(--border-1)', background: '#fff', opacity: disabled ? .6 : 1,
-      }}>
-      {Icon && (
-        <span style={{
-          width: 34, height: 34, borderRadius: 'var(--r-sm)', flex: 'none',
-          background: 'var(--bg-2)', color: tone ?? 'var(--fg-2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Icon size={17} />
-        </span>
-      )}
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</span>
-        {text && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</span>}
-      </span>
-    </button>
-  );
-}
-
-/**
  * Die EINE Regel für Zahlenfelder (Mengen, Perioden, Prozente): nur Ziffern, optional
  * EIN Dezimaltrenner. Das Komma wird zum Punkt – wer «2,5» tippt, meint 2.5, und das
  * Backend rechnet mit Punkt.
@@ -1164,23 +1102,9 @@ export function Segmented({ label, value, onChange, options, required, disabled,
   );
 }
 
-/*
- * ►►► **`TermField` ist entfallen — eine Frist ist ein WERT auf dem Beleg** (#934). ◄◄◄
- *
- * Es stand hier als Segmentierung («Vorauszahlung · 30 Tage · Individuell») und war damit
- * ein **Formular** mitten in einem Dokument. Der Beleg druckt «Zahlbar in 30 Tagen», und
- * dass man das ändern kann, sagt die Haarlinie (`beleg-work.Term` auf `DocPick`) – mehr
- * nicht. Mit dem Vorgänger-Zahlungsmodul ist sein letzter Aufrufer gegangen (#960).
- *
- * `Segmented` bleibt – es ist die Form für eine **Aufzählung mit wenigen Werten** im
- * **Formular** (die Zahlungsart beim Buchen, #967), und dort ist sie richtig.
- */
-
 /**
  * Der Zustand als Pille: Symbol + Farbe + Wort – **eine** Form, überall dieselbe (Feed wie
- * Detail-Kopf). Eine zwischenzeitliche «Punkt + Wort»-Variante für den Feed ist wieder
- * entfallen (Notiz #334): derselbe Zustand darf nicht je nach Ort anders aussehen; die Luft
- * im Feed kommt aus Polsterung und Zeilenabstand, nicht aus einer zweiten Status-Form.
+ * Detail-Kopf, #334): derselbe Zustand darf nicht je nach Ort anders aussehen.
  */
 export function StatusBadge({ cfg, size = 10 }: { cfg: StatusCfg; size?: number }) {
   const Icon = cfg.icon;
@@ -1205,13 +1129,7 @@ export function SaveIndicator({ saving, flash }: { saving: boolean; flash: boole
 }
 
 
-/**
- * **Beschriftete Wertzeile** («Kunde · Max Muster») – das Arbeitspferd der Panel-
- * Zusammenfassungen. Lag dreimal identisch im Code (Auftrags-Detail, Beschaffungs-
- * und Verkaufs-Panel), zweimal Zeichen für Zeichen gleich, einmal mit optionalem
- * Symbol. Jetzt eine Stelle – und dabei von hart kodierten Farben auf die
- * Design-Tokens gezogen.
- */
+/** **Beschriftete Wertzeile** («Kunde · Max Muster») – eine Stelle für alle Zusammenfassungen. */
 export function Row({ k, v, icon: Icon, hint }: {
   k: string; v: string; icon?: React.ElementType;
   /** Abgeleitetes Detail zur Zeile – gehört in den **Hover**, nicht in die Fläche. */

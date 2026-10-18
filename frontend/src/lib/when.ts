@@ -1,13 +1,6 @@
 /**
- * ►►► **WANN — die eine Datums-Ausgabe des Hauses** (Testnotiz #992). ◄◄◄
- *
- * *«Bitte erstelle EINE zentrale Datums-Formatierungsfunktion für das ganze System und
- * ersetze alle bestehenden Ausgaben damit.»*
- *
- * Vorher gab es sieben: `localDate`, `localDateTime`, drei eigene Helfer im Beleg
- * (`daysUntil`/`relative`/`since`) und dazu je ein `toLocaleDateString` am Benutzer, am
- * Profil und an den Passkeys. Dieselbe Angabe las sich damit an fünf Stellen anders –
- * «03.07.2026», «31.07.26, 21:52», «13. Juli 2026», «vor 3 Tagen».
+ * **WANN — die eine Datums-Ausgabe des Hauses** (#992). Jede Datums-Anzeige im System läuft
+ * hier durch; ein Wächter verbietet jede zweite Formatierung daneben.
  *
  * ## Zwei Fragen, zwei Funktionen — und das ist kein Widerspruch
  *
@@ -16,8 +9,7 @@
  * Datum. Sie steht überall dort, wo ein Zeitpunkt eine **Auskunft** ist (Log, Angebote,
  * letzter Login, angelegt/geändert).
  *
- * *Für «heute» stand hier einmal die blosse **Uhrzeit** (`17:58`) – eine Zahl, aus der
- * man selbst ausrechnet, wie lange das her ist (Testnotiz #1003).*
+ * Innerhalb eines Tages zählt sie Stunden und Minuten (#1003), nicht die blosse Uhrzeit.
  *
  * **`day()` beantwortet «welcher Tag steht auf dem Papier?»** – die Tatsache. Auf einem
  * **Beleg** ist das Rechnungsdatum kein «vor 3 Tagen»: es ist die Angabe, die gedruckt
