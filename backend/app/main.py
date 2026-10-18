@@ -93,19 +93,9 @@ _COLUMN_SAFETY_NET = (
     ("instance_units", "place_object_id", "BIGINT"),
     # Der Träger (Migration 112) – dieselbe Tabelle, dieselbe Ausfallklasse.
     ("instance_units", "place_unit_id", "BIGINT"),
-    # ►►► **Die Netze für ``purchases`` sind mitgegangen** (September 2026). ◄◄◄
-    #
-    # Sie schützten Lesezugriffe auf den Beschaffungs-Beleg – und den gibt es nicht mehr:
-    # Beschaffen und Verkauf sind ersatzlos entfernt, das Geld steht im «Zahlung»-Modul.
-    # Ein Netz für eine Spalte, die kein Modell mehr liest, schützt nichts; die **Tabelle**
-    # bleibt trotzdem stehen (Zwei-Deploy-Regel, ``docs/backlog.md``).
-    # ►►► **Die Netze für ``deals``/``deal_entries`` sind mitgegangen** (#960). ◄◄◄
-    #
-    # Sie schützten Lesezugriffe auf den Vorgang des **Vorgänger**-Zahlungsmoduls, und den
-    # gibt es nicht mehr: ``domain/deal`` · ``services/deal`` · ``models/deal`` sind
-    # gelöscht, das Geld steht im Beleg (``vouchers`` & Co.). Ein Netz für eine Spalte, die
-    # kein Modell mehr liest, schützt nichts; die **Tabellen** bleiben trotzdem stehen –
-    # sie tragen die Vergangenheit (Zwei-Deploy-Regel, ``docs/backlog.md``).
+    # Ein Netz für eine Spalte, die kein Modell liest, schützt nichts – darum stehen hier
+    # keine Einträge für die Tabellen entfernter Bereiche (sie selbst bleiben bis zum
+    # Drop, ``docs/backlog.md``).
     # ►► **Zoll und Lieferbedingung** (Migration 131). Sie stehen hier, weil eine Spalte,
     #    die **nur** in einer Migration steht, die dev-Datenbank nie erreicht – die Lehre
     #    aus #778, und beim Ausfall zählt ohnehin nur dieser Weg (Migration 090).
@@ -119,10 +109,9 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "lead_days", "INTEGER"),
     ("vouchers", "payment_days", "INTEGER"),
     ("vouchers", "parties", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
-    # ►► **Die Rechnung am Beleg** (Migration 138). Acht Angaben, die bis dahin an einer
-    #    Zeile hingen (``voucher_entries.kind = 'charge'``) – also eine Kopie des Belegs,
-    #    der sie enthielt. Das Modell kennt sie, also scheitert ohne sie **jede** Abfrage
-    #    auf einen Beleg, und die trägt jedes Zahlungsmodul in jeder Auftrags-Antwort.
+    # ►► **Die Rechnung am Beleg** (Migration 138). Das Modell kennt sie, also scheitert
+    #    ohne sie **jede** Abfrage auf einen Beleg, und die trägt jedes Zahlungsmodul in
+    #    jeder Auftrags-Antwort.
     ("vouchers", "billed_on", "DATE"),
     ("vouchers", "due_on", "DATE"),
     ("vouchers", "number", "VARCHAR(120)"),
@@ -133,10 +122,8 @@ _COLUMN_SAFETY_NET = (
     # ►► **Die Rechtsform am Benutzer** (Migration 139, Testnotiz #1042). Das Modell kennt
     #    sie, also scheitert ohne sie **jede** Benutzer-Abfrage – der halbe ERP-Feed,
     #    `/auth/me` und jeder Belegkopf. Dieselbe Ausfallklasse wie Migration 090.
-    #    *``account_type`` stand hier daneben und ist mitgegangen (#1043): ein Netz für
-    #    eine Spalte, die kein Modell kennt, schützt nichts.*
     # ►►► **«Eigenes Unternehmen»** (CRM Schritt 1, Migration ``142``). ◄◄◄ Nachgezogen mit
-    # ``DEFAULT true`` – jede Firma, die es bis hierher gab, ist eine unserer; danach setzt
+    # ``DEFAULT true`` – jede Firma, die es vor 142 gab, ist eine unserer; danach setzt
     # ``_COMPANY_DATA_FIXES`` den Default auf ``false`` (jede neue ist zuerst fremd).
     ("company_settings", "is_own", "BOOLEAN NOT NULL DEFAULT true"),
     # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – zwei abgeleitete
@@ -179,22 +166,15 @@ _COLUMN_SAFETY_NET = (
 #: ``alembic upgrade``. Geprüft wird vorher, damit nicht bei jedem Start eine Tabelle
 #: umgeschrieben wird.
 _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
-    # Die beiden Beträge des **Vorgänger**-Zahlungsmoduls standen hier und sind mit ihm
-    # gegangen (#960). Das Netz bleibt: es ist der einzige Weg, auf dem eine Typänderung
-    # die dev-Datenbank erreicht, und wer es entfernt, erfindet es beim nächsten
-    # dreistelligen Betrag neu.
     ("voucher_entries", "amount", 18, 4),
     ("voucher_lines", "price", 18, 4),
     ("voucher_quotes", "amount", 18, 4),
     # Der **Rechnungsbetrag** steht seit Migration 138 am Beleg selbst.
     ("vouchers", "amount", 18, 4),
 )
-# Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
-# neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
-# das Netz darf reparieren, aber nicht auferstehen lassen. Die Einträge für orders /
-# order_lines / purchase_orders / sales / shipments / movements / disposals /
-# resource_usages / documents / inspections / article_process_steps / material_moves /
-# instance_order_links sind mit ihren Tabellen entfallen.
+# Für ``instances`` steht hier bewusst NICHTS: die Tabelle wurde von Migration 102 neu
+# aufgebaut, und ein Netz-Eintrag würde eine entfernte Spalte wieder anlegen – das Netz
+# darf reparieren, aber nicht auferstehen lassen.
 
 #: **Spalten, die ihre ``NOT NULL``-Sperre verlieren.** Das Gegenstück zum Drop-Netz:
 #: eine Spalte, die das Modell nicht mehr kennt, deren Sperre aber noch steht, lässt
@@ -287,8 +267,6 @@ _DROP_COLUMN_SAFETY_NET = (
     ("company_settings", "default_receiving_location_id"),
     ("user_profiles", "stripe_customer_id"),
 )
-# Die Einträge für orders / order_lines / purchase_orders / sales / shipments / documents /
-# inspections / article_process_steps sind mit ihren Tabellen entfallen (Migration 102).
 
 # Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes
 # nur für NEUE Tabellen an – auf bestehenden Tabellen müssen sie idempotent
@@ -306,9 +284,12 @@ _INDEX_SAFETY_NET = (
     ("ix_captures_step_id", "captures", "step_id"),
 )
 
-# Roh-Indizes mit speziellem Typ: GIN auf der Reservierungs-Map – die Hot-Path-Abfragen
-# ``Instance.reservations.has_key(...)`` (Unterdeckung, Verkaufs-Abgang, Abschluss)
-# wären sonst Full-Table-Scans über den gesamten Bestand.
+# Roh-Indizes und CHECKs, die ``create_all`` nicht nachzieht (es legt sie nur mit einer
+# *neuen* Tabelle an). **Die Regel (#778):** jeder Index und jeder CHECK, den eine
+# Migration *nach* dem Entstehen der Tabelle geändert hat, gehört in dieses Netz – sonst
+# gilt er ausschliesslich dort, wo Alembic läuft. Ersetzt wird nur, was noch nicht die
+# gewünschte Form hat: ein bedingungsloser DROP nähme einen Riegel für die Dauer der
+# Anweisung weg.
 _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     # ►► **Die beiden Eindeutigkeitsregeln des Belegs** (Migration 134). Sie sind kein
     #    Beiwerk: ohne den ersten gäbe es zwei aktive Belege an einem Modul, ohne den
@@ -376,29 +357,6 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE conname='ck_instance_units_one_place') THEN "
     "ALTER TABLE instance_units ADD CONSTRAINT ck_instance_units_one_place "
     "CHECK (place_object_id IS NULL OR place_unit_id IS NULL); END IF; END $$;",
-    # ►►► **EIN AKTIVER Beleg je Modul** (Migration 119) – und die Lehre daraus. ◄◄◄
-    #
-    # Migration 114 legte ``uq_purchases_step`` als **vollen** Unique-Index an, 119 machte
-    # ihn **partiell** (``WHERE is_active``), weil ein zurückgenommener Beleg als Zeile
-    # stehenbleibt. Genau dieser Wechsel erreichte eine gewachsene Datenbank **nie**:
-    # ``create_all`` legt Indizes nur mit einer *neuen* Tabelle an, und der Deploy fährt
-    # kein ``alembic upgrade`` – dort stand also weiter der volle Index. Wer zwischen
-    # «Beschaffen» und «Selbst» hin- und herschaltete, bekam beim zweiten Mal «Dieser Wert
-    # ist bereits vergeben» (Testnotiz #778); gegen ein migrationsgebautes Schema war es
-    # nicht nachstellbar.
-    #
-    # **Die Regel, die daraus folgt:** jeder Index und jeder CHECK, den eine Migration
-    # *nach* dem Entstehen der Tabelle geändert hat, gehört in dieses Netz – sonst gilt er
-    # ausschliesslich dort, wo Alembic läuft.
-    #
-    # Ersetzt wird **nur, wenn er noch nicht partiell ist**: ein bedingungsloser DROP
-    # nähme den Exklusivitäts-Riegel für die Dauer der Anweisung weg.
-    "DO $$ BEGIN IF to_regclass('public.purchases') IS NOT NULL "
-    "AND EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='uq_purchases_step' "
-    "AND indexdef NOT ILIKE '%%WHERE%%is_active%%') THEN "
-    "DROP INDEX uq_purchases_step; "
-    "CREATE UNIQUE INDEX uq_purchases_step ON purchases (step_id) WHERE is_active; "
-    "END IF; END $$;",
     # Die Dublettensperre der Postfach-Abgleichs (Migration 145) – ohne sie legt ein
     # zweiter Abgleich dieselbe Mail ein zweites Mal an.
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_rfc_id ON messages (rfc_id) "
@@ -476,15 +434,11 @@ def _repair_unit_status(conn, tables: set[str], insp) -> None:
         #
         # ►► **Die Liste kommt aus dem Katalog – und das ist hier der ganze Punkt.**
         #
-        # Diese Reparatur stand einmal als ``NOT IN ('freigegeben','im_prozess')``
-        # da, weil es damals nur diese beiden Zustände gab. Sie ist damit still
-        # veraltet, als ``Gesperrt`` und ``Verschrottet`` dazukamen: seither hat
-        # **jeder Start** – also jeder Deploy – jedes ausgesonderte Stück wieder auf
-        # ``freigegeben`` gesetzt. Ein verschrottetes Stück wurde grün, und zwar
-        # nicht beim Abschluss eines Auftrags, sondern beim nächsten Neustart. In
-        # keiner einzelnen Anfrage war das nachstellbar.
+        # Eine fest geschriebene Liste («nicht freigegeben, nicht im Prozess») veraltet
+        # still, sobald ein Zustand dazukommt – dann setzt **jeder Start** ein
+        # verschrottetes Stück wieder auf ``freigegeben`` (Migration 110).
         #
-        # Repariert wird darum nur noch, was der Katalog **nicht kennt** (der alte
+        # Repariert wird darum nur, was der Katalog **nicht kennt** (der alte
         # Platzhalter, Fremdwerte). Ein Zustand, der in ``CATALOG`` steht, ist per
         # Konstruktion nicht mehr betroffen – die Liste kann nicht wieder veralten.
         conn.execute(
@@ -524,8 +478,8 @@ def _repair_vouchers(conn, tables: set[str], insp) -> None:
                 conn.execute(text(stmt))
         # ►►► **Jede Zahl ist eine MENGE** (Migration ``141``, #1054–#1056). ◄◄◄
         #
-        # Ein Korrekturbeleg stand bis hierher im Minus. Die Leser lesen ihn
-        # seither als Menge – ohne diese Drehung wäre der offene Betrag das
+        # Vor 141 stand ein Korrekturbeleg im Minus. Die Leser lesen ihn als
+        # Menge – ohne diese Drehung wäre der offene Betrag das
         # Doppelte, und das fängt kein Schema-Netz. Selbstbegrenzend: gedreht
         # wird nur, was negativ ist.
         if {"amount", "vat", "corrects_id"} <= v_cols:
@@ -571,8 +525,7 @@ def _repair_people(conn, tables: set[str], insp) -> None:
 def _repair_companies(conn, tables: set[str], insp) -> None:
     if "company_settings" in tables:
         # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
-        # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht
-        # (gleiche Begründung wie beim ``documents``-Block oben).
+        # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht.
         cs_cols = {r[0] for r in conn.execute(text(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name='company_settings'"))}
@@ -795,7 +748,7 @@ def _backfill_object_registry() -> None:
 
 
 def _ensure_company_object_id() -> None:
-    """Das Unternehmen (Singleton) als nummerierten ERP-Datensatz sicherstellen:
+    """Den Betreiber (``sites.operator``) als nummerierten ERP-Datensatz sicherstellen:
     fehlt die Objektnummer, wird sie hier EINMALIG beim Start vergeben – deploy-
     deterministisch und unabhängig davon, ob jemand die Admin-Einstellungen öffnet
     (der öffentliche Settings-Endpoint vergibt bewusst keine Nummern)."""

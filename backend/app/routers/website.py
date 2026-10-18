@@ -56,5 +56,5 @@ def public_contact(request: Request, response: Response, country: str | None = N
         phone=tel.display(phone, e164),
         phone_e164=e164,
         email=(company.email or "").strip() or None,
-        address_lines=[line for line in addr.lines(a) if line.strip("— ")],
+        address_lines=addr.lines(a),
     )

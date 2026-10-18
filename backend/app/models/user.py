@@ -27,9 +27,8 @@ class UserProfile(Base, TimestampMixin):
     last_sign_in_provider: Mapped[Optional[str]] = mapped_column(String(40))
     #: ►►► **Die Rolle beantwortet GENAU EINE Frage: darf diese Person ins ERP?** ◄◄◄
     #:
-    #: ``admin`` · ``employee`` · ``user`` – mehr nicht. «Lieferant» und «Kunde» standen
-    #: hier einmal daneben und waren beide eine **Lüge über die Person**: *Lieferant ↔
-    #: Kunde ist eine Eigenschaft des VORGANGS*. Wer Partner einer Ausgabe ist, ist dort
+    #: ``admin`` · ``employee`` · ``user`` – mehr nicht. *Lieferant ↔ Kunde ist eine
+    #: Eigenschaft des VORGANGS*, nicht der Person. Wer Partner einer Ausgabe ist, ist dort
     #: Lieferant; bei einer Einnahme Kunde – dieselbe Person kann beides sein, und zwar
     #: gleichzeitig. Eine Spalte am Datensatz muss sich für eines entscheiden und liegt
     #: damit in der Hälfte der Fälle falsch. Dieselbe Bauart wie
@@ -44,11 +43,9 @@ class UserProfile(Base, TimestampMixin):
     phone: Mapped[Optional[str]] = mapped_column(String(50))
 
     # ►►► **Die Anschriften stehen im ADRESSBUCH** (``models/address_book.Address``,
-    # Migration 143). ◄◄◄ Hier standen zwei feste Sätze – Hauptadresse und
-    # Rechnungsadresse – samt Rechnungs-E-Mail und einer Kopie der einen in der anderen.
-    # Eine Person hat aber beliebig viele Orte (Wohnung, Büro, Lager, Baustelle), und
-    # wohin Ware und Rechnung gehen, entscheidet die Bestellung. Die Spalten haben ihr
-    # Mapping verloren und fallen im Folge-Deploy (docs/backlog.md).
+    # Migration 143). ◄◄◄ Eine Person hat beliebig viele Orte (Wohnung, Büro, Lager,
+    # Baustelle), und wohin Ware und Rechnung gehen, entscheidet die Bestellung. Die alten
+    # Anschrift-Spalten am Benutzer fallen im Folge-Deploy (docs/backlog.md).
     #: Das Adressbuch – nur lesend und nur die aktiven, älteste zuerst.
     addresses: Mapped[list["Address"]] = relationship(
         "Address",
@@ -61,15 +58,10 @@ class UserProfile(Base, TimestampMixin):
 
     # ─── Firma ──────────────────────────────────────────────────────────────────
     # ►►► **Die Firma ist ein eigener DATENSATZ, nicht ein Satz Felder an der Person**
-    # (CRM Schritt 1). ◄◄◄ Hier standen Firmenname, Rechtsform, UID, MWST-Nr.,
-    # Handelsregister und Website als Text an jeder Person – zwei Mitarbeiter derselben
-    # Kundenfirma trugen damit zwei Fassungen derselben Firma, und keine war ein
-    # Datensatz. Sie leben jetzt am Unternehmen (``company_settings``), und die Person
-    # zeigt darauf: ``company_object_id`` weiter unten, gelesen über ``company``.
-
-    # Die Bankverbindung an der Person ist entfallen: sensibel und ohne Leser. Eine
-    # IBAN gibt es nur an einer EIGENEN Gesellschaft (Überweisung, QR-Rechnung).
-    # Die vier Spalten fallen im Folge-Deploy (docs/backlog.md).
+    # (CRM Schritt 1). ◄◄◄ Name, Rechtsform und UID leben am Unternehmen
+    # (``company_settings``); die Person zeigt darauf: ``company_object_id`` weiter unten,
+    # gelesen über ``company``. Eine Bankverbindung hat die Person nicht – eine IBAN gibt
+    # es nur an einer EIGENEN Gesellschaft (Überweisung, QR-Rechnung).
 
     #: ►►► **Die Firma dieser Person** – eine eigene Gesellschaft (dann arbeitet sie
     #: bei uns) oder eine fremde (Kunde, Lieferant, Interessent). EINE Zuordnung für

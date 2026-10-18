@@ -6027,10 +6027,7 @@ def test_what_the_erp_already_knows_is_not_asked_again():
     # jemand den Fehler beschreibt, den er verhindern soll. (Gemessen: erste Fassung
     # scheiterte an ihrem eigenen «Kein ``receipt_email``».)
     svc = _read(BACKEND / "app" / "services" / "stripe_pay.py")
-    # ►►► **Der Adapter kennt das Geld-Modul als Schnittstelle, nicht als Namen.** ◄◄◄
-    # Es gibt zwei (``deal``, ``voucher``); ein Wächter, der ``deal_svc.billing_of``
-    # wörtlich verlangte, verböte ausgerechnet die Fassung, die beide trägt.
-    assert '"billing": svc.billing_of(' in svc, (
+    assert '"billing": voucher_svc.billing_of(' in svc, (
         "Der Dienst liefert die bekannten Angaben nicht mit (c)."
     )
     # ►►► **Und es gibt genau EINE Auskunft darüber** (Testnotiz #865). ◄◄◄

@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -70,14 +68,3 @@ async def remove_my_address(
     db.refresh(current_user)
     return current_user
 
-
-@router.post("/terms-accept", response_model=UserProfileResponse)
-async def accept_terms(
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    current_user.terms_accepted_at = datetime.now(timezone.utc)
-    current_user.terms_version = "1.0"
-    db.commit()
-    db.refresh(current_user)
-    return current_user

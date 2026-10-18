@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     #: was hier fehlt, kann sich nicht anmelden. Darum stehen hier genau die Adressen,
     #: unter denen die Oberfläche wirklich läuft (`.github/workflows/deploy-*.yml`);
     #: keine der beiden Bereitstellungen setzt CORS_ORIGINS, dieser Default IST also der
-    #: Betrieb. Frühere Einträge (`inexxio.web.app`, `inexxio.com`) waren nie ein Ziel.
+    #: Betrieb.
     cors_origins: list[str] = [
         "http://localhost:3000",
         "https://inexxio-dev.web.app",
@@ -96,7 +96,7 @@ def payment_service_ready() -> bool:
 
     Sie steht hier und nicht im Adapter, weil **zwei** Stellen sie brauchen und keine von
     beiden den Anbieter kennen soll: der Geldvorgang fragt sie, um den Bezahlen-Knopf
-    anzubieten (``services/deal.can`` – und dieselbe Liste ist das Tor), und der Adapter
+    anzubieten (``services/voucher.can`` – und dieselbe Liste ist das Tor), und der Adapter
     fragt sie, bevor er das SDK anfasst. Stünde sie im Adapter, müsste der Geldvorgang ihn
     importieren – und damit wüsste er, dass es Stripe ist.
 

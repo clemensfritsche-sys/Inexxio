@@ -151,6 +151,19 @@ Plausible ist entfernt (Entscheid E5, Oktober 2026): kein Skript, keine Einwilli
 kein Feld in der Systemkonfiguration. Die Spalte hat ihr ORM-Mapping verloren und ist
 `NULL`-fähig; sie fällt im Folge-Deploy (Zwei-Deploy-Regel).
 
+## Offen: `articles.landed_unit_cost` droppen (Folge-Deploy nach Cleanup Paket 5)
+
+Der Einstandspreis hatte seit dem Löschen von «Beschaffen» keinen Schreiber mehr und im
+Frontend keinen Leser; das ORM-Mapping und das Antwortfeld (`ArticleResponse`) sind
+entfernt. Die Spalte ist `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf. Im
+Folge-Deploy (Zwei-Deploy-Regel, **nach Sicherung der produktiven Datenbank**): Spalte
+droppen und den Eintrag `("articles", "landed_unit_cost", …)` aus
+`main._COLUMN_SAFETY_NET` entfernen – er legt sie bis dahin nur an, falls sie fehlt.
+
+*Nicht hierher gehören `user_profiles.terms_accepted_at`/`terms_version`: der Endpunkt
+`POST /auth/terms-accept` ist entfernt, das Mapping bleibt – die Benutzer-Ansicht im ERP
+zeigt eine früher erfasste Akzeptanz weiterhin an.*
+
 ## Offen: die Bankverbindung am Benutzer droppen (Folge-Deploy nach CRM Schritt 1b)
 
 `user_profiles.bank_account_holder`, `bank_iban`, `bank_bic`, `bank_name` haben ihr

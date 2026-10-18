@@ -51,11 +51,10 @@ IM_PROZESS = "im_prozess"
 #: Zugehörigkeit geschlossen **und** vor keinem Modul mehr stehend.
 ABGESCHLOSSEN = "abgeschlossen"
 
-#: Das Ziel ist nicht mehr erreichbar (**Auftrag**). Der erste Wert mit dem **roten** Ton –
-#: bis hierher hatte er keinen, und ein erfundener wäre schlimmer gewesen als keiner.
+#: Das Ziel ist nicht mehr erreichbar (**Auftrag**) – roter Ton.
 ABGEBROCHEN = "abgebrochen"
 
-#: Ausser Betrieb (**Artikel**). Endgültig – kein Reaktivieren.
+#: Ausser Betrieb (**Artikel**): von einem Nachfolger abgelöst (``Article.status``).
 INAKTIV = "inaktiv"
 
 #: Aus dem Verkehr gezogen und **physisch weg** (**Einzelinstanz**). Endgültig: es gibt
@@ -156,10 +155,8 @@ class Status:
     #:   Statuswechsel aus einem Endzustand ab. Nicht als Anwendungsregel, sondern als
     #:   Eigenschaft der Tabelle – es gibt keinen Parameter, der ihn abschaltet.
     #:
-    #: **Die Farbe folgt NICHT hieraus.** Hier stand einmal «was endgültig ist, ist rot;
-    #: was aufhebbar ist, gelb» – das stimmte, solange die einzigen beiden Ausgänge
-    #: *Verschrottet* und *Gesperrt* hiessen. Mit *Verbaut* stimmt es nicht mehr: ein
-    #: verbautes Stück ist aufhebbar **und** grün, weil es seinen Zweck erreicht hat. Der
+    #: **Die Farbe folgt NICHT hieraus**: ein verbautes Stück ist aufhebbar **und** grün,
+    #: weil es seinen Zweck erreicht hat. Der
     #: Ton sagt «gut · offen · Problem», ``terminal`` sagt «gibt es einen Weg zurück» –
     #: zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
     #: falsch. Sie steht darum je Eintrag im Katalog.
@@ -297,9 +294,7 @@ SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(
 )
 
 # **Keine Liste «was zählt zum Bestand»** – die Frage beantwortet ``stock_kind`` je
-# Zustand. Sie stand hier einmal als abgeleitete Liste und war der Rückfall in genau das
-# Muster, das dieses Modul abschaffen soll: eine zweite Aufzählung, die jemand liest,
-# statt die Eigenschaft zu fragen.
+# Zustand; eine zweite Aufzählung daneben läse man, statt die Eigenschaft zu fragen.
 
 # ---------------------------------------------------------------------------
 # Die festen Rand-Übergänge (§4.1)

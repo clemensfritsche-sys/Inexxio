@@ -5,18 +5,15 @@ Instanz und nicht am Artikel; eine Auswertung «wie steht die Charge da?» ist e
 Summierung darüber, keine eigene Zeile. Das ist die Einzelinstanz-Regel, hier als
 Fremdschlüssel.
 
-**Was erfasst wird, sagt das Modul** (``process_steps.config``), nicht der Artikel. Die
-frühere Maske am Artikel (``articles.capture_fields``) ist entfallen: sie war eine
-zweite Stelle für dieselbe Frage, und sie hing an keinem Prozess – man konnte an einem
-Stück erfassen, ohne dass es irgendwo davorstand.
+**Was erfasst wird, sagt das Modul** (``process_steps.config``), nicht der Artikel – eine
+Maske am Artikel hinge an keinem Prozess.
 
 **Erfassen ist ein Vorgang, kein Formular.** Es gibt darum keinen Endpunkt, der eine
 Erfassung ohne Modul schreibt: geschrieben wird ausschliesslich hier, im selben Zug wie
 der Statuswechsel (``process._pass``).
 
-**Gelesen wird sie am Prozess, nicht am Stück** (Testnotiz #677). Die frühere Historie
-am Instanz-Detail war eine zweite Ansicht auf dieselbe Sache, an einem Ort, an dem man
-nicht arbeitet: erfasst wird an einem Modul, und dort steht auch, was erfasst wurde.
+**Gelesen wird sie am Prozess, nicht am Stück** (Testnotiz #677): erfasst wird an einem
+Modul, und dort steht auch, was erfasst wurde.
 Die Zeilen selbst bleiben – sie sind der Nachweis, nicht die Ansicht.
 """
 

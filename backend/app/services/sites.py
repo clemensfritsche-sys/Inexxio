@@ -3,9 +3,7 @@
 **Ein gleichrangiger Datensatztyp.** Es gibt genau EINEN Datensatztyp «Unternehmen»
 (``company_settings``, Feed-Typ ``organization``). Jede Zeile ist eine **vollständige
 juristische Einheit** mit eigener Objektnummer: eigener Name, Anschrift, Rechtsidentität
-(UID/EIN/VAT), Bank, MWST. Keine Zeile ist einer anderen untergeordnet – der frühere
-«Hauptsitz vs. Standort»-Unterschied (eine Zeile privilegiert, die übrigen kastriert) ist
-ersatzlos entfallen.
+(UID/EIN/VAT), Bank, MWST. Keine Zeile ist einer anderen untergeordnet.
 
 **Die eine verbleibende Asymmetrie ist kein Rang, sondern eine Rolle.** Genau eine Frage
 braucht trotz N Gesellschaften **eine** Antwort: *wer vertritt die eine Website nach
@@ -15,10 +13,9 @@ ist **wählbar** (``is_operator``, partieller Unique-Index: genau eine trägt si
 markiert (frische Datenbank, Migration 091 noch nicht gelaufen), gilt das **älteste**
 Unternehmen – so gibt es nie «keinen Betreiber», und jeder Beleg hat einen Absender.
 
-**Warum es dieses Modul gibt.** Zehn Stellen im Code holten sich früher «die Firma» selbst
-– mal ``id == 1``, mal ein blosses ``.first()``. Bei einer Zeile war beides dasselbe; ab
-der zweiten ist ``.first()`` eine **willkürliche Wahl**. Deshalb läuft die Auflösung nur
-hier:
+**Warum es dieses Modul gibt.** «Die Firma» holt sich niemand selbst – bei mehr als einer
+Zeile wäre ein blosses ``.first()`` eine **willkürliche Wahl**. Deshalb läuft die
+Auflösung nur hier:
 
   * ``operator(db)`` → der **Betreiber** (Website, Impressum, Plattform-Konfiguration,
     Fallback). Schreib-Form: legt ihn an, falls die Datenbank leer ist.

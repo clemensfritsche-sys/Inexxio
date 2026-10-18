@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
-from ..models import AuditLog, UserProfile
+from ..models import UserProfile
 from ..schemas.admin import (
     CompanyCreate,
     CompanyPerson,
@@ -14,7 +14,6 @@ from ..schemas.admin import (
     TerritoryCountry,
     TerritoryMapResponse,
     TerritoryRegion,
-    UserProfileResponse,
 )
 from ..services import sites
 from ..services.admin import log_audit
@@ -39,9 +38,7 @@ def _company_response(db: Session, company) -> CompanySettingsResponse:
     stellen – vor Admins zu verbergen, was wir jedem Kunden schicken, verbirgt nichts und
     macht die Anzeige unwahr.
 
-    *Der Spaltenname ``iban_encrypted`` bleibt, verschlüsselt wird dort nichts (er stammt
-    aus dem Vorgängersystem) – eine Umbenennung ist eine Migration und gehört nicht in
-    eine Testnotizen-Runde.*
+    *Der Spaltenname ``iban_encrypted`` lügt: verschlüsselt wird dort nichts.*
     """
     from ..services import address
     resp = CompanySettingsResponse.model_validate(company)
@@ -93,9 +90,8 @@ async def update_settings(
 async def get_public_settings(db: Session = Depends(get_db)):
     """Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
 
-    Er steht ohnehin im Browser (auf die Domain eingeschränkt). Was hier früher daneben
-    stand (Anschrift, UID, eine erfundene «Inexxio AG» ohne Betreiber), hatte keinen Leser
-    mehr: Impressum und Kontaktdaten liefert die Website bzw. ``/public/contact``."""
+    Er steht ohnehin im Browser (auf die Domain eingeschränkt). Impressum und
+    Kontaktdaten liefert die Website bzw. ``/public/contact``."""
     from ..services.sites import find_operator
     s = find_operator(db)
     return {"google_maps_api_key": s.google_maps_api_key if s else None}
@@ -105,9 +101,9 @@ async def get_public_settings(db: Session = Depends(get_db)):
 #
 # EIN gleichrangiger Datensatztyp (``organization``). Jede Gesellschaft ist vollständig:
 # eigene Rechtsidentität, Bank, MWST. Anlegen/Ändern sind **admin-only** (fix vorgegeben);
-# an der Sichtbarkeit im ERP ändert das nichts. Die Rechtsidentität wird hier – anders als
-# beim früheren «Standort» – auf JEDEM Datensatz gepflegt (die US-Gesellschaft hat ihre
-# eigene). Plattform-/Systemkonfiguration bleibt getrennt (``PATCH /admin/settings``).
+# an der Sichtbarkeit im ERP ändert das nichts. Die Rechtsidentität wird auf JEDEM
+# Datensatz gepflegt (die US-Gesellschaft hat ihre eigene). Plattform-/
+# Systemkonfiguration bleibt getrennt (``PATCH /admin/settings``).
 
 @router.get("/companies", response_model=list[CompanySettingsResponse])
 async def list_companies(
@@ -268,53 +264,3 @@ async def assign_territory(
     sites.set_territory(db, area, data.company_object_id, current_user.id)
     return _territory_map_response(db)
 
-
-@router.get("/users", response_model=list[UserProfileResponse])
-async def list_users(
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    return [UserProfileResponse.model_validate(u) for u in
-            db.query(UserProfile).order_by(UserProfile.email).all()]
-
-
-# **Ein Benutzer wird nicht deaktiviert – er wechselt die Rolle** (Testnotiz #755).
-#
-# Wer das Unternehmen verlässt, hört nicht auf zu existieren: er wird vom Mitarbeiter zum
-# Kunden und darf weiter einkaufen. Ein Soft-Delete an der Person beantwortete eine Frage,
-# die niemand stellt – und er hatte Folgen, die niemand wollte (die Anmeldung sperren,
-# offene Dokument-Freigaben blockieren, eine Identität stilllegen, auf die Aufträge,
-# Instanzen und Belege zeigen). Beide Endpunkte (`DELETE /users/{id}` und
-# `POST /users/{id}/reactivate`) sind darum ersatzlos entfallen; gepflegt wird die Rolle,
-# und das an der einen Stelle, an der jeder Datensatz gepflegt wird
-# (`PATCH /erp/records/{object_id}`).
-#
-# Die Abweisung beim Login (`core/auth`) bleibt: sie verhindert, dass eine deaktivierte
-# Alt-Zeile still als **neuer** Benutzer wiederaufersteht. Setzen kann diesen Zustand
-# nichts mehr; Migration 118 hat die bestehenden aufgehoben.
-
-
-# ─── Audit log ────────────────────────────────────────────────────────────────
-
-@router.get("/audit-log")
-async def get_audit_log(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    table_name: str | None = Query(None),
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_admin),
-):
-    q = db.query(AuditLog)
-    if table_name:
-        q = q.filter(AuditLog.table_name == table_name)
-    total = q.count()
-    logs = q.order_by(AuditLog.changed_at_utc.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return {
-        "total": total, "page": page, "page_size": page_size,
-        "items": [
-            {"id": l.id, "object_id": l.object_id, "table_name": l.table_name,
-             "field_name": l.field_name, "old_value": l.old_value, "new_value": l.new_value,
-             "user_id": l.user_id, "changed_at_utc": l.changed_at_utc}
-            for l in logs
-        ],
-    }

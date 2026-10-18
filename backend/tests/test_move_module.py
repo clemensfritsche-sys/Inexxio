@@ -138,7 +138,7 @@ def test_a_move_sets_the_place_and_nothing_else():
     muss.
     """
     from app.domain import statuses as st
-    from app.services import places as places_svc
+    from app.models import InstanceUnit
 
     db = _db()
     try:
@@ -158,7 +158,8 @@ def test_a_move_sets_the_place_and_nothing_else():
         # **Der Ort ändert den Status nicht.** Das Modul ist ein Durchläufer; dass der
         # Auftrag danach fertig ist (ein Modul, danach das Ende), ist eine Aussage über
         # den Ablauf, nicht über den Ort.
-        assert places_svc.counts_at(db, shelf.object_id) == 3
+        assert db.query(InstanceUnit).filter(
+            InstanceUnit.place_object_id == shelf.object_id).count() == 3
     finally:
         db.rollback()
         db.close()

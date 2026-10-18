@@ -61,10 +61,7 @@ class InstanceUnit(Base, TimestampMixin):
     #: **Wo dieses Stück liegt** – die Objektnummer seines Halters (``services/places``).
     #:
     #: Der Ort hängt am **Stück** und nicht an der Instanz: zwei Schrauben derselben
-    #: Charge dürfen an zwei Orten liegen. Genau das konnte das Vorgängersystem nicht –
-    #: es führte eine Standort→Menge-Map an der Instanz plus einen denormalisierten
-    #: Skalar daneben, mit einem Umschalter dazwischen. Im Einzelinstanz-Modell fällt das
-    #: ersatzlos weg: ein Stück, ein Ort.
+    #: Charge dürfen an zwei Orten liegen: ein Stück, ein Ort.
     #:
     #: **Kein Typfeld daneben.** Objektnummern sind systemweit eindeutig, der Typ ist
     #: daraus ableitbar (``objects.resolve_object_type``). Halter ist alles, was eine

@@ -1,10 +1,6 @@
 """**Der Beleg und was zu ihm gehört** – die Tabellen des Moduls «Zahlung».
 
-Vier Tabellen, und drei davon sind der Grund für den Neuaufbau: beim Vorgänger standen
-der **Angebotsspiegel** und die **Positionen** als JSONB an der Kopfzeile, die Positionen
-sogar in drei verschiedenen Formen (abgeleitet · je Angebot kopiert · eingefroren).
-
-Hier ist jede Sache eine Zeile:
+Vier Tabellen – jede Sache eine Zeile:
 
 =================  ==========================================================
 ``vouchers``       der Beleg selbst – je Modul einer, **und er IST die Rechnung**
@@ -13,29 +9,18 @@ Hier ist jede Sache eine Zeile:
 ``voucher_entries``die Zahlungen darauf
 =================  ==========================================================
 
-►►► **Die Forderung ist keine Zeile mehr.** ◄◄◄ Sie stand als ``voucher_entries`` mit
-``kind = 'charge'`` **im** Beleg und trug Betrag, Nummer, Datum, Fälligkeit und Steuer –
-also eine Kopie des Belegs, der sie enthielt. Jetzt steht sie am Beleg selbst, und damit
-kann es sie nicht zweimal geben: «eine Rechnung je Modul» ist keine Regel mehr, die eine
-Funktion zählt, sondern die **Struktur**. Eine **Korrektur** ist ein eigener Beleg
-(``corrects_id``), der über Auftragsgrenzen zeigen darf – sie gehört dorthin, wo die Ware
-zurückkommt.
-
-**Ohne Bezug zu ``deals``.** Das ist Absicht: dieses Modul soll bestehen bleiben, wenn
-das alte Zahlungsmodul eines Tages ersatzlos gelöscht wird.
+►►► **Die Forderung ist keine Zeile, sondern der Beleg selbst.** ◄◄◄ Betrag, Nummer,
+Datum, Fälligkeit und Steuer stehen am Beleg – damit kann es sie nicht zweimal geben:
+«eine Rechnung je Modul» ist keine Regel, die eine Funktion zählt, sondern die
+**Struktur**. Eine **Korrektur** ist ein eigener Beleg (``corrects_id``), der über
+Auftragsgrenzen zeigen darf – sie gehört dorthin, wo die Ware zurückkommt.
 
 ## Was hier NICHT steht, und warum
 
-Drei Spalten des Vorgängers sind ersatzlos entfallen, weil sie **Ableitungen** waren:
-
-``party_id``   *mit wem* – das ist die Angebotszeile im Zustand ``gewaehlt``.
-``amount``     *was vereinbart ist* – der Betrag **dieser** Zeile.
-``due_days``   *die Zahlungsfrist* – die Frist **dieser** Zeile.
-
-Am Vorgänger standen sie daneben und wurden beim Zuschlag hineinkopiert; damit konnte
-derselbe Beleg zwei Dinge sagen, und eine eigene Regel (``_agree`` weist einen
-abweichenden Betrag ab) musste das verhindern. Als Ableitung kann der Widerspruch **nicht
-entstehen** – eine Regel weniger, und zwar konstruktiv.
+*Mit wem*, *was vereinbart ist* und *welche Zahlungsfrist* sind **Ableitungen** aus der
+Angebotszeile im Zustand ``gewaehlt`` – keine Spalten am Beleg. Daneben gespeichert
+könnte derselbe Beleg zwei Dinge sagen; als Ableitung kann der Widerspruch **nicht
+entstehen**. (``vouchers.amount`` ist der **Rechnungsbetrag**, eingefroren mit ``bill``.)
 """
 
 from datetime import date
@@ -122,19 +107,13 @@ class Voucher(Base, TimestampMixin):
     #: ►►► **Wen dieser Beleg betrifft — wo die Definition niemanden nennt** (#1000). ◄◄◄
     #:
     #: ``config.parties`` am Modul ist eine **Vorlage**: sie sagt, wer in Frage kommt, und
-    #: gilt für jeden künftigen Auftrag. Lässt sie **jeden** zu (leer), muss die Wahl
-    #: irgendwo hin – und bis hierher gab es dafür keinen Ort: der Klick im Feld löste
-    #: sofort ``ask`` aus, und das geht nur mit einem **vollständigen** Beleg hinaus.
-    #: Fehlte Preis, Frist oder Lieferbedingung, wies der Dienst zu Recht ab, und die
-    #: getroffene Wahl war weg. Sie war damit die letzte Angabe des Belegs ohne eigenes
-    #: Verb – dieselbe Lücke wie bei den Fristen (#985), nur eine Runde später.
+    #: gilt für jeden künftigen Auftrag. Lässt sie **jeden** zu (leer), braucht die Wahl
+    #: einen eigenen Ort mit eigenem Verb (``party``) – ``ask`` geht nur mit einem
+    #: **vollständigen** Beleg hinaus.
     #:
-    #: **Und es ist kein Rückfall in die Form des Vorgängers.** Dort stand der
-    #: *Angebotsspiegel* als JSONB – eine **Entität** mit Betrag, Fristen, Zustand und
-    #: Datum. Hier steht eine Liste von Objektnummern, genau so, wie sie eine Zeile höher
-    #: in ``config.parties`` steht: keine Eigenschaften, keine Zustände, nichts, wonach
-    #: jemand filtern müsste. Was hinausgegangen ist, bleibt eine **Zeile**
-    #: (``voucher_quotes``) – das ist der Unterschied, um den es ging.
+    #: Eine Liste von **Objektnummern**, genau so, wie sie in ``config.parties`` steht:
+    #: keine Eigenschaften, keine Zustände. Was hinausgegangen ist, bleibt eine **Zeile**
+    #: (``voucher_quotes``).
     #:
     #: **Immer neu zuweisen, nie an Ort ändern**: ein mutierter JSONB-Wert fällt still aus
     #: dem ``UPDATE``.
@@ -144,11 +123,8 @@ class Voucher(Base, TimestampMixin):
     #: ►►► **Die beiden Fristen als ENTWURF** – was auf dem Beleg steht, bevor er
     #: hinausgeht (Testnotiz #985). ◄◄◄
     #:
-    #: Sie lebten nur im Browser und reisten allein in der Nutzlast von ``ask`` mit: wer
-    #: sie tippte und die Seite neu lud, hatte sie verloren. Das war **keine Eigenheit
-    #: dieser zwei Felder**, sondern die einzige Stelle des Belegs ohne eigenes Verb –
-    #: Währung, Aussteller, Lieferbedingung, Preis und Zoll werden längst sofort
-    #: geschrieben.
+    #: Jeder änderbare Wert des Belegs wird sofort geschrieben (Verb ``terms``), keiner
+    #: lebt nur im Browser.
     #:
     #: **Die Vereinbarung steht weiterhin an der Angebotszeile.** Das hier ist der
     #: Entwurf; ``lead_days_of``/``due_days_of`` lesen die gewählte Zeile und fallen
@@ -161,15 +137,10 @@ class Voucher(Base, TimestampMixin):
     payment_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # -----------------------------------------------------------------------
-    # ►►► DIE RECHNUNG — acht Angaben, die eine Ebene tiefer standen ◄◄◄
+    # ►►► DIE RECHNUNG — der Beleg IST sie ◄◄◄
     # -----------------------------------------------------------------------
     #
-    # Sie hingen an einer Zeile in ``voucher_entries`` (``kind = 'charge'``) – also an
-    # einem Datensatz **im** Beleg, der Betrag, Nummer, Datum, Fälligkeit und Steuer noch
-    # einmal trug. Eine Kopie des Belegs, der sie enthielt; dieselbe Fehlerform, die der
-    # Neuaufbau bei den Positionen schon einmal beseitigt hat.
-    #
-    # ►►► **Jetzt IST der Beleg die Rechnung.** ◄◄◄ Damit kann es sie nicht zweimal geben,
+    # Damit kann es sie nicht zweimal geben,
     # und «eine Rechnung je Modul» ist keine Regel mehr, die eine Funktion zählt, sondern
     # die Struktur. Eine **Korrektur** ist ein eigener Beleg (``corrects_id``).
 
@@ -188,16 +159,9 @@ class Voucher(Base, TimestampMixin):
     #: vergebene Nummer wird nicht erneut vergeben.
     number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
-    # ►►► **Hier stand ``issued_on`` – «wann die Rechnung hinausging»** (Testnotiz
-    # #1047). ◄◄◄ Gesetzt wurde es von einem eigenen Knopf («Rechnung ist versendet»), und
-    # die Hausregel sagte dazu selbst, dass sie eine Ausnahme ist: *der Moment braucht
-    # keine Spalte.* Gebraucht hat ihn niemand – das **Fälligkeitsdatum** kommt aus dem
-    # Rechnungsdatum, und der Rest war eine Handlung, die der Mensch für das System
-    # ausführte, damit das System sie protokolliert.
-    #
-    # Was sie trug, sagt jetzt ``billed_on``: **gestellt ist draussen.** Die Rücknahme
-    # endet damit an der stärkeren der beiden Bedingungen, die sie ohnehin hatte – es ist
-    # **Geld geflossen**. Die Spalte selbst fällt im Folge-Deploy (Zwei-Deploy-Regel).
+    # **Gestellt ist draussen** (#1047): ``billed_on`` sagt es, ein «versendet» gibt es
+    # nicht. Die Spalte ``issued_on`` steht noch in der Datenbank und fällt im
+    # Folge-Deploy (``docs/backlog.md``).
 
     #: **Der Rechnungsbetrag, brutto** – eingefroren mit dem Stellen. Bei einem
     #: **Korrekturbeleg** negativ: die Positionen tragen positive Preise (niemand tippt ein
@@ -257,12 +221,8 @@ class VoucherQuote(Base, TimestampMixin):
     ►►► **Eine Tabelle, keine Liste an einem Feld.** ◄◄◄
 
     Sie hat einen Zustand, ein Datum, einen Betrag und zwei Fristen – das ist eine Sache,
-    keine Eigenschaft. Beim Vorgänger stand sie als JSONB an der Kopfzeile, und daraus
-    folgten drei Dinge, die es hier nicht mehr gibt: die ganze Liste musste bei jeder
-    Änderung **neu gebaut** werden (ein mutierter JSONB-Wert fällt still aus dem
-    ``UPDATE``), das Datum des Hinausgehens musste **nachträglich hineingeflickt** werden,
-    und «woran ist dieser Betrachter beteiligt?» war eine JSONB-Containment-Abfrage statt
-    einer gewöhnlichen ``WHERE``-Bedingung.
+    keine Eigenschaft. Als Tabelle ändert man eine Zeile an Ort, und «woran ist dieser
+    Betrachter beteiligt?» ist eine gewöhnliche ``WHERE``-Bedingung.
 
     **Der Zustand ist eine Folge, kein Tippen**: ``gewaehlt`` entsteht dadurch, dass bei
     dieser Zeile zugesagt wurde – und damit ist *diese* Zeile die Antwort auf «mit wem, zu
@@ -301,15 +261,12 @@ class VoucherQuote(Base, TimestampMixin):
     lead_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     payment_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
-    #: Wann die Zeile hinausging – die Chronik fragt «wann wurde offeriert».
+    #: Wann die Zeile hinausging – das Datum auf dem Papier.
     sent_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
 
 class VoucherLine(Base, TimestampMixin):
     """**Eine Position** – und es gibt sie genau in dieser einen Form.
-
-    Beim Vorgänger existierte dieselbe Sache dreimal: abgeleitet aus dem Prozess, kopiert
-    in jede Angebotszeile und eingefroren an der Kopfzeile – angefasst an 21 Stellen.
 
     ►►► **Eingefroren wird durch die STUFE, nicht durch eine Kopie.** ◄◄◄ Solange der
     Beleg auf ``offer`` steht, zieht ``sync_lines`` Artikel und Mengen aus dem Prozess
@@ -376,11 +333,8 @@ class VoucherLine(Base, TimestampMixin):
 class VoucherEntry(Base, TimestampMixin):
     """**Eine Zahlung** – eine Zeile Geld am Beleg. Negativ ist die Erstattung.
 
-    ►►► **Hier standen einmal zwei Arten.** ◄◄◄ ``kind = 'charge'`` war die **Forderung**,
-    also eine Rechnung als Datensatz *im* Beleg – mit Betrag, Nummer, Datum, Fälligkeit und
-    Steuer, allesamt Angaben, die der Beleg selbst trug. Sie ist eine Ebene höher gewandert
-    (``Voucher.billed_on`` & Co.), und damit ist dies die einzige verbliebene Art: ein
-    ``kind`` daneben wäre ein Feld mit genau einem Wert.
+    **Eine Art, kein ``kind``**: die Forderung ist der Beleg selbst (``Voucher.billed_on``
+    & Co.).
 
     **Gelöscht wird nichts** – auch eine Erstattung ist eine neue Zeile mit negativem
     Betrag, nie eine Änderung an der alten: eine Zahlung ist die Aufzeichnung dessen, was
@@ -414,20 +368,3 @@ class VoucherEntry(Base, TimestampMixin):
     #: anderen der Webhook.
     method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
-
-# ---------------------------------------------------------------------------
-# ►►► EINE AUFTEILUNGS-TABELLE GIBT ES NICHT MEHR ◄◄◄
-# ---------------------------------------------------------------------------
-#
-# Hier stand ``VoucherAllocation``: *wie viel dieser Zahlung auf welchen Beleg geht*. Sie
-# beantwortete eine Frage, die es **innerhalb eines Belegs** nicht mehr gibt – dort lebt
-# genau eine Rechnung, also ist jede Zahlung dieses Moduls ihre.
-#
-# **Der Fall bleibt real**: eine Überweisung über 1'500 begleicht eine Rechnung über 1'000
-# und eine über 500. Nach diesem Umbau liegen die beiden zwingend in **verschiedenen
-# Modulen**, also ist es eine Zuordnung über Modulgrenzen – und das ist die
-# **offene-Posten-Liste je Partner**, nicht eine Tabelle an einem Prozessschritt. Bis es
-# sie gibt, erfasst man zwei Zahlungen, wo im Kontoauszug eine steht: eine Zeile mehr auf
-# dem Bildschirm, keine falsche Zahl (``docs/backlog.md``).
-#
-# Die **Tabelle** bleibt stehen (Zwei-Deploy-Regel); kein Modell verweist mehr auf sie.

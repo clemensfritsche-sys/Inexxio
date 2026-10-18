@@ -12,7 +12,7 @@ class Attachment(Base, TimestampMixin):
     Token** ausgeliefert – ohne eigene Cloud-Infrastruktur, sofort lauffähig (später auf
     GCS umstellbar, indem nur der Service dahinter wechselt).
 
-    Verbraucher (Datenerfassung, Verkauf/Shop) speichern die **URL** (``/api/v1/attachments/
+    Verbraucher (die Datenerfassung) speichern die **URL** (``/api/v1/attachments/
     {token}``) als String in ihren Feldern – kein Fremdschlüssel, self-contained. Bilder werden
     beim Upload normalisiert (EXIF-Rotation, max. Kantenlänge, JPEG) → beschränkte Grösse."""
 

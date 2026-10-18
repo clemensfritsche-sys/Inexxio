@@ -106,10 +106,10 @@ def order_ref(object_id: int) -> str:
     return f"order:{object_id}"
 
 
-#: **Je Nachbar ein eigenes Paar.** Zwei Abweichungen am selben Zustandspunkt teilten
-#: sich früher einen Abzweige- und einen Rückführpunkt – und damit musste die erste
-#: Rückführung an der zweiten Abweichung *vorbei*, quer über die Fläche. Mit einem
-#: eigenen Paar je Nachbar liegt jeder Rückweg unmittelbar unter seinem Hinweg; die
+#: **Je Nachbar ein eigenes Paar.** Teilten sich zwei Abweichungen am selben
+#: Zustandspunkt einen Abzweige- und einen Rückführpunkt, müsste die erste Rückführung an
+#: der zweiten Abweichung *vorbei*, quer über die Fläche. Mit einem eigenen Paar je
+#: Nachbar liegt jeder Rückweg unmittelbar unter seinem Hinweg; die
 #: Kreuzung ist damit nicht vermieden, sondern **unmöglich** (§8.1a‴).
 def fork_id(at: Optional[int], target: int) -> str:
     return f"fork:{at if at is not None else 'end'}:{target}"
@@ -173,11 +173,9 @@ class Edge:
 class Neighbour:
     """Ein Auftrag, der an diesem hier hängt — **aus dem Graph, nicht daneben gezählt**.
 
-    Welche Nachbarn es gibt, stand einmal an zwei Stellen: die Spalten kamen aus einer
-    eigenen Log-Abfrage, die Linien aus den Kanten dieses Graphs. Zwei Ableitungen
-    derselben Sache laufen auseinander – und dann steht im Bild ein Abzweigepunkt, dessen
-    Nachbar fehlt (kein Block, keine Linie, nur der Punkt). Jetzt ist es **dieselbe**
-    Liste: ein Nachbar existiert genau dann, wenn es seine Kante gibt.
+    Spalten und Linien lesen **dieselbe** Liste: ein Nachbar existiert genau dann, wenn es
+    seine Kante gibt. Zwei Ableitungen liefen auseinander – ein Abzweigepunkt ohne
+    Nachbar.
     """
 
     object_id: int
@@ -645,11 +643,9 @@ def _merged(found: list[Neighbour]) -> list[Neighbour]:
 # Die Zuordnung — **eine** Stelle, an der ein Stück auf eine Kante kommt
 # ---------------------------------------------------------------------------
 #
-# Der Zähler an der Pille und die Liste im Dropdown lasen früher aus zwei verschiedenen
-# Quellen: die Pille aus dem Graph, das Dropdown aus einer gröberen Abfrage
-# «alle Stücke an Schritt X». Bei einer Teilung stimmte darum die Zahl, aber die Liste
-# zeigte beide Gruppen – zweimal dieselbe. Jetzt beantwortet **ein** Prädikat je Kante
-# beide Fragen: ``build`` zählt, was es zurückgibt, ``units_on`` listet es auf.
+# Der Zähler an der Pille und die Liste im Dropdown fragen **ein** Prädikat je Kante:
+# ``build`` zählt, was es zurückgibt, ``units_on`` listet es auf. Eine gröbere zweite
+# Abfrage («alle Stücke an Schritt X») zeigte an einer Teilung beide Gruppen.
 
 def _targets_at(at: Optional[int], tally: _Tally, pending: set,
                 plan: list["Planned"]) -> list[int]:

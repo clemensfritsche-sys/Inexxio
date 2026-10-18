@@ -8,12 +8,9 @@ from pydantic import BaseModel, ConfigDict, computed_field
 class CompanySettingsUpdate(BaseModel):
     """Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
 
-    **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,
-    Aktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto
-    sind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was
-    UID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist
-    die Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen
-    mit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.
+    **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.
+    Zahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),
+    MWST-Methode/-Periode kommen mit der Buchhaltung (Phase 3), die sie auswertet.
 
     ``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**
     (``sites.website_url`` = die Deployment-Adresse), keine Eingabe."""
@@ -154,12 +151,6 @@ class CompanySettingsResponse(BaseModel):
     vat_number: Optional[str]
     # ►►► **Die eigene IBAN steht ausgeschrieben da** (Testnotiz #870). ◄◄◄
     #
-    # Hier stand ``iban_masked`` («CH12 **** **** **** 8901»), und das Feld im Browser
-    # blieb **leer** – die echte Nummer kam nie zurück. Damit sah ein Unternehmen **mit**
-    # Bankverbindung aus wie eines ohne, und wer die QR-Rechnung sah, musste glauben, das
-    # System habe sie erfunden: *«das System darf nicht auf einmal aus dem Nichts
-    # Bankverbindungen zaubern»*.
-    #
     # **Sie ist kein Geheimnis.** Sie steht auf jeder Rechnung, die wir stellen, und im
     # QR-Code, den wir dem Zahlenden hinlegen – gegenüber genau den Personen, die sie hier
     # sehen (Admin). Maskiert wird, was der Empfänger nicht sehen **soll**; hier war es
@@ -296,14 +287,11 @@ class UserProfileUpdate(BaseModel):
     newsletter_opt_in: Optional[bool] = None
 
 
-# Gültige Rollen – EINE Quelle der Wahrheit für beide Rollen-Endpunkte
-# (PATCH /admin/users/{id}/role und PATCH /erp/records/{id}).
+# Gültige Rollen – EINE Quelle der Wahrheit (``PATCH /erp/records/{id}``,
+# ``POST /erp/records``).
 #
-# ►►► **Die Rolle ist der ZUGANG, nichts weiter** (Testnotiz #1043). ◄◄◄ «Lieferant» und
-# «Kunde» standen hier und waren eine Aussage über **Vorgänge**: wer Partner einer Ausgabe
-# ist, ist dort Lieferant, bei einer Einnahme Kunde – dieselbe Person kann beides sein,
-# und eine Spalte am Datensatz muss sich für eines entscheiden. Gelesen wurde die
-# Unterscheidung ohnehin von niemandem: jedes echte Tor im Haus fragt
+# ►►► **Die Rolle ist der ZUGANG, nichts weiter** (Testnotiz #1043). ◄◄◄ Lieferant ↔
+# Kunde ist eine Aussage über **Vorgänge**, nicht über die Person. Jedes Tor im Haus fragt
 # ``people.STAFF_ROLES``.
 Role = Literal["admin", "employee", "user"]
 

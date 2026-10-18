@@ -1,13 +1,11 @@
-"""**Der Beleg über die API** – die Formen des neu aufgebauten Moduls «Zahlung».
+"""**Der Beleg über die API** – die Formen des Moduls «Zahlung».
 
-Eigenständig wie sein Dienst: keine Zeile hiervon hängt an ``schemas/deal``. Beträge
-reisen als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float``
+Beträge reisen als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float``
 gerechnet, auch nicht auf dem Weg durch JSON.
 
 ►►► **Die Tür muss jedes Feld kennen.** ◄◄◄ Pydantic verwirft Unbekanntes
 **stillschweigend**: ein Feld, das hier fehlt, kommt nie an, und **kein Dienst-Test findet
-das** – die rufen den Dienst direkt. Genau daran sind schon ``ModuleConfigInput`` und
-``DealUpdate`` einmal gescheitert.
+das** – die rufen den Dienst direkt.
 """
 
 from datetime import date, datetime
@@ -51,8 +49,6 @@ class VoucherQuoteOut(BaseModel):
     lead_days: Optional[int] = None
     payment_days: Optional[int] = None
     state: str = "angefragt"
-    #: **Das Datum auf dem Papier** – ein Beleg trägt einen Tag, keine Uhrzeit.
-    sent_on: Optional[date] = None
     #: ►►► **Wann die Zeile hinausging** (Testnotiz #968) – der **Moment**, nicht der Tag.
     #:
     #: Er steht ohne eine eigene Spalte da: ``created_at`` der Angebotszeile *ist* dieser
@@ -125,9 +121,7 @@ class VatShare(BaseModel):
 class VoucherLineOut(BaseModel):
     """**Eine Position** – und es gibt sie in genau dieser einen Form.
 
-    Sie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile. Beim Vorgänger
-    gab es dieselbe Sache dreimal (abgeleitet · je Angebot kopiert · eingefroren), und die
-    Oberfläche musste über Artikelnummern zuordnen.
+    Sie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile.
     """
 
     id: int
@@ -167,14 +161,9 @@ class VoucherPrice(BaseModel):
 class VoucherInvoice(BaseModel):
     """►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄
 
-    Hier stand ``VoucherAllocationOut`` und darunter eine Geld-Zeile, die *entweder* eine
-    Forderung *oder* eine Zahlung war: Betrag, Steuer, Nummer, Datum und Fälligkeit
-    standen damit auf **beiden** Ebenen, und die Oberfläche musste aus einer Liste
-    heraussuchen, welche Zeile *die* Rechnung ist.
-
-    Jetzt ist es **ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort
-    auf «gibt es hier eine Rechnung?». Zweimal vorkommen kann sie nicht mehr; niemand
-    zählt es, es ist die **Struktur**.
+    **Ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort auf «gibt es
+    hier eine Rechnung?». Zweimal vorkommen kann sie nicht; niemand zählt es, es ist die
+    **Struktur**.
     """
 
     #: ``<Auftragsnummer>-<laufend>``, wo **wir** nummerieren – sonst die seine.
@@ -236,10 +225,7 @@ class VoucherEntryOut(BaseModel):
     """**Eine Zahlung** – und nur noch das.
 
     Die Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,
-    und sie *ist* der Beleg. Damit sind ``kind`` · ``due_on`` · ``vat`` ·
-    ``service_date`` · ``reverses``/``reversed`` · ``charge_id`` · ``allocations`` ·
-    ``reverse_word`` · ``open`` und die drei Zustandsfelder **ersatzlos entfallen** –
-    jedes von ihnen beschrieb eine Rechnung, die hier keine mehr ist.
+    und sie *ist* der Beleg.
     """
 
     id: int
@@ -425,7 +411,6 @@ class VoucherEmbed(BaseModel):
     incoterm_text: Optional[str] = None
     incoterm_label: str = ""
     incoterm_place_label: str = ""
-    incoterm_place_hint: str = ""
     incoterms: list[IncotermOut] = Field(default_factory=list)
     # ─── Stufen und Handlungen ──────────────────────────────────────────────────
     stage: str = "offer"
@@ -469,12 +454,8 @@ class VoucherEmbed(BaseModel):
     lead_term_label: str = ""
     # ─── Die Wege zum Geld ──────────────────────────────────────────────────────
     #: **Eine Frage, mehrere Antworten** – leer heisst «hier ist gerade nichts zu
-    #: begleichen» (keine offene Forderung). Der frühere ``methods`` war die halbe Liste:
-    #: er kannte nur die beiden Arten, die ein Mensch **erfasst**, und die Karte und die
-    #: Überweisungs-Auskunft standen daneben als eigene Knöpfe.
-    #:
-    #: ►►► **Welche Rechnung sie meinen, fragt niemand mehr.** ◄◄◄ ``settle_charge`` ist
-    #: entfallen: je Modul gibt es **eine** Rechnung, und sie *ist* der Beleg.
+    #: begleichen» (keine offene Forderung). Welche Rechnung sie meinen, fragt niemand:
+    #: je Modul gibt es **eine**, und sie *ist* der Beleg.
     ways: list[VoucherWay] = Field(default_factory=list)
     method_label: str = ""
     #: ►►► **Kleinbetragstoleranz** – der Betrag, mit dem sich ein Restsaldo unter einem
@@ -505,11 +486,9 @@ class VoucherEmbed(BaseModel):
     amount: Optional[str] = None
     due_days: Optional[int] = None
     lead_days: Optional[int] = None
-    agreed_on: Optional[date] = None
     cancelled_on: Optional[date] = None
-    #: Liefertermin und Verzug – zwei Ableitungen, null Spalten.
+    #: Der Liefertermin – Zusagedatum + Lieferfrist, eine Ableitung.
     due_date: Optional[date] = None
-    late: bool = False
     # ─── Geld ───────────────────────────────────────────────────────────────────
     charged: Optional[str] = None
     paid: Optional[str] = None
@@ -521,9 +500,6 @@ class VoucherEmbed(BaseModel):
     open_state: Optional[str] = None
     open_state_label: Optional[str] = None
     open_state_tone: Optional[str] = None
-    #: *zugesagt − berechnet* – die Zahl, die es ohne die Trennung von Forderung und Geld
-    #: gar nicht geben könnte.
-    uncharged: Optional[str] = None
     next_payment: Optional[str] = None
     settled: bool = False
     #: ►►► **DIE Rechnung – oder ``None``.** ◄◄◄ Die acht Angaben, die einmal an einer

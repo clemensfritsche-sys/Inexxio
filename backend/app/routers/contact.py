@@ -204,17 +204,6 @@ def _subject(inq: Inquiry) -> str:
     return f"[Anfrage] {v['company'] or v['name']}".strip()
 
 
-def _summary(inq: Inquiry, *, include_message_block: bool) -> str:
-    lines = []
-    for name, label, value in _shown(inq):
-        if name == "message" and include_message_block:
-            continue
-        lines.append(f"{label}: {value}")
-    if include_message_block and inq.values["message"]:
-        lines += ["", "Beschreibung:", inq.values["message"]]
-    return "\n".join(lines)
-
-
 def _mailto(inq: Inquiry) -> str:
     """Dieselbe Form wie der mailto-Link im Browser (scripts/form.ts)."""
     lines = [f"{label}: {value[:1200] if name == 'message' else value}" for name, label, value in _shown(inq)]

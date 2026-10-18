@@ -1,22 +1,17 @@
 """Artikel – ein Ordner mit Spezifikation.
 
-Der Artikel trägt seine Stammdaten und die Erfassungsmaske der Datenerfassung. Er trägt
-**keine Menge und keinen Bestand**: was es von ihm gibt, sind seine Instanzen, und deren
-Menge ist die Anzahl ihrer Einzelinstanzen.
+Der Artikel trägt seine Stammdaten und seinen Erzeugungsprozess. Er trägt **keine Menge
+und keinen Bestand**: was es von ihm gibt, sind seine Instanzen, und deren Menge ist die
+Anzahl ihrer Einzelinstanzen.
 
-Entfallen sind mit der Prozesslogik: Freigabe-Gate, Einstandspreis und Durchlaufzeit
-(beide aus abgeschlossenen Aufträgen abgeleitet) sowie das aufsummierte Gewicht (aus
-verbauten Ressourcen).
+**Mit der Freigabe steht er fest** – es gibt keinen Änderungs-Endpunkt. Eine Änderung ist
+ein neuer Artikel, der den alten ersetzt (keine Versionierung).
 
 **Ausser Betrieb nehmen ist keine eigene Handlung** (Testnotiz #773). Es gibt keinen
 Endpunkt dafür, kein Feld und keinen Knopf: ein Artikel geht dadurch ausser Betrieb, dass
 ein **Nachfolger** ihn ablöst (``ArticleCreate.replaces_object_id``) – und der Zustand ist
 die Projektion davon (``Article.status``). Was das anrichtet, steht als **Auskunft am
 Datensatz** (``bom``) und ist damit immer sichtbar, nicht nur dem, der klickt.
-
-*Vorher gab es beides:* einen Statuswechsel per ``PATCH`` **und** das Ersetzen. Zwei Wege
-zu derselben Aussage, und der erste hatte eine Falle – ein von Hand stillgelegter Artikel
-ohne Nachfolger hing an genau dem Schalter, der ihn stillgelegt hatte.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,7 +23,7 @@ from ..core.database import get_db
 from ..models import Article, UserProfile
 from ..schemas.article import (
     ArticleBom, ArticleLink, ArticleProcess, ArticleProcessStepResponse,
-    ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate, ArticleValidation,
+    ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleValidation,
     RetiredInput,
 )
 from ..schemas.instance import ArticleStock, InstanceSummary, stock_states
@@ -39,7 +34,6 @@ from ..services import bom as bom_svc
 from ..services import instances as inst_svc
 from ..services import lookup
 from ..services.admin import log_audit
-from ..services.lifecycle import ensure_version
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
@@ -118,8 +112,7 @@ def list_articles(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    # **Nummer ODER Name** – die eine Suchbedingung des Hauses (`services/lookup`).
-    # Hier stand nur der Name: wer «100000743» tippte, fand nichts (Testnotiz #738).
+    # **Nummer ODER Name** – die eine Suchbedingung des Hauses (`services/lookup`, #738).
     q = db.query(Article).filter(lookup.matches(search or "", Article.object_id, Article.name))
     rows = q.order_by(Article.object_id.desc()).limit(limit).offset(offset).all()
     return [_out(a) for a in rows]
@@ -137,7 +130,7 @@ def validate_article(
     Massstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.
     """
     missing = articles_svc.validate_draft(data.model_dump())
-    return ArticleValidation(saveable=not missing, missing=missing)
+    return ArticleValidation(missing=missing)
 
 
 @router.post("", response_model=ArticleResponse, status_code=201)
@@ -175,32 +168,6 @@ def get_article(
     return _detail(db, _get(db, object_id))
 
 
-@router.patch("/{object_id}", response_model=ArticleResponse)
-def update_article(
-    object_id: int,
-    data: ArticleUpdate,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
-):
-    article = _get(db, object_id)
-    payload = data.model_dump(exclude_unset=True)
-    ensure_version(article, payload.pop("expected_updated_at", None))
-
-    for key, value in payload.items():
-        if not hasattr(article, key):
-            raise HTTPException(status_code=400, detail=f"Unbekanntes Feld «{key}».")
-        before = getattr(article, key)
-        if before == value:
-            continue
-        setattr(article, key, value)
-        log_audit(db, "articles", key, str(value),
-                  user_id=user.id, object_id=article.object_id, old_value=str(before))
-
-    db.commit()
-    db.refresh(article)
-    return _out(article)
-
-
 @router.get("/{object_id}/stock", response_model=ArticleStock)
 def article_stock(
     object_id: int,
@@ -211,10 +178,8 @@ def article_stock(
 ):
     """**Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**
 
-    Eine Frage, ein Endpunkt. Der Vorgänger (``/instances``) lieferte nur eine Liste von
-    Instanzen und war dabei kaputt: er las ``Instance.status``, eine Spalte, die es nicht
-    gibt – die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675). Jeder
-    Aufruf endete mit 500, der Reiter «Bestand» war also nie zu sehen.
+    Eine Frage, ein Endpunkt. Die Instanz ist eine Gruppe und trägt keinen Zustand – sie
+    hat eine **Aufstellung** (Testnotiz #675).
 
     Die **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine
     Seite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend

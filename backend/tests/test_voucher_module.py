@@ -478,56 +478,6 @@ def test_the_module_never_touches_a_single_unit():
     )
 
 
-def test_it_does_not_import_a_line_of_the_old_module():
-    """►►► **Die Unabhängigkeit IST die Anforderung.** ◄◄◄
-
-    Das alte Zahlungsmodul soll eines Tages ersatzlos gelöscht werden können – dann darf
-    hier keine Zeile zu ändern sein. Dieselbe Regel hat sich beim Löschen von «Beschaffen»
-    und «Verkauf» schon einmal ausgezahlt.
-
-    Bug-Form: ein Import aus ``deal``/``purchase``/``money``.
-    """
-    for name in ("app/domain/voucher.py", "app/services/voucher.py",
-                 "app/models/voucher.py", "app/schemas/voucher.py"):
-        code = _code(BACKEND / name)
-        for forbidden in ("import deal", "from .deal", "from ..domain import deal",
-                          "domain import deal", "import purchase", "from .purchase",
-                          "import invoices", "from .invoices",
-                          "import payments", "from .payments",
-                          "domain import money"):
-            assert forbidden not in code, (
-                f"{name} hängt an «{forbidden}» – dann kostet das Löschen des alten "
-                f"Moduls hier eine Zeile, und genau das soll es nicht."
-            )
-
-
-def test_the_two_vat_catalogues_do_not_drift():
-    """►►► **Die befristete Doppelung hat einen Wächter.** ◄◄◄
-
-    Der Steuerkatalog steht in **beiden** Fachkernen (``domain/deal`` und
-    ``domain/voucher``). Ein gemeinsames drittes Modul wäre ein Umbau an Code, der
-    gelöscht werden soll, und würde die beiden genau dann koppeln, wenn sie unabhängig
-    sein müssen – aber zwei Kataloge können auseinanderlaufen, und ein Satzwechsel des
-    Gesetzgebers kommt selten genug, dass es niemand merkt.
-
-    **Dieser Wächter stirbt mit dem alten Modul** – dann gibt es wieder genau eine Fassung.
-
-    Bug-Form: ein Satz wird nur auf einer Seite geändert.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    old = BACKEND / "app" / "domain" / "deal.py"
-    if not old.exists():
-        pytest.skip("Das alte Zahlungsmodul ist gelöscht – die Doppelung ist damit weg.")
-    from app.domain import deal as dm, voucher as vo
-    mine = [(v.key, v.rate, v.label, v.note) for v in vo.VAT_RATES]
-    theirs = [(v.key, v.rate, v.label, v.note) for v in dm.VAT_RATES]
-    assert mine == theirs, (
-        "Die beiden Steuerkataloge sind auseinandergelaufen – solange es beide Module "
-        "gibt, muss ein Satzwechsel auf beiden Seiten stehen."
-    )
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # ►► §4 – DER GANZE WEG, ÜBER DIE ECHTEN DIENSTPFADE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2826,14 +2776,14 @@ def test_a_refund_never_goes_out_twice(monkeypatch):
 
         # (a) **Der Aufruf trägt einen Schlüssel** – und er nennt den Stand VOR ihm.
         calls = _fake_stripe(monkeypatch)
-        stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id)
+        stripe_pay.refund(db, row=row, entry_id=entry.id)
         assert len(calls) == 1 and calls[0].get("idempotency_key"), (
             f"Die Erstattung geht ohne Idempotenz-Schlüssel hinaus (a): {calls}."
         )
         first_key = calls[0]["idempotency_key"]
         # **Ein zweiter Klick im selben Fenster trägt denselben Schlüssel** – beim Dienst
         # entsteht damit genau eine Erstattung, obwohl hier noch nichts gebucht ist.
-        stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id)
+        stripe_pay.refund(db, row=row, entry_id=entry.id)
         assert calls[1]["idempotency_key"] == first_key, (
             "Zwei Klicks im Wartefenster tragen verschiedene Schlüssel – dann erstattet "
             "der Dienst zweimal."
@@ -2850,7 +2800,7 @@ def test_a_refund_never_goes_out_twice(monkeypatch):
         )
         # (c) **Und der Weg dorthin ist zu** – mit einem Satz, nicht mit einem Rohfehler.
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id)
+            stripe_pay.refund(db, row=row, entry_id=entry.id)
         assert err.value.status_code == 409 and "erstatten" in err.value.detail, (
             f"Der zweite Aufruf geht hinaus oder sagt nichts (c): {err.value.detail}."
         )
@@ -2881,7 +2831,7 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(monkeypatch):
         _order, _step, row, intent = _card_scene(db)
         entry = svc.refundable(db, row)[0]
         calls = _fake_stripe(monkeypatch)
-        stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id, amount="30.00")
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00")
         _webhook_refund(db, row, intent, total=3000,
                         refunds=[{"id": "re_1", "amount": 3000}])
         # (a)
@@ -2890,7 +2840,7 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(monkeypatch):
         )
         # (b) **Mehr als der Rest geht nicht** – und der Satz nennt beide Zahlen.
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id, amount="80.00")
+            stripe_pay.refund(db, row=row, entry_id=entry.id, amount="80.00")
         assert err.value.status_code == 409 and "70" in err.value.detail, (
             f"Mehr als der Rest geht durch (b): {err.value.detail}."
         )
@@ -2899,12 +2849,12 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(monkeypatch):
         #     verschwand still.
         # (d) **Zweimal derselbe Betrag, zwei Vorhaben** – der Stand dazwischen ist
         #     gewachsen, also ist es auch der Schlüssel.
-        stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id, amount="30.00")
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00")
         assert calls[-1]["idempotency_key"] != calls[0]["idempotency_key"], (
             "Eine zweite Teilerstattung über denselben Betrag trägt denselben Schlüssel "
             "(d) – der Dienst verschluckt sie still."
         )
-        stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id, amount="20.00")
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="20.00")
         _webhook_refund(db, row, intent, total=5000,
                         refunds=[{"id": "re_2", "amount": 2000},
                                  {"id": "re_1", "amount": 3000}])
@@ -2938,7 +2888,7 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch
         raw = "Charge ch_123 has already been refunded."
         _fake_stripe(monkeypatch, raises=_Refused("charge_already_refunded", raw))
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id)
+            stripe_pay.refund(db, row=row, entry_id=entry.id)
         # (a)
         assert raw not in err.value.detail and "refund" not in err.value.detail.lower(), (
             f"Der Rohtext des Dienstes steht in der Antwort (a): {err.value.detail}."
@@ -2950,7 +2900,7 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch
         #     Ursache schickt jemanden in die falsche Richtung.
         _fake_stripe(monkeypatch, raises=_Refused("something_new", "Internal oops at 0x1"))
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, svc=svc, row=row, entry_id=entry.id)
+            stripe_pay.refund(db, row=row, entry_id=entry.id)
         assert err.value.detail == stripe_pay.STRIPE_TROUBLE, (
             f"Ein unbekannter Fehler bringt Technisches durch (b): {err.value.detail}."
         )

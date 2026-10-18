@@ -30,10 +30,7 @@ werden beim Ausbau geräumt. Dass die beiden auseinander laufen können, ist der
 dass es zwei Fragen sind (PROCESS_CORE §9.6).
 
 **Kein Typfeld daneben.** Objektnummern sind systemweit eindeutig, der Typ ist daraus
-ableitbar (``objects.resolve_object_type``). Der Vorgänger führte ``location_type`` neben
-``location_id`` und musste einen entfallenen Wert (``'lagerplatz'``) tolerant zu ``None``
-auflösen, weil er sonst jede Ansicht zerlegt hätte. Was es nicht gibt, kann nicht
-veralten.
+ableitbar (``objects.resolve_object_type``). Was es nicht gibt, kann nicht veralten.
 
 **Die eine Regel des sonst dummen Feldes: keine Zyklen.** Läge Regal A im Behälter B und
 B im Regal A, liefe die Kette im Kreis — und mit ihr jede Bestandsansicht. Verhindert
@@ -46,7 +43,6 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..domain import modules
@@ -111,8 +107,7 @@ def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
 
     Das ist der Grund, warum diese Funktion existiert und nicht ``station_of`` in einer
     Schleife: eine Bestandsseite zeigt bis zu 60 Stücke, und jede Kettenstufe fragt
-    erneut. Je Nummer eine Abfrage wären Hunderte — genau die N+1-Falle, an der die
-    Ortsanzeige des Vorgängers hing.
+    erneut. Je Nummer eine Abfrage wären Hunderte — die N+1-Falle.
 
     Eine Nummer, die zu nichts auflöst, fehlt im Ergebnis. Das ist eine Antwort («diesen
     Halter gibt es nicht mehr»), kein Fehler: die Anzeige zeigt dann die nackte Nummer,
@@ -520,22 +515,20 @@ def apply_for_step(
     Payload in den Ereignis-Log, und damit steht die Bewegung dort, wo die Historie
     ohnehin steht (§7.2), statt in einer zweiten Tabelle daneben.
 
-    ``bought`` ist **abgeleitet** (gibt es einen Einkaufs-Beleg an diesem Modul?) und
-    steht im Log, weil er dort Geschichte ist. Er ist keine Eingabe: die frühere
-    Transportart war eine, und eine Eingabe kann dem widersprechen, was wirklich
-    geschehen ist.
+    ``bought`` steht im Log und ist heute immer ``False``: eine eingekaufte Spedition
+    ist ein eigener Geldvorgang, kein Merkmal der Bewegung.
     """
-    move = modules.get(step.module_type).movement_for(step.config, target=target)
-    if move is None:
+    goal = modules.get(step.module_type).movement_for(step.config, target=target)
+    if goal is None:
         return {}
     # **Erst lesen, dann schreiben**: die Herkunft gibt es nach dem Setzen nicht mehr.
     # Sie kann beide Formen haben (Halter oder Träger) – darum der ``Place``, nicht die
     # Objektnummer allein: ein ausgebautes Stück käme sonst «aus dem Nichts».
     before = {u.id: place_of(u) for u in units}
-    station = place(db, units=units, target=move.target)
+    station = place(db, units=units, target=goal)
     return {
         u.id: {
-            "place": {"from": before[u.id], "to": move.target, "label": station.label},
+            "place": {"from": before[u.id], "to": goal, "label": station.label},
             "bought": bought,
         }
         for u in units
@@ -551,7 +544,7 @@ def for_units(db: Session, units: Iterable[InstanceUnit]) -> dict[int, list[Stat
 
     Das ist die Stelle, an der die Skalierbarkeit entschieden wird: 60 Schrauben in einem
     Regal sind **eine** Kette, nicht sechzig. Wer hier je Zeile auflöst, baut die
-    N+1-Falle, an der die Ortsanzeige des Vorgängersystems hing.
+    N+1-Falle.
     """
     at = {u.id: place_of(u) for u in units}
     chains = chains_for(db, [p for p in at.values() if p])
@@ -592,11 +585,3 @@ def at_holder(db: Session, units: list[InstanceUnit], holder: Place) -> set[int]
     }
     return {uid for uid, place in at.items() if place in covered}
 
-
-def counts_at(db: Session, object_id: int) -> int:
-    """Wie viele Stücke liegen unmittelbar an dieser Nummer? (Gegenrichtung, lesend.)"""
-    return (
-        db.query(func.count(InstanceUnit.id))
-        .filter(InstanceUnit.place_object_id == object_id)
-        .scalar() or 0
-    )

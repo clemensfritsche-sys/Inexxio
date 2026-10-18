@@ -9,12 +9,11 @@ from ..core.database import Base
 class CompanySettings(Base):
     """Ein **Unternehmen** (eine Gesellschaft) – ein gleichrangiger ERP-Datensatz.
 
-    Bis Juli 2026 war das ein Singleton (``id == 1``); danach kurz ein «Hauptsitz +
-    kastrierte Standorte»-Modell. Jetzt trägt die Tabelle n **gleichrangige** Zeilen –
-    jede eine vollständige juristische Einheit vom Feed-Typ ``organization``: eigene
-    Objektnummer, eigener Name, Anschrift, **eigene Rechtsidentität** (UID/EIN/VAT), Bank,
-    MWST. Als **Halter** verwendbar (``instances.location_type='company'`` zeigt auf die
-    Objektnummer). Keine Zeile ist einer anderen untergeordnet.
+    Die Tabelle trägt n **gleichrangige** Zeilen – jede eine vollständige juristische
+    Einheit vom Feed-Typ ``organization``: eigene Objektnummer, eigener Name, Anschrift,
+    **eigene Rechtsidentität** (UID/EIN/VAT), Bank, MWST. Als **Halter** verwendbar
+    (``instance_units.place_object_id`` zeigt auf die Objektnummer). Keine Zeile ist einer
+    anderen untergeordnet.
 
     **Zwei Reichweiten, und wo eine Angabe gilt, entscheidet die Schreibstelle** – nicht
     ein Rang (``services/sites.py`` ist die eine Auflösung):
@@ -31,8 +30,7 @@ class CompanySettings(Base):
     **Der «Betreiber» ist gewählt, nicht gemarkert** (``is_operator``, partieller
     Unique-Index: genau eine trägt den Titel). Gelesen wird tolerant – ohne Markierung
     gilt das älteste Unternehmen, damit eine ausstehende Migration nie zu «kein Betreiber»
-    führt. Das frühere ``is_primary`` ist entfallen: es stellte eine Zeile über die anderen
-    und war die Ursache eines Deploy-Ausfalls.
+    führt.
     """
 
     __tablename__ = "company_settings"
@@ -45,15 +43,8 @@ class CompanySettings(Base):
 
     # ►►► **Die Nummer kommt aus der Sequenz, nicht aus einer Vorgabe.** ◄◄◄
     #
-    # Hier stand ``default=1`` – aus der Zeit, als es genau **eine** Gesellschaft gab.
-    # Ein Python-Default **überschreibt** die Sequenz der Spalte: seither bekam jede
-    # Gesellschaft, die jemand ohne ausdrückliche Id anlegt, die **1** und lief am
-    # Primärschlüssel auf. Die beiden Dienstpfade fielen nicht darauf herein, weil sie
-    # die Id selbst setzen (``sites.operator`` die 1, ``sites.create`` ``max + 1``) –
-    # also war es eine Falle, die nur auf den nächsten Aufrufer wartete.
-    #
-    # *Gemessen an zwei Wächtern in ``test_move_module``: sie legten eine Gesellschaft
-    # direkt an und liefen genau dann auf, wenn schon eine existierte.*
+    # Kein Python-Default: er **überschriebe** die Sequenz der Spalte, und jede
+    # Gesellschaft, die jemand ohne ausdrückliche Id anlegt, liefe am Primärschlüssel auf.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Universelle Objektnummer: Jede Gesellschaft ist ein vollwertiger ERP-Datensatz
     # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten

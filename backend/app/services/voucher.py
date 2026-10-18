@@ -1,28 +1,18 @@
 """**Der Beleg als Dienst** — Angebotsspiegel, Positionen, Forderungen, Zahlungen.
 
-Der Neuaufbau des Zahlungsmoduls (``docs/neuaufbau-zahlungsmodul.md``). Fachlich dasselbe
-wie sein Vorgänger ``services/deal``; verschieden ist die **Form**, und zwar an drei
-Stellen, an denen der Vorgänger die Hälfte seiner Zeilen verbraucht hat:
+Drei Formregeln (``docs/neuaufbau-zahlungsmodul.md``):
 
 1. ►►► **Ein Verb wird an EINER Stelle deklariert.** ◄◄◄ ``VERBS`` sagt je Verb: *in
-   welcher Stufe · welche Stammdaten · wer darf · welche Funktion*. Beim Vorgänger waren
-   das vier Tabellen (``ACTIONS`` · ``REQUIRED_FOR``/``_UP_TO`` · ``party_actions`` ·
-   ``HANDLERS``), und die vierte bekam ein neues Verb nicht mit.
+   welcher Stufe · welche Stammdaten · wer darf · welche Funktion*.
 
-2. ►►► **Der Angebotsspiegel ist eine Tabelle.** ◄◄◄ Damit entfallen «nie an Ort ändern»,
-   das Neubauen der ganzen Liste bei jeder Änderung und die JSONB-Containment-Abfrage für
-   «woran ist dieser Betrachter beteiligt».
+2. ►►► **Der Angebotsspiegel ist eine Tabelle** (``voucher_quotes``) – eine Zeile ändert
+   man an Ort, und «woran ist dieser Betrachter beteiligt» ist eine ``WHERE``-Zeile.
 
-3. ►►► **Die Position gibt es in EINER Form.** ◄◄◄ Beim Vorgänger dreimal (abgeleitet ·
-   je Angebot kopiert · eingefroren), angefasst an 21 Stellen. Eingefroren wird hier durch
-   die **Stufe**: solange ``offer``, zieht ``sync_lines`` aus dem Prozess nach.
+3. ►►► **Die Position gibt es in EINER Form.** ◄◄◄ Eingefroren wird durch die **Stufe**:
+   solange ``offer``, zieht ``sync_lines`` aus dem Prozess nach.
 
-Und drei Spalten sind **Ableitungen** geworden – ``party_id``, ``amount``, ``due_days``
-standen beim Vorgänger neben der gewählten Angebotszeile und wurden beim Zuschlag
-hineinkopiert. Damit konnte derselbe Beleg zwei Dinge sagen, und eine eigene Regel musste
-das verhindern. Als Ableitung kann der Widerspruch **nicht entstehen**.
-
-**Kein Import aus ``deal``/``purchase``/``money``** – ein Quelltext-Wächter hält es so.
+*Mit wem*, *was vereinbart ist* und *welche Zahlungsfrist* sind **Ableitungen** aus der
+gewählten Angebotszeile – derselbe Beleg kann darum nicht zwei Dinge sagen.
 """
 
 from dataclasses import dataclass
@@ -57,9 +47,7 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 # ►►► DIE VERBEN — EINE Deklaration je Verb ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# Beim Vorgänger stand ein Verb an **vier** Stellen, und das widersprach der eigenen
-# Hausregel («eine Sache, eine Stelle»). Hier stehen die vier Fragen über ein Verb in
-# **einer Zeile**:
+# Die vier Fragen über ein Verb stehen in **einer Zeile** («eine Sache, eine Stelle»):
 #
 # ``stages``  in welchen Stufen ist es erlaubt?
 # ``needs``   welche Stammdaten müssen dafür da sein? (kumulativ, siehe ``REQUIRED_FOR``)
@@ -194,14 +182,12 @@ def lines_of(db: Session, row: Voucher) -> list[VoucherLine]:
 
 
 # ---------------------------------------------------------------------------
-# ►►► DIE DREI ABLEITUNGEN — was beim Vorgänger drei Spalten waren ◄◄◄
+# ►►► DIE DREI ABLEITUNGEN — keine Spalten ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# *mit wem* · *was vereinbart ist* · *welche Zahlungsfrist* standen als Spalten neben der
-# gewählten Angebotszeile und wurden beim Zuschlag hineinkopiert. Damit konnte derselbe
-# Beleg zwei Dinge sagen – und eine eigene Regel musste verhindern, dass der Betrag von
-# der Summe der Positionen abweicht. **Als Ableitung kann der Widerspruch gar nicht
-# entstehen.**
+# *mit wem* · *was vereinbart ist* · *welche Zahlungsfrist* stehen an der gewählten
+# Angebotszeile. Als Spalten daneben könnte derselbe Beleg zwei Dinge sagen; **als
+# Ableitung kann der Widerspruch gar nicht entstehen.**
 
 def chosen_quote(db: Session, row: Voucher) -> Optional[VoucherQuote]:
     """**Die Angebotszeile, bei der zugesagt wurde** – oder ``None``.
@@ -706,18 +692,12 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     if not (quotes_of(db, row) or parties_on(row)):
         out = [a for a in out if a != "unask"]
     # ►►► **Kassiert wird auf eine Rechnung, die GESTELLT ist.** ◄◄◄ Man kassiert nicht,
-    # was niemand gefordert hat.
-    #
-    # *Hier stand eine zweite Hälfte – «und versendet» (``issued_on``). Sie ist mit dem
-    # Knopf dahinter entfallen (#1047): gestellt **ist** draussen, in beide Richtungen
-    # gleich. Eine Bedingung, die nur ein eigener Klick erfüllt, sperrt am Ende den
-    # Zahlungseingang eines Kunden, der die Rechnung längst vor sich hat.*
+    # was niemand gefordert hat – und gestellt **ist** draussen (#1047).
     if not is_billed(row):
         out = [a for a in out if a not in ("pay", "pay_online")]
     # ►►► **Die Rechnung lässt sich zurücknehmen, solange nichts geflossen ist.** ◄◄◄
-    # Eine Frage an die **Daten**, keine an die Stufe – und die stärkere der beiden, die
-    # hier einmal standen: ist **Geld geflossen**, war sie draussen, was immer jemand
-    # angeklickt hat. Danach korrigiert ein **eigener Beleg**.
+    # Eine Frage an die **Daten**, keine an die Stufe: ist **Geld geflossen**, war sie
+    # draussen. Danach korrigiert ein **eigener Beleg**.
     if rows:
         out = [a for a in out if a != "unbill"]
     # ►►► **Online bezahlen: drei Bedingungen, alle hier.** ◄◄◄ Nur wo das Geld **zu uns**
@@ -903,13 +883,10 @@ def _add_party(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     *«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
     setzen – die Auswahl wird angezeigt, aber nicht übernommen.»*
 
-    **Wählen und anfragen sind zwei Dinge.** Bis hierher war die Wahl im freien Feld
-    unmittelbar ein ``ask``, und ``ask`` geht **nach aussen**: es verlangt einen
-    vollständigen Beleg (Preis, beide Fristen, Lieferbedingung). An einem frischen Modul
-    fehlt davon naturgemäss alles – der Dienst wies mit einem Satz ab, und die Wahl war
-    weg. Gemessen über die echten Dienstpfade, nicht vermutet.
-
-    Also dieselbe Regel wie bei den Fristen (#985): **erst schreiben, dann hinausgehen.**
+    **Wählen und anfragen sind zwei Dinge.** ``ask`` geht **nach aussen** und verlangt
+    einen vollständigen Beleg (Preis, beide Fristen, Lieferbedingung) – an einem frischen
+    Modul fehlt davon naturgemäss alles. Also dieselbe Regel wie bei den Fristen (#985):
+    **erst schreiben, dann hinausgehen.**
     Hier wird nur festgehalten, wen der Beleg betrifft; ``ask`` bleibt die ausdrückliche
     Handlung, und sie prüft weiterhin alles, was ein Angebot braucht.
 
@@ -983,12 +960,8 @@ def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Die Positionen bepreisen — ein eigenes Verb, und das ist der Punkt.** ◄◄◄
 
-    Beim Vorgänger reisten die Preise in der Nutzlast des **Anfragens** mit: man tippte
-    sie und schickte sie im selben Zug hinaus. Damit gab es keinen Zustand «geschrieben,
-    aber noch nicht angeboten» – und die Hausregel «gespeichert, nicht abgeschickt» galt
-    ausgerechnet für das Herzstück des Belegs nicht.
-
-    Hier ist die **Position der Beleg**: sie wird geschrieben, sooft jemand tippt, und
+    Die Hausregel «gespeichert, nicht abgeschickt» gilt auch für das Herzstück des Belegs:
+    die **Position** wird geschrieben, sooft jemand tippt, und
     ``ask`` schickt sie hinaus. Zwei Handlungen, zwei Verben.
 
     **Die Menge kommt nie aus der Nutzlast** – sie ist die Zahl der Einzelinstanzen im
@@ -1065,8 +1038,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             voucher_id=row.id, party_id=number,
             state=vo.QUOTED if priced else vo.ASKED,
             amount=amount, lead_days=lead, payment_days=days,
-            # **Wann die Zeile hinausging** – die Chronik fragt danach, und das weiss nur
-            # der Moment, in dem es passiert.
+            # **Wann die Zeile hinausging** – das weiss nur der Moment, in dem es passiert.
             sent_on=date.today(),
         ))
     db.flush()
@@ -1117,8 +1089,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """►►► **Den Zuschlag geben** – ab hier ist eine zweite Partei gebunden. ◄◄◄
 
     Die gewählte Zeile geht auf ``gewaehlt``, und **damit steht alles fest**: mit wem, zu
-    welchem Betrag, zu welchen Fristen. Es wird **nichts hineinkopiert** – der Vorgänger
-    trug drei Spalten daneben, die dasselbe noch einmal sagten.
+    welchem Betrag, zu welchen Fristen. Es wird **nichts hineinkopiert**.
 
     **Bei einer Einnahme ist der Betrag die Summe der Positionen**, jetzt frisch gerechnet:
     wer nachverhandelt, ändert den Preis dort, wo er steht. Bei einer **Ausgabe** darf die
@@ -1183,10 +1154,8 @@ def _unask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Eine Anfrage zurückziehen** (Testnotiz #951). ◄◄◄
 
-    *«Ich kann zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch
-    abwählen.»* – Und es gab dafür **nichts**: ``ask`` hatte keine Gegenhandlung, also war
-    eine falsch gewählte Gegenpartei für immer am Beleg. Die Hausregel dazu steht seit dem
-    Beschaffen-Modul: *jede Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle.*
+    Die Gegenhandlung zu ``ask`` – die Hausregel: *jede Zusage nach aussen hat ihre
+    Gegenhandlung an derselben Stelle.*
 
     **Soft-Delete wie überall** – die Zeile bleibt in der Datenbank, sie ist nur nicht mehr
     Teil dieses Belegs. Was hinausging, ist damit nicht geleugnet.
@@ -1238,24 +1207,16 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Die Rechnung stellen — und damit IST der Beleg eine.** ◄◄◄
 
-    Hier stand ``_charge``: es legte eine Zeile an (``voucher_entries.kind = 'charge'``)
-    mit Betrag, Nummer, Datum, Fälligkeit und Steuer – also mit den Angaben, die der Beleg
-    selbst trug. Eine Kopie im Inneren dessen, was sie kopierte; und weil es eine Zeile
-    war, musste eine eigene Funktion zählen, wie viele davon «leben» dürfen.
-
-    Jetzt werden dieselben acht Angaben **am Beleg** festgeschrieben. Es gibt sie damit
-    genau einmal, ohne dass jemand es prüft.
+    Betrag, Nummer, Datum, Fälligkeit und Steuer werden **am Beleg** festgeschrieben. Es
+    gibt sie damit genau einmal, ohne dass jemand es prüft.
 
     **Der Betrag kommt, wo WIR den Preis nennen, aus den Positionen** – die Summe ist die
     Rechnung. Wo die Gegenpartei ihn nennt, schreiben wir ihre Summe ab, und der Satz wird
     dabei gefragt: die Steuer steht auf *ihrem* Papier.
 
-    ►►► **Eine Korrektur MINDERT — und trägt trotzdem eine Menge.** ◄◄◄ Hier stand das
-    Vorzeichen: wo ``corrects_id`` steht, wurde aus der Summe ein **negativer** Betrag
-    samt gespiegelter Steuer. Das war die Grundursache von #1054/#1055/#1056 – drei Leser
-    fragen «grösser null?», und bei einer Gutschrift ist der Betrag das nie. Jetzt steht
-    hier die Menge, und *dass* der Beleg mindert, sagt ``corrects_id`` – dem Wort auf dem
-    Knopf («Gutschrift stellen») und, wenn es sie einmal gibt, der Buchhaltung.
+    ►►► **Eine Korrektur MINDERT — und trägt trotzdem eine Menge** (#1054–#1056). ◄◄◄
+    *Dass* der Beleg mindert, sagt ``corrects_id`` – dem Wort auf dem Knopf («Gutschrift
+    stellen») und, wenn es sie einmal gibt, der Buchhaltung.
 
     **Die Nummer wird genau einmal vergeben** und bleibt danach am Beleg – auch wenn die
     Rechnung zurückgenommen und neu gestellt wird: sie ist nie hinausgegangen, es gibt sie
@@ -1307,12 +1268,6 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     # geschriebene Rechnung verschöbe die Steuerperiode (MWSTG Art. 26 Bst. c).
     row.service_date = service_day(db, step) or booked
     row.stage = vo.BILLED
-
-
-# *Hier stand ``_mirror`` – die Steuer-Aufteilung gespiegelt, für einen Beleg, der
-# mindert. Mit dem Vorzeichen ist sie entfallen (Testnotizen #1054–#1056): eine Gutschrift
-# nennt Netto und Steuer als **Menge**, so wie sie auf dem Papier steht, und das Minus
-# gehört der Buchhaltung.*
 
 
 def _unbill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1399,11 +1354,9 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     Vorgabe ist der **offene** Betrag, und er ist nie negativ: überzahlt ist eine gültige
     Aussage, aber kein Vorschlag in einem Eingabefeld.
 
-    ►►► **Eine Zuordnung braucht es nicht mehr.** ◄◄◄ Hier standen ``allocations`` und
-    ``charge_id``: welche Rechnung diese Zahlung meint. Je Modul gibt es genau eine, also
-    hat die Frage genau eine Antwort – und eine Frage mit genau einer Antwort stellt man
-    nicht. *Die Aufteilung über mehrere Belege bleibt real; sie liegt jetzt zwingend über
-    Modulgrenzen und gehört damit zur offenen-Posten-Liste (``docs/backlog.md``).*
+    **Keine Zuordnung**: je Modul gibt es genau eine Rechnung. *Die Aufteilung über
+    mehrere Belege liegt über Modulgrenzen und gehört zur offenen-Posten-Liste
+    (``docs/backlog.md``).*
     """
     given = _amount(data.get("amount"), row.currency, allow_negative=True)
     value = given if given is not None else balance_of(db, row).next_payment
@@ -1430,7 +1383,7 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 #: ►►► **DIE EINE TABELLE.** ◄◄◄ Sie steht hier unten, weil sie die Funktionen darüber
 #: nennt – und nicht, weil sie zweitrangig wäre: sie **ist** die Regel. Wer ein Verb
 #: hinzufügt, schreibt eine Zeile und hat damit Stufe, Stammdaten, Zugang und Wirkung
-#: erklärt. Beim Vorgänger waren es vier Stellen, und die vierte vergass man.
+#: erklärt.
 VERBS: dict[str, Verb] = {
     # **Vor der Zusage** – hier wird der Beleg geschrieben.
     # ►►► **Die Währung gehört dem, der den Preis nennt** (Testnotiz #1057). ◄◄◄
@@ -1474,23 +1427,15 @@ VERBS: dict[str, Verb] = {
     # Erfüllung stehen wie danach. Wer das an die Stufe bände, hätte für jedes Szenario
     # ein ``if``.
     # ►►► **Abbrechen geht, sobald etwas hinausgegangen ist** (Testnotiz #957). ◄◄◄
-    # Vorher erst ab der Zusage – im Angebot stand ein hinausgeschickter Beleg ohne jeden
-    # Ausweg da. «Solange nicht angefangen wurde, natürlich nicht»: dass es eine
-    # Angebotszeile gibt, prüft ``can`` (die Stufe allein sagt es nicht).
+    # «Solange nicht angefangen wurde, natürlich nicht»: dass es eine Angebotszeile gibt,
+    # prüft ``can`` (die Stufe allein sagt es nicht).
     "revoke": Verb(stages=(vo.OFFER, vo.AGREED, vo.BILLED), run=_revoke),
     # ►►► **DIE Rechnung – und es gibt sie genau einmal, ohne dass jemand zählt.** ◄◄◄
-    # Hier stand ``charge``: es legte eine Zeile an, und eine eigene Funktion musste
-    # entscheiden, wie viele davon «leben» dürfen. Jetzt ist es eine **Schwelle** – sie
-    # geht aus ``agreed`` nach ``billed``, und damit steht der Knopf danach nicht mehr da.
+    # Eine **Schwelle** von ``agreed`` nach ``billed`` – danach steht der Knopf nicht mehr da.
     "bill": Verb(stages=(vo.AGREED,), run=_bill, needs=("ask", "agree", "bill")),
     # **Die Gegenhandlung zu ``bill``** – ohne Stammdaten-Bedingung (wer zurücknimmt, soll
     # nicht an einer fehlenden Angabe scheitern); *ob* sie noch geht, sagt ``can``.
     "unbill": Verb(stages=(vo.BILLED,), run=_unbill),
-    # *Hier stand ``issue`` – «Rechnung ist versendet» (Testnotiz #1047). Es setzte ein
-    # Datum und sonst nichts: eine Handlung, die ein Mensch **für das System** ausführte,
-    # damit das System sie protokolliert. **Gestellt ist draussen**; wer die Rechnung
-    # danach korrigieren muss, nimmt sie zurück (solange nichts geflossen ist) oder stellt
-    # einen eigenen Korrekturbeleg dort, wo der Vorfall passiert.*
     "pay": Verb(stages=(vo.BILLED, vo.DONE, vo.CANCELLED), run=_pay),
     # ``run=None``: **sie ändern den Beleg nicht.** Die eine **löst** eine Zahlung aus,
     # die andere gibt sie zurück – gebucht wird beides erst, wenn der Zahlungsdienst es
@@ -1528,14 +1473,9 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
 # ►► DIE ZAHLUNGEN — was auf die eine Rechnung dieses Belegs geflossen ist
 # ---------------------------------------------------------------------------
 #
-# ►►► **Eine Zuordnung gibt es hier nicht mehr.** ◄◄◄ Sie beantwortete «welche Rechnung
-# meint diese Zahlung» – und die Frage hat seit dem Umbau genau **eine** Antwort: die
-# Rechnung *ist* der Beleg, zu dem die Zahlung gehört. Damit sind ``live_charge`` ·
-# ``open_charges`` · ``paid_map`` · ``allocate`` · ``_split`` · ``_charge_for_payment``
-# ersatzlos entfallen.
-#
-# *Die Aufteilung über mehrere Rechnungen bleibt real – sie liegt jetzt zwingend über
-# Modulgrenzen und gehört damit zur offenen-Posten-Liste (``docs/backlog.md``).*
+# **Keine Zuordnung**: die Rechnung *ist* der Beleg, zu dem die Zahlung gehört. Die
+# Aufteilung über mehrere Rechnungen liegt über Modulgrenzen (offene-Posten-Liste,
+# ``docs/backlog.md``).
 
 def refunded_on(db: Session, row: Voucher, entry: VoucherEntry) -> Decimal:
     """►►► **Was von DIESER Karten-Zahlung schon zurückgegangen ist.** ◄◄◄
@@ -2019,11 +1959,8 @@ def _addresses(billed: list[str], shipped: list[str], *, sends: bool) -> dict[st
     verringern.»*
 
     Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* –, und er stellt sie
-    auf **jeder** Seite gleich. Bis hierher standen die Beschriftungen nur auf der
-    Gegenseite und nur dort, wo die beiden sich unterscheiden: zwei Bedingungen, und die
-    eine verbliebene Zeile beantwortete danach **keine** der beiden Fragen erkennbar.
-
-    Also **eine** Regel für beide Seiten: gibt es nur eine Anschrift, steht sie unter beiden
+    auf **jeder** Seite gleich. Also **eine** Regel für beide Seiten: gibt es nur eine
+    Anschrift, steht sie unter beiden
     Beschriftungen – das ist die Auskunft «an dieselbe», nicht eine Doppelung. Und wo **gar
     keine** dasteht, gibt es auch keine Beschriftung: die Seite sagt dann, dass sie fehlt.
 
@@ -2032,8 +1969,6 @@ def _addresses(billed: list[str], shipped: list[str], *, sends: bool) -> dict[st
     ►►► **Und die zweite Beschriftung sagt die RICHTUNG** (Testnotiz #979). ◄◄◄ ``sends``
     heisst «diese Seite ist der Leistungserbringer»: bei ihr geht die Ware **ab**, also
     ist es die *Versandadresse*; beim Empfänger kommt sie **an**, also die *Lieferadresse*.
-    Vorher stand «Lieferadresse» auf beiden Seiten – und bat den Absender, an sich selbst
-    zu liefern.
     """
     if not billed:
         return {"address": [], "shipping": [],
@@ -2130,8 +2065,7 @@ def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
     company = issuer_company(db, row)
     # **Die IBAN ist die von heute** – wohin gezahlt wird, friert nicht ein (``freeze``).
     iban = getattr(company, "iban_encrypted", None)
-    # **Die Rechnung IST der Beleg** – hier stand einmal die genannte Forderungs-Zeile
-    # samt der Frage, welche von ihnen gemeint sei. Es gibt eine.
+    # **Die Rechnung IST der Beleg** – es gibt eine.
     number = row.number or str(row.id)
     amount = balance_of(db, row).open
     # **Name und Anschrift des Empfängers stehen auf dem Beleg** – also die eingefrorenen.
@@ -2393,18 +2327,6 @@ def delivery_date(db: Session, row: Voucher) -> Optional[date]:
     return _due(row.agreed_on, q.lead_days)
 
 
-def is_late(db: Session, row: Voucher) -> bool:
-    """**Ist der Liefertermin vorbei, obwohl noch nichts geliefert ist?**
-
-    Kein Zustand, sondern die Frage an zwei Daten – wie ``overdue`` bei einer Forderung.
-    Erledigt und storniert sind **nicht** verspätet: dort kommt nichts mehr.
-    """
-    if row.stage != vo.AGREED:
-        return False
-    due = delivery_date(db, row)
-    return due is not None and due < date.today()
-
-
 def _our_number(db: Session, order: Order) -> str:
     """``<Auftragsnummer>-<laufend>`` – **immer mit Suffix**, ab ``-1``.
 
@@ -2478,10 +2400,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     billed = is_billed(row)
     overdue = bool(billed and row.due_on and row.due_on < today
                    and abs(money.open) > vo.SETTLED_TOLERANCE)
-    # ►►► **Wie die Rechnung steht — EINE Ableitung aus zwei Zahlen.** ◄◄◄ Hier standen
-    # zwei (``charge_state`` je Zeile, ``balance_state`` über den Saldo), weil ein Beleg
-    # mehrere Forderungen tragen konnte. Seit er **die** Rechnung ist, sind Betrag und
-    # Saldo dieselben zwei Zahlen – eine Frage, eine Antwort.
+    # ►►► **Wie die Rechnung steht — EINE Ableitung aus zwei Zahlen** (Betrag und Saldo).
     state = (vo.invoice_state(money.charged, money.open, overdue=overdue)
              if billed else None)
     # **Was sich über den Dienst zurückgeben lässt** – dieselbe Liste, die ``can`` befragt
@@ -2525,7 +2444,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "incoterm_text": inc.sentence(row.incoterm, row.incoterm_place),
         "incoterm_label": inc.LABEL,
         "incoterm_place_label": inc.PLACE_LABEL,
-        "incoterm_place_hint": inc.PLACE_HINT,
         "incoterms": [{"key": t.key, "label": t.label, "hint": t.hint}
                       for t in inc.INCOTERMS],
         # **In welcher Währung?** Ein Betrag ohne sie ist keine Zahl – und mit ihr reisen
@@ -2565,7 +2483,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "unbill_word": vo.UNBILL_WORD,
         # ►►► **Zwei Fächer statt einer Überschrift über allem.** ◄◄◄ *Was schuldet uns
         # jemand* und *wie kommt das Geld hierher* sind zwei Fragen, und jede gehört einer
-        # Seite; der frühere gemeinsame Titel «Rechnung & Zahlung» fasste sie zusammen.
+        # Seite.
         "claim_title": vo.CLAIM_TITLE,
         "settle_title": vo.SETTLE_TITLE,
         "goods_title": vo.GOODS_TITLE,
@@ -2585,10 +2503,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "can": allowed,
         # ►►► **DIE RECHNUNG — sie ist der Beleg, nicht eine Zeile in ihm.** ◄◄◄
         #
-        # Hier stand eine Liste aus Forderungs- und Zahlungszeilen, und die Karte musste
-        # aus ihr heraussuchen, welche davon *die* Rechnung ist. Jetzt stehen ihre acht
-        # Angaben da, wo sie hingehören: am Beleg. ``billed_on`` ist ``null``, solange
-        # keine gestellt ist – **das** ist die Antwort auf «gibt es eine?».
+        # Ihre Angaben stehen am Beleg. ``billed_on`` ist ``null``, solange keine gestellt
+        # ist – **das** ist die Antwort auf «gibt es eine?».
         "invoice": ({
             "number": row.number,
             "billed_on": row.billed_on,
@@ -2686,14 +2602,9 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # und die Oberfläche zeigte nach jedem Reload ein leeres Feld.
         "due_days": due_days_of(db, row) if won else None,
         "lead_days": lead_days_of(db, row) if won else None,
-        "agreed_on": row.agreed_on if won else None,
         "cancelled_on": row.cancelled_on if won else None,
-        # ►►► **Der Liefertermin und der Verzug — zwei ABLEITUNGEN, null Spalten.** ◄◄◄
-        # Ein Lieferverzug ist kein Zustand: der Termin ist *Zusagedatum + Lieferfrist*,
-        # und «verspätet» heisst *Termin vorbei und noch nicht erledigt* – exakt dieselbe
-        # Form wie ``overdue`` bei einer Forderung.
+        # **Der Liefertermin** ist keine Spalte: *Zusagedatum + Lieferfrist*.
         "due_date": delivery_date(db, row) if won else None,
-        "late": is_late(db, row) if won else False,
         # ►►► **Forderung und Geld sieht, wer den Zuschlag hat.** ◄◄◄ Wer bezahlen soll,
         # muss sehen, was er schuldet – eine Aufforderung ohne Betrag ist keine. Ein
         # **Leck ist es nicht**: ``won`` heisst «dieser Betrachter *ist* die Gegenpartei»,
@@ -2709,7 +2620,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "open_state": state["state"] if (state and won) else None,
         "open_state_label": state["state_label"] if (state and won) else None,
         "open_state_tone": state["state_tone"] if (state and won) else None,
-        "uncharged": _money(money.uncharged, row.currency) if won else None,
         "next_payment": _money(money.next_payment, row.currency) if won else None,
         "settled": money.settled if won else False,
         # **Nur noch Zahlungen.** Die Forderung steht eine Ebene höher – es gibt genau
@@ -2819,7 +2729,6 @@ def _quotes(db: Session, row: Voucher, step: ProcessStep, *,
             "lead_days": q.lead_days,
             "payment_days": q.payment_days,
             "state": q.state or vo.ASKED,
-            "sent_on": q.sent_on,
             "sent_at": q.created_at,
             # **Nur an der gewählten Zeile** – an jeder anderen wäre ``updated_at`` der
             # Moment irgendeiner Änderung und würde einen Zuschlag behaupten, den es
@@ -2833,11 +2742,9 @@ def _quotes(db: Session, row: Voucher, step: ProcessStep, *,
 def _stages(row: Voucher, flow: vo.Direction) -> list[dict[str, Any]]:
     """Die **drei** Stufen mit Beschriftung, Verb und Zustand.
 
-    ►►► **Die dritte ist keine Wiederholung des Fehlers von damals.** ◄◄◄ «Abgeschlossen»
-    stand einmal als Stufe da und war ein *Zustand* in einer Reihe von *Schritten* – man
-    tat nichts, um ihn zu erreichen. Eine Rechnung zu stellen ist eine **Handlung mit
-    einem unumkehrbaren Ergebnis**: eine Nummer ist vergeben, die Steuer steht fest, ein
-    Papier existiert. Dieselbe Art Schwelle wie die Zusage.
+    Jede Stufe ist eine **Handlung mit unumkehrbarem Ergebnis**, kein Zustand: eine
+    Rechnung zu stellen vergibt eine Nummer und friert die Steuer ein – dieselbe Art
+    Schwelle wie die Zusage.
 
     **Ein Storno ist keine Stufe**, und «erledigt» auch nicht: keine ist dann aktiv, kein
     Verb wird angeboten – die gegangene Kette bleibt aber stehen, wo sie stand. Eine
