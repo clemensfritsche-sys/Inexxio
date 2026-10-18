@@ -828,10 +828,10 @@ def test_an_article_is_created_at_release_not_while_typing():
 
 
 # ---------------------------------------------------------------------------
-# Bug 2 – eine Tabelle mit fremder Form wird neu aufgebaut, nicht geflickt
+# Bug 2 – eine Tabelle mit fremder Form wird GEMELDET, nie gelöscht (Cleanup 2026-10)
 # ---------------------------------------------------------------------------
 
-def test_a_stale_table_is_rebuilt_not_patched():
+def test_a_stale_table_is_reported_never_dropped():
     """``create_all()`` fasst eine vorhandene Tabelle nicht an – genau daran starb der
     Reiter «Erzeugungsprozess» (``column article_process_steps.module_type does not
     exist``). Der Wächter prüft, dass das Netz die **Form** vergleicht und alle
@@ -841,14 +841,18 @@ def test_a_stale_table_is_rebuilt_not_patched():
     from app.main import _shape_problem
 
     main = _read(BACKEND / "app" / "main.py")
-    guard = _body(main, "_ensure_rebuilt_tables_shape")
+    guard = _body(main, "_check_core_tables_shape")
     for table in ("ArticleProcessStep", "OrderLine", "ProcessStep", "OrderUnit",
                   "ProcessEvent", "Instance", "InstanceUnit", "Capture", "Order"):
         assert table in guard, (
             f"{table} fehlt im Form-Netz – eine veraltete Tabelle bliebe unentdeckt."
         )
-    assert "_ensure_rebuilt_tables_shape()" in _body(main, "_run_startup_fixups_once"), (
-        "Das Form-Netz muss im Startup laufen, sonst repariert es nie etwas."
+    assert "_check_core_tables_shape()" in _body(main, "_run_startup_fixups_once"), (
+        "Das Form-Netz muss im Startup laufen, sonst meldet es nie etwas."
+    )
+    assert "DROP TABLE" not in _code(main), (
+        "Der Start löscht eine Tabelle – in den Prozess-Tabellen stehen Aufträge und der "
+        "append-only Log. Eine fremde Form ist ein Befund für die Migration."
     )
 
     class _Col:
@@ -1513,7 +1517,7 @@ def test_the_net_adds_a_column_before_it_throws_a_table_away():
     was auch danach noch unbenutzbar ist.
     """
     body = _body(_read(BACKEND / "app" / "main.py"), "_run_startup_fixups_once")
-    assert body.index("_ensure_columns()") < body.index("_ensure_rebuilt_tables_shape()"), (
+    assert body.index("_ensure_columns()") < body.index("_check_core_tables_shape()"), (
         "Der Formwächter läuft vor dem Spaltennetz – eine fehlende Spalte kostet dann "
         "die ganze Tabelle."
     )

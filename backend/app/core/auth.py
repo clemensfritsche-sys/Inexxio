@@ -38,12 +38,6 @@ def _detect_language(request: Request) -> str:
     return tag if tag in ("de", "en") else "de"
 
 
-def _no_admin_exists(db: Session) -> bool:
-    return not db.query(UserProfile).filter(
-        UserProfile.role == "admin", UserProfile.is_active == True
-    ).first()
-
-
 def _create_user(db: Session, uid: str, email: str, decoded: dict, language: str = "de") -> UserProfile:
     email_is_admin = (
         settings.initial_admin_email
@@ -51,7 +45,8 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict, language: str
     )
     # ``user`` = «darf nicht ins ERP» (Testnotiz #1043). Ob jemand Kunde oder Lieferant
     # ist, entscheidet der Vorgang, in dem er vorkommt – nicht eine Spalte an der Person.
-    role = "admin" if (email_is_admin or _no_admin_exists(db)) else "user"
+    # Admin wird nur ``initial_admin_email`` – nie «wer zuerst kommt» (Cleanup 2026-10).
+    role = "admin" if email_is_admin else "user"
     firebase_name = decoded.get("name", "").strip()
     name_parts = firebase_name.split(maxsplit=1) if firebase_name else []
     first = name_parts[0] if name_parts else None
@@ -127,8 +122,8 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
         settings.initial_admin_email
         and email.lower() == settings.initial_admin_email.lower()
     )
-    # Always enforce admin for the designated email; otherwise bootstrap the first user
-    if user.role != "admin" and (email_is_admin or _no_admin_exists(db)):
+    # Die hinterlegte Adresse ist immer Admin – sonst niemand von selbst.
+    if user.role != "admin" and email_is_admin:
         user.role = "admin"
         changed = True
 

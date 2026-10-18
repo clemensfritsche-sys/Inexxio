@@ -5232,6 +5232,17 @@
 > Rollback-Punkt der Runde: Commit `eefb0dc` (Tags lassen sich aus der Cloud-Umgebung
 > nicht pushen). Wächter: `test_mailbox.py` (2 neue, gegen drei Bug-Formen gegengeprüft).
 
+> ►►► **Paket 2: der Start löscht nichts und ernennt niemanden.** ◄◄◄ Der Formwächter
+> (`main._check_core_tables_shape`, vorher `_ensure_rebuilt_tables_shape`) legt eine
+> fehlende Prozess-Tabelle an und **meldet** eine mit fremder Form – das frühere
+> `DROP TABLE … CASCADE` (Anlass: Basis-Neuaufbau) hätte heute Aufträge und den
+> Ereignis-Log vernichtet; ebenso wird die Registry `objects` nicht mehr verworfen (sie hält
+> auch Nummern gelöschter Typen). Ein Wächter verbietet `DROP TABLE` im Start-Code. Die
+> **Daten-Reparaturen** sind je eine Funktion mit eigenem Savepoint (`_DATA_REPAIRS`,
+> `_repair`) – scheitert eine, laufen die übrigen. **Admin wird nur
+> `initial_admin_email`** (Start und Login, Gross/Klein egal); «wer zuerst kommt, wird
+> Admin» ist entfallen. Wächter: `tests/test_startup.py` (3, je gegen die Bug-Form).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

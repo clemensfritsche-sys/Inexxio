@@ -1,14 +1,14 @@
 import re
 import traceback
 from typing import Optional
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import inspect, text
+from sqlalchemy import func, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from .core.config import get_settings
@@ -27,35 +27,23 @@ settings = get_settings()
 
 
 def _bootstrap_admin() -> None:
-    """Ensure initial_admin_email always has admin role; fall back to first user."""
+    """``initial_admin_email`` ist immer Admin – und **nur** sie.
+
+    Bis zum Cleanup Oktober 2026 wurde zusätzlich «der erste Benutzer» Admin, sobald es
+    keinen gab: auf einer leeren oder zurückgesetzten Datenbank war damit, wer sich als
+    Erster anmeldete, Administrator. Wer Admin ist, sagt eine Angabe, nie ein Zufall."""
+    if not settings.initial_admin_email:
+        return
     db = SessionLocal()
     try:
-        if settings.initial_admin_email:
-            candidate = db.query(UserProfile).filter(
-                UserProfile.email == settings.initial_admin_email,
-                UserProfile.is_active == True,
-            ).first()
-            if candidate:
-                if candidate.role != "admin":
-                    candidate.role = "admin"
-                    db.commit()
-                    print(f"INFO: Promoted {settings.initial_admin_email} to admin.", flush=True)
-                return
-
-        has_admin = db.query(UserProfile).filter(
-            UserProfile.role == "admin", UserProfile.is_active == True
+        candidate = db.query(UserProfile).filter(
+            func.lower(UserProfile.email) == settings.initial_admin_email.lower(),
+            UserProfile.is_active.is_(True),
         ).first()
-        if has_admin:
-            return
-        candidate = (
-            db.query(UserProfile)
-            .filter(UserProfile.is_active == True)
-            .order_by(UserProfile.id)
-            .first()
-        )
-        if candidate:
+        if candidate and candidate.role != "admin":
             candidate.role = "admin"
             db.commit()
+            print(f"INFO: Promoted {settings.initial_admin_email} to admin.", flush=True)
     finally:
         db.close()
 
@@ -449,6 +437,185 @@ _COMPANY_DATA_FIXES = (
 )
 
 
+@contextmanager
+def _repair(conn, name: str):
+    """Eine Daten-Reparatur in ihrem eigenen Savepoint: scheitert sie, steht es im Log, und
+    die übrigen laufen trotzdem. Vorher war es EIN ``try`` – die erste fehlgeschlagene
+    nahm alle folgenden still mit."""
+    sp = conn.begin_nested()
+    try:
+        yield
+        sp.commit()
+    except Exception as e:
+        sp.rollback()
+        print(f"WARNING: Daten-Reparatur «{name}» fehlgeschlagen: {e}", flush=True)
+
+
+def _repair_article_status(conn, tables: set[str], insp) -> None:
+    # **Auch die Spalte wird geprüft, nicht nur die Tabelle.** ``articles.status``
+    # hat ihr Mapping verloren (Testnotiz #773) und fällt im Folge-Deploy – eine
+    # Reparatur, die nur nach der Tabelle fragt, wäre danach die Anweisung, die
+    # das ganze Netz reisst.
+    for stmt in _ARTICLE_STATUS_FIXES:
+        table = stmt.split()[1]
+        if table not in tables:
+            continue
+        columns = {c["name"] for c in insp.get_columns(table)}
+        if all(word in columns for word in ("status", "replaced_by_id")) \
+                or table != "articles":
+            conn.execute(text(stmt))
+
+
+def _repair_unit_status(conn, tables: set[str], insp) -> None:
+    if "instance_units" in tables:
+        # Der Platzhalter-Status ``new`` aus dem Basis-Neuaufbau gibt es mit der
+        # geschlossenen Liste nicht mehr (Migration 104). Ein Stück, das in keinem
+        # Auftrag steckt, ist einsatzbereit – genau das heisst ``freigegeben``.
+        # Bleibt der Altwert stehen, lässt sich das Stück nie starten: das
+        # Start-Objekt erwartet ``freigegeben`` und lehnt sauber ab.
+        #
+        # ►► **Die Liste kommt aus dem Katalog – und das ist hier der ganze Punkt.**
+        #
+        # Diese Reparatur stand einmal als ``NOT IN ('freigegeben','im_prozess')``
+        # da, weil es damals nur diese beiden Zustände gab. Sie ist damit still
+        # veraltet, als ``Gesperrt`` und ``Verschrottet`` dazukamen: seither hat
+        # **jeder Start** – also jeder Deploy – jedes ausgesonderte Stück wieder auf
+        # ``freigegeben`` gesetzt. Ein verschrottetes Stück wurde grün, und zwar
+        # nicht beim Abschluss eines Auftrags, sondern beim nächsten Neustart. In
+        # keiner einzelnen Anfrage war das nachstellbar.
+        #
+        # Repariert wird darum nur noch, was der Katalog **nicht kennt** (der alte
+        # Platzhalter, Fremdwerte). Ein Zustand, der in ``CATALOG`` steht, ist per
+        # Konstruktion nicht mehr betroffen – die Liste kann nicht wieder veralten.
+        conn.execute(
+            text(
+                "UPDATE instance_units SET status = :fallback "
+                "WHERE status IS NULL OR status <> ALL(:known)"
+            ),
+            {"fallback": st.INITIAL_UNIT_STATUS, "known": list(st.UNIT_STATUSES)},
+        )
+
+
+def _repair_vouchers(conn, tables: set[str], insp) -> None:
+    if "vouchers" in tables and "voucher_entries" in tables:
+        # ►►► **Die Rechnung wandert an ihren Beleg** (Migration ``138``). ◄◄◄
+        #
+        # Die dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778):
+        # dort zieht das Spalten-Netz die acht neuen Spalten **leer** nach, und die
+        # alten Forderungs-Zeilen blieben stehen. Der Dienst liest seit dem Umbau
+        # **jede aktive Zeile als Zahlung** – jede alte Rechnung wäre damit ein
+        # Geldeingang, und der offene Betrag stünde im Minus. Das ist kein
+        # Schema-Problem, also fängt es kein Schema-Netz.
+        #
+        # Die Ableitung steht in ``domain/voucher`` und wird von der Migration
+        # **und** von hier gelesen – zweimal ausgeschrieben wären es zwei
+        # Wahrheiten. Sie ist **selbstbegrenzend**: der erste Lauf setzt jede
+        # ``charge``-Zeile inaktiv, der zweite findet nichts mehr. Eine Reparatur
+        # mit einer gepflegten Liste veraltet (die Lehre aus Migration ``110``) –
+        # diese hier kann es nicht, weil sie ihre eigene Voraussetzung wegnimmt.
+        v_cols = {r[0] for r in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='vouchers'"))}
+        e_cols = {r[0] for r in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='voucher_entries'"))}
+        if "amount" in v_cols and "kind" in e_cols:
+            for stmt in vo.invoice_backfill_sql():
+                conn.execute(text(stmt))
+        # ►►► **Jede Zahl ist eine MENGE** (Migration ``141``, #1054–#1056). ◄◄◄
+        #
+        # Ein Korrekturbeleg stand bis hierher im Minus. Die Leser lesen ihn
+        # seither als Menge – ohne diese Drehung wäre der offene Betrag das
+        # Doppelte, und das fängt kein Schema-Netz. Selbstbegrenzend: gedreht
+        # wird nur, was negativ ist.
+        if {"amount", "vat", "corrects_id"} <= v_cols:
+            for stmt in vo.magnitude_sql():
+                conn.execute(text(stmt))
+
+
+def _repair_people(conn, tables: set[str], insp) -> None:
+    if "user_profiles" in tables:
+        # ►►► **Die Rolle ist der Zugang** (Testnotiz #1043, Migration ``140``).◄◄◄
+        #
+        # Zwei Daten-Reparaturen, und keine davon fängt ein Schema-Netz: eine
+        # Rolle «customer»/«supplier» kennt ``Role`` an der Tür nicht mehr (jedes
+        # Speichern an so einer Zeile wäre ein 422 an einer Angabe, die niemand
+        # angefasst hat), und eine Rechnungsadresse, die eine **Kopie** der
+        # Hauptadresse ist, liest ``billing_of`` seither als eigene – der Beleg
+        # zeigt dieselbe Anschrift zweimal.
+        #
+        # Die Anweisungen stehen in ``services/people.repair_sql`` und werden von
+        # der Migration **und** von hier gelesen; die dev-Datenbank fährt kein
+        # ``alembic upgrade head`` (#778). Beide sind **selbstbegrenzend**.
+        up_cols = {r[0] for r in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='user_profiles'"))}
+        for stmt in people.repair_sql():
+            conn.execute(text(stmt))
+        # ►►► **Die Anschriften ziehen ins Adressbuch** (Migration ``143``). ◄◄◄
+        # Selbstbegrenzend: die Felder werden danach geleert, ein zweiter Lauf
+        # findet nichts mehr. Fällt die Spalte im Folge-Deploy, gibt es nichts zu tun.
+        if "addresses" in tables:
+            # Je Konto genau ein Standard – der Index ohne Konto fällt zuerst.
+            for stmt in address_book.ADDRESS_INDEXES:
+                conn.execute(text(stmt))
+            if "address_line1" in up_cols:
+                for stmt in address_book.migrate_sql():
+                    conn.execute(text(stmt))
+            # Die Anschrift einer fremden Firma wird die des Geschäftskontos.
+            if "company_object_id" in up_cols:
+                for stmt in address_book.business_sql():
+                    conn.execute(text(stmt))
+
+
+def _repair_companies(conn, tables: set[str], insp) -> None:
+    if "company_settings" in tables:
+        # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
+        # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht
+        # (gleiche Begründung wie beim ``documents``-Block oben).
+        cs_cols = {r[0] for r in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='company_settings'"))}
+        if {"is_operator", "is_own"} <= cs_cols:
+            for stmt in _COMPANY_DATA_FIXES:
+                conn.execute(text(stmt))
+            # Der frühere Kanal ``info`` wird der des Betreibers (Migration
+            # ``146``) – selbstbegrenzend, danach gibt es kein ``info`` mehr.
+            if {"messages", "mailboxes"} <= tables:
+                from .domain.communication import (contact_repair_sql,
+                                                   info_repair_sql,
+                                                   personal_repair_sql)
+                # Persönliche Postfächer gibt es nicht mehr (Migration ``149``).
+                for stmt in (info_repair_sql() + personal_repair_sql()
+                             + contact_repair_sql()):
+                    conn.execute(text(stmt))
+            # Vom «Antwort auf» zum Betreff (Migration ``148``) – selbstbegrenzend.
+            if "message_replies" in tables and "message_parties" in tables:
+                from .domain.communication import topic_repair_sql
+                for stmt in topic_repair_sql():
+                    conn.execute(text(stmt))
+        # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
+        # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.
+        if {"uid_key", "name_key"} <= cs_cols:
+            sites.backfill_keys(conn)
+            # Die Indizes **nach** den Schlüsseln – ``backfill_keys`` hält
+            # Alt-Dubletten auseinander; vorher angelegt, scheiterte der Index an
+            # genau ihnen. Eine Prüfung im Dienst fängt zwei gleichzeitige Anlagen
+            # nicht ab, der Index schon (#778: eine Index-Regel, die nur in einer
+            # Migration steht, erreicht dev nie).
+            for stmt in sites.KEY_INDEXES:
+                conn.execute(text(stmt))
+
+
+_DATA_REPAIRS = (
+    ("articles.status", _repair_article_status),
+    ("instance_units.status", _repair_unit_status),
+    ("vouchers", _repair_vouchers),
+    ("user_profiles", _repair_people),
+    ("company_settings", _repair_companies),
+)
+
+
 def _ensure_columns() -> None:
     """Fehlende Spalten idempotent ergänzen, obsolete entfernen und Altdaten
     normalisieren, falls eine Migration nicht lief. create_all() ändert
@@ -527,147 +694,9 @@ def _ensure_columns() -> None:
             # zweite Weg, und beim Ausfall zählt nur der zweite Weg. Eine Daten-Reparatur
             # darf ihn nicht mitreissen.
             conn.commit()
-            # **Auch die Spalte wird geprüft, nicht nur die Tabelle.** ``articles.status``
-            # hat ihr Mapping verloren (Testnotiz #773) und fällt im Folge-Deploy – eine
-            # Reparatur, die nur nach der Tabelle fragt, wäre danach die Anweisung, die
-            # das ganze Netz reisst.
-            for stmt in _ARTICLE_STATUS_FIXES:
-                table = stmt.split()[1]
-                if table not in tables:
-                    continue
-                columns = {c["name"] for c in insp.get_columns(table)}
-                if all(word in columns for word in ("status", "replaced_by_id")) \
-                        or table != "articles":
-                    conn.execute(text(stmt))
-            if "instance_units" in tables:
-                # Der Platzhalter-Status ``new`` aus dem Basis-Neuaufbau gibt es mit der
-                # geschlossenen Liste nicht mehr (Migration 104). Ein Stück, das in keinem
-                # Auftrag steckt, ist einsatzbereit – genau das heisst ``freigegeben``.
-                # Bleibt der Altwert stehen, lässt sich das Stück nie starten: das
-                # Start-Objekt erwartet ``freigegeben`` und lehnt sauber ab.
-                #
-                # ►► **Die Liste kommt aus dem Katalog – und das ist hier der ganze Punkt.**
-                #
-                # Diese Reparatur stand einmal als ``NOT IN ('freigegeben','im_prozess')``
-                # da, weil es damals nur diese beiden Zustände gab. Sie ist damit still
-                # veraltet, als ``Gesperrt`` und ``Verschrottet`` dazukamen: seither hat
-                # **jeder Start** – also jeder Deploy – jedes ausgesonderte Stück wieder auf
-                # ``freigegeben`` gesetzt. Ein verschrottetes Stück wurde grün, und zwar
-                # nicht beim Abschluss eines Auftrags, sondern beim nächsten Neustart. In
-                # keiner einzelnen Anfrage war das nachstellbar.
-                #
-                # Repariert wird darum nur noch, was der Katalog **nicht kennt** (der alte
-                # Platzhalter, Fremdwerte). Ein Zustand, der in ``CATALOG`` steht, ist per
-                # Konstruktion nicht mehr betroffen – die Liste kann nicht wieder veralten.
-                conn.execute(
-                    text(
-                        "UPDATE instance_units SET status = :fallback "
-                        "WHERE status IS NULL OR status <> ALL(:known)"
-                    ),
-                    {"fallback": st.INITIAL_UNIT_STATUS, "known": list(st.UNIT_STATUSES)},
-                )
-            if "vouchers" in tables and "voucher_entries" in tables:
-                # ►►► **Die Rechnung wandert an ihren Beleg** (Migration ``138``). ◄◄◄
-                #
-                # Die dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778):
-                # dort zieht das Spalten-Netz die acht neuen Spalten **leer** nach, und die
-                # alten Forderungs-Zeilen blieben stehen. Der Dienst liest seit dem Umbau
-                # **jede aktive Zeile als Zahlung** – jede alte Rechnung wäre damit ein
-                # Geldeingang, und der offene Betrag stünde im Minus. Das ist kein
-                # Schema-Problem, also fängt es kein Schema-Netz.
-                #
-                # Die Ableitung steht in ``domain/voucher`` und wird von der Migration
-                # **und** von hier gelesen – zweimal ausgeschrieben wären es zwei
-                # Wahrheiten. Sie ist **selbstbegrenzend**: der erste Lauf setzt jede
-                # ``charge``-Zeile inaktiv, der zweite findet nichts mehr. Eine Reparatur
-                # mit einer gepflegten Liste veraltet (die Lehre aus Migration ``110``) –
-                # diese hier kann es nicht, weil sie ihre eigene Voraussetzung wegnimmt.
-                v_cols = {r[0] for r in conn.execute(text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='vouchers'"))}
-                e_cols = {r[0] for r in conn.execute(text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='voucher_entries'"))}
-                if "amount" in v_cols and "kind" in e_cols:
-                    for stmt in vo.invoice_backfill_sql():
-                        conn.execute(text(stmt))
-                # ►►► **Jede Zahl ist eine MENGE** (Migration ``141``, #1054–#1056). ◄◄◄
-                #
-                # Ein Korrekturbeleg stand bis hierher im Minus. Die Leser lesen ihn
-                # seither als Menge – ohne diese Drehung wäre der offene Betrag das
-                # Doppelte, und das fängt kein Schema-Netz. Selbstbegrenzend: gedreht
-                # wird nur, was negativ ist.
-                if {"amount", "vat", "corrects_id"} <= v_cols:
-                    for stmt in vo.magnitude_sql():
-                        conn.execute(text(stmt))
-            if "user_profiles" in tables:
-                # ►►► **Die Rolle ist der Zugang** (Testnotiz #1043, Migration ``140``).◄◄◄
-                #
-                # Zwei Daten-Reparaturen, und keine davon fängt ein Schema-Netz: eine
-                # Rolle «customer»/«supplier» kennt ``Role`` an der Tür nicht mehr (jedes
-                # Speichern an so einer Zeile wäre ein 422 an einer Angabe, die niemand
-                # angefasst hat), und eine Rechnungsadresse, die eine **Kopie** der
-                # Hauptadresse ist, liest ``billing_of`` seither als eigene – der Beleg
-                # zeigt dieselbe Anschrift zweimal.
-                #
-                # Die Anweisungen stehen in ``services/people.repair_sql`` und werden von
-                # der Migration **und** von hier gelesen; die dev-Datenbank fährt kein
-                # ``alembic upgrade head`` (#778). Beide sind **selbstbegrenzend**.
-                up_cols = {r[0] for r in conn.execute(text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='user_profiles'"))}
-                for stmt in people.repair_sql():
-                    conn.execute(text(stmt))
-                # ►►► **Die Anschriften ziehen ins Adressbuch** (Migration ``143``). ◄◄◄
-                # Selbstbegrenzend: die Felder werden danach geleert, ein zweiter Lauf
-                # findet nichts mehr. Fällt die Spalte im Folge-Deploy, gibt es nichts zu tun.
-                if "addresses" in tables:
-                    # Je Konto genau ein Standard – der Index ohne Konto fällt zuerst.
-                    for stmt in address_book.ADDRESS_INDEXES:
-                        conn.execute(text(stmt))
-                    if "address_line1" in up_cols:
-                        for stmt in address_book.migrate_sql():
-                            conn.execute(text(stmt))
-                    # Die Anschrift einer fremden Firma wird die des Geschäftskontos.
-                    if "company_object_id" in up_cols:
-                        for stmt in address_book.business_sql():
-                            conn.execute(text(stmt))
-            if "company_settings" in tables:
-                # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
-                # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht
-                # (gleiche Begründung wie beim ``documents``-Block oben).
-                cs_cols = {r[0] for r in conn.execute(text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='company_settings'"))}
-                if {"is_operator", "is_own"} <= cs_cols:
-                    for stmt in _COMPANY_DATA_FIXES:
-                        conn.execute(text(stmt))
-                    # Der frühere Kanal ``info`` wird der des Betreibers (Migration
-                    # ``146``) – selbstbegrenzend, danach gibt es kein ``info`` mehr.
-                    if {"messages", "mailboxes"} <= tables:
-                        from .domain.communication import (contact_repair_sql,
-                                                           info_repair_sql,
-                                                           personal_repair_sql)
-                        # Persönliche Postfächer gibt es nicht mehr (Migration ``149``).
-                        for stmt in (info_repair_sql() + personal_repair_sql()
-                                     + contact_repair_sql()):
-                            conn.execute(text(stmt))
-                    # Vom «Antwort auf» zum Betreff (Migration ``148``) – selbstbegrenzend.
-                    if "message_replies" in tables and "message_parties" in tables:
-                        from .domain.communication import topic_repair_sql
-                        for stmt in topic_repair_sql():
-                            conn.execute(text(stmt))
-                # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
-                # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.
-                if {"uid_key", "name_key"} <= cs_cols:
-                    sites.backfill_keys(conn)
-                    # Die Indizes **nach** den Schlüsseln – ``backfill_keys`` hält
-                    # Alt-Dubletten auseinander; vorher angelegt, scheiterte der Index an
-                    # genau ihnen. Eine Prüfung im Dienst fängt zwei gleichzeitige Anlagen
-                    # nicht ab, der Index schon (#778: eine Index-Regel, die nur in einer
-                    # Migration steht, erreicht dev nie).
-                    for stmt in sites.KEY_INDEXES:
-                        conn.execute(text(stmt))
+            for name, fix in _DATA_REPAIRS:
+                with _repair(conn, name):
+                    fix(conn, tables, insp)
             conn.commit()
     except Exception as e:
         print(f"WARNING: _ensure_columns() failed: {e}", flush=True)
@@ -713,10 +742,12 @@ def _ensure_object_registry_shape() -> None:
     Auf gewachsenen Datenbanken existiert evtl. noch eine **veraltete** ``objects``-
     Tabelle aus einem früheren Modell (Spalte ``id`` statt ``object_id``).
     ``create_all()`` ändert bestehende Tabellen nicht, daher schlägt JEDE
-    Objektanlage mit «column object_id … does not exist» fehl. Hier wird die
-    veraltete Tabelle verworfen und korrekt neu angelegt – die Registry ist eine
-    reine Ableitung der Fachtabellen (``_backfill_object_registry`` füllt sie neu).
-    Idempotent und über einen Advisory-Lock gegen Nebenläufigkeit abgesichert."""
+    Objektanlage mit «column object_id … does not exist» fehl. Das wird **gemeldet,
+    nicht verworfen** (Cleanup 2026-10): die Registry hält jede je vergebene Nummer,
+    auch die eines Typs, den es nicht mehr gibt – aus den Fachtabellen ist sie nicht
+    vollständig wiederherzustellen, und ohne sie vergäbe ``setval`` eine Alt-Nummer ein
+    zweites Mal. Idempotent und über einen Advisory-Lock gegen Nebenläufigkeit
+    abgesichert."""
     db = SessionLocal()
     try:
         # Serialisiert diese Reparatur über alle Worker/Instanzen (eine Transaktion).
@@ -728,7 +759,8 @@ def _ensure_object_registry_shape() -> None:
                 "WHERE table_name = 'objects' AND column_name = 'object_id'"
             )).first() is not None
             if not has_object_id:
-                db.execute(text("DROP TABLE objects CASCADE"))
+                print("WARNING: Tabelle objects hat kein object_id – veraltete Form, "
+                      "nicht angefasst: per Migration reparieren.", flush=True)
         db.execute(text(
             "CREATE TABLE IF NOT EXISTS objects ("
             "object_id BIGINT PRIMARY KEY, "
@@ -804,25 +836,21 @@ def _shape_problem(insp, table: str, model) -> Optional[str]:
     return None
 
 
-def _ensure_rebuilt_tables_shape() -> None:
-    """Tabellen, die **neu aufgebaut** statt migriert wurden, ans Modell angleichen.
+def _check_core_tables_shape() -> None:
+    """Die Tabellen des Prozess-Kerns **prüfen** – fehlt eine, wird sie angelegt; passt
+    eine nicht zum Modell, steht es laut im Log. **Gelöscht wird nichts.**
 
-    ``create_all()`` legt nur **fehlende** Tabellen an. Eine vorgefundene Tabelle mit
-    fremder Form fasst es nicht an – und genau das ist der Ausfall, den man erst im
-    Betrieb sieht: nicht ein 500 beim Deploy, sondern ein 500 beim ersten Klick.
+    ``create_all()`` legt nur **fehlende** Tabellen an; eine vorgefundene mit fremder Form
+    fasst es nicht an, und das ist der Ausfall, den man erst im Betrieb sieht (ein 500
+    beim ersten Klick statt beim Deploy). Bis zum Cleanup Oktober 2026 stand hier darum
+    ein ``DROP TABLE … CASCADE`` – der Anlass war der Basis-Neuaufbau (Migration 102 ff.),
+    und für die Tabellen von damals war ihr Inhalt wertlos. Heute stehen in genau diesen
+    Tabellen die Aufträge und der append-only Ereignis-Log: eine einzige Migration, die
+    eine Pflichtspalte vor dem Modell anlegt, hätte sie bei jedem Start vernichtet.
 
-    Für diese Tabellen ist eine fremde Form **keine Altdaten-Frage**: der Basis-Neuaufbau
-    (Migration 102 ff.) hat sie ausdrücklich verworfen und neu angelegt, ihr Inhalt aus
-    der Vorgängerwelt ist irrelevant. Was hier steht und nicht passt, ist darum kein
-    Bestand, den man retten müsste, sondern eine Tabelle, die nichts bedienen kann.
-
-    **Der Fall ist real:** in der Testumgebung stand noch das ``article_process_steps``
-    aus dem Vorgängersystem (``step_type``, ``order_id NOT NULL``, kein ``module_type``).
-    Migration 102 hätte sie gedroppt und 105 neu angelegt – lief Alembic aber nicht durch,
-    blieb die alte stehen, ``create_all`` übersprang sie, und **jeder** Aufruf des Reiters
-    «Erzeugungsprozess» endete in «column article_process_steps.module_type does not
-    exist». Ein Netz-Eintrag je fehlender Spalte hätte hier nicht gereicht: es fehlten
-    fünf, und ``order_id NOT NULL`` hätte danach jedes ``INSERT`` gekippt.
+    Eine Tabelle mit fremder Form ist ein **Befund für einen Menschen**, keine Reparatur
+    für den Start: die Migration ist die Wahrheit, und wer sie repariert, sieht, was er
+    wegwirft.
     """
     from sqlalchemy import inspect
     from .models import (
@@ -830,10 +858,8 @@ def _ensure_rebuilt_tables_shape() -> None:
         OrderLine, OrderUnit, ProcessEvent, ProcessStep,
     )
     models = (
-        # Der Prozess-Kern (PROCESS_CORE.md §11) – von 102/103/104/105 neu aufgebaut.
         Instance, InstanceUnit, Capture,
         Order, OrderLine, OrderUnit, ProcessStep, ArticleProcessStep, ProcessEvent,
-        # Bild-Uploads: derselbe Fall, nur älter (fehlendes ``token`` → jeder Upload 500).
         Attachment,
     )
     try:
@@ -845,17 +871,11 @@ def _ensure_rebuilt_tables_shape() -> None:
                 model.__table__.create(bind=engine, checkfirst=True)
                 continue
             problem = _shape_problem(insp, table, model)
-            if problem is None:
-                continue
-            with engine.begin() as conn:
-                conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
-            model.__table__.create(bind=engine, checkfirst=True)
-            # Laut, nicht still: eine stumme Reparatur sähe aus wie «war schon immer so».
-            print(f"INFO: Tabelle {table} neu aufgebaut – {problem}.", flush=True)
+            if problem is not None:
+                print(f"WARNING: Tabelle {table} passt nicht zum Modell – {problem}. "
+                      f"Nicht angefasst: per Migration reparieren.", flush=True)
     except Exception as e:
-        print(f"WARNING: _ensure_rebuilt_tables_shape() failed: {e}", flush=True)
-
-
+        print(f"WARNING: _check_core_tables_shape() failed: {e}", flush=True)
 
 
 # Advisory-Lock-Schlüssel: Schema-/Daten-Fixups laufen genau EINMAL – auch bei
@@ -864,10 +884,8 @@ _STARTUP_LOCK_KEY = 778_899_001
 
 
 def _run_startup_fixups_once() -> None:
-    """Alle Startup-Mutationen (Schema-Nachzug, Registry, Prozess-Backfill, Pflicht-
-    Bewegungen, Wiederkehr) unter einem DB-Advisory-Lock ausführen, damit sie sich
-    bei parallelem Start nicht in die Quere kommen (verhindert doppelte Prozesse/
-    Bewegungen und Lock-Konflikte → keine sporadischen 5xx kurz nach dem Deploy)."""
+    """Alle Startup-Mutationen (Schema-Netze, Daten-Reparaturen, Nummern-Registry) unter
+    einem DB-Advisory-Lock – genau einmal, auch bei mehreren Workern oder Instanzen."""
     db = SessionLocal()
     acquired = False
     try:
@@ -876,20 +894,10 @@ def _run_startup_fixups_once() -> None:
         if not acquired:
             print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
             return
-        # **Erst die Spalten, dann als LETZTES Mittel die Form.**
-        #
-        # Umgekehrt war es datenvernichtend: eine bloss fehlende Spalte ist genau der
-        # Fall, den das Spaltennetz behebt – der Formwächter dagegen kann nur eines,
-        # nämlich DROP TABLE. Lief Alembic 107 nicht durch, warf er die ganze
-        # ``orders``-Tabelle weg («es fehlen name»), obwohl der Eintrag daneben die
-        # Spalte in einer Zeile ergänzt hätte. Gemessen, nicht vermutet: auf einer
-        # 106er-Datenbank war der Alt-Auftrag danach spurlos verschwunden.
-        #
-        # In dieser Reihenfolge ist der Neuaufbau das, was er sein soll: die Antwort auf
-        # eine Form, die auch nach dem Netz noch unbenutzbar ist (fremde Pflichtspalten
-        # aus einer alten Welt) – und nicht die erste Reaktion auf eine fehlende Spalte.
+        # Erst die Spalten, dann die Prüfung der Form: gemeldet wird, was auch nach dem
+        # Netz noch nicht passt – nicht eine Spalte, die das Netz eben ergänzt hat.
         _ensure_columns()
-        _ensure_rebuilt_tables_shape()
+        _check_core_tables_shape()
         _ensure_object_id_sequence()
         _backfill_object_registry()
         _ensure_company_object_id()   # Firma = nummerierter ERP-Datensatz
