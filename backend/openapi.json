@@ -7289,17 +7289,6 @@
             ],
             "title": "At"
           },
-          "reply_to": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reply To"
-          },
           "incoming": {
             "type": "boolean",
             "title": "Incoming",
@@ -7311,7 +7300,7 @@
           "channel"
         ],
         "title": "MessageIn",
-        "description": "**Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die\nAngaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort»."
+        "description": "**Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die\nAngaben. Ohne Text braucht sie einen Betreff – das ist «erledigt ohne Antwort» für\ndieses Anliegen."
       },
       "MessageOut": {
         "properties": {
@@ -7389,23 +7378,22 @@
             "format": "date-time",
             "title": "At"
           },
-          "reply_to": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reply To"
+          "topic": {
+            "type": "string",
+            "title": "Topic",
+            "default": ""
           },
-          "answer_to": {
+          "reply_subject": {
+            "type": "string",
+            "title": "Reply Subject",
+            "default": ""
+          },
+          "reply_all": {
             "items": {
               "$ref": "#/components/schemas/PersonRef"
             },
             "type": "array",
-            "title": "Answer To",
+            "title": "Reply All",
             "default": []
           },
           "ours": {

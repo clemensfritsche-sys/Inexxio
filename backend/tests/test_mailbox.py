@@ -95,13 +95,14 @@ def test_a_user_with_our_address_is_never_the_sender_and_never_created(world):
     assert "bereits" in mb._store(db, "u1", staff, COMPANY, "t", "1")
 
 
-def test_a_reply_in_gmail_answers_the_message_it_references(world):
+def test_a_reply_in_gmail_answers_the_message_of_its_subject(world):
+    """Wer direkt in Gmail antwortet, erledigt die Nachricht im ERP – über den Betreff."""
     db, staff, box = world
-    first = _gmail("x@kunde.ch", to=COMPANY, rfc="<a1@kunde>")
+    first = _gmail("x@kunde.ch", to=COMPANY, subject="Seilwinde", rfc="<a1@kunde>")
     mb.ingest(db, box, first)
     assert _one(db, first["id"]).open
-    answer = _gmail(COMPANY, to="x@kunde.ch", labels=("SENT",), rfc="<b2@inexxio>",
-                    in_reply_to="<a1@kunde>", references="<a1@kunde>")
+    answer = _gmail(COMPANY, to="x@kunde.ch", subject="Re: Seilwinde", labels=("SENT",),
+                    rfc="<b2@inexxio>")
     mb.ingest(db, box, answer)
     assert not _one(db, first["id"]).open
 
@@ -171,20 +172,34 @@ def test_every_own_company_has_its_own_mailbox_and_the_old_info_moves_to_the_ope
     assert "is_own" in sql and "is_operator DESC" in sql and "channel = 'info'" in sql
 
 
-def test_an_answer_in_gmail_closes_only_the_mail_it_answers(world):
-    """``In-Reply-To`` nennt genau eine Mail – die übrigen im Faden (``References``)
-    bleiben offen, und die Nachfrage eines Kunden erledigt seine erste Frage nicht. Jede
-    muss für sich beantwortet oder als erledigt markiert werden."""
+def test_one_answer_in_gmail_closes_every_mail_of_its_subject(world):
+    """Zwei Mails desselben Kunden zum selben Betreff – eine Antwort erledigt beide; eine
+    Mail mit anderem Betreff bleibt offen."""
     db, staff, box = world
-    first = _gmail("z@kunde.ch", to=COMPANY, rfc="<f1@kunde>")
-    second = _gmail("z@kunde.ch", to=COMPANY, rfc="<f2@kunde>", in_reply_to="<f1@kunde>")
+    first = _gmail("z@kunde.ch", to=COMPANY, subject="Kran 3", rfc="<f1@kunde>")
+    second = _gmail("z@kunde.ch", to=COMPANY, subject="AW: Kran 3", rfc="<f2@kunde>")
+    other = _gmail("z@kunde.ch", to=COMPANY, subject="Offerte", rfc="<f9@kunde>")
+    for raw in (first, second, other):
+        mb.ingest(db, box, raw)
+    mb.ingest(db, box, _gmail(COMPANY, to="z@kunde.ch", subject="Re: Kran 3",
+                              labels=("SENT",), rfc="<f3@inexxio>"))
+    assert not _one(db, first["id"]).open and not _one(db, second["id"]).open
+    assert _one(db, other["id"]).open
+
+
+def test_a_reply_goes_out_in_the_thread_of_its_subject(world):
+    """Der Faden einer ausgehenden Mail ist die jüngste frühere Mail mit demselben
+    Anliegen und einem der Empfänger – wie Gmail über den Betreff."""
+    db, staff, box = world
+    first = _gmail("t@kunde.ch", to=COMPANY, subject="Kran 3", rfc="<t1@kunde>")
     mb.ingest(db, box, first)
-    mb.ingest(db, box, second)
-    answer = _gmail(COMPANY, to="z@kunde.ch", labels=("SENT",), rfc="<f3@inexxio>",
-                    in_reply_to="<f2@kunde>", references="<f1@kunde> <f2@kunde>")
-    mb.ingest(db, box, answer)
-    assert _one(db, first["id"]).open and not _one(db, second["id"]).open
-    assert _one(db, answer["id"]).reply_to == _one(db, second["id"]).id
+    lea = db.query(UserProfile).filter(UserProfile.email == "t@kunde.ch").one()
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Re: Kran 3",
+                                    body="Ok"), staff)
+    parent = mb._parent(db, msg)
+    assert parent is not None and parent.rfc_id == "<t1@kunde>"
+    mime = mb._mime(db, box, msg, parent)
+    assert mime["Subject"] == "Re: Kran 3" and mime["In-Reply-To"] == "<t1@kunde>"
 
 
 def test_last_comma_first_is_turned_around():

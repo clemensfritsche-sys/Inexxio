@@ -2816,7 +2816,8 @@ export interface components {
         /**
          * MessageIn
          * @description **Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die
-         *     Angaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort».
+         *     Angaben. Ohne Text braucht sie einen Betreff – das ist «erledigt ohne Antwort» für
+         *     dieses Anliegen.
          */
         MessageIn: {
             /** Channel */
@@ -2838,8 +2839,6 @@ export interface components {
             body: string;
             /** At */
             at?: string | null;
-            /** Reply To */
-            reply_to?: number | null;
             /**
              * Incoming
              * @default false
@@ -2886,13 +2885,21 @@ export interface components {
              * Format: date-time
              */
             at: string;
-            /** Reply To */
-            reply_to?: number | null;
             /**
-             * Answer To
+             * Topic
+             * @default
+             */
+            topic: string;
+            /**
+             * Reply Subject
+             * @default
+             */
+            reply_subject: string;
+            /**
+             * Reply All
              * @default []
              */
-            answer_to: components["schemas"]["PersonRef"][];
+            reply_all: components["schemas"]["PersonRef"][];
             /** Ours */
             ours: boolean;
             /**

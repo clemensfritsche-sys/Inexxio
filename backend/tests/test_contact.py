@@ -16,7 +16,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.database import get_db
-from app.models import Message, MessageParty, MessageReply, UserProfile
+from app.domain import communication as dc
+from app.models import Message, MessageParty, UserProfile
 from app.routers import contact
 from app.services import communication as comm
 from app.services import inquiry as svc
@@ -95,8 +96,8 @@ def test_an_inquiry_is_an_open_message_from_a_new_person(world):
 
 
 def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
-    """Die Bestätigung geht über das Postfach hinaus und steht im Verlauf – OHNE «Antwort
-    auf»: die Anfrage bleibt offen, bis ein Mensch antwortet (sonst wäre das 2-h-Ziel
+    """Die Bestätigung geht über das Postfach hinaus und steht im Verlauf – unter EIGENEM
+    Betreff: die Anfrage bleibt offen, bis ein Mensch antwortet (sonst wäre das 2-h-Ziel
     ausgehebelt)."""
     data = form()
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
@@ -107,7 +108,7 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     assert conf.sender_object_id == world.staff.object_id and conf.channel == CHANNEL
     assert conf.subject == contact.VOCAB["mail"]["confirmSubject"]
     assert "Hubwerk bleibt stehen." in conf.body
-    assert world.db.query(MessageReply).filter(MessageReply.message_id == conf.id).count() == 0
+    assert dc.topic(conf.subject) != dc.topic(inq.subject)
     assert comm.load(world.db, [inq.id])[0].open
 
 

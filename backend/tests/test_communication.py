@@ -50,15 +50,16 @@ def world():
 
 
 def test_a_message_from_outside_is_open_until_someone_answers(world):
-    """Regel 3: von aussen = an uns; offen, bis eine Nachricht sie in «Antwort auf» nennt –
-    egal von welchem Mitarbeiter und auf welchem Kanal (Mail per Anruf beantwortet)."""
+    """Regel 3: von aussen = an uns; offen, bis eine spätere Nachricht von uns mit
+    demselben Betreff sie erreicht – egal von welchem Mitarbeiter und auf welchem Kanal
+    (Mail per Anruf beantwortet)."""
     db, actor, staff = world
     lea = _person(db)
     m = _send(db, actor, channel="c999999990", sender=lea, body="Wann kommt der Techniker?")
     assert _one(db, m.id).open
     other = _person(db, "employee")
     _send(db, actor, channel="phone", sender=other, to=[lea], body="Donnerstag.",
-          reply_to=m.id)
+          subject="Re: Betreff")
     assert not _one(db, m.id).open
 
 
@@ -97,6 +98,7 @@ def test_internal_note_question_and_reminder_are_one_thing(world):
     later = _send(db, actor, channel="intern", sender=staff, to=[staff], about=[lea],
                   body="zurückrufen", at=datetime.now(timezone.utc) + timedelta(days=1))
     due = _send(db, actor, channel="intern", sender=staff, to=[staff], body="jetzt",
+                subject="Fällig",
                 at=datetime.now(timezone.utc) - timedelta(minutes=1))
     assert not _one(db, note.id).open
     assert _one(db, ask.id).open
@@ -104,13 +106,15 @@ def test_internal_note_question_and_reminder_are_one_thing(world):
     assert _one(db, due.id).open
 
 
-def test_done_without_answer_is_a_silent_reply(world):
+def test_done_without_answer_is_a_silent_note_with_the_subject(world):
+    """«Erledigt ohne Antwort» ist eine stille interne Nachricht mit dem Betreff, die den
+    Absender betrifft – ohne Text und ohne Betreff sagt eine Nachricht nichts (400)."""
     db, actor, staff = world
     lea = _person(db)
-    m = _send(db, actor, channel="c999999990", sender=lea, body="Danke!")
+    m = _send(db, actor, channel="c999999990", sender=lea, subject="Danke", body="Danke!")
     with pytest.raises(HTTPException):
-        _send(db, actor, channel="intern", sender=staff, body="")
-    _send(db, actor, channel="intern", sender=staff, body="", reply_to=m.id)
+        _send(db, actor, channel="intern", sender=staff, subject=None, body="")
+    _send(db, actor, channel="intern", sender=staff, subject="Danke", about=[lea], body="")
     assert not _one(db, m.id).open
 
 
@@ -168,58 +172,90 @@ def test_one_writes_only_in_ones_own_name(world):
     assert e.value.status_code == 403
 
 
-def test_an_answer_closes_only_what_it_answers(world):
-    """«Antwort auf» nennt genau eine Nachricht – die zweite offene bleibt offen, bis auch
-    sie beantwortet oder als erledigt markiert ist. Zweimal antworten ist erlaubt."""
+def test_an_answer_closes_every_open_message_of_its_subject(world):
+    """►►► **Das Anliegen ist der Betreff.** ◄◄◄ Eine Antwort erledigt alle offenen
+    Nachrichten mit demselben Betreff (ohne «Re:»/«AW:», ohne Gross/Klein) – ein anderer
+    Betreff bleibt offen, und eine Nachfrage NACH der Antwort wartet wieder."""
     db, actor, staff = world
     lea = _person(db)
-    first = _send(db, actor, channel="c999999990", sender=lea, body="Frage 1")
-    second = _send(db, actor, channel="c999999990", sender=lea, body="Frage 2")
-    _send(db, actor, channel="c999999990", to=[lea], body="Zu 2", reply_to=second.id)
-    assert _one(db, first.id).open and not _one(db, second.id).open
-    again = _send(db, actor, channel="c999999990", to=[lea], body="Nachtrag", reply_to=second.id)
-    assert _one(db, again.id).reply_to == second.id
-    with pytest.raises(Exception):
-        MessageIn(channel="intern", body="", reply_to=[first.id, second.id])
+    first = _send(db, actor, channel="c999999990", sender=lea, subject="Seilwinde", body="1")
+    second = _send(db, actor, channel="c999999990", sender=lea, subject="RE: seilwinde",
+                   body="2")
+    other = _send(db, actor, channel="c999999990", sender=lea, subject="Offerte", body="3")
+    _send(db, actor, channel="c999999990", to=[lea], subject="Re: Seilwinde", body="Ok")
+    assert not _one(db, first.id).open and not _one(db, second.id).open
+    assert _one(db, other.id).open
+    again = _send(db, actor, channel="c999999990", sender=lea, subject="AW: Seilwinde",
+                  body="Und?")
+    assert _one(db, again.id).open
 
 
-def test_an_answer_reaches_whom_it_answers(world):
-    """Eine Antwort erreicht den Absender der beantworteten Nachricht – sonst 400 mit
-    Satz. «Erledigt ohne Antwort» und die eigene Erinnerung sind an niemanden gebunden;
-    die Frage einer Kollegin beantworte ich ihr."""
+def test_an_answer_must_reach_the_sender_and_the_asker_does_not_answer_himself(world):
+    """Erledigt ist, was der Absender bekommt: eine Mail an jemand anderen erledigt Leas
+    Frage nicht. Die Frage an eine Kollegin wartet auf SIE – schreibe ich selbst noch
+    einmal, bleibt sie offen; die Erinnerung an mich erledige ich selbst."""
     db, actor, staff = world
-    lea, sara = _person(db), _person(db, "employee")
-    ask = _send(db, actor, channel="c999999990", sender=lea, body="Frage")
-    with pytest.raises(HTTPException) as e:
-        _send(db, actor, channel="intern", to=[sara], body="Kannst du?", reply_to=ask.id)
-    assert e.value.status_code == 400 and str(lea) in e.value.detail
-    marco = _person(db)
-    _send(db, actor, channel="c999999990", to=[marco], cc=[lea], body="Antwort",
-          reply_to=ask.id)
-    _send(db, actor, channel="intern", body="", reply_to=ask.id)
-    me = _send(db, actor, channel="intern", to=[staff], body="zurückrufen")
-    _send(db, actor, channel="intern", body="erledigt", reply_to=me.id)
-    q = _send(db, actor, channel="intern", sender=sara, to=[staff], body="Lager?")
-    with pytest.raises(HTTPException):
-        _send(db, actor, channel="intern", to=[lea], body="x", reply_to=q.id)
-    _send(db, actor, channel="intern", to=[sara], body="leer", reply_to=q.id)
+    lea, marco, sara = _person(db), _person(db), _person(db, "employee")
+    ask = _send(db, actor, channel="c999999990", sender=lea, subject="Frage", body="?")
+    _send(db, actor, channel="c999999990", to=[marco], subject="Frage", body="x")
+    assert _one(db, ask.id).open
+    _send(db, actor, channel="c999999990", to=[marco], cc=[lea], subject="Re: Frage", body="y")
+    assert not _one(db, ask.id).open
+    q = _send(db, actor, channel="intern", to=[sara], subject="Lager", body="Wie viel?")
+    _send(db, actor, channel="intern", to=[sara], subject="Lager", body="Nachtrag")
+    assert _one(db, q.id).open
+    _send(db, actor, channel="intern", sender=sara, to=[staff], subject="Re: Lager", body="3")
     assert not _one(db, q.id).open
+    me = _send(db, actor, channel="intern", to=[staff], subject="Rückruf", body="anrufen")
+    _send(db, actor, channel="intern", subject="Rückruf", body="")
+    assert not _one(db, me.id).open
 
 
-def test_a_message_names_whom_an_answer_must_reach(world):
-    """``answer_to`` sagt der Oberfläche, wen «An» vorbelegt und sperrt; die Firma reist
-    mit der Person (Kopf «Muster AG · Lea»), die Adresse nur für den Hover."""
+def test_a_planned_answer_answers_nothing_yet(world):
+    db, actor, staff = world
+    lea = _person(db)
+    m = _send(db, actor, channel="c999999990", sender=lea, body="?")
+    _send(db, actor, channel="c999999990", to=[lea], body="Später",
+          at=datetime.now(timezone.utc) + timedelta(hours=1))
+    assert _one(db, m.id).open
+
+
+def test_reply_all_and_the_fixed_subject(world):
+    """``reply_all`` belegt «Antworten» vor: Absender, An, Cc (ohne Bcc); der Betreff einer
+    Antwort ist fest – «Re: » davor wie Gmail, nie ein zweites. Die Firma reist mit der
+    Person (Kopf «Muster AG · Lea»), die Adresse nur für den Hover."""
     from app.models import CompanySettings
     db, actor, staff = world
     firm = random.randint(900_000_000, 999_999_999)
     db.add(CompanySettings(object_id=firm, company_name="Muster", legal_form="AG"))
     db.flush()
-    lea = _person(db, company=firm)
-    m = _one(db, _send(db, actor, channel="c999999990", sender=lea, body="x").id)
-    assert [p.object_id for p in m.answer_to] == [lea]
+    lea, marco, eva = _person(db, company=firm), _person(db), _person(db)
+    m = _one(db, _send(db, actor, channel="c999999990", sender=lea, to=[staff], cc=[marco],
+                       bcc=[eva], subject="AW: Seilwinde", body="x").id)
+    assert [p.object_id for p in m.reply_all] == [lea, staff, marco]
+    assert m.topic == "Seilwinde" and m.reply_subject == "Re: Seilwinde"
     assert m.sender.company == "Muster AG" and m.sender.email == f"p{lea}@x.ch"
-    mine = _one(db, _send(db, actor, channel="c999999990", to=[lea], body="y").id)
-    assert {p.object_id for p in mine.answer_to} == {staff, lea}
+
+
+def test_there_is_no_reply_to_any_more():
+    """«Antwort auf» ist vollständig entfernt – kein Feld, kein Modell, keine Schreibstelle."""
+    from app import models
+    from app.schemas.communication import MessageOut
+    assert "reply_to" not in MessageIn.model_fields and "reply_to" not in MessageOut.model_fields
+    assert not hasattr(models, "MessageReply")
+    for path in ("app/services/communication.py", "app/services/mailbox.py",
+                 "app/services/inquiry.py"):
+        assert "MessageReply" not in (BACKEND / path).read_text(), path
+    ui = (BACKEND.parent / "frontend/src/components/erp/communication.tsx").read_text()
+    for gone in ("reply_to", "answer_to", "function Quote", "jump("):
+        assert gone not in ui, gone
+
+
+def test_the_subject_without_prefixes_is_the_topic():
+    from app.domain import communication as dc
+    assert dc.topic("Re: AW: Fwd:  Seilwinde  Kran") == dc.topic("seilwinde kran")
+    assert dc.title("WG: Offerte") == "Offerte" and dc.reply_subject("Re: X") == "Re: X"
+    assert dc.reply_subject(None) == ""
 
 
 def test_an_email_needs_a_recipient_and_a_subject(world):
@@ -250,7 +286,7 @@ def test_an_incoming_call_has_the_caller_as_sender(world):
         _send(db, actor, channel="intern", to=[lea], body="x", incoming=True)
     with pytest.raises(HTTPException):
         _send(db, actor, channel="phone", to=[lea, staff], body="x", incoming=True)
-    # Ruft sie zurück und «antwortet» damit auf ihre Mail, ist sie als Anruferin erreicht.
+    # Rufe ich sie zum selben Betreff zurück, ist ihre Mail erledigt.
     mail = _send(db, actor, channel="c999999990", sender=lea, body="Frage")
-    _send(db, actor, channel="phone", to=[lea], body="zurückgerufen", incoming=True,
-          reply_to=mail.id)
+    _send(db, actor, channel="phone", to=[lea], body="zurückgerufen")
+    assert not _one(db, mail.id).open

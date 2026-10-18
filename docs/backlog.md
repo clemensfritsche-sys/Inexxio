@@ -123,6 +123,13 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: Tabelle `message_replies` droppen (Folge-Deploy nach Migration `148`)
+
+«Antwort auf» ist entfernt – das Anliegen ist der Betreff. Die Tabelle hat kein Modell
+mehr und wird nur noch von `domain/communication.topic_repair_sql` gelesen (Migration
+`148` + Lifespan-Netz, selbstbegrenzend). Im Folge-Deploy: Tabelle droppen und den
+Netz-Eintrag in `main._ensure_columns` samt `topic_repair_sql` entfernen.
+
 ## Offen: `vouchers.issued_on` droppen (Folge-Deploy nach #1047)
 
 Die Spalte hat ihr ORM-Mapping verloren. Sie trug «wann die Rechnung hinausging», gesetzt

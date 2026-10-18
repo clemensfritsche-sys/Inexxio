@@ -5120,6 +5120,30 @@
 > **(5) Der Hover nennt Rollen**: je Von/An/Cc/Bcc Name und darunter die Adresse, das
 > Postfach unter dem, der darüber schreibt; intern «Intern – verlässt das Haus nicht».
 
+> ►►► **Kommunikation: das Anliegen ist der BETREFF – «Antwort auf» ist weg, der Verlauf
+> ist ein Chat** (Migration `148`). ◄◄◄ **(1) Wie bei E-Mail**: was denselben Betreff
+> trägt (ohne «Re:», «AW:», «Fwd:», ohne Gross/Klein – `domain.topic`), gehört zusammen.
+> **Beantwortet ist, was eine spätere Nachricht VON UNS mit demselben Betreff erreicht**
+> (ihr Absender ist an der Antwort beteiligt, `communication.answered`) – damit erledigt
+> eine Antwort **alle** offenen Nachrichten dieses Anliegens, überall gleich, auch im
+> Verlauf einer Person, die aus dem Cc genommen wurde. Wer fragt, beantwortet seine Frage
+> nicht selbst (ausser der Erinnerung an sich); eine geplante Antwort zählt erst, wenn ihr
+> Zeitpunkt da ist. **«Erledigt ohne Antwort»** ist eine stille interne Nachricht mit dem
+> Betreff, die den Absender betrifft – dieselbe Regel, kein Sonderfall. **(2) «Antwort
+> auf» ist vollständig entfernt**: Feld, Modell `MessageReply`, Zitat, Springen,
+> In-Reply-To-Lesen beim Abgleich. Der Gmail-Faden einer ausgehenden Mail kommt aus dem
+> Betreff (`mailbox._parent`). Migration `148` (+ Lifespan-Netz, `topic_repair_sql`) trägt
+> den Betreff in alte Antworten nach; die Tabelle `message_replies` fällt im Folge-Deploy.
+> **(3) «Antworten»** belegt den **festen** Betreff vor («Re: » davor, wie Gmail –
+> `reply_subject`) und **alle** Beteiligten (`reply_all`, Cc bleibt Cc); nur der Absender
+> lässt sich nicht entfernen, die Empfänger stehen als eine Zeile («ändern»). **(4) Der
+> Verlauf ist ein Chat**: die Seite sagt wer (links aussen, rechts wir, grau intern), kein
+> Rahmen, kein Kopf; der Betreff klein und farbig (fest aus dem Betreff abgeleitet,
+> `topicColor`, ohne Rot/Orange), Zeit unten rechts, ein Punkt bei offen/überfällig,
+> **der Zustand einmal unten** («2 warten auf Antwort · älteste seit …»); ein Anruf ist
+> eine Zeile in der Mitte. Persönliche Postfächer bleiben vorgesehen, werden aber nicht
+> angebunden.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

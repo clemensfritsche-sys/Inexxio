@@ -6,8 +6,11 @@ kein Status, kein Typ. Was sie ist, sagen ihre Angaben; ob sie offen ist, ist ei
 – die Geschichte bleibt, wie sie war; weg kommt eine Nachricht nur per Soft-Delete.
 
 * ``message_parties`` – An · Cc · Bcc · Betrifft, je Person eine Zeile.
-* ``message_replies`` – «Antwort auf» als **Liste**: eine Antwort darf mehrere offene
-  Nachrichten zugleich beantworten, und sie wird angehängt, nie in die alte geschrieben.
+
+Was zusammengehört, sagt der **Betreff** (``domain.topic``) – ein «Antwort auf» gibt es
+nicht. Die frühere Tabelle ``message_replies`` hat kein Modell mehr; sie steht bis zum
+Folge-Deploy (``docs/backlog.md``) und wird nur noch von der Übernahme gelesen
+(``domain.topic_repair_sql``).
 """
 
 from datetime import datetime
@@ -72,11 +75,3 @@ class MessageParty(Base):
     #: ``to`` · ``cc`` · ``bcc`` · ``about``.
     role: Mapped[str] = mapped_column(String(5), nullable=False)
 
-
-class MessageReply(Base):
-    __tablename__ = "message_replies"
-
-    message_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("messages.id"), primary_key=True)
-    reply_to_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("messages.id"), primary_key=True, index=True)

@@ -58,7 +58,8 @@ class SyncOut(BaseModel):
 
 class MessageIn(BaseModel):
     """**Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die
-    Angaben. Ohne Text braucht sie ein «Antwort auf» – das ist «erledigt ohne Antwort»."""
+    Angaben. Ohne Text braucht sie einen Betreff – das ist «erledigt ohne Antwort» für
+    dieses Anliegen."""
 
     channel: str
     #: Kein ``sender``: geschrieben wird **immer im eigenen Namen** – der Absender ist, wer
@@ -71,9 +72,6 @@ class MessageIn(BaseModel):
     body: str = Field("", max_length=20000)
     #: Leer heisst «jetzt»; in der Zukunft ist es eine Erinnerung bzw. später gesendet.
     at: Optional[datetime] = None
-    #: **Genau eine** Nachricht, die diese beantwortet – oder keine. Eine Antwort schliesst
-    #: nur, worauf sie antwortet; jede andere offene Nachricht bleibt offen.
-    reply_to: Optional[int] = None
     #: **Nur bei einem Gespräch** (``live``): «wurde angerufen» – dann ist der Kontakt im
     #: «An» der Absender und ich der Empfänger. Ein Anruf hält fest, was passiert ist; wer
     #: ihn erfasst hat, steht weiterhin in ``created_by``. Bei jedem anderen Kanal 400.
@@ -94,10 +92,14 @@ class MessageOut(BaseModel):
     #: Oberfläche klappt sie ein. Leer = keine erkannt.
     signature: Optional[str] = None
     at: datetime
-    reply_to: Optional[int] = None
-    #: Wen eine Antwort auf DIESE Nachricht erreichen muss – mindestens einen davon
-    #: (``communication.answer_targets``). Die Oberfläche belegt «An» damit vor.
-    answer_to: list[PersonRef] = []
+    #: **Das Anliegen** – der Betreff ohne «Re:»/«AW:» (``domain.title``). Gleiches
+    #: Anliegen, gleiche Farbe; eine Antwort erledigt alle offenen davon.
+    topic: str = ""
+    #: Der Betreff einer Antwort auf DIESE Nachricht – fest, «Re: » davor wie Gmail.
+    reply_subject: str = ""
+    #: «Allen antworten»: Absender, An und Cc dieser Nachricht (``communication.reply_all``).
+    #: Die Oberfläche belegt damit vor; nur der Absender lässt sich nicht entfernen.
+    reply_all: list[PersonRef] = []
     #: Von uns geschrieben (rechts) ↔ von aussen (links).
     ours: bool
     #: An uns gerichtet und noch ohne Antwort, Zeitpunkt erreicht.

@@ -644,6 +644,11 @@ def _ensure_columns() -> None:
                         from .domain.communication import contact_repair_sql, info_repair_sql
                         for stmt in info_repair_sql() + contact_repair_sql():
                             conn.execute(text(stmt))
+                    # Vom «Antwort auf» zum Betreff (Migration ``148``) – selbstbegrenzend.
+                    if "message_replies" in tables and "message_parties" in tables:
+                        from .domain.communication import topic_repair_sql
+                        for stmt in topic_repair_sql():
+                            conn.execute(text(stmt))
                 # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
                 # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.
                 if {"uid_key", "name_key"} <= cs_cols:

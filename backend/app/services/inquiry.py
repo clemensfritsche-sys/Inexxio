@@ -9,8 +9,9 @@ Feed. Drei Regeln, und jede steht schon woanders:
 * **Wer fragt?** Die Person zu dieser E-Mail – angelegt, wenn es sie nicht gibt
   (``mailbox.person_for``, dieselbe Stelle wie bei einer eingehenden Mail).
 * **Die Bestätigung beantwortet nichts.** Sie geht über das Postfach der Gesellschaft
-  hinaus und steht im Verlauf – aber **ohne** «Antwort auf»: die Anfrage bleibt offen, bis
-  ein Mensch antwortet. Sonst hebelte die Bestätigung das 2-Stunden-Ziel aus.
+  hinaus und steht im Verlauf – aber unter **eigenem Betreff** (``confirmSubject`` ≠
+  ``SUBJECT``): sie ist ein anderes Anliegen, die Anfrage bleibt offen, bis ein Mensch
+  antwortet. Sonst hebelte die Bestätigung das 2-Stunden-Ziel aus.
 
 **Die Anfrage ist gespeichert, bevor irgendetwas hinausgeht**: scheitert danach die
 Bestätigung, bleibt sie als «muss noch hinaus» stehen und geht beim nächsten Abgleich.
@@ -76,14 +77,14 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     msg = Message(sender_object_id=person, channel=dc.company(firm.object_id),
                   subject=SUBJECT, body=_body(inq), at=datetime.now(timezone.utc),
                   created_by=None, attachments=files or None)
-    write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []}, [])
+    write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []})
     db.commit()
     return msg
 
 
 def confirm(db: Session, inquiry: Message, text: str, subject: str) -> bool:
     """Die Bestätigung an die anfragende Person – über das Postfach der Gesellschaft, als
-    Nachricht im Verlauf, **ohne** «Antwort auf». Ohne verbundenes Postfach gibt es keine
+    Nachricht im Verlauf, unter eigenem Betreff (sie erledigt die Anfrage nicht). Ohne verbundenes Postfach gibt es keine
     (``False``): eine Bestätigung, die nie hinausgeht, stünde als Lüge im Verlauf."""
     box = mailbox.active(db, inquiry.channel)
     if not mailbox.ready() or box is None or box.problem:
@@ -91,7 +92,7 @@ def confirm(db: Session, inquiry: Message, text: str, subject: str) -> bool:
     msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
                   subject=subject, body=text, at=datetime.now(timezone.utc),
                   created_by=None, outgoing=True)
-    write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []}, [])
+    write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})
     db.commit()
     mailbox.send(db, msg)       # scheitert es, bleibt ``outgoing`` – der Abgleich holt nach
     db.commit()

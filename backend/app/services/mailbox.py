@@ -12,9 +12,10 @@ Drei Dinge, und jedes an genau einer Stelle:
 * **Abgleichen** (``sync_all``): neue Mails seit dem letzten Stand (Gmail ``history``)
   werden zu Nachrichten. Der Absender wird einer Person zugeordnet – **unbekannte werden
   angelegt** (ohne Anmeldekonto: meldet sie sich später mit dieser Adresse an, übernimmt
-  sie den Datensatz). «Antwort auf» kommt aus ``In-Reply-To``/``References``.
+  sie den Datensatz). Was zusammengehört, sagt der **Betreff** (``domain.topic``) – wie
+  bei E-Mail; ein «Antwort auf» gibt es nicht.
 * **Senden** (``send``): eine Mail, die im ERP an aussen geschrieben wird, geht über das
-  Postfach ihres Kanals hinaus – im richtigen Faden.
+  Postfach ihres Kanals hinaus – im Faden ihres Betreffs (``_parent``).
 
 **Eine eigene Adresse ist nie eine Person.** Die Adressen der Postfächer und die
 Kontakt-E-Mails der eigenen Gesellschaften sind «wir» (``_ours``): eine Mail von dort hat einen
@@ -42,6 +43,7 @@ from urllib.parse import urlencode
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -416,7 +418,7 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any]) -> bool:
         rfc_id=rfc, attachments=_attachments(payload) or None)
     try:
         with db.begin_nested():
-            write(db, msg, roles, _replied(db, head))
+            write(db, msg, roles)
     except IntegrityError:
         return False        # ein paralleler Abgleich war schneller – dieselbe Mail
     return True
@@ -465,20 +467,6 @@ def split_name(name: str) -> Optional[tuple[str, str]]:
         raw = f"{first.strip()} {last.strip()}".strip()
     parts = raw.split(" ") if raw else []
     return (parts[0][:100], " ".join(parts[1:])[:100]) if parts else None
-
-
-def _replied(db: Session, head: dict[str, str]) -> list[int]:
-    """«Antwort auf» – **genau eine** Nachricht: die, die ``In-Reply-To`` nennt (sonst die
-    nächstjüngste aus ``References``, die es bei uns gibt). Eine Antwort beantwortet, worauf sie antwortet – nicht den
-    ganzen Faden; jede andere offene Nachricht bleibt offen."""
-    refs = (re.findall(r"<[^<>]+>", head.get("in-reply-to", ""))
-            + re.findall(r"<[^<>]+>", head.get("references", ""))[::-1])
-    for ref in refs:
-        found = db.query(Message.id).filter(
-            Message.rfc_id == ref[:255], Message.is_active.is_(True)).first()
-        if found:
-            return [found[0]]
-    return []
 
 
 class _Html(HTMLParser):
@@ -612,10 +600,24 @@ def send(db: Session, msg: Message) -> bool:
 
 
 def _parent(db: Session, msg: Message) -> Optional[Message]:
-    from ..models import MessageReply
-    return (db.query(Message).join(MessageReply, MessageReply.reply_to_id == Message.id)
-            .filter(MessageReply.message_id == msg.id, Message.rfc_id.isnot(None))
-            .order_by(Message.at.desc()).first())
+    """**Der Faden, in dem eine Mail hinausgeht** – wie bei Gmail über den Betreff: die
+    jüngste frühere Mail mit **demselben Anliegen** (``domain.topic``), die eine
+    ``Message-ID`` trägt und an der einer der Empfänger beteiligt ist. Ohne Betreff gibt
+    es keinen Faden – eine neue Mail beginnt einen."""
+    key = dc.topic(msg.subject)
+    if not key:
+        return None
+    people = {p.person_object_id for p in db.query(MessageParty).filter(
+        MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc"))).all()}
+    if not people:
+        return None
+    involved = select(MessageParty.message_id).where(MessageParty.person_object_id.in_(people))
+    rows = (db.query(Message).filter(
+        Message.id != msg.id, Message.is_active.is_(True), Message.rfc_id.isnot(None),
+        Message.at <= msg.at,
+        or_(Message.sender_object_id.in_(people), Message.id.in_(involved)))
+        .order_by(Message.at.desc()).limit(200).all())
+    return next((m for m in rows if dc.topic(m.subject) == key), None)
 
 
 def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:
@@ -635,11 +637,8 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
                  for p in parties if p.role == role and p.person_object_id in people]
         if addrs:
             mime[header] = ", ".join(addrs)
-    subject = msg.subject or ""
-    if not subject and parent is not None and parent.subject:
-        subject = parent.subject if parent.subject.lower().startswith(("re:", "aw:")) \
-            else f"Re: {parent.subject}"
-    mime["Subject"] = subject
+    mime["Subject"] = msg.subject or ""
+
     if parent is not None:
         mime["In-Reply-To"] = parent.rfc_id
         mime["References"] = parent.rfc_id

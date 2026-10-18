@@ -5,13 +5,19 @@ Drei Regeln, eine Logik, keine Sonderfälle:
 1. **Alles ist eine Nachricht.** E-Mail, Anruf, Notiz, interne Frage, Rundmail,
    Erinnerung und «erledigt ohne Antwort» sind dasselbe Objekt – sie unterscheiden sich
    allein darin, welche Angaben gesetzt sind (Kanal · An/Cc/Bcc · Betrifft · Zeitpunkt ·
-   Antwort auf). Kein Typfeld und keine Fallunterscheidung nach der Art.
+   Betreff). Kein Typfeld und keine Fallunterscheidung nach der Art.
 2. **Der Verlauf einer Person** = jede Nachricht, an der sie beteiligt ist (Absender,
    An, Cc, Bcc, Betrifft), chronologisch. Der Verlauf einer **Firma** ist der ihrer
    Personen – sie spiegelt, sie schreibt nicht.
-3. **Offen** = eine Nachricht **an uns**, deren Zeitpunkt erreicht ist und auf die noch
-   keine Nachricht antwortet. **Überfällig** nach ``OVERDUE_AFTER``, rund um die Uhr,
-   intern wie extern gleich.
+3. **Offen** = eine Nachricht **an uns**, deren Zeitpunkt erreicht ist und die noch
+   keine **spätere Nachricht von uns mit demselben Betreff** (``topic``) erreicht hat,
+   an der ihr Absender beteiligt ist. **Überfällig** nach ``OVERDUE_AFTER``, rund um die
+   Uhr, intern wie extern gleich.
+
+**Das Anliegen ist der Betreff – wie bei E-Mail.** Es gibt kein «Antwort auf»: was
+denselben Betreff trägt (ohne «Re:», «AW:», «Fwd:» …), gehört zusammen, und eine Antwort
+erledigt **alle** offenen Nachrichten dieses Betreffs. «Erledigt ohne Antwort» ist eine
+stille interne Nachricht mit demselben Betreff – dieselbe Regel, kein Sonderfall.
 
 **Ein Kanal ist ein Katalogeintrag, kein Datensatz**: ein neuer Kanal ist eine Zeile
 hier. Postfächer haben eine **Form** statt einer Zeile: jede **eigene Gesellschaft** hat
@@ -120,6 +126,47 @@ def contact_repair_sql() -> list[str]:
     return ["UPDATE company_settings AS c SET email = m.address FROM mailboxes AS m "
             "WHERE m.is_active AND c.is_own AND c.object_id IS NOT NULL "
             "AND m.channel = 'c' || c.object_id AND c.email IS DISTINCT FROM m.address"]
+
+
+#: Vorsilben einer Antwort oder Weiterleitung – sie ändern das Anliegen nicht.
+_PREFIX = re.compile(r"^\s*((re|aw|antw|fw|fwd|wg|sv|vs|tr)\s*(\[\d+\])?\s*:\s*)+", re.I)
+
+
+def topic(subject: Optional[str]) -> str:
+    """**Das Anliegen einer Nachricht** – ihr Betreff ohne «Re:», «AW:», «Fwd:» und
+    ohne Unterschied in Gross-/Kleinschreibung und Leerraum. Ohne Betreff: ``""`` – auch
+    das ist ein Anliegen (eine kurze interne Frage), und es gilt dieselbe Regel."""
+    return re.sub(r"\s+", " ", _PREFIX.sub("", subject or "")).strip().casefold()
+
+
+def title(subject: Optional[str]) -> str:
+    """Wie das Anliegen dasteht – der Betreff ohne Vorsilben, Schreibweise wie gesendet."""
+    return re.sub(r"\s+", " ", _PREFIX.sub("", subject or "")).strip()
+
+
+def reply_subject(subject: Optional[str]) -> str:
+    """Der Betreff einer Antwort – **«Re: »** davor, wie Gmail; nie ein zweites."""
+    t = title(subject)
+    return f"Re: {t}" if t else ""
+
+
+def topic_repair_sql() -> list[str]:
+    """►►► **Vom «Antwort auf» zum Betreff** (Migration 148). ◄◄◄ Was bisher über
+    ``message_replies`` beantwortet war, bleibt beantwortet: eine Antwort ohne Betreff
+    bekommt den ihrer Vorlage, und wer beantwortet wurde, wird – wo er nicht schon dabei
+    ist – als «Betrifft» beteiligt. Gelesen von der Migration **und** vom Lifespan-Netz
+    (#778). Selbstbegrenzend: danach gibt es nichts mehr nachzutragen."""
+    return [
+        "UPDATE messages AS m SET subject = p.subject FROM message_replies AS r "
+        "JOIN messages AS p ON p.id = r.reply_to_id WHERE r.message_id = m.id "
+        "AND COALESCE(m.subject, '') = '' AND COALESCE(p.subject, '') <> ''",
+        "INSERT INTO message_parties (message_id, person_object_id, role) "
+        "SELECT DISTINCT r.message_id, p.sender_object_id, 'about' FROM message_replies AS r "
+        "JOIN messages AS p ON p.id = r.reply_to_id JOIN messages AS m ON m.id = r.message_id "
+        "WHERE p.sender_object_id <> m.sender_object_id AND NOT EXISTS (SELECT 1 FROM "
+        "message_parties AS x WHERE x.message_id = r.message_id "
+        "AND x.person_object_id = p.sender_object_id)",
+    ]
 
 
 def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:
