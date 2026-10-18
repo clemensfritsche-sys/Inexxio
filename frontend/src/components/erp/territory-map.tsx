@@ -131,10 +131,8 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
       )}
 
       {/* ── Die Karte füllt den Container ────────────────────────────────────────
-          **Die Zuordnung wird am Ort gemanagt** (Testnotiz #342): jede Fläche trägt ihren
-          Namen UND die Gesellschaft, die sie fakturiert; ein Klick öffnet die Zuweisung
-          direkt dort. Die frühere Liste unter der Karte sagte dasselbe ein zweites Mal –
-          sie ist entfallen, samt der Ausnahmen-Sektion, die jetzt im selben Panel steckt. */}
+          **Die Zuordnung wird am Ort gemanagt** (#342): jede Fläche trägt ihren Namen UND
+          die Gesellschaft, die sie fakturiert; ein Klick öffnet die Zuweisung direkt dort. */}
       {/* Runde Ecken wie bei jeder anderen Karte im ERP (Notiz #363) – `overflow:hidden`
           beschneidet die SVG-Fläche mit. */}
       <div style={{ position: 'relative', border: '1px solid var(--border-1)',
@@ -259,10 +257,6 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
 
       {error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>}
 
-      {/* Der frühere Erklärabsatz ist entfallen (Notiz #335): Karte und Liste sagen selbst,
-          wem was gehört – jede Fläche trägt eine Farbe, jede Zeile einen Namen. Was er
-          zusätzlich erklärte (Rechnungsadresse ≻ Lieferadresse), ist eine Regel des Systems,
-          keine Bedienhilfe; sie steht in ADR 006. */}
     </div>
   );
 }

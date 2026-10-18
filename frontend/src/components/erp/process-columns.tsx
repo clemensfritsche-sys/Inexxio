@@ -40,11 +40,7 @@ import type {
  *
  * Sie **layoutet und zeichnet** – mehr nicht. Welche Knoten es gibt, welche Kanten sie
  * verbindet, wo Stücke stehen und welche Kante gegangen ist, sagt der Server
- * (`services/flow`, abgeleitet aus dem Ereignis-Log). Vorher stand genau das hier: die
- * Knotenfolge wurde aus Schritten und Stück-Gruppen zusammengebaut und die Linienstärke
- * aus dem **aktuellen** Zustand abgeleitet. Beides war eine zweite Wahrheit neben dem
- * Server, und die zweite las den Zustand statt den Log – sobald an einer Stelle nichts
- * mehr stand, verschwand sie samt der Abzweigung, die dort passiert war.
+ * (`services/flow`, abgeleitet aus dem Ereignis-Log, nie aus dem aktuellen Zustand).
  *
  * ## Warum ein Raster mit Zeilen und keine drei nebeneinanderstehenden Säulen
  *
@@ -249,23 +245,10 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
         .map((e) => rowOfNode(mid.rows, (e.kind === 'out' ? e.frm : e.to) ?? ''))
         .filter((r) => r >= 0);
       if (!rows.length) { out.set(c.prefix, all); return; }
-      // ►►► **Ohne Rückfluss keine Klammer** (Testnotiz #1036). ◄◄◄
-      //
-      // Ein Nachbar, der zurückkehrt, **klammert** einen Abschnitt der Achse ein: fork
-      // oben, join unten, dazwischen der Bypass. Diese Zeilen wachsen auf seine Höhe,
-      // und genau das ist die Aussage – zwei parallele Wege.
-      //
-      // Eine **gekappte Ausleihe** hat keinen join (`flow._branches`: kein Rückweg, also
-      // kein Punkt). Ihre Spanne war damit **eine einzige Zeile** – und die wuchs auf die
-      // volle Höhe des Nachbarn: hinter dem Abzweigepunkt klaffte ein leerer Streifen
-      // (gemessen 424 px), an dessen Ende die Pille «In Abweichung · 3» stand, sichtbar
-      // getrennt von dem Punkt, an dem sie passiert ist. Der Graph war korrekt; es war
-      // allein das Raster.
-      //
-      // Sie läuft darum **von ihrem fork bis ans Ende** neben der Achse her – dieselbe
-      // Spanne, die ein übergeordneter Auftrag ohne eigenen Punkt bekommt. Keine Zeile
-      // wird dadurch gezwungen zu wachsen: die Achse behält ihren Takt, und der Nachbar
-      // steht daneben, solange er Platz braucht.
+      // **Ohne Rückfluss keine Klammer** (#1036): ein Nachbar, der zurückkehrt, klammert
+      // einen Abschnitt der Achse ein (fork oben, join unten) – diese Zeilen wachsen auf
+      // seine Höhe. Eine gekappte Ausleihe hat keinen join; sie läuft von ihrem fork bis
+      // ans Ende neben der Achse her, statt eine einzige Zeile aufzublähen.
       const returns = edges.some((e) => e.kind === 'back');
       out.set(c.prefix, { from: Math.min(...rows), to: returns ? Math.max(...rows) : last });
     });

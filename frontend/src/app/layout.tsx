@@ -14,8 +14,7 @@ import { ScanProvider } from '@/components/scan/scan-provider';
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
 // Der Konto-/ERP-Bereich trägt den Namen und den Satz der Website (`lib/site-meta.json`,
-// aus `website/src/config/site.mjs`). Hier stand der Text eines anderen Geschäfts
-// («Präzisionsfertigung», «CNC») – ein Spiegel kann das nicht mehr.
+// aus `website/src/config/site.mjs`).
 export const metadata: Metadata = {
   title: { template: `%s | ${meta.brand.legalName}`, default: meta.brand.legalName },
   description: meta.claim,

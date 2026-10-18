@@ -27,30 +27,17 @@ import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
 
-// Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf mehr**: der Artikel
-// entsteht erst mit seiner Freigabe (services/articles.py), und die verlangt beides –
-// vollständige Spezifikation UND mindestens ein Prozessschrittmodul. Damit ist jeder
-// vorhandene Artikel freigegeben und eingefroren.
+// Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf**: der Artikel entsteht
+// erst mit seiner Freigabe (services/articles.py), und die verlangt beides – vollständige
+// Spezifikation UND mindestens ein Prozessschrittmodul. Jeder vorhandene Artikel ist damit
+// freigegeben und eingefroren. **Ausser Betrieb** geht er dadurch, dass ein Nachfolger ihn
+// ablöst (#773); einen Schalter dafür gibt es nicht.
 //
-// **Ausser Betrieb ist ein Zustand, kein Ende.** Hier stand «Inaktiv ist endgültig – kein
-// Reaktivieren», und daraus folgte, dass es keine Gegenaktion gab. Es widersprach der
-// Statusliste: `Status.terminal` gibt es nur auf der Stück-Achse, und «Inaktiv» trägt es
-// nicht. Ein versehentlich stillgelegter Artikel wäre sonst für immer verloren – und der
-// einzige Ausweg hiesse «dieselbe Sache noch einmal anlegen», also eine zweite Nummer.
-//
-// Es ist darum **ein Knopf in zwei Richtungen**, kein Dialog: was ein Ausserbetriebnehmen
-// anrichtet, steht dauerhaft im Streifen über der Spezifikation («wird verbaut in») – und
-// nicht in einem Fenster, das es einmal zeigt, dem, der klickt.
-
-
-// **Keine Reiter mehr** (Notiz #760): der Bestand steht im ersten Container der
-// Spezifikation, wo man ohnehin hinschaut – ein eigener Reiter dafür war ein Klick für
-// eine Zahl. Und damit hat der Artikel überhaupt keine zweite Ansicht mehr.
+// **Keine Reiter** (#760): der Bestand steht in derselben Ansicht.
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat'
   | 'hs_code' | 'origin_country';
-// Der frühere «Fixierte Standort» (GPS + Adresse am Artikel) ist ersatzlos entfallen
-// (Notiz #168): Ein Artikel ist eine Gattung – einen Ort hat immer nur die Instanz.
+// Kein Ort am Artikel (#168): ein Artikel ist eine Gattung – einen Ort hat die Einzelinstanz.
 type AddKey = OptKey;
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
@@ -168,9 +155,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
   // umbauen könnte (keine Versionierung – Änderung = neuer Artikel).
   const locked = !isCreate;
 
-  // Gewicht wird read-only, sobald der Artikel verbaute Ressourcen hat: es ergibt
-  // sich dann automatisch aus der Stückliste (über mehrere Ebenen, Backend).
-  // Das aufsummierte Gewicht kam aus verbauten Ressourcen (Prozesslogik) – entfallen.
+  // Ein aus der Stückliste aufsummiertes Gewicht gibt es nicht; das Gewicht ist eine Eingabe.
   const computedWeight: number | null = null;
   const weightIsComputed = false;
 
@@ -220,17 +205,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     return () => { dead = true; clearTimeout(t); };
   }, [isCreate, payload]);
 
-  // Bei Versions-Konflikt frischen Stand laden (Version aktualisieren, Feed melden).
-
-  // ►► **Ausser Betrieb nehmen gibt es nicht mehr** (Testnotiz #773). ◄◄
-  //
-  // Ein Artikel geht dadurch ausser Betrieb, dass ein **Nachfolger** ihn ablöst – der
-  // Zustand rechts im Kopf ist die Projektion davon (`Article.status`). Die beiden Knöpfe
-  // «Inaktiv setzen»/«Aktiv setzen» und der Aufruf dahinter sind ersatzlos entfallen: sie
-  // waren der zweite Weg zu derselben Aussage, und der hatte eine Falle – ein von Hand
-  // stillgelegter Artikel ohne Nachfolger hing an genau dem Knopf, der ihn stillgelegt
-  // hatte. Wer ablösen will, legt den Nachfolger an und sagt dort, wen er ersetzt.
-
   /**
    * **Freigeben = Anlegen.** Ein Aufruf, eine Transaktion: erst hier entsteht der
    * Datensatz und erst hier die Objektnummer. Bis dahin steht in der Datenbank nichts –
@@ -251,9 +225,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     }
   }
 
-  // **Ein Entwurf hat keinen Zustand** – es gibt ihn ja noch nicht. Ein Wort dort wäre
-  // eine Behauptung über einen Datensatz, den die Datenbank nicht kennt; früher stand
-  // dafür «Entwurf», was genau diesen Datensatz voraussetzte.
+  // **Ein Entwurf hat keinen Zustand** – es gibt ihn ja noch nicht.
   const statusCfg = record ? articleStatus({ status: record.status }) : undefined;
   const blocked = missing != null && missing.length > 0;
 
@@ -586,16 +558,6 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   );
 }
 
-// ── Abgeleitete Kennzahlen: der MEDIAN trägt die Aussage ────────────────────────
-// Ein einzelner Eil-Auftrag oder eine Kleinstmenge zu Apothekerpreisen zieht einen
-// Mittelwert weg – der Median bleibt bei dem, was üblich ist (Backend:
-// `services/metrics.py`). Die Spanne steht untergeordnet daneben und nur dann, wenn
-// sie etwas Neues sagt (bei einem einzigen Datenpunkt fällt sie mit dem Median zusammen).
-
-
-
-
-
 // Eingabe-Feld (Entwurf): Overline-Label + `.fin`-Input + Fehler/Hinweis.
 function EditField({ label, value, onChange, placeholder, hint, error, required, full }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -640,11 +602,8 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
 }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
-  // **Wo beschafft wird, steht am Modul – hier nicht.** Der Artikel trägt die
-  // Spezifikation, das Beschaffen-Modul im Reiter «Prozess» trägt seine zugelassenen
-  // Lieferanten. Zwei Stellen für dieselbe Frage wären zwei Wahrheiten. Geblieben sind
-  // zwei ehrlich getrennte Dinge: **abgeleitete Kennzahlen** (aus der Historie gerechnet)
-  // und die optionalen Angaben, die zur Spezifikation selbst gehören.
+  // **Bei wem beschafft wird, steht am Modul**, nicht hier (die zugelassenen Partner des
+  // Zahlungsmoduls im Erzeugungsprozess). Der Artikel trägt nur seine Spezifikation.
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
@@ -873,10 +832,8 @@ const MENU_ICON: Record<string, React.ElementType> = {
 
 
 
-// Der Reiter «Bestand» ist `stock-view.tsx` – **dasselbe Modul**, das die Instanz zeigt,
-// nur mit dem grösseren Umfang. Hier stand vorher eine zweite, kürzere Fassung, die nur
-// eine Instanzliste lud; der Bestand ist eine eigene Frage mit drei Ebenen, und sie zur
-// Hälfte im Artikel-Detail zu beantworten hiesse, sie an zwei Stellen zu pflegen.
+// Der Bestand ist `stock-view.tsx` – dasselbe Modul, das die Instanz zeigt, nur mit dem
+// grösseren Umfang.
 
 /**
  * **Der Erzeugungsprozess eines Artikels** – die Vorlage: wie ein Stück entsteht.

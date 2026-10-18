@@ -14,7 +14,7 @@
  *                              Lieferadressen
  *   3. **Geschäftskonto**    – optional: die Firma (genannt, nie gesucht) und dieselbe
  *                              Adress-Maske, dazu die Rechnungs-E-Mail
- *   4. **Kommunikation**     – Newsletter + Nachweis der akzeptierten Rechtstexte
+ *   4. **Kommunikation**     – Newsletter
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -156,11 +156,6 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
           checked={form.newsletter_opt_in}
           onChange={(v) => set('newsletter_opt_in', v)}
         />
-        {/* Der AGB-/Datenschutz-Nachweis ist hier entfallen (Testnotiz #325): **welche
-            Fassung wann bestätigt wurde, gehört ins Dokumentenmanagement** – dort steht die
-            Version als Objektnummer mit ihrer Historie, und dort werden auch die übrigen
-            Pflichtdokumente geführt. Zwei Anzeigen derselben Tatsache liefen sonst
-            auseinander, sobald die Dokument-Ansicht dazukommt (Reiter «Meine Dokumente»). */}
       </Card>
     </div>
   );

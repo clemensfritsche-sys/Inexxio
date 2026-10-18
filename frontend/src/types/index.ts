@@ -9,11 +9,8 @@ import type { components } from './api';
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 
-// ►►► **Die Rolle beantwortet GENAU EINE Frage: darf diese Person ins ERP?** ◄◄◄
-//
-// (Testnotiz #1043) «Lieferant» und «Kunde» standen hier und waren beide eine Aussage
-// über **Vorgänge**, nicht über die Person: wer Partner einer Ausgabe ist, ist dort
-// Lieferant, bei einer Einnahme Kunde – dieselbe Person kann beides sein. Der Spiegel von
+// **Die Rolle beantwortet genau eine Frage: darf diese Person ins ERP?** (#1043)
+// Lieferant ↔ Kunde ist eine Eigenschaft des Vorgangs, nicht der Person. Spiegel von
 // `schemas/admin.Role`; ein Wächter hält beide deckungsgleich.
 export type UserRole = 'admin' | 'employee' | 'user';
 
@@ -42,7 +39,7 @@ export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
   serialization: ArticleSerialization;
 };
 
-// Eingaben für Anlage bzw. Teil-Update aus dem Detailfenster. Pflicht ist nur der Name;
+// Eingaben für die Anlage aus dem Detailfenster. Pflicht ist nur der Name;
 // Einheit/Serialisierung tragen einen Default, Grösse & Gewicht sind optional.
 export interface ArticleInput {
   name: string;
@@ -71,28 +68,14 @@ export interface ArticleInput {
   replaces_object_id?: number | null;
 }
 
-// **Kein `status`, kein `is_active`.** Ausser Betrieb geht ein Artikel dadurch, dass ein
-// Nachfolger ihn ablöst (`replaces_object_id` an der Anlage) – der Zustand ist die
-// Projektion davon (Testnotiz #773); `is_active` ist der Soft-Delete des Datensatzes und
-// gehört keinem Formular.
-export type ArticleUpdateInput = Partial<ArticleInput> & {
-  expected_updated_at?: string | null;   // Optimistic Locking
-};
-
 // Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
-/** Kontaktdaten der Website aus dem ERP (`GET /api/v1/public/contact`, Testnotiz #1094). */
-export type PublicContact = components['schemas']['PublicContact'];
 
 // Die **geplante** Stückliste in beide Richtungen (`services/bom.py`) – nur am Detail.
 // `Article.bom === null` heisst «nicht geladen», nicht «nichts gefunden».
 export type ArticleLink = components['schemas']['ArticleLink'];
 export type ArticleBom = components['schemas']['ArticleBom'];
-export type RetiredInput = components['schemas']['RetiredInput'];
 export type TerritoryMap = components['schemas']['TerritoryMapResponse'];
-export type TerritoryRegion = components['schemas']['TerritoryRegion'];
-export type TerritoryCompany = components['schemas']['TerritoryCompany'];
-export type TerritoryCountry = components['schemas']['TerritoryCountry'];
 // Maximale Länge eines Artikelnamens – muss zum Backend (`NAME_MAX_LENGTH`) passen.
 export const ARTICLE_NAME_MAX_LENGTH = 32;
 
@@ -105,7 +88,6 @@ export type Order = components['schemas']['OrderResponse'];
 export type OrderSummary = components['schemas']['OrderSummary'];
 export type OrderValidation = components['schemas']['OrderValidation'];
 export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
-export type OrderUnitResponse = components['schemas']['OrderUnitResponse'];
 export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
 export type UnitOption = components['schemas']['UnitOption'];
 // Die **Auswahl**: eine Seite wählbarer Einzelinstanzen samt Aggregat und
@@ -118,7 +100,6 @@ export type JourneyStop = components['schemas']['JourneyNeighbour'];
  *  eine Abweichung. Er wird mit derselben Komponente gerendert wie die Mitte. */
 export type RelatedOrder = components['schemas']['RelatedOrder'];
 export type ArticleOption = components['schemas']['ArticleOption'];
-export type OrderLineResponse = components['schemas']['OrderLineResponse'];
 /** **Das Prozessbild, wie der Server es sieht** – Knoten, Kanten, Positionen.
  *  Das Frontend layoutet und zeichnet es; abgeleitet wird nichts mehr davon. */
 export type ProcessGraph = components['schemas']['FlowGraph'];
@@ -129,17 +110,14 @@ export type OrderUnitPage = components['schemas']['OrderUnitPage'];
 
 /** Der Erzeugungsprozess eines Artikels – die Vorlage, die ein Erzeugungsauftrag kopiert. */
 export type ArticleProcess = components['schemas']['ArticleProcess'];
-export type ArticleProcessStep = components['schemas']['ArticleProcessStepResponse'];
 
 /** Ein Auftragsentwurf. Er lebt NUR im Browser – es gibt dafür keine Zeile in der
  *  Datenbank, keine vorreservierte Objektnummer und kein Autosave. */
 export type OrderDraft = Record<string, unknown>;
 
-
 export type Passkey = components['schemas']['PasskeyResponse'];
-// Bestands-Instanz (Reiter «Bestand» am Artikel)
-type InstanceApi = components['schemas']['InstanceResponse'];
-export type Instance = InstanceApi;
+// Eine Instanz (Gruppe von Einzelinstanzen) mit ihrem Detail.
+export type Instance = components['schemas']['InstanceResponse'];
 
 // Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl.
 export type InstanceSummary = components['schemas']['InstanceSummary'];
@@ -195,7 +173,6 @@ export type RecordValue = components['schemas']['RecordValue'];
  * Angaben, die im ERP längst stehen, damit sie niemand ein zweites Mal tippt.
  */
 export type PaymentSetup = components['schemas']['PaymentSetup'];
-export type PaymentBilling = components['schemas']['PaymentBilling'];
 /**
  * **Wie man eine Rechnung überweist** (Testnotiz #865) – Bankverbindung, Referenz und die
  * **QR-Rechnung** als fertiges Bild. Eine Auskunft, keine Buchung: «Jetzt bezahlen» löst
@@ -204,25 +181,10 @@ export type PaymentBilling = components['schemas']['PaymentBilling'];
 export type TransferInfo = components['schemas']['TransferInfo'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 /**
- * **Ein wählbarer Modultyp mit allem, was er deklariert** – Beschriftung, Farbfamilie
- * und «Ausgang?». Der Editor liest daraus, was ein Modul mitbringt.
- */
-export type ModuleTypeInfo = components['schemas']['ModuleTypeInfo'];
-/**
- * ►►► **Der Beleg** – das neu aufgebaute Modul «Zahlung» (`services/voucher`). ◄◄◄
- *
- * `null` bei jedem anderen Modultyp – die Oberfläche braucht damit keine
- * Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.
- *
- * Er stand eine Runde lang **neben** `DealEmbed`, der Fassung des Vorgängermoduls –
- * und genau deshalb kostete deren Löschung hier nichts als das Streichen ihrer Zeilen
- * (Testnotiz #960).
+ * **Der Beleg** – das Modul «Zahlung» (`services/voucher`). `null` bei jedem anderen
+ * Modultyp – die Oberfläche braucht damit keine Fallunterscheidung, genau wie bei `needs`.
  */
 export type VoucherEmbed = components['schemas']['VoucherEmbed'];
-/** Eine der **zwei** Stufen des Belegs – mit Wort, Verb und Zustand. */
-export type VoucherStage = components['schemas']['VoucherStage'];
-/** Eine Zeile Geld – eine Forderung (`charge`) oder eine Zahlung (`payment`). */
-export type VoucherEntryOut = components['schemas']['VoucherEntryOut'];
 /**
  * **Eine Angebotszeile** – eine Gegenpartei, ein Preis, zwei Fristen.
  *
@@ -230,18 +192,6 @@ export type VoucherEntryOut = components['schemas']['VoucherEntryOut'];
  * Oberfläche adressiert damit genau diese Zeile.
  */
 export type VoucherQuoteOut = components['schemas']['VoucherQuoteOut'];
-/** **Eine Position** – und es gibt sie in genau dieser einen Form. */
-export type VoucherLineOut = components['schemas']['VoucherLineOut'];
-/**
- * ►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄
- *
- * Nummer, Datum, Fälligkeit, Betrag und Steuer standen einmal an einer Geld-Zeile, also
- * auf **beiden** Ebenen. `null` heisst «noch keine gestellt» – und das ist die
- * vollständige Antwort: zweimal vorkommen kann sie nicht mehr.
- */
-export type VoucherInvoice = components['schemas']['VoucherInvoice'];
-/** **Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört. */
-export type VoucherCorrects = components['schemas']['VoucherCorrects'];
 /** **Ein Beleg, den dieser hier mindern könnte** – meist aus einem anderen Auftrag. */
 export type VoucherCorrectable = components['schemas']['VoucherCorrectable'];
 /** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
@@ -276,12 +226,11 @@ export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organiz
 
 export interface CompanySettings {
   object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens
-  // Abgeleitete Rollen (KEIN gespeichertes Flag, KEIN Rang): ältestes Unternehmen =
-  // Betreiber der Website (Impressum/Systemkonfiguration/Fallback); has_address = trägt
-  // echte Ortsangaben (sonst logistisch stumm – eine Bewegung dorthin bleibt intern).
+  // Abgeleitet: is_operator = Betreiber der Website (Impressum/Systemkonfiguration);
+  // has_address = trägt echte Ortsangaben.
   is_operator?: boolean;
   has_address?: boolean;
-  /** Aktiv? Eine geschlossene Gesellschaft bleibt lesbar, ist aber endgültig (keine Reaktivierung). */
+  /** Aktiv? Eine geschlossene Gesellschaft bleibt lesbar und lässt sich wieder öffnen. */
   is_active?: boolean;
   /** **Eine unserer Gesellschaften?** Nur sie stellt Belege, beschäftigt Personal, besitzt
    *  Gebiete und kann Betreiber sein. Kunden und Lieferanten sind derselbe Datensatztyp. */
@@ -290,12 +239,8 @@ export interface CompanySettings {
   people?: CompanyPerson[];
   company_name: string;
   legal_form: string | null;
-  /**
-   * ►►► **Der Datensatzname** – Unternehmensname, Abstand, Rechtsform (Testnotiz #910).
-   * ◄◄◄ Kommt fertig vom Server (`sites.legal_name`); hier zusammengesetzt wäre es die
-   * zweite Fassung der Regel, und die Ausnahme («Muster AG» + «AG» bleibt «Muster AG»)
-   * fehlte ihr beim ersten Mal.
-   */
+  /** **Der Datensatzname** – Name und Rechtsform (#910), fertig vom Server
+   *  (`sites.legal_name`); hier zusammengesetzt wäre es eine zweite Fassung der Regel. */
   legal_name?: string;
   street: string;
   street_number: string | null;
@@ -304,9 +249,7 @@ export interface CompanySettings {
   country: string;
   // Funktionswährung der Gesellschaft (ISO-3, auto aus dem Land vorbelegt).
   currency: string;
-  // Rechtsidentität – das Minimum, das ein Beleg und das Impressum ausweisen müssen
-  // (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton, Aktienkapital,
-  // QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto sind entfallen.
+  // Rechtsidentität – das Minimum, das ein Beleg und das Impressum ausweisen müssen.
   uid: string | null;
   vat_number: string | null;
   email: string;
@@ -319,11 +262,6 @@ export interface CompanySettings {
   // nur, was auch einen Leser hat (die Adress-Suche).
   google_maps_api_key: string | null;
 }
-
-// Es gibt genau EINEN Datensatztyp für Unternehmen/Gesellschaften: `CompanySettings`
-// (oben). Der frühere separate `Site`-Typ (kastrierter «Standort») ist entfallen – jede
-// Gesellschaft ist vollständig und gleichrangig.
-
 
 // ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────
 // Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –

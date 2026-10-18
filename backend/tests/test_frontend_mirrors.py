@@ -9825,10 +9825,6 @@ def test_every_css_variable_is_defined_somewhere():
 # ►► Der Kontotyp und die EINE Rechnungs-E-Mail (Testnotiz #1042)
 # ===========================================================================
 
-def _accounts_ts() -> str:
-    return _read(FRONTEND / "lib" / "accounts.ts")
-
-
 _USER_SURFACES = ("components/erp/user-detail.tsx",
                   "components/account/sections/profile-section.tsx")
 
@@ -9952,16 +9948,17 @@ def test_the_billing_email_is_one_field_in_every_surface():
 def test_the_inheritance_of_the_billing_email_is_visible():
     """**Ist sie leer, wird die Login-/Kontakt-E-Mail verwendet – und das steht da.**
 
-    Der Satz steht an **einer** Stelle (``lib/accounts.inheritedEmail``) und wird vom
-    Adressbuch gelesen – zwei Formulierungen wären zwei Aussagen über dieselbe Vererbung.
+    Der Satz steht an **einer** Stelle (``address-book.inheritedEmail``, sein einziger
+    Leser) – zwei Formulierungen wären zwei Aussagen über dieselbe Vererbung.
 
     Bug-Formen: (a) der Platzhalter nennt nur die Adresse; (b) daneben steht eine
-    Checkbox; (c) das Adressbuch baut den Satz selbst.
+    Checkbox; (c) der Satz steht ausserhalb der einen Funktion ein zweites Mal.
     """
-    assert "übernimmt" in _accounts_ts(), "Der Satz nennt die Vererbung nicht (a)."
     book = _code(_read(FRONTEND / "components/erp/address-book.tsx"))
-    assert "inheritedEmail(" in book, "Das Adressbuch baut den Satz selbst (c)."
-    assert "übernimmt" not in book, "Die Vererbung steht zweimal (c)."
+    rule = _body(book, "inheritedEmail", kind="function")
+    assert "übernimmt" in rule, "Der Satz nennt die Vererbung nicht (a)."
+    assert book.count("übernimmt") == 1, "Die Vererbung steht zweimal (c)."
+    assert "placeholder={inheritedEmail(" in book, "Das Feld nennt die Vererbung nicht (a)."
     assert not re.search(r"(ToggleField|Segmented)[^>]*Rechnungs-E-Mail", book), "(b)"
 
 
@@ -9978,8 +9975,6 @@ def test_addresses_live_in_one_address_book():
     Angabe; (d) die Oberfläche formuliert die Standards selbst, statt sie vom Server zu
     lesen; (e) die Rechnungs-E-Mail steht auch privat.
     """
-    acc = _accounts_ts()
-    assert "hasOwnBilling" not in acc and "NO_OWN_BILLING" not in acc, "(c)"
     for where in _USER_SURFACES:
         src = _code(_read(FRONTEND / where))
         assert re.search(r"<AddressBook[^>]*account=\"private\"", src), (

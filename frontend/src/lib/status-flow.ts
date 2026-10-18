@@ -1,6 +1,4 @@
-// Gemeinsamer Lebenszyklus für Artikel / Auftrag als Prozess:
-// Entwurf → (Freigeben) → Freigegeben → (Deaktivieren) → Inaktiv → (Reaktivieren).
-// Kein freies Status-Dropdown mehr – Statuswechsel erfolgen per Klick.
+// Status-Anzeige der Datensätze: die Ampeltöne und die Form einer Status-Konfiguration.
 
 import type { ElementType } from 'react';
 
@@ -15,21 +13,12 @@ export interface StatusCfg {
   icon?: ElementType;
 }
 
-export interface StatusAction {
-  label: string;
-  target: string;
-  tone?: StatusTone;
-  disabled?: boolean;
-  hint?: string;
-}
-
 // ─── Ampel-Töne (token-basiert) ──────────────────────────────────────────────
-// REINE Ampel-Logik für ALLE Datensatz-Status (Artikel/Auftrag/Instanz/Beschaffung/
-// Verkauf/Dokument). Genau DREI Bedeutungen, drei Farben – kein Blau/Petrol/Violett/
-// Slate/Grau mehr:
-//   pending = offen / in Arbeit / wartend / reserviert            → GELB (--warning)
-//   done    = gut / erledigt / freigegeben / am Lager / verkauft  → GRÜN (--success)
-//   danger  = Problem / Fehler / gesperrt / inaktiv / verschrottet → ROT  (--danger)
+// REINE Ampel-Logik für ALLE Datensatz-Status (Artikel/Auftrag/Instanz/Einzelinstanz).
+// Genau DREI Bedeutungen, drei Farben:
+//   pending = offen / in Arbeit / wartend / gesperrt              → GELB (--warning)
+//   done    = gut / erledigt / freigegeben / verbaut / verkauft   → GRÜN (--success)
+//   danger  = Problem / Fehler / inaktiv / verschrottet           → ROT  (--danger)
 // «Aus»-Zustände (inaktiv/verschrottet) sind bewusst ROT – die Ampel steht auf «Stopp»,
 // der Datensatz ist nicht mehr zu verwenden. Werte kommen ausschliesslich aus den
 // Design-Tokens (colors_and_type.css) – keine hartkodierten Hex-Farben in Status-Configs.

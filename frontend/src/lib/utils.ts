@@ -34,13 +34,8 @@ export function formatAmount(v: string | number | null | undefined,
     .replace(/\u2019/g, "'");
 }
 
-// ►►► **Datum und Uhrzeit stehen in `lib/when`** (Testnotiz #992). ◄◄◄
-//
-// Hier standen `localDate` und `localDateTime`, und daneben lebten drei eigene Helfer im
-// Beleg und drei `toLocaleDateString` an Benutzer, Profil und Passkeys – sieben Formen
-// für eine Angabe. Sie sind ersetzt durch `when()` (die Aussage: «Gestern» · «vor 3
-// Tagen» · «13. Sep.»), `day()` (die Tatsache auf dem Papier) und `whenTitle()` (die
-// volle Angabe im Hover). Ein Wächter verbietet jede zweite Datums-Formatierung daneben.
+// Datum und Uhrzeit stehen in `lib/when` (#992) – ein Wächter verbietet jede zweite
+// Datums-Formatierung daneben.
 
 /**
  * Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`):

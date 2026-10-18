@@ -8,10 +8,8 @@ import { useCamera } from '@/components/scan/use-camera';
 /**
  * **Ein Bild, aufgenommen — nicht hochgeladen** (Testnotizen #718/#720).
  *
- * Das Hochladen ist **ersatzlos entfallen**. Eine Datei aus der Galerie belegt nichts
- * über *diesen* Vorgang; sie belegt nur, dass es irgendwann eine Datei gab. Ein Nachweis,
- * der auf beide Arten entstehen kann, ist hinterher keiner – man sieht ihm nicht an,
- * welche der beiden es war.
+ * **Kein Hochladen**: eine Datei aus der Galerie belegt nichts über *diesen* Vorgang, und
+ * ein Nachweis, der auf beide Arten entstehen kann, ist hinterher keiner.
  *
  * **Genau eine Aufnahme je Einzelinstanz.** Nicht mehr, auch nicht optional: bei mehreren
  * bliebe offen, welche die gemeinte ist. Neu aufnehmen geht (das verwirft die alte) –

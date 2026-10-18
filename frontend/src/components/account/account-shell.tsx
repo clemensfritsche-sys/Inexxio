@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { User, Shield, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
@@ -9,10 +9,14 @@ import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
 import { SecuritySection } from './sections/security-section';
 
-// Konsolidiert auf 4 Reiter: «Mein Profil» bündelt Person + Adressen + Kommunikation in EINER
-// Sektion (ein Formular, ein Auto-Save); «Benachrichtigungen» ist entfallen (die Toggles hatten
-// keinerlei Backend-Wirkung – kein E-Mail-/In-App-System dahinter).
+// Zwei Reiter: «Mein Profil» bündelt Person + Adressen + Kommunikation in EINER Sektion
+// (ein Formular, ein Auto-Save); «Sicherheit» verwaltet die Passkeys.
 type SectionId = 'profile' | 'security';
+
+const SECTIONS: { id: SectionId; label: string; icon: React.ElementType }[] = [
+  { id: 'profile', label: 'Mein Profil', icon: User },
+  { id: 'security', label: 'Sicherheit', icon: Shield },
+];
 
 interface Props {
   profile: UserProfile | null;
@@ -47,16 +51,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const completion = useProfileCompletion(profile);
 
   const isEmployee = profile?.role === 'employee';
-
-  const sections = useMemo(() => {
-    const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
-      { id: 'profile', label: 'Mein Profil', icon: User },
-      { id: 'security', label: 'Sicherheit', icon: Shield },
-    ];
-    // Systemkonfiguration ist neu ein ERP-Datensatz («Unternehmen» im ERP-Feed) und
-    // wird daher nicht mehr in den Profileinstellungen geführt.
-    return base;
-  }, []);
 
   const fullName = profile ? userDisplayName(profile) : '';
 
@@ -126,7 +120,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
 
           {/* Horizontal scroll nav */}
           <div style={{ display: 'flex', gap: 0, overflowX: 'auto', marginLeft: -16, marginRight: -16, paddingLeft: 16 }}>
-            {sections.map((s) => {
+            {SECTIONS.map((s) => {
               const active = activeSection === s.id;
               const missing = completion.missingBySection[s.id as keyof typeof completion.missingBySection] ?? 0;
               return (
@@ -221,7 +215,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
 
         {/* Nav */}
         <nav style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-          {sections.map((s, i) => {
+          {SECTIONS.map((s, i) => {
             const Icon = s.icon;
             const active = activeSection === s.id;
             const missing = completion.missingBySection[s.id as keyof typeof completion.missingBySection] ?? 0;
@@ -232,7 +226,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   width: '100%', padding: '11px 14px', background: active ? '#FEF2F2' : 'none',
-                  border: 'none', borderBottom: i < sections.length - 1 ? '1px solid #F1F5F9' : 'none',
+                  border: 'none', borderBottom: i < SECTIONS.length - 1 ? '1px solid #F1F5F9' : 'none',
                   color: active ? '#E51A14' : '#374151', cursor: 'pointer',
                   fontSize: 13, fontWeight: active ? 600 : 400,
                   textAlign: 'left', transition: 'background 0.15s',

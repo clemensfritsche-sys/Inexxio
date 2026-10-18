@@ -102,17 +102,6 @@ module.exports = {
         snug: 'var(--tracking-snug)',
         overline: 'var(--tracking-overline)',
       },
-      animation: {
-        'fade-in': 'fadeIn 0.2s ease-out',
-        'slide-in-right': 'slideInRight 0.3s ease-out',
-      },
-      keyframes: {
-        fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
-        slideInRight: {
-          from: { transform: 'translateX(100%)', opacity: '0' },
-          to: { transform: 'translateX(0)', opacity: '1' },
-        },
-      },
     },
   },
   plugins: [],

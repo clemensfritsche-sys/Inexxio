@@ -82,12 +82,7 @@ export interface DiagramStep {
    * rendert nie eine Ausführung – dort gibt es die Frage nicht.
    */
   verifies?: boolean;
-  /**
-   * **Bewegt dieses Modul die Stücke?** Daraus folgt der Ziel-Scan.
-   *
-   * Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen Modultyp
-   * leer war – eine Liste als Bit. Jetzt steht die Frage als das da, was sie ist.
-   */
+  /** **Bewegt dieses Modul die Stücke?** Daraus folgt der Ziel-Scan. */
   moves?: boolean;
   /**
    * **Worauf dieses Modul wartet** (Testnotiz #698) – Objektnummern der Abweichungen,
@@ -99,16 +94,10 @@ export interface DiagramStep {
    */
   waitingFor?: number[];
   /**
-   * ►►► **Kann man an diesem Modul noch etwas tun?** (Testnotiz #821) ◄◄◄
-   *
-   * Ein Modul, das nicht dran ist, wird gedämpft – und das war genau dann falsch, wenn
-   * der Auftrag längst durch ist und trotzdem noch eine Rechnung oder eine Zahlung zu
-   * buchen ist. Die Karte sagte optisch «hier ist nichts mehr zu tun», während ihre
-   * Knöpfe funktionierten: dieselbe Fehlerform wie eine erfundene Sperre, nur in Farbe.
-   *
-   * **Der Schritt sagt es, nicht die Oberfläche** – abgeleitet aus derselben Tabelle,
-   * die auch das Tor ist (`deal.can`). Eine Heuristik hier wäre eine dritte Wahrheit.
-   * Optional wie `moves`: der Editor rendert nie eine Ausführung.
+   * **Kann man an diesem Modul noch etwas tun?** (#821) – dann wird es nicht gedämpft,
+   * auch wenn es nicht dran ist (eine Rechnung lässt sich nach dem Durchlauf noch buchen).
+   * Der Schritt sagt es, abgeleitet aus derselben Tabelle, die auch das Tor ist
+   * (`voucher.can`). Optional wie `moves`: der Editor rendert nie eine Ausführung.
    */
   openActions?: boolean;
   /**
@@ -696,9 +685,7 @@ function Problems({ list }: { list: string[] }) {
  * und senkrecht hinein (§8.1a).
  *
  * Ob eine Kante kräftig ist, steht **an der Kante** und wird hier nicht gerechnet: der
- * Server hat es aus dem Log abgeleitet. Die frühere Zählung «bis zum wievielten Knoten»
- * war genau die Ableitung, die aus dem *aktuellen* Zustand kam – und darum verschwand,
- * sobald an einer Stelle nichts mehr stand.
+ * Server hat es aus dem Log abgeleitet – nie aus dem aktuellen Zustand.
  */
 export function Axis({ edges, anchors, prefix = '', journeyIn = [], journeyOut = [] }: {
   edges: GraphEdge[]; anchors: Record<string, FlowAnchor>; prefix?: string;
@@ -788,22 +775,9 @@ function JourneyRow({ where, stops, origins, prefix, rest }: {
   // dieselbe, mit der jede Objektnummer im ERP ihren Datensatz öffnet. Ein eigener
   // Handler wäre ein zweiter Weg zur selben Sache.
   const nav = useErpNav();
-  // ►►► **Der Rest ist kein Ast — also steht er nicht in der Reihe der Äste** (#1035).◄◄◄
-  //
-  // *«Bei mehr als 3 Voraufträgen verhaut es das UI, weil das ‹… X› das Ganze verzerrt
-  // und der mittlere Auftrag die Prozesslinie nicht auf das Startsymbol trifft.»*
-  //
-  // Und genau so war es: die Zeile zentriert ihre Kinder, und der Hinweis stand als
-  // gleichberechtigtes Kind darin – die Chips rutschten um seine halbe Breite zur Seite,
-  // der mittlere Ast stand nicht mehr über dem Stamm, und seine Linie bekam einen Knick.
-  //
-  // Er hat **keine Linie**: er ist die Fussnote zu den gekappten Nachbarn, kein Ast. Also
-  // steht er auf einer eigenen Zeile – und zwar auf der Seite **weg vom Stamm** (oben bei
-  // der Herkunft, unten beim Verbleib), damit er nicht zwischen die Chips und den Bus
-  // gerät. Dieselbe Frage wie überall in dieser Zeile beantwortet dasselbe `where`.
-  //
-  // Damit ist die Chip-Reihe wieder **rein** und exakt auf dem Stamm zentriert – ohne
-  // Gegengewicht, ohne absolute Position, ohne zusätzliche Breite.
+  // **Der Rest ist kein Ast** (#1035): der «… N»-Hinweis hat keine Linie und steht darum
+  // auf einer eigenen Zeile, auf der Seite weg vom Stamm (`where`) – als Kind der
+  // zentrierten Chip-Reihe verschöbe er sie um seine halbe Breite.
   const note = rest > 0 && (
     <span className="inline-flex items-center gap-1 text-[11px]"
       style={{ color: 'var(--fg-4)', whiteSpace: 'nowrap' }}
@@ -1052,28 +1026,13 @@ interface DragProps {
 }
 
 /**
- * **Das Zeichen eines Moduls** – getöntes Quadrat mit seinem Symbol.
- *
- * Es steht hier als eigenes Bauteil, weil es zwei Träger hat: die **Modul-Karte** und der
- * **Einkaufs-Vorgang**, der in einem Modul stattfinden kann (`ProcurementHead`). Ein
- * Einkauf sieht überall gleich aus; nachgebaut wäre er beim ersten Massänderung ein
- * zweiter Massstab.
- *
- * **Die Historie hängt am Symbol** (§5) – wie bei Start und Ende, die dieselbe Blase auf
- * ihrem Kreis tragen. Sie hing einmal an der Beschriftung, und die trägt `truncate`
- * (`overflow: hidden`): das **schneidet die Blase weg**, denn sie ist ein `::after` dieses
- * Elements.
+ * **Das Zeichen eines Moduls** – getöntes Quadrat mit seinem Symbol: die einzige Fläche,
+ * die ein Modul färbt. Die Historie hängt nicht hier, sondern an der Kopfzeile der Karte
+ * (`ModuleShell.history`, #790).
  */
 export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)', size = 34 }: {
   icon: LucideIcon; tone: string;
-  /**
-   * ►►► **Die Fläche unter dem Symbol.** ◄◄◄
-   *
-   * Sie war fest weiss – richtig, solange die Karte selbst **getönt** war: das Symbol sass
-   * als heller Ausschnitt darin. Seit die Karte weiss ist (`module-ui.MODULE_CARD`), wäre
-   * weiss auf weiss gar keine Marke mehr, und die Modulfarbe hätte im Bild keinen Ort.
-   * Sie sitzt jetzt hier – **die einzige Fläche, die ein Modul färbt**.
-   */
+  /** Die Fläche unter dem Symbol – die Modulfarbe, denn die Karte selbst ist weiss. */
   bg?: string;
   size?: number;
 }) {
@@ -1088,16 +1047,10 @@ export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)', size = 34 }: 
 }
 
 /**
- * ►►► **Die Hülle einer Modul-Karte — EIN Bauteil.** ◄◄◄
- *
- * Rahmen in der Modulfarbe, getönte Fläche, `rounded-ds-lg`, Kopf mit `ModuleMark` und
- * Beschriftung, Haarlinie vor dem Körper. Genau das ist die Anatomie, an der man eine
- * Modul-Karte erkennt – und sie steht **einmal**.
- *
- * *Sie hatte einmal einen zweiten Träger: den Einkaufs-Beleg **in** einem Bewegen-Modul
- * (#783, «container im container, und der innere ist ein 1:1 Abbild eines regulären
- * Moduls»). Mit den Handels-Modulen ist er entfallen – die Hülle bleibt trotzdem ein
- * eigenes Bauteil: das nächste, was in einer Karte steckt, baut sie nicht nach.*
+ * **Die Hülle einer Modul-Karte — EIN Bauteil.** Weisse Karte (`module-ui.MODULE_CARD`),
+ * Kopf mit `ModuleMark` und Beschriftung, Haarlinie vor dem Körper; der Rahmen trägt die
+ * Modulfarbe, wenn das Modul dran ist. Die Anatomie, an der man eine Modul-Karte erkennt,
+ * steht **einmal**.
  *
  * `lead` und `trail` sind die Stellen, an denen ein Träger Eigenes einhängt (Ziehgriff,
  * Schloss, Chevron, Löschen) – der Rahmen selbst kennt davon nichts.
@@ -1116,45 +1069,19 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
   /** Zusätzliche Eigenschaften am äusseren Rahmen – z. B. Ziehen. */
   body?: React.HTMLAttributes<HTMLDivElement>;
   /**
-   * ►►► **Die Historie hängt an der KOPFZEILE, nicht am Symbol** (Testnotiz #790). ◄◄◄
-   *
-   * Sie hing am 32-px-Quadrat links – man musste sie also treffen, um zu erfahren, was
-   * an diesem Modul passiert ist. Gemeldet wurde genau das: «die Hover-Historie sollte
-   * für den ganzen Prozessschritt-Container gelten».
-   *
-   * Die Kopfzeile ist dieser Container: sie läuft über die ganze Kartenbreite, und
-   * zugeklappt – der Normalfall – **ist** sie die Karte. Die Blase steht damit auch
-   * dort, wo man hinsieht: mittig über der Karte statt über einem Symbol am Rand.
-   *
-   * **Nicht am äusseren Rahmen**, obwohl der wörtlich «der ganze Container» wäre: darin
-   * steht der aufgeklappte Feldsatz, und eine Historien-Blase, die beim Tippen in einem
-   * Eingabefeld aufgeht, ist keine Auskunft, sondern Störung.
-   *
-   * Was **darin** eine eigene Blase trägt (Ziehgriff, Schloss, Löschen), gewinnt
-   * weiterhin – die Regel dafür steht in `globals.css` (`:has`), nicht hier.
-   *
-   * Und sie darf **nie an der Beschriftung** hängen: die trägt `truncate`
-   * (`overflow: hidden`), und das **schneidet die Blase weg** – sie ist ein `::after`.
+   * **Die Historie hängt an der KOPFZEILE** (#790): sie läuft über die ganze Kartenbreite
+   * und ist zugeklappt die Karte. Nicht am äusseren Rahmen (dort stünde die Blase beim
+   * Tippen im Feldsatz) und **nie an der Beschriftung**: die trägt `truncate`
+   * (`overflow: hidden`) und schnitte das `::after` weg. Was darin eine eigene Blase
+   * trägt, gewinnt (`:has` in `globals.css`).
    */
   history?: string;
   children?: ReactNode;
 }) {
   return (
-    // ►►► **Die Karte ist weiss — wie jeder Datensatz im Haus.** ◄◄◄
-    //
-    // Sie war getönt: Rahmen **und** Fläche in der Modulfarbe. Bei fünf Modulen
-    // untereinander standen damit fünf farbige Blöcke in der Spalte, und die ERP-Regel
-    // des Hauses lautet **Struktur vor Fläche** – Haarlinien und Weissraum, kein
-    // Farbfeld. Die Vorlage ist die Detail-Ansicht eines Artikels (`fields.SPEC.card`):
-    // dieselbe Fläche, derselbe Radius, derselbe leise Schatten.
-    //
-    // **Die Modulfarbe verschwindet dabei nicht, sie bekommt ihren Ort**: die Marke.
-    // Dort benennt sie das Modul, statt es zu übertönen – und der Rahmen nimmt sie
-    // weiterhin auf, wenn das Modul **dran** ist. Das ist die einzige Stelle, an der die
-    // Karte selbst Farbe trägt, und sie sagt damit genau eine Sache.
-    // **Die Karte sagt, welches Modul sie ist** – für die Testnotizen: eine Notiz aus
-    // einer Modul-Karte nennt damit ohne Raten ihr Modul (`lib/feedback.originOf`). Eine
-    // Markierung an der einen Hülle, also erbt sie **jedes** Modul.
+    // **Die Karte ist weiss** wie jeder Datensatz (Struktur vor Fläche); die Modulfarbe
+    // steht in der Marke und im Rahmen, wenn das Modul dran ist. `data-fb-module` nennt
+    // das Modul für eine Testnotiz (`lib/feedback.originOf`).
     <div className="rounded-ds-lg" data-fb-module={label} {...body}
       style={{
         ...MODULE_CARD,

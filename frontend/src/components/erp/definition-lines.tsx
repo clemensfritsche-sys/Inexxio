@@ -116,11 +116,9 @@ export function DefinitionLines({ lines, setLines, refreshKey = 0,
    */
   refreshKey?: number;
 }) {
-  // **Nur die GEWÄHLTEN Artikel, nicht alle.** Hier stand ein Vorab-Laden von bis zu 300
-  // Artikeln, aus dem ein natives Dropdown wurde: nicht durchsuchbar, und bei tausend
-  // Artikeln tausend Knoten je Zeile (Testnotiz #738). Gesucht wird jetzt beim Tippen
-  // (`ObjectSelect`); was hier liegt, ist, was eine Zeile bereits gewählt hat – die
-  // Angaben, die «Neu» sperren und begründen (`template_steps`, `create_problem`).
+  // **Nur die GEWÄHLTEN Artikel, nicht alle** (#738): gesucht wird beim Tippen
+  // (`ObjectSelect`); hier liegt, was eine Zeile bereits gewählt hat – die Angaben, die
+  // «Neu» sperren und begründen (`template_steps`, `create_problem`).
   const [chosen, setChosen] = useState<Record<number, ArticleOption>>({});
 
   const remember = useCallback((o: ArticleOption) => {
@@ -133,11 +131,8 @@ export function DefinitionLines({ lines, setLines, refreshKey = 0,
 
   const hasNew = lines.some((l) => l.origin === NEU);
 
-  // **Kein Container um den Container** (Testnotiz zur Anlage). Hier stand eine Karte mit
-  // Überschrift «Definition» und dem Satz «Was bearbeitet dieser Auftrag? Ohne Definition
-  // kein Start.» – beides sagte, was die Felder darunter ohnehin zeigen, und der Rahmen
-  // legte eine zweite Kante um Zeilen, die bereits Karten sind. Übrig bleibt die Sache
-  // selbst: eine Zeile je Position, darunter der Knopf für die nächste.
+  // **Kein Container um den Container**: eine Zeile je Position, darunter der Knopf für
+  // die nächste – die Zeilen sind bereits Karten.
   return (
     <div className="flex flex-col gap-2">
       {lines.map((line) => (
@@ -369,14 +364,8 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
         </button>
       </div>
 
-      {/* ►►► **Wie das System zählt, ist keine Auskunft für den Anwender** (#1033). ◄◄◄
-          *«Diese Info wird nicht gebraucht. Ist gut zum Verständnis im Hintergrund, aber
-          der User muss das nicht wissen.»* – Hier stand «1 Instanzen mit je einer
-          Einzelinstanz (-1).»: die Übersetzung der eingegebenen Menge in Datensätze und
-          Nummern-Suffixe. Das ist das **Datenmodell**, nicht die Sache: wer «3» eintippt,
-          will drei Stück, und wie sie intern heissen, ändert an seiner Eingabe nichts.
-          Es ist zugleich der dritte Anlauf an derselben Zeile (#722 nahm ihr das
-          Rechenbeispiel, #725 gab ihr das richtige Wort) – jetzt gibt es sie nicht mehr. */}
+      {/* Wie das System zählt (Instanzen, Suffixe), ist keine Auskunft für den Anwender
+          (#1033): wer «3» eintippt, will drei Stück. */}
 
       {!perUnit && hasArticle && line.origin === LAGER && (
         <StockPicker

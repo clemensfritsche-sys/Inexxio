@@ -208,11 +208,6 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
 
   return (
     <div className="flex flex-col">
-      {/* **Kein «womit» mehr.** Selbst gebracht oder eingekauft ist keine Eigenschaft
-          der Fuhre, sondern die Frage, ob ein Dritter dafür bezahlt wird – und die
-          beantwortet der **Beleg** eine Ebene höher (`Wrapped`). Die frühere Liste
-          `manuell · paket · fracht` ist entfallen: Paket und Fracht sind keine zwei
-          Arten, sondern zwei Angebote desselben Einkaufs. */}
       {work.map((w, i) => (
         <InstanceRow
           key={w.instance_object_id}
@@ -362,8 +357,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
   // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt** (#723). ◄◄
   //
   //   am Arbeitsort genug         →  nichts. Einfach scannen.
-  //   genug da, liegt nur woanders →  «Holen lassen» – die Handlung ist ein Transport,
-  //                                  keine Beschaffung.
+  //   genug da, liegt nur woanders →  «Holen lassen» – die Handlung ist ein Transport.
   //   reicht nicht, Bestand da    →  «Andere Instanz wählen».
   //   gar kein Bestand            →  nur «Nachschub». Wählen liesse sich nichts.
   const enough = need.available >= required;
@@ -406,11 +400,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {/* ►►► **Eine Objektnummer führt zu ihrem Datensatz – überall** (#1028). ◄◄◄
-            Hier stand sie als blosser Text: dieselbe Kennung wie in jeder anderen Zeile,
-            nur ohne Ziel. `ObjId` ist die eine Form (Grösse, Tabellenziffern, Auszeichnung
-            erst beim Zeigen) – eine zweite Schreibweise wäre der erste Schritt zurück zu
-            «Nummern sehen je nach Ort anders aus». */}
+        {/* Eine Objektnummer führt zu ihrem Datensatz – überall dieselbe Form (`ObjId`, #1028). */}
         <span className="text-[11.5px] flex flex-wrap items-center gap-x-1"
           style={{ color: 'var(--fg-4)' }}>
           {plan.length
@@ -586,17 +576,9 @@ function labelOf(p: CapturePoint): string {
 }
 
 /**
- * **Der Halt — eine Zeile, eine Entscheidung** (§4.1, Testnotizen #710/#713).
- *
- * Zwei Vereinfachungen gegenüber der Vorgängerfassung, beide aus demselben Grundsatz:
- *
- * * **Die Meldung nennt die Tatsache, nicht ihre Folgen.** «Hier steht alles still, bis
- *   entschieden ist – auch die 1 ungeprüften Stück dieser Instanz» erklärte in einem
- *   Satz, was der Zustand ohnehin zeigt. Was nicht zur Handlung beiträgt, steht im Hover.
- * * **Die 100 %-Kontrolle ist ersatzlos entfallen.** Sie war kein zweiter Mechanismus,
- *   sondern derselbe: ein Abweichungsauftrag über die übrigen Stücke mit der Stichprobe
- *   «alle». Zwei Wege zu demselben Ergebnis sind einer zu viel – und der zweite legte
- *   die Stichprobe der Auflösung stillschweigend fest, statt sie wählen zu lassen.
+ * **Der Halt — eine Zeile, eine Entscheidung** (§4.1, #710/#713). Die Meldung nennt die
+ * Tatsache, nicht ihre Folgen (die stehen im Hover). Eine eigene 100 %-Kontrolle gibt es
+ * nicht: sie ist derselbe Abweichungsauftrag, nur mit der Stichprobe «alle».
  */
 function Hold({ work, orderObjectId, stepId, onDeviate }: {
   work: StepWork; orderObjectId: number; stepId: number;
