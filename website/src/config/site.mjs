@@ -23,9 +23,13 @@ import { resolve } from 'node:path';
  * holt beim Build die Angaben des Betreibers (`GET /api/v1/public/contact?country=`) und
  * legt sie hier ab; zur Laufzeit tauscht `src/scripts/contact.ts` sie gegen die des
  * Besucherlandes. Ohne ERP (lokal, CI-Prüfung) gelten die Vorgaben unten.
+ * `SITE_ERP=0` liest sie bewusst nicht: der Abdruck für das Backend
+ * (`scripts/export-contact.mjs`) ist der DB-freie Ausweg und baut auf den Vorgaben – sonst
+ * hinge er davon ab, ob lokal gerade eine Datei aus einem früheren Build liegt.
  * @type {{ phone?: string | null, phone_e164?: string | null, email?: string | null }}
  */
 const erp = (() => {
+  if (process.env.SITE_ERP === '0') return {};
   const file = resolve(process.cwd(), 'src/config/erp-contact.json');
   try {
     return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};

@@ -33,6 +33,17 @@ const pick = (re, what) => {
   return m[1] ?? m[0];
 };
 
+// Kopf und Fuss werden per Muster ausgeschnitten – das trägt nur, solange es je genau EIN
+// <header> und EIN <footer> gibt. Ein verschachteltes (etwa in einem künftigen Seitenkopf)
+// schnitte still falsch; darum wird gezählt und abgebrochen, statt zu raten.
+for (const tag of ['header', 'footer']) {
+  const open = page.match(new RegExp(`<${tag}\\b`, 'g'))?.length ?? 0;
+  const close = page.match(new RegExp(`</${tag}>`, 'g'))?.length ?? 0;
+  if (open !== 1 || close !== 1) {
+    throw new Error(`export-shell: dist/404.html braucht genau ein <${tag}> – gefunden ${open}× auf, ${close}× zu.`);
+  }
+}
+
 const header = pick(/<header class="site-header[\s\S]*?<\/header>/, 'Kopf');
 const footer = pick(/<footer class="site-footer[\s\S]*?<\/footer>/, 'Fuss');
 const cssHref = pick(/<link rel="stylesheet" href="(\/_astro\/[^"]+\.css)"/, 'Stylesheet');

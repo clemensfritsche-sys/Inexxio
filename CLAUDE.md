@@ -5243,6 +5243,15 @@
 > `initial_admin_email`** (Start und Login, Gross/Klein egal); «wer zuerst kommt, wird
 > Admin» ist entfallen. Wächter: `tests/test_startup.py` (3, je gegen die Bug-Form).
 
+> ►►► **Paket 3: Prod spricht mit Prod, und das Formular hat einen Ausweg.** ◄◄◄ Der
+> Prod-Deploy setzt `/api/**` per `jq` auf `inexxio-backend-prod` und bricht ab, wenn
+> danach ein anderer Dienst steht (`firebase.json` nennt den Dev-Dienst). Der tote
+> Header-Block `/(app|admin)/**` ist weg. Das Formular bricht nach **60 s** ab und zeigt
+> Telefon und mailto – und der mailto geht an die **ERP-Adresse** (`contact.ts` tauscht
+> auch `data-mail`). `export-contact` baut aus den **Vorgaben** (`SITE_ERP=0`, DB-freier
+> Ausweg des Backends), `export-shell` verlangt genau ein `<header>`/`<footer>`, `postcss`
+> ist fest deklariert, und die CI prüft, dass `OFFENE_PUNKTE.md` aktuell ist.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

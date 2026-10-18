@@ -11,7 +11,8 @@ offen, bis ein Mensch antwortet.
 Fehlermeldungen erscheinen, steht in ``website/src/config`` und wird mit
 ``npm run export:contact`` nach ``app/assets/website_contact.json`` übertragen (die CI
 prüft, dass die Datei aktuell ist). Formular im Browser und Server sagen damit garantiert
-dasselbe.
+dasselbe. Telefon und E-Mail darin sind die **Vorgaben** der Website, nicht die des ERP:
+sie tragen den Ausweg, der ohne Datenbank funktionieren muss (503-/429-Seite, mailto).
 
 **Ohne JavaScript** schickt der Browser das Formular klassisch (multipart). Dann antwortet
 der Endpunkt mit HTML: bei Erfolg ``303`` auf ``/kontakt/danke``, sonst eine schlichte Seite

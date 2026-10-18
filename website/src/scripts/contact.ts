@@ -87,9 +87,15 @@ export function apply(built: Built, c: Contact, root: HTMLElement = document.bod
     replaceHref(root, `tel:${built.e164}`, `tel:${c.phone_e164}`);
     replaceText(root, built.phone, c.phone);
   }
-  if (c.email) {
-    replaceHref(root, `mailto:${built.email}`, `mailto:${c.email}`);
-    replaceText(root, built.email, c.email);
+  const email = c.email;
+  if (email) {
+    replaceHref(root, `mailto:${built.email}`, `mailto:${email}`);
+    replaceText(root, built.email, email);
+    // Der mailto-Ausweg des Formulars liest seine Adresse aus `data-mail` – auch sie ist
+    // die des ERP, sonst ginge die Notfall-Mail an die Adresse aus dem Build.
+    root.querySelectorAll<HTMLElement>('[data-mail]').forEach((el) => {
+      if (el.dataset.mail === built.email && !el.closest('[data-erp-fixed]')) el.dataset.mail = email;
+    });
   }
   const lines = c.address_lines.filter((l) => l.trim() && l.trim().toUpperCase() !== built.country.toUpperCase());
   if (lines.length) {

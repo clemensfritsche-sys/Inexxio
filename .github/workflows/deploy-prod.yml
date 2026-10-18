@@ -186,6 +186,16 @@ jobs:
         working-directory: website
         run: node scripts/merge-hosting.mjs
 
+      # ►►► /api/** muss auf das PROD-Backend zeigen. ◄◄◄ firebase.json nennt den Dev-Dienst
+      # (dort deployt jeder Push); ohne diesen Schritt schrieben Formular und Kontaktdaten
+      # der Prod-Website ins falsche System. Bleibt danach ein anderer Dienst stehen, bricht
+      # der Schritt ab, statt still falsch auszuliefern.
+      - name: API-Rewrite auf das Prod-Backend setzen
+        run: |
+          jq --arg svc "${{ env.CLOUD_RUN_SERVICE }}" '(.hosting.rewrites[] | select(.run != null) | .run.serviceId) = $svc' firebase.json > firebase.prod.json
+          mv firebase.prod.json firebase.json
+          jq -e --arg svc "${{ env.CLOUD_RUN_SERVICE }}" '[.hosting.rewrites[] | select(.run != null) | .run.serviceId] | length > 0 and all(. == $svc)' firebase.json
+
       - name: Deploy to Firebase Hosting (prod)
         run: firebase deploy --only hosting --project inexxio-prod --non-interactive
 

@@ -18,10 +18,16 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { site, contactEmail } from '../src/config/site.mjs';
-import { inquiry } from '../src/config/inquiry.mjs';
-import { formVocab } from '../src/lib/inquiry-vocab.mjs';
-import { plain } from '../src/lib/text.mjs';
+
+// ►►► Der Abdruck baut auf den VORGABEN, nie auf den Angaben eines früheren Builds. ◄◄◄
+// Er ist der DB-freie Ausweg des Backends (503-/429-Seite, mailto): lag lokal noch
+// src/config/erp-contact.json, landeten dessen Nummern im Abdruck, und `--check` schlug in
+// der CI (ohne die Datei) fehl. Darum wird site.mjs erst NACH dem Schalter geladen.
+process.env.SITE_ERP = '0';
+const { site, contactEmail } = await import('../src/config/site.mjs');
+const { inquiry } = await import('../src/config/inquiry.mjs');
+const { formVocab } = await import('../src/lib/inquiry-vocab.mjs');
+const { plain } = await import('../src/lib/text.mjs');
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = resolve(ROOT, '../backend/app/assets/website_contact.json');

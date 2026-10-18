@@ -140,7 +140,8 @@ jobs:
         working-directory: website
         run: npm run check
 
-      # Die E-Mails des Formulars schreibt das Backend mit den Wörtern der Website.
+      # Das Backend prüft die Anfrage gegen dieselben Listen und schreibt die Bestätigung mit
+      # den Wörtern der Website – aus diesem Abdruck.
       - name: Formular-Vokabular aktuell (backend/app/assets/website_contact.json)
         working-directory: website
         run: node scripts/export-contact.mjs --check
@@ -151,6 +152,11 @@ jobs:
           SITE_MODE: preview
           SITE_URL: https://inexxio-dev.web.app
         run: npm run build
+
+      # Der Build schreibt OFFENE_PUNKTE.md neu – die Datei im Repo muss genau das sein.
+      # Wer photos.mjs ändert, ohne lokal zu bauen, hinterliesse sonst einen veralteten Bericht.
+      - name: OFFENE_PUNKTE.md aktuell
+        run: git diff --exit-code -- website/OFFENE_PUNKTE.md || { echo "::error::website/OFFENE_PUNKTE.md ist veraltet – «npm run build» in website/ ausführen und committen."; exit 1; }
 
   deploy-backend:
     name: Backend → Cloud Run (dev)

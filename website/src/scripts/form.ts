@@ -23,6 +23,8 @@ interface Vocab {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE = /^[+()\d][\d\s/().-]{5,}$/;
+/** Längste Wartezeit auf den Server, dann der Ausweg (Telefon, mailto). */
+const SEND_TIMEOUT = 60_000;
 
 export function initInquiryForms(): void {
   document.querySelectorAll<HTMLFormElement>('form[data-inquiry]').forEach(setup);
@@ -65,8 +67,13 @@ function setup(form: HTMLFormElement): void {
     prune(data);
     form.setAttribute('aria-busy', 'true');
     if (submit) submit.disabled = true;
+    // Ein hängender Server darf den Knopf nicht minutenlang sperren: nach SEND_TIMEOUT kommt
+    // der Ausweg (Telefon, mailto). Grosszügig bemessen – Fotos über ein schwaches Netz
+    // brauchen Zeit, und ein zu früher Abbruch lädt zum doppelten Senden ein.
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), SEND_TIMEOUT);
     try {
-      const res = await fetch(form.action, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
+      const res = await fetch(form.action, { method: 'POST', body: data, headers: { Accept: 'application/json' }, signal: ctrl.signal });
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; fields?: Errors; message?: string };
       if (res.ok && body.ok) {
         track('form_submit', { form: 'anfrage' });
@@ -87,6 +94,7 @@ function setup(form: HTMLFormElement): void {
     } catch {
       fail(form, failPanel, vocab, 0);
     } finally {
+      window.clearTimeout(timer);
       form.removeAttribute('aria-busy');
       if (submit) submit.disabled = false;
     }
