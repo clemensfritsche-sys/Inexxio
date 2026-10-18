@@ -1755,7 +1755,7 @@
           "articles"
         ],
         "summary": "Article Stock",
-        "description": "**Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**\n\nEine Frage, ein Endpunkt. Der Vorgänger (``/instances``) lieferte nur eine Liste von\nInstanzen und war dabei kaputt: er las ``Instance.status``, eine Spalte, die es nicht\ngibt – die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675). Jeder\nAufruf endete mit 500, der Reiter «Bestand» war also nie zu sehen.\n\nDie **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine\nSeite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend\nvergeben, und eine Instanz entsteht mit ihren Stücken – aufsteigend ist damit\nschlicht die Reihenfolge, in der das Material entstanden ist, also FIFO. Der Feed\nsortiert absteigend, weil man dort den zuletzt angelegten Datensatz sucht; hier sucht\nman das älteste Material, und das ist eine andere Frage.",
+        "description": "**Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**\n\nEine Frage, ein Endpunkt. Die Instanz ist eine Gruppe und trägt keinen Zustand – sie\nhat eine **Aufstellung** (Testnotiz #675).\n\nDie **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine\nSeite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend\nvergeben, und eine Instanz entsteht mit ihren Stücken – aufsteigend ist damit\nschlicht die Reihenfolge, in der das Material entstanden ist, also FIFO. Der Feed\nsortiert absteigend, weil man dort den zuletzt angelegten Datensatz sucht; hier sucht\nman das älteste Material, und das ist eine andere Frage.",
         "operationId": "article_stock_api_v1_erp_articles__object_id__stock_get",
         "security": [
           {
@@ -9345,29 +9345,6 @@
               }
             ],
             "title": "Last Login At"
-          },
-          "terms_accepted_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Accepted At"
-          },
-          "terms_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Version"
           }
         },
         "type": "object",
@@ -9394,9 +9371,7 @@
           "notification_email",
           "notification_inapp",
           "newsletter_opt_in",
-          "last_login_at",
-          "terms_accepted_at",
-          "terms_version"
+          "last_login_at"
         ],
         "title": "UserProfileResponse"
       },

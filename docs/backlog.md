@@ -160,9 +160,12 @@ Folge-Deploy (Zwei-Deploy-Regel, **nach Sicherung der produktiven Datenbank**): 
 droppen und den Eintrag `("articles", "landed_unit_cost", …)` aus
 `main._COLUMN_SAFETY_NET` entfernen – er legt sie bis dahin nur an, falls sie fehlt.
 
-*Nicht hierher gehören `user_profiles.terms_accepted_at`/`terms_version`: der Endpunkt
-`POST /auth/terms-accept` ist entfernt, das Mapping bleibt – die Benutzer-Ansicht im ERP
-zeigt eine früher erfasste Akzeptanz weiterhin an.*
+## Offen: `user_profiles.terms_accepted_at`/`terms_version` droppen (Folge-Deploy nach Cleanup Paket 5)
+
+Der Endpunkt `POST /auth/terms-accept` ist entfernt (E2), und die Anzeige «AGB akzeptiert
+am …» im ERP ebenso – damit hatten die beiden Spalten weder Schreiber noch Leser; ihr
+Mapping ist weg. Beide sind `NULL`-fähig. Drop im Folge-Deploy, **nach Sicherung der
+produktiven Datenbank** (die Werte sind danach weg).
 
 ## Offen: die Bankverbindung am Benutzer droppen (Folge-Deploy nach CRM Schritt 1b)
 

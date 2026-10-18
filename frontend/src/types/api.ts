@@ -643,10 +643,8 @@ export interface paths {
          * Article Stock
          * @description **Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**
          *
-         *     Eine Frage, ein Endpunkt. Der Vorgänger (``/instances``) lieferte nur eine Liste von
-         *     Instanzen und war dabei kaputt: er las ``Instance.status``, eine Spalte, die es nicht
-         *     gibt – die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675). Jeder
-         *     Aufruf endete mit 500, der Reiter «Bestand» war also nie zu sehen.
+         *     Eine Frage, ein Endpunkt. Die Instanz ist eine Gruppe und trägt keinen Zustand – sie
+         *     hat eine **Aufstellung** (Testnotiz #675).
          *
          *     Die **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine
          *     Seite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend
@@ -4023,10 +4021,6 @@ export interface components {
             newsletter_opt_in: boolean;
             /** Last Login At */
             last_login_at: string | null;
-            /** Terms Accepted At */
-            terms_accepted_at: string | null;
-            /** Terms Version */
-            terms_version: string | null;
         };
         /**
          * UserProfileUpdate

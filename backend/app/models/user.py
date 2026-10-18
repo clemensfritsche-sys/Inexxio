@@ -90,8 +90,6 @@ class UserProfile(Base, TimestampMixin):
 
     # Auth / compliance
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    terms_version: Mapped[Optional[str]] = mapped_column(String(20))
 
     @property
     def display_name(self) -> str:

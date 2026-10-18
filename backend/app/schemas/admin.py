@@ -260,8 +260,6 @@ class UserProfileResponse(BaseModel):
 
     # Auth
     last_login_at: Optional[datetime]
-    terms_accepted_at: Optional[datetime]
-    terms_version: Optional[str]
 
 
 class UserProfileUpdate(BaseModel):

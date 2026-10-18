@@ -5260,6 +5260,17 @@
 > Maps-Schlüssel – ohne erfundene «Inexxio AG». Spalte `plausible_domain` fällt im
 > Folge-Deploy. Wächter: `test_sites.py` (2, je gegen die Bug-Form).
 
+> ►►► **Paket 5 + 7: was niemand liest, ist weg – und die Grabsteine auch.** ◄◄◄ Rund
+> 5'000 Zeilen weniger über Backend, Frontend und Website. Gelöscht: die Endpunkte
+> AGB-Akzeptanz (E2), Audit-Log-Abfrage (E3, das **Schreiben** bleibt), Benutzerliste und
+> **Artikel-PATCH samt Optimistic Locking** (E4: ein Artikel steht mit der Anlage fest);
+> tote Exporte, Typen, CSS-Klassen, Konfiguration und Beispielbilder; rund 180
+> Grabstein-Kommentare («Hier stand …», Verweise auf `deal`/`purchase`). Website (E8): Team
+> immer sichtbar (Schalter weg), `/shop` nicht mehr in robots.txt, «Werkstatt und Einsatz».
+> Spalten `landed_unit_cost` und `terms_*` haben kein Mapping mehr, Drop im Folge-Deploy
+> (`docs/backlog.md`). `deadcode.py` kennt jetzt die Inseln und zählt `types/api.ts` nicht
+> als Leser.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -5486,15 +5497,12 @@ Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by
 - HTTPS/TLS, HSTS, CSP und die übrigen Security-Header (`firebase.json`)
 - Anmeldung über Firebase; **Passkeys/WebAuthn** serverseitig (`services/passkey.py`)
 - Secrets über Google Secret Manager (nie im Repo, nie in `.env.example`)
-- **Optimistic Locking** (`services/lifecycle.ensure_version`) – heute am Artikel;
-  jede weitere Schreibstelle, die es braucht, ruft dieselbe Funktion
 
 **Vorgemerkt, nicht gebaut:** TOTP-MFA für Admins, Session-Timeout, Brute-Force-Sperre.
 
 ## DSGVO / Schweizer DSG
 - CH DSG (01.09.2023) + DSGVO für EU
 - **Keine Statistik, keine Cookies, kein Einwilligungs-Dialog** (Plausible entfernt, Oktober 2026)
-- AGB-Akzeptanz: Zeitstempel + Version in DB
 - 10-Jahres-Archivierung Buchungsbelege (unveränderlich)
 
 ## Pflichtregeln für Claude – vor jeder Änderung
