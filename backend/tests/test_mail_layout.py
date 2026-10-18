@@ -187,3 +187,24 @@ def test_an_internal_message_still_needs_no_mailbox():
     finally:
         db.rollback()
         db.close()
+
+
+def test_the_mail_is_one_centered_column_with_a_hairline():
+    """Wie im Artefakt: 600 px, mittig, umrandet von einer Haarlinie – und dieselben
+    Elemente tragen im dunklen Modus die dunkle Palette."""
+    html = layout.compose("x", "y", FIRM, MONIKA).html
+    assert 'align="center"' in html and "max-width:600px" in html
+    assert f"border:1px solid {layout.LINE};border-radius:12px" in html
+    dark = html.split("prefers-color-scheme:dark", 1)[1]
+    for cls in (".ix-bg", ".ix-ink", ".ix-line", ".ix-btn"):
+        assert cls in dark
+    assert 'class="ix-ink' in html and 'class="ix-bg' in html
+
+
+def test_the_inquiry_is_titled_by_its_own_first_sentence():
+    from app.services import inquiry
+    assert inquiry.subject_of("Kran läuft beim Anfahren ruckartig. Seit gestern.") == \
+        "Anfrage: Kran läuft beim Anfahren ruckartig"
+    long = inquiry.subject_of("wort " * 30)
+    assert long.startswith("Anfrage: wort") and long.endswith(" …") and len(long) <= 9 + 62
+    assert inquiry.subject_of("  \n ") == "Anfrage"

@@ -20,10 +20,11 @@ Die übrigen Regeln:
   Unternehmen, mit dem Bild seines Postfachs. Telefon und E-Mail sind die der
   Gesellschaft – keine Funktion, keine Direktnummer, nie «Ihr Team».
 * **Der Absendername folgt daraus**: «Clemens Fritsche · INEXXIO» bzw. «INEXXIO».
-* **Keine Fläche hinter der Mail**: sie steht im Postfach wie jede andere Mail – eine
-  getönte Bühne passt in kein Postfach, und im dunklen Modus schon gar nicht. Das Logo
-  ist transparent (mit hellem Rand, damit es auch auf dunklem Grund lesbar bleibt), und
-  wo der Client es kann, wechselt es auf die helle Fassung.
+* **Eine Spalte, mittig, umrandet von einer Haarlinie** – weiss, keine Fläche dahinter
+  und keine darin: gruppiert wird mit einer Linie. Eine getönte Bühne passt in kein
+  Postfach, und im dunklen Modus schon gar nicht. Wo der Client den dunklen Modus meldet,
+  tragen dieselben Elemente die dunkle Palette (``_DARK``); Gmail kehrt selbst um, darum
+  ist das Logo transparent und hat einen hellen Rand.
 
 Das HTML ist **E-Mail-HTML** – Tabellen, Stile am Element, keine Webschrift, die man
 braucht, Bilder als PNG. Daneben steht immer derselbe Inhalt als Text.
@@ -171,8 +172,12 @@ def text(subject: str, body: str, firm: Firm, signer: Optional[Signer]) -> str:
 # HTML
 # ---------------------------------------------------------------------------
 
-def _p(content: str, size: int = 16, color: str = INK, extra: str = "") -> str:
-    return (f'<p style="margin:0 0 20px;font-family:{FONT};font-size:{size}px;'
+#: Abstand zwischen den Blöcken und Rand der Karte – wie im Artefakt.
+GAP, PAD = 22, 40
+
+
+def _p(content: str, size: int = 16, color: str = INK, extra: str = "", cls: str = "ix-ink") -> str:
+    return (f'<p class="{cls}" style="margin:0 0 {GAP}px;font-family:{FONT};font-size:{size}px;'
             f'line-height:{size + 8}px;color:{color};{extra}">{content}</p>')
 
 
@@ -180,29 +185,31 @@ def _rich(par: str) -> str:
     """Ein Absatz: maskiert, Zeilenumbrüche bleiben, Adressen werden Links."""
     out = escape(par).replace("\n", "<br>")
     return re.sub(r"(https?://[^\s<]+)",
-                  lambda m: f'<a href="{m.group(1)}" style="color:{INK}">{m.group(1)}</a>', out)
+                  lambda m: f'<a class="ix-ink" href="{m.group(1)}" style="color:{INK}">'
+                            f'{m.group(1)}</a>', out)
 
 
 def _label(t: str) -> str:
-    return (f'<p style="margin:0 0 10px;font-family:{FONT};font-size:12px;line-height:16px;'
-            f'font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:{TEXT_3}">'
-            f'{escape(t)}</p>') if t else ""
+    return (f'<p class="ix-t3" style="margin:0 0 10px;font-family:{FONT};font-size:12px;'
+            f'line-height:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;'
+            f'color:{TEXT_3}">{escape(t)}</p>') if t else ""
 
 
 def _box(inner: str) -> str:
-    return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="border:1px solid {LINE};border-radius:12px;border-collapse:separate;'
-            f'margin:0 0 24px">{inner}</table>')
+    """Gruppiert wird mit einer Haarlinie – nie mit einer Fläche."""
+    return (f'<table role="presentation" class="ix-line" width="100%" cellpadding="0" '
+            f'cellspacing="0" style="border:1px solid {LINE};border-radius:12px;'
+            f'border-collapse:separate;margin:0 0 {GAP}px">{inner}</table>')
 
 
 def _facts(f: Facts) -> str:
-    cell = f"font-family:{FONT};padding:12px 20px;"
+    cell = f"font-family:{FONT};padding:13px 20px;border-bottom:1px solid {LINE};"
     rows = "".join(
-        f'<tr><td style="{cell}border-bottom:1px solid {LINE};font-size:13px;color:{TEXT_3}">'
-        f'{escape(k)}:</td><td align="right" style="{cell}border-bottom:1px solid {LINE};'
+        f'<tr><td class="ix-t3 ix-line" style="{cell}font-size:13px;color:{TEXT_3}">'
+        f'{escape(k)}</td><td class="ix-ink ix-line" align="right" style="{cell}'
         f'font-size:14px;color:{INK}">{escape(v)}</td></tr>' for k, v in f.rows)
-    msg = (f'<tr><td colspan="2" style="{cell}padding-top:14px;padding-bottom:14px;'
-           f'font-size:14px;line-height:20px;color:{TEXT_2}">{_rich(f.message.strip())}</td>'
+    msg = (f'<tr><td class="ix-t2" colspan="2" style="font-family:{FONT};padding:14px 20px;'
+           f'font-size:14px;line-height:21px;color:{TEXT_2}">{_rich(f.message.strip())}</td>'
            f'</tr>' if f.message.strip() else "")
     return _label(f.title) + _box(rows + msg)
 
@@ -212,24 +219,26 @@ def _steps(s: Steps) -> str:
            "line-height:0")
     rows = []
     for i, (label, done) in enumerate(s.items):
-        mark = f"background:{GREEN}" if done else f"border:2px solid {INK}"
+        mark = (f'class="ix-ok" style="{dot};background:{GREEN}"' if done else
+                f'class="ix-ring" style="{dot};border:2px solid {INK}"')
         if i:
-            rows.append(f'<tr><td style="padding:0 0 0 4px"><div style="width:2px;height:12px;'
-                        f'background:{LINE};font-size:0;line-height:0"></div></td><td></td></tr>')
-        rows.append(f'<tr><td width="22" valign="middle"><div style="{dot};{mark}"></div></td>'
-                    f'<td style="font-family:{FONT};font-size:14px;line-height:22px;color:{INK}">'
-                    f'{escape(label)}</td></tr>')
+            rows.append(f'<tr><td style="padding:0 0 0 4px"><div class="ix-fill" style="width:2px;'
+                        f'height:12px;background:{LINE};font-size:0;line-height:0"></div></td>'
+                        f'<td></td></tr>')
+        rows.append(f'<tr><td width="22" valign="middle"><div {mark}></div></td>'
+                    f'<td class="ix-ink" style="font-family:{FONT};font-size:14px;line-height:22px;'
+                    f'color:{INK}">{escape(label)}</td></tr>')
     return (_label(s.title) + '<table role="presentation" cellpadding="0" cellspacing="0" '
-            f'style="margin:0 0 24px">{"".join(rows)}</table>')
+            f'style="margin:0 0 {GAP}px">{"".join(rows)}</table>')
 
 
 def _call(text: str, firm: Firm) -> str:
     if not (text and firm.phone):
         return ""
-    link = (f'<a href="tel:{escape(firm.tel or firm.phone)}" style="color:{INK};font-weight:600;'
-            f'text-decoration:none;white-space:nowrap">{escape(firm.phone)}</a>')
-    return _box(f'<tr><td style="padding:16px 20px;font-family:{FONT};font-size:14px;'
-                f'line-height:20px;color:{INK}">{escape(text)} {link}</td></tr>')
+    link = (f'<a class="ix-ink" href="tel:{escape(firm.tel or firm.phone)}" style="color:{INK};'
+            f'font-weight:600;text-decoration:none;white-space:nowrap">{escape(firm.phone)}</a>')
+    return _box(f'<tr><td class="ix-ink" style="padding:16px 20px;font-family:{FONT};'
+                f'font-size:14px;line-height:20px;color:{INK}">{escape(text)} {link}</td></tr>')
 
 
 def _extra(x: Optional[Extra], firm: Firm) -> str:
@@ -251,45 +260,60 @@ def _avatar(firm: Firm, signer: Optional[Signer]) -> str:
                 f'width:48px;height:48px;border-radius:24px;border:0">')
     if signer is None:
         return ""
-    return (f'<table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="48" '
-            f'height="48" align="center" valign="middle" style="width:48px;height:48px;'
+    return (f'<table role="presentation" cellpadding="0" cellspacing="0"><tr><td class="ix-btn" '
+            f'width="48" height="48" align="center" valign="middle" style="width:48px;height:48px;'
             f'border-radius:24px;background:{INK};color:#FFFFFF;font-family:{FONT};'
             f'font-size:16px;font-weight:600">{escape(_initials(signer.name))}</td></tr></table>')
 
 
 def _signature(firm: Firm, signer: Optional[Signer], body: str) -> str:
+    link = f'class="ix-t2" style="color:{TEXT_2};text-decoration:none"'
     reach = " · ".join(x for x in (
-        f'<a href="tel:{escape(firm.tel or firm.phone)}" style="color:{TEXT_2};'
-        f'text-decoration:none">{escape(firm.phone)}</a>' if firm.phone else "",
-        f'<a href="mailto:{escape(firm.email)}" style="color:{TEXT_2};text-decoration:none">'
-        f'{escape(firm.email)}</a>' if firm.email else "") if x)
+        f'<a {link} href="tel:{escape(firm.tel or firm.phone)}">{escape(firm.phone)}</a>'
+        if firm.phone else "",
+        f'<a {link} href="mailto:{escape(firm.email)}">{escape(firm.email)}</a>'
+        if firm.email else "") if x)
     head = escape(signer.name) if signer else escape(firm.name)
-    lines = [f'<span style="font-size:15px;line-height:20px;font-weight:600;color:{INK}">'
-             f'{head}</span>', *([escape(firm.name)] if signer else []), *([reach] if reach else [])]
+    lines = [f'<span class="ix-ink" style="font-size:15px;line-height:20px;font-weight:600;'
+             f'color:{INK}">{head}</span>', *([escape(firm.name)] if signer else []),
+             *([f'<span style="white-space:nowrap">{reach}</span>'] if reach else [])]
     avatar = _avatar(firm, signer)
     pic = (f'<td width="48" valign="middle" style="width:48px;padding:0 16px 0 0">{avatar}</td>'
            if avatar else "")
-    greeting = "" if greeted(body) else _p(GREETING, extra="margin:8px 0 16px")
+    greeting = "" if greeted(body) else _p(GREETING, extra="margin:0 0 16px")
     return (greeting + f'<table role="presentation" cellpadding="0" cellspacing="0"><tr>{pic}'
-            f'<td valign="middle" style="font-family:{FONT};font-size:13px;line-height:18px;'
-            f'color:{TEXT_2}">{"<br>".join(lines)}</td></tr></table>')
+            f'<td class="ix-t2" valign="middle" style="font-family:{FONT};font-size:13px;'
+            f'line-height:18px;color:{TEXT_2}">{"<br>".join(lines)}</td></tr></table>')
 
 
 def _footer(firm: Firm) -> str:
+    """Zwei leise Zeilen, mittig – wer wir sind, wie man uns erreicht."""
     base = get_settings().frontend_base_url.rstrip("/")
     host = urlparse(base).netloc or base
-    first = " · ".join([f'<b style="font-weight:600;color:{TEXT_2}">{escape(firm.name)}</b>',
-                        *(escape(a) for a in firm.address[:2])])
+    first = " · ".join([f'<b class="ix-t2" style="font-weight:600;color:{TEXT_2}">'
+                        f'{escape(firm.name)}</b>', *(escape(a) for a in firm.address[:2])])
     second = " · ".join([*([escape(firm.phone)] if firm.phone else []),
-                         f'<a href="{base}" style="color:{TEXT_3};text-decoration:none">'
-                         f'{escape(host)}</a>'])
-    return (f'<tr><td style="padding:24px 0 8px;border-top:1px solid {LINE};font-family:{FONT};'
-            f'font-size:12px;line-height:18px;color:{TEXT_3}">{first}<br>{second}</td></tr>')
+                         f'<a class="ix-t3" href="{base}" style="color:{TEXT_3};'
+                         f'text-decoration:none">{escape(host)}</a>'])
+    return (f'<tr><td class="ix-t3 ix-line ix-pad" align="center" style="padding:20px {PAD}px '
+            f'28px;border-top:1px solid {LINE};font-family:{FONT};font-size:12px;'
+            f'line-height:18px;color:{TEXT_3};text-align:center">{first}<br>{second}</td></tr>')
 
 
-_DARK = ('<style>:root{color-scheme:light dark}'
-         '@media (prefers-color-scheme:dark){.ix-logo-l{display:none!important}'
-         '.ix-logo-d{display:block!important}}</style>')
+#: Der dunkle Modus – dort, wo der Client ihn meldet (Apple Mail, Outlook, iOS). Gmail
+#: liest ihn nicht und kehrt die Farben selbst um; darum hängt nichts an einer Fläche.
+_DARK_BG, _DARK_LINE = "#1F1F1F", "#3A3936"
+_DARK = ('<style>:root{color-scheme:light dark;supported-color-schemes:light dark}'
+         '@media (max-width:620px){.ix-pad{padding-left:20px!important;'
+         'padding-right:20px!important}.ix-h1{font-size:24px!important;line-height:30px!important}}'
+         '@media (prefers-color-scheme:dark){'
+         f'body,.ix-bg{{background:{_DARK_BG}!important}}'
+         '.ix-ink{color:#EDEBE7!important}.ix-t2{color:#C4C0BA!important}'
+         '.ix-t3{color:#9C978F!important}.ix-kick{color:#F0453F!important}'
+         f'.ix-line{{border-color:{_DARK_LINE}!important}}.ix-fill{{background:{_DARK_LINE}!important}}'
+         '.ix-ok{background:#46B176!important}.ix-ring{border-color:#EDEBE7!important}'
+         '.ix-btn{background:#EDEBE7!important;color:#111111!important}'
+         '.ix-logo-l{display:none!important}.ix-logo-d{display:block!important}}</style>')
 
 
 def _logo(base: str) -> str:
@@ -301,29 +325,36 @@ def _logo(base: str) -> str:
 
 def _html(subject: str, lead: str, firm: Firm, signer: Optional[Signer], kicker: str,
           extra: Optional[Extra]) -> str:
+    """Eine Spalte, 600 px, mittig, umrandet von einer Haarlinie – wie im Artefakt."""
     base = get_settings().frontend_base_url.rstrip("/")
     pars = _paragraphs(lead)
     pre = escape((pars[0] if pars else "")[:140])
-    kick = (f'<td align="right" valign="top" style="font-family:{FONT};font-size:12px;'
-            f'line-height:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;'
-            f'color:{RED_TEXT}">{escape(kicker)}</td>') if kicker else "<td></td>"
+    kick = (f'<td class="ix-kick" align="right" valign="top" style="font-family:{FONT};'
+            f'font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.08em;'
+            f'text-transform:uppercase;color:{RED_TEXT}">{escape(kicker)}</td>'
+            ) if kicker else "<td></td>"
     content = "".join(_p(_rich(p)) for p in pars) + _extra(extra, firm)
+    head = (f'<tr><td class="ix-pad" style="padding:32px {PAD}px 0"><table role="presentation" '
+            f'width="100%" cellpadding="0" cellspacing="0"><tr><td valign="top">{_logo(base)}'
+            f'</td>{kick}</tr></table></td></tr>')
+    body = (f'<tr><td class="ix-pad" style="padding:28px {PAD}px {PAD - GAP}px">'
+            f'<h1 class="ix-ink ix-h1" style="margin:0 0 {GAP}px;font-family:\'Inter Tight\','
+            f'{FONT};font-size:28px;line-height:34px;font-weight:700;letter-spacing:-0.03em;'
+            f'color:{INK}">{escape(dc.title(subject))}</h1><!--inhalt-->{content}<!--/inhalt-->'
+            f'{_signature(firm, signer, lead)}<div style="height:{GAP}px;line-height:'
+            f'{GAP}px;font-size:0">&nbsp;</div></td></tr>')
     return (
         '<!doctype html><html lang="de"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<meta name="color-scheme" content="light dark">'
         '<meta name="supported-color-schemes" content="light dark">'
-        f'<title>{escape(dc.title(subject))}</title>{_DARK}</head><body style="margin:0;padding:0">'
+        f'<title>{escape(dc.title(subject))}</title>{_DARK}</head>'
+        '<body class="ix-bg" style="margin:0;padding:0;background:#FFFFFF">'
         f'<span style="display:none;max-height:0;overflow:hidden;opacity:0">{pre}</span>'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        f'style="max-width:600px"><tr><td style="padding:16px 8px">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
-        f'<tr><td style="padding:0 0 28px"><table role="presentation" width="100%" '
-        f'cellpadding="0" cellspacing="0"><tr><td valign="top">{_logo(base)}</td>{kick}'
-        f'</tr></table></td></tr>'
-        f'<tr><td style="padding:0 0 32px">'
-        f'<h1 style="margin:0 0 20px;font-family:\'Inter Tight\',{FONT};font-size:28px;'
-        f'line-height:34px;font-weight:700;letter-spacing:-0.02em;color:{INK}">'
-        f'{escape(dc.title(subject))}</h1><!--inhalt-->{content}<!--/inhalt-->'
-        f'{_signature(firm, signer, lead)}</td></tr>{_footer(firm)}'
+        '<table role="presentation" class="ix-bg" width="100%" cellpadding="0" cellspacing="0" '
+        'style="background:#FFFFFF"><tr><td align="center" style="padding:24px 12px">'
+        '<table role="presentation" class="ix-bg ix-line" width="100%" cellpadding="0" '
+        f'cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid {LINE};'
+        'border-radius:12px;border-collapse:separate;overflow:hidden">'
+        f'{head}{body}{_footer(firm)}'
         '</table></td></tr></table></body></html>')

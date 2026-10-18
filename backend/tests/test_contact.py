@@ -97,7 +97,8 @@ def test_an_inquiry_is_an_open_message_from_a_new_person(world):
     person = world.db.query(UserProfile).filter(UserProfile.email == "neu.kunde@muster.ch").one()
     assert (person.first_name, person.last_name, person.phone) == ("Anna", "Muster", "052 000 00 00")
     (msg,) = inquiries(world.db, data["email"])
-    assert msg.channel == CHANNEL and msg.subject == svc.SUBJECT
+    assert msg.channel == CHANNEL and msg.subject == svc.subject_of(data["message"])
+    assert msg.subject.startswith("Anfrage: Hubwerk bleibt stehen")
     assert "Hubwerk bleibt stehen." in msg.body and "Firma: Muster AG" in msg.body
     assert "Seite: /krantechnik/krane-nach-mass" in msg.body
     out = comm.load(world.db, [msg.id])[0]
@@ -116,6 +117,9 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     assert world.sent == [conf.id]
     assert conf.sender_object_id == world.staff.object_id and conf.channel == CHANNEL
     assert conf.subject == contact.VOCAB["mail"]["confirmSubject"]
+    # Zwei Betreffs, zwei Anliegen: die Bestätigung erledigt die Anfrage nicht.
+    from app.domain import communication as dcm
+    assert dcm.topic(conf.subject) != dcm.topic(inq.subject)
     assert "Hubwerk bleibt stehen." in conf.body
     # In der Vorlage des Hauses: Überschrift = Betreff, OHNE Namen unterschrieben (geschrieben
     # hat sie niemand), und der allgemeine Weg, wenn es eilt.

@@ -17,6 +17,7 @@ Feed. Drei Regeln, und jede steht schon woanders:
 Bestätigung, bleibt sie als «muss noch hinaus» stehen und geht beim nächsten Abgleich.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -29,7 +30,10 @@ from ..models import Message
 from . import attachments, mail_layout, mailbox, sites
 from .communication import write
 
-SUBJECT = "Anfrage über die Website"
+#: Der Betreff der Anfrage im ERP: das Stichwort und, worum es geht – der Anfang der
+#: Nachricht. Sie selbst ist die beste Überschrift, und im Verlauf liest man sie sofort.
+SUBJECT = "Anfrage"
+SUMMARY_MAX = 60
 #: Die Uhrzeit in der Bestätigung – so, wie man sie hier liest.
 _ZONE = ZoneInfo("Europe/Zurich")
 
@@ -59,6 +63,19 @@ def company_for(db: Session, country: Optional[str]):
     return firm
 
 
+def subject_of(message: str) -> str:
+    """«Anfrage: Kran läuft beim Anfahren ruckartig» – der erste Satz, gekappt am Wort.
+
+    Die Bestätigung trägt bewusst einen **anderen** Betreff (``confirmSubject``): ein
+    gleicher erledigte die Anfrage, bevor ein Mensch sie gelesen hat."""
+    first = next((ln.strip() for ln in (message or "").splitlines() if ln.strip()), "")
+    first = re.split(r"(?<=[.!?])\s", " ".join(first.split()), maxsplit=1)[0].rstrip(".")
+    if len(first) > SUMMARY_MAX:
+        cut = first[:SUMMARY_MAX + 1].rsplit(" ", 1)[0] or first[:SUMMARY_MAX]
+        first = cut.rstrip(",;:–- ") + " …"
+    return f"{SUBJECT}: {first}" if first else SUBJECT
+
+
 def _body(inq: Inquiry) -> str:
     facts = [("Firma", inq.company), ("Telefon", inq.phone), ("Seite", inq.source)]
     lines = [f"{label}: {value}" for label, value in facts if value]
@@ -78,7 +95,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
         files.append({"name": p.filename, "size": len(p.data),
                       "url": attachments.public_url(att)})
     msg = Message(sender_object_id=person, channel=dc.company(firm.object_id),
-                  subject=SUBJECT, body=_body(inq), at=datetime.now(timezone.utc),
+                  subject=subject_of(inq.message), body=_body(inq), at=datetime.now(timezone.utc),
                   created_by=None, attachments=files or None)
     write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []})
     db.commit()

@@ -56,7 +56,7 @@ export const inquiry = {
   mail: {
     /** Betreff = Überschrift der Mail. Bewusst ein eigenes Anliegen: die Bestätigung
      *  beantwortet die Anfrage nicht, sie bleibt offen, bis ein Mensch antwortet. */
-    confirmSubject: 'Ihre Anfrage ist bei uns angekommen',
+    confirmSubject: 'Angekommen – danke für Ihre Anfrage',
     confirmIntro:
       'Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.',
     confirmNext: 'Wir melden uns innert {{promises.responseTime}}.',

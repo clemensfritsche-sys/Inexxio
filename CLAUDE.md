@@ -5212,6 +5212,15 @@
 > der Anfrage (Firma · Rückruf an · Fotos · Nachricht), «So geht es weiter» mit Uhrzeit
 > (Europe/Zurich, `tzdata`), und den Eilt-es-Satz mit der Nummer der Gesellschaft.
 
+> ►►► **Die Mail ist eine mittige Spalte mit Haarlinie – hell UND dunkel – und zwei
+> Betreffs bleiben zwei.** ◄◄◄ Umgesetzt wie im Artefakt «INEXXIO E-Mail-Design»: 600 px,
+> mittig, Rahmen 1 px `#E4E2DE`, Radius 12, Fuss mittig in der Karte; im dunklen Modus
+> tragen dieselben Elemente die dunkle Palette (`mail_layout._DARK`, Klassen `ix-*`;
+> Gmail kehrt selbst um). **Die Anfrage heisst nach ihrem ersten Satz**
+> (`inquiry.subject_of`: «Anfrage: Kran läuft beim Anfahren ruckartig», gekappt am Wort),
+> die **Bestätigung bewusst anders** («Angekommen – danke für Ihre Anfrage») – ein gleicher
+> Betreff erledigte die Anfrage, bevor ein Mensch sie gelesen hat.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
