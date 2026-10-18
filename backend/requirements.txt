@@ -11,6 +11,7 @@ firebase-admin==6.6.0
 webauthn==2.5.2
 # httpx: Starlettes TestClient fährt darauf – ohne ihn läuft kein einziger Wächter.
 httpx==0.28.0
+tzdata==2026.1
 # python-multipart: FastAPI braucht es für UploadFile (Bild-Anhänge der Datenerfassung).
 python-multipart==0.0.17
 # pillow: verkleinert und normalisiert die aufgenommenen Bilder (services/attachments).

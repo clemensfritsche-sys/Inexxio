@@ -40,7 +40,10 @@ def world(monkeypatch):
     db.add(staff)
     db.flush()
     sent: list[int] = []
-    box = SimpleNamespace(owner_object_id=staff.object_id, problem=None, address="info@example.ch")
+    box = SimpleNamespace(owner_object_id=staff.object_id, problem=None, address="info@example.ch",
+                          picture="https://lh3.googleusercontent.com/a/konto")
+    monkeypatch.setattr(svc.mail_layout, "firm_of", lambda _c, a, p="": svc.mail_layout.Firm(
+        name="Inexxio AG", phone="+41 52 378 22 47", tel="+41523782247", email=a, picture=p))
     monkeypatch.setattr(svc, "company_for", lambda _db, _country: SimpleNamespace(object_id=FIRM))
     monkeypatch.setattr(mb, "ready", lambda: True)
     monkeypatch.setattr(mb, "active", lambda _db, ch: box if ch == CHANNEL else None)
@@ -61,6 +64,12 @@ def form(**extra) -> dict:
             "email": f"anna{random.randint(1, 10**9)}@muster.ch"}
     data.update(extra)
     return data
+
+
+def words(text: str) -> list[str]:
+    import html as h
+    import re
+    return re.findall(r"\w+", h.unescape(re.sub(r"<[^>]+>", " ", text)))
 
 
 def png() -> bytes:
@@ -112,7 +121,14 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     # hat sie niemand), und der allgemeine Weg, wenn es eilt.
     assert f">{conf.subject}</h1>" in conf.html
     assert world.staff.display_name not in conf.html
-    assert contact.VOCAB["mail"]["urgent"] in conf.html
+    assert contact.VOCAB["mail"]["urgent"] in conf.html and "+41 52 378 22 47" in conf.html
+    # Die Unterschrift trägt das Bild des Postfachs.
+    assert world.box.picture in conf.html
+    # ►►► Der Verlauf IST der Inhalt der Mail – Wort für Wort (die Anfrage-Bug-Form strich
+    # «Danke für Ihre Nachricht» in der Mail und zeigte ihn im Verlauf).
+    inner = conf.html.split("<!--inhalt-->")[1].split("<!--/inhalt-->")[0]
+    assert words(inner) == words(conf.body)
+    assert contact.VOCAB["mail"]["confirmIntro"] in conf.body
     assert dc.topic(conf.subject) != dc.topic(inq.subject)
     assert comm.load(world.db, [inq.id])[0].open
 

@@ -75,9 +75,16 @@
     "confirmIntro": "Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.",
     "confirmNext": "Wir melden uns innert kurzer Zeit.",
     "confirmMore": "Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.",
+    "kicker": "Anfrage erhalten",
     "copyTitle": "Ihre Angaben",
+    "factCompany": "Firma",
+    "factPhone": "Rückruf an",
+    "factPhotos": "Fotos",
+    "photoOne": "1 Bild",
+    "photoMany": "{n} Bilder",
+    "nextTitle": "So geht es weiter",
     "received": "Angekommen",
-    "urgent": "Eilt es? Dann rufen Sie uns direkt an: 052 378 22 47",
+    "urgent": "Eilt es? Dann rufen Sie uns direkt an:",
     "closing": "Freundliche Grüsse"
   }
 }

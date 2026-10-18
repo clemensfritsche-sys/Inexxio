@@ -61,9 +61,18 @@ export const inquiry = {
       'Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.',
     confirmNext: 'Wir melden uns innert {{promises.responseTime}}.',
     confirmMore: 'Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.',
+    /** Stichwort rechts im Kopf der Mail. */
+    kicker: 'Anfrage erhalten',
     copyTitle: 'Ihre Angaben',
+    factCompany: 'Firma',
+    factPhone: 'Rückruf an',
+    factPhotos: 'Fotos',
+    photoOne: '1 Bild',
+    photoMany: '{n} Bilder',
+    nextTitle: 'So geht es weiter',
     received: 'Angekommen',
-    urgent: 'Eilt es? Dann rufen Sie uns direkt an: {{phone.display}}',
+    /** Davor steht die Telefonnummer der Gesellschaft – aus dem ERP, wie in der Unterschrift. */
+    urgent: 'Eilt es? Dann rufen Sie uns direkt an:',
     closing: 'Freundliche Grüsse',
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */

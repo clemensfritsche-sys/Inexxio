@@ -13,7 +13,7 @@ import io
 from pathlib import Path
 
 from app.routers import website
-from app.services import geoip
+from app.services import geoip, phone
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -65,10 +65,10 @@ def test_the_visitor_is_the_first_forwarded_address():
 
 
 def test_the_dial_address_follows_the_company_country():
-    assert website._e164("052 378 22 47", "Schweiz") == "+41523782247"
-    assert website._e164("+49 30 123", "Schweiz") == "+4930123"
-    assert website._e164("0041 52 378 22 47", None) == "+41523782247"
-    assert website._e164("", "CH") is None
+    assert phone.e164("052 378 22 47", "Schweiz") == "+41523782247"
+    assert phone.e164("+49 30 123", "Schweiz") == "+4930123"
+    assert phone.e164("0041 52 378 22 47", None) == "+41523782247"
+    assert phone.e164("", "CH") is None
 
 
 def test_the_company_is_found_by_the_one_rule():
@@ -80,7 +80,7 @@ def test_the_company_is_found_by_the_one_rule():
 def test_a_swiss_number_is_shown_in_groups():
     """#1187: «+41795058302» liest niemand – angezeigt wird «+41 79 505 83 02». Ein Land ohne
     feste Gruppierung bleibt wie erfasst (geraten wäre schlechter als roh)."""
-    from app.routers.website import _display, _e164
+    from app.services.phone import display as _display, e164 as _e164
 
     assert _display("+41795058302", _e164("+41795058302", "CH")) == "+41 79 505 83 02"
     assert _display("052 378 22 47", _e164("052 378 22 47", "CH")) == "+41 52 378 22 47"

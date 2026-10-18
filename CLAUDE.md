@@ -5195,6 +5195,23 @@
 > `test_contact.py`; gemessen in Chromium an der echten Komponente (12 Prüfungen, 0 px
 > waagrechter Überlauf bei 1280 und 375 px).
 
+> ►►► **WAS IM VERLAUF STEHT, IST WAS HINAUSGING – Wort für Wort** (Migration `151`,
+> `mail_layout.compose`). ◄◄◄ Die Bestätigung zeigte im ERP einen anderen Text als in der
+> Mail: die Vorlage strich «Danke für Ihre Nachricht …» als vermeintliche Grussformel.
+> Jetzt baut **eine** Funktion aus einer Angabe alle drei Fassungen (Verlauf · Text · HTML),
+> und die Vorlage **nimmt nie etwas weg** – steht schon ein Gruss da, lässt sie nur ihren
+> eigenen weg (`greeted`, nur echte Grussformeln). Auch eine Antwort wird vor dem Versand
+> auf genau den Inhalt gesetzt, der hinausgeht. Wächter vergleicht die Wörter im
+> HTML-Inhalt mit dem Verlauf. **Design wie im Artefakt, ohne Fläche dahinter**: keine
+> getönte Bühne, Kästen nur mit Haarlinie, Logo als transparentes PNG (`frontend/public/
+> mail/`, mit hellem Rand für dunkle Clients, helle Fassung per `prefers-color-scheme`).
+> Die **Unterschrift trägt ein Bild**: der Mensch sein Profilbild (sonst Initialen), eine
+> automatische Mail das **Bild des Google-Kontos** des Postfachs (`mailboxes.picture`,
+> beim Verbinden über `userinfo.profile` geholt). Die Telefonnummer kommt überall aus dem
+> ERP und steht an einer Stelle (`services/phone`). Die Bestätigung nimmt ihre Angaben aus
+> der Anfrage (Firma · Rückruf an · Fotos · Nachricht), «So geht es weiter» mit Uhrzeit
+> (Europe/Zurich, `tzdata`), und den Eilt-es-Satz mit der Nummer der Gesellschaft.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

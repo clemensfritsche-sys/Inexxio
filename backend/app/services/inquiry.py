@@ -20,6 +20,7 @@ Bestätigung, bleibt sie als «muss noch hinaus» stehen und geht beim nächsten
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,8 @@ from . import attachments, mail_layout, mailbox, sites
 from .communication import write
 
 SUBJECT = "Anfrage über die Website"
+#: Die Uhrzeit in der Bestätigung – so, wie man sie hier liest.
+_ZONE = ZoneInfo("Europe/Zurich")
 
 
 @dataclass
@@ -82,26 +85,25 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     return msg
 
 
-def confirm(db: Session, inquiry: Message, name: str, words: dict[str, str]) -> bool:
+def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) -> bool:
     """Die Bestätigung an die anfragende Person – über das Postfach der Gesellschaft, als
     Nachricht im Verlauf, unter eigenem Betreff (sie erledigt die Anfrage nicht). Ohne
     verbundenes Postfach gibt es keine (``False``): eine Bestätigung, die nie hinausgeht,
     stünde als Lüge im Verlauf.
 
-    **Gestaltet in der einen Vorlage** (``mail_layout``) und **ohne Namen unterschrieben**:
-    geschrieben hat sie niemand. Die Mail, wie sie hinausgeht, steht in ``html``; der
-    Verlauf zeigt denselben Inhalt als Text."""
+    **Gebaut an EINER Stelle** (``mail_layout.compose``): der Verlauf ist der Inhalt der
+    Mail, Wort für Wort. Unterschrieben vom Unternehmen – geschrieben hat sie niemand."""
     box = mailbox.active(db, inquiry.channel)
     if not mailbox.ready() or box is None or box.problem:
         return False
-    body, extra = confirmation(inquiry, name, words)
-    firm = mail_layout.firm_of(mailbox.company(db, inquiry.channel), box.address)
+    firm = mail_layout.firm_of(mailbox.company(db, inquiry.channel), box.address,
+                               box.picture or "")
     subject = words["confirmSubject"]
+    mail = mail_layout.compose(subject, lead(inq.name, words), firm, None,
+                               kicker=words["kicker"], extra=extra(inq, inquiry.at, words))
     msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
-                  subject=subject, body=body, at=datetime.now(timezone.utc),
-                  created_by=None, outgoing=True,
-                  html=mail_layout.html(subject, _lead(name, words), firm, None,
-                                        kicker=words["received"], extra=extra))
+                  subject=subject, body=mail.body, html=mail.html,
+                  at=datetime.now(timezone.utc), created_by=None, outgoing=True)
     write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})
     db.commit()
     mailbox.send(db, msg)       # scheitert es, bleibt ``outgoing`` – der Abgleich holt nach
@@ -109,22 +111,21 @@ def confirm(db: Session, inquiry: Message, name: str, words: dict[str, str]) -> 
     return True
 
 
-def _lead(name: str, words: dict[str, str]) -> str:
+def lead(name: str, words: dict[str, str]) -> str:
     return f"Guten Tag {name}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
 
 
-def confirmation(inquiry: Message, name: str, words: dict[str, str]
-                 ) -> tuple[str, mail_layout.Extra]:
-    """Der Inhalt der Bestätigung – **allgemeingültig**, denn was in der Anfrage steht,
-    kennt hier niemand: Gruss, Dank, eine Kopie der Angaben, was als Nächstes geschieht
-    und der Weg, wenn es eilt. Als Text für den Verlauf und als Bausteine für die Mail."""
-    message, _, facts = (inquiry.body or "").partition("\n\n")
-    copy = [tuple(line.split(": ", 1)) for line in facts.split("\n") if ": " in line]
-    extra = mail_layout.Extra(
-        copy_title=words["copyTitle"], copy=[(k, v) for k, v in copy], quote=message.strip(),
-        steps=[(words["received"], True), (words["confirmNext"], False)],
-        note=words["urgent"])
-    text = "\n\n".join([
-        _lead(name, words), f"{words['copyTitle']}:\n{inquiry.body}",
-        f"{words['received']} · {words['confirmNext']}", words["urgent"]])
-    return text, extra
+def extra(inq: Inquiry, at: datetime, words: dict[str, str]) -> mail_layout.Extra:
+    """Was die Bestätigung **allgemeingültig** trägt – was in der Anfrage steht, kennt hier
+    niemand: eine Kopie der Angaben, was als Nächstes geschieht, und der Weg, wenn es eilt."""
+    n = len(inq.photos)
+    rows = [(words["factCompany"], inq.company), (words["factPhone"], inq.phone),
+            (words["factPhotos"], (words["photoOne"] if n == 1 else
+                                   words["photoMany"].replace("{n}", str(n))) if n else "")]
+    when = at.astimezone(_ZONE).strftime("%-d.%-m.%Y, %H:%M")
+    return mail_layout.Extra(
+        facts=mail_layout.Facts(title=words["copyTitle"], rows=[r for r in rows if r[1]],
+                                message=inq.message),
+        steps=mail_layout.Steps(title=words["nextTitle"], items=[
+            (f"{words['received']} · {when}", True), (words["confirmNext"], False)]),
+        call=words["urgent"])

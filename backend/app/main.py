@@ -175,6 +175,7 @@ _COLUMN_SAFETY_NET = (
     # ►►► **Mail-Vorlage und «gelesen»** (Migration 150).
     ("messages", "html", "TEXT"),
     ("messages", "read_marked", "BOOLEAN NOT NULL DEFAULT false"),
+    ("mailboxes", "picture", "TEXT"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄

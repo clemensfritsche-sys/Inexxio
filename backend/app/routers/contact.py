@@ -354,18 +354,18 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
             if exc.status_code in (400, 413) else _unsent(db, inq, exc, wants_json)
     except Exception as exc:
         return _unsent(db, inq, exc, wants_json)
-    confirmed = _confirm(db, msg, v["name"])
+    confirmed = _confirm(db, msg, data)
     print(f"INFO: INQUIRY stored id={inq.id} message={msg.id} channel={msg.channel} "
           f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}", flush=True)
     return _done(inq, wants_json)
 
 
-def _confirm(db: Session, msg, name: str) -> bool:
+def _confirm(db: Session, msg, inq: svc.Inquiry) -> bool:
     """Die Bestätigung ist Kür: gespeichert ist die Anfrage schon. Was hier scheitert,
     steht im Log – und eine angelegte Bestätigung holt der nächste Abgleich nach."""
     m = VOCAB["mail"]
     try:
-        return svc.confirm(db, msg, name, m)
+        return svc.confirm(db, msg, inq, m)
     except Exception as exc:
         db.rollback()
         print(f"WARNING: INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}", flush=True)

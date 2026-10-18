@@ -58,8 +58,11 @@ REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API = "https://gmail.googleapis.com/gmail/v1/users/me"
 #: ``gmail.modify`` statt ``readonly``: erledigt im ERP heisst gelesen im Postfach
 #: (``_mark_read``) – dafür muss das ERP das Label «UNREAD» entfernen dürfen.
+#: ``userinfo.profile``: das Bild des Kontos – es steht neben der Unterschrift.
 SCOPES = ("https://www.googleapis.com/auth/gmail.modify "
-          "https://www.googleapis.com/auth/gmail.send")
+          "https://www.googleapis.com/auth/gmail.send "
+          "https://www.googleapis.com/auth/userinfo.profile")
+USERINFO = "https://www.googleapis.com/oauth2/v3/userinfo"
 #: Nachrichten, die älter sind, markiert niemand mehr nach – sie sind längst gelesen.
 MARK_WITHIN = timedelta(days=30)
 CALLBACK = "/api/v1/mail/callback"
@@ -222,14 +225,16 @@ def callback(db: Session, code: str, state: str) -> str:
         refresh = tokens.get("refresh_token")
         if not refresh:
             return "Google hat keinen dauerhaften Zugang erteilt – bitte erneut verbinden."
-        prof = http.get(f"{API}/profile",
-                        headers={"Authorization": f"Bearer {tokens['access_token']}"}).json()
+        auth = {"Authorization": f"Bearer {tokens['access_token']}"}
+        prof = http.get(f"{API}/profile", headers=auth).json()
+        who = http.get(USERINFO, headers=auth)
+        picture = (who.json().get("picture") or "") if who.status_code == 200 else ""
     return _store(db, channel, actor, normalize_email(prof.get("emailAddress")),
-                  refresh, str(prof.get("historyId") or ""))
+                  refresh, str(prof.get("historyId") or ""), picture)
 
 
 def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh: str,
-           history: str) -> str:
+           history: str, picture: str = "") -> str:
     """Das Postfach festhalten. **Eine Adresse gehört genau einem Postfach** – auch nicht
     der Kontakt-E-Mail einer anderen Gesellschaft. Am Unternehmens-Postfach wird sie
     zugleich **die Kontakt-E-Mail der Gesellschaft** (die eine Schreibstelle dafür)."""
@@ -246,7 +251,8 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
         old.is_active = False
         db.flush()
     db.add(Mailbox(channel=channel, address=address, owner_object_id=actor.object_id,
-                   token=_seal(refresh), history_id=history or None))
+                   token=_seal(refresh), history_id=history or None,
+                   picture=picture[:1000] or None))
     if firm is not None:
         _contact(db, firm, address, actor)
     db.commit()
@@ -652,13 +658,15 @@ def _parent(db: Session, msg: Message) -> Optional[Message]:
     return next((m for m in rows if dc.topic(m.subject) == key), None)
 
 
-def signer_of(sender: Optional[UserProfile], msg: Message) -> Optional[str]:
+def signer_of(sender: Optional[UserProfile], msg: Message):
     """Wer unterschreibt: der Mensch, der die Mail **geschrieben** hat (``created_by``),
-    sofort erkennbar als Mitarbeiter. Eine automatische Mail trägt keinen Namen."""
+    sofort erkennbar als Mitarbeiter – mit seinem Profilbild. Eine automatische Mail
+    unterschreibt das Unternehmen (``None``)."""
+    from . import mail_layout as layout
     from .people import STAFF_ROLES
     if msg.created_by is None or sender is None or sender.role not in STAFF_ROLES:
         return None
-    return sender.display_name
+    return layout.Signer(name=sender.display_name, photo=sender.photo_url or "")
 
 
 def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:
@@ -670,7 +678,7 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
     people = {u.object_id: u for u in
               db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
     signer = signer_of(people.get(msg.sender_object_id), msg)
-    firm = layout.firm_of(company(db, msg.channel), mb.address)
+    firm = layout.firm_of(company(db, msg.channel), mb.address, mb.picture or "")
     mime = EmailMessage()
     mime["From"] = formataddr((layout.sender_name(signer), mb.address))
     for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
@@ -683,9 +691,15 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
     if parent is not None:
         mime["In-Reply-To"] = parent.rfc_id
         mime["References"] = parent.rfc_id
-    mime.set_content(layout.text(msg.subject or "", msg.body or "", firm, signer))
-    mime.add_alternative(msg.html or layout.html(msg.subject or "", msg.body or "", firm,
-                                                 signer), subtype="html")
+    if msg.html:
+        # Schon gebaut (die Eingangsbestätigung): ``body`` IST ihr Inhalt (``compose``).
+        text, html = layout.text(msg.subject or "", msg.body or "", firm, signer), msg.html
+    else:
+        mail = layout.compose(msg.subject or "", msg.body or "", firm, signer)
+        msg.body = mail.body        # der Verlauf ist, was hinausgeht – Wort für Wort
+        text, html = mail.text, mail.html
+    mime.set_content(text)
+    mime.add_alternative(html, subtype="html")
     return mime
 
 

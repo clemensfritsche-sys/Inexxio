@@ -31,6 +31,8 @@ class Mailbox(Base, TimestampMixin):
     history_id: Mapped[Optional[str]] = mapped_column(String(32))
     #: Warum der Abgleich nicht geht (z. B. «Verbindung abgelaufen») – leer = in Ordnung.
     problem: Mapped[Optional[str]] = mapped_column(Text)
+    #: Das Bild des Google-Kontos – steht neben der Unterschrift jeder Mail des Postfachs.
+    picture: Mapped[Optional[str]] = mapped_column(Text)
     synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
