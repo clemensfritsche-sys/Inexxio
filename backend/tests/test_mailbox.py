@@ -255,3 +255,76 @@ def test_the_contact_email_of_an_own_company_is_its_mailbox(monkeypatch):
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_sent_mail_stays_sent_when_the_follow_up_read_fails(world, monkeypatch):
+    """Ist die Mail bei Gmail draussen, darf nichts danach den Versand ungeschehen machen:
+    scheitert der Abruf der ``Message-ID``, bleibt sie trotzdem «gesendet» – sonst schickte
+    der nächste Abgleich sie ein zweites Mal."""
+    import httpx
+    db, staff, box = world
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte",
+                                    body="Offerte"), staff)
+    msg.outgoing = True
+
+    class Sent:
+        status_code, text = 200, ""
+        def json(self):
+            return {"id": "g-sent", "threadId": "t-sent"}
+
+    def down(*_a, **_k):
+        raise httpx.ConnectError("weg")
+    monkeypatch.setattr(mb, "_access", lambda _mb: "tok")
+    monkeypatch.setattr(mb.httpx, "post", lambda *_a, **_k: Sent())
+    monkeypatch.setattr(mb, "_get", down)
+    assert mb.send(db, msg)
+    assert (msg.outgoing, msg.gmail_id, msg.rfc_id) == (False, "g-sent", None)
+
+
+def test_two_syncs_never_send_the_same_mail_twice(monkeypatch):
+    """Zwei offene ERP-Tabs gleichen gleichzeitig ab. Eine Mail, die der eine gerade
+    sendet (gesperrt), überspringt der andere – und jede gesendete Mail steht sofort fest,
+    auch wenn eine andere im selben Lauf scheitert."""
+    from datetime import datetime, timezone
+    from sqlalchemy import text
+    from app.models import MessageParty
+    a, b = session(), session()
+    staff = _person(a, "employee")
+    old = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    mails = [Message(sender_object_id=staff.object_id, channel=CH, subject=f"Test {i}",
+                     body="x", at=old, outgoing=True) for i in range(2)]
+    a.add_all(mails)
+    a.commit()
+    ids = [m.id for m in mails]
+    sent: list[int] = []
+    broken = [ids[0]]                    # scheitert genau beim ersten Versuch
+
+    def fake(_db, m):
+        if m.id in broken:
+            broken.remove(m.id)
+            raise RuntimeError("kaputt")
+        sent.append(m.id)
+        m.outgoing = False
+        return True
+    monkeypatch.setattr(mb, "send", fake)
+    try:
+        a.execute(text("SET lock_timeout = '2s'"))     # ohne SKIP LOCKED: Fehler statt Hängen
+        b.query(Message).filter(Message.id == ids[1]).with_for_update().one()
+        mb.send_due(a)                                   # ids[0] scheitert, ids[1] gesperrt
+        assert sent == []
+        b.rollback()
+        mb.send_due(a)
+        assert sent == [ids[0], ids[1]] or sent == [ids[1], ids[0]]
+        mb.send_due(a)                                   # beide stehen fest: nichts doppelt
+        assert sorted(sent) == sorted(ids)
+        assert not any(o for (o,) in b.query(Message.outgoing).filter(Message.id.in_(ids)))
+    finally:
+        b.rollback()
+        a.rollback()
+        a.query(MessageParty).filter(MessageParty.message_id.in_(ids)).delete()
+        a.query(Message).filter(Message.id.in_(ids)).delete()
+        a.query(UserProfile).filter(UserProfile.id == staff.id).delete()
+        a.commit()
+        a.close()
+        b.close()

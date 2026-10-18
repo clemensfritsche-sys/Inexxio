@@ -335,8 +335,12 @@ def sync_all(db: Session, *, force: bool = False) -> int:
     new = 0
     for mb in boxes:
         if force or mb.synced_at is None or mb.synced_at < due:
-            new += _sync_one(db, mb)
-            _mark_read(db, mb)
+            try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
+                with db.begin_nested():
+                    new += _sync_one(db, mb)
+                    _mark_read(db, mb)
+            except Exception as exc:
+                print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
     send_due(db)
     db.commit()
     return new
@@ -594,11 +598,27 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
 
 
 def send_due(db: Session) -> None:
-    """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand)."""
-    due = (db.query(Message).filter(Message.outgoing.is_(True), Message.is_active.is_(True),
-                                    Message.at <= _now()).order_by(Message.at).limit(20).all())
-    for msg in due:
-        send(db, msg)
+    """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand).
+
+    **Jede Mail geht genau einmal hinaus.** Sie wird einzeln gesperrt (``SKIP LOCKED`` –
+    ein zweiter Abgleich aus einem anderen Tab überspringt sie), gesendet und **sofort**
+    festgeschrieben. Ein Fehler bei einer späteren Mail kann eine bereits versendete damit
+    nicht mehr zurückrollen und erneut hinausschicken."""
+    db.commit()     # was der Abgleich bis hier geschrieben hat, steht – unabhängig vom Versand
+    ids = [i for (i,) in db.query(Message.id).filter(
+        Message.outgoing.is_(True), Message.is_active.is_(True),
+        Message.at <= _now()).order_by(Message.at).limit(20)]
+    for mid in ids:
+        msg = (db.query(Message).filter(Message.id == mid, Message.outgoing.is_(True))
+               .with_for_update(skip_locked=True).first())
+        if msg is None:
+            continue    # versendet oder gerade in Arbeit bei einem anderen Abgleich
+        try:
+            send(db, msg)
+            db.commit()
+        except Exception as exc:    # eine kaputte Mail hält die übrigen nicht auf
+            db.rollback()
+            print(f"WARNING: MAILBOX send {mid} failed: {exc!r}", flush=True)
 
 
 def send(db: Session, msg: Message) -> bool:
@@ -617,24 +637,45 @@ def send(db: Session, msg: Message) -> bool:
     try:
         r = httpx.post(f"{API}/messages/send", json=body, timeout=30,
                        headers={"Authorization": f"Bearer {token}"})
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
+        print(f"WARNING: MAILBOX send {msg.id} failed: {exc!r}", flush=True)
         return False
     if r.status_code != 200:
+        print(f"WARNING: MAILBOX send {msg.id} failed: {r.status_code} {r.text[:200]}",
+              flush=True)
         return False
-    sent = r.json()
-    meta = _get(token, f"messages/{sent['id']}", format="metadata",
-                metadataHeaders="Message-ID")
-    head = {h["name"].lower(): h["value"]
-            for h in (meta.json().get("payload") or {}).get("headers", [])} \
-        if meta.status_code == 200 else {}
-    msg.gmail_id, msg.thread_id = sent["id"], sent.get("threadId")
-    msg.rfc_id = (head.get("message-id") or "")[:255] or None
+    # Ab hier IST die Mail draussen: nichts darf mehr werfen, sonst bliebe ``outgoing``
+    # stehen und der nächste Abgleich schickte sie ein zweites Mal.
+    msg.outgoing = False
+    try:
+        sent = r.json()
+    except ValueError:
+        sent = {}
+    msg.gmail_id, msg.thread_id = sent.get("id"), sent.get("threadId")
+    msg.rfc_id = _rfc_id(token, msg.gmail_id)
     msg.subject = msg.subject or mime["Subject"] or None
     html_part = mime.get_body(("html",))
     msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
-    msg.outgoing = False
     db.flush()
     return True
+
+
+def _rfc_id(token: str, gmail_id: Optional[str]) -> Optional[str]:
+    """Die ``Message-ID`` einer eben gesendeten Mail (für den Faden der Antworten) – oder
+    ``None``. Fehlt sie, ist das ein Schönheitsfehler; ein Fehler hier darf den Versand
+    nicht ungeschehen machen."""
+    if not gmail_id:
+        return None
+    try:
+        meta = _get(token, f"messages/{gmail_id}", format="metadata",
+                    metadataHeaders="Message-ID")
+        if meta.status_code != 200:
+            return None
+        head = {h["name"].lower(): h["value"]
+                for h in (meta.json().get("payload") or {}).get("headers", [])}
+    except (httpx.HTTPError, ValueError, KeyError):
+        return None
+    return (head.get("message-id") or "")[:255] or None
 
 
 def _parent(db: Session, msg: Message) -> Optional[Message]:

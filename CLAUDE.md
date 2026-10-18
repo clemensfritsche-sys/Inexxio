@@ -5221,6 +5221,17 @@
 > die **Bestätigung bewusst anders** («Angekommen – danke für Ihre Anfrage») – ein gleicher
 > Betreff erledigte die Anfrage, bevor ein Mensch sie gelesen hat.
 
+> ►►► **CLEANUP OKTOBER 2026 – Paket 1: eine Mail geht genau EINMAL hinaus**
+> (`docs/cleanup-2026-10-analyse.md`). ◄◄◄ `mailbox.send_due` sperrt jede fällige Mail
+> einzeln (`SKIP LOCKED` – ein zweiter Abgleich aus einem anderen Tab überspringt sie),
+> sendet sie und **schreibt sie sofort fest**; ein Fehler bei einer anderen Mail rollt sie
+> nicht mehr zurück. Ist sie bei Gmail draussen, wirft `send` nichts mehr (der
+> `Message-ID`-Abruf ist ein Schönheitsfehler, `_rfc_id`). Ein gestörtes Postfach hält die
+> übrigen nicht auf (Savepoint je Postfach). Scheitert eine Nachricht, deren Ansicht schon
+> geschlossen ist, meldet es die Hinweiszeile der ERP-Seite (`ERP_NOTICE`) – samt Text.
+> Rollback-Punkt der Runde: Commit `eefb0dc` (Tags lassen sich aus der Cloud-Umgebung
+> nicht pushen). Wächter: `test_mailbox.py` (2 neue, gegen drei Bug-Formen gegengeprüft).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

@@ -66,6 +66,9 @@ type Mode = 'email' | 'phone' | 'internal';
 
 /** Alle, die das Zeichen im Feed betrifft, hören hierauf und laden die Zahlen neu. */
 export const MESSAGES_CHANGED = 'inexxio:messages';
+/** Ein Satz für die Hinweiszeile der ERP-Seite (``detail`` = der Satz) – für das, was
+ *  scheitert, nachdem die Ansicht, die es auslöste, schon geschlossen ist. */
+export const ERP_NOTICE = 'inexxio:notice';
 
 const KIND_ICON = { email: Mail, phone: Phone, internal: Lock } as const;
 const MODES: { key: Mode; label: string }[] = [
@@ -839,7 +842,13 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     const p = pending.current;
     if (!p) return;
     clearTimeout(p.timer);
-    void api.createMessage(p.payload).then(() => sent.current()).catch(() => {});
+    // Die Ansicht ist weg – scheitert es, sagt es die Hinweiszeile der Seite, samt Text.
+    void api.createMessage(p.payload).then(() => sent.current()).catch((e: unknown) => {
+      const why = e instanceof Error ? e.message : 'Unbekannter Fehler';
+      window.dispatchEvent(new CustomEvent(ERP_NOTICE, { detail:
+        `Nachricht «${p.payload.subject ?? ''}» wurde NICHT gespeichert (${why}). ` +
+        `Text: ${p.payload.body}` }));
+    });
   }, []);
   // Wer das Fenster schliesst, während «Rückgängig» steht, wird gewarnt; geht er trotzdem,
   // geht die Mail noch hinaus.

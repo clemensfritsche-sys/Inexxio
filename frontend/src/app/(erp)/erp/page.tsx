@@ -20,7 +20,7 @@ import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
-import { MESSAGES_CHANGED } from '@/components/erp/communication';
+import { ERP_NOTICE, MESSAGES_CHANGED } from '@/components/erp/communication';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
@@ -251,6 +251,12 @@ export default function ErpPage() {
     params.delete('mail');
     const rest = params.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+  }, []);
+  // Was scheitert, nachdem die auslösende Ansicht geschlossen ist, meldet sich hier.
+  useEffect(() => {
+    const show = (e: Event) => setMailNote(String((e as CustomEvent).detail ?? ''));
+    window.addEventListener(ERP_NOTICE, show);
+    return () => window.removeEventListener(ERP_NOTICE, show);
   }, []);
 
   // «?typ=<Datensatztyp>» aus der Arbeitsleiste: stellt nur den Filter vor, wie ein Klick

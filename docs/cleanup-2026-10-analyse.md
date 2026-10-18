@@ -1,4 +1,4 @@
-# Cleanup Oktober 2026 – Gesamtbericht (Entwurf, nicht committet)
+# Cleanup Oktober 2026 – Gesamtbericht
 
 Stand `develop` @ `fbd70fc`, 18.10.2026. Nur gelesen, nichts geändert.
 Detailberichte mit jeder Fundstelle: `docs/cleanup-2026-10/` (backend · frontend · website ·
@@ -6,6 +6,12 @@ docs-tests). IDs hier verweisen dorthin (B = Backend, F = Frontend, W = Website,
 T = Tests/CI).
 
 Die schwersten Befunde habe ich selbst am Code nachgeprüft (markiert mit ✔).
+
+**Entscheide:** E1–E10 wie empfohlen, E7 belassen (18.10.2026).
+**Rollback-Punkt:** Commit `eefb0dc` – ein Tag liess sich aus der Cloud-Umgebung nicht
+pushen (Proxy). Wer ihn will: `git tag rollback/pre-cleanup-2026-10 eefb0dc && git push origin rollback/pre-cleanup-2026-10`.
+
+**Stand:** Paket 1 ✔
 
 ---
 
