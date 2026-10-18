@@ -2168,17 +2168,21 @@ def _company_name_of_user():
             .scalar_subquery())
 
 
-def search_parties(db: Session, *, search: str = "",
-                   limit: int = 20) -> list[UserProfile]:
+def search_parties(db: Session, *, search: str = "", limit: int = 20,
+                   staff: bool = False) -> list[UserProfile]:
     """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
 
     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name).
     **Ohne Rollenfilter, und das ist eine Entscheidung**: eine Rolle sagt, was jemand *für
     uns* tut – nicht, ob wir mit ihm Geld austauschen dürfen. Wer einschränken will, nennt
-    die zugelassenen Gegenparteien in der **Definition**.
+    die zugelassenen Gegenparteien in der **Definition**. ``staff`` engt auf Mitarbeiter
+    ein – die Empfänger einer **internen** Nachricht (``communication._assert_internal``).
     """
+    q = db.query(UserProfile)
+    if staff:
+        q = q.filter(UserProfile.role.in_(STAFF_ROLES))
     return (
-        db.query(UserProfile)
+        q
         .filter(UserProfile.object_id.isnot(None),
                 UserProfile.is_active.is_(True),
                 lookup.matches(search, UserProfile.object_id, _company_name_of_user(),

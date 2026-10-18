@@ -24,15 +24,15 @@ callback_router = APIRouter(prefix="/api/v1/mail", tags=["communication"])
 
 @router.get("/channels", response_model=list[ChannelOut])
 def list_channels(db: Session = Depends(get_db),
-                  user: UserProfile = Depends(require_employee)):
-    return svc.channels(db, user)
+                  _: UserProfile = Depends(require_employee)):
+    return svc.channels(db)
 
 
 @router.get("/mailboxes", response_model=list[MailboxOut])
 def mailboxes(company: Optional[int] = Query(None), db: Session = Depends(get_db),
               user: UserProfile = Depends(require_employee)):
-    """Mit ``company`` das Postfach dieser (eigenen) Gesellschaft, sonst das eigene –
-    Adresse, Zustand, darf ich verbinden?"""
+    """Das Postfach dieser (eigenen) Gesellschaft – Adresse, Zustand, darf ich verbinden?
+    Persönliche Postfächer gibt es nicht; ohne ``company`` ist die Liste leer."""
     return mailbox.status(db, user, company)
 
 

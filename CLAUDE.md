@@ -5144,6 +5144,27 @@
 > eine Zeile in der Mitte. Persönliche Postfächer bleiben vorgesehen, werden aber nicht
 > angebunden.
 
+> ►►► **Kommunikation: eine Regel für alle — Betreff Pflicht, intern heisst intern,
+> keine persönlichen Postfächer** (Migration `149`). ◄◄◄ **(1) Jede Nachricht hat einen
+> Betreff** – E-Mail, Anruf, Notiz, interne Nachricht (400 im Dienst; einzige Ausnahme ist
+> das «erledigt ohne Antwort» einer Altnachricht ohne Betreff). Die Eingabe bietet die
+> Anliegen der Person zur Auswahl an, und **steht etwas offen, ist sie schon die Antwort
+> auf die jüngste offene** (still vorbelegt, ✕ = neu). **(2) Intern heisst intern**: an
+> eine interne Nachricht gehen nur Mitarbeiter (`_assert_internal`, die Suche fragt
+> `voucher-parties?staff=true`); wen sie betrifft, steht im «Betrifft». Und **wer von
+> aussen schreibt, bekommt seine Antwort von aussen** (Mail oder Anruf) – eine interne
+> Rückfrage mit Text erledigt ihn nicht, nur «Erledigt ohne Antwort». Weitergeleitet wird
+> nichts. **(3) Persönliche Postfächer gibt es nicht**: im Kommunikationstool ist jeder
+> Benutzer gleich (auch ein Mitarbeiter kann Kunde sein). Ein Postfach hat nur eine eigene
+> Gesellschaft, verbunden von einem Admin; ein früher verbundenes `u<Nummer>` wird
+> getrennt und seine Mails stehen beim Betreiber (`personal_repair_sql`, Migration **und**
+> Lifespan-Netz). **(4) Der Verlauf**: ein **Anruf ist eine Nachricht** (Seite = wer
+> angerufen hat, Telefon-Zeichen + «Eingehender/Ausgehender Anruf»); der **Zustand steht
+> an der Nachricht** – die Zeit einer offenen ist eine kleine Marke (orange wartet, rot
+> überfällig), die Zeile «N warten auf Antwort» ist entfallen; eine **Mail wartet ihre
+> 3 s im Verlauf** (blass, Uhr, «Rückgängig»), die Eingabe ist so lange gesperrt.
+> Wächter: `tests/test_communication.py` (4 neue, gegen ihre Bug-Formen gegengeprüft).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

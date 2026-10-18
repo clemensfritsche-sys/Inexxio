@@ -161,15 +161,58 @@ def test_there_is_no_kind_switch():
 
 
 def test_one_writes_only_in_ones_own_name(world):
-    """Ein mitgesendeter Absender wird verworfen – der Absender ist, wer angemeldet ist.
-    Über das persönliche Postfach eines anderen schreibt niemand."""
+    """Ein mitgesendeter Absender wird verworfen – der Absender ist, wer angemeldet ist."""
+    db, actor, staff = world
+    lea = _person(db)
+    m = svc.create(db, MessageIn(channel="intern", sender=lea, subject="X", body="x"), actor)
+    assert m.sender_object_id == staff
+
+
+def test_there_are_no_personal_mailboxes(world):
+    """►►► **Im Kommunikationstool ist jeder Benutzer gleich** – auch ein Mitarbeiter kann
+    Kunde sein. Ein Postfach gibt es nur je eigener Gesellschaft, verbinden darf es ein
+    Admin; ein persönliches (``u<Nummer>``) ist kein Kanal mehr, und ohne Gesellschaft
+    gibt es nichts zu verbinden. ◄◄◄"""
+    from app.domain import communication as dc
+    from app.services import mailbox
     db, actor, staff = world
     lea, sara = _person(db), _person(db, "employee")
-    m = svc.create(db, MessageIn(channel="intern", sender=lea, body="x"), actor)
-    assert m.sender_object_id == staff
+    assert not hasattr(dc, "personal") and not hasattr(dc, "owner_of")
+    with pytest.raises(ValueError):
+        dc.channel(f"u{sara}")
     with pytest.raises(HTTPException) as e:
-        _send(db, actor, channel=f"u{sara}", to=[lea], body="x")
-    assert e.value.status_code == 403
+        _send(db, actor, channel=f"u{staff}", to=[lea], body="x")
+    assert e.value.status_code == 400
+    admin = db.query(UserProfile).filter(UserProfile.object_id == _person(db, "admin")).one()
+    assert mailbox.may_connect(admin, "c100000001")
+    assert not mailbox.may_connect(actor, "c100000001")
+    assert not mailbox.may_connect(admin, f"u{admin.object_id}")
+    assert mailbox.status(db, admin) == [] and mailbox.status(db, actor) == []
+    assert not any(c.key.startswith("u") for c in svc.channels(db))
+
+
+def test_an_old_personal_mailbox_is_disconnected_and_its_mails_move(world):
+    """Was über ein früher verbundenes persönliches Postfach lief, steht danach im Postfach
+    des Betreibers; das Postfach selbst ist getrennt (Migration 149 + Lifespan-Netz)."""
+    from sqlalchemy import text
+    from app.domain import communication as dc
+    from app.models import Mailbox, Message
+    from app.services.sites import find_operator
+    db, actor, staff = world
+    op = find_operator(db)
+    if op is None or not op.object_id:
+        pytest.skip("ohne Betreiber gibt es kein Ziel")
+    box = Mailbox(channel=f"u{staff}", address=f"alt{staff}@x.ch", owner_object_id=staff,
+                  token="x")
+    msg = Message(sender_object_id=staff, channel=f"u{staff}", subject="Alt", body="x",
+                  at=datetime.now(timezone.utc), created_by=actor.id)
+    db.add_all([box, msg])
+    db.flush()
+    for stmt in dc.personal_repair_sql():
+        db.execute(text(stmt))
+    db.refresh(box); db.refresh(msg)
+    assert not box.is_active and msg.channel == dc.company(op.object_id)
+    assert _one(db, msg.id).channel.key == dc.company(op.object_id)
 
 
 def test_an_answer_closes_every_open_message_of_its_subject(world):
@@ -258,19 +301,43 @@ def test_the_subject_without_prefixes_is_the_topic():
     assert dc.reply_subject(None) == ""
 
 
-def test_an_email_needs_a_recipient_and_a_subject(world):
-    """Eine E-Mail von uns ohne «An» oder ohne Betreff geht nicht hinaus (400 mit Satz) –
-    ohne «An» hätte sie keinen Adressaten, ohne Betreff steht beim Empfänger eine leere
-    Zeile. Eine Notiz braucht beides nicht."""
+def test_every_message_has_a_subject(world):
+    """►►► **Eine Regel für alles: jede Nachricht hat einen Betreff** – E-Mail, Anruf,
+    Notiz, interne Nachricht (400 mit Satz). Er ist das Anliegen; ohne ihn liesse sich
+    nicht sagen, was eine Nachricht erledigt. Die eine Ausnahme ist das «erledigt ohne
+    Antwort» einer Nachricht aus dem Altbestand, die selbst keinen Betreff trägt. ◄◄◄
+    Eine E-Mail braucht dazu einen Empfänger im «An»."""
     db, actor, staff = world
     lea = _person(db)
     with pytest.raises(HTTPException) as e:
         _send(db, actor, channel="c999999990", cc=[lea], body="x")
     assert "«An»" in e.value.detail
-    with pytest.raises(HTTPException) as e:
-        _send(db, actor, channel="c999999990", to=[lea], subject="  ", body="x")
-    assert "Betreff" in e.value.detail
-    _send(db, actor, channel="intern", about=[lea], subject=None, body="Notiz")
+    for channel, kw in (("c999999990", {"to": [lea]}), ("phone", {"to": [lea]}),
+                        ("intern", {"about": [lea]}), ("intern", {"to": [staff]})):
+        with pytest.raises(HTTPException) as e:
+            _send(db, actor, channel=channel, subject="  ", body="x", **kw)
+        assert "Betreff" in e.value.detail, channel
+    _send(db, actor, channel="intern", about=[lea], subject=None, body="")
+    _send(db, actor, channel="phone", to=[lea], subject="Rückruf", body="erreicht")
+
+
+def test_an_internal_message_goes_only_to_staff(world):
+    """**Intern heisst intern**: an eine interne Nachricht gehen nur Mitarbeiter – ein
+    Kunde im «An» bekäme sie nie, und sie wartete für immer. Wen sie betrifft, steht im
+    «Betrifft»; der Satz nennt, wer falsch steht. Die Suche bietet dafür nur Mitarbeiter
+    an (dieselbe Regel, früher gesagt)."""
+    from app.services import voucher
+    db, actor, staff = world
+    lea, sara = _person(db), _person(db, "employee")
+    for role in ("to", "cc", "bcc"):
+        with pytest.raises(HTTPException) as e:
+            _send(db, actor, channel="intern", body="x", **{role: [lea]})
+        assert str(lea) in e.value.detail and "Betrifft" in e.value.detail, role
+    _send(db, actor, channel="intern", to=[sara], about=[lea], body="Lager?")
+    hits = voucher.search_parties(db, search=str(lea)[:6], limit=50, staff=True)
+    assert lea not in {u.object_id for u in hits}
+    hits = voucher.search_parties(db, search=str(sara), limit=50, staff=True)
+    assert [u.object_id for u in hits] == [sara]
 
 
 def test_an_incoming_call_has_the_caller_as_sender(world):
@@ -290,3 +357,21 @@ def test_an_incoming_call_has_the_caller_as_sender(world):
     mail = _send(db, actor, channel="c999999990", sender=lea, body="Frage")
     _send(db, actor, channel="phone", to=[lea], body="zurückgerufen")
     assert not _one(db, mail.id).open
+
+
+def test_an_internal_question_is_not_the_answer_to_the_customer(world):
+    """Wer von aussen schreibt, bekommt seine Antwort von aussen (Mail oder Anruf). Eine
+    interne Rückfrage mit demselben Betreff, die ihn betrifft, lässt ihn weiter warten;
+    «Erledigt ohne Antwort» (intern, ohne Text) erledigt ihn."""
+    db, actor, staff = world
+    lea, sara = _person(db), _person(db, "employee")
+    m = _send(db, actor, channel="c999999990", sender=lea, subject="Kran", body="Wann?")
+    _send(db, actor, channel="intern", to=[sara], about=[lea], subject="Re: Kran",
+          body="Kannst du hinfahren?")
+    assert _one(db, m.id).open
+    _send(db, actor, channel="phone", to=[lea], subject="Re: Kran", body="Donnerstag")
+    assert not _one(db, m.id).open
+    n = _send(db, actor, channel="c999999990", sender=lea, subject="Danke", body="Danke!")
+    _send(db, actor, channel="intern", about=[lea], subject="Re: Danke", body="")
+    assert not _one(db, n.id).open
+

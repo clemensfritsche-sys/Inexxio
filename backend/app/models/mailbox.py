@@ -1,8 +1,7 @@
 """►►► **Ein verbundenes Postfach** (CRM Schritt 3, ``services/mailbox``). ◄◄◄
 
-Je Kanal höchstens ein aktives: ``info`` (das Postfach des Unternehmens – seine Adresse
-ist die Kontakt-E-Mail des Betreibers) oder ``u<Objektnummer>`` (das persönliche eines
-Mitarbeiters). Gmail ist das Postfach; hier steht nur der Schlüssel dorthin und der Stand
+Je Kanal höchstens ein aktives: ``c<Objektnummer>`` – das Postfach einer eigenen
+Gesellschaft, seine Adresse ist ihre Kontakt-E-Mail. Persönliche Postfächer gibt es nicht. Gmail ist das Postfach; hier steht nur der Schlüssel dorthin und der Stand
 des Abgleichs.
 """
 
@@ -23,8 +22,8 @@ class Mailbox(Base, TimestampMixin):
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
     #: Die Adresse, die Google beim Verbinden genannt hat – klein geschrieben.
     address: Mapped[str] = mapped_column(String(255), nullable=False)
-    #: Wer verbunden hat (Objektnummer). Beim persönlichen Postfach der Besitzer; beim
-    #: Unternehmen der Absender einer Mail, die direkt in Gmail geschrieben wurde.
+    #: Wer verbunden hat (Objektnummer) – zugleich der Absender einer Mail, die direkt in
+    #: Gmail geschrieben wurde.
     owner_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     #: Der Refresh-Token, **verschlüsselt** (``services/mailbox._seal``).
     token: Mapped[str] = mapped_column(Text, nullable=False)

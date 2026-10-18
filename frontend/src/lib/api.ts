@@ -504,9 +504,11 @@ class ApiClient {
    * Wer einschränken will, nennt die zugelassenen Gegenparteien in der Definition; das
    * ist die Stelle, an der eine solche Freigabe hingehört.
    */
-  searchVoucherParties(search?: string, limit = 20): Promise<VoucherParty[]> {
+  searchVoucherParties(search?: string, limit = 20, staff = false): Promise<VoucherParty[]> {
     const params = new URLSearchParams({ limit: String(limit) });
     if (search?.trim()) params.set('search', search.trim());
+    // Nur Mitarbeiter – die Empfänger einer internen Nachricht.
+    if (staff) params.set('staff', 'true');
     return this.get(`/api/v1/erp/orders/voucher-parties?${params}`);
   }
 
@@ -531,10 +533,10 @@ class ApiClient {
     return this.get('/api/v1/erp/messages/channels');
   }
 
-  /** Das Postfach des Unternehmens und das eigene – Adresse, Zustand, darf ich verbinden? */
-  /** Mit `company` das Postfach dieser eigenen Gesellschaft, sonst das eigene. */
-  mailboxes(company?: number): Promise<Mailbox[]> {
-    return this.get(`/api/v1/erp/messages/mailboxes${company ? `?company=${company}` : ''}`);
+  /** Das Postfach einer eigenen Gesellschaft – Adresse, Zustand, darf ich verbinden?
+   *  Persönliche Postfächer gibt es nicht. */
+  mailboxes(company: number): Promise<Mailbox[]> {
+    return this.get(`/api/v1/erp/messages/mailboxes?company=${company}`);
   }
 
   /** Die Adresse bei Google, an der die Zustimmung erteilt wird. */

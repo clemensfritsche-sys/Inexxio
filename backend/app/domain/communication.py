@@ -22,7 +22,9 @@ stille interne Nachricht mit demselben Betreff – dieselbe Regel, kein Sonderfa
 **Ein Kanal ist ein Katalogeintrag, kein Datensatz**: ein neuer Kanal ist eine Zeile
 hier. Postfächer haben eine **Form** statt einer Zeile: jede **eigene Gesellschaft** hat
 eines (``c<Objektnummer>``, seine Adresse ist ihre Kontakt-E-Mail – dieselbe, die die
-Website je Besucherland zeigt), jeder Mitarbeiter ein persönliches (``u<Objektnummer>``).
+Website je Besucherland zeigt). **Persönliche Postfächer gibt es nicht**: im
+Kommunikationstool ist jeder Benutzer gleich – auch ein Mitarbeiter kann Kunde sein, und
+ein Postfach, das nur einer Person gehört, wäre die eine Ausnahme davon.
 Zwei Eigenschaften tragen die ganze Unterscheidung:
 
 * ``outside`` – verlässt die Nachricht das Haus? (Intern: nie.)
@@ -63,18 +65,13 @@ CHANNELS: dict[str, Channel] = {
     )
 }
 
-#: Ein **Postfach** ist ein Kanal einer festen Form – kein Katalogeintrag je Gesellschaft
-#: oder Person: die Form ist die Regel. ``c`` = eigene Gesellschaft, ``u`` = Mitarbeiter.
+#: Ein **Postfach** ist ein Kanal einer festen Form – kein Katalogeintrag je Gesellschaft:
+#: die Form ist die Regel. ``c`` = eigene Gesellschaft.
 COMPANY_PREFIX = "c"
-PERSONAL_PREFIX = "u"
 
 
 def company(object_id: int) -> str:
     return f"{COMPANY_PREFIX}{object_id}"
-
-
-def personal(object_id: int) -> str:
-    return f"{PERSONAL_PREFIX}{object_id}"
 
 
 def _number(key: str, prefix: str) -> Optional[int]:
@@ -87,25 +84,18 @@ def company_of(key: str) -> Optional[int]:
     return _number(key, COMPANY_PREFIX)
 
 
-def owner_of(key: str) -> Optional[int]:
-    """Die Objektnummer hinter einem persönlichen Postfach – sonst ``None``."""
-    return _number(key, PERSONAL_PREFIX)
-
-
 def channel(key: str) -> Channel:
     """Der Kanal zu einem Schlüssel – ein unbekannter ist ein Fehler, kein Rückfall."""
     if key in CHANNELS:
         return CHANNELS[key]
     if company_of(key) is not None:
         return Channel(key, "Unternehmen", "email", None, outside=True, live=False)
-    if owner_of(key) is not None:
-        return Channel(key, "Persönlich", "email", None, outside=True, live=False)
     raise ValueError(f"Kanal «{key}» gibt es nicht.")
 
 
 def is_mail(key: str) -> bool:
-    """Geht dieser Kanal über ein Postfach? (Gesellschaft oder persönlich)"""
-    return company_of(key) is not None or owner_of(key) is not None
+    """Geht dieser Kanal über ein Postfach? (das einer eigenen Gesellschaft)"""
+    return company_of(key) is not None
 
 
 def info_repair_sql() -> list[str]:
@@ -116,6 +106,19 @@ def info_repair_sql() -> list[str]:
           "IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
     return [f"UPDATE {t} SET channel = {op} WHERE channel = 'info' AND {op} IS NOT NULL"
             for t in ("messages", "mailboxes")]
+
+
+def personal_repair_sql() -> list[str]:
+    """►►► **Persönliche Postfächer gibt es nicht mehr** (Migration 149). ◄◄◄ Ein früher
+    verbundenes wird getrennt, und was über es lief, steht danach im Postfach des
+    **Betreibers** – sonst stünde im Verlauf ein Kanal, den es nicht gibt. Gelesen von der
+    Migration **und** vom Lifespan-Netz (#778). Selbstbegrenzend: danach gibt es kein
+    ``u<Nummer>`` mehr."""
+    op = ("(SELECT 'c' || object_id FROM company_settings WHERE is_own AND object_id "
+          "IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
+    return [f"UPDATE messages SET channel = {op} WHERE channel ~ '^u[0-9]+$' "
+            f"AND {op} IS NOT NULL",
+            "UPDATE mailboxes SET is_active = false WHERE channel ~ '^u[0-9]+$' AND is_active"]
 
 
 def contact_repair_sql() -> list[str]:
@@ -134,8 +137,9 @@ _PREFIX = re.compile(r"^\s*((re|aw|antw|fw|fwd|wg|sv|vs|tr)\s*(\[\d+\])?\s*:\s*)
 
 def topic(subject: Optional[str]) -> str:
     """**Das Anliegen einer Nachricht** – ihr Betreff ohne «Re:», «AW:», «Fwd:» und
-    ohne Unterschied in Gross-/Kleinschreibung und Leerraum. Ohne Betreff: ``""`` – auch
-    das ist ein Anliegen (eine kurze interne Frage), und es gilt dieselbe Regel."""
+    ohne Unterschied in Gross-/Kleinschreibung und Leerraum. Jede neue Nachricht hat einen
+    (``communication.create``); ohne Betreff (Altbestand, eine Mail ohne Betreffzeile):
+    ``""`` – auch das ist ein Anliegen, und es gilt dieselbe Regel."""
     return re.sub(r"\s+", " ", _PREFIX.sub("", subject or "")).strip().casefold()
 
 

@@ -165,7 +165,7 @@ def test_every_own_company_has_its_own_mailbox_and_the_old_info_moves_to_the_ope
     from app.domain import communication as dc
     assert dc.channel(dc.company(100000001)).kind == "email"
     assert dc.is_mail("c100000001") and dc.company_of("c100000001") == 100000001
-    assert not dc.is_mail("phone") and dc.owner_of("c100000001") is None
+    assert not dc.is_mail("phone") and not dc.is_mail("u100000001")
     with pytest.raises(ValueError):
         dc.channel("info")
     sql = " ".join(dc.info_repair_sql())

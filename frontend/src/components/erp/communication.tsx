@@ -24,13 +24,23 @@
  * Beteiligten vor (`reply_all`); nur der Absender lässt sich nicht entfernen. Die Antwort
  * erledigt alle offenen Nachrichten dieses Betreffs – das sagt der Server.
  *
- * **Eine Mail wartet drei Sekunden** («Rückgängig», wie Gmail) – im Browser, nicht auf dem
- * Server. Wer die Ansicht verlässt, schickt sie damit sofort; verloren geht sie nie.
+ * **Ein Anruf ist eine Nachricht wie jede andere** – auf der Seite dessen, der angerufen
+ * hat, mit dem Telefon-Zeichen und «Eingehender/Ausgehender Anruf» darüber.
  *
- * **E-Mail geht über ein Postfach** (CRM Schritt 3): Gmail ist der Speicher, abgeglichen
- * wird im Hintergrund (`erp/page`). Die Mail bleibt dort – hier stehen Text, Anhänge (nur
- * Namen) und der Weg zurück nach Gmail. **Verbunden wird ein Postfach dort, wem es gehört**:
- * das einer eigenen Gesellschaft an ihrem Datensatz, das persönliche am eigenen.
+ * **Der Zustand steht an der Nachricht, nicht darunter**: die Zeit einer offenen wird zur
+ * kleinen Marke – orange = wartet, rot = überfällig; eine beantwortete trägt die Zeit grau.
+ *
+ * **Jede Nachricht hat einen Betreff** – eine Regel für alles, der Dienst verlangt ihn.
+ * Steht eine Nachricht offen, ist die Eingabe schon die Antwort darauf (✕ = neu).
+ * **Intern heisst intern**: angeboten werden nur Mitarbeiter.
+ *
+ * **Eine Mail wartet drei Sekunden** («Rückgängig», wie Gmail) – und zwar **dort, wo sie
+ * hingehört**: blass im Verlauf, mit Uhr und «Rückgängig»; die Eingabe ist so lange
+ * gesperrt. Im Browser, nicht auf dem Server – wer die Ansicht verlässt, schickt sie sofort.
+ *
+ * **E-Mail geht über das Postfach einer eigenen Gesellschaft** (CRM Schritt 3), verbunden an
+ * ihrem Datensatz. Persönliche Postfächer gibt es nicht: im Kommunikationstool ist jeder
+ * Benutzer gleich. Gmail ist der Speicher, abgeglichen wird im Hintergrund (`erp/page`).
  *
  * An einer **Firma** ist der Verlauf ein Spiegel: dieselbe Liste, keine Eingabe und kein
  * offen/überfällig – geschrieben wird immer von Person zu Person.
@@ -116,18 +126,8 @@ function who(p: Person): string {
 /** Der Absender – über das Postfach einer Gesellschaft «Inexxio AG · Clemens Fritsche»
  *  (in wessen Namen, und wer es geschrieben hat), sonst wie jeder Mensch. */
 function author(m: Message): string {
-  const firm = m.ours && m.channel.mail && !m.channel.personal ? m.channel.name : null;
+  const firm = m.ours && m.channel.mail ? m.channel.name : null;
   return firm ? `${firm} · ${m.sender.name}` : who(m.sender);
-}
-
-/** Der Empfänger – der erste mit Name, die übrigen gezählt («Lea Muster +2»). Ohne
- *  bekannten Empfänger heisst eine Mail wie das Postfach, in das sie kam («Inexxio AG»),
- *  eine interne Nachricht «Notiz»; ein Anruf ohne Gegenüber hat keinen Pfeil. */
-function recipient(m: Message): string | null {
-  const all = [...m.to, ...m.cc, ...m.bcc];
-  if (all.length) return all.length > 1 ? `${who(all[0])} +${all.length - 1}` : who(all[0]);
-  if (m.channel.mail) return m.channel.name ?? m.channel.label;
-  return m.channel.outside ? null : 'Notiz';
 }
 
 /** Alles Genaue für den Hover – je Rolle ein Block, je Person Name und darunter ihre
@@ -208,15 +208,46 @@ function stateText(m: Message): string {
   return `${sinceWord(formatWhen(m.at).text)} ${m.overdue ? 'überfällig' : 'offen'}`;
 }
 
+/** ►►► **Ein Anruf ist eine Nachricht** – oben in der Blase ein Telefon-Zeichen und die
+ *  Richtung. Wer angerufen hat, sagt zugleich die Seite. ◄◄◄ */
+function CallHead({ m }: { m: Message }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 6px' }}>
+      <span style={{ width: 32, height: 32, borderRadius: 999, flex: 'none', display: 'inline-flex',
+        alignItems: 'center', justifyContent: 'center', background: 'var(--success-bg)',
+        color: 'var(--success)' }}><Phone size={15} /></span>
+      <span style={{ fontWeight: 600, color: 'var(--fg-1)' }}>
+        {m.ours ? 'Ausgehender Anruf' : 'Eingehender Anruf'}</span>
+    </div>
+  );
+}
+
+/** Die Zeit einer Nachricht – bei einer offenen als kleine Marke in der Farbe ihres
+ *  Zustands (orange wartet, rot überfällig), sonst grau. Wie lange sie wartet, im Hover. */
+function Time({ m, state }: { m: Message; state: boolean }) {
+  const text = formatWhen(m.at).text;
+  if (!state) {
+    return <span className="tabular-nums" style={{ flex: 'none' }} data-tip={whenTitle(m.at)}>{text}</span>;
+  }
+  const fg = m.overdue ? 'var(--danger)' : 'var(--color-warning)';
+  const bg = m.overdue ? 'var(--danger-bg)' : 'var(--warning-bg)';
+  return (
+    <span className="tabular-nums" aria-label={`${text} · ${stateText(m)}`}
+      data-tip={`${stateText(m)}\n${whenTitle(m.at)}`}
+      style={{ flex: 'none', height: 18, padding: '0 7px', borderRadius: 999, background: bg,
+        color: fg, fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>{text}</span>
+  );
+}
+
 function Bubble({ m, mirror, named, onReply, onDone }: {
   m: Message; mirror: boolean;
   /** Den Namen trägt die Blase nur, wo die Seite ihn nicht schon sagt. */
   named: boolean;
   onReply?: (m: Message) => void; onDone?: (m: Message) => void;
 }) {
+  const call = m.channel.kind === 'phone';
   const Icon = m.bcc.length > 2 ? Megaphone : KIND_ICON[m.channel.kind as Mode] ?? Mail;
   const showState = !mirror && m.open;
-  const tone = m.overdue ? 'var(--danger)' : 'var(--color-warning)';
   const bg = !m.channel.outside ? 'var(--bg-3)' : m.ours ? 'var(--accent-soft)' : 'var(--bg-1)';
   // Wer ausser dem einen Empfänger dabei war – das «Cc», kurz; alles Genaue im Hover.
   const cc = m.cc.length ? `Cc ${m.cc.map(who).join(', ')}` : m.to.length > 1 ? `an ${m.to.length}` : null;
@@ -228,6 +259,7 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
         {named && <div className="truncate" style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)' }}>{author(m)}</div>}
         {m.topic && <div style={{ fontSize: 12, fontWeight: 600, color: topicColor(m.topic),
           overflowWrap: 'anywhere' }}>{m.topic}</div>}
+        {call && <CallHead m={m} />}
         {m.body && <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', lineHeight: '20px',
           overflowWrap: 'anywhere' }}>{linkify(m.body)}</div>}
         {!m.body && !m.channel.outside && (
@@ -241,33 +273,11 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
           {/* Die Blase hängt an einer Hülle ohne ``overflow`` – ``truncate`` schnitte sie weg. */}
           <span data-tip={details(m)} data-tip-list="" data-tip-pos="bottom"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            {m.channel.kind !== 'email' && <Icon size={12} style={{ flex: 'none' }} />}
+            {m.channel.kind === 'internal' && <Icon size={12} style={{ flex: 'none' }} />}
             {cc && <span className="truncate">{cc}</span>}
           </span>
-          <span className="tabular-nums" style={{ flex: 'none' }} data-tip={whenTitle(m.at)}>
-            {formatWhen(m.at).text}</span>
-          {showState && <span aria-label={stateText(m)} data-tip={stateText(m)}
-            style={{ width: 8, height: 8, borderRadius: 999, background: tone, flex: 'none' }} />}
+          <Time m={m} state={showState} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-/** Ein Anruf ist ein Gespräch, keine Nachricht im Chat – eine schlichte Zeile in der Mitte. */
-function Call({ m, onReply }: { m: Message; onReply?: (m: Message) => void }) {
-  const to = recipient(m);
-  return (
-    <div className="ix-row" style={{ display: 'flex', justifyContent: 'center' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-3)',
-        maxWidth: '86%', minWidth: 0, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
-        <Phone size={13} style={{ flex: 'none' }} />
-        <span data-tip={details(m)} data-tip-list="" data-tip-pos="bottom">
-          {who(m.sender)}{to && <> → {to}</>}</span>
-        <span className="tabular-nums" data-tip={whenTitle(m.at)}>· {formatWhen(m.at).text}</span>
-        {m.topic && <span style={{ color: topicColor(m.topic), fontWeight: 600 }}>· {m.topic}</span>}
-        {m.body && <span style={{ color: 'var(--fg-2)', overflowWrap: 'anywhere' }}>· {linkify(m.body)}</span>}
-        <Actions m={m} onReply={onReply} />
       </div>
     </div>
   );
@@ -306,27 +316,40 @@ function Divider({ label }: { label: string }) {
   );
 }
 
-/** ►►► **Der Zustand steht EINMAL – unten im Verlauf.** ◄◄◄ Wie viele warten, und wie lange
- *  die älteste schon; an der einzelnen Blase steht nur ein Punkt neben der Zeit. */
-function Waiting({ open }: { open: Message[] }) {
-  if (!open.length) return null;
-  const oldest = open.reduce((a, b) => (b.at < a.at ? b : a));
-  const late = open.some((m) => m.overdue);
-  const tone = late ? 'var(--danger)' : 'var(--color-warning)';
+/** ►►► **Die Mail, die gleich hinausgeht** – blass dort, wo sie hingehört, mit Uhr und
+ *  «Rückgängig». Nach drei Sekunden ist sie eine gewöhnliche Nachricht. ◄◄◄ */
+export type Sending = { topic: string; body: string; to: string; left: number; undo: () => void };
+
+function SendingBubble({ s }: { s: Sending }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-      color: tone, marginTop: 4 }}>
-      <span style={{ width: 8, height: 8, borderRadius: 999, background: tone, flex: 'none' }} />
-      {open.length} {open.length === 1 ? 'wartet' : 'warten'} auf Antwort · älteste {stateText(oldest)}
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ maxWidth: '74%', minWidth: 0, background: 'var(--accent-soft)', opacity: 0.6,
+        borderRadius: '12px 12px 4px 12px', padding: '8px 12px 6px' }}>
+        {s.topic && <div style={{ fontSize: 12, fontWeight: 600, color: topicColor(s.topic),
+          overflowWrap: 'anywhere' }}>{s.topic}</div>}
+        <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', lineHeight: '20px',
+          overflowWrap: 'anywhere' }}>{s.body}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10,
+          fontSize: 11, lineHeight: '16px', color: 'var(--fg-2)', marginTop: 2 }}>
+          {s.to && <span className="truncate">an {s.to}</span>}
+          <span className="tabular-nums" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' }}>
+            <Clock size={12} />wird gesendet · {s.left} s</span>
+          <button type="button" onClick={s.undo} style={{ border: 0, background: 'none', padding: 0,
+            font: 'inherit', fontSize: 11, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer',
+            flex: 'none' }}>Rückgängig</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Timeline({ messages, mirror, personId, meId, onReply, onDone }: {
+function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }: {
   messages: Message[]; mirror: boolean; personId?: number; meId?: number;
   onReply?: (m: Message) => void; onDone?: (m: Message) => void;
+  /** Die Mail, die gerade drei Sekunden wartet – sie steht schon am Ende des Verlaufs. */
+  sending?: Sending | null;
 }) {
-  if (!messages.length) {
+  if (!messages.length && !sending) {
     return <p style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0' }}>Noch keine Nachrichten.</p>;
   }
   const rows: ReactNode[] = [];
@@ -335,7 +358,6 @@ function Timeline({ messages, mirror, personId, meId, onReply, onDone }: {
     const label = m.planned ? 'Geplant' : dayLabel(m.at);
     if (label !== last) rows.push(<Divider key={`d-${m.id}`} label={label} />);
     last = label;
-    if (m.channel.kind === 'phone') { rows.push(<Call key={m.id} m={m} onReply={onReply} />); continue; }
     const named = mirror || (m.ours ? m.sender.object_id !== meId : m.sender.object_id !== personId);
     rows.push(<Bubble key={m.id} m={m} mirror={mirror} named={named} onReply={onReply} onDone={onDone} />);
   }
@@ -343,7 +365,7 @@ function Timeline({ messages, mirror, personId, meId, onReply, onDone }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)',
       borderRadius: 12, padding: '12px 16px' }}>
       {rows}
-      {!mirror && <Waiting open={messages.filter((m) => m.open)} />}
+      {sending && <SendingBubble s={sending} />}
     </div>
   );
 }
@@ -382,8 +404,10 @@ function Chip({ children, onRemove, onMove, moveTip, tip }: {
 }
 
 /** «An»-Feld wie in einem Mailprogramm: Chips, und tippen sucht (Nummer oder Name). */
-function People({ value, onChange, placeholder, locked, onMove, moveTip, max }: {
+function People({ value, onChange, placeholder, locked, onMove, moveTip, max, staff }: {
   value: Person[]; onChange: (v: Person[]) => void; placeholder?: string;
+  /** Nur Mitarbeiter anbieten – die Empfänger einer internen Nachricht. */
+  staff?: boolean;
   /** Wer nicht entfernt werden kann – der Absender der Nachricht, auf die ich antworte.
    *  Er lässt sich nur zwischen «An» und «Cc» verschieben (``onMove``). */
   locked?: ReadonlySet<number>; onMove?: (p: Person) => void; moveTip?: string;
@@ -396,10 +420,10 @@ function People({ value, onChange, placeholder, locked, onMove, moveTip, max }: 
     if (q.trim().length < 2) { setHits([]); return; }
     let stale = false;
     const t = setTimeout(() => {
-      api.searchVoucherParties(q, 8).then((r) => { if (!stale) setHits(r); }).catch(() => {});
+      api.searchVoucherParties(q, 8, staff).then((r) => { if (!stale) setHits(r); }).catch(() => {});
     }, 200);
     return () => { stale = true; clearTimeout(t); };
-  }, [q]);
+  }, [q, staff]);
   const add = (p: VoucherParty) => {
     onChange([...value.filter((v) => v.object_id !== p.object_id), { object_id: p.object_id, name: p.name }]);
     setQ('');
@@ -440,36 +464,23 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** ►►► **Senden ist ein Symbol – wie in jedem Chat.** ◄◄◄ Was er tut, steht im Hover; was
- *  noch fehlt, ebenso (gesperrt, mit Grund). Nach dem Klick läuft der Countdown IM Knopf –
- *  ein Ring, der sich leert, und die Sekunden darin; ein Klick holt die Mail zurück. */
-function SendButton({ mode, verb, problem, busy, held, onUndo }: {
-  mode: Mode; verb: string; problem: string | null; busy: boolean;
-  /** Sekunden bis zum Versand – solange eine Mail zurückgehalten wird. */
-  held: number | null; onUndo: () => void;
+ *  noch fehlt, ebenso (gesperrt, mit Grund). Wartet eine Mail ihre drei Sekunden, ist er
+ *  gesperrt – «Rückgängig» steht an der Mail selbst, im Verlauf. */
+function SendButton({ mode, verb, problem, busy, held }: {
+  mode: Mode; verb: string; problem: string | null; busy: boolean; held: boolean;
 }) {
   const Icon = mode === 'internal' ? Lock : mode === 'phone' ? Check : Send;
-  const waiting = held !== null;
-  const off = !waiting && (busy || !!problem);
-  const tip = waiting ? 'Rückgängig' : problem ?? verb;
+  const off = held || busy || !!problem;
+  const tip = held ? 'Wird gesendet …' : problem ?? verb;
   return (
     // Die Blase hängt an der Hülle – an einem gesperrten Knopf feuert kein Zeiger-Ereignis.
-    // ``preventDefault`` beim Rückgängig: React rendert noch im Klick neu, der Knopf ist
-    // dann schon wieder ``submit`` – und die Mail ginge gleich ein zweites Mal ab.
     <span data-tip={tip} style={{ display: 'inline-flex' }}>
-      <button type={waiting ? 'button' : 'submit'} onClick={waiting ? (e) => { e.preventDefault(); onUndo(); } : undefined}
-        aria-label={tip} disabled={off} className="tabular-nums"
-        style={{ position: 'relative', width: 40, height: 40, borderRadius: 999, border: 0,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
-          cursor: off ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 700,
-          fontSize: 14, color: off ? 'var(--fg-4)' : '#fff',
-          background: waiting ? 'var(--fg-1)' : off ? 'var(--bg-3)' : 'var(--inexxio-red)' }}>
-        {waiting ? <>
-          <svg className="ix-countdown" viewBox="0 0 40 40" aria-hidden="true">
-            <circle cx="20" cy="20" r="17" pathLength={100}
-              style={{ animationDuration: `${UNDO_MS}ms` }} />
-          </svg>
-          {held}
-        </> : <Icon size={17} />}
+      <button type="submit" aria-label={tip} disabled={off}
+        style={{ width: 40, height: 40, borderRadius: 999, border: 0, flex: 'none',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          cursor: off ? 'not-allowed' : 'pointer', color: off ? 'var(--fg-4)' : '#fff',
+          background: off ? 'var(--bg-3)' : 'var(--inexxio-red)' }}>
+        <Icon size={17} />
       </button>
     </span>
   );
@@ -522,7 +533,7 @@ function From({ mails, value, onChange, me }: {
   }, [open]);
   if (!mails.length) {
     return <span style={{ fontSize: 13, color: 'var(--danger)', paddingTop: 4 }}
-      data-tip="Ein Postfach verbindet man am eigenen Datensatz bzw. an der Gesellschaft">
+      data-tip="Ein Postfach verbindet ein Admin am Datensatz der Gesellschaft">
       Kein Postfach verbunden</span>;
   }
   const text = (c: MessageChannel) => `${c.name ?? me.name} · ${c.label}`;
@@ -575,13 +586,15 @@ function Fields(p: {
   to: Person[]; setTo: Set<Person[]>; cc: Person[]; setCc: Set<Person[]>;
   bcc: Person[]; setBcc: Set<Person[]>; showCc: boolean; setShowCc: Set<boolean>;
   subject: string; setSubject: Set<string>;
+  /** Die Anliegen dieser Person – zur Auswahl im Betreff (oder ein neues tippen). */
+  topics: string[];
   /** Bei einer Antwort steht der Betreff fest – wie in Gmail. */
   fixed: boolean; locked: ReadonlySet<number>;
   later: string | null; setLater: Set<string | null>;
   incoming: boolean; setIncoming: Set<boolean>;
 }) {
   const { mode, me, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc, showCc, setShowCc,
-    subject, setSubject, fixed, locked, later, setLater, incoming, setIncoming } = p;
+    subject, setSubject, topics, fixed, locked, later, setLater, incoming, setIncoming } = p;
   const meChip = <span style={CHIP}><span className="truncate">{me.name}</span></span>;
   // Wer beantwortet wird, lässt sich nicht entfernen – nur zwischen «An» und «Cc» schieben.
   const toCc = (x: Person) => { setTo(to.filter((v) => v !== x)); setCc([...cc, x]); setShowCc(true); };
@@ -589,7 +602,8 @@ function Fields(p: {
   const contact = (
     <People value={to} onChange={setTo} locked={locked} max={incoming ? 1 : undefined}
       onMove={mode === 'email' ? toCc : undefined} moveTip="Ins «Cc» schieben"
-      placeholder={mode === 'internal' ? 'Name eintippen – leer lassen für eine Notiz' : 'Name eintippen'} />
+      staff={mode === 'internal'}
+      placeholder={mode === 'internal' ? 'Kollegin oder Kollege – leer lassen für eine Notiz' : 'Name eintippen'} />
   );
   // Ein Anruf hat eine Richtung: wer hat wen angerufen? Getauscht werden nur Von und An.
   const swap = (
@@ -623,12 +637,14 @@ function Fields(p: {
             moveTip="Ins «An» schieben" /></Row>
           <Row label="Bcc"><People value={bcc} onChange={setBcc} /></Row>
         </>}
-        {mode !== 'phone' && !fixed && (
+        {!fixed && (
           <Row label="Betreff">
-            <input value={subject} onChange={(e) => setSubject(e.target.value)}
-              aria-label="Betreff" placeholder={mode === 'internal' ? 'Worum geht es?' : ''}
+            {/* Ein bestehendes Anliegen wählen oder ein neues tippen – Pflicht für jede Art. */}
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} list="msg-topics"
+              aria-label="Betreff" placeholder="Worum geht es?"
               style={{ border: 0, outline: 'none', font: 'inherit', fontSize: 13, flex: 1,
                 minWidth: 0, background: 'transparent', minHeight: 28 }} />
+            <datalist id="msg-topics">{topics.map((t) => <option key={t} value={t} />)}</datalist>
           </Row>
         )}
         {later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
@@ -640,7 +656,7 @@ const MODE_OF: Record<string, Mode> = { email: 'email', phone: 'phone', internal
 
 /** Worauf ein Klick auf «Antworten» zielt – mit einem Zähler, damit derselbe Klick auf
  *  dieselbe Nachricht ein zweites Mal wirkt. */
-type Target = { m: Message; n: number };
+type Target = { m: Message; n: number; quiet?: boolean };
 
 /** Wie lange «Rückgängig» steht, bevor eine Mail wirklich hinausgeht. */
 const UNDO_MS = 3000;
@@ -651,8 +667,15 @@ type Draft = {
   reply: Message | null; mailKey?: string; body: string; later: string | null;
 };
 
-function Composer({ person, me, channels, target, onSent }: {
-  person: Person; me: Person; channels: MessageChannel[]; target: Target | null; onSent: () => void;
+/** Der Betreff ohne «Re:», «AW:» … – wie das Anliegen dasteht (``domain.title``). */
+const bare = (subject: string) =>
+  subject.replace(/^\s*((re|aw|antw|fw|fwd|wg|sv|vs|tr)\s*(\[\d+\])?\s*:\s*)+/i, '').trim();
+
+function Composer({ person, me, channels, target, topics, onSent, onSending }: {
+  person: Person; me: Person; channels: MessageChannel[]; target: Target | null;
+  topics: string[]; onSent: () => void;
+  /** Die Mail, die gerade drei Sekunden wartet – sie steht im Verlauf, nicht hier. */
+  onSending: (s: Sending | null) => void;
 }) {
   const mails = channels.filter((c) => c.mail);
   const [mode, setMode] = useState<Mode>('email');
@@ -683,8 +706,10 @@ function Composer({ person, me, channels, target, onSent }: {
   const calledIn = mode === 'phone' && incoming;
   // Pflicht bleibt nur der Absender dessen, worauf ich antworte – ausser ich bin es selbst.
   const asker = reply && reply.sender.object_id !== me.object_id ? reply.sender.object_id : null;
-  const locked = new Set(asker !== null && !calledIn ? [asker] : []);
-  const reached = asker === null || [...to, ...cc].some((p) => p.object_id === asker);
+  // Intern geht nichts an ihn – dort ist die Antwort an ihn gar nicht gemeint.
+  const free = calledIn || mode === 'internal';
+  const locked = new Set(asker !== null && !free ? [asker] : []);
+  const reached = asker === null || free || [...to, ...cc].some((p) => p.object_id === asker);
   const cameIn = reply && mails.find((c) => c.key === reply.channel.key)?.key;
   const channel = mode === 'email'
     ? mails.find((c) => c.key === (mailKey ?? cameIn)) ?? mails[0]
@@ -705,6 +730,7 @@ function Composer({ person, me, channels, target, onSent }: {
     setTo(all.filter((p) => !inCc.has(p.object_id)));
     setCc(all.filter((p) => inCc.has(p.object_id)));
     setShowCc(all.some((p) => inCc.has(p.object_id)));
+    if (target.quiet) return;     // vorbelegt beim Öffnen – kein Sprung, kein Fokus
     textRef.current?.focus();
     textRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -727,9 +753,9 @@ function Composer({ person, me, channels, target, onSent }: {
    *  früher gesagt: am Knopf, im Hover. ``null`` = vollständig. */
   const problem = !channel ? (mode === 'email' ? 'Kein Postfach verbunden' : 'Kein Kanal verfügbar')
     : mode === 'email' && !to.length ? 'Mindestens ein Empfänger im «An»'
-      : mode === 'email' && !theSubject.trim() ? 'Betreff fehlt'
+      : !theSubject.trim() ? 'Betreff fehlt'
         : calledIn && to.length !== 1 ? 'Wer hat angerufen?'
-          : !reached && !calledIn ? `${reply?.sender.name} muss im «An» oder «Cc» stehen`
+          : !reached ? `${reply?.sender.name} muss im «An» oder «Cc» stehen`
             : !body.trim() ? 'Text fehlt' : null;
 
   const restore = (d: Draft) => {
@@ -814,7 +840,7 @@ function Composer({ person, me, channels, target, onSent }: {
     setHeld(draft);
     pending.current = { payload, timer: setTimeout(() => flushRef.current(), UNDO_MS) };
   };
-  // Die Sekunden im Knopf – der Ring läuft über CSS, die Zahl hier.
+  // Die Sekunden an der wartenden Mail – sie steht im Verlauf, nicht hier.
   const [left, setLeft] = useState(0);
   useEffect(() => {
     if (!held) return;
@@ -830,13 +856,29 @@ function Composer({ person, me, channels, target, onSent }: {
     pending.current = null;
     restore(held);
     setHeld(null);
-    textRef.current?.focus();
+    // Erst nach dem Rendern: solange die Eingabe gesperrt ist, nimmt sie keinen Fokus.
+    setTimeout(() => textRef.current?.focus(), 0);
   };
+  const undoRef = useRef(undo);
+  undoRef.current = undo;
+  const sendingRef = useRef(onSending);
+  sendingRef.current = onSending;
+  useEffect(() => {
+    sendingRef.current(held ? {
+      topic: held.reply ? held.reply.topic : bare(held.subject), body: held.body,
+      to: held.to.map((p) => p.name).join(', '), left, undo: () => undoRef.current(),
+    } : null);
+  }, [held, left]);
+  useEffect(() => () => sendingRef.current(null), []);
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void send(); }}
       style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 12,
         padding: '12px 16px 14px', marginTop: 16 }}>
+      {/* Wartet eine Mail ihre drei Sekunden, ist die Eingabe gesperrt – «Rückgängig» holt
+          sie hierher zurück, und eine zweite Nachricht stünde dabei im Weg. */}
+      <fieldset disabled={!!held} style={{ border: 0, margin: 0, padding: 0, minWidth: 0,
+        opacity: held ? 0.5 : 1 }}>
       <ModeSwitch mode={mode} onPick={pick} />
 
       {reply && (
@@ -858,13 +900,13 @@ function Composer({ person, me, channels, target, onSent }: {
         <Fields mode={mode} me={me} channel={channel} mails={mails} setChannel={setMailKey}
           to={to} setTo={setTo} cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc}
           showCc={showCc} setShowCc={setShowCc}
-          subject={subject} setSubject={setSubject} fixed={fixed} locked={locked}
+          subject={subject} setSubject={setSubject} topics={topics} fixed={fixed} locked={locked}
           later={later} setLater={setLater} incoming={incoming} setIncoming={setIncoming} />
       )}
       {reply && !edit && later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
       <label htmlFor="msg-body" className="sr-only">Text</label>
       <textarea id="msg-body" ref={textRef} value={body} onChange={(e) => setBody(e.target.value)} rows={3}
-        placeholder={mode === 'phone' ? 'Was wurde besprochen?'
+        placeholder={held ? 'Wird gesendet …' : mode === 'phone' ? 'Was wurde besprochen?'
           : mode === 'internal' ? `Notiz oder Frage zu ${person.name} – nur intern sichtbar. Eine Objektnummer wird zum Link.`
             : `Nachricht an ${to[0]?.name ?? person.name} …`}
         style={{ width: '100%', border: 0, outline: 'none', resize: 'vertical', font: 'inherit',
@@ -880,9 +922,9 @@ function Composer({ person, me, channels, target, onSent }: {
           <Clock size={16} />
         </button>
         <span style={{ flex: 1 }} />
-        <SendButton mode={mode} verb={verb} problem={problem} busy={busy}
-          held={held ? left : null} onUndo={undo} />
+        <SendButton mode={mode} verb={verb} problem={problem} busy={busy} held={!!held} />
       </div>
+      </fieldset>
     </form>
   );
 }
@@ -929,7 +971,7 @@ export function Communication({ person, company, ownCompany, me }: {
   person?: Person;
   /** Firma: der Verlauf ihrer Personen, nur lesend. */
   company?: number;
-  /** Eine eigene Gesellschaft – dann steht hier ihr Postfach. */
+  /** Eine eigene Gesellschaft – dann steht hier ihr Postfach (nur sie hat eines). */
   ownCompany?: boolean;
   me?: Person | null;
 }) {
@@ -943,14 +985,12 @@ export function Communication({ person, company, ownCompany, me }: {
       .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht geladen werden.'));
   }, [person, company]);
   useEffect(() => { load(); }, [load]);
-  // Das Postfach steht dort, wem es gehört: an der eigenen Gesellschaft ihres, am eigenen
-  // Datensatz das persönliche – nie am Datensatz eines anderen.
-  const mine = !!person && person.object_id === me?.object_id;
+  // Ein Postfach hat nur eine eigene Gesellschaft – es steht an ihrem Datensatz.
+  // Persönliche gibt es nicht: im Kommunikationstool ist jeder Benutzer gleich.
   const loadChannels = useCallback(() => {
     if (person) api.messageChannels().then(setChannels).catch(() => {});
     if (company && ownCompany) api.mailboxes(company).then(setMailboxes).catch(() => {});
-    else if (mine) api.mailboxes().then(setMailboxes).catch(() => {});
-  }, [person, company, ownCompany, mine]);
+  }, [person, company, ownCompany]);
   useEffect(() => { loadChannels(); }, [loadChannels]);
   // Neues aus dem Abgleich erscheint ohne Neuladen der Seite.
   useEffect(() => {
@@ -958,6 +998,7 @@ export function Communication({ person, company, ownCompany, me }: {
     return () => window.removeEventListener(MESSAGES_CHANGED, load);
   }, [load]);
   const [target, setTarget] = useState<Target | null>(null);
+  const [sending, setSending] = useState<Sending | null>(null);
   const changed = () => window.dispatchEvent(new Event(MESSAGES_CHANGED));
   // «Erledigt ohne Antwort» – eine stille interne Nachricht mit demselben Betreff, die den
   // Absender betrifft: dieselbe Regel wie jede Antwort, kein Sonderfall.
@@ -968,6 +1009,17 @@ export function Communication({ person, company, ownCompany, me }: {
       .then(changed).catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
   };
   const writable = !!person && !!me && channels.length > 0;
+  // ►►► Steht etwas offen, ist die Eingabe schon die Antwort darauf – die jüngste offene,
+  // einmal beim Öffnen und ohne Sprung (✕ macht daraus eine neue Nachricht). ◄◄◄
+  const primed = useRef(false);
+  useEffect(() => {
+    if (primed.current || !writable || !messages) return;
+    primed.current = true;
+    const open = messages.filter((m) => m.open);
+    if (open.length) setTarget({ m: open[open.length - 1], n: Date.now(), quiet: true });
+  }, [messages, writable]);
+  // Die Anliegen dieser Person – zur Auswahl im Betreff, das jüngste zuerst.
+  const topics = [...new Set((messages ?? []).map((m) => m.topic).filter(Boolean).reverse())];
 
   if (error) return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>;
   if (!messages) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
@@ -976,10 +1028,10 @@ export function Communication({ person, company, ownCompany, me }: {
       <Mailboxes boxes={mailboxes} onChange={loadChannels} />
       <Timeline messages={messages} mirror={!person} personId={person?.object_id} meId={me?.object_id}
         onReply={writable ? (m) => setTarget({ m, n: Date.now() }) : undefined}
-        onDone={writable ? done : undefined} />
+        onDone={writable ? done : undefined} sending={sending} />
       {writable && person && me && (
         <Composer key={person.object_id} person={person} me={me} channels={channels}
-          target={target} onSent={changed} />
+          target={target} topics={topics} onSent={changed} onSending={setSending} />
       )}
     </div>
   );

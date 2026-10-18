@@ -978,16 +978,3 @@ fieldset:disabled .ix-editable.is-missing {
 .ix-row:hover .ix-rowactions,
 .ix-row:focus-within .ix-rowactions { opacity: 1; }
 @media (hover: none) { .ix-rowactions { opacity: 1; } }
-
-/* ── «Rückgängig» nach dem Senden (Kommunikation) ─────────────────────────────
-   Der Countdown läuft IM Sende-Knopf – ein Ring, der sich leert; ein Klick holt die
-   Mail zurück. Die Dauer setzt die Aufrufstelle (``animationDuration``), damit Zahl und
-   Zeitgeber aus derselben Konstante kommen. */
-.ix-countdown {
-  position: absolute; inset: 0; transform: rotate(-90deg); pointer-events: none;
-}
-.ix-countdown circle {
-  fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round;
-  stroke-dasharray: 100; animation: ix-countdown linear forwards;
-}
-@keyframes ix-countdown { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 100; } }

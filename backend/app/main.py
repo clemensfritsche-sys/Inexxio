@@ -641,8 +641,12 @@ def _ensure_columns() -> None:
                     # Der frühere Kanal ``info`` wird der des Betreibers (Migration
                     # ``146``) – selbstbegrenzend, danach gibt es kein ``info`` mehr.
                     if {"messages", "mailboxes"} <= tables:
-                        from .domain.communication import contact_repair_sql, info_repair_sql
-                        for stmt in info_repair_sql() + contact_repair_sql():
+                        from .domain.communication import (contact_repair_sql,
+                                                           info_repair_sql,
+                                                           personal_repair_sql)
+                        # Persönliche Postfächer gibt es nicht mehr (Migration ``149``).
+                        for stmt in (info_repair_sql() + personal_repair_sql()
+                                     + contact_repair_sql()):
                             conn.execute(text(stmt))
                     # Vom «Antwort auf» zum Betreff (Migration ``148``) – selbstbegrenzend.
                     if "message_replies" in tables and "message_parties" in tables:

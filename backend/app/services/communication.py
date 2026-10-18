@@ -39,43 +39,35 @@ def channel_out(key: str, label: Optional[str] = None, name: Optional[str] = Non
     trägt den Namen, in dem es hinausgeht (``name``)."""
     c = dc.channel(key)
     return ChannelOut(key=c.key, label=label or c.label, kind=c.kind, outside=c.outside,
-                      mail=dc.is_mail(key), personal=dc.owner_of(key) is not None,
-                      name=name)
+                      mail=dc.is_mail(key), name=name)
 
 
 def _labels(db: Session, keys: Iterable[str]) -> dict[str, tuple[str, Optional[str]]]:
-    """Je Postfach seine Adresse und der Name, für den es steht – die Gesellschaft bzw.
-    der Mitarbeiter. Ein Verlauf nennt damit nie eine nackte Adresse («→ Inexxio AG»)."""
+    """Je Postfach seine Adresse und die Gesellschaft, für die es steht. Ein Verlauf nennt
+    damit nie eine nackte Adresse («→ Inexxio AG»)."""
     from .mailbox import address_of, company
     from .sites import legal_name
-    keys = {k for k in keys if dc.is_mail(k)}
-    owners = _people(db, [dc.owner_of(k) for k in keys if dc.owner_of(k) is not None])
     out = {}
-    for k in keys:
-        firm, owner = company(db, k), owners.get(dc.owner_of(k) or 0)
-        name = legal_name(firm) if firm else (owner.display_name if owner else None)
-        out[k] = (address_of(db, k), name)
+    for k in {k for k in keys if dc.is_mail(k)}:
+        firm = company(db, k)
+        out[k] = (address_of(db, k), legal_name(firm) if firm else None)
     return out
 
 
-def channels(db: Session, actor: UserProfile) -> list[ChannelOut]:
-    """►►► **Worüber DIESER Mitarbeiter schreiben kann** – geschrieben wird nur im eigenen
-    Namen oder in dem einer eigenen Gesellschaft, nie in fremdem. ◄◄◄
+def channels(db: Session) -> list[ChannelOut]:
+    """►►► **Worüber geschrieben werden kann** – im eigenen Namen, und eine E-Mail über das
+    Postfach einer eigenen Gesellschaft. Persönliche Postfächer gibt es nicht. ◄◄◄
 
-    Mit Anbindung nur **verbundene** Postfächer (die Gesellschaften, Betreiber zuerst, und
-    das eigene): ein anderes könnte die Mail nicht hinausschicken. Ohne Anbindung wird nur
-    erfasst – dann jede eigene Gesellschaft. Dazu Telefon und Intern."""
+    Mit Anbindung nur **verbundene** Postfächer (Betreiber zuerst): ein anderes könnte die
+    Mail nicht hinausschicken. Ohne Anbindung wird nur erfasst – dann jede eigene
+    Gesellschaft. Dazu Telefon und Intern."""
     from . import mailbox
     from .sites import find_operator, selectable_companies
     op = find_operator(db)
     firms = sorted(selectable_companies(db), key=lambda c: (op is None or c.id != op.id, c.id))
     keys = [dc.company(c.object_id) for c in firms if c.object_id]
-    if actor.object_id:
-        keys.append(dc.personal(actor.object_id))
     if mailbox.ready():
         keys = [k for k in keys if (mb := mailbox.active(db, k)) is not None and not mb.problem]
-    else:
-        keys = [k for k in keys if dc.company_of(k) is not None]
     keys += list(dc.CHANNELS)
     labels = _labels(db, keys)
     return [channel_out(k, *labels.get(k, (None, None))) for k in keys]
@@ -140,27 +132,32 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     """**Eine Nachricht – dieselbe Funktion für E-Mail, Anruf, Notiz, Frage, Erinnerung.**
 
     **Absender ist, wer angemeldet ist** – geschrieben wird nie in fremdem Namen; im Namen
-    einer eigenen Gesellschaft schon (ihr Postfach ist der Kanal), über das persönliche
-    Postfach eines anderen nicht. Die Angaben müssen existieren, und eine Nachricht ohne
-    Text ist das «erledigt ohne Antwort» eines Anliegens – sie braucht dessen Betreff oder
-    wenigstens die Person, die sie betrifft (eine Frage ohne Betreff hat das Anliegen «»)."""
+    einer eigenen Gesellschaft schon (ihr Postfach ist der Kanal). Die Angaben müssen
+    existieren.
+
+    ►►► **Eine Regel für alles: jede Nachricht hat einen Betreff** – E-Mail, Anruf, Notiz,
+    interne Nachricht. Der Betreff ist das Anliegen; ohne ihn liesse sich nicht sagen, was
+    eine Nachricht erledigt. Die eine Ausnahme ist Altbestand: das «erledigt ohne Antwort»
+    einer Nachricht, die selbst keinen Betreff trägt (dann betrifft es wenigstens ihren
+    Absender). ◄◄◄
+
+    **Intern heisst intern**: an eine interne Nachricht gehen nur Mitarbeiter – wen sie
+    betrifft, steht im «Betrifft»."""
     try:
         dc.channel(data.channel)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc)) from exc
     if not actor.object_id:
         raise HTTPException(400, detail="Ohne Objektnummer lässt sich nichts schreiben.")
-    owner = dc.owner_of(data.channel)
-    if owner is not None and owner != actor.object_id:
-        raise HTTPException(403, detail=f"Über das Postfach von «{owner}» schreibt nur "
-                                        f"sein Besitzer.")
     roles = {"to": data.to, "cc": data.cc, "bcc": data.bcc, "about": data.about}
     _assert_people(db, {i for ids in roles.values() for i in ids})
     body = (data.body or "").strip()
     subject = (data.subject or "").strip() or None
-    if not body and not (subject or data.about):
-        raise HTTPException(400, detail="Eine Nachricht ohne Text braucht einen Betreff – "
-                                        "sie erledigt die offenen dieses Betreffs.")
+    if not subject and (body or not data.about):
+        raise HTTPException(400, detail="Eine Nachricht braucht einen Betreff – er ist das "
+                                        "Anliegen, zu dem sie gehört.")
+    if not dc.channel(data.channel).outside:
+        _assert_internal(db, roles)
     sender = actor.object_id
     if data.incoming:
         sender, roles = _incoming_call(data, roles, actor)
@@ -174,13 +171,21 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
 
 
 def _assert_mail(data: MessageIn, roles: dict[str, list[int]]) -> None:
-    """**Eine E-Mail ist erst vollständig mit Empfänger und Betreff.** Eine ohne «An»
-    hätte keinen Adressaten, eine ohne Betreff ist im Postfach des Empfängers eine leere
-    Zeile. Bei einer Antwort steht «Re: …» schon da (die Oberfläche belegt es vor)."""
+    """**Eine E-Mail braucht einen Empfänger** – eine ohne «An» hätte keinen Adressaten
+    (den Betreff verlangt ``create`` für jede Nachricht)."""
     if not roles["to"]:
         raise HTTPException(400, detail="Eine E-Mail braucht mindestens einen Empfänger im «An».")
-    if not (data.subject or "").strip():
-        raise HTTPException(400, detail="Eine E-Mail braucht einen Betreff.")
+
+
+def _assert_internal(db: Session, roles: dict[str, list[int]]) -> None:
+    """**An eine interne Nachricht gehen nur Mitarbeiter.** Sie verlässt das Haus nie – ein
+    Kunde im «An» bekäme sie nicht, und sie wartete für immer auf ihn. Wen sie betrifft,
+    steht im «Betrifft»."""
+    people = _people(db, [i for r in ("to", "cc", "bcc") for i in roles[r]])
+    outside = [u for u in people.values() if u.role not in STAFF_ROLES]
+    if outside:
+        raise HTTPException(400, detail=f"Eine interne Nachricht geht nur an Mitarbeiter – "
+                                        f"«{outside[0].display_name}» gehört ins «Betrifft».")
 
 
 def _incoming_call(data: MessageIn, roles: dict[str, list[int]], actor: UserProfile
@@ -260,7 +265,12 @@ def answered(db: Session, msgs: list[Message],
 
     Gefragt wird **über alle Nachrichten**, nicht nur die geladenen: im Verlauf einer
     Person, die aus dem Cc genommen wurde, steht die Antwort nicht – erledigt ist die
-    Nachricht trotzdem, und zwar überall gleich."""
+    Nachricht trotzdem, und zwar überall gleich.
+
+    **Wer von aussen schreibt, bekommt seine Antwort von aussen** – eine Mail oder ein
+    Anruf. Eine interne Nachricht mit Text, die ihn betrifft («kannst du hinfahren?»),
+    ist eine Rückfrage im Haus und keine Antwort an ihn; er wartet weiter. Die eine
+    interne, die ihn erledigt, ist die ohne Text: «Erledigt ohne Antwort»."""
     if not msgs:
         return set()
     since = min(_aware(m.at) for m in msgs)
@@ -274,18 +284,24 @@ def answered(db: Session, msgs: list[Message],
     for mid, oid in db.query(MessageParty.message_id, MessageParty.person_object_id).filter(
             MessageParty.message_id.in_([r.id for r in ours])).all():
         parts[mid].add(oid)
-    by_topic: dict[str, list[tuple[datetime, int, int, set[int]]]] = defaultdict(list)
+    by_topic: dict[str, list[tuple[datetime, int, int, set[int], bool]]] = defaultdict(list)
     for r in ours:
+        reaches_out = dc.channel(r.channel).outside or not (r.body or "").strip()
         by_topic[dc.topic(r.subject)].append(
-            (_aware(r.at), r.id, r.sender_object_id, parts[r.id] | {r.sender_object_id}))
+            (_aware(r.at), r.id, r.sender_object_id, parts[r.id] | {r.sender_object_id},
+             reaches_out))
+    staff = {oid for (oid,) in db.query(UserProfile.object_id).filter(
+        UserProfile.object_id.in_({m.sender_object_id for m in msgs}),
+        UserProfile.role.in_(STAFF_ROLES)).all()}
     done: set[int] = set()
     for m in msgs:
         at = _aware(m.at)
         own = m.sender_object_id in roles.get(m.id, {}).get("to", [])
-        for r_at, r_id, r_sender, who in by_topic.get(dc.topic(m.subject), []):
+        for r_at, r_id, r_sender, who, reaches_out in by_topic.get(dc.topic(m.subject), []):
             later = r_at > at or (r_at == at and r_id > m.id)
             asker = r_sender == m.sender_object_id and not own
-            if r_id != m.id and later and not asker and m.sender_object_id in who:
+            heard = reaches_out or m.sender_object_id in staff
+            if r_id != m.id and later and not asker and heard and m.sender_object_id in who:
                 done.add(m.id)
                 break
     return done

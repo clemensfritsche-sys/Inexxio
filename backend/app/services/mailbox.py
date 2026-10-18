@@ -7,8 +7,8 @@ Drei Dinge, und jedes an genau einer Stelle:
   und ►►► **ihre Kontakt-E-Mail IST seine Adresse** ◄◄◄ – gesetzt allein durch das
   Verbinden, geleert allein durch das Trennen; ein Eingabefeld dafür gibt es nicht. So
   kann die Website nie eine Adresse zeigen, über die nichts hinausgeht und nichts
-  hereinkommt. Verbunden wird es am **Firmen-Datensatz** (nur ein Admin), ein
-  **persönliches** am eigenen Datensatz (nur sein Besitzer).
+  hereinkommt. Verbunden wird es am **Firmen-Datensatz** (nur ein Admin). **Persönliche
+  Postfächer gibt es nicht** – im Kommunikationstool ist jeder Benutzer gleich.
 * **Abgleichen** (``sync_all``): neue Mails seit dem letzten Stand (Gmail ``history``)
   werden zu Nachrichten. Der Absender wird einer Person zugeordnet – **unbekannte werden
   angelegt** (ohne Anmeldekonto: meldet sie sich später mit dieser Adresse an, übernimmt
@@ -50,7 +50,7 @@ from sqlalchemy.orm import Session
 from ..core.config import get_settings
 from ..domain import communication as dc
 from ..models import Mailbox, Message, MessageParty, UserProfile
-from .people import STAFF_ROLES, by_email, normalize_email
+from .people import by_email, normalize_email
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -114,11 +114,7 @@ def address_of(db: Session, channel: str) -> str:
     if dc.company_of(channel) is not None:
         return company_address(db, channel)     # leer = (noch) kein Postfach verbunden
     mb = active(db, channel)
-    if mb is not None:
-        return mb.address
-    owner = dc.owner_of(channel)
-    u = db.query(UserProfile).filter(UserProfile.object_id == owner).first() if owner else None
-    return normalize_email(u.email) if u else channel
+    return mb.address if mb is not None else channel
 
 
 def _ours(db: Session) -> dict[str, Optional[int]]:
@@ -134,10 +130,8 @@ def _ours(db: Session) -> dict[str, Optional[int]]:
 # ---------------------------------------------------------------------------
 
 def may_connect(actor: UserProfile, channel: str) -> bool:
-    """Ein Unternehmens-Postfach verbindet ein Admin, ein persönliches nur sein Besitzer."""
-    if dc.company_of(channel) is not None:
-        return actor.role == "admin"
-    return actor.role in STAFF_ROLES and dc.owner_of(channel) == actor.object_id
+    """Ein Postfach gibt es nur je eigener Gesellschaft – und verbinden darf es ein Admin."""
+    return dc.company_of(channel) is not None and actor.role == "admin"
 
 
 def _assert_may(db: Session, actor: UserProfile, channel: str) -> None:
@@ -147,8 +141,7 @@ def _assert_may(db: Session, actor: UserProfile, channel: str) -> None:
         raise HTTPException(404, detail=f"«{dc.company_of(channel)}» ist keine eigene "
                                         f"Gesellschaft – nur sie hat ein Postfach.")
     if not may_connect(actor, channel):
-        raise HTTPException(403, detail="Das Unternehmens-Postfach verbindet ein Admin, "
-                                        "ein persönliches nur sein Besitzer.")
+        raise HTTPException(403, detail="Das Postfach einer Gesellschaft verbindet ein Admin.")
 
 
 def _redirect_uri() -> str:
@@ -178,8 +171,7 @@ def connect_url(db: Session, channel: str, actor: UserProfile) -> str:
     if not ready():
         raise HTTPException(404, detail="Es ist keine Postfach-Anbindung eingerichtet.")
     _assert_may(db, actor, channel)
-    hint = (company_address(db, channel) if dc.company_of(channel) is not None
-            else normalize_email(actor.email))
+    hint = company_address(db, channel)
     state = _sign({"c": channel, "u": actor.object_id, "exp": time.time() + STATE_TTL})
     return AUTH_URL + "?" + urlencode({
         "client_id": get_settings().google_client_id, "redirect_uri": _redirect_uri(),
@@ -545,12 +537,7 @@ def _attachments(payload: dict[str, Any]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
-    """Hinaus geht nur, was ein verbundenes Postfach hat – und ein persönliches nur mit
-    seinem Besitzer als Absender."""
-    owner = dc.owner_of(channel)
-    if owner is not None and owner != sender.object_id:
-        raise HTTPException(400, detail=f"Über das Postfach von «{owner}» schreibt nur "
-                                        f"sein Besitzer.")
+    """Hinaus geht nur, was ein verbundenes Postfach hat."""
     mb = active(db, channel)
     if mb is None or mb.problem:
         raise HTTPException(400, detail=f"Das Postfach «{address_of(db, channel)}» ist nicht "
@@ -652,14 +639,10 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
 
 def status(db: Session, actor: UserProfile, company_id: Optional[int] = None
            ) -> list[dict[str, Any]]:
-    """Das Postfach, um das es an dieser Stelle geht: am Firmen-Datensatz das der
-    Gesellschaft (nur eine eigene hat eines), sonst das eigene. Je mit Adresse, Zustand
-    und ob dieser Betrachter verbinden darf."""
-    if company_id is not None:
-        keys = [dc.company(company_id)] if company(db, dc.company(company_id)) else []
-    else:
-        keys = [dc.personal(actor.object_id)] if (
-            actor.role in STAFF_ROLES and actor.object_id) else []
+    """Das Postfach einer Gesellschaft (nur eine eigene hat eines) – mit Adresse, Zustand
+    und ob dieser Betrachter verbinden darf. Ohne Gesellschaft: keines."""
+    keys = [dc.company(company_id)] if (
+        company_id is not None and company(db, dc.company(company_id))) else []
     out = []
     for key in keys:
         mb = active(db, key)

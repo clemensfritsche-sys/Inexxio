@@ -24,12 +24,10 @@ class ChannelOut(BaseModel):
     #: ``email`` · ``phone`` · ``internal`` – bestimmt allein das Symbol.
     kind: str
     outside: bool
-    #: Ein Postfach (Unternehmen oder persönlich)? Dann ist ``label`` seine Adresse.
+    #: Das Postfach einer eigenen Gesellschaft? Dann ist ``label`` seine Adresse.
     mail: bool = False
-    #: Ein persönliches Postfach? Dann schreibt nur sein Besitzer darüber.
-    personal: bool = False
-    #: Für wen das Postfach steht – die Gesellschaft («Inexxio AG») bzw. der Mitarbeiter
-    #: hinter einem persönlichen. Ein Verlauf nennt damit nie eine nackte Adresse.
+    #: Für wen das Postfach steht – die Gesellschaft («Inexxio AG»). Ein Verlauf nennt
+    #: damit nie eine nackte Adresse.
     name: Optional[str] = None
 
 

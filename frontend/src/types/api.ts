@@ -1464,8 +1464,8 @@ export interface paths {
         };
         /**
          * Mailboxes
-         * @description Mit ``company`` das Postfach dieser (eigenen) Gesellschaft, sonst das eigene –
-         *     Adresse, Zustand, darf ich verbinden?
+         * @description Das Postfach dieser (eigenen) Gesellschaft – Adresse, Zustand, darf ich verbinden?
+         *     Persönliche Postfächer gibt es nicht; ohne ``company`` ist die Liste leer.
          */
         get: operations["mailboxes_api_v1_erp_messages_mailboxes_get"];
         put?: never;
@@ -2032,11 +2032,6 @@ export interface components {
              * @default false
              */
             mail: boolean;
-            /**
-             * Personal
-             * @default false
-             */
-            personal: boolean;
             /** Name */
             name?: string | null;
         };
@@ -6437,6 +6432,7 @@ export interface operations {
             query?: {
                 search?: string;
                 limit?: number;
+                staff?: boolean;
             };
             header?: never;
             path?: never;

@@ -451,6 +451,7 @@ def article_options(
 def voucher_parties(
     search: str = Query("", max_length=80),
     limit: int = Query(20, ge=1, le=50),
+    staff: bool = Query(False),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(require_employee),
 ):
@@ -465,7 +466,7 @@ def voucher_parties(
     """
     return [
         VoucherParty(object_id=u.object_id or 0, name=u.display_name)
-        for u in voucher_svc.search_parties(db, search=search, limit=limit)
+        for u in voucher_svc.search_parties(db, search=search, limit=limit, staff=staff)
     ]
 
 

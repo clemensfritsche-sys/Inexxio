@@ -2289,6 +2289,16 @@
               "default": 20,
               "title": "Limit"
             }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Staff"
+            }
           }
         ],
         "responses": {
@@ -4018,7 +4028,7 @@
           "communication"
         ],
         "summary": "Mailboxes",
-        "description": "Mit ``company`` das Postfach dieser (eigenen) Gesellschaft, sonst das eigene –\nAdresse, Zustand, darf ich verbinden?",
+        "description": "Das Postfach dieser (eigenen) Gesellschaft – Adresse, Zustand, darf ich verbinden?\nPersönliche Postfächer gibt es nicht; ohne ``company`` ist die Liste leer.",
         "operationId": "mailboxes_api_v1_erp_messages_mailboxes_get",
         "security": [
           {
@@ -5532,11 +5542,6 @@
           "mail": {
             "type": "boolean",
             "title": "Mail",
-            "default": false
-          },
-          "personal": {
-            "type": "boolean",
-            "title": "Personal",
             "default": false
           },
           "name": {
