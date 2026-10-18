@@ -242,32 +242,6 @@
         }
       }
     },
-    "/api/v1/auth/terms-accept": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Accept Terms",
-        "operationId": "accept_terms_api_v1_auth_terms_accept_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserProfileResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/auth/passkeys/register/options": {
       "post": {
         "tags": [
@@ -625,7 +599,7 @@
           "admin"
         ],
         "summary": "Get Public Settings",
-        "description": "Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.\n\nEr steht ohnehin im Browser (auf die Domain eingeschränkt). Was hier früher daneben\nstand (Anschrift, UID, eine erfundene «Inexxio AG» ohne Betreiber), hatte keinen Leser\nmehr: Impressum und Kontaktdaten liefert die Website bzw. ``/public/contact``.",
+        "description": "Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.\n\nEr steht ohnehin im Browser (auf die Domain eingeschränkt). Impressum und\nKontaktdaten liefert die Website bzw. ``/public/contact``.",
         "operationId": "get_public_settings_api_v1_admin_settings_public_get",
         "responses": {
           "200": {
@@ -1030,111 +1004,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/TerritoryMapResponse"
                 }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/users": {
-      "get": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "List Users",
-        "operationId": "list_users_api_v1_admin_users_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/UserProfileResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Users Api V1 Admin Users Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/audit-log": {
-      "get": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Get Audit Log",
-        "operationId": "get_audit_log_api_v1_admin_audit_log_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1,
-              "title": "Page"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Page Size"
-            }
-          },
-          {
-            "name": "table_name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Table Name"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
               }
             }
           },
@@ -1878,61 +1747,6 @@
             }
           }
         }
-      },
-      "patch": {
-        "tags": [
-          "articles"
-        ],
-        "summary": "Update Article",
-        "operationId": "update_article_api_v1_erp_articles__object_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ArticleUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArticleResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/v1/erp/articles/{object_id}/stock": {
@@ -2059,7 +1873,7 @@
           "orders"
         ],
         "summary": "List Orders",
-        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine\nFrage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen\nkönnen. Genau das war einmal nicht so: der Feed fragte nur den Beschaffungs-Beleg,\nalso stand der Auftrag eines **Geldvorgangs** in keiner Liste.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
+        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine\nFrage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen\nkönnen.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
         "operationId": "list_orders_api_v1_erp_orders_get",
         "security": [
           {
@@ -2542,7 +2356,7 @@
           "orders"
         ],
         "summary": "Get Order",
-        "description": "Der Auftrag – und für einen Lieferanten **derselbe, nur sein Modul**.",
+        "description": "Der Auftrag – und für eine Gegenpartei **derselbe, nur ihr Modul**.",
         "operationId": "get_order_api_v1_erp_orders__object_id__get",
         "security": [
           {
@@ -2738,7 +2552,7 @@
           "orders"
         ],
         "summary": "Hold Numbers",
-        "description": "Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).\n\n``sample`` sind die gezogenen Stücke (für jedes ist ein Wertesatz zu erfassen),\n``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz\ngewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern\ndieselbe Anlage mit anderer Vorbelegung.\n\nDie frühere dritte Gruppe ``rest`` ist ersatzlos entfallen (§4.1, Testnotiz #713).\n\nNicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende\nNummern wären – mitgeliefert bei jedem Öffnen.",
+        "description": "Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).\n\n``sample`` sind die gezogenen Stücke (für jedes ist ein Wertesatz zu erfassen),\n``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz\ngewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern\ndieselbe Anlage mit anderer Vorbelegung.\n\nNicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende\nNummern wären – mitgeliefert bei jedem Öffnen.",
         "operationId": "hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get",
         "security": [
           {
@@ -3087,7 +2901,7 @@
           "orders"
         ],
         "summary": "Voucher Transfer Details",
-        "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar\nKilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.\n\n*Ein ``entry``-Parameter stand hier einmal: welche Rechnung gemeint ist. Es gibt\neine, und sie ist der Beleg.*",
+        "description": "**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.\n\nEine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der\nden Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar\nKilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.",
         "operationId": "voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get",
         "security": [
           {
@@ -3215,7 +3029,7 @@
           "instances"
         ],
         "summary": "List Instances",
-        "description": "Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.\n\nDer frühere Filter ``article_object_id`` ist entfallen: «was habe ich von diesem\nArtikel» beantwortet ``GET /erp/articles/{id}/stock``, samt Aufstellung. Zwei Wege\nzu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –\ndieser hatte keinen einzigen Aufrufer.",
+        "description": "Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.\n\n«Was habe ich von diesem Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt\nAufstellung – kein Filter hier.",
         "operationId": "list_instances_api_v1_erp_instances_get",
         "security": [
           {
@@ -4965,7 +4779,7 @@
           "moves": {
             "type": "boolean",
             "title": "Moves",
-            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,\nwas sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nDie Frage reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.",
             "readOnly": true
           },
           "verifies": {
@@ -5139,17 +4953,6 @@
             ],
             "title": "Origin Country"
           },
-          "landed_unit_cost": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Landed Unit Cost"
-          },
           "replaced_by_id": {
             "anyOf": [
               {
@@ -5255,194 +5058,8 @@
         "title": "ArticleStock",
         "description": "**Der Bestand eines Artikels** – die eine Antwort auf «was habe ich davon».\n\nDrei Ebenen in einer Antwort, und keine davon ist ein gespeichertes Feld:\n``states``/``total`` beschreiben **alle** Stücke des Artikels (nicht nur die\nangezeigte Seite), ``instances`` ist eine Seite Instanzen mit je ihrer eigenen\nAufstellung, und die Nummern der Stücke holt die Ebene darunter\n(``GET /erp/instances/{id}/units``) – erst auf Klick, nie auf Vorrat."
       },
-      "ArticleUpdate": {
-        "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "unit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unit"
-          },
-          "serialization": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Serialization"
-          },
-          "size": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Size"
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight Kg"
-          },
-          "material": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Material"
-          },
-          "cad_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cad Url"
-          },
-          "surface": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Surface"
-          },
-          "supplier_article_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supplier Article Number"
-          },
-          "min_order_qty": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Order Qty"
-          },
-          "safety_stock": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Safety Stock"
-          },
-          "is_hazmat": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Hazmat"
-          },
-          "hs_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hs Code"
-          },
-          "origin_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Origin Country"
-          },
-          "expected_updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Updated At"
-          }
-        },
-        "type": "object",
-        "title": "ArticleUpdate",
-        "description": "Teil-Update aus dem Detailfenster. Alle Felder optional."
-      },
       "ArticleValidation": {
         "properties": {
-          "saveable": {
-            "type": "boolean",
-            "title": "Saveable"
-          },
           "missing": {
             "items": {
               "type": "string"
@@ -5453,9 +5070,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "saveable"
-        ],
         "title": "ArticleValidation",
         "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
       },
@@ -6039,7 +5653,7 @@
         },
         "type": "object",
         "title": "CompanySettingsUpdate",
-        "description": "Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).\n\n**Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,\nAktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto\nsind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was\nUID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist\ndie Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen\nmit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.\n\n``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**\n(``sites.website_url`` = die Deployment-Adresse), keine Eingabe."
+        "description": "Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).\n\n**Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.\nZahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),\nMWST-Methode/-Periode kommen mit der Buchhaltung (Phase 3), die sie auswertet.\n\n``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**\n(``sites.website_url`` = die Deployment-Adresse), keine Eingabe."
       },
       "CurrencyOut": {
         "properties": {
@@ -7807,11 +7421,6 @@
             "type": "integer",
             "title": "Deviation Total",
             "default": 0
-          },
-          "waiting_for_return": {
-            "type": "integer",
-            "title": "Waiting For Return",
-            "default": 0
           }
         },
         "type": "object",
@@ -7953,10 +7562,6 @@
       },
       "OrderValidation": {
         "properties": {
-          "saveable": {
-            "type": "boolean",
-            "title": "Saveable"
-          },
           "missing": {
             "items": {
               "type": "string"
@@ -7975,9 +7580,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "saveable"
-        ],
         "title": "OrderValidation",
         "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
       },
@@ -8445,28 +8047,6 @@
             ],
             "title": "Config"
           },
-          "source_article_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Article Id"
-          },
-          "source_version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Version"
-          },
           "waiting_for": {
             "items": {
               "type": "integer"
@@ -8540,7 +8120,7 @@
           "moves": {
             "type": "boolean",
             "title": "Moves",
-            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,\nwas sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nDie Frage reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.",
             "readOnly": true
           },
           "verifies": {
@@ -10441,11 +10021,6 @@
             "title": "Incoterm Place Label",
             "default": ""
           },
-          "incoterm_place_hint": {
-            "type": "string",
-            "title": "Incoterm Place Hint",
-            "default": ""
-          },
           "incoterms": {
             "items": {
               "$ref": "#/components/schemas/IncotermOut"
@@ -10705,18 +10280,6 @@
             ],
             "title": "Lead Days"
           },
-          "agreed_on": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agreed On"
-          },
           "cancelled_on": {
             "anyOf": [
               {
@@ -10740,11 +10303,6 @@
               }
             ],
             "title": "Due Date"
-          },
-          "late": {
-            "type": "boolean",
-            "title": "Late",
-            "default": false
           },
           "charged": {
             "anyOf": [
@@ -10811,17 +10369,6 @@
               }
             ],
             "title": "Open State Tone"
-          },
-          "uncharged": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uncharged"
           },
           "next_payment": {
             "anyOf": [
@@ -10971,7 +10518,7 @@
           "amount"
         ],
         "title": "VoucherEntryOut",
-        "description": "**Eine Zahlung** – und nur noch das.\n\nDie Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,\nund sie *ist* der Beleg. Damit sind ``kind`` · ``due_on`` · ``vat`` ·\n``service_date`` · ``reverses``/``reversed`` · ``charge_id`` · ``allocations`` ·\n``reverse_word`` · ``open`` und die drei Zustandsfelder **ersatzlos entfallen** –\njedes von ihnen beschrieb eine Rechnung, die hier keine mehr ist."
+        "description": "**Eine Zahlung** – und nur noch das.\n\nDie Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,\nund sie *ist* der Beleg."
       },
       "VoucherInvoice": {
         "properties": {
@@ -11081,7 +10628,7 @@
         },
         "type": "object",
         "title": "VoucherInvoice",
-        "description": "►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄\n\nHier stand ``VoucherAllocationOut`` und darunter eine Geld-Zeile, die *entweder* eine\nForderung *oder* eine Zahlung war: Betrag, Steuer, Nummer, Datum und Fälligkeit\nstanden damit auf **beiden** Ebenen, und die Oberfläche musste aus einer Liste\nheraussuchen, welche Zeile *die* Rechnung ist.\n\nJetzt ist es **ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort\nauf «gibt es hier eine Rechnung?». Zweimal vorkommen kann sie nicht mehr; niemand\nzählt es, es ist die **Struktur**."
+        "description": "►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄\n\n**Ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort auf «gibt es\nhier eine Rechnung?». Zweimal vorkommen kann sie nicht; niemand zählt es, es ist die\n**Struktur**."
       },
       "VoucherLineOut": {
         "properties": {
@@ -11186,7 +10733,7 @@
           "id"
         ],
         "title": "VoucherLineOut",
-        "description": "**Eine Position** – und es gibt sie in genau dieser einen Form.\n\nSie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile. Beim Vorgänger\ngab es dieselbe Sache dreimal (abgeleitet · je Angebot kopiert · eingefroren), und die\nOberfläche musste über Artikelnummern zuordnen."
+        "description": "**Eine Position** – und es gibt sie in genau dieser einen Form.\n\nSie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile."
       },
       "VoucherParty": {
         "properties": {
@@ -11322,18 +10869,6 @@
             "type": "string",
             "title": "State",
             "default": "angefragt"
-          },
-          "sent_on": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sent On"
           },
           "sent_at": {
             "anyOf": [

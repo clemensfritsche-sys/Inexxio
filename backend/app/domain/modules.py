@@ -11,12 +11,8 @@ nicht. Es wäre darum falsch, beim Anlegen zwei Status-Auswahlen anzubieten: die
 richtige Antwort stünde schon fest, und jede andere wäre ein Prozess, der nicht läuft.
 Die Spalten ``status_before``/``status_after`` bleiben (sie sind der Mechanismus, §4) —
 sie werden nur nicht mehr **gefragt**, sondern von hier gefüllt.
-
-Das Testmodul ist **ersatzlos entfallen**. Es war ein Testvehikel für den Mechanismus;
-den gibt es jetzt echt.
 """
 
-from dataclasses import dataclass
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -36,32 +32,21 @@ BEWEGEN = "bewegen"
 #: ►►► **Das Zahlungsmodul – und es heisst ``beleg``** (Testnotiz #960). ◄◄◄
 #:
 #: Der Schlüssel ist die **Sache** (ein Beleg), die Beschriftung die **Handlung**
-#: («Zahlung»). Er stammt aus der Zeit, als das Vorgängermodul unter ``zahlung`` daneben
-#: lief; das ist gelöscht, der Schlüssel bleibt: er steht in den eingefrorenen Prozessen
-#: laufender Aufträge, und ein Schlüssel ist eine **Adresse**, kein Name – ihn
-#: umzubenennen wäre eine Datenmigration eingefrorener Vorlagen für einen Namen, den
-#: niemand liest.
+#: («Zahlung»). Er steht in den eingefrorenen Prozessen laufender Aufträge, und ein
+#: Schlüssel ist eine **Adresse**, kein Name – ihn umzubenennen wäre eine Datenmigration
+#: eingefrorener Vorlagen.
 BELEG = "beleg"
 
 
 class Module:
     """Ein Modultyp. Was ihn ausmacht: sein Übergang und die Form seiner Konfiguration."""
 
-    #: ►►►  OFFENE ENTSCHEIDUNG – Abweichungsauftrag §5  ◄◄◄
-    #:
     #: **Darf ein Stück diesen Modultyp verlassen, während davor gearbeitet wird?**
     #:
-    #: Eine **globale** Regel wäre entweder zu streng oder zu lasch, denn die Antwort
-    #: hängt am Modul: eine **Datenerfassung** ist reversibel (was noch nicht bestätigt
-    #: ist, existiert nirgends), ein künftiger **Einkauf** oder **Verkauf** hat
-    #: Aussenwirkung – dort liegt eine Bestellung beim Lieferanten bzw. eine Rechnung
-    #: beim Kunden, und ein stilles Herausnehmen wäre ein Beleg, der nicht mehr stimmt.
-    #: Für solche Module ist das Verlassen kein Nebeneffekt, sondern ein eigener Vorgang
-    #: (Storno / Teilstorno).
-    #:
-    #: Bis das entschieden ist, steht der Wert hier – **an genau einer Stelle** – und
-    #: wird von ``process._assert_may_leave`` gelesen. Wer einen Modultyp mit
-    #: Aussenwirkung anlegt, setzt ihn auf ``False`` und bekommt die Sperre geschenkt.
+    #: Heute bei jedem Modul ja – der Wert ist ein bewusster Haken (SYSTEM_LOGIC R7),
+    #: gelesen an genau einer Stelle (``process._assert_may_leave``). Ein Modultyp, bei
+    #: dem das Herausnehmen Aussenwirkung hätte, setzt ihn auf ``False`` – und muss dann
+    #: den Abbruch-Ausgang (§4.4) mitbeantworten, denn der läuft genau darüber.
     units_may_leave: bool = True
 
     #: **Muss die Instanz vor der Eingabe verifiziert werden?** (Scan-Pflicht)
@@ -106,12 +91,8 @@ class Module:
     #: unangetastet, ohne eine Ausnahme zu brauchen.
     terminal: bool = False
 
-    #: **Bewegt dieses Modul die Stücke?** Vorgabe: nein.
-    #:
-    #: Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen
-    #: Modultyp leer war – eine Liste als Bit. Seit die Transportart abgeleitet ist
-    #: (siehe ``buys``), gibt es die Liste nicht mehr, also steht die Frage hier: ehrlich,
-    #: als eine Zeile. Die Oberfläche fragt danach und nie nach dem Modultyp.
+    #: **Bewegt dieses Modul die Stücke?** Vorgabe: nein. Die Oberfläche fragt danach
+    #: und nie nach dem Modultyp.
     moves: bool = False
 
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
@@ -157,16 +138,12 @@ class Module:
         return self.status_after
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
-                     target: Optional[int]) -> Optional["Move"]:
-        """**Bringt dieses Modul die Stücke woandershin?** Vorgabe: nein.
+                     target: Optional[int]) -> Optional[int]:
+        """**Wohin bringt dieses Modul die Stücke?** – die Objektnummer des Halters, oder
+        ``None`` (Vorgabe: es bewegt nichts).
 
-        Eine Methode und eine Antwort. Die Ausführungsstelle bekommt damit entweder eine
-        vollständige Absicht oder ``None`` – und braucht in keinem Fall zu wissen, welcher
-        Modultyp vor ihr steht (dieselbe Bauart wie ``consumption.plan``).
-
-        **Die Transportart ist hier entfallen.** Sie war die zweite Frage an derselben
-        Stelle, und sie ist heute keine Eingabe mehr: eingekauft wurde genau dann, wenn
-        es einen Beleg gibt (``buys``).
+        Eine Methode und eine Antwort. Die Ausführungsstelle braucht damit in keinem Fall
+        zu wissen, welcher Modultyp vor ihr steht (dieselbe Bauart wie ``consumption.plan``).
         """
         return None
 
@@ -316,10 +293,8 @@ class Verbrauch(Module):
     ``Freigegeben`` → (Scan) → ``Im Prozess`` → (Bestätigen) → ``Verbaut``, und beide
     Übergänge stehen als eigene Einträge im Log.
 
-    **Kein Standort, keine Reservierung, keine Stückliste als Tabelle.** Das
-    Vorgängermodul («Ressource») ruhte auf einem Mengenmodell mit Reservierung,
-    Teilentnahme und FIFO-mit-Rest; im Einzelinstanz-Modell fällt das alles weg – ein
-    Stück ist ein Stück. Aus einer 600er-Charge gehen vier Einzelinstanzen auf
+    **Keine Reservierung, keine Stückliste als Tabelle.** Im Einzelinstanz-Modell ist ein
+    Stück ein Stück: aus einer 600er-Charge gehen vier Einzelinstanzen auf
     ``Verbaut``, 596 bleiben stehen.
 
     **Und die Stückliste ist eine Ableitung** (``services/genealogy``): welche Stücke
@@ -431,17 +406,6 @@ class Verbrauch(Module):
         return st.VERBAUT
 
 
-@dataclass(frozen=True)
-class Move:
-    """Was ein Modul am Ort ändern will: **wohin**.
-
-    Das «womit» stand hier einmal daneben. Es ist entfallen, weil es keine zweite Angabe
-    ist: eingekauft wurde genau dann, wenn es einen Beleg gibt (``Module.buys``).
-    """
-
-    target: int
-
-
 class Bewegen(Module):
     """Einzelinstanzen an einen **Halter** bringen (``services/places``).
 
@@ -503,7 +467,7 @@ class Bewegen(Module):
         return self._object_id(value)
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
-                     target: Optional[int]) -> Move:
+                     target: Optional[int]) -> int:
         """Wohin geht es – und ist das mit der Definition vereinbar?"""
         planned = (config or {}).get(self.TARGET)
         scanned = self._as_object_id(target)
@@ -521,25 +485,19 @@ class Bewegen(Module):
                 detail=("Dieses Modul hat kein festes Ziel – ohne gescannten Zielort "
                         "steht nicht fest, wohin die Stücke gebracht wurden."),
             )
-        return Move(target=int(goal))
+        return int(goal)
 
 
 class Beleg(Module):
     """►►► **Geld mit einer zweiten Partei — als Beleg gedacht.** ◄◄◄
 
-    Der Neuaufbau des Zahlungsmoduls (``docs/neuaufbau-zahlungsmodul.md``). Fachlich
-    dasselbe wie sein Vorgänger – die Einsicht, dass der kleinste gemeinsame Nenner von
-    Einkauf, Verkauf, Spedition, Miete, Lohn und Vorauszahlung **nicht die Ware** ist,
-    sondern Geld mit einer zweiten Partei –, in einer Datenform, die dazu passt:
+    Der kleinste gemeinsame Nenner von Einkauf, Verkauf, Spedition, Miete, Lohn und
+    Vorauszahlung ist **nicht die Ware**, sondern Geld mit einer zweiten Partei
+    (``docs/neuaufbau-zahlungsmodul.md``). Die Datenform dazu:
 
     * der **Angebotsspiegel** ist eine Tabelle, keine Liste an einem Feld,
     * die **Position** gibt es in **einer** Form statt in dreien,
     * ein **Verb** wird an **einer** Stelle deklariert statt an vieren.
-
-    **Es fasste das alte Modul an keiner Stelle an** (``domain/voucher`` statt
-    ``domain/deal``), und das war der Sinn: als ``zahlung`` gelöscht wurde (Testnotiz
-    #960), war hier **keine Zeile** zu ändern – dieselbe Regel, die schon beim Löschen
-    von «Beschaffen» und «Verkauf» null Zeilen gekostet hat.
 
     ## Zwei Angaben, sonst nichts
 

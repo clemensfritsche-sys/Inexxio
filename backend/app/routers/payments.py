@@ -1,9 +1,8 @@
 """**Die eine Tür, durch die der Zahlungsdienst hereinruft.**
 
 Ein Endpunkt, keine Anmeldung, eine Signaturprüfung. Er schreibt **eine Zeile Geld**
-(``services/payments.record``) und sonst nichts – er erzeugt keinen Auftrag, gibt keinen
-frei und ändert keine Stufe. Genau daran hing im Vorgängersystem die halbe Komplexität:
-dort war der Webhook der Ort, an dem Bestellungen entstanden.
+(``voucher.record_payment``) und sonst nichts – er erzeugt keinen Auftrag, gibt keinen
+frei und ändert keine Stufe.
 
 Er steht **nicht** im Auftrags-Router, obwohl der Beleg dort lebt: dieser Router ist
 öffentlich, und die Grenze zwischen «angemeldetes Personal» und «ein Fremder mit einer

@@ -6,20 +6,14 @@ sie wie jede andere Rückmeldung.
 
 ## Das ERP nennt Betrag und Währung. Der Dienst kassiert.
 
-Im Vorgängersystem war es umgekehrt – dort stand wörtlich «Stripe ist Quelle der
-Wahrheit», und daraus folgte fast die ganze Komplexität: ``stripe_*``-Snapshot-Spalten an
-vier Tabellen, ein Webhook, der **Aufträge erzeugte**, ein ``CheckoutIntent`` mit
-Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier gibt der Geldvorgang
-Betrag und Währung vor, und der Webhook schreibt **eine Zeile Geld**
-(``voucher.record_payment``).
+Der Geldvorgang gibt Betrag und Währung vor, und der Webhook schreibt **eine Zeile Geld**
+(``voucher.record_payment``) – er erzeugt keinen Auftrag und keine Stufe.
 
 ## ►►► Bezahlt wird BEI UNS, nicht dort ◄◄◄
 
-Vorher war es eine **gehostete Kasse**: ein Link, und der Zahlende stand auf einer fremden
-Seite mit fremdem Namen, fremder Schrift und fremder Adresszeile. Jetzt entsteht hier nur
-eine **Zahlungsabsicht** (``PaymentIntent``), und ihr ``client_secret`` geht an unsere
-eigene Karte im ERP – das Formular ist unseres, die Wörter sind unsere, der Knopf ist
-unserer.
+Keine gehostete Kasse: hier entsteht nur eine **Zahlungsabsicht** (``PaymentIntent``),
+und ihr ``client_secret`` geht an unsere eigene Karte im ERP – das Formular ist unseres,
+die Wörter sind unsere, der Knopf ist unserer.
 
 **Was trotzdem vom Dienst kommt, sind die Eingabefelder selbst** (ein Element in einem
 iframe), und das ist ihr Sinn: so berührt **keine Kartennummer je unseren Server**. Und
@@ -78,28 +72,9 @@ from ..domain import voucher as dm
 from ..models import Order, Voucher
 from . import voucher as voucher_svc
 
-# ►►► **Der Adapter kennt EIN Geld-Modul – als Schnittstelle, nicht als Namen.** ◄◄◄
-#
-# Ein Geld-Modul bietet sechs Funktionen an: ``balance_of`` · ``card_payment`` ·
-# ``refundable_amount`` · ``billing_of`` · ``record_payment`` · ``of_reference``. Diese
-# Datei bekommt es darum **übergeben** und fragt nie, welches es ist.
-#
-# *Es waren einmal sieben: ``open_charges`` und ``open_of`` beantworteten «welche Rechnung
-# ist gemeint und wie viel steht auf ihr offen». Die Frage hat seit dem Umbau genau eine
-# Antwort – der Beleg **ist** die Rechnung –, und eine Frage mit genau einer Antwort
-# stellt man nicht.*
-#
-# Der **Faden zurück** ist ein Schlüssel in den Metadaten der Zahlungsabsicht; er nennt
-# zugleich das Modul. Es waren eine Runde lang zwei (das alte ``deal`` daneben) – und
-# genau deshalb kostete dessen Löschung hier **eine Zeile** (Testnotiz #960).
-MONEY: tuple[tuple[str, Any, Any], ...] = (
-    ("voucher_id", voucher_svc, Voucher),
-)
-
-
-def key_of(svc: Any) -> str:
-    """Unter welchem Schlüssel dieses Modul in den Metadaten steht."""
-    return next(k for k, mod, _ in MONEY if mod is svc)
+#: **Der Faden zurück**: unter diesem Schlüssel steht der Beleg in den Metadaten der
+#: Zahlungsabsicht – darüber findet der Webhook ihn wieder, ohne ``stripe_*``-Spalte.
+META_KEY = "voucher_id"
 
 
 log = logging.getLogger(__name__)
@@ -173,8 +148,7 @@ def _speaking(what: str) -> Iterator[None]:
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
 #: 400 darauf brächte den Dienst nur dazu, es endlos erneut zuzustellen.
 #:
-#: ``payment_intent.succeeded`` ist die Meldung der **eigenen** Kasse – die frühere
-#: ``checkout.session.completed`` gehörte der gehosteten und kommt nie mehr. Sie trägt
+#: ``payment_intent.succeeded`` ist die Meldung der **eigenen** Kasse. Sie trägt
 #: ``amount_received`` und die ``pi_…``-Id, und genau die nennt später auch eine
 #: Erstattung: darum findet ``voucher.of_reference`` den Vorgang ohne eine zweite Spalte.
 PAID = "payment_intent.succeeded"
@@ -208,7 +182,7 @@ def _minor(amount: Decimal, code: str) -> int:
     return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def prepare(db: Session, *, svc: Any, row: Any, order: Order) -> dict[str, Any]:
+def prepare(db: Session, *, row: Voucher, order: Order) -> dict[str, Any]:
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten.** ◄◄◄
 
     Zurück kommt, was **unsere** Karte zum Zeichnen braucht: das ``client_secret`` der
@@ -216,14 +190,8 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order) -> dict[str, Any]:
     Angaben, die wir ohnehin haben, damit niemand sie ein zweites Mal tippt.
 
     **Der offene Betrag, nicht die Zusage**: eine Anzahlung ist längst gebucht, und wer
-    die volle Summe verlangte, kassierte zweimal.
-
-    ►►► **Welche Rechnung gemeint ist, fragt niemand mehr.** ◄◄◄ Hier stand eine
-    Auswahl über die offenen Forderungen des Vorgangs samt einem ``charge_id`` am
-    Aufrufer – aus der Zeit, als ein Beleg mehrere Rechnungen tragen konnte. Seit er
-    **die** Rechnung ist, ist der offene Betrag des Belegs der offene Betrag der
-    Rechnung, und der frühere Fehler («kassiert wurde immer die älteste, egal an welchem
-    Knopf man klickte», #859) kann gar nicht mehr entstehen.
+    die volle Summe verlangte, kassierte zweimal. Welche Rechnung gemeint ist, fragt
+    niemand: der Beleg **ist** die Rechnung.
 
     **Gebucht wird hier nichts.** Diese Funktion ändert am Beleg keine Zeile; die Zahlung
     entsteht, wenn der Dienst sie meldet (``handle_webhook``). Der Browser des Zahlenden
@@ -234,7 +202,7 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order) -> dict[str, Any]:
     Absicht kostet nichts und verfällt dort von selbst.
     """
     stripe = _api()
-    owed = svc.balance_of(db, row).open
+    owed = voucher_svc.balance_of(db, row).open
     if owed <= 0:
         raise HTTPException(
             status_code=409,
@@ -255,14 +223,10 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order) -> dict[str, Any]:
             # sucht man beim Dienst, hierüber findet der Webhook den Beleg – ohne eine
             # ``stripe_*``-Spalte bei uns. Die Rechnungsnummer steht daneben, weil sie im
             # Dashboard lesbar sein soll; **gefunden** wird über den Beleg.
-            metadata={key_of(svc): str(row.id),
+            metadata={META_KEY: str(row.id),
                       "invoice": number, "order": str(order.object_id)},
-            # ►►► **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer.** ◄◄◄
-            #
-            # Sie lautete ``f"{order.name} {order.object_id}"`` – und weil der Name des
-            # Auftrags seine Nummer bereits enthält, stand dort «Auftrag 100000884 100000884».
-            # Zusammengesetzt wird darum **selbst**, aus den Angaben, die eine Aussage haben:
-            # welche Rechnung, welcher Auftrag.
+            # **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer** – selbst
+            # zusammengesetzt (der Auftragsname enthält seine Nummer schon).
             #
             # *Nicht hier: die «Zahlungsbeschreibung in der Abrechnung»
             # (``statement_descriptor``). Das ist der Name, den die **Bank** dem Karteninhaber
@@ -278,11 +242,11 @@ def prepare(db: Session, *, svc: Any, row: Any, order: Order) -> dict[str, Any]:
         "currency": code,
         # **Wofür bezahlt wird** – die Karte nennt den Beleg, nicht nur eine Zahl.
         "invoice": number,
-        "billing": svc.billing_of(db, row),
+        "billing": voucher_svc.billing_of(db, row),
     }
 
 
-def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
+def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
            amount: Optional[str] = None) -> None:
     """►►► **Geld zurück – auf dem Weg, auf dem es gekommen ist** (Testnotiz #860). ◄◄◄
 
@@ -291,13 +255,10 @@ def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
     **negative Zahlung** – die gibt es längst. Eine **Karte** kann nur der Dienst
     zurückgeben, der sie belastet hat; ein Mensch kann sie nicht überweisen.
 
-    *Hier stand eine Zeit lang die Begründung, warum es diese Funktion NICHT gibt («das
-    Dashboard kann es ja»). Sie war richtig, solange niemand danach fragte – ein Knopf
-    ohne Aufrufer ist toter Code. Jetzt gibt es den Aufrufer, und das Argument dreht sich
-    um: wer im Dashboard erstattet, muss das ERP verlassen und dort die Zahlung
-    wiederfinden, die hier eine Zeile mit einer Nummer ist.*
+    Wer im Dashboard des Dienstes erstattet, müsste das ERP verlassen und dort die Zahlung
+    wiederfinden, die hier eine Zeile mit einer Nummer ist.
 
-    **Gebucht wird auch hier nichts.** Der Dienst meldet die Erstattung
+    **Gebucht wird auch hier nichts.** Der Dienst meldet die Erstattung, der Webhook bucht.
     (``charge.refunded``), und der Webhook schreibt die negative Zeile – dieselbe Regel wie
     beim Einziehen, und aus demselben Grund: die Buchung folgt dem Geld, nicht dem Klick.
 
@@ -309,7 +270,7 @@ def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
     («Charge has already been refunded») auf den Bildschirm. Drei Ebenen, und alle drei
     sind nötig, weil jede eine andere Lücke schliesst:
 
-    * **Der Rest** (``svc.refundable_amount``) – die fachliche Wahrheit, sobald die
+    * **Der Rest** (``voucher.refundable_amount``) – die fachliche Wahrheit, sobald die
       Erstattung gebucht ist. Sie schliesst den Knopf.
     * **Der Idempotenz-Schlüssel** – das Fenster davor: zwischen Klick und Buchung liegt
       die Meldung des Webhooks, und in dieser Zeit sieht auch der Server noch nichts.
@@ -324,11 +285,11 @@ def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
     Stand dazwischen gewachsen ist. Ein Schlüssel ohne ihn schluckte die zweite still.
     """
     stripe = _api()
-    entry = svc.card_payment(db, row, entry_id)
+    entry = voucher_svc.card_payment(db, row, entry_id)
     code = cur.assert_code(row.currency)
     # **Der Rest, nicht der Betrag der Zahlung** – eine teilweise erstattete Karte darf
     # nur noch um den Rest zurückgehen.
-    rest = svc.refundable_amount(db, row, entry)
+    rest = voucher_svc.refundable_amount(db, row, entry)
     done = entry.amount - rest
     # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest ein
     # Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser* Währung.
@@ -359,7 +320,7 @@ def refund(db: Session, *, svc: Any, row: Any, entry_id: Optional[int],
         stripe.Refund.create(
             payment_intent=str(entry.reference),
             amount=_minor(back, code),
-            idempotency_key=(f"refund:{key_of(svc)}:{row.id}:{entry.id}"
+            idempotency_key=(f"refund:{META_KEY}:{row.id}:{entry.id}"
                              f":{_minor(done, code)}:{_minor(back, code)}"),
         )
 
@@ -402,28 +363,20 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
     bei einer Teilautorisierung sind das zwei verschiedene Zahlen, und nur die zweite ist
     eine Zahlung.
     """
-    svc, row = _row_of(db, data.get("metadata") or {})
+    row = _row_of(db, data.get("metadata") or {})
     if row is None:
         return "unknown"
     amount = _amount_of(data.get("amount_received"), row.currency)
     if amount <= 0:
         return "ignored"
-    svc.record_payment(
+    voucher_svc.record_payment(
         db, row=row, amount=amount,
         reference=str(data.get("id") or "") or None,
-        # ►►► **Kein Vermerk «Zahlungsdienst»** (Testnotiz #999). ◄◄◄ Er stand als zweite
-        # Angabe neben ``method=card`` – und der Zeile ist damit **zweimal** angesehen,
-        # dass sie über den Dienst kam: einmal als Zahlungsart («Karte», die Angabe, nach
-        # der man sie wiedererkennt) und einmal als Wort daneben. Ein Vermerk ist für das
-        # da, was **sonst nirgends** steht.
+        # **Kein Vermerk**: dass sie über den Dienst kam, sagt die Zahlungsart (#999).
         note=None,
-        # ►►► **Eine Zuordnung braucht es nicht mehr.** ◄◄◄ Hier stand ``charge_id``:
-        # welche Rechnung diese Zahlung meint, samt einer Prüfung, ob es sie noch gibt
-        # (``_still_open``). Seit der Beleg **die** Rechnung ist, gehört die Zahlung
-        # dorthin, wo sie hängt – und zwar auch dann, wenn die Rechnung inzwischen
-        # zurückgenommen wurde: das Geld ist geflossen, ein Ereignis der Aussenwelt macht
-        # man nicht ungeschehen (#842). Der offene Betrag wird dann **negativ** – wir
-        # schulden –, und die Erstattung steht als Handlung da.
+        # Die Zahlung gehört an den Beleg, auch wenn die Rechnung inzwischen
+        # zurückgenommen wurde: das Geld ist geflossen (#842), der offene Betrag wird
+        # dann negativ, und die Erstattung steht als Handlung da.
         # **Wie bezahlt wurde, weiss der Dienst** – und nur er: von Hand erfasst wäre die
         # Karte eine Behauptung ohne Beleg (``dm.MANUAL_METHODS`` weist sie darum ab).
         method=dm.CARD,
@@ -441,16 +394,13 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     """
     intent = str(data.get("payment_intent") or "")
     # **Gesucht wird über die Referenz, nicht über eine Metadate** – eine Erstattung trägt
-    # die Zahlungsabsicht, und die steht an genau einer Zeile im Haus. Gefragt werden
-    # beide Module; wo es die Zeile gibt, gehört sie dem, der sie geschrieben hat.
-    svc, row = next(((mod, found) for _, mod, _model in MONEY
-                     if (found := mod.of_reference(db, intent)) is not None),
-                    (None, None))
+    # die Zahlungsabsicht, und die steht an genau einer Zeile im Haus.
+    row = voucher_svc.of_reference(db, intent)
     if row is None:
         return "unknown"
     booked = 0
     for ref, amount in _refunds(data, intent, row.currency):
-        svc.record_payment(
+        voucher_svc.record_payment(
             db, row=row, amount=-amount,
             # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung
             # zusammen, und die Idempotenz würfe sie weg.
@@ -506,21 +456,12 @@ def _amount_of(value: Any, code: Any) -> Decimal:
     return Decimal(str(value or 0)).scaleb(-cur.minor_units(code))
 
 
-def _row_of(db: Session, meta: dict[str, Any]) -> tuple[Any, Any]:
-    """►►► **Welches Geld-Modul, und welche Zeile?** ◄◄◄
-
-    Der Schlüssel in den Metadaten nennt beides – ``voucher_id``. Damit
-    braucht diese Datei keine Fallunterscheidung nach Modultyp und keine zweite Tabelle:
-    was sie kennt, ist die **Schnittstelle**, nicht der Name.
-    """
-    for key, mod, model in MONEY:
-        try:
-            value = meta.get(key)
-            if value in (None, ""):
-                continue
-            found = db.query(model).filter(model.id == int(value)).first()
-        except (TypeError, ValueError):
-            continue
-        if found is not None:
-            return mod, found
-    return None, None
+def _row_of(db: Session, meta: dict[str, Any]) -> Optional[Voucher]:
+    """Der Beleg, den der Metadaten-Schlüssel nennt – oder ``None``."""
+    try:
+        value = meta.get(META_KEY)
+        if value in (None, ""):
+            return None
+        return db.query(Voucher).filter(Voucher.id == int(value)).first()
+    except (TypeError, ValueError):
+        return None

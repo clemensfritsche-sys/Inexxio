@@ -1,25 +1,18 @@
 """**Der Beleg — Geld mit einer zweiten Partei, als Dokument gedacht.**
 
-Der Fachkern des Prozessschrittmoduls «Zahlung» (``domain/modules.Beleg``). Er steht
-**vollständig für sich**: keine Datenbank, kein Dienst – und **kein Import** aus
-``domain/deal``. Das ist dieselbe Regel, die schon einmal etwas wert war: als
-«Beschaffen» und «Verkauf» gelöscht wurden, war am Geldvorgang keine Zeile zu ändern.
-Hier gilt sie in die andere Richtung – wird das alte Zahlungsmodul gelöscht, ist hier
-keine Zeile zu ändern.
+Der Fachkern des Prozessschrittmoduls «Zahlung» (``domain/modules.Beleg``): keine
+Datenbank, kein Dienst.
 
-## Warum es das gibt — und warum neu
+## Warum es das gibt
 
 Der kleinste gemeinsame Nenner von Einkauf, Verkauf, eingekaufter Spedition, Miete, Lohn,
 Gebühr und Vorauszahlung ist **nicht die Ware**, sondern **Geld mit einer zweiten
-Partei**. Das war die Einsicht des Vorgängers, und sie gilt unverändert.
+Partei**. Die Karte ist darum ein Beleg, in der Ordnung, die ein Beleg seit Jahrhunderten
+hat:
 
-Neu ist die **Form**. Der Vorgänger entstand als Modulkarte und wurde über mehrere Runden
-zu einem Beleg umgeformt; hier ist er von der ersten Zeile an einer:
+    Belegkopf → Positionen → Konditionen → Angebote → Fordern · Begleichen
 
-    Belegkopf → Positionen → Konditionen → Rückläufe → Rechnung & Zahlung → Chronik
-
-Das ist die Ordnung, die ein Beleg seit Jahrhunderten hat, und sie **wächst**: dieselben
-Zeilen eine Stufe weiter, nicht ein zweiter Beleg neben dem ersten.
+Sie **wächst**: dieselben Zeilen eine Stufe weiter, nicht ein zweiter Beleg daneben.
 
 ## Die eine Regel, die es robust macht
 
@@ -34,14 +27,6 @@ geschieht, sagen die Nachbarn – bewegt wird mit «Bewegen», ausgesondert mit 
 derselben Grundhandlungen – Zahlungsziel, Vorauszahlung, Anzahlung mit Schlussrechnung,
 Gutschrift, Erstattung. Für keines gibt es einen Modus: wer eine Folge festschreibt,
 bekommt für jede Abweichung ein ``if``.
-
-## Eine bewusste, befristete Doppelung
-
-Der Steuerkatalog und die Betrags-Mathematik stehen auch in ``domain/deal.py``. Ein
-gemeinsames drittes Modul wäre ein Umbau an Code, der gelöscht werden soll – und würde
-die beiden genau dann koppeln, wenn sie unabhängig sein müssen. **Ein Wächter vergleicht
-die Kataloge**, solange es beide gibt (``test_voucher_module``); er stirbt mit dem alten
-Modul, und danach gibt es wieder genau eine Fassung.
 """
 
 from dataclasses import dataclass
@@ -68,18 +53,10 @@ OUT = "out"
 # Zeile, keine vierte Stufe: eine Zahlung macht aus einer Rechnung keine andere, sie ist
 # reversibel, und sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach.
 #
-# ►►► **Warum die dritte Stufe keine Wiederholung eines alten Fehlers ist.** ◄◄◄
-#
-# Hier standen einmal zwei, und «Abgeschlossen» war als dritte zu Recht entfallen: das war
-# ein **Zustand** in einer Reihe von **Schritten** – man tut nichts, um ihn zu erreichen.
-# Eine Rechnung zu stellen ist das Gegenteil: eine **Handlung mit einem unumkehrbaren
-# Ergebnis** – eine Nummer ist vergeben, die Steuer steht fest, ein Papier existiert.
-# Dieselbe Art Schwelle wie die Zusage.
-#
-# **Und sie ersetzt eine Zeile**: die Forderung war bis hierher ein Datensatz *im* Beleg,
-# mit Betrag, Nummer, Datum, Fälligkeit und Steuer – also eine Kopie des Belegs, der sie
-# enthielt. Jetzt **ist** der Beleg die Rechnung, und «berechnet» ist der Moment, in dem
-# er zu einer wird.
+# **«Berechnet» ist eine Stufe, kein Zustand**: eine Rechnung zu stellen ist eine
+# **Handlung mit unumkehrbarem Ergebnis** – eine Nummer ist vergeben, die Steuer steht
+# fest, ein Papier existiert. Dieselbe Art Schwelle wie die Zusage. Der Beleg **ist** die
+# Rechnung; «berechnet» ist der Moment, in dem er zu einer wird.
 
 OFFER = "offer"
 AGREED = "agreed"
@@ -89,10 +66,6 @@ DONE = "done"
 CANCELLED = "cancelled"
 
 STAGES: tuple[str, ...] = (OFFER, AGREED, BILLED)
-
-#: **Ab hier ist eine zweite Partei gebunden.** Davor darf man frei ändern; ab hier ist
-#: eine Änderung ein Storno – draussen liegt eine Zusage, die jemand gelesen hat.
-BINDING = AGREED
 
 # ---------------------------------------------------------------------------
 # ►►► DER ANGEBOTSSPIEGEL — der Vorgang hat ZWEI Parteien ◄◄◄
@@ -107,22 +80,17 @@ BINDING = AGREED
 # zugesagt wurde – ein Zustand ist eine Folge.
 ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaehlt"
 
-QUOTE_STATES: tuple[str, ...] = (ASKED, QUOTED, DECLINED, CHOSEN)
-
 # ---------------------------------------------------------------------------
-# ►►► DIE GELD-ZEILEN — nur noch EINE Art: die ZAHLUNG ◄◄◄
+# ►►► DIE GELD-ZEILEN — eine Art: die ZAHLUNG ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# Hier standen zwei (``CHARGE`` · ``PAYMENT``), und die erste war die **Forderung**. Sie
-# ist keine Zeile mehr, sondern der **Beleg selbst** – mit Nummer, Datum, Fälligkeit,
-# Betrag und eingefrorener Steuer. Damit kann es sie nicht zweimal geben, und «eine
-# Rechnung je Modul» ist keine Regel mehr, die jemand durchsetzt, sondern die Struktur.
+# Die **Forderung** ist keine Zeile, sondern der **Beleg selbst** – mit Nummer, Datum,
+# Fälligkeit, Betrag und eingefrorener Steuer. Damit kann es sie nicht zweimal geben, und
+# «eine Rechnung je Modul» ist keine Regel, die jemand durchsetzt, sondern die Struktur.
 #
-# Übrig bleibt die **Zahlung**: eine Zeile Geld am Beleg, negativ = Erstattung. Ein
-# ``kind`` daneben wäre ein Feld mit genau einem Wert.
-#
-# ►►► **Und damit gibt es keine Gegenbuchung mehr** – die Korrektur ist ein **eigener
-# Beleg** in einem eigenen Modul (``corrects_id``), dort, wo der Vorfall passiert. ◄◄◄
+# Eine Geld-Zeile ist eine **Zahlung** am Beleg, negativ = Erstattung. Eine Gegenbuchung
+# gibt es nicht: die Korrektur ist ein **eigener Beleg** in einem eigenen Modul
+# (``corrects_id``), dort, wo der Vorfall passiert.
 
 # ---------------------------------------------------------------------------
 # ►►► WER DEN PREIS NENNT ◄◄◄
@@ -170,14 +138,11 @@ CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 #: Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
 #: Eine Logik für alles, Komplexität und If/Else verringern.»*
 #:
-#: Bis hierher standen die Beschriftungen **nur, wo sich die beiden unterscheiden**, und
-#: **nur** auf der Gegenseite. Das waren zwei Bedingungen für eine Frage, die ein Beleg
-#: immer gleich beantwortet: *wohin die Rechnung, wohin die Ware.* Steht nur eine Anschrift
-#: da, ist die Antwort «an dieselbe» – und die auszusprechen ist keine Doppelung, sondern
-#: die Auskunft; sie wegzulassen hiess, den Leser raten zu lassen, welche der beiden Fragen
-#: die eine Zeile beantwortet.
+#: Ein Beleg beantwortet immer dieselben zwei Fragen: *wohin die Rechnung, wohin die
+#: Ware.* Steht nur eine Anschrift da, ist die Antwort «an dieselbe» – und die
+#: auszusprechen ist keine Doppelung, sondern die Auskunft.
 #:
-#: Erfunden wird weiterhin nichts: die zweite Zeile entsteht aus Angaben, die am Benutzer
+#: Erfunden wird nichts: die zweite Zeile entsteht aus Angaben, die am Benutzer
 #: stehen (Rechnungsadresse ≠ Hauptadresse). Wo **gar keine** Anschrift dasteht, gibt es
 #: auch keine Beschriftung – dort sagt die Seite, dass sie fehlt.
 #:
@@ -186,12 +151,9 @@ CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 #:
 #: ►►► **Und die zweite Beschriftung hängt an der ROLLE** (Testnotiz #979). ◄◄◄
 #:
-#: *«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse oder
-#: so? Etabliere hier korrektes.»* – Richtig gesehen: «Lieferadresse» heisst *wohin
-#: geliefert wird*, und beim **Leistungserbringer** stand damit an seiner eigenen Adresse,
-#: man möge ihm dorthin liefern – während er derjenige ist, der liefert. Von seiner Seite
-#: aus ist es die Adresse, von der die Ware **abgeht**: im Handel, in der Logistik und im
-#: Zoll heisst sie **Versandadresse** (der Versender ist die Gegenrolle des Empfängers).
+#: «Lieferadresse» heisst *wohin geliefert wird*. Beim **Leistungserbringer** ist es die
+#: Adresse, von der die Ware **abgeht**: im Handel, in der Logistik und im Zoll heisst sie
+#: **Versandadresse** (der Versender ist die Gegenrolle des Empfängers).
 #:
 #: **Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
 #: «Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage – *welche Anschrift
@@ -204,24 +166,19 @@ SHIPPING_FROM_LABEL = "Versandadresse"
 
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
-#: ►►► **Die Nummer steht NEBEN dem Namen** (Testnotiz #940) – und braucht darum keine
-#: eigene Beschriftung mehr: «Name Nummer» ist die Form, in der dieses Haus einen
-#: Datensatz nennt (#933). Die frühere eigene Zeile mit dem Mikro-Label «Nr.» ist
-#: ersatzlos entfallen; sie stand vier Zeilen unter dem Namen, zu dem sie gehört.
+#: Die Nummer steht **neben** dem Namen und braucht keine eigene Beschriftung: «Name
+#: Nummer» ist die Form, in der dieses Haus einen Datensatz nennt (#933/#940).
 
-#: Was man an der Schwelle tut: das **Angebot** annehmen – der Auftrag ist das Ergebnis.
-#: ►►► **«Offerte annehmen»** (Testnotiz #966). ◄◄◄ *«Einheitliches Wording.»* – Der Beleg
-#: heisst in dieser Richtung «Offerte» (``stage_labels``), und der Knopf nahm bis hierher
-#: ein «Angebot» an, das auf dem Papier nirgends steht. Es ist **ein** Wort, weil es in
-#: beiden Richtungen dasselbe tut; wie der Beleg heisst, sagt die Stufe.
+#: Was man an der Schwelle tut: die **Offerte** annehmen – der Auftrag ist das Ergebnis
+#: (#966). **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
 AGREE_VERB = "Offerte annehmen"
 #: Was man tut, wenn nichts mehr davorsteht. Ein *Vorgang* ist dieser Beleg – das Wort
 #: verwechselt sich mit nichts, «Auftrag erledigt» meinte den ERP-Datensatz.
 FINISH_VERB = "Vorgang abschliessen"
 #: Die eine Gegenhandlung.
 UNDO = "Auftrag stornieren"
-#: ►►► **Und im Angebot heisst es anders** (Testnotiz #957). ◄◄◄ Vor der Zusage ist kein
-#: Auftrag da, den man stornieren könnte – hinausgegangen ist ein Angebot. Das Wort hängt
+#: **Im Angebot heisst es anders** (#957): vor der Zusage ist kein Auftrag da, den man
+#: stornieren könnte – hinausgegangen ist ein Angebot. Das Wort hängt
 #: damit an der **Stufe**, nicht an der Richtung: in beiden Richtungen bricht man denselben
 #: Vorgang ab, und ein Wert je Richtung wäre einer, den man falsch setzen kann.
 UNDO_AT = {OFFER: "Vorgang abbrechen", AGREED: UNDO, BILLED: UNDO}
@@ -238,19 +195,10 @@ def undo_word(stage: str) -> str:
 # *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend – denn
 # am Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»* (Testnotiz #1055)
 #
-# **Und das war die Grundursache von drei Meldungen auf einmal.** Ein Korrekturbeleg trug
-# bis hierher einen **negativen** Betrag (``bill`` drehte das Vorzeichen), und drei Leser
-# fragen «ist der Betrag grösser als null?» – bei einer Gutschrift ist er das nie:
-#
-# * ``pay_online`` verlangt ``open > 0`` → der Zahlungsdienst verschwand (#1054),
-# * ``next_payment`` ebenso → das Feld blieb leer, und man musste **−43.24** tippen (#1055),
-# * ``settled`` fragt ``paid >= agreed`` → ``−43.24 >= +43.24`` ist **nie** wahr, und das
-#   Modul liess sich bei Saldo 0 nicht abschliessen (#1056).
-#
-# ►►► **Die Regel, die alle drei auflöst: der Betrag ist eine MENGE.** ◄◄◄ Wohin das Geld
-# fliesst, sagt der Beleg – mit seiner **Richtung** und mit der Frage, ob er **mindert**.
-# Damit stimmen die drei Leser **unverändert**: es wird nichts gebaut, vier Sonderfälle
-# fallen weg (die drei oben plus der Vorzeichen-Vergleich in ``invoice_state``).
+# **Der Betrag ist eine MENGE.** Wohin das Geld fliesst, sagt der Beleg – mit seiner
+# **Richtung** und mit der Frage, ob er **mindert**. Darum stimmen alle Leser, die «ist der
+# Betrag grösser als null?» fragen (``pay_online``, ``next_payment``, ``settled``,
+# ``invoice_state``), auch an einer Gutschrift – ohne Sonderfall (#1054–#1056).
 #
 # **Das Minus verschwindet nicht, es bekommt einen Ort**: die **Buchhaltung** sieht eine
 # Gutschrift negativ, und sie leitet das aus ``corrects_id`` ab – an **einer** Stelle, wenn
@@ -265,10 +213,8 @@ def undo_word(stage: str) -> str:
 INVOICE_NOUN = "Rechnung"
 CREDIT_NOUN = "Gutschrift"
 #: Was man mit ihm tut: **wir** stellen ihn aus ↔ wir schreiben einen **fremden** ab.
-#: Bis hierher standen dafür zwei fertige Sätze (``CHARGE_ISSUE``/``CHARGE_RECORD``) – mit
-#: der Gutschrift wären es vier geworden. Zusammengesetzt sind es **zwei Bits**, und die
-#: Fuge ist ein Leerzeichen vor einem Infinitiv: das ist in allen vier Fällen richtiges
-#: Deutsch, anders als eine gerechnete Beugung («Kundeen», #787).
+#: Zusammengesetzt aus **zwei Bits**; die Fuge ist ein Leerzeichen vor einem Infinitiv –
+#: in allen vier Fällen richtiges Deutsch, anders als eine gerechnete Beugung (#787).
 ISSUE_VERB = "stellen"
 RECORD_VERB = "erfassen"
 
@@ -281,9 +227,8 @@ REFUND_NOUN = "Erstattung"
 #: ►►► **Die drei Momente, die der Beleg erzählt** (Testnotiz #1052). ◄◄◄
 #:
 #: *«Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»* Die **Form** dieser
-#: Aussage steht im Frontend (`lib/when.happened`), die **Wörter** stehen hier: sie waren
-#: in die Karte geschrieben, und ein Wächter hat es gemeldet – zu Recht, denn genau so
-#: entsteht der zweite Ort für dasselbe Wort.
+#: Aussage steht im Frontend (`lib/when.happened`), die **Wörter** stehen hier – an einem
+#: Ort für jedes Wort.
 #:
 #: Es sind **Partizipien in einem Satz** («Vor 3 Tagen storniert»), darum klein – und
 #: darum nicht dieselbe Angabe wie `label_of(CANCELLED)` («Storniert»): das ist die
@@ -331,45 +276,26 @@ def inbound(*, collects: bool, minus: bool) -> bool:
 #: Und die dritte Handlung am Geld: sie **auslösen**. «Erfassen» heisst *aufschreiben, was
 #: geschehen ist*; hier geschieht es, und gebucht wird erst, wenn der Dienst es meldet.
 PAY_ONLINE_WORD = "Jetzt bezahlen"
-#: ►►► **«Offen» steht nicht mehr an der Saldo-Zeile** (Testnotiz #997). ◄◄◄ Hier stand
-#: dafür ein eigenes Wort (``OPEN_WORD``); den Zustand trägt jetzt die **Farbe** des
-#: Betrags, und wo ein Wort gebraucht wird (Hover, Guthaben), kommt es aus
-#: ``CHARGE_STATES`` – dieselbe Liste, die auch die einzelne Forderung benennt. Zwei
-#: Literale für dasselbe Wort waren die Stelle, an der eines beim Umbenennen stehenbleibt.
+#: Den Zustand des Saldos trägt die **Farbe** des Betrags (#997); wo ein Wort gebraucht
+#: wird (Hover, Guthaben), kommt es aus ``CHARGE_STATES``.
 
 #: ►►► **ZWEI Fächer statt einer Liste aus Knöpfen.** ◄◄◄
 #:
-#: *«Zu komplex, zu unstrukturiert, zu wirr, zu viele Optionen, die sich gegeneinander
-#: stören.»* – Gezählt: an einer Rechnung standen bis zu sechs gleich aussehende Knöpfe,
-#: und sie bedeuteten **drei** verschiedene Dinge (eine Buchung · eine Korrektur · eine
-#: blosse Auskunft). Dazu standen **zwei Rollen** in einer Zeile: «Rechnung erfassen» ist
-#: unsere Handlung, «Jetzt bezahlen» die des Zahlenden.
-#:
-#: Es sind aber nur **zwei Fragen**, und jede gehört genau einer Seite:
+#: Es sind **zwei Fragen**, und jede gehört genau einer Seite:
 #:
 #: * **Fordern** – *was schuldet uns jemand?* Gehört uns: stellen, stornieren, gutschreiben.
 #: * **Begleichen** – *wie kommt das Geld hierher?* Gehört dem Zahlenden: bar · Überweisung
 #:   · Karte.
 #:
-#: Dazwischen steht die Zeile «Offen». Wer welches Fach bedienen darf, weiss ``can``
-#: längst – es wurde bloss nicht dargestellt. Der frühere gemeinsame Titel
-#: («Rechnung & Zahlung») ist damit entfallen: er fasste zwei Fragen zu einer Überschrift
-#: zusammen, und genau daraus kam die Unordnung.
+#: Dazwischen steht die Zeile «Offen». Wer welches Fach bedienen darf, sagt ``can``.
 CLAIM_TITLE = "Fordern"
 SETTLE_TITLE = "Begleichen"
 
-#: ►►► **EIN Feld stellte ZWEI Fragen – darum sind es jetzt zwei.** ◄◄◄
-#:
-#: *«Bei Einkaufsteilen ist es oft ‹gemäss Spezifikation›, aber wenn ein intern gefertigtes
-#: Teil auswärts nachbearbeitet werden muss, soll dieses Feld dafür genutzt werden … bei
-#: der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es ist
-#: ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
-#:
-#: Und das stimmt, weil die Pflichtangabe je Partner **zwei verschiedene Dinge** meinte:
+#: ►►► **Zwei Fragen, zwei Angaben** (§9.15e). ◄◄◄
 #:
 #: * **Was ist zu tun?** («Härten auf 58 HRC») – eine Eigenschaft des **Moduls**: der Satz
-#:   lautet für jeden Lieferanten gleich, stand aber n-mal da. Er ist darum **eine** Angabe
-#:   am Modul und **freiwillig**: *was* es ist, sagt der Beleg längst über seine Positionen
+#:   lautet für jeden Lieferanten gleich. Er ist darum **eine** Angabe am Modul und
+#:   **freiwillig**: *was* es ist, sagt der Beleg über seine Positionen
 #:   und deren Spezifikation – der Satz ergänzt nur, was ein Mensch weiss. **Leer heisst
 #:   «gemäss Spezifikation»**, also eine vollständige Aussage und keine fehlende Angabe.
 #: * **Wie bestellen?** (seine Artikelnummer, sein Shop-Link) – eine Eigenschaft der
@@ -379,7 +305,6 @@ SETTLE_TITLE = "Begleichen"
 #: Damit steht bei einem Verkauf nur noch: *wem bieten wir an.* Was der Kunde bekommt,
 #: sagen die Positionen; wann und wie geliefert wird, ist Sache des Bewegen-Moduls.
 TASK = "Was ist zu tun?"
-TASK_HINT = "Ergänzung zu den Positionen – leer heisst «gemäss Spezifikation»"
 #: Mehr ist kein Arbeitsauftrag mehr, sondern ein Pflichtenheft – und das gehört an die
 #: Spezifikation des Artikels, nicht auf einen Beleg.
 MAX_TASK = 400
@@ -395,20 +320,11 @@ PARTY_REFERENCE = "Zahlungsreferenz des Partners"
 #: stand «Konditionen», und die Zeilen darunter (Zahlungsfrist, Lieferfrist,
 #: Lieferbedingung) sagen selbst, was sie sind (Testnotiz #926).
 #:
-#: **«Rückläufe» heisst jetzt «Angebote»** (#946): der Abschnitt trägt die Angebote –
-#: unsere hinaus bzw. ihre herein –, und «Rücklauf» beschreibt davon höchstens die
-#: Hälfte. Weglassen wäre das andere gewesen, aber der Abschnitt **ist** ein Schritt:
-#: sein Punkt vor der Überschrift sagt, wo der Beleg steht.
+#: «Angebote» (#946) trägt unsere hinaus bzw. ihre herein; der Abschnitt **ist** ein
+#: Schritt – sein Punkt vor der Überschrift sagt, wo der Beleg steht. *Wann offeriert
+#: wurde* steht an ihm, *wann zugesagt wurde* an der Zeile mit dem Zuschlag (#970).
 GOODS_TITLE = "Positionen"
 QUOTES_TITLE = "Angebote"
-#: ►►► **Eine «Chronik» gibt es nicht mehr** (Testnotiz #970). ◄◄◄
-#:
-#: *«Die Chronik kann hier vollständig und gänzlich entfallen. Ich möchte die Information
-#: dort darstellen, wo sie eigentlich angezeigt werden.»* – Und das ist richtig: sie zählte
-#: **zwei Daten** auf, die beide einen eigenen Ort haben. *Wann offeriert wurde* gehört an
-#: den Abschnitt «Angebote», *wann zugesagt wurde* an die Zeile, bei der zugesagt wurde.
-#: Ein eigener Abschnitt darunter wiederholte sie in anderer Form – und ausgerechnet in
-#: der ärmeren: als nacktes Datum statt als Aussage («vor 3 Tagen»).
 
 # ---------------------------------------------------------------------------
 # ►►► DIE BEIDEN FRISTEN — eine Zahl, und die üblichen Werte haben Namen ◄◄◄
@@ -437,7 +353,7 @@ LEAD_TERM_LABEL = "Lieferfrist"
 
 #: ►►► **Die beiden Zoll-Angaben – so, wie sie am Artikel heissen** (Testnotiz #964). ◄◄◄
 #:
-#: Sie stehen hier, weil ``_assert_complete`` sie **nennen** muss, wenn sie fehlen: «Ohne
+#: Sie stehen hier, weil ``ask_problem`` sie **nennen** muss, wenn sie fehlen: «Ohne
 #: Zolltarifnummer …» ist eine Auskunft, «Ohne hs_code …» eine Fehlermeldung an den
 #: Entwickler. Auf dem Beleg steht die **kurze** Form daneben (`Zolltarif` · `Ursprung`) –
 #: in einer Positionszeile hat der volle Name keinen Platz, und dort sagt der Wert selbst,
@@ -456,15 +372,6 @@ def prepaid(due_days: Optional[int]) -> bool:
     gesprochen, und eine erfundene Sperre wäre schlimmer als keine.
     """
     return due_days == PREPAID_DAYS
-
-
-def term_name(days: Optional[int], terms: tuple[tuple[int, str], ...]) -> Optional[str]:
-    """Wie diese Frist **heisst** – gelesen aus derselben Liste, aus der man sie wählt.
-
-    Ein Wert, den keine Liste kennt, ist die freie Eingabe und hat keinen Namen; der
-    Aufrufer schreibt dann «x Tage».
-    """
-    return dict(terms).get(days) if days is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -517,10 +424,6 @@ def assert_method(value: Any) -> Optional[str]:
 # ►►► STORNO ODER KORREKTUR — zwei Sachverhalte, zwei Wege ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# Hier standen zwei **Wörter für dieselbe Buchung** (``STORNO_WORD``/``CREDIT_WORD``),
-# unterschieden durch eine Zahl: bezahlt ↔ unbezahlt. Das war die Stelle, an der zwei
-# verschiedene Sachverhalte so taten, als wären sie einer:
-#
 # * **Storno** – *diese Rechnung war falsch, sie gilt nicht.* Derselbe Vorgang, kein
 #   neues Geschäft. Das ist ``unbill``: solange der Beleg nicht hinausgegangen ist und
 #   nichts darauf geflossen, wird er zurückgenommen – spurlos nach aussen.
@@ -529,28 +432,15 @@ def assert_method(value: Any) -> Optional[str]:
 #   ein **eigener Beleg in einem eigenen Modul**, mit ``corrects_id`` auf den, den er
 #   mindert – und er steht dort, wo der Vorfall passiert (Retoure → Retourenauftrag).
 #
-# Damit entscheidet niemand mehr zwischen den beiden Wörtern: der **Zeitpunkt** tut es.
-#
-# *Nebenbei behoben: ``CREDIT_WORD`` stand zweimal in dieser Datei («Gutschrift» und, 130
-# Zeilen weiter, «Guthaben»). Die zweite Zuweisung gewinnt beim Laden des Moduls – also
-# hiess der Knopf seit #997 still «Guthaben». Ein Name, der zweimal vergeben wird, ist
-# kein Tippfehler, sondern eine Stelle, an der zwei Bedeutungen denselben Platz haben.*
+# Zwischen den beiden entscheidet kein Mensch: der **Zeitpunkt** tut es.
 REFUND_ONLINE_WORD = "Online erstatten"
 
 #: ►►► **Zwei Handlungen an der Rechnung — stellen, und sie zurücknehmen.** ◄◄◄
 #:
 #: Dieselbe Anatomie wie ``ask``/``unask``: **jede Zusage nach aussen hat ihre
-#: Gegenhandlung an derselben Stelle.**
-#:
-#: *Hier stand als dritte ``ISSUE_WORD`` («Rechnung ist versendet») – ein Knopf, dessen
-#: ganze Wirkung ein Datum war, das niemand brauchte (Testnotiz #1047). Die Fälligkeit
-#: kommt aus dem **Rechnungsdatum**, und ob ein Papier den Briefkasten erreicht hat, weiss
-#: das System ohnehin erst, wenn es die Zustellung selbst erledigt. Bis dahin gilt die
-#: einfachere Aussage: **gestellt ist draussen.***
+#: Gegenhandlung an derselben Stelle.** Und **gestellt ist draussen** (#1047): die
+#: Fälligkeit kommt aus dem Rechnungsdatum, ein «versendet» gibt es nicht.
 UNBILL_WORD = "Rechnung zurücknehmen"
-#: Was an einer zurückgenommenen Zeile steht – sie bleibt als Nachweis, dass die Nummer
-#: vergeben **war**: eine Serie muss lückenlos *belegbar* sein, nicht lückenlos gezählt.
-WITHDRAWN_NOTE = "zurückgenommen"
 
 #: **Der Verweis auf den Beleg, den dieser hier mindert.** Er steht auf dem Papier
 #: (MWSTG Art. 26: die Leistung und das Entgelt müssen eindeutig bestimmbar sein) und ist
@@ -571,11 +461,10 @@ CORRECTS_HINT = ("Welche Rechnung dieser Beleg mindert – sie darf in einem and
 #: *beglichen heisst* (drei Rappen sind keine Mahnung wert); diese hier sagt, bis wohin
 #: man die Differenz **wegbuchen darf**. Zwei Fragen, zwei Zahlen.
 #:
-#: ►►► **Gebucht wird sie als ZAHLUNG mit Vermerk.** ◄◄◄ Sie war eine negative Forderung –
-#: und die gibt es nicht mehr, seit der Beleg selbst die Rechnung ist. Eine Zahlung ist
-#: hier ohnehin definiert als *was den offenen Betrag mindert*, und der Vermerk sagt, dass
-#: kein Geld geflossen ist. Ein dritter Zeilentyp für achtzig Rappen wäre ein Mechanismus
-#: für einen Rundungsfehler.
+#: ►►► **Gebucht wird sie als ZAHLUNG mit Vermerk.** ◄◄◄ Eine Zahlung ist hier definiert
+#: als *was den offenen Betrag mindert*, und der Vermerk sagt, dass kein Geld geflossen
+#: ist. Ein dritter Zeilentyp für achtzig Rappen wäre ein Mechanismus für einen
+#: Rundungsfehler.
 WRITE_OFF_LIMIT = Decimal("1.00")
 WRITE_OFF_WORD = "Differenz ausbuchen"
 WRITE_OFF_NOTE = "Rundungsdifferenz"
@@ -601,9 +490,8 @@ WRITE_OFF_NOTE = "Rundungsdifferenz"
 # da, mit Vorzeichen und in derselben Spalte. Eine eigene Guthaben-Tabelle wäre ein zweites
 # Modell für eine Zahl, die schon dasteht, und sie müsste bei jeder Buchung nachgezogen
 # werden. Zurückgezahlt wird über den Weg, auf dem gezahlt wurde: eine gewöhnliche
-# **negative Zahlung** (bar, Überweisung) bzw. ``refund_online`` (Karte) – beides gibt es
-# längst. Verrechnet wird ein Guthaben **nicht automatisch**: welche Rechnung es mindern
-# soll, weiss nur ein Mensch.
+# **negative Zahlung** (bar, Überweisung) bzw. ``refund_online`` (Karte). Verrechnet wird
+# ein Guthaben **nicht automatisch**: welche Rechnung es mindern soll, weiss nur ein Mensch.
 
 #: **Rundungstoleranz** – darunter gilt eine Forderung als beglichen.
 #:
@@ -629,19 +517,10 @@ def invoice_state(total: Decimal, remaining: Decimal, *,
 
     ``total`` ist ihr Betrag, ``remaining`` was von ihr offen ist.
 
-    ►►► **Eine Funktion, nicht zwei.** ◄◄◄ Hier standen ``charge_state`` (je Forderungs-
-    Zeile) und ``balance_state`` (über den Saldo des Belegs) nebeneinander – zwei
-    Ableitungen mit geteilten Wörtern und geteilter Toleranz, weil ein Beleg mehrere
-    Forderungen tragen konnte und die Summe eine eigene Aussage war. Seit der Beleg **die**
-    Rechnung ist, sind Betrag und Saldo dieselben zwei Zahlen: eine Frage, eine Antwort.
-    Der frühere Saldo-Zustand «Guthaben» ist damit derselbe wie «Überzahlt».
-
-    ►►► **Und sie fragt wieder schlicht «grösser null».** ◄◄◄ Hier stand ein
-    Vorzeichen-Vergleich (*«überzahlt ist, wo Rest und Betrag verschiedene Vorzeichen
-    tragen»*), weil ein **Korrekturbeleg** einen negativen Betrag trug. Seit jede Zahl auf
-    dem Beleg eine **Menge** ist (Testnotizen #1054–#1056), kann der Betrag nicht mehr
-    negativ sein – und der Rest nur dann, wenn **mehr geflossen** ist als gefordert. Das
-    ist genau «überzahlt», und es braucht keine Fallunterscheidung mehr.
+    Der Beleg **ist** die Rechnung, also sind Betrag und Saldo dieselben zwei Zahlen:
+    eine Frage, eine Antwort. Weil jede Zahl auf dem Beleg eine **Menge** ist
+    (#1054–#1056), ist der Rest nur dann negativ, wenn **mehr geflossen** ist als
+    gefordert – das ist genau «überzahlt».
 
     «Teilweise bezahlt» ist die Mitte: etwas ist eingegangen, aber nicht alles. Ohne sie
     sähe eine Rechnung, auf die eine Anzahlung eingegangen ist, genauso aus wie eine, auf
@@ -667,10 +546,8 @@ def _state(key: str) -> dict[str, str]:
 class Direction:
     """**Ein Beleg in EINER Richtung** – alles, was die beiden unterscheidet.
 
-    Acht Felder und **keine Eigenschaft**: was in beiden Richtungen gleich lautet, steht
-    als Konstante über dieser Klasse. Der Vorgänger trug dieselben Wörter als acht
-    Properties, die alle eine Konstante zurückgaben – acht Stellen, an denen jemand eine
-    Verzweigung hätte einbauen können.
+    Nur Felder, **keine Eigenschaft**: was in beiden Richtungen gleich lautet, steht als
+    Konstante über dieser Klasse.
 
     Es steht als **Daten** da und nicht als ``if``, weil eine Verzweigung sich vermehrt:
     die erste ist eine Beschriftung, die zweite eine Regel, und ab der dritten gibt es
@@ -690,10 +567,6 @@ class Direction:
     ask_verb: str
     #: ►►► **Wer den Preis nennt** – ``BY_US`` ↔ ``BY_PARTY``. ◄◄◄
     quoted_by: str
-    #: *Hier stand ``charge_verb`` – «Rechnung stellen» ↔ «Rechnung erfassen». Mit der
-    #: **Gutschrift** wäre es ein vierter fertiger Satz geworden; zusammengesetzt sind es
-    #: zwei Bits (``charge_word``), und die Richtung trägt nur noch eines davon
-    #: (``collects``).*
     #: **Wie die Nummer einer Geld-Zeile entsteht.** ``None`` heisst «wir nummerieren» –
     #: dann gibt es kein Eingabefeld, weder an der Rechnung noch an der Zahlung.
     reference: Optional[str]
@@ -719,15 +592,8 @@ class Direction:
             return "Erledigt"
         return self.stage_labels.get(stage, stage)
 
-    # ►►► **Eine Belegart nennt der Kopf NICHT** (Testnotizen #974/#977). ◄◄◄
-    #
-    # Hier stand ``document_label`` – «welche Belegart ist das?», mit den beiden Ausgängen
-    # auf das Wort der Zusage-Stufe abgebildet, damit im Belegkopf nicht «Erledigt» steht.
-    # Es war die Auslegung einer Ablehnung: #974 hiess *«ich möchte, dass diese Anzeige
-    # verschwindet»*, und #977 hat es wiederholt. Die Angabe hat damit keinen Leser mehr,
-    # und eine Auflösung ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau
-    # abweicht. ``label_of`` bleibt – eine **Fehlermeldung** über die Stufe muss die Stufe
-    # nennen dürfen.
+    # **Eine Belegart nennt der Kopf nicht** (#974/#977); ``label_of`` gibt es, weil eine
+    # **Fehlermeldung** über die Stufe die Stufe nennen darf.
 
 
 #: ►►► **Die eine Liste.** Eine dritte Richtung gibt es nicht – Geld kommt oder geht.
@@ -1098,12 +964,8 @@ def invoice_backfill_sql() -> tuple[str, ...]:
     **Selbstbegrenzend und damit idempotent**: der erste Lauf setzt jede ``charge``-Zeile
     inaktiv, der zweite findet nichts mehr. Eine Reparatur mit einer gepflegten Liste
     veraltet (die Lehre aus Migration ``110``) – diese hier kann es nicht, weil sie ihre
-    eigene Voraussetzung wegnimmt.
-
-    *Hier stand einmal ``issued_on = h.booked_on`` – «was gebucht ist, gilt als
-    hinausgegangen». Die Spalte ist mit ihrem Knopf entfallen (Testnotiz #1047), und mit
-    ihr diese Zeile: sie zu behalten hiesse, dass der Folge-Deploy ihren Drop nicht
-    überlebt – dieses SQL läuft bei **jedem** Start.*
+    eigene Voraussetzung wegnimmt. Es läuft bei **jedem** Start: es darf keine Spalte
+    nennen, deren Drop aussteht (``vouchers.issued_on``).
     """
     return (
         """
@@ -1142,7 +1004,7 @@ def invoice_backfill_sql() -> tuple[str, ...]:
 def magnitude_sql() -> tuple[str, ...]:
     """►►► **Aus einem negativen Beleg wird eine Menge** (Migration ``141``). ◄◄◄
 
-    Bis hierher drehte ``bill`` bei einer Gutschrift das Vorzeichen: der Beleg trug
+    Vor ``141`` drehte ``bill`` bei einer Gutschrift das Vorzeichen: der Beleg trug
     ``−43.24``, seine Steueraufteilung war gespiegelt, und die Erstattung darauf war eine
     **negative** Zahlung. Seit jede Zahl eine **Menge** ist, zeigt dasselbe Geschäft
     positiv – und nur die Buchhaltung dreht es, aus ``corrects_id``.
@@ -1192,9 +1054,6 @@ class Balance:
     Alles abgeleitet. Eine gespeicherte Spalte «offener Betrag» wäre die zweite Wahrheit,
     und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
 
-    ``uncharged`` ist die Zahl, die es ohne die Trennung von Forderung und Geld gar nicht
-    geben könnte: *zugesagt − berechnet*.
-
     Ein **negativer** offener Betrag ist kein Fehler, sondern eine Aussage: dann haben wir
     zu viel bekommen bzw. zu viel gezahlt.
     """
@@ -1204,14 +1063,6 @@ class Balance:
     paid: Decimal
     #: berechnet − bezahlt
     open: Decimal
-    #: zugesagt − berechnet (``None``, solange nichts zugesagt ist)
-    uncharged: Optional[Decimal]
-
-    # ►►► **``next_charge`` ist entfallen.** ◄◄◄ Es schlug vor, *was als nächstes zu
-    # fordern wäre* – eine Zahl, die nur Sinn ergab, solange ein Beleg mehrere Rechnungen
-    # tragen konnte. Es gibt eine, und was auf ihr steht, sagen die Positionen (wo **wir**
-    # den Preis nennen) bzw. die Zusage (wo die Gegenpartei ihn nennt). Ein Vorschlag
-    # daneben wäre eine dritte Quelle für dieselbe Zahl.
 
     @property
     def next_payment(self) -> Optional[Decimal]:
@@ -1265,9 +1116,6 @@ def balance(agreed: Optional[Decimal], charged: Optional[Decimal],
     ``charged`` ist der Betrag der **einen** Rechnung dieses Belegs (``None``, solange
     keine gestellt ist); ``payments`` sind die Zahlungen darauf. Diese Funktion kennt keine
     Datenbank; sie rechnet, und der Dienst liest.
-
-    *Hier stand einmal eine Liste ``(Art, Betrag)`` und eine Summierung je Art – die Art
-    gibt es nicht mehr: es gibt eine Rechnung und n Zahlungen.*
     """
     total = charged or Decimal("0")
     paid = sum(payments, Decimal("0"))
@@ -1276,5 +1124,4 @@ def balance(agreed: Optional[Decimal], charged: Optional[Decimal],
         charged=total,
         paid=paid,
         open=total - paid,
-        uncharged=None if agreed is None else agreed - total,
     )

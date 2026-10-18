@@ -64,11 +64,8 @@ async def list_erp_records(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    # **Auch deaktivierte Personen** – «inaktiv» ist ein **Zustand**, kein Verschwinden.
-    # Genau wie ein inaktiver Artikel im Feed stehen bleibt (rote Badge «Inaktiv»), bleibt
-    # eine ausser Betrieb genommene Person sichtbar: sonst liesse sie sich weder ansehen
-    # noch reaktivieren, und genau dafür brauchte es früher eine **zweite**, nicht
-    # verlinkte Benutzerverwaltung (`/admin/benutzer`, jetzt entfallen).
+    # **Alle Personen**, auch eine alte deaktivierte Zeile: «inaktiv» ist ein Zustand,
+    # kein Verschwinden – sie bleibt ansehbar.
     users = db.query(UserProfile).order_by(UserProfile.object_id).all()
     counts = _passkey_counts(db, [u.id for u in users])
     return [_record(u, counts.get(u.id, 0)) for u in users]

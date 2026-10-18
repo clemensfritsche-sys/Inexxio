@@ -22,7 +22,7 @@ from ..models import (
 )
 from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import (
-    KIND_CAPTURE, KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_SAMPLE, KIND_START, KIND_STEP,
+    KIND_CAPTURE, KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_START, KIND_STEP,
 )
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
@@ -637,11 +637,8 @@ def release(
         for unit, number in pairs:
             # **Darf ein Auftrag dieses Stück greifen?** — vor der Frage, woher es kommt.
             #
-            # Die Prüfung stand einmal nur im ``source is None``-Zweig, galt also nur für
-            # **freie** Stücke. Das war eine Regel aus Versehen: ein Stück in einem
-            # Endzustand hat heute keine offene Zugehörigkeit mehr, also lief es zufällig
-            # immer durch den geprüften Zweig. «Zufällig richtig» ist der Zustand, der
-            # beim nächsten Modul kippt.
+            # Sie gilt für **jedes** Stück, nicht nur für freie – «zufällig richtig» wäre
+            # der Zustand, der beim nächsten Modul kippt.
             problem = pick_problem(unit, number)
             if problem:
                 raise HTTPException(status_code=409, detail=problem)
@@ -758,12 +755,10 @@ def _enter_at_step(db: Session, *, order: Order, step: ProcessStep,
                    units: list[InstanceUnit], actor_id: Optional[int]) -> list[int]:
     """►►► **Der zweite Eintrittspunkt: ein Stück tritt an einem MODUL in den Auftrag.** ◄◄◄
 
-    Bis hierher hing der Eintritt fest am **Start-Objekt**: ``release`` legte die
-    Zugehörigkeiten an und schrieb den ``start``-Eintrag, und es gab keine zweite Stelle,
-    die das konnte. Für ein Modul, das sich sein Material erst holt, wenn es dran ist,
-    war das genau die eine Stelle, die zu verallgemeinern war.
+    Für ein Modul, das sich sein Material erst holt, wenn es dran ist (``release`` kennt
+    nur das Start-Objekt).
 
-    **Verallgemeinert wurde der Punkt, nicht der Mechanismus.** Es ist derselbe Eintritt –
+    **Verallgemeinert ist der Punkt, nicht der Mechanismus.** Es ist derselbe Eintritt –
     dieselbe Zeile in ``order_units``, dasselbe ``start``-Ereignis, derselbe Übergang auf
     ``Im Prozess``, dieselbe Exklusivität (der partielle Unique-Index greift ab jetzt).
     Nur die Antwort auf «und wo steht es dann?» ist eine andere: nicht vor dem ersten
@@ -1056,9 +1051,8 @@ def confirm_step(
                     "status_before": u.status, "status_after": u.status,
                     "payload": {
                         "capture_id": captures[u.id].id,
-                        # **Das Urteil dieses Stücks**, nicht das der Instanz. Hier stand
-                        # einmal das zusammengefasste – damit trug jede Zeile «failed»,
-                        # sobald irgendeines fiel, und der Log log über die Guten.
+                        # **Das Urteil dieses Stücks**, nicht das der Instanz – sonst
+                        # trüge jede Zeile «failed», sobald irgendeines fiel (§9.5).
                         "result": captures[u.id].result,
                         "verification": verification,
                     },
@@ -1083,7 +1077,7 @@ def confirm_step(
     # Statuswechsel gesetzt – ist das Ziel ungültig oder bildet es einen Kreis, hat sich
     # nichts bewegt, und die Prüfung steht nicht unter Zugzwang (§4).
     #
-    # Was dabei passiert ist, reist als Payload in den Log: Herkunft, Ziel, Transportart.
+    # Was dabei passiert ist, reist als Payload in den Log: Herkunft und Ziel.
     # Damit steht die Bewegung dort, wo die Historie ohnehin steht (§7.2) – eine zweite
     # Tabelle daneben wäre eine zweite Wahrheit über denselben Vorgang.
     # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
@@ -1612,13 +1606,9 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
     ``failed`` geht als Vorauswahl in einen ganz gewöhnlichen Auftragsentwurf – **kein
     neuer Mechanismus** (§4.1), nur eine andere Vorbelegung.
 
-    **Die dritte Gruppe ``rest`` ist ersatzlos entfallen** (Testnotiz #713). Sie war die
-    Vorauswahl der «100 %-Kontrolle», und die war kein zweiter Mechanismus, sondern
-    derselbe: ein Abweichungsauftrag über die übrigen Stücke mit der Stichprobe «alle».
-    Zwei Wege zu demselben Ergebnis sind einer zu viel – und der zweite war der
-    schwächere, weil er die Stichprobe der Auflösung stillschweigend festlegte, statt sie
-    den Menschen wählen zu lassen. Wer den ungeprüften Rest behandeln will, legt einen
-    Auftrag an und wählt ihn aus; das ist der eine Weg, den es für alles gibt.
+    **Die 100 %-Kontrolle braucht keine eigene Gruppe** (#713): sie ist ein
+    Abweichungsauftrag über die übrigen Stücke mit der Stichprobe «alle» – der eine Weg,
+    den es für alles gibt.
 
     **Erst auf Klick, nie auf Vorrat.** Keine dieser Listen steht in der Auftrags-Antwort:
     bei einer 6000er-Charge wären es tausende Nummern bei jedem Öffnen des Auftrags. Die
@@ -1922,11 +1912,9 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
 
     *Die zweite Hälfte ist heute ein Gurt neben dem Hosenträger:* eine Einzelinstanz wird
     **nie** deaktiviert (``models/instance_unit``), also ist ``is_active`` hier immer wahr.
-    Der Docstring behauptete früher, ohne diese Bedingung hätte «Abgebrochen» keinen
-    Erzeuger – das stimmt nicht: «Abgebrochen» entsteht, wenn eine Abweichung **alle**
-    Stücke nimmt und die Rückführung gekappt ist (Matrix S49b · S57 · S58 · S59). Die
-    Bedingung bleibt trotzdem stehen, weil sie nichts kostet und die Aussage «das Stück
-    gibt es noch» vollständig macht; sie ist nur keine Erklärung für den Zustand.
+    «Abgebrochen» entsteht, wenn eine Abweichung **alle** Stücke nimmt und die Rückführung
+    gekappt ist (Matrix S49b · S57 · S58 · S59). Die Bedingung bleibt, weil sie nichts
+    kostet und die Aussage «das Stück gibt es noch» vollständig macht.
 
     «Angekommen» heisst: die Zugehörigkeit ist geschlossen **und** das Stück steht vor
     keinem Modul mehr. Eine geschlossene Zeile allein genügt nicht – sie schliesst sich

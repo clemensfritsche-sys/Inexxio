@@ -28,8 +28,7 @@ class ArticleProcessStep(Base, TimestampMixin):
     **Kopie, nicht Verweis.** Bei der Freigabe wird diese Liste in ``process_steps``
     **kopiert** und mit ``Article.process_version`` gestempelt. Ein Verweis hiesse, dass
     eine spätere Artikeländerung rückwirkend laufende Aufträge umschreibt — das
-    widerspricht «eingefroren» (§6.4) und wäre dieselbe Fehlerklasse, die das
-    Vorgängersystem geprägt hat.
+    widerspricht «eingefroren» (§6.4).
     """
 
     __tablename__ = "article_process_steps"

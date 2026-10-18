@@ -5,10 +5,9 @@ Alles, was hier eine Menge nennt, hat sie gezählt – gespeichert ist sie nirge
 
 **Es gibt keinen Schreib-Endpunkt mehr.** Eine Einzelinstanz entsteht ausschliesslich
 mit ihrer Instanz, und die ausschliesslich mit einem Auftrag (Testnotiz #678); und
-gelöscht wird sie nie – ihre Nummer ist eine Identität, keine Position (#679). Die
-früheren drei Wege daneben (Instanz anlegen, Einzelinstanz nachschieben, Einzelinstanz
-deaktivieren) waren Türen, durch die Material ohne Auftrag, ohne Prozess und ohne
-Ereignis in die Welt kam und wieder verschwand.
+gelöscht wird sie nie – ihre Nummer ist eine Identität, keine Position (#679). Jeder
+Weg daneben wäre eine Tür, durch die Material ohne Auftrag, ohne Prozess und ohne
+Ereignis in die Welt käme.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -92,10 +91,8 @@ def list_instances(
 ):
     """Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.
 
-    Der frühere Filter ``article_object_id`` ist entfallen: «was habe ich von diesem
-    Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt Aufstellung. Zwei Wege
-    zu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –
-    dieser hatte keinen einzigen Aufrufer.
+    «Was habe ich von diesem Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt
+    Aufstellung – kein Filter hier.
     """
     q = (
         db.query(Instance)
@@ -162,7 +159,7 @@ def instance_units(
     parts = genealogy.parts_counts(db, [u.id for u in rows])
     # **Wo sie liegen** – aufgelöst je Halter, nicht je Stück (``places.for_units``).
     # 60 Schrauben in einem Regal sind eine Kette; je Zeile aufzulösen wäre die
-    # N+1-Falle, an der die Ortsanzeige des Vorgängers hing.
+    # N+1-Falle.
     places = places_svc.for_units(db, rows)
     return UnitPage(
         units=[_unit_out(instance, u, holders, parts, places) for u in rows],

@@ -1,14 +1,10 @@
 """Personen-Anzeige – **EINE** Stelle für «wie heisst diese Person?».
 
 Die Regel selbst steht am Modell (``UserProfile.display_name``: «Vorname Nachname»
-→ Firma → E-Mail, Notiz #291). Was fehlte, war die eine Stelle, die sie *anwendet*: derselbe
-Zweizeiler lag sechsmal im Code (``sales._user_name``, ``resource._user_name``,
-``document._user_name``, ``orders._supplier_name``, ``article_process._supplier_name``,
-``document_files._user_name``, dazu ``locations._user_label``).
+→ Firma → E-Mail, Notiz #291); hier steht die eine Stelle, die sie *anwendet*.
 
-Das war nicht nur Wiederholung, sondern eine **Falle**: die Varianten schlugen in
-ZWEI verschiedenen Schlüsseln nach – teils über die 9-stellige ``object_id``, teils
-über die interne ``id``. Beides sind Ganzzahlen; wer die falsche Variante erwischt,
+Nachgeschlagen wird in ZWEI verschiedenen Schlüsseln – über die 9-stellige ``object_id``
+oder über die interne ``id``. Beides sind Ganzzahlen; wer die falsche Variante erwischt,
 bekommt lautlos den falschen (oder keinen) Namen. Darum tragen die Funktionen hier
 den Schlüssel **im Namen**.
 """
@@ -25,11 +21,9 @@ from .admin import log_audit
 
 #: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
 #:
-#: ►►► **Das ist die EINE Frage, die die Rolle beantwortet** (Testnotiz #1043). ◄◄◄ Sie
-#: hatte einmal vier Werte; «Lieferant» und «Kunde» standen darunter und waren beide eine
-#: Aussage über **Vorgänge**, nicht über die Person – wer Partner einer Ausgabe ist, ist
-#: dort Lieferant, bei einer Einnahme Kunde, und dieselbe Person kann beides sein. Geblieben
-#: sind ``admin`` · ``employee`` · ``user``: *darf ins ERP* ↔ *darf es nicht*.
+#: ►►► **Das ist die EINE Frage, die die Rolle beantwortet** (Testnotiz #1043). ◄◄◄
+#: ``admin`` · ``employee`` · ``user``: *darf ins ERP* ↔ *darf es nicht*. Lieferant ↔
+#: Kunde ist eine Aussage über **Vorgänge**, nicht über die Person.
 ROLES = ("admin", "employee", "user")
 STAFF_ROLES = ("admin", "employee")
 
@@ -113,7 +107,7 @@ def billing_name(u: Optional[UserProfile], *, firm: bool = True) -> list[str]:
 
 def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
     """Anzeigename über die **interne** Primärschlüssel-Id (Fremdschlüssel-Spalten
-    wie ``supplier_id``, ``customer_id``, ``inspector_id``, ``uploaded_by``)."""
+    wie ``created_by``, ``uploaded_by``)."""
     if not user_id:
         return None
     return name(db.query(UserProfile).filter(UserProfile.id == user_id).first())

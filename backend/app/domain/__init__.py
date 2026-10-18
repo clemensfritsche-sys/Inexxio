@@ -9,5 +9,7 @@ Rest des Systems liest, statt eigene verstreute Tabellen zu pflegen:
   * ``capture_types`` – die Erfassungspunkt-Typen (ein neuer Typ ist eine neue Datei)
   * ``sampling``      – die Stichprobe als EINE Zahl
   * ``chain``         – die Kettenregel (was darf hinter was stehen)
-  * ``procurement``   – die Stufen eines Belegs, unabhängig vom Modul, das ihn auslöste
+  * ``voucher``       – der Beleg: Richtung, Stufen, Steuer, Saldo
+  * ``currency`` · ``incoterms`` · ``uid`` – Währung, Lieferbedingung, Firmennummer
+  * ``communication`` – Kanäle und Regeln der Nachrichten
 """

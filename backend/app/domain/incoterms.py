@@ -73,7 +73,6 @@ _BY_KEY: dict[str, Incoterm] = {t.key: t for t in INCOTERMS}
 LABEL = "Lieferbedingung"
 #: Was neben der Klausel steht. **Ohne ihn ist sie keine Vereinbarung.**
 PLACE_LABEL = "Benannter Ort"
-PLACE_HINT = "Der Ort, auf den sich die Klausel bezieht – z. B. «Rorschach»."
 
 
 def of(key: Optional[str]) -> Optional[Incoterm]:

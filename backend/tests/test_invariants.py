@@ -148,6 +148,19 @@ def test_the_campaign_runs_on_every_push():
         )
 
 
+def _article_patch_routes() -> list[str]:
+    """Jede Route, die einen angelegten Artikel ändert (``PATCH``/``PUT`` am Datensatz)."""
+    from app.main import app as api
+
+    return [
+        f"{sorted(r.methods)} {r.path}"
+        for r in api.routes
+        if getattr(r, "path", "").startswith("/api/v1/erp/articles/{object_id}")
+        and getattr(r, "path", "").count("/") == 5
+        and {"PATCH", "PUT"} & set(getattr(r, "methods", None) or ())
+    ]
+
+
 def test_a_record_goes_out_of_service_on_exactly_one_axis():
     """►►► **Zwei Achsen, die beide «aktiv» heissen — und nur EINE darf gemeint sein.** ◄◄◄
 
@@ -159,8 +172,9 @@ def test_a_record_goes_out_of_service_on_exactly_one_axis():
     Der dauerhafte Schutz ist keine Umbenennung, sondern das **Wegnehmen der zweiten
     Achse, wo sie keine Bedeutung hat**:
 
-    * Am **Artikel** ist ``is_active`` nicht mehr von aussen setzbar (kein Feld in
-      ``ArticleUpdate``) – es gibt genau einen Weg ausser Betrieb, und das ist ``status``.
+    * Am **Artikel** ist ``is_active`` nicht von aussen setzbar (kein Feld in
+      ``ArticleCreate``, kein Änderungs-Endpunkt) – es gibt genau einen Weg ausser
+      Betrieb, und das ist das Ersetzen.
     * An der **Einzelinstanz** wird ``is_active`` nirgends gesetzt: sie wird nie gelöscht
       und nie deaktiviert (``models/instance_unit``). Ihre Filter sind Gurt neben dem
       Hosenträger, keine lebende Regel – und dieser Wächter hält das fest.
@@ -173,11 +187,15 @@ def test_a_record_goes_out_of_service_on_exactly_one_axis():
 
     app = pathlib.Path(__file__).resolve().parents[1] / "app"
 
-    from app.schemas.article import ArticleUpdate
+    from app.schemas.article import ArticleCreate
 
-    assert "is_active" not in ArticleUpdate.model_fields, (
-        "``ArticleUpdate`` nimmt wieder ``is_active`` entgegen – damit gibt es zwei Wege, "
+    assert "is_active" not in ArticleCreate.model_fields, (
+        "``ArticleCreate`` nimmt wieder ``is_active`` entgegen – damit gibt es zwei Wege, "
         "einen Artikel ausser Betrieb zu nehmen, und die Prozesslogik liest den falschen."
+    )
+    assert not _article_patch_routes(), (
+        "Es gibt wieder einen Änderungs-Endpunkt am Artikel – ein angelegter Artikel steht "
+        "fest; eine Änderung ist ein neuer Artikel, der ihn ersetzt."
     )
 
     # Nichts im Prozessbereich deaktiviert eine Einzelinstanz oder eine Instanz.
@@ -280,20 +298,24 @@ def test_out_of_service_is_written_at_exactly_one_place():
 
     Es gibt keinen Schalter, kein Feld und keinen Endpunkt dafür. Der Wächter liest den
     Quelltext, weil genau das die Form ist, in der ein zweiter Weg zurückkommt: eine
-    Zuweisung an ``status`` irgendwo, ein ``status``-Feld in ``ArticleUpdate``, ein
-    ``PATCH``, der ihn durchreicht.
+    Zuweisung an ``status`` irgendwo, ein ``status``-Feld beim Anlegen, ein ``PATCH``, der
+    ihn durchreicht.
 
-    Bug-Form: mit dem alten Knopf meldet er ``ArticleUpdate`` **und** die Zuweisung in
-    ``apply_replacement`` – gegengeprüft.
+    Bug-Form: mit dem alten Knopf meldet er den ``PATCH`` **und** die Zuweisung in
+    ``apply_replacement``.
     """
     import pathlib
     import re
 
-    from app.schemas.article import ArticleUpdate
+    from app.schemas.article import ArticleCreate
 
-    assert "status" not in ArticleUpdate.model_fields, (
-        "``ArticleUpdate`` nimmt wieder einen Status entgegen – damit gibt es den zweiten "
+    assert "status" not in ArticleCreate.model_fields, (
+        "``ArticleCreate`` nimmt wieder einen Status entgegen – damit gibt es den zweiten "
         "Weg zurück, ausser Betrieb zu nehmen."
+    )
+    assert not _article_patch_routes(), (
+        "Es gibt wieder einen Änderungs-Endpunkt am Artikel – damit den zweiten Weg zurück, "
+        "ausser Betrieb zu nehmen."
     )
 
     # **Gesucht wird in den Dateien, die den Artikel besitzen** – und nach der *Form*

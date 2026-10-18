@@ -2,7 +2,6 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, Boolean, Integer, Numeric, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -38,11 +37,9 @@ class Article(Base, TimestampMixin):
         BigInteger, unique=True, nullable=True, index=True
     )
 
-    # **Die Spalte ``status`` ist entfallen** (Testnotiz #773, Migration ``121``). Sie war
-    # die zweite Aussage über dieselbe Sache; jetzt gibt es nur noch ``replaced_by_id``,
-    # und der Zustand fällt daraus heraus – siehe die Eigenschaft ``status`` unten. Nach
-    # der Zwei-Deploy-Regel verliert sie in ``121`` erst ihre ``NOT NULL``-Sperre und
-    # fällt im Folge-Deploy (die Vorgänger-Revision schreibt sie währenddessen noch).
+    # **Kein ``status``-Mapping** (Testnotiz #773): der Zustand fällt aus
+    # ``replaced_by_id`` heraus – siehe die Eigenschaft ``status`` unten. Die Spalte steht
+    # noch in der Datenbank (``NOT NULL`` gelöst, Migration ``121``) bis zu ihrem Drop.
 
     # Versionsstempel des **Erzeugungsprozesses** (``article_process_steps``). Er zählt
     # bei jeder Änderung der Vorlage hoch und wird auf die Kopie im Auftrag geschrieben.
@@ -83,17 +80,11 @@ class Article(Base, TimestampMixin):
     # Versandland – es ist eine eigene Angabe (ISO-2, wie jedes Land im Haus).
     origin_country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
     # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es steht am Artikel, nicht
-    # auf dem Beleg (dort steht seit #916 nur noch, was der Empfänger wirklich braucht).
+    # auf dem Beleg (dort steht nur, was der Empfänger wirklich braucht, #916).
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
-    # Die frühere Erfassungsmaske am Artikel (``capture_fields``) ist entfallen: was
-    # erfasst wird, sagt das **Modul** im Prozess (``process_steps.config``). Am Artikel
-    # war sie eine zweite Stelle für dieselbe Frage – und sie hing an keinem Prozess, man
-    # konnte also an einem Stück erfassen, ohne dass es irgendwo davorstand.
-
-    # Einstandspreis netto/Stück – read-only, aus dem zuletzt bestellten
-    # Beschaffungs-Beleg automatisch zurückgeschrieben (``services/purchase``).
-    landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+    # Was erfasst wird, sagt das **Modul** im Prozess (``process_steps.config``), nicht
+    # der Artikel.
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Artikels (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

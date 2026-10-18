@@ -28,11 +28,16 @@ Modell über die Beziehung. Der Report sagt deshalb, wie oft ein Name in Tests u
 Skripten vorkommt – gelesen wird das Ergebnis, nicht befolgt.
 
 **Frontend · erreichbar ab den Next-Einstiegen** (``page``/``layout``/``not-found``/
-``robots``/``icon``) – statische und dynamische Importe.
+``robots``/``icon``) **und ab den Inseln** – den Dateien, die
+``frontend/scripts/build-islands.mjs`` mit esbuild bündelt (Einstieg und Alias); ohne sie
+stünden die Testnotizen als «unerreichbar» da. Statische und dynamische Importe.
 
 **Frontend · Exporte, die niemand importiert.** ESLints ``no-unused-vars`` sieht nur
 Ungenutztes *innerhalb* einer Datei; ein exportiertes Symbol ist für ihn immer benutzt.
-Genau dort sammelt sich der Rest abgeschaffter Bereiche an.
+Genau dort sammelt sich der Rest abgeschaffter Bereiche an. **Die generierten Typen
+(``types/api.ts``) zählen nicht als Leser**: ein Alias ``export type X =
+components['schemas']['X']`` heisst wie sein Schema – gezählt, wäre jeder solche Alias
+«benutzt», auch wenn ihn niemand importiert.
 """
 
 from __future__ import annotations
@@ -53,6 +58,10 @@ SRC = ROOT / "frontend" / "src"
 OUTSIDE = ("backend/tests", "backend/scripts")
 
 FRONTEND_ENTRY = re.compile(r"src/app/.*(page|layout|not-found|robots|icon)\.(tsx|ts)$")
+#: Der esbuild-Lauf der Inseln – seine ``resolve(ROOT, 'src/…')``-Pfade sind Einstiege.
+ISLANDS_BUILD = ROOT / "frontend" / "scripts" / "build-islands.mjs"
+#: Generiert, nicht geschrieben: liest keine unserer Namen, auch wenn es sie enthält.
+GENERATED = ("frontend/src/types/api.ts",)
 EXPORTED = re.compile(
     r"^export\s+(?:default\s+)?(?:async\s+)?(?:function|const|let|class|type|interface|enum)\s+(\w+)",
     re.M,
@@ -220,6 +229,15 @@ def _resolve_import(spec: str, frm: pathlib.Path, files: dict[str, pathlib.Path]
     return None
 
 
+def _island_entries() -> set[str]:
+    """Die Dateien, die der Insel-Build als Einstieg (oder Alias-Ziel) nennt."""
+    if not ISLANDS_BUILD.exists():
+        return set()
+    found = re.findall(r"""resolve\(\s*ROOT\s*,\s*['"](src/[^'"]+)['"]\s*\)""",
+                       ISLANDS_BUILD.read_text())
+    return {f"frontend/{p}" for p in found}
+
+
 def frontend_reachable() -> tuple[dict[str, pathlib.Path], set[str]]:
     files = _frontend_files()
     edges: dict[str, set[str]] = defaultdict(set)
@@ -232,7 +250,8 @@ def frontend_reachable() -> tuple[dict[str, pathlib.Path], set[str]]:
             if found:
                 edges[key].add(found)
     seen: set[str] = set()
-    stack = [k for k in files if FRONTEND_ENTRY.search(k)]
+    islands = _island_entries()
+    stack = [k for k in files if FRONTEND_ENTRY.search(k) or k in islands]
     while stack:
         key = stack.pop()
         if key in seen:
@@ -250,7 +269,8 @@ def frontend_unimported(files: dict[str, pathlib.Path]) -> dict[str, list[str]]:
             continue                      # Seiten exportieren für Next, nicht für uns
         dead = [
             sym for sym in EXPORTED.findall(text)
-            if not any(re.search(rf"\b{re.escape(sym)}\b", o) for q, o in texts.items() if q != key)
+            if not any(re.search(rf"\b{re.escape(sym)}\b", o) for q, o in texts.items()
+                       if q != key and q not in GENERATED)
         ]
         if dead:
             result[key] = dead
@@ -294,7 +314,8 @@ def main() -> int:
         files, seen = frontend_reachable()
         total += _section(
             "FRONTEND · Dateien, die von keiner Seite aus erreichbar sind",
-            sorted(set(files) - seen),
+            # ``*.d.ts`` deklariert ambient und wird nie importiert – kein Befund.
+            sorted(k for k in set(files) - seen if not k.endswith(".d.ts")),
         )
         unimported = frontend_unimported(files)
         total += _section(

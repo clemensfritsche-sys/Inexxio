@@ -74,23 +74,6 @@ export interface paths {
         patch: operations["change_my_address_api_v1_auth_me_addresses__address_id__patch"];
         trace?: never;
     };
-    "/api/v1/auth/terms-accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Accept Terms */
-        post: operations["accept_terms_api_v1_auth_terms_accept_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/passkeys/register/options": {
         parameters: {
             query?: never;
@@ -278,9 +261,8 @@ export interface paths {
          * Get Public Settings
          * @description Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
          *
-         *     Er steht ohnehin im Browser (auf die Domain eingeschränkt). Was hier früher daneben
-         *     stand (Anschrift, UID, eine erfundene «Inexxio AG» ohne Betreiber), hatte keinen Leser
-         *     mehr: Impressum und Kontaktdaten liefert die Website bzw. ``/public/contact``.
+         *     Er steht ohnehin im Browser (auf die Domain eingeschränkt). Impressum und
+         *     Kontaktdaten liefert die Website bzw. ``/public/contact``.
          */
         get: operations["get_public_settings_api_v1_admin_settings_public_get"];
         put?: never;
@@ -437,40 +419,6 @@ export interface paths {
          *     Standard wiederherstellen. Genau EINE Gesellschaft je Gebiet.
          */
         put: operations["assign_territory_api_v1_admin_territories__area__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Users */
-        get: operations["list_users_api_v1_admin_users_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/audit-log": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Audit Log */
-        get: operations["get_audit_log_api_v1_admin_audit_log_get"];
-        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -681,8 +629,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Article */
-        patch: operations["update_article_api_v1_erp_articles__object_id__patch"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/erp/articles/{object_id}/stock": {
@@ -747,8 +694,7 @@ export interface paths {
          *
          *     **Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine
          *     Frage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen
-         *     können. Genau das war einmal nicht so: der Feed fragte nur den Beschaffungs-Beleg,
-         *     also stand der Auftrag eines **Geldvorgangs** in keiner Liste.
+         *     können.
          *
          *     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
          *     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
@@ -920,7 +866,7 @@ export interface paths {
         };
         /**
          * Get Order
-         * @description Der Auftrag – und für einen Lieferanten **derselbe, nur sein Modul**.
+         * @description Der Auftrag – und für eine Gegenpartei **derselbe, nur ihr Modul**.
          */
         get: operations["get_order_api_v1_erp_orders__object_id__get"];
         put?: never;
@@ -996,8 +942,6 @@ export interface paths {
          *     ``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz
          *     gewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern
          *     dieselbe Anlage mit anderer Vorbelegung.
-         *
-         *     Die frühere dritte Gruppe ``rest`` ist ersatzlos entfallen (§4.1, Testnotiz #713).
          *
          *     Nicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende
          *     Nummern wären – mitgeliefert bei jedem Öffnen.
@@ -1140,9 +1084,6 @@ export interface paths {
          *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
          *     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
          *     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
-         *
-         *     *Ein ``entry``-Parameter stand hier einmal: welche Rechnung gemeint ist. Es gibt
-         *     eine, und sie ist der Beleg.*
          */
         get: operations["voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get"];
         put?: never;
@@ -1197,10 +1138,8 @@ export interface paths {
          * List Instances
          * @description Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.
          *
-         *     Der frühere Filter ``article_object_id`` ist entfallen: «was habe ich von diesem
-         *     Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt Aufstellung. Zwei Wege
-         *     zu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –
-         *     dieser hatte keinen einzigen Aufrufer.
+         *     «Was habe ich von diesem Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt
+         *     Aufstellung – kein Filter hier.
          */
         get: operations["list_instances_api_v1_erp_instances_get"];
         put?: never;
@@ -1837,9 +1776,7 @@ export interface components {
              * Moves
              * @description **Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
              *
-             *     Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-             *     anderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,
-             *     was sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
+             *     Die Frage reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
              */
             readonly moves: boolean;
             /**
@@ -1897,8 +1834,6 @@ export interface components {
             hs_code?: string | null;
             /** Origin Country */
             origin_country?: string | null;
-            /** Landed Unit Cost */
-            landed_unit_cost?: string | null;
             /** Replaced By Id */
             replaced_by_id?: number | null;
             replaced_by?: components["schemas"]["ArticleLink"] | null;
@@ -1938,48 +1873,10 @@ export interface components {
             instances: components["schemas"]["InstanceSummary"][];
         };
         /**
-         * ArticleUpdate
-         * @description Teil-Update aus dem Detailfenster. Alle Felder optional.
-         */
-        ArticleUpdate: {
-            /** Name */
-            name?: string | null;
-            /** Unit */
-            unit?: string | null;
-            /** Serialization */
-            serialization?: string | null;
-            /** Size */
-            size?: string | null;
-            /** Weight Kg */
-            weight_kg?: number | string | null;
-            /** Material */
-            material?: string | null;
-            /** Cad Url */
-            cad_url?: string | null;
-            /** Surface */
-            surface?: string | null;
-            /** Supplier Article Number */
-            supplier_article_number?: string | null;
-            /** Min Order Qty */
-            min_order_qty?: number | string | null;
-            /** Safety Stock */
-            safety_stock?: number | string | null;
-            /** Is Hazmat */
-            is_hazmat?: boolean | null;
-            /** Hs Code */
-            hs_code?: string | null;
-            /** Origin Country */
-            origin_country?: string | null;
-            /** Expected Updated At */
-            expected_updated_at?: string | null;
-        };
-        /**
          * ArticleValidation
          * @description Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen.
          */
         ArticleValidation: {
-            /** Saveable */
-            saveable: boolean;
             /**
              * Missing
              * @description Was noch fehlt – leer heisst freigebbar.
@@ -2171,12 +2068,9 @@ export interface components {
          * CompanySettingsUpdate
          * @description Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
          *
-         *     **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,
-         *     Aktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto
-         *     sind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was
-         *     UID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist
-         *     die Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen
-         *     mit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.
+         *     **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.
+         *     Zahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),
+         *     MWST-Methode/-Periode kommen mit der Buchhaltung (Phase 3), die sie auswertet.
          *
          *     ``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**
          *     (``sites.website_url`` = die Deployment-Adresse), keine Eingabe.
@@ -3132,11 +3026,6 @@ export interface components {
              * @default 0
              */
             deviation_total: number;
-            /**
-             * Waiting For Return
-             * @default 0
-             */
-            waiting_for_return: number;
         };
         /**
          * OrderSummary
@@ -3206,8 +3095,6 @@ export interface components {
          * @description Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen.
          */
         OrderValidation: {
-            /** Saveable */
-            saveable: boolean;
             /**
              * Missing
              * @description Was noch fehlt – leer heisst freigebbar.
@@ -3450,10 +3337,6 @@ export interface components {
             status_after: string;
             /** Config */
             config?: Record<string, never> | null;
-            /** Source Article Id */
-            source_article_id?: number | null;
-            /** Source Version */
-            source_version?: number | null;
             /** Waiting For */
             waiting_for?: number[];
             /** Work */
@@ -3483,9 +3366,7 @@ export interface components {
              * Moves
              * @description **Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
              *
-             *     Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-             *     anderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,
-             *     was sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
+             *     Die Frage reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
              */
             readonly moves: boolean;
             /**
@@ -4430,11 +4311,6 @@ export interface components {
              * @default
              */
             incoterm_place_label: string;
-            /**
-             * Incoterm Place Hint
-             * @default
-             */
-            incoterm_place_hint: string;
             /** Incoterms */
             incoterms?: components["schemas"]["IncotermOut"][];
             /**
@@ -4558,17 +4434,10 @@ export interface components {
             due_days?: number | null;
             /** Lead Days */
             lead_days?: number | null;
-            /** Agreed On */
-            agreed_on?: string | null;
             /** Cancelled On */
             cancelled_on?: string | null;
             /** Due Date */
             due_date?: string | null;
-            /**
-             * Late
-             * @default false
-             */
-            late: boolean;
             /** Charged */
             charged?: string | null;
             /** Paid */
@@ -4581,8 +4450,6 @@ export interface components {
             open_state_label?: string | null;
             /** Open State Tone */
             open_state_tone?: string | null;
-            /** Uncharged */
-            uncharged?: string | null;
             /** Next Payment */
             next_payment?: string | null;
             /**
@@ -4610,10 +4477,7 @@ export interface components {
          * @description **Eine Zahlung** – und nur noch das.
          *
          *     Die Forderung steht eine Ebene höher (``VoucherEmbed.invoice``): es gibt genau eine,
-         *     und sie *ist* der Beleg. Damit sind ``kind`` · ``due_on`` · ``vat`` ·
-         *     ``service_date`` · ``reverses``/``reversed`` · ``charge_id`` · ``allocations`` ·
-         *     ``reverse_word`` · ``open`` und die drei Zustandsfelder **ersatzlos entfallen** –
-         *     jedes von ihnen beschrieb eine Rechnung, die hier keine mehr ist.
+         *     und sie *ist* der Beleg.
          */
         VoucherEntryOut: {
             /** Id */
@@ -4642,14 +4506,9 @@ export interface components {
          * VoucherInvoice
          * @description ►►► **DIE Rechnung dieses Belegs — sie IST der Beleg.** ◄◄◄
          *
-         *     Hier stand ``VoucherAllocationOut`` und darunter eine Geld-Zeile, die *entweder* eine
-         *     Forderung *oder* eine Zahlung war: Betrag, Steuer, Nummer, Datum und Fälligkeit
-         *     standen damit auf **beiden** Ebenen, und die Oberfläche musste aus einer Liste
-         *     heraussuchen, welche Zeile *die* Rechnung ist.
-         *
-         *     Jetzt ist es **ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort
-         *     auf «gibt es hier eine Rechnung?». Zweimal vorkommen kann sie nicht mehr; niemand
-         *     zählt es, es ist die **Struktur**.
+         *     **Ein Objekt oder ``None``** – und ``None`` ist die vollständige Antwort auf «gibt es
+         *     hier eine Rechnung?». Zweimal vorkommen kann sie nicht; niemand zählt es, es ist die
+         *     **Struktur**.
          */
         VoucherInvoice: {
             /** Number */
@@ -4680,9 +4539,7 @@ export interface components {
          * VoucherLineOut
          * @description **Eine Position** – und es gibt sie in genau dieser einen Form.
          *
-         *     Sie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile. Beim Vorgänger
-         *     gab es dieselbe Sache dreimal (abgeleitet · je Angebot kopiert · eingefroren), und die
-         *     Oberfläche musste über Artikelnummern zuordnen.
+         *     Sie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile.
          */
         VoucherLineOut: {
             /** Id */
@@ -4790,8 +4647,6 @@ export interface components {
              * @default angefragt
              */
             state: string;
-            /** Sent On */
-            sent_on?: string | null;
             /** Sent At */
             sent_at?: string | null;
             /** Agreed At */
@@ -5153,26 +5008,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    accept_terms_api_v1_auth_terms_accept_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
                 };
             };
         };
@@ -5723,59 +5558,6 @@ export interface operations {
             };
         };
     };
-    list_users_api_v1_admin_users_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"][];
-                };
-            };
-        };
-    };
-    get_audit_log_api_v1_admin_audit_log_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                table_name?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     resolve_object_api_v1_erp_objects__object_id__get: {
         parameters: {
             query?: never;
@@ -6201,41 +5983,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArticleResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_article_api_v1_erp_articles__object_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ArticleUpdate"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {

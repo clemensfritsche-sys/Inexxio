@@ -127,7 +127,7 @@ class ArticleCreate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    is_hazmat: Optional[bool] = None            # Gefahrgut (reist mit dem Beschaffungs-Beleg)
+    is_hazmat: Optional[bool] = None            # Gefahrgut
     #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
     #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
     #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
@@ -201,89 +201,6 @@ class ArticleCreate(BaseModel):
         return self
 
 
-class ArticleUpdate(BaseModel):
-    """Teil-Update aus dem Detailfenster. Alle Felder optional."""
-
-    # **``status`` steht hier nicht.** Ausser Betrieb geht ein Artikel dadurch, dass ein
-    # Nachfolger ihn ablöst (``ArticleCreate.replaces_object_id``) – ein Feld daneben wäre
-    # die zweite Aussage über dieselbe Sache, und es gab sie: ein von Hand inaktiv
-    # gesetzter Artikel ohne Nachfolger hing an genau einem Schalter (Testnotiz #773).
-    name: Optional[str] = None
-    unit: Optional[str] = None
-    serialization: Optional[str] = None
-    size: Optional[str] = None
-    weight_kg: Optional[Decimal] = None
-    material: Optional[str] = None
-    cad_url: Optional[str] = None
-    surface: Optional[str] = None
-    supplier_article_number: Optional[str] = None
-    min_order_qty: Optional[Decimal] = None
-    safety_stock: Optional[Decimal] = None
-    is_hazmat: Optional[bool] = None            # Gefahrgut (reist mit dem Beschaffungs-Beleg)
-    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
-    #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
-    #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
-    hs_code: Optional[str] = None
-    #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
-    #: Versandland: es ist eine eigene Angabe.
-    origin_country: Optional[str] = None
-    # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
-    # **``is_active`` steht hier bewusst NICHT.** Ein Artikel wird über genau EINE Achse
-    # ausser Betrieb genommen: seinen fachlichen ``status`` (Freigegeben ↔ Inaktiv).
-    # ``is_active`` ist der Soft-Delete des Datensatzes und gehört keinem Formular –
-    # solange er von aussen setzbar war, gab es zwei Wege, dasselbe zu sagen, und die
-    # Prozesslogik las den falschen (``articles.may_create``).
-    # Optimistic Locking: Stand, den der Client zuletzt gesehen hat (optional).
-    expected_updated_at: Optional[datetime] = None
-
-    @field_validator(*_OPTIONAL_TEXT_FIELDS)
-    @classmethod
-    def _opt_text_clean(cls, v: Optional[str]) -> Optional[str]:
-        return _opt_text(v)
-
-    @field_validator(*_OPTIONAL_QTY_FIELDS)
-    @classmethod
-    def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        return _opt_qty(v)
-
-    @field_validator("name")
-    @classmethod
-    def _name_not_empty(cls, v: Optional[str]) -> Optional[str]:
-        return clean_article_name(v, required=False)
-
-    @field_validator("unit")
-    @classmethod
-    def _unit_allowed(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in ALLOWED_UNITS:
-            raise ValueError(f"Einheit muss eine von {', '.join(ALLOWED_UNITS)} sein")
-        return v
-
-    @field_validator("serialization")
-    @classmethod
-    def _serialization_allowed(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in ALLOWED_SERIALIZATION:
-            raise ValueError("Seriennummererfassung muss 'unit' (Einzelteil) oder 'batch' sein")
-        return v
-
-    @field_validator("size")
-    @classmethod
-    def _size_valid(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        return normalize_size(v)
-
-    @field_validator("weight_kg")
-    @classmethod
-    def _weight_valid(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        if v is None:
-            return v
-        return validate_weight(v)
-
-
 class ArticleLink(BaseModel):
     """Ein Artikel, wie ihn eine andere Antwort **nennt**: Nummer, Name, Zustand.
 
@@ -343,7 +260,7 @@ class ArticleResponse(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    is_hazmat: bool = False                     # Gefahrgut (reist mit dem Beschaffungs-Beleg)
+    is_hazmat: bool = False                     # Gefahrgut
     #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
     #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
     #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
@@ -351,7 +268,6 @@ class ArticleResponse(BaseModel):
     #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
     #: Versandland: es ist eine eigene Angabe.
     origin_country: Optional[str] = None
-    landed_unit_cost: Optional[Decimal] = None  # read-only, aus der letzten Bestellung
     # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
     # ── Ersetzen: die Kette in beide Richtungen ────────────────────────────────
     #: Die rohe Kante, wie sie in der Zeile steht (``articles.replaced_by_id``).
@@ -365,9 +281,6 @@ class ArticleResponse(BaseModel):
     replaces: Optional[ArticleLink] = None
     #: Die geplante Stückliste – **nur am Detail** (``None`` = nicht geladen).
     bom: Optional[ArticleBom] = None
-    # Einstandspreis und Durchlaufzeit sind entfallen: beide wurden aus abgeschlossenen
-    # Aufträgen abgeleitet, und Aufträge gibt es nicht mehr. Eine Zahl ohne Grundlage
-    # wäre schlechter als keine.
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -376,7 +289,6 @@ class ArticleResponse(BaseModel):
 class ArticleValidation(BaseModel):
     """Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."""
 
-    saveable: bool
     missing: list[str] = Field(
         default_factory=list,
         description="Was noch fehlt – leer heisst freigebbar.",

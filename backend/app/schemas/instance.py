@@ -15,7 +15,7 @@ from typing import Mapping, Optional
 from pydantic import BaseModel, ConfigDict
 
 from ..domain import statuses as st
-from .place import PlaceRef, UnitPlace
+from .place import UnitPlace
 
 
 class InstanceUnitResponse(BaseModel):

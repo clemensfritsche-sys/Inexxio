@@ -50,12 +50,9 @@ def may_create(article: Article) -> Optional[str]:
     zwar mit Absicht: sonst würde jedes Stück eines ausgelaufenen Artikels zur Leiche, die
     sich nicht einmal mehr aussondern liesse.
 
-    **Gefragt wird nach der Tatsache, nicht nach einem Wort** (Testnotiz #773). Früher
-    stand hier ``article.status != FREIGEGEBEN`` – und der Status war eine **Spalte**, die
-    an zwei Stellen gesetzt wurde: vom Ersetzen und von einem Knopf «Inaktiv setzen». Zwei
-    Angaben über dieselbe Sache, und ein von Hand stillgelegter Artikel ohne Nachfolger
-    hing an genau einem Schalter. Jetzt gibt es nur ``replaced_by_id``; der Zustand ist
-    seine Projektion (``Article.status``), und diese Prüfung liest die Quelle.
+    **Gefragt wird nach der Tatsache, nicht nach einem Wort** (Testnotiz #773): es gibt
+    nur ``replaced_by_id``; der Zustand ist seine Projektion (``Article.status``), und
+    diese Prüfung liest die Quelle.
 
     **Warum die Funktion nach der Regel heisst und nicht nach einem Zustand.** Der Fehler,
     aus dem sie entstanden ist, war eine Verwechslung zweier Achsen, die beide «aktiv»
@@ -266,11 +263,8 @@ def assert_replaceable(db: Session, predecessor: Article, successor: Article) ->
 def apply_replacement(db: Session, *, predecessor: Article, successor: Article) -> None:
     """Den Vorgänger ablösen — **eine** Angabe, und ausser Betrieb ist ihre Bedeutung.
 
-    Früher standen hier zwei Zeilen: der Nachfolger *und* ein Statuswechsel. Die zweite
-    ist entfallen, nicht weil sie falsch war, sondern weil sie überflüssig ist – der
-    Zustand fällt aus der ersten heraus (``Article.status``). Zwei Zuweisungen für einen
-    Vorgang wären zwei Gelegenheiten, die zweite zu vergessen; und genau in dieser Lücke
-    entstand ein Artikel, der «inaktiv» hiess, ohne dass ihn jemand abgelöst hatte.
+    Eine Zuweisung: der Zustand fällt aus ihr heraus (``Article.status``). Ein zweiter
+    Statuswechsel daneben wäre eine Gelegenheit, ihn zu vergessen.
 
     Der Aufrufer schreibt das Audit – er weiss, wer geklickt hat; dieser Dienst kennt nur
     die Regel.

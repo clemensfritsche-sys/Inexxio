@@ -152,14 +152,14 @@ def _keep(db: Session) -> None:
 
 #: **Was nur das Personal sieht** – der interne Lauf des Auftrags.
 #:
-#: Ein Lieferant sieht **seinen Beleg**, nicht die Reise des Materials: nicht den
+#: Eine Gegenpartei sieht **ihren Beleg**, nicht die Reise des Materials: nicht den
 #: Prozess-Graphen, nicht die Historie, nicht die Nachbar-Aufträge, nicht die Positionen.
-#: Als **Liste** und nicht als Bedingungskette, damit die Antwort für ihn buchstäblich
+#: Als **Liste** und nicht als Bedingungskette, damit die Antwort für sie buchstäblich
 #: die des Personals ist, aus der etwas herausgenommen wurde – zwei getrennt gebaute
 #: Antworten liefen beim ersten neuen Feld auseinander.
 _INTERNAL_FIELDS = (
     "lines", "flow", "events", "event_count", "journey_in", "journey_out",
-    "parents", "deviations", "deviation_total", "waiting_for_return",
+    "parents", "deviations", "deviation_total",
 )
 
 
@@ -211,7 +211,7 @@ def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int
 
 def _to_response(db: Session, order: Order, *,
                  viewer: Optional[UserProfile] = None) -> OrderResponse:
-    """Der Auftrag als Antwort – **und für einen Lieferanten derselbe, nur sein Teil**.
+    """Der Auftrag als Antwort – **und für eine Gegenpartei derselbe, nur ihr Teil**.
 
     Die Verengung steht hier und nicht an den Aufrufstellen: wer sie dort formulierte,
     hätte sie beim zweiten Endpunkt nicht. ``viewer=None`` heisst «interner Aufruf»
@@ -277,7 +277,6 @@ def _to_response(db: Session, order: Order, *,
         parents=_related(db, order, journey_svc.parents(db, order), incoming=True),
         deviations=_related(db, order, branches[:RELATED_LIMIT], incoming=False),
         deviation_total=len(branches),
-        waiting_for_return=process_svc.waiting_counts(db, [order.id]).get(order.id, 0),
     )
     return resp if mine is None else _mine_only(resp, mine)
 
@@ -380,8 +379,7 @@ def list_orders(
 
     **Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine
     Frage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen
-    können. Genau das war einmal nicht so: der Feed fragte nur den Beschaffungs-Beleg,
-    also stand der Auftrag eines **Geldvorgangs** in keiner Liste.
+    können.
 
     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
@@ -485,13 +483,8 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
                            status_before=m.status_before, status_after=m.status_after)
             for m in modules.MODULES.values()
         ],
-        # ►►► **Die Steuersätze stehen hier NICHT mehr** (Testnotiz #851). ◄◄◄
-        #
-        # Sie waren die Vorgabe eines Modul-Feldes, und das Feld ist entfallen: der Satz
-        # hängt an der **Sache**, nicht am Modul. Gefragt wird er je Position an der
-        # Ausführungsstelle, und dorthin reist der Katalog mit dem Vorgang
-        # (``VoucherEmbed.vat_rates``). Ein zweiter Weg zur selben Liste wäre die Stelle,
-        # die beim nächsten Satzwechsel jemand vergisst.
+        # **Keine Steuersätze im Modul-Katalog** (#851): der Satz hängt an der **Sache**
+        # und reist mit dem Vorgang (``VoucherEmbed.vat_rates``).
         capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
     )
 
@@ -646,8 +639,7 @@ def validate_order(
     """
     draft = data.model_dump()
     missing = orders_svc.validate_draft(db, draft)
-    return OrderValidation(saveable=not missing, missing=missing,
-                           parents=_preview_parents(db, draft))
+    return OrderValidation(missing=missing, parents=_preview_parents(db, draft))
 
 
 def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
@@ -734,7 +726,7 @@ def get_order(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """Der Auftrag – und für einen Lieferanten **derselbe, nur sein Modul**."""
+    """Der Auftrag – und für eine Gegenpartei **derselbe, nur ihr Modul**."""
     return _to_response(db, orders_svc.get(db, object_id), viewer=user)
 
 
@@ -822,8 +814,6 @@ def hold_numbers(
     gewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern
     dieselbe Anlage mit anderer Vorbelegung.
 
-    Die frühere dritte Gruppe ``rest`` ist ersatzlos entfallen (§4.1, Testnotiz #713).
-
     Nicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende
     Nummern wären – mitgeliefert bei jedem Öffnen.
     """
@@ -885,12 +875,11 @@ def step_record(
 
 
 # ---------------------------------------------------------------------------
-# ►►► DER BELEG — das neu aufgebaute Modul «Zahlung» (docs/neuaufbau-zahlungsmodul.md)
+# ►►► DER BELEG — das Modul «Zahlung» (docs/neuaufbau-zahlungsmodul.md)
 # ---------------------------------------------------------------------------
 #
-# Das Vorgängermodul hatte seine eigenen Wege daneben (``…/deal`` & Co.) – **genau
-# deshalb liess es sich ersatzlos löschen**: es fielen fünf Endpunkte weg statt einer
-# Verzweigung in einem geteilten (Testnotiz #960).
+# Eigene Wege statt einer Verzweigung in einem geteilten Endpunkt – so lässt sich ein
+# Modul löschen, ohne die anderen anzufassen.
 
 def _voucher_step(db: Session, order, step_id: int, user: UserProfile):
     """**Der Beleg eines Moduls – und ob dieser Betrachter ihn sieht.**
@@ -968,9 +957,7 @@ def prepare_voucher_payment(
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
     voucher_svc.assert_allowed(db, row, "pay_online", user)
-    # *Ein ``charge``-Parameter stand hier einmal: welche Rechnung bezahlt wird. Je Modul
-    # gibt es eine, und sie **ist** der Beleg – die Frage hat genau eine Antwort.*
-    return PaymentSetup(**stripe_pay.prepare(db, svc=voucher_svc, row=row, order=order))
+    return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order))
 
 
 @router.post("/{object_id}/steps/{step_id}/voucher/refund",
@@ -993,8 +980,7 @@ def refund_voucher_payment(
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
     voucher_svc.assert_allowed(db, row, "refund_online", user)
-    stripe_pay.refund(db, svc=voucher_svc, row=row, entry_id=body.entry,
-                      amount=body.amount)
+    stripe_pay.refund(db, row=row, entry_id=body.entry, amount=body.amount)
     return _to_response(db, order, viewer=user)
 
 
@@ -1011,9 +997,6 @@ def voucher_transfer_details(
     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
-
-    *Ein ``entry``-Parameter stand hier einmal: welche Rechnung gemeint ist. Es gibt
-    eine, und sie ist der Beleg.*
     """
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)

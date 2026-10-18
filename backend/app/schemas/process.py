@@ -60,9 +60,7 @@ class ModuleFacts(BaseModel):
     def moves(self) -> bool:
         """**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
 
-        Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-        anderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,
-        was sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
+        Die Frage reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
         """
         return modules.get(self.module_type).moves
 
@@ -285,9 +283,8 @@ class StepConfirm(BaseModel):
     #: nicht nur im Dialog. Steht dort keines, ist er die **Wahl** – und dann Pflicht,
     #: denn ohne ihn wüsste niemand, wohin die Stücke gebracht wurden.
     place: Optional[int] = None
-    # **Kein «womit».** Ob eingekauft wurde, sagt der Beleg (``Module.buys``) – eine
-    # Eingabe daneben wäre eine zweite Angabe über dieselbe Sache, und die getippte
-    # gewänne auch dann, wenn niemand eine Spedition beauftragt hat.
+    # **Kein «womit».** Eine Spedition zu beauftragen ist ein eigener Geldvorgang
+    # (Modul «Zahlung»); dieses Feld sagt allein, wohin.
 
 
 class RecordValue(BaseModel):

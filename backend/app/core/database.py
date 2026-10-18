@@ -12,22 +12,16 @@ settings = get_settings()
 def json_safe(value):
     """Einen Wert JSONB-tauglich machen – ``Decimal`` → ``float``, Datum → ISO-String.
 
-    **Warum das hier steht und nicht in der Fachlogik:** seit den Bruchmengen (Migration
-    ``055``) ist jede Menge im System ein ``Decimal``. ``json.dumps`` kann das nicht, und
-    das fällt erst beim Schreiben auf – als ``TypeError`` mitten in der Transaktion, also
-    als **500 auf dem ganzen Endpunkt**. Genau so war der Prozessschritt «Ressource»
-    unbenutzbar: ``resource_usages.details`` bekam die entnommene Menge als ``Decimal``,
-    und JEDE Verbuchung eines Verbrauchs brach ab (der Event-Strom hatte seine eigene
-    Normalisierung, die anderen JSONB-Spalten nicht).
+    **Warum das hier steht und nicht in der Fachlogik:** ``json.dumps`` kann kein
+    ``Decimal``, und das fällt erst beim Schreiben auf – als ``TypeError`` mitten in der
+    Transaktion, also als **500 auf dem ganzen Endpunkt**. Die Normalisierung sitzt darum
+    an der **Grenze zur Datenbank** statt in jedem Schreiber: jede neue JSONB-Spalte erbt
+    den Schutz automatisch.
 
-    Deshalb sitzt die Normalisierung an der **Grenze zur Datenbank** statt in jedem
-    Schreiber: es gibt zwölf JSONB-Spalten, und jede neue erbt den Schutz automatisch.
-
-    Sie ist ein **Netz, kein Vertrag**: wo es auf Exaktheit ankommt (Geld, reservierte
-    Mengen, Standort-Teilmengen), schreibt der Fachcode bewusst **Strings**
-    (``reservation``, ``location_split``, ``selling._resolve_line``) – dort kommt hier nie
-    ein ``Decimal`` an. Was hier landet, ist ein Beobachtungs-Wert (Protokoll, Event-
-    Payload); für den ist ``float`` die richtige, JSON-native Form.
+    Sie ist ein **Netz, kein Vertrag**: wo es auf Exaktheit ankommt (Geld), schreibt der
+    Fachcode bewusst **Strings** – dort kommt hier nie ein ``Decimal`` an. Was hier landet,
+    ist ein Beobachtungs-Wert (Protokoll, Event-Payload); für den ist ``float`` die
+    richtige, JSON-native Form.
     """
     if isinstance(value, Decimal):
         return float(value)

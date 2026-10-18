@@ -16,9 +16,8 @@ class Instance(Base, TimestampMixin):
 
     **Sie trägt KEINE Menge.** Die Menge ist die Anzahl ihrer Einzelinstanzen und wird
     ausgerechnet, nie gespeichert (``services/instances.quantity``). Eine gespeicherte
-    Menge wäre eine zweite Wahrheit neben den Zeilen, die sie zählt – und genau diese
-    Fehlerklasse («Zeilen zählen statt Mengen summieren», und umgekehrt) hat das
-    Vorgängermodell wieder und wieder produziert. Was es nicht gibt, kann nicht driften.
+    Menge wäre eine zweite Wahrheit neben den Zeilen, die sie zählt. Was es nicht gibt,
+    kann nicht driften.
 
     ``kind`` sagt nur, wie die Gruppe entstanden ist:
         einzeln → eine Einzelinstanz je Stück (Seriennummern-Fall)
@@ -28,8 +27,6 @@ class Instance(Base, TimestampMixin):
 
     **Einen Status trägt sie nicht.** Er wird abgeleitet (``services/instances.status_of``),
     genau wie die Menge: eine Gruppe ist im Prozess, solange eines ihrer Stücke es ist.
-    Die frühere Spalte stand auf ``new`` und wurde nie geschrieben – ein Feld, das niemand
-    setzt, ist kein Zustand, sondern eine Behauptung, die irgendwann falsch wird.
     """
 
     __tablename__ = "instances"

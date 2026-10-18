@@ -85,7 +85,6 @@ DRAFT_OBJECT_ID = 0
 class OrderValidation(BaseModel):
     """Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."""
 
-    saveable: bool
     missing: list[str] = Field(
         default_factory=list,
         description="Was noch fehlt – leer heisst freigebbar.",
@@ -116,9 +115,6 @@ class ProcessStepResponse(ModuleFacts):
     status_after: str
     #: Was der Modultyp braucht – bei der Datenerfassung die Erfassungspunkte.
     config: Optional[dict] = None
-    #: Gesetzt, wenn dieser Schritt die **Kopie** eines Artikel-Erzeugungsprozesses ist.
-    source_article_id: Optional[int] = None
-    source_version: Optional[int] = None
     #: **Worauf dieses Modul wartet** – Objektnummern der Abweichungen, deren Rückführung
     #: aussteht. Nicht leer heisst: gesperrt. Die Sperre wird serverseitig durchgesetzt
     #: (``process.confirm_step``); diese Liste ist die **Begründung** für die Oberfläche,
@@ -139,10 +135,8 @@ class ProcessStepResponse(ModuleFacts):
     #: Bei jedem anderen Modultyp schlicht leer.
     target: Optional[PlaceRef] = None
     #: ►►► **Der Beleg** (``services/voucher``) – der Geldvorgang des Moduls «Zahlung».
-    #: ``None`` bei jedem anderen Modultyp. Er hat seine **eigene** Maschine, und genau
-    #: das hat sich zweimal ausgezahlt: erst beim ersatzlosen Löschen von «Beschaffen»
-    #: und «Verkauf», dann beim Löschen des Vorgänger-Zahlungsmoduls (Testnotiz #960) –
-    #: beide Male fiel hier keine Zeile, die hier nicht hingehört.
+    #: ``None`` bei jedem anderen Modultyp. Er hat seine **eigene** Maschine – darum lässt
+    #: sich ein Modul löschen, ohne dass hier eine fremde Zeile fällt.
     voucher: Optional[VoucherEmbed] = None
     #: ►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** (#945) ◄◄◄
     #:
@@ -499,10 +493,9 @@ class OrderResponse(BaseModel):
 
     lines: list[OrderLineResponse] = Field(default_factory=list)
     steps: list[ProcessStepResponse] = Field(default_factory=list)
-    #: **Das Bild** – Knoten, Kanten, Positionen (``services/flow``). Es ersetzt die
-    #: frühere flache Liste ``unit_groups``: die sagte nur, wie viele Stücke wo stehen,
-    #: und die Oberfläche musste daraus selbst ableiten, wo Linien verlaufen und wie
-    #: weit sie kräftig sind. Genau diese Ableitung gehört hierher.
+    #: **Das Bild** – Knoten, Kanten, Positionen (``services/flow``). Wo Linien verlaufen
+    #: und wie weit sie kräftig sind, ist Prozesslogik und gehört hierher, nicht in die
+    #: Oberfläche.
     flow: FlowGraph = Field(default_factory=FlowGraph)
     events: list[ProcessEventResponse] = Field(default_factory=list)
     #: Wie viele Einträge der Log **insgesamt** hat. Ist er länger als ``events``, sagt
@@ -532,9 +525,6 @@ class OrderResponse(BaseModel):
     #: die Summe aller Abläufe. ``deviation_total`` nennt die wahre Zahl.
     deviations: list[RelatedOrder] = Field(default_factory=list)
     deviation_total: int = 0
-    #: Wie viele Stücke sind gerade ausgeliehen und kommen zurück – **abgeleitet** aus
-    #: den offenen rückführenden Verbindungen. 0 heisst: dieser Auftrag wartet auf nichts.
-    waiting_for_return: int = 0
 
 
 class OrderSummary(BaseModel):

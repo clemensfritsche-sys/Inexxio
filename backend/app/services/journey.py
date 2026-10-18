@@ -176,7 +176,7 @@ class Related:
     ihn nicht.
 
     Darum eine **Liste**: derselbe Abweichungsauftrag kann Stücke an zwei verschiedenen
-    Stellen abgenommen haben. Ein einzelner Wert (früher ``min(step_id)``) hätte sich für
+    Stellen abgenommen haben. Ein einzelner Wert (``min(step_id)``) hätte sich für
     eine davon entschieden und die andere verschwiegen – und die Linie zeigte dann auf
     einen Punkt, an dem gar nichts passiert ist.
     """

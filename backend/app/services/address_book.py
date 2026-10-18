@@ -289,7 +289,7 @@ def migrate_sql() -> tuple[str, ...]:
 def business_sql() -> tuple[str, ...]:
     """►►► **Die Anschrift einer fremden Firma wird die des Geschäftskontos.** ◄◄◄
 
-    Bis hierher stand die Anschrift an der **Firma** – jetzt gehört sie der Person, die
+    Vor ``143`` stand die Anschrift an der **Firma** – seither gehört sie der Person, die
     für die Firma bestellt (die Firma trägt nur ihre Identität). Wer einer fremden Firma
     zugeordnet ist und noch **kein** Geschäftskonto-Eintrag hat, bekommt ihre Anschrift
     als Haupt- und Rechnungsadresse. Selbstbegrenzend: wer einen hat, wird übersprungen.
