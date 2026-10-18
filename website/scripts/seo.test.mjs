@@ -1,5 +1,5 @@
 // Wächter für das, was ein Build im Modus «preview» nicht zeigt: den Zweig «live» der
-// robots.txt (ein echter live-Build bricht ab, solange Markierungen offen sind).
+// robots.txt (ein echter live-Build bricht ab, solange ein Foto fehlt).
 //   npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +18,7 @@ test('Vorschau: alles gesperrt, keine Sitemap', () => {
 test('Vorschau: Konto- und ERP-Pfade trotzdem ausdrücklich gesperrt (Auftrag 12.5: immer)', () => {
   const txt = robotsTxt('preview', BASE);
   for (const p of site.privatePaths) assert.ok(txt.includes(`Disallow: ${p}\n`), p);
-  for (const p of ['/erp', '/konto', '/login', '/abmelden', '/shop']) assert.ok(site.privatePaths.includes(p), `${p} fehlt in site.privatePaths`);
+  for (const p of ['/erp', '/konto', '/login', '/abmelden']) assert.ok(site.privatePaths.includes(p), `${p} fehlt in site.privatePaths`);
 });
 
 test('live: jeder Crawler der Liste ausdrücklich zugelassen', () => {

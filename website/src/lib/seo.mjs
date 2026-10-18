@@ -5,7 +5,7 @@
  * Eine fehlende Angabe wird WEGGELASSEN statt leer hineingeschrieben.
  * Keine Review- und keine AggregateRating-Angaben – es gibt keine echten.
  */
-import { site, contactEmail, isMissing } from '../config/site.mjs';
+import { site, contactEmail } from '../config/site.mjs';
 import { plain } from './text.mjs';
 
 /** @param {string} siteUrl @param {string} [path] */
@@ -70,7 +70,7 @@ export function organization(siteUrl) {
     '@id': `${siteUrl}/#organisation`,
     name: site.brand.name,
     alternateName: [plain(site.brand.full), ...site.brand.alternateNames],
-    legalName: isMissing(site.brand.legalName) ? undefined : site.brand.legalName,
+    legalName: site.brand.legalName,
     description: site.brand.summary,
     disambiguatingDescription: site.brand.notToConfuse,
     url: abs(siteUrl),
@@ -124,8 +124,8 @@ export function breadcrumbs(siteUrl, trail) {
 
 /**
  * @param {{ q: string, a: string }[]} faqs – nur, was auch sichtbar auf der Seite steht.
- * Eine Frage, deren Antwort noch ganz offen ist (nur eine Markierung), fällt weg: eine
- * leere Antwort wäre keine – und ohne beantwortete Frage gibt es keinen FAQPage-Knoten.
+ * Eine Frage ohne Antwort fällt weg: eine leere Antwort wäre keine – und ohne beantwortete
+ * Frage gibt es keinen FAQPage-Knoten.
  */
 export function faqPage(faqs) {
   const answered = faqs

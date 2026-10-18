@@ -1,6 +1,6 @@
 /**
  * Über uns: Wer wir sind (das WIR, nicht eine Person – Testnotiz #1147) · Werte · Zusagen ·
- * die Übergabe (Texte in content/uebergabe.ts) · Werkstatt und Einsatzgebiet · Fragen.
+ * die Übergabe (Texte in content/uebergabe.ts) · Werkstatt und Einsatz · Fragen.
  * Der Ort kommt aus dem ERP ({{erp.city}}, #1146/#1153).
  */
 import type { Faq } from './types';
@@ -50,7 +50,7 @@ export const ueberUns = {
       { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Krananlagen liegen an Lager, oder wir fertigen sie neu an.' },
     ],
   },
-  /** Werkstatt, Standort und Einsatzgebiet – EIN Abschnitt (vorher zwei, die beide «Werkstatt steht in …» sagten). */
+  /** Werkstatt und Einsatz – EIN Abschnitt (vorher zwei, die beide «Werkstatt steht in …» sagten). */
   workshop: {
     title: 'Zuhause in der Werkstatt – im Einsatz, wo Sie uns brauchen',
     text: 'In {{erp.city}} steht unsere Werkstatt. Hier bauen wir Krane, tauschen Trommeln von Fahrmischern und fertigen Spezialmaschinen. Im Einsatz sind wir {{area.summary}}: Krane prüfen, warten und reparieren wir dort, wo sie stehen; Fahrmischer kommen meist in unsere Werkstatt. In der Nähe sind wir schnell bei Ihnen, für weiter entfernte Einsätze planen wir gemeinsam.',

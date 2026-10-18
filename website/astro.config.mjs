@@ -3,7 +3,8 @@ import { defineConfig } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
 
 /**
- * SITE_MODE   preview (Standard) | live – siehe README.md
+ * SITE_MODE   preview (Standard) | live – «live» bricht den Build ab, solange ein Foto fehlt
+ *             oder ein Beispielbild steht (scripts/check-content.mjs, Photo.astro).
  * SITE_URL    wohin DIESER Build ausgeliefert wird (Canonical, Sitemap, Open Graph).
  *             Im Modus «live» muss er eine https-Adresse sein.
  */
@@ -41,7 +42,6 @@ export default defineConfig({
   vite: {
     define: {
       __SITE_MODE__: JSON.stringify(MODE),
-      __SITE_URL__: JSON.stringify(SITE_URL),
     },
     build: {
       // Skripte immer als eigene Datei – ein eingebettetes Skript bräuchte eine

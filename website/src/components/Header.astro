@@ -103,7 +103,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
                 {/* Ein Bild je Unterpunkt (Testnotiz #1111): das des Bereichs steht, bis man auf
                     einen Unterpunkt zeigt – dann seines. Reines CSS (:has), so hoch wie das Panel. */}
                 <a href={g.href} class="dd__media" tabindex="-1" aria-hidden="true">
-                  <span class="dd__img"><Photo id={g.photo} sizes="240px" /></span>
+                  {g.photo && <span class="dd__img"><Photo id={g.photo} sizes="240px" /></span>}
                   {g.children.map((c) => <span class="dd__img"><Photo id={c.photo} sizes="240px" /></span>)}
                 </a>
               </div>

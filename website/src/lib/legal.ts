@@ -1,6 +1,6 @@
 /**
  * Rechtliche Seiten (Impressum, Datenschutz) – Markdown in src/content/legal/. Wie beim
- * Ratgeber: Werte aus der Konfiguration eingesetzt, Markierungen sichtbar (lib/text.processHtml).
+ * Ratgeber: Werte aus der Konfiguration eingesetzt (lib/text.processHtml).
  */
 import { processHtml } from './text.mjs';
 

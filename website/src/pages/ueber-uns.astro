@@ -1,7 +1,7 @@
 ---
 /**
  * /ueber-uns: Wer wir sind (das Team, #1147) · Werte (#1182) · Zusagen · Aus HS Steiner wird
- * INEXXIO (#uebergabe – vorher die eigene Seite /uebergabe) · Werkstatt und Einsatzgebiet ·
+ * INEXXIO (#uebergabe – vorher die eigene Seite /uebergabe) · Werkstatt und Einsatz ·
  * Fragen (#fragen). Soll auch bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und
  * «HS Krananlagen» gefunden werden.
  */
@@ -127,7 +127,7 @@ const faq = [...h.faq, ...u.areaFaq];
     <div class="wrap grid uu-ws">
       <div class="col-6"><Photo id="arbeit-werkstatt" sizes="(min-width: 960px) 50vw, 100vw" /></div>
       <div class="col-5 uu-ws__text">
-        <SectionHead eyebrow="Werkstatt und Einsatzgebiet" title={u.workshop.title} id="werkstatt" class="head--flush" />
+        <SectionHead eyebrow="Werkstatt und Einsatz" title={u.workshop.title} id="werkstatt" class="head--flush" />
         <Rich as="p" text={u.workshop.text} />
         <!-- Die Anschrift kommt aus dem ERP (#1108, scripts/contact.ts); hier die Vorgabe. -->
         <address class="uu-addr" data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</address>

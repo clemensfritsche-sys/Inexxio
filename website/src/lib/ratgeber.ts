@@ -107,7 +107,7 @@ export function article(slug: string): Article {
   return a;
 }
 
-/** Der Artikel mit fertigem HTML (Werte eingesetzt, Markierungen sichtbar). */
+/** Der Artikel mit fertigem HTML (Werte eingesetzt). */
 export async function withBody(slug: string): Promise<Article> {
   const a = article(slug);
   const mod = modules[`../content/ratgeber/${slug}.md`];

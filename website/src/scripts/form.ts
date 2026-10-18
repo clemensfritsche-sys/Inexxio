@@ -155,17 +155,15 @@ function render(form: HTMLFormElement, errors: Errors, focus = true): boolean {
 
 function clearError(form: HTMLFormElement, name: string): void {
   if (!name) return;
-  for (const n of [name]) {
-    const box = form.querySelector<HTMLElement>(`[data-error-for="${n}"]`);
-    if (box) box.hidden = true;
-    form.querySelectorAll(`[name="${n}"]`).forEach((el) => el.removeAttribute('aria-invalid'));
-  }
+  const box = form.querySelector<HTMLElement>(`[data-error-for="${name}"]`);
+  if (box) box.hidden = true;
+  form.querySelectorAll(`[name="${name}"]`).forEach((el) => el.removeAttribute('aria-invalid'));
 }
 
 // ------------------------------------------------------------------ Hilfen
 
 function value(form: HTMLFormElement, name: string): string {
-  const el = form.querySelector<HTMLInputElement>(`[name="${name}"]:not([type="radio"]):not([type="file"])`);
+  const el = form.querySelector<HTMLInputElement>(`[name="${name}"]:not([type="file"])`);
   return el?.value.trim() ?? '';
 }
 function setValue(form: HTMLFormElement, name: string, v: string): void {
@@ -240,7 +238,7 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, st
   panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** mailto-Link mit allen Eingaben – derselbe Betreff und dieselben Wörter wie die E-Mail des Servers. */
+/** mailto-Link mit allen Eingaben und den Beschriftungen des Formulars; Betreff «[Anfrage] Firma». */
 function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
   prune(data);

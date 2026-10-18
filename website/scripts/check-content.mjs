@@ -72,8 +72,7 @@ function writeReport(missing) {
     '|---|---|---|---|',
   ];
   for (const { id, p, pages } of rows) {
-    const used = pages.length ? pages.map((x) => `\`${x}\``).join(', ')
-      : p.feature ? `abgeschaltete Sektion \`${p.feature}\`` : 'noch nicht verwendet';
+    const used = pages.length ? pages.map((x) => `\`${x}\``).join(', ') : 'noch nicht verwendet';
     lines.push(`| \`${id}\`${samples[id] ? ' (zurzeit Beispielbild)' : ''} | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${used} |`);
   }
   lines.push('', '## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)', '');

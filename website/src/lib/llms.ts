@@ -5,8 +5,7 @@
  * dann Abschnitte mit Links. llms-full.txt bringt dieselben Seiten im Wortlaut – dieselben
  * Texte, die auf der Website stehen, nur ohne Gestaltung.
  *
- * Werte werden eingesetzt, Markierungen fallen weg (wie bei Meta-Tags und JSON-LD); im
- * Modus «live» gibt es keine mehr – der Build bricht vorher ab.
+ * Werte werden eingesetzt, Inline-Markup fällt weg (wie bei Meta-Tags und JSON-LD).
  */
 import { site, contactEmail } from '../config/site.mjs';
 import { plain, resolve } from './text.mjs';
@@ -16,7 +15,7 @@ import { glanceRows } from '../content/types';
 
 const raw = import.meta.glob<string>('../content/ratgeber/*.md', { query: '?raw', import: 'default', eager: true });
 
-/** Text mit Zeilenumbrüchen: Werte eingesetzt, Markierungen weg, Links absolut. */
+/** Text mit Zeilenumbrüchen: Werte eingesetzt, Links absolut. */
 function md(text: string, base: string): string {
   return resolve(text)
     .replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, (_, label: string, href: string) => `[${label}](${base}${href})`)

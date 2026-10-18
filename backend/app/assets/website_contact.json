@@ -9,13 +9,8 @@
     "e164": "+41523782247"
   },
   "email": "fahrzeug-kranbau@hs-steiner.ch",
-  "address": [
-    "Waldweg 1",
-    "9546 Tuttwil (Wängi TG)"
-  ],
   "pages": {
-    "thanks": "/kontakt/danke",
-    "contact": "/kontakt"
+    "thanks": "/kontakt/danke"
   },
   "photos": {
     "max": 3,
@@ -84,7 +79,6 @@
     "photoMany": "{n} Bilder",
     "nextTitle": "So geht es weiter",
     "received": "Angekommen",
-    "urgent": "Eilt es? Dann rufen Sie uns direkt an:",
-    "closing": "Freundliche Grüsse"
+    "urgent": "Eilt es? Dann rufen Sie uns direkt an:"
   }
 }

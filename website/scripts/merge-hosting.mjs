@@ -4,9 +4,9 @@
 //
 // Firebase Hosting hat EINE Site je Umgebung (firebase.json: public = frontend/out). Die
 // Website besitzt «/» und ihre Seiten, das ERP behält /erp, /konto, /login, /abmelden, /agb, /_next.
-// Kollidiert eine Datei, bricht das Skript ab – mit zwei bewusst erlaubten Ausnahmen:
+// Kollidiert eine Datei, bricht das Skript ab – mit einer bewusst erlaubten Ausnahme:
 //   404.html   die Fehlerseite der Website gilt für die ganze Domain
-//   robots.txt die EINE robots.txt (das ERP liefert keine mehr)
+// Die EINE robots.txt kommt von der Website; liefert das ERP wieder eine, bricht es ab.
 // Eine Website-Datei auf einem ERP-Pfad bricht immer ab.
 import { cpSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const TARGET = resolve(process.argv[2] ?? join(ROOT, '..', 'frontend', 'out'));
-const OVERRIDES = new Set(['404.html', 'robots.txt']);
+const OVERRIDES = new Set(['404.html']);
 const ERP = /^(erp|konto|login|abmelden|agb|api|_next)(\/|\.html$|$)/;
 
 function walk(dir) {

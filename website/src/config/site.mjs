@@ -2,11 +2,11 @@
 /**
  * ►►► DIE EINE QUELLE der Website. ◄◄◄
  *
- * Alles, was mehr als einmal vorkommt – Name, Telefon, Adresse, Öffnungszeiten, die drei
- * Bereiche mit ihren Unterseiten, Schalter –, steht hier und nur hier. Header, Footer,
- * Kontaktseite, JSON-LD, llms.txt, Sitemap, robots.txt, die E-Mail-Vorlagen des Formulars
- * und Kopf/Fuss des Konto- und ERP-Bereichs lesen ausschliesslich daraus (die beiden
- * letzten über `scripts/export-contact.mjs`).
+ * Alles, was mehr als einmal vorkommt – Name, Telefon, Adresse, die drei Bereiche mit ihren
+ * Unterseiten, Schalter –, steht hier und nur hier. Header, Footer, Kontaktseite, JSON-LD,
+ * llms.txt, Sitemap, robots.txt und die Eingangsbestätigung des Formulars lesen
+ * ausschliesslich daraus (die Bestätigung über `scripts/export-contact.mjs`). Kopf und Fuss
+ * des Konto- und ERP-Bereichs sind die der Website selbst (`scripts/export-shell.mjs`).
  *
  * Ein Namenswechsel (z. B. «HS Steiner – Teil von INEXXIO») ist eine Änderung in
  * `brand` – Texte setzen den Namen über `{{brand.name}}` bzw. `{{brand.full}}` ein.
@@ -38,7 +38,7 @@ const erp = (() => {
   }
 })();
 
-/** Werdegang von Clemens Fritsche – als Liste (Über uns) und als Satz (JSON-LD, llms.txt). */
+/** Werdegang von Clemens Fritsche – als Satz (JSON-LD, llms.txt). */
 const ownerCareer = [
   'Maschinenbauingenieur',
   'Entwicklung von Bohrgeräten bei Liebherr',
@@ -116,7 +116,7 @@ export const site = {
     formerly: 'ehemals HS Steiner',
     /** Erste Nennung auf jeder Seite. */
     full: '{{brand.name}} ({{brand.formerly}})',
-    /** Logo: das gestapelte Zeichen mit «ehemals HS Steiner» (public/logo/, Lockup.astro). */
+    /** Firmenname mit Rechtsform – Fuss, Impressum, JSON-LD. (Das Logo liegt in public/logo/, Lockup.astro.) */
     legalName: 'INEXXIO AG',
     formerLegalName: 'HS Steiner Fahrzeug- und Kranbau GmbH',
     alternateNames: ['HS Steiner', 'HS Steiner Fahrzeug- und Kranbau GmbH', 'HS Krananlagen'],
@@ -135,18 +135,14 @@ export const site = {
     cranesSince: 1985,
     cranesText: 'Die erste eigene Krananlage entsteht – für Landwirtschaft und Industrie, vorwiegend Sonderanfertigungen.',
     gmbhYear: 1993,
-    /** Formulierung statt einer Zahl, die jedes Jahr nachgeführt werden müsste. */
-    experience: 'über 40 Jahre',
-    /** Dieselbe Angabe im Dativ («nach über 40 Jahren»). */
+    /** Formulierung statt einer Zahl, die jedes Jahr nachgeführt werden müsste (Dativ: «nach über 40 Jahren»). */
     experienceDative: 'über 40 Jahren',
-    markets: 'in der Schweiz, in Deutschland, Österreich und im Südtirol',
   },
 
   people: {
     owner: {
       name: 'Clemens Fritsche',
       role: 'Geschäftsführer',
-      career: ownerCareer,
       short: `${ownerCareer.join(', ')}.`,
     },
     founder: {
@@ -184,7 +180,6 @@ export const site = {
    * «uns nicht limitieren, ich will ja wachsen»). Keine Regionenliste, keine Grenzen.
    */
   area: {
-    home: 'Tuttwil-Wängi TG',
     summary: 'in der Schweiz, in Deutschland und Österreich – und darüber hinaus, wo Sie uns brauchen',
   },
 
@@ -203,8 +198,6 @@ export const site = {
   features: {
     /** Heiri Steiner bleibt in der Übergangszeit beratend dabei – alles dazu hängt hier. */
     heiriAdvisory: true,
-    /** Ohne echten Inhalt aus: */
-    team: false,
   },
 
   /** Saison-Hinweise: von/bis als MM-TT, über den Jahreswechsel erlaubt. */
@@ -235,9 +228,7 @@ export const site = {
   service: {
     label: 'Service',
     href: '/service',
-    overview: 'Service und Notfall',
     text: 'Einstieg nach Anliegen – wenn etwas still steht, geprüft oder repariert werden muss.',
-    photo: 'servicefahrzeug',
     children: [],
   },
 
@@ -289,11 +280,8 @@ export const site = {
      */
     erp: { label: 'ERP', href: '/erp' },
   },
-  /**
-   * Pfade, die nicht zur Website gehören – robots.txt sperrt sie in jedem Modus. `/shop` ist
-   * reserviert (Kap. 6.4): kein Link, keine Seite, nur hier.
-   */
-  privatePaths: ['/erp', '/konto', '/login', '/abmelden', '/shop', '/api/'],
+  /** Pfade, die nicht zur Website gehören – robots.txt sperrt sie in jedem Modus. */
+  privatePaths: ['/erp', '/konto', '/login', '/abmelden', '/api/'],
 
   seo: {
     /**
@@ -302,8 +290,6 @@ export const site = {
      * inhaltlich überarbeitet, zieht dieses Datum nach.
      */
     contentUpdated: '2026-10-08',
-    /** Bisherige Domain – wird später auf die neue weitergeleitet. */
-    oldDomain: 'hs-steiner.ch',
     sameAs: [],
     /** robots.txt im Modus «live»: diese Crawler ausdrücklich zugelassen. */
     bots: [
@@ -325,7 +311,9 @@ export const site = {
  * Der Fuss zeigt genau die Punkte des Kopfs, in derselben Reihenfolge – weil er dieselbe
  * Liste liest, nicht weil jemand zwei Listen gleich hält. `scripts/check-site.mjs` prüft es
  * zusätzlich am gebauten HTML.
- * @typedef {{ id: string, label: string, href: string, overview: string, ddText?: string, text: string, photo: string, children: SubPage[] }} NavGroup
+ * Ein Punkt ohne Unterseiten ist im Kopf ein einfacher Link – Übersichts-Zeile und Bild hat
+ * nur, wer ein Untermenü trägt.
+ * @typedef {{ id: string, label: string, href: string, overview?: string, ddText?: string, text: string, photo?: string, children: SubPage[] }} NavGroup
  * @type {NavGroup[]}
  */
 export const navigation = [

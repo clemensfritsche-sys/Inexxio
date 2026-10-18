@@ -29,8 +29,8 @@ export const inquiry = {
   /** Mindestausfüllzeit in Sekunden (Schutz vor Bots, ohne CAPTCHA). */
   minSeconds: 3,
   /**
-   * Beschriftung je Feld in E-Mail und mailto-Text – in dieser Reihenfolge. Dieselben
-   * Wörter in der E-Mail an uns, in der Bestätigung und im mailto-Ausweg.
+   * Beschriftung je Feld im mailto-Ausweg – in dieser Reihenfolge, im Browser und auf der
+   * Ausweichseite des Servers mit denselben Wörtern.
    */
   labels: [
     ['message', 'Anliegen'],
@@ -73,7 +73,6 @@ export const inquiry = {
     received: 'Angekommen',
     /** Davor steht die Telefonnummer der Gesellschaft – aus dem ERP, wie in der Unterschrift. */
     urgent: 'Eilt es? Dann rufen Sie uns direkt an:',
-    closing: 'Freundliche Grüsse',
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */
   limits: {

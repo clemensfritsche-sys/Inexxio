@@ -134,8 +134,9 @@ jobs:
         working-directory: website
         run: npm ci
 
-      # Modus «preview», bis die Domain verbunden und jede Markierung erledigt ist – dann
-      # SITE_MODE=live und SITE_URL=https://<Domain> (website/WEBSITE_REPORT_*.md, Start).
+      # Modus «preview», bis die Domain verbunden ist und jede Bildstelle ein echtes Foto hat
+      # (website/OFFENE_PUNKTE.md) – dann SITE_MODE=live und SITE_URL=https://<Domain>
+      # (website/WEBSITE_REPORT_*.md, Start).
       - name: Build website (Vorschau)
         working-directory: website
         env:

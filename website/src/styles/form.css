@@ -5,11 +5,6 @@
 .iform__row { display: grid; gap: var(--s-4); }
 @media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .field__opt { font-weight: 400; color: var(--ink-3); font-size: 0.875rem; }
-.input--file { padding: 9px 10px; background: var(--paper); }
-.input--file::file-selector-button {
-  font: inherit; font-weight: 600; margin-right: 12px; padding: 8px 14px; border: 1px solid var(--ink);
-  border-radius: var(--r-md); background: var(--white); color: var(--ink); cursor: pointer;
-}
 .iform__files { list-style: none; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
 .iform__files li { display: flex; gap: 8px; }
 .iform__files li span:last-child { color: var(--ink-3); margin-left: auto; }

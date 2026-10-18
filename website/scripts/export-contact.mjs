@@ -4,8 +4,8 @@
 //   node scripts/export-contact.mjs --check   bricht ab (Exit 1), wenn eine veraltet ist (CI)
 //
 // 1. backend/app/assets/website_contact.json – das Vokabular der Anfrage: der Endpunkt
-//    backend/app/routers/contact.py prüft gegen DIESELBEN Listen und schreibt die E-Mails mit
-//    DENSELBEN Wörtern wie das Formular im Browser.
+//    backend/app/routers/contact.py prüft gegen DIESELBEN Listen wie das Formular im Browser
+//    und schreibt die Eingangsbestätigung mit den Wörtern der Website.
 // 2. frontend/src/lib/site-meta.json – Name und Satz für die Metadaten des Konto-/ERP-
 //    Bereichs. Kopf und Fuss sind die der Website selbst (scripts/export-shell.mjs, Entscheid 60).
 //
@@ -35,8 +35,6 @@ const SHELL = resolve(ROOT, '../frontend/src/lib/site-meta.json');
 const LOGOS = ['inexxio-ehemals-hs-steiner.svg'];
 const BRAND = resolve(ROOT, '../frontend/public/brand');
 
-
-const a = site.address;
 const v = formVocab();
 const mail = inquiry.mail;
 
@@ -46,8 +44,7 @@ const data = {
   brand: { name: site.brand.name, full: plain(site.brand.full) },
   phone: { display: site.phone.display, e164: site.phone.e164 },
   email: contactEmail(),
-  address: [a.street, `${a.zip} ${a.city} (${a.municipality} ${a.canton})`],
-  pages: { thanks: '/kontakt/danke', contact: '/kontakt' },
+  pages: { thanks: '/kontakt/danke' },
   photos: inquiry.photos,
   minSeconds: inquiry.minSeconds,
   limits: inquiry.limits,
@@ -68,7 +65,6 @@ const data = {
     nextTitle: mail.nextTitle,
     received: mail.received,
     urgent: plain(mail.urgent),
-    closing: mail.closing,
   },
 };
 

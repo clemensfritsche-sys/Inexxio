@@ -319,7 +319,7 @@ function checkJsonLd(p) {
     if (data['@context'] !== 'https://schema.org' || !Array.isArray(data['@graph'])) fail(p.path, 'JSON-LD ohne @context/@graph');
     const raw = JSON.stringify(data);
     if (/"(Review|AggregateRating)"|"aggregateRating"|"review"/.test(raw)) fail(p.path, 'JSON-LD enthält Bewertungen');
-    if (/\[\[|\{\{/.test(raw)) fail(p.path, 'JSON-LD enthält eine Markierung oder einen offenen Wert');
+    if (/\{\{/.test(raw)) fail(p.path, 'JSON-LD enthält einen offenen Wert');
     const orgs = (data['@graph'] ?? []).filter((n) => [n['@type']].flat().includes('Organization'));
     if (orgs.length !== 1) fail(p.path, `${orgs.length} Organization-Knoten statt einem`);
     for (const node of data['@graph'] ?? []) checkNode(p, node);
@@ -406,7 +406,7 @@ function checkLlms(listed) {
     if (!txt.startsWith(`# ${site.brand.name} (${site.brand.formerly})`)) fail(name, 'beginnt nicht mit dem Namen');
     if (!txt.includes(site.brand.notToConfuse)) fail(name, 'Abgrenzung zu «inexio» fehlt');
     if (!txt.includes(site.phone.display)) fail(name, 'Telefon fehlt');
-    if (/\[\[|\{\{/.test(txt)) fail(name, 'enthält eine Markierung oder einen offenen Wert');
+    if (/\{\{/.test(txt)) fail(name, 'enthält einen offenen Wert');
     checkWords(name, txt.replace(/https?:\/\/\S+/g, ''));
   }
   for (const m of short.matchAll(/\]\((https?:\/\/[^)]+)\)/g)) {

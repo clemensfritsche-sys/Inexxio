@@ -133,8 +133,8 @@ h4 { font-size: 1.125rem; line-height: 1.556; font-weight: 600; } /* ix-h4 18/28
 .mark { color: var(--red); }
 /* Signatur (DS .ix-swoosh): der Logo-Schwung als Unterstrich unter genau EINEM Titelwort –
    im Seitenkopf trägt das markierte Wort (==Wort==) ihn statt roter Schrift. */
-.hero__title .mark, .contact__title .mark, .swoosh { color: inherit; position: relative; white-space: nowrap; }
-.hero__title .mark::after, .contact__title .mark::after, .swoosh::after {
+.hero__title .mark, .contact__title .mark { color: inherit; position: relative; white-space: nowrap; }
+.hero__title .mark::after, .contact__title .mark::after {
   content: ''; position: absolute; left: -0.04em; right: -0.06em; bottom: -0.06em; height: 0.11em;
   border-radius: 999px; transform: rotate(-1.6deg); transform-origin: left;
   /* Der Verlauf ist fest (DS Swoosh): red-400 → red-500 → red-700. */
@@ -253,7 +253,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .on-dark .btn--secondary, .section--dark .btn--secondary { background: transparent; border-color: rgba(255, 255, 255, 0.32); color: var(--white); }
 .on-dark .btn--secondary:hover, .section--dark .btn--secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.6); }
 .btn--lg { --btn-h: 48px; padding: 0 22px; font-size: 0.9375rem; }
-.btn--sm { --btn-h: 32px; padding: 0 12px; font-size: 0.8125rem; gap: 6px; }
 .btn-row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
 
 /* Pfeil-Textlink (DS .btn-link): rot, der Pfeil rückt beim Zeigen nach. */
@@ -328,7 +327,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 /* ---------- Formularfelder ---------- */
 .field { display: grid; gap: 6px; }
 .field__label { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
-.field__hint { font-size: 0.875rem; color: var(--ink-3); }
 .field__error { font-size: 0.875rem; color: var(--red-hover); font-weight: 600; display: flex; gap: 6px; align-items: flex-start; }
 .input, .textarea {
   width: 100%; min-height: 48px; padding: 11px 15px;

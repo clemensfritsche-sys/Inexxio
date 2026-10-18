@@ -14,7 +14,7 @@
  * Menschen, keine KI-Bilder. Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
  * (config/photo-samples.mjs) – im Modus «live» ist das, wie ein fehlendes Foto, ein Fehler.
  *
- * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/1' | '16/9', file?: string, feature?: string }} Photo
+ * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/1' | '16/9', file?: string }} Photo
  */
 
 /** @type {Record<string, Photo>} */
@@ -37,11 +37,6 @@ export const photos = {
   'heukran-einsatz': {
     alt: 'Heukrananlage mit vollem Greifer im Einsatz in einer Scheune',
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
-    ratio: '4/3',
-  },
-  'typenschild-hs': {
-    alt: 'Typenschild einer Krananlage aus Tuttwil mit Typ und Baujahr',
-    brief: 'Typenschild eines HS-Krans, gut lesbar (Typ, Baujahr, Nummer), Detail',
     ratio: '4/3',
   },
   'fahrmischer-werkstatt': {
@@ -84,11 +79,6 @@ export const photos = {
     brief: 'Werkstatt in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer',
     ratio: '3/2',
   },
-  'servicefahrzeug': {
-    alt: 'Servicefahrzeug von INEXXIO',
-    brief: 'Servicefahrzeug, beschriftet, vor einer Kundenhalle oder der Werkstatt, quer',
-    ratio: '3/2',
-  },
   'portraet-clemens': {
     file: 'portraet-clemens.png',
     alt: 'Clemens Fritsche',
@@ -99,16 +89,10 @@ export const photos = {
     alt: 'Das Team von INEXXIO in der Werkstatt',
     brief: 'Teamfoto in der Werkstatt (nur mit Einverständnis aller Abgebildeten), quer',
     ratio: '3/2',
-    feature: 'team',
   },
   'arbeit-werkstatt': {
     alt: 'Schweissarbeit an einer Stahlkonstruktion in der Werkstatt',
     brief: 'Schweissarbeit oder Stahlkonstruktion in der Werkstatt in Tuttwil, Funken und Schutzschild, quer',
-    ratio: '4/3',
-  },
-  'aufbau-reparatur': {
-    alt: 'LKW-Aufbau mit Mulde in der Werkstatt bei der Reparatur',
-    brief: 'LKW-Aufbau oder Mulde/Kipper in Reparatur in der Werkstatt, Hydraulikzylinder sichtbar, quer',
     ratio: '4/3',
   },
 };

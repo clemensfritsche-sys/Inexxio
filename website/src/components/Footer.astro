@@ -8,7 +8,7 @@
  * Unterste Zeile: © Jahr · Impressum · Datenschutz · AGB. Die UID steht im Impressum (#1103).
  * Derselbe Fuss trägt das Konto/ERP (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
  */
-import { site, navigation, contactEmail, isMissing } from '../config/site.mjs';
+import { site, navigation, contactEmail } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
@@ -52,7 +52,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
           </p>
           <p>
             <span class="site-footer__k"><Icon name="mail" size={16} /></span>
-            <span><a href={`mailto:${contactEmail()}`}>{contactEmail()}</a>{isMissing(site.email.primary) && <> <span set:html={rich(site.email.primary)} /></>}</span>
+            <span><a href={`mailto:${contactEmail()}`}>{contactEmail()}</a></span>
           </p>
         </address>
       </div>

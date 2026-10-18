@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * Inhalt der robots.txt – je nach Modus (Kapitel 5.5 und 13 des Auftrags). Eine reine
- * Funktion, damit auch der Zweig «live» geprüft werden kann, solange noch Markierungen
- * offen sind und ein echter live-Build abbricht (scripts/seo.test.mjs).
+ * Funktion, damit auch der Zweig «live» geprüft werden kann, solange noch Fotos fehlen und
+ * ein echter live-Build abbricht (scripts/seo.test.mjs).
  *
  *  preview  alles gesperrt (die Vorschau ist nicht öffentlich)
  *  live     die Crawler aus `site.seo.bots` ausdrücklich zugelassen, die Bereiche des
