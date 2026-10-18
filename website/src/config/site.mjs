@@ -318,11 +318,6 @@ export const site = {
       'Verschleissteile für Fahrmischer', 'Spezialmaschinenbau', 'Anbaugeräte für Baumaschinen', 'Baumaschinen',
     ],
   },
-
-  analytics: {
-    /** null = aus. Mögliche Werte später: 'plausible'. */
-    provider: null,
-  },
 };
 
 /**

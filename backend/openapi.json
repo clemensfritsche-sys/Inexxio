@@ -625,7 +625,7 @@
           "admin"
         ],
         "summary": "Get Public Settings",
-        "description": "No auth — used by Impressum, AGB, Datenschutz pages.\n\nImmer der **Betreiber** (das älteste Unternehmen): das Impressum nennt den Betreiber der\nWebsite – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die\nübrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht\numgeschaltet.",
+        "description": "Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.\n\nEr steht ohnehin im Browser (auf die Domain eingeschränkt). Was hier früher daneben\nstand (Anschrift, UID, eine erfundene «Inexxio AG» ohne Betreiber), hatte keinen Leser\nmehr: Impressum und Kontaktdaten liefert die Website bzw. ``/public/contact``.",
         "operationId": "get_public_settings_api_v1_admin_settings_public_get",
         "responses": {
           "200": {
@@ -5831,17 +5831,6 @@
             "title": "Website",
             "default": ""
           },
-          "plausible_domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plausible Domain"
-          },
           "google_maps_api_key": {
             "anyOf": [
               {
@@ -5876,7 +5865,6 @@
           "vat_number",
           "email",
           "phone",
-          "plausible_domain",
           "google_maps_api_key"
         ],
         "title": "CompanySettingsResponse"
@@ -6025,17 +6013,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "plausible_domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plausible Domain"
           },
           "google_maps_api_key": {
             "anyOf": [

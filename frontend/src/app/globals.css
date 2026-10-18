@@ -289,7 +289,7 @@
   position: fixed;
   left: 24px;
   bottom: 24px;
-  z-index: 9000;                    /* unter dem ConsentGate (10000), über dem Inhalt */
+  z-index: 9000;                    /* über dem Inhalt */
   width: 360px;
   max-width: calc(100vw - 48px);
   display: flex;

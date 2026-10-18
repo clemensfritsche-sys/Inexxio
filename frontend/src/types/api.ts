@@ -276,12 +276,11 @@ export interface paths {
         };
         /**
          * Get Public Settings
-         * @description No auth — used by Impressum, AGB, Datenschutz pages.
+         * @description Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
          *
-         *     Immer der **Betreiber** (das älteste Unternehmen): das Impressum nennt den Betreiber der
-         *     Website – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die
-         *     übrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht
-         *     umgeschaltet.
+         *     Er steht ohnehin im Browser (auf die Domain eingeschränkt). Was hier früher daneben
+         *     stand (Anschrift, UID, eine erfundene «Inexxio AG» ohne Betreiber), hatte keinen Leser
+         *     mehr: Impressum und Kontaktdaten liefert die Website bzw. ``/public/contact``.
          */
         get: operations["get_public_settings_api_v1_admin_settings_public_get"];
         put?: never;
@@ -2160,8 +2159,6 @@ export interface components {
              * @default
              */
             website: string;
-            /** Plausible Domain */
-            plausible_domain: string | null;
             /** Google Maps Api Key */
             google_maps_api_key: string | null;
             /**
@@ -2211,8 +2208,6 @@ export interface components {
             email?: string | null;
             /** Phone */
             phone?: string | null;
-            /** Plausible Domain */
-            plausible_domain?: string | null;
             /** Google Maps Api Key */
             google_maps_api_key?: string | null;
             /** Is Own */

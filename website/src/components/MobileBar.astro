@@ -9,7 +9,7 @@ import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
 ---
 <nav class="mobilebar" aria-label="Schnellkontakt" data-mobilebar>
-  <a class="mobilebar__btn mobilebar__btn--tel" href={`tel:${site.phone.e164}`} data-track="tel_click">
+  <a class="mobilebar__btn mobilebar__btn--tel" href={`tel:${site.phone.e164}`}>
     <Icon name="phone" size={20} /> Anrufen
   </a>
   <a class="mobilebar__btn mobilebar__btn--cta" href={site.cta.href}>

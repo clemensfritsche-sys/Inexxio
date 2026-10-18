@@ -12,7 +12,6 @@
  *    Telefon und E-Mail schon da – gelesen aus dem Anzeige-Cache (scripts/account.ts),
  *    nur in leere Felder, änderbar wie jede Eingabe
  */
-import { track } from './track';
 import { accountInfo } from './account';
 
 type Errors = Record<string, string>;
@@ -76,7 +75,6 @@ function setup(form: HTMLFormElement): void {
       const res = await fetch(form.action, { method: 'POST', body: data, headers: { Accept: 'application/json' }, signal: ctrl.signal });
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; fields?: Errors; message?: string };
       if (res.ok && body.ok) {
-        track('form_submit', { form: 'anfrage' });
         form.hidden = true;
         if (failPanel) failPanel.hidden = true;
         if (okPanel) {

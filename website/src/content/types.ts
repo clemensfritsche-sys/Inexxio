@@ -10,7 +10,7 @@ export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen';
 export type OgImage = 'default' | AreaId;
 export interface Faq { q: string; a: string }
 export interface LinkItem { href: string; label: string; text?: string; kind?: 'leistung' | 'ratgeber' }
-export interface Action { label: string; href: string; track?: string }
+export interface Action { label: string; href: string }
 export interface Step { title: string; text: string }
 
 

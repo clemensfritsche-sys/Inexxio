@@ -145,6 +145,12 @@ Spalte, die kein Modell kennt, schützt nichts).
 
 Sie ist `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf.
 
+## Offen: `company_settings.plausible_domain` droppen (Folge-Deploy nach Cleanup Paket 4)
+
+Plausible ist entfernt (Entscheid E5, Oktober 2026): kein Skript, keine Einwilligung,
+kein Feld in der Systemkonfiguration. Die Spalte hat ihr ORM-Mapping verloren und ist
+`NULL`-fähig; sie fällt im Folge-Deploy (Zwei-Deploy-Regel).
+
 ## Offen: die Bankverbindung am Benutzer droppen (Folge-Deploy nach CRM Schritt 1b)
 
 `user_profiles.bank_account_holder`, `bank_iban`, `bank_bic`, `bank_name` haben ihr

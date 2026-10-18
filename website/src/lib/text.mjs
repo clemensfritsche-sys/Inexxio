@@ -73,14 +73,14 @@ const TOKENS = {
 
 /** Tokens, die im HTML zu einem Link werden (im Text: nur die Anzeige). */
 const LINK_TOKENS = {
-  'phone.link': () => ({ href: `tel:${site.phone.e164}`, label: site.phone.display, track: 'tel_click' }),
-  'email.link': () => ({ href: `mailto:${contactEmail()}`, label: contactEmail(), track: 'mailto_click' }),
+  'phone.link': () => ({ href: `tel:${site.phone.e164}`, label: site.phone.display }),
+  'email.link': () => ({ href: `mailto:${contactEmail()}`, label: contactEmail() }),
   /**
    * Der Ort aus dem ERP (#1146/#1153): im HTML die Vorgabe dieses Builds in einem
    * `data-erp="city"`, das scripts/contact.ts gegen den Ort der Anschrift im ERP tauscht.
    * Zieht die Werkstatt um, steht der neue Ort überall – ohne Textänderung.
    */
-  'erp.city': () => ({ href: '', label: a.city, track: '', erp: 'city' }),
+  'erp.city': () => ({ href: '', label: a.city, erp: 'city' }),
 };
 
 /**
@@ -114,10 +114,8 @@ export function resolve(text, opts = {}) {
 /** @param {string} label @param {string} href */
 function linkHtml(label, href) {
   const external = /^https?:\/\//.test(href);
-  const track = href.startsWith('tel:') ? ' data-track="tel_click"'
-    : href.startsWith('mailto:') ? ' data-track="mailto_click"' : '';
   const tap = /^(tel|mailto):/.test(href) ? ' class="tap"' : '';
-  return `<a href="${href}"${tap}${external ? ' rel="noopener"' : ''}${track}>${label}</a>`;
+  return `<a href="${href}"${tap}${external ? ' rel="noopener"' : ''}>${label}</a>`;
 }
 
 /**
@@ -130,7 +128,7 @@ export function rich(text) {
   html = html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
     const link = LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]();
     if ('erp' in link) return `<span data-erp="${link.erp}">${escapeHtml(link.label)}</span>`;
-    return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
+    return `<a href="${escapeHtml(link.href)}" class="tap">${escapeHtml(link.label)}</a>`;
   });
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/==(.+?)==/g, '<span class="mark">$1</span>');
@@ -174,7 +172,7 @@ export function processHtml(html) {
       return withValues
         .replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
           const link = LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]();
-          return `<a href="${escapeHtml(link.href)}" class="tap" data-track="${link.track}">${escapeHtml(link.label)}</a>`;
+          return `<a href="${escapeHtml(link.href)}" class="tap">${escapeHtml(link.label)}</a>`;
         });
     })
     .join('')

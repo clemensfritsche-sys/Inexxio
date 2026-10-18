@@ -83,7 +83,7 @@ def of_company(s) -> dict:
     """Adresse des Unternehmens (Firmensitz). ``street``+``street_nr`` werden zur
     kanonischen ``street1`` zusammengezogen."""
     return make(
-        name=_txt(getattr(s, "company_name", None)) or "Inexxio",
+        name=_txt(getattr(s, "company_name", None)),
         street1=_join(getattr(s, "street", None), getattr(s, "street_nr", None)),
         zip=getattr(s, "zip_code", None), city=getattr(s, "city", None),
         country=getattr(s, "country", None),

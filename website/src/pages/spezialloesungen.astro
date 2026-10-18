@@ -43,7 +43,7 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
         <Rich as="p" class="sx-hero__lead" text={page.hero.lead} />
         <div class="btn-row">
           <a class="btn btn--primary btn--lg" href="#anfrage">{page.hero.primary.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
-          <a class="btn btn--secondary btn--lg" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} />{site.phone.display}</a>
+          <a class="btn btn--secondary btn--lg" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} />{site.phone.display}</a>
         </div>
       </div>
       <figure class="sx-hero__fig">

@@ -91,30 +91,14 @@ async def update_settings(
 
 @router.get("/settings/public")
 async def get_public_settings(db: Session = Depends(get_db)):
-    """No auth — used by Impressum, AGB, Datenschutz pages.
+    """Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
 
-    Immer der **Betreiber** (das älteste Unternehmen): das Impressum nennt den Betreiber der
-    Website – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die
-    übrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht
-    umgeschaltet."""
-    from ..services.sites import find_operator, legal_name, website_url
+    Er steht ohnehin im Browser (auf die Domain eingeschränkt). Was hier früher daneben
+    stand (Anschrift, UID, eine erfundene «Inexxio AG» ohne Betreiber), hatte keinen Leser
+    mehr: Impressum und Kontaktdaten liefert die Website bzw. ``/public/contact``."""
+    from ..services.sites import find_operator
     s = find_operator(db)
-    if not s:
-        return {"company_name": "Inexxio AG", "legal_form": "AG",
-                "legal_name": "Inexxio AG", "email": "info@inexxio.com",
-                "website": website_url(), "country": "Schweiz"}
-    return {
-        "object_id": s.object_id,
-        "company_name": s.company_name, "legal_form": s.legal_form,
-        # Der Datensatzname, fertig (#910) – das Impressum baute «Inexxio AG (AG)»
-        # aus beiden Feldern zusammen; die Regel steht in ``sites.legal_name``.
-        "legal_name": legal_name(s),
-        "street": s.street, "street_nr": s.street_nr, "zip_code": s.zip_code,
-        "city": s.city, "country": s.country, "uid_number": s.uid_number,
-        "vat_number": s.vat_number,
-        "email": s.email, "phone": s.phone, "website": website_url(),
-        "google_maps_api_key": s.google_maps_api_key,
-    }
+    return {"google_maps_api_key": s.google_maps_api_key if s else None}
 
 
 # ─── Unternehmen (Gesellschaften) ─────────────────────────────────────────────

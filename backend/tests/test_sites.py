@@ -278,3 +278,39 @@ def test_is_primary_is_dropped_everywhere_not_re_added():
     assert ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false") in _COLUMN_SAFETY_NET
 
 
+
+
+def test_the_public_settings_name_only_the_maps_key_and_invent_nothing():
+    """►►► **Ohne Anmeldung gibt es den Maps-Schlüssel – sonst nichts** (Cleanup Paket 4).
+
+    Der Endpunkt lieferte Anschrift, UID und MWST, die niemand mehr las, und ohne Betreiber
+    eine **erfundene** «Inexxio AG» mit info@inexxio.com. Plausible ist entfernt (E5) – sein
+    Feld hatte die Antwort ohnehin nie erreicht, das Skript lud darum nie.
+
+    Bug-Formen: (a) ein erfundener Firmenname ist zurück; (b) die Plausible-Domain ist zurück;
+    (c) die Antwort trägt wieder Angaben ohne Leser."""
+    from app.routers import admin
+    from app.services import sites
+    code = _code(admin.get_public_settings)
+    assert "Inexxio" not in code and "info@" not in code
+    assert "plausible" not in code
+    assert "google_maps_api_key" in code and "uid_number" not in code and "street" not in code
+    assert sites.PLATFORM_FIELDS == ("google_maps_api_key",)
+
+
+def test_no_analytics_script_and_no_consent_layer():
+    """Plausible war die **einzige** optionale Kategorie der Einwilligung – mit ihr gehen
+    das Skript, der Cookie-Dialog und die Mess-Haken der Website (E5). Ein Haken, der
+    nichts sendet, ist Code ohne Wirkung; eine Einwilligung ohne Gegenstand ist eine Frage,
+    auf die keine Antwort etwas ändert."""
+    root = APP.parents[1]
+    hits = []
+    for base in ("frontend/src", "website/src"):
+        for p in (root / base).rglob("*"):
+            if p.suffix not in {".ts", ".tsx", ".astro", ".mjs"} or "generated" in p.parts:
+                continue
+            text = p.read_text(encoding="utf-8")
+            for needle in ("plausible", "data-track", "cookie-consent", "data-consent"):
+                if needle in text.lower():
+                    hits.append(f"{p.relative_to(root)}: {needle}")
+    assert not hits, hits

@@ -5252,6 +5252,14 @@
 > Ausweg des Backends), `export-shell` verlangt genau ein `<header>`/`<footer>`, `postcss`
 > ist fest deklariert, und die CI prüft, dass `OFFENE_PUNKTE.md` aktuell ist.
 
+> ►►► **Paket 4: keine Statistik – und darum keine Einwilligung.** ◄◄◄ Plausible ist
+> entfernt (E5): das Skript lud ohnehin nie (`/admin/settings/public` lieferte die Domain
+> nicht). Mit ihm gingen der Cookie-Dialog (Statistik war seine einzige Kategorie), das Feld
+> in der Systemkonfiguration, `plausible.io` aus der CSP und die Mess-Haken der Website
+> (`track.ts`, `data-track`). `/admin/settings/public` liefert nur noch den
+> Maps-Schlüssel – ohne erfundene «Inexxio AG». Spalte `plausible_domain` fällt im
+> Folge-Deploy. Wächter: `test_sites.py` (2, je gegen die Bug-Form).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -5274,7 +5282,6 @@ Auth:      Firebase Authentication (Magic Link + Google SSO + Passkeys/WebAuthn)
 Bilder:    in der Datenbank, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld)
 Infra:     Google Cloud Run + Firebase Hosting
-Analytics: Plausible (DSGVO-konform, lädt erst mit Einwilligung)
 Zahlung:   Stripe – **eigene Bezahlkarte im ERP** (Payment Element + Webhook), kein
            Zahllink. **Optional**: ohne Schlüssel gibt es den Dienst nicht, und bezahlt
            wird per Überweisung (`docs/stripe-setup.md`)
@@ -5486,7 +5493,7 @@ Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by
 
 ## DSGVO / Schweizer DSG
 - CH DSG (01.09.2023) + DSGVO für EU
-- Plausible Analytics: Privacy-by-Design, kein Cookie-Banner
+- **Keine Statistik, keine Cookies, kein Einwilligungs-Dialog** (Plausible entfernt, Oktober 2026)
 - AGB-Akzeptanz: Zeitstempel + Version in DB
 - 10-Jahres-Archivierung Buchungsbelege (unveränderlich)
 
@@ -5546,7 +5553,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   der alten hs-steiner.ch-Pfade. Modus `preview`, bis die offenen Punkte erledigt sind.
   Die AGB bleiben im Next-Frontend.
 - **Anmeldung**: Firebase (Magic Link · Google SSO · **Passkeys/WebAuthn**), als Pop-up
-  über der Seite, auf der man steht. Cookie-/Einwilligungs-Layer ohne Fremd-CMP.
+  über der Seite, auf der man steht.
 - **Konto**: «Mein Profil» (Person · Adressen · Kommunikation, ein Auto-Save) und
   «Sicherheit» (Passkeys verwalten).
 - **ERP-Feed** (Master-Detail, eine Route): Benutzer · Artikel · Aufträge · Instanzen ·

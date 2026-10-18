@@ -16,7 +16,7 @@ import { karriere as c } from '../content/karriere';
     title={c.hero.h1}
     lead={c.hero.lead}
     photo="arbeit-werkstatt"
-    primary={{ label: 'Jetzt bewerben', href: `mailto:${contactEmail()}?subject=${encodeURIComponent('Bewerbung')}`, track: 'mailto_click' }}
+    primary={{ label: 'Jetzt bewerben', href: `mailto:${contactEmail()}?subject=${encodeURIComponent('Bewerbung')}` }}
   />
 
   <section class="section section--paper" aria-labelledby="warum">
@@ -40,10 +40,10 @@ import { karriere as c } from '../content/karriere';
         <Rich as="p" class="lead kr-apply__text" text={c.apply.text} />
         <Rich as="p" class="kr-apply__text" text={c.apply.unsolicited} />
         <div class="btn-row kr-apply__cta">
-          <a class="btn btn--primary" href={`mailto:${contactEmail()}?subject=${encodeURIComponent('Bewerbung')}`} data-track="mailto_click">
+          <a class="btn btn--primary" href={`mailto:${contactEmail()}?subject=${encodeURIComponent('Bewerbung')}`}>
             <Icon name="mail" size={18} /> Bewerbung per E-Mail
           </a>
-          <a class="btn btn--secondary" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} /> {site.phone.display}</a>
+          <a class="btn btn--secondary" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} /> {site.phone.display}</a>
         </div>
       </div>
     </div>

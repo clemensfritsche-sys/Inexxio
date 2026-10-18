@@ -121,7 +121,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
       </nav>
 
       <div class="mainbar__actions">
-        <a class="mainbar__tel" href={tel} data-track="tel_click" aria-label={`${site.phone.display} anrufen`}>
+        <a class="mainbar__tel" href={tel} aria-label={`${site.phone.display} anrufen`}>
           <Icon name="phone" size={20} /> <span class="mainbar__telnum tnum">{site.phone.display}</span>
         </a>
         <a class="mainbar__acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}>
@@ -183,7 +183,7 @@ const groupActive = (g: (typeof groups)[number]) => within(g.href);
               </ul>
             </nav>
             <div class="mnav__actions">
-              <a class="btn btn--secondary" href={tel} data-track="tel_click"><Icon name="phone" size={18} /> Anrufen</a>
+              <a class="btn btn--secondary" href={tel}><Icon name="phone" size={18} /> Anrufen</a>
               <a class="btn btn--primary" href={site.cta.href}>Anfrage <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
             </div>
           </div>

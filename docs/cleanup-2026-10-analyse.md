@@ -11,7 +11,7 @@ Die schwersten Befunde habe ich selbst am Code nachgeprüft (markiert mit ✔).
 **Rollback-Punkt:** Commit `eefb0dc` – ein Tag liess sich aus der Cloud-Umgebung nicht
 pushen (Proxy). Wer ihn will: `git tag rollback/pre-cleanup-2026-10 eefb0dc && git push origin rollback/pre-cleanup-2026-10`.
 
-**Stand:** Paket 1 ✔ · Paket 2 ✔ · Paket 3 ✔
+**Stand:** Paket 1 ✔ · Paket 2 ✔ · Paket 3 ✔ · Paket 4 ✔
 
 ---
 

@@ -942,7 +942,6 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     // **Ausgeschrieben, nicht maskiert** (#870): sie stand als `iban_masked` daneben, und
     // `iban` war immer `null` – ein Unternehmen mit Bankverbindung sah aus wie eines ohne.
     iban: (s.iban as string | null) ?? null,
-    plausible_domain: (s.plausible_domain as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
   };
 }

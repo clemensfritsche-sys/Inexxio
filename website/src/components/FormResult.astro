@@ -22,7 +22,7 @@ const H = `h${level}` as 'h2' | 'h3';
     Wir sehen uns Ihre Angaben an und melden uns per Telefon oder E-Mail. Haben Sie eine
     E-Mail-Adresse angegeben, erhalten Sie gleich eine Bestätigung mit Ihren Angaben.
   </p>
-  <p>Eilt es? Rufen Sie uns an: <a class="link tnum" href={`tel:${site.phone.e164}`} data-track="tel_click">{site.phone.display}</a></p>
+  <p>Eilt es? Rufen Sie uns an: <a class="link tnum" href={`tel:${site.phone.e164}`}>{site.phone.display}</a></p>
 </div>
 
 <div class="iresult iresult--fail" data-result="fail" hidden tabindex="-1" role="alert">
@@ -33,8 +33,8 @@ const H = `h${level}` as 'h2' | 'h3';
     der Text ist bereits vorbereitet.
   </p>
   <div class="btn-row">
-    <a class="btn btn--primary" href={`tel:${site.phone.e164}`} data-track="tel_click"><Icon name="phone" size={18} /> {site.phone.display}</a>
-    <a class="btn btn--secondary" href={`mailto:${contactEmail()}`} data-mailto data-track="mailto_click"><Icon name="mail" size={18} /> Per E-Mail senden</a>
+    <a class="btn btn--primary" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} /> {site.phone.display}</a>
+    <a class="btn btn--secondary" href={`mailto:${contactEmail()}`} data-mailto><Icon name="mail" size={18} /> Per E-Mail senden</a>
   </div>
   <p class="small muted">Ihre Eingaben stehen weiterhin im Formular – Sie können es später noch einmal versuchen.</p>
 </div>

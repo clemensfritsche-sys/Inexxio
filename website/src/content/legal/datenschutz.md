@@ -1,7 +1,7 @@
 ---
 title: 'Datenschutz'
 description: 'Datenschutzerklärung von INEXXIO (ehemals HS Steiner) nach Schweizer DSG: Website ohne Cookies, Anfrageformular, E-Mail-Versand und Kundenbereich.'
-updated: 2026-10-04
+updated: 2026-10-18
 ---
 
 ## 1. Wer verantwortlich ist
@@ -37,7 +37,7 @@ Die öffentliche Website legt selbst nur die eben genannten Kontaktangaben unser
 
 ### Statistik
 
-Auf der öffentlichen Website messen wir derzeit keine Besuche.
+Wir messen keine Besuche – weder auf der Website noch im Kundenbereich.
 
 ## 4. Anfrage über das Formular
 
@@ -61,8 +61,7 @@ Der Kundenbereich (Anmeldung, Konto) ist eine eigene Anwendung unter derselben A
 
 - **Anmeldung:** über Firebase Authentication (Google). Bearbeitet werden Ihre E-Mail-Adresse, der Zeitpunkt der Anmeldung und technische Angaben zur Sicherheit.
 - **Zahlungen:** über Stripe. Zahlungsdaten wie Kartennummern bearbeitet Stripe direkt; wir erhalten keine vollständigen Zahlungsdaten.
-- **Speicher im Browser:** Für die Anmeldung legt der Kundenbereich Einträge im lokalen Speicher an (z. B. «inexxio_token»). Für die Anzeige auf der Website legt er dort Ihren Namen, Ihre Rolle und Ihre Kontaktangaben ab («inexxio_user_fullname», «inexxio_user_role», «inexxio_user_contact»); beim Abmelden löscht er sie. Ihre Entscheidung zur Statistik speichert er im Cookie «inexxio_consent» (Laufzeit 6 Monate).
-- **Statistik:** Im Kundenbereich messen wir Besuche mit Plausible (cookielos) – nur, wenn Sie zustimmen. Ihre Wahl ändern Sie dort jederzeit über «Cookie-Einstellungen».
+- **Speicher im Browser:** Für die Anmeldung legt der Kundenbereich Einträge im lokalen Speicher an (z. B. «inexxio_token»). Für die Anzeige auf der Website legt er dort Ihren Namen, Ihre Rolle und Ihre Kontaktangaben ab («inexxio_user_fullname», «inexxio_user_role», «inexxio_user_contact»); beim Abmelden löscht er sie. Der Kundenbereich setzt selbst keine Cookies; beim Bezahlen kann Stripe zur Betrugsabwehr eigene Cookies setzen.
 
 ## 7. Weitergabe und Bearbeitung im Ausland
 

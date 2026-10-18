@@ -104,7 +104,7 @@ def website_url() -> str:
 # ``PATCH /admin/settings``; ``apply_update`` schreibt sie NIE, damit eine Tochter-
 # gesellschaft nicht die Schlüssel der gemeinsamen Website setzen kann. Die ``iban`` ist
 # Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
-PLATFORM_FIELDS = ("plausible_domain", "google_maps_api_key")
+PLATFORM_FIELDS = ("google_maps_api_key",)
 
 
 def legal_name(company: Any) -> str:

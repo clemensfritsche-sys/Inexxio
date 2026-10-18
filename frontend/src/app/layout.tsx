@@ -6,8 +6,6 @@ import type { Metadata } from 'next';
 import '@/styles/design-system/colors_and_type.css';
 import './globals.css';
 import { ChunkReloadGuard } from '@/components/chunk-reload-guard';
-import { PlausibleAnalytics } from '@/components/analytics/plausible';
-import { CookieConsent } from '@/components/consent/cookie-consent';
 import meta from '@/lib/site-meta.json';
 import { SiteFooter, SiteHeader, SiteShellHead } from '@/components/layout/site-shell';
 import { AccountSync } from '@/components/layout/account-sync';
@@ -50,8 +48,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Dialog lädt weiterhin erst beim ersten Scan. */}
         <ScanProvider>{children}</ScanProvider>
         <SiteFooter />
-        <CookieConsent />
-        <PlausibleAnalytics />
       </body>
     </html>
   );

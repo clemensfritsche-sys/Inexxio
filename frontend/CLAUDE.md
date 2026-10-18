@@ -10,7 +10,7 @@ ZXing (nur als dynamisch geladener Rückfall des Scanners).
 > `website/` (siehe `website/WEBSITE_PLAN.md`); die CI kopiert dessen Ausgabe in
 > `frontend/out`. Hier bleiben `/login`, `/konto`, `/erp` und **`/agb`** (der
 > Anmeldedialog verweist darauf). Links auf `/kontakt`, `/datenschutz` usw. in Navbar,
-> Footer und Einwilligung führen damit zur Website – das ist gewollt, nicht kaputt.
+> Footer führen damit zur Website – das ist gewollt, nicht kaputt.
 > Mit den Seiten sind `react-hook-form`, `zod`, `@hookform/resolvers`, die
 > `components/ui/*`-Formularbausteine, `app/robots.ts` und `public/robots.txt` gegangen
 > (die Website liefert die eine `robots.txt`).
@@ -716,8 +716,9 @@ Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
 - AGB: Vollständiger Schweizer Rechtstext (B2B + B2C) – bleibt hier, der Anmeldedialog
   verweist darauf.
 - Impressum und Datenschutz liefert die Website (`website/src/content/legal/`); die
-  Datenschutzerklärung deckt den Kundenbereich mit ab (Anmeldung, Stripe,
-  `inexxio_consent`, Plausible nach Einwilligung).
+  Datenschutzerklärung deckt den Kundenbereich mit ab (Anmeldung, Stripe). **Keine
+  Statistik, kein Cookie-Dialog** (Cleanup Oktober 2026, E5): Plausible war die einzige
+  optionale Kategorie, mit ihm ging die Einwilligung.
 
 ### Testnotizen #961–#974 — eine Ursache, zwei Symptome; und der Beleg wird ruhiger
 

@@ -316,8 +316,7 @@ export interface CompanySettings {
   /** Ausgeschrieben, nicht maskiert (#870) – sie steht auf jeder Rechnung, die wir stellen. */
   iban: string | null;
   // Plattform-Konfiguration: gilt der EINEN Website, steht darum nur am Betreiber – und
-  // nur, was auch einen Leser hat (Analytics-Skript bzw. die Adress-Suche).
-  plausible_domain: string | null;
+  // nur, was auch einen Leser hat (die Adress-Suche).
   google_maps_api_key: string | null;
 }
 

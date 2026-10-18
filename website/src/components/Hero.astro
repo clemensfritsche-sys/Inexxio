@@ -11,7 +11,7 @@ import Icon from './Icon.astro';
 import Photo from './Photo.astro';
 import Rich from './Rich.astro';
 
-interface Action { label: string; href: string; track?: string }
+interface Action { label: string; href: string }
 interface Props {
   eyebrow: string;
   title: string;
@@ -29,7 +29,7 @@ interface Props {
 }
 const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md', trust, caption } = Astro.props;
 const isTel = (href: string) => href.startsWith('tel:');
-const second = secondary === false ? null : (secondary ?? { label: site.phone.display, href: `tel:${site.phone.e164}`, track: 'tel_click' });
+const second = secondary === false ? null : (secondary ?? { label: site.phone.display, href: `tel:${site.phone.e164}` });
 ---
 <section class:list={['hero', `hero--${size}`]}>
   <div class="wrap hero__grid">
@@ -40,12 +40,12 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
       <Rich as="h1" class="hero__title" text={title} />
       <Rich as="p" class="hero__lead" text={lead} />
       <div class="btn-row hero__actions">
-        <a class:list={['btn btn--primary btn--lg']} href={primary.href} data-track={primary.track}>
+        <a class:list={['btn btn--primary btn--lg']} href={primary.href}>
           {isTel(primary.href) && <Icon name="phone" size={18} />}{primary.label}
           {!isTel(primary.href) && <Icon name="arrow-right" size={18} class="btn__arrow" />}
         </a>
         {second && (
-          <a class:list={['btn btn--secondary btn--lg']} href={second.href} data-track={second.track}>
+          <a class:list={['btn btn--secondary btn--lg']} href={second.href}>
             {second.href.startsWith('tel:') && <Icon name="phone" size={18} />}{second.label}
           </a>
         )}

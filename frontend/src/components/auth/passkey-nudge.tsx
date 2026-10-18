@@ -12,7 +12,7 @@
  *   • sie nicht kürzlich weggeklickt wurde (Cooldown) und das Limit nicht erreicht ist.
  *
  * Selbst-enthalten (eigenes Auth-Handling über onAuthChange) – mountbar in jedem Layout,
- * exakt wie das ConsentGate, nur nicht blockierend. Wegklickbar, respektiert einen Cooldown.
+ * nicht blockierend. Wegklickbar, respektiert einen Cooldown.
  */
 
 import { useEffect, useState } from 'react';

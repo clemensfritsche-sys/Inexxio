@@ -48,11 +48,11 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
           </p>
           <p>
             <span class="site-footer__k"><Icon name="phone" size={16} /></span>
-            <span><a href={`tel:${site.phone.e164}`} data-track="tel_click" class="tnum">{site.phone.display}</a></span>
+            <span><a href={`tel:${site.phone.e164}`} class="tnum">{site.phone.display}</a></span>
           </p>
           <p>
             <span class="site-footer__k"><Icon name="mail" size={16} /></span>
-            <span><a href={`mailto:${contactEmail()}`} data-track="mailto_click">{contactEmail()}</a>{isMissing(site.email.primary) && <> <span set:html={rich(site.email.primary)} /></>}</span>
+            <span><a href={`mailto:${contactEmail()}`}>{contactEmail()}</a>{isMissing(site.email.primary) && <> <span set:html={rich(site.email.primary)} /></>}</span>
           </p>
         </address>
       </div>
@@ -64,10 +64,6 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         <li><a href="/impressum">Impressum</a></li>
         <li><a href="/datenschutz">Datenschutz</a></li>
         <li><a href="/agb">AGB</a></li>
-        {/* Nur im Konto/ERP sichtbar: dort gibt es eine Einwilligung (Statistik), und die muss
-            jederzeit änderbar sein. Das Frontend blendet den Eintrag ein und öffnet den Dialog
-            (components/consent/cookie-consent.tsx) – derselbe Fuss an beiden Orten. */}
-        <li data-consent-settings hidden><button type="button">Cookie-Einstellungen</button></li>
         {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
       </ul>
     </div>
