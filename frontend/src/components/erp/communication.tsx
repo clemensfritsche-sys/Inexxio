@@ -267,7 +267,7 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
         {m.topic && <div style={{ fontSize: 12, fontWeight: 600, color: topicColor(m.topic),
           overflowWrap: 'anywhere' }}>{m.topic}</div>}
         {call && <CallHead m={m} />}
-        {m.body && <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', lineHeight: '20px',
+        {m.body && <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: '20px',
           overflowWrap: 'anywhere' }}>
           {mentions.length > 0 && <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
             {mentions.map((p) => `@${p.name}`).join(' ')}{' '}</span>}
@@ -340,7 +340,7 @@ function SendingBubble({ s }: { s: Sending }) {
         borderRadius: '12px 12px 4px 12px', padding: '8px 12px 6px' }}>
         {s.topic && <div style={{ fontSize: 12, fontWeight: 600, color: topicColor(s.topic),
           overflowWrap: 'anywhere' }}>{s.topic}</div>}
-        <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', lineHeight: '20px',
+        <div style={{ color: 'var(--fg-1)', whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: '20px',
           overflowWrap: 'anywhere' }}>{s.body}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10,
           fontSize: 11, lineHeight: '16px', color: 'var(--fg-2)', marginTop: 2 }}>
@@ -356,7 +356,7 @@ function SendingBubble({ s }: { s: Sending }) {
   );
 }
 
-/** So viele Nachrichten stehen zuerst da – und kommen je Klick auf «ältere laden» dazu. */
+/** So viele Nachrichten stehen zuerst da – und kommen je Nachladen (Rollen nach oben) dazu. */
 const PAGE = 8;
 
 function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }: {
@@ -365,16 +365,29 @@ function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }
   /** Die Mail, die gerade drei Sekunden wartet – sie steht schon am Ende des Verlaufs. */
   sending?: Sending | null;
 }) {
-  // ►►► Wie WhatsApp: sichtbar sind die jüngsten Nachrichten, Älteres auf Wunsch. ◄◄◄
-  // Nur die Anzeige ist begrenzt – geladen ist der ganze Verlauf (Betreffe, offene).
+  // ►►► Wie WhatsApp: sichtbar sind die jüngsten Nachrichten, Älteres kommt von selbst,
+  // sobald man nach oben rollt (Testnotiz #1216). ◄◄◄ Nur die Anzeige ist begrenzt –
+  // geladen ist der ganze Verlauf (Betreffe, offene). Der Knopf bleibt als Weg für die
+  // Tastatur; der Beobachter drückt ihn, sobald er in Sicht kommt.
   const [shown, setShown] = useState(PAGE);
+  const more = useRef<HTMLButtonElement>(null);
+  const hasMore = messages.length > shown;
+  useEffect(() => {
+    const el = more.current;
+    if (!el || !hasMore || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((seen) => {
+      if (seen.some((e) => e.isIntersecting)) setShown((n) => n + PAGE);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, shown]);
   if (!messages.length && !sending) {
     return <p style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0' }}>Noch keine Nachrichten.</p>;
   }
   const hidden = Math.max(0, messages.length - shown);
   const rows: ReactNode[] = [];
   if (hidden > 0) rows.push(
-    <button key="more" type="button" data-more="" onClick={() => setShown((n) => n + PAGE)}
+    <button key="more" ref={more} type="button" data-more="" onClick={() => setShown((n) => n + PAGE)}
       style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, height: 28,
         padding: '0 12px', border: '1px solid var(--border-1)', borderRadius: 999, cursor: 'pointer',
         background: 'var(--bg-1)', color: 'var(--fg-2)', font: 'inherit', fontSize: 12, fontWeight: 600,
@@ -564,16 +577,20 @@ function From({ mails, value, onChange, me }: {
       data-tip="Ein Postfach verbindet ein Admin am Datensatz der Gesellschaft">
       Kein Postfach verbunden</span>;
   }
-  const text = (c: MessageChannel) => `${c.name ?? me.name} · ${c.label}`;
+  // ►►► Wie der Absender im Verlauf (`author`): «Gesellschaft · Mensch» (Testnotiz #1215). ◄◄◄
+  // Die Adresse des Postfachs steht im Hover, nicht im Chip.
+  const text = (c: MessageChannel) => (c.name ? `${c.name} · ${me.name}` : me.name);
   const cur = value ?? mails[0];
-  if (mails.length === 1) return <span style={CHIP}><span className="truncate">{text(cur)}</span></span>;
+  if (mails.length === 1) {
+    return <span style={CHIP} data-tip={cur.label}><span className="truncate">{text(cur)}</span></span>;
+  }
   return (
     <div ref={box} style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex',
       alignItems: 'center', minHeight: 28 }}>
       <button type="button" onClick={() => setOpen(!open)} aria-haspopup="listbox"
         aria-expanded={open} aria-label="Von" style={{ ...CHIP, border: 0, cursor: 'pointer',
           fontFamily: 'inherit', fontWeight: 400, lineHeight: '26px', padding: '0 6px 0 10px' }}>
-        <span className="truncate">{text(cur)}</span>
+        <span className="truncate" data-tip={cur.label}>{text(cur)}</span>
         <ChevronDown size={13} style={{ flex: 'none', color: 'var(--fg-3)' }} />
       </button>
       {open && (
@@ -583,6 +600,7 @@ function From({ mails, value, onChange, me }: {
               onClick={() => { onChange(c.key); setOpen(false); }} style={HIT}
               className="bg-transparent hover:bg-bg-2">
               <span className="truncate" style={{ fontWeight: c.key === cur.key ? 600 : 400 }}>{text(c)}</span>
+              <span className="truncate" style={{ marginLeft: 'auto', color: 'var(--fg-3)', fontSize: 12 }}>{c.label}</span>
             </button>
           ))}
         </div>

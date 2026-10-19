@@ -113,8 +113,6 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
         {isStaff && (
           <SubBlock icon={Briefcase} title="Anstellung · wird vom Administrator gepflegt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Abteilung" value={profile.department ?? ''} readOnly />
-              <Field label="Funktion" value={profile.job_title ?? ''} readOnly />
               <Field label="Eintrittsdatum" value={profile.employment_start_date ? day(profile.employment_start_date) : ''} readOnly />
               <Field label="Pensum" value={profile.weekly_hours ? `${profile.weekly_hours}h / Woche` : ''} readOnly />
             </div>

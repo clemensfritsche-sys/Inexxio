@@ -44,8 +44,6 @@ interface ERPForm {
   last_name: string;
   date_of_birth: string;
   phone: string;
-  department: string;
-  job_title: string;
   employment_start_date: string;
   weekly_hours: string;
   newsletter_opt_in: boolean;
@@ -60,8 +58,6 @@ function buildForm(p: UserProfile): ERPForm {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    department: p.department ?? '',
-    job_title: p.job_title ?? '',
     employment_start_date: p.employment_start_date ?? '',
     weekly_hours: p.weekly_hours != null ? String(p.weekly_hours) : '',
     newsletter_opt_in: p.newsletter_opt_in ?? false,
@@ -94,8 +90,6 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     // auch wenn eine Schwestergesellschaft fakturiert. **Die Regel steht im Dienst**
     // (`people.assert_employment`), nicht hier: sie gilt für jede Oberfläche, die diesen
     // Datensatz schreibt. Dies ist die freundliche Hälfte.
-    data.department = nn(v.department);
-    data.job_title = nn(v.job_title);
     data.employment_start_date = nn(v.employment_start_date);
     data.weekly_hours = nn(v.weekly_hours);
   }
@@ -170,8 +164,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         {isStaff(role) && (
           <SubBlock icon={Briefcase} title="Anstellung">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="Abteilung" value={form.department} onChange={str('department')} readOnly={ro} onEnter={saveNow} />
-              <AField label="Funktion" value={form.job_title} onChange={str('job_title')} readOnly={ro} onEnter={saveNow} />
               <AField label="Eintrittsdatum" value={form.employment_start_date} onChange={str('employment_start_date')} readOnly={ro} type="date" onEnter={saveNow} />
               <AField label="Pensum (h/Woche)" value={form.weekly_hours} onChange={str('weekly_hours')} readOnly={ro} onEnter={saveNow} />
             </div>
