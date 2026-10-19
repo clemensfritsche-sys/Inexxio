@@ -26,7 +26,6 @@ Antwort wäre keine.
 """
 
 import pathlib
-import re
 
 import pytest
 
@@ -38,10 +37,6 @@ BACKEND = pathlib.Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------------
 # Bedienung – keine Regel wird hier nachgebaut
 # ---------------------------------------------------------------------------
-
-def _db():
-    return session()
-
 
 def _article(db, name: str, *, consumes: list[tuple[int, int]] | None = None):
     """Ein freigegebener Artikel; ``consumes`` gibt ihm ein Verbrauchsmodul.
@@ -115,7 +110,7 @@ def test_out_of_service_is_the_consequence_of_being_replaced():
     """
     from app.services import articles as svc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, "Rückweg")
         assert svc.may_create(art) is None, "Wer nicht abgelöst ist, erzeugt."
@@ -141,7 +136,7 @@ def test_the_state_follows_the_link_and_nothing_else():
     """
     from app.domain import statuses as st
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, "Projektion")
         assert art.status == st.FREIGEGEBEN
@@ -168,7 +163,7 @@ def test_used_in_names_who_builds_me():
     """
     from app.services import bom
 
-    db = _db()
+    db = session()
     try:
         screw = _article(db, "Schraube M6")
         other = _article(db, "Nichts damit")
@@ -221,7 +216,7 @@ def test_a_retired_input_is_reported_with_its_path():
     """
     from app.services import bom
 
-    db = _db()
+    db = session()
     try:
         screw = _article(db, "Schraube M6")
         gear = _article(db, "Getriebe", consumes=[(screw.object_id, 4)])
@@ -250,7 +245,7 @@ def test_a_retired_input_names_its_successor():
     """
     from app.services import articles as svc, bom
 
-    db = _db()
+    db = session()
     try:
         old = _article(db, "Schraube alt")
         gear = _article(db, "Getriebe", consumes=[(old.object_id, 4)])
@@ -279,7 +274,7 @@ def test_a_retired_input_is_reported_not_forbidden():
     """
     from app.services import articles as svc, bom
 
-    db = _db()
+    db = session()
     try:
         screw = _article(db, "Schraube M6")
         gear = _article(db, "Getriebe", consumes=[(screw.object_id, 4)])
@@ -306,7 +301,7 @@ def test_the_bom_graph_survives_a_cycle():
     from app.models import ArticleProcessStep
     from app.services import bom
 
-    db = _db()
+    db = session()
     try:
         a = _article(db, "Kreis A")
         b = _article(db, "Kreis B", consumes=[(a.object_id, 1)])
@@ -339,7 +334,7 @@ def test_the_successor_takes_the_predecessor_out_of_service():
     from app.domain import statuses as st
     from app.services import articles as svc
 
-    db = _db()
+    db = session()
     try:
         old = _article(db, "Fassung 1")
         new = svc.create_article(
@@ -383,7 +378,7 @@ def test_a_replaced_predecessor_stays_in_the_chain_and_produces_nothing():
     from app.domain import statuses as st
     from app.services import articles as svc
 
-    db = _db()
+    db = session()
     try:
         old = _article(db, "Fassung 1")
         new_art = svc.create_article(
@@ -457,7 +452,7 @@ def test_an_article_is_replaced_at_most_once():
     from fastapi import HTTPException
     from app.services import articles as svc
 
-    db = _db()
+    db = session()
     try:
         old = _article(db, "Fassung 1")
         new = _article(db, "Fassung 2")
@@ -492,7 +487,7 @@ def test_the_replacement_chain_survives_a_cycle():
     """
     from app.services import articles as svc
 
-    db = _db()
+    db = session()
     try:
         a = _article(db, "Kette A")
         b = _article(db, "Kette B")
@@ -530,7 +525,7 @@ def test_an_article_never_replaces_itself():
     from fastapi import HTTPException
     from app.services import articles as svc
 
-    db = _db()
+    db = session()
     try:
         a = _article(db, "Ich selbst")
         with pytest.raises(HTTPException) as e:
@@ -559,7 +554,7 @@ def test_the_bom_is_loaded_at_the_detail_only():
     """
     from app.routers.articles import _out
 
-    db = _db()
+    db = session()
     try:
         screw = _article(db, "Schraube M6")
         _article(db, "Getriebe", consumes=[(screw.object_id, 4)])
@@ -576,34 +571,3 @@ def test_the_bom_is_loaded_at_the_detail_only():
         db.rollback()
         db.close()
 
-
-def test_the_dead_deactivate_dialog_is_gone():
-    """**Kein Knopf, der nichts tut** – und keine Behauptung, die nicht stimmt.
-
-    Zwei Bug-Formen in derselben Datei: ``setDialog`` ohne Dialog (der Knopf war eine
-    Attrappe, ausdrücklich mit ``eslint-disable`` am Wächter vorbeigeschleust) und der
-    Kommentar «Inaktiv ist endgültig», der der Statusliste widerspricht.
-    """
-    src = (BACKEND.parent / "frontend" / "src" / "components" / "erp"
-           / "article-detail.tsx").read_text(encoding="utf-8")
-    assert "setDialog" not in src, (
-        "Der tote Deaktivieren-Dialog ist entfallen – ein Knopf, der nie etwas tun kann, "
-        "ist kein Angebot."
-    )
-    assert "eslint-disable-next-line no-unused-vars" not in src, (
-        "Kein Wächter mehr, an dem vorbeigeschleust wird."
-    )
-    # ►► **Und den Statuswechsel gibt es gar nicht mehr** (Testnotiz #773). ◄◄
-    #
-    # Er war der zweite Weg zu einer Aussage, die das Ersetzen schon macht – mit einer
-    # eigenen Falle: ein von Hand stillgelegter Artikel **ohne** Nachfolger hing an genau
-    # dem Knopf, der ihn stillgelegt hatte. Geprüft wird die Tat, nicht das Wort: weder
-    # der Aufruf noch die beiden Beschriftungen dürfen zurückkommen.
-    assert "changeStatus" not in src, (
-        "Der Statuswechsel am Artikel ist entfallen – ausser Betrieb geht ein Artikel "
-        "dadurch, dass ein Nachfolger ihn ablöst."
-    )
-    assert not re.search(r"data-tip=\"(Inaktiv|Aktiv) setzen", src), (
-        "Kein Knopf «Inaktiv setzen»/«Aktiv setzen» mehr – die eine Angabe steht an der "
-        "Anlage des Nachfolgers."
-    )

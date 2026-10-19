@@ -183,5 +183,5 @@ mit derselben Zeile – und war damit voll, **bevor** der zweite, andere Fehler 
 ausgerechnet der, den man gebraucht hätte. Gezählt statt wiederholt bleibt beides
 erhalten («… ×5»).
 
-*Wächter: `tests/test_frontend_mirrors.py::test_a_note_names_the_element_not_its_whole_subtree`
+*Wächter: `tests/test_source_ui.py::test_a_note_names_the_element_not_its_whole_subtree`
 – jede der vier Bug-Formen gegengeprüft.*

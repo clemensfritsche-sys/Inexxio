@@ -5,7 +5,6 @@ Jede Prüfung nennt die Regel, die sie hält; keine prüft eine Art («Anruf», 
 eine Art gibt es nicht, nur Angaben.
 """
 
-import pathlib
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -15,7 +14,7 @@ from fastapi import HTTPException
 from app.models import UserProfile
 from app.schemas.communication import MessageIn
 from app.services import communication as svc
-from tests.runner import BACKEND, session
+from tests.runner import BACKEND
 
 
 def _person(db, role="user", company=None) -> int:
@@ -40,13 +39,10 @@ def _one(db, msg_id):
 
 
 @pytest.fixture()
-def world():
-    db = session()
+def world(db):
     staff = _person(db, "employee")
     actor = db.query(UserProfile).filter(UserProfile.object_id == staff).one()
     yield db, actor, staff
-    db.rollback()
-    db.close()
 
 
 def test_a_message_from_outside_is_open_until_someone_answers(world):
@@ -278,20 +274,6 @@ def test_reply_all_and_the_fixed_subject(world):
     assert [p.object_id for p in m.reply_all] == [lea, staff, marco]
     assert m.topic == "Seilwinde" and m.reply_subject == "Re: Seilwinde"
     assert m.sender.company == "Muster AG" and m.sender.email == f"p{lea}@x.ch"
-
-
-def test_there_is_no_reply_to_any_more():
-    """«Antwort auf» ist vollständig entfernt – kein Feld, kein Modell, keine Schreibstelle."""
-    from app import models
-    from app.schemas.communication import MessageOut
-    assert "reply_to" not in MessageIn.model_fields and "reply_to" not in MessageOut.model_fields
-    assert not hasattr(models, "MessageReply")
-    for path in ("app/services/communication.py", "app/services/mailbox.py",
-                 "app/services/inquiry.py"):
-        assert "MessageReply" not in (BACKEND / path).read_text(), path
-    ui = (BACKEND.parent / "frontend/src/components/erp/communication.tsx").read_text()
-    for gone in ("reply_to", "answer_to", "function Quote", "jump("):
-        assert gone not in ui, gone
 
 
 def test_the_subject_without_prefixes_is_the_topic():

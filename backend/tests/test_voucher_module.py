@@ -19,13 +19,14 @@ Und die eine Regel, die alles zusammenhält: **es bewegt keine Stücke.**
 Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
 """
 
-import os
 import pathlib
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+
+from tests.runner import session
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -35,21 +36,10 @@ BACKEND = pathlib.Path(__file__).resolve().parents[1]
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**."""
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        db = SessionLocal()
-        _house(db)
-        return db
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
+    """Eine Sitzung (``tests.runner.session``) – mit dem Haus, das der Beleg braucht."""
+    db = session()
+    _house(db)
+    return db
 
 
 def _house(db):
@@ -2030,6 +2020,13 @@ def test_an_invoice_is_issued_here_and_recorded_there():
         "Eine fremde Rechnung wird abgeschrieben, nicht gestellt (a)."
     )
     assert issued != recorded, "Beide Richtungen sagen dasselbe (a)."
+    assert issued == "Rechnung stellen", (
+        "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
+    )
+    assert vo.charge_word(collects=True, minus=True) == "Gutschrift stellen", (
+        "Eine Gutschrift nennt sich nicht – dann sagt nichts auf der Karte, dass dieser "
+        "Beleg mindert (a)."
+    )
     assert not hasattr(vo, "CHARGE_WORD"), (
         "Das Wort steht wieder als eine Konstante für beide Richtungen da (b)."
     )
@@ -3135,7 +3132,7 @@ def test_the_head_is_frozen_by_the_agreement():
     live; (g) vor der Zusage friert schon etwas ein (dann wäre die Offerte nicht mehr
     änderbar).
     """
-    from app.services import address_book, sites, voucher as svc
+    from app.services import address_book, voucher as svc
     with _db() as db:
         house = _house(db)
         who = _party(db, "Kunde", "customer")

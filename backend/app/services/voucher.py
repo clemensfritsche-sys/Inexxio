@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, Callable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, text
+from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -1248,7 +1248,7 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         if gross is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"Ohne Betrag ist es keine Rechnung.")
+                detail="Ohne Betrag ist es keine Rechnung.")
         try:
             split = vo.split_at(gross, data.get("vat") or vo.DEFAULT_VAT, row.currency)
         except ValueError as e:

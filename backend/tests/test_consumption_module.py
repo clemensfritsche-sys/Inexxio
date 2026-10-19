@@ -19,10 +19,7 @@ def _before(w: World, order, step):
 
 
 def _w() -> World:
-    try:
-        return World(session())
-    except Exception as exc:                                   # pragma: no cover
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}).")
+    return World(session())
 
 
 def _assembly(w: World, *, parts: int = 2, per_unit: int = 1, products: int = 1,

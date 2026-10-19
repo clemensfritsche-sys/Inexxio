@@ -28,10 +28,6 @@ from app.services import people, voucher
 from tests.runner import BACKEND, session
 
 
-def _db():
-    return session()
-
-
 def _user(db, **kw) -> UserProfile:
     u = UserProfile(firebase_uid=kw.pop("uid", "uid-1"),
                     email=kw.pop("email", "a@b.ch"), role=kw.pop("role", "user"),
@@ -86,7 +82,7 @@ def test_the_repair_turns_an_old_role_into_access():
     Bug-Formen: (a) die Reparatur trifft die Altwerte nicht; (b) sie trifft **auch**
     Personal (dann verliert ein Admin seinen Zugang); (c) sie ist nicht selbstbegrenzend.
     """
-    db = _db()
+    db = session()
     try:
         alt = _user(db, uid="r-1", email="r1@x.ch", role="customer")
         lief = _user(db, uid="r-2", email="r2@x.ch", role="supplier")
@@ -156,7 +152,7 @@ def test_the_address_book_has_exactly_one_default_of_each_kind():
     ohne Firma; (i) das Geschäftskonto stiehlt den privaten Standard.
     """
     from app.services import address_book as book
-    db = _db()
+    db = session()
     try:
         u = _user(db, uid="ab-1", email="ab1@x.ch")
         other = _user(db, uid="ab-2", email="ab2@x.ch")
@@ -231,7 +227,7 @@ def test_the_old_address_fields_move_into_the_address_book():
     Geschäftskonto; (e) ein zweiter Lauf legt alles noch einmal an.
     """
     from app.services import address_book as book
-    db = _db()
+    db = session()
     try:
         cols = {r[0] for r in db.execute(text(
             "SELECT column_name FROM information_schema.columns "
@@ -286,7 +282,7 @@ def test_the_address_of_a_foreign_firm_becomes_the_business_account():
     Lauf legt sie noch einmal an.
     """
     from app.services import address_book as book
-    db = _db()
+    db = session()
     try:
         firm = _firm(db, "Kunde")
         firm.street, firm.street_nr, firm.zip_code, firm.city = "Hauptstr.", "7", "8400", \
@@ -342,7 +338,7 @@ def _firm(db, name="Muster", form="AG", *, own=False, uid=None) -> CompanySettin
 def test_a_person_is_a_firm_through_its_link():
     """**Firma zuerst, Person als «z. H.»** – und die Firma kommt aus ihrem Datensatz.
     Bug-Form: die Rechtsform fehlt am Namen, oder eine Person ohne Firma gilt als Firma."""
-    db = _db()
+    db = session()
     try:
         privat = _user(db, uid="f-1", email="f1@x.ch", first_name="Eva", last_name="Meier")
         assert not people.is_business(privat)
@@ -368,7 +364,7 @@ def test_a_named_company_is_found_before_it_is_created():
     (c) die neue ist eigen; (d) eine falsche Prüfziffer geht durch; (e) eine unbekannte UID
     ohne Namen legt eine namenlose Firma an; (f) die UID-lose wird nicht übernommen.
     """
-    db = _db()
+    db = session()
     known = _uid()
     try:
         a = _user(db, uid="m-1", email="m1@x.ch")
@@ -413,7 +409,7 @@ def test_a_firm_exists_once_even_without_the_service():
     Bug-Formen: (a) der Index fehlt; (b) ``apply_update`` legt still eine zweite an;
     (c) ein UID-loser Name kollidiert mit einer Firma, die eine UID trägt."""
     from app.services import sites
-    db = _db()
+    db = session()
     db.commit = db.flush
     known = _uid()
     try:
@@ -453,7 +449,7 @@ def test_a_customer_names_its_firm_and_never_picks_or_edits_one():
     assert "require_employee" in src, "(a)"
     assert "/me/company" not in inspect.getsource(auth), "(e)"
     assert not hasattr(people, "update_member_company"), "(e)"
-    db = _db()
+    db = session()
     db.commit = db.flush
     try:
         foreign = _firm(db, "Kunde")
@@ -496,7 +492,7 @@ def test_the_uid_check_digit_is_checked_here():
 def test_staff_needs_one_of_our_companies():
     """**Personal arbeitet bei einer UNSERER Gesellschaften** – eine Kundenfirma stellt
     keine Belege. Bug-Form: ``assert_employment`` prüft nur, ob es die Firma gibt."""
-    db = _db()
+    db = session()
     try:
         foreign, own = _firm(db, "Kunde"), _firm(db, "Wir", own=True)
         u = _user(db, uid="s-1", email="s1@x.ch", first_name="A", last_name="B")
@@ -519,7 +515,7 @@ def test_a_person_is_created_without_ever_logging_in(monkeypatch):
     (a) keine Objektnummer; (b) die E-Mail behält Grossbuchstaben; (c) dieselbe E-Mail in
     anderer Schreibweise gilt als neu; (d) ein Mitarbeiter vergibt eine Personal-Rolle."""
     from app.schemas.admin import PersonCreate
-    db = _db()
+    db = session()
     db.commit = db.flush     # die Szene wird am Ende verworfen
     monkeypatch.setattr(people, "firebase_uid_for", lambda email, name: f"fb-{email}")
     try:
@@ -550,7 +546,7 @@ def test_a_foreign_company_never_acts_as_ours():
     """**Belegsteller, Betreiber, Gebiet – nur eigene.** Bug-Form: ein Filter fehlt, und
     die IBAN eines Kunden landet im Einzahlungsschein."""
     from app.services import sites
-    db = _db()
+    db = session()
     try:
         foreign = _firm(db, "Kunde")
         with pytest.raises(HTTPException):
@@ -614,7 +610,7 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     """
     from app.main import app
     from app.services import objects as obj, places
-    db = _db()
+    db = session()
     try:
         firm = _firm(db, name=f"Kranbau{_uid()[-3:]}Zeta")
         u = _user(db, uid="uid-search", email="lea@zeta.test", first_name="Lea",

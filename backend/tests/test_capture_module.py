@@ -16,30 +16,14 @@ Geprüft wird über die **echten** Dienstpfade gegen echtes PostgreSQL – nicht
 nachgestellte Zustände: die interessanten Fehler entstehen zwischen den Schritten.
 """
 
-import os
 import pathlib
 
 import pytest
 
+from tests.runner import session
 from tests.support import per_unit
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
-
-
-def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**."""
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        return SessionLocal()
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
 
 
 def _order(db, *, serialization: str, quantity: int, sample=None, points=None):
@@ -85,7 +69,7 @@ def test_one_scan_per_instance_falls_out_of_the_numbering():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=3)
         assert len(proc.step_work(db, order, step)) == 1, (
@@ -109,7 +93,7 @@ def test_no_entry_without_verification():
     from fastapi import HTTPException
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
 
@@ -168,7 +152,7 @@ def test_the_sample_is_drawn_once_and_frozen():
     """
     from app.services import process as proc, sampling
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=10,
                              sample={"percent": 30})
@@ -210,7 +194,7 @@ def test_the_sample_is_a_share_of_the_whole_not_of_each_instance():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="unit", quantity=4,
                              sample={"percent": 50})
@@ -238,7 +222,7 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
     from app.models.process_event import KIND_SAMPLE
     from app.services import article_process as tpl, objects as obj, process as proc
 
-    db = _db()
+    db = session()
     try:
         art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
                       serialization="unit")
@@ -333,7 +317,7 @@ def test_a_failed_capture_holds_and_nothing_is_created():
     from app.models import Order
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=4,
                              sample={"percent": 25})
@@ -386,7 +370,7 @@ def test_the_flow_splits_between_instances():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="unit", quantity=2)
         work = proc.step_work(db, order, step)
@@ -423,7 +407,7 @@ def test_a_later_good_capture_clears_the_hold():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
         work = proc.step_work(db, order, step)[0]
@@ -463,7 +447,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
     ein falscher Query-Name oder ein vergessenes Feld auf, und **nur** hier: die
     Dienst-Tests rufen die Funktion direkt.
     """
-    db = _db()
+    db = session()
     from fastapi.testclient import TestClient
     from app.core.auth import get_current_user
     from app.main import app
@@ -565,7 +549,7 @@ def test_one_scan_gives_one_capture_per_piece_not_one_per_scan():
     from app.services import process as proc
     from app.models import Capture
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2,
                              points=[{"label": "Mass", "type": "measure",
@@ -605,7 +589,7 @@ def test_the_capture_count_follows_the_draw_not_the_number_of_scans():
     from app.services import process as proc
     from app.models import Capture
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=8,
                              sample={"percent": 25})
@@ -641,7 +625,7 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
     from fastapi import HTTPException
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=4,
                              sample={"percent": 50})
@@ -687,7 +671,7 @@ def test_one_bad_piece_holds_the_whole_instance():
     from app.services import process as proc
     from app.models import Capture
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=3)
         work = proc.step_work(db, order, step)[0]
@@ -730,7 +714,7 @@ def test_a_hold_is_never_a_dead_end():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
         inst = proc.step_work(db, order, step)[0]["instance_object_id"]
@@ -812,7 +796,7 @@ def test_the_verdict_in_the_log_belongs_to_its_own_piece():
     from app.models.process_event import KIND_CAPTURE
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
         inst = proc.step_work(db, order, step)[0]["instance_object_id"]
@@ -863,7 +847,7 @@ def test_the_number_of_scans_follows_the_sample():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="unit", quantity=2,
                              sample={"percent": 50})
@@ -907,7 +891,7 @@ def test_a_failed_sample_keeps_the_rest_from_running_through():
     """
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         order, step = _order(db, serialization="unit", quantity=2,
                              sample={"percent": 50})

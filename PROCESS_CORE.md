@@ -294,7 +294,7 @@ gibt — und die erfundene Sperre hat keinen Schlüssel, weil der Dienst gar nic
 er einen ausgeben müsste. Der Auftrag steht dann für immer still, obwohl jeder
 Backend-Aufruf ihn weiterbewegen würde. Wächter:
 `test_capture_module.test_a_hold_is_never_a_dead_end` und
-`test_frontend_mirrors.test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it`.
+`test_source_process.test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it`.
 
 ### 4.6 Ein terminales Modul ist ein AUSGANG, kein Durchgang
 

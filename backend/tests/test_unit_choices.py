@@ -20,22 +20,14 @@ Gefahren wird über den **echten** Router-Pfad gegen echtes PostgreSQL – gegen
 die geprüfte Wahrheit eine andere.
 """
 
-import os
 import pathlib
 
-import pytest
-from sqlalchemy import event, text
+from sqlalchemy import event
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
-
-
-def _pg() -> None:
-    if not os.environ.get("DATABASE_URL", "").startswith("postgresql"):
-        pytest.skip("Diese Regeln gelten gegen echtes PostgreSQL – "
-                    "DATABASE_URL setzen, damit sie wirklich laufen.")
 
 
 def _choices(db, article_nr, **kw):
@@ -81,7 +73,6 @@ def test_the_picker_asks_two_questions_not_one():
     Bug-Form: nur ``available`` (= ``is_selectable``) liefern. Dann ist ein verbautes
     Stück von einem freigegebenen nicht zu unterscheiden – und FIFO schlägt es vor.
     """
-    _pg()
     from app.domain import statuses as st
 
     w = World(session())
@@ -109,7 +100,6 @@ def test_fifo_never_proposes_a_piece_that_is_not_in_stock():
     Der gemeldete Fall: das **älteste** Stück ist verbaut, also nimmt FIFO es zuerst.
     Bug-Form: nach ``available`` filtern – dann steht es im Vorschlag.
     """
-    _pg()
     w = World(session())
     try:
         article, units = _scene(w, quantity=6, built=1)
@@ -159,7 +149,6 @@ def test_the_in_stock_rule_lives_in_the_catalog():
 
 def test_a_bound_piece_is_selectable_but_never_preselected():
     """**Gebunden ist nicht frei.** Es zu nehmen ist eine Entscheidung, keine Vorgabe."""
-    _pg()
     w = World(session())
     try:
         article, units = _scene(w, quantity=4)
@@ -192,7 +181,6 @@ def test_fifo_finds_free_pieces_beyond_the_first_page():
     geladenen Seite ziehen – dann sind alle zehn verbaut und die Oberfläche schlägt
     **nichts** vor, obwohl fünf freie da sind.
     """
-    _pg()
     w = World(session())
     try:
         article, units = _scene(w, quantity=40, built=35)
@@ -210,7 +198,6 @@ def test_fifo_finds_free_pieces_beyond_the_first_page():
 
 def test_the_counters_come_from_the_whole_article_not_the_page():
     """**«Am Lager 60», wo fünfzigtausend liegen**, ist schlimmer als keine Zahl."""
-    _pg()
     from app.domain import statuses as st
 
     w = World(session())
@@ -238,7 +225,6 @@ def test_one_page_costs_a_handful_of_queries():
     kleinen Datenmengen unauffällig bleibt. Sie fragt jetzt nach genau den Stücken, die
     auf der Seite stehen.
     """
-    _pg()
     w = World(session())
     seen: list[str] = []
 
@@ -277,7 +263,6 @@ def test_one_page_costs_a_handful_of_queries():
 
 def test_the_page_can_be_searched_and_filtered():
     """**Suchen und blättern statt scrollen** – bei zehntausend Stücken die einzige Form."""
-    _pg()
     from app.domain import statuses as st
     from app.models import Instance
 

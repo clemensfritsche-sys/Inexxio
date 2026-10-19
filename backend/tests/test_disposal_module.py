@@ -15,28 +15,13 @@ jedes künftige terminale Modul erbt sie.
 Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
 """
 
-import os
 import pathlib
 
 import pytest
 
+from tests.runner import session
+
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
-
-
-def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**."""
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        return SessionLocal()
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
 
 
 def _capture_step():
@@ -150,7 +135,7 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
     from app.domain import statuses as st
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         for mode, expected in (("block", st.GESPERRT), ("scrap", st.VERSCHROTTET)):
             art, order, rows = _make(db, quantity=2, steps=[_disposal_step(mode)])
@@ -201,9 +186,8 @@ def test_nothing_can_stand_behind_a_terminal_module():
     sie sieht aus wie ein Prozess.
     """
     from fastapi import HTTPException
-    from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         # Erlaubt: das Aussondern als letztes Modul – die Kette endet dort.
         _make(db, quantity=1, steps=[_capture_step(), _disposal_step("scrap")])
@@ -232,7 +216,7 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
     from app.models import OrderUnit, ProcessStep
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         art, parent, p_steps = _make(db, quantity=2, steps=[_capture_step(), _capture_step()])
         from app.models import InstanceUnit
@@ -292,7 +276,7 @@ def test_the_order_status_needs_no_new_value():
     from app.models import InstanceUnit, OrderUnit, ProcessStep
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         art, parent, p_steps = _make(db, quantity=3, steps=[_capture_step(), _capture_step()])
         pieces = (db.query(InstanceUnit)
@@ -340,7 +324,7 @@ def test_the_picture_ends_at_the_exit_and_keeps_its_invariants():
     """
     from app.services import flow
 
-    db = _db()
+    db = session()
     try:
         _, order, rows = _make(db, quantity=2, steps=[_capture_step(),
                                                       _disposal_step("scrap")])
@@ -396,7 +380,7 @@ def test_the_reason_is_given_when_modelling_not_at_the_line():
     from app.domain import modules
     from app.models import Capture, ProcessStep
 
-    db = _db()
+    db = session()
     try:
         for mode in ("scrap", "block"):
             with pytest.raises(HTTPException) as e:
@@ -441,7 +425,7 @@ def test_the_scan_requirement_is_inherited_not_rebuilt():
     from app.domain import modules
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         assert modules.get("aussondern").requires_verification is True
 
@@ -471,7 +455,7 @@ def test_the_stock_view_carries_the_new_states_by_itself():
         rows = stock_states(inst_svc.article_states(db, article_id=article.id))
         return {r.status: r for r in rows}
 
-    db = _db()
+    db = session()
     try:
         art, order, rows = _make(db, quantity=4, steps=[_disposal_step("block")])
         _confirm(db, order, rows[0])

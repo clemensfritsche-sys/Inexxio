@@ -15,7 +15,6 @@ gegen ihre **Bug-Form**.
 import ast
 import pathlib
 
-import pytest
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
@@ -24,10 +23,7 @@ BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
 
 def _w() -> World:
-    try:
-        return World(session())
-    except Exception as exc:                                   # pragma: no cover
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}).")
+    return World(session())
 
 
 def _record(w: World, order, step, **kw):
