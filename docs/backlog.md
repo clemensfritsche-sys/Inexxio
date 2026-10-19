@@ -372,7 +372,7 @@ Fehlerklasse aus Migration 110.
 ## Folge-Deploy: die Geld-Zeile verliert sechs Spalten und eine Tabelle
 
 Seit Migration `138` **ist der Beleg die Rechnung**
-(`docs/konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q): Betrag, Steuer, Nummer,
+(`docs/history/2026-09-konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q): Betrag, Steuer, Nummer,
 Datum, Fälligkeit und Leistungsdatum stehen an `vouchers`, und `voucher_entries` trägt nur
 noch **Zahlungen**. Ohne Mapping und ohne Leser stehen damit still:
 

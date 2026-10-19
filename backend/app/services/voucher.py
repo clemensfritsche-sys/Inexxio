@@ -1,6 +1,6 @@
 """**Der Beleg als Dienst** — Angebotsspiegel, Positionen, Forderungen, Zahlungen.
 
-Drei Formregeln (``docs/neuaufbau-zahlungsmodul.md``):
+Drei Formregeln (``docs/history/2026-09-neuaufbau-zahlungsmodul.md``):
 
 1. ►►► **Ein Verb wird an EINER Stelle deklariert.** ◄◄◄ ``VERBS`` sagt je Verb: *in
    welcher Stufe · welche Stammdaten · wer darf · welche Funktion*.

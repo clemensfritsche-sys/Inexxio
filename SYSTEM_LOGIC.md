@@ -529,12 +529,13 @@ kennt **keine Reservierungen**. Die Auftragsfreigabe *ist* die Verfügbarkeitspr
 sind die Stücke im selben Moment weg, meldet sie es (§12.6a). Ein ATP-Wert daneben wäre
 eine Aussage über einen Zustand, den niemand hält.
 
-**Mahnwesen.** *Überfällig* ist eine Ableitung und sichtbar (`invoices.is_overdue`); eine
-**Mahnung** ist eine Mitteilung, und es gibt keinen Versandweg (kein E-Mail, `CLAUDE.md`).
-Was fehlt, ist der Kanal, nicht die Logik.
+**Mahnwesen.** *Überfällig* ist eine Ableitung und sichtbar (`domain/voucher.invoice_state`);
+eine **Mahnung** ist eine Mitteilung. Einen Versandweg gibt es inzwischen (Gmail-Postfach
+der eigenen Gesellschaft, `services/mailbox`) – was fehlt, ist der **Anlass**: nichts
+schreibt eine Mahnung von selbst, sie wäre eine gewöhnliche Nachricht im Verlauf.
 
 **Rechnungs-PDF.** Die Rechnung trägt Betrag, Steuer je Satz und Leistungsdatum; die
-**Positionen** stehen am Vorgang (`deals.agreed_lines`). Was fehlt, ist der **Ausdruck** –
+**Positionen** stehen am Beleg (`voucher_lines`). Was fehlt, ist der **Ausdruck** –
 und den gibt es nicht (das Dokumentmodul ist entfernt). Der Beleg lebt online; ein
 Papierformat ist eine Darstellung, kein Datenmodell.
 
@@ -542,7 +543,7 @@ Papierformat ist eine Darstellung, kein Datenmodell.
 Weitergabe ans Finanzwesen» hat hier kein Gegenüber.
 
 *Nicht auf dieser Liste, weil es sie längst gibt:* **Kommissionierung** und **Versand**
-sind Bewegen-Module (§9.8), die Spedition ist ein Geldvorgang (§9.12). *Ein eigenes Modul
+sind Bewegen-Module (§9.8), die Spedition ist ein Geldvorgang (§9.15). *Ein eigenes Modul
 für die Übergabe gab es eine Runde lang und ist entfernt: «gehört jetzt jemand anderem»
 ist die Folge aus Bewegen und Zahlung, kein eigener Vorgang (§9.9).*
 
@@ -551,5 +552,6 @@ ist die Folge aus Bewegen und Zahlung, kein eigener Vorgang (§9.9).*
 ## 6. Die Testbarkeitsregel
 
 Jeder Satz in §1–§4 muss durch einen automatisierten Test widerlegbar sein. Ein Satz, für
-den es keinen Test gibt, wird in `TEST_REPORT.md` ausdrücklich als **nicht geprüft**
+den es keinen Test gibt, wird im Testbericht (heute `python -m scripts.scenario_report`;
+die Momentaufnahme der Kampagne liegt in `docs/history/2026-08-test-report.md`) ausdrücklich als **nicht geprüft**
 ausgewiesen — nicht als bestanden.

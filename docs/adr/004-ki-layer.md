@@ -2,7 +2,7 @@
 
 > ## Kopfstatus (August 2026): **historisch – der Code ist entfernt**
 > Der KI-Layer (`services/ai/`, `routers/ai.py`) ist mit dem Aufräumen gelöscht
-> (`docs/attic.md`, Tag `attic/pre-cleanup-2026-08`). Die **Architektur-Entscheidungen**
+> (`docs/attic.md`, Commit `676a68c`). Die **Architektur-Entscheidungen**
 > hier sind der Grund, warum das Dokument bleibt: Gateway statt Anbieter im Fachcode,
 > KI-Identität als System-Benutzer mit Objektnummer, **Scoping = Authz, nicht Prompt**,
 > und «Entwürfe ja, Kritisches nur als Vorschlag». Wer die KI neu baut, fängt hier an –

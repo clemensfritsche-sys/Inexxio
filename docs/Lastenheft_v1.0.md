@@ -1,5 +1,13 @@
 # Inexxio – Lastenheft v1.0 (Final, verbindlich)
 
+> ## Kopfstatus (Oktober 2026): **Zielbild, nicht Ist-Stand**
+> Das Lastenheft beschreibt, was das System **werden** soll. Wo der Code heute bewusst
+> abweicht, gilt der Code bzw. `CLAUDE.md`. Benannte Abweichungen: **TOTP-MFA für Admins**
+> ist nicht gebaut (vorgemerkt); **keine Statistik** (Plausible entfernt, kein
+> Einwilligungs-Dialog); **kein hCaptcha** (das Formular schützt sich mit Honigtopf,
+> Mindestzeit und Rate-Limit); **kein PWA/SSE**; **Cloud Storage, Typesense** nicht
+> verdrahtet; **Autosave** debounced 3 s (`frontend/src/lib/use-autosave.ts`).
+
 > **WICHTIG für Claude Code:** Dieses Dokument enthält alle verbindlichen Projektentscheide für Inexxio.
 > Vor jeder Entwicklungsarbeit relevante Abschnitte konsultieren.
 
@@ -110,7 +118,11 @@ inexxio/
 
 **Commit-Konvention:** `feat:` / `fix:` / `refactor:` / `docs:` / `test:`
 **Regel:** Nach jedem funktionierenden Feature committen. Nie 'work in progress' committen.
-**Regel:** CLAUDE.md nach jeder Session aktualisieren (Status + nächste Aufgabe).
+**Regel:** CLAUDE.md nach jeder Session auf den **Stand** bringen (was gebaut ist, was gilt,
+nächste Aufgabe). **Ein Rundenbericht gehört nach `docs/history/`, nicht in CLAUDE.md** –
+CLAUDE.md beschreibt nur den Ist-Stand. *(Geändert im Cleanup Oktober 2026, D-38: die alte
+Fassung «nach jeder Session aktualisieren» liess CLAUDE.md zu einer 5'000-Zeilen-Chronik
+wachsen; sie liegt in `docs/history/2026-10-claude-md-chronik.md`.)*
 
 ## Nummernkreis
 

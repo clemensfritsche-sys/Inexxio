@@ -1,10 +1,11 @@
 # ADR 005 – Logistik/Versand: «Versand wird abgeleitet, nicht bestellt»
 
-> ## Kopfstatus (August 2026): **teilweise gültig**
+> ## Kopfstatus (Oktober 2026): **teilweise gültig**
 > **Gültig bleibt die Kernaussage** – Versand wird aus Quelle und Ziel *abgeleitet*, nicht
-> bestellt –, und sie ist heute anders gelöst: eine Sendung **ist ein Einkauf**
-> (`domain/procurement.py`), ein Frachtführer ist ein Lieferant, der Tarifvergleich ist
-> der Angebotsspiegel des Belegs.
+> bestellt –, und sie ist heute anders gelöst: eine Sendung **ist ein Einkauf** – ein
+> Geldvorgang (Modul «Zahlung», Ausgabe; `domain/voucher`) neben dem Bewegen-Modul –, ein
+> Frachtführer ist ein Partner, der Tarifvergleich ist der Angebotsspiegel des Belegs.
+> (`domain/procurement.py`, das dies einmal trug, ist mit «Beschaffen» gelöscht.)
 > **Entfallen** sind die Carrier-Adapter (`services/shipping/`, Shippo/Sendcloud), der
 > Versand-Beleg `shipments` und die Transportart als Eingabe. Ein eigenes Versandmodul
 > kommt nicht zurück; was fehlt, ist eine Angebotszeile, die eine Anbindung füllt statt

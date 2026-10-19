@@ -1,9 +1,11 @@
 # ADR 001: Technology Stack
 
-> ## Kopfstatus (August 2026): **gültig, mit benannten Abweichungen**
-> Die Wahl der Bausteine steht. **Nicht verdrahtet** sind heute: Stripe, Typesense, Gmail
-> API, Cloud Storage und die KI – sie stehen unten als Teil des Stacks, sind im Code aber
-> nicht vorhanden (siehe `CLAUDE.md` → Architektur und `docs/attic.md`).
+> ## Kopfstatus (Oktober 2026): **gültig, mit benannten Abweichungen**
+> Die Wahl der Bausteine steht. **Verdrahtet** sind inzwischen **Stripe** (eigene
+> Bezahlkarte im ERP, `services/stripe_pay.py`, optional) und die **Gmail API** (je eigener
+> Gesellschaft ein Postfach, `services/mailbox.py`, optional). **Nicht verdrahtet** sind
+> Typesense, Cloud Storage und die KI – sie stehen unten als Teil des Stacks, sind im Code
+> aber nicht vorhanden (siehe `CLAUDE.md` → Architektur und `docs/attic.md`).
 
 
 **Status:** Accepted  

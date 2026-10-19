@@ -13,6 +13,20 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-07-cleanup.md` | Code-Cleanup + Härtung, Juli 2026 |
 | `2026-07-concept-review.md` | Konzept-Review |
 | `2026-07-vorschlaege-D-E-F.md` | Ausgearbeitete Vorschläge D/E/F |
+| `2026-08-test-report.md` | Testkampagne Prozessmodell (vormals `TEST_REPORT.md`, 71 Fälle; die Matrix ist seither gewachsen – laufend: `python -m scripts.scenario_report`) |
+| `2026-08-cleanup.md` | Altlasten-Bereinigung August 2026 (vormals `docs/cleanup-2026-08.md`) |
+| `2026-09-zahlungsmodul-vorgaenger.md` | Das gelöschte `deal`-Modul «Zahlung (alt)» – Prosa aus `CLAUDE.md`/`frontend/CLAUDE.md` und, als Anhang, PROCESS_CORE §9.12–§9.14c im Wortlaut |
+| `2026-09-neuaufbau-zahlungsmodul.md` | Der Bauplan des Belegs (`beleg`), umgesetzt mit Migration 134 |
+| `2026-09-arbeitsauftrag-beleg.md`, `2026-09-arbeitsauftrag-beleg-2.md`, `2026-09-beleg-pflichtangaben.md` | Arbeitsaufträge und Pflichtangaben-Analyse zum Beleg (umgesetzt, Migrationen 131–133) |
+| `2026-09-konzept-eine-rechnung-je-modul.md` | «Der Beleg IST die Rechnung» (umgesetzt, Migration 138) |
+| `2026-09-17-analyse-retoure.md` | Retoure/Gutschrift-Analyse – durch Migration 138 überholt |
+| `2026-10-claude-md-chronik.md` | **Die Chronik der Runden** aus `CLAUDE.md` (August–Oktober 2026), wörtlich |
+| `2026-10-backend-claude-md-chronik.md`, `2026-10-frontend-claude-md-chronik.md` | Die bisherigen `backend/CLAUDE.md` und `frontend/CLAUDE.md`, wörtlich (mit ihren Rundenberichten) |
+| `2026-10-website-plan-chronik.md` | Der vollständige Website-Plan mit allen 124 Entscheiden (die Nummern gelten als Verweis weiter) |
+| `2026-10-03-website-report.md`, `2026-10-04-website-report.md` | Abschlussberichte der Website (Fassung 1 und Umbau v2) |
+
+> **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
+> beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.
 
 **Der heutige Stand steht in:** `CLAUDE.md` (Kontext und was gebaut ist) ·
 `PROCESS_CORE.md` (die Prozesslogik) · `SYSTEM_LOGIC.md` (die Regeln als prüfbare Sätze) ·

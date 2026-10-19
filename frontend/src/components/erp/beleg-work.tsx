@@ -28,7 +28,7 @@ import { day, happened, when } from '@/lib/when';
 
 /**
  * **Der Beleg an der Ausführungsstelle — EIN Dokument, das WÄCHST**
- * (`docs/neuaufbau-zahlungsmodul.md`, PROCESS_CORE §9.15).
+ * (`docs/history/2026-09-neuaufbau-zahlungsmodul.md`, PROCESS_CORE §9.15).
  *
  *     Belegkopf → Positionen → Konditionen → Angebote → Fordern → Begleichen
  *
