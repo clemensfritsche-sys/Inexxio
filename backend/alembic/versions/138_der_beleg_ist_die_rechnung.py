@@ -53,11 +53,42 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-# **Die Ableitung steht an EINER Stelle** – die dev-Datenbank fährt kein
-# ``alembic upgrade head``, also braucht sie das Lifespan-Netz ebenfalls (Testnotiz #778).
-# Zweimal ausgeschrieben wären es zwei Wahrheiten; dieselbe Bauart wie der Endzustands-
-# Trigger in Migration 110.
-from app.domain.voucher import invoice_backfill_sql
+# **Die Ableitung stand bis Migration 152 in ``domain/voucher.invoice_backfill_sql``** und
+# wurde auch vom Lifespan-Netz gelesen. Mit dem Drop von ``voucher_entries.kind`` (152) ist
+# das Netz entfallen; die Anweisungen stehen seither hier, damit ``alembic upgrade head``
+# von null weiter läuft.
+_INVOICE_BACKFILL: tuple[str, ...] = (
+    """
+    WITH total AS (
+        SELECT voucher_id, SUM(amount) AS amount
+          FROM voucher_entries
+         WHERE kind = 'charge' AND is_active
+         GROUP BY voucher_id
+    ), head AS (
+        SELECT DISTINCT ON (e.voucher_id)
+               e.voucher_id, e.booked_on, e.due_on, e.reference, e.vat,
+               e.service_date
+          FROM voucher_entries e
+         WHERE e.kind = 'charge' AND e.is_active AND e.reverses_id IS NULL
+           AND NOT EXISTS (SELECT 1 FROM voucher_entries r
+                            WHERE r.reverses_id = e.id AND r.is_active)
+         ORDER BY e.voucher_id, e.booked_on NULLS LAST, e.id
+    )
+    UPDATE vouchers v
+       SET amount       = t.amount,
+           billed_on    = h.booked_on,
+           due_on       = h.due_on,
+           number       = h.reference,
+           vat          = h.vat,
+           service_date = h.service_date,
+           stage        = CASE WHEN v.stage = 'agreed' THEN 'billed' ELSE v.stage END
+      FROM total t
+      JOIN head h ON h.voucher_id = t.voucher_id
+     WHERE v.id = t.voucher_id
+       AND v.amount IS NULL
+    """,
+    "UPDATE voucher_entries SET is_active = false WHERE kind = 'charge'",
+)
 
 revision = "138"
 down_revision = "137"
@@ -136,14 +167,13 @@ def upgrade() -> None:
     if not _has_column("voucher_entries", "kind"):
         return
 
-    # ►►► **Der Backfill.** ◄◄◄ Zwei Ableitungen über dieselben Zeilen, und sie stehen in
-    # ``domain/voucher.invoice_backfill_sql`` – die Migration ist die Wahrheit, das
-    # Lifespan-Netz der zweite Weg, und beim Ausfall zählt nur der zweite.
+    # ►►► **Der Backfill.** ◄◄◄ Zwei Ableitungen über dieselben Zeilen (``_INVOICE_BACKFILL``
+    # oben).
     #
     # **Die Forderungs-Zeilen gehen dabei aus dem Weg** (zweite Anweisung). Das ist nicht
     # Kosmetik, sondern zwingend: nach dem Umbau liest der Dienst jede aktive Zeile als
     # **Zahlung**, und eine stehengebliebene Forderung zählte als Geldeingang.
-    for stmt in invoice_backfill_sql():
+    for stmt in _INVOICE_BACKFILL:
         op.execute(sa.text(stmt))
 
 

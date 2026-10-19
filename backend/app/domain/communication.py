@@ -159,25 +159,6 @@ def reply_subject(subject: Optional[str]) -> str:
     return f"Re: {t}" if t else ""
 
 
-def topic_repair_sql() -> list[str]:
-    """►►► **Vom «Antwort auf» zum Betreff** (Migration 148). ◄◄◄ Was bisher über
-    ``message_replies`` beantwortet war, bleibt beantwortet: eine Antwort ohne Betreff
-    bekommt den ihrer Vorlage, und wer beantwortet wurde, wird – wo er nicht schon dabei
-    ist – als «Betrifft» beteiligt. Gelesen von der Migration **und** vom Lifespan-Netz
-    (#778). Selbstbegrenzend: danach gibt es nichts mehr nachzutragen."""
-    return [
-        "UPDATE messages AS m SET subject = p.subject FROM message_replies AS r "
-        "JOIN messages AS p ON p.id = r.reply_to_id WHERE r.message_id = m.id "
-        "AND COALESCE(m.subject, '') = '' AND COALESCE(p.subject, '') <> ''",
-        "INSERT INTO message_parties (message_id, person_object_id, role) "
-        "SELECT DISTINCT r.message_id, p.sender_object_id, 'about' FROM message_replies AS r "
-        "JOIN messages AS p ON p.id = r.reply_to_id JOIN messages AS m ON m.id = r.message_id "
-        "WHERE p.sender_object_id <> m.sender_object_id AND NOT EXISTS (SELECT 1 FROM "
-        "message_parties AS x WHERE x.message_id = r.message_id "
-        "AND x.person_object_id = p.sender_object_id)",
-    ]
-
-
 def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:
     """**Ist diese Nachricht an UNS gerichtet?** – die eine Frage hinter «offen».
 

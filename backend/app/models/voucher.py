@@ -160,8 +160,7 @@ class Voucher(Base, TimestampMixin):
     number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
     # **Gestellt ist draussen** (#1047): ``billed_on`` sagt es, ein «versendet» gibt es
-    # nicht. Die Spalte ``issued_on`` steht noch in der Datenbank und fällt im
-    # Folge-Deploy (``docs/backlog.md``).
+    # nicht (die Spalte ``issued_on`` ist gedroppt, Migration 152).
 
     #: **Der Rechnungsbetrag, brutto** – eingefroren mit dem Stellen. Bei einem
     #: **Korrekturbeleg** negativ: die Positionen tragen positive Preise (niemand tippt ein
@@ -340,9 +339,8 @@ class VoucherEntry(Base, TimestampMixin):
     Betrag, nie eine Änderung an der alten: eine Zahlung ist die Aufzeichnung dessen, was
     auf dem Konto passiert ist, und ein Ereignis der Aussenwelt macht man nicht ungeschehen.
 
-    *Die Spalten ``kind`` · ``due_on`` · ``vat`` · ``service_date`` · ``reverses_id`` ·
-    ``charge_id`` stehen noch in der Datenbank (Zwei-Deploy-Regel, ``docs/backlog.md``) und
-    werden von keiner Zeile Code mehr gelesen oder geschrieben.*
+    *Die früheren Spalten ``kind`` · ``due_on`` · ``vat`` · ``service_date`` ·
+    ``reverses_id`` · ``charge_id`` · ``reason`` sind gedroppt (Migration 152).*
     """
 
     __tablename__ = "voucher_entries"

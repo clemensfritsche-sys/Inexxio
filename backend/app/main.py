@@ -14,7 +14,6 @@ from sqlalchemy.exc import IntegrityError
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .domain import statuses as st
-from .domain import voucher as vo
 from .models import UserProfile
 from .services import address_book, people, sites
 from .routers import (
@@ -61,7 +60,6 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
     ("company_settings", "object_id", "BIGINT"),
     # Artikel-Spezifikation (optionale Felder, nachträglich ergänzt).
-    ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("articles", "material", "VARCHAR(255)"),
     ("articles", "cad_url", "VARCHAR(500)"),
     ("articles", "surface", "VARCHAR(255)"),
@@ -93,9 +91,8 @@ _COLUMN_SAFETY_NET = (
     ("instance_units", "place_object_id", "BIGINT"),
     # Der Träger (Migration 112) – dieselbe Tabelle, dieselbe Ausfallklasse.
     ("instance_units", "place_unit_id", "BIGINT"),
-    # Ein Netz für eine Spalte, die kein Modell liest, schützt nichts – darum stehen hier
-    # keine Einträge für die Tabellen entfernter Bereiche (sie selbst bleiben bis zum
-    # Drop, ``docs/backlog.md``).
+    # Ein Netz für eine Spalte, die kein Modell liest, schützt nichts – es lässt sie
+    # auferstehen (``tests/test_schema_is_built_by_the_migrations`` prüft es).
     # ►► **Zoll und Lieferbedingung** (Migration 131). Sie stehen hier, weil eine Spalte,
     #    die **nur** in einer Migration steht, eine Datenbank nicht erreicht, auf der
     #    ``alembic upgrade head`` scheitert (``start.sh`` startet dann trotzdem) – und beim
@@ -186,35 +183,14 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
 #:
 #: Ein Eintrag hier lebt genau einen Deploy lang: er entsteht, wenn eine Spalte ihr
 #: Mapping verliert, und geht mit ihrem Drop wieder (``purchases.quantity``/``article_id``
-#: – Migrationen 115/116, gedroppt von 120). Das Netz bleibt trotzdem stehen: es ist der
+#: – Migrationen 115/116, gedroppt von 120; ``articles.status`` & Co. – gedroppt von 152). Das Netz bleibt trotzdem stehen: es ist der
 #: erste von zwei Schritten der Zwei-Deploy-Regel, kein einmaliger Fix – wer es entfernt,
 #: erfindet es beim nächsten unmapped gewordenen Pflichtfeld neu, und bis dahin laufen
 #: alle Inserts auf.
 _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
-    # **«Ausser Betrieb» ist keine eigene Angabe mehr** (Testnotiz #773, Migration 121):
-    # der Zustand eines Artikels ist die Projektion von ``replaced_by_id``. Die Spalte hat
-    # ihr Mapping verloren; gedroppt wird sie im Folge-Deploy.
-    ("articles", "status"),
-    # ►► **Die Art einer Geld-Zeile** (Migration 138): es gibt nur noch eine – die
-    #    **Zahlung**. Die Forderung ist der Beleg selbst geworden, also kennt das Modell
-    #    ``kind`` nicht mehr; die Spalte ist ``NOT NULL`` **ohne** Server-Default, und ohne
-    #    diesen Eintrag liefe auf dev jedes Insert einer Zahlung auf. Gedroppt wird sie im
-    #    Folge-Deploy (dieselbe Zwei-Schritte-Regel wie bei ``purchases.quantity``).
-    ("voucher_entries", "kind"),
-    # ►► **Die Rechnungsadresse ist freiwillig** (Testnotiz #1043, Migration 140): der
-    #    Schalter «Rechnungsadresse = Lieferadresse» war die zweite Aussage über dieselbe
-    #    Sache – ob eine eigene hinterlegt ist, sagen die Felder selbst. Die Spalte ist
-    #    ``NOT NULL`` **ohne** Server-Default, und ihr Mapping ist weg: ohne diesen
-    #    Eintrag liefe auf dev jedes Insert eines neuen Benutzers auf. Gedroppt wird sie
-    #    im Folge-Deploy.
-    ("user_profiles", "invoice_same_as_shipping"),
-    # ►► **Die Anschriften ziehen ins Adressbuch** (Migration 143): ``country`` war
-    #    ``NOT NULL`` und hat sein Mapping verloren – ohne diesen Eintrag liefe jedes
-    #    Insert eines neuen Benutzers auf, falls die Spalte keinen Server-Default trägt.
-    ("user_profiles", "country"),
-    # ``payments``/``invoices``/``purchases`` haben mit dem Handel ihr Mapping verloren –
-    # es schreibt niemand mehr hinein, also kann auch kein Insert an einer ``NOT NULL``
-    # auflaufen. Die Tabellen bleiben stehen (Zwei-Deploy-Regel).
+    # Leer seit Migration ``152``: ``articles.status``, ``voucher_entries.kind``,
+    # ``user_profiles.invoice_same_as_shipping`` und ``.country`` sind gedroppt. Der
+    # nächste Eintrag entsteht, wenn wieder ein Pflichtfeld sein Mapping verliert.
 )
 
 # ►► **Ein Drop-Netz gibt es nicht mehr** (Cleanup Oktober 2026, B-22). Es lief bei jedem
@@ -346,11 +322,9 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
 #: Ein Auftrag heisst nach seiner Objektnummer, wo kein Name dasteht (Migration 107/108) –
 #: billig und selbstbegrenzend.
 #:
-#: **Den Artikel-Status schreibt der Start nicht mehr** (Cleanup Oktober 2026, B-20): die
-#: Spalte ``articles.status`` hat ihr Mapping seit Migration 121 verloren (der Zustand ist
-#: die Projektion von ``replaced_by_id``), niemand liest sie, und ihr Drop steht im
-#: Backlog. Sie bei jedem Start nachzuführen hielt eine Angabe frisch, die es nicht mehr
-#: gibt.
+#: **Den Artikel-Status schreibt der Start nicht mehr** (Cleanup Oktober 2026, B-20): der
+#: Zustand ist die Projektion von ``replaced_by_id``, und die Spalte ``articles.status``
+#: hat Migration 152 gedroppt.
 _ORDER_NAME_FIXES = (
     "UPDATE orders SET name = 'Auftrag ' || object_id WHERE name IS NULL OR name = ''",
 )
@@ -416,43 +390,6 @@ def _repair_unit_status(conn, tables: set[str], insp) -> None:
         )
 
 
-def _repair_vouchers(conn, tables: set[str], insp) -> None:
-    if "vouchers" in tables and "voucher_entries" in tables:
-        # ►►► **Die Rechnung wandert an ihren Beleg** (Migration ``138``). ◄◄◄
-        #
-        # Scheitert ``alembic upgrade head`` beim Start (Testnotiz #778), zieht das
-        # Spalten-Netz die acht neuen Spalten **leer** nach, und die
-        # alten Forderungs-Zeilen blieben stehen. Der Dienst liest seit dem Umbau
-        # **jede aktive Zeile als Zahlung** – jede alte Rechnung wäre damit ein
-        # Geldeingang, und der offene Betrag stünde im Minus. Das ist kein
-        # Schema-Problem, also fängt es kein Schema-Netz.
-        #
-        # Die Ableitung steht in ``domain/voucher`` und wird von der Migration
-        # **und** von hier gelesen – zweimal ausgeschrieben wären es zwei
-        # Wahrheiten. Sie ist **selbstbegrenzend**: der erste Lauf setzt jede
-        # ``charge``-Zeile inaktiv, der zweite findet nichts mehr. Eine Reparatur
-        # mit einer gepflegten Liste veraltet (die Lehre aus Migration ``110``) –
-        # diese hier kann es nicht, weil sie ihre eigene Voraussetzung wegnimmt.
-        v_cols = {r[0] for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='vouchers'"))}
-        e_cols = {r[0] for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='voucher_entries'"))}
-        if "amount" in v_cols and "kind" in e_cols:
-            for stmt in vo.invoice_backfill_sql():
-                conn.execute(text(stmt))
-        # ►►► **Jede Zahl ist eine MENGE** (Migration ``141``, #1054–#1056). ◄◄◄
-        #
-        # Vor 141 stand ein Korrekturbeleg im Minus. Die Leser lesen ihn als
-        # Menge – ohne diese Drehung wäre der offene Betrag das
-        # Doppelte, und das fängt kein Schema-Netz. Selbstbegrenzend: gedreht
-        # wird nur, was negativ ist.
-        if {"amount", "vat", "corrects_id"} <= v_cols:
-            for stmt in vo.magnitude_sql():
-                conn.execute(text(stmt))
-
-
 def _repair_people(conn, tables: set[str], insp) -> None:
     if "user_profiles" in tables:
         # ►►► **Die Rolle ist der Zugang** (Testnotiz #1043, Migration ``140``).◄◄◄
@@ -467,25 +404,14 @@ def _repair_people(conn, tables: set[str], insp) -> None:
         # Die Anweisungen stehen in ``services/people.repair_sql`` und werden von
         # der Migration **und** von hier gelesen – für eine Datenbank, auf der
         # ``alembic upgrade head`` scheitert (#778). Beide sind **selbstbegrenzend**.
-        up_cols = {r[0] for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='user_profiles'"))}
         for stmt in people.repair_sql():
             conn.execute(text(stmt))
-        # ►►► **Die Anschriften ziehen ins Adressbuch** (Migration ``143``). ◄◄◄
-        # Selbstbegrenzend: die Felder werden danach geleert, ein zweiter Lauf
-        # findet nichts mehr. Fällt die Spalte im Folge-Deploy, gibt es nichts zu tun.
+        # Je Konto genau ein Standard – als Index (Migration ``143``); hier für eine
+        # Tabelle, die schon ohne ihn existiert. Die Übernahme der alten Felder ins
+        # Adressbuch ist mit ihrem Drop (Migration ``152``) entfallen.
         if "addresses" in tables:
-            # Je Konto genau ein Standard – der Index ohne Konto fällt zuerst.
             for stmt in address_book.ADDRESS_INDEXES:
                 conn.execute(text(stmt))
-            if "address_line1" in up_cols:
-                for stmt in address_book.migrate_sql():
-                    conn.execute(text(stmt))
-            # Die Anschrift einer fremden Firma wird die des Geschäftskontos.
-            if "company_object_id" in up_cols:
-                for stmt in address_book.business_sql():
-                    conn.execute(text(stmt))
 
 
 def _repair_companies(conn, tables: set[str], insp) -> None:
@@ -508,11 +434,6 @@ def _repair_companies(conn, tables: set[str], insp) -> None:
                 for stmt in (info_repair_sql() + personal_repair_sql()
                              + contact_repair_sql()):
                     conn.execute(text(stmt))
-            # Vom «Antwort auf» zum Betreff (Migration ``148``) – selbstbegrenzend.
-            if "message_replies" in tables and "message_parties" in tables:
-                from .domain.communication import topic_repair_sql
-                for stmt in topic_repair_sql():
-                    conn.execute(text(stmt))
         # ►►► **Woran eine Firma erkannt wird** (Migration ``143``) – die Schlüssel
         # für den Bestand, dieselbe Ableitung wie beim Schreiben. Selbstbegrenzend.
         if {"uid_key", "name_key"} <= cs_cols:
@@ -529,7 +450,6 @@ def _repair_companies(conn, tables: set[str], insp) -> None:
 _DATA_REPAIRS = (
     ("orders.name", _repair_order_names),
     ("instance_units.status", _repair_unit_status),
-    ("vouchers", _repair_vouchers),
     ("user_profiles", _repair_people),
     ("company_settings", _repair_companies),
 )

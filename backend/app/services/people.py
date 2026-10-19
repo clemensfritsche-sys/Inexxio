@@ -40,7 +40,7 @@ def repair_sql() -> tuple[str, ...]:
     scheitert (#778) – eine Reparatur, die nur in einer Migration steht, erreicht eine
     solche Datenbank nie. Beide Anweisungen hier stehen darum **an einer** Stelle und werden von der Migration **und** vom Lifespan-Netz gelesen;
     zweimal ausgeschrieben wären es zwei Wahrheiten (dieselbe Bauart wie
-    ``domain/voucher.invoice_backfill_sql``).
+    ``statuses.terminal_guard_sql``).
 
     **(1) Die Rolle wird zum Zugang.** Wer nicht ins ERP darf, heisst ``user`` – vorher
     ``customer`` bzw. ``supplier``. Das ist nicht Kosmetik: ``Role`` an der Tür kennt die
@@ -48,7 +48,7 @@ def repair_sql() -> tuple[str, ...]:
     und zwar an einer Angabe, die niemand angefasst hat.
 
     *(2) Die kopierte Rechnungsadresse stand hier – sie ist mit den Feldern ins Adressbuch
-    gegangen (``address_book.migrate_sql`` erkennt die Kopie selbst).*
+    gegangen (Migration 143, die Felder hat Migration 152 gedroppt).*
 
     Jede ist **selbstbegrenzend**: nach dem ersten Lauf trifft die Bedingung nicht mehr
     zu. Eine Reparatur mit einer gepflegten Liste veraltet (die Lehre aus Migration

@@ -29,11 +29,11 @@ PRIVATE, BUSINESS = "private", "business"
 ACCOUNTS = (PRIVATE, BUSINESS)
 #: Was ein Eintrag trägt – Feldnamen = Spalten.
 FIELDS = ("street1", "street2", "zip", "city", "region", "country", "email")
-#: **Je Konto genau ein Standard** – als Index, nicht als Prüfung. Gelesen von Migration
-#: ``143`` und vom Lifespan-Netz; die frühere Fassung ohne Konto fällt dort weg.
+#: **Je Konto genau ein Standard** – als Index, nicht als Prüfung. Das Modell trägt ihn
+#: (``create_all`` legt ihn mit einer neuen Tabelle an); hier steht er für das
+#: Lifespan-Netz, falls die Tabelle schon ohne ihn existiert. Die frühere Fassung ohne
+#: Konto hat Migration ``152`` entfernt.
 ADDRESS_INDEXES = (
-    "DROP INDEX IF EXISTS uq_addresses_default_delivery",
-    "DROP INDEX IF EXISTS uq_addresses_default_billing",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_addresses_default_delivery_account "
     "ON addresses (owner_id, account) WHERE is_active AND is_default_delivery",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_addresses_default_billing_account "
@@ -225,91 +225,3 @@ def remove(db: Session, owner: UserProfile, address_id: int,
             heir = default(db, owner.id, other, a.account) or rest[0]
             _set_default(db, heir, kind, actor_id, owner.object_id)
     db.flush()
-
-
-# ─── Übernahme der Personenfelder (Migration 143 + Lifespan-Netz) ──────────────────
-
-#: Die Felder am Benutzer, die das Adressbuch ablöst – sie verlieren ihr Mapping und
-#: fallen im Folge-Deploy.
-OLD_COLUMNS = ("address_line1", "address_line2", "city", "postal_code", "state_region",
-               "country", "invoice_first_name", "invoice_last_name",
-               "invoice_address_line1", "invoice_address_line2", "invoice_city",
-               "invoice_postal_code", "invoice_country", "invoice_email")
-
-
-def migrate_sql() -> tuple[str, ...]:
-    """►►► **Die beiden Anschriften am Benutzer werden Einträge im Adressbuch.** ◄◄◄
-
-    * die **Hauptadresse** → Standard-Lieferadresse des **Privatkontos**;
-      Standard-Rechnungsadresse auch, wenn keine eigene Rechnungsadresse dasteht;
-    * eine **eigene Rechnungsadresse** → zweiter Eintrag, Standard-Rechnungsadresse –
-      **ausser sie ist eine Kopie der Hauptadresse** (das schrieb der frühere Schalter).
-
-    Die frühere Rechnungs-E-Mail geht **nicht** mit: privat geht die Rechnung an die
-    E-Mail der Person.
-
-    Danach werden die Felder **geleert** – das macht den Lauf **selbstbegrenzend**:
-    der zweite findet nichts mehr, auch wenn jemand später alle Anschriften entfernt.
-    Der Name einer abweichenden Rechnungsadresse geht nicht mit: Empfänger ist die Person
-    (bzw. ihre Firma), nicht ein dritter Name an einer Anschrift.
-
-    Dieselbe Liste lesen Migration und Lifespan-Netz (für eine Datenbank, auf der
-    ``alembic upgrade head`` beim Start scheitert, #778)."""
-    iso = ("CASE WHEN length(trim(coalesce({c}, ''))) = 2 THEN upper(trim({c})) "
-           "ELSE 'CH' END")
-    has_main = ("(coalesce(trim(address_line1), '') <> '' "
-                "OR coalesce(trim(city), '') <> '')")
-    copy = ("(coalesce(invoice_address_line1, '') = coalesce(address_line1, '') "
-            "AND coalesce(invoice_postal_code, '') = coalesce(postal_code, '') "
-            "AND coalesce(invoice_city, '') = coalesce(city, ''))")
-    own_bill = f"(coalesce(trim(invoice_address_line1), '') <> '' AND NOT {copy})"
-    cols = ("owner_id, account, street1, street2, zip, city, region, country, email, "
-            "is_default_delivery, is_default_billing, is_active, created_at, updated_at")
-    return (
-        f"INSERT INTO addresses ({cols}) "
-        f"SELECT id, 'private', coalesce(address_line1, ''), nullif(address_line2, ''), "
-        f"coalesce(postal_code, ''), coalesce(city, ''), nullif(state_region, ''), "
-        f"{iso.format(c='country')}, NULL, "
-        f"true, NOT {own_bill}, true, now(), now() "
-        f"FROM user_profiles WHERE {has_main}",
-        f"INSERT INTO addresses ({cols}) "
-        f"SELECT id, 'private', coalesce(invoice_address_line1, ''), "
-        f"nullif(invoice_address_line2, ''), "
-        f"coalesce(invoice_postal_code, ''), coalesce(invoice_city, ''), NULL, "
-        f"{iso.format(c='invoice_country')}, NULL, "
-        f"NOT {has_main}, true, true, now(), now() "
-        f"FROM user_profiles WHERE {own_bill}",
-        "UPDATE user_profiles SET " + ", ".join(
-            f"{c} = NULL" for c in OLD_COLUMNS if c != "country")
-        + f" WHERE {has_main} OR coalesce(trim(invoice_address_line1), '') <> '' "
-        f"OR coalesce(invoice_email, '') <> ''",
-    )
-
-
-def business_sql() -> tuple[str, ...]:
-    """►►► **Die Anschrift einer fremden Firma wird die des Geschäftskontos.** ◄◄◄
-
-    Vor ``143`` stand die Anschrift an der **Firma** – seither gehört sie der Person, die
-    für die Firma bestellt (die Firma trägt nur ihre Identität). Wer einer fremden Firma
-    zugeordnet ist und noch **kein** Geschäftskonto-Eintrag hat, bekommt ihre Anschrift
-    als Haupt- und Rechnungsadresse. Selbstbegrenzend: wer einen hat, wird übersprungen.
-    Die E-Mail der Firma geht nicht mit – leer heisst «die E-Mail der Person»."""
-    country = ("CASE WHEN length(trim(coalesce(c.country, ''))) = 2 "
-               "THEN upper(trim(c.country)) "
-               "WHEN lower(trim(c.country)) = 'deutschland' THEN 'DE' "
-               "WHEN lower(trim(c.country)) = 'österreich' THEN 'AT' "
-               "WHEN lower(trim(c.country)) = 'frankreich' THEN 'FR' "
-               "WHEN lower(trim(c.country)) = 'italien' THEN 'IT' "
-               "WHEN lower(trim(c.country)) = 'liechtenstein' THEN 'LI' ELSE 'CH' END")
-    return (
-        "INSERT INTO addresses (owner_id, account, street1, zip, city, country, "
-        "is_default_delivery, is_default_billing, is_active, created_at, updated_at) "
-        "SELECT u.id, 'business', trim(concat_ws(' ', c.street, c.street_nr)), "
-        "coalesce(c.zip_code, ''), coalesce(c.city, ''), " + country + ", "
-        "true, true, true, now(), now() "
-        "FROM user_profiles u JOIN company_settings c ON c.object_id = u.company_object_id "
-        "WHERE c.is_own IS NOT TRUE AND coalesce(trim(c.city), '') <> '' "
-        "AND coalesce(trim(c.street), '') <> '' "
-        "AND NOT EXISTS (SELECT 1 FROM addresses a WHERE a.owner_id = u.id "
-        "AND a.account = 'business')",
-    )

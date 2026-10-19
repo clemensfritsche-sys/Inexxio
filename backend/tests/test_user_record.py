@@ -118,11 +118,13 @@ def test_the_old_switches_are_gone_from_the_door():
 
     Bug-Form: eines der Felder ist wieder im Schema – dann entsteht die Doppelung von neuem.
     """
-    from app.services import address_book
     gone = ("account_type", "invoice_same_as_shipping", "company_billing_email",
             "invoice_company", "ship_name", "ship_company", "ship_address_line1",
             "ship_address_line2", "ship_city", "ship_postal_code", "ship_state_region",
-            "ship_country", *address_book.OLD_COLUMNS)
+            "ship_country", "address_line1", "address_line2", "city", "postal_code",
+            "state_region", "country", "invoice_first_name", "invoice_last_name",
+            "invoice_address_line1", "invoice_address_line2", "invoice_city",
+            "invoice_postal_code", "invoice_country", "invoice_email")
     for schema in (UserProfileUpdate, ErpAdminUpdate, UserProfileResponse):
         for field in gone:
             assert field not in schema.model_fields, f"{schema.__name__}.{field}"
@@ -214,102 +216,6 @@ def test_the_address_book_has_exactly_one_default_of_each_kind():
                     "updated_at) VALUES (:o, 'private', 'X', '1', 'Y', 'CH', true, false, "
                     "true, now(), now())"), {"o": u.id})
         # (f) – nur der Index hält zwei gleichzeitige Standards auf.
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_the_old_address_fields_move_into_the_address_book():
-    """►►► **Die beiden Anschriften am Benutzer werden Einträge – und der Lauf endet.** ◄◄◄
-
-    Hauptadresse → Standard-Lieferadresse des Privatkontos (und Rechnungsadresse, wo keine
-    eigene dasteht); eine eigene Rechnungsadresse → zweiter Eintrag; eine **Kopie** der
-    Hauptadresse → keiner. Privat gibt es keine Rechnungs-E-Mail. Danach sind die Felder leer.
-
-    Bug-Formen: (a) die Hauptadresse fehlt; (b) die eigene Rechnungsadresse fehlt oder ist
-    kein Standard; (c) die Kopie wird ein zweiter Eintrag; (d) die Anschrift landet im
-    Geschäftskonto; (e) ein zweiter Lauf legt alles noch einmal an.
-    """
-    from app.services import address_book as book
-    db = _db()
-    try:
-        cols = {r[0] for r in db.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='user_profiles'"))}
-        if "address_line1" not in cols:
-            pytest.skip("Die alten Felder sind bereits gedroppt – nichts zu übernehmen.")
-        rows = {
-            "eins": ("Weg 1", "8000", "Zürich", None, None, None, "re@eins.ch"),
-            "zwei": ("Weg 2", "8000", "Zürich", "Werk 9", "8400", "Winterthur", "re@zwei.ch"),
-            "kopie": ("Weg 3", "8000", "Zürich", "Weg 3", "8000", "Zürich", None),
-        }
-        ids = {}
-        for key, (l1, z, c, il1, iz, ic, mail) in rows.items():
-            ids[key] = db.execute(text(
-                "INSERT INTO user_profiles (firebase_uid, email, role, address_line1, "
-                "postal_code, city, country, invoice_address_line1, invoice_postal_code, "
-                "invoice_city, invoice_email, language, notification_email, "
-                "notification_inapp, newsletter_opt_in, created_at, updated_at, is_active) "
-                "VALUES (:u, :e, 'user', :l1, :z, :c, 'CH', :il1, :iz, :ic, :m, 'de', true, "
-                "true, false, now(), now(), true) RETURNING id"),
-                {"u": f"mv-{key}", "e": f"{key}@mv.ch", "l1": l1, "z": z, "c": c,
-                 "il1": il1, "iz": iz, "ic": ic, "m": mail}).scalar()
-        for stmt in book.migrate_sql():
-            db.execute(text(stmt))
-
-        def book_of(key):
-            return db.execute(text(
-                "SELECT street1, account, is_default_delivery, is_default_billing "
-                "FROM addresses WHERE owner_id = :o AND is_active ORDER BY id"),
-                {"o": ids[key]}).all()
-
-        assert book_of("eins") == [("Weg 1", "private", True, True)], "(a)/(d)"
-        assert book_of("zwei") == [("Weg 2", "private", True, False),
-                                   ("Werk 9", "private", False, True)], "(b)"
-        assert book_of("kopie") == [("Weg 3", "private", True, True)], "(c)"
-        for stmt in book.migrate_sql():
-            db.execute(text(stmt))
-        assert len(book_of("zwei")) == 2, "(e)"
-    finally:
-        db.rollback()
-        db.close()
-
-
-def test_the_address_of_a_foreign_firm_becomes_the_business_account():
-    """►►► **Die Anschrift einer fremden Firma wird die des Geschäftskontos.** ◄◄◄
-
-    Die Firma trägt nur noch ihre Identität; wer ihr zugeordnet ist, bekommt ihre Anschrift
-    als Haupt- und Rechnungsadresse seines Geschäftskontos – einmal.
-
-    Bug-Formen: (a) die Anschrift geht verloren; (b) eine eigene Gesellschaft wird
-    übernommen (ihr Personal bekäme den Firmensitz als «seine» Anschrift); (c) ein zweiter
-    Lauf legt sie noch einmal an.
-    """
-    from app.services import address_book as book
-    db = _db()
-    try:
-        firm = _firm(db, "Kunde")
-        firm.street, firm.street_nr, firm.zip_code, firm.city = "Hauptstr.", "7", "8400", \
-            "Winterthur"
-        ours = _firm(db, "Wir", own=True)
-        ours.street, ours.zip_code, ours.city = "Werkweg 1", "8000", "Zürich"
-        buyer = _user(db, uid="bs-1", email="bs1@x.ch")
-        staff = _user(db, uid="bs-2", email="bs2@x.ch")
-        buyer.company_object_id = firm.object_id
-        staff.company_object_id = ours.object_id
-        db.flush()
-
-        def rows(u):
-            return db.execute(text(
-                "SELECT street1, is_default_delivery, is_default_billing FROM addresses "
-                "WHERE owner_id = :o AND account = 'business' AND is_active"),
-                {"o": u.id}).all()
-
-        for _ in range(2):
-            for stmt in book.business_sql():
-                db.execute(text(stmt))
-        assert rows(buyer) == [("Hauptstr. 7", True, True)], "(a)/(c)"
-        assert rows(staff) == [], "(b)"
     finally:
         db.rollback()
         db.close()
@@ -605,12 +511,12 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
 
     Vorher zweimal: ``voucher.search_parties`` fand die Personen der Muster AG über den
     Firmennamen, ``places.search`` (das Halter-Feld) nicht – dasselbe Wort, zwei Antworten.
-    Der Endpunkt heisst ``GET /erp/people``; ``/erp/orders/voucher-parties`` bleibt EINEN
-    Deploy als Alias und steht dafür im Backlog.
+    Der Endpunkt heisst ``GET /erp/people``; der Alias ``/erp/orders/voucher-parties`` stand
+    einen Deploy lang daneben und ist mit Cleanup Paket F/G entfernt.
 
     Bug-Formen: (a) ``places`` sucht wieder selbst (ohne Firma); (b) ``voucher`` hat
-    wieder eine eigene Suche; (c) der neue Pfad fehlt; (d) der Alias ist still weg oder
-    nicht als «entfernen» vermerkt; (e) das Frontend ruft den alten Pfad.
+    wieder eine eigene Suche; (c) der neue Pfad fehlt; (d) der Alias ist wieder da;
+    (e) das Frontend ruft den alten Pfad.
     """
     from app.main import app
     from app.services import objects as obj, places
@@ -630,9 +536,8 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     assert not hasattr(voucher, "search_parties"), "Der Beleg sucht wieder selbst (b)."
     paths = {getattr(r, "path", "") for r in app.routes}
     assert "/api/v1/erp/people" in paths, "Der Pfad der Personensuche fehlt (c)."
-    backlog = (BACKEND.parent / "docs" / "backlog.md").read_text("utf-8")
-    assert "/api/v1/erp/orders/voucher-parties" in paths and "voucher-parties" in backlog, (
-        "Der Alias fehlt oder steht nicht als «im Folge-Deploy entfernen» im Backlog (d).")
+    assert "/api/v1/erp/orders/voucher-parties" not in paths, (
+        "Der Alias der alten Personensuche ist wieder da (d) – zwei Wege zu einer Suche.")
     client = (BACKEND.parent / "frontend" / "src" / "lib" / "api.ts").read_text("utf-8")
     assert "/api/v1/erp/people?" in client and "voucher-parties" not in client, (
         "Das Frontend ruft noch den alten Pfad (e).")

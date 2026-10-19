@@ -19,7 +19,7 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
 from ..schemas.voucher import (
-    VoucherCorrectable, VoucherEmbed, VoucherParty, VoucherUpdate,
+    VoucherCorrectable, VoucherEmbed, VoucherUpdate,
 )
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
@@ -38,7 +38,6 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import voucher as voucher_svc
-from . import erp
 from ..services import flow as flow_svc
 from ..services import lookup
 from ..services import places as places_svc
@@ -455,14 +454,6 @@ def article_options(
         )
         for a in rows
     ]
-
-
-# ►►► **Alias für EINEN Deploy** (Cleanup Paket 8+9, B-48). ◄◄◄ Die Personensuche heisst
-# ``GET /erp/people``; ein Browser-Stand von vor dem Deploy ruft noch diesen Pfad. Im
-# Folge-Deploy entfernen (``docs/backlog.md``). **Vor** ``GET /{object_id}`` registriert,
-# sonst verschluckt der Pfad-Platzhalter die Route.
-router.add_api_route("/voucher-parties", erp.search_people, methods=["GET"],
-                     response_model=list[VoucherParty], include_in_schema=False)
 
 
 @router.get("/module-catalog", response_model=ModuleCatalog)

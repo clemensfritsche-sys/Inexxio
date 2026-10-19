@@ -15,9 +15,8 @@ Gutschrift ist er das nie. ``pay_online`` fiel damit weg, ``next_payment`` blieb
 bei einem Saldo von 0 nicht abschliessen. Die Regel heisst jetzt: der Betrag ist eine
 Menge, und *dass* der Beleg mindert, sagt ``corrects_id``.
 
-**Die Anweisungen stehen in ``domain/voucher.magnitude_sql``**, nicht hier: die
-dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778), also liest sie das
-Lifespan-Netz ebenfalls – zweimal ausgeschrieben wären es zwei Wahrheiten. Beide sind
+**Die Anweisungen standen bis Migration 152 in ``domain/voucher.magnitude_sql``** und
+liefen auch im Lifespan-Netz; mit dem Netz sind sie hierher gewandert. Beide sind
 **selbstbegrenzend** (sie fassen nur, was negativ ist), und damit idempotent.
 
 Revision ID: 141
@@ -27,12 +26,33 @@ Revises: 140
 import sqlalchemy as sa
 from alembic import op
 
-from app.domain.voucher import magnitude_sql
 
 revision = "141"
 down_revision = "140"
 branch_labels = None
 depends_on = None
+
+
+_MAGNITUDE: tuple[str, ...] = (
+    """
+    UPDATE vouchers v
+       SET amount = -v.amount,
+           vat = CASE WHEN v.vat IS NULL THEN NULL ELSE (
+               SELECT jsonb_agg(e || jsonb_build_object(
+                          'net', ltrim(e->>'net', '-'),
+                          'tax', ltrim(e->>'tax', '-')))
+                 FROM jsonb_array_elements(v.vat) e
+           ) END
+     WHERE v.corrects_id IS NOT NULL AND v.amount < 0
+    """,
+    """
+    UPDATE voucher_entries e
+       SET amount = -e.amount
+     WHERE e.amount < 0
+       AND e.voucher_id IN (SELECT id FROM vouchers
+                             WHERE corrects_id IS NOT NULL)
+    """,
+)
 
 
 def _ready() -> bool:
@@ -55,7 +75,7 @@ def upgrade() -> None:
     if not _ready():
         return
     bind = op.get_bind()
-    for stmt in magnitude_sql():
+    for stmt in _MAGNITUDE:
         bind.execute(sa.text(stmt))
 
 

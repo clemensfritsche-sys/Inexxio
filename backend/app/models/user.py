@@ -45,7 +45,7 @@ class UserProfile(Base, TimestampMixin):
     # ►►► **Die Anschriften stehen im ADRESSBUCH** (``models/address_book.Address``,
     # Migration 143). ◄◄◄ Eine Person hat beliebig viele Orte (Wohnung, Büro, Lager,
     # Baustelle), und wohin Ware und Rechnung gehen, entscheidet die Bestellung. Die alten
-    # Anschrift-Spalten am Benutzer fallen im Folge-Deploy (docs/backlog.md).
+    # Anschrift-Spalten am Benutzer sind gedroppt (Migration 152).
     #: Das Adressbuch – nur lesend und nur die aktiven, älteste zuerst.
     addresses: Mapped[list["Address"]] = relationship(
         "Address",

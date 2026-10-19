@@ -8,9 +8,7 @@ kein Status, kein Typ. Was sie ist, sagen ihre Angaben; ob sie offen ist, ist ei
 * ``message_parties`` – An · Cc · Bcc · Betrifft, je Person eine Zeile.
 
 Was zusammengehört, sagt der **Betreff** (``domain.topic``) – ein «Antwort auf» gibt es
-nicht. Die frühere Tabelle ``message_replies`` hat kein Modell mehr; sie steht bis zum
-Folge-Deploy (``docs/backlog.md``) und wird nur noch von der Übernahme gelesen
-(``domain.topic_repair_sql``).
+nicht. Die frühere Tabelle ``message_replies`` ist gedroppt (Migration 152).
 """
 
 from datetime import datetime

@@ -123,157 +123,47 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
-## Offen: Tabelle `message_replies` droppen (Folge-Deploy nach Migration `148`)
+## Erledigt: Spalten und Tabellen der entfernten Bereiche gedroppt (Migration `152`)
 
-«Antwort auf» ist entfernt – das Anliegen ist der Betreff. Die Tabelle hat kein Modell
-mehr und wird nur noch von `domain/communication.topic_repair_sql` gelesen (Migration
-`148` + Lifespan-Netz, selbstbegrenzend). Im Folge-Deploy: Tabelle droppen und den
-Netz-Eintrag in `main._ensure_columns` samt `topic_repair_sql` entfernen.
+Der zweite Schritt der **Zwei-Deploy-Regel** für alles, was hier als «Folge-Deploy» stand –
+nach **Sicherung der produktiven Datenbank** und ausdrücklicher Freigabe (Cleanup Oktober
+2026, Paket F/G). Geprüft statt angenommen: keine der Spalten und Tabellen stand noch in
+`Base.metadata`. Seither hält der Wächter
+`tests/test_schema_is_built_by_the_migrations.test_nothing_is_left_that_no_model_knows`
+die Rückrichtung fest – nach `upgrade head` steht nichts, das kein Modell kennt; eine
+Spalte zwischen den beiden Schritten wird dort in `PENDING_DROP` vorgemerkt.
 
-## Offen: `vouchers.issued_on` droppen (Folge-Deploy nach #1047)
+**60 Spalten:**
 
-Die Spalte hat ihr ORM-Mapping verloren. Sie trug «wann die Rechnung hinausging», gesetzt
-von einem eigenen Knopf («Rechnung ist versendet») – und die Hausregel sagte dazu selbst,
-dass sie eine Ausnahme ist: *der Moment braucht keine Spalte*. Gebraucht hat ihn niemand;
-die Fälligkeit kommt aus dem **Rechnungsdatum**, und **gestellt ist draussen**.
+| Tabelle | Spalten | Herkunft |
+|---|---|---|
+| `articles` | `landed_unit_cost`, `status`, `is_location` | Einstandspreis ohne Schreiber (B-08) · Zustand = Projektion von `replaced_by_id` (#773, B-20) · Lagerplatz-Kennzeichen |
+| `company_settings` | `plausible_domain`, `article_names`, `bank`, `bic_swift`, `qr_iban_encrypted`, `share_capital`, `trade_register_nr`, `trade_register_canton`, `default_payment_days`, `default_skonto_days`, `default_skonto_pct`, `vat_method`, `vat_period`, `oss_active`, `oss_reg_number`, `vies_active`, `website` | Plausible (E5) und die Felder, die `sites.ENTITY_FIELDS` längst gestrichen hat |
+| `user_profiles` | 4× `bank_*`, 6 Anschriftsfelder, 7× `invoice_*` + `invoice_email`, `company_billing_email`, `invoice_company`, `account_type`, `invoice_same_as_shipping`, 8× `ship_*`, `terms_accepted_at`, `terms_version` | CRM Schritt 1b/2 (Adressbuch), #1042/#1043, E2 |
+| `voucher_entries` | `kind`, `due_on`, `vat`, `service_date`, `reverses_id`, `charge_id`, `reason` | seit Migration 138 ist der Beleg die Rechnung |
+| `vouchers` | `issued_on` | #1047 – gestellt ist draussen |
 
-Mit ihr ist die Zeile `issued_on = h.booked_on` aus `voucher.invoice_backfill_sql`
-entfallen – **das war Pflicht, nicht Kosmetik**: dieses SQL läuft bei jedem Start über
-das Lifespan-Netz, und nach dem Drop wäre es ein Fehler an einer Spalte, die es nicht mehr
-gibt. Der Eintrag im `_COLUMN_SAFETY_NET` ist ebenfalls gegangen (ein Netz für eine
-Spalte, die kein Modell kennt, schützt nichts).
+**17 Tabellen:** `events`, `article_prices`, `article_sales_audience`, `fx_rates`,
+`ai_actions`, `document_files`, `document_links`, `document_blobs`, `document_signoffs`,
+`document_acknowledgements`, `purchases`, `invoices`, `payments`, `deals`,
+`deal_entries`, `message_replies`, `voucher_allocations`. Die Objektnummern von
+`document_files` sind vorher in die Registry (`objects`) übernommen worden – der
+Nummernraum vergibt keine davon ein zweites Mal.
 
-Sie ist `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf.
+**Mit ihnen gefallen** (sie fassten eine gedroppte Spalte oder Tabelle an und wären beim
+nächsten Start gescheitert): `domain/voucher.invoice_backfill_sql` und `magnitude_sql`,
+`domain/communication.topic_repair_sql`, `services/address_book.migrate_sql`,
+`business_sql` und `OLD_COLUMNS` (ihr SQL steht seither in den Migrationen 138/141/143/148
+selbst), alle vier Einträge im `_NULLABLE_SAFETY_NET`, der Eintrag
+`articles.landed_unit_cost` im `_COLUMN_SAFETY_NET` (er hätte die Spalte bei jedem Start
+wieder angelegt) und der Alias `GET /erp/orders/voucher-parties`.
 
-## Offen: `company_settings.plausible_domain` droppen (Folge-Deploy nach Cleanup Paket 4)
+**Bewusst geblieben** (Entscheid E7): `articles.safety_stock`, `min_order_qty`,
+`supplier_article_number`, `user_profiles.language`, `notification_email`,
+`notification_inapp` – gemappt und vorgemerkt.
 
-Plausible ist entfernt (Entscheid E5, Oktober 2026): kein Skript, keine Einwilligung,
-kein Feld in der Systemkonfiguration. Die Spalte hat ihr ORM-Mapping verloren und ist
-`NULL`-fähig; sie fällt im Folge-Deploy (Zwei-Deploy-Regel).
-
-## Offen: Alias `GET /erp/orders/voucher-parties` entfernen (Folge-Deploy nach Cleanup Paket 8+9)
-
-Die Personensuche heisst `GET /api/v1/erp/people` (`people.search`, B-48); der alte Pfad
-steht für **einen** Deploy als Alias (`routers/orders.py`, nicht im Schema), damit ein
-Browser-Stand von vor dem Deploy weiter sucht. Im Folge-Deploy: die `add_api_route`-Zeile
-in `routers/orders.py` löschen und im Wächter
-`test_user_record.test_there_is_one_person_search_and_it_knows_the_firm` die Erwartung (d)
-umdrehen.
-
-## Offen: `articles.landed_unit_cost` droppen (Folge-Deploy nach Cleanup Paket 5)
-
-Der Einstandspreis hatte seit dem Löschen von «Beschaffen» keinen Schreiber mehr und im
-Frontend keinen Leser; das ORM-Mapping und das Antwortfeld (`ArticleResponse`) sind
-entfernt. Die Spalte ist `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf. Im
-Folge-Deploy (Zwei-Deploy-Regel, **nach Sicherung der produktiven Datenbank**): Spalte
-droppen und den Eintrag `("articles", "landed_unit_cost", …)` aus
-`main._COLUMN_SAFETY_NET` entfernen – er legt sie bis dahin nur an, falls sie fehlt.
-
-## Offen: `articles.status` droppen (Folge-Deploy nach Migration `121`)
-
-Der Zustand eines Artikels ist seit #773 die Projektion von `replaced_by_id`; die Spalte
-hat ihr Mapping in Migration `121` verloren und wird von niemandem gelesen. Bis zum
-Cleanup Oktober 2026 (B-20) schrieb der Start sie trotzdem bei jedem Lauf nach – das ist
-entfallen. Ihre `NOT NULL`-Sperre löst `main._NULLABLE_SAFETY_NET`, also läuft kein Insert
-auf. Im Folge-Deploy, **nach Sicherung der produktiven Datenbank**: Spalte droppen und den
-Eintrag `("articles", "status")` aus `_NULLABLE_SAFETY_NET` entfernen.
-
-## Offen: `user_profiles.terms_accepted_at`/`terms_version` droppen (Folge-Deploy nach Cleanup Paket 5)
-
-Der Endpunkt `POST /auth/terms-accept` ist entfernt (E2), und die Anzeige «AGB akzeptiert
-am …» im ERP ebenso – damit hatten die beiden Spalten weder Schreiber noch Leser; ihr
-Mapping ist weg. Beide sind `NULL`-fähig. Drop im Folge-Deploy, **nach Sicherung der
-produktiven Datenbank** (die Werte sind danach weg).
-
-## Offen: die Bankverbindung am Benutzer droppen (Folge-Deploy nach CRM Schritt 1b)
-
-`user_profiles.bank_account_holder`, `bank_iban`, `bank_bic`, `bank_name` haben ihr
-ORM-Mapping verloren: **eine Bankverbindung gibt es nur an einer eigenen Gesellschaft**
-(Überweisung, QR-Rechnung). An einer Person war sie sensibel und hatte keinen Leser. Alle
-vier sind `NULL`-fähig, also läuft in der Zwischenzeit kein Insert auf. Gedroppt wird im
-**Folge-Deploy** (Zwei-Deploy-Regel). *Die Werte sind danach weg – gewollt.*
-
-## Offen: die Anschriften am Benutzer droppen (Folge-Deploy nach Migration `143`)
-
-`user_profiles.address_line1`, `address_line2`, `city`, `postal_code`, `state_region`,
-`country` und die sieben `invoice_*` (`first_name`, `last_name`, `address_line1`,
-`address_line2`, `city`, `postal_code`, `country`) samt `invoice_email` haben ihr
-ORM-Mapping verloren: **die Anschriften stehen im Adressbuch** (`addresses`,
-`services/address_book`). Migration `143` und das Lifespan-Netz haben sie übernommen
-(`address_book.migrate_sql`) und die Felder **geleert** – der Lauf ist damit
-selbstbegrenzend. `country` war `NOT NULL` und steht dafür im `_NULLABLE_SAFETY_NET`.
-Gedroppt wird im **Folge-Deploy** (Zwei-Deploy-Regel); mit dem Drop entfällt auch der
-Aufruf von `migrate_sql` im Netz (er fragt ohnehin, ob `address_line1` noch da ist).
-
-*Bewusst nicht übernommen (nicht rückwärtskompatibel, ausdrücklich so gewollt): der
-**Name** an einer abweichenden Rechnungsadresse – Empfänger ist die Person bzw. ihre Firma
-– und eine Rechnungs-E-Mail ohne jede Anschrift.*
-
-*Ebenso stehen an **fremden** Firmen (`company_settings`, `is_own = false`) noch
-Anschrift, E-Mail und Telefon aus der Zeit davor. Gelesen wird davon nichts mehr (eine
-fremde Firma ist ihre Identität: Name, Rechtsform, UID); die Spalten bleiben, weil
-**eigene** Gesellschaften sie tragen.*
-
-## Offen: zwölf Spalten am Benutzer droppen (Folge-Deploy nach #1042/#1043)
-
-Alle zwölf haben ihr ORM-Mapping verloren — **eine Angabe existiert genau einmal**:
-
-| Spalte(n) | Warum sie weg ist |
-|---|---|
-| `company_billing_email` | Die Rechnungs-E-Mail ist ein Attribut der **Rechnungsadresse** (`invoice_email`); dieses Feld hatte **keinen einzigen Leser** (#1042). |
-| `invoice_company` | Den Firmennamen der Rechnungsadresse trägt `company_name` über `people.billing_name` – die Kopie veraltete beim ersten Umfirmieren (#1042). |
-| `account_type` | **Der Firmenname ist die Erklärung** (#1043): steht er da, ist es eine Firma. Ein Schalter daneben sagte dasselbe und konnte ihm widersprechen. |
-| `invoice_same_as_shipping` | Ob eine eigene Rechnungsadresse hinterlegt ist, sagen **die Felder selbst** (`voucher.billing_of` liest genau das). Der Schalter liess zudem eine **Kopie** der Lieferadresse hineinschreiben (#1043). *Der Schalter in der Oberfläche ist auf Wunsch zurück – als **Ableitung** aus diesen Feldern, nicht als gespeicherte Angabe: «Aus» räumt sie.* |
-| die acht `ship_*` | Es gibt **zwei** Anschriften, nicht drei: die Lieferadresse **ist** die Hauptadresse. Der dritte Satz hatte weder Leser noch Schreiber (#1043). |
-
-**Gedroppt werden sie im FOLGE-Deploy** (Zwei-Deploy-Regel): beides in einem Deploy
-träfe die während des Cloud-Run-Rollouts noch laufende Vorgänger-Revision – die
-Ausfallklasse von Migration `090`. Alle zwölf sind `NULL`-fähig (Migration `140` hat
-`invoice_same_as_shipping` seine `NOT NULL` genommen, dazu ein Eintrag im
-`_NULLABLE_SAFETY_NET`), also läuft in der Zwischenzeit kein Insert auf.
-
-*Ein Backfill der Rechnungs-E-Mail gab es bewusst nicht: die Notiz nennt es ausdrücklich
-(«es muss nicht rückwärtskompatibel sein»). Die **Rolle** und die **kopierte
-Rechnungsadresse** brauchten dagegen einen – beide stehen in
-`services/people.repair_sql` und laufen über Migration `140` **und** das Lifespan-Netz
-(die dev-Datenbank fährt kein `alembic upgrade head`).*
-
-## Offen: die Tabellen der gelöschten Handels-Module
-
-`purchases`, `invoices`, `payments` — die Module «Beschaffen» und «Verkauf» sind
-ersatzlos gelöscht (PROCESS_CORE §9.9a), samt Modellen, Diensten und Endpunkten. **Kein
-Modell verweist mehr auf sie**, also kann auch keine `NOT NULL` mehr ein Insert
-auflaufen lassen: es schreibt niemand hinein.
-
-**Bewusst nicht mitgedroppt** — dieselbe Regel wie bei den übrigen Alt-Tabellen (siehe
-unten): eine Tabelle, die niemand liest, kostet nichts; ihr Drop kostet die Vergangenheit
-(bezahlte Rechnungen und gebuchte Zahlungen aus der Zeit vor dem Geldvorgang), er ist
-unumkehrbar und verlangt vorher eine Sicherung der **produktiven** Datenbank
-(`scripts/dump-db.sh`) — die kann nur jemand mit Zugriff darauf ziehen, nicht eine
-Migration.
-
-*Der frühere Punkt «`payments.kind` droppen» geht darin auf: die Spalte fällt mit ihrer
-Tabelle, wenn es soweit ist.*
-
-## Offen: die Tabellen des gelöschten Zahlungsmoduls
-
-`deals`, `deal_entries` — das **Vorgänger**-Zahlungsmodul ist ersatzlos gelöscht
-(Testnotiz #960), samt `domain/deal`, `services/deal`, `schemas/deal`, `models/deal`,
-`deal-work.tsx`, fünf Endpunkten und fünf API-Methoden. **Kein Modell verweist mehr auf
-sie**, also kann auch keine `NOT NULL` mehr ein Insert auflaufen lassen: es schreibt
-niemand hinein. Ihre Einträge in `_COLUMN_SAFETY_NET` und `_NUMERIC_SAFETY_NET` sind mit
-dem Mapping entfallen — ein Netz für eine Spalte, die kein Modell kennt, schützt nichts.
-
-**Bewusst nicht mitgedroppt**, dieselbe Regel wie bei den übrigen Alt-Tabellen: der Drop
-kostet die Vergangenheit (jede Offerte, jede gestellte Rechnung und jede gebuchte Zahlung
-aus der Zeit vor dem Beleg), er ist unumkehrbar und verlangt vorher eine Sicherung der
-**produktiven** Datenbank (`scripts/dump-db.sh`) — die kann nur jemand mit Zugriff darauf
-ziehen, nicht eine Migration.
-
-*Die früheren Punkte «`deals.share` droppen» (#867) und «`deals.reference`/`.note`
-droppen» (#812) gehen darin auf: die Spalten fallen mit ihrer Tabelle, wenn es soweit
-ist. Ein Drop einzelner Spalten einer Tabelle, die ohnehin niemand liest, wäre Arbeit
-ohne Wirkung.*
+**Unumkehrbar**: der Rückweg der Migration legt nichts wieder an; die Daten liegen in der
+Sicherung.
 
 ## Erledigt: die toten Spalten sind gedroppt (Migration `120`)
 
@@ -287,23 +177,6 @@ Betroffen waren `articles` (Beschaffungs-/Verkaufsfelder), `company_settings`
 Wareneingangs-Ort), `user_profiles.stripe_customer_id` und `purchases` (Reste der
 Umbauten 115/116). Geprüft statt angenommen: keine stand mehr in `Base.metadata`.
 Verifiziert von null · idempotent · downgrade · über das Lifespan-Netz.
-
-### Offen: die Tabellen der entfernten Bereiche
-
-`events`, `article_prices`, `article_sales_audience`, `fx_rates`, `ai_actions`,
-`document_files`, `document_links`, `document_blobs`, `document_signoffs`,
-`document_acknowledgements`.
-
-**Bewusst nicht mitgedroppt.** Eine Spalte, die niemand liest, kostet nichts; ein
-Tabellen-Drop kostet die Vergangenheit, und er ist unumkehrbar. Diese Tabellen halten
-Historie (in `document_blobs` liegen die Dateien selbst), und der Drop verlangt vorher
-eine Sicherung der **produktiven** Datenbank (`scripts/dump-db.sh`) – die kann nur
-jemand mit Zugriff darauf ziehen, nicht eine Migration.
-
-**Reihenfolge, wenn es soweit ist:** sichern → prüfen, dass die Sicherung lesbar ist →
-droppen. Kein Modell verweist mehr auf sie (geprüft), der Nummernraum hängt seit dem
-Aufräumen an der **Registry** statt an einer Modellspalte – ein Drop kann also keine
-Objektnummer ein zweites Mal vergeben lassen.
 
 ## Erledigt: die beiden Befunde der Aufräumrunde
 
@@ -368,30 +241,6 @@ Wer ihn eines Tages wirklich entfernen will, misst zuerst – `SELECT count(*) F
 instance_units WHERE status = 'verkauft'` **und** dasselbe über `process_events` – und
 entscheidet dann. Eine Migration, die bestehende Zeilen «heilt», ist genau die
 Fehlerklasse aus Migration 110.
-
-## Folge-Deploy: die Geld-Zeile verliert sechs Spalten und eine Tabelle
-
-Seit Migration `138` **ist der Beleg die Rechnung**
-(`docs/konzept-eine-rechnung-je-modul.md`, PROCESS_CORE §9.15q): Betrag, Steuer, Nummer,
-Datum, Fälligkeit und Leistungsdatum stehen an `vouchers`, und `voucher_entries` trägt nur
-noch **Zahlungen**. Ohne Mapping und ohne Leser stehen damit still:
-
-| Objekt | seit | Bemerkung |
-|---|---|---|
-| `voucher_entries.kind` | `138` | nullable + Server-Default `'payment'` gemacht, damit ein Insert ohne sie durchgeht |
-| `voucher_entries.due_on` · `vat` · `service_date` · `reverses_id` | `138` | die Angaben stehen am Beleg |
-| `voucher_entries.charge_id` | `137` | die Frage «welche Rechnung?» hat genau eine Antwort |
-| `voucher_entries.reason` | `137` | der «Grund» war die Belegart mit anderem Namen (#1021) |
-| **Tabelle** `voucher_allocations` | `137` | die modulinterne Sammelzahlung ist gegenstandslos (siehe unten) |
-
-**`kind` bleibt dabei bis zuletzt stehen**, und das ist kein Versehen: der Backfill
-(`domain/voucher.invoice_backfill_sql`) liest sie – auf **dev** läuft er erst beim
-nächsten Start, weil dort kein `alembic upgrade head` fährt. Gedroppt wird sie also erst,
-wenn jede Umgebung ihn einmal gesehen hat.
-
-Sie fallen im **Folge-Deploy** – Zwei-Deploy-Regel; bis dahin sind die Werte lesbar. Die
-**Tabelle** bleibt darüber hinaus so lange stehen, bis klar ist, dass niemand ihre
-Historie braucht: ein Tabellen-Drop kostet die Vergangenheit.
 
 ## Die offene-Posten-Liste je Partner (und mit ihr die Sammelzahlung)
 

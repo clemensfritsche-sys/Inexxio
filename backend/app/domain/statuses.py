@@ -78,8 +78,8 @@ GESPERRT = "gesperrt"
 #: Bestandsleiste meldete einen Zustand, den sie nicht kennt, und `flow._left_with` läse
 #: ihn aus dem Log ohne Beschriftung.
 #:
-#: Dieselbe Regel wie bei den Tabellen der entfernten Bereiche (`docs/backlog.md`): was
-#: niemand mehr schreibt, kostet nichts; was die Vergangenheit trägt, wird nicht gelöscht.
+#: Was niemand mehr schreibt, kostet nichts; was die Vergangenheit trägt, wird nicht
+#: gelöscht – der Ereignis-Log ist append-only und liest dieses Wort.
 #:
 #: **Nicht endgültig**, und das ist dieselbe Entscheidung wie dort: eine Retoure ist real.
 #: Ein Auftrag darf das Stück greifen – **das Greifen IST die Rücknahme**, es gibt keinen
