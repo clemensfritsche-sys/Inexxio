@@ -659,7 +659,7 @@ function Recipients({ d, busy, current, onAsk, onShow, onAction }: {
 }) {
   const open = d.stage === DEAL_STAGE.offer;
   const [picked, setPicked] = useState<VoucherParty | null>(null);
-  const find = useCallback((q: string) => api.searchVoucherParties(q).catch(() => []), []);
+  const find = useCallback((q: string) => api.searchPeople(q).catch(() => []), []);
 
   // Steht der Zuschlag, gibt es nichts mehr zu wählen – der Name steht eine Zeile tiefer,
   // wo er auf jedem Beleg steht.

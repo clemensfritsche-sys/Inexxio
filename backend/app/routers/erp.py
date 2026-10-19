@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,7 @@ from ..models import UserProfile, WebAuthnCredential
 from ..schemas.admin import (
     AddressIn, CompanyRef, ErpAdminUpdate, PersonCreate, UserProfileResponse,
 )
+from ..schemas.voucher import VoucherParty
 from ..services import address_book, people
 from ..services import sites
 from ..services.objects import resolve_object_type
@@ -81,6 +82,21 @@ async def create_erp_record(
     Vorname, Nachname, E-Mail, Rolle; Objektnummer und Anmeldekonto entstehen sofort
     (``people.create_person``). Personal-Rollen vergibt nur ein Admin."""
     return _record(people.create_person(db, data, current_user))
+
+
+@router.get("/people", response_model=list[VoucherParty])
+def search_people(
+    search: str = Query("", max_length=80),
+    limit: int = Query(20, ge=1, le=50),
+    staff: bool = Query(False),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Welche Person ist gemeint?** – Nummer, Firma, Name oder E-Mail
+    (``people.search``), gesucht statt als Liste geladen. Gegenpartei eines Belegs,
+    Partner im Editor, Empfänger einer Nachricht; ``staff`` engt auf das Personal ein."""
+    return [VoucherParty(object_id=u.object_id or 0, name=u.display_name)
+            for u in people.search(db, search, staff=staff, limit=limit)]
 
 
 @router.get("/companies", response_model=list[CompanyRef])

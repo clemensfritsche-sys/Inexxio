@@ -49,7 +49,7 @@ from ..domain import modules
 from ..models import (
     Article, CompanySettings, Instance, InstanceUnit, ProcessStep, UserProfile,
 )
-from . import lookup, sites
+from . import lookup, people, sites
 from .instances import unit_number
 
 #: Wie viele Stationen eine Kette höchstens hat. Die Grenze ist ein **Netz**, keine
@@ -217,19 +217,9 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
     for object_id, label, article_name in rows:
         out.append(Station(object_id, "instance", label or article_name or "Instanz"))
 
-    users = (
-        db.query(UserProfile)
-        .filter(
-            UserProfile.object_id.isnot(None),
-            UserProfile.is_active.is_(True),
-            lookup.matches(q, UserProfile.object_id, UserProfile.first_name,
-                           UserProfile.last_name, UserProfile.email),
-        )
-        .order_by(UserProfile.object_id.desc())
-        .limit(limit)
-        .all()
-    )
-    out.extend(Station(u.object_id, "user", u.display_name) for u in users)
+    # Personen über die EINE Personensuche – dieselbe Bedingung wie jedes Personenfeld.
+    out.extend(Station(u.object_id, "user", u.display_name)
+               for u in people.search(db, q, limit=limit))
 
     companies = (
         db.query(CompanySettings)

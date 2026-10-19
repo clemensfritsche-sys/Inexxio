@@ -86,7 +86,8 @@ class CompanySettings(Base):
         String(3), default="CHF", server_default="CHF", nullable=False)
     # Der Name der Gesellschaft. Das ist zugleich das Halter-Label:
     # ``locations.location_label`` gibt für einen ``company``-Halter genau dieses Feld zurück.
-    company_name: Mapped[str] = mapped_column(String(255), default="Inexxio AG")
+    # **Kein erfundener Vorgabewert**: jede Anlage nennt den Namen (``sites``).
+    company_name: Mapped[str] = mapped_column(String(255))
     legal_form: Mapped[str] = mapped_column(String(50), default="AG")
     street: Mapped[Optional[str]] = mapped_column(String(255))
     street_nr: Mapped[Optional[str]] = mapped_column(String(20))
@@ -112,7 +113,9 @@ class CompanySettings(Base):
     name_key: Mapped[Optional[str]] = mapped_column(String(320))
     # Bank = **eine** Zahl: die IBAN trägt Land, Bank und Konto. QR-IBAN (die QR-Rechnung
     # ist nicht gebaut), Bankname und BIC waren Abschriften daraus.
-    iban_encrypted: Mapped[Optional[str]] = mapped_column(Text)
+    # Die Spalte heisst historisch ``iban_encrypted`` – verschlüsselt wird nichts (sie steht
+    # auf jeder Rechnung). Das Attribut sagt, was sie ist; die Spalte bleibt ohne Migration.
+    iban: Mapped[Optional[str]] = mapped_column("iban_encrypted", Text)
     email: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[Optional[str]] = mapped_column(String(50))
     # ── Plattform-Konfiguration (die EINE Website, nicht je Gesellschaft) ─────────

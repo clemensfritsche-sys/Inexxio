@@ -12,11 +12,11 @@ den Schlüssel **im Namen**.
 from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import UserProfile
-from . import sites
+from ..models import CompanySettings, UserProfile
+from . import lookup, sites
 from .admin import log_audit
 
 #: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
@@ -203,6 +203,33 @@ def by_email(db: Session, email: Optional[str]) -> Optional[UserProfile]:
     if not key:
         return None
     return db.query(UserProfile).filter(func.lower(UserProfile.email) == key).first()
+
+
+def search(db: Session, q: str = "", *, staff: bool = False,
+           limit: int = 20) -> list[UserProfile]:
+    """►►► **Welche Person ist gemeint?** – die EINE Personensuche. ◄◄◄
+
+    Nummer, Firma, Vorname, Nachname oder E-Mail (``services/lookup``): wer «Muster»
+    tippt, findet die Personen der Muster AG – in jedem Feld, das nach Personen fragt
+    (Gegenpartei, Halter, Empfänger). **Ohne Rollenfilter**; ``staff`` engt auf das
+    Personal ein (die Empfänger einer internen Nachricht).
+    """
+    firm = (select(CompanySettings.company_name)
+            .where(CompanySettings.object_id == UserProfile.company_object_id)
+            .scalar_subquery())
+    query = db.query(UserProfile)
+    if staff:
+        query = query.filter(UserProfile.role.in_(STAFF_ROLES))
+    return (
+        query
+        .filter(UserProfile.object_id.isnot(None),
+                UserProfile.is_active.is_(True),
+                lookup.matches(q, UserProfile.object_id, firm, UserProfile.first_name,
+                               UserProfile.last_name, UserProfile.email))
+        .order_by(UserProfile.object_id.desc())
+        .limit(limit)
+        .all()
+    )
 
 
 def firebase_uid_for(email: str, name: str) -> str:

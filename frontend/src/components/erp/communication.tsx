@@ -443,7 +443,7 @@ function People({ value, onChange, placeholder, locked, onMove, moveTip, max, st
     if (q.trim().length < 2) { setHits([]); return; }
     let stale = false;
     const t = setTimeout(() => {
-      api.searchVoucherParties(q, 8, staff).then((r) => { if (!stale) setHits(r); }).catch(() => {});
+      api.searchPeople(q, 8, staff).then((r) => { if (!stale) setHits(r); }).catch(() => {});
     }, 200);
     return () => { stale = true; clearTimeout(t); };
   }, [q, staff]);

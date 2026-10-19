@@ -463,7 +463,7 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
             # verglichen wird über den Schlüssel, also ist die Form nur noch Anzeige.
             value = uid.display(value) or None
         if key == "iban":
-            company.iban_encrypted = value
+            company.iban = value
             log_audit(db, "company_settings", key, "[UPDATED]", actor_id, object_id=company.object_id)
         elif key in ENTITY_FIELDS:
             if value is None and key in _KEEP_IF_NONE:
@@ -820,16 +820,17 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
 def _assert_may_leave(db: Session, company: CompanySettings) -> None:
     """Eine Gesellschaft hört auf, unsere zu sein – nur, wenn nichts daran hängt."""
     from ..models import UserProfile
+    from .people import STAFF_ROLES
     if is_operator(db, company):
         raise HTTPException(409, detail=f"«{legal_name(company)}» betreibt die Website – "
                                         f"zuerst eine andere Gesellschaft zum Betreiber machen.")
     staff = (db.query(UserProfile)
              .filter(UserProfile.company_object_id == company.object_id,
-                     UserProfile.role.in_(("admin", "employee")))
+                     UserProfile.role.in_(STAFF_ROLES))
              .count())
     if staff:
         raise HTTPException(409, detail=f"Bei «{legal_name(company)}» arbeiten {staff} "
                                         f"Personen – sie brauchen zuerst eine andere "
                                         f"unserer Gesellschaften.")
     db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
-    company.iban_encrypted = None
+    company.iban = None

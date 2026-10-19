@@ -38,6 +38,7 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import voucher as voucher_svc
+from . import erp
 from ..services import flow as flow_svc
 from ..services import lookup
 from ..services import places as places_svc
@@ -445,27 +446,12 @@ def article_options(
     ]
 
 
-@router.get("/voucher-parties", response_model=list[VoucherParty])
-def voucher_parties(
-    search: str = Query("", max_length=80),
-    limit: int = Query(20, ge=1, le=50),
-    staff: bool = Query(False),
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
-):
-    """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
-
-    Dieselbe Suchbedingung wie überall (Nummer **oder** Name) und **ohne Rollenfilter**:
-    eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.
-    Wer einschränken will, nennt die zugelassenen Gegenparteien in der **Definition**.
-
-    **Vor** ``GET /{object_id}`` deklariert, sonst verschluckt der Pfad-Platzhalter die
-    Route.
-    """
-    return [
-        VoucherParty(object_id=u.object_id or 0, name=u.display_name)
-        for u in voucher_svc.search_parties(db, search=search, limit=limit, staff=staff)
-    ]
+# ►►► **Alias für EINEN Deploy** (Cleanup Paket 8+9, B-48). ◄◄◄ Die Personensuche heisst
+# ``GET /erp/people``; ein Browser-Stand von vor dem Deploy ruft noch diesen Pfad. Im
+# Folge-Deploy entfernen (``docs/backlog.md``). **Vor** ``GET /{object_id}`` registriert,
+# sonst verschluckt der Pfad-Platzhalter die Route.
+router.add_api_route("/voucher-parties", erp.search_people, methods=["GET"],
+                     response_model=list[VoucherParty], include_in_schema=False)
 
 
 @router.get("/module-catalog", response_model=ModuleCatalog)

@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, Callable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.config import payment_service_ready
@@ -31,16 +31,13 @@ from ..domain import modules
 from ..domain import uid as uid_fmt
 from ..domain import voucher as vo
 from ..models import (
-    CompanySettings,
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep,
     UserProfile, Voucher, VoucherEntry, VoucherLine, VoucherQuote,
 )
 from ..models.process_event import KIND_START, KIND_STEP
-from . import address, address_book, lookup, people, qrbill, sites
-
-#: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
-#: ERP, und dort steht der ganze Auftrag.
-STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
+from . import address, address_book, people, qrbill, sites
+# Wer ohnehin alles sieht – Personal hat keine verengte Sicht (die eine Stelle).
+from .people import STAFF_ROLES
 
 
 # ---------------------------------------------------------------------------
@@ -635,7 +632,7 @@ def gaps(db: Session, row: Voucher, *, action: str,
             if field == "iban":
                 # **Die IBAN der Gesellschaft, die den Beleg stellt** – nicht die des
                 # Betreibers: überwiesen wird an den Aussteller.
-                if getattr(issuer_company(db, row), "iban_encrypted", None):
+                if getattr(issuer_company(db, row), "iban", None):
                     continue
                 out.append(_gap(sides["us"], label, why))
                 continue
@@ -1831,8 +1828,7 @@ def billing_of(db: Session, row: Voucher,
         # leer, und privat immer, gilt die der Person.
         "email": (billed.email if billed is not None else None) or u.email,
         "phone": u.phone,
-        "uid": (uid_fmt.display(firm.vat_number or firm.uid_number) or None)
-        if firm is not None else None,
+        "uid": _uid(firm),
         "address": {
             "line1": billed.street1, "line2": billed.street2, "city": billed.city,
             "postal_code": billed.zip, "country": billed.country,
@@ -1860,23 +1856,41 @@ def _ours(db: Session, row: Voucher) -> dict[str, Any]:
         # – daraus folgt die Beschriftung der zweiten Anschrift (#979).
         **_addresses(address.lines(seat) if address.has_content(seat) else [],
                      [], sends=flow.collects),
-        "uid": (getattr(company, "vat_number", None)
-                or getattr(company, "uid_number", None)),
+        "uid": _uid(company),
         "email": getattr(company, "email", None),
         "phone": getattr(company, "phone", None),
     }
 
 
+def _uid(company) -> Optional[str]:
+    """►►► **Die Nummer einer Firma, wie sie auf dem Beleg steht** – auf BEIDEN Seiten. ◄◄◄
+
+    Die MWST-Nummer zuerst (eine Schweizer heisst «CHE-123.456.789 MWST»), sonst die UID;
+    gegliedert über ``domain/uid.display``. Vorher stand unsere Seite roh, die des
+    Partners gegliedert und ohne Zusatz – dieselbe Angabe zweimal anders auf einem Papier.
+    """
+    if company is None:
+        return None
+    vat = uid_fmt.display(company.vat_number)
+    if vat:
+        return f"{vat} MWST" if vat.startswith("CHE-") else vat
+    return uid_fmt.display(company.uid_number) or None
+
+
 def _creditor(db: Session, row: Voucher) -> dict[str, Any]:
-    """**Wer das Geld bekommt** – Name und Anschrift für den Einzahlungsschein."""
+    """**Wer das Geld bekommt** – Name und Anschrift für den Einzahlungsschein.
+
+    Die Anschrift ist die der Gesellschaft (``address.of_company``, die eine Stelle);
+    Strasse und Nummer stehen darin zusammen – wie beim Zahlenden.
+    """
     company = issuer_company(db, row)
+    seat = address.of_company(company)
     return {
         "name": sites.legal_name(company) or "",
-        "street": getattr(company, "street", None),
-        "street_nr": getattr(company, "street_nr", None),
-        "zip": getattr(company, "zip_code", None),
-        "city": getattr(company, "city", None),
-        "country": address.iso2(getattr(company, "country", None) or "CH"),
+        "street": seat["street1"] if seat["street1"] != address.DASH else None,
+        "zip": seat["zip"] or None,
+        "city": seat["city"] or None,
+        "country": seat["country"],
     }
 
 
@@ -2064,7 +2078,7 @@ def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
     # wäre ein QR-Code, der auf ein anderes Konto zeigt als der Beleg darüber.
     company = issuer_company(db, row)
     # **Die IBAN ist die von heute** – wohin gezahlt wird, friert nicht ein (``freeze``).
-    iban = getattr(company, "iban_encrypted", None)
+    iban = getattr(company, "iban", None)
     # **Die Rechnung IST der Beleg** – es gibt eine.
     number = row.number or str(row.id)
     amount = balance_of(db, row).open
@@ -2093,40 +2107,6 @@ def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # ►► DIE GEGENPARTEI
 # ---------------------------------------------------------------------------
-
-def _company_name_of_user():
-    """Der Firmenname einer Person – als Spalte für die Suche: wer «Muster» tippt, findet
-    die Personen der Muster AG. Die Firma ist ein eigener Datensatz (CRM Schritt 1)."""
-    return (select(CompanySettings.company_name)
-            .where(CompanySettings.object_id == UserProfile.company_object_id)
-            .scalar_subquery())
-
-
-def search_parties(db: Session, *, search: str = "", limit: int = 20,
-                   staff: bool = False) -> list[UserProfile]:
-    """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
-
-    Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name).
-    **Ohne Rollenfilter, und das ist eine Entscheidung**: eine Rolle sagt, was jemand *für
-    uns* tut – nicht, ob wir mit ihm Geld austauschen dürfen. Wer einschränken will, nennt
-    die zugelassenen Gegenparteien in der **Definition**. ``staff`` engt auf Mitarbeiter
-    ein – die Empfänger einer **internen** Nachricht (``communication._assert_internal``).
-    """
-    q = db.query(UserProfile)
-    if staff:
-        q = q.filter(UserProfile.role.in_(STAFF_ROLES))
-    return (
-        q
-        .filter(UserProfile.object_id.isnot(None),
-                UserProfile.is_active.is_(True),
-                lookup.matches(search, UserProfile.object_id, _company_name_of_user(),
-                               UserProfile.first_name, UserProfile.last_name,
-                               UserProfile.email))
-        .order_by(UserProfile.object_id.desc())
-        .limit(limit)
-        .all()
-    )
-
 
 def _party(db: Session, *, step: ProcessStep, value: Any,
            flow: vo.Direction) -> Optional[int]:

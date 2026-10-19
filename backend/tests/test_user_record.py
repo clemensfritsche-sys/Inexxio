@@ -569,3 +569,77 @@ def test_a_person_carries_no_bank_details():
     for cls in (UserProfileResponse, UserProfileUpdate, ErpAdminUpdate):
         assert not [f for f in cls.model_fields if f.startswith("bank_")], cls.__name__
     assert not [c for c in UserProfile.__mapper__.attrs.keys() if c.startswith("bank_")]
+
+
+# ---------------------------------------------------------------------------
+# ►► Cleanup Paket 8+9: eine Regel, eine Stelle
+# ---------------------------------------------------------------------------
+
+def test_the_staff_pair_has_exactly_one_home():
+    """►►► **«Wer ist Personal?» steht EINMAL** (B-40/B-45): ``people.STAFF_ROLES``. ◄◄◄
+
+    Das Paar stand fünfmal (drei Konstanten, ein Literal, ein ``require_role``). Fünf
+    Antworten auf eine Frage laufen beim ersten neuen Rollenwert auseinander.
+
+    Bug-Formen: (a) eine zweite Konstante ``STAFF_ROLES = …``; (b) das Paar als Literal
+    irgendwo im Dienst; (c) die Tür ``require_employee`` zählt die Rollen selbst auf.
+    """
+    pair = re.compile(r'["\']admin["\'],\s*["\']employee["\']\s*\)')
+    for path in (BACKEND / "app").rglob("*.py"):
+        rel = path.relative_to(BACKEND / "app").as_posix()
+        src = path.read_text("utf-8")
+        if rel == "services/people.py":
+            assert len(re.findall(r"^STAFF_ROLES\s*=", src, re.M)) == 1
+            continue
+        assert not re.search(r"^\s*STAFF_ROLES\b[^=\n]*=(?!=)", src, re.M), (
+            f"«{rel}» definiert STAFF_ROLES ein zweites Mal (a).")
+        assert not pair.search(src), f"«{rel}» zählt das Personal-Paar selbst auf (b)."
+    auth = (BACKEND / "app" / "core" / "auth.py").read_text("utf-8")
+    assert "require_employee = require_role(*STAFF_ROLES)" in auth, (
+        "Die Tür zählt die Personal-Rollen selbst auf (c).")
+
+
+def test_there_is_one_person_search_and_it_knows_the_firm():
+    """►►► **EINE Personensuche** (B-41/B-48): ``people.search`` – Nummer, Firma, Name,
+    E-Mail –, und jedes Personenfeld liest sie. ◄◄◄
+
+    Vorher zweimal: ``voucher.search_parties`` fand die Personen der Muster AG über den
+    Firmennamen, ``places.search`` (das Halter-Feld) nicht – dasselbe Wort, zwei Antworten.
+    Der Endpunkt heisst ``GET /erp/people``; ``/erp/orders/voucher-parties`` bleibt EINEN
+    Deploy als Alias und steht dafür im Backlog.
+
+    Bug-Formen: (a) ``places`` sucht wieder selbst (ohne Firma); (b) ``voucher`` hat
+    wieder eine eigene Suche; (c) der neue Pfad fehlt; (d) der Alias ist still weg oder
+    nicht als «entfernen» vermerkt; (e) das Frontend ruft den alten Pfad.
+    """
+    from app.main import app
+    from app.services import objects as obj, places
+    db = _db()
+    try:
+        firm = _firm(db, name=f"Kranbau{_uid()[-3:]}Zeta")
+        u = _user(db, uid="uid-search", email="lea@zeta.test", first_name="Lea",
+                  last_name="Muster", object_id=obj.next_object_id(db),
+                  company_object_id=firm.object_id)
+        found = {s.object_id for s in places.search(db, firm.company_name)}
+        assert u.object_id in found, (
+            "Das Halter-Feld findet die Person nicht über ihre Firma (a).")
+        assert u.object_id in {p.object_id for p in people.search(db, firm.company_name)}
+    finally:
+        db.rollback()
+        db.close()
+    assert not hasattr(voucher, "search_parties"), "Der Beleg sucht wieder selbst (b)."
+    paths = {getattr(r, "path", "") for r in app.routes}
+    assert "/api/v1/erp/people" in paths, "Der Pfad der Personensuche fehlt (c)."
+    backlog = (BACKEND.parent / "docs" / "backlog.md").read_text("utf-8")
+    assert "/api/v1/erp/orders/voucher-parties" in paths and "voucher-parties" in backlog, (
+        "Der Alias fehlt oder steht nicht als «im Folge-Deploy entfernen» im Backlog (d).")
+    client = (BACKEND.parent / "frontend" / "src" / "lib" / "api.ts").read_text("utf-8")
+    assert "/api/v1/erp/people?" in client and "voucher-parties" not in client, (
+        "Das Frontend ruft noch den alten Pfad (e).")
+
+
+def test_a_firm_name_is_never_invented():
+    """**Was fehlt, wird gesagt statt erfunden** (B-44): eine Firma ohne Namen heisst nicht
+    «Inexxio AG». Jede Anlage nennt den Namen; das Modell hat keinen Vorgabewert.
+    Bug-Form: ``company_name`` trägt wieder ``default="Inexxio AG"``."""
+    assert CompanySettings.__table__.c.company_name.default is None

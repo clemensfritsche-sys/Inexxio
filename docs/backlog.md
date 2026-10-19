@@ -151,6 +151,15 @@ Plausible ist entfernt (Entscheid E5, Oktober 2026): kein Skript, keine Einwilli
 kein Feld in der Systemkonfiguration. Die Spalte hat ihr ORM-Mapping verloren und ist
 `NULL`-fähig; sie fällt im Folge-Deploy (Zwei-Deploy-Regel).
 
+## Offen: Alias `GET /erp/orders/voucher-parties` entfernen (Folge-Deploy nach Cleanup Paket 8+9)
+
+Die Personensuche heisst `GET /api/v1/erp/people` (`people.search`, B-48); der alte Pfad
+steht für **einen** Deploy als Alias (`routers/orders.py`, nicht im Schema), damit ein
+Browser-Stand von vor dem Deploy weiter sucht. Im Folge-Deploy: die `add_api_route`-Zeile
+in `routers/orders.py` löschen und im Wächter
+`test_user_record.test_there_is_one_person_search_and_it_knows_the_firm` die Erwartung (d)
+umdrehen.
+
 ## Offen: `articles.landed_unit_cost` droppen (Folge-Deploy nach Cleanup Paket 5)
 
 Der Einstandspreis hatte seit dem Löschen von «Beschaffen» keinen Schreiber mehr und im

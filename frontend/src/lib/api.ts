@@ -78,7 +78,7 @@ function notifyDataChanged(path: string) {
 class ApiClient {
   /**
    * **Jede Methode ist an ihren Client gebunden** (Testnotiz #927): eine Methode, die als
-   * **Wert** weitergereicht wird (`search={api.searchVoucherParties}`), behält ihr `this`.
+   * **Wert** weitergereicht wird (`search={api.searchPeople}`), behält ihr `this`.
    * Ohne das warf `this.get`, und das Suchfeld blieb stumm. Gebunden wird über den
    * **Prototyp**, nicht über eine Namensliste – die vergässe den nächsten Endpunkt.
    */
@@ -439,17 +439,16 @@ class ApiClient {
   }
 
   /**
-   * **Gegenparteien eines Belegs suchen** – Nummer **oder** Name, ohne Rollenfilter.
-   *
-   * Wer einschränken will, nennt die zugelassenen Gegenparteien in der Definition; das
-   * ist die Stelle, an der eine solche Freigabe hingehört.
+   * **Personen suchen** – Nummer, Firma, Name oder E-Mail, ohne Rollenfilter
+   * (`people.search`, die eine Personensuche). Gegenpartei eines Belegs, Partner im
+   * Editor, Empfänger einer Nachricht.
    */
-  searchVoucherParties(search?: string, limit = 20, staff = false): Promise<VoucherParty[]> {
+  searchPeople(search?: string, limit = 20, staff = false): Promise<VoucherParty[]> {
     const params = new URLSearchParams({ limit: String(limit) });
     if (search?.trim()) params.set('search', search.trim());
     // Nur Mitarbeiter – die Empfänger einer internen Nachricht.
     if (staff) params.set('staff', 'true');
-    return this.get(`/api/v1/erp/orders/voucher-parties?${params}`);
+    return this.get(`/api/v1/erp/people?${params}`);
   }
 
   /** **Der Verlauf** einer Person bzw. aller Personen einer Firma – chronologisch. */

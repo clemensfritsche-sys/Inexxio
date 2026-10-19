@@ -366,7 +366,7 @@ function RowDelete({ label, hint, reveal, onClick }: {
  * **kein Steuersatz** (#851, er hängt an der Sache) und **keine Vorauszahlungs-Sperre**
  * (#854, sie folgt aus der Zahlungsfrist auf dem Beleg).
  */
-function MoneyFields({ module: m, onChange, search = api.searchVoucherParties }: {
+function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;

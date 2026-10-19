@@ -469,6 +469,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search People
+         * @description **Welche Person ist gemeint?** – Nummer, Firma, Name oder E-Mail
+         *     (``people.search``), gesucht statt als Liste geladen. Gegenpartei eines Belegs,
+         *     Partner im Editor, Empfänger einer Nachricht; ``staff`` engt auf das Personal ein.
+         */
+        get: operations["search_people_api_v1_erp_people_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/companies": {
         parameters: {
             query?: never;
@@ -733,33 +755,6 @@ export interface paths {
          *     und nicht seine Ziffern.
          */
         get: operations["article_options_api_v1_erp_orders_article_options_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/orders/voucher-parties": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Voucher Parties
-         * @description **Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.
-         *
-         *     Dieselbe Suchbedingung wie überall (Nummer **oder** Name) und **ohne Rollenfilter**:
-         *     eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.
-         *     Wer einschränken will, nennt die zugelassenen Gegenparteien in der **Definition**.
-         *
-         *     **Vor** ``GET /{object_id}`` deklariert, sonst verschluckt der Pfad-Platzhalter die
-         *     Route.
-         */
-        get: operations["voucher_parties_api_v1_erp_orders_voucher_parties_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5636,6 +5631,39 @@ export interface operations {
             };
         };
     };
+    search_people_api_v1_erp_people_get: {
+        parameters: {
+            query?: {
+                search?: string;
+                limit?: number;
+                staff?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoucherParty"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     search_companies_api_v1_erp_companies_get: {
         parameters: {
             query?: {
@@ -6150,39 +6178,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArticleOption"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    voucher_parties_api_v1_erp_orders_voucher_parties_get: {
-        parameters: {
-            query?: {
-                search?: string;
-                limit?: number;
-                staff?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoucherParty"][];
                 };
             };
             /** @description Validation Error */

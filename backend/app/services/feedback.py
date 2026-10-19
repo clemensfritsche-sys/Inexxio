@@ -24,22 +24,16 @@ from ..models import FeedbackNote, UserProfile
 from ..schemas.feedback import FeedbackCreate, FeedbackNoteResponse, FeedbackUpdate
 from . import people
 
-STAFF_ROLES = ("admin", "employee")
-
 
 def is_enabled() -> bool:
     """Testumgebung? Die Produktion kennt keine Notizfunktion."""
     return get_settings().app_env != "production"
 
 
-def _is_staff(user: UserProfile) -> bool:
-    return user.role in STAFF_ROLES
-
-
 def visible_query(db: Session, user: UserProfile) -> Query:
     """Personal sieht alle Notizen, alle anderen ausschliesslich ihre eigenen."""
     q = db.query(FeedbackNote).filter(FeedbackNote.is_active == True)  # noqa: E712
-    if not _is_staff(user):
+    if user.role not in people.STAFF_ROLES:
         q = q.filter(FeedbackNote.created_by == user.id)
     return q
 
@@ -117,5 +111,5 @@ def to_response(db: Session, note: FeedbackNote, user: UserProfile) -> FeedbackN
             "resolution", "resolved_at", "created_at", "created_by",
         )},
         author_name=people.name_by_id(db, note.created_by) or "",
-        mine=_is_staff(user) or note.created_by == user.id,
+        mine=user.role in people.STAFF_ROLES or note.created_by == user.id,
     )

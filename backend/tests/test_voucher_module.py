@@ -75,7 +75,7 @@ def _house(db):
     house.country = house.country or "CH"
     house.vat_number = house.vat_number or "CHE-100.200.300 MWST"
     house.email = house.email or "rechnung@inexxio.test"
-    house.iban_encrypted = house.iban_encrypted or "CH9300762011623852957"
+    house.iban = house.iban or "CH9300762011623852957"
     db.flush()
     return house
 
@@ -3235,3 +3235,36 @@ def test_the_document_chooses_firm_and_addresses_before_the_agreement():
             svc.apply(db, order=order, step=step, action="address",
                       payload={"bill_to_company": True})                            # (d)
         assert svc.embed_data(db, order=order, step=step)["customer"]["choice"] is None
+
+
+def test_a_firm_number_and_the_creditor_address_have_one_form():
+    """►►► **Dieselbe Angabe, dieselbe Schreibweise – auf beiden Seiten** (B-42/B-43). ◄◄◄
+
+    Die UID unserer Seite stand **roh** auf dem Beleg, die des Partners gegliedert und
+    ohne MWST-Zusatz; und der Einzahlungsschein baute die Firmenanschrift Feld für Feld
+    nach, die ``address.of_company`` schon kennt.
+
+    Bug-Formen: (a) unsere Seite zeigt die UID wieder roh; (b) die Partnerseite formatiert
+    selbst; (c) ``_creditor`` liest die Anschrift wieder Feld für Feld.
+    """
+    import inspect
+    from app.services import voucher as svc
+    db = _db()
+    try:
+        house = _house(db)
+        house.vat_number = "che100200300 mwst"          # so getippt
+        db.flush()
+        row = SimpleNamespace(issuer_company_id=house.object_id, direction="in", head=None)
+        assert svc._ours(db, row)["uid"] == "CHE-100.200.300 MWST", "(a)"
+        assert svc._uid(SimpleNamespace(vat_number=None, uid_number="CHE123456788")) == (
+            "CHE-123.456.788")
+        assert svc._uid(None) is None
+        assert "_uid(firm)" in inspect.getsource(svc.billing_of), "(b)"
+        cred = svc._creditor(db, row)
+        assert cred["street"] == f"{house.street} {house.street_nr}".strip()
+        assert cred["zip"] == house.zip_code and cred["country"] == "CH"
+        body = inspect.getsource(svc._creditor)
+        assert "of_company" in body and "getattr" not in body, "(c)"
+    finally:
+        db.rollback()
+        db.close()

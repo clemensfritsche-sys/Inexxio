@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .config import get_settings
 from .database import get_db
 from ..models import UserProfile
+from ..services.people import STAFF_ROLES
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -191,4 +192,4 @@ def require_role(*roles: str):
 
 
 require_admin = require_role("admin")
-require_employee = require_role("admin", "employee")
+require_employee = require_role(*STAFF_ROLES)

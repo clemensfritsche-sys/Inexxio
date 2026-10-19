@@ -1143,6 +1143,82 @@
         ]
       }
     },
+    "/api/v1/erp/people": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Search People",
+        "description": "**Welche Person ist gemeint?** – Nummer, Firma, Name oder E-Mail\n(``people.search``), gesucht statt als Liste geladen. Gegenpartei eines Belegs,\nPartner im Editor, Empfänger einer Nachricht; ``staff`` engt auf das Personal ein.",
+        "operationId": "search_people_api_v1_erp_people_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Staff"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VoucherParty"
+                  },
+                  "title": "Response Search People Api V1 Erp People Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/companies": {
       "get": {
         "tags": [
@@ -2050,82 +2126,6 @@
                     "$ref": "#/components/schemas/ArticleOption"
                   },
                   "title": "Response Article Options Api V1 Erp Orders Article Options Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/orders/voucher-parties": {
-      "get": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Voucher Parties",
-        "description": "**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als Liste geladen.\n\nDieselbe Suchbedingung wie überall (Nummer **oder** Name) und **ohne Rollenfilter**:\neine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.\nWer einschränken will, nennt die zugelassenen Gegenparteien in der **Definition**.\n\n**Vor** ``GET /{object_id}`` deklariert, sonst verschluckt der Pfad-Platzhalter die\nRoute.",
-        "operationId": "voucher_parties_api_v1_erp_orders_voucher_parties_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 80,
-              "default": "",
-              "title": "Search"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "staff",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Staff"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/VoucherParty"
-                  },
-                  "title": "Response Voucher Parties Api V1 Erp Orders Voucher Parties Get"
                 }
               }
             }

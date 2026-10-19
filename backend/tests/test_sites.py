@@ -244,10 +244,18 @@ def test_our_own_bank_account_is_not_masked():
     assert not hasattr(admin, "_mask_iban") and "****" not in body, (
         "Es wird wieder maskiert (b)."
     )
-    assert "resp.iban = company.iban_encrypted" in body, (
-        "Die IBAN erreicht die Antwort nicht (c) – das Modell heisst `iban_encrypted`, "
-        "das Schema `iban`; ohne die Zuweisung bleibt sie leer, und das Feld sieht "
-        "wieder aus wie ein nie ausgefülltes."
+    # (c) – das Attribut heisst wie das Feld der Antwort (B-47), also trägt sie es von
+    # selbst; die Spalte bleibt ``iban_encrypted`` (keine Migration).
+    from app.models import CompanySettings
+    assert CompanySettings.iban.property.columns[0].name == "iban_encrypted"
+    company = CompanySettings(company_name="X", legal_form="AG", email="", is_own=True,
+                              is_operator=False, is_active=True, country="CH",
+                              currency="CHF", iban="CH9300762011623852957")
+    company.id = 1
+    assert CompanySettingsResponse.model_validate(company).iban == (
+        "CH9300762011623852957"), (
+        "Die IBAN erreicht die Antwort nicht (c) – ohne sie bleibt das Feld leer und "
+        "sieht wieder aus wie ein nie ausgefülltes."
     )
 
 

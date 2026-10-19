@@ -326,7 +326,7 @@ def test_an_internal_message_goes_only_to_staff(world):
     Kunde im «An» bekäme sie nie, und sie wartete für immer. Wen sie betrifft, steht im
     «Betrifft»; der Satz nennt, wer falsch steht. Die Suche bietet dafür nur Mitarbeiter
     an (dieselbe Regel, früher gesagt)."""
-    from app.services import voucher
+    from app.services import people
     db, actor, staff = world
     lea, sara = _person(db), _person(db, "employee")
     for role in ("to", "cc", "bcc"):
@@ -334,9 +334,9 @@ def test_an_internal_message_goes_only_to_staff(world):
             _send(db, actor, channel="intern", body="x", **{role: [lea]})
         assert str(lea) in e.value.detail and "Betrifft" in e.value.detail, role
     _send(db, actor, channel="intern", to=[sara], about=[lea], body="Lager?")
-    hits = voucher.search_parties(db, search=str(lea)[:6], limit=50, staff=True)
+    hits = people.search(db, str(lea)[:6], limit=50, staff=True)
     assert lea not in {u.object_id for u in hits}
-    hits = voucher.search_parties(db, search=str(sara), limit=50, staff=True)
+    hits = people.search(db, str(sara), limit=50, staff=True)
     assert [u.object_id for u in hits] == [sara]
 
 

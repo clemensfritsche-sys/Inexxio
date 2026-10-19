@@ -17,7 +17,7 @@ def test_module_only_outside_production(monkeypatch):
 def test_every_signed_in_role_may_report():
     """Melden darf JEDE Rolle (auch Kunde/Lieferant) – nur das SEHEN ist eingeschränkt."""
     from app.routers import feedback as router_mod
-    from app.services.feedback import STAFF_ROLES, _is_staff
+    from app.services import feedback as svc
 
     # Der Router hängt an get_current_user, NICHT an require_employee: sonst könnte aus
     # Kunden-/Lieferantensicht nicht gemeldet werden (ausdrückliche Anforderung).
@@ -25,11 +25,10 @@ def test_every_signed_in_role_may_report():
     assert "require_employee" not in open(router_mod.__file__, encoding="utf-8").read()
     assert "Rolle" in source
 
-    assert STAFF_ROLES == ("admin", "employee")
-    assert _is_staff(SimpleNamespace(role="admin")) is True
-    assert _is_staff(SimpleNamespace(role="employee")) is True
-    assert _is_staff(SimpleNamespace(role="customer")) is False
-    assert _is_staff(SimpleNamespace(role="supplier")) is False
+    # **Wer alles sieht, fragt die EINE Stelle** (``people.STAFF_ROLES``, B-40/B-45) –
+    # kein eigenes Paar im Notizdienst.
+    assert not hasattr(svc, "STAFF_ROLES") and not hasattr(svc, "_is_staff")
+    assert "people.STAFF_ROLES" in open(svc.__file__, encoding="utf-8").read()
 
 
 def test_status_whitelist():

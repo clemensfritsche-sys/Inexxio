@@ -37,12 +37,9 @@ def _company_response(db: Session, company) -> CompanySettingsResponse:
     daneben wirkte wie aus dem Nichts. Die eigene IBAN steht auf jeder Rechnung, die wir
     stellen – vor Admins zu verbergen, was wir jedem Kunden schicken, verbirgt nichts und
     macht die Anzeige unwahr.
-
-    *Der Spaltenname ``iban_encrypted`` lügt: verschlüsselt wird dort nichts.*
     """
     from ..services import address
     resp = CompanySettingsResponse.model_validate(company)
-    resp.iban = company.iban_encrypted
     resp.is_operator = sites.is_operator(db, company)
     resp.has_address = address.has_content(address.of_company(company))
     resp.website = sites.website_url()
