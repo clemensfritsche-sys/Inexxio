@@ -1,7 +1,7 @@
 ---
 title: 'Datenschutz'
-description: 'Datenschutzerklärung von INEXXIO (ehemals HS Steiner) nach Schweizer DSG: Website ohne Cookies, Anfrageformular, E-Mail-Versand und Kundenbereich.'
-updated: 2026-10-18
+description: 'Datenschutzerklärung von INEXXIO (ehemals HS Steiner) nach Schweizer DSG: Website ohne Cookies, Anfrageformular, Newsletter, E-Mail-Versand und Kundenbereich.'
+updated: 2026-10-19
 ---
 
 ## 1. Wer verantwortlich ist
@@ -33,7 +33,7 @@ Die öffentliche Website setzt keine Cookies. Die Schrift liegt auf unserem eige
 
 ### Lokaler Speicher
 
-Die öffentliche Website legt selbst nur die eben genannten Kontaktangaben unseres Unternehmens für einige Minuten im Sitzungsspeicher Ihres Browsers ab, damit sie nicht bei jeder Seite neu geladen werden – keine Angaben über Sie. Sind Sie im Kundenbereich angemeldet, liest sie dort, was der Kundenbereich abgelegt hat (siehe Abschnitt 6): Ihren Namen und Ihre Rolle, um oben «Anmelden» bzw. Ihr Profilmenü zu zeigen, und Ihre Kontaktangaben, um das Anfrageformular vorauszufüllen. Diese Angaben bleiben auf Ihrem Gerät – an uns gehen sie nur, wenn Sie das Formular absenden.
+Die öffentliche Website legt selbst nur die eben genannten Kontaktangaben unseres Unternehmens für einige Minuten im Sitzungsspeicher Ihres Browsers ab, damit sie nicht bei jeder Seite neu geladen werden – keine Angaben über Sie. Sind Sie im Kundenbereich angemeldet, liest sie dort, was der Kundenbereich abgelegt hat (siehe Abschnitt 7): Ihren Namen und Ihre Rolle, um oben «Anmelden» bzw. Ihr Profilmenü zu zeigen, und Ihre Kontaktangaben, um das Anfrageformular vorauszufüllen. Diese Angaben bleiben auf Ihrem Gerät – an uns gehen sie nur, wenn Sie das Formular absenden.
 
 ### Statistik
 
@@ -55,7 +55,13 @@ Wir bewahren Anfragen so lange auf, wie es für die Bearbeitung und einen allfä
 
 Schreiben Sie uns eine E-Mail oder rufen Sie an, bearbeiten wir Ihre Angaben, um Ihr Anliegen zu beantworten.
 
-## 6. Kundenbereich
+## 6. Newsletter «Post aus der Werkstatt»
+
+Den Newsletter erhalten Sie nur, wenn Sie ihn ausdrücklich bestellen – im Anfrageformular (das Häkchen ist nie vorausgewählt), auf der Seite [Newsletter](/newsletter) oder im Kundenbereich. Ausser im Kundenbereich, wo Ihre Adresse bereits bestätigt ist, schicken wir Ihnen zuerst eine E-Mail mit einem Bestätigungsknopf; erst Ihr Klick meldet Sie an (Double Opt-in). Als Nachweis speichern wir Zeitpunkt, Weg der Anmeldung und den Satz, dem Sie zugestimmt haben.
+
+Jeder Newsletter enthält einen Link zum Abmelden; Ihr Mailprogramm bietet zudem «Abbestellen» mit einem Klick an. Auch die Abmeldung halten wir mit Zeitpunkt fest, damit wir Ihnen sicher nichts mehr schicken. Versendet wird über Gmail von Google. Wir messen nicht, ob Sie einen Newsletter öffnen oder Links darin anklicken.
+
+## 7. Kundenbereich
 
 Der Kundenbereich (Anmeldung, Konto) ist eine eigene Anwendung unter derselben Adresse.
 
@@ -63,18 +69,18 @@ Der Kundenbereich (Anmeldung, Konto) ist eine eigene Anwendung unter derselben A
 - **Zahlungen:** über Stripe. Zahlungsdaten wie Kartennummern bearbeitet Stripe direkt; wir erhalten keine vollständigen Zahlungsdaten.
 - **Speicher im Browser:** Für die Anmeldung legt der Kundenbereich Einträge im lokalen Speicher an (z. B. «inexxio_token»). Für die Anzeige auf der Website legt er dort Ihren Namen, Ihre Rolle und Ihre Kontaktangaben ab («inexxio_user_fullname», «inexxio_user_role», «inexxio_user_contact»); beim Abmelden löscht er sie. Der Kundenbereich setzt selbst keine Cookies; beim Bezahlen kann Stripe zur Betrugsabwehr eigene Cookies setzen.
 
-## 7. Weitergabe und Bearbeitung im Ausland
+## 8. Weitergabe und Bearbeitung im Ausland
 
 Wir geben Personendaten nur weiter, wenn es für die Bearbeitung nötig ist – an Dienstleister für Hosting, E-Mail-Versand und Zahlungsabwicklung – oder wenn wir gesetzlich dazu verpflichtet sind. Einige Dienstleister (Google, Stripe) können Daten auch ausserhalb der Schweiz bearbeiten, zum Beispiel in den USA.
 
-## 8. Ihre Rechte
+## 9. Ihre Rechte
 
 Sie können Auskunft über Ihre Daten verlangen, sie berichtigen oder löschen lassen und einer Bearbeitung widersprechen. Melden Sie sich dazu bei {{email.link}}. Sie können sich ausserdem beim Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) beschweren, Feldeggweg 1, 3003 Bern.
 
-## 9. Sicherheit
+## 10. Sicherheit
 
 Alle Seiten werden verschlüsselt übertragen (HTTPS). Zugriff auf Anfragen haben nur die Personen, die sie bearbeiten.
 
-## 10. Änderungen
+## 11. Änderungen
 
 Wir passen diese Erklärung an, wenn sich unsere Bearbeitung ändert. Es gilt die Fassung auf dieser Seite.

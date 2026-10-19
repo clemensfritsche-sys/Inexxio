@@ -256,7 +256,6 @@ class UserProfileResponse(BaseModel):
     language: str
     notification_email: bool
     notification_inapp: bool
-    newsletter_opt_in: bool
 
     # Auth
     last_login_at: Optional[datetime]
@@ -282,7 +281,6 @@ class UserProfileUpdate(BaseModel):
     # Preferences
     notification_email: Optional[bool] = None
     notification_inapp: Optional[bool] = None
-    newsletter_opt_in: Optional[bool] = None
 
 
 # Gültige Rollen – EINE Quelle der Wahrheit (``PATCH /erp/records/{id}``,

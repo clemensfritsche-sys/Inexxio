@@ -1,5 +1,5 @@
 {
-  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:erp» – nicht von Hand ändern.",
+  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs, newsletter.mjs) mit «npm run export:erp» – nicht von Hand ändern.",
   "brand": {
     "name": "INEXXIO",
     "formerly": "ehemals HS Steiner",
@@ -90,5 +90,24 @@
     "nextTitle": "So geht es weiter",
     "received": "Angekommen",
     "urgent": "Eilt es? Dann rufen Sie uns direkt an:"
+  },
+  "newsletter": {
+    "name": "Post aus der Werkstatt",
+    "consent": "Ja, schicken Sie mir ab und zu «Post aus der Werkstatt» – unseren Newsletter, nur wenn es etwas zu erzählen gibt. Abmelden geht jederzeit mit einem Klick.",
+    "confirmSubject": "Ein Klick noch: Post aus der Werkstatt",
+    "confirmLead": "Sie möchten «Post aus der Werkstatt» erhalten, unseren Newsletter. Damit niemand Sie ohne Ihr Wissen anmeldet, bestätigen Sie es bitte mit einem Klick.",
+    "confirmIgnore": "Waren Sie das nicht? Dann ignorieren Sie diese Mail einfach – ohne Bestätigung schicken wir nichts.",
+    "confirmButton": "Ja, ich bin dabei",
+    "kicker": "Newsletter",
+    "inviteTitle": "Post aus der Werkstatt",
+    "inviteAsked": "Sie möchten unseren Newsletter – bitte bestätigen Sie es noch mit einem Klick.",
+    "inviteOffer": "Ab und zu erzählen wir, was bei uns in der Werkstatt entsteht. Wenn Sie mögen, genügt ein Klick – abmelden geht genauso schnell.",
+    "inviteButton": "Ja, gerne",
+    "footer": "Sie erhalten «Post aus der Werkstatt», weil Sie sich dafür angemeldet haben.",
+    "unsubscribe": "Abmelden",
+    "unsubscribeTitle": "Vom Newsletter abmelden?",
+    "unsubscribeLead": "Ein Klick, und Sie erhalten keine «Post aus der Werkstatt» mehr.",
+    "unsubscribeButton": "Abmelden",
+    "invalid": "Dieser Link ist abgelaufen oder unvollständig."
   }
 }

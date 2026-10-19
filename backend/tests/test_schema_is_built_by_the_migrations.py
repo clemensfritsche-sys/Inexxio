@@ -134,7 +134,10 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop. Eine Spalte im
 #:    ``_NULLABLE_SAFETY_NET`` gilt von selbst als vorgemerkt.
-PENDING_DROP: set[str] = set()
+PENDING_DROP: set[str] = {
+    # Migration 153: das Häkchen ist ein Nachweis geworden (``newsletter_consents``).
+    "user_profiles.newsletter_opt_in",
+}
 
 
 def leftovers(insp) -> list[str]:

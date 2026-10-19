@@ -41,6 +41,31 @@ from typing import Optional
 #: Ab wann eine offene Nachricht als überfällig gilt – rund um die Uhr.
 OVERDUE_AFTER = timedelta(hours=2)
 
+#: ►►► **Die drei Versandarten einer E-Mail** – eine Eigenschaft der Angaben, kein Typ. ◄◄◄
+#:
+#: * ``mail`` – wie gewohnt: wer im An und Cc steht, sieht einander; Bcc bleibt Bcc.
+#: * ``circular`` (Rundschreiben) – Information an mehrere: **jede Person bekommt ihre
+#:   eigene Mail** mit Anrede, im «An» nur sie. Keine Einwilligung nötig – es ist keine
+#:   Werbung.
+#: * ``newsletter`` – Werbung: ebenso einzeln, aber **nur an Angemeldete** und mit
+#:   Abmeldelink (``services/newsletter``).
+#:
+#: Rundschreiben und Newsletter sind **je Empfänger eine Nachricht** (``group_id`` zeigt
+#: auf die erste): so steht im Verlauf jeder Person, was hinausging – Wort für Wort, samt
+#: Anrede –, und ihre Antwort ist ein Anliegen bei ihr, wie bei jeder Mail.
+DELIVERIES = {"mail": "Mail", "circular": "Rundschreiben", "newsletter": "Newsletter"}
+
+
+def delivery_of(group_id: Optional[int], newsletter: bool) -> str:
+    """Die Versandart einer Nachricht – abgeleitet aus ihren Angaben."""
+    return "newsletter" if newsletter else "circular" if group_id else "mail"
+
+
+def greeting(name: str) -> str:
+    """Die Anrede eines Rundschreibens – dieselbe wie in der Eingangsbestätigung."""
+    return f"Guten Tag {name}"
+
+
 #: Die Rollen eines Beteiligten. ``about`` («betrifft») macht eine Nachricht im Verlauf
 #: einer Person sichtbar, an der sie weder schreibt noch liest – die Notiz über sie, die
 #: interne Frage zu ihr.

@@ -14,12 +14,14 @@
  *                              Lieferadressen
  *   3. **Geschäftskonto**    – optional: die Firma (genannt, nie gesucht) und dieselbe
  *                              Adress-Maske, dazu die Rechnungs-E-Mail
- *   4. **Kommunikation**     – Newsletter
+ *   4. **Kommunikation**     – Newsletter: ein eigener Schalter, sofort geschrieben (kein
+ *                              Feld dieses Formulars – die Einwilligung ist ein Nachweis)
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { User, Briefcase, Building2, Bell, MapPin } from 'lucide-react';
-import type { UserProfile } from '@/types';
+import type { NewsletterState, UserProfile } from '@/types';
+import { api } from '@/lib/api';
 import { day } from '@/lib/when';
 import { Field, ToggleField } from '@/components/form/field';
 import { useAutosaveValue } from '@/lib/use-autosave';
@@ -38,8 +40,6 @@ interface Form {
   phone: string;
   // ►►► **Die Anschriften stehen im Adressbuch** (`AddressBook`) – nicht in diesem
   // Formular: jede ist ein eigener Eintrag mit eigenem Auto-Save.
-  // Kommunikation
-  newsletter_opt_in: boolean;
 }
 
 function buildForm(p: UserProfile): Form {
@@ -48,7 +48,6 @@ function buildForm(p: UserProfile): Form {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    newsletter_opt_in: p.newsletter_opt_in ?? false,
   };
 }
 
@@ -147,14 +146,31 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
       </Card>
 
       {/* ── 4. Kommunikation & Rechtliches ──────────────────────────────────── */}
-      <Card icon={Bell} title="Kommunikation">
-        <ToggleField
-          label="Newsletter"
-          description="Produktneuigkeiten und Angebote per E-Mail"
-          checked={form.newsletter_opt_in}
-          onChange={(v) => set('newsletter_opt_in', v)}
-        />
-      </Card>
+      <Card icon={Bell} title="Kommunikation"><Newsletter /></Card>
+    </div>
+  );
+}
+
+/** ►►► **Der Newsletter – ein Schalter, sofort geschrieben.** ◄◄◄ Die Adresse ist im Konto
+ *  bestätigt, darum ohne zweiten Klick. Neben dem Schalter steht der Satz, dem man
+ *  zustimmt – derselbe, der als Nachweis gespeichert wird (vom Server). */
+function Newsletter() {
+  const [state, setState] = useState<NewsletterState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { api.myNewsletter().then(setState).catch(() => {}); }, []);
+  const flip = (on: boolean) => {
+    setError(null);
+    api.setMyNewsletter(on).then(setState)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
+  };
+  return (
+    <div style={{ minHeight: 44 }}>
+      <ToggleField label="Newsletter" description={state?.wording ?? ''}
+        checked={!!state?.subscribed} onChange={(v) => { if (state) flip(v); }} />
+      {state?.subscribed && state.since && (
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '6px 0 0' }}>Angemeldet seit {day(state.since)}</p>
+      )}
+      {error && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '6px 0 0' }}>{error}</p>}
     </div>
   );
 }

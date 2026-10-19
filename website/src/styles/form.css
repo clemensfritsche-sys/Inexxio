@@ -26,6 +26,9 @@
 
 
 .iform__foot { display: grid; gap: var(--s-3); justify-items: start; }
+/* Das Häkchen zum Newsletter – leise, aber an seinem Platz. */
+.iform__consent { display: flex; gap: 10px; align-items: flex-start; font-size: 0.875rem; line-height: 1.5; color: var(--ink-2); cursor: pointer; min-height: 44px; }
+.iform__consent input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--black); cursor: pointer; }
 .iform[aria-busy='true'] [data-submit] { opacity: 0.6; pointer-events: none; }
 
 /* Ergebnis */

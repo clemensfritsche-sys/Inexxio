@@ -117,6 +117,7 @@ class Inquiry:
     source: str
     values: dict[str, str]
     photos: list[Photo] = field(default_factory=list)
+    newsletter: bool = False
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     received_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -188,7 +189,7 @@ async def _parse(form_data, errors: dict[str, str]) -> Inquiry:
     _check_fields(values, errors)
     photos = await _read_photos(form_data.getlist("photos"), errors)
     return Inquiry(source=source if SOURCE_RE.match(source) else "/kontakt",
-                   values=values, photos=photos)
+                   values=values, photos=photos, newsletter=bool(_clean(form_data.get("newsletter"))))
 
 
 # ------------------------------------------------------------------ Darstellung
@@ -331,7 +332,8 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
     v = inq.values
     data = svc.Inquiry(name=v["name"], email=v["email"].lower(), message=v["message"],
                        phone=v["phone"], company=v["company"], source=inq.source,
-                       photos=[svc.Photo(p.filename, p.data) for p in inq.photos])
+                       photos=[svc.Photo(p.filename, p.data) for p in inq.photos],
+                       newsletter=inq.newsletter)
     try:
         msg = svc.record(db, data, country)
     except HTTPException as exc:  # ein Bild, das sich nicht lesen lässt

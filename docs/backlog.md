@@ -123,6 +123,14 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: Folge-Deploy – `user_profiles.newsletter_opt_in` droppen
+
+Seit Migration `153` ist die Einwilligung ein Nachweis (`newsletter_consents`); das
+frühere Häkchen hat sein Mapping verloren und ist als Zeile mit Quelle «legacy»
+übernommen. Im **nächsten** Deploy: Spalte droppen, `PENDING_DROP` leeren und
+`main._repair_newsletter` entfernen; das SQL von `domain/newsletter.legacy_repair_sql`
+wandert dabei wörtlich in Migration `153` (wie bei `152`), dann fällt die Funktion.
+
 ## Erledigt: Spalten und Tabellen der entfernten Bereiche gedroppt (Migration `152`)
 
 Der zweite Schritt der **Zwei-Deploy-Regel** für alles, was hier als «Folge-Deploy» stand –

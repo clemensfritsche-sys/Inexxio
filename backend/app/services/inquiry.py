@@ -64,6 +64,9 @@ class Inquiry:
     company: str = ""
     source: str = "/kontakt"
     photos: list[Photo] = field(default_factory=list)
+    #: Das Häkchen «Post aus der Werkstatt» – eine Bitte, noch keine Anmeldung: angemeldet
+    #: ist erst, wer in der Eingangsbestätigung klickt (Double Opt-in).
+    newsletter: bool = False
 
 
 def company_for(db: Session, country: Optional[str]):
@@ -121,15 +124,21 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     stünde als Lüge im Verlauf.
 
     **Gebaut an EINER Stelle** (``mail_layout.compose``): der Verlauf ist der Inhalt der
-    Mail, Wort für Wort. Unterschrieben vom Unternehmen – geschrieben hat sie niemand."""
+    Mail, Wort für Wort. Unterschrieben vom Unternehmen – geschrieben hat sie niemand.
+
+    **Darin der Newsletter** (``newsletter.offer``): mit Häkchen die Bitte um Bestätigung,
+    ohne eine leise Einladung – nie an Angemeldete oder Abgemeldete."""
+    from .newsletter import offer
     box = mailbox.active(db, inquiry.channel)
     if not mailbox.ready() or box is None or box.problem:
         return False
     firm = mail_layout.firm_of(mailbox.company(db, inquiry.channel), box.address,
                                box.picture or "")
     subject = words["confirmSubject"]
+    more = extra(inq, inquiry.at, words)
+    more.action = offer(db, inquiry.sender_object_id, inq.newsletter)
     mail = mail_layout.compose(subject, lead(inq.name, words), firm, None,
-                               kicker=words["kicker"], extra=extra(inq, inquiry.at, words))
+                               kicker=words["kicker"], extra=more)
     msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
                   subject=subject, body=mail.body, html=mail.html,
                   at=datetime.now(timezone.utc), created_by=None, outgoing=True)
@@ -141,7 +150,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
 
 
 def lead(name: str, words: dict[str, str]) -> str:
-    return f"Guten Tag {name}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
+    return f"{dc.greeting(name)}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
 
 
 def extra(inq: Inquiry, at: datetime, words: dict[str, str]) -> mail_layout.Extra:

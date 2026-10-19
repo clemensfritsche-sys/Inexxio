@@ -1,7 +1,7 @@
 """Kommunikation – was hinein- und was herausgeht (``services/communication``)."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -52,6 +52,8 @@ class MailboxOut(BaseModel):
 
 class SyncOut(BaseModel):
     new: int
+    #: Wie viele Mails dieser Lauf hinausgeschickt hat (geplante, Rundschreiben).
+    sent: int = 0
 
 
 class MessageIn(BaseModel):
@@ -74,6 +76,11 @@ class MessageIn(BaseModel):
     #: «An» der Absender und ich der Empfänger. Ein Anruf hält fest, was passiert ist; wer
     #: ihn erfasst hat, steht weiterhin in ``created_by``. Bei jedem anderen Kanal 400.
     incoming: bool = False
+    #: ►►► **Die Versandart** (``domain.DELIVERIES``) – nur bei einer E-Mail. ◄◄◄ ``mail``:
+    #: wie gewohnt (An/Cc sehen einander, Bcc bleibt Bcc). ``circular`` (Rundschreiben):
+    #: jede Person im «An» bekommt ihre eigene Mail mit Anrede, niemand sieht die anderen.
+    #: ``newsletter``: ebenso, aber nur an Angemeldete und mit Abmeldelink.
+    delivery: Literal["mail", "circular", "newsletter"] = "mail"
 
 
 class MessageOut(BaseModel):
@@ -111,6 +118,10 @@ class MessageOut(BaseModel):
     attachments: list[Attachment] = []
     #: Wo die Mail in Gmail steht (nur für eine abgeglichene bzw. gesendete).
     gmail_url: Optional[str] = None
+    #: Die Versandart (``mail`` · ``circular`` · ``newsletter``) und, bei den beiden
+    #: letzten, an wie viele Personen sie ging. Im Verlauf steht ein Rundschreiben einmal.
+    delivery: str = "mail"
+    recipients: int = 0
 
 
 class OpenCount(BaseModel):

@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import {
   User, MapPin, Building2, Briefcase, Bell, Cog,
 } from 'lucide-react';
-import { Communication } from '@/components/erp/communication';
+import { Communication, MESSAGES_CHANGED } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
-import { when } from '@/lib/when';
+import { day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader, MICRO_LABEL, SubBlock } from '@/components/erp/fields';
@@ -16,13 +16,13 @@ import { Card, DetailBody, DetailHeader, MICRO_LABEL, SubBlock } from '@/compone
 // «Rechnungsadresse = Lieferadresse»-Schalter mit Spiegelung, Google-Adress-Suche. Keine
 // zweite Optik, kein zweiter Feld-Satz – nur die ERP-Extras kommen dazu (Notiz #295:
 // Rolle, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
-import { Field as AField, ToggleField, SelectField } from '@/components/form/field';
+import { Field as AField, SelectField } from '@/components/form/field';
 import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
-import type { UserProfile, UserRole } from '@/types';
+import type { NewsletterState, UserProfile, UserRole } from '@/types';
 
 // **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
 // «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
@@ -46,7 +46,6 @@ interface ERPForm {
   phone: string;
   employment_start_date: string;
   weekly_hours: string;
-  newsletter_opt_in: boolean;
 }
 
 type StrKey = { [K in keyof ERPForm]: ERPForm[K] extends string ? K : never }[keyof ERPForm];
@@ -60,7 +59,6 @@ function buildForm(p: UserProfile): ERPForm {
     phone: p.phone ?? '',
     employment_start_date: p.employment_start_date ?? '',
     weekly_hours: p.weekly_hours != null ? String(p.weekly_hours) : '',
-    newsletter_opt_in: p.newsletter_opt_in ?? false,
   };
 }
 
@@ -81,7 +79,6 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     last_name: nn(v.last_name),
     date_of_birth: nn(v.date_of_birth),
     phone: nn(v.phone),
-    newsletter_opt_in: v.newsletter_opt_in,
   };
   if (isStaff(v.role)) {
     // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
@@ -94,6 +91,59 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     data.weekly_hours = nn(v.weekly_hours);
   }
   return data as Partial<UserProfile>;
+}
+
+/**
+ * ►►► **Der Newsletter einer Person – Zustand, Nachweis, zwei Handlungen.** ◄◄◄ Anmelden
+ * kann das ERP niemanden: es schickt die Bitte um Bestätigung (sie steht danach im Chat
+ * oben), und angemeldet ist die Person erst mit ihrem Klick. Abmelden geht – wer es am
+ * Telefon sagt, wird hier abgemeldet. Der Nachweis darunter: jede Zeile mit Datum und
+ * Quelle, der Wortlaut im Hover.
+ */
+function NewsletterConsent({ person }: { person: number }) {
+  const [state, setState] = useState<NewsletterState | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.personNewsletter(person).then(setState).catch(() => {}); }, [person]);
+  const act = (call: Promise<NewsletterState>, done: string) => {
+    setBusy(true); setNote(null);
+    call.then((s) => { setState(s); setNote(done); window.dispatchEvent(new Event(MESSAGES_CHANGED)); })
+      .catch((e) => setNote(e instanceof Error ? e.message : 'Hat nicht geklappt.'))
+      .finally(() => setBusy(false));
+  };
+  const on = !!state?.subscribed;
+  const link = { border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 13,
+    color: 'var(--accent)', cursor: busy ? 'wait' : 'pointer' } as const;
+  return (
+    <div style={{ display: 'grid', gap: 8, minHeight: 44 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14 }}>
+        <span style={{ width: 8, height: 8, borderRadius: 999, flex: 'none',
+          background: on ? 'var(--success)' : 'var(--fg-4)' }} />
+        <span style={{ fontWeight: 500 }}>Newsletter {on ? 'angemeldet' : 'nicht angemeldet'}</span>
+        {state?.since && <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+          {on ? 'seit' : 'abgemeldet am'} {day(state.since)} · {state.source}</span>}
+        <span style={{ flex: 1 }} />
+        {state && (on
+          ? <button type="button" style={link} disabled={busy}
+              data-tip="Im Namen der Person abmelden – z. B. wenn sie es am Telefon sagt"
+              onClick={() => act(api.unsubscribeNewsletter(person), 'Abgemeldet.')}>Abmelden</button>
+          : <button type="button" style={link} disabled={busy}
+              data-tip="Schickt die Bitte um Bestätigung – angemeldet ist sie erst mit ihrem Klick"
+              onClick={() => act(api.inviteNewsletter(person), 'Einladung verschickt – sie steht oben im Verlauf.')}>
+              Einladung senden</button>)}
+      </div>
+      {note && <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: 0 }}>{note}</p>}
+      {state && state.history.length > 0 && (
+        <div style={{ display: 'grid', gap: 2, fontSize: 12, color: 'var(--fg-3)' }}>
+          {state.history.map((r, i) => (
+            <span key={i} className="tabular-nums" data-tip={r.wording ?? undefined}>
+              {day(r.at)} · {r.subscribed ? 'Angemeldet' : 'Abgemeldet'} · {r.source}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ProfileForm({ record, isAdmin, onSaved }: {
@@ -199,12 +249,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
       {/* ── 4. Einwilligungen (der Chat oben heisst «Kommunikation») ─────────── */}
       <Card icon={Bell} title="Einwilligungen">
-        {canEdit ? (
-          <ToggleField label="Newsletter" description="Produktneuigkeiten und Angebote per E-Mail"
-            checked={form.newsletter_opt_in} onChange={(x) => set('newsletter_opt_in', x)} />
-        ) : (
-          <AField label="Newsletter" value={form.newsletter_opt_in ? 'Abonniert' : 'Nicht abonniert'} readOnly />
-        )}
+        {record.object_id != null && <NewsletterConsent person={record.object_id} />}
       </Card>
 
       {/* ── 5. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}

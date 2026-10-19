@@ -1455,7 +1455,8 @@ export interface paths {
         put?: never;
         /**
          * Sync
-         * @description Die Postfächer abgleichen und Fälliges senden – höchstens alle 30 Sekunden je
+         * @description Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
+         *     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
          *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
          */
         post: operations["sync_api_v1_erp_messages_sync_post"];
@@ -1500,6 +1501,123 @@ export interface paths {
         put?: never;
         /** Create */
         post: operations["create_api_v1_erp_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/newsletter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Anmeldung von der Website (E-Mail → Bitte um Bestätigung)
+         * @description Wie das Anfrage-Formular: Honigtopf und Begrenzung je IP vor der Datenbank. Dann die
+         *     Person zur Adresse (angelegt, wenn es sie nicht gibt) und die Bitte um Bestätigung –
+         *     angemeldet ist erst, wer darin klickt.
+         */
+        post: operations["subscribe_api_v1_newsletter_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/newsletter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My State */
+        get: operations["my_state_api_v1_auth_me_newsletter_get"];
+        /** Set Mine */
+        put: operations["set_mine_api_v1_auth_me_newsletter_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/newsletter/subscribers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Subscribers
+         * @description Alle Angemeldeten – die Empfänger eines Newsletters.
+         */
+        get: operations["subscribers_api_v1_erp_newsletter_subscribers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/newsletter/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Person State */
+        get: operations["person_state_api_v1_erp_newsletter__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/newsletter/{object_id}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite
+         * @description Die Bitte um Bestätigung schicken – angemeldet ist die Person erst mit ihrem Klick.
+         */
+        post: operations["invite_api_v1_erp_newsletter__object_id__invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/newsletter/{object_id}/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unsubscribe Person
+         * @description Abmelden im Namen der Person (sie hat es am Telefon gesagt) – mit Quelle «ERP».
+         */
+        post: operations["unsubscribe_person_api_v1_erp_newsletter__object_id__unsubscribe_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2101,6 +2219,23 @@ export interface components {
             is_own?: boolean | null;
         };
         /**
+         * ConsentRow
+         * @description Eine An- oder Abmeldung – der Nachweis.
+         */
+        ConsentRow: {
+            /** Subscribed */
+            subscribed: boolean;
+            /** Source */
+            source: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Wording */
+            wording?: string | null;
+        };
+        /**
          * CurrencyOut
          * @description Eine wählbare Währung – Code und Name.
          */
@@ -2187,8 +2322,6 @@ export interface components {
             notification_email?: boolean | null;
             /** Notification Inapp */
             notification_inapp?: boolean | null;
-            /** Newsletter Opt In */
-            newsletter_opt_in?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "user") | null;
             /** Department */
@@ -2721,6 +2854,12 @@ export interface components {
              * @default false
              */
             incoming: boolean;
+            /**
+             * Delivery
+             * @default mail
+             * @enum {string}
+             */
+            delivery: "mail" | "circular" | "newsletter";
         };
         /** MessageOut */
         MessageOut: {
@@ -2806,6 +2945,16 @@ export interface components {
             attachments: components["schemas"]["Attachment"][];
             /** Gmail Url */
             gmail_url?: string | null;
+            /**
+             * Delivery
+             * @default mail
+             */
+            delivery: string;
+            /**
+             * Recipients
+             * @default 0
+             */
+            recipients: number;
         };
         /**
          * ModuleCatalog
@@ -2912,6 +3061,30 @@ export interface components {
             legal_form: string;
             /** Uid Number */
             uid_number?: string | null;
+        };
+        /** NewsletterIn */
+        NewsletterIn: {
+            /** Subscribed */
+            subscribed: boolean;
+        };
+        /**
+         * NewsletterState
+         * @description Angemeldet oder nicht – die jüngste Zeile; dazu der Satz, dem man zustimmt.
+         */
+        NewsletterState: {
+            /** Subscribed */
+            subscribed: boolean;
+            /** Since */
+            since?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Wording */
+            wording: string;
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["ConsentRow"][];
         };
         /**
          * ObjectResolution
@@ -3709,6 +3882,11 @@ export interface components {
         SyncOut: {
             /** New */
             new: number;
+            /**
+             * Sent
+             * @default 0
+             */
+            sent: number;
         };
         /**
          * TerritoryAssign
@@ -4012,8 +4190,6 @@ export interface components {
             notification_email: boolean;
             /** Notification Inapp */
             notification_inapp: boolean;
-            /** Newsletter Opt In */
-            newsletter_opt_in: boolean;
             /** Last Login At */
             last_login_at: string | null;
         };
@@ -4038,8 +4214,6 @@ export interface components {
             notification_email?: boolean | null;
             /** Notification Inapp */
             notification_inapp?: boolean | null;
-            /** Newsletter Opt In */
-            newsletter_opt_in?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -7287,6 +7461,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    subscribe_api_v1_newsletter_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    my_state_api_v1_auth_me_newsletter_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterState"];
+                };
+            };
+        };
+    };
+    set_mine_api_v1_auth_me_newsletter_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewsletterIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    subscribers_api_v1_erp_newsletter_subscribers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonRef"][];
+                };
+            };
+        };
+    };
+    person_state_api_v1_erp_newsletter__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invite_api_v1_erp_newsletter__object_id__invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsubscribe_person_api_v1_erp_newsletter__object_id__unsubscribe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterState"];
                 };
             };
             /** @description Validation Error */

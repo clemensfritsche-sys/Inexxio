@@ -14,7 +14,7 @@
 //    Anmeldedialog des ERP. Ein Abdruck von public/logo/, damit Konto und ERP dasselbe
 //    Zeichen tragen und es auch ohne die Website (npm run dev im Frontend) da ist.
 //
-// Die Quelle bleibt src/config (site.mjs, inquiry.mjs) und public/logo – die Dateien
+// Die Quelle bleibt src/config (site.mjs, inquiry.mjs, newsletter.mjs) und public/logo – die Dateien
 // drüben sind ihr Abdruck.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 process.env.SITE_ERP = '0';
 const { site, contactEmail } = await import('../src/config/site.mjs');
 const { inquiry } = await import('../src/config/inquiry.mjs');
+const { newsletter } = await import('../src/config/newsletter.mjs');
 const { formVocab } = await import('../src/lib/inquiry-vocab.mjs');
 const { plain } = await import('../src/lib/text.mjs');
 
@@ -41,7 +42,7 @@ const mail = inquiry.mail;
 
 const data = {
   _comment:
-    'Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:erp» – nicht von Hand ändern.',
+    'Generiert aus website/src/config (site.mjs, inquiry.mjs, newsletter.mjs) mit «npm run export:erp» – nicht von Hand ändern.',
   brand: { name: site.brand.name, formerly: plain(site.brand.formerly), full: plain(site.brand.full) },
   phone: { display: site.phone.display, e164: site.phone.e164 },
   email: contactEmail(),
@@ -70,6 +71,7 @@ const data = {
     received: mail.received,
     urgent: plain(mail.urgent),
   },
+  newsletter: Object.fromEntries(Object.entries(newsletter).map(([k, t]) => [k, plain(t)])),
 };
 
 /**

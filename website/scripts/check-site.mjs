@@ -260,6 +260,9 @@ function checkTarget(p, href, kind) {
   }
 }
 
+/** Wohin ein Formular der Website schicken darf: die Anfrage und die Newsletter-Anmeldung. */
+const FORM_TARGETS = new Set(['/api/v1/contact', '/api/v1/newsletter']);
+
 function checkLinks(p) {
   for (const m of p.html.matchAll(/<a\b[^>]*\shref="([^"]*)"/g)) checkTarget(p, decode(m[1]), 'Link');
   for (const m of p.html.matchAll(/<(?:img|script|source)\b[^>]*\ssrc="([^"]*)"/g)) checkTarget(p, decode(m[1]), 'Datei');
@@ -267,7 +270,7 @@ function checkLinks(p) {
     if (!/rel="canonical"/.test(m[0])) checkTarget(p, decode(m[1]), 'Datei');
   }
   for (const m of p.html.matchAll(/<form\b[^>]*\saction="([^"]*)"/g)) {
-    if (decode(m[1]) !== '/api/v1/contact') fail(p.path, `Formular schickt an «${m[1]}»`);
+    if (!FORM_TARGETS.has(decode(m[1]))) fail(p.path, `Formular schickt an «${m[1]}»`);
   }
 }
 

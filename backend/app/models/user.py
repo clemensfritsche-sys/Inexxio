@@ -86,7 +86,8 @@ class UserProfile(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(String(10), default="de")
     notification_email: Mapped[bool] = mapped_column(Boolean, default=True)
     notification_inapp: Mapped[bool] = mapped_column(Boolean, default=True)
-    newsletter_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    # ``newsletter_opt_in`` ist kein Feld mehr: die Einwilligung ist ein Nachweis
+    # (``models/newsletter``, Migration 153); die Spalte fällt im Folge-Deploy.
 
     # Auth / compliance
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

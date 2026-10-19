@@ -49,11 +49,17 @@
  *
  * An einer **Firma** ist der Verlauf ein Spiegel: dieselbe Liste, keine Eingabe und kein
  * offen/überfällig – geschrieben wird immer von Person zu Person.
+ *
+ * ►►► **Drei Versandarten einer E-Mail: Mail · Rundschreiben · Newsletter.** ◄◄◄ Bcc bleibt
+ * Bcc. Ein **Rundschreiben** geht an jede Person einzeln, mit ihrer Anrede – Information,
+ * keine Werbung. Ein **Newsletter** ebenso, aber nur an Angemeldete und mit Abmeldelink;
+ * das Tor sitzt im Dienst. Im Verlauf steht beides **einmal** («Rundschreiben · an 23»),
+ * bei jeder Empfängerin ihre eigene Kopie. Gewählt wird ausdrücklich, Vorgabe ist Mail.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDownUp, Check, ChevronDown, ChevronUp, Clock, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
-  Paperclip, Phone, Reply, Send, X } from 'lucide-react';
+  Newspaper, Paperclip, Phone, Reply, Send, Users, X } from 'lucide-react';
 import { MODULE_TONE } from '@/lib/modules';
 import { api } from '@/lib/api';
 import { useSearch } from '@/lib/use-search';
@@ -64,6 +70,15 @@ import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '
 type Person = { object_id: number; name: string; company?: string | null; email?: string | null;
   staff?: boolean };
 type Mode = 'email' | 'phone' | 'internal';
+/** Die Versandart einer E-Mail – Spiegel von ``domain/communication.DELIVERIES``. */
+type Delivery = MessageIn['delivery'];
+const DELIVERIES: { key: Delivery; label: string; tip: string }[] = [
+  { key: 'mail', label: 'Mail', tip: 'Wie gewohnt: wer im An und Cc steht, sieht einander' },
+  { key: 'circular', label: 'Rundschreiben',
+    tip: 'Information an mehrere: jede Person bekommt ihre eigene Mail mit Anrede – niemand sieht die anderen' },
+  { key: 'newsletter', label: 'Newsletter',
+    tip: 'Werbung: einzeln, nur an Angemeldete, mit Abmeldelink' },
+];
 
 /** Alle, die das Zeichen im Feed betrifft, hören hierauf und laden die Zahlen neu. */
 export const MESSAGES_CHANGED = 'inexxio:messages';
@@ -253,8 +268,11 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
   const showState = !mirror && m.open;
   const bg = !m.channel.outside ? 'var(--bg-3)' : m.ours ? 'var(--accent-soft)' : 'var(--bg-1)';
   // Wer ausser dem einen Empfänger dabei war – das «Cc», kurz; alles Genaue im Hover.
-  const cc = !m.channel.outside ? null
-    : m.cc.length ? `Cc ${m.cc.map(who).join(', ')}` : m.to.length > 1 ? `an ${m.to.length}` : null;
+  const group = m.delivery === 'mail' ? null
+    : `${DELIVERIES.find((d) => d.key === m.delivery)?.label ?? m.delivery}${m.recipients > 1 ? ` · an ${m.recipients}` : ''}`;
+  const GroupIcon = m.delivery === 'newsletter' ? Newspaper : Megaphone;
+  const cc = group ?? (!m.channel.outside ? null
+    : m.cc.length ? `Cc ${m.cc.map(who).join(', ')}` : m.to.length > 1 ? `an ${m.to.length}` : null);
   // ►►► Intern stehen die Empfänger VORNE im Text – «@Monika Fritsche …». Sie kommen aus dem
   // «An», nicht aus dem Text: wer gefragt ist, sieht man, ohne zu zeigen. ◄◄◄
   const mentions = !m.channel.outside ? [...m.to, ...m.cc] : [];
@@ -284,6 +302,7 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
           <span data-tip={details(m)} data-tip-list="" data-tip-pos="bottom"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             {m.channel.kind === 'internal' && <Icon size={12} style={{ flex: 'none' }} />}
+            {group && <GroupIcon size={12} style={{ flex: 'none' }} />}
             {cc && <span className="truncate">{cc}</span>}
           </span>
           <Time m={m} state={showState} />
@@ -627,6 +646,21 @@ function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLat
   );
 }
 
+/** Die Versandart – ausdrücklich gewählt, Vorgabe ist Mail. Was jede tut, steht im Hover. */
+function DeliveryPick({ value, onPick }: { value: Delivery; onPick: (d: Delivery) => void }) {
+  return (
+    <span role="radiogroup" aria-label="Versand" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {DELIVERIES.map((d) => (
+        <button key={d.key} type="button" role="radio" aria-checked={value === d.key} data-tip={d.tip}
+          onClick={() => onPick(d.key)}
+          style={{ border: 0, height: 26, padding: '0 10px', borderRadius: 13, fontSize: 13,
+            cursor: 'pointer', background: value === d.key ? 'var(--fg-1)' : 'var(--bg-3)',
+            color: value === d.key ? '#fff' : 'var(--fg-1)' }}>{d.label}</button>
+      ))}
+    </span>
+  );
+}
+
 function Fields(p: {
   mode: Mode; me: Person; person: Person; channel?: MessageChannel; mails: MessageChannel[];
   setChannel: Set<string>;
@@ -640,10 +674,17 @@ function Fields(p: {
   fixed: boolean; locked: ReadonlySet<number>;
   later: string | null; setLater: Set<string | null>;
   incoming: boolean; setIncoming: Set<boolean>;
+  delivery: Delivery; setDelivery: Set<Delivery>;
 }) {
   const { mode, me, person, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc,
     showCc, setShowCc, showBcc, setShowBcc, subject, setSubject, topics, fixed, locked, later,
-    setLater, incoming, setIncoming } = p;
+    setLater, incoming, setIncoming, delivery, setDelivery } = p;
+  // Rundschreiben und Newsletter gehen an jede Person einzeln – ohne Cc und Bcc.
+  const single = mode === 'email' && delivery !== 'mail';
+  const [error, setError] = useState<string | null>(null);
+  const subscribers = () => api.newsletterSubscribers()
+    .then((list) => { setError(null); setTo(list.map((x) => ({ object_id: x.object_id, name: x.name }))); })
+    .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht geladen werden.'));
   const chip = (x: Person) => <span style={{ flex: 1, minWidth: 0 }}>
     <span style={CHIP}><span className="truncate">{x.name}</span></span></span>;
   // Wer beantwortet wird, lässt sich nicht entfernen – nur zwischen «An» und «Cc» schieben.
@@ -673,10 +714,18 @@ function Fields(p: {
           <ComposerRow label="Von"><From mails={mails} value={channel} onChange={setChannel} me={me} /></ComposerRow>
         )}
         {mode === 'phone' && <ComposerRow label="Von">{chip(incoming ? person : me)}{swap}</ComposerRow>}
-        <ComposerRow label="An">
+        {mode === 'email' && !fixed && (
+          <ComposerRow label="Versand"><DeliveryPick value={delivery} onPick={setDelivery} /></ComposerRow>
+        )}
+        <ComposerRow label={single ? 'Einzeln an' : 'An'}>
           {mode === 'phone' ? chip(incoming ? me : person) : contact}
+          {delivery === 'newsletter' && mode === 'email' && (
+            <button type="button" onClick={() => void subscribers()} style={{ ...link, display: 'inline-flex',
+              alignItems: 'center', gap: 4 }} data-tip="Alle, die heute für den Newsletter angemeldet sind">
+              <Users size={13} />Alle Angemeldeten</button>
+          )}
           {/* Cc und Bcc wie in Gmail: ein Klick klappt das Feld auf, leer verlassen klappt es zu. */}
-          {mode === 'email' && (!showCc || !showBcc) && (
+          {mode === 'email' && !single && (!showCc || !showBcc) && (
             <span style={{ display: 'inline-flex', gap: 8, flex: 'none' }}>
               {/* Kein Fokuswechsel beim Drücken: sonst klappte ein leeres Feld schon zu, und der
                   Klick träfe den Knopf, der dabei an seine Stelle rückt. */}
@@ -687,11 +736,18 @@ function Fields(p: {
             </span>
           )}
         </ComposerRow>
-        {mode === 'email' && showCc && (
+        {single && (
+          <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '6px 0 0 92px' }}>
+            Jede Person bekommt ihre eigene Mail mit «Guten Tag Vorname Name» davor – niemand sieht die anderen.
+            {delivery === 'newsletter' && ' Nur an Angemeldete, mit Abmeldelink im Fuss.'}
+            {error && <span style={{ color: 'var(--danger)' }}> {error}</span>}
+          </p>
+        )}
+        {mode === 'email' && !single && showCc && (
           <ComposerRow label="Cc"><People value={cc} onChange={setCc} locked={locked} onMove={toTo}
             moveTip="Ins «An» schieben" autoFocus={!cc.length} onLeave={() => setShowCc(false)} /></ComposerRow>
         )}
-        {mode === 'email' && showBcc && (
+        {mode === 'email' && !single && showBcc && (
           <ComposerRow label="Bcc"><People value={bcc} onChange={setBcc} autoFocus={!bcc.length}
             onLeave={() => setShowBcc(false)} /></ComposerRow>
         )}
@@ -724,6 +780,7 @@ type Draft = {
   mode: Mode; incoming: boolean;
   to: Person[]; cc: Person[]; bcc: Person[]; showCc: boolean; showBcc: boolean; subject: string;
   reply: Message | null; mailKey?: string; body: string; later: string | null;
+  delivery: Delivery;
 };
 
 /** Der Betreff ohne «Re:», «AW:» … – wie das Anliegen dasteht (``domain.title``). */
@@ -754,6 +811,8 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   // Ein Anruf: «ich habe angerufen» (Vorgabe) ↔ «wurde angerufen» – dann ist der Kontakt
   // der Absender (der Server tauscht, ``MessageIn.incoming``).
   const [incoming, setIncoming] = useState(false);
+  // Mail · Rundschreiben · Newsletter – nur bei einer neuen E-Mail; eine Antwort ist eine Mail.
+  const [delivery, setDelivery] = useState<Delivery>('mail');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // ►►► Zugeklappt EINE Zeile wie bei WhatsApp – der Rest erscheint beim Hineinklicken. ◄◄◄
@@ -790,6 +849,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     const all = m.reply_all.filter((p) => p.object_id !== me.object_id);
     const inCc = new Set(m.cc.map((p) => p.object_id));
     setReply(m); setEdit(false); setMailKey(undefined); setError(null); setIncoming(false);
+    setDelivery('mail');
     if (!target.quiet) setOpen(true);
     setMode(next === 'email' && !mails.length ? 'internal' : next);
     setTo(all.filter((p) => !inCc.has(p.object_id)));
@@ -807,12 +867,16 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   };
   const pick = (m: Mode) => {
     setMode(m); setError(null); setIncoming(false);
+    if (m !== 'email') setDelivery('mail');
     if (!reply) setTo(m === 'internal' ? [] : [person]);
     else if (m === 'internal') setTo([]);
   };
+  // Die Versandart dieser Nachricht – eine Antwort und alles ausser E-Mail ist eine Mail.
+  const kind: Delivery = mode === 'email' && !reply ? delivery : 'mail';
   const verb = mode === 'phone' ? 'Anruf festhalten'
     : mode === 'internal' ? (later ? 'Erinnerung setzen' : 'Speichern')
-      : (later ? 'Später senden' : 'Senden');
+      : later ? 'Später senden'
+        : kind === 'mail' ? 'Senden' : `${DELIVERIES.find((d) => d.key === kind)?.label} senden`;
 
   /** Warum noch nicht gesendet werden kann – dieselben Regeln wie im Dienst, hier nur
    *  früher gesagt: am Knopf, im Hover. ``null`` = vollständig. */
@@ -827,12 +891,13 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     setMode(d.mode); setIncoming(d.incoming); setTo(d.to); setCc(d.cc); setBcc(d.bcc);
     setShowCc(d.showCc); setShowBcc(d.showBcc);
     setSubject(d.subject); setReply(d.reply); setMailKey(d.mailKey); setBody(d.body);
-    setLater(d.later);
+    setLater(d.later); setDelivery(d.delivery);
   };
   const clear = () => {
     setOpen(false);
     setBody(''); setLater(null); setSubject(''); setReply(null); setEdit(false); setMailKey(undefined);
     setCc([]); setBcc([]); setShowCc(false); setShowBcc(false); setIncoming(false);
+    setDelivery('mail');
     setTo(mode === 'internal' ? [] : [person]);
   };
 
@@ -841,6 +906,9 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     try {
       await api.createMessage(payload);
       sent.current();
+      // Ein Rundschreiben geht über den Abgleich hinaus – gleich jetzt, nicht erst beim
+      // nächsten Lauf (je Lauf eine Handvoll; der Rest folgt im Hintergrund).
+      if (payload.delivery !== 'mail') void api.syncMail().then(() => sent.current()).catch(() => {});
       return true;
     } catch (e) {
       if (draft) restore(draft);
@@ -894,21 +962,22 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     if (!channel || problem) return;
     flush();
     // Ein Anruf hat genau zwei: mich und diese Person (die Richtung tauscht der Server).
-    const [toP, ccP, bccP] = mode === 'phone' ? [[person], [], []] : [to, cc, bcc];
+    const [toP, ccP, bccP] = mode === 'phone' ? [[person], [], []]
+      : kind !== 'mail' ? [to, [], []] : [to, cc, bcc];
     const named = new Set([me.object_id, ...[...toP, ...ccP, ...bccP].map((p) => p.object_id)]);
     const payload: MessageIn = {
       channel: channel.key,
       to: toP.map((p) => p.object_id), cc: ccP.map((p) => p.object_id),
       bcc: bccP.map((p) => p.object_id),
-      about: named.has(person.object_id) ? [] : [person.object_id],
+      about: named.has(person.object_id) || kind !== 'mail' ? [] : [person.object_id],
       subject: theSubject.trim() || null, body,
       at: later ? LATER.find((l) => l.key === later)!.at().toISOString() : null,
-      incoming: calledIn,
+      incoming: calledIn, delivery: kind,
     };
     // ►►► Jede Nachricht wartet drei Sekunden – Mail, Anruf, Intern; «Rückgängig» holt
     // sie genau so zurück. Eine Regel für alle Wege. ◄◄◄
     const draft: Draft = { mode, incoming, to, cc, bcc, showCc, showBcc, subject, reply, mailKey,
-      body, later };
+      body, later, delivery };
     clear();
     setError(null);
     setHeld(draft);
@@ -999,7 +1068,8 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
           person={person} to={to} setTo={setTo} cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc}
           showCc={showCc} setShowCc={setShowCc} showBcc={showBcc} setShowBcc={setShowBcc}
           subject={subject} setSubject={setSubject} topics={topics} fixed={fixed} locked={locked}
-          later={later} setLater={setLater} incoming={incoming} setIncoming={setIncoming} />
+          later={later} setLater={setLater} incoming={incoming} setIncoming={setIncoming}
+          delivery={delivery} setDelivery={setDelivery} />
       )}
       {reply && !edit && later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
       <label htmlFor="msg-body" className="sr-only">Text</label>
@@ -1103,7 +1173,7 @@ export function Communication({ person, company, ownCompany, me }: {
   const done = (m: Message) => {
     if (!person) return;
     api.createMessage({ channel: 'intern', about: [m.sender.object_id], subject: m.reply_subject || null,
-      body: '', incoming: false })
+      body: '', incoming: false, delivery: 'mail' })
       .then(changed).catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
   };
   const writable = !!person && !!me && channels.length > 0;

@@ -41,7 +41,7 @@ alembic revision --autogenerate -m "description"     # neue Migration
   `create_all` legt nur fehlende **Tabellen** an.
 - **Daten-Reparaturen** stehen je als Funktion mit eigenem Savepoint in `main._DATA_REPAIRS`
   (heute: `orders.name` · `instance_units.status` · `user_profiles` ·
-  `company_settings`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
+  `company_settings` · `newsletter_consents`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
   `people.repair_sql`, `address_book.ADDRESS_INDEXES`,
   `communication.*_repair_sql`, `sites.backfill_keys`). Scheitert eine, laufen die übrigen.
 - **Der Start löscht nichts und ernennt niemanden**: kein `DROP TABLE` (ein Wächter
@@ -79,7 +79,8 @@ app/
 │   │                   invoice_state, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
 │   ├── incoterms.py  ← die elf Klauseln der Incoterms 2020 mit Erklärung
-│   ├── communication.py ← Kanäle, Rollen, Betreff/Anliegen, overdue (2 h), Signatur
+│   ├── communication.py ← Kanäle, Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
+│   ├── newsletter.py ← Quellen der Einwilligung, Gültigkeit der Bestätigung
 │   └── uid.py        ← UID-Normalform und Prüfziffer (eCH-0097)
 ├── models/           ← SQLAlchemy 2.0 (je Entität eine Datei; Import über models/__init__)
 ├── schemas/          ← Pydantic v2 Request/Response
@@ -103,7 +104,7 @@ scripts/
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
-| Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py` |
+| Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py`, `passkey.py`, `feedback.py`, `admin.py`, `invariants.py` |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -124,7 +125,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **82 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **92 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -185,6 +186,13 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
+| POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung); Honigtopf, 5/h je IP |
+| GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | Bestätigen → angemeldet (Quelle aus dem Link) → `/newsletter/bestaetigt` |
+| GET · POST | `/api/v1/newsletter/unsubscribe?t=` | – (signierter Link) | GET zeigt einen Knopf, POST meldet ab; One-Click (RFC 8058) direkt |
+| GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
+| GET | `/api/v1/erp/newsletter/subscribers` | staff | Alle Angemeldeten (Empfänger eines Newsletters) |
+| GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
+| POST | `/api/v1/erp/newsletter/{object_id}/invite` · `/unsubscribe` | staff | Bitte um Bestätigung schicken / abmelden (anmelden kann das ERP niemanden) |
 | GET · POST · DELETE | `/api/v1/feedback` | user | Testnotizen (nur Testumgebung); `DELETE ?scope=done\|all` räumt die eigenen |
 | PATCH · DELETE | `/api/v1/feedback/{note_id}` | user | Notiz erledigt/verworfen setzen / löschen |
 

@@ -272,4 +272,6 @@ export type MessageIn = components['schemas']['MessageIn'];
 export type MessageChannel = components['schemas']['ChannelOut'];
 /** Wie viele offene Nachrichten im Verlauf einer Person stehen – das Zeichen im Feed. */
 export type OpenCount = components['schemas']['OpenCount'];
+export type NewsletterState = components['schemas']['NewsletterState'];
+export type PersonRef = components['schemas']['PersonRef'];
 export type Mailbox = components['schemas']['MailboxOut'];

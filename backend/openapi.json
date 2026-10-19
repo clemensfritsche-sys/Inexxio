@@ -3993,7 +3993,7 @@
           "communication"
         ],
         "summary": "Sync",
-        "description": "Die Postfächer abgleichen und Fälliges senden – höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.",
+        "description": "Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein\nRundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.",
         "operationId": "sync_api_v1_erp_messages_sync_post",
         "responses": {
           "200": {
@@ -4147,6 +4147,270 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/newsletter": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Anmeldung von der Website (E-Mail → Bitte um Bestätigung)",
+        "description": "Wie das Anfrage-Formular: Honigtopf und Begrenzung je IP vor der Datenbank. Dann die\nPerson zur Adresse (angelegt, wenn es sie nicht gibt) und die Bitte um Bestätigung –\nangemeldet ist erst, wer darin klickt.",
+        "operationId": "subscribe_api_v1_newsletter_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me/newsletter": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "My State",
+        "operationId": "my_state_api_v1_auth_me_newsletter_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Set Mine",
+        "operationId": "set_mine_api_v1_auth_me_newsletter_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewsletterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/newsletter/subscribers": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Subscribers",
+        "description": "Alle Angemeldeten – die Empfänger eines Newsletters.",
+        "operationId": "subscribers_api_v1_erp_newsletter_subscribers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PersonRef"
+                  },
+                  "type": "array",
+                  "title": "Response Subscribers Api V1 Erp Newsletter Subscribers Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/newsletter/{object_id}": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Person State",
+        "operationId": "person_state_api_v1_erp_newsletter__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/newsletter/{object_id}/invite": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Invite",
+        "description": "Die Bitte um Bestätigung schicken – angemeldet ist die Person erst mit ihrem Klick.",
+        "operationId": "invite_api_v1_erp_newsletter__object_id__invite_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/newsletter/{object_id}/unsubscribe": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Unsubscribe Person",
+        "description": "Abmelden im Namen der Person (sie hat es am Telefon gesagt) – mit Quelle «ERP».",
+        "operationId": "unsubscribe_person_api_v1_erp_newsletter__object_id__unsubscribe_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterState"
                 }
               }
             }
@@ -5655,6 +5919,42 @@
         "title": "CompanySettingsUpdate",
         "description": "Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).\n\n**Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.\nZahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),\nMWST-Methode/-Periode kommen mit der Buchhaltung (Phase 3), die sie auswertet.\n\n``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**\n(``sites.website_url`` = die Deployment-Adresse), keine Eingabe."
       },
+      "ConsentRow": {
+        "properties": {
+          "subscribed": {
+            "type": "boolean",
+            "title": "Subscribed"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "wording": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wording"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscribed",
+          "source",
+          "at"
+        ],
+        "title": "ConsentRow",
+        "description": "Eine An- oder Abmeldung – der Nachweis."
+      },
       "CurrencyOut": {
         "properties": {
           "code": {
@@ -5833,17 +6133,6 @@
               }
             ],
             "title": "Notification Inapp"
-          },
-          "newsletter_opt_in": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Newsletter Opt In"
           },
           "role": {
             "anyOf": [
@@ -6889,6 +7178,16 @@
             "type": "boolean",
             "title": "Incoming",
             "default": false
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "mail",
+              "circular",
+              "newsletter"
+            ],
+            "title": "Delivery",
+            "default": "mail"
           }
         },
         "type": "object",
@@ -7034,6 +7333,16 @@
               }
             ],
             "title": "Gmail Url"
+          },
+          "delivery": {
+            "type": "string",
+            "title": "Delivery",
+            "default": "mail"
+          },
+          "recipients": {
+            "type": "integer",
+            "title": "Recipients",
+            "default": 0
           }
         },
         "type": "object",
@@ -7192,6 +7501,69 @@
         "type": "object",
         "title": "NewCompany",
         "description": "►►► **Eine Firma NENNEN** – die UID, sonst Name und Rechtsform. ◄◄◄\n\nDer Server erkennt sie (gleiche UID · ohne UID gleicher Name **und** gleiche\nRechtsform) oder legt sie an (``sites.resolve``). Bei einer bekannten UID zählt der\ngetippte Name nicht – die Firma heisst, wie sie heisst."
+      },
+      "NewsletterIn": {
+        "properties": {
+          "subscribed": {
+            "type": "boolean",
+            "title": "Subscribed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscribed"
+        ],
+        "title": "NewsletterIn"
+      },
+      "NewsletterState": {
+        "properties": {
+          "subscribed": {
+            "type": "boolean",
+            "title": "Subscribed"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "wording": {
+            "type": "string",
+            "title": "Wording"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ConsentRow"
+            },
+            "type": "array",
+            "title": "History",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscribed",
+          "wording"
+        ],
+        "title": "NewsletterState",
+        "description": "Angemeldet oder nicht – die jüngste Zeile; dazu der Satz, dem man zustimmt."
       },
       "ObjectResolution": {
         "properties": {
@@ -8698,6 +9070,11 @@
           "new": {
             "type": "integer",
             "title": "New"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent",
+            "default": 0
           }
         },
         "type": "object",
@@ -9330,10 +9707,6 @@
             "type": "boolean",
             "title": "Notification Inapp"
           },
-          "newsletter_opt_in": {
-            "type": "boolean",
-            "title": "Newsletter Opt In"
-          },
           "last_login_at": {
             "anyOf": [
               {
@@ -9370,7 +9743,6 @@
           "language",
           "notification_email",
           "notification_inapp",
-          "newsletter_opt_in",
           "last_login_at"
         ],
         "title": "UserProfileResponse"
@@ -9464,17 +9836,6 @@
               }
             ],
             "title": "Notification Inapp"
-          },
-          "newsletter_opt_in": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Newsletter Opt In"
           }
         },
         "type": "object",

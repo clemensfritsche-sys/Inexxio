@@ -13,7 +13,7 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
-  Message, MessageIn, MessageChannel, Mailbox, OpenCount,
+  Message, MessageIn, MessageChannel, Mailbox, OpenCount, NewsletterState, PersonRef,
   ArticleInput,
   ArticleNameSuggestion,
   Instance,
@@ -488,8 +488,38 @@ class ApiClient {
   }
 
   /** Postfächer abgleichen und Fälliges senden – der Server drosselt selbst. */
-  syncMail(): Promise<{ new: number }> {
+  syncMail(): Promise<{ new: number; sent: number }> {
     return this.post('/api/v1/erp/messages/sync', {});
+  }
+
+  // ─── Newsletter ────────────────────────────────────────────────────────────
+
+  /** Mein Newsletter – angemeldet oder nicht, und der Satz, dem ich zustimme. */
+  myNewsletter(): Promise<NewsletterState> {
+    return this.get('/api/v1/auth/me/newsletter');
+  }
+
+  setMyNewsletter(subscribed: boolean): Promise<NewsletterState> {
+    return this.put('/api/v1/auth/me/newsletter', { subscribed });
+  }
+
+  /** Zustand und Nachweis einer Person (ERP). */
+  personNewsletter(objectId: number): Promise<NewsletterState> {
+    return this.get(`/api/v1/erp/newsletter/${objectId}`);
+  }
+
+  /** Die Bitte um Bestätigung schicken – anmelden kann das ERP niemanden. */
+  inviteNewsletter(objectId: number): Promise<NewsletterState> {
+    return this.post(`/api/v1/erp/newsletter/${objectId}/invite`, {});
+  }
+
+  unsubscribeNewsletter(objectId: number): Promise<NewsletterState> {
+    return this.post(`/api/v1/erp/newsletter/${objectId}/unsubscribe`, {});
+  }
+
+  /** Alle Angemeldeten – die Empfänger eines Newsletters. */
+  newsletterSubscribers(): Promise<PersonRef[]> {
+    return this.get('/api/v1/erp/newsletter/subscribers');
   }
 
   // ─── ERP Articles ──────────────────────────────────────────────────────────

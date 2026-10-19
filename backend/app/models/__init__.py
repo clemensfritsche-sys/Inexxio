@@ -22,6 +22,7 @@ from .feedback import FeedbackNote
 from .object_ref import ObjectRef
 from .message import Message, MessageParty
 from .mailbox import Mailbox
+from .newsletter import NewsletterConsent
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
@@ -31,5 +32,5 @@ __all__ = [
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",
     "AuditLog", "ObjectRef", "FeedbackNote",
-    "Message", "MessageParty", "Mailbox",
+    "Message", "MessageParty", "Mailbox", "NewsletterConsent",
 ]

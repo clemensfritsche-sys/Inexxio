@@ -13,6 +13,8 @@
  */
 import { contactEmail } from '../config/site.mjs';
 import { inquiry } from '../config/inquiry.mjs';
+import { newsletter } from '../config/newsletter.mjs';
+import { plain } from '../lib/text.mjs';
 import { formVocab } from '../lib/inquiry-vocab.mjs';
 import Icon from './Icon.astro';
 import FormResult from './FormResult.astro';
@@ -93,6 +95,13 @@ const f = (name: string) => `${id}-${name}`;
         <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
       </div>
     </div>
+
+    {/* Der Newsletter: nie vorausgewählt, nie Bedingung – angemeldet ist erst, wer in der
+        Eingangsbestätigung klickt (Double Opt-in). Der Satz ist der Wortlaut des Nachweises. */}
+    <label class="iform__consent">
+      <input type="checkbox" name="newsletter" value="1" />
+      <span>{plain(newsletter.consent)}</span>
+    </label>
 
     <div class="iform__foot">
       <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>

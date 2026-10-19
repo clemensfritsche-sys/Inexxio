@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Callable, Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..domain import communication as dc
@@ -163,6 +163,8 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
                                         "Anliegen, zu dem sie gehört.")
     if not dc.channel(data.channel).outside:
         _assert_internal(db, roles)
+    if data.delivery != "mail":
+        return _create_group(db, data, actor, subject, body)
     sender = actor.object_id
     if data.incoming:
         sender, roles = _incoming_call(data, roles, actor)
@@ -173,6 +175,53 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     write(db, msg, roles)
     _hand_to_mailbox(db, msg, roles)
     return msg
+
+
+def _assert_group(db: Session, data: MessageIn, actor: UserProfile, body: str) -> list[int]:
+    """**Rundschreiben und Newsletter** – die Regeln, und für den Newsletter das Tor: er
+    geht nur an Angemeldete. Gibt die Empfänger zurück (ohne Dubletten)."""
+    what = dc.DELIVERIES[data.delivery]
+    if not dc.is_mail(data.channel) or data.incoming or actor.role not in STAFF_ROLES:
+        raise HTTPException(400, detail=f"Ein {what} ist eine E-Mail von uns.")
+    if data.cc or data.bcc:
+        raise HTTPException(400, detail=f"Ein {what} geht an jede Person einzeln – "
+                                        f"ohne Cc und Bcc.")
+    ids = list(dict.fromkeys(data.to))
+    if not ids or not body:
+        raise HTTPException(400, detail=f"Ein {what} braucht Empfänger und Text.")
+    if data.delivery == "newsletter":
+        from .newsletter import subscribed
+        ok = subscribed(db, ids)
+        missing = [i for i in ids if i not in ok]
+        if missing:
+            who = _people(db, missing[:1])[missing[0]].display_name
+            raise HTTPException(400, detail=f"«{who}» ist nicht für den Newsletter angemeldet "
+                                            f"– er geht nur an Angemeldete.")
+    return ids
+
+
+def _create_group(db: Session, data: MessageIn, actor: UserProfile,
+                  subject: Optional[str], body: str) -> Message:
+    """►►► **Je Empfänger eine Nachricht** – mit eigener Anrede, im «An» nur er. ◄◄◄ Alle
+    zeigen auf die erste (``group_id``). Hinaus gehen sie über den Abgleich
+    (``mailbox.send_due``, je Lauf eine Handvoll), nicht in dieser Anfrage: hundert Mails
+    in einem Klick hielten ihn sonst minutenlang fest. Gibt die erste zurück."""
+    ids = _assert_group(db, data, actor, body)
+    people = _people(db, ids)
+    at = _aware(data.at) if data.at else _now()
+    first: Optional[Message] = None
+    for oid in ids:
+        msg = Message(sender_object_id=actor.object_id, channel=data.channel, subject=subject,
+                      body=f"{dc.greeting(people[oid].display_name)}\n\n{body}", at=at,
+                      created_by=actor.id, newsletter=data.delivery == "newsletter",
+                      group_id=first.id if first else None)
+        roles = {"to": [oid], "cc": [], "bcc": [], "about": []}
+        write(db, msg, roles)
+        if first is None:
+            first, msg.group_id = msg, msg.id
+        _hand_to_mailbox(db, msg, roles, now=False)
+    assert first is not None
+    return first
 
 
 def _assert_mail(data: MessageIn, roles: dict[str, list[int]]) -> None:
@@ -218,7 +267,8 @@ def write(db: Session, msg: Message, roles: dict[str, list[int]]) -> Message:
     return msg
 
 
-def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]]) -> None:
+def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
+                     now: bool = True) -> None:
     """**Eine Mail von uns nach aussen geht hinaus** – über das Postfach ihres Kanals.
 
     Nur, wo es eine Anbindung gibt (``mailbox.ready``) – sonst wird sie wie bisher nur
@@ -233,7 +283,7 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]]) -> 
         return          # eine eingegangene Mail, von Hand erfasst – sie ging nie hinaus
     mailbox.assert_may_send(db, msg.channel, sender)
     msg.outgoing = True
-    if _aware(msg.at) <= _now():
+    if now and _aware(msg.at) <= _now():
         mailbox.send(db, msg)
 
 
@@ -373,6 +423,7 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
         overdue=overdue, planned=at > now,
         pending=bool(m.outgoing), attachments=m.attachments or [],
         gmail_url=gmail_url(address, m) if address else None,
+        delivery=dc.delivery_of(m.group_id, m.newsletter),
     )
 
 
@@ -386,7 +437,34 @@ def history(db: Session, *, person: Optional[int] = None,
         persons = [oid for (oid,) in db.query(UserProfile.object_id).filter(
             UserProfile.company_object_id == company,
             UserProfile.object_id.isnot(None)).all()]
-    return load(db, _ids_for(db, persons))
+    ids, sizes = _collapse(db, _ids_for(db, persons), set(persons))
+    out = load(db, ids)
+    for m in out:
+        m.recipients = sizes.get(m.id, 0)
+    return out
+
+
+def _collapse(db: Session, ids: list[int], persons: set[int]
+              ) -> tuple[list[int], dict[int, int]]:
+    """►►► **Ein Rundschreiben steht im Verlauf EINMAL.** ◄◄◄ Je Gruppe bleibt die Kopie an
+    diese Person (bzw. eine dieser Personen); wer es geschrieben hat, sieht die erste. Dazu
+    je verbliebener Nachricht, an wie viele es ging."""
+    rows = db.query(Message.id, Message.group_id).filter(
+        Message.id.in_(ids), Message.group_id.isnot(None)).all() if ids else []
+    if not rows:
+        return ids, {}
+    theirs = {mid for (mid,) in db.query(MessageParty.message_id).filter(
+        MessageParty.message_id.in_([r.id for r in rows]), MessageParty.role == "to",
+        MessageParty.person_object_id.in_(persons))}
+    pick: dict[int, int] = {}
+    for mid, gid in sorted(rows):
+        if gid not in pick or (mid in theirs and pick[gid] not in theirs):
+            pick[gid] = mid
+    drop = {r.id for r in rows} - set(pick.values())
+    sizes = db.query(Message.group_id, func.count(Message.id)).filter(
+        Message.group_id.in_(list(pick)), Message.is_active.is_(True)
+    ).group_by(Message.group_id).all()
+    return [i for i in ids if i not in drop], {pick[g]: n for g, n in sizes}
 
 
 def open_counts(db: Session) -> list[OpenCount]:

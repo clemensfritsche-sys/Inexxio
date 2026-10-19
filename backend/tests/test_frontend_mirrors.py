@@ -285,3 +285,21 @@ def test_the_module_keys_are_the_same_on_both_sides():
             assert f"{key}:" in block, f"«{key}» fehlt in {what} (c)."
         for gone in ("beschaffen:", "verkauf:", "ausliefern:"):
             assert gone not in block, f"«{gone}» steht wieder in {what} (a)."
+
+
+# ---------------------------------------------------------------------------
+# Kommunikation
+# ---------------------------------------------------------------------------
+
+
+def test_the_deliveries_mirror_the_backend_word_for_word():
+    """**Mail · Rundschreiben · Newsletter** – Schlüssel und Wort wie im Backend
+    (``domain/communication.DELIVERIES``). Der Typ ist generiert; die Wörter sind der
+    Spiegel, und eine Versandart ohne Knopf wäre eine, die niemand wählen kann."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain.communication import DELIVERIES
+
+    ts = _read(FRONTEND / "components" / "erp" / "communication.tsx")
+    body = ts.split("const DELIVERIES")[1].split("];")[0]
+    assert dict(re.findall(r"key: '(\w+)', label: '([^']+)'", body)) == DELIVERIES

@@ -51,9 +51,11 @@ def disconnect(channel: str, db: Session = Depends(get_db),
 
 @router.post("/sync", response_model=SyncOut)
 def sync(db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
-    """Die Postfächer abgleichen und Fälliges senden – höchstens alle 30 Sekunden je
+    """Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
+    Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op."""
-    return SyncOut(new=mailbox.sync_all(db))
+    new, sent = mailbox.sync_all(db)
+    return SyncOut(new=new, sent=sent)
 
 
 @callback_router.get("/callback", include_in_schema=False)

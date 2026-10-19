@@ -233,7 +233,7 @@ export default function ErpPage() {
     const tick = () => {
       if (document.hidden) return;
       api.syncMail().then((r) => {
-        if (r.new > 0) window.dispatchEvent(new Event(MESSAGES_CHANGED));
+        if (r.new > 0 || r.sent > 0) window.dispatchEvent(new Event(MESSAGES_CHANGED));
       }).catch(() => {});
     };
     tick();

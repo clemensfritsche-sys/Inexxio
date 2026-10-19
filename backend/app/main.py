@@ -19,7 +19,7 @@ from .services import address_book, people, sites
 from .routers import (
     admin, articles, attachments, auth, communication, contact, erp, feedback, health,
     website,
-    instances, orders, passkey, payments, places,
+    instances, newsletter, orders, passkey, payments, places,
 )
 
 settings = get_settings()
@@ -149,6 +149,9 @@ _COLUMN_SAFETY_NET = (
     ("messages", "html", "TEXT"),
     ("messages", "read_marked", "BOOLEAN NOT NULL DEFAULT false"),
     ("mailboxes", "picture", "TEXT"),
+    # Versandart an der Nachricht (Migration 153): Rundschreiben/Newsletter.
+    ("messages", "group_id", "BIGINT"),
+    ("messages", "newsletter", "BOOLEAN NOT NULL DEFAULT false"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -214,6 +217,7 @@ _INDEX_SAFETY_NET = (
     ("ix_captures_instance_unit_id", "captures", "instance_unit_id"),
     ("ix_captures_order_id", "captures", "order_id"),
     ("ix_captures_step_id", "captures", "step_id"),
+    ("ix_messages_group_id", "messages", "group_id"),
 )
 
 # Roh-Indizes und CHECKs, die ``create_all`` nicht nachzieht (es legt sie nur mit einer
@@ -447,11 +451,22 @@ def _repair_companies(conn, tables: set[str], insp) -> None:
                 conn.execute(text(stmt))
 
 
+def _repair_newsletter(conn, tables: set[str], insp) -> None:
+    """Das frühere Häkchen wird ein Nachweis (Migration ``153``) – nur, solange es die
+    Spalte noch gibt; selbstbegrenzend (``domain/newsletter.legacy_repair_sql``)."""
+    if {"user_profiles", "newsletter_consents"} <= tables and "newsletter_opt_in" in {
+            c["name"] for c in insp.get_columns("user_profiles")}:
+        from .domain.newsletter import legacy_repair_sql
+        for stmt in legacy_repair_sql():
+            conn.execute(text(stmt))
+
+
 _DATA_REPAIRS = (
     ("orders.name", _repair_order_names),
     ("instance_units.status", _repair_unit_status),
     ("user_profiles", _repair_people),
     ("company_settings", _repair_companies),
+    ("newsletter_consents", _repair_newsletter),
 )
 
 
@@ -942,6 +957,9 @@ app.include_router(payments.router)
 app.include_router(feedback.router)
 app.include_router(communication.router)
 app.include_router(communication.callback_router)
+app.include_router(newsletter.router)
+app.include_router(newsletter.me_router)
+app.include_router(newsletter.erp_router)
 
 
 @app.get("/")

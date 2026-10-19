@@ -201,6 +201,25 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
   Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`).
+- **Drei Versandarten einer E-Mail** (`domain/communication.DELIVERIES`): **Mail** (An/Cc
+  sehen einander, Bcc bleibt Bcc) · **Rundschreiben** (Information an mehrere: je Person
+  eine eigene Nachricht mit Anrede, im «An» nur sie) · **Newsletter** (ebenso, aber nur an
+  Angemeldete, mit Abmeldelink im Fuss und `List-Unsubscribe`-Kopf). Rundschreiben und
+  Newsletter sind **je Empfänger eine Nachricht** (`messages.group_id` → die erste,
+  `messages.newsletter`) – im Verlauf steht, was hinausging; der Verlauf zeigt die Gruppe
+  einmal («an 23»). Hinaus gehen sie über den Abgleich (`mailbox.send_due`, 20 je Lauf);
+  ein Newsletter prüft die Einwilligung beim Senden noch einmal. Die Empfänger wählt heute
+  der Mensch (`MessageIn.to` = Liste von Personen, «Alle Angemeldeten»); eine Auswahl per
+  KI setzt später genau dort an.
+- **Newsletter «Post aus der Werkstatt»** (`domain/newsletter.py`, `services/newsletter.py`,
+  `routers/newsletter.py`): **Einwilligung ist ein Nachweis** (`newsletter_consents`,
+  append-only, Quelle + Wortlaut + Zeitpunkt); angemeldet = jüngste Zeile, **zwei
+  Zustände**. Double Opt-in über eine Mail mit einem Knopf (sie steht im Verlauf); nur das
+  Konto meldet direkt an (Adresse bestätigt). **Das ERP meldet niemanden an** – es schickt
+  die Bitte, oder es meldet ab. Links signiert (HMAC, Schlüssel aus `database_url`),
+  Abmeldeseite mit Knopf (gegen Link-Scanner), One-Click nach RFC 8058. Anmeldestellen:
+  Häkchen im Anfrage-Formular (nie vorausgewählt), Einladung in der Eingangsbestätigung,
+  Seite `/newsletter` (Link im Fuss), Konto. Wörter: `website/src/config/newsletter.mjs`.
 - **Kontaktformular der Website** → offene Nachricht im ERP (`services/inquiry`), siehe
   «Website».
 
@@ -401,7 +420,8 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Korrekturbelege,
   Bezahlkarte, Swiss QR-Rechnung.
 - **Unternehmen** (eigene Gesellschaften mit Gebietskarte und Postfach, ein Betreiber;
-  fremde Firmen als Identität) und **CRM** mit Kommunikation und Gmail.
+  fremde Firmen als Identität) und **CRM** mit Kommunikation und Gmail; Versandarten Mail ·
+  Rundschreiben · Newsletter, Einwilligung als Nachweis.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung; Skill `feedback`).
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Shop, Module
@@ -412,6 +432,8 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 **Offen**
 - Prozess-Module nach Bedarf; ein Wiederaufbau beginnt bei der Modellfrage in
   `docs/attic.md`, nicht bei der alten Datei.
+- Newsletter-Versand über einen Dienst (heute Gmail, 20 je Abgleich), Rückläufer;
+  Google Workspace, zentrale Gmail-Signatur, persönliche Postfächer – verschoben.
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop und «Besitz»
   (`docs/konzept-beleg-shop-besitz.md`), offene-Posten-Liste je Partner, TOTP-MFA.
 

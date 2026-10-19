@@ -322,12 +322,13 @@ def _get(token: str, path: str, **params: Any) -> httpx.Response:
 # Abgleichen
 # ---------------------------------------------------------------------------
 
-def sync_all(db: Session, *, force: bool = False) -> int:
+def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
     """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
-    Nachrichten zurück. Ein Postfach, das gerade ein anderer abgleicht, wird übersprungen
-    (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie gleichzeitig."""
+    und die Zahl versendeter Nachrichten zurück. Ein Postfach, das gerade ein anderer
+    abgleicht, wird übersprungen (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie
+    gleichzeitig."""
     if not ready():
-        return 0
+        return 0, 0
     due = _now() - SYNC_EVERY
     boxes = (db.query(Mailbox)
              .filter(Mailbox.is_active.is_(True), Mailbox.problem.is_(None))
@@ -341,9 +342,9 @@ def sync_all(db: Session, *, force: bool = False) -> int:
                     _mark_read(db, mb)
             except Exception as exc:
                 print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
-    send_due(db)
+    sent = send_due(db)
     db.commit()
-    return new
+    return new, sent
 
 
 def _sync_one(db: Session, mb: Mailbox) -> int:
@@ -601,34 +602,44 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
                                         f"verbunden – erst verbinden, dann senden.")
 
 
-def send_due(db: Session) -> None:
+def send_due(db: Session) -> int:
     """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand).
 
     **Jede Mail geht genau einmal hinaus.** Sie wird einzeln gesperrt (``SKIP LOCKED`` –
     ein zweiter Abgleich aus einem anderen Tab überspringt sie), gesendet und **sofort**
     festgeschrieben. Ein Fehler bei einer späteren Mail kann eine bereits versendete damit
-    nicht mehr zurückrollen und erneut hinausschicken."""
+    nicht mehr zurückrollen und erneut hinausschicken. Gibt zurück, wie viele hinausgingen."""
     db.commit()     # was der Abgleich bis hier geschrieben hat, steht – unabhängig vom Versand
     ids = [i for (i,) in db.query(Message.id).filter(
         Message.outgoing.is_(True), Message.is_active.is_(True),
-        Message.at <= _now()).order_by(Message.at).limit(20)]
+        Message.at <= _now()).order_by(Message.at, Message.id).limit(20)]
+    sent = 0
     for mid in ids:
         msg = (db.query(Message).filter(Message.id == mid, Message.outgoing.is_(True))
                .with_for_update(skip_locked=True).first())
         if msg is None:
             continue    # versendet oder gerade in Arbeit bei einem anderen Abgleich
         try:
-            send(db, msg)
+            sent += bool(send(db, msg))
             db.commit()
         except Exception as exc:    # eine kaputte Mail hält die übrigen nicht auf
             db.rollback()
             print(f"WARNING: MAILBOX send {mid} failed: {exc!r}", flush=True)
+    return sent
 
 
 def send(db: Session, msg: Message) -> bool:
     """Eine Mail über das Postfach ihres Kanals hinausschicken – im Faden, auf den sie
     antwortet. Scheitert es, bleibt ``outgoing`` stehen, und der nächste Abgleich versucht
-    es wieder; nichts geht still verloren."""
+    es wieder; nichts geht still verloren.
+
+    ►►► **Ein Newsletter fragt die Einwilligung beim Senden noch einmal** ◄◄◄ – wer sich
+    zwischen Schreiben und Senden abgemeldet hat, bekommt ihn nicht: die Nachricht wird
+    zurückgezogen (Soft-Delete), sie ging ja nie hinaus."""
+    if msg.newsletter and not _consents(db, msg):
+        msg.outgoing, msg.is_active = False, False
+        db.flush()
+        return False
     mb = active(db, msg.channel)
     token = _access(mb) if mb is not None and not mb.problem else None
     if not token:
@@ -662,6 +673,13 @@ def send(db: Session, msg: Message) -> bool:
     msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
     db.flush()
     return True
+
+
+def _consents(db: Session, msg: Message) -> bool:
+    from .newsletter import subscribed
+    to = [p.person_object_id for p in db.query(MessageParty).filter(
+        MessageParty.message_id == msg.id, MessageParty.role == "to").all()]
+    return bool(to) and subscribed(db, to) == set(to)
 
 
 def _rfc_id(token: str, gmail_id: Optional[str]) -> Optional[str]:
@@ -733,6 +751,7 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
+    unsubscribe = _unsubscribe(mime, parties) if msg.newsletter else None
     if parent is not None:
         mime["In-Reply-To"] = parent.rfc_id
         mime["References"] = parent.rfc_id
@@ -740,12 +759,24 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
         # Schon gebaut (die Eingangsbestätigung): ``body`` IST ihr Inhalt (``compose``).
         text, html = layout.text(msg.subject or "", msg.body or "", firm, signer), msg.html
     else:
-        mail = layout.compose(msg.subject or "", msg.body or "", firm, signer)
+        mail = layout.compose(msg.subject or "", msg.body or "", firm, signer,
+                              unsubscribe=unsubscribe)
         msg.body = mail.body        # der Verlauf ist, was hinausgeht – Wort für Wort
         text, html = mail.text, mail.html
     mime.set_content(text)
     mime.add_alternative(html, subtype="html")
     return mime
+
+
+def _unsubscribe(mime: EmailMessage, parties: list[MessageParty]):
+    """Der Abmeldelink eines Newsletters: im Fuss **und** als Kopf, damit das Mailprogramm
+    selbst «Abbestellen» anbietet (RFC 2369/8058, von Gmail und Yahoo verlangt)."""
+    from .newsletter import footer
+    to = next(p.person_object_id for p in parties if p.role == "to")
+    off = footer(to)
+    mime["List-Unsubscribe"] = f"<{off.url}>"
+    mime["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
+    return off
 
 
 # ---------------------------------------------------------------------------

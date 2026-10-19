@@ -6,6 +6,7 @@ kein Status, kein Typ. Was sie ist, sagen ihre Angaben; ob sie offen ist, ist ei
 – die Geschichte bleibt, wie sie war; weg kommt eine Nachricht nur per Soft-Delete.
 
 * ``message_parties`` – An · Cc · Bcc · Betrifft, je Person eine Zeile.
+* ``group_id`` · ``newsletter`` – die Versandart (Mail · Rundschreiben · Newsletter).
 
 Was zusammengehört, sagt der **Betreff** (``domain.topic``) – ein «Antwort auf» gibt es
 nicht. Die frühere Tabelle ``message_replies`` ist gedroppt (Migration 152).
@@ -61,6 +62,15 @@ class Message(Base, TimestampMixin):
     #: und zwar genau einmal (``mailbox._mark_read``).
     read_marked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
                                               server_default="false")
+
+    # ── Versandart (``domain.DELIVERIES``) ─────────────────────────────────────────
+    #: ►►► **Was zusammen geschrieben wurde** – ein Rundschreiben oder ein Newsletter ist
+    #: je Empfänger eine eigene Nachricht (so steht im Verlauf, was hinausging, Wort für
+    #: Wort, samt Anrede); alle zeigen auf die erste. Leer = eine gewöhnliche Mail. ◄◄◄
+    group_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True)
+    #: **Werbung** – geht nur an eine Person mit Einwilligung und trägt den Abmeldelink.
+    newsletter: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                             server_default="false")
 
     __table_args__ = (
         Index("uq_messages_rfc_id", "rfc_id", unique=True,

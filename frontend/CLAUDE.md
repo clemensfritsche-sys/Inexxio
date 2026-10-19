@@ -67,7 +67,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
 | `company-field.tsx` | Firmenzuordnung einer Person (Konto und ERP) |
-| `communication.tsx` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter): Verlauf als Chat ab der jüngsten Nachricht, «ältere laden», einzeilige Eingabe, Postfach |
+| `communication.tsx` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter): Verlauf als Chat ab der jüngsten Nachricht, «ältere laden», einzeilige Eingabe, Postfach; Versand Mail · Rundschreiben · Newsletter (Spiegel `DELIVERIES`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Anlegen aus dem Feed («+») |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |

@@ -87,12 +87,25 @@ class Steps:
 
 
 @dataclass
+class Action:
+    """Der eine Klick, um den eine Mail bittet (Newsletter bestätigen) – ein Knopf, und
+    in der Textfassung die Adresse dahinter."""
+    title: str
+    text: str
+    label: str
+    url: str
+    #: Leise unter dem Knopf («Waren Sie das nicht? …»).
+    note: str = ""
+
+
+@dataclass
 class Extra:
     """Was eine automatische Mail zusätzlich trägt (die Eingangsbestätigung)."""
     facts: Optional[Facts] = None
     steps: Optional[Steps] = None
     #: Satz vor der Telefonnummer der Gesellschaft («Eilt es? Dann rufen Sie uns an:»).
     call: str = ""
+    action: Optional[Action] = None
 
 
 @dataclass
@@ -135,12 +148,21 @@ def greeted(body: str) -> bool:
 # Die eine Zusammensetzung
 # ---------------------------------------------------------------------------
 
+@dataclass
+class Unsubscribe:
+    """Der Abmeldelink eines Newsletters – im Fuss, nie im Inhalt."""
+    text: str       # «Sie erhalten … weil Sie sich angemeldet haben.»
+    label: str      # «Abmelden»
+    url: str
+
+
 def compose(subject: str, lead: str, firm: Firm, signer: Optional[Signer], *,
-            kicker: str = "", extra: Optional[Extra] = None) -> Mail:
+            kicker: str = "", extra: Optional[Extra] = None,
+            unsubscribe: Optional[Unsubscribe] = None) -> Mail:
     """Aus EINER Angabe alle drei Fassungen – der Verlauf ist der Inhalt der Mail."""
     body = _content_text(lead, extra, firm)
-    return Mail(body=body, text=text(subject, body, firm, signer),
-                html=_html(subject, lead, firm, signer, kicker, extra))
+    return Mail(body=body, text=text(subject, body, firm, signer, unsubscribe),
+                html=_html(subject, lead, firm, signer, kicker, extra, unsubscribe))
 
 
 def _content_text(lead: str, extra: Optional[Extra], firm: Firm) -> str:
@@ -153,6 +175,9 @@ def _content_text(lead: str, extra: Optional[Extra], firm: Firm) -> str:
         parts.append("\n".join([extra.steps.title, *(label for label, _ in extra.steps.items)]))
     if extra and extra.call and firm.phone:
         parts.append(f"{extra.call} {firm.phone}")
+    if extra and extra.action:
+        a = extra.action
+        parts.append("\n".join(x for x in (a.title, a.text, f"{a.label}: {a.url}", a.note) if x))
     return "\n\n".join(p for p in parts if p)
 
 
@@ -162,10 +187,12 @@ def _signature_lines(firm: Firm, signer: Optional[Signer], body: str) -> list[st
             firm.name, *([reach] if reach else [])]
 
 
-def text(subject: str, body: str, firm: Firm, signer: Optional[Signer]) -> str:
+def text(subject: str, body: str, firm: Firm, signer: Optional[Signer],
+         unsubscribe: Optional[Unsubscribe] = None) -> str:
     foot = " · ".join([firm.name, *firm.address])
+    off = [f"{unsubscribe.text} {unsubscribe.label}: {unsubscribe.url}"] if unsubscribe else []
     return "\n".join([dc.title(subject), "", body, "", *_signature_lines(firm, signer, body),
-                      "", "—", foot]).strip() + "\n"
+                      "", "—", foot, *off]).strip() + "\n"
 
 
 # ---------------------------------------------------------------------------
@@ -241,11 +268,34 @@ def _call(text: str, firm: Firm) -> str:
                 f'font-size:14px;line-height:20px;color:{INK}">{escape(text)} {link}</td></tr>')
 
 
+def _action(a: Optional[Action]) -> str:
+    """Ein Knopf in der Farbe der Schrift – der eine laute Punkt der Mail."""
+    if a is None:
+        return ""
+    text = _p(escape(a.text), size=14, extra="margin:0 0 16px") if a.text else ""
+    button = (f'<table role="presentation" cellpadding="0" cellspacing="0"><tr>'
+              f'<td class="ix-btn" style="border-radius:8px;background:{INK}">'
+              f'<a class="ix-btn" href="{escape(a.url)}" style="display:inline-block;'
+              f'padding:12px 22px;font-family:{FONT};font-size:15px;font-weight:600;'
+              f'line-height:20px;color:#FFFFFF;text-decoration:none;border-radius:8px">'
+              f'{escape(a.label)}</a></td></tr></table>')
+    small = (f'margin:12px 0 0;font-family:{FONT};font-size:12px;line-height:18px;'
+             f'color:{TEXT_3};word-break:break-all')
+    # Die Adresse steht auch sichtbar da – für ein Mailprogramm ohne Knöpfe, und damit die
+    # Mail dieselben Wörter trägt wie ihr Verlauf.
+    link = (f'<p class="ix-t3" style="{small}"><a class="ix-t3" href="{escape(a.url)}" '
+            f'style="color:{TEXT_3}">{escape(a.url)}</a></p>')
+    note = (f'<p class="ix-t3" style="{small};word-break:normal;font-size:13px">'
+            f'{escape(a.note)}</p>' if a.note else "")
+    return _label(a.title) + _box(f'<tr><td style="padding:18px 20px">{text}{button}{link}'
+                                  f'{note}</td></tr>')
+
+
 def _extra(x: Optional[Extra], firm: Firm) -> str:
     if x is None:
         return ""
     return ((_facts(x.facts) if x.facts else "") + (_steps(x.steps) if x.steps else "")
-            + _call(x.call, firm))
+            + _call(x.call, firm) + _action(x.action))
 
 
 def _initials(name: str) -> str:
@@ -286,8 +336,9 @@ def _signature(firm: Firm, signer: Optional[Signer], body: str) -> str:
             f'line-height:18px;color:{TEXT_2}">{"<br>".join(lines)}</td></tr></table>')
 
 
-def _footer(firm: Firm) -> str:
-    """Zwei leise Zeilen, mittig – wer wir sind, wie man uns erreicht."""
+def _footer(firm: Firm, unsubscribe: Optional[Unsubscribe] = None) -> str:
+    """Zwei leise Zeilen, mittig – wer wir sind, wie man uns erreicht; beim Newsletter
+    darunter der Abmeldelink."""
     base = get_settings().frontend_base_url.rstrip("/")
     host = urlparse(base).netloc or base
     first = " · ".join([f'<b class="ix-t2" style="font-weight:600;color:{TEXT_2}">'
@@ -295,9 +346,13 @@ def _footer(firm: Firm) -> str:
     second = " · ".join([*([escape(firm.phone)] if firm.phone else []),
                          f'<a class="ix-t3" href="{base}" style="color:{TEXT_3};'
                          f'text-decoration:none">{escape(host)}</a>'])
+    off = (f'<br><br>{escape(unsubscribe.text)} <a class="ix-t3" href="{escape(unsubscribe.url)}"'
+           f' style="color:{TEXT_3};text-decoration:underline">{escape(unsubscribe.label)}</a>'
+           if unsubscribe else "")
     return (f'<tr><td class="ix-t3 ix-line ix-pad" align="center" style="padding:20px {PAD}px '
             f'28px;border-top:1px solid {LINE};font-family:{FONT};font-size:12px;'
-            f'line-height:18px;color:{TEXT_3};text-align:center">{first}<br>{second}</td></tr>')
+            f'line-height:18px;color:{TEXT_3};text-align:center">{first}<br>{second}{off}'
+            f'</td></tr>')
 
 
 #: Der dunkle Modus – dort, wo der Client ihn meldet (Apple Mail, Outlook, iOS). Gmail
@@ -324,7 +379,7 @@ def _logo(base: str) -> str:
 
 
 def _html(subject: str, lead: str, firm: Firm, signer: Optional[Signer], kicker: str,
-          extra: Optional[Extra]) -> str:
+          extra: Optional[Extra], unsubscribe: Optional[Unsubscribe] = None) -> str:
     """Eine Spalte, 600 px, mittig, umrandet von einer Haarlinie – wie im Artefakt."""
     base = get_settings().frontend_base_url.rstrip("/")
     pars = _paragraphs(lead)
@@ -356,5 +411,5 @@ def _html(subject: str, lead: str, firm: Firm, signer: Optional[Signer], kicker:
         '<table role="presentation" class="ix-bg ix-line" width="100%" cellpadding="0" '
         f'cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid {LINE};'
         'border-radius:12px;border-collapse:separate;overflow:hidden">'
-        f'{head}{body}{_footer(firm)}'
+        f'{head}{body}{_footer(firm, unsubscribe)}'
         '</table></td></tr></table></body></html>')
