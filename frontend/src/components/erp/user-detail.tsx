@@ -2,15 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase, Bell, Cog, UserRound, MessagesSquare,
+  User, MapPin, Building2, Briefcase, Bell, Cog,
 } from 'lucide-react';
-import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { Card, DetailBody, DetailHeader, SubBlock } from '@/components/erp/fields';
+import { Card, DetailBody, DetailHeader, MICRO_LABEL, SubBlock } from '@/components/erp/fields';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
@@ -25,8 +24,8 @@ import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { UserProfile, UserRole } from '@/types';
 
-// **Reiter**: Person und Kommunikation. «Bestellungen» und «Dokumente» kommen mit ihren
-// Bereichen zurück (docs/attic.md).
+// **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
+// «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -206,8 +205,8 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         )}
       </Card>
 
-      {/* ── 4. Kommunikation ────────────────────────────────────────────────── */}
-      <Card icon={Bell} title="Kommunikation">
+      {/* ── 4. Einwilligungen (der Chat oben heisst «Kommunikation») ─────────── */}
+      <Card icon={Bell} title="Einwilligungen">
         {canEdit ? (
           <ToggleField label="Newsletter" description="Produktneuigkeiten und Angebote per E-Mail"
             checked={form.newsletter_opt_in} onChange={(x) => set('newsletter_opt_in', x)} />
@@ -252,8 +251,6 @@ function passkeyLabel(count: number | null | undefined): string {
   return n === 0 ? 'Keiner eingerichtet' : `${n} Gerät${n === 1 ? '' : 'e'}`;
 }
 
-type UserTab = 'person' | 'comm';
-
 export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
   record: UserProfile;
   onSave: (u: UserProfile) => void;
@@ -264,7 +261,6 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
   /** Offene Nachrichten im Verlauf – die Zahl am Symbol (wie im Feed). */
   messages?: { open: number; overdue: number } | null;
 }) {
-  const [tab, setTab] = useState<UserTab>('person');
   const rc       = userStatus(record);
   const name     = userDisplayName(record);
   const hasName  = !!name && name !== record.email;
@@ -288,23 +284,28 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
         objectId={record.object_id} onBack={onBack}
         status={rc}
         photoUrl={record.photo_url} initials={initials} messages={messages}
-        tabs={<DetailTabs<UserTab> active={tab} onChange={setTab} tabs={[
-          { key: 'person', label: 'Person', icon: UserRound },
-          { key: 'comm', label: 'Kommunikation', icon: MessagesSquare },
-        ]} />}
       />
 
-      {/* Content */}
+      {/* ►►► **EINE Seite statt zwei Reiter.** ◄◄◄ Zuerst die Kommunikation – sie ist, was man
+          an einer Person am häufigsten tut –, ohne eigenen Kasten; darunter die Stammdaten.
+          **Dieselbe Breite wie jeder andere Datensatz** (Notiz #763): ohne sie lief das
+          Formular auf einem breiten Schirm auseinander und eine Zeile wurde unlesbar lang. */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
-        {/* **Dieselbe Breite wie jeder andere Datensatz** (Notiz #763). Ohne sie lief das
-            Formular auf einem breiten Schirm über die volle Fensterbreite auseinander –
-            und eine Zeile wurde unlesbar lang. */}
-        <DetailBody>
-        {tab === 'person' && <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />}
-        {tab === 'comm' && record.object_id != null && (
-          <Communication me={me}
-            person={{ object_id: record.object_id, name: hasName ? name : record.email }} />
-        )}
+        <DetailBody gap={24}>
+          {record.object_id != null && (
+            <section aria-label="Kommunikation">
+              <Communication me={me}
+                person={{ object_id: record.object_id, name: hasName ? name : record.email }} />
+            </section>
+          )}
+          {/* Dezent: hier beginnen die Stammdaten – eine Haarlinie mit dem Mikro-Label. */}
+          <div role="separator" aria-label="Stammdaten" style={{ ...MICRO_LABEL, color: 'var(--fg-3)',
+            display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 -4px' }}>
+            <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
+            Stammdaten
+            <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
+          </div>
+          <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />
         </DetailBody>
       </div>
     </div>

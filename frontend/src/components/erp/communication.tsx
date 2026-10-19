@@ -52,7 +52,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowDownUp, Check, ChevronDown, Clock, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
+import { ArrowDownUp, Check, ChevronDown, ChevronUp, Clock, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
   Paperclip, Phone, Reply, Send, X } from 'lucide-react';
 import { MODULE_TONE } from '@/lib/modules';
 import { api } from '@/lib/api';
@@ -356,18 +356,33 @@ function SendingBubble({ s }: { s: Sending }) {
   );
 }
 
+/** So viele Nachrichten stehen zuerst da – und kommen je Klick auf «ältere laden» dazu. */
+const PAGE = 8;
+
 function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }: {
   messages: Message[]; mirror: boolean; personId?: number; meId?: number;
   onReply?: (m: Message) => void; onDone?: (m: Message) => void;
   /** Die Mail, die gerade drei Sekunden wartet – sie steht schon am Ende des Verlaufs. */
   sending?: Sending | null;
 }) {
+  // ►►► Wie WhatsApp: sichtbar sind die jüngsten Nachrichten, Älteres auf Wunsch. ◄◄◄
+  // Nur die Anzeige ist begrenzt – geladen ist der ganze Verlauf (Betreffe, offene).
+  const [shown, setShown] = useState(PAGE);
   if (!messages.length && !sending) {
     return <p style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0' }}>Noch keine Nachrichten.</p>;
   }
+  const hidden = Math.max(0, messages.length - shown);
   const rows: ReactNode[] = [];
+  if (hidden > 0) rows.push(
+    <button key="more" type="button" data-more="" onClick={() => setShown((n) => n + PAGE)}
+      style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, height: 28,
+        padding: '0 12px', border: '1px solid var(--border-1)', borderRadius: 999, cursor: 'pointer',
+        background: 'var(--bg-1)', color: 'var(--fg-2)', font: 'inherit', fontSize: 12, fontWeight: 600,
+        marginBottom: 4 }}>
+      <ChevronUp size={14} />{hidden} ältere {hidden === 1 ? 'Nachricht' : 'Nachrichten'} laden
+    </button>);
   let last = '';
-  for (const m of messages) {
+  for (const m of messages.slice(hidden)) {
     const label = m.planned ? 'Geplant' : whenDay(m.at);
     if (label !== last) rows.push(<Divider key={`d-${m.id}`} label={label} />);
     last = label;
@@ -375,8 +390,7 @@ function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }
     rows.push(<Bubble key={m.id} m={m} mirror={mirror} named={named} onReply={onReply} onDone={onDone} />);
   }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)',
-      borderRadius: 12, padding: '12px 16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' }}>
       {rows}
       {sending && <SendingBubble s={sending} />}
     </div>
@@ -724,6 +738,9 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
   const [incoming, setIncoming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ►►► Zugeklappt EINE Zeile wie bei WhatsApp – der Rest erscheint beim Hineinklicken. ◄◄◄
+  // Offen bleibt sie, solange darin etwas steht oder eine Nachricht ihre drei Sekunden wartet.
+  const [open, setOpen] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
   // Die Mail, die gleich hinausgeht – mit allem, was «Rückgängig» wiederherstellt.
   const [held, setHeld] = useState<Draft | null>(null);
@@ -755,6 +772,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     const all = m.reply_all.filter((p) => p.object_id !== me.object_id);
     const inCc = new Set(m.cc.map((p) => p.object_id));
     setReply(m); setEdit(false); setMailKey(undefined); setError(null); setIncoming(false);
+    if (!target.quiet) setOpen(true);
     setMode(next === 'email' && !mails.length ? 'internal' : next);
     setTo(all.filter((p) => !inCc.has(p.object_id)));
     setCc(all.filter((p) => inCc.has(p.object_id)));
@@ -787,12 +805,14 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
             : !body.trim() ? 'Text fehlt' : null;
 
   const restore = (d: Draft) => {
+    setOpen(true);
     setMode(d.mode); setIncoming(d.incoming); setTo(d.to); setCc(d.cc); setBcc(d.bcc);
     setShowCc(d.showCc); setShowBcc(d.showBcc);
     setSubject(d.subject); setReply(d.reply); setMailKey(d.mailKey); setBody(d.body);
     setLater(d.later);
   };
   const clear = () => {
+    setOpen(false);
     setBody(''); setLater(null); setSubject(''); setReply(null); setEdit(false); setMailKey(undefined);
     setCc([]); setBcc([]); setShowCc(false); setShowBcc(false); setIncoming(false);
     setTo(mode === 'internal' ? [] : [person]);
@@ -908,11 +928,32 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     } : null);
   }, [held, left]);
   useEffect(() => () => sendingRef.current(null), []);
+  useEffect(() => { if (open) textRef.current?.focus(); }, [open]);
+
+  if (!open && !body && !held) {
+    const hint = reply ? `Antworten an ${reply.sender.name} …` : `Nachricht an ${person.name} …`;
+    return (
+      <button type="button" data-compose="" onClick={() => setOpen(true)}
+        style={{ marginTop: 12, width: '100%', display: 'flex', alignItems: 'center', gap: 10, height: 48,
+          padding: '0 8px 0 16px', background: 'var(--bg-1)', border: '1px solid var(--border-1)',
+          borderRadius: 24, cursor: 'text', textAlign: 'left', font: 'inherit', minWidth: 0 }}>
+        {reply ? <Reply size={16} style={{ color: 'var(--fg-3)', flex: 'none' }} />
+          : <Mail size={16} style={{ color: 'var(--fg-3)', flex: 'none' }} />}
+        {reply?.topic && <span style={{ flex: 'none', fontSize: 13, fontWeight: 600,
+          color: topicColor(reply.topic) }}>{reply.topic}</span>}
+        <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--fg-3)' }}>{hint}</span>
+        <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 999, flex: 'none',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--bg-3)', color: 'var(--fg-3)' }}><Send size={15} /></span>
+      </button>
+    );
+  }
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void send(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape' && !body && !held) setOpen(false); }}
       style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 12,
-        padding: '12px 16px 14px', marginTop: 16 }}>
+        padding: '12px 16px 14px', marginTop: 12 }}>
       {/* Wartet eine Mail ihre drei Sekunden, ist die Eingabe gesperrt – «Rückgängig» holt
           sie hierher zurück, und eine zweite Nachricht stünde dabei im Weg. */}
       <fieldset disabled={!!held} style={{ border: 0, margin: 0, padding: 0, minWidth: 0,
@@ -1065,9 +1106,20 @@ export function Communication({ person, company, ownCompany, me }: {
   return (
     <div>
       <Mailboxes boxes={mailboxes} onChange={loadChannels} />
-      <Timeline messages={messages} mirror={!person} personId={person?.object_id} meId={me?.object_id}
+      {/* ►►► Der Verlauf steht bei der JÜNGSTEN Nachricht. ◄◄◄ `column-reverse` verankert das
+          Rollen am unteren Ende: ohne Skript beim Öffnen unten, eine neue Nachricht bleibt im
+          Blick, und «ältere laden» schiebt nichts weg. Höhe begrenzt, damit die Stammdaten
+          darunter erreichbar bleiben; oben läuft der Verlauf weich aus. */}
+      <div style={{ maxHeight: 'min(60vh, 560px)', overflowY: 'auto', display: 'flex',
+        flexDirection: 'column-reverse',
+        maskImage: 'linear-gradient(to bottom, transparent 0, #000 32px)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 32px)' }}>
+      <div>
+      <Timeline key={person?.object_id ?? company} messages={messages} mirror={!person} personId={person?.object_id} meId={me?.object_id}
         onReply={writable ? (m) => setTarget({ m, n: Date.now() }) : undefined}
         onDone={writable ? done : undefined} sending={sending} />
+      </div>
+      </div>
       {writable && person && me && (
         <Composer key={person.object_id} person={person} me={me} channels={channels}
           target={target} topics={topics} onSent={changed} onSending={setSending} />
