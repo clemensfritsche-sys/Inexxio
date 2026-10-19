@@ -1,7 +1,8 @@
 {
-  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:contact» – nicht von Hand ändern.",
+  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:erp» – nicht von Hand ändern.",
   "brand": {
     "name": "INEXXIO",
+    "formerly": "ehemals HS Steiner",
     "full": "INEXXIO (ehemals HS Steiner)"
   },
   "phone": {
@@ -53,10 +54,11 @@
       "E-Mail"
     ]
   ],
+  "sourceLabel": "Seite",
   "messages": {
     "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
     "name": "Bitte geben Sie Ihren Namen an.",
-    "contact": "Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.",
+    "emailMissing": "Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.",
     "phone": "Diese Telefonnummer sieht unvollständig aus.",
     "email": "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).",
     "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
@@ -64,6 +66,14 @@
     "photosType": "«{name}» ist kein Bild im Format JPG, PNG oder WEBP.",
     "photosSize": "Die Dateien sind zusammen {size} gross – erlaubt sind {max}.",
     "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
+  },
+  "patterns": {
+    "email": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$",
+    "phone": "^[+()\\d][\\d\\s/().-]{5,}$"
+  },
+  "subject": {
+    "word": "Anfrage",
+    "max": 60
   },
   "mail": {
     "confirmSubject": "Angekommen – danke für Ihre Anfrage",

@@ -30,7 +30,7 @@ ZXing (nur als dynamisch geladener Rückfall des Scanners).
 > `window.inexxioShell.account()`. Anmelden ist überall der Link `/login?from=…`.
 > Die Kopfhöhe kommt als `--site-header-h` mit dem Shell-Stylesheet; wer sie abzieht,
 > nimmt die Variable, nie eine Zahl. Name und Satz der Metadaten stehen in
-> `lib/site-meta.json` (generiert von `website/scripts/export-contact.mjs`).
+> `lib/site-meta.json` (generiert von `website/scripts/export-erp.mjs`).
 
 ## Starten
 ```bash

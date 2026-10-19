@@ -1,5 +1,5 @@
 {
-  "_comment": "Generiert aus website/src/config/site.mjs mit «npm run export:contact» – nicht von Hand ändern. Nur Name und Satz für die Metadaten; Kopf und Fuss liefert scripts/export-shell.mjs.",
+  "_comment": "Generiert aus website/src/config/site.mjs mit «npm run export:erp» – nicht von Hand ändern. Nur Name und Satz für die Metadaten; Kopf und Fuss liefert scripts/export-shell.mjs.",
   "brand": {
     "name": "INEXXIO",
     "full": "INEXXIO (ehemals HS Steiner)",

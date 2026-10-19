@@ -1,6 +1,6 @@
 ---
 title: 'Impressum'
-description: 'Impressum von INEXXIO (ehemals HS Steiner), Waldweg 1, 9546 Tuttwil (Wängi TG): Anbieter, Kontakt, Vertretung, Handelsregister, Haftung.'
+description: 'Impressum von INEXXIO (ehemals HS Steiner), {{address.line}} ({{address.municipality}} {{address.canton}}): Anbieter, Kontakt, Vertretung, Handelsregister, Haftung.'
 updated: 2026-10-03
 ---
 

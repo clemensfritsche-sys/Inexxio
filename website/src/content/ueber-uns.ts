@@ -8,10 +8,10 @@ import type { Faq } from './types';
 export const ueberUns = {
   title: 'Über uns',
   description:
-    'INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Werkstatt mit Ingenieurwissen seit 1982 – Team, Werte, Geschichte und die Nachfolge von Heiri Steiner.',
+    'INEXXIO (ehemals HS Steiner) in {{address.home}}: Werkstatt mit Ingenieurwissen seit 1982 – Team, Werte, Geschichte und die Nachfolge von Heiri Steiner.',
   hero: {
     eyebrow: 'Über uns',
-    h1: 'Werkstatt mit Ingenieurwissen – in Tuttwil seit {{history.founded}}',
+    h1: 'Werkstatt mit Ingenieurwissen – in {{address.city}} seit {{history.founded}}',
     lead:
       '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} gegründet hat – heute mit demselben Handwerk und mit Ingenieurwissen aus dem Maschinenbau.',
   },

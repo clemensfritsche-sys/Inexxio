@@ -9,7 +9,7 @@ import { promiseFaq } from './promises';
 export const start = {
   title: '{{brand.name}}: Krane, Fahrmischer, Spezialmaschinen',
   description:
-    'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Fixpreis und Garantie. Aus Tuttwil-Wängi TG.',
+    'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Fixpreis und Garantie. Aus {{address.home}}.',
 
   hero: {
     eyebrow: 'Krane · Fahrmischer · Spezialmaschinen · seit {{history.founded}}',
@@ -42,7 +42,7 @@ export const start = {
   },
 
   summary:
-    '{{brand.full}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis, vor jeder Arbeit gibt es einen Fixpreis. Die Werkstatt steht in Tuttwil-Wängi TG.',
+    '{{brand.full}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis, vor jeder Arbeit gibt es einen Fixpreis. Die Werkstatt steht in {{address.home}}.',
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',

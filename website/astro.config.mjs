@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
+import { siteMode } from './src/lib/text.mjs';
 
 /**
  * SITE_MODE   preview (Standard) | live – «live» bricht den Build ab, solange ein Foto fehlt
@@ -8,10 +9,8 @@ import { satteri } from '@astrojs/markdown-satteri';
  * SITE_URL    wohin DIESER Build ausgeliefert wird (Canonical, Sitemap, Open Graph).
  *             Im Modus «live» muss er eine https-Adresse sein.
  */
-const MODE = process.env.SITE_MODE ?? 'preview';
-if (MODE !== 'preview' && MODE !== 'live') {
-  throw new Error(`SITE_MODE muss «preview» oder «live» sein, nicht «${MODE}».`);
-}
+// Gelesen und geprüft an EINER Stelle (src/lib/text.mjs) – wie in den Prüfskripten.
+const MODE = siteMode();
 const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:4321').replace(/\/+$/, '');
 if (MODE === 'live' && !SITE_URL.startsWith('https://')) {
   throw new Error(`Modus «live»: SITE_URL (${SITE_URL}) muss eine https-Adresse sein.`);

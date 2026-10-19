@@ -2,12 +2,12 @@
 export const karriere = {
   title: 'Karriere',
   description:
-    'Arbeiten bei INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Krane, Fahrmischer und Spezialmaschinen in einem kleinen Team. Bewerbung per E-Mail oder Telefon.',
+    'Arbeiten bei INEXXIO (ehemals HS Steiner) in {{address.home}}: Krane, Fahrmischer und Spezialmaschinen in einem kleinen Team. Bewerbung per E-Mail oder Telefon.',
   hero: {
     eyebrow: 'Karriere',
     h1: 'Arbeiten an Kranen, Fahrzeugen und Sonderbau',
     lead:
-      '{{brand.full}} ist ein kleines Team in Tuttwil-Wängi TG. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen – in der Werkstatt und bei unseren Kunden.',
+      '{{brand.full}} ist ein kleines Team in {{address.home}}. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen – in der Werkstatt und bei unseren Kunden.',
   },
   why: {
     title: 'Warum hier arbeiten',

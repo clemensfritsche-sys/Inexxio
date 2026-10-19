@@ -13,15 +13,17 @@
  *    nur in leere Felder, änderbar wie jede Eingabe
  */
 import { accountInfo } from './account';
+import { subjectOf } from '../lib/inquiry-subject.mjs';
 
 type Errors = Record<string, string>;
+/** `formVocab()` (src/lib/inquiry-vocab.mjs) – dasselbe Objekt, das der Server bekommt. */
 interface Vocab {
   labels: [string, string][];
   messages: Record<string, string>;
+  patterns: { email: string; phone: string };
+  subject: { word: string; max: number };
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PHONE = /^[+()\d][\d\s/().-]{5,}$/;
 /** Längste Wartezeit auf den Server, dann der Ausweg (Telefon, mailto). */
 const SEND_TIMEOUT = 60_000;
 
@@ -110,9 +112,9 @@ function validate(form: HTMLFormElement, vocab: Vocab): Errors {
   if (!value(form, 'name')) errors.name = m.name;
   const phone = value(form, 'phone');
   const email = value(form, 'email');
-  if (!email) errors.email = m.contact;
-  else if (!EMAIL.test(email)) errors.email = m.email;
-  if (phone && !PHONE.test(phone)) errors.phone = m.phone;
+  if (!email) errors.email = m.emailMissing;
+  else if (!new RegExp(vocab.patterns.email).test(email)) errors.email = m.email;
+  if (phone && !new RegExp(vocab.patterns.phone).test(phone)) errors.phone = m.phone;
   return errors;
 }
 
@@ -238,12 +240,16 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, st
   panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** mailto-Link mit allen Eingaben und den Beschriftungen des Formulars; Betreff «[Anfrage] Firma». */
+/**
+ * mailto-Link mit allen Eingaben und den Beschriftungen des Formulars – unter demselben
+ * Betreff wie die Nachricht im ERP («Anfrage: erster Satz»), denn die E-Mail landet im
+ * Postfach derselben Gesellschaft.
+ */
 function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
   prune(data);
   const get = (n: string) => str(data.get(n)).trim();
-  const subject = `[Anfrage] ${get('company') || get('name')}`.trim();
+  const subject = subjectOf(get('message'), vocab.subject);
   const lines = vocab.labels.map(([field, label]) => [label, field === 'message' ? get(field).slice(0, 1200) : get(field)] as const);
   const photos = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.length ?? 0;
   const body = lines.filter(([, v]) => v).map(([l, v]) => `${l}: ${v}`).join('\n') +

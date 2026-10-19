@@ -17,9 +17,11 @@ Feed. Drei Regeln, und jede steht schon woanders:
 Bestätigung, bleibt sie als «muss noch hinaus» stehen und geht beim nächsten Abgleich.
 """
 
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -30,10 +32,19 @@ from ..models import Message
 from . import attachments, mail_layout, mailbox, sites
 from .communication import write
 
+#: Das Vokabular der Website (``website/src/config``, generiert von
+#: ``website/scripts/export-erp.mjs`` – die CI prüft, dass es aktuell ist). EINE Stelle liest
+#: es; der Endpunkt (``routers/contact``) nimmt es von hier.
+VOCAB: dict = json.loads(
+    (Path(__file__).resolve().parent.parent / "assets" / "website_contact.json").read_text("utf-8")
+)
 #: Der Betreff der Anfrage im ERP: das Stichwort und, worum es geht – der Anfang der
 #: Nachricht. Sie selbst ist die beste Überschrift, und im Verlauf liest man sie sofort.
-SUBJECT = "Anfrage"
-SUMMARY_MAX = 60
+#: Dieselbe Regel steht für den mailto-Ausweg in ``website/src/lib/inquiry-subject.mjs``.
+SUBJECT: str = VOCAB["subject"]["word"]
+SUMMARY_MAX: int = VOCAB["subject"]["max"]
+#: Die Beschriftungen der Felder – dieselben wie im Formular und im mailto-Ausweg.
+LABELS: dict[str, str] = dict(VOCAB["labels"])
 #: Die Uhrzeit in der Bestätigung – so, wie man sie hier liest.
 _ZONE = ZoneInfo("Europe/Zurich")
 
@@ -77,7 +88,8 @@ def subject_of(message: str) -> str:
 
 
 def _body(inq: Inquiry) -> str:
-    facts = [("Firma", inq.company), ("Telefon", inq.phone), ("Seite", inq.source)]
+    facts = [(LABELS["company"], inq.company), (LABELS["phone"], inq.phone),
+             (VOCAB["sourceLabel"], inq.source)]
     lines = [f"{label}: {value}" for label, value in facts if value]
     return inq.message.strip() + ("\n\n" + "\n".join(lines) if lines else "")
 

@@ -4,7 +4,7 @@
  *
  * Das Formular (InquiryForm) baut daraus seine Felder, das Backend
  * (backend/app/routers/contact.py) prüft gegen dieselbe Liste und schreibt mit denselben
- * Beschriftungen die E-Mail – `scripts/export-contact.mjs` überträgt sie nach
+ * Beschriftungen die E-Mail – `scripts/export-erp.mjs` überträgt sie nach
  * backend/app/assets/website_contact.json.
  *
  * ►►► Ein Feld für das Anliegen, sonst nur «wer fragt an» (Rückmeldung 04.10.2026). ◄◄◄
@@ -39,11 +39,29 @@ export const inquiry = {
     ['phone', 'Telefon'],
     ['email', 'E-Mail'],
   ],
+  /**
+   * Was als E-Mail-Adresse bzw. Telefonnummer gilt – als Text, denn Browser (`new RegExp`)
+   * und Server (`re.compile`) lesen DENSELBEN Ausdruck. Beide Sprachen verstehen ihn gleich:
+   * nur Zeichenklassen, Anker und Wiederholungen, keine Eigenheit der einen.
+   */
+  patterns: {
+    email: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$',
+    phone: '^[+()\\d][\\d\\s/().-]{5,}$',
+  },
+  /**
+   * Der Betreff einer Anfrage: «Anfrage: <erster Satz>», gekappt am Wort nach `max` Zeichen.
+   * Dieselbe Regel im ERP (backend/app/services/inquiry.subject_of) und im mailto-Ausweg
+   * (src/lib/inquiry-subject.mjs) – sonst stünde dieselbe Anfrage je nach Weg unter einem
+   * anderen Anliegen im Verlauf.
+   */
+  subject: { word: 'Anfrage', max: 60 },
+  /** Beschriftung der Seite, von der die Anfrage kam – in der Nachricht im ERP. */
+  sourceLabel: 'Seite',
   /** Fehlermeldungen – im Browser direkt am Feld und vom Server, wortgleich. */
   messages: {
     message: 'Bitte beschreiben Sie kurz Ihr Anliegen.',
     name: 'Bitte geben Sie Ihren Namen an.',
-    contact: 'Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.',
+    emailMissing: 'Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.',
     phone: 'Diese Telefonnummer sieht unvollständig aus.',
     email: 'Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).',
     tooLong: 'Dieser Text ist zu lang – höchstens {max} Zeichen.',

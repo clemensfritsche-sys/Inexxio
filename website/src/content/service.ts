@@ -19,7 +19,7 @@ export const service = {
       'Steht etwas still, rufen Sie direkt an. Sonst wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – aus der Werkstatt in Tuttwil-Wängi TG. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
+    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – aus der Werkstatt in {{address.home}}. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
   entries: [
     { title: 'Etwas steht still', text: 'Rufen Sie direkt an – und halten Sie das Nötigste bereit', href: '#notfall', icon: 'siren' },
     { title: 'Kran prüfen, warten, reparieren', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir Ausfälle', href: '/krantechnik/kranservice', icon: 'shield-check' },

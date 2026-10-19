@@ -7,9 +7,16 @@ hinausginge. ``commit`` wird zu ``flush``, damit jede Prüfung am Ende zurückro
 """
 from __future__ import annotations
 
+import inspect
 import io
+import json
 import random
+import re
+import shutil
+import subprocess
+from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import quote
 
 import pytest
 from fastapi import FastAPI
@@ -180,7 +187,7 @@ def test_photos_are_stored_and_linked(world):
 def test_the_email_is_required_and_the_phone_is_not(world):
     res = world.client.post("/api/v1/contact", data=form(email="", phone=""), headers=JSON)
     assert res.status_code == 422
-    assert res.json()["fields"] == {"email": MSG["contact"]}
+    assert res.json()["fields"] == {"email": MSG["emailMissing"]}
     assert world.client.post("/api/v1/contact", data=form(phone=""), headers=JSON).status_code == 200
 
 
@@ -188,7 +195,7 @@ def test_missing_fields_come_back_with_the_websites_own_words(world):
     res = world.client.post("/api/v1/contact", data=form(message="", name="", email=""), headers=JSON)
     assert res.status_code == 422
     assert res.json()["fields"] == {"message": MSG["message"], "name": MSG["name"],
-                                    "email": MSG["contact"]}
+                                    "email": MSG["emailMissing"]}
 
 
 def test_without_javascript_success_redirects_and_errors_are_a_readable_page(world):
@@ -285,8 +292,60 @@ def test_the_vocabulary_is_complete_and_consistent():
     """Jedes Feld, das die Website beschriftet, prüft der Server – und umgekehrt."""
     labelled = {name for name, _ in contact.VOCAB["labels"]}
     assert labelled == set(contact.FIELDS)
-    for key in ("message", "name", "contact", "phone", "email",
+    for key in ("message", "name", "emailMissing", "phone", "email",
                 "photosCount", "photosType", "photosSize", "tooFast", "tooLong"):
         assert contact.MSG.get(key), key
     marked = [t for t in _texts(contact.VOCAB) if "[[" in t or "{{" in t]
     assert marked == []
+
+
+# ------------------------------------------------------------------ Browser und Server: EINE Quelle
+
+WEBSITE = Path(__file__).resolve().parents[2] / "website"
+
+
+def test_the_mailto_way_out_carries_the_subject_of_the_erp_message(world, monkeypatch):
+    """Der mailto-Ausweg landet im Postfach derselben Gesellschaft – also unter demselben
+    Anliegen wie die Nachricht, die das Formular angelegt hätte. «[Anfrage] Firma» machte zwei
+    Anfragen derselben Firma zu EINEM Betreff, und eine Antwort erledigte beide."""
+    def broken(_db, _inq, _country):
+        raise RuntimeError("Datenbank weg")
+    monkeypatch.setattr(svc, "record", broken)
+    data = form(message="Kran läuft beim Anfahren ruckartig. Seit gestern.")
+    res = world.client.post("/api/v1/contact", data=data)
+    assert res.status_code == 503
+    assert f"subject={quote(svc.subject_of(data['message']))}&amp;" in res.text
+    assert quote("[Anfrage]") not in res.text
+
+
+def test_the_words_and_patterns_of_an_inquiry_stand_once():
+    """Muster, Beschriftungen und der Name kommen aus dem Vokabular der Website – weder der
+    Endpunkt noch das Formular noch die Nachricht im ERP schreiben sie ein zweites Mal."""
+    assert contact.EMAIL_RE.pattern == contact.VOCAB["patterns"]["email"]
+    assert contact.PHONE_RE.pattern == contact.VOCAB["patterns"]["phone"]
+    form_ts = (WEBSITE / "src" / "scripts" / "form.ts").read_text("utf-8")
+    assert not re.search(r"=\s*/\^", form_ts), "form.ts trägt wieder ein eigenes Muster"
+    router = inspect.getsource(contact)
+    assert not re.search(r're\.compile\(r"[^"]*(@|\\d\]\[)', router), "eigenes Muster im Endpunkt"
+    assert "ehemals" not in router
+    body = inspect.getsource(svc._body)
+    for label in ("Firma", "Telefon", "Seite"):
+        assert f'"{label}"' not in body, label
+
+
+@pytest.mark.skipif(shutil.which("node") is None or not WEBSITE.exists(), reason="ohne Node")
+def test_browser_and_server_cut_the_subject_alike():
+    """Den Betreff baut der Browser (mailto-Ausweg) nach derselben Regel wie das ERP –
+    zwei Sprachen, eine Regel, an denselben Fällen verglichen."""
+    cases = ["Kran läuft beim Anfahren ruckartig. Seit gestern.", "wort " * 30, "  \n ",
+             "\n\n  Erste Zeile!  Zweiter Satz\nnoch eine", "x" * 90,
+             "Ein ziemlich langer erster Satz, der weit über die Grenze, hinausgeht; sehr weit",
+             "Nur ein Punkt...", "Frage? Antwort."]
+    script = ("import { subjectOf } from %s;\nimport { inquiry } from %s;\n"
+              "const cases = JSON.parse(process.argv[1]);\n"
+              "console.log(JSON.stringify(cases.map((c) => subjectOf(c, inquiry.subject))));") % (
+        json.dumps((WEBSITE / "src" / "lib" / "inquiry-subject.mjs").as_uri()),
+        json.dumps((WEBSITE / "src" / "config" / "inquiry.mjs").as_uri()))
+    run = subprocess.run(["node", "--input-type=module", "-e", script, json.dumps(cases)],
+                         capture_output=True, text=True, check=True)
+    assert json.loads(run.stdout) == [svc.subject_of(c) for c in cases]
