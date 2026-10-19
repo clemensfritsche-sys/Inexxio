@@ -20,6 +20,7 @@ import { site } from '../config/site.mjs';
 import { start } from '../content/start';
 import { article, formatDay } from '../lib/ratgeber';
 import { faqPage } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
 import baumaschine from '../assets/illustrations/spezial-baumaschinen.svg?raw';
 
 const teasers = start.ratgeber.slugs.map((slug) => article(slug));
@@ -78,7 +79,7 @@ const spIllo = baumaschine.replace('<svg ', '<svg role="img" aria-label="Baumasc
         <figure class="start-quote">
           <Photo id="portraet-clemens" sizes="112px" class="start-quote__img" />
           <blockquote><Rich as="p" class="start-quote__text" text={`«${start.why.quote}»`} /></blockquote>
-          <figcaption class="start-quote__cap"><strong>{site.people.owner.name}</strong> · {site.brand.legalName}, Tuttwil-Wängi</figcaption>
+          <figcaption class="start-quote__cap"><strong>{site.people.owner.name}</strong> · {site.brand.legalName}, {plain('{{address.town}}')}</figcaption>
           <a class="arrow-link" href="/ueber-uns">{start.why.link} <Icon name="arrow-right" size={18} /></a>
         </figure>
       </div>

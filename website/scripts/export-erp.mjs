@@ -1,11 +1,12 @@
-// ►►► Überträgt, was ausserhalb der Website dieselben Wörter braucht. ◄◄◄
+// ►►► Überträgt ins ERP (Backend und Frontend), was dort dieselben Wörter braucht. ◄◄◄
 //
-//   node scripts/export-contact.mjs           schreibt alle Abdrucke
-//   node scripts/export-contact.mjs --check   bricht ab (Exit 1), wenn eine veraltet ist (CI)
+//   node scripts/export-erp.mjs           schreibt alle Abdrucke  (npm run export:erp)
+//   node scripts/export-erp.mjs --check   bricht ab (Exit 1), wenn eine veraltet ist (CI)
 //
 // 1. backend/app/assets/website_contact.json – das Vokabular der Anfrage: der Endpunkt
-//    backend/app/routers/contact.py prüft gegen DIESELBEN Listen wie das Formular im Browser
-//    und schreibt die Eingangsbestätigung mit den Wörtern der Website.
+//    backend/app/routers/contact.py prüft gegen DIESELBEN Listen und Muster wie das Formular
+//    im Browser, die Nachricht im ERP trägt dieselben Beschriftungen und denselben Betreff
+//    (services/inquiry), und die Eingangsbestätigung spricht mit den Wörtern der Website.
 // 2. frontend/src/lib/site-meta.json – Name und Satz für die Metadaten des Konto-/ERP-
 //    Bereichs. Kopf und Fuss sind die der Website selbst (scripts/export-shell.mjs, Entscheid 60).
 //
@@ -40,8 +41,8 @@ const mail = inquiry.mail;
 
 const data = {
   _comment:
-    'Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:contact» – nicht von Hand ändern.',
-  brand: { name: site.brand.name, full: plain(site.brand.full) },
+    'Generiert aus website/src/config (site.mjs, inquiry.mjs) mit «npm run export:erp» – nicht von Hand ändern.',
+  brand: { name: site.brand.name, formerly: plain(site.brand.formerly), full: plain(site.brand.full) },
   phone: { display: site.phone.display, e164: site.phone.e164 },
   email: contactEmail(),
   pages: { thanks: '/kontakt/danke' },
@@ -49,7 +50,10 @@ const data = {
   minSeconds: inquiry.minSeconds,
   limits: inquiry.limits,
   labels: v.labels,
+  sourceLabel: inquiry.sourceLabel,
   messages: v.messages,
+  patterns: v.patterns,
+  subject: v.subject,
   mail: {
     confirmSubject: plain(mail.confirmSubject),
     confirmIntro: plain(mail.confirmIntro),
@@ -74,7 +78,7 @@ const data = {
  */
 const shell = {
   _comment:
-    'Generiert aus website/src/config/site.mjs mit «npm run export:contact» – nicht von Hand ändern. Nur Name und Satz für die Metadaten; Kopf und Fuss liefert scripts/export-shell.mjs.',
+    'Generiert aus website/src/config/site.mjs mit «npm run export:erp» – nicht von Hand ändern. Nur Name und Satz für die Metadaten; Kopf und Fuss liefert scripts/export-shell.mjs.',
   brand: { name: site.brand.name, full: plain(site.brand.full), legalName: plain(site.brand.legalName) },
   claim: plain(site.footer.claim),
 };
@@ -90,14 +94,14 @@ if (process.argv.includes('--check')) {
   const stale = outputs.filter(([file, json]) => (existsSync(file) ? readFileSync(file, 'utf8') : '') !== json);
   if (stale.length) {
     for (const [file] of stale) {
-      console.error(`export-contact: ${rel(file)} ist veraltet – «npm run export:contact» ausführen und committen.`);
+      console.error(`export-erp: ${rel(file)} ist veraltet – «npm run export:erp» ausführen und committen.`);
     }
     process.exit(1);
   }
-  console.log('export-contact: aktuell');
+  console.log('export-erp: aktuell');
 } else {
   for (const [file, json] of outputs) {
     writeFileSync(file, json);
-    console.log(`export-contact: ${rel(file)} geschrieben`);
+    console.log(`export-erp: ${rel(file)} geschrieben`);
   }
 }

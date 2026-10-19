@@ -76,7 +76,7 @@
     Seitentexte getrennt von Layout, ein fehlendes Feld bricht den Build. Werte aus der
     Konfiguration werden in Texten über `{{schlüssel}}` eingesetzt, damit Name, Telefon und
     Adresse auch im Fliesstext nur an einer Stelle stehen.
-15. **E-Mail-Vorlagen lesen dieselbe Konfiguration**: `scripts/export-contact.mjs`
+15. **E-Mail-Vorlagen lesen dieselbe Konfiguration**: `scripts/export-erp.mjs`
     schreibt die nötigen Angaben nach `backend/app/assets/website_contact.json`; die CI
     prüft, dass die Datei aktuell ist (gleiches Muster wie `api.ts`).
 16. **Kein Testnotizen-Pin auf der Website** – er hängt an der ERP-Anmeldung (React +
@@ -443,7 +443,7 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
 39. **Kopf und Fuss des Konto-/ERP-Bereichs werden nachgebaut, nicht geteilt**: Astro und
     React können keine Komponente teilen. Damit sie nicht auseinanderlaufen, kommen **alle
     Inhalte** (Bereiche, Unterseiten, Telefon, Notfallnummer, Adresse, Öffnungszeiten,
-    Footer-Satz, Pfade) aus einer generierten Datei (`scripts/export-contact.mjs` →
+    Footer-Satz, Pfade) aus einer generierten Datei (`scripts/export-erp.mjs` →
     `frontend/src/lib/site-shell.json`), die die CI schon heute auf Aktualität prüft
     (derselbe Schritt wie das Formular-Vokabular). Nur Darstellung – kein Zustand, keine
     Logik der Navigation wird geändert.
@@ -463,7 +463,7 @@ Staff-Rollen) ist getestet (`scripts/account.test.mjs` gegen die Frontend-Quelle
     Eine Kopie nur für ein 220-px-Vorschaubild wäre eine zweite Bildverwaltung. Die Listen
     (Unterseite + eine Zeile Beschreibung + «Alle Leistungen …») sind dieselben.
 43. **Das Logo des Konto-/ERP-Bereichs ist ein Abdruck, kein zweites Original**:
-    `export-contact.mjs` kopiert die beiden SVG aus `public/logo/` nach
+    `export-erp.mjs` kopiert die beiden SVG aus `public/logo/` nach
     `frontend/public/brand/`, die CI prüft wie beim Vokabular, dass sie gleich sind. So ist
     das Logo auch beim lokalen Arbeiten am Frontend da, und ändern kann man es nur an
     einer Stelle. Das alte `frontend/public/logo.png` ist gelöscht.

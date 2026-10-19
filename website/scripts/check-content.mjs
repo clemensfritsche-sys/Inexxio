@@ -13,9 +13,10 @@ import { fileURLToPath } from 'node:url';
 import { site } from '../src/config/site.mjs';
 import { photos } from '../src/config/photos.mjs';
 import { samples } from '../src/config/photo-samples.mjs';
+import { isLive } from '../src/lib/text.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE = (process.env.SITE_MODE ?? 'preview') === 'live';
+const LIVE = isLive();
 
 function walk(dir, exts) {
   if (!existsSync(dir)) return [];

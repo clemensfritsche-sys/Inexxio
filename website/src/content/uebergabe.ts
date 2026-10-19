@@ -19,7 +19,7 @@ export const handoverLead =
 
 /** Was bleibt. */
 export const stays = [
-  'Standort Tuttwil-Wängi',
+  'Standort {{address.town}}',
   'Telefonnummer {{phone.display}}',
   'Service und Ersatzteile für alle bestehenden HS-Krananlagen',
   'Ihre Kundenbeziehung – wir kennen Ihre Anlagen und ihre Geschichte',

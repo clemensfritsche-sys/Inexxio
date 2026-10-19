@@ -5,7 +5,7 @@
  * Alles, was mehr als einmal vorkommt – Name, Telefon, Adresse, die drei Bereiche mit ihren
  * Unterseiten, Schalter –, steht hier und nur hier. Header, Footer, Kontaktseite, JSON-LD,
  * llms.txt, Sitemap, robots.txt und die Eingangsbestätigung des Formulars lesen
- * ausschliesslich daraus (die Bestätigung über `scripts/export-contact.mjs`). Kopf und Fuss
+ * ausschliesslich daraus (die Bestätigung über `scripts/export-erp.mjs`). Kopf und Fuss
  * des Konto- und ERP-Bereichs sind die der Website selbst (`scripts/export-shell.mjs`).
  *
  * Ein Namenswechsel (z. B. «HS Steiner – Teil von INEXXIO») ist eine Änderung in
@@ -24,7 +24,7 @@ import { resolve } from 'node:path';
  * legt sie hier ab; zur Laufzeit tauscht `src/scripts/contact.ts` sie gegen die des
  * Besucherlandes. Ohne ERP (lokal, CI-Prüfung) gelten die Vorgaben unten.
  * `SITE_ERP=0` liest sie bewusst nicht: der Abdruck für das Backend
- * (`scripts/export-contact.mjs`) ist der DB-freie Ausweg und baut auf den Vorgaben – sonst
+ * (`scripts/export-erp.mjs`) ist der DB-freie Ausweg und baut auf den Vorgaben – sonst
  * hinge er davon ab, ob lokal gerade eine Datei aus einem früheren Build liegt.
  * @type {{ phone?: string | null, phone_e164?: string | null, email?: string | null }}
  */
@@ -280,8 +280,31 @@ export const site = {
      */
     erp: { label: 'ERP', href: '/erp' },
   },
-  /** Pfade, die nicht zur Website gehören – robots.txt sperrt sie in jedem Modus. */
-  privatePaths: ['/erp', '/konto', '/login', '/abmelden', '/api/'],
+  /**
+   * ►►► Die Pfade des ERP auf derselben Domain – EINE Liste. ◄◄◄ Die Website legt dort keine
+   * Datei ab (`scripts/check-site.mjs`, `scripts/merge-hosting.mjs`), auf eine `page` darf sie
+   * verlinken (check-site), und robots.txt sperrt jede `private` in jedem Modus
+   * (`privatePaths`). Offen bleiben die AGB (öffentlich) und die Bundles des ERP – ohne sie
+   * lässt sich keine seiner Seiten darstellen.
+   * @type {{ path: string, page: boolean, private: boolean }[]}
+   */
+  erpPaths: [
+    { path: '/erp', page: true, private: true },
+    { path: '/konto', page: true, private: true },
+    { path: '/login', page: true, private: true },
+    { path: '/abmelden', page: true, private: true },
+    { path: '/agb', page: true, private: false },
+    { path: '/api', page: false, private: true },
+    { path: '/_next', page: false, private: false },
+  ],
+  /**
+   * Was robots.txt sperrt – abgeleitet aus `erpPaths`. Ein Pfad, der keine Seite ist, wird als
+   * Verzeichnis gesperrt («/api/»), damit «Disallow» nicht auch «/apiXY» trifft.
+   * @type {string[]}
+   */
+  get privatePaths() {
+    return this.erpPaths.filter((p) => p.private).map((p) => (p.page ? p.path : `${p.path}/`));
+  },
 
   seo: {
     /**
@@ -333,6 +356,18 @@ export function isMissing(value) {
 /** Die E-Mail-Adresse, die heute funktioniert. */
 export function contactEmail() {
   return isMissing(site.email.primary) ? site.email.legacy : site.email.primary;
+}
+
+/**
+ * Läge diese Datei der Website (Pfad relativ zu dist/, ohne führenden Schrägstrich) auf einem
+ * Pfad des ERP? – `erp.html`, `erp/…`, `api/…`, aber nicht `erpel.html`.
+ * @param {string} rel
+ */
+export function onErpPath(rel) {
+  return site.erpPaths.some(({ path }) => {
+    const name = path.slice(1);
+    return rel === name || rel === `${name}.html` || rel.startsWith(`${name}/`);
+  });
 }
 
 /** Der Bereich zu einer ID – bricht den Build, wenn es ihn nicht gibt. */

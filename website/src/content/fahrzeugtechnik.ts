@@ -26,7 +26,7 @@ export const fahrzeugtechnik: AreaPage = {
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
   description:
-    'Neue Trommel statt neuer Fahrmischer – zum Fixpreis, mit Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus Tuttwil-Wängi TG.',
+    'Neue Trommel statt neuer Fahrmischer – zum Fixpreis, mit Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
@@ -36,7 +36,7 @@ export const fahrzeugtechnik: AreaPage = {
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – zum Fixpreis und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – zum Fixpreis und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Die Werkstatt steht in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: [
     { title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.' },
     { title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und nennen einen Fixpreis.' },
@@ -89,7 +89,7 @@ export const trommeltausch: SubPage = {
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Fixpreis vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – in der Werkstatt in Tuttwil-Wängi TG.',
+    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Fixpreis vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – in der Werkstatt in {{address.home}}.',
   glance: {
     forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Trommel und Fahrgestell prüfen, neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',
@@ -173,7 +173,7 @@ export const verschleissteile: SubPage = {
     primary: anfrage('Teil anfragen'),
   },
   summary:
-    '{{brand.full}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau in der Werkstatt in Tuttwil-Wängi TG.',
+    '{{brand.full}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau in der Werkstatt in {{address.home}}.',
   glance: {
     forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Teile nach Marke und Typ bestellen und schnell beschaffen – auf Wunsch mit Einbau.',
@@ -195,7 +195,7 @@ export const verschleissteile: SubPage = {
     },
     {
       q: 'Kann ich ein Teil abholen?',
-      a: 'Ja, in Tuttwil – am besten vorher kurz anrufen: {{phone.link}}.',
+      a: 'Ja, in {{address.city}} – am besten vorher kurz anrufen: {{phone.link}}.',
     },
     faqBrands,
     {

@@ -3,7 +3,7 @@
 //   node scripts/merge-hosting.mjs [ziel]      Standard-Ziel: ../frontend/out
 //
 // Firebase Hosting hat EINE Site je Umgebung (firebase.json: public = frontend/out). Die
-// Website besitzt «/» und ihre Seiten, das ERP behält /erp, /konto, /login, /abmelden, /agb, /_next.
+// Website besitzt «/» und ihre Seiten, das ERP behält seine Pfade (site.erpPaths).
 // Kollidiert eine Datei, bricht das Skript ab – mit einer bewusst erlaubten Ausnahme:
 //   404.html   die Fehlerseite der Website gilt für die ganze Domain
 // Die EINE robots.txt kommt von der Website; liefert das ERP wieder eine, bricht es ab.
@@ -11,12 +11,12 @@
 import { cpSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onErpPath } from '../src/config/site.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const TARGET = resolve(process.argv[2] ?? join(ROOT, '..', 'frontend', 'out'));
 const OVERRIDES = new Set(['404.html']);
-const ERP = /^(erp|konto|login|abmelden|agb|api|_next)(\/|\.html$|$)/;
 
 function walk(dir) {
   const out = [];
@@ -45,7 +45,7 @@ const problems = [];
 let overridden = 0;
 const files = walk(DIST).map((f) => relative(DIST, f).replace(/\\/g, '/'));
 for (const rel of files) {
-  if (ERP.test(rel)) problems.push(`${rel} läge auf einem Pfad des ERP`);
+  if (onErpPath(rel)) problems.push(`${rel} läge auf einem Pfad des ERP`);
   else if (existsSync(join(TARGET, rel))) {
     if (OVERRIDES.has(rel)) overridden += 1;
     else problems.push(`${rel} gibt es schon in der ERP-Ausgabe`);

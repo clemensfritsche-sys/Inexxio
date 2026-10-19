@@ -2,7 +2,7 @@
 export const kontakt = {
   title: 'Kontakt und Anfrage',
   description:
-    'Kontakt zu INEXXIO (ehemals HS Steiner) in Tuttwil-Wängi TG: Anfrage stellen, anrufen oder die Route zur Werkstatt öffnen. Wir melden uns rasch.',
+    'Kontakt zu INEXXIO (ehemals HS Steiner) in {{address.home}}: Anfrage stellen, anrufen oder die Route zur Werkstatt öffnen. Wir melden uns rasch.',
   /** Überschrift und Satz des EINEN Kontaktbereichs (ContactSection) – auf jeder Seite gleich. */
   eyebrow: 'Anfrage',
   h1: 'Fragen kostet ==nichts==.',

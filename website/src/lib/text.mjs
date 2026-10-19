@@ -67,6 +67,9 @@ const TOKENS = {
   email: contactEmail(),
   'address.line': `${a.street}, ${a.zip} ${a.city}`,
   'address.place': `${a.zip} ${a.city} (${a.municipality} ${a.canton})`,
+  /** Der Ort im Fliesstext: «Tuttwil-Wängi» bzw. mit Kanton «Tuttwil-Wängi TG». */
+  'address.town': `${a.city}-${a.municipality}`,
+  'address.home': `${a.city}-${a.municipality} ${a.canton}`,
   'marks.mixerList': site.marks.mixers.join(', '),
   year: String(new Date().getFullYear()),
 };

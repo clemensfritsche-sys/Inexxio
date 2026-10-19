@@ -5248,7 +5248,7 @@
 > danach ein anderer Dienst steht (`firebase.json` nennt den Dev-Dienst). Der tote
 > Header-Block `/(app|admin)/**` ist weg. Das Formular bricht nach **60 s** ab und zeigt
 > Telefon und mailto – und der mailto geht an die **ERP-Adresse** (`contact.ts` tauscht
-> auch `data-mail`). `export-contact` baut aus den **Vorgaben** (`SITE_ERP=0`, DB-freier
+> auch `data-mail`). `export-erp` baut aus den **Vorgaben** (`SITE_ERP=0`, DB-freier
 > Ausweg des Backends), `export-shell` verlangt genau ein `<header>`/`<footer>`, `postcss`
 > ist fest deklariert, und die CI prüft, dass `OFFENE_PUNKTE.md` aktuell ist.
 
@@ -5379,7 +5379,7 @@ mehr?» für beide Seiten (Erreichbarkeit + Exporte ohne Leser).
   wird eine **Nachricht im ERP** (`services/inquiry`): Person zur E-Mail (angelegt, wenn
   neu), offen, im Postfach der Gesellschaft zum Besucherland. **E-Mail Pflicht**, Telefon
   freiwillig, Anhänge nur Bilder. Sein Vokabular ist generiert
-  (`website/scripts/export-contact.mjs` → `backend/app/assets/website_contact.json`, CI
+  (`website/scripts/export-erp.mjs` → `backend/app/assets/website_contact.json`, CI
   prüft). **Lässt sich die Anfrage nicht speichern, antwortet er 503**, die Seite zeigt
   Telefon und einen vorausgefüllten mailto-Link, und die Anfrage steht als
   `INQUIRY_UNSENT` im Log.

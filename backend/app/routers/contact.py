@@ -9,7 +9,7 @@ offen, bis ein Mensch antwortet.
 
 **Die Wörter kommen von der Website.** Welche Felder es gibt, wie sie heissen und welche
 Fehlermeldungen erscheinen, steht in ``website/src/config`` und wird mit
-``npm run export:contact`` nach ``app/assets/website_contact.json`` übertragen (die CI
+``npm run export:erp`` nach ``app/assets/website_contact.json`` übertragen (die CI
 prüft, dass die Datei aktuell ist). Formular im Browser und Server sagen damit garantiert
 dasselbe. Telefon und E-Mail darin sind die **Vorgaben** der Website, nicht die des ERP:
 sie tragen den Ausweg, der ohne Datenbank funktionieren muss (503-/429-Seite, mailto).
@@ -52,16 +52,15 @@ from ..services import geoip, inquiry as svc
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
 
-#: Das Vokabular der Website (generiert, siehe Moduldoku).
-VOCAB: dict = json.loads(
-    (Path(__file__).resolve().parent.parent / "assets" / "website_contact.json").read_text("utf-8")
-)
+#: Das Vokabular der Website (generiert, siehe Moduldoku) – gelesen an EINER Stelle.
+VOCAB: dict = svc.VOCAB
 MSG: dict[str, str] = VOCAB["messages"]
 LIMITS: dict[str, int] = VOCAB["limits"]
 PHOTOS: dict = VOCAB["photos"]
 
-EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
-PHONE_RE = re.compile(r"^[+()\d][\d\s/().-]{5,}$")
+#: Dieselben Ausdrücke wie im Browser (``website/src/config/inquiry.mjs`` → ``patterns``).
+EMAIL_RE = re.compile(VOCAB["patterns"]["email"])
+PHONE_RE = re.compile(VOCAB["patterns"]["phone"])
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 #: Obergrenze der ganzen Anfrage: Fotos plus grosszügig Platz für die Textfelder.
@@ -144,7 +143,7 @@ def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
     # Die E-Mail ist Pflicht: über sie wird die Person gefunden (oder angelegt), und
     # dorthin gehen Bestätigung und Antwort. Das Telefon ist freiwillig.
     if not email:
-        errors.setdefault("email", MSG["contact"])
+        errors.setdefault("email", MSG["emailMissing"])
     if phone and not PHONE_RE.match(phone):
         errors.setdefault("phone", MSG["phone"])
     if email and not EMAIL_RE.match(email):
@@ -199,19 +198,17 @@ def _shown(inq: Inquiry) -> list[tuple[str, str, str]]:
     return [(name, label, inq.values[name]) for name, label in VOCAB["labels"] if inq.values.get(name)]
 
 
-def _subject(inq: Inquiry) -> str:
-    v = inq.values
-    return f"[Anfrage] {v['company'] or v['name']}".strip()
-
-
 def _mailto(inq: Inquiry) -> str:
-    """Dieselbe Form wie der mailto-Link im Browser (scripts/form.ts)."""
+    """Dieselbe Form wie der mailto-Link im Browser (scripts/form.ts) – und derselbe Betreff
+    wie die Nachricht im ERP (``inquiry.subject_of``): die E-Mail landet im Postfach derselben
+    Gesellschaft und soll dort unter demselben Anliegen stehen."""
     lines = [f"{label}: {value[:1200] if name == 'message' else value}" for name, label, value in _shown(inq)]
     body = "\n".join(lines)
     if inq.photos:
         n = len(inq.photos)
         body += f"\n\nDateien: bitte {'die Datei' if n == 1 else f'die {n} Dateien'} an diese E-Mail anhängen."
-    return f"mailto:{VOCAB['email']}?subject={quote(_subject(inq))}&body={quote(body)}"
+    subject = svc.subject_of(inq.values["message"])
+    return f"mailto:{VOCAB['email']}?subject={quote(subject)}&body={quote(body)}"
 
 
 def as_record(inq: Inquiry) -> dict:
@@ -250,7 +247,7 @@ def _page(title: str, body: str, status: int) -> HTMLResponse:
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
         f"<title>{escape(title)} | {escape(VOCAB['brand']['full'])}</title><style>{_PAGE_CSS}</style></head>"
-        f'<body><main><p class="brand">{escape(VOCAB["brand"]["name"])}<span>ehemals HS Steiner</span></p>'
+        f'<body><main><p class="brand">{escape(VOCAB["brand"]["name"])}<span>{escape(VOCAB["brand"]["formerly"])}</span></p>'
         f"<h1>{escape(title)}</h1>{body}"
         f'<p>Telefon <a href="tel:{phone["e164"]}"><strong>{escape(phone["display"])}</strong></a></p>'
         "</main></body></html>"

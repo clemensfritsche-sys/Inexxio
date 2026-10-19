@@ -17,7 +17,7 @@
     "preview": "astro preview",
     "check": "npm run tokens && astro check",
     "check:content": "node scripts/check-content.mjs --dist",
-    "export:contact": "node scripts/export-contact.mjs",
+    "export:erp": "node scripts/export-erp.mjs",
     "merge:hosting": "node scripts/merge-hosting.mjs",
     "test": "node --test scripts/*.test.mjs"
   },

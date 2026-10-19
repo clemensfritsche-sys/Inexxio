@@ -14,14 +14,15 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { site } from '../src/config/site.mjs';
+import { site, onErpPath } from '../src/config/site.mjs';
+import { isLive } from '../src/lib/text.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
-const LIVE = (process.env.SITE_MODE ?? 'preview') === 'live';
+const LIVE = isLive();
 const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:4321').replace(/\/+$/, '');
-/** Pfade, die das ERP auf derselben Domain ausliefert – Links dorthin sind gültig. */
-const ERP_PATHS = ['/login', '/agb', '/konto', '/erp', '/abmelden'];
+/** Seiten, die das ERP auf derselben Domain ausliefert – Links dorthin sind gültig. */
+const ERP_PAGES = site.erpPaths.filter((p) => p.page).map((p) => p.path);
 /** Leistungsbudget (Kapitel 15), in Bytes gzip bzw. roh. */
 const BUDGET = { jsGzip: 30 * 1024, cssGzip: 40 * 1024, fonts: 120 * 1024, home: 1024 * 1024 };
 /** Kapitel 8.2 – im sichtbaren Text verboten (klein geschrieben verglichen). */
@@ -249,7 +250,7 @@ function checkTarget(p, href, kind) {
   if (!path.startsWith('/')) return fail(p.path, `relativer ${kind} «${href}» – bitte absolut (/…)`);
   if (path.startsWith('/api/')) return;
   const bare = path.split('?')[0];
-  if (ERP_PATHS.some((e) => bare === e || bare.startsWith(`${e}/`))) return;
+  if (ERP_PAGES.some((e) => bare === e || bare.startsWith(`${e}/`))) return;
   const clean = bare.replace(/\/$/, '') || '/';
   const file = fileFor(clean);
   if (!file) return fail(p.path, `${kind} ins Leere: «${href}»`);
@@ -453,7 +454,7 @@ function checkRedirects(listed) {
 function checkErpPaths() {
   for (const f of files) {
     const rel = relative(DIST, f).replace(/\\/g, '/');
-    if (/^(erp|konto|api|_next)\//.test(rel) || /^(login|agb|erp|konto)(\.html|\/)/.test(rel)) fail(rel, 'liegt auf einem Pfad des ERP');
+    if (onErpPath(rel)) fail(rel, 'liegt auf einem Pfad des ERP');
   }
 }
 
@@ -511,7 +512,7 @@ function checkBudget() {
 
 function checkMailTexts() {
   const f = join(ROOT, '..', 'backend', 'app', 'assets', 'website_contact.json');
-  if (!existsSync(f)) return fail('website_contact.json', 'fehlt – «npm run export:contact»');
+  if (!existsSync(f)) return fail('website_contact.json', 'fehlt – «npm run export:erp»');
   const texts = [];
   const collect = (v) => (typeof v === 'string' ? texts.push(v) : v && typeof v === 'object' && Object.values(v).forEach(collect));
   collect(JSON.parse(readFileSync(f, 'utf8')));

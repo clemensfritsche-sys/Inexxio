@@ -140,11 +140,12 @@ jobs:
         working-directory: website
         run: npm run check
 
-      # Das Backend prüft die Anfrage gegen dieselben Listen und schreibt die Bestätigung mit
-      # den Wörtern der Website – aus diesem Abdruck.
-      - name: Formular-Vokabular aktuell (backend/app/assets/website_contact.json)
+      # Das Backend prüft die Anfrage gegen dieselben Listen und Muster und schreibt die
+      # Bestätigung mit den Wörtern der Website; das Frontend trägt Name, Satz und Logo –
+      # alles aus diesen Abdrucken.
+      - name: Abdrucke fürs ERP aktuell (website_contact.json, site-meta.json, Logo)
         working-directory: website
-        run: node scripts/export-contact.mjs --check
+        run: node scripts/export-erp.mjs --check
 
       - name: Build (Vorschau) inkl. Prüfungen
         working-directory: website

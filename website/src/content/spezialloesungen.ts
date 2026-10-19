@@ -30,7 +30,7 @@ export const spezialloesungen: SubPage = {
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
   },
   summary:
-    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut in der eigenen Werkstatt in Tuttwil-Wängi TG. Fixpreis vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
+    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut in der eigenen Werkstatt in {{address.home}}. Fixpreis vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
   glance: {
     forWhom: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle Betriebe mit Kranen oder Fahrzeugen, deren Aufgabe kein Hersteller löst.',
     what: 'Machbarkeit prüfen, konstruieren, in der eigenen Werkstatt bauen und bei Ihnen in Betrieb nehmen.',
@@ -135,7 +135,7 @@ export const specialSteps = {
     { title: 'Aufgabe', text: 'Sie schildern, was die Maschine leisten soll.' },
     { title: 'Machbarkeit', text: 'Wir prüfen, ob und wie es geht, und nennen den Fixpreis.' },
     { title: 'Konstruktion', text: 'Wir konstruieren und rechnen; Sie geben frei.' },
-    { title: 'Bau', text: 'In unserer eigenen Werkstatt in Tuttwil.' },
+    { title: 'Bau', text: 'In unserer eigenen Werkstatt in {{address.city}}.' },
     { title: 'Inbetriebnahme', text: 'Bei Ihnen, mit Einweisung und Unterlagen.' },
   ] satisfies Step[],
 };

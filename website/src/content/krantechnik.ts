@@ -24,7 +24,7 @@ export const krantechnik: AreaPage = {
   path: '/krantechnik',
   title: 'Krantechnik: Krane nach Mass',
   description:
-    'Krane nach Mass, Kranservice und Heukrananlagen – mit Zufriedenheitsgarantie und INEXXIO 365. Die erste Inspektion ist gratis. Aus Tuttwil-Wängi TG.',
+    'Krane nach Mass, Kranservice und Heukrananlagen – mit Zufriedenheitsgarantie und INEXXIO 365. Die erste Inspektion ist gratis. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Krantechnik',
     h1: 'Krane, die zu Ihrem Betrieb ==passen== – und laufen',
@@ -34,7 +34,7 @@ export const krantechnik: AreaPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} plant, baut und betreut Krane: Sonderkrane und Industriekrane für besondere Hallen und Abläufe, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Die Werkstatt steht in Tuttwil-Wängi TG; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} plant, baut und betreut Krane: Sonderkrane und Industriekrane für besondere Hallen und Abläufe, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Die Werkstatt steht in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: [
     { title: 'Anfrage', text: 'Sie schildern Ihr Anliegen – per Formular oder am Telefon. Ein Foto vom Typenschild hilft.' },
     { title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht. Sie erhalten einen Fixpreis.' },
@@ -310,12 +310,12 @@ export const heukrananlagen: SubPage = {
     eyebrow: 'Krantechnik · Heukrananlagen',
     h1: 'Ihre Heukrananlage läuft, wenn die ==Ernte== beginnt',
     lead:
-      'Seit {{history.cranesSince}} bauen wir in Tuttwil Heukrane. Wir betreuen bestehende Anlagen – die erste Inspektion ist gratis – und planen neue nach Mass, wenn Sie eine brauchen.',
+      'Seit {{history.cranesSince}} bauen wir in {{address.city}} Heukrane. Wir betreuen bestehende Anlagen – die erste Inspektion ist gratis – und planen neue nach Mass, wenn Sie eine brauchen.',
     photo: 'heukran-einsatz',
     primary: anfrage('Service anfragen'),
   },
   summary:
-    '{{brand.full}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind. Nicht zufrieden, übernehmen wir 50 %. Die Werkstatt steht in Tuttwil-Wängi TG.',
+    '{{brand.full}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind. Nicht zufrieden, übernehmen wir 50 %. Die Werkstatt steht in {{address.home}}.',
   glance: {
     forWhom: 'Landwirtschaftsbetriebe für Heu, Stroh, Silage und Mist – und alle, die lose Güter mit dem Greifer umschlagen: Hackschnitzelheizungen, Sägewerke, Kompost- und Biogasanlagen, Werkhöfe.',
     what: 'Saison-Check, Wartung, Reparatur und Modernisierung bestehender Anlagen. Neue Anlagen: Besichtigung, Konzept, Fertigung, Montage.',
@@ -378,14 +378,14 @@ export const heukranModules = {
     items: [
       { title: 'Besichtigung', text: 'Wir schauen Scheune, Heustock und Abladeplatz an und hören zu, wie Sie arbeiten.' },
       { title: 'Konzept und Offerte', text: 'Sie erhalten einen Vorschlag zu Bauform, Spannweite und Hubhöhe – mit Fixpreis.' },
-      { title: 'Fertigung', text: 'Wir fertigen die Anlage in unserer Werkstatt in Tuttwil.' },
+      { title: 'Fertigung', text: 'Wir fertigen die Anlage in unserer Werkstatt in {{address.city}}.' },
       { title: 'Montage und Inbetriebnahme', text: 'Wir montieren vor Ort, nehmen in Betrieb und zeigen Ihnen die Bedienung.' },
       { title: 'Service', text: 'Saison-Check und Wartung – solange die Anlage läuft.' },
     ] satisfies Step[],
   },
   owners: {
     title: 'Sie haben eine HS-Krananlage? Sie wird weiter betreut.',
-    text: 'Die Anlagen, die seit {{history.cranesSince}} in Tuttwil entstanden sind, betreuen wir weiter. Service, Reparatur und Ersatzteile – mit demselben Wissen. Mehr dazu unter [Aus HS Steiner wird {{brand.name}}](/ueber-uns#uebergabe).',
+    text: 'Die Anlagen, die seit {{history.cranesSince}} in {{address.city}} entstanden sind, betreuen wir weiter. Service, Reparatur und Ersatzteile – mit demselben Wissen. Mehr dazu unter [Aus HS Steiner wird {{brand.name}}](/ueber-uns#uebergabe).',
   },
   season: {
     title: 'Saison-Check vor dem ersten Schnitt',
