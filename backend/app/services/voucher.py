@@ -21,7 +21,8 @@ from decimal import Decimal
 from typing import Any, Callable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from ..core.config import payment_service_ready
@@ -390,23 +391,35 @@ def sync_lines(db: Session, row: Voucher, order: Order) -> list[VoucherLine]:
 
     **Eine Zeile ohne Artikel bleibt immer** (Miete, Lohn, Gebühr): sie kommt nicht aus
     dem Prozess, also kann der Prozess sie auch nicht zurücknehmen.
+
+    **Zwei gleichzeitige Anzeigen legen dieselbe Zeile nicht zweimal an** (Cleanup B-37):
+    die fehlende entsteht über ``ON CONFLICT DO NOTHING`` gegen
+    ``uq_voucher_lines_article``. Als gewöhnliches ``add`` lief die zweite in den Index –
+    ein ``IntegrityError`` auf einem **GET** (gemessen: zwei Sitzungen, die zweite
+    scheitert mit ``UniqueViolation``). So wartet sie auf die erste und liest danach deren
+    Zeile.
     """
     rows = lines_of(db, row)
     if row.stage != vo.OFFER:
         return rows
     counts = dict(process_lines(db, order))
+    order_index = {a: i for i, a in enumerate(counts)}
+    known = {r.article_id for r in rows if r.article_id is not None}
+    missing = [a for a in counts if a not in known]
+    if missing:
+        db.execute(
+            pg_insert(VoucherLine)
+            .values([{"voucher_id": row.id, "article_id": a, "quantity": counts[a],
+                      "vat": vo.DEFAULT_VAT, "position": order_index[a]} for a in missing])
+            .on_conflict_do_nothing(index_elements=["voucher_id", "article_id"],
+                                    index_where=text("is_active"))
+        )
+        rows = lines_of(db, row)
     by_article = {r.article_id: r for r in rows if r.article_id is not None}
     free = [r for r in rows if r.article_id is None]
-    order_index = {a: i for i, a in enumerate(counts)}
     for article, n in counts.items():
         found = by_article.get(article)
-        if found is None:
-            found = VoucherLine(voucher_id=row.id, article_id=article,
-                                quantity=n, vat=vo.DEFAULT_VAT,
-                                position=order_index[article])
-            db.add(found)
-            by_article[article] = found
-        else:
+        if found is not None:
             found.quantity = n
             found.position = order_index[article]
     for article, found in list(by_article.items()):

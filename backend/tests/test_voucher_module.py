@@ -672,8 +672,8 @@ def _credit(db, *, target, who, price: str = "40.00"):
 def test_the_backfill_is_written_once_and_read_by_both():
     """►►► **Eine Datenänderung einer Migration braucht IMMER auch ein Netz.** ◄◄◄
 
-    Die dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778) – sie lebt von
-    ``create_all`` plus den Netzen in ``main``. Für **Schema** gibt es vier davon; für
+    Scheitert ``alembic upgrade head`` beim Start (Testnotiz #778), lebt die Datenbank
+    von ``create_all`` plus den Netzen in ``main``. Für **Schema** gibt es vier davon; für
     **Daten** gab es keines, und genau hier zählt es: das Spalten-Netz zöge die acht neuen
     Spalten **leer** nach, während die alten Forderungs-Zeilen stehenblieben. Der Dienst
     liest seit dem Umbau jede aktive Zeile als **Zahlung** – jede alte Rechnung wäre ein
@@ -3235,3 +3235,54 @@ def test_the_document_chooses_firm_and_addresses_before_the_agreement():
             svc.apply(db, order=order, step=step, action="address",
                       payload={"bill_to_company": True})                            # (d)
         assert svc.embed_data(db, order=order, step=step)["customer"]["choice"] is None
+
+
+def test_two_simultaneous_views_do_not_collide_on_a_new_line():
+    """►►► **Zwei gleichzeitige Anzeigen legen dieselbe Position nicht zweimal an**
+    (Cleanup B-37). ◄◄◄ ``sync_lines`` schreibt auf dem Lesepfad (#937). Sieht der Beleg
+    eine neue Position und laufen zwei Anzeigen gleichzeitig, wartet die zweite am
+    Eindeutigkeits-Index auf die erste – und lief danach mit einem ``IntegrityError`` auf
+    (gemessen: ``UniqueViolation`` auf ``uq_voucher_lines_article``, an der Tür ein 409
+    auf einem **GET**).
+
+    Gefahren mit zwei echten Sitzungen: die erste legt die Zeile an und hält ihre
+    Transaktion offen, die zweite läuft in einem eigenen Faden dagegen. Bug-Form: ein
+    gewöhnliches ``add`` statt ``ON CONFLICT DO NOTHING`` → die zweite scheitert."""
+    import threading
+    import time
+    from app.core.database import SessionLocal
+    from app.models import Order, Voucher, VoucherLine
+    from app.services import voucher as svc
+
+    db = _db()
+    order, _step, row, _who, _art = _scene(db)
+    db.query(VoucherLine).filter(VoucherLine.voucher_id == row.id).delete()
+    db.commit()           # beide Sitzungen müssen die Szene sehen
+    vid, oid = row.id, order.id
+    db.close()
+
+    first, second = SessionLocal(), SessionLocal()
+    failed: list[str] = []
+
+    def other():
+        try:
+            svc.sync_lines(second, second.get(Voucher, vid), second.get(Order, oid))
+            second.commit()
+        except Exception as exc:                      # noqa: BLE001 – genau das prüfen wir
+            failed.append(f"{type(exc).__name__}: {str(exc).splitlines()[0]}")
+            second.rollback()
+
+    try:
+        svc.sync_lines(first, first.get(Voucher, vid), first.get(Order, oid))
+        runner = threading.Thread(target=other)
+        runner.start()
+        time.sleep(0.5)                               # die zweite wartet jetzt am Index
+        first.commit()
+        runner.join(timeout=30)
+        lines = first.query(VoucherLine).filter(
+            VoucherLine.voucher_id == vid, VoucherLine.is_active.is_(True)).count()
+    finally:
+        first.close()
+        second.close()
+    assert not failed, f"Die zweite Anzeige ist gescheitert: {failed[0]}"
+    assert lines == 1, f"Eine Position steht {lines}-mal auf dem Beleg."

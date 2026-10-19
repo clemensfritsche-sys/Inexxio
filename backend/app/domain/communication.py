@@ -98,12 +98,18 @@ def is_mail(key: str) -> bool:
     return company_of(key) is not None
 
 
+#: **Der Kanal des Betreibers**, als Teilabfrage – das Ziel beider Umzüge darunter. Einmal
+#: ausgeschrieben, damit sie nicht an zwei Stellen verschieden altern (Cleanup B-24).
+_OPERATOR_CHANNEL = ("(SELECT 'c' || object_id FROM company_settings WHERE is_own AND "
+                     "object_id IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
+
+
 def info_repair_sql() -> list[str]:
     """Der frühere eine Unternehmens-Kanal ``info`` wird der des **Betreibers** – gelesen
-    von Migration 146 **und** vom Lifespan-Netz (die dev-Datenbank fährt keine Migration,
-    #778). Selbstbegrenzend: danach gibt es kein ``info`` mehr."""
-    op = ("(SELECT 'c' || object_id FROM company_settings WHERE is_own AND object_id "
-          "IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
+    von Migration 146 **und** vom Lifespan-Netz (für eine Datenbank, auf der
+    ``alembic upgrade head`` scheitert, #778). Selbstbegrenzend: danach gibt es kein
+    ``info`` mehr."""
+    op = _OPERATOR_CHANNEL
     return [f"UPDATE {t} SET channel = {op} WHERE channel = 'info' AND {op} IS NOT NULL"
             for t in ("messages", "mailboxes")]
 
@@ -114,8 +120,7 @@ def personal_repair_sql() -> list[str]:
     **Betreibers** – sonst stünde im Verlauf ein Kanal, den es nicht gibt. Gelesen von der
     Migration **und** vom Lifespan-Netz (#778). Selbstbegrenzend: danach gibt es kein
     ``u<Nummer>`` mehr."""
-    op = ("(SELECT 'c' || object_id FROM company_settings WHERE is_own AND object_id "
-          "IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
+    op = _OPERATOR_CHANNEL
     return [f"UPDATE messages SET channel = {op} WHERE channel ~ '^u[0-9]+$' "
             f"AND {op} IS NOT NULL",
             "UPDATE mailboxes SET is_active = false WHERE channel ~ '^u[0-9]+$' AND is_active"]

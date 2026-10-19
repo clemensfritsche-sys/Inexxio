@@ -253,8 +253,8 @@ def migrate_sql() -> tuple[str, ...]:
     Der Name einer abweichenden Rechnungsadresse geht nicht mit: Empfänger ist die Person
     (bzw. ihre Firma), nicht ein dritter Name an einer Anschrift.
 
-    Dieselbe Liste lesen Migration und Lifespan-Netz (die dev-Datenbank fährt kein
-    ``alembic upgrade head``, #778)."""
+    Dieselbe Liste lesen Migration und Lifespan-Netz (für eine Datenbank, auf der
+    ``alembic upgrade head`` beim Start scheitert, #778)."""
     iso = ("CASE WHEN length(trim(coalesce({c}, ''))) = 2 THEN upper(trim({c})) "
            "ELSE 'CH' END")
     has_main = ("(coalesce(trim(address_line1), '') <> '' "

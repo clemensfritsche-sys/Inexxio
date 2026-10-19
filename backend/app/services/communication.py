@@ -13,7 +13,7 @@ Wahrheit, die beim ersten vergessenen Nachziehen falsch wird.
 
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import or_, select
@@ -96,11 +96,16 @@ def _firms(db: Session, people: dict[int, UserProfile]) -> dict[int, str]:
     return {c.object_id: legal_name(c) for c in rows}
 
 
+def _is_staff(people: dict[int, UserProfile], oid: int) -> bool:
+    u = people.get(oid)
+    return bool(u and u.role in STAFF_ROLES)
+
+
 def _ref(people: dict[int, UserProfile], oid: int,
          firms: Optional[dict[int, str]] = None) -> PersonRef:
     u = people.get(oid)
     return PersonRef(object_id=oid, name=(u.display_name if u else str(oid)),
-                     staff=bool(u and u.role in STAFF_ROLES),
+                     staff=_is_staff(people, oid),
                      company=(firms or {}).get(u.company_object_id) if u else None,
                      email=(u.email or None) if u else None)
 
@@ -249,6 +254,12 @@ def _ids_for(db: Session, persons: list[int]) -> list[int]:
     return [r for (r,) in rows]
 
 
+#: **Was die Regel «beantwortet/offen» liest** – Zeilen statt Objekte (Cleanup B-50): die
+#: Regel fragt fünf Spalten, und ein ORM-Objekt je Nachricht kostete über den ganzen
+#: Bestand mehr als die Abfrage selbst.
+_READ = (Message.id, Message.at, Message.channel, Message.subject, Message.sender_object_id)
+
+
 def answered(db: Session, msgs: list[Message],
              roles: dict[int, dict[str, list[int]]]) -> set[int]:
     """►►► **Beantwortet ist, was eine spätere Nachricht VON UNS mit demselben Betreff
@@ -274,10 +285,13 @@ def answered(db: Session, msgs: list[Message],
     if not msgs:
         return set()
     since = min(_aware(m.at) for m in msgs)
-    ours = db.query(Message).join(UserProfile, UserProfile.object_id == Message.sender_object_id
-                                  ).filter(Message.is_active.is_(True), Message.at >= since,
-                                           Message.at <= _now(),     # eine geplante noch nicht
-                                           UserProfile.role.in_(STAFF_ROLES)).all()
+    # Nur die Spalten, die die Regel liest – die gebaute Mail (``html``) gehört nicht dazu,
+    # und über alle eigenen Nachrichten seit der ältesten Kandidatin wären das Megabytes.
+    ours = db.query(*_READ, Message.body).join(
+            UserProfile, UserProfile.object_id == Message.sender_object_id
+        ).filter(Message.is_active.is_(True), Message.at >= since,
+                 Message.at <= _now(),     # eine geplante noch nicht
+                 UserProfile.role.in_(STAFF_ROLES)).all()
     if not ours:
         return set()
     parts: dict[int, set[int]] = defaultdict(set)
@@ -324,6 +338,18 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     return [_out(m, by_msg[m.id], m.id in done, people, now, labels, firms) for m in msgs]
 
 
+def _state(m: Message, roles: dict[str, list[int]], answered: bool,
+           staff: Callable[[int], bool], now: datetime) -> tuple[bool, bool]:
+    """►►► **Offen und überfällig – die EINE Regel** (Regel 3). ◄◄◄ Gelesen vom Verlauf
+    (``_out``) **und** vom Zeichen im Feed (``open_counts``): zwei Fassungen hiessen
+    zwei Zahlen für dieselbe Nachricht."""
+    at = _aware(m.at)
+    is_open = (at <= now and not answered and dc.to_us(
+        channel_key=m.channel, sender_staff=staff(m.sender_object_id),
+        to_staff=any(staff(i) for i in roles.get("to", []))))
+    return is_open, is_open and now - at > dc.OVERDUE_AFTER
+
+
 def _out(m: Message, roles: dict[str, list[int]], answered: bool,
          people: dict[int, UserProfile], now: datetime,
          labels: dict[str, tuple[str, Optional[str]]],
@@ -332,9 +358,7 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
     sender = _ref(people, m.sender_object_id, firms)
     refs = {r: [_ref(people, i, firms) for i in roles.get(r, [])] for r in dc.ROLES}
     at = _aware(m.at)
-    is_open = (at <= now and not answered and dc.to_us(
-        channel_key=m.channel, sender_staff=sender.staff,
-        to_staff=any(p.staff for p in refs["to"])))
+    is_open, overdue = _state(m, roles, answered, lambda i: _is_staff(people, i), now)
     address, name = labels.get(m.channel, (None, None))
     body, signature = (dc.split_signature(m.body or "", sender.name) if dc.is_mail(m.channel)
                        else (m.body or "", None))
@@ -346,7 +370,7 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
         reply_all=[_ref(people, i, firms) for i in reply_all(m.sender_object_id, roles)
                    if i in people],
         ours=sender.staff, open=is_open,
-        overdue=is_open and now - at > dc.OVERDUE_AFTER, planned=at > now,
+        overdue=overdue, planned=at > now,
         pending=bool(m.outgoing), attachments=m.attachments or [],
         gmail_url=gmail_url(address, m) if address else None,
     )
@@ -368,20 +392,44 @@ def history(db: Session, *, person: Optional[int] = None,
 def open_counts(db: Session) -> list[OpenCount]:
     """**Das Zeichen im Feed**: je Person die offenen Nachrichten in ihrem Verlauf.
 
-    Dieselbe Ableitung wie im Verlauf (``load`` → ``_out``) – gezählt wird bei **jedem**
-    Beteiligten."""
-    # Kandidaten: Zeitpunkt erreicht, kein Gespräch – die Regel selbst ist dieselbe wie
-    # im Verlauf (``_out``), keine zweite Fassung.
+    Dieselbe Regel wie im Verlauf (``_state``, ``answered``) – gezählt wird bei **jedem**
+    Beteiligten.
+
+    **Gezählt, nicht gebaut** (Cleanup B-50): bis hierher lief der ganze Bestand durch
+    ``load`` – jede Nachricht samt Text, gebauter Mail und Signatur-Erkennung zu einer
+    vollen ``MessageOut``, nur um zwei Wahrheitswerte abzulesen (gemessen: 1.9 s bei
+    10'000 Nachrichten, bei jedem Feed-Aufruf). Geladen werden jetzt die Spalten, die die
+    Regel liest, und ``answered`` fragt nur, was ohne Antwort offen **wäre**."""
+    # Kandidaten: Zeitpunkt erreicht, kein Gespräch.
     live = [k for k, c in dc.CHANNELS.items() if c.live]
-    ids = [i for (i,) in db.query(Message.id).filter(
-        Message.is_active.is_(True), Message.at <= _now(), Message.channel.notin_(live)).all()]
+    now = _now()
+    msgs = db.query(*_READ).filter(
+            Message.is_active.is_(True), Message.at <= now,
+            Message.channel.notin_(live)).order_by(Message.at, Message.id).all()
+    if not msgs:
+        return []
+    roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    for mid, oid, role in db.query(MessageParty.message_id, MessageParty.person_object_id,
+                                   MessageParty.role).filter(
+            MessageParty.message_id.in_([m.id for m in msgs])).all():
+        roles[mid][role].append(oid)
+    everyone = {m.sender_object_id for m in msgs} | {
+        i for r in roles.values() for ids in r.values() for i in ids}
+    staff = {oid for (oid,) in db.query(UserProfile.object_id).filter(
+        UserProfile.object_id.in_(everyone), UserProfile.role.in_(STAFF_ROLES)).all()}
+    # Was auch ohne Antwort nicht offen wäre, braucht ``answered`` nicht zu fragen – die
+    # Regel bleibt dieselbe, nur in dieser Reihenfolge ausgewertet.
+    maybe = [m for m in msgs if _state(m, roles[m.id], False, staff.__contains__, now)[0]]
+    done = answered(db, maybe, roles)
     counts: dict[int, list[int]] = defaultdict(lambda: [0, 0])
-    for m in load(db, ids):
-        if not m.open:
+    for m in maybe:
+        is_open, overdue = _state(m, roles[m.id], m.id in done, staff.__contains__, now)
+        if not is_open:
             continue
-        involved = {m.sender.object_id, *(p.object_id for r in (m.to, m.cc, m.bcc, m.about)
-                                          for p in r)}
+        r = roles[m.id]
+        involved = {m.sender_object_id, *(i for k in dc.ROLES
+                                          for i in r.get(k, []))}
         for oid in involved:
             counts[oid][0] += 1
-            counts[oid][1] += int(m.overdue)
+            counts[oid][1] += int(overdue)
     return [OpenCount(object_id=k, open=v[0], overdue=v[1]) for k, v in counts.items()]

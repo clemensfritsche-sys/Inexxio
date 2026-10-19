@@ -67,3 +67,74 @@ def test_nobody_becomes_admin_by_being_first(monkeypatch):
     finally:
         db.rollback()
         db.close()
+
+
+def _start_code() -> str:
+    """Der **Code** von ``main.py`` – ohne Kommentare und Docstrings, die die entfernten
+    Netze ja gerade beschreiben."""
+    import ast
+    import pathlib
+    src = pathlib.Path(main.__file__).read_text()
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Module)):
+            doc = ast.get_docstring(node, clean=False)
+            if doc:
+                src = src.replace(doc, "")
+    return "\n".join(line.split("#")[0] for line in src.splitlines())
+
+
+def test_the_start_drops_no_column_and_writes_no_unmapped_one():
+    """►►► **Der Start doppelt keine Migration, die längst gelaufen ist** (Cleanup B-20,
+    B-22, B-23). ◄◄◄ Das Drop-Netz lief bei jedem Start ``DROP COLUMN IF EXISTS`` über
+    28 Spalten (je ein ACCESS-EXCLUSIVE-Lock), die Übernahme der Firmentexte dropte acht
+    weitere, und der Artikel-Status wurde nachgeführt, obwohl ihn seit Migration 121 kein
+    Modell mehr kennt. Gedroppt wird in einer Migration, nicht beim Start.
+
+    Bug-Formen: (a) ein ``DROP COLUMN`` steht wieder im Start-Code; (b) der Start schreibt
+    ``articles.status``; (c) die Firmentext-Übernahme läuft wieder im Netz."""
+    code = _start_code()
+    assert "DROP COLUMN" not in code, "Der Start droppt wieder Spalten (a)."
+    assert "UPDATE articles SET status" not in code, "Der Start schreibt articles.status (b)."
+    assert "move_company_texts" not in code, "Die Firmentext-Übernahme ist zurück im Netz (c)."
+
+
+_CORRECTS_FKS = (
+    "SELECT c.conname FROM pg_constraint c JOIN pg_attribute a "
+    "ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
+    "WHERE c.conrelid = 'vouchers'::regclass AND c.contype = 'f' "
+    "AND a.attname = 'corrects_id'")
+
+
+def test_the_correction_reference_gets_its_index_and_key_from_the_net():
+    """►►► **Index und Fremdschlüssel von ``vouchers.corrects_id`` stehen im Netz**
+    (Cleanup B-52). ◄◄◄ Kam die Spalte über das Spalten-Netz (``alembic upgrade head``
+    gescheitert), war sie ein blankes ``BIGINT``: kein Index, und kein Riegel, der einen
+    Verweis auf einen gelöschten Beleg auf ``NULL`` setzt. ``create_all`` legt beides nur
+    mit einer **neuen** Tabelle an.
+
+    Gefahren auf einer Datenbank, der beides fehlt – in einer Transaktion, die danach
+    verworfen wird. Bug-Form: der Netz-Eintrag fehlt → beides bleibt weg."""
+    session()   # Schema herrichten
+    with engine.connect() as conn:
+        tx = conn.begin()
+        try:
+            for fk in conn.execute(text(_CORRECTS_FKS)).scalars().all():
+                conn.execute(text(f"ALTER TABLE vouchers DROP CONSTRAINT {fk}"))
+            conn.execute(text("DROP INDEX IF EXISTS ix_vouchers_corrects_id"))
+            for stmt in main._RAW_INDEX_SAFETY_NET:
+                conn.execute(text(stmt))
+            index = conn.execute(text(
+                "SELECT 1 FROM pg_indexes WHERE tablename = 'vouchers' "
+                "AND indexname = 'ix_vouchers_corrects_id'")).first()
+            key = conn.execute(text(
+                "SELECT confdeltype FROM pg_constraint WHERE conrelid = 'vouchers'::regclass "
+                "AND contype = 'f' AND conname = 'fk_vouchers_corrects'")).scalar()
+            # Ein zweiter Lauf legt nichts doppelt an und scheitert nicht.
+            for stmt in main._RAW_INDEX_SAFETY_NET:
+                conn.execute(text(stmt))
+            keys = len(conn.execute(text(_CORRECTS_FKS)).scalars().all())
+        finally:
+            tx.rollback()
+    assert index is not None, "Ohne Netz-Eintrag fehlt ix_vouchers_corrects_id."
+    assert key == "n", "Ohne Netz-Eintrag fehlt der Fremdschlüssel (ON DELETE SET NULL)."
+    assert keys == 1, f"Der zweite Lauf hat einen zweiten Fremdschlüssel angelegt ({keys})."

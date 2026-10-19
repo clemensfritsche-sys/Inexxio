@@ -385,7 +385,11 @@ def _mark_read(db: Session, mb: Mailbox) -> None:
     for p in db.query(MessageParty).filter(
             MessageParty.message_id.in_([m.id for m in msgs])).all():
         roles[p.message_id][p.role].append(p.person_object_id)
-    done = [m for m in msgs if m.id in answered(db, msgs, roles)]
+    # **Einmal gefragt, nicht je Nachricht** (Cleanup B-50): als Bedingung im
+    # Ausdruck lief ``answered`` für jede Mail erneut über alle – quadratisch, und das
+    # alle 30 Sekunden je Postfach.
+    replied = answered(db, msgs, roles)
+    done = [m for m in msgs if m.id in replied]
     token = _access(mb) if done else None
     if not token:
         return

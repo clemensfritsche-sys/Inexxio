@@ -97,8 +97,9 @@ _COLUMN_SAFETY_NET = (
     # keine Einträge für die Tabellen entfernter Bereiche (sie selbst bleiben bis zum
     # Drop, ``docs/backlog.md``).
     # ►► **Zoll und Lieferbedingung** (Migration 131). Sie stehen hier, weil eine Spalte,
-    #    die **nur** in einer Migration steht, die dev-Datenbank nie erreicht – die Lehre
-    #    aus #778, und beim Ausfall zählt ohnehin nur dieser Weg (Migration 090).
+    #    die **nur** in einer Migration steht, eine Datenbank nicht erreicht, auf der
+    #    ``alembic upgrade head`` scheitert (``start.sh`` startet dann trotzdem) – und beim
+    #    Ausfall zählt nur dieser Weg (Migration 090).
     ("articles", "hs_code", "VARCHAR(12)"),
     ("articles", "origin_country", "VARCHAR(2)"),
     # Migration 132 – wer den Beleg stellt (Testnotiz #905).
@@ -162,9 +163,10 @@ _COLUMN_SAFETY_NET = (
 #: dreistelligen Betrag (KWD) fehlt danach die letzte Stelle, und niemand sieht es.
 #:
 #: Dieselbe Lehre wie bei den Indizes (Testnotiz #778): **eine Typänderung, die nur in
-#: einer Migration steht, erreicht die dev-Datenbank nie** – dort läuft kein
-#: ``alembic upgrade``. Geprüft wird vorher, damit nicht bei jedem Start eine Tabelle
-#: umgeschrieben wird.
+#: einer Migration steht, erreicht keine Datenbank, auf der ``alembic upgrade head``
+#: scheitert** – ``start.sh`` fährt es bei jedem Start, startet bei einem Fehler aber
+#: trotzdem. Geprüft wird vorher, damit nicht bei jedem Start eine Tabelle umgeschrieben
+#: wird.
 _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
     ("voucher_entries", "amount", 18, 4),
     ("voucher_lines", "price", 18, 4),
@@ -176,8 +178,8 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
 # aufgebaut, und ein Netz-Eintrag würde eine entfernte Spalte wieder anlegen – das Netz
 # darf reparieren, aber nicht auferstehen lassen.
 
-#: **Spalten, die ihre ``NOT NULL``-Sperre verlieren.** Das Gegenstück zum Drop-Netz:
-#: eine Spalte, die das Modell nicht mehr kennt, deren Sperre aber noch steht, lässt
+#: **Spalten, die ihre ``NOT NULL``-Sperre verlieren.** Eine Spalte, die das Modell nicht
+#: mehr kennt, deren Sperre aber noch steht, lässt
 #: **jedes** Insert auflaufen – und zwar sofort und für alle. Sie zu lösen ist der erste
 #: von zwei Schritten (der Drop folgt im nächsten Deploy, wenn keine Vorgänger-Revision
 #: sie mehr schreibt). Idempotent.
@@ -215,58 +217,12 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     # auflaufen. Die Tabellen bleiben stehen (Zwei-Deploy-Regel).
 )
 
-_DROP_COLUMN_SAFETY_NET = (
-    # Gesellschaften (Migration 091): der «Betreiber» ist WÄHLBAR (``is_operator`` mit eigenem
-    # Unique-Index) statt das starre «Hauptsitz»-Flag. ``is_primary`` ist tot – auch im Netz
-    # gedroppt, falls Alembic 091 nicht durchlief (belt-and-suspenders).
-    ("company_settings", "is_primary"),
-    # Reste des per Notfall-Revert (#85) zurückgenommenen Konzepts «Standort als Instanz».
-    ("articles", "is_location"),
-    ("articles", "max_load_kg"),
-    # Dokument-Redesign: das Dokument wurde im Auftrag verfasst (Nummer = Instanz).
-    ("articles", "physical"),
-    # Der Auftragsstatus ist ABGELEITET (Migration 107, ``process.order_status``) – eine
-    # Spalte daneben wäre der zweite Ort, an dem er gesetzt wird.
-    ("orders", "status"),
-    # Dasselbe eine Ebene tiefer (Migration 107): eine Instanz ist eine Gruppe – ihren
-    # Zustand leiten ihre Einzelinstanzen ab (``instances.status_of``). Die Spalte stand
-    # auf ``new`` und wurde nie geschrieben.
-    ("instances", "status"),
-    # Der Modulname (Migration 108): ein Modul heisst nach seinem TYP, und als Identität
-    # taugte ein Name nie – die ``id`` ist es. Das Pflichtfeld war zugleich die Quelle
-    # der Meldung «String should have at least 1 character».
-    ("process_steps", "name"),
-    ("article_process_steps", "name"),
-    # Die Erfassungsmaske am Artikel (Migration 106): was erfasst wird, sagt das **Modul**.
-    # Am Artikel war es eine zweite Stelle für dieselbe Frage – und sie hing an keinem
-    # Prozess. Auch im Netz gedroppt, falls Alembic 106 nicht durchlief.
-    ("articles", "capture_fields"),
-    # ►► **Der Folge-Deploy der Aufräumrunde (Migration 120).** ◄◄
-    #
-    # Zweiter Schritt der Zwei-Deploy-Regel: im Aufräum-Deploy verloren diese Spalten ihr
-    # Mapping, jetzt fallen sie. Jede gehört zu einem Bereich, den es nicht mehr gibt
-    # (``docs/attic.md``) – Verkauf/Shop, Zahlungen, Dokumente – bzw. zu einem Umbau am
-    # Beschaffungs-Beleg (die Menge ist abgeleitet, 115; die Zeilen sagen was, 116).
-    ("articles", "procurement_mode"),
-    ("articles", "default_supplier_id"),
-    ("articles", "default_webshop_url"),
-    ("articles", "sales_published"),
-    ("articles", "sales_visibility"),
-    ("articles", "sales_fulfillment"),
-    ("articles", "sales_content"),
-    ("company_settings", "logo_path"),
-    ("company_settings", "stripe_publishable_key"),
-    ("company_settings", "hcaptcha_site_key"),
-    ("company_settings", "shop_currencies"),
-    ("company_settings", "shop_country_currency"),
-    ("company_settings", "shop_default_currency"),
-    ("company_settings", "payments_provider"),
-    ("company_settings", "pricing_zone_factors"),
-    ("company_settings", "infra_monthly_chf"),
-    ("company_settings", "legal_documents"),
-    ("company_settings", "default_receiving_location_id"),
-    ("user_profiles", "stripe_customer_id"),
-)
+# ►► **Ein Drop-Netz gibt es nicht mehr** (Cleanup Oktober 2026, B-22). Es lief bei jedem
+#    Start ``ALTER TABLE … DROP COLUMN IF EXISTS`` über 28 Spalten, die die Migrationen
+#    091–120 längst gedroppt haben – und jedes davon nimmt einen ACCESS-EXCLUSIVE-Lock auf
+#    seine Tabelle, auch wenn es nichts zu tun gibt. **Geschützt hat es nie etwas**: eine
+#    Spalte ohne Mapping stört keine Abfrage, und eine ``NOT NULL`` ohne Vorgabe löst das
+#    ``_NULLABLE_SAFETY_NET`` darüber. Der Drop selbst ist der Schritt einer Migration.
 
 # Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes
 # nur für NEUE Tabellen an – auf bestehenden Tabellen müssen sie idempotent
@@ -287,7 +243,9 @@ _INDEX_SAFETY_NET = (
 # Roh-Indizes und CHECKs, die ``create_all`` nicht nachzieht (es legt sie nur mit einer
 # *neuen* Tabelle an). **Die Regel (#778):** jeder Index und jeder CHECK, den eine
 # Migration *nach* dem Entstehen der Tabelle geändert hat, gehört in dieses Netz – sonst
-# gilt er ausschliesslich dort, wo Alembic läuft. Ersetzt wird nur, was noch nicht die
+# gilt er ausschliesslich dort, wo Alembic durchläuft. ``start.sh`` fährt
+# ``alembic upgrade head`` bei **jedem** Start (auch auf dev); scheitert es (z. B. an einer
+# unbekannten Revision, #778), startet die App trotzdem, und dann zählt nur dieses Netz. Ersetzt wird nur, was noch nicht die
 # gewünschte Form hat: ein bedingungsloser DROP nähme einen Riegel für die Dauer der
 # Anweisung weg.
 _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
@@ -298,7 +256,7 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     #    abdeckt (``sync_lines`` läuft bei jeder Anzeige). ``create_all`` legt sie mit der
     #    Tabelle an; hier stehen sie für den Fall, dass die Tabelle schon ohne sie
     #    existiert – die Lehre aus #778: eine Index-Änderung, die **nur** in einer
-    #    Migration steht, erreicht die dev-Datenbank nie.
+    #    Migration steht, fehlt überall dort, wo ``alembic upgrade head`` scheitert.
     "DO $$ BEGIN IF to_regclass('public.vouchers') IS NOT NULL THEN "
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_step "
     "ON vouchers (step_id) WHERE is_active; END IF; END $$;",
@@ -357,6 +315,26 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE conname='ck_instance_units_one_place') THEN "
     "ALTER TABLE instance_units ADD CONSTRAINT ck_instance_units_one_place "
     "CHECK (place_object_id IS NULL OR place_unit_id IS NULL); END IF; END $$;",
+    # ►► **Der Korrekturverweis** (Migration 138): Index und Fremdschlüssel auf
+    #    ``vouchers.corrects_id``. Kam die Spalte über das Spalten-Netz, war sie ein blankes
+    #    ``BIGINT`` – ohne Index (jede Frage «wer korrigiert diesen Beleg?» ein Seq-Scan)
+    #    und ohne den Riegel, der einen Verweis auf einen gelöschten Beleg auf ``NULL``
+    #    setzt (Cleanup B-52). Der Fremdschlüssel wird nur angelegt, wo **keiner** auf der
+    #    Spalte steht (``create_all`` nennt ihn anders als die Migration), und in einem
+    #    eigenen Block: verwaiste Altdaten melden sich als Warnung, statt das ganze Netz
+    #    zurückzurollen.
+    "DO $$ BEGIN IF to_regclass('public.vouchers') IS NOT NULL "
+    "AND EXISTS (SELECT 1 FROM information_schema.columns "
+    "WHERE table_name='vouchers' AND column_name='corrects_id') THEN "
+    "CREATE INDEX IF NOT EXISTS ix_vouchers_corrects_id ON vouchers (corrects_id); "
+    "IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_attribute a "
+    "ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
+    "WHERE c.conrelid = 'public.vouchers'::regclass AND c.contype = 'f' "
+    "AND a.attname = 'corrects_id') THEN "
+    "BEGIN ALTER TABLE vouchers ADD CONSTRAINT fk_vouchers_corrects "
+    "FOREIGN KEY (corrects_id) REFERENCES vouchers (id) ON DELETE SET NULL; "
+    "EXCEPTION WHEN others THEN RAISE WARNING 'fk_vouchers_corrects: %', SQLERRM; END; "
+    "END IF; END IF; END $$;",
     # Die Dublettensperre der Postfach-Abgleichs (Migration 145) – ohne sie legt ein
     # zweiter Abgleich dieselbe Mail ein zweites Mal an.
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_rfc_id ON messages (rfc_id) "
@@ -365,26 +343,23 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE gmail_id IS NOT NULL",
 )
 
+#: Ein Auftrag heisst nach seiner Objektnummer, wo kein Name dasteht (Migration 107/108) –
+#: billig und selbstbegrenzend.
+#:
+#: **Den Artikel-Status schreibt der Start nicht mehr** (Cleanup Oktober 2026, B-20): die
+#: Spalte ``articles.status`` hat ihr Mapping seit Migration 121 verloren (der Zustand ist
+#: die Projektion von ``replaced_by_id``), niemand liest sie, und ihr Drop steht im
+#: Backlog. Sie bei jedem Start nachzuführen hielt eine Angabe frisch, die es nicht mehr
+#: gibt.
+_ORDER_NAME_FIXES = (
+    "UPDATE orders SET name = 'Auftrag ' || object_id WHERE name IS NULL OR name = ''",
+)
+
 # Gesellschaften (Migration 091): genau EIN Betreiber. Wurde die Spalte gerade erst vom
 # Sicherheitsnetz ergänzt (Default ``false``), trüge sonst KEINE Zeile die Markierung –
 # lesend fiele ``sites.find_operator`` zwar auf die kleinste ``id`` zurück, aber der
 # gewählte Betreiber wäre nicht persistent. Wiederholbar; ein bereits gewählter Betreiber
 # bleibt unberührt. Der partielle Unique-Index erzwingt «höchstens einer».
-#: Statuswerte auf die EINE Liste ziehen (Migration 107), falls Alembic nicht durchlief.
-#: Ein Artikel mit ``released`` wäre sonst ein Wert, den die Anzeige nicht kennt – und
-#: der Feed zeigte den rohen Schlüssel statt eines Wortes.
-#: **Der Artikel-Status ist abgeleitet** (Testnotiz #773) – die Spalte trägt nur noch
-#: Altbestand. Geheilt wird darum genau das, was ohne den entfernten Schalter für immer
-#: stillgelegt bliebe: ein «inaktiv», das **kein** Nachfolger erklärt. Wo einer steht,
-#: bleibt der Wert stehen; er stimmt dann mit der Ableitung überein.
-_ARTICLE_STATUS_FIXES = (
-    "UPDATE articles SET status = 'freigegeben' "
-    "WHERE status <> 'freigegeben' AND replaced_by_id IS NULL",
-    "UPDATE articles SET status = 'inaktiv' "
-    "WHERE status <> 'inaktiv' AND replaced_by_id IS NOT NULL",
-    "UPDATE orders SET name = 'Auftrag ' || object_id WHERE name IS NULL OR name = ''",
-)
-
 _COMPANY_DATA_FIXES = (
     "UPDATE company_settings SET is_operator = true "
     "WHERE id = (SELECT min(id) FROM company_settings WHERE is_own) "
@@ -409,18 +384,9 @@ def _repair(conn, name: str):
         print(f"WARNING: Daten-Reparatur «{name}» fehlgeschlagen: {e}", flush=True)
 
 
-def _repair_article_status(conn, tables: set[str], insp) -> None:
-    # **Auch die Spalte wird geprüft, nicht nur die Tabelle.** ``articles.status``
-    # hat ihr Mapping verloren (Testnotiz #773) und fällt im Folge-Deploy – eine
-    # Reparatur, die nur nach der Tabelle fragt, wäre danach die Anweisung, die
-    # das ganze Netz reisst.
-    for stmt in _ARTICLE_STATUS_FIXES:
-        table = stmt.split()[1]
-        if table not in tables:
-            continue
-        columns = {c["name"] for c in insp.get_columns(table)}
-        if all(word in columns for word in ("status", "replaced_by_id")) \
-                or table != "articles":
+def _repair_order_names(conn, tables: set[str], insp) -> None:
+    if "orders" in tables:
+        for stmt in _ORDER_NAME_FIXES:
             conn.execute(text(stmt))
 
 
@@ -454,8 +420,8 @@ def _repair_vouchers(conn, tables: set[str], insp) -> None:
     if "vouchers" in tables and "voucher_entries" in tables:
         # ►►► **Die Rechnung wandert an ihren Beleg** (Migration ``138``). ◄◄◄
         #
-        # Die dev-Datenbank fährt kein ``alembic upgrade head`` (Testnotiz #778):
-        # dort zieht das Spalten-Netz die acht neuen Spalten **leer** nach, und die
+        # Scheitert ``alembic upgrade head`` beim Start (Testnotiz #778), zieht das
+        # Spalten-Netz die acht neuen Spalten **leer** nach, und die
         # alten Forderungs-Zeilen blieben stehen. Der Dienst liest seit dem Umbau
         # **jede aktive Zeile als Zahlung** – jede alte Rechnung wäre damit ein
         # Geldeingang, und der offene Betrag stünde im Minus. Das ist kein
@@ -499,8 +465,8 @@ def _repair_people(conn, tables: set[str], insp) -> None:
         # zeigt dieselbe Anschrift zweimal.
         #
         # Die Anweisungen stehen in ``services/people.repair_sql`` und werden von
-        # der Migration **und** von hier gelesen; die dev-Datenbank fährt kein
-        # ``alembic upgrade head`` (#778). Beide sind **selbstbegrenzend**.
+        # der Migration **und** von hier gelesen – für eine Datenbank, auf der
+        # ``alembic upgrade head`` scheitert (#778). Beide sind **selbstbegrenzend**.
         up_cols = {r[0] for r in conn.execute(text(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name='user_profiles'"))}
@@ -555,13 +521,13 @@ def _repair_companies(conn, tables: set[str], insp) -> None:
             # Alt-Dubletten auseinander; vorher angelegt, scheiterte der Index an
             # genau ihnen. Eine Prüfung im Dienst fängt zwei gleichzeitige Anlagen
             # nicht ab, der Index schon (#778: eine Index-Regel, die nur in einer
-            # Migration steht, erreicht dev nie).
+            # Migration steht, fehlt, wo ``alembic upgrade head`` scheitert).
             for stmt in sites.KEY_INDEXES:
                 conn.execute(text(stmt))
 
 
 _DATA_REPAIRS = (
-    ("articles.status", _repair_article_status),
+    ("orders.name", _repair_order_names),
     ("instance_units.status", _repair_unit_status),
     ("vouchers", _repair_vouchers),
     ("user_profiles", _repair_people),
@@ -613,16 +579,6 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"ALTER TABLE {table} ALTER COLUMN {col} DROP NOT NULL"
                     ))
-            # ►►► **Erst übernehmen, dann fallen lassen** (CRM Schritt 1): die Firmentexte
-            # an der Person werden zu Firmen-Datensätzen, bevor das Netz ihre Spalten
-            # dropt. Selbstbegrenzend – ohne die Spalten gibt es nichts zu tun.
-            if "user_profiles" in tables and "company_settings" in tables:
-                people.move_company_texts(conn)
-                for col in people.MOVED_COLUMNS:
-                    conn.execute(text(f"ALTER TABLE user_profiles DROP COLUMN IF EXISTS {col}"))
-            for table, col in _DROP_COLUMN_SAFETY_NET:
-                if table in tables:
-                    conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
             for index_name, table, col in _INDEX_SAFETY_NET:
                 if table in tables and col in {c["name"] for c in insp.get_columns(table)}:
                     conn.execute(text(
