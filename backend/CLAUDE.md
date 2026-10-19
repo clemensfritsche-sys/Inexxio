@@ -125,7 +125,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **92 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **91 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -190,7 +190,6 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | Bestätigen → angemeldet (Quelle aus dem Link) → `/newsletter/bestaetigt` |
 | GET · POST | `/api/v1/newsletter/unsubscribe?t=` | – (signierter Link) | GET zeigt einen Knopf, POST meldet ab; One-Click (RFC 8058) direkt |
 | GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
-| GET | `/api/v1/erp/newsletter/subscribers` | staff | Alle Angemeldeten (Empfänger eines Newsletters) |
 | GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
 | POST | `/api/v1/erp/newsletter/{object_id}/invite` · `/unsubscribe` | staff | Bitte um Bestätigung schicken / abmelden (anmelden kann das ERP niemanden) |
 | GET · POST · DELETE | `/api/v1/feedback` | user | Testnotizen (nur Testumgebung); `DELETE ?scope=done\|all` räumt die eigenen |

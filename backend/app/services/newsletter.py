@@ -79,19 +79,6 @@ def history(db: Session, oid: int) -> list[NewsletterConsent]:
             .order_by(NewsletterConsent.id.desc()).all())
 
 
-def subscribers(db: Session) -> list[UserProfile]:
-    """Alle, die heute angemeldet sind – die Empfänger eines Newsletters."""
-    last = (db.query(func.max(NewsletterConsent.id))
-            .filter(NewsletterConsent.is_active.is_(True))
-            .group_by(NewsletterConsent.person_object_id))
-    oids = [oid for (oid,) in db.query(NewsletterConsent.person_object_id).filter(
-        NewsletterConsent.id.in_(last), NewsletterConsent.subscribed.is_(True)).all()]
-    if not oids:
-        return []
-    return (db.query(UserProfile).filter(UserProfile.object_id.in_(oids))
-            .order_by(UserProfile.last_name, UserProfile.first_name).all())
-
-
 def set_state(db: Session, oid: int, on: bool, source: str,
               actor_id: Optional[int] = None) -> bool:
     """**Die eine Schreibstelle.** Eine neue Zeile, wenn sich der Zustand ändert – sonst

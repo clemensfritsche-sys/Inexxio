@@ -72,7 +72,6 @@ def test_two_states_and_every_change_is_a_row(world):
     rows = nl.history(db, p.object_id)
     assert [r.subscribed for r in rows] == [False, True]
     assert rows[1].wording == nl.WORDING and rows[0].wording is None
-    assert p.object_id not in {u.object_id for u in nl.subscribers(db)}
     with pytest.raises(ValueError):
         nl.set_state(db, p.object_id, True, "erfunden")
 

@@ -1547,26 +1547,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/newsletter/subscribers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Subscribers
-         * @description Alle Angemeldeten – die Empfänger eines Newsletters.
-         */
-        get: operations["subscribers_api_v1_erp_newsletter_subscribers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/newsletter/{object_id}": {
         parameters: {
             query?: never;
@@ -7543,26 +7523,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    subscribers_api_v1_erp_newsletter_subscribers_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonRef"][];
                 };
             };
         };

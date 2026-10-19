@@ -80,9 +80,11 @@ const data = {
  */
 const shell = {
   _comment:
-    'Generiert aus website/src/config/site.mjs mit «npm run export:erp» – nicht von Hand ändern. Nur Name und Satz für die Metadaten; Kopf und Fuss liefert scripts/export-shell.mjs.',
+    'Generiert aus website/src/config/site.mjs mit «npm run export:erp» – nicht von Hand ändern. Name und Satz für die Metadaten, Fuss des Newsletters; Kopf und Fuss liefert scripts/export-shell.mjs.',
   brand: { name: site.brand.name, full: plain(site.brand.full), legalName: plain(site.brand.legalName) },
   claim: plain(site.footer.claim),
+  /** Der Fuss eines Newsletters – die ERP-Eingabe zeigt ihn so, wie er hinausgeht. */
+  newsletter: { footer: plain(newsletter.footer), unsubscribe: plain(newsletter.unsubscribe) },
 };
 
 const outputs = [

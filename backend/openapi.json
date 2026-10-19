@@ -4254,37 +4254,6 @@
         ]
       }
     },
-    "/api/v1/erp/newsletter/subscribers": {
-      "get": {
-        "tags": [
-          "newsletter"
-        ],
-        "summary": "Subscribers",
-        "description": "Alle Angemeldeten – die Empfänger eines Newsletters.",
-        "operationId": "subscribers_api_v1_erp_newsletter_subscribers_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PersonRef"
-                  },
-                  "type": "array",
-                  "title": "Response Subscribers Api V1 Erp Newsletter Subscribers Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/erp/newsletter/{object_id}": {
       "get": {
         "tags": [

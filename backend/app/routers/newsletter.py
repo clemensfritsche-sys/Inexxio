@@ -25,7 +25,6 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..domain import newsletter as dn
 from ..models import UserProfile
-from ..schemas.communication import PersonRef
 from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
 from ..services import geoip, mailbox, newsletter as svc
 from ..services.people import normalize_email
@@ -151,13 +150,6 @@ def set_mine(data: NewsletterIn, db: Session = Depends(get_db),
 
 
 # ── ERP ─────────────────────────────────────────────────────────────────────
-
-@erp_router.get("/subscribers", response_model=list[PersonRef])
-def subscribers(db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
-    """Alle Angemeldeten – die Empfänger eines Newsletters."""
-    return [PersonRef(object_id=u.object_id, name=u.display_name, email=u.email)
-            for u in svc.subscribers(db)]
-
 
 @erp_router.get("/{object_id}", response_model=NewsletterState)
 def person_state(object_id: int, db: Session = Depends(get_db),

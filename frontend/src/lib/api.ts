@@ -13,7 +13,7 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
-  Message, MessageIn, MessageChannel, Mailbox, OpenCount, NewsletterState, PersonRef,
+  Message, MessageIn, MessageChannel, Mailbox, OpenCount, NewsletterState,
   ArticleInput,
   ArticleNameSuggestion,
   Instance,
@@ -515,11 +515,6 @@ class ApiClient {
 
   unsubscribeNewsletter(objectId: number): Promise<NewsletterState> {
     return this.post(`/api/v1/erp/newsletter/${objectId}/unsubscribe`, {});
-  }
-
-  /** Alle Angemeldeten – die Empfänger eines Newsletters. */
-  newsletterSubscribers(): Promise<PersonRef[]> {
-    return this.get('/api/v1/erp/newsletter/subscribers');
   }
 
   // ─── ERP Articles ──────────────────────────────────────────────────────────

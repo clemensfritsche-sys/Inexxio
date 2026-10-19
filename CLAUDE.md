@@ -209,8 +209,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   `messages.newsletter`) – im Verlauf steht, was hinausging; der Verlauf zeigt die Gruppe
   einmal («an 23»). Hinaus gehen sie über den Abgleich (`mailbox.send_due`, 20 je Lauf);
   ein Newsletter prüft die Einwilligung beim Senden noch einmal. Die Empfänger wählt heute
-  der Mensch (`MessageIn.to` = Liste von Personen, «Alle Angemeldeten»); eine Auswahl per
-  KI setzt später genau dort an.
+  der Mensch von Hand (`MessageIn.to` = Liste von Personen, kein Filter); eine Auswahl per
+  KI setzt später genau dort an. In der Eingabe stehen alle fünf Arten in einer Leiste
+  (Mail · Rundschreiben · Newsletter | Anruf · Intern), Anrede und Newsletter-Fuss fest
+  sichtbar.
 - **Newsletter «Post aus der Werkstatt»** (`domain/newsletter.py`, `services/newsletter.py`,
   `routers/newsletter.py`): **Einwilligung ist ein Nachweis** (`newsletter_consents`,
   append-only, Quelle + Wortlaut + Zeitpunkt); angemeldet = jüngste Zeile, **zwei

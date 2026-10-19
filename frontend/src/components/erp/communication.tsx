@@ -51,15 +51,18 @@
  * offen/überfällig – geschrieben wird immer von Person zu Person.
  *
  * ►►► **Drei Versandarten einer E-Mail: Mail · Rundschreiben · Newsletter.** ◄◄◄ Bcc bleibt
- * Bcc. Ein **Rundschreiben** geht an jede Person einzeln, mit ihrer Anrede – Information,
+ * Bcc. Alle fünf Arten stehen in EINER Leiste (`KindBar`): Mail · Rundschreiben · Newsletter |
+ * Anruf · Intern. Ein **Rundschreiben** geht an jede Person einzeln, mit ihrer Anrede – Information,
  * keine Werbung. Ein **Newsletter** ebenso, aber nur an Angemeldete und mit Abmeldelink;
- * das Tor sitzt im Dienst. Im Verlauf steht beides **einmal** («Rundschreiben · an 23»),
+ * das Tor sitzt im Dienst. Die Anrede («Guten Tag Vorname Name») und der Fuss des Newsletters
+ * stehen fest in der Eingabe – man sieht, wie es hinausgeht. Im Verlauf steht beides **einmal** («Rundschreiben · an 23»),
  * bei jeder Empfängerin ihre eigene Kopie. Gewählt wird ausdrücklich, Vorgabe ist Mail.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDownUp, Check, ChevronDown, ChevronUp, Clock, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
-  Newspaper, Paperclip, Phone, Reply, Send, Users, X } from 'lucide-react';
+  Newspaper, Paperclip, Phone, Reply, Send, X } from 'lucide-react';
+import meta from '@/lib/site-meta.json';
 import { MODULE_TONE } from '@/lib/modules';
 import { api } from '@/lib/api';
 import { useSearch } from '@/lib/use-search';
@@ -73,11 +76,9 @@ type Mode = 'email' | 'phone' | 'internal';
 /** Die Versandart einer E-Mail – Spiegel von ``domain/communication.DELIVERIES``. */
 type Delivery = MessageIn['delivery'];
 const DELIVERIES: { key: Delivery; label: string; tip: string }[] = [
-  { key: 'mail', label: 'Mail', tip: 'Wie gewohnt: wer im An und Cc steht, sieht einander' },
-  { key: 'circular', label: 'Rundschreiben',
-    tip: 'Information an mehrere: jede Person bekommt ihre eigene Mail mit Anrede – niemand sieht die anderen' },
-  { key: 'newsletter', label: 'Newsletter',
-    tip: 'Werbung: einzeln, nur an Angemeldete, mit Abmeldelink' },
+  { key: 'mail', label: 'Mail', tip: 'Normale E-Mail' },
+  { key: 'circular', label: 'Rundschreiben', tip: 'Einzeln an mehrere, mit Anrede' },
+  { key: 'newsletter', label: 'Newsletter', tip: 'Werbung, nur an Angemeldete' },
 ];
 
 /** Alle, die das Zeichen im Feed betrifft, hören hierauf und laden die Zahlen neu. */
@@ -87,9 +88,15 @@ export const MESSAGES_CHANGED = 'inexxio:messages';
 export const ERP_NOTICE = 'inexxio:notice';
 
 const KIND_ICON = { email: Mail, phone: Phone, internal: Lock } as const;
-const MODES: { key: Mode; label: string }[] = [
-  { key: 'email', label: 'E-Mail' }, { key: 'phone', label: 'Anruf' },
-  { key: 'internal', label: 'Intern' },
+/** ►►► **EINE Leiste für Art und Versand**: Mail · Rundschreiben · Newsletter | Anruf · Intern. ◄◄◄
+ *  Eine Wahl setzt beides (`mode` und `delivery`) – eine Zeile «Versand» gibt es nicht. */
+type Kind = { key: string; mode: Mode; delivery: Delivery; label: string; tip: string;
+  Icon: typeof Mail; sep?: boolean };
+const KINDS: Kind[] = [
+  ...DELIVERIES.map((d) => ({ ...d, mode: 'email' as Mode, delivery: d.key,
+    Icon: d.key === 'circular' ? Megaphone : d.key === 'newsletter' ? Newspaper : Mail })),
+  { key: 'phone', mode: 'phone', delivery: 'mail', label: 'Anruf', tip: 'Gespräch festhalten', Icon: Phone, sep: true },
+  { key: 'internal', mode: 'internal', delivery: 'mail', label: 'Intern', tip: 'Nur im Haus sichtbar', Icon: Lock },
 ];
 
 // ─── Verlauf ────────────────────────────────────────────────────────────────
@@ -554,25 +561,46 @@ const LATER = [
     const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); return d; } },
 ];
 
-function ModeSwitch({ mode, onPick }: { mode: Mode; onPick: (m: Mode) => void }) {
+/** Die Leiste: die gewählte Art trägt Symbol und Wort (dunkle Pille), die übrigen nur ihr
+ *  Symbol – der Name steht im Hover. So bleibt sie kurz. */
+function KindBar({ value, onPick }: { value: string; onPick: (k: Kind) => void }) {
   return (
-      <div role="radiogroup" aria-label="Art" style={{ display: 'inline-flex', background: 'var(--bg-3)',
-        borderRadius: 8, padding: 3, gap: 2, flexWrap: 'wrap' }}>
-        {MODES.map(({ key, label }) => {
-          const Icon = KIND_ICON[key];
-          const on = mode === key;
-          return (
-            <button key={key} type="button" aria-pressed={on} onClick={() => onPick(key)}
-              style={{ border: 0, borderRadius: 6, height: 30, padding: '0 12px', fontSize: 13,
-                fontWeight: on ? 600 : 500, display: 'inline-flex', alignItems: 'center', gap: 6,
-                cursor: 'pointer', background: on ? 'var(--bg-1)' : 'transparent',
-                color: on ? 'var(--fg-1)' : 'var(--fg-2)',
-                boxShadow: on ? '0 1px 2px rgba(10,10,11,.08)' : 'none' }}>
-              <Icon size={14} />{label}
+    <div role="radiogroup" aria-label="Art" style={{ display: 'inline-flex', alignItems: 'center', gap: 2,
+      maxWidth: '100%', flexWrap: 'wrap' }}>
+      {KINDS.map((k) => {
+        const on = value === k.key;
+        return (
+          <span key={k.key} style={{ display: 'inline-flex', alignItems: 'center' }}>
+            {k.sep && <span aria-hidden="true" style={{ width: 1, height: 18, background: 'var(--border-1)', margin: '0 6px' }} />}
+            <button type="button" role="radio" aria-checked={on} aria-label={k.label}
+              data-tip={on ? k.tip : `${k.label} – ${k.tip}`} onClick={() => onPick(k)}
+              style={{ border: 0, height: 30, padding: on ? '0 12px 0 10px' : '0 8px', borderRadius: 999,
+                font: 'inherit', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center',
+                gap: 6, cursor: 'pointer', transition: 'background .12s, color .12s',
+                background: on ? 'var(--fg-1)' : 'transparent', color: on ? '#fff' : 'var(--fg-3)' }}>
+              <k.Icon size={15} />{on && k.label}
             </button>
-          );
-        })}
-      </div>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** ►►► **Die Anrede steht IN der Nachricht, wie sie hinausgeht** – fest, nicht änderbar. ◄◄◄
+ *  Der Name ist ein Platzhalter, je Person eingesetzt (``domain.greeting``); im Hover die
+ *  echten Anreden. */
+function Greeting({ to }: { to: Person[] }) {
+  const names = to.slice(0, 4).map((p) => `Guten Tag ${p.name}`).join('\n')
+    + (to.length > 4 ? `\n… und ${to.length - 4} weitere` : '');
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', paddingTop: 10,
+      fontSize: 14, lineHeight: '20px', cursor: 'default', userSelect: 'none' }}>
+      <span>Guten Tag</span>
+      <span data-tip={to.length ? `Wird je Person eingesetzt:\n${names}` : 'Wird je Person eingesetzt'}
+        style={{ background: 'var(--bg-3)', color: 'var(--fg-2)', borderRadius: 4, padding: '0 6px' }}>
+        Vorname Name</span>
+    </div>
   );
 }
 
@@ -646,21 +674,6 @@ function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLat
   );
 }
 
-/** Die Versandart – ausdrücklich gewählt, Vorgabe ist Mail. Was jede tut, steht im Hover. */
-function DeliveryPick({ value, onPick }: { value: Delivery; onPick: (d: Delivery) => void }) {
-  return (
-    <span role="radiogroup" aria-label="Versand" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {DELIVERIES.map((d) => (
-        <button key={d.key} type="button" role="radio" aria-checked={value === d.key} data-tip={d.tip}
-          onClick={() => onPick(d.key)}
-          style={{ border: 0, height: 26, padding: '0 10px', borderRadius: 13, fontSize: 13,
-            cursor: 'pointer', background: value === d.key ? 'var(--fg-1)' : 'var(--bg-3)',
-            color: value === d.key ? '#fff' : 'var(--fg-1)' }}>{d.label}</button>
-      ))}
-    </span>
-  );
-}
-
 function Fields(p: {
   mode: Mode; me: Person; person: Person; channel?: MessageChannel; mails: MessageChannel[];
   setChannel: Set<string>;
@@ -674,17 +687,13 @@ function Fields(p: {
   fixed: boolean; locked: ReadonlySet<number>;
   later: string | null; setLater: Set<string | null>;
   incoming: boolean; setIncoming: Set<boolean>;
-  delivery: Delivery; setDelivery: Set<Delivery>;
+  delivery: Delivery;
 }) {
   const { mode, me, person, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc,
     showCc, setShowCc, showBcc, setShowBcc, subject, setSubject, topics, fixed, locked, later,
-    setLater, incoming, setIncoming, delivery, setDelivery } = p;
+    setLater, incoming, setIncoming, delivery } = p;
   // Rundschreiben und Newsletter gehen an jede Person einzeln – ohne Cc und Bcc.
   const single = mode === 'email' && delivery !== 'mail';
-  const [error, setError] = useState<string | null>(null);
-  const subscribers = () => api.newsletterSubscribers()
-    .then((list) => { setError(null); setTo(list.map((x) => ({ object_id: x.object_id, name: x.name }))); })
-    .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht geladen werden.'));
   const chip = (x: Person) => <span style={{ flex: 1, minWidth: 0 }}>
     <span style={CHIP}><span className="truncate">{x.name}</span></span></span>;
   // Wer beantwortet wird, lässt sich nicht entfernen – nur zwischen «An» und «Cc» schieben.
@@ -714,16 +723,8 @@ function Fields(p: {
           <ComposerRow label="Von"><From mails={mails} value={channel} onChange={setChannel} me={me} /></ComposerRow>
         )}
         {mode === 'phone' && <ComposerRow label="Von">{chip(incoming ? person : me)}{swap}</ComposerRow>}
-        {mode === 'email' && !fixed && (
-          <ComposerRow label="Versand"><DeliveryPick value={delivery} onPick={setDelivery} /></ComposerRow>
-        )}
         <ComposerRow label={single ? 'Einzeln an' : 'An'}>
           {mode === 'phone' ? chip(incoming ? me : person) : contact}
-          {delivery === 'newsletter' && mode === 'email' && (
-            <button type="button" onClick={() => void subscribers()} style={{ ...link, display: 'inline-flex',
-              alignItems: 'center', gap: 4 }} data-tip="Alle, die heute für den Newsletter angemeldet sind">
-              <Users size={13} />Alle Angemeldeten</button>
-          )}
           {/* Cc und Bcc wie in Gmail: ein Klick klappt das Feld auf, leer verlassen klappt es zu. */}
           {mode === 'email' && !single && (!showCc || !showBcc) && (
             <span style={{ display: 'inline-flex', gap: 8, flex: 'none' }}>
@@ -736,13 +737,6 @@ function Fields(p: {
             </span>
           )}
         </ComposerRow>
-        {single && (
-          <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '6px 0 0 92px' }}>
-            Jede Person bekommt ihre eigene Mail mit «Guten Tag Vorname Name» davor – niemand sieht die anderen.
-            {delivery === 'newsletter' && ' Nur an Angemeldete, mit Abmeldelink im Fuss.'}
-            {error && <span style={{ color: 'var(--danger)' }}> {error}</span>}
-          </p>
-        )}
         {mode === 'email' && !single && showCc && (
           <ComposerRow label="Cc"><People value={cc} onChange={setCc} locked={locked} onMove={toTo}
             moveTip="Ins «An» schieben" autoFocus={!cc.length} onLeave={() => setShowCc(false)} /></ComposerRow>
@@ -870,6 +864,13 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     if (m !== 'email') setDelivery('mail');
     if (!reply) setTo(m === 'internal' ? [] : [person]);
     else if (m === 'internal') setTo([]);
+  };
+  // Eine Wahl der Leiste setzt Art UND Versand. Rundschreiben oder Newsletter aus einer Antwort
+  // heraus beginnt eine neue Nachricht – eine Antwort ist immer eine Mail.
+  const pickKind = (k: Kind) => {
+    if (k.delivery !== 'mail' && reply) fresh();
+    pick(k.mode);
+    setDelivery(k.delivery);
   };
   // Die Versandart dieser Nachricht – eine Antwort und alles ausser E-Mail ist eine Mail.
   const kind: Delivery = mode === 'email' && !reply ? delivery : 'mail';
@@ -1045,7 +1046,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
           sie hierher zurück, und eine zweite Nachricht stünde dabei im Weg. */}
       <fieldset disabled={!!held} style={{ border: 0, margin: 0, padding: 0, minWidth: 0,
         opacity: held ? 0.5 : 1 }}>
-      <ModeSwitch mode={mode} onPick={pick} />
+      <KindBar value={mode === 'email' ? (reply ? 'mail' : delivery) : mode} onPick={pickKind} />
 
       {reply && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10,
@@ -1069,9 +1070,10 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
           showCc={showCc} setShowCc={setShowCc} showBcc={showBcc} setShowBcc={setShowBcc}
           subject={subject} setSubject={setSubject} topics={topics} fixed={fixed} locked={locked}
           later={later} setLater={setLater} incoming={incoming} setIncoming={setIncoming}
-          delivery={delivery} setDelivery={setDelivery} />
+          delivery={kind} />
       )}
       {reply && !edit && later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
+      {mode === 'email' && kind !== 'mail' && <Greeting to={to} />}
       <label htmlFor="msg-body" className="sr-only">Text</label>
       <textarea id="msg-body" ref={textRef} value={body} onChange={(e) => setBody(e.target.value)} rows={3}
         placeholder={held ? 'Wird gesendet …' : mode === 'phone' ? 'Was wurde besprochen?'
@@ -1079,6 +1081,11 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
             : `Nachricht an ${to[0]?.name ?? person.name} …`}
         style={{ width: '100%', border: 0, outline: 'none', resize: 'vertical', font: 'inherit',
           fontSize: 14, padding: '10px 0', minHeight: 64, background: 'transparent' }} />
+      {/* Der Fuss eines Newsletters – fest, wie er hinausgeht (der Link ist je Person). */}
+      {mode === 'email' && kind === 'newsletter' && (
+        <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: '0 0 10px', cursor: 'default' }}>
+          {meta.newsletter.footer} <span style={{ textDecoration: 'underline' }}>{meta.newsletter.unsubscribe}</span></p>
+      )}
       {error && <p style={{ color: 'var(--danger)', fontSize: 13, margin: '0 0 8px' }}>{error}</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" aria-label={mode === 'internal' ? 'Erinnerung' : 'Später'}
