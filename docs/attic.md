@@ -27,7 +27,8 @@ Die Tabellen `purchases`, `invoices`, `payments` stehen unverändert in der Date
 
 **Warum sie weg sind — es war eine Doppelung, kein Fehler.** Der Beleg war Angebot →
 Zusage → Erfüllung, mit Angebotsspiegel, Rechnungen, Zahlungen und Storno. Genau das ist
-der **Geldvorgang** (`domain/deal`, PROCESS_CORE §9.12), nur ohne die Bindung an Ware –
+der **Geldvorgang** (heute der Beleg: `domain/voucher`, `services/voucher`, PROCESS_CORE
+§9.15), nur ohne die Bindung an Ware –
 und damit auch für Miete, Lohn, Gebühr, Spesen und eine eingekaufte Spedition brauchbar.
 Zwei Maschinen für dasselbe Geschäft laufen beim ersten neuen Verb auseinander.
 
@@ -51,24 +52,37 @@ einem Quelltext-Wächter). An ihm war für die Löschung nichts zu tun.
   ein Artikelfeld daneben wäre die zweite Aussage.
 
 **Was NICHT mitging:** `services/stripe_pay.py` und `docs/stripe-setup.md`. Die Anbindung
-hängt jetzt am Geldvorgang (`deal.record_payment`), und die eine teuer bezahlte Lehre gilt
+hängt jetzt am Beleg (`voucher.record_payment`), und die eine teuer bezahlte Lehre gilt
 unverändert: **Adaptive Pricing bleibt aus**.
 
 **Der Weg zurück beginnt bei der Frage, nicht bei der Datei:** *was kann der Geldvorgang
 nicht, das ein eigenes Handels-Modul könnte?* Wenn die Antwort «nichts» ist, ist es kein
 Wiederaufbau, sondern ein Feld am Geldvorgang.
 
+## Kleinere Entfernungen (September/Oktober 2026)
+
+Je ein Satz, was es war, und wo die Entscheidung steht. Der Code liegt in der Git-Historie
+(`git log -- <Pfad>`).
+
+| Was | Datei(en) | Warum weg | Entscheidung nachlesen |
+|---|---|---|---|
+| **«Zahlung (alt)»** – das `deal`-Modul | `domain/deal` · `services/deal` · `schemas/deal` · `models/deal` · `deal-work.tsx` | Sein Nachfolger, der **Beleg** (`beleg`), stand bewusst daneben und kann alles in einer besseren Datenform (Testnotiz #960). Tabellen `deals`/`deal_entries` stehen noch. | `docs/history/2026-09-zahlungsmodul-vorgaenger.md` |
+| **«Ausliefern»** | Modul-Eintrag in `domain/modules.py` | Ein Scan und ein Statuswechsel auf `Verkauft` – «gehört jetzt jemand anderem» ist die Folge aus Bewegen und Zahlung, kein Vorgang. `Verkauft` bleibt im Katalog (Vokabular des Logs). | PROCESS_CORE §9.9 |
+| **Kontotyp** «Privat ↔ Geschäft» | `domain/accounts.py` · `lib/accounts.ts` · `assert_account` | Eine Angabe zu viel: ob jemand für eine Firma auftritt, sagt die **Zuordnung** zu einem Firmen-Datensatz (#1043, CRM Schritt 1). | `docs/history/2026-10-claude-md-chronik.md` («Kontotyp», «Die Rolle ist der Zugang») |
+| **Erfassungspunkt «Objekt scannen»** | `domain/capture_types/object_scan.py` | Der einzige Nachweis für Werkzeug/Prüfmittel – bewusst offen (`SYSTEM_LOGIC.md` §5.9); der Weg zurück beginnt bei der Modellfrage «Nutzung ohne Exklusivität». | `SYSTEM_LOGIC.md` §5.9 |
+| **Statistik + Einwilligungs-Dialog** (Plausible) | `track.ts`, Cookie-Dialog, `plausible_domain` | Das Skript lud nie; ohne Statistik braucht es keine Einwilligung (Cleanup 2026-10, E5). | `docs/cleanup-2026-10-analyse.md` |
+
 ## Der Stand
 
 | | |
 |---|---|
-| Git-Tag | `attic/pre-cleanup-2026-08` |
-| Commit | `676a68c` |
+| Commit | `676a68c` (massgeblich) |
+| Git-Tag | `attic/pre-cleanup-2026-08` – auf dem Remote **nicht nachweisbar** (Cleanup 2026-10, D-14: `git ls-remote` zeigt keine Tags; aus der Cloud-Umgebung lassen sie sich nicht pushen) |
 | Datum | 29. August 2026 |
 
 ```bash
-git show attic/pre-cleanup-2026-08:backend/app/services/selling.py
-git checkout attic/pre-cleanup-2026-08 -- backend/app/services/ai/   # nur zum Nachlesen
+git show 676a68c:backend/app/services/selling.py
+git checkout 676a68c -- backend/app/services/ai/   # nur zum Nachlesen
 ```
 
 ## Verkauf und Shop
@@ -128,8 +142,8 @@ Mensch bestätigt.
 ADR 005 bleibt gültig in seiner Kernaussage: **Versand wird abgeleitet, nicht bestellt** –
 aus Quelle und Ziel einer Bewegung folgt die Transportklasse, adressbasiert und ohne
 Geofence. Der Beleg selbst ist inzwischen anders gelöst: eine Sendung **ist ein Einkauf**
-(`domain/procurement.py`), ein Frachtführer ist ein Lieferant und der Tarifvergleich der
-Angebotsspiegel. Ein eigenes Versandmodul kommt darum nicht zurück; was fehlt, ist eine
+– ein Geldvorgang (Ausgabe, Modul «Zahlung») neben dem Bewegen-Modul –, ein Frachtführer
+ist ein Lieferant und der Tarifvergleich der Angebotsspiegel. Ein eigenes Versandmodul kommt darum nicht zurück; was fehlt, ist eine
 Angebotszeile, die eine Anbindung füllt statt ein Mensch.
 
 ## Der Ereignis-Strom
@@ -161,7 +175,8 @@ Wer einen dieser Bereiche neu baut, schreibt seinen Router – er legt keinen Sc
 
 ## Die Adress-Helfer für Etikett, Briefkopf und Bezahlung
 
-`services/address.py`: `of_user` · `one_line` · `lines` · `same` (+ `person_name`, `_norm`)
+`services/address.py`: `of_user` · `one_line` · `same` (+ `person_name`, `_norm`) – `lines`
+ist seither wieder in Gebrauch (Belegkopf)
 
 `address.py` war die eine Übersetzung zwischen den historisch verschiedenen Spaltennamen
 (`address_line1`/`postal_code` an der Person ↔ `street`+`street_nr`/`zip_code` am
@@ -174,7 +189,7 @@ Zwei Entscheidungen stecken darin und sind es wert, nicht neu hergeleitet zu wer
 * **`of_user` kapselt den Rückfall** «Lieferadresse, sonst Wohnadresse» (`ship_*` ≻ `*`).
   Er stand vorher an jeder Aufrufstelle einzeln ausgeschrieben – genau die Form, in der
   eine Adresse je nach Herkunft anders aussieht. Wer den Versand zurückbaut, holt die
-  Funktion aus dem Tag, statt den Rückfall wieder zu verteilen.
+  Funktion aus dem Commit `676a68c`, statt den Rückfall wieder zu verteilen.
 * **`same` wertet zwei Adressen als denselben Ort** (normalisiert, ohne Sonderzeichen) –
   und **ohne echte Ortsangabe bewusst NICHT als gleich**, sonst gingen zwei leere
   Adressen als derselbe Ort durch. Daran hing die Transportklasse (ADR 005): «zwei

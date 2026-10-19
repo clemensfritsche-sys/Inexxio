@@ -1,6 +1,6 @@
 """**Der Beleg — das neu aufgebaute Zahlungsmodul.**
 
-Die Regeln, die hier geprüft werden, sind die aus ``docs/neuaufbau-zahlungsmodul.md``.
+Die Regeln, die hier geprüft werden, sind die aus ``docs/history/2026-09-neuaufbau-zahlungsmodul.md``.
 Fachlich dieselben wie beim Vorgänger (``domain/deal``); **neu sind die drei Formen**, und
 genau die prüft dieser Wächter:
 

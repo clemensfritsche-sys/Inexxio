@@ -49,16 +49,25 @@ Design, in den Code übernommen). **Bevor** du UI schreibst oder änderst:
 - **Schweiz:** CHF mit `'`-Trennung (`9'999 CHF`), `25 m²`; **du** in Headlines/CTA,
   **Sie** im erklärenden Service-Text — nicht mischen.
 
-## Alt = deprecated (Migrationspfad)
-`slate-*`, `blue-600`, `brand-*` (blaue Alt-Marke), `fields.tsx tone='#2563eb'` sind
-Altlast (kompiliert noch, ist aber nicht Zielbild). **Beim Anfassen einer Komponente**
-auf Tokens migrieren — Mapping-Tabelle in `docs/design-system/README.md §4`. Kein
-Big-Bang; inkrementell mitziehen.
+## Die Alt-Palette ist weg
+`slate-*`, `blue-*`, `gray-*`, `#2563eb` und der `brand-*`-Vorrat sind aus dem Code
+entfernt – **0 Vorkommen**, auch als Hex (einzige Ausnahme: die Gebietskarte). Wer sie
+wieder einführt, führt eine zweite Farbsprache ein; die Zuordnung steht als Lesehilfe in
+`docs/design-system/README.md §4`.
 
 ## Bestehendes UI-Vokabular wiederverwenden
-Nicht neu erfinden: `frontend/src/components/erp/fields.tsx` liefert `StatusBadge`,
-`PanelHeader`, `SectionTitle`, `PrimaryButton`, `Tooltip`/`InfoHint`, `SearchSelect`
-u. a. Diese Bausteine nutzen (und schrittweise auf die Tokens ziehen), statt Eigenbau.
+Nicht neu erfinden:
+- `frontend/src/components/erp/fields.tsx` – Detail-Anatomie (`SPEC`, `SpecHead`,
+  `SpecSection`, `ReadField`, `DetailBody`/`DETAIL_MAXW`), `Label`, `inputCls`,
+  `SearchSelect`/`OptionRow`, `Segmented`, `StatusBadge`, `Tooltip`/`InfoHint`, `Dialog`,
+  `RecordIcon`, `DetailHeader`.
+- `frontend/src/components/erp/module-ui.tsx` – die Bauteile eines Prozessschrittmoduls
+  (`MODULE_CARD`, `ModuleSection`, `ActionButton`/`Actions`, `LedgerRow`/`RowActions`,
+  `Amount`, `ValueBar`, `ACT_H`, `FIELD_GAP`).
+- `frontend/src/components/erp/object-select.tsx` – jedes Referenzfeld («welchen Datensatz
+  meinst du?»), Kamera im Feld.
+- `frontend/src/lib/when.ts` – die einzige Datums-Ausgabe.
+Diese Bausteine nutzen, statt Eigenbau.
 
 ## Neuen Claude-Design-Export übernehmen
 `colors_and_type.css` ersetzen → Referenz/Doku in `docs/design-system/` aktualisieren

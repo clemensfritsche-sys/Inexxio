@@ -493,7 +493,7 @@ class Beleg(Module):
 
     Der kleinste gemeinsame Nenner von Einkauf, Verkauf, Spedition, Miete, Lohn und
     Vorauszahlung ist **nicht die Ware**, sondern Geld mit einer zweiten Partei
-    (``docs/neuaufbau-zahlungsmodul.md``). Die Datenform dazu:
+    (``docs/history/2026-09-neuaufbau-zahlungsmodul.md``). Die Datenform dazu:
 
     * der **Angebotsspiegel** ist eine Tabelle, keine Liste an einem Feld,
     * die **Position** gibt es in **einer** Form statt in dreien,

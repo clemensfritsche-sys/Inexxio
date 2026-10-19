@@ -863,7 +863,7 @@ def step_record(
 
 
 # ---------------------------------------------------------------------------
-# ►►► DER BELEG — das Modul «Zahlung» (docs/neuaufbau-zahlungsmodul.md)
+# ►►► DER BELEG — das Modul «Zahlung» (docs/history/2026-09-neuaufbau-zahlungsmodul.md)
 # ---------------------------------------------------------------------------
 #
 # Eigene Wege statt einer Verzweigung in einem geteilten Endpunkt – so lässt sich ein

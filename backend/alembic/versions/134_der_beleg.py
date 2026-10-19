@@ -1,6 +1,6 @@
 """Der Beleg — die vier Tabellen des neu aufgebauten Zahlungsmoduls
 
-``docs/neuaufbau-zahlungsmodul.md``. Fachlich dasselbe wie ``deals``/``deal_entries``;
+``docs/history/2026-09-neuaufbau-zahlungsmodul.md``. Fachlich dasselbe wie ``deals``/``deal_entries``;
 verschieden ist die **Form**: der Angebotsspiegel und die Positionen sind Tabellen statt
 JSONB an der Kopfzeile, und die Positionen gibt es in **einer** Form statt in dreien.
 

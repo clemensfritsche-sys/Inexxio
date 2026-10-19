@@ -3,6 +3,14 @@
      (Kapitel 0). Was sich gegenüber der ersten Fassung geändert hat und wie es umgesetzt ist:
      WEBSITE_PLAN.md, Abschnitt «Umbau v2». -->
 
+> ## ⚠ Kopfvermerk (Oktober 2026): in zentralen Punkten ÜBERHOLT
+> Dieser Auftrag steht als **Wortlaut** hier, weil der Code ihn kapitelweise zitiert
+> («Auftrag Kap. 7.5»). Er ist **kein** Massstab mehr für den heutigen Stand: Bereiche,
+> Sonderlösungen/Speziallösungen, Notfallnummer, Einsatzgebiet, Öffnungszeiten,
+> Servicezeile und SMTP-Versand sind durch spätere Entscheide abgelöst. **Es gilt
+> `WEBSITE_PLAN.md`** (geltende Entscheide) und für Inhalte der Code
+> (`src/config/site.mjs`, `src/content/`); die Start-Checkliste steht in `START.md`.
+
 # Auftrag: Neue Website INEXXIO – ehemals HS Steiner
 
 > **Für Claude Code.** Lies dieses Dokument vollständig, bevor du beginnst. Es liegt als Datei im Repository. Lies es jederzeit erneut, wenn du unsicher bist oder dein Kontext komprimiert wurde.

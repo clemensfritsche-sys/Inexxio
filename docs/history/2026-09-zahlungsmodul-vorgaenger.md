@@ -463,3 +463,993 @@ die Richtung**; ein Wächter zählt sie.
   nennt sie nirgends beim Namen, und genau das ist der Beleg für den richtigen Ort. Das
   Ursprungsland wird **grossgeschrieben** gesendet: «ch» und «CH» wären zwei Länder.
 
+
+
+---
+
+## Anhang (Oktober 2026): PROCESS_CORE §9.12–§9.14c im Wortlaut
+
+> Aus `PROCESS_CORE.md` (develop @ 8dcd098, Zeilen 1797–2774) hierher verschoben, unverändert
+> (Cleanup Paket 6, D-25). Der Abschnitt beschrieb das gelöschte `deal`-Modul als «gebaut»;
+> in `PROCESS_CORE.md` steht an seiner Stelle eine Kurzfassung der Entscheidungen, die im
+> Beleg (§9.15) weiter gelten. Die Verweise «§9.12», «§9.13», «§9.14» in älteren Texten
+> meinen die Abschnitte unten.
+
+### 9.12 Das Modul «Zahlung» — Geld mit einer zweiten Partei
+
+> **Status: gebaut — und heute die EINZIGE Maschine für Geld mit einer zweiten Partei.**
+> Es entstand bewusst **neben** «Beschaffen»/«Verkauf», ohne eine Zeile mit ihnen zu
+> teilen: weder Tabelle noch Dienst noch Vokabel. Genau das hat sich ausgezahlt — die
+> beiden Module sind inzwischen **ersatzlos gelöscht** (§9.9a), und hier musste dafür
+> nichts angefasst werden. Ein Quelltext-Wächter hält die Trennung weiterhin.
+
+#### Die Frage, aus der es entstand
+
+Einkauf und Verkauf waren zwei Module, und daneben standen Fälle, die in keines von beiden
+passten: eine Spedition, die man beauftragt (ein Einkauf **im** Bewegen-Modul), eine
+Leistung ohne Artikel, eine Vorauszahlung. Jeder Fall bekam ein eigenes Stück Mechanik —
+und die Mechanik wuchs schneller als die Fälle.
+
+**Der kleinste gemeinsame Nenner ist nicht die Ware, sondern das Geld.** Ein Vorgang hat
+genau eine Richtung — es kommt herein oder es geht hinaus —, und alles Weitere ist in
+beiden dieselbe Maschine: jemand nennt einen Preis, beide sagen zu, es wird gefordert, es
+wird gezahlt.
+
+#### Die eine Regel, die es robust macht
+
+> **Dieses Modul bewegt keine Stücke.**
+
+Ein **Durchläufer** (`Im Prozess` → `Im Prozess`), `terminal = False`, `moves = False`,
+kein Ortswechsel, kein neuer Status, `buys = None`. Es hält die Stücke auf, bis die zweite
+Partei ihren Teil getan hat, und lässt sie dann weiterlaufen.
+
+Daraus folgt die Robustheit **konstruktiv statt geprüft**: keine andere Regel im System
+muss von ihm wissen — keine Kettenregel, keine Statusliste, keine Bestandsansicht, keine
+Zeile in der Prozess-Engine. Was physisch geschieht, sagen die Nachbarn: kommissioniert
+und ausgeliefert wird mit «Bewegen», ausgesondert mit «Aussondern».
+
+*Ein Verkauf besteht damit aus zwei Modulen statt aus einem, und das ist der Preis. Er ist
+der richtige: sobald dieses Modul auch Ware bewegte, bräuchte es für jede Kombination aus
+Geld und Ware wieder einen eigenen Fall — genau die Lage, aus der es entstanden ist.*
+
+#### Zwei Angaben beim Definieren (`domain/modules.Zahlung`)
+
+| | |
+|---|---|
+| `direction` | **Geld kommt** (`in`) ↔ **Geld geht** (`out`). Daraus folgt jedes Wort. |
+| `parties` | Die **zugelassenen Partner**. **Leer heisst frei** — dann wird beim Ausführen gesucht. |
+
+►►► **Es waren einmal drei — und der dritte war eine zweite Aussage** (Testnotiz #854).
+◄◄◄
+
+`prepaid` («Weiter, wenn zugesagt ↔ bezahlt») stand hier als Schalter und sagte, was die
+vereinbarte **Zahlungsfrist** ohnehin sagt: *zahlbar in null Tagen ab Zusage* **ist** die
+Vorauszahlung. Zwei Stellen, die dieselbe Sache behaupten, geraten beim ersten Vorgang in
+Widerspruch, in dem jemand nur eine davon setzt — «Klinsch» war das Wort dafür.
+
+**Und der Ort war ebenfalls falsch.** Eine Definition ist eine **Vorlage** für jeden
+künftigen Auftrag; ob vorausbezahlt wird, entscheidet sich aber dort, wo man das Angebot
+schreibt. Die Frist steht darum an der **Angebotszeile** (`quotes[].payment_days`), und
+`prepaid` ist ihre Lesart (`dm.prepaid(due_days)`, `Balance.settled` unverändert).
+
+Und **je zugelassenem Partner eine Pflichtangabe**: *«Was ist zu tun?»* — seine
+Artikelnummer, sein Shop-Link oder ein Satz.
+
+**Keine Menge** (sie ist die Zahl der Einzelinstanzen davor), **kein Artikel** (den tragen
+die Stücke), **kein Termin** (ableitbar), **kein Betrag** (beim Modellieren steht er nicht
+fest — ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar stillschweigend)
+und **kein Steuersatz** (Testnotiz #851 — siehe unten).
+
+►►► **Ein Pflichtfeld statt zweier optionaler.** ◄◄◄
+
+Es gab einmal beides: einen **freiwilligen** Satz am Vorgang («Was ist daran zu tun?») und
+daneben eine **Bestellangabe** je Partner — die nur beim Einkauf existierte. Das ist
+dieselbe Aussage zweimal, einmal ohne Adressaten.
+
+*«Ich bin sowieso kein Fan von optionalen Feldern»* — und das ist die richtige Haltung: ein
+Feld, das man ausfüllen **kann**, wird an der Hälfte der Stellen leer gelassen, und dann
+sagt seine Leere nichts. Übrig bleibt **eine** Angabe, **Pflicht**, in **beiden**
+Richtungen, und sie steht **bei dem Partner, den sie betrifft** — denn *bei ihm* bestellt
+man anders als bei dem anderen (derselbe Lieferant führt je Teil eine andere Nummer).
+
+**Der Entwurf beginnt als Einnahme** (#791) — die Frage bleibt, sie startet nur bei der
+häufigeren Antwort; ein Schalter, der auf nichts steht, ist keine Frage, sondern eine
+Lücke, die der Server still mit `out` füllt.
+
+#### Ein Wort statt zweier
+
+«Kunde» ↔ «Lieferant», «Einnahme» ↔ «Ausgabe», «Bestellangabe» nur beim Einkauf: das
+waren drei Verzweigungen für Dinge, die auf beiden Seiten dasselbe sind. Jede Aufrufstelle
+musste sich das richtige Wort holen — und die falsche Wahl war jederzeit möglich.
+
+| | |
+|---|---|
+| **Partner** (`deal.PARTY`) | der andere im Geschäft. **Singular = Plural** — damit ist «Kundeen» (#787) *strukturell* erledigt statt durch einen zweiten gepflegten Wert. |
+| **Verkauf** ↔ **Einkauf** | dieselben Wörter und dieselben Symbole wie beim Handel (`FLOW`). Ein Haus, eine Sprache. |
+| **«Was ist zu tun?»** (`deal.TASK`) | die Angabe am Partner — in beiden Richtungen. |
+
+Was für beide Richtungen gleich lautet, gehört **nicht** in eine Tabelle je Richtung: dort
+wäre es ein Wert, den man vergleichen und falsch auswählen kann. `Direction` trägt nur
+noch, was wirklich verschieden ist — die Stufen-Wörter, das Verb der Anfrage und die
+beiden Geld-Wörter.
+
+#### Worum es geht — ABGELEITET, nie getippt
+
+Je Artikel, dessen Einzelinstanzen im Auftrag stehen, **eine Zeile** mit Menge, Nummer und
+Namen; **mehrere sind der Normalfall** — ein Vorgang mit zwei Positionen, wie im echten
+Leben. Es braucht dafür keine Regel, nur eine Gruppierung (`deal.process_lines`).
+
+Die **Spezifikation reist mit** (`services/article_fields`) — sie beschreibt die Sache,
+damit die Gegenpartei weiss, worum es geht, und sie wird **nicht ausgewählt**: eine
+Spezifikation, die je nach Empfänger anders lautet, ist keine. Sie steht **erst auf
+Klick**: im Normalfall interessiert die Zeile, nicht das Datenblatt.
+
+Mit der **Zusage frieren die Zeilen ein** (`deals.agreed_lines`) — ab dort ist eine zweite
+Partei gebunden, und was sie zugesagt hat, darf sich nicht mehr ändern, weil jemand ein
+Stück nachschiebt. Davor gibt es sie gar nicht: sie **sind** der Prozess und ziehen von
+selbst nach.
+
+#### Die Steuer — der Satz gehört der POSITION, nicht dem Beleg
+
+> **MWSTG Art. 26** verlangt auf einer Rechnung Steuersatz **und** Steuerbetrag. Bis hier
+> trug der Vorgang **eine** Zahl (`deals.amount`), und `agreed_lines` hielt Artikel und
+> Menge — **keinen Preis**. Damit fehlte genau das, was einen Beleg zu einem Beleg macht.
+>
+> **Das Modul muss es selbst können.** Einen Verkaufsbereich am Artikel gibt es nicht, und
+> ein Modul, das auf eine Angabe von aussen wartet, kann seine eigene Rechnung nicht
+> stellen. Kommt sie später von dort, belegt **sie** vor — vorbelegen, nie erzwingen.
+
+**Die eine Regel, aus der alles folgt: ein Positionspreis ist NETTO, jeder Betrag ist
+BRUTTO.** Damit bleibt die ganze bestehende Rechnung unangetastet — *offen · bezahlt ·
+uncharged* (`domain/deal.balance`) rechnen weiter mit derselben Zahl, und **keine** der
+drei Achsen (Ware · Forderung · Geld) muss von der Steuer wissen. Netto und Steuer sind
+**Ableitungen**, null Spalten.
+
+**Der Satz hängt an der Sache, nicht am Papier.** Sechs Wellen zu 8.1 % und eine Ausfuhr
+zu 0 % stehen auf demselben Beleg; ein Satz je Beleg wäre bei jedem gemischten Geschäft
+falsch — und zwar stillschweigend, weil die Summe trotzdem aufgeht. Er steht darum an der
+**Position** (`DealLine.vat`).
+
+►►► **Und am MODUL steht er gar nicht** (Testnotiz #851). ◄◄◄
+
+Er stand dort einmal als «Vorgabe jeder neuen Position» (`Zahlung.VAT_RATE`) — und war
+damit eine Eigenschaft des **Moduls**: eine Vorlage, die für jeden künftigen Auftrag
+denselben Satz behauptet, obwohl er an der **Sache** hängt und die erst feststeht, wenn
+ein Auftrag läuft. Ein Vorgabewert, der bei der Hälfte der Aufträge überschrieben werden
+muss, ist kein Komfort, sondern die Zahl, die stehenbleibt, wenn es niemand tut.
+
+Gefragt wird er darum **je Position an der Ausführungsstelle**; vorbelegt ist der
+Normalsatz (`deal.DEFAULT_VAT`), und der Katalog reist mit dem Vorgang
+(`DealEmbed.vat_rates`) statt über den Modul-Katalog — ein zweiter Weg zur selben Liste
+wäre die Stelle, die beim nächsten Satzwechsel jemand vergisst. Ein Wert, der trotzdem
+in der Konfiguration ankommt, wird **verworfen**.
+
+**Gerundet wird je Satz auf der SUMME** (`vat_split`), nie je Position aufsummiert:
+
+```
+3 × 5.00 zu 8.1 %   je Position gerundet:  3 × 0.41 = 1.23
+                    je Satz auf der Summe: 15.00 × 8.1 % = 1.215 → 1.22
+```
+
+Bei zwölf Zeilen weicht es entsprechend weiter ab, und eine MWST-Abrechnung kennt keine
+Rappen-Toleranz.
+
+**Eine Teilrechnung verteilt sich anteilig über alle Sätze** (`split_for`). Eine Anzahlung
+ist zum Satz der zugrunde liegenden Leistung zu versteuern; dem höchsten Satz zugeschlagen
+wäre sie zu viel Steuer, dem niedrigsten zu wenig. **Der letzte Anteil bekommt den Rest** —
+sonst ist die Summe der Zeilen nicht der Betrag der Rechnung, und der Beleg widerspricht
+sich selbst. Wo es **keine** Positionen gibt (eine *Ausgabe*: die Steuer steht auf **ihrer**
+Rechnung), nennt der Erfassende den Satz, und `split_at` rechnet das Netto zurück.
+
+**Wer den Preis nennt, entscheidet die Form** — dieselbe Angabe wie überall
+(`Direction.quoted_by`, §9.12 «Ein Vorgang hat zwei Parteien»):
+
+===============  ==========================================================
+**Einnahme**     wir nennen ihn **als Positionen** (dort hängt der Satz);
+                 der Angebotsbetrag ist ihre **Brutto-Summe**
+**Ausgabe**      die Gegenpartei nennt eine **Summe**; den Satz erfassen wir
+                 mit ihrer Rechnung
+===============  ==========================================================
+
+Ein Betragsfeld neben gepreisten Positionen gibt es darum nicht: es wäre nicht nur die
+zweite Aussage über dieselbe Sache, sondern eine, die der Dienst abweist.
+
+**Die Menge kommt aus dem PROZESS**, nie aus der Nutzlast (`deal._priced`): sie ist die
+Zahl der Einzelinstanzen, die vor dem Modul stehen. Eine getippte Menge daneben gewinnt
+auch dann, wenn sie falsch ist.
+
+**Der gebuchte Beleg SPEICHERT seine Steuer** (`deal_entries.vat`, `service_date`), statt
+sie nachzurechnen: ein Beleg behält, was auf ihm stand — auch wenn der Vorgang später
+andere Positionen trägt oder der Gesetzgeber den Satz ändert. Nachgerechnet wäre die
+Vergangenheit eine Funktion der Gegenwart, und eine Abrechnung über ein abgeschlossenes
+Quartal ergäbe beim zweiten Lauf andere Zahlen. Der **Storno spiegelt sie** mit negativem
+Vorzeichen — sonst nähme er den Betrag zurück und die Steuer nicht.
+
+**Bewusst nicht gebaut und benannt:** Rabatt (er ist eine Position mit negativem Preis, und
+ob er das bleiben soll, ist eine fachliche Frage), QR-Rechnung und PDF. Der Beleg lebt
+**online**; ein Papierformat ist eine Darstellung, kein Datenmodell.
+
+#### Das Leistungsdatum kommt aus dem PROZESS
+
+**MWSTG Art. 26 Bst. c** verlangt es auf der Rechnung, und bei einem Satzwechsel
+entscheidet es, welcher Satz gilt. Das **Rechnungsdatum ist es nicht**: eine Rechnung, die
+zwei Wochen später geschrieben wird, verschöbe damit die Steuerperiode.
+
+Der Auftrag weiss es (`deal.service_day`): es ist der Tag, an dem die Stücke dieses Modul
+**erreicht** haben — gelesen wird darum das `step`-Ereignis des **Vorgängers**, nicht das
+eigene (ein `step` an *diesem* Modul heisst «hier fertig»). Steht das Modul am Anfang, ist
+die Ankunft der **Start** des Auftrags.
+
+**Abgeleitet, nicht gespeichert** — eine Spalte daneben wäre die zweite Wahrheit. Und
+**vorbelegt, nicht erzwungen**: ein Mensch weiss von Teilleistungen, von denen der Log
+nichts weiss; eine gesendete Angabe gewinnt. `None` heisst «hier ist noch nichts
+angekommen» — dann gilt der Buchungstag; ein erfundenes Datum wäre schlimmer als keines.
+
+#### Die Währung — EINE je Vorgang, gebunden mit der Zusage
+
+**Ein Betrag ohne Währung ist keine Zahl.** «1000» ist tausend Franken oder tausend Yen,
+und das sind zwei sehr verschiedene Beträge. Solange nur eine Währung vorkommt, fällt es
+nicht auf — und beim ersten EU-Kunden ist es still falsch.
+
+**Eine je Vorgang, nicht je Zeile** (`deals.currency`, ISO 4217): zwei Währungen auf einem
+Beleg gibt es nicht, das wären zwei Belege. Vorbelegt ist die Währung des **Betreibers**
+(`company_settings.currency` → `deal.house_currency`) — der Normalfall, und ihn zu tippen
+wäre eine Eingabe mit genau einer richtigen Antwort.
+
+**Änderbar bis zur Zusage, danach nicht mehr** — und das ist keine zusätzliche Regel,
+sondern dieselbe Tabelle: `currency` steht in `ACTIONS[OFFER]`, also fehlt der Knopf
+danach von selbst und `apply` weist ihn ab (`can` ist Auskunft **und** Tor). Draussen liegt
+ab der Zusage eine Zusage über *diese* Summe in *dieser* Währung; sie nachträglich
+umzuschreiben hiesse, die Zahl stehen zu lassen und ihre Bedeutung zu ändern.
+
+►►► **Die Nachkommastellen sind der Punkt, den man vergisst** (`domain/currency`). ◄◄◄
+
+Fast alle Währungen haben zwei — und darum schreibt man `f"{x:.2f}"` bzw. `NUMERIC(x, 2)`
+und merkt nie, dass es falsch ist. **JPY und KRW haben null**, **KWD hat drei**. Ein
+Yen-Betrag mit zwei Nachkommastellen ist kein Rundungsfehler, sondern ein Betrag, den es
+nicht gibt; ein dreistelliger, auf zwei geschnitten, verliert still seine letzte Stelle —
+in der Richtung, in der die Zahl **kleiner** wird.
+
+Die Stelligkeit hängt darum an **einer** Stelle (`currency.minor_units` / `quantum`), und
+sie gilt auf **vier** Ebenen: beim Parsen (`deal.amount`), beim Rechnen (`_round`, das an
+`currency.round_to` delegiert — **kaufmännisch**, denn `quantize` rundet ohne Angabe
+statistisch und wiche damit von der Buchung ab), beim Ausgeben (`currency.money`) und in
+der **Spalte** (`NUMERIC(18, 4)`, Migration 128 — vier deckt jede ISO-4217-Währung ab).
+Zur Laufzeit reist sie mit den Daten (`DealEmbed.currency_decimals`), damit die Anzeige
+nicht rät.
+
+**Umgerechnet wird nichts, und gemischt wird nichts.** Ein Kurs ist eine Angabe mit einem
+Datum, einer Quelle und einer buchhalterischen Bedeutung (Stichtagskurs,
+Durchschnittskurs, Bewertung zum Bilanzstichtag) — das ist Buchhaltung, nicht ein Feld in
+einem Prozessmodul. Wer umrechnet, ohne zu sagen *wann* und *woher*, erfindet Zahlen.
+
+Der Katalog ist bewusst **kurz** (die Währungen, in denen ein Schweizer KMU wirklich
+fakturiert, plus die drei null- und dreistelligen als Beleg dafür, dass die Regel keine
+Behauptung ist); eine neue Währung ist **eine Zeile**. In der Oberfläche steht sie **im
+Kopf des Vorgangs**, nicht an jeder Zahl — fünfzehnmal «CHF» neben fünfzehn Beträgen wäre
+Fläche statt Struktur; genannt wird sie beim **Total** und beim **offenen Betrag**, den
+Zahlen, die abgeschrieben und überwiesen werden.
+
+#### Ein Vorgang hat zwei Parteien
+
+Der **Angebotsspiegel** (`deals.quotes`) ist der Kern der ersten Zeile: wir fragen an bzw.
+bieten an (`ask`), die Gegenpartei nennt ihren Preis (`quote`) oder sagt ab (`decline`),
+wir geben den Zuschlag (`agree`). **Eine Liste, auch wenn fast immer einer drinsteht** —
+n statt 1: wer vergleichen will, fragt drei, und der Vergleich ist damit kein zweiter
+Mechanismus.
+
+*«gewählt» entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt
+wurde — ein Zustand ist eine Folge.*
+
+**Steht in der Definition genau eine Gegenpartei, gibt es nichts zu wählen** (#793): dann
+heisst der Knopf schlicht «Anfragen» bzw. «Anbieten». Nur wo die Definition **niemanden**
+nennt, ist die Wahl eine echte Frage — und dann wird gesucht (`ObjectSelect`, dieselbe
+Bauart wie jede Referenz im Haus), statt eine leere Liste zu zeigen.
+
+**Eine Angebotszeile wird durch NEUBAU geändert, nie an Ort** (`_write_quotes`): der
+geladene JSONB-Wert darf nicht mutiert werden — sonst sind geladener und aktueller Wert
+gleich, die Spalte fällt aus dem `UPDATE`, und die Offerte ist stillschweigend weg.
+
+#### Der Zugang der Gegenpartei — ein ZUGANG, keine Rolle im Vorgang
+
+Wer angefragt ist und **nicht** ins ERP darf, sieht eine sehr enge Sicht: **seine**
+Angebotszeile, keine fremde, und keine Zahl über Forderung und Geld. Gefiltert wird beim
+**Aufbau der Antwort** (`deal.embed_data`), nicht in der Oberfläche — wer den Filter dort
+formulierte, hätte ihn beim zweiten Aufrufer nicht. Was er **tun** darf, sagt dieselbe
+Tabelle wie bei allen anderen (`can` ∩ `PARTY_ACTIONS` = `quote`·`decline`), und `_target`
+liest die Zeile aus dem **angemeldeten Benutzer**, nie aus der Nutzlast.
+
+**Ein Mitarbeiter behält die volle Sicht — auch wenn er selbst die Gegenpartei ist.** Die
+Frage lautet «darf dieser Betrachter ins ERP?» (`STAFF_ROLES`), nicht «kommt seine Nummer
+im Vorgang vor»: er sieht dort ohnehin den ganzen Auftrag, und eine zweite, engere Ansicht
+desselben Datensatzes wäre eine zweite Wahrheit. Hinge die Verengung an der **Beteiligung**,
+verlöre ein Einkäufer, den man einmal selbst anfragt, an genau diesem Auftrag die Zahlen,
+die er zum Arbeiten braucht.
+
+##### Wer nicht den Zuschlag hat, sieht ihn auch nicht
+
+Die erste Fassung schloss die Gegenpartei aus dem **Auftrag** aus und liess ihr **im Modul**
+alles. Gemessen an einem unterlegenen Lieferanten nach dem Zuschlag an einen anderen: er las
+dessen **Namen**, dessen **Preis**, die Zahlungsfrist, das Zusagedatum – und dazu die
+**Freigabe-Liste**, also die Konkurrenzliste selbst.
+
+Die Regel ist darum dieselbe wie beim Beschaffungs-Beleg (`won`): Name, Betrag, Frist,
+Referenz und Datum der Zusage fallen für jede Gegenpartei weg, die nicht selbst den Zuschlag
+hat; die Freigabe-Liste fällt für **jede** Nicht-Personal-Sicht ganz weg. *Zwei Formen einer
+Regel sind in Ordnung; zwei Regeln nicht* – auch wenn die beiden Module bewusst keine Zeile
+Code teilen.
+
+Und **das Wort der Gegenhandlung hängt an `can`**, nicht an der Stufe: sonst steht bei einer
+Gegenpartei «Auftrag stornieren» an einem Knopf, den es für sie nie gibt.
+
+##### Eine Frage, zwei Leser: Feed und Detail
+
+Beteiligt ist, wer an einem **der beiden** Module mit Aussenwirkung vorkommt
+(`orders._involved` = `deal.mine`; es war einmal eine Vereinigung mit dem
+Beschaffungs-Beleg). Der Feed fragte einmal nur den
+Beschaffungs-Beleg: die Gegenpartei eines Geldvorgangs hatte ERP-Zugang, sah ihren Auftrag
+aber in **keiner Liste** – erreichbar nur über die direkte Adresse. Zwei Ableitungen
+derselben Frage laufen genau so auseinander.
+
+**Und sie bestätigt kein Modul.** `confirm_step` ist Personal-only; der Bestätigungsweg
+hängt darum an derselben Naht wie das Modul-Protokoll (`internal` – die Aussage der
+Aufrufstelle über sich selbst), nicht an einer Rollenabfrage. Ein Knopf, der nie etwas tun
+kann, ist kein Angebot.
+
+#### Wie man bei IHM bestellt — die Bestellangabe
+
+Seine Artikelnummer, sein Shop-Link (`config.parties[].ref`). Sie ist eine Eigenschaft der
+**Paarung** Modul × Gegenpartei und nicht der Gegenpartei allein: derselbe Lieferant führt je
+Teil eine andere Nummer. Sie gehört darum dorthin, wo man festlegt, **wer in Frage kommt** –
+am Beleg wäre sie eine Angabe, die man bei jedem Vorgang neu abschreibt.
+
+**Nur wo wir bestellen** (`Direction.party_ref`): beim Verkauf liefern wir, dort gibt es das
+Feld nicht, und ein trotzdem gesendeter Wert wird **verworfen** – ein Feld, das keine
+Oberfläche zeigt, der Dienst aber annimmt, wäre die Hintertür zu einer Angabe, die niemand
+liest (dieselbe Regel wie #787). Zur Laufzeit steht sie an **seiner** Angebotszeile; sieht
+sie aus wie eine Adresse, ist sie ein Link.
+
+#### Die beiden Fristen — Pflicht, und die Null hat einen Namen
+
+►►► **Ein Angebot nennt beide Fristen** (Testnotizen #854–#856). ◄◄◄ Sie sind kein
+Beiwerk: aus der **Lieferfrist** kommt der Termin, aus der **Zahlungsfrist** die
+Fälligkeit jeder Rechnung — und, wenn sie null ist, die Vorauszahlung. Fehlt eine, hat
+niemand über den Zeitpunkt gesprochen, und das System müsste einen erfinden. Durchgesetzt
+wird das im **Dienst** (`deal._assert_terms`, geprüft wird bei `quote` das **Ergebnis**,
+nicht die Nutzlast), nicht am Feld: die Tür ist nicht der einzige Aufrufer.
+
+**Die üblichen Werte tragen Namen** (`domain/deal.PAYMENT_TERMS` / `LEAD_TERMS`):
+*Vorauszahlung* (0) · *30 Tage* — und *Sofort* (0) für die Lieferfrist. *«Bei einer
+Software ist die Lieferfrist 0 — soll ich dann einfach 0 eintragen?»* Ja, und genau darum
+steht dort ein **Wort**: eine Null in einem Feld «Tage» ist von einer vergessenen Eingabe
+nicht zu unterscheiden, ein Name ist eine Angabe.
+
+**Kein Schieberegler.** Eine Frist ist keine stufenlose Grösse — zwischen «Vorauszahlung»
+und «30 Tage» liegt nichts, was man durch Ziehen findet, und ein Regler über 0–365 träfe
+die 30 nur mit Glück. Es ist eine **Aufzählung mit einem freien Rest**, und die freie
+Eingabe beginnt bei `FREE_MIN = 1`: sonst gäbe es zwei Wege zur Null und zwei Bedeutungen,
+von denen eine niemand kennt.
+
+#### Lieferverzug — eine ABLEITUNG, kein Zustand
+
+Der Liefertermin ist *Zusagedatum + Lieferfrist der gewählten Zeile*, und «verspätet»
+heisst *Termin vorbei und noch nicht erledigt* — **exakt dieselbe Form wie `overdue`** bei
+einer Forderung (`deal._delivery` / `_is_late`). Zwei Ableitungen, **null Spalten**: ein
+gespeicherter Verzug wäre ein Wert, den jemand nachziehen müsste, und er lügt beim ersten
+vergessenen Mal. **Ohne vereinbarte Frist gibt es keinen Termin** — ein erfundener wäre
+schlimmer als keiner, und genau daran erkennt man, dass niemand über die Zeit gesprochen
+hat.
+
+Was man dann tun kann, **gibt es alles schon**: warten · stornieren (die Stücke stehen
+still, ein ganz gewöhnlicher Abweichungsauftrag entscheidet über sie) · und das Geld läuft
+unabhängig weiter — genau darum sind `charge` und `pay` auch nach dem Storno erlaubt, damit
+eine Anzahlung erstattet werden kann. Ein «Verzug»-Status hätte keine dieser Handlungen
+hinzugefügt; er hätte nur eine vierte Sache zu pflegen gegeben.
+
+#### Kein Scan — und das ist eine Eigenschaft des Moduls
+
+Ein Geldvorgang bewegt keine Stücke: es gibt **nichts zu verifizieren**, und ein Scan davor
+wäre ein erfundenes Hindernis. Die Frage steht am Modul (`Module.requires_verification`)
+und reist als `ModuleFacts.verifies` mit dem Schritt — die Ausführungsstelle nennt damit
+keinen Modultyp, und jedes künftige Modul ohne physisches Gegenstück erbt die Regel ohne
+eine Zeile.
+
+**Die Richtung ist eine Einstellung, kein zweiter Modul-Schlüssel.** Es ist EIN Modul, eine
+Kachel in der Palette; die `config` friert mit der Freigabe ein und reist mit dem Schritt,
+ist also genauso haltbar wie ein Schlüssel. Am **Vorgang** wird sie zusätzlich eingefroren
+(`deals.direction`): läse er sie bei jeder Anzeige neu, änderte ein späterer Umbau
+**rückwirkend**, was ein alter Vorgang bedeutet.
+
+#### ZWEI Stufen — und die dritte Zeile ist keine
+
+Unumkehrbar sind **zwei** Dinge: nichts zugesagt (`Angebot` ↔ `Anfrage`) · zugesagt
+(`Auftrag`). `Erledigt` und `Storniert` sind **Ausgänge**: man kommt dort an, statt
+hindurchzugehen. Wie die Stufen in einer Richtung *heissen*, sagt `domain/deal.DIRECTIONS`
+— als **Daten**, nicht als Verzweigung: die erste Verzweigung ist eine Beschriftung, die
+zweite eine Regel, und ab der dritten gibt es zwei Vorgänge, die nur so tun, als wären sie
+einer.
+
+*«Abgeschlossen» stand einmal als dritte Stufe da und war genau das Missverständnis — ein
+**Zustand** in einer Reihe von **Schritten**. Man tut nichts, um ihn zu erreichen; er tritt
+ein, wenn nichts mehr davorsteht (`deal.finish`).*
+
+**Die dritte Zeile der Karte ist das GELD**, und es ist bewusst keine Stufe: eine Zahlung
+macht aus einem Angebot keine Zusage, sie ist reversibel, und sie darf **vor** der Erfüllung
+stehen (Vorauszahlung) wie danach (Zahlungsziel). Wer sie als dritte Stufe führte, hätte für
+die Vorauszahlung ein `if`. Sie steht dort, wo man sie erwartet — dritte Position —, und ist
+ab der Zusage bedienbar; die Kette darüber sagt weiterhin nur, was **zugesagt** ist.
+
+**Das Verb der Schwelle heisst in beiden Richtungen «Auftrag bestätigen»**: was passiert,
+ist dasselbe — zwei Parteien sind ab hier gebunden. Ein eigenes Wort je Richtung wäre eine
+Unterscheidung, die es in der Sache nicht gibt.
+
+#### Zwei Achsen, und darum kein einziger Modus
+
+`deals` trägt die **Zusage**, `deal_entries` die **Forderungen** und die **Zahlungen**
+(`kind`: `charge` ↔ `payment`, Betrag **darf negativ sein**). Alles Weitere ist abgeleitet:
+*berechnet*, *bezahlt*, *offen* = berechnet − bezahlt, *noch nicht berechnet* = zugesagt −
+berechnet. **Null Spalten** — eine gespeicherte «offen»-Spalte wäre die zweite Wahrheit,
+und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
+
+| Szenario | Folge | neuer Mechanismus |
+|---|---|---|
+| Zahlungsziel | zusagen → abschliessen → fordern → zahlen | keiner |
+| **Vorauszahlung** | zusagen → fordern → zahlen → abschliessen | keiner |
+| Anzahlung + Schluss | zusagen → fordern → zahlen → … → fordern | keiner |
+| Gutschrift / Kulanz | **negative** Forderung, ohne Ware | keiner |
+| Erstattung | **negative** Zahlung, auch nach dem Storno | keiner |
+
+**`prepaid` fragt nach der ZUSAGE, nicht nach dem offenen Betrag.** Direkt nach der Zusage
+ist *offen* null — weil noch **nichts gefordert** wurde. Dieselbe Zahl, eine ganz andere
+Aussage; wer sie liest, hielte den Vorgang für bezahlt (`Balance.settled`).
+
+**Eine naheliegende Handlung, und der Server sagt welche** (`next_charge` ↔ `next_payment`,
+`Balance`): erst fordern, dann kassieren. Beide Achsen bleiben frei — alles Übrige liegt
+unter «Weitere» —, aber sie standen als drei gleichwertige Knöpfe da, und drei gleich laute
+Angebote sind kein Vorschlag. **Und keine Vorgabe ist je negativ** (#795): dass mehr
+berechnet als zugesagt wurde, ist eine gültige Aussage — als Vorschlag in einem
+Eingabefeld ist sie es nicht; dort stand «−250.00», und niemand stellt eine Rechnung über
+minus 250. Negative Beträge bleiben **eingebbar**: das ist die Gutschrift bzw. die
+Erstattung.
+
+#### `can` ist Auskunft UND Tor
+
+Was an welcher Stufe erlaubt ist, steht in **einer** Tabelle (`services/deal.ACTIONS`):
+die Oberfläche rendert einen Knopf genau dann, wenn sein Verb in `can` steht, und `apply`
+weist ab, was nicht darin steht. Wäre `can` nur ein Anzeige-Hinweis, liefen Knopf und Tür
+beim nächsten Verb auseinander.
+
+**Geld darf ab der Zusage in jeder Stufe fliessen — auch nach dem Storno**: eine Anzahlung
+muss erstattet werden können, und eine Rechnung darf vor der Lieferung stehen und danach.
+Ein **Storno behält seinen Weg**: er macht die Zusage nicht ungeschehen, er sagt nur, dass
+nichts mehr kommt.
+
+#### Die Nummer
+
+`<Auftragsnummer>-<laufend>`, wo **wir** nummerieren (`direction = in`) — dieselbe Regel
+wie beim Suffix der Einzelinstanz, und **immer mit Suffix, auch die erste** (Testnotiz
+#827). Früher fiel das «-1» nach aussen weg; das war eine Sonderregel für genau einen
+Fall, und dieselbe Serie hiess danach «100000801», dann «100000801-2» — zwei Formen für
+eine Nummer, und wer sie sortiert oder sucht, muss beide kennen.
+
+Bei einer **Ausgabe** steht dort die Nummer der Gegenpartei; eine erfundene wäre eine
+Behauptung über ein fremdes Dokument. *Gezählt wird nur, was wir selbst nummerieren: in
+einem Auftrag, der zuerst eine Lieferantenrechnung erfasst, hiess die erste eigene sonst
+«…-2» — eine Nummernserie mit Lücken ist buchhalterisch keine (gemessen beim Durchspielen
+der Szene, nicht gelesen).*
+
+#### Storniert wird durch eine GEGENBUCHUNG, nie durch Löschen
+
+*«Soll man wirklich aktiv erfasste Rechnungen so löschen können? Ich denke eher in
+Richtung stornieren.»* (Testnotizen #823/#824) — Das ist zwingend: eine Rechnungsnummer
+ist vergeben, ein Beleg ist draussen. Wer die Zeile verschwinden lässt, behauptet, sie sei
+nie passiert; das ist keine Buchhaltung. Vorher machte `void` einen Soft-Delete — der
+Saldo stimmte, die Zeile war weg.
+
+**Und es braucht keine neue Mechanik.** Eine Gutschrift ist längst eine *negative
+Rechnung*, eine Erstattung eine *negative Zahlung* (§9.11) — eine Stornierung ist genau
+das, über den vollen Betrag. Also entsteht eine **zweite** Zeile: dieselbe Art, der
+negative Betrag, `reverses_id` auf die stornierte (Migration `126`). Beide bleiben stehen,
+`balance` rechnet sie ohne einen einzigen Sonderfall, und der Nachweis ist lückenlos.
+
+Zwei Sperren, und beide fallen aus derselben Frage: eine **Gegenbuchung** storniert man
+nicht, und eine bereits **stornierte** Zeile ebenso wenig — sonst entstünde eine Kette aus
+Vorzeichen, in der niemand mehr sagen kann, was gilt. Sie stehen in `can` (also fehlt der
+Knopf) **und** in `_reverse` (also weist die Tür ab). **Einen Löschweg gibt es nicht** —
+auch nicht für einen Tippfehler; eine Frist («innerhalb fünf Minuten») wäre eine erfundene
+Regel mit einer Uhr darin.
+
+#### Man storniert einen BELEG, kein Ereignis
+
+*«wenn ich eine zahlung erfasst habe, dann habe ich sie ja erfasst, dann kann ich sie doch
+nicht mehr stornieren… dann muss ich sie durch eine weitere zahlung korrigieren oder???»*
+(Testnotiz #842) — Ja, und diese Antwort ist die richtige. Der Storno lag eine Runde lang
+auf **beiden** Achsen; das war ein Schritt zu weit.
+
+======================  ===============================  ==============================
+Zeile                   was sie ist                      wie man sie korrigiert
+======================  ===============================  ==============================
+**Forderung**           ein Beleg, den **wir** ausstellen **Storno** – eine
+                                                         Stornorechnung, eigener Beleg,
+                                                         eigene Nummer
+**Zahlung**             ein **Ereignis** der Aussenwelt   eine **zweite Zahlung**
+                        (Geld ist geflossen)             (negativ)
+======================  ===============================  ==============================
+
+`reverse` gilt darum **nur für eine Forderung** — durchgesetzt in `_reverse`, nicht nur am
+Knopf, und `can` führt das Verb gar nicht erst, wenn nur Zahlungen dastehen. An einer
+Zahlung steht stattdessen **«Korrigieren»**, und das ist **kein neues Verb**: es öffnet die
+gewöhnliche Zahlungs-Erfassung mit dem **negativen Betrag vorbelegt**. Ob es ein
+Erfassungsfehler war oder ob das Geld zurückkam, weiss nur ein Mensch — beides ist dieselbe
+Zeile, und die gibt es längst. *Das System bietet an, der Mensch entscheidet* — dieselbe
+Regel wie §4.5 bei «nicht bestanden».
+
+*Bewusst nicht gebaut und benannt: die **Zuordnung Zahlung → Rechnung** (Ausziffern offener
+Posten). Bei einem Vorgang mit meist einer Rechnung ist der Topf richtig; die Zuordnung wäre
+ein zweites Modell für dieselbe Zahl.*
+
+#### Jede Nummer wird genau EINMAL vergeben
+
+Die Storno-Zeile kopierte die Nummer der stornierten (Testnotiz #841): zwei Belege hiessen
+gleich, und in der Serie fehlte die nächste Zahl. Eine Stornorechnung ist aber ein **eigener
+Beleg** — MWST-pflichtig mit eigener Nummer und einem **Verweis** auf die stornierte. Sie
+zieht darum die nächste Nummer; der Bezug wohnt in `reverses_id` und im Vermerk, nie in der
+Nummer.
+
+Und daraus folgt die andere Hälfte (#840): **eine Nummer, die wir vergeben, tippt niemand
+ab.** Das Feld gibt es genau dort, wo die Nummer **von aussen** kommt — an einer
+Lieferantenrechnung (sie steht auf seinem Papier) und an jeder Zahlung (QR-Referenz,
+Zahlungszweck, die Id des Zahlungsdienstes). Wie es heisst, sagt `Direction.charge_reference`
+bzw. `PAYMENT_REFERENCE`; `None` heisst «gibt es hier nicht». Ein trotzdem gesendeter Wert
+wird **verworfen** — ein ausgegrautes Feld wäre eine Bitte.
+
+#### Wer den Preis nennt, ist eine Eigenschaft der Richtung
+
+*«Wenn ich einkaufe, sage ich was und von wem ich es offeriert haben möchte, die Gegenpartei
+trägt Preis ein und ich akzeptiere. Beim Verkaufen sage ich zuerst was ich zu welchem Preis
+an wen offeriere, Kunde bestätigt.»* (Testnotiz #837) — Exakt richtig, und vorher nicht
+abgebildet: `ask` schickte in **beiden** Richtungen eine leere Zeile hinaus, beim Verkauf
+sähe der Kunde also ein Angebot ohne Preis.
+
+Ein Angebot hat einen **Urheber** (`Direction.quoted_by`), und daraus folgt alles:
+
+* **Wir nennen** (Einnahme): der Betrag ist **Pflicht, bevor es hinausgeht**; die Zeile
+  entsteht sofort als *offeriert*. Die Gegenpartei ändert unseren Preis nicht — sie **nimmt
+  an oder lehnt ab**.
+* **Er nennt** (Ausgabe): leere Anfrage, er offeriert, wir wählen.
+
+`PARTY_ACTIONS` ist damit keine Konstante mehr, sondern `Direction.party_actions` — eine
+**Ableitung** aus `quoted_by`, keine zweite Angabe. Das ist die eine erlaubte Unterscheidung
+zwischen den Richtungen, und sie steht als **Daten** im Flow, nicht als `if direction ==`.
+
+#### «Einnahme» und «Ausgabe», nicht «Verkauf» und «Einkauf»
+
+Testnotiz #831, und sie nimmt meine Wahl aus #804 zurück. Dieses Modul entstand aus der
+Einsicht, dass der kleinste gemeinsame Nenner **nicht die Ware** ist: Miete, Lohn, Gebühr,
+Spesen und ein Transport sind keine Käufe. Ein Wert, der «Verkauf» heisst, ist damit **enger
+als das Modul**, und beim ersten Mietvertrag ist er schlicht falsch.
+
+Und darum trägt es auch **nicht die Symbole des Handels** (`FLOW`: Einkaufswagen ↔
+Handschlag) — ein Handschlag über einer Mietzahlung behauptet ein Geschäft, das es nicht
+gibt. Zwei diagonal entgegengesetzte Pfeile sagen, wohin das Geld fliesst, und mehr
+behauptet dieses Modul nicht.
+
+#### Ohne Rechnung keine Zahlung
+
+Man kassiert nicht, was niemand gefordert hat (Testnotiz #822). Der Satz stand seit §9.11
+im Haus; jetzt steht er auch in `can`, also in **beiden** Formen — der Knopf fehlt, und
+`apply` weist ab. Die **Vorauszahlung** verliert dadurch nichts: sie ist «erst fordern,
+dann zahlen», die Rechnung kommt dort vor der Lieferung, nicht nach der Zahlung.
+
+#### Was ein Modul BERICHTET, und wann es noch etwas zu TUN gibt
+
+Zwei Ableitungen am Schritt, beide aus Angaben, die ohnehin dastehen — und keine fragt
+nach dem Modultyp:
+
+* **`open_actions`** (Testnotiz #821): steht an diesem Modul noch etwas an? Gelesen aus
+  `deal.can`, also aus derselben Tabelle, die auch das Tor ist. Die
+  Zeichnung dämpft ein Modul nur, wenn es **nicht dran ist und nichts mehr zu tun hat** —
+  vorher lag ein abgeschlossener Auftrag bei 55 % Deckkraft da, während seine Geld-Knöpfe
+  funktionierten. Eine erfundene Sperre, nur in Farbe.
+* **`records`** (Testnotiz #825): hat dieses Modul mehr zu berichten als die blosse
+  Passage? Es gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann —
+  **erfasste Werte** (Erfassungspunkte in `config`), **ein Zustandswechsel**
+  (`status_before ≠ status_after`) und **eine Verifikation** (der Scan). Trifft keines zu,
+  ist das Protokoll leer im Wortsinn und wird nicht angeboten. Entfernt wird es nirgends —
+  es ist der Nachweis.
+
+#### Die Wörter, die keine Wahl mehr sind
+
+`Direction` trägt nur noch, was wirklich verschieden ist: `label`, `hint`, `stage_labels`
+und `ask_verb` — wer zuerst fragt, ist nicht derselbe. Alles Übrige lautet in beiden
+Richtungen gleich und steht als **Konstante**: das Verb der Schwelle (**«Angebot
+annehmen»**, #826 — man nimmt das *Angebot* an, der Auftrag ist das Ergebnis), das des
+Abschlusses, die Gegenhandlung und die beiden Geld-Wörter (**«Rechnung erfassen»** ·
+**«Zahlung erfassen»**, #828 — erfasst wird beides, egal wohin das Geld fliesst; das
+System bucht eine Zeile, es überweist nichts). Als Feld wären es fünf Werte, die jemand
+einzeln falsch setzen kann; als Konstante sind sie eine Aussage.
+
+Dieselbe Regel im Editor: **was ein Bedienelement selbst sagt, sagt man nicht daneben**
+(#816/#817/#819). Die Labels «Geschäft», «Was ist zu tun?» und «Weiter, wenn» sind
+entfallen — und die Werte des letzten Schalters heissen dafür **«Nach Zusage» ↔ «Nach
+Zahlung»** (#818): «zugesagt» klang nach einem *Zustand* statt nach einer *Bedingung* und
+war einzeln gelesen eine schlechte Beschreibung.
+
+#### Wo der Abschluss steht, und was das Feld hält
+
+Der Modul-Abschluss steht **am Ende der Karte** (#829), hinter der Geld-Zeile. Er stand in
+der Stufe «Auftrag», also mitten in der Kette, und darunter kam noch etwas: ein Knopf, der
+ein Modul abschliesst, sagt damit «hier ist Schluss», während sichtbar noch etwas folgt.
+Rechnung und Zahlung gehören zum Modul, auch wenn sie nachgelagert kommen. Die Sperre
+(`prepaid`) ersetzt an genau dieser Stelle den Knopf — der Grund steht dort, wo man
+weiterklicken würde.
+
+Und das Partner-Feld an der Ausführungsstelle hält die frische Wahl nur, **bis sie als
+Zeile dasteht** (#794 → #820): gehalten wird sie, weil sie im Moment des Klicks noch nicht
+gespeichert ist; sobald der Server sie als Angebotszeile zurückgibt, ist sie es, und dann
+stünde derselbe Partner zweimal da. Eine **Ableitung**, kein zweiter Zustand — ein
+Zurücksetzen an der Antwort wäre die Stelle, die der nächste Pfad vergisst. *Der Editor
+war es nicht: dort räumt `SearchSelect.pick` seine Suche selbst auf (gemessen in Chromium,
+zwei Adds hintereinander, beide Male leer).*
+
+
+
+### 9.13 Online bezahlen — die Karte gehört UNS
+
+> **Status: gebaut.** Der Zahllink ist weg; bezahlt wird im ERP. Der Zahlungsdienst
+> liefert nur die Eingabefelder — und genau das ist sein Sinn.
+
+#### Die Umdeutung, aus der alles folgt
+
+Bisher erzeugte `…/payment-link` eine **gehostete Kasse** beim Dienst: der Zahlende
+verliess das ERP und stand auf einer fremden Seite mit fremdem Namen, fremder Schrift und
+fremder Adresszeile. *Er hatte ausserdem seit dem Ende des Handels-Belegs **kein einziges
+Bedienelement** — ein Endpunkt, den niemand rief.*
+
+Jetzt entsteht dort nur eine **Zahlungsabsicht** (`stripe_pay.prepare`), und ihr Geheimnis
+geht an eine eigene Karte im ERP. Fläche, Wörter, Betrag, Knopf und Rückmeldung gehören
+uns; vom Dienst kommen die **Eingabefelder** in einem iframe.
+
+> **Das ist kein Kompromiss, sondern der Grund.** So berührt **keine Kartennummer je
+> unseren Server** — der Unterschied zwischen «wir nehmen Karten an» und «wir sind
+> PCI-pflichtig». Und die 3-D-Secure-Abfrage gehört der Bank; sie liesse sich gar nicht
+> nachbauen.
+
+Damit man die Naht nicht sieht, kommt das **Aussehen aus unseren Tokens**
+(`getComputedStyle` liest die CSS-Variablen des Hauses) — nicht aus einer geratenen
+Farbliste, die beim nächsten Design-Wechsel stehen bleibt.
+
+#### Was wir wissen, fragen wir nicht
+
+Name, E-Mail und Rechnungsadresse der **Gegenpartei dieses Vorgangs** (nicht des
+Betrachters — die Rechnung gehört dem Kunden, auch wenn ein Mitarbeiter die Zahlung
+auslöst) reisen mit der Vorbereitung mit und werden dem Element als **feste Angabe**
+übergeben.
+
+**Die beiden Hälften gehören zusammen**: `fields: 'never'` heisst «wird mitgeliefert» —
+wer nur die eine schreibt, bekommt eine Ablehnung, und zwar erst beim Bezahlen, also in
+der unangenehmsten Form. Und **nur, was wirklich dasteht**: fehlt die Adresse, fragt das
+Element sie; eine halbe Vorbelegung wäre schlechter als die Frage.
+
+#### Eine Zahlung gehört zu genau EINER Rechnung
+
+►►► *«Wenn ich eine Rechnung ausstelle, dann wird eine Zahlung auf genau diese Rechnung
+referenziert. Ich soll nicht eine Zahlung für zwei verschiedene Rechnungen erfassen können
+— dann lieber die zwei Rechnungen stornieren und eine daraus machen.»* (Testnotiz #858)
+◄◄◄
+
+Richtig, und die einfachere Regel ist zugleich die buchhalterisch saubere: der Weg für
+«eine Überweisung über zwei Rechnungen» ist eine **Stornorechnung und eine gemeinsame
+neue** — beides gibt es längst, und am Ende steht ein Beleg, den man vorzeigen kann. Die
+Alternative wäre eine Aufteilungstabelle (das *Ausziffern* offener Posten) für eine Zahl,
+die daneben ohnehin als Summe steht.
+
+**Ein Feld je Frage** (`deal_entries.charge_id`, Migration `129`): die Zuordnung
+beantwortet **worauf**, `balance` weiterhin **wie viel** — es rechnet unverändert über die
+Summen aller Zeilen, und darum ändert sich an keiner bestehenden Zahl etwas. `NULL` ist
+regulär und heisst «nicht zugeordnet»; nachträglich zugeordnet wird **nichts** — eine
+geratene Zuordnung wäre eine Behauptung über einen Beleg.
+
+**Drei Fälle, und keiner ist eine Einstellung** (`deal._charge_for_payment`): genau **eine**
+offene Rechnung → sie ist gemeint (danach zu fragen wäre eine Frage mit genau einer
+richtigen Antwort) · **mehrere** → die Zahlung muss sagen, welche, und der Satz **nennt
+sie** · **keine** → offen (eine Erstattung gehört zu einer längst beglichenen).
+
+**Und die Bezahlkarte kassiert genau diese eine** (`stripe_pay.prepare` → `open_charges`,
+die älteste offene): ihr Rest ist der Betrag, ihre Nummer steht **menschenlesbar** in der
+Beschreibung und **maschinenlesbar** in den Metadaten. Vorher war es der offene Betrag des
+**ganzen Vorgangs** — also eine Zahlung, die auf zwei Belege zeigt.
+
+*Nicht hier: der «statement descriptor» — der Text, den die Bank dem Karteninhaber zeigt.
+Er gehört dem **Konto**, nicht der Zahlung (`docs/stripe-setup.md` §2).*
+
+#### `pay_online` — die dritte Handlung am Geld
+
+`pay` schreibt auf, was geschehen ist (eine Überweisung liegt auf dem Konto);
+`pay_online` **lässt es geschehen** und bucht selbst nichts. Zwei Handlungen, zwei Verben.
+
+**Drei Bedingungen, alle in `can`** — dieselbe Liste ist Auskunft **und** Tor:
+
+| Bedingung | warum |
+|---|---|
+| `Direction.collects` | Ein Zahlungsdienst **zieht ein**; er überweist nicht in unserem Namen. Bei einer Ausgabe gibt es den Knopf nie. |
+| `payment_service_ready()` | Ohne Schlüssel endete er in einem leeren Dialog — «ein Knopf, der nie etwas tun kann, ist kein Angebot». |
+| `open > 0` | Über null lässt sich nichts einziehen. |
+
+*Eine vierte stand hier — «es muss eine Rechnung geben», die Regel von `pay` (§9.12). Beim
+Gegenprüfen war ihre Bug-Form **nicht herstellbar**: `open` ist `Forderungen − Zahlungen`,
+ohne Forderung also nie positiv. Sie sagte nichts, was `open > 0` nicht schon sagt, und
+ist entfallen. Bei `pay` bleibt sie richtig — dort nennt ein Mensch den Betrag; hier **ist**
+der offene Betrag die Sache.*
+
+**Es hat keinen Eintrag in `HANDLERS`** und einen eigenen Endpunkt (`…/deal/payment`): der
+`…/deal`-Weg gibt den Auftrag zurück, hier kommt ein Geheimnis für genau diese eine
+Zahlung. Damit `apply` an einem Verb ohne Handler nicht mit `KeyError` zerbricht — an der
+Tür ein **500** —, antwortet es mit einem **Satz**.
+
+#### Die Gegenpartei bezahlt selbst — und sieht dafür die Zahlen
+
+`Direction.party_actions` trägt `pay_online` in **beiden** Richtungen; *ob* es an diesem
+Vorgang etwas zu bezahlen gibt, beantwortet eine Ebene höher `collects`. Zwei Stellen für
+dieselbe Bedingung wären zwei Massstäbe.
+
+**Und damit sieht sie die Geld-Zahlen** (`won` statt `internal`): wer bezahlen soll, muss
+sehen, was er schuldet — eine Aufforderung ohne Betrag ist keine. **Ein Leck ist es
+nicht**: `won` heisst «dieser Betrachter *ist* die Gegenpartei dieses Vorgangs», die
+Rechnungen sind seine; ein angefragter, unterlegener Dritter sieht weiterhin nichts.
+**Buchen darf sie trotzdem nicht** — eine Buchung ist unsere Aussage über unser Konto.
+
+#### Gebucht wird nur vom Webhook
+
+`payment_intent.succeeded` (nicht mehr `checkout.session.completed` — die gehostete Kasse
+gibt es nicht mehr) schreibt **eine Zeile Geld**, idempotent über die `pi_…`-Referenz.
+Gebucht wird `amount_received`, nicht `amount`: bei einer Teilautorisierung sind das zwei
+Zahlen, und nur die zweite ist eine Zahlung.
+
+Die Karte sagt darum «**ausgeführt**», nie «gebucht»: dazwischen liegt eine Sekunde, die
+niemandem gehört. Der Browser ist keine Quelle — wer ihn nach der Zahlung schliesst, darf
+keine Buchung verschlucken.
+
+►►► **Angezeigt wird sie trotzdem sofort** (Testnotiz #857). ◄◄◄ *«Nachdem ich als Partner
+bezahlt habe, wurde es erst nach einem Refresh angezeigt — gewollt, oder gibt es einen
+eleganten, einfachen Weg?»* Gewollt ist die **Quelle**, nicht das Warten: zwischen dem
+«bezahlt» der Karte und der Meldung des Dienstes liegen ein bis drei Sekunden, und in denen
+lädt ein einzelnes Nachladen zu früh.
+
+**Der einfache Weg ist fragen** — kein WebSocket und kein SSE für **ein** Ereignis, das
+einmal je Zahlung eintrifft: nachgefragt wird alle 1.5 Sekunden, bis sich die Summe der
+Zahlungen ändert, höchstens zehnmal. **Und es endet an der Zeile, nicht an einer Uhr**:
+bleibt die Meldung aus, steht die Karte still da, statt sie zu behaupten — der Nachweis ist
+die Zeile, und die entsteht dort, wo das Geld gemeldet wird.
+
+#### Der Anbieter steht nicht im Geldvorgang
+
+«Ist ein Zahlungsdienst eingerichtet?» wohnt in `core/config.payment_service_ready()`. Der
+Geldvorgang fragt eine **Eigenschaft**, keine Marke — ein Quelltext-Wächter hält es so.
+Sie fragt nach **beiden** Schlüsseln (geheim: Absicht anlegen · öffentlich: Formular
+rendern); einer allein ist eine halbe Strasse.
+
+**Welche Zahlungsarten es gibt, entscheidet das Konto beim Dienst**
+(`automatic_payment_methods`) — Karte, TWINT, was dort freigeschaltet ist. Eine Liste bei
+uns wäre die zweite Stelle, an der beim nächsten Freischalten jemand nichts sieht.
+
+### 9.14 Eine Rechnung je Modul — und die drei Wege zum Geld
+
+►►► **«Je Zahlungsmodul gibt es maximal eine Rechnung.»** ◄◄◄ (Testnotiz #866)
+
+*«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich einfach
+2 Zahlungsmodule.»* — Und das ist die richtige Modellierung, weil der Grund die **Zeit**
+ist: *Vorauszahlung → Leistung → Restzahlung* sind drei Zeitpunkte, und ein Modul steht an
+einem. Zwei Rechnungen an derselben Stelle wären zwei Aussagen über einen Moment, den es
+nur einmal gibt.
+
+**Die eine Lesestelle ist `deal.live_charge`**, und was sie zählt, ist genau das, was eine
+*Forderung nach aussen* ist:
+
+| nicht gezählt | warum |
+|---|---|
+| eine **Gegenbuchung** (`reverses_id`) | sie ist die Rücknahme einer Rechnung, nicht eine |
+| eine **stornierte** Zeile | genau das ist der Ausweg: was falsch ist, wird storniert und neu gestellt |
+| eine **Gutschrift** (negativ) | eine Minderung, keine zweite Rechnung — Skonto, Teilretoure und Kulanz bleiben möglich |
+
+**Damit ist die Regel keine Sackgasse**, und das ist der Punkt: sie verbietet die zweite
+*offene* Forderung, nicht den zweiten Vorgang. Steht die Rechnung, gibt es hier nichts
+mehr zu buchen — der Knopf **fehlt** (`credit_only`), und `next_charge` fällt mit ihm weg:
+eine Vorgabe für eine Buchung, die der Dienst abweist, wäre ein Angebot, das garantiert
+scheitert.
+
+**Und das System wurde dabei kleiner.** `_charge_for_payment` hatte drei Fälle, darunter
+«mehrere offene → die Zahlung muss sagen, welche», mit einem Satz, der sie aufzählte. Der
+Ast ist **unerreichbar geworden** und ist entfallen — ein Ast, den niemand erreicht, ist
+von einem kaputten nicht zu unterscheiden. Mit ihm ging `DealEmbed.open_invoices`.
+
+#### Zwei Module tragen ihre eigenen Preise — einen «Anteil» gibt es nicht
+
+Hier stand eine Runde lang `deals.share` (Prozent, Vorgabe 100): welchen Teil der
+Positionen **dieser** Vorgang abrechnet, gedacht als Gegenstück zur Zwei-Modul-Form. Er ist
+**ersatzlos entfallen** (Testnotiz #867 — *«ich checke diese Funktion nicht»*), und die
+Aufteilung braucht ihn nicht: **wer den Preis nennt, nennt ihn je Position**, also trägt
+die Anzahlung ihre eigenen Positionspreise und die Restzahlung ihre. Das ist zugleich die
+genauere Antwort — ein Prozentsatz auf eine Summe verteilt sich über alle Steuersätze, ein
+Preis je Position sagt, was er meint.
+
+*Ein zweites Feld «gesperrt?» gibt es ohnehin nicht: `currency_locked` hatte **keinen**
+Leser (die Oberfläche fragte längst `can`), und ein `share_locked` daneben gab einer
+**Gegenpartei** ein Eingabefeld für eine Zahl, die der Dienst ihr nie abnimmt (gemessen).
+`can` ist Auskunft **und** Tor; ein zweiter Wert daneben ist die Stelle, an der beide
+auseinanderlaufen.*
+
+#### Zwei Knöpfe mit demselben Wort sind einer zu viel
+
+*«Gibt es hier Buttons/Funktionen, die doppelt sind bzw. in der Abfolge und der Logik
+keinen Sinn machen?»* (#874) — Es gab zwei, und beide sind gefallen:
+
+* **«Gutschrift erfassen»** stand am Vorgang, sobald die eine Rechnung stand — und an
+  ihrer Zeile stand bereits «Gutschrift» (`reverse_word`). Dasselbe Wort, zwei Wirkungen:
+  der eine nimmt **diese Rechnung** zurück (mit Bezug, und er gibt den Platz für eine neue
+  frei), der andere buchte eine **freistehende** negative Forderung, die zu keinem Beleg
+  gehörte und in der Liste als zweite Rechnung erschien. Was für eine Korrektur vorgesehen
+  ist, steht im Fehlersatz von `_charge` selbst: **stornieren und neu stellen**; eine
+  Minderung ohne Rücknahme (Kulanz) ist die Gutschrift **an** der Rechnung.
+* **«Zahlung erfassen»** stand am Vorgang für den Fall «es gibt keine Rechnung» — den es
+  nicht gibt: `can` führt `pay` erst, wenn eine Forderung gebucht ist (§9.12/#822), und
+  ohne Forderung ist die Liste leer.
+
+**Und die Gegenhandlung des Vorgangs ist keine Buchung**: «Auftrag stornieren» (`revoke`)
+stand zwischen «Rechnung erfassen» und «Zahlung erfassen» und las sich als dritte Buchung.
+Sie steht jetzt am **Ende der Karte**, neben dem Modul-Abschluss — die eine bringt den
+Vorgang ans Ziel, die andere nimmt ihn zurück.
+
+#### Drei Wege, das Geld zu bekommen — und sie stehen an der Rechnung
+
+*«Im Grunde gibt es 3 Arten von Bezahlsystemen: Barzahlung, Zahlung per Karte und Zahlung
+via Banküberweisung.»* (#865) — Sie sind **eine Angabe an der Zahlung**
+(`deal_entries.method`), kein zweites Modell: gebucht wird in jedem Fall dieselbe Zeile.
+
+| Weg | was das System tut | wer löst aus |
+|---|---|---|
+| **bar** | `pay` — aufschreiben, was geschehen ist | ein Mensch |
+| **Karte** | `pay_online` — es geschehen lassen; gebucht wird vom Webhook | der Zahlende |
+| **Überweisung** | **nichts** — es ist eine **Auskunft** (§9.14a) | der Zahlende, im E-Banking |
+
+**Die Karte tippt niemand ab**: sie entsteht beim Zahlungsdienst und kommt über den
+Webhook — von Hand erfasst wäre sie eine Behauptung ohne Beleg. `dm.MANUAL_METHODS` neben
+`METHODS` (zwei Formen einer Regel), durchgesetzt an der **Menschentür** (`_pay`), nicht
+nur im Formular.
+
+►►► **Und alle drei stehen AN der Rechnung, die sie begleichen** (#859). ◄◄◄ *«Wie kann
+ich bestimmen, welche Rechnung ich bezahle?»* — Gar nicht: die Knöpfe standen **unter**
+der Liste, galten also dem Vorgang, und `stripe_pay.prepare` nahm `open_charges[0]`. Ein
+Knopf **an** der Zeile beantwortet die Frage, indem er sie nicht stellt.
+
+#### 9.14a Die QR-Rechnung — damit eine Überweisung nicht abgetippt wird
+
+**Die ehrliche Antwort auf «international gültig»: einen weltweiten Standard gibt es
+nicht.** Es gibt zwei, und einer deckt unseren Fall vollständig ab — die **Swiss
+QR-Rechnung** (Pflicht seit 10/2022, jede Schweizer Banking-App liest sie; CH/LI-IBAN,
+CHF oder EUR). Der **EPC-QR / GiroCode** für EUR an ausländische Konten ist dieselbe
+Mechanik mit anderer Nutzlast: später eine Datei mehr, kein Umbau.
+
+**Wo sie nicht gilt, gibt es sie nicht** — dann steht die Bankverbindung im Klartext da,
+mit dem **Grund** daneben (`qrbill.problem`). Ein QR, der in der App des Kunden einen
+Fehler wirft, wäre schlimmer als keiner.
+
+**Die Referenz ist die Creditor Reference** (`RF…`, ISO 11649) aus unserer
+Rechnungsnummer — strukturiert, international gültig und **ohne QR-IBAN**: die muss man
+bei der Bank bestellen, und ohne sie ist die schweizerische QR-Referenz gar nicht erlaubt.
+*Und sie sagt, woher sie kommt* (Testnotiz #871 — *«leitet sich diese von der
+Rechnungsnummer ab?»*): der Trennstrich fällt weg, weil ISO 11649 nur Buchstaben und
+Ziffern kennt (`100000886-1` → `RF…1000008861`) — ohne den Satz daneben sieht das nach
+einer erfundenen Zahl aus, und genau daraus entstand die Rückfrage.
+
+**Erzeugt wird sie im Backend**: die Nutzlast ist eine Liste von **einunddreissig Zeilen
+in fester Reihenfolge**, und eine zweite Fassung im Browser wäre die Stelle, an der beim
+nächsten Feld eine Zeile verrutscht — das sieht man einem QR nicht an.
+
+**Wie GROSS er ist, entscheidet die Stelle, an der er steht** (#872). Er trug eine feste
+Kantenlänge (240 px) und stand in einem 168 px breiten Kasten: 72 px zu breit, also ragte
+er heraus und sass sichtbar ausser der Mitte (gemessen: Δ rechts −72 px). Das Bild nennt
+jetzt nur noch sein **Seitenverhältnis** und füllt seinen Kasten — eine zweite Zahl im
+Backend, die zur Breite im Browser passen muss, geht beim ersten Umbau auseinander. **Die
+Ruhezone gehört dabei zum Code**, nicht zum Layout drumherum: vier Module ringsum
+(ISO/IEC 18004), in der `viewBox`, damit sie mitskaliert; als Polsterung im Browser wäre
+sie die zweite Stelle, an der jemand sie wegoptimiert.
+
+#### Storno oder Gutschrift — dieselbe Buchung, zwei Wörter
+
+*«Wenn bezahlt wurde, dann kann ich ja quasi nicht mehr stornieren.»* (#860) — Richtig:
+eine Rechnung, auf die Geld geflossen ist, nimmt man nicht zurück, man **schreibt sie
+gut**. Es ist dieselbe Gegenbuchung (§9.12, #823/#824); nur das **Wort** hängt an der
+Zahl, und der Server sagt es (`DealEntryOut.reverse_word` aus `paid_on`) — eine zweite
+Formel im Browser wiche ab und sähe trotzdem richtig aus.
+
+**Erstattet wird auf dem Weg, auf dem gezahlt wurde**: bar und per Überweisung ist die
+Erstattung eine gewöhnliche **negative Zahlung** (die es längst gibt); eine **Karte** gibt
+nur der Dienst zurück, der sie belastet hat (`refund_online` → `stripe_pay.refund`).
+Gebucht wird auch dort nicht dort: der Dienst meldet `charge.refunded`, und der Webhook
+schreibt die Zeile.
+
+**Und eine Zahlung auf eine inzwischen stornierte Rechnung wird trotzdem gebucht** — ohne
+Zuordnung. Sie ist passiert; ein Ereignis der Aussenwelt macht man nicht ungeschehen
+(§9.12, #842). Was daraus folgt, braucht keine eigene Regel: der offene Betrag wird
+negativ — *wir schulden* —, und die Erstattung steht als Handlung da.
+
+
+### 9.14b Der Betrag der Zusage ist die Summe seiner Positionen
+
+►►► **Wo die POSITIONEN den Preis tragen, gibt es keine zweite Zahl.** ◄◄◄
+
+Bei einer **Einnahme** nennen wir den Preis je Position (§9.12, MWSTG Art. 26), und der
+Betrag des Vorgangs *ist* ihre Brutto-Summe (`gross_of`) — dieselbe Summe, aus der auch
+Netto, Steuer je Satz und die anteilige Aufteilung einer Teilrechnung kommen
+(`vat_split` / `split_for`). Der Zuschlag liess ihn trotzdem frei übersteuern, und damit
+konnte derselbe Beleg zwei Dinge sagen: «Total 900» über einer Aufstellung, die auf 1000
+aufgeht.
+
+Eine abweichende Zahl wird darum **abgewiesen** — mit der richtigen im Satz —, nicht still
+verworfen: eine stillschweigend ignorierte Angabe ist die unangenehmere Form, weil man ihr
+nicht ansieht, dass sie nichts getan hat. Wer nachverhandelt, ändert den Preis **an der
+Position**.
+
+Bei einer **Ausgabe** nennt die Gegenpartei eine Summe (ihre Steuer steht auf *ihrer*
+Rechnung); dort ist der Betrag die einzige Angabe, und ein Wert in der Nutzlast **ist** die
+Nachverhandlung.
+
+►►► **Und die Null ist eine Angabe — auch beim Zuschlag.** ◄◄◄ Die vereinbarte
+Zahlungsfrist wurde als `_days(payload) or _days(line)` gelesen. Eine **null** aus der
+Nutzlast ist aber genau die Vorauszahlung (§9.12, `PREPAID_DAYS`), und `0 or X` ist `X`:
+wer «zahlbar sofort» vereinbarte, bekam still die Frist der Offerte — und damit ein Modul,
+das ohne Zahlung abschliesst, obwohl Vorkasse verabredet war. Dieselbe Falle, gegen die
+`_assert_terms` ausdrücklich auf `is None` prüft.
+
+*Bewusst **nicht** getan: die vier Werte der Zusage (`party_id`, `amount`, `due_days`,
+`agreed_lines`) durch einen blossen **Zeiger** auf die gewählte Angebotszeile zu ersetzen.
+Sie sind keine Kopien **einer** Tatsache: `party_id` ist der Zeiger, und Betrag wie Frist
+dürfen bei der Zusage abweichen — verhandelt wird auch am Telefon. Ein Zeiger sagte damit
+weniger, nicht dasselbe: er überschriebe die Offerte mit der Zusage, und danach liesse sich
+nicht mehr sagen, was der Partner ursprünglich angeboten hat.*
+
+### 9.14c Die Karte IST der Beleg — und sie wächst
+
+►►► **Ein Vorgang, ein Dokument.** ◄◄◄ (Testnotiz #899)
+
+Die Ausführungsstelle des Geldvorgangs war eine **Kette von Abschnitten**: Positionen ·
+Angebot · Auftrag · Geld. Mit der Zusage kam ein Block dazu, der Partner, Summe und
+Fristen **noch einmal** zeigte — ein zweiter Beleg neben dem ersten, in anderer
+Reihenfolge als der erste.
+
+Gemeint war nie ein zweiter Beleg, sondern **derselbe, einen Schritt weiter**. Also steht
+er in der Ordnung, die ein Beleg hat:
+
+| Abschnitt | Was darin steht |
+|---|---|
+| **Belegkopf** | Belegart (Angebot ↔ Auftrag ↔ storniert) · Richtung als Symbol · *An <Partner>* · Zusagedatum · die Sperre «Erst zahlen» |
+| **Positionen** | je Artikel eine Zeile mit Menge, Nummer, Satz, Preis — und darunter Netto, Steuer je Satz, Total |
+| **Bedingungen** | Währung, Zahlungsfrist, Lieferfrist bzw. der Termin, der daraus folgt |
+| **Rückläufe** | der Angebotsspiegel: wer was zu welcher Frist angeboten hat |
+| **Rechnung & Zahlungen** | die Geld-Zeilen (§9.14) |
+| **Handlungen** | unter einer Haarlinie, wie die Unterschrift |
+
+**Er wächst, statt umzuschalten.** Die Belegart im Kopf **ist** der Fortschritt; die
+Preisspalte trägt nach der Zusage die gebuchten Zahlen statt des Entwurfs, die Bedingungen
+stehen als Auskunft statt als Feld, die Rückläufe klappen auf **eine** Zeile zusammen, und
+darunter kommt das Geld dazu. Dieselben Zeilen, ein Zustand weiter — **ein späterer
+PDF-Export ist damit dieselbe Ableitung ohne Knöpfe**, nicht ein zweiter Beleg, der beim
+nächsten Feld ausläuft.
+
+**Die Regel, die es zusammenhält, ist zählbar**: jede Beleg-Angabe steht an **genau einem**
+Ort. Empfänger und Zusagedatum im Kopf, Zahlungsfrist und Liefertermin bei den Bedingungen,
+Steueraufteilung und Nettosumme bei den Positionen. Und die **Summe** gibt es einmal: die
+Vorschau aus getippten Preisen und die gebuchten Zahlen des Servers sind dieselbe
+Aufstellung — zwei Bauteile wären zwei Schreibweisen für Netto, Steuer und Total.
+
+**Zusammengeklappt wird erst NACH dem Zuschlag.** Solange verhandelt wird, versteckt der
+Beleg nichts. Danach sind die unterlegenen Zeilen der **Nachweis**, warum so entschieden
+wurde — er verschwindet nicht, er steht auf Klick.
+
+**Die Zahlungsfrist steht über der Lieferfrist** (#897) — im Beleg wie an der
+Angebotszeile, und auch in deren Anzeige. Sie ist die folgenreichere Angabe: aus ihr kommt
+die Fälligkeit, und null heisst Vorauszahlung. Zwei Formulare für dieselben zwei Fragen
+dürfen nicht anders herum fragen.
+
+

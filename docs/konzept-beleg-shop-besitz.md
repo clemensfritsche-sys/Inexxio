@@ -1,7 +1,12 @@
 # Beleg, Shop, Besitz — drei Fragen, einfach erklärt
 
-> **Was ist das hier?** Ein Konzept, kein Bauprotokoll. **Nichts davon ist umgesetzt.**
-> Stand: 13.09.2026, gemessen am Code auf `develop` (Commit `9598091`).
+> **Was ist das hier?** Ein Konzept, kein Bauprotokoll. Stand: 13.09.2026, gemessen am Code
+> auf `develop` (Commit `9598091`).
+>
+> **Stand Oktober 2026:** Frage 2 («Rechnung & Zahlung») ist **umgesetzt** – zwei Fächer,
+> eine Handlung, eine Wahl (PROCESS_CORE §9.15i–l), danach «der Beleg IST die Rechnung»
+> (§9.15q). Fragen 1 (Shop) und 3 (Besitz: bei uns ↔ beim Kunden) sind **offen**; darum
+> steht das Konzept weiter hier und nicht im Archiv.
 >
 > **Für wen?** Für jeden, der mitreden will – ohne Vorwissen. Fachbegriffe stehen drin,
 > aber immer mit Erklärung daneben.

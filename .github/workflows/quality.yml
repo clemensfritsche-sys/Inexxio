@@ -107,7 +107,7 @@ jobs:
       # Mitgefahren werden dabei die **Szenariomatrix** (tests/test_scenarios.py, Soll je
       # Fall in tests/matrix.py) und die **systemweiten Invarianten**
       # (tests/test_invariants.py → app/services/invariants.py). Sie sind das Ergebnis
-      # der Testkampagne (TEST_REPORT.md) und ersetzen die mit dem Basis-Neuaufbau
+      # der Testkampagne (docs/history/2026-08-test-report.md) und ersetzen die mit dem Basis-Neuaufbau
       # entfallene Regel-Tabelle – als geschriebene, überprüfbare Regel statt als Prosa.
       - name: pytest (Matrix + Invarianten + Wächter)
         working-directory: backend

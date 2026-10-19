@@ -10,7 +10,7 @@ B2B-Normalfall — der Knopf «Jetzt bezahlen» erscheint dann gar nicht erst.
 > Wahrheit»), und daraus kam fast die ganze Komplexität: `stripe_*`-Snapshot-Spalten an
 > vier Tabellen, ein Webhook, der **Aufträge erzeugte**, ein `CheckoutIntent` mit
 > Reservierungen und ein Aufräumer für verlassene Warenkörbe. Heute schreibt der Webhook
-> **eine Zeile Geld** (`services/deal.record_payment`) und sonst nichts.
+> **eine Zeile Geld** (`services/voucher.record_payment`) und sonst nichts.
 
 > ►►► **Bezahlt wird BEI UNS, nicht dort.** ◄◄◄
 >
@@ -67,7 +67,7 @@ Betrag **und** Währung vor (`stripe_pay.prepare`); wäre es an, rechnete Stripe
 mit **seinem** Kurs erneut um: angezeigt € 11.80, belastet € 11.82.
 
 **Stripe Tax bleibt aus.** Es berechnete eine Steuer, die wir nicht kennen — die
-Umkehrung des Grundsatzes oben. Die Steuer steht am Beleg (`deal_entries.vat`).
+Umkehrung des Grundsatzes oben. Die Steuer steht am Beleg (`vouchers.vat`).
 
 ### Wo die Rechnungsnummer steht — und warum «Stripe» auf der Karte steht
 
@@ -76,7 +76,7 @@ Drei Texte, drei Orte, und nur zwei davon gehören uns (Testnotiz #858):
 | Text | wer setzt ihn | was er ist |
 |---|---|---|
 | **Description** | wir, je Zahlung | «Rechnung 100000884-1 · Auftrag 100000884» — der **menschliche** Ort, den man im Dashboard liest. |
-| **Metadata** | wir, je Zahlung | `deal_id` · `charge_id` · `invoice` · `order` — der **maschinelle**; hierüber findet der Webhook den Vorgang. |
+| **Metadata** | wir, je Zahlung | `voucher_id` · `invoice` · `order` — der **maschinelle**; über `voucher_id` (`stripe_pay.META_KEY`) findet der Webhook den Beleg. Eine Erstattung findet ihn über die Referenz der Zahlungsabsicht. |
 | **Statement descriptor** | das **Konto** | Der Text, den die **Bank** dem Karteninhaber auf der Abrechnung zeigt. Höchstens 22 Zeichen. |
 
 Der dritte lautet «Stripe», **solange das Konto nicht aktiviert ist** — er ist keine
@@ -207,15 +207,16 @@ Produktion tritt der `pk_live_…` an dieselbe Stelle.
 
 **Ohne diese Zeile ist der Dienst schlicht nicht eingerichtet** — kein Fehler, kein Stub,
 kein 503: `payment_service_ready()` ist `False`, und der Knopf «Jetzt bezahlen» erscheint
-nicht (`DealEmbed.can` führt `pay_online` dann gar nicht).
+nicht (`VoucherEmbed.can` führt `pay_online` dann gar nicht).
 
 ## 6. Testen (Sandbox)
 
 1. Artikel mit einem **Zahlung**-Modul anlegen (Richtung **Einnahme**, ein Partner),
    Auftrag freigeben.
-2. Am Vorgang: anbieten → Angebot annehmen → **Rechnung erfassen**.
-3. Unter den Stufen erscheint die Zahlungszeile: **offen · fällig** — und daneben
-   **«Jetzt bezahlen»**.
+2. Am Beleg: Positionen bepreisen, Fristen und Lieferbedingung setzen → **Anbieten** →
+   **Offerte annehmen** → **Rechnung stellen**.
+3. Im Fach **Begleichen** steht der offene Betrag; als Zahlungsart **Karte** wählen –
+   daneben **«Jetzt bezahlen»**.
 4. Klicken → das Formular öffnet sich **in der Karte**: Testkarte
    `4242 4242 4242 4242`, beliebiges künftiges Datum, beliebige CVC/PLZ. Name, E-Mail und
    Adresse stehen schon da, wenn sie am Benutzer gepflegt sind.
@@ -225,10 +226,10 @@ nicht (`DealEmbed.can` führt `pay_online` dann gar nicht).
 6. **Als Gegenpartei prüfen**: mit dem Benutzer anmelden, der als Partner eingetragen ist
    — er sieht den Auftrag, sein Modul, den offenen Betrag und denselben Knopf. Er sieht
    **keine** Freigabe-Liste, keine fremden Preise und hat **keine** Buchungs-Knöpfe.
-7. Erstattung **im Stripe-Dashboard** auslösen → `charge.refunded` bucht eine **negative**
-   Zahlung (eigene Referenz `pi_…:refund`). Einen eigenen Erstattungs-Knopf gibt es
-   bewusst nicht: der Dienst bietet ihn an, und «erstattet wird auf dem Weg, auf dem
-   gezahlt wurde» ist dort ohnehin die einzige Möglichkeit.
+7. **Erstatten** an der Kartenzahlung («Online erstatten», `refund_online` →
+   `stripe_pay.refund`; idempotent, der Knopf verschwindet, sobald nichts mehr erstattbar
+   ist) oder im Stripe-Dashboard → `charge.refunded` bucht **je Erstattung** eine
+   negative Zahlung mit eigener Referenz. Gebucht wird in beiden Fällen nur vom Webhook.
 
 ## Was es bewusst NICHT gibt
 
@@ -236,13 +237,13 @@ nicht (`DealEmbed.can` führt `pay_online` dann gar nicht).
 |---|---|
 | Ein Zahllink / gehostete Kasse | Der Kunde stand auf einer fremden Seite mit fremdem Namen. Die Bezahlkarte ist unsere; nur die Eingabefelder gehören dem Dienst — und genau deshalb berührt keine Kartennummer unseren Server. |
 | Ein Kunden-Datensatz beim Dienst (`Customer`) | Zwei Stammdaten für dieselbe Person, und die zweite ausserhalb des ERP. Die Angaben reisen je Zahlung mit. |
-| Eine Quittungs-Mail des Dienstes | Fremdes Briefpapier für einen Vorgang, der bei uns steht. Der Nachweis ist die Zeile im Geldvorgang. |
+| Eine Quittungs-Mail des Dienstes | Fremdes Briefpapier für einen Vorgang, der bei uns steht. Der Nachweis ist die Zeile am Beleg. |
 | Eine eigene Liste von Zahlungsarten | Was angeboten wird, entscheidet das Konto (`automatic_payment_methods`). Eine zweite Liste sähe beim nächsten Freischalten nichts. |
 | Ein `manual`-Provider | Er simulierte einen Zahlungsdienstleister samt eigener Bezahlseite. Eine Überweisung braucht keine Simulation — sie braucht ein Feld. |
 | Ein Provider-Rahmen mit zwei Implementierungen | Eine Abstraktion über einer Zeile. |
 | Stripe Tax | Es berechnete eine Zahl, die wir nicht kennen. |
 | Customer Portal / Subscriptions | Wiederkehrende Aufträge werden eine **Schlaufe im Prozess** (PROCESS_CORE §13.7), kein Abo-Objekt beim Zahlungsdienst. |
-| `stripe_customer_id` & Co. | Die Id steht in `deal_entries.reference` — in derselben Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege. |
+| `stripe_customer_id` & Co. | Die Id steht in `voucher_entries.reference` — in derselben Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege. |
 | Ein zweiter Weg für die **Buchung** einer Erstattung | Den Knopf gibt es seit Testnotiz #860 (`refund_online` → `stripe_pay.refund`) — wer im Dashboard erstattet, müsste das ERP verlassen und dort die Zahlung wiederfinden, die hier eine Zeile mit einer Nummer ist. **Gebucht** wird trotzdem nur vom Webhook (`charge.refunded`): der Auslöser ist neu, die Quelle nicht. |
 | Eine Überweisung beim Dienst | Für **CHF** bietet er gar keine an, und wo er sie anbietet, kostet sie Gebühren für Geld, das sonst gratis ankommt. Genau deshalb überweist man — die **QR-Rechnung** (`services/qrbill`) ist eine Auskunft, keine Buchung. |
 
