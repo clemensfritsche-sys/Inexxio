@@ -375,3 +375,59 @@ def test_an_internal_question_is_not_the_answer_to_the_customer(world):
     _send(db, actor, channel="intern", about=[lea], subject="Re: Danke", body="")
     assert not _one(db, n.id).open
 
+
+def test_the_feed_mark_counts_what_the_history_shows_without_building_it(world, monkeypatch):
+    """►►► **Das Zeichen im Feed zählt dieselbe Regel wie der Verlauf – ohne ihn zu
+    bauen** (Cleanup B-50). ◄◄◄ ``open_counts`` liess den ganzen Bestand durch ``load``
+    laufen: jede Nachricht samt Text, gebauter Mail und Signatur-Erkennung zu einer vollen
+    ``MessageOut``, nur um zwei Wahrheitswerte abzulesen – gemessen 1.9 s bei 10'000
+    Nachrichten, bei jedem Feed-Aufruf. Gezählt wird jetzt über ``_state``, dieselbe eine
+    Regel, die auch ``_out`` liest.
+
+    Bug-Formen: (a) ``open_counts`` baut wieder Antworten (``_out``); (b) es liest die
+    gebaute Mail (``messages.html``); (c) die Zahlen weichen vom Verlauf ab."""
+    from sqlalchemy import event
+    from app.core.database import engine
+    db, actor, staff = world
+    lea, max_, sara = _person(db), _person(db), _person(db, "employee")
+    now = datetime.now(timezone.utc)
+    ids = [m.id for m in (
+        _send(db, actor, channel="c999999990", sender=lea, subject="Kran", body="Wann?",
+              at=now - timedelta(hours=3)),                                    # überfällig
+        _send(db, actor, channel="c999999990", sender=lea, subject="Lager", body="Wo?"),
+        _send(db, actor, channel="c999999990", sender=max_, subject="Offerte", body="?"),
+        _send(db, actor, channel="c999999990", sender=staff, to=[max_],
+              subject="Re: Offerte", body="Anbei."),                          # beantwortet
+        _send(db, actor, channel="intern", sender=staff, to=[sara], about=[lea],
+              subject="Re: Kran", body="Kannst du hinfahren?"),               # Frage intern
+        _send(db, actor, channel="intern", sender=staff, about=[max_], subject="Notiz",
+              body="nur vormittags"),                                          # nie offen
+        _send(db, actor, channel="intern", sender=staff, to=[staff], subject="Zurückrufen",
+              body="morgen", at=now + timedelta(days=1)),                      # geplant
+        _send(db, actor, channel="phone", sender=lea, to=[staff], subject="Anruf",
+              body="ok"),                                                      # Gespräch
+    )]
+    expected: dict[int, list[int]] = {}
+    for m in svc.load(db, ids):
+        if m.open:
+            for oid in {p.object_id for p in (m.sender, *m.to, *m.cc, *m.bcc, *m.about)}:
+                row = expected.setdefault(oid, [0, 0])
+                row[0] += 1
+                row[1] += int(m.overdue)
+
+    def built(*_a, **_k):
+        raise AssertionError("open_counts baut wieder volle Antworten (a).")
+    monkeypatch.setattr(svc, "_out", built)
+    read: list[str] = []
+
+    def watch(_c, _cur, stmt, *_a, **_k):
+        read.append(stmt)
+    event.listen(engine, "before_cursor_execute", watch)
+    try:
+        got = {c.object_id: [c.open, c.overdue] for c in svc.open_counts(db)
+               if c.object_id in (lea, max_, sara, staff)}
+    finally:
+        event.remove(engine, "before_cursor_execute", watch)
+    assert not [q for q in read if "messages.html" in q], "Die gebaute Mail wird geladen (b)."
+    assert got == expected, f"Feed {got} ≠ Verlauf {expected} (c)."
+    assert expected[lea] == [3, 1] and sara in expected and max_ not in expected

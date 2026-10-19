@@ -276,13 +276,15 @@ def test_migrations_090_and_091_are_repeatable():
 
 def test_is_primary_is_dropped_everywhere_not_re_added():
     """``is_primary`` ist endgültig weg: NICHT mehr im ADD-Netz (das es sonst wieder
-    anlegen würde und Migration 091 rückgängig machte), sondern im DROP-Netz."""
-    from app.main import _COLUMN_SAFETY_NET, _DROP_COLUMN_SAFETY_NET
+    anlegen würde und Migration 091 rückgängig machte) und in keinem Modell. Gedroppt hat
+    es Migration 091; das frühere Drop-Netz, das es bei jedem Start erneut versuchte, ist
+    entfallen (Cleanup Oktober 2026, B-22) – eine Spalte ohne Mapping stört nichts."""
+    from app.main import _COLUMN_SAFETY_NET
+    from app.models import CompanySettings
 
     add = {(t, c) for t, c, _ in _COLUMN_SAFETY_NET}
-    drop = set(_DROP_COLUMN_SAFETY_NET)
     assert ("company_settings", "is_primary") not in add, "is_primary darf nicht wieder ergänzt werden"
-    assert ("company_settings", "is_primary") in drop, "is_primary gehört ins Drop-Netz"
+    assert "is_primary" not in CompanySettings.__table__.columns, "is_primary ist zurück im Modell"
     assert ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false") in _COLUMN_SAFETY_NET
 
 

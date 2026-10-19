@@ -328,3 +328,30 @@ def test_two_syncs_never_send_the_same_mail_twice(monkeypatch):
         a.commit()
         a.close()
         b.close()
+
+
+def test_marking_read_asks_once_not_once_per_mail(world, monkeypatch):
+    """►►► **«Gelesen in Gmail» fragt EINMAL, was beantwortet ist** (Cleanup B-50). ◄◄◄
+    Die Ableitung stand als Bedingung in der Auswahl (``if m.id in answered(…)``) und lief
+    damit für **jede** Mail erneut über alle – quadratisch, alle 30 Sekunden je Postfach.
+
+    Bug-Form: ``answered`` wird je Mail gefragt."""
+    from datetime import datetime, timezone
+    db, _staff, box = world
+    raws = [_gmail("q@kunde.ch", to=COMPANY, subject=f"Frage {i}", rfc=f"<q{i}@kunde>")
+            for i in range(4)]
+    for raw in raws:
+        mb.ingest(db, box, raw)
+    db.query(Message).filter(Message.gmail_id.in_([r["id"] for r in raws])).update(
+        {Message.at: datetime.now(timezone.utc)}, synchronize_session=False)
+    db.flush()
+    calls = {"n": 0}
+    real = comm.answered
+
+    def counted(*a, **k):
+        calls["n"] += 1
+        return real(*a, **k)
+    monkeypatch.setattr(comm, "answered", counted)
+    monkeypatch.setattr(mb, "_access", lambda _box: None)
+    mb._mark_read(db, box)
+    assert calls["n"] == 1, f"answered wurde {calls['n']}-mal gefragt, für vier Mails."

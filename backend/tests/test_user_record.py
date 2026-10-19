@@ -79,7 +79,7 @@ def test_the_role_is_the_access_and_nothing_else():
 def test_the_repair_turns_an_old_role_into_access():
     """►►► **Eine Datenänderung braucht IMMER auch ein Netz** (gemessen). ◄◄◄
 
-    Die dev-Datenbank fährt kein ``alembic upgrade head`` (#778). Ohne die Reparatur bliebe
+    Scheitert ``alembic upgrade head`` beim Start (#778), bliebe ohne die Reparatur
     ``role = 'customer'`` stehen – und ``Role`` an der Tür kennt den Wert nicht mehr: jedes
     Speichern an so einer Zeile wäre ein 422 an einer Angabe, die niemand angefasst hat.
 

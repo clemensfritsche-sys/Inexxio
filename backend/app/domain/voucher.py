@@ -946,8 +946,8 @@ def invoice_backfill_sql() -> tuple[str, ...]:
     **zwei** Stellen gebraucht werden:
 
     * der **Migration** – sie ist die Wahrheit;
-    * dem **Lifespan-Netz** – die dev-Datenbank fährt kein ``alembic upgrade head``
-      (Testnotiz #778), und dort zöge sonst das Spalten-Netz die acht Spalten leer nach,
+    * dem **Lifespan-Netz** – scheitert ``alembic upgrade head`` beim Start (Testnotiz
+      #778), zöge sonst das Spalten-Netz die acht Spalten leer nach,
       während die alten Forderungs-Zeilen stehenbleiben. **Der Dienst läse sie als
       Zahlungen**: jede alte Rechnung wäre ein Geldeingang, und der offene Betrag stünde
       im Minus.
@@ -1010,8 +1010,8 @@ def magnitude_sql() -> tuple[str, ...]:
     positiv – und nur die Buchhaltung dreht es, aus ``corrects_id``.
 
     Zwei Anweisungen, und sie stehen **hier**, weil zwei Stellen sie brauchen: die
-    **Migration** (sie ist die Wahrheit) und das **Lifespan-Netz** – die dev-Datenbank
-    fährt kein ``alembic upgrade head`` (Testnotiz #778), und dort stünde sonst ein
+    **Migration** (sie ist die Wahrheit) und das **Lifespan-Netz** – scheitert
+    ``alembic upgrade head`` beim Start (Testnotiz #778), stünde sonst ein
     Korrekturbeleg weiter im Minus, während die Leser ihn als Menge lesen: der offene
     Betrag wäre das Doppelte.
 

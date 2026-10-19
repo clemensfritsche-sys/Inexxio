@@ -5271,6 +5271,26 @@
 > (`docs/backlog.md`). `deadcode.py` kennt jetzt die Inseln und zählt `types/api.ts` nicht
 > als Leser.
 
+> ►►► **Paket 8 · 9 · 10 · 12 · 13: eine Regel, eine Stelle – und der Start droppt nichts
+> mehr.** ◄◄◄ **Eine Personensuche** (`people.search` hinter `GET /erp/people`; der alte
+> Pfad `/erp/orders/voucher-parties` ist ein Alias für einen Deploy, `docs/backlog.md`),
+> **ein Personal-Paar** (`people.STAFF_ROLES`, auch `require_employee`; im Frontend nur
+> `isStaff()` – ein Admin sieht im Konto seine Anstellung), **eine UID-Schreibweise** auf
+> beiden Seiten des Belegs (`voucher._uid`), der Zahlungsempfänger des QR-Scheins aus
+> `address.of_company`, `CompanySettings.iban` (Spalte bleibt `iban_encrypted`, keine
+> Migration). Frontend: **Alt-Palette auch als Hex auf 0** (Ausnahme Gebietskarte), ein
+> Auto-Save-Modul (`lib/use-autosave.ts`, 3 s), ein Such-Hook (`lib/use-search.ts`),
+> `formatNumber`, `when.whenDay`, `VOUCHER_*` statt `DEAL_*`, `lib/status-tone.ts`,
+> Formular-Bausteine in `components/form/`. Website: ERP-Pfade, Modus, Ort und
+> Formular-Muster stehen je einmal; der mailto-Ausweg trägt denselben Betreff wie die
+> ERP-Nachricht; `export-contact` heisst `export-erp`. **Start:** Drop-Netz, Übernahme der
+> Firmentexte und das Nachführen von `articles.status` sind entfallen; `start.sh` fährt
+> `alembic upgrade head` bei **jedem** Start, auch auf dev – die Netze sind der zweite Weg,
+> wenn das scheitert (die gegenteilige Behauptung weiter oben ist überholt). **Gemessen:**
+> zwei gleichzeitige Belegansichten kollidieren nicht mehr (`ON CONFLICT DO NOTHING`), die
+> Auftragsantwort kostet konstant ~111 statt bis 312 Abfragen, das Feed-Zeichen 0.35 s
+> statt 1.9 s bei 10'000 Nachrichten.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

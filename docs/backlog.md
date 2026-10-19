@@ -169,6 +169,15 @@ Folge-Deploy (Zwei-Deploy-Regel, **nach Sicherung der produktiven Datenbank**): 
 droppen und den Eintrag `("articles", "landed_unit_cost", …)` aus
 `main._COLUMN_SAFETY_NET` entfernen – er legt sie bis dahin nur an, falls sie fehlt.
 
+## Offen: `articles.status` droppen (Folge-Deploy nach Migration `121`)
+
+Der Zustand eines Artikels ist seit #773 die Projektion von `replaced_by_id`; die Spalte
+hat ihr Mapping in Migration `121` verloren und wird von niemandem gelesen. Bis zum
+Cleanup Oktober 2026 (B-20) schrieb der Start sie trotzdem bei jedem Lauf nach – das ist
+entfallen. Ihre `NOT NULL`-Sperre löst `main._NULLABLE_SAFETY_NET`, also läuft kein Insert
+auf. Im Folge-Deploy, **nach Sicherung der produktiven Datenbank**: Spalte droppen und den
+Eintrag `("articles", "status")` aus `_NULLABLE_SAFETY_NET` entfernen.
+
 ## Offen: `user_profiles.terms_accepted_at`/`terms_version` droppen (Folge-Deploy nach Cleanup Paket 5)
 
 Der Endpunkt `POST /auth/terms-accept` ist entfernt (E2), und die Anzeige «AGB akzeptiert

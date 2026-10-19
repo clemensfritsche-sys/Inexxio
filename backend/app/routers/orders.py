@@ -147,8 +147,19 @@ def _keep(db: Session) -> None:
     Fachlogik (die Suite fährt dieselben Dienste in EINER Sitzung, die sie am Ende
     verwirft). Und hier statt in jeder Leseroute: ``_steps`` ist die eine Stelle, an der
     eine Antwort ihre Module baut – eine neue Route erbt es, ohne daran zu denken.
+
+    **Und der Commit verwirft nicht, was die Antwort noch liest** (Cleanup B-38). Mit dem
+    Standard ``expire_on_commit`` war danach jedes schon geladene Objekt abgelaufen – in
+    ``_to_response`` die bis zu ``EVENT_LIMIT`` Log-Einträge, die nach den Modulen
+    gebaut werden: **eine Abfrage je Eintrag** (gemessen: 312 statt 112 Abfragen bei
+    50 Stück, 200 davon ``SELECT process_events … WHERE id = …``). Geschrieben hat hier
+    nur die Anfrage selbst, also stimmt der geladene Stand nach dem Commit.
     """
-    db.commit()
+    keep, db.expire_on_commit = db.expire_on_commit, False
+    try:
+        db.commit()
+    finally:
+        db.expire_on_commit = keep
 
 
 #: **Was nur das Personal sieht** – der interne Lauf des Auftrags.

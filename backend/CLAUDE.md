@@ -28,6 +28,17 @@ alembic upgrade head          # Migrationen anwenden
 alembic revision --autogenerate -m "description"  # Neue Migration erstellen
 ```
 
+> ►►► **Der Start fährt `alembic upgrade head` — auf JEDER Umgebung, auch auf dev**
+> (`start.sh`, CMD im Dockerfile). ◄◄◄ Die frühere Aussage «die dev-Datenbank fährt kein
+> `alembic upgrade head`» war falsch (Cleanup Oktober 2026, B-70). Richtig ist: scheitert
+> der Lauf – etwa weil die Datenbank auf einer Revision steht, die der Code nicht kennt
+> (#778, `start.sh` meldet es mit «Can't locate revision») –, startet uvicorn **trotzdem**,
+> und dann zählen nur die Lifespan-Netze in `main._ensure_columns`. Darum bleiben sie: als
+> **zweiter Weg** für den Ausfall, nicht als Ersatz für Alembic. Ein Netz, das nur eine
+> längst gelaufene Migration doppelt und nichts schützt (das frühere Drop-Netz, die
+> Übernahme der Firmentexte, der Artikel-Status), ist entfernt; ein Netz für eine Spalte,
+> einen Index oder einen Riegel, den ein Modell braucht, bleibt.
+
 ## Struktur
 ```
 app/
@@ -537,7 +548,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > an, `_COLUMN_SAFETY_NET` eine fehlende **Spalte**, `_NULLABLE_SAFETY_NET` löst eine
 > `NOT NULL`. Eine Spalte mit zu **kleiner Skala** nimmt den Wert **an** und rundet ihn
 > weg – sie meldet nichts. Dieselbe Lehre wie bei den Indizes (#778): eine Typänderung,
-> die nur in einer Migration steht, erreicht die dev-Datenbank nie. Geprüft wird vorher,
+> die nur in einer Migration steht, fehlt, wo `alembic upgrade head` scheitert. Geprüft wird vorher,
 > damit nicht bei jedem Start eine Tabelle umgeschrieben wird.
 > Wächter: `tests/test_deal_module.py` (jede der neun Bug-Formen gegengeprüft).
 
@@ -937,7 +948,10 @@ scheiterte danach **jeder** Lesezugriff auf den Beleg (140 Prüfungen).
 - **Neue Tabelle:** die Migration muss den **vollständigen** Spaltensatz des Modells
   anlegen – inklusive der geerbten (`is_active`, `created_at`, `updated_at`).
 - **Neue Spalte auf bestehender Tabelle:** Migration **und** `_COLUMN_SAFETY_NET`
-  (die Lehre aus 090 – beim Ausfall zählt nur der zweite Weg).
+  (die Lehre aus 090 – scheitert `alembic upgrade head` beim Start, zählt nur der zweite
+  Weg).
+- **Neuer Index, CHECK oder Fremdschlüssel auf bestehender Tabelle:** Migration **und**
+  `_RAW_INDEX_SAFETY_NET` (#778, B-52) – `create_all` legt sie nur mit einer neuen Tabelle an.
 - **Geprüft, nicht geglaubt:** `tests/test_schema_is_built_by_the_migrations.py` baut eine
   Wegwerf-Datenbank, fährt `alembic upgrade head` und vergleicht Modell ↔ Schema für jede
   Tabelle.
@@ -1321,8 +1335,8 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 > ►►► **`NULL` heisst «noch nicht entschieden» – und dann IST der Firmenname die
 > Antwort.** ◄◄◄ Das ist der Grund, warum diese Runde **keinen Backfill** braucht und
 > **keinen Default** auf beiden Seiten, der auseinanderlaufen könnte: es gibt keinen. Ein
-> `UPDATE … WHERE company_name <> ''` müsste im Lifespan-Netz stehen (die dev-Datenbank
-> fährt kein `alembic upgrade head`, #778) und liefe damit bei **jedem** Start – es
+> `UPDATE … WHERE company_name <> ''` müsste im Lifespan-Netz stehen (für eine Datenbank,
+> auf der `alembic upgrade head` scheitert, #778) und liefe damit bei **jedem** Start – es
 > flippte jeden zurück, der bewusst auf «Privat» gestellt hat, ohne den Namen zu löschen.
 > Dieselbe Bauart wie `Voucher.issuer_company_id = NULL` («der Betreiber»): *tolerant
 > lesen, streng schreiben.*
@@ -1430,7 +1444,7 @@ Router aufgerufen, ein Wächter über den Test – der Report weist beides getre
 >
 > ►►► **`people.repair_sql` – eine Datenänderung braucht IMMER auch ein Netz.** ◄◄◄ Zwei
 > Anweisungen an **einer** Stelle, gelesen von Migration `140` **und** vom Lifespan-Netz
-> (die dev-Datenbank fährt kein `alembic upgrade head`, #778): die **Rolle** auf den Zugang
+> (für eine Datenbank, auf der `alembic upgrade head` scheitert, #778): die **Rolle** auf den Zugang
 > ziehen (ohne das wäre jedes Speichern an einer Alt-Zeile ein 422 an einer Angabe, die
 > niemand angefasst hat) und die **kopierte** Rechnungsadresse räumen – nur die exakte
 > Kopie (alle sieben Felder gleich), sonst wäre es Datenverlust.
