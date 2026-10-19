@@ -44,8 +44,7 @@ def _gmail(frm, to="", cc="", subject="Hallo", body="Text", labels=("INBOX",), *
 
 
 @pytest.fixture()
-def world(monkeypatch):
-    db = session()
+def world(db, monkeypatch):
     monkeypatch.setattr(mb, "company_address", lambda _db, _key: COMPANY)
     monkeypatch.setattr(mb, "_company_addresses", lambda _db: {COMPANY})
     staff = _person(db, "employee")
@@ -53,8 +52,6 @@ def world(monkeypatch):
     db.add(box)
     db.flush()
     yield db, staff, box
-    db.rollback()
-    db.close()
 
 
 def _one(db, gid):

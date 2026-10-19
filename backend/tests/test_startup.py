@@ -32,8 +32,9 @@ def test_a_misshaped_core_table_is_reported_and_keeps_its_rows(monkeypatch, caps
     assert "process_events passt nicht zum Modell" in capsys.readouterr().out
 
 
-def test_a_failing_repair_does_not_take_the_others_with_it(monkeypatch, capsys):
-    """Jede Daten-Reparatur hat ihren Savepoint: scheitert eine, laufen die übrigen."""
+def test_a_failing_repair_does_not_take_the_others_with_it(db, monkeypatch, capsys):
+    """Jede Daten-Reparatur hat ihren Savepoint: scheitert eine, laufen die übrigen.
+    (``db``: die Reparaturen laufen gegen die echte Datenbank.)"""
     ran = []
 
     def broken(conn, _t, _i):

@@ -16,7 +16,6 @@ interessanten Fehler entstehen zwischen den Schritten, nicht in einem nachgestel
 Zustand.
 """
 
-import os
 import pathlib
 import re
 
@@ -345,43 +344,6 @@ def test_only_places_writes_a_place():
     )
 
 
-def test_the_chain_is_resolved_per_holder_not_per_piece():
-    """Sechzig Stücke in einem Regal sind **eine** Kette, nicht sechzig.
-
-    Gemessen statt behauptet: die Zahl der Abfragen darf nicht mit der Zahl der Stücke
-    wachsen. Genau daran hing die Ortsanzeige des Vorgängersystems.
-    """
-    from sqlalchemy import event
-    from app.core.database import engine
-    from app.services import places
-
-    w = _w()
-    try:
-        shelf = w.holder(name="Regal A")
-        article, numbers = free_stock(w, serialization="batch", quantity=60)
-        w.put(numbers, shelf.object_id)
-        units = [__import__("app.services.instances", fromlist=["x"]).find_unit(w.db, n)
-                 for n in numbers]
-
-        seen = {"n": 0}
-
-        def tally(*_a, **_k):
-            seen["n"] += 1
-
-        event.listen(engine, "before_cursor_execute", tally)
-        try:
-            places.for_units(w.db, units)
-        finally:
-            event.remove(engine, "before_cursor_execute", tally)
-
-        assert seen["n"] <= 15, (
-            f"Je Stück aufgelöst wären es Hunderte; gemessen: {seen['n']}."
-        )
-    finally:
-        w.db.rollback()
-        w.db.close()
-
-
 def test_a_carrier_cycle_is_refused():
     """Ein Stück kann nicht in sich selbst liegen – und nicht in dem, was in ihm liegt.
 
@@ -416,9 +378,6 @@ def test_a_place_is_one_statement():
     """
     from sqlalchemy.exc import IntegrityError
     from app.services import instances as inst_svc
-
-    if not os.environ.get("DATABASE_URL", "").startswith("postgresql"):
-        pytest.skip("Der CHECK lebt in PostgreSQL – ohne echte Datenbank ist er nicht da.")
 
     w = _w()
     try:

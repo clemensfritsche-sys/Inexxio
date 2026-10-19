@@ -20,28 +20,13 @@ Sendung zu buchen ist ein Geldvorgang, und dort ist `can` das Tor.*
 Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
 """
 
-import os
 import pathlib
 
 import pytest
 
+from tests.runner import session
+
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
-
-
-def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**."""
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        return SessionLocal()
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
 
 
 def _move_step(target=None):
@@ -140,7 +125,7 @@ def test_a_move_sets_the_place_and_nothing_else():
     from app.domain import statuses as st
     from app.models import InstanceUnit
 
-    db = _db()
+    db = session()
     try:
         shelf = _holder_instance(db)
         _art, order, steps = _make(db, quantity=3, steps=[_move_step(shelf.object_id)])
@@ -174,7 +159,7 @@ def test_the_place_belongs_to_the_piece_not_to_the_instance():
     """
     from app.services import places as places_svc
 
-    db = _db()
+    db = session()
     try:
         shelf, bench = _holder_instance(db), _holder_instance(db, name="Werkbank")
         _art, order, _steps = _make(db, quantity=2, steps=[_move_step()])
@@ -203,7 +188,7 @@ def test_a_holder_must_exist_and_be_something_that_can_hold():
     from fastapi import HTTPException
     from app.services import places as places_svc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, steps=[], name="Schraube M6")
         _a, order, _s = _make(db, quantity=1, steps=[_move_step()])
@@ -238,7 +223,7 @@ def test_a_place_never_runs_in_a_circle():
     from app.models import Instance, InstanceUnit
     from app.services import places as places_svc
 
-    db = _db()
+    db = session()
     try:
         shelf, box = _holder_instance(db), _holder_instance(db, name="Behälter")
         shelf_unit = db.query(InstanceUnit).join(
@@ -276,7 +261,7 @@ def test_the_chain_reads_from_inside_out_and_stops_at_an_address():
     from app.models import Instance, InstanceUnit
     from app.services import places as places_svc
 
-    db = _db()
+    db = session()
     try:
         works = _company(db)
         shelf = _holder_instance(db, name="Regal")
@@ -320,7 +305,7 @@ def test_a_broken_chain_is_capped_not_endless():
     from app.models import Instance, InstanceUnit
     from app.services import places as places_svc
 
-    db = _db()
+    db = session()
     try:
         a, b = _holder_instance(db, name="A"), _holder_instance(db, name="B")
 
@@ -360,7 +345,7 @@ def test_without_a_target_nothing_moves():
     from fastapi import HTTPException
     from app.services import process as proc
 
-    db = _db()
+    db = session()
     try:
         shelf, bench = _holder_instance(db), _holder_instance(db, name="Werkbank")
 
@@ -449,7 +434,7 @@ def test_the_chain_is_resolved_per_holder_not_per_piece():
     from app.models import Instance, InstanceUnit
     from app.services import places as places_svc
 
-    db = _db()
+    db = session()
     try:
         works = _company(db)
         shelf, box = _holder_instance(db, name="Regal"), _holder_instance(db, name="Behälter")
@@ -511,7 +496,7 @@ def test_holders_are_searchable_by_number_and_by_name():
     from app.models import CompanySettings, UserProfile
     from app.services import objects as obj, places as places_svc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, steps=[], name="Hochregal", serialization="einzeln")
         shelf = _holder_instance(db, name="Behälter")
@@ -568,7 +553,7 @@ def test_a_company_gets_its_number_from_the_sequence():
     """
     from app.models import CompanySettings
     from app.services import sites
-    db = _db()
+    db = session()
     try:
         first = sites.operator(db)
         second = CompanySettings(company_name="Werk Nord")

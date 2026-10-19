@@ -29,7 +29,6 @@ from app.routers import contact
 from app.services import communication as comm
 from app.services import inquiry as svc
 from app.services import mailbox as mb
-from tests.runner import session
 
 JSON = {"Accept": "application/json"}
 MSG = contact.MSG
@@ -38,8 +37,7 @@ CHANNEL = f"c{FIRM}"
 
 
 @pytest.fixture
-def world(monkeypatch):
-    db = session()
+def world(db, monkeypatch):
     db.commit = db.flush            # zurückrollbar bleiben
     staff = UserProfile(firebase_uid=f"uid-s{random.randint(1, 10**9)}", role="employee",
                         email=f"staff{random.randint(1, 10**9)}@inexxio.test",
@@ -60,8 +58,6 @@ def world(monkeypatch):
     app.dependency_overrides[get_db] = lambda: db
     contact.reset_rate_limit()
     yield SimpleNamespace(db=db, client=TestClient(app), sent=sent, box=box, staff=staff)
-    db.rollback()
-    db.close()
 
 
 def form(**extra) -> dict:

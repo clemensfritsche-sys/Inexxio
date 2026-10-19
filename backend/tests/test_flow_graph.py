@@ -27,11 +27,10 @@ einer stillen Fehldarstellung (``Graph.problems``), hier ein roter Test.
 SQLite geprüft wäre eine andere Wahrheit geprüft als die, die läuft.
 """
 
-import os
 import pathlib
 import re
 
-import pytest
+from tests.runner import session
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -132,26 +131,6 @@ def test_the_graph_is_derived_from_the_log():
 # Die Invarianten am laufenden Prozess
 # ---------------------------------------------------------------------------
 
-def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**.
-
-    Ein Wächter, der stillschweigend nicht läuft, ist von einem kaputten nicht zu
-    unterscheiden; darum nennt der Skip die fehlende Bedingung.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        return SessionLocal()
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Invarianten wirklich laufen.")
-
-
 def _confirm(db, order, step, values=None):
     """Ein Modul bestätigen — **ein Vorgang je wartender Instanz** (Scan-Regel §3).
 
@@ -226,9 +205,9 @@ def test_every_unit_has_exactly_one_position():
     Zuordnung bei jedem Übergang ändert.
     """
     from app.models import OrderUnit, ProcessStep
-    from app.services import flow, process as proc
+    from app.services import flow
 
-    db = _db()
+    db = session()
     try:
         parent, child, _ = _scenario(db)
         total = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).count()
@@ -271,9 +250,9 @@ def test_a_returned_piece_stands_after_the_join():
     über das, was **passiert ist**, nicht darüber, wo gerade jemand steht.
     """
     from app.models import ProcessStep
-    from app.services import flow, process as proc
+    from app.services import flow
 
-    db = _db()
+    db = session()
     try:
         parent, child, step = _scenario(db)
         fork = flow.fork_id(step.id, child.object_id)
@@ -322,9 +301,9 @@ def test_a_walked_edge_never_becomes_weak_again():
     einmal gezeichnete Kante darf weder verschwinden noch verblassen.
     """
     from app.models import ProcessStep
-    from app.services import flow, process as proc
+    from app.services import flow
 
-    db = _db()
+    db = session()
     try:
         parent, child, _ = _scenario(db)
         seen: set[str] = set()
@@ -381,7 +360,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
     from app.models import InstanceUnit, OrderUnit, ProcessStep
     from app.services import article_process as tpl, flow, objects as obj, process as proc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, tpl, obj)
         parent = proc.release(
@@ -460,7 +439,7 @@ def test_a_neighbour_exists_exactly_when_its_branch_does():
     from app.models import InstanceUnit, OrderUnit
     from app.services import article_process as tpl, flow, objects as obj, process as proc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, tpl, obj)
         parent = proc.release(
@@ -550,7 +529,7 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
     from app.services import article_process as tpl, flow, objects as obj, process as proc
     from app.models import Article, InstanceUnit, OrderUnit
 
-    db = _db()
+    db = session()
     try:
         art = Article(object_id=obj.next_object_id(db), name="Blech", unit="stk",
                       serialization="unit")
@@ -563,7 +542,7 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
                               lines=[{"article_object_id": art.object_id, "quantity": 4,
                                       "origin": "neu", "units": []}])
         db.flush()
-        step = db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()
+        db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()  # genau eines
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
         nums = proc.unit_numbers(db, [db.get(InstanceUnit, r.instance_unit_id) for r in rows])
 
@@ -729,7 +708,7 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
     from app.services import article_process as tpl, flow, objects as obj, process as proc
     from app.models import InstanceUnit, OrderUnit
 
-    db = _db()
+    db = session()
     try:
         for returns in (True, False):
             art = _article(db, tpl, obj)
@@ -861,7 +840,7 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
     from app.models import InstanceUnit, OrderUnit, ProcessStep
     from app.services import article_process as tpl, flow, objects as obj, process as proc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, tpl, obj)
         parent = proc.release(
@@ -1014,25 +993,6 @@ def test_the_count_and_the_list_ask_the_same_position():
     )
 
 
-def test_the_invariants_run_on_every_push():
-    """Ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu unterscheiden.
-
-    Die Invarianten oben brauchen eine Datenbank. Läuft die CI ohne, überspringt sie
-    genau die Prüfungen, für die diese Datei da ist – lautlos.
-    """
-    wf = _read(ROOT / ".github" / "workflows" / "deploy-dev.yml")
-    quality = wf.split("jobs:")[1].split("deploy-backend:")[0]
-    schema = quality.index("alembic upgrade head")
-    tests = quality.index("pytest")
-    assert schema < tests, (
-        "Das Schema wird erst nach den Tests gebaut – dann laufen die Invarianten des "
-        "Prozessbildes gegen keine Datenbank und überspringen sich selbst."
-    )
-    assert "DATABASE_URL" in quality[:tests], (
-        "Der Test-Schritt bekommt keine DATABASE_URL – die Invarianten überspringen sich."
-    )
-
-
 def test_a_finished_order_does_not_retell_what_happened_elsewhere():
     """►►► **Die Achse erzählt DIESEN Auftrag – nicht das spätere Leben des Stücks.** ◄◄◄
 
@@ -1056,7 +1016,7 @@ def test_a_finished_order_does_not_retell_what_happened_elsewhere():
     from app.models import InstanceUnit, OrderUnit, ProcessStep
     from app.services import article_process as tpl, flow, objects as obj, process as proc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, tpl, obj)
         done = proc.release(
@@ -1126,7 +1086,7 @@ def test_a_waiting_piece_is_not_an_exit():
     from app.models import InstanceUnit, OrderUnit, ProcessStep
     from app.services import article_process as tpl, flow, objects as obj, process as proc
 
-    db = _db()
+    db = session()
     try:
         art = _article(db, tpl, obj)
         # Zwei Module, damit es ein «davor warten» überhaupt gibt.

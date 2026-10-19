@@ -10,18 +10,9 @@ Ausschnitt der Matrix – Erzeugung, Abweichung, dreistufige Kette, Aussonderung
 danach geprüft, **ohne** zu committen.
 """
 
-import pytest
 
 from tests.runner import session
 from tests.scenarios import World
-
-
-def _db():
-    try:
-        return session()
-    except Exception as exc:                                   # pragma: no cover
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
 
 
 def _world(db) -> World:
@@ -61,7 +52,7 @@ def test_the_invariants_hold_over_the_whole_dataset():
     """
     from app.services import invariants
 
-    db = _db()
+    db = session()
     try:
         _world(db)
         findings = invariants.run(db)
@@ -91,7 +82,7 @@ def test_every_invariant_would_actually_notice_something():
     from app.models import InstanceUnit, OrderUnit, ProcessEvent
     from app.services import invariants
 
-    db = _db()
+    db = session()
     try:
         w = _world(db)
         art = w.article(serialization="batch")
@@ -121,31 +112,6 @@ def test_every_invariant_would_actually_notice_something():
     finally:
         db.rollback()
         db.close()
-
-
-def test_the_campaign_runs_on_every_push():
-    """**Matrix und Invarianten laufen in der CI mit — sonst sind sie Dekoration.**
-
-    Sie brauchen echtes PostgreSQL. Läuft die CI ohne, überspringen sie sich lautlos, und
-    ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu unterscheiden. Geprüft
-    wird darum die Reihenfolge (erst Schema, dann Tests) **und** dass die beiden Dateien
-    überhaupt noch da sind – eine Prüfung, die still verschwindet, sieht aus wie eine
-    bestandene.
-    """
-    import pathlib
-
-    root = pathlib.Path(__file__).resolve().parents[2]
-    wf = (root / ".github" / "workflows" / "deploy-dev.yml").read_text(encoding="utf-8")
-    quality = wf.split("jobs:")[1].split("deploy-backend:")[0]
-    assert quality.index("alembic upgrade head") < quality.index("pytest"), (
-        "Das Schema wird erst nach den Tests gebaut – dann laufen Matrix und Invarianten "
-        "gegen keine Datenbank und überspringen sich selbst."
-    )
-    assert "DATABASE_URL" in quality[: quality.index("pytest")]
-    for name in ("matrix.py", "scenarios.py", "runner.py", "test_scenarios.py"):
-        assert (pathlib.Path(__file__).parent / name).exists(), (
-            f"tests/{name} fehlt – die Szenariomatrix ist damit weg, und niemand merkt es."
-        )
 
 
 def _article_patch_routes() -> list[str]:

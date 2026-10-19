@@ -14,15 +14,7 @@ import os
 import pytest
 
 from tests.matrix import CASES
-from tests.runner import run_case, session
-
-
-def _skip_without_db() -> None:
-    try:
-        session().close()
-    except Exception as exc:                                   # pragma: no cover
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
+from tests.runner import run_case
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c.id for c in CASES])
@@ -30,7 +22,6 @@ def test_scenario(case):
     """Ein Fall der Matrix – Soll steht in ``matrix.py``, nicht hier."""
     if os.environ.get("INEXXIO_SKIP_MATRIX"):
         pytest.skip("Matrix übersprungen (INEXXIO_SKIP_MATRIX gesetzt).")
-    _skip_without_db()
     result = run_case(case)
     if result.verdict == "unmöglich":
         pytest.skip(f"{case.id}: {case.impossible}")

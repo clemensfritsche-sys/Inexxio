@@ -1,0 +1,175 @@
+name: Quality gates
+
+# ►►► EIN Quality-Gate für beide Deploys. ◄◄◄ deploy-dev.yml und deploy-prod.yml rufen
+# diesen Workflow auf (``uses: ./.github/workflows/quality.yml``), bevor irgendetwas
+# ausgerollt wird. Vorher hatte der Prod-Deploy gar keine Prüfung – sicher nur, solange
+# ``main`` ausschliesslich aus grünem ``develop`` kam – und der Frontend-Build lief erst
+# NACH dem Backend-Deploy, ein Build-Fehler zeigte sich also als Teil-Deploy.
+
+on:
+  workflow_call:
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    # Postgres nur für den Schema-Aufbau: die Migrationen sind laut Leitbild die EINE
+    # Schema-Wahrheit – geprüft wird das erst, wenn sie auch wirklich von null durchlaufen.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      # ``node --test scripts/*.test.mjs``: die Datums-Ausgabe (``when.test.mjs`` – die
+      # eine Stelle, an der jede Zeitangabe des Hauses entsteht, #1014) und das Ziel nach
+      # dem Anmelden (``login-target.test.mjs``), gefahren gegen die echte Quelle.
+      - name: Unit-Tests (Frontend)
+        working-directory: frontend
+        run: npm test
+
+      # Der Build gehört ins Gate, nicht erst in den Deploy: dort lief er NACH dem
+      # Backend-Deploy, ein Build-Fehler war also ein Teil-Deploy. Ohne Website-Build
+      # entsteht eine leere Shell (``scripts/site-shell.mjs``); ``development`` baut die
+      # Testnotiz-Insel mit, die ein Prod-Build auslässt – geprüft ist damit beides.
+      - name: Build (Frontend)
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_ENVIRONMENT: development
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend deps
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      # Nur die F-Regeln (Pyflakes: undefinierte Namen, ungenutzte Importe und Variablen,
+      # f-Strings ohne Platzhalter) – Fehler, keine Stilfragen. Konfiguration:
+      # backend/ruff.toml. Die Version ist gepinnt, damit eine neue Regel die CI nicht
+      # über Nacht rot macht.
+      - name: Ruff (Python, nur F-Regeln)
+        working-directory: backend
+        run: |
+          pip install ruff==0.16.8
+          ruff check .
+
+      # Baut das Schema von NULL aus den Migrationen auf. Klingt selbstverständlich, war es
+      # aber nicht: eine Datenreparatur (074) griff auf eine Spalte zu, die nie eine
+      # Migration angelegt hatte (sie stammte aus dem Lifespan-``create_all`` und wurde von
+      # 081 wieder entfernt) – auf einer frischen Datenbank brach der Aufbau dort ab. Die
+      # laufende Umgebung merkt davon nichts, ein neues Projekt oder eine Wiederherstellung
+      # aus dem Nichts scheitert. Dieselbe Ausfallklasse wie beim Deploy von Migration 090:
+      # es zeigt sich erst, wenn es zählt.
+      - name: Schema aus den Migrationen aufbauen (Alembic ist die Wahrheit)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+        run: alembic upgrade head
+
+      # ERST das Schema, DANN die Tests: die Invarianten des Prozessbildes
+      # (tests/test_flow_graph.py) brauchen echtes PostgreSQL – JSONB-Payloads und der
+      # partielle Unique-Index auf ``order_units`` sind genau das, was sie prüfen.
+      # **Die Datenbank ist hier Pflicht** (``INEXXIO_REQUIRE_DB=1``, tests/conftest.py):
+      # ist sie nicht erreichbar, bricht der Lauf ab, statt ~300 Prüfungen still zu
+      # überspringen – ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu
+      # unterscheiden. ``-rs`` listet jeden verbleibenden Skip mit Grund.
+      #
+      # Mitgefahren werden dabei die **Szenariomatrix** (tests/test_scenarios.py, Soll je
+      # Fall in tests/matrix.py) und die **systemweiten Invarianten**
+      # (tests/test_invariants.py → app/services/invariants.py). Sie sind das Ergebnis
+      # der Testkampagne (TEST_REPORT.md) und ersetzen die mit dem Basis-Neuaufbau
+      # entfallene Regel-Tabelle – als geschriebene, überprüfbare Regel statt als Prosa.
+      - name: pytest (Matrix + Invarianten + Wächter)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+          INEXXIO_REQUIRE_DB: '1'
+        run: python -m pytest tests/ -v --tb=short -rs
+
+      # Der Schema-Aufbau von null darüber bleibt: er hat schon einmal einen Fehler
+      # gefunden, den die laufende Umgebung nicht zeigt.
+
+      - name: Check generated types are up to date
+        run: |
+          (cd backend && python -m scripts.dump_openapi)
+          (cd backend && python -m scripts.dump_statuses)
+          (cd frontend && npm run generate:types)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
+            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
+
+  # Die öffentliche Website (website/, Astro) – eigenständig, eigener Build, Node 22
+  # (Astro 7 verlangt ≥ 22.12; das ERP baut unverändert mit Node 20). Der Build selbst
+  # prüft: offene Punkte (check-content), Links, JSON-LD, Sitemap, robots.txt, llms.txt,
+  # Weiterleitungen in firebase.json und das Leistungsbudget (check-site).
+  website:
+    name: Quality gates (Website)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website deps
+        working-directory: website
+        run: npm ci
+
+      - name: Unit-Tests (Website)
+        working-directory: website
+        run: npm test
+
+      - name: Astro/TypeScript check
+        working-directory: website
+        run: npm run check
+
+      # Das Backend prüft die Anfrage gegen dieselben Listen und Muster und schreibt die
+      # Bestätigung mit den Wörtern der Website; das Frontend trägt Name, Satz und Logo –
+      # alles aus diesen Abdrucken.
+      - name: Abdrucke fürs ERP aktuell (website_contact.json, site-meta.json, Logo)
+        working-directory: website
+        run: node scripts/export-erp.mjs --check
+
+      - name: Build (Vorschau) inkl. Prüfungen
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: https://inexxio-dev.web.app
+        run: npm run build
+
+      # Der Build schreibt OFFENE_PUNKTE.md neu – die Datei im Repo muss genau das sein.
+      # Wer photos.mjs ändert, ohne lokal zu bauen, hinterliesse sonst einen veralteten Bericht.
+      - name: OFFENE_PUNKTE.md aktuell
+        run: git diff --exit-code -- website/OFFENE_PUNKTE.md || { echo "::error::website/OFFENE_PUNKTE.md ist veraltet – «npm run build» in website/ ausführen und committen."; exit 1; }

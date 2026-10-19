@@ -28,23 +28,29 @@ import sys
 
 import pytest
 
+from tests.runner import no_database
+
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
-# Je Prozess eine eigene Wegwerf-Datenbank – zwei Läufe gegen denselben Server (CI-Matrix,
-# parallele Sitzungen) räumten sich sonst gegenseitig die Datenbank unter den Füssen weg.
-SCRATCH = f"schema_check_tmp_{os.getpid()}"
 
 
 def _admin_engine():
-    """Eine Verbindung zur ``postgres``-Datenbank – zum Anlegen der Wegwerf-Datenbank."""
+    """Eine Verbindung zur ``postgres``-Datenbank – zum Anlegen der Wegwerf-Datenbank.
+
+    Die Wegwerf-Datenbank heisst nach der Test-Datenbank (``<name>_schema_check``): zwei
+    Läufe gegen denselben Server (zwei Arbeitskopien, zwei Test-Datenbanken) räumten sich
+    mit einem festen Namen gegenseitig die Datenbank unter den Füssen weg.
+    """
     from sqlalchemy import create_engine
     from app.core.config import get_settings
 
     url = os.environ.get("DATABASE_URL") or get_settings().database_url
     if not url.startswith("postgresql"):
-        pytest.skip(f"Kein PostgreSQL ({url.split('://')[0]}) – die Migrationen bauen "
-                    f"PostgreSQL-Schema, gegen SQLite wäre die Aussage eine andere.")
-    base, _, _ = url.rpartition("/")
-    return create_engine(f"{base}/postgres", isolation_level="AUTOCOMMIT"), f"{base}/{SCRATCH}"
+        no_database(f"{url.split('://')[0]} statt PostgreSQL – die Migrationen bauen "
+                    f"PostgreSQL-Schema, gegen SQLite wäre die Aussage eine andere")
+    base, _, name = url.rpartition("/")
+    scratch = f"{name.split('?')[0]}_schema_check"
+    return (create_engine(f"{base}/postgres", isolation_level="AUTOCOMMIT"),
+            f"{base}/{scratch}", scratch)
 
 
 @pytest.fixture(scope="module")
@@ -60,13 +66,13 @@ def built():
     # Wächter, kein fehlendes PostgreSQL – ihn zum Skip zu machen hiesse, sich selbst
     # stillzulegen (und ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu
     # unterscheiden).
-    admin, scratch_url = _admin_engine()
+    admin, scratch_url, scratch = _admin_engine()
     try:
         with admin.connect() as con:
-            con.execute(text(f'DROP DATABASE IF EXISTS "{SCRATCH}"'))
-            con.execute(text(f'CREATE DATABASE "{SCRATCH}"'))
+            con.execute(text(f'DROP DATABASE IF EXISTS "{scratch}"'))
+            con.execute(text(f'CREATE DATABASE "{scratch}"'))
     except OperationalError as exc:  # pragma: no cover – reine Umgebungsfrage
-        pytest.skip(f"PostgreSQL nicht erreichbar ({exc.__class__.__name__}).")
+        no_database(exc.__class__.__name__)
 
     engine = None
     try:
@@ -85,7 +91,7 @@ def built():
         if engine is not None:
             engine.dispose()
         with admin.connect() as con:
-            con.execute(text(f'DROP DATABASE IF EXISTS "{SCRATCH}"'))
+            con.execute(text(f'DROP DATABASE IF EXISTS "{scratch}"'))
         admin.dispose()
 
 

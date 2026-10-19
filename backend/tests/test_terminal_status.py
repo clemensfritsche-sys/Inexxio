@@ -27,29 +27,15 @@ anschlägt, ist von einem kaputten nicht zu unterscheiden.
 geprüft wäre eine andere Wahrheit geprüft als die, die läuft.
 """
 
-import os
 import pathlib
 import sys
 
 import pytest
 
+from tests.runner import session
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
-
-
-def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**."""
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        return SessionLocal()
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit dieser Schutz wirklich geprüft wird.")
 
 
 def _scrapped_unit(db):
@@ -137,7 +123,7 @@ def test_the_one_write_path_refuses_to_leave_a_terminal_state():
     """
     from fastapi import HTTPException
 
-    db = _db()
+    db = session()
     unit = _scrapped_unit(db)
     try:
         from app.domain import statuses as st
@@ -174,7 +160,7 @@ def test_the_database_refuses_it_too_even_for_a_raw_update():
     """
     from sqlalchemy import text
 
-    db = _db()
+    db = session()
     unit = _scrapped_unit(db)
     try:
         from app.core.database import engine
@@ -284,7 +270,7 @@ def test_the_flow_reports_a_piece_that_left_a_terminal_state():
     """
     from sqlalchemy import text
 
-    db = _db()
+    db = session()
     unit = _scrapped_unit(db)
     try:
         from app.core.database import engine
@@ -380,7 +366,7 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
     """
     from fastapi import HTTPException
 
-    db = _db()
+    db = session()
     unit = _scrapped_unit(db)
     try:
         from app.domain import statuses as st
