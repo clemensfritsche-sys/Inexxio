@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Field as AField } from '@/components/account/field';
+import { Field as AField } from '@/components/form/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
-import { ErrorText } from '@/components/erp/fields';
-import { useAutosave } from '@/components/account/use-autosave';
-import { SaveStatusIndicator } from '@/components/account/save-status';
+import { ErrorText, MICRO_LABEL } from '@/components/erp/fields';
+import { useAutosaveValue } from '@/lib/use-autosave';
+import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { AddressEntry, AddressInput, UserProfile } from '@/types';
 
 /**
@@ -90,8 +90,7 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
         <div key={a.id} style={{ display: 'flex', gap: 16, padding: '14px 0', alignItems: 'flex-start',
           borderTop: i ? '1px solid var(--border-1)' : 'none' }}>
           <div style={{ width: 112, flexShrink: 0, paddingTop: 1 }}>
-            <span style={{ display: 'inline-block', font: '600 11px var(--font-body)', letterSpacing: '.04em',
-              textTransform: 'uppercase', color: i ? 'var(--fg-3)' : 'var(--fg-2)',
+            <span style={{ ...MICRO_LABEL, display: 'inline-block', color: i ? 'var(--fg-3)' : 'var(--fg-2)',
               background: i ? 'var(--bg-2)' : 'var(--bg-3)', borderRadius: 4, padding: '3px 7px' }}>{tag}</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -164,11 +163,11 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
 }) {
   const [form, setForm] = useState({ address: toAddress(entry), email: entry.email ?? '' });
   const [error, setError] = useState('');
-  const { status, errorMsg, saveNow } = useAutosave(form, async (v) => {
+  const { status, errorMsg, saveNow } = useAutosaveValue(form, async (v) => {
     if (readOnly || !complete(v.address)) return;
     onSaved(await api.changeAddress(owner, entry.id,
       { ...toInput(v.address), ...(email ? { email: v.email.trim() || null } : {}) }));
-  }, 1500);
+  });
 
   async function remove() {
     setError('');

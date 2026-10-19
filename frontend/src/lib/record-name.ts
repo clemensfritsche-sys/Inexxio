@@ -1,5 +1,5 @@
 import type { Article, CompanySettings, Instance, OrderSummary, UserProfile } from '@/types';
-import { userDisplayName } from '@/lib/utils';
+import { personFullName } from '@/lib/utils';
 
 /**
  * **Der Name eines ERP-Datensatzes – EINE Regel für alle Typen.**
@@ -24,8 +24,7 @@ import { userDisplayName } from '@/lib/utils';
  * eigenen Platzhalter, statt hier einen zu erfinden.
  */
 export function userName(u: UserProfile): string | null {
-  const n = userDisplayName(u);
-  return n && n !== u.email ? n : null;
+  return personFullName(u) || null;
 }
 
 export function articleName(a: Article): string | null {

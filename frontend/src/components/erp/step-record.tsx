@@ -7,6 +7,7 @@ import type { RecordEntry, RecordValue } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { when, whenTitle } from '@/lib/when';
+import { MICRO_LABEL } from '@/components/erp/fields';
 
 /**
  * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist.** ◄◄◄
@@ -65,10 +66,7 @@ export function StepRecord({ orderObjectId, stepId }: {
           Sie steht als Versalien-Mikro-Label über der Liste, wie jede Abschnitts-Marke
           im Haus, und nennt die Gesamtzahl statt sie zu verschweigen. */}
       <div className="flex items-baseline gap-2" style={{ marginBottom: 4 }}>
-        <span style={{
-          font: '700 11px var(--font-body)', textTransform: 'uppercase',
-          letterSpacing: '.07em', color: 'var(--fg-4)',
-        }}>Was hier passiert ist</span>
+        <span style={MICRO_LABEL}>Was hier passiert ist</span>
         <span className="ix-tnum text-[11px]" style={{ color: 'var(--fg-4)' }}
           data-tip="Ein Eintrag ist ein Vorgang, kein Stück – ein Stück kann dasselbe
                     Modul mehrfach passieren.">

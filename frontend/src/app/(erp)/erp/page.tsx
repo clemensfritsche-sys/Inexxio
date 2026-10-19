@@ -9,7 +9,7 @@ import { articleStatus, isStaff, organizationStatus, userStatus, orderStatus } f
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, OpenCount } from '@/types';
-import type { StatusCfg } from '@/lib/status-flow';
+import type { StatusCfg } from '@/lib/status-tone';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';

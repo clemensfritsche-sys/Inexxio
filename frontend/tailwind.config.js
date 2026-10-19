@@ -74,6 +74,11 @@ module.exports = {
           strong: 'var(--border-strong)',
         },
       },
+      // Die Rahmenfarbe eines blossen `border` (Preflight) ist die Haarlinie des Hauses –
+      // ohne diese Zeile wäre es Tailwinds gray-200, also die Alt-Palette durch die Hintertür.
+      borderColor: {
+        DEFAULT: 'var(--border-1)',
+      },
       borderRadius: {
         // DS radii — namespaced `ds-*` so Tailwind's own rounded-{sm,md,lg,…}
         // (used across the existing app) keep their meaning.

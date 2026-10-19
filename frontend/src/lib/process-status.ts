@@ -1,5 +1,5 @@
 import { Ban, CheckCircle2, Clock, AlertTriangle, Lock, Trash2, XCircle } from 'lucide-react';
-import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { TONE, type StatusCfg } from '@/lib/status-tone';
 import { STATUS_CATALOG } from '@/lib/status-catalog';
 
 /**

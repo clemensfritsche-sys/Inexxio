@@ -56,7 +56,8 @@ import { ArrowDownUp, Check, ChevronDown, Clock, ExternalLink, Lock, Mail, Megap
   Paperclip, Phone, Reply, Send, X } from 'lucide-react';
 import { MODULE_TONE } from '@/lib/modules';
 import { api } from '@/lib/api';
-import { day, formatWhen, when, whenTitle } from '@/lib/when';
+import { useSearch } from '@/lib/use-search';
+import { formatWhen, whenDay, whenTitle } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
 
@@ -77,12 +78,6 @@ const MODES: { key: Mode; label: string }[] = [
 ];
 
 // ─── Verlauf ────────────────────────────────────────────────────────────────
-
-/** Der Kalendertag einer Nachricht – als Aussage («Heute», «Gestern», «13. Sep.»). */
-function dayLabel(iso: string): string {
-  const [d, m, y] = day(iso).split('.');
-  return when(`${y}-${m}-${d}`);
-}
 
 /** Was im Text auf etwas zeigt: «Text <https://…>» (so schreibt Gmail einen Link als
  *  Klartext) · ein blosses `<https://…>` · eine Adresse (`https://…`, `www.…`) · eine
@@ -171,7 +166,7 @@ const ICON_BTN = { border: 0, background: 'none', padding: 3, borderRadius: 6, c
 
 /** Was man mit einer Nachricht tun kann – beim Zeigen, an ihr selbst (`.ix-rowactions`):
  *  antworten, ohne Antwort erledigen (nur eine offene), in Gmail öffnen. */
-function Actions({ m, onReply, onDone }: {
+function MessageActions({ m, onReply, onDone }: {
   m: Message; onReply?: (m: Message) => void; onDone?: (m: Message) => void;
 }) {
   if (!onReply && !m.gmail_url) return null;
@@ -237,7 +232,7 @@ function Time({ m, state }: { m: Message; state: boolean }) {
   if (!state) {
     return <span className="tabular-nums" style={{ flex: 'none' }} data-tip={whenTitle(m.at)}>{text}</span>;
   }
-  const fg = m.overdue ? 'var(--danger)' : 'var(--color-warning)';
+  const fg = m.overdue ? 'var(--danger)' : 'var(--warning)';
   const bg = m.overdue ? 'var(--danger-bg)' : 'var(--warning-bg)';
   return (
     <span className="tabular-nums" aria-label={`${text} · ${stateText(m)}`}
@@ -284,7 +279,7 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
         <MailFoot m={m} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6,
           fontSize: 11, lineHeight: '16px', color: 'var(--fg-3)', marginTop: 2, minWidth: 0 }}>
-          <Actions m={m} onReply={onReply} onDone={onDone} />
+          <MessageActions m={m} onReply={onReply} onDone={onDone} />
           {/* Die Blase hängt an einer Hülle ohne ``overflow`` – ``truncate`` schnitte sie weg. */}
           <span data-tip={details(m)} data-tip-list="" data-tip-pos="bottom"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -373,7 +368,7 @@ function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }
   const rows: ReactNode[] = [];
   let last = '';
   for (const m of messages) {
-    const label = m.planned ? 'Geplant' : dayLabel(m.at);
+    const label = m.planned ? 'Geplant' : whenDay(m.at);
     if (label !== last) rows.push(<Divider key={`d-${m.id}`} label={label} />);
     last = label;
     const named = mirror || (m.ours ? m.sender.object_id !== meId : m.sender.object_id !== personId);
@@ -401,7 +396,7 @@ const LIST = { position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop
 const HIT = { display: 'flex', gap: 10, width: '100%', textAlign: 'left', border: 0,
   padding: '6px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--fg-1)' } as const;
 
-function Chip({ children, onRemove, onMove, moveTip, tip }: {
+function PersonChip({ children, onRemove, onMove, moveTip, tip }: {
   children: ReactNode; onRemove?: () => void; onMove?: () => void; moveTip?: string; tip?: string;
 }) {
   return (
@@ -438,15 +433,8 @@ function People({ value, onChange, placeholder, locked, onMove, moveTip, max, st
   max?: number;
 }) {
   const [q, setQ] = useState('');
-  const [hits, setHits] = useState<VoucherParty[]>([]);
-  useEffect(() => {
-    if (q.trim().length < 2) { setHits([]); return; }
-    let stale = false;
-    const t = setTimeout(() => {
-      api.searchVoucherParties(q, 8, staff).then((r) => { if (!stale) setHits(r); }).catch(() => {});
-    }, 200);
-    return () => { stale = true; clearTimeout(t); };
-  }, [q, staff]);
+  const find = useCallback((text: string) => api.searchVoucherParties(text, 8, staff), [staff]);
+  const { hits } = useSearch<VoucherParty>(q, find, { delay: 200, minLength: 2 });
   const add = (p: VoucherParty) => {
     onChange([...value.filter((v) => v.object_id !== p.object_id), { object_id: p.object_id, name: p.name }]);
     setQ('');
@@ -455,9 +443,9 @@ function People({ value, onChange, placeholder, locked, onMove, moveTip, max, st
     <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap',
       gap: 6, alignItems: 'center', minHeight: 28 }}>
       {value.map((p) => locked?.has(p.object_id)
-        ? <Chip key={p.object_id} onMove={onMove && (() => onMove(p))} moveTip={moveTip}
-            tip="Eine Antwort geht an den, der geschrieben hat – wer frei schreiben will, beginnt eine neue Nachricht">{p.name}</Chip>
-        : <Chip key={p.object_id} onRemove={() => onChange(value.filter((v) => v !== p))}>{p.name}</Chip>)}
+        ? <PersonChip key={p.object_id} onMove={onMove && (() => onMove(p))} moveTip={moveTip}
+            tip="Eine Antwort geht an den, der geschrieben hat – wer frei schreiben will, beginnt eine neue Nachricht">{p.name}</PersonChip>
+        : <PersonChip key={p.object_id} onRemove={() => onChange(value.filter((v) => v !== p))}>{p.name}</PersonChip>)}
       {(max === undefined || value.length < max) && <input value={q} onChange={(e) => setQ(e.target.value)}
         autoFocus={autoFocus} placeholder={value.length ? '' : placeholder}
         onBlur={() => { if (!value.length && !q.trim()) onLeave?.(); }}
@@ -479,7 +467,7 @@ function People({ value, onChange, placeholder, locked, onMove, moveTip, max, st
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function ComposerRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 0',
       borderBottom: '1px solid var(--border-1)' }}>
@@ -594,7 +582,7 @@ type Set<T> = (v: T) => void;
 /** Wann: später senden bzw. erinnern – drei Zeitpunkte, ein Klick. */
 function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLater: Set<string | null> }) {
   return (
-    <Row label={mode === 'internal' ? 'Erinnern' : 'Senden'}>
+    <ComposerRow label={mode === 'internal' ? 'Erinnern' : 'Senden'}>
       <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {LATER.map((l) => (
           <button key={l.key} type="button" onClick={() => setLater(l.key)}
@@ -603,7 +591,7 @@ function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLat
               color: later === l.key ? '#fff' : 'var(--fg-1)' }}>{l.label}</button>
         ))}
       </span>
-    </Row>
+    </ComposerRow>
   );
 }
 
@@ -650,10 +638,10 @@ function Fields(p: {
   return (
       <div style={{ marginTop: 6 }}>
         {mode === 'email' && (
-          <Row label="Von"><From mails={mails} value={channel} onChange={setChannel} me={me} /></Row>
+          <ComposerRow label="Von"><From mails={mails} value={channel} onChange={setChannel} me={me} /></ComposerRow>
         )}
-        {mode === 'phone' && <Row label="Von">{chip(incoming ? person : me)}{swap}</Row>}
-        <Row label="An">
+        {mode === 'phone' && <ComposerRow label="Von">{chip(incoming ? person : me)}{swap}</ComposerRow>}
+        <ComposerRow label="An">
           {mode === 'phone' ? chip(incoming ? me : person) : contact}
           {/* Cc und Bcc wie in Gmail: ein Klick klappt das Feld auf, leer verlassen klappt es zu. */}
           {mode === 'email' && (!showCc || !showBcc) && (
@@ -666,24 +654,24 @@ function Fields(p: {
                 onClick={() => setShowBcc(true)} style={link}>Bcc</button>}
             </span>
           )}
-        </Row>
+        </ComposerRow>
         {mode === 'email' && showCc && (
-          <Row label="Cc"><People value={cc} onChange={setCc} locked={locked} onMove={toTo}
-            moveTip="Ins «An» schieben" autoFocus={!cc.length} onLeave={() => setShowCc(false)} /></Row>
+          <ComposerRow label="Cc"><People value={cc} onChange={setCc} locked={locked} onMove={toTo}
+            moveTip="Ins «An» schieben" autoFocus={!cc.length} onLeave={() => setShowCc(false)} /></ComposerRow>
         )}
         {mode === 'email' && showBcc && (
-          <Row label="Bcc"><People value={bcc} onChange={setBcc} autoFocus={!bcc.length}
-            onLeave={() => setShowBcc(false)} /></Row>
+          <ComposerRow label="Bcc"><People value={bcc} onChange={setBcc} autoFocus={!bcc.length}
+            onLeave={() => setShowBcc(false)} /></ComposerRow>
         )}
         {!fixed && (
-          <Row label="Betreff">
+          <ComposerRow label="Betreff">
             {/* Ein bestehendes Anliegen wählen oder ein neues tippen – Pflicht für jede Art. */}
             <input value={subject} onChange={(e) => setSubject(e.target.value)} list="msg-topics"
               aria-label="Betreff" placeholder="Worum geht es?"
               style={{ border: 0, outline: 'none', font: 'inherit', fontSize: 13, flex: 1,
                 minWidth: 0, background: 'transparent', minHeight: 28 }} />
             <datalist id="msg-topics">{topics.map((t) => <option key={t} value={t} />)}</datalist>
-          </Row>
+          </ComposerRow>
         )}
         {later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
       </div>

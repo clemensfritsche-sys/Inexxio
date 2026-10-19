@@ -131,7 +131,7 @@ function Viewfinder({ busy, onShot, onCancel }: {
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 p-2.5">
-        <Chip onClick={onCancel} label="Abbrechen">Abbrechen</Chip>
+        <CameraChip onClick={onCancel} label="Abbrechen">Abbrechen</CameraChip>
         <button type="button" onClick={shoot} disabled={!live || busy}
           aria-label="Auslösen"
           className="flex items-center justify-center rounded-full disabled:opacity-45"
@@ -140,9 +140,9 @@ function Viewfinder({ busy, onShot, onCancel }: {
           {busy ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
         </button>
         {torch !== null && (
-          <Chip onClick={() => void setTorch(!torch)} label="Licht">
+          <CameraChip onClick={() => void setTorch(!torch)} label="Licht">
             <Zap size={13} />
-          </Chip>
+          </CameraChip>
         )}
       </div>
     </div>
@@ -150,7 +150,7 @@ function Viewfinder({ busy, onShot, onCancel }: {
 }
 
 /** Ein milchiger Chip **im Bild** – dieselbe Form wie im Scan-Dialog. */
-function Chip({ onClick, label, children }: {
+function CameraChip({ onClick, label, children }: {
   onClick: () => void; label: string; children: React.ReactNode;
 }) {
   return (

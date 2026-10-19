@@ -4,27 +4,26 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import type { ElementType, ReactNode } from 'react';
 import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Home, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
-import type { StatusTone, StatusCfg } from '@/lib/status-flow';
+import type { StatusTone, StatusCfg } from '@/lib/status-tone';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType } from '@/types';
 import { formatObjectId } from '@/lib/utils';
+import { useSearch } from '@/lib/use-search';
 
 // ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
 
 /**
  * Symbol + Titel + optionaler rechter Slot (Speicher-Anzeige), darunter der Inhalt –
- * die Anatomie der Profileinstellungen, die der ERP-Benutzer seit Notiz #294 spiegelt
- * und der Unternehmens-Datensatz seit Runde 21.
- *
- * Sie stand vorher lokal in `user-detail.tsx`; hier ist sie EINE Stelle, damit die
- * beiden Ansichten nicht wieder auseinanderlaufen. `icon` ist optional: eine Überschrift
- * braucht kein Symbol, wenn sie die Sache schon benennt (Notizen #308/#311).
+ * die Anatomie der Profileinstellungen (Konto), des ERP-Benutzers (Notiz #294) und des
+ * Unternehmens-Datensatzes. EINE Stelle für alle drei, damit sie nicht auseinanderlaufen.
+ * `icon` ist optional: eine Überschrift braucht kein Symbol, wenn sie die Sache schon
+ * benennt (Notizen #308/#311).
  */
 export function Card({ icon: Icon, title, right, children }: {
   icon?: ElementType; title: string; right?: ReactNode; children: ReactNode;
 }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 12, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -34,6 +33,22 @@ export function Card({ icon: Icon, title, right, children }: {
         {right}
       </div>
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>{children}</div>
+    </div>
+  );
+}
+
+/** Ein Block **in** einer `Card` (getönte Fläche, Symbol + Mikro-Label), z. B. die
+ *  Anstellung einer Person – im Konto und im ERP dieselbe Anatomie. */
+export function SubBlock({ icon: Icon, title, children }: {
+  icon: ElementType; title: string; children: ReactNode;
+}) {
+  return (
+    <div style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+        <Icon style={{ width: 13, height: 13, color: 'var(--fg-3)' }} />
+        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>{title}</span>
+      </div>
+      {children}
     </div>
   );
 }
@@ -84,7 +99,7 @@ export function DetailBody({ children, gap, style }: {
 
 export const SPEC = {
   card: {
-    background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
+    background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
     boxShadow: 'var(--shadow-sm)', padding: 'clamp(16px, 4vw, 30px)',
   } as React.CSSProperties,
   /** auto-fit-Werteraster; `min(100%, …)` kollabiert auf Mobile sauber. */
@@ -146,8 +161,6 @@ function linkHost(href: string): string {
   try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
 }
 
-/** Read-only-Feld: kleines Symbol + Versalien-Overline + kräftiger Wert. Optional
- *  Einheit/mono, Link (Host + Pfeil) oder ⓘ-Hinweis bei abgeleiteten Werten. */
 /**
  * ►►► **Das Mikro-Label** – Versalien, klein, gedämpft: die eine Beschriftung, mit der
  * das ERP eine Angabe benennt, ohne sie zu überschreien.
@@ -162,6 +175,8 @@ export const MICRO_LABEL: React.CSSProperties = {
   letterSpacing: '.07em', color: 'var(--fg-4)',
 };
 
+/** Read-only-Feld: kleines Symbol + Versalien-Overline + kräftiger Wert. Optional
+ *  Einheit/mono, Link (Host + Pfeil) oder ⓘ-Hinweis bei abgeleiteten Werten. */
 export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
   icon?: ElementType; label: string; value?: ReactNode; unit?: string;
   mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
@@ -216,7 +231,7 @@ export function Tooltip({ text, children, side = 'top' }: {
         <span role="tooltip" style={{
           position: 'absolute', zIndex: 50, left: '50%', transform: 'translateX(-50%)',
           ...(side === 'top' ? { bottom: '100%', marginBottom: 7 } : { top: '100%', marginTop: 7 }),
-          padding: '7px 10px', borderRadius: 7, background: '#0f172a', color: '#fff',
+          padding: '7px 10px', borderRadius: 7, background: 'var(--bg-dark)', color: 'var(--fg-on-dark)',
           fontSize: 11, fontWeight: 500, lineHeight: 1.4, width: 'max-content', maxWidth: 240,
           textAlign: 'left', whiteSpace: 'normal', boxShadow: '0 6px 18px rgba(0,0,0,0.22)', pointerEvents: 'none',
         }}>{text}</span>
@@ -229,7 +244,7 @@ export function Tooltip({ text, children, side = 'top' }: {
 export function InfoHint({ text, side }: { text: string; side?: 'top' | 'bottom' }) {
   return (
     <Tooltip text={text} side={side}>
-      <Info size={13} style={{ color: '#cbd5e1', cursor: 'help', flexShrink: 0 }} />
+      <Info size={13} style={{ color: 'var(--fg-4)', cursor: 'help', flexShrink: 0 }} />
     </Tooltip>
   );
 }
@@ -244,7 +259,7 @@ export function SectionTitle({ icon: Icon, info, right, children }: {
       style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}
     >
       {Icon && <Icon size={13} style={{ color: 'var(--fg-4)' }} />}
-      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>{children}</span>
+      <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>{children}</span>
       {info && <InfoHint text={info} />}
       {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
     </div>
@@ -263,14 +278,14 @@ export function PanelHeader({ icon: Icon, title, tone = 'var(--accent)', info, r
       <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: `${tone}14`, color: tone, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon size={15} />
       </span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{title}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>{title}</span>
       {info && <InfoHint text={info} />}
       {right && <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}>{right}</span>}
     </div>
   );
 }
 
-export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors';
+export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-bg-1 outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors';
 
 /**
  * **Schieber** für eine Wahl mit wenigen, einander ausschliessenden Optionen: EIN Gleis,
@@ -329,7 +344,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
         left: thumb ? thumb.left : 3, width: thumb ? thumb.width : 0,
         opacity: thumb ? 1 : 0,
         transition: 'left .18s cubic-bezier(.4,0,.2,1), width .18s cubic-bezier(.4,0,.2,1)',
-        borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.12)',
+        borderRadius: 999, background: 'var(--bg-1)', boxShadow: '0 1px 2px rgba(0,0,0,.12)',
       }} />
       {options.map((o, i) => {
         const active = o.value === value;
@@ -466,7 +481,7 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, mes
       )}
       {!!messages?.open && (
         <IconMark corner="top" size={mark}
-          bg={messages.overdue ? 'var(--danger)' : 'var(--color-warning-icon)'}
+          bg={messages.overdue ? 'var(--danger)' : 'var(--warning)'}
           tip={messages.overdue ? `${messages.open} offen, davon ${messages.overdue} überfällig`
             : `${messages.open} offen`}>
           {messages.open > 9 ? '9+' : messages.open}
@@ -649,9 +664,9 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
   }, [onClose]);
   return (
     <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
+      style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--bg-dark) 45%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+        style={{ background: 'var(--bg-1)', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
           {Icon && <Icon size={18} style={{ color: tone }} />}
           <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>{title}</span>
@@ -755,7 +770,7 @@ export function FieldAction({ icon, label, disabled, onClick }: {
 
 export function ErrorText({ msg }: { msg: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#dc2626' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: 'var(--danger)' }}>
       <AlertCircle size={11} /> {msg}
     </div>
   );
@@ -853,7 +868,6 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [found, setFound] = useState<SelectOption[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<ListBox | null>(null);
@@ -863,20 +877,8 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   const selected = all.find((o) => o.value === value);
   const ordered = newestFirst(all);
 
-  // Entprellt, mit Veralterungs-Schutz: wer weitertippt, bekommt nicht die Antwort auf
-  // die vorherige Eingabe. Dieselbe Regel wie im Scan-Dialog.
-  useEffect(() => {
-    if (!search) return;
-    const q = query.trim();
-    if (!q) { setFound([]); return; }
-    let stale = false;
-    const t = window.setTimeout(() => {
-      search(q)
-        .then((r) => { if (!stale) setFound(r); })
-        .catch(() => { if (!stale) setFound([]); });
-    }, 250);
-    return () => { stale = true; window.clearTimeout(t); };
-  }, [query, search]);
+  // Entprellt, mit Veralterungs-Schutz – die eine Suche des Hauses (`useSearch`).
+  const { hits: found } = useSearch(query, search);
 
   // ►►► **Die Liste steht am Feld – aber nicht IN ihm** (Testnotiz #909). ◄◄◄
   //
@@ -957,7 +959,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
     ? (q ? [...empty, ...found] : ordered)
     : (q ? ordered.filter((o) => optionText(o).toLowerCase().includes(q)) : ordered);
 
-  function pick(v: string) { onChange(v); setOpen(false); setQuery(''); setFound([]); }
+  function pick(v: string) { onChange(v); setOpen(false); setQuery(''); }
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -1088,7 +1090,7 @@ export function Segmented({ label, value, onChange, options, required, disabled,
                 fontSize: 13, fontWeight: 600,
                 borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
-                background: active ? 'var(--accent-soft)' : '#fff',
+                background: active ? 'var(--accent-soft)' : 'var(--bg-1)',
                 color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
               }}
             >

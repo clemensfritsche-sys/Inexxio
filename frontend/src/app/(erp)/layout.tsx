@@ -55,8 +55,8 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
       <>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - var(--site-header-h) - 280px)' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ display: 'inline-block', height: 32, width: 32, borderRadius: '50%', border: '4px solid #E51A14', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
-            <p style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>Wird geladen…</p>
+            <div style={{ display: 'inline-block', height: 32, width: 32, borderRadius: '50%', border: '4px solid var(--inexxio-red)', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
+            <p style={{ marginTop: 8, fontSize: 14, color: 'var(--fg-3)' }}>Wird geladen…</p>
           </div>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -66,7 +66,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: '#FAFAF8' }}>
+      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: 'var(--bg-2)' }}>
         {children}
       </main>
 

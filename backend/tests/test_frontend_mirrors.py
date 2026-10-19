@@ -1314,10 +1314,13 @@ def test_the_swiss_thousands_separator_is_pinned():
     # **Die eine Formatierung steht in `module-ui.Amount`** (#1007) – vorher formatierte
     # jede Aufrufstelle des Belegs selbst. Der Wächter fragt darum die **Regel** an ihrem
     # heutigen Ort: niemand formatiert daneben, und die Stellenzahl kommt von der Währung.
-    for name in ("beleg-work.tsx", "module-ui.tsx"):
-        src = _read(FRONTEND / "components" / "erp" / name)
-        assert "toLocaleString" not in src, (
-            f"{name} formatiert selbst – dann gilt die Regel dort nicht."
+    # **Und überall, nicht nur im Beleg** (F-48): das Gewicht am Artikel formatierte selbst
+    # und schrieb ab 1000 kg den typografischen Trenner. Eine Zahl hat eine Schreibweise.
+    for path in sorted(FRONTEND.rglob("*.ts*")):
+        if path.name in ("utils.ts", "api.ts") and path.parent.name in ("lib", "types"):
+            continue
+        assert "toLocaleString(" not in _code(_read(path)), (
+            f"{path.name} formatiert selbst – dann gilt die Regel dort nicht."
         )
     money = _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
     assert "formatAmount(value, decimals)" in money, (
@@ -3126,7 +3129,10 @@ def test_the_scanner_suggests_with_the_feeds_own_search():
 
     dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
     assert "step?.suggest" in dialog, "Der Dialog fragt die Vorschlagsquelle nicht."
-    assert "step?.restrict || step?.expected != null) { setFound([]); return; }" in dialog, (
+    # Gefragt ist das TOR vor der Suche: ein eingeschränkter oder verifizierender Schritt
+    # gibt der gemeinsamen Suche (`useSearch`) gar keine Quelle.
+    assert re.search(r"step\?\.restrict \|\| step\?\.expected != null \? null : step\?\.suggest",
+                     dialog) and "useSearch(query, ask" in dialog, (
         "Ein eingeschränkter oder verifizierender Schritt bekommt breitere Vorschläge – "
         "dann bietet er an, was er gar nicht annimmt."
     )
@@ -3135,7 +3141,9 @@ def test_the_scanner_suggests_with_the_feeds_own_search():
     # gab es keine Liste, also blieb die Suche leer und nur die volle Nummer ging durch.
     assert "export function offersFor" in lib, "Die Vorschläge sind wieder eine Bringschuld."
     assert "offersFor(step)" in dialog, "Der Dialog leitet die Vorschläge nicht ab."
-    assert "stale = true" in dialog, "Eine ältere Antwort kann eine neuere überholen."
+    # Der Veralterungs-Schutz steht EINMAL, in der gemeinsamen Suche.
+    search = _code(_read(FRONTEND / "lib" / "use-search.ts"))
+    assert "stale = true" in search, "Eine ältere Antwort kann eine neuere überholen."
 
     # Und der Feed gibt seine EIGENE Suche herein, keine nachgebaute.
     page = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
@@ -5193,7 +5201,7 @@ def test_the_money_directions_mirror_the_backend():
 
     «Kunde» ↔ «Lieferant» standen je Richtung da, und jede Aufrufstelle musste sich das
     richtige holen. Es ist dieselbe Rolle – der andere im Geschäft –, also gibt es eine
-    Konstante (`DEAL_PARTY` ↔ `deal.PARTY`). Singular = Plural: damit ist das
+    Konstante (`VOUCHER_PARTY` ↔ `deal.PARTY`). Singular = Plural: damit ist das
     «Kundeen»-Problem *strukturell* erledigt statt durch einen zweiten gepflegten Wert.
 
     Bug-Formen: (a) eine Richtung fehlt; (b) ein Wort läuft auseinander; (c) die
@@ -5204,7 +5212,7 @@ def test_the_money_directions_mirror_the_backend():
     from app.domain import voucher as dm
 
     src = _read(FRONTEND / "lib" / "modules.ts")
-    block = _body(src, "DEAL_DIRECTION", kind="const")
+    block = _body(src, "VOUCHER_DIRECTION", kind="const")
     keys = set(re.findall(r"^\s{2}(\w+):\s*\{", block, re.M))
     assert keys == set(dm.DIRECTIONS), (
         f"Die Richtungen laufen auseinander: Oberfläche {sorted(keys)}, "
@@ -5221,7 +5229,7 @@ def test_the_money_directions_mirror_the_backend():
             f"«{gone}» steht wieder je Richtung – dieselbe Rolle in zwei Wörtern ist die "
             f"Wahl, die man falsch treffen kann (#802)."
         )
-    assert f"DEAL_PARTY = '{dm.PARTY}'" in src, (
+    assert f"VOUCHER_PARTY = '{dm.PARTY}'" in src, (
         "Das eine Wort für beide Richtungen fehlt oder lautet anders als im Backend."
     )
 
@@ -5237,19 +5245,19 @@ def test_the_money_stage_keys_are_mirrored_not_written_out():
     sys.path.insert(0, str(BACKEND))
     from app.domain import voucher as dm
 
-    block = _body(_read(FRONTEND / "lib" / "modules.ts"), "DEAL_STAGE", kind="const")
+    block = _body(_read(FRONTEND / "lib" / "modules.ts"), "VOUCHER_STAGE", kind="const")
     for key in (*dm.STAGES, dm.DONE, dm.CANCELLED):
         assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
 
     work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    assert "DEAL_STAGE." in work, "Die Karte liest die Stufen nicht aus der Zuordnung."
+    assert "VOUCHER_STAGE." in work, "Die Karte liest die Stufen nicht aus der Zuordnung."
     # Geprüft wird die REGEL («kein Stufen-Wort im Rumpf»), nicht die Form der Lösung:
     # WELCHE Stufen die Karte nennt, ist ihre Sache – `agreed` ist heute die Ableitung
     # «nicht mehr Angebot», und ein Wächter, der eine bestimmte Zeile verlangt, verbietet
     # die bessere Fassung.
     for key in (*dm.STAGES, dm.DONE, dm.CANCELLED):
         assert f"'{key}'" not in work, (
-            f"Die Karte vergleicht gegen '{key}' statt gegen DEAL_STAGE.{key} – ein "
+            f"Die Karte vergleicht gegen '{key}' statt gegen VOUCHER_STAGE.{key} – ein "
             f"zweiter Ort für denselben Schlüssel."
         )
     for german in ("'angebot'", "'zusage'", "'abgeschlossen'", "'storniert'"):
@@ -5416,14 +5424,14 @@ def test_one_field_asked_two_questions_so_there_are_two():
     # Richtung, nicht am Modultyp.
     fields = _code(_component(_read(FRONTEND / "components" / "erp"
                                     / "process-designer.tsx"), "MoneyFields"))
-    assert "dealDirection(m.direction).partyRef" in fields, (
+    assert "voucherDirection(m.direction).partyRef" in fields, (
         "Das Bestellfeld steht auch beim Verkauf da (g) – dort hat es keine richtige "
         "Antwort."
     )
-    assert "aria-label={DEAL_ORDER_REF}" in fields and "required" in fields, (
+    assert "aria-label={VOUCHER_ORDER_REF}" in fields and "required" in fields, (
         "Die Bestellangabe ist im Editor weder benannt noch als Pflicht ausgezeichnet."
     )
-    assert "onChange({ instruction:" in fields and "{DEAL_TASK}" in fields, (
+    assert "onChange({ instruction:" in fields and "{VOUCHER_TASK}" in fields, (
         "«Was ist zu tun?» gibt es im Editor nicht (h) – dann wird es nie gesetzt."
     )
 
@@ -5484,7 +5492,7 @@ def test_the_money_module_is_not_named_after_a_trade():
     (c) zwei gespiegelte Pfeile statt zweier verschiedener Zeichen.
     """
     src = _read(FRONTEND / "lib" / "modules.ts")
-    block = _body(src, "DEAL_DIRECTION", kind="const")
+    block = _body(src, "VOUCHER_DIRECTION", kind="const")
     assert "'Einnahme'" in block and "'Ausgabe'" in block, (
         "Die Richtung heisst nicht mehr nach dem Geldfluss."
     )
@@ -5824,7 +5832,7 @@ def test_everything_about_one_party_stands_on_one_line():
     row = fields[fields.index("ix-row"):]
     row = row[:row.index("))}")]
     flat = " ".join(row.split())
-    for part in ("<ObjId value={row.party}", "aria-label={DEAL_ORDER_REF}", "<RowDelete"):
+    for part in ("<ObjId value={row.party}", "aria-label={VOUCHER_ORDER_REF}", "<RowDelete"):
         assert part in flat, f"«{part}» steht nicht in der Partner-Zeile (#833)."
     # ►►► **Gefragt ist die WIRKUNG, nicht der Klassenname an dieser Stelle.** ◄◄◄
     #
@@ -5847,15 +5855,15 @@ def test_everything_about_one_party_stands_on_one_line():
     # (d)
     assert "Zugelassene" not in fields, "«Zugelassene Partner» ist zurück (#830)."
     # ►►► **«Partner» steht im PLATZHALTER, nicht als Beschriftung darüber** (#843). ◄◄◄
-    assert "label={DEAL_PARTY}" not in fields, (
+    assert "label={VOUCHER_PARTY}" not in fields, (
         "«Partner» steht wieder als eigene Zeile über dem Feld (#843)."
     )
-    assert "placeholder={`${DEAL_PARTY}" in fields, (
+    assert "placeholder={`${VOUCHER_PARTY}" in fields, (
         "Der Platzhalter sagt nicht mehr, wen man sucht (#843)."
     )
     # Im **Vollbild** des Scanners bleibt die Sorte eine Beschriftung: dort liegt Text auf
     # einem Foto, und ein Platzhalter verschwindet beim ersten Zeichen.
-    assert "scanLabel={DEAL_PARTY}" in fields
+    assert "scanLabel={VOUCHER_PARTY}" in fields
 
     # (b)/(c) **Die Regel wohnt im Blatt** – und sie hat eine Touch-Ausnahme.
     css = _read(FRONTEND / "app" / "globals.css")
@@ -7830,7 +7838,7 @@ def test_a_recipient_chip_can_be_shown_and_dropped():
     Block zeigt weiter blind die Seite des Servers statt der gewählten.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    chip = _component(src, "Chip")
+    chip = _component(src, "RecipientChip")
     # *Zwei Knöpfe in **einer** Hülle – ein Klick auf den Namen zeigt die Anschrift, das ✕
     # zieht die Anfrage zurück. Verschachtelte Knöpfe wären ungültiges HTML, und ein
     # einziger müsste erraten, was gemeint war. Gezählt wird, statt nach dem Vorkommen der
@@ -8665,7 +8673,7 @@ def test_a_recipient_chip_carries_no_state_dot():
     im Hover, also sagt der Chip seinen Zustand gar nicht mehr.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    chip = _component(src, "Chip")
+    chip = _component(src, "RecipientChip")
     assert "rounded-full" not in chip, (
         "Der Zustandspunkt steht wieder im Chip (a) – die vierte Fassung derselben "
         "Aussage, und die einzige ohne Wort."
@@ -9285,9 +9293,9 @@ def test_a_save_never_hides_a_control_in_the_party_block():
     # das Speichern selbst; es entscheidet nie, **ob** etwas dasteht.
     #
     # *Gelesen wird ein **Fenster** vor der Fundstelle, nicht die Zeile: ein
-    # `useAutosave(…)`-Aufruf bricht um, und ein zeilenweiser Wächter meldete
+    # `useAutosaveSignature(…)`-Aufruf bricht um, und ein zeilenweiser Wächter meldete
     # ausgerechnet seine Fortsetzung (gemessen, nachgeschärft).*
-    allowed = ("useAutosave(", "const ready =")
+    allowed = ("useAutosaveSignature(", "const ready =")
     code = _code(src)
     for m in re.finditer(r"!busy", code):
         window = code[max(0, m.start() - 160):m.start()]
@@ -9295,7 +9303,7 @@ def test_a_save_never_hides_a_control_in_the_party_block():
             f"«{code[m.start() - 40:m.start() + 40].strip()}»: `busy` entscheidet wieder, "
             f"ob etwas gezeichnet wird (a) – das verschiebt die Zeile unter dem Zeiger."
         )
-    chip = _code(_component(src, "Chip"))
+    chip = _code(_component(src, "RecipientChip"))
     assert "opacity: busy" in chip, (
         "Der Chip meldet das Speichern nicht über die Deckkraft (b)."
     )
@@ -10181,7 +10189,7 @@ def test_the_blocked_request_says_why_at_the_button():
         "Die Karte formuliert den Grund selbst (c)."
     )
     # (d) **Dieselbe Sperre am Chip** – er löst dieselbe Handlung aus.
-    chip = _component(src, "Chip")
+    chip = _component(src, "RecipientChip")
     assert "askProblem" in chip and "const askOff = busy || !!askProblem;" in chip, (
         "Der `+` am Chip fragt an, obwohl der Beleg unvollständig ist (d)."
     )
@@ -10493,3 +10501,189 @@ def test_the_document_offers_firm_and_addresses_only_where_the_server_says_so():
     body = src[src.index("function Anschrift("):]
     body = body[:body.index("\nfunction ", 1)]
     assert "<DocPick" in body and "choice?.options" in body and "<input" not in body, "(c)"
+
+
+# ===========================================================================
+# ►► Cleanup Oktober 2026, Pakete 8–10 (Frontend): Namen · eine Regel, eine Stelle ·
+#    Alt-Palette (docs/cleanup-2026-10/frontend.md)
+# ===========================================================================
+
+def _frontend_sources(*suffixes: str):
+    """Jede Quelldatei des Frontends – ohne die generierten Typen und die Token-Datei."""
+    for path in sorted(FRONTEND.rglob("*")):
+        if not path.is_file() or path.suffix not in suffixes:
+            continue
+        rel = path.relative_to(FRONTEND).as_posix()
+        if rel == "types/api.ts" or rel.startswith("styles/design-system/"):
+            continue
+        yield rel, _read(path)
+
+
+def test_the_money_module_mirror_is_named_after_its_source():
+    """**Der Spiegel heisst wie seine Quelle** (F-30): `domain/voucher`, also `VOUCHER_*`.
+
+    Das Modul `deal` ist gelöscht; ein `DEAL_DIRECTION` im Frontend schickt jeden, der den
+    Spiegel sucht, an eine Datei, die es nicht gibt.
+
+    Bug-Form: ein `DEAL_*`-Name oder `dealDirection` steht wieder im Code.
+    """
+    hits = [rel for rel, src in _frontend_sources(".ts", ".tsx")
+            if re.search(r"\bDEAL_[A-Z]|\bdealDirection\b", _code(src))]
+    assert not hits, f"Der Geldvorgang heisst wieder «deal»: {hits}"
+    modules = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    for name in ("VOUCHER_DIRECTION", "VOUCHER_STAGE", "VOUCHER_PARTY", "voucherDirection"):
+        assert name in modules, f"«{name}» fehlt in `lib/modules.ts`."
+
+
+def test_the_form_parts_live_outside_the_account():
+    """**Gemeinsame Bausteine wohnen nicht unter «account»** (F-32/F-33).
+
+    Feld, Speicher-Anzeige und Auto-Save lagen in `components/account/`, obwohl das ERP
+    sie öfter importiert als das Konto; die Ampeltöne in einer Datei namens «status-flow»
+    (einen Lebenszyklus gibt es dort nicht).
+
+    Bug-Formen: (a) eine ERP-Datei importiert aus `components/account/`; (b) ein
+    Baustein liegt wieder dort; (c) `status-flow` ist zurück.
+    """
+    for rel, src in _frontend_sources(".ts", ".tsx"):
+        if rel.startswith(("components/account/", "app/(account)/")):
+            continue
+        assert "@/components/account/" not in src, f"«{rel}» importiert aus dem Konto (a)."
+    account = FRONTEND / "components" / "account"
+    for gone in ("field.tsx", "save-status.tsx", "use-autosave.ts",
+                 "sections/system-config-section.tsx"):
+        assert not (account / gone).exists(), f"«account/{gone}» liegt wieder dort (b)."
+    assert not (FRONTEND / "lib" / "status-flow.ts").exists(), "(c)"
+    assert (FRONTEND / "lib" / "status-tone.ts").exists(), "(c) – die Ampeltöne fehlen."
+
+
+def test_autosave_is_one_module_with_one_delay():
+    """**Ein Auto-Save, eine Vorgabe** (F-40) – die Hausregel sagt 3 s.
+
+    Es gab zwei Hooks namens `useAutosave` mit verschiedener Signatur und verschiedener
+    Vorgabe (3000 ↔ 1500 ms), dazu Aufrufer mit 2500 bzw. 1500.
+
+    Bug-Formen: (a) ein zweiter Hook entsteht anderswo; (b) die Vorgabe ist nicht 3 s;
+    (c) ein Hook nimmt wieder eine eigene Verzögerung an.
+    """
+    lib = _code(_read(FRONTEND / "lib" / "use-autosave.ts"))
+    assert "export const AUTOSAVE_DELAY = 3000;" in lib, "(b)"
+    for name in ("useAutosaveValue", "useAutosaveSignature"):
+        head = lib[lib.index(f"export function {name}"):]
+        head = head[:head.index("{\n")]
+        assert "delay" not in head, f"«{name}» nimmt wieder eine eigene Verzögerung an (c)."
+    for rel, src in _frontend_sources(".ts", ".tsx"):
+        if rel == "lib/use-autosave.ts":
+            continue
+        assert not re.search(r"function useAutosave\w*\s*[(<]", src), f"«{rel}» (a)"
+
+
+def test_card_and_subblock_have_one_home():
+    """**`Card` und `SubBlock` stehen EINMAL** (F-41/F-42) – in `fields.tsx`.
+
+    Konto und ERP-Benutzer bauten beide nach (wortgleich), und ein Kommentar behauptete
+    das Gegenteil.
+
+    Bug-Form: eine Datei definiert sie wieder selbst.
+    """
+    for rel, src in _frontend_sources(".tsx"):
+        if rel == "components/erp/fields.tsx":
+            continue
+        for name in ("Card", "SubBlock"):
+            assert not re.search(rf"\bfunction {name}\s*\(", src), (
+                f"«{rel}» baut `{name}` nach – er steht in `fields.tsx`."
+            )
+
+
+def test_the_micro_label_is_written_once():
+    """**Das Mikro-Label steht EINMAL** (F-43) – `fields.MICRO_LABEL` bzw. `fields.Label`.
+
+    Neun Fassungen standen inline da (11/12 px, 600/700, .05/.06/.07 em), jede für sich
+    richtig aussehend. Erlaubt ausserhalb von `fields.tsx` sind nur zwei bewusst andere
+    Gattungen: der Abschnittskopf (`module-ui`, Overline-Register) und die Beschriftung im
+    Zahlungsformular des Dienstes (`pay-online`, ein iframe ohne unsere Klassen).
+
+    Bug-Form: eine Datei schreibt die Versalien wieder selbst.
+    """
+    allowed = {"components/erp/fields.tsx", "components/erp/module-ui.tsx",
+               "components/erp/pay-online.tsx"}
+    hits = [rel for rel, src in _frontend_sources(".tsx", ".ts")
+            if rel not in allowed and "textTransform: 'uppercase'" in _code(src)]
+    assert not hits, f"Diese Dateien schreiben das Mikro-Label selbst: {hits}"
+
+
+def test_staff_is_asked_in_one_place():
+    """**«Ist das Personal?» fragt EINE Funktion** (F-46/F-65) – `record-status.isStaff`.
+
+    Am ERP-Benutzer stand das Paar zweimal ausgeschrieben, und das Konto fragte nur
+    `role === 'employee'`: ein Admin sah dort seine Anstellung nicht und konnte seine
+    Gesellschaft ändern, die für Personal eine eigene sein muss.
+
+    Bug-Formen: (a) eine Datei vergleicht die Rolle wieder selbst; (b) das Konto fragt
+    nicht `isStaff`.
+    """
+    for rel, src in _frontend_sources(".ts", ".tsx"):
+        if rel == "lib/record-status.ts":
+            continue
+        assert not re.search(r"role\s*===\s*'employee'", _code(src)), f"«{rel}» (a)"
+    shell = _code(_read(FRONTEND / "components" / "account" / "account-shell.tsx"))
+    assert "isStaff(profile.role)" in shell, "(b)"
+
+
+def test_a_search_while_typing_is_one_hook():
+    """**Tippen sucht – über EINEN Hook** (F-47, `lib/use-search.ts`).
+
+    Entprellen und Veralterungs-Schutz standen an sieben Stellen ausgeschrieben.
+    Ausgenommen ist der Instanz-Feed (`erp/page.tsx`): er lädt seitenweise, und eine leere
+    Suche fragt sofort.
+
+    Bug-Form: eine Datei baut wieder `setTimeout` + `stale = true` für eine Suche.
+    """
+    allowed = {"lib/use-search.ts", "app/(erp)/erp/page.tsx"}
+    debounce = re.compile(r"let stale = false;\s*const t = (?:window\.)?setTimeout\(")
+    hits = [rel for rel, src in _frontend_sources(".ts", ".tsx")
+            if rel not in allowed and debounce.search(_code(src))]
+    assert not hits, f"Diese Dateien suchen beim Tippen selbst: {hits}"
+    for rel in ("components/erp/fields.tsx", "components/erp/communication.tsx",
+                "components/scan/scan-dialog.tsx", "components/erp/article-detail.tsx"):
+        assert "useSearch" in _read(FRONTEND / rel), f"«{rel}» nutzt die gemeinsame Suche nicht."
+
+
+def test_a_date_is_not_rebuilt_from_its_own_output():
+    """**Der Kalendertag ist eine Ausgabe von `lib/when`, keine Bastelei** (F-49).
+
+    Der Verlauf baute aus `day(iso)` per `split('.')` wieder ein ISO-Datum, um `when()`
+    zu füttern – er hing damit an der Schreibweise einer anderen Funktion.
+
+    Bug-Form: eine Ausgabe von `day()` wird wieder zerlegt.
+    """
+    for rel, src in _frontend_sources(".ts", ".tsx"):
+        assert not re.search(r"\bday\([^)]*\)\.split\(", _code(src)), f"«{rel}»"
+    assert "export function whenDay" in _read(FRONTEND / "lib" / "when.ts")
+
+
+def test_the_old_palette_is_gone_also_as_hex():
+    """►►► **Die Alt-Palette ist weg – auch als Hex** (F-20/F-50/F-51). ◄◄◄
+
+    Die «0 Vorkommen» galten nur für Klassennamen: als Hex-Literal lebten Tailwinds
+    slate/gray/amber/green/red/sky weiter, im Konto und – über das Konto-Feld – in
+    ERP-Formularen. Dazu das Markenrot in drei Schreibweisen (`#E51A14`, `--ix-red`,
+    `--inexxio-red`) und der Rohtoken `--color-warning` neben `--warning`.
+
+    Bug-Formen: (a) ein Alt-Hex steht wieder im Code; (b) das Rot steht als Hex oder als
+    `--ix-*`-Alias; (c) die Warnfarbe kommt als Rohtoken.
+    """
+    old = re.compile(
+        r"#(0F172A|1E293B|334155|475569|64748B|94A3B8|CBD5E1|E2E8F0|F1F5F9|F8FAFC|"
+        r"111827|1F2937|374151|4B5563|6B7280|9CA3AF|D1D5DB|E5E7EB|F3F4F6|F9FAFB|"
+        r"F59E0B|D97706|B45309|FFFBEB|16A34A|15803D|F0FDF4|BBF7D0|DC2626|FEF2F2|FCA5A5|"
+        r"0284C7|F0F9FF|BAE6FD)\b", re.I)
+    # Die Gebietskarte trägt eine eigene kategoriale Palette («welche Gesellschaft»,
+    # keine Ampel) – das Design-System führt keine; sie ist bewusst ausgenommen.
+    for rel, src in _frontend_sources(".ts", ".tsx", ".css"):
+        if rel == "components/erp/territory-map.tsx":
+            continue
+        found = sorted({m.group(0) for m in old.finditer(_code(src))})
+        assert not found, f"«{rel}» trägt die Alt-Palette als Hex (a): {found}"
+        assert "#E51A14" not in src.upper() and "--ix-red" not in src, f"«{rel}» (b)"
+        assert "var(--color-warning" not in src, f"«{rel}» (c)"

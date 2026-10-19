@@ -21,10 +21,11 @@ import { useState, useEffect, useRef } from 'react';
 import { User, Briefcase, Building2, Bell, MapPin } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { day } from '@/lib/when';
-import { Field, ToggleField } from '../field';
-import { useAutosave } from '../use-autosave';
-import { SaveStatusIndicator } from '../save-status';
+import { Field, ToggleField } from '@/components/form/field';
+import { useAutosaveValue } from '@/lib/use-autosave';
+import { SaveStatusIndicator } from '@/components/form/save-status';
 import { AddressBook } from '@/components/erp/address-book';
+import { Card, MICRO_LABEL, SubBlock } from '@/components/erp/fields';
 import { CompanyField } from '@/components/erp/company-field';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
@@ -53,11 +54,11 @@ function buildForm(p: UserProfile): Form {
 
 interface Props {
   profile: UserProfile;
-  isEmployee: boolean;
+  isStaff: boolean;
   onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
-export function ProfileSection({ profile, isEmployee, onSave }: Props) {
+export function ProfileSection({ profile, isStaff, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
@@ -72,10 +73,9 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg, saveNow } = useAutosave(
+  const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
     (v) => onSave({ ...v } as Partial<UserProfile>),
-    3000,
     resetKey,
   );
 
@@ -95,7 +95,7 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
             zu zeigen, lud zum Hineinklicken ein. Jetzt steht sie da wie überall sonst
             im System: Versalien-Label + monospaced Nummer. */}
         <div>
-          <div style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-4)', marginBottom: 4 }}>
+          <div style={{ ...MICRO_LABEL, marginBottom: 4 }}>
             Benutzernummer
           </div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>
@@ -110,7 +110,7 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
           <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
         </div>
 
-        {isEmployee && (
+        {isStaff && (
           <SubBlock icon={Briefcase} title="Anstellung · wird vom Administrator gepflegt">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Abteilung" value={profile.department ?? ''} readOnly />
@@ -137,7 +137,7 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
           fremder Firmen sieht ein Kunde nie. Die Anschriften gehören der Person, die
           Rechnungs-E-Mail steht an der Rechnungsadresse. */}
       <Card icon={Building2} title="Geschäftskonto">
-        <CompanyField company={profile.company} readOnly={isEmployee}
+        <CompanyField company={profile.company} readOnly={isStaff}
           country={profile.addresses?.[0]?.country}
           onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
           onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
@@ -160,39 +160,3 @@ export function ProfileSection({ profile, isEmployee, onSave }: Props) {
     </div>
   );
 }
-
-// ─── Bausteine ────────────────────────────────────────────────────────────────
-
-function Card({ icon: Icon, title, right, children }: {
-  icon: React.ElementType; title: string; right?: React.ReactNode; children: React.ReactNode;
-}) {
-  return (
-    <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border-1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon style={{ width: 16, height: 16, color: 'var(--fg-3)' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{title}</h2>
-        </div>
-        {right}
-      </div>
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>{children}</div>
-    </div>
-  );
-}
-
-function SubBlock({ icon: Icon, title, children }: {
-  icon: React.ElementType; title: string; children: React.ReactNode;
-}) {
-  return (
-    <div style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border-1)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-        <Icon style={{ width: 13, height: 13, color: 'var(--fg-3)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {title}
-        </span>
-      </div>
-      {children}
-    </div>
-  );
-}
-

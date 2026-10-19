@@ -5,9 +5,9 @@ import { Key } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings } from '@/types';
 import { Card, DetailBody } from '@/components/erp/fields';
-import { Field } from '@/components/account/field';
-import { useAutosave } from '@/components/account/use-autosave';
-import { SaveStatusIndicator } from '@/components/account/save-status';
+import { Field } from '@/components/form/field';
+import { useAutosaveValue } from '@/lib/use-autosave';
+import { SaveStatusIndicator } from '@/components/form/save-status';
 
 /**
  * **Die Plattform-Konfiguration** – sie gilt der EINEN Website, nicht je Gesellschaft,
@@ -30,7 +30,7 @@ export function SystemConfigSection({ settings, onSaved }: {
     google_maps_api_key: settings.google_maps_api_key ?? '',
   });
 
-  const { status, errorMsg, saveNow } = useAutosave(form, async (v) => {
+  const { status, errorMsg, saveNow } = useAutosaveValue(form, async (v) => {
     const updated = await api.updateSettings({
       google_maps_api_key: v.google_maps_api_key.trim() || null,
     });

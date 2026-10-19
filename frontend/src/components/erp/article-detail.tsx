@@ -8,6 +8,11 @@ import {
   ClipboardPlus, ArrowRight, Blocks,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { formatNumber } from '@/lib/utils';
+import { useSearch } from '@/lib/use-search';
+
+/** Namensvorschläge – eine stabile Funktion, damit die Suche nicht bei jedem Rendern neu läuft. */
+const suggestNames = (q: string) => api.articleNameSuggestions(q, 8);
 import type { ArticleProcess as ArticleProcessType, Article, ArticleBom, ArticleInput, ArticleLink, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
 import type { ModuleDraft } from '@/lib/modules';
 import { moduleFromConfig, toModulePayload } from '@/lib/modules';
@@ -21,7 +26,7 @@ import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 
-import { ErrorText, SaveIndicator, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
@@ -306,7 +311,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                   <div style={GRID2}>
                     <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
                     {weightIsComputed ? (
-                      <ReadField icon={Weight} label="Gewicht" value={fmtWeight(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
+                      <ReadField icon={Weight} label="Gewicht" value={formatNumber(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
                     ) : (
                       <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
                     )}
@@ -368,10 +373,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
 
 // Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
 // Der Kopf kommt aus `fields.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
-function fmtWeight(v: string | number): string {
-  return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });
-}
-
 // Freies Namensfeld mit intelligenten Vorschlägen: das System schlägt beim Tippen bereits
 // verwendete/ähnliche Namen vor (kostenlos/lexikalisch, `services/article_names.py`), damit
 // keine Dubletten («Schraubendreher» vs. «Akkuschrauber») entstehen. Kein Katalog-Zwang mehr.
@@ -379,20 +380,11 @@ function NameField({ value, onChange, error }: {
   value: string; onChange: (v: string) => void; error?: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [sugs, setSugs] = useState<ArticleNameSuggestion[]>([]);
   const boxRef = useRef<HTMLDivElement>(null);
 
   // Vorschläge entprellt laden, solange das Feld aktiv ist (leere Eingabe → häufigste Namen).
-  useEffect(() => {
-    if (!open) return;
-    let stale = false;
-    const t = setTimeout(() => {
-      api.articleNameSuggestions(value.trim(), 8)
-        .then((r) => { if (!stale) setSugs(r); })
-        .catch(() => { if (!stale) setSugs([]); });
-    }, 200);
-    return () => { stale = true; clearTimeout(t); };
-  }, [value, open]);
+  const { hits: sugs } = useSearch<ArticleNameSuggestion>(value, open ? suggestNames : null,
+    { delay: 200, minLength: 0 });
 
   // Klick ausserhalb schliesst die Vorschlagsliste.
   useEffect(() => {
@@ -417,7 +409,7 @@ function NameField({ value, onChange, error }: {
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         className={FIN_CLS}
-        style={error ? { borderColor: '#fca5a5' } : undefined}
+        style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined}
       />
       {error ? <ErrorText msg={error} /> : exact ? (
         <div style={{ marginTop: 4, fontSize: 11, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -495,11 +487,11 @@ function SectionAddButton({ added, onAdd }: {
     <div ref={boxRef} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen((o) => !o)} data-tip="Feld hinzufügen" data-tip-pos="left"
         aria-label="Feld hinzufügen"
-        style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', border: '1px solid var(--border-2)', background: '#fff', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', border: '1px solid var(--border-2)', background: 'var(--bg-1)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
         <Plus size={16} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 30, width: 320, maxWidth: '80vw', background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', padding: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 30, width: 320, maxWidth: '80vw', background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', padding: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {available.map((f) => {
             const Icon = MENU_ICON[f.key] ?? Layers;
             return (
@@ -546,13 +538,13 @@ function OptField({ f, form, onSet, onRemove }: {
 }
 
 // Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, 14/12-Padding, Akzent-Fokus mit 3-px-Ring).
-const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-white px-3.5 py-3 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-[3px] focus:ring-accent-soft';
+const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-bg-1 px-3.5 py-3 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-[3px] focus:ring-accent-soft';
 
-// Feld-Label (Design `.lbl`): Versalien, enges Tracking, gedämpftes Grau; Pflicht-Stern in
-// Marken-Rot. Lokal in der Spezifikation verwendet (das geteilte `Label` bleibt unangetastet).
+// Feld-Label der Spezifikation (Design `.lbl`): das Mikro-Label des Hauses, eine Stufe
+// dunkler und mit mehr Luft zum grösseren `.fin`-Feld darunter; Pflicht-Stern in Marken-Rot.
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <label style={{ display: 'block', font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)', marginBottom: 9 }}>
+    <label style={{ ...MICRO_LABEL, display: 'block', color: 'var(--fg-3)', marginBottom: 9 }}>
       {children}{required && <span style={{ color: 'var(--inexxio-red)' }}> *</span>}
     </label>
   );
@@ -567,7 +559,7 @@ function EditField({ label, value, onChange, placeholder, hint, error, required,
     <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
       <FieldLabel required={required}>{label}</FieldLabel>
       <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className={FIN_CLS} style={error ? { borderColor: '#fca5a5' } : undefined} />
+        className={FIN_CLS} style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined} />
       {error ? <ErrorText msg={error} /> : hint ? (
         <div style={{ marginTop: 8, font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>{hint}</div>
       ) : null}
@@ -628,7 +620,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
         <SpecSection icon={Box} title="Physische Eigenschaften">
           {record.size && <ReadField icon={Scaling} label="Abmessungen" value={record.size} unit="mm" mono />}
           {(weightIsComputed || record.weight_kg != null) && (
-            <ReadField icon={Weight} label="Gewicht" value={weightIsComputed ? fmtWeight(computedWeight!) : String(record.weight_kg)}
+            <ReadField icon={Weight} label="Gewicht" value={weightIsComputed ? formatNumber(computedWeight!) : String(record.weight_kg)}
               unit={weightIsComputed ? 'kg (berechnet)' : 'kg'} mono />
           )}
         </SpecSection>
@@ -653,10 +645,7 @@ const STRIP: React.CSSProperties = {
   padding: '11px 14px', marginBottom: 18,
   display: 'flex', flexDirection: 'column', gap: 11,
 };
-const STRIP_LABEL: React.CSSProperties = {
-  font: '700 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em',
-  color: 'var(--fg-4)', flex: 'none',
-};
+const STRIP_LABEL: React.CSSProperties = { ...MICRO_LABEL, fontSize: 10, flex: 'none' };
 // **Innen enger als aussen.** Bricht eine Zeile auf einem Telefon um, muss man ihre
 // Fortsetzung von der nächsten Zeile unterscheiden können – wären beide Abstände gleich,
 // läse sich «100000318 Antriebseinheit» wie eine neue Auskunft statt wie der Rest der

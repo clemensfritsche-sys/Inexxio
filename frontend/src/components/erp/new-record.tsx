@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { Building2, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { legalForms } from '@/lib/legal-forms';
-import { Field as AField, SelectField } from '@/components/account/field';
+import { Field as AField, SelectField } from '@/components/form/field';
 import { Card, DetailBody, DetailHeader, ErrorText, HeaderAction, Segmented } from '@/components/erp/fields';
 import { OWN_OPTIONS } from '@/components/erp/organization-detail';
 import { ObjectSelect } from '@/components/erp/object-select';

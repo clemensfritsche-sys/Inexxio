@@ -12,10 +12,10 @@ import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { legalForms } from '@/lib/legal-forms';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
-import { Field as AField } from '@/components/account/field';
-import { useAutosave } from '@/components/account/use-autosave';
-import { SaveStatusIndicator } from '@/components/account/save-status';
-import { SystemConfigSection } from '@/components/account/sections/system-config-section';
+import { Field as AField } from '@/components/form/field';
+import { useAutosaveValue } from '@/lib/use-autosave';
+import { SaveStatusIndicator } from '@/components/form/save-status';
+import { SystemConfigSection } from '@/components/erp/system-config-section';
 import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
 
@@ -202,7 +202,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
     }
   }, [record]);
 
-  const { status, errorMsg, saveNow } = useAutosave(
+  const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
     async (v) => {
       if (record.object_id == null || !canEdit) return;
@@ -232,7 +232,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
       setBase(updated);
       onSaved(updated);
     },
-    2500,
     resetKey,
   );
 
@@ -424,10 +423,10 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
                 (Holding fakturiert in EUR), kommt hin; niemand verstellt sie im Vorbeitippen. */}
             {own && (currencyOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Währung</label>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>Währung</label>
                 <select value={form.currency} onChange={(e) => str('currency')(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
-                           fontSize: 14, color: '#0F172A', background: '#fff', outline: 'none',
+                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-1)',
+                           fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg-1)', outline: 'none',
                            width: '100%', boxSizing: 'border-box', cursor: 'pointer' }}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -435,7 +434,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Währung</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>Währung</div>
                   <div style={{ font: '600 14px var(--font-body)', color: 'var(--fg-1)', marginTop: 2 }}>
                     {form.currency}
                     {derivedCurrency === form.currency && (

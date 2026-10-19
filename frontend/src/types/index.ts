@@ -39,34 +39,13 @@ export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
   serialization: ArticleSerialization;
 };
 
-// Eingaben für die Anlage aus dem Detailfenster. Pflicht ist nur der Name;
-// Einheit/Serialisierung tragen einen Default, Grösse & Gewicht sind optional.
-export interface ArticleInput {
-  name: string;
+// Eingaben für die Anlage aus dem Detailfenster – das Schema der Tür (`ArticleCreate`),
+// Einheit und Serialisierung auf ihre Unions verengt. Die Module reisen getrennt mit
+// (`steps`), weil der Entwurf sie in seiner eigenen Form hält.
+export type ArticleInput = Omit<components['schemas']['ArticleCreate'], 'unit' | 'serialization' | 'steps'> & {
   unit?: ArticleUnit;
   serialization?: ArticleSerialization;
-  size?: string | null;
-  weight_kg?: string | null;
-  // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
-  is_hazmat?: boolean | null;
-  material?: string | null;
-  cad_url?: string | null;
-  surface?: string | null;
-  supplier_article_number?: string | null;
-  min_order_qty?: string | null;
-  safety_stock?: string | null;
-  /** **Die Zolltarifnummer** (HS) – die ersten sechs Stellen gelten weltweit. */
-  hs_code?: string | null;
-  /** **Wo die Ware hergestellt wurde** (ISO-2) – nicht das Versandland. */
-  origin_country?: string | null;
-  /**
-   * **Welchen Artikel löst dieser hier ab?** (Objektnummer) — nur bei der Anlage.
-   *
-   * Die Angabe steht am Nachfolger, weil sie genau einen Moment hat. Wirkung: der
-   * Vorgänger zeigt hierher UND geht ausser Betrieb – ein Vorgang, ein Aufruf.
-   */
-  replaces_object_id?: number | null;
-}
+};
 
 // Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
@@ -267,59 +246,25 @@ export interface CompanySettings {
 // Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –
 // ein Meta-Artefakt über dem System, kein Geschäftsobjekt (siehe docs/feedback.md).
 
-/** WO die Notiz hängt. `label` (sichtbarer Text) ist der greppbare Anker im Code. */
-export interface FeedbackAnchor {
-  label: string;
-  tag: string;
-  selector: string;
-  html: string;
-  /** Umgebender Abschnitt (Prozessschritt-Panel, Sektionstitel) – trägt bei dynamischen Listen mehr als der Selektor. */
-  section: string;
-  rx: number;   // relative Position im Element (0–1) – der Pin sitzt wieder gleich
-  ry: number;
-}
-
-/** WOMIT es passiert ist – Umgebung inkl. der letzten Laufzeitfehler. */
-export interface FeedbackContext {
-  viewport: string;
-  ua: string;
-  role: string;
-  version: string;
-  /** Offener Datensatz + aktiver Reiter, z. B. «Artikel · Prozess». */
-  view: string;
-  errors: string[];
-}
+/** WO die Notiz hängt (`label` ist der greppbare Anker) und WOMIT es passiert ist. */
+export type FeedbackAnchor = components['schemas']['FeedbackAnchor'];
+export type FeedbackContext = components['schemas']['FeedbackContext'];
 
 export type FeedbackStatus = 'open' | 'done' | 'dismissed';
 
-export interface FeedbackNote {
-  id: number;
+// Aus dem Schema; der Zustand auf die Union verengt, Anker und Umgebung typisiert (das
+// Schema führt sie als freies JSON).
+export type FeedbackNote = Omit<components['schemas']['FeedbackNoteResponse'], 'status' | 'anchor' | 'context'> & {
   status: FeedbackStatus;
-  body: string;
-  route: string;
-  target_object_id: number | null;
   anchor: FeedbackAnchor | null;
   context: FeedbackContext | null;
-  resolution: string | null;
-  resolved_at: string | null;
-  created_at: string;
-  created_by: number | null;
-  author_name: string;
-  mine: boolean;
-}
+};
 
-export interface FeedbackCreateInput {
-  body: string;
-  route: string;
-  target_object_id?: number | null;
-  anchor?: FeedbackAnchor | null;
-  context?: FeedbackContext | null;
-}
+export type FeedbackCreateInput = components['schemas']['FeedbackCreate'];
 
-export interface FeedbackUpdateInput {
+export type FeedbackUpdateInput = Omit<components['schemas']['FeedbackUpdate'], 'status'> & {
   status?: FeedbackStatus;
-  resolution?: string | null;
-}
+};
 
 /** **Eine Nachricht** – das einzige Objekt der Kommunikation (CRM Schritt 2). */
 export type Message = components['schemas']['MessageOut'];

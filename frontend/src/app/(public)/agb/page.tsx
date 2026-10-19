@@ -10,7 +10,7 @@ export default function AGBPage() {
   const [activeTab, setActiveTab] = useState<'b2b' | 'b2c'>('b2b');
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg-1">
       {/* Hero */}
       <section className="bg-bg-dark py-16">
         <div className="container">
@@ -31,7 +31,7 @@ export default function AGBPage() {
                 onClick={() => setActiveTab('b2b')}
                 className={`rounded-lg px-5 py-2 text-sm font-medium transition-all ${
                   activeTab === 'b2b'
-                    ? 'bg-white text-fg-1 shadow-sm'
+                    ? 'bg-bg-1 text-fg-1 shadow-sm'
                     : 'text-fg-3 hover:text-fg-1'
                 }`}
               >
@@ -41,7 +41,7 @@ export default function AGBPage() {
                 onClick={() => setActiveTab('b2c')}
                 className={`rounded-lg px-5 py-2 text-sm font-medium transition-all ${
                   activeTab === 'b2c'
-                    ? 'bg-white text-fg-1 shadow-sm'
+                    ? 'bg-bg-1 text-fg-1 shadow-sm'
                     : 'text-fg-3 hover:text-fg-1'
                 }`}
               >

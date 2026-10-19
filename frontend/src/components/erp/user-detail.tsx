@@ -8,21 +8,21 @@ import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { when } from '@/lib/when';
-import { ROLE_CFG, userStatus } from '@/lib/record-status';
+import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
+import { Card, DetailBody, DetailHeader, SubBlock } from '@/components/erp/fields';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
 // «Rechnungsadresse = Lieferadresse»-Schalter mit Spiegelung, Google-Adress-Suche. Keine
 // zweite Optik, kein zweiter Feld-Satz – nur die ERP-Extras kommen dazu (Notiz #295:
 // Rolle, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
-import { Field as AField, ToggleField, SelectField } from '@/components/account/field';
+import { Field as AField, ToggleField, SelectField } from '@/components/form/field';
 import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
-import { useAutosave } from '@/components/account/use-autosave';
-import { SaveStatusIndicator } from '@/components/account/save-status';
+import { useAutosaveValue } from '@/lib/use-autosave';
+import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { UserProfile, UserRole } from '@/types';
 
 // **Reiter**: Person und Kommunikation. «Bestellungen» und «Dokumente» kommen mit ihren
@@ -35,26 +35,6 @@ export function userInitials(name: string, email: string): string {
     return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
   return email[0]?.toUpperCase() ?? '?';
-}
-
-// ─── Karten-Bausteine (Spiegel der Profileinstellungen) ────────────────────────
-// Gleiche Anatomie wie `account/sections/profile-section.tsx` (#294) – Symbol + Titel +
-// optionaler rechter Slot; `Card` wohnt in `fields.tsx`.
-
-function SubBlock({ icon: Icon, title, children }: {
-  icon: React.ElementType; title: string; children: React.ReactNode;
-}) {
-  return (
-    <div style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border-1)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-        <Icon style={{ width: 13, height: 13, color: 'var(--fg-3)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {title}
-        </span>
-      </div>
-      {children}
-    </div>
-  );
 }
 
 // ─── Formular (Spiegel des Profils + ERP-Extras) ───────────────────────────────
@@ -100,7 +80,6 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
  * jede mit ihrem eigenen Auto-Save.
  */
 function mapUpdate(v: ERPForm): Partial<UserProfile> {
-  const isStaff = v.role === 'employee' || v.role === 'admin';
   const data: Record<string, unknown> = {
     role: v.role,
     first_name: nn(v.first_name),
@@ -109,7 +88,7 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
     phone: nn(v.phone),
     newsletter_opt_in: v.newsletter_opt_in,
   };
-  if (isStaff) {
+  if (isStaff(v.role)) {
     // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
     //
     // Ohne sie kann ein Beleg nicht sagen, wer ihn stellt – er nähme still den Betreiber,
@@ -144,14 +123,13 @@ function ProfileForm({ record, isAdmin, onSaved }: {
     }
   }, [record.object_id, record]);
 
-  const { status, errorMsg, saveNow } = useAutosave(
+  const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
     async (v) => {
       if (!canEdit || !record.object_id) return;
       const updated = await api.updateErpRecord(record.object_id, mapUpdate(v));
       onSaved(updated);
     },
-    2500,
     resetKey,
   );
 
@@ -161,7 +139,6 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   const str = (k: StrKey) => (canEdit ? (val: string) => setForm((prev) => ({ ...prev, [k]: val })) : undefined);
 
   const role = form.role;
-  const isStaff = role === 'employee' || role === 'admin';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -191,7 +168,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
 
         {/* Anstellung: im Profil read-only, **im ERP admin-pflegbar** (Notiz #295 –
             «das ERP muss ALLES können»; ``ErpAdminUpdate`` erbt + ergänzt genau das). */}
-        {isStaff && (
+        {isStaff(role) && (
           <SubBlock icon={Briefcase} title="Anstellung">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AField label="Abteilung" value={form.department} onChange={str('department')} readOnly={ro} onEnter={saveNow} />

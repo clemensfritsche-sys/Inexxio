@@ -1,6 +1,6 @@
 import { Briefcase, Shield, UserCircle } from 'lucide-react';
 import type { Article, CompanySettings, UserProfile } from '@/types';
-import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { TONE, type StatusCfg } from '@/lib/status-tone';
 import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
 
 /**

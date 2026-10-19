@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Building2, Plus, Unlink } from 'lucide-react';
 import { api } from '@/lib/api';
 import { legalForms } from '@/lib/legal-forms';
-import { Field as AField } from '@/components/account/field';
+import { Field as AField } from '@/components/form/field';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ErrorText } from '@/components/erp/fields';
 import type { CompanyRef, NewCompany } from '@/types';

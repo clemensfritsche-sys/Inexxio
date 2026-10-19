@@ -31,7 +31,7 @@ const source = readFileSync(resolve(here, '../src/lib/when.ts'), 'utf8');
 const js = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { when, day, whenTitle, formatWhen, happened, NOTHING } =
+const { when, whenDay, day, whenTitle, formatWhen, happened, NOTHING } =
   await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 
 /** Der feste Bezugspunkt aller Prüfungen – ein Zeitpunkt, keine Uhr. */
@@ -130,4 +130,13 @@ test('happened() ohne Zeitpunkt sagt nur, was war', () => {
   // «— offeriert» wäre eine Aussage über ein Datum, das es nicht gibt.
   assert.equal(happened(null, 'offeriert', NOW).text, 'offeriert');
   assert.equal(happened(null, 'offeriert', NOW).title, undefined);
+});
+
+test('whenDay() nennt den Kalendertag, nicht die Stunden (F-49)', () => {
+  // Die Trennzeile eines Verlaufs fragt nach dem Tag: eine Nachricht von vor drei
+  // Stunden steht unter «Heute», nicht unter «vor 3 Stunden».
+  assert.equal(whenDay(at(2026, 8, 16, 14, 58, 30), NOW), 'Heute');
+  assert.equal(whenDay(at(2026, 8, 15, 23, 50, 0), NOW), 'Gestern');
+  assert.equal(whenDay(at(2026, 8, 13, 9, 0, 0), NOW), 'vor 3 Tagen');
+  assert.equal(whenDay(null, NOW), NOTHING);
 });
