@@ -8,8 +8,8 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog, VoucherParty } from '@/types';
 import {
-  CAPTURE_ICON, DEAL_DIRECTION, DEAL_ORDER_REF, DEAL_ORDER_REF_HINT, DEAL_PARTY,
-  DEAL_TASK, DEAL_TASK_HINT, dealDirection,
+  CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT, VOUCHER_PARTY,
+  VOUCHER_TASK, VOUCHER_TASK_HINT, voucherDirection,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
@@ -27,7 +27,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
 import {
-  IconSwitch, Label, inputCls, numericInputProps, numericOnly,
+  IconSwitch, Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -402,10 +402,10 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           value={m.direction === 'in' ? 'in' : 'out'}
           onChange={(v) => onChange({ direction: v })}
           options={[
-            { value: 'in', icon: DEAL_DIRECTION.in.icon,
-              label: DEAL_DIRECTION.in.label, hint: DEAL_DIRECTION.in.hint },
-            { value: 'out', icon: DEAL_DIRECTION.out.icon,
-              label: DEAL_DIRECTION.out.label, hint: DEAL_DIRECTION.out.hint },
+            { value: 'in', icon: VOUCHER_DIRECTION.in.icon,
+              label: VOUCHER_DIRECTION.in.label, hint: VOUCHER_DIRECTION.in.hint },
+            { value: 'out', icon: VOUCHER_DIRECTION.out.icon,
+              label: VOUCHER_DIRECTION.out.label, hint: VOUCHER_DIRECTION.out.hint },
           ]}
         />
       </div>
@@ -418,9 +418,9 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           value={null}
           selected={null}
           find={find}
-          scanLabel={DEAL_PARTY}
+          scanLabel={VOUCHER_PARTY}
           emptyOption={m.parties.length === 0 ? RUNTIME_CHOICE : undefined}
-          placeholder={`${DEAL_PARTY} – Nummer oder Name`}
+          placeholder={`${VOUCHER_PARTY} – Nummer oder Name`}
           onChange={(nr, opt) => {
             if (nr === null || m.parties.some((r) => r.party === nr)) return;
             if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
@@ -438,9 +438,9 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
               color: 'var(--fg-3)', maxWidth: 180, flex: 'none',
             }}>{known[row.party] ?? ''}</span>
             {/* Die Bestellangabe gibt es nur, wo wir bestellen (`partyRef`). */}
-            {dealDirection(m.direction).partyRef && (
+            {voucherDirection(m.direction).partyRef && (
               <input className={inputCls} value={row.ref} maxLength={200} required
-                aria-label={DEAL_ORDER_REF} placeholder={DEAL_ORDER_REF_HINT}
+                aria-label={VOUCHER_ORDER_REF} placeholder={VOUCHER_ORDER_REF_HINT}
                 style={{ flex: '1 1 160px', minWidth: 0 }}
                 onChange={(e) => onChange({
                   parties: m.parties.map((x) => (x.party === row.party
@@ -458,9 +458,9 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           Definition wird vorher festgelegt, was zu tun ist. Leer heisst «gemäss
           Spezifikation». */}
       <div>
-        <Label>{DEAL_TASK}</Label>
+        <Label>{VOUCHER_TASK}</Label>
         <input className={inputCls} value={m.instruction} maxLength={400}
-          aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
+          aria-label={VOUCHER_TASK} placeholder={VOUCHER_TASK_HINT}
           onChange={(e) => onChange({ instruction: e.target.value })} />
       </div>
     </div>
@@ -498,10 +498,7 @@ function SampleRow({ value, onChange }: {
   return (
     // Die Beschriftung steht über den Knöpfen – daneben las sie sich wie eine Option.
     <div className="flex flex-col gap-1">
-      <span style={{
-        font: '700 11px var(--font-body)', textTransform: 'uppercase',
-        letterSpacing: '.07em', color: 'var(--fg-4)',
-      }}>Stichprobe</span>
+      <span style={MICRO_LABEL}>Stichprobe</span>
       <div className="flex flex-wrap items-center gap-2">
         <IconSwitch
           value={value.mode}

@@ -84,22 +84,22 @@ export function StockView({ scope }: { scope: StockScope }) {
 
   if (err) {
     return (
-      <Card>
+      <StockCard>
         <p className="text-sm" style={{ color: 'var(--danger)' }}>{err}</p>
-      </Card>
+      </StockCard>
     );
   }
   if (states == null || total == null) return null;
 
   if (total === 0) {
     return (
-      <Card>
+      <StockCard>
         {/* ►►► **«Kein Bestand» ist die Auskunft** (Testnotiz #1030). ◄◄◄ Der Satz
             daneben erklärte, *woher* Einzelinstanzen kommen – eine Belehrung über das
             Datenmodell an der Stelle, an der jemand eine Zahl sucht. Wer einen Auftrag
             anlegt, lernt es dort. */}
         <p className="text-sm text-fg-3">Kein Bestand</p>
-      </Card>
+      </StockCard>
     );
   }
 
@@ -108,7 +108,7 @@ export function StockView({ scope }: { scope: StockScope }) {
   const open = states.find((s) => s.status === picked) ?? null;
 
   return (
-    <Card>
+    <StockCard>
       {/* ►►► **Die Leiste IST das Bedienelement** (Testnotiz #789). ◄◄◄
 
           Darunter stand eine aufklappbare Sektion je Zustand – jede mit Chevron, Punkt,
@@ -155,7 +155,7 @@ export function StockView({ scope }: { scope: StockScope }) {
           )}
         </section>
       )}
-    </Card>
+    </StockCard>
   );
 }
 
@@ -170,7 +170,7 @@ const sum = (states: StockState[]) => states.reduce((n, s) => n + s.quantity, 0)
  * die Leiste und die Gruppen darunter: je Zustand eine Zahl, in der Reihenfolge des
  * Lebenszyklus.
  */
-function Card({ children }: { children: React.ReactNode }) {
+function StockCard({ children }: { children: React.ReactNode }) {
   return (
     <div style={SPEC.card}>
       <SpecHead icon={Boxes} title="Bestand" />

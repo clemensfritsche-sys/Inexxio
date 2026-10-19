@@ -30,7 +30,7 @@ const ROLE_KEY = 'inexxio_user_role';   // gleiche Quelle wie das ERP-Layout
 /** Ampel: offen = gelb (zu tun), erledigt = grün, verworfen = neutral. */
 const DOT: Record<FeedbackStatus, string> = {
   open: 'var(--warning, #C8861A)',
-  done: 'var(--success, #16a34a)',
+  done: 'var(--success, #1E7F46)',
   dismissed: 'var(--fg-4, #8A8A82)',
 };
 

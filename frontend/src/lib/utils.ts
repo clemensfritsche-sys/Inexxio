@@ -27,10 +27,21 @@ export function cn(...inputs: ClassValue[]) {
 export function formatAmount(v: string | number | null | undefined,
                              decimals = 2): string {
   if (v == null || v === '') return '—';
-  return Number(v)
-    .toLocaleString('de-CH', {
-      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-    })
+  return swiss(Number(v), decimals, decimals);
+}
+
+/**
+ * Eine **Messgrösse** (Gewicht, Länge …): höchstens `maxDecimals` Nachkommastellen,
+ * keine aufgefüllten Nullen – mit demselben festgeschriebenen Trenner wie `formatAmount`.
+ */
+export function formatNumber(v: string | number, maxDecimals = 3): string {
+  return swiss(Number(v), 0, maxDecimals);
+}
+
+/** Die eine Stelle, an der eine Zahl ihre Schweizer Schreibweise bekommt. */
+function swiss(n: number, min: number, max: number): string {
+  return n
+    .toLocaleString('de-CH', { minimumFractionDigits: min, maximumFractionDigits: max })
     .replace(/\u2019/g, "'");
 }
 
@@ -38,19 +49,18 @@ export function formatAmount(v: string | number | null | undefined,
 // Datums-Formatierung daneben.
 
 /**
- * Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`):
- * Firma → «Vorname Nachname» → E-Mail. Bei einem Lieferanten ist die Firma der Name, unter
- * dem man bestellt; der Ansprechpartner steht am Datensatz (Notiz #227). Vorher wich das
- * Frontend hier ab und zeigte die Person, wo das Backend die Firma zeigte.
+ * Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`,
+ * Notiz #291): «Vorname Nachname» → E-Mail, für alle Rollen. Die Firma ist ein eigener
+ * Datensatz mit eigenem Namen und nie der Name einer Person.
  */
+export function personFullName(user: { first_name?: string | null; last_name?: string | null }): string {
+  return [user.first_name, user.last_name].filter(Boolean).join(' ');
+}
+
 export function userDisplayName(user: {
-  company_name?: string | null; first_name?: string | null; last_name?: string | null; email: string;
+  first_name?: string | null; last_name?: string | null; email: string;
 }): string {
-  // EINE Regel für ALLE Rollen (Notiz #291): «Vorname Nachname» → Firma → E-Mail. Immer der
-  // Name der Person im Datensatz, nicht der Firmenname (Firma nur als Rückfall). Spiegelt
-  // ``UserProfile.display_name`` im Backend.
-  const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
-  return full || user.company_name?.trim() || user.email.split('@')[0];
+  return personFullName(user) || user.email;
 }
 
 /**

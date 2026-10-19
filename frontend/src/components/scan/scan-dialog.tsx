@@ -10,6 +10,7 @@ import { SCAN_RECORD_TYPE, TYPE_META } from '@/lib/erp-record';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { OptionRow } from '@/components/erp/fields';
 import { formatObjectId } from '@/lib/utils';
+import { useSearch } from '@/lib/use-search';
 
 export type { ScanRequest };
 
@@ -181,20 +182,8 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   // (`step.suggest`). Bei einem **eingeschränkten oder verifizierenden** Schritt bleibt
   // sie aussen vor: eine breitere Vorschlagsquelle darf nichts anbieten, was der Schritt
   // gar nicht annehmen würde.
-  const [found, setFound] = useState<ScanCandidate[]>([]);
-  useEffect(() => {
-    const q = query.trim();
-    const ask = step?.suggest;
-    if (!q || !ask || step?.restrict || step?.expected != null) { setFound([]); return; }
-    let stale = false;
-    const t = window.setTimeout(() => {
-      ask(q)
-        .then((r) => { if (!stale) setFound(r); })
-        .catch(() => { if (!stale) setFound([]); });
-    }, SUGGEST_DEBOUNCE_MS);
-    // Eine ältere Antwort darf eine neuere nie überholen (tippen und sofort löschen).
-    return () => { stale = true; window.clearTimeout(t); };
-  }, [query, step]);
+  const ask = step?.restrict || step?.expected != null ? null : step?.suggest;
+  const { hits: found } = useSearch(query, ask, { delay: SUGGEST_DEBOUNCE_MS });
 
   const suggestions = useMemo<ScanCandidate[]>(() => {
     const seen = new Set(known.map((c) => c.objectId));
@@ -282,7 +271,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
             onClick={() => void setTorch(!torch)}
             aria-label={torch ? 'Licht aus' : 'Licht an'}
             aria-pressed={torch}
-            style={{ ...torchBtn, background: torch ? '#fff' : 'rgba(15,23,42,.5)', color: torch ? 'var(--fg-1)' : '#fff' }}
+            style={{ ...torchBtn, background: torch ? '#fff' : 'color-mix(in srgb, var(--bg-dark) 50%, transparent)', color: torch ? 'var(--fg-1)' : '#fff' }}
           >
             <Flashlight size={17} />
           </button>
@@ -367,14 +356,14 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
 }
 
 const backdrop: React.CSSProperties = {
-  position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(15,23,42,0.62)',
+  position: 'fixed', inset: 0, zIndex: 100, background: 'color-mix(in srgb, var(--bg-dark) 62%, transparent)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
 };
 // Die Sheet-Fläche IST die Kamera: dunkel, randlos, alles Weitere liegt darüber.
 const sheet: React.CSSProperties = {
   position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '3 / 4', maxHeight: '82vh',
-  background: '#0B1220', borderRadius: 18, overflow: 'hidden',
-  boxShadow: '0 24px 60px rgba(15,23,42,0.4)',
+  background: 'var(--bg-dark)', borderRadius: 18, overflow: 'hidden',
+  boxShadow: '0 24px 60px color-mix(in srgb, var(--bg-dark) 40%, transparent)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', outline: 'none',
 };
 const video: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' };
@@ -416,10 +405,10 @@ const searchBar: React.CSSProperties = {
 const input: React.CSSProperties = {
   width: '100%', paddingLeft: 36, paddingRight: 12, paddingTop: 11, paddingBottom: 11, fontSize: 14,
   border: '1px solid rgba(255,255,255,.22)', borderRadius: 12, outline: 'none', boxSizing: 'border-box',
-  background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(10px)', color: '#fff',
+  background: 'color-mix(in srgb, var(--bg-dark) 50%, transparent)', backdropFilter: 'blur(10px)', color: '#fff',
 };
 const suggestionBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', width: '100%', textAlign: 'left',
   border: '1px solid rgba(255,255,255,.18)', borderRadius: 10, cursor: 'pointer', fontSize: 13,
-  background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(10px)', color: '#fff',
+  background: 'color-mix(in srgb, var(--bg-dark) 55%, transparent)', backdropFilter: 'blur(10px)', color: '#fff',
 };

@@ -141,7 +141,7 @@ export function PasskeysCard() {
             style={{
               alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '10px 18px', borderRadius: 'var(--r-pill)', border: 'none',
-              background: 'var(--inexxio-red)', color: '#fff',
+              background: 'var(--inexxio-red)', color: 'var(--fg-on-red)',
               fontSize: 13.5, fontWeight: 600, cursor: adding ? 'wait' : 'pointer', opacity: adding ? 0.6 : 1,
             }}
           >

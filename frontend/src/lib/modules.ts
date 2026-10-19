@@ -38,7 +38,7 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
   bewegen: MoveRight,
   // Geld wechselt die Hand – in beide Richtungen dasselbe Symbol, denn es ist dasselbe
-  // Modul; die Richtung zeigt das Zeichen im Vorgang (`DEAL_DIRECTION`).
+  // Modul; die Richtung zeigt das Zeichen im Vorgang (`VOUCHER_DIRECTION`).
   beleg: HandCoins,
 };
 
@@ -54,7 +54,7 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * Gebühr, ein «Verkauf» wäre enger. Die Symbole (Handschlag ↔ Einkaufswagen, #845) zeigen
  * die häufigste Gestalt der Sache; zwei gespiegelte Pfeile wären auf 15 px dasselbe Zeichen.
  */
-export const DEAL_DIRECTION: Record<string, {
+export const VOUCHER_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string;
   /**
    * **Gibt es hier die Frage «wie bestelle ich bei ihm?»** Nur, wo **wir** bestellen.
@@ -81,28 +81,28 @@ export const DEAL_DIRECTION: Record<string, {
  * **Die Gegenpartei heisst in beiden Richtungen gleich** – es ist dieselbe Rolle, der
  * andere im Geschäft. Singular = Plural (#787). Gespiegelt von `domain/voucher`.
  */
-export const DEAL_PARTY = 'Partner';
+export const VOUCHER_PARTY = 'Partner';
 
 /**
  * **Was ist zu tun? — EIN Satz am Modul, freiwillig** («Härten auf 58 HRC»). Er lautet
  * für jeden Partner gleich. Leer heisst «gemäss Spezifikation»: *was* es ist, sagen die
  * Positionen.
  */
-export const DEAL_TASK = 'Was ist zu tun?';
-export const DEAL_TASK_HINT =
+export const VOUCHER_TASK = 'Was ist zu tun?';
+export const VOUCHER_TASK_HINT =
   'Ergänzung zu den Positionen – leer heisst «gemäss Spezifikation»';
 
 /**
  * **Wie bestellen? — je Partner, Pflicht, und nur wo WIR bestellen** (seine
  * Artikelnummer, sein Shop-Link). Eine Eigenschaft der Paarung Modul × Partner; ob es sie
- * gibt, sagt die Richtung (`DEAL_DIRECTION[…].partyRef`).
+ * gibt, sagt die Richtung (`VOUCHER_DIRECTION[…].partyRef`).
  */
-export const DEAL_ORDER_REF = 'Wie bestellen?';
-export const DEAL_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
+export const VOUCHER_ORDER_REF = 'Wie bestellen?';
+export const VOUCHER_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
 
 /** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`voucher.of`). */
-export function dealDirection(direction: string | undefined | null) {
-  return DEAL_DIRECTION[direction ?? ''] ?? DEAL_DIRECTION.out;
+export function voucherDirection(direction: string | undefined | null) {
+  return VOUCHER_DIRECTION[direction ?? ''] ?? VOUCHER_DIRECTION.out;
 }
 
 /**
@@ -114,7 +114,7 @@ export function dealDirection(direction: string | undefined | null) {
  * `domain/voucher.STAGES` deckungsgleich; deutsche Wörter im Rumpf wären an einem Vorgang
  * der anderen Richtung still falsch.
  */
-export const DEAL_STAGE = {
+export const VOUCHER_STAGE = {
   offer: 'offer',
   agreed: 'agreed',
   /** **Die Rechnung steht** – Nummer, Betrag, Steuer und Fälligkeit sind eingefroren. */
@@ -289,7 +289,7 @@ export interface ModuleDraft {
   direction: string;
   /**
    * Nur «Zahlung»: die **zugelassenen Gegenparteien** – je Zeile Nummer und Bestellangabe
-   * (nur, wo wir bestellen: `DEAL_DIRECTION[…].partyRef`). **Leer heisst frei**: dann
+   * (nur, wo wir bestellen: `VOUCHER_DIRECTION[…].partyRef`). **Leer heisst frei**: dann
    * wird beim Ausführen gesucht.
    */
   parties: { party: number; ref: string }[];

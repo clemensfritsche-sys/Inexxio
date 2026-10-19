@@ -34,7 +34,9 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
   function prime(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, SIG_W, SIG_H);
-    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // Die Tinte ist die Textfarbe des Hauses – aufgelöst, denn ein Canvas kennt kein `var()`.
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--fg-1').trim() || 'black';
   }
   useEffect(() => {
     const c = canvasRef.current;
@@ -91,7 +93,7 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={attachmentUrl(value)} alt="Unterschrift"
-          style={{ width: 180, aspectRatio: SIG_ASPECT, objectFit: 'contain', border: '1px solid var(--border-1)', borderRadius: 8, background: '#fff' }} />
+          style={{ width: 180, aspectRatio: SIG_ASPECT, objectFit: 'contain', border: '1px solid var(--border-1)', borderRadius: 8, background: 'var(--bg-1)' }} />
         {!disabled && (
           <button type="button" onClick={() => onChange(null)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -107,13 +109,13 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
       {signerHint && <span style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>{signerHint}</span>}
       <canvas ref={canvasRef} width={SIG_W} height={SIG_H}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-        style={{ width: '100%', maxWidth: 420, aspectRatio: SIG_ASPECT, border: '1px dashed var(--border-2)', borderRadius: 10, background: '#fff', touchAction: 'none', cursor: disabled ? 'not-allowed' : 'crosshair' }} />
+        style={{ width: '100%', maxWidth: 420, aspectRatio: SIG_ASPECT, border: '1px dashed var(--border-2)', borderRadius: 10, background: 'var(--bg-1)', touchAction: 'none', cursor: disabled ? 'not-allowed' : 'crosshair' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--fg-4)', flex: 1 }}>
           <PenLine size={13} /> Hier unterschreiben
         </span>
         <button type="button" onClick={clear} disabled={disabled || busy}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, border: '1px solid var(--border-2)', background: '#fff', color: 'var(--fg-3)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, border: '1px solid var(--border-2)', background: 'var(--bg-1)', color: 'var(--fg-3)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
           <Eraser size={13} /> Löschen
         </button>
         <button type="button" onClick={accept} disabled={disabled || busy}

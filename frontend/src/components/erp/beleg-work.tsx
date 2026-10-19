@@ -21,9 +21,9 @@ import {
 import {
   ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, ModuleSection,
 } from '@/components/erp/module-ui';
-import { DEAL_STAGE, QUOTE_STATE } from '@/lib/modules';
-import { TONE } from '@/lib/status-flow';
-import { useAutosave } from '@/lib/use-autosave';
+import { VOUCHER_STAGE, QUOTE_STATE } from '@/lib/modules';
+import { TONE } from '@/lib/status-tone';
+import { useAutosaveSignature } from '@/lib/use-autosave';
 import { day, happened, when } from '@/lib/when';
 
 /**
@@ -101,7 +101,7 @@ export function BelegWork({
   children?: ReactNode;
 }) {
   const d = voucher as Filled;
-  const agreed = d.stage !== DEAL_STAGE.offer;
+  const agreed = d.stage !== VOUCHER_STAGE.offer;
   // **Kein Entwurf im Browser** (#985): jeder änderbare Wert wird sofort geschrieben
   // (die Fristen über das Verb `terms`), `ask` liest ihn vom Beleg.
   const onAsk = useCallback<Ask>((parties) => {
@@ -657,7 +657,7 @@ function Recipients({ d, busy, current, onAsk, onShow, onAction }: {
   onShow: (objectId: number) => void;
   onAction: Send;
 }) {
-  const open = d.stage === DEAL_STAGE.offer;
+  const open = d.stage === VOUCHER_STAGE.offer;
   const [picked, setPicked] = useState<VoucherParty | null>(null);
   const find = useCallback((q: string) => api.searchPeople(q).catch(() => []), []);
 
@@ -686,7 +686,7 @@ function Recipients({ d, busy, current, onAsk, onShow, onAction }: {
           ? quote.state !== QUOTE_STATE.chosen
           : !allowed.some((p) => p.object_id === number);
         return (
-          <Chip key={number} name={r.name || String(number)} number={number}
+          <RecipientChip key={number} name={r.name || String(number)} number={number}
             state={quote ? (quote.state ?? QUOTE_STATE.asked) : null}
             active={number === current} busy={busy}
             onShow={() => onShow(number)}
@@ -722,7 +722,7 @@ function Recipients({ d, busy, current, onAsk, onShow, onAction }: {
  * zieht zurück. Kein Zustandspunkt (#983): was angefragt ist, sagen Zeichen, Textfarbe und
  * das Wort im Hover; ausführlich steht es im Abschnitt *Angebote*.
  */
-function Chip({
+function RecipientChip({
   name, number, state, active, busy, askProblem, onShow, onAsk, onDrop,
 }: {
   name: string; number: number;
@@ -890,7 +890,7 @@ function Goods({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send
   const customs = may(d, 'price');
   return (
     <ModuleSection title={d.goods_title || 'Positionen'}
-      state={d.stage === DEAL_STAGE.offer ? 'active' : 'past'}>
+      state={d.stage === VOUCHER_STAGE.offer ? 'active' : 'past'}>
       <div className="flex flex-col" style={{ gap: 10, minWidth: 0 }}>
         {d.lines.length === 0 && (
           <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
@@ -946,7 +946,7 @@ function LineRow({ d, line, busy, editable, customs, onAction }: {
                 hs_code: hs, origin_country: origin }],
     });
   }, [onAction, line.id, price, vat, hs, origin]);
-  const now = useAutosave(`${line.id}:${price}:${vat}:${hs}:${origin}`,
+  const now = useAutosaveSignature(`${line.id}:${price}:${vat}:${hs}:${origin}`,
     dirty && !busy, save);
 
   return (
@@ -1153,7 +1153,7 @@ function Currency({ d, onAction }: { d: Filled; onAction: Send }) {
  * Einnahme hier, bei einer Ausgabe an der Angebotszeile der Gegenpartei.
  */
 function Terms({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send }) {
-  const on = d.stage === DEAL_STAGE.offer && d.we_quote && may(d, 'terms');
+  const on = d.stage === VOUCHER_STAGE.offer && d.we_quote && may(d, 'terms');
   return (
     <ModuleSection>
       <div style={{ display: 'grid', gap: '10px 24px',
@@ -1172,7 +1172,7 @@ function Terms({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: Send
 }
 
 /**
- * **Eine Frist auf dem Beleg wird sofort geschrieben** (#985): Entwurf, `useAutosave`,
+ * **Eine Frist auf dem Beleg wird sofort geschrieben** (#985): Entwurf, `useAutosaveSignature`,
  * ein Verb (`terms`), der Server ist die eine Wahrheit – dieselbe Bauart wie `Delivery`.
  * `Term` selbst bleibt gesteuert (Wert + `onChange`): an einer Angebotszeile geht die
  * Offerte nur vollständig hinaus.
@@ -1199,7 +1199,7 @@ function SavedTerm({ label, on, busy, field, days, terms, hint, freeMin, freeLab
     void onAction({ action: 'terms',
                     [field]: draft === '' ? null : Number(draft) });
   }, [onAction, field, draft]);
-  useAutosave(`${field}:${draft}`, draft !== remote && !busy, save);
+  useAutosaveSignature(`${field}:${draft}`, draft !== remote && !busy, save);
 
   return (
     <Term label={label} on={on} value={draft} days={days} terms={terms}
@@ -1305,7 +1305,7 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
   const save = useCallback(() => {
     void onAction({ action: 'incoterm', incoterm: key || null, incoterm_place: place });
   }, [onAction, key, place]);
-  const now = useAutosave(`${key}:${place}`, dirty && complete && !busy, save);
+  const now = useAutosaveSignature(`${key}:${place}`, dirty && complete && !busy, save);
 
   if (!editable) {
     return (
@@ -1359,7 +1359,7 @@ function Delivery({ d, busy, onAction }: { d: Filled; busy: boolean; onAction: S
 function Quotes({ d, busy, active, onAsk, onAction }: {
   d: Filled; busy: boolean; active: boolean; onAsk: Ask; onAction: Send;
 }) {
-  const open = d.stage === DEAL_STAGE.offer;
+  const open = d.stage === VOUCHER_STAGE.offer;
 
   if (!d.quotes.length && !may(d, 'ask')) return null;
   // **Wann offeriert wurde, steht am Abschnitt** (#968) – die erste hinausgegangene Zeile;
@@ -1395,7 +1395,7 @@ function QuoteRow({ d, voucher: v, busy, onAction }: {
 }) {
   // **Ist die Entscheidung gefallen?** – eine Frage an den Beleg, kein Rang, den diese
   // Zeile sich selbst gibt. Ab der Zusage sagt der Zustand jeder Zeile ihren **Ausgang**.
-  const decided = v.stage !== DEAL_STAGE.offer;
+  const decided = v.stage !== VOUCHER_STAGE.offer;
   const look = quoteLook(d.state ?? QUOTE_STATE.asked, decided);
   const declined = d.state === QUOTE_STATE.declined;
   const chosen = d.state === QUOTE_STATE.chosen;

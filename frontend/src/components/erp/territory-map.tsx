@@ -29,6 +29,7 @@ import { Globe2, Check, Plus, X, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { TerritoryMap as TerritoryMapData } from '@/types';
 import { WorldMap, regionAnchor } from '@/components/erp/world-map';
+import { MICRO_LABEL } from '@/components/erp/fields';
 
 // Kategoriale Identitäts-Farben (KEINE Ampel – hier steht Farbe für «welche Gesellschaft»,
 // nicht für Status). Der Betreiber trägt den warmen Grundton der Unternehmens-Kachel; die
@@ -124,7 +125,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
       {!embedded && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Globe2 size={16} style={{ color: 'var(--fg-3)' }} />
-          <span style={{ font: '700 11px var(--font-body)', letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
+          <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>
             Gebiete – wer fakturiert welche Region
           </span>
         </div>

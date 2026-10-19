@@ -158,6 +158,18 @@ export function when(value: string | Date | null | undefined,
 }
 
 /**
+ * **Der Kalendertag eines Zeitpunkts als Aussage** – «Heute», «Gestern», «13. Sep.»; die
+ * Stunden-Kaskade gilt hier nicht, gefragt ist der Tag (z. B. die Trennzeile eines
+ * Verlaufs). Gerechnet wird in der Ortszeit, wie bei `day()`.
+ */
+export function whenDay(value: string | Date | null | undefined,
+                        now: Date = new Date()): string {
+  const d = parse(value);
+  if (!d) return NOTHING;
+  return when(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, now);
+}
+
+/**
  * **Beides in einem Zug** – die Aussage und die Tatsache dazu.
  *
  * ```tsx

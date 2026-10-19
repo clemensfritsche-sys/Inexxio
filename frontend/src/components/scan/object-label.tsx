@@ -15,16 +15,25 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
+/**
+ * Der Wert eines Design-Tokens, aufgelöst. Das Etikett wird in einem **eigenen Fenster**
+ * gedruckt, das unser Stylesheet nicht kennt – also reist der Wert mit, nicht der Name.
+ */
+function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 // Druckbares Etikett als HTML-String (QR + Objektnummer + Titel/Untertitel).
 function labelMarkup(objectId: number, title?: string | null, subtitle?: string | null, size = 120): string {
   const qr = renderToStaticMarkup(<ObjectQr objectId={objectId} size={size} />);
   return (
     `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:6px;padding:12px;` +
-    `border:1px solid #e2e8f0;border-radius:12px;background:#fff;font-family:Inter,system-ui,sans-serif">` +
+    `border:1px solid ${token('--border-1')};border-radius:12px;background:${token('--bg-1')};` +
+    `font-family:Inter,system-ui,sans-serif">` +
     qr +
-    `<div style="font-family:monospace;font-weight:700;font-size:15px;color:#0f172a">${formatObjectId(objectId)}</div>` +
-    (title ? `<div style="font-size:12px;color:#475569;max-width:${size + 24}px;text-align:center">${escapeHtml(title)}</div>` : '') +
-    (subtitle ? `<div style="font-size:11px;color:#94a3b8">${escapeHtml(subtitle)}</div>` : '') +
+    `<div style="font-family:monospace;font-weight:700;font-size:15px;color:${token('--fg-1')}">${formatObjectId(objectId)}</div>` +
+    (title ? `<div style="font-size:12px;color:${token('--fg-2')};max-width:${size + 24}px;text-align:center">${escapeHtml(title)}</div>` : '') +
+    (subtitle ? `<div style="font-size:11px;color:${token('--fg-4')}">${escapeHtml(subtitle)}</div>` : '') +
     `</div>`
   );
 }

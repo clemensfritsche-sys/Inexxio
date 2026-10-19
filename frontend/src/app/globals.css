@@ -8,15 +8,8 @@
    SINGLE SOURCE OF TRUTH in src/styles/design-system/colors_and_type.css
    — the vendored export from Claude Design, loaded first in app/layout.tsx.
    Never redefine those values here; edit the canonical file (or re-vendor a
-   fresh export) instead. Only app-local aliases live below: the legacy
-   `--ix-*` names used by the login / marketing / component CSS further down,
-   mapped onto the canonical `--inexxio-*` tokens so a value is defined once. */
-:root {
-  --ix-red:        var(--inexxio-red);
-  --ix-red-bright: var(--inexxio-red-bright);
-  --ix-red-deep:   var(--inexxio-red-deep);
-  --ix-black:      var(--inexxio-black);
-}
+   fresh export) instead. This file uses the canonical names directly
+   (`--inexxio-red`, `--inexxio-red-deep`, …) – there is no local alias. */
 
 /* ── Login Page ──────────────────────────────────────────── */
 /* ── Anmeldung: ein Pop-up über dem, was man ansieht ──────────────────────────
@@ -107,7 +100,7 @@
 }
 .ix-email-input::placeholder { color: var(--fg-4); }
 .ix-email-input:focus {
-  border-color: var(--ix-red);
+  border-color: var(--inexxio-red);
   box-shadow: 0 0 0 3px rgba(229,26,20,0.1);
 }
 
@@ -117,7 +110,7 @@
   padding: 14px 20px;
   border: none;
   border-radius: var(--r-md); /* Design-System v3: Bedienelemente 8 px, flach */
-  background: var(--ix-red);
+  background: var(--inexxio-red);
   color: #fff;
   cursor: pointer;
   transition: background 0.2s;
@@ -128,7 +121,7 @@
   justify-content: center;
   gap: 8px;
 }
-.ix-submit-btn:hover:not(:disabled) { background: var(--ix-red-deep); }
+.ix-submit-btn:hover:not(:disabled) { background: var(--inexxio-red-deep); }
 .ix-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Spinner */
@@ -159,8 +152,8 @@
   width: 100%;
 }
 .ix-google-btn:hover:not(:disabled) {
-  background: #fafafa;
-  border-color: #aaa;
+  background: var(--bg-2);
+  border-color: var(--fg-4);
   transform: translateY(-1px);
 }
 .ix-google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -188,7 +181,7 @@
   background: rgba(229,26,20,0.06);
   border: 1px solid rgba(229,26,20,0.25);
   border-radius: var(--r-md);
-  color: var(--ix-red);
+  color: var(--inexxio-red);
   font: 400 13px/1.5 var(--font-body);
   animation: ix-shake 0.4s ease;
 }
@@ -244,7 +237,7 @@
 }
 .ix-success-reset {
   font: 500 13px var(--font-body);
-  color: var(--ix-red);
+  color: var(--inexxio-red);
   background: none;
   border: none;
   cursor: pointer;
@@ -260,7 +253,7 @@
   color: var(--fg-4);
 }
 .ix-login-footer a { color: var(--fg-3); text-underline-offset: 3px; }
-.ix-login-footer a:hover { color: var(--ix-red); }
+.ix-login-footer a:hover { color: var(--inexxio-red); }
 
 /* Passkey-Hinweis (dezent, unter dem E-Mail-Feld) */
 .ix-passkey-hint {
@@ -357,7 +350,7 @@
   font: 600 13px var(--font-body); cursor: pointer;
   transition: background 0.15s;
 }
-.ix-nudge-primary:hover:not(:disabled) { background: var(--ix-red-deep); }
+.ix-nudge-primary:hover:not(:disabled) { background: var(--inexxio-red-deep); }
 .ix-nudge-primary:disabled { opacity: 0.6; cursor: default; }
 .ix-nudge-later {
   padding: 8px 12px;
@@ -377,17 +370,17 @@
   font: 600 11px/1.2 var(--font-body);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ix-red);
+  color: var(--inexxio-red);
 }
 
 @layer base {
   * { @apply border-border-1; }
   body {
-    @apply bg-white antialiased;
+    @apply bg-bg-1 antialiased;
     font-family: var(--font-body);
     color: var(--fg-1);
   }
-  ::selection { background: var(--ix-red); color: #fff; }
+  ::selection { background: var(--inexxio-red); color: #fff; }
 }
 
 /* iOS Safari zoomt beim Fokus automatisch auf Eingabefelder mit < 16px
@@ -408,12 +401,12 @@
   .section { @apply py-16 sm:py-24; }
   .btn-primary {
     @apply inline-flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition-all duration-200;
-    background: var(--ix-red);
+    background: var(--inexxio-red);
     color: #fff;
     box-shadow: var(--shadow-sm);
   }
   .btn-primary:hover {
-    background: var(--ix-red-deep);
+    background: var(--inexxio-red-deep);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
   }
@@ -648,10 +641,10 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-actbtn:disabled { opacity: .5; cursor: not-allowed; }
 
 .erp-actbtn-primary { background: var(--inexxio-black); color: #fff; box-shadow: var(--shadow-sm); }
-.erp-actbtn-primary:not(:disabled):hover { background: #26262A; }
-.erp-actbtn-danger { background: #fff; border-color: #f3c9c6; color: var(--danger); }
+.erp-actbtn-primary:not(:disabled):hover { background: var(--color-ink-hover); }
+.erp-actbtn-danger { background: var(--bg-1); border-color: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger); }
 .erp-actbtn-danger:not(:disabled):hover { background: var(--danger-bg); }
-.erp-actbtn-neutral { background: #fff; border-color: var(--border-2); color: var(--fg-2); }
+.erp-actbtn-neutral { background: var(--bg-1); border-color: var(--border-2); color: var(--fg-2); }
 .erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }
 
 /* ── Objektnummer: eine KENNUNG, die sich anfassen lässt ──────────────────────
@@ -682,7 +675,7 @@ fieldset:disabled .ix-editable.is-missing {
 
 /* Google-Places-Autovervollständigung: Vorschlagsliste über Dialoge/Panels legen
    (Google rendert .pac-container an document.body; Default-z-index reicht nicht in Modals). */
-.pac-container { z-index: 100000 !important; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 8px 24px rgba(16,14,12,0.12); font-family: inherit; }
+.pac-container { z-index: 100000 !important; border-radius: 10px; border: 1px solid var(--border-1); box-shadow: 0 8px 24px rgba(16,14,12,0.12); font-family: inherit; }
 .pac-item { padding: 6px 10px; font-size: 13px; cursor: pointer; }
 
 /* ── Scan-Dialog: der ganze Container IST die Kamera ──────────────────────────

@@ -36,9 +36,9 @@ export class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, textAlign: 'center' }}>
-          <AlertTriangle size={40} strokeWidth={1.5} style={{ color: '#dc2626' }} />
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Anzeige konnte nicht geladen werden</div>
-          <div style={{ fontSize: 13, color: '#64748b', maxWidth: 340 }}>
+          <AlertTriangle size={40} strokeWidth={1.5} style={{ color: 'var(--danger)' }} />
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg-1)' }}>Anzeige konnte nicht geladen werden</div>
+          <div style={{ fontSize: 13, color: 'var(--fg-3)', maxWidth: 340 }}>
             Bei diesem Datensatz ist ein Anzeige-Fehler aufgetreten. Du kannst zurück zur Liste und einen
             anderen Datensatz öffnen – deine Daten sind nicht verloren.
           </div>

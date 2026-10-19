@@ -44,9 +44,9 @@ export function Field({ label, value, onChange, type = 'text', readOnly = false,
   const issue = readOnly ? null : fieldFormatIssue(type, value);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+      <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>
         {label}
-        {isEmpty && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
+        {isEmpty && <span style={{ color: 'var(--warning)', marginLeft: 3, fontWeight: 700 }}>*</span>}
       </label>
       <input
         type={type}
@@ -60,22 +60,22 @@ export function Field({ label, value, onChange, type = 'text', readOnly = false,
         style={{
           padding: '8px 12px',
           borderRadius: 8,
-          border: isEmpty || issue ? '1px solid #f59e0b' : '1px solid #E2E8F0',
+          border: isEmpty || issue ? '1px solid var(--warning)' : '1px solid var(--border-1)',
           fontSize: 14,
-          color: readOnly ? '#94a3b8' : '#0F172A',
-          background: isEmpty ? '#FFFBEB' : readOnly ? '#F8FAFC' : '#fff',
+          color: readOnly ? 'var(--fg-4)' : 'var(--fg-1)',
+          background: isEmpty ? 'var(--warning-bg)' : readOnly ? 'var(--bg-2)' : 'var(--bg-1)',
           outline: 'none',
           width: '100%',
           boxSizing: 'border-box',
           cursor: readOnly ? 'default' : 'text',
           transition: 'border-color 0.15s, background 0.15s',
         }}
-        onFocus={(e) => { if (!readOnly) e.target.style.borderColor = isEmpty || issue ? '#d97706' : '#E51A14'; }}
-        onBlur={(e) => { e.target.style.borderColor = isEmpty || issue ? '#f59e0b' : '#E2E8F0'; }}
+        onFocus={(e) => { if (!readOnly) e.target.style.borderColor = isEmpty || issue ? 'var(--warning)' : 'var(--inexxio-red)'; }}
+        onBlur={(e) => { e.target.style.borderColor = isEmpty || issue ? 'var(--warning)' : 'var(--border-1)'; }}
       />
       {/* Der Hinweis meldet, blockiert aber nicht (#326) – gespeichert wird trotzdem. */}
-      {issue && <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>{issue}</p>}
-      {hint && !issue && <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{hint}</p>}
+      {issue && <p style={{ fontSize: 12, color: 'var(--warning)', margin: 0 }}>{issue}</p>}
+      {hint && !issue && <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: 0 }}>{hint}</p>}
     </div>
   );
 }
@@ -92,7 +92,7 @@ interface SelectFieldProps {
 export function SelectField({ label, value, onChange, options, hint, disabled = false }: SelectFieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{label}</label>
+      <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>{label}</label>
       <select
         value={value}
         onChange={disabled ? undefined : (e) => onChange(e.target.value)}
@@ -100,10 +100,10 @@ export function SelectField({ label, value, onChange, options, hint, disabled = 
         style={{
           padding: '8px 12px',
           borderRadius: 8,
-          border: '1px solid #E2E8F0',
+          border: '1px solid var(--border-1)',
           fontSize: 14,
-          color: disabled ? '#94a3b8' : '#0F172A',
-          background: disabled ? '#F8FAFC' : '#fff',
+          color: disabled ? 'var(--fg-4)' : 'var(--fg-1)',
+          background: disabled ? 'var(--bg-2)' : 'var(--bg-1)',
           outline: 'none',
           width: '100%',
           boxSizing: 'border-box',
@@ -114,7 +114,7 @@ export function SelectField({ label, value, onChange, options, hint, disabled = 
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      {hint && <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{hint}</p>}
+      {hint && <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: 0 }}>{hint}</p>}
     </div>
   );
 }
@@ -130,8 +130,8 @@ export function ToggleField({ label, description, checked, onChange }: ToggleFie
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
       <div>
-        <p style={{ fontSize: 14, fontWeight: 500, color: '#0F172A', margin: 0 }}>{label}</p>
-        {description && <p style={{ fontSize: 13, color: '#64748b', margin: '2px 0 0' }}>{description}</p>}
+        <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--fg-1)', margin: 0 }}>{label}</p>
+        {description && <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '2px 0 0' }}>{description}</p>}
       </div>
       <button
         role="switch"
@@ -139,13 +139,13 @@ export function ToggleField({ label, description, checked, onChange }: ToggleFie
         onClick={() => onChange(!checked)}
         style={{
           width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-          background: checked ? '#E51A14' : '#cbd5e1',
+          background: checked ? 'var(--inexxio-red)' : 'var(--border-2)',
           position: 'relative', flexShrink: 0, transition: 'background 0.2s',
         }}
       >
         <span style={{
           position: 'absolute', top: 3, left: checked ? 23 : 3,
-          width: 18, height: 18, borderRadius: '50%', background: '#fff',
+          width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-1)',
           transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
         }} />
       </button>

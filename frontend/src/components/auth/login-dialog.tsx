@@ -213,18 +213,18 @@ export function LoginDialog({ onClose, fallback }: {
                   <circle
                     className="ix-success-circle"
                     cx="60" cy="60" r="58"
-                    fill="none" stroke="#E51A14" strokeWidth="1.5" opacity="0.2"
+                    fill="none" style={{ stroke: 'var(--inexxio-red)' }} strokeWidth="1.5" opacity="0.2"
                   />
                   <polyline
                     className="ix-success-line-1"
                     points="38,65 52,78"
-                    fill="none" stroke="#E51A14" strokeWidth="5"
+                    fill="none" style={{ stroke: 'var(--inexxio-red)' }} strokeWidth="5"
                     strokeLinecap="round" strokeLinejoin="round"
                   />
                   <polyline
                     className="ix-success-line-2"
                     points="52,78 88,42"
-                    fill="none" stroke="#E51A14" strokeWidth="5"
+                    fill="none" style={{ stroke: 'var(--inexxio-red)' }} strokeWidth="5"
                     strokeLinecap="round" strokeLinejoin="round"
                   />
                 </svg>

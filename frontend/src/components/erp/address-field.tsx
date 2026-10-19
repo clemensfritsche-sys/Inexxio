@@ -156,7 +156,7 @@ export function AddressField({
   const labelNode = (
     <span style={ST.label}>
       {label}
-      {missing && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
+      {missing && <span style={{ color: 'var(--warning)', marginLeft: 3, fontWeight: 700 }}>*</span>}
     </span>
   );
 
