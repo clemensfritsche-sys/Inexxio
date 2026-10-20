@@ -213,7 +213,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   KI setzt später genau dort an. In der Eingabe stehen alle fünf Arten in einer Leiste
   (Mail · Rundschreiben · Newsletter | Anruf · Intern), Anrede und Newsletter-Fuss fest
   sichtbar.
-- **Newsletter «Post aus der Werkstatt»** (`domain/newsletter.py`, `services/newsletter.py`,
+- **Newsletter «Post von INEXXIO»** (`domain/newsletter.py`, `services/newsletter.py`,
   `routers/newsletter.py`): **Einwilligung ist ein Nachweis** (`newsletter_consents`,
   append-only, Quelle + Wortlaut + Zeitpunkt); angemeldet = jüngste Zeile, **zwei
   Zustände**. Double Opt-in über eine Mail mit einem Knopf (sie steht im Verlauf); nur das

@@ -3,7 +3,7 @@
  * darunter, auf Wunsch Pfeile. Das Element in der Mitte ist `is-active` (es spielt, es ist
  * hell); `carousel:change` meldet den Wechsel.
  *   [data-carousel] (data-start = erster Eintrag in der Mitte)
- *     [data-track] > [data-item]…   [data-prev] [data-next]   [data-dots] (data-label)
+ *     [data-rail] > [data-item]…   [data-prev] [data-next]   [data-dots] (data-label)
  * Ohne JS bleibt es eine scrollbare Reihe.
  */
 export function initCarousels(): void {
@@ -12,7 +12,7 @@ export function initCarousels(): void {
 
 function setup(root: HTMLElement): void {
   if (root.dataset.ready) return;
-  const track = root.querySelector<HTMLElement>('[data-track]');
+  const track = root.querySelector<HTMLElement>('[data-rail]');
   if (!track) return;
   root.dataset.ready = '1';
   const items = Array.from(track.querySelectorAll<HTMLElement>('[data-item]'));

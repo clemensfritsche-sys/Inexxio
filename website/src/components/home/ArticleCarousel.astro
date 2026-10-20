@@ -32,7 +32,7 @@ const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
         <button type="button" class="rat__arrow" data-next aria-label="Nächster Artikel"><Icon name="arrow-right" size={18} /></button>
       </div>
     </div>
-    <ul role="list" class="rat__track" data-track>
+    <ul role="list" class="rat__track" data-rail>
       {cards.map((c) => (
         <li class="rat__item" data-item>
           <a class="rat__card zoom-on-hover" href={c.a.path}>

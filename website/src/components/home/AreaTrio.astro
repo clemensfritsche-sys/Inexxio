@@ -37,7 +37,7 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
 <section class="v4-section trio-sec" aria-labelledby="bereiche">
   <div class="wrap"><h2 class="v4-h2" id="bereiche">{start.areas.h2}</h2></div>
   <div class="trio-wrap" data-carousel data-carousel-mode="mobile">
-    <ul role="list" class="trio" data-track>
+    <ul role="list" class="trio" data-rail>
       {cards.map(({ area, scene, claim, go }) => (
         <li class="trio__item" data-item>
           <p class="trio__mtitle" aria-hidden="true">{area.label}</p>
