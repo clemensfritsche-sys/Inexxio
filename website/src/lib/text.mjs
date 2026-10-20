@@ -81,7 +81,7 @@ const LINK_TOKENS = {
   /**
    * Der Ort aus dem ERP (#1146/#1153): im HTML die Vorgabe dieses Builds in einem
    * `data-erp="city"`, das scripts/contact.ts gegen den Ort der Anschrift im ERP tauscht.
-   * Zieht die Werkstatt um, steht der neue Ort überall – ohne Textänderung.
+   * Zieht der Betrieb um, steht der neue Ort überall – ohne Textänderung.
    */
   'erp.city': () => ({ href: '', label: a.city, erp: 'city' }),
 };

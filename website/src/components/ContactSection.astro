@@ -1,9 +1,9 @@
 ---
 /**
  * ►►► Der Kontaktbereich – EINER für die ganze Website. ◄◄◄
- * Auf /kontakt und am Ende jeder Seite dasselbe: einladender Titel,
- * das Formular als weisse Karte und daneben der Ansprechpartner mit Foto, Telefon und E-Mail,
- * darunter Anschrift und Karte (Karte ohne Rahmen, direkt auf dem Grund).
+ * v4 (Vorlage «Startseite v4»): die Karte ist der Grund, links darüber Titel, die Anfrage in
+ * zwei Schritten (ein Glasfeld, «Weiter», dann der Rest) und die Kontaktliste. Auf /kontakt
+ * mit H1, sonst am Ende jeder Seite mit H2.
  * Telefon, E-Mail und Anschrift kommen aus dem ERP (ContactPanel → scripts/contact.ts).
  */
 import InquiryForm from './InquiryForm.astro';
@@ -18,32 +18,38 @@ interface Props {
 const { level = 'h2' } = Astro.props;
 const main = level === 'h1';
 ---
-<section class="section section--paper contact" id="anfrage" aria-labelledby="anfrage-title" data-hero={main ? true : undefined}>
-  <div class="wrap">
-    <header class="contact__head">
-      <p class="label">{kontakt.eyebrow}</p>
-      <Rich as={level} id="anfrage-title" class="contact__title" text={kontakt.h1} />
-      <Rich as="p" class="lead" text={kontakt.lead} />
-    </header>
-    <div class="contact__grid">
+<section class:list={['contact', main && 'contact--main']} id="anfrage" aria-labelledby="anfrage-title" data-hero={main ? true : undefined}>
+  <div class="contact__map contact__map--wide" aria-hidden={main ? undefined : 'true'}><LocationMap fill /></div>
+  <div class="contact__map contact__map--narrow" aria-hidden="true"><LocationMap fill compact /></div>
+  <div class="contact__veil" aria-hidden="true"></div>
+  <div class="wrap contact__in">
+    <div class="contact__col">
+      <header class="contact__head">
+        <Rich as={level} id="anfrage-title" class="v4-h2" text={kontakt.h1} />
+        <Rich as="p" class="v4-sub" text={kontakt.lead} />
+      </header>
       <div class="contact__form"><InquiryForm resultLevel={main ? 2 : 3} /></div>
-      <aside class="contact__aside" aria-label="Direkter Kontakt">
-        <ContactPanel />
-        <LocationMap class="contact__map" />
-      </aside>
+      <ContactPanel />
     </div>
   </div>
 </section>
 
 <style>
-  .contact { padding-block: 112px; }
-  @media (max-width: 767px) { .contact { padding-block: var(--s-8); } }
-  .contact__head { display: grid; gap: var(--s-4); max-width: 46rem; margin-bottom: var(--s-7); }
-  .contact__head :global(.contact__title) { font-size: clamp(2rem, 1.5rem + 1.6vw, 3rem); line-height: 1.083; font-weight: 700; letter-spacing: var(--tracking-tight); }
-  .contact__grid { display: grid; gap: var(--s-7) var(--s-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
-  @media (min-width: 960px) { .contact__grid { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); } }
-  .contact__form { padding: 32px; background: var(--white); border: 1px solid var(--line); border-radius: 16px; }
-  @media (max-width: 599px) { .contact__form { padding: 20px; } }
-  .contact__aside { display: grid; gap: var(--s-4); align-content: start; }
-  .contact__aside :global(.contact__map) { margin-top: var(--s-2); }
+  .contact { position: relative; overflow: hidden; background: var(--white); }
+  .contact__map { position: absolute; inset: 0; }
+  .contact__map--narrow { display: none; }
+  .contact__veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.75) 38%, rgba(255, 255, 255, 0) 62%); }
+  .contact__in { position: relative; padding-block: 112px; }
+  .contact__col { max-width: 580px; }
+  .contact__form { margin-top: 32px; min-height: 250px; }
+  .contact__col :global(.cpanel) { margin-top: 36px; }
+  /* Schmal: die Karte als Streifen zwischen Titel und Formular. */
+  @media (max-width: 959px) {
+    .contact__in { padding-block: 64px; }
+    .contact__map { inset: 150px 0 auto; height: 340px; }
+    .contact__map--wide { display: none; }
+    .contact__map--narrow { display: block; }
+    .contact__veil { inset: 380px 0 auto; height: 120px; background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--white)); }
+    .contact__form { margin-top: 250px; }
+  }
 </style>

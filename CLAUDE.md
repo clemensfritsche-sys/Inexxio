@@ -341,6 +341,13 @@ Eigenes Teilprojekt (Astro 7, Node ≥ 22.12), getrennt vom ERP. **Zuerst lesen:
 Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
+- **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
+  Startseite aus `components/home/*`, Unterseiten über `Hero` (Bildkarte), `SectionHead`,
+  `Promises`, `AreaCard`, `Faq`, `ContactSection` (Karte als Grund, Anfrage in zwei Schritten).
+  Glas nur unter `html[data-site]` – der exportierte Kopf bleibt im ERP deckend.
+- **Bilder und Videos**: Foto nach `website/src/assets/photos/`, in `src/config/photos.mjs` bei
+  `file` eintragen; Video (MP4) nach `website/public/video/`, beim Foto `video` eintragen
+  (`components/Media.astro`). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
   ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/agb`.
 - **Konto und ERP tragen DENSELBEN Kopf und Fuss** (`scripts/export-shell.mjs` →
@@ -413,7 +420,8 @@ cd backend && alembic upgrade head
 Phase 1 · Deployment develop → https://inexxio-dev.web.app
 
 **Was heute steht** (Einzelheiten in den Abschnitten oben)
-- **Website** INEXXIO (ehemals HS Steiner), Modus `preview` bis `website/START.md` erledigt ist.
+- **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), Modus
+  `preview` bis `website/START.md` erledigt ist.
 - **Anmeldung** (Magic Link · Google · Passkeys) als Pop-up bzw. `/login?from=…` – danach nie
   auf «/», sondern `?from=` oder der Startplatz der Rolle. **Konto**: «Mein Profil» (Person ·
   Firma · Adressbuch, ein Auto-Save) und «Sicherheit» (Passkeys).

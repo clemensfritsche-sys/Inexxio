@@ -2,15 +2,14 @@
 export const kontakt = {
   title: 'Kontakt und Anfrage',
   description:
-    'Kontakt zu INEXXIO (ehemals HS Steiner) in {{address.home}}: Anfrage stellen, anrufen oder die Route zur Werkstatt öffnen. Wir melden uns rasch.',
+    'Kontakt zu INEXXIO (ehemals HS Steiner) in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Wir melden uns rasch.',
   /** Überschrift und Satz des EINEN Kontaktbereichs (ContactSection) – auf jeder Seite gleich. */
-  eyebrow: 'Anfrage',
-  h1: 'Fragen kostet ==nichts==.',
-  lead: 'Schreiben Sie in ein paar Sätzen, worum es geht. Den Rest klären wir mit Ihnen.',
+  h1: 'Fragen kostet nichts.',
+  lead: 'Ein Satz genügt. Den Rest klären wir mit Ihnen.',
   /** Die Karte mit dem Ansprechpartner neben dem Formular. */
   person: {
     label: 'Ihr Ansprechpartner',
-    text: 'Lieber direkt sprechen? Rufen Sie mich an – ich nehme mir Zeit für Ihr Anliegen.',
+    text: 'Lieber direkt sprechen? Rufen Sie an.',
   },
   summary:
     '{{brand.full}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.',

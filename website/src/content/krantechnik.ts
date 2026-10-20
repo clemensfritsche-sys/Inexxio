@@ -34,10 +34,10 @@ export const krantechnik: AreaPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} plant, baut und betreut Krane: Sonderkrane und Industriekrane für besondere Hallen und Abläufe, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Die Werkstatt steht in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} plant, baut und betreut Krane: Sonderkrane und Industriekrane für besondere Hallen und Abläufe, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: [
     { title: 'Anfrage', text: 'Sie schildern Ihr Anliegen – per Formular oder am Telefon. Ein Foto vom Typenschild hilft.' },
-    { title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht. Sie erhalten einen Fixpreis.' },
+    { title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht. Sie erhalten eine verbindliche Offerte.' },
     { title: 'Umsetzung', text: 'Wir bauen, montieren, prüfen oder reparieren – die nötigen Teile sind dabei.' },
     { title: 'Protokoll', text: 'Sie erhalten zu jeder Arbeit ein Protokoll. Der Eintrag gehört ins Kranbuch.' },
   ],
@@ -86,7 +86,7 @@ export const kraneNachMass: SubPage = {
     items: [
       { title: 'Planung vor Ort', text: 'Wir messen Gebäude, Steg und Last auf und hören zu, wie Sie arbeiten.' },
       { title: 'Konstruktion und Berechnung', text: 'Tragwerk, Kranbahn und Anbindung – nachvollziehbar dokumentiert.' },
-      { title: 'Fertigung und Montage', text: 'Stahlbau in der eigenen Werkstatt, Montage und Inbetriebnahme bei Ihnen.' },
+      { title: 'Fertigung und Montage', text: 'Stahlbau im eigenen Betrieb, Montage und Inbetriebnahme bei Ihnen.' },
       { title: 'Abnahme und Kranbuch', text: 'Erste Prüfung, Einweisung in die Bedienung, Kranbuch angelegt.' },
       { title: 'Service aus einer Hand', text: 'Prüfung, Wartung und Reparatur von dem, der den Kran gebaut hat.' },
       { title: 'Ersatzteile', text: 'Markenkomponenten, die man beschaffen kann – und Stahlteile, die wir selbst fertigen.' },
@@ -162,7 +162,7 @@ export const craneKinds = [
 /** Neue Krane: zwei Wege (Seite Krane nach Mass, Anker #wege). */
 export const newCraneWays = {
   title: 'Kaufen – oder ohne Kauf nutzen',
-  lead: 'Für jeden neuen Kran gilt: Fixpreis vor jeder Arbeit, keine Mindestlaufzeit.',
+  lead: 'Für jeden neuen Kran gilt: Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
   ways: [
     { label: 'Kaufen mit Garantie', title: 'Sie kaufen den Kran.', text: 'Nicht zufrieden? Die Hälfte übernehmen wir.' },
     { label: 'INEXXIO 365', title: 'Ohne Kauf, zur Monatsrate.', text: 'Sie zahlen für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Jeder Tag Stillstand ist gratis.' },
@@ -184,7 +184,7 @@ export const harbourYear = {
 /**
  * EINE Seite für den Kranservice: die vier Stufen (Auf Abruf · Basis · Plus · INEXXIO 365),
  * INEXXIO 365 mit seinen zwei Wegen, Modernisierung, was wir prüfen und die Prüfpflicht.
- * Keine Preise, keine Kranklassen – vor jeder Arbeit gibt es einen Fixpreis.
+ * Keine Preise, keine Kranklassen – vor jeder Arbeit gibt es eine verbindliche Offerte.
  */
 export const kranservice: SubPage = {
   area: 'krantechnik',
@@ -192,7 +192,7 @@ export const kranservice: SubPage = {
   crumb: 'Kranservice',
   title: 'Kranservice und INEXXIO 365',
   description:
-    'Kranservice in vier Stufen: erste Inspektion gratis, Service-Vertrag Basis oder Plus, INEXXIO 365. Dazu Modernisierung. Fixpreis vorab.',
+    'Kranservice in vier Stufen: erste Inspektion gratis, Service-Vertrag Basis oder Plus, INEXXIO 365. Dazu Modernisierung. Verbindliche Offerte vorab.',
   hero: {
     eyebrow: 'Krantechnik · Kranservice',
     h1: 'Ihr Kran ist einsatzbereit. Ausfälle ==übernehmen wir==.',
@@ -202,11 +202,11 @@ export const kranservice: SubPage = {
     primary: anfrage('Kranservice anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet, repariert und modernisiert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Vier Stufen: Auf Abruf (die erste Inspektion ist gratis), Service-Vertrag Basis (gesetzliche Prüfung, digitales Kranbuch, Erinnerung an Fristen), Service-Vertrag Plus (dazu Wartung, feste Reaktionszeit, fester Ansprechpartner) und INEXXIO 365 (dazu Teile und Reparaturen, Ersatz-Hebezeug und das Verfügbarkeitsversprechen). Fixpreis vor jeder Arbeit, keine Mindestlaufzeit.',
+    '{{brand.full}} prüft, wartet, repariert und modernisiert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Vier Stufen: Auf Abruf (die erste Inspektion ist gratis), Service-Vertrag Basis (gesetzliche Prüfung, digitales Kranbuch, Erinnerung an Fristen), Service-Vertrag Plus (dazu Wartung, feste Reaktionszeit, fester Ansprechpartner) und INEXXIO 365 (dazu Teile und Reparaturen, Ersatz-Hebezeug und das Verfügbarkeitsversprechen). Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
   glance: {
     forWhom: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs – und alle, deren Kran laufen muss.',
     what: 'Prüfung, Wartung, Reparatur und Modernisierung durch Kranfachleute – vom einzelnen Einsatz bis INEXXIO 365.',
-    deliverables: 'Einen Kran, der einsatzbereit ist, ein nachgeführtes Kranbuch und einen Fixpreis vor jeder Arbeit.',
+    deliverables: 'Einen Kran, der einsatzbereit ist, ein nachgeführtes Kranbuch und einen Verbindliche Offerte vor jeder Arbeit.',
   },
   promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
@@ -255,7 +255,7 @@ export const kranservice: SubPage = {
 
 /**
  * Die vier Stufen des Kranservice. Jede enthält die vorherige – darum nennt jede nur, was
- * dazukommt. Kein Betrag, keine Kranklasse: den Fixpreis erhalten Sie mit der Offerte.
+ * dazukommt. Kein Betrag, keine Kranklasse: die verbindliche Offerte erhalten Sie mit der Offerte.
  */
 export const serviceTiers = {
   title: 'Vier Stufen – Sie wählen, wie viel wir übernehmen',
@@ -315,7 +315,7 @@ export const heukrananlagen: SubPage = {
     primary: anfrage('Service anfragen'),
   },
   summary:
-    '{{brand.full}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind. Nicht zufrieden, übernehmen wir 50 %. Die Werkstatt steht in {{address.home}}.',
+    '{{brand.full}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind. Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}.',
   glance: {
     forWhom: 'Landwirtschaftsbetriebe für Heu, Stroh, Silage und Mist – und alle, die lose Güter mit dem Greifer umschlagen: Hackschnitzelheizungen, Sägewerke, Kompost- und Biogasanlagen, Werkhöfe.',
     what: 'Saison-Check, Wartung, Reparatur und Modernisierung bestehender Anlagen. Neue Anlagen: Besichtigung, Konzept, Fertigung, Montage.',
@@ -344,7 +344,7 @@ export const heukrananlagen: SubPage = {
     sharedFaq.parts,
     {
       q: 'Was kostet eine neue Heukrananlage?',
-      a: 'Das hängt von Bauform, Spannweite, Hubhöhe und Gebäude ab. Nach der Besichtigung erhalten Sie einen Fixpreis.',
+      a: 'Das hängt von Bauform, Spannweite, Hubhöhe und Gebäude ab. Nach der Besichtigung erhalten Sie eine verbindliche Offerte.',
     },
     promiseFaq.garantie,
     {
@@ -377,8 +377,8 @@ export const heukranModules = {
     title: 'Ablauf einer Neuanlage',
     items: [
       { title: 'Besichtigung', text: 'Wir schauen Scheune, Heustock und Abladeplatz an und hören zu, wie Sie arbeiten.' },
-      { title: 'Konzept und Offerte', text: 'Sie erhalten einen Vorschlag zu Bauform, Spannweite und Hubhöhe – mit Fixpreis.' },
-      { title: 'Fertigung', text: 'Wir fertigen die Anlage in unserer Werkstatt in {{address.city}}.' },
+      { title: 'Konzept und Offerte', text: 'Sie erhalten einen Vorschlag zu Bauform, Spannweite und Hubhöhe – mit verbindlicher Offerte.' },
+      { title: 'Fertigung', text: 'Wir fertigen die Anlage bei uns in {{address.city}}.' },
       { title: 'Montage und Inbetriebnahme', text: 'Wir montieren vor Ort, nehmen in Betrieb und zeigen Ihnen die Bedienung.' },
       { title: 'Service', text: 'Saison-Check und Wartung – solange die Anlage läuft.' },
     ] satisfies Step[],

@@ -1,11 +1,12 @@
 ---
 /**
- * Fuss (Auftrag Kap. 7.2), dunkel:
- *  1. Logo und der Satz, der das Unternehmen eindeutig beschreibt
+ * Fuss v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html), dunkel:
+ *  1. oben links das Logo, der Satz, der das Unternehmen eindeutig beschreibt, die Sprache
  *  2. je Menüpunkt des Kopfs eine Spalte – aus DERSELBEN Liste (site.navigation, Testnotiz
  *     #1209): Titel = Menüpunkt, darunter seine Unterpunkte; ohne Unterpunkte sein Satz
  *  3. Kontakt: Anschrift, Telefon, E-Mail – zur Laufzeit aus dem ERP (scripts/contact.ts)
- * Unterste Zeile: © Jahr · Impressum · Datenschutz · AGB. Die UID steht im Impressum (#1103).
+ * Darunter: © Jahr · Impressum · Datenschutz · AGB – und der grosse Schriftzug, unten
+ * angeschnitten (Buchstaben fast schwarz, der rote Schwung leuchtet).
  * Derselbe Fuss trägt das Konto/ERP (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
  */
 import { site, navigation, contactEmail } from '../config/site.mjs';
@@ -14,6 +15,7 @@ import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
 import { photos } from '../config/photos.mjs';
 import { samples } from '../config/photo-samples.mjs';
+import wordmark from '../assets/brand/schriftzug-fuss.svg?url';
 
 const year = new Date().getFullYear();
 const a = site.address;
@@ -26,6 +28,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
       <div class="site-footer__brand">
         <a href="/" class="site-footer__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup tone="dark" size="footer" /></a>
         <p class="site-footer__claim" set:html={rich(site.footer.claim)} />
+        <p class="site-footer__lang"><span class="site-footer__langbtn"><Icon name="globe" size={18} /> Deutsch</span></p>
       </div>
 
       {navigation.map((g) => (
@@ -43,16 +46,16 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         <h2 class="site-footer__title"><a href="/kontakt">Kontakt</a></h2>
         <address class="site-footer__contact">
           <p>
-            <span class="site-footer__k"><Icon name="map-pin" size={16} /></span>
+            <Icon name="map-pin" size={16} />
             <span data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</span>
           </p>
           <p>
-            <span class="site-footer__k"><Icon name="phone" size={16} /></span>
-            <span><a href={`tel:${site.phone.e164}`} class="tnum">{site.phone.display}</a></span>
+            <Icon name="phone" size={16} />
+            <a href={`tel:${site.phone.e164}`} class="tnum">{site.phone.display}</a>
           </p>
           <p>
-            <span class="site-footer__k"><Icon name="mail" size={16} /></span>
-            <span><a href={`mailto:${contactEmail()}`}>{contactEmail()}</a></span>
+            <Icon name="mail" size={16} />
+            <a href={`mailto:${contactEmail()}`}>{contactEmail()}</a>
           </p>
         </address>
       </div>
@@ -68,47 +71,50 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
       </ul>
     </div>
+    <div class="site-footer__mark" aria-hidden="true"><img src={wordmark} alt="" width="4618" height="2256" loading="lazy" decoding="async" /></div>
   </div>
 </footer>
 
 <style>
-  .site-footer { background: var(--dark); color: rgba(243, 244, 246, 0.78); padding-top: 80px; font-size: 0.875rem; }
-  .site-footer a { color: rgba(255, 255, 255, 0.78); text-decoration: none; transition: color var(--t-fast) var(--ease); }
-  .site-footer a:hover { color: var(--white); text-decoration: underline; text-underline-offset: 0.2em; }
+  .site-footer { background: var(--dark); color: var(--ink-4); padding-top: 80px; font-size: 0.875rem; overflow: hidden; }
+  @media (max-width: 767px) { .site-footer { padding-top: 56px; } }
+  .site-footer a { color: var(--ink-4); text-decoration: none; transition: color 200ms var(--ease); }
+  .site-footer a:hover { color: var(--white); }
   .site-footer__grid {
-    display: grid; gap: var(--s-7) var(--s-6); grid-template-columns: minmax(0, 1fr);
-    padding-bottom: var(--s-7); border-bottom: 1px solid var(--line-dark);
+    display: grid; gap: 32px 16px; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 48px; border-bottom: 1px solid var(--line-dark);
   }
-  @media (min-width: 720px) { .site-footer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 960px) { .site-footer__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (min-width: 1200px) { .site-footer__grid { grid-template-columns: 1.3fr repeat(5, minmax(0, 1fr)) 1.3fr; } }
+  .site-footer__brand { grid-column: 1 / -1; }
+  @media (min-width: 960px) { .site-footer__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px 28px; } }
+  @media (min-width: 1200px) {
+    .site-footer__grid { grid-template-columns: minmax(0, 3fr) repeat(6, minmax(0, 2fr)); gap: 28px; }
+    .site-footer__brand { grid-column: auto; }
+  }
   .site-footer__home { display: inline-flex; min-height: 44px; align-items: center; }
-  .site-footer__claim { margin-top: var(--s-4); max-width: 36ch; color: rgba(243, 244, 246, 0.72); line-height: 1.55; }
-  /* Jeder Spaltentitel hat dieselbe 44-px-Zeile – ob verlinkt oder nicht. */
-  .site-footer__title {
-    font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.14em;
-    text-transform: uppercase; color: rgba(243, 244, 246, 0.6);
-    display: flex; align-items: center; min-height: 44px; margin: 0;
+  .site-footer__home :global(.lockup) { height: 40px; }
+  .site-footer__claim { margin-top: 20px; max-width: 36ch; font-size: 0.875rem; line-height: 1.6; color: var(--ink-4); }
+  .site-footer__lang { margin-top: 24px; }
+  .site-footer__langbtn {
+    display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: var(--r-md);
+    border: 1px solid rgba(255, 255, 255, 0.28); color: var(--white); font-size: 0.875rem; font-weight: 500;
   }
-  .site-footer__title a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
-  .site-footer__col ul { list-style: none; padding: 0; display: grid; gap: 0; }
-  .site-footer__text { font-size: 0.875rem; line-height: 1.5; color: rgba(243, 244, 246, 0.65); padding-top: 11px; }
-  /* Oben ausgerichtet (#1208): ein zweizeiliger Punkt beginnt auf derselben Höhe wie ein
-     einzeiliger daneben. Die Trefferfläche bleibt 44 px hoch. */
-  .site-footer__col li a { display: flex; align-items: flex-start; min-height: 44px; padding-block: 11px 8px; line-height: 1.4; }
-  .site-footer__contact { font-style: normal; display: grid; gap: var(--s-3); }
-  .site-footer__contact p { display: grid; grid-template-columns: 22px 1fr; gap: 8px; max-width: none; line-height: 1.5; }
-  .site-footer__k { color: var(--red-on-dark); padding-top: 3px; }
-  /* Im Fliesstext: unterstrichen (nicht nur über die Farbe erkennbar) und mit 44 px hoher
-     Trefferfläche – vertikales Padding an einem Inline-Element verschiebt keine Zeile. */
-  .site-footer__contact a { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-color: rgba(255, 255, 255, 0.45); padding-block: 14px; }
+  .site-footer__title { margin: 0; font-family: var(--font-sans); font-size: 0.9375rem; font-weight: 600; letter-spacing: 0; line-height: 1.4; }
+  .site-footer__title a { color: var(--white); display: inline-flex; min-height: 24px; }
+  .site-footer__col ul { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 10px; }
+  .site-footer__col li a { font-size: 0.875rem; line-height: 1.4; }
+  .site-footer__text { margin-top: 14px; font-size: 0.875rem; line-height: 1.55; color: var(--ink-4); }
+  .site-footer__contact { margin-top: 14px; font-style: normal; display: grid; gap: 10px; line-height: 1.55; }
+  .site-footer__contact p { display: flex; gap: 8px; max-width: none; }
+  .site-footer__contact :global(.icon) { flex: none; margin-top: 3px; }
+  .site-footer__contact a { overflow-wrap: anywhere; }
   .site-footer__bottom {
-    display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-6); justify-content: space-between; align-items: center;
-    padding-block: var(--s-5) var(--s-6); font-size: 0.875rem; color: rgba(243, 244, 246, 0.6);
+    display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center;
+    margin-top: 24px; font-size: 0.875rem; color: var(--gray-500);
   }
-  .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); align-items: center; }
-  .site-footer__bottom a, .site-footer__bottom button {
-    color: rgba(243, 244, 246, 0.85); display: inline-flex; min-height: 44px; align-items: center;
-  }
-  .site-footer__bottom button { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+  .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; }
+  .site-footer__bottom a { color: var(--gray-500); display: inline-flex; min-height: 44px; align-items: center; }
+  /* Der Schriftzug: volle Breite, unten angeschnitten (Höhe 345 : Breite 1264). */
+  .site-footer__mark { margin-top: 48px; aspect-ratio: 1264 / 345; overflow: hidden; }
+  .site-footer__mark img { width: 100%; height: auto; }
+  @media (max-width: 767px) { .site-footer__mark { margin-top: 32px; } }
 </style>

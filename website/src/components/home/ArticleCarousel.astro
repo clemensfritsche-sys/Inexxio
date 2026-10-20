@@ -1,0 +1,83 @@
+---
+/**
+ * Ratgeber (v4): Karussell mit Einrasten, beginnt beim zweiten Artikel; der Text liegt auf
+ * dem Bild in dunklem Glas. Pfeile oben rechts, Punkte darunter, darunter «Alle Artikel».
+ * Ohne JS: eine waagrecht scrollbare Reihe.
+ */
+import { article } from '../../lib/ratgeber';
+import Icon from '../Icon.astro';
+import Media from '../Media.astro';
+import Rich from '../Rich.astro';
+
+interface Props {
+  title: string;
+  lead?: string;
+  items: { slug: string; photo: string; text: string }[];
+  all?: { label: string; href: string };
+  start?: number;
+  id?: string;
+}
+const { title, lead, items, all, start = 1, id = 'ratgeber' } = Astro.props;
+const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
+---
+<section class="v4-section rat-sec" aria-labelledby={id}>
+  <div class="rat" data-carousel data-start={String(Math.min(start, cards.length - 1))}>
+    <div class="wrap rat__head">
+      <div>
+        <h2 class="v4-h2" id={id}>{title}</h2>
+        {lead && <Rich as="p" class="v4-sub" text={lead} />}
+      </div>
+      <div class="rat__arrows">
+        <button type="button" class="rat__arrow" data-prev aria-label="Vorheriger Artikel"><Icon name="arrow-left" size={18} /></button>
+        <button type="button" class="rat__arrow" data-next aria-label="Nächster Artikel"><Icon name="arrow-right" size={18} /></button>
+      </div>
+    </div>
+    <ul role="list" class="rat__track" data-track>
+      {cards.map((c) => (
+        <li class="rat__item" data-item>
+          <a class="rat__card zoom-on-hover" href={c.a.path}>
+            <Media id={c.photo} sizes="(min-width: 960px) 880px, 330px" />
+            <span class="rat__glass glass-dark">
+              <span class="rat__title">{c.a.title}</span>
+              <Rich as="span" class="rat__text" text={c.text} />
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+    <div class="cdots" data-dots data-label="Artikel"></div>
+    {all && <p class="rat__all"><a class="btn btn--grey" href={all.href}>{all.label}</a></p>}
+  </div>
+</section>
+
+<script>
+  import { initCarousels } from '../../scripts/carousel';
+  initCarousels();
+</script>
+
+<style>
+  .rat__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 48px; }
+  .rat__arrows { display: none; gap: 8px; }
+  @media (min-width: 960px) { .rat__arrows { display: flex; } }
+  .rat__arrow { width: 44px; height: 44px; border-radius: 50%; background: var(--gray-100); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); transition: background-color 0.2s var(--ease); }
+  .rat__arrow:hover { background: var(--line); }
+  .rat__track {
+    position: relative; list-style: none; margin-top: 32px; display: flex; gap: 12px; padding: 0 30px;
+    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  }
+  .rat__track::-webkit-scrollbar { display: none; }
+  @media (min-width: 960px) { .rat__track { gap: 32px; padding: 0 calc(50% - 440px); } }
+  .rat__item { flex: 0 0 min(330px, calc(100% - 60px)); scroll-snap-align: center; }
+  @media (min-width: 960px) { .rat__item { flex-basis: 880px; } }
+  .rat__card { position: relative; display: block; height: 460px; border-radius: var(--r-xl); overflow: hidden; color: var(--white); text-decoration: none; background: var(--dark-2); }
+  @media (min-width: 960px) { .rat__card { height: 560px; } }
+  .rat__glass { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 2; padding: 18px; border-radius: 14px; }
+  @media (min-width: 960px) { .rat__glass { left: 24px; right: auto; bottom: 24px; max-width: 600px; padding: 24px 28px; border-radius: var(--r-xl); } }
+  .rat__title { display: block; font-family: var(--font-display); font-weight: 600; font-size: 1.1875rem; line-height: 1.25; letter-spacing: -0.01em; }
+  @media (min-width: 960px) { .rat__title { font-size: 1.625rem; line-height: 1.2; letter-spacing: -0.02em; } }
+  .rat__glass :global(.rat__text) { display: block; margin-top: 8px; font-size: 0.875rem; line-height: 1.5; color: rgba(255, 255, 255, 0.85); }
+  @media (min-width: 960px) { .rat__glass :global(.rat__text) { margin-top: 10px; font-size: 0.9375rem; line-height: 1.55; } }
+  .rat .cdots { margin-top: 28px; }
+  .rat__all { margin-top: 20px; text-align: center; max-width: none; }
+  @media (min-width: 960px) { .rat__all { margin-top: 24px; } }
+</style>

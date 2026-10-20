@@ -1,399 +1,470 @@
 ---
 /**
- * Kopfzeile – EINE Zeile (Rückmeldung 04.10.2026: Servicezeile, Arbeitsleiste und
- * Vorschau-Banner sind ersatzlos entfallen):
- *   Logo · Krantechnik ▾ · Fahrzeugtechnik ▾ · Speziallösungen · Service · Über uns ▾ ·
- *   Kontakt · ERP (nur Personal, ein Link) · Telefon · Anmelden bzw. Profilmenü · «Anfrage stellen».
- * Schmaler: Logo, Telefon, Konto, Menü.
+ * Kopfzeile v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html):
+ *   Logo · Speziallösungen · Krantechnik · Fahrzeugtechnik · Service · Über uns · Kontakt ·
+ *   ERP (nur Personal) | Sprache · Konto | Telefon · «Anfrage stellen».
+ * Jeder Punkt öffnet beim Zeigen eine Reihe Kacheln: Name, isometrische Zeichnung, ein leiser
+ * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
+ * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
+ * Schmaler als 1200 px: Logo, Konto, Telefon und das Wort «Menü» – ein Blatt mit zwei Ebenen.
  *
- * Ohne JavaScript voll bedienbar: Dropdowns öffnen per Zeigen/Fokus, das Mobil-Menü ist ein
- * natives <details>, statt des Profilmenüs steht «Anmelden». Das Skript ergänzt nur Komfort.
+ * Ohne JavaScript bedienbar: Kacheln öffnen beim Zeigen und mit dem Fokus, jeder Punkt ist ein
+ * Link auf seine Seite, das Mobil-Menü ist ein natives <details>, dessen erste Ebene aus
+ * Links besteht. Das Skript (scripts/header.ts) ergänzt Klick, Esc und die zweite Ebene.
  *
  * ►►► Kein `transform`, kein `backdrop-filter`, kein `filter` auf der Kopfzeile. ◄◄◄
- * Jede dieser Eigenschaften macht sie zum Bezugsrahmen für `position: fixed` – das
- * Vollbild-Menü war genau so in der 60 px hohen Kopfzeile eingesperrt (WEBSITE_PLAN
- * Entscheid 35).
+ * Jede dieser Eigenschaften macht sie zum Bezugsrahmen für `position: fixed` – das Mobil-Menü
+ * sässe in ihr fest (WEBSITE_PLAN Entscheid 35). Das Glas liegt darum auf eigenen Flächen
+ * (`.hd__glass`, dem Mobil-Blatt), nie auf `.site-header`.
  *
- * ►►► Derselbe Kopf trägt das Konto/ERP ◄◄◄ (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60) –
- * es gibt keinen Nachbau im Frontend.
+ * ►►► Derselbe Kopf trägt das Konto/ERP ◄◄◄ (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
+ * Glas und Schleier gelten nur unter `html[data-site]` – das setzt allein die Website.
  *
- * Anmeldezustand: `html[data-account]` setzt scripts/early.js vor dem ersten Zeichnen aus
- * dem Anzeige-Cache des Kontos (Schnittstelle S1) – darum springt nichts. Sichtbar wird je
- * Zustand, was `data-acct` trägt (Regeln in global.css). Durchgesetzt wird hier nichts:
- * den Schutz von /konto und /erp hat das ERP.
+ * Kein Warenkorb: es gibt keinen Shop (docs/attic.md).
+ * Anmeldezustand: `html[data-account]` (scripts/early.js), Regeln für `data-acct` in global.css.
  */
 import { site, navigation as groups } from '../config/site.mjs';
 import { plain } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
-import Photo from './Photo.astro';
+
+interface Props {
+  /** Der Kopf liegt durchsichtig über einer dunklen Bühne (Startseite). */
+  over?: boolean;
+}
+const { over = false } = Astro.props;
 
 const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
 const within = (href: string) => path === href || path.startsWith(`${href}/`);
 const tel = `tel:${site.phone.e164}`;
 const acct = site.account;
-const erp = acct.erp;
-/**
- * Testumgebung: ein Eckband (45°) oben rechts, wie bei App-Builds üblich. Nur der Dev-Deploy
- * setzt `SITE_ENV=dev`; über den gemeinsamen Kopf erscheint es auch in Konto und ERP.
- */
+const a = site.address;
+/** Testumgebung: ein Eckband oben rechts (nur `SITE_ENV=dev`, auch in Konto und ERP). */
 const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
 
-/**
- * Die Menüpunkte (site.navigation – dieselbe Liste wie im Fuss): drei Bereiche, Service,
- * Über uns (#1154) – jede Seite ist darin erreichbar. Ein Punkt ohne Unterseiten
- * (Speziallösungen, Service) ist ein einfacher Link. Aktiv ist ein Punkt nur auf seinen
- * EIGENEN Seiten.
- */
-const groupActive = (g: (typeof groups)[number]) => within(g.href);
+/** Die Zeichnungen der Kacheln – als Datei (einmal geladen, lange im Cache), nicht im HTML. */
+const illos = import.meta.glob<string>('../assets/illustrations/**/*.svg', { eager: true, query: '?url', import: 'default' });
+const illo = (key: string) => {
+  const url = illos[`../assets/illustrations/${key}.svg`];
+  if (!url) throw new Error(`Kopf: Zeichnung «${key}» fehlt in src/assets/illustrations/.`);
+  return url;
+};
+
+type Tile = { label: string; href: string; img: string; sub: string };
+/** Kacheln eines Punkts: seine Unterseiten – oder er selbst, wenn er keine hat (bzw. ddSelf). */
+const tilesOf = (g: (typeof groups)[number]): Tile[] => {
+  const self = { label: g.label, href: g.href, img: illo(g.illo), sub: plain(g.dd) };
+  const kids = g.children.map((c) => ({ label: plain(c.label), href: c.href, img: illo(c.illo), sub: plain(c.dd) }));
+  return !kids.length ? [self] : g.ddSelf ? [self, ...kids] : kids;
+};
+const contactTile: Tile = {
+  label: 'Kontakt', href: '/kontakt', img: illo('menu/kontakt'),
+  sub: `${site.people.owner.name} · ${site.phone.display} · ${a.street}, ${a.zip} ${a.city}`,
+};
+const menus = [
+  ...groups.map((g) => ({ id: g.id, label: g.label, href: g.href, tiles: tilesOf(g) })),
+  { id: 'kontakt', label: 'Kontakt', href: '/kontakt', tiles: [contactTile] },
+];
+const langs = [
+  { label: 'Deutsch', bubble: 'Hallo', sub: 'Aktuelle Sprache', on: true },
+  { label: 'Français', bubble: 'Bonjour', sub: 'Bientôt disponible', lang: 'fr' },
+  { label: 'Italiano', bubble: 'Ciao', sub: 'Presto disponibile', lang: 'it' },
+  { label: 'English', bubble: 'Hello', sub: 'Coming soon', lang: 'en' },
+];
+const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/anmelden'), sub: 'Mit E-Mail-Link, Google oder Passkey – ohne Passwort.' };
+const profile = { label: 'Mein Profil', href: acct.profile.href, img: illo('menu/profil'), sub: 'Person, Firma und Adressbuch an einem Ort.' };
+const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: 'Auf diesem Gerät abmelden.' };
+const cols = (n: number) => `--cols:${Math.max(3, n)}`;
 ---
-<header class="site-header" data-header>
+<header class:list={['site-header', over && 'site-header--over']} data-header>
   {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
-  <div class="mainbar">
-    <div class="wrap mainbar__in">
-      <a href="/" class="site-header__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}>
-        <Lockup />
+  <div class="hd" data-hd>
+    <span class="hd__glass" aria-hidden="true"></span>
+    <div class="hd__bar">
+      <a href="/" class="hd__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}>
+        <span class="hd__logo hd__logo--ink"><Lockup /></span>
+        <span class="hd__logo hd__logo--white"><Lockup tone="dark" /></span>
       </a>
 
       <nav class="nav" aria-label="Hauptnavigation">
         <ul role="list" class="nav__list">
-          {groups.map((g) => !g.children.length ? (
-            <li class="nav__item">
-              <a href={g.href} class:list={['nav__link', within(g.href) && 'is-current']} aria-current={path === g.href ? 'page' : undefined}>{g.label}</a>
-            </li>
-          ) : (
-            <li class:list={['nav__item dd', g.id === site.about.id && 'dd--end']} data-dd>
-              {/* Der Name führt zur Bereichsseite (#1189 – wer «Fahrzeugtechnik» klickt, erwartet
-                  sie), der Pfeil daneben öffnet das Untermenü für Tastatur und Touch. Mit der Maus
-                  öffnet es beim Zeigen. Darum braucht das Panel keinen «Alle …»-Link mehr. */}
-              <a
-                href={g.href}
-                class:list={['nav__link nav__link--dd', groupActive(g) && 'is-current']}
-                aria-current={path === g.href ? 'page' : undefined}
-              >{g.label}</a>
-              <button
-                type="button"
-                class="nav__toggle"
-                aria-expanded="false"
-                aria-controls={`dd-${g.id}`}
-                aria-label={`Untermenü ${g.label}`}
-                data-dd-toggle
-              >
+          {menus.map((m) => (
+            <li class="nav__item dd" data-dd>
+              <a href={m.href} class:list={['nav__link', within(m.href) && 'is-current']} aria-current={path === m.href ? 'page' : undefined}>{m.label}</a>
+              <button type="button" class="nav__toggle" aria-expanded="false" aria-controls={`dd-${m.id}`} aria-label={`Untermenü ${m.label}`} data-dd-toggle>
                 <Icon name="chevron-down" size={16} class="nav__chev" />
               </button>
-              <div class="dd__panel" id={`dd-${g.id}`} data-dd-panel>
-                <div class="dd__main">
-                  <ul role="list" class="dd__list">
-                    <li>
-                      <a href={g.href} class="dd__link dd__link--overview" aria-current={path === g.href ? 'page' : undefined}>
-                        <span class="dd__label">{plain(g.overview)}</span>
-                        <span class="dd__text">{g.ddText ?? g.text}</span>
-                      </a>
-                    </li>
-                    {g.children.map((c) => (
-                      <li>
-                        <a href={c.href} class="dd__link" aria-current={path === c.href ? 'page' : undefined}>
-                          <span class="dd__label">{plain(c.label)}</span>
-                          <span class="dd__text">{c.text}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {/* Ein Bild je Unterpunkt (Testnotiz #1111): das des Bereichs steht, bis man auf
-                    einen Unterpunkt zeigt – dann seines. Reines CSS (:has), so hoch wie das Panel. */}
-                <a href={g.href} class="dd__media" tabindex="-1" aria-hidden="true">
-                  {g.photo && <span class="dd__img"><Photo id={g.photo} sizes="240px" /></span>}
-                  {g.children.map((c) => <span class="dd__img"><Photo id={c.photo} sizes="240px" /></span>)}
-                </a>
+              <div class="dd__panel" id={`dd-${m.id}`}>
+                <ul role="list" class="dd__tiles" style={cols(m.tiles.length)}>
+                  {m.tiles.map((t) => (
+                    <li><a class="tile" href={t.href} aria-current={path === t.href ? 'page' : undefined}>
+                      <span class="tile__label">{t.label}</span>
+                      <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
+                      <span class="tile__sub">{t.sub}</span>
+                    </a></li>
+                  ))}
+                </ul>
               </div>
             </li>
           ))}
-          {site.menu.map((m) => (
-            <li class="nav__item">
-              <a href={m.href} class:list={['nav__link', within(m.href) && 'is-current']} aria-current={within(m.href) ? 'page' : undefined}>{m.label}</a>
-            </li>
-          ))}
           <li class="nav__item" data-acct="staff">
-            <a href={erp.href} class="nav__link" rel="nofollow">{erp.label}</a>
+            <a href={acct.erp.href} class="nav__link" rel="nofollow">{acct.erp.label}</a>
           </li>
         </ul>
       </nav>
 
-      <div class="mainbar__actions">
-        <a class="mainbar__tel" href={tel} aria-label={`${site.phone.display} anrufen`}>
-          <Icon name="phone" size={20} /> <span class="mainbar__telnum tnum">{site.phone.display}</span>
-        </a>
-        <a class="mainbar__acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}>
-          <Icon name="circle-user" size={22} />
-        </a>
-        <div class="pm" data-pm data-acct="user">
-          <button type="button" class="pm__toggle" aria-expanded="false" aria-controls="profilmenu" data-pm-toggle>
-            <span class="pm__initials" data-acct-initials aria-hidden="true"><Icon name="user" size={14} /></span>
-            <span class="visually-hidden">Profilmenü</span>
+      <div class="hd__tools">
+        <div class="dd dd--tool" data-dd>
+          <button type="button" class="hd__ic hd__lang" aria-expanded="false" aria-controls="dd-sprache" aria-label="Sprache: Deutsch" data-dd-toggle>
+            <Icon name="globe" size={18} /><span>DE</span>
           </button>
-          <div class="pm__panel" id="profilmenu" data-pm-panel>
-            <p class="pm__who">
-              <strong data-acct-name>Angemeldet</strong>
-              <span data-acct-email></span>
-            </p>
-            <ul role="list" class="pm__list">
-              <li><a href={acct.profile.href} rel="nofollow"><Icon name="user" size={18} /> {acct.profile.label}</a></li>
-              <li class="pm__sep"><a href={acct.logout.href} rel="nofollow"><Icon name="log-out" size={18} /> {acct.logout.label}</a></li>
+          <div class="dd__panel" id="dd-sprache">
+            <ul role="list" class="dd__tiles" style={cols(langs.length)}>
+              {langs.map((l) => (
+                <li><span class:list={['tile tile--static', !l.on && 'is-soon']} lang={l.lang}>
+                  <span class="tile__label">{l.label}</span>
+                  <span class="tile__art"><span class:list={['bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                  <span class="tile__sub">{l.sub}</span>
+                </span></li>
+              ))}
             </ul>
           </div>
         </div>
-        <a class="btn btn--primary mainbar__cta" href={site.cta.href}>
-          {site.cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" />
-        </a>
+        <div class="dd dd--tool" data-dd>
+          <button type="button" class="hd__ic hd__acct" aria-expanded="false" aria-controls="dd-konto" aria-label="Mein Konto" data-dd-toggle>
+            <span data-acct="login" class="hd__acct-ico"><Icon name="circle-user" size={22} /></span>
+            <span data-acct="user" class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span>
+          </button>
+          <div class="dd__panel" id="dd-konto">
+            <ul role="list" class="dd__tiles" style={cols(1)} data-acct="login">
+              <li><a class="tile" href={login.href} rel="nofollow">
+                <span class="tile__label">{login.label}</span>
+                <img class="tile__img" src={login.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
+                <span class="tile__sub">{login.sub}</span>
+              </a></li>
+            </ul>
+            <ul role="list" class="dd__tiles" style={cols(3)} data-acct="user">
+              <li><a class="tile" href={profile.href} rel="nofollow">
+                <span class="tile__label" data-acct-name>Angemeldet</span>
+                <span class="tile__me">
+                  <span class="tile__avatar" data-acct-initials><Icon name="user" size={28} /></span>
+                  <span class="tile__who"><strong data-acct-email></strong><span data-acct-company></span></span>
+                </span>
+                <span class="tile__sub"></span>
+              </a></li>
+              {[profile, logout].map((t) => (
+                <li><a class="tile" href={t.href} rel="nofollow">
+                  <span class="tile__label">{t.label}</span>
+                  <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
+                  <span class="tile__sub">{t.sub}</span>
+                </a></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
 
-        <details class="mnav" data-mnav>
-          <summary class="mnav__toggle">
-            <span class="mnav__icon-open"><Icon name="menu" size={24} /></span>
-            <span class="mnav__icon-close"><Icon name="x" size={24} /></span>
-            <span class="visually-hidden">Menü</span>
-          </summary>
-          <div class="mnav__panel">
-            <div class="mnav__top wrap"><Lockup /></div>
-            <nav class="mnav__nav wrap" aria-label="Hauptnavigation (mobil)">
-              {groups.map((g) => !g.children.length ? (
-                <a href={g.href} class="mnav__link" aria-current={path === g.href ? 'page' : undefined}>{g.label}</a>
-              ) : (
-                <details class="mnav__group" open={groupActive(g) ? true : undefined}>
-                  <summary class="mnav__link">
-                    {g.label}
-                    <Icon name="chevron-down" size={20} />
-                  </summary>
-                  <ul role="list" class="mnav__sub">
-                    {g.children.map((c) => (
-                      <li><a href={c.href} aria-current={path === c.href ? 'page' : undefined}><strong class="mnav__name">{plain(c.label)}</strong><span>{c.text}</span></a></li>
-                    ))}
-                    <li><a href={g.href} class="mnav__overview" aria-current={path === g.href ? 'page' : undefined}>{g.overview}</a></li>
-                  </ul>
-                </details>
+      <a class="hd__tel" href={tel} aria-label={`${site.phone.display} anrufen`}>
+        <Icon name="phone" size={18} /><span class="hd__telnum tnum">{site.phone.display}</span>
+      </a>
+      <a class="btn btn--primary hd__cta" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+
+      <a class="hd__ic hd__m-acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}><Icon name="circle-user" size={22} /></a>
+      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" data-mnav-open="konto" aria-label="Mein Konto"><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
+
+      <details class="mnav" data-mnav>
+        <summary class="mnav__toggle"><span class="mnav__word">Menü</span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
+        <div class="mnav__sheet">
+          <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup /></a></div>
+          <div class="mnav__levels" data-mnav-levels>
+            <nav class="mnav__l1" aria-label="Hauptnavigation (mobil)">
+              {menus.map((m) => (
+                <a href={m.href} class="mnav__row" data-mnav-sub={m.id} aria-current={path === m.href ? 'page' : undefined}>{m.label}<Icon name="chevron-right" size={20} /></a>
               ))}
-              {site.menu.map((m) => (
-                <a href={m.href} class="mnav__link" aria-current={within(m.href) ? 'page' : undefined}>{m.label}</a>
-              ))}
-              <a href={erp.href} class="mnav__link" rel="nofollow" data-acct="staff">{erp.label}</a>
-              <ul role="list" class="mnav__account">
-                <li data-acct="login"><a href={acct.login.href} rel="nofollow"><Icon name="circle-user" size={20} /> {acct.login.label}</a></li>
-                <li data-acct="user"><a href={acct.profile.href} rel="nofollow"><Icon name="user" size={20} /> {acct.profile.label} <span class="mnav__who" data-acct-name></span></a></li>
-                <li data-acct="user"><a href={acct.logout.href} rel="nofollow"><Icon name="log-out" size={20} /> {acct.logout.label}</a></li>
-              </ul>
+              <a href={acct.erp.href} class="mnav__row" rel="nofollow" data-acct="staff">{acct.erp.label}<Icon name="chevron-right" size={20} /></a>
+              <div class="mnav__foot">
+                <a class="mnav__btn mnav__btn--line" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
+                <a class="mnav__btn mnav__btn--red" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} /></a>
+                <button type="button" class="mnav__lang" data-mnav-sub="sprache"><Icon name="globe" size={18} /> Deutsch</button>
+              </div>
             </nav>
-            <div class="mnav__actions">
-              <a class="btn btn--secondary" href={tel}><Icon name="phone" size={18} /> Anrufen</a>
-              <a class="btn btn--primary" href={site.cta.href}>Anfrage <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+            {menus.map((m) => (
+              <div class="mnav__l2" data-mnav-panel={m.id} hidden>
+                <div class="mnav__head">
+                  <button type="button" class="mnav__back" aria-label="Zurück zum Menü" data-mnav-back><Icon name="arrow-left" size={22} /></button>
+                  <a class="mnav__title" href={m.href}>{m.label} <Icon name="arrow-right" size={22} /></a>
+                </div>
+                <ul role="list" class="mnav__rows">
+                  {m.tiles.map((t) => (
+                    <li><a class="mrow" href={t.href}>
+                      <img src={t.img} alt="" loading="lazy" decoding="async" width="112" height="96" data-menu-img />
+                      <span class="mrow__text"><span class="mrow__label">{t.label}</span><span class="mrow__sub">{t.sub}</span></span>
+                    </a></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div class="mnav__l2" data-mnav-panel="sprache" hidden>
+              <div class="mnav__head">
+                <button type="button" class="mnav__back" aria-label="Zurück zum Menü" data-mnav-back><Icon name="arrow-left" size={22} /></button>
+                <span class="mnav__title">Sprache</span>
+              </div>
+              <ul role="list" class="mnav__rows">
+                {langs.map((l) => (
+                  <li><span class:list={['mrow', !l.on && 'is-soon']} lang={l.lang}>
+                    <span class="mrow__art"><span class:list={['bubble bubble--sm', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                    <span class="mrow__text"><span class="mrow__label">{l.label}</span><span class="mrow__sub">{l.sub}</span></span>
+                  </span></li>
+                ))}
+              </ul>
+            </div>
+            <div class="mnav__l2" data-mnav-panel="konto" hidden>
+              <div class="mnav__head">
+                <button type="button" class="mnav__back" aria-label="Zurück zum Menü" data-mnav-back><Icon name="arrow-left" size={22} /></button>
+                <span class="mnav__title" data-acct-name>Mein Konto</span>
+              </div>
+              <ul role="list" class="mnav__rows">
+                {[profile, logout].map((t) => (
+                  <li><a class="mrow" href={t.href} rel="nofollow">
+                    <img src={t.img} alt="" loading="lazy" decoding="async" width="112" height="96" data-menu-img />
+                    <span class="mrow__text"><span class="mrow__label">{t.label}</span><span class="mrow__sub">{t.sub}</span></span>
+                  </a></li>
+                ))}
+              </ul>
             </div>
           </div>
-        </details>
-      </div>
+        </div>
+      </details>
     </div>
   </div>
 </header>
 
 <style>
-  /* Deckend weiss (Kap. 9.7: keine Glas-Effekte). */
+  /* ---------- Rahmen ---------- */
   .site-header {
-    position: sticky; top: 0; z-index: 50; background: var(--white);
-    transition: box-shadow var(--t-fast) var(--ease);
+    position: sticky; top: 0; z-index: 50; padding: 0;
+    --hd-fg: var(--ink); --hd-dd: 336px; --hd-bar: 64px;
   }
-  :global(.js) .site-header.is-scrolled { box-shadow: 0 1px 0 var(--line); }
-  @media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
+  @media (min-width: 1200px) { .site-header { padding: 12px 24px 0; } }
+  /* Über der Bühne: fest am Fenster, die Bühne läuft darunter durch. */
+  .site-header--over { position: fixed; left: 0; right: 0; }
+  .hd { position: relative; max-width: 1392px; margin: 0 auto; color: var(--hd-fg); overflow-x: clip; }
+  .hd__glass {
+    position: absolute; left: 0; right: 0; top: 0; height: var(--hd-bar); z-index: 0; pointer-events: none;
+    background: var(--white); border-bottom: 1px solid var(--line);
+    transition: height 420ms var(--ease), background-color 300ms var(--ease), box-shadow 300ms var(--ease), border-color 300ms var(--ease);
+  }
+  @media (min-width: 1200px) { .hd__glass { border: 1px solid var(--line); border-radius: var(--r-xl); } }
+  .hd__bar {
+    position: relative; z-index: 1; height: var(--hd-bar); display: flex; align-items: center; gap: 4px;
+    padding: 0 8px 0 16px; white-space: nowrap;
+  }
+  @media (min-width: 1200px) { .hd__bar { padding: 0 16px 0 24px; gap: 8px; } }
 
-  /* Profilmenü: Initialen im Kreis (rot – wie im bisherigen Konto-Kopf), Liste darunter. */
-  .pm { position: relative; }
-  .pm__toggle { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; }
-  .pm__initials {
-    display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
-    background: var(--red); color: var(--white); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.02em;
+  /* Offen: die Karte wächst um die Kachelreihe. */
+  .hd:has(.dd:is(:hover, .is-open):not(.is-closed)) .hd__glass,
+  :global(html:not(.js)) .hd:has(.dd:focus-within) .hd__glass {
+    height: calc(var(--hd-bar) + var(--hd-dd)); box-shadow: var(--shadow-lg);
   }
-  .pm__initials { overflow: hidden; }
-  .pm__initials :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .pm__toggle[aria-expanded='true'] .pm__initials { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--red); }
-  .pm__panel {
-    display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: 260px; white-space: normal;
-    background: var(--white); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-md);
-    box-shadow: var(--shadow-lg); padding: var(--s-2);
-  }
-  .pm.is-open .pm__panel { display: block; animation: drop-in 150ms var(--ease); }
-  .pm__who { display: grid; gap: 2px; padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
-  .pm__who strong { font-size: 0.9375rem; }
-  .pm__who span { font-size: 0.8125rem; color: var(--ink-3); overflow-wrap: anywhere; }
-  .pm__who span:empty { display: none; }
-  .pm__list a {
-    display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border-radius: var(--r-sm);
-    color: var(--ink); text-decoration: none; font-size: 0.9375rem; font-weight: 500;
-  }
-  .pm__list a:hover { background: var(--paper); }
-  .pm__list :global(.icon) { color: var(--ink-3); }
-  .pm__sep { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
 
-  /* Eckband der Testumgebung: am Fenster fest, oben rechts, Klicks gehen hindurch. */
+  /* Website: Glas (README §3a) – das ERP behält die deckende Fläche oben. */
+  :global(html[data-site]) .hd__glass {
+    background: rgba(255, 255, 255, 0.78); border-color: var(--glass-light-rim);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  :global(html[data-site]) .hd:has(.dd:is(:hover, .is-open):not(.is-closed)) .hd__glass,
+  :global(html[data-site]:not(.js)) .hd:has(.dd:focus-within) .hd__glass {
+    background: var(--glass-light); box-shadow: var(--glass-shadow);
+  }
+  /* Schleier über der Seite, solange ein Menü offen ist. */
+  :global(html[data-site]) .site-header::after {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
+    background: rgba(241, 242, 244, 0.3); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+    transition: opacity 350ms var(--ease);
+  }
+  :global(html[data-site]) .site-header:has(.dd:is(:hover, .is-open):not(.is-closed))::after { opacity: 1; }
+  /* Über der Bühne und oben: durchsichtig, weisse Schrift. */
+  .site-header--over:not(.is-scrolled):not(:has(.dd:is(:hover, .is-open):not(.is-closed))) { --hd-fg: var(--white); }
+  :global(html[data-site]) .site-header--over:not(.is-scrolled):not(:has(.dd:is(:hover, .is-open):not(.is-closed))) .hd__glass {
+    background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .hd__logo--white { display: none; }
+  .site-header--over:not(.is-scrolled):not(:has(.dd:is(:hover, .is-open):not(.is-closed))) .hd__logo--ink { display: none; }
+  .site-header--over:not(.is-scrolled):not(:has(.dd:is(:hover, .is-open):not(.is-closed))) .hd__logo--white { display: block; }
+
+  .hd__home { flex: none; display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+  .hd__home :global(.lockup) { height: 36px; }
+  @media (max-width: 1199px) { .hd__home :global(.lockup) { height: 34px; } }
+
+  /* ---------- Hauptpunkte ---------- */
+  .nav { display: none; flex: 1; margin-left: 4px; align-self: stretch; }
+  .nav__list { display: flex; align-items: stretch; height: 100%; list-style: none; padding: 0; }
+  /* Der Punkt ist so hoch wie die Zeile: vom Namen ins Panel ist kein Spalt (Zeigen bleibt). */
+  .nav__item { display: flex; align-items: center; }
+  .nav__link {
+    display: inline-flex; align-items: center; height: 40px; padding: 0 2px 0 10px; border-radius: var(--r-md) 0 0 var(--r-md);
+    font-size: 0.9375rem; font-weight: 500; color: inherit; text-decoration: none; transition: background-color 200ms var(--ease), opacity 200ms var(--ease);
+  }
+  .nav__item:not(.dd) .nav__link { padding-right: 10px; border-radius: var(--r-md); }
+  .nav__toggle {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 40px; margin-right: 2px;
+    color: inherit; border-radius: 0 var(--r-md) var(--r-md) 0; transition: background-color 200ms var(--ease), opacity 200ms var(--ease);
+  }
+  .nav__toggle :global(.nav__chev) { transition: transform 300ms var(--ease); }
+  .dd:is(:hover, .is-open):not(.is-closed) .nav__toggle :global(.nav__chev) { transform: rotate(180deg); }
+  .dd:is(:hover, .is-open):not(.is-closed) > :is(.nav__link, .nav__toggle) { background: rgba(10, 10, 11, 0.06); }
+  /* Die anderen Punkte treten zurück, solange einer offen ist. */
+  .hd:has(.dd:is(:hover, .is-open):not(.is-closed)) .nav__item:not(:is(:hover, .is-open)) > :is(.nav__link, .nav__toggle),
+  .hd:has(.dd:is(:hover, .is-open):not(.is-closed)) .dd--tool:not(:is(:hover, .is-open)) .hd__ic { opacity: 0.45; }
+  .nav__link.is-current { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.5em; }
+
+  /* ---------- Kachelreihe ---------- */
+  .dd__panel {
+    position: absolute; left: 0; right: 0; top: var(--hd-bar); height: var(--hd-dd); padding: 20px 32px;
+    border-top: 1px solid rgba(10, 10, 11, 0.07); white-space: normal; color: var(--ink);
+    opacity: 0; visibility: hidden; transform: translateX(48px); pointer-events: none;
+    transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s linear 450ms;
+  }
+  /* Wer links vom offenen Punkt steht, gleitet nach links weg (wie Stripe). */
+  .dd:has(~ .dd:is(:hover, .is-open)) .dd__panel, .nav:has(~ .hd__tools .dd:is(:hover, .is-open)) .dd__panel { transform: translateX(-48px); }
+  .dd:is(:hover, .is-open):not(.is-closed) .dd__panel,
+  :global(html:not(.js)) .dd:focus-within .dd__panel {
+    opacity: 1; visibility: visible; transform: none; pointer-events: auto;
+    transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s;
+  }
+  .dd__tiles { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 12px; align-items: start; list-style: none; padding: 0; }
+  .tile {
+    display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-radius: var(--r-xl);
+    color: var(--ink); text-decoration: none; transition: background-color 250ms var(--ease);
+  }
+  a.tile:hover, a.tile:focus-visible { background: rgba(255, 255, 255, 0.55); }
+  .tile__label { font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; }
+  .tile__img { display: block; width: 100%; height: 160px; object-fit: contain; transition: transform 500ms var(--ease); }
+  a.tile:hover .tile__img { transform: translateY(-3px); }
+  .tile__sub { font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+  .tile__sub:empty { display: none; }
+  .tile[aria-current='page'] .tile__label { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em; }
+  .is-soon { opacity: 0.5; }
+  .tile__art { display: flex; align-items: center; justify-content: center; height: 160px; }
+  .bubble {
+    position: relative; padding: 14px 28px; border-radius: 999px; background: var(--gray-200); color: var(--gray-500);
+    font-family: var(--font-display); font-weight: 600; font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.02em;
+  }
+  .bubble::after { content: ''; position: absolute; left: 22%; bottom: -9px; width: 18px; height: 18px; border-radius: 2px; background: inherit; transform: rotate(45deg); }
+  .bubble--on { background: var(--red); color: var(--white); }
+  .bubble--sm { padding: 8px 16px; font-size: 1.25rem; }
+  .bubble--sm::after { bottom: -6px; width: 12px; height: 12px; }
+  .tile__me { display: flex; align-items: center; gap: 16px; height: 160px; padding: 0 20px; border-radius: var(--r-lg); background: rgba(255, 255, 255, 0.55); }
+  .tile__avatar {
+    flex: none; display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%;
+    overflow: hidden; background: var(--red); color: var(--white); font-size: 1.375rem; font-weight: 700;
+  }
+  .tile__who { display: grid; gap: 2px; min-width: 0; }
+  .tile__who strong { font-size: 0.9375rem; overflow-wrap: anywhere; }
+  .tile__who span { font-size: 0.875rem; color: var(--gray-500); }
+  .tile__who :empty { display: none; }
+  .hd__avatar :global(.pm__avatar), .tile__avatar :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* ---------- Werkzeuge rechts ---------- */
+  .hd__tools { display: none; align-items: center; gap: 2px; padding-right: 10px; margin-right: 6px; border-right: 1px solid rgba(127, 127, 127, 0.3); align-self: stretch; }
+  .dd--tool { display: flex; align-items: center; }
+  .hd__ic {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 8px;
+    border-radius: var(--r-md); color: inherit; text-decoration: none; font-size: 0.875rem; font-weight: 600;
+    transition: background-color 200ms var(--ease), opacity 250ms var(--ease);
+  }
+  .hd__ic:hover, .dd--tool:is(:hover, .is-open):not(.is-closed) .hd__ic { background: rgba(127, 127, 127, 0.16); }
+  .hd__avatar {
+    display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; overflow: hidden;
+    background: var(--red); color: var(--white); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .hd__acct-ico { display: inline-flex; }
+  .hd__tel { display: none; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; color: inherit; text-decoration: none; font-size: 0.9375rem; font-weight: 600; }
+  .hd__tel:hover .hd__telnum { text-decoration: underline; text-underline-offset: 0.2em; }
+  .hd__cta { display: none; --btn-h: 44px; padding: 0 18px; font-size: 0.9375rem; font-weight: 600; }
+  .hd__m-acct { margin-left: auto; }
+  .hd__m-acct + .hd__m-acct { margin-left: 0; }
+
+  /* ---------- Mobil: «Menü» und ein Blatt mit zwei Ebenen ---------- */
+  .mnav { display: block; }
+  .mnav__toggle {
+    list-style: none; display: inline-flex; align-items: center; justify-content: center; height: 40px; min-width: 44px; padding: 0 14px;
+    margin-left: 6px; border: 1px solid currentColor; border-radius: var(--r-md); color: inherit; cursor: pointer;
+    font-size: 0.9375rem; font-weight: 500;
+  }
+  .site-header--over:not(.is-scrolled) .mnav__toggle { border-color: rgba(255, 255, 255, 0.7); }
+  .mnav__toggle::-webkit-details-marker { display: none; }
+  .mnav__close { display: none; }
+  .mnav:not([open]) .mnav__x { display: none; }
+  .mnav[open] .mnav__word { display: none; }
+  .mnav[open] .mnav__close { display: inline-flex; }
+  .mnav[open] > .mnav__toggle {
+    position: fixed; top: 10px; right: 16px; z-index: 62; border: 0; padding: 0; width: 44px; height: 44px; color: var(--ink);
+  }
+  .mnav__sheet {
+    position: fixed; inset: 0; z-index: 61; display: flex; flex-direction: column; white-space: normal; color: var(--ink);
+    background: var(--white); overflow: hidden;
+  }
+  :global(html[data-site]) .mnav__sheet { background: rgba(246, 247, 249, 0.95); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
+  .mnav__top { height: 64px; flex: none; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--gray-200); }
+  .mnav__top :global(.lockup) { height: 34px; }
+  .mnav__levels { position: relative; flex: 1; min-height: 0; }
+  .mnav__l1, .mnav__l2 {
+    position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
+    transition: transform 420ms var(--ease), opacity 320ms var(--ease);
+  }
+  .mnav__l1 { display: flex; flex-direction: column; padding: 8px 8px 0; }
+  .mnav__l2 { padding: 12px 16px 24px; }
+  /* Mit Skript: Ebene 2 gleitet von rechts herein, Ebene 1 weicht nach links. */
+  :global(.js) .mnav__l2[hidden] { display: block !important; transform: translateX(100%); opacity: 0; pointer-events: none; visibility: hidden; transition: transform 420ms var(--ease), opacity 320ms var(--ease), visibility 0s linear 420ms; }
+  .mnav__levels[data-level]:not([data-level='']) .mnav__l1 { transform: translateX(-30%); opacity: 0; pointer-events: none; }
+  .mnav__row {
+    display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: 0 16px; border-radius: var(--r-lg);
+    font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; text-align: left;
+  }
+  .mnav__row :global(.icon) { color: var(--gray-500); }
+  .mnav__row:hover { background: rgba(255, 255, 255, 0.55); }
+  .mnav__row[aria-current='page'] { text-decoration: underline; text-underline-offset: 0.25em; }
+  .mnav__foot { margin-top: auto; display: grid; gap: 10px; padding: 16px 8px calc(28px + env(safe-area-inset-bottom)); border-top: 1px solid var(--gray-200); }
+  .mnav__btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: var(--r-md); font-size: 1rem; font-weight: 600; text-decoration: none; }
+  .mnav__btn--line { border: 1px solid var(--ink); color: var(--ink); }
+  .mnav__btn--red { background: var(--red); color: var(--white); }
+  .mnav__lang { display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; font-size: 0.9375rem; font-weight: 500; color: var(--ink-3); }
+  .mnav__head { display: flex; align-items: center; gap: 4px; margin: 0 0 16px -10px; }
+  .mnav__back { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 22px; }
+  .mnav__title { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; letter-spacing: -0.025em; color: var(--ink); text-decoration: none; }
+  .mnav__rows { display: grid; gap: 8px; list-style: none; padding: 0; }
+  .mrow {
+    display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 16px; align-items: center; padding: 12px; border-radius: var(--r-lg);
+    background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(255, 255, 255, 0.8); color: var(--ink); text-decoration: none;
+  }
+  .mrow img { width: 112px; height: 96px; object-fit: contain; }
+  .mrow__art { display: flex; align-items: center; justify-content: center; height: 96px; }
+  .mrow__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mrow__label { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+  .mrow__sub { font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+
+  /* ---------- Testumgebung ---------- */
   .env-ribbon { position: fixed; top: 0; right: 0; z-index: 1000; width: 72px; height: 72px; overflow: hidden; pointer-events: none; }
   .env-ribbon span {
     position: absolute; top: 14px; right: -30px; width: 116px; padding: 3px 0; transform: rotate(45deg);
     background: var(--amber); color: var(--white); text-align: center;
     font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; line-height: 1.4;
-    box-shadow: 0 1px 4px rgba(24, 20, 17, 0.3);
+    box-shadow: 0 1px 4px rgba(15, 17, 20, 0.3);
   }
-  /* Auf dem Telefon kleiner – dort sitzt das Menü dicht an der Ecke. */
   @media (max-width: 767px) {
     .env-ribbon { width: 52px; height: 52px; }
     .env-ribbon span { top: 9px; right: -34px; width: 104px; padding: 1px 0; font-size: 0.5625rem; }
   }
 
-  /* ---------- Hauptzeile ---------- */
-  .mainbar__in { height: var(--header-h); display: flex; align-items: center; gap: var(--s-5); white-space: nowrap; }
-  .site-header__home { text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; flex: none; }
-  .mainbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
-
-  .nav { display: none; }
-  .nav__list { display: flex; align-items: center; gap: 0; list-style: none; padding: 0; }
-  .nav__item { position: relative; display: flex; align-items: center; }
-  /* Navigation: leise Stimme (ink-2), beim Zeigen dunkel – und die rote Linie wächst von links. */
-  .nav__link {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 11px;
-    font-size: 0.9375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink-2);
-    text-decoration: none; position: relative; transition: color var(--t-fast) var(--ease);
-  }
-  .nav__link::after {
-    content: ''; position: absolute; left: 11px; right: calc(100% - 11px); bottom: 7px; height: 2px;
-    background: var(--red); transition: right 200ms var(--ease);
-  }
-  .nav__link:hover, .nav__link.is-current, .nav__link[aria-expanded='true'] { color: var(--ink); }
-  .nav__link:hover::after, .nav__link.is-current::after { right: 11px; }
-  /* Name + Pfeil: der Name rückt an den Pfeil heran, der Pfeil ist ein eigenes Ziel. */
-  .nav__link--dd { padding-right: 2px; }
-  .nav__link--dd::after { right: calc(100% - 11px); }
-  .nav__link--dd:hover::after, .nav__link--dd.is-current::after { right: 2px; }
-  .nav__toggle {
-    display: inline-flex; align-items: center; justify-content: center; width: 24px; min-height: 44px;
-    margin-right: 6px; color: var(--ink-3); border-radius: var(--r-sm);
-  }
-  .nav__toggle:hover, .nav__toggle[aria-expanded='true'] { color: var(--ink); }
-  .nav__toggle :global(.nav__chev) { transition: transform var(--t-fast) var(--ease); }
-  .nav__toggle[aria-expanded='true'] :global(.nav__chev) { transform: rotate(180deg); }
-  .dd:hover .nav__link--dd, .dd.is-open .nav__link--dd { color: var(--ink); }
-
-  /* Mega-Dropdown (schlicht): Unterseiten links, kleines Foto rechts. Geschlossen ist es
-     `display: none` – dann lädt auch das Foto erst, wenn jemand das Menü öffnet. */
-  .dd__panel {
-    display: none; position: absolute; top: calc(100% + 10px); left: 0; z-index: 55;
-    grid-template-columns: minmax(0, 1fr) 220px; gap: var(--s-4); width: 600px; white-space: normal;
-    background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg);
-    box-shadow: var(--shadow-lg); padding: var(--s-3);
-  }
-  .dd--end .dd__panel { left: auto; right: 0; }
-  /* Brücke zwischen Eintrag und Panel, damit es beim Hinüberzeigen nicht zuklappt. */
-  .dd__panel::before { content: ''; position: absolute; left: 0; right: 0; top: -12px; height: 12px; }
-  /* Ohne JS öffnet auch der Tastaturfokus; mit JS übernimmt der Knopf (aria-expanded). */
-  :global(html:not(.js)) .dd:focus-within .dd__panel,
-  .dd:hover .dd__panel, .dd.is-open .dd__panel { display: grid; animation: drop-in 150ms var(--ease); }
-  .dd.is-closed .dd__panel { display: none; }
-  .dd__main { display: flex; flex-direction: column; }
-  .dd__list { list-style: none; padding: 0; }
-  .dd__link { display: grid; gap: 1px; padding: 9px 12px; border-radius: var(--r-md); text-decoration: none; }
-  .dd__link:hover, .dd__link:focus-visible { background: var(--paper); }
-  .dd__label { font-weight: 600; color: var(--ink); font-size: 0.9375rem; }
-  .dd__link[aria-current='page'] .dd__label { text-decoration: underline; text-decoration-color: var(--red); text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
-  .dd__text { font-size: 0.8125rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dd__link { min-width: 0; }
-  .dd__link--overview { margin-bottom: var(--s-1); padding-bottom: 11px; border-bottom: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) 0 0; }
-  /* Das Bild steht so hoch wie das Panel (#1111): die Spalte streckt sich, die Bilder liegen
-     übereinander und füllen sie. Sichtbar ist das des Bereichs – oder das des Unterpunkts,
-     auf den man zeigt. */
-  /* Das Bild füllt die Höhe der Liste – nicht umgekehrt (#1207): bei zwei Unterpunkten war
-     es höher als die Liste und machte das Panel leer hoch. */
-  .dd__media { position: relative; display: block; overflow: hidden; border-radius: var(--r-md); align-self: stretch; min-height: 0; }
-  .dd__img { position: absolute; inset: 0; opacity: 0; transition: opacity 160ms var(--ease); }
-  .dd__img:first-child { opacity: 1; }
-  .dd__img :global(picture), .dd__img :global(img), .dd__img :global(.ph) { width: 100%; height: 100%; aspect-ratio: auto !important; }
-  .dd__img :global(img) { object-fit: cover; }
-  .dd__img :global(.ph) { padding: var(--s-3); }
-  .dd__img :global(.ph__brief) { font-size: 0.75rem; }
-  .dd__panel:has(.dd__link:is(:hover, :focus-visible)) .dd__img:first-child { opacity: 0; }
-  .dd__panel:has(.dd__list > li:nth-child(1) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(1),
-  .dd__panel:has(.dd__list > li:nth-child(2) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(2),
-  .dd__panel:has(.dd__list > li:nth-child(3) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(3),
-  .dd__panel:has(.dd__list > li:nth-child(4) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(4),
-  .dd__panel:has(.dd__list > li:nth-child(5) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(5),
-  .dd__panel:has(.dd__list > li:nth-child(6) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(6),
-  .dd__panel:has(.dd__list > li:nth-child(7) > .dd__link:is(:hover, :focus-visible)) .dd__img:nth-child(7) { opacity: 1; }
-  @media (prefers-reduced-motion: reduce) { .dd__img { transition: none; } }
-
-  .mainbar__tel, .mainbar__acct {
-    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; height: 44px;
-    color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.9375rem;
-  }
-  .mainbar__tel:hover .mainbar__telnum { text-decoration: underline; text-underline-offset: 0.2em; }
-  .mainbar__acct :global(.icon) { color: var(--ink-2); }
-  .mainbar__acct:hover :global(.icon) { color: var(--ink); }
-  /* Die Nummer ausgeschrieben erst, wenn Platz ist – sonst das Symbol. */
-  .mainbar__telnum { display: none; }
-  .mainbar__cta { display: none; }
-
-  /* ---------- Mobil-Menü (unter 1200 px) ---------- */
-  .mnav { display: block; }
-  .mnav__toggle {
-    list-style: none; display: inline-flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; color: var(--ink); cursor: pointer; border-radius: var(--radius);
-  }
-  .mnav__toggle::-webkit-details-marker { display: none; }
-  .mnav__icon-close { display: none; }
-  .mnav[open] .mnav__icon-open { display: none; }
-  .mnav[open] .mnav__icon-close { display: inline-flex; }
-  /* Offen: der Schliessen-Knopf liegt über dem Menü an derselben Stelle wie der Burger. */
-  .mnav[open] > .mnav__toggle {
-    position: fixed; top: calc((var(--header-h) - 44px) / 2); right: var(--gutter); z-index: 62;
-  }
-  .mnav__panel {
-    position: fixed; inset: 0; z-index: 61; background: var(--white); white-space: normal;
-    display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain;
-  }
-  .mnav__top { height: var(--header-h); display: flex; align-items: center; flex: none; border-bottom: 1px solid var(--line); }
-  .mnav__nav { display: grid; align-content: start; padding-top: var(--s-3); padding-bottom: var(--s-6); flex: 1 0 auto; }
-  .mnav__link {
-    display: flex; align-items: center; justify-content: space-between; min-height: 56px;
-    font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.015em; color: var(--ink);
-    text-decoration: none; border-bottom: 1px solid var(--line); list-style: none; cursor: pointer;
-  }
-  .mnav__link::-webkit-details-marker { display: none; }
-  .mnav__link[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); padding-left: 12px; }
-  .mnav__link :global(.icon) { transition: transform var(--t-fast) var(--ease); }
-  .mnav__group[open] > .mnav__link :global(.icon) { transform: rotate(180deg); }
-  .mnav__sub { list-style: none; padding: var(--s-2) 0 var(--s-3); border-bottom: 1px solid var(--line); }
-  .mnav__sub a { display: grid; gap: 2px; padding: 10px 0 10px 12px; text-decoration: none; color: var(--ink); font-weight: 600; }
-  .mnav__name { font-weight: 600; }
-  .mnav__sub a span { font-weight: 400; font-size: 0.875rem; color: var(--ink-3); }
-  .mnav__sub a[aria-current='page'] { box-shadow: inset 3px 0 0 var(--red); }
-  .mnav__overview { color: var(--red-hover) !important; }
-  .mnav__account { padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
-  .mnav__account a { display: flex; align-items: center; gap: 12px; min-height: 48px; color: var(--ink); font-weight: 600; text-decoration: none; }
-  .mnav__account :global(.icon) { color: var(--ink-3); }
-  .mnav__who { font-weight: 400; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
-  .mnav__actions {
-    position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3);
-    padding: var(--s-3) var(--gutter) calc(var(--s-3) + env(safe-area-inset-bottom));
-    background: var(--white); border-top: 1px solid var(--line);
-  }
-
-  @media (min-width: 600px) {
-    .mainbar__cta { display: inline-flex; }
-  }
   @media (min-width: 1200px) {
-    .nav { display: block; }
-    .mnav { display: none; }
-    .mainbar__in { gap: var(--s-5); }
+    .nav, .hd__tools { display: flex; }
+    .hd__tel, .hd__cta { display: inline-flex; }
+    .mnav, .hd__m-acct { display: none; }
   }
-  @media (min-width: 1440px) {
-    .mainbar__telnum { display: inline; }
-    .mainbar__tel { padding: 0 6px; }
-  }
-  /* Sehr schmal (320 px): das Logo braucht seine Breite, die Abstände geben nach. */
-  @media (max-width: 479px) {
-    .mainbar__in { gap: var(--s-3); }
-    .mainbar__actions { gap: 0; }
+  /* Schmaler Desktop: die Nummer weicht dem Symbol. */
+  @media (min-width: 1200px) and (max-width: 1379px) { .hd__telnum { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .hd__glass, .dd__panel, .mnav__l1, .mnav__l2, .site-header::after { transition: none !important; }
   }
 </style>

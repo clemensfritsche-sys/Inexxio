@@ -1,0 +1,29 @@
+---
+/**
+ * Bild ODER Video, das seine Fläche füllt (v4: Bühne, Bildkarten, Collage).
+ * Das Foto kommt aus der Fotoliste (Photo.astro); trägt der Eintrag in src/config/photos.mjs
+ * ein `video` (Datei in public/video/), läuft es stumm in Schleife darüber. Das Foto bleibt
+ * das Standbild: vor dem Laden, bei «reduzierter Bewegung» (scripts/media.ts hält es an) und
+ * wenn die Datei fehlt.
+ */
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { photo } from '../config/photos.mjs';
+import Photo from './Photo.astro';
+
+interface Props {
+  id: string;
+  sizes?: string;
+  priority?: boolean;
+  class?: string;
+}
+const { id, sizes = '100vw', priority = false, class: cls } = Astro.props;
+const video = photo(id).video;
+if (video && !existsSync(resolve(process.cwd(), 'public/video', video))) {
+  throw new Error(`Video «${video}» (Foto «${id}») fehlt in public/video/.`);
+}
+---
+<span class:list={['fill-media', cls]}>
+  <Photo id={id} sizes={sizes} priority={priority} />
+  {video && <video src={`/video/${video}`} autoplay muted loop playsinline preload={priority ? 'auto' : 'metadata'} aria-hidden="true" data-media-video />}
+</span>

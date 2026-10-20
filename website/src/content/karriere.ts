@@ -7,14 +7,14 @@ export const karriere = {
     eyebrow: 'Karriere',
     h1: 'Arbeiten an Kranen, Fahrzeugen und Sonderbau',
     lead:
-      '{{brand.full}} ist ein kleines Team in {{address.home}}. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen – in der Werkstatt und bei unseren Kunden.',
+      '{{brand.full}} ist ein kleines Team in {{address.home}}. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen – bei uns und bei unseren Kunden.',
   },
   why: {
     title: 'Warum hier arbeiten',
     items: [
       {
         title: 'Abwechslung',
-        text: 'Heute ein Brückenkran in einer Produktionshalle, morgen ein Heukran auf dem Hof, danach ein Fahrmischer in der Werkstatt.',
+        text: 'Heute ein Brückenkran in einer Produktionshalle, morgen ein Heukran auf dem Hof, danach ein Fahrmischer bei uns in {{address.city}}.',
       },
       {
         title: 'Krane, Fahrmischer, Spezialmaschinen',
@@ -26,7 +26,7 @@ export const karriere = {
       },
       {
         title: 'Ingenieurwissen im Haus',
-        text: 'Konstruktion und Werkstatt arbeiten Hand in Hand – Fragen klären wir am Werkstück, gemeinsam.',
+        text: 'Konstruktion und Fertigung arbeiten Hand in Hand – Fragen klären wir am Werkstück, gemeinsam.',
       },
     ],
   },

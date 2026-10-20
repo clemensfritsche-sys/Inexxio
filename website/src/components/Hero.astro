@@ -1,14 +1,15 @@
 ---
 /**
- * Seitenkopf im Stil des Website-Kits («Swiss editorial»): links Kicker (Index · Overline),
- * grosser Titel mit EINEM markierten Wort, Satz, Aktionen, unten optional die
- * Vertrauensleiste (Startseite); rechts ein grosses Foto über die volle Höhe.
- * Kein Slider, kein Video. Die Textspalte ist der Seitenkopf (data-hero): ist sie mit ihren
- * Knöpfen aus dem Bild, erscheint die mobile Aktionsleiste.
+ * Seitenkopf der Unterseiten (v4, Porsche-Muster): eine grosse Bildkarte (16 px Radius) über
+ * die Breite des Inhalts, der Text liegt unten links auf dem Bild über einem dunklen Verlauf –
+ * eine Zeile darüber, die H1, ein Satz, die rote Anfrage und das Telefon in Glas.
+ * Unter dem Bild: optional `note` und der Slot. Video: beim Foto in src/config/photos.mjs
+ * `video` eintragen. Die Textspalte ist der Seitenkopf (data-hero): ist sie aus dem Bild,
+ * erscheint die mobile Aktionsleiste.
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
-import Photo from './Photo.astro';
+import Media from './Media.astro';
 import Rich from './Rich.astro';
 
 interface Action { label: string; href: string }
@@ -22,100 +23,79 @@ interface Props {
   secondary?: Action | false;
   note?: string;
   size?: 'lg' | 'md';
-  /** Vertrauensleiste am Fuss der Textspalte – nur belegte Fakten. */
+  /** Kurze Fakten unter dem Bild – nur belegte. */
   trust?: string[];
-  /** Bildzeile unten rechts im Foto (Ort, Anlage). */
   caption?: string;
 }
-const { eyebrow, title, lead, photo, primary, secondary, note, size = 'md', trust, caption } = Astro.props;
+const { eyebrow, title, lead, photo, primary, secondary, note, trust } = Astro.props;
 const isTel = (href: string) => href.startsWith('tel:');
 const second = secondary === false ? null : (secondary ?? { label: site.phone.display, href: `tel:${site.phone.e164}` });
 ---
-<section class:list={['hero', `hero--${size}`]}>
-  <div class="wrap hero__grid">
-    <div class="hero__text dots" data-hero>
-      <div class="hero__kicker">
-        <Rich as="p" class="label hero__eyebrow" text={eyebrow} />
-      </div>
-      <Rich as="h1" class="hero__title" text={title} />
-      <Rich as="p" class="hero__lead" text={lead} />
-      <div class="btn-row hero__actions">
-        <a class:list={['btn btn--primary btn--lg']} href={primary.href}>
-          {isTel(primary.href) && <Icon name="phone" size={18} />}{primary.label}
-          {!isTel(primary.href) && <Icon name="arrow-right" size={18} class="btn__arrow" />}
-        </a>
-        {second && (
-          <a class:list={['btn btn--secondary btn--lg']} href={second.href}>
-            {second.href.startsWith('tel:') && <Icon name="phone" size={18} />}{second.label}
+<section class="phero">
+  <div class="wrap">
+    <div class="phero__card" data-hero>
+      <Media id={photo} priority sizes="(min-width: 1312px) 1264px, 100vw" class="phero__media" />
+      <span class="phero__shade" aria-hidden="true"></span>
+      <div class="phero__text">
+        <Rich as="p" class="phero__eyebrow" text={eyebrow} />
+        <Rich as="h1" class="phero__title" text={title} />
+        <Rich as="p" class="phero__lead" text={lead} />
+        <div class="phero__btns">
+          <a class="btn btn--primary phero__btn" href={primary.href}>
+            {isTel(primary.href) && <Icon name="phone" size={18} />}{primary.label}
+            {!isTel(primary.href) && <Icon name="arrow-right" size={18} class="btn__arrow" />}
           </a>
-        )}
+          {second && (
+            <a class="btn phero__btn phero__btn--glass" href={second.href}>
+              {isTel(second.href) && <Icon name="phone" size={18} />}<span class="tnum">{second.label}</span>
+            </a>
+          )}
+        </div>
       </div>
-      {note && <Rich as="p" class="hero__note" text={note} />}
-      {trust && trust.length > 0 && (
-        <ul role="list" class="hero__trust" aria-label="Kurz zu uns">
-          {trust.map((t) => <Rich as="li" text={t} />)}
-        </ul>
-      )}
-      <slot />
     </div>
-    <div class="hero__media">
-      <Photo id={photo} priority sizes="(min-width: 960px) 50vw, 100vw" class="hero__photo" />
-      {caption && <Rich as="p" class="hero__cap" text={caption} />}
-    </div>
+    {(note || (trust && trust.length > 0) || Astro.slots.has('default')) && (
+      <div class="phero__after">
+        {note && <Rich as="p" class="phero__note" text={note} />}
+        {trust && trust.length > 0 && <ul role="list" class="phero__trust">{trust.map((t) => <Rich as="li" text={t} />)}</ul>}
+        <slot />
+      </div>
+    )}
   </div>
-  {Astro.slots.has('after') && <div class="wrap hero__after"><slot name="after" /></div>}
 </section>
 
 <style>
-  .hero { border-bottom: 1px solid var(--line); }
-  .hero__grid { display: grid; }
-  .hero__text { display: flex; flex-direction: column; align-items: flex-start; padding-block: var(--s-6) var(--s-7); }
-  .hero__kicker {
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; align-self: stretch;
-    padding-bottom: 18px; margin-bottom: var(--s-6); border-bottom: 1px solid var(--line);
+  .phero { padding-top: 8px; }
+  @media (min-width: 960px) { .phero { padding-top: 16px; } }
+  .phero__card {
+    position: relative; display: flex; align-items: flex-end; overflow: hidden; border-radius: var(--r-xl);
+    min-height: min(640px, 82svh); background: var(--dark-2); color: var(--white); isolation: isolate;
   }
-  /* Der Index bleibt ganz; die Dachzeile darf umbrechen – eine lange
-     Dachzeile ist bei 360 px breiter als die Spalte. */
-  .hero__kicker :global(.idx) { white-space: nowrap; }
-  .hero__eyebrow { min-width: 0; }
-  .hero__title { margin: 0; }
-  /* Startseite: Display-Stufe des DS (700, bis 64 px, Laufweite −0.03 em). */
-  .hero--lg .hero__title { font-size: clamp(2.25rem, 1.55rem + 2.4vw, 3.5rem); line-height: 1.05; }
-  .hero__lead {
-    font-size: 1.125rem; line-height: 1.556; color: var(--ink-2);
-    margin-top: var(--s-5); max-width: 32em;
+  @media (max-width: 767px) { .phero__card { min-height: min(620px, 86svh); margin-inline: calc(var(--gutter) * -1 + 8px); } }
+  @media (min-width: 960px) { .phero__card { min-height: min(720px, 80svh); } }
+  .phero__card :global(.phero__media :is(.photo, video)) { animation: phero-zoom 18s ease-in-out infinite alternate; }
+  @keyframes phero-zoom { from { transform: scale(1); } to { transform: scale(1.06); } }
+  .phero__shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(10, 10, 11, 0.25) 0%, rgba(10, 10, 11, 0) 30%, rgba(10, 10, 11, 0.15) 50%, rgba(10, 10, 11, 0.78) 100%); }
+  .phero__text { position: relative; z-index: 2; padding: 24px 20px; max-width: 900px; }
+  @media (min-width: 960px) { .phero__text { padding: 56px 56px 56px; } }
+  .phero__text :global(.phero__eyebrow) { font-size: 0.875rem; font-weight: 500; color: rgba(255, 255, 255, 0.85); }
+  @media (min-width: 960px) { .phero__text :global(.phero__eyebrow) { font-size: 1rem; } }
+  .phero__text :global(.phero__title) {
+    margin-top: 10px; color: var(--white); font-family: var(--font-display); font-weight: 600;
+    font-size: 2.25rem; line-height: 1.05; letter-spacing: -0.03em;
   }
-  .hero__actions { margin-top: var(--s-6); }
-  .hero__note { margin-top: var(--s-4); font-size: 0.9375rem; color: var(--ink-2); }
-  .hero__note :global(a) { font-weight: 600; color: var(--ink); white-space: nowrap; }
-
-  /* Vertrauensleiste: vier belegte Fakten, getrennt durch einen kleinen roten Punkt. */
-  .hero__trust {
-    display: flex; flex-wrap: wrap; gap: 8px 22px; align-self: stretch; list-style: none; padding: var(--s-5) 0 0;
-    margin-top: var(--s-7); border-top: 1px solid var(--line); font-size: 0.875rem; font-weight: 600; color: var(--ink);
+  @media (min-width: 960px) { .phero__text :global(.phero__title) { font-size: 4rem; line-height: 1.03; } }
+  .phero__text :global(.phero__lead) { margin-top: 12px; font-size: 1.0625rem; line-height: 1.5; color: rgba(255, 255, 255, 0.88); max-width: 40em; }
+  @media (min-width: 960px) { .phero__text :global(.phero__lead) { font-size: 1.25rem; } }
+  .phero__btns { margin-top: 24px; display: grid; gap: 10px; }
+  @media (min-width: 600px) { .phero__btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; } }
+  .phero__btn { --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
+  .phero__btn--glass {
+    font-weight: 500; color: var(--white); border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.14);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   }
-  .hero__trust li { display: inline-flex; align-items: center; gap: 9px; }
-  .hero__trust li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex: none; }
-
-  /* Foto: mobil eigenes Band in fester Höhe, ab 960 px über die ganze Höhe der Textspalte. */
-  .hero__media { position: relative; overflow: hidden; margin-inline: calc(var(--gutter) * -1); min-height: 300px; background: var(--paper-2); }
-  .hero__media :global(picture), .hero__media :global(.photo), .hero__media :global(.ph) {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-  }
-  .hero__media :global(.photo) { object-fit: cover; }
-  .hero__media :global(.ph) { aspect-ratio: auto; border: 0; }
-  .hero__cap {
-    position: absolute; right: var(--s-5); bottom: var(--s-4); z-index: 1; max-width: 70%;
-    font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--white); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); text-align: right;
-  }
-  .hero__after { padding-block: 0; }
-
-  @media (min-width: 600px) { .hero__media { min-height: 420px; } }
-  @media (min-width: 960px) {
-    .hero__grid { grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr); }
-    .hero__text { padding: var(--s-8) var(--s-8) var(--s-7) 0; }
-    .hero__media { margin-inline: 0; border-left: 1px solid var(--line); min-height: 560px; }
-    .hero--md .hero__media { min-height: 460px; }
-  }
+  .phero__btn--glass:hover { background: rgba(255, 255, 255, 0.22); }
+  .phero__after { display: grid; gap: 12px; margin-top: 20px; }
+  .phero__after :global(.phero__note) { font-size: 0.9375rem; color: var(--ink-2); }
+  .phero__after :global(.phero__note a) { font-weight: 600; color: var(--ink); }
+  .phero__trust { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
 </style>

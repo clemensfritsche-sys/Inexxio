@@ -56,9 +56,11 @@ interface Props {
   /** Ratgeber-Artikel: Open Graph als «article» mit Datum. */
   article?: { published: string; updated: string };
   noindex?: boolean;
+  /** Die Seite beginnt mit einer dunklen Bühne: der Kopf liegt durchsichtig darüber. */
+  stage?: boolean;
 }
 
-const { title, titleFull, description, crumbs = [], og = 'default', jsonLd = [], article, noindex = false } = Astro.props;
+const { title, titleFull, description, crumbs = [], og = 'default', jsonLd = [], article, noindex = false, stage = false } = Astro.props;
 const mode = siteMode();
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '').replace(/\/$/, '') || '/';
@@ -104,7 +106,7 @@ const csp = [
 ].join('; ');
 ---
 <!doctype html>
-<html lang="de-CH">
+<html lang="de-CH" data-site>
   <head>
     <meta charset="utf-8" />
     {import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={csp} />}
@@ -140,8 +142,8 @@ const csp = [
   </head>
   <body data-feedback={feedback ? feedbackVersion : undefined} data-contact={builtContact}>
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
-    <Header />
-    <main id="inhalt" tabindex="-1" data-erp-fixed={legalPage ? '' : undefined}>
+    <Header over={stage} />
+    <main id="inhalt" tabindex="-1" class:list={[stage && 'main--stage']} data-erp-fixed={legalPage ? '' : undefined}>
       {crumbs.length > 0 && <Breadcrumbs crumbs={crumbs} />}
       <slot />
     </main>
@@ -155,12 +157,14 @@ const csp = [
       import { initReveal } from '../scripts/reveal';
       import { initFeedback } from '../scripts/feedback';
       import { initContact } from '../scripts/contact';
+      import { initMedia } from '../scripts/media';
       initHeader();
       initAccount();
       initMobileBar();
       initReveal();
       initFeedback();
       initContact();
+      initMedia();
       // Dasselbe Skript trägt Kopf und Fuss im Konto/ERP (WEBSITE_PLAN Entscheid 60): dort
       // setzt React sie nach einem Seitenwechsel neu ein bzw. ändert den Anmeldezustand.
       Object.assign(window, {

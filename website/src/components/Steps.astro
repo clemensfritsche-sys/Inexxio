@@ -30,7 +30,7 @@ const { steps } = Astro.props;
   .steps { position: relative; list-style: none; padding: 0 0 0 30px; margin: 0; display: grid; }
   .steps__rail { position: absolute; left: 0; top: 10px; bottom: 10px; width: 11px; }
   .steps__line { position: absolute; left: 5px; top: 0; bottom: 0; width: 1px; background: var(--ink); transform-origin: top center; }
-  .steps__cat { position: absolute; left: 0; bottom: 0; width: 11px; height: 11px; background: var(--red); }
+  .steps__cat { position: absolute; left: 0; bottom: 0; width: 11px; height: 11px; background: var(--ink); }
   .steps__item {
     display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: var(--s-4); row-gap: var(--s-2);
     align-content: start; padding: var(--s-5) 0; border-bottom: 1px solid var(--line);
@@ -38,11 +38,11 @@ const { steps } = Astro.props;
   .steps__item:nth-child(2) { padding-top: 0; }
   .steps__no {
     grid-row: 1 / span 2; font-family: var(--font-display); font-weight: 600; font-size: 1.75rem;
-    line-height: 1; letter-spacing: var(--tracking-tight); color: var(--red); font-variant-numeric: tabular-nums;
+    line-height: 1; letter-spacing: var(--tracking-tight); color: var(--ink); font-variant-numeric: tabular-nums;
   }
   .steps__title { font-size: 1.1875rem; }
   .steps__text { color: var(--ink-2); max-width: 36ch; }
-  :global(.section--paper) .steps__no { color: var(--red-hover); }
+  :global(.section--paper) .steps__no { color: var(--ink); }
   :global(.section--dark) .steps__item { border-color: var(--line-dark); }
   :global(.section--dark) .steps__line { background: rgba(255, 255, 255, 0.5); }
   :global(.section--dark) .steps__no { color: var(--red-on-dark); }

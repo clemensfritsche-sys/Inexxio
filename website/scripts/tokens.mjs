@@ -65,6 +65,16 @@ const MAP = {
   '--tracking-tight': '--tracking-tight',
   '--tracking-snug': '--tracking-snug',
   '--tracking-overline': '--tracking-overline',
+  // v4: Glas (nur Website) und der Kartenradius 16 px.
+  '--r-xl': '--r-xl',
+  '--glass-light': '--glass-light',
+  '--glass-light-rim': '--glass-light-rim',
+  '--glass-dark': '--glass-dark',
+  '--glass-dark-rim': '--glass-dark-rim',
+  '--glass-blur': '--glass-blur',
+  '--glass-shadow': '--glass-shadow',
+  '--gray-100': '--gray-100',
+  '--gray-200': '--gray-200',
 };
 
 const css = readFileSync(SOURCE, 'utf8');

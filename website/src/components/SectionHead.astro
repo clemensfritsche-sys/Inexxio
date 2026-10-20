@@ -1,8 +1,8 @@
 ---
 /**
- * Abschnittskopf des Design-Systems: 2 px schwarze Linie, Overline, grosser Titel, Satz.
- * Ohne laufende Nummer («01», «02»): sie trug auf einer Website keine Information – man
- * navigiert nach Inhalten, nicht nach Nummern (Rückmeldung 04.10.2026).
+ * Abschnittskopf v4 (README §3a): EINE Form – grosse Überschrift (Inter Tight 600, 48/32 px),
+ * darunter höchstens ein grauer Satz. Keine Kicker, keine roten Wörter: `eyebrow` wird nicht
+ * mehr gezeigt (bleibt als Angabe für Lesende des Codes und als Rückfall, wenn `title` fehlt).
  */
 import Rich from './Rich.astro';
 
@@ -13,14 +13,14 @@ interface Props {
   id?: string;
   level?: 'h1' | 'h2';
   class?: string;
+  center?: boolean;
 }
-const { eyebrow, title, lead, id, level = 'h2', class: cls } = Astro.props;
+const { title, lead, id, level = 'h2', class: cls, center = false } = Astro.props;
 ---
-<header class:list={['head', cls]}>
+<header class:list={['head', center && 'v4-head--center', cls]}>
   <div class="head__in">
-  {eyebrow && <Rich as="p" class="label" text={eyebrow} />}
-  <Rich as={level} id={id} text={title} />
-  {lead && <Rich as="p" class="lead" text={lead} />}
+  <Rich as={level} id={id} class="v4-h2" text={title} />
+  {lead && <Rich as="p" class="v4-sub" text={lead} />}
   <slot />
   </div>
 </header>

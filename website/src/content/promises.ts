@@ -81,7 +81,7 @@ export const promiseFaq = {
   },
   price: {
     q: 'Wie erfahre ich den Preis?',
-    a: 'Vor jeder Arbeit erhalten Sie einen Fixpreis – ob Inspektion, Reparatur, neue Anlage oder Speziallösung. Auf der Rechnung steht keine Überraschung.',
+    a: 'Vor jeder Arbeit erhalten Sie eine verbindliche Offerte – ob Inspektion, Reparatur, neue Anlage oder Speziallösung. Auf der Rechnung steht keine Überraschung.',
   },
   secondOpinion: {
     q: 'Fremd-Offerte erhalten – prüfen Sie sie?',

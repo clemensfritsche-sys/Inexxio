@@ -47,10 +47,11 @@ const ownerCareer = [
 ];
 
 /**
- * @typedef {{ label: string, href: string, text: string, photo: string }} SubPage
+ * @typedef {{ label: string, href: string, text: string, photo: string, dd: string, illo: string }} SubPage
  * @typedef {{
  *   id: 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen',
  *   label: string, href: string, overview: string, ddText?: string, text: string, photo: string,
+ *   dd: string, illo: string,
  *   ogTitle: string,
  *   industries: string,
  *   children: SubPage[],
@@ -73,6 +74,8 @@ const areas = [
     overview: 'Speziallösungen',
     text: 'Spezialmaschinen, Anbauten und Vorrichtungen nach Mass – für Krane, Fahrzeuge und Baumaschinen.',
     photo: 'arbeit-werkstatt',
+    dd: 'Was kein Hersteller liefert, bauen wir – für Krane, Fahrzeuge und Baumaschinen.',
+    illo: 'spezial-baumaschinen',
     ogTitle: 'Ihre Aufgabe. Unsere Lösung.',
     industries: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle, deren Aufgabe kein Hersteller löst.',
     children: [],
@@ -85,12 +88,14 @@ const areas = [
     ddText: 'Übersicht des Bereichs',
     text: 'Krane nach Mass, Kranservice und Heukrananlagen.',
     photo: 'heukran-einsatz',
+    dd: 'Krane nach Mass, Kranservice und Heukrananlagen.',
+    illo: 'spezial-krane',
     ogTitle: 'Ihr Kran ist einsatzbereit. Ausfälle übernehmen wir.',
     industries: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs.',
     children: [
-      { label: 'Krane nach Mass', href: '/krantechnik/krane-nach-mass', text: 'Für Ihre Halle, Ihren Hafen, Ihren Ablauf', photo: 'reparatur-vor-ort' },
-      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Inspektion, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran' },
-      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz' },
+      { label: 'Krane nach Mass', href: '/krantechnik/krane-nach-mass', text: 'Für Ihre Halle, Ihren Hafen, Ihren Ablauf', photo: 'reparatur-vor-ort', dd: 'Selbst gebaut seit {{history.cranesSince}} – wir kennen jedes Bauteil.', illo: 'spezial-krane' },
+      { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Inspektion, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran', dd: 'Prüfung, Wartung und Reparatur – jeder Einsatz mit Protokoll.', illo: 'menu/kranservice' },
+      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz', dd: 'Einschiene, Brücke oder Drehkran – passend zu Gebäude und Arbeit.', illo: 'heukran-bruecke' },
     ],
   },
   {
@@ -101,11 +106,13 @@ const areas = [
     ddText: 'Übersicht des Bereichs',
     text: 'Trommeltausch und Verschleissteile für Fahrmischer.',
     photo: 'fahrmischer-werkstatt',
+    dd: 'Trommeltausch und Verschleissteile für Fahrmischer.',
+    illo: 'menu/trommeltausch',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
     industries: 'Betonwerke, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     children: [
-      { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt' },
-      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne' },
+      { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt', dd: 'Neue Trommel statt neuer Fahrmischer.', illo: 'menu/trommeltausch' },
+      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne', dd: 'Rinne, Schurre, Trichter und Mischspiralen.', illo: 'menu/verschleissteile' },
     ],
   },
 ];
@@ -131,7 +138,7 @@ export const site = {
 
   history: {
     founded: 1982,
-    foundedText: 'Heiri Steiner baut die Reparaturwerkstätte in Tuttwil-Wängi und macht sich selbstständig.',
+    foundedText: 'Heiri Steiner gründet seinen Reparaturbetrieb in Tuttwil-Wängi und macht sich selbstständig.',
     cranesSince: 1985,
     cranesText: 'Die erste eigene Krananlage entsteht – für Landwirtschaft und Industrie, vorwiegend Sonderanfertigungen.',
     gmbhYear: 1993,
@@ -229,6 +236,8 @@ export const site = {
     label: 'Service',
     href: '/service',
     text: 'Einstieg nach Anliegen – wenn etwas still steht, geprüft oder repariert werden muss.',
+    dd: 'Wenn etwas still steht, geprüft oder repariert werden muss.',
+    illo: 'menu/service',
     children: [],
   },
 
@@ -243,12 +252,16 @@ export const site = {
     label: 'Über uns',
     href: '/ueber-uns',
     overview: 'Mehr über uns',
-    ddText: 'Werkstatt, Team, Geschichte',
-    text: 'Werkstatt, Team, Geschichte und die Übergabe von HS Steiner.',
+    ddText: 'Standort, Team, Geschichte',
+    text: 'Standort, Team, Geschichte und die Übergabe von HS Steiner.',
     photo: 'werkstatt-aussen',
+    dd: 'Seit {{history.founded}} in Tuttwil – aus HS Steiner wird {{brand.name}}.',
+    illo: 'menu/ueber',
+    /** Im Kopf steht «Über uns» selbst als erste Kachel neben seinen Unterseiten. */
+    ddSelf: true,
     children: [
-      { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran' },
-      { label: 'Karriere', href: '/karriere', text: 'Arbeiten in unserer Werkstatt', photo: 'team' },
+      { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran', dd: 'Kurz erklärt: Prüfpflicht, Heukran planen, Verschleiss.', illo: 'menu/ratgeber' },
+      { label: 'Karriere', href: '/karriere', text: 'Arbeiten bei {{brand.name}} in Tuttwil', photo: 'team', dd: 'Arbeiten bei {{brand.name}} in Tuttwil.', illo: 'menu/karriere' },
     ],
   },
 
@@ -336,11 +349,11 @@ export const site = {
  * zusätzlich am gebauten HTML.
  * Ein Punkt ohne Unterseiten ist im Kopf ein einfacher Link – Übersichts-Zeile und Bild hat
  * nur, wer ein Untermenü trägt.
- * @typedef {{ id: string, label: string, href: string, overview?: string, ddText?: string, text: string, photo?: string, children: SubPage[] }} NavGroup
+ * @typedef {{ id: string, label: string, href: string, overview?: string, ddText?: string, text: string, photo?: string, dd: string, illo: string, ddSelf?: boolean, children: SubPage[] }} NavGroup
  * @type {NavGroup[]}
  */
 export const navigation = [
-  ...site.areas.map(({ id, label, href, overview, ddText, text, photo, children }) => ({ id, label, href, overview, ddText, text, photo, children })),
+  ...site.areas.map(({ id, label, href, overview, ddText, text, photo, dd, illo, children }) => ({ id, label, href, overview, ddText, text, photo, dd, illo, children })),
   { id: 'service', ...site.service },
   site.about,
 ];

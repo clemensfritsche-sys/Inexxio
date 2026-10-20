@@ -64,7 +64,7 @@ class Inquiry:
     company: str = ""
     source: str = "/kontakt"
     photos: list[Photo] = field(default_factory=list)
-    #: Das Häkchen «Post aus der Werkstatt» – eine Bitte, noch keine Anmeldung: angemeldet
+    #: Das Häkchen «Post von INEXXIO» – eine Bitte, noch keine Anmeldung: angemeldet
     #: ist erst, wer in der Eingangsbestätigung klickt (Double Opt-in).
     newsletter: bool = False
 

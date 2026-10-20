@@ -58,7 +58,7 @@ Wer Pläne oder Fotos der Scheune hat, sollte sie zur Besichtigung bereitlegen. 
 
 1. **Besichtigung:** Wir schauen Scheune, Stock und Abladeplatz an und lassen uns zeigen, wie gearbeitet wird.
 2. **Konzept und Offerte:** Sie erhalten einen Vorschlag zu Bauform, Spannweite und Hubhöhe – mit Offerte.
-3. **Fertigung:** Die Anlage entsteht in der Werkstatt.
+3. **Fertigung:** Die Anlage entsteht bei uns in Tuttwil.
 4. **Montage und Inbetriebnahme:** Montage vor Ort, Inbetriebnahme und Einweisung in die Bedienung.
 5. **Service:** Saison-Check und Wartung, solange die Anlage läuft.
 

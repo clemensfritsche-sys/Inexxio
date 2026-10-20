@@ -30,10 +30,10 @@ export const spezialloesungen: SubPage = {
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
   },
   summary:
-    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut in der eigenen Werkstatt in {{address.home}}. Fixpreis vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
+    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut im eigenen Betrieb in {{address.home}}. Verbindliche Offerte vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
   glance: {
     forWhom: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle Betriebe mit Kranen oder Fahrzeugen, deren Aufgabe kein Hersteller löst.',
-    what: 'Machbarkeit prüfen, konstruieren, in der eigenen Werkstatt bauen und bei Ihnen in Betrieb nehmen.',
+    what: 'Machbarkeit prüfen, konstruieren, im eigenen Betrieb bauen und bei Ihnen in Betrieb nehmen.',
     deliverables: 'Eine Maschine, die genau Ihre Aufgabe erledigt – mit Zeichnungen, Unterlagen und Service aus derselben Hand.',
   },
   promises: ['garantie', 'inexxio365', 'erstservice'],
@@ -60,7 +60,7 @@ export const spezialloesungen: SubPage = {
     },
     {
       q: 'Was kostet eine Speziallösung?',
-      a: 'Nach der Machbarkeitsprüfung erhalten Sie einen Fixpreis – bevor wir bauen.',
+      a: 'Nach der Machbarkeitsprüfung erhalten Sie eine verbindliche Offerte – bevor wir bauen.',
     },
     promiseFaq.garantie,
     {
@@ -69,7 +69,7 @@ export const spezialloesungen: SubPage = {
     },
     {
       q: 'Bleibt die Lösung bei Ihnen in Betreuung?',
-      a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus derselben Werkstatt, die sie gebaut hat.',
+      a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus demselben Betrieb, der sie gebaut hat.',
     },
   ],
   related: [
@@ -84,7 +84,7 @@ export const spezialloesungen: SubPage = {
 export const specialFacts = [
   { value: 'Einzelstück', label: 'bis Kleinserie' },
   { value: 'Nach Mass', label: 'passend zu Ihrem Gerät' },
-  { value: 'Fixpreis', label: 'bevor wir bauen' },
+  { value: 'Offerte', label: 'verbindlich, bevor wir bauen' },
   { value: '50 %', label: 'Zufriedenheitsgarantie' },
 ];
 
@@ -133,9 +133,9 @@ export const specialSteps = {
   lead: 'Ihr Aufwand zu Beginn: eine Skizze, ein Foto oder ein Video vom Einsatz.',
   items: [
     { title: 'Aufgabe', text: 'Sie schildern, was die Maschine leisten soll.' },
-    { title: 'Machbarkeit', text: 'Wir prüfen, ob und wie es geht, und nennen den Fixpreis.' },
+    { title: 'Machbarkeit', text: 'Wir prüfen, ob und wie es geht, und nennen die verbindliche Offerte.' },
     { title: 'Konstruktion', text: 'Wir konstruieren und rechnen; Sie geben frei.' },
-    { title: 'Bau', text: 'In unserer eigenen Werkstatt in {{address.city}}.' },
+    { title: 'Bau', text: 'Im eigenen Betrieb in {{address.city}}.' },
     { title: 'Inbetriebnahme', text: 'Bei Ihnen, mit Einweisung und Unterlagen.' },
   ] satisfies Step[],
 };
@@ -143,7 +143,7 @@ export const specialSteps = {
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
 export const specialBackground = {
   eyebrow: 'Wer dahintersteht',
-  title: 'Entwicklung, Werkstatt & Montage unter einem Dach',
+  title: 'Entwicklung, Fertigung & Montage unter einem Dach',
   text: `${site.people.owner.name} ist Maschinenbauingenieur und hat jahrelang Baumaschinen entwickelt – von der Hydraulik bis zu vernetzten Steuerungen und IoT-Anwendungen. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
   facts: [
     'Langjährige Entwicklung von Baumaschinen',

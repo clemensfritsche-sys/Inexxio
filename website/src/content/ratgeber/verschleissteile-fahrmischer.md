@@ -51,7 +51,7 @@ Ein Fahrmischer verschleisst dort, wo Beton reibt: beim Befüllen am Trichter, i
 ## Wann der richtige Zeitpunkt ist
 
 - **Rinne und Schurre:** sobald die Lauffläche durch ist oder ein Teil sich nicht mehr sicher verriegeln lässt – nicht erst, wenn der Beton danebenläuft.
-- **Spiralen:** bei einer Trommel-Revision. Am besten im Winter, wenn der Fahrmischer ohnehin weniger fährt und ein paar Tage in der Werkstatt nicht stören. Mehr dazu unter [Trommeltausch im Winter](/fahrzeugtechnik/trommeltausch#winter).
+- **Spiralen:** bei einer Trommel-Revision. Am besten im Winter, wenn der Fahrmischer ohnehin weniger fährt und ein paar Tage Stillstand nicht stören. Mehr dazu unter [Trommeltausch im Winter](/fahrzeugtechnik/trommeltausch#winter).
 
 ## Was die Lebensdauer verlängert
 

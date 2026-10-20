@@ -10,11 +10,15 @@
  * z. B. kranpruefung-brueckenkran-tuttwil.jpg, lange Seite ≥ 2400 px), hier bei `file`
  * eintragen. AVIF/WebP, srcset und feste Masse erzeugt der Build.
  *
- * Nur echte Fotos: Werkstatt, Team bei der Arbeit, Krane im Einsatz. Keine Stockfotos mit
+ * Nur echte Fotos: Betrieb, Team bei der Arbeit, Krane im Einsatz. Keine Stockfotos mit
  * Menschen, keine KI-Bilder. Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
  * (config/photo-samples.mjs) – im Modus «live» ist das, wie ein fehlendes Foto, ein Fehler.
  *
- * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/1' | '16/9', file?: string }} Photo
+ * Ein Video dazu: Datei (MP4, H.264, ohne Ton, kurz, ≤ 8 MB) nach public/video/ legen und hier
+ * bei `video` eintragen. Es läuft stumm in Schleife über dem Foto, das Foto bleibt Standbild
+ * (vor dem Laden, bei «reduzierter Bewegung» und ohne Video).
+ *
+ * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/1' | '16/9', file?: string, video?: string }} Photo
  */
 
 /** @type {Record<string, Photo>} */
@@ -40,8 +44,8 @@ export const photos = {
     ratio: '4/3',
   },
   'fahrmischer-werkstatt': {
-    alt: 'Fahrmischer in der Werkstatt mit geöffneter Trommel',
-    brief: 'Fahrmischer in der Werkstatt, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
+    alt: 'Fahrmischer in der Halle mit geöffneter Trommel',
+    brief: 'Fahrmischer in der Halle, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
     ratio: '4/3',
   },
   'teil-auslaufrinne': {
@@ -70,13 +74,13 @@ export const photos = {
     ratio: '4/3',
   },
   'clemens-heiri-quer': {
-    alt: 'Clemens Fritsche und Heiri Steiner vor der Werkstatt in Tuttwil',
-    brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor der Werkstatt in Tuttwil, Querformat',
+    alt: 'Clemens Fritsche und Heiri Steiner vor dem Betrieb in Tuttwil',
+    brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat',
     ratio: '3/2',
   },
   'werkstatt-aussen': {
-    alt: 'Werkstatt von INEXXIO in Tuttwil (Wängi TG) von aussen',
-    brief: 'Werkstatt in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer',
+    alt: 'Betrieb von INEXXIO in Tuttwil (Wängi TG) von aussen',
+    brief: 'Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer',
     ratio: '3/2',
   },
   'portraet-clemens': {
@@ -86,13 +90,13 @@ export const photos = {
     ratio: '1/1',
   },
   'team': {
-    alt: 'Das Team von INEXXIO in der Werkstatt',
-    brief: 'Teamfoto in der Werkstatt (nur mit Einverständnis aller Abgebildeten), quer',
+    alt: 'Das Team von INEXXIO bei der Arbeit',
+    brief: 'Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer',
     ratio: '3/2',
   },
   'arbeit-werkstatt': {
-    alt: 'Schweissarbeit an einer Stahlkonstruktion in der Werkstatt',
-    brief: 'Schweissarbeit oder Stahlkonstruktion in der Werkstatt in Tuttwil, Funken und Schutzschild, quer',
+    alt: 'Schweissarbeit an einer Stahlkonstruktion bei INEXXIO',
+    brief: 'Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer',
     ratio: '4/3',
   },
 };

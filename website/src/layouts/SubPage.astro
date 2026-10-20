@@ -52,7 +52,7 @@ const nodes = [
   <!-- div: die Überschrift «Auf einen Blick» trägt die Glance-Sektion selbst -->
   <div class="section section--tight">
     <div class="wrap grid">
-      <div class="col-8">
+      <div class="col-12">
         <Glance summary={page.summary} rows={glanceRows(page.glance)} />
       </div>
     </div>
@@ -73,9 +73,9 @@ const nodes = [
   <slot name="module" />
 
   <section class="section section--rule" aria-labelledby="fragen">
-    <div class="wrap grid">
-      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
-      <div class="col-8"><Faq items={page.faq} /></div>
+    <div class="wrap faq-wrap">
+      <SectionHead title="Häufige Fragen" id="fragen" center />
+      <Faq items={page.faq} />
     </div>
   </section>
 

@@ -32,9 +32,9 @@ const ALT = {
   'teil-auslaufschurre': 'Fahrmischer mit Betonpumpe vor einem Gebäude',
   'teil-spiralschutz': 'Trommel eines kleinen Betonmischers',
   'clemens-heiri-quer': 'Werkhalle von aussen',
-  'werkstatt-aussen': 'Werkstattgebäude von aussen',
+  'werkstatt-aussen': 'Betriebsgebäude von aussen',
   'team': 'Werkhalle mit Arbeitsplätzen',
-  'arbeit-werkstatt': 'Schweisser bei der Arbeit in einer Werkstatt',
+  'arbeit-werkstatt': 'Schweisser bei der Arbeit in einer Halle',
 };
 
 

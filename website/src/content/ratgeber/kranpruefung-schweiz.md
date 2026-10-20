@@ -38,7 +38,7 @@ Verantwortlich ist der Betrieb, der den Kran einsetzt – auch wenn der Kran gem
 
 ## Was gilt für alle Krane?
 
-Ob Brückenkran in der Produktionshalle, Hängekran in der Werkstatt oder Heukran in der Scheune – drei Pflichten gelten immer:
+Ob Brückenkran in der Produktionshalle, Hängekran in der Werkhalle oder Heukran in der Scheune – drei Pflichten gelten immer:
 
 1. **Regelmässig überprüfen** – so oft und so, wie es der Hersteller in der Betriebsanleitung vorgibt. Die Überprüfung machen ausgebildete Kranfachleute.
 2. **Mängel beheben**, bevor der Kran wieder arbeitet.

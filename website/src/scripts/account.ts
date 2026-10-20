@@ -101,4 +101,6 @@ export function initAccount(): void {
   }
   const email = typeof info.contact.email === 'string' ? info.contact.email : '';
   for (const el of document.querySelectorAll<HTMLElement>('[data-acct-email]')) el.textContent = email;
+  const company = typeof info.contact.company === 'string' ? info.contact.company : '';
+  for (const el of document.querySelectorAll<HTMLElement>('[data-acct-company]')) el.textContent = company;
 }

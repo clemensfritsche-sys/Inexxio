@@ -1,12 +1,12 @@
 /**
- * Die Seiten des Newsletters «Post aus der Werkstatt» (/newsletter …). Der Wortlaut der
+ * Die Seiten des Newsletters «Post von INEXXIO» (/newsletter …). Der Wortlaut der
  * Einwilligung und die Mail-Texte stehen in `config/newsletter.mjs` – sie reisen ins ERP.
  */
 export const newsletterPages = {
-  description: 'Post aus der Werkstatt – der Newsletter von INEXXIO: Neues aus Krantechnik, Fahrzeugtechnik und Werkstatt, nur wenn es etwas zu erzählen gibt.',
+  description: 'Post von INEXXIO – der Newsletter von INEXXIO: Neues aus Krantechnik, Fahrzeugtechnik und Speziallösungen, nur wenn es etwas zu erzählen gibt.',
   signup: {
     eyebrow: 'Newsletter',
-    title: 'Post aus der ==Werkstatt==',
+    title: 'Post von ==INEXXIO==',
     lead: 'Ab und zu erzählen wir, was bei uns entsteht – neue Lösungen, Einblicke, Termine. Kein Rauschen, nur wenn es etwas zu erzählen gibt.',
     label: 'Ihre E-Mail-Adresse',
     button: 'Anmelden',
@@ -18,11 +18,11 @@ export const newsletterPages = {
   },
   confirmed: {
     title: 'Schön, dass Sie dabei sind',
-    lead: 'Sie erhalten ab jetzt «Post aus der Werkstatt». Abmelden geht jederzeit mit einem Klick – der Link steht in jeder Ausgabe.',
+    lead: 'Sie erhalten ab jetzt «Post von INEXXIO». Abmelden geht jederzeit mit einem Klick – der Link steht in jeder Ausgabe.',
   },
   unsubscribed: {
     title: 'Sie sind abgemeldet',
-    lead: 'Sie erhalten keine «Post aus der Werkstatt» mehr. War das ein Versehen? Dann melden Sie sich einfach wieder an.',
+    lead: 'Sie erhalten keine «Post von INEXXIO» mehr. War das ein Versehen? Dann melden Sie sich einfach wieder an.',
     again: 'Wieder anmelden',
   },
 };

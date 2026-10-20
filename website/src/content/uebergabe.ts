@@ -11,11 +11,11 @@ import type { Faq } from './types';
  * in die Lage von Heiri»), freigegeben mit Testnotiz #1097.
  */
 export const heiriQuote =
-  'Über 40 Jahre war diese Werkstatt mein Leben. Ich gebe sie mit gutem Gefühl weiter: Clemens bringt neues Wissen mit und hat Respekt vor dem, was hier gewachsen ist. Meine Kunden sind bei ihm in guten Händen.';
+  'Über 40 Jahre war dieser Betrieb mein Leben. Ich gebe ihn mit gutem Gefühl weiter: Clemens bringt neues Wissen mit und hat Respekt vor dem, was hier gewachsen ist. Meine Kunden sind bei ihm in guten Händen.';
 
 /** Der eine Satz zur Übergabe – Startseite und «Über uns» sagen ihn gleich. */
 export const handoverLead =
-  'Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Werkstatt, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.';
+  'Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Standort, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.';
 
 /** Was bleibt. */
 export const stays = [

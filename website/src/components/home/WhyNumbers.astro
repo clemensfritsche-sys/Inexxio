@@ -1,0 +1,60 @@
+---
+/**
+ * Warum INEXXIO (v4): grosse Zahlen links, rechts das Porträt mit dem Zitat in dunklem Glas.
+ * Zahlen und Sätze: content/start.ts (why.figures).
+ */
+import { start } from '../../content/start';
+import Media from '../Media.astro';
+import Rich from '../Rich.astro';
+import { plain } from '../../lib/text.mjs';
+
+const w = start.why;
+---
+<section class="v4-section why-sec" aria-labelledby="warum">
+  <div class="wrap why">
+    <div class="why__text">
+      <h2 class="v4-h2" id="warum">{w.h2}</h2>
+      <dl class="why__figs">
+        {w.figures.map((f) => (
+          <div class="why__fig">
+            <dt>{f.pre && <span class="why__pre">{f.pre}</span>}<span class="why__num">{plain(f.figure)}{f.unit && <span class="why__unit">{f.unit}</span>}</span></dt>
+            <Rich as="dd" text={f.text} />
+          </div>
+        ))}
+      </dl>
+      <p class="why__more"><a class="btn btn--grey" href={w.href}>{w.link}</a></p>
+    </div>
+    <figure class="why__photo zoom-on-hover">
+      <Media id="portraet-clemens" sizes="(min-width: 960px) 55vw, 100vw" />
+      <figcaption class="why__cap glass-dark">
+        <Rich as="p" class="why__quote" text={`«${w.quote}»`} />
+        <Rich as="p" class="why__who" text={w.caption} />
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<style>
+  .why { display: grid; gap: 40px; }
+  @media (min-width: 960px) { .why { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 96px; align-items: center; } }
+  .why__figs { margin-top: 36px; display: grid; gap: 32px; }
+  @media (min-width: 960px) { .why__figs { margin-top: 56px; gap: 44px; } }
+  .why__fig dt { display: block; }
+  .why__pre { display: block; font-size: 0.875rem; color: var(--gray-500); }
+  .why__num { display: block; font-family: var(--font-display); font-weight: 600; font-size: 3.5rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  @media (min-width: 960px) { .why__num { font-size: 4.5rem; } }
+  .why__unit { margin-left: 8px; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+  @media (min-width: 960px) { .why__unit { font-size: 1.5rem; } }
+  .why__fig :global(dd) { margin: 10px 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); max-width: 34em; }
+  .why__more { margin-top: 24px; }
+  @media (min-width: 960px) { .why__more { margin-top: 48px; } }
+  @media (max-width: 959px) { .why__more { order: 3; } .why__more .btn { width: 100%; } }
+  .why__photo { position: relative; margin: 0; height: 520px; border-radius: var(--r-xl); overflow: hidden; background: var(--line); }
+  @media (min-width: 960px) { .why__photo { height: 900px; } }
+  .why__cap { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 2; padding: 18px; border-radius: 14px; }
+  @media (min-width: 960px) { .why__cap { left: 24px; right: 24px; bottom: 24px; padding: 28px; border-radius: var(--r-xl); } }
+  .why__cap :global(.why__quote) { font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; line-height: 1.35; letter-spacing: -0.01em; color: var(--white); max-width: none; }
+  @media (min-width: 960px) { .why__cap :global(.why__quote) { font-size: 1.375rem; } }
+  .why__cap :global(.why__who) { margin-top: 8px; font-size: 0.75rem; color: rgba(255, 255, 255, 0.8); max-width: none; }
+  @media (min-width: 960px) { .why__cap :global(.why__who) { margin-top: 12px; font-size: 0.875rem; } }
+</style>

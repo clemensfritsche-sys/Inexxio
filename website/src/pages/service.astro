@@ -89,9 +89,9 @@ const nodes = [
   </section>
 
   <section class="section section--rule" aria-labelledby="fragen">
-    <div class="wrap grid">
-      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
-      <div class="col-8"><Faq items={s.faq} /></div>
+    <div class="wrap faq-wrap">
+      <SectionHead title="Häufige Fragen" id="fragen" center />
+      <Faq items={s.faq} />
     </div>
   </section>
 
@@ -119,6 +119,6 @@ const nodes = [
   .sv-list li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
   .sv-list h3 { font-size: 1.1875rem; }
   .sv-safety { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--ink); }
-  .sv-safety :global(.icon) { color: var(--red-hover); margin-top: 3px; }
+  .sv-safety :global(.icon) { color: var(--ink-3); margin-top: 3px; }
   .sv-safety h3 { font-size: 1.125rem; margin-bottom: 4px; }
 </style>

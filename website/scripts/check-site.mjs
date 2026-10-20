@@ -35,6 +35,8 @@ const FORBIDDEN = [
   'jahrespreis', 'jahrespaket',
   // Rückmeldung 09.10.2026: keine Markenaufzählung «für alle Marken» – offen lassen.
   'aller marken', 'alle marken', 'jeder marke', 'fremder marke',
+  // Design System v4 (Oktober 2026): kein «Fixpreis» in keiner Form, keine «Werkstatt».
+  'fixpreis', 'werkstatt', 'werkstätte',
 ];
 /** Ganze Wörter, die nirgends stehen dürfen («Abo» – INEXXIO 365 ist kein Abo). */
 const FORBIDDEN_WORDS = [/\babos?\b/i];

@@ -1,0 +1,53 @@
+---
+/**
+ * Nachfolge (v4): Collage aus drei Bildern, der Text in der Mitte darunter – Porsche-Muster.
+ * Texte: content/start.ts (handover) und content/uebergabe.ts.
+ */
+import { start } from '../../content/start';
+import { site } from '../../config/site.mjs';
+import Media from '../Media.astro';
+import Rich from '../Rich.astro';
+
+const h = start.handover;
+---
+<section class="v4-section ho-sec" id="uebergabe" aria-labelledby="uebergabe-title">
+  <div class="wrap ho-box">
+    <div class="ho">
+      <div class="ho__img ho__img--a zoom-on-hover"><Media id={h.photos[0]} sizes="(min-width: 960px) 50vw, 100vw" /></div>
+      <div class="ho__img ho__img--b zoom-on-hover"><Media id={h.photos[1]} sizes="(min-width: 960px) 32vw, 50vw" /></div>
+      <div class="ho__img ho__img--c zoom-on-hover"><Media id={h.photos[2]} sizes="(min-width: 960px) 30vw, 40vw" /></div>
+      <div class="ho__text">
+        <Rich as="h2" class="v4-h2" id="uebergabe-title" text={h.h2} />
+        <Rich as="p" class="v4-sub" text={h.lead} />
+        <p class="ho__quote"><strong>«{h.short}»</strong> <span>– {site.people.founder.name}</span></p>
+        <a class="btn btn--grey ho__link" href={h.href}>{h.link}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .ho { position: relative; }
+  .ho__img { position: absolute; border-radius: var(--r-xl); overflow: hidden; background: var(--line); }
+  /* Schmal: drei Bilder übereinander geschoben, darunter der Text. */
+  .ho { padding-top: 420px; }
+  .ho__img--a { left: 30px; right: 0; top: 0; height: 240px; }
+  .ho__img--b { left: 0; top: 190px; width: 170px; height: 200px; border: 4px solid var(--white); }
+  .ho__img--c { right: 16px; top: 270px; width: 150px; height: 150px; border: 4px solid var(--white); }
+  .ho__text { margin-top: 28px; padding: 0 4px; }
+  .ho__quote { margin-top: 14px; font-size: 0.9375rem; }
+  .ho__quote span { color: var(--gray-500); }
+  .ho__link { margin-top: 20px; }
+  /* Breit: frei gesetzt auf 1264 × 900 (skaliert mit der Breite). */
+  @media (min-width: 1100px) {
+    .ho-box { container-type: inline-size; }
+    .ho { padding-top: 0; height: calc(900 / 1264 * 100cqw); }
+    .ho__img { border: 0; }
+    .ho__img--a { left: calc(330 / 1264 * 100cqw); right: auto; top: 0; width: calc(640 / 1264 * 100cqw); height: calc(430 / 1264 * 100cqw); }
+    .ho__img--b { left: 0; top: calc(260 / 1264 * 100cqw); width: calc(400 / 1264 * 100cqw); height: calc(300 / 1264 * 100cqw); }
+    .ho__img--c { left: calc(900 / 1264 * 100cqw); right: auto; top: calc(220 / 1264 * 100cqw); width: calc(364 / 1264 * 100cqw); height: calc(340 / 1264 * 100cqw); }
+    .ho__text { position: absolute; left: calc(430 / 1264 * 100cqw); top: calc(500 / 1264 * 100cqw); width: calc(480 / 1264 * 100cqw); min-width: 420px; margin: 0; padding: 0; }
+    .ho__quote { margin-top: 18px; }
+    .ho__link { margin-top: 24px; }
+  }
+</style>

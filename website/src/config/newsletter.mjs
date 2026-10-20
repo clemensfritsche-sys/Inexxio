@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * ►►► Der Newsletter «Post aus der Werkstatt» – seine Wörter an EINER Stelle. ◄◄◄
+ * ►►► Der Newsletter «Post von INEXXIO» – seine Wörter an EINER Stelle. ◄◄◄
  *
  * Die Website (Häkchen im Anfrage-Formular, Seite /newsletter) und das ERP (Bestätigungs-
  * mail, Einladung in der Eingangsbestätigung, Abmeldelink, Konto) sprechen mit denselben
@@ -14,28 +14,28 @@
  * gekoppelt, Bestätigung per Mail (Double Opt-in), Abmelden mit einem Klick.
  */
 export const newsletter = {
-  name: 'Post aus der Werkstatt',
+  name: 'Post von INEXXIO',
   consent:
-    'Ja, schicken Sie mir ab und zu «Post aus der Werkstatt» – unseren Newsletter, nur wenn es etwas zu erzählen gibt. Abmelden geht jederzeit mit einem Klick.',
+    'Ja, schicken Sie mir ab und zu «Post von INEXXIO» – unseren Newsletter, nur wenn es etwas zu erzählen gibt. Abmelden geht jederzeit mit einem Klick.',
   /** Die Bitte um Bestätigung (Double Opt-in). */
-  confirmSubject: 'Ein Klick noch: Post aus der Werkstatt',
+  confirmSubject: 'Ein Klick noch: Post von INEXXIO',
   confirmLead:
-    'Sie möchten «Post aus der Werkstatt» erhalten, unseren Newsletter. Damit niemand Sie ohne Ihr Wissen anmeldet, bestätigen Sie es bitte mit einem Klick.',
+    'Sie möchten «Post von INEXXIO» erhalten, unseren Newsletter. Damit niemand Sie ohne Ihr Wissen anmeldet, bestätigen Sie es bitte mit einem Klick.',
   confirmIgnore: 'Waren Sie das nicht? Dann ignorieren Sie diese Mail einfach – ohne Bestätigung schicken wir nichts.',
   confirmButton: 'Ja, ich bin dabei',
   kicker: 'Newsletter',
   /** In der Eingangsbestätigung einer Anfrage: Häkchen gesetzt → bestätigen, sonst einladen. */
-  inviteTitle: 'Post aus der Werkstatt',
+  inviteTitle: 'Post von INEXXIO',
   inviteAsked: 'Sie möchten unseren Newsletter – bitte bestätigen Sie es noch mit einem Klick.',
   inviteOffer:
-    'Ab und zu erzählen wir, was bei uns in der Werkstatt entsteht. Wenn Sie mögen, genügt ein Klick – abmelden geht genauso schnell.',
+    'Ab und zu erzählen wir, was bei uns entsteht. Wenn Sie mögen, genügt ein Klick – abmelden geht genauso schnell.',
   inviteButton: 'Ja, gerne',
   /** Im Fuss jedes Newsletters. */
-  footer: 'Sie erhalten «Post aus der Werkstatt», weil Sie sich dafür angemeldet haben.',
+  footer: 'Sie erhalten «Post von INEXXIO», weil Sie sich dafür angemeldet haben.',
   unsubscribe: 'Abmelden',
   /** Die Seite hinter dem Abmeldelink (ein Knopf, damit kein Link-Scanner abmeldet). */
   unsubscribeTitle: 'Vom Newsletter abmelden?',
-  unsubscribeLead: 'Ein Klick, und Sie erhalten keine «Post aus der Werkstatt» mehr.',
+  unsubscribeLead: 'Ein Klick, und Sie erhalten keine «Post von INEXXIO» mehr.',
   unsubscribeButton: 'Abmelden',
   invalid: 'Dieser Link ist abgelaufen oder unvollständig.',
 };

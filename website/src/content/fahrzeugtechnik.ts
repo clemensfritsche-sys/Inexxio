@@ -26,20 +26,20 @@ export const fahrzeugtechnik: AreaPage = {
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
   description:
-    'Neue Trommel statt neuer Fahrmischer – zum Fixpreis, mit Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
+    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte, mit Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
     lead:
-      'Ist die Trommel am Ende, das Fahrgestell aber gut, setzen wir eine neue Trommel auf – zum Fixpreis. Nicht zufrieden? Die Hälfte übernehmen wir. Die Verschleissteile beschaffen wir schnell.',
+      'Ist die Trommel am Ende, das Fahrgestell aber gut, setzen wir eine neue Trommel auf – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir. Die Verschleissteile beschaffen wir schnell.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – zum Fixpreis und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Die Werkstatt steht in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: [
     { title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.' },
-    { title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und nennen einen Fixpreis.' },
+    { title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und nennen eine verbindliche Offerte.' },
     { title: 'Umsetzung', text: 'Neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, Teile ersetzen.' },
     { title: 'Protokoll', text: 'Sie erhalten ein Protokoll mit Arbeiten und Teilen.' },
   ],
@@ -79,19 +79,19 @@ export const trommeltausch: SubPage = {
   crumb: 'Trommeltausch',
   title: 'Trommeltausch für Fahrmischer',
   description:
-    'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – zum Fixpreis. Nicht zufrieden? Die Hälfte übernehmen wir.',
+    'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Trommeltausch',
     h1: 'Neue Trommel statt neuer ==Fahrmischer==',
     lead:
-      'Das Fahrgestell bleibt, die neue Trommel kommt drauf. Sie erhalten vorher einen Fixpreis. Nicht zufrieden? Die Hälfte übernehmen wir.',
+      'Das Fahrgestell bleibt, die neue Trommel kommt drauf. Sie erhalten vorher eine verbindliche Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Fixpreis vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – in der Werkstatt in {{address.home}}.',
+    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Verbindliche Offerte vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – bei uns in {{address.home}}.',
   glance: {
-    forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
+    forWhom: 'Fuhrparkleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Trommel und Fahrgestell prüfen, neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',
     deliverables: 'Einen Fahrmischer, der wieder einsatzbereit ist – ohne neues Fahrzeug – und ein Protokoll mit Arbeiten und Teilen.',
   },
@@ -100,7 +100,7 @@ export const trommeltausch: SubPage = {
     title: 'Was zum Trommeltausch gehört',
     items: [
       { title: 'Kontrolle vorab', text: 'Trommel, Fahrgestell, Antrieb und Aufbau – Sie erfahren offen, ob sich der Tausch lohnt.' },
-      { title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt in unserer Werkstatt.' },
+      { title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt bei uns in {{address.city}}.' },
       { title: 'Antrieb', text: 'Trommelgetriebe, Hydraulikmotor und Pumpe anschliessen – prüfen und, wo nötig, ersetzen.' },
       { title: 'Hydraulik', text: 'Schläuche, Leitungen, Ventile und Ölkühler.' },
       { title: 'Aufbau', text: 'Rahmen und Befestigung, Wassersystem, Leiter, Bedienelemente und Beleuchtung.' },
@@ -118,7 +118,7 @@ export const trommeltausch: SubPage = {
     },
     {
       q: 'Was kostet ein Trommeltausch?',
-      a: 'Das hängt von Trommel, Fahrzeug und Zustand ab. Nach der Kontrolle erhalten Sie einen Fixpreis.',
+      a: 'Das hängt von Trommel, Fahrzeug und Zustand ab. Nach der Kontrolle erhalten Sie eine verbindliche Offerte.',
     },
     promiseFaq.garantie,
     faqBrands,
@@ -163,7 +163,7 @@ export const verschleissteile: SubPage = {
   crumb: 'Verschleissteile',
   title: 'Fahrmischer-Verschleissteile',
   description:
-    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, zum Fixpreis. Jetzt anfragen.',
+    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte. Jetzt anfragen.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Verschleissteile',
     h1: 'Verschleissteile für Fahrmischer – schnell ==beschafft==',
@@ -173,11 +173,11 @@ export const verschleissteile: SubPage = {
     primary: anfrage('Teil anfragen'),
   },
   summary:
-    '{{brand.full}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau in der Werkstatt in {{address.home}}.',
+    '{{brand.full}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau bei uns in {{address.home}}.',
   glance: {
-    forWhom: 'Fuhrpark- und Werkstattleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
+    forWhom: 'Fuhrparkleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Teile nach Marke und Typ bestellen und schnell beschaffen – auf Wunsch mit Einbau.',
-    deliverables: 'Das passende Teil, rasch bei Ihnen oder eingebaut, mit einem Fixpreis vorab.',
+    deliverables: 'Das passende Teil, rasch bei Ihnen oder eingebaut, mit einer verbindlichen Offerte vorab.',
   },
   scope: {
     title: 'Welche Teile wir beschaffen',
@@ -185,7 +185,7 @@ export const verschleissteile: SubPage = {
       { title: 'Rinnen', text: 'Auslauf- und Verlängerungsrinnen.' },
       { title: 'Trichter und Schurren', text: 'Einfülltrichter und Auslaufschurren.' },
       { title: 'Spiralschutz', text: 'Schutz der Mischspiralen gegen Abrieb.' },
-      { title: 'Einbau', text: 'Auf Wunsch in unserer Werkstatt, zusammen mit Service oder Trommeltausch.' },
+      { title: 'Einbau', text: 'Auf Wunsch bei uns in {{address.city}}, zusammen mit Service oder Trommeltausch.' },
     ],
   },
   faq: [

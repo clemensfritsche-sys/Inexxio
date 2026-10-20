@@ -6,7 +6,6 @@
  */
 import { site, contactEmail } from '../config/site.mjs';
 import Icon from './Icon.astro';
-import Rich from './Rich.astro';
 
 interface Props {
   /** 2 = Formular direkt unter der H1 (/kontakt), 3 = in einer Sektion mit H2 (Kurzformular). */
@@ -16,13 +15,8 @@ const { level = 3 } = Astro.props;
 const H = `h${level}` as 'h2' | 'h3';
 ---
 <div class="iresult iresult--ok" data-result="ok" hidden tabindex="-1">
-  <Icon name="check" size={32} class="iresult__icon" />
-  <Rich as={H} class="iresult__title h3" text={`Danke. Wir melden uns innert ${site.promises.responseTime}.`} />
-  <p>
-    Wir sehen uns Ihre Angaben an und melden uns per Telefon oder E-Mail. Haben Sie eine
-    E-Mail-Adresse angegeben, erhalten Sie gleich eine Bestätigung mit Ihren Angaben.
-  </p>
-  <p>Eilt es? Rufen Sie uns an: <a class="link tnum" href={`tel:${site.phone.e164}`}>{site.phone.display}</a></p>
+  <H class="iresult__title"><span class="iresult__dot" aria-hidden="true"><Icon name="check" size={20} /></span>Danke für Ihre Anfrage.</H>
+  <p>Wir melden uns innert {site.promises.responseTime}. <button type="button" class="iresult__again" data-reset>Neue Anfrage</button></p>
 </div>
 
 <div class="iresult iresult--fail" data-result="fail" hidden tabindex="-1" role="alert">

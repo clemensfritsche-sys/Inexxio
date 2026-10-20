@@ -1,13 +1,43 @@
-/* Formulare (Anfrage, Prüfpflicht-Check – die Chips braucht nur noch er) – geteilt, einmal je Seite geladen. */
+/* Formulare (Anfrage, Prüfpflicht-Check – die Chips braucht nur noch er) – geteilt, einmal je Seite geladen.
+   v4: die Felder der Anfrage sind Glas über der Karte (README §3a), zwei Schritte. */
 
-.iform { display: grid; gap: var(--s-5); position: relative; }
+.iform { display: grid; gap: 12px; position: relative; }
 .iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
-.iform__row { display: grid; gap: var(--s-4); }
+.iform__row { display: grid; gap: 12px; }
 @media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.field__opt { font-weight: 400; color: var(--ink-3); font-size: 0.875rem; }
+.field__opt, .iform__opt { font-weight: 400; color: var(--gray-500); font-size: 0.875rem; }
 .iform__files { list-style: none; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
 .iform__files li { display: flex; gap: 8px; }
 .iform__files li span:last-child { color: var(--ink-3); margin-left: auto; }
+
+/* Glasfelder */
+.iform .input, .iform .textarea {
+  min-height: 50px; border-radius: 10px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72); box-shadow: 0 8px 28px rgba(10, 10, 11, 0.06);
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+  font-size: 0.9375rem;
+}
+.iform .field__label { font-size: 0.875rem; }
+.iform .iform__ask { min-height: 150px; padding: 16px; border-radius: 14px; resize: none; font-size: 1.0625rem; line-height: 1.5; }
+@media (max-width: 767px) { .iform .iform__ask { min-height: 170px; } }
+.iform__step { display: grid; gap: 12px; }
+.iform__bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 2px; }
+.iform__attach { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 0.875rem; color: var(--ink-3); cursor: pointer; }
+.iform__attach:hover { color: var(--ink); }
+.iform__attach:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+.iform__attach-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.iform__next, .iform__submit { --btn-h: 52px; padding: 0 26px; font-size: 1rem; font-weight: 600; flex: none; }
+.iform__recap { font-size: 0.875rem; color: var(--ink-3); max-width: none; }
+.iform__recap strong { color: var(--ink); font-weight: 600; }
+.iform__edit { font-weight: 600; text-decoration: underline; color: var(--ink); }
+.iform__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 4px; }
+.iform__count { font-size: 0.8125rem; color: var(--gray-500); }
+.iform__privacy { font-size: 0.8125rem; color: var(--gray-500); max-width: none; }
+/* Mit Skript: ein Schritt nach dem anderen. Ohne Skript stehen alle Felder da. */
+html.js .iform[data-step='1'] .iform__step--2,
+html.js .iform[data-step='2'] .iform__step--1 { display: none; }
+html:not(.js) .iform__next, html:not(.js) .iform__recap, html:not(.js) .iform__count { display: none; }
+html:not(.js) .iform__foot { justify-content: flex-end; }
 
 /* Auswahl-Chips */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -24,38 +54,22 @@
 .chip input:checked + span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
 .chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-
-.iform__foot { display: grid; gap: var(--s-3); justify-items: start; }
 /* Das Häkchen zum Newsletter – leise, aber an seinem Platz. */
-.iform__consent { display: flex; gap: 10px; align-items: flex-start; font-size: 0.875rem; line-height: 1.5; color: var(--ink-2); cursor: pointer; min-height: 44px; }
-.iform__consent input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--black); cursor: pointer; }
+.iform__consent { display: flex; gap: 10px; align-items: flex-start; font-size: 0.8125rem; line-height: 1.5; color: var(--ink-3); cursor: pointer; min-height: 44px; }
+.iform__consent input { flex: none; width: 18px; height: 18px; margin-top: 1px; accent-color: var(--black); cursor: pointer; }
 .iform[aria-busy='true'] [data-submit] { opacity: 0.6; pointer-events: none; }
 
-/* Ergebnis */
+/* Ergebnis: eine Glasfläche */
 .iresult {
-  display: grid; gap: var(--s-3); padding: var(--s-6); background: var(--white);
-  border: 1px solid var(--line-2); border-radius: var(--r-lg);
+  display: grid; gap: 10px; padding: 24px; border-radius: 14px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72); box-shadow: 0 8px 28px rgba(10, 10, 11, 0.06);
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
 }
-.iresult--fail { border-color: var(--red-hover); margin-bottom: var(--s-6); }
+.iresult--fail { border-color: var(--red-hover); margin-bottom: 24px; }
 .iresult__icon { color: var(--ok); }
 .iresult--fail .iresult__icon { color: var(--red-hover); }
-.iresult__title { font-size: 1.375rem; }
+.iresult__title { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.02em; }
+.iresult__dot { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--red); color: var(--white); display: inline-flex; align-items: center; justify-content: center; }
+.iresult p { font-size: 0.9375rem; color: var(--ink-3); }
+.iresult__again { font-weight: 600; text-decoration: underline; color: var(--ink); }
 .iresult:focus { outline: none; }
-
-/* Anhänge als Ablagefeld: das echte Feld liegt unsichtbar über der ganzen Fläche – ein Klick
-   irgendwo öffnet die Auswahl, Tastatur und Screenreader erreichen weiterhin das Feld. */
-.iform__drop {
-  position: relative; display: flex; align-items: center; gap: 14px; padding: 16px;
-  border: 1px dashed var(--ink-4); border-radius: var(--r-md); background: #FBFBFC; cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
-}
-.iform__drop:hover { border-color: var(--ink-3); background: var(--white); }
-.iform__drop:focus-within { box-shadow: var(--focus-ring); }
-.iform__drop-ico { flex: none; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--white); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink); }
-.iform__drop-text { display: grid; gap: 2px; }
-.iform__drop-title { font-size: 0.875rem; font-weight: 500; color: var(--ink); }
-.iform__drop-sub { font-size: 0.8125rem; color: var(--ink-3); }
-.iform__drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.iform__submit { width: 100%; }
-.iform__foot { justify-items: stretch; text-align: center; }
-.iform__foot p { max-width: none; }

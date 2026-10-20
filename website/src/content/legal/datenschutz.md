@@ -55,7 +55,7 @@ Wir bewahren Anfragen so lange auf, wie es für die Bearbeitung und einen allfä
 
 Schreiben Sie uns eine E-Mail oder rufen Sie an, bearbeiten wir Ihre Angaben, um Ihr Anliegen zu beantworten.
 
-## 6. Newsletter «Post aus der Werkstatt»
+## 6. Newsletter «Post von INEXXIO»
 
 Den Newsletter erhalten Sie nur, wenn Sie ihn ausdrücklich bestellen – im Anfrageformular (das Häkchen ist nie vorausgewählt), auf der Seite [Newsletter](/newsletter) oder im Kundenbereich. Ausser im Kundenbereich, wo Ihre Adresse bereits bestätigt ist, schicken wir Ihnen zuerst eine E-Mail mit einem Bestätigungsknopf; erst Ihr Klick meldet Sie an (Double Opt-in). Als Nachweis speichern wir Zeitpunkt, Weg der Anmeldung und den Satz, dem Sie zugestimmt haben.
 

@@ -2,14 +2,14 @@
 /**
  * DAS Anfrage-Formular – auf /kontakt und am Ende jeder Seite dasselbe (#1107/#1129).
  *
- * ►►► Ein Feld für das Anliegen, dazu Anhänge und «wer fragt an» (Rückmeldung 04.10.2026). ◄◄◄
- * Keine Schritte, keine Auswahl von Bereich, Anliegen oder Dringlichkeit: «die Anfrage muss
- * extrem einfach sein». Ist jemand angemeldet, stehen Name, Firma, Telefon und E-Mail schon
- * da (scripts/form.ts, aus dem Anzeige-Cache des Kontos).
+ * ►►► v4: zwei Schritte (Vorlage «Startseite v4»): erst das Anliegen, dann wie wir Sie
+ * erreichen. ◄◄◄ Schritt 1 ist EIN Feld (Glas über der Karte) mit «Foto anhängen» und
+ * «Weiter»; Schritt 2 nennt das Anliegen in einer Zeile («Ändern») und fragt Name, E-Mail,
+ * Telefon und Firma. Ist jemand angemeldet, stehen diese schon da (scripts/form.ts).
  *
- * Ohne JavaScript geht es klassisch an den Server (multipart, Prüfung dort). Das Skript
- * prüft direkt am Feld und sendet im Hintergrund; schlägt das Senden fehl, steht ein
- * vorausgefüllter mailto-Link da.
+ * Ohne JavaScript ist es EIN Formular mit allen Feldern, klassisch an den Server (multipart,
+ * Prüfung dort). Das Skript führt die Schritte, prüft am Feld und sendet im Hintergrund;
+ * schlägt das Senden fehl, steht ein vorausgefüllter mailto-Link da.
  */
 import { contactEmail } from '../config/site.mjs';
 import { inquiry } from '../config/inquiry.mjs';
@@ -40,6 +40,7 @@ const f = (name: string) => `${id}-${name}`;
     action="/api/v1/contact"
     enctype="multipart/form-data"
     data-inquiry
+    data-step="1"
     data-min-seconds={inquiry.minSeconds}
     data-max-files={inquiry.photos.max}
     data-max-bytes={inquiry.photos.maxTotalBytes}
@@ -53,61 +54,62 @@ const f = (name: string) => `${id}-${name}`;
       <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
     </div>
 
-    <div class="field">
-      <label class="field__label" for={f('message')}>Worum geht es?</label>
-      <textarea class="textarea" id={f('message')} name="message" rows="5" required placeholder="Beschreiben Sie kurz Ihr Anliegen – um welche Maschine es geht und was zu tun ist." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
-      <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
-    </div>
-
-    <div class="field">
-      <label class="iform__drop" for={f('photos')}>
-        <span class="iform__drop-ico" aria-hidden="true"><Icon name="camera" size={20} /></span>
-        <span class="iform__drop-text">
-          <span class="iform__drop-title">Foto oder Skizze hinzufügen</span>
-          <span class="iform__drop-sub" id={f('photos-hint')}>Optional – bis zu {inquiry.photos.max} Dateien (Foto oder Skizze als Bild), zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB</span>
-        </span>
-        <input class="iform__drop-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
-      </label>
+    <div class="iform__step iform__step--1">
+      <div class="field">
+        <label class="visually-hidden" for={f('message')}>Worum geht es?</label>
+        <textarea class="textarea iform__ask" id={f('message')} name="message" rows="5" required placeholder="Worum geht es? Zum Beispiel: Unser Heukran ruckelt beim Heben." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
+        <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
+      </div>
+      <div class="iform__bar">
+        <label class="iform__attach" for={f('photos')}>
+          <Icon name="camera" size={18} /> Foto anhängen <span class="iform__opt">optional</span>
+          <input class="iform__attach-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
+        </label>
+        <button type="button" class="btn btn--primary btn--lg iform__next" data-next>Weiter <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+      </div>
+      <p class="visually-hidden" id={f('photos-hint')}>Bis zu {inquiry.photos.max} Bilder, zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
       <ul class="iform__files" data-file-list hidden></ul>
       <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
     </div>
 
-    <div class="iform__row">
-      <div class="field">
-        <label class="field__label" for={f('name')}>Name</label>
-        <input class="input" id={f('name')} name="name" type="text" required maxlength={L.name} autocomplete="name" aria-describedby={f('name-error')} />
-        <p class="field__error" id={f('name-error')} data-error-for="name" hidden></p>
+    <div class="iform__step iform__step--2">
+      <p class="iform__recap">Ihr Anliegen: <strong data-recap></strong> · <button type="button" class="iform__edit" data-edit>Ändern</button></p>
+      <div class="iform__row">
+        <div class="field">
+          <label class="field__label" for={f('name')}>Name</label>
+          <input class="input" id={f('name')} name="name" type="text" required maxlength={L.name} autocomplete="name" aria-describedby={f('name-error')} />
+          <p class="field__error" id={f('name-error')} data-error-for="name" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for={f('email')}>E-Mail</label>
+          <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" required aria-describedby={f('email-error')} />
+          <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
+        </div>
       </div>
-      <div class="field">
-        <label class="field__label" for={f('company')}>Firma <span class="field__opt">optional</span></label>
-        <input class="input" id={f('company')} name="company" type="text" maxlength={L.company} autocomplete="organization" />
+      <div class="iform__row">
+        <div class="field">
+          <label class="field__label" for={f('phone')}>Telefon <span class="field__opt">optional</span></label>
+          <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={f('phone-error')} />
+          <p class="field__error" id={f('phone-error')} data-error-for="phone" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for={f('company')}>Firma <span class="field__opt">optional</span></label>
+          <input class="input" id={f('company')} name="company" type="text" maxlength={L.company} autocomplete="organization" />
+        </div>
       </div>
-    </div>
-    <div class="iform__row">
-      <div class="field">
-        <label class="field__label" for={f('phone')}>Telefon <span class="field__opt">optional</span></label>
-        <input class="input" id={f('phone')} name="phone" type="tel" maxlength={L.phone} autocomplete="tel" aria-describedby={f('phone-error')} />
-        <p class="field__error" id={f('phone-error')} data-error-for="phone" hidden></p>
-      </div>
-      <div class="field">
-        <label class="field__label" for={f('email')}>E-Mail</label>
-        <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" required aria-describedby={f('email-error')} />
-        <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
-      </div>
-    </div>
 
-    {/* Der Newsletter: nie vorausgewählt, nie Bedingung – angemeldet ist erst, wer in der
-        Eingangsbestätigung klickt (Double Opt-in). Der Satz ist der Wortlaut des Nachweises. */}
-    <label class="iform__consent">
-      <input type="checkbox" name="newsletter" value="1" />
-      <span>{plain(newsletter.consent)}</span>
-    </label>
+      {/* Der Newsletter: nie vorausgewählt, nie Bedingung – angemeldet ist erst, wer in der
+          Eingangsbestätigung klickt (Double Opt-in). Der Satz ist der Wortlaut des Nachweises. */}
+      <label class="iform__consent">
+        <input type="checkbox" name="newsletter" value="1" />
+        <span>{plain(newsletter.consent)}</span>
+      </label>
 
-    <div class="iform__foot">
-      <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
-      <p class="small muted">
-        Ihre Angaben verwenden wir nur für diese Anfrage – <a class="link" href="/datenschutz">Datenschutz</a>.
-      </p>
+      <div class="iform__foot">
+        <span class="iform__count">Schritt 2 von 2</span>
+        <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+      </div>
+      <p class="iform__privacy">Ihre Angaben verwenden wir nur für diese Anfrage – <a class="link" href="/datenschutz">Datenschutz</a>.</p>
     </div>
   </form>
 </div>

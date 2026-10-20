@@ -36,7 +36,7 @@ const teaser = (path: string) => area.children.find((c) => c.href === path)?.tex
 
   <section class="section section--tight" aria-labelledby="auf-einen-blick">
     <div class="wrap grid">
-      <div class="col-8 area-glance">
+      <div class="col-12 area-glance">
         <h2 id="auf-einen-blick" class="label">Auf einen Blick</h2>
         <Rich as="p" class="area-glance__text" text={page.summary} />
         <p class="area-glance__ind"><span class="label">Für wen</span> <Rich as="span" text={area.industries} /></p>
@@ -68,9 +68,9 @@ const teaser = (path: string) => area.children.find((c) => c.href === path)?.tex
   </section>
 
   <section class="section section--rule" aria-labelledby="fragen">
-    <div class="wrap grid">
-      <div class="col-4"><SectionHead eyebrow="Fragen" title="Häufige Fragen" id="fragen" /></div>
-      <div class="col-8"><Faq items={page.faq} /></div>
+    <div class="wrap faq-wrap">
+      <SectionHead title="Häufige Fragen" id="fragen" center />
+      <Faq items={page.faq} />
     </div>
   </section>
 
@@ -79,7 +79,7 @@ const teaser = (path: string) => area.children.find((c) => c.href === path)?.tex
 
 <style>
   .area-glance { display: grid; gap: var(--s-3); }
-  .area-glance__text { font-size: 1.125rem; color: var(--ink); max-width: 60ch; }
+  .area-glance__text { font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem); line-height: 1.45; color: var(--ink); max-width: 46em; }
   .area-glance__ind { padding-top: var(--s-3); border-top: 1px solid var(--line); color: var(--ink-2); max-width: 60ch; }
   .area-glance__ind .label { margin-right: var(--s-2); }
   .season-slot:empty { display: none; }

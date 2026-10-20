@@ -119,6 +119,10 @@ export function apply(built: Built, c: Contact, root: HTMLElement = document.bod
         el.append(line);
       });
     });
+    // Dieselbe Anschrift in einer Zeile (Kontaktliste, Kachel im Kopf).
+    root.querySelectorAll<HTMLElement>('[data-erp="address-line"]').forEach((el) => {
+      if (!el.closest('[data-erp-fixed]')) el.textContent = [c.name, ...lines].join(', ');
+    });
   }
 }
 

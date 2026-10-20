@@ -2,7 +2,8 @@
  * Das Anfrage-Formular (überall dasselbe, #1107/#1129) – Komfort auf einem Formular, das
  * ohne JS vollständig klassisch an den Server geht.
  *
- *  - EIN Feld für das Anliegen, Anhänge, wer fragt an (Rückmeldung 04.10.2026)
+ *  - EIN Feld für das Anliegen, Anhänge, wer fragt an (Rückmeldung 04.10.2026) – in zwei
+ *    Schritten (v4): «Weiter» prüft das Anliegen, dann folgen die Kontaktangaben
  *  - Fehler erscheinen direkt am Feld (aria-invalid + aria-describedby); die Wörter kommen
  *    aus der Konfiguration (data-vocab) – der Server meldet wortgleich
  *  - Senden im Hintergrund; Erfolg ersetzt das Formular, ein Fehler lässt alle Eingaben
@@ -45,6 +46,15 @@ function setup(form: HTMLFormElement): void {
 
   prefill(form);
   prefillAccount(form);
+  const step = steps(form, vocab);
+  root.querySelector<HTMLButtonElement>('[data-reset]')?.addEventListener('click', () => {
+    form.reset();
+    listFiles(form, form.querySelector<HTMLInputElement>('input[type="file"]')!);
+    prefillAccount(form);
+    if (okPanel) okPanel.hidden = true;
+    form.hidden = false;
+    step(1);
+  });
 
   // ---------- Live: Fehler verschwinden beim Korrigieren ----------
   form.addEventListener('input', (e) => clearError(form, (e.target as HTMLInputElement).name));
@@ -60,7 +70,9 @@ function setup(form: HTMLFormElement): void {
   // ---------- Senden ----------
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!render(form, validate(form, vocab))) return;
+    const errors = validate(form, vocab);
+    if (errors.message || errors.photos) step(1);
+    if (!render(form, errors)) return;
 
     // Ausfüllzeit in Millisekunden – gemessen mit der Uhr DIESES Geräts.
     setValue(form, 't', String(Date.now() - loadedAt));
@@ -99,6 +111,30 @@ function setup(form: HTMLFormElement): void {
       if (submit) submit.disabled = false;
     }
   });
+}
+
+// ------------------------------------------------------------------ Schritte
+
+/** Schritt 1 (Anliegen) ↔ 2 (Kontakt). Gibt die Funktion zurück, die den Schritt setzt. */
+function steps(form: HTMLFormElement, vocab: Vocab): (n: 1 | 2) => void {
+  const recap = form.querySelector<HTMLElement>('[data-recap]');
+  const go = (n: 1 | 2, focus = false) => {
+    form.dataset.step = String(n);
+    if (recap) {
+      const msg = value(form, 'message').replace(/\s+/g, ' ');
+      recap.textContent = msg.length > 80 ? `${msg.slice(0, 79)}…` : msg;
+    }
+    if (focus) form.querySelector<HTMLElement>(n === 1 ? '[name="message"]' : '[name="name"]')?.focus();
+  };
+  form.querySelector('[data-next]')?.addEventListener('click', () => {
+    const all = validate(form, vocab);
+    const errors: Errors = {};
+    if (all.message) errors.message = all.message;
+    if (all.photos) errors.photos = all.photos;
+    if (render(form, errors)) go(2, true);
+  });
+  form.querySelector('[data-edit]')?.addEventListener('click', () => go(1, true));
+  return (n) => go(n);
 }
 
 // ------------------------------------------------------------------ Prüfen

@@ -19,12 +19,12 @@ const { items } = Astro.props;
   .tl { list-style: none; padding: 0 0 0 30px; display: grid; gap: var(--s-6); position: relative; }
   .tl__rail { position: absolute; left: 6px; top: 8px; bottom: 8px; width: 13px; }
   .tl__line { position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--ink); transform-origin: top center; }
-  .tl__cat { position: absolute; left: 0; bottom: 0; width: 13px; height: 13px; background: var(--red); }
-  .tl__year { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; letter-spacing: var(--tracking-tight); color: var(--red); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tl__cat { position: absolute; left: 0; bottom: 0; width: 13px; height: 13px; background: var(--ink); }
+  .tl__year { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; letter-spacing: var(--tracking-tight); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
   .tl__text { margin-top: 4px; color: var(--ink-2); max-width: 30ch; }
   :global(.section--dark) .tl__line { background: rgba(255, 255, 255, 0.5); }
   :global(.section--dark) .tl__year { color: var(--red-on-dark); }
-  :global(.section--paper) .tl__year { color: var(--red-hover); }
+  :global(.section--paper) .tl__year { color: var(--ink); }
   .tl__rail:global(.is-armed) .tl__line { transform: scaleY(0); }
   .tl__rail:global(.is-armed) .tl__cat { opacity: 0; }
   .tl__rail:global(.is-drawn) .tl__line { transform: none; transition: transform 800ms var(--ease); }
