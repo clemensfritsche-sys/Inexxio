@@ -44,7 +44,7 @@ LOGO, LOGO_DARK = "/mail/logo.png", "/mail/logo-dark.png"
 LOGO_W, LOGO_H = 69, 26
 GREETING = "Freundliche Grüsse"
 FONT = "Inter, Arial, Helvetica, sans-serif"
-INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#45423D", "#6B6862", "#E4E2DE"
+INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#66686D", "#E3E4E7"
 GREEN, RED_TEXT = "#1E7F46", "#C8140F"
 #: Nur die Grussformel selbst – «Danke für Ihre Nachricht» ist Inhalt, kein Gruss.
 _GREETING = re.compile(

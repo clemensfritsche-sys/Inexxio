@@ -50,14 +50,14 @@ const OG = [
 
 function ogHtml({ eyebrow, title }) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${base}
-    body { width: 1200px; height: 630px; background: #F7F6F4; color: #0A0A0B; position: relative; overflow: hidden; }
+    body { width: 1200px; height: 630px; background: #F5F6F7; color: #0A0A0B; position: relative; overflow: hidden; }
     .pad { position: absolute; inset: 64px 72px; display: flex; flex-direction: column; }
     .eyebrow { font-size: 20px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #C8140F; }
     h1 { margin-top: 28px; font-size: 68px; line-height: 1.04; letter-spacing: -0.03em; font-weight: 700; max-width: 960px; }
     /* Signatur des Design-Systems v3: Punktraster, zum Rand hin ausgeblendet; Haarlinie über dem Fuss. */
-    .dots { position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, #D1CEC8 1.5px, transparent 0); background-size: 28px 28px;
+    .dots { position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, #D0D2D6 1.5px, transparent 0); background-size: 28px 28px;
       -webkit-mask-image: radial-gradient(ellipse at 85% 30%, #000 0%, transparent 65%); }
-    .rail { position: absolute; left: 72px; right: 72px; bottom: 170px; height: 1px; background: #D1CEC8; }
+    .rail { position: absolute; left: 72px; right: 72px; bottom: 170px; height: 1px; background: #D0D2D6; }
     .foot { position: absolute; left: 72px; right: 72px; bottom: 64px; display: flex; align-items: center; justify-content: space-between; }
     .lock svg { display: block; height: 86px; width: auto; }
     .tel { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }

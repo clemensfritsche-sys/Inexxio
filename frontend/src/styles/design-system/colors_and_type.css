@@ -1,6 +1,6 @@
 /* ============================================================
-   INEXXIO Design System v3 — Foundations (tokens)
-   "Klein wohnen. Gross leben."
+   INEXXIO Design System v4 — Foundations (tokens)
+   Krane · Fahrmischer · Spezialmaschinen – Tuttwil, seit 1982
    Layer 1 = primitives (scales) · Layer 2 = semantic aliases ·
    Layer 3 = legacy aliases (v2 names keep working)
    ============================================================ */
@@ -12,10 +12,11 @@
   --red-50:#FEF2F1; --red-100:#FDE3E1; --red-200:#FBC6C2; --red-300:#F69790; --red-400:#EE5A51;
   --red-500:#E51A14; --red-600:#C8140F; --red-700:#A5110D; --red-800:#840F0C; --red-900:#5E0B09;
 
-  /* Warm neutral — one temperature for everything */
-  --gray-0:#FFFFFF; --gray-25:#FCFBFA; --gray-50:#F7F6F4; --gray-100:#EFEEEB; --gray-200:#E4E2DE;
-  --gray-300:#D1CEC8; --gray-400:#A9A6A0; --gray-500:#7D7A75; --gray-600:#5F5C58; --gray-700:#45433F;
-  --gray-800:#2D2B29; --gray-900:#1A1918; --gray-950:#0A0A0B;
+  /* Cool neutral (v4) — one temperature for everything: a clean, slightly cool grey
+     instead of the warm beige of v3 (which read as calm, but generic). */
+  --gray-0:#FFFFFF; --gray-25:#FBFBFC; --gray-50:#F5F6F7; --gray-100:#EEEFF1; --gray-200:#E3E4E7;
+  --gray-300:#D0D2D6; --gray-400:#A3A5AA; --gray-500:#7A7C80; --gray-600:#5E6064; --gray-700:#44464A;
+  --gray-800:#2C2D30; --gray-900:#191A1C; --gray-950:#0A0A0B;
 
   /* Slate — quiet 3rd voice: info, links in ERP, charts */
   --slate-50:#EEF4F7; --slate-100:#DCE8EE; --slate-400:#5E93AD; --slate-600:#2C6E8F; --slate-700:#1C4D66;
@@ -70,10 +71,10 @@
   --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:12px; --radius-xl:16px; --radius-full:999px;
 
   /* ---------- ELEVATION (only for things that float) ---------- */
-  --elev-1:0 1px 2px rgba(20,18,16,.05);
-  --elev-2:0 1px 2px rgba(20,18,16,.04),0 2px 8px rgba(20,18,16,.05);
-  --elev-3:0 2px 4px rgba(20,18,16,.04),0 10px 24px rgba(20,18,16,.08);
-  --elev-4:0 4px 8px rgba(20,18,16,.05),0 24px 48px rgba(20,18,16,.14);
+  --elev-1:0 1px 2px rgba(15,17,20,.05);
+  --elev-2:0 1px 2px rgba(15,17,20,.04),0 2px 8px rgba(15,17,20,.05);
+  --elev-3:0 2px 4px rgba(15,17,20,.04),0 10px 24px rgba(15,17,20,.08);
+  --elev-4:0 4px 8px rgba(15,17,20,.05),0 24px 48px rgba(15,17,20,.14);
   --elev-primary:0 1px 2px rgba(165,17,13,.16),0 4px 10px -4px rgba(229,26,20,.30); /* red button hover only */
 
   /* ---------- CONTROLS & ICONS ---------- */
@@ -86,6 +87,14 @@
   --dur-slow:280ms; /* @kind other */
   --ease-out:cubic-bezier(.2,.7,.2,1); /* @kind other */
   --ease-in-out:cubic-bezier(.4,0,.2,1); /* @kind other */
+
+  /* ---------- GLASS (v4 · website only, never in the ERP) ----------
+     Frosted glass over an image or a calm surface – the open header, menus, the switcher,
+     text on photos. One layer only: glass never sits inside another card. */
+  --glass-light:rgba(246,247,249,.62); --glass-light-rim:rgba(255,255,255,.7);
+  --glass-dark:rgba(10,10,11,.28);      --glass-dark-rim:rgba(255,255,255,.16);
+  --glass-blur:blur(28px) saturate(170%); /* @kind other */
+  --glass-shadow:0 24px 64px rgba(10,10,11,.18),0 2px 6px rgba(10,10,11,.06);
 
   /* ---------- FOCUS ---------- */
   --focus-ring:0 0 0 2px #FFFFFF,0 0 0 4px var(--gray-950);
@@ -103,9 +112,9 @@
   --inexxio-red:var(--red-500); --inexxio-red-bright:var(--red-400); --inexxio-red-deep:var(--red-700);
   --inexxio-black:var(--gray-950); --inexxio-white:#FFFFFF;
   --fg-1:var(--color-text); --fg-2:var(--color-text-secondary); --fg-3:var(--color-text-muted); --fg-4:var(--color-text-disabled);
-  --fg-on-red:#FFFFFF; --fg-on-dark:#F4F3F1;
+  --fg-on-red:#FFFFFF; --fg-on-dark:#F3F4F6;
   --bg-1:#FFFFFF; --bg-2:var(--gray-50); --bg-3:var(--gray-100); --bg-4:var(--gray-200); --bg-dark:var(--gray-950); --bg-dark-2:var(--gray-900);
-  --sand-50:#FBF9F6; --sand-100:#F5F1EB; --sand-200:#EBE4DA; --sand-300:#DACFC0; --sand-400:#B9AB97; --oak:#C9A27A; --stone:#9AA0A0;
+  --sand-50:var(--gray-25); --sand-100:var(--gray-50); --sand-200:var(--gray-100); --sand-300:var(--gray-200); --sand-400:var(--gray-400); --oak:#C9A27A; --stone:#9AA0A0;
   --accent:var(--slate-600); --accent-soft:var(--slate-50); --accent-ink:var(--slate-700);
   --success:var(--color-success); --success-bg:var(--color-success-subtle);
   --warning:var(--color-warning); --warning-bg:var(--color-warning-subtle);
@@ -140,17 +149,17 @@
 /* ---------- DARK THEME (opt-in: <html data-theme="dark">) ---------- */
 [data-theme="dark"] {
   --color-bg:#0E0E0F; --color-bg-subtle:#151515; --color-bg-muted:#1C1C1D;
-  --color-surface:#151515; --color-inverse:#F4F3F1;
-  --color-text:#F4F3F1; --color-text-secondary:#C9C6C1; --color-text-muted:#9A978F; --color-text-disabled:#5F5C58; --color-text-inverse:#0A0A0B;
-  --color-border:#2A2928; --color-border-strong:#3A3937; --color-border-focus:#F4F3F1;
+  --color-surface:#151515; --color-inverse:#F3F4F6;
+  --color-text:#F3F4F6; --color-text-secondary:#C6C8CD; --color-text-muted:#96989E; --color-text-disabled:#5E6064; --color-text-inverse:#0A0A0B;
+  --color-border:#28292C; --color-border-strong:#383A3E; --color-border-focus:#F3F4F6;
   --color-primary:#EF3A33; --color-primary-hover:#F2554F; --color-primary-active:#E51A14; --color-primary-subtle:rgba(239,58,51,.14); --color-primary-text:#F47C76;
-  --color-ink:#F4F3F1; --color-ink-hover:#FFFFFF;
+  --color-ink:#F3F4F6; --color-ink-hover:#FFFFFF;
   --color-accent:#6FA6C2; --color-accent-subtle:rgba(111,166,194,.14); --color-accent-text:#9CC3D6;
   --color-success:#4CB97A; --color-success-subtle:rgba(76,185,122,.14);
   --color-warning:#E8A84A; --color-warning-subtle:rgba(232,168,74,.14); --color-warning-icon:#E8A84A;
   --color-danger:#F47C76; --color-danger-subtle:rgba(239,58,51,.14);
   --color-info:#6FA6C2; --color-info-subtle:rgba(111,166,194,.14);
-  --focus-ring:0 0 0 2px #0E0E0F,0 0 0 4px #F4F3F1;
+  --focus-ring:0 0 0 2px #0E0E0F,0 0 0 4px #F3F4F6;
   --elev-2:0 1px 2px rgba(0,0,0,.4),0 2px 8px rgba(0,0,0,.3);
   --elev-3:0 2px 4px rgba(0,0,0,.4),0 10px 24px rgba(0,0,0,.4);
   --elev-4:0 4px 8px rgba(0,0,0,.4),0 24px 48px rgba(0,0,0,.5);
@@ -175,3 +184,6 @@
 .ix-index{font:var(--mono-sm);letter-spacing:.04em;color:var(--color-primary-text);font-variant-numeric:tabular-nums;}
 .ix-rule{height:1px;background:var(--color-border);border:0;}
 .ix-rule-strong{height:2px;background:var(--color-text);border:0;}
+/* Glass (v4, website only): .ix-glass on light surfaces, .ix-glass-dark on photos. */
+.ix-glass{background:var(--glass-light);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-light-rim);}
+.ix-glass-dark{background:var(--glass-dark);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-dark-rim);color:#FFFFFF;}

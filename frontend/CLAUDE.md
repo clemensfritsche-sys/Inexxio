@@ -87,7 +87,7 @@ Skill `inexxio-design-system`.
   `app/layout.tsx`). Tailwind-Utilities daraus (`bg-bg-1/2/3`, `text-fg-1…4`, `text-accent`,
   `text-inexxio`, `border-border-1/2`, `rounded-ds-lg`, `shadow-ds-sm/md`, `font-display`),
   Zahlen `.ix-tnum`.
-- **Farbe = Bedeutung**: warme Neutraltöne = Fläche · Rot (`inexxio`) = der eine laute Akzent
+- **Farbe = Bedeutung**: kühle, neutrale Grautöne (v4) = Fläche · Rot (`inexxio`) = der eine laute Akzent
   · Slate (`accent`) = Info/aktiv/Links im ERP.
 - **ERP**: Haarlinien + Weissraum statt Schatten; Status = Punkt + Wort; Lucide-Symbole;
   8-px-Raster. Eine Detail-Ansicht hat **eine** Breite (`fields.DETAIL_MAXW` über

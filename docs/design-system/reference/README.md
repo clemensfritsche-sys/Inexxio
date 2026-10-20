@@ -7,6 +7,10 @@ nicht als produktiver Code:
   die HTML/CSS-Mockups der neu gestalteten Instanz-Detailseite. Vorlage für das
   Redesign von `frontend/src/components/erp/instance-detail.tsx` (pixelgenau
   nachbauen, aber mit den Design-System-Tokens/Utilities statt Inline-HTML).
+- **`mockups/Startseite v4.dc.html`** + **`Startseite v4 mobil.dc.html`** — die
+  abgenommene Startseite (Design-Artefakt «Website Startseite», Oktober 2026): die
+  Vorlage für die Website-Sprache v4 (README §3a). Bilder und Zeichnungen sind dort
+  Verweise in den Artefakt-Speicher (`/_blob/…`); die echten liegen in `website/`.
 - **`components/*.tsx`** — von Claude Design generierte Referenz-React-Komponenten
   (Button, Badge, Tabs, Input, Select, Process-Tracker, Item-Detail-Form). Zeigen die
   gewünschte Optik/API. **Nicht 1:1 in die App kopieren** — die App hat eigenes,

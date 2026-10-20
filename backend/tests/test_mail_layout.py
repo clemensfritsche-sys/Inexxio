@@ -120,7 +120,7 @@ def test_no_stage_and_a_logo_without_a_background():
     Fassung, wo der Client den dunklen Modus meldet."""
     from PIL import Image
     html = layout.compose("x", "y", FIRM, None).html
-    assert "#EFEEEB" not in html and "#F7F6F4" not in html
+    assert not any(tint in html for tint in ("#EFEEEB", "#F7F6F4", "#EEEFF1", "#F5F6F7"))
     assert layout.LOGO_DARK in html and "prefers-color-scheme:dark" in html
     pub = Path(__file__).resolve().parents[2] / "frontend" / "public"
     for name in (layout.LOGO, layout.LOGO_DARK):

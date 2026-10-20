@@ -1,6 +1,6 @@
 # Inexxio Design System — verbindliche Grundlage
 
-> **Klein wohnen. Gross leben.**
+> **Krane · Fahrmischer · Spezialmaschinen.** – Stand v4, Oktober 2026.
 > Dies ist die **eine, verbindliche** Design-Grundlage für ALLE Oberflächen von
 > Inexxio (Website, Shop, ERP). Jede neue oder geänderte UI **muss** auf diesem
 > System aufbauen. Es ist der in den Code übernommene Export aus **Claude Design**
@@ -40,9 +40,10 @@ Komponenten hart kodieren.
 
 ## 3. Kernregeln (aus den Foundations, verbindlich)
 
-- **Farbe = Bedeutung.** Warme Neutraltöne (`bg-*`, `sand-*`, `fg-*`) tragen die
-  Fläche. **Rot (`inexxio`) ist der EINE laute Akzent** – nur CTA, ein Headline-Wort,
-  aktive Nav-Unterstreichung, echte Fehler. Nie dekorativ.
+- **Farbe = Bedeutung.** Kühle, neutrale Grautöne (v4, `bg-*`, `fg-*`) tragen die
+  Fläche – überall gleich: Website, Konto, ERP, E-Mail. **Rot (`inexxio`) ist der EINE
+  laute Akzent** – CTA, aktiver Zustand, echte Fehler. Nie dekorativ, **nie in einer
+  Überschrift** (seit v4).
 - **Slate (`accent`) ist die leise dritte Stimme** – informative/aktive Zustände,
   Links, aktive Zeilen im dichten ERP, wo Rot zu laut wäre oder als Alarm gelesen
   würde. Konkurriert **nie** mit Rot. `accent-soft` = getönte Füllung, `accent-ink`
@@ -57,18 +58,57 @@ Komponenten hart kodieren.
   `font-variant-numeric: tabular-nums`), wo Werte ausgerichtet sind.
 - **Icons:** ausschliesslich **Lucide** (`lucide-react`), funktional & sparsam,
   neutral `fg-3`/`fg-2`; Rot nur für aktiv/selektiert. Keine Emoji, kein Deko-Icon-Set.
-- **Schweizer Konventionen:** CHF mit `'`-Tausendertrennung (`9'999 CHF`), `25 m²`;
-  Headlines/CTA in **du**, erklärender Service-Text in **Sie** (nicht mischen).
+- **Schweizer Konventionen:** CHF mit `'`-Tausendertrennung (`9'999 CHF`), `25 m²`,
+  **ss** statt ß; angesprochen wird mit **Sie**.
+- **Wörter (v4):** kein «Fixpreis» (in keiner Form), keine «Werkstatt» – stattdessen
+  «Standort», «Betrieb», «bei INEXXIO».
 - **Radien/Schatten (v3):** Bedienelemente 8 px (`rounded-ds-md`), Karten 12 px
   (`rounded-ds-lg`), Dialoge 16 px. **Keine Pillen-Knöpfe.** Flach als Standard – Linien
   trennen, Schatten nur für schwebende Ebenen (Menü, Dialog, Toast). Glow-Tokens sind
   `none`. Der rote Knopf bekommt `shadow-ds-red` (= `--elev-primary`, sehr dezent)
   nur als Hover/Press-Akzent, **nie** als Ruhezustand.
 
-## 3a. Version
+## 3a. Website-Sprache (v4, verbindlich für Website und Konto-Kopf)
+
+Referenz zum Anschauen: `reference/mockups/Startseite v4.dc.html` und
+`Startseite v4 mobil.dc.html` (Design-Artefakt «Website Startseite»).
+
+- **Überschrift – eine Form:** H2 in `font-display` 600, 48 px (mobil 32 px),
+  −0.03 em; darunter **höchstens ein** grauer Satz (`fg-3`, 17/16 px). Keine Kicker
+  darüber, keine roten Wörter, kein Mono, keine gesperrte Schrift. Zentriert nur bei
+  «Häufige Fragen».
+- **Knöpfe:** Rot **nur für die Anfrage** («Anfrage stellen», «Weiter», «Anfrage
+  senden», «Aufgabe schildern»). Abschnitts-Links («Mehr über uns», «Alle
+  Ratgeber-Artikel») hellgrau (`bg-3`). Auf Bildkarten ein **runder Pfeil** (44 px, Glas).
+  Radius 8 px, Höhen 52 (gross) · 48 · 44.
+- **Karten:** Radius 16 px, Bild vollflächig, Text **direkt auf dem Bild** über einem
+  dunklen Verlauf. **Kein Kasten im Kasten:** Text und Knopf nie gemeinsam in einem
+  Glas- oder Rahmenkasten.
+- **Glas** (`.ix-glass` hell, `.ix-glass-dark` auf Fotos; Tokens `--glass-*`): offener
+  Kopf und Menüs, Umschalter, Text auf Fotos, Eingabefelder über der Karte. Eine Ebene,
+  nie verschachtelt. **Nie im ERP.**
+- **Abschnitts-Muster:** Bühne mit Video · Bereichskarten, die beim Darüberfahren ~25 %
+  breiter werden und ihre Kran-Szene spielen · Umschalter mit Überblendung · versetzte
+  Karten (Garantien) · grosse Zahlen neben Porträt · Bild-Collage · Karussell mit
+  angeschnittenen Nachbarn · Akkordeon in Glas über wechselndem Bild · Anfrage auf der
+  Skizzenkarte (erst ein Feld, dann Kontakt).
+- **Zeichnungen:** isometrisch, Grau-Rampe; **Grau ist die Serie, Rot ist, was wir
+  dazubauen.**
+- **Bewegung:** Überblenden 0.35–0.6 s mit `--ease-out`; bei `prefers-reduced-motion`
+  steht alles.
+
+## 3b. Version
+
+**v4 (Oktober 2026)** – kühles, neutrales Grau statt warmem Beige (gleiche Token-Namen,
+neue Werte: `--gray-*`, Elevation, Dark-Theme, `--fg-on-dark`, `sand-*` zeigt auf die
+Grauskala), Glas-Tokens `--glass-*` und `.ix-glass*`, die Website-Sprache §3b. ERP und
+Konto übernehmen das Grau automatisch über die Tokens; Glas bleibt der Website vorbehalten.
+Die E-Mail-Vorlage (`backend/app/services/mail_layout.py`) und die Website-Zeichnungen sind
+mitgezogen.
+
 
 **v3 (Oktober 2026)** – ruhiger und leichter: Titel 700/600 statt 800, Radien 8/12/16 statt
-12/20/28, keine Pillen, flach statt Schatten, Glow entfernt, eine warme Grau-Rampe
+12/20/28, keine Pillen, flach statt Schatten, Glow entfernt, eine (damals warme) Grau-Rampe
 (`--gray-*`, AA-geprüft) und eine Rot-Rampe (`--red-50…900`), drei Token-Schichten
 (Primitive → semantisch `--color-*` → v2-Aliase). **Alle v2-Namen lösen weiter auf** –
 kein Komponenten-Refactor nötig. Vollständige Regeln: `reference/claude-design-README.md` §0.

@@ -46,7 +46,7 @@
    irgendwo öffnet die Auswahl, Tastatur und Screenreader erreichen weiterhin das Feld. */
 .iform__drop {
   position: relative; display: flex; align-items: center; gap: 14px; padding: 16px;
-  border: 1px dashed var(--ink-4); border-radius: var(--r-md); background: #FCFBFA; cursor: pointer;
+  border: 1px dashed var(--ink-4); border-radius: var(--r-md); background: #FBFBFC; cursor: pointer;
   transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 .iform__drop:hover { border-color: var(--ink-3); background: var(--white); }

@@ -33,9 +33,9 @@ Design, in den Code übernommen). **Bevor** du UI schreibst oder änderst:
   (tabellarische Zahlen), `.ix-rule` / `.ix-rule-strong`.
 
 ## Kernregeln (nicht verhandelbar)
-- **Farbe = Bedeutung.** Warme Neutraltöne tragen die Fläche. **Rot (`inexxio`) =
-  der EINE laute Akzent** — CTA, ein Headline-Wort, aktiver Zustand, echter Fehler;
-  nie dekorativ, nie flächig. **Slate (`accent`) = die leise Stimme** für Info,
+- **Farbe = Bedeutung.** Kühle, neutrale Grautöne (v4) tragen die Fläche – Website,
+  Konto, ERP und E-Mail gleich. **Rot (`inexxio`) = der EINE laute Akzent** — CTA,
+  aktiver Zustand, echter Fehler; nie dekorativ, nie flächig, **nie in Überschriften**. **Slate (`accent`) = die leise Stimme** für Info,
   aktive Zeilen/Nav, Links im dichten ERP. Slate konkurriert nie mit Rot.
 - **ERP: Struktur vor Fläche** — Haarlinien (`border-border-1`) + Weissraum statt
   Kartenrahmen+Schatten. `shadow-ds-*` nur für echte Overlays (Modal/Menü).
@@ -46,8 +46,19 @@ Design, in den Code übernommen). **Bevor** du UI schreibst oder änderst:
   Rot nur aktiv/selektiert. **Keine Emoji**, kein Deko-Icon-Set.
 - **Typo:** Headlines `font-display` (Inter Tight 700, Zwischentitel 600, kein 800+), Body
   `font-body` (Inter). **Zahlen immer tabellarisch** (`.ix-tnum`), wo sie ausrichten.
-- **Schweiz:** CHF mit `'`-Trennung (`9'999 CHF`), `25 m²`; **du** in Headlines/CTA,
-  **Sie** im erklärenden Service-Text — nicht mischen.
+- **Schweiz:** CHF mit `'`-Trennung (`9'999 CHF`), `25 m²`, **ss** statt ß; Anrede **Sie**.
+- **Wörter:** nie «Fixpreis», nie «Werkstatt» (→ «Standort», «Betrieb», «bei INEXXIO»).
+
+## Website (v4) – vor jeder Website-Arbeit README §3a lesen
+- **Überschrift:** eine Form – H2 Inter Tight 600, 48/32 px, darunter höchstens ein grauer
+  Satz. Keine Kicker, keine roten Wörter, kein Mono.
+- **Knöpfe:** Rot nur für die Anfrage; Abschnitts-Links hellgrau (`bg-3`); auf Bildkarten
+  ein runder Glas-Pfeil; Radius 8 px.
+- **Karten:** 16 px, Text direkt auf dem Bild mit Verlauf; **kein Kasten im Kasten**.
+- **Glas:** `.ix-glass` / `.ix-glass-dark` (`--glass-*`) – Kopf, Menüs, Umschalter, Text auf
+  Fotos, Felder über der Karte. Eine Ebene. **Nie im ERP.**
+- **Vorlage:** `docs/design-system/reference/mockups/Startseite v4.dc.html` (+ mobil) –
+  daran messen, nicht neu erfinden.
 
 ## Die Alt-Palette ist weg
 `slate-*`, `blue-*`, `gray-*`, `#2563eb` und der `brand-*`-Vorrat sind aus dem Code

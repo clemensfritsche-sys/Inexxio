@@ -284,8 +284,11 @@ Oberfläche und Dienst garantiert dasselbe.
 Grundlage ALLER Oberflächen (Website, Konto, ERP). Regeln: **`docs/design-system/README.md`**
 (vor UI-Arbeit lesen), Skill `inexxio-design-system`. Tokens **nur** in
 `frontend/src/styles/design-system/colors_and_type.css` (die Website generiert ihre daraus).
-Farbe = Bedeutung: warme Neutraltöne tragen die Fläche, **Rot (`inexxio`) ist der eine laute
-Akzent**, **Slate (`accent`) die leise Stimme**. ERP: Struktur vor Fläche (Haarlinien statt
+Farbe = Bedeutung: **kühle, neutrale Grautöne** (v4) tragen die Fläche, **Rot (`inexxio`) ist
+der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise Stimme**. Website:
+eine Überschrift-Form, Rot nur für die Anfrage, Glas (`.ix-glass*`) nur dort, nie im ERP;
+Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`. Wörter: kein
+«Fixpreis», keine «Werkstatt». ERP: Struktur vor Fläche (Haarlinien statt
 Schatten), Status als Punkt + Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
 Infotexte im Hover, 8-px-Raster, Inter / Inter Tight. **Die Alt-Palette ist weg** (`slate-*`,
 `blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen). Eine unbekannte Tailwind-Klasse oder

@@ -202,7 +202,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .section--paper { background: transparent; }
 .section--dark { background: var(--dark); color: var(--on-dark); --overline: var(--red-on-dark); }
 .section--dark h1, .section--dark h2, .section--dark h3, .section--dark h4, .section--dark strong { color: var(--white); }
-.section--dark .lead, .section--dark p { color: rgba(244, 243, 241, 0.72); }
+.section--dark .lead, .section--dark p { color: rgba(243, 244, 246, 0.72); }
 .section--rule { border-top: 0; }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-6) var(--s-5); }
