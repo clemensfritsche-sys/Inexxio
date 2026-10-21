@@ -89,13 +89,13 @@ const areas = [
     text: 'Krane nach Mass, Kranservice und Heukrananlagen.',
     photo: 'heukran-einsatz',
     dd: 'Krane nach Mass, Kranservice und Heukrananlagen.',
-    illo: 'spezial-krane',
+    illo: 'menu/krane-nach-mass',
     ogTitle: 'Ihr Kran ist einsatzbereit. Ausfälle übernehmen wir.',
     industries: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs.',
     children: [
-      { label: 'Krane nach Mass', href: '/krantechnik/krane-nach-mass', text: 'Für Ihre Halle, Ihren Hafen, Ihren Ablauf', photo: 'reparatur-vor-ort', dd: 'Selbst gebaut seit {{history.cranesSince}} – wir kennen jedes Bauteil.', illo: 'spezial-krane' },
+      { label: 'Krane nach Mass', href: '/krantechnik/krane-nach-mass', text: 'Für Ihre Halle, Ihren Hafen, Ihren Ablauf', photo: 'reparatur-vor-ort', dd: 'Selbst gebaut seit {{history.cranesSince}} – wir kennen jedes Bauteil.', illo: 'menu/krane-nach-mass' },
       { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Inspektion, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran', dd: 'Prüfung, Wartung und Reparatur – jeder Einsatz mit Protokoll.', illo: 'menu/kranservice' },
-      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz', dd: 'Einschiene, Brücke oder Drehkran – passend zu Gebäude und Arbeit.', illo: 'heukran-bruecke' },
+      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz', dd: 'Einschiene, Brücke oder Drehkran – passend zu Gebäude und Arbeit.', illo: 'menu/heukrananlagen' },
     ],
   },
   {
