@@ -322,6 +322,13 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .on-dark .btn--secondary, .section--dark .btn--secondary { background: transparent; border-color: rgba(255, 255, 255, 0.32); color: var(--white); }
 .on-dark .btn--secondary:hover, .section--dark .btn--secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.6); }
 .btn--lg { --btn-h: 48px; padding: 0 22px; font-size: 0.9375rem; }
+/* Glas-Knopf (Website, auf hellem Grund): die leise zweite Aktion neben Rot. */
+.btn--glass {
+  color: var(--ink); background: rgba(255, 255, 255, 0.55); border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 30px rgba(10, 10, 11, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+}
+.btn--glass:hover { background: rgba(255, 255, 255, 0.85); color: var(--ink); }
 .btn-row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
 
 /* Pfeil-Textlink (DS .btn-link): rot, der Pfeil rückt beim Zeigen nach. */

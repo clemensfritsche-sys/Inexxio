@@ -7,11 +7,10 @@
  * liefert Titel, Beschreibung, Zusammenfassung, Leistungsumfang und FAQ für Sitemap,
  * llms.txt und JSON-LD. Bildsprache: Grau ist die Serie, Rot ist, was wir dazubauen.
  *
- * Nicht auf die Seite: Mietpool, Hinweise zu CE oder Maschinenverordnung, Konditionen der
- * Co-Entwicklung (Prozentsätze) – die gibt es im Gespräch.
+ * Nicht auf die Seite: Mietpool, Hinweise zu CE oder Maschinenverordnung.
  */
 import { site } from '../config/site.mjs';
-import type { Step, SubPage } from './types';
+import type { SubPage } from './types';
 import { promiseFaq } from './promises';
 
 export const spezialloesungen: SubPage = {
@@ -23,9 +22,8 @@ export const spezialloesungen: SubPage = {
     'Wenn kein Hersteller liefert, was Ihre Aufgabe braucht: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen. Mit Garantie.',
   hero: {
     eyebrow: 'Speziallösungen',
-    h1: 'Ihre Aufgabe. Unsere ==Lösung==.',
-    lead:
-      'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen – als Einzelstück oder Kleinserie.',
+    h1: 'Speziallösungen',
+    lead: 'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es für Sie.',
     photo: 'arbeit-werkstatt',
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
   },
@@ -64,10 +62,6 @@ export const spezialloesungen: SubPage = {
     },
     promiseFaq.garantie,
     {
-      q: 'Was heisst Co-Entwicklung?',
-      a: 'Sie entwickeln mit und zahlen dafür weniger. Die Rechte an der Lösung bleiben bei {{brand.name}}; verkaufen wir sie weiter, erhalten Sie einen Anteil. Die Einzelheiten besprechen wir im Gespräch.',
-    },
-    {
       q: 'Bleibt die Lösung bei Ihnen in Betreuung?',
       a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus demselben Betrieb, der sie gebaut hat.',
     },
@@ -80,64 +74,65 @@ export const spezialloesungen: SubPage = {
   keywords: ['Spezialmaschinenbau', 'Sondermaschine Baustelle', 'Anbaugerät Baumaschine', 'Sonderkran', 'Sonderaufbau', 'Vorrichtungsbau'],
 };
 
-/** Kurz und belegt – unter dem Seitenkopf. */
-export const specialFacts = [
-  { value: 'Einzelstück', label: 'bis Kleinserie' },
-  { value: 'Nach Mass', label: 'passend zu Ihrem Gerät' },
-  { value: 'Offerte', label: 'verbindlich, bevor wir bauen' },
-  { value: '50 %', label: 'Zufriedenheitsgarantie' },
-];
-
 /** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
 export const specialPrinciple = {
-  eyebrow: 'Das Prinzip',
   title: 'Serienmaschinen sind für den Durchschnitt gebaut. Ihre Aufgabe ist es nicht.',
   lead: 'Was dazwischen fehlt, erledigt heute meist ein Mensch – mit Zeit, Umwegen und Improvisation. Wir bauen die Maschine, die diese Lücke schliesst.',
+  /** Bild: eine Reihe gleicher Serienmaschinen als Zeichnung, eine tritt heraus – mit rotem Anbau. */
+  alt: 'Eine Reihe gleicher Minibagger als Zeichnung; einer tritt heraus, echt, mit rotem Sondergreifer',
   gains: [
-    { title: 'Weniger Handarbeit', text: 'Was heute von Hand geschieht, erledigt danach die Maschine – schneller und jedes Mal gleich.' },
-    { title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },
-    { title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere ablehnen müssen.' },
+    { icon: 'hand' as const, title: 'Weniger Handarbeit', text: 'Was heute von Hand geschieht, erledigt danach die Maschine – schneller und jedes Mal gleich.' },
+    { icon: 'shield-check' as const, title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },
+    { icon: 'trending-up' as const, title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere ablehnen müssen.' },
   ],
 };
 
-/** Drei Felder, ein Prinzip – je mit Bild (src/assets/illustrations/spezial-*.svg). */
-export const specialFields = [
-  {
-    id: 'krane',
-    illo: 'krane' as const,
-    title: 'Für Krane',
-    text: 'Wo der Katalogkran aufhört: Ausleger, Hilfskrane und Lastaufnahmen für die Last, die nur Sie heben.',
-    examples: ['Sonderkrane und Hilfskrane', 'Ausleger und Hebezeuge nach Mass', 'Lastaufnahmen und Greifer'],
-    link: { href: '/krantechnik/krane-nach-mass#sonderkrane', label: 'Krane nach Mass' },
-  },
-  {
-    id: 'fahrzeuge',
-    illo: 'fahrzeuge' as const,
-    title: 'Für Fahrzeuge',
-    text: 'Das Fahrgestell ist Serie, die Aufgabe nicht: Aufbauten und Anbauten, die kein Hersteller anbietet.',
-    examples: ['Sonderaufbauten', 'Ladekrane und Arbeitsbühnen am Fahrzeug', 'Anbauten am Fahrmischer'],
-    link: { href: '/fahrzeugtechnik', label: 'Fahrzeugtechnik' },
-  },
-  {
-    id: 'baumaschinen',
-    illo: 'baumaschinen' as const,
-    title: 'Für Baumaschinen',
-    text: 'Ihr Gerät kann mehr, als der Hersteller vorsieht: Anbaugeräte, Vorrichtungen und Automatisierung für die besondere Baustelle.',
-    examples: ['Rüttler, Klemmen und Greifer', 'Podeste und Begehungen', 'Vorrichtungen und Automatisierung'],
-  },
-];
-
-/** Modul: Ablauf – und was Sie dafür tun. */
-export const specialSteps = {
-  title: 'Vom Problem zur Maschine',
-  lead: 'Ihr Aufwand zu Beginn: eine Skizze, ein Foto oder ein Video vom Einsatz.',
+/** Drei Felder, ein Prinzip – je mit Zeichnung (src/assets/illustrations/spezial-*.svg). */
+export const specialFields = {
+  title: 'Drei Felder, ein Prinzip',
+  lead: 'Wir nehmen, was die Serie kann, und bauen dazu, was Ihre Aufgabe braucht.',
   items: [
-    { title: 'Aufgabe', text: 'Sie schildern, was die Maschine leisten soll.' },
-    { title: 'Machbarkeit', text: 'Wir prüfen, ob und wie es geht, und nennen die verbindliche Offerte.' },
-    { title: 'Konstruktion', text: 'Wir konstruieren und rechnen; Sie geben frei.' },
-    { title: 'Bau', text: 'Im eigenen Betrieb in {{address.city}}.' },
-    { title: 'Inbetriebnahme', text: 'Bei Ihnen, mit Einweisung und Unterlagen.' },
-  ] satisfies Step[],
+    {
+      id: 'baumaschinen',
+      illo: 'baumaschinen' as const,
+      title: 'Für Baumaschinen',
+      tags: ['Anbaugeräte', 'Automatisierung'],
+      text: 'Ihr Gerät kann mehr, als der Hersteller vorsieht.',
+      examples: ['Rüttler, Klemmen und Greifer', 'Podeste und Begehungen', 'Vorrichtungen und Automatisierung'],
+    },
+    {
+      id: 'fahrzeuge',
+      illo: 'fahrzeuge' as const,
+      title: 'Für Fahrzeuge',
+      tags: ['Aufbau', 'Anbau'],
+      text: 'Das Fahrgestell ist Serie, die Aufgabe nicht.',
+      examples: ['Sonderaufbauten', 'Ladekrane und Arbeitsbühnen', 'Anbauten am Fahrmischer'],
+      link: { href: '/fahrzeugtechnik', label: 'Fahrzeugtechnik' },
+    },
+    {
+      id: 'krane',
+      illo: 'krane' as const,
+      title: 'Für Krane',
+      tags: ['Krane seit {{history.cranesSince}}'],
+      text: 'Wo der Katalogkran aufhört, fangen wir an.',
+      examples: ['Sonderkrane und Hilfskrane', 'Ausleger und Hebezeuge nach Mass', 'Lastaufnahmen und Greifer'],
+      link: { href: '/krantechnik/krane-nach-mass#sonderkrane', label: 'Krane nach Mass' },
+    },
+  ],
+};
+
+/** Der Weg vom Problem zur Lösung – wer was tut, ohne Offerte und ohne Zahlen. */
+export const specialSteps = {
+  title: 'Vom Problem zur Lösung',
+  start: 'Ihr Problem',
+  end: 'Ihre Lösung',
+  items: [
+    { icon: 'pen-line' as const, who: 'Sie', title: 'Aufgabe', text: 'Sie zeigen uns, wo es klemmt.', tags: ['Skizze', 'Foto', 'Video'] },
+    { icon: 'search' as const, who: 'Gemeinsam', title: 'Lösungsweg', text: 'Wir schauen uns den Einsatz an und zeigen Ihnen, wie die Lösung aussieht.', check: 'Klar, bevor gebaut wird' },
+    { icon: 'drafting-compass' as const, who: 'Wir', title: 'Konstruktion', text: 'Wir konstruieren und rechnen die Lösung durch – bis sie hält, was sie soll.', check: 'Abgestimmt mit Ihnen' },
+    { icon: 'wrench' as const, who: 'Wir', title: 'Bau', text: 'Wir bauen Ihre Lösung – Stahlbau, Hydraulik und Steuerung aus einer Hand.', tags: ['Stahlbau', 'Hydraulik', 'Steuerung'] },
+    { icon: 'flag' as const, who: 'Bei Ihnen', title: 'Inbetriebnahme', text: 'Wir nehmen die Lösung bei Ihnen in Betrieb und weisen Ihr Team ein.', tags: ['Einweisung', 'Unterlagen'] },
+  ],
 };
 
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */

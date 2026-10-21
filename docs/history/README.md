@@ -24,6 +24,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-backend-claude-md-chronik.md`, `2026-10-frontend-claude-md-chronik.md` | Die bisherigen `backend/CLAUDE.md` und `frontend/CLAUDE.md`, wörtlich (mit ihren Rundenberichten) |
 | `2026-10-website-plan-chronik.md` | Der vollständige Website-Plan mit allen 124 Entscheiden (die Nummern gelten als Verweis weiter) |
 | `2026-10-03-website-report.md`, `2026-10-04-website-report.md` | Abschlussberichte der Website (Fassung 1 und Umbau v2) |
+| `2026-10-21-spezialloesungen-neu.md` | Neue Seite Speziallösungen (Kopf wie Porsche, Feld-Karten, Weg, Fragen-Grundbild) |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.

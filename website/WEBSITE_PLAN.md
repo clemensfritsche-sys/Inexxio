@@ -108,5 +108,6 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   Fotoliste (`OFFENE_PUNKTE.md`, generiert).
 - **32/108 · Beispielbilder** (Wikimedia Commons, Nachweis im Impressum) bis zum Fototag;
   im Modus `live` ist ein Beispielbild ein Build-Fehler wie ein fehlendes Foto.
-- **53 · Keine laufenden Nummern** an Abschnitten ohne Reihenfolge. **54 · FAQ**: immer nur
-  eine Antwort offen.
+- **53 · Keine laufenden Nummern** an Abschnitten ohne Reihenfolge. **54 · FAQ**: höchstens
+  eine Antwort offen; ist keine offen, steht das Grundbild (Frage grau, Antwort rot). Schmal
+  steht das Bild immer direkt über der offenen Frage.

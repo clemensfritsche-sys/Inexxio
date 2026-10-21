@@ -342,9 +342,13 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
 - **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
-  Startseite aus `components/home/*`, Unterseiten über `Hero` (Bildkarte), `SectionHead`,
-  `Promises`, `AreaCard`, `FaqStage` (Fragen auf jeder Seite: Glas-Akkordeon über einem Bild zur
-  Frage), `ContactSection` (Karte als Grund, Anfrage in zwei Schritten, ohne Springen).
+  Startseite aus `components/home/*`, Unterseiten über `Hero` (Bildkarte) oder `StageHero`
+  (Kopf wie Porsche: grosses Wort, freigestelltes Bild – heute `/spezialloesungen`),
+  `SectionHead`, `Promises`, `AreaCard`, `FaqStage` (Fragen auf jeder Seite: Glas-Akkordeon über
+  einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht das Bild direkt über der
+  offenen Frage), `ContactSection` (Karte als Grund, Anfrage in zwei Schritten, ohne Springen).
+  Freigestellte Bilder (WebP mit Transparenz) liegen in `src/assets/illustrations/`, nicht in
+  der Fotoliste.
   Glas nur unter `html[data-site]` – der exportierte Kopf bleibt im ERP deckend.
 - **Bilder und Videos**: Foto nach `website/src/assets/photos/`, in `src/config/photos.mjs` bei
   `file` eintragen; Video (MP4) nach `website/public/video/`, beim Foto `video` eintragen
