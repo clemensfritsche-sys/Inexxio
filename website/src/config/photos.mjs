@@ -18,7 +18,7 @@
  * bei `video` eintragen. Es läuft stumm in Schleife über dem Foto, das Foto bleibt Standbild
  * (vor dem Laden, bei «reduzierter Bewegung» und ohne Video).
  *
- * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/1' | '16/9', file?: string, video?: string }} Photo
+ * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/2' | '1/1' | '16/9', file?: string, video?: string }} Photo
  */
 
 /** @type {Record<string, Photo>} */
