@@ -57,7 +57,7 @@ const cta = { label: page.hero.primary.label, href: '#anfrage' };
 
   <section class="section sx-bg-sec" aria-labelledby="hintergrund">
     <div class="wrap grid sx-bg">
-      <div class="col-4"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
+      <div class="col-4 sx-bg__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
       <div class="col-7 sx-bg__text">
         <SectionHead eyebrow={b.eyebrow} title={b.title} id="hintergrund" class="head--flush" />
         <Rich as="p" text={b.text} />
@@ -80,6 +80,8 @@ const cta = { label: page.hero.primary.label, href: '#anfrage' };
   .head--flush { margin-bottom: 0; }
   .sx-bg-sec { margin-top: 48px; }
   .sx-bg { align-items: center; }
+  /* Das freigestellte Porträt läuft unten weich aus – kein harter Schnitt an der Bildkante. */
+  .sx-bg__fig :global(img) { -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 98%); mask-image: linear-gradient(180deg, #000 55%, transparent 98%); }
   @media (min-width: 960px) { .sx-bg__text { grid-column: 6 / span 7; } }
   .sx-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
 </style>
