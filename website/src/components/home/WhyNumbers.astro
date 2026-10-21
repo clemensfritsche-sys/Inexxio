@@ -1,6 +1,7 @@
 ---
 /**
- * Warum INEXXIO (v4): grosse Zahlen links, rechts Clemens freigestellt mit dem Zitat in hellem Glas.
+ * Warum INEXXIO (v4): Zahlen links als ruhiges 2×2-Raster (Haarlinie über jeder Zahl, wie technische
+ * Daten), rechts Clemens freigestellt – ohne Kasten, unten weich ausgeblendet –, das Zitat steht ohne Kasten dort, wo die Figur ausblendet.
  * Zahlen und Sätze: content/start.ts (why.figures). Die Zahlen zählen beim Hineinscrollen
  * hoch (scripts/countup.ts); im HTML steht immer der Endwert.
  */
@@ -18,7 +19,7 @@ const w = start.why;
       <dl class="why__figs">
         {w.figures.map((f) => (
           <div class="why__fig">
-            <dt>{f.pre && <span class="why__pre">{f.pre}</span>}<span class="why__num"><span class="why__digits" data-count={plain(f.figure)} style={`min-width:${plain(f.figure).length}ch`}>{plain(f.figure)}</span>{f.unit && <span class="why__unit">{f.unit}</span>}</span></dt>
+            <dt><span class="why__pre">{f.pre}</span><span class="why__num"><span class="why__digits" data-count={plain(f.figure)} style={`min-width:${plain(f.figure).length}ch`}>{plain(f.figure)}</span>{f.unit && <span class="why__unit">{f.unit}</span>}</span></dt>
             <Rich as="dd" text={f.text} />
           </div>
         ))}
@@ -27,7 +28,7 @@ const w = start.why;
     </div>
     <figure class="why__photo">
       <Media id="portraet-clemens-stehend" sizes="(min-width: 960px) 30vw, 60vw" class="why__fig-img" />
-      <figcaption class="why__cap glass-light">
+      <figcaption class="why__cap">
         <Rich as="p" class="why__quote" text={`«${w.quote}»`} />
         <Rich as="p" class="why__who" text={w.caption} />
       </figcaption>
@@ -43,26 +44,26 @@ const w = start.why;
 <style>
   .why { display: grid; gap: 40px; }
   @media (min-width: 960px) { .why { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 96px; align-items: center; } }
-  .why__figs { margin-top: 36px; display: grid; gap: 32px; }
-  @media (min-width: 960px) { .why__figs { margin-top: 56px; gap: 44px; } }
+  .why__figs { margin-top: 36px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 20px; }
+  @media (min-width: 960px) { .why__figs { margin-top: 56px; gap: 48px 40px; } }
+  .why__fig { border-top: 1px solid var(--line); padding-top: 18px; }
   .why__fig dt { display: block; }
-  .why__pre { display: block; font-size: 0.875rem; color: var(--gray-500); }
-  .why__num { display: block; font-family: var(--font-display); font-weight: 600; font-size: 3.5rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
-  @media (min-width: 960px) { .why__num { font-size: 4.5rem; } }
+  .why__pre { display: block; min-height: 1.4em; font-size: 0.8125rem; color: var(--gray-500); }
+  .why__num { display: block; margin-top: 6px; font-family: var(--font-display); font-weight: 600; font-size: 2.75rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  @media (min-width: 960px) { .why__num { font-size: 3.5rem; } }
   .why__digits { display: inline-block; text-align: left; }
-  .why__unit { margin-left: 8px; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
-  @media (min-width: 960px) { .why__unit { font-size: 1.5rem; } }
-  .why__fig :global(dd) { margin: 10px 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); max-width: 34em; }
+  .why__unit { margin-left: 6px; font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  @media (min-width: 960px) { .why__unit { font-size: 1.25rem; } }
+  .why__fig :global(dd) { margin: 12px 0 0; font-size: 0.875rem; line-height: 1.5; color: var(--ink-3); max-width: 30em; }
   .why__more { margin-top: 24px; }
   @media (min-width: 960px) { .why__more { margin-top: 48px; } }
   @media (max-width: 959px) { .why__more { order: 3; } .why__more .btn { width: 100%; } }
-  /* Freigestellt: die ganze Figur steht auf hellem Grund, unten bündig; das Zitat in hellem Glas davor. */
-  .why__photo { position: relative; margin: 0; height: 520px; border-radius: var(--r-xl); overflow: hidden; background: linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%); }
-  .why__photo :global(.why__fig-img) { top: 16px; }
-  .why__photo :global(.why__fig-img .photo) { object-fit: contain; object-position: 50% 100%; }
+  /* Freigestellt und ohne Kasten: die Figur steht frei auf der Seite, unten blendet sie weich aus. */
+  .why__photo { position: relative; margin: 0; height: 520px; }
   @media (min-width: 960px) { .why__photo { height: 900px; } }
-  .why__cap { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 2; padding: 18px; border-radius: 14px; }
-  @media (min-width: 960px) { .why__cap { left: 24px; right: 24px; bottom: 24px; padding: 28px; border-radius: var(--r-xl); } }
+  .why__photo :global(.why__fig-img .photo) { object-fit: contain; object-position: 50% 100%; -webkit-mask-image: linear-gradient(180deg, #000 46%, transparent 84%); mask-image: linear-gradient(180deg, #000 46%, transparent 84%); }
+  .why__cap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; text-align: center; }
+  @media (min-width: 960px) { .why__cap { left: 8%; right: 8%; } }
   .why__cap :global(.why__quote) { font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; line-height: 1.35; letter-spacing: -0.01em; color: var(--ink); max-width: none; }
   @media (min-width: 960px) { .why__cap :global(.why__quote) { font-size: 1.375rem; } }
   .why__cap :global(.why__who) { margin-top: 8px; font-size: 0.75rem; color: var(--ink-3); max-width: none; }

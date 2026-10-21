@@ -119,11 +119,11 @@ const csp = [
     <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={displayFontUrl} as="font" type="font/woff2" crossorigin />
     <script is:inline src={earlyUrl}></script>
-    <!-- Favicon: das SVG passt sich hellem/dunklem Modus an; das PNG (Safari) ist rot und steht
-         auf beiden. ?v= bei jedem Wechsel des Zeichens erhöhen – Browser halten Favicons lange fest. -->
-    <link rel="icon" href="/favicon-32.png?v=5" sizes="32x32" type="image/png" />
-    <link rel="icon" href="/favicon.svg?v=5" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=5" />
+    <!-- Favicon: das Symbol ganz in Logo-Rot – steht auf hellem und dunklem Tab gleich.
+         ?v= bei jedem Wechsel des Zeichens erhöhen – Browser halten Favicons lange fest. -->
+    <link rel="icon" href="/favicon-32.png?v=6" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon.svg?v=6" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=6" />
     <meta property="og:type" content={article ? 'article' : 'website'} />
     {article && <meta property="article:published_time" content={article.published} />}
     {article && <meta property="article:modified_time" content={article.updated} />}
