@@ -22,14 +22,14 @@
    Schatten; «Foto anhängen» und der Senden-Pfeil sitzen IM Feld (wie beim Schreiben einer
    Nachricht). */
 .iform__ask-box {
-  position: relative; display: flex; flex: 1; min-height: 200px; border-radius: 18px; background: var(--white);
+  position: relative; display: flex; min-height: 148px; border-radius: 18px; background: var(--white);
   border: 1px solid var(--line-2); box-shadow: 0 18px 48px rgba(10, 10, 11, 0.12), 0 2px 6px rgba(10, 10, 11, 0.05);
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .iform__ask-box:hover { border-color: var(--ink-4); }
 .iform__ask-box:focus-within { border-color: var(--ink); box-shadow: 0 18px 48px rgba(10, 10, 11, 0.14), 0 0 0 4px rgba(10, 10, 11, 0.08); }
 .iform .iform__ask {
-  flex: 1; min-height: 0; height: auto; padding: 20px 20px 76px; border: 0; border-radius: 18px; background: transparent;
+  flex: 1; min-height: 0; height: auto; padding: 18px 20px 70px; border: 0; border-radius: 18px; background: transparent;
   box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; resize: none; font-size: 1.125rem; line-height: 1.5;
 }
 .iform .iform__ask::placeholder { color: var(--ink-3); }
@@ -60,7 +60,7 @@
 /* Mit Skript liegen beide Schritte in DERSELBEN Zelle: die Fläche ist so hoch wie der
    grössere Schritt, der Wechsel blendet über – nichts darunter springt. Das Feld von Schritt 1
    füllt die Zelle. Ohne Skript stehen alle Felder untereinander. */
-html.js .iform__steps { display: grid; }
+html.js .iform__steps { display: grid; align-items: start; overflow: clip; overflow-clip-margin: 48px; transition: height 0.45s var(--ease); }
 html.js .iform__step { grid-area: 1 / 1; transition: opacity 0.35s var(--ease), visibility 0s linear 0.35s; }
 html.js .iform[data-step='1'] .iform__step--2,
 html.js .iform[data-step='2'] .iform__step--1 { opacity: 0; visibility: hidden; pointer-events: none; }

@@ -72,7 +72,7 @@ const second = secondary === false ? null : (secondary ?? { label: site.phone.di
   }
   @media (max-width: 767px) { .phero__card { min-height: min(620px, 86svh); margin-inline: calc(var(--gutter) * -1 + 8px); } }
   @media (min-width: 960px) { .phero__card { min-height: min(720px, 80svh); } }
-  .phero__card :global(.phero__media :is(.photo, video)) { animation: phero-zoom 18s ease-in-out infinite alternate; }
+  .phero__card :global(.phero__media .photo) { animation: phero-zoom 18s ease-in-out infinite alternate; }
   @keyframes phero-zoom { from { transform: scale(1); } to { transform: scale(1.06); } }
   .phero__shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(10, 10, 11, 0.25) 0%, rgba(10, 10, 11, 0) 30%, rgba(10, 10, 11, 0.15) 50%, rgba(10, 10, 11, 0.78) 100%); }
   .phero__text { position: relative; z-index: 2; padding: 24px 20px; max-width: 900px; }

@@ -2,7 +2,7 @@
 /**
  * Bühne (v4, Porsche-Muster): ein Video oder Foto über die ganze Breite, wenig Text unten
  * links – eine Zeile darüber, die H1, ein Satz, «Anfrage stellen» und das Telefon in Glas.
- * Das Bild zoomt sehr langsam (ruht bei «reduzierter Bewegung»). Der Kopf liegt durchsichtig
+ * Ein Foto zoomt sehr langsam (ein Video nicht – das Skalieren liess es ruckeln) (ruht bei «reduzierter Bewegung»). Der Kopf liegt durchsichtig
  * darüber (Base `stage`). Video: in src/config/photos.mjs beim Foto `video` eintragen.
  */
 import { site } from '../config/site.mjs';
@@ -45,7 +45,7 @@ const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#a
   .stage--page { height: clamp(560px, 82svh, 780px); }
   @media (max-width: 767px) { .stage--page { height: min(640px, 84svh); min-height: 520px; } }
   .stage :global(.stage__media) { z-index: 0; }
-  .stage :global(.stage__media :is(.photo, video)) { animation: stage-zoom 18s ease-in-out infinite alternate; }
+  .stage :global(.stage__media .photo) { animation: stage-zoom 18s ease-in-out infinite alternate; }
   @keyframes stage-zoom { from { transform: scale(1); } to { transform: scale(1.07); } }
   .stage__shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(10, 10, 11, 0.5) 0%, rgba(10, 10, 11, 0) 18%, rgba(10, 10, 11, 0) 40%, rgba(10, 10, 11, 0.78) 100%); }
   @media (min-width: 960px) { .stage__shade { background: linear-gradient(180deg, rgba(10, 10, 11, 0.45) 0%, rgba(10, 10, 11, 0) 22%, rgba(10, 10, 11, 0) 50%, rgba(10, 10, 11, 0.7) 100%); } }

@@ -264,8 +264,8 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .fill-media, .fill-media.fill-media :is(picture, .photo, .ph, video) { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fill-media.fill-media :is(.photo, video) { object-fit: cover; }
 .fill-media picture.is-sample, .fill-media .ph { aspect-ratio: auto !important; }
-.zoom-on-hover .fill-media :is(.photo, video) { transition: transform 1.4s var(--ease); }
-.zoom-on-hover:hover .fill-media :is(.photo, video) { transform: scale(1.05); }
+.zoom-on-hover .fill-media .photo { transition: transform 1.4s var(--ease); }
+.zoom-on-hover:hover .fill-media .photo { transform: scale(1.05); }
 @media (prefers-reduced-motion: reduce) { .zoom-on-hover:hover .fill-media :is(.photo, video) { transform: none; } }
 
 /* Die Schemata bewegen sich ruhig: die Hälfte geht zurück, das Jahr läuft, der Ausfall erscheint. */

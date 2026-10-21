@@ -118,8 +118,20 @@ function setup(form: HTMLFormElement): void {
 /** Schritt 1 (Anliegen) ↔ 2 (Kontakt). Gibt die Funktion zurück, die den Schritt setzt. */
 function steps(form: HTMLFormElement, vocab: Vocab): (n: 1 | 2) => void {
   const recap = form.querySelector<HTMLElement>('[data-recap]');
+  // Die Fläche ist so hoch wie der GEZEIGTE Schritt und gleitet beim Wechsel weich auf die
+  // neue Höhe – das Feld bleibt klein, und nichts darunter springt.
+  const box = form.querySelector<HTMLElement>('.iform__steps');
+  const fit = () => {
+    const shown = form.querySelector<HTMLElement>(`.iform__step--${form.dataset.step ?? '1'}`);
+    if (box && shown) box.style.height = `${shown.offsetHeight}px`;
+  };
+  if (box && 'ResizeObserver' in window) {
+    const ro = new ResizeObserver(fit);
+    form.querySelectorAll('.iform__step').forEach((el) => ro.observe(el));
+  }
   const go = (n: 1 | 2, focus = false) => {
     form.dataset.step = String(n);
+    fit();
     if (recap) {
       const msg = value(form, 'message').replace(/\s+/g, ' ');
       recap.textContent = msg.length > 80 ? `${msg.slice(0, 79)}…` : msg;
