@@ -6,11 +6,13 @@
  * Jeder Punkt öffnet beim Zeigen eine Reihe Kacheln: Name, isometrische Zeichnung, ein leiser
  * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
  * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
- * Schmaler als 1200 px: Logo, Konto, Telefon und das Menü-Symbol – ein Blatt mit zwei Ebenen.
+ * Schmaler als 1200 px: Logo, Konto, Telefon und das Menü-Symbol – ein Blatt mit EINER Ebene:
+ * jeder Punkt klappt eine Reihe Karten zum Wischen auf (der erste ist offen), unten Telefon,
+ * Anfrage und die Sprache, die genauso aufklappt.
  *
  * Ohne JavaScript bedienbar: Kacheln öffnen beim Zeigen und mit dem Fokus, jeder Punkt ist ein
- * Link auf seine Seite, das Mobil-Menü ist ein natives <details>, dessen erste Ebene aus
- * Links besteht. Das Skript (scripts/header.ts) ergänzt Klick, Esc und die zweite Ebene.
+ * Link auf seine Seite, das Mobil-Menü ist ein natives <details>, dessen Punkte Links sind.
+ * Das Skript (scripts/header.ts) ergänzt Klick, Esc und das Aufklappen der Punkte.
  * Mit Skript ist `.is-open` der EINE Zustand: ein Punkt öffnet beim Zeigen und bleibt offen,
  * bis der Zeiger die ganze Karte verlässt – so verliert man ihn auf dem Weg ins Panel nie.
  *
@@ -77,6 +79,18 @@ const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/
 const profile = { label: 'Mein Profil', href: acct.profile.href, img: illo('menu/profil'), sub: 'Person, Firma und Adressbuch an einem Ort.' };
 const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: 'Auf diesem Gerät abmelden.' };
 const cols = (n: number) => `--cols:${Math.max(3, n)}`;
+/** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf; ein Punkt mit Unterseiten
+    beginnt mit «Alles zu …» (seine Übersicht, als Stapel seiner Zeichnungen). */
+type Card = { label: string; href: string; sub: string; img?: string; deck?: string[] };
+const cardsOf = (m: (typeof menus)[number]): Card[] => {
+  const kids = m.tiles.filter((t) => t.href !== m.href);
+  if (!kids.length) return m.tiles.slice(0, 1);
+  return [{ label: `Alles zu ${m.label}`, href: m.href, sub: 'Übersicht und alle Leistungen', deck: kids.slice(0, 3).map((t) => t.img) }, ...kids];
+};
+const mobile: { id: string; label: string; href: string; acct?: string; cards: Card[] }[] = [
+  ...menus.map((m) => ({ id: m.id, label: m.label, href: m.href, cards: cardsOf(m) })),
+  { id: 'konto', label: 'Mein Konto', href: acct.profile.href, acct: 'user', cards: [profile, logout] },
+];
 ---
 <header class:list={['site-header', over && 'site-header--over']} data-header>
   {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
@@ -178,61 +192,41 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
         <summary class="mnav__toggle" aria-label="Menü"><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
         <div class="mnav__sheet">
           <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup ref="ix-lockup" /></a></div>
-          <div class="mnav__levels" data-mnav-levels>
-            <nav class="mnav__l1" aria-label="Hauptnavigation (mobil)">
-              {menus.map((m) => (
-                <a href={m.href} class="mnav__row" data-mnav-sub={m.id} aria-current={path === m.href ? 'page' : undefined}>{m.label}<Icon name="chevron-right" size={20} /></a>
-              ))}
-              <a href={acct.erp.href} class="mnav__row" rel="nofollow" data-acct="staff">{acct.erp.label}<Icon name="chevron-right" size={20} /></a>
-              <div class="mnav__foot">
-                <a class="mnav__btn mnav__btn--line" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
-                <a class="mnav__btn mnav__btn--red" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} /></a>
-                <button type="button" class="mnav__lang" data-mnav-sub="sprache"><Icon name="globe" size={18} /> Deutsch</button>
-              </div>
-            </nav>
-            {menus.map((m) => (
-              <div class="mnav__l2" data-mnav-panel={m.id} hidden>
-                <div class="mnav__head">
-                  <button type="button" class="mnav__back" aria-label="Zurück zum Menü" data-mnav-back><Icon name="arrow-left" size={22} /></button>
-                  <a class="mnav__title" href={m.href}>{m.label} <Icon name="arrow-right" size={22} /></a>
-                </div>
-                <ul role="list" class="mnav__rows">
-                  {m.tiles.map((t) => (
-                    <li><a class="mrow" href={t.href}>
-                      <img src={t.img} alt="" loading="lazy" decoding="async" width="112" height="96" data-menu-img />
-                      <span class="mrow__text"><span class="mrow__label">{t.label}</span><span class="mrow__sub">{t.sub}</span></span>
+          <nav class="mnav__list" aria-label="Hauptnavigation (mobil)">
+            {mobile.map((g, i) => (
+              <div class:list={['mg', i === 0 && 'is-open']} data-mg={g.id} data-acct={g.acct}>
+                <a href={g.href} class="mg__row" data-mg-toggle aria-expanded={i === 0 ? 'true' : 'false'} aria-current={path === g.href ? 'page' : undefined}>{g.label}<Icon name="chevron-down" size={20} class="mg__chev" /></a>
+                <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
+                  {g.cards.map((c) => (
+                    <li><a class:list={['mg__card', c.deck && 'mg__card--all']} href={c.href} rel={g.acct ? 'nofollow' : undefined}>
+                      {c.deck ? (
+                        <span class="mg__deck" aria-hidden="true">{c.deck.map((src) => <img src={src} alt="" loading="lazy" decoding="async" width="64" height="64" data-menu-img />)}<span class="mg__go"><Icon name="arrow-right" size={18} /></span></span>
+                      ) : (
+                        <img class="mg__img" src={c.img} alt="" loading="lazy" decoding="async" width="188" height="84" data-menu-img />
+                      )}
+                      <span class="mg__label">{c.label}</span>
+                      <span class="mg__sub">{c.sub}</span>
                     </a></li>
                   ))}
-                </ul>
+                </ul></div></div>
               </div>
             ))}
-            <div class="mnav__l2" data-mnav-panel="sprache" hidden>
-              <div class="mnav__head">
-                <button type="button" class="mnav__back" aria-label="Zurück zum Menü" data-mnav-back><Icon name="arrow-left" size={22} /></button>
-                <span class="mnav__title">Sprache</span>
-              </div>
-              <ul role="list" class="mnav__rows">
+            <a href={acct.erp.href} class="mg__row mg__row--erp" rel="nofollow" data-acct="staff">{acct.erp.label}<Icon name="arrow-right" size={20} /></a>
+          </nav>
+          <div class="mnav__foot">
+            <a class="mnav__btn btn--glass" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
+            <a class="mnav__btn mnav__btn--red" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} /></a>
+            <div class="mg mg--lang" data-mg="sprache">
+              <button type="button" class="mnav__lang" data-mg-toggle aria-expanded="false"><Icon name="globe" size={18} /> Deutsch <Icon name="chevron-down" size={16} class="mg__chev" /></button>
+              <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
                 {langs.map((l) => (
-                  <li><span class:list={['mrow', !l.on && 'is-soon']} lang={l.lang}>
-                    <span class="mrow__art"><span class:list={['bubble bubble--sm', l.on && 'bubble--on']}>{l.bubble}</span></span>
-                    <span class="mrow__text"><span class="mrow__label">{l.label}</span><span class="mrow__sub">{l.sub}</span></span>
+                  <li><span class:list={['mg__card mg__card--lang', !l.on && 'is-soon']} lang={l.lang}>
+                    <span class="mg__art"><span class:list={['bubble mg__bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                    <span class="mg__label">{l.label}</span>
+                    <span class="mg__sub">{l.sub}</span>
                   </span></li>
                 ))}
-              </ul>
-            </div>
-            <div class="mnav__l2" data-mnav-panel="konto" hidden>
-              <div class="mnav__head">
-                <button type="button" class="mnav__back" aria-label="Zurück zum Menü" data-mnav-back><Icon name="arrow-left" size={22} /></button>
-                <span class="mnav__title" data-acct-name>Mein Konto</span>
-              </div>
-              <ul role="list" class="mnav__rows">
-                {[profile, logout].map((t) => (
-                  <li><a class="mrow" href={t.href} rel="nofollow">
-                    <img src={t.img} alt="" loading="lazy" decoding="async" width="112" height="96" data-menu-img />
-                    <span class="mrow__text"><span class="mrow__label">{t.label}</span><span class="mrow__sub">{t.sub}</span></span>
-                  </a></li>
-                ))}
-              </ul>
+              </ul></div></div>
             </div>
           </div>
         </div>
@@ -417,41 +411,52 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
   :global(html[data-site]) .mnav__sheet { background: rgba(246, 247, 249, 0.95); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
   .mnav__top { height: 64px; flex: none; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--gray-200); }
   .mnav__top :global(.lockup) { height: 34px; }
-  .mnav__levels { position: relative; flex: 1; min-height: 0; }
-  .mnav__l1, .mnav__l2 {
-    position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
-    transition: transform 420ms var(--ease), opacity 320ms var(--ease);
+  .mnav__list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 0 0; }
+  .mg { border-bottom: 1px solid rgba(10, 10, 11, 0.06); }
+  .mg__row {
+    display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 24px;
+    font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); text-decoration: none;
   }
-  .mnav__l1 { display: flex; flex-direction: column; padding: 8px 8px 0; }
-  .mnav__l2 { padding: 12px 16px 24px; }
-  /* Mit Skript: Ebene 2 gleitet von rechts herein, Ebene 1 weicht nach links. */
-  :global(.js) .mnav__l2[hidden] { display: block !important; transform: translateX(100%); opacity: 0; pointer-events: none; visibility: hidden; transition: transform 420ms var(--ease), opacity 320ms var(--ease), visibility 0s linear 420ms; }
-  .mnav__levels[data-level]:not([data-level='']) .mnav__l1 { transform: translateX(-30%); opacity: 0; pointer-events: none; }
-  .mnav__row {
-    display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: 0 16px; border-radius: var(--r-lg);
-    font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; text-align: left;
+  .mg__row :global(.icon) { color: var(--gray-500); }
+  .mg__row[aria-current='page'] { text-decoration: underline; text-underline-offset: 0.25em; }
+  .mg.is-open > .mg__row { font-weight: 600; }
+  .mg :global(.mg__chev) { transition: transform 350ms var(--ease); }
+  .mg.is-open :global(.mg__chev) { transform: rotate(180deg); color: var(--ink); }
+  .mg__panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 420ms var(--ease); }
+  .mg.is-open > .mg__panel { grid-template-rows: 1fr; }
+  .mg__clip { overflow: hidden; min-height: 0; }
+  .mg__rail { display: flex; gap: 10px; list-style: none; margin: 0; padding: 4px 24px 18px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 24px; scrollbar-width: none; }
+  .mg__rail::-webkit-scrollbar { display: none; }
+  .mg__rail > li { flex: 0 0 212px; scroll-snap-align: start; }
+  .mg__card {
+    position: relative; display: flex; flex-direction: column; gap: 4px; height: 188px; padding: 12px; box-sizing: border-box; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.95); box-shadow: 0 8px 24px rgba(10, 10, 11, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    color: var(--ink); text-decoration: none;
   }
-  .mnav__row :global(.icon) { color: var(--gray-500); }
-  .mnav__row:hover { background: rgba(255, 255, 255, 0.55); }
-  .mnav__row[aria-current='page'] { text-decoration: underline; text-underline-offset: 0.25em; }
-  .mnav__foot { margin-top: auto; display: grid; gap: 10px; padding: 16px 8px calc(28px + env(safe-area-inset-bottom)); border-top: 1px solid var(--gray-200); }
+  .mg__img { width: 100%; height: 84px; object-fit: contain; margin-bottom: 6px; }
+  .mg__label { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--gray-500); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* «Alles zu …»: die Übersicht, dunkel, mit dem Stapel der Zeichnungen und dem roten Pfeil. */
+  .mg__card--all { background: var(--ink); border-color: var(--ink); color: var(--white); }
+  .mg__card--all .mg__sub { color: rgba(255, 255, 255, 0.62); }
+  .mg__deck { position: relative; height: 84px; margin-bottom: 6px; }
+  .mg__deck img { position: absolute; top: 6px; width: 64px; height: 64px; padding: 6px; box-sizing: border-box; object-fit: contain; border-radius: 10px; background: var(--white); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); }
+  .mg__deck img:nth-child(1) { left: 0; transform: rotate(-8deg); }
+  .mg__deck img:nth-child(2) { left: 38px; top: 2px; transform: rotate(2deg); z-index: 1; }
+  .mg__deck img:nth-child(3) { left: 76px; transform: rotate(10deg); }
+  .mg__go { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--red); color: var(--white); }
+  .mg__card--lang { align-items: stretch; }
+  .mg__card--lang.is-soon { opacity: 0.6; }
+  .mg__art { display: flex; align-items: center; justify-content: center; height: 96px; margin-bottom: 4px; }
+  .mg__art .mg__bubble { padding: 12px 24px; font-size: 1.875rem; }
+  .mg__art .mg__bubble::after { bottom: -8px; width: 16px; height: 16px; }
+  .mnav__foot { flex: none; display: grid; gap: 10px; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--gray-200); }
   .mnav__btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: var(--r-md); font-size: 1rem; font-weight: 600; text-decoration: none; }
-  .mnav__btn--line { border: 1px solid var(--ink); color: var(--ink); }
   .mnav__btn--red { background: var(--red); color: var(--white); }
-  .mnav__lang { display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; font-size: 0.9375rem; font-weight: 500; color: var(--ink-3); }
-  .mnav__head { display: flex; align-items: center; gap: 4px; margin: 0 0 16px -10px; }
-  .mnav__back { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 22px; }
-  .mnav__title { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; letter-spacing: -0.025em; color: var(--ink); text-decoration: none; }
-  .mnav__rows { display: grid; gap: 8px; list-style: none; padding: 0; }
-  .mrow {
-    display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 16px; align-items: center; padding: 12px; border-radius: var(--r-lg);
-    background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(255, 255, 255, 0.8); color: var(--ink); text-decoration: none;
-  }
-  .mrow img { width: 112px; height: 96px; object-fit: contain; }
-  .mrow__art { display: flex; align-items: center; justify-content: center; height: 96px; }
-  .mrow__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .mrow__label { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
-  .mrow__sub { font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+  .mnav__lang { justify-self: center; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; font-size: 0.9375rem; font-weight: 500; color: var(--ink-3); }
+  .mg--lang { border: 0; }
+  .mg--lang.is-open .mnav__lang { color: var(--ink); font-weight: 600; }
+  .mg--lang .mg__rail { padding-inline: 8px; scroll-padding-inline: 8px; }
 
   /* ---------- Testumgebung ---------- */
   .env-ribbon { position: fixed; top: 0; right: 0; z-index: 1000; width: 72px; height: 72px; overflow: hidden; pointer-events: none; }
@@ -474,6 +479,6 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
   /* Schmaler Desktop: die Nummer weicht dem Symbol. */
   @media (min-width: 1200px) and (max-width: 1379px) { .hd__telnum { display: none; } }
   @media (prefers-reduced-motion: reduce) {
-    .hd__glass, .dd__panel, .mnav__l1, .mnav__l2, .site-header::after { transition: none !important; }
+    .hd__glass, .dd__panel, .mg__panel, .site-header::after, .mg :global(.mg__chev) { transition: none !important; }
   }
 </style>
