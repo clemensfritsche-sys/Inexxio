@@ -145,7 +145,8 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
   .fq__item[open] .fq__q :global(.fq__chev) { transform: rotate(180deg); }
   .fq__q :global(.fq__title) { font-family: var(--font-sans); font-size: 0.9375rem; font-weight: 500; line-height: 1.4; letter-spacing: -0.006em; color: var(--ink); transition: color 0.2s var(--ease); }
   @media (min-width: 960px) { .fq__q :global(.fq__title) { font-size: 1.0625rem; } }
-  .fq__q:hover :global(.fq__title) { color: var(--red-hover); }
+  /* Nur mit Maus: auf dem Handy bliebe der Hover nach dem Antippen rot hängen. */
+  @media (hover: hover) and (pointer: fine) { .fq__q:hover :global(.fq__title) { color: var(--red-hover); } }
   .fq__a { padding: 0 22px 18px 50px; display: grid; gap: 8px; }
   .fq__a :global(p) { font-size: 0.875rem; line-height: 1.6; color: var(--ink-2); }
   @media (min-width: 960px) { .fq__a :global(p) { font-size: 0.9375rem; } }
