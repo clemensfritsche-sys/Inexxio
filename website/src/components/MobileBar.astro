@@ -18,25 +18,29 @@ import Icon from './Icon.astro';
 </nav>
 
 <style>
+  /* v4: eine schwebende Glas-Leiste mit 12 px Rand – links «Anrufen» hell, rechts die rote
+     Anfrage. */
   .mobilebar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    display: grid; grid-template-columns: 1fr 1fr; height: calc(56px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom); background: var(--white); border-top: 1px solid var(--line-2);
-    transition: transform 260ms var(--ease), visibility 0s linear 0s;
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 40;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px; border-radius: 18px;
+    background: rgba(246, 247, 249, 0.72); border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 12px 36px rgba(10, 10, 11, 0.18), 0 2px 6px rgba(10, 10, 11, 0.06);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    transition: transform 320ms var(--ease), opacity 320ms var(--ease), visibility 0s linear 0s;
   }
-  /* Versteckt heisst auch: nicht fokussierbar. Nur verschoben blieben beide Links mit der
-     Tabulatortaste erreichbar – der Fokus stünde unsichtbar unter dem Bildrand. `visibility`
-     schaltet erst um, wenn die Leiste draussen ist (Verzögerung = Dauer der Bewegung). */
+  /* Versteckt heisst auch: nicht fokussierbar. `visibility` schaltet erst um, wenn die Leiste
+     draussen ist (Verzögerung = Dauer der Bewegung). */
   :global(.js) .mobilebar:not(.is-visible),
   :global(html.menu-open) .mobilebar {
-    transform: translateY(100%); visibility: hidden;
-    transition: transform 260ms var(--ease), visibility 0s linear 260ms;
+    transform: translateY(calc(100% + 24px)); opacity: 0; visibility: hidden;
+    transition: transform 320ms var(--ease), opacity 320ms var(--ease), visibility 0s linear 320ms;
   }
   .mobilebar__btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    font-weight: 600; font-size: 1rem; text-decoration: none; min-height: 56px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: 12px;
+    font-weight: 600; font-size: 1rem; text-decoration: none;
   }
-  .mobilebar__btn--tel { color: var(--ink); }
+  .mobilebar__btn--tel { color: var(--ink); background: rgba(255, 255, 255, 0.7); }
   .mobilebar__btn--cta { background: var(--red); color: var(--white); }
+  .mobilebar__btn:active { transform: scale(0.98); }
   @media (min-width: 768px) { .mobilebar { display: none; } }
 </style>

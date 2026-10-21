@@ -6,7 +6,7 @@
  * Jeder Punkt öffnet beim Zeigen eine Reihe Kacheln: Name, isometrische Zeichnung, ein leiser
  * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
  * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
- * Schmaler als 1200 px: Logo, Konto, Telefon und das Wort «Menü» – ein Blatt mit zwei Ebenen.
+ * Schmaler als 1200 px: Logo, Konto, Telefon und das Menü-Symbol – ein Blatt mit zwei Ebenen.
  *
  * Ohne JavaScript bedienbar: Kacheln öffnen beim Zeigen und mit dem Fokus, jeder Punkt ist ein
  * Link auf seine Seite, das Mobil-Menü ist ein natives <details>, dessen erste Ebene aus
@@ -175,7 +175,7 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
       <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" data-mnav-open="konto" aria-label="Mein Konto"><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
 
       <details class="mnav" data-mnav>
-        <summary class="mnav__toggle"><span class="mnav__word">Menü</span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
+        <summary class="mnav__toggle" aria-label="Menü"><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
         <div class="mnav__sheet">
           <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup /></a></div>
           <div class="mnav__levels" data-mnav-levels>
@@ -250,7 +250,7 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
   @media (min-width: 1200px) { .site-header { padding: 12px 24px 0; } }
   /* Über der Bühne: fest am Fenster, die Bühne läuft darunter durch. */
   .site-header--over { position: fixed; left: 0; right: 0; }
-  .hd { position: relative; max-width: 1392px; margin: 0 auto; color: var(--hd-fg); overflow-x: clip; }
+  .hd { position: relative; max-width: 1392px; margin: 0 auto; color: var(--hd-fg); }
   .hd__glass {
     position: absolute; left: 0; right: 0; top: 0; height: var(--hd-bar); z-index: 0; pointer-events: none;
     background: var(--white); border-bottom: 1px solid var(--line);
@@ -324,11 +324,13 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
   .dd__panel {
     position: absolute; left: 0; right: 0; top: var(--hd-bar); height: var(--hd-dd); padding: 20px 32px;
     border-top: 1px solid rgba(10, 10, 11, 0.07); white-space: normal; color: var(--ink);
-    opacity: 0; visibility: hidden; transform: translateX(48px); pointer-events: none;
+    opacity: 0; visibility: hidden; transform: translateX(24px); pointer-events: none;
     transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s linear 450ms;
   }
-  /* Wer links vom offenen Punkt steht, gleitet nach links weg (wie Stripe). */
-  .dd:has(~ .dd.is-open) .dd__panel, .nav:has(~ .hd__tools .dd.is-open) .dd__panel { transform: translateX(-48px); }
+  /* Wer links vom offenen Punkt steht, gleitet nach links weg (wie Stripe). Nur 24 px – so viel
+     Rand hat die Karte zum Fenster: nichts ragt hinaus, und die Karte braucht keinen Zuschnitt
+     (der schnitt ihren Schatten links und rechts hart ab). */
+  .dd:has(~ .dd.is-open) .dd__panel, .nav:has(~ .hd__tools .dd.is-open) .dd__panel { transform: translateX(-24px); }
   .dd.is-open .dd__panel,
   :global(html:not(.js)) .dd:is(:hover, :focus-within) .dd__panel {
     opacity: 1; visibility: visible; transform: none; pointer-events: auto;
@@ -384,24 +386,29 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
   .hd__tel { display: none; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; color: inherit; text-decoration: none; font-size: 0.9375rem; font-weight: 600; }
   .hd__tel:hover .hd__telnum { text-decoration: underline; text-underline-offset: 0.2em; }
   .hd__cta { display: none; --btn-h: 44px; padding: 0 18px; font-size: 0.9375rem; font-weight: 600; }
-  .hd__m-acct { margin-left: auto; }
-  .hd__m-acct + .hd__m-acct { margin-left: 0; }
+  /* Schmal: Logo links, rechts Konto · Telefon · Menü (Reihenfolge per order, die Tasten
+     stehen im HTML in der Reihenfolge der breiten Ansicht). */
+  @media (max-width: 1199px) {
+    .hd__home { margin-right: auto; }
+    .hd__m-acct { order: 1; }
+    .hd__tel { display: inline-flex; order: 2; min-width: 44px; justify-content: center; }
+    .hd__telnum { display: none; }
+    .mnav { order: 3; }
+  }
 
   /* ---------- Mobil: «Menü» und ein Blatt mit zwei Ebenen ---------- */
   .mnav { display: block; }
   .mnav__toggle {
-    list-style: none; display: inline-flex; align-items: center; justify-content: center; height: 40px; min-width: 44px; padding: 0 14px;
-    margin-left: 6px; border: 1px solid currentColor; border-radius: var(--r-md); color: inherit; cursor: pointer;
-    font-size: 0.9375rem; font-weight: 500;
+    list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+    border-radius: var(--r-md); color: inherit; cursor: pointer;
   }
-  .site-header--over:not(.is-scrolled) .mnav__toggle { border-color: rgba(255, 255, 255, 0.7); }
   .mnav__toggle::-webkit-details-marker { display: none; }
   .mnav__close { display: none; }
   .mnav:not([open]) .mnav__x { display: none; }
   .mnav[open] .mnav__word { display: none; }
   .mnav[open] .mnav__close { display: inline-flex; }
   .mnav[open] > .mnav__toggle {
-    position: fixed; top: 10px; right: 16px; z-index: 62; border: 0; padding: 0; width: 44px; height: 44px; color: var(--ink);
+    position: fixed; top: 10px; right: 8px; z-index: 62; color: var(--ink);
   }
   .mnav__sheet {
     position: fixed; inset: 0; z-index: 61; display: flex; flex-direction: column; white-space: normal; color: var(--ink);

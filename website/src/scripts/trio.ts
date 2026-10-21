@@ -18,8 +18,8 @@ const SCENES: Record<string, { dur: number; fr: Frame[] }> = {
     { t: 1, x: 150, y: -30, a: 0 } ] },
   fahrzeugtechnik: { dur: 7600, fr: [
     { t: 0, x: 190, y: -40 }, { t: 0.08, x: 245, y: -40 }, { t: 0.16, x: 245, y: 45 }, { t: 0.2, x: 245, y: 45 },
-    { t: 0.32, x: 245, y: -115 }, { t: 0.42, x: 245, y: -125 }, { t: 0.52, x: 245, y: -125 },
-    { t: 0.62, x: 245, y: -115 }, { t: 0.78, x: 245, y: 45 }, { t: 0.84, x: 245, y: 45 },
+    { t: 0.32, x: 245, y: -30 }, { t: 0.42, x: 245, y: -38 }, { t: 0.52, x: 245, y: -38 },
+    { t: 0.62, x: 245, y: -30 }, { t: 0.78, x: 245, y: 45 }, { t: 0.84, x: 245, y: 45 },
     { t: 0.94, x: 245, y: -40 }, { t: 1, x: 245, y: -40 } ] },
   spezialloesungen: { dur: 6400, fr: [
     { t: 0, x: 190, y: -40 }, { t: 0.1, x: 75, y: -40 }, { t: 0.22, x: 75, y: 140 }, { t: 0.26, x: 75, y: 140 },
@@ -66,10 +66,14 @@ function play(card: Card): void {
   if (ring) ring.style.display = grab ? 'none' : 'block';
   if (claws) claws.style.display = grab ? 'block' : 'none';
   let p = 0, v = 0, last = 0, hold = 0, gearA = 0;
+  // Masse einmal messen und nur bei Grössenänderung neu – nicht in jedem Bild: das Lesen von
+  // clientWidth während die Karte breiter wird, erzwang je Bild ein Layout (Ruckeln).
+  let W = stage.clientWidth, H = stage.clientHeight;
+  const ro = new ResizeObserver(() => { W = stage.clientWidth; H = stage.clientHeight; });
+  ro.observe(stage);
   const step = (t: number) => {
     const dt = last ? Math.min(64, t - last) : 16;
     last = t;
-    const W = stage.clientWidth, H = stage.clientHeight;
     const s = Math.max(0.7, Math.min(1.3, (W - 24) / 380)), ox = (W - 380 * s) / 2, oy = H - pad - 200 * s;
     const X = (x: number) => ox + x * s, Y = (y: number) => oy + y * s;
     v = card.on ? Math.min(1, v + dt / 350) : Math.max(0, v - dt / 350);
@@ -79,7 +83,8 @@ function play(card: Card): void {
       if (p < 1) p = Math.min(1, p + dt / def.dur);
       else { hold += dt; if (hold > 1400 && card.on) { p = 0; hold = 0; } }
     }
-    const f = keyframe(def.fr, p), tipX = X(f.x), tipY = Y(f.y);
+    // Der Haken hängt nie höher als knapp unter der Katze (Flasche + Schaft + Werkzeug).
+    const f = keyframe(def.fr, p), tipX = X(f.x), tipY = Math.max(Y(f.y), 68 + 46 + 12);
     trol.style.transform = `translateX(${(tipX - 44).toFixed(1)}px)`;
     line.style.height = `${Math.max(0, tipY - 68 - 46).toFixed(1)}px`;
     const ca = grab ? f.a ?? 0 : 0;
@@ -116,6 +121,7 @@ function play(card: Card): void {
     }
     if (!card.on && v <= 0) {
       card.running = false;
+      ro.disconnect();
       p = 0;
       return;
     }

@@ -25,7 +25,7 @@ interface Props {
 const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#anfrage' }, phone = true, size = 'full' } = Astro.props;
 ---
 <section class:list={['stage', `stage--${size}`]} aria-labelledby="stage-title">
-  <Media id={photo} priority sizes="100vw" class="stage__media" />
+  <Media id={photo} motion priority sizes="100vw" class="stage__media" />
   <span class="stage__shade" aria-hidden="true"></span>
   <div class="wrap stage__in" data-hero>
     {eyebrow && <Rich as="p" class="stage__eyebrow" text={eyebrow} />}

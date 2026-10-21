@@ -25,3 +25,20 @@
 Website `npm test`, `astro check`, Build mit `check-site`, `export-erp --check`; Frontend
 `type-check`, `lint`, `test`, `build`; Backend-Suite mit Datenbank (748 grün). In Chromium:
 langsamer Weg vom Sprach- und Konto-Knopf ins Panel bleibt offen, Verlassen schliesst.
+
+## Zweite Runde (gleicher Tag)
+- **Video**: kein Zoom mehr auf Videos (das Skalieren liess sie ruckeln); Ton entfernt und neu
+  kodiert (10,5 → 3 MB). Sichtbar wird es erst, wenn es läuft – verweigert ein Handy das
+  automatische Abspielen (Stromsparmodus), bleibt das Foto statt eines durchgestrichenen
+  Play-Knopfs. Videos nur in Bühne und Seitenkopf (`Media motion`).
+- **Kopf**: harte Kanten links/rechts beim offenen Menü kamen vom Zuschnitt der Karte
+  (`overflow-x: clip` schnitt den Schatten ab). Zuschnitt weg, die Panels gleiten nur noch
+  24 px – so viel Rand hat die Karte, nichts ragt hinaus.
+- **Handy-Kopf**: rechts Konto · Telefon · Menü-Symbol (vorher rückte das Konto-Symbol nach
+  links, sobald man angemeldet war). Kein Warenkorb (kein Shop).
+- **Untere Leiste** auf dem Handy: schwebende Glas-Leiste.
+- **Bereiche**: Masse der Kran-Bühne werden nicht mehr in jedem Bild gelesen (ResizeObserver),
+  die Karten sind `contain`-iert → das Wachsen läuft flüssig; die Trommel fährt nur noch knapp
+  über das Fahrzeug, und kein Haken hängt je über der Katze.
+- **Anfrage**: Platzhalter «Erzählen Sie uns kurz, worum es geht – wir freuen uns auf Ihre
+  Nachricht.»

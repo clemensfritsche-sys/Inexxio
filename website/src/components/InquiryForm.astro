@@ -60,7 +60,7 @@ const f = (name: string) => `${id}-${name}`;
     <div class="iform__step iform__step--1">
       <div class="iform__ask-box">
         <label class="visually-hidden" for={f('message')}>Worum geht es?</label>
-        <textarea class="textarea iform__ask" id={f('message')} name="message" rows="2" required placeholder="Worum geht es? Zum Beispiel: Unser Heukran ruckelt beim Heben." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
+        <textarea class="textarea iform__ask" id={f('message')} name="message" rows="2" required placeholder="Erzählen Sie uns kurz, worum es geht – wir freuen uns auf Ihre Nachricht." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
         <div class="iform__tools">
           <label class="iform__attach" for={f('photos')}>
             <Icon name="camera" size={18} /> Foto anhängen <span class="iform__opt">optional</span>

@@ -4,7 +4,9 @@
  * Das Foto kommt aus der Fotoliste (Photo.astro); trägt der Eintrag in src/config/photos.mjs
  * ein `video` (Datei in public/video/), läuft es stumm in Schleife darüber. Das Foto bleibt
  * das Standbild: vor dem Laden, bei «reduzierter Bewegung» (scripts/media.ts hält es an) und
- * wenn die Datei fehlt.
+ * wenn die Datei fehlt. Sichtbar wird das Video erst, wenn es wirklich läuft – verweigert
+ * ein Handy das automatische Abspielen (z. B. Stromsparmodus), bleibt das Foto stehen statt
+ * eines durchgestrichenen Play-Knopfs. Videos laufen nur in Bühne und Seitenkopf (`motion`).
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -16,9 +18,11 @@ interface Props {
   sizes?: string;
   priority?: boolean;
   class?: string;
+  /** Video zeigen (nur Bühne und Seitenkopf) – sonst bleibt es beim Foto. */
+  motion?: boolean;
 }
-const { id, sizes = '100vw', priority = false, class: cls } = Astro.props;
-const video = photo(id).video;
+const { id, sizes = '100vw', priority = false, class: cls, motion = false } = Astro.props;
+const video = motion ? photo(id).video : undefined;
 if (video && !existsSync(resolve(process.cwd(), 'public/video', video))) {
   throw new Error(`Video «${video}» (Foto «${id}») fehlt in public/video/.`);
 }

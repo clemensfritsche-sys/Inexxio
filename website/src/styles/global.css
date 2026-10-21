@@ -263,6 +263,8 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 /* Bild in einer Karte: füllt sie, zoomt beim Zeigen leicht. */
 .fill-media, .fill-media.fill-media :is(picture, .photo, .ph, video) { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fill-media.fill-media :is(.photo, video) { object-fit: cover; }
+.fill-media video[data-media-video] { opacity: 0; transition: opacity 0.6s var(--ease); }
+.fill-media video[data-media-video].is-playing { opacity: 1; }
 .fill-media picture.is-sample, .fill-media .ph { aspect-ratio: auto !important; }
 .zoom-on-hover .fill-media .photo { transition: transform 1.4s var(--ease); }
 .zoom-on-hover:hover .fill-media .photo { transform: scale(1.05); }
@@ -425,8 +427,8 @@ html[data-site]::-webkit-scrollbar-track { background: transparent; }
 html[data-site]::-webkit-scrollbar-thumb { border-radius: 999px; border: 3px solid transparent; background: rgba(10, 10, 11, 0.22) padding-box; }
 html[data-site]::-webkit-scrollbar-thumb:hover { background-color: rgba(10, 10, 11, 0.4); }
 
-/* Platz für die mobile Aktionsleiste */
-@media (max-width: 767px) { body { padding-bottom: 56px; } }
+/* Platz für die schwebende Aktionsleiste: im (dunklen) Fuss, nicht als weisser Streifen darunter. */
+@media (max-width: 767px) { .site-footer { padding-bottom: 84px; } }
 
 @media print {
   .site-header, .mobilebar, .site-footer nav { display: none !important; }

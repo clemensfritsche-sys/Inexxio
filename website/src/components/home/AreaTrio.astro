@@ -99,7 +99,7 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
   .trio { list-style: none; padding: 0; }
   @media (min-width: 960px) {
     .trio { display: flex; gap: 16px; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
-    .trio__item { flex: 1 1 0; min-width: 0; transition: flex-grow 0.7s var(--ease); }
+    .trio__item { flex: 1 1 0; min-width: 0; transition: flex-grow 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); contain: layout paint; }
     .trio:hover .trio__item { flex-grow: 0.88; }
     .trio .trio__item:hover { flex-grow: 1.3; }
     .trio__mtitle, .sc .sc__go, .trio-wrap .cdots { display: none; }
@@ -115,7 +115,7 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
     .sc__title, .garrow { display: none !important; }
     .sc__text { left: 20px !important; right: 20px !important; bottom: 20px !important; display: block !important; }
   }
-  .sc { position: relative; display: block; height: 600px; border-radius: var(--r-xl); overflow: hidden; color: var(--white); text-decoration: none; background: var(--dark-2); isolation: isolate; }
+  .sc { position: relative; display: block; contain: layout paint; height: 600px; border-radius: var(--r-xl); overflow: hidden; color: var(--white); text-decoration: none; background: var(--dark-2); isolation: isolate; }
   .sc :global(.fill-media .photo) { transition: transform 1.2s var(--ease); }
   .sc:hover :global(.fill-media .photo) { transform: scale(1.06); }
   .sc__shade { position: absolute; left: 0; right: 0; bottom: 0; height: 220px; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 0%, rgba(10, 10, 11, 0.72) 100%); z-index: 2; }

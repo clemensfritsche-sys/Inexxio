@@ -5,6 +5,8 @@
 export function initMedia(): void {
   const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video[data-media-video]'));
   if (!videos.length) return;
+  // Erst zeigen, wenn es läuft (CSS: video[data-media-video] ist bis dahin unsichtbar).
+  for (const v of videos) v.addEventListener('playing', () => v.classList.add('is-playing'), { once: true });
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     for (const v of videos) { v.removeAttribute('autoplay'); v.pause(); }
     return;
