@@ -14,9 +14,10 @@
  * Menschen, keine KI-Bilder. Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
  * (config/photo-samples.mjs) – im Modus «live» ist das, wie ein fehlendes Foto, ein Fehler.
  *
- * Ein Video dazu: Datei (MP4, H.264, ohne Ton, kurz, ≤ 8 MB) nach public/video/ legen und hier
- * bei `video` eintragen. Es läuft stumm in Schleife über dem Foto, das Foto bleibt Standbild
- * (vor dem Laden, bei «reduzierter Bewegung» und ohne Video).
+ * Ein Video dazu: Datei (MP4, H.264, ohne Ton, kurz, ≤ 8 MB) nach public/video/ legen, daneben
+ * ihr erstes Bild als Standbild mit gleichem Namen (.webp, z. B.
+ * `ffmpeg -i buehne.mp4 -frames:v 1 -vf scale=1280:-2 buehne.webp`), und hier bei `video`
+ * eintragen. In Bühne und Seitenkopf steht dann das Video statt des Fotos (components/Media.astro).
  *
  * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/2' | '1/1' | '16/9', file?: string, video?: string }} Photo
  */
