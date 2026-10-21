@@ -3,8 +3,8 @@
  *  - ab 8 px Scroll `is-scrolled` (über der Bühne wird der Kopf dann zu Glas)
  *  - Kachelreihen (Hauptpunkte, Sprache, Konto): öffnen beim Zeigen und per Klick auf den
  *    Pfeil, schliessen erst beim Verlassen der Karte; Esc schliesst und gibt den Fokus zurück
- *  - Mobil-Menü (<details>): Scroll-Sperre, Esc, zweite Ebene je Punkt, schliesst bei Klick
- *    auf einen Link
+ *  - Mobil-Menü (<details>): Scroll-Sperre, Esc, je Punkt eine aufklappende Reihe Karten
+ *    (höchstens eine offen), schliesst bei Klick auf einen Link
  */
 type Disclosure = { root: HTMLElement; toggle: HTMLButtonElement | null };
 
@@ -61,29 +61,29 @@ function initDisclosures(header: HTMLElement): void {
 
 function initMobile(header: HTMLElement, menu: HTMLDetailsElement): void {
   const root = document.documentElement;
-  const levels = menu.querySelector<HTMLElement>('[data-mnav-levels]');
-  const panels = Array.from(menu.querySelectorAll<HTMLElement>('[data-mnav-panel]'));
+  const groups = Array.from(menu.querySelectorAll<HTMLElement>('[data-mg]'));
+  const first = groups[0]?.dataset.mg ?? '';
+  // Höchstens EIN Punkt offen; beim Öffnen des Menüs ist es der erste.
   const show = (id: string) => {
-    if (levels) levels.dataset.level = id;
-    for (const p of panels) p.hidden = p.dataset.mnavPanel !== id;
-    panels.find((p) => !p.hidden)?.querySelector<HTMLElement>('[data-mnav-back]')?.focus({ preventScroll: true });
+    for (const g of groups) {
+      const open = g.dataset.mg === id;
+      g.classList.toggle('is-open', open);
+      g.querySelector('[data-mg-toggle]')?.setAttribute('aria-expanded', String(open));
+    }
   };
   const sync = () => {
     root.classList.toggle('menu-open', menu.open);
-    if (!menu.open) show('');
+    if (!menu.open) show(first);
   };
   menu.addEventListener('toggle', sync);
-  // Zuerst: ein Punkt mit zweiter Ebene öffnet sie, statt der Seite (ohne JS bleibt es ein Link).
+  // Ein Punkt klappt seine Karten auf, statt die Seite zu öffnen (ohne JS bleibt es ein Link).
   menu.addEventListener('click', (e) => {
     const target = e.target as Element;
-    const sub = target.closest<HTMLElement>('[data-mnav-sub]');
-    if (sub && panels.some((p) => p.dataset.mnavPanel === sub.dataset.mnavSub)) {
+    const toggle = target.closest<HTMLElement>('[data-mg-toggle]');
+    const group = toggle?.closest<HTMLElement>('[data-mg]');
+    if (toggle && group) {
       e.preventDefault();
-      show(sub.dataset.mnavSub ?? '');
-      return;
-    }
-    if (target.closest('[data-mnav-back]')) {
-      show('');
+      show(group.classList.contains('is-open') ? '' : group.dataset.mg ?? '');
       return;
     }
     if (target.closest('a') && !e.defaultPrevented) menu.open = false;
@@ -94,13 +94,13 @@ function initMobile(header: HTMLElement, menu: HTMLDetailsElement): void {
       menu.querySelector<HTMLElement>('summary')?.focus();
     }
   });
-  // Das Konto-Symbol im schmalen Kopf öffnet das Menü auf der Konto-Ebene.
+  // Das Konto-Symbol im schmalen Kopf öffnet das Menü mit aufgeklapptem Konto.
   header.querySelectorAll<HTMLAnchorElement>('[data-mnav-open]').forEach((a) => {
     a.addEventListener('click', (e) => {
       if (window.matchMedia('(min-width: 1200px)').matches) return;
       e.preventDefault();
       menu.open = true;
-      show(a.dataset.mnavOpen ?? '');
+      show(a.dataset.mnavOpen ?? first);
     });
   });
   const wide = window.matchMedia('(min-width: 1200px)');
