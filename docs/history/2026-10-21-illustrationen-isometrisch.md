@@ -19,3 +19,16 @@ drei Farben (Rot als Akzent, Schwarz, kühle Grautöne).
 **Wie:** Generiert (Python, isometrische Projektion, Maler-Reihenfolge), danach im Browser
 auf den Inhalt zugeschnitten (viewBox). Übersicht mit Überschrift und Einsatzort je Bild im
 Design System, Karte «Illustrationen».
+
+## Runde 2 (Feedback)
+
+- **Fahrmischer** neu: europäischer Frontlenker mit 4 Achsen, weisse Trommel mit roten
+  Streifen, Proportionen wie die Szene der Startseite (`assets/crane/szene-fahrzeugtechnik.svg`).
+  Darauf bauen Trommeltausch, Verschleissteile (Trichter und Rinnen rot am Fahrzeug, Ersatzteile
+  davor) und «Für Fahrzeuge» (Pritsche mit Ladekran) auf.
+- **Service**: Servicewagen unterwegs (Strasse, Fahrtlinien). **Karriere**: drei Personen tragen
+  gemeinsam einen Träger. **Kontakt**: Handschlag. **Anmelden/Abmelden**: Telefon mit
+  Fingerabdruck und Schlüssel bzw. Abmelde-Pfeil statt Tür. **Profil**: grössere Ausweiskarte.
+  **Bagger** detailreicher (Laufwerk, Kabine, Zylinder, Abbruchhammer).
+- Startseiten-Budget (1024 KB) war um 14 KB überschritten: Kreise mit weniger Punkten,
+  Zahlen ohne «.0» – die Bilder sind rund 40 % kleiner.
