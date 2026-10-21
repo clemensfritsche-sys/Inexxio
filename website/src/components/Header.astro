@@ -84,7 +84,7 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
     <span class="hd__glass" aria-hidden="true"></span>
     <div class="hd__bar">
       <a href="/" class="hd__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}>
-        <span class="hd__logo hd__logo--ink"><Lockup /></span>
+        <span class="hd__logo hd__logo--ink"><Lockup id="ix-lockup" /></span>
         <span class="hd__logo hd__logo--white"><Lockup tone="dark" /></span>
       </a>
 
@@ -177,7 +177,7 @@ const cols = (n: number) => `--cols:${Math.max(3, n)}`;
       <details class="mnav" data-mnav>
         <summary class="mnav__toggle" aria-label="Menü"><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
         <div class="mnav__sheet">
-          <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup /></a></div>
+          <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup ref="ix-lockup" /></a></div>
           <div class="mnav__levels" data-mnav-levels>
             <nav class="mnav__l1" aria-label="Hauptnavigation (mobil)">
               {menus.map((m) => (
