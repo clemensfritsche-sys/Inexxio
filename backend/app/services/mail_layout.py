@@ -41,7 +41,7 @@ from ..domain import communication as dc
 
 BRAND = "INEXXIO"
 LOGO, LOGO_DARK = "/mail/logo.png", "/mail/logo-dark.png"
-LOGO_W, LOGO_H = 69, 26
+LOGO_W, LOGO_H = 97, 26
 GREETING = "Freundliche Grüsse"
 FONT = "Inter, Arial, Helvetica, sans-serif"
 INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#66686D", "#E3E4E7"
