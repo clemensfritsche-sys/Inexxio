@@ -351,7 +351,9 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   der Fotoliste.
   Glas nur unter `html[data-site]` – der exportierte Kopf bleibt im ERP deckend.
 - **Bilder und Videos**: Foto nach `website/src/assets/photos/`, in `src/config/photos.mjs` bei
-  `file` eintragen; Video (MP4) nach `website/public/video/`, beim Foto `video` eintragen
+  `file` eintragen; Video (MP4) und sein erstes Bild als Standbild (gleicher Name, `.webp`) nach
+  `website/public/video/`, beim Foto `video` eintragen – in Bühne und Seitenkopf steht dann ein
+  gewöhnliches `<video autoplay muted loop playsinline poster>` statt des Fotos
   (`components/Media.astro`). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
   ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/agb`.

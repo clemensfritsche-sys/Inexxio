@@ -1,12 +1,12 @@
 ---
 /**
  * Bild ODER Video, das seine Fläche füllt (v4: Bühne, Bildkarten, Collage).
- * Das Foto kommt aus der Fotoliste (Photo.astro); trägt der Eintrag in src/config/photos.mjs
- * ein `video` (Datei in public/video/), läuft es stumm in Schleife darüber. Das Foto bleibt
- * das Standbild: vor dem Laden, bei «reduzierter Bewegung» (scripts/media.ts hält es an) und
- * wenn die Datei fehlt. Sichtbar wird das Video erst, wenn es wirklich läuft – verweigert
- * ein Handy das automatische Abspielen (z. B. Stromsparmodus), bleibt das Foto stehen statt
- * eines durchgestrichenen Play-Knopfs. Videos laufen nur in Bühne und Seitenkopf (`motion`).
+ * Das Foto kommt aus der Fotoliste (Photo.astro). Trägt der Eintrag in src/config/photos.mjs ein
+ * `video` (Datei in public/video/) und steht die Stelle in Bühne oder Seitenkopf (`motion`), gibt
+ * es statt des Fotos ein gewöhnliches Video: stumm, in Schleife, inline, mit Standbild (`poster`
+ * = erstes Bild des Videos, gleicher Name als .webp). Kein Skript nötig – der Browser spielt es
+ * selbst ab; spielt er nicht (Stromsparmodus), bleibt das Standbild. Bei «reduzierter Bewegung»
+ * hält scripts/media.ts es an.
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -23,11 +23,17 @@ interface Props {
 }
 const { id, sizes = '100vw', priority = false, class: cls, motion = false } = Astro.props;
 const video = motion ? photo(id).video : undefined;
-if (video && !existsSync(resolve(process.cwd(), 'public/video', video))) {
-  throw new Error(`Video «${video}» (Foto «${id}») fehlt in public/video/.`);
+const poster = video?.replace(/\.mp4$/, '.webp');
+for (const f of video ? [video, poster] : []) {
+  if (!existsSync(resolve(process.cwd(), 'public/video', f!))) throw new Error(`Video «${video}» (Foto «${id}»): «${f}» fehlt in public/video/.`);
 }
 ---
 <span class:list={['fill-media', cls]}>
-  <Photo id={id} sizes={sizes} priority={priority} />
-  {video && <video src={`/video/${video}`} autoplay muted loop playsinline preload={priority ? 'auto' : 'metadata'} aria-hidden="true" data-media-video />}
+  {video ? (
+    <video autoplay muted loop playsinline disablepictureinpicture preload={priority ? 'auto' : 'metadata'} poster={`/video/${poster}`} aria-hidden="true" data-media-video>
+      <source src={`/video/${video}`} type="video/mp4" />
+    </video>
+  ) : (
+    <Photo id={id} sizes={sizes} priority={priority} />
+  )}
 </span>

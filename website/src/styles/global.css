@@ -263,8 +263,6 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 /* Bild in einer Karte: füllt sie, zoomt beim Zeigen leicht. */
 .fill-media, .fill-media.fill-media :is(picture, .photo, .ph, video) { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fill-media.fill-media :is(.photo, video) { object-fit: cover; }
-.fill-media video[data-media-video] { opacity: 0; transition: opacity 0.6s var(--ease); }
-.fill-media video[data-media-video].is-playing { opacity: 1; }
 .fill-media picture.is-sample, .fill-media .ph { aspect-ratio: auto !important; }
 .zoom-on-hover .fill-media .photo { transition: transform 1.4s var(--ease); }
 .zoom-on-hover:hover .fill-media .photo { transform: scale(1.05); }
