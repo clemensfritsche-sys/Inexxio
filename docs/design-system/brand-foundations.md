@@ -93,9 +93,10 @@ oder nachbauen** – eine Änderung geht über den Generator.
 | `inexxio-horizontal-dark.svg` | Auf Ink und dunklen Flächen. |
 | `inexxio-horizontal-red.svg` | Auf Logo-Rot (einfarbig Weiss) – höchstens eine rote Fläche pro Ansicht. |
 | `inexxio-stacked-light|dark|red.svg` | Mit «ehemals HS Steiner» – Website (Kopf, Fuss), Anmeldung, Open-Graph-Bilder, solange der frühere Name mitgeführt wird. Höhe 60 % INEXXIO : 40 % HS Steiner; das HS-Steiner-Zeichen bleibt unverändert. |
-| `inexxio-symbol.svg` | **Favicon.** Das verschachtelte XX, kräftiger gezeichnet und ohne Überstand des roten Strichs. Passt sich an: Ink im hellen, Weiss im dunklen Browser; Rot bleibt. Nur als Favicon/Icon-Link verwenden – in `<img>` folgt es dem Modus des Browsers, nicht dem Grund. |
+| `inexxio-symbol-red.svg` | **Favicon** (Website, ERP): das verschachtelte XX ganz in Logo-Rot, kräftiger gezeichnet und ohne Überstand des roten Strichs – steht auf hellem und dunklem Tab gleich. |
+| `inexxio-symbol.svg` | Passt sich an (Ink hell, Weiss dunkel) – nur wo ein Icon-Link dem Modus des Browsers folgen soll; heute nicht im Einsatz. |
 | `inexxio-symbol-light|dark.svg` | Symbol mit festen Farben auf bekanntem Grund (hell bzw. dunkel). |
-| `inexxio-symbol-red.svg` · `-on-red.svg` | Ganz Rot auf Weiss oder Ink · ganz Weiss auf Logo-Rot. |
+| `inexxio-symbol-on-red.svg` | Ganz Weiss auf Logo-Rot. |
 | `inexxio-app-icon.svg` | App-Icon und Kachel: Symbol auf Ink-Fläche mit Radius. |
 | `*-mono.svg` | Einfarbig Ink: Lasergravur, Typenschild, Stempel, Einfarbdruck. |
 
@@ -103,14 +104,14 @@ oder nachbauen** – eine Änderung geht über den Generator.
 - **Mindestgrösse:** Wortmarke 96 px breit (Druck ≈ 25 mm), gestapelt 120 px, Symbol 16 px (≈ 4 mm).
 - **Gründe:** nur Weiss, helles Grau, Ink oder Logo-Rot; auf Fotos nur über ruhiger, einfarbiger Stelle.
 - **Kein zweiter Schwung** (`ix-swoosh`) neben dem Logo – die Wortmarke trägt ihn.
-- **Favicon-PNG** (`favicon-32.png`, Safari) und `apple-touch-icon.png` sind feste Abzüge des hellen Symbols (`website/scripts/make-assets.mjs`).
+- **Favicon-PNG** (`favicon-32.png`) und `apple-touch-icon.png` sind Abzüge des roten Symbols (`website/scripts/make-assets.mjs`); beim Wechsel `?v=` in `Base.astro` erhöhen.
 - In der Fusszeile oben links das gestapelte Logo; ganz unten der grosse Schriftzug (Buchstaben
   fast schwarz, der rote Schwung leuchtet, an der Grundlinie angeschnitten).
 
 ## 6. Änderungen
 
 - **Logo v5 «F1» (21.10.2026):** Wortmarke breiter, O als gerundetes Rechteck, weiche Ecken;
-  Symbol bündig und kräftiger, Favicon passt sich dem hellen/dunklen Modus an; Lockup «ehemals
+  Symbol bündig und kräftiger, Favicon ganz rot; Lockup «ehemals
   HS Steiner» 60 : 40. Herleitung: `docs/history/2026-10-21-logo-f1.md`.
 - **v4 (Oktober 2026):** kühles Grau statt warmem Beige (Website, Konto, ERP, E-Mail);
   Glas-Tokens und `.ix-glass*`; eine Überschrift-Form ohne Kicker und rote Wörter; Rot auf

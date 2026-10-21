@@ -72,10 +72,10 @@ function ogHtml({ eyebrow, title }) {
   </body></html>`;
 }
 
-const iconHtml = (size, pad, bg, svg = favicon) => `<!doctype html><html><head><style>${base}
+const iconHtml = (size, pad, bg) => `<!doctype html><html><head><style>${base}
   body { width: ${size}px; height: ${size}px; background: ${bg}; display: grid; place-items: center; }
   svg { width: ${size - 2 * pad}px; height: ${size - 2 * pad}px; }
-</style></head><body>${svg}</body></html>`;
+</style></head><body>${favicon}</body></html>`;
 
 const logoHtml = `<!doctype html><html><head><style>${base}
   body { width: 1200px; height: 600px; background: #FFFFFF; display: grid; place-items: center; }
@@ -101,8 +101,7 @@ async function shot(html, w, h, out, needsFont = false) {
 }
 
 for (const og of OG) await shot(ogHtml(og), 1200, 630, og.file, true);
-// Das PNG kann sich nicht anpassen (Safari): ganz Rot steht auf hellem und dunklem Tab.
-await shot(iconHtml(32, 2, 'transparent', favicon.replace('.k{fill:#0A0A0B}', '.k{fill:#E51A14}')), 32, 32, 'favicon-32.png');
+await shot(iconHtml(32, 2, 'transparent'), 32, 32, 'favicon-32.png');
 await shot(iconHtml(180, 30, '#FFFFFF'), 180, 180, 'apple-touch-icon.png');
 await shot(logoHtml, 1200, 600, 'logo/inexxio-ehemals-hs-steiner.png');
 await browser.close();

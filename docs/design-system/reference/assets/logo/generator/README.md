@@ -22,7 +22,7 @@ python3 make_logos.py          # schreibt ../inexxio-*.svg
 |---|---|
 | `website/public/logo/inexxio-ehemals-hs-steiner.svg` · `-weiss.svg` | `inexxio-stacked-light.svg` · `-dark.svg` |
 | `website/public/logo/inexxio-wortmarke-weiss.svg` | `inexxio-horizontal-dark.svg` |
-| `website/public/favicon.svg`, `frontend/src/app/icon.svg`, `frontend/public/brand/favicon.svg`, `../favicon.svg` | `inexxio-symbol.svg` |
+| `website/public/favicon.svg`, `frontend/src/app/icon.svg`, `frontend/public/brand/favicon.svg`, `../favicon.svg` | `inexxio-symbol-red.svg` |
 | `website/src/assets/brand/schriftzug-fuss.svg` | `inexxio-horizontal-light.svg`, Ink → `#1E1F21`, ohne Titel und Masse |
 | `frontend/public/brand/inexxio-logo.svg` | `inexxio-horizontal-light.svg` |
 | `frontend/public/mail/logo.png` · `logo-dark.png` (291 × 78) | Wortmarke hell · dunkel |
