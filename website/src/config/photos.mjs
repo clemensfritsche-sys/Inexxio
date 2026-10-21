@@ -87,8 +87,14 @@ export const photos = {
   'portraet-clemens': {
     file: 'portraet-clemens.png',
     alt: 'Clemens Fritsche',
-    brief: 'Porträt Clemens Fritsche – rund freigestellt',
-    ratio: '1/1',
+    brief: 'Clemens Fritsche, freigestellt, Kopf bis Hüfte (Ausschnitt aus portraet-clemens-stehend)',
+    ratio: '4/5',
+  },
+  'portraet-clemens-stehend': {
+    file: 'portraet-clemens-stehend.png',
+    alt: 'Clemens Fritsche',
+    brief: 'Clemens Fritsche stehend, freigestellt (transparenter Grund), hoch',
+    ratio: '1/2',
   },
   'team': {
     alt: 'Das Team von INEXXIO bei der Arbeit',

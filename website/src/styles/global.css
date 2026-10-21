@@ -270,13 +270,21 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .zoom-on-hover:hover .fill-media .photo { transform: scale(1.05); }
 @media (prefers-reduced-motion: reduce) { .zoom-on-hover:hover .fill-media :is(.photo, video) { transform: none; } }
 
-/* Die Schemata bewegen sich ruhig: die Hälfte geht zurück, das Jahr läuft, der Ausfall erscheint. */
+/* Die Schemata bewegen sich ruhig: die Hälfte geht zurück; INEXXIO 365 zeigt erst die Kosten
+   ohne (unregelmässig, Ausfall rot), dann gleichen sich die Balken an (mit) und der Ausfall ist
+   «zahlen wir». Ohne Bewegung steht der Endzustand («mit») – er trägt die Aussage allein. */
   .gv-half { transform-box: fill-box; transform-origin: 0 50%; animation: gv-half 5s cubic-bezier(0.45, 0, 0.2, 1) infinite; }
-  .gv-sweep { transform-box: fill-box; transform-origin: 100% 50%; animation: gv-sweep 7s linear infinite; }
-  .gv-pop { animation: gv-pop 7s ease infinite; }
   @keyframes gv-half { 0%, 30% { transform: none; } 55%, 85% { transform: translate(22px, 8px) rotate(3deg); } 100% { transform: none; } }
-  @keyframes gv-sweep { 0% { transform: scaleX(1); } 70%, 100% { transform: scaleX(0); } }
-  @keyframes gv-pop { 0%, 38% { opacity: 0; transform: translateY(4px); } 46%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+  .ix365-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ix365-bar 10s cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+  .ix365-hot { animation-name: ix365-bar, ix365-hot; }
+  .ix365-a { animation: ix365-a 10s ease infinite; }
+  .ix365-b { animation: ix365-b 10s ease infinite; }
+  .ix365-chip { animation: ix365-chip 10s ease infinite; }
+  @keyframes ix365-bar { 0% { transform: scaleY(0); } 8%, 40% { transform: scaleY(var(--a, 1)); } 52%, 94% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
+  @keyframes ix365-hot { 0%, 42% { fill: #E51A14; } 52%, 100% { fill: #E6E7EA; } }
+  @keyframes ix365-a { 0%, 3% { opacity: 0; } 9%, 40% { opacity: 1; } 46%, 100% { opacity: 0; } }
+  @keyframes ix365-b { 0%, 46% { opacity: 0; } 54%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
+  @keyframes ix365-chip { 0%, 56% { opacity: 0; transform: translateY(4px); } 62%, 92% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; } }
 
 /* Ziehbare Spur (scripts/carousel.ts): Hand als Zeiger, beim Ziehen ohne Einrasten. */
 @media (hover: hover) and (pointer: fine) { [data-rail] { cursor: grab; } }
