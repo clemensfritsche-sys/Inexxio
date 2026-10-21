@@ -40,7 +40,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
   .cpanel__who { display: flex; gap: 14px; align-items: center; }
   @media (min-width: 768px) { .cpanel__who { flex-direction: column; align-items: flex-start; gap: 10px; } }
   .cpanel__who :global(.cpanel__img), .cpanel__who :global(picture), .cpanel__who :global(.ph) { flex: none; width: 64px; height: 64px; border-radius: 50%; overflow: hidden; }
-  .cpanel__who :global(img) { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; }
+  .cpanel__who :global(img) { width: 64px; height: 64px; object-fit: cover; object-position: 50% 0; border-radius: 50%; background: var(--paper-2); transform: scale(1.7); transform-origin: 50% 12%; }
   .cpanel__name { display: grid; font-size: 0.9375rem; line-height: 1.4; }
   .cpanel__name span { color: var(--gray-500); }
   .cpanel__list { list-style: none; padding: 0; border-bottom: 1px solid var(--line); }
