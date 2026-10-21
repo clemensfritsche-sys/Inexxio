@@ -39,6 +39,7 @@ export const photos = {
     ratio: '4/3',
   },
   'heukran-einsatz': {
+    video: 'buehne.mp4',
     alt: 'Heukrananlage mit vollem Greifer im Einsatz in einer Scheune',
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',
