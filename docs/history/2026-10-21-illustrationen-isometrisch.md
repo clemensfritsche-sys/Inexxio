@@ -32,3 +32,15 @@ Design System, Karte «Illustrationen».
   **Bagger** detailreicher (Laufwerk, Kabine, Zylinder, Abbruchhammer).
 - Startseiten-Budget (1024 KB) war um 14 KB überschritten: Kreise mit weniger Punkten,
   Zahlen ohne «.0» – die Bilder sind rund 40 % kleiner.
+
+## Runde 3 (Feedback)
+
+- **Trommeltausch/Fahrzeugtechnik**: Trommel grösser, breite schräge rote Streifen (Flächen statt
+  Linien), alte graue Trommel liegt davor – kein Kranhaken mehr.
+- **Verschleissteile**: Fahrmischer von hinten; Einfülltrichter, Auslaufschurre, Auslaufrinne
+  und Verlängerungsrinne rot, Ersatzrinne davor.
+- **Karriere**: drei Personen arbeiten gemeinsam an einem Träger (halten, schweissen, Plan).
+- **Bühnen-Video** neu hochgeladen (5 MB, mit Ton, Index am Dateiende): ohne Ton neu kodiert,
+  `faststart` (Index vorne – sonst lädt ein Handy erst die ganze Datei), 1.4 MB. Verweigert
+  ein Handy das automatische Abspielen, startet das Video bei der ersten Berührung
+  (`scripts/media.ts`). Bei «Bewegung reduzieren» bleibt bewusst das Foto stehen.
