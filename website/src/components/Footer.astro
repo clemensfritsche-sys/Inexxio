@@ -71,7 +71,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
       </ul>
     </div>
-    <div class="site-footer__mark" aria-hidden="true"><img src={wordmark} alt="" width="4618" height="2256" loading="lazy" decoding="async" /></div>
+    <div class="site-footer__mark" aria-hidden="true"><img src={wordmark} alt="" width="624" height="167" loading="lazy" decoding="async" /></div>
   </div>
 </footer>
 
@@ -113,8 +113,8 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
   }
   .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .site-footer__bottom a { color: var(--gray-500); display: inline-flex; min-height: 44px; align-items: center; }
-  /* Der Schriftzug: volle Breite, unten angeschnitten (Höhe 345 : Breite 1264). */
-  .site-footer__mark { margin-top: 48px; aspect-ratio: 1264 / 345; overflow: hidden; }
+  /* Der Schriftzug: volle Breite, an der Grundlinie angeschnitten (der untere Schwung bleibt verborgen). */
+  .site-footer__mark { margin-top: 48px; aspect-ratio: 624 / 133.5; overflow: hidden; }
   .site-footer__mark img { width: 100%; height: auto; }
   @media (max-width: 767px) { .site-footer__mark { margin-top: 32px; } }
 </style>
