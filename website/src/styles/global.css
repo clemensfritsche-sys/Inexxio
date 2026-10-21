@@ -190,7 +190,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .wrap { width: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
 .section { padding-block: calc(var(--section-y) / 2); }
 .section--tight { padding-block: calc(var(--section-y) * 0.3); }
-.faq-wrap { max-width: calc(860px + 2 * var(--gutter)); }
 .v4-head--center .head__in { margin-inline: auto; justify-items: center; }
 .section--paper { background: transparent; }
 .section--dark { background: var(--dark); color: var(--on-dark); --overline: var(--red-on-dark); }
@@ -276,6 +275,11 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
   @keyframes gv-half { 0%, 30% { transform: none; } 55%, 85% { transform: translate(22px, 8px) rotate(3deg); } 100% { transform: none; } }
   @keyframes gv-sweep { 0% { transform: scaleX(1); } 70%, 100% { transform: scaleX(0); } }
   @keyframes gv-pop { 0%, 38% { opacity: 0; transform: translateY(4px); } 46%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* Ziehbare Spur (scripts/carousel.ts): Hand als Zeiger, beim Ziehen ohne Einrasten. */
+@media (hover: hover) and (pointer: fine) { [data-rail] { cursor: grab; } }
+[data-rail].is-dragging { cursor: grabbing; scroll-snap-type: none !important; scroll-behavior: auto; user-select: none; }
+[data-rail].is-dragging a { pointer-events: none; }
 
 /* Punkte unter einem Karussell (scripts/carousel.ts legt sie an). */
 .cdots { display: flex; justify-content: center; gap: 8px; margin-top: 20px; }
@@ -412,6 +416,14 @@ html:not([data-account='staff']) [data-acct='staff'] { display: none !important;
 
 /* Offenes Mobil-Menü: die Seite dahinter scrollt nicht mit. */
 html.menu-open { overflow: hidden; }
+
+/* Scrollbar der Website: schmal und fast unsichtbar – nur der Griff, halbtransparent wie Glas,
+   die Bahn durchsichtig. Nie ganz weg: wer sie sucht, findet sie (Bedienbarkeit). Nicht im ERP. */
+html[data-site] { scrollbar-width: thin; scrollbar-color: rgba(10, 10, 11, 0.22) transparent; }
+html[data-site]::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+html[data-site]::-webkit-scrollbar-track { background: transparent; }
+html[data-site]::-webkit-scrollbar-thumb { border-radius: 999px; border: 3px solid transparent; background: rgba(10, 10, 11, 0.22) padding-box; }
+html[data-site]::-webkit-scrollbar-thumb:hover { background-color: rgba(10, 10, 11, 0.4); }
 
 /* Platz für die mobile Aktionsleiste */
 @media (max-width: 767px) { body { padding-bottom: 56px; } }

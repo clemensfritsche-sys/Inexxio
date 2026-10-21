@@ -2,46 +2,58 @@
  * Kopfzeile – Komfort auf einer ohne JS voll funktionsfähigen Navigation:
  *  - ab 8 px Scroll `is-scrolled` (über der Bühne wird der Kopf dann zu Glas)
  *  - Kachelreihen (Hauptpunkte, Sprache, Konto): öffnen beim Zeigen und per Klick auf den
- *    Pfeil, Esc schliesst und gibt den Fokus zurück, Klick daneben schliesst
+ *    Pfeil, schliessen erst beim Verlassen der Karte; Esc schliesst und gibt den Fokus zurück
  *  - Mobil-Menü (<details>): Scroll-Sperre, Esc, zweite Ebene je Punkt, schliesst bei Klick
  *    auf einen Link
  */
 type Disclosure = { root: HTMLElement; toggle: HTMLButtonElement | null };
 
 function initDisclosures(header: HTMLElement): void {
+  const card = header.querySelector<HTMLElement>('[data-hd]') ?? header;
   const items: Disclosure[] = Array.from(header.querySelectorAll<HTMLElement>('[data-dd]')).map((root) => ({
     root, toggle: root.querySelector<HTMLButtonElement>('[data-dd-toggle]'),
   }));
-  const setOpen = (d: Disclosure, open: boolean, closedByUser = false) => {
+  // EIN Zustand (.is-open). Geöffnet wird beim Zeigen auf einen Punkt, geschlossen erst, wenn
+  // der Zeiger die ganze Karte verlässt (kurz verzögert) – nicht schon im Spalt zwischen dem
+  // Punkt und seinem Panel. Darum geht unterwegs nichts verloren.
+  const setOpen = (d: Disclosure, open: boolean) => {
     d.root.classList.toggle('is-open', open);
-    // Wer per Klick schliesst, während der Zeiger noch darauf steht, will es zu haben.
-    d.root.classList.toggle('is-closed', !open && closedByUser);
     d.toggle?.setAttribute('aria-expanded', String(open));
   };
   const closeAll = (except?: Disclosure) => items.filter((d) => d !== except).forEach((d) => setOpen(d, false));
+  const fine = window.matchMedia('(hover: hover) and (pointer: fine)');
+  let timer = 0;
+  const cancel = () => window.clearTimeout(timer);
 
   for (const d of items) {
     d.toggle?.addEventListener('click', () => {
       const open = !d.root.classList.contains('is-open');
       closeAll(d);
-      setOpen(d, open, !open);
+      setOpen(d, open);
     });
     d.root.addEventListener('mouseenter', () => {
+      if (!fine.matches) return;
+      cancel();
       closeAll(d);
-      d.root.classList.remove('is-closed');
-      d.toggle?.setAttribute('aria-expanded', 'true');
+      setOpen(d, true);
     });
-    d.root.addEventListener('mouseleave', () => setOpen(d, false));
     d.root.addEventListener('focusout', (e) => {
       if (!d.root.contains(e.relatedTarget as Node | null)) setOpen(d, false);
     });
     d.root.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && d.toggle?.getAttribute('aria-expanded') === 'true') {
-        setOpen(d, false, true);
-        d.toggle.focus();
+      if (e.key === 'Escape' && d.root.classList.contains('is-open')) {
+        setOpen(d, false);
+        d.toggle?.focus();
       }
     });
   }
+  // Zeigt man auf einen Punkt ohne Panel (ERP), schliesst das offene.
+  header.querySelectorAll<HTMLElement>('.nav__item:not([data-dd])').forEach((el) => el.addEventListener('mouseenter', () => closeAll()));
+  card.addEventListener('mouseenter', cancel);
+  card.addEventListener('mouseleave', () => {
+    cancel();
+    timer = window.setTimeout(() => closeAll(), 150);
+  });
   document.addEventListener('click', (e) => {
     for (const d of items) if (!d.root.contains(e.target as Node)) setOpen(d, false);
   });

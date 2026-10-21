@@ -8,7 +8,7 @@ import Base from '../layouts/Base.astro';
 import EntryTiles from '../components/EntryTiles.astro';
 import SectionHead from '../components/SectionHead.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
-import Faq from '../components/Faq.astro';
+import FaqStage from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
@@ -88,12 +88,7 @@ const nodes = [
     </div>
   </section>
 
-  <section class="section section--rule" aria-labelledby="fragen">
-    <div class="wrap faq-wrap">
-      <SectionHead title="Häufige Fragen" id="fragen" center />
-      <Faq items={s.faq} />
-    </div>
-  </section>
+  <FaqStage items={s.faq} illo={'menu/service'} />
 
   <ContactSection />
 </Base>

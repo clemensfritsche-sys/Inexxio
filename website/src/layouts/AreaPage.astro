@@ -10,7 +10,7 @@ import Hero from '../components/Hero.astro';
 import SectionHead from '../components/SectionHead.astro';
 import AreaCard from '../components/AreaCard.astro';
 import Steps from '../components/Steps.astro';
-import Faq from '../components/Faq.astro';
+import FaqStage from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
 import SeasonNotice from '../components/SeasonNotice.astro';
 import Rich from '../components/Rich.astro';
@@ -67,12 +67,7 @@ const teaser = (path: string) => area.children.find((c) => c.href === path)?.tex
     </div>
   </section>
 
-  <section class="section section--rule" aria-labelledby="fragen">
-    <div class="wrap faq-wrap">
-      <SectionHead title="Häufige Fragen" id="fragen" center />
-      <Faq items={page.faq} />
-    </div>
-  </section>
+  <FaqStage items={page.faq} illo={area.illo} />
 
   <ContactSection />
 </Base>

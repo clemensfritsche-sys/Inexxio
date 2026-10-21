@@ -40,9 +40,10 @@ const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#a
 
 <style>
   .stage { position: relative; display: flex; align-items: flex-end; overflow: hidden; background: var(--black); color: var(--white); }
-  .stage--full { height: clamp(640px, 100svh, 960px); }
+  /* Volle Fensterhöhe: 100vh als Rückfall, 100svh ohne die Leisten des Handy-Browsers. */
+  .stage--full { height: 100vh; height: 100svh; min-height: 560px; }
   .stage--page { height: clamp(560px, 82svh, 780px); }
-  @media (max-width: 767px) { .stage--full { height: min(760px, 92svh); min-height: 600px; } .stage--page { height: min(640px, 84svh); min-height: 520px; } }
+  @media (max-width: 767px) { .stage--page { height: min(640px, 84svh); min-height: 520px; } }
   .stage :global(.stage__media) { z-index: 0; }
   .stage :global(.stage__media :is(.photo, video)) { animation: stage-zoom 18s ease-in-out infinite alternate; }
   @keyframes stage-zoom { from { transform: scale(1); } to { transform: scale(1.07); } }

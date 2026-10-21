@@ -13,7 +13,7 @@ import Steps from '../components/Steps.astro';
 import Photo from '../components/Photo.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
-import Faq from '../components/Faq.astro';
+import FaqStage from '../components/FaqStage.astro';
 import Promises from '../components/Promises.astro';
 import ContactSection from '../components/ContactSection.astro';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
@@ -110,12 +110,7 @@ const illo = (k: keyof typeof ILLO, label: string) => ILLO[k].replace('<svg ', `
 
   <Promises only={page.promises} lead={false} />
 
-  <section class="section section--rule" aria-labelledby="fragen">
-    <div class="wrap faq-wrap">
-      <SectionHead title="Häufige Fragen" id="fragen" center />
-      <Faq items={page.faq} />
-    </div>
-  </section>
+  <FaqStage items={page.faq} illo={'spezial-baumaschinen'} />
 
   <ContactSection />
 </Base>

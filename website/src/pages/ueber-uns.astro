@@ -13,7 +13,7 @@ import Timeline from '../components/Timeline.astro';
 import Quote from '../components/Quote.astro';
 import Icon from '../components/Icon.astro';
 import LocationMap from '../components/LocationMap.astro';
-import Faq from '../components/Faq.astro';
+import FaqStage from '../components/FaqStage.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
 import { ueberUns as u } from '../content/ueber-uns';
@@ -137,12 +137,7 @@ const faq = [...h.faq, ...u.areaFaq];
     </div>
   </section>
 
-  <section class="section section--rule" id="fragen" aria-labelledby="fragen-title">
-    <div class="wrap faq-wrap">
-      <SectionHead title="Häufige Fragen" id="fragen-title" center />
-      <Faq items={faq} />
-    </div>
-  </section>
+  <FaqStage items={faq} illo={'menu/ueber'} />
 </Base>
 
 <style>

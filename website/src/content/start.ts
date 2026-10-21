@@ -53,10 +53,10 @@ export const start = {
     h2: 'Entwicklung, Produktion und Service aus einer Hand.',
     /** Grosse Zahlen: «Seit» darüber, Einheit daneben, ein Satz darunter. */
     figures: [
-      { pre: 'Seit', figure: '{{history.founded}}', text: 'In {{address.town}} gegründet. Gleicher Standort, gleiche Telefonnummer.' },
+      { pre: 'Seit', figure: '{{history.founded}}', text: 'In {{address.town}} gegründet.' },
       { pre: 'Seit', figure: '{{history.cranesSince}}', text: 'bauen wir Krane selbst. Darum kennen wir jedes Bauteil.' },
       { figure: '1', unit: 'Ansprechpartner', text: 'für Krane, Fahrmischer und Spezialmaschinen.' },
-      { figure: '100', unit: '%', text: 'dokumentiert: jeder Einsatz mit Protokoll – für Versicherung, Suva und den nächsten Service.' },
+      { figure: '50', unit: '%', text: 'übernehmen wir, wenn Sie mit dem Ergebnis nicht zufrieden sind – die Zufriedenheitsgarantie.' },
     ] as { pre?: string; figure: string; unit?: string; text: string }[],
     quote: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – und ergänze es dort, wo es Ihnen nützt.',
     caption: '{{people.owner.name}}, Maschinenbauingenieur – Erfahrung aus der Entwicklung von Liebherr-Bohrgeräten.',

@@ -11,18 +11,37 @@ import Icon from './Icon.astro';
 import Rich from './Rich.astro';
 import half from '../assets/schema/garantie-haelfte.svg?raw';
 import year from '../assets/schema/inexxio-365-jahr.svg?raw';
-import ueber from '../assets/illustrations/menu/ueber.svg?url';
 
-export type FaqVisual = 'garantie' | 'inexxio365' | 'telefon' | 'uebergabe';
+export type FaqVisual = 'garantie' | 'inexxio365' | 'telefon' | 'uebergabe' | 'zeichnung';
 interface Props {
   items: { q: string; a: string; visual?: FaqVisual }[];
   title?: string;
   lead?: string;
   id?: string;
+  /** Zeichnung der Seite (Schlüssel in src/assets/illustrations, z. B. «spezial-krane»), für jede
+      Frage, die zu keinem eigenen Bild passt. */
+  illo?: string;
 }
-const { items, title = 'Häufige Fragen', lead, id = 'fragen' } = Astro.props;
+const { items, title = 'Häufige Fragen', lead, id = 'fragen', illo = 'menu/service' } = Astro.props;
 const group = `${id}-faq`;
-const visuals = items.map((it) => it.visual ?? 'garantie');
+const illos = import.meta.glob<string>('../assets/illustrations/**/*.svg', { eager: true, query: '?url', import: 'default' });
+const art = (key: string) => {
+  const url = illos[`../assets/illustrations/${key}.svg`];
+  if (!url) throw new Error(`Fragen: Zeichnung «${key}» fehlt in src/assets/illustrations/.`);
+  return url;
+};
+const ueber = art('menu/ueber');
+const pageArt = art(illo);
+/** Das Bild zur Frage: angegeben – oder nach ihrem Thema; sonst die Zeichnung der Seite. */
+const pick = (q: string): FaqVisual => {
+  if (/zufriedenheit/i.test(q)) return 'garantie';
+  if (/365/.test(q)) return 'inexxio365';
+  if (/still|notfall|stillstand|telefonnummer|anrufen/i.test(q)) return 'telefon';
+  if (/hs steiner|heiri|übergabe|verträge|in zukunft|ersatzteile für ältere/i.test(q)) return 'uebergabe';
+  return 'zeichnung';
+};
+if (items.length > 10) throw new Error(`Fragen: höchstens 10 je Seite (hier ${items.length}).`);
+const visuals = items.map((it) => it.visual ?? pick(it.q));
 ---
 <section class="v4-section fq-sec" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
@@ -46,6 +65,7 @@ const visuals = items.map((it) => it.visual ?? 'garantie');
                 </svg>
               )}
               {v === 'uebergabe' && <img src={ueber} alt="" width="400" height="300" loading="lazy" decoding="async" />}
+              {v === 'zeichnung' && <img src={pageArt} alt="" width="400" height="300" loading="lazy" decoding="async" />}
             </div>
           </div>
         ))}
@@ -87,7 +107,8 @@ const visuals = items.map((it) => it.visual ?? 'garantie');
   .fq__v:first-child { opacity: 1; }
   .fq__v--dark { background: var(--black); }
   .fq__vin { position: absolute; inset: 24px 40px 70px; display: flex; align-items: center; justify-content: center; }
-  @media (min-width: 960px) { .fq__vin { inset: 90px 260px 90px 90px; } }
+  /* Bei langen Listen wächst die Fläche, das Bild bleibt in ruhiger Grösse mittig. */
+  @media (min-width: 960px) { .fq__vin { inset: 0 260px 0 90px; margin: auto 0; height: min(420px, calc(100% - 180px)); } }
   .fq__vin :global(svg), .fq__vin img { display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
   .fq__year { width: 86%; height: 70%; }
   .fq__tel { font-family: var(--font-display); font-size: 34px; font-weight: 600; fill: var(--ink); letter-spacing: -1px; }
@@ -97,7 +118,9 @@ const visuals = items.map((it) => it.visual ?? 'garantie');
   .fq[data-open] .fq__v { opacity: 0; }
   .fq[data-open='0'] .fq__v[data-i='0'], .fq[data-open='1'] .fq__v[data-i='1'],
   .fq[data-open='2'] .fq__v[data-i='2'], .fq[data-open='3'] .fq__v[data-i='3'],
-  .fq[data-open='4'] .fq__v[data-i='4'], .fq[data-open='5'] .fq__v[data-i='5'] { opacity: 1; }
+  .fq[data-open='4'] .fq__v[data-i='4'], .fq[data-open='5'] .fq__v[data-i='5'],
+  .fq[data-open='6'] .fq__v[data-i='6'], .fq[data-open='7'] .fq__v[data-i='7'],
+  .fq[data-open='8'] .fq__v[data-i='8'], .fq[data-open='9'] .fq__v[data-i='9'] { opacity: 1; }
 
   .fq__list { position: relative; display: grid; gap: 10px; margin: -48px 8px 0; }
   @media (min-width: 960px) { .fq__list { width: 520px; margin: 0; } }

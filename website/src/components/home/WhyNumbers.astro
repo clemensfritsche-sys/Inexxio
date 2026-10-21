@@ -1,7 +1,8 @@
 ---
 /**
  * Warum INEXXIO (v4): grosse Zahlen links, rechts das Porträt mit dem Zitat in dunklem Glas.
- * Zahlen und Sätze: content/start.ts (why.figures).
+ * Zahlen und Sätze: content/start.ts (why.figures). Die Zahlen zählen beim Hineinscrollen
+ * hoch (scripts/countup.ts); im HTML steht immer der Endwert.
  */
 import { start } from '../../content/start';
 import Media from '../Media.astro';
@@ -17,7 +18,7 @@ const w = start.why;
       <dl class="why__figs">
         {w.figures.map((f) => (
           <div class="why__fig">
-            <dt>{f.pre && <span class="why__pre">{f.pre}</span>}<span class="why__num">{plain(f.figure)}{f.unit && <span class="why__unit">{f.unit}</span>}</span></dt>
+            <dt>{f.pre && <span class="why__pre">{f.pre}</span>}<span class="why__num"><span class="why__digits" data-count={plain(f.figure)} style={`min-width:${plain(f.figure).length}ch`}>{plain(f.figure)}</span>{f.unit && <span class="why__unit">{f.unit}</span>}</span></dt>
             <Rich as="dd" text={f.text} />
           </div>
         ))}
@@ -34,6 +35,11 @@ const w = start.why;
   </div>
 </section>
 
+<script>
+  import { initCountUp } from '../../scripts/countup';
+  initCountUp();
+</script>
+
 <style>
   .why { display: grid; gap: 40px; }
   @media (min-width: 960px) { .why { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 96px; align-items: center; } }
@@ -43,6 +49,7 @@ const w = start.why;
   .why__pre { display: block; font-size: 0.875rem; color: var(--gray-500); }
   .why__num { display: block; font-family: var(--font-display); font-weight: 600; font-size: 3.5rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
   @media (min-width: 960px) { .why__num { font-size: 4.5rem; } }
+  .why__digits { display: inline-block; text-align: left; }
   .why__unit { margin-left: 8px; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
   @media (min-width: 960px) { .why__unit { font-size: 1.5rem; } }
   .why__fig :global(dd) { margin: 10px 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); max-width: 34em; }

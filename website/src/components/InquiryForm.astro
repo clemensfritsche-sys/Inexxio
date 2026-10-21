@@ -3,9 +3,11 @@
  * DAS Anfrage-Formular – auf /kontakt und am Ende jeder Seite dasselbe (#1107/#1129).
  *
  * ►►► v4: zwei Schritte (Vorlage «Startseite v4»): erst das Anliegen, dann wie wir Sie
- * erreichen. ◄◄◄ Schritt 1 ist EIN Feld (Glas über der Karte) mit «Foto anhängen» und
- * «Weiter»; Schritt 2 nennt das Anliegen in einer Zeile («Ändern») und fragt Name, E-Mail,
+ * erreichen. ◄◄◄ Schritt 1 ist EIN grosses Feld mit «Foto anhängen» und dem Senden-Pfeil
+ * («Weiter») darin; Schritt 2 nennt das Anliegen in einer Zeile («Ändern») und fragt Name, E-Mail,
  * Telefon und Firma. Ist jemand angemeldet, stehen diese schon da (scripts/form.ts).
+ * Beide Schritte liegen übereinander in derselben Fläche: der Wechsel blendet über, nichts
+ * darunter verschiebt sich.
  *
  * Ohne JavaScript ist es EIN Formular mit allen Feldern, klassisch an den Server (multipart,
  * Prüfung dort). Das Skript führt die Schritte, prüft am Feld und sendet im Hintergrund;
@@ -54,19 +56,20 @@ const f = (name: string) => `${id}-${name}`;
       <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
     </div>
 
+    <div class="iform__steps">
     <div class="iform__step iform__step--1">
-      <div class="field">
+      <div class="iform__ask-box">
         <label class="visually-hidden" for={f('message')}>Worum geht es?</label>
         <textarea class="textarea iform__ask" id={f('message')} name="message" rows="5" required placeholder="Worum geht es? Zum Beispiel: Unser Heukran ruckelt beim Heben." maxlength={L.message} aria-describedby={f('message-error')}></textarea>
-        <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
+        <div class="iform__tools">
+          <label class="iform__attach" for={f('photos')}>
+            <Icon name="camera" size={18} /> Foto anhängen <span class="iform__opt">optional</span>
+            <input class="iform__attach-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
+          </label>
+          <button type="button" class="iform__send" data-step-next aria-label="Weiter" title="Weiter"><Icon name="send" size={22} /></button>
+        </div>
       </div>
-      <div class="iform__bar">
-        <label class="iform__attach" for={f('photos')}>
-          <Icon name="camera" size={18} /> Foto anhängen <span class="iform__opt">optional</span>
-          <input class="iform__attach-input" id={f('photos')} name="photos" type="file" multiple accept={inquiry.photos.accept} aria-describedby={`${f('photos-hint')} ${f('photos-error')}`} />
-        </label>
-        <button type="button" class="btn btn--primary btn--lg iform__next" data-next>Weiter <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
-      </div>
+      <p class="field__error" id={f('message-error')} data-error-for="message" hidden></p>
       <p class="visually-hidden" id={f('photos-hint')}>Bis zu {inquiry.photos.max} Bilder, zusammen höchstens {inquiry.photos.maxTotalBytes / 1024 / 1024} MB.</p>
       <ul class="iform__files" data-file-list hidden></ul>
       <p class="field__error" id={f('photos-error')} data-error-for="photos" hidden></p>
@@ -107,9 +110,10 @@ const f = (name: string) => `${id}-${name}`;
 
       <div class="iform__foot">
         <span class="iform__count">Schritt 2 von 2</span>
-        <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="arrow-right" size={18} class="btn__arrow" /></button>
+        <button type="submit" class="btn btn--primary btn--lg iform__submit" data-submit>Anfrage senden <Icon name="send" size={18} class="btn__arrow" /></button>
       </div>
       <p class="iform__privacy">Ihre Angaben verwenden wir nur für diese Anfrage – <a class="link" href="/datenschutz">Datenschutz</a>.</p>
+    </div>
     </div>
   </form>
 </div>

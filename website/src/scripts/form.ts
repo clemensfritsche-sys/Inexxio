@@ -124,9 +124,9 @@ function steps(form: HTMLFormElement, vocab: Vocab): (n: 1 | 2) => void {
       const msg = value(form, 'message').replace(/\s+/g, ' ');
       recap.textContent = msg.length > 80 ? `${msg.slice(0, 79)}…` : msg;
     }
-    if (focus) form.querySelector<HTMLElement>(n === 1 ? '[name="message"]' : '[name="name"]')?.focus();
+    if (focus) form.querySelector<HTMLElement>(n === 1 ? '[name="message"]' : '[name="name"]')?.focus({ preventScroll: true });
   };
-  form.querySelector('[data-next]')?.addEventListener('click', () => {
+  form.querySelector('[data-step-next]')?.addEventListener('click', () => {
     const all = validate(form, vocab);
     const errors: Errors = {};
     if (all.message) errors.message = all.message;
