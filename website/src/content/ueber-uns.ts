@@ -64,7 +64,7 @@ export const ueberUns = {
     title: 'Wofür wir stehen',
     /** Locker gesetzt: das Wort gross, der halbe Satz dahinter leise – kein Raster, keine Symbole. */
     items: [
-      { title: 'Verbindlichkeit.', text: 'Ein Wort gilt – Termin, Preis, Absprache.' },
+      { title: 'Verbindlichkeit.', text: 'Ein Wort gilt.' },
       { title: 'Qualität.', text: 'Sauber bis ins Protokoll.' },
       { title: 'Zuverlässigkeit.', text: 'Erreichbar, wenn etwas stillsteht.' },
       { title: 'Innovation.', text: 'Modernisieren statt ersetzen.' },
