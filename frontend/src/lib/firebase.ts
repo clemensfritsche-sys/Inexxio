@@ -15,6 +15,7 @@ import {
   signOut,
   onIdTokenChanged,
   verifyBeforeUpdateEmail,
+  reauthenticateWithPopup,
   type Auth,
   type User,
 } from 'firebase/auth';
@@ -154,11 +155,48 @@ export function onAuthChange(callback: (user: User | null) => void) {
   return onIdTokenChanged(auth, callback);
 }
 
+/**
+ * ►►► **Die Anmelde-E-Mail ändern** – Firebase schickt einen Bestätigungslink an die NEUE
+ * Adresse (`verifyBeforeUpdateEmail`); erst der Klick ändert sie. Die alte Adresse bekommt
+ * von Firebase eine Nachricht mit einem Link zum Rückgängigmachen. ◄◄◄
+ *
+ * Nach dem Klick sind alle Sitzungen abgelaufen (Firebase widerruft sie bei einer neuen
+ * E-Mail); der Link führt zurück nach `/konto?email=neu`, wo `refreshAfterEmailChange` das
+ * prüft. Das Backend übernimmt die Adresse aus dem nächsten Token (`core/auth`).
+ * Verlangt eine frische Anmeldung (`auth/requires-recent-login`) – siehe `reauthenticate`.
+ */
 export async function updateEmailAddress(newEmail: string): Promise<void> {
   if (!auth?.currentUser) throw new Error('Nicht angemeldet');
-  const actionCodeSettings = {
-    url: `${typeof window !== 'undefined' ? window.location.origin : 'https://inexxio-dev.web.app'}/konto`,
+  auth.languageCode = 'de';
+  await verifyBeforeUpdateEmail(auth.currentUser, newEmail, {
+    url: `${window.location.origin}/konto?email=neu`,
     handleCodeInApp: false,
-  };
-  await verifyBeforeUpdateEmail(auth.currentUser, newEmail, actionCodeSettings);
+  });
+}
+
+/**
+ * Frisch anmelden, ohne die Seite zu verlassen – geht nur mit Google (Pop-up). Wer per
+ * E-Mail-Link oder Passkey angemeldet ist, meldet sich neu an (`'login'`).
+ */
+export async function reauthenticate(): Promise<'done' | 'login'> {
+  const user = auth?.currentUser;
+  if (!user?.providerData.some((p) => p.providerId === 'google.com')) return 'login';
+  await reauthenticateWithPopup(user, googleProvider, browserPopupRedirectResolver);
+  return 'done';
+}
+
+/**
+ * Zurück vom Bestätigungslink: Gilt die Sitzung noch, holt sie einen frischen Token mit der
+ * neuen Adresse; ist sie widerrufen, wird abgemeldet (das Konto schickt dann zur Anmeldung).
+ */
+export async function refreshAfterEmailChange(): Promise<string | null> {
+  try {
+    await auth?.currentUser?.reload();
+    const token = await auth?.currentUser?.getIdToken(true);
+    if (token) api.setToken(token);
+    return token ?? null;
+  } catch {
+    await logout();
+    return null;
+  }
 }

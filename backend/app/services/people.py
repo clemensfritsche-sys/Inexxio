@@ -181,6 +181,8 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
     fields = data.model_dump(exclude_unset=True)
     _company_fields(db, fields, actor_id, staff=staff)
     assert_employment(db, user, fields)
+    if fields.get("phone"):
+        fields["phone"] = tidy_phone(user, fields["phone"])
     for key, value in fields.items():
         old_val = getattr(user, key, None)
         old_str = str(old_val) if old_val is not None else None
@@ -190,6 +192,38 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
                       object_id=user.object_id, old_value=old_str)
         setattr(user, key, value)
     return user
+
+
+def tidy_phone(user: UserProfile, raw: str) -> str:
+    """►►► **Die Telefonnummer so, wie man sie liest** – «+41 79 505 83 02». ◄◄◄
+
+    Dieselbe Schreibweise wie auf der Website und unter jeder Mail (``services/phone``).
+    Eine Landesnummer ohne Vorwahl («079 …») bekommt die Vorwahl aus dem Land der ersten
+    Anschrift (ohne Anschrift die Schweiz, wie überall: ``address.iso2``); in einem Land
+    ohne feste Gruppierung bleibt sie, wie getippt – eine geratene Gruppe wäre schlechter
+    als keine."""
+    from . import phone
+    raw = " ".join(raw.split())
+    country = user.addresses[0].country if user.addresses else None
+    return phone.display(raw, phone.e164(raw, country)) or raw
+
+
+def email_problem(db: Session, user: UserProfile, email: Optional[str]) -> Optional[str]:
+    """►►► **Darf diese Person ihre Anmelde-E-Mail auf diese Adresse ändern?** ◄◄◄
+    ``None`` = ja, sonst der Grund in einem Satz.
+
+    Gefragt **vor** dem Bestätigungslink (``POST /auth/me/email-check``) und noch einmal,
+    wenn die bestätigte Adresse mit dem Token ankommt (``core/auth._sync_user_profile``) –
+    dieselbe Regel, damit nie Firebase die neue Adresse hat und das Profil die alte."""
+    key = normalize_email(email)
+    if "@" not in key or "." not in key.split("@")[-1]:
+        return f"«{email}» ist keine E-Mail-Adresse."
+    if key == normalize_email(user.email):
+        return "Das ist bereits Ihre Anmelde-E-Mail."
+    other = by_email(db, key)
+    if other is not None and other.id != user.id and other.is_active:
+        return f"«{key}» gehört bereits zu einem anderen Konto – bitte melden Sie sich bei uns."
+    return None
 
 
 def normalize_email(email: Optional[str]) -> str:

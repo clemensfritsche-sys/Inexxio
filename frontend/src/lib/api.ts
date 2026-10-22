@@ -245,6 +245,11 @@ class ApiClient {
     return this.patch('/api/v1/auth/me', data);
   }
 
+  /** Darf die Anmelde-E-Mail auf diese Adresse wechseln? Wirft den Grund (409), sonst nichts. */
+  async checkMyEmail(email: string): Promise<void> {
+    await this.post('/api/v1/auth/me/email-check', { email });
+  }
+
   // ─── Das Adressbuch – im Konto die eigene Person, im ERP ein Datensatz ──────
   // Dieselben Funktionen im Dienst (`services/address_book`); die Antwort ist jedes Mal
   // der ganze Benutzer, damit kein Aufrufer eine Liste nachführen muss.

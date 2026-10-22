@@ -94,6 +94,46 @@
         ]
       }
     },
+    "/api/v1/auth/me/email-check": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Check My Email",
+        "description": "Darf die Anmelde-E-Mail auf diese Adresse wechseln? – gefragt, BEVOR Firebase den\nBestätigungslink schickt (``people.email_problem``). 204 = ja, sonst 409 mit Grund.",
+        "operationId": "check_my_email_api_v1_auth_me_email_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/me/addresses": {
       "post": {
         "tags": [
@@ -6012,6 +6052,20 @@
         ],
         "title": "DefinitionLine",
         "description": "Eine Definitionszeile: Artikel · Menge · Herkunft.\n\n``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie\neine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``units``\ndabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der\nFreigabe entstehen."
+      },
+      "EmailCheck": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "EmailCheck",
+        "description": "Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht."
       },
       "ErpAdminUpdate": {
         "properties": {

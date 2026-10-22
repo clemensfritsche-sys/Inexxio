@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { refreshAfterEmailChange } from '@/lib/firebase';
 import { AccountShell } from '@/components/account/account-shell';
 import type { UserProfile } from '@/types';
 
@@ -15,6 +17,17 @@ function KontoInner() {
     queryKey: ['me'],
     queryFn: () => api.getMe(),
   });
+
+  // ►►► **Zurück vom Bestätigungslink der neuen Anmelde-E-Mail** (`?email=neu`): frischer
+  // Token, damit das Backend die neue Adresse übernimmt – oder, ist die Sitzung widerrufen,
+  // zur Anmeldung (mit der neuen Adresse). ◄◄◄
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('email') !== 'neu') return;
+    url.searchParams.delete('email');
+    window.history.replaceState(null, '', url.pathname + url.search + '#sicherheit');
+    void refreshAfterEmailChange().then((token) => { if (token) void qc.invalidateQueries({ queryKey: ['me'] }); });
+  }, [qc]);
 
   async function handleSave(data: Partial<UserProfile>) {
     await api.updateMe(data);
