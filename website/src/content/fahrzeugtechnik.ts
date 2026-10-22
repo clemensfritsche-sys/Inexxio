@@ -199,18 +199,19 @@ export const drumOptions = {
 };
 
 /**
- * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): ein Band
- * über zwölf Monate ab September, damit der Winter am Stück steht. `months`: die Tauschmonate.
+ * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): zwei Phasen
+ * über ein Jahr ab November – Bau ruht (Schneeflocke, wir tauschen) und Bausaison (Sonne, er fährt).
+ * `winter`: wie viele Monate ab November die erste Phase dauert.
  */
 export const winterSlot = {
   title: 'Im Winter, wenn der Bau ruht',
   text: 'Dann fährt der Fahrmischer wenig – der beste Moment für den Tausch. Wer früh plant, startet im Frühling mit einer neuen Trommel.',
-  band: ['S', 'O', 'N', 'D', 'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A'],
-  months: [2, 3, 4, 5],
-  swap: 'Tausch',
-  label: 'Tausch von November bis Februar, ab März Saison',
-  ready: 'Saison',
-  items: ['Trommel prüfen und tauschen', 'Mischspiralen und Spiralschutz', 'Antrieb und Hydraulik', 'Rinnen, Schurren und Aufbau'],
+  months: ['N', 'D', 'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O'],
+  winter: 4,
+  phases: [
+    { icon: 'snowflake', label: 'Bau ruht', text: 'Wir tauschen die Trommel', when: 'November bis Februar' },
+    { icon: 'sun', label: 'Bausaison', text: 'Ihr Fahrmischer fährt', when: 'ab März' },
+  ] satisfies { icon: IconName; label: string; text: string; when: string }[],
   cta: 'Winter-Termin planen',
 };
 
@@ -268,14 +269,22 @@ export const verschleissteile: SubPage = {
   keywords: ['Fahrmischer Verschleissteile', 'Fahrmischer Rinne', 'Auslaufschurre', 'Spiralschutz', 'Einfülltrichter'],
 };
 
-/** Bestellen in drei Schritten – eine Zeile unter dem Katalog. */
+/** Kopf des Katalogs. */
+export const partsCatalog = {
+  title: 'Katalog',
+  lead: 'Auf Bestellung beschafft, auf Wunsch eingebaut. Den Preis erfahren Sie vorab.',
+};
+
+/** Bestellen in drei Schritten – als Weg (components/spezial/SolutionPath.astro). */
 export const partsOrder = {
   title: 'Bestellt in drei Schritten',
+  start: 'Ihr Teil fehlt',
+  end: 'Wieder im Einsatz',
   items: [
-    { title: 'Foto schicken', text: 'Vom Teil, dazu Marke und Typ. Mehr braucht es nicht.' },
-    { title: 'Preis erhalten', text: 'Wir beschaffen das Teil und nennen vorher den Preis.' },
-    { title: 'Holen oder einbauen', text: 'Abholen in {{address.city}} – oder wir bauen es gleich ein.' },
-  ],
+    { icon: 'camera', who: 'Sie', title: 'Foto schicken', text: 'Vom Teil, dazu Marke und Typ. Mehr braucht es nicht.', tags: ['Foto', 'Marke', 'Typ'] },
+    { icon: 'search', who: 'Wir', title: 'Preis erhalten', text: 'Wir beschaffen das Teil und nennen vorher den Preis.', check: 'Preis vorab' },
+    { icon: 'package', who: 'Wir', title: 'Holen oder einbauen', text: 'Abholen in {{address.city}} – oder wir bauen es gleich ein.', tags: ['Abholen', 'Einbau'] },
+  ] satisfies Station[],
 };
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */

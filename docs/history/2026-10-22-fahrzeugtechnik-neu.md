@@ -34,5 +34,13 @@ Foto randlos, dunkel auslaufend, Glas-Knopf, breit zwei Spalten versetzt, schmal
 letzte Karte «Ihr Teil ist nicht dabei?» (`catalog.missing`).
 **Verworfen:** drei Vergleichskarten mit Zeilen (wirkte wie eine Tabelle).
 
+**Runde 4:** Marken neu (Putzmeister, Liebherr, Cifa, Schwing Stetter, Belloli – Intermix gehört zu
+Putzmeister, Peter und Belmix fallen weg); Logos als PNG mit durchsichtigem Grund in
+`src/assets/marken/` (aus den gelieferten Bildern freigestellt; Liebherr hatte ein eingebranntes
+Schachbrett), im Band gleich gross über die Fläche. `catalog.fits` ist jetzt `site.marks.mixers` (eine
+Quelle). Verschleissteile: Katalog-Satz neu, Marken-Band auch hier, «Bestellt in drei Schritten» als Weg
+(`SolutionPath`). Winter: zwei Phasen mit Symbol (Schneeflocke «Bau ruht», Sonne «Bausaison») über den
+Monaten ab November statt zwölf abstrakter Balken.
+
 **Offen:** eigene Kopfbilder (wie die Zeichnung mit echtem rotem Teil auf Speziallösungen) – heute
 stehen die Menü-Zeichnungen dort; Produktfotos der Teile sind weiter Beispielbilder.

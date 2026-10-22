@@ -1,38 +1,42 @@
 ---
 /**
- * Marken (v4): eine ruhige Zeile – je Marke ihr Logo in schwachem Grau (beim Zeigen in Farbe), solange
- * keines in src/assets/marken/<marke>.svg liegt, ihr Name. Darunter ein Satz zur Unabhängigkeit.
- * Marken aus config/site.mjs (`marks`). Gebraucht auf Fahrzeugtechnik und Trommeltausch.
+ * Marken (v4): eine ruhige Zeile der Logos in schwachem Grau, beim Zeigen in Farbe. Logo je Marke in
+ * src/assets/marken/<marke>.png (klein, Leerzeichen → «-»); fehlt es, steht der Name. Die Logos
+ * wirken gleich gross: die Höhe richtet sich nach der Breite (gleiche Fläche statt gleicher Höhe).
+ * Darunter ein Satz zur Unabhängigkeit. Marken aus config/site.mjs (`marks`).
+ * Gebraucht auf Fahrzeugtechnik, Trommeltausch und Verschleissteile.
  */
+import type { ImageMetadata } from 'astro';
 import Rich from '../Rich.astro';
 import { site } from '../../config/site.mjs';
 
 interface Props { title?: string }
 const { title = 'Für alle gängigen Marken' } = Astro.props;
-const LOGOS = import.meta.glob<string>('../../assets/marken/*.svg', { eager: true, query: '?url', import: 'default' });
-const logo = (b: string) => LOGOS[`../../assets/marken/${b.toLowerCase()}.svg`];
+const LOGOS = import.meta.glob<ImageMetadata>('../../assets/marken/*.png', { eager: true, import: 'default' });
+const logo = (b: string) => LOGOS[`../../assets/marken/${b.toLowerCase().replace(/\s+/g, '-')}.png`];
+/** Höhe in px bei einem Seitenverhältnis von 3:1 – breitere Logos werden niedriger, höhere höher. */
+const BASE = 44;
+const height = (m: ImageMetadata) => Math.round(Math.min(BASE * 1.5, BASE * Math.sqrt(3 / (m.width / m.height))));
 ---
 <section class="v4-section" aria-labelledby="marken">
   <div class="wrap">
     <header class="v4-head--center"><h2 class="v4-h2" id="marken">{title}</h2></header>
     <ul role="list" class="bb">
       {site.marks.mixers.map((b) => {
-        const src = logo(b);
-        return <li class:list={[src && 'bb__logo']}>{src ? <img src={src} alt={b} height="40" loading="lazy" decoding="async" /> : b}</li>;
+        const m = logo(b);
+        return <li class:list={[m && 'bb__logo']}>{m ? <img src={m.src} alt={b} width={Math.round(height(m) * m.width / m.height)} height={height(m)} style={`--h: ${height(m)}px`} loading="lazy" decoding="async" /> : b}</li>;
       })}
-      <li class="bb__more">und weitere</li>
     </ul>
     <Rich as="p" class="bb__note" text={site.marks.mixerNotice} />
   </div>
 </section>
 
 <style>
-  .bb { list-style: none; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 28px; max-width: 1200px; margin: 32px auto 0; }
+  .bb { list-style: none; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 28px 48px; max-width: 1100px; margin: 40px auto 0; }
   .bb li { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.375rem, 1rem + 1.4vw, 2.125rem); letter-spacing: -0.03em; color: var(--gray-500); transition: color 0.4s var(--ease); }
   .bb li:hover { color: var(--ink); }
-  .bb__logo img { display: block; height: 28px; width: auto; filter: grayscale(1); opacity: 0.55; transition: filter 0.4s var(--ease), opacity 0.4s var(--ease); }
+  .bb__logo img { display: block; height: calc(var(--h) * 0.72); width: auto; filter: grayscale(1) contrast(0.9); opacity: 0.5; transition: filter 0.4s var(--ease), opacity 0.4s var(--ease); }
   .bb__logo:hover img { filter: none; opacity: 1; }
-  @media (min-width: 960px) { .bb__logo img { height: 40px; } }
-  .bb .bb__more { color: var(--ink-4); }
-  .bb__note { margin: 24px auto 0; text-align: center; font-size: 0.8125rem; color: var(--gray-500); }
+  @media (min-width: 960px) { .bb { gap: 32px 72px; } .bb__logo img { height: var(--h); } }
+  .bb__note { margin: 32px auto 0; text-align: center; font-size: 0.8125rem; color: var(--gray-500); }
 </style>

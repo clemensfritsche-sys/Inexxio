@@ -1,19 +1,17 @@
 ---
 /**
  * Im Winter, wenn der Bau ruht (v4, Anker #winter): links Titel, Satz und die rote Anfrage, rechts
- * ein Jahresband ab September – die Tauschmonate dunkel am Stück, danach die Saison. Dieselbe
- * Bildsprache wie das Jahresband von INEXXIO 365, nur als Fläche statt als Karte.
- * Darunter, was wir im Winter tun, als Marken. Texte: content/fahrzeugtechnik.ts (`winterSlot`).
+ * das Jahr ab November in zwei Phasen – dunkel mit Schneeflocke «Bau ruht · Wir tauschen die Trommel»,
+ * hell mit Sonne «Bausaison · Ihr Fahrmischer fährt», darunter die Monate. Auf einen Blick lesbar:
+ * Symbol, zwei Wörter, ein Satz. Texte: content/fahrzeugtechnik.ts (`winterSlot`).
  */
+import Icon, { type IconName } from '../Icon.astro';
 import Rich from '../Rich.astro';
 
-interface Props {
-  title: string; text: string; band: string[]; months: number[];
-  swap: string; ready: string; label: string; items: string[]; cta: string;
-}
-const { title, text, band, months, swap, ready, label, items, cta } = Astro.props;
-const first = months[0];
-const after = months[months.length - 1] + 1;
+interface Phase { icon: IconName; label: string; text: string; when: string }
+interface Props { title: string; text: string; months: string[]; winter: number; phases: Phase[]; cta: string }
+const { title, text, months, winter, phases, cta } = Astro.props;
+const [cold, warm] = phases;
 ---
 <section class="v4-section" id="winter" aria-labelledby="winter-title">
   <div class="wrap wb">
@@ -22,38 +20,53 @@ const after = months[months.length - 1] + 1;
       <Rich as="p" class="v4-sub" text={text} />
       <a class="btn btn--primary btn--lg" href="#anfrage">{cta}</a>
     </div>
-    <div class="wb__art">
-      <ol class="wb__band" aria-label={label} style={`--from: ${first + 1}; --to: ${after + 1}; --ready: ${after + 1}`}>
-        <li class="wb__span" aria-hidden="true">{swap}</li>
-        <li class="wb__ready" aria-hidden="true">{ready}</li>
-        {band.map((m, i) => <li class:list={['wb__m', months.includes(i) && 'wb__m--on', i === after && 'wb__m--ready']}><span>{m}</span></li>)}
+    <div class="wb__art" style={`--w: ${winter}; --n: ${months.length}`}>
+      <ol class="wb__phases">
+        {[cold, warm].map((p, i) => (
+          <li class:list={['wb__ph', i === 0 && 'wb__ph--cold']}>
+            <span class="wb__ic"><Icon name={p.icon} size={28} /></span>
+            <span class="wb__label">{p.label}</span>
+            <span class="wb__ptext">{p.text}</span>
+            <span class="visually-hidden">{p.when}</span>
+          </li>
+        ))}
       </ol>
-      <ul role="list" class="wb__items">{items.map((i) => <li>{i}</li>)}</ul>
+      <ol class="wb__months" aria-hidden="true">
+        {months.map((m, i) => <li class:list={[i < winter && 'is-cold']}>{m}</li>)}
+      </ol>
     </div>
   </div>
 </section>
 
 <style>
   .wb { display: grid; gap: 40px; }
-  .wb__text { display: grid; gap: 0; justify-items: start; }
+  .wb__text { display: grid; justify-items: start; }
   .wb__text .btn { --btn-h: 52px; margin-top: 28px; padding: 0 24px; font-size: 1rem; }
-  .wb__art { padding: 28px 20px 24px; border-radius: 24px; background: var(--gray-100); }
-  .wb__band { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 10px 4px; }
-  .wb__span, .wb__ready { grid-row: 1; justify-self: start; padding: 4px 10px; border-radius: 6px; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
-  .wb__span { grid-column: var(--from) / var(--to); background: var(--ink); color: var(--white); }
-  .wb__ready { grid-column: var(--ready) / span 3; background: var(--white); color: var(--ink); }
-  .wb__m { grid-row: 2; display: grid; gap: 8px; text-align: center; }
-  .wb__m::before { content: ''; display: block; height: 72px; border-radius: 6px; background: var(--white); }
-  .wb__m--on::before { background: var(--ink); }
-  .wb__m--ready::before { background: linear-gradient(180deg, var(--white) 0 60%, var(--red) 60% 100%); }
-  .wb__m span { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); }
-  .wb__m--on span { color: var(--ink); }
-  .wb__items { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 24px; }
-  .wb__items li { padding: 4px 10px; border-radius: 6px; background: var(--white); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
+  .wb__art { padding: 20px; border-radius: 24px; background: var(--gray-100); }
+  /* Zwei Phasen, so breit wie ihre Monate. */
+  .wb__phases, .wb__months { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; }
+  .wb__ph { grid-column: span calc(var(--n) - var(--w)); display: grid; align-content: end; gap: 4px; min-height: 180px; padding: 18px; border-radius: 16px; background: var(--white); color: var(--ink); }
+  .wb__ph--cold { grid-column: span var(--w); background: var(--ink); color: var(--white); }
+  .wb__ic { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: auto; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
+  .wb__ph--cold .wb__ic { background: rgba(255, 255, 255, 0.12); color: var(--white); }
+  .wb__label { margin-top: 24px; font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; letter-spacing: -0.02em; line-height: 1.15; }
+  .wb__ptext { font-size: 0.875rem; line-height: 1.4; color: var(--ink-3); }
+  .wb__ph--cold .wb__ptext { color: rgba(255, 255, 255, 0.72); }
+  .wb__months { margin-top: 12px; }
+  .wb__months li { text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--gray-500); }
+  .wb__months li.is-cold { color: var(--ink); }
+  @media (max-width: 599px) {
+    .wb__art { padding: 14px; }
+    .wb__ph { padding: 14px; min-height: 168px; }
+    .wb__ic { width: 40px; height: 40px; }
+    .wb__label { font-size: 1.125rem; }
+    .wb__ptext { font-size: 0.8125rem; }
+  }
   @media (min-width: 960px) {
     .wb { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; }
-    .wb__art { padding: 48px 40px 40px; }
-    .wb__band { gap: 14px 8px; }
-    .wb__m::before { height: 140px; }
+    .wb__art { padding: 28px; }
+    .wb__ph { min-height: 260px; padding: 28px; }
+    .wb__label { font-size: 1.875rem; }
+    .wb__ptext { font-size: 1rem; }
   }
 </style>

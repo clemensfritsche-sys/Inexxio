@@ -1,8 +1,8 @@
 ---
 /**
  * /fahrzeugtechnik/verschleissteile – eigenes Layout nach dem Muster von Speziallösungen
- * (Oktober 2026): Kopf wie Porsche → Katalog nach Teileart (#katalog; «Teil anfragen» öffnet die
- * Anfrage mit dem Teil schon eingetragen) → Bestellt in drei Schritten → Fragen → Anfrage.
+ * (Oktober 2026): Kopf wie Porsche → Katalog (#katalog, Bildkarten; «Teil anfragen» öffnet die
+ * Anfrage mit dem Teil schon eingetragen) → Marken → Bestellt in drei Schritten (Weg) → Fragen → Anfrage.
  * Keine Preise, kein «ab Lager». Texte: content/fahrzeugtechnik.ts, config/catalog.mjs.
  */
 import Base from '../../layouts/Base.astro';
@@ -12,11 +12,12 @@ import FaqStage from '../../components/FaqStage.astro';
 import ContactSection from '../../components/ContactSection.astro';
 import Rich from '../../components/Rich.astro';
 import { areaOf } from '../../config/site.mjs';
-import { catalog } from '../../config/catalog.mjs';
+import SolutionPath from '../../components/spezial/SolutionPath.astro';
+import BrandBand from '../../components/fahrzeug/BrandBand.astro';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import titel from '../../assets/illustrations/menu/verschleissteile.svg';
-import { verschleissteile as page, partsOrder as o } from '../../content/fahrzeugtechnik';
+import { verschleissteile as page, partsCatalog as c, partsOrder as o } from '../../content/fahrzeugtechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
@@ -40,27 +41,16 @@ const nodes = [
   <section class="v4-section" id="katalog" aria-labelledby="katalog-title">
     <div class="wrap">
       <header class="v4-head--center">
-        <h2 class="v4-h2" id="katalog-title">Katalog</h2>
-        <p class="v4-sub">{catalog.priceNote} · passend für {catalog.fits.join(', ')}</p>
+        <h2 class="v4-h2" id="katalog-title">{c.title}</h2>
+        <Rich as="p" class="v4-sub" text={c.lead} />
       </header>
       <div class="vt-cat"><PartCatalog /></div>
     </div>
   </section>
 
-  <section class="v4-section" aria-labelledby="bestellen">
-    <div class="wrap">
-      <header class="v4-head--center"><h2 class="v4-h2" id="bestellen">{o.title}</h2></header>
-      <ol class="vt-steps">
-        {o.items.map((st, i) => (
-          <li>
-            <span class="vt-steps__no tnum" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-            <h3 class="vt-steps__title">{st.title}</h3>
-            <Rich as="p" class="vt-steps__text" text={st.text} />
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
+  <BrandBand />
+
+  <SolutionPath title={o.title} start={o.start} end={o.end} items={o.items} />
 
   <FaqStage items={page.faq} illo={'menu/verschleissteile'} />
 
@@ -69,14 +59,4 @@ const nodes = [
 
 <style>
   .vt-cat { margin-top: 40px; }
-  /* Drei Schritte nebeneinander: grosse graue Nummer, darunter Titel und ein Satz an einer Haarlinie. */
-  .vt-steps { list-style: none; padding: 0; display: grid; gap: 32px; max-width: 1040px; margin: 40px auto 0; }
-  .vt-steps li { display: grid; gap: 8px; align-content: start; padding-top: 20px; border-top: 1px solid var(--ink); }
-  .vt-steps__no { font-family: var(--font-display); font-weight: 600; font-size: 4rem; line-height: 1; letter-spacing: -0.05em; color: var(--gray-200); }
-  .vt-steps__title { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.02em; }
-  .vt-steps :global(.vt-steps__text) { color: var(--ink-3); }
-  @media (min-width: 960px) {
-    .vt-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; margin-top: 56px; }
-    .vt-steps__no { font-size: 6rem; }
-  }
 </style>

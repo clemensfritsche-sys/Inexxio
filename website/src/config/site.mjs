@@ -196,7 +196,8 @@ export const site = {
   },
 
   marks: {
-    mixers: ['Intermix', 'Putzmeister', 'Cifa', 'Stetter', 'Liebherr', 'Belmix', 'Peter'],
+    /** Logo je Marke in src/assets/marken/<marke>.png (klein, Leerzeichen → «-»). Intermix gehört heute zu Putzmeister. */
+    mixers: ['Putzmeister', 'Liebherr', 'Cifa', 'Schwing Stetter', 'Belloli'],
     mixerNotice:
       'Wir sind unabhängig von jedem Hersteller und kein Vertragshändler.',
   },
