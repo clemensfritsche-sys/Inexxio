@@ -3,6 +3,9 @@
 /**
  * **Die Anmeldung ist ein Pop-up, keine Seite.**
  *
+ * Gestaltung: Glas-Karte ohne ✕ (Klick daneben/`Esc`), auf dem Handy ein Blatt von unten –
+ * Stile in `app/globals.css` («Anmeldung»).
+ *
  * Vorher war `/login` eine Route mit deckendem, animiertem Farbverlauf: wer sich anmelden
  * wollte, verliess die Seite, auf der er war, und fand nur über einen eigenen Link
  * («Zurück zur Startseite») zurück. Jetzt ist es ein Dialog über dem, was man ansieht –
@@ -18,7 +21,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Fingerprint } from 'lucide-react';
+import { ArrowRight, Fingerprint, Mail } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
 import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
 import {
@@ -197,179 +200,94 @@ export function LoginDialog({ onClose, fallback }: {
       role="dialog"
       aria-modal="true"
       aria-label="Anmelden"
-      /* **Klick daneben schliesst** – die übliche Geste eines Pop-ups, und zugleich der
-         Ersatz für den früheren «Zurück zur Startseite»-Link. Nur der Scrim selbst
-         zählt: ein Klick, der innerhalb der Karte begonnen hat, darf sie nicht
-         schliessen (Textauswahl über den Rand hinaus). */
+      /* **Klick daneben schliesst** – es gibt kein ✕: ein Pop-up hat diese Geste ohnehin, und
+         `Esc` sagt dasselbe. Nur der Scrim selbst zählt: ein Klick, der in der Karte begann,
+         schliesst nicht (Textauswahl über den Rand hinaus). */
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="ix-login-card" onMouseDown={(e) => e.stopPropagation()}>
-
-          {step === 'sent' ? (
-            /* ── Success State ── */
-            <div className="ix-success">
-              <div className="ix-success-icon">
-                <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-                  <circle
-                    className="ix-success-circle"
-                    cx="60" cy="60" r="58"
-                    fill="none" style={{ stroke: 'var(--inexxio-red)' }} strokeWidth="1.5" opacity="0.2"
-                  />
-                  <polyline
-                    className="ix-success-line-1"
-                    points="38,65 52,78"
-                    fill="none" style={{ stroke: 'var(--inexxio-red)' }} strokeWidth="5"
-                    strokeLinecap="round" strokeLinejoin="round"
-                  />
-                  <polyline
-                    className="ix-success-line-2"
-                    points="52,78 88,42"
-                    fill="none" style={{ stroke: 'var(--inexxio-red)' }} strokeWidth="5"
-                    strokeLinecap="round" strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-              <h2>Überprüfen Sie Ihre E-Mail!</h2>
-              <p>
-                Wir haben einen Anmeldungslink an{' '}
-                <strong style={{ color: 'var(--fg-2)' }}>{sentEmail}</strong>{' '}
-                gesendet. Bitte prüfen Sie Ihren Posteingang.
-              </p>
-              <a
-                href={getMailUrl(sentEmail)}
-                target={getMailUrl(sentEmail).startsWith('mailto:') ? undefined : '_blank'}
-                rel="noopener noreferrer"
-                className="ix-submit-btn"
-                style={{ marginBottom: 12 }}
-              >
-                Posteingang öffnen
-              </a>
-              <button
-                className="ix-success-reset"
-                onClick={() => { setStep('input'); setEmail(''); }}
-              >
-                Andere E-Mail verwenden
-              </button>
+        {step === 'sent' ? (
+          <>
+            <div className="ix-success-icon" aria-hidden>
+              <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <circle className="ix-success-circle" cx="60" cy="60" r="56" fill="#fff" stroke="rgba(229,26,20,.18)" strokeWidth="2" />
+                <polyline className="ix-success-line" points="38,62 53,77 84,44" fill="none" stroke="var(--inexxio-red)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
-          ) : (
-            <>
-              {/* ── Header ── */}
-              <div className="ix-login-header">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/brand/inexxio-ehemals-hs-steiner.svg" alt="INEXXIO (ehemals HS Steiner)" className="ix-login-logo" />
-                <h1>Anmelden</h1>
-                <p>Geben Sie Ihre E-Mail-Adresse ein</p>
-              </div>
+            <h2>Schauen Sie in Ihr Postfach.</h2>
+            <p className="ix-login-sub">Ein Klick auf den Link – und Sie sind angemeldet.</p>
+            <span className="ix-login-mail"><Mail aria-hidden />{sentEmail}</span>
+            <a
+              href={getMailUrl(sentEmail)}
+              target={getMailUrl(sentEmail).startsWith('mailto:') ? undefined : '_blank'}
+              rel="noopener noreferrer"
+              className="ix-submit-btn"
+            >
+              Posteingang öffnen
+            </a>
+            <button type="button" className="ix-login-link" onClick={() => { setStep('input'); setEmail(''); }}>
+              Andere E-Mail verwenden
+            </button>
+          </>
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/anmelden.svg" alt="" className="ix-login-art" />
+            <h1>Anmelden</h1>
+            <p className="ix-login-sub">Ohne Passwort. Wir schicken Ihnen einen Link.</p>
 
-              {/* ── Error ── */}
-              {error && (
-                <div key={error} className="ix-login-error" style={{ marginBottom: 16 }}>
-                  {error}
-                </div>
-              )}
-
-              {/* ── Magic Link Form ── */}
-              <form onSubmit={handleMagicLink} className="ix-login-form">
-                <div className="ix-form-group">
-                  <label className="ix-form-label" htmlFor="email">
-                    E-Mail-Adresse
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    className="ix-email-input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="sie@unternehmen.ch"
-                    required
-                    autoComplete="email webauthn"
-                    autoFocus
-                    disabled={step === 'loading'}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="ix-submit-btn"
-                  disabled={step === 'loading' || !email.trim()}
-                >
-                  {step === 'loading' ? (
-                    <>
-                      <span className="ix-spinner" />
-                      Wird gesendet…
-                    </>
-                  ) : (
-                    'Anmeldelink senden'
-                  )}
-                </button>
-              </form>
-
-              {/* Passkey-Hinweis: der Passkey erscheint direkt im Autofill des Feldes oben. */}
-              {showPasskey && (
-                <p className="ix-passkey-hint">
-                  <Fingerprint aria-hidden />
-                  Haben Sie einen Passkey? Er wird direkt im Feld oben angeboten – oder unten wählen.
-                </p>
-              )}
-
-              {/* ── Divider ── */}
-              <div className="ix-divider" style={{ marginTop: 18, marginBottom: 12 }}>
-                <span>oder</span>
-              </div>
-
-              {/* ── Passkey Button (der schnellste Weg – über Google) ── */}
-              {showPasskey && (
-                <button
-                  onClick={handlePasskeyLogin}
-                  disabled={passkeyLoading}
-                  className="ix-google-btn ix-passkey-btn"
-                  style={{ marginBottom: 12 }}
-                  type="button"
-                >
-                  {passkeyLoading ? (
-                    <span
-                      className="ix-spinner"
-                      style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
-                    />
-                  ) : (
-                    <Fingerprint style={{ width: 18, height: 18, color: 'var(--inexxio-red)' }} aria-hidden />
-                  )}
-                  Mit Passkey anmelden
-                </button>
-              )}
-
-              {/* ── Google Button ── */}
+            {/* Das Feld und der rote Pfeil sind EIN Formular. Ein Passkey erscheint direkt im
+                Autofill des Feldes (`webauthn`) – darum braucht es keinen Hinweis mehr. */}
+            <form onSubmit={handleMagicLink} className="ix-login-field">
+              <label htmlFor="email" className="sr-only">E-Mail-Adresse</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-Mail-Adresse"
+                required
+                autoComplete="email webauthn"
+                autoFocus
+                disabled={step === 'loading'}
+              />
               <button
-                onClick={handleGoogleLogin}
-                disabled={googleLoading}
-                className="ix-google-btn"
+                type="submit"
+                className="ix-login-go"
+                disabled={step === 'loading' || !email.trim()}
+                aria-label={step === 'loading' ? 'Wird gesendet' : 'Anmeldelink senden'}
               >
-                {googleLoading ? (
-                  <span
-                    className="ix-spinner"
-                    style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
-                  />
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden>
+                {step === 'loading' ? <span className="ix-spinner" /> : <ArrowRight aria-hidden />}
+              </button>
+            </form>
+
+            {error && <p key={error} className="ix-login-error" role="alert">{error}</p>}
+
+            <div className="ix-login-alt">
+              {showPasskey && (
+                <button type="button" className="ix-login-pill" onClick={handlePasskeyLogin} disabled={passkeyLoading}>
+                  {passkeyLoading ? <span className="ix-spinner ix-spinner--ink" /> : <Fingerprint className="ix-fp" aria-hidden />}
+                  Passkey
+                </button>
+              )}
+              <button type="button" className="ix-login-pill" onClick={handleGoogleLogin} disabled={googleLoading}>
+                {googleLoading ? <span className="ix-spinner ix-spinner--ink" /> : (
+                  <svg viewBox="0 0 24 24" aria-hidden>
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                   </svg>
                 )}
-                Mit Google anmelden
+                Google
               </button>
+            </div>
 
-              {/* ── Footer ── */}
-              <p className="ix-login-footer">
-                Mit der Anmeldung stimmen Sie unseren{' '}
-                <a href="/agb">AGB</a>{' '}
-                und der{' '}
-                <a href="/datenschutz">Datenschutzerklärung</a>{' '}
-                zu.
-              </p>
-            </>
-          )}
+            <p className="ix-login-legal">
+              Mit der Anmeldung gelten <a href="/agb">AGB</a> und <a href="/datenschutz">Datenschutz</a>.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
