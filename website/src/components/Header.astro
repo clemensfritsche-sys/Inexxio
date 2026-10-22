@@ -7,7 +7,7 @@
  * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
  * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
  * Schmaler als 1200 px: Logo, Konto, Telefon und das Menü-Symbol – ein Blatt mit EINER Ebene:
- * jeder Punkt klappt eine Reihe Karten zum Wischen auf (der erste ist offen), unten Telefon,
+ * jeder Punkt klappt eine Reihe Karten zum Wischen auf (beim Öffnen sind alle zu), unten Telefon,
  * Anfrage und die Sprache, die genauso aufklappt.
  *
  * Ohne JavaScript bedienbar: Kacheln öffnen beim Zeigen und mit dem Fokus, jeder Punkt ist ein
@@ -193,9 +193,9 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: C
         <div class="mnav__sheet">
           <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup ref="ix-lockup" /></a></div>
           <nav class="mnav__list" aria-label="Hauptnavigation (mobil)">
-            {mobile.map((g, i) => (
-              <div class:list={['mg', i === 0 && 'is-open']} data-mg={g.id} data-acct={g.acct}>
-                <a href={g.href} class="mg__row" data-mg-toggle aria-expanded={i === 0 ? 'true' : 'false'} aria-current={path === g.href ? 'page' : undefined}>{g.label}<Icon name="chevron-down" size={20} class="mg__chev" /></a>
+            {mobile.map((g) => (
+              <div class="mg" data-mg={g.id} data-acct={g.acct}>
+                <a href={g.href} class="mg__row" data-mg-toggle aria-expanded="false" aria-current={path === g.href ? 'page' : undefined}>{g.label}<Icon name="chevron-down" size={20} class="mg__chev" /></a>
                 <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
                   {g.cards.map((c) => (
                     <li><a class:list={['mg__card', c.deck && 'mg__card--all']} href={c.href} rel={g.acct ? 'nofollow' : undefined}>
@@ -437,13 +437,14 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: C
   .mg__label { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
   .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--gray-500); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* «Alles zu …»: die Übersicht, dunkel, mit dem Stapel der Zeichnungen und dem roten Pfeil. */
-  .mg__card--all { background: var(--ink); border-color: var(--ink); color: var(--white); }
+  .mg__card--all { background: radial-gradient(120% 90% at 50% 18%, #3A3B3F 0%, var(--ink) 70%); border: 0; box-shadow: 0 8px 24px rgba(10, 10, 11, 0.12); color: var(--white); }
   .mg__card--all .mg__sub { color: rgba(255, 255, 255, 0.62); }
   .mg__deck { position: relative; height: 84px; margin-bottom: 6px; }
-  .mg__deck img { position: absolute; top: 6px; width: 64px; height: 64px; padding: 6px; box-sizing: border-box; object-fit: contain; border-radius: 10px; background: var(--white); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); }
-  .mg__deck img:nth-child(1) { left: 0; transform: rotate(-8deg); }
-  .mg__deck img:nth-child(2) { left: 38px; top: 2px; transform: rotate(2deg); z-index: 1; }
-  .mg__deck img:nth-child(3) { left: 76px; transform: rotate(10deg); }
+  /* Die Zeichnungen der Unterseiten nebeneinander, leicht überlappend – ohne eigene Kärtchen. */
+  .mg__deck img { position: absolute; top: 4px; width: 84px; height: 76px; object-fit: contain; }
+  .mg__deck img:nth-child(1) { left: -8px; }
+  .mg__deck img:nth-child(2) { left: 46px; top: 10px; z-index: 1; }
+  .mg__deck img:nth-child(3) { left: 100px; }
   .mg__go { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--red); color: var(--white); }
   .mg__card--lang { align-items: stretch; }
   .mg__card--lang.is-soon { opacity: 0.6; }

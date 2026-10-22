@@ -1,9 +1,9 @@
 ---
 /**
- * Speziallösungen (v4): eine Konstruktions-Bühne auf Punktraster. Ein Glas-Umschalter wählt
+ * Speziallösungen (v4): eine offene Bühne ohne Kasten – die Zeichnung steht gross auf der Seite. Ein Umschalter wählt
  * «Für Krane · Fahrzeuge · Baumaschinen»; Zeichnung und Satz blenden über. Die Legende sagt
- * die Bildregel: «Grau: die Serie · Rot: was wir dazubauen». «Aufgabe schildern» steht in der
- * Bühne. Reines CSS (Optionsfelder) – kein Skript, ohne JS bedienbar.
+ * die Bildregel: «Grau: die Serie · Rot: was wir dazubauen». «Aufgabe schildern» steht unter
+ * der Bühne (breit rechts unten). Reines CSS (Optionsfelder) – kein Skript, ohne JS bedienbar.
  */
 import Icon from '../Icon.astro';
 import Rich from '../Rich.astro';
@@ -46,11 +46,11 @@ const H = level;
         <div class="sp__texts sp__texts--in">
           {items.slice(0, 3).map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
         </div>
-        <a class="btn btn--primary sp__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
       </div>
       <div class="sp__texts sp__texts--out" aria-hidden="true">
         {items.slice(0, 3).map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
       </div>
+      <a class="btn btn--primary sp__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
     </div>
   </div>
 </section>
@@ -59,16 +59,11 @@ const H = level;
   .sp { position: relative; margin-top: 20px; }
   @media (min-width: 960px) { .sp { margin-top: 40px; } }
   .sp__in { position: absolute; opacity: 0; pointer-events: none; }
-  .sp__stage {
-    position: relative; height: 430px; border-radius: var(--r-xl); overflow: hidden; background-color: var(--paper);
-    background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0); background-size: 24px 24px;
-  }
-  @media (min-width: 960px) { .sp__stage { height: 640px; } }
+  .sp__stage { position: relative; height: 400px; }
+  @media (min-width: 960px) { .sp__stage { height: 660px; } }
   .sp__tabs {
     position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; white-space: nowrap;
-    background: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.95);
-    box-shadow: 0 10px 30px rgba(10, 10, 11, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    background: var(--gray-100);
   }
   @media (min-width: 960px) { .sp__tabs { top: 28px; } }
   .sp__tabs label {
@@ -76,25 +71,25 @@ const H = level;
     transition: background-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
   }
   @media (min-width: 600px) { .sp__tabs label { padding: 10px 20px; font-size: 0.9375rem; } }
-  .sp__art { position: absolute; left: 20px; right: 20px; top: 72px; bottom: 92px; }
-  @media (min-width: 960px) { .sp__art { left: 120px; right: 120px; top: 110px; bottom: 150px; } }
+  .sp__art { position: absolute; left: -8px; right: -8px; top: 60px; bottom: 0; }
+  @media (min-width: 960px) { .sp__art { left: 0; right: 0; top: 84px; bottom: 120px; } }
   .sp__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transform: scale(0.94) translateY(12px); transition: opacity 0.6s ease, transform 0.9s var(--ease); }
-  .sp__legend { position: absolute; left: 40px; top: 40px; display: none; gap: 16px; font-size: 0.8125rem; color: var(--ink-3); }
+  .sp__legend { position: absolute; left: 0; top: 32px; display: none; gap: 16px; font-size: 0.8125rem; color: var(--ink-3); }
   @media (min-width: 960px) { .sp__legend { display: inline-flex; } }
   .sp__legend span { display: inline-flex; align-items: center; gap: 6px; }
   .sp__sw { width: 10px; height: 10px; border-radius: 2px; background: var(--red); }
   .sp__sw--grey { background: var(--ink-4); }
   .sp__texts { position: relative; }
-  .sp__texts--in { display: none; position: absolute; left: 40px; bottom: 36px; width: 560px; height: 80px; }
+  .sp__texts--in { display: none; position: absolute; left: 0; bottom: 8px; width: 560px; height: 80px; }
   @media (min-width: 960px) { .sp__texts--in { display: block; } .sp__texts--out { display: none; } }
-  .sp__texts--out { margin: 16px 4px 0; height: 104px; }
+  .sp__texts--out { margin: 8px 0 0; height: 104px; }
   .sp__text { position: absolute; left: 0; right: 0; bottom: 0; opacity: 0; transition: opacity 0.5s ease; }
   .sp__t { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--ink); }
   @media (min-width: 960px) { .sp__t { font-size: 1.625rem; } }
   .sp__text :global(.sp__s) { margin-top: 6px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
   @media (min-width: 960px) { .sp__text :global(.sp__s) { font-size: 1rem; } }
-  .sp__cta { position: absolute; left: 16px; right: 16px; bottom: 16px; --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
-  @media (min-width: 960px) { .sp__cta { left: auto; right: 40px; bottom: 40px; } }
+  .sp__cta { display: flex; margin-top: 16px; --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
+  @media (min-width: 960px) { .sp__cta { position: absolute; right: 0; bottom: 16px; margin: 0; } }
 
   /* Gewählt: Knopf weiss, Zeichnung und Satz sichtbar. */
   .sp:has(.sp__in:nth-of-type(1):checked) [data-i='0'],

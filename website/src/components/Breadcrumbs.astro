@@ -1,5 +1,7 @@
 ---
-/** Sichtbare Pfadnavigation; die strukturierte Fassung (BreadcrumbList) setzt Base.astro. */
+/** Sichtbare Pfadnavigation – nur ab Tablet; auf dem Handy entfällt sie (der Kopf mit Logo und
+    Menü führt zurück, die Fläche gehört dem Inhalt). Die strukturierte Fassung (BreadcrumbList)
+    setzt Base.astro auf jeder Breite. */
 import { plain } from '../lib/text.mjs';
 
 interface Props { crumbs: { name: string; path: string }[] }
@@ -20,6 +22,7 @@ const all = [{ name: 'Startseite', path: '/' }, ...crumbs];
 
 <style>
   .crumbs { padding-top: var(--s-4); }
+  @media (max-width: 767px) { .crumbs { display: none; } }
   .crumbs ol { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0 2px; font-size: 0.875rem; color: var(--ink-3); }
   .crumbs li { display: inline-flex; align-items: center; }
   .crumbs li + li::before { content: '/'; margin: 0 8px; color: var(--line-2); }

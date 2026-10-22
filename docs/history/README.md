@@ -26,6 +26,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-03-website-report.md`, `2026-10-04-website-report.md` | Abschlussberichte der Website (Fassung 1 und Umbau v2) |
 | `2026-10-21-spezialloesungen-neu.md` | Neue Seite Speziallösungen (Kopf wie Porsche, Feld-Karten, Weg, Fragen-Grundbild) |
 | `2026-10-21-mobil-menue.md` | Handy-Menü mit einer Ebene (Karten zum Wischen, «Alles zu …», Sprache als Karten) |
+| `2026-10-22-handy-feinschliff.md` | Handy-Feinschliff: Menü zu, «Alles zu …» ohne Kärtchen, Fragen gleiten, Leiste ohne Fläche, Pfadnavigation nur breit |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.
