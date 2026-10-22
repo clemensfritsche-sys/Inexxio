@@ -1,6 +1,7 @@
 /**
- * Über uns: Wer wir sind (das WIR, nicht eine Person – Testnotiz #1147) · Werte · Zusagen ·
- * die Übergabe (Texte in content/uebergabe.ts) · Standort und Einsatz · Fragen.
+ * Über uns (Entwurf Oktober 2026): Kopf · ein Betrieb aus der Praxis (Zahlen) · drei Bereiche ·
+ * Geschichte als Weg · die Übergabe (zwei Menschen, Texte teils in content/uebergabe.ts) · Werte ·
+ * Garantien · mehr von uns · Fragen. Der Standort steht im Kontaktbereich (Karte).
  * Der Ort kommt aus dem ERP ({{erp.city}}, #1146/#1153).
  */
 import type { Faq } from './types';
@@ -10,32 +11,60 @@ export const ueberUns = {
   description:
     'INEXXIO (ehemals HS Steiner) in {{address.home}}: Betrieb mit Ingenieurwissen seit 1982 – Team, Werte, Geschichte und die Nachfolge von Heiri Steiner.',
   hero: {
-    eyebrow: 'Über uns',
-    h1: 'Betrieb mit Ingenieurwissen – in {{address.city}} seit {{history.founded}}',
+    h1: 'Über uns',
     lead:
-      '{{brand.full}} ist das Unternehmen, das Heiri Steiner {{history.founded}} gegründet hat – heute mit demselben Handwerk und mit Ingenieurwissen aus dem Maschinenbau.',
+      'Seit {{history.founded}} bauen und betreuen wir in {{address.city}} Krane, Fahrzeuge und Maschinen – heute als {{brand.name}}, mit Ingenieurwissen aus dem Maschinenbau.',
+  },
+  /** Ein Betrieb aus der Praxis – das WIR, dazu vier belegte Zahlen (keine erfundenen). */
+  team: {
+    title: 'Ein Betrieb aus der Praxis',
+    text: 'Hinter {{brand.name}} steht ein Team aus Mechanik, Schweiss- und Stahlbau und Konstruktion. Jede Anlage entsteht gemeinsam – von der ersten Skizze bis zum Service.',
+    figures: [
+      { figure: '{{history.founded}}', text: 'Gegründet von Heiri Steiner in {{address.town}}' },
+      { figure: '{{history.cranesSince}}', text: 'Die erste eigene Krananlage' },
+      { figure: '3', text: 'Bereiche: Krantechnik, Fahrzeugtechnik, Speziallösungen' },
+      { figure: 'CH · DE · AT', text: 'Im Einsatz – und darüber hinaus, wo Sie uns brauchen' },
+    ],
+  },
+  /** Die Geschichte als Weg (Baustein SolutionPath) – die Jahre stehen gross daneben. */
+  history: {
+    title: 'Über 40 Jahre, ein Betrieb',
+    start: '{{address.town}}',
+    end: 'Heute: {{brand.name}}',
+    items: [
+      { no: '{{history.founded}}', icon: 'wrench' as const, who: 'Gründung', title: 'Ein Reparaturbetrieb', text: '{{history.foundedText}}' },
+      { no: '{{history.cranesSince}}', icon: 'hard-hat' as const, who: 'Krane', title: 'Die erste eigene Krananlage', text: '{{history.cranesText}}' },
+      { no: '{{history.gmbhYear}}', icon: 'flag' as const, who: 'Firma', title: '{{brand.formerLegalName}}', text: 'Aus dem Einzelbetrieb wird eine GmbH – mit Kunden, die über Jahrzehnte bleiben.' },
+      { no: 'Heute', icon: 'handshake' as const, who: 'Nachfolge', title: 'Aus HS Steiner wird {{brand.name}}', text: 'Heiri Steiner übergibt an Clemens Fritsche. Standort, Telefonnummer und der Service für alle HS-Krananlagen bleiben.' },
+    ],
+  },
+  /** Die Übergabe – zwei Menschen: Heiris Zitat, Clemens' kurze Botschaft. */
+  people: {
+    title: 'Ein Handschlag zwischen zwei Generationen',
+    message: [
+      'Ich bin Maschinenbauingenieur, habe bei Liebherr Bohrgeräte mitentwickelt und danach vernetzte Maschinen und Plattformen verantwortet. Als ich Heiri kennengelernt habe, war schnell klar: Hier stimmt die Basis – treue Kunden, solide Anlagen, ehrliches Handwerk.',
+      'Was Heiri in {{history.experienceDative}} aufgebaut hat, führe ich mit derselben Sorgfalt weiter – und ergänze es dort, wo es Ihnen nützt.',
+    ],
+  },
+  /** Mehr über uns – die Unterseiten von «Über uns», wie im Menü. */
+  more: {
+    title: 'Mehr von uns',
+    items: [
+      { href: '/ratgeber', illo: 'ratgeber' as const, title: 'Ratgeber', text: 'Kurz erklärt: Prüfpflicht, Heukran planen, Verschleiss.' },
+      { href: '/karriere', illo: 'karriere' as const, title: 'Karriere', text: 'Arbeiten bei {{brand.name}} in {{address.city}}.' },
+    ],
   },
   summary:
     '{{brand.full}} arbeitet in drei Bereichen: Krantechnik, Fahrzeugtechnik und Speziallösungen. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen für den Bau. Der Standort ist in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – derselbe Standort, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
-  /** Wer wir sind – das Team, nicht eine Person (#1147: «es braucht immer alle»). */
-  team: {
-    title: 'Wer wir sind',
-    text: 'Hinter {{brand.name}} steht ein Team aus der Praxis: Mechanik, Schweiss- und Stahlbau, Konstruktion. Jede Anlage und jede Reparatur entsteht gemeinsam – von der ersten Skizze bis zum Service.',
-    points: [
-      'Krane nach Mass bauen, prüfen, warten und modernisieren',
-      'Fahrmischer mit neuer Trommel ausrüsten, Verschleissteile beschaffen',
-      'Spezialmaschinen und Anbauten für die Baustelle konstruieren und bauen',
-    ],
-  },
   /** Die Werte der Firma (#1182) – wofür wir stehen; die Zusagen darunter machen sie prüfbar. */
   values: {
-    title: 'Die Werte der {{brand.legalName}}',
+    title: 'Wofür wir stehen',
     items: [
-      { title: 'Verbindlichkeit', text: 'Ein Wort gilt. Was wir zusagen – Termin, Preis, Absprache –, halten wir.' },
-      { title: 'Qualität', text: 'Saubere Arbeit in allem, was wir tun – vom ersten Gespräch bis zum Protokoll.' },
-      { title: 'Zuverlässigkeit', text: 'Ihr Kran, Ihr Fahrzeug muss laufen. Dafür planen wir voraus und sind erreichbar, wenn etwas stillsteht.' },
-      { title: 'Innovation', text: 'Modernisieren statt ersetzen: neue Technik auf bewährtem Stahlbau, neue Trommel auf bewährtem Fahrgestell.' },
-      { title: 'Design', text: 'Eine Anlage soll gut funktionieren, sicher zu bedienen sein und gut aussehen – bis ins Detail.' },
+      { icon: 'handshake' as const, title: 'Verbindlichkeit', text: 'Ein Wort gilt. Termin, Preis, Absprache – was wir zusagen, halten wir.' },
+      { icon: 'shield-check' as const, title: 'Qualität', text: 'Saubere Arbeit in allem – vom ersten Gespräch bis zum Protokoll.' },
+      { icon: 'clock' as const, title: 'Zuverlässigkeit', text: 'Wir planen voraus und sind erreichbar, wenn etwas stillsteht.' },
+      { icon: 'lightbulb' as const, title: 'Innovation', text: 'Modernisieren statt ersetzen: neue Technik auf bewährtem Stahl.' },
+      { icon: 'pen-line' as const, title: 'Design', text: 'Gut bedienbar, sicher und schön – bis ins Detail.' },
     ],
   },
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
@@ -49,11 +78,6 @@ export const ueberUns = {
       { title: 'Protokoll', text: 'Jeder Einsatz dokumentiert, mit Protokoll.' },
       { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Krananlagen liegen an Lager, oder wir fertigen sie neu an.' },
     ],
-  },
-  /** Standort und Einsatz – EIN Abschnitt. */
-  workshop: {
-    title: 'Zuhause in {{address.city}} – im Einsatz, wo Sie uns brauchen',
-    text: 'In {{erp.city}} ist unser Standort. Hier bauen wir Krane, tauschen Trommeln von Fahrmischern und fertigen Spezialmaschinen. Im Einsatz sind wir {{area.summary}}: Krane prüfen, warten und reparieren wir dort, wo sie stehen; Fahrmischer kommen meist zu uns. In der Nähe sind wir schnell bei Ihnen, für weiter entfernte Einsätze planen wir gemeinsam.',
   },
   areaFaq: [
     {

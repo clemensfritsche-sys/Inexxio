@@ -1,120 +1,99 @@
 ---
 /**
- * /ueber-uns: Wer wir sind (das Team, #1147) · Werte (#1182) · Zusagen · Aus HS Steiner wird
- * INEXXIO (#uebergabe – vorher die eigene Seite /uebergabe) · Standort und Einsatz ·
- * Fragen (#fragen). Soll auch bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und
- * «HS Krananlagen» gefunden werden.
+ * /ueber-uns – eigenes Layout nach dem Muster von Startseite und Speziallösungen (Oktober 2026):
+ * Kopf wie Porsche (StageHero, Zeichnung des Betriebs) → ein Betrieb aus der Praxis (Zahlen) →
+ * drei Bereiche (Baustein der Startseite) → Geschichte als Weg (SolutionPath, Jahre statt
+ * Nummern) → die Übergabe (Heiri und Clemens) mit «Was bleibt / was neu ist» → Werte →
+ * Garantien (Baustein der Startseite) → mehr von uns (Ratgeber, Karriere) → Fragen → Anfrage.
+ * Der Standort steht im Kontaktbereich (Karte). Texte: content/ueber-uns.ts, content/uebergabe.ts.
+ * Soll auch bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und «HS Krananlagen» gefunden werden.
  */
 import Base from '../layouts/Base.astro';
-import Hero from '../components/Hero.astro';
-import SectionHead from '../components/SectionHead.astro';
-import Photo from '../components/Photo.astro';
-import Timeline from '../components/Timeline.astro';
-import Quote from '../components/Quote.astro';
-import Icon from '../components/Icon.astro';
-import LocationMap from '../components/LocationMap.astro';
+import StageHero from '../components/StageHero.astro';
+import AreaTrio from '../components/home/AreaTrio.astro';
+import SolutionPath from '../components/spezial/SolutionPath.astro';
+import Guarantees from '../components/home/Guarantees.astro';
 import FaqStage from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import Photo from '../components/Photo.astro';
+import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
 import { site } from '../config/site.mjs';
 import { ueberUns as u } from '../content/ueber-uns';
-import { handover as h, heiriQuote, message, news, stays } from '../content/uebergabe';
+import { handover as h, heiriQuote, news, stays } from '../content/uebergabe';
 import { faqPage, owner } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
+import titel from '../assets/illustrations/ueber-titel.webp';
+import ratgeber from '../assets/illustrations/menu/ratgeber.svg?url';
+import karriere from '../assets/illustrations/menu/karriere.svg?url';
+
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
-const a = site.address;
-const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}, Schweiz`)}`;
 const faq = [...h.faq, ...u.areaFaq];
+const ART = { ratgeber, karriere };
+const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plain(s.title) }));
 ---
 <Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(faq)]}>
-  <Hero eyebrow={u.hero.eyebrow} title={u.hero.h1} lead={u.hero.lead} photo="werkstatt-aussen" primary={{ label: 'Kontakt aufnehmen', href: '/kontakt' }} />
+  <StageHero
+    word="Über uns"
+    image={titel}
+    alt="Zeichnung: der Betrieb in Tuttwil, vor dem offenen Tor ein Mitarbeiter mit rotem Helm"
+    title={u.hero.h1}
+    lead={u.hero.lead}
+    primary={{ label: 'Kontakt aufnehmen', href: '#anfrage' }}
+    secondary={{ label: 'Unsere Geschichte', href: '#geschichte' }}
+    narrow
+  />
 
-  <section class="section section--tight" aria-label="Auf einen Blick">
-    <div class="wrap"><p class="label">Auf einen Blick</p><Rich as="p" class="lead uu-summary" text={u.summary} /></div>
-  </section>
-
-  <section class="section section--paper" aria-labelledby="wir">
-    <div class="wrap grid uu-team">
-      <div class="col-6"><Photo id="team" sizes="(min-width: 960px) 50vw, 100vw" /></div>
-      <div class="col-5 uu-team__text">
-        <SectionHead eyebrow="Team" title={u.team.title} id="wir" class="head--flush" />
-        <Rich as="p" text={u.team.text} />
-        <ul role="list" class="rule-list">
-          {u.team.points.map((p) => <li>{p}</li>)}
-        </ul>
+  <section class="v4-section" aria-labelledby="wir">
+    <div class="wrap uu-team">
+      <div class="uu-team__text">
+        <h2 class="v4-h2" id="wir">{u.team.title}</h2>
+        <Rich as="p" class="v4-sub" text={u.team.text} />
       </div>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="werte">
-    <div class="wrap">
-      <SectionHead eyebrow="Werte" title={u.values.title} id="werte" />
-      <ol role="list" class="uu-list">
-        {u.values.items.map((p) => (
-          <li>
-            <h3>{p.title}</h3>
-            <Rich as="p" text={p.text} />
-          </li>
+      <dl class="uu-figs">
+        {u.team.figures.map((f) => (
+          <div class="uu-fig">
+            <dt class="uu-fig__num tnum">{plain(f.figure)}</dt>
+            <Rich as="dd" text={f.text} />
+          </div>
         ))}
-      </ol>
+      </dl>
     </div>
   </section>
 
-  <section class="section section--paper" aria-labelledby="zusagen">
+  <AreaTrio />
+
+  <SolutionPath id="geschichte" title={u.history.title} start={plain(u.history.start)} end={plain(u.history.end)} items={history} />
+
+  <section class="v4-section" id="uebergabe" aria-labelledby="uebergabe-title">
     <div class="wrap">
-      <SectionHead eyebrow="Zusagen" title={u.promises.title} lead={u.promises.lead} id="zusagen" />
-      <ol role="list" class="uu-list">
-        {u.promises.items.map((p) => (
-          <li>
-            <h3>{p.title}</h3>
-            <Rich as="p" text={p.text} />
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
-
-  <section class="section" id="uebergabe" aria-labelledby="uebergabe-title">
-    <div class="wrap">
-      <SectionHead eyebrow={h.eyebrow} title={h.title} lead={h.lead} id="uebergabe-title" />
-      <Timeline items={h.timeline} />
-    </div>
-  </section>
-
-  <section class="section section--paper" aria-labelledby="botschaft">
-    <div class="wrap grid uu-msg">
-      <div class="col-4">
-        <Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" />
-      </div>
-      <div class="col-7 uu-msg__text">
-        <p class="label">Persönlich</p>
-        <h2 id="botschaft">Eine Botschaft von Clemens Fritsche</h2>
-        <div class="uu-msg__body">
-          {message.paragraphs.map((p) => <Rich as="p" text={p} />)}
+      <header class="v4-head--center">
+        <h2 class="v4-h2" id="uebergabe-title">{u.people.title}</h2>
+        <Rich as="p" class="v4-sub" text={h.lead} />
+      </header>
+      <div class="uu-duo">
+        <figure class="uu-quote">
+          <span class="uu-quote__mark" aria-hidden="true">«</span>
+          <blockquote><p>{heiriQuote}</p></blockquote>
+          <figcaption><strong>{site.people.founder.name}</strong><span>Gründer von HS Steiner{site.features.heiriAdvisory && ' – in der Übergangszeit beratend dabei'}</span></figcaption>
+        </figure>
+        <div class="uu-msg">
+          <div class="uu-msg__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 22vw, 50vw" /></div>
+          <div class="uu-msg__text">
+            {u.people.message.map((p) => <Rich as="p" text={p} />)}
+            <p class="uu-msg__sig"><strong>{site.people.owner.name}</strong><span>{site.people.owner.role} {plain('{{brand.name}}')}</span></p>
+          </div>
         </div>
-        <Rich as="p" class="uu-msg__sig" text={message.signature} />
-      </div>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="bleibt">
-    <div class="wrap">
-      <div class="grid uu-heiri">
-        <div class="col-6">
-          <Quote text={heiriQuote} author={site.people.founder.name} role={`${site.people.founder.role} von HS Steiner`} />
-        </div>
-        {site.features.heiriAdvisory && (
-          <div class="col-5 uu-heiri__adv"><Rich as="p" class="lead" text={site.people.founder.advisory} /></div>
-        )}
       </div>
       <div class="uu-lists">
         <div>
-          <h2 class="h3" id="bleibt">Was bleibt</h2>
+          <h3 class="uu-lists__h">Was bleibt</h3>
           <ul class="checklist" role="list">
             {stays.map((s) => <li><Icon name="check" size={20} /><Rich as="span" text={s} /></li>)}
           </ul>
         </div>
         <div>
-          <h2 class="h3">Was neu ist</h2>
+          <h3 class="uu-lists__h">Was neu ist</h3>
           <ul class="checklist" role="list">
             {news.map((s) => <li><Icon name="plus" size={20} /><Rich as="span" text={s} /></li>)}
           </ul>
@@ -123,47 +102,96 @@ const faq = [...h.faq, ...u.areaFaq];
     </div>
   </section>
 
-  <section class="section" id="wo-wir-arbeiten" aria-labelledby="werkstatt">
-    <div class="wrap grid uu-ws">
-      <div class="col-6"><Photo id="arbeit-werkstatt" sizes="(min-width: 960px) 50vw, 100vw" /></div>
-      <div class="col-5 uu-ws__text">
-        <SectionHead eyebrow="Standort und Einsatz" title={u.workshop.title} id="werkstatt" class="head--flush" />
-        <Rich as="p" text={u.workshop.text} />
-        <!-- Die Anschrift kommt aus dem ERP (#1108, scripts/contact.ts); hier die Vorgabe. -->
-        <address class="uu-addr" data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</address>
-        <a class="arrow-link" href={route} data-erp="route" target="_blank" rel="noopener">Route anzeigen <Icon name="external-link" size={16} /></a>
-      </div>
-      <div class="col-12 uu-map"><LocationMap /></div>
+  <section class="v4-section" aria-labelledby="werte">
+    <div class="wrap">
+      <header class="v4-head--center"><Rich as="h2" class="v4-h2" id="werte" text={u.values.title} /></header>
+      <ul role="list" class="uu-values">
+        {u.values.items.map((v) => (
+          <li>
+            <span class="uu-values__ic glass-light"><Icon name={v.icon} size={24} /></span>
+            <h3>{v.title}</h3>
+            <Rich as="p" text={v.text} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <Guarantees garantieHref="#fragen" />
+
+  <section class="v4-section" aria-labelledby="mehr">
+    <div class="wrap">
+      <header class="v4-head--center"><h2 class="v4-h2" id="mehr">{u.more.title}</h2></header>
+      <ul role="list" class="uu-more">
+        {u.more.items.map((m) => (
+          <li><a class="uu-more__card" href={m.href}>
+            <img src={ART[m.illo]} alt="" width="320" height="200" loading="lazy" decoding="async" />
+            <span class="uu-more__title">{m.title}</span>
+            <Rich as="span" class="uu-more__text" text={m.text} />
+            <span class="garrow garrow--sm garrow--ink" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
+          </a></li>
+        ))}
+      </ul>
     </div>
   </section>
 
   <FaqStage items={faq} illo={'menu/ueber'} />
+
+  <ContactSection />
 </Base>
 
 <style>
-  .uu-summary { margin-top: var(--s-3); max-width: 46em; }
-  .uu-team { align-items: center; }
-  @media (min-width: 960px) { .uu-team__text { grid-column: 8 / span 5; } }
-  .uu-team__text { display: grid; gap: var(--s-4); }
-  .uu-team__text .rule-list li { padding: var(--s-3) 0; color: var(--ink); }
-  .uu-list { list-style: none; padding: 0; display: grid; gap: 0 var(--s-5); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 720px) { .uu-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1100px) { .uu-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .uu-list li { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5) 0; border-top: 1px solid var(--line-2); }
-  .uu-list h3 { font-size: 1.25rem; }
-  .head--flush { margin-bottom: 0; }
-  .uu-msg { align-items: start; }
-  @media (min-width: 960px) { .uu-msg__text { grid-column: 6 / span 7; } }
-  .uu-msg__text { display: grid; gap: var(--s-4); }
-  .uu-msg__body { display: grid; gap: var(--s-4); font-size: clamp(1.125rem, 1.08rem + 0.25vw, 1.25rem); line-height: 1.55; color: var(--ink); }
-  .uu-msg__sig { font-weight: 600; color: var(--ink); }
-  .uu-heiri { align-items: center; margin-bottom: var(--s-8); }
-  @media (min-width: 960px) { .uu-heiri__adv { grid-column: 8 / span 5; } }
-  .uu-lists { display: grid; gap: var(--s-7); padding-top: var(--s-7); border-top: 1px solid var(--line); }
+  /* Ein Betrieb aus der Praxis: links der Satz, rechts vier Zahlen mit Haarlinie (wie technische Daten). */
+  .uu-team { display: grid; gap: 40px; }
+  .uu-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; margin: 0; }
+  .uu-fig { display: grid; gap: 8px; align-content: start; padding-top: 16px; border-top: 1px solid var(--line-2); }
+  .uu-fig__num { font-family: var(--font-display); font-weight: 600; font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3.5rem); line-height: 1; letter-spacing: -0.04em; color: var(--ink); }
+  .uu-fig :global(dd) { margin: 0; font-size: 0.9375rem; line-height: 1.45; color: var(--gray-500); }
+  @media (min-width: 960px) {
+    .uu-team { grid-template-columns: 5fr 7fr; gap: 80px; align-items: end; }
+    .uu-figs { gap: 48px 40px; }
+  }
+
+  /* Die Übergabe: Heiris Zitat gross, daneben Clemens mit kurzer Botschaft. */
+  .uu-duo { display: grid; gap: 56px; margin-top: 48px; }
+  .uu-quote { position: relative; margin: 0; padding-top: 72px; }
+  .uu-quote__mark { position: absolute; top: -16px; left: -4px; font-family: var(--font-display); font-weight: 600; font-size: 8rem; line-height: 1; color: var(--red); }
+  .uu-quote blockquote { margin: 0; }
+  .uu-quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.125rem); line-height: 1.22; letter-spacing: -0.025em; color: var(--ink); }
+  .uu-quote figcaption, .uu-msg__sig { display: grid; gap: 2px; margin-top: 24px; font-size: 0.9375rem; }
+  .uu-quote figcaption span, .uu-msg__sig span { color: var(--gray-500); }
+  .uu-msg { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .uu-msg__fig :global(img) { border-radius: 999px; background: var(--gray-100); aspect-ratio: 1; object-fit: cover; object-position: 50% 12%; }
+  .uu-msg__text { display: grid; gap: 14px; font-size: 1.0625rem; line-height: 1.6; color: var(--ink-2); }
+  @media (min-width: 960px) {
+    .uu-duo { grid-template-columns: 7fr 5fr; gap: 96px; margin-top: 72px; align-items: start; }
+    .uu-msg { grid-template-columns: 1fr; padding-top: 8px; }
+    .uu-msg__fig { width: 140px; }
+  }
+  .uu-lists { display: grid; gap: 40px; margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--line); }
+  .uu-lists__h { margin-bottom: 16px; font-size: 1.25rem; }
   @media (min-width: 720px) { .uu-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .uu-lists h2 { margin-bottom: var(--s-4); }
-  .uu-ws { align-items: start; row-gap: var(--s-7); }
-  @media (min-width: 960px) { .uu-ws__text { grid-column: 8 / span 5; } }
-  .uu-ws__text { display: grid; gap: var(--s-4); justify-items: start; }
-  .uu-addr { font-style: normal; color: var(--ink); line-height: 1.5; }
+
+  /* Werte: fünf Spalten, je ein Symbol im Glas-Knoten (wie die Stationen des Wegs). */
+  .uu-values { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 40px; }
+  .uu-values li { display: grid; align-content: start; grid-template-columns: 56px minmax(0, 1fr); column-gap: 16px; padding: 20px 0; border-top: 1px solid var(--line); }
+  .uu-values__ic { grid-row: span 2; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; color: var(--ink); }
+  .uu-values h3 { font-size: 1.25rem; align-self: end; }
+  .uu-values :global(p) { margin-top: 4px; font-size: 0.9375rem; line-height: 1.5; color: var(--gray-500); }
+  @media (min-width: 960px) {
+    .uu-values { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 32px; margin-top: 56px; }
+    .uu-values li { grid-template-columns: 1fr; row-gap: 0; padding: 28px 0 0; border-top: 1px solid var(--line-2); }
+    .uu-values__ic { grid-row: auto; margin-bottom: 20px; }
+    .uu-values h3 { align-self: start; }
+  }
+
+  /* Mehr von uns: zwei graue Karten mit der Zeichnung aus dem Menü. */
+  .uu-more { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  @media (min-width: 720px) { .uu-more { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
+  .uu-more__card { position: relative; display: grid; gap: 6px; padding: 24px 28px 28px; border-radius: 24px; background: var(--gray-100); color: var(--ink); text-decoration: none; }
+  .uu-more__card img { width: 100%; height: 200px; object-fit: contain; margin-bottom: 12px; transition: transform 0.6s var(--ease); }
+  .uu-more__card:hover img { transform: translateY(-6px); }
+  .uu-more__title { font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; letter-spacing: -0.02em; }
+  .uu-more__card :global(.uu-more__text) { color: var(--gray-500); padding-right: 56px; }
+  .uu-more__card .garrow { position: absolute; right: 24px; bottom: 24px; }
 </style>
