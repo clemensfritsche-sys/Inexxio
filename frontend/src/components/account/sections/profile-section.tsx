@@ -1,39 +1,28 @@
 'use client';
 
 /**
- * **Mein Profil – EINE Sektion, vier Container.**
+ * **Mein Konto – Person · Adressen · Firma · Newsletter** (Abschnitte der einen Konto-Seite).
  *
- * Vorher lagen dieselben Daten in vier Karten mit vier Auto-Saves (Profil, Adresse,
- * Rechnungsadresse, Datenschutz) – und die Rechnungsadresse spiegelte den Profil-Stand
- * aus dem `profile`-Prop, hinkte also jeder noch nicht gespeicherten Änderung hinterher.
- *
- * Jetzt: ein Formular, ein Auto-Save, eine Rückmeldung. Gruppiert nach dem, was fachlich
- * zusammengehört:
- *   1. **Person**            – wer bin ich (inkl. Telefon; + Anstellung)
- *   2. **Adressen**          – privat: Adresse, optional Rechnungsadresse und weitere
- *                              Lieferadressen
- *   3. **Geschäftskonto**    – optional: die Firma (genannt, nie gesucht) und dieselbe
- *                              Adress-Maske, dazu die Rechnungs-E-Mail
- *   4. **Kommunikation**     – Newsletter: ein eigener Schalter, sofort geschrieben (kein
- *                              Feld dieses Formulars – die Einwilligung ist ein Nachweis)
+ *   1. **Person**      – ein Formular, ein Auto-Save («Gespeichert» unter dem Titel); für
+ *                        Personal dazu die Anstellung (nur Anzeige, pflegt der Administrator)
+ *   2. **Adressen**    – das Adressbuch des privaten Kontos, jede Anschrift als graue Karte
+ *   3. **Firma**       – die Firma (genannt, nie gesucht) und ihr Adressbuch
+ *   4. **Newsletter**  – ein Schalter, sofort geschrieben (die Einwilligung ist ein Nachweis)
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase, Building2, Bell, MapPin } from 'lucide-react';
 import type { NewsletterState, UserProfile } from '@/types';
 import { api } from '@/lib/api';
 import { day } from '@/lib/when';
-import { Field, ToggleField } from '@/components/form/field';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import { AddressBook } from '@/components/erp/address-book';
-import { Card, MICRO_LABEL, SubBlock } from '@/components/erp/fields';
 import { CompanyField } from '@/components/erp/company-field';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { KtField, KtSection } from '../kt-section';
 
 interface Form {
-  // Person
   first_name: string;
   last_name: string;
   date_of_birth: string;
@@ -81,73 +70,65 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
-
-  const objectNumber = profile.object_id != null
-    ? String(profile.object_id).padStart(9, '0')
-    : String(profile.id);
+  // «· fehlt» steht, solange ein Pflichtfeld leer ist – dieselbe Pflicht wie die Pille im Kopf.
+  const empty = (k: keyof Form) => !form[k].trim();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
-      <Card icon={User} title="Person" right={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
-        {/* Die Objektnummer ist vergeben und unveränderlich – sie wie ein Formularfeld
-            zu zeigen, lud zum Hineinklicken ein. Jetzt steht sie da wie überall sonst
-            im System: Versalien-Label + monospaced Nummer. */}
-        <div>
-          <div style={{ ...MICRO_LABEL, marginBottom: 4 }}>
-            Benutzernummer
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>
-            {objectNumber}
-          </div>
+    <>
+      <KtSection id="person" title="Person" text="So sprechen wir Sie an und so erreichen wir Sie."
+        aside={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
+        <div className="kt-grid2">
+          <KtField id="kt-first" label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)}
+            onEnter={saveNow} missing={empty('first_name')} autoComplete="given-name" />
+          <KtField id="kt-last" label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)}
+            onEnter={saveNow} missing={empty('last_name')} autoComplete="family-name" />
+          <KtField id="kt-phone" label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
+            onEnter={saveNow} missing={empty('phone')} placeholder="+41 44 000 00 00" autoComplete="tel" />
+          <KtField id="kt-born" label="Geburtsdatum" type="date" value={form.date_of_birth}
+            onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} />
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
-          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
-          <Field label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+41 44 000 00 00" type="tel" required={!form.phone.trim()} onEnter={saveNow} />
-          <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
-        </div>
-
         {isStaff && (
-          <SubBlock icon={Briefcase} title="Anstellung · wird vom Administrator gepflegt">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Eintrittsdatum" value={profile.employment_start_date ? day(profile.employment_start_date) : ''} readOnly />
-              <Field label="Pensum" value={profile.weekly_hours ? `${profile.weekly_hours}h / Woche` : ''} readOnly />
-            </div>
-          </SubBlock>
+          <div className="kt-grid2" style={{ marginTop: 8 }}>
+            <KtField id="kt-since" label="Eintrittsdatum · pflegt der Administrator" readOnly
+              value={profile.employment_start_date ? day(profile.employment_start_date) : '–'} />
+            <KtField id="kt-hours" label="Pensum" readOnly
+              value={profile.weekly_hours ? `${profile.weekly_hours} h / Woche` : '–'} />
+          </div>
         )}
-      </Card>
+      </KtSection>
 
-      {/* ── 2. Adressen (privat) ─────────────────────────────────────────── */}
       {/* ►►► **Eine Adresse, optional eine abweichende Lieferadresse und weitere
           Lieferadressen.** ◄◄◄ Privat geht die Rechnung an die E-Mail der Person. */}
-      <Card icon={MapPin} title="Adressen">
-        <AddressBook owner={null} account="private" addresses={profile.addresses ?? []}
+      <KtSection id="adressen" title="Adressen"
+        text="Eine Anschrift für Rechnungen, dazu so viele Lieferadressen, wie Sie brauchen.">
+        <AddressBook owner={null} account="private" addresses={profile.addresses ?? []} cards
           loginEmail={profile.email} mapsKey={mapsKey}
           onSaved={(u) => qc.setQueryData(['me'], u)} />
-      </Card>
+      </KtSection>
 
-      {/* ── 3. Geschäftskonto (optional) ─────────────────────────────────────── */}
       {/* ►►► **Dieselbe Maske noch einmal – für die Firma.** ◄◄◄ Die Firma wird genannt
           (UID, sonst Name und Rechtsform) und vom Server erkannt oder angelegt; eine Liste
-          fremder Firmen sieht ein Kunde nie. Die Anschriften gehören der Person, die
-          Rechnungs-E-Mail steht an der Rechnungsadresse. */}
-      <Card icon={Building2} title="Geschäftskonto">
-        <CompanyField company={profile.company} readOnly={isStaff}
-          country={profile.addresses?.[0]?.country}
-          onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
-          onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
+          fremder Firmen sieht ein Kunde nie. */}
+      <KtSection id="firma" title="Firma"
+        text="Bestellen Sie für einen Betrieb? Dann geht die Rechnung an die Firma.">
+        <div className="kt-company">
+          <CompanyField company={profile.company} readOnly={isStaff}
+            country={profile.addresses?.[0]?.country}
+            onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
+            onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
+        </div>
         {profile.company && (
-          <AddressBook owner={null} account="business" addresses={profile.addresses ?? []}
+          <AddressBook owner={null} account="business" addresses={profile.addresses ?? []} cards
             loginEmail={profile.email} mapsKey={mapsKey}
             onSaved={(u) => qc.setQueryData(['me'], u)} />
         )}
-      </Card>
+      </KtSection>
 
-      {/* ── 4. Kommunikation & Rechtliches ──────────────────────────────────── */}
-      <Card icon={Bell} title="Kommunikation"><Newsletter /></Card>
-    </div>
+      <KtSection id="newsletter" title="Newsletter"
+        text="«Post von INEXXIO» – selten, und nur, wenn es etwas zu sagen gibt.">
+        <Newsletter />
+      </KtSection>
+    </>
   );
 }
 
@@ -163,14 +144,16 @@ function Newsletter() {
     api.setMyNewsletter(on).then(setState)
       .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
   };
+  const on = !!state?.subscribed;
   return (
-    <div style={{ minHeight: 44 }}>
-      <ToggleField label="Newsletter" description={state?.wording ?? ''}
-        checked={!!state?.subscribed} onChange={(v) => { if (state) flip(v); }} />
-      {state?.subscribed && state.since && (
-        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '6px 0 0' }}>Angemeldet seit {day(state.since)}</p>
-      )}
-      {error && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '6px 0 0' }}>{error}</p>}
+    <div className="kt-switch">
+      <button type="button" role="switch" aria-checked={on} aria-label="Newsletter"
+        disabled={!state} onClick={() => flip(!on)} />
+      <div>
+        <p>{state?.wording ?? ''}</p>
+        {on && state?.since && <p className="kt-note">Angemeldet seit {day(state.since)}</p>}
+        {error && <p className="kt-note is-error">{error}</p>}
+      </div>
     </div>
   );
 }
