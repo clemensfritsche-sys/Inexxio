@@ -85,6 +85,11 @@ export const photos = {
     brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat',
     ratio: '3/2',
   },
+  handschlag: {
+    alt: 'Heiri Steiner und Clemens Fritsche geben sich vor dem Betrieb in Tuttwil die Hand',
+    brief: 'Heiri Steiner und Clemens Fritsche beim Handschlag vor dem Betrieb in Tuttwil, breites Querformat',
+    ratio: '16/9',
+  },
   'werkstatt-aussen': {
     alt: 'Betrieb von INEXXIO in Tuttwil (Wängi TG) von aussen',
     brief: 'Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer',

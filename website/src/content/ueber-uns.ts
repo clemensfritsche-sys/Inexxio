@@ -38,13 +38,15 @@ export const ueberUns = {
       { no: 'Heute', icon: 'handshake' as const, who: 'Nachfolge', title: 'Aus HS Steiner wird {{brand.name}}', text: 'Heiri Steiner übergibt an Clemens Fritsche. Standort, Telefonnummer und der Service für alle HS-Krananlagen bleiben.' },
     ],
   },
-  /** Die Übergabe – Collage wie auf der Startseite, zwei Stimmen, kurz was bleibt und was neu ist. */
+  /** Die Übergabe – ein grosses Bild (der Handschlag), Heiris Zitat, Clemens' Botschaft, kurz was bleibt und was neu ist. */
   people: {
     title: 'Ein Handschlag zwischen zwei Generationen',
-    lead: 'Nach {{history.experienceDative}} übergibt Heiri Steiner an Clemens Fritsche. Was sich bewährt hat, bleibt.',
-    voices: [
-      { q: 'Meine Kunden sind bei ihm in guten Händen.', who: '{{people.founder.name}}' },
-      { q: 'Ich führe weiter, was Heiri aufgebaut hat – mit derselben Sorgfalt.', who: '{{people.owner.name}}' },
+    /** Zitat von Heiri Steiner – in seinen Worten, freigegeben mit Testnotiz #1097. */
+    quote:
+      'Über 40 Jahre war dieser Betrieb mein Leben. Ich gebe ihn mit gutem Gefühl weiter: Clemens bringt neues Wissen mit und hat Respekt vor dem, was hier gewachsen ist. Meine Kunden sind bei ihm in guten Händen.',
+    message: [
+      'Ich bin Maschinenbauingenieur, habe bei Liebherr Bohrgeräte mitentwickelt und danach vernetzte Maschinen und Plattformen verantwortet. Als ich Heiri kennengelernt habe, war schnell klar: Hier stimmt die Basis – treue Kunden, solide Anlagen, ehrliches Handwerk.',
+      'Was Heiri in {{history.experienceDative}} aufgebaut hat, führe ich mit derselben Sorgfalt weiter – und ergänze es dort, wo es Ihnen nützt.',
     ],
     stays: 'Standort · Telefonnummer · Service für HS-Anlagen',
     news: 'Der Name {{brand.name}} · Ingenieurwissen · Speziallösungen',
@@ -64,11 +66,11 @@ export const ueberUns = {
     title: 'Wofür wir stehen',
     /** Locker gesetzt: das Wort gross, der halbe Satz dahinter leise – kein Raster, keine Symbole. */
     items: [
-      { title: 'Verbindlichkeit.', text: 'Ein Wort gilt.' },
-      { title: 'Qualität.', text: 'Sauber bis ins Protokoll.' },
-      { title: 'Zuverlässigkeit.', text: 'Erreichbar, wenn etwas stillsteht.' },
-      { title: 'Innovation.', text: 'Modernisieren statt ersetzen.' },
-      { title: 'Design.', text: 'Gut bedienbar, sicher und schön.' },
+      { title: 'Verbindlichkeit.', text: 'Gesagt ist gemacht.' },
+      { title: 'Qualität.', text: 'Lieber einmal richtig.' },
+      { title: 'Zuverlässigkeit.', text: 'Steht etwas still, sind wir da.' },
+      { title: 'Innovation.', text: 'Neues Leben für gute Maschinen.' },
+      { title: 'Design.', text: 'Schön ist, was gut funktioniert.' },
     ],
   },
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */

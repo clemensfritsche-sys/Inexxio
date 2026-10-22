@@ -1,18 +1,14 @@
 ---
 /**
  * Nachfolge (v4): Collage aus drei Bildern, der Text in der Mitte darunter – Porsche-Muster.
- * Texte: content/start.ts (handover) und content/uebergabe.ts. «Über uns» setzt Titel, Einleitung
- * und den Inhalt unter dem Text selbst (Slot statt Zitat und Knopf).
+ * Texte: content/start.ts (handover) und content/uebergabe.ts.
  */
 import { start } from '../../content/start';
 import { site } from '../../config/site.mjs';
 import Media from '../Media.astro';
 import Rich from '../Rich.astro';
 
-interface Props { title?: string; lead?: string }
 const h = start.handover;
-const { title = h.h2, lead = h.lead } = Astro.props;
-const own = Astro.slots.has('default');
 ---
 <section class="v4-section ho-sec" id="uebergabe" aria-labelledby="uebergabe-title">
   <div class="wrap ho-box">
@@ -21,14 +17,10 @@ const own = Astro.slots.has('default');
       <div class="ho__img ho__img--b zoom-on-hover"><Media id={h.photos[1]} sizes="(min-width: 960px) 32vw, 50vw" /></div>
       <div class="ho__img ho__img--c zoom-on-hover"><Media id={h.photos[2]} sizes="(min-width: 960px) 30vw, 40vw" /></div>
       <div class="ho__text">
-        <Rich as="h2" class="v4-h2" id="uebergabe-title" text={title} />
-        <Rich as="p" class="v4-sub" text={lead} />
-        {own ? <slot /> : (
-          <>
-            <p class="ho__quote"><strong>«{h.short}»</strong> <span>– {site.people.founder.name}</span></p>
-            <a class="btn btn--grey ho__link" href={h.href}>{h.link}</a>
-          </>
-        )}
+        <Rich as="h2" class="v4-h2" id="uebergabe-title" text={h.h2} />
+        <Rich as="p" class="v4-sub" text={h.lead} />
+        <p class="ho__quote"><strong>«{h.short}»</strong> <span>– {site.people.founder.name}</span></p>
+        <a class="btn btn--grey ho__link" href={h.href}>{h.link}</a>
       </div>
     </div>
   </div>
