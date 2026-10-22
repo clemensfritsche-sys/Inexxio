@@ -76,9 +76,9 @@ const menus = [
 ];
 const langs = [
   { label: 'Deutsch', bubble: 'Hallo', sub: 'Aktuelle Sprache', on: true },
+  { label: 'English', bubble: 'Hello', sub: 'Coming soon', lang: 'en' },
   { label: 'Français', bubble: 'Bonjour', sub: 'Bientôt disponible', lang: 'fr' },
   { label: 'Italiano', bubble: 'Ciao', sub: 'Presto disponibile', lang: 'it' },
-  { label: 'English', bubble: 'Hello', sub: 'Coming soon', lang: 'en' },
 ];
 const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/anmelden'), sub: 'Mit E-Mail-Link, Google oder Passkey – ohne Passwort.' };
 const profile = { label: 'Mein Profil', href: acct.profile.href, img: illo('menu/profil'), sub: 'Person, Firma und Adressbuch an einem Ort.' };
@@ -367,7 +367,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   .bubble--sm::after { bottom: -6px; width: 12px; height: 12px; }
   /* Wer angemeldet ist – eine Auskunft, kein Knopf: gleiche Zeilen wie die Kacheln (Name · Bild · Text). */
   .tile--me { cursor: default; }
-  .tile__stage { display: flex; align-items: center; justify-content: center; height: 160px; }
+  .tile__stage { display: flex; align-items: center; justify-content: flex-start; height: 160px; }
   .tile__ring { display: inline-flex; align-items: center; justify-content: center; width: 132px; height: 132px; border-radius: 50%; background: radial-gradient(closest-side, transparent 82%, rgba(229, 26, 20, 0.14) 83% 100%); }
   .tile__avatar {
     display: inline-flex; align-items: center; justify-content: center; width: 104px; height: 104px; border-radius: 50%; overflow: hidden;
