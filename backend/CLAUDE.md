@@ -125,7 +125,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **91 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **92 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -133,6 +133,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 |---|---|---|---|
 | GET | `/health` | – | Health Check |
 | GET · PATCH | `/api/v1/auth/me` | user | Eigenes Profil lesen / ändern (Selbstbedienung, `people.apply_profile_update`) |
+| POST | `/api/v1/auth/me/email-check` | user | Ist die neue Anmelde-E-Mail frei? (`people.email_problem`, vor dem Firebase-Bestätigungslink) |
 | POST · PATCH · DELETE | `/api/v1/auth/me/addresses` · `/{address_id}` | user | Eigenes Adressbuch |
 | POST | `/api/v1/auth/passkeys/register/options` · `/register/verify` | user | Passkey registrieren |
 | GET · DELETE | `/api/v1/auth/passkeys` · `/{passkey_id}` | user | Eigene Passkeys verwalten |

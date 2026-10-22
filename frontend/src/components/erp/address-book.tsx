@@ -8,6 +8,7 @@ import { AddressField, type Address } from '@/components/erp/address-field';
 import { ErrorText, MICRO_LABEL } from '@/components/erp/fields';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
+import { KtField } from '@/components/form/kt-section';
 import type { AddressEntry, AddressInput, UserProfile } from '@/types';
 
 /**
@@ -60,7 +61,7 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
-  const row = { owner, account, loginEmail, readOnly, mapsKey, onSaved };
+  const row = { owner, account, loginEmail, readOnly, mapsKey, onSaved, cards };
 
   async function remove(id: number) {
     setError('');
@@ -72,8 +73,9 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   }
 
   if (!main) {
-    return readOnly ? <span className="text-sm text-fg-3">Keine Adresse erfasst</span>
-      : <NewAddress {...row} label="Rechnungsadresse" extra={{}} onDone={() => {}} />;
+    if (readOnly) return <span className="text-sm text-fg-3">Keine Adresse erfasst</span>;
+    const first = <NewAddress {...row} label="Rechnungsadresse" extra={{}} onDone={() => {}} />;
+    return cards ? <FormCard>{first}</FormCard> : first;
   }
 
   // **Eine Liste, eine Zeile je Anschrift** – oben die Rechnungsadresse, darunter die
@@ -99,11 +101,12 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {cards && <span className="kt-card-tag">{tag}</span>}
+            {cards && editing !== a.id && <span className="kt-card-tag">{tag}</span>}
             {editing === a.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <AddressRow entry={a} label="Anschrift" email={business && a.id === main.id} {...row} />
-                <button type="button" className="self-start text-xs text-accent hover:underline"
+                <AddressRow entry={a} label={cards ? tag : 'Anschrift'} email={business && a.id === main.id} {...row} />
+                <button type="button" className={cards ? 'kt-pill kt-pill--ghost' : 'self-start text-xs text-accent hover:underline'}
+                  style={cards ? { alignSelf: 'flex-start' } : undefined}
                   onClick={() => setEditing(null)}>Fertig</button>
               </div>
             ) : (
@@ -128,10 +131,11 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
           )}
         </div>
       ))}
-      {!readOnly && (adding ? (
-        <NewAddress {...row} label="Lieferadresse" extra={{ is_default_delivery: !delivery }}
-          onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
-      ) : (
+      {!readOnly && (adding ? (() => {
+        const add = <NewAddress {...row} label="Neue Lieferadresse" extra={{ is_default_delivery: !delivery }}
+          onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />;
+        return cards ? <FormCard>{add}</FormCard> : add;
+      })() : (
         <button type="button" onClick={() => setAdding(true)}
           className={cards ? 'kt-add' : 'self-start inline-flex items-center gap-1.5 text-sm text-accent hover:underline'}
           style={cards ? undefined : { marginTop: 4 }}>
@@ -158,16 +162,29 @@ const complete = (a: Address) => !!(a.street.trim() && a.zip.trim() && a.city.tr
 interface RowProps {
   owner: number | null; account: Account; loginEmail: string; readOnly?: boolean;
   mapsKey: string | null | undefined; onSaved: (u: UserProfile) => void;
+  /** Gestaltung des Kontos (siehe `AddressBook.cards`). */
+  cards?: boolean;
+}
+
+/** Konto: eine neue Anschrift entsteht in derselben grauen Karte, in der sie danach steht. */
+function FormCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="kt-card">
+      <span className="kt-card-ic"><MapPin aria-hidden /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    </div>
+  );
 }
 
 /** Eine bestehende Anschrift – sie speichert sich selbst. */
 function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnly, mapsKey,
-  onSaved }: RowProps & {
+  onSaved, cards }: RowProps & {
   entry: AddressEntry; label: string;
   /** Trägt diese Anschrift die Rechnungs-E-Mail? Nur im Geschäftskonto, nur die Adresse. */
   email?: boolean;
   removable?: boolean;
 }) {
+  const BillField = cards ? KtField : AField;
   const [form, setForm] = useState({ address: toAddress(entry), email: entry.email ?? '' });
   const [error, setError] = useState('');
   const { status, errorMsg, saveNow } = useAutosaveValue(form, async (v) => {
@@ -190,10 +207,10 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
       <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
         className="flex flex-col gap-3">
         <AddressField value={form.address} apiKey={mapsKey} countryOptions={ADDRESS_COUNTRIES}
-          showStreet2 showRegion label={label}
+          showStreet2 showRegion label={label} look={cards ? 'kt' : 'erp'}
           onChange={(a) => setForm((p) => ({ ...p, address: a }))} />
         {email && (
-          <AField label="Rechnungs-E-Mail" type="email" value={form.email} readOnly={readOnly}
+          <BillField label="Rechnungs-E-Mail" type="email" value={form.email} readOnly={readOnly}
             placeholder={inheritedEmail(loginEmail)} onEnter={saveNow}
             onChange={(v) => setForm((p) => ({ ...p, email: v }))} />
         )}
@@ -216,7 +233,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
 }
 
 /** Eine neue Anschrift – sie entsteht, sobald Strasse, PLZ und Ort dastehen. */
-function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, onCancel }: RowProps & {
+function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, onCancel, cards }: RowProps & {
   label: string;
   /** Was die neue Anschrift ausserdem ist (z. B. die Lieferadresse). */
   extra: Partial<AddressInput>;
@@ -250,10 +267,11 @@ function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, on
 
   return (
     <div className="flex flex-col gap-3">
-      <AddressField value={draft} onChange={setDraft} apiKey={mapsKey}
+      <AddressField value={draft} onChange={setDraft} apiKey={mapsKey} look={cards ? 'kt' : 'erp'}
         countryOptions={ADDRESS_COUNTRIES} showStreet2 showRegion label={label} />
       {onCancel && (
-        <button type="button" className="self-start text-xs text-fg-3 hover:underline" onClick={onCancel}>
+        <button type="button" className={cards ? 'kt-pill kt-pill--ghost' : 'self-start text-xs text-fg-3 hover:underline'}
+          style={cards ? { alignSelf: 'flex-start' } : undefined} onClick={onCancel}>
           Abbrechen
         </button>
       )}

@@ -102,7 +102,7 @@ export function hasAddress(a: Address | null | undefined): boolean {
 
 export function AddressField({
   value, onChange, apiKey, countryOptions, showStreet2 = false, showRegion = false,
-  label = 'Adresse', required = false,
+  label = 'Adresse', required = false, look = 'erp',
 }: {
   value: Address;
   onChange: (a: Address) => void;
@@ -114,7 +114,11 @@ export function AddressField({
   label?: string;
   /** Pflichtangabe – markiert die Beschriftung, solange nichts erfasst ist (wie `Field`). */
   required?: boolean;
+  /** `kt` = Gestaltung des Kontos (graue Flächen, `.kt-*`) – dieselbe Logik, andere Haut. */
+  look?: 'erp' | 'kt';
 }) {
+  const kt = look === 'kt';
+  const S = kt ? KT : ST;
   const { loaded, error } = useGoogleMaps(apiKey);
   const usable = loaded && !error;
   /**
@@ -154,7 +158,7 @@ export function AddressField({
 
   const missing = required && !hasAddress(value);
   const labelNode = (
-    <span style={ST.label}>
+    <span style={S.label}>
       {label}
       {missing && <span style={{ color: 'var(--warning)', marginLeft: 3, fontWeight: 700 }}>*</span>}
     </span>
@@ -239,26 +243,26 @@ export function AddressField({
   // ── Manueller Modus: die klassischen Felder, bewusst gewählt ────────────────────
   if (manual) {
     return (
-      <div style={ST.wrap}>
-        <div style={ST.head}>
-          <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
+      <div style={S.wrap}>
+        <div style={S.head}>
+          {!kt && <MapPin size={14} style={{ color: 'var(--fg-3)' }} />}
           {labelNode}
           {usable && (
-            <button type="button" onClick={() => { setWantsManual(false); setSearching(true); }} style={ST.link}>
+            <button type="button" onClick={() => { setWantsManual(false); setSearching(true); }} style={S.link}>
               <Search size={12} /> Stattdessen suchen
             </button>
           )}
         </div>
         {error === 'auth' && (
-          <p style={ST.note}>Adress-Suche nicht verfügbar (Google «Places API» nicht freigeschaltet) – bitte manuell erfassen.</p>
+          <p style={S.note}>Adress-Suche nicht verfügbar (Google «Places API» nicht freigeschaltet) – bitte manuell erfassen.</p>
         )}
-        <div style={ST.grid}>
-          <Input label="Strasse und Hausnummer" value={value.street} onChange={set('street')} wide />
-          {showStreet2 && <Input label="Adresszusatz" value={value.street2 ?? ''} onChange={set('street2')} wide />}
-          <Input label="PLZ" value={value.zip} onChange={set('zip')} />
-          <Input label="Ort" value={value.city} onChange={set('city')} />
-          {showRegion && <Input label="Region" value={value.region ?? ''} onChange={set('region')} />}
-          <Select label="Land" value={value.country} onChange={set('country')} options={countryOptions} />
+        <div style={S.grid}>
+          <Input kt={kt} label="Strasse und Hausnummer" value={value.street} onChange={set('street')} wide />
+          {showStreet2 && <Input kt={kt} label="Adresszusatz" value={value.street2 ?? ''} onChange={set('street2')} wide />}
+          <Input kt={kt} label="PLZ" value={value.zip} onChange={set('zip')} />
+          <Input kt={kt} label="Ort" value={value.city} onChange={set('city')} />
+          {showRegion && <Input kt={kt} label="Region" value={value.region ?? ''} onChange={set('region')} />}
+          <Select kt={kt} label="Land" value={value.country} onChange={set('country')} options={countryOptions} />
         </div>
       </div>
     );
@@ -267,23 +271,24 @@ export function AddressField({
   // ── Suchmodus: EIN Feld, der Standardweg ───────────────────────────────────────
   if (searching || !hasAddress(value)) {
     return (
-      <div style={ST.wrap}>
-        <div style={ST.head}>
-          <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
+      <div style={S.wrap}>
+        <div style={S.head}>
+          {!kt && <MapPin size={14} style={{ color: 'var(--fg-3)' }} />}
           {labelNode}
           {hasAddress(value) && (
-            <button type="button" onClick={() => setSearching(false)} style={ST.link}>Abbrechen</button>
+            <button type="button" onClick={() => setSearching(false)} style={S.link}>Abbrechen</button>
           )}
         </div>
         <div style={{ position: 'relative' }}>
-          <Search size={14} style={ST.searchIcon} />
+          <Search size={kt ? 18 : 14} style={S.searchIcon} />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Adresse suchen – z. B. Musterstrasse 12, Zürich"
             autoComplete="off"
-            style={ST.search}
+            className={kt ? 'kt-input' : undefined}
+            style={S.search}
             // Enter wählt den Vorschlag, statt das Formular abzuschicken.
             onKeyDown={(e) => {
               if (e.key === 'Enter' && document.querySelector('.pac-container:not([style*="display: none"])')) {
@@ -296,16 +301,16 @@ export function AddressField({
             und – für die echten Ausnahmen – die manuelle Erfassung. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           {usable && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
-            <button type="button" onClick={useMyLocation} disabled={locating} style={ST.locate}>
+            <button type="button" onClick={useMyLocation} disabled={locating} style={S.locate}>
               {locating ? <Loader2 size={13} style={{ animation: 'spin 0.7s linear infinite' }} /> : <LocateFixed size={13} />}
               {locating ? 'Standort wird ermittelt…' : 'Aktuellen Standort verwenden'}
             </button>
           )}
-          <button type="button" onClick={() => setWantsManual(true)} style={ST.escape}>
+          <button type="button" onClick={() => setWantsManual(true)} style={S.escape}>
             Adresse nicht gefunden? Manuell erfassen
           </button>
         </div>
-        {locateError && <p style={{ ...ST.note, color: 'var(--warning)' }}>{locateError}</p>}
+        {locateError && <p style={{ ...S.note, color: 'var(--warning)' }}>{locateError}</p>}
       </div>
     );
   }
@@ -318,35 +323,35 @@ export function AddressField({
     ?? countryOptions.find(([v]) => toIso2(v) === toIso2(value.country))?.[1]
     ?? value.country;
   return (
-    <div style={ST.wrap}>
-      <div style={ST.head}>
-        <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
+    <div style={S.wrap}>
+      <div style={S.head}>
+        {!kt && <MapPin size={14} style={{ color: 'var(--fg-3)' }} />}
         {labelNode}
-        <button type="button" onClick={() => setSearching(true)} style={ST.link}>
+        <button type="button" onClick={() => setSearching(true)} style={S.link}>
           <Pencil size={12} /> Ändern
         </button>
       </div>
-      <div style={ST.summary}>
+      <div style={S.summary}>
         <CheckCircle2 size={15} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ minWidth: 0 }}>
-          <div style={ST.line1}>{value.street}</div>
-          {showStreet2 && value.street2 && <div style={ST.line2}>{value.street2}</div>}
-          <div style={ST.line2}>{[value.zip, value.city].filter(Boolean).join(' ')}</div>
+          <div style={S.line1}>{value.street}</div>
+          {showStreet2 && value.street2 && <div style={S.line2}>{value.street2}</div>}
+          <div style={S.line2}>{[value.zip, value.city].filter(Boolean).join(' ')}</div>
           {/* ►►► **Die Region stand im Feld und fehlte in der Zusammenfassung**
               (Testnotiz #1044). ◄◄◄ Wer sie erfasste, sah sie beim nächsten Blick nicht
               mehr – was von einer nicht gespeicherten Angabe nicht zu unterscheiden ist.
               Eine Zusammenfassung, die ein Feld verschweigt, ist keine. */}
-          {showRegion && value.region && <div style={ST.line2}>{value.region}</div>}
-          <div style={ST.line2}>{countryLabel}</div>
+          {showRegion && value.region && <div style={S.line2}>{value.region}</div>}
+          <div style={S.line2}>{countryLabel}</div>
         </div>
       </div>
       {/* Adresszusatz (c/o, Postfach, Stockwerk) ist die Ausnahme, nicht die Regel – er wird
           real für Lieferetiketten gebraucht, soll aber nicht als leeres Dauerfeld Fläche kosten.
           Darum: nur zeigen, wenn befüllt oder ausdrücklich gewünscht. */}
       {showStreet2 && (value.street2 || street2Open ? (
-        <Input label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
+        <Input kt={kt} label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
       ) : (
-        <button type="button" onClick={() => setStreet2Open(true)} style={ST.escape}>
+        <button type="button" onClick={() => setStreet2Open(true)} style={S.escape}>
           + Adresszusatz
         </button>
       ))}
@@ -356,24 +361,26 @@ export function AddressField({
 
 // ─── Bausteine ────────────────────────────────────────────────────────────────────
 
-function Input({ label, value, onChange, wide }: {
-  label: string; value: string; onChange: (v: string) => void; wide?: boolean;
+function Input({ label, value, onChange, wide, kt }: {
+  label: string; value: string; onChange: (v: string) => void; wide?: boolean; kt?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: wide ? '1 / -1' : undefined }}>
-      <label style={ST.fieldLabel}>{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} style={ST.input} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: kt ? 6 : 4, gridColumn: wide ? '1 / -1' : undefined }}>
+      <label style={(kt ? KT : ST).fieldLabel}>{label}</label>
+      <input value={value} onChange={(e) => onChange(e.target.value)}
+        className={kt ? 'kt-input' : undefined} style={kt ? undefined : ST.input} />
     </div>
   );
 }
 
-function Select({ label, value, onChange, options }: {
-  label: string; value: string; onChange: (v: string) => void; options: [string, string][];
+function Select({ label, value, onChange, options, kt }: {
+  label: string; value: string; onChange: (v: string) => void; options: [string, string][]; kt?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={ST.fieldLabel}>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} style={ST.input}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: kt ? 6 : 4 }}>
+      <label style={(kt ? KT : ST).fieldLabel}>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className={kt ? 'kt-input kt-select' : undefined} style={kt ? undefined : ST.input}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
     </div>
@@ -422,4 +429,38 @@ const ST: Record<string, React.CSSProperties> = {
     border: '1px solid var(--border-1)', background: 'var(--bg-1)',
     font: '400 13.5px var(--font-body)', color: 'var(--fg-1)', outline: 'none', boxSizing: 'border-box',
   },
+};
+
+/** Dieselben Teile in der Gestaltung des Kontos: graue Flächen ohne Rahmen, ruhige Wörter. */
+const KT: Record<string, React.CSSProperties> = {
+  ...ST,
+  wrap: { display: 'flex', flexDirection: 'column', gap: 10 },
+  head: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 20 },
+  label: { font: '500 13px var(--font-body)', color: 'var(--fg-3)' },
+  link: {
+    marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+    font: '500 13px var(--font-body)', color: 'var(--fg-1)', textDecoration: 'underline',
+    textUnderlineOffset: 3, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  },
+  search: { paddingLeft: 48 },
+  searchIcon: {
+    position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+    color: 'var(--fg-3)', pointerEvents: 'none',
+  },
+  escape: {
+    alignSelf: 'flex-start', font: '400 13px var(--font-body)', color: 'var(--fg-3)',
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline',
+    textUnderlineOffset: 3,
+  },
+  locate: {
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px',
+    borderRadius: 999, border: '1px solid var(--border-2)', background: '#fff',
+    font: '500 13px var(--font-body)', color: 'var(--fg-1)', cursor: 'pointer',
+  },
+  summary: { display: 'flex', gap: 10, padding: '14px 16px', borderRadius: 14, background: '#fff' },
+  line1: { font: '500 15px var(--font-body)', color: 'var(--fg-1)' },
+  line2: { font: '400 14px var(--font-body)', color: 'var(--fg-3)' },
+  note: { font: '400 13px var(--font-body)', color: 'var(--fg-3)', margin: 0 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 },
+  fieldLabel: { font: '500 13px var(--font-body)', color: 'var(--fg-3)' },
 };

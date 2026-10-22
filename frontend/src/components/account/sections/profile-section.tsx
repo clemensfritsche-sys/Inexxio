@@ -20,7 +20,7 @@ import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
-import { KtField, KtSection } from '../kt-section';
+import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
 
 interface Form {
   first_name: string;
@@ -61,11 +61,24 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
+  // ►►► **Die Telefonnummer schreibt der Server lesbar zurück** («+41 79 505 83 02»,
+  // `people.tidy_phone`). Übernommen wird sie nur, solange im Feld noch steht, was gesendet
+  // wurde – wer schon weitertippt, verliert nichts; der nächste Auto-Save bringt sie wieder. ◄◄◄
+  const sentPhone = useRef<string | null>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
   const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
-    (v) => onSave({ ...v } as Partial<UserProfile>),
+    (v) => { sentPhone.current = v.phone; return onSave({ ...v } as Partial<UserProfile>); },
     resetKey,
   );
+  useEffect(() => {
+    const server = profile.phone ?? '';
+    if (sentPhone.current !== null && formRef.current.phone === sentPhone.current && server !== sentPhone.current) {
+      sentPhone.current = server;
+      setForm((f) => ({ ...f, phone: server }));
+    }
+  }, [profile.phone]);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -84,7 +97,7 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
             onEnter={saveNow} missing={empty('last_name')} autoComplete="family-name" />
           <KtField id="kt-phone" label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
             onEnter={saveNow} missing={empty('phone')} placeholder="+41 44 000 00 00" autoComplete="tel" />
-          <KtField id="kt-born" label="Geburtsdatum" type="date" value={form.date_of_birth}
+          <KtDate id="kt-born" label="Geburtsdatum" value={form.date_of_birth}
             onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} />
         </div>
         {isStaff && (
@@ -111,12 +124,10 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
           fremder Firmen sieht ein Kunde nie. */}
       <KtSection id="firma" title="Firma"
         text="Bestellen Sie für einen Betrieb? Dann geht die Rechnung an die Firma.">
-        <div className="kt-company">
-          <CompanyField company={profile.company} readOnly={isStaff}
-            country={profile.addresses?.[0]?.country}
-            onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
-            onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
-        </div>
+        <CompanyField look="kt" company={profile.company} readOnly={isStaff}
+          country={profile.addresses?.[0]?.country}
+          onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
+          onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
         {profile.company && (
           <AddressBook owner={null} account="business" addresses={profile.addresses ?? []} cards
             loginEmail={profile.email} mapsKey={mapsKey}
