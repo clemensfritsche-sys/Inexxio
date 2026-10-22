@@ -90,13 +90,33 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
 
 <script>
   // Das Bild folgt der offenen Frage; ältere Browser ohne <details name> schliessen hier.
+  // Schmal rückt das Bild über die offene Frage (CSS order). Damit es gleitet statt springt:
+  // vor dem Wechsel die Lagen merken, danach von dort an den neuen Platz bewegen (FLIP).
+  const narrow = window.matchMedia('(max-width: 959px)');
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
   document.querySelectorAll<HTMLElement>('[data-faq-stage]').forEach((root) => {
     const items = Array.from(root.querySelectorAll<HTMLDetailsElement>('details'));
+    const art = root.querySelector<HTMLElement>('.fq__art');
+    const moving = art ? [art, ...items] : items;
+    let before: Map<HTMLElement, number> | null = null;
+    const glide = () => {
+      if (!before) return;
+      for (const el of moving) {
+        const dy = (before.get(el) ?? 0) - el.getBoundingClientRect().top;
+        if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.7,.2,1)' });
+      }
+      before = null;
+    };
     const show = () => {
       const open = items.findIndex((d) => d.open);
       root.dataset.open = String(open);
       root.style.setProperty('--art-o', String(open < 0 ? 1 : 2 * open + 1));
+      glide();
     };
+    root.addEventListener('click', (e) => {
+      if (!narrow.matches || calm.matches || !(e.target as Element).closest('summary')) return;
+      before = new Map(moving.map((el) => [el, el.getBoundingClientRect().top]));
+    }, true);
     for (const d of items) d.addEventListener('toggle', () => {
       if (d.open) for (const o of items) if (o !== d) o.open = false;
       show();

@@ -62,8 +62,7 @@ function initDisclosures(header: HTMLElement): void {
 function initMobile(header: HTMLElement, menu: HTMLDetailsElement): void {
   const root = document.documentElement;
   const groups = Array.from(menu.querySelectorAll<HTMLElement>('[data-mg]'));
-  const first = groups[0]?.dataset.mg ?? '';
-  // Höchstens EIN Punkt offen; beim Öffnen des Menüs ist es der erste.
+  // Höchstens EIN Punkt offen; beim Öffnen des Menüs sind alle zu.
   const show = (id: string) => {
     for (const g of groups) {
       const open = g.dataset.mg === id;
@@ -73,7 +72,7 @@ function initMobile(header: HTMLElement, menu: HTMLDetailsElement): void {
   };
   const sync = () => {
     root.classList.toggle('menu-open', menu.open);
-    if (!menu.open) show(first);
+    if (!menu.open) show('');
   };
   menu.addEventListener('toggle', sync);
   // Ein Punkt klappt seine Karten auf, statt die Seite zu öffnen (ohne JS bleibt es ein Link).
@@ -100,7 +99,7 @@ function initMobile(header: HTMLElement, menu: HTMLDetailsElement): void {
       if (window.matchMedia('(min-width: 1200px)').matches) return;
       e.preventDefault();
       menu.open = true;
-      show(a.dataset.mnavOpen ?? first);
+      show(a.dataset.mnavOpen ?? '');
     });
   });
   const wide = window.matchMedia('(min-width: 1200px)');

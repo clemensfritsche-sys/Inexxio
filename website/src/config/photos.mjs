@@ -10,8 +10,10 @@
  * z. B. kranpruefung-brueckenkran-tuttwil.jpg, lange Seite ≥ 2400 px), hier bei `file`
  * eintragen. AVIF/WebP, srcset und feste Masse erzeugt der Build.
  *
- * Nur echte Fotos: Betrieb, Team bei der Arbeit, Krane im Einsatz. Keine Stockfotos mit
- * Menschen, keine KI-Bilder. Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
+ * Fotos: Betrieb, Team bei der Arbeit, Krane im Einsatz – echt oder generiert. Generierte Bilder
+ * nur ohne echte Personen und Orte (keine erfundenen Mitarbeitenden, kein erfundener Betrieb);
+ * wer oder was echt sein soll, wird fotografiert. Keine Stockfotos mit Menschen.
+ * Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
  * (config/photo-samples.mjs) – im Modus «live» ist das, wie ein fehlendes Foto, ein Fehler.
  *
  * Ein Video dazu: Datei (MP4, H.264, ohne Ton, kurz, ≤ 8 MB) nach public/video/ legen, daneben
@@ -30,16 +32,19 @@ export const photos = {
     ratio: '4/3',
   },
   'pruefung-hallenkran': {
-    alt: 'Techniker prüft einen Brückenkran in einer Produktionshalle',
+    file: 'pruefung-hallenkran.jpg',
+    alt: 'Techniker prüft auf einer Arbeitsbühne das Hubwerk eines Brückenkrans in einer Produktionshalle',
     brief: 'Techniker bei der Prüfung eines Hallenkrans (Brückenkran), Hubwerk und Laufkatze im Bild, natürliches Licht, quer',
     ratio: '4/3',
   },
   'reparatur-vor-ort': {
-    alt: 'Industriekran in einer Halle, Techniker bei der Arbeit am Hubwerk',
+    file: 'reparatur-vor-ort.webp',
+    alt: 'Techniker arbeitet am offenen Schaltschrank eines roten Brückenkrans in einer Halle',
     brief: 'Industriekran (Brückenkran) in einer Halle, Techniker bei Service oder Reparatur am Hubwerk oder Schaltschrank, quer',
     ratio: '4/3',
   },
   'heukran-einsatz': {
+    file: 'heukran-einsatz.webp',
     video: 'buehne.mp4',
     alt: 'Heukrananlage mit vollem Greifer im Einsatz in einer Scheune',
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
