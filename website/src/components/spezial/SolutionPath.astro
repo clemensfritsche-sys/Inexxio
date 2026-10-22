@@ -8,13 +8,14 @@
 import Icon, { type IconName } from '../Icon.astro';
 import Rich from '../Rich.astro';
 
-interface Station { icon: IconName; who: string; title: string; text: string; tags?: string[]; check?: string }
-interface Props { title: string; start: string; end: string; items: Station[] }
-const { title, start, end, items } = Astro.props;
+/** `no`: was gross neben der Station steht (sonst die laufende Nummer) – auf «Über uns» das Jahr. */
+interface Station { icon: IconName; who: string; title: string; text: string; tags?: string[]; check?: string; no?: string }
+interface Props { title: string; start: string; end: string; items: Station[]; id?: string }
+const { title, start, end, items, id = 'ablauf' } = Astro.props;
 ---
-<section class="v4-section" id="ablauf" aria-labelledby="ablauf-title">
+<section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
-    <header class="v4-head--center"><h2 class="v4-h2" id="ablauf-title">{title}</h2></header>
+    <header class="v4-head--center"><h2 class="v4-h2" id={`${id}-title`}>{title}</h2></header>
     <div class="sp">
       <span class="sp__line" aria-hidden="true"></span>
       <span class="sp__dot" aria-hidden="true"></span>
@@ -22,7 +23,7 @@ const { title, start, end, items } = Astro.props;
       <ol class="sp__list">
         {items.map((s, i) => (
           <li class:list={['sp__st', i % 2 === 1 && 'sp__st--r', i === items.length - 1 && 'sp__st--last']}>
-            <span class="sp__no tnum" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+            <span class="sp__no tnum" aria-hidden="true">{s.no ?? String(i + 1).padStart(2, '0')}</span>
             <span class="sp__node glass-light"><Icon name={s.icon} size={24} /></span>
             <div class="sp__card">
               <span class="sp__who">{s.who}</span>

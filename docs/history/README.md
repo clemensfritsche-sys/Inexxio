@@ -27,6 +27,8 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-21-spezialloesungen-neu.md` | Neue Seite Speziallösungen (Kopf wie Porsche, Feld-Karten, Weg, Fragen-Grundbild) |
 | `2026-10-21-mobil-menue.md` | Handy-Menü mit einer Ebene (Karten zum Wischen, «Alles zu …», Sprache als Karten) |
 | `2026-10-22-handy-feinschliff.md` | Handy-Feinschliff: Menü zu, «Alles zu …» ohne Kärtchen, Fragen gleiten, Leiste ohne Fläche, Pfadnavigation nur breit |
+| `2026-10-22-pfad-und-kontakt.md` | Pfadangabe auch am Desktop weg (nur noch JSON-LD), `/kontakt` bildschirmhoch |
+| `2026-10-22-ueber-uns-und-kopf.md` | «Über uns» neu, Kopf-Menü mit «Alles zu», Profil-Menü als Auskunft |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.

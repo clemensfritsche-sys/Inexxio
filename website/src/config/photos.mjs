@@ -85,6 +85,11 @@ export const photos = {
     brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat',
     ratio: '3/2',
   },
+  handschlag: {
+    alt: 'Heiri Steiner und Clemens Fritsche geben sich vor dem Betrieb in Tuttwil die Hand',
+    brief: 'Heiri Steiner und Clemens Fritsche beim Handschlag, freigestellt (transparenter Grund), hoch – heute steht dort portraet-clemens',
+    ratio: '4/5',
+  },
   'werkstatt-aussen': {
     alt: 'Betrieb von INEXXIO in Tuttwil (Wängi TG) von aussen',
     brief: 'Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer',
@@ -108,7 +113,8 @@ export const photos = {
     ratio: '3/2',
   },
   'arbeit-werkstatt': {
-    alt: 'Schweissarbeit an einer Stahlkonstruktion bei INEXXIO',
+    file: 'arbeit-werkstatt.webp',
+    alt: 'Schweisser mit Schutzhelm an einer roten Stahlkonstruktion, Funken fliegen',
     brief: 'Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer',
     ratio: '4/3',
   },

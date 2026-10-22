@@ -257,7 +257,7 @@ export const site = {
     photo: 'werkstatt-aussen',
     dd: 'Seit {{history.founded}} in Tuttwil – aus HS Steiner wird {{brand.name}}.',
     illo: 'menu/ueber',
-    /** Im Kopf steht «Über uns» selbst als erste Kachel neben seinen Unterseiten. */
+    /** Die Übersichtskachel heisst «Über uns» (nicht «Alles zu Über uns») und trägt den eigenen Satz. */
     ddSelf: true,
     children: [
       { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran', dd: 'Kurz erklärt: Prüfpflicht, Heukran planen, Verschleiss.', illo: 'menu/ratgeber' },

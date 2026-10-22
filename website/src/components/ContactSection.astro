@@ -40,6 +40,9 @@ const main = level === 'h1';
   .contact__map--narrow { display: none; }
   .contact__veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.75) 38%, rgba(255, 255, 255, 0) 62%); }
   .contact__in { position: relative; padding-block: 112px; }
+  /* /kontakt: der Bereich füllt den Bildschirm unter dem Kopf – der Fuss erscheint erst beim Scrollen. */
+  .contact--main { min-height: calc(100svh - var(--header-h)); display: flex; align-items: center; }
+  .contact--main .contact__in { width: 100%; }
   .contact__col { max-width: 580px; }
   .contact__form { margin-top: 32px; min-height: 250px; }
   .contact__col :global(.cpanel) { margin-top: 36px; }
