@@ -19,7 +19,6 @@ import type { OgImage } from '../content/types';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
 
 /**
  * Testnotizen (wie im ERP) – nur, wenn der Build sie einschaltet (`SITE_FEEDBACK=on`, allein
@@ -48,7 +47,8 @@ interface Props {
   /** Vollständiger Titel, wenn der Zusatz anders lauten muss (Startseite). */
   titleFull?: string;
   description: string;
-  /** Pfad-Kette für Breadcrumbs (ohne Startseite); leer = keine Breadcrumbs. */
+  /** Pfad-Kette (ohne Startseite) – nur strukturiert (BreadcrumbList); sichtbar steht sie nicht:
+      der Kopf führt zurück, wie auf heutigen Marken-Websites üblich. */
   crumbs?: Crumb[];
   og?: OgImage;
   /** Zusätzliche JSON-LD-Knoten dieser Seite (null = entfällt, z. B. FAQ ohne Antworten). */
@@ -146,7 +146,6 @@ const csp = [
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
     <Header over={stage} />
     <main id="inhalt" tabindex="-1" class:list={[stage && 'main--stage']} data-erp-fixed={legalPage ? '' : undefined}>
-      {crumbs.length > 0 && <Breadcrumbs crumbs={crumbs} />}
       <slot />
     </main>
     <Footer />
