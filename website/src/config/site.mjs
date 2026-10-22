@@ -196,9 +196,10 @@ export const site = {
   },
 
   marks: {
-    mixers: ['Intermix', 'Putzmeister', 'Cifa', 'Stetter', 'Liebherr', 'Belmix', 'Peter'],
+    /** Logo je Marke in src/assets/marken/<marke>.png (klein, Leerzeichen → «-»). Intermix gehört heute zu Putzmeister. */
+    mixers: ['Putzmeister', 'Liebherr', 'Cifa', 'Schwing Stetter', 'Belloli'],
     mixerNotice:
-      'Markennamen gehören ihren Inhabern. Wir sind unabhängig und kein Vertragshändler.',
+      'Wir sind unabhängig von jedem Hersteller und kein Vertragshändler.',
   },
 
   /** Elemente, die sich per Schalter abschalten lassen. */
@@ -216,7 +217,7 @@ export const site = {
       text: 'Trommeltausch im Winter: Der Fahrmischer ist im Frühling bereit, wenn die Saison anzieht.',
       href: '/fahrzeugtechnik/trommeltausch#winter',
       label: 'Termin planen',
-      pages: ['/', '/fahrzeugtechnik', '/fahrzeugtechnik/trommeltausch', '/service'],
+      pages: ['/', '/fahrzeugtechnik', '/service'], // auf dem Trommeltausch steht der Winter selbst (#winter)
     },
     {
       id: 'heukran-planung',

@@ -1,10 +1,17 @@
 /**
  * Fahrzeugtechnik – Bereichsseite und zwei Unterseiten: Trommeltausch (das stärkste Angebot,
- * zuerst) und Verschleissteile. Reparatur und Aufbauten stehen zurückhaltend als Abschnitt
- * auf der Bereichsseite (`repair`, Anker #reparatur). Verschleissteile werden NICHT «ab Lager»
+ * zuerst) und Verschleissteile. Reparatur und Aufbauten sind die dritte Karte der Bereichsseite
+ * (Anker #reparatur), ohne eigene Unterseite. Verschleissteile werden NICHT «ab Lager»
  * beworben – sie werden bestellt und schnell beschafft. Beide Garantien und die Gratis-
  * Inspektion gelten auch hier (content/promises.ts).
+ *
+ * Die drei Seiten haben ein eigenes Layout (Muster Speziallösungen, Oktober 2026); die
+ * `AreaPage`-/`SubPage`-Objekte liefern Titel, Beschreibung, Zusammenfassung, Leistungsumfang
+ * und FAQ für Sitemap, llms.txt und JSON-LD. Was auf der Seite als Weg steht, ist dort die
+ * Quelle – Ablauf (`steps`) und Leistungsumfang (`scope`) werden daraus abgeleitet.
+ * Bildsprache: Grau ist das Fahrzeug, Rot ist, was wir tun.
  */
+import type { IconName } from '../components/Icon.astro';
 import type { AreaPage, Faq, SubPage } from './types';
 import { promiseFaq } from './promises';
 
@@ -20,29 +27,40 @@ const faqSpeed: Faq = {
 };
 const ratgeberTeile = { href: '/ratgeber/verschleissteile-fahrmischer', label: 'Verschleissteile am Fahrmischer', text: 'Wann Rinne, Schurre und Spiralschutz ersetzen?', kind: 'ratgeber' as const };
 
+/** Eine Station auf dem Weg (components/spezial/SolutionPath.astro). */
+interface Station { icon: IconName; who: string; title: string; text: string; tags?: string[]; check?: string }
+const facts = (items: Station[]) => items.map(({ title, text }) => ({ title, text }));
+
 /* ------------------------------------------------------------------ Bereich */
+/** Der Weg auf der Bereichsseite – zugleich der Ablauf in vier Schritten (`steps`). */
+export const vehiclePath = {
+  title: 'So läuft es ab',
+  start: 'Ihr Fahrmischer',
+  end: 'Wieder im Einsatz',
+  items: [
+    { icon: 'phone', who: 'Sie', title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.', tags: ['Foto', 'Marke', 'Typ'] },
+    { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und sagen offen, was sich lohnt.', check: 'Verbindliche Offerte' },
+    { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Neue Trommel, Teile oder Reparatur – bei uns in {{address.city}}.', tags: ['Trommel', 'Teile', 'Hydraulik'] },
+    { icon: 'truck', who: 'Gemeinsam', title: 'Übergabe', text: 'Probelauf bestanden – Ihr Fahrmischer fährt wieder.', check: 'Jede Arbeit dokumentiert' },
+  ] satisfies Station[],
+};
+
 export const fahrzeugtechnik: AreaPage = {
   id: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
   description:
-    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte, mit Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
+    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
-    h1: 'Neue Trommel statt neuer ==Fahrmischer==',
-    lead:
-      'Ist die Trommel am Ende, das Fahrgestell aber gut, setzen wir eine neue Trommel auf – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir. Die Verschleissteile beschaffen wir schnell.',
+    h1: 'Länger fahren statt neu kaufen',
+    lead: 'Trommeltausch, Verschleissteile und Reparatur für Fahrmischer aller gängigen Marken.',
     photo: 'fahrmischer-werkstatt',
-    primary: anfrage('Trommeltausch anfragen'),
+    primary: anfrage('Fahrmischer anfragen'),
   },
   summary:
     '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
-  steps: [
-    { title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.' },
-    { title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und nennen eine verbindliche Offerte.' },
-    { title: 'Umsetzung', text: 'Neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, Teile ersetzen.' },
-    { title: 'Protokoll', text: 'Sie erhalten ein Protokoll mit Arbeiten und Teilen.' },
-  ],
+  steps: facts(vehiclePath.items),
   faq: [
     {
       q: 'Was ist ein Trommeltausch?',
@@ -55,24 +73,61 @@ export const fahrzeugtechnik: AreaPage = {
       q: 'Liefern Sie auch Verschleissteile ohne Montage?',
       a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz bestellen Sie auch als Teil. Mehr dazu unter [Verschleissteile](/fahrzeugtechnik/verschleissteile).',
     },
-    {
-      q: 'Reparieren Sie auch Aufbauten?',
-      a: 'Ja – Mulden, Kipper, Hydraulik und Aufbauten von Baufahrzeugen. Fragen Sie an.',
-    },
   ],
   promises: ['garantie', 'inexxio365', 'erstservice'],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Trommeltausch und Verschleissteile für Fahrmischer' },
   keywords: ['Trommeltausch Fahrmischer', 'Fahrmischer Trommel', 'Fahrmischer Verschleissteile', 'Fahrmischer Reparatur'],
 };
 
-/** Reparatur und Aufbauten – zurückhaltend, ein Abschnitt auf der Bereichsseite (#reparatur). */
-export const repair = {
-  title: 'Reparatur und Aufbauten',
-  text: 'Was auf der Baustelle zu Bruch geht, setzen wir instand – an Fahrmischern und an Aufbauten von Baufahrzeugen.',
-  items: ['Mulden, Kipper, Bordwände', 'Hydraulik: Zylinder, Pumpen, Ventile, Leitungen', 'Antrieb und Getriebe der Trommel', 'Rahmen und Befestigung'],
+/**
+ * Alles für Ihren Fahrmischer – die Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit
+ * der Zeichnung aus dem Menü. Reparatur und Aufbauten haben keine Unterseite (Anker #reparatur).
+ */
+export const vehicleOffers = {
+  title: 'Alles für Ihren Fahrmischer',
+  lead: 'Von der Rinne bis zur neuen Trommel.',
+  items: [
+    {
+      id: 'trommel',
+      illo: 'menu/trommeltausch',
+      alt: 'Zeichnung: Fahrmischer mit neuer Trommel, die alte liegt daneben',
+      title: 'Trommeltausch',
+      text: 'Trommel am Ende, Fahrgestell gut? Dann kommt nur die Trommel neu.',
+      href: '/fahrzeugtechnik/trommeltausch',
+    },
+    {
+      id: 'teile',
+      illo: 'menu/verschleissteile',
+      alt: 'Zeichnung: Fahrmischer, Rinne, Schurre und Trichter in Rot',
+      title: 'Verschleissteile',
+      text: 'Rinnen, Schurren, Trichter: schnell beschafft, auf Wunsch eingebaut.',
+      href: '/fahrzeugtechnik/verschleissteile',
+    },
+    {
+      id: 'reparatur',
+      illo: 'menu/kranservice',
+      alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll',
+      title: 'Reparatur',
+      text: 'Hydraulik, Antrieb, Aufbau: Was auf der Baustelle bricht, setzen wir instand.',
+    },
+  ],
 };
 
 /* ------------------------------------------------------------------ Trommeltausch */
+/** Was zum Trommeltausch gehört – als Weg auf der Seite, zugleich der Leistungsumfang (`scope`). */
+export const drumPath = {
+  title: 'Was zum Tausch gehört',
+  start: 'Trommel am Ende',
+  end: 'Wieder im Einsatz',
+  items: [
+    { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle vorab', text: 'Trommel, Fahrgestell, Antrieb und Aufbau – Sie erfahren offen, ob sich der Tausch lohnt.', check: 'Verbindliche Offerte' },
+    { icon: 'truck', who: 'Wir', title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt bei uns in {{address.city}}.' },
+    { icon: 'wrench', who: 'Wir', title: 'Antrieb und Hydraulik', text: 'Anschliessen, prüfen und, wo nötig, ersetzen.', tags: ['Getriebe', 'Hydraulikmotor', 'Pumpe', 'Ölkühler'] },
+    { icon: 'drafting-compass', who: 'Wir', title: 'Aufbau', text: 'Rahmen und Befestigung, dazu alles, was an der Trommel hängt.', tags: ['Wassersystem', 'Leiter', 'Beleuchtung'] },
+    { icon: 'flag', who: 'Wir', title: 'Inbetriebnahme', text: 'Probelauf und Protokoll – dann fährt der Fahrmischer wieder.', tags: ['Probelauf', 'Protokoll'] },
+  ] satisfies Station[],
+};
+
 export const trommeltausch: SubPage = {
   area: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik/trommeltausch',
@@ -82,9 +137,8 @@ export const trommeltausch: SubPage = {
     'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Trommeltausch',
-    h1: 'Neue Trommel statt neuer ==Fahrmischer==',
-    lead:
-      'Das Fahrgestell bleibt, die neue Trommel kommt drauf. Sie erhalten vorher eine verbindliche Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
+    h1: 'Neue Trommel. Gleicher Fahrmischer.',
+    lead: 'Ist nur die Trommel am Ende, setzen wir eine neue auf Ihr Fahrgestell – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Trommeltausch anfragen'),
   },
@@ -96,17 +150,7 @@ export const trommeltausch: SubPage = {
     deliverables: 'Einen Fahrmischer, der wieder einsatzbereit ist – ohne neues Fahrzeug – und ein Protokoll mit Arbeiten und Teilen.',
   },
   promises: ['garantie', 'inexxio365', 'erstservice'],
-  scope: {
-    title: 'Was zum Trommeltausch gehört',
-    items: [
-      { title: 'Kontrolle vorab', text: 'Trommel, Fahrgestell, Antrieb und Aufbau – Sie erfahren offen, ob sich der Tausch lohnt.' },
-      { title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt bei uns in {{address.city}}.' },
-      { title: 'Antrieb', text: 'Trommelgetriebe, Hydraulikmotor und Pumpe anschliessen – prüfen und, wo nötig, ersetzen.' },
-      { title: 'Hydraulik', text: 'Schläuche, Leitungen, Ventile und Ölkühler.' },
-      { title: 'Aufbau', text: 'Rahmen und Befestigung, Wassersystem, Leiter, Bedienelemente und Beleuchtung.' },
-      { title: 'Inbetriebnahme', text: 'Probelauf, Protokoll, und der Fahrmischer ist wieder im Einsatz.' },
-    ],
-  },
+  scope: { title: drumPath.title, items: facts(drumPath.items) },
   faq: [
     {
       q: 'Wann lohnt sich ein Trommeltausch?',
@@ -122,8 +166,6 @@ export const trommeltausch: SubPage = {
     },
     promiseFaq.garantie,
     faqBrands,
-    faqSpeed,
-    promiseFaq.secondOpinion,
   ],
   related: [
     { href: '/fahrzeugtechnik/verschleissteile', label: 'Verschleissteile', text: 'Auf Bestellung, schnell beschafft.' },
@@ -134,25 +176,35 @@ export const trommeltausch: SubPage = {
 };
 
 /**
- * Modul (Anker #trommel): tauschen, überholen oder neu kaufen – drei Wege nebeneinander,
- * qualitativ, ohne erfundene Zahlen. Der Trommeltausch ist das eigene Produkt (`own`).
+ * Tauschen, überholen oder neu kaufen (Anker #wahl) – die Bühne der Startseite
+ * (components/home/SpecialStage.astro): ein Umschalter, die Zeichnung blendet über. Bildregel: rot ist,
+ * was wir erneuern; der neue Fahrmischer steht hell da – er ist nicht unser Angebot.
  */
 export const drumOptions = {
-  title: 'Tauschen, überholen – oder doch neu?',
-  lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle – offen, auch wenn ein neuer Fahrmischer die bessere Lösung ist.',
-  topics: ['Wann sinnvoll', 'Was wir tun', 'Fahrgestell', 'Zeitpunkt'],
-  options: [
-    { name: 'Trommeltausch', own: true, values: ['Die Trommel ist am Ende, das Fahrgestell gut.', 'Eine neue Trommel auf das bestehende Fahrgestell setzen, Antrieb und Hydraulik anschliessen.', 'Bleibt.', 'Planbar, am liebsten im Winter.'] },
-    { name: 'Trommel-Revision', values: ['Die Trommel ist verschlissen, aber zu retten.', 'Lager, Dichtungen, Laufring, Rollen und Mischspiralen erneuern.', 'Bleibt.', 'Planbar, am liebsten im Winter.'] },
-    { name: 'Neuer Fahrmischer', values: ['Auch das Fahrgestell ist am Ende.', 'Nicht unser Angebot – wir sagen es Ihnen, wenn es so weit ist.', 'Wird mit ersetzt.', 'Abhängig von der Lieferzeit.'] },
+  title: 'Tauschen, überholen – oder neu?',
+  lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle. Offen.',
+  legend: { grey: 'Grau: was bleibt', red: 'Rot: was wir erneuern' },
+  items: [
+    { title: 'Tauschen', text: 'Die Trommel ist am Ende, das Fahrgestell gut: Eine neue Trommel kommt auf Ihr Fahrgestell.', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben' },
+    { title: 'Überholen', text: 'Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.', illo: 'trommel-revision', alt: 'Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot' },
+    { title: 'Neu kaufen', text: 'Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.', illo: 'trommel-neu', alt: 'Zeichnung: ein neuer Fahrmischer, ganz hell' },
   ],
+  cta: { label: 'Trommel prüfen lassen', href: '#anfrage' },
 };
 
-/** Modul: Winter (Anker #winter) und Markenliste. */
+/**
+ * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): ein Wandkalender
+ * Januar bis Dezember – die Wintermonate dunkel mit Schneeflocke («Tausch»), die übrigen hell mit dem
+ * Fahrmischer («Einsatz»). Wer draufschaut, sieht: im Winter steht er, dann ist Zeit für den Tausch.
+ */
 export const winterSlot = {
   title: 'Im Winter, wenn der Bau ruht',
-  text: 'Im Winter fährt ein Fahrmischer weniger – der beste Moment für den Trommeltausch. Wer früh plant, hat den Fahrmischer im Frühling bereit, wenn die Saison anzieht.',
-  items: ['Trommel prüfen und tauschen', 'Mischspiralen und Spiralschutz', 'Antrieb und Hydraulik', 'Rinnen, Schurren und Aufbau'],
+  text: 'Dann brauchen Sie den Fahrmischer kaum – der beste Moment für Tausch oder Revision. Im Frühling ist er bereit.',
+  months: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  /** Die Monate (Index ab Januar), in denen der Bau ruht. */
+  winter: [0, 1, 10, 11],
+  cold: { icon: 'snowflake' as IconName, word: 'Tausch', legend: 'Bau ruht – Zeit für den Tausch' },
+  warm: { icon: 'truck' as IconName, word: 'Einsatz', legend: 'Bausaison – Ihr Fahrmischer fährt' },
   cta: 'Winter-Termin planen',
 };
 
@@ -166,9 +218,8 @@ export const verschleissteile: SubPage = {
     'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte. Jetzt anfragen.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Verschleissteile',
-    h1: 'Verschleissteile für Fahrmischer – schnell ==beschafft==',
-    lead:
-      'Rinnen, Schurren, Trichter und Spiralschutz. Sie bestellen, wir beschaffen schnell – mit oder ohne Einbau.',
+    h1: 'Verschleissteile. Schnell beschafft.',
+    lead: 'Rinnen, Schurren, Trichter und Spiralschutz. Nennen Sie Marke und Typ – wir beschaffen das Teil, mit oder ohne Einbau.',
     photo: 'teil-auslaufrinne',
     primary: anfrage('Teil anfragen'),
   },
@@ -209,6 +260,24 @@ export const verschleissteile: SubPage = {
   ],
   service: { name: 'Verschleissteile für Fahrmischer', serviceType: 'Beschaffung und Einbau von Verschleissteilen für Fahrmischer' },
   keywords: ['Fahrmischer Verschleissteile', 'Fahrmischer Rinne', 'Auslaufschurre', 'Spiralschutz', 'Einfülltrichter'],
+};
+
+/** Kopf des Katalogs. */
+export const partsCatalog = {
+  title: 'Katalog',
+  lead: 'Auf Bestellung beschafft, auf Wunsch eingebaut. Den Preis erfahren Sie vorab.',
+};
+
+/** Bestellen in drei Schritten – als Weg (components/spezial/SolutionPath.astro). */
+export const partsOrder = {
+  title: 'Bestellt in drei Schritten',
+  start: 'Ihr Teil fehlt',
+  end: 'Wieder im Einsatz',
+  items: [
+    { icon: 'camera', who: 'Sie', title: 'Foto schicken', text: 'Vom Teil, dazu Marke und Typ. Mehr braucht es nicht.', tags: ['Foto', 'Marke', 'Typ'] },
+    { icon: 'search', who: 'Wir', title: 'Preis erhalten', text: 'Wir beschaffen das Teil und nennen vorher den Preis.', check: 'Preis vorab' },
+    { icon: 'package', who: 'Wir', title: 'Holen oder einbauen', text: 'Abholen in {{address.city}} – oder wir bauen es gleich ein.', tags: ['Abholen', 'Einbau'] },
+  ] satisfies Station[],
 };
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */

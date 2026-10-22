@@ -11,8 +11,11 @@
  * @typedef {{ id: string, sku?: string, name: string, text: string, fits?: string[], material?: string, photo: string }} Part
  * @typedef {{ id: string, title: string, intro: string, items: Part[] }} PartGroup
  */
+import { site } from './site.mjs';
+
 export const catalog = {
-  priceNote: 'Preise auf Anfrage',
+  /** Die letzte Karte: wer sein Teil nicht findet, schickt ein Foto (öffnet die Anfrage). */
+  missing: { title: 'Ihr Teil ist nicht dabei?', text: 'Schicken Sie uns ein Foto – wir finden es.', cta: 'Foto schicken' },
   /** @type {PartGroup[]} */
   groups: [
     {
@@ -68,5 +71,5 @@ export const catalog = {
     },
   ],
   /** Gilt für alle Teile, solange ein Teil keine eigene Liste trägt. */
-  fits: ['Intermix', 'Putzmeister', 'Cifa', 'Stetter', 'Liebherr', 'Belmix', 'Peter'],
+  fits: site.marks.mixers,
 };
