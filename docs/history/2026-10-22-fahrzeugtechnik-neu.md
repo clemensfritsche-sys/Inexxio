@@ -47,4 +47,11 @@ Speziallösungen): `fahrzeug-titel.webp` (Trommel und Rinne), `trommel-titel.web
 Kranhaken), `teile-titel.webp` (Trichter, Rinne, Spiralschutz als Explosion) – weisser Grund freigestellt
 (Alpha aus dem Weissanteil). Die zusammengesetzte `fahrzeug-titel.svg` ist weg.
 
+**Runde 6:** Winter als Wandkalender (Januar bis Dezember, je Monat ein Kalenderblatt; Winter dunkel
+mit Schneeflocke «Tausch», sonst hell mit Fahrmischer «Einsatz», Legende in Worten). Die Karten
+(`spezial/FieldCards`, auch auf Speziallösungen) zeigen nur noch Zeichnung, Titel, einen Satz und den
+runden Pfeil – die ganze Karte ist der Link (zur Seite, sonst zur Anfrage); Marken und Aufzählungen
+sind weg, die Beispiele stehen im Satz.
+**Verworfen:** zwei Phasen mit Symbol (zu abstrakt), zwölf Balken (zu abstrakt).
+
 **Offen:** Produktfotos der Teile sind weiter Beispielbilder.

@@ -92,29 +92,23 @@ export const vehicleOffers = {
       illo: 'menu/trommeltausch',
       alt: 'Zeichnung: Fahrmischer mit neuer Trommel, die alte liegt daneben',
       title: 'Trommeltausch',
-      tags: ['Neue Trommel', 'Revision'],
       text: 'Trommel am Ende, Fahrgestell gut? Dann kommt nur die Trommel neu.',
-      examples: ['Kontrolle vorab, offene Empfehlung', 'Neue Trommel oder Revision', 'Antrieb und Hydraulik angeschlossen'],
-      link: { href: '/fahrzeugtechnik/trommeltausch', label: 'Zum Trommeltausch' },
+      href: '/fahrzeugtechnik/trommeltausch',
     },
     {
       id: 'teile',
       illo: 'menu/verschleissteile',
       alt: 'Zeichnung: Fahrmischer, Rinne, Schurre und Trichter in Rot',
       title: 'Verschleissteile',
-      tags: ['Auf Bestellung', 'Mit Einbau'],
-      text: 'Sie nennen Marke und Typ, wir beschaffen das Teil.',
-      examples: ['Auslauf- und Verlängerungsrinnen', 'Einfülltrichter und Auslaufschurren', 'Spiralschutz'],
-      link: { href: '/fahrzeugtechnik/verschleissteile', label: 'Zu den Verschleissteilen' },
+      text: 'Rinnen, Schurren, Trichter: schnell beschafft, auf Wunsch eingebaut.',
+      href: '/fahrzeugtechnik/verschleissteile',
     },
     {
       id: 'reparatur',
       illo: 'menu/kranservice',
       alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll',
       title: 'Reparatur',
-      tags: ['Fahrmischer', 'Aufbauten'],
-      text: 'Was auf der Baustelle bricht, setzen wir instand.',
-      examples: ['Mulden, Kipper, Bordwände', 'Hydraulik: Zylinder, Pumpen, Ventile', 'Antrieb, Rahmen und Befestigung'],
+      text: 'Hydraulik, Antrieb, Aufbau: Was auf der Baustelle bricht, setzen wir instand.',
     },
   ],
 };
@@ -199,19 +193,18 @@ export const drumOptions = {
 };
 
 /**
- * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): zwei Phasen
- * über ein Jahr ab November – Bau ruht (Schneeflocke, wir tauschen) und Bausaison (Sonne, er fährt).
- * `winter`: wie viele Monate ab November die erste Phase dauert.
+ * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): ein Wandkalender
+ * Januar bis Dezember – die Wintermonate dunkel mit Schneeflocke («Tausch»), die übrigen hell mit dem
+ * Fahrmischer («Einsatz»). Wer draufschaut, sieht: im Winter steht er, dann ist Zeit für den Tausch.
  */
 export const winterSlot = {
   title: 'Im Winter, wenn der Bau ruht',
-  text: 'Dann fährt der Fahrmischer wenig – der beste Moment für den Tausch. Wer früh plant, startet im Frühling mit einer neuen Trommel.',
-  months: ['N', 'D', 'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O'],
-  winter: 4,
-  phases: [
-    { icon: 'snowflake', label: 'Bau ruht', text: 'Wir tauschen die Trommel', when: 'November bis Februar' },
-    { icon: 'sun', label: 'Bausaison', text: 'Ihr Fahrmischer fährt', when: 'ab März' },
-  ] satisfies { icon: IconName; label: string; text: string; when: string }[],
+  text: 'Dann brauchen Sie den Fahrmischer kaum – der beste Moment für Tausch oder Revision. Im Frühling ist er bereit.',
+  months: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  /** Die Monate (Index ab Januar), in denen der Bau ruht. */
+  winter: [0, 1, 10, 11],
+  cold: { icon: 'snowflake' as IconName, word: 'Tausch', legend: 'Bau ruht – Zeit für den Tausch' },
+  warm: { icon: 'truck' as IconName, word: 'Einsatz', legend: 'Bausaison – Ihr Fahrmischer fährt' },
   cta: 'Winter-Termin planen',
 };
 

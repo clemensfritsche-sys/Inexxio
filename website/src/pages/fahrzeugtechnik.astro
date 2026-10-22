@@ -24,7 +24,6 @@ const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
 ];
-const cta = { label: 'Anfragen', href: '#anfrage' };
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
   <StageHero
@@ -39,7 +38,7 @@ const cta = { label: 'Anfragen', href: '#anfrage' };
 
   <div class="wrap ft-season"><SeasonNotice page={page.path} /></div>
 
-  <FieldCards id="angebot" title={o.title} lead={o.lead} items={o.items} cta={cta} />
+  <FieldCards id="angebot" title={o.title} lead={o.lead} items={o.items} />
 
   <SolutionPath title={s.title} start={s.start} end={s.end} items={s.items} />
 
