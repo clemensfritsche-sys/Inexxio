@@ -3,37 +3,45 @@
  * Drei Felder, ein Prinzip (v4, Muster Porsche-Modellvergleich): der Text steht in einer grauen
  * Karte, die Zeichnung liegt gross darüber und ragt oben hinaus; beim Zeigen hebt sie sich.
  * Schmal: ein Karussell zum Wischen, es beginnt in der Mitte (scripts/carousel.ts, data-start).
+ * Gebraucht auf Speziallösungen (drei Felder) und Fahrzeugtechnik (drei Angebote).
  */
 import Rich from '../Rich.astro';
-import krane from '../../assets/illustrations/spezial-krane.svg?url';
-import fahrzeuge from '../../assets/illustrations/spezial-fahrzeuge.svg?url';
-import baumaschinen from '../../assets/illustrations/spezial-baumaschinen.svg?url';
+import { illustration } from '../../lib/illustrations';
 
 interface Field {
   id: string;
-  illo: 'krane' | 'fahrzeuge' | 'baumaschinen';
+  /** Schlüssel der Zeichnung in src/assets/illustrations (z. B. «spezial-krane»). */
+  illo: string;
+  alt: string;
   title: string;
   tags: string[];
   text: string;
   examples: string[];
   link?: { href: string; label: string };
 }
-interface Props { title: string; lead: string; items: Field[]; cta: { label: string; href: string } }
-const { title, lead, items, cta } = Astro.props;
-const ART = { krane, fahrzeuge, baumaschinen };
+interface Props {
+  title: string;
+  lead: string;
+  items: Field[];
+  cta: { label: string; href: string };
+  id?: string;
+  /** Mit welcher Karte das Karussell schmal beginnt (sonst der mittleren). */
+  start?: number;
+}
+const { title, lead, items, cta, id = 'felder', start = Math.floor(items.length / 2) } = Astro.props;
 ---
-<section class="v4-section" id="felder" aria-labelledby="felder-title">
+<section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
     <header class="v4-head--center">
-      <h2 class="v4-h2" id="felder-title">{title}</h2>
+      <h2 class="v4-h2" id={`${id}-title`}>{title}</h2>
       <Rich as="p" class="v4-sub" text={lead} />
     </header>
   </div>
-  <div class="wrap fc-wrap" data-carousel data-start={Math.floor(items.length / 2)}>
+  <div class="wrap fc-wrap" data-carousel data-start={start}>
     <ul role="list" class="fc" data-rail>
       {items.map((f) => (
         <li class="fc__card" id={f.id} data-item>
-          <div class="fc__art"><img src={ART[f.illo]} alt={`Zeichnung: Speziallösung ${f.title.toLowerCase()}`} width="1000" height="560" loading="lazy" decoding="async" /></div>
+          <div class="fc__art"><img src={illustration(f.illo, 'Karten')} alt={f.alt} width="1000" height="560" loading="lazy" decoding="async" /></div>
           <h3 class="fc__title">{f.title}</h3>
           <p class="fc__tags">{f.tags.map((t) => <Rich as="span" text={t} />)}</p>
           <Rich as="p" class="fc__text" text={f.text} />

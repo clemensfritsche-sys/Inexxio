@@ -11,6 +11,7 @@
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
+import { illustration } from '../lib/illustrations';
 import half from '../assets/schema/garantie-haelfte.svg?raw';
 import year from '../assets/schema/inexxio-365-jahr.svg?raw';
 import base from '../assets/schema/fragen.svg?raw';
@@ -28,12 +29,7 @@ interface Props {
 }
 const { items, title = 'Häufige Fragen', lead, id = 'fragen', illo = 'menu/service' } = Astro.props;
 const group = `${id}-faq`;
-const illos = import.meta.glob<string>('../assets/illustrations/**/*.svg', { eager: true, query: '?url', import: 'default' });
-const art = (key: string) => {
-  const url = illos[`../assets/illustrations/${key}.svg`];
-  if (!url) throw new Error(`Fragen: Zeichnung «${key}» fehlt in src/assets/illustrations/.`);
-  return url;
-};
+const art = (key: string) => illustration(key, 'Fragen');
 const ueber = art('menu/ueber');
 const pageArt = art(illo);
 /** Das Bild zur Frage: angegeben – oder nach ihrem Thema; sonst die Zeichnung der Seite. */

@@ -30,6 +30,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-22-pfad-und-kontakt.md` | Pfadangabe auch am Desktop weg (nur noch JSON-LD), `/kontakt` bildschirmhoch |
 | `2026-10-22-ueber-uns-und-kopf.md` | «Über uns» neu, Kopf-Menü mit «Alles zu», Profil-Menü als Auskunft |
 | `2026-10-22-login-glas.md` | Login-Pop-up als Glas (ohne ✕, Handy als Blatt), Sprachen-Reihenfolge, Kürzel linksbündig |
+| `2026-10-22-fahrzeugtechnik-neu.md` | Fahrzeugtechnik, Trommeltausch und Verschleissteile im Layout von Speziallösungen |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.

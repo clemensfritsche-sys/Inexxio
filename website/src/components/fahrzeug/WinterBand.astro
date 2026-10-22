@@ -1,0 +1,59 @@
+---
+/**
+ * Im Winter, wenn der Bau ruht (v4, Anker #winter): links Titel, Satz und die rote Anfrage, rechts
+ * ein Jahresband ab September – die Tauschmonate dunkel am Stück, danach die Saison. Dieselbe
+ * Bildsprache wie das Jahresband von INEXXIO 365, nur als Fläche statt als Karte.
+ * Darunter, was wir im Winter tun, als Marken. Texte: content/fahrzeugtechnik.ts (`winterSlot`).
+ */
+import Rich from '../Rich.astro';
+
+interface Props {
+  title: string; text: string; band: string[]; months: number[];
+  swap: string; ready: string; label: string; items: string[]; cta: string;
+}
+const { title, text, band, months, swap, ready, label, items, cta } = Astro.props;
+const first = months[0];
+const after = months[months.length - 1] + 1;
+---
+<section class="v4-section" id="winter" aria-labelledby="winter-title">
+  <div class="wrap wb">
+    <div class="wb__text">
+      <h2 class="v4-h2" id="winter-title">{title}</h2>
+      <Rich as="p" class="v4-sub" text={text} />
+      <a class="btn btn--primary btn--lg" href="#anfrage">{cta}</a>
+    </div>
+    <div class="wb__art">
+      <ol class="wb__band" aria-label={label} style={`--from: ${first + 1}; --to: ${after + 1}; --ready: ${after + 1}`}>
+        <li class="wb__span" aria-hidden="true">{swap}</li>
+        <li class="wb__ready" aria-hidden="true">{ready}</li>
+        {band.map((m, i) => <li class:list={['wb__m', months.includes(i) && 'wb__m--on', i === after && 'wb__m--ready']}><span>{m}</span></li>)}
+      </ol>
+      <ul role="list" class="wb__items">{items.map((i) => <li>{i}</li>)}</ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  .wb { display: grid; gap: 40px; }
+  .wb__text { display: grid; gap: 0; justify-items: start; }
+  .wb__text .btn { --btn-h: 52px; margin-top: 28px; padding: 0 24px; font-size: 1rem; }
+  .wb__art { padding: 28px 20px 24px; border-radius: 24px; background: var(--gray-100); }
+  .wb__band { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 10px 4px; }
+  .wb__span, .wb__ready { grid-row: 1; justify-self: start; padding: 4px 10px; border-radius: 6px; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+  .wb__span { grid-column: var(--from) / var(--to); background: var(--ink); color: var(--white); }
+  .wb__ready { grid-column: var(--ready) / span 3; background: var(--white); color: var(--ink); }
+  .wb__m { grid-row: 2; display: grid; gap: 8px; text-align: center; }
+  .wb__m::before { content: ''; display: block; height: 72px; border-radius: 6px; background: var(--white); }
+  .wb__m--on::before { background: var(--ink); }
+  .wb__m--ready::before { background: linear-gradient(180deg, var(--white) 0 60%, var(--red) 60% 100%); }
+  .wb__m span { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); }
+  .wb__m--on span { color: var(--ink); }
+  .wb__items { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 24px; }
+  .wb__items li { padding: 4px 10px; border-radius: 6px; background: var(--white); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
+  @media (min-width: 960px) {
+    .wb { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; }
+    .wb__art { padding: 48px 40px 40px; }
+    .wb__band { gap: 14px 8px; }
+    .wb__m::before { height: 140px; }
+  }
+</style>

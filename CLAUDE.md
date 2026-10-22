@@ -343,7 +343,9 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
 - **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
   Startseite aus `components/home/*`, Unterseiten über `Hero` (Bildkarte) oder `StageHero`
-  (Kopf wie Porsche: grosses Wort, freigestelltes Bild – heute `/spezialloesungen` und `/ueber-uns`),
+  (Kopf wie Porsche: grosses Wort, freigestelltes Bild oder Zeichnung – heute `/spezialloesungen`,
+  `/ueber-uns` und `/fahrzeugtechnik` mit Unterseiten; deren Bausteine `components/spezial/*`,
+  `components/fahrzeug/*`, Zeichnungen per Schlüssel über `lib/illustrations.ts`),
   `SectionHead`, `Promises`, `AreaCard`, `FaqStage` (Fragen auf jeder Seite: Glas-Akkordeon über
   einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht das Bild direkt über der
   offenen Frage), `ContactSection` (Karte als Grund, Anfrage in zwei Schritten, ohne Springen).

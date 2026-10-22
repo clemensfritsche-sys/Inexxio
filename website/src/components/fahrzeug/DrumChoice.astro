@@ -1,0 +1,52 @@
+---
+/**
+ * Tauschen, überholen – oder neu? (v4, Muster Porsche-Modellvergleich): drei Karten nebeneinander,
+ * je dieselben Zeilen an Haarlinien. Das eigene Produkt ist die eine dunkle Karte, der Weg, der
+ * nicht unser Angebot ist, nur umrandet. Schmal: untereinander. Texte: content/fahrzeugtechnik.ts.
+ */
+import Rich from '../Rich.astro';
+
+interface Option { name: string; own?: boolean; other?: boolean; values: string[] }
+interface Props { title: string; lead: string; topics: string[]; options: Option[]; cta: string; id?: string }
+const { title, lead, topics, options, cta, id = 'wahl' } = Astro.props;
+---
+<section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap">
+    <header class="v4-head--center">
+      <h2 class="v4-h2" id={`${id}-title`}>{title}</h2>
+      <Rich as="p" class="v4-sub" text={lead} />
+    </header>
+    <ul role="list" class="dc">
+      {options.map((o) => (
+        <li class:list={['dc__card', o.own && 'dc__card--own', o.other && 'dc__card--other']}>
+          <h3 class="dc__name">{o.name}</h3>
+          <dl class="dc__rows">
+            {topics.map((t, i) => <div><dt>{t}</dt><Rich as="dd" text={o.values[i]} /></div>)}
+          </dl>
+        </li>
+      ))}
+    </ul>
+    <p class="dc__act"><a class="btn btn--primary btn--lg" href="#anfrage">{cta}</a></p>
+  </div>
+</section>
+
+<style>
+  .dc { list-style: none; padding: 0; display: grid; gap: 12px; margin-top: 40px; }
+  .dc__card { display: grid; align-content: start; gap: 20px; padding: 28px; border-radius: 24px; background: var(--gray-100); color: var(--ink); }
+  .dc__card--own { background: var(--dark); color: var(--white); }
+  .dc__card--other { background: transparent; border: 1px solid var(--line-2); }
+  .dc__name { font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; letter-spacing: -0.02em; color: inherit; }
+  .dc__rows div { padding: 14px 0; border-top: 1px solid var(--line-2); }
+  .dc__card--own .dc__rows div { border-top-color: var(--line-dark); }
+  .dc__rows dt { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
+  .dc__rows :global(dd) { margin: 4px 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-2); }
+  .dc__card--own .dc__rows :global(dd) { color: rgba(255, 255, 255, 0.82); }
+  .dc__card--other .dc__name, .dc__card--other .dc__rows :global(dd) { color: var(--ink-3); }
+  .dc__act { display: flex; justify-content: center; margin-top: 40px; max-width: none; }
+  .dc__act .btn { --btn-h: 52px; padding: 0 24px; font-size: 1rem; }
+  @media (min-width: 960px) {
+    .dc { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 56px; }
+    .dc__card { padding: 36px; }
+    .dc__name { font-size: 2rem; }
+  }
+</style>

@@ -216,7 +216,7 @@ export const site = {
       text: 'Trommeltausch im Winter: Der Fahrmischer ist im Frühling bereit, wenn die Saison anzieht.',
       href: '/fahrzeugtechnik/trommeltausch#winter',
       label: 'Termin planen',
-      pages: ['/', '/fahrzeugtechnik', '/fahrzeugtechnik/trommeltausch', '/service'],
+      pages: ['/', '/fahrzeugtechnik', '/service'], // auf dem Trommeltausch steht der Winter selbst (#winter)
     },
     {
       id: 'heukran-planung',

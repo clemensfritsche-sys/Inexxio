@@ -94,7 +94,8 @@ export const specialFields = {
   items: [
     {
       id: 'baumaschinen',
-      illo: 'baumaschinen' as const,
+      illo: 'spezial-baumaschinen',
+      alt: 'Zeichnung: Speziallösung für Baumaschinen',
       title: 'Für Baumaschinen',
       tags: ['Anbaugeräte', 'Automatisierung'],
       text: 'Ihr Gerät kann mehr, als der Hersteller vorsieht.',
@@ -102,7 +103,8 @@ export const specialFields = {
     },
     {
       id: 'fahrzeuge',
-      illo: 'fahrzeuge' as const,
+      illo: 'spezial-fahrzeuge',
+      alt: 'Zeichnung: Speziallösung für Fahrzeuge',
       title: 'Für Fahrzeuge',
       tags: ['Aufbau', 'Anbau'],
       text: 'Das Fahrgestell ist Serie, die Aufgabe nicht.',
@@ -111,7 +113,8 @@ export const specialFields = {
     },
     {
       id: 'krane',
-      illo: 'krane' as const,
+      illo: 'spezial-krane',
+      alt: 'Zeichnung: Speziallösung für Krane',
       title: 'Für Krane',
       tags: ['Krane seit {{history.cranesSince}}'],
       text: 'Wo der Katalogkran aufhört, fangen wir an.',
