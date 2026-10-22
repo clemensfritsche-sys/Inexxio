@@ -25,5 +25,14 @@ Fragen höchstens 5 je Seite (Bereich ohne «Aufbauten», Trommeltausch ohne «W
 Marken-Band zeigt ein Logo, sobald `src/assets/marken/<marke>.svg` liegt (grau, beim Zeigen in Farbe) –
 die Logos selbst liessen sich aus der Cloud-Umgebung nicht laden (Wikimedia gesperrt).
 
+**Runde 3:** Kopf-Satz ohne «verbindliche Offerte»; die Wahl auf dem Trommeltausch ist jetzt die
+Bühne der Startseite (`home/SpecialStage`, nimmt Zeichnungen und Legende als Eingabe) – Umschalter
+«Tauschen · Überholen · Neu kaufen», die Zeichnung blendet über (`trommel-revision.svg`,
+`trommel-neu.svg`, abgeleitet aus `menu/trommeltausch.svg`; rot ist, was wir erneuern, der neue
+Fahrmischer steht hell da). `fahrzeug/DrumChoice` (drei Karten) ist weg. Katalog als Porsche-Bildkarten:
+Foto randlos, dunkel auslaufend, Glas-Knopf, breit zwei Spalten versetzt, schmal eine Wischreihe;
+letzte Karte «Ihr Teil ist nicht dabei?» (`catalog.missing`).
+**Verworfen:** drei Vergleichskarten mit Zeilen (wirkte wie eine Tabelle).
+
 **Offen:** eigene Kopfbilder (wie die Zeichnung mit echtem rotem Teil auf Speziallösungen) – heute
 stehen die Menü-Zeichnungen dort; Produktfotos der Teile sind weiter Beispielbilder.

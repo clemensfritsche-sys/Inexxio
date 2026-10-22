@@ -1,73 +1,81 @@
 ---
 /**
- * Verschleissteile-Katalog aus der Konfiguration – gruppiert nach Teileart, ohne Filter und ohne
- * Sprungmarken: die Gruppierung ist so klar, dass niemand filtern muss. Kein Preis, kein Warenkorb.
- * «Teil anfragen» öffnet das Formular mit vorausgefülltem Teil. Gestaltung v4 (graue Karten).
+ * Verschleissteile-Katalog aus der Konfiguration (v4, Muster Porsche-Bildkarten): je Teil eine
+ * grosse Bildkarte, das Foto randlos, unten dunkel auslaufend, darauf Teileart, Name, ein Satz und
+ * «Teil anfragen» als Glas-Knopf. Breit zwei Spalten, die linke versetzt; schmal eine Reihe zum Wischen.
+ * Die letzte Karte ist hell: «Ihr Teil ist nicht dabei?» mit der Anfrage (`catalog.missing`).
+ * Ohne Filter, ohne Preis, ohne Warenkorb. «Teil anfragen» öffnet das Formular mit vorausgefülltem Teil.
  * «Passend für» steht einmal über dem Katalog (`catalog.fits`), an einem Teil nur, wenn es abweicht.
  */
 import { catalog } from '../config/catalog.mjs';
 import Icon from './Icon.astro';
 import Photo from './Photo.astro';
 import Rich from './Rich.astro';
+
+const parts = catalog.groups.flatMap((g) => g.items.map((it, i) => ({ ...it, group: g.title, anchor: i === 0 ? g.id : undefined })));
 ---
-<div class="catalog">
-  {catalog.groups.map((g) => (
-    <section class="catalog__group" id={g.id} aria-labelledby={`${g.id}-title`}>
-      <header class="catalog__head">
-        <h3 id={`${g.id}-title`} class="h3">{g.title}</h3>
-        <Rich as="p" class="catalog__intro" text={g.intro} />
-      </header>
-      <ul role="list" class="catalog__items">
-        {g.items.map((it) => (
-          <li class="part">
-            <Photo id={it.photo} sizes="(min-width: 1024px) 400px, (min-width: 720px) 50vw, 100vw" class="part__img" />
-            <div class="part__body">
-              <h4 class="part__name">{it.name}</h4>
-              <Rich as="p" class="part__text" text={it.text} />
-              <dl class="part__spec">
-                {it.sku && <div><dt>Artikel-Nr.</dt><dd class="tnum">{it.sku}</dd></div>}
-                {it.material && <div><dt>Material</dt><Rich as="dd" text={it.material} /></div>}
-                {it.fits && <div><dt>Passend für</dt><dd>{it.fits.join(' · ')}</dd></div>}
-              </dl>
-              <a
-                class="btn btn--glass part__cta"
-                href={`/kontakt?teil=${encodeURIComponent(it.name)}`}
-              >
-                Teil anfragen <Icon name="arrow-right" size={18} class="btn__arrow" />
-              </a>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
+<ul role="list" class="catalog">
+  {parts.map((it) => (
+    <li class="part" id={it.anchor}>
+      <Photo id={it.photo} sizes="(min-width: 960px) 600px, 100vw" class="part__img" />
+      <div class="part__body">
+        <span class="part__group">{it.group}</span>
+        <h3 class="part__name">{it.name}</h3>
+        <Rich as="p" class="part__text" text={it.text} />
+        {(it.sku || it.material || it.fits) && (
+          <p class="part__spec">
+            {it.sku && <span class="tnum">Art.-Nr. {it.sku}</span>}
+            {it.material && <Rich as="span" text={it.material} />}
+            {it.fits && <span>Passend für {it.fits.join(' · ')}</span>}
+          </p>
+        )}
+        <a class="btn part__cta" href={`/kontakt?teil=${encodeURIComponent(it.name)}`}>Teil anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+    </li>
   ))}
-</div>
+  <li class="part part--missing">
+    <div class="part__body">
+      <h3 class="part__name">{catalog.missing.title}</h3>
+      <Rich as="p" class="part__text" text={catalog.missing.text} />
+      <a class="btn btn--primary part__cta part__cta--ask" href="#anfrage">{catalog.missing.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+    </div>
+  </li>
+</ul>
 
 <style>
-  /* v4: Teilearten als graue Marken oben, je Teil eine graue Karte mit dem Foto oben. */
-  .catalog { display: grid; gap: 48px; }
-  .catalog__group { display: grid; gap: 20px; scroll-margin-top: calc(var(--header-h) + 24px); }
-  .catalog__head { display: grid; gap: 6px; align-content: start; }
-  .catalog__head .h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; letter-spacing: -0.02em; }
-  .catalog__head :global(.catalog__intro) { max-width: 40em; color: var(--ink-3); }
-  .catalog__items { list-style: none; padding: 0; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 720px) { .catalog__items { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
-  /* Breit wie ein Datenblatt: die Teileart links, ihre Teile rechts daneben – drei Spalten je Zeile,
-     ohne leere Felder bei zwei Teilen. */
-  @media (min-width: 1024px) {
-    .catalog { gap: 24px; }
-    .catalog__group { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
-    .catalog__head { padding-right: 24px; }
+  /* Schmal: eine Reihe zum Wischen, die Karten 82 % breit, die nächste schaut herein. */
+  .catalog { list-style: none; padding: 0 var(--gutter) 4px; margin-inline: calc(var(--gutter) * -1); display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
+  .catalog::-webkit-scrollbar { display: none; }
+  .catalog > .part { flex: 0 0 82%; scroll-snap-align: start; }
+  .part { position: relative; overflow: hidden; border-radius: 24px; background: var(--dark); aspect-ratio: 4 / 5; isolation: isolate; scroll-margin-top: calc(var(--header-h) + 24px); }
+  /* Das Foto füllt die Karte; Beispielbild und Platzhalter ebenso. */
+  .part > :global(picture), .part > :global(.ph), .part > :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
+  .part :global(img) { width: 100%; height: 100%; object-fit: cover; transition: transform 0.9s var(--ease); }
+  .part:hover :global(img) { transform: scale(1.04); }
+  .part::after { content: ''; position: absolute; inset: 40% 0 0; z-index: 0; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 0%, rgba(10, 10, 11, 0.62) 45%, rgba(10, 10, 11, 0.9) 100%); pointer-events: none; }
+  .part__body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: grid; gap: 8px; justify-items: start; padding: 24px; color: var(--white); }
+  .part__group { font-size: 0.8125rem; font-weight: 600; color: rgba(255, 255, 255, 0.7); }
+  .part__name { font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; letter-spacing: -0.02em; color: var(--white); }
+  .part__body :global(.part__text) { max-width: 32em; font-size: 0.9375rem; line-height: 1.5; color: rgba(255, 255, 255, 0.84); }
+  .part__spec { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.7); }
+  .part__cta {
+    --btn-h: 48px; margin-top: 12px; padding: 0 20px; border-radius: 12px; font-size: 0.9375rem; font-weight: 600;
+    background: rgba(255, 255, 255, 0.16); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.22);
+    -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%);
   }
-  .part { display: grid; align-content: start; border-radius: 24px; background: var(--gray-100); overflow: hidden; }
-  .part :global(.part__img img) { display: block; transition: transform 0.6s var(--ease); }
-  .part:hover :global(.part__img img) { transform: scale(1.03); }
-  .part__body { display: grid; gap: 8px; padding: 24px; }
-  .part__name { font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; letter-spacing: -0.02em; }
-  .part__body :global(.part__text) { color: var(--ink-2); font-size: 0.9375rem; }
-  .part__spec { margin: 8px 0 0; }
-  .part__spec div { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-2); font-size: 0.875rem; }
-  .part__spec dt { font-weight: 600; color: var(--gray-500); }
-  .part__spec dd, .part__spec :global(dd) { margin: 0; color: var(--ink-2); }
-  .part__cta { justify-self: start; margin-top: 12px; }
+  .part__cta:hover { background: rgba(255, 255, 255, 0.28); color: var(--white); }
+  .part--missing { background: var(--gray-100); }
+  .part--missing::after { content: none; }
+  .part--missing .part__body { color: var(--ink); }
+  .part--missing .part__name { color: var(--ink); }
+  .part--missing .part__body :global(.part__text) { color: var(--ink-3); }
+  .part .part__cta--ask { background: var(--red); border-color: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .part .part__cta--ask:hover { background: var(--red-hover); }
+  @media (min-width: 960px) {
+    /* Zwei Spalten, die linke um eine Stufe tiefer – wie eine Zeitschrift. */
+    .catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-inline: 0; padding: 0 0 96px; overflow: visible; }
+    .part:nth-child(odd) { transform: translateY(96px); }
+    .part__body { padding: 36px; }
+    .part__name { font-size: 2rem; }
+  }
 </style>

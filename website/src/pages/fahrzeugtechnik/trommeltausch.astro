@@ -2,12 +2,12 @@
 /**
  * /fahrzeugtechnik/trommeltausch – das stärkste Angebot der Fahrzeugtechnik, eigenes Layout nach
  * dem Muster von Speziallösungen (Oktober 2026): Kopf wie Porsche → Tauschen, überholen – oder neu?
- * (#wahl, die eine dunkle Karte) → Was zum Tausch gehört (Weg) → Im Winter (#winter, Ziel der
+ * (#wahl, die Bühne der Startseite mit Umschalter) → Was zum Tausch gehört (Weg) → Im Winter (#winter, Ziel der
  * Saison-Aktion) → Marken → Garantien → Fragen → Anfrage. Texte: content/fahrzeugtechnik.ts.
  */
 import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
-import DrumChoice from '../../components/fahrzeug/DrumChoice.astro';
+import SpecialStage from '../../components/home/SpecialStage.astro';
 import SolutionPath from '../../components/spezial/SolutionPath.astro';
 import WinterBand from '../../components/fahrzeug/WinterBand.astro';
 import BrandBand from '../../components/fahrzeug/BrandBand.astro';
@@ -46,7 +46,7 @@ const nodes = [
     narrow
   />
 
-  <DrumChoice title={d.title} lead={d.lead} topics={d.topics} options={d.options} cta={d.cta} />
+  <SpecialStage id="wahl" title={d.title} lead={d.lead} items={d.items} art={d.items} legend={d.legend} cta={d.cta} />
 
   <SolutionPath title={p.title} start={p.start} end={p.end} items={p.items} />
 

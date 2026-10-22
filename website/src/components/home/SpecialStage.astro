@@ -4,13 +4,13 @@
  * «Für Krane · Fahrzeuge · Baumaschinen»; Zeichnung und Satz blenden über. Die Legende sagt
  * die Bildregel: «Grau: die Serie · Rot: was wir dazubauen». «Aufgabe schildern» steht unter
  * der Bühne (breit rechts unten). Reines CSS (Optionsfelder) – kein Skript, ohne JS bedienbar.
+ * Auch auf dem Trommeltausch («Tauschen · Überholen · Neu kaufen»): dort kommen Zeichnungen und
+ * Legende als `art` und `legend` herein.
  */
 import Icon from '../Icon.astro';
 import Rich from '../Rich.astro';
 import { plain } from '../../lib/text.mjs';
-import krane from '../../assets/illustrations/spezial-krane.svg?url';
-import fahrzeuge from '../../assets/illustrations/spezial-fahrzeuge.svg?url';
-import baumaschinen from '../../assets/illustrations/spezial-baumaschinen.svg?url';
+import { illustration } from '../../lib/illustrations';
 
 interface Item { title: string; text: string }
 interface Props {
@@ -22,12 +22,19 @@ interface Props {
   /** Überschrift als H1 (eigene Seite) oder H2 (Abschnitt). */
   level?: 'h1' | 'h2';
   id?: string;
+  /** Je Feld die Zeichnung (Schlüssel in src/assets/illustrations) und ihr Alt-Text; sonst die drei Felder der Speziallösungen. */
+  art?: { illo: string; alt: string }[];
+  /** Die Bildregel in zwei Teilen: was grau ist, was rot ist. */
+  legend?: { grey: string; red: string };
 }
-const { title, lead, items, cta, level = 'h2', id = 'spezial' } = Astro.props;
-const art = [krane, fahrzeuge, baumaschinen];
+const {
+  title, lead, items, cta, level = 'h2', id = 'spezial',
+  art = items.slice(0, 3).map((it, i) => ({ illo: ['spezial-krane', 'spezial-fahrzeuge', 'spezial-baumaschinen'][i], alt: `Zeichnung: Speziallösung ${it.title.toLowerCase()}` })),
+  legend = { grey: 'Grau: die Serie', red: 'Rot: was wir dazubauen' },
+} = Astro.props;
 const H = level;
 ---
-<section class="v4-section sp-sec" aria-labelledby={`${id}-title`}>
+<section class="v4-section sp-sec" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap" data-hero={level === 'h1' ? true : undefined}>
     <H class="v4-h2" id={`${id}-title`}>{plain(title)}</H>
     <Rich as="p" class="v4-sub" text={lead} />
@@ -40,9 +47,9 @@ const H = level;
           {items.slice(0, 3).map((it, i) => <label for={`${id}-${i}`} data-i={i}>{it.title}</label>)}
         </div>
         <div class="sp__art">
-          {items.slice(0, 3).map((it, i) => <img src={art[i]} alt={`Zeichnung: Speziallösung ${it.title.toLowerCase()}`} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />)}
+          {items.slice(0, 3).map((_, i) => <img src={illustration(art[i].illo, 'Bühne')} alt={art[i].alt} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />)}
         </div>
-        <p class="sp__legend" aria-hidden="true"><span><i class="sp__sw sp__sw--grey"></i>Grau: die Serie</span><span><i class="sp__sw"></i>Rot: was wir dazubauen</span></p>
+        <p class="sp__legend" aria-hidden="true"><span><i class="sp__sw sp__sw--grey"></i>{legend.grey}</span><span><i class="sp__sw"></i>{legend.red}</span></p>
         <div class="sp__texts sp__texts--in">
           {items.slice(0, 3).map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
         </div>

@@ -54,7 +54,7 @@ export const fahrzeugtechnik: AreaPage = {
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Länger fahren statt neu kaufen',
-    lead: 'Trommeltausch, Verschleissteile und Reparatur für Fahrmischer – mit verbindlicher Offerte vorab.',
+    lead: 'Trommeltausch, Verschleissteile und Reparatur für Fahrmischer aller gängigen Marken.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Fahrmischer anfragen'),
   },
@@ -182,20 +182,20 @@ export const trommeltausch: SubPage = {
 };
 
 /**
- * Tauschen, überholen oder neu kaufen (Anker #wahl) – drei Wege nebeneinander, qualitativ, ohne
- * erfundene Zahlen. Der Trommeltausch ist das eigene Produkt (`own`, die eine dunkle Karte);
- * der neue Fahrmischer ist nicht unser Angebot (`other`, nur umrandet).
+ * Tauschen, überholen oder neu kaufen (Anker #wahl) – die Bühne der Startseite
+ * (components/home/SpecialStage.astro): ein Umschalter, die Zeichnung blendet über. Bildregel: rot ist,
+ * was wir erneuern; der neue Fahrmischer steht hell da – er ist nicht unser Angebot.
  */
 export const drumOptions = {
   title: 'Tauschen, überholen – oder neu?',
-  lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle. Offen – auch wenn es ein neuer Fahrmischer ist.',
-  topics: ['Wann', 'Was wir tun', 'Fahrgestell', 'Zeitpunkt'],
-  options: [
-    { name: 'Trommeltausch', own: true, values: ['Die Trommel ist am Ende, das Fahrgestell gut.', 'Neue Trommel aufs bestehende Fahrgestell, Antrieb und Hydraulik anschliessen.', 'Bleibt.', 'Planbar, am besten im Winter.'] },
-    { name: 'Trommel-Revision', values: ['Die Trommel ist verschlissen, aber zu retten.', 'Lager, Dichtungen, Laufring, Rollen und Mischspiralen erneuern.', 'Bleibt.', 'Planbar, am besten im Winter.'] },
-    { name: 'Neuer Fahrmischer', other: true, values: ['Auch das Fahrgestell ist am Ende.', 'Nicht unser Angebot – wir sagen es Ihnen, wenn es so weit ist.', 'Wird mit ersetzt.', 'Je nach Lieferzeit.'] },
+  lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle. Offen.',
+  legend: { grey: 'Grau: was bleibt', red: 'Rot: was wir erneuern' },
+  items: [
+    { title: 'Tauschen', text: 'Die Trommel ist am Ende, das Fahrgestell gut: Eine neue Trommel kommt auf Ihr Fahrgestell.', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben' },
+    { title: 'Überholen', text: 'Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.', illo: 'trommel-revision', alt: 'Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot' },
+    { title: 'Neu kaufen', text: 'Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.', illo: 'trommel-neu', alt: 'Zeichnung: ein neuer Fahrmischer, ganz hell' },
   ],
-  cta: 'Trommel prüfen lassen',
+  cta: { label: 'Trommel prüfen lassen', href: '#anfrage' },
 };
 
 /**
