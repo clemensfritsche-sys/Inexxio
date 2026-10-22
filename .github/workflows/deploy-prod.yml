@@ -167,7 +167,9 @@ jobs:
           service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+        # Fest eingestellt: 15.34.1 (21.10.2026) verlangt beim Deploy zusätzlich das Recht
+        # serviceusage.services.get, das der Deploy-Account nicht hat (403). Erhöhen nur bewusst.
+        run: npm install -g firebase-tools@15.34.0
 
       - name: Install frontend dependencies
         working-directory: frontend
