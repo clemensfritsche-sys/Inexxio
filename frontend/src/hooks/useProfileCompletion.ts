@@ -1,26 +1,21 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-// Person und Adressbuch liegen gemeinsam im Reiter «Mein Profil» – darum zählen ihre
-// Pflichtangaben auf denselben Abschnitt (das Badge erscheint am Profil-Reiter).
-type SectionId = 'profile';
+/** Ein fehlender Pflichtwert: wie er heisst und wo auf der Konto-Seite er steht. */
+export interface MissingField { label: string; anchor: 'person' | 'adressen' }
 
-interface RequiredField {
-  section: SectionId;
-  field: keyof UserProfile;
-}
+interface RequiredField extends MissingField { field: keyof UserProfile }
 
 // **Pflicht ist, was wirklich fehlt** (#1043): keine Angabe hängt an der Rolle. Die Firma
 // ist eine Zuordnung zu einem Firmen-Datensatz und freiwillig; die Rechnungsadresse ebenso
 // (leer gilt die Lieferadresse).
 const REQUIRED: RequiredField[] = [
-  // Mein Profil – Person
-  { section: 'profile', field: 'first_name' },
-  { section: 'profile', field: 'last_name' },
-  { section: 'profile', field: 'phone' },
+  { field: 'first_name', label: 'Vorname', anchor: 'person' },
+  { field: 'last_name', label: 'Nachname', anchor: 'person' },
+  { field: 'phone', label: 'Telefon', anchor: 'person' },
   // **Mindestens eine Anschrift** – sie steht im Adressbuch; Strasse, PLZ und Ort prüft
   // schon der Dienst beim Anlegen (`address_book._assert_complete`).
-  { section: 'profile', field: 'addresses' },
+  { field: 'addresses', label: 'Adresse', anchor: 'adressen' },
 ];
 
 function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {
@@ -33,26 +28,16 @@ function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {
 
 export interface ProfileCompletion {
   percentage: number;
-  completedCount: number;
-  totalCount: number;
-  missingBySection: Partial<Record<SectionId, number>>;
+  /** Was fehlt, in der Reihenfolge der Seite – die Konto-Seite nennt das erste. */
+  missing: MissingField[];
 }
 
 /** Wie weit ist das Profil ausgefüllt? Gezählt werden die Pflichtangaben (`REQUIRED`). */
 export function useProfileCompletion(profile: UserProfile | null): ProfileCompletion {
   return useMemo(() => {
-    if (!profile) return { percentage: 0, completedCount: 0, totalCount: 0, missingBySection: {} };
-
-    const completedCount = REQUIRED.filter((r) => isFilled(profile, r.field)).length;
-    const percentage = REQUIRED.length === 0 ? 100
-      : Math.round((completedCount / REQUIRED.length) * 100);
-
-    const missingBySection: Partial<Record<SectionId, number>> = {};
-    for (const r of REQUIRED) {
-      if (!isFilled(profile, r.field)) {
-        missingBySection[r.section] = (missingBySection[r.section] ?? 0) + 1;
-      }
-    }
-    return { percentage, completedCount, totalCount: REQUIRED.length, missingBySection };
+    if (!profile) return { percentage: 0, missing: [] };
+    const missing = REQUIRED.filter((r) => !isFilled(profile, r.field)).map(({ label, anchor }) => ({ label, anchor }));
+    const percentage = Math.round(((REQUIRED.length - missing.length) / REQUIRED.length) * 100);
+    return { percentage, missing };
   }, [profile]);
 }

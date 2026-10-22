@@ -237,6 +237,99 @@
 }
 .ix-nudge-later:hover:not(:disabled) { color: var(--fg-1); }
 
+/* ── Mein Konto (Entwurf «Mein Konto» A, Okt. 2026) ─────────────────────────────
+   EINE ruhige Seite wie die Website: Kopf wie StageHero (grosses Wort, davor die Person),
+   eine Glas-Leiste mit Sprungmarken, dann Abschnitte mit zwei Spalten (links Titel und ein
+   Satz, rechts die Angaben), Haarlinien dazwischen. Rot nur am Kürzel und an den Passkeys. */
+.kt { background: #fff; color: var(--fg-1); }
+.kt-hero { position: relative; overflow: hidden; text-align: center; padding: 56px 16px 40px; background: linear-gradient(180deg, #fff 0%, var(--bg-2) 100%); }
+.kt-word {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%); white-space: nowrap; pointer-events: none; user-select: none;
+  font: 700 clamp(92px, 13.6vw, 196px)/1 var(--font-display); letter-spacing: -0.05em; color: var(--gray-200, #E6E7EA);
+}
+.kt-av { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 148px; height: 148px; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 84%, rgba(229, 26, 20, 0.13) 85% 100%); }
+.kt-av > span { display: inline-flex; align-items: center; justify-content: center; width: 120px; height: 120px; border-radius: 50%; overflow: hidden;
+  background: var(--inexxio-red); color: #fff; font: 600 44px/1 var(--font-display); letter-spacing: -0.03em; box-shadow: 0 16px 36px rgba(229, 26, 20, 0.25); }
+.kt-av img { width: 100%; height: 100%; object-fit: cover; }
+.kt-hero h1 { position: relative; margin: 20px 0 0; font: 600 clamp(36px, 4vw, 56px)/1.05 var(--font-display); letter-spacing: -0.035em; }
+.kt-meta { position: relative; margin: 10px 0 0; font-size: 15px; color: var(--fg-3); }
+.kt-meta span { white-space: nowrap; }
+.kt-meta b { font-weight: 500; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.kt-todo { position: relative; display: inline-flex; align-items: center; gap: 10px; margin-top: 20px; padding: 8px 16px 8px 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.95); box-shadow: 0 6px 18px rgba(10, 10, 11, 0.06);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); font-size: 14px; color: var(--fg-2); }
+.kt-todo a { color: var(--fg-1); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.kt-ring { width: 30px; height: 30px; border-radius: 50%; flex: none; -webkit-mask: radial-gradient(closest-side, transparent 72%, #000 74%); mask: radial-gradient(closest-side, transparent 72%, #000 74%); }
+
+.kt-nav { position: sticky; top: var(--site-header-h, 64px); z-index: 5; display: flex; justify-content: center; padding: 14px 16px; overflow-x: auto;
+  background: rgba(255, 255, 255, 0.86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border-1); scrollbar-width: none; }
+.kt-nav > div { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+.kt-nav a { display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--fg-2); text-decoration: none; white-space: nowrap; transition: background 0.2s, color 0.2s; }
+.kt-nav a[aria-current='true'] { background: #fff; color: var(--fg-1); box-shadow: 0 2px 8px rgba(10, 10, 11, 0.08); }
+
+.kt-wrap { max-width: 1104px; margin: 0 auto; padding: 0 32px 96px; }
+.kt-sec { display: grid; grid-template-columns: 4fr 8fr; gap: 64px; padding: 56px 0; border-top: 1px solid var(--border-1); scroll-margin-top: calc(var(--site-header-h, 64px) + 80px); }
+.kt-wrap > .kt-sec:first-child, .kt-wrap > div:first-child > .kt-sec:first-child { border-top: 0; }
+.kt-sec-h h2 { margin: 0; font: 600 28px/1.1 var(--font-display); letter-spacing: -0.03em; }
+.kt-sec-h p { margin: 10px 0 0; max-width: 22em; font-size: 14px; line-height: 1.5; color: var(--fg-3); }
+.kt-sec-h > div { margin-top: 14px; }
+.kt-body { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.kt-body > .kt-add, .kt-body > .kt-pill, .kt-body > .kt-out { justify-self: start; }
+.kt-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.kt-f { display: grid; gap: 6px; }
+.kt-f label { font-size: 13px; font-weight: 500; color: var(--fg-3); }
+.kt-f label em { font-style: normal; color: var(--inexxio-red); }
+.kt-input { box-sizing: border-box; width: 100%; height: 52px; padding: 0 16px; border: 1px solid transparent; border-radius: 14px; background: var(--bg-2);
+  font: 500 16px/1 var(--font-body); color: var(--fg-1); outline: 0; transition: background 0.2s, border-color 0.2s; }
+.kt-input:focus { background: #fff; border-color: var(--fg-1); }
+.kt-input::placeholder { color: var(--fg-4); }
+.kt-input:read-only { color: var(--fg-2); }
+
+.kt-card { position: relative; display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; border-radius: 20px; background: var(--bg-2); }
+.kt-card-ic { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #fff; color: var(--fg-1); box-shadow: 0 2px 8px rgba(10, 10, 11, 0.06); }
+.kt-card-ic svg { width: 20px; height: 20px; }
+.kt-card-ic.is-red { color: var(--inexxio-red); }
+.kt-card-tag { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--fg-3); }
+.kt-card-text { font-size: 15px; line-height: 1.5; color: var(--fg-1); overflow-wrap: anywhere; }
+.kt-card-text small { display: block; margin-top: 4px; font-size: 13px; color: var(--fg-3); }
+.kt-round { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.85); color: var(--fg-2); cursor: pointer; transition: background 0.2s; }
+.kt-round:hover { background: #fff; color: var(--fg-1); }
+.kt-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px; border: 1px dashed var(--border-2);
+  background: transparent; font: 500 14px/1 var(--font-body); color: var(--fg-2); cursor: pointer; }
+.kt-add:hover { border-color: var(--fg-4); color: var(--fg-1); }
+.kt-add:disabled { opacity: 0.6; cursor: wait; }
+.kt-pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 999px; border: 0;
+  background: var(--inexxio-red); color: #fff; font: 600 14px/1 var(--font-body); cursor: pointer; }
+.kt-pill:disabled { opacity: 0.6; cursor: wait; }
+.kt-pill--ghost { background: #fff; color: var(--fg-1); border: 1px solid var(--border-2); }
+.kt-note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-3); }
+.kt-note.is-error { color: var(--danger); }
+.kt-note.is-ok { color: var(--success); }
+/* Die Firma (CompanyField): seine Kästen werden zu grauen Karten. */
+.kt-company .rounded-ds-md { border: 0; border-radius: 20px; background: var(--bg-2); padding: 18px 22px; }
+.kt-switch { display: flex; align-items: flex-start; gap: 16px; }
+.kt-switch button { flex: none; position: relative; width: 52px; height: 32px; border: 0; border-radius: 999px; background: var(--border-2); cursor: pointer; transition: background 0.2s; }
+.kt-switch button[aria-checked='true'] { background: var(--fg-1); }
+.kt-switch button::after { content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); transition: left 0.2s; }
+.kt-switch button[aria-checked='true']::after { left: 23px; }
+.kt-switch p { margin: 0; font-size: 15px; line-height: 1.5; }
+.kt-out { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; height: 48px; padding: 0 22px; margin-top: 8px; border-radius: 999px; border: 1px solid var(--border-2);
+  background: #fff; font: 600 15px/1 var(--font-body); color: var(--fg-1); text-decoration: none; }
+@media (max-width: 767px) {
+  .kt-hero { padding-top: 36px; }
+  .kt-av { width: 116px; height: 116px; }
+  .kt-av > span { width: 94px; height: 94px; font-size: 34px; }
+  .kt-meta { font-size: 14px; }
+  .kt-todo { font-size: 13px; }
+  .kt-nav { justify-content: flex-start; }
+  .kt-wrap { padding: 0 16px 64px; }
+  .kt-sec { grid-template-columns: 1fr; gap: 20px; padding: 40px 0; }
+  .kt-sec-h h2 { font-size: 24px; }
+  .kt-grid2 { grid-template-columns: 1fr; }
+  .kt-card { padding: 18px; }
+}
+
 /* ── Kopf und Fuss des Konto-/ERP-Bereichs ────────────────────
    ►►► Es gibt sie hier NICHT. ◄◄◄ Kopf und Fuss sind die der Website (Header.astro,
    Footer.astro) – übernommen beim Bauen (`website/scripts/export-shell.mjs` →

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Field as AField } from '@/components/form/field';
 import { AddressField, type Address } from '@/components/erp/address-field';
@@ -40,7 +40,7 @@ function inheritedEmail(login: string | null | undefined): string {
   return login ? `übernimmt ${login}` : 'rechnung@firma.ch';
 }
 
-export function AddressBook({ owner, account, addresses, loginEmail, readOnly, mapsKey, onSaved }: {
+export function AddressBook({ owner, account, addresses, loginEmail, readOnly, mapsKey, onSaved, cards }: {
   /** `null` = die eigene Person (Konto), sonst ihre Objektnummer (ERP). */
   owner: number | null;
   account: Account;
@@ -49,6 +49,8 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   readOnly?: boolean;
   mapsKey: string | null | undefined;
   onSaved: (u: UserProfile) => void;
+  /** Konto (Gestaltung der Website): jede Anschrift als graue Karte – dieselben Daten, dieselben Aktionen. */
+  cards?: boolean;
 }) {
   const mine = addresses.filter((a) => a.account === account);
   const main = mine.find((a) => a.is_default_billing) ?? null;
@@ -85,15 +87,19 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: cards ? 12 : 0 }}>
       {lines.map(({ a, tag, note, removable }, i) => (
-        <div key={a.id} style={{ display: 'flex', gap: 16, padding: '14px 0', alignItems: 'flex-start',
-          borderTop: i ? '1px solid var(--border-1)' : 'none' }}>
-          <div style={{ width: 112, flexShrink: 0, paddingTop: 1 }}>
-            <span style={{ ...MICRO_LABEL, display: 'inline-block', color: i ? 'var(--fg-3)' : 'var(--fg-2)',
-              background: i ? 'var(--bg-2)' : 'var(--bg-3)', borderRadius: 4, padding: '3px 7px' }}>{tag}</span>
-          </div>
+        <div key={a.id} className={cards ? 'kt-card' : undefined}
+          style={cards ? undefined : { display: 'flex', gap: 16, padding: '14px 0', alignItems: 'flex-start',
+            borderTop: i ? '1px solid var(--border-1)' : 'none' }}>
+          {cards ? <span className="kt-card-ic"><MapPin aria-hidden /></span> : (
+            <div style={{ width: 112, flexShrink: 0, paddingTop: 1 }}>
+              <span style={{ ...MICRO_LABEL, display: 'inline-block', color: i ? 'var(--fg-3)' : 'var(--fg-2)',
+                background: i ? 'var(--bg-2)' : 'var(--bg-3)', borderRadius: 4, padding: '3px 7px' }}>{tag}</span>
+            </div>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
+            {cards && <span className="kt-card-tag">{tag}</span>}
             {editing === a.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <AddressRow entry={a} label="Anschrift" email={business && a.id === main.id} {...row} />
@@ -101,21 +107,22 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
                   onClick={() => setEditing(null)}>Fertig</button>
               </div>
             ) : (
-              <div style={{ font: '400 13.5px/20px var(--font-body)', color: 'var(--fg-2)' }}>
-                <div style={{ fontWeight: 600, color: 'var(--fg-1)' }}>{a.street1}</div>
+              <div className={cards ? 'kt-card-text' : undefined}
+                style={cards ? undefined : { font: '400 13.5px/20px var(--font-body)', color: 'var(--fg-2)' }}>
+                <div style={cards ? undefined : { fontWeight: 600, color: 'var(--fg-1)' }}>{a.street1}</div>
                 {a.street2 && <div>{a.street2}</div>}
                 <div>{[a.zip, a.city].filter(Boolean).join(' ')} · {ADDRESS_COUNTRIES.find(([c]) => c === a.country)?.[1] ?? a.country}</div>
-                {note && <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 2 }}>{note}</div>}
+                {note && <small style={cards ? undefined : { display: 'block', fontSize: 12, color: 'var(--fg-4)', marginTop: 2 }}>{note}</small>}
               </div>
             )}
           </div>
           {!readOnly && editing !== a.id && (
-            <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-              <button type="button" className="erp-actbtn erp-actbtn-icon" title="Ändern" aria-label="Ändern"
-                onClick={() => setEditing(a.id)}><Pencil size={14} /></button>
+            <div style={{ display: 'flex', gap: cards ? 6 : 2, flexShrink: 0 }}>
+              <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} title="Ändern" aria-label="Ändern"
+                onClick={() => setEditing(a.id)}><Pencil size={cards ? 16 : 14} /></button>
               {removable && (
-                <button type="button" className="erp-actbtn erp-actbtn-icon" title="Entfernen" aria-label="Entfernen"
-                  onClick={() => void remove(a.id)}><Trash2 size={14} /></button>
+                <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} title="Entfernen" aria-label="Entfernen"
+                  onClick={() => void remove(a.id)}><Trash2 size={cards ? 16 : 14} /></button>
               )}
             </div>
           )}
@@ -126,9 +133,9 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
           onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
       ) : (
         <button type="button" onClick={() => setAdding(true)}
-          className="self-start inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
-          style={{ marginTop: 4 }}>
-          <Plus size={13} /> Lieferadresse hinzufügen
+          className={cards ? 'kt-add' : 'self-start inline-flex items-center gap-1.5 text-sm text-accent hover:underline'}
+          style={cards ? undefined : { marginTop: 4 }}>
+          <Plus size={cards ? 16 : 13} /> Lieferadresse hinzufügen
         </button>
       ))}
       {error && <ErrorText msg={error} />}
