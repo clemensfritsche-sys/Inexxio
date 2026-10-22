@@ -113,7 +113,8 @@ export const photos = {
     ratio: '3/2',
   },
   'arbeit-werkstatt': {
-    alt: 'Schweissarbeit an einer Stahlkonstruktion bei INEXXIO',
+    file: 'arbeit-werkstatt.webp',
+    alt: 'Schweisser mit Schutzhelm an einer roten Stahlkonstruktion, Funken fliegen',
     brief: 'Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer',
     ratio: '4/3',
   },

@@ -4,7 +4,7 @@
 > `src/config/photos.mjs` eine Datei hat, verschwindet seine Zeile von selbst.
 > Solange hier ein Foto steht, bricht ein Build im Modus `live` ab.
 
-**Stand:** 12 Fotos · 0 abgeschaltete Sektionen
+**Stand:** 11 Fotos · 0 abgeschaltete Sektionen
 
 ## Fotos
 
@@ -23,7 +23,6 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 | `handschlag` | Heiri Steiner und Clemens Fritsche beim Handschlag, freigestellt (transparenter Grund), hoch – heute steht dort portraet-clemens | 4:5 | noch nicht verwendet |
 | `werkstatt-aussen` (zurzeit Beispielbild) | Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | noch nicht verwendet |
 | `team` (zurzeit Beispielbild) | Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | noch nicht verwendet |
-| `arbeit-werkstatt` (zurzeit Beispielbild) | Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer | 4:3 | `/fahrzeugtechnik/trommeltausch`, `/fahrzeugtechnik`, `/`, `/karriere`, `/krantechnik/heukrananlagen`, `/krantechnik/krane-nach-mass`, `/krantechnik/kranservice`, `/krantechnik`, `/spezialloesungen`, `/ueber-uns` |
 
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)
 

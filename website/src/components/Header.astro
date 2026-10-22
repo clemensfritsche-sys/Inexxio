@@ -54,12 +54,17 @@ const illo = (key: string) => {
   return url;
 };
 
-type Tile = { label: string; href: string; img: string; sub: string };
-/** Kacheln eines Punkts: seine Unterseiten – oder er selbst, wenn er keine hat (bzw. ddSelf). */
+type Tile = { label: string; href: string; img: string; sub: string; deck?: string[] };
+/** Kacheln eines Punkts: er selbst, wenn er keine Unterseiten hat – sonst zuerst seine Übersicht
+    («Alles zu …», dunkel, mit dem Stapel der Zeichnungen seiner Unterseiten), dann die Unterseiten.
+    Dieselben Kacheln im Kopf und im Mobil-Menü. */
 const tilesOf = (g: (typeof groups)[number]): Tile[] => {
   const self = { label: g.label, href: g.href, img: illo(g.illo), sub: plain(g.dd) };
   const kids = g.children.map((c) => ({ label: plain(c.label), href: c.href, img: illo(c.illo), sub: plain(c.dd) }));
-  return !kids.length ? [self] : g.ddSelf ? [self, ...kids] : kids;
+  if (!kids.length) return [self];
+  const deck = kids.slice(0, 3).map((t) => t.img);
+  const all = g.ddSelf ? { ...self, deck } : { ...self, label: `Alles zu ${g.label}`, sub: 'Übersicht und alle Leistungen', deck };
+  return [all, ...kids];
 };
 const contactTile: Tile = {
   label: 'Kontakt', href: '/kontakt', img: illo('menu/kontakt'),
@@ -79,16 +84,9 @@ const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/
 const profile = { label: 'Mein Profil', href: acct.profile.href, img: illo('menu/profil'), sub: 'Person, Firma und Adressbuch an einem Ort.' };
 const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: 'Auf diesem Gerät abmelden.' };
 const cols = (n: number) => `--cols:${Math.max(3, n)}`;
-/** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf; ein Punkt mit Unterseiten
-    beginnt mit «Alles zu …» (seine Übersicht, als Stapel seiner Zeichnungen). */
-type Card = { label: string; href: string; sub: string; img?: string; deck?: string[] };
-const cardsOf = (m: (typeof menus)[number]): Card[] => {
-  const kids = m.tiles.filter((t) => t.href !== m.href);
-  if (!kids.length) return m.tiles.slice(0, 1);
-  return [{ label: `Alles zu ${m.label}`, href: m.href, sub: 'Übersicht und alle Leistungen', deck: kids.slice(0, 3).map((t) => t.img) }, ...kids];
-};
-const mobile: { id: string; label: string; href: string; acct?: string; cards: Card[] }[] = [
-  ...menus.map((m) => ({ id: m.id, label: m.label, href: m.href, cards: cardsOf(m) })),
+/** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf – dieselben Kacheln wie im Kopf. */
+const mobile: { id: string; label: string; href: string; acct?: string; cards: Tile[] }[] = [
+  ...menus.map((m) => ({ id: m.id, label: m.label, href: m.href, cards: m.tiles })),
   { id: 'konto', label: 'Mein Konto', href: acct.profile.href, acct: 'user', cards: [profile, logout] },
 ];
 ---
@@ -113,9 +111,11 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: C
               <div class="dd__panel" id={`dd-${m.id}`}>
                 <ul role="list" class="dd__tiles" style={cols(m.tiles.length)}>
                   {m.tiles.map((t) => (
-                    <li><a class="tile" href={t.href} aria-current={path === t.href ? 'page' : undefined}>
+                    <li><a class:list={['tile', t.deck && 'tile--all']} href={t.href} aria-current={path === t.href ? 'page' : undefined}>
                       <span class="tile__label">{t.label}</span>
-                      <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
+                      {t.deck
+                        ? <span class="tile__deck" aria-hidden="true">{t.deck.map((src) => <img src={src} alt="" loading="lazy" decoding="async" width="160" height="140" data-menu-img />)}</span>
+                        : <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />}
                       <span class="tile__sub">{t.sub}</span>
                     </a></li>
                   ))}
@@ -160,14 +160,14 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: C
               </a></li>
             </ul>
             <ul role="list" class="dd__tiles" style={cols(3)} data-acct="user">
-              <li><a class="tile" href={profile.href} rel="nofollow">
+              <li><div class="tile tile--me">
                 <span class="tile__label" data-acct-name>Angemeldet</span>
-                <span class="tile__me">
-                  <span class="tile__avatar" data-acct-initials><Icon name="user" size={28} /></span>
-                  <span class="tile__who"><strong data-acct-email></strong><span data-acct-company></span></span>
+                <span class="tile__stage"><span class="tile__ring"><span class="tile__avatar" data-acct-initials><Icon name="user" size={36} /></span></span></span>
+                <span class="tile__rows">
+                  <span class="tile__row"><Icon name="mail" size={16} /><span data-acct-email></span></span>
+                  <span class="tile__row"><Icon name="building-2" size={16} /><span data-acct-company></span></span>
                 </span>
-                <span class="tile__sub"></span>
-              </a></li>
+              </div></li>
               {[profile, logout].map((t) => (
                 <li><a class="tile" href={t.href} rel="nofollow">
                   <span class="tile__label">{t.label}</span>
@@ -340,6 +340,19 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: C
   .tile__img { display: block; width: 100%; height: 160px; object-fit: contain; transition: transform 500ms var(--ease); }
   a.tile:hover .tile__img { transform: translateY(-3px); }
   .tile__sub { font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+  /* Die Übersicht «Alles zu …»: dunkel wie im Mobil-Menü, die Zeichnungen der Unterseiten als Stapel. */
+  a.tile--all { background: radial-gradient(120% 90% at 50% 18%, #3A3B3F 0%, var(--ink) 70%); color: var(--white); box-shadow: 0 8px 24px rgba(10, 10, 11, 0.12); }
+  a.tile--all:hover, a.tile--all:focus-visible { background: radial-gradient(120% 90% at 50% 18%, #46474C 0%, var(--ink) 70%); }
+  .tile--all .tile__sub { color: rgba(255, 255, 255, 0.62); }
+  .tile__deck { position: relative; display: block; height: 160px; }
+  .tile__deck img { position: absolute; top: 10px; width: 54%; height: 140px; object-fit: contain; transition: transform 500ms var(--ease); }
+  .tile__deck img:nth-child(1) { left: -8%; }
+  .tile__deck img:nth-child(2) { left: 23%; top: 22px; z-index: 1; }
+  .tile__deck img:nth-child(3) { left: 54%; }
+  .tile__deck img:first-child:nth-last-child(2) { left: 2%; }
+  .tile__deck img:first-child:nth-last-child(2) + img { left: 44%; top: 18px; }
+  a.tile--all:hover .tile__deck img:first-child { transform: translate(-6px, -2px) rotate(-2deg); }
+  a.tile--all:hover .tile__deck img:last-child { transform: translate(6px, -2px) rotate(2deg); }
   .tile__sub:empty { display: none; }
   .tile[aria-current='page'] .tile__label { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em; }
   .is-soon { opacity: 0.5; }
@@ -352,15 +365,19 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: C
   .bubble--on { background: var(--red); color: var(--white); }
   .bubble--sm { padding: 8px 16px; font-size: 1.25rem; }
   .bubble--sm::after { bottom: -6px; width: 12px; height: 12px; }
-  .tile__me { display: flex; align-items: center; gap: 16px; height: 160px; padding: 0 20px; border-radius: var(--r-lg); background: rgba(255, 255, 255, 0.55); }
+  /* Wer angemeldet ist – eine Auskunft, kein Knopf: gleiche Zeilen wie die Kacheln (Name · Bild · Text). */
+  .tile--me { cursor: default; }
+  .tile__stage { display: flex; align-items: center; justify-content: center; height: 160px; }
+  .tile__ring { display: inline-flex; align-items: center; justify-content: center; width: 132px; height: 132px; border-radius: 50%; background: radial-gradient(closest-side, transparent 82%, rgba(229, 26, 20, 0.14) 83% 100%); }
   .tile__avatar {
-    flex: none; display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%;
-    overflow: hidden; background: var(--red); color: var(--white); font-size: 1.375rem; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; width: 104px; height: 104px; border-radius: 50%; overflow: hidden;
+    background: var(--red); color: var(--white); font-family: var(--font-display); font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em;
+    box-shadow: 0 10px 24px rgba(229, 26, 20, 0.25);
   }
-  .tile__who { display: grid; gap: 2px; min-width: 0; }
-  .tile__who strong { font-size: 0.9375rem; overflow-wrap: anywhere; }
-  .tile__who span { font-size: 0.875rem; color: var(--gray-500); }
-  .tile__who :empty { display: none; }
+  .tile__rows { display: grid; gap: 6px; font-size: 0.875rem; color: var(--gray-500); }
+  .tile__row { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+  .tile__row :global(svg) { flex: none; color: var(--gray-400); }
+  .tile__row:has(> span:empty) { display: none; }
   .hd__avatar :global(.pm__avatar), .tile__avatar :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
 
   /* ---------- Werkzeuge rechts ---------- */
