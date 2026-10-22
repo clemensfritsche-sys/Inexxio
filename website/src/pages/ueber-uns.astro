@@ -76,15 +76,9 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
 
   <section class="v4-section" aria-labelledby="werte">
     <div class="wrap">
-      <header class="v4-head--center"><Rich as="h2" class="v4-h2" id="werte" text={u.values.title} /></header>
+      <h2 class="uu-values__h" id="werte">{u.values.title}</h2>
       <ul role="list" class="uu-values">
-        {u.values.items.map((v) => (
-          <li>
-            <span class="uu-values__ic glass-light"><Icon name={v.icon} size={24} /></span>
-            <h3>{v.title}</h3>
-            <Rich as="p" text={v.text} />
-          </li>
-        ))}
+        {u.values.items.map((v) => <li><strong>{v.title}</strong> <Rich as="span" text={v.text} /></li>)}
       </ul>
     </div>
   </section>
@@ -132,18 +126,13 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
   .uu-change dt { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink); }
   .uu-change :global(dd) { margin: 0; color: var(--ink-2); }
 
-  /* Werte: fünf Spalten, je ein Symbol im Glas-Knoten (wie die Stationen des Wegs). */
-  .uu-values { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 40px; }
-  .uu-values li { display: grid; align-content: start; grid-template-columns: 56px minmax(0, 1fr); column-gap: 16px; padding: 20px 0; border-top: 1px solid var(--line); }
-  .uu-values__ic { grid-row: span 2; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; color: var(--ink); }
-  .uu-values h3 { font-size: 1.25rem; align-self: end; }
-  .uu-values :global(p) { margin-top: 4px; font-size: 0.9375rem; line-height: 1.5; color: var(--gray-500); }
-  @media (min-width: 960px) {
-    .uu-values { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 32px; margin-top: 56px; }
-    .uu-values li { grid-template-columns: 1fr; row-gap: 0; padding: 28px 0 0; border-top: 1px solid var(--line-2); }
-    .uu-values__ic { grid-row: auto; margin-bottom: 20px; }
-    .uu-values h3 { align-self: start; }
-  }
+  /* Werte, locker: grosse Zeilen – das Wort dunkel, der halbe Satz dahinter leise. Beim Zeigen wird der Satz dunkel. */
+  .uu-values__h { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); }
+  .uu-values { list-style: none; padding: 0; margin-top: 20px; display: grid; gap: 6px; }
+  .uu-values li { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.75rem, 1.1rem + 2.6vw, 3.5rem); line-height: 1.12; letter-spacing: -0.035em; color: var(--ink); }
+  .uu-values li :global(span) { color: var(--gray-500); transition: color 0.4s var(--ease); }
+  .uu-values li:hover :global(span) { color: var(--ink-2); }
+  @media (min-width: 960px) { .uu-values li:nth-child(even) { padding-left: 8%; } }
 
   /* Mehr von uns: zwei graue Karten mit der Zeichnung aus dem Menü. */
   .uu-more { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }

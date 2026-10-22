@@ -62,12 +62,13 @@ export const ueberUns = {
   /** Die Werte der Firma (#1182) – wofür wir stehen; die Zusagen darunter machen sie prüfbar. */
   values: {
     title: 'Wofür wir stehen',
+    /** Locker gesetzt: das Wort gross, der halbe Satz dahinter leise – kein Raster, keine Symbole. */
     items: [
-      { icon: 'handshake' as const, title: 'Verbindlichkeit', text: 'Ein Wort gilt. Termin, Preis, Absprache – was wir zusagen, halten wir.' },
-      { icon: 'shield-check' as const, title: 'Qualität', text: 'Saubere Arbeit in allem – vom ersten Gespräch bis zum Protokoll.' },
-      { icon: 'clock' as const, title: 'Zuverlässigkeit', text: 'Wir planen voraus und sind erreichbar, wenn etwas stillsteht.' },
-      { icon: 'lightbulb' as const, title: 'Innovation', text: 'Modernisieren statt ersetzen: neue Technik auf bewährtem Stahl.' },
-      { icon: 'pen-line' as const, title: 'Design', text: 'Gut bedienbar, sicher und schön – bis ins Detail.' },
+      { title: 'Verbindlichkeit.', text: 'Ein Wort gilt – Termin, Preis, Absprache.' },
+      { title: 'Qualität.', text: 'Sauber bis ins Protokoll.' },
+      { title: 'Zuverlässigkeit.', text: 'Erreichbar, wenn etwas stillsteht.' },
+      { title: 'Innovation.', text: 'Modernisieren statt ersetzen.' },
+      { title: 'Design.', text: 'Gut bedienbar, sicher und schön.' },
     ],
   },
   /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
