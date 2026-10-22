@@ -1,21 +1,19 @@
 'use client';
 
+/**
+ * **Sicherheit** – der letzte Abschnitt der Konto-Seite: die Anmelde-E-Mail (ändern per
+ * Bestätigungslink an die NEUE Adresse; bei Google verwaltet Google sie), die Passkeys und
+ * das Abmelden.
+ */
+
 import { useState } from 'react';
-import { Mail, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { LogOut, Mail, Pencil } from 'lucide-react';
 import type { UserProfile } from '@/types';
-import { Field } from '@/components/form/field';
-import { Card } from '@/components/erp/fields';
 import { auth, updateEmailAddress } from '@/lib/firebase';
+import { KtField, KtSection } from '../kt-section';
 import { PasskeysCard } from './passkeys-card';
 
-interface Props {
-  profile: UserProfile;
-}
-
-/** Der Rahmen einer Hinweisfläche: ihre Ampelfarbe, aufgehellt – kein eigener Ton. */
-const TINT = (token: string) => `color-mix(in srgb, var(${token}) 35%, transparent)`;
-
-export function SecuritySection({ profile }: Props) {
+export function SecuritySection({ profile }: { profile: UserProfile }) {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
@@ -25,28 +23,24 @@ export function SecuritySection({ profile }: Props) {
 
   const isGoogleUser = auth?.currentUser?.providerData?.some((p) => p.providerId === 'google.com');
 
+  function cancel() {
+    setShowEmailForm(false); setError(''); setNewEmail(''); setConfirmEmail('');
+  }
+
   async function handleEmailChange(e: React.FormEvent) {
     e.preventDefault();
-    if (newEmail !== confirmEmail) {
-      setError('Die E-Mail-Adressen stimmen nicht überein.');
-      return;
-    }
-    if (newEmail === profile.email) {
-      setError('Die neue Adresse ist identisch mit der aktuellen.');
-      return;
-    }
+    if (newEmail !== confirmEmail) { setError('Die E-Mail-Adressen stimmen nicht überein.'); return; }
+    if (newEmail === profile.email) { setError('Die neue Adresse ist identisch mit der aktuellen.'); return; }
     setSending(true);
     setError('');
     try {
       await updateEmailAddress(newEmail);
       setSent(true);
-      setShowEmailForm(false);
-      setNewEmail('');
-      setConfirmEmail('');
+      cancel();
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/requires-recent-login') {
-        setError('Aus Sicherheitsgründen ist eine erneute Anmeldung erforderlich. Bitte melde dich ab und anschliessend erneut an.');
+        setError('Aus Sicherheitsgründen ist eine erneute Anmeldung nötig. Bitte abmelden und wieder anmelden.');
       } else if (code === 'auth/email-already-in-use') {
         setError('Diese E-Mail-Adresse ist bereits mit einem anderen Konto verknüpft.');
       } else {
@@ -58,102 +52,43 @@ export function SecuritySection({ profile }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Email */}
-      <Card icon={Mail} title="Anmelde-E-Mail">
-        {sent && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'var(--success-bg)', border: `1px solid ${TINT('--success')}`, borderRadius: 8 }}>
-            <CheckCircle2 style={{ width: 16, height: 16, color: 'var(--success)', flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <p style={{ fontSize: 13, color: 'var(--success)', margin: 0, fontWeight: 600 }}>
-                Bestätigungslink gesendet
-              </p>
-              <p style={{ fontSize: 13, color: 'var(--success)', margin: '4px 0 0' }}>
-                Bitte überprüfe deine neue E-Mail-Adresse und klicke auf den Bestätigungslink.
-                Danach kannst du dich mit der neuen Adresse anmelden.
-              </p>
-            </div>
+    <KtSection id="sicherheit" title="Sicherheit"
+      text="Ohne Passwort. Sie melden sich per E-Mail-Link, mit Passkey oder mit Google an.">
+      <div className="kt-card">
+        <span className="kt-card-ic"><Mail aria-hidden /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span className="kt-card-tag">Anmelde-E-Mail</span>
+          <div className="kt-card-text">
+            {profile.email}
+            {isGoogleUser && <small>Wird über Ihr Google-Konto verwaltet.</small>}
           </div>
+          {showEmailForm && (
+            <form onSubmit={handleEmailChange} style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+              <KtField id="kt-new-mail" label="Neue E-Mail-Adresse" type="email" value={newEmail} onChange={setNewEmail} placeholder="neue@email.ch" />
+              <KtField id="kt-new-mail2" label="Neue E-Mail bestätigen" type="email" value={confirmEmail} onChange={setConfirmEmail} placeholder="neue@email.ch" />
+              <p className="kt-note">Der Bestätigungslink geht an die <strong>neue</strong> Adresse. Nach dem Klick und erneutem Anmelden gilt sie.</p>
+              {error && <p className="kt-note is-error">{error}</p>}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="submit" className="kt-pill" disabled={sending || !newEmail}>
+                  {sending ? 'Wird gesendet…' : 'Bestätigungslink senden'}
+                </button>
+                <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>Abbrechen</button>
+              </div>
+            </form>
+          )}
+          {sent && <p className="kt-note is-ok" style={{ marginTop: 10 }}>Bestätigungslink gesendet – bitte die neue Adresse prüfen.</p>}
+        </div>
+        {!isGoogleUser && !showEmailForm && (
+          <button type="button" className="kt-round" title="Ändern" aria-label="E-Mail-Adresse ändern"
+            onClick={() => { setShowEmailForm(true); setSent(false); }}>
+            <Pencil size={16} />
+          </button>
         )}
+      </div>
 
-        <Field label="Aktuelle E-Mail-Adresse" value={profile.email} readOnly />
-
-        {isGoogleUser ? (
-          <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: 0 }}>
-            Wird über dein Google-Konto verwaltet.
-          </p>
-        ) : (
-          <>
-            {!showEmailForm ? (
-              <button
-                onClick={() => setShowEmailForm(true)}
-                style={{
-                  alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 8,
-                  border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13,
-                  fontWeight: 500, color: 'var(--fg-2)', cursor: 'pointer',
-                }}
-              >
-                E-Mail-Adresse ändern
-              </button>
-            ) : (
-              <form onSubmit={handleEmailChange} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Field
-                  label="Neue E-Mail-Adresse"
-                  value={newEmail}
-                  onChange={setNewEmail}
-                  type="email"
-                  placeholder="neue@email.ch"
-                />
-                <Field
-                  label="Neue E-Mail bestätigen"
-                  value={confirmEmail}
-                  onChange={setConfirmEmail}
-                  type="email"
-                  placeholder="neue@email.ch"
-                />
-                {error && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', background: 'var(--danger-bg)', borderRadius: 8, border: `1px solid ${TINT('--danger')}` }}>
-                    <AlertCircle style={{ width: 14, height: 14, color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
-                    <p style={{ fontSize: 13, color: 'var(--danger)', margin: 0 }}>{error}</p>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    type="submit"
-                    disabled={sending || !newEmail}
-                    style={{
-                      padding: '8px 18px', borderRadius: 8, border: 'none',
-                      background: 'var(--inexxio-red)', color: 'var(--fg-on-red)', fontSize: 13,
-                      fontWeight: 600, cursor: sending ? 'wait' : 'pointer',
-                      opacity: sending || !newEmail ? 0.6 : 1,
-                    }}
-                  >
-                    {sending ? 'Wird gesendet…' : 'Bestätigungslink senden'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowEmailForm(false); setError(''); setNewEmail(''); setConfirmEmail(''); }}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13, color: 'var(--fg-2)', cursor: 'pointer' }}
-                  >
-                    Abbrechen
-                  </button>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', background: 'var(--info-bg)', borderRadius: 8, border: `1px solid ${TINT('--info')}` }}>
-                  <Info style={{ width: 14, height: 14, color: 'var(--info)', flexShrink: 0, marginTop: 1 }} />
-                  <p style={{ fontSize: 12, color: 'var(--accent-ink)', margin: 0 }}>
-                    Es wird ein Bestätigungslink an die <strong>neue</strong> Adresse gesendet.
-                    Nach dem Klick auf den Link und erneutem Anmelden ist die Änderung aktiv.
-                  </p>
-                </div>
-              </form>
-            )}
-          </>
-        )}
-      </Card>
-
-      {/* Passkeys */}
       <PasskeysCard />
 
-    </div>
+      <a className="kt-out" href="/abmelden"><LogOut size={18} aria-hidden />Abmelden</a>
+    </KtSection>
   );
 }

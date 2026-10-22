@@ -36,7 +36,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   return (
     <>
-      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: 'var(--bg-2)' }}>
+      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: 'var(--bg-1)' }}>
         {children}
       </main>
 

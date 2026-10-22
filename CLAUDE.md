@@ -435,8 +435,9 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), Modus
   `preview` bis `website/START.md` erledigt ist.
 - **Anmeldung** (Magic Link · Google · Passkeys) als Pop-up bzw. `/login?from=…` – danach nie
-  auf «/», sondern `?from=` oder der Startplatz der Rolle. **Konto**: «Mein Profil» (Person ·
-  Firma · Adressbuch, ein Auto-Save) und «Sicherheit» (Passkeys).
+  auf «/», sondern `?from=` oder der Startplatz der Rolle; das Pop-up ist Glas. **Konto**: EINE Seite
+  im Stil der Website (Kopf «Mein Konto», Sprungleiste, Person · Adressen · Firma · Newsletter ·
+  Sicherheit; Auto-Save, Adressen und Passkeys als Karten).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
   · Unternehmen; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.

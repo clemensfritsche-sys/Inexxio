@@ -42,11 +42,11 @@ src/app/
 ├── (public)/agb/        ← AGB (B2B + B2C) – der Anmeldedialog verweist darauf
 ├── (auth)/login/        ← Magic Link · Google · Passkey (Pop-up ODER Route); verify/ = Magic-Link-Rückkehr
 ├── (auth)/abmelden/     ← Abmelde-Weg für die Website (ruft logout(), räumt den Anzeige-Cache)
-├── (account)/konto/     ← «Mein Profil» + «Sicherheit» – Spiegel des eigenen Benutzer-Datensatzes
+├── (account)/konto/     ← «Mein Konto»: EINE Seite (Person · Adressen · Firma · Newsletter · Sicherheit) – Spiegel des eigenen Benutzer-Datensatzes
 └── (erp)/erp/           ← Universal Feed (Master-Detail) – die EINZIGE ERP-Oberfläche
 src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
-├── account/   ← account-shell, sections/ (profile, security, passkeys)
+├── account/   ← account-shell (Kopf, Sprungleiste), kt-section (Abschnitt, Feld; Stile `.kt-*`), sections/ (profile, security, passkeys)
 ├── auth/      ← login-dialog, passkey-nudge
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label
 ├── form/      ← field, save-status (Formular-Bausteine)
