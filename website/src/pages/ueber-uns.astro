@@ -13,14 +13,13 @@ import StageHero from '../components/StageHero.astro';
 import AreaTrio from '../components/home/AreaTrio.astro';
 import SolutionPath from '../components/spezial/SolutionPath.astro';
 import Guarantees from '../components/home/Guarantees.astro';
+import Handover from '../components/home/Handover.astro';
 import FaqStage from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
-import Photo from '../components/Photo.astro';
 import Icon from '../components/Icon.astro';
 import Rich from '../components/Rich.astro';
-import { site } from '../config/site.mjs';
 import { ueberUns as u } from '../content/ueber-uns';
-import { handover as h, heiriQuote, news, stays } from '../content/uebergabe';
+import { handover as h } from '../content/uebergabe';
 import { faqPage, owner } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
 import titel from '../assets/illustrations/ueber-titel.webp';
@@ -65,42 +64,15 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
 
   <SolutionPath id="geschichte" title={u.history.title} start={plain(u.history.start)} end={plain(u.history.end)} items={history} />
 
-  <section class="v4-section" id="uebergabe" aria-labelledby="uebergabe-title">
-    <div class="wrap">
-      <header class="v4-head--center">
-        <h2 class="v4-h2" id="uebergabe-title">{u.people.title}</h2>
-        <Rich as="p" class="v4-sub" text={h.lead} />
-      </header>
-      <div class="uu-duo">
-        <figure class="uu-quote">
-          <span class="uu-quote__mark" aria-hidden="true">«</span>
-          <blockquote><p>{heiriQuote}</p></blockquote>
-          <figcaption><strong>{site.people.founder.name}</strong><span>Gründer von HS Steiner{site.features.heiriAdvisory && ' – in der Übergangszeit beratend dabei'}</span></figcaption>
-        </figure>
-        <div class="uu-msg">
-          <div class="uu-msg__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 22vw, 50vw" /></div>
-          <div class="uu-msg__text">
-            {u.people.message.map((p) => <Rich as="p" text={p} />)}
-            <p class="uu-msg__sig"><strong>{site.people.owner.name}</strong><span>{site.people.owner.role} {plain('{{brand.name}}')}</span></p>
-          </div>
-        </div>
-      </div>
-      <div class="uu-lists">
-        <div>
-          <h3 class="uu-lists__h">Was bleibt</h3>
-          <ul class="checklist" role="list">
-            {stays.map((s) => <li><Icon name="check" size={20} /><Rich as="span" text={s} /></li>)}
-          </ul>
-        </div>
-        <div>
-          <h3 class="uu-lists__h">Was neu ist</h3>
-          <ul class="checklist" role="list">
-            {news.map((s) => <li><Icon name="plus" size={20} /><Rich as="span" text={s} /></li>)}
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
+  <Handover title={u.people.title} lead={u.people.lead}>
+    <ul role="list" class="uu-voices">
+      {u.people.voices.map((v) => <li><strong>«{v.q}»</strong> <span>– {plain(v.who)}</span></li>)}
+    </ul>
+    <dl class="uu-change">
+      <div><dt><Icon name="check" size={16} />Bleibt</dt><Rich as="dd" text={u.people.stays} /></div>
+      <div><dt><Icon name="plus" size={16} />Neu</dt><Rich as="dd" text={u.people.news} /></div>
+    </dl>
+  </Handover>
 
   <section class="v4-section" aria-labelledby="werte">
     <div class="wrap">
@@ -152,26 +124,13 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
     .uu-figs { gap: 48px 40px; }
   }
 
-  /* Die Übergabe: Heiris Zitat gross, daneben Clemens mit kurzer Botschaft. */
-  .uu-duo { display: grid; gap: 56px; margin-top: 48px; }
-  .uu-quote { margin: 0; }
-  .uu-quote__mark { display: block; height: 56px; margin-left: -4px; font-family: var(--font-display); font-weight: 600; font-size: 6rem; line-height: 1; color: var(--red); transform: translateY(-22px); }
-  .uu-quote blockquote { margin: 0; }
-  .uu-quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.125rem); line-height: 1.22; letter-spacing: -0.025em; color: var(--ink); }
-  .uu-quote figcaption, .uu-msg__sig { display: grid; gap: 2px; margin-top: 24px; font-size: 0.9375rem; }
-  .uu-quote figcaption span, .uu-msg__sig span { color: var(--gray-500); }
-  .uu-msg { display: grid; gap: 20px; align-items: start; }
-  .uu-msg__fig { width: 96px; }
-  .uu-msg__fig :global(img) { border-radius: 999px; background: var(--gray-100); aspect-ratio: 1; object-fit: cover; object-position: 50% 12%; }
-  .uu-msg__text { display: grid; gap: 14px; font-size: 1.0625rem; line-height: 1.6; color: var(--ink-2); }
-  @media (min-width: 960px) {
-    .uu-duo { grid-template-columns: 7fr 5fr; gap: 96px; margin-top: 72px; align-items: start; }
-    .uu-msg { padding-top: 8px; }
-    .uu-msg__fig { width: 140px; }
-  }
-  .uu-lists { display: grid; gap: 40px; margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--line); }
-  .uu-lists__h { margin-bottom: 16px; font-size: 1.25rem; }
-  @media (min-width: 720px) { .uu-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* Die Übergabe (Baustein der Startseite): zwei Stimmen, darunter knapp, was bleibt und was neu ist. */
+  .uu-voices { list-style: none; padding: 0; display: grid; gap: 6px; margin-top: 16px; font-size: 0.9375rem; }
+  .uu-voices span { color: var(--gray-500); }
+  .uu-change { display: grid; gap: 8px; margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.875rem; }
+  .uu-change div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; }
+  .uu-change dt { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink); }
+  .uu-change :global(dd) { margin: 0; color: var(--ink-2); }
 
   /* Werte: fünf Spalten, je ein Symbol im Glas-Knoten (wie die Stationen des Wegs). */
   .uu-values { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 40px; }

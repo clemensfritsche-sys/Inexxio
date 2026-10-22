@@ -19,7 +19,7 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 | `teil-einfuelltrichter` (zurzeit Beispielbild) | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 | `teil-auslaufschurre` (zurzeit Beispielbild) | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 | `teil-spiralschutz` (zurzeit Beispielbild) | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `clemens-heiri-quer` (zurzeit Beispielbild) | Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat | 3:2 | `/` |
+| `clemens-heiri-quer` (zurzeit Beispielbild) | Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat | 3:2 | `/`, `/ueber-uns` |
 | `werkstatt-aussen` (zurzeit Beispielbild) | Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | noch nicht verwendet |
 | `team` (zurzeit Beispielbild) | Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | noch nicht verwendet |
 | `arbeit-werkstatt` (zurzeit Beispielbild) | Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer | 4:3 | `/fahrzeugtechnik/trommeltausch`, `/fahrzeugtechnik`, `/`, `/karriere`, `/krantechnik/heukrananlagen`, `/krantechnik/krane-nach-mass`, `/krantechnik/kranservice`, `/krantechnik`, `/spezialloesungen`, `/ueber-uns` |

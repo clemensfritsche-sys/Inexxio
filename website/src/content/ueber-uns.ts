@@ -38,13 +38,16 @@ export const ueberUns = {
       { no: 'Heute', icon: 'handshake' as const, who: 'Nachfolge', title: 'Aus HS Steiner wird {{brand.name}}', text: 'Heiri Steiner übergibt an Clemens Fritsche. Standort, Telefonnummer und der Service für alle HS-Krananlagen bleiben.' },
     ],
   },
-  /** Die Übergabe – zwei Menschen: Heiris Zitat, Clemens' kurze Botschaft. */
+  /** Die Übergabe – Collage wie auf der Startseite, zwei Stimmen, kurz was bleibt und was neu ist. */
   people: {
     title: 'Ein Handschlag zwischen zwei Generationen',
-    message: [
-      'Ich bin Maschinenbauingenieur, habe bei Liebherr Bohrgeräte mitentwickelt und danach vernetzte Maschinen und Plattformen verantwortet. Als ich Heiri kennengelernt habe, war schnell klar: Hier stimmt die Basis – treue Kunden, solide Anlagen, ehrliches Handwerk.',
-      'Was Heiri in {{history.experienceDative}} aufgebaut hat, führe ich mit derselben Sorgfalt weiter – und ergänze es dort, wo es Ihnen nützt.',
+    lead: 'Nach {{history.experienceDative}} übergibt Heiri Steiner an Clemens Fritsche. Was sich bewährt hat, bleibt.',
+    voices: [
+      { q: 'Meine Kunden sind bei ihm in guten Händen.', who: '{{people.founder.name}}' },
+      { q: 'Ich führe weiter, was Heiri aufgebaut hat – mit derselben Sorgfalt.', who: '{{people.owner.name}}' },
     ],
+    stays: 'Standort · Telefonnummer · Service für HS-Anlagen',
+    news: 'Der Name {{brand.name}} · Ingenieurwissen · Speziallösungen',
   },
   /** Mehr über uns – die Unterseiten von «Über uns», wie im Menü. */
   more: {
