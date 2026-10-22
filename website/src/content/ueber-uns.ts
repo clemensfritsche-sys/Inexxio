@@ -23,7 +23,7 @@ export const ueberUns = {
       { figure: '{{history.founded}}', text: 'Gegründet von Heiri Steiner in {{address.town}}' },
       { figure: '{{history.cranesSince}}', text: 'Die erste eigene Krananlage' },
       { figure: '3', text: 'Bereiche: Krantechnik, Fahrzeugtechnik, Speziallösungen' },
-      { figure: 'CH · DE · AT', text: 'Im Einsatz – und darüber hinaus, wo Sie uns brauchen' },
+      { figure: '1', text: 'Ansprechpartner – vom ersten Gespräch bis zum Service' },
     ],
   },
   /** Die Geschichte als Weg (Baustein SolutionPath) – die Jahre stehen gross daneben. */
