@@ -3,12 +3,13 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .database import get_db
 from ..models import UserProfile
+from ..services import people
+from ..services.admin import log_audit
 from ..services.people import STAFF_ROLES
 
 settings = get_settings()
@@ -128,16 +129,15 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
         user.role = "admin"
         changed = True
 
-    email = (email or "").strip().lower()
-    if email and user.email != email:
-        collision = db.query(UserProfile).filter(
-            func.lower(UserProfile.email) == email,
-            UserProfile.id != user.id,
-            UserProfile.is_active == True,
-        ).first()
-        if not collision:
-            user.email = email
-            changed = True
+    # ►►► **Die Anmelde-E-Mail kommt von Firebase** – geändert wird sie im Konto über einen
+    # Bestätigungslink an die NEUE Adresse (``verifyBeforeUpdateEmail``); hier landet sie,
+    # sobald ein Token sie trägt. Dieselbe Regel wie vor dem Link (``people.email_problem``).
+    email = people.normalize_email(email)
+    if email and user.email != email and people.email_problem(db, user, email) is None:
+        log_audit(db, "user_profiles", "email", email, user.id,
+                  object_id=user.object_id, old_value=user.email)
+        user.email = email
+        changed = True
 
     new_photo = decoded.get("picture")
     if new_photo and user.photo_url != new_photo:

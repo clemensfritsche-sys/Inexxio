@@ -39,6 +39,27 @@ export interface paths {
         patch: operations["update_me_api_v1_auth_me_patch"];
         trace?: never;
     };
+    "/api/v1/auth/me/email-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check My Email
+         * @description Darf die Anmelde-E-Mail auf diese Adresse wechseln? – gefragt, BEVOR Firebase den
+         *     Bestätigungslink schickt (``people.email_problem``). 204 = ja, sonst 409 mit Grund.
+         */
+        post: operations["check_my_email_api_v1_auth_me_email_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me/addresses": {
         parameters: {
             query?: never;
@@ -2274,6 +2295,14 @@ export interface components {
              * @default true
              */
             returns: boolean;
+        };
+        /**
+         * EmailCheck
+         * @description Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht.
+         */
+        EmailCheck: {
+            /** Email */
+            email: string;
         };
         /**
          * ErpAdminUpdate
@@ -5044,6 +5073,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_my_email_api_v1_auth_me_email_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailCheck"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

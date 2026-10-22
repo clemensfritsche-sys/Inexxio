@@ -7,6 +7,7 @@ import { legalForms } from '@/lib/legal-forms';
 import { Field as AField } from '@/components/form/field';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ErrorText } from '@/components/erp/fields';
+import { KtField } from '@/components/form/kt-section';
 import type { CompanyRef, NewCompany } from '@/types';
 
 /**
@@ -26,7 +27,7 @@ import type { CompanyRef, NewCompany } from '@/types';
  * **Neu nennen gibt es nur ohne `search`** (Konto): das Personal legt eine Firma über den
  * regulären Weg an («+» im Feed) und ordnet sie hier zu (Testnotiz #1214).
  */
-export function CompanyField({ company, readOnly, country, search, onLink, onCreate }: {
+export function CompanyField({ company, readOnly, country, search, onLink, onCreate, look = 'erp' }: {
   company: CompanyRef | null | undefined;
   readOnly?: boolean;
   /** Land der Person – für die Vorschläge der Rechtsform. */
@@ -36,7 +37,10 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
   onLink: (objectId: number | null) => Promise<unknown>;
   /** Nur im Konto – im ERP entsteht eine Firma über «+» im Feed. */
   onCreate?: (company: NewCompany) => Promise<unknown>;
+  /** `kt` = Gestaltung des Kontos (graue Karten, `.kt-*`) – dieselbe Logik, andere Haut. */
+  look?: 'erp' | 'kt';
 }) {
+  const kt = look === 'kt';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
@@ -87,7 +91,7 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
             .map((c) => ({ object_id: c.object_id, name: c.legal_name }))}
           onChange={(id) => { void run(() => onLink(id)); }} />
       ) : (
-        <Current company={company} busy={busy} readOnly={readOnly}
+        <Current company={company} busy={busy} readOnly={readOnly} kt={kt}
           onUnlink={() => { void run(() => onLink(null)); }} />
       )}
 
@@ -97,12 +101,42 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
 
       {!readOnly && !adding && onCreate && !company && (
         <button type="button" onClick={() => setAdding(true)}
-          className="self-start inline-flex items-center gap-1.5 text-xs text-accent hover:underline">
-          <Plus size={13} /> Firma angeben
+          className={kt ? 'kt-add' : 'self-start inline-flex items-center gap-1.5 text-xs text-accent hover:underline'}>
+          <Plus size={kt ? 16 : 13} /> Firma angeben
         </button>
       )}
 
-      {!readOnly && adding && onCreate && (
+      {!readOnly && adding && onCreate && kt && (
+        <div className="kt-card">
+          <span className="kt-card-ic"><Building2 aria-hidden /></span>
+          <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 12 }}>
+            <KtField id="kt-uid" label="UID" value={draft.uid_number ?? ''} placeholder="CHE-123.456.788"
+              onChange={(v) => setDraft((d) => ({ ...d, uid_number: v }))} />
+            <div className="kt-grid2">
+              <KtField id="kt-firm" label="Firmenname" value={draft.company_name ?? ''} placeholder="Muster"
+                onChange={(v) => setDraft((d) => ({ ...d, company_name: v }))} />
+              <KtField id="kt-form" label="Rechtsform" value={draft.legal_form ?? ''} list="company-field-forms"
+                placeholder={forms[0] ?? 'AG'} onChange={(v) => setDraft((d) => ({ ...d, legal_form: v }))} />
+              <datalist id="company-field-forms">
+                {forms.map((f) => <option key={f} value={f} />)}
+              </datalist>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="kt-pill" disabled={!ready || busy}
+                title={ready ? undefined : 'UID – oder Firmenname und Rechtsform – fehlen.'}
+                onClick={() => void create()}>
+                Firma übernehmen
+              </button>
+              <button type="button" className="kt-pill kt-pill--ghost" disabled={busy}
+                onClick={() => { setAdding(false); setError(''); }}>
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!readOnly && adding && onCreate && !kt && (
         <div className="rounded-ds-md border border-border-1 p-3 flex flex-col gap-3">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-fg-2">
             <Building2 size={13} /> Firma
@@ -142,12 +176,34 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
 
 /** Die zugeordnete Firma, wie die Person sie sieht: Name mit Rechtsform und UID. Ändern
  *  kann sie sie nicht – nur die Zuordnung lösen und eine andere nennen. */
-function Current({ company, busy, readOnly, onUnlink }: {
+function Current({ company, busy, readOnly, onUnlink, kt }: {
   company: CompanyRef | null | undefined; busy: boolean; readOnly?: boolean;
-  onUnlink: () => void;
+  onUnlink: () => void; kt?: boolean;
 }) {
   if (!company) {
+    // Im Konto sagt der Knopf «Firma angeben» genug; nur wer nichts ändern kann, liest es.
+    if (kt) return readOnly ? <p className="kt-note">Keine – Privatperson</p> : null;
     return <span className="text-sm text-fg-3">Keine – Privatperson</span>;
+  }
+  if (kt) {
+    return (
+      <div className="kt-card">
+        <span className="kt-card-ic"><Building2 aria-hidden /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span className="kt-card-tag">Firma</span>
+          <div className="kt-card-text">
+            {company.legal_name}
+            {company.uid_number && <small className="ix-tnum">{company.uid_number}</small>}
+          </div>
+        </div>
+        {!readOnly && (
+          <button type="button" className="kt-round" disabled={busy} onClick={onUnlink}
+            title="Zuordnung lösen – danach bestellen Sie privat." aria-label="Zuordnung lösen">
+            <Unlink size={16} />
+          </button>
+        )}
+      </div>
+    );
   }
   return (
     <div className="flex items-center justify-between gap-3 rounded-ds-md border border-border-1 px-3 py-2">

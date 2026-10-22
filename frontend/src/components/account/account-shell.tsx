@@ -3,8 +3,8 @@
 /**
  * **Mein Konto – EINE ruhige Seite** (Entwurf «Mein Konto» A, Oktober 2026).
  *
- * Kopf wie die Website (`StageHero`): das grosse Wort «Mein Konto», davor die Person, darunter
- * Name, E-Mail und Benutzernummer und – solange etwas fehlt – eine Glas-Pille, die genau das
+ * Kopf wie die Website (`StageHero`): der Name als grosses, leises Wort, davor die Person,
+ * darunter E-Mail und Benutzernummer und – solange etwas fehlt – eine Glas-Pille, die genau das
  * Erste nennt, was fehlt. Darunter eine Glas-Leiste mit Sprungmarken, dann die Abschnitte
  * (Person · Adressen · Firma · Newsletter · Sicherheit). Vorher: zwei Reiter, Seitenleiste
  * und ein eigener Handy-Zweig – jetzt eine Anordnung, die das CSS schmal stapelt.
@@ -80,6 +80,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   }
 
   const name = userDisplayName(profile);
+  const word = name || 'Mein Konto';
   const number = profile.object_id != null ? String(profile.object_id).padStart(9, '0').replace(/(\d{3})(?=\d)/g, '$1 ') : '';
   const next = completion.missing[0];
   const tone = completion.percentage === 100 ? 'var(--success)' : 'var(--fg-1)';
@@ -87,9 +88,12 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   return (
     <div className="kt">
       <header className="kt-hero">
-        <span className="kt-word" aria-hidden>Mein Konto</span>
+        {/* Der Name IST die Überschrift – gross und leise hinter der Person. Die Schriftgrösse
+            folgt der Länge (`--n` ganze Zeile, `--w` längstes Wort, schmal bricht er um). */}
+        <h1 className="kt-word" style={{
+          '--n': word.length, '--w': Math.max(...word.split(' ').map((w) => w.length)),
+        } as React.CSSProperties}>{word}</h1>
         <Avatar profile={profile} name={name} />
-        <h1>{name || 'Mein Konto'}</h1>
         <p className="kt-meta">
           <span>{profile.email}</span>
           {number && <> · <span>Benutzernummer <b>{number}</b></span></>}

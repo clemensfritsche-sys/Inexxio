@@ -41,6 +41,11 @@ class CompanyCreate(BaseModel):
     is_own: bool = False
 
 
+class EmailCheck(BaseModel):
+    """Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht."""
+    email: str
+
+
 class AddressIn(BaseModel):
     """**Eine Anschrift im Adressbuch** – anlegen oder ändern (nur Gesendetes wirkt).
 

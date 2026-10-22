@@ -32,6 +32,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-22-login-glas.md` | Login-Pop-up als Glas (ohne ✕, Handy als Blatt), Sprachen-Reihenfolge, Kürzel linksbündig |
 | `2026-10-22-konto-neu.md` | «Mein Konto» als eine Seite im Stil der Website (Entwurf A) |
 | `2026-10-22-fahrzeugtechnik-neu.md` | Fahrzeugtechnik, Trommeltausch und Verschleissteile im Layout von Speziallösungen |
+| `2026-10-22-konto-feinschliff.md` | Konto: Name im Kopf, Adresssuche und Bearbeiten in der neuen Haut, Datum, Telefon, Anmelde-E-Mail ändern |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.

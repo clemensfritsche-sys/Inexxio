@@ -1,54 +1,81 @@
 'use client';
 
 /**
- * **Sicherheit** – der letzte Abschnitt der Konto-Seite: die Anmelde-E-Mail (ändern per
- * Bestätigungslink an die NEUE Adresse; bei Google verwaltet Google sie), die Passkeys und
+ * **Sicherheit** – der letzte Abschnitt der Konto-Seite: die Anmelde-E-Mail, die Passkeys und
  * das Abmelden.
+ *
+ * **Die Anmelde-E-Mail ändern** (für jede Anmeldeart, auch Google): zuerst fragt der Server,
+ * ob die Adresse frei ist (`api.checkMyEmail`, dieselbe Regel wie beim Übernehmen), dann
+ * schickt Firebase den Bestätigungslink an die NEUE Adresse – erst der Klick ändert sie.
+ * Verlangt Firebase eine frische Anmeldung, geht das mit Google im Pop-up; sonst meldet man
+ * sich kurz neu an und kommt mit der gemerkten Adresse hierher zurück.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut, Mail, Pencil } from 'lucide-react';
 import type { UserProfile } from '@/types';
-import { auth, updateEmailAddress } from '@/lib/firebase';
-import { KtField, KtSection } from '../kt-section';
+import { api } from '@/lib/api';
+import { logout, reauthenticate, updateEmailAddress } from '@/lib/firebase';
+import { KtField, KtSection } from '@/components/form/kt-section';
 import { PasskeysCard } from './passkeys-card';
 
+/** Die neue Adresse über eine Neuanmeldung hinweg (der Magic Link öffnet oft einen neuen Tab). */
+const PENDING = 'inexxio_new_email';
+
+type Step = 'idle' | 'form' | 'reauth' | 'sent';
+
+function reason(e: unknown): string {
+  const code = (e as { code?: string }).code;
+  if (code === 'auth/email-already-in-use') return 'Diese Adresse gehört bereits zu einem anderen Konto.';
+  if (code === 'auth/invalid-email' || code === 'auth/invalid-new-email') return 'Das ist keine gültige E-Mail-Adresse.';
+  if (code === 'auth/too-many-requests') return 'Zu viele Versuche – bitte in ein paar Minuten noch einmal.';
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Die Anmeldung wurde abgebrochen.';
+  return e instanceof Error ? e.message : 'Das hat nicht geklappt.';
+}
+
 export function SecuritySection({ profile }: { profile: UserProfile }) {
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [confirmEmail, setConfirmEmail] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState<Step>('idle');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const isGoogleUser = auth?.currentUser?.providerData?.some((p) => p.providerId === 'google.com');
+  // Zurück von der Neuanmeldung: die gemerkte Adresse steht wieder im Feld.
+  useEffect(() => {
+    const pending = localStorage.getItem(PENDING);
+    if (pending) { localStorage.removeItem(PENDING); setEmail(pending); setStep('form'); }
+  }, []);
 
-  function cancel() {
-    setShowEmailForm(false); setError(''); setNewEmail(''); setConfirmEmail('');
+  function cancel() { setStep('idle'); setError(''); setEmail(''); }
+
+  async function send(retried = false): Promise<void> {
+    try {
+      await updateEmailAddress(email.trim());
+      setStep('sent');
+    } catch (e) {
+      if ((e as { code?: string }).code !== 'auth/requires-recent-login' || retried) throw e;
+      if (await reauthenticate() === 'done') return send(true);
+      setStep('reauth');
+    }
   }
 
-  async function handleEmailChange(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (newEmail !== confirmEmail) { setError('Die E-Mail-Adressen stimmen nicht überein.'); return; }
-    if (newEmail === profile.email) { setError('Die neue Adresse ist identisch mit der aktuellen.'); return; }
-    setSending(true);
-    setError('');
+    if (busy || !email.trim()) return;
+    setBusy(true); setError('');
     try {
-      await updateEmailAddress(newEmail);
-      setSent(true);
-      cancel();
-    } catch (e: unknown) {
-      const code = (e as { code?: string }).code;
-      if (code === 'auth/requires-recent-login') {
-        setError('Aus Sicherheitsgründen ist eine erneute Anmeldung nötig. Bitte abmelden und wieder anmelden.');
-      } else if (code === 'auth/email-already-in-use') {
-        setError('Diese E-Mail-Adresse ist bereits mit einem anderen Konto verknüpft.');
-      } else {
-        setError(e instanceof Error ? e.message : 'Fehler beim Senden');
-      }
+      await api.checkMyEmail(email.trim());
+      await send();
+    } catch (err) {
+      setError(reason(err));
     } finally {
-      setSending(false);
+      setBusy(false);
     }
+  }
+
+  async function signInAgain() {
+    localStorage.setItem(PENDING, email.trim());
+    await logout();
+    window.location.assign(`/login?from=${encodeURIComponent('/konto#sicherheit')}`);
   }
 
   return (
@@ -58,29 +85,48 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
         <span className="kt-card-ic"><Mail aria-hidden /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <span className="kt-card-tag">Anmelde-E-Mail</span>
-          <div className="kt-card-text">
-            {profile.email}
-            {isGoogleUser && <small>Wird über Ihr Google-Konto verwaltet.</small>}
-          </div>
-          {showEmailForm && (
-            <form onSubmit={handleEmailChange} style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-              <KtField id="kt-new-mail" label="Neue E-Mail-Adresse" type="email" value={newEmail} onChange={setNewEmail} placeholder="neue@email.ch" />
-              <KtField id="kt-new-mail2" label="Neue E-Mail bestätigen" type="email" value={confirmEmail} onChange={setConfirmEmail} placeholder="neue@email.ch" />
-              <p className="kt-note">Der Bestätigungslink geht an die <strong>neue</strong> Adresse. Nach dem Klick und erneutem Anmelden gilt sie.</p>
+          <div className="kt-card-text">{profile.email}</div>
+
+          {step === 'form' && (
+            <form onSubmit={submit} style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+              <KtField id="kt-new-mail" label="Neue E-Mail-Adresse" type="email" value={email}
+                onChange={setEmail} placeholder="name@beispiel.ch" autoComplete="email" />
+              <p className="kt-note">
+                Wir schicken einen Bestätigungslink an die <strong>neue</strong> Adresse. Erst
+                mit dem Klick gilt sie – danach melden Sie sich mit ihr an.
+              </p>
               {error && <p className="kt-note is-error">{error}</p>}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="submit" className="kt-pill" disabled={sending || !newEmail}>
-                  {sending ? 'Wird gesendet…' : 'Bestätigungslink senden'}
+                <button type="submit" className="kt-pill" disabled={busy || !email.trim()}>
+                  {busy ? 'Wird gesendet …' : 'Link senden'}
                 </button>
                 <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>Abbrechen</button>
               </div>
             </form>
           )}
-          {sent && <p className="kt-note is-ok" style={{ marginTop: 10 }}>Bestätigungslink gesendet – bitte die neue Adresse prüfen.</p>}
+
+          {step === 'reauth' && (
+            <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+              <p className="kt-note">
+                Zur Sicherheit braucht es eine frische Anmeldung. Danach kommen Sie hierher
+                zurück, «{email.trim()}» steht schon im Feld.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="kt-pill" onClick={() => void signInAgain()}>Neu anmelden</button>
+                <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>Abbrechen</button>
+              </div>
+            </div>
+          )}
+
+          {step === 'sent' && (
+            <p className="kt-note is-ok" style={{ marginTop: 10 }}>
+              Link an «{email.trim()}» gesendet. Bis Sie ihn anklicken, gilt «{profile.email}».
+            </p>
+          )}
         </div>
-        {!isGoogleUser && !showEmailForm && (
+        {step === 'idle' && (
           <button type="button" className="kt-round" title="Ändern" aria-label="E-Mail-Adresse ändern"
-            onClick={() => { setShowEmailForm(true); setSent(false); }}>
+            onClick={() => setStep('form')}>
             <Pencil size={16} />
           </button>
         )}

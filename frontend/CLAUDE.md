@@ -46,10 +46,10 @@ src/app/
 └── (erp)/erp/           ← Universal Feed (Master-Detail) – die EINZIGE ERP-Oberfläche
 src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
-├── account/   ← account-shell (Kopf, Sprungleiste), kt-section (Abschnitt, Feld; Stile `.kt-*`), sections/ (profile, security, passkeys)
+├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys)
 ├── auth/      ← login-dialog, passkey-nudge
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label
-├── form/      ← field, save-status (Formular-Bausteine)
+├── form/      ← field, save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 ├── layout/    ← site-shell, account-sync
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · use-autosave.ts · use-search.ts ·

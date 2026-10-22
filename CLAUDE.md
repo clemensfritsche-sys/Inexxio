@@ -437,8 +437,11 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   `preview` bis `website/START.md` erledigt ist.
 - **Anmeldung** (Magic Link · Google · Passkeys) als Pop-up bzw. `/login?from=…` – danach nie
   auf «/», sondern `?from=` oder der Startplatz der Rolle; das Pop-up ist Glas. **Konto**: EINE Seite
-  im Stil der Website (Kopf «Mein Konto», Sprungleiste, Person · Adressen · Firma · Newsletter ·
-  Sicherheit; Auto-Save, Adressen und Passkeys als Karten).
+  im Stil der Website (der Name als grosses Wort im Kopf, Sprungleiste, Person · Adressen · Firma ·
+  Newsletter · Sicherheit; Auto-Save, Adressen, Firma und Passkeys als Karten). **Anmelde-E-Mail
+  ändern**: Server prüft (`people.email_problem`), Firebase schickt den Link an die neue Adresse
+  (`verifyBeforeUpdateEmail`), das Profil übernimmt sie aus dem nächsten Token. Telefon schreibt
+  der Server lesbar zurück (`people.tidy_phone`).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
   · Unternehmen; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.
