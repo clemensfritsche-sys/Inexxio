@@ -99,14 +99,12 @@ export const handover = {
     { year: `${site.history.gmbhYear}`, text: 'Das Unternehmen wird zur {{brand.formerLegalName}}.' },
     { year: 'Heute', text: 'Heiri Steiner übergibt an Clemens Fritsche – aus HS Steiner wird die {{brand.legalName}}.' },
   ],
+  /** Nur, was «Was bleibt / was neu ist» nicht schon beantwortet (Telefon, Verträge, neue Krane). */
   faq: [
-    sharedFaq.phone,
-    sharedFaq.contracts,
     sharedFaq.whoCares,
     ...(site.features.heiriAdvisory
       ? [{ q: 'Bleibt Heiri Steiner dabei?', a: '{{people.founder.advisory}}' }]
       : []),
     sharedFaq.parts,
-    { q: sharedFaq.newCranes.q, a: `${sharedFaq.newCranes.a} Mehr dazu unter [Heukrananlagen](/krantechnik/heukrananlagen).` },
   ] satisfies Faq[],
 };
