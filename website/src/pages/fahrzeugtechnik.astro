@@ -1,8 +1,8 @@
 ---
 /**
  * /fahrzeugtechnik – eigenes Layout nach dem Muster von Speziallösungen (Oktober 2026):
- * Kopf wie Porsche (StageHero, die zwei Fahrmischer der Unterseiten) → Drei Wege, ein Ziel
- * (Karten: Trommeltausch · Verschleissteile · Reparatur #reparatur) → So läuft es ab (Weg) →
+ * Kopf wie Porsche (StageHero, die zwei Fahrmischer der Unterseiten) → Alles für Ihren
+ * Fahrmischer (Karten: Trommeltausch · Verschleissteile · Reparatur #reparatur) → So läuft es ab (Weg) →
  * Marken → Garantien → Fragen → Anfrage. Texte: content/fahrzeugtechnik.ts.
  */
 import Base from '../layouts/Base.astro';
@@ -39,7 +39,7 @@ const cta = { label: 'Anfragen', href: '#anfrage' };
 
   <div class="wrap ft-season"><SeasonNotice page={page.path} /></div>
 
-  <FieldCards id="angebot" title={o.title} lead={o.lead} items={o.items} cta={cta} start={0} />
+  <FieldCards id="angebot" title={o.title} lead={o.lead} items={o.items} cta={cta} />
 
   <SolutionPath title={s.title} start={s.start} end={s.end} items={s.items} />
 

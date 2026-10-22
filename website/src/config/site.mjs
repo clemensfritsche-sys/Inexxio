@@ -198,7 +198,7 @@ export const site = {
   marks: {
     mixers: ['Intermix', 'Putzmeister', 'Cifa', 'Stetter', 'Liebherr', 'Belmix', 'Peter'],
     mixerNotice:
-      'Markennamen gehören ihren Inhabern. Wir sind unabhängig und kein Vertragshändler.',
+      'Wir sind unabhängig von jedem Hersteller und kein Vertragshändler.',
   },
 
   /** Elemente, die sich per Schalter abschalten lassen. */

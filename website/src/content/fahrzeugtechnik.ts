@@ -41,7 +41,7 @@ export const vehiclePath = {
     { icon: 'phone', who: 'Sie', title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.', tags: ['Foto', 'Marke', 'Typ'] },
     { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und sagen offen, was sich lohnt.', check: 'Verbindliche Offerte' },
     { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Neue Trommel, Teile oder Reparatur – bei uns in {{address.city}}.', tags: ['Trommel', 'Teile', 'Hydraulik'] },
-    { icon: 'clipboard-check', who: 'Wir', title: 'Protokoll', text: 'Sie erhalten ein Protokoll mit Arbeiten und Teilen.', check: 'Fahrmischer zurück' },
+    { icon: 'truck', who: 'Gemeinsam', title: 'Übergabe', text: 'Probelauf bestanden – Ihr Fahrmischer fährt wieder.', check: 'Jede Arbeit dokumentiert' },
   ] satisfies Station[],
 };
 
@@ -53,8 +53,8 @@ export const fahrzeugtechnik: AreaPage = {
     'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
-    h1: 'Fahrmischer, die weiterfahren',
-    lead: 'Neue Trommel aufs gute Fahrgestell, Verschleissteile schnell beschafft – und repariert, was auf der Baustelle bricht.',
+    h1: 'Länger fahren statt neu kaufen',
+    lead: 'Trommeltausch, Verschleissteile und Reparatur für Fahrmischer – mit verbindlicher Offerte vorab.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Fahrmischer anfragen'),
   },
@@ -73,10 +73,6 @@ export const fahrzeugtechnik: AreaPage = {
       q: 'Liefern Sie auch Verschleissteile ohne Montage?',
       a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz bestellen Sie auch als Teil. Mehr dazu unter [Verschleissteile](/fahrzeugtechnik/verschleissteile).',
     },
-    {
-      q: 'Reparieren Sie auch Aufbauten?',
-      a: 'Ja – Mulden, Kipper, Hydraulik und Aufbauten von Baufahrzeugen. Fragen Sie an.',
-    },
   ],
   promises: ['garantie', 'inexxio365', 'erstservice'],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Trommeltausch und Verschleissteile für Fahrmischer' },
@@ -84,12 +80,12 @@ export const fahrzeugtechnik: AreaPage = {
 };
 
 /**
- * Drei Wege, ein Ziel – die Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit
+ * Alles für Ihren Fahrmischer – die Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit
  * der Zeichnung aus dem Menü. Reparatur und Aufbauten haben keine Unterseite (Anker #reparatur).
  */
 export const vehicleOffers = {
-  title: 'Drei Wege, ein Ziel',
-  lead: 'Wir prüfen zuerst und tun nur, was sich lohnt.',
+  title: 'Alles für Ihren Fahrmischer',
+  lead: 'Von der Rinne bis zur neuen Trommel.',
   items: [
     {
       id: 'trommel',
@@ -176,8 +172,6 @@ export const trommeltausch: SubPage = {
     },
     promiseFaq.garantie,
     faqBrands,
-    faqSpeed,
-    promiseFaq.secondOpinion,
   ],
   related: [
     { href: '/fahrzeugtechnik/verschleissteile', label: 'Verschleissteile', text: 'Auf Bestellung, schnell beschafft.' },
