@@ -66,27 +66,15 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
   <SolutionPath id="geschichte" title={u.history.title} start={plain(u.history.start)} end={plain(u.history.end)} items={history} />
 
   <section class="v4-section" id="uebergabe" aria-labelledby="uebergabe-title">
-    <div class="wrap">
-      <header class="v4-head--center">
-        <h2 class="v4-h2" id="uebergabe-title">{u.people.title}</h2>
-        <Rich as="p" class="v4-sub" text={h.lead} />
-      </header>
-      <figure class="uu-shake"><Photo id="handschlag" sizes="(min-width: 1300px) 1264px, 100vw" /></figure>
-      <div class="uu-duo">
-        <figure class="uu-quote">
-          <span class="uu-quote__mark" aria-hidden="true">«</span>
-          <blockquote><p>{u.people.quote}</p></blockquote>
-          <figcaption><strong>{site.people.founder.name}</strong><span>Gründer von HS Steiner{site.features.heiriAdvisory && ' – in der Übergangszeit beratend dabei'}</span></figcaption>
-        </figure>
-        <div class="uu-msg">
-          {u.people.message.map((p) => <Rich as="p" text={p} />)}
-          <p class="uu-msg__sig"><span class="uu-msg__fig"><Photo id="portraet-clemens" sizes="56px" /></span><span><strong>{site.people.owner.name}</strong><span>{site.people.owner.role} {plain('{{brand.name}}')}</span></span></p>
-        </div>
-      </div>
-      <dl class="uu-change">
-        <div><dt><Icon name="check" size={18} />Was bleibt</dt><Rich as="dd" text={u.people.stays} /></div>
-        <div><dt><Icon name="plus" size={18} />Was neu ist</dt><Rich as="dd" text={u.people.news} /></div>
-      </dl>
+    <div class="wrap uu-ho">
+      <!-- Bis das Foto «handschlag» da ist, steht hier Clemens freigestellt. -->
+      <figure class="uu-ho__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 480px, 80vw" /></figure>
+      <h2 class="v4-h2 uu-ho__title" id="uebergabe-title">{u.people.title}</h2>
+      <figure class="uu-ho__quote">
+        <blockquote><p>«{u.people.quote}»</p></blockquote>
+        <figcaption><strong>{site.people.founder.name}</strong> · Gründer von HS Steiner{site.features.heiriAdvisory && ', in der Übergangszeit beratend dabei'}</figcaption>
+      </figure>
+      <p class="uu-ho__change"><span>Bleibt: <Rich as="span" text={u.people.stays} /></span><span>Neu: <Rich as="span" text={u.people.news} /></span></p>
     </div>
   </section>
 
@@ -134,30 +122,18 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
     .uu-figs { gap: 48px 40px; }
   }
 
-  /* Die Übergabe: das Bild gross in der Mitte, darunter Heiri (Zitat) und Clemens (Botschaft), dann eine Zeile was bleibt / neu ist. */
-  .uu-shake { margin: 40px 0 0; border-radius: 24px; overflow: hidden; background: var(--gray-100); }
-  .uu-shake :global(img), .uu-shake :global(.ph) { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
-  .uu-duo { display: grid; gap: 40px; margin-top: 48px; }
-  .uu-quote { margin: 0; }
-  .uu-quote__mark { display: block; height: 48px; font-family: var(--font-display); font-weight: 600; font-size: 5rem; line-height: 1; color: var(--red); transform: translateY(-18px); }
-  .uu-quote blockquote { margin: 0; }
-  .uu-quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.375rem, 1.1rem + 1.1vw, 2rem); line-height: 1.25; letter-spacing: -0.025em; color: var(--ink); }
-  .uu-quote figcaption { display: grid; gap: 2px; margin-top: 20px; font-size: 0.9375rem; }
-  .uu-quote figcaption span, .uu-msg__sig span span { color: var(--gray-500); }
-  .uu-msg { display: grid; gap: 14px; align-content: start; font-size: 1.0625rem; line-height: 1.6; color: var(--ink-2); }
-  .uu-msg__sig { display: flex; align-items: center; gap: 14px; margin-top: 10px; font-size: 0.9375rem; line-height: 1.35; color: var(--ink); }
-  .uu-msg__sig > span:last-child { display: grid; }
-  .uu-msg__fig { flex: none; width: 56px; height: 56px; border-radius: 50%; overflow: hidden; background: var(--gray-100); }
-  .uu-msg__fig :global(img) { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
-  .uu-change { display: grid; gap: 16px; margin: 56px 0 0; padding-top: 24px; border-top: 1px solid var(--line); }
-  .uu-change div { display: grid; gap: 4px; }
-  .uu-change dt { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); }
-  .uu-change :global(dd) { margin: 0; color: var(--ink-2); }
-  @media (min-width: 960px) {
-    .uu-shake { margin-top: 56px; }
-    .uu-duo { grid-template-columns: 7fr 5fr; gap: 96px; margin-top: 72px; }
-    .uu-change { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
-  }
+  /* Die Übergabe: die Person freigestellt, unten weich ausgeblendet (wie auf den anderen Seiten), darunter
+     Titel und Heiris Zitat als Haupttext; was bleibt und was neu ist nur leise. */
+  .uu-ho { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .uu-ho__fig { width: min(420px, 78%); margin: 0; }
+  .uu-ho__fig :global(img) { display: block; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 96%); mask-image: linear-gradient(180deg, #000 55%, transparent 96%); }
+  .uu-ho__title { margin-top: -24px; position: relative; }
+  .uu-ho__quote { margin: 28px 0 0; max-width: 900px; }
+  .uu-ho__quote blockquote { margin: 0; }
+  .uu-ho__quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.375rem, 1.05rem + 1.3vw, 2.125rem); line-height: 1.25; letter-spacing: -0.025em; color: var(--ink-2); }
+  .uu-ho__quote figcaption { margin-top: 20px; font-size: 0.9375rem; color: var(--gray-500); }
+  .uu-ho__quote figcaption strong { color: var(--ink); }
+  .uu-ho__change { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 28px; margin-top: 40px; font-size: 0.8125rem; color: var(--gray-500); }
 
   /* Werte, locker: grosse Zeilen – das Wort dunkel, der halbe Satz dahinter leise. Beim Zeigen wird der Satz dunkel. */
   .uu-values__h { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); }
