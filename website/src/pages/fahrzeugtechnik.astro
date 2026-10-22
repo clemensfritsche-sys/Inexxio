@@ -1,7 +1,7 @@
 ---
 /**
  * /fahrzeugtechnik – eigenes Layout nach dem Muster von Speziallösungen (Oktober 2026):
- * Kopf wie Porsche (StageHero, die zwei Fahrmischer der Unterseiten) → Alles für Ihren
+ * Kopf wie Porsche (StageHero, Fahrmischer als Zeichnung, Trommel und Rinne echt und rot) → Alles für Ihren
  * Fahrmischer (Karten: Trommeltausch · Verschleissteile · Reparatur #reparatur) → So läuft es ab (Weg) →
  * Marken → Garantien → Fragen → Anfrage. Texte: content/fahrzeugtechnik.ts.
  */
@@ -16,7 +16,7 @@ import FaqStage from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import titel from '../assets/illustrations/fahrzeug-titel.svg';
+import titel from '../assets/illustrations/fahrzeug-titel.webp';
 import { fahrzeugtechnik as page, vehicleOffers as o, vehiclePath as s } from '../content/fahrzeugtechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -30,7 +30,7 @@ const cta = { label: 'Anfragen', href: '#anfrage' };
   <StageHero
     word="Fahrzeugtechnik"
     image={titel}
-    alt="Zeichnung: zwei Fahrmischer – einer mit neuer Trommel, einer mit neuen Verschleissteilen in Rot"
+    alt="Fahrmischer als Konstruktionszeichnung, nur Trommel und Rinne sind echt und rot"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}

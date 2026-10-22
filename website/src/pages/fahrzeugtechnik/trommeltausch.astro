@@ -17,7 +17,7 @@ import ContactSection from '../../components/ContactSection.astro';
 import { areaOf } from '../../config/site.mjs';
 import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/menu/trommeltausch.svg';
+import titel from '../../assets/illustrations/trommel-titel.webp';
 import { trommeltausch as page, drumOptions as d, drumPath as p, winterSlot as w } from '../../content/fahrzeugtechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -38,12 +38,11 @@ const nodes = [
   <StageHero
     word="Trommeltausch"
     image={titel}
-    alt="Zeichnung: Fahrmischer mit neuer Trommel, die alte Trommel liegt daneben"
+    alt="Fahrgestell als Konstruktionszeichnung, eine neue rote Trommel schwebt am Kranhaken darüber"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
     secondary={{ label: 'Tauschen oder überholen?', href: '#wahl' }}
-    narrow
   />
 
   <SpecialStage id="wahl" title={d.title} lead={d.lead} items={d.items} art={d.items} legend={d.legend} cta={d.cta} />

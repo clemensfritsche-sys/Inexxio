@@ -16,7 +16,7 @@ import SolutionPath from '../../components/spezial/SolutionPath.astro';
 import BrandBand from '../../components/fahrzeug/BrandBand.astro';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/menu/verschleissteile.svg';
+import titel from '../../assets/illustrations/teile-titel.webp';
 import { verschleissteile as page, partsCatalog as c, partsOrder as o } from '../../content/fahrzeugtechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -30,12 +30,11 @@ const nodes = [
   <StageHero
     word="Verschleissteile"
     image={titel}
-    alt="Zeichnung: Fahrmischer mit Rinne, Schurre und Trichter in Rot"
+    alt="Fahrmischer als Konstruktionszeichnung, davor Trichter, Rinne und Spiralschutz echt und rot"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
     secondary={{ label: 'Zum Katalog', href: '#katalog' }}
-    narrow
   />
 
   <section class="v4-section" id="katalog" aria-labelledby="katalog-title">

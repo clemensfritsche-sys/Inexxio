@@ -42,5 +42,9 @@ Quelle). Verschleissteile: Katalog-Satz neu, Marken-Band auch hier, «Bestellt i
 (`SolutionPath`). Winter: zwei Phasen mit Symbol (Schneeflocke «Bau ruht», Sonne «Bausaison») über den
 Monaten ab November statt zwölf abstrakter Balken.
 
-**Offen:** eigene Kopfbilder (wie die Zeichnung mit echtem rotem Teil auf Speziallösungen) – heute
-stehen die Menü-Zeichnungen dort; Produktfotos der Teile sind weiter Beispielbilder.
+**Runde 5:** Eigene Kopfbilder (mit Gemini erzeugt, Strichzeichnung mit echten roten Teilen wie auf
+Speziallösungen): `fahrzeug-titel.webp` (Trommel und Rinne), `trommel-titel.webp` (neue Trommel am
+Kranhaken), `teile-titel.webp` (Trichter, Rinne, Spiralschutz als Explosion) – weisser Grund freigestellt
+(Alpha aus dem Weissanteil). Die zusammengesetzte `fahrzeug-titel.svg` ist weg.
+
+**Offen:** Produktfotos der Teile sind weiter Beispielbilder.
