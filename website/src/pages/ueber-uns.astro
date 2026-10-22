@@ -145,7 +145,7 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
   .uu-team { display: grid; gap: 40px; }
   .uu-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; margin: 0; }
   .uu-fig { display: grid; gap: 8px; align-content: start; padding-top: 16px; border-top: 1px solid var(--line-2); }
-  .uu-fig__num { font-family: var(--font-display); font-weight: 600; font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3.5rem); line-height: 1; letter-spacing: -0.04em; color: var(--ink); }
+  .uu-fig__num { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.75rem, 1.2rem + 2.4vw, 3.5rem); line-height: 1; white-space: nowrap; letter-spacing: -0.04em; color: var(--ink); }
   .uu-fig :global(dd) { margin: 0; font-size: 0.9375rem; line-height: 1.45; color: var(--gray-500); }
   @media (min-width: 960px) {
     .uu-team { grid-template-columns: 5fr 7fr; gap: 80px; align-items: end; }
@@ -154,18 +154,19 @@ const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plai
 
   /* Die Übergabe: Heiris Zitat gross, daneben Clemens mit kurzer Botschaft. */
   .uu-duo { display: grid; gap: 56px; margin-top: 48px; }
-  .uu-quote { position: relative; margin: 0; padding-top: 72px; }
-  .uu-quote__mark { position: absolute; top: -16px; left: -4px; font-family: var(--font-display); font-weight: 600; font-size: 8rem; line-height: 1; color: var(--red); }
+  .uu-quote { margin: 0; }
+  .uu-quote__mark { display: block; height: 56px; margin-left: -4px; font-family: var(--font-display); font-weight: 600; font-size: 6rem; line-height: 1; color: var(--red); transform: translateY(-22px); }
   .uu-quote blockquote { margin: 0; }
   .uu-quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.125rem); line-height: 1.22; letter-spacing: -0.025em; color: var(--ink); }
   .uu-quote figcaption, .uu-msg__sig { display: grid; gap: 2px; margin-top: 24px; font-size: 0.9375rem; }
   .uu-quote figcaption span, .uu-msg__sig span { color: var(--gray-500); }
-  .uu-msg { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .uu-msg { display: grid; gap: 20px; align-items: start; }
+  .uu-msg__fig { width: 96px; }
   .uu-msg__fig :global(img) { border-radius: 999px; background: var(--gray-100); aspect-ratio: 1; object-fit: cover; object-position: 50% 12%; }
   .uu-msg__text { display: grid; gap: 14px; font-size: 1.0625rem; line-height: 1.6; color: var(--ink-2); }
   @media (min-width: 960px) {
     .uu-duo { grid-template-columns: 7fr 5fr; gap: 96px; margin-top: 72px; align-items: start; }
-    .uu-msg { grid-template-columns: 1fr; padding-top: 8px; }
+    .uu-msg { padding-top: 8px; }
     .uu-msg__fig { width: 140px; }
   }
   .uu-lists { display: grid; gap: 40px; margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--line); }
