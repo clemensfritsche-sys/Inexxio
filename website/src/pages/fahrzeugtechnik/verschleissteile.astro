@@ -16,7 +16,7 @@ import SolutionPath from '../../components/spezial/SolutionPath.astro';
 import BrandBand from '../../components/fahrzeug/BrandBand.astro';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/teile-titel.webp';
+import { pageTitle } from '../../lib/titles';
 import { verschleissteile as page, partsCatalog as c, partsOrder as o } from '../../content/fahrzeugtechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -25,6 +25,7 @@ const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
 ];
+const titel = pageTitle('/fahrzeugtechnik/verschleissteile');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero

@@ -19,7 +19,7 @@ import ContactSection from '../../components/ContactSection.astro';
 import { areaOf } from '../../config/site.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/nachmass-titel.webp';
+import { pageTitle } from '../../lib/titles';
 import {
   kraneNachMass as page, craneSituations as sit, craneWorlds as wo, nachMassPath as p,
   nachMassPhotoHint as hint, craneReferences as refs, harbour,
@@ -31,6 +31,7 @@ const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
 ];
+const titel = pageTitle('/krantechnik/krane-nach-mass');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero

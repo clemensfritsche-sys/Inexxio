@@ -367,8 +367,11 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
   ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/agb`.
 - **Kopf-Menü = Mobil-Menü**: ein Punkt mit Unterseiten beginnt mit seiner Übersicht («Alles zu …»,
-  dunkel, Stapel der Zeichnungen; bei «Über uns» nur «Über uns»), dann die Unterseiten – EINE
-  Liste (`Header.astro`, `tilesOf`). Im Profil-Menü ist die erste Kachel eine Auskunft, kein Knopf.
+  dunkel, Stapel der Bilder; bei «Über uns» nur «Über uns»), dann die Unterseiten – EINE
+  Liste (`Header.astro`, `tilesOf`). **Jede Kachel zeigt das Titelbild ihrer Seite, sonst die Zeichnung**;
+  welche Seite welches Titelbild trägt, steht EINMAL in `src/lib/titles.ts` (auch der Seitenkopf liest
+  dort). Die Menübilder laden erst, wenn der Kopf berührt wird (Kachelreihe vorher nicht im Layout).
+  Im Profil-Menü ist die erste Kachel eine Auskunft, kein Knopf.
 - **Konto und ERP tragen DENSELBEN Kopf und Fuss** (`scripts/export-shell.mjs` →
   `frontend/scripts/site-shell.mjs`); der Anmeldezustand im Kopf ist ein **Anzeige-Cache**
   (`frontend/src/lib/account-cache.ts`).

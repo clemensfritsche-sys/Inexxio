@@ -17,7 +17,7 @@ import ContactSection from '../../components/ContactSection.astro';
 import { areaOf } from '../../config/site.mjs';
 import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/trommel-titel.webp';
+import { pageTitle } from '../../lib/titles';
 import { trommeltausch as page, drumOptions as d, drumPath as p, winterSlot as w } from '../../content/fahrzeugtechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -33,6 +33,7 @@ const nodes = [
     og: 'fahrzeugtechnik',
   }),
 ];
+const titel = pageTitle('/fahrzeugtechnik/trommeltausch');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero

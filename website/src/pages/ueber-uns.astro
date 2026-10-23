@@ -23,7 +23,7 @@ import { ueberUns as u } from '../content/ueber-uns';
 import { handover as h } from '../content/uebergabe';
 import { faqPage, owner } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import titel from '../assets/illustrations/ueber-titel.webp';
+import { pageTitle } from '../lib/titles';
 import ratgeber from '../assets/illustrations/menu/ratgeber.svg?url';
 import karriere from '../assets/illustrations/menu/karriere.svg?url';
 
@@ -31,6 +31,7 @@ const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const faq = [...h.faq, ...u.areaFaq];
 const ART = { ratgeber, karriere };
 const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plain(s.title) }));
+const titel = pageTitle('/ueber-uns');
 ---
 <Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(faq)]}>
   <StageHero
