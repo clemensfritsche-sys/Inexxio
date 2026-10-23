@@ -4,8 +4,8 @@
  * Zwei Garantien tragen das Angebot und gelten für alle drei Bereiche (Krane, Fahrmischer,
  * Spezialmaschinen): ① INEXXIO Zufriedenheitsgarantie · ② INEXXIO 365. Die Gratis-Inspektion
  * ist der leise Einstieg (Priorität 3) und steht als schmale Zeile darunter.
- * Die Startseite zeigt alle, jede Unterseite die, die für sie gelten (`promises` der Seite →
- * Promises.astro). Wer einen Satz ändert, ändert ihn überall.
+ * Gezeigt werden sie als die Garantie-Karten (components/home/Guarantees.astro) und in den Fragen;
+ * `promises` einer Seite nennt für llms.txt, welche dort gelten. Wer einen Satz ändert, ändert ihn überall.
  *
  * Regeln: keine Preise, kein «Abo», keine Markenaufzählung («aller Marken» ist gestrichen) –
  * und keine Bedingungen, Fristen oder Kleingedrucktes, die nicht feststehen.

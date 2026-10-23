@@ -1,6 +1,54 @@
 ---
-/** /krantechnik – Bereichsseite. Texte: content/krantechnik.ts. */
-import AreaPage from '../layouts/AreaPage.astro';
-import { krantechnik, krantechnikPages } from '../content/krantechnik';
+/**
+ * /krantechnik – eigenes Layout nach dem Muster von Fahrzeugtechnik und Speziallösungen (Oktober 2026):
+ * Kopf wie Porsche (StageHero) → Alles rund um Ihren Kran (Karten: Krane nach Mass · Kranservice ·
+ * Heukrananlagen) → So läuft es ab (Weg) → Garantien → Fragen → Anfrage. Texte: content/krantechnik.ts.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import SolutionPath from '../components/spezial/SolutionPath.astro';
+import Guarantees from '../components/home/Guarantees.astro';
+import FaqStage from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import titel from '../assets/illustrations/menu/krane-nach-mass.svg';
+import { krantechnik as page, craneOffers as o, cranePath as s } from '../content/krantechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
 ---
-<AreaPage page={krantechnik} subpages={krantechnikPages} />
+<Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
+  <StageHero
+    word="Krantechnik"
+    image={titel}
+    alt="Zeichnung: Brückenkran mit roter Kranbrücke und Katze"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: 'Unser Angebot', href: '#angebot' }}
+    narrow
+  />
+
+  <div class="wrap kt-season"><SeasonNotice page={page.path} /></div>
+
+  <FieldCards id="angebot" title={o.title} lead={o.lead} items={o.items} />
+
+  <SolutionPath title={s.title} start={s.start} end={s.end} items={s.items} />
+
+  <Guarantees garantieHref="#fragen" />
+
+  <FaqStage items={page.faq} illo={'menu/krane-nach-mass'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  .kt-season:empty { display: none; }
+  .kt-season { margin-top: 48px; }
+</style>

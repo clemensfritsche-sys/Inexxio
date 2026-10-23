@@ -50,6 +50,33 @@ export const photos = {
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',
   },
+  // Krane nach Mass, Belege (sichtbar erst mit `features.craneReferences`) – je ein echtes Projekt.
+  'kran-kurve': {
+    alt: 'Kranfahrbahn, die in einer Scheune oder Halle um die Ecke biegt',
+    brief: 'Kran nach Mass mit Kurvenfahrbahn: die Fahrbahn biegt sichtbar um eine Ecke, Katze oder Greifer in der Kurve, Gebäude erkennbar, quer',
+    ratio: '4/3',
+  },
+  'kran-steigung': {
+    alt: 'Kranfahrbahn unter einem ansteigenden Dach',
+    brief: 'Kran nach Mass in einem Gebäude mit Steigung: Fahrbahn folgt dem ansteigenden Dach oder Boden, Steigung gut sichtbar, quer',
+    ratio: '4/3',
+  },
+  'kran-versatz': {
+    alt: 'Kranfahrbahn unter einer Decke mit Versatz und Unterzug',
+    brief: 'Kran nach Mass unter einer Decke mit Höhensprung oder Unterzug: Aufhängungen unterschiedlich lang, die Fahrbahn läuft durch, quer',
+    ratio: '4/3',
+  },
+  'kran-eng': {
+    alt: 'Kompakter Kran mit Greifer zwischen Stützen in einem engen Raum',
+    brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
+    ratio: '4/3',
+  },
+  // Heukrananlagen, «Funk statt Kabine» – bis das Foto da ist, steht die Zeichnung heukran-funk.svg.
+  'heukran-funk': {
+    alt: 'Landwirt steht mit dem Funksender am Boden, dahinter der Heukran mit Greifer',
+    brief: 'Person am Boden der Scheune mit Funksender in der Hand, im Hintergrund der Heukran mit Greifer über dem Heustock, keine Kabine, quer',
+    ratio: '4/3',
+  },
   'fahrmischer-werkstatt': {
     alt: 'Fahrmischer in der Halle mit geöffneter Trommel',
     brief: 'Fahrmischer in der Halle, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',

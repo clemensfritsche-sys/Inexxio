@@ -1,0 +1,55 @@
+---
+/**
+ * Funk statt Kabine (v4, Heukrananlagen, direkt nach dem Kopf): links das Bild – das Foto `heukran-funk`,
+ * sobald es da ist, bis dahin die Zeichnung im Stil der Bauformen –, rechts ein leises Wort, Titel,
+ * Satz und vier Punkte mit Symbol (breit 2 × 2). Texte: content/krantechnik.ts (`radioControl`).
+ */
+import Icon, { type IconName } from '../Icon.astro';
+import Photo from '../Photo.astro';
+import Rich from '../Rich.astro';
+import { photo as photoOf } from '../../config/photos.mjs';
+import { illustration } from '../../lib/illustrations';
+
+interface Props {
+  eyebrow: string; title: string; lead: string; photo: string; illo: string; alt: string;
+  items: { icon: IconName; title: string; text: string }[];
+}
+const { eyebrow, title, lead, photo, illo, alt, items } = Astro.props;
+const hasPhoto = Boolean(photoOf(photo).file);
+---
+<section class="v4-section" id="funk" aria-labelledby="funk-title">
+  <div class="wrap rc">
+    <figure class="rc__fig">
+      {hasPhoto ? <Photo id={photo} sizes="(min-width: 960px) 45vw, 100vw" /> : <img src={illustration(illo, 'Funk')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
+    </figure>
+    <div class="rc__text">
+      <p class="rc__kicker">{eyebrow}</p>
+      <Rich as="h2" class="v4-h2" id="funk-title" text={title} />
+      <Rich as="p" class="v4-sub" text={lead} />
+      <ul role="list" class="rc__list">
+        {items.map((it) => (
+          <li>
+            <span class="rc__ic"><Icon name={it.icon} size={20} /></span>
+            <span><strong>{it.title}</strong><Rich as="span" class="rc__t" text={it.text} /></span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  .rc { display: grid; gap: 32px; }
+  .rc__fig { margin: 0; overflow: hidden; border-radius: 24px; background: var(--gray-100); }
+  .rc__fig img, .rc__fig :global(img) { display: block; width: 100%; height: auto; }
+  .rc__kicker { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); margin-bottom: 12px; }
+  .rc__list { list-style: none; padding: 0; display: grid; gap: 4px 28px; margin-top: 28px; }
+  .rc__list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding: 16px 0; border-top: 1px solid var(--line); }
+  .rc__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
+  .rc__list strong { display: block; font-size: 1.0625rem; line-height: 1.35; }
+  .rc__list :global(.rc__t) { display: block; margin-top: 2px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) {
+    .rc { grid-template-columns: 6fr 6fr; gap: 64px; align-items: center; }
+    .rc__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>

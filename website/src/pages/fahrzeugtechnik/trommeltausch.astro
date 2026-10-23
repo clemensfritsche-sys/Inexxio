@@ -9,7 +9,7 @@ import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
 import SpecialStage from '../../components/home/SpecialStage.astro';
 import SolutionPath from '../../components/spezial/SolutionPath.astro';
-import WinterBand from '../../components/fahrzeug/WinterBand.astro';
+import SeasonCalendar from '../../components/SeasonCalendar.astro';
 import BrandBand from '../../components/fahrzeug/BrandBand.astro';
 import Guarantees from '../../components/home/Guarantees.astro';
 import FaqStage from '../../components/FaqStage.astro';
@@ -49,7 +49,7 @@ const nodes = [
 
   <SolutionPath title={p.title} start={p.start} end={p.end} items={p.items} />
 
-  <WinterBand {...w} />
+  <SeasonCalendar {...w} />
 
   <BrandBand />
 

@@ -2,7 +2,7 @@
 /**
  * Die vier Stufen des Kranservice (content/krantechnik.ts → serviceTiers): Auf Abruf ·
  * Basis · Plus · INEXXIO 365. Jede Stufe nennt nur, was dazukommt; INEXXIO 365 ist die
- * dunkle Karte. Keine Preise.
+ * dunkle Karte. Keine Preise. v4: graue Karten wie ein Modellvergleich, schmal eine Reihe zum Wischen.
  */
 import Icon from './Icon.astro';
 import { serviceTiers as t } from '../content/krantechnik';
@@ -22,26 +22,23 @@ import { serviceTiers as t } from '../content/krantechnik';
 </ol>
 
 <style>
-  .tiers { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 720px) { .tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1100px) { .tiers { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-  .tiers__item {
-    display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5);
-    background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg);
-  }
-  .tiers__step { font-size: 0.75rem; font-weight: 600; letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--ink-3); }
-  .tiers__name { font-size: 1.375rem; line-height: 1.15; }
+  .tiers { list-style: none; padding: 0 var(--gutter) 4px; margin: 40px calc(var(--gutter) * -1) 0; display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
+  .tiers::-webkit-scrollbar { display: none; }
+  .tiers__item { flex: 0 0 80%; scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 24px; background: var(--gray-100); }
+  .tiers__step { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
+  .tiers__name { font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; line-height: 1.15; letter-spacing: -0.02em; }
   .tiers__claim { font-weight: 500; color: var(--ink); }
-  .tiers__plus { margin-top: var(--s-2); font-size: 0.875rem; color: var(--ink-3); }
-  .tiers__list { display: grid; gap: var(--s-2); margin-top: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--line); }
-  .tiers__list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: var(--s-2); font-size: 0.9375rem; color: var(--ink-2); }
-  .tiers__list :global(.icon) { margin-top: 3px; color: var(--ok); }
-
-  .tiers__item--featured { background: var(--ink); border-color: var(--ink); }
+  .tiers__plus { margin-top: 12px; font-size: 0.8125rem; color: var(--ink-3); }
+  .tiers__list { list-style: none; padding: 0; display: grid; gap: 0; margin-top: 4px; }
+  .tiers__list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-2); font-size: 0.9375rem; color: var(--ink-2); }
+  .tiers__list :global(.icon) { margin-top: 3px; color: var(--ink); }
+  .tiers__item--featured { background: var(--dark); }
   .tiers__item--featured .tiers__name, .tiers__item--featured .tiers__claim { color: var(--white); }
-  .tiers__item--featured .tiers__step, .tiers__item--featured .tiers__plus { color: var(--ink-4); }
-  .tiers__item--featured .tiers__step { color: var(--red-on-dark); }
-  .tiers__item--featured .tiers__list { border-color: var(--line-dark); }
-  .tiers__item--featured .tiers__list li { color: rgba(255, 255, 255, 0.86); }
+  .tiers__item--featured .tiers__step, .tiers__item--featured .tiers__plus { color: rgba(255, 255, 255, 0.6); }
+  .tiers__item--featured .tiers__list li { border-top-color: var(--line-dark); color: rgba(255, 255, 255, 0.86); }
   .tiers__item--featured .tiers__list :global(.icon) { color: var(--white); }
+  @media (min-width: 1100px) {
+    .tiers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; margin: 56px 0 0; padding: 0; overflow: visible; }
+    .tiers__item { padding: 32px; }
+  }
 </style>

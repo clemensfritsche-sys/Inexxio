@@ -1,0 +1,62 @@
+---
+/**
+ * Bildkarte (v4, Muster Porsche): das Foto randlos, unten dunkel auslaufend, darauf ein kleines Wort,
+ * der Titel, ein Satz und ein Glas-Knopf. Ohne Foto ist die Karte hell (graue Fläche, roter Knopf zur
+ * Anfrage). Die Karte füllt ihren Platz (Seitenverhältnis 4:5) – das Raster bestimmt der Abschnitt.
+ * Gebraucht im Verschleissteile-Katalog und bei «Für Scheune und Halle» (Krane nach Mass).
+ */
+import Icon from './Icon.astro';
+import Photo from './Photo.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  photo?: string;
+  label?: string;
+  title: string;
+  text: string;
+  cta: { label: string; href: string };
+  /** Titel-Ebene (im Katalog h3, als eigener Abschnitt h3 unter der Abschnitts-H2). */
+  as?: 'h2' | 'h3';
+}
+const { photo, label, title, text, cta, as: H = 'h3' } = Astro.props;
+---
+<div class:list={['pc', !photo && 'pc--light']}>
+  {photo && <Photo id={photo} sizes="(min-width: 960px) 600px, 100vw" />}
+  <div class="pc__body">
+    {label && <span class="pc__label">{label}</span>}
+    <H class="pc__title">{title}</H>
+    <Rich as="p" class="pc__text" text={text} />
+    <slot />
+    <a class:list={['btn', 'pc__cta', !photo && 'btn--primary pc__cta--ask']} href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+  </div>
+</div>
+
+<style>
+  .pc { position: relative; height: 100%; overflow: hidden; border-radius: 24px; background: var(--dark); aspect-ratio: 4 / 5; isolation: isolate; }
+  /* Das Foto füllt die Karte; Beispielbild und Platzhalter ebenso. */
+  .pc > :global(picture), .pc > :global(.ph), .pc > :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
+  .pc :global(img) { width: 100%; height: 100%; object-fit: cover; transition: transform 0.9s var(--ease); }
+  .pc:hover :global(img) { transform: scale(1.04); }
+  .pc::after { content: ''; position: absolute; inset: 40% 0 0; z-index: 0; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 0%, rgba(10, 10, 11, 0.62) 45%, rgba(10, 10, 11, 0.9) 100%); pointer-events: none; }
+  .pc__body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: grid; gap: 8px; justify-items: start; padding: 24px; color: var(--white); }
+  .pc__label { font-size: 0.8125rem; font-weight: 600; color: rgba(255, 255, 255, 0.7); }
+  .pc__title { font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; letter-spacing: -0.02em; color: var(--white); }
+  .pc__body :global(.pc__text) { max-width: 32em; font-size: 0.9375rem; line-height: 1.5; color: rgba(255, 255, 255, 0.84); }
+  .pc__body :global(a:not(.btn)) { color: inherit; }
+  .pc__cta {
+    --btn-h: 48px; margin-top: 12px; padding: 0 20px; border-radius: 12px; font-size: 0.9375rem; font-weight: 600;
+    background: rgba(255, 255, 255, 0.16); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.22);
+    -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%);
+  }
+  .pc__cta:hover { background: rgba(255, 255, 255, 0.28); color: var(--white); }
+  .pc--light { background: var(--gray-100); }
+  .pc--light::after { content: none; }
+  .pc--light .pc__body, .pc--light .pc__title { color: var(--ink); }
+  .pc--light .pc__body :global(.pc__text) { color: var(--ink-3); }
+  .pc .pc__cta--ask { background: var(--red); border-color: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .pc .pc__cta--ask:hover { background: var(--red-hover); }
+  @media (min-width: 960px) {
+    .pc__body { padding: 36px; }
+    .pc__title { font-size: 2rem; }
+  }
+</style>

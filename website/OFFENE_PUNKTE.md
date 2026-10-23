@@ -4,7 +4,7 @@
 > `src/config/photos.mjs` eine Datei hat, verschwindet seine Zeile von selbst.
 > Solange hier ein Foto steht, bricht ein Build im Modus `live` ab.
 
-**Stand:** 11 Fotos · 0 abgeschaltete Sektionen
+**Stand:** 16 Fotos · 1 abgeschaltete Sektionen
 
 ## Fotos
 
@@ -12,7 +12,12 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 
 | Foto | Beschreibung für den Fototag | Format | Verwendet auf |
 |---|---|---|---|
-| `hafen-bootskran` | Boots- oder Mastkran an einem Schweizer Hafen oder Segelclub, Boot am Haken über dem Wasser, Steg und Masten im Hintergrund, quer | 4:3 | `/krantechnik/krane-nach-mass` |
+| `hafen-bootskran` | Boots- oder Mastkran an einem Schweizer Hafen oder Segelclub, Boot am Haken über dem Wasser, Steg und Masten im Hintergrund, quer | 4:3 | noch nicht verwendet |
+| `kran-kurve` | Kran nach Mass mit Kurvenfahrbahn: die Fahrbahn biegt sichtbar um eine Ecke, Katze oder Greifer in der Kurve, Gebäude erkennbar, quer | 4:3 | noch nicht verwendet |
+| `kran-steigung` | Kran nach Mass in einem Gebäude mit Steigung: Fahrbahn folgt dem ansteigenden Dach oder Boden, Steigung gut sichtbar, quer | 4:3 | noch nicht verwendet |
+| `kran-versatz` | Kran nach Mass unter einer Decke mit Höhensprung oder Unterzug: Aufhängungen unterschiedlich lang, die Fahrbahn läuft durch, quer | 4:3 | noch nicht verwendet |
+| `kran-eng` | Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer | 4:3 | noch nicht verwendet |
+| `heukran-funk` | Person am Boden der Scheune mit Funksender in der Hand, im Hintergrund der Heukran mit Greifer über dem Heustock, keine Kabine, quer | 4:3 | noch nicht verwendet |
 | `fahrmischer-werkstatt` (zurzeit Beispielbild) | Fahrmischer in der Halle, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer | 4:3 | `/`, `/ueber-uns` |
 | `teil-auslaufrinne` (zurzeit Beispielbild) | Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 | `teil-verlaengerungsrinne` (zurzeit Beispielbild) | Produktfoto Verlängerungsrinne, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
@@ -26,3 +31,4 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)
 
+- `craneReferences` – ohne echte Fotos abgeschaltet.

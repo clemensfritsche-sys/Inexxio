@@ -1,0 +1,29 @@
+---
+/**
+ * Belege (Krane nach Mass): ein Raster echter Projekte als Bildkarten (components/PhotoCard) – Ort grob,
+ * die Situation als Titel, die Lösung als Satz. Steht erst da, wenn `site.features.craneReferences` an
+ * ist UND Einträge da sind: keine Platzhalterbilder online. Texte: content/krantechnik.ts (`craneReferences`).
+ */
+import PhotoCard from '../PhotoCard.astro';
+import { site } from '../../config/site.mjs';
+
+interface Props { title: string; items: { photo: string; situation: string; solution: string; place: string }[] }
+const { title, items } = Astro.props;
+const show = site.features.craneReferences && items.length > 0;
+---
+{show && (
+  <section class="v4-section" id="belege" aria-labelledby="belege-title">
+    <div class="wrap">
+      <header class="v4-head--center"><h2 class="v4-h2" id="belege-title">{title}</h2></header>
+      <ul role="list" class="rf">
+        {items.map((r) => <li><PhotoCard photo={r.photo} label={r.place} title={r.situation} text={r.solution} cta={{ label: 'Ähnliches anfragen', href: '#anfrage' }} /></li>)}
+      </ul>
+    </div>
+  </section>
+)}
+
+<style>
+  .rf { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  @media (min-width: 720px) { .rf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
+  @media (min-width: 1100px) { .rf { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+</style>

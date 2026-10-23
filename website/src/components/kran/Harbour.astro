@@ -1,0 +1,50 @@
+---
+/**
+ * Häfen, Clubs und Werften (v4, Anker #hafen): links Titel, Satz und drei Punkte, rechts das Hafenjahr
+ * als drei graue Karten untereinander (wann · was). Texte: content/krantechnik.ts (`harbour`, `harbourYear`).
+ */
+import Icon from '../Icon.astro';
+import Rich from '../Rich.astro';
+
+interface Props {
+  harbour: { title: string; text: string; items: string[] };
+  year: { title: string; lead: string; seasons: { title: string; when: string; text: string }[] };
+}
+const { harbour: h, year: y } = Astro.props;
+---
+<section class="v4-section" id="hafen" aria-labelledby="hafen-title">
+  <div class="wrap hb">
+    <div class="hb__text">
+      <p class="hb__kicker">Häfen, Clubs und Werften</p>
+      <h2 class="v4-h2" id="hafen-title">{h.title}</h2>
+      <Rich as="p" class="v4-sub" text={h.text} />
+      <ul role="list" class="checklist hb__list">
+        {h.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}
+      </ul>
+    </div>
+    <div class="hb__year" aria-labelledby="hafenjahr">
+      <h3 class="hb__year-h" id="hafenjahr">{y.title}</h3>
+      <Rich as="p" class="hb__year-lead" text={y.lead} />
+      <ol role="list" class="hb__seasons">
+        {y.seasons.map((s) => (
+          <li><span class="hb__when">{s.when}</span><span class="hb__t">{s.title}</span><Rich as="span" class="hb__s" text={s.text} /></li>
+        ))}
+      </ol>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hb { display: grid; gap: 40px; }
+  .hb__kicker { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); margin-bottom: 12px; }
+  .hb__list { margin-top: 24px; }
+  .hb__year { padding: 24px; border-radius: 24px; background: var(--gray-100); }
+  .hb__year-h { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.02em; }
+  .hb__year :global(.hb__year-lead) { margin-top: 6px; color: var(--ink-3); }
+  .hb__seasons { list-style: none; padding: 0; display: grid; gap: 8px; margin-top: 20px; }
+  .hb__seasons li { display: grid; gap: 4px; padding: 18px 20px; border-radius: 16px; background: var(--white); }
+  .hb__when { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
+  .hb__t { font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; }
+  .hb__seasons :global(.hb__s) { font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) { .hb { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; } .hb__year { padding: 32px; } }
+</style>

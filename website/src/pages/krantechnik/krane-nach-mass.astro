@@ -1,94 +1,94 @@
 ---
 /**
- * /krantechnik/krane-nach-mass – Krane, die zum Betrieb passen: vier Arten (Sonderkrane,
- * Industriekrane, Häfen mit Booten und Bootsliften, Standardkran aus Markenkomponenten),
- * je mit eigenem Anker; dann die zwei Wege zum neuen Kran (Kauf mit Garantie oder Monatsrate)
- * und das Hafenjahr. Keine Katalog-Optik, keine Preise.
+ * /krantechnik/krane-nach-mass – die Seite für schwierige Gebäude (Entscheid 23.10.2026), eigenes
+ * Layout nach dem Muster von Fahrzeugtechnik: Kopf wie Porsche → Wo ein Katalogkran nicht passt (vier
+ * Situationen) → Für Scheune und Halle (zwei Bildkarten) → Was Sie vorher wissen wollen → So geht's
+ * (#ablauf, Weg) → Belege (per Schalter) → Standardkran → Häfen (#hafen) → Kaufen oder ohne Kauf
+ * (#wege) → Was zu jedem Kran gehört → Fragen → Anfrage mit Foto-Hilfe. Texte: content/krantechnik.ts.
  */
-import SubPage from '../../layouts/SubPage.astro';
-import SectionHead from '../../components/SectionHead.astro';
-import Photo from '../../components/Photo.astro';
+import Base from '../../layouts/Base.astro';
+import StageHero from '../../components/StageHero.astro';
+import SituationCards from '../../components/kran/SituationCards.astro';
+import PhotoCard from '../../components/PhotoCard.astro';
+import Concerns from '../../components/kran/Concerns.astro';
+import SolutionPath from '../../components/spezial/SolutionPath.astro';
+import References from '../../components/kran/References.astro';
+import Harbour from '../../components/kran/Harbour.astro';
+import WayPair from '../../components/WayPair.astro';
+import FactGrid from '../../components/FactGrid.astro';
+import FaqStage from '../../components/FaqStage.astro';
+import ContactSection from '../../components/ContactSection.astro';
 import Icon from '../../components/Icon.astro';
-import Rich from '../../components/Rich.astro';
-import { kraneNachMass, craneKinds, newCraneWays as w, harbourYear as y } from '../../content/krantechnik';
+import { areaOf } from '../../config/site.mjs';
+import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+import titel from '../../assets/illustrations/heukran-angepasst.svg';
+import {
+  kraneNachMass as page, craneSituations as sit, craneWorlds as wo, craneConcerns as co, nachMassPath as p,
+  nachMassPhotoHint as hint, craneReferences as refs, standardCrane as st, harbour, harbourYear, newCraneWays as w,
+} from '../../content/krantechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const area = areaOf(page.area);
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
 ---
-<SubPage page={kraneNachMass}>
-  <section slot="intro" class="section" aria-labelledby="arten">
-    <div class="wrap">
-      <SectionHead eyebrow="Was wir bauen" title="Vier Wege zum passenden Kran" id="arten" />
-      <div class="kind">
-        {craneKinds.map((k, i) => (
-          <article class:list={['kind__row', i % 2 === 1 && 'kind__row--flip']} id={k.id} aria-labelledby={`${k.id}-title`}>
-            <div class="kind__media"><Photo id={k.photo} sizes="(min-width: 960px) 40vw, 100vw" /></div>
-            <div class="kind__text">
-              <p class="label">{k.eyebrow}</p>
-              <h3 id={`${k.id}-title`} class="kind__title">{k.title}</h3>
-              <Rich as="p" text={k.text} />
-              <ul class="checklist" role="list">
-                {k.items.map((it) => <li><Icon name="check" size={20} /><span>{it}</span></li>)}
-              </ul>
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
-  </section>
+<Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
+  <StageHero
+    word={page.crumb}
+    image={titel}
+    alt="Zeichnung: Kranfahrbahn in Rot, die in einer Scheune um die Ecke biegt"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: "So geht's", href: '#ablauf' }}
+    narrow
+  />
 
-  <section slot="intro" class="section" id="wege" aria-labelledby="wege-title">
+  <SituationCards title={sit.title} lead={sit.lead} items={sit.items} more={sit.more} />
+
+  <section class="v4-section" aria-labelledby="welten">
     <div class="wrap">
-      <SectionHead eyebrow="Neue Krane" title={w.title} lead={w.lead} id="wege-title" />
-      <ul role="list" class="ways">
-        {w.ways.map((x) => (
-          <li class="ways__item">
-            <p class="label">{x.label}</p>
-            <h3>{x.title}</h3>
-            <Rich as="p" text={x.text} />
-          </li>
-        ))}
+      <header class="v4-head--center"><h2 class="v4-h2" id="welten">{wo.title}</h2></header>
+      <ul role="list" class="kn-worlds">
+        {wo.items.map((it) => <li><PhotoCard photo={it.photo} label={it.label} title={it.title} text={it.text} cta={it.cta} /></li>)}
       </ul>
-      <div class="btn-row ways__cta">
-        <a class="btn btn--primary" href="#anfrage">Kran anfragen <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+    </div>
+  </section>
+
+  <Concerns title={co.title} items={co.items} />
+
+  <SolutionPath title={p.title} start={p.start} end={p.end} items={p.items} />
+
+  <References title={refs.title} items={refs.items} />
+
+  <section class="v4-section" id="standard" aria-labelledby="standard-title">
+    <div class="wrap kn-std">
+      <h2 class="v4-h2" id="standard-title">{st.title}</h2>
+      <div>
+        <p class="v4-sub">{st.text}</p>
+        <ul role="list" class="checklist kn-std__list">{st.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}</ul>
       </div>
     </div>
   </section>
 
-  <section slot="module" class="section" aria-labelledby="hafenjahr">
-    <div class="wrap">
-      <SectionHead eyebrow="Häfen, Clubs und Werften" title={y.title} lead={y.lead} id="hafenjahr" />
-      <ol role="list" class="hy">
-        {y.seasons.map((s) => (
-          <li class="hy__item">
-            <p class="label">{s.when}</p>
-            <h3>{s.title}</h3>
-            <Rich as="p" text={s.text} />
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
-</SubPage>
+  <Harbour harbour={harbour} year={harbourYear} />
+
+  <WayPair title={w.title} lead={w.lead} ways={w.ways} cta={{ label: 'Kran anfragen', href: '#anfrage' }} />
+
+  <FactGrid id="leistungen" title={page.scope.title} lead={page.scope.lead} items={page.scope.items} />
+
+  <FaqStage items={page.faq} illo={'heukran-angepasst'} />
+
+  <ContactSection hint={hint} />
+</Base>
 
 <style>
-  .kind { display: grid; gap: var(--s-8); }
-  .kind__row { display: grid; gap: var(--s-5) var(--s-8); align-items: center; scroll-margin-top: calc(var(--header-h) + var(--s-5)); }
-  @media (min-width: 960px) {
-    .kind__row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
-    .kind__row--flip .kind__media { order: 2; }
-  }
-  .kind__media { overflow: hidden; border-radius: var(--r-lg); aspect-ratio: 4 / 3; background: var(--paper-2); }
-  .kind__media :global(picture), .kind__media :global(img), .kind__media :global(.ph) { width: 100%; height: 100%; }
-  .kind__media :global(img) { object-fit: cover; }
-  .kind__text { display: grid; gap: var(--s-3); justify-items: start; }
-  .kind__title { font-size: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem); }
-
-  .ways { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 760px) { .ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .ways__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
-  .ways__item h3 { font-size: 1.375rem; }
-  .ways__cta { margin-top: var(--s-7); }
-
-  .hy { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 860px) { .hy { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .hy__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
-  .hy__item h3 { font-size: 1.25rem; }
+  .kn-worlds { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  @media (min-width: 960px) { .kn-worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }
+  .kn-std { display: grid; gap: 20px; }
+  .kn-std__list { margin-top: 20px; }
+  @media (min-width: 960px) { .kn-std { grid-template-columns: 5fr 7fr; gap: 64px; align-items: start; } }
 </style>
