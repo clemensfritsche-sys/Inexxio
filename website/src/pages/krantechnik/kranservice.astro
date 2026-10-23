@@ -18,7 +18,7 @@ import Rich from '../../components/Rich.astro';
 import { areaOf } from '../../config/site.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/kranservice-titel.webp';
+import { pageTitle } from '../../lib/titles';
 import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -27,6 +27,7 @@ const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
 ];
+const titel = pageTitle('/krantechnik/kranservice');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero

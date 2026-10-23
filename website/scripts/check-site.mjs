@@ -478,6 +478,8 @@ const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
  */
 function imageWeight(html, local) {
   html = html.replace(/<span class="dd__img[^>]*>\s*<picture\b[\s\S]*?<\/picture>\s*<\/span>/g, '');
+  // Bilder der Menü-Kacheln laden erst beim Öffnen des Kopf-Menüs (Header.astro: Kachelreihe vorher nicht im Layout).
+  html = html.replace(/<img\b[^>]*\sdata-menu-img\b[^>]*>/g, '');
   let sum = 0;
   const pictures = [...html.matchAll(/<picture\b[\s\S]*?<\/picture>/g)].map((m) => m[0]);
   for (const pic of pictures) {

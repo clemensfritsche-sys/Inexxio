@@ -31,6 +31,8 @@ import { site, navigation as groups } from '../config/site.mjs';
 import { plain } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
+import { getImage } from 'astro:assets';
+import { titleImage } from '../lib/titles';
 
 interface Props {
   /** Der Kopf liegt durchsichtig über einer dunklen Bühne (Startseite). */
@@ -54,13 +56,19 @@ const illo = (key: string) => {
   return url;
 };
 
+/** Bild einer Kachel: das Titelbild der Seite (lib/titles, klein gerechnet), sonst ihre Zeichnung. */
+const imgOf = async (href: string, key: string) => {
+  const t = titleImage(href);
+  return t ? (await getImage({ src: t, width: 480, format: 'webp', quality: 70 })).src : illo(key);
+};
+
 type Tile = { label: string; href: string; img: string; sub: string; deck?: string[] };
 /** Kacheln eines Punkts: er selbst, wenn er keine Unterseiten hat – sonst zuerst seine Übersicht
-    («Alles zu …», dunkel, mit dem Stapel der Zeichnungen seiner Unterseiten), dann die Unterseiten.
+    («Alles zu …», dunkel, mit dem Stapel der Bilder seiner Unterseiten), dann die Unterseiten.
     Dieselben Kacheln im Kopf und im Mobil-Menü. */
-const tilesOf = (g: (typeof groups)[number]): Tile[] => {
-  const self = { label: g.label, href: g.href, img: illo(g.illo), sub: plain(g.dd) };
-  const kids = g.children.map((c) => ({ label: plain(c.label), href: c.href, img: illo(c.illo), sub: plain(c.dd) }));
+const tilesOf = async (g: (typeof groups)[number]): Promise<Tile[]> => {
+  const self = { label: g.label, href: g.href, img: await imgOf(g.href, g.illo), sub: plain(g.dd) };
+  const kids = await Promise.all(g.children.map(async (c) => ({ label: plain(c.label), href: c.href, img: await imgOf(c.href, c.illo), sub: plain(c.dd) })));
   if (!kids.length) return [self];
   const deck = kids.slice(0, 3).map((t) => t.img);
   const all = g.ddSelf ? { ...self, deck } : { ...self, label: `Alles zu ${g.label}`, sub: 'Übersicht und alle Leistungen', deck };
@@ -71,7 +79,7 @@ const contactTile: Tile = {
   sub: `${site.people.owner.name} · ${site.phone.display} · ${a.street}, ${a.zip} ${a.city}`,
 };
 const menus = [
-  ...groups.map((g) => ({ id: g.id, label: g.label, href: g.href, tiles: tilesOf(g) })),
+  ...(await Promise.all(groups.map(async (g) => ({ id: g.id, label: g.label, href: g.href, tiles: await tilesOf(g) })))),
   { id: 'kontakt', label: 'Kontakt', href: '/kontakt', tiles: [contactTile] },
 ];
 const langs = [
@@ -321,6 +329,10 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
     opacity: 0; visibility: hidden; transform: translateX(24px); pointer-events: none;
     transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s linear 450ms;
   }
+  /* Die Bilder der Kacheln (Titelbilder) laden erst, wenn der Kopf berührt wird oder ein Punkt offen ist:
+     vorher ist die Kachelreihe gar nicht im Layout – ein bloss unsichtbares Lazy-Bild lüde der Browser
+     mit jeder Seite. Das Mobil-Menü steckt in einem geschlossenen <details> und lädt ebenso erst offen. */
+  .hd:not(:hover):not(:focus-within):not(:has(.dd.is-open)) .dd__panel { display: none; }
   /* Wer links vom offenen Punkt steht, gleitet nach links weg (wie Stripe). Nur 24 px – so viel
      Rand hat die Karte zum Fenster: nichts ragt hinaus, und die Karte braucht keinen Zuschnitt
      (der schnitt ihren Schatten links und rechts hart ab). */

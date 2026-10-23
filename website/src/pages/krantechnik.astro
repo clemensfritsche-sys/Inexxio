@@ -14,7 +14,7 @@ import FaqStage from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import titel from '../assets/illustrations/kran-titel.webp';
+import { pageTitle } from '../lib/titles';
 import { krantechnik as page, craneOffers as o, cranePath as s } from '../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -22,6 +22,7 @@ const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
 ];
+const titel = pageTitle('/krantechnik');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
   <StageHero

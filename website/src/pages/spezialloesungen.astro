@@ -20,7 +20,7 @@ import FaqStage, { type FaqVisual } from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import titel from '../assets/illustrations/spezial-titel.webp';
+import { pageTitle } from '../lib/titles';
 import {
   spezialloesungen as page, specialPrinciple as pr, specialFields as fields,
   specialSteps as s, specialBackground as b,
@@ -37,6 +37,7 @@ const looks: { visual?: FaqVisual; illo?: string }[] = [
 ];
 const faq = page.faq.map((f, i) => ({ ...f, ...looks[i] }));
 const cta = { label: page.hero.primary.label, href: '#anfrage' };
+const titel = pageTitle('/spezialloesungen');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.crumb, path: page.path }]} og="spezialloesungen" jsonLd={nodes}>
   <StageHero

@@ -118,3 +118,6 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   werden per Funk bedient – ein eigener Abschnitt auf den Heukrananlagen. Umrüsten auf Funk wird
   nicht beworben (nur in «Modernisierung»). Der Menüname steht als ein Wert in `site.labels`.
   Belege (Projekte) erst mit echten Fotos (`features.craneReferences`).
+- **126 · Menü-Kacheln mit Titelbild** (Entscheid 23.10.2026): jede Kachel im Kopf- und Mobil-Menü
+  zeigt das Titelbild ihrer Seite; hat eine Seite (noch) keines, steht ihre Zeichnung. Eine Liste
+  `src/lib/titles.ts` für Seitenkopf und Menü. Menübilder laden erst beim Berühren des Kopfs.
