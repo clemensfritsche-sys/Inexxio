@@ -121,3 +121,8 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
 - **126 · Menü-Kacheln mit Titelbild** (Entscheid 23.10.2026): jede Kachel im Kopf- und Mobil-Menü
   zeigt das Titelbild ihrer Seite; hat eine Seite (noch) keines, steht ihre Zeichnung. Eine Liste
   `src/lib/titles.ts` für Seitenkopf und Menü. Menübilder laden erst beim Berühren des Kopfs.
+- **127 · Kopf mit Platz** (Entscheid 23.10.2026): Hauptzeile = was man bei uns bekommt
+  (Speziallösungen · Krantechnik · Fahrzeugtechnik · Service) plus **Unternehmen** (Über uns ·
+  Ratgeber · Karriere · Kontakt). «Kontakt» ist kein eigener Punkt mehr – Telefon und «Anfrage
+  stellen» stehen rechts. Service bleibt allein (wer einen Ausfall hat, sucht dieses Wort). Die
+  Sprachwahl bleibt im Kopf. Ein späterer Shop kommt rechts als Symbol, «Meine Produkte» ins Konto.

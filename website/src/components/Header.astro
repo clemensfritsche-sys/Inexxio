@@ -1,8 +1,9 @@
 ---
 /**
  * Kopfzeile v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html):
- *   Logo · Speziallösungen · Krantechnik · Fahrzeugtechnik · Service · Über uns · Kontakt ·
- *   ERP (nur Personal) | Sprache · Konto | Telefon · «Anfrage stellen».
+ *   Logo · Speziallösungen · Krantechnik · Fahrzeugtechnik · Service · Unternehmen ·
+ *   ERP (nur Personal) | Sprache · Konto | Telefon · «Anfrage stellen». Kontakt steht unter
+ *   «Unternehmen» – Telefon und Anfrage rechts sind der Weg zu uns (WEBSITE_PLAN Entscheid 127).
  * Jeder Punkt öffnet beim Zeigen eine Reihe Kacheln: Name, isometrische Zeichnung, ein leiser
  * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
  * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
@@ -64,24 +65,20 @@ const imgOf = async (href: string, key: string) => {
 
 type Tile = { label: string; href: string; img: string; sub: string; deck?: string[] };
 /** Kacheln eines Punkts: er selbst, wenn er keine Unterseiten hat – sonst zuerst seine Übersicht
-    («Alles zu …», dunkel, mit dem Stapel der Bilder seiner Unterseiten), dann die Unterseiten.
+    («Alles zu …», dunkel, mit dem Stapel der Bilder seiner Unterseiten; «Über uns» mit eigenem Bild),
+    dann die Unterseiten.
     Dieselben Kacheln im Kopf und im Mobil-Menü. */
 const tilesOf = async (g: (typeof groups)[number]): Promise<Tile[]> => {
   const self = { label: g.label, href: g.href, img: await imgOf(g.href, g.illo), sub: plain(g.dd) };
   const kids = await Promise.all(g.children.map(async (c) => ({ label: plain(c.label), href: c.href, img: await imgOf(c.href, c.illo), sub: plain(c.dd) })));
   if (!kids.length) return [self];
   const deck = kids.slice(0, 3).map((t) => t.img);
-  const all = g.ddSelf ? { ...self, deck } : { ...self, label: `Alles zu ${g.label}`, sub: 'Übersicht und alle Leistungen', deck };
+  // Eine Übersicht, die selbst eine Seite ist (ddSelf, «Über uns»), zeigt ihr eigenes Bild; sonst der Stapel.
+  const all = g.ddSelf ? { ...self, label: g.selfLabel ?? g.label } : { ...self, label: `Alles zu ${g.label}`, sub: 'Übersicht und alle Leistungen', deck };
   return [all, ...kids];
 };
-const contactTile: Tile = {
-  label: 'Kontakt', href: '/kontakt', img: await imgOf('/kontakt', 'menu/kontakt'),
-  sub: `${site.people.owner.name} · ${site.phone.display} · ${a.street}, ${a.zip} ${a.city}`,
-};
-const menus = [
-  ...(await Promise.all(groups.map(async (g) => ({ id: g.id, label: g.label, href: g.href, tiles: await tilesOf(g) })))),
-  { id: 'kontakt', label: 'Kontakt', href: '/kontakt', tiles: [contactTile] },
-];
+/** Ein Punkt gilt als aktuell, wenn man auf ihm oder einer seiner Unterseiten steht. */
+const menus = await Promise.all(groups.map(async (g) => ({ id: g.id, label: g.label, href: g.href, pages: [g.href, ...g.children.map((c) => c.href)], tiles: await tilesOf(g) })));
 const langs = [
   { label: 'Deutsch', bubble: 'Hallo', sub: 'Aktuelle Sprache', on: true },
   { label: 'English', bubble: 'Hello', sub: 'Coming soon', lang: 'en' },
@@ -112,7 +109,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
         <ul role="list" class="nav__list">
           {menus.map((m) => (
             <li class="nav__item dd" data-dd>
-              <a href={m.href} class:list={['nav__link', within(m.href) && 'is-current']} aria-current={path === m.href ? 'page' : undefined}>{m.label}</a>
+              <a href={m.href} class:list={['nav__link', m.pages.some(within) && 'is-current']} aria-current={path === m.href ? 'page' : undefined}>{m.label}</a>
               <button type="button" class="nav__toggle" aria-expanded="false" aria-controls={`dd-${m.id}`} aria-label={`Untermenü ${m.label}`} data-dd-toggle>
                 <Icon name="chevron-down" size={16} class="nav__chev" />
               </button>

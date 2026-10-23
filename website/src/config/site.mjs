@@ -259,33 +259,33 @@ export const site = {
   },
 
   /**
-   * Unternehmen – im Kopf als Menü «Über uns» mit Bild je Unterpunkt, im Fuss als Spalte.
+   * Unternehmen – im Kopf als Menü «Unternehmen» (Über uns · Ratgeber · Karriere · Kontakt) mit Bild je
+   * Unterpunkt, im Fuss als Spalte. Kontakt ist kein eigener Punkt der Hauptzeile mehr (Entscheid 127):
+   * Telefon und «Anfrage stellen» stehen rechts im Kopf – das ist der Weg zu uns.
    * Testnotiz #1154: Ratgeber und Karriere waren vorher nur im Fuss und im
    * Mobil-Menü zu finden. Jede Seite muss über den Kopf erreichbar sein – geprüft beim Bauen
    * (scripts/check-site.mjs, «über das Menü erreichbar»).
    */
   about: {
     id: 'unternehmen',
-    label: 'Über uns',
+    label: 'Unternehmen',
     href: '/ueber-uns',
+    /** Die Übersichtskachel (ddSelf) heisst wie die Seite, nicht wie der Menüpunkt. */
+    selfLabel: 'Über uns',
     overview: 'Mehr über uns',
     ddText: 'Standort, Team, Geschichte',
     text: 'Standort, Team, Geschichte und die Übergabe von HS Steiner.',
     photo: 'werkstatt-aussen',
     dd: 'Seit {{history.founded}} in Tuttwil – aus HS Steiner wird {{brand.name}}.',
     illo: 'menu/ueber',
-    /** Die Übersichtskachel heisst «Über uns» (nicht «Alles zu Über uns») und trägt den eigenen Satz. */
+    /** Die Übersichtskachel heisst «Über uns» (nicht «Alles zu Unternehmen») und trägt den eigenen Satz. */
     ddSelf: true,
     children: [
       { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran', dd: 'Kurz erklärt: Prüfpflicht, Heukran planen, Verschleiss.', illo: 'menu/ratgeber' },
       { label: 'Karriere', href: '/karriere', text: 'Arbeiten bei {{brand.name}} in Tuttwil', photo: 'team', dd: 'Arbeiten bei {{brand.name}} in Tuttwil.', illo: 'menu/karriere' },
+      { label: 'Kontakt', href: '/kontakt', text: 'Telefon, Anschrift und Anfrage', photo: 'werkstatt-aussen', dd: '{{people.owner.name}} · {{phone.display}} · {{address.street}}, {{address.zip}} {{address.city}}', illo: 'menu/kontakt' },
     ],
   },
-
-  /** Übrige Punkte der Hauptzeile (Auftrag Kap. 7.1). */
-  menu: [
-    { label: 'Kontakt', href: '/kontakt' },
-  ],
 
   /** Hauptaktion überall: Anfrage. */
   cta: { label: 'Anfrage stellen', href: '/kontakt' },
@@ -366,7 +366,7 @@ export const site = {
  * zusätzlich am gebauten HTML.
  * Ein Punkt ohne Unterseiten ist im Kopf ein einfacher Link – Übersichts-Zeile und Bild hat
  * nur, wer ein Untermenü trägt.
- * @typedef {{ id: string, label: string, href: string, overview?: string, ddText?: string, text: string, photo?: string, dd: string, illo: string, ddSelf?: boolean, children: SubPage[] }} NavGroup
+ * @typedef {{ id: string, label: string, href: string, overview?: string, ddText?: string, text: string, photo?: string, dd: string, illo: string, ddSelf?: boolean, selfLabel?: string, children: SubPage[] }} NavGroup
  * @type {NavGroup[]}
  */
 export const navigation = [
