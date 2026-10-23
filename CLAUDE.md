@@ -350,7 +350,7 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   Überschrift dazwischen: `home/Guarantees`, Funk auf den Heukrananlagen) · `SeasonCalendar`
   (Wandkalender: Winter-Tausch, Saison-Check) · `PhotoCard` (Bildkarte; mit `illo` die Zeichnung, bis das Foto da ist) in `Magazine` (zwei Spalten
   versetzt, schmal zum Wischen: Katalog, Situationen) ·
-  `ServiceTiers` (die vier Stufen als Treppe) · `FactGrid` (Sätze an Haarlinien) · `fahrzeug/*`, `kran/*`;
+  `ServiceTiers` (die drei Stufen als Treppe) · `FactGrid` (Sätze an Haarlinien) · `fahrzeug/*`, `kran/*`;
   Zeichnungen per Schlüssel über `lib/illustrations.ts`. Dazu `FaqStage` (höchstens 5 Fragen je
   Bereichsseite; Glas-Akkordeon über einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht
   das Bild direkt über der offenen Frage) und `ContactSection` (Karte als Grund, Anfrage in zwei

@@ -1,17 +1,25 @@
 ---
 /**
- * Die vier Stufen des Kranservice (content/krantechnik.ts → serviceTiers) als Treppe (v4): breit vier
- * Karten nebeneinander, jede eine Stufe höher als die vorherige – INEXXIO 365 ist die oberste und die
- * dunkle (Anker #inexxio-365). Jede Stufe nennt nur, was dazukommt. Keine Preise.
- * Schmal: untereinander, jede Stufe ein Stück weiter eingerückt.
+ * Die drei Stufen des Kranservice (content/krantechnik.ts → serviceTiers) als Treppe (v4): Auf Abruf ·
+ * Service-Vertrag · INEXXIO 365. Breit drei Karten nebeneinander, unten bündig, jede eine Stufe höher –
+ * INEXXIO 365 ist die oberste und die dunkle (Anker #inexxio-365). Schmal untereinander, gleich breit.
+ * In jeder Karte oben rechts die Stufe als kleine Treppe (so viele Balken voll, wie die Stufe hoch ist).
+ * Jede Stufe nennt nur, was dazukommt. Keine Preise.
  */
 import Icon from './Icon.astro';
 import { serviceTiers as t } from '../content/krantechnik';
+
+const n = t.tiers.length;
 ---
-<ol role="list" class="tiers">
+<ol role="list" class="tiers" style={`--n:${n}`}>
   {t.tiers.map((tier, i) => (
     <li class:list={['tiers__item', { 'tiers__item--featured': tier.featured }]} id={tier.featured ? 'inexxio-365' : undefined} style={`--i:${i}`}>
-      <p class="tiers__step tnum">Stufe {i + 1}</p>
+      <div class="tiers__top">
+        <p class="tiers__step tnum">Stufe {i + 1}</p>
+        <span class="tiers__bars" aria-hidden="true">
+          {t.tiers.map((_, j) => <i class:list={{ on: j <= i }} style={`--j:${j}`}></i>)}
+        </span>
+      </div>
       <h3 class="tiers__name">{tier.name}</h3>
       <p class="tiers__claim">{tier.claim}</p>
       <ul role="list" class="tiers__list">
@@ -23,21 +31,29 @@ import { serviceTiers as t } from '../content/krantechnik';
 
 <style>
   .tiers { list-style: none; padding: 0; display: grid; gap: 12px; margin-top: 40px; }
-  .tiers__item { display: flex; flex-direction: column; gap: 8px; margin-left: calc(var(--i) * 16px); padding: 24px; border-radius: 24px; background: var(--gray-100); color: var(--ink); scroll-margin-top: calc(var(--header-h) + 24px); }
+  .tiers__item { display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 24px; background: var(--gray-100); color: var(--ink); scroll-margin-top: calc(var(--header-h) + 24px); }
+  .tiers__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
   .tiers__step { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
-  .tiers__name { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; line-height: 1.15; letter-spacing: -0.02em; }
+  /* Die kleine Treppe: Balken steigen an, die erreichten sind voll. */
+  .tiers__bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 18px; }
+  .tiers__bars i { width: 6px; height: calc(6px + var(--j) * 6px); border-radius: 2px; background: rgba(10, 10, 11, 0.14); }
+  .tiers__bars i.on { background: var(--ink); }
+  .tiers__name { font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; line-height: 1.15; letter-spacing: -0.02em; }
   .tiers__claim { font-size: 0.9375rem; color: var(--ink-3); }
-  .tiers__list { list-style: none; padding: 16px 0 0; margin-top: auto; display: grid; gap: 8px; border-top: 1px solid var(--line); font-size: 0.9375rem; line-height: 1.4; }
+  .tiers__list { list-style: none; padding: 16px 0 0; margin-top: 16px; display: grid; gap: 8px; border-top: 1px solid var(--line); font-size: 0.9375rem; line-height: 1.4; }
   .tiers__list li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; align-items: start; }
   .tiers__list :global(svg) { margin-top: 2px; color: var(--ink-3); }
   .tiers__item--featured { background: var(--black); color: var(--white); }
   .tiers__item--featured .tiers__name { color: var(--white); }
   .tiers__item--featured .tiers__step, .tiers__item--featured .tiers__claim, .tiers__item--featured .tiers__list :global(svg) { color: rgba(255, 255, 255, 0.64); }
   .tiers__item--featured .tiers__list { border-top-color: rgba(255, 255, 255, 0.16); }
-  /* Breit: eine Treppe – die Karten stehen unten bündig, jede 64 px höher als die vorherige. */
+  .tiers__item--featured .tiers__bars i { background: rgba(255, 255, 255, 0.2); }
+  .tiers__item--featured .tiers__bars i.on { background: var(--white); }
+  /* Breit: eine Treppe – unten bündig, jede Karte 80 px höher als die vorherige, die Liste unten. */
   @media (min-width: 960px) {
-    .tiers { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: end; margin-top: 64px; }
-    .tiers__item { margin-left: 0; min-height: calc(340px + var(--i) * 64px); padding: 28px; }
-    .tiers__name { font-size: 1.625rem; }
+    .tiers { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 24px; align-items: end; margin-top: 64px; }
+    .tiers__item { min-height: calc(360px + var(--i) * 80px); padding: 32px; }
+    .tiers__list { margin-top: auto; }
+    .tiers__name { font-size: 2rem; }
   }
 </style>

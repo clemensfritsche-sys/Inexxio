@@ -74,5 +74,16 @@ ausweisen» (WEBSITE_PLAN Entscheid 125).
   `InspectionTable`, `config/inspection.mjs`, «Zwei Wege zu INEXXIO 365» (`WayPair`), die Listen
   «Was wir prüfen» und «Modernisieren».
 
-**Offen:** neues Kopfbild Heukrananlagen und zwei Schemas für Funk (Prompts gestellt); die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
+**Fünfte Runde (gleicher Tag):**
+- «Alles rund um Ihren Kran»: Titel und Glasfläche zurückgenommen (wie vorher), die lockereren Kartentexte bleiben.
+- Kranservice: drei Stufen statt vier (Auf Abruf · Service-Vertrag · INEXXIO 365; Basis und Plus sind
+  zusammengelegt), je Karte eine kleine Stufen-Anzeige, schmal gleich breit untereinander. Anfrage ohne
+  Foto-Hilfe (Standard).
+- `Magazine` global: Versatz 160 px; bei Zeichnungen ragt das Bild oben aus der Karte (wie die Feldkarten),
+  die Schlusskarte rückt an die Karte darüber.
+- Funk: helle Karte mit der Hand am Sender (`funk-sender.webp`, mit der Fläche verrechnet), dunkle Karte
+  mit Foto `funk-sicht`, Fotokarte neu (`heukran-funk`). `home/Stagger` nimmt dafür Bild bzw. Foto an.
+  Entfernt: `schema/funk-sender.svg`, `funk-sicht.svg`.
+
+**Offen:** neues Kopfbild Heukrananlagen (Prompt gestellt); die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
 Die Startseite läuft bei 320 px 2 px über (Kopf, schon vorher so).

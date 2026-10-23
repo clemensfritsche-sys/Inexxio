@@ -74,9 +74,16 @@ export const photos = {
   // Heukrananlagen, «Funk statt Kabine» (generiert, ohne echte Person oder echten Ort).
   'heukran-funk': {
     file: 'heukran-funk.jpg',
-    alt: 'Landwirt steht in der Scheune mit dem Funksender neben dem Heuwagen, darüber der Heukran mit vollem Greifer',
-    brief: 'Person am Boden der Scheune mit Funksender in der Hand, im Hintergrund der Heukran mit Greifer über dem Heustock, keine Kabine, quer',
-    ratio: '4/3',
+    alt: 'Landwirt steht neben dem Heuwagen in der Scheune, schaut zum Greifer hinauf und hält den Funksender',
+    brief: 'Landwirt am Boden der Scheune neben dem Heuwagen mit Funksender in der Hand, darüber der Heukran mit vollem Greifer, keine Kabine, hoch',
+    ratio: '4/5',
+  },
+  // Heukrananlagen, «Funk statt Kabine», dunkle Karte (generiert).
+  'funk-sicht': {
+    file: 'funk-sicht.jpg',
+    alt: 'Blick vom Scheunenboden hinauf zum vollen Heugreifer unter dem Dachstuhl, vorne die Hand mit dem Funksender',
+    brief: 'Blick vom Scheunenboden steil nach oben zum Heugreifer unter dem dunklen Dachstuhl, Lichtstrahlen, vorne unscharf die Hand mit dem Funksender, hoch',
+    ratio: '4/5',
   },
   'fahrmischer-werkstatt': {
     alt: 'Fahrmischer in der Halle mit geöffneter Trommel',

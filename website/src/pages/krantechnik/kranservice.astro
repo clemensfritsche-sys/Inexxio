@@ -1,8 +1,8 @@
 ---
 /**
- * /krantechnik/kranservice – eigenes Layout (Oktober 2026), reduziert: Kopf wie Porsche → Vier Stufen als
+ * /krantechnik/kranservice – eigenes Layout (Oktober 2026), reduziert: Kopf wie Porsche → Drei Stufen als
  * Treppe (#stufen, INEXXIO 365 oben #inexxio-365) → Garantien → Prüfen, warten, modernisieren (zwei
- * Bildkarten, #pruefen, #modernisierung) → Prüfpflicht in drei Sätzen → Fragen → Anfrage mit Foto-Hilfe.
+ * Bildkarten, #pruefen, #modernisierung) → Prüfpflicht in drei Sätzen → Fragen → Anfrage.
  * Texte: content/krantechnik.ts. Einzelheiten zur Prüfpflicht stehen im Ratgeber, nicht hier.
  * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva anerkannt ist.
  */
@@ -19,7 +19,7 @@ import { areaOf } from '../../config/site.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import titel from '../../assets/illustrations/kranservice-titel.webp';
-import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d, photoHint } from '../../content/krantechnik';
+import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
@@ -36,7 +36,7 @@ const nodes = [
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Die vier Stufen', href: '#stufen' }}
+    secondary={{ label: 'Die drei Stufen', href: '#stufen' }}
   />
 
   <section class="v4-section" id="stufen" aria-labelledby="stufen-title">
@@ -64,7 +64,7 @@ const nodes = [
 
   <FaqStage items={page.faq} illo={'menu/kranservice'} />
 
-  <ContactSection hint={photoHint} />
+  <ContactSection />
 </Base>
 
 <style>

@@ -1,7 +1,7 @@
 /**
  * Krantechnik – Bereichsseite und drei Unterseiten: Krane nach Mass (die Seite für schwierige
  * Gebäude: um Ecken, über Steigungen und Versätze; dazu Häfen und der Standardkran), Kranservice
- * (vier Stufen bis INEXXIO 365, mit Modernisierung und Prüfpflicht) und Heukrananlagen (Funk statt
+ * (drei Stufen bis INEXXIO 365, mit Modernisierung und Prüfpflicht) und Heukrananlagen (Funk statt
  * Kabine, Saison-Check, Bauformen).
  * Alle vier Seiten haben ein eigenes Layout nach dem Muster von Speziallösungen (Oktober 2026); die
  * `AreaPage`-/`SubPage`-Objekte liefern Titel, Beschreibung, Zusammenfassung, Leistungsumfang und FAQ
@@ -74,8 +74,8 @@ export const krantechnik: AreaPage = {
 
 /** Die drei Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit der Zeichnung aus dem Menü. */
 export const craneOffers = {
-  title: 'Was dürfen wir für Ihren Kran tun?',
-  lead: 'Neu bauen, einsatzbereit halten, die Scheune ausrüsten – aus einer Hand.',
+  title: 'Alles rund um Ihren Kran',
+  lead: 'Bauen, betreuen, modernisieren – aus einer Hand.',
   items: [
     { id: 'nach-mass', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: KNM, text: 'Kurve, Steigung, Versatz? Wir bauen den Kran um Ihr Gebäude herum.', href: '/krantechnik/krane-nach-mass' },
     { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir die Ausfälle.', href: '/krantechnik/kranservice' },
@@ -127,7 +127,7 @@ export const kraneNachMass: SubPage = {
     { q: 'Betreuen Sie auch bestehende Krane und Bootslifte?', a: 'Ja. Wir prüfen, warten und reparieren bestehende Anlagen – auch von anderen Herstellern.' },
   ],
   related: [
-    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Vier Stufen bis INEXXIO 365.' },
+    { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Drei Stufen bis INEXXIO 365.' },
     { href: '/krantechnik/heukrananlagen', label: 'Heukrananlagen', text: 'Ohne Kabine, bedient per Funk.' },
     ratgeberPruefung,
   ],
@@ -217,7 +217,7 @@ export const harbour = {
 
 /* ------------------------------------------------------------------ Kranservice */
 /**
- * EINE Seite für den Kranservice: die vier Stufen (Auf Abruf · Basis · Plus · INEXXIO 365),
+ * EINE Seite für den Kranservice: die drei Stufen (Auf Abruf · Service-Vertrag · INEXXIO 365),
  * INEXXIO 365 mit seinen zwei Wegen, was wir prüfen, Modernisierung und die Prüfpflicht.
  * Keine Preise, keine Kranklassen – vor jeder Arbeit gibt es eine verbindliche Offerte.
  */
@@ -227,7 +227,7 @@ export const kranservice: SubPage = {
   crumb: 'Kranservice',
   title: 'Kranservice und INEXXIO 365',
   description:
-    'Kranservice in vier Stufen: erste Inspektion gratis, Service-Vertrag Basis oder Plus, INEXXIO 365. Dazu Modernisierung. Verbindliche Offerte vorab.',
+    'Kranservice in drei Stufen: erste Inspektion gratis, Service-Vertrag mit Prüfung und Wartung, INEXXIO 365. Dazu Modernisierung. Verbindliche Offerte vorab.',
   hero: {
     eyebrow: 'Krantechnik · Kranservice',
     h1: 'Ihr Kran ist einsatzbereit. Ausfälle ==übernehmen wir==.',
@@ -237,7 +237,7 @@ export const kranservice: SubPage = {
     primary: anfrage('Kranservice anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet, repariert und modernisiert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Vier Stufen: Auf Abruf (die erste Inspektion ist gratis), Service-Vertrag Basis (gesetzliche Prüfung, digitales Kranbuch, Erinnerung an Fristen), Service-Vertrag Plus (dazu Wartung, feste Reaktionszeit, fester Ansprechpartner) und INEXXIO 365 (dazu Teile und Reparaturen, Ersatz-Hebezeug und das Verfügbarkeitsversprechen). Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
+    '{{brand.full}} prüft, wartet, repariert und modernisiert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Drei Stufen: Auf Abruf (die erste Inspektion ist gratis), Service-Vertrag (gesetzliche Prüfung, Wartung, digitales Kranbuch mit Erinnerung an Fristen, feste Reaktionszeit, fester Ansprechpartner) und INEXXIO 365 (dazu Teile und Reparaturen, Ersatz-Hebezeug und das Verfügbarkeitsversprechen). Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
   glance: {
     forWhom: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs – und alle, deren Kran laufen muss.',
     what: 'Prüfung, Wartung, Reparatur und Modernisierung durch Kranfachleute – vom einzelnen Einsatz bis INEXXIO 365.',
@@ -260,7 +260,7 @@ export const kranservice: SubPage = {
     promiseFaq.inexxio365,
     {
       q: 'Welche Stufe passt zu mir?',
-      a: 'Auf Abruf, wenn Sie selten etwas brauchen. Basis, wenn Prüfung und Kranbuch sicher erledigt sein sollen. Plus, wenn auch die Wartung geregelt sein soll. INEXXIO 365, wenn Ihr Betrieb vom Kran abhängt.',
+      a: 'Auf Abruf, wenn Sie selten etwas brauchen. Der Service-Vertrag, wenn Prüfung, Wartung und Kranbuch sicher erledigt sein sollen. INEXXIO 365, wenn Ihr Betrieb vom Kran abhängt.',
     },
     {
       q: 'Lohnt sich eine Modernisierung?',
@@ -281,16 +281,15 @@ export const kranservice: SubPage = {
 };
 
 /**
- * Die vier Stufen des Kranservice. Jede enthält die vorherige – darum nennt jede nur, was
+ * Die drei Stufen des Kranservice. Jede enthält die vorherige – darum nennt jede nur, was
  * dazukommt. Kein Betrag, keine Kranklasse: die verbindliche Offerte erhalten Sie vorab.
  */
 export const serviceTiers = {
-  title: 'Vier Stufen – Sie wählen, wie viel wir übernehmen',
+  title: 'Drei Stufen – Sie wählen, wie viel wir übernehmen',
   lead: 'Jede Stufe enthält die vorherige.',
   tiers: [
     { name: 'Auf Abruf', claim: 'Einzeln bestellt, wenn Sie es brauchen.', items: ['Service, Wartung, Prüfung oder Reparatur', 'Die erste Inspektion ist gratis'] },
-    { name: 'Service-Vertrag Basis', claim: 'Die Pflicht ist erledigt.', items: ['Gesetzliche Prüfung, mit Protokoll', 'Digitales Kranbuch', 'Erinnerung an Fristen'] },
-    { name: 'Service-Vertrag Plus', claim: 'Der Kran ist gepflegt.', items: ['Wartung nach Herstellervorgabe', 'Feste Reaktionszeit', 'Fester Ansprechpartner'] },
+    { name: 'Service-Vertrag', claim: 'Pflicht erledigt, Kran gepflegt.', items: ['Gesetzliche Prüfung, mit Protokoll', 'Wartung nach Herstellervorgabe', 'Digitales Kranbuch, Erinnerung an Fristen', 'Feste Reaktionszeit, fester Ansprechpartner'] },
     { name: 'INEXXIO 365', claim: 'Einsatzbereit. Ausfälle übernehmen wir.', items: ['Teile und Reparaturen inklusive', 'Ersatz-Hebezeug', 'Verfügbarkeitsversprechen: jeder Tag Stillstand ist gratis'], featured: true },
   ],
 };
@@ -321,13 +320,6 @@ export const inspectionDuty = {
     { icon: 'file-text' as IconName, title: 'Kranbuch', text: 'Zu jedem Kran gehört ein Kranbuch. Wir führen es nach, digital.' },
     { icon: 'shield-check' as IconName, title: 'Fahrzeug- und Turmdrehkrane', text: 'Zusätzlich die periodische Kontrolle durch einen von der Suva anerkannten Kranexperten – sie gehört nicht zu unserem Angebot.' },
   ],
-};
-
-/** Foto-Hilfe (Kranservice): mit Typenschild bereitet sich der Einsatz besser vor. */
-export const photoHint = {
-  title: 'Foto vom Typenschild oder vom Schaden mitschicken',
-  items: ['Typenschild', 'Der Schaden', 'Der ganze Kran'],
-  note: `Mit einem Foto wissen wir vor dem Einsatz, welcher Kran es ist. Bis zu ${inquiry.photos.max} Fotos.`,
 };
 
 /* ------------------------------------------------------------------ Heukrananlagen */
@@ -401,6 +393,7 @@ export const radioControl = {
   title: 'Ohne Kabine. Mit dem ==besten Blick==.',
   lead: 'Unsere Heukrane bedienen Sie per Funk – vom Boden, vom Wagen oder vom Heustock aus. Das kann jeder im Betrieb, auch wer nicht schwindelfrei ist.',
   photo: 'heukran-funk',
+  sight: 'funk-sicht',
   a: { label: 'Funk statt Kabine', title: 'Sender in die Hand – und der Kran läuft.' },
   b: { label: 'Beste Sicht', title: 'Sie sehen genau, was der Greifer packt.' },
   c: { label: 'Allein abladen', title: 'Wagen hinein, absteigen, abladen.' },

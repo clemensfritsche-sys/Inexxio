@@ -1,9 +1,8 @@
 ---
 /**
  * Drei Felder, ein Prinzip (v4, Muster Porsche-Modellvergleich): eine graue Karte, die Zeichnung
- * liegt gross darüber und ragt oben hinaus; unten liegt eine Glasfläche über ihrem Fuss – darin Titel,
- * ein Satz und der runde Pfeil. Die ganze Karte ist der Link (zur Seite, sonst zur Anfrage). Beim
- * Zeigen hebt sich die Zeichnung.
+ * liegt gross darüber und ragt oben hinaus; darin nur Titel, ein Satz und der runde Pfeil – die ganze
+ * Karte ist der Link (zur Seite, sonst zur Anfrage). Beim Zeigen hebt sich die Zeichnung.
  * Schmal: ein Karussell zum Wischen, es beginnt in der Mitte (scripts/carousel.ts, data-start).
  * Gebraucht auf Speziallösungen (drei Felder) und Fahrzeugtechnik (drei Angebote).
  */
@@ -46,11 +45,9 @@ const { title, lead, items, fallback = '#anfrage', id = 'felder', start = Math.f
         <li class="fc__item" id={f.id} data-item>
           <a class="fc__card" href={f.href ?? fallback}>
             <span class="fc__art"><img src={illustration(f.illo, 'Karten')} alt={f.alt} width="1000" height="560" loading="lazy" decoding="async" /></span>
-            <span class="fc__body glass-light">
-              <span class="fc__title">{f.title}</span>
-              <Rich as="span" class="fc__text" text={f.text} />
-              <span class="garrow garrow--sm garrow--ink fc__arrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
-            </span>
+            <span class="fc__title">{f.title}</span>
+            <Rich as="span" class="fc__text" text={f.text} />
+            <span class="garrow garrow--sm garrow--ink fc__arrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
           </a>
         </li>
       ))}
@@ -66,23 +63,20 @@ const { title, lead, items, fallback = '#anfrage', id = 'felder', start = Math.f
 <style>
   .fc { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 150px; }
   .fc__item { scroll-margin-top: calc(var(--header-h) + 140px); }
-  .fc__card { position: relative; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; padding: 190px 12px 12px; border-radius: 24px; background: linear-gradient(180deg, var(--gray-100) 0%, var(--gray-200) 100%); color: var(--ink); text-decoration: none; isolation: isolate; }
-  /* Die Zeichnung reicht unter die Glasfläche – dort wird sie weich. */
-  .fc__art { position: absolute; z-index: 0; left: -6%; right: -6%; top: -130px; height: 380px; display: flex; justify-content: center; pointer-events: none; transition: transform 0.6s var(--ease); }
-  .fc__body { position: relative; z-index: 1; display: flex; flex-direction: column; flex: 1; padding: 24px 24px 26px; border-radius: 16px; }
+  .fc__card { position: relative; display: flex; flex-direction: column; height: 100%; padding: 150px 32px 32px; border-radius: 24px; background: var(--gray-100); color: var(--ink); text-decoration: none; }
+  .fc__art { position: absolute; left: -6%; right: -6%; top: -130px; height: 270px; display: flex; justify-content: center; pointer-events: none; transition: transform 0.6s var(--ease); }
   .fc__card:hover .fc__art { transform: translateY(-8px); }
   .fc__art img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 22px 22px rgba(10, 10, 11, 0.1)); }
   .fc__title { font-family: var(--font-display); font-weight: 600; font-size: 1.875rem; letter-spacing: -0.02em; }
   .fc__card :global(.fc__text) { margin-top: 10px; padding-right: 56px; font-size: 1rem; line-height: 1.5; color: var(--ink-3); }
-  .fc__arrow { position: absolute; right: 16px; bottom: 16px; }
+  .fc__arrow { position: absolute; right: 24px; bottom: 24px; }
   @media (max-width: 959px) {
     .fc-wrap { padding-inline: 0; }
     .fc { display: flex; gap: 12px; margin-top: 0; padding: 150px var(--gutter) 8px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
     .fc::-webkit-scrollbar { display: none; }
     .fc__item { flex: 0 0 78%; scroll-snap-align: center; }
-    .fc__card { padding: 150px 10px 10px; }
-    .fc__art { top: -120px; height: 310px; }
-    .fc__body { padding: 20px 20px 22px; }
+    .fc__card { padding: 130px 22px 22px; }
+    .fc__art { top: -120px; height: 230px; }
     .fc__title { font-size: 1.625rem; }
   }
 </style>
