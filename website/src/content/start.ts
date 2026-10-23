@@ -22,7 +22,7 @@ export const start = {
 
   /** Ein Satz je Bereich – auf seiner Karte. */
   entries: {
-    krantechnik: 'Krane nach Mass, Kranservice und Heukrananlagen.',
+    krantechnik: 'Krane nach Mass, auch um Ecken und über Steigungen. Kranservice und Heukrananlagen.',
     fahrzeugtechnik: 'Neue Trommel statt neuer Fahrmischer.',
     spezialloesungen: 'Was kein Hersteller liefert, bauen wir.',
   } as Record<string, string>,

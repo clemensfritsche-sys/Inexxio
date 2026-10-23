@@ -1,40 +1,43 @@
 ---
 /**
- * Im Winter, wenn der Bau ruht (v4, Anker #winter): links Titel, Satz und die rote Anfrage, rechts ein
- * Wandkalender Januar bis Dezember – je Monat ein Kalenderblatt. Wintermonate dunkel mit Schneeflocke
- * und «Tausch», die übrigen hell mit dem Fahrmischer und «Einsatz»; darüber die Legende in Worten.
- * Breit 6 × 2 Blätter, schmal 4 × 3. Texte: content/fahrzeugtechnik.ts (`winterSlot`).
+ * Der Wandkalender (v4): links Titel, Satz und die rote Anfrage, rechts Januar bis Dezember – je Monat
+ * ein Kalenderblatt mit Symbol und Wort. Welcher Monat welche Art ist, sagt `plan` (Index in `kinds`);
+ * eine Art ist dunkel (`dark`) – der Zeitpunkt, um den es geht. Darüber die Legende in Worten, darunter
+ * auf Wunsch Marken (`items`). Breit 6 × 2 Blätter, schmal 4 × 3.
+ * Gebraucht für den Winter auf dem Trommeltausch und den Saison-Check der Heukrananlagen.
  */
-import Icon, { type IconName } from '../Icon.astro';
-import Rich from '../Rich.astro';
+import Icon, { type IconName } from './Icon.astro';
+import Rich from './Rich.astro';
 
-interface Kind { icon: IconName; word: string; legend: string }
-interface Props { title: string; text: string; months: string[]; winter: number[]; cold: Kind; warm: Kind; cta: string }
-const { title, text, months, winter, cold, warm, cta } = Astro.props;
+interface Kind { icon: IconName; word: string; legend: string; dark?: boolean }
+interface Props { id: string; title: string; text: string; kinds: Kind[]; plan: number[]; cta: string; items?: string[] }
+const { id, title, text, kinds, plan, cta, items = [] } = Astro.props;
+const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+if (plan.length !== 12) throw new Error(`Kalender «${id}»: der Plan braucht 12 Monate (hier ${plan.length}).`);
 ---
-<section class="v4-section" id="winter" aria-labelledby="winter-title">
+<section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap wb">
     <div class="wb__text">
-      <h2 class="v4-h2" id="winter-title">{title}</h2>
+      <h2 class="v4-h2" id={`${id}-title`}>{title}</h2>
       <Rich as="p" class="v4-sub" text={text} />
       <a class="btn btn--primary btn--lg" href="#anfrage">{cta}</a>
     </div>
     <div class="wb__cal">
       <p class="wb__legend">
-        <span><i class="wb__sw wb__sw--cold"></i>{cold.legend}</span>
-        <span><i class="wb__sw"></i>{warm.legend}</span>
+        {kinds.map((k) => <span><i class:list={['wb__sw', k.dark && 'wb__sw--dark']}></i>{k.legend}</span>)}
       </p>
       <ol class="wb__months">
-        {months.map((m, i) => {
-          const k = winter.includes(i) ? cold : warm;
+        {MONTHS.map((m, i) => {
+          const k = kinds[plan[i]];
           return (
-            <li class:list={['wb__m', k === cold && 'wb__m--cold']}>
+            <li class:list={['wb__m', k.dark && 'wb__m--dark']}>
               <span class="wb__head">{m}</span>
               <span class="wb__body"><Icon name={k.icon} size={22} /><span class="wb__word">{k.word}</span></span>
             </li>
           );
         })}
       </ol>
+      {items.length > 0 && <ul role="list" class="wb__items">{items.map((i) => <li>{i}</li>)}</ul>}
     </div>
   </div>
 </section>
@@ -47,17 +50,18 @@ const { title, text, months, winter, cold, warm, cta } = Astro.props;
   .wb__legend { display: flex; flex-wrap: wrap; gap: 6px 20px; max-width: none; margin-bottom: 16px; font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
   .wb__legend span { display: inline-flex; align-items: center; gap: 8px; }
   .wb__sw { width: 12px; height: 12px; border-radius: 3px; background: var(--white); border: 1px solid var(--line-2); }
-  .wb__sw--cold { background: var(--ink); border-color: var(--ink); }
+  .wb__sw--dark { background: var(--ink); border-color: var(--ink); }
   /* Ein Kalenderblatt: Kopf mit dem Monat, darunter Symbol und Wort. */
   .wb__months { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
   .wb__m { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: 12px; background: var(--white); box-shadow: 0 1px 0 var(--line-2); }
   .wb__head { padding: 6px 0; text-align: center; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.02em; background: var(--gray-200); color: var(--ink); }
   .wb__body { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 76px; padding: 10px 4px; color: var(--gray-500); }
   .wb__word { font-size: 0.75rem; font-weight: 600; color: var(--ink-3); }
-  .wb__m--cold { background: var(--dark-2); box-shadow: none; }
-  .wb__m--cold .wb__head { background: var(--ink); color: var(--white); }
-  .wb__m--cold .wb__body { color: var(--white); }
-  .wb__m--cold .wb__word { color: var(--white); }
+  .wb__m--dark { background: var(--dark-2); box-shadow: none; }
+  .wb__m--dark .wb__head { background: var(--ink); color: var(--white); }
+  .wb__m--dark .wb__body, .wb__m--dark .wb__word { color: var(--white); }
+  .wb__items { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .wb__items li { padding: 4px 10px; border-radius: 6px; background: var(--white); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
   @media (min-width: 960px) {
     .wb { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; }
     .wb__cal { padding: 28px; }

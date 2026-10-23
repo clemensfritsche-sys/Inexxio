@@ -4,19 +4,20 @@
  * «Für Krane · Fahrzeuge · Baumaschinen»; Zeichnung und Satz blenden über. Die Legende sagt
  * die Bildregel: «Grau: die Serie · Rot: was wir dazubauen». «Aufgabe schildern» steht unter
  * der Bühne (breit rechts unten). Reines CSS (Optionsfelder) – kein Skript, ohne JS bedienbar.
- * Auch auf dem Trommeltausch («Tauschen · Überholen · Neu kaufen»): dort kommen Zeichnungen und
- * Legende als `art` und `legend` herein.
+ * Auch auf dem Trommeltausch («Tauschen · Überholen · Neu kaufen») und bei den Bauformen der
+ * Heukrananlagen (vier Felder): dort kommen Zeichnungen und Legende als `art` und `legend` herein.
  */
 import Icon from '../Icon.astro';
 import Rich from '../Rich.astro';
 import { plain } from '../../lib/text.mjs';
 import { illustration } from '../../lib/illustrations';
 
-interface Item { title: string; text: string }
+/** `tab`: kurzer Name im Umschalter, wenn der Titel zu lang ist. */
+interface Item { title: string; text: string; tab?: string }
 interface Props {
   title: string;
   lead: string;
-  /** Die drei Felder «Für …» – Titel und Satz (aus content/spezialloesungen.ts). */
+  /** Die Felder (höchstens vier) – Titel und Satz, auf der Startseite die drei «Für …» (content/spezialloesungen.ts). */
   items: Item[];
   cta: { label: string; href: string };
   /** Überschrift als H1 (eigene Seite) oder H2 (Abschnitt). */
@@ -33,29 +34,30 @@ const {
   legend = { grey: 'Grau: die Serie', red: 'Rot: was wir dazubauen' },
 } = Astro.props;
 const H = level;
+const shown = items.slice(0, Math.min(4, art.length));
 ---
 <section class="v4-section sp-sec" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap" data-hero={level === 'h1' ? true : undefined}>
     <H class="v4-h2" id={`${id}-title`}>{plain(title)}</H>
     <Rich as="p" class="v4-sub" text={lead} />
     <div class="sp">
-      {items.slice(0, 3).map((_, i) => (
+      {shown.map((_, i) => (
         <input class="sp__in" type="radio" name={`${id}-feld`} id={`${id}-${i}`} checked={i === 0} />
       ))}
       <div class="sp__stage">
         <div class="sp__tabs glass-tabs" role="presentation">
-          {items.slice(0, 3).map((it, i) => <label for={`${id}-${i}`} data-i={i}>{it.title}</label>)}
+          {shown.map((it, i) => <label for={`${id}-${i}`} data-i={i}>{it.tab ?? it.title}</label>)}
         </div>
         <div class="sp__art">
-          {items.slice(0, 3).map((_, i) => <img src={illustration(art[i].illo, 'Bühne')} alt={art[i].alt} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />)}
+          {shown.map((_, i) => <img src={illustration(art[i].illo, 'Bühne')} alt={art[i].alt} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />)}
         </div>
         <p class="sp__legend" aria-hidden="true"><span><i class="sp__sw sp__sw--grey"></i>{legend.grey}</span><span><i class="sp__sw"></i>{legend.red}</span></p>
         <div class="sp__texts sp__texts--in">
-          {items.slice(0, 3).map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
+          {shown.map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
         </div>
       </div>
       <div class="sp__texts sp__texts--out" aria-hidden="true">
-        {items.slice(0, 3).map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
+        {shown.map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
       </div>
       <a class="btn btn--primary sp__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
     </div>
@@ -101,12 +103,15 @@ const H = level;
   /* Gewählt: Knopf weiss, Zeichnung und Satz sichtbar. */
   .sp:has(.sp__in:nth-of-type(1):checked) [data-i='0'],
   .sp:has(.sp__in:nth-of-type(2):checked) [data-i='1'],
-  .sp:has(.sp__in:nth-of-type(3):checked) [data-i='2'] { opacity: 1; transform: none; }
+  .sp:has(.sp__in:nth-of-type(3):checked) [data-i='2'],
+  .sp:has(.sp__in:nth-of-type(4):checked) [data-i='3'] { opacity: 1; transform: none; }
   .sp:has(.sp__in:nth-of-type(1):checked) label[data-i='0'],
   .sp:has(.sp__in:nth-of-type(2):checked) label[data-i='1'],
-  .sp:has(.sp__in:nth-of-type(3):checked) label[data-i='2'] { background: var(--white); box-shadow: 0 2px 8px rgba(10, 10, 11, 0.12); }
+  .sp:has(.sp__in:nth-of-type(3):checked) label[data-i='2'],
+  .sp:has(.sp__in:nth-of-type(4):checked) label[data-i='3'] { background: var(--white); box-shadow: 0 2px 8px rgba(10, 10, 11, 0.12); }
   .sp:has(.sp__in:nth-of-type(1):focus-visible) label[data-i='0'],
   .sp:has(.sp__in:nth-of-type(2):focus-visible) label[data-i='1'],
-  .sp:has(.sp__in:nth-of-type(3):focus-visible) label[data-i='2'] { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .sp:has(.sp__in:nth-of-type(3):focus-visible) label[data-i='2'],
+  .sp:has(.sp__in:nth-of-type(4):focus-visible) label[data-i='3'] { outline: 2px solid var(--ink); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .sp__art img, .sp__text { transition: none; } }
 </style>

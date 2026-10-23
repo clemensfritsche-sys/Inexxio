@@ -50,6 +50,41 @@ export const photos = {
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',
   },
+  // Krane nach Mass, Belege (sichtbar erst mit `features.craneReferences`) – je ein echtes Projekt.
+  'kran-kurve': {
+    alt: 'Kranfahrbahn, die in einer Scheune oder Halle um die Ecke biegt',
+    brief: 'Kran nach Mass mit Kurvenfahrbahn: die Fahrbahn biegt sichtbar um eine Ecke, Katze oder Greifer in der Kurve, Gebäude erkennbar, quer',
+    ratio: '4/3',
+  },
+  'kran-steigung': {
+    alt: 'Kranfahrbahn unter einem ansteigenden Dach',
+    brief: 'Kran nach Mass in einem Gebäude mit Steigung: Fahrbahn folgt dem ansteigenden Dach oder Boden, Steigung gut sichtbar, quer',
+    ratio: '4/3',
+  },
+  'kran-versatz': {
+    alt: 'Kranfahrbahn unter einer Decke mit Versatz und Unterzug',
+    brief: 'Kran nach Mass unter einer Decke mit Höhensprung oder Unterzug: Aufhängungen unterschiedlich lang, die Fahrbahn läuft durch, quer',
+    ratio: '4/3',
+  },
+  'kran-eng': {
+    alt: 'Kompakter Kran mit Greifer zwischen Stützen in einem engen Raum',
+    brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
+    ratio: '4/3',
+  },
+  // Heukrananlagen, «Funk statt Kabine» (generiert, ohne echte Person oder echten Ort).
+  'heukran-funk': {
+    file: 'heukran-funk.jpg',
+    alt: 'Landwirt steht neben dem Heuwagen in der Scheune, schaut zum Greifer hinauf und hält den Funksender',
+    brief: 'Landwirt am Boden der Scheune neben dem Heuwagen mit Funksender in der Hand, darüber der Heukran mit vollem Greifer, keine Kabine, hoch',
+    ratio: '4/5',
+  },
+  // Heukrananlagen, «Funk statt Kabine», dunkle Karte (generiert).
+  'funk-sicht': {
+    file: 'funk-sicht.jpg',
+    alt: 'Blick vom Scheunenboden hinauf zum vollen Heugreifer unter dem Dachstuhl, vorne die Hand mit dem Funksender',
+    brief: 'Blick vom Scheunenboden steil nach oben zum Heugreifer unter dem dunklen Dachstuhl, Lichtstrahlen, vorne unscharf die Hand mit dem Funksender, hoch',
+    ratio: '4/5',
+  },
   'fahrmischer-werkstatt': {
     alt: 'Fahrmischer in der Halle mit geöffneter Trommel',
     brief: 'Fahrmischer in der Halle, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
@@ -111,6 +146,13 @@ export const photos = {
     alt: 'Das Team von INEXXIO bei der Arbeit',
     brief: 'Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer',
     ratio: '3/2',
+  },
+  // Garantien, Karte «Die erste Inspektion ist gratis» (generiert, ohne echte Person oder echten Betrieb).
+  'erste-inspektion': {
+    file: 'erste-inspektion.jpg',
+    alt: 'Techniker auf einer Arbeitsbühne prüft Haken und Unterflasche eines roten Brückenkrans, in der Hand ein Tablet',
+    brief: 'Kran-Techniker auf einer Arbeitsbühne prüft Haken und Hubwerk eines roten Brückenkrans in einer hellen Produktionshalle, Tablet in der Hand, quer',
+    ratio: '16/9',
   },
   'arbeit-werkstatt': {
     file: 'arbeit-werkstatt.webp',

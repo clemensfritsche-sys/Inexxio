@@ -1,0 +1,60 @@
+---
+/**
+ * Häfen, Clubs und Werften (v4, Krane nach Mass, Anker #hafen): offen auf der Seite – links ein leises Wort,
+ * Titel, Satz und die Anfrage, rechts gross das freigestellte Bild (Bootslift mit Boot, Mastkran auf dem Steg;
+ * src/assets/illustrations/hafen-titel.webp).
+ * Unten an einer Haarlinie drei Punkte mit Symbol. Schmal: Bild oben, dann Text, Punkte untereinander.
+ * Texte: content/krantechnik.ts (`harbour`).
+ */
+import Icon, { type IconName } from '../Icon.astro';
+import Rich from '../Rich.astro';
+import { Picture } from 'astro:assets';
+import image from '../../assets/illustrations/hafen-titel.webp';
+
+interface Props {
+  label: string; title: string; text: string; alt: string;
+  items: { icon: IconName; title: string; text: string }[];
+  cta: { label: string; href: string };
+}
+const { label, title, text, alt, items, cta } = Astro.props;
+---
+<section class="v4-section" id="hafen" aria-labelledby="hafen-title">
+  <div class="wrap">
+    <div class="hb">
+      <figure class="hb__art"><Picture src={image} alt={alt} formats={['avif', 'webp']} widths={[640, 960, 1280]} sizes="(min-width: 960px) 720px, 100vw" fallbackFormat="webp" class="hb__img" /></figure>
+      <div class="hb__text">
+        <p class="hb__label">{label}</p>
+        <h2 class="v4-h2" id="hafen-title">{title}</h2>
+        <Rich as="p" class="v4-sub" text={text} />
+        <a class="btn btn--primary btn--lg hb__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+      <ul role="list" class="hb__list">
+        {items.map((it) => (
+          <li>
+            <span class="hb__ic"><Icon name={it.icon} size={20} /></span>
+            <span><strong>{it.title}</strong><Rich as="span" class="hb__t" text={it.text} /></span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hb { display: grid; gap: 24px; }
+  .hb__art { margin: 0; }
+  .hb__art :global(.hb__img) { display: block; width: 100%; height: auto; }
+  .hb__label { font-size: 0.875rem; font-weight: 600; color: var(--ink-3); margin-bottom: 12px; }
+  .hb__cta { margin-top: 28px; }
+  .hb__list { list-style: none; padding: 0; display: grid; border-top: 1px solid var(--line); }
+  .hb__list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding: 20px 0 4px; }
+  .hb__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
+  .hb__list strong { display: block; font-size: 1.0625rem; line-height: 1.35; }
+  .hb__list :global(.hb__t) { display: block; margin-top: 2px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) {
+    .hb { grid-template-columns: 5fr 7fr; gap: 0 64px; align-items: center; }
+    .hb__text { grid-row: 1; grid-column: 1; }
+    .hb__art { grid-row: 1; grid-column: 2; }
+    .hb__list { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 48px; }
+  }
+</style>

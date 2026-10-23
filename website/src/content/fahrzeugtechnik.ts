@@ -193,18 +193,20 @@ export const drumOptions = {
 };
 
 /**
- * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): ein Wandkalender
- * Januar bis Dezember – die Wintermonate dunkel mit Schneeflocke («Tausch»), die übrigen hell mit dem
- * Fahrmischer («Einsatz»). Wer draufschaut, sieht: im Winter steht er, dann ist Zeit für den Tausch.
+ * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): der Wandkalender
+ * (components/SeasonCalendar.astro) – die Wintermonate dunkel mit Schneeflocke («Tausch»), die übrigen
+ * hell mit dem Fahrmischer («Einsatz»). Wer draufschaut, sieht: im Winter steht er, dann ist Zeit.
  */
 export const winterSlot = {
+  id: 'winter',
   title: 'Im Winter, wenn der Bau ruht',
   text: 'Dann brauchen Sie den Fahrmischer kaum – der beste Moment für Tausch oder Revision. Im Frühling ist er bereit.',
-  months: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
-  /** Die Monate (Index ab Januar), in denen der Bau ruht. */
-  winter: [0, 1, 10, 11],
-  cold: { icon: 'snowflake' as IconName, word: 'Tausch', legend: 'Bau ruht – Zeit für den Tausch' },
-  warm: { icon: 'truck' as IconName, word: 'Einsatz', legend: 'Bausaison – Ihr Fahrmischer fährt' },
+  kinds: [
+    { icon: 'snowflake' as IconName, word: 'Tausch', legend: 'Bau ruht – Zeit für den Tausch', dark: true },
+    { icon: 'truck' as IconName, word: 'Einsatz', legend: 'Bausaison – Ihr Fahrmischer fährt' },
+  ],
+  /** Je Monat ab Januar die Art (Index in `kinds`): Nov–Feb ruht der Bau. */
+  plan: [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
   cta: 'Winter-Termin planen',
 };
 

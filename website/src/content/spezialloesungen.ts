@@ -113,7 +113,7 @@ export const specialFields = {
       alt: 'Zeichnung: Speziallösung für Krane',
       title: 'Für Krane',
       text: 'Sonderkrane und Lastaufnahmen: Wo der Katalogkran aufhört, fangen wir an.',
-      href: '/krantechnik/krane-nach-mass#sonderkrane',
+      href: '/krantechnik/krane-nach-mass#situationen',
     },
   ],
 };

@@ -342,14 +342,20 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
 - **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
-  Startseite aus `components/home/*`, Unterseiten über `Hero` (Bildkarte) oder `StageHero`
-  (Kopf wie Porsche: grosses Wort, freigestelltes Bild oder Zeichnung – heute `/spezialloesungen`,
-  `/ueber-uns` und `/fahrzeugtechnik` mit Unterseiten; deren Bausteine `components/spezial/*`,
-  `components/fahrzeug/*`, die Bühne mit Umschalter `home/SpecialStage` auch auf dem Trommeltausch,
-  Zeichnungen per Schlüssel über `lib/illustrations.ts`),
-  `SectionHead`, `Promises`, `AreaCard`, `FaqStage` (Fragen auf jeder Seite: Glas-Akkordeon über
-  einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht das Bild direkt über der
-  offenen Frage), `ContactSection` (Karte als Grund, Anfrage in zwei Schritten, ohne Springen).
+  Startseite aus `components/home/*`. Die drei Bereiche, ihre Unterseiten und «Über uns» haben je ein
+  eigenes Layout aus denselben Bausteinen (es gibt keine Bereichs-/Unterseiten-Vorlage mehr):
+  `StageHero` (Kopf wie Porsche: grosses Wort, freigestelltes Bild mit weich auslaufenden Rändern) · `spezial/FieldCards`
+  (Karten: Zeichnung, Titel, Satz, Pfeil) · `spezial/SolutionPath` (jeder Ablauf als Weg) ·
+  `home/SpecialStage` (Bühne mit Umschalter, bis vier Felder) · `home/Stagger` (drei versetzte Karten,
+  Überschrift dazwischen: `home/Guarantees`, Funk auf den Heukrananlagen) · `SeasonCalendar`
+  (Wandkalender: Winter-Tausch, Saison-Check) · `PhotoCard` (Bildkarte; mit `illo` die Zeichnung, bis das Foto da ist) in `Magazine` (zwei Spalten
+  versetzt, schmal zum Wischen: Katalog, Situationen) ·
+  `ServiceTiers` (die drei Stufen als Treppe) · `FactGrid` (Sätze an Haarlinien) · `fahrzeug/*`, `kran/*`;
+  Zeichnungen per Schlüssel über `lib/illustrations.ts`. Dazu `FaqStage` (höchstens 5 Fragen je
+  Bereichsseite; Glas-Akkordeon über einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht
+  das Bild direkt über der offenen Frage) und `ContactSection` (Karte als Grund, Anfrage in zwei
+  Schritten, ohne Springen; auf Wunsch eine Foto-Hilfe `hint` unter dem Formular). `Hero` (Bildkarte)
+  trägt noch die Karriere.
   Freigestellte Bilder (WebP mit Transparenz) liegen in `src/assets/illustrations/`, nicht in
   der Fotoliste.
   Glas nur unter `html[data-site]` – der exportierte Kopf bleibt im ERP deckend.

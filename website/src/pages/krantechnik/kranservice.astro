@@ -1,119 +1,74 @@
 ---
 /**
- * /krantechnik/kranservice – der Kranservice auf EINER Seite: Versprechen ① und ③ (Vorlage),
- * die vier Stufen (#stufen), INEXXIO 365 mit seinen zwei Wegen (#inexxio-365), was wir prüfen
- * (Vorlage), Modernisierung mit der Garantie (#modernisierung), dann die Prüfpflicht mit
- * Tabelle, Quellen und Prüfpflicht-Check.
- * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva
- * anerkannt ist.
+ * /krantechnik/kranservice – eigenes Layout (Oktober 2026), reduziert: Kopf wie Porsche → Drei Stufen als
+ * Treppe (#stufen, INEXXIO 365 oben #inexxio-365) → Garantien → Prüfen, warten, modernisieren (zwei
+ * Bildkarten, #pruefen, #modernisierung) → Prüfpflicht in drei Sätzen → Fragen → Anfrage.
+ * Texte: content/krantechnik.ts. Einzelheiten zur Prüfpflicht stehen im Ratgeber, nicht hier.
+ * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva anerkannt ist.
  */
-import SubPage from '../../layouts/SubPage.astro';
-import SectionHead from '../../components/SectionHead.astro';
+import Base from '../../layouts/Base.astro';
+import StageHero from '../../components/StageHero.astro';
 import ServiceTiers from '../../components/ServiceTiers.astro';
-import Icon from '../../components/Icon.astro';
+import Guarantees from '../../components/home/Guarantees.astro';
+import PhotoCard from '../../components/PhotoCard.astro';
+import FactGrid from '../../components/FactGrid.astro';
+import FaqStage from '../../components/FaqStage.astro';
+import ContactSection from '../../components/ContactSection.astro';
 import Rich from '../../components/Rich.astro';
-import InspectionTable from '../../components/InspectionTable.astro';
-import InspectionCheck from '../../components/InspectionCheck.astro';
-import Sources from '../../components/Sources.astro';
-import { kranservice, serviceTiers as t, inexxio365 as x, modernisation as m, photoHint as ph } from '../../content/krantechnik';
-import { inspection } from '../../config/inspection.mjs';
+import { areaOf } from '../../config/site.mjs';
+import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+import titel from '../../assets/illustrations/kranservice-titel.webp';
+import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d } from '../../content/krantechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const area = areaOf(page.area);
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
 ---
-<SubPage page={kranservice}>
-  <Fragment slot="intro">
-    <section class="section" id="stufen" aria-labelledby="stufen-title">
-      <div class="wrap">
-        <SectionHead eyebrow="Vier Stufen" title={t.title} lead={t.lead} id="stufen-title" />
-        <ServiceTiers />
-      </div>
-    </section>
-    <section class="section" id="inexxio-365" aria-labelledby="x365-title">
-      <div class="wrap">
-        <SectionHead eyebrow={x.eyebrow} title={x.title} lead={x.lead} id="x365-title" />
-        <ul role="list" class="x365">
-          {x.ways.map((w) => (
-            <li class="x365__way">
-              <h3>{w.title}</h3>
-              <Rich as="p" text={w.text} />
-            </li>
-          ))}
-        </ul>
-        <div class="btn-row x365__cta"><a class="btn btn--primary" href="#anfrage">{x.cta} <Icon name="arrow-right" size={18} class="btn__arrow" /></a></div>
-      </div>
-    </section>
-  </Fragment>
+<Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
+  <StageHero
+    word="Kranservice"
+    image={titel}
+    alt="Halle mit Brückenkran als Konstruktionszeichnung, davor ein rotes Hubwerk mit Haken und ein offener roter Werkzeugkoffer"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: 'Die drei Stufen', href: '#stufen' }}
+  />
 
-  <section slot="module" class="section" id="modernisierung" aria-labelledby="modern-title">
+  <section class="v4-section" id="stufen" aria-labelledby="stufen-title">
     <div class="wrap">
-      <SectionHead eyebrow="Modernisierung" title={m.title} lead={m.lead} id="modern-title" />
-      <ul role="list" class="mod">
-        {m.items.map((it) => (
-          <li class="mod__item"><h3>{it.title}</h3><Rich as="p" text={it.text} /></li>
-        ))}
+      <header class="v4-head--center">
+        <h2 class="v4-h2" id="stufen-title">{t.title}</h2>
+        <Rich as="p" class="v4-sub" text={t.lead} />
+      </header>
+      <ServiceTiers />
+    </div>
+  </section>
+
+  <Guarantees garantieHref="#fragen" />
+
+  <section class="v4-section" aria-labelledby="arbeit-title">
+    <div class="wrap">
+      <header class="v4-head--center"><h2 class="v4-h2" id="arbeit-title">{w.title}</h2></header>
+      <ul role="list" class="ks-work">
+        {w.items.map((it) => <li id={it.id}><PhotoCard photo={it.photo} label={it.label} title={it.title} text={it.text} cta={it.cta} /></li>)}
       </ul>
-      <div class="mod__hint">
-        <Icon name="camera" size={22} />
-        <div><h3>{ph.title}</h3><Rich as="p" text={ph.text} /></div>
-      </div>
     </div>
   </section>
 
-  <section slot="module" class="section section--paper" aria-labelledby="pruefpflicht">
-    <div class="wrap">
-      <SectionHead
-        eyebrow="Prüfpflicht"
-        title="Was die Prüfpflicht verlangt"
-        lead="Kurz erklärt – nach Kranverordnung (SR 832.312.15) und EKAS-Richtlinie 6511."
-        id="pruefpflicht"
-      />
-      <div class="grid pflicht">
-        <div class="col-7 pflicht__text">
-          <h3>Alle Krane</h3>
-          <p>Regelmässige Überprüfung nach den Angaben des Herstellers durch ausgebildete Kranfachleute.</p>
-          <h3>Fahrzeug- und Turmdrehkrane</h3>
-          <p>
-            Jährliche Überprüfung durch Kranfachleute, zusätzlich eine periodische Kontrolle durch einen von der Suva
-            anerkannten Kranexperten: bis 20 Jahre alle 4 Jahre, mit 21 bis 30 Jahren alle 2 Jahre, ab 31 Jahren jährlich.
-          </p>
-          <h3>Kranbuch</h3>
-          <p>Zu jedem Kran gehört ein Kranbuch.</p>
-        </div>
-        <aside class="col-5 pflicht__aside">
-          <Sources items={inspection.sources} />
-        </aside>
-      </div>
-      <h3 class="pflicht__h">Übersicht nach Kranart</h3>
-      <InspectionTable />
-      <h3 class="pflicht__h">Was ist bei Ihrem Kran fällig?</h3>
-      <InspectionCheck />
-      <p class="pflicht__who small">
-        Wir übernehmen die Überprüfung durch Kranfachleute und die Wartung. Die periodische Kontrolle von Fahrzeug- und
-        Turmdrehkranen macht ein von der Suva anerkannter Kranexperte – sie gehört nicht zu unserem Angebot.
-      </p>
-    </div>
-  </section>
-</SubPage>
+  <FactGrid id="pruefpflicht" title={d.title} lead={d.lead} items={d.items} />
+
+  <FaqStage items={page.faq} illo={'menu/kranservice'} />
+
+  <ContactSection />
+</Base>
 
 <style>
-  .x365 { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 760px) { .x365 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .x365__way { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
-  .x365__way h3 { font-size: 1.375rem; }
-  .x365__cta { margin-top: var(--s-7); }
-  .mod { display: grid; gap: var(--s-5) var(--s-6); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 760px) { .mod { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1100px) { .mod { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-  .mod__item { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--ink); }
-  .mod__item h3 { font-size: 1.125rem; }
-  .mod__item p { color: var(--ink-2); }
-  .mod__hint { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-3); max-width: 46em; margin-top: var(--s-7); padding-top: var(--s-4); border-top: 1px solid var(--line-2); }
-  .mod__hint h3 { font-size: 1.0625rem; margin-bottom: 4px; }
-  .mod__hint :global(.icon) { color: var(--ink-3); margin-top: 2px; }
-  .pflicht { margin-bottom: var(--s-7); }
-  .pflicht__text { display: grid; gap: var(--s-2); }
-  .pflicht__text h3 { font-size: 1.125rem; margin-top: var(--s-3); }
-  .pflicht__text h3:first-child { margin-top: 0; }
-  @media (min-width: 960px) { .pflicht__aside { grid-column: 9 / span 4; padding-left: var(--s-5); border-left: 1px solid var(--line-2); } }
-  .pflicht__h { font-size: 1.25rem; margin: var(--s-7) 0 var(--s-4); }
-  .pflicht__h:first-of-type { margin-top: 0; }
-  .pflicht__who { margin-top: var(--s-6); padding-top: var(--s-4); border-top: 1px solid var(--line-2); color: var(--ink-2); }
+  .ks-work { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  .ks-work > li { scroll-margin-top: calc(var(--header-h) + 24px); }
+  @media (min-width: 960px) { .ks-work { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }
 </style>
