@@ -86,12 +86,14 @@ export const photos = {
     ratio: '4/5',
   },
   'fahrmischer-werkstatt': {
-    alt: 'Fahrmischer in der Halle mit geöffneter Trommel',
+    file: 'fahrmischer-werkstatt.jpg',
+    alt: 'Techniker steht auf einer Leiter am Heck eines Fahrmischers in einer hellen Halle, die Trommelluke ist offen',
     brief: 'Fahrmischer in der Halle, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
     ratio: '4/3',
   },
   'teil-auslaufrinne': {
-    alt: 'Auslaufrinne für Fahrmischer',
+    file: 'teil-auslaufrinne.jpg',
+    alt: 'Stählerne Auslaufrinne für Fahrmischer auf einer Werkbank aus Stahl',
     brief: 'Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer',
     ratio: '4/3',
   },

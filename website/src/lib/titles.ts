@@ -19,6 +19,10 @@ const TITLES: Record<string, string> = {
   '/fahrzeugtechnik/trommeltausch': 'trommel',
   '/fahrzeugtechnik/verschleissteile': 'teile',
   '/ueber-uns': 'ueber',
+  // Nur im Menü (diese Seiten haben keinen Seitenkopf mit Bild):
+  '/ratgeber': 'ratgeber',
+  '/karriere': 'karriere',
+  '/kontakt': 'kontakt',
 };
 
 const fileOf = (name: string): ImageMetadata => {
