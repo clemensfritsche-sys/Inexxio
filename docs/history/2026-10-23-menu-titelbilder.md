@@ -13,3 +13,7 @@ Titelbild bleibt die Zeichnung (WEBSITE_PLAN Entscheid 126). Probe vorher als Ar
 
 **Verworfen:** Bilder per Skript erst beim Öffnen setzen – das Menü ginge ohne JS ohne Bilder auf, und
 die CSS-Lösung lädt früh genug (beim Weg der Maus zum Menüpunkt).
+
+**Nachtrag (gleicher Tag):** erste KI-Bilder eingepflegt – Fotos `fahrmischer-werkstatt` und
+`teil-auslaufrinne` (statt Beispielbild), Menü-Titelbilder für Ratgeber, Karriere und Kontakt
+(`lib/titles.ts`; diese Seiten haben keinen Seitenkopf mit Bild, das Bild steht nur im Menü).

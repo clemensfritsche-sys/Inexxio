@@ -75,7 +75,7 @@ const tilesOf = async (g: (typeof groups)[number]): Promise<Tile[]> => {
   return [all, ...kids];
 };
 const contactTile: Tile = {
-  label: 'Kontakt', href: '/kontakt', img: illo('menu/kontakt'),
+  label: 'Kontakt', href: '/kontakt', img: await imgOf('/kontakt', 'menu/kontakt'),
   sub: `${site.people.owner.name} · ${site.phone.display} · ${a.street}, ${a.zip} ${a.city}`,
 };
 const menus = [
