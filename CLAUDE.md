@@ -366,8 +366,10 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   (`components/Media.astro`). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
   ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/agb`.
-- **Kopf-Menü = Mobil-Menü**: ein Punkt mit Unterseiten beginnt mit seiner Übersicht («Alles zu …»,
-  dunkel, Stapel der Bilder; bei «Über uns» nur «Über uns»), dann die Unterseiten – EINE
+- **Kopf-Menü = Mobil-Menü**: Hauptzeile Speziallösungen · Krantechnik · Fahrzeugtechnik · Service ·
+  Unternehmen (Über uns · Ratgeber · Karriere · Kontakt); Kontakt ist kein eigener Punkt – Telefon und
+  «Anfrage stellen» rechts sind der Weg zu uns. Ein Punkt mit Unterseiten beginnt mit seiner Übersicht
+  («Alles zu …», dunkel, Stapel der Bilder; bei «Unternehmen» die Kachel «Über uns»), dann die Unterseiten – EINE
   Liste (`Header.astro`, `tilesOf`). **Jede Kachel zeigt das Titelbild ihrer Seite, sonst die Zeichnung**;
   welche Seite welches Titelbild trägt, steht EINMAL in `src/lib/titles.ts` (auch der Seitenkopf liest
   dort). Die Menübilder laden erst, wenn der Kopf berührt wird (Kachelreihe vorher nicht im Layout).

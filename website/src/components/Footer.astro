@@ -36,6 +36,7 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
           <h2 class="site-footer__title"><a href={g.href}>{g.label}</a></h2>
           {g.children.length ? (
             <ul role="list">
+              {g.ddSelf && <li><a href={g.href}>{g.selfLabel ?? g.label}</a></li>}
               {g.children.map((c) => <li><a href={c.href}>{plain(c.label)}</a></li>)}
             </ul>
           ) : <p class="site-footer__text">{g.text}</p>}
