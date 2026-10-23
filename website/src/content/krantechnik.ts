@@ -120,11 +120,11 @@ export const kraneNachMass: SubPage = {
     ],
   },
   faq: [
-    { q: 'Geht das auch in meinem Gebäude?', a: 'Schicken Sie uns Fotos. Wir sagen Ihnen ehrlich, ob es geht, und wenn nicht, warum.' },
-    { q: 'Muss ich umbauen?', a: 'Meist nicht. Wir passen den Kran ans Gebäude an, nicht umgekehrt.' },
-    { q: 'Betreuen Sie auch bestehende Anlagen dieser Art?', a: 'Ja, auch Anlagen anderer Hersteller.' },
-    { q: 'Muss ich den Kran kaufen?', a: 'Nein. Sie kaufen ihn mit Garantie – oder nutzen ihn ohne Kauf, zur Monatsrate mit INEXXIO 365.' },
-    { q: 'Bauen Sie auch Bootslifte und betreuen bestehende?', a: 'Ja. Wir bauen neue Bootslifte nach Mass und prüfen, warten und reparieren bestehende – auch von anderen Herstellern.' },
+    { q: 'Geht das auch in meinem Gebäude?', a: 'Schicken Sie uns Fotos. Wir sagen Ihnen ehrlich, ob es geht, und wenn nicht, warum. Umbauen müssen Sie meist nicht: Wir passen den Kran ans Gebäude an.' },
+    { q: 'Trägt mein Gebäude den Kran?', a: 'Das klären wir vor dem Bau: ob Dachstuhl, Wände oder Stützen die Last tragen, wenn nötig zusammen mit einem Statiker. Erst dann bauen wir.' },
+    { q: 'Steht mein Betrieb während der Montage still?', a: 'Wir fertigen im eigenen Betrieb vor und montieren in kurzer Zeit. Den Termin legen wir mit Ihnen fest, in der Landwirtschaft ausserhalb der Erntezeit.' },
+    promiseFaq.garantie,
+    { q: 'Betreuen Sie auch bestehende Krane und Bootslifte?', a: 'Ja. Wir prüfen, warten und reparieren bestehende Anlagen – auch von anderen Herstellern.' },
   ],
   related: [
     { href: '/krantechnik/kranservice', label: 'Kranservice', text: 'Vier Stufen bis INEXXIO 365.' },
@@ -135,17 +135,21 @@ export const kraneNachMass: SubPage = {
   keywords: ['Kran nach Mass', 'Sonderkran', 'Kurvenkran', 'Kran Kurvenfahrt', 'Kran mit Steigung', 'Heukran Kurve', 'Kran für Altbau', 'Sonderkran Thurgau', 'Industriekran', 'Bootslift', 'Bootskran'],
 };
 
-/** Wo ein Katalogkran nicht passt – vier Situationen, je mit Strichzeichnung (src/assets/illustrations/kran-*.svg). */
+/**
+ * Wo ein Katalogkran nicht passt (Anker #situationen) – vier Situationen als Bühne mit Umschalter
+ * (components/home/SpecialStage.astro), je mit Schnitt oder Draufsicht (src/assets/illustrations/kran-*.svg).
+ */
 export const craneSituations = {
   title: 'Wo ein Katalogkran nicht passt',
-  lead: 'Vier Situationen, die wir oft sehen – und wie der Kran trotzdem passt.',
+  lead: 'Vier Situationen, die wir oft sehen. Ihre ist nicht dabei? Fragen Sie trotzdem.',
+  legend: { grey: 'Grau: Ihr Gebäude', red: 'Rot: der Kran nach Mass' },
   items: [
-    { id: 'kurve', illo: 'kran-kurve', title: 'Um die Ecke', problem: 'Die Fahrbahn muss abbiegen.', solution: 'Kurvenfahrbahn mit passendem Fahrwerk.' },
-    { id: 'steigung', illo: 'kran-steigung', title: 'Bergauf und bergab', problem: 'Boden oder Dach steigen an.', solution: 'Fahrbahn und Antrieb für die Steigung ausgelegt, mit sicherer Bremse.' },
-    { id: 'versatz', illo: 'kran-versatz', title: 'Decke mit Versatz', problem: 'Die Höhe springt, Balken oder Unterzüge stören.', solution: 'Fahrbahn an jede Höhe angepasst, die Hubhöhe bleibt nutzbar.' },
-    { id: 'eng', illo: 'kran-eng', title: 'Eng und verwinkelt', problem: 'Stützen, Nischen, wenig Platz.', solution: 'Kompakter Kran und Greifer, die auch die letzte Ecke erreichen.' },
+    { title: 'Um die Ecke', tab: 'Kurve', illo: 'kran-kurve', alt: 'Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke', text: 'Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.' },
+    { title: 'Über eine Steigung', tab: 'Steigung', illo: 'kran-steigung', alt: 'Zeichnung im Schnitt: Decke mit Absatz, die rote Fahrbahn steigt weich mit an', text: 'Die Decke hat einen Absatz. Die Fahrbahn steigt weich mit an – Antrieb und Bremse sind dafür ausgelegt.' },
+    { title: 'Decke mit Versatz', tab: 'Versatz', illo: 'kran-versatz', alt: 'Zeichnung im Schnitt: Decke springt in der Höhe, die rote Fahrbahn hängt gerade darunter', text: 'Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.' },
+    { title: 'Eng und verwinkelt', tab: 'Eng', illo: 'kran-eng', alt: 'Zeichnung von oben: Raum mit Stützen und Nische, der rote Kran erreicht die Ecke', text: 'Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.' },
   ],
-  more: 'Ihre Situation ist nicht dabei? Fragen Sie trotzdem.',
+  cta: anfrage('Ihre Situation schildern'),
 };
 
 /** Für Scheune und Halle – zwei gleich starke Bildkarten (components/PhotoCard.astro). */
@@ -159,32 +163,23 @@ export const craneWorlds = {
     },
     {
       photo: 'pruefung-hallenkran', label: 'Gewerbe und Industrie', title: 'Für die Halle',
-      text: 'Gewerbe, Lager, Recycling, Holz und Metall – Hallen, die gewachsen sind statt geplant. Ein- und Zweiträger-Brückenkrane, Hängekrane und Schwenkkrane, angepasst an das Gebäude.',
+      text: 'Gewerbe, Lager, Recycling, Holz und Metall – auch Hallen, die gewachsen sind statt geplant. Passt ein Standardkran, bauen wir ihn aus Markenkomponenten.',
       cta: { label: 'Kran anfragen', href: '#anfrage' },
     },
   ],
 };
 
-/** Was Sie vorher wissen wollen – drei Sorgen vor der Anfrage, aus Kundensicht. Keine Dauer, keine weiteren Zusagen. */
-export const craneConcerns = {
-  title: 'Was Sie vorher wissen wollen',
-  items: [
-    { icon: 'shield-check' as IconName, q: 'Trägt mein Gebäude den Kran?', a: 'Wir klären, ob Dachstuhl, Wände oder Stützen die Last tragen, wenn nötig zusammen mit einem Statiker. Erst dann bauen wir.' },
-    { icon: 'clock' as IconName, q: 'Steht mein Betrieb still?', a: 'Wir fertigen im eigenen Betrieb vor und montieren in kurzer Zeit. Den Termin legen wir mit Ihnen fest, in der Landwirtschaft ausserhalb der Erntezeit.' },
-    { icon: 'trending-up' as IconName, q: 'Wächst die Anlage mit?', a: 'Längere Fahrbahn, zusätzlicher Bereich oder anderer Greifer: Wir bauen später aus.' },
-  ],
-};
-
-/** Ablauf (Anker #ablauf) – vier Stationen. */
+/** Ablauf (Anker #ablauf) – fünf Stationen; sie sagen zugleich, was zu jedem Kran gehört. */
 export const nachMassPath = {
   title: "So geht's",
   start: 'Ihr Gebäude',
   end: 'Ihr Kran läuft',
   items: [
-    { icon: 'camera', who: 'Sie', title: 'Fotos schicken', text: 'Ein paar Handyfotos genügen für eine erste Einschätzung.', tags: ['Raum', 'Schwierige Stelle', 'Decke'] },
-    { icon: 'search', who: 'Gemeinsam', title: 'Aufmass vor Ort', text: 'Wir messen alles auf, was den Kran betrifft, und klären die Tragfähigkeit.' },
-    { icon: 'drafting-compass', who: 'Wir', title: 'Konstruktion und Offerte', text: 'Sie erhalten die Lösung mit verbindlicher Offerte.', check: 'Verbindliche Offerte' },
-    { icon: 'wrench', who: 'Wir', title: 'Bau, Montage, Service', text: 'Alles aus einer Hand, vom Hersteller des Krans.', tags: ['Bau', 'Montage', 'Service'] },
+    { icon: 'camera', who: 'Sie', title: 'Fotos schicken', text: 'Ein paar Handyfotos genügen für eine erste Einschätzung.' },
+    { icon: 'search', who: 'Gemeinsam', title: 'Aufmass vor Ort', text: 'Wir messen Gebäude und Last auf, klären die Tragfähigkeit und hören zu, wie Sie arbeiten.' },
+    { icon: 'drafting-compass', who: 'Wir', title: 'Konstruktion und Offerte', text: 'Tragwerk, Kranbahn und Anbindung – berechnet und dokumentiert.', check: 'Verbindliche Offerte' },
+    { icon: 'wrench', who: 'Wir', title: 'Fertigung und Montage', text: 'Stahlbau im eigenen Betrieb, Montage und Abnahme bei Ihnen, mit Einweisung.', check: 'Kranbuch angelegt' },
+    { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Prüfung, Wartung und Ersatzteile. Wächst Ihr Betrieb, bauen wir den Kran aus.' },
   ] satisfies Station[],
 };
 
@@ -206,39 +201,19 @@ export const craneReferences = {
   items: [] as { photo: string; situation: string; solution: string; place: string }[],
 };
 
-/** Der Standardkran – kurz: wenn es einfach geht, ist es auch einfach. */
-export const standardCrane = {
-  title: 'Wenn es einfach geht, ist es auch einfach.',
-  text: 'Passt ein Standardkran, bauen wir ihn aus Markenkomponenten: Hubwerk und Fahrwerke von Markenherstellern, Planung, Montage und Service von uns.',
-  items: ['Bewährte Komponenten, Ersatzteile verfügbar', 'Planung und Montage passend zu Ihrer Halle', 'Service von dem, der ihn montiert hat'],
-};
-
-/** Häfen, Clubs und Werften – unverändert, unterhalb der neuen Abschnitte (Anker #hafen). */
+/** Häfen, Clubs und Werften (Anker #hafen) – eine Karte mit der Hafen-Zeichnung (kran-hafen.svg). */
 export const harbour = {
+  label: 'Häfen, Clubs und Werften',
   title: 'Boots- und Mastkrane, Bootslifte',
-  text: 'Für Hafenmeister, Clubs und Werften am Bodensee und an Schweizer Seen: neue Bootslifte und Krane nach Mass, Service für bestehende. Die erste Inspektion ist gratis; für Clubs mit eigenem Kran gibt es INEXXIO 365.',
-  items: ['Bootslifte nach Mass – passend zu Steg, Boot und Ufer', 'Boots- und Mastkrane, sicher auch für Mitglieder, die selten kranen', 'Prüfung und Wartung vor dem Einwassern'],
-};
-
-/** Das Hafenjahr – wann wir am Hafen was tun. */
-export const harbourYear = {
-  title: 'Das Hafenjahr',
-  lead: 'Ein Bootskran arbeitet in Wellen. Wir richten den Service danach aus.',
-  seasons: [
-    { title: 'Vor dem Einwassern', when: 'Winter und Frühling', text: 'Prüfung und Wartung, Kranbuch nachführen, Mängel beheben – damit Kran und Lift am ersten Tag der Saison laufen.' },
-    { title: 'In der Saison', when: 'Frühling bis Herbst', text: 'Fällt etwas aus, rufen Sie direkt an. Mit INEXXIO 365 übernehmen wir Ausfälle – jeder Tag Stillstand ist gratis.' },
-    { title: 'Nach dem Auswassern', when: 'Herbst', text: 'Zustand aufnehmen, Reparaturen und neue Anlagen über den Winter planen.' },
+  text: 'Wir bauen sie nach Mass für Ihren Hafen – und halten bestehende Anlagen in Schuss, auch von anderen Herstellern.',
+  illo: 'kran-hafen',
+  alt: 'Zeichnung: Mastkran auf dem Steg und Bootslift mit gehobenem Boot im Wasser, beide rot',
+  items: [
+    { icon: 'drafting-compass' as IconName, title: 'Bootslifte', text: 'Nach Mass für Steg, Boot und Ufer.' },
+    { icon: 'users' as IconName, title: 'Boots- und Mastkrane', text: 'Einfach zu bedienen – auch für Mitglieder, die selten kranen.' },
+    { icon: 'calendar-check' as IconName, title: 'Service', text: 'Prüfung und Wartung rechtzeitig vor dem Einwassern.' },
   ],
-};
-
-/** Neue Krane: zwei Wege (Anker #wege). */
-export const newCraneWays = {
-  title: 'Kaufen – oder ohne Kauf nutzen',
-  lead: 'Für jeden neuen Kran gilt: Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
-  ways: [
-    { label: 'Kaufen mit Garantie', title: 'Sie kaufen den Kran.', text: 'Nicht zufrieden? Die Hälfte übernehmen wir.' },
-    { label: 'INEXXIO 365', title: 'Ohne Kauf, zur Monatsrate.', text: 'Sie zahlen für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Jeder Tag Stillstand ist gratis.', dark: true },
-  ],
+  cta: anfrage('Hafen-Anlage anfragen'),
 };
 
 /* ------------------------------------------------------------------ Kranservice */
@@ -366,11 +341,11 @@ export const heukrananlagen: SubPage = {
     'Heukrananlagen ohne Kabine, bedient per Funk: betreuen, umbauen, neu planen. Saison-Check, Reparatur, Ersatzteile – die erste Inspektion ist gratis.',
   hero: {
     eyebrow: 'Krantechnik · Heukrananlagen',
-    h1: 'Ihre Heukrananlage läuft, wenn die ==Ernte== beginnt',
+    h1: 'Heu abladen, ohne ==hinaufzusteigen==',
     lead:
-      'Seit {{history.cranesSince}} bauen wir in {{address.city}} Heukrane – nach Mass, bedient per Funk. Wir betreuen bestehende Anlagen, die erste Inspektion ist gratis, und planen neue, wenn Sie eine brauchen.',
+      'Seit {{history.cranesSince}} bauen wir Heukrane nach Mass für Ihre Scheune – ohne Kabine, bedient per Funk. Bestehende Anlagen betreuen wir weiter; die erste Inspektion ist gratis.',
     photo: 'heukran-einsatz',
-    primary: anfrage('Service anfragen'),
+    primary: anfrage('Anfrage stellen'),
   },
   summary:
     '{{brand.full}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Unsere Heukrane haben keine Kabine: Sie steuern per Funk, vom Boden, vom Wagen oder vom Heustock aus. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind – auch um Ecken, über Steigungen und Versätze. Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}.',
@@ -397,7 +372,7 @@ export const heukrananlagen: SubPage = {
     promiseFaq.erstservice,
     {
       q: 'Wann ist der beste Zeitpunkt für den Service?',
-      a: 'Vor der Saison, zwischen März und Mai. Dann bleibt Zeit für Reparaturen, ohne dass das Wetter drängt.',
+      a: 'Im Frühling, vor dem ersten Schnitt. Dann ist der Heustock fast leer, und es bleibt Zeit für Reparaturen, bevor die Ernte drängt.',
     },
     faqHsCare,
     {
@@ -414,20 +389,22 @@ export const heukrananlagen: SubPage = {
   keywords: ['Heukran', 'Heukrananlage', 'Heukran Service', 'Heukran kaufen', 'Heudrehkran', 'Hackschnitzelkran', 'Heukran Funkfernsteuerung', 'Heukran ohne Kabine'],
 };
 
-/** Funk statt Kabine – direkt nach dem Kopf der Heukrananlagen (Zeichnung heukran-funk, bis das Foto da ist). */
+/**
+ * Funk statt Kabine (Anker #funk) – direkt nach dem Kopf der Heukrananlagen, als Raster nach dem Muster der
+ * Garantien (components/kran/RadioControl.astro). Die erste Karte ist die dunkle.
+ */
 export const radioControl = {
-  eyebrow: 'Funk statt Kabine',
-  title: 'Steuern, wo Sie ==stehen==.',
-  lead: 'Unsere Heukrane haben keine Kabine. Sie steuern per Funk, vom Boden, vom Wagen oder vom Heustock aus. Dort, wo Sie am besten sehen.',
+  title: 'Den Greifer im Blick, den ==Sender== in der Hand',
+  lead: 'Unsere Heukrane haben keine Kabine. Sie bedienen sie per Funk – vom Boden, vom Wagen oder vom Heustock aus, dort, wo Sie am besten sehen.',
   /** Foto (config/photos.mjs `heukran-funk`), sobald es da ist; bis dahin die Zeichnung. */
   photo: 'heukran-funk',
   illo: 'heukran-funk',
   alt: 'Zeichnung: Mensch am Boden mit Funksender, der Heukran mit Greifer über dem Heustock',
   items: [
-    { icon: 'smartphone' as IconName, title: 'Kein Aufsteigen', text: 'Keine Leiter, keine Kabine, kein Klettern. Sender in die Hand, und der Kran läuft.' },
-    { icon: 'shield-check' as IconName, title: 'Beste Sicht, sicherer Abstand', text: 'Sie stehen dort, wo Sie den Greifer genau sehen, und mit Abstand zur Last.' },
-    { icon: 'user' as IconName, title: 'Allein abladen', text: 'Wagen hineinfahren, absteigen, abladen. Es braucht niemanden in der Kabine.' },
-    { icon: 'users' as IconName, title: 'Jeder kann bedienen', text: 'Auch wer nicht schwindelfrei oder nicht mehr so beweglich ist, und die ganze Familie.' },
+    { icon: 'smartphone' as IconName, label: 'Funk statt Kabine', title: 'Kein Aufsteigen, kein Klettern.', text: 'Sender in die Hand, und der Kran läuft.' },
+    { icon: 'shield-check' as IconName, label: 'Sicht', title: 'Sie sehen, was der Greifer packt.', text: 'Mit Abstand zur Last.' },
+    { icon: 'user' as IconName, label: 'Allein', title: 'Wagen hinein, absteigen, abladen.', text: 'Es braucht niemanden in der Kabine.' },
+    { icon: 'users' as IconName, label: 'Für alle', title: 'Jeder im Betrieb kann bedienen.', text: 'Auch wer nicht schwindelfrei ist.' },
   ],
 };
 
@@ -465,14 +442,13 @@ export const heukranModules = {
   season: {
     id: 'saison-check',
     title: 'Saison-Check vor dem ersten Schnitt',
-    text: 'Ein Heukran steht über den Winter still und muss beim ersten Schnitt sofort laufen. Zwischen März und Mai prüfen wir die ganze Anlage – und ersetzen, was bis zur Ernte nicht hält.',
+    text: 'Ihr Heukran arbeitet das ganze Jahr: Im Sommer lagern Sie ein, im Winter holen Sie heraus. Am leersten ist der Heustock vor dem ersten Schnitt. Dann prüfen wir Kranbahn, Fahrwerke, Seil, Greifer, Hydraulik und Elektrik – und ersetzen, was kein weiteres Jahr hält.',
     kinds: [
-      { icon: 'wrench' as IconName, word: 'Check', legend: 'März bis Mai: Saison-Check', dark: true },
-      { icon: 'sun' as IconName, word: 'Saison', legend: 'Die Anlage läuft' },
-      { icon: 'snowflake' as IconName, word: 'Ruhe', legend: 'Die Anlage steht' },
+      { icon: 'wrench' as IconName, word: 'Check', legend: 'März und April: Saison-Check', dark: true },
+      { icon: 'sun' as IconName, word: 'Einlagern', legend: 'Sommer: Sie lagern ein' },
+      { icon: 'snowflake' as IconName, word: 'Füttern', legend: 'Winter: Sie holen heraus' },
     ],
-    plan: [2, 2, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2],
-    items: ['Kranbahn und Endanschläge', 'Fahrwerke und Laufräder', 'Seil oder Kette, Haken', 'Greifer: Zinken, Bolzen, Lager', 'Hydraulik: Schläuche, Zylinder, Hydrauliköl', 'Elektrik: Endschalter, Not-Halt, Steuerung'],
+    plan: [2, 2, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2],
     cta: 'Saison-Check planen',
   },
 };

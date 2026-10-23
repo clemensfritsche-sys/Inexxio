@@ -21,7 +21,7 @@ import { areaOf } from '../../config/site.mjs';
 import { inspection } from '../../config/inspection.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/menu/kranservice.svg';
+import titel from '../../assets/illustrations/kranservice-titel.webp';
 import { kranservice as page, serviceTiers as t, inexxio365 as x, modernisation as mo, photoHint } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -35,12 +35,11 @@ const nodes = [
   <StageHero
     word="Kranservice"
     image={titel}
-    alt="Zeichnung: roter Werkzeugkasten und abgehaktes Prüfprotokoll"
+    alt="Halle mit Brückenkran als Konstruktionszeichnung, davor ein rotes Hubwerk mit Haken und ein offener roter Werkzeugkoffer"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
     secondary={{ label: 'Die vier Stufen', href: '#stufen' }}
-    narrow
   />
 
   <section class="v4-section" id="stufen" aria-labelledby="stufen-title">

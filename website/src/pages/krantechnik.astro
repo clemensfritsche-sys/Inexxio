@@ -14,7 +14,7 @@ import FaqStage from '../components/FaqStage.astro';
 import ContactSection from '../components/ContactSection.astro';
 import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
-import titel from '../assets/illustrations/menu/krane-nach-mass.svg';
+import titel from '../assets/illustrations/kran-titel.webp';
 import { krantechnik as page, craneOffers as o, cranePath as s } from '../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -27,12 +27,11 @@ const nodes = [
   <StageHero
     word="Krantechnik"
     image={titel}
-    alt="Zeichnung: Brückenkran mit roter Kranbrücke und Katze"
+    alt="Halle als Konstruktionszeichnung, darin ein roter Zweiträger-Brückenkran mit Katze und Haken"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
     secondary={{ label: 'Unser Angebot', href: '#angebot' }}
-    narrow
   />
 
   <div class="wrap kt-season"><SeasonNotice page={page.path} /></div>

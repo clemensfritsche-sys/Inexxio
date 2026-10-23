@@ -1,50 +1,59 @@
 ---
 /**
- * Häfen, Clubs und Werften (v4, Anker #hafen): links Titel, Satz und drei Punkte, rechts das Hafenjahr
- * als drei graue Karten untereinander (wann · was). Texte: content/krantechnik.ts (`harbour`, `harbourYear`).
+ * Häfen, Clubs und Werften (v4, Krane nach Mass, Anker #hafen): EINE graue Karte – links ein leises Wort,
+ * Titel, Satz und die Anfrage, rechts gross die Hafen-Zeichnung (Mastkran auf dem Steg, Bootslift im Wasser).
+ * Unten an einer Haarlinie drei Punkte mit Symbol. Schmal: Zeichnung oben, dann Text, Punkte untereinander.
+ * Texte: content/krantechnik.ts (`harbour`).
  */
-import Icon from '../Icon.astro';
+import Icon, { type IconName } from '../Icon.astro';
 import Rich from '../Rich.astro';
+import { illustration } from '../../lib/illustrations';
 
 interface Props {
-  harbour: { title: string; text: string; items: string[] };
-  year: { title: string; lead: string; seasons: { title: string; when: string; text: string }[] };
+  label: string; title: string; text: string; illo: string; alt: string;
+  items: { icon: IconName; title: string; text: string }[];
+  cta: { label: string; href: string };
 }
-const { harbour: h, year: y } = Astro.props;
+const { label, title, text, illo, alt, items, cta } = Astro.props;
 ---
 <section class="v4-section" id="hafen" aria-labelledby="hafen-title">
-  <div class="wrap hb">
-    <div class="hb__text">
-      <p class="hb__kicker">Häfen, Clubs und Werften</p>
-      <h2 class="v4-h2" id="hafen-title">{h.title}</h2>
-      <Rich as="p" class="v4-sub" text={h.text} />
-      <ul role="list" class="checklist hb__list">
-        {h.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}
-      </ul>
-    </div>
-    <div class="hb__year" aria-labelledby="hafenjahr">
-      <h3 class="hb__year-h" id="hafenjahr">{y.title}</h3>
-      <Rich as="p" class="hb__year-lead" text={y.lead} />
-      <ol role="list" class="hb__seasons">
-        {y.seasons.map((s) => (
-          <li><span class="hb__when">{s.when}</span><span class="hb__t">{s.title}</span><Rich as="span" class="hb__s" text={s.text} /></li>
+  <div class="wrap">
+    <div class="hb">
+      <figure class="hb__art"><img src={illustration(illo, 'Hafen')} alt={alt} width="400" height="300" loading="lazy" decoding="async" /></figure>
+      <div class="hb__text">
+        <p class="hb__label">{label}</p>
+        <h2 class="v4-h2" id="hafen-title">{title}</h2>
+        <Rich as="p" class="v4-sub" text={text} />
+        <a class="btn btn--primary btn--lg hb__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      </div>
+      <ul role="list" class="hb__list">
+        {items.map((it) => (
+          <li>
+            <span class="hb__ic"><Icon name={it.icon} size={20} /></span>
+            <span><strong>{it.title}</strong><Rich as="span" class="hb__t" text={it.text} /></span>
+          </li>
         ))}
-      </ol>
+      </ul>
     </div>
   </div>
 </section>
 
 <style>
-  .hb { display: grid; gap: 40px; }
-  .hb__kicker { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); margin-bottom: 12px; }
-  .hb__list { margin-top: 24px; }
-  .hb__year { padding: 24px; border-radius: 24px; background: var(--gray-100); }
-  .hb__year-h { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.02em; }
-  .hb__year :global(.hb__year-lead) { margin-top: 6px; color: var(--ink-3); }
-  .hb__seasons { list-style: none; padding: 0; display: grid; gap: 8px; margin-top: 20px; }
-  .hb__seasons li { display: grid; gap: 4px; padding: 18px 20px; border-radius: 16px; background: var(--white); }
-  .hb__when { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
-  .hb__t { font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; }
-  .hb__seasons :global(.hb__s) { font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
-  @media (min-width: 960px) { .hb { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; } .hb__year { padding: 32px; } }
+  .hb { display: grid; gap: 24px; padding: 24px; border-radius: var(--r-xl); background: var(--gray-100); }
+  .hb__art { margin: 0; }
+  .hb__art img { display: block; width: 100%; max-width: 520px; height: auto; margin-inline: auto; }
+  .hb__label { font-size: 0.875rem; font-weight: 600; color: var(--ink-3); margin-bottom: 12px; }
+  .hb__cta { margin-top: 28px; }
+  .hb__list { list-style: none; padding: 0; display: grid; border-top: 1px solid var(--line); }
+  .hb__list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding: 20px 0 4px; }
+  .hb__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--white); color: var(--ink); }
+  .hb__list strong { display: block; font-size: 1.0625rem; line-height: 1.35; }
+  .hb__list :global(.hb__t) { display: block; margin-top: 2px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) {
+    .hb { grid-template-columns: 5fr 7fr; gap: 0 48px; padding: 64px; align-items: center; }
+    .hb__text { grid-row: 1; grid-column: 1; }
+    .hb__art { grid-row: 1; grid-column: 2; }
+    .hb__art img { max-width: none; }
+    .hb__list { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 48px; }
+  }
 </style>

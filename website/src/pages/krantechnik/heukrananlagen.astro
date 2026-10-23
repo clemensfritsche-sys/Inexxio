@@ -19,7 +19,7 @@ import Rich from '../../components/Rich.astro';
 import { areaOf } from '../../config/site.mjs';
 import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/menu/heukrananlagen.svg';
+import titel from '../../assets/illustrations/heukran-titel.webp';
 import { heukrananlagen as page, heukranModules as m, radioControl as rc } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -35,12 +35,11 @@ const forms = m.forms.items.map((f) => ({ ...f, alt: `Zeichnung: ${f.title}` }))
   <StageHero
     word="Heukrane"
     image={titel}
-    alt="Zeichnung: Heukran mit Greifer über dem Heustock unter dem Scheunendach"
+    alt="Scheune als Konstruktionszeichnung, ein roter Heukran trägt einen vollen Greifer, darunter steht der Landwirt mit dem Funksender"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Neue Anlage', href: '#neuanlage' }}
-    narrow
+    secondary={{ label: 'Funk statt Kabine', href: '#funk' }}
   />
 
   <RadioControl {...rc} />

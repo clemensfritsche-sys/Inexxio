@@ -3,8 +3,7 @@
  * Seitenkopf «wie Porsche» (v4, für Unterseiten): heller Verlauf, dahinter ein grosses graues
  * Wort, davor ein freigestelltes Bild, das unten über die Fläche hinausragt. Darunter mittig
  * H1, ein Satz, die rote Anfrage und ein Glas-Knopf. Das Bild ist ein WebP mit Transparenz
- * (src/assets/illustrations/), der Build erzeugt AVIF/WebP in mehreren Breiten – oder eine
- * Zeichnung als SVG, die unverändert scharf bleibt.
+ * (src/assets/illustrations/), der Build erzeugt AVIF/WebP in mehreren Breiten.
  */
 import { Picture } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
@@ -26,14 +25,11 @@ interface Props {
   narrow?: boolean;
 }
 const { word, image, alt, title, lead, primary, secondary, narrow = false } = Astro.props;
-const vector = image.format === 'svg';
 ---
-<section class:list={['sh', narrow && 'sh--narrow', vector && 'sh--vector']} aria-labelledby="sh-title">
+<section class:list={['sh', narrow && 'sh--narrow']} aria-labelledby="sh-title">
   <div class="sh__band">
     <span class="sh__word" aria-hidden="true">{word}</span>
-    {vector ? (
-      <img src={image.src} alt={alt} width={image.width} height={image.height} loading="eager" fetchpriority="high" class="sh__img" />
-    ) : <Picture
+    <Picture
       src={image}
       alt={alt}
       formats={['avif', 'webp']}
@@ -43,7 +39,7 @@ const vector = image.format === 'svg';
       fetchpriority="high"
       class="sh__img"
       fallbackFormat="webp"
-    />}
+    />
   </div>
   <div class="wrap sh__body" data-hero>
     <Rich as="h1" class="sh__title" id="sh-title" text={title} />
@@ -64,8 +60,6 @@ const vector = image.format === 'svg';
   }
   .sh__band :global(.sh__img) { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); width: 100%; height: auto; max-width: none; }
   .sh--narrow .sh__band :global(.sh__img) { width: 78%; }
-  /* Eine Zeichnung trägt ihren hellen Boden selbst: grösser und ohne Überstand nach unten. */
-  .sh--vector .sh__band :global(.sh__img) { width: 112%; bottom: -8px; }
   .sh__body { padding-top: 44px; display: flex; flex-direction: column; align-items: center; }
   .sh__body :global(.sh__title) { font-family: var(--font-display); font-weight: 600; font-size: 2.75rem; line-height: 1.05; letter-spacing: -0.03em; color: var(--ink); }
   .sh__body :global(.sh__lead) { margin-top: 14px; max-width: 36em; font-size: 1.0625rem; line-height: 1.5; color: var(--ink-2); }
@@ -76,8 +70,6 @@ const vector = image.format === 'svg';
     .sh__word { top: 40px; }
     .sh__band :global(.sh__img) { width: min(1000px, 92%); bottom: -40px; }
     .sh--narrow .sh__band :global(.sh__img) { width: min(640px, 60%); bottom: -24px; }
-    .sh--vector .sh__band :global(.sh__img) { width: min(1180px, 96%); bottom: -24px; }
-    .sh--vector.sh--narrow .sh__band :global(.sh__img) { width: min(660px, 50%); bottom: -24px; }
     .sh__body { padding-top: 96px; }
     .sh__body :global(.sh__title) { font-size: 4.5rem; }
   }

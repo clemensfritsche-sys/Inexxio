@@ -1,8 +1,10 @@
 ---
 /**
- * Funk statt Kabine (v4, Heukrananlagen, direkt nach dem Kopf): links das Bild – das Foto `heukran-funk`,
- * sobald es da ist, bis dahin die Zeichnung im Stil der Bauformen –, rechts ein leises Wort, Titel,
- * Satz und vier Punkte mit Symbol (breit 2 × 2). Texte: content/krantechnik.ts (`radioControl`).
+ * Funk statt Kabine (v4, Heukrananlagen, Anker #funk, direkt nach dem Kopf) – ein Raster nach dem Muster
+ * der Garantien: links Titel und Satz, darunter die dunkle Karte (der erste Punkt); rechts gross das Bild –
+ * das Foto `heukran-funk`, sobald es da ist, bis dahin die Zeichnung; unten drei helle Karten.
+ * Jede Karte: Symbol, leises Wort, ein Satz gross, ein Satz klein. Schmal: untereinander, leicht versetzt.
+ * Texte: content/krantechnik.ts (`radioControl`).
  */
 import Icon, { type IconName } from '../Icon.astro';
 import Photo from '../Photo.astro';
@@ -11,45 +13,64 @@ import { photo as photoOf } from '../../config/photos.mjs';
 import { illustration } from '../../lib/illustrations';
 
 interface Props {
-  eyebrow: string; title: string; lead: string; photo: string; illo: string; alt: string;
-  items: { icon: IconName; title: string; text: string }[];
+  title: string; lead: string; photo: string; illo: string; alt: string;
+  items: { icon: IconName; label: string; title: string; text: string }[];
 }
-const { eyebrow, title, lead, photo, illo, alt, items } = Astro.props;
+const { title, lead, photo, illo, alt, items } = Astro.props;
 const hasPhoto = Boolean(photoOf(photo).file);
 ---
 <section class="v4-section" id="funk" aria-labelledby="funk-title">
   <div class="wrap rc">
-    <figure class="rc__fig">
-      {hasPhoto ? <Photo id={photo} sizes="(min-width: 960px) 45vw, 100vw" /> : <img src={illustration(illo, 'Funk')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
-    </figure>
-    <div class="rc__text">
-      <p class="rc__kicker">{eyebrow}</p>
+    <header class="rc__head">
       <Rich as="h2" class="v4-h2" id="funk-title" text={title} />
       <Rich as="p" class="v4-sub" text={lead} />
-      <ul role="list" class="rc__list">
-        {items.map((it) => (
-          <li>
-            <span class="rc__ic"><Icon name={it.icon} size={20} /></span>
-            <span><strong>{it.title}</strong><Rich as="span" class="rc__t" text={it.text} /></span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    </header>
+    <figure class:list={['rc__fig', hasPhoto && 'rc__fig--photo']}>
+      {hasPhoto ? <Photo id={photo} sizes="(min-width: 960px) 50vw, 100vw" /> : <img src={illustration(illo, 'Funk')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
+    </figure>
+    {items.map((it, i) => (
+      <div class:list={['rc__card', i === 0 ? 'rc__card--dark' : `rc__card--${i}`]}>
+        <span class="rc__ic" aria-hidden="true"><Icon name={it.icon} size={22} /></span>
+        <p class="rc__body">
+          <span class="rc__label">{it.label}</span>
+          <Rich as="span" class="rc__title" text={it.title} />
+          <Rich as="span" class="rc__t" text={it.text} />
+        </p>
+      </div>
+    ))}
   </div>
 </section>
 
 <style>
-  .rc { display: grid; gap: 32px; }
-  .rc__fig { margin: 0; overflow: hidden; border-radius: 24px; background: var(--gray-100); }
-  .rc__fig img, .rc__fig :global(img) { display: block; width: 100%; height: auto; }
-  .rc__kicker { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); margin-bottom: 12px; }
-  .rc__list { list-style: none; padding: 0; display: grid; gap: 4px 28px; margin-top: 28px; }
-  .rc__list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding: 16px 0; border-top: 1px solid var(--line); }
-  .rc__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
-  .rc__list strong { display: block; font-size: 1.0625rem; line-height: 1.35; }
-  .rc__list :global(.rc__t) { display: block; margin-top: 2px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  /* Schmal: Titel, Bild, dann die Karten untereinander – die dunkle leicht eingerückt wie bei den Garantien. */
+  .rc { display: grid; gap: 12px; }
+  .rc__head { margin-bottom: 16px; }
+  .rc__fig { margin: 0; display: grid; place-items: center; overflow: hidden; border-radius: var(--r-xl); background: var(--gray-100); padding: 16px; }
+  .rc__fig img { display: block; width: 100%; height: auto; }
+  .rc__fig--photo { padding: 0; }
+  .rc__fig--photo :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  .rc__card { display: flex; flex-direction: column; justify-content: space-between; gap: 32px; min-height: 220px; padding: 24px; border-radius: var(--r-xl); background: var(--gray-100); color: var(--ink); }
+  .rc__card--dark { background: var(--black); color: var(--white); min-height: 280px; margin-left: 40px; }
+  .rc__card--2 { margin-right: 40px; }
+  .rc__ic { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--white); color: var(--ink); }
+  .rc__card--dark .rc__ic { background: rgba(255, 255, 255, 0.14); color: var(--white); }
+  .rc__body { display: grid; gap: 6px; }
+  .rc__label { font-size: 0.875rem; font-weight: 600; opacity: 0.72; }
+  .rc__body :global(.rc__title) { font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; line-height: 1.15; letter-spacing: -0.02em; }
+  .rc__body :global(.rc__t) { font-size: 0.9375rem; line-height: 1.5; opacity: 0.72; }
+
+  /* Breit: zwölf Spalten. Oben links Titel und dunkle Karte, rechts das Bild über zwei Reihen, unten drei Karten. */
   @media (min-width: 960px) {
-    .rc { grid-template-columns: 6fr 6fr; gap: 64px; align-items: center; }
-    .rc__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rc { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
+    .rc__head { grid-column: 1 / 6; grid-row: 1; align-self: end; margin: 0 0 16px; }
+    .rc__fig { grid-column: 6 / 13; grid-row: 1 / 3; min-height: 600px; padding: 40px; }
+    .rc__card { margin: 0; }
+    .rc__card--dark { grid-column: 1 / 6; grid-row: 2; min-height: 320px; padding: 32px; }
+    .rc__card--1, .rc__card--2, .rc__card--3 { grid-row: 3; min-height: 260px; padding: 32px; }
+    .rc__card--1 { grid-column: 1 / 5; }
+    .rc__card--2 { grid-column: 5 / 9; }
+    .rc__card--3 { grid-column: 9 / 13; }
+    .rc__body :global(.rc__title) { font-size: 1.625rem; }
+    .rc__card--dark .rc__body :global(.rc__title) { font-size: 2rem; }
   }
 </style>

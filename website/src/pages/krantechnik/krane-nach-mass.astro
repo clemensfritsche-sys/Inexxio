@@ -1,31 +1,28 @@
 ---
 /**
  * /krantechnik/krane-nach-mass – die Seite für schwierige Gebäude (Entscheid 23.10.2026), eigenes
- * Layout nach dem Muster von Fahrzeugtechnik: Kopf wie Porsche → Wo ein Katalogkran nicht passt (vier
- * Situationen) → Für Scheune und Halle (zwei Bildkarten) → Was Sie vorher wissen wollen → So geht's
- * (#ablauf, Weg) → Belege (per Schalter) → Standardkran → Häfen (#hafen) → Kaufen oder ohne Kauf
- * (#wege) → Was zu jedem Kran gehört → Fragen → Anfrage mit Foto-Hilfe. Texte: content/krantechnik.ts.
+ * Layout nach dem Muster von Fahrzeugtechnik: Kopf wie Porsche → Wo ein Katalogkran nicht passt (#situationen,
+ * Bühne mit Umschalter, vier Situationen) → Für Scheune und Halle (zwei Bildkarten) → Häfen (#hafen) →
+ * So geht's (#ablauf, Weg – zugleich, was zu jedem Kran gehört) → Belege (per Schalter) → Garantien →
+ * Fragen → Anfrage mit Foto-Hilfe. Texte: content/krantechnik.ts.
  */
 import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
-import SituationCards from '../../components/kran/SituationCards.astro';
+import SpecialStage from '../../components/home/SpecialStage.astro';
 import PhotoCard from '../../components/PhotoCard.astro';
-import Concerns from '../../components/kran/Concerns.astro';
+import Harbour from '../../components/kran/Harbour.astro';
 import SolutionPath from '../../components/spezial/SolutionPath.astro';
 import References from '../../components/kran/References.astro';
-import Harbour from '../../components/kran/Harbour.astro';
-import WayPair from '../../components/WayPair.astro';
-import FactGrid from '../../components/FactGrid.astro';
+import Guarantees from '../../components/home/Guarantees.astro';
 import FaqStage from '../../components/FaqStage.astro';
 import ContactSection from '../../components/ContactSection.astro';
-import Icon from '../../components/Icon.astro';
 import { areaOf } from '../../config/site.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
-import titel from '../../assets/illustrations/heukran-angepasst.svg';
+import titel from '../../assets/illustrations/nachmass-titel.webp';
 import {
-  kraneNachMass as page, craneSituations as sit, craneWorlds as wo, craneConcerns as co, nachMassPath as p,
-  nachMassPhotoHint as hint, craneReferences as refs, standardCrane as st, harbour, harbourYear, newCraneWays as w,
+  kraneNachMass as page, craneSituations as sit, craneWorlds as wo, nachMassPath as p,
+  nachMassPhotoHint as hint, craneReferences as refs, harbour,
 } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -39,15 +36,14 @@ const nodes = [
   <StageHero
     word={page.crumb}
     image={titel}
-    alt="Zeichnung: Kranfahrbahn in Rot, die in einer Scheune um die Ecke biegt"
+    alt="Scheune als Konstruktionszeichnung, darin eine rote Kranfahrbahn, die in Kurven um das Gebäude führt, mit Katze und Greifer"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: "So geht's", href: '#ablauf' }}
-    narrow
+    secondary={{ label: 'Wo es passt', href: '#situationen' }}
   />
 
-  <SituationCards title={sit.title} lead={sit.lead} items={sit.items} more={sit.more} />
+  <SpecialStage id="situationen" title={sit.title} lead={sit.lead} items={sit.items} art={sit.items} legend={sit.legend} cta={sit.cta} />
 
   <section class="v4-section" aria-labelledby="welten">
     <div class="wrap">
@@ -58,27 +54,13 @@ const nodes = [
     </div>
   </section>
 
-  <Concerns title={co.title} items={co.items} />
+  <Harbour {...harbour} />
 
   <SolutionPath title={p.title} start={p.start} end={p.end} items={p.items} />
 
   <References title={refs.title} items={refs.items} />
 
-  <section class="v4-section" id="standard" aria-labelledby="standard-title">
-    <div class="wrap kn-std">
-      <h2 class="v4-h2" id="standard-title">{st.title}</h2>
-      <div>
-        <p class="v4-sub">{st.text}</p>
-        <ul role="list" class="checklist kn-std__list">{st.items.map((i) => <li><Icon name="check" size={20} /><span>{i}</span></li>)}</ul>
-      </div>
-    </div>
-  </section>
-
-  <Harbour harbour={harbour} year={harbourYear} />
-
-  <WayPair title={w.title} lead={w.lead} ways={w.ways} cta={{ label: 'Kran anfragen', href: '#anfrage' }} />
-
-  <FactGrid id="leistungen" title={page.scope.title} lead={page.scope.lead} items={page.scope.items} />
+  <Guarantees garantieHref="#fragen" />
 
   <FaqStage items={page.faq} illo={'heukran-angepasst'} />
 
@@ -88,7 +70,4 @@ const nodes = [
 <style>
   .kn-worlds { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
   @media (min-width: 960px) { .kn-worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }
-  .kn-std { display: grid; gap: 20px; }
-  .kn-std__list { margin-top: 20px; }
-  @media (min-width: 960px) { .kn-std { grid-template-columns: 5fr 7fr; gap: 64px; align-items: start; } }
 </style>

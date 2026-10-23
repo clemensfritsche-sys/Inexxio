@@ -114,7 +114,7 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
 - **125 · Krane nach Mass = schwierige Gebäude, Heukran = Funk statt Kabine** (Entscheid
   23.10.2026, aus Kundenbesuchen): «Krane nach Mass» (URL bleibt) ist die Seite für Gebäude, in
   die kein Katalogkran passt – um Ecken, über Steigungen, Deckenversätze, enge Stellen; Scheune und
-  Halle gleich stark. Häfen und Standardkran bleiben darunter. Heukrane haben keine Kabine und
+  Halle gleich stark. Häfen (Boots- und Mastkrane, Bootslifte, ohne Gebietsgrenze) bleiben darunter. Heukrane haben keine Kabine und
   werden per Funk bedient – ein eigener Abschnitt auf den Heukrananlagen. Umrüsten auf Funk wird
   nicht beworben (nur in «Modernisierung»). Der Menüname steht als ein Wert in `site.labels`.
   Belege (Projekte) erst mit echten Fotos (`features.craneReferences`).
