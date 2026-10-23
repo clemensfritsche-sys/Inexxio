@@ -235,6 +235,15 @@ export const site = {
       label: 'Saison-Check planen',
       pages: ['/', '/krantechnik', '/krantechnik/heukrananlagen'],
     },
+    {
+      id: 'heukran-herbst',
+      from: '10-01',
+      to: '11-30',
+      text: 'Saison-Check im Spätherbst: Das Heu ist drin, das Vieh noch auf der Weide – jetzt ist Zeit für Ihren Heukran.',
+      href: '/krantechnik/heukrananlagen#saison-check',
+      label: 'Saison-Check planen',
+      pages: ['/', '/krantechnik', '/krantechnik/heukrananlagen'],
+    },
   ],
 
   areas,

@@ -34,9 +34,8 @@ const shown = art ? undefined : photo;
 <div class:list={['pc', !shown && 'pc--light', art && 'pc--art', compact && 'pc--compact']}>
   {shown && <Photo id={shown} sizes="(min-width: 960px) 600px, 100vw" />}
   {art && <img class="pc__art" src={illustration(art, 'Bildkarte')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
-  {art && label && <span class="pc__tag glass-light">{label}</span>}
   <div class="pc__body">
-    {label && !art && <span class="pc__label">{label}</span>}
+    {label && <span class="pc__label">{label}</span>}
     <H class="pc__title">{title}</H>
     <Rich as="p" class="pc__text" text={text} />
     <slot />
@@ -67,17 +66,19 @@ const shown = art ? undefined : photo;
   .pc--light .pc__body, .pc--light .pc__title { color: var(--ink); }
   .pc--light .pc__body :global(.pc__text) { color: var(--ink-3); }
   .pc--light .pc__label { color: var(--ink-3); }
-  /* Zeichnung statt Foto: sie ragt oben aus der Karte (wie spezial/FieldCards), der Text steht darunter. */
-  .pc--art { overflow: visible; background: var(--gray-100); }
-  .pc > .pc__art { position: absolute; z-index: 1; left: 4%; right: 4%; top: -18%; width: 92%; height: 70%; object-fit: contain; filter: drop-shadow(0 22px 22px rgba(10, 10, 11, 0.1)); transition: transform 0.9s var(--ease); }
+  /* Zeichnung statt Foto (wie spezial/FieldCards): sie ragt oben aus der Karte, Wort, Titel und Satz
+     stehen direkt darunter – die Karte ist so hoch wie ihr Inhalt, nicht mehr 4:5. */
+  .pc--art { aspect-ratio: auto; display: flex; flex-direction: column; justify-content: flex-end; padding-top: 170px; overflow: visible; background: var(--gray-100); }
+  .pc > .pc__art { position: absolute; z-index: 1; left: -4%; right: -4%; top: -64px; width: 108%; height: 250px; object-fit: contain; filter: drop-shadow(0 22px 22px rgba(10, 10, 11, 0.1)); transition: transform 0.6s var(--ease); }
   .pc--art:hover > .pc__art { transform: translateY(-8px); }
-  /* Bei der Zeichnung steht das Wort als Glas-Etikett oben links. */
-  .pc__tag { position: absolute; z-index: 2; left: 16px; top: 16px; padding: 6px 12px; border-radius: 999px; font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
+  .pc--art .pc__body { position: relative; padding-top: 8px; }
   .pc--compact { aspect-ratio: auto; height: auto; }
   .pc--compact .pc__body { position: relative; }
   .pc .pc__cta--ask { background: var(--red); border-color: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .pc .pc__cta--ask:hover { background: var(--red-hover); }
   @media (min-width: 960px) {
+    .pc--art { padding-top: 250px; }
+    .pc > .pc__art { top: -96px; height: 360px; }
     .pc__body { padding: 36px; }
     .pc__title { font-size: 2rem; }
   }

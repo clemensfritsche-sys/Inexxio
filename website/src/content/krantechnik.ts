@@ -273,7 +273,7 @@ export const kranservice: SubPage = {
   ],
   related: [
     relatedNachMass,
-    { href: '/krantechnik/heukrananlagen', label: 'Heukrananlagen', text: 'Saison-Check vor dem ersten Schnitt.' },
+    { href: '/krantechnik/heukrananlagen', label: 'Heukrananlagen', text: 'Saison-Check im Frühling oder im Spätherbst.' },
     ratgeberPruefung,
   ],
   service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung, Kranmodernisierung und Kranreparatur' },
@@ -355,7 +355,7 @@ export const heukrananlagen: SubPage = {
     title: 'Was wir für Ihre Heukrananlage tun',
     lead: 'Zuerst für die Anlage, die Sie haben.',
     items: [
-      { title: 'Saison-Check', text: 'Kranbahn, Fahrwerke, Seil, Greifer, Hydraulik und Elektrik prüfen, bevor die Ernte beginnt.' },
+      { title: 'Saison-Check', text: 'Kranbahn, Fahrwerke, Seil, Greifer, Hydraulik und Elektrik prüfen – im Frühling vor der Ernte oder im Spätherbst danach.' },
       { title: 'Reparatur', text: 'Fehlersuche und Reparatur vor Ort.' },
       { title: 'Ersatzteile für HS-Anlagen', text: 'An Lager oder für Sie neu gefertigt – auch für ältere Anlagen.' },
       { title: 'Modernisierung', text: 'Funkfernsteuerung, Frequenzumrichter und neue Steuerung für bestehende Anlagen.' },
@@ -368,7 +368,7 @@ export const heukrananlagen: SubPage = {
     promiseFaq.erstservice,
     {
       q: 'Wann ist der beste Zeitpunkt für den Service?',
-      a: 'Im Frühling, vor dem ersten Schnitt. Dann ist der Heustock fast leer, und es bleibt Zeit für Reparaturen, bevor die Ernte drängt.',
+      a: 'Im Frühling vor dem ersten Schnitt, wenn der Heustock fast leer ist – oder im Spätherbst, wenn das Heu drin ist und das Vieh noch auf der Weide. Dann bleibt Zeit für Reparaturen.',
     },
     faqHsCare,
     {
@@ -432,14 +432,14 @@ export const heukranModules = {
   /** Saison-Check (Anker #saison-check, Ziel der Saison-Aktion) – der Wandkalender (components/SeasonCalendar.astro). */
   season: {
     id: 'saison-check',
-    title: 'Saison-Check vor dem ersten Schnitt',
-    text: 'Ihr Heukran arbeitet das ganze Jahr: Im Sommer lagern Sie ein, im Winter holen Sie heraus. Am leersten ist der Heustock vor dem ersten Schnitt. Dann prüfen wir Kranbahn, Fahrwerke, Seil, Greifer, Hydraulik und Elektrik – und ersetzen, was kein weiteres Jahr hält.',
+    title: 'Saison-Check in den ruhigen Wochen',
+    text: 'Ihr Heukran arbeitet das ganze Jahr: Im Sommer lagern Sie ein, im Winter holen Sie heraus. Ruhig wird es zweimal – im Frühling vor dem ersten Schnitt und im Spätherbst, wenn das Heu drin ist und das Vieh noch auf der Weide. Dann prüfen wir Kranbahn, Fahrwerke, Seil, Greifer, Hydraulik und Elektrik – und ersetzen, was nicht mehr hält.',
     kinds: [
-      { icon: 'wrench' as IconName, word: 'Check', legend: 'März und April: Saison-Check', dark: true },
+      { icon: 'wrench' as IconName, word: 'Check', legend: 'Frühling und Spätherbst: Saison-Check', dark: true },
       { icon: 'sun' as IconName, word: 'Einlagern', legend: 'Sommer: Sie lagern ein' },
       { icon: 'snowflake' as IconName, word: 'Füttern', legend: 'Winter: Sie holen heraus' },
     ],
-    plan: [2, 2, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2],
+    plan: [2, 2, 0, 0, 1, 1, 1, 1, 1, 0, 0, 2],
     cta: 'Saison-Check planen',
   },
 };

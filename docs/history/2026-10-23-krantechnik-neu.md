@@ -85,5 +85,13 @@ ausweisen» (WEBSITE_PLAN Entscheid 125).
   mit Foto `funk-sicht`, Fotokarte neu (`heukran-funk`). `home/Stagger` nimmt dafür Bild bzw. Foto an.
   Entfernt: `schema/funk-sender.svg`, `funk-sicht.svg`.
 
-**Offen:** neues Kopfbild Heukrananlagen (Prompt gestellt); die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
+**Sechste Runde (gleicher Tag):**
+- Kopfbild Heukrananlagen neu (freigestellt, schmal gesetzt).
+- Rasterkarten mit Zeichnung (`PhotoCard` `illo`) wie die Feldkarten: so hoch wie ihr Inhalt, Wort, Titel
+  und Satz direkt unter der Zeichnung; das Glas-Etikett ist weg. `Magazine` heisst dafür `art` statt `square`.
+- Steigung neu gerechnet: die Fahrbahn ist die um 22 px parallel versetzte Decke (auch in der Schräge).
+- Saison-Check zweimal im Jahr: Frühling vor dem ersten Schnitt und Spätherbst (Oktober, November), wenn
+  das Heu drin ist und das Vieh noch auf der Weide; dazu eine zweite Saison-Aktion `heukran-herbst`.
+
+**Offen:** Foto für «Die erste Inspektion ist gratis» (Prompt gestellt); die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
 Die Startseite läuft bei 320 px 2 px über (Kopf, schon vorher so).

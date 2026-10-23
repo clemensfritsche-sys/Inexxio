@@ -35,11 +35,12 @@ const nodes = [
   <StageHero
     word="Heukrane"
     image={titel}
-    alt="Scheune als Konstruktionszeichnung, ein roter Heukran trägt einen vollen Greifer, darunter steht der Landwirt mit dem Funksender"
+    alt="Roter Heukran mit vollem Greifer unter einem gezeichneten Dachstuhl, darunter schaut der Landwirt mit dem Funksender hinauf"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
     secondary={{ label: 'Funk statt Kabine', href: '#funk' }}
+    narrow
   />
 
   <RadioControl {...rc} />
@@ -57,7 +58,7 @@ const nodes = [
   <section class="v4-section" id="neuanlage" aria-labelledby="neuanlage-title">
     <div class="wrap">
       <header class="hk-head"><h2 class="v4-h2" id="neuanlage-title">{m.forms.title}</h2><p class="v4-sub">{m.forms.lead}</p></header>
-      <Magazine square>
+      <Magazine art>
         {m.forms.items.map((f) => <li><PhotoCard illo={f.illo} alt={`Zeichnung: ${f.title}`} label={f.label} title={f.title} text={f.text} /></li>)}
         <li class="mag__end"><PhotoCard compact title={m.forms.missing.title} text={m.forms.missing.text} cta={m.forms.missing.cta} /></li>
       </Magazine>

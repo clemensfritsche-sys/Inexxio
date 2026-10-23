@@ -46,7 +46,7 @@ const nodes = [
   <section class="v4-section" id="situationen" aria-labelledby="situationen-title">
     <div class="wrap">
       <header class="kn-head"><h2 class="v4-h2" id="situationen-title">{sit.title}</h2><p class="v4-sub">{sit.lead}</p></header>
-      <Magazine square>
+      <Magazine art>
         {sit.items.map((it) => <li><PhotoCard photo={it.photo} illo={it.illo} alt={it.alt} label={it.label} title={it.title} text={it.text} /></li>)}
         <li class="mag__end"><PhotoCard compact title={sit.missing.title} text={sit.missing.text} cta={sit.missing.cta} /></li>
       </Magazine>
