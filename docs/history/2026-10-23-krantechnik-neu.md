@@ -93,5 +93,9 @@ ausweisen» (WEBSITE_PLAN Entscheid 125).
 - Saison-Check zweimal im Jahr: Frühling vor dem ersten Schnitt und Spätherbst (Oktober, November), wenn
   das Heu drin ist und das Vieh noch auf der Weide; dazu eine zweite Saison-Aktion `heukran-herbst`.
 
-**Offen:** Foto für «Die erste Inspektion ist gratis» (Prompt gestellt); die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
+**Abschluss:** Foto `erste-inspektion` (generiert) ist das Bild der Garantie-Karte «Die erste Inspektion ist
+gratis» auf allen Seiten mit Garantien (vorher `arbeit-werkstatt`). Freigabe und Deploy auf Wunsch des
+Auftraggebers am 23.10.2026.
+
+**Offen:** die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
 Die Startseite läuft bei 320 px 2 px über (Kopf, schon vorher so).

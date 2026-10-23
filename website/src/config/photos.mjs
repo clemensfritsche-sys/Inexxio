@@ -147,6 +147,13 @@ export const photos = {
     brief: 'Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer',
     ratio: '3/2',
   },
+  // Garantien, Karte «Die erste Inspektion ist gratis» (generiert, ohne echte Person oder echten Betrieb).
+  'erste-inspektion': {
+    file: 'erste-inspektion.jpg',
+    alt: 'Techniker auf einer Arbeitsbühne prüft Haken und Unterflasche eines roten Brückenkrans, in der Hand ein Tablet',
+    brief: 'Kran-Techniker auf einer Arbeitsbühne prüft Haken und Hubwerk eines roten Brückenkrans in einer hellen Produktionshalle, Tablet in der Hand, quer',
+    ratio: '16/9',
+  },
   'arbeit-werkstatt': {
     file: 'arbeit-werkstatt.webp',
     alt: 'Schweisser mit Schutzhelm an einer roten Stahlkonstruktion, Funken fliegen',
