@@ -1,16 +1,14 @@
 ---
 /**
  * Funk statt Kabine (v4, Heukrananlagen, direkt nach dem Kopf) – gesetzt wie die Garantien (home/Stagger):
- * hell der Sender, dunkel die Sicht vom Boden zum Greifer, dazu ein Foto – `heukran-funk`, sobald es eine
- * Datei hat, bis dahin `heukran-einsatz`. Texte: content/krantechnik.ts (`radioControl`).
+ * hell der Sender, dunkel die Sicht vom Boden zum Greifer, dazu das Foto. Texte: content/krantechnik.ts (`radioControl`).
  */
 import Stagger from '../home/Stagger.astro';
-import { photo as photoOf } from '../../config/photos.mjs';
 import sender from '../../assets/schema/funk-sender.svg?raw';
 import sight from '../../assets/schema/funk-sicht.svg?raw';
 
 interface Card { label: string; title: string }
-interface Props { title: string; lead: string; photo: string; fallback: string; a: Card; b: Card; c: Card }
-const { title, lead, photo, fallback, a, b, c } = Astro.props;
+interface Props { title: string; lead: string; photo: string; a: Card; b: Card; c: Card }
+const { title, lead, photo, a, b, c } = Astro.props;
 ---
-<Stagger id="funk-title" anchor="funk" title={title} lead={lead} a={{ ...a, art: sender }} b={{ ...b, art: sight }} c={{ ...c, photo: photoOf(photo).file ? photo : fallback }} />
+<Stagger id="funk-title" anchor="funk" title={title} lead={lead} a={{ ...a, art: sender }} b={{ ...b, art: sight }} c={{ ...c, photo }} />

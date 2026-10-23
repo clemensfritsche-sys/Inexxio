@@ -22,18 +22,21 @@ interface Props {
   /** Zeichnung (src/assets/illustrations), solange das Foto fehlt; dazu ihr Alt-Text. */
   illo?: string;
   alt?: string;
+  /** Ohne Bild, nur so hoch wie der Text – der Abschluss einer Reihe («… nicht dabei?»). */
+  compact?: boolean;
   /** Titel-Ebene (im Katalog h3, als eigener Abschnitt h3 unter der Abschnitts-H2). */
   as?: 'h2' | 'h3';
 }
-const { photo, label, title, text, cta, illo, alt = '', as: H = 'h3' } = Astro.props;
+const { photo, label, title, text, cta, illo, alt = '', compact = false, as: H = 'h3' } = Astro.props;
 const art = illo && !(photo && photoOf(photo).file) ? illo : undefined;
 const shown = art ? undefined : photo;
 ---
-<div class:list={['pc', !shown && 'pc--light', art && 'pc--art']}>
+<div class:list={['pc', !shown && 'pc--light', art && 'pc--art', compact && 'pc--compact']}>
   {shown && <Photo id={shown} sizes="(min-width: 960px) 600px, 100vw" />}
   {art && <img class="pc__art" src={illustration(art, 'Bildkarte')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
+  {art && label && <span class="pc__tag glass-light">{label}</span>}
   <div class="pc__body">
-    {label && <span class="pc__label">{label}</span>}
+    {label && !art && <span class="pc__label">{label}</span>}
     <H class="pc__title">{title}</H>
     <Rich as="p" class="pc__text" text={text} />
     <slot />
@@ -67,6 +70,10 @@ const shown = art ? undefined : photo;
   /* Zeichnung statt Foto: oben gross auf der hellen Fläche, der Text unten. */
   .pc > .pc__art { position: absolute; left: 8%; right: 8%; top: 6%; width: 84%; height: 52%; object-fit: contain; transition: transform 0.9s var(--ease); }
   .pc--art:hover > .pc__art { transform: translateY(-6px); }
+  /* Bei der Zeichnung steht das Wort als Glas-Etikett oben links. */
+  .pc__tag { position: absolute; z-index: 1; left: 16px; top: 16px; padding: 6px 12px; border-radius: 999px; font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
+  .pc--compact { aspect-ratio: auto; height: auto; }
+  .pc--compact .pc__body { position: relative; }
   .pc .pc__cta--ask { background: var(--red); border-color: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .pc .pc__cta--ask:hover { background: var(--red-hover); }
   @media (min-width: 960px) {

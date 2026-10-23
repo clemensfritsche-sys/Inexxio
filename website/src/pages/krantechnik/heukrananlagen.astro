@@ -2,7 +2,7 @@
 /**
  * /krantechnik/heukrananlagen – eigenes Layout nach dem Muster von Fahrzeugtechnik (Oktober 2026):
  * Kopf wie Porsche → Funk statt Kabine (#funk) → Saison-Check als Wandkalender (#saison-check, Ziel der
- * Saison-Aktion) → Bestehende HS-Anlagen → Bauformen als Bühne mit Umschalter (#neuanlage) → Ablauf
+ * Saison-Aktion) → Bestehende HS-Anlagen → Bauformen als Bildkarten wie der Katalog (#neuanlage) → Ablauf
  * einer Neuanlage (Weg) → Fragen → Anfrage. Kein INEXXIO 365 – Heukrane laufen selten.
  * Texte: content/krantechnik.ts.
  */
@@ -10,7 +10,8 @@ import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
 import RadioControl from '../../components/kran/RadioControl.astro';
 import SeasonCalendar from '../../components/SeasonCalendar.astro';
-import SpecialStage from '../../components/home/SpecialStage.astro';
+import Magazine from '../../components/Magazine.astro';
+import PhotoCard from '../../components/PhotoCard.astro';
 import SolutionPath from '../../components/spezial/SolutionPath.astro';
 import FaqStage from '../../components/FaqStage.astro';
 import ContactSection from '../../components/ContactSection.astro';
@@ -29,7 +30,6 @@ const nodes = [
   faqPage(page.faq),
   product(siteUrl, { name: 'Heukrananlage nach Mass', description: plain(page.summary), path: page.path }),
 ];
-const forms = m.forms.items.map((f) => ({ ...f, alt: `Zeichnung: ${f.title}` }));
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero
@@ -54,7 +54,15 @@ const forms = m.forms.items.map((f) => ({ ...f, alt: `Zeichnung: ${f.title}` }))
     </div>
   </section>
 
-  <SpecialStage id="neuanlage" title={m.forms.title} lead={m.forms.lead} items={forms} art={forms} legend={m.forms.legend} cta={m.forms.cta} />
+  <section class="v4-section" id="neuanlage" aria-labelledby="neuanlage-title">
+    <div class="wrap">
+      <header class="hk-head"><h2 class="v4-h2" id="neuanlage-title">{m.forms.title}</h2><p class="v4-sub">{m.forms.lead}</p></header>
+      <Magazine square>
+        {m.forms.items.map((f) => <li><PhotoCard illo={f.illo} alt={`Zeichnung: ${f.title}`} label={f.label} title={f.title} text={f.text} /></li>)}
+        <li class="mag__end"><PhotoCard compact title={m.forms.missing.title} text={m.forms.missing.text} cta={m.forms.missing.cta} /></li>
+      </Magazine>
+    </div>
+  </section>
 
   <SolutionPath id="ablauf-neuanlage" title={m.steps.title} start={m.steps.start} end={m.steps.end} items={m.steps.items} />
 
@@ -64,6 +72,8 @@ const forms = m.forms.items.map((f) => ({ ...f, alt: `Zeichnung: ${f.title}` }))
 </Base>
 
 <style>
+  .hk-head { margin-bottom: 40px; }
+  @media (min-width: 960px) { .hk-head { margin-bottom: 56px; } }
   .hk-own { display: grid; justify-items: center; gap: 0; text-align: center; }
   .hk-own .v4-h2, .hk-own :global(.v4-sub) { margin-inline: auto; }
   .hk-own__ic { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 24px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }

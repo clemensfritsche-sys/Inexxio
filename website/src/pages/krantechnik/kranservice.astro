@@ -1,28 +1,25 @@
 ---
 /**
- * /krantechnik/kranservice – eigenes Layout nach dem Muster von Fahrzeugtechnik (Oktober 2026):
- * Kopf wie Porsche → Vier Stufen (#stufen) → Zwei Wege zu INEXXIO 365 (#inexxio-365) → Was wir prüfen
- * und warten → Modernisieren statt ersetzen (#modernisierung) → Prüfpflicht mit Tabelle, Quellen und
- * Check → Fragen → Anfrage mit Foto-Hilfe. Texte: content/krantechnik.ts.
+ * /krantechnik/kranservice – eigenes Layout (Oktober 2026), reduziert: Kopf wie Porsche → Vier Stufen als
+ * Treppe (#stufen, INEXXIO 365 oben #inexxio-365) → Garantien → Prüfen, warten, modernisieren (zwei
+ * Bildkarten, #pruefen, #modernisierung) → Prüfpflicht in drei Sätzen → Fragen → Anfrage mit Foto-Hilfe.
+ * Texte: content/krantechnik.ts. Einzelheiten zur Prüfpflicht stehen im Ratgeber, nicht hier.
  * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva anerkannt ist.
  */
 import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
 import ServiceTiers from '../../components/ServiceTiers.astro';
-import WayPair from '../../components/WayPair.astro';
+import Guarantees from '../../components/home/Guarantees.astro';
+import PhotoCard from '../../components/PhotoCard.astro';
 import FactGrid from '../../components/FactGrid.astro';
-import InspectionTable from '../../components/InspectionTable.astro';
-import InspectionCheck from '../../components/InspectionCheck.astro';
-import Sources from '../../components/Sources.astro';
 import FaqStage from '../../components/FaqStage.astro';
 import ContactSection from '../../components/ContactSection.astro';
 import Rich from '../../components/Rich.astro';
 import { areaOf } from '../../config/site.mjs';
-import { inspection } from '../../config/inspection.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import titel from '../../assets/illustrations/kranservice-titel.webp';
-import { kranservice as page, serviceTiers as t, inexxio365 as x, modernisation as mo, photoHint } from '../../content/krantechnik';
+import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d, photoHint } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
@@ -52,35 +49,18 @@ const nodes = [
     </div>
   </section>
 
-  <WayPair id="inexxio-365" title={x.title} lead={x.lead} ways={x.ways} cta={{ label: x.cta, href: '#anfrage' }} />
+  <Guarantees garantieHref="#fragen" />
 
-  <FactGrid id="pruefen" title={page.scope.title} items={page.scope.items} />
-
-  <FactGrid id="modernisierung" title={mo.title} lead={mo.lead} items={mo.items} columns={4} />
-
-  <section class="v4-section" id="pruefpflicht" aria-labelledby="pruefpflicht-title">
+  <section class="v4-section" aria-labelledby="arbeit-title">
     <div class="wrap">
-      <header class="v4-head--center">
-        <h2 class="v4-h2" id="pruefpflicht-title">Was die Prüfpflicht verlangt</h2>
-        <p class="v4-sub">Kurz erklärt – nach Kranverordnung (SR 832.312.15) und EKAS-Richtlinie 6511.</p>
-      </header>
-      <ul role="list" class="pp">
-        <li><h3>Alle Krane</h3><p>Regelmässige Überprüfung nach den Angaben des Herstellers durch ausgebildete Kranfachleute.</p></li>
-        <li><h3>Fahrzeug- und Turmdrehkrane</h3><p>Jährliche Überprüfung durch Kranfachleute, zusätzlich eine periodische Kontrolle durch einen von der Suva anerkannten Kranexperten: bis 20 Jahre alle 4 Jahre, mit 21 bis 30 Jahren alle 2 Jahre, ab 31 Jahren jährlich.</p></li>
-        <li><h3>Kranbuch</h3><p>Zu jedem Kran gehört ein Kranbuch.</p></li>
+      <header class="v4-head--center"><h2 class="v4-h2" id="arbeit-title">{w.title}</h2></header>
+      <ul role="list" class="ks-work">
+        {w.items.map((it) => <li id={it.id}><PhotoCard photo={it.photo} label={it.label} title={it.title} text={it.text} cta={it.cta} /></li>)}
       </ul>
-      <div class="pp__check">
-        <h3 class="pp__h">Was ist bei Ihrem Kran fällig?</h3>
-        <InspectionCheck />
-      </div>
-      <h3 class="pp__h">Übersicht nach Kranart</h3>
-      <InspectionTable />
-      <div class="pp__foot">
-        <p class="pp__who">Wir übernehmen die Überprüfung durch Kranfachleute und die Wartung. Die periodische Kontrolle von Fahrzeug- und Turmdrehkranen macht ein von der Suva anerkannter Kranexperte – sie gehört nicht zu unserem Angebot.</p>
-        <Sources items={inspection.sources} />
-      </div>
     </div>
   </section>
+
+  <FactGrid id="pruefpflicht" title={d.title} lead={d.lead} items={d.items} />
 
   <FaqStage items={page.faq} illo={'menu/kranservice'} />
 
@@ -88,15 +68,7 @@ const nodes = [
 </Base>
 
 <style>
-  .pp { list-style: none; padding: 0; display: grid; gap: 4px 48px; margin-top: 40px; }
-  .pp li { display: grid; gap: 6px; align-content: start; padding: 20px 0; border-top: 1px solid var(--ink); }
-  .pp h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.015em; }
-  .pp p { font-size: 0.9375rem; line-height: 1.55; color: var(--ink-3); }
-  @media (min-width: 960px) { .pp { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 56px; } }
-  .pp__check { margin-top: 48px; padding: 28px; border-radius: 24px; background: var(--gray-100); }
-  .pp__check .pp__h { margin-top: 0; }
-  .pp__h { margin: 48px 0 16px; font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.02em; }
-  .pp__foot { display: grid; gap: 24px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line-2); }
-  .pp__who { font-size: 0.9375rem; color: var(--ink-2); max-width: 46em; }
-  @media (min-width: 960px) { .pp__foot { grid-template-columns: 7fr 5fr; gap: 64px; } .pp__check { padding: 40px; } }
+  .ks-work { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  .ks-work > li { scroll-margin-top: calc(var(--header-h) + 24px); }
+  @media (min-width: 960px) { .ks-work { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }
 </style>

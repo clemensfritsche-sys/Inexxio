@@ -3,12 +3,14 @@
  * Bildkarten wie eine Zeitschrift (v4, Muster Porsche): breit zwei Spalten, die linke eine Stufe tiefer;
  * schmal eine Reihe zum Wischen, die nächste Karte schaut herein. Die Karten kommen als `<li>` herein
  * (meist je eine `PhotoCard`). Gebraucht im Verschleissteile-Katalog und bei den Situationen auf
- * Krane nach Mass.
+ * Krane nach Mass und bei den Bauformen der Heukrananlagen.
+ * `square`: Zeichnungen statt Fotos – breit quadratisch statt hoch. Ein `<li class="mag__end">` (die
+ * kompakte Karte «… nicht dabei?») schliesst breit die rechte Spalte, wo die linke eine Stufe tiefer endet.
  */
-interface Props { class?: string }
-const { class: cls } = Astro.props;
+interface Props { square?: boolean }
+const { square = false } = Astro.props;
 ---
-<ul role="list" class:list={['mag', cls]}><slot /></ul>
+<ul role="list" class:list={['mag', square && 'mag--square']}><slot /></ul>
 
 <style>
   .mag { list-style: none; padding: 0 var(--gutter) 4px; margin-inline: calc(var(--gutter) * -1); display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
@@ -17,5 +19,8 @@ const { class: cls } = Astro.props;
   @media (min-width: 960px) {
     .mag { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-inline: 0; padding: 0 0 96px; overflow: visible; }
     .mag > :global(li:nth-child(odd)) { transform: translateY(96px); }
+    .mag--square > :global(li) > :global(.pc) { aspect-ratio: 1 / 1; }
+    .mag > :global(li.mag__end) { grid-column: 2; transform: none; }
+    .mag > :global(li.mag__end) > :global(.pc) { aspect-ratio: auto; }
   }
 </style>

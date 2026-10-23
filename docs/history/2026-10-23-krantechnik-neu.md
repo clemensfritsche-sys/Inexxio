@@ -59,5 +59,20 @@ ausweisen» (WEBSITE_PLAN Entscheid 125).
   `funk-sicht.svg`), Foto `heukran-funk` (bis dahin `heukran-einsatz`). Kopf «Heukrane, gebaut für
   Ihre Scheune».
 
-**Offen:** neues Kopfbild Krane nach Mass und ein Hafen-Bild (Prompts gestellt); die fünf Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
+**Vierte Runde (gleicher Tag):**
+- Bilder des Auftraggebers eingebaut: Kopf Krane nach Mass neu, Hafen freigestellt (`hafen-titel.webp`,
+  ersetzt die Zeichnung), Foto `heukran-funk` (generiert, ohne echte Person). Ungenutzt entfernt:
+  `kran-hafen.svg`, `heukran-funk.svg`.
+- `Magazine` kann `square` (Zeichnungen) und eine kompakte Schlusskarte `mag__end`, die rechts die
+  Lücke schliesst; `PhotoCard` mit `compact` und Glas-Etikett bei Zeichnungen. Bauformen der
+  Heukrananlagen jetzt ebenso (statt Bühne mit Umschalter).
+- `FieldCards`: Titel, Satz und Pfeil liegen auf einer Glasfläche über dem Fuss der Zeichnung – gilt auf
+  Krantechnik, Fahrzeugtechnik und Speziallösungen (ein Baustein). Krantechnik-Texte lockerer.
+- Kranservice reduziert: Stufen als Treppe (`ServiceTiers`, INEXXIO 365 oben, #inexxio-365) → Garantien →
+  zwei Bildkarten «Prüfen, warten, modernisieren» → Prüfpflicht in drei Sätzen (Einzelheiten im
+  Ratgeber). Entfernt: «Was ist bei Ihrem Kran fällig?» (`InspectionCheck`, `scripts/check.ts`),
+  `InspectionTable`, `config/inspection.mjs`, «Zwei Wege zu INEXXIO 365» (`WayPair`), die Listen
+  «Was wir prüfen» und «Modernisieren».
+
+**Offen:** neues Kopfbild Heukrananlagen und zwei Schemas für Funk (Prompts gestellt); die vier Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
 Die Startseite läuft bei 320 px 2 px über (Kopf, schon vorher so).

@@ -36,7 +36,7 @@ const nodes = [
   <StageHero
     word={page.crumb}
     image={titel}
-    alt="Scheune als Konstruktionszeichnung, darin eine rote Kranfahrbahn, die in Kurven um das Gebäude führt, mit Katze und Greifer"
+    alt="Scheune als Konstruktionszeichnung, darunter eine rote Kranfahrbahn, die dem Dachstuhl in einem weichen Bogen folgt, mit Kettenzug und Greifer"
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
@@ -46,9 +46,9 @@ const nodes = [
   <section class="v4-section" id="situationen" aria-labelledby="situationen-title">
     <div class="wrap">
       <header class="kn-head"><h2 class="v4-h2" id="situationen-title">{sit.title}</h2><p class="v4-sub">{sit.lead}</p></header>
-      <Magazine class="kn-sit">
+      <Magazine square>
         {sit.items.map((it) => <li><PhotoCard photo={it.photo} illo={it.illo} alt={it.alt} label={it.label} title={it.title} text={it.text} /></li>)}
-        <li><PhotoCard title={sit.missing.title} text={sit.missing.text} cta={sit.missing.cta} /></li>
+        <li class="mag__end"><PhotoCard compact title={sit.missing.title} text={sit.missing.text} cta={sit.missing.cta} /></li>
       </Magazine>
     </div>
   </section>
@@ -77,8 +77,6 @@ const nodes = [
 
 <style>
   .kn-head { margin-bottom: 40px; }
-  /* Die Situationen sind Zeichnungen, keine Fotos: breit quadratisch statt hoch. */
-  @media (min-width: 960px) { .kn-sit :global(.pc) { aspect-ratio: 1 / 1; } }
   @media (min-width: 960px) { .kn-head { margin-bottom: 56px; } }
   .kn-worlds { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
   @media (min-width: 960px) { .kn-worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }

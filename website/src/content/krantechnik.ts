@@ -74,12 +74,12 @@ export const krantechnik: AreaPage = {
 
 /** Die drei Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit der Zeichnung aus dem Menü. */
 export const craneOffers = {
-  title: 'Alles rund um Ihren Kran',
-  lead: 'Bauen, betreuen, modernisieren – aus einer Hand.',
+  title: 'Was dürfen wir für Ihren Kran tun?',
+  lead: 'Neu bauen, einsatzbereit halten, die Scheune ausrüsten – aus einer Hand.',
   items: [
-    { id: 'nach-mass', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: KNM, text: 'Auch um Ecken, über Steigungen und Versätze – für Scheune, Halle und Hafen.', href: '/krantechnik/krane-nach-mass' },
-    { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Die erste Inspektion ist gratis – bis zu INEXXIO 365: Ausfälle übernehmen wir.', href: '/krantechnik/kranservice' },
-    { id: 'heukran', illo: 'menu/heukrananlagen', alt: 'Zeichnung: Heukran mit Greifer über dem Heustock', title: 'Heukrananlagen', text: 'Nach Mass, ohne Kabine, bedient per Funk – und betreut, solange sie läuft.', href: '/krantechnik/heukrananlagen' },
+    { id: 'nach-mass', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: KNM, text: 'Kurve, Steigung, Versatz? Wir bauen den Kran um Ihr Gebäude herum.', href: '/krantechnik/krane-nach-mass' },
+    { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir die Ausfälle.', href: '/krantechnik/kranservice' },
+    { id: 'heukran', illo: 'menu/heukrananlagen', alt: 'Zeichnung: Heukran mit Greifer über dem Heustock', title: 'Heukrananlagen', text: 'Ohne Kabine, per Funk: Sie bleiben unten, der Greifer arbeitet.', href: '/krantechnik/heukrananlagen' },
   ],
 };
 
@@ -201,13 +201,12 @@ export const craneReferences = {
   items: [] as { photo: string; situation: string; solution: string; place: string }[],
 };
 
-/** Häfen, Clubs und Werften (Anker #hafen) – eine Karte mit der Hafen-Zeichnung (kran-hafen.svg). */
+/** Häfen, Clubs und Werften (Anker #hafen) – Text und das freigestellte Hafen-Bild. */
 export const harbour = {
   label: 'Häfen, Clubs und Werften',
   title: 'Boots- und Mastkrane, Bootslifte',
   text: 'Wir bauen sie nach Mass für Ihren Hafen – und halten bestehende Anlagen in Schuss, auch von anderen Herstellern.',
-  illo: 'kran-hafen',
-  alt: 'Zeichnung: Mastkran auf dem Steg und Bootslift mit gehobenem Boot im Wasser, beide rot',
+  alt: 'Roter Bootslift hält ein Motorboot über dem Wasser, daneben ein roter Mastkran auf dem Steg; Ufer und Steg als Zeichnung',
   items: [
     { icon: 'drafting-compass' as IconName, title: 'Bootslifte', text: 'Nach Mass für Steg, Boot und Ufer.' },
     { icon: 'users' as IconName, title: 'Boots- und Mastkrane', text: 'Einfach zu bedienen – auch für Mitglieder, die selten kranen.' },
@@ -296,26 +295,31 @@ export const serviceTiers = {
   ],
 };
 
-/** INEXXIO 365 im Detail – zwei Wege (Anker #inexxio-365 auf dem Kranservice). */
-export const inexxio365 = {
-  title: 'Zwei Wege zu INEXXIO 365',
-  lead: 'Sie zahlen eine fixe Monatsrate für die Einsatzbereitschaft – nicht für Ausfallzeiten und Reparaturen. Prüfung, Wartung und Ersatzteile sind inklusive, jeder Tag Stillstand ist gratis. Keine Mindestlaufzeit.',
-  ways: [
-    { label: 'Ihr bestehender Kran', title: 'Wir übernehmen ihn.', text: 'Nach einer Eintrittsprüfung betreuen wir ihn rundum.' },
-    { label: 'Ein neuer Kran', title: 'Ohne Kauf, zur Monatsrate.', text: 'Wir bauen ihn nach Mass und halten ihn einsatzbereit.', dark: true },
+/** Prüfen, warten, modernisieren (Kranservice) – zwei Bildkarten (PhotoCard), Anker #pruefen und #modernisierung. */
+export const serviceWork = {
+  title: 'Prüfen, warten, modernisieren',
+  items: [
+    {
+      id: 'pruefen', photo: 'pruefung-hallenkran', label: 'Prüfen und warten', title: 'Der ganze Kran, einmal durch',
+      text: 'Tragwerk und Kranbahn, Hubwerk, Seil oder Kette, Fahrwerke, Elektrik und Sicherheit – nach Herstellervorgabe, mit Protokoll fürs Kranbuch.',
+      cta: anfrage('Prüfung anfragen'),
+    },
+    {
+      id: 'modernisierung', photo: 'reparatur-vor-ort', label: 'Modernisieren', title: 'Neue Technik, bewährter Stahl',
+      text: 'Ist der Stahlbau gut, bringen Funkfernsteuerung, Frequenzumrichter, Überlastsicherung und neue Steuerung den Kran auf den Stand der Technik.',
+      cta: anfrage('Modernisierung anfragen'),
+    },
   ],
-  cta: 'INEXXIO 365 anfragen',
 };
 
-/** Modernisierung (Anker #modernisierung auf dem Kranservice) – gehört zum Service, mit Garantie. */
-export const modernisation = {
-  title: 'Modernisieren statt ersetzen',
-  lead: 'Ist der Stahlbau gut, bringen wir die Technik auf den neuen Stand. Nicht zufrieden? Die Hälfte übernehmen wir.',
+/** Die Prüfpflicht – drei Sätze an einer Haarlinie (FactGrid), Einzelheiten im Ratgeber. */
+export const inspectionDuty = {
+  title: 'Was die Prüfpflicht verlangt',
+  lead: 'Nach Kranverordnung und EKAS-Richtlinie 6511. Mehr im Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz).',
   items: [
-    { icon: 'smartphone' as IconName, title: 'Funkfernsteuerung', text: 'Bedienen mit Abstand zur Last – sicherer und mit Blick auf den ganzen Weg.' },
-    { icon: 'trending-up' as IconName, title: 'Frequenzumrichter', text: 'Sanft anfahren und bremsen: weniger Pendeln, weniger Verschleiss.' },
-    { icon: 'shield-check' as IconName, title: 'Überlastsicherung', text: 'Nachgerüstet oder erneuert – damit der Kran nicht mehr hebt, als er darf.' },
-    { icon: 'wrench' as IconName, title: 'Steuerung und Elektrik', text: 'Neue Steuerung, Endschalter und Not-Halt nach heutigem Stand.' },
+    { icon: 'clipboard-check' as IconName, title: 'Jeder Kran', text: 'Regelmässige Überprüfung nach Herstellervorgabe durch Kranfachleute. Das übernehmen wir.' },
+    { icon: 'file-text' as IconName, title: 'Kranbuch', text: 'Zu jedem Kran gehört ein Kranbuch. Wir führen es nach, digital.' },
+    { icon: 'shield-check' as IconName, title: 'Fahrzeug- und Turmdrehkrane', text: 'Zusätzlich die periodische Kontrolle durch einen von der Suva anerkannten Kranexperten – sie gehört nicht zu unserem Angebot.' },
   ],
 };
 
@@ -391,13 +395,12 @@ export const heukrananlagen: SubPage = {
 
 /**
  * Funk statt Kabine (Anker #funk) – direkt nach dem Kopf der Heukrananlagen, gesetzt wie die Garantien
- * (components/kran/RadioControl.astro → home/Stagger). Foto `heukran-funk`, bis dahin `heukran-einsatz`.
+ * (components/kran/RadioControl.astro → home/Stagger), dazu das Foto `heukran-funk`.
  */
 export const radioControl = {
   title: 'Ohne Kabine. Mit dem ==besten Blick==.',
   lead: 'Unsere Heukrane bedienen Sie per Funk – vom Boden, vom Wagen oder vom Heustock aus. Das kann jeder im Betrieb, auch wer nicht schwindelfrei ist.',
   photo: 'heukran-funk',
-  fallback: 'heukran-einsatz',
   a: { label: 'Funk statt Kabine', title: 'Sender in die Hand – und der Kran läuft.' },
   b: { label: 'Beste Sicht', title: 'Sie sehen genau, was der Greifer packt.' },
   c: { label: 'Allein abladen', title: 'Wagen hinein, absteigen, abladen.' },
@@ -405,17 +408,17 @@ export const radioControl = {
 
 /** Module der Heukran-Seite. */
 export const heukranModules = {
+  /** Bauformen (Anker #neuanlage) – alle vier auf einen Blick wie die Situationen (Magazine + PhotoCard). */
   forms: {
     title: 'Bauformen',
-    lead: 'Welche Bauform passt, hängt vom Gebäude und von der Arbeit ab. Bei der Besichtigung klären wir es gemeinsam.',
-    legend: { grey: 'Grau: das Gebäude', red: 'Rot: die Bauform' },
+    lead: 'Vier Bauformen, alle ohne Kabine und per Funk bedient.',
     items: [
-      { title: 'Einschienenkran', tab: 'Einschiene', illo: 'heukran-einschiene', text: 'Der Kran fährt auf einer Laufschiene unter dem Dach. Passt für lange, schmale Scheunen mit einem Heustock entlang der Fahrbahn. Bedienung per Funk.' },
-      { title: 'Brückenkran', tab: 'Brücke', illo: 'heukran-bruecke', text: 'Eine Kranbrücke fährt über die ganze Breite, die Katze quer dazu. Passt für breite Scheunen mit mehreren Stöcken oder Abladeplätzen. Bedienung per Funk.' },
-      { title: 'Drehkran, hydraulisch', tab: 'Drehkran', illo: 'heukran-drehkran', text: 'Ein Drehturm mit Ausleger fährt längs und quer und dreht sich – der Greifer erreicht auch Ecken und Nischen neben der Fahrbahn. Bedienung per Funk.' },
-      { title: 'An das Gebäude angepasst', tab: 'Angepasst', illo: 'heukran-angepasst', text: 'Fahrbahn, Stützen und Spannweite folgen dem Bau – auch um Ecken, über Steigungen und Versätze. Mehr unter [Krane nach Mass](/krantechnik/krane-nach-mass). Bedienung per Funk.' },
+      { label: 'Einschiene', title: 'Einschienenkran', illo: 'heukran-einschiene', text: 'Der Kran fährt auf einer Laufschiene unter dem Dach. Für lange, schmale Scheunen mit einem Heustock entlang der Fahrbahn.' },
+      { label: 'Brücke', title: 'Brückenkran', illo: 'heukran-bruecke', text: 'Eine Kranbrücke fährt über die ganze Breite, die Katze quer dazu. Für breite Scheunen mit mehreren Stöcken oder Abladeplätzen.' },
+      { label: 'Drehkran', title: 'Drehkran, hydraulisch', illo: 'heukran-drehkran', text: 'Ein Drehturm mit Ausleger fährt längs und quer und dreht sich – der Greifer erreicht auch Ecken und Nischen.' },
+      { label: 'Angepasst', title: 'An das Gebäude angepasst', illo: 'heukran-angepasst', text: 'Fahrbahn, Stützen und Spannweite folgen dem Bau – auch um Ecken, über Steigungen und Versätze. Mehr unter [Krane nach Mass](/krantechnik/krane-nach-mass).' },
     ],
-    cta: { label: 'Neuanlage anfragen', href: '#anfrage' },
+    missing: { title: 'Welche passt zu Ihrer Scheune?', text: 'Das klären wir bei der Besichtigung gemeinsam – mit Blick auf Gebäude, Heustock und Ihre Arbeit.', cta: { label: 'Neuanlage anfragen', href: '#anfrage' } },
   },
   steps: {
     title: 'Ablauf einer Neuanlage',

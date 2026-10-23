@@ -71,9 +71,10 @@ export const photos = {
     brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
     ratio: '4/3',
   },
-  // Heukrananlagen, «Funk statt Kabine» – bis das Foto da ist, steht die Zeichnung heukran-funk.svg.
+  // Heukrananlagen, «Funk statt Kabine» (generiert, ohne echte Person oder echten Ort).
   'heukran-funk': {
-    alt: 'Landwirt steht mit dem Funksender am Boden, dahinter der Heukran mit Greifer',
+    file: 'heukran-funk.jpg',
+    alt: 'Landwirt steht in der Scheune mit dem Funksender neben dem Heuwagen, darüber der Heukran mit vollem Greifer',
     brief: 'Person am Boden der Scheune mit Funksender in der Hand, im Hintergrund der Heukran mit Greifer über dem Heustock, keine Kabine, quer',
     ratio: '4/3',
   },
