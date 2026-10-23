@@ -344,10 +344,12 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
   Startseite aus `components/home/*`. Die drei Bereiche, ihre Unterseiten und «Über uns» haben je ein
   eigenes Layout aus denselben Bausteinen (es gibt keine Bereichs-/Unterseiten-Vorlage mehr):
-  `StageHero` (Kopf wie Porsche: grosses Wort, freigestelltes Bild oder Zeichnung) · `spezial/FieldCards`
+  `StageHero` (Kopf wie Porsche: grosses Wort, freigestelltes Bild mit weich auslaufenden Rändern) · `spezial/FieldCards`
   (Karten: Zeichnung, Titel, Satz, Pfeil) · `spezial/SolutionPath` (jeder Ablauf als Weg) ·
-  `home/SpecialStage` (Bühne mit Umschalter, bis vier Felder) · `home/Guarantees` · `SeasonCalendar`
-  (Wandkalender: Winter-Tausch, Saison-Check) · `PhotoCard` (Bildkarte: Katalog, Scheune/Halle) ·
+  `home/SpecialStage` (Bühne mit Umschalter, bis vier Felder) · `home/Stagger` (drei versetzte Karten,
+  Überschrift dazwischen: `home/Guarantees`, Funk auf den Heukrananlagen) · `SeasonCalendar`
+  (Wandkalender: Winter-Tausch, Saison-Check) · `PhotoCard` (Bildkarte; mit `illo` die Zeichnung, bis das Foto da ist) in `Magazine` (zwei Spalten
+  versetzt, schmal zum Wischen: Katalog, Situationen) ·
   `WayPair` (zwei Wege, einer dunkel) · `FactGrid` (Leistungen an Haarlinien) · `fahrzeug/*`, `kran/*`;
   Zeichnungen per Schlüssel über `lib/illustrations.ts`. Dazu `FaqStage` (höchstens 5 Fragen je
   Bereichsseite; Glas-Akkordeon über einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht

@@ -136,20 +136,20 @@ export const kraneNachMass: SubPage = {
 };
 
 /**
- * Wo ein Katalogkran nicht passt (Anker #situationen) – vier Situationen als Bühne mit Umschalter
- * (components/home/SpecialStage.astro), je mit Schnitt oder Draufsicht (src/assets/illustrations/kran-*.svg).
+ * Wo ein Katalogkran nicht passt (Anker #situationen) – alle vier Situationen auf einen Blick, gesetzt wie
+ * der Verschleissteile-Katalog (components/Magazine + PhotoCard). Solange die Fotos (config/photos.mjs
+ * `kran-*`) fehlen, steht die Zeichnung (src/assets/illustrations/kran-*.svg). Die letzte Karte fragt.
  */
 export const craneSituations = {
   title: 'Wo ein Katalogkran nicht passt',
-  lead: 'Vier Situationen, die wir oft sehen. Ihre ist nicht dabei? Fragen Sie trotzdem.',
-  legend: { grey: 'Grau: Ihr Gebäude', red: 'Rot: der Kran nach Mass' },
+  lead: 'Vier Situationen, die wir oft sehen – und wie der Kran trotzdem passt.',
   items: [
-    { title: 'Um die Ecke', tab: 'Kurve', illo: 'kran-kurve', alt: 'Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke', text: 'Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.' },
-    { title: 'Über eine Steigung', tab: 'Steigung', illo: 'kran-steigung', alt: 'Zeichnung im Schnitt: Decke mit Absatz, die rote Fahrbahn steigt weich mit an', text: 'Die Decke hat einen Absatz. Die Fahrbahn steigt weich mit an – Antrieb und Bremse sind dafür ausgelegt.' },
-    { title: 'Decke mit Versatz', tab: 'Versatz', illo: 'kran-versatz', alt: 'Zeichnung im Schnitt: Decke springt in der Höhe, die rote Fahrbahn hängt gerade darunter', text: 'Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.' },
-    { title: 'Eng und verwinkelt', tab: 'Eng', illo: 'kran-eng', alt: 'Zeichnung von oben: Raum mit Stützen und Nische, der rote Kran erreicht die Ecke', text: 'Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.' },
+    { photo: 'kran-kurve', illo: 'kran-kurve', label: 'Kurve', title: 'Um die Ecke', alt: 'Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke', text: 'Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.' },
+    { photo: 'kran-steigung', illo: 'kran-steigung', label: 'Steigung', title: 'Über eine Steigung', alt: 'Zeichnung im Schnitt: Decke mit Absatz, die rote Fahrbahn steigt weich mit an', text: 'Die Decke hat einen Absatz. Die Fahrbahn steigt weich mit an – Antrieb und Bremse sind dafür ausgelegt.' },
+    { photo: 'kran-versatz', illo: 'kran-versatz', label: 'Versatz', title: 'Decke mit Versatz', alt: 'Zeichnung im Schnitt: Decke springt in der Höhe, die rote Fahrbahn hängt gerade darunter', text: 'Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.' },
+    { photo: 'kran-eng', illo: 'kran-eng', label: 'Wenig Platz', title: 'Eng und verwinkelt', alt: 'Zeichnung von oben: Raum mit Stützen und Nische, der rote Kran erreicht die Ecke', text: 'Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.' },
   ],
-  cta: anfrage('Ihre Situation schildern'),
+  missing: { title: 'Ihre Situation ist nicht dabei?', text: 'Fragen Sie trotzdem. Schicken Sie uns ein paar Fotos, wir sagen Ihnen ehrlich, ob es geht.', cta: anfrage('Fotos schicken') },
 };
 
 /** Für Scheune und Halle – zwei gleich starke Bildkarten (components/PhotoCard.astro). */
@@ -341,7 +341,7 @@ export const heukrananlagen: SubPage = {
     'Heukrananlagen ohne Kabine, bedient per Funk: betreuen, umbauen, neu planen. Saison-Check, Reparatur, Ersatzteile – die erste Inspektion ist gratis.',
   hero: {
     eyebrow: 'Krantechnik · Heukrananlagen',
-    h1: 'Heu abladen, ohne ==hinaufzusteigen==',
+    h1: 'Heukrane, gebaut für ==Ihre Scheune==',
     lead:
       'Seit {{history.cranesSince}} bauen wir Heukrane nach Mass für Ihre Scheune – ohne Kabine, bedient per Funk. Bestehende Anlagen betreuen wir weiter; die erste Inspektion ist gratis.',
     photo: 'heukran-einsatz',
@@ -390,22 +390,17 @@ export const heukrananlagen: SubPage = {
 };
 
 /**
- * Funk statt Kabine (Anker #funk) – direkt nach dem Kopf der Heukrananlagen, als Raster nach dem Muster der
- * Garantien (components/kran/RadioControl.astro). Die erste Karte ist die dunkle.
+ * Funk statt Kabine (Anker #funk) – direkt nach dem Kopf der Heukrananlagen, gesetzt wie die Garantien
+ * (components/kran/RadioControl.astro → home/Stagger). Foto `heukran-funk`, bis dahin `heukran-einsatz`.
  */
 export const radioControl = {
-  title: 'Den Greifer im Blick, den ==Sender== in der Hand',
-  lead: 'Unsere Heukrane haben keine Kabine. Sie bedienen sie per Funk – vom Boden, vom Wagen oder vom Heustock aus, dort, wo Sie am besten sehen.',
-  /** Foto (config/photos.mjs `heukran-funk`), sobald es da ist; bis dahin die Zeichnung. */
+  title: 'Ohne Kabine. Mit dem ==besten Blick==.',
+  lead: 'Unsere Heukrane bedienen Sie per Funk – vom Boden, vom Wagen oder vom Heustock aus. Das kann jeder im Betrieb, auch wer nicht schwindelfrei ist.',
   photo: 'heukran-funk',
-  illo: 'heukran-funk',
-  alt: 'Zeichnung: Mensch am Boden mit Funksender, der Heukran mit Greifer über dem Heustock',
-  items: [
-    { icon: 'smartphone' as IconName, label: 'Funk statt Kabine', title: 'Kein Aufsteigen, kein Klettern.', text: 'Sender in die Hand, und der Kran läuft.' },
-    { icon: 'shield-check' as IconName, label: 'Sicht', title: 'Sie sehen, was der Greifer packt.', text: 'Mit Abstand zur Last.' },
-    { icon: 'user' as IconName, label: 'Allein', title: 'Wagen hinein, absteigen, abladen.', text: 'Es braucht niemanden in der Kabine.' },
-    { icon: 'users' as IconName, label: 'Für alle', title: 'Jeder im Betrieb kann bedienen.', text: 'Auch wer nicht schwindelfrei ist.' },
-  ],
+  fallback: 'heukran-einsatz',
+  a: { label: 'Funk statt Kabine', title: 'Sender in die Hand – und der Kran läuft.' },
+  b: { label: 'Beste Sicht', title: 'Sie sehen genau, was der Greifer packt.' },
+  c: { label: 'Allein abladen', title: 'Wagen hinein, absteigen, abladen.' },
 };
 
 /** Module der Heukran-Seite. */

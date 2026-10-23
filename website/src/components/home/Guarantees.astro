@@ -1,15 +1,13 @@
 ---
 /**
- * Garantien (v4): versetzte Karten, die Überschrift dazwischen – wie eine Zeitschrift.
+ * Garantien (v4): versetzte Karten, die Überschrift dazwischen (home/Stagger).
  *  · Zufriedenheitsgarantie: Schema einer Rechnung, deren Hälfte zurückgeht
  *  · INEXXIO 365 (die eine dunkle Karte): ein Jahresband, ein Ausfall – den zahlen wir
  *  · Erste Inspektion gratis: Foto
- * Texte: content/promises.ts (EINE Stelle). Schmal: untereinander, leicht versetzt.
+ * Texte: content/promises.ts (EINE Stelle).
  */
+import Stagger from './Stagger.astro';
 import { promises } from '../../content/promises';
-import Icon from '../Icon.astro';
-import Media from '../Media.astro';
-import Rich from '../Rich.astro';
 import half from '../../assets/schema/garantie-haelfte.svg?raw';
 import year from '../../assets/schema/inexxio-365-jahr.svg?raw';
 
@@ -23,60 +21,11 @@ const g = promises.items.garantie;
 const y = promises.items.inexxio365;
 const e = promises.items.erstservice;
 ---
-<section class="v4-section gar-sec" aria-labelledby="garantien">
-  <div class="wrap gar-box">
-    <div class="gar">
-      <header class="gar__head">
-        <h2 class="v4-h2" id="garantien">{promises.title}</h2>
-        <Rich as="p" class="v4-sub" text={promises.lead} />
-      </header>
-      <a class="gv gv--light gar__a" href={garantieHref}>
-        <span class="gv__art gv__art--a" aria-hidden="true" set:html={half} />
-        <span class="gv__text"><span><span class="gv__label">{g.label}</span><Rich as="span" class="gv__title" text={g.title} /></span><span class="garrow garrow--sm garrow--ink" aria-hidden="true"><Icon name="arrow-right" size={18} /></span></span>
-      </a>
-      <a class="gv gv--dark gar__b" href={y.link?.href ?? '#anfrage'}>
-        <span class="gv__art gv__art--b" aria-hidden="true" set:html={year} />
-        <span class="gv__text"><span><span class="gv__label">{y.label}</span><Rich as="span" class="gv__title" text={y.title} /></span><span class="garrow garrow--sm" aria-hidden="true"><Icon name="arrow-right" size={18} /></span></span>
-      </a>
-      <a class="gv gv--photo zoom-on-hover gar__c" href={e.link?.href ?? '#anfrage'}>
-        <Media id={photo} sizes="(min-width: 960px) 40vw, 100vw" />
-        <span class="gv__shade" aria-hidden="true"></span>
-        <span class="gv__text"><span><span class="gv__label">{e.label}</span><Rich as="span" class="gv__title" text={e.title} /></span><span class="garrow garrow--sm" aria-hidden="true"><Icon name="arrow-right" size={18} /></span></span>
-      </a>
-    </div>
-  </div>
-</section>
-
-<style>
-  /* Schmal: Überschrift, dann die Karten untereinander, leicht versetzt. */
-  .gar { display: grid; gap: 12px; }
-  .gar__head { margin-bottom: 16px; }
-  .gv { position: relative; display: block; border-radius: var(--r-xl); overflow: hidden; text-decoration: none; isolation: isolate; }
-  .gv--light { background: var(--gray-100); color: var(--ink); height: 340px; }
-  .gv--dark { background: var(--black); color: var(--white); height: 420px; margin-left: 40px; }
-  .gv--photo { color: var(--white); height: 320px; margin-right: 40px; background: var(--dark-2); }
-  .gv__art { position: absolute; left: 0; right: 0; display: flex; justify-content: center; transition: transform 0.6s var(--ease); }
-  .gv:hover .gv__art { transform: translateY(-6px); }
-  .gv__art :global(svg) { display: block; max-width: none; }
-  .gv__art--a { top: 16px; } .gv__art--a :global(svg) { width: 300px; height: 200px; }
-  .gv__art--b { top: 56px; } .gv__art--b :global(svg) { width: 290px; height: 196px; }
-  .gv__shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 45%, rgba(10, 10, 11, 0.75) 100%); }
-  .gv__text { position: absolute; left: 20px; right: 20px; bottom: 16px; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
-  .gv__label { display: block; font-size: 0.875rem; font-weight: 600; opacity: 0.72; }
-  .gv__text :global(.gv__title) { display: block; margin-top: 4px; font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; line-height: 1.15; letter-spacing: -0.02em; }
-
-  /* Breit: frei gesetzt auf einer Fläche 1264 × 1160 (skaliert mit der Breite). */
-  @media (min-width: 960px) {
-    .gar-box { container-type: inline-size; }
-    .gar { display: block; position: relative; height: calc(1160 / 1264 * 100cqw); }
-    .gar > * { position: absolute; margin: 0; }
-    .gar__a { left: 0; top: 0; width: calc(860 / 1264 * 100cqw); height: calc(420 / 1264 * 100cqw); }
-    .gar__b { left: calc(720 / 1264 * 100cqw); top: calc(250 / 1264 * 100cqw); width: calc(480 / 1264 * 100cqw); height: calc(660 / 1264 * 100cqw); }
-    .gar__head { left: calc(64 / 1264 * 100cqw); top: calc(500 / 1264 * 100cqw); width: calc(560 / 1264 * 100cqw); }
-    .gar__c { left: calc(150 / 1264 * 100cqw); top: calc(790 / 1264 * 100cqw); width: calc(520 / 1264 * 100cqw); height: calc(370 / 1264 * 100cqw); }
-    .gv__art--a { top: calc(28 / 1264 * 100cqw); } .gv__art--a :global(svg) { width: calc(440 / 1264 * 100cqw); height: calc(290 / 1264 * 100cqw); }
-    .gv__art--b { top: calc(130 / 1264 * 100cqw); } .gv__art--b :global(svg) { width: calc(420 / 1264 * 100cqw); height: calc(284 / 1264 * 100cqw); }
-    .gv__text { left: 32px; right: 32px; bottom: 28px; }
-    .gv__text :global(.gv__title) { font-size: 1.625rem; }
-  }
-</style>
+<Stagger
+  id="garantien"
+  title={promises.title}
+  lead={promises.lead}
+  a={{ label: g.label, title: g.title, href: garantieHref, art: half }}
+  b={{ label: y.label, title: y.title, href: y.link?.href ?? '#anfrage', art: year }}
+  c={{ label: e.label, title: e.title, href: e.link?.href ?? '#anfrage', photo }}
+/>

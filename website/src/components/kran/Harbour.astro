@@ -1,6 +1,6 @@
 ---
 /**
- * Häfen, Clubs und Werften (v4, Krane nach Mass, Anker #hafen): EINE graue Karte – links ein leises Wort,
+ * Häfen, Clubs und Werften (v4, Krane nach Mass, Anker #hafen): offen auf der Seite – links ein leises Wort,
  * Titel, Satz und die Anfrage, rechts gross die Hafen-Zeichnung (Mastkran auf dem Steg, Bootslift im Wasser).
  * Unten an einer Haarlinie drei Punkte mit Symbol. Schmal: Zeichnung oben, dann Text, Punkte untereinander.
  * Texte: content/krantechnik.ts (`harbour`).
@@ -39,18 +39,18 @@ const { label, title, text, illo, alt, items, cta } = Astro.props;
 </section>
 
 <style>
-  .hb { display: grid; gap: 24px; padding: 24px; border-radius: var(--r-xl); background: var(--gray-100); }
+  .hb { display: grid; gap: 24px; }
   .hb__art { margin: 0; }
   .hb__art img { display: block; width: 100%; max-width: 520px; height: auto; margin-inline: auto; }
   .hb__label { font-size: 0.875rem; font-weight: 600; color: var(--ink-3); margin-bottom: 12px; }
   .hb__cta { margin-top: 28px; }
   .hb__list { list-style: none; padding: 0; display: grid; border-top: 1px solid var(--line); }
   .hb__list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding: 20px 0 4px; }
-  .hb__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--white); color: var(--ink); }
+  .hb__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
   .hb__list strong { display: block; font-size: 1.0625rem; line-height: 1.35; }
   .hb__list :global(.hb__t) { display: block; margin-top: 2px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
   @media (min-width: 960px) {
-    .hb { grid-template-columns: 5fr 7fr; gap: 0 48px; padding: 64px; align-items: center; }
+    .hb { grid-template-columns: 5fr 7fr; gap: 0 64px; align-items: center; }
     .hb__text { grid-row: 1; grid-column: 1; }
     .hb__art { grid-row: 1; grid-column: 2; }
     .hb__art img { max-width: none; }

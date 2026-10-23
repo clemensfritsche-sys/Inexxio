@@ -2,13 +2,13 @@
 /**
  * /krantechnik/krane-nach-mass – die Seite für schwierige Gebäude (Entscheid 23.10.2026), eigenes
  * Layout nach dem Muster von Fahrzeugtechnik: Kopf wie Porsche → Wo ein Katalogkran nicht passt (#situationen,
- * Bühne mit Umschalter, vier Situationen) → Für Scheune und Halle (zwei Bildkarten) → Häfen (#hafen) →
+ * alle vier als Bildkarten wie im Katalog) → Für Scheune und Halle (zwei Bildkarten) → Häfen (#hafen) →
  * So geht's (#ablauf, Weg – zugleich, was zu jedem Kran gehört) → Belege (per Schalter) → Garantien →
  * Fragen → Anfrage mit Foto-Hilfe. Texte: content/krantechnik.ts.
  */
 import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
-import SpecialStage from '../../components/home/SpecialStage.astro';
+import Magazine from '../../components/Magazine.astro';
 import PhotoCard from '../../components/PhotoCard.astro';
 import Harbour from '../../components/kran/Harbour.astro';
 import SolutionPath from '../../components/spezial/SolutionPath.astro';
@@ -43,7 +43,15 @@ const nodes = [
     secondary={{ label: 'Wo es passt', href: '#situationen' }}
   />
 
-  <SpecialStage id="situationen" title={sit.title} lead={sit.lead} items={sit.items} art={sit.items} legend={sit.legend} cta={sit.cta} />
+  <section class="v4-section" id="situationen" aria-labelledby="situationen-title">
+    <div class="wrap">
+      <header class="kn-head"><h2 class="v4-h2" id="situationen-title">{sit.title}</h2><p class="v4-sub">{sit.lead}</p></header>
+      <Magazine class="kn-sit">
+        {sit.items.map((it) => <li><PhotoCard photo={it.photo} illo={it.illo} alt={it.alt} label={it.label} title={it.title} text={it.text} /></li>)}
+        <li><PhotoCard title={sit.missing.title} text={sit.missing.text} cta={sit.missing.cta} /></li>
+      </Magazine>
+    </div>
+  </section>
 
   <section class="v4-section" aria-labelledby="welten">
     <div class="wrap">
@@ -68,6 +76,10 @@ const nodes = [
 </Base>
 
 <style>
+  .kn-head { margin-bottom: 40px; }
+  /* Die Situationen sind Zeichnungen, keine Fotos: breit quadratisch statt hoch. */
+  @media (min-width: 960px) { .kn-sit :global(.pc) { aspect-ratio: 1 / 1; } }
+  @media (min-width: 960px) { .kn-head { margin-bottom: 56px; } }
   .kn-worlds { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
   @media (min-width: 960px) { .kn-worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }
 </style>

@@ -3,31 +3,41 @@
  * Bildkarte (v4, Muster Porsche): das Foto randlos, unten dunkel auslaufend, darauf ein kleines Wort,
  * der Titel, ein Satz und ein Glas-Knopf. Ohne Foto ist die Karte hell (graue Fläche, roter Knopf zur
  * Anfrage). Die Karte füllt ihren Platz (Seitenverhältnis 4:5) – das Raster bestimmt der Abschnitt.
- * Gebraucht im Verschleissteile-Katalog und bei «Für Scheune und Halle» (Krane nach Mass).
+ * Mit `illo`: solange das Foto keine Datei hat, steht die Zeichnung auf der hellen Karte; kommt das Foto,
+ * ersetzt es die Zeichnung von selbst.
+ * Gebraucht im Verschleissteile-Katalog und auf Krane nach Mass (Situationen, Scheune und Halle).
  */
 import Icon from './Icon.astro';
 import Photo from './Photo.astro';
 import Rich from './Rich.astro';
+import { photo as photoOf } from '../config/photos.mjs';
+import { illustration } from '../lib/illustrations';
 
 interface Props {
   photo?: string;
   label?: string;
   title: string;
   text: string;
-  cta: { label: string; href: string };
+  cta?: { label: string; href: string };
+  /** Zeichnung (src/assets/illustrations), solange das Foto fehlt; dazu ihr Alt-Text. */
+  illo?: string;
+  alt?: string;
   /** Titel-Ebene (im Katalog h3, als eigener Abschnitt h3 unter der Abschnitts-H2). */
   as?: 'h2' | 'h3';
 }
-const { photo, label, title, text, cta, as: H = 'h3' } = Astro.props;
+const { photo, label, title, text, cta, illo, alt = '', as: H = 'h3' } = Astro.props;
+const art = illo && !(photo && photoOf(photo).file) ? illo : undefined;
+const shown = art ? undefined : photo;
 ---
-<div class:list={['pc', !photo && 'pc--light']}>
-  {photo && <Photo id={photo} sizes="(min-width: 960px) 600px, 100vw" />}
+<div class:list={['pc', !shown && 'pc--light', art && 'pc--art']}>
+  {shown && <Photo id={shown} sizes="(min-width: 960px) 600px, 100vw" />}
+  {art && <img class="pc__art" src={illustration(art, 'Bildkarte')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
   <div class="pc__body">
     {label && <span class="pc__label">{label}</span>}
     <H class="pc__title">{title}</H>
     <Rich as="p" class="pc__text" text={text} />
     <slot />
-    <a class:list={['btn', 'pc__cta', !photo && 'btn--primary pc__cta--ask']} href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+    {cta && <a class:list={['btn', 'pc__cta', !shown && 'btn--primary pc__cta--ask']} href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>}
   </div>
 </div>
 
@@ -53,6 +63,10 @@ const { photo, label, title, text, cta, as: H = 'h3' } = Astro.props;
   .pc--light::after { content: none; }
   .pc--light .pc__body, .pc--light .pc__title { color: var(--ink); }
   .pc--light .pc__body :global(.pc__text) { color: var(--ink-3); }
+  .pc--light .pc__label { color: var(--ink-3); }
+  /* Zeichnung statt Foto: oben gross auf der hellen Fläche, der Text unten. */
+  .pc > .pc__art { position: absolute; left: 8%; right: 8%; top: 6%; width: 84%; height: 52%; object-fit: contain; transition: transform 0.9s var(--ease); }
+  .pc--art:hover > .pc__art { transform: translateY(-6px); }
   .pc .pc__cta--ask { background: var(--red); border-color: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .pc .pc__cta--ask:hover { background: var(--red-hover); }
   @media (min-width: 960px) {

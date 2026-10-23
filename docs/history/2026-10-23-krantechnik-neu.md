@@ -48,5 +48,16 @@ ausweisen» (WEBSITE_PLAN Entscheid 125).
   herausholen); geprüft wird im März und April, wenn der Heustock am leersten ist. Die Marken unter dem
   Kalender sind weg, was geprüft wird, steht im Satz.
 
-**Offen:** die fünf Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
+**Dritte Runde (gleicher Tag):**
+- Kopfbilder Bereich, Heukran, Kranservice: Ränder (links, rechts, oben) laufen weich aus, damit die
+  Zeichnung nicht abgeschnitten wirkt; das Rote und Dunkle bleibt voll (Maske beim Freistellen).
+- Situationen: alle vier auf einen Blick, gesetzt wie der Verschleissteile-Katalog (`Magazine` aus dem
+  Katalog herausgelöst, `PhotoCard` mit `illo`), dazu die Karte «Ihre Situation ist nicht dabei?».
+- Häfen ohne graue Fläche (Bild folgt, Prompt an den Auftraggeber).
+- Funk: gesetzt wie die Garantien – das Layout ist jetzt `home/Stagger`, die Garantien nutzen es auch.
+  Titel «Ohne Kabine. Mit dem besten Blick.», zwei neue Schemas (`schema/funk-sender.svg`,
+  `funk-sicht.svg`), Foto `heukran-funk` (bis dahin `heukran-einsatz`). Kopf «Heukrane, gebaut für
+  Ihre Scheune».
+
+**Offen:** neues Kopfbild Krane nach Mass und ein Hafen-Bild (Prompts gestellt); die fünf Fotos (Situationen, Funk) und ein Hafen-Foto; Belege mit echten Projekten.
 Die Startseite läuft bei 320 px 2 px über (Kopf, schon vorher so).
