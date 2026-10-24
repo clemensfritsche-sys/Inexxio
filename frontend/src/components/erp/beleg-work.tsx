@@ -19,7 +19,7 @@ import {
   Label, MICRO_LABEL, SearchSelect, Segmented, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
-  ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, ModuleSection,
+  ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, ModuleSection, StageAction,
 } from '@/components/erp/module-ui';
 import { VOUCHER_STAGE, QUOTE_STATE } from '@/lib/modules';
 import { TONE } from '@/lib/status-tone';
@@ -170,26 +170,6 @@ function Editable({ on = true, as: Tag = 'span', style, title, missing, children
       {...(title ? { 'data-tip': missing ? `${title} – Pflichtangabe` : title } : {})}>
       {children}
     </Tag>
-  );
-}
-
-/**
- * **Die Handlung, die den Beleg eine Stufe weiterbringt** (#923): volle Breite, Fläche,
- * 42 px, 14 px Schrift – dieselbe Form wie der Modul-Abschluss in `order-detail`.
- */
-function StageAction({ icon: Icon, label, disabled, tip, onClick }: {
-  icon: typeof Check;
-  label: string;
-  disabled?: boolean;
-  tip?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
-      disabled={disabled} style={{ height: ACT_H.stage, fontSize: 14 }}
-      {...(tip ? { 'data-tip': tip } : {})} onClick={onClick}>
-      <Icon size={16} /> {label}
-    </button>
   );
 }
 

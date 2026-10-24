@@ -123,6 +123,15 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: Folge-Deploy – `user_profiles.employment_start_date` und `.weekly_hours` droppen
+
+Seit Migration `154` stehen Eintritt, Pensum und Austritt im **Vertrag** der Zeiterfassung
+(`time_contracts`); die beiden Felder haben ihr Mapping verloren (beide nullable, kein
+Nullable-Netz nötig). Im **nächsten** Deploy: Spalten droppen, aus `PENDING_DROP` streichen.
+Übernommen wird nichts automatisch: ein Vertrag ab dem alten Eintrittsdatum ohne Stempel
+ergäbe ein grosses Minus – die Administration legt den Vertrag ab der Einführung an und
+bucht den Übertrag (Buchung «Übertrag bei Einführung»).
+
 ## Offen: Folge-Deploy – `user_profiles.newsletter_opt_in` droppen
 
 Seit Migration `153` ist die Einwilligung ein Nachweis (`newsletter_consents`); das

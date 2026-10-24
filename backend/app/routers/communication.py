@@ -12,7 +12,7 @@ from ..core.config import get_settings
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.communication import (ChannelOut, MailboxOut, MessageIn, MessageOut,
-                                     OpenCount, SyncOut)
+                                     SyncOut)
 from ..services import communication as svc
 from ..services import mailbox
 
@@ -68,10 +68,8 @@ def callback(code: str = "", state: str = "", error: str = "",
                             status_code=303)
 
 
-@router.get("/open", response_model=list[OpenCount])
-def open_counts(db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
-    """Je Person die offenen Nachrichten im Verlauf – das Zeichen am Symbol im Feed."""
-    return svc.open_counts(db)
+# Die offenen Nachrichten je Person zählt ``GET /erp/todo`` mit (``services/todo``) – EINE
+# Zahl am Symbol für alles, was zu tun ist.
 
 
 @router.get("", response_model=list[MessageOut])

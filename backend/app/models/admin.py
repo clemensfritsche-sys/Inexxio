@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, text
+from sqlalchemy import JSON, BigInteger, Boolean, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -122,6 +122,11 @@ class CompanySettings(Base):
     # Sie steht als Spalten auf dem Betreiber-Datensatz und wird ausschliesslich über
     # die Systemkonfiguration gepflegt (``services/sites.PLATFORM_FIELDS``).
     google_maps_api_key: Mapped[Optional[str]] = mapped_column(String(255))
+    #: ►►► **Zeiterfassung einer eigenen Gesellschaft** (Migration 154): der Kanton (er
+    #: bestimmt den Vorschlag der Feiertage) und je Absenzart, ab welchem Arbeitstag ein
+    #: Nachweis nötig ist – ``{"canton": "TG", "proof": {"krank": 3}}``. Was fehlt, ist die
+    #: Vorgabe aus ``domain/timekeeping``.
+    time_rules: Mapped[Optional[dict]] = mapped_column(JSON)
 
 
 class CompanyTerritory(Base):

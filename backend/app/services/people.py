@@ -76,6 +76,39 @@ def repair_sql() -> tuple[str, ...]:
     )
 
 
+#: ►►► **Pflicht ist, was das Haus wirklich braucht** – EINE Liste für Konto und ERP. ◄◄◄
+#: Das Konto zeigt daraus den Fortschritt, das ERP die Zahl «zu tun» am Symbol; beide
+#: spiegeln, entschieden wird hier. Das Geburtsdatum ist Pflicht für das **Personal**: es
+#: bestimmt Jugendschutz und gesetzliche Ferien der Zeiterfassung.
+_REQUIRED: tuple[tuple[str, str, str, bool], ...] = (
+    # (Feld, Wort, Abschnitt, nur Personal)
+    ("first_name", "Vorname", "person", False),
+    ("last_name", "Nachname", "person", False),
+    ("phone", "Telefon", "person", False),
+    ("date_of_birth", "Geburtsdatum", "person", True),
+    # Mindestens eine Anschrift – Strasse, PLZ und Ort prüft das Adressbuch beim Anlegen.
+    ("addresses", "Adresse", "adressen", False),
+)
+
+
+def required_fields(u: UserProfile) -> list[tuple[str, str, str]]:
+    """Die Pflichtangaben dieser Person (Feld, Wort, Abschnitt)."""
+    staff = u.role in STAFF_ROLES
+    return [(k, label, sec) for k, label, sec, only_staff in _REQUIRED if staff or not only_staff]
+
+
+def missing_fields(u: UserProfile) -> list[dict]:
+    """Was davon fehlt – in der Reihenfolge der Seite."""
+    out = []
+    for key, label, section in required_fields(u):
+        val = getattr(u, key, None)
+        empty = val is None or (isinstance(val, str) and not val.strip()) or \
+            (isinstance(val, list) and not val)
+        if empty:
+            out.append({"key": key, "label": label, "section": section})
+    return out
+
+
 def name(u: Optional[UserProfile]) -> Optional[str]:
     """Anzeigename einer bereits geladenen Person (``None`` bleibt ``None``)."""
     return u.display_name if u else None

@@ -1487,26 +1487,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/messages/open": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Open Counts
-         * @description Je Person die offenen Nachrichten im Verlauf – das Zeichen am Symbol im Feed.
-         */
-        get: operations["open_counts_api_v1_erp_messages_open_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/messages": {
         parameters: {
             query?: never;
@@ -1625,6 +1605,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/time/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Time
+         * @description Die Zeiterfassung einer Person – Kopf, Konto, Verträge, ein Monat.
+         */
+        get: operations["read_time_api_v1_erp_time__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/{object_id}/swipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Swipe
+         * @description Kommen ↔ Gehen – Serverzeit, ein Schlüssel je Wisch.
+         */
+        post: operations["swipe_api_v1_erp_time__object_id__swipe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/{object_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Entry
+         * @description Stempel nachtragen oder korrigieren, Absenz, Nachweis, Buchung, Rücknahme – EIN Weg.
+         */
+        post: operations["add_entry_api_v1_erp_time__object_id__entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/{object_id}/entries/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Entry
+         * @description Was dieser Eintrag bewirken würde – dieselbe Regel wie beim Speichern, ohne zu
+         *     schreiben (Arbeitstage, Stunden, Ersetzt, Ferien danach, Nachweis, Grund).
+         */
+        post: operations["preview_entry_api_v1_erp_time__object_id__entries_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/{object_id}/contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Contract
+         * @description Neuer Vertrag ab Stichtag (nur Admin); 0 h = Austritt.
+         */
+        post: operations["add_contract_api_v1_erp_time__object_id__contracts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/companies/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Company Time
+         * @description Feiertage, Nachweis-Regeln und Regeln des Landes einer eigenen Gesellschaft.
+         */
+        get: operations["company_time_api_v1_erp_time_companies__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/companies/{object_id}/proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Holiday Proposal
+         * @description Vorschlag der Feiertage (OpenHolidays) – geholt, nicht gespeichert.
+         */
+        get: operations["holiday_proposal_api_v1_erp_time_companies__object_id__proposal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/companies/{object_id}/holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Holidays */
+        post: operations["add_holidays_api_v1_erp_time_companies__object_id__holidays_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/companies/{object_id}/holidays/{holiday_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Holiday */
+        delete: operations["remove_holiday_api_v1_erp_time_companies__object_id__holidays__holiday_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/time/companies/{object_id}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Rules */
+        put: operations["set_rules_api_v1_erp_time_companies__object_id__rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/todo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Todo
+         * @description Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf.
+         */
+        get: operations["read_todo_api_v1_erp_todo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1646,6 +1838,43 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AbsenceOut */
+        AbsenceOut: {
+            /** Id */
+            id: number;
+            /** Art */
+            art: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Until
+             * Format: date
+             */
+            until: string;
+            /** Minutes */
+            minutes: number | null;
+            /** Minutes On Day */
+            minutes_on_day: number;
+            /** Note */
+            note?: string | null;
+            /** Proof Url */
+            proof_url?: string | null;
+            /**
+             * Proof Needed
+             * @default false
+             */
+            proof_needed: boolean;
+            /** Replaces */
+            replaces?: string | null;
+            /**
+             * Can Void
+             * @default false
+             */
+            can_void: boolean;
+        };
         /**
          * AddressIn
          * @description **Eine Anschrift im Adressbuch** – anlegen oder ändern (nur Gesendetes wirkt).
@@ -1711,6 +1940,25 @@ export interface components {
             is_default_delivery: boolean;
             /** Is Default Billing */
             is_default_billing: boolean;
+        };
+        /** ArtOut */
+        ArtOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Icon */
+            icon: string;
+            /** Effect */
+            effect: string;
+            /** Effect Label */
+            effect_label: string;
+            /** Effect Tip */
+            effect_tip: string;
+            /** Proof */
+            proof?: string | null;
+            /** Proof From */
+            proof_from?: number | null;
         };
         /**
          * ArticleBom
@@ -2015,6 +2263,24 @@ export interface components {
              */
             file: string;
         };
+        /** BookingOut */
+        BookingOut: {
+            /** Id */
+            id: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Note */
+            note: string;
+            /** Minutes */
+            minutes: number;
+            /** Vacation Minutes */
+            vacation_minutes: number;
+            /** By */
+            by: string | null;
+        };
         /**
          * CaptureTypeInfo
          * @description Ein wählbarer Erfassungspunkt-Typ.
@@ -2219,6 +2485,36 @@ export interface components {
             /** Is Own */
             is_own?: boolean | null;
         };
+        /** CompanyTimeView */
+        CompanyTimeView: {
+            /** Company Object Id */
+            company_object_id: number;
+            /** Canton */
+            canton: string | null;
+            /** Cantons */
+            cantons: [
+                string,
+                string
+            ][];
+            /** Year */
+            year: number;
+            /** Holidays */
+            holidays: components["schemas"]["HolidayOut"][];
+            /** Proof */
+            proof: {
+                [key: string]: number | null;
+            };
+            /** Rules */
+            rules: [
+                string,
+                string
+            ][];
+            /** Tasks */
+            tasks: components["schemas"]["TaskOut"][];
+            /** Can Edit */
+            can_edit: boolean;
+            vocab: components["schemas"]["TimeVocab"];
+        };
         /**
          * ConsentRow
          * @description Eine An- oder Abmeldung – der Nachweis.
@@ -2235,6 +2531,56 @@ export interface components {
             at: string;
             /** Wording */
             wording?: string | null;
+        };
+        /** ContractIn */
+        ContractIn: {
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Weekly Minutes */
+            weekly_minutes: number;
+            /**
+             * Workdays
+             * @default []
+             */
+            workdays: number[];
+            /** Vacation Weeks */
+            vacation_weeks?: number | string | null;
+            /** Company Object Id */
+            company_object_id?: number | null;
+        };
+        /** ContractOut */
+        ContractOut: {
+            /** Id */
+            id: number;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Weekly Minutes */
+            weekly_minutes: number;
+            /** Workdays */
+            workdays: number[];
+            /** Vacation Weeks */
+            vacation_weeks: string;
+            /** Company Object Id */
+            company_object_id: number | null;
+            /** Company Name */
+            company_name: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "current" | "planned" | "replaced";
+            /** Closing Day */
+            closing_day?: string | null;
+            /** Closing Account */
+            closing_account?: number | null;
+            /** Closing Vacation */
+            closing_vacation?: number | null;
         };
         /**
          * CurrencyOut
@@ -2272,6 +2618,55 @@ export interface components {
              */
             why: string;
         };
+        /** DayOut */
+        DayOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Workday */
+            workday: boolean;
+            /** Holiday */
+            holiday?: string | null;
+            /** Soll */
+            soll: number;
+            /** Ist */
+            ist: number;
+            /** Credit */
+            credit: number;
+            /**
+             * Today
+             * @default false
+             */
+            today: boolean;
+            /**
+             * Future
+             * @default false
+             */
+            future: boolean;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
+            /**
+             * Open
+             * @default false
+             */
+            open: boolean;
+            /**
+             * Hints
+             * @default []
+             */
+            hints: string[];
+            /**
+             * Stamps
+             * @default []
+             */
+            stamps: components["schemas"]["StampOut"][];
+            absence?: components["schemas"]["AbsenceOut"] | null;
+        };
         /**
          * DefinitionLine
          * @description Eine Definitionszeile: Artikel · Menge · Herkunft.
@@ -2303,6 +2698,69 @@ export interface components {
         EmailCheck: {
             /** Email */
             email: string;
+        };
+        /**
+         * EntryIn
+         * @description EIN Eingang für alles, was einen Tag füllt oder ein Konto bewegt.
+         *
+         *     * ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``
+         *       die Korrektur eines Stempels.
+         *     * ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.
+         *     * ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).
+         *     * ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.
+         *     * ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht).
+         */
+        EntryIn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "in" | "out" | "absence" | "proof" | "booking" | "void";
+            /** Day */
+            day?: string | null;
+            /** Time */
+            time?: string | null;
+            /** Until */
+            until?: string | null;
+            /** Art */
+            art?: string | null;
+            /** Minutes */
+            minutes?: number | null;
+            /** Vacation Minutes */
+            vacation_minutes?: number | null;
+            /** Note */
+            note?: string | null;
+            /** Proof Url */
+            proof_url?: string | null;
+            /** Replaces Id */
+            replaces_id?: number | null;
+        };
+        /**
+         * EntryPreview
+         * @description ►►► **Was dieser Eintrag bewirken würde** – vor dem Speichern, nach derselben Regel. ◄◄◄
+         *     ``problem`` ist der Satz, warum es nicht geht (dann ist «Erfassen» gesperrt).
+         */
+        EntryPreview: {
+            /** Problem */
+            problem?: string | null;
+            /**
+             * Workdays
+             * @default 0
+             */
+            workdays: number;
+            /**
+             * Minutes
+             * @default 0
+             */
+            minutes: number;
+            /** Replaces */
+            replaces?: string | null;
+            /** Vacation After */
+            vacation_after?: number | null;
+            /** Proof */
+            proof?: string | null;
+            /** Proof From */
+            proof_from?: number | null;
         };
         /**
          * ErpAdminUpdate
@@ -2337,10 +2795,6 @@ export interface components {
             department?: string | null;
             /** Job Title */
             job_title?: string | null;
-            /** Employment Start Date */
-            employment_start_date?: string | null;
-            /** Weekly Hours */
-            weekly_hours?: number | string | null;
         };
         /**
          * FeedbackAnchor
@@ -2641,6 +3095,17 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HintOut */
+        HintOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Tone */
+            tone: string;
+            /** Icon */
+            icon: string;
+        };
         /**
          * HoldNumbers
          * @description Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf.
@@ -2648,6 +3113,41 @@ export interface components {
         HoldNumbers: {
             /** Numbers */
             numbers?: string[];
+        };
+        /** HolidayIn */
+        HolidayIn: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Name */
+            name: string;
+        };
+        /** HolidayOut */
+        HolidayOut: {
+            /** Id */
+            id?: number | null;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Name */
+            name: string;
+            /**
+             * Taken
+             * @default false
+             */
+            taken: boolean;
+        };
+        /**
+         * HolidaysIn
+         * @description Mehrere Feiertage auf einmal übernehmen (der bestätigte Vorschlag).
+         */
+        HolidaysIn: {
+            /** Holidays */
+            holidays: components["schemas"]["HolidayIn"][];
         };
         /**
          * IncotermOut
@@ -2833,6 +3333,22 @@ export interface components {
             may_connect: boolean;
         };
         /**
+         * Mark
+         * @description Was an einer Zeile vermerkt ist: «geändert», «nachgetragen», «durch …» – Einzelheiten
+         *     im Hover.
+         */
+        Mark: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "changed" | "added" | "by";
+            /** Label */
+            label: string;
+            /** Tip */
+            tip: string;
+        };
+        /**
          * MessageIn
          * @description **Eine neue Nachricht.** Alle Arten haben dieselbe Form; was sie ist, sagen die
          *     Angaben. Ohne Text braucht sie einen Betreff – das ist «erledigt ohne Antwort» für
@@ -2964,6 +3480,18 @@ export interface components {
              * @default 0
              */
             recipients: number;
+        };
+        /**
+         * MissingField
+         * @description Eine fehlende Pflichtangabe: welches Feld, wie es heisst, wo es steht.
+         */
+        MissingField: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Section */
+            section: string;
         };
         /**
          * ModuleCatalog
@@ -3104,18 +3632,6 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
-        };
-        /**
-         * OpenCount
-         * @description Wie viele offene Nachrichten im Verlauf dieser Person stehen.
-         */
-        OpenCount: {
-            /** Object Id */
-            object_id: number;
-            /** Open */
-            open: number;
-            /** Overdue */
-            overdue: number;
         };
         /**
          * OrderCreate
@@ -3744,6 +4260,24 @@ export interface components {
             via?: components["schemas"]["ArticleLink"][];
             replaced_by?: components["schemas"]["ArticleLink"] | null;
         };
+        /** StampOut */
+        StampOut: {
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "in" | "out";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Time */
+            time: string;
+            mark?: components["schemas"]["Mark"] | null;
+        };
         /**
          * StepConfirm
          * @description «Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.
@@ -3887,6 +4421,20 @@ export interface components {
             /** Stock */
             stock: string;
         };
+        /**
+         * SwipeIn
+         * @description Ein Wisch: die Richtung, die der Knopf zeigte, und ein Schlüssel je Wisch – derselbe
+         *     Schlüssel zweimal (Netz wackelt) schreibt nur einmal.
+         */
+        SwipeIn: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "in" | "out";
+            /** Key */
+            key: string;
+        };
         /** SyncOut */
         SyncOut: {
             /** New */
@@ -3896,6 +4444,20 @@ export interface components {
              * @default 0
              */
             sent: number;
+        };
+        /** TaskOut */
+        TaskOut: {
+            /** Kind */
+            kind: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Label */
+            label: string;
+            /** Age */
+            age: number;
         };
         /**
          * TerritoryAssign
@@ -3972,6 +4534,122 @@ export interface components {
             pos: number[];
             /** Company Object Id */
             company_object_id?: number | null;
+        };
+        /**
+         * TimeRulesIn
+         * @description Was die Gesellschaft festlegt: der Kanton und ab welchem Arbeitstag ein Nachweis
+         *     nötig ist (je Absenzart; ``None``/0 = nie).
+         */
+        TimeRulesIn: {
+            /** Canton */
+            canton?: string | null;
+            /** Proof */
+            proof?: {
+                [key: string]: number | null;
+            } | null;
+        };
+        /** TimeView */
+        TimeView: {
+            /** Person Object Id */
+            person_object_id: number;
+            /** Has Contract */
+            has_contract: boolean;
+            /**
+             * Now
+             * Format: date-time
+             */
+            now: string;
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /** Present Since */
+            present_since?: string | null;
+            /** Last Out */
+            last_out?: string | null;
+            /** Today Ist */
+            today_ist: number;
+            /** Today Soll */
+            today_soll: number;
+            /** Account */
+            account: number;
+            /** Vacation */
+            vacation: number;
+            /** Vacation Days */
+            vacation_days?: number | null;
+            /** Day Soll */
+            day_soll: number;
+            /** Born */
+            born: boolean;
+            /** Can Stamp */
+            can_stamp: boolean;
+            /** Is Admin */
+            is_admin: boolean;
+            /** Contracts */
+            contracts: components["schemas"]["ContractOut"][];
+            /** Bookings */
+            bookings: components["schemas"]["BookingOut"][];
+            /** Month */
+            month: string;
+            /** Days */
+            days: components["schemas"]["DayOut"][];
+            /**
+             * Default Day
+             * Format: date
+             */
+            default_day: string;
+            /** Tasks */
+            tasks: components["schemas"]["TaskOut"][];
+            vocab: components["schemas"]["TimeVocab"];
+        };
+        /**
+         * TimeVocab
+         * @description Die Wörter der Zeiterfassung – EINE Quelle (``domain/timekeeping``).
+         */
+        TimeVocab: {
+            /** Arts */
+            arts: components["schemas"]["ArtOut"][];
+            /** Hints */
+            hints: components["schemas"]["HintOut"][];
+            /** Texts */
+            texts: {
+                [key: string]: string;
+            };
+            /** Correction Days */
+            correction_days: number;
+            /** Week Max */
+            week_max: number;
+        };
+        /** TodoItem */
+        TodoItem: {
+            /** Section */
+            section: string;
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+            /**
+             * Red
+             * @default false
+             */
+            red: boolean;
+        };
+        /**
+         * TodoOut
+         * @description ►►► **Was an diesem Datensatz zu tun ist** – die Zahl am Symbol. ◄◄◄ Offene
+         *     Nachrichten, Aufgaben der Zeiterfassung, fehlende Pflichtangaben; rot, sobald etwas
+         *     dringend ist.
+         */
+        TodoOut: {
+            /** Object Id */
+            object_id: number;
+            /** Count */
+            count: number;
+            /** Red */
+            red: boolean;
+            /** Items */
+            items: components["schemas"]["TodoItem"][];
         };
         /**
          * TransferInfo
@@ -4189,10 +4867,16 @@ export interface components {
             department: string | null;
             /** Job Title */
             job_title: string | null;
-            /** Employment Start Date */
-            employment_start_date: string | null;
-            /** Weekly Hours */
-            weekly_hours: string | null;
+            /**
+             * Required Fields
+             * @default []
+             */
+            required_fields: string[];
+            /**
+             * Missing Fields
+             * @default []
+             */
+            missing_fields: components["schemas"]["MissingField"][];
             /** Language */
             language: string;
             /** Notification Email */
@@ -7429,26 +8113,6 @@ export interface operations {
             };
         };
     };
-    open_counts_api_v1_erp_messages_open_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OpenCount"][];
-                };
-            };
-        };
-    };
     history_api_v1_erp_messages_get: {
         parameters: {
             query?: {
@@ -7676,6 +8340,379 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_time_api_v1_erp_time__object_id__get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    swipe_api_v1_erp_time__object_id__swipe_post: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwipeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_entry_api_v1_erp_time__object_id__entries_post: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_entry_api_v1_erp_time__object_id__entries_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_contract_api_v1_erp_time__object_id__contracts_post: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    company_time_api_v1_erp_time_companies__object_id__get: {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyTimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    holiday_proposal_api_v1_erp_time_companies__object_id__proposal_get: {
+        parameters: {
+            query: {
+                year: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_holidays_api_v1_erp_time_companies__object_id__holidays_post: {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidaysIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyTimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_holiday_api_v1_erp_time_companies__object_id__holidays__holiday_id__delete: {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+                holiday_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyTimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_rules_api_v1_erp_time_companies__object_id__rules_put: {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeRulesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyTimeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_todo_api_v1_erp_todo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoOut"][];
                 };
             };
         };

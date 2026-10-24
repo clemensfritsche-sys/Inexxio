@@ -6,7 +6,8 @@ import type { ElementType, ReactNode } from 'react';
 import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Home, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-tone';
 import { TYPE_META } from '@/lib/erp-record';
-import type { ErpRecordType } from '@/types';
+import type { ErpRecordType, Todo, TodoItem } from '@/types';
+import { jumpToTodo, todoTip } from '@/lib/todo';
 import { formatObjectId } from '@/lib/utils';
 import { useSearch } from '@/lib/use-search';
 
@@ -19,16 +20,27 @@ import { useSearch } from '@/lib/use-search';
  * `icon` ist optional: eine Überschrift braucht kein Symbol, wenn sie die Sache schon
  * benennt (Notizen #308/#311).
  */
-export function Card({ icon: Icon, title, right, children }: {
+export function Card({ icon: Icon, title, right, children, info, extra, unclipped, anchor }: {
   icon?: ElementType; title: string; right?: ReactNode; children: ReactNode;
+  /** ⓘ neben dem Titel – die Erklärung im Hover. */
+  info?: string;
+  /** Neben dem Titel, z. B. die Zahl «zu tun» (`TodoChip`). */
+  extra?: ReactNode;
+  /** Ohne `overflow: hidden` – sonst schneidet die Karte die Hover-Blasen ihres Inhalts ab. */
+  unclipped?: boolean;
+  /** Sprungziel der Zahl am Symbol (`data-todo`). */
+  anchor?: string;
 }) {
   return (
-    <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 12, overflow: 'hidden' }}>
+    <div data-todo={anchor} style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)',
+      borderRadius: 12, overflow: unclipped ? undefined : 'hidden', scrollMarginTop: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           {Icon && <Icon style={{ width: 16, height: 16, color: 'var(--fg-3)', flex: 'none' }} />}
           <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{title}</h2>
+          {info && <InfoHint text={info} />}
+          {extra}
         </div>
         {right}
       </div>
@@ -404,13 +416,21 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  *  (offene Nachrichten). Gleiche Grösse im Verhältnis zum Symbol, gleicher weisser Ring,
  *  gleiche Schrift – und zwei Ecken, also überdecken sie sich nie. Eine Zahl ab zehn
  *  heisst «9+»: die genaue Menge sagt die Blase. */
-function IconMark({ corner, size, bg, tip, children }: {
+function IconMark({ corner, size, bg, tip, children, list, onClick }: {
   corner: 'top' | 'bottom'; size: number; bg: string; tip: string; children: ReactNode;
+  /** Mehrzeiliger Hover (je Abschnitt eine Zeile). */
+  list?: boolean;
+  /** Klick springt zur Stelle (nur im Kopf). */
+  onClick?: () => void;
 }) {
   return (
     <span className="tabular-nums" data-tip={tip} aria-label={tip}
+      data-tip-list={list ? '' : undefined} data-tip-pos={list ? 'bottom' : undefined}
+      role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+      onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter') onClick(); } : undefined}
       style={{
-        position: 'absolute', right: -3, [corner]: -3,
+        position: 'absolute', right: -3, [corner]: -3, cursor: onClick ? 'pointer' : undefined, zIndex: 1,
         minWidth: size, height: size, padding: '0 3px', borderRadius: 999,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: bg, color: '#fff', font: `700 ${Math.round(size * 0.66)}px/1 var(--font-body)`,
@@ -419,6 +439,43 @@ function IconMark({ corner, size, bg, tip, children }: {
       }}>
       {children}
     </span>
+  );
+}
+
+/** ►►► **Die kleine Zahl am Abschnitt** – dieselbe Form wie am Symbol, nur inline: an
+ *  «Zeiterfassung», «Stammdaten», «Adressen», «Feiertage». Ohne Aufgabe steht nichts da. */
+export function TodoChip({ items }: { items: TodoItem[] }) {
+  const n = items.reduce((a, i) => a + i.count, 0);
+  if (!n) return null;
+  const red = items.some((i) => i.red);
+  return (
+    <span className="tabular-nums" data-tip={todoTip(items)} data-tip-list=""
+      aria-label={todoTip(items)} style={{
+        minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, display: 'inline-flex',
+        alignItems: 'center', justifyContent: 'center', color: '#fff', letterSpacing: 0,
+        background: red ? 'var(--danger)' : 'var(--warning)', font: '700 10.5px/1 var(--font-body)',
+      }}>
+      {n > 9 ? '9+' : n}
+    </span>
+  );
+}
+
+/** ►►► **Hier beginnt ein Bereich** – eine Haarlinie mit dem Mikro-Label in der Mitte
+ *  (Stammdaten, Zeiterfassung); daneben die Zahl, wenn darin etwas zu tun ist. */
+export function SectionSep({ label, todo, anchor }: {
+  label: string; todo?: TodoItem[]; anchor?: string;
+}) {
+  return (
+    <div role="separator" aria-label={label} data-todo={anchor} style={{
+      ...MICRO_LABEL, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 12,
+      margin: '8px 0 -4px', scrollMarginTop: 16,
+    }}>
+      <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {label}{todo && <TodoChip items={todo} />}
+      </span>
+      <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
+    </div>
   );
 }
 
@@ -435,7 +492,7 @@ function IconMark({ corner, size, bg, tip, children }: {
  * weil Feed und Kopf dieselbe Komponente benutzen, können sie nicht auseinanderlaufen
  * (genau der Fehler aus #688).
  */
-export function RecordIcon({ type, size, photoUrl, initials, deviation, own, messages }: {
+export function RecordIcon({ type, size, photoUrl, initials, deviation, own, todo, onTodo }: {
   type: ErpRecordType;
   size: number;
   photoUrl?: string | null;
@@ -444,9 +501,12 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, mes
   /** Eine **unserer** Gesellschaften – dieselbe Form wie die Abweichung: ein Zeichen
    *  am Symbol, kein Text daneben. */
   own?: boolean;
-  /** **Offene Nachrichten im Verlauf** (CRM Schritt 2) – eine eingekreiste Zahl **oben**
-   *  rechts (zu tun), rot, sobald eine überfällig ist, sonst orange. */
-  messages?: { open: number; overdue: number } | null;
+  /** **Was zu tun ist** (`lib/todo`) – eine eingekreiste Zahl **oben** rechts: offene
+   *  Nachrichten, Zeiterfassung, Pflichtangaben, Feiertage. Rot, sobald etwas dringend
+   *  ist, sonst orange; der Hover listet je Abschnitt. */
+  todo?: Todo | null;
+  /** Klick auf die Zahl (Kopf): zur ersten Stelle springen. */
+  onTodo?: () => void;
 }) {
   const meta = TYPE_META[type];
   const Icon = meta.icon;
@@ -479,12 +539,10 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, mes
           <GitBranch size={Math.round(mark * 0.62)} />
         </IconMark>
       )}
-      {!!messages?.open && (
-        <IconMark corner="top" size={mark}
-          bg={messages.overdue ? 'var(--danger)' : 'var(--warning)'}
-          tip={messages.overdue ? `${messages.open} offen, davon ${messages.overdue} überfällig`
-            : `${messages.open} offen`}>
-          {messages.open > 9 ? '9+' : messages.open}
+      {!!todo?.count && (
+        <IconMark corner="top" size={mark} list onClick={onTodo}
+          bg={todo.red ? 'var(--danger)' : 'var(--warning)'} tip={todoTip(todo.items)}>
+          {todo.count > 9 ? '9+' : todo.count}
         </IconMark>
       )}
     </div>
@@ -492,7 +550,7 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, mes
 }
 
 export function DetailHeader({
-  type, photoUrl, initials, deviation, own, messages, title, placeholder = 'Ohne Bezeichnung',
+  type, photoUrl, initials, deviation, own, todo, title, placeholder = 'Ohne Bezeichnung',
   objectId, objectIdText, objectIdHint, actions, status, right, onBack, children, tabs,
 }: {
   /**
@@ -514,8 +572,8 @@ export function DetailHeader({
   deviation?: boolean;
   /** **Eigenes Unternehmen** – ein Zeichen am Symbol wie die Abweichung. */
   own?: boolean;
-  /** **Offene Nachrichten** – die Zahl am Symbol, siehe `RecordIcon`. */
-  messages?: { open: number; overdue: number } | null;
+  /** **Was zu tun ist** – die Zahl am Symbol, siehe `RecordIcon`; ein Klick springt hin. */
+  todo?: Todo | null;
   /** `null` = dieser Datensatz hat (noch) keinen Namen → Platzhalter, kursiv. */
   title: string | null;
   placeholder?: string;
@@ -555,7 +613,8 @@ export function DetailHeader({
       )}
       <div style={DH.top}>
         <RecordIcon type={type} size={56} photoUrl={photoUrl} initials={initials}
-          deviation={deviation} own={own} messages={messages} />
+          deviation={deviation} own={own} todo={todo}
+          onTodo={todo ? () => jumpToTodo(todo.items) : undefined} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={DH.eyebrow}>{meta.label}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>

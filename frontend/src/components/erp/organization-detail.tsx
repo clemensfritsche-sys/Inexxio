@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
-import type {CompanySettings } from '@/types';
+import type { CompanySettings, Todo } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { DetailBody, Card, DetailHeader, Segmented } from '@/components/erp/fields';
+import { DetailBody, Card, DetailHeader, SectionSep, Segmented } from '@/components/erp/fields';
+import { CompanyTime } from '@/components/erp/time/company-time';
+import { sectionItems } from '@/lib/todo';
 import { organizationStatus } from '@/lib/record-status';
 import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
@@ -155,8 +157,10 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
  * Die **Plattform-Konfiguration** (Analytics- und Karten-Schlüssel) gilt der EINEN
  * Website, nicht je Gesellschaft – sie steht im Reiter «System» am **Betreiber**.
  */
-export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
+export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
   record: CompanySettings;
+  /** Was zu tun ist – die Zahl am Symbol (fehlende Feiertage). */
+  todo?: Todo | null;
   /** Eine **eigene** Gesellschaft ändert nur ein Admin; eine fremde jedes Personal. */
   isAdmin: boolean;
   onSaved: (s: CompanySettings) => void;
@@ -309,7 +313,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
         // **Der Datensatzname trägt die Rechtsform** (#910/#984): fertig vom Server
         // (`sites.legal_name`), derselbe Aufruf wie im Feed – kein Rückfall daneben.
         type="organization" title={organizationName(base)}
-        objectId={record.object_id} onBack={onBack}
+        objectId={record.object_id} onBack={onBack} todo={todo}
         // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
         // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt
         // dieselben zwei Zustände wie alles andere im System, also dieselben zwei Wörter:
@@ -524,6 +528,16 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack }: {
           </Card>
         </DetailBody>
         </fieldset>
+        )}
+        {/* ►►► **Zeiterfassung der Gesellschaft** – ganz unten in den Stammdaten, nur für
+            eine eigene und nur für den Admin (Feiertage, Nachweise, Regeln). */}
+        {tab === 'stamm' && own && isAdmin && record.object_id != null && (
+          <div style={{ marginTop: 24 }}>
+            <DetailBody gap={24}>
+              <SectionSep label="Zeiterfassung" anchor="feiertage" todo={sectionItems(todo, 'feiertage')} />
+              <CompanyTime company={record.object_id} todo={sectionItems(todo, 'feiertage')} />
+            </DetailBody>
+          </div>
         )}
       </div>
     </div>

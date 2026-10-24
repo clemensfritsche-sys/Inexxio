@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, computed_field
@@ -217,6 +216,14 @@ class TerritoryAssign(BaseModel):
     company_object_id: Optional[int] = None
 
 
+class MissingField(BaseModel):
+    """Eine fehlende Pflichtangabe: welches Feld, wie es heisst, wo es steht."""
+    key: str
+    label: str
+    #: Wo sie steht: ``person`` (Stammdaten) oder ``adressen``.
+    section: str
+
+
 class UserProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -254,8 +261,11 @@ class UserProfileResponse(BaseModel):
     # Employee
     department: Optional[str]
     job_title: Optional[str]
-    employment_start_date: Optional[date]
-    weekly_hours: Optional[Decimal]
+
+    #: ►►► **Was im Profil noch fehlt** – die Regel steht EINMAL im Dienst
+    #: (``people.missing_fields``); Konto und ERP spiegeln sie (Fortschritt, «zu tun»).
+    required_fields: list[str] = []
+    missing_fields: list["MissingField"] = []
 
     # Preferences
     language: str
@@ -312,8 +322,6 @@ class ErpAdminUpdate(UserProfileUpdate):
     role: Optional[Role] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
-    employment_start_date: Optional[date] = None
-    weekly_hours: Optional[Decimal] = None
 
 
 class PersonCreate(BaseModel):

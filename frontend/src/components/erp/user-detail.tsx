@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase, Bell, Cog,
+  User, MapPin, Building2, Bell, Cog,
 } from 'lucide-react';
 import { Communication, MESSAGES_CHANGED } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { Card, DetailBody, DetailHeader, MICRO_LABEL, SubBlock } from '@/components/erp/fields';
+import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/fields';
+import { TimeCard } from '@/components/erp/time/time-card';
+import { sectionItems, todoChanged } from '@/lib/todo';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
@@ -22,7 +24,7 @@ import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
-import type { NewsletterState, UserProfile, UserRole } from '@/types';
+import type { NewsletterState, Todo, UserProfile, UserRole } from '@/types';
 
 // **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
 // «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
@@ -44,8 +46,6 @@ interface ERPForm {
   last_name: string;
   date_of_birth: string;
   phone: string;
-  employment_start_date: string;
-  weekly_hours: string;
 }
 
 type StrKey = { [K in keyof ERPForm]: ERPForm[K] extends string ? K : never }[keyof ERPForm];
@@ -57,40 +57,25 @@ function buildForm(p: UserProfile): ERPForm {
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
     phone: p.phone ?? '',
-    employment_start_date: p.employment_start_date ?? '',
-    weekly_hours: p.weekly_hours != null ? String(p.weekly_hours) : '',
   };
 }
 
 const nn = (s: string): string | null => (s.trim() === '' ? null : s);
 
 /**
- * Form → Update-Payload.
- *
- * ►►► **Nur noch EINE Bedingung** (Testnotiz #1043): die **Anstellung** – sie gehört nicht
- * zu jedem Datensatz. Firma und Anschriften stehen nicht in diesem Formular: die Firma
- * wird zugeordnet (`CompanyField`), die Anschriften leben im Adressbuch (`AddressBook`),
- * jede mit ihrem eigenen Auto-Save.
+ * Form → Update-Payload. Eintritt, Pensum und Austritt stehen im **Vertrag** der
+ * Zeiterfassung (`time/time-contracts`), nicht mehr hier. Firma und Anschriften stehen
+ * ebenfalls nicht in diesem Formular: die Firma wird zugeordnet (`CompanyField`), die
+ * Anschriften leben im Adressbuch (`AddressBook`), jede mit ihrem eigenen Auto-Save.
  */
 function mapUpdate(v: ERPForm): Partial<UserProfile> {
-  const data: Record<string, unknown> = {
+  return {
     role: v.role,
     first_name: nn(v.first_name),
     last_name: nn(v.last_name),
     date_of_birth: nn(v.date_of_birth),
     phone: nn(v.phone),
-  };
-  if (isStaff(v.role)) {
-    // ►►► **Wer Mitarbeiter ist, gehört zu einer Gesellschaft** (Testnotiz #905). ◄◄◄
-    //
-    // Ohne sie kann ein Beleg nicht sagen, wer ihn stellt – er nähme still den Betreiber,
-    // auch wenn eine Schwestergesellschaft fakturiert. **Die Regel steht im Dienst**
-    // (`people.assert_employment`), nicht hier: sie gilt für jede Oberfläche, die diesen
-    // Datensatz schreibt. Dies ist die freundliche Hälfte.
-    data.employment_start_date = nn(v.employment_start_date);
-    data.weekly_hours = nn(v.weekly_hours);
-  }
-  return data as Partial<UserProfile>;
+  } as Partial<UserProfile>;
 }
 
 /**
@@ -146,8 +131,8 @@ function NewsletterConsent({ person }: { person: number }) {
   );
 }
 
-function ProfileForm({ record, isAdmin, onSaved }: {
-  record: UserProfile; isAdmin: boolean; onSaved: (u: UserProfile) => void;
+function ProfileForm({ record, isAdmin, onSaved, todo }: {
+  record: UserProfile; isAdmin: boolean; onSaved: (u: UserProfile) => void; todo?: Todo | null;
 }) {
   const canEdit = isAdmin;
   const ro = !canEdit;
@@ -172,6 +157,7 @@ function ProfileForm({ record, isAdmin, onSaved }: {
       if (!canEdit || !record.object_id) return;
       const updated = await api.updateErpRecord(record.object_id, mapUpdate(v));
       onSaved(updated);
+      todoChanged();
     },
     resetKey,
   );
@@ -182,11 +168,14 @@ function ProfileForm({ record, isAdmin, onSaved }: {
   const str = (k: StrKey) => (canEdit ? (val: string) => setForm((prev) => ({ ...prev, [k]: val })) : undefined);
 
   const role = form.role;
+  // **Pflicht sagt der Server** (`people.required_fields`) – hier nur die Markierung.
+  const required = (k: string) => (record.required_fields ?? []).includes(k);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
-      <Card icon={User} title="Person" right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
+      <Card icon={User} title="Person" anchor="person" extra={<TodoChip items={sectionItems(todo, 'person')} />}
+        right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
         {/* Rolle – ERP-Extra (das Konto kennt sie nicht, die eigene Rolle ändert man nicht). */}
         {/* ►►► **Die Rolle ist der ZUGANG** (Testnotiz #1043). ◄◄◄ «Lieferant» und
             «Kunde» standen hier und waren eine Aussage über **Vorgänge**: wer Partner
@@ -203,27 +192,16 @@ function ProfileForm({ record, isAdmin, onSaved }: {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <AField label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} />
-          <AField label="Nachname" value={form.last_name} onChange={str('last_name')} readOnly={ro} placeholder="Muster" onEnter={saveNow} />
-          <AField label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} />
-          <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} />
+          <AField label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} required={required('first_name')} />
+          <AField label="Nachname" value={form.last_name} onChange={str('last_name')} readOnly={ro} placeholder="Muster" onEnter={saveNow} required={required('last_name')} />
+          <AField label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} required={required('phone')} />
+          <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} required={required('date_of_birth')} />
         </div>
-
-        {/* Anstellung: im Profil read-only, **im ERP admin-pflegbar** (Notiz #295 –
-            «das ERP muss ALLES können»; ``ErpAdminUpdate`` erbt + ergänzt genau das). */}
-        {isStaff(role) && (
-          <SubBlock icon={Briefcase} title="Anstellung">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="Eintrittsdatum" value={form.employment_start_date} onChange={str('employment_start_date')} readOnly={ro} type="date" onEnter={saveNow} />
-              <AField label="Pensum (h/Woche)" value={form.weekly_hours} onChange={str('weekly_hours')} readOnly={ro} onEnter={saveNow} />
-            </div>
-          </SubBlock>
-        )}
 
       </Card>
 
       {/* ── 2. Adressen (privat) – dieselbe Maske wie im Konto ───────────────── */}
-      <Card icon={MapPin} title="Adressen">
+      <Card icon={MapPin} title="Adressen" anchor="adressen" extra={<TodoChip items={sectionItems(todo, 'adressen')} />}>
         <AddressBook owner={record.object_id ?? null} account="private"
           addresses={record.addresses ?? []} loginEmail={record.email} readOnly={ro}
           mapsKey={mapsKey} onSaved={onSaved} />
@@ -288,15 +266,15 @@ function passkeyLabel(count: number | null | undefined): string {
   return n === 0 ? 'Keiner eingerichtet' : `${n} Gerät${n === 1 ? '' : 'e'}`;
 }
 
-export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
+export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
   record: UserProfile;
   onSave: (u: UserProfile) => void;
   isAdmin: boolean;
   onBack: () => void;
   /** Wer gerade arbeitet – Absender einer neuen Nachricht. */
   me?: { object_id: number; name: string } | null;
-  /** Offene Nachrichten im Verlauf – die Zahl am Symbol (wie im Feed). */
-  messages?: { open: number; overdue: number } | null;
+  /** Was zu tun ist – die Zahl am Symbol (wie im Feed), dazu je Abschnitt. */
+  todo?: Todo | null;
 }) {
   const rc       = userStatus(record);
   const name     = userDisplayName(record);
@@ -320,7 +298,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
         type="user" title={hasName ? name : null} placeholder="Kein Name"
         objectId={record.object_id} onBack={onBack}
         status={rc}
-        photoUrl={record.photo_url} initials={initials} messages={messages}
+        photoUrl={record.photo_url} initials={initials} todo={todo}
       />
 
       {/* ►►► **EINE Seite statt zwei Reiter.** ◄◄◄ Zuerst die Kommunikation – sie ist, was man
@@ -330,19 +308,23 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, messages }: {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         <DetailBody gap={24}>
           {record.object_id != null && (
-            <section aria-label="Kommunikation">
+            <section aria-label="Kommunikation" data-todo="kommunikation" style={{ scrollMarginTop: 16 }}>
               <Communication me={me}
                 person={{ object_id: record.object_id, name: hasName ? name : record.email }} />
             </section>
           )}
+          {/* ►►► **Zeiterfassung** – eigener Datensatz oder Admin, und nur für Personal. Der
+              Server prüft es noch einmal (`timekeeping.may_see`). */}
+          {record.object_id != null && isStaff(record.role)
+            && (isAdmin || me?.object_id === record.object_id) && (
+            <>
+              <SectionSep label="Zeiterfassung" anchor="zeiterfassung" todo={sectionItems(todo, 'zeiterfassung')} />
+              <TimeCard person={record.object_id} />
+            </>
+          )}
           {/* Dezent: hier beginnen die Stammdaten – eine Haarlinie mit dem Mikro-Label. */}
-          <div role="separator" aria-label="Stammdaten" style={{ ...MICRO_LABEL, color: 'var(--fg-3)',
-            display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 -4px' }}>
-            <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
-            Stammdaten
-            <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
-          </div>
-          <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />
+          <SectionSep label="Stammdaten" todo={sectionItems(todo, 'person', 'adressen')} />
+          <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} todo={todo} />
         </DetailBody>
       </div>
     </div>

@@ -4054,37 +4054,6 @@
         ]
       }
     },
-    "/api/v1/erp/messages/open": {
-      "get": {
-        "tags": [
-          "communication"
-        ],
-        "summary": "Open Counts",
-        "description": "Je Person die offenen Nachrichten im Verlauf – das Zeichen am Symbol im Feed.",
-        "operationId": "open_counts_api_v1_erp_messages_open_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/OpenCount"
-                  },
-                  "type": "array",
-                  "title": "Response Open Counts Api V1 Erp Messages Open Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/erp/messages": {
       "get": {
         "tags": [
@@ -4437,6 +4406,732 @@
         }
       }
     },
+    "/api/v1/erp/time/{object_id}": {
+      "get": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Read Time",
+        "description": "Die Zeiterfassung einer Person – Kopf, Konto, Verträge, ein Monat.",
+        "operationId": "read_time_api_v1_erp_time__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/{object_id}/swipe": {
+      "post": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Swipe",
+        "description": "Kommen ↔ Gehen – Serverzeit, ein Schlüssel je Wisch.",
+        "operationId": "swipe_api_v1_erp_time__object_id__swipe_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwipeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/{object_id}/entries": {
+      "post": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Add Entry",
+        "description": "Stempel nachtragen oder korrigieren, Absenz, Nachweis, Buchung, Rücknahme – EIN Weg.",
+        "operationId": "add_entry_api_v1_erp_time__object_id__entries_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/{object_id}/entries/preview": {
+      "post": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Preview Entry",
+        "description": "Was dieser Eintrag bewirken würde – dieselbe Regel wie beim Speichern, ohne zu\nschreiben (Arbeitstage, Stunden, Ersetzt, Ferien danach, Nachweis, Grund).",
+        "operationId": "preview_entry_api_v1_erp_time__object_id__entries_preview_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/{object_id}/contracts": {
+      "post": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Add Contract",
+        "description": "Neuer Vertrag ab Stichtag (nur Admin); 0 h = Austritt.",
+        "operationId": "add_contract_api_v1_erp_time__object_id__contracts_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/companies/{object_id}": {
+      "get": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Company Time",
+        "description": "Feiertage, Nachweis-Regeln und Regeln des Landes einer eigenen Gesellschaft.",
+        "operationId": "company_time_api_v1_erp_time_companies__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyTimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/companies/{object_id}/proposal": {
+      "get": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Holiday Proposal",
+        "description": "Vorschlag der Feiertage (OpenHolidays) – geholt, nicht gespeichert.",
+        "operationId": "holiday_proposal_api_v1_erp_time_companies__object_id__proposal_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 2100,
+              "minimum": 2000,
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HolidayOut"
+                  },
+                  "title": "Response Holiday Proposal Api V1 Erp Time Companies  Object Id  Proposal Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/companies/{object_id}/holidays": {
+      "post": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Add Holidays",
+        "operationId": "add_holidays_api_v1_erp_time_companies__object_id__holidays_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidaysIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyTimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/companies/{object_id}/holidays/{holiday_id}": {
+      "delete": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Remove Holiday",
+        "operationId": "remove_holiday_api_v1_erp_time_companies__object_id__holidays__holiday_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "holiday_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Holiday Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyTimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/time/companies/{object_id}/rules": {
+      "put": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Set Rules",
+        "operationId": "set_rules_api_v1_erp_time_companies__object_id__rules_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeRulesIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyTimeView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/todo": {
+      "get": {
+        "tags": [
+          "timekeeping"
+        ],
+        "summary": "Read Todo",
+        "description": "Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf.",
+        "operationId": "read_todo_api_v1_erp_todo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TodoOut"
+                  },
+                  "type": "array",
+                  "title": "Response Read Todo Api V1 Erp Todo Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -4456,6 +5151,96 @@
   },
   "components": {
     "schemas": {
+      "AbsenceOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "art": {
+            "type": "string",
+            "title": "Art"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "title": "Until"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "minutes_on_day": {
+            "type": "integer",
+            "title": "Minutes On Day"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "proof_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof Url"
+          },
+          "proof_needed": {
+            "type": "boolean",
+            "title": "Proof Needed",
+            "default": false
+          },
+          "replaces": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces"
+          },
+          "can_void": {
+            "type": "boolean",
+            "title": "Can Void",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "art",
+          "day",
+          "until",
+          "minutes",
+          "minutes_on_day"
+        ],
+        "title": "AbsenceOut"
+      },
       "AddressIn": {
         "properties": {
           "account": {
@@ -4672,6 +5457,66 @@
           "is_default_billing"
         ],
         "title": "AddressOut"
+      },
+      "ArtOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          },
+          "effect": {
+            "type": "string",
+            "title": "Effect"
+          },
+          "effect_label": {
+            "type": "string",
+            "title": "Effect Label"
+          },
+          "effect_tip": {
+            "type": "string",
+            "title": "Effect Tip"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof"
+          },
+          "proof_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "icon",
+          "effect",
+          "effect_label",
+          "effect_tip"
+        ],
+        "title": "ArtOut"
       },
       "ArticleBom": {
         "properties": {
@@ -5389,6 +6234,52 @@
         ],
         "title": "Body_upload_attachment_api_v1_erp_attachments_post"
       },
+      "BookingOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "vacation_minutes": {
+            "type": "integer",
+            "title": "Vacation Minutes"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "day",
+          "note",
+          "minutes",
+          "vacation_minutes",
+          "by"
+        ],
+        "title": "BookingOut"
+      },
       "CaptureTypeInfo": {
         "properties": {
           "key": {
@@ -5928,6 +6819,112 @@
         "title": "CompanySettingsUpdate",
         "description": "Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).\n\n**Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.\nZahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),\nMWST-Methode/-Periode kommen mit der Buchhaltung (Phase 3), die sie auswertet.\n\n``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**\n(``sites.website_url`` = die Deployment-Adresse), keine Eingabe."
       },
+      "CompanyTimeView": {
+        "properties": {
+          "company_object_id": {
+            "type": "integer",
+            "title": "Company Object Id"
+          },
+          "canton": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canton"
+          },
+          "cantons": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Cantons"
+          },
+          "year": {
+            "type": "integer",
+            "title": "Year"
+          },
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayOut"
+            },
+            "type": "array",
+            "title": "Holidays"
+          },
+          "proof": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Proof"
+          },
+          "rules": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "can_edit": {
+            "type": "boolean",
+            "title": "Can Edit"
+          },
+          "vocab": {
+            "$ref": "#/components/schemas/TimeVocab"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_object_id",
+          "canton",
+          "cantons",
+          "year",
+          "holidays",
+          "proof",
+          "rules",
+          "tasks",
+          "can_edit",
+          "vocab"
+        ],
+        "title": "CompanyTimeView"
+      },
       "ConsentRow": {
         "properties": {
           "subscribed": {
@@ -5963,6 +6960,164 @@
         ],
         "title": "ConsentRow",
         "description": "Eine An- oder Abmeldung – der Nachweis."
+      },
+      "ContractIn": {
+        "properties": {
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "weekly_minutes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Weekly Minutes"
+          },
+          "workdays": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Workdays",
+            "default": []
+          },
+          "vacation_weeks": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacation Weeks"
+          },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid_from",
+          "weekly_minutes"
+        ],
+        "title": "ContractIn"
+      },
+      "ContractOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "weekly_minutes": {
+            "type": "integer",
+            "title": "Weekly Minutes"
+          },
+          "workdays": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Workdays"
+          },
+          "vacation_weeks": {
+            "type": "string",
+            "title": "Vacation Weeks"
+          },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "planned",
+              "replaced"
+            ],
+            "title": "State"
+          },
+          "closing_day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Day"
+          },
+          "closing_account": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Account"
+          },
+          "closing_vacation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Vacation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "valid_from",
+          "weekly_minutes",
+          "workdays",
+          "vacation_weeks",
+          "company_object_id",
+          "company_name",
+          "state"
+        ],
+        "title": "ContractOut"
       },
       "CurrencyOut": {
         "properties": {
@@ -6016,6 +7171,97 @@
         "title": "DataGap",
         "description": "**Eine fehlende Stammdatenangabe** – ``StepNeed`` für Stammdaten.\n\nWo sie hingehört (klickbar), was fehlt und **warum dieser Beleg sie braucht**. Kein\nZustand und kein Pausenwert: das Modul ist schlicht nicht vollständig."
       },
+      "DayOut": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "workday": {
+            "type": "boolean",
+            "title": "Workday"
+          },
+          "holiday": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holiday"
+          },
+          "soll": {
+            "type": "integer",
+            "title": "Soll"
+          },
+          "ist": {
+            "type": "integer",
+            "title": "Ist"
+          },
+          "credit": {
+            "type": "integer",
+            "title": "Credit"
+          },
+          "today": {
+            "type": "boolean",
+            "title": "Today",
+            "default": false
+          },
+          "future": {
+            "type": "boolean",
+            "title": "Future",
+            "default": false
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "open": {
+            "type": "boolean",
+            "title": "Open",
+            "default": false
+          },
+          "hints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hints",
+            "default": []
+          },
+          "stamps": {
+            "items": {
+              "$ref": "#/components/schemas/StampOut"
+            },
+            "type": "array",
+            "title": "Stamps",
+            "default": []
+          },
+          "absence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AbsenceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "workday",
+          "soll",
+          "ist",
+          "credit"
+        ],
+        "title": "DayOut"
+      },
       "DefinitionLine": {
         "properties": {
           "article_object_id": {
@@ -6066,6 +7312,204 @@
         ],
         "title": "EmailCheck",
         "description": "Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht."
+      },
+      "EntryIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out",
+              "absence",
+              "proof",
+              "booking",
+              "void"
+            ],
+            "title": "Kind"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,2}:\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          },
+          "art": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Art"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "vacation_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacation Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "proof_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof Url"
+          },
+          "replaces_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "EntryIn",
+        "description": "EIN Eingang für alles, was einen Tag füllt oder ein Konto bewegt.\n\n* ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``\n  die Korrektur eines Stempels.\n* ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.\n* ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).\n* ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.\n* ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht)."
+      },
+      "EntryPreview": {
+        "properties": {
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "workdays": {
+            "type": "integer",
+            "title": "Workdays",
+            "default": 0
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes",
+            "default": 0
+          },
+          "replaces": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces"
+          },
+          "vacation_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacation After"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof"
+          },
+          "proof_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof From"
+          }
+        },
+        "type": "object",
+        "title": "EntryPreview",
+        "description": "►►► **Was dieser Eintrag bewirken würde** – vor dem Speichern, nach derselben Regel. ◄◄◄\n``problem`` ist der Satz, warum es nicht geht (dann ist «Erfassen» gesperrt)."
       },
       "ErpAdminUpdate": {
         "properties": {
@@ -6194,32 +7638,6 @@
               }
             ],
             "title": "Job Title"
-          },
-          "employment_start_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Employment Start Date"
-          },
-          "weekly_hours": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weekly Hours"
           }
         },
         "type": "object",
@@ -6774,6 +8192,34 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HintOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone",
+          "icon"
+        ],
+        "title": "HintOut"
+      },
       "HoldNumbers": {
         "properties": {
           "numbers": {
@@ -6787,6 +8233,79 @@
         "type": "object",
         "title": "HoldNumbers",
         "description": "Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf."
+      },
+      "HolidayIn": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "name"
+        ],
+        "title": "HolidayIn"
+      },
+      "HolidayOut": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "taken": {
+            "type": "boolean",
+            "title": "Taken",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "name"
+        ],
+        "title": "HolidayOut"
+      },
+      "HolidaysIn": {
+        "properties": {
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayIn"
+            },
+            "type": "array",
+            "title": "Holidays"
+          }
+        },
+        "type": "object",
+        "required": [
+          "holidays"
+        ],
+        "title": "HolidaysIn",
+        "description": "Mehrere Feiertage auf einmal übernehmen (der bestätigte Vorschlag)."
       },
       "IncotermOut": {
         "properties": {
@@ -7133,6 +8652,35 @@
         "title": "MailboxOut",
         "description": "Ein Postfach – das einer eigenen Gesellschaft oder das eigene des Betrachters."
       },
+      "Mark": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "changed",
+              "added",
+              "by"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tip": {
+            "type": "string",
+            "title": "Tip"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "tip"
+        ],
+        "title": "Mark",
+        "description": "Was an einer Zeile vermerkt ist: «geändert», «nachgetragen», «durch …» – Einzelheiten\nim Hover."
+      },
       "MessageIn": {
         "properties": {
           "channel": {
@@ -7378,6 +8926,30 @@
         ],
         "title": "MessageOut"
       },
+      "MissingField": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "section"
+        ],
+        "title": "MissingField",
+        "description": "Eine fehlende Pflichtangabe: welches Feld, wie es heisst, wo es steht."
+      },
       "ModuleCatalog": {
         "properties": {
           "modules": {
@@ -7606,30 +9178,6 @@
         ],
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
-      },
-      "OpenCount": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "open": {
-            "type": "integer",
-            "title": "Open"
-          },
-          "overdue": {
-            "type": "integer",
-            "title": "Overdue"
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id",
-          "open",
-          "overdue"
-        ],
-        "title": "OpenCount",
-        "description": "Wie viele offene Nachrichten im Verlauf dieser Person stehen."
       },
       "OrderCreate": {
         "properties": {
@@ -8883,6 +10431,49 @@
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
       },
+      "StampOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Kind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Mark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "at",
+          "time"
+        ],
+        "title": "StampOut"
+      },
       "StepConfirm": {
         "properties": {
           "values": {
@@ -9088,6 +10679,31 @@
         "title": "StockState",
         "description": "Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.\n\nDie Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese\nInstanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».\n\n``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),\n``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom\nServer**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)\nund keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau\neiner Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung."
       },
+      "SwipeIn": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Direction"
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 8,
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "key"
+        ],
+        "title": "SwipeIn",
+        "description": "Ein Wisch: die Richtung, die der Knopf zeigte, und ein Schlüssel je Wisch – derselbe\nSchlüssel zweimal (Netz wackelt) schreibt nur einmal."
+      },
       "SyncOut": {
         "properties": {
           "new": {
@@ -9105,6 +10721,35 @@
           "new"
         ],
         "title": "SyncOut"
+      },
+      "TaskOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "day",
+          "label",
+          "age"
+        ],
+        "title": "TaskOut"
       },
       "TerritoryAssign": {
         "properties": {
@@ -9259,6 +10904,298 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
+      },
+      "TimeRulesIn": {
+        "properties": {
+          "canton": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canton"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof"
+          }
+        },
+        "type": "object",
+        "title": "TimeRulesIn",
+        "description": "Was die Gesellschaft festlegt: der Kanton und ab welchem Arbeitstag ein Nachweis\nnötig ist (je Absenzart; ``None``/0 = nie)."
+      },
+      "TimeView": {
+        "properties": {
+          "person_object_id": {
+            "type": "integer",
+            "title": "Person Object Id"
+          },
+          "has_contract": {
+            "type": "boolean",
+            "title": "Has Contract"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Now"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "present_since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Present Since"
+          },
+          "last_out": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Out"
+          },
+          "today_ist": {
+            "type": "integer",
+            "title": "Today Ist"
+          },
+          "today_soll": {
+            "type": "integer",
+            "title": "Today Soll"
+          },
+          "account": {
+            "type": "integer",
+            "title": "Account"
+          },
+          "vacation": {
+            "type": "integer",
+            "title": "Vacation"
+          },
+          "vacation_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacation Days"
+          },
+          "day_soll": {
+            "type": "integer",
+            "title": "Day Soll"
+          },
+          "born": {
+            "type": "boolean",
+            "title": "Born"
+          },
+          "can_stamp": {
+            "type": "boolean",
+            "title": "Can Stamp"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin"
+          },
+          "contracts": {
+            "items": {
+              "$ref": "#/components/schemas/ContractOut"
+            },
+            "type": "array",
+            "title": "Contracts"
+          },
+          "bookings": {
+            "items": {
+              "$ref": "#/components/schemas/BookingOut"
+            },
+            "type": "array",
+            "title": "Bookings"
+          },
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "default_day": {
+            "type": "string",
+            "format": "date",
+            "title": "Default Day"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "vocab": {
+            "$ref": "#/components/schemas/TimeVocab"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person_object_id",
+          "has_contract",
+          "now",
+          "today",
+          "today_ist",
+          "today_soll",
+          "account",
+          "vacation",
+          "day_soll",
+          "born",
+          "can_stamp",
+          "is_admin",
+          "contracts",
+          "bookings",
+          "month",
+          "days",
+          "default_day",
+          "tasks",
+          "vocab"
+        ],
+        "title": "TimeView"
+      },
+      "TimeVocab": {
+        "properties": {
+          "arts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtOut"
+            },
+            "type": "array",
+            "title": "Arts"
+          },
+          "hints": {
+            "items": {
+              "$ref": "#/components/schemas/HintOut"
+            },
+            "type": "array",
+            "title": "Hints"
+          },
+          "texts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Texts"
+          },
+          "correction_days": {
+            "type": "integer",
+            "title": "Correction Days"
+          },
+          "week_max": {
+            "type": "integer",
+            "title": "Week Max"
+          }
+        },
+        "type": "object",
+        "required": [
+          "arts",
+          "hints",
+          "texts",
+          "correction_days",
+          "week_max"
+        ],
+        "title": "TimeVocab",
+        "description": "Die Wörter der Zeiterfassung – EINE Quelle (``domain/timekeeping``)."
+      },
+      "TodoItem": {
+        "properties": {
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "red": {
+            "type": "boolean",
+            "title": "Red",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "section",
+          "label",
+          "count"
+        ],
+        "title": "TodoItem"
+      },
+      "TodoOut": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "red": {
+            "type": "boolean",
+            "title": "Red"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TodoItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "count",
+          "red",
+          "items"
+        ],
+        "title": "TodoOut",
+        "description": "►►► **Was an diesem Datensatz zu tun ist** – die Zahl am Symbol. ◄◄◄ Offene\nNachrichten, Aufgaben der Zeiterfassung, fehlende Pflichtangaben; rot, sobald etwas\ndringend ist."
       },
       "TransferInfo": {
         "properties": {
@@ -9695,28 +11632,21 @@
             ],
             "title": "Job Title"
           },
-          "employment_start_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Employment Start Date"
+          "required_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Fields",
+            "default": []
           },
-          "weekly_hours": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weekly Hours"
+          "missing_fields": {
+            "items": {
+              "$ref": "#/components/schemas/MissingField"
+            },
+            "type": "array",
+            "title": "Missing Fields",
+            "default": []
           },
           "language": {
             "type": "string",
@@ -9761,8 +11691,6 @@
           "company_object_id",
           "department",
           "job_title",
-          "employment_start_date",
-          "weekly_hours",
           "language",
           "notification_email",
           "notification_inapp",

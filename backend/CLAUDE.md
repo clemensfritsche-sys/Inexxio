@@ -44,6 +44,9 @@ alembic revision --autogenerate -m "description"     # neue Migration
   `company_settings` · `newsletter_consents`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
   `people.repair_sql`, `address_book.ADDRESS_INDEXES`,
   `communication.*_repair_sql`, `sites.backfill_keys`). Scheitert eine, laufen die übrigen.
+- **Zwei Trigger entstehen bei jedem Start neu** (und in ihrer Migration): `statuses.terminal_guard_sql`
+  (Endzustand) und `timekeeping.append_only_sql` (Zeiterfassung: `time_entries` und
+  `time_contracts` sind append-only – kein UPDATE, kein DELETE).
 - **Der Start löscht nichts und ernennt niemanden**: kein `DROP TABLE` (ein Wächter
   verbietet es), der Formwächter `_check_core_tables_shape` legt eine fehlende
   Prozess-Tabelle an und **meldet** eine fremde Form; Admin wird nur `initial_admin_email`
@@ -81,6 +84,8 @@ app/
 │   ├── incoterms.py  ← die elf Klauseln der Incoterms 2020 mit Erklärung
 │   ├── communication.py ← Kanäle, Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
 │   ├── newsletter.py ← Quellen der Einwilligung, Gültigkeit der Bestätigung
+│   ├── timekeeping.py← Zeiterfassung: Absenzarten (je EINE Wirkung), Regeln CH (ArG/OR),
+│   │                   Hinweise, Reglement-Texte (ⓘ), append-only-Trigger
 │   └── uid.py        ← UID-Normalform und Prüfziffer (eCH-0097)
 ├── models/           ← SQLAlchemy 2.0 (je Entität eine Datei; Import über models/__init__)
 ├── schemas/          ← Pydantic v2 Request/Response
@@ -105,6 +110,7 @@ scripts/
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
+| Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py`, `passkey.py`, `feedback.py`, `admin.py`, `invariants.py` |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -125,7 +131,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **92 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **102 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -181,7 +187,6 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
 | GET | `/api/v1/erp/messages` | staff | Verlauf einer Person (`person=`) oder Firma (`company=`) |
 | POST | `/api/v1/erp/messages` | staff | Nachricht anlegen (jede Art dieselbe Form) |
-| GET | `/api/v1/erp/messages/open` | staff | Offene je Person (Zeichen im Feed) |
 | GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
@@ -193,6 +198,14 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
 | GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
 | POST | `/api/v1/erp/newsletter/{object_id}/invite` · `/unsubscribe` | staff | Bitte um Bestätigung schicken / abmelden (anmelden kann das ERP niemanden) |
+| GET | `/api/v1/erp/todo` | staff | **Was zu tun ist** je Datensatz – die Zahl am Symbol (offene Nachrichten, Zeiterfassung nur eigene/Admin, Pflichtangaben, Feiertage nur Admin; `services/todo`) |
+| GET | `/api/v1/erp/time/{object_id}?month=` | staff (selbst · Admin) | **Zeiterfassung** einer Person: Konto, Ferien, Verträge, Buchungen, ein Monat (`services/time_view`) |
+| POST | `/api/v1/erp/time/{object_id}/swipe` | staff (selbst · Admin) | Kommen ↔ Gehen, Serverzeit, ein Schlüssel je Wisch (idempotent, 60-s-Sperre) |
+| POST | `/api/v1/erp/time/{object_id}/entries` · `/entries/preview` | staff (selbst · Admin) | **Ein Eintrag** (Stempel nachtragen/korrigieren, Absenz, Nachweis, Buchung = Admin, Rücknahme) / dieselbe Regel als Vorschau, ohne zu schreiben (`timekeeping.record` · `preview`) |
+| POST | `/api/v1/erp/time/{object_id}/contracts` | admin (im Dienst) | Neuer Vertrag ab Stichtag; 0 h = Austritt |
+| GET · PUT | `/api/v1/erp/time/companies/{object_id}` · `/rules` | staff · admin | Feiertage, Nachweis-Regeln, Regeln des Landes einer eigenen Gesellschaft / Kanton und Nachweis setzen |
+| GET | `/api/v1/erp/time/companies/{object_id}/proposal?year=` | admin | Vorschlag der Feiertage (OpenHolidays) – geholt, nicht gespeichert |
+| POST · DELETE | `/api/v1/erp/time/companies/{object_id}/holidays` · `/{holiday_id}` | admin | Feiertage übernehmen / einen entfernen (Soft-Delete) |
 | GET · POST · DELETE | `/api/v1/feedback` | user | Testnotizen (nur Testumgebung); `DELETE ?scope=done\|all` räumt die eigenen |
 | PATCH · DELETE | `/api/v1/feedback/{note_id}` | user | Notiz erledigt/verworfen setzen / löschen |
 

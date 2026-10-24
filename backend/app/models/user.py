@@ -1,8 +1,7 @@
 from datetime import date, datetime
-from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base
@@ -79,8 +78,9 @@ class UserProfile(Base, TimestampMixin):
     )
     department: Mapped[Optional[str]] = mapped_column(String(100))
     job_title: Mapped[Optional[str]] = mapped_column(String(100))
-    employment_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    weekly_hours: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    # ``employment_start_date`` und ``weekly_hours`` sind kein Feld mehr: Eintritt, Pensum und
+    # Austritt stehen im **Vertrag** der Zeiterfassung (``models/timekeeping``, Migration
+    # 154); die Spalten fallen im Folge-Deploy.
 
     # Preferences & notifications
     language: Mapped[str] = mapped_column(String(10), default="de")
@@ -91,6 +91,17 @@ class UserProfile(Base, TimestampMixin):
 
     # Auth / compliance
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def missing_fields(self) -> list[dict]:
+        """Was im Profil noch fehlt – die Regel steht in ``people.missing_fields``."""
+        from ..services.people import missing_fields
+        return missing_fields(self)
+
+    @property
+    def required_fields(self) -> list[str]:
+        from ..services.people import required_fields
+        return [key for key, _, _ in required_fields(self)]
 
     @property
     def display_name(self) -> str:

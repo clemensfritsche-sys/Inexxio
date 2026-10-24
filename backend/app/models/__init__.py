@@ -23,6 +23,7 @@ from .object_ref import ObjectRef
 from .message import Message, MessageParty
 from .mailbox import Mailbox
 from .newsletter import NewsletterConsent
+from .timekeeping import Holiday, TimeContract, TimeEntry
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
@@ -33,4 +34,5 @@ __all__ = [
     "WebAuthnCredential", "WebAuthnChallenge",
     "AuditLog", "ObjectRef", "FeedbackNote",
     "Message", "MessageParty", "Mailbox", "NewsletterConsent",
+    "TimeContract", "TimeEntry", "Holiday",
 ]

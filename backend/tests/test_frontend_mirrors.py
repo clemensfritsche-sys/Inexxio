@@ -303,3 +303,26 @@ def test_the_deliveries_mirror_the_backend_word_for_word():
     ts = _read(FRONTEND / "components" / "erp" / "communication.tsx")
     body = ts.split("const DELIVERIES")[1].split("];")[0]
     assert dict(re.findall(r"key: '(\w+)', label: '([^']+)'", body)) == DELIVERIES
+
+
+# ---------------------------------------------------------------------------
+# Zeiterfassung (docs/zeiterfassung-spezifikation.md)
+# ---------------------------------------------------------------------------
+
+
+def test_the_time_icons_mirror():
+    """Jedes Symbol einer Absenzart und eines Hinweises hat in der Oberfläche eine Zeile
+    (``components/erp/time/time-ui.TIME_ICONS``) – sonst sähe es unbekannt aus.
+
+    Gegenprobe: ein Name, den es im Katalog nicht gibt, steht dort auch nicht."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import timekeeping as tk
+
+    ui = _code(_read(FRONTEND / "components" / "erp" / "time" / "time-ui.tsx"))
+    table = re.search(r"TIME_ICONS[^{]*\{(.*?)\};", ui, re.S)
+    assert table, "TIME_ICONS fehlt in time-ui.tsx – der Leser ist blind."
+    mirrored = set(re.findall(r"'?([a-z-]+)'?\s*:", table.group(1)))
+    wanted = {a.icon for a in tk.ARTS} | {h[2] for h in tk.HINTS.values()}
+    assert wanted <= mirrored, f"Ohne Symbol in der Oberfläche: {sorted(wanted - mirrored)}"
+    assert "nope-icon" not in mirrored
