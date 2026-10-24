@@ -10,7 +10,7 @@ const apply = { subject: 'Bewerbung' };
 export const karriere = {
   title: 'Karriere',
   description:
-    'Arbeiten bei INEXXIO (ehemals HS Steiner) in {{address.home}}: Krane, Fahrmischer und Spezialmaschinen in einem kleinen Team. Bewerbung per E-Mail oder Telefon.',
+    'Arbeiten bei INEXXIO in {{address.home}}: Krane, Fahrmischer und Spezialmaschinen bauen, in einem kleinen Team. Bewerbung per E-Mail oder Telefon.',
   hero: {
     h1: 'Gemeinsam bauen, was es ==nicht von der Stange== gibt.',
     lead:

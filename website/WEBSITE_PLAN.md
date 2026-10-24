@@ -134,3 +134,9 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),
   Weg der Bewerbung, Bewerbungskarte – kein Anfrage-Formular; Ratgeber: Artikel als Karten mit Zeichnung,
   im Artikel «Kurz gesagt» als Karte, «Weiterlesen» als Karten. Artikeltexte unverändert.
+- **130 · Der frühere Name nur im Fliesstext** (Weisung 24.10.2026): Seitentitel, Meta-Description,
+  `og:*`, der Name der Website im JSON-LD und der Kopf von llms.txt nennen nur «INEXXIO».
+  «ehemals HS Steiner» steht im Fliesstext, im Logo und als `alternateName` im JSON-LD (so bleibt
+  der alte Name für Suchmaschinen auffindbar). `check-site` bricht ab, wenn Titel oder
+  Beschreibung ihn nennen. Die Kontakt-E-Mail kommt aus dem ERP (Postfach der Betreiber-Gesellschaft);
+  ohne Angabe dort steht die bisherige Adresse.

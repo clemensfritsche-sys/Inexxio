@@ -124,7 +124,8 @@ export const site = {
   brand: {
     name: 'INEXXIO',
     formerly: 'ehemals HS Steiner',
-    /** Erste Nennung auf jeder Seite. */
+    /** Erste Nennung im Fliesstext. Nie in Titel, Beschreibung oder og:* – dort steht
+        `name` allein (Weisung 24.10.2026, geprüft in check-site). */
     full: '{{brand.name}} ({{brand.formerly}})',
     /** Firmenname mit Rechtsform – Fuss, Impressum, JSON-LD. (Das Logo liegt in public/logo/, Lockup.astro.) */
     legalName: 'INEXXIO AG',

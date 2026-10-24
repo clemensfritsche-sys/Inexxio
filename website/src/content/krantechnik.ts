@@ -58,7 +58,7 @@ export const krantechnik: AreaPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} plant, baut und betreut Krane: Krane nach Mass auch für schwierige Gebäude – um Ecken, über Steigungen und Deckenversätze, in Scheunen und Hallen –, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen ohne Kabine, bedient per Funk – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.name}} plant, baut und betreut Krane: Krane nach Mass auch für schwierige Gebäude – um Ecken, über Steigungen und Deckenversätze, in Scheunen und Hallen –, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen ohne Kabine, bedient per Funk – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: facts(cranePath.items),
   promises: ['garantie', 'inexxio365', 'erstservice'],
   faq: [
@@ -90,7 +90,7 @@ export const kraneNachMass: SubPage = {
   crumb: KNM,
   title: 'Krane für schwierige Gebäude',
   description:
-    'Kurve, Steigung, Deckenversatz oder enge Ecke: Krane nach Mass für Scheunen und Hallen. Dazu Bootskrane und Bootslifte. Kauf mit Garantie oder zur Monatsrate.',
+    'Kurve, Steigung, Deckenversatz oder Ecke: Krane nach Mass für Scheunen und Hallen, dazu Bootskrane und Bootslifte. Kauf mit Garantie oder zur Monatsrate.',
   hero: {
     eyebrow: 'Krantechnik · Krane nach Mass',
     h1: 'Ihr Gebäude ist nicht gerade. ==Ihr Kran== muss es auch nicht sein.',
@@ -100,7 +100,7 @@ export const kraneNachMass: SubPage = {
     primary: anfrage('Fotos schicken'),
   },
   summary:
-    '{{brand.full}} baut Krane nach Mass für Gebäude, in die kein Katalogkran passt: Die Fahrbahn biegt um Ecken, steigt an, folgt Deckenversätzen und erreicht auch enge, verwinkelte Stellen – in Scheunen wie in Gewerbehallen, neu oder als Erweiterung. Heukrane bedienen Sie per Funk, ohne Kabine. Dazu Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, und der Standardkran aus Markenkomponenten. Neue Krane gibt es zum Kauf – mit Zufriedenheitsgarantie: nicht zufrieden, übernehmen wir 50 % – oder ohne Kauf, zur Monatsrate mit INEXXIO 365.',
+    '{{brand.name}} baut Krane nach Mass für Gebäude, in die kein Katalogkran passt: Die Fahrbahn biegt um Ecken, steigt an, folgt Deckenversätzen und erreicht auch enge, verwinkelte Stellen – in Scheunen wie in Gewerbehallen, neu oder als Erweiterung. Heukrane bedienen Sie per Funk, ohne Kabine. Dazu Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, und der Standardkran aus Markenkomponenten. Neue Krane gibt es zum Kauf – mit Zufriedenheitsgarantie: nicht zufrieden, übernehmen wir 50 % – oder ohne Kauf, zur Monatsrate mit INEXXIO 365.',
   glance: {
     forWhom: 'Landwirtschaftsbetriebe mit alten oder umgebauten Scheunen, Gewerbe, Lager, Recycling, Holz und Metall in Hallen, die gewachsen sind statt geplant – dazu Häfen, Clubs und Werften.',
     what: 'Fotos einschätzen, aufmessen und die Tragfähigkeit klären, konstruieren, im eigenen Betrieb fertigen, montieren – danach Prüfung, Wartung und Reparatur aus derselben Hand.',
@@ -237,7 +237,7 @@ export const kranservice: SubPage = {
     primary: anfrage('Kranservice anfragen'),
   },
   summary:
-    '{{brand.full}} prüft, wartet, repariert und modernisiert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Drei Stufen: Auf Abruf (die erste Inspektion ist gratis), Service-Vertrag (gesetzliche Prüfung, Wartung, digitales Kranbuch mit Erinnerung an Fristen, feste Reaktionszeit, fester Ansprechpartner) und INEXXIO 365 (dazu Teile und Reparaturen, Ersatz-Hebezeug und das Verfügbarkeitsversprechen). Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
+    '{{brand.name}} prüft, wartet, repariert und modernisiert Krane: Brücken-, Hänge-, Schwenk- und Drehkrane, Boots- und Mastkrane und Heukrane. Drei Stufen: Auf Abruf (die erste Inspektion ist gratis), Service-Vertrag (gesetzliche Prüfung, Wartung, digitales Kranbuch mit Erinnerung an Fristen, feste Reaktionszeit, fester Ansprechpartner) und INEXXIO 365 (dazu Teile und Reparaturen, Ersatz-Hebezeug und das Verfügbarkeitsversprechen). Verbindliche Offerte vor jeder Arbeit, keine Mindestlaufzeit.',
   glance: {
     forWhom: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs – und alle, deren Kran laufen muss.',
     what: 'Prüfung, Wartung, Reparatur und Modernisierung durch Kranfachleute – vom einzelnen Einsatz bis INEXXIO 365.',
@@ -344,7 +344,7 @@ export const heukrananlagen: SubPage = {
     primary: anfrage('Anfrage stellen'),
   },
   summary:
-    '{{brand.full}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Unsere Heukrane haben keine Kabine: Sie steuern per Funk, vom Boden, vom Wagen oder vom Heustock aus. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind – auch um Ecken, über Steigungen und Versätze. Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}.',
+    '{{brand.name}} betreut Heukrananlagen: Saison-Check, Wartung, Reparatur, Ersatzteile und Modernisierung – auch für alle bestehenden HS-Krananlagen. Die erste Inspektion ist gratis. Unsere Heukrane haben keine Kabine: Sie steuern per Funk, vom Boden, vom Wagen oder vom Heustock aus. Neue Anlagen planen und bauen wir auf Anfrage nach Mass: Einschienenkrane, Brückenkrane, hydraulische Drehkrane und Anlagen, die an das Gebäude angepasst sind – auch um Ecken, über Steigungen und Versätze. Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}.',
   glance: {
     forWhom: 'Landwirtschaftsbetriebe für Heu, Stroh, Silage und Mist – und alle, die lose Güter mit dem Greifer umschlagen: Hackschnitzelheizungen, Sägewerke, Kompost- und Biogasanlagen, Werkhöfe.',
     what: 'Saison-Check, Wartung, Reparatur und Modernisierung bestehender Anlagen. Neue Anlagen ohne Kabine, bedient per Funk: Besichtigung, Konzept, Fertigung, Montage.',

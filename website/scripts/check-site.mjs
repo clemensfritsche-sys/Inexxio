@@ -7,7 +7,8 @@
 // Überschriften-Ebenen, Bildern ohne Alt-Text, mehr als drei Kranbahn-Linien, verbotenen
 // Wörtern (Kapitel 8.2), Sitemap/robots.txt/llms.txt im falschen Zustand, Weiterleitungen
 // ins Leere (../firebase.json), Dateien auf ERP-Pfaden und überschrittenem Leistungsbudget.
-// Warnt bei Meta-Descriptions ausserhalb 140–155 Zeichen.
+// «ehemals HS Steiner» in Titel oder Beschreibung. Warnt bei Meta-Descriptions ausserhalb
+// 140–155 Zeichen.
 //
 // Bewusst ohne HTML-Parser-Abhängigkeit: geprüft wird die eigene, generierte Ausgabe.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -154,6 +155,12 @@ function checkHead(p) {
   if (!desc) fail(p.path, 'Meta-Description fehlt');
   else if (INDEXED.has(p.path) && (desc.length < 140 || desc.length > 155)) {
     warn(p.path, `Meta-Description hat ${desc.length} Zeichen (Ziel 140–155)`);
+  }
+  // Der frühere Name steht im Fliesstext und im JSON-LD (alternateName), nie in Titel und
+  // Beschreibung – dort trägt INEXXIO allein (Weisung 24.10.2026).
+  const head = { Titel: title[0] ?? '', 'Meta-Description': desc ?? '', 'og:title': attr(/<meta property="og:title"[^>]*>/.exec(p.html)?.[0] ?? '', 'content') };
+  for (const [what, text] of Object.entries(head)) {
+    if (text.includes(site.brand.formerly)) fail(p.path, `${what} nennt «${site.brand.formerly}»: «${text}»`);
   }
   const canonical = attr(/<link rel="canonical"[^>]*>/.exec(p.html)?.[0] ?? '', 'href');
   if (canonical !== urlOf(p.path) && p.path !== '/404') fail(p.path, `canonical «${canonical}» ≠ «${urlOf(p.path)}»`);
@@ -409,7 +416,7 @@ function checkLlms(listed) {
   const short = read('llms.txt');
   const full = read('llms-full.txt');
   for (const [name, txt] of [['llms.txt', short], ['llms-full.txt', full]]) {
-    if (!txt.startsWith(`# ${site.brand.name} (${site.brand.formerly})`)) fail(name, 'beginnt nicht mit dem Namen');
+    if (!txt.startsWith(`# ${site.brand.name}\n`)) fail(name, 'beginnt nicht mit dem Namen');
     if (!txt.includes(site.brand.notToConfuse)) fail(name, 'Abgrenzung zu «inexio» fehlt');
     if (!txt.includes(site.phone.display)) fail(name, 'Telefon fehlt');
     if (/\{\{/.test(txt)) fail(name, 'enthält einen offenen Wert');

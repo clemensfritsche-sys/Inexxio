@@ -1,6 +1,6 @@
 ---
 title: 'Datenschutz'
-description: 'Datenschutzerklärung von INEXXIO (ehemals HS Steiner) nach Schweizer DSG: Website ohne Cookies, Anfrageformular, Newsletter, E-Mail-Versand und Kundenbereich.'
+description: 'Datenschutzerklärung von INEXXIO nach Schweizer DSG: Website ohne Cookies und ohne Statistik – dazu Anfrageformular, Newsletter, E-Mail und Kundenbereich.'
 updated: 2026-10-19
 ---
 

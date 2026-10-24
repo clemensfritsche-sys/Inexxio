@@ -2,7 +2,7 @@
 export const kontakt = {
   title: 'Kontakt und Anfrage',
   description:
-    'Kontakt zu INEXXIO (ehemals HS Steiner) in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Wir melden uns rasch.',
+    'Kontakt zu INEXXIO in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Ein Satz genügt – wir melden uns rasch.',
   /** Überschrift und Satz des EINEN Kontaktbereichs (ContactSection) – auf jeder Seite gleich. */
   h1: 'Fragen kostet nichts.',
   lead: 'Ein Satz genügt. Den Rest klären wir mit Ihnen.',
@@ -12,7 +12,7 @@ export const kontakt = {
     text: 'Lieber direkt sprechen? Rufen Sie an.',
   },
   summary:
-    '{{brand.full}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.',
+    '{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.',
   danke: {
     title: 'Danke für Ihre Anfrage',
     lead: 'Ihre Anfrage ist bei uns angekommen. Wir melden uns innert {{promises.responseTime}}.',

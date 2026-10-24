@@ -28,7 +28,7 @@ export const spezialloesungen: SubPage = {
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
   },
   summary:
-    '{{brand.full}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut im eigenen Betrieb in {{address.home}}. Verbindliche Offerte vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
+    '{{brand.name}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut im eigenen Betrieb in {{address.home}}. Verbindliche Offerte vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
   glance: {
     forWhom: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle Betriebe mit Kranen oder Fahrzeugen, deren Aufgabe kein Hersteller löst.',
     what: 'Machbarkeit prüfen, konstruieren, im eigenen Betrieb bauen und bei Ihnen in Betrieb nehmen.',
