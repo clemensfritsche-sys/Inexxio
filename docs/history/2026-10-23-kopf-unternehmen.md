@@ -14,3 +14,8 @@
 
 **Nicht gebaut:** Shop-Symbol und «Meine Produkte» im Konto – es gibt noch keinen Shop, und ein Knopf,
 der nichts tun kann, steht nicht da.
+
+**Nachtrag 24.10.2026:** neue Titelbilder für Über uns (rotes Hallentor – zugleich Seitenkopf von
+/ueber-uns), Ratgeber, Kontakt (Handschlag), Karriere (drei Menschen bauen einen Kran) und Service (roter
+Transporter, neu im Menü); alle frei stehend auf Weiss, damit beim Freistellen nichts abgeschnitten wird.
+Reihenfolge unter «Unternehmen» neu: Über uns · Ratgeber · Kontakt · Karriere (Entscheid 128).
