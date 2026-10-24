@@ -140,3 +140,9 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   der alte Name für Suchmaschinen auffindbar). `check-site` bricht ab, wenn Titel oder
   Beschreibung ihn nennen. Die Kontakt-E-Mail kommt aus dem ERP (Postfach der Betreiber-Gesellschaft);
   ohne Angabe dort steht die bisherige Adresse.
+- **131 · Eine Regel für Überschriften** (Entscheid 24.10.2026): Das grosse Wort im Kopf nennt den
+  Bereich; die H1 ist ein Nutzen-Satz und wiederholt es nie. Aussagen enden mit Punkt (oder
+  Fragezeichen), reine Rubriken nicht («Häufige Fragen», «Katalog», «Bauformen», «Artikel», «Mehr
+  von uns»). Jeder Ablauf heisst «So läuft es ab.» (Karriere: «So bewerben Sie sich.»). Auf einer
+  Seite stehen nie zwei fast gleiche Überschriften. Rechtstexte und Ratgeber-Artikel behalten ihre
+  Kapitel.

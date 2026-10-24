@@ -34,7 +34,7 @@ const facts = (items: Station[]) => items.map(({ title, text }) => ({ title, tex
 /* ------------------------------------------------------------------ Bereich */
 /** Der Weg auf der Bereichsseite – zugleich der Ablauf in vier Schritten (`steps`). */
 export const vehiclePath = {
-  title: 'So läuft es ab',
+  title: 'So läuft es ab.',
   start: 'Ihr Fahrmischer',
   end: 'Wieder im Einsatz',
   items: [
@@ -53,7 +53,7 @@ export const fahrzeugtechnik: AreaPage = {
     'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Zufriedenheitsgarantie. Dazu Verschleissteile, rasch beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
-    h1: 'Länger fahren statt neu kaufen',
+    h1: 'Länger fahren statt neu kaufen.',
     lead: 'Trommeltausch, Verschleissteile und Reparatur für Fahrmischer aller gängigen Marken.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Fahrmischer anfragen'),
@@ -84,7 +84,7 @@ export const fahrzeugtechnik: AreaPage = {
  * der Zeichnung aus dem Menü. Reparatur und Aufbauten haben keine Unterseite (Anker #reparatur).
  */
 export const vehicleOffers = {
-  title: 'Alles für Ihren Fahrmischer',
+  title: 'Alles für Ihren Fahrmischer.',
   lead: 'Von der Rinne bis zur neuen Trommel.',
   items: [
     {
@@ -116,7 +116,7 @@ export const vehicleOffers = {
 /* ------------------------------------------------------------------ Trommeltausch */
 /** Was zum Trommeltausch gehört – als Weg auf der Seite, zugleich der Leistungsumfang (`scope`). */
 export const drumPath = {
-  title: 'Was zum Tausch gehört',
+  title: 'Was zum Tausch gehört.',
   start: 'Trommel am Ende',
   end: 'Wieder im Einsatz',
   items: [
@@ -199,7 +199,7 @@ export const drumOptions = {
  */
 export const winterSlot = {
   id: 'winter',
-  title: 'Im Winter, wenn der Bau ruht',
+  title: 'Im Winter, wenn der Bau ruht.',
   text: 'Dann brauchen Sie den Fahrmischer kaum – der beste Moment für Tausch oder Revision. Im Frühling ist er bereit.',
   kinds: [
     { icon: 'snowflake' as IconName, word: 'Tausch', legend: 'Bau ruht – Zeit für den Tausch', dark: true },
@@ -272,7 +272,7 @@ export const partsCatalog = {
 
 /** Bestellen in drei Schritten – als Weg (components/spezial/SolutionPath.astro). */
 export const partsOrder = {
-  title: 'Bestellt in drei Schritten',
+  title: 'So läuft es ab.',
   start: 'Ihr Teil fehlt',
   end: 'Wieder im Einsatz',
   items: [

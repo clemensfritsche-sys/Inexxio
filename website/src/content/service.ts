@@ -15,7 +15,7 @@ export const service = {
   description:
     'Kran steht still, Prüfung fällig, Trommel am Ende oder Teil gesucht? Die Nummer für den Notfall und der direkte Weg zum richtigen Service bei INEXXIO.',
   hero: {
-    h1: 'Steht etwas still? Wir sind ==für Sie da==.',
+    h1: 'Service, der Ihre Maschine ==am Laufen== hält.',
     lead: 'Im Notfall rufen Sie direkt an. Für alles andere wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:

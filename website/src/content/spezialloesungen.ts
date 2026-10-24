@@ -22,7 +22,7 @@ export const spezialloesungen: SubPage = {
     'Wenn kein Hersteller liefert, was Ihre Aufgabe braucht: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen. Mit Garantie.',
   hero: {
     eyebrow: 'Speziallösungen',
-    h1: 'Speziallösungen',
+    h1: 'Maschinen, gebaut für ==genau Ihre Aufgabe==.',
     lead: 'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es für Sie.',
     photo: 'arbeit-werkstatt',
     primary: { label: 'Aufgabe schildern', href: '#anfrage' },
@@ -89,7 +89,7 @@ export const specialPrinciple = {
 
 /** Drei Felder, ein Prinzip – je mit Zeichnung (src/assets/illustrations/spezial-*.svg). */
 export const specialFields = {
-  title: 'Drei Felder, ein Prinzip',
+  title: 'Drei Felder. Ein Prinzip.',
   lead: 'Wir nehmen, was die Serie kann, und bauen dazu, was Ihre Aufgabe braucht.',
   items: [
     {
@@ -120,7 +120,7 @@ export const specialFields = {
 
 /** Der Weg vom Problem zur Lösung – wer was tut, ohne Offerte und ohne Zahlen. */
 export const specialSteps = {
-  title: 'Vom Problem zur Lösung',
+  title: 'Vom Problem zur Lösung.',
   start: 'Ihr Problem',
   end: 'Ihre Lösung',
   items: [
@@ -135,7 +135,7 @@ export const specialSteps = {
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
 export const specialBackground = {
   eyebrow: 'Wer dahintersteht',
-  title: 'Entwicklung, Fertigung & Montage unter einem Dach',
+  title: 'Entwicklung, Fertigung und Montage unter einem Dach.',
   text: `${site.people.owner.name} ist Maschinenbauingenieur und hat jahrelang Baumaschinen entwickelt – von der Hydraulik bis zu vernetzten Steuerungen und IoT-Anwendungen. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
   facts: [
     'Langjährige Entwicklung von Baumaschinen',
