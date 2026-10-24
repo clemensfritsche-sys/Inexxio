@@ -367,7 +367,7 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
   ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/agb`.
 - **Kopf-Menü = Mobil-Menü**: Hauptzeile Speziallösungen · Krantechnik · Fahrzeugtechnik · Service ·
-  Unternehmen (Über uns · Ratgeber · Karriere · Kontakt); Kontakt ist kein eigener Punkt – Telefon und
+  Unternehmen (Über uns · Ratgeber · Kontakt · Karriere); Kontakt ist kein eigener Punkt – Telefon und
   «Anfrage stellen» rechts sind der Weg zu uns. Ein Punkt mit Unterseiten beginnt mit seiner Übersicht
   («Alles zu …», dunkel, Stapel der Bilder; bei «Unternehmen» die Kachel «Über uns»), dann die Unterseiten – EINE
   Liste (`Header.astro`, `tilesOf`). **Jede Kachel zeigt das Titelbild ihrer Seite, sonst die Zeichnung**;

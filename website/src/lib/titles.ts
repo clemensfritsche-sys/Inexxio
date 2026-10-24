@@ -20,6 +20,7 @@ const TITLES: Record<string, string> = {
   '/fahrzeugtechnik/verschleissteile': 'teile',
   '/ueber-uns': 'ueber',
   // Nur im Menü (diese Seiten haben keinen Seitenkopf mit Bild):
+  '/service': 'service',
   '/ratgeber': 'ratgeber',
   '/karriere': 'karriere',
   '/kontakt': 'kontakt',

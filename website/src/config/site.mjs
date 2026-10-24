@@ -259,7 +259,7 @@ export const site = {
   },
 
   /**
-   * Unternehmen – im Kopf als Menü «Unternehmen» (Über uns · Ratgeber · Karriere · Kontakt) mit Bild je
+   * Unternehmen – im Kopf als Menü «Unternehmen» (Über uns · Ratgeber · Kontakt · Karriere) mit Bild je
    * Unterpunkt, im Fuss als Spalte. Kontakt ist kein eigener Punkt der Hauptzeile mehr (Entscheid 127):
    * Telefon und «Anfrage stellen» stehen rechts im Kopf – das ist der Weg zu uns.
    * Testnotiz #1154: Ratgeber und Karriere waren vorher nur im Fuss und im
@@ -280,10 +280,12 @@ export const site = {
     illo: 'menu/ueber',
     /** Die Übersichtskachel heisst «Über uns» (nicht «Alles zu Unternehmen») und trägt den eigenen Satz. */
     ddSelf: true,
+    /** Reihenfolge aus Kundensicht (Entscheid 128): erst Vertrauen (Über uns, Ratgeber), dann der Weg zu uns
+     *  (Kontakt) – Karriere spricht Bewerbende an, nicht Kunden, und steht darum zuletzt. */
     children: [
       { label: 'Ratgeber', href: '/ratgeber', text: 'Prüfpflicht, Heukran planen, Verschleiss', photo: 'pruefung-hallenkran', dd: 'Kurz erklärt: Prüfpflicht, Heukran planen, Verschleiss.', illo: 'menu/ratgeber' },
-      { label: 'Karriere', href: '/karriere', text: 'Arbeiten bei {{brand.name}} in Tuttwil', photo: 'team', dd: 'Arbeiten bei {{brand.name}} in Tuttwil.', illo: 'menu/karriere' },
       { label: 'Kontakt', href: '/kontakt', text: 'Telefon, Anschrift und Anfrage', photo: 'werkstatt-aussen', dd: '{{people.owner.name}} · {{phone.display}} · {{address.street}}, {{address.zip}} {{address.city}}', illo: 'menu/kontakt' },
+      { label: 'Karriere', href: '/karriere', text: 'Arbeiten bei {{brand.name}} in Tuttwil', photo: 'team', dd: 'Arbeiten bei {{brand.name}} in Tuttwil.', illo: 'menu/karriere' },
     ],
   },
 

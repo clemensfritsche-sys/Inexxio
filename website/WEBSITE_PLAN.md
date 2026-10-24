@@ -123,6 +123,9 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   `src/lib/titles.ts` für Seitenkopf und Menü. Menübilder laden erst beim Berühren des Kopfs.
 - **127 · Kopf mit Platz** (Entscheid 23.10.2026): Hauptzeile = was man bei uns bekommt
   (Speziallösungen · Krantechnik · Fahrzeugtechnik · Service) plus **Unternehmen** (Über uns ·
-  Ratgeber · Karriere · Kontakt). «Kontakt» ist kein eigener Punkt mehr – Telefon und «Anfrage
+  Ratgeber · Kontakt · Karriere). «Kontakt» ist kein eigener Punkt mehr – Telefon und «Anfrage
   stellen» stehen rechts. Service bleibt allein (wer einen Ausfall hat, sucht dieses Wort). Die
   Sprachwahl bleibt im Kopf. Ein späterer Shop kommt rechts als Symbol, «Meine Produkte» ins Konto.
+- **128 · Reihenfolge unter «Unternehmen»** (Entscheid 24.10.2026): Über uns · Ratgeber · Kontakt ·
+  Karriere – erst Vertrauen (wer wir sind, was wir wissen), dann der Weg zu uns; Karriere spricht
+  Bewerbende an, nicht Kunden, und steht zuletzt.
