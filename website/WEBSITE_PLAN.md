@@ -129,3 +129,8 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
 - **128 · Reihenfolge unter «Unternehmen»** (Entscheid 24.10.2026): Über uns · Ratgeber · Kontakt ·
   Karriere – erst Vertrauen (wer wir sind, was wir wissen), dann der Weg zu uns; Karriere spricht
   Bewerbende an, nicht Kunden, und steht zuletzt.
+- **129 · Service, Karriere, Ratgeber im Layout v4** (Entscheid 24.10.2026): Kopf wie Porsche mit
+  Titelbild; Service: Notfall als dunkle Karte mit der Nummer gross, dann drei Anliegen-Karten,
+  Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),
+  Weg der Bewerbung, Bewerbungskarte – kein Anfrage-Formular; Ratgeber: Artikel als Karten mit Zeichnung,
+  im Artikel «Kurz gesagt» als Karte, «Weiterlesen» als Karten. Artikeltexte unverändert.

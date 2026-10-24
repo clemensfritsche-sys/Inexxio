@@ -36,6 +36,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-23-krantechnik-neu.md` | Krantechnik neu (vier Seiten), Krane nach Mass für schwierige Gebäude, Heukran mit Funk statt Kabine |
 | `2026-10-23-menu-titelbilder.md` | Menü-Kacheln zeigen das Titelbild ihrer Seite, Menübilder laden erst beim Berühren des Kopfs |
 | `2026-10-23-kopf-unternehmen.md` | Kopf mit fünf Punkten: «Unternehmen» (Über uns, Ratgeber, Karriere, Kontakt), Kontakt kein eigener Punkt |
+| `2026-10-24-service-karriere-ratgeber.md` | Service, Karriere und Ratgeber (Übersicht und Artikel) im Layout v4 |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.

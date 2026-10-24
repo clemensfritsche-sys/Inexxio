@@ -4,6 +4,7 @@ seoTitle: 'Kranprüfung in der Schweiz'
 description: 'Kranbuch, Kranfachleute, Kranexperte: welche Prüfungen für Hallen-, Heu-, Fahrzeug- und Turmdrehkrane in der Schweiz gelten – mit Fristen und Quellen.'
 published: 2026-10-03
 updated: 2026-10-04
+illo: 'menu/kranservice'
 kurz:
   - 'Zu jedem Kran gehört ein Kranbuch – auf Papier oder digital.'
   - 'Alle Krane werden regelmässig nach den Angaben des Herstellers von Kranfachleuten überprüft.'

@@ -19,10 +19,10 @@ const TITLES: Record<string, string> = {
   '/fahrzeugtechnik/trommeltausch': 'trommel',
   '/fahrzeugtechnik/verschleissteile': 'teile',
   '/ueber-uns': 'ueber',
-  // Nur im Menü (diese Seiten haben keinen Seitenkopf mit Bild):
   '/service': 'service',
   '/ratgeber': 'ratgeber',
   '/karriere': 'karriere',
+  // Nur im Menü (diese Seite hat keinen Seitenkopf mit Bild):
   '/kontakt': 'kontakt',
 };
 

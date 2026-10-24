@@ -4,6 +4,7 @@ seoTitle: 'Heukrananlage planen'
 description: 'Einschienenkran, Brückenkran oder Drehkran: welche Heukrananlage zu welcher Scheune passt, was sie an Platz braucht und wie die Planung abläuft.'
 published: 2026-10-04
 updated: 2026-10-04
+illo: 'menu/heukrananlagen'
 kurz:
   - 'Welche Bauform passt, entscheiden das Gebäude und die Arbeit: Einschienenkran für lange, schmale Scheunen, Brückenkran für breite, Drehkran für einen runden Arbeitsbereich.'
   - 'Bestimmend für die Planung sind Spannweite, Hubhöhe bis unter das Dach, die Tragfähigkeit des Gebäudes und der Weg vom Abladeplatz zum Stock.'
