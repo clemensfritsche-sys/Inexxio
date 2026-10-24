@@ -15,6 +15,10 @@ node_modules/
 frontend/.next/
 frontend/out/
 frontend/build/
+# Inseln für die Website – gebaut von frontend/scripts/build-islands.mjs
+frontend/public/islands/
+# Kopf und Fuss der Website – übernommen von frontend/scripts/site-shell.mjs
+frontend/src/generated/
 
 # Python
 __pycache__/
@@ -52,6 +56,9 @@ Thumbs.db
 uploads/
 storage/
 
+# DB-Dumps (Rollback-Punkte) – enthalten Geschäftsdaten, gehören nicht ins Repo
+backups/*.sql
+
 # TypeScript build info
 *.tsbuildinfo
 
@@ -63,3 +70,8 @@ backend/alembic/versions/__pycache__/
 
 # Firebase CLI cache
 .firebase/
+# IP→Land-Tabelle – gebaut im Docker-Build (backend/scripts/build_geoip.py)
+backend/app/assets/geoip/
+
+# Kontaktdaten aus dem ERP – beim Build geholt (scripts/erp-contact.mjs)
+website/src/config/erp-contact.json

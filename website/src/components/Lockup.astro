@@ -1,0 +1,50 @@
+---
+/**
+ * Logo: das gestapelte Zeichen des Design-Systems (v3.1) – «INEXXIO» mit rotem Schwung,
+ * darunter «ehemals HS Steiner» (Weisung 04.10.2026: das Logo trägt den früheren Namen,
+ * der beschreibende Zusatz entfällt). So steht der Name nie allein (Auftrag 3.2).
+ *
+ * Das gelieferte SVG, unverändert (nur die unsichtbaren Herkunftsdaten sind entfernt) und
+ * direkt eingebettet: keine Extra-Anfrage, kein Springen beim Laden. Der zugängliche Name
+ * nennt beides – das kleine «ehemals» im Zeichen ist Gestaltung, die Aussage steht im Namen.
+ *
+ * Ein zweites gleiches Zeichen auf derselben Seite (das Mobil-Menü) bettet die Zeichnung nicht
+ * noch einmal ein, sondern verweist mit <use> auf das erste (`id` ↔ `ref`) – 12 KB weniger HTML.
+ */
+import { site } from '../config/site.mjs';
+import { plain } from '../lib/text.mjs';
+import logoLight from '../../public/logo/inexxio-ehemals-hs-steiner.svg?raw';
+import logoDark from '../../public/logo/inexxio-ehemals-hs-steiner-weiss.svg?raw';
+
+interface Props {
+  tone?: 'light' | 'dark';
+  size?: 'header' | 'footer';
+  /** Id dieses Zeichens, damit ein zweites darauf verweisen kann. */
+  id?: string;
+  /** Verweis auf ein Zeichen mit dieser Id statt einer eigenen Zeichnung. */
+  ref?: string;
+}
+const { tone = 'light', size = 'header', id, ref } = Astro.props;
+const label = plain(site.brand.full);
+// Feste Masse raus (die Höhe setzt das CSS), Rolle und Name rein; <title> im SVG entfällt,
+// damit der Name nicht doppelt vorgelesen wird.
+const svg = (tone === 'dark' ? logoDark : logoLight)
+  .replace(/\s(width|height)="[^"]*"/, '')
+  .replace(/\s(width|height)="[^"]*"/, '')
+  .replace(/<title>[^<]*<\/title>/, '')
+  .replace('<svg ', `<svg class="lockup__svg" role="img" aria-label="${label}" focusable="false"${id ? ` id="${id}"` : ''} `);
+const viewBox = svg.match(/viewBox="([^"]+)"/)?.[1];
+---
+{ref ? (
+  <span class:list={['lockup', `lockup--${size}`]} translate="no"><svg class="lockup__svg" viewBox={viewBox} role="img" aria-label={label} focusable="false"><use href={`#${ref}`} /></svg></span>
+) : (
+  <span class:list={['lockup', `lockup--${size}`]} translate="no" set:html={svg} />
+)}
+
+<style>
+  /* Seitenverhältnis des Zeichens 624 : 278.3 – Höhe fest, Breite folgt. */
+  .lockup { display: block; aspect-ratio: 624 / 278.3; height: 50px; flex: none; }
+  .lockup--footer { height: 64px; }
+  .lockup :global(.lockup__svg) { display: block; width: 100%; height: 100%; }
+  @media (max-width: 767px) { .lockup--header { height: 42px; } }
+</style>

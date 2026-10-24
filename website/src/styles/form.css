@@ -1,0 +1,107 @@
+/* Formulare (Anfrage, Prüfpflicht-Check – die Chips braucht nur noch er) – geteilt, einmal je Seite geladen.
+   v4: die Felder der Anfrage sind Glas über der Karte (README §3a), zwei Schritte. */
+
+.iform { display: grid; gap: 12px; position: relative; }
+.iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.iform__row { display: grid; gap: 12px; }
+@media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.field__opt, .iform__opt { font-weight: 400; color: var(--gray-500); font-size: 0.875rem; }
+.iform__files { list-style: none; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
+.iform__files li { display: flex; gap: 8px; }
+.iform__files li span:last-child { color: var(--ink-3); margin-left: auto; }
+
+/* Glasfelder */
+.iform .input, .iform .textarea {
+  min-height: 50px; border-radius: 10px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72); box-shadow: 0 8px 28px rgba(10, 10, 11, 0.06);
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+  font-size: 0.9375rem;
+}
+.iform .field__label { font-size: 0.875rem; }
+/* Schritt 1: EIN grosses Feld, das man nicht übersieht – weiss, deutlicher Rand, tiefer
+   Schatten; «Foto anhängen» und der Senden-Pfeil sitzen IM Feld (wie beim Schreiben einer
+   Nachricht). */
+.iform__ask-box {
+  position: relative; display: flex; min-height: 148px; border-radius: 18px; background: var(--white);
+  border: 1px solid var(--line-2); box-shadow: 0 18px 48px rgba(10, 10, 11, 0.12), 0 2px 6px rgba(10, 10, 11, 0.05);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.iform__ask-box:hover { border-color: var(--ink-4); }
+.iform__ask-box:focus-within { border-color: var(--ink); box-shadow: 0 18px 48px rgba(10, 10, 11, 0.14), 0 0 0 4px rgba(10, 10, 11, 0.08); }
+.iform .iform__ask {
+  flex: 1; min-height: 0; height: auto; padding: 18px 20px 70px; border: 0; border-radius: 18px; background: transparent;
+  box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; resize: none; font-size: 1.125rem; line-height: 1.5;
+}
+.iform .iform__ask::placeholder { color: var(--ink-3); }
+.iform .iform__ask:focus-visible { box-shadow: none; outline: none; }
+.iform__tools { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.iform__step { display: grid; gap: 12px; align-content: start; }
+.iform__step--1 { display: flex; flex-direction: column; }
+.iform__attach { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; border-radius: 999px; font-size: 0.875rem; color: var(--ink-3); cursor: pointer; transition: background-color 0.2s var(--ease), color 0.2s var(--ease); }
+.iform__attach:hover { color: var(--ink); background: var(--gray-100); }
+.iform__attach:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+.iform__attach-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+/* Der Senden-Pfeil: rund, rot – die eine Handlung. */
+.iform__send {
+  flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--red); color: var(--white);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.iform__send:hover { background: var(--red-hover); transform: translateX(2px) rotate(-8deg); box-shadow: var(--shadow-red); }
+.iform__send:active { transform: scale(0.96); }
+.iform__send:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.iform__submit { --btn-h: 52px; padding: 0 26px; font-size: 1rem; font-weight: 600; flex: none; }
+.iform__recap { font-size: 0.875rem; color: var(--ink-3); max-width: none; }
+.iform__recap strong { color: var(--ink); font-weight: 600; }
+.iform__edit { font-weight: 600; text-decoration: underline; color: var(--ink); }
+.iform__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 4px; }
+.iform__count { font-size: 0.8125rem; color: var(--gray-500); }
+.iform__privacy { font-size: 0.8125rem; color: var(--gray-500); max-width: none; }
+/* Mit Skript liegen beide Schritte in DERSELBEN Zelle: die Fläche ist so hoch wie der
+   grössere Schritt, der Wechsel blendet über – nichts darunter springt. Das Feld von Schritt 1
+   füllt die Zelle. Ohne Skript stehen alle Felder untereinander. */
+html.js .iform__steps { display: grid; align-items: start; overflow: clip; overflow-clip-margin: 48px; transition: height 0.45s var(--ease); }
+html.js .iform__step { grid-area: 1 / 1; transition: opacity 0.35s var(--ease), visibility 0s linear 0.35s; }
+html.js .iform[data-step='1'] .iform__step--2,
+html.js .iform[data-step='2'] .iform__step--1 { opacity: 0; visibility: hidden; pointer-events: none; }
+html.js .iform[data-step='1'] .iform__step--1,
+html.js .iform[data-step='2'] .iform__step--2 { transition: opacity 0.35s var(--ease) 0.05s, visibility 0s; }
+html:not(.js) .iform__send, html:not(.js) .iform__recap, html:not(.js) .iform__count { display: none; }
+html:not(.js) .iform__steps { display: grid; gap: 12px; }
+html:not(.js) .iform__foot { justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) { html.js .iform__step { transition: none; } }
+
+/* Auswahl-Chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; display: inline-flex; }
+.chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.chip span {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px;
+  border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--white);
+  font-weight: 500; color: var(--ink); cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.chip:hover span { border-color: var(--ink-3); }
+.chip input:checked + span { background: var(--black); border-color: var(--black); color: var(--white); }
+.chip input:checked + span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+.chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Das Häkchen zum Newsletter – leise, aber an seinem Platz. */
+.iform__consent { display: flex; gap: 10px; align-items: flex-start; font-size: 0.8125rem; line-height: 1.5; color: var(--ink-3); cursor: pointer; min-height: 44px; }
+.iform__consent input { flex: none; width: 18px; height: 18px; margin-top: 1px; accent-color: var(--black); cursor: pointer; }
+.iform[aria-busy='true'] [data-submit] { opacity: 0.6; pointer-events: none; }
+
+/* Ergebnis: eine Glasfläche */
+.iresult {
+  display: grid; gap: 10px; padding: 24px; border-radius: 14px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72); box-shadow: 0 8px 28px rgba(10, 10, 11, 0.06);
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+}
+.iresult--fail { border-color: var(--red-hover); margin-bottom: 24px; }
+.iresult__icon { color: var(--ok); }
+.iresult--fail .iresult__icon { color: var(--red-hover); }
+.iresult__title { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.02em; }
+.iresult__dot { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--red); color: var(--white); display: inline-flex; align-items: center; justify-content: center; }
+.iresult p { font-size: 0.9375rem; color: var(--ink-3); }
+.iresult__again { font-weight: 600; text-decoration: underline; color: var(--ink); }
+.iresult:focus { outline: none; }

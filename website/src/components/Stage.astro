@@ -1,0 +1,73 @@
+---
+/**
+ * Bühne (v4, Porsche-Muster): ein Video oder Foto über die ganze Breite, wenig Text unten
+ * links – eine Zeile darüber, die H1, ein Satz, «Anfrage stellen» und das Telefon in Glas.
+ * Ein Foto zoomt sehr langsam (ein Video nicht – das Skalieren liess es ruckeln) (ruht bei «reduzierter Bewegung»). Der Kopf liegt durchsichtig
+ * darüber (Base `stage`). Video: in src/config/photos.mjs beim Foto `video` eintragen.
+ */
+import { site } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import Media from './Media.astro';
+import Rich from './Rich.astro';
+
+interface Props {
+  photo: string;
+  title: string;
+  eyebrow?: string;
+  sub?: string;
+  /** Hauptknopf; ohne Angabe «Anfrage stellen» zur Anfrage dieser Seite. */
+  primary?: { label: string; href: string };
+  /** Telefon als zweiter Knopf (Standard: ja). */
+  phone?: boolean;
+  /** Niedriger für Unterseiten. */
+  size?: 'full' | 'page';
+}
+const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#anfrage' }, phone = true, size = 'full' } = Astro.props;
+---
+<section class:list={['stage', `stage--${size}`]} aria-labelledby="stage-title">
+  <Media id={photo} motion priority sizes="100vw" class="stage__media" />
+  <span class="stage__shade" aria-hidden="true"></span>
+  <div class="wrap stage__in" data-hero>
+    {eyebrow && <Rich as="p" class="stage__eyebrow" text={eyebrow} />}
+    <Rich as="h1" id="stage-title" class="stage__title" text={title} />
+    {sub && <Rich as="p" class="stage__sub" text={sub} />}
+    <div class="stage__btns">
+      <a class="btn btn--primary stage__btn" href={primary.href}>{primary.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+      {phone && <a class="btn stage__btn stage__btn--glass" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} /><span class="tnum">{site.phone.display}</span></a>}
+    </div>
+  </div>
+</section>
+
+<style>
+  .stage { position: relative; display: flex; align-items: flex-end; overflow: hidden; background: var(--black); color: var(--white); }
+  /* Volle Fensterhöhe: 100vh als Rückfall, 100svh ohne die Leisten des Handy-Browsers. */
+  .stage--full { height: 100vh; height: 100svh; min-height: 560px; }
+  .stage--page { height: clamp(560px, 82svh, 780px); }
+  @media (max-width: 767px) { .stage--page { height: min(640px, 84svh); min-height: 520px; } }
+  .stage :global(.stage__media) { z-index: 0; }
+  .stage :global(.stage__media .photo) { animation: stage-zoom 18s ease-in-out infinite alternate; }
+  @keyframes stage-zoom { from { transform: scale(1); } to { transform: scale(1.07); } }
+  .stage__shade { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(10, 10, 11, 0.5) 0%, rgba(10, 10, 11, 0) 18%, rgba(10, 10, 11, 0) 40%, rgba(10, 10, 11, 0.78) 100%); }
+  @media (min-width: 960px) { .stage__shade { background: linear-gradient(180deg, rgba(10, 10, 11, 0.45) 0%, rgba(10, 10, 11, 0) 22%, rgba(10, 10, 11, 0) 50%, rgba(10, 10, 11, 0.7) 100%); } }
+  .stage__in { position: relative; z-index: 2; padding-bottom: 32px; }
+  @media (min-width: 960px) { .stage__in { padding-bottom: 80px; } }
+  .stage__in :global(.stage__eyebrow) { font-size: 0.875rem; font-weight: 500; color: rgba(255, 255, 255, 0.85); }
+  @media (min-width: 960px) { .stage__in :global(.stage__eyebrow) { font-size: 1rem; } }
+  .stage__in :global(.stage__title) {
+    margin-top: 10px; max-width: 900px; color: var(--white); font-family: var(--font-display); font-weight: 600;
+    font-size: 2.5rem; line-height: 1.04; letter-spacing: -0.03em;
+  }
+  @media (min-width: 960px) { .stage__in :global(.stage__title) { margin-top: 12px; font-size: 4.5rem; line-height: 1.02; } }
+  .stage--page .stage__in :global(.stage__title) { max-width: 960px; }
+  @media (min-width: 960px) { .stage--page .stage__in :global(.stage__title) { font-size: 4rem; } }
+  .stage__in :global(.stage__sub) { margin-top: 10px; font-size: 1.125rem; line-height: 1.45; color: rgba(255, 255, 255, 0.9); max-width: 40em; }
+  @media (min-width: 960px) { .stage__in :global(.stage__sub) { margin-top: 14px; font-size: 1.375rem; } }
+  .stage__btns { margin-top: 24px; display: grid; gap: 10px; }
+  @media (min-width: 600px) { .stage__btns { display: flex; gap: 12px; margin-top: 32px; } }
+  .stage__btn { --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
+  .stage__btn--glass {
+    padding: 0 22px; font-weight: 500; color: var(--white); border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.14);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  }
+  .stage__btn--glass:hover { background: rgba(255, 255, 255, 0.22); }
+</style>

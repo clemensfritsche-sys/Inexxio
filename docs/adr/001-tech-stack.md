@@ -1,5 +1,13 @@
 # ADR 001: Technology Stack
 
+> ## Kopfstatus (Oktober 2026): **gültig, mit benannten Abweichungen**
+> Die Wahl der Bausteine steht. **Verdrahtet** sind inzwischen **Stripe** (eigene
+> Bezahlkarte im ERP, `services/stripe_pay.py`, optional) und die **Gmail API** (je eigener
+> Gesellschaft ein Postfach, `services/mailbox.py`, optional). **Nicht verdrahtet** sind
+> Typesense, Cloud Storage und die KI – sie stehen unten als Teil des Stacks, sind im Code
+> aber nicht vorhanden (siehe `CLAUDE.md` → Architektur und `docs/attic.md`).
+
+
 **Status:** Accepted  
 **Date:** 2026-06-03  
 **Deciders:** Inexxio AG

@@ -1,0 +1,26 @@
+---
+/**
+ * Abschnittskopf v4 (README §3a): EINE Form – grosse Überschrift (Inter Tight 600, 48/32 px),
+ * darunter höchstens ein grauer Satz. Keine Kicker, keine roten Wörter: `eyebrow` wird nicht
+ * mehr gezeigt (bleibt als Angabe für Lesende des Codes und als Rückfall, wenn `title` fehlt).
+ */
+import Rich from './Rich.astro';
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  id?: string;
+  level?: 'h1' | 'h2';
+  class?: string;
+  center?: boolean;
+}
+const { title, lead, id, level = 'h2', class: cls, center = false } = Astro.props;
+---
+<header class:list={['head', center && 'v4-head--center', cls]}>
+  <div class="head__in">
+  <Rich as={level} id={id} class="v4-h2" text={title} />
+  {lead && <Rich as="p" class="v4-sub" text={lead} />}
+  <slot />
+  </div>
+</header>

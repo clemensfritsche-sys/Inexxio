@@ -1,0 +1,37 @@
+---
+/**
+ * Startseite v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html):
+ * Bühne mit Video → Drei Bereiche (Kran-Szenen) → Speziallösungen (Umschalter) → Garantien
+ * (versetzte Karten) → Warum (grosse Zahlen, Porträt) → Nachfolge (Collage) → Ratgeber
+ * (Karussell) → Fragen (Glas über Bild) → Anfrage (Karte als Grund).
+ * Texte: src/content/start.ts, Bereiche aus src/config/site.mjs.
+ */
+import Base from '../layouts/Base.astro';
+import Stage from '../components/Stage.astro';
+import AreaTrio from '../components/home/AreaTrio.astro';
+import SpecialStage from '../components/home/SpecialStage.astro';
+import Guarantees from '../components/home/Guarantees.astro';
+import WhyNumbers from '../components/home/WhyNumbers.astro';
+import Handover from '../components/home/Handover.astro';
+import ArticleCarousel from '../components/home/ArticleCarousel.astro';
+import FaqStage, { type FaqVisual } from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { start } from '../content/start';
+import { spezialloesungen } from '../content/spezialloesungen';
+import { faqPage } from '../lib/seo.mjs';
+
+const visuals: FaqVisual[] = ['garantie', 'inexxio365', 'telefon', 'uebergabe'];
+const faq = start.faq.map((f, i) => ({ ...f, visual: visuals[i] }));
+---
+<Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]} stage>
+  <Stage photo={start.hero.photo} eyebrow={start.hero.eyebrow} title={start.hero.h1} sub={start.hero.sub} />
+  <AreaTrio />
+  <SpecialStage title={start.special.h2} lead={start.special.lead} items={spezialloesungen.scope?.items ?? []} cta={start.special.cta} />
+  <Guarantees />
+  <WhyNumbers />
+  <Handover />
+  <ArticleCarousel title={start.ratgeber.h2} lead={start.ratgeber.lead} items={start.ratgeber.items} all={{ label: start.ratgeber.all, href: '/ratgeber' }} />
+  <FaqStage items={faq} title={start.faqHead.h2} lead={start.faqHead.lead} />
+  <ContactSection />
+</Base>
+

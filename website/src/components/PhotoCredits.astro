@@ -1,0 +1,48 @@
+---
+/**
+ * Bildnachweis der Beispielbilder (config/photo-samples.mjs) – nur die, die gerade verwendet
+ * werden, also nicht durch ein echtes Foto ersetzt sind. CC BY/BY-SA verlangen Urheber,
+ * Lizenz mit Link, Quelle und den Hinweis auf Änderungen (hier: Ausschnitt und Grösse).
+ * Ohne Beispielbilder erscheint der Abschnitt gar nicht.
+ */
+import { photos } from '../config/photos.mjs';
+import { samples } from '../config/photo-samples.mjs';
+
+const used = Object.entries(samples)
+  .filter(([id]) => photos[id] && !photos[id].file)
+  .map(([id, s]) => ({ id, ...s }));
+---
+{used.length > 0 && (
+  <section class="credits" id="bildnachweis" aria-labelledby="bildnachweis-titel">
+    <h2 id="bildnachweis-titel">Bildnachweis</h2>
+    <p>
+      Die Fotos dieser Vorschau sind <strong>Beispielbilder</strong> aus Wikimedia Commons unter freien
+      Lizenzen. Sie zeigen nicht INEXXIO, sondern, wie die Seite mit Bildern wirkt, und werden durch
+      eigene Fotos ersetzt. Ausschnitt und Grösse wurden angepasst.
+    </p>
+    <ul role="list" class="credits__list">
+      {used.map((s) => (
+        <li>
+          <span class="credits__what">{s.alt.replace(/^Beispielbild:\s*/, '')}</span>
+          <span class="credits__who">
+            Foto: {s.author} ·{' '}
+            {s.licenseUrl ? <a href={s.licenseUrl} rel="noopener license">{s.license}</a> : s.license} ·{' '}
+            <a href={s.source} rel="noopener">Quelle: «{s.title}»</a>
+          </span>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+<style>
+  .credits { margin-top: var(--s-8); padding-top: 22px; border-top: 2px solid var(--ink); display: grid; gap: var(--s-4); }
+  
+  .credits p { color: var(--ink-2); }
+  .credits__list { list-style: none; padding: 0; display: grid; }
+  .credits__list li { display: grid; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 0.875rem; }
+  .credits__what { color: var(--ink); font-weight: 600; }
+  .credits__who { color: var(--ink-3); overflow-wrap: anywhere; }
+  .credits__who a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 0.18em; }
+  .credits__who a:hover { text-decoration-color: currentColor; }
+</style>

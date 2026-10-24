@@ -1,0 +1,41 @@
+---
+/**
+ * Leistungen in einem ruhigen Raster (v4): Titel und ein Satz je Punkt an einer Haarlinie, auf Wunsch
+ * mit Symbol im Kreis. Breit drei (oder vier) Spalten, schmal untereinander. Gebraucht für die
+ * Prüfpflicht auf dem Kranservice.
+ */
+import Icon, { type IconName } from './Icon.astro';
+import Rich from './Rich.astro';
+
+interface Item { title: string; text: string; icon?: IconName }
+interface Props { title: string; lead?: string; items: Item[]; id?: string; columns?: 3 | 4 }
+const { title, lead, items, id, columns = 3 } = Astro.props;
+const hid = `${id ?? title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-title`;
+---
+<section class="v4-section" id={id} aria-labelledby={hid}>
+  <div class="wrap">
+    <header class="v4-head--center">
+      <h2 class="v4-h2" id={hid}>{title}</h2>
+      {lead && <Rich as="p" class="v4-sub" text={lead} />}
+    </header>
+    <ul role="list" class:list={['fg', columns === 4 && 'fg--4']}>
+      {items.map((it) => (
+        <li>
+          {it.icon && <span class="fg__ic"><Icon name={it.icon} size={20} /></span>}
+          <h3 class="fg__title">{it.title}</h3>
+          <Rich as="p" class="fg__text" text={it.text} />
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .fg { list-style: none; padding: 0; display: grid; gap: 4px 32px; margin-top: 40px; }
+  .fg li { display: grid; gap: 6px; align-content: start; padding: 20px 0; border-top: 1px solid var(--line-2); }
+  .fg__ic { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 6px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
+  .fg__title { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.015em; }
+  .fg :global(.fg__text) { font-size: 0.9375rem; line-height: 1.55; color: var(--ink-3); }
+  @media (min-width: 720px) { .fg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .fg { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 48px; margin-top: 56px; } .fg--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+</style>

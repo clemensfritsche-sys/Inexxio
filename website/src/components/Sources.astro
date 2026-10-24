@@ -1,0 +1,31 @@
+---
+/** Quellenliste: Links zu offiziellen Stellen (Suva, Fedlex, EKAS, SECO). */
+import Icon from './Icon.astro';
+
+interface Props {
+  items: { label: string; href: string }[];
+  title?: string;
+  level?: 'h2' | 'h3';
+}
+const { items, title = 'Quellen', level = 'h3' } = Astro.props;
+const Tag = level;
+---
+<div class="sources">
+  <Tag class="label sources__title">{title}</Tag>
+  <ul role="list" class="sources__list">
+    {items.map((s) => (
+      <li>
+        <a href={s.href} rel="noopener">{s.label}<Icon name="external-link" size={15} class="sources__icon" /></a>
+      </li>
+    ))}
+  </ul>
+</div>
+
+<style>
+  .sources { display: grid; gap: var(--s-3); }
+  .sources__title { color: var(--ink-3); }
+  .sources__list { list-style: none; padding: 0; display: grid; gap: var(--s-2); }
+  .sources__list a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 0.18em; font-size: 0.97rem; }
+  .sources__list a:hover { text-decoration-color: currentColor; }
+  .sources__icon { display: inline-block; vertical-align: -0.12em; margin-left: 6px; color: var(--ink-3); }
+</style>

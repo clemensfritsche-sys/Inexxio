@@ -1,0 +1,38 @@
+---
+/**
+ * Verschleissteile-Katalog aus der Konfiguration (v4, Muster Porsche-Bildkarten, components/PhotoCard):
+ * je Teil eine grosse Bildkarte mit Teileart, Name, einem Satz und «Teil anfragen», gesetzt wie eine
+ * Zeitschrift (components/Magazine). Die letzte Karte ist hell: «Ihr Teil ist nicht
+ * dabei?» mit der Anfrage (`catalog.missing`). Ohne Filter, ohne Preis, ohne Warenkorb.
+ * «Teil anfragen» öffnet das Formular mit vorausgefülltem Teil.
+ * «Passend für» steht einmal über dem Katalog (`catalog.fits`), an einem Teil nur, wenn es abweicht.
+ */
+import { catalog } from '../config/catalog.mjs';
+import Magazine from './Magazine.astro';
+import PhotoCard from './PhotoCard.astro';
+import Rich from './Rich.astro';
+
+const parts = catalog.groups.flatMap((g) => g.items.map((it, i) => ({ ...it, group: g.title, anchor: i === 0 ? g.id : undefined })));
+---
+<Magazine>
+  {parts.map((it) => (
+    <li class="catalog__item" id={it.anchor}>
+      <PhotoCard photo={it.photo} label={it.group} title={it.name} text={it.text} cta={{ label: 'Teil anfragen', href: `/kontakt?teil=${encodeURIComponent(it.name)}` }}>
+        {(it.sku || it.material || it.fits) && (
+          <p class="catalog__spec">
+            {it.sku && <span class="tnum">Art.-Nr. {it.sku}</span>}
+            {it.material && <Rich as="span" text={it.material} />}
+            {it.fits && <span>Passend für {it.fits.join(' · ')}</span>}
+          </p>
+        )}
+      </PhotoCard>
+    </li>
+  ))}
+  <li class="catalog__item">
+    <PhotoCard title={catalog.missing.title} text={catalog.missing.text} cta={{ label: catalog.missing.cta, href: '#anfrage' }} />
+  </li>
+</Magazine>
+
+<style>
+  .catalog__spec { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.7); }
+</style>
