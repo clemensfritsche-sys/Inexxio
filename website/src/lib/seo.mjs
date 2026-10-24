@@ -104,7 +104,7 @@ export function website(siteUrl) {
     '@type': 'WebSite',
     '@id': `${siteUrl}/#website`,
     url: abs(siteUrl),
-    name: plain(site.brand.full),
+    name: site.brand.name,
     inLanguage: 'de-CH',
     publisher: { '@id': `${siteUrl}/#organisation` },
   });

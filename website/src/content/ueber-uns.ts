@@ -9,7 +9,7 @@ import type { Faq } from './types';
 export const ueberUns = {
   title: 'Über uns',
   description:
-    'INEXXIO (ehemals HS Steiner) in {{address.home}}: Betrieb mit Ingenieurwissen seit 1982 – Team, Werte, Geschichte und die Nachfolge von Heiri Steiner.',
+    'INEXXIO in {{address.home}}: ein Betrieb mit Ingenieurwissen, seit 1982 – Team, Werte, Geschichte und die Nachfolge von Heiri Steiner an Clemens Fritsche.',
   hero: {
     h1: 'Über uns',
     lead:
@@ -56,7 +56,7 @@ export const ueberUns = {
     ],
   },
   summary:
-    '{{brand.full}} arbeitet in drei Bereichen: Krantechnik, Fahrzeugtechnik und Speziallösungen. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen für den Bau. Der Standort ist in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – derselbe Standort, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
+    '{{brand.name}} arbeitet in drei Bereichen: Krantechnik, Fahrzeugtechnik und Speziallösungen. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen für den Bau. Der Standort ist in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – derselbe Standort, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
   /** Die Werte der Firma (#1182) – wofür wir stehen; die Zusagen darunter machen sie prüfbar. */
   values: {
     title: 'Wofür wir stehen',

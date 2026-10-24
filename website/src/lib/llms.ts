@@ -44,9 +44,9 @@ function facts(base: string): string[] {
 
 function header(base: string): string[] {
   return [
-    `# ${plain(site.brand.full)}`,
+    `# ${site.brand.name}`,
     '',
-    `> ${plain(site.brand.full)}: ${plain(site.brand.summary)}`,
+    `> ${site.brand.name}: ${plain(site.brand.summary)}`,
     '',
     plain(site.brand.notToConfuse),
     '',

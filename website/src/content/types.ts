@@ -38,7 +38,7 @@ export interface SubPage {
   path: string;
   /** Kurzname für Breadcrumbs und Karten. */
   crumb: string;
-  /** Titel ohne Zusatz (der Zusatz «| INEXXIO (ehemals HS Steiner)» kommt von selbst). */
+  /** Titel ohne Zusatz (der Zusatz «| INEXXIO» kommt von selbst). */
   title: string;
   description: string;
   hero: { eyebrow: string; h1: string; lead: string; photo: string; primary: Action };

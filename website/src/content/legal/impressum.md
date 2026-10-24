@@ -1,6 +1,6 @@
 ---
 title: 'Impressum'
-description: 'Impressum von INEXXIO (ehemals HS Steiner), {{address.line}} ({{address.municipality}} {{address.canton}}): Anbieter, Kontakt, Vertretung, Handelsregister, Haftung.'
+description: 'Impressum der INEXXIO AG, {{address.line}} ({{address.municipality}} {{address.canton}}): Anbieter, Kontakt, Vertretung, Handelsregister und Haftung – alles auf einen Blick.'
 updated: 2026-10-03
 ---
 

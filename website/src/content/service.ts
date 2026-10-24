@@ -13,13 +13,13 @@ export const service = {
   path: '/service',
   title: 'Service und Notfall',
   description:
-    'Kran steht still, Prüfung fällig, Trommel am Ende oder Teil gesucht? Die Nummer für den Notfall und der direkte Weg zum richtigen Service.',
+    'Kran steht still, Prüfung fällig, Trommel am Ende oder Teil gesucht? Die Nummer für den Notfall und der direkte Weg zum richtigen Service bei INEXXIO.',
   hero: {
     h1: 'Steht etwas still? Wir sind ==für Sie da==.',
     lead: 'Im Notfall rufen Sie direkt an. Für alles andere wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:
-    '{{brand.full}} prüft, wartet und repariert Krane, Fahrmischer und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – von unserem Standort in {{address.home}} aus. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
+    '{{brand.name}} prüft, wartet und repariert Krane, Fahrmischer und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – von unserem Standort in {{address.home}} aus. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
   /** Notfall (Anker #notfall) – components/CallPanel. */
   emergency: {
     label: 'Notfall',

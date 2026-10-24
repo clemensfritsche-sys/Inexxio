@@ -50,7 +50,7 @@ export const fahrzeugtechnik: AreaPage = {
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
   description:
-    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Zufriedenheitsgarantie. Dazu Verschleissteile, schnell beschafft. Aus {{address.home}}.',
+    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Zufriedenheitsgarantie. Dazu Verschleissteile, rasch beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Länger fahren statt neu kaufen',
@@ -59,7 +59,7 @@ export const fahrzeugtechnik: AreaPage = {
     primary: anfrage('Fahrmischer anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: facts(vehiclePath.items),
   faq: [
     {
@@ -143,7 +143,7 @@ export const trommeltausch: SubPage = {
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.full}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Verbindliche Offerte vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – bei uns in {{address.home}}.',
+    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Verbindliche Offerte vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – bei uns in {{address.home}}.',
   glance: {
     forWhom: 'Fuhrparkleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Trommel und Fahrgestell prüfen, neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',
@@ -217,7 +217,7 @@ export const verschleissteile: SubPage = {
   crumb: 'Verschleissteile',
   title: 'Fahrmischer-Verschleissteile',
   description:
-    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte. Jetzt anfragen.',
+    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte vorab.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Verschleissteile',
     h1: 'Verschleissteile. Schnell beschafft.',
@@ -226,7 +226,7 @@ export const verschleissteile: SubPage = {
     primary: anfrage('Teil anfragen'),
   },
   summary:
-    '{{brand.full}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau bei uns in {{address.home}}.',
+    '{{brand.name}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau bei uns in {{address.home}}.',
   glance: {
     forWhom: 'Fuhrparkleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Teile nach Marke und Typ bestellen und schnell beschaffen – auf Wunsch mit Einbau.',
