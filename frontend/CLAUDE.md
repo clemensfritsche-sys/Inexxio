@@ -62,7 +62,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 ### `components/erp/` – eine Zeile je Datei
 | Datei | Rolle |
 |---|---|
-| `fields.tsx` | Grundbausteine: Detail-Anatomie (`SPEC`, `SpecHead`, `SpecSection`, `ReadField`, `DetailBody`/`DETAIL_MAXW`), `Label`, `inputCls`, `SearchSelect`/`OptionRow`/`FieldAction`, `Segmented`, `StatusBadge`, `RecordIcon` (+ `IconMark`), `DetailHeader`, `Dialog`, `Tooltip`/`InfoHint` |
+| `fields.tsx` | Grundbausteine: Detail-Anatomie (`SPEC`, `SpecHead`, `SpecSection`, `ReadField`, `DetailBody`/`DETAIL_MAXW`), `Card` (`info`, `extra`, `unclipped`, `anchor`), `SectionSep`, `TodoChip`, `Label`, `inputCls`, `SearchSelect`/`OptionRow`/`FieldAction`, `Segmented`, `StatusBadge`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `DetailHeader`, `Dialog`, `Tooltip`/`InfoHint` |
 | `module-ui.tsx` | Bauteile eines Prozessschrittmoduls (Tabelle unten) |
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
@@ -77,6 +77,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `step-record.tsx` | Modul-Protokoll (eine Komponente für alle Modultypen) |
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
+| `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – Spiegel getestet) |
 | `territory-map.tsx`, `world-map.tsx`, `system-config-section.tsx` | Gebietskarte · Plattform-Konfiguration am Betreiber |
 | `detail-tabs.tsx`, `error-boundary.tsx`, `use-google-maps.ts`, `use-maps-key.ts` | Hilfen |
 
@@ -150,6 +151,7 @@ jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spie
 | `MODULE_CARD` · `MODULE_TITLE` | Fläche und Name der Modul-Karte (weiss wie jeder Datensatz; die Modulfarbe sitzt in der Marke und im Rahmen, wenn das Modul dran ist). Gesetzt in `ModuleShell`. |
 | `ModuleSection` | Abschnitt: Leiste als Kopf, Punkt davor, wenn er ein Schritt ist (`state`: `past · active · ahead`), die Status-Spalte steht immer. `data-fb-section` benennt ihn für Testnotizen. |
 | `ActionButton` · `Actions` | Ein Knopf ist ein Symbol, beim Zeigen klappt der Name daneben auf (`.ix-tuck`); `Actions` gibt ihm eine eigene, nicht umbrechende Zeile. |
+| `StageAction` | Die Handlung, die eine Sache weiterbringt (volle Breite, 42 px) – Beleg und Zeiterfassung. |
 | `LedgerRow` · `RowActions` | Zeilen-Grammatik `[Identifikator] [Meta] … [Aktion] [Datum] [Betrag]`, strikt einreihig; Zeilenaktionen am Ende, im Ruhezustand unsichtbar, auf Touch dauerhaft – und **in einer Zeile klappt kein Name aus** (Blase statt `.ix-tuck`). |
 | `Amount` | EIN Betrag – Zahl, Währung, Zustandsfarbe. |
 | `ValueBar` | Ein Anteil an einem Ganzen (Leiste + Punkt + Wort + Zahl); die Beschriftung ist das Bedienelement. `StockBar` ist ihre Ausprägung für den Bestand. |

@@ -270,8 +270,25 @@ export type FeedbackUpdateInput = Omit<components['schemas']['FeedbackUpdate'], 
 export type Message = components['schemas']['MessageOut'];
 export type MessageIn = components['schemas']['MessageIn'];
 export type MessageChannel = components['schemas']['ChannelOut'];
-/** Wie viele offene Nachrichten im Verlauf einer Person stehen – das Zeichen im Feed. */
-export type OpenCount = components['schemas']['OpenCount'];
+/** **Was an einem Datensatz zu tun ist** – die Zahl am Symbol in Feed und Kopf (Nachrichten,
+ *  Zeiterfassung, Pflichtangaben, Feiertage). */
+export type Todo = components['schemas']['TodoOut'];
+export type TodoItem = components['schemas']['TodoItem'];
+
+/** Zeiterfassung (docs/zeiterfassung-spezifikation.md) – jede Zahl in Minuten. */
+export type TimeView = components['schemas']['TimeView'];
+export type TimeDay = components['schemas']['DayOut'];
+export type TimeStamp = components['schemas']['StampOut'];
+export type TimeAbsence = components['schemas']['AbsenceOut'];
+export type TimeContract = components['schemas']['ContractOut'];
+export type TimeVocab = components['schemas']['TimeVocab'];
+export type TimeEntryIn = components['schemas']['EntryIn'];
+export type EntryPreview = components['schemas']['EntryPreview'];
+export type TimeContractIn = components['schemas']['ContractIn'];
+export type CompanyTimeView = components['schemas']['CompanyTimeView'];
+export type HolidayOut = components['schemas']['HolidayOut'];
+export type HolidayIn = components['schemas']['HolidayIn'];
+export type TimeRulesIn = components['schemas']['TimeRulesIn'];
 export type NewsletterState = components['schemas']['NewsletterState'];
 export type PersonRef = components['schemas']['PersonRef'];
 export type Mailbox = components['schemas']['MailboxOut'];

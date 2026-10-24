@@ -213,3 +213,38 @@ export function happened(value: string | Date | null | undefined, what: string,
     : `${said.charAt(0).toUpperCase()}${said.slice(1)} ${what}`;
   return { text, title: whenTitle(value) };
 }
+
+
+// ─── Kalendertage als Text (Zeiterfassung) ───────────────────────────────────────────
+
+const WEEKDAYS_LONG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const MONTHS_LONG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
+  'September', 'Oktober', 'November', 'Dezember'];
+
+/** «Freitag, 23.10.2026» – der Titel eines Tages. */
+export function dayTitle(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? `${WEEKDAYS_LONG[d.getDay()]}, ${day(d)}` : NOTHING;
+}
+
+/** «05.10.» – ein Tag in einer Spanne, das Jahr steht daneben. */
+export function dayShort(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.` : NOTHING;
+}
+
+/** «Oktober 2026» aus «2026-10». */
+export function monthTitle(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return `${MONTHS_LONG[m - 1] ?? ''} ${y}`;
+}
+
+/** «TT.MM.JJJJ» → «JJJJ-MM-TT» (ein Tag, den es gibt), sonst `null`. */
+export function parseDay(text: string): string | null {
+  const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(text.trim());
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCDate() !== d || t.getUTCMonth() !== mo - 1 || y < 1900 || y > 2100) return null;
+  return `${y}-${pad(mo)}-${pad(d)}`;
+}

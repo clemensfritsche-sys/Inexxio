@@ -71,8 +71,9 @@ function maskDate(raw: string): string {
  * Geburtstag liegt Jahrzehnte zurück, und dorthin blättert niemand gern. Weitergegeben wird
  * nur ein gültiger Tag (oder leer); bis dahin sagt die Beschriftung «· ungültig».
  */
-export function KtDate({ id, label, value, onChange, onEnter }: {
+export function KtDate({ id, label, value, onChange, onEnter, missing }: {
   id: string; label: string; value: string; onChange: (iso: string) => void; onEnter?: () => void;
+  missing?: boolean;
 }) {
   const [text, setText] = useState(() => isoToText(value));
   // Ein neuer Wert von aussen (anderer Datensatz) ersetzt die Eingabe – der eigene nicht.
@@ -83,7 +84,7 @@ export function KtDate({ id, label, value, onChange, onEnter }: {
   const invalid = iso === null && text.length >= 8;
   return (
     <div className="kt-f">
-      <label htmlFor={id}>{label}{invalid && <em> · ungültig</em>}</label>
+      <label htmlFor={id}>{label}{invalid ? <em> · ungültig</em> : missing && !text && <em> · fehlt</em>}</label>
       <input
         id={id} className="kt-input" inputMode="numeric" autoComplete="bday" placeholder="TT.MM.JJJJ"
         value={text}

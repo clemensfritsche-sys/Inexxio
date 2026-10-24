@@ -8,7 +8,7 @@ import {userName, articleName, organizationName, orderName } from '@/lib/record-
 import { articleStatus, isStaff, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, OpenCount } from '@/types';
+import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, Todo } from '@/types';
 import type { StatusCfg } from '@/lib/status-tone';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
@@ -21,6 +21,7 @@ import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 import { ERP_NOTICE, MESSAGES_CHANGED } from '@/components/erp/communication';
+import { TODO_CHANGED } from '@/lib/todo';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
@@ -92,10 +93,10 @@ const SUGGEST_LIMIT = 8;
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
 
-function FeedItem({ row, sel, onClick, messages }: {
+function FeedItem({ row, sel, onClick, todo }: {
   row: Row; sel: boolean; onClick: () => void;
-  /** Offene Nachrichten im Verlauf – die Zahl am Symbol (Kommunikation). */
-  messages?: OpenCount | null;
+  /** Was zu tun ist – die Zahl am Symbol (`lib/todo`). */
+  todo?: Todo | null;
 }) {
   const title = rowTitle(row);
 
@@ -123,7 +124,7 @@ function FeedItem({ row, sel, onClick, messages }: {
         initials={row.type === 'user' ? userInitials(title ?? '', row.data.email) : undefined}
         deviation={row.type === 'order' && row.data.is_deviation}
         own={row.type === 'organization' && !!row.data.is_own}
-        messages={row.type === 'user' ? messages : null}
+        todo={todo}
       />
       <div className="min-w-0 flex-1">
         <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
@@ -166,7 +167,7 @@ export default function ErpPage() {
   // Nachrichten im Verlauf – die Zahl am Symbol, nachgeladen, sobald jemand schreibt.
   const [me, setMe] = useState<{ object_id: number; name: string } | null>(null);
   const [staff, setStaff] = useState(false);
-  const [openCounts, setOpenCounts] = useState<Map<number, OpenCount>>(new Map());
+  const [todos, setTodos] = useState<Map<number, Todo>>(new Map());
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
@@ -218,12 +219,16 @@ export default function ErpPage() {
 
   useEffect(() => {
     if (!staff) return;
-    const reload = () => api.openMessages()
-      .then((rows) => setOpenCounts(new Map(rows.map((r) => [r.object_id, r]))))
+    const reload = () => api.todo()
+      .then((rows) => setTodos(new Map(rows.map((r) => [r.object_id, r]))))
       .catch(() => {});
     reload();
     window.addEventListener(MESSAGES_CHANGED, reload);
-    return () => window.removeEventListener(MESSAGES_CHANGED, reload);
+    window.addEventListener(TODO_CHANGED, reload);
+    return () => {
+      window.removeEventListener(MESSAGES_CHANGED, reload);
+      window.removeEventListener(TODO_CHANGED, reload);
+    };
   }, [staff]);
 
   // ►►► Die Postfächer werden abgeglichen, solange das ERP offen ist (der Server drosselt
@@ -652,7 +657,7 @@ export default function ErpPage() {
                 row={r}
                 sel={!creating && !!sel && sel.type === r.type && sel.objectId === r.objectId}
                 onClick={() => handleSelect(r.type, r.objectId)}
-                messages={r.type === 'user' && r.objectId != null ? openCounts.get(r.objectId) : null}
+                todo={r.objectId != null ? todos.get(r.objectId) : null}
               />
             ))}
             {(visibleCount < filtered.length || hasMoreInstances) && (
@@ -733,7 +738,7 @@ export default function ErpPage() {
           )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')}
-              me={me} messages={activeRow.data.object_id != null ? openCounts.get(activeRow.data.object_id) : null} />
+              me={me} todo={activeRow.data.object_id != null ? todos.get(activeRow.data.object_id) : null} />
           )}
           {!creating && activeRow?.type === 'article' && (
             <ArticleDetail key={activeRow.key} record={activeRow.data}
@@ -750,6 +755,7 @@ export default function ErpPage() {
           )}
           {!creating && activeRow?.type === 'organization' && (
             <OrganizationDetail key={activeRow.key} record={activeRow.data} isAdmin={isAdmin}
+              todo={activeRow.data.object_id != null ? todos.get(activeRow.data.object_id) : null}
               onSaved={handleCompanySaved} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (

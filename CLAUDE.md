@@ -16,7 +16,7 @@
 Zentrales Unternehmenssystem für ein produzierendes Schweizer KMU (AG, Maschinenbau,
 ca. 10 Mitarbeitende, ca. 1'000 Artikel). Ziel ist Website + ERP + Buchhaltung + HR +
 Qualitätsmanagement; **gebaut sind heute das Fundament, der Prozess mit fünf Modulen, das
-CRM mit Kommunikation und die öffentliche Website** (siehe «Status»).
+CRM mit Kommunikation, die Zeiterfassung und die öffentliche Website** (siehe «Status»).
 
 ## Architektur
 
@@ -225,6 +225,28 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Kontaktformular der Website** → offene Nachricht im ERP (`services/inquiry`), siehe
   «Website».
 
+## Zeiterfassung
+
+Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
+- **Ein Abschnitt im Personendatensatz** (zwischen Kommunikation und Stammdaten, EINE Karte,
+  `components/erp/time/`), sichtbar nur im eigenen Datensatz und für den Admin
+  (`timekeeping.may_see`). Der Admin kann dasselbe wie die Person, dazu Verträge und Buchungen.
+- **Gespeichert wird nur Eingegebenes**: `time_contracts` (Vertrag ab Stichtag – Wochenstunden,
+  Arbeitstage, Ferienwochen, Gesellschaft; 0 h = Austritt), `time_entries` (Stempel, Absenz,
+  Buchung, Rücknahme – eine Änderung **ersetzt** per `replaces_id`), `holidays`,
+  `company_settings.time_rules`. Verträge und Einträge sind **append-only per DB-Trigger**.
+  Stundenkonto, Ferien, Hinweise und Aufgaben sind Ableitungen (`timekeeping.ledger`).
+- **Eine Schreibstelle** `timekeeping.record` (Person gesperrt, `entry_problem` ↔
+  `assert_entry`, ein neuer Eintrag); der Wisch `timekeeping.swipe` (Serverzeit,
+  Idempotenz-Schlüssel, 60-s-Sperre); die Vorschau `timekeeping.preview` prüft mit derselben
+  Regel, ohne zu schreiben. Alles in Minuten, Tage in Europe/Zurich.
+- Sieben Absenzarten mit je EINER Wirkung (Erfüllt · Ferien · Entfällt), Regeln Schweiz und
+  die Reglement-Sätze (ⓘ) in `domain/timekeeping`; geschickt mit der Ansicht (`vocab`).
+- **7-Tage-Regel**: ältere Tage ändert nur der Admin, im Kalender **blass**. Nur online.
+- **«Zu tun»** (`services/todo`, `GET /erp/todo`): EINE Zahl am Symbol jedes Datensatzes –
+  offene Nachrichten + Aufgaben der Zeiterfassung + fehlende Pflichtangaben
+  (`people.missing_fields`, Quelle auch für den Fortschritt im Konto) + fehlende Feiertage.
+
 ## Leitbild (VERBINDLICH)
 
 ### ERP ist Master – alles andere ist Spiegelbild
@@ -261,7 +283,8 @@ Oberfläche und Dienst garantiert dasselbe.
 - **`busy` sperrt Handlungen, nie Geometrie** – ein Auto-Save verschiebt nichts.
 - **Spiegel über die API-Grenze sind getestet** (`backend/tests/test_frontend_mirrors.py`):
   Instanz-Arten (`models/instance.KINDS`), Modul-/Erfassungssymbole, Modulschlüssel,
-  `CapturePoint`, Aussondern-Modi, Geld-Richtungen und -Stufen; der Status-Katalog ist
+  `CapturePoint`, Aussondern-Modi, Geld-Richtungen und -Stufen, Symbole der Zeiterfassung;
+  der Status-Katalog ist
   generiert statt gespiegelt. Jeder Aufruf in `lib/api.ts` trifft eine Backend-Route
   (`tests/test_api_routes.py`).
 
@@ -462,6 +485,9 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   (`services/flow.py`) und Modul-Protokoll.
 - **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Korrekturbelege,
   Bezahlkarte, Swiss QR-Rechnung.
+- **Zeiterfassung** im Personendatensatz: Wischknopf, Stundenkonto und Ferien in Stunden,
+  Monat und Tag mit «Erfassen», Verträge und Buchungen (Admin), Feiertage mit Vorschlag
+  (OpenHolidays) an der Gesellschaft, «zu tun» am Symbol.
 - **Unternehmen** (eigene Gesellschaften mit Gebietskarte und Postfach, ein Betreiber;
   fremde Firmen als Identität) und **CRM** mit Kommunikation und Gmail; Versandarten Mail ·
   Rundschreiben · Newsletter, Einwilligung als Nachweis.
@@ -477,6 +503,8 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
   `docs/attic.md`, nicht bei der alten Datei.
 - Newsletter-Versand über einen Dienst (heute Gmail, 20 je Abgleich), Rückläufer;
   Google Workspace, zentrale Gmail-Signatur, persönliche Postfächer – verschoben.
+- Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
+- Folge-Deploy: `user_profiles.employment_start_date`/`weekly_hours` droppen (`docs/backlog.md`).
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop und «Besitz»
   (`docs/konzept-beleg-shop-besitz.md`), offene-Posten-Liste je Partner, TOTP-MFA.
 

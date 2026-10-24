@@ -13,7 +13,8 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
-  Message, MessageIn, MessageChannel, Mailbox, OpenCount, NewsletterState,
+  Message, MessageIn, MessageChannel, Mailbox, Todo, NewsletterState,
+  TimeView, TimeEntryIn, EntryPreview, TimeContractIn, CompanyTimeView, HolidayOut, HolidayIn, TimeRulesIn,
   ArticleInput,
   ArticleNameSuggestion,
   Instance,
@@ -58,6 +59,9 @@ export class ApiError extends Error {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+/** Der gezeigte Monat der Zeiterfassung als Query («month=2026-10»), leer = der aktuelle. */
+const monthQuery = (month?: string) => (month ? `month=${month}` : '');
 
 /**
  * **«Ich habe Daten geändert» – an EINER Stelle gesagt** (Testnotizen #685/#688).
@@ -468,9 +472,53 @@ class ApiClient {
     return this.post('/api/v1/erp/messages', data);
   }
 
-  /** Je Person die offenen Nachrichten im Verlauf – das Zeichen am Symbol im Feed. */
-  openMessages(): Promise<OpenCount[]> {
-    return this.get('/api/v1/erp/messages/open');
+  /** Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf. */
+  todo(): Promise<Todo[]> {
+    return this.get('/api/v1/erp/todo');
+  }
+
+  // ─── Zeiterfassung ─────────────────────────────────────────────────────────
+  // Jede Schreib-Route antwortet mit der neuen Ansicht des gezeigten Monats.
+
+  timeView(person: number, month?: string): Promise<TimeView> {
+    return this.get(`/api/v1/erp/time/${person}?${monthQuery(month)}`);
+  }
+
+  timeSwipe(person: number, direction: 'in' | 'out', key: string, month?: string): Promise<TimeView> {
+    return this.post(`/api/v1/erp/time/${person}/swipe?${monthQuery(month)}`, { direction, key });
+  }
+
+  timeEntry(person: number, data: TimeEntryIn, month?: string): Promise<TimeView> {
+    return this.post(`/api/v1/erp/time/${person}/entries?${monthQuery(month)}`, data);
+  }
+
+  /** Was ein Eintrag bewirken würde – dieselbe Regel wie beim Speichern, ohne zu schreiben. */
+  timePreview(person: number, data: TimeEntryIn): Promise<EntryPreview> {
+    return this.post(`/api/v1/erp/time/${person}/entries/preview`, data);
+  }
+
+  timeContract(person: number, data: TimeContractIn, month?: string): Promise<TimeView> {
+    return this.post(`/api/v1/erp/time/${person}/contracts?${monthQuery(month)}`, data);
+  }
+
+  companyTime(company: number, year?: number): Promise<CompanyTimeView> {
+    return this.get(`/api/v1/erp/time/companies/${company}?${year ? `year=${year}` : ''}`);
+  }
+
+  holidayProposal(company: number, year: number): Promise<HolidayOut[]> {
+    return this.get(`/api/v1/erp/time/companies/${company}/proposal?year=${year}`);
+  }
+
+  addHolidays(company: number, holidays: HolidayIn[], year: number): Promise<CompanyTimeView> {
+    return this.post(`/api/v1/erp/time/companies/${company}/holidays?year=${year}`, { holidays });
+  }
+
+  removeHoliday(company: number, id: number, year: number): Promise<CompanyTimeView> {
+    return this.delete(`/api/v1/erp/time/companies/${company}/holidays/${id}?year=${year}`);
+  }
+
+  setTimeRules(company: number, data: TimeRulesIn, year: number): Promise<CompanyTimeView> {
+    return this.put(`/api/v1/erp/time/companies/${company}/rules?year=${year}`, data);
   }
 
   messageChannels(): Promise<MessageChannel[]> {

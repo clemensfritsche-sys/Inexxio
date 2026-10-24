@@ -1413,8 +1413,11 @@ def test_the_action_that_moves_the_document_looks_the_same_everywhere():
     Abschluss-Knopfes; (c) das Anbieten benutzt es nicht.
     """
     src = _beleg()
-    assert "function StageAction(" in src, "Es gibt kein gemeinsames Bauteil (a)."
-    body = _component(src, "StageAction")
+    # Das Bauteil steht in ``module-ui`` – geteilt mit der Zeiterfassung («Erfassen»).
+    shared = _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
+    assert "export function StageAction(" in shared and "function StageAction(" not in src, \
+        "Es gibt kein gemeinsames Bauteil (a)."
+    body = _component(shared, "StageAction")
     # **Die Höhe kommt aus `ACT_H`**, nicht als Zahl an dieser Stelle (#987/#990) –
     # abgeschriebene Masse sind genau die Form, in der zwei Knöpfe auseinanderlaufen.
     for mark in ("erp-actbtn-primary", "w-full", "ACT_H.stage", "fontSize: 14"):

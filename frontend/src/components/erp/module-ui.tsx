@@ -193,6 +193,26 @@ export function RowActions({ children }: { children: ReactNode }) {
  * **Die Zeile, in der Handlungs-Knöpfe stehen.** Sie bricht **nicht** um – sonst schwingt
  * ein ausklappender Knopf (siehe `ActionButton`).
  */
+/**
+ * **Die Handlung, die eine Sache eine Stufe weiterbringt** (#923): volle Breite, Fläche,
+ * 42 px, 14 px Schrift – der Beleg («Rechnung stellen»), die Zeiterfassung («Erfassen»).
+ */
+export function StageAction({ icon: Icon, label, disabled, tip, onClick }: {
+  icon: LucideIcon;
+  label: string;
+  disabled?: boolean;
+  tip?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
+      disabled={disabled} style={{ height: ACT_H.stage, fontSize: 14 }}
+      {...(tip ? { 'data-tip': tip } : {})} onClick={onClick}>
+      <Icon size={16} /> {label}
+    </button>
+  );
+}
+
 export function Actions({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return <div className="ix-actions" style={style}>{children}</div>;
 }

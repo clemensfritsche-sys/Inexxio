@@ -83,8 +83,9 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
-  // «· fehlt» steht, solange ein Pflichtfeld leer ist – dieselbe Pflicht wie die Pille im Kopf.
-  const empty = (k: keyof Form) => !form[k].trim();
+  // «· fehlt» steht, solange ein Pflichtfeld leer ist. **Was Pflicht ist, sagt der Server**
+  // (`people.required_fields`) – das Konto spiegelt es, es entscheidet nicht.
+  const empty = (k: keyof Form) => (profile.required_fields ?? []).includes(k) && !form[k].trim();
 
   return (
     <>
@@ -98,16 +99,8 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
           <KtField id="kt-phone" label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
             onEnter={saveNow} missing={empty('phone')} placeholder="+41 44 000 00 00" autoComplete="tel" />
           <KtDate id="kt-born" label="Geburtsdatum" value={form.date_of_birth}
-            onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} />
+            onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} missing={empty('date_of_birth')} />
         </div>
-        {isStaff && (
-          <div className="kt-grid2" style={{ marginTop: 8 }}>
-            <KtField id="kt-since" label="Eintrittsdatum · pflegt der Administrator" readOnly
-              value={profile.employment_start_date ? day(profile.employment_start_date) : '–'} />
-            <KtField id="kt-hours" label="Pensum" readOnly
-              value={profile.weekly_hours ? `${profile.weekly_hours} h / Woche` : '–'} />
-          </div>
-        )}
       </KtSection>
 
       {/* ►►► **Eine Adresse, optional eine abweichende Lieferadresse und weitere

@@ -137,6 +137,9 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 PENDING_DROP: set[str] = {
     # Migration 153: das Häkchen ist ein Nachweis geworden (``newsletter_consents``).
     "user_profiles.newsletter_opt_in",
+    # Migration 154: Eintritt und Pensum stehen im Vertrag der Zeiterfassung.
+    "user_profiles.employment_start_date",
+    "user_profiles.weekly_hours",
 }
 
 

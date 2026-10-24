@@ -14,12 +14,13 @@ from sqlalchemy.exc import IntegrityError
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .domain import statuses as st
+from .domain import timekeeping as timekeeping_domain
 from .models import UserProfile
 from .services import address_book, people, sites
 from .routers import (
     admin, articles, attachments, auth, communication, contact, erp, feedback, health,
     website,
-    instances, newsletter, orders, passkey, payments, places,
+    instances, newsletter, orders, passkey, payments, places, timekeeping,
 )
 
 settings = get_settings()
@@ -58,6 +59,8 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false"),
     ("company_settings", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
     ("company_settings", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
+    # Zeiterfassung (Migration 154): Kanton und Nachweis-Regeln je eigener Gesellschaft.
+    ("company_settings", "time_rules", "JSON"),
     ("company_settings", "object_id", "BIGINT"),
     # Artikel-Spezifikation (optionale Felder, nachträglich ergänzt).
     ("articles", "material", "VARCHAR(255)"),
@@ -321,6 +324,22 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE rfc_id IS NOT NULL",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_gmail ON messages (channel, gmail_id) "
     "WHERE gmail_id IS NOT NULL",
+    # ►► **Die Riegel der Zeiterfassung** (Migration 154): ein Eintrag wird höchstens einmal
+    #    ersetzt, derselbe Wisch schreibt nur einmal, ein Stichtag je Person, ein Feiertag
+    #    je Gesellschaft und Tag. Ohne sie fiele genau der gleichzeitige Fall durch.
+    "DO $$ BEGIN IF to_regclass('public.time_entries') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_time_entries_replaces ON time_entries (replaces_id) "
+    "WHERE replaces_id IS NOT NULL; "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_time_entries_key ON time_entries (idem_key) "
+    "WHERE idem_key IS NOT NULL; "
+    "CREATE INDEX IF NOT EXISTS ix_time_entries_person_day ON time_entries (person_object_id, day); "
+    "END IF; END $$;",
+    "DO $$ BEGIN IF to_regclass('public.time_contracts') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_time_contracts_person_from "
+    "ON time_contracts (person_object_id, valid_from); END IF; END $$;",
+    "DO $$ BEGIN IF to_regclass('public.holidays') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_holidays_company_day ON holidays (company_object_id, day) "
+    "WHERE is_active; END IF; END $$;",
 )
 
 #: Ein Auftrag heisst nach seiner Objektnummer, wo kein Name dasteht (Migration 107/108) –
@@ -529,6 +548,8 @@ def _ensure_columns() -> None:
             # ab dem nächsten Start auch unten – niemand muss daran denken, und die
             # Datenbank kann von der einen Liste nicht abweichen.
             conn.execute(text(st.terminal_guard_sql()))
+            # Dasselbe für die Zeiterfassung: Einträge und Verträge sind append-only.
+            conn.execute(text(timekeeping_domain.append_only_sql()))
             # ►► **Das Schema wird hier festgeschrieben, bevor Daten angefasst werden.**
             #
             # DDL ist in PostgreSQL transaktional: bis hierher hängt jede ergänzte Spalte
@@ -960,6 +981,7 @@ app.include_router(communication.callback_router)
 app.include_router(newsletter.router)
 app.include_router(newsletter.me_router)
 app.include_router(newsletter.erp_router)
+app.include_router(timekeeping.router)
 
 
 @app.get("/")
