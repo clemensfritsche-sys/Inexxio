@@ -1,35 +1,32 @@
 ---
-/** /ratgeber – Übersicht der Fachartikel (neueste zuerst). */
+/**
+ * /ratgeber – Übersicht der Fachartikel, eigenes Layout v4 (Oktober 2026): Kopf wie Porsche → die Artikel
+ * als Karten mit Zeichnung (neueste zuerst; die Zeichnung steht im Artikel, `illo`) → Anfrage («Ihre Frage
+ * ist nicht dabei?»). Texte: content/ratgeber-uebersicht.ts und src/content/ratgeber/*.md.
+ */
 import Base from '../layouts/Base.astro';
-import ArticleCard from '../components/ArticleCard.astro';
-import Rich from '../components/Rich.astro';
-import { articles, formatDay } from '../lib/ratgeber';
+import StageHero from '../components/StageHero.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { articles } from '../lib/ratgeber';
+import { pageTitle } from '../lib/titles';
 import { ratgeberUebersicht as r } from '../content/ratgeber-uebersicht';
-const list = articles();
+
+const titel = pageTitle('/ratgeber');
+const cards = articles().map((a) => ({ id: a.slug, illo: a.illo, alt: `Zeichnung zum Artikel «${a.seoTitle}»`, title: a.seoTitle, text: a.description, href: a.path }));
 ---
 <Base title={r.title} description={r.description} crumbs={[{ name: r.title, path: '/ratgeber' }]}>
-  <section class="section rg-head" data-hero>
-    <div class="wrap rg-head__inner">
-      <p class="label">Ratgeber</p>
-      <h1 class="rg-title">{r.h1}</h1>
-      <Rich as="p" class="lead" text={r.summary} />
-    </div>
-  </section>
-  <section class="section rg-list" aria-label="Artikel">
-    <div class="wrap">
-      <div class="cols-2 rg-grid">
-        {list.map((a) => (
-          <ArticleCard level={2} href={a.path} title={a.title} text={a.description} date={a.updated} dateLabel={formatDay(a.updated)} />
-        ))}
-      </div>
-    </div>
-  </section>
-</Base>
+  <StageHero
+    word="Ratgeber"
+    image={titel}
+    alt="Rotes Kranbuch mit Kugelschreiber und ein Kranhaken, dahinter ein Brückenkran als Zeichnung"
+    title={r.h1}
+    lead={r.summary}
+    primary={{ label: 'Frage stellen', href: '#anfrage' }}
+    secondary={{ label: 'Zu den Artikeln', href: '#artikel' }}
+  />
 
-<style>
-  .rg-head { padding-block: var(--s-6) var(--s-6); }
-  .rg-head__inner { display: grid; gap: var(--s-3); }
-  .rg-title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
-  .rg-list { padding-top: var(--s-5); }
-  .rg-grid { row-gap: var(--s-8); }
-</style>
+  <FieldCards id="artikel" title={r.listTitle} lead={r.listLead} items={cards} start={0} />
+
+  <ContactSection />
+</Base>

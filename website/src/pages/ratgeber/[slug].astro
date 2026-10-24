@@ -1,17 +1,21 @@
 ---
 /**
- * /ratgeber/[slug] – Fachartikel: Autor, Datum, «Kurz gesagt» am Anfang, Quellen am Ende,
- * Anfrage und verwandte Seiten. Text aus src/content/ratgeber/<slug>.md.
+ * /ratgeber/[slug] – Fachartikel, Layout v4 (Oktober 2026): Kopf mit Titel, Satz und Autor links, die
+ * Zeichnung des Artikels rechts auf grauer Fläche → «Kurz gesagt» (graue Karte) → Text in einer Lesespalte
+ * → Quellen → Weiterlesen (Karten mit Zeichnung, components/spezial/FieldCards) → Anfrage.
+ * Text aus src/content/ratgeber/<slug>.md.
  */
 import Base from '../../layouts/Base.astro';
 import ContactSection from '../../components/ContactSection.astro';
-import RelatedLinks from '../../components/RelatedLinks.astro';
+import FieldCards from '../../components/spezial/FieldCards.astro';
 import Sources from '../../components/Sources.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
-import { site } from '../../config/site.mjs';
+import { site, navigation } from '../../config/site.mjs';
 import { articles, withBody, formatDay } from '../../lib/ratgeber';
+import { illustration } from '../../lib/illustrations';
 import { article as articleNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
 
 export function getStaticPaths() {
   return articles().map((a) => ({ params: { slug: a.slug } }));
@@ -21,7 +25,17 @@ const { slug } = Astro.params;
 const a = await withBody(slug!);
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const o = site.people.owner;
-const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber/') ? ('ratgeber' as const) : ('leistung' as const) }));
+
+/** Zeichnung je Ziel: die Seiten aus der Navigation, die Artikel aus ihren Kopfangaben. */
+const illoOf = new Map<string, string>([
+  ...navigation.flatMap((g) => [[g.href, g.illo] as [string, string], ...g.children.map((c) => [c.href, c.illo] as [string, string])]),
+  ...articles().map((x) => [x.path, x.illo] as [string, string]),
+]);
+const related = a.related.map((r, i) => {
+  const illo = illoOf.get(r.href.split('#')[0]);
+  if (!illo) throw new Error(`Ratgeber «${slug}»: für «${r.href}» gibt es keine Zeichnung (Navigation oder Artikel).`);
+  return { id: `weiter-${i}`, illo, alt: `Zeichnung: ${plain(r.label)}`, title: plain(r.label), text: r.text ?? '', href: r.href };
+});
 ---
 <Base
   title={a.seoTitle}
@@ -30,19 +44,22 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
   article={{ published: a.published, updated: a.updated }}
   jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated })]}
 >
-  <article class="section art">
-    <div class="wrap">
-      <header class="art__head" data-hero>
-        <p class="label">Ratgeber · aktualisiert <time datetime={a.updated}>{formatDay(a.updated)}</time></p>
+  <article class="art">
+    <header class="wrap art__head" data-hero>
+      <div class="art__intro">
+        <p class="art__label"><a href="/ratgeber">Ratgeber</a> · aktualisiert <time datetime={a.updated}>{formatDay(a.updated)}</time></p>
         <h1 class="art__title">{a.title}</h1>
-        <Rich as="p" class="lead" text={a.description} />
+        <Rich as="p" class="art__lead" text={a.description} />
         <p class="art__by">
           Von <a class="link" href="/ueber-uns">{o.name}</a>, {o.role} · veröffentlicht <time datetime={a.published}>{formatDay(a.published)}</time>
         </p>
-      </header>
+      </div>
+      <figure class="art__art"><img src={illustration(a.illo, 'Ratgeber')} alt={`Zeichnung zum Artikel «${a.seoTitle}»`} width="1000" height="560" decoding="async" /></figure>
+    </header>
 
+    <div class="wrap art__col">
       <aside class="art__kurz" aria-labelledby="kurz-gesagt">
-        <h2 class="label art__kurztitle" id="kurz-gesagt">Kurz gesagt</h2>
+        <h2 class="art__kurztitle" id="kurz-gesagt">Kurz gesagt</h2>
         <ul class="checklist" role="list">
           {a.kurz.map((k) => <li><Icon name="check" size={20} /><Rich as="span" text={k} /></li>)}
         </ul>
@@ -56,23 +73,33 @@ const related = a.related.map((r) => ({ ...r, kind: r.href.startsWith('/ratgeber
     </div>
   </article>
 
-  <ContactSection />
+  <FieldCards id="weiterlesen" title="Weiterlesen" lead="Passende Artikel und Angebote." items={related} start={0} />
 
-  <!-- div statt section: die Überschrift gehört der <nav> darin, nicht dem Rahmen -->
-  <div class="section section--tight">
-    <div class="wrap"><RelatedLinks items={related} /></div>
-  </div>
+  <ContactSection />
 </Base>
 
 <style>
-  .art { padding-top: var(--s-6); }
-  /* Eine Lesespalte, mittig platziert – der Text bleibt linksbündig (#1183). */
-  .art .wrap > * { max-width: 760px; margin-inline: auto; }
-  .art__head { display: grid; gap: var(--s-4); }
-  .art__title { font-size: clamp(2rem, 1.6rem + 1.9vw, 3.25rem); line-height: 1.1; }
+  .art { padding-top: 24px; }
+  .art__head { display: grid; gap: 24px; }
+  .art__intro { display: grid; gap: 16px; align-content: center; }
+  .art__label { font-size: 0.875rem; font-weight: 600; color: var(--ink-3); }
+  .art__label a { color: inherit; }
+  .art__title { font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 1.5rem + 2.2vw, 3.5rem); line-height: 1.06; letter-spacing: -0.03em; color: var(--ink); }
+  .art__intro :global(.art__lead) { font-size: 1.125rem; line-height: 1.5; color: var(--ink-2); max-width: 34em; }
   .art__by { font-size: 0.9375rem; color: var(--ink-3); }
-  .art__kurz { --overline: var(--red-hover); margin-top: var(--s-7); padding: var(--s-5) var(--s-6); background: var(--white); border-radius: var(--r-lg); display: grid; gap: var(--s-4); }
-  .art__kurztitle { color: var(--ink); font-weight: 600; }
-  .art__body { margin-top: var(--s-7); }
-  .art__foot { margin-top: var(--s-8); padding-top: var(--s-5); border-top: 1px solid var(--line-2); }
+  .art__art { margin: 0; display: grid; place-items: center; padding: 24px; border-radius: var(--r-xl); background: var(--gray-100); }
+  .art__art img { display: block; width: 100%; max-width: 520px; height: auto; filter: drop-shadow(0 22px 22px rgba(10, 10, 11, 0.1)); }
+  /* Eine Lesespalte, mittig platziert – der Text bleibt linksbündig (#1183). */
+  .art__col > * { max-width: 760px; margin-inline: auto; }
+  .art__kurz { margin-top: 48px; padding: 24px; border-radius: var(--r-xl); background: var(--gray-100); display: grid; gap: 16px; }
+  .art__kurztitle { font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; letter-spacing: -0.02em; }
+  .art__body { margin-top: 48px; }
+  .art__foot { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line-2); }
+  @media (min-width: 960px) {
+    .art { padding-top: 48px; }
+    .art__head { grid-template-columns: 7fr 5fr; gap: 64px; align-items: stretch; }
+    .art__art { padding: 40px; }
+    .art__kurz { margin-top: 80px; padding: 40px; }
+    .art__body { margin-top: 64px; }
+  }
 </style>

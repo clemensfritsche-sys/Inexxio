@@ -4,6 +4,7 @@ seoTitle: 'Verschleissteile Fahrmischer'
 description: 'Rinne, Schurre und Mischspiralen verschleissen mit jeder Fuhre. Woran Sie erkennen, wann ein Teil ersetzt werden muss – und wann der Zeitpunkt passt.'
 published: 2026-10-03
 updated: 2026-10-04
+illo: 'menu/verschleissteile'
 kurz:
   - 'Rinne, Schurre, Trichter und Mischspiralen verschleissen mit jeder Fuhre – wie schnell, hängt vom Beton, von der Menge und von der Reinigung ab.'
   - 'Ersetzen Sie ein Teil, bevor das Blech durch ist: Ein Loch in der Rinne oder abgenutzte Spiralen kosten im Betrieb mehr als der Tausch.'

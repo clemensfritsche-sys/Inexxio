@@ -23,6 +23,8 @@ export interface Article {
   published: string;
   updated: string;
   kurz: string[];
+  /** Zeichnung (Schlüssel in src/assets/illustrations) – auf der Übersicht und im Kopf des Artikels. */
+  illo: string;
   sources: Source[];
   related: LinkItem[];
   html: string;
@@ -87,6 +89,7 @@ function load(): Article[] {
       published,
       updated,
       kurz: list(file, fm, 'kurz', isText),
+      illo: text(file, fm, 'illo'),
       sources: list(file, fm, 'sources', isSource),
       related: list(file, fm, 'related', isRelated),
       html: '',
