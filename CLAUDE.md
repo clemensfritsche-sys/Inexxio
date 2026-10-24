@@ -342,7 +342,7 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
 - **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
-  Startseite aus `components/home/*`. Die drei Bereiche, ihre Unterseiten und «Über uns» haben je ein
+  Startseite aus `components/home/*`. Die drei Bereiche, ihre Unterseiten, «Über uns», Service, Karriere und Ratgeber haben je ein
   eigenes Layout aus denselben Bausteinen (es gibt keine Bereichs-/Unterseiten-Vorlage mehr):
   `StageHero` (Kopf wie Porsche: grosses Wort, freigestelltes Bild mit weich auslaufenden Rändern) · `spezial/FieldCards`
   (Karten: Zeichnung, Titel, Satz, Pfeil) · `spezial/SolutionPath` (jeder Ablauf als Weg) ·
@@ -354,8 +354,10 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   Zeichnungen per Schlüssel über `lib/illustrations.ts`. Dazu `FaqStage` (höchstens 5 Fragen je
   Bereichsseite; Glas-Akkordeon über einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht
   das Bild direkt über der offenen Frage) und `ContactSection` (Karte als Grund, Anfrage in zwei
-  Schritten, ohne Springen; auf Wunsch eine Foto-Hilfe `hint` unter dem Formular). `Hero` (Bildkarte)
-  trägt noch die Karriere.
+  Schritten, ohne Springen; auf Wunsch eine Foto-Hilfe `hint` unter dem Formular) und `CallPanel`
+  (dunkle Karte für den direkten Weg: Notfall auf /service, Bewerbung auf /karriere). Auch Service,
+  Karriere und Ratgeber (Übersicht und Artikel) haben ein eigenes v4-Layout; jeder Artikel nennt seine
+  Zeichnung in den Kopfangaben (`illo`).
   Freigestellte Bilder (WebP mit Transparenz) liegen in `src/assets/illustrations/`, nicht in
   der Fotoliste.
   Glas nur unter `html[data-site]` – der exportierte Kopf bleibt im ERP deckend.
