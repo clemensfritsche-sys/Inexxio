@@ -146,3 +146,9 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   von uns»). Jeder Ablauf heisst «So läuft es ab.» (Karriere: «So bewerben Sie sich.»). Auf einer
   Seite stehen nie zwei fast gleiche Überschriften. Rechtstexte und Ratgeber-Artikel behalten ihre
   Kapitel.
+- **132 · Bühne der Startseite mit KI-Bildern** (Entscheid 24.10.2026): «Ihre Aufgabe. Unsere Lösung.»
+  zeigt statt der Symbolbilder drei KI-Bilder nach der Bildregel der Legende – die Serie als graue
+  Zeichnung, rot und echt, was wir dazubauen: Säulenschwenkkran mit Rohrgreifer, Lastwagen mit
+  Kippbrücke, Minibagger mit Anbau-Rüttelplatte (`src/assets/illustrations/spezial-*-bild.jpg`). Auf
+  Weiss statt freigestellt: die Bühne steht auf Weiss, und so bleibt die Startseite im Budget.
+  Die Karten der Speziallösungen tragen weiter die Zeichnungen.
