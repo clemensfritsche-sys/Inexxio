@@ -19,7 +19,7 @@ export const karriere = {
   apply,
   /** Warum hier arbeiten (Anker #warum) – components/FactGrid, vier Punkte mit Symbol. */
   why: {
-    title: 'Warum hier arbeiten',
+    title: 'Warum hier arbeiten.',
     items: [
       { icon: 'route' as IconName, title: 'Abwechslung', text: 'Heute ein Brückenkran in einer Produktionshalle, morgen ein Heukran auf dem Hof, danach ein Fahrmischer bei uns in {{address.city}}.' },
       { icon: 'wrench' as IconName, title: 'Technik, die man versteht', text: 'Mechanik, Hydraulik, Elektrik, Steuerung und Stahlbau – an Maschinen, die man versteht, wenn man sie einmal repariert hat.' },
@@ -29,7 +29,7 @@ export const karriere = {
   },
   /** Wer zu uns passt – drei Karten (components/spezial/FieldCards). Keine ausgeschriebenen Stellen. */
   profiles: {
-    title: 'Wer zu uns passt',
+    title: 'Wer zu uns passt.',
     lead: 'Auch ohne ausgeschriebene Stelle – gute Leute sind bei uns jederzeit willkommen.',
     items: [
       { id: 'mechanik', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit roter Trommel', title: 'Mechanik', text: 'Mechanikerinnen und Mechaniker für Hydraulik, Mechanik und Stahlbau – an Fahrmischern, Kranen und Spezialmaschinen.' },
@@ -39,7 +39,7 @@ export const karriere = {
   },
   /** So bewerben Sie sich – drei Stationen (components/spezial/SolutionPath). */
   path: {
-    title: 'So bewerben Sie sich',
+    title: 'So bewerben Sie sich.',
     start: 'Ihre Bewerbung',
     end: 'Willkommen im Team',
     items: [

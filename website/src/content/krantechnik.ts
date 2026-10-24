@@ -32,7 +32,7 @@ const facts = (items: Station[]): Step[] => items.map(({ title, text }) => ({ ti
 /* ------------------------------------------------------------------ Bereich */
 /** Der Weg auf der Bereichsseite – zugleich der Ablauf in vier Schritten (`steps`). */
 export const cranePath = {
-  title: 'So läuft es ab',
+  title: 'So läuft es ab.',
   start: 'Ihr Anliegen',
   end: 'Ihr Kran läuft',
   items: [
@@ -51,7 +51,7 @@ export const krantechnik: AreaPage = {
     'Krane nach Mass – auch um Ecken, über Steigungen und Versätze. Heukrane per Funk, Kranservice bis INEXXIO 365. Die erste Inspektion ist gratis.',
   hero: {
     eyebrow: 'Krantechnik',
-    h1: 'Krane, die zu Ihrem Gebäude ==passen==',
+    h1: 'Krane, die zu Ihrem Gebäude ==passen==.',
     lead:
       'Wir bauen Krane nach Mass – auch um Ecken, über Steigungen und Versätze. Unsere Heukrane steuern Sie per Funk, ohne Kabine. Und jeden Kran halten wir einsatzbereit.',
     photo: 'heukran-einsatz',
@@ -74,7 +74,7 @@ export const krantechnik: AreaPage = {
 
 /** Die drei Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit der Zeichnung aus dem Menü. */
 export const craneOffers = {
-  title: 'Alles rund um Ihren Kran',
+  title: 'Alles rund um Ihren Kran.',
   lead: 'Bauen, betreuen, modernisieren – aus einer Hand.',
   items: [
     { id: 'nach-mass', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: KNM, text: 'Kurve, Steigung, Versatz? Wir bauen den Kran um Ihr Gebäude herum.', href: '/krantechnik/krane-nach-mass' },
@@ -141,7 +141,7 @@ export const kraneNachMass: SubPage = {
  * `kran-*`) fehlen, steht die Zeichnung (src/assets/illustrations/kran-*.svg). Die letzte Karte fragt.
  */
 export const craneSituations = {
-  title: 'Wo ein Katalogkran nicht passt',
+  title: 'Wo ein Katalogkran nicht passt.',
   lead: 'Vier Situationen, die wir oft sehen – und wie der Kran trotzdem passt.',
   items: [
     { photo: 'kran-kurve', illo: 'kran-kurve', label: 'Kurve', title: 'Um die Ecke', alt: 'Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke', text: 'Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.' },
@@ -154,7 +154,7 @@ export const craneSituations = {
 
 /** Für Scheune und Halle – zwei gleich starke Bildkarten (components/PhotoCard.astro). */
 export const craneWorlds = {
-  title: 'Für Scheune und Halle',
+  title: 'Für Scheune und Halle.',
   items: [
     {
       photo: 'heukran-einsatz', label: 'Landwirtschaft', title: 'Für die Scheune',
@@ -171,7 +171,7 @@ export const craneWorlds = {
 
 /** Ablauf (Anker #ablauf) – fünf Stationen; sie sagen zugleich, was zu jedem Kran gehört. */
 export const nachMassPath = {
-  title: "So geht's",
+  title: 'So läuft es ab.',
   start: 'Ihr Gebäude',
   end: 'Ihr Kran läuft',
   items: [
@@ -204,7 +204,7 @@ export const craneReferences = {
 /** Häfen, Clubs und Werften (Anker #hafen) – Text und das freigestellte Hafen-Bild. */
 export const harbour = {
   label: 'Häfen, Clubs und Werften',
-  title: 'Boots- und Mastkrane, Bootslifte',
+  title: 'Boots- und Mastkrane, Bootslifte.',
   text: 'Wir bauen sie nach Mass für Ihren Hafen – und halten bestehende Anlagen in Schuss, auch von anderen Herstellern.',
   alt: 'Roter Bootslift hält ein Motorboot über dem Wasser, daneben ein roter Mastkran auf dem Steg; Ufer und Steg als Zeichnung',
   items: [
@@ -285,7 +285,7 @@ export const kranservice: SubPage = {
  * dazukommt. Kein Betrag, keine Kranklasse: die verbindliche Offerte erhalten Sie vorab.
  */
 export const serviceTiers = {
-  title: 'Drei Stufen – Sie wählen, wie viel wir übernehmen',
+  title: 'Drei Stufen – Sie wählen, wie viel wir übernehmen.',
   lead: 'Jede Stufe enthält die vorherige.',
   tiers: [
     { name: 'Auf Abruf', claim: 'Einzeln bestellt, wenn Sie es brauchen.', items: ['Service, Wartung, Prüfung oder Reparatur', 'Die erste Inspektion ist gratis'] },
@@ -296,7 +296,7 @@ export const serviceTiers = {
 
 /** Prüfen, warten, modernisieren (Kranservice) – zwei Bildkarten (PhotoCard), Anker #pruefen und #modernisierung. */
 export const serviceWork = {
-  title: 'Prüfen, warten, modernisieren',
+  title: 'Prüfen, warten, modernisieren.',
   items: [
     {
       id: 'pruefen', photo: 'pruefung-hallenkran', label: 'Prüfen und warten', title: 'Der ganze Kran, einmal durch',
@@ -313,7 +313,7 @@ export const serviceWork = {
 
 /** Die Prüfpflicht – drei Sätze an einer Haarlinie (FactGrid), Einzelheiten im Ratgeber. */
 export const inspectionDuty = {
-  title: 'Was die Prüfpflicht verlangt',
+  title: 'Was die Prüfpflicht verlangt.',
   lead: 'Nach Kranverordnung und EKAS-Richtlinie 6511. Mehr im Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz).',
   items: [
     { icon: 'clipboard-check' as IconName, title: 'Jeder Kran', text: 'Regelmässige Überprüfung nach Herstellervorgabe durch Kranfachleute. Das übernehmen wir.' },
@@ -332,12 +332,12 @@ export const heukrananlagen: SubPage = {
   area: 'krantechnik',
   path: '/krantechnik/heukrananlagen',
   crumb: 'Heukrananlagen',
-  title: 'Heukrananlagen: Service',
+  title: 'Heukrananlagen planen, bauen, betreuen',
   description:
     'Heukrananlagen ohne Kabine, bedient per Funk: betreuen, umbauen, neu planen. Saison-Check, Reparatur, Ersatzteile – die erste Inspektion ist gratis.',
   hero: {
     eyebrow: 'Krantechnik · Heukrananlagen',
-    h1: 'Heukrane, gebaut für ==Ihre Scheune==',
+    h1: 'Heukrane, gebaut für ==Ihre Scheune==.',
     lead:
       'Seit {{history.cranesSince}} bauen wir Heukrane nach Mass für Ihre Scheune – ohne Kabine, bedient per Funk. Bestehende Anlagen betreuen wir weiter; die erste Inspektion ist gratis.',
     photo: 'heukran-einsatz',
@@ -414,7 +414,7 @@ export const heukranModules = {
     missing: { title: 'Welche passt zu Ihrer Scheune?', text: 'Das klären wir bei der Besichtigung gemeinsam – mit Blick auf Gebäude, Heustock und Ihre Arbeit.', cta: { label: 'Neuanlage anfragen', href: '#anfrage' } },
   },
   steps: {
-    title: 'Ablauf einer Neuanlage',
+    title: 'So läuft es ab.',
     start: 'Ihre Scheune',
     end: 'Die Anlage läuft',
     items: [
@@ -432,7 +432,7 @@ export const heukranModules = {
   /** Saison-Check (Anker #saison-check, Ziel der Saison-Aktion) – der Wandkalender (components/SeasonCalendar.astro). */
   season: {
     id: 'saison-check',
-    title: 'Saison-Check in den ruhigen Wochen',
+    title: 'Saison-Check in den ruhigen Wochen.',
     text: 'Ihr Heukran arbeitet das ganze Jahr: Im Sommer lagern Sie ein, im Winter holen Sie heraus. Ruhig wird es zweimal – im Frühling vor dem ersten Schnitt und im Spätherbst, wenn das Heu drin ist und das Vieh noch auf der Weide. Dann prüfen wir Kranbahn, Fahrwerke, Seil, Greifer, Hydraulik und Elektrik – und ersetzen, was nicht mehr hält.',
     kinds: [
       { icon: 'wrench' as IconName, word: 'Check', legend: 'Frühling und Spätherbst: Saison-Check', dark: true },
