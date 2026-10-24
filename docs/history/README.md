@@ -39,6 +39,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-24-service-karriere-ratgeber.md` | Service, Karriere und Ratgeber (Übersicht und Artikel) im Layout v4 |
 | `2026-10-24-titel-ohne-ehemals.md` | Seitentitel und Beschreibungen ohne «ehemals HS Steiner», sieben Beschreibungen neu |
 | `2026-10-24-ueberschriften.md` | Eine Regel für Überschriften (Nutzen-Satz, Punkt, «So läuft es ab.») auf allen Seiten |
+| `2026-10-24-buehne-bilder.md` | Bühne «Ihre Aufgabe. Unsere Lösung.» mit drei KI-Bildern |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.
