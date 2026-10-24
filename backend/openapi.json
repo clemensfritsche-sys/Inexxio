@@ -10463,6 +10463,11 @@
                 "type": "null"
               }
             ]
+          },
+          "missing_out": {
+            "type": "boolean",
+            "title": "Missing Out",
+            "default": false
           }
         },
         "type": "object",

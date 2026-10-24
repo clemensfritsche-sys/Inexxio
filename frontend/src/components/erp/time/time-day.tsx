@@ -234,15 +234,18 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
       {(d.stamps.length > 0 || d.open || d.absence) && (
         <div style={{ display: 'grid', gap: 10 }}>
           {d.stamps.map((s) => (
-            <StampRow key={s.id} s={s} editable={editable}
-              onSave={(time) => onEntry({ kind: s.kind, replaces_id: s.id, time })}
-              onVoid={() => { onEntry({ kind: 'void', replaces_id: s.id }); }} />
+            <div key={s.id} style={{ display: 'grid', gap: 10 }}>
+              <StampRow s={s} editable={editable}
+                onSave={(time) => onEntry({ kind: s.kind, replaces_id: s.id, time })}
+                onVoid={() => { onEntry({ kind: 'void', replaces_id: s.id }); }} />
+              {/* «Gehen» fehlt – direkt unter dem Kommen, zu dem es gehört. */}
+              {s.missing_out && (
+                <LedgerRow ident={<><Dot color="var(--danger)" />Gehen</>}
+                  actions={editable ? <IconButton icon={Plus} label="Erfassen" onClick={() => setCap(captureFor(d.day, 'out'))} /> : undefined}
+                  date={<Pill tone="pending" label="fehlt" />} amount={<span style={{ color: 'var(--fg-4)' }}>–</span>} />
+              )}
+            </div>
           ))}
-          {d.open && (
-            <LedgerRow ident={<><Dot color="var(--danger)" />Gehen</>}
-              actions={editable ? <IconButton icon={Plus} label="Erfassen" onClick={() => setCap(captureFor(d.day, 'out'))} /> : undefined}
-              date={<Pill tone="pending" label="fehlt" />} amount={<span style={{ color: 'var(--fg-4)' }}>–</span>} />
-          )}
           {d.absence && <AbsenceRow a={d.absence} view={view}
             onVoid={() => { onEntry({ kind: 'void', replaces_id: d.absence!.id }); }}
             onProof={(f) => onProof(d.absence!.id, f)} />}

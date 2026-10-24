@@ -79,6 +79,9 @@ class StampOut(BaseModel):
     at: datetime
     time: str
     mark: Optional[Mark] = None
+    #: Ein Kommen, zu dem «Gehen» fehlt (nicht das laufende) – die Zeile «Gehen · fehlt»
+    #: steht direkt darunter.
+    missing_out: bool = False
 
 
 class AbsenceOut(BaseModel):

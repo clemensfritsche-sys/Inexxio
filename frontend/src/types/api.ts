@@ -4277,6 +4277,11 @@ export interface components {
             /** Time */
             time: string;
             mark?: components["schemas"]["Mark"] | null;
+            /**
+             * Missing Out
+             * @default false
+             */
+            missing_out: boolean;
         };
         /**
          * StepConfirm

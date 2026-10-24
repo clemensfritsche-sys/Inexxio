@@ -23,9 +23,11 @@ export function TimeSwipe({ present, since, lastOut, ist, soll, busy, onSwipe }:
   const knob = useRef<HTMLButtonElement>(null);
   const start = useRef<{ x: number; room: number } | null>(null);
   const [dx, setDx] = useState(0);
-  const pct = soll > 0 ? Math.min(100, Math.round((ist / soll) * 100)) : ist > 0 ? 100 : 0;
+  // Ohne Soll (kein Arbeitstag, Feiertag) gibt es keinen Fortschritt – die Bahn bleibt grau.
+  const pct = soll > 0 ? Math.min(100, Math.round((ist / soll) * 100)) : 0;
+  const figure = soll > 0 ? `${hm(ist)} / ${hm(soll)} h` : `${hm(ist)} h · heute kein Soll`;
   const tip = `${present ? `Anwesend seit ${since}` : lastOut ? `Gegangen um ${lastOut}` : 'Noch nicht gekommen'}`
-    + ` · heute ${hm(ist)} h von ${hm(soll)} h`;
+    + (soll > 0 ? ` · heute ${hm(ist)} h von ${hm(soll)} h` : ` · heute ${hm(ist)} h – kein Arbeitstag, kein Soll`);
   const dir = present ? -1 : 1;
 
   const down = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -58,7 +60,7 @@ export function TimeSwipe({ present, since, lastOut, ist, soll, busy, onSwipe }:
       <span aria-hidden className="tabular-nums" style={{ position: 'absolute', inset: 0, display: 'flex',
         alignItems: 'center', justifyContent: 'center', font: '600 13px var(--font-body)',
         color: 'var(--fg-3)', pointerEvents: 'none',
-        ...(present ? { paddingRight: 120 } : { paddingLeft: 120 }) }}>{hm(ist)} / {hm(soll)} h</span>
+        ...(present ? { paddingRight: 120 } : { paddingLeft: 120 }) }}>{figure}</span>
       <button ref={knob} type="button" disabled={busy}
         aria-label={present ? 'Gehen – nach links wischen' : 'Kommen – nach rechts wischen'}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}

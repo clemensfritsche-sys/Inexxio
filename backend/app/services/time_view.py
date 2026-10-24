@@ -72,8 +72,9 @@ def _absence(book: t.Book, actor: UserProfile, a: TimeEntry, d: date, today: dat
         replaces=replaces, can_void=not t.locked(actor, a.day, today))
 
 
-def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date) -> DayOut:
+def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date, now) -> DayOut:
     d = day.d
+    missing = {b.start.id for b in day.blocks if b.end is None and not t.is_running(b, now)}
     stamps = sorted((s for b in day.blocks for s in (b.start, b.end) if s is not None),
                     key=lambda s: s.at)
     return DayOut(
@@ -82,8 +83,8 @@ def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date) -> DayOut:
         today=d == today, future=d > today,
         locked=t.locked(actor, d, today) and t.contract_on(book, d) is not None,
         open=day.open, hints=day.hints,
-        stamps=[StampOut(id=s.id, kind=s.kind, at=s.at, time=t.clock(s.at), mark=_mark(book, s))
-                for s in stamps],
+        stamps=[StampOut(id=s.id, kind=s.kind, at=s.at, time=t.clock(s.at), mark=_mark(book, s),
+                         missing_out=s.id in missing) for s in stamps],
         absence=_absence(book, actor, day.absence, d, today) if day.absence else None)
 
 
@@ -135,7 +136,7 @@ def view(db: Session, actor: UserProfile, person: UserProfile, month: Optional[s
     month_days = []
     d = first
     while d <= last:
-        month_days.append(_day(book, actor, led.days.get(d) or t.Day(d), today))
+        month_days.append(_day(book, actor, led.days.get(d) or t.Day(d), today, now))
         d += timedelta(days=1)
     opened = [x for x in sorted(led.days) if led.days[x].open and today - timedelta(14) <= x < today]
     return TimeView(

@@ -74,8 +74,9 @@ DAY_MAX_U18 = 9 * 60          # ArG Art. 31
 NIGHT_FROM, NIGHT_TO = 23 * 60, 6 * 60   # ArG Art. 10/16: Nacht 23–06 Uhr
 #: Mindestpausen (ArG Art. 15): ab so viel Arbeit → so viel Pause.
 PAUSES: tuple[tuple[int, int], ...] = ((9 * 60, 60), (7 * 60, 30), (330, 15))
-#: Ein «Kommen» läuft höchstens so lange (ArG Art. 10 Abs. 3: die Tagesarbeit liegt in
-#: 14 Stunden). Danach fehlt «Gehen», und der nächste Wisch ist wieder «Kommen».
+#: Ein «Kommen» läuft am selben Tag, bis «Gehen» kommt; über Mitternacht höchstens so lange
+#: (ArG Art. 10 Abs. 3: die Tagesarbeit liegt in 14 Stunden – Nachtschicht). Danach fehlt
+#: «Gehen», und der nächste Wisch ist wieder «Kommen» (``services/timekeeping.reaches``).
 RUNNING_MAX = 14 * 60
 #: Eigene Einträge lassen sich so viele Tage zurück ändern; ältere ändert der Admin.
 CORRECTION_DAYS = 7

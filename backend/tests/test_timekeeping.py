@@ -417,3 +417,46 @@ def test_preview_says_what_an_absence_does_before_it_is_saved(world):
     assert p["vacation_after"] == before - 7 * 504
     p = t.preview(db, lena, lena, EntryIn(kind="in", day=TODAY, time="18:00"))
     assert p["problem"] == "Liegt in der Zukunft – jetzt ist es 12:33."
+
+
+def test_editing_a_running_in_back_never_allows_a_second_in(world, clock):
+    """►►► Gemeldet 24.10.: Kommen gewischt, die Zeit von Hand weit zurückgesetzt – der Knopf
+    sprang auf «Kommen», und ein zweites Kommen ohne Gehen liess sich wischen. ◄◄◄
+
+    Soll: ein Kommen von HEUTE läuft, bis «Gehen» kommt – egal, wie früh es liegt. Der
+    Knopf zeigt «Gehen», ein zweites Kommen desselben Tages weist der Server ab."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    clock["now"] = datetime(2026, 10, 23, 21, 45, tzinfo=tk.ZONE)
+    t.swipe(db, lena, lena, "in", "key-bug-0001")
+    first = next(r for r in t.load(db, lena).live if r.kind == "in")
+    t.record(db, lena, lena, EntryIn(kind="in", replaces_id=first.id, time="06:00"))
+    clock["now"] = datetime(2026, 10, 23, 21, 50, tzinfo=tk.ZONE)
+    b = t.load(db, lena)
+    assert t.running(b, t.now_utc()) is not None          # anwesend seit 06:00
+    assert _view(db, lena, lena).present_since == "06:00"
+    t.swipe(db, lena, lena, "in", "key-bug-0002")          # veralteter Knopf: schreibt nichts
+    assert [r.kind for r in t.load(db, lena).live if r.kind in tk.STAMPS] == ["in"]
+    with pytest.raises(HTTPException) as e:                # auch nicht von Hand
+        _stamp(db, lena, lena, date(2026, 10, 23), "21:00")
+    assert "fehlt «Gehen»" in e.value.detail
+    t.swipe(db, lena, lena, "out", "key-bug-0003")
+    assert _days(_view(db, lena, lena))[date(2026, 10, 23)].ist == 15 * 60 + 50
+
+
+def test_an_old_broken_day_does_not_block_new_stamps(world):
+    """Altdaten mit zwei Kommen an einem Tag (vor der Korrektur der Regel entstanden) sperren
+    nicht jede weitere Buchung – geprüft wird das Umfeld des geänderten Tages. Gegenprobe:
+    am kaputten Tag selbst sagt der Server, was fehlt."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    for kind, hhmm in (("in", "06:55"), ("in", "21:42"), ("out", "21:45")):  # wie damals
+        db.add(TimeEntry(person_object_id=lena.object_id, kind=kind, day=date(2026, 10, 19),
+                         at=t.instant(date(2026, 10, 19), t._minute(hhmm)), source="manual"))
+    db.flush()
+    _day(db, lena, lena, date(2026, 10, 22), [("07:00", "16:00")])
+    with pytest.raises(HTTPException) as e:
+        _stamp(db, lena, lena, date(2026, 10, 19), "23:00")
+    assert "fehlt «Gehen»" in e.value.detail
+    _stamp(db, lena, lena, date(2026, 10, 19), "12:00", "out")   # der Weg, ihn zu heilen
+    assert [k for k, _, _ in t.tasks(t.load(db, lena), t.now_utc())] == []

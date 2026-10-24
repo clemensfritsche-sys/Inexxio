@@ -140,17 +140,36 @@ class Block:
         return self.start.day
 
 
+def reaches(start: TimeEntry, at: datetime) -> bool:
+    """►►► **Gehört der Zeitpunkt ``at`` noch zu diesem Kommen?** – DIE eine Regel. ◄◄◄
+
+    Ja, solange es **derselbe Tag** ist: ein Kommen von heute läuft, bis «Gehen» kommt – wie
+    früh es auch liegt (auch wenn es von Hand zurückgesetzt wurde). Über Mitternacht läuft es
+    höchstens ``RUNNING_MAX`` (Nachtschicht, ArG Art. 10); danach fehlt «Gehen», der Tag ist
+    offen, und der nächste Wisch ist wieder «Kommen».
+
+    Gelesen von ``pair`` (Blöcke), ``sequence_problem`` (Prüfung) und ``running`` (Knopf) –
+    so können Rechnung, Prüfung und Knopf nie verschieden antworten. Die frühere Fassung
+    fragte nur die Uhr (14 h): ein weit zurückgesetztes Kommen galt plötzlich als vergessen,
+    der Knopf sprang auf «Kommen», und ein zweites Kommen ohne Gehen war möglich."""
+    return local(at).date() == start.day or at - start.at < timedelta(minutes=tk.RUNNING_MAX)
+
+
+def _ordered(stamps: list[TimeEntry]) -> list[TimeEntry]:
+    return sorted(stamps, key=lambda x: (x.at, x.id or 0))
+
+
 def pair(stamps: list[TimeEntry]) -> list[Block]:
     """Kommen bis zum nächsten Gehen ist ein Block – er gehört zum Tag des Kommens (auch
-    über Mitternacht). Ein Kommen ohne Gehen innert ``RUNNING_MAX`` bleibt offen."""
+    über Mitternacht, ``reaches``). Ein Kommen ohne passendes Gehen bleibt offen."""
     blocks: list[Block] = []
     cur: Optional[TimeEntry] = None
-    for s in sorted(stamps, key=lambda x: (x.at, x.id or 0)):
+    for s in _ordered(stamps):
         if s.kind == "in":
             if cur is not None:
                 blocks.append(Block(cur, None))
             cur = s
-        elif cur is not None and (s.at - cur.at) <= timedelta(minutes=tk.RUNNING_MAX):
+        elif cur is not None and reaches(cur, s.at):
             blocks.append(Block(cur, s))
             cur = None
     if cur is not None:
@@ -162,27 +181,37 @@ def sequence_problem(stamps: list[TimeEntry]) -> Optional[str]:
     """►►► **Kommen und Gehen wechseln sich ab.** ◄◄◄ Ein Kommen, solange ein anderes noch
     läuft, oder ein Gehen ohne Kommen davor, ist ein Fehler – der Satz nennt die Uhrzeit."""
     cur: Optional[TimeEntry] = None
-    span = timedelta(minutes=tk.RUNNING_MAX)
-    for s in sorted(stamps, key=lambda x: (x.at, x.id or 0)):
+    for s in _ordered(stamps):
         if s.kind == "in":
-            if cur is not None and s.at - cur.at < span:
+            if cur is not None and reaches(cur, s.at):
                 return (f"Am {tk.dmy(cur.day)} um {clock(cur.at)} ist schon «Kommen» erfasst – "
                         f"dazwischen fehlt «Gehen».")
             cur = s
         else:
-            if cur is None or s.at - cur.at > span:
-                return f"Vor «Gehen» am {tk.dmy(s.day)} um {clock(s.at)} fehlt «Kommen»."
+            if cur is None or not reaches(cur, s.at):
+                return f"Vor «Gehen» am {tk.dmy(local(s.at).date())} um {clock(s.at)} fehlt «Kommen»."
             if s.at <= cur.at:
                 return f"«Gehen» um {clock(s.at)} liegt nicht nach «Kommen» um {clock(cur.at)}."
             cur = None
     return None
 
 
+def around(stamps: list[TimeEntry], d: date) -> list[TimeEntry]:
+    """Die Stempel rund um den Tag ``d`` (Vortag bis Folgetag) – geprüft wird, was eine
+    Änderung berühren kann. Ein alter Fehler an einem anderen Tag sperrt nicht jede weitere
+    Buchung; er bleibt eine Aufgabe an seinem Tag."""
+    near = _ordered([s for s in stamps if abs((s.day - d).days) <= 1])
+    # Ein «Gehen» am Vortag ganz vorn gehört zu einem Kommen vor dem Fenster – nicht
+    # mitprüfen. Eines am Tag selbst bleibt drin: dort wäre es ein Gehen ohne Kommen.
+    while near and near[0].kind == "out" and near[0].day < d:
+        near.pop(0)
+    return near
+
+
 def running(book: Book, now: datetime) -> Optional[TimeEntry]:
     """Das Kommen, das gerade läuft – sonst ``None`` (die Person ist nicht da)."""
     blocks = pair([r for r in book.live if r.kind in tk.STAMPS])
-    if blocks and blocks[-1].end is None and \
-            now - blocks[-1].start.at < timedelta(minutes=tk.RUNNING_MAX):
+    if blocks and blocks[-1].end is None and reaches(blocks[-1].start, now):
         return blocks[-1].start
     return None
 
@@ -284,10 +313,10 @@ def _day(book: Book, d: date, blocks: list[Block], now: datetime) -> Day:
             if effect == "vacation":
                 day.vacation_used = m
     for b in blocks:
-        end = b.end.at if b.end else (now if b is blocks[-1] and _live(b, now) else None)
+        end = b.end.at if b.end else (now if b is blocks[-1] and is_running(b, now) else None)
         if end is not None:
             day.ist += minutes(b.start.at, end)
-        if b.end is None and not _live(b, now):
+        if b.end is None and not is_running(b, now):
             day.open = True
     c = contract_on(book, d)
     if c is not None:
@@ -302,8 +331,8 @@ def _day(book: Book, d: date, blocks: list[Block], now: datetime) -> Day:
     return day
 
 
-def _live(b: Block, now: datetime) -> bool:
-    return b.end is None and now - b.start.at < timedelta(minutes=tk.RUNNING_MAX)
+def is_running(b: Block, now: datetime) -> bool:
+    return b.end is None and reaches(b.start, now)
 
 
 def _hints(book: Book, day: Day, prev_end: Optional[datetime], week: float) -> None:
@@ -395,7 +424,7 @@ def tasks(book: Book, now: Optional[datetime] = None) -> list[tuple[str, date, s
     today = local(now).date()
     out = [("open", b.day, f"«Gehen» fehlt am {tk.dmy(b.day)}")
            for b in pair([r for r in book.live if r.kind in tk.STAMPS])
-           if b.end is None and not _live(b, now)]
+           if b.end is None and not is_running(b, now)]
     for a in absences(book):
         due = proof_due(book, a)
         if due is not None and due <= today and not a.proof_url:
@@ -464,7 +493,7 @@ def stamp_problem(book: Book, actor: UserProfile, kind: str, at: datetime, now: 
         return full
     stamps = [r for r in book.live if r.kind in tk.STAMPS and r is not old]
     candidate = TimeEntry(kind=kind, at=at, day=d, id=None)
-    seq = sequence_problem(stamps + [candidate])
+    seq = sequence_problem(around(stamps + [candidate], d))
     return (400, seq) if seq else None
 
 
@@ -547,7 +576,8 @@ def _other(book: Book, actor: UserProfile, data, now: datetime
         if locked(actor, old.day, today):
             return None, _locked(old.day)
         if old.kind in tk.STAMPS:
-            seq = sequence_problem([r for r in book.live if r.kind in tk.STAMPS and r is not old])
+            seq = sequence_problem(around(
+                [r for r in book.live if r.kind in tk.STAMPS and r is not old], old.day))
             if seq:
                 return None, (400, seq)
         return TimeEntry(kind="void", day=old.day, replaces_id=old.id), None
