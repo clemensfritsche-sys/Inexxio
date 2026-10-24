@@ -10,7 +10,7 @@
  *
  * **Nur online**: ohne Netz wird nichts gespeichert, ein Satz sagt es.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Briefcase, ChevronDown, ChevronRight, Clock, Sun, Timer } from 'lucide-react';
 import { Card, ErrorText, InfoHint, MICRO_LABEL } from '@/components/erp/fields';
 import { ApiError, api } from '@/lib/api';
@@ -60,24 +60,37 @@ export function TimeCard({ person }: { person: number }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [swipeErr, setSwipeErr] = useState<string | null>(null);
+  /** Ein Satz ohne Fehler (zweiter Wisch, der nichts geschrieben hat). */
+  const [notice, setNotice] = useState<string | null>(null);
+  /** Nur die jüngste Anfrage zählt – eine späte Antwort zeigt keinen alten Monat. */
+  const latest = useRef(0);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const preview = usePreview(person, cap);
 
   const show = useCallback((v: TimeView) => {
     setView(v);
-    setSel((s) => s ?? v.default_day);
+    // Der gewählte Tag bleibt, solange er im gezeigten Monat liegt; sonst der Vorschlag des
+    // Servers (heute bzw. der jüngste offene Tag) oder der erste Tag des Monats.
+    setSel((s) => {
+      if (s && v.days.some((d) => d.day === s)) return s;
+      return v.days.some((d) => d.day === v.default_day) ? v.default_day : v.days[0]?.day ?? null;
+    });
   }, []);
   useEffect(() => {
-    api.timeView(person, month).then((v) => { setLoadErr(null); show(v); })
-      .catch((e) => setLoadErr(message(e, OFFLINE)));
+    const ticket = ++latest.current;
+    api.timeView(person, month)
+      .then((v) => { if (ticket === latest.current) { setLoadErr(null); show(v); } })
+      .catch((e) => { if (ticket === latest.current) setLoadErr(message(e, OFFLINE)); });
   }, [person, month, show]);
 
   const swipe = async () => {
     if (!view || busy) return;
-    setBusy(true); setSwipeErr(null);
+    setBusy(true); setSwipeErr(null); setNotice(null);
     const key = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
-      show(await api.timeSwipe(person, view.present_since ? 'out' : 'in', key, view.month));
+      const v = await api.timeSwipe(person, view.present_since ? 'out' : 'in', key, view.month);
+      show(v);
+      setNotice(v.notice ?? null);
       todoChanged();
     } catch (e) {
       setSwipeErr(message(e, OFFLINE_SWIPE));
@@ -139,9 +152,11 @@ export function TimeCard({ person }: { person: number }) {
           <TimeSwipe present={!!view.present_since} since={view.present_since ?? null}
             lastOut={view.last_out ?? null} ist={view.today_ist} soll={view.today_soll}
             busy={busy} onSwipe={swipe} />
-          {swipeErr && <ErrorText msg={swipeErr} />}
         </div>
       )}
+      {/* Unter dem Knopf – und auch ohne ihn (nach dem Austritt), damit kein Fehler still bleibt. */}
+      {swipeErr && <ErrorText msg={swipeErr} />}
+      {notice && !swipeErr && <Note>{notice}</Note>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '20px 24px' }}>
         <Figure icon={Timer} label="Stundenkonto" info={view.vocab.texts.account}
           color={view.account < 0 ? 'var(--danger)' : undefined}>{sgn(view.account)} h</Figure>
@@ -165,10 +180,10 @@ export function TimeCard({ person }: { person: number }) {
             gap: '24px 32px', alignItems: 'start' }}>
             <TimeCalendar month={view.month} days={view.days} vocab={view.vocab} selected={sel}
               range={cap && until ? { from: cap.day, until } : null}
-              onPick={pick} onMonth={(step) => { setCap(null); setMonth(shiftMonth(view.month, step)); }} />
+              onPick={pick} onMonth={(step) => { setCap(null); setMonth((m) => shiftMonth(m ?? view.month, step)); }} />
             <div style={{ minWidth: 0 }}>
               {selDay
-                ? <TimeDayDetail view={view} d={selDay} cap={cap} setCap={setCap} preview={preview}
+                ? <TimeDayDetail key={selDay.day} view={view} d={selDay} cap={cap} setCap={setCap} preview={preview}
                     onEntry={entry} onProof={proof} />
                 : <Note>Einen Tag wählen.</Note>}
             </div>

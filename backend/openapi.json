@@ -5213,6 +5213,11 @@
             "title": "Proof Needed",
             "default": false
           },
+          "proof_missing": {
+            "type": "boolean",
+            "title": "Proof Missing",
+            "default": false
+          },
           "replaces": {
             "anyOf": [
               {
@@ -10463,6 +10468,11 @@
                 "type": "null"
               }
             ]
+          },
+          "missing_out": {
+            "type": "boolean",
+            "title": "Missing Out",
+            "default": false
           }
         },
         "type": "object",
@@ -10963,6 +10973,17 @@
             "type": "string",
             "format": "date",
             "title": "Today"
+          },
+          "notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice"
           },
           "present_since": {
             "anyOf": [

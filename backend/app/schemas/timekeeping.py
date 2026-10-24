@@ -79,6 +79,9 @@ class StampOut(BaseModel):
     at: datetime
     time: str
     mark: Optional[Mark] = None
+    #: Ein Kommen, zu dem «Gehen» fehlt (nicht das laufende) – die Zeile «Gehen · fehlt»
+    #: steht direkt darunter.
+    missing_out: bool = False
 
 
 class AbsenceOut(BaseModel):
@@ -93,6 +96,8 @@ class AbsenceOut(BaseModel):
     proof_url: Optional[str] = None
     #: Ein Nachweis ist nötig (ab Tag …), ``proof_url`` sagt, ob er da ist.
     proof_needed: bool = False
+    #: …und er ist fällig, aber noch nicht da («fehlt»). Vorher lässt er sich schon hochladen.
+    proof_missing: bool = False
     #: Welche ältere Absenz sie an diesem Tag ersetzt – Satz für den Hover.
     replaces: Optional[str] = None
     can_void: bool = False
@@ -179,6 +184,8 @@ class TimeView(BaseModel):
     has_contract: bool
     now: datetime
     today: date
+    #: Ein Satz zur letzten Handlung, wenn sie nichts geschrieben hat (zweiter Wisch).
+    notice: Optional[str] = None
     #: Heute: läuft ein Kommen (seit «07:42»), wann zuletzt gegangen – Uhrzeit in Zürich.
     present_since: Optional[str] = None
     last_out: Optional[str] = None

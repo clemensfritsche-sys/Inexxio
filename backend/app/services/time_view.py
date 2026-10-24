@@ -58,22 +58,26 @@ def _mark(book: t.Book, r: TimeEntry) -> Optional[Mark]:
 def _absence(book: t.Book, actor: UserProfile, a: TimeEntry, d: date, today: date) -> AbsenceOut:
     under = None
     for o in t.absences(book):
-        if o.id < a.id and o.day <= d <= (o.until or o.day) and (under is None or o.id > under.id):
+        if book.rank(o) < book.rank(a) and o.day <= d <= (o.until or o.day) and \
+                (under is None or book.rank(o) > book.rank(under)):
             under = o
     replaces = None
     if under is not None:
         label = tk.ART_BY_KEY[under.art].label if under.art in tk.ART_BY_KEY else under.art
         replaces = (f"Ersetzt «{label} {under.day:%d.%m.}–{(under.until or under.day):%d.%m.%Y}» "
                     f"an diesem Tag")
+    due = t.proof_due(book, a)
     return AbsenceOut(
         id=a.id, art=a.art or "", day=a.day, until=a.until or a.day, minutes=a.minutes,
         minutes_on_day=round(t.absence_minutes(book, a, d)), note=a.note,
-        proof_url=a.proof_url, proof_needed=t.proof_due(book, a) is not None,
+        proof_url=a.proof_url, proof_needed=due is not None,
+        proof_missing=due is not None and due <= today and not a.proof_url,
         replaces=replaces, can_void=not t.locked(actor, a.day, today))
 
 
-def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date) -> DayOut:
+def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date, now) -> DayOut:
     d = day.d
+    missing = {b.start.id for b in day.blocks if b.end is None and not t.is_running(b, now)}
     stamps = sorted((s for b in day.blocks for s in (b.start, b.end) if s is not None),
                     key=lambda s: s.at)
     return DayOut(
@@ -82,8 +86,8 @@ def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date) -> DayOut:
         today=d == today, future=d > today,
         locked=t.locked(actor, d, today) and t.contract_on(book, d) is not None,
         open=day.open, hints=day.hints,
-        stamps=[StampOut(id=s.id, kind=s.kind, at=s.at, time=t.clock(s.at), mark=_mark(book, s))
-                for s in stamps],
+        stamps=[StampOut(id=s.id, kind=s.kind, at=s.at, time=t.clock(s.at), mark=_mark(book, s),
+                         missing_out=s.id in missing) for s in stamps],
         absence=_absence(book, actor, day.absence, d, today) if day.absence else None)
 
 
@@ -130,23 +134,34 @@ def view(db: Session, actor: UserProfile, person: UserProfile, month: Optional[s
     led = t.ledger(book, last, now)
     run = t.running(book, now)
     outs = [r for r in book.live if r.kind == "out" and r.day == today]
-    tday = led.days.get(today)
+    # Heute = der Tag des laufenden Blocks (eine Nachtschicht gehört zum Vortag).
+    shift = run.day if run is not None else today
+    tday = led.days.get(shift)
+    since = None
+    if run is not None:
+        since = t.clock(run.at) if run.day == today else f"gestern {t.clock(run.at)}"
+    full_today = (lambda a: a is not None and a.minutes is None)(t.absence_on(book, today))
     ds = _day_soll(book, today)
     month_days = []
     d = first
     while d <= last:
-        month_days.append(_day(book, actor, led.days.get(d) or t.Day(d), today))
+        month_days.append(_day(book, actor, led.days.get(d) or t.Day(d), today, now))
         d += timedelta(days=1)
     opened = [x for x in sorted(led.days) if led.days[x].open and today - timedelta(14) <= x < today]
     return TimeView(
         person_object_id=person.object_id, has_contract=bool(book.contracts), now=now,
-        today=today, present_since=t.clock(run.at) if run else None,
+        today=today, present_since=since,
         last_out=t.clock(max(r.at for r in outs)) if outs else None,
-        today_ist=round(tday.ist) if tday else 0, today_soll=round(tday.soll) if tday else 0,
+        # Der Balken: gearbeitet plus Absenz (ein Ferientag ist erfüllt) gegen das Soll.
+        today_ist=round(tday.ist + tday.credit) if tday else 0,
+        today_soll=round(tday.soll) if tday else 0,
         account=round(led.account), vacation=round(led.vacation),
         vacation_days=round(led.vacation / ds, 1) if ds else None, day_soll=round(ds),
         born=person.date_of_birth is not None,
-        can_stamp=t.may_see(actor, person) and t.contract_on(book, today) is not None,
+        # Stempeln geht, wo es einen Vertrag gibt – an einem ganztägigen Absenztag nur noch
+        # das «Gehen» einer laufenden Schicht.
+        can_stamp=t.may_see(actor, person) and (run is not None or (
+            t.contract_on(book, today) is not None and not full_today)),
         is_admin=actor.role == "admin",
         contracts=_contracts(db, book, led, today),
         bookings=[BookingOut(id=r.id, day=r.day, note=r.note or "", minutes=r.minutes or 0,

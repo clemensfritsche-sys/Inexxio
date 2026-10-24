@@ -182,7 +182,8 @@ def test_legal_minimum_applies_until_the_20th_birthday(world):
         _contract(db, admin, young, date(2026, 10, 1), weeks=Decimal(4))
     assert "5 Wochen" in e.value.detail
     _contract(db, admin, young, date(2026, 10, 1))
-    assert t.load(db, young).contracts[0].vacation_weeks == 5
+    led = t.ledger(t.load(db, young), TODAY, t.now_utc())
+    assert led.days[date(2026, 10, 5)].accrual == pytest.approx(5 * 2520 / 365)
 
 
 # ─── Stempel ────────────────────────────────────────────────────────────────────────
@@ -417,3 +418,189 @@ def test_preview_says_what_an_absence_does_before_it_is_saved(world):
     assert p["vacation_after"] == before - 7 * 504
     p = t.preview(db, lena, lena, EntryIn(kind="in", day=TODAY, time="18:00"))
     assert p["problem"] == "Liegt in der Zukunft – jetzt ist es 12:33."
+
+
+def test_editing_a_running_in_back_never_allows_a_second_in(world, clock):
+    """►►► Gemeldet 24.10.: Kommen gewischt, die Zeit von Hand weit zurückgesetzt – der Knopf
+    sprang auf «Kommen», und ein zweites Kommen ohne Gehen liess sich wischen. ◄◄◄
+
+    Soll: ein Kommen von HEUTE läuft, bis «Gehen» kommt – egal, wie früh es liegt. Der
+    Knopf zeigt «Gehen», ein zweites Kommen desselben Tages weist der Server ab."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    clock["now"] = datetime(2026, 10, 23, 21, 45, tzinfo=tk.ZONE)
+    t.swipe(db, lena, lena, "in", "key-bug-0001")
+    first = next(r for r in t.load(db, lena).live if r.kind == "in")
+    t.record(db, lena, lena, EntryIn(kind="in", replaces_id=first.id, time="06:00"))
+    clock["now"] = datetime(2026, 10, 23, 21, 50, tzinfo=tk.ZONE)
+    b = t.load(db, lena)
+    assert t.running(b, t.now_utc()) is not None          # anwesend seit 06:00
+    assert _view(db, lena, lena).present_since == "06:00"
+    t.swipe(db, lena, lena, "in", "key-bug-0002")          # veralteter Knopf: schreibt nichts
+    assert [r.kind for r in t.load(db, lena).live if r.kind in tk.STAMPS] == ["in"]
+    with pytest.raises(HTTPException) as e:                # auch nicht von Hand
+        _stamp(db, lena, lena, date(2026, 10, 23), "21:00")
+    assert "fehlt «Gehen»" in e.value.detail
+    t.swipe(db, lena, lena, "out", "key-bug-0003")
+    assert _days(_view(db, lena, lena))[date(2026, 10, 23)].ist == 15 * 60 + 50
+
+
+def test_an_old_broken_day_does_not_block_new_stamps(world):
+    """Altdaten mit zwei Kommen an einem Tag (vor der Korrektur der Regel entstanden) sperren
+    nicht jede weitere Buchung – geprüft wird das Umfeld des geänderten Tages. Gegenprobe:
+    am kaputten Tag selbst sagt der Server, was fehlt."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    for kind, hhmm in (("in", "06:55"), ("in", "21:42"), ("out", "21:45")):  # wie damals
+        db.add(TimeEntry(person_object_id=lena.object_id, kind=kind, day=date(2026, 10, 19),
+                         at=t.instant(date(2026, 10, 19), t._minute(hhmm)), source="manual"))
+    db.flush()
+    _day(db, lena, lena, date(2026, 10, 22), [("07:00", "16:00")])
+    with pytest.raises(HTTPException) as e:
+        _stamp(db, lena, lena, date(2026, 10, 19), "23:00")
+    assert "fehlt «Gehen»" in e.value.detail
+    _stamp(db, lena, lena, date(2026, 10, 19), "12:00", "out")   # der Weg, ihn zu heilen
+    assert [k for k, _, _ in t.tasks(t.load(db, lena), t.now_utc())] == []
+
+
+
+# ─── Befunde der Prüfung vom 24.10. – je ein Test ───────────────────────────────────
+
+def test_a_proof_does_not_make_an_absence_newer(world):
+    """Nachweis nachgereicht → die Absenz bleibt so alt, wie sie ist: ein später erfasster
+    Unfall in der Krankheit bleibt an seinem Tag."""
+    db, co, admin, lena = world
+    from app.models import Attachment
+    _contract(db, admin, lena, date(2026, 10, 1))
+    t.record(db, lena, lena, EntryIn(kind="absence", art="krank", day=date(2026, 10, 19),
+                                     until=date(2026, 10, 23)))
+    t.record(db, lena, lena, EntryIn(kind="absence", art="unfall", day=date(2026, 10, 21)))
+    db.add(Attachment(token="tok-rank-1", mime="image/jpeg", data=b"x", byte_size=1))
+    db.flush()
+    sick = next(r for r in t.load(db, lena).live if r.art == "krank")
+    t.record(db, lena, lena, EntryIn(kind="proof", replaces_id=sick.id,
+                                     proof_url="/api/v1/attachments/tok-rank-1"))
+    assert t.absence_on(t.load(db, lena), date(2026, 10, 21)).art == "unfall"
+
+
+def test_the_closing_balance_contains_earlier_bookings(world):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    t.record(db, admin, lena, EntryIn(kind="booking", day=date(2026, 10, 1), minutes=1200,
+                                      note="Übertrag"))
+    _contract(db, admin, lena, date(2026, 10, 3), hours=0, days=())
+    exit_ = next(c for c in _view(db, admin, lena).contracts if c.weekly_minutes == 0)
+    assert exit_.closing_account == 1200 - 2 * 504          # +20:00 − zwei Tage Soll
+
+
+def test_a_forgotten_out_in_the_afternoon_is_no_night_shift(world, clock):
+    """Kommen um 18:00 vergessen → am Morgen ist der Tag offen, kein 13-h-Block."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    clock["now"] = datetime(2026, 10, 22, 18, 0, tzinfo=tk.ZONE)
+    t.swipe(db, lena, lena, "in", "key-late-001")
+    clock["now"] = datetime(2026, 10, 23, 7, 30, tzinfo=tk.ZONE)
+    assert t.running(t.load(db, lena), t.now_utc()) is None
+    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=tk.ZONE)
+    # Eine echte Nachtschicht (Kommen ab 20 Uhr) läuft dagegen über Mitternacht.
+    jonas = _person(db, co)
+    _contract(db, admin, jonas, date(2026, 10, 1))
+    t.swipe(db, jonas, jonas, "in", "key-night-01")
+    clock["now"] = datetime(2026, 10, 23, 5, 0, tzinfo=tk.ZONE)
+    v = _view(db, jonas, jonas)
+    assert v.present_since == "gestern 22:00" and v.today_ist == 7 * 60
+
+
+def test_a_running_night_shift_is_not_in_the_account_yet(world, clock):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 22))
+    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=tk.ZONE)
+    t.swipe(db, lena, lena, "in", "key-night-02")
+    clock["now"] = datetime(2026, 10, 23, 5, 0, tzinfo=tk.ZONE)
+    assert _view(db, lena, lena).account == 0                # erst mit «Gehen»
+
+
+def test_an_out_after_midnight_can_be_corrected_to_before(world, clock):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1), days=range(7))
+    _stamp(db, lena, lena, date(2026, 10, 21), "22:00")
+    _stamp(db, lena, lena, date(2026, 10, 21), "01:00", "out")        # → 22.10. 01:00
+    out = next(r for r in t.load(db, lena).live if r.kind == "out")
+    assert out.day == date(2026, 10, 22)
+    t.record(db, lena, lena, EntryIn(kind="out", replaces_id=out.id, time="23:30"))
+    out = next(r for r in t.load(db, lena).live if r.kind == "out")
+    assert out.day == date(2026, 10, 21) and t.clock(out.at) == "23:30"
+
+
+def test_a_stamp_does_not_change_its_day(world):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    _day(db, lena, lena, date(2026, 10, 19), [("08:00", "12:00"), ("13:00", "17:00")])
+    second = [r for r in t.load(db, lena).live if r.kind == "in"][1]
+    with pytest.raises(HTTPException) as e:
+        t.record(db, lena, lena, EntryIn(kind="in", replaces_id=second.id,
+                                         day=date(2026, 10, 22), time="13:00"))
+    assert "wechselt den Tag nicht" in e.value.detail
+
+
+def test_a_replaced_sickness_needs_no_proof(world):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    t.record(db, lena, lena, EntryIn(kind="absence", art="krank", day=date(2026, 10, 19),
+                                     until=date(2026, 10, 21)))
+    t.record(db, lena, lena, EntryIn(kind="absence", art="ferien", day=date(2026, 10, 19),
+                                     until=date(2026, 10, 21)))
+    assert t.tasks(t.load(db, lena), t.now_utc()) == []
+
+
+def test_a_night_shift_can_end_on_a_full_absence_day(world, clock):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    t.record(db, lena, lena, EntryIn(kind="absence", art="ferien", day=date(2026, 10, 23)))
+    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=tk.ZONE)
+    t.swipe(db, lena, lena, "in", "key-night-03")
+    clock["now"] = datetime(2026, 10, 23, 1, 0, tzinfo=tk.ZONE)
+    t.swipe(db, lena, lena, "out", "key-night-04")
+    assert [r.kind for r in t.load(db, lena).live if r.kind in tk.STAMPS] == ["in", "out"]
+    clock["now"] = datetime(2026, 10, 23, 9, 0, tzinfo=tk.ZONE)
+    assert not _view(db, lena, lena).can_stamp              # ganzer Ferientag: kein Knopf
+
+
+def test_unpaid_leave_does_not_lower_vacation_after(world):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    before = round(t.ledger(t.load(db, lena), TODAY, t.now_utc()).vacation)
+    p = t.preview(db, lena, lena, EntryIn(kind="absence", art="unbezahlt", day=date(2026, 10, 26),
+                                          until=date(2026, 10, 30)))
+    assert p["vacation_after"] == before
+
+
+def test_the_repeated_hour_and_the_missing_hour(world, clock):
+    """Herbst: 02:30 gibt es zweimal – ein Gehen um 02:30 nach Kommen 02:45 (Sommerzeit)
+    nimmt die zweite Fassung. Frühling: 02:30 gibt es nicht – ein Satz statt 03:30."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 1, 1), days=range(7))
+    clock["now"] = datetime(2026, 10, 25, 12, 0, tzinfo=tk.ZONE)
+    _stamp(db, admin, lena, date(2026, 10, 25), "02:45")
+    _stamp(db, admin, lena, date(2026, 10, 25), "02:30", "out")
+    d = t.ledger(t.load(db, lena), date(2026, 10, 31), t.now_utc()).days[date(2026, 10, 25)]
+    assert d.ist == 45
+    with pytest.raises(HTTPException) as e:
+        _stamp(db, admin, lena, date(2026, 3, 29), "02:30")
+    assert "Zeitumstellung" in e.value.detail
+
+
+def test_a_second_swipe_says_why_it_did_nothing(world, clock):
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    assert t.swipe(db, lena, lena, "in", "key-say-0001") is None
+    assert "läuft" in t.swipe(db, lena, lena, "in", "key-say-0002")
+    assert "innert einer Minute" in t.swipe(db, lena, lena, "out", "key-say-0003")
+
+
+def test_contracts_only_for_staff(world):
+    db, co, admin, _ = world
+    customer = _person(db, co, role="user")
+    with pytest.raises(HTTPException) as e:
+        _contract(db, admin, customer, date(2026, 10, 1))
+    assert "kein Personal" in e.value.detail

@@ -47,8 +47,10 @@ def swipe(object_id: int, data: SwipeIn, month: Optional[str] = MONTH,
           db: Session = Depends(get_db), actor: UserProfile = Depends(require_employee)):
     """Kommen ↔ Gehen – Serverzeit, ein Schlüssel je Wisch."""
     person = _person(db, actor, object_id)
-    timekeeping.swipe(db, actor, person, data.direction, data.key)
-    return _done(db, actor, person, month)
+    notice = timekeeping.swipe(db, actor, person, data.direction, data.key)
+    view = _done(db, actor, person, month)
+    view.notice = notice
+    return view
 
 
 @router.post("/time/{object_id}/entries", response_model=TimeView)
