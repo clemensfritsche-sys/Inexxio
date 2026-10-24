@@ -38,7 +38,7 @@ function ContractRow({ c, first, daySoll }: { c: TimeContract; first: boolean; d
   return (
     <div style={{ display: 'grid', gap: 6 }}>
       <LedgerRow ident={`${first ? 'Eintritt' : exit ? 'Austritt' : 'ab'} ${dayText(c.valid_from)}`}
-        meta={<>{!exit && `${hours(c.weekly_minutes)} h/Woche · ${daysLabel(c.workdays)} · ${Number(c.vacation_weeks)} Wochen Ferien · `}{company}</>}
+        meta={<>{!exit && `${hours(c.weekly_minutes)} h/Woche · ${daysLabel(c.workdays)} · ${Number(c.vacation_weeks) ? `${Number(c.vacation_weeks)} Wochen Ferien` : 'Ferien gesetzlich'} · `}{company}</>}
         amount={<Pill tone={s.tone} label={s.label} />} />
       {exit && c.closing_day && c.closing_account != null && c.closing_vacation != null && (
         <Row k={`Schlussstand per ${dayText(c.closing_day)}`}

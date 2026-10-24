@@ -36,9 +36,17 @@ def local(at: datetime) -> datetime:
     return at.astimezone(tk.ZONE)
 
 
-def instant(d: date, minute: int) -> datetime:
-    """Tag + Minute in Europe/Zurich → Zeitpunkt (UTC); richtig auch an der Zeitumstellung."""
-    return datetime.combine(d, time(minute // 60, minute % 60), tk.ZONE).astimezone(timezone.utc)
+def instant(d: date, minute: int, fold: int = 0) -> datetime:
+    """Tag + Minute in Europe/Zurich → Zeitpunkt (UTC); richtig auch an der Zeitumstellung.
+    ``fold=1`` ist die zweite Fassung einer Uhrzeit, die es im Herbst zweimal gibt."""
+    return datetime.combine(d, time(minute // 60, minute % 60, fold=fold),
+                            tk.ZONE).astimezone(timezone.utc)
+
+
+def exists(d: date, minute: int) -> bool:
+    """Gibt es diese Uhrzeit an diesem Tag? Nicht in der Frühlings-Lücke (02:00–03:00)."""
+    back = local(instant(d, minute))
+    return back.date() == d and back.hour * 60 + back.minute == minute
 
 
 def clock(at: datetime) -> str:
@@ -59,6 +67,16 @@ class Book:
     holidays: dict[tuple[int, date], str]   # (Gesellschaft, Tag) → Name
     rules: dict[int, dict]                  # Gesellschaft → time_rules
     names: dict[int, str]                   # user_profiles.id → Name
+
+    def rank(self, r: TimeEntry) -> int:
+        """**Wie alt ist dieser Eintrag als Sache?** – die Nummer der ersten Zeile seiner
+        Ersatzkette. Ein nachgereichter Nachweis schreibt die Absenz neu, macht sie aber nicht
+        «neuer»: sonst verdrängte sie an ihren Tagen eine später erfasste (Unfall in der
+        Krankheit)."""
+        x = r
+        while x.id in self.replaced:
+            x = self.replaced[x.id]
+        return x.id or 0
 
 
 def load(db: Session, person: UserProfile) -> Book:
@@ -145,14 +163,19 @@ def reaches(start: TimeEntry, at: datetime) -> bool:
 
     Ja, solange es **derselbe Tag** ist: ein Kommen von heute läuft, bis «Gehen» kommt – wie
     früh es auch liegt (auch wenn es von Hand zurückgesetzt wurde). Über Mitternacht läuft es
-    höchstens ``RUNNING_MAX`` (Nachtschicht, ArG Art. 10); danach fehlt «Gehen», der Tag ist
+    höchstens ``RUNNING_MAX`` – und nur ein Kommen ab ``SHIFT_FROM`` (Nachtschicht, ArG
+    Art. 10); sonst bzw. danach fehlt «Gehen», der Tag ist
     offen, und der nächste Wisch ist wieder «Kommen».
 
     Gelesen von ``pair`` (Blöcke), ``sequence_problem`` (Prüfung) und ``running`` (Knopf) –
     so können Rechnung, Prüfung und Knopf nie verschieden antworten. Die frühere Fassung
     fragte nur die Uhr (14 h): ein weit zurückgesetztes Kommen galt plötzlich als vergessen,
     der Knopf sprang auf «Kommen», und ein zweites Kommen ohne Gehen war möglich."""
-    return local(at).date() == start.day or at - start.at < timedelta(minutes=tk.RUNNING_MAX)
+    if local(at).date() == start.day:
+        return True
+    begin = local(start.at)
+    return begin.hour * 60 + begin.minute >= tk.SHIFT_FROM and \
+        at - start.at < timedelta(minutes=tk.RUNNING_MAX)
 
 
 def _ordered(stamps: list[TimeEntry]) -> list[TimeEntry]:
@@ -233,7 +256,7 @@ def absence_on(book: Book, d: date) -> Optional[TimeEntry]:
         return None
     best = None
     for a in absences(book):
-        if a.day <= d <= (a.until or a.day) and (best is None or a.id > best.id):
+        if a.day <= d <= (a.until or a.day) and (best is None or book.rank(a) > book.rank(best)):
             best = a
     return best
 
@@ -258,7 +281,9 @@ def proof_due(book: Book, a: TimeEntry) -> Optional[date]:
     if art is None:
         return None
     n = tk.proof_from(art, proof_rules(book, a.day))
-    days = workdays_in(book, a.day, a.until or a.day)
+    # Gezählt werden nur die Tage, an denen DIESE Absenz gilt – eine später erfasste andere
+    # (Ferien über die Krankheit) nimmt ihr die Tage und damit den Nachweis.
+    days = [d for d in workdays_in(book, a.day, a.until or a.day) if absence_on(book, d) is a]
     if not n or len(days) < n:
         return None
     return days[n - 1]
@@ -277,6 +302,8 @@ class Day:
     absence: Optional[TimeEntry] = None
     blocks: list[Block] = field(default_factory=list)
     open: bool = False
+    #: Ein Block dieses Tages läuft noch (heute, oder die Nachtschicht von gestern).
+    running: bool = False
     hints: list[str] = field(default_factory=list)
 
     @property
@@ -316,13 +343,16 @@ def _day(book: Book, d: date, blocks: list[Block], now: datetime) -> Day:
         end = b.end.at if b.end else (now if b is blocks[-1] and is_running(b, now) else None)
         if end is not None:
             day.ist += minutes(b.start.at, end)
-        if b.end is None and not is_running(b, now):
-            day.open = True
+        if b.end is None:
+            if is_running(b, now):
+                day.running = True
+            else:
+                day.open = True
     c = contract_on(book, d)
     if c is not None:
-        weeks = float(c.vacation_weeks)
-        if _born(book):
-            weeks = max(weeks, tk.legal_weeks(_born(book), d))
+        # 0 = gesetzlich; ohne Geburtsdatum das Minimum für Erwachsene.
+        legal = tk.legal_weeks(_born(book), d) if _born(book) else 4
+        weeks = max(float(c.vacation_weeks), legal)
         share = 1.0
         if a is not None and tk.ART_BY_KEY.get(a.art or "") and \
                 tk.ART_BY_KEY[a.art].effect == "unpaid" and base:
@@ -376,8 +406,12 @@ def ledger(book: Book, until: date, now: Optional[datetime] = None) -> Ledger:
     blocks_by_day: dict[date, list[Block]] = defaultdict(list)
     for b in pair([r for r in book.live if r.kind in tk.STAMPS]):
         blocks_by_day[b.day].append(b)
+    bookings: dict[date, list[TimeEntry]] = defaultdict(list)
+    for r in book.live:
+        if r.kind == "booking":
+            bookings[r.day].append(r)
     starts = [c.valid_from for c in book.contracts] + list(blocks_by_day) + \
-        [a.day for a in absences(book)]
+        [a.day for a in absences(book)] + list(bookings)
     first = min(starts) if starts else today
     days: dict[date, Day] = {}
     account = vacation = 0.0
@@ -389,6 +423,12 @@ def ledger(book: Book, until: date, now: Optional[datetime] = None) -> Ledger:
     while d <= max(until, today):
         if d in exits:
             closings[exits[d]] = (account, vacation)
+        if d <= today:
+            # Eine Buchung wirkt ab ihrem Tag – im Schlussstand eines späteren Austritts
+            # ist sie also enthalten.
+            for r in bookings.get(d, []):
+                account += r.minutes or 0
+                vacation += r.vacation_minutes or 0
         if d.weekday() == 0:
             week = 0.0
         day = _day(book, d, blocks_by_day.get(d, []), now)
@@ -401,7 +441,7 @@ def ledger(book: Book, until: date, now: Optional[datetime] = None) -> Ledger:
         if closed:
             prev_end = closed[-1].end.at
         week += day.ist
-        if d < today and not day.open:
+        if d < today and not day.open and not day.running:
             account += day.saldo
         if d <= today:
             vacation += day.accrual - day.vacation_used
@@ -409,10 +449,6 @@ def ledger(book: Book, until: date, now: Optional[datetime] = None) -> Ledger:
             day.hints.insert(0, "open")
         days[d] = day
         d += timedelta(days=1)
-    for r in book.live:
-        if r.kind == "booking":
-            account += r.minutes or 0
-            vacation += r.vacation_minutes or 0
     return Ledger(days, account, vacation, closings, tasks(book, now))
 
 
@@ -488,39 +524,56 @@ def stamp_problem(book: Book, actor: UserProfile, kind: str, at: datetime, now: 
         return 400, f"Liegt in der Zukunft – jetzt ist es {clock(now)}."
     if contract_on(book, d) is None:
         return _no_contract(d)
-    full = _full_day(book, d)
+    # Nur ein KOMMEN kollidiert mit einem ganztägigen Absenztag – eine Nachtschicht, die am
+    # Ferientag um 01:00 endet, muss «Gehen» können.
+    full = _full_day(book, d) if kind == "in" else None
     if full is not None:
         return full
     stamps = [r for r in book.live if r.kind in tk.STAMPS and r is not old]
     candidate = TimeEntry(kind=kind, at=at, day=d, id=None)
-    seq = sequence_problem(around(stamps + [candidate], d))
-    return (400, seq) if seq else None
+    for day in sorted({d} | ({old.day} if old is not None else set())):
+        seq = sequence_problem(around(stamps + [candidate], day))
+        if seq:
+            return 400, seq
+    return None
 
 
 def _stamp(book: Book, actor: UserProfile, data, now: datetime
            ) -> tuple[Optional[TimeEntry], Optional[Problem]]:
+    """Ein Stempel von Hand – nachgetragen oder korrigiert. Die Uhrzeit wird dem Tag
+    zugeordnet, an dem sie Sinn ergibt: ein «Gehen» darf nach Mitternacht (Folgetag) oder,
+    korrigiert, wieder davor liegen (Vortag); an der Zeitumstellung zählt die Fassung der
+    doppelten Stunde, die passt. Gewählt wird die erste, die die Regel erfüllt."""
     old = None
     if data.replaces_id is not None:
         old = _live_row(book, data.replaces_id, tk.STAMPS)
         if old is None:
             return None, (404, f"Den Stempel «{data.replaces_id}» gibt es nicht (mehr).")
+        if data.day is not None and data.day != old.day:
+            return None, (400, "Ein Stempel wechselt den Tag nicht – zurücknehmen und am "
+                               "richtigen Tag neu erfassen.")
     kind = old.kind if old is not None else data.kind
     d, minute = data.day or (old.day if old else None), _minute(data.time)
     if d is None or minute is None:
         return None, (400, "Uhrzeit als HH:MM angeben.")
-    at = instant(d, minute)
-    if old is not None and old.at == at:
+    if not exists(d, minute):
+        return None, (400, f"{data.time} gibt es am {tk.dmy(d)} nicht (Zeitumstellung).")
+    candidates: list[datetime] = []
+    for off in ((0, 1, -1) if kind == "out" else (0,)):
+        x = d + timedelta(days=off)
+        if exists(x, minute):
+            candidates += [at for at in (instant(x, minute), instant(x, minute, 1))
+                           if at not in candidates]
+    if old is not None and old.at in candidates:
         return None, None                       # unverändert = keine Änderung
-    problem = stamp_problem(book, actor, kind, at, now, old)
-    if problem is not None and kind == "out":
-        # «Gehen» nach Mitternacht: 02:00 nach einem Kommen um 22:00 ist der Folgetag.
-        later = at + timedelta(days=1)
-        if later <= now and stamp_problem(book, actor, kind, later, now, old) is None:
-            at, problem = later, None
-    if problem is not None:
-        return None, problem
-    return TimeEntry(kind=kind, day=local(at).date(), at=at, source="manual",
-                     replaces_id=old.id if old is not None else None), None
+    first: Optional[Problem] = None
+    for at in candidates:
+        problem = stamp_problem(book, actor, kind, at, now, old)
+        if problem is None:
+            return TimeEntry(kind=kind, day=local(at).date(), at=at, source="manual",
+                             replaces_id=old.id if old is not None else None), None
+        first = first or problem
+    return None, first
 
 
 def _absence(book: Book, actor: UserProfile, data, now: datetime
@@ -671,6 +724,7 @@ def preview(db: Session, actor: UserProfile, person: UserProfile, data) -> dict:
     entry.id = 1 << 62                          # die jüngste – sie gilt an ihren Tagen
     book.live.append(entry)
     new = ledger(book, horizon, now)
+    due = proof_due(book, entry)                 # solange sie gilt – an ihren eigenen Tagen
     book.live.pop()
     days = workdays_in(book, entry.day, until)
     labels: dict[str, int] = defaultdict(int)
@@ -678,10 +732,10 @@ def preview(db: Session, actor: UserProfile, person: UserProfile, data) -> dict:
         was = old.days[d].absence
         if was is not None and was.art in tk.ART_BY_KEY:
             labels[tk.ART_BY_KEY[was.art].label] += 1
-    planned = sum(new.days[d].vacation_used + old.days[d].accrual - new.days[d].accrual
-                  for d in new.days if d > today)
+    # Ferien danach = Guthaben heute minus geplanten Bezug. Künftiger Anspruch steht auch
+    # sonst nicht im Guthaben – also fehlt er hier ebenso (unbezahlter Urlaub senkt nichts).
+    planned = sum(new.days[d].vacation_used for d in new.days if d > today)
     art = tk.ART_BY_KEY[entry.art]
-    due = proof_due(book, entry)
     out.update(
         workdays=len(days), minutes=round(sum(absence_minutes(book, entry, d) for d in days)),
         replaces=", ".join(f"{k} an {n} Tag{'en' if n > 1 else ''}" for k, n in labels.items())
@@ -693,9 +747,11 @@ def preview(db: Session, actor: UserProfile, person: UserProfile, data) -> dict:
 
 
 def swipe(db: Session, actor: UserProfile, person: UserProfile, direction: str,
-          key: str) -> Optional[TimeEntry]:
-    """Ein Wisch – Serverzeit. Derselbe Schlüssel zweimal, ein zweiter Wisch innert
-    ``DOUBLE_SWIPE_S`` oder eine Richtung, die schon gilt (zweites Gerät), schreibt nichts."""
+          key: str) -> Optional[str]:
+    """Ein Wisch – Serverzeit. Derselbe Schlüssel zweimal schreibt nichts (es ist derselbe
+    Wisch); ein zweiter Wisch innert ``DOUBLE_SWIPE_S`` und eine Richtung, die schon gilt
+    (zweites Gerät, veraltete Seite), schreiben auch nichts – dann kommt der Satz zurück,
+    der es sagt. ``None`` = geschrieben (oder derselbe Wisch noch einmal)."""
     _lock(db, person)
     if db.query(TimeEntry.id).filter(TimeEntry.idem_key == key).first() is not None:
         return None
@@ -704,16 +760,22 @@ def swipe(db: Session, actor: UserProfile, person: UserProfile, direction: str,
         raise HTTPException(403, detail=f"Die Zeiterfassung von «{person.display_name}» führt "
                                         f"nur sie selbst oder die Administration.")
     now = now_utc()
-    if (running(book, now) is not None) == (direction == "in"):
-        return None
-    stamps = [r for r in book.live if r.kind in tk.STAMPS]
-    if stamps and now - max(s.at for s in stamps) < timedelta(seconds=tk.DOUBLE_SWIPE_S):
-        return None
+    run = running(book, now)
+    if run is not None and direction == "in":
+        return f"Schon da – «Kommen» um {clock(run.at)} läuft. Jetzt ist «Gehen» dran."
+    if run is None and direction == "out":
+        return "Schon gegangen – jetzt ist «Kommen» dran."
+    # Ein Wisch trägt seinen Zeitpunkt selbst (Serverzeit) – gefragt wird der letzte Wisch,
+    # nicht ein von Hand verschobener Stempel.
+    swiped = [r.at for r in book.live if r.kind in tk.STAMPS and r.source == "swipe"]
+    if swiped and now - max(swiped) < timedelta(seconds=tk.DOUBLE_SWIPE_S):
+        return "Eben gestempelt – ein zweiter Wisch innert einer Minute zählt nicht."
     problem = stamp_problem(book, actor, direction, now, now)
     if problem is not None:
         raise HTTPException(problem[0], detail=problem[1])
-    return _write(db, actor, person, TimeEntry(
+    _write(db, actor, person, TimeEntry(
         kind=direction, day=local(now).date(), at=now, source="swipe", idem_key=key))
+    return None
 
 
 # ─── Vertrag ────────────────────────────────────────────────────────────────────────
@@ -722,6 +784,9 @@ def contract_problem(db: Session, actor: UserProfile, book: Book, data) -> Optio
     """Darf dieser Vertrag angelegt werden? (Zweite Form: ``add_contract`` weist ab.)"""
     if actor.role != "admin":
         return 403, "Verträge pflegt die Administration."
+    if book.person.role not in people.STAFF_ROLES:
+        return 400, (f"«{book.person.display_name}» ist kein Personal – zuerst die Rolle "
+                     f"Mitarbeiter geben.")
     born = book.person.date_of_birth
     if born is None:
         return 400, ("Geburtsdatum fehlt in den Stammdaten – es bestimmt Jugendschutz und "
@@ -764,8 +829,9 @@ def add_contract(db: Session, actor: UserProfile, person: UserProfile, data) -> 
     else:
         company = data.company_object_id or person.company_object_id
         mask = tk.mask_of(data.workdays)
-        weeks = data.vacation_weeks if data.vacation_weeks is not None else \
-            tk.legal_weeks(person.date_of_birth, data.valid_from)
+        # Leer = **gesetzlich**, gespeichert als 0: das Gesetz folgt dem Alter Tag für Tag
+        # (bis zum 20. Geburtstag 5, danach 4 Wochen) – ein eingefrorener Wert täte es nicht.
+        weeks = data.vacation_weeks if data.vacation_weeks is not None else 0
     c = TimeContract(person_object_id=person.object_id, valid_from=data.valid_from,
                      weekly_minutes=data.weekly_minutes, workdays=mask, vacation_weeks=weeks,
                      company_object_id=company, created_by=actor.id)

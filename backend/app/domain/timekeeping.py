@@ -78,6 +78,10 @@ PAUSES: tuple[tuple[int, int], ...] = ((9 * 60, 60), (7 * 60, 30), (330, 15))
 #: (ArG Art. 10 Abs. 3: die Tagesarbeit liegt in 14 Stunden – Nachtschicht). Danach fehlt
 #: «Gehen», und der nächste Wisch ist wieder «Kommen» (``services/timekeeping.reaches``).
 RUNNING_MAX = 14 * 60
+#: …und nur ein **spätes** Kommen läuft über Mitternacht (Abendarbeit ab 20 Uhr, ArG Art. 10):
+#: wer um 18 Uhr kommt und das Gehen vergisst, hat am Morgen einen offenen Tag – keine
+#: 13-Stunden-Nachtschicht.
+SHIFT_FROM = 20 * 60
 #: Eigene Einträge lassen sich so viele Tage zurück ändern; ältere ändert der Admin.
 CORRECTION_DAYS = 7
 #: Ein zweiter Wisch innerhalb dieser Sekunden gilt als derselbe.

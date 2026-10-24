@@ -1867,6 +1867,11 @@ export interface components {
              * @default false
              */
             proof_needed: boolean;
+            /**
+             * Proof Missing
+             * @default false
+             */
+            proof_missing: boolean;
             /** Replaces */
             replaces?: string | null;
             /**
@@ -4569,6 +4574,8 @@ export interface components {
              * Format: date
              */
             today: string;
+            /** Notice */
+            notice?: string | null;
             /** Present Since */
             present_since?: string | null;
             /** Last Out */

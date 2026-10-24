@@ -94,7 +94,8 @@ function AbsenceRow({ a, view, onVoid, onProof }: {
     ? (a.proof_url
       ? <a href={a.proof_url} target="_blank" rel="noreferrer"><Pill tone="done" label={art.proof} icon={FileCheck} tip="Hochgeladen – öffnen" /></a>
       : <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <Pill tone="pending" label={`${art.proof} fehlt`} />
+          {/* «fehlt» erst ab dem Tag, ab dem er nötig ist – hochladen geht schon vorher. */}
+          {a.proof_missing && <Pill tone="pending" label={`${art.proof} fehlt`} />}
           <label className="erp-actbtn erp-actbtn-neutral" style={{ height: 24, padding: '0 9px', fontSize: 11.5, cursor: 'pointer' }}
             data-tip="Foto oder Scan des Nachweises – jederzeit nachreichbar">
             <Upload size={12} />Hochladen
@@ -216,6 +217,9 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
     : hints.length ? view.vocab.texts.limits : null;
   const editable = !d.locked && !d.future;
   const canCapture = !d.locked && (d.workday || !d.future);
+  // Was ohne eigenes Formular geschieht (Zurücknehmen), meldet sich hier – nie still.
+  const [err, setErr] = useState<string | null>(null);
+  const act = (e: TimeEntryIn) => { setErr(null); onEntry(e).then(setErr); };
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -237,7 +241,7 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
             <div key={s.id} style={{ display: 'grid', gap: 10 }}>
               <StampRow s={s} editable={editable}
                 onSave={(time) => onEntry({ kind: s.kind, replaces_id: s.id, time })}
-                onVoid={() => { onEntry({ kind: 'void', replaces_id: s.id }); }} />
+                onVoid={() => act({ kind: 'void', replaces_id: s.id })} />
               {/* «Gehen» fehlt – direkt unter dem Kommen, zu dem es gehört. */}
               {s.missing_out && (
                 <LedgerRow ident={<><Dot color="var(--danger)" />Gehen</>}
@@ -247,10 +251,11 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
             </div>
           ))}
           {d.absence && <AbsenceRow a={d.absence} view={view}
-            onVoid={() => { onEntry({ kind: 'void', replaces_id: d.absence!.id }); }}
+            onVoid={() => act({ kind: 'void', replaces_id: d.absence!.id })}
             onProof={(f) => onProof(d.absence!.id, f)} />}
         </div>
       )}
+      {err && <ErrorText msg={err} />}
       {cap && cap.day === d.day
         ? <CaptureTool view={view} d={d} cap={cap} setCap={setCap} preview={preview}
             onSubmit={(entry, file) => onEntry(entry, file)} />

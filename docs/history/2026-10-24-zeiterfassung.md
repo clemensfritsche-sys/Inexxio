@@ -58,3 +58,26 @@ aus 15 Mockup-Runden) – Backend, Frontend, Tests, Doku.
   robust gebaut (Fehlersatz, Feiertage von Hand) – auf dev prüfen.
 - Nachweise sind **Bilder** (Foto/Scan, `attachments.store_image`); PDF bewusst nicht.
 - Verworfen: halbe Tage, Offline-Stempeln, Export, Team-Seite, Obergrenzen (Spezifikation §11).
+
+## Nachtrag 24.10. abends – Befund aus dem Test auf dev
+
+**Gemeldet:** Kommen gewischt, die Zeit von Hand weit zurückgesetzt (21:4x → 06:55) – der
+Knopf sprang auf «Kommen», ein zweites Kommen ohne Gehen liess sich buchen.
+
+**Kernursache:** «anwesend» hing an der Uhr (ein Kommen läuft höchstens 14 h). Ein
+zurückgesetztes Kommen galt sofort als vergessen. **Lösung:** EINE Regel
+`timekeeping.reaches` – ein Kommen von heute läuft, bis «Gehen» kommt; über Mitternacht nur
+ein Kommen ab 20 Uhr und höchstens 14 h. `pair`, `sequence_problem` und `running` lesen sie.
+
+**Unabhängige Prüfung** aller Funktionen (zweiter Blick, nicht auf die Vermutung gesetzt):
+12 Befunde, alle behoben, je ein Test, gegen den alten Code gegengeprüft (alle 12 rot):
+Nachweis machte eine Absenz «neuer» (Rang über die Ersatzkette, `Book.rank`) · Schlussstand
+ohne Buchungen (Buchungen wirken ab ihrem Tag im Lauf) · vergessenes Gehen am Nachmittag als
+Nachtschicht · laufende Nachtschicht schon im Konto · Gehen nach Mitternacht nicht auf vorher
+korrigierbar · Stempel konnte den Tag wechseln · ersetzte Krankheit verlangte weiter ein
+Zeugnis · Nachtschicht-Ende an einem Ferientag abgewiesen · «gesetzliche» Ferienwochen am
+Stichtag eingefroren (jetzt 0 = gesetzlich, Tag für Tag) · «Ferien danach» sank bei
+unbezahltem Urlaub · doppelte/fehlende Stunde der Zeitumstellung · stille Fehler in der
+Oberfläche (Zurücknehmen, zweiter Wisch, Monatswechsel mit später Antwort). Dazu: Prüfung nur
+rund um den geänderten Tag (`around`) – alte Fehler sperren nicht alles; «Gehen fehlt» unter
+seinem Kommen; Balken ohne Soll grau; Verträge nur für Personal.

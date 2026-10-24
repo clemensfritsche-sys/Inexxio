@@ -34,9 +34,9 @@ def _time_items(db: Session, actor: UserProfile) -> dict[int, list[TodoItem]]:
     for person in db.query(UserProfile).filter(UserProfile.object_id.in_(oids)).all():
         found = timekeeping.tasks(timekeeping.load(db, person), now)
         if found:
-            red = any((today - d).days >= tk.URGENT_DAYS for _, d, _ in found)
-            out[person.object_id] = [TodoItem(section="zeiterfassung", label=label, count=1,
-                                              red=red) for _, _, label in found]
+            out[person.object_id] = [
+                TodoItem(section="zeiterfassung", label=label, count=1,
+                         red=(today - d).days >= tk.URGENT_DAYS) for _, d, label in found]
     return out
 
 
