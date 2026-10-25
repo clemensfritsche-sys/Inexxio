@@ -401,8 +401,6 @@ class FlowUnits(BaseModel):
     count: int
     active: bool
     at_step_id: Optional[int] = None
-    #: **Wem sie gehören** – der Name, wenn nicht uns («verkauft an …»).
-    owner: Optional[str] = None
 
 
 class FlowEdge(BaseModel):

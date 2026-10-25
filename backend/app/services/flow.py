@@ -149,9 +149,6 @@ class Placed:
     count: int
     active: bool
     at_step_id: Optional[int] = None
-    #: ►►► **Wem diese Stücke gehören** – der Name, wenn nicht uns (``owner_object_id``).
-    #: «Verkauft an …» ist eine Anzeige aus dem Eigentum, kein Zustand. ◄◄◄
-    owner: Optional[str] = None
 
 
 @dataclass
@@ -307,8 +304,6 @@ class _Row:
     #: Nur für Hinausgegangene: das **Modul**, an dem sie den Auftrag verlassen haben
     #: (Aussondern, Verbrauch). ``None`` heisst: über das Ende-Objekt.
     left_at: Optional[int] = None
-    #: Wem das Stück gehört – der Name, ``None`` heisst uns.
-    owner: Optional[str] = None
 
 
 def _returned_here(db: Session, order_id: int) -> set[tuple[int, Optional[int]]]:
@@ -429,7 +424,6 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
             OrderUnit.released_at.is_(None).label("active"),
             InstanceUnit.status,
             OrderUnit.instance_unit_id,
-            InstanceUnit.owner_object_id,
         )
         .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
         .where(OrderUnit.order_id == order.id)
@@ -442,9 +436,8 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
     coming = process.returning_home(db, order)
     left_with = _left_with(db, order.id)
 
-    owners = _owner_names(db, {o for *_x, o in raw if o is not None})
     out: list[_Row] = []
-    for mid, at, active, status, unit_id, owner in raw:
+    for mid, at, active, status, unit_id in raw:
         at = int(at) if at is not None else None
         # ►►► **Die Achse erzählt diesen Auftrag, die Abzweigung den Nachbarn.** ◄◄◄
         #
@@ -477,21 +470,7 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
             # ausgescherten Zeile wäre der letzte Log-Eintrag eine Zwischenstation.
             left_at=(left_at.get(int(unit_id))
                      if not bool(active) and at is None else None),
-            owner=owners.get(owner) if owner is not None else None,
         ))
-    return out
-
-
-def _owner_names(db: Session, ids: set[int]) -> dict[int, str]:
-    """Objektnummer → Name, für Personen und Firmen – eine Abfrage je Art."""
-    if not ids:
-        return {}
-    from ..models import CompanySettings, UserProfile
-    from . import sites
-    out = {u.object_id: u.display_name for u in
-           db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
-    for c in db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids)).all():
-        out[c.object_id] = sites.legal_name(c)
     return out
 
 
@@ -908,14 +887,13 @@ def _counted(members: list[_Row]) -> list[Placed]:
     viele stehen wo». Wer die Nummern braucht, klappt auf – und bekommt dann genau diese
     Mitglieder, nicht das Ergebnis einer zweiten, gröberen Abfrage.
     """
-    counts: dict[tuple[str, bool, Optional[int], str], int] = {}
+    counts: dict[tuple[str, bool, Optional[int]], int] = {}
     for r in members:
-        key = (r.status, r.active, r.at, r.owner or "")
+        key = (r.status, r.active, r.at)
         counts[key] = counts.get(key, 0) + 1
     return [
-        Placed(status=status, count=n, active=active, at_step_id=at, owner=owner or None)
-        for (status, active, at, owner), n in sorted(
-            counts.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2] or 0, kv[0][3]))
+        Placed(status=status, count=n, active=active, at_step_id=at)
+        for (status, active, at), n in sorted(counts.items())
     ]
 
 
@@ -945,7 +923,7 @@ def as_dict(g: Graph) -> dict[str, Any]:
             {"id": e.id, "frm": e.frm, "to": e.to, "kind": e.kind, "walked": e.walked,
              "units": [
                  {"status": p.status, "count": p.count, "active": p.active,
-                  "at_step_id": p.at_step_id, "owner": p.owner}
+                  "at_step_id": p.at_step_id}
                  for p in e.units
              ]}
             for e in g.edges

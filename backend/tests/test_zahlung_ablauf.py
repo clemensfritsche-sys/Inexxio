@@ -191,6 +191,13 @@ def test_sale_from_offer_to_done(db):
     units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(row.unit_ids)).all()
     assert all(u.owner_object_id == who.company.object_id for u in units), (
         "Das Eigentum geht an die Partei – an die Firma, an die verrechnet wird.")
+    # Gezeigt wird es an der Einzelinstanz, neben dem Ort – nicht im Prozessbild.
+    from app.models import Instance
+    from app.routers.instances import instance_units
+    inst = db.query(Instance).filter(Instance.id == units[0].instance_id).first()
+    page = instance_units(inst.object_id, status=None, limit=60, offset=0, db=db, _=None)
+    seen = {u.owner.object_id for u in page.units if u.owner}
+    assert seen == {who.company.object_id}, "Die Einzelinstanz sagt, wem sie gehört."
     _do(db, order, step, "bill")
     assert row.number == f"{order.object_id}-1" and row.amount == Decimal("1037.76")
     inv = svc.documents_of(db, row, vo.INVOICE_DOC)

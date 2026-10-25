@@ -937,7 +937,7 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
           const active = g.active;
           return (
             <button
-              key={`${g.status}-${g.active}-${g.owner ?? ''}`}
+              key={`${g.status}-${g.active}`}
               type="button"
               onClick={toggle}
               disabled={!onExpand}
@@ -951,8 +951,6 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
             >
               <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color }} />
               {cfg.label} · {g.count}
-              {/* **Wem sie gehören** – eine Anzeige aus dem Eigentum, kein Zustand. */}
-              {g.owner ? ` · verkauft an ${g.owner}` : ''}
               {onExpand && (open
                 ? <ChevronUp size={11} style={{ opacity: 0.6 }} />
                 : <ChevronDown size={11} style={{ opacity: 0.6 }} />)}

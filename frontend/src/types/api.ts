@@ -3197,8 +3197,6 @@ export interface components {
             active: boolean;
             /** At Step Id */
             at_step_id?: number | null;
-            /** Owner */
-            owner?: string | null;
         };
         /**
          * Genealogy
@@ -3445,6 +3443,7 @@ export interface components {
              */
             parts_count: number;
             place?: components["schemas"]["UnitPlace"] | null;
+            owner?: components["schemas"]["PlaceRef"] | null;
             /**
              * Created At
              * Format: date-time

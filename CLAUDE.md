@@ -100,6 +100,9 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   eines): Halter ist eine Instanz, ein Benutzer oder ein Unternehmen, beim Verbauen das
   Träger-Stück. Ändert nie Status oder Zugehörigkeit; keine Zyklen; wer zur Historie zählt,
   verliert seinen Ort (ausser Gesperrt). Eine Schreibstelle: `services/places.py`.
+- **Eigentum** = zweiter Zeiger am Stück (`instance_units.owner_object_id`, `None` = uns),
+  gesetzt beim Passieren eines Zahlungs-Moduls. **Kein Zustand**: das Prozessbild zeigt nur
+  den Status; die Einzelinstanz zeigt «verkauft an …» neben dem Ort (`place-trail.OwnerMark`).
 - **Artikel-Lebenszyklus**: keine Versionierung – Änderung = neuer Artikel, der den alten
   **ersetzt** (`replaces_object_id` bei der Anlage → `replaced_by_id`). «Inaktiv» ist eine
   **Projektion** von `replaced_by_id`, kein Schalter. Nur ein freigegebener Artikel erzeugt

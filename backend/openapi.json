@@ -8459,17 +8459,6 @@
               }
             ],
             "title": "At Step Id"
-          },
-          "owner": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner"
           }
         },
         "type": "object",
@@ -8955,6 +8944,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UnitPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceRef"
               },
               {
                 "type": "null"
