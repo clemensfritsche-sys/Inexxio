@@ -39,6 +39,17 @@ Nächstes kommt, jedes Dokument sieht gleich aus, die Partei handelt selbst übe
   Offerten-Mail); korrigiert: doppeltes «z. H.», «CH»-Zeile im Inland, Platzhalter in den
   AGB, Überlappung langer Wörter mit dem Logo.
 
+## AGB neu (Weisung 25.10.2026)
+`app/assets/agb/2026-01-01.md` ist ganz neu geschrieben – auf INEXXIO zugeschnitten (Krane
+nach Mass, Kranservice, Heukrananlagen, Fahrzeugtechnik, Speziallösungen) und auf den Ablauf
+im System: verbindliche Offerte mit Gültigkeit, Annahme nur der aktuellen Fassung über den
+Link, Mehrarbeit nur nach Zustimmung, Zahlungswege, Mahnung in bis zu drei Stufen, Lieferung
+nach Incoterm, Abnahme mit Protokoll, ersetzte Teile, Zufriedenheitsgarantie, INEXXIO 365,
+Gratis-Inspektion, Storno. **Kein Skonto; Mahngebühren nur allgemein, ohne Betrag.** Ein Teil
+für Geschäftskunden, einer für Endkunden (Gewährleistung 2 Jahre neu / 1 Jahr gebraucht,
+Gerichtsstand am Wohnsitz, Widerrufsrecht für EU-Fernabsatz). Eine rechtliche Durchsicht
+durch eine Fachperson ist empfohlen.
+
 ## Verworfen
 - PDF-Erzeugung auf dem Server: das eingefrorene HTML wird im Browser gedruckt.
 - Mahngebühr und Verzugszins im System: nicht gebaut.
@@ -46,7 +57,5 @@ Nächstes kommt, jedes Dokument sieht gleich aus, die Partei handelt selbst übe
   von Hand.
 
 ## Offen
-- Der AGB-Text (`2026-01-01.md`) nennt noch Skonto 2 % und eine Mahngebühr CHF 20 – das
-  System kennt beides nicht; Text prüfen.
 - Dokumente der Gegenseite (Lieferant stellt) werden nicht erzeugt, nur erfasst.
 - Ohne verbundenes Postfach werden Mails nur erfasst, nicht gesendet.
