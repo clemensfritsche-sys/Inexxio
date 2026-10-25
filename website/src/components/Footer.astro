@@ -14,13 +14,11 @@ import { plain, rich } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
 import { photos } from '../config/photos.mjs';
-import { samples } from '../config/photo-samples.mjs';
 import wordmark from '../assets/brand/schriftzug-fuss.svg?url';
 
 const year = new Date().getFullYear();
 const a = site.address;
 /** Solange Beispielbilder stehen, führt der Fuss zu ihrem Nachweis (CC BY/BY-SA). */
-const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].file);
 ---
 <footer class="site-footer on-dark">
   <div class="wrap">
@@ -69,7 +67,6 @@ const hasSamples = Object.keys(samples).some((id) => photos[id] && !photos[id].f
         <li><a href="/datenschutz">Datenschutz</a></li>
         <li><a href="/agb">AGB</a></li>
         <li><a href="/newsletter">Newsletter</a></li>
-        {hasSamples && <li><a href="/impressum#bildnachweis">Bildnachweis</a></li>}
       </ul>
     </div>
     <div class="site-footer__mark" aria-hidden="true"><img src={wordmark} alt="" width="624" height="167" loading="lazy" decoding="async" /></div>

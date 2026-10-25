@@ -1428,7 +1428,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/public/agb": {
+    "/api/v1/public/legal/{kind}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1436,10 +1436,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Terms
-         * @description **Die AGB, die heute gelten** – als A4-Dokument in der Vorlage aller Dokumente.
+         * Legal Text
+         * @description **AGB, Datenschutz oder Impressum, wie sie heute gelten** – als A4-Dokument in der
+         *     Vorlage aller Dokumente, mit den Angaben des Betreibers aus dem ERP.
          */
-        get: operations["terms_api_v1_public_agb_get"];
+        get: operations["legal_text_api_v1_public_legal__kind__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2067,16 +2068,6 @@ export interface components {
             is_default_delivery: boolean;
             /** Is Default Billing */
             is_default_billing: boolean;
-        };
-        /**
-         * AgbOut
-         * @description Die geltenden AGB – ihr Datum und das A4-Dokument.
-         */
-        AgbOut: {
-            /** Valid From */
-            valid_from: string;
-            /** Html */
-            html: string;
         };
         /** ArtOut */
         ArtOut: {
@@ -3488,6 +3479,22 @@ export interface components {
             name: string;
             /** Unit Count */
             unit_count: number;
+        };
+        /**
+         * LegalOut
+         * @description Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument.
+         */
+        LegalOut: {
+            /** Kind */
+            kind: string;
+            /** Word */
+            word: string;
+            /** Title */
+            title: string;
+            /** Valid From */
+            valid_from: string;
+            /** Html */
+            html: string;
         };
         /**
          * MailboxOut
@@ -8395,11 +8402,13 @@ export interface operations {
             };
         };
     };
-    terms_api_v1_public_agb_get: {
+    legal_text_api_v1_public_legal__kind__get: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                kind: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -8410,7 +8419,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgbOut"];
+                    "application/json": components["schemas"]["LegalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

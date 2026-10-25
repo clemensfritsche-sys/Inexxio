@@ -106,8 +106,10 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
 - **58/76 · Kranservice defensiv**: keine Aussage «aller Marken/Hersteller» bei Kranen.
 - **67 · Keine gelben Vermerke**: was nicht feststeht, steht nicht da. Offen ist allein die
   Fotoliste (`OFFENE_PUNKTE.md`, generiert).
-- **32/108 · Beispielbilder** (Wikimedia Commons, Nachweis im Impressum) bis zum Fototag;
-  im Modus `live` ist ein Beispielbild ein Build-Fehler wie ein fehlendes Foto.
+- **32/108 · Keine Beispielbilder mehr** (Weisung 25.10.2026): bis zum Fototag steht der graue
+  Rahmen «Foto fehlt»; ein Bildnachweis entfällt. Im Modus `live` ist er ein Build-Fehler.
+- **Rechtstexte gehören dem ERP** (Weisung 25.10.2026): `/datenschutz` und `/impressum` sind wie
+  `/agb` A4-Dokumente des ERP (`site.erpPaths`); die Website verlinkt sie nur.
 - **53 · Keine laufenden Nummern** an Abschnitten ohne Reihenfolge. **54 · FAQ**: höchstens
   eine Antwort offen; ist keine offen, steht das Grundbild (Frage grau, Antwort rot). Schmal
   steht das Bild immer direkt über der offenen Frage.

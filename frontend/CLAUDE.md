@@ -232,5 +232,6 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
 - Einsprachig Deutsch (kein i18n verdrahtet).
 - **Eine Abhängigkeit ohne Import ist Altlast** – auf Unterpfade und dynamische Importe
   achten (`await import('@zxing/browser')` ist echte Nutzung).
-- Rechtliches: AGB hier; Impressum und Datenschutz liefert die Website
-  (`website/src/content/legal/`). Keine Statistik, kein Cookie-Dialog.
+- Rechtliches: AGB, Datenschutz und Impressum hier (`/agb`, `/datenschutz`, `/impressum`, eine
+  Komponente `components/beleg/legal-page.tsx`, Text vom Server `api.publicLegal`). Keine
+  Statistik, kein Cookie-Dialog.

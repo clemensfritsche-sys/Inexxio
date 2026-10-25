@@ -10,8 +10,8 @@
  * Getauscht wird nach **Wert**, nicht nach Markierung: jede Stelle, die die Nummer der
  * Vorgabe zeigt (Links, Fliesstext, Formular-Hinweise), bekommt die aus dem ERP – eine
  * neue Stelle braucht keine eigene Zeile. Die Anschrift ist mehrzeilig und wird darum dort
- * ersetzt, wo `data-erp="address"` steht. Impressum und Datenschutz (`data-erp-fixed`)
- * bleiben unberührt: dort steht der Betreiber, nicht die Gesellschaft des Besucherlandes.
+ * ersetzt, wo `data-erp="address"` steht. (Impressum und Datenschutz sind Dokumente des ERP
+ * mit dem Betreiber – sie stehen nicht auf diesen Seiten.)
  *
  * Getauscht wird in jedem Bereich mit `data-contact` (die Vorgabe dieses Builds als JSON): auf
  * der Website ist das `<body>`, im Konto/ERP sind es Kopf und Fuss – derselbe Code an beiden
@@ -60,13 +60,13 @@ async function load(): Promise<Contact | null> {
   }
 }
 
-/** Text ersetzen – nicht in Skripten und nicht in festen Bereichen. */
+/** Text ersetzen – nicht in Skripten. */
 function replaceText(root: HTMLElement, from: string, to: string): void {
   if (!from || !to || from === to) return;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) => {
       const p = n.parentElement;
-      if (!p || p.closest('script, style, [data-erp-fixed]')) return NodeFilter.FILTER_REJECT;
+      if (!p || p.closest('script, style')) return NodeFilter.FILTER_REJECT;
       return n.nodeValue?.includes(from) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
     },
   });
@@ -77,7 +77,6 @@ function replaceText(root: HTMLElement, from: string, to: string): void {
 
 function replaceHref(root: HTMLElement, prefix: string, to: string): void {
   root.querySelectorAll<HTMLAnchorElement>(`a[href^="${prefix}"]`).forEach((a) => {
-    if (a.closest('[data-erp-fixed]')) return;
     a.setAttribute('href', to + a.getAttribute('href')!.slice(prefix.length));
   });
 }
@@ -94,7 +93,7 @@ export function apply(built: Built, c: Contact, root: HTMLElement = document.bod
     // Der mailto-Ausweg des Formulars liest seine Adresse aus `data-mail` – auch sie ist
     // die des ERP, sonst ginge die Notfall-Mail an die Adresse aus dem Build.
     root.querySelectorAll<HTMLElement>('[data-mail]').forEach((el) => {
-      if (el.dataset.mail === built.email && !el.closest('[data-erp-fixed]')) el.dataset.mail = email;
+      if (el.dataset.mail === built.email) el.dataset.mail = email;
     });
   }
   const lines = c.address_lines.filter((l) => l.trim() && l.trim().toUpperCase() !== built.country.toUpperCase());
@@ -102,17 +101,16 @@ export function apply(built: Built, c: Contact, root: HTMLElement = document.bod
     // Route zur Anschrift aus dem ERP – öffnet in einem neuen Tab, die Website bleibt offen.
     const dest = encodeURIComponent(lines.join(', '));
     root.querySelectorAll<HTMLAnchorElement>('[data-erp="route"]').forEach((a) => {
-      if (!a.closest('[data-erp-fixed]')) a.href = `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+      a.href = `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
     });
     // Der Ort allein (z. B. im Fliesstext): die Zeile mit der Postleitzahl, ohne die Zahl.
     const city = lines.find((l) => /^\d{4,5}\s/.test(l.trim()))?.trim().replace(/^\d{4,5}\s+/, '');
     if (city) root.querySelectorAll<HTMLElement>('[data-erp="city"]').forEach((el) => {
-      if (!el.closest('[data-erp-fixed]')) el.textContent = city;
+      el.textContent = city;
     });
   }
   if (c.name && lines.length) {
     root.querySelectorAll<HTMLElement>('[data-erp="address"]').forEach((el) => {
-      if (el.closest('[data-erp-fixed]')) return;
       el.replaceChildren();
       [c.name, ...lines].forEach((line, i) => {
         if (i) el.append(document.createElement('br'));
@@ -121,7 +119,7 @@ export function apply(built: Built, c: Contact, root: HTMLElement = document.bod
     });
     // Dieselbe Anschrift in einer Zeile (Kontaktliste, Kachel im Kopf).
     root.querySelectorAll<HTMLElement>('[data-erp="address-line"]').forEach((el) => {
-      if (!el.closest('[data-erp-fixed]')) el.textContent = [c.name, ...lines].join(', ');
+      el.textContent = [c.name, ...lines].join(', ');
     });
   }
 }

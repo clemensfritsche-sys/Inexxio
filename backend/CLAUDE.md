@@ -106,7 +106,7 @@ scripts/
 |---|---|
 | Prozess-Engine (Freigabe, Bestätigen, Halt, Auswahl) | `process.py`, `orders.py`, `materialize.py` |
 | Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
-| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `voucher_docs.py`, `document.py`, `agb.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
+| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
@@ -185,7 +185,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/attachments` | staff | Bild aus der Kamera hochladen (kein Datei-Upload) |
 | GET | `/api/v1/public/beleg/{token}` | – (Token) | **Kundenseite** eines Dokuments: eingefrorenes A4-HTML, Hinweis (überholt/abgelaufen/storniert), Handlungen aus `can` der Partei |
 | POST | `/api/v1/public/beleg/{token}/accept` · `/decline` · `/payment` | – (Token) | Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`) |
-| GET | `/api/v1/public/agb` | – | Die geltenden AGB als A4-Dokument (`services/agb`) |
+| GET | `/api/v1/public/legal/{kind}` | – | AGB · Datenschutz · Impressum, wie sie heute gelten, als A4-Dokument (`services/legal`, `document.standalone`) |
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |

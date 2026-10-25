@@ -19,10 +19,23 @@ from html import escape
 from pathlib import Path
 from typing import Optional
 
-from . import agb as agb_svc
+from . import legal
 
-_LOGO = base64.b64encode(
-    (Path(__file__).resolve().parent.parent / "assets" / "logo.png").read_bytes()).decode()
+_ASSETS = Path(__file__).resolve().parent.parent / "assets"
+_LOGO = base64.b64encode((_ASSETS / "logo.png").read_bytes()).decode()
+
+
+def _font(family: str, weight: str, file: str) -> str:
+    data = base64.b64encode((_ASSETS / "fonts" / file).read_bytes()).decode()
+    return (f"@font-face{{font-family:'{family}';font-weight:{weight};font-style:normal;"
+            f"src:url(data:font/woff2;base64,{data}) format('woff2')}}")
+
+
+#: **Die Schrift steckt im Papier** – kein Abruf bei Google (Datenschutz), und die Zeilen
+#: fallen überall gleich, also auch die Seiten (``_paginate``).
+_FONTS = ("<style>" + _font("Inter", "100 900", "inter-latin-wght-normal.woff2")
+          + _font("Inter Tight", "600 700", "inter-tight-latin-wght-600-700.woff2")
+          + "</style>")
 
 #: Die Werte der Design-Tokens – das Papier steht für sich (eingefroren, gedruckt) und kann
 #: die Stylesheets der Seite nicht erben.
@@ -78,10 +91,10 @@ grid-template-columns:62mm 1fr;min-height:105mm;font-size:10.5px}
 .slip b{display:block;font-weight:600;margin-top:10px}
 .slip .h{font:700 12px var(--body)}
 .slip .qr svg{width:46mm;height:46mm;display:block;margin-top:14px}
-.agb h3{font:600 13px var(--body);margin:16px 0 0}
-.agb p,.agb li{margin:4px 0 0;font-size:12px;line-height:1.55;color:var(--fg-2)}
-.agb ul{margin:4px 0 0;padding-left:18px}
-.agb .intro{margin-top:6mm;font-size:12.5px;color:var(--fg-2)}
+.legal h3{font:600 13px/1.45 var(--body);margin:16px 0 0}
+.legal p,.legal li{margin:4px 0 0;font-size:12px;line-height:1.55;color:var(--fg-2)}
+.legal ul{margin:4px 0 0;padding-left:18px}
+.legal .intro p{font-size:12.5px;color:var(--fg-2)}
 .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}
 @media print{.sheets{gap:0}.sheet{box-shadow:none;border-radius:0;break-after:page}}
 @media screen and (max-width:820px){.sheet{min-height:0;padding:9mm 6mm 6mm}
@@ -90,10 +103,6 @@ grid-template-columns:62mm 1fr;min-height:105mm;font-size:10.5px}
 .word{font-size:min(var(--size,64px),calc(150vw / var(--chars,12)))}
 .terms{grid-template-columns:1fr 1fr!important}.sum{width:100%}}
 """
-
-_FONTS = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:'
-          'wght@400;500;600;700&family=Inter+Tight:wght@600;700&display=swap">')
-
 
 @dataclass
 class Line:
@@ -139,33 +148,38 @@ class Doc:
     #: Absender in der Fusszeile – eine Zeile.
     sender: str = ""
     #: Die AGB, die angehängt werden – ``None`` heisst «keine».
-    terms_of: Optional[agb_svc.Terms] = None
-    business: bool = True
+    terms_of: Optional[legal.Text] = None
     #: Statt der Positionen nur ein Text (Mahnung, Stornierung ohne Rechnung).
     letter: str = ""
 
 
 def render(doc: Doc) -> str:
-    """►►► **Das Dokument als eigenständiges HTML** – Seite 1 und die AGB-Seite. ◄◄◄"""
+    """►►► **Das Dokument als eigenständiges HTML** – Seite 1, dann die AGB auf ihren
+    A4-Seiten. ◄◄◄"""
     agb = doc.terms_of
-    pages = 2 if agb is not None else 1
+    agb_sheets = _legal_chunks(agb) if agb is not None else []
+    pages = 1 + len(agb_sheets)
     first = _first_page(doc, pages)
-    rest = agb_page(agb, business=doc.business, sender=doc.sender, page=2, of=pages) \
-        if agb is not None else ""
-    title = escape(f"{doc.word} {doc.number}".strip())
-    return (f'<!doctype html><html lang="de"><head><meta charset="utf-8">'
-            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{title}</title>{_FONTS}<style>{_STYLE}</style></head>'
-            f'<body><div class="sheets">{first}{rest}</div></body></html>')
+    rest = "".join(_legal_sheet(agb, chunk, sender=doc.sender, page=2 + i, of=pages,
+                                first=i == 0)
+                   for i, chunk in enumerate(agb_sheets)) if agb is not None else ""
+    return _html(f"{doc.word} {doc.number}".strip(), first + rest)
 
 
-def standalone_agb(agb: agb_svc.Terms, *, sender: str) -> str:
-    """Die AGB allein – die Seite ``/agb`` der Website: beide Teile, dieselbe Vorlage."""
-    sheets = "".join(agb_page(agb, part=p, sender=sender, page=i + 1, of=len(agb.parts))
-                     for i, p in enumerate(agb.parts))
+def standalone(text: legal.Text, *, sender: str) -> str:
+    """**Ein Rechtstext für sich** – die Seiten ``/agb``, ``/datenschutz``, ``/impressum``:
+    dieselbe Vorlage, dieselben A4-Seiten wie hinter einem Beleg."""
+    chunks = _legal_chunks(text)
+    sheets = "".join(_legal_sheet(text, chunk, sender=sender, page=i + 1, of=len(chunks),
+                                  first=i == 0)
+                     for i, chunk in enumerate(chunks))
+    return _html(text.title, sheets)
+
+
+def _html(title: str, sheets: str) -> str:
     return (f'<!doctype html><html lang="de"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{escape(agb.title)}</title>{_FONTS}<style>{_STYLE}</style></head>'
+            f'<title>{escape(title)}</title>{_FONTS}<style>{_STYLE}</style></head>'
             f'<body><div class="sheets">{sheets}</div></body></html>')
 
 
@@ -249,23 +263,67 @@ def _slip(p: Payslip) -> str:
             f'<b>Zahlbar durch</b><div>{debt}</div></div></div></div>')
 
 
-def agb_page(agb: agb_svc.Terms, *, business: bool = True,
-             part: Optional[agb_svc.Part] = None, sender: str = "",
-             page: int = 1, of: int = 1) -> str:
-    """►►► **Die AGB als Seite derselben Vorlage** – das Wort «AGB», das Datum, die
-    Paragrafen. Für einen Empfänger der Teil, der für ihn gilt (geschäftlich ↔ privat). ◄◄◄"""
-    use = part or agb.part_for(business)
-    if use is None:
-        return ""
-    paras = ""
-    for para in use.paragraphs:
-        items = "".join(f"<li>{escape(t)}</li>" for kind, t in para.blocks if kind == "li")
-        texts = "".join(f"<p>{escape(t)}</p>" for kind, t in para.blocks if kind == "p")
-        paras += f"<h3>{escape(para.title)}</h3>{texts}" + (f"<ul>{items}</ul>" if items else "")
-    facts = (f'<span class="lbl">Gültig ab</span><span class="fact num">{agb.day}</span>'
-             f'<span class="lbl">Für</span><span class="fact">'
-             f'{escape(use.title.replace("Für ", ""))}</span>')
-    intro = f'<p class="intro">{escape(use.intro)}</p>' if use.intro else ""
-    return (f'<section class="sheet agb">{_top("AGB")}<div class="facts" '
-            f'style="margin-top:12mm;width:fit-content">{facts}</div>{intro}'
-            f'<div style="margin-top:4mm">{paras}</div>{_foot(sender, page, of)}</section>')
+#: ►►► **Seiten wie auf Papier** – jedes Blatt ist eine A4-Seite, der Druck ergibt genau
+#: so viele Seiten, wie «Seite x/n» sagt. ◄◄◄ Verteilt wird auf dem Server nach einer
+#: vorsichtigen Schätzung (Zeichen je Zeile, Höhe je Zeile, in px bei 96 dpi): lieber eine
+#: Zeile Luft am Seitenende als ein Absatz, der über das Blatt hinausläuft. Ein Absatz wird
+#: nie geteilt, ein Titel nie von seinem ersten Absatz getrennt.
+_PAGE_BODY = 850          # Platz für Text auf einer Folgeseite (Kopf, Fuss, Reserve abgezogen)
+_FIRST_EXTRA = 60         # die erste Seite trägt dazu «Gültig ab»
+_CHARS = 96               # Zeichen je Zeile (12 px Inter auf 170 mm – eher zu wenig)
+_LINE = 18.6              # Zeilenhöhe 12 px × 1.55
+
+
+def _height(kind: str, text: str) -> float:
+    chars = _CHARS - (4 if kind == "li" else 0)
+    lines = max(1, -(-len(text) // chars))
+    return (35.0 if kind == "h3" else 4.0) + (0 if kind == "h3" else lines * _LINE)
+
+
+def _legal_blocks(text: legal.Text) -> list[list[tuple[str, str]]]:
+    """Die Bausteine in Gruppen, die zusammenbleiben: Titel + erster Absatz, dann je Absatz."""
+    groups: list[list[tuple[str, str]]] = [[("intro", t)] for t in text.intro]
+    for sec in text.sections:
+        blocks = sec.blocks or [("p", "")]
+        groups.append([("h3", sec.title), blocks[0]])
+        groups.extend([b] for b in blocks[1:])
+    return groups
+
+
+def _legal_chunks(text: legal.Text) -> list[list[tuple[str, str]]]:
+    """Die Bausteine auf A4-Seiten verteilt – nie leer, mindestens eine Seite."""
+    pages: list[list[tuple[str, str]]] = [[]]
+    room = _PAGE_BODY - _FIRST_EXTRA
+    for group in _legal_blocks(text):
+        need = sum(_height("p" if k == "intro" else k, t) for k, t in group)
+        if need > room and pages[-1]:
+            pages.append([])
+            room = _PAGE_BODY
+        pages[-1].extend(group)
+        room -= need
+    return pages
+
+
+def _legal_sheet(text: legal.Text, chunk: list[tuple[str, str]], *, sender: str,
+                 page: int, of: int, first: bool) -> str:
+    """Eine A4-Seite eines Rechtstexts – das Wort, auf der ersten «Gültig ab», der Text."""
+    body, items, intro = "", "", ""
+    for kind, t in chunk:
+        if kind != "li" and items:
+            body, items = body + f"<ul>{items}</ul>", ""
+        if kind == "intro":
+            intro += f"<p>{escape(t)}</p>"
+        elif kind == "h3":
+            body += f"<h3>{escape(t)}</h3>"
+        elif kind == "li":
+            items += f"<li>{escape(t)}</li>"
+        elif t:
+            body += f"<p>{escape(t)}</p>"
+    if items:
+        body += f"<ul>{items}</ul>"
+    facts = (f'<div class="facts" style="margin-top:10mm;width:fit-content">'
+             f'<span class="lbl">{text.date_label}</span><span class="fact num">{text.day}</span>'
+             f'</div>' if first else "")
+    intro = f'<div class="intro" style="margin-top:4mm">{intro}</div>' if intro else ""
+    return (f'<section class="sheet legal a4">{_top(text.word)}{facts}{intro}'
+            f'<div style="margin-top:2mm">{body}</div>{_foot(sender, page, of)}</section>')

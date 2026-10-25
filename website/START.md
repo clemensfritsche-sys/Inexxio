@@ -9,8 +9,8 @@
 ## Vor dem Umschalten
 
 - [ ] Freigabe von Heiri Steiner: Texte, Zitat, Fotos, Namenswechsel
-- [ ] Fototag; Fotos in `src/config/photos.mjs` eintragen (jedes ersetzt ein Beispielbild) –
-      im Modus `live` bricht der Build bei jedem verbliebenen Beispielbild ab
+- [ ] Fototag; Fotos in `src/config/photos.mjs` eintragen (jedes ersetzt einen Rahmen «Foto
+      fehlt») – im Modus `live` bricht der Build bei jedem fehlenden Foto ab
 - [ ] `OFFENE_PUNKTE.md` leer, dann `SITE_MODE=live` und `SITE_URL=https://<Domain>` im
       Produktions-Workflow
 - [ ] **Anfragen landen im ERP**: das Postfach der eigenen Gesellschaft ist verbunden

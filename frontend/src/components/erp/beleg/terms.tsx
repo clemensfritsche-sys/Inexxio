@@ -218,7 +218,7 @@ function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
 let agbFrom: Promise<string | null> | null = null;
 
 function agbDate(): Promise<string | null> {
-  agbFrom ??= api.publicAgb().then((r) => r.valid_from).catch(() => null);
+  agbFrom ??= api.publicLegal('agb').then((r) => r.valid_from).catch(() => null);
   return agbFrom;
 }
 

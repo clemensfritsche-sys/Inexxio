@@ -217,11 +217,7 @@ function checkWords(where, text) {
   if (text.includes('ß')) fail(where, '«ß» statt «ss» (Schweizer Rechtschreibung)');
 }
 
-/** Rechtstexte nennen zuerst die Rechtsperson – dort gilt die Regel nicht. */
-const LEGAL = new Set(['/impressum', '/datenschutz']);
-
 function checkFirstMention(p) {
-  if (LEGAL.has(p.path)) return;
   const text = visibleText(p.main);
   // «INEXXIO 365» und die «INEXXIO Zufriedenheitsgarantie» sind Angebote, keine Nennung der
   // Firma – sie zählen nicht als erste Nennung.
@@ -377,7 +373,7 @@ function checkMenu(listed) {
   const home = pages.find((p) => p.path === '/');
   const header = home?.html.match(/<header class="site-header[\s\S]*?<\/header>/)?.[0] ?? '';
   const inMenu = new Set([...header.matchAll(/href="([^"#?]+)/g)].map((m) => m[1].replace(/\/$/, '') || '/'));
-  const exempt = (path) => path === '/' || path === '/impressum' || path === '/datenschutz' || path.startsWith('/ratgeber/');
+  const exempt = (path) => path === '/' || path.startsWith('/ratgeber/');
   for (const path of listed) if (!exempt(path) && !inMenu.has(path)) fail(path, 'nicht über das Menü im Kopf erreichbar');
 }
 

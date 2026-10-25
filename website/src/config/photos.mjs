@@ -13,8 +13,7 @@
  * Fotos: Betrieb, Team bei der Arbeit, Krane im Einsatz – echt oder generiert. Generierte Bilder
  * nur ohne echte Personen und Orte (keine erfundenen Mitarbeitenden, kein erfundener Betrieb);
  * wer oder was echt sein soll, wird fotografiert. Keine Stockfotos mit Menschen.
- * Bis dahin füllt ein gekennzeichnetes Beispielbild die Stelle
- * (config/photo-samples.mjs) – im Modus «live» ist das, wie ein fehlendes Foto, ein Fehler.
+ * Bis dahin steht dort der graue Rahmen «Foto fehlt» – im Modus «live» ein Fehler.
  *
  * Ein Video dazu: Datei (MP4, H.264, ohne Ton, kurz, ≤ 8 MB) nach public/video/ legen, daneben
  * ihr erstes Bild als Standbild mit gleichem Namen (.webp, z. B.

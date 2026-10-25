@@ -26,7 +26,7 @@ from ..domain import currency as cur
 from ..domain import incoterms as inc
 from ..domain import voucher as vo
 from ..models import Message, Order, UserProfile, Voucher, VoucherDocument
-from . import address, agb as agb_svc, document, mail_layout, qrbill, sites
+from . import address, document, legal, mail_layout, qrbill, sites
 from . import voucher as vs
 
 #: Eine Anschrift im Inland trägt kein Land – wie auf jedem Schweizer Brief.
@@ -118,15 +118,13 @@ def build(db: Session, *, row: Voucher, kind: str, party: int,
                                              if y), ours.get("uid") or "") if x and x != "—")
     to = [theirs.get("name") or "", theirs.get("attn") or "",
           *[x for x in (theirs.get("address") or []) if x not in HOME_LINES]]
-    business = bool(theirs.get("attn")) or bool((row.head or {}).get("billing", {}).get(
-        "bill_to_company"))
     word = (vo.remind_word(level or 1) if kind == vo.REMINDER_DOC
             else vo.DOCUMENTS.get(kind, "Beleg"))
     doc = document.Doc(
         word=word, number=_number(row, kind, order), to=to,
         facts=_facts(db, row, kind, party, actor, theirs),
         currency=row.currency, sender=sender,
-        terms_of=agb_svc.current(), business=business,
+        terms_of=legal.current(legal.AGB, values=legal.values_of(company)),
     )
     if kind == vo.REMINDER_DOC:
         _reminder(db, row, doc, level or 1)

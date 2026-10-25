@@ -329,6 +329,8 @@ export const site = {
     { path: '/abmelden', page: true, private: true },
     { path: '/beleg', page: true, private: true },
     { path: '/agb', page: true, private: false },
+    { path: '/datenschutz', page: true, private: false },
+    { path: '/impressum', page: true, private: false },
     { path: '/api', page: false, private: true },
     { path: '/_next', page: false, private: false },
   ],
