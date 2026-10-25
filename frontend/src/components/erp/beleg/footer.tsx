@@ -8,7 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import { day } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { inputCls, Label, Segmented } from '@/components/erp/fields';
-import { ACT_H, ActionButton } from '@/components/erp/module-ui';
+import { ACT_H, ActionButton, Steady } from '@/components/erp/module-ui';
 import { formBody, formProblem, formWord, startForm } from './forms';
 import type { Form } from './forms';
 import { may, unsigned } from './shared';
@@ -108,11 +108,14 @@ function Doing(p: FooterProps) {
         <MainButton label={primary.label} icon={primary.icon} busy={busy}
           problem={primary.problem} onClick={primary.run} />
       )}
+      {/* Die Leiste bricht um – der Knopf behält seine Breite (#1224). */}
       {may(d, 'revoke') && (
-        <ActionButton icon={CircleSlash} label={d.undo ?? 'Stornieren'} tone="danger"
-          height={ACT_H.stage} square disabled={busy}
-          tip={d.locked ?? 'Ein Wort für den Storno in jeder Stufe – mit Grund, wer ihn kennt.'}
-          onClick={() => p.setForm(startForm('revoke', d))} />
+        <Steady>
+          <ActionButton icon={CircleSlash} label={d.undo ?? 'Stornieren'} tone="danger"
+            height={ACT_H.stage} square disabled={busy}
+            tip={d.locked ?? 'Ein Wort für den Storno in jeder Stufe – mit Grund, wer ihn kennt.'}
+            onClick={() => p.setForm(startForm('revoke', d))} />
+        </Steady>
       )}
     </div>
   );
@@ -267,8 +270,10 @@ function InlineForm(p: FooterProps & { form: Form }) {
           <MainButton label={formWord(form, d)} icon={Check} busy={busy} problem={problem}
             onClick={() => { void p.onAction(formBody(form, d)); p.setForm(null); }} />
         )}
-        <ActionButton icon={X} label="Abbrechen" height={ACT_H.stage} square
-          onClick={() => p.setForm(null)} />
+        <Steady>
+          <ActionButton icon={X} label="Abbrechen" height={ACT_H.stage} square
+            onClick={() => p.setForm(null)} />
+        </Steady>
       </div>
     </div>
   );

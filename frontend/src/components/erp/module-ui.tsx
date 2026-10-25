@@ -171,6 +171,14 @@ export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
   );
 }
 
+/**
+ * **Knöpfe, die ihre Breite behalten** – für eine Leiste, die umbrechen darf (#1224): der
+ * Name steht in der Blase statt auszuklappen, sichtbar bleiben sie immer.
+ */
+export function Steady({ children }: { children: ReactNode }) {
+  return <InRow.Provider value>{children}</InRow.Provider>;
+}
+
 /** Die Knöpfe **am Ende** ihrer Zeile – siehe `LedgerRow`. Sie behalten ihre Breite (`InRow`). */
 export function RowActions({ children }: { children: ReactNode }) {
   return (

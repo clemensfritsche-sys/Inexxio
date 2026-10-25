@@ -7,7 +7,7 @@ import { happened } from '@/lib/when';
 import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/modules';
 import { ObjId } from '@/components/erp/obj-id';
 import { numericInputProps, numericOnly } from '@/components/erp/fields';
-import { ACT_H, ActionButton, Amount } from '@/components/erp/module-ui';
+import { ACT_H, ActionButton, Amount, Steady } from '@/components/erp/module-ui';
 import type { VoucherParty, VoucherQuoteOut, VoucherSide } from '@/types';
 import { Term } from './terms';
 import {
@@ -100,9 +100,13 @@ function Candidate({ d, side, busy, inHead, onShow, onAction }: {
       <span style={{ ...LABEL, flex: 'none' }}>
         {d.we_quote ? 'Noch nicht angeboten' : 'Noch nicht angefragt'}
       </span>
+      {/* In einer umbrechenden Zeile klappt der Name NICHT aus (#1224: der Knopf wurde
+          breiter, die Zeile brach um, der Zeiger fiel ab – er sprang hin und her). */}
       {removable && (
-        <ActionButton icon={X} label="Wieder wegnehmen" tone="danger" height={ACT_H.row} square
-          disabled={busy} onClick={() => void onAction({ action: 'unask', party: number })} />
+        <Steady>
+          <ActionButton icon={X} label="Wieder wegnehmen" tone="danger" height={ACT_H.row} square
+            disabled={busy} onClick={() => void onAction({ action: 'unask', party: number })} />
+        </Steady>
       )}
     </div>
   );

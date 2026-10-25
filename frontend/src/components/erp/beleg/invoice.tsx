@@ -10,7 +10,7 @@ import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
 import { PhotoShot } from '@/components/erp/photo-capture';
 import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/fields';
-import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow } from '@/components/erp/module-ui';
+import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, Steady } from '@/components/erp/module-ui';
 import type { TransferInfo } from '@/types';
 import { CASH, TRANSFER, needsIban, startForm, taxed } from './forms';
 import type { Form } from './forms';
@@ -352,7 +352,9 @@ function DecisionButton({ primary, busy, label, onClick }: {
 function Cancel({ onClick }: { onClick: () => void }) {
   return (
     <span className="inline-flex" style={{ alignSelf: 'flex-start' }}>
-      <ActionButton icon={X} label="Abbrechen" height={ACT_H.main} square onClick={onClick} />
+      <Steady>
+        <ActionButton icon={X} label="Abbrechen" height={ACT_H.main} square onClick={onClick} />
+      </Steady>
     </span>
   );
 }

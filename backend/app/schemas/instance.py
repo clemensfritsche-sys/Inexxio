@@ -15,7 +15,7 @@ from typing import Mapping, Optional
 from pydantic import BaseModel, ConfigDict
 
 from ..domain import statuses as st
-from .place import UnitPlace
+from .place import PlaceRef, UnitPlace
 
 
 class InstanceUnitResponse(BaseModel):
@@ -41,6 +41,10 @@ class InstanceUnitResponse(BaseModel):
     #: bringt. Aufgelöst wird die Kette je **Halter**, nicht je Stück – 60 Schrauben in
     #: einem Regal sind eine Kette, nicht sechzig.
     place: Optional[UnitPlace] = None
+    #: **Wem das Stück gehört, wenn nicht uns** – «verkauft an …», gesetzt beim Passieren
+    #: eines Zahlungs-Moduls (``instance_units.owner_object_id``). Dieselbe Form wie ein
+    #: Halter; ``None`` heisst: es gehört uns. Eine Anzeige, kein Zustand.
+    owner: Optional[PlaceRef] = None
     created_at: datetime
 
 
