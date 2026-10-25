@@ -5,7 +5,6 @@ import re
 
 from tests._source import (
     BACKEND,
-    DEAL_WORK,
     FRONTEND,
     _at,
     _beleg,

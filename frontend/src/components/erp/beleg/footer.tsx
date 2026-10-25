@@ -55,7 +55,7 @@ export function Footer(p: FooterProps) {
   const { d, form } = p;
   const state = d.state;
   if (!state) return null;
-  const date = state.date as string | null | undefined;
+  const date = state.date;
   const text = [state.text, date ? `${state.date_word ?? ''} ${day(date)}`.trim() : '']
     .filter(Boolean).join(' · ');
   const inline = form && (form.kind === 'writeoff' || form.kind === 'revoke');

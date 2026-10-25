@@ -192,10 +192,10 @@ function Reference({ q }: { q: VoucherQuoteOut }) {
     <div className="flex flex-wrap items-baseline" style={{ gap: '2px 12px', minWidth: 0 }}>
       {q.ref && (
         <Note tip="Wie man bei ihm bestellt – aus der Definition">
-          <ClipboardList size={11} style={{ flex: 'none' }} /> {q.ref}
+          <ClipboardList size={11} style={{ flex: 'none' }} /> Ihre Referenz: {q.ref}
         </Note>
       )}
-      {q.reference && <Note tip="Seine Referenz bzw. Bestellnummer">Ihre Referenz {q.reference}</Note>}
+      {q.reference && <Note tip="Seine Bestellnummer bzw. Auftragsnummer">Bestellung {q.reference}</Note>}
       {q.link && (
         <a href={q.link} target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center" style={{
@@ -316,9 +316,9 @@ function QuoteForm({ d, f, setF }: {
           onChange={(lead) => set({ lead })} />
       </div>
       <div className="flex flex-wrap items-end" style={{ gap: '8px 18px', minWidth: 0 }}>
-        <Stacked label="Ihre Referenz">
-          <Editable title="Seine Referenz bzw. Bestellnummer">
-            <input value={f.reference} aria-label="Ihre Referenz" placeholder="—"
+        <Stacked label="Bestellnummer">
+          <Editable title="Seine Bestellnummer bzw. Auftragsnummer">
+            <input value={f.reference} aria-label="Bestellnummer" placeholder="—"
               onChange={(e) => set({ reference: e.target.value })}
               style={{ ...DOC_FIELD, width: 150, fontSize: 13 }} />
           </Editable>

@@ -148,12 +148,15 @@ function Deviation({ d, busy, form, setForm }: {
       <LedgerRow ident="Abweichung zur Zusage"
         meta={`zugesagt ${agreed} · in Rechnung ${d.invoice.amount}`}
         amount={(
-          <Amount value={unsigned(d.deviation)} currency={d.currency}
-            decimals={d.currency_decimals} size={15} weight={400} color="var(--warning)" />
+          <span style={{ color: 'var(--warning)' }}>
+            {sign}
+            <Amount value={unsigned(d.deviation)} currency={d.currency}
+              decimals={d.currency_decimals} size={15} weight={400} color="var(--warning)" />
+          </span>
         )} />
       <FieldBox tone="warning">
         <span style={{ fontSize: 12.5, color: 'var(--fg-1)' }}>
-          Die Rechnung liegt {sign}{unsigned(d.deviation)} {gap > 0 ? 'über' : 'unter'} der
+          Die Rechnung liegt {unsigned(d.deviation)} {gap > 0 ? 'über' : 'unter'} der
           Zusage. Annehmen (mit Grund) – oder stornieren und eine korrigierte Rechnung verlangen.
         </span>
         {open ? (
@@ -447,7 +450,7 @@ function BillPaper({ d, form, set }: {
             aria-label="MWST-Nr. auf der Rechnung" onChange={(e) => set({ party_uid: e.target.value })} />
         </FormField>
       </div>
-      <Stacked label="Originalbeleg">
+      <FormField label="Originalbeleg" required>
         <PhotoShot value={form.f.photo || null}
           onStored={(id) => set({ original: String(id) })}
           onChange={(url) => set({ photo: url ?? '', ...(url ? {} : { original: '' }) })} />
@@ -455,7 +458,7 @@ function BillPaper({ d, form, set }: {
           Die Rechnung, wie sie gekommen ist – Pflicht für den Vorsteuerabzug
           und 10 Jahre aufbewahrt.
         </span>
-      </Stacked>
+      </FormField>
     </>
   );
 }
