@@ -563,11 +563,14 @@ def test_public_page_says_when_the_offer_expired(db):
 def test_every_state_has_a_next_step_or_is_an_end(db):
     """Die Leiste ist nie leer: jeder Zustand hat eine nächste Handlung (oder «Stornieren»)
     – leer nur bei Erledigt und Storniert ohne offenen Betrag."""
+    from app.schemas.voucher import VoucherState
     from app.services import voucher as svc
 
     def check(order, step, row):
         state = svc.situation(db, row, order=order, step=step)
         allowed = svc.can(db, row, None)
+        # Die Leiste geht so über die API, wie sie gerechnet ist – auch mit Datum.
+        assert VoucherState.model_validate(state).date == state.get("date")
         if state["key"] in ("done", "cancelled") and state["primary"] is None:
             return
         assert state["primary"] in allowed or "revoke" in allowed or (

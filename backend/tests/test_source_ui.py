@@ -792,13 +792,13 @@ def test_a_hover_note_is_as_wide_as_its_own_text():
     # (b) **Neben dem Betrag**: die Angabe steht in der Kopfzeile der Angebotszeile.
     row = _component(src, "QuoteRow")
     head = row[row.index("items-baseline"):row.index("</div>")]
-    assert "d.agreed_at" in head, (
+    assert "{taken && <Note" in head, (
         "Die Angabe steht wieder unter der Kopfzeile (b) statt neben dem Betrag."
     )
     # **Die Tatsache steht im Hover** – seit #1052 liefert sie `happened(…).title`, die
     # eine Form für «Zeit + Vorgang». Gefragt ist, dass sie **da** ist, nicht welcher
     # Helfer sie baut: ein Wächter auf den Namen verbietet die bessere Fassung.
-    assert re.search(r"happened\(d\.agreed_at[^)]*\)\.title", head), (
+    assert re.search(r"happened\(q\.agreed_at", row) and "tip={taken.title}" in head, (
         "Die Tatsache fehlt im Hover (c)."
     )
     # (d) **Ein Bauteil, drei Aufrufstellen** – wann offeriert, wann angenommen, wie

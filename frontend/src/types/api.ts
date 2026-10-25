@@ -6010,7 +6010,7 @@ export interface components {
              */
             text: string;
             /** Date */
-            date?: null;
+            date?: string | null;
             /** Date Word */
             date_word?: string | null;
             /** Primary */

@@ -16,16 +16,16 @@ export function Documents({ d }: { d: Filled }) {
       <div className="flex flex-col" style={{ gap: 6, minWidth: 0 }}>
         {d.documents.map((doc) => {
           const sent = formatWhen(doc.sent_at);
+          // Die Nummer des Dokuments (Rechnung, Gutschrift) – keine Stück-Nummer.
+          const paper = doc.number;
           return (
             <div key={doc.id} className="flex items-baseline" style={{ gap: 10, padding: '3px 0',
                                                                        minWidth: 0 }}>
               <span className="truncate" style={{ fontSize: 12.5, color: 'var(--fg-1)',
                                                   flex: '1 1 auto', minWidth: 0 }}>
                 {doc.label}
-                {doc.number && (
-                  <span style={{ color: 'var(--fg-3)', fontSize: 11.5, marginLeft: 8 }}>
-                    {doc.number}
-                  </span>
+                {paper && (
+                  <span style={{ color: 'var(--fg-3)', fontSize: 11.5, marginLeft: 8 }}>{paper}</span>
                 )}
               </span>
               <span style={{ fontSize: 11.5, color: 'var(--fg-3)', flex: 'none' }}

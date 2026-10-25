@@ -132,7 +132,7 @@ function LineTitle({ line }: { line: Line }) {
       </span>
       <span data-tip={line.is_service
         ? 'Steuersatz nach dem Sitz des Empfängers – keine Lieferbedingung'
-        : 'Steuersatz nach der Lieferadresse'}
+        : 'Steuersatz nach dem Lieferort'}
         style={{ fontSize: 11, color: 'var(--fg-3)', border: '1px solid var(--border-1)',
                  borderRadius: 4, padding: '0 5px', whiteSpace: 'nowrap', flex: 'none' }}>
         {line.kind_label}
@@ -241,7 +241,7 @@ function Price({ d, on, value, shown, onChange, onDone }: {
   }
   return (
     <Editable title="Einzelpreis, netto" missing={value.trim() === ''}>
-      <Amount currency={d.currency} size={13}>
+      <Amount currency={d.currency} size={13} weight={400}>
         <input {...numericInputProps} value={value} aria-label="Einzelpreis"
           onChange={(e) => onChange(numericOnly(e.target.value, { decimals: d.currency_decimals }))}
           onBlur={onDone} onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
@@ -264,7 +264,6 @@ function Part({ d, line, on, value, onChange, onDone }: {
   d: Filled; line: Line; on: boolean; value: string | null;
   onChange: (v: string | null) => void; onDone: () => void;
 }) {
-  const dec = d.currency_decimals;
   const share = value && line.full && Number(line.full) > 0
     ? `${((Number(value) / Number(line.full)) * 100).toFixed(1)} %` : null;
   if (!on) {
@@ -284,7 +283,8 @@ function Part({ d, line, on, value, onChange, onDone }: {
           <Editable title={`Teilbetrag, netto – von ${line.full ?? '—'} ${d.currency}`}
             missing={value.trim() === ''}>
             <input {...numericInputProps} value={value} aria-label="Teilbetrag" autoFocus={!line.part}
-              onChange={(e) => onChange(numericOnly(e.target.value, { decimals: dec }))}
+              onChange={(e) => onChange(numericOnly(e.target.value,
+                                                    { decimals: d.currency_decimals }))}
               onBlur={onDone} onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
               style={{ ...DOC_FIELD, width: 84, textAlign: 'right', fontSize: 13,
                        fontWeight: 600, fontVariantNumeric: 'tabular-nums' }} />
@@ -369,7 +369,7 @@ function Sums({ d, onAction }: { d: Filled; onAction: Send }) {
         gap: 10, marginTop: 4, paddingTop: 7, borderTop: '1px solid var(--border-1)',
       }}>
         <span style={{ ...LABEL, flex: 1 }}>Total</span>
-        <Amount value={total} decimals={dec} size={15} weight={600}
+        <Amount value={total} decimals={dec} size={15} weight={500}
           currency={<Currency d={d} onAction={onAction} />} />
       </div>
     </div>

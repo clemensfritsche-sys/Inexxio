@@ -8,6 +8,7 @@ gerechnet, auch nicht auf dem Weg durch JSON.
 das** – die rufen den Dienst direkt.
 """
 
+import datetime as _dt
 from datetime import date, datetime
 from typing import Any, Optional
 
@@ -387,7 +388,8 @@ class VoucherState(BaseModel):
     #: ``done`` · ``pending`` · ``danger`` · ``neutral``
     tone: str
     text: str = ""
-    date: Optional[date] = None
+    #: ``_dt.date`` – der Feldname ``date`` verdeckt sonst den Typ (Pydantic liest ``None``).
+    date: Optional[_dt.date] = None
     date_word: Optional[str] = None
     #: Das Verb, das jetzt weiterbringt – oder ``None``.
     primary: Optional[str] = None

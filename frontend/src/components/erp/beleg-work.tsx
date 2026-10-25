@@ -1,13 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { VoucherEmbed } from '@/types';
 import { Documents } from '@/components/erp/beleg/documents';
 import { Footer } from '@/components/erp/beleg/footer';
-import { startForm } from '@/components/erp/beleg/forms';
 import type { Form } from '@/components/erp/beleg/forms';
 import { Goods } from '@/components/erp/beleg/goods';
 import { Invoice } from '@/components/erp/beleg/invoice';
@@ -54,7 +53,7 @@ export function BelegWork({
   const [form, setForm] = useState<Form | null>(null);
   const [card, setCard] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
-  const ways = d.ways ?? [];
+  const ways = useMemo(() => voucher.ways ?? [], [voucher.ways]);
   // **Die gewählte Antwort ist eine Ableitung** – fällt der Weg weg, steht sie auf dem ersten.
   const way = ways.find((w) => w.key === picked) ?? ways[0] ?? null;
   const wait = useWaitForMoney(d.paid ?? '', onPaid);
@@ -62,25 +61,32 @@ export function BelegWork({
 
   // Ein Formular gilt der Lage, in der es geöffnet wurde – ändert sie sich, ist es weg.
   const situation = `${d.stage}:${d.state?.key ?? ''}`;
-  useEffect(() => { setForm(null); setCard(false); }, [situation]);
+  useEffect(() => { setForm(null); setCard(false); setRefunding(false); }, [situation]);
 
   const chooseWay = useCallback((key: string) => {
     setPicked(key);
     setCard(false);
     const next = ways.find((w) => w.key === key);
+    // Eine offene Zahlung behält ihren Betrag – nur der Weg ändert sich; führt der neue Weg
+    // nicht zu einer Buchung (Karte), ist sie weg.
     setForm((f) => (f?.kind !== 'pay' ? f
-      : (next?.action === 'pay' ? startForm('pay', d, key) : null)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      : (next?.action === 'pay' ? { ...f, f: { ...f.f, method: key } } : null)));
   }, [ways]);
 
+  // **«Zurück auf die Karte» sagt, was daraus wurde** (#1013/#1018): ab dem Klick zu,
+  // nachgefragt wie bei einer Zahlung (gebucht wird vom Webhook), ein Fehler steht da und
+  // gibt den Knopf wieder frei – sonst wäre ein Netzwerkfehler eine Sackgasse.
+  const [refunding, setRefunding] = useState(false);
   const refundCard = useCallback(async () => {
     const entry = d.entries.find((e) => e.refundable);
     if (!entry) return;
     setFailed(null);
+    setRefunding(true);
     try {
       await api.refundVoucherPayment(orderObjectId, stepId, entry.id);
       wait();
     } catch (e) {
+      setRefunding(false);
       setFailed(e instanceof Error ? e.message : String(e));
     }
   }, [d.entries, orderObjectId, stepId, wait]);
@@ -114,7 +120,8 @@ export function BelegWork({
       )}
       <Footer d={d} busy={busy} form={form} setForm={setForm} ways={ways} way={way}
         setWay={chooseWay} setCard={setCard} onPicking={() => setPicking(true)}
-        onRefundCard={() => void refundCard()} fresh={fresh} onAction={onAction} />
+        onRefundCard={() => void refundCard()} refunding={refunding} fresh={fresh}
+        onAction={onAction} />
     </div>
   );
 }

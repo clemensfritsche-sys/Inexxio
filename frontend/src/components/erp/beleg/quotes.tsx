@@ -54,8 +54,7 @@ export function Quotes({ d, busy, head, picking, onShow, onPicking, onAction }: 
       )}>
       <div className="flex flex-col" style={{ minWidth: 0 }}>
         {d.quotes.map((q) => (
-          <QuoteRow key={q.id} q={q} d={d} busy={busy}
-            inHead={open && head?.object_id === q.party_object_id} onAction={onAction} />
+          <QuoteRow key={q.id} q={q} d={d} busy={busy} onAction={onAction} />
         ))}
         {candidates.map((r) => (
           <Candidate key={r.object_id} d={d} side={r} busy={busy}
@@ -148,8 +147,8 @@ function quoteLook(state: string, decided: boolean): { label: string; color: str
  * **Eine Angebotszeile** – Name mit Nummer, ihr Ausgang in einem Wort (oder der Moment
  * der Annahme), der Betrag zuletzt. Abgesagt ist abgesagt: kein Preis mehr an der Zeile.
  */
-function QuoteRow({ q, d, busy, inHead, onAction }: {
-  q: VoucherQuoteOut; d: Filled; busy: boolean; inHead: boolean; onAction: Send;
+function QuoteRow({ q, d, busy, onAction }: {
+  q: VoucherQuoteOut; d: Filled; busy: boolean; onAction: Send;
 }) {
   const decided = d.stage !== VOUCHER_STAGE.offer;
   const look = quoteLook(q.state, decided);
@@ -168,7 +167,6 @@ function QuoteRow({ q, d, busy, inHead, onAction }: {
           </span>
           <span style={{ flex: 'none' }}><ObjId value={q.party_object_id} /></span>
         </span>
-        {inHead && <InHead />}
         {taken && <Note tip={taken.title} color="var(--success)">{taken.text}</Note>}
         {word && <span style={{ ...LABEL, color: look.color, flex: 'none' }}>{word}</span>}
         {q.amount != null && !declined && (

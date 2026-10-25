@@ -53,7 +53,10 @@ export function Invoice({ d, busy, form, setForm, way, card, setCard, orderObjec
         {form && ['pay', 'refund', 'bill'].includes(form.kind) && (
           <EntryForm d={d} form={form} setForm={setForm} />
         )}
-        {quiet && way?.info && <Transfer orderObjectId={orderObjectId} stepId={stepId} />}
+        {/* Die Auskunft zur Überweisung nur, solange Geld zu uns kommen soll. */}
+        {quiet && way?.info && (may(d, 'pay') || may(d, 'pay_online')) && (
+          <Transfer orderObjectId={orderObjectId} stepId={stepId} />
+        )}
         {card && (
           <PayOnline orderObjectId={orderObjectId} stepId={stepId}
             prepare={api.prepareVoucherPayment} label={d.pay_online_word}
@@ -79,7 +82,7 @@ function InvoiceRow({ d, invoice }: { d: Filled; invoice: NonNullable<Filled['in
   if (d.minus) meta.push('Gutschrift');
   if (!d.we_quote && invoice.billed_on) meta.push(`vom ${day(invoice.billed_on)}`);
   if (d.party_uid) meta.push(d.party_uid);
-  if (cancelled) meta.push('storniert');
+  if (cancelled) meta.push(d.cancelled_word);
   const stamp = invoice.due_on
     ? `${d.minus ? 'zu erstatten bis' : 'fällig'} ${when(invoice.due_on)}`
     : when(invoice.billed_on);

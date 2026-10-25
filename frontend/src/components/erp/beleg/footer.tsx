@@ -29,6 +29,8 @@ export type FooterProps = {
   onPicking: () => void;
   /** Zurück auf die Karte, mit der bezahlt wurde (über den Dienst). */
   onRefundCard: () => void;
+  /** Die Erstattung auf die Karte ist unterwegs – der Knopf ist ab dem Klick zu. */
+  refunding: boolean;
   /** Wie viele Kandidaten noch nichts bekommen haben – die Zahl im Wort «Anbieten (2)». */
   fresh: number;
   onAction: Send;
@@ -130,7 +132,7 @@ function primaryOf(p: FooterProps): Primary | null {
   switch (d.state?.primary) {
     case 'ask':
       return { label: p.fresh > 1 ? `${d.ask_verb} (${p.fresh})` : d.ask_verb, icon: SendIcon,
-               problem: d.ask_problem ?? (may(d, 'ask') ? null : 'Hier ist nichts anzubieten.'),
+               problem: d.ask_problem ?? (may(d, 'ask') ? null : gapsWord(d)),
                run: () => void p.onAction({ action: 'ask' }) };
     case 'party':
       return may(d, 'party') && d.allowed.length === 0
@@ -162,8 +164,10 @@ function wayOf(p: FooterProps): Primary | null {
     return { label: way.verb ?? d.pay_online_word, icon: CreditCard, run: () => p.setCard(true) };
   }
   if (way.action === 'refund_online') {
+    // **Ab dem Klick zu** – bis der Dienst meldet; danach sagt der Server, ob es ihn gibt.
     return { label: `${way.verb ?? d.refund_online_word} · ${unsigned(d.open ?? '')} ${d.currency}`,
-             icon: CreditCard, run: p.onRefundCard };
+             icon: CreditCard, run: p.onRefundCard,
+             problem: p.refunding ? 'Unterwegs – gebucht wird, wenn der Dienst die Erstattung meldet.' : null };
   }
   return null;
 }

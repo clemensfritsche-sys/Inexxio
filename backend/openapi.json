@@ -14499,7 +14499,15 @@
             "default": ""
           },
           "date": {
-            "type": "null",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Date"
           },
           "date_word": {

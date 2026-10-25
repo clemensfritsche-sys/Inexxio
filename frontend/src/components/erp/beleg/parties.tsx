@@ -112,7 +112,7 @@ function SideName({ side, d, onAction }: { side: VoucherSide | null; d: Filled; 
       <DocPick on value={c.bill_to_company ? FIRM : PERSON}
         text={side.name || c.person} aria="Rechnung an"
         tip="Geschäftlich oder privat – der gedruckte Name ist die Wahl" face={NAME_FACE}
-        options={[{ value: FIRM, label: `${c.company} – geschäftlich, z. H. ${c.person}` },
+        options={[{ value: FIRM, label: `${c.company} – geschäftlich` },
                   { value: PERSON, label: `${c.person} – privat` }]}
         onChange={(v) => void onAction({ action: 'address', bill_to_company: v === FIRM })} />
     );
