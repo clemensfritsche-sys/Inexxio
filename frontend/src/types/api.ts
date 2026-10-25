@@ -1456,11 +1456,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Payment List
+         * List Payments
          * @description **Die Zahlungen einer Person** (``person=``) **oder einer eigenen Gesellschaft**
          *     (``company=``) – neueste Nummer zuoberst.
          */
-        get: operations["payment_list_api_v1_erp_payments_get"];
+        get: operations["list_payments_api_v1_erp_payments_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3206,6 +3206,8 @@ export interface components {
             active: boolean;
             /** At Step Id */
             at_step_id?: number | null;
+            /** Owner */
+            owner?: string | null;
         };
         /**
          * Genealogy
@@ -5044,6 +5046,8 @@ export interface components {
         };
         /** UploadResult */
         UploadResult: {
+            /** Id */
+            id: number;
             /** Url */
             url: string;
             /** Width */
@@ -8411,7 +8415,7 @@ export interface operations {
             };
         };
     };
-    payment_list_api_v1_erp_payments_get: {
+    list_payments_api_v1_erp_payments_get: {
         parameters: {
             query?: {
                 person?: number | null;

@@ -1,7 +1,7 @@
 """►►► **Was zu tun ist – die EINE Zahl am Symbol eines Datensatzes.** ◄◄◄
 
 Offene Nachrichten (``communication.open_counts``), Aufgaben der Zeiterfassung
-(``timekeeping.tasks``), überfällige Rechnungen (``payments.overdue_counts``), fehlende
+(``timekeeping.tasks``), überfällige Rechnungen (``payment_list.overdue_counts``), fehlende
 Pflichtangaben (``people.missing_fields``) und an einer
 eigenen Gesellschaft fehlende Feiertage (``holidays.holiday_tasks``). Jede Quelle rechnet
 selbst; hier wird nur gezählt. Rot, sobald etwas dringend ist (überfällige Nachricht,
@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ..domain import timekeeping as tk
 from ..models import CompanySettings, TimeContract, UserProfile
 from ..schemas.timekeeping import TodoItem, TodoOut
-from . import communication, holidays, payments, people, timekeeping
+from . import communication, holidays, payment_list, people, timekeeping
 
 
 def _time_items(db: Session, actor: UserProfile) -> dict[int, list[TodoItem]]:
@@ -50,7 +50,7 @@ def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
     for oid, found in _time_items(db, actor).items():
         items[oid] += found
     # **Überfällige Rechnungen** – keine eigene Mahnliste: sie zählen an der Person.
-    for oid, n in payments.overdue_counts(db).items():
+    for oid, n in payment_list.overdue_counts(db).items():
         items[oid].append(TodoItem(section="zahlungen", count=n, red=True,
                                    label=f"{n} Rechnung{'en' if n != 1 else ''} überfällig"))
     for u in db.query(UserProfile).filter(UserProfile.object_id.isnot(None),

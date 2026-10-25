@@ -100,6 +100,57 @@ export const VOUCHER_TASK_HINT =
 export const VOUCHER_ORDER_REF = 'Wie bestellen?';
 export const VOUCHER_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
 
+/**
+ * ►►► **Was das Modul dem Beleg vorgeben DARF** (`Beleg.PRESETS` / `PRESET_LABELS`). ◄◄◄
+ *
+ * Das Modul ist Master: was hier steht, gilt für jeden Auftrag aus diesem Prozess und steht
+ * im Beleg fest; **leer heisst «wählt der Mensch am Beleg»**. Gespiegelt von
+ * `domain/modules.Beleg`, deckungsgleich gehalten von `test_frontend_mirrors`.
+ */
+export type VoucherPresetKey = 'payment_days' | 'lead_days' | 'valid_days' | 'incoterm' | 'ownership';
+export const VOUCHER_PRESETS: { key: VoucherPresetKey; label: string; days?: true; hint: string }[] = [
+  { key: 'payment_days', label: 'Zahlungsfrist', days: true,
+    hint: 'Tage bis zur Fälligkeit der Rechnung – 0 heisst Vorauszahlung' },
+  { key: 'lead_days', label: 'Lieferfrist', days: true,
+    hint: 'Tage ab der Zusage bis zur Lieferung' },
+  { key: 'valid_days', label: 'Gültig', days: true,
+    hint: 'Wie viele Tage die Offerte gilt (1 bis 365)' },
+  { key: 'incoterm', label: 'Lieferbedingung',
+    hint: 'Incoterms 2020 – wer Kosten und Risiko trägt; den Ort nennt der Beleg' },
+  { key: 'ownership', label: 'Eigentum',
+    hint: 'Wem die Stücke gehören, wenn sie das Modul passieren' },
+];
+
+/** **Leer heisst «wählt der Mensch am Beleg»** – kurz im leeren Feld, ausgeschrieben im Hover. */
+export const VOUCHER_PRESET_OPEN = 'am Beleg';
+export const VOUCHER_PRESETS_HINT = 'Was hier steht, gilt für jeden Auftrag aus diesem Prozess '
+  + 'und steht im Beleg fest. Leer heisst: wählt der Mensch am Beleg.';
+
+/** **Wem die Stücke danach gehören** – Spiegel von `domain/voucher.OWNERSHIP`. */
+export const VOUCHER_OWNERSHIP: { value: string; label: string }[] = [
+  { value: 'party', label: 'geht an die Partei' },
+  { value: 'us', label: 'geht an uns' },
+  { value: 'keep', label: 'bleibt' },
+];
+
+/**
+ * **Die elf Klauseln der Incoterms 2020** – Kürzel und Name, Spiegel von
+ * `domain/incoterms.INCOTERMS` (die Erklärung je Klausel reist mit dem Beleg).
+ */
+export const INCOTERMS: { key: string; label: string }[] = [
+  { key: 'EXW', label: 'Ab Werk' },
+  { key: 'FCA', label: 'Frei Frachtführer' },
+  { key: 'CPT', label: 'Frachtfrei' },
+  { key: 'CIP', label: 'Frachtfrei versichert' },
+  { key: 'DAP', label: 'Geliefert benannter Ort' },
+  { key: 'DPU', label: 'Geliefert entladen' },
+  { key: 'DDP', label: 'Geliefert verzollt' },
+  { key: 'FAS', label: 'Frei Längsseite Schiff' },
+  { key: 'FOB', label: 'Frei an Bord' },
+  { key: 'CFR', label: 'Kosten und Fracht' },
+  { key: 'CIF', label: 'Kosten, Versicherung, Fracht' },
+];
+
 /** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`voucher.of`). */
 export function voucherDirection(direction: string | undefined | null) {
   return VOUCHER_DIRECTION[direction ?? ''] ?? VOUCHER_DIRECTION.out;
@@ -295,6 +346,11 @@ export interface ModuleDraft {
   parties: { party: number; ref: string }[];
   /** Nur «Zahlung»: **was ist zu tun?** – ein Satz am Modul, freiwillig. */
   instruction: string;
+  /**
+   * Nur «Zahlung»: die **Vorgaben an den Beleg** (`VOUCHER_PRESETS`) – je Schlüssel ein
+   * String (ein halb getipptes Feld hat keine Zahl). Leer heisst «wählt der Mensch am Beleg».
+   */
+  presets: Record<VoucherPresetKey, string>;
 }
 
 /**
@@ -325,13 +381,32 @@ const MONEY_FORM = {
       party: Number(r.party ?? r), ref: String(r.ref ?? ''),
     })).filter((r) => Number.isFinite(r.party)),
     instruction: String(c.instruction ?? ''),
+    presets: presetsDraft(c),
   }),
   config: (m: ModuleDraft) => ({
     direction: m.direction,
     parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
     instruction: m.instruction.trim(),
+    // Leer geht als `null` hinaus («wählt der Mensch am Beleg»); eine Zahl **unverändert** –
+    // ob sie gilt, sagt der Server (`Beleg._clean_presets`), nicht dieses Formular.
+    ...Object.fromEntries(VOUCHER_PRESETS.map(({ key }) => {
+      const v = (m.presets[key] ?? '').trim();
+      return [key, v === '' ? null : v];
+    })),
   }),
 };
+
+/** Die gespeicherten Vorgaben zurück in die Eingabeform – fehlend = leer. */
+function presetsDraft(c: Record<string, unknown>): Record<VoucherPresetKey, string> {
+  return Object.fromEntries(VOUCHER_PRESETS.map(({ key }) => [
+    key, c[key] == null ? '' : String(c[key]),
+  ])) as Record<VoucherPresetKey, string>;
+}
+
+/** Ein leerer Satz Vorgaben – alles wählt der Mensch am Beleg. */
+function blankPresets(): Record<VoucherPresetKey, string> {
+  return presetsDraft({});
+}
 
 /**
  * **Was ein Modultyp im Entwurf ausmacht — je Typ ein Eintrag, nicht je Stelle ein `if`.**
@@ -438,7 +513,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     lines: [], target: '',
     // **Die Vorgabe ist die EINNAHME** (#791). Die Richtung bleibt eine ausdrückliche
     // Angabe – der Server verlangt sie (`Beleg.clean_config`).
-    direction: 'in', parties: [], instruction: '',
+    direction: 'in', parties: [], instruction: '', presets: blankPresets(),
   };
 }
 

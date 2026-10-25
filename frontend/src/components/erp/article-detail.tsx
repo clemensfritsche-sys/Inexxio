@@ -5,7 +5,7 @@ import {
   Package, FileText, Trash2, AlertTriangle,
   Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
   Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield,
-  ClipboardPlus, ArrowRight, Blocks,
+  ClipboardPlus, ArrowRight, Blocks, Wrench, Tag,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNumber } from '@/lib/utils';
@@ -46,6 +46,9 @@ type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | '
 type AddKey = OptKey;
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
+  /** **Ware oder Dienstleistung** (`goods` · `service`) – daraus folgen im Zahlungsmodul
+   *  Steuersatz und Lieferbedingung. */
+  kind: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
   is_hazmat: string; hs_code: string; origin_country: string;
 };
@@ -77,7 +80,7 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
 ];
 
 function seedFrom(record: Article | null): Form {
-  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
+  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'goods',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
     is_hazmat: '', hs_code: '', origin_country: '' };
   if (!record) return base;
@@ -85,6 +88,7 @@ function seedFrom(record: Article | null): Form {
     ...base,
     name: record.name, unit: record.unit, serialization: record.serialization,
     size: record.size ?? '', weight_kg: record.weight_kg != null ? String(record.weight_kg) : '',
+    kind: record.is_service ? 'service' : 'goods',
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
     supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
@@ -188,6 +192,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     min_order_qty: form.min_order_qty.trim() || null,
     safety_stock: form.safety_stock.trim() || null,
     is_hazmat: form.is_hazmat === 'ja',
+    is_service: form.kind === 'service',
     // **Zoll-Angaben** – Grossschreibung beim Ursprungsland, damit «ch» und «CH»
     // nicht zwei Länder sind (ISO-2 ist grossgeschrieben).
     hs_code: form.hs_code.trim() || null,
@@ -304,6 +309,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                   <NameField value={form.name} onChange={(v) => set('name', v)}
                     error={form.name.trim() ? errs.name : null} />
+                  <IconPick label="Art" required value={form.kind} onChange={(v) => set('kind', v)} options={KIND_PICK} />
                   <div style={GRID2}>
                     <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
                     <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
@@ -449,6 +455,12 @@ const UNIT_PICK = [
   { value: 'm3', label: 'm³', icon: Box },
   { value: 'kg', label: 'kg', icon: Scale },
   { value: 'l', label: 'l', icon: Droplet },
+];
+// **Ware oder Dienstleistung** – Vorgabe Ware. Daraus folgen im Zahlungsmodul Steuersatz
+// und Lieferbedingung (Ware: Lieferadresse; Dienstleistung: Sitz des Empfängers).
+const KIND_PICK = [
+  { value: 'goods', label: 'Ware', icon: Package },
+  { value: 'service', label: 'Dienstleistung', icon: Wrench },
 ];
 const SERIAL_PICK = [
   { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
@@ -608,6 +620,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
               derselben Tatsache – im **Entwurf** bleibt das Feld, dort entsteht er. */}
           <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
           <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />
+          <ReadField icon={Tag} label="Art" value={record.is_service ? 'Dienstleistung' : 'Ware'} />
           {has('surface') && <ReadField icon={Sparkles} label="Oberfläche" value={form.surface} />}
           {has('material') && <ReadField icon={Layers} label="Material" value={form.material} />}
           {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}

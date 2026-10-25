@@ -2459,6 +2459,53 @@ vom Lifespan-Netz gelesen (die dev-Datenbank fährt kein `alembic upgrade head`,
 Selbstbegrenzend: gedreht wird nur, was negativ ist.
 
 
+#### 9.15s Umbau Oktober 2026 — was jetzt gilt (geht §9.15a–r vor)
+
+> Entscheide: Dokument «Zahlungsmodul – Ziel, Muster, Plan» und das Mockup
+> (`docs/history/2026-10-25-zahlungsmodul-umbau.md`). Code: `domain/voucher`,
+> `services/voucher` (`VERBS`, `can`, `situation`), `services/voucher_docs`,
+> `services/document`, `services/agb`, `services/payment_list`, `routers/beleg.py`,
+> Migration `155`. **Wo ein älterer Unterabschnitt etwas anderes sagt, gilt dieser.**
+
+- **Die Stücke passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit
+  der vollen Zahlung (`voucher.passable`, `process.advance_payments`). Einen
+  «Bestätigen»-Knopf gibt es an einem Zahlungsmodul nicht (`PASSES_ITSELF`). Der Status
+  bleibt `Im Prozess`; **das Eigentum wechselt** beim Passieren
+  (`instance_units.owner_object_id`, Log `payload.owner`): Einstellung am Beleg «geht an
+  die Partei · geht an uns · bleibt», vorbelegt aus der Richtung, ohne Prüfung.
+  Zustand · Ort · Eigentum sind drei unabhängige Angaben; «verkauft an …» ist eine Anzeige.
+- **Erledigt ist abgeleitet**: gestellt ∧ Saldo 0 (∧ Ausfuhrnachweis bei Export). Die Stufe
+  `done` und «Vorgang abschliessen» gibt es nicht mehr.
+- **Ein Wort für den Storno: «Stornieren»**, in jeder Stufe. Nach der Rechnung entsteht die
+  Gutschrift über die ganze Rechnung von selbst (`credit_number`, eigene Nummer). «Rechnung
+  zurücknehmen» (`unbill`) gibt es nicht mehr.
+- **Passen die Stücke nicht mehr** (ein beim ersten Hinausgehen eingefrorenes Stück hat den
+  Auftrag verlassen, ohne das Modul passiert zu haben – `units_problem`), bleibt nur
+  «Stornieren». Die übrigen Stücke führt ein gewöhnlicher Abweichungsauftrag weiter.
+- **Geld-Zeilen haben eine Art**: Zahlung (negativ = Erstattung) · Ausbuchung (mit Grund aus
+  fester Liste, Entgeltsminderung) · Trinkgeld (Entgelt). «Falsch erfasst?» bucht genau eine
+  Zeile gegen. Eine Referenz gehört zu genau einer aktiven Zeile (Unique-Index).
+- **Gültigkeit** in Tagen ab «Anbieten» (Vorgabe 30); abgelaufen → «Erneut anbieten» (dieselbe
+  Handlung). **Angenommen wird nur die aktuelle Fassung** (`offered_hash`): wer nach dem
+  Anbieten ändert, bietet erneut an.
+- **Die Anschrift entscheidet**: Ware → Steuersatz nach Lieferadresse (Ausland: 0 % Export,
+  fest), Dienstleistung → nach Sitz (Ausland: Reverse Charge); Fremdwährung nur ins Ausland;
+  Zoll (Tarif, Ursprung, Gewicht) nur bei Export; Ort der Lieferbedingung abgeleitet (E/F:
+  Versandadresse des Erbringers, C/D: Lieferadresse). Die eigene Gesellschaft ist nie
+  Gegenpartei.
+- **Lieferantenrechnung**: Rechnungsnummer, -datum, MWST-Nr. (bei Steuer Pflicht), Foto
+  Pflicht; weicht sie von der Zusage ab, wird erst nach «So annehmen …» (mit Grund) bezahlt.
+- **Teilbetrag je Position** (netto); jedes Zahlungsmodul steht für sich.
+- **Mahnung**: drei Stufen, je 10 Tage, von Hand; die Stufe ist die Zahl der Mahn-Dokumente.
+  Überfälliges zählt an der Person (`todo`), eine eigene Mahnliste gibt es nicht.
+- **Dokumente**: jede Stufe, die die Partei sehen soll, ist ein eingefrorenes A4-Dokument aus
+  EINER Vorlage (AGB als letzte Seite, Datum der AGB-Fassung genannt) mit einem Link
+  `/beleg?t=…` und einer Mail über das Postfach der Gesellschaft. Auf der Seite handelt die
+  Partei mit denselben Verben (`can`).
+- **Die Leiste** (`situation`) ist nie leer ausser bei Erledigt/Storniert; ein Wächter prüft,
+  dass jeder Zustand einen nächsten Schritt hat.
+- **Modul-Vorgaben** (Fristen, Gültigkeit, Lieferbedingung, Eigentum) stehen im Beleg fest.
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

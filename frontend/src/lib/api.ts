@@ -13,7 +13,7 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
-  Message, MessageIn, MessageChannel, Mailbox, Todo, NewsletterState,
+  Message, MessageIn, MessageChannel, Mailbox, Todo, NewsletterState, PaymentRow,
   TimeView, TimeEntryIn, EntryPreview, TimeContractIn, CompanyTimeView, HolidayOut, HolidayIn, TimeRulesIn,
   ArticleInput,
   ArticleNameSuggestion,
@@ -308,6 +308,36 @@ class ApiClient {
     return this.post('/api/v1/auth/passkeys/login/verify', { credential });
   }
 
+  // ─── Öffentlich: die Seite eines Belegs (`/beleg?t=…`) und die AGB (`/agb`) ──
+  // Ohne Anmeldung: der unerratbare Link IST die Berechtigung (`routers/beleg.py`). Ist
+  // jemand angemeldet, reist sein Token mit – die Routen fragen nicht danach.
+
+  /** **Ein Dokument über seinen Link** – das eingefrorene Papier, der Weg, die Handlungen. */
+  publicBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
+    return this.get(`/api/v1/public/beleg/${encodeURIComponent(token)}`);
+  }
+
+  /** **Die Offerte annehmen** – als die Partei; die Antwort ist die neue Ansicht. */
+  acceptBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
+    return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/accept`, {});
+  }
+
+  /** **Die Offerte ablehnen** – als die Partei; die Antwort ist die neue Ansicht. */
+  declineBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
+    return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/decline`, {});
+  }
+
+  /** **Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag (wie
+   *  `prepareVoucherPayment`); gebucht wird vom Webhook. */
+  prepareBelegPayment(token: string): Promise<PaymentSetup> {
+    return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/payment`, {});
+  }
+
+  /** **Die AGB, die heute gelten** – als A4-Dokument (beide Teile). */
+  publicAgb(): Promise<import('@/types/api').components['schemas']['AgbOut']> {
+    return this.get('/api/v1/public/agb');
+  }
+
   // ─── Admin: Settings ───────────────────────────────────────────────────────
 
   getSettings(): Promise<CompanySettings> {
@@ -475,6 +505,16 @@ class ApiClient {
   /** Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf. */
   todo(): Promise<Todo[]> {
     return this.get('/api/v1/erp/todo');
+  }
+
+  // ─── Zahlungen (eine Ableitung aus den Zahlungsmodulen) ────────────────────
+  /** **Die Zahlungen einer Person** (`person`) **oder einer eigenen Gesellschaft**
+   *  (`company`) – neueste Nummer zuoberst. */
+  paymentsOf(scope: { person: number } | { company: number }): Promise<PaymentRow[]> {
+    const params = new URLSearchParams();
+    if ('person' in scope) params.set('person', String(scope.person));
+    else params.set('company', String(scope.company));
+    return this.get(`/api/v1/erp/payments?${params}`);
   }
 
   // ─── Zeiterfassung ─────────────────────────────────────────────────────────

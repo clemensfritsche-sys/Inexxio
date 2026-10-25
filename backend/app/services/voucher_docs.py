@@ -29,6 +29,9 @@ from ..models import Message, Order, UserProfile, Voucher, VoucherDocument
 from . import address, agb as agb_svc, document, mail_layout, qrbill, sites
 from . import voucher as vs
 
+#: Eine Anschrift im Inland trägt kein Land – wie auf jedem Schweizer Brief.
+HOME_LINES = ("CH", "Schweiz")
+
 #: Die Stationen, die die Partei sieht – in der Mail quer, auf der Seite als Weg.
 STATIONS = ("Offerte", "Auftragsbestätigung", "Rechnung", "Bezahlt")
 #: Wo eine Mail auf dem Weg steht – je Dokumentart.
@@ -113,8 +116,8 @@ def build(db: Session, *, row: Voucher, kind: str, party: int,
     sender = " · ".join(x for x in (sites.legal_name(company) or "", seat.get("street1") or "",
                                     " ".join(y for y in (seat.get("zip"), seat.get("city"))
                                              if y), ours.get("uid") or "") if x and x != "—")
-    to = [theirs.get("name") or "", *( [f"z. H. {theirs['attn']}"] if theirs.get("attn") else []),
-          *[x for x in (theirs.get("address") or []) if x not in ("CH", "Schweiz")]]
+    to = [theirs.get("name") or "", theirs.get("attn") or "",
+          *[x for x in (theirs.get("address") or []) if x not in HOME_LINES]]
     business = bool(theirs.get("attn")) or bool((row.head or {}).get("billing", {}).get(
         "bill_to_company"))
     word = (vo.remind_word(level or 1) if kind == vo.REMINDER_DOC
@@ -213,7 +216,7 @@ def _terms(db: Session, row: Voucher, theirs: dict[str, Any]) -> list[tuple[str,
         place = vs.incoterm_place_of(db, row)
         out.append(("Lieferbedingung",
                     f"{inc.sentence(row.incoterm, place)} (Incoterms 2020)"))
-        ship = [x for x in (theirs.get("shipping") or []) if x not in ("CH", "Schweiz")]
+        ship = [x for x in (theirs.get("shipping") or []) if x not in HOME_LINES]
         if ship:
             out.append(("Lieferung an", ", ".join(ship)))
     return out
@@ -284,7 +287,8 @@ def _payslip(db: Session, row: Voucher, theirs: dict[str, Any]) -> Optional[docu
         iban=" ".join(iban[i:i + 4] for i in range(0, len(iban), 4)) if iban else "",
         creditor=[creditor.get("name") or "", creditor.get("street") or "",
                   " ".join(x for x in (creditor.get("zip"), creditor.get("city")) if x)],
-        debtor=[x for x in (theirs.get("name"), *(theirs.get("address") or [])) if x],
+        debtor=[x for x in (theirs.get("name"), *(theirs.get("address") or []))
+                if x and x not in HOME_LINES],
         reference=" ".join(ref[i:i + 4] for i in range(0, len(ref), 4)),
         currency=row.currency, amount=_money(amount, row.currency).replace("'", " "),
         info=f"Rechnung {number}",

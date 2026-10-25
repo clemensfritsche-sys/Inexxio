@@ -292,3 +292,6 @@ export type TimeRulesIn = components['schemas']['TimeRulesIn'];
 export type NewsletterState = components['schemas']['NewsletterState'];
 export type PersonRef = components['schemas']['PersonRef'];
 export type Mailbox = components['schemas']['MailboxOut'];
+/** **Eine Zeile der Zahlungen** einer Person bzw. einer eigenen Gesellschaft – eine Ableitung
+ *  aus den Zahlungsmodulen (`services/payments`). */
+export type PaymentRow = components['schemas']['PaymentRow'];

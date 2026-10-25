@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare } from 'lucide-react';
+import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
 import type { CompanySettings, Todo } from '@/types';
@@ -20,6 +20,7 @@ import { SaveStatusIndicator } from '@/components/form/save-status';
 import { SystemConfigSection } from '@/components/erp/system-config-section';
 import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
+import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
 
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
@@ -101,7 +102,7 @@ export function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'system' | 'docs' | 'comm';
+type OrgTab = 'stamm' | 'pay' | 'system' | 'docs' | 'comm';
 
 /** Das Formular – nur die Felder, die es noch gibt (alles String, wie im Konto). */
 interface OrgForm {
@@ -357,6 +358,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
         </>}
         tabs={<DetailTabs<OrgTab> active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
+          // **Zahlungen** – nur an einer eigenen Gesellschaft: alle, die in ihrem Namen laufen.
+          ...(own ? [{ key: 'pay' as const, label: 'Zahlungen', icon: HandCoins }] : []),
           // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
           // Betreiber – es gibt ihn genau einmal.
           ...(isOperator && isAdmin ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
@@ -370,6 +373,9 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         {tab === 'comm' && record.object_id != null && (
           <DetailBody><Communication company={record.object_id} ownCompany={own} /></DetailBody>
+        )}
+        {tab === 'pay' && own && record.object_id != null && (
+          <CompanyPayments company={record.object_id} name={organizationName(base)} />
         )}
         {tab === 'system' && isOperator && (
           <SystemConfigSection settings={base} onSaved={(s) => onSaved({ ...base, ...s })} />
@@ -544,3 +550,23 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
   );
 }
 
+
+/**
+ * ►►► **Alle Zahlungen einer eigenen Gesellschaft** – dieselbe Liste wie an der Person, mit
+ * der Partei je Zeile. Eine Ableitung aus den Zahlungsmodulen, keine eigene Liste.
+ */
+function CompanyPayments({ company, name }: { company: number; name: string | null }) {
+  const rows = usePayments({ company });
+  return (
+    <DetailBody gap={16}>
+      <SectionSep label={name ? `Alle Zahlungen der ${name}` : 'Alle Zahlungen'} tip={PAYMENTS_TIP} />
+      {rows == null ? null : rows.length > 0 ? (
+        <PaymentList rows={rows} withParty />
+      ) : (
+        <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: 0 }}>
+          Noch keine Zahlungen in ihrem Namen.
+        </p>
+      )}
+    </DetailBody>
+  );
+}

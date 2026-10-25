@@ -1,8 +1,8 @@
 /**
  * ►►► **Was zu tun ist – die EINE Zahl am Symbol** (Backend `services/todo`). ◄◄◄
  *
- * Offene Nachrichten, Aufgaben der Zeiterfassung, fehlende Pflichtangaben, fehlende Feiertage
- * – der Server zählt, hier steht nur, wie es sich zeigt: die Blase am Symbol (Feed und Kopf),
+ * Offene Nachrichten, Aufgaben der Zeiterfassung, überfällige Rechnungen, fehlende
+ * Pflichtangaben, fehlende Feiertage – der Server zählt, hier steht nur, wie es sich zeigt: die Blase am Symbol (Feed und Kopf),
  * die kleine Zahl am Abschnitt und der Sprung dorthin.
  */
 import type { Todo, TodoItem } from '@/types';
@@ -18,6 +18,8 @@ export function todoChanged(): void {
 const SECTION: Record<string, string> = {
   kommunikation: 'Kommunikation',
   zeiterfassung: 'Zeiterfassung',
+  // Überfällige Rechnungen – keine eigene Mahnliste, sie zählen an der Person.
+  zahlungen: 'Zahlungen',
   person: 'Stammdaten',
   adressen: 'Adressen',
   feiertage: 'Feiertage',

@@ -633,32 +633,45 @@ def test_everything_about_one_party_stands_on_one_line():
     )
 
 
-def test_the_finish_verb_names_this_module_not_the_erp_order():
-    """►►► **«Auftrag erledigt» meinte den falschen Auftrag** (Testnotiz #848). ◄◄◄
+def test_the_payment_module_has_no_finish_button_the_pieces_pass_by_themselves():
+    """►►► **Ein Zahlungsmodul bestätigt niemand von Hand** (Runde vom 25.10.2026). ◄◄◄
 
-    Es klang nach dem ERP-Datensatz «Auftrag» – gemeint ist **dieses Modul**. Ein
-    *Vorgang* ist genau dieser Geldvorgang, das Wort steht seit jeher dafür im Haus, und
-    es verwechselt sich mit nichts.
+    Früher hiess der Knopf «Vorgang abschliessen» (davor «Auftrag erledigt», Testnotiz
+    #848). Jetzt gibt es ihn nicht mehr: **die Stücke ziehen von selbst weiter** – mit der
+    Zusage, bei einer Vorauszahlung mit dem Geld (``process.advance_payments``). Erledigt
+    ist der Beleg, wenn der Saldo null ist; Kulanz ist ein Storno mit Grund.
 
-    Geprüft wird die **Quelle**: das Verb kommt aus derselben Tabelle, aus der auch das
-    der Schwelle kommt – ein Literal im Modul wäre die Stelle, an der es beim nächsten
-    Umbenennen stehen bleibt.
+    Geprüft wird die **Regel an ihren beiden Formen**: das Wort des Moduls beschreibt, was
+    geschieht (``Beleg.action_for``), und die Tür nennt den Grund, warum es keinen Knopf
+    gibt (``completion_problem`` ↔ ``assert_completable`` mit ``PASSES_ITSELF``).
 
-    Bug-Formen: (a) das alte Wort ist zurück; (b) das Modul schreibt sein Verb selbst.
+    Bug-Formen: (a) das Verb «Vorgang abschliessen» (oder sein Vorgänger) ist zurück –
+    in der Domäne oder in der Karte; (b) das Modul bietet wieder eine Handlung an statt
+    zu sagen, was von selbst geschieht; (c) ``completion_problem`` gibt für ein
+    Zahlungsmodul ``None`` zurück – dann stünde der Bestätigen-Knopf wieder da.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import voucher as dm, modules
 
-    assert "Auftrag erledigt" not in dm.FINISH_VERB, "Das alte Wort ist zurück (a)."
-    assert dm.FINISH_VERB == "Vorgang abschliessen"
+    assert not hasattr(dm, "FINISH_VERB"), "Das Abschluss-Verb ist zurück (a)."
+    for gone in ("Vorgang abschliessen", "Auftrag erledigt"):
+        assert gone not in _code(_read(BACKEND / "app" / "domain" / "modules.py")), (
+            f"«{gone}» steht wieder im Modul (a).")
+        assert gone not in _beleg(), f"«{gone}» steht wieder in der Karte (a)."
     beleg = modules.get("beleg")
-    assert beleg.action_for({"direction": "in"}) == dm.FINISH_VERB, (
-        "Das Modul schreibt sein Verb selbst, statt es aus den Stufen-Verben zu "
-        "nehmen (b)."
+    for direction in ("in", "out"):
+        assert beleg.action_for({"direction": direction}) == "Zieht von selbst weiter", (
+            "Das Modul nennt wieder eine Handlung statt dessen, was von selbst "
+            "geschieht (b)."
+        )
+    src = _code(_read(BACKEND / "app" / "services" / "voucher.py"))
+    body = src[src.index("def completion_problem"):src.index("def pass_problem")]
+    assert "PASSES_ITSELF" in body and "return None" not in body.split('"""')[-1], (
+        "``completion_problem`` lässt für ein Zahlungsmodul wieder einen Knopf zu (c)."
     )
-    src = _code(_read(BACKEND / "app" / "domain" / "modules.py"))
-    assert "Auftrag erledigt" not in src
+    gate = src[src.index("def assert_completable"):src.index("def on_pass")]
+    assert "PASSES_ITSELF" in gate, "Die Tür nennt den Grund nicht mehr (c)."
 
 
 def test_the_payment_form_is_ours_and_never_a_link_to_somewhere_else():
@@ -1097,48 +1110,52 @@ def test_the_payment_reference_says_where_it_comes_from():
 
 
 def test_the_invoice_lives_on_the_voucher_not_in_a_money_line():
-    """►►► **DIE Rechnung IST der Beleg — die Karte baut sie nicht mehr zusammen.** ◄◄◄
+    """►►► **DIE Rechnung IST der Beleg — die Karte baut sie nicht zusammen.** ◄◄◄
 
-    Bis hierher stand im Fach «Fordern» eine Liste von Geld-Zeilen, und die Oberfläche
-    musste heraussuchen, welche davon *die* Rechnung ist: ``kind === 'charge'``, nicht
-    storniert, nicht Gegenbuchung, nicht negativ. Genau diese Suche ist die Form, in der
-    eine Regel («eine Rechnung je Modul») von zwei Stellen unterschiedlich beantwortet
-    wird.
+    Eine Geld-Zeile hat wieder eine Art (``voucher_entries.kind``) – aber sie heisst
+    **Zahlung · Ausbuchung · Trinkgeld** (``ENTRY_KINDS``), nie «Forderung». Die Rechnung
+    selbst (Nummer, Tag, Fälligkeit, Betrag, Steuer) steht am **Beleg**
+    (``Voucher.number``/``billed_on``/``due_on``/``amount``/``vat``) und reist als **ein
+    Objekt** mit (``VoucherEmbed.invoice``); ``null`` ist die vollständige Antwort auf
+    «gibt es eine?».
 
-    Jetzt reist sie als **ein Objekt** mit (``VoucherEmbed.invoice``), und ``null`` ist
-    die vollständige Antwort auf «gibt es eine?».
-
-    Bug-Formen: (a) die Karte sucht sich die Rechnung wieder aus den Zeilen; (b) sie liest
-    Nummer, Fälligkeit oder Steuer von einer Geld-Zeile; (c) das Feld gibt es an der Tür
+    Bug-Formen: (a) es gibt wieder eine Art «charge» – dann gibt es die Rechnung zweimal,
+    und die Karte muss wieder wählen; (b) die Karte sucht sich die Rechnung aus den Zeilen
+    oder liest Nummer, Fälligkeit oder Steuer von einer Geld-Zeile; (c) die Felder der
+    Rechnung wandern vom Beleg weg oder an die Geld-Zeile; (d) das Feld gibt es an der Tür
     gar nicht, also käme es nie an.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as dm
+    from app.models.voucher import Voucher, VoucherEntry
     from app.schemas.voucher import VoucherEmbed, VoucherEntryOut
 
-    src = _code(_beleg())
-    # (a) **Keine Suche mehr** – weder nach einer Art noch nach einem Vorzeichen.
-    for guess in ("kind === 'charge'", "kind === 'payment'", "e.reversed", "e.reverses"):
-        assert guess not in src, (
-            f"«{guess}»: die Karte sucht sich die Rechnung wieder aus den Zeilen (a)."
-        )
-    # (b) **Die Angaben der Rechnung kommen von ihr** – geprüft an der Zeile, die sie
-    # zeichnet: sie liest ``invoice``, nicht ``e``.
-    row = _component(src, "InvoiceRow")
-    for field in ("invoice.number", "invoice.billed_on", "invoice.due_on",
-                  "invoice.amount"):
-        assert field in row, f"«{field}» steht nicht an der Rechnung (b)."
-    # (c) **Und die Tür kennt sie.** Ein Feld, das das Schema nicht führt, käme nie an –
-    # dieselbe Falle wie bei einer Pydantic-Klasse, die ein Feld nicht kennt.
-    assert "invoice" in VoucherEmbed.model_fields, (
-        "Der Beleg liefert seine Rechnung nicht (c)."
+    # (a) **Die Arten einer Geld-Zeile – ohne Forderung.**
+    assert set(dm.ENTRY_KINDS) == {"payment", "writeoff", "tip"}, (
+        f"Die Arten einer Geld-Zeile sind {dm.ENTRY_KINDS} – eine Forderung ist keine (a)."
     )
-    for gone in ("kind", "due_on", "vat", "service_date", "reverses", "reversed",
-                 "charge_id", "allocations", "reverse_word", "state"):
+    assert "charge" not in _code(_read(BACKEND / "app" / "domain" / "voucher.py")).replace(
+        "charge_word", "").replace("charged", "").replace("CHARGE_", ""), (
+        "Eine Art «charge» ist zurück (a)."
+    )
+    src = _code(_beleg())
+    # (b) **Keine Suche** – die Karte fragt nie nach einer Forderungs-Zeile.
+    assert "'charge'" not in src, "Die Karte sucht sich die Rechnung aus den Zeilen (b)."
+    row = _component(src, "InvoiceRow")
+    for field in ("invoice.number", "invoice.due_on", "invoice.amount"):
+        assert field in row, f"«{field}» steht nicht an der Rechnung (b)."
+    # (c) **Die Rechnung steht am Beleg, nicht an der Geld-Zeile.**
+    for field in ("number", "billed_on", "due_on", "amount", "vat"):
+        assert hasattr(Voucher, field), f"«Voucher.{field}» fehlt (c)."
+    for gone in ("due_on", "vat", "service_date", "charge_id", "allocations"):
+        assert not hasattr(VoucherEntry, gone), (
+            f"«VoucherEntry.{gone}»: die Rechnung steht wieder an der Geld-Zeile (c).")
         assert gone not in VoucherEntryOut.model_fields, (
-            f"«{gone}» steht wieder an der Geld-Zeile (a) – dann gibt es die Rechnung "
-            f"zweimal, und die Karte muss wieder wählen."
+            f"«{gone}» steht wieder an der Geld-Zeile (c)."
         )
+    # (d) **Und die Tür kennt sie.**
+    assert "invoice" in VoucherEmbed.model_fields, "Der Beleg liefert seine Rechnung nicht (d)."
 
 
 def test_a_paid_invoice_says_so_at_its_own_line():

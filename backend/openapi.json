@@ -3782,9 +3782,9 @@
         "tags": [
           "erp"
         ],
-        "summary": "Payment List",
+        "summary": "List Payments",
         "description": "**Die Zahlungen einer Person** (``person=``) **oder einer eigenen Gesellschaft**\n(``company=``) – neueste Nummer zuoberst.",
-        "operationId": "payment_list_api_v1_erp_payments_get",
+        "operationId": "list_payments_api_v1_erp_payments_get",
         "security": [
           {
             "HTTPBearer": []
@@ -3834,7 +3834,7 @@
                   "items": {
                     "$ref": "#/components/schemas/PaymentRow"
                   },
-                  "title": "Response Payment List Api V1 Erp Payments Get"
+                  "title": "Response List Payments Api V1 Erp Payments Get"
                 }
               }
             }
@@ -8457,6 +8457,17 @@
               }
             ],
             "title": "At Step Id"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
           }
         },
         "type": "object",
@@ -12000,6 +12011,10 @@
       },
       "UploadResult": {
         "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
           "url": {
             "type": "string",
             "title": "Url"
@@ -12029,6 +12044,7 @@
         },
         "type": "object",
         "required": [
+          "id",
           "url"
         ],
         "title": "UploadResult"

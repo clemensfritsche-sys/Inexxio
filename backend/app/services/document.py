@@ -168,7 +168,11 @@ def standalone_agb(agb: agb_svc.Terms, *, sender: str) -> str:
 
 
 def _top(word: str) -> str:
-    return (f'<div class="top"><div class="word" aria-hidden="true">{escape(word)}</div>'
+    # **Ein langes Wort wird kleiner, nicht abgeschnitten** – «Zahlungserinnerung» muss neben
+    # dem Logo Platz haben.
+    size = 64 if len(word) <= 12 else (48 if len(word) <= 16 else 40)
+    return (f'<div class="top"><div class="word" aria-hidden="true" '
+            f'style="font-size:{size}px">{escape(word)}</div>'
             f'<img class="logo" alt="INEXXIO" src="data:image/png;base64,{_LOGO}"></div>')
 
 

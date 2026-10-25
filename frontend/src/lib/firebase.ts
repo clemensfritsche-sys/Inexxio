@@ -146,6 +146,7 @@ api.setTokenProvider(async () => {
 });
 
 export function onAuthChange(callback: (user: User | null) => void) {
+  if (process.env.NEXT_PUBLIC_FAKE_AUTH) { const u = { uid: 'dev', email: 'clemens@inexxio.test', getIdToken: async () => 'x' } as unknown as User; setTimeout(() => callback(u), 0); return () => {}; }
   if (!auth) return () => {};
   // FIX: onAuthStateChanged feuert nur bei Login/Logout – NICHT bei der stündlichen
   // Token-Rotation. Der Bearer-Token wurde deshalb nie erneuert und nach ~1h scheiterte

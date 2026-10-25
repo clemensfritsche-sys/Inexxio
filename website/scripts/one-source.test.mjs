@@ -22,7 +22,7 @@ test('ERP-Pfade: eine Liste – jede Datei darauf ist erkannt, eine ähnlich ben
     assert.ok(!onErpPath(`${name}x.html`), `${name}x.html`);
   }
   assert.ok(!onErpPath('kontakt.html') && !onErpPath('index.html'));
-  assert.deepEqual(site.privatePaths, ['/erp', '/konto', '/login', '/abmelden', '/api/']);
+  assert.deepEqual(site.privatePaths, ['/erp', '/konto', '/login', '/abmelden', '/beleg', '/api/']);
 });
 
 test('ERP-Pfade: die Skripte tragen keine eigene Liste', () => {

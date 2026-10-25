@@ -462,8 +462,10 @@ export function TodoChip({ items }: { items: TodoItem[] }) {
 
 /** ►►► **Hier beginnt ein Bereich** – eine Haarlinie mit dem Mikro-Label in der Mitte
  *  (Stammdaten, Zeiterfassung); daneben die Zahl, wenn darin etwas zu tun ist. */
-export function SectionSep({ label, todo, anchor }: {
+export function SectionSep({ label, todo, anchor, tip }: {
   label: string; todo?: TodoItem[]; anchor?: string;
+  /** Was der Bereich ist – im Hover am Wort, nicht als Zeile darunter. */
+  tip?: string;
 }) {
   return (
     <div role="separator" aria-label={label} data-todo={anchor} style={{
@@ -471,7 +473,8 @@ export function SectionSep({ label, todo, anchor }: {
       margin: '8px 0 -4px', scrollMarginTop: 16,
     }}>
       <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span {...(tip ? { 'data-tip': tip } : {})}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         {label}{todo && <TodoChip items={todo} />}
       </span>
       <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />

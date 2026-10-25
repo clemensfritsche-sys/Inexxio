@@ -1,5 +1,5 @@
 """**Die Zahlungen einer Person bzw. einer eigenen Gesellschaft** – eine Ableitung aus den
-Zahlungsmodulen (``services/payments``)."""
+Zahlungsmodulen (``services/payment_list``)."""
 
 from typing import Any, Optional
 
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import UserProfile
-from ..services import payments
+from ..services import payment_list
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
@@ -33,7 +33,7 @@ class PaymentRow(BaseModel):
 
 
 @router.get("/payments", response_model=list[PaymentRow])
-def payment_list(
+def list_payments(
     person: Optional[int] = None,
     company: Optional[int] = None,
     db: Session = Depends(get_db),
@@ -44,5 +44,5 @@ def payment_list(
     if (person is None) == (company is None):
         raise HTTPException(status_code=400,
                             detail="Entweder eine Person oder eine Gesellschaft angeben.")
-    return (payments.of_person(db, person) if person is not None
-            else payments.of_company(db, company))
+    return (payment_list.of_person(db, person) if person is not None
+            else payment_list.of_company(db, company))

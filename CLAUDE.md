@@ -143,22 +143,35 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   definiert → der Scan verifiziert, offen → der Scan wählt. **Ware zuerst, Ziel zuletzt**
   (der Ziel-Scan ist die Quittung der Ablage). Eine Spedition ist ein Einkauf, also ein
   Zahlungs-Modul daneben – Bewegen weiss nichts davon.
-- **Zahlung** (§9.15, Schlüssel `beleg`, `domain/voucher.py` · `services/voucher.py` ·
-  `beleg-work.tsx`): Geld mit einer zweiten Partei, **Einnahme ↔ Ausgabe** als Einstellung
-  (`Direction`: wer den Preis nennt `quoted_by`, wer kassiert `collects`). **Bewegt keine
-  Stücke.** Stufen `offer → agreed → billed` (+ Ausgänge `done`/`cancelled`). **Jedes Verb
-  steht an EINER Stelle** (`services/voucher.VERBS`: Stufe · nötige Stammdaten · wer darf ·
-  Funktion), und **`can` ist Auskunft UND Tor**. **Der Beleg IST die Rechnung – eine je
-  Modul**; `bill` friert Nummer, Betrag, Steuer und Fälligkeit ein, `unbill` geht, solange
-  kein Geld geflossen ist. Eine **Korrektur/Gutschrift ist ein eigener Beleg** in einem
-  eigenen Modul (`corrects_id`, gern im Retourenauftrag – seine Positionen sind die Stücke,
-  die zurückkommen). **Jede Zahl ist eine Menge**, die Richtung sagt der Beleg. Steuer je
-  Position (MWSTG Art. 26), gerundet je Satz auf der Summe (`vat_split`); **eine Währung je
-  Vorgang** mit ihren Nachkommastellen (`domain/currency.py`). Fehlende Stammdaten sind eine
-  Zeile (`DataGap`), kein Zustand. **Mit der Zusage friert der Belegkopf ein**
-  (`vouchers.head`). Wählen ist nicht anfragen (`party` schreibt, `ask` geht hinaus). Drei
-  Wege zum Geld: bar (erfasst) · Überweisung (Auskunft mit RF-Referenz und Swiss
-  QR-Rechnung, `services/qrbill`) · Karte (Stripe, gebucht nur vom Webhook).
+- **Zahlung** (§9.15/§9.15s, Schlüssel `beleg`, `domain/voucher.py` · `services/voucher.py` ·
+  `services/voucher_docs.py` · `beleg-work.tsx`): Geld mit einer zweiten Partei, **Einnahme ↔
+  Ausgabe** als Einstellung (`Direction`). Stufen `offer → agreed → billed` (+ `cancelled`);
+  **Erledigt ist abgeleitet** (Saldo 0, bei Export mit Ausfuhrnachweis). **Jedes Verb steht an
+  EINER Stelle** (`VERBS`), **`can` ist Auskunft UND Tor**, die Leiste der Karte ist
+  `situation` (nie leer ausser Erledigt/Storniert – Wächter «keine Sackgasse»). **Die Stücke
+  passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit dem Geld
+  (`process.advance_payments`); dabei wechselt das **Eigentum** (`instance_units.owner_object_id`,
+  «geht an die Partei · an uns · bleibt»). **Der Beleg IST die Rechnung – eine je Modul**; ein
+  **Wort für den Storno** («Stornieren»), nach der Rechnung entsteht die Gutschrift über die
+  ganze Rechnung von selbst; «Rechnung zurücknehmen» gibt es nicht. Passen die Stücke nicht
+  mehr (`units_problem`), bleibt nur «Stornieren». Geld-Zeilen: Zahlung · Ausbuchung (mit
+  Grund) · Trinkgeld, «falsch erfasst?» bucht eine Zeile gegen, **eine Referenz gehört zu
+  genau einer Zahlung** (Unique-Index). Gültigkeit der Offerte in Tagen, **angenommen wird nur
+  die aktuelle Fassung** (`offered_hash`). **Die Anschrift entscheidet** Steuersatz (Ware:
+  Lieferadresse, Dienstleistung: Sitz; Ausland fest Export bzw. Reverse Charge), Fremdwährung,
+  Zoll und den Ort der Lieferbedingung; die eigene Gesellschaft ist nie Gegenpartei.
+  Lieferantenrechnung mit Nummer, Datum, MWST-Nr. und Foto; Abweichung → «So annehmen» mit
+  Grund. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Dokument**
+  (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
+  A4-Vorlage** (`services/document.py`), wird **eingefroren** (`voucher_documents`), trägt die
+  AGB der Fassung (`services/agb.py`, `app/assets/agb/<Datum>.md`) als letzte Seite und geht
+  mit Link `/beleg?t=…` per Mail hinaus; auf dieser Seite handelt die Partei mit denselben
+  Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
+  je Vorgang**. Drei Wege zum Geld: bar · Überweisung (Swiss QR-Rechnung) · Karte (Stripe,
+  gebucht nur vom Webhook; zurück auf die Karte nur, was geschuldet ist).
+- **Zahlungen-Liste** (`services/payment_list.py`, `GET /erp/payments`): eine Ableitung an
+  jeder Person (Abschnitt) und an jeder eigenen Gesellschaft (Reiter); Überfälliges zählt in
+  «zu tun».
 
 Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (alt)» – siehe
 `docs/attic.md`.
@@ -483,8 +496,10 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.
 - **Prozess** mit fünf Modulen, Abweichungen, Prozessbild als Graph aus dem Log
   (`services/flow.py`) und Modul-Protokoll.
-- **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Korrekturbelege,
-  Bezahlkarte, Swiss QR-Rechnung.
+- **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Gutschriften,
+  Bezahlkarte, Swiss QR-Rechnung; Stücke ziehen von selbst weiter, Eigentum am Stück; jedes
+  Dokument als A4-HTML eingefroren, mit AGB als letzter Seite, per Mail mit Link auf die
+  Kundenseite `/beleg` (annehmen, ablehnen, bezahlen); Zahlungen-Liste an Person und Gesellschaft.
 - **Zeiterfassung** im Personendatensatz: Wischknopf, Stundenkonto und Ferien in Stunden,
   Monat und Tag mit «Erfassen», Verträge und Buchungen (Admin), Feiertage mit Vorschlag
   (OpenHolidays) an der Gesellschaft, «zu tun» am Symbol.
