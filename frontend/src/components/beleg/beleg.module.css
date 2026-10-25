@@ -104,8 +104,10 @@
   color: var(--fg-1); background: var(--bg-1); border: 1px solid var(--border-1);
   box-shadow: var(--elev-4); cursor: pointer;
 }
+/* Eigene Blase links vom Knopf – bewusst nicht `data-tip` (#1225): die allgemeine Blase des ERP
+   lag sonst zugleich darauf und verschob sie. */
 .dl::after {
-  content: attr(data-tip); position: absolute; right: calc(100% + 10px); top: 50%;
+  content: attr(data-label); position: absolute; right: calc(100% + 10px); top: 50%;
   transform: translateY(-50%); padding: 6px 10px; border-radius: var(--r-sm); white-space: nowrap;
   background: var(--fg-1); color: var(--bg-1); font: 500 12.5px/1.2 var(--font-body);
   opacity: 0; pointer-events: none; transition: opacity 0.15s;

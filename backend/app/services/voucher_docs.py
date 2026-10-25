@@ -447,9 +447,10 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
                                  + (f" unter {phone}" if phone else "")
                                  + " oder antworten Sie auf unsere Mail."),
                         "link": None}
-    if row.stage == vo.CANCELLED:
-        note = {"kind": "cancelled", "title": "Storniert.",
-                "text": "Dieser Vorgang ist storniert.", "link": None}
+    gone = _gone_for(db, row, rec.party_id)
+    if gone:
+        note = {"kind": "cancelled", "title": gone[0], "text": gone[1], "link": None}
+        actions = []
     word = (vo.remind_word(shown.level or 1) if shown.kind == vo.REMINDER_DOC
             else ("Bezahlt" if vs.is_done(db, row) and shown.kind in (
                 vo.INVOICE_DOC, vo.RECEIPT_DOC) else vo.DOCUMENTS.get(shown.kind, "Beleg")))
@@ -457,15 +458,32 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
     return {
         "token": shown.token, "kind": shown.kind, "word": word, "number": shown.number,
         "html": shown.html, "note": note, "actions": actions,
-        "stations": _stations(db, row),
+        "stations": _stations(db, row, closed=bool(gone)),
         "open": cur.money(money.open, row.currency) if money.open > 0 else None,
         "currency": row.currency,
         "agb": shown.agb,
     }
 
 
-def _stations(db: Session, row: Voucher) -> list[dict[str, Any]]:
-    """Der Weg – erledigte Stationen, die aktuelle, die kommenden."""
+def _gone_for(db: Session, row: Voucher, party: Optional[int]) -> Optional[tuple[str, str]]:
+    """►►► **Ist der Vorgang für diese Partei vorbei?** – EINE Regel für zwei Fälle (#1227). ◄◄◄
+
+    Storniert ist er für alle. Hat eine **andere** Partei den Zuschlag, ist er für diese
+    ebenso zu Ende: sie sieht ihr Papier, aber nicht, wie es mit der anderen weitergeht –
+    ihr Weg steht wie bei einem Storno.
+    """
+    if row.stage == vo.CANCELLED:
+        return ("Storniert.", "Dieser Vorgang ist storniert.")
+    winner = vs.party_of(db, row) if row.stage != vo.OFFER else None
+    if winner is not None and party is not None and winner != party:
+        return ("Nicht mehr offen.",
+                "Dieser Vorgang ist für Sie abgeschlossen – er ging an eine andere Partei.")
+    return None
+
+
+def _stations(db: Session, row: Voucher, *, closed: bool = False) -> list[dict[str, Any]]:
+    """Der Weg – erledigte Stationen, die aktuelle, die kommenden. Ist der Vorgang für den
+    Betrachter vorbei (``_gone_for``), steht er still wie bei einem Storno."""
     if vs.is_done(db, row):
         at = 4
     elif row.stage == vo.BILLED:
@@ -474,7 +492,7 @@ def _stations(db: Session, row: Voucher) -> list[dict[str, Any]]:
         at = 1
     else:
         at = 0
-    if row.stage == vo.CANCELLED:
+    if closed:
         at = -1
     return [{"who": w, "title": t, "text": x,
              "state": "done" if (at == 4 or i < at) else ("active" if i == at else "ahead")}

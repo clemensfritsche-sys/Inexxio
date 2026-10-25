@@ -30,7 +30,7 @@ export function Documents({ d }: { d: Filled }) {
               </span>
               <span style={{ fontSize: 11.5, color: 'var(--fg-3)', flex: 'none' }}
                 {...(sent.title ? { 'data-tip': sent.title } : {})}>
-                {sent.text} · eingefroren
+                {sent.text}
               </span>
               <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{
                 fontSize: 12, color: 'var(--accent-ink)', textDecoration: 'none', flex: 'none',
