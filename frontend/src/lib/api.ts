@@ -647,7 +647,7 @@ class ApiClient {
 
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
   // Gibt eine relative URL (Token) zurück; die speichern die Verbraucher als String.
-  async uploadAttachment(file: File): Promise<{ url: string; width: number | null; height: number | null }> {
+  async uploadAttachment(file: File): Promise<import('@/types/api').components['schemas']['UploadResult']> {
     const headers: Record<string, string> = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const form = new FormData();
