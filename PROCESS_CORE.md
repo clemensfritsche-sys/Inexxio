@@ -2464,7 +2464,7 @@ Selbstbegrenzend: gedreht wird nur, was negativ ist.
 > Entscheide: Dokument «Zahlungsmodul – Ziel, Muster, Plan» und das Mockup
 > (`docs/history/2026-10-25-zahlungsmodul-umbau.md`). Code: `domain/voucher`,
 > `services/voucher` (`VERBS`, `can`, `situation`), `services/voucher_docs`,
-> `services/document`, `services/agb`, `services/payment_list`, `routers/beleg.py`,
+> `services/document`, `services/legal`, `services/payment_list`, `routers/beleg.py`,
 > Migration `155`. **Wo ein älterer Unterabschnitt etwas anderes sagt, gilt dieser.**
 
 - **Die Stücke passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit

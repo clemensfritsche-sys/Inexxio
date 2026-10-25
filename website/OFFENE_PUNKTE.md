@@ -17,14 +17,14 @@ Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualitä
 | `kran-steigung` | Kran nach Mass in einem Gebäude mit Steigung: Fahrbahn folgt dem ansteigenden Dach oder Boden, Steigung gut sichtbar, quer | 4:3 | noch nicht verwendet |
 | `kran-versatz` | Kran nach Mass unter einer Decke mit Höhensprung oder Unterzug: Aufhängungen unterschiedlich lang, die Fahrbahn läuft durch, quer | 4:3 | noch nicht verwendet |
 | `kran-eng` | Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer | 4:3 | noch nicht verwendet |
-| `teil-verlaengerungsrinne` (zurzeit Beispielbild) | Produktfoto Verlängerungsrinne, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `teil-einfuelltrichter` (zurzeit Beispielbild) | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `teil-auslaufschurre` (zurzeit Beispielbild) | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `teil-spiralschutz` (zurzeit Beispielbild) | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `clemens-heiri-quer` (zurzeit Beispielbild) | Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat | 3:2 | `/` |
+| `teil-verlaengerungsrinne` | Produktfoto Verlängerungsrinne, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
+| `teil-einfuelltrichter` | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
+| `teil-auslaufschurre` | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
+| `teil-spiralschutz` | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
+| `clemens-heiri-quer` | Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat | 3:2 | `/` |
 | `handschlag` | Heiri Steiner und Clemens Fritsche beim Handschlag, freigestellt (transparenter Grund), hoch – heute steht dort portraet-clemens | 4:5 | noch nicht verwendet |
-| `werkstatt-aussen` (zurzeit Beispielbild) | Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | noch nicht verwendet |
-| `team` (zurzeit Beispielbild) | Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | noch nicht verwendet |
+| `werkstatt-aussen` | Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | noch nicht verwendet |
+| `team` | Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | noch nicht verwendet |
 
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)
 

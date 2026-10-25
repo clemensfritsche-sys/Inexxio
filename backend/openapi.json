@@ -3755,21 +3755,42 @@
         }
       }
     },
-    "/api/v1/public/agb": {
+    "/api/v1/public/legal/{kind}": {
       "get": {
         "tags": [
           "public"
         ],
-        "summary": "Terms",
-        "description": "**Die AGB, die heute gelten** – als A4-Dokument in der Vorlage aller Dokumente.",
-        "operationId": "terms_api_v1_public_agb_get",
+        "summary": "Legal Text",
+        "description": "**AGB, Datenschutz oder Impressum, wie sie heute gelten** – als A4-Dokument in der\nVorlage aller Dokumente, mit den Angaben des Betreibers aus dem ERP.",
+        "operationId": "legal_text_api_v1_public_legal__kind__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AgbOut"
+                  "$ref": "#/components/schemas/LegalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5731,25 +5752,6 @@
           "is_default_billing"
         ],
         "title": "AddressOut"
-      },
-      "AgbOut": {
-        "properties": {
-          "valid_from": {
-            "type": "string",
-            "title": "Valid From"
-          },
-          "html": {
-            "type": "string",
-            "title": "Html"
-          }
-        },
-        "type": "object",
-        "required": [
-          "valid_from",
-          "html"
-        ],
-        "title": "AgbOut",
-        "description": "Die geltenden AGB – ihr Datum und das A4-Dokument."
       },
       "ArtOut": {
         "properties": {
@@ -9022,6 +9024,40 @@
         ],
         "title": "JourneyNeighbour",
         "description": "Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.\n\nBei 5000 Einzelinstanzen will niemand 5000 Verweise sehen; die Frage lautet «wie\nviele kamen woher», nicht «welche». Wer die einzelnen Stücke braucht, öffnet den\ngenannten Auftrag – dort stehen sie."
+      },
+      "LegalOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "valid_from": {
+            "type": "string",
+            "title": "Valid From"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "word",
+          "title",
+          "valid_from",
+          "html"
+        ],
+        "title": "LegalOut",
+        "description": "Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument."
       },
       "MailboxOut": {
         "properties": {

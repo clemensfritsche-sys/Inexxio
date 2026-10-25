@@ -164,7 +164,7 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   Grund. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Dokument**
   (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
   A4-Vorlage** (`services/document.py`), wird **eingefroren** (`voucher_documents`), trägt die
-  AGB der Fassung (`services/agb.py`, `app/assets/agb/<Datum>.md`) als letzte Seite und geht
+  AGB der Fassung (`services/legal.py`, `app/assets/legal/agb/<Datum>.md`) auf eigenen A4-Seiten und geht
   mit Link `/beleg?t=…` per Mail hinaus; auf dieser Seite handelt die Partei mit denselben
   Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
   je Vorgang**. Drei Wege zum Geld: bar · Überweisung (Swiss QR-Rechnung) · Karte (Stripe,
@@ -403,7 +403,16 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   gewöhnliches `<video autoplay muted loop playsinline poster>` statt des Fotos
   (`components/Media.astro`). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
-  ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/agb`.
+  ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/beleg`, `/agb`,
+  `/datenschutz`, `/impressum`.
+- **Rechtstexte** (AGB · Datenschutz · Impressum): EIN Text je Art und Fassung in
+  `backend/app/assets/legal/<art>/<gültig ab>.md` (`services/legal.py`), ein Text für Geschäfts-
+  und Endkunden; Name, Anschrift, Kontakt und UID setzt das ERP ein (`{{firma}}` …). Gezeigt als
+  A4-Dokument aus derselben Vorlage wie jeder Beleg (`services/document.py`), **in echte
+  A4-Seiten geteilt** – der Download hat genau so viele Seiten, wie «Seite x/n» sagt; die Schrift
+  steckt im Dokument (kein Abruf bei Google). Seite `components/beleg/legal-page.tsx`.
+- **Keine Beispielbilder, kein Bildnachweis**: ein fehlendes Foto ist der graue Rahmen «Foto
+  fehlt» (`Photo.astro`).
 - **Kopf-Menü = Mobil-Menü**: Hauptzeile Speziallösungen · Krantechnik · Fahrzeugtechnik · Service ·
   Unternehmen (Über uns · Ratgeber · Kontakt · Karriere); Kontakt ist kein eigener Punkt – Telefon und
   «Anfrage stellen» rechts sind der Weg zu uns. Ein Punkt mit Unterseiten beginnt mit seiner Übersicht

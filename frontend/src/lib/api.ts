@@ -333,9 +333,9 @@ class ApiClient {
     return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/payment`, {});
   }
 
-  /** **Die AGB, die heute gelten** – als A4-Dokument (beide Teile). */
-  publicAgb(): Promise<import('@/types/api').components['schemas']['AgbOut']> {
-    return this.get('/api/v1/public/agb');
+  /** **Ein Rechtstext, wie er heute gilt** (AGB · Datenschutz · Impressum) – als A4-Dokument. */
+  publicLegal(kind: 'agb' | 'datenschutz' | 'impressum'): Promise<import('@/types/api').components['schemas']['LegalOut']> {
+    return this.get(`/api/v1/public/legal/${kind}`);
   }
 
   // ─── Admin: Settings ───────────────────────────────────────────────────────

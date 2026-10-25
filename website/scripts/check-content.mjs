@@ -12,7 +12,6 @@ import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { site } from '../src/config/site.mjs';
 import { photos } from '../src/config/photos.mjs';
-import { samples } from '../src/config/photo-samples.mjs';
 import { isLive } from '../src/lib/text.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -74,7 +73,7 @@ function writeReport(missing) {
   ];
   for (const { id, p, pages } of rows) {
     const used = pages.length ? pages.map((x) => `\`${x}\``).join(', ') : 'noch nicht verwendet';
-    lines.push(`| \`${id}\`${samples[id] ? ' (zurzeit Beispielbild)' : ''} | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${used} |`);
+    lines.push(`| \`${id}\` | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${used} |`);
   }
   lines.push('', '## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)', '');
   for (const [key] of disabled) lines.push(`- \`${key}\` – ohne echte Fotos abgeschaltet.`);

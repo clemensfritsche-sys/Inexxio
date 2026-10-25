@@ -22,7 +22,6 @@ import { kontakt } from '../content/kontakt';
 import { karriere } from '../content/karriere';
 import { ratgeberUebersicht } from '../content/ratgeber-uebersicht';
 import { articles } from './ratgeber';
-import { legalMeta } from './legal';
 
 export type Section =
   | 'Start' | 'Krantechnik' | 'Fahrzeugtechnik' | 'Speziallösungen' | 'Service' | 'Unternehmen' | 'Ratgeber' | 'Rechtliches';
@@ -71,10 +70,6 @@ function build(): PageEntry[] {
     ...articles().map((a): PageEntry => ({
       path: a.path, name: a.title, description: a.description, updated: a.updated, section: 'Ratgeber', article: a.slug,
     })),
-    ...(['impressum', 'datenschutz'] as const).map((name): PageEntry => {
-      const m = legalMeta(name);
-      return { path: `/${name}`, name: m.title, description: m.description, updated: m.updated, section: 'Rechtliches' };
-    }),
   ];
   // Untermenü und Seiten nennen dieselben Pfade, in derselben Reihenfolge.
   const own: Record<string, SubPage[]> = { krantechnik: krantechnikPages, fahrzeugtechnik: fahrzeugtechnikPages, spezialloesungen: [] };

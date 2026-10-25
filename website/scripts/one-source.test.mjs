@@ -65,7 +65,6 @@ test('Ort: die Inhalte setzen ihn aus site.address ein, statt ihn auszuschreiben
   const dir = join(ROOT, 'src/content');
   const files = [
     ...readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => `src/content/${f}`),
-    'src/content/legal/impressum.md',
   ];
   const { city, street, zip } = site.address;
   for (const rel of files) {

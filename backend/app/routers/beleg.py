@@ -15,8 +15,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..models import Order, Voucher
 from ..schemas.process import PaymentSetup
-from ..services import address, agb as agb_svc, document, sites, stripe_pay
-from ..services import voucher as voucher_svc
+from ..services import document, legal, stripe_pay
 from ..services import voucher_docs
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
@@ -55,8 +54,11 @@ class BelegView(BaseModel):
     agb: Optional[str] = None
 
 
-class AgbOut(BaseModel):
-    """Die geltenden AGB – ihr Datum und das A4-Dokument."""
+class LegalOut(BaseModel):
+    """Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument."""
+    kind: str
+    word: str
+    title: str
     valid_from: str
     html: str
 
@@ -106,16 +108,15 @@ def payment(token: str, db: Session = Depends(get_db)) -> Any:
     return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order))
 
 
-@router.get("/agb", response_model=AgbOut)
-def terms(db: Session = Depends(get_db)) -> Any:
-    """**Die AGB, die heute gelten** – als A4-Dokument in der Vorlage aller Dokumente."""
-    agb = agb_svc.current()
-    if agb is None:
-        raise HTTPException(status_code=404, detail="Es sind keine AGB hinterlegt.")
-    operator = sites.find_operator(db)
-    seat = address.of_company(operator) if operator is not None else {}
-    sender = " · ".join(x for x in (sites.legal_name(operator) or "", seat.get("street1") or "",
-                                    " ".join(y for y in (seat.get("zip"), seat.get("city"))
-                                             if y),
-                                    voucher_svc._uid(operator) or "") if x and x != "—")
-    return AgbOut(valid_from=agb.key, html=document.standalone_agb(agb, sender=sender))
+@router.get("/legal/{kind}", response_model=LegalOut)
+def legal_text(kind: str, db: Session = Depends(get_db)) -> Any:
+    """**AGB, Datenschutz oder Impressum, wie sie heute gelten** – als A4-Dokument in der
+    Vorlage aller Dokumente, mit den Angaben des Betreibers aus dem ERP."""
+    if kind not in legal.KINDS:
+        raise HTTPException(status_code=404, detail=f"Einen Rechtstext «{kind}» gibt es nicht.")
+    values = legal.of_operator(db)
+    text = legal.current(kind, values=values)
+    if text is None:
+        raise HTTPException(status_code=404, detail=f"Der Rechtstext «{kind}» ist nicht hinterlegt.")
+    return LegalOut(kind=kind, word=text.word, title=text.title, valid_from=text.key,
+                    html=document.standalone(text, sender=legal.sender_line(values)))
