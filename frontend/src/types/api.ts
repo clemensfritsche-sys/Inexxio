@@ -2152,6 +2152,8 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
+            /** Is Service */
+            is_service?: boolean | null;
             /** Hs Code */
             hs_code?: string | null;
             /** Origin Country */
@@ -2327,6 +2329,11 @@ export interface components {
              * @default false
              */
             is_hazmat: boolean;
+            /**
+             * Is Service
+             * @default false
+             */
+            is_service: boolean;
             /** Hs Code */
             hs_code?: string | null;
             /** Origin Country */

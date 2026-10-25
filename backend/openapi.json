@@ -5968,6 +5968,17 @@
             ],
             "title": "Is Hazmat"
           },
+          "is_service": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Service"
+          },
           "hs_code": {
             "anyOf": [
               {
@@ -6340,6 +6351,11 @@
           "is_hazmat": {
             "type": "boolean",
             "title": "Is Hazmat",
+            "default": false
+          },
+          "is_service": {
+            "type": "boolean",
+            "title": "Is Service",
             "default": false
           },
           "hs_code": {
