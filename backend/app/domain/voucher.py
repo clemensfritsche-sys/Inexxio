@@ -172,21 +172,15 @@ ISSUER_LABEL = "Unsere Gesellschaft"
 #: Was man an der Schwelle tut: die **Offerte** annehmen – der Auftrag ist das Ergebnis
 #: (#966). **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
 AGREE_VERB = "Offerte annehmen"
-#: Was man tut, wenn nichts mehr davorsteht. Ein *Vorgang* ist dieser Beleg – das Wort
-#: verwechselt sich mit nichts, «Auftrag erledigt» meinte den ERP-Datensatz.
-FINISH_VERB = "Vorgang abschliessen"
-#: Die eine Gegenhandlung.
-UNDO = "Auftrag stornieren"
-#: **Im Angebot heisst es anders** (#957): vor der Zusage ist kein Auftrag da, den man
-#: stornieren könnte – hinausgegangen ist ein Angebot. Das Wort hängt
-#: damit an der **Stufe**, nicht an der Richtung: in beiden Richtungen bricht man denselben
-#: Vorgang ab, und ein Wert je Richtung wäre einer, den man falsch setzen kann.
-UNDO_AT = {OFFER: "Vorgang abbrechen", AGREED: UNDO, BILLED: UNDO}
+#: ►►► **Ein Wort für den Storno – in jeder Stufe** (Umbau Oktober 2026). ◄◄◄ Was er
+#: bewirkt, folgt aus der Stufe: vor der Zusage zieht er das Angebot zurück, danach den
+#: Auftrag, nach der Rechnung entsteht die Gutschrift von selbst.
+UNDO = "Stornieren"
 
 
 def undo_word(stage: str) -> str:
-    """Wie die Gegenhandlung in **dieser** Stufe heisst – die eine Auflösung."""
-    return UNDO_AT.get(stage, UNDO)
+    """Wie die Gegenhandlung heisst – in jeder Stufe dasselbe Wort."""
+    return UNDO
 
 # ---------------------------------------------------------------------------
 # ►►► JEDE ZAHL IST EINE MENGE — das Vorzeichen sagt der BELEG, einmal ◄◄◄
@@ -279,17 +273,13 @@ PAY_ONLINE_WORD = "Jetzt bezahlen"
 #: Den Zustand des Saldos trägt die **Farbe** des Betrags (#997); wo ein Wort gebraucht
 #: wird (Hover, Guthaben), kommt es aus ``CHARGE_STATES``.
 
-#: ►►► **ZWEI Fächer statt einer Liste aus Knöpfen.** ◄◄◄
-#:
-#: Es sind **zwei Fragen**, und jede gehört genau einer Seite:
-#:
-#: * **Fordern** – *was schuldet uns jemand?* Gehört uns: stellen, stornieren, gutschreiben.
-#: * **Begleichen** – *wie kommt das Geld hierher?* Gehört dem Zahlenden: bar · Überweisung
-#:   · Karte.
-#:
-#: Dazwischen steht die Zeile «Offen». Wer welches Fach bedienen darf, sagt ``can``.
-CLAIM_TITLE = "Fordern"
-SETTLE_TITLE = "Begleichen"
+#: ►►► **Die Abschnitte der Karte** – in dieser Reihenfolge. «Fordern» und «Begleichen» sind
+#: EIN Abschnitt «Rechnung» (Rechnung, Zahlungen, Saldo): es ist eine Frage – was ist mit
+#: dem Geld? –, und zwei Fächer zeigten dieselbe Zahl zweimal.
+PARTIES_TITLE = "Parteien"
+TERMS_TITLE = "Konditionen"
+INVOICE_TITLE = "Rechnung"
+DOCS_TITLE = "Dokumente"
 
 #: ►►► **Zwei Fragen, zwei Angaben** (§9.15e). ◄◄◄
 #:
@@ -314,7 +304,7 @@ ORDER_REF_HINT = "Seine Artikelnummer oder der Link zu seinem Shop"
 
 #: Die Nummer, unter der die **Gegenpartei** diesen Geldfluss führt. Das Feld gibt es nur,
 #: wo die Nummer von aussen kommt – eine, die **wir** vergeben, tippt niemand ab.
-PARTY_REFERENCE = "Zahlungsreferenz des Partners"
+PARTY_REFERENCE = "Rechnungsnummer"
 
 #: ►►► **Die Überschriften des Belegs.** ◄◄◄ Eine fehlt mit Absicht: über den Konditionen
 #: stand «Konditionen», und die Zeilen darunter (Zahlungsfrist, Lieferfrist,
@@ -360,6 +350,7 @@ LEAD_TERM_LABEL = "Lieferfrist"
 #: was er ist.
 HS_CODE_LABEL = "Zolltarifnummer"
 ORIGIN_LABEL = "Ursprungsland"
+WEIGHT_LABEL = "Gewicht"
 FREE_TERM_LABEL = "Individuell"
 
 
@@ -403,20 +394,21 @@ def method_name(key: Optional[str]) -> Optional[str]:
     return dict(METHODS).get(key or "")
 
 
-def assert_method(value: Any) -> Optional[str]:
+def assert_method(value: Any, *, card: bool = False) -> Optional[str]:
     """Eine **von Hand** erfasste Zahlungsart – oder ``None``.
 
-    Die Karte wird **abgewiesen**, nicht bloss ignoriert: ein Feld, das die Oberfläche
-    nicht anbietet, der Dienst aber annimmt, wäre die Hintertür zu einer Buchung, die
-    behauptet, ein Zahlungsdienst habe sie gemeldet.
+    **Die Karte, mit der UNS jemand bezahlt, wird abgewiesen**: sie meldet der
+    Zahlungsdienst, und ein Mensch, der sie wählt, behauptet eine Buchung ohne Beleg. Wo
+    **wir** zahlen (``card=True``), ist es unsere Firmenkarte – die erfasst man von Hand.
     """
     if value in (None, ""):
         return None
     key = str(value)
-    if key not in MANUAL_METHODS:
+    allowed = MANUAL_METHODS + ((CARD,) if card else ())
+    if key not in allowed:
         raise ValueError(
             f"«{key}» lässt sich nicht von Hand erfassen – "
-            f"möglich sind {', '.join(dict(METHODS)[m] for m in MANUAL_METHODS)}.")
+            f"möglich sind {', '.join(dict(METHODS)[m] for m in allowed)}.")
     return key
 
 
@@ -449,26 +441,107 @@ CORRECTS_LABEL = "Korrektur zu"
 CORRECTS_HINT = ("Welche Rechnung dieser Beleg mindert – sie darf in einem anderen "
                  "Auftrag stehen: die Gutschrift gehört dorthin, wo die Ware zurückkommt.")
 
-#: **Die Kleinbetragstoleranz** – bis hierher darf ein Restsaldo als Differenz ausgebucht
-#: werden.
-#:
-#: ►►► **Sie ist eine Erlaubnis, kein Automatismus.** ◄◄◄ Ausgebucht wird nichts von
-#: selbst: das System **bietet** die Zeile an, ein Mensch bucht sie. Eine automatische
-#: Ausbuchung wäre eine Forderung, die verschwindet, ohne dass jemand es entschieden hat –
-#: und genau das ist der Unterschied zwischen einer Toleranz und einem Datenverlust.
-#:
-#: **Nicht zu verwechseln mit `SETTLED_TOLERANCE`**: die sagt, ab wann eine Rechnung
-#: *beglichen heisst* (drei Rappen sind keine Mahnung wert); diese hier sagt, bis wohin
-#: man die Differenz **wegbuchen darf**. Zwei Fragen, zwei Zahlen.
-#:
-#: ►►► **Gebucht wird sie als ZAHLUNG mit Vermerk.** ◄◄◄ Eine Zahlung ist hier definiert
-#: als *was den offenen Betrag mindert*, und der Vermerk sagt, dass kein Geld geflossen
-#: ist. Ein dritter Zeilentyp für achtzig Rappen wäre ein Mechanismus für einen
-#: Rundungsfehler.
-WRITE_OFF_LIMIT = Decimal("1.00")
-WRITE_OFF_WORD = "Differenz ausbuchen"
-WRITE_OFF_NOTE = "Rundungsdifferenz"
+#: ►►► **Die Arten einer Geld-Zeile.** ◄◄◄ Eine **Zahlung** (negativ = Erstattung), eine
+#: **Ausbuchung** (kein Geld, eine Entgeltsminderung mit Grund – MWST anteilig korrigiert,
+#: MWSTG Art. 41) oder ein **Trinkgeld** (zu viel bezahlt und behalten: Entgelt mit MWST zum
+#: Satz der Rechnung, MWSTG Art. 24). Gelöscht wird keine – «falsch erfasst» ist eine
+#: Gegenbuchung derselben Art (``reverses_id``).
+PAYMENT = "payment"
+WRITEOFF = "writeoff"
+TIP = "tip"
+ENTRY_KINDS: tuple[str, ...] = (PAYMENT, WRITEOFF, TIP)
 
+#: **Warum ausgebucht wird** – rechtlich ist jeder Grund dieselbe Entgeltsminderung; das
+#: Wort sagt dem Menschen und der Buchhaltung, was geschah.
+WRITE_OFF_REASONS: tuple[tuple[str, str], ...] = (
+    ("rounding", "Rundung"),
+    ("bank", "Bankspesen"),
+    ("discount", "Skonto"),
+    ("goodwill", "Kulanz"),
+    ("loss", "Uneinbringlich"),
+)
+WRITE_OFF_WORD = "Ausbuchen"
+REFUND_WORD = "Erstatten"
+TIP_WORD = "Als Trinkgeld behalten"
+REVERSE_WORD = "falsch erfasst?"
+#: **Klein heisst: offen lassen oder ausbuchen** – nur das Wort an der Leiste hängt daran
+#: («Zu wenig bezahlt» statt «Teilweise bezahlt»); ausbuchen darf man jeden Rest.
+SMALL_REST = Decimal("1.00")
+
+
+def reason_label(key: Optional[str]) -> Optional[str]:
+    """Das Wort zu einem Grund – ``None`` ohne Grund."""
+    return dict(WRITE_OFF_REASONS).get(key or "")
+
+
+def assert_reason(value: Any) -> str:
+    """Ein Grund aus der Liste – sonst ein Fehler mit der Liste."""
+    if value in dict(WRITE_OFF_REASONS):
+        return str(value)
+    raise ValueError("Ausbuchen braucht einen Grund: "
+                     + ", ".join(label for _, label in WRITE_OFF_REASONS) + ".")
+
+
+# ---------------------------------------------------------------------------
+# ►►► GÜLTIGKEIT, EIGENTUM, DOKUMENTE, MAHNUNG ◄◄◄
+# ---------------------------------------------------------------------------
+
+#: **Wie lange eine Offerte gilt** – in Tagen ab «Anbieten». Danach ist sie abgelaufen:
+#: «Annehmen» ist gesperrt, «Erneut anbieten» beginnt die Frist neu.
+VALID_DAYS = 30
+VALID_LABEL = "Gültig"
+
+#: ►►► **Wem die Stücke danach gehören** – eine Einstellung am Beleg. ◄◄◄ Gewechselt wird,
+#: wenn die Stücke das Modul passieren. Keine Prüfung: es ist eine Angabe des Menschen
+#: (Miete, Reparatur und Auswärtsvergabe: «bleibt»).
+TO_PARTY = "party"
+TO_US = "us"
+KEEP = "keep"
+OWNERSHIP: tuple[tuple[str, str], ...] = (
+    (TO_PARTY, "geht an die Partei"),
+    (TO_US, "geht an uns"),
+    (KEEP, "bleibt"),
+)
+OWNERSHIP_LABEL = "Eigentum"
+
+
+def ownership_default(direction: Optional[str], minus: bool) -> str:
+    """**Vorbelegt aus der Richtung**: eine Einnahme gibt ab, eine Ausgabe und eine
+    Gutschrift (die Ware kommt zurück) holen herein."""
+    return TO_PARTY if (direction == IN and not minus) else TO_US
+
+
+def assert_ownership(value: Any) -> Optional[str]:
+    if value in (None, ""):
+        return None
+    if value in dict(OWNERSHIP):
+        return str(value)
+    raise ValueError("Eigentum: " + ", ".join(label for _, label in OWNERSHIP) + ".")
+
+
+#: ►►► **Die Dokumente, die hinausgehen** – je Art ihr Wort auf dem Papier. ◄◄◄ Eingefroren
+#: bei jedem Versand (``services/document``); nur, wo **wir** den Beleg stellen.
+OFFER_DOC, CONFIRM_DOC, INVOICE_DOC = "offer", "confirmation", "invoice"
+RECEIPT_DOC, STORNO_DOC, CREDIT_DOC, REMINDER_DOC = "receipt", "storno", "credit", "reminder"
+DOCUMENTS: dict[str, str] = {
+    OFFER_DOC: "Offerte",
+    CONFIRM_DOC: "Auftragsbestätigung",
+    INVOICE_DOC: "Rechnung",
+    RECEIPT_DOC: "Quittung",
+    STORNO_DOC: "Stornierung",
+    CREDIT_DOC: "Gutschrift",
+    REMINDER_DOC: "Mahnung",
+}
+
+#: ►►► **Die Mahnstufen** – drei, je zehn Tage Abstand, nichts geht von selbst. ◄◄◄ Die
+#: Stufe ist die Zahl der gesendeten Mahnungen (``voucher_documents``), keine Spalte.
+REMIND_DAYS = 10
+REMIND_LEVELS: tuple[str, ...] = ("Zahlungserinnerung", "2. Mahnung", "Letzte Mahnung")
+
+
+def remind_word(level: int) -> str:
+    """Wie die Mahnung der Stufe ``level`` (1–3) heisst."""
+    return REMIND_LEVELS[max(1, min(level, len(REMIND_LEVELS))) - 1]
 
 # ---------------------------------------------------------------------------
 # ►►► DER ZUSTAND EINER FORDERUNG — abgeleitet, nie gespeichert (Testnotiz #991)
@@ -758,6 +831,35 @@ VAT_LABEL = "MWST"
 SERVICE_DATE_LABEL = "Leistungsdatum"
 
 
+#: ►►► **Das Inland der Schweizer MWST** – die Schweiz und Liechtenstein (MWSTG Art. 3). ◄◄◄
+HOME_COUNTRIES: frozenset[str] = frozenset({"CH", "LI"})
+#: Was im Inland wählbar ist; im Ausland steht der Satz fest (Export bzw. Reverse Charge).
+DOMESTIC_VAT: tuple[str, ...] = ("normal", "reduced", "lodging")
+EXPORT_VAT = "export"
+REVERSE_VAT = "reverse"
+
+
+def abroad(country: Optional[str]) -> bool:
+    """Liegt diese Anschrift **ausserhalb** des MWST-Inlands? Ohne Land: nein – eine
+    unbekannte Anschrift macht niemanden zum Exporteur."""
+    code = (country or "").strip().upper()
+    return bool(code) and code not in HOME_COUNTRIES
+
+
+def vat_choices(*, service: bool, delivery_country: Optional[str],
+                seat_country: Optional[str]) -> tuple[str, ...]:
+    """►►► **Welche Sätze an einer Position wählbar sind – die Adresse entscheidet.** ◄◄◄
+
+    **Ware** folgt der **Lieferadresse**: im Ausland ist sie eine Ausfuhr, 0 % Export, fest.
+    Eine **Dienstleistung** folgt dem **Sitz des Empfängers** (Empfängerortsprinzip, MWSTG
+    Art. 8): im Ausland schuldet er die Steuer – Reverse Charge mit Pflichtvermerk, fest.
+    Im Inland: Normal-, reduzierter oder Beherbergungssatz.
+    """
+    if service:
+        return (REVERSE_VAT,) if abroad(seat_country) else DOMESTIC_VAT
+    return (EXPORT_VAT,) if abroad(delivery_country) else DOMESTIC_VAT
+
+
 def vat_entry(value: Any) -> Optional[VatRate]:
     """Die Katalogzeile zu einem Wert – **tolerant**, denn Belege sind eingefroren.
 
@@ -828,7 +930,14 @@ def vat_note(value: Any) -> Optional[str]:
 
 
 def line_net(line: dict[str, Any], code: str) -> Decimal:
-    """Der **Netto**-Betrag einer Position: Menge × Einzelpreis. Ohne Preis: null."""
+    """Der **Netto**-Betrag einer Position: Menge × Einzelpreis. Ohne Preis: null.
+
+    ►►► **Mit Teilbetrag gilt der Teilbetrag** (``part``, netto) – jedes Zahlungsmodul steht
+    für sich und verrechnet, was dort steht; null heisst «nicht auf dieser Rechnung».
+    """
+    part = amount(line.get("part"), code, allow_negative=True)
+    if part is not None:
+        return part
     price = amount(line.get("price"), code, allow_negative=True)
     if price is None:
         return _round(Decimal(0), code)
@@ -933,81 +1042,81 @@ def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:
             "gross": cur.money(net + tax, code)}
 
 
+def share_of(gross: Decimal, rows: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
+    """►►► **Ein Teil einer gestellten Rechnung, aufgeteilt wie sie** – für eine Ausbuchung
+    oder ein Trinkgeld. ◄◄◄ Die Entgeltsminderung korrigiert die Steuer **anteilig** über
+    die Sätze der Rechnung (MWSTG Art. 41); der letzte Anteil bekommt den Rest, damit die
+    Summe der Zeilen der Betrag ist."""
+    weights = [(r.get("vat") or r.get("rate"), Decimal(str(r.get("net") or 0))
+                + Decimal(str(r.get("tax") or 0))) for r in rows or []]
+    total = sum((w for _, w in weights), Decimal(0))
+    if not weights or total == 0:
+        return []
+    out: list[dict[str, str]] = []
+    used = _round(Decimal(0), code)
+    for i, (key, weight) in enumerate(weights):
+        part = (gross - used if i == len(weights) - 1
+                else _round(gross * weight / total, code))
+        used += part
+        entry = vat_entry(key)
+        out.append(_at(part, entry.key if entry is not None else f"{vat_of(key):.2f}", code))
+    return out
+
+
 @dataclass(frozen=True)
 class Balance:
-    """**Die Rechnung dieses Belegs — vier Zahlen, null Spalten.**
+    """**Die Rechnung dieses Belegs — lauter Ableitungen, null Spalten.**
 
-    Alles abgeleitet. Eine gespeicherte Spalte «offener Betrag» wäre die zweite Wahrheit,
-    und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
-
-    Ein **negativer** offener Betrag ist kein Fehler, sondern eine Aussage: dann haben wir
-    zu viel bekommen bzw. zu viel gezahlt.
+    ``open = berechnet − gutgeschrieben + Trinkgeld − bezahlt − ausgebucht``. Ein
+    **negativer** offener Betrag ist eine Aussage: zu viel bekommen bzw. zu viel gezahlt.
     """
 
     agreed: Optional[Decimal]
     charged: Decimal
+    #: Was ein Storno nach der Rechnung gutgeschrieben hat – null oder der ganze Betrag.
+    credited: Decimal
+    #: Zahlungen, Erstattungen abgezogen.
     paid: Decimal
-    #: berechnet − bezahlt
+    written_off: Decimal
+    tips: Decimal
     open: Decimal
 
     @property
     def next_payment(self) -> Optional[Decimal]:
-        """**Was als nächstes zu zahlen wäre** – und niemals ein negativer Vorschlag.
-
-        Ein negativer offener Betrag ist eine gültige Aussage (wir schulden); als
-        **Vorgabe** in einem Eingabefeld ist er es nicht. Eingebbar bleiben negative
-        Beträge – das ist die Erstattung –, sie werden nur nie vorgeschlagen.
-        """
-        return self.open if self.open > 0 else None
+        """Was als Nächstes zu zahlen wäre – nie ein negativer Vorschlag."""
+        return self.open if self.open > SETTLED_TOLERANCE else None
 
     @property
-    def write_off(self) -> Optional[Decimal]:
-        """►►► **Der Restsaldo, den man als Differenz ausbuchen dürfte** – oder ``None``.
-
-        *«Kleinbetragstoleranz: Restsaldo unter 1.00 CHF kann als Differenz ausgebucht
-        werden. Nicht automatisch.»*
-
-        Es ist **kein neuer Mechanismus**: ausgebucht wird über einen ganz gewöhnlichen
-        Beleg mit Gegenvorzeichen und dem Grund «Rundungsdifferenz». Diese Zahl sagt nur,
-        **ob** die Lage vorliegt und **wie viel** – damit die Oberfläche es anbieten kann,
-        ohne die Regel ein zweites Mal zu rechnen.
-
-        Über der Toleranz gibt es sie nicht: eine Forderung über zwanzig Franken bucht
-        niemand «versehentlich» aus, und ein Feld, das es zuliesse, wäre die stille
-        Abschreibung.
-
-        Zurück kommt der Betrag, **wie er zu buchen ist** – also mit dem Gegenvorzeichen
-        des Restsaldos. Eine Zahl, die man erst noch drehen muss, wäre die Stelle, an der
-        ein Aufrufer sie einmal nicht dreht.
-        """
-        if self.open == 0 or abs(self.open) >= WRITE_OFF_LIMIT:
-            return None
-        return -self.open
+    def even(self) -> bool:
+        """**Saldo null** – innerhalb der Rundungstoleranz."""
+        return abs(self.open) <= SETTLED_TOLERANCE
 
     @property
     def settled(self) -> bool:
-        """**Ist bezahlt, was zugesagt wurde?** Die eine Frage, die ``prepaid`` stellt.
+        """**Ist bezahlt, was zugesagt wurde?** – die Frage der Vorauszahlung.
 
         Gefragt wird nach der **Zusage**, nicht nach dem offenen Betrag: wer nichts
         berechnet hat, hat einen offenen Betrag von null – und das hiesse «bezahlt»,
         obwohl nie jemand etwas gefordert hat.
         """
-        return self.paid >= (self.agreed or Decimal("0"))
+        return self.paid + SETTLED_TOLERANCE >= (self.agreed or Decimal("0"))
 
 
 def balance(agreed: Optional[Decimal], charged: Optional[Decimal],
-            payments: list[Decimal]) -> Balance:
-    """Zusage, Rechnung und Zahlungen zu vier Zahlen. **Die eine Rechenstelle.**
+            entries: list[tuple[str, Decimal]], *,
+            credited: Optional[Decimal] = None) -> Balance:
+    """Zusage, Rechnung und Geld-Zeilen zu einem Saldo. **Die eine Rechenstelle.**
 
-    ``charged`` ist der Betrag der **einen** Rechnung dieses Belegs (``None``, solange
-    keine gestellt ist); ``payments`` sind die Zahlungen darauf. Diese Funktion kennt keine
-    Datenbank; sie rechnet, und der Dienst liest.
+    ``entries`` sind ``(art, betrag)`` – eine Gegenbuchung trägt dieselbe Art mit
+    umgekehrtem Vorzeichen, die Summe stimmt damit ohne Sonderfall.
     """
     total = charged or Decimal("0")
-    paid = sum(payments, Decimal("0"))
+    credit = credited or Decimal("0")
+    sums = {k: Decimal("0") for k in ENTRY_KINDS}
+    for kind, value in entries:
+        sums[kind if kind in sums else PAYMENT] += value
     return Balance(
-        agreed=agreed,
-        charged=total,
-        paid=paid,
-        open=total - paid,
+        agreed=agreed, charged=total, credited=credit,
+        paid=sums[PAYMENT], written_off=sums[WRITEOFF], tips=sums[TIP],
+        open=total - credit + sums[TIP] - sums[PAYMENT] - sums[WRITEOFF],
     )

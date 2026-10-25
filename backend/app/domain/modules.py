@@ -545,9 +545,52 @@ class Beleg(Module):
     #: eine Rechnung zu stellen, ist eine Geste ohne Aussage.
     requires_verification = False
 
+    #: ►►► **Was das Modul dem Beleg vorgeben DARF** – fest im Beleg, punktiert, Grund im
+    #: Hover («Im Modul vorgegeben»). ◄◄◄ Das Modul ist Master: was hier steht, gilt für
+    #: jeden Auftrag aus diesem Prozess; was leer bleibt, wählt der Mensch am Beleg.
+    PRESETS: tuple[str, ...] = ("payment_days", "lead_days", "valid_days", "incoterm",
+                                "ownership")
+    PRESET_LABELS: dict[str, str] = {
+        "payment_days": vo.PAYMENT_TERM_LABEL, "lead_days": vo.LEAD_TERM_LABEL,
+        "valid_days": vo.VALID_LABEL, "incoterm": "Lieferbedingung",
+        "ownership": vo.OWNERSHIP_LABEL,
+    }
+
     def action_for(self, config: Optional[dict[str, Any]]) -> str:
-        """**Erfasst wird nichts.** Der Knopf erledigt den Beleg."""
-        return vo.FINISH_VERB
+        """**Es gibt keinen Knopf**: die Stücke ziehen von selbst weiter, mit der Zusage
+        (bei einer Vorauszahlung mit dem Geld). Das Wort beschreibt, was geschieht."""
+        return "Zieht von selbst weiter"
+
+    @classmethod
+    def presets_of(cls, config: Optional[dict[str, Any]]) -> dict[str, Any]:
+        """**Die Vorgaben des Moduls** – nur, was wirklich gesetzt ist."""
+        data = config or {}
+        return {k: data[k] for k in cls.PRESETS if data.get(k) not in (None, "")}
+
+    def _clean_presets(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Die Vorgaben streng prüfen – leer heisst «wählt der Mensch am Beleg»."""
+        from . import incoterms as inc
+        out: dict[str, Any] = {}
+        for key in ("payment_days", "lead_days", "valid_days"):
+            value = data.get(key)
+            if value in (None, ""):
+                continue
+            try:
+                days = int(value)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"«{value}» ist keine Anzahl Tage.")
+            if not 0 <= days <= 365 or (key == "valid_days" and days == 0):
+                raise HTTPException(status_code=400,
+                                    detail="Eine Frist liegt zwischen 0 und 365 Tagen.")
+            out[key] = days
+        try:
+            if data.get("incoterm"):
+                out["incoterm"] = inc.assert_incoterm(data.get("incoterm"))
+            if data.get("ownership"):
+                out["ownership"] = vo.assert_ownership(data.get("ownership"))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return out
 
     def direction_of(self, config: Optional[dict[str, Any]]) -> str:
         """**Die Richtung dieses Schritts** – die eine Lesestelle.
@@ -574,6 +617,7 @@ class Beleg(Module):
             self.DIRECTION: direction,
             self.PARTIES: self._clean_parties(data.get(self.PARTIES), flow),
             self.INSTRUCTION: self._clean_instruction(data.get(self.INSTRUCTION)),
+            **self._clean_presets(data),
             "points": [], "sample": dict(sampling.DEFAULT),
         }
 

@@ -1347,6 +1347,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/beleg/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * View
+         * @description Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist.
+         */
+        get: operations["view_api_v1_public_beleg__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/beleg/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept
+         * @description **Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus.
+         */
+        post: operations["accept_api_v1_public_beleg__token__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/beleg/{token}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline
+         * @description **Die Offerte ablehnen** – als die Partei.
+         */
+        post: operations["decline_api_v1_public_beleg__token__decline_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/beleg/{token}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Payment
+         * @description **Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird
+         *     erst, wenn der Zahlungsdienst es meldet.
+         */
+        post: operations["payment_api_v1_public_beleg__token__payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/agb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Terms
+         * @description **Die AGB, die heute gelten** – als A4-Dokument in der Vorlage aller Dokumente.
+         */
+        get: operations["terms_api_v1_public_agb_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment List
+         * @description **Die Zahlungen einer Person** (``person=``) **oder einer eigenen Gesellschaft**
+         *     (``company=``) – neueste Nummer zuoberst.
+         */
+        get: operations["payment_list_api_v1_erp_payments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/feedback": {
         parameters: {
             query?: never;
@@ -1946,6 +2068,16 @@ export interface components {
             /** Is Default Billing */
             is_default_billing: boolean;
         };
+        /**
+         * AgbOut
+         * @description Die geltenden AGB – ihr Datum und das A4-Dokument.
+         */
+        AgbOut: {
+            /** Valid From */
+            valid_from: string;
+            /** Html */
+            html: string;
+        };
         /** ArtOut */
         ArtOut: {
             /** Key */
@@ -2259,6 +2391,36 @@ export interface components {
             size: number;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * BelegView
+         * @description **Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen.
+         */
+        BelegView: {
+            /** Token */
+            token: string;
+            /** Kind */
+            kind: string;
+            /** Word */
+            word: string;
+            /** Number */
+            number?: string | null;
+            /** Html */
+            html: string;
+            note?: components["schemas"]["NoteOut"] | null;
+            /** Actions */
+            actions?: string[];
+            /** Stations */
+            stations?: components["schemas"]["StationOut"][];
+            /** Open */
+            open?: string | null;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Agb */
+            agb?: string | null;
         };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
@@ -3629,6 +3791,20 @@ export interface components {
             history: components["schemas"]["ConsentRow"][];
         };
         /**
+         * NoteOut
+         * @description Ein Satz statt einer Handlung – abgelaufen, überholt, storniert.
+         */
+        NoteOut: {
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Text */
+            text: string;
+            /** Link */
+            link?: string | null;
+        };
+        /**
          * ObjectResolution
          * @description Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs).
          */
@@ -3895,6 +4071,37 @@ export interface components {
             /** Email */
             email?: string | null;
             address?: components["schemas"]["PaymentAddress"] | null;
+        };
+        /**
+         * PaymentRow
+         * @description Eine Zeile – Nummer · Art · Auftrag · Partei · Betrag ± · Stand.
+         */
+        PaymentRow: {
+            /** Voucher Id */
+            voucher_id: number;
+            /** Number */
+            number: string;
+            /** Kind */
+            kind: string;
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Party Object Id */
+            party_object_id?: number | null;
+            /** Party Name */
+            party_name?: string | null;
+            /** Sign */
+            sign: string;
+            /** Amount */
+            amount?: string | null;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** State */
+            state: string;
+            /** State Label */
+            state_label: string;
         };
         /**
          * PaymentSetup
@@ -4287,6 +4494,17 @@ export interface components {
              * @default false
              */
             missing_out: boolean;
+        };
+        /** StationOut */
+        StationOut: {
+            /** Who */
+            who: string;
+            /** Title */
+            title: string;
+            /** Text */
+            text: string;
+            /** State */
+            state: string;
         };
         /**
          * StepConfirm
@@ -5042,12 +5260,27 @@ export interface components {
             amount?: string | null;
         };
         /**
+         * VoucherDocumentOut
+         * @description **Ein Dokument, so wie es hinausging** – mit dem Link der Partei.
+         */
+        VoucherDocumentOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Number */
+            number?: string | null;
+            /** Sent At */
+            sent_at?: string | null;
+            /** Url */
+            url: string;
+        };
+        /**
          * VoucherEmbed
-         * @description **Der ganze Beleg, wie die Ausführungsstelle ihn braucht.**
-         *
-         *     Alles, was die Oberfläche zum Zeichnen braucht, reist mit: Wörter, Stufen, Verben,
-         *     Zahlen und was man tun darf. Sie fragt damit **nie** nach der Richtung und **nie** nach
-         *     dem Modultyp.
+         * @description **Der ganze Beleg, wie die Karte ihn braucht.** Sie fragt damit **nie** nach der
+         *     Richtung und **nie** nach dem Modultyp.
          */
         VoucherEmbed: {
             /**
@@ -5080,40 +5313,43 @@ export interface components {
             /** Ref Label */
             ref_label?: string | null;
             /**
+             * Minus
+             * @default false
+             */
+            minus: boolean;
+            /**
+             * Parties Title
+             * @default
+             */
+            parties_title: string;
+            /**
              * Goods Title
              * @default
              */
             goods_title: string;
+            /**
+             * Terms Title
+             * @default
+             */
+            terms_title: string;
             /**
              * Quotes Title
              * @default
              */
             quotes_title: string;
             /**
-             * Claim Title
+             * Invoice Title
              * @default
              */
-            claim_title: string;
+            invoice_title: string;
             /**
-             * Settle Title
+             * Docs Title
              * @default
              */
-            settle_title: string;
-            /**
-             * Task Label
-             * @default
-             */
-            task_label: string;
-            /**
-             * Task
-             * @default
-             */
-            task: string;
-            /**
-             * Order Label
-             * @default
-             */
-            order_label: string;
+            docs_title: string;
+            state?: components["schemas"]["VoucherState"] | null;
+            /** Locked */
+            locked?: string | null;
             /** Vat Rates */
             vat_rates?: components["schemas"]["VatRateOut"][];
             /**
@@ -5137,6 +5373,34 @@ export interface components {
             tax?: string | null;
             /** Vat Split */
             vat_split?: components["schemas"]["VatShare"][];
+            /**
+             * Export
+             * @default false
+             */
+            export: boolean;
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Incoterm Place */
+            incoterm_place?: string | null;
+            /** Incoterm Text */
+            incoterm_text?: string | null;
+            /**
+             * Incoterm Label
+             * @default
+             */
+            incoterm_label: string;
+            /**
+             * Incoterm Place Label
+             * @default
+             */
+            incoterm_place_label: string;
+            /** Incoterms */
+            incoterms?: components["schemas"]["IncotermOut"][];
+            /**
+             * Incoterm Needed
+             * @default true
+             */
+            incoterm_needed: boolean;
             /**
              * Currency
              * @default CHF
@@ -5163,35 +5427,6 @@ export interface components {
             issuer_label: string;
             /** Issuers */
             issuers?: components["schemas"]["IssuerOut"][];
-            /** Incoterm */
-            incoterm?: string | null;
-            /** Incoterm Place */
-            incoterm_place?: string | null;
-            /** Incoterm Text */
-            incoterm_text?: string | null;
-            /**
-             * Incoterm Label
-             * @default
-             */
-            incoterm_label: string;
-            /**
-             * Incoterm Place Label
-             * @default
-             */
-            incoterm_place_label: string;
-            /** Incoterms */
-            incoterms?: components["schemas"]["IncotermOut"][];
-            /**
-             * Stage
-             * @default offer
-             */
-            stage: string;
-            /** Stages */
-            stages?: components["schemas"]["VoucherStage"][];
-            /** Can */
-            can?: string[];
-            /** Undo */
-            undo?: string | null;
             /**
              * Charge Word
              * @default
@@ -5228,10 +5463,42 @@ export interface components {
              */
             refund_online_word: string;
             /**
-             * Unbill Word
+             * Refund Word
              * @default
              */
-            unbill_word: string;
+            refund_word: string;
+            /**
+             * Tip Word
+             * @default
+             */
+            tip_word: string;
+            /**
+             * Write Off Word
+             * @default
+             */
+            write_off_word: string;
+            /** Write Off Reasons */
+            write_off_reasons?: components["schemas"]["VoucherOption"][];
+            /**
+             * Reverse Word
+             * @default
+             */
+            reverse_word: string;
+            /** Remind Word */
+            remind_word?: string | null;
+            /** Remind From */
+            remind_from?: string | null;
+            /** Undo */
+            undo?: string | null;
+            /**
+             * Stage
+             * @default offer
+             */
+            stage: string;
+            /** Stages */
+            stages?: components["schemas"]["VoucherStage"][];
+            /** Can */
+            can?: string[];
             /**
              * Prepaid
              * @default false
@@ -5261,25 +5528,44 @@ export interface components {
              * @default
              */
             lead_term_label: string;
-            /** Ways */
-            ways?: components["schemas"]["VoucherWay"][];
+            /** Valid Days */
+            valid_days?: number | null;
             /**
-             * Method Label
+             * Valid Label
              * @default
              */
-            method_label: string;
-            /** Write Off */
-            write_off?: string | null;
+            valid_label: string;
+            /** Valid Until */
+            valid_until?: string | null;
             /**
-             * Write Off Word
+             * Expired
+             * @default false
+             */
+            expired: boolean;
+            /**
+             * Changed
+             * @default false
+             */
+            changed: boolean;
+            /** Fixed */
+            fixed?: string[];
+            /**
+             * Fixed Hint
              * @default
              */
-            write_off_word: string;
+            fixed_hint: string;
             /**
-             * Write Off Note
+             * Ownership
+             * @default us
+             */
+            ownership: string;
+            /**
+             * Ownership Label
              * @default
              */
-            write_off_note: string;
+            ownership_label: string;
+            /** Ownership Options */
+            ownership_options?: components["schemas"]["VoucherOption"][];
             /** Allowed */
             allowed?: components["schemas"]["VoucherParty"][];
             /** Quotes */
@@ -5302,14 +5588,52 @@ export interface components {
             due_days?: number | null;
             /** Lead Days */
             lead_days?: number | null;
+            /** Agreed On */
+            agreed_on?: string | null;
             /** Cancelled On */
             cancelled_on?: string | null;
+            /** Cancel Note */
+            cancel_note?: string | null;
             /** Due Date */
             due_date?: string | null;
+            invoice?: components["schemas"]["VoucherInvoice"] | null;
+            /** Credit Number */
+            credit_number?: string | null;
+            corrects?: components["schemas"]["VoucherCorrects"] | null;
+            /**
+             * Corrects Label
+             * @default
+             */
+            corrects_label: string;
+            /**
+             * Corrects Hint
+             * @default
+             */
+            corrects_hint: string;
+            /** Corrects Suggested */
+            corrects_suggested?: components["schemas"]["VoucherCorrectable"][];
+            /** Party Uid */
+            party_uid?: string | null;
+            /** Original */
+            original?: string | null;
+            /** Deviation */
+            deviation?: string | null;
+            /** Deviation Note */
+            deviation_note?: string | null;
+            /** Export Number */
+            export_number?: string | null;
+            /** Export Photo */
+            export_photo?: string | null;
             /** Charged */
             charged?: string | null;
+            /** Credited */
+            credited?: string | null;
             /** Paid */
             paid?: string | null;
+            /** Written Off */
+            written_off?: string | null;
+            /** Tips */
+            tips?: string | null;
             /** Open */
             open?: string | null;
             /** Open State */
@@ -5325,20 +5649,22 @@ export interface components {
              * @default false
              */
             settled: boolean;
-            invoice?: components["schemas"]["VoucherInvoice"] | null;
-            corrects?: components["schemas"]["VoucherCorrects"] | null;
             /**
-             * Corrects Label
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /** Ways */
+            ways?: components["schemas"]["VoucherWay"][];
+            /**
+             * Method Label
              * @default
              */
-            corrects_label: string;
-            /**
-             * Corrects Hint
-             * @default
-             */
-            corrects_hint: string;
+            method_label: string;
             /** Entries */
             entries?: components["schemas"]["VoucherEntryOut"][];
+            /** Documents */
+            documents?: components["schemas"]["VoucherDocumentOut"][];
         };
         /**
          * VoucherEntryOut
@@ -5365,10 +5691,28 @@ export interface components {
             /** Method Label */
             method_label?: string | null;
             /**
+             * Kind
+             * @default payment
+             */
+            kind: string;
+            /** Reason */
+            reason?: string | null;
+            /** Reason Label */
+            reason_label?: string | null;
+            /** Reverses Id */
+            reverses_id?: number | null;
+            /** Iban */
+            iban?: string | null;
+            /**
              * Refundable
              * @default false
              */
             refundable: boolean;
+            /**
+             * Reversible
+             * @default false
+             */
+            reversible: boolean;
         };
         /**
          * VoucherInvoice
@@ -5449,6 +5793,38 @@ export interface components {
             vat_label: string;
             /** Vat Note */
             vat_note?: string | null;
+            /** Text */
+            text?: string | null;
+            /**
+             * Is Service
+             * @default false
+             */
+            is_service: boolean;
+            /**
+             * Kind Label
+             * @default Ware
+             */
+            kind_label: string;
+            /** Part */
+            part?: string | null;
+            /** Full */
+            full?: string | null;
+            /** Net */
+            net?: string | null;
+            /** Weight Kg */
+            weight_kg?: string | null;
+            /** Vat Choices */
+            vat_choices?: string[];
+        };
+        /**
+         * VoucherOption
+         * @description Eine Wahl mit Schlüssel und Wort (Eigentum, Grund einer Ausbuchung).
+         */
+        VoucherOption: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
         };
         /**
          * VoucherParty
@@ -5481,6 +5857,12 @@ export interface components {
             hs_code?: string | null;
             /** Origin Country */
             origin_country?: string | null;
+            /** Text */
+            text?: string | null;
+            /** Part */
+            part?: string | null;
+            /** Weight Kg */
+            weight_kg?: string | null;
         };
         /**
          * VoucherQuoteOut
@@ -5515,6 +5897,12 @@ export interface components {
              * @default angefragt
              */
             state: string;
+            /** Reference */
+            reference?: string | null;
+            /** Link */
+            link?: string | null;
+            /** Sent On */
+            sent_on?: string | null;
             /** Sent At */
             sent_at?: string | null;
             /** Agreed At */
@@ -5592,6 +5980,32 @@ export interface components {
             active: boolean;
         };
         /**
+         * VoucherState
+         * @description ►►► **Die Leiste der Karte** – Stand, Ton, wer dran ist, die eine nächste Handlung. ◄◄◄
+         *
+         *     Nie leer ausser bei *Erledigt* und *Storniert* (``voucher.situation``). Ein Datum setzt
+         *     die Oberfläche selbst zusammen (``date_word`` + ``lib/when.day``).
+         */
+        VoucherState: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Tone */
+            tone: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /** Date */
+            date?: null;
+            /** Date Word */
+            date_word?: string | null;
+            /** Primary */
+            primary?: string | null;
+        };
+        /**
          * VoucherTerm
          * @description Eine übliche Frist mit ihrem **Namen** – «Vorauszahlung» statt «0».
          */
@@ -5615,10 +6029,12 @@ export interface components {
          *     ``agree``    den **Zuschlag** geben (``party``)
          *     ``revoke``   stornieren – die eine Gegenhandlung
          *     ``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)
-         *     ``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist
-         *     ``unbill``   sie zurücknehmen, solange **nichts geflossen** ist – die Gegenhandlung
-         *                  zu ``bill``
-         *     ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
+         *     ``bill``     **die** Rechnung stellen bzw. erfassen – es gibt genau eine
+         *     ``accept``   eine abweichende Lieferantenrechnung **so annehmen** (``note``)
+         *     ``pay``      eine **Zahlung** erfassen · ``refund`` erstatten · ``writeoff`` ausbuchen
+         *                  (``reason``) · ``tip`` als Trinkgeld behalten · ``reverse`` falsch erfasst
+         *                  (``entry``) · ``remind`` mahnen · ``export`` Ausfuhrnachweis
+         *     ``ownership`` Eigentum danach · ``terms`` Fristen und Gültigkeit
          *     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
          *
          *     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
@@ -5673,6 +6089,20 @@ export interface components {
             billing_address?: number | null;
             /** Delivery Address */
             delivery_address?: number | null;
+            /** Valid Days */
+            valid_days?: number | null;
+            /** Ownership */
+            ownership?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Iban */
+            iban?: string | null;
+            /** Original */
+            original?: number | null;
+            /** Party Uid */
+            party_uid?: string | null;
+            /** Link */
+            link?: string | null;
         };
         /**
          * VoucherWay
@@ -7817,6 +8247,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_api_v1_public_beleg__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BelegView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_api_v1_public_beleg__token__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BelegView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decline_api_v1_public_beleg__token__decline_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BelegView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_api_v1_public_beleg__token__payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSetup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    terms_api_v1_public_agb_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgbOut"];
+                };
+            };
+        };
+    };
+    payment_list_api_v1_erp_payments_get: {
+        parameters: {
+            query?: {
+                person?: number | null;
+                company?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentRow"][];
                 };
             };
             /** @description Validation Error */

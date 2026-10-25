@@ -49,6 +49,11 @@ class VoucherQuoteOut(BaseModel):
     lead_days: Optional[int] = None
     payment_days: Optional[int] = None
     state: str = "angefragt"
+    #: **Seine Referenz** (bei einem Online-Kauf die Bestellnummer) und der Link dazu.
+    reference: Optional[str] = None
+    link: Optional[str] = None
+    #: Der Tag auf dem Papier, an dem sie hinausging.
+    sent_on: Optional[date] = None
     #: ►►► **Wann die Zeile hinausging** (Testnotiz #968) – der **Moment**, nicht der Tag.
     #:
     #: Er steht ohne eine eigene Spalte da: ``created_at`` der Angebotszeile *ist* dieser
@@ -140,6 +145,19 @@ class VoucherLineOut(BaseModel):
     vat_rate: str = "0.00"
     vat_label: str = ""
     vat_note: Optional[str] = None
+    #: **Die Leistung** – der Untertitel unter dem Artikel.
+    text: Optional[str] = None
+    #: **Ware oder Dienstleistung** (am Artikel) – daraus folgen Satz und Lieferbedingung.
+    is_service: bool = False
+    kind_label: str = "Ware"
+    #: **Teilbetrag netto** – ``None`` heisst Vollbetrag.
+    part: Optional[str] = None
+    #: Der Vollbetrag (Menge × Preis) und der Betrag dieser Rechnung, beide netto.
+    full: Optional[str] = None
+    net: Optional[str] = None
+    weight_kg: Optional[str] = None
+    #: **Welche Sätze hier wählbar sind** – die Anschrift entscheidet (Ausland: einer).
+    vat_choices: list[str] = Field(default_factory=list)
 
 
 class VoucherPrice(BaseModel):
@@ -156,6 +174,10 @@ class VoucherPrice(BaseModel):
     vat: Optional[str] = None
     hs_code: Optional[str] = None
     origin_country: Optional[str] = None
+    text: Optional[str] = None
+    #: ``null`` (gesendet) heisst «Vollbetrag».
+    part: Optional[str] = None
+    weight_kg: Optional[str] = None
 
 
 class VoucherInvoice(BaseModel):
@@ -239,8 +261,17 @@ class VoucherEntryOut(BaseModel):
     booked_at: Optional[datetime] = None
     method: Optional[str] = None
     method_label: Optional[str] = None
+    #: ``payment`` · ``writeoff`` · ``tip`` – und der Grund einer Ausbuchung.
+    kind: str = "payment"
+    reason: Optional[str] = None
+    reason_label: Optional[str] = None
+    #: Die Zeile, die diese hier gegenbucht («falsch erfasst»).
+    reverses_id: Optional[int] = None
+    iban: Optional[str] = None
     #: Lässt sie sich über den Zahlungsdienst zurückgeben?
     refundable: bool = False
+    #: Lässt sie sich als «falsch erfasst» gegenbuchen?
+    reversible: bool = False
 
 
 class VoucherWay(BaseModel):
@@ -345,106 +376,117 @@ class VoucherSide(BaseModel):
     choice: Optional[VoucherAddressing] = None
 
 
-class VoucherEmbed(BaseModel):
-    """**Der ganze Beleg, wie die Ausführungsstelle ihn braucht.**
+class VoucherState(BaseModel):
+    """►►► **Die Leiste der Karte** – Stand, Ton, wer dran ist, die eine nächste Handlung. ◄◄◄
 
-    Alles, was die Oberfläche zum Zeichnen braucht, reist mit: Wörter, Stufen, Verben,
-    Zahlen und was man tun darf. Sie fragt damit **nie** nach der Richtung und **nie** nach
-    dem Modultyp.
+    Nie leer ausser bei *Erledigt* und *Storniert* (``voucher.situation``). Ein Datum setzt
+    die Oberfläche selbst zusammen (``date_word`` + ``lib/when.day``).
     """
+    key: str
+    label: str
+    #: ``done`` · ``pending`` · ``danger`` · ``neutral``
+    tone: str
+    text: str = ""
+    date: Optional[date] = None
+    date_word: Optional[str] = None
+    #: Das Verb, das jetzt weiterbringt – oder ``None``.
+    primary: Optional[str] = None
+
+
+class VoucherOption(BaseModel):
+    """Eine Wahl mit Schlüssel und Wort (Eigentum, Grund einer Ausbuchung)."""
+    key: str
+    label: str
+
+
+class VoucherDocumentOut(BaseModel):
+    """**Ein Dokument, so wie es hinausging** – mit dem Link der Partei."""
+    id: int
+    kind: str
+    label: str
+    number: Optional[str] = None
+    sent_at: Optional[datetime] = None
+    url: str
+
+
+class VoucherEmbed(BaseModel):
+    """**Der ganze Beleg, wie die Karte ihn braucht.** Sie fragt damit **nie** nach der
+    Richtung und **nie** nach dem Modultyp."""
 
     # ─── Wer und was ────────────────────────────────────────────────────────────
     direction: str = "out"
     label: str = ""
     party_word: str = ""
+    #: «Anbieten» · «Anfragen» · «Erneut anbieten».
     ask_verb: str = ""
-    #: ►►► **Warum der Anfrage-Knopf gesperrt ist** (Testnotiz #1046) – oder ``None``. ◄◄◄
-    #:
-    #: Derselbe Satz, mit dem ``_ask`` abweist (``voucher.ask_problem``): er stand bis
-    #: hierher **erst nach dem Klick** als rote Zeile am Kopf des Auftrags – weit weg von
-    #: der Position, die er nennt. Ein zweiter Massstab im Browser wäre die Stelle, an der
-    #: Knopf und Tür auseinanderlaufen.
+    #: Warum «Anbieten» gesperrt ist (``voucher.ask_problem``) – oder ``None``.
     ask_problem: Optional[str] = None
-    #: **Wer den Preis nennt** – daraus folgt die ganze Abfolge.
     we_quote: bool = False
-    #: Wie das Nummernfeld heisst. ``None`` = **wir** nummerieren, also kein Feld.
     ref_label: Optional[str] = None
-    # ─── Die Überschriften des Belegs ───────────────────────────────────────────
+    #: **Mindert dieser Beleg?** (Gutschrift, ``corrects``).
+    minus: bool = False
+    # ─── Die Abschnitte ─────────────────────────────────────────────────────────
+    parties_title: str = ""
     goods_title: str = ""
+    terms_title: str = ""
     quotes_title: str = ""
-    #: ►►► **Zwei Fächer statt eines Titels über allem** («Rechnung & Zahlung»). ◄◄◄
-    #: *Was schuldet uns jemand* und *wie kommt das Geld hierher* sind zwei Fragen, und
-    #: jede gehört genau einer Seite: die erste uns, die zweite dem Zahlenden.
-    claim_title: str = ""
-    settle_title: str = ""
-    #: **Was ist zu tun?** – der Satz am **Modul**, und wie er heisst. Leer heisst «gemäss
-    #: Spezifikation»: der Beleg sagt über seine Positionen längst, *was* es ist.
-    task_label: str = ""
-    task: str = ""
-    #: **Wie bestellen?** – die Beschriftung der Angabe an **einer Partner-Zeile**. Sie
-    #: steht auch, wo es die Angabe nicht gibt: was der Beleg **anbietet**, entscheidet
-    #: das Feld selbst (``quotes[].ref``), nicht eine zweite Bedingung daneben.
-    order_label: str = ""
+    invoice_title: str = ""
+    docs_title: str = ""
+    # ─── Die Leiste ─────────────────────────────────────────────────────────────
+    state: Optional[VoucherState] = None
+    #: **Die Stücke passen nicht mehr** – der Satz; dann bleibt nur «Stornieren».
+    locked: Optional[str] = None
     # ─── Steuer ─────────────────────────────────────────────────────────────────
     vat_rates: list[VatRateOut] = Field(default_factory=list)
     vat_rate: str = "normal"
     vat_label: str = "MWST"
     service_date_label: str = "Leistungsdatum"
-    #: Netto und Steuer sind **Ableitungen** der Positionen – null Spalten.
     net: Optional[str] = None
     tax: Optional[str] = None
     vat_split: list[VatShare] = Field(default_factory=list)
-    # ─── Währung ────────────────────────────────────────────────────────────────
-    currency: str = "CHF"
-    currency_label: str = "CHF"
-    #: Die Nachkommastellen **dieser** Währung – JPY hat null, KWD drei.
-    currency_decimals: int = 2
-    currencies: list[CurrencyOut] = Field(default_factory=list)
-    # ─── Aussteller ─────────────────────────────────────────────────────────────
-    issuer: Optional[int] = None
-    issuer_label: str = ""
-    issuers: list[IssuerOut] = Field(default_factory=list)
+    #: **Eine Ausfuhr** – Zoll und Ausfuhrnachweis.
+    export: bool = False
     # ─── Lieferbedingung ────────────────────────────────────────────────────────
     incoterm: Optional[str] = None
+    #: **Abgeleitet**: E/F aus unserer, C/D aus der Lieferadresse.
     incoterm_place: Optional[str] = None
-    #: Der fertige Satz – im Browser zusammengesetzt wäre er die zweite Schreibweise.
     incoterm_text: Optional[str] = None
     incoterm_label: str = ""
     incoterm_place_label: str = ""
     incoterms: list[IncotermOut] = Field(default_factory=list)
-    # ─── Stufen und Handlungen ──────────────────────────────────────────────────
-    stage: str = "offer"
-    #: ►►► **Kein `stage_label`** (Testnotizen #974/#977). ◄◄◄ Der Belegkopf nannte damit
-    #: die Belegart – zweimal abgelehnt, und sie sagt nichts, was die Punkte an den
-    #: Abschnitten und der Knopf darunter nicht schon sagen.
-    stages: list[VoucherStage] = Field(default_factory=list)
-    #: **Auskunft UND Tor** – dieselbe Liste rendert die Knöpfe und weist in
-    #: ``assert_allowed`` ab.
-    can: list[str] = Field(default_factory=list)
-    #: Das Wort der Gegenhandlung – ``None``, wo es sie für diesen Betrachter nicht gibt.
-    undo: Optional[str] = None
-    #: **«Rechnung stellen» ↔ «Gutschrift erfassen»** (``voucher.charge_word``): *wer* den
-    #: Beleg ausstellt und *ob* er mindert, in einem Wort – und damit die Stelle, an der
-    #: eine Gutschrift sichtbar wird, denn der Belegkopf nennt keine Belegart (#977).
+    #: Nur mit Ware – eine Dienstleistung reist nicht.
+    incoterm_needed: bool = True
+    # ─── Währung und Aussteller ─────────────────────────────────────────────────
+    currency: str = "CHF"
+    currency_label: str = "CHF"
+    currency_decimals: int = 2
+    currencies: list[CurrencyOut] = Field(default_factory=list)
+    issuer: Optional[int] = None
+    issuer_label: str = ""
+    issuers: list[IssuerOut] = Field(default_factory=list)
+    # ─── Wörter der Handlungen ──────────────────────────────────────────────────
     charge_word: str = ""
-    #: **«Zahlung erfassen» ↔ «Erstattung erfassen»** – ein Bit: mindert der Beleg?
     payment_word: str = ""
-    #: **Die drei Momente, die der Beleg erzählt** (#1052): «Vor 3 Tagen *offeriert*»,
-    #: «Gerade eben *angenommen*», «Gestern *storniert*». Die **Form** baut die Oberfläche
-    #: (`lib/when.happened`), die Wörter stehen im Fachmodell – hineingeschrieben wären sie
-    #: der zweite Ort für dasselbe Wort.
     sent_word: str = ""
     taken_word: str = ""
     cancelled_word: str = ""
     pay_online_word: str = ""
     refund_online_word: str = ""
-    #: Das Gegenstück zur Rechnung – dieselbe Anatomie wie ``ask``/``unask``.
-    #: *Daneben stand ``issue_word`` («Rechnung ist versendet»); der Knopf ist mit seinem
-    #: Datum entfallen (#1047) – **gestellt ist draussen**.*
-    unbill_word: str = ""
-    # ─── Fristen ────────────────────────────────────────────────────────────────
-    #: **Eine Ableitung der Zahlungsfrist**, keine Einstellung: null Tage ab Zusage *ist*
-    #: die Vorauszahlung.
+    refund_word: str = ""
+    tip_word: str = ""
+    write_off_word: str = ""
+    write_off_reasons: list[VoucherOption] = Field(default_factory=list)
+    reverse_word: str = ""
+    #: Die nächste Mahnstufe («Zahlungserinnerung» …) und ab wann – oder ``None``.
+    remind_word: Optional[str] = None
+    remind_from: Optional[date] = None
+    #: «Stornieren» – ``None``, wo es für diesen Betrachter nicht geht.
+    undo: Optional[str] = None
+    stage: str = "offer"
+    stages: list[VoucherStage] = Field(default_factory=list)
+    #: **Auskunft UND Tor** – dieselbe Liste rendert die Knöpfe und weist ab.
+    can: list[str] = Field(default_factory=list)
+    # ─── Fristen, Gültigkeit, Eigentum ──────────────────────────────────────────
     prepaid: bool = False
     payment_terms: list[VoucherTerm] = Field(default_factory=list)
     lead_terms: list[VoucherTerm] = Field(default_factory=list)
@@ -452,67 +494,70 @@ class VoucherEmbed(BaseModel):
     term_free_label: str = ""
     payment_term_label: str = ""
     lead_term_label: str = ""
-    # ─── Die Wege zum Geld ──────────────────────────────────────────────────────
-    #: **Eine Frage, mehrere Antworten** – leer heisst «hier ist gerade nichts zu
-    #: begleichen» (keine offene Forderung). Welche Rechnung sie meinen, fragt niemand:
-    #: je Modul gibt es **eine**, und sie *ist* der Beleg.
-    ways: list[VoucherWay] = Field(default_factory=list)
-    method_label: str = ""
-    #: ►►► **Kleinbetragstoleranz** – der Betrag, mit dem sich ein Restsaldo unter einem
-    #: Franken **ausbuchen** liesse (schon mit dem richtigen Vorzeichen). ``None`` heisst
-    #: «liegt nicht vor». **Angeboten, nie automatisch**: wer automatisch ausbucht,
-    #: verliert die eine Zeile, an der man sieht, dass jemand entschieden hat.
-    write_off: Optional[str] = None
-    write_off_word: str = ""
-    #: Der Vermerk, mit dem die Ausbuchung gebucht wird – **ein** Wort, aus **einer**
-    #: Quelle: im Browser getippt wäre es die zweite Schreibweise.
-    write_off_note: str = ""
+    valid_days: Optional[int] = None
+    valid_label: str = ""
+    valid_until: Optional[date] = None
+    expired: bool = False
+    #: **Geändert seit dem Anbieten** – die gesendete Offerte ist überholt.
+    changed: bool = False
+    #: Was das Modul vorgibt (Schlüssel der Felder) – fest, punktiert, Grund im Hover.
+    fixed: list[str] = Field(default_factory=list)
+    fixed_hint: str = ""
+    ownership: str = "us"
+    ownership_label: str = ""
+    ownership_options: list[VoucherOption] = Field(default_factory=list)
     # ─── Der Beleg selbst ───────────────────────────────────────────────────────
     allowed: list[VoucherParty] = Field(default_factory=list)
     quotes: list[VoucherQuoteOut] = Field(default_factory=list)
     lines: list[VoucherLineOut] = Field(default_factory=list)
     supplier: Optional[VoucherSide] = None
     customer: Optional[VoucherSide] = None
-    #: Je **angefragtem** Empfänger eine ganze Seite – der Kopf zeigt einen, die Oberfläche
-    #: schaltet um (#951). Leer für eine Gegenpartei: das ist die Konkurrenzliste.
     recipients: list[VoucherSide] = Field(default_factory=list)
     gaps: list[DataGap] = Field(default_factory=list)
-    # ─── Die Ableitungen der gewählten Angebotszeile ────────────────────────────
-    #: *mit wem · was vereinbart ist · welche Fristen* – sie stehen an der **gewählten
-    #: Zeile** und nicht als Spalten daneben. Damit kann derselbe Beleg nicht zwei Dinge
-    #: sagen.
     party_object_id: Optional[int] = None
     party_name: Optional[str] = None
     amount: Optional[str] = None
     due_days: Optional[int] = None
     lead_days: Optional[int] = None
+    agreed_on: Optional[date] = None
     cancelled_on: Optional[date] = None
-    #: Der Liefertermin – Zusagedatum + Lieferfrist, eine Ableitung.
+    cancel_note: Optional[str] = None
     due_date: Optional[date] = None
-    # ─── Geld ───────────────────────────────────────────────────────────────────
+    # ─── Rechnung und Geld ──────────────────────────────────────────────────────
+    invoice: Optional[VoucherInvoice] = None
+    #: Die Nummer der Gutschrift, die ein Storno nach der Rechnung erzeugt hat.
+    credit_number: Optional[str] = None
+    corrects: Optional[VoucherCorrects] = None
+    corrects_label: str = ""
+    corrects_hint: str = ""
+    #: **Vorgeschlagen aus dem Log der Stücke** – die Rechnungen, über die sie liefen.
+    corrects_suggested: list[VoucherCorrectable] = Field(default_factory=list)
+    #: Ausgabe: MWST-Nr. und Foto der Lieferantenrechnung, Abweichung und ihr Grund.
+    party_uid: Optional[str] = None
+    original: Optional[str] = None
+    deviation: Optional[str] = None
+    deviation_note: Optional[str] = None
+    #: Der Ausfuhrnachweis.
+    export_number: Optional[str] = None
+    export_photo: Optional[str] = None
     charged: Optional[str] = None
+    credited: Optional[str] = None
     paid: Optional[str] = None
+    written_off: Optional[str] = None
+    tips: Optional[str] = None
     open: Optional[str] = None
-    #: ►►► **Wie der Beleg im Ganzen steht** (Testnotiz #997). ◄◄◄ Dieselbe Ableitung wie
-    #: an der Rechnung, weil es **dieselbe** ist (``invoice.state``): Betrag und Saldo sind
-    #: seit dem Umbau dieselben zwei Zahlen. Die Anzeige nennt allein die **Zahl** und
-    #: färbt sie; das Wort steht im Hover und, wo es etwas Neues sagt, daneben.
     open_state: Optional[str] = None
     open_state_label: Optional[str] = None
     open_state_tone: Optional[str] = None
     next_payment: Optional[str] = None
     settled: bool = False
-    #: ►►► **DIE Rechnung – oder ``None``.** ◄◄◄ Die acht Angaben, die einmal an einer
-    #: Geld-Zeile hingen, stehen jetzt am Beleg; ``None`` heisst «noch keine gestellt».
-    #: ``credit_only`` und ``next_charge`` sind damit **entfallen**: sie waren die
-    #: Notbehelfe einer Regel, die jemand zählen musste.
-    invoice: Optional[VoucherInvoice] = None
-    #: **Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört.
-    corrects: Optional[VoucherCorrects] = None
-    corrects_label: str = ""
-    corrects_hint: str = ""
-    #: **Nur noch Zahlungen** – die Forderung steht eine Ebene höher.
+    #: **Erledigt** – abgeleitet (Saldo null, bei einer Ausfuhr mit Nachweis).
+    done: bool = False
+    ways: list[VoucherWay] = Field(default_factory=list)
+    method_label: str = ""
     entries: list[VoucherEntryOut] = Field(default_factory=list)
+    #: **Die Dokumente, so wie sie hinausgingen** – je eines mit Link.
+    documents: list[VoucherDocumentOut] = Field(default_factory=list)
 
 
 class VoucherUpdate(BaseModel):
@@ -528,10 +573,12 @@ class VoucherUpdate(BaseModel):
     ``agree``    den **Zuschlag** geben (``party``)
     ``revoke``   stornieren – die eine Gegenhandlung
     ``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)
-    ``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist
-    ``unbill``   sie zurücknehmen, solange **nichts geflossen** ist – die Gegenhandlung
-                 zu ``bill``
-    ``pay``      eine **Zahlung** buchen (negativ = Erstattung)
+    ``bill``     **die** Rechnung stellen bzw. erfassen – es gibt genau eine
+    ``accept``   eine abweichende Lieferantenrechnung **so annehmen** (``note``)
+    ``pay``      eine **Zahlung** erfassen · ``refund`` erstatten · ``writeoff`` ausbuchen
+                 (``reason``) · ``tip`` als Trinkgeld behalten · ``reverse`` falsch erfasst
+                 (``entry``) · ``remind`` mahnen · ``export`` Ausfuhrnachweis
+    ``ownership`` Eigentum danach · ``terms`` Fristen und Gültigkeit
     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
 
     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
@@ -579,6 +626,23 @@ class VoucherUpdate(BaseModel):
     bill_to_company: Optional[bool] = None
     billing_address: Optional[int] = None
     delivery_address: Optional[int] = None
+    #: **Gültigkeit der Offerte** in Tagen (``terms``).
+    valid_days: Optional[int] = None
+    #: **Eigentum danach** (``ownership``): ``party`` · ``us`` · ``keep``.
+    ownership: Optional[str] = None
+    #: Grund eines Stornos, einer angenommenen Abweichung (``revoke`` · ``accept``).
+    #: (``note`` steht oben und trägt auch den Vermerk einer Zahlung.)
+    #: Grund einer Ausbuchung (``writeoff``).
+    reason: Optional[str] = None
+    #: Die Geld-Zeile, die gegengebucht wird (``reverse``) – wie ``entry``.
+    iban: Optional[str] = None
+    #: **Das Foto** (``attachments.id``) – Lieferantenrechnung (``bill``) bzw.
+    #: Ausfuhrnachweis (``export``).
+    original: Optional[int] = None
+    #: Ausgabe: die MWST-Nummer auf der Lieferantenrechnung (``bill``).
+    party_uid: Optional[str] = None
+    #: Der Link zur Bestellung (``quote``).
+    link: Optional[str] = None
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

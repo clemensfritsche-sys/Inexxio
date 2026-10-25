@@ -82,6 +82,10 @@ class Article(Base, TimestampMixin):
     # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es steht am Artikel, nicht
     # auf dem Beleg (dort steht nur, was der Empfänger wirklich braucht, #916).
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # ►►► **Ware oder Dienstleistung** (Zahlungsmodul): bei Ware folgt der Steuersatz der
+    # Lieferadresse (Ausland → Export), bei einer Dienstleistung dem Sitz des Empfängers
+    # (Ausland → Reverse Charge); eine Dienstleistung kennt keine Lieferbedingung.
+    is_service: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Was erfasst wird, sagt das **Modul** im Prozess (``process_steps.config``), nicht
     # der Artikel.

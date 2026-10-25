@@ -74,6 +74,19 @@ LABEL = "Lieferbedingung"
 #: Was neben der Klausel steht. **Ohne ihn ist sie keine Vereinbarung.**
 PLACE_LABEL = "Benannter Ort"
 
+#: ►►► **Der Ort ist kein Feld – die Klausel sagt, woher er kommt.** ◄◄◄ Bei den E- und
+#: F-Klauseln geht das Risiko beim **Leistungserbringer** über (seine Versandadresse), bei
+#: den C- und D-Klauseln am **Ziel** (die Lieferadresse). Getippt wäre der Ort die zweite
+#: Aussage über eine Anschrift, die schon dasteht.
+AT_OURS: frozenset[str] = frozenset({"EXW", "FCA", "FAS", "FOB"})
+
+
+def place_at_ours(key: Optional[str]) -> bool:
+    """Liegt der benannte Ort dieser Klausel **beim Leistungserbringer** (E/F) – sonst am
+    Ziel (C/D)."""
+    term = of(key)
+    return term is not None and term.key in AT_OURS
+
 
 def of(key: Optional[str]) -> Optional[Incoterm]:
     """Die Klausel zu einem Kürzel – ``None``, wenn es keine ist.

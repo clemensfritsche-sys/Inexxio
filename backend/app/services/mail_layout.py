@@ -106,6 +106,23 @@ class Extra:
     #: Satz vor der Telefonnummer der Gesellschaft («Eilt es? Dann rufen Sie uns an:»).
     call: str = ""
     action: Optional[Action] = None
+    #: ►►► **Ein Beleg-Dokument** (Offerte, Rechnung …): der Fortschritt quer, die
+    #: Positionen und EIN grosser Knopf zum Online-Beleg (``Paper``).
+    paper: Optional["Paper"] = None
+
+
+@dataclass
+class Paper:
+    """Was eine Beleg-Mail zeigt – die Stationen, die Positionen, der eine Knopf."""
+    stations: list[str]
+    #: Welche Station gerade ist (0 …); ``None`` = ohne Fortschritt (Mahnung).
+    at: Optional[int]
+    rows: list[tuple[str, str, str]]          # (Menge, Bezeichnung, Betrag)
+    total_label: str
+    total: str
+    label: str
+    url: str
+    tax: Optional[tuple[str, str]] = None
 
 
 @dataclass
@@ -178,6 +195,10 @@ def _content_text(lead: str, extra: Optional[Extra], firm: Firm) -> str:
     if extra and extra.action:
         a = extra.action
         parts.append("\n".join(x for x in (a.title, a.text, f"{a.label}: {a.url}", a.note) if x))
+    if extra and extra.paper:
+        pp = extra.paper
+        parts.append("\n".join([*(f"{q} × {n}  {v}" for q, n, v in pp.rows),
+                                f"{pp.total_label}: {pp.total}", f"{pp.label}: {pp.url}"]))
     return "\n\n".join(p for p in parts if p)
 
 
@@ -295,7 +316,60 @@ def _extra(x: Optional[Extra], firm: Firm) -> str:
     if x is None:
         return ""
     return ((_facts(x.facts) if x.facts else "") + (_steps(x.steps) if x.steps else "")
-            + _call(x.call, firm) + _action(x.action))
+            + _call(x.call, firm) + _action(x.action)
+            + (_paper(x.paper) if x.paper else ""))
+
+
+def _paper(pp: Paper) -> str:
+    """►►► **Der Beleg in der Mail** – Fortschritt quer, Positionen, EIN Knopf. ◄◄◄ Mit den
+    Klassen des dunklen Modus (``ix-ink`` · ``ix-t3`` · ``ix-line`` · ``ix-btn``)."""
+    out = ""
+    if pp.at is not None:
+        n = len(pp.stations)
+        cells = ""
+        for i in range(n):
+            on = i <= pp.at
+            cells += (f'<td width="10" style="width:10px"><div class="{"ix-btn" if on else "ix-line"}"'
+                      f' style="width:10px;height:10px;border-radius:5px;background:'
+                      f'{INK if on else "transparent"};border:1.5px solid '
+                      f'{INK if on else "#B5B7BC"};box-sizing:border-box"></div></td>')
+            if i < n - 1:
+                cells += (f'<td style="padding:0 6px"><div class="{"ix-btn" if i < pp.at else "ix-fill"}"'
+                          f' style="height:1px;background:{INK if i < pp.at else LINE}"></div></td>')
+        labels = "".join(
+            f'<td valign="top" class="{"ix-ink" if i <= pp.at else "ix-t3"}" style="font-family:'
+            f'{FONT};font-size:12px;line-height:16px;padding-top:8px;color:'
+            f'{INK if i <= pp.at else TEXT_3};font-weight:{600 if i == pp.at else 400};'
+            f'text-align:{"left" if i == 0 else ("right" if i == n - 1 else "center")}">'
+            f'{escape(s)}</td>' for i, s in enumerate(pp.stations))
+        out += (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                f'style="margin:8px 0 4px"><tr>{cells}</tr></table><table role="presentation" '
+                f'width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px"><tr>'
+                f'{labels}</tr></table>')
+    cell = (f'font-family:{FONT};font-size:14px;line-height:20px;color:{INK};padding:10px 0;'
+            f'border-top:1px solid {LINE}')
+    rows = "".join(
+        f'<tr><td class="ix-ink ix-line" style="{cell}">{escape(q)} × {escape(nm)}</td>'
+        f'<td align="right" class="ix-ink ix-line" style="{cell};white-space:nowrap;'
+        f'font-variant-numeric:tabular-nums">{escape(v)}</td></tr>' for q, nm, v in pp.rows)
+    if pp.tax:
+        rows += (f'<tr><td class="ix-t3 ix-line" style="{cell};color:{TEXT_3}">{escape(pp.tax[0])}'
+                 f'</td><td align="right" class="ix-t3 ix-line" style="{cell};color:{TEXT_3};'
+                 f'white-space:nowrap">{escape(pp.tax[1])}</td></tr>')
+    tot = (f'font-family:{FONT};font-size:15px;font-weight:700;color:{INK};padding:12px 0 0;'
+           f'border-top:1.5px solid {INK}')
+    rows += (f'<tr><td class="ix-ink ix-ring" style="{tot}">{escape(pp.total_label)}</td>'
+             f'<td align="right" class="ix-ink ix-ring" style="{tot};white-space:nowrap">'
+             f'{escape(pp.total)}</td></tr>')
+    out += (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 28px">{rows}</table>')
+    out += (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 32px"><tr><td class="ix-btn" align="center" style="border-radius:'
+            f'8px;background:{INK}"><a class="ix-btn" href="{escape(pp.url)}" style="display:'
+            f'block;padding:16px 24px;font-family:{FONT};font-size:16px;font-weight:600;'
+            f'line-height:20px;color:#FFFFFF;text-decoration:none;border-radius:8px">'
+            f'{escape(pp.label)}</a></td></tr></table>')
+    return out
 
 
 def _initials(name: str) -> str:

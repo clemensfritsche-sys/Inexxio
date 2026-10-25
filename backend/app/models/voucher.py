@@ -28,7 +28,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import (
-    BigInteger, Date, ForeignKey, Index, Integer, Numeric, String, text,
+    BigInteger, Date, ForeignKey, Index, Integer, Numeric, String, Text, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -213,6 +213,43 @@ class Voucher(Base, TimestampMixin):
     #: ``NULL`` vor der Zusage: dort ist der Kopf eine Ableitung und darf sich bewegen.
     head: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
+    # ─── Umbau Oktober 2026 (Migration 155) ─────────────────────────────────────────
+    #: **Wie lange die Offerte gilt, in Tagen** – gezählt ab «Anbieten». ``NULL`` = die
+    #: Vorgabe (``domain/voucher.VALID_DAYS``). Danach ist sie abgelaufen, «Annehmen» ist
+    #: gesperrt, und «Erneut anbieten» beginnt die Frist neu.
+    valid_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    #: **Wem die Stücke danach gehören** – ``party`` · ``us`` · ``keep``. ``NULL`` = aus der
+    #: Richtung (``domain/voucher.ownership_default``). Gewechselt wird, wenn die Stücke das
+    #: Modul passieren (``services/voucher.owner_after``).
+    ownership: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    #: ►►► **Über welche Stücke dieser Beleg spricht** – eingefroren beim ersten
+    #: Hinausgehen (``ask``). ◄◄◄ Verlässt eines davon den Auftrag, ohne das Modul passiert
+    #: zu haben, passt der Beleg nicht mehr zu den Stücken: dann bleibt nur «Stornieren»
+    #: (``services/voucher.units_problem``). ``NULL`` = noch nichts hinausgegangen.
+    unit_ids: Mapped[Optional[list[int]]] = mapped_column(JSONB, nullable=True)
+    #: **Was hinausging – als Fingerabdruck** (Positionen, Preise, Fristen, Lieferbedingung,
+    #: Anschriften). Weicht der Beleg davon ab, ist die gesendete Offerte überholt: angenommen
+    #: werden kann nur die aktuelle Fassung, also zuerst «Erneut anbieten».
+    offered_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    #: Der Grund eines Stornos – **nur intern**; die Mail an die Partei nennt keinen.
+    cancel_note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    #: **Die Nummer der Gutschrift**, die ein Storno nach der Rechnung von selbst erzeugt
+    #: (über den ganzen Rechnungsbetrag). Eine eigene Nummer – die Serie bleibt lückenlos.
+    credit_number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    #: **Ausgabe: die MWST-Nummer auf der Lieferantenrechnung** (MWSTG Art. 28 – ohne sie
+    #: kein Vorsteuerabzug).
+    party_uid: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    #: **Ausgabe: das Foto der Lieferantenrechnung** (``attachments.id``) – Pflicht beim
+    #: Erfassen, aufbewahrt wie der Beleg.
+    original_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    #: **Ausgabe: die Rechnung weicht von der Zusage ab, und sie wurde SO angenommen** –
+    #: mit diesem Grund. Solange eine Abweichung ohne Grund dasteht, wird nicht bezahlt.
+    deviation_note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    #: **Der Ausfuhrnachweis** (Export): Nummer der Veranlagungsverfügung und ihr Foto.
+    #: Ohne ihn gilt der Nullsatz nicht – erledigt ist der Beleg erst damit.
+    export_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    export_photo_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
 
 class VoucherQuote(Base, TimestampMixin):
     """**Eine Angebotszeile** – je angefragter Gegenpartei eine.
@@ -262,6 +299,11 @@ class VoucherQuote(Base, TimestampMixin):
 
     #: Wann die Zeile hinausging – das Datum auf dem Papier.
     sent_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    #: **Seine Nummer für diesen Vorgang** («Ihre Referenz», bei einem Online-Kauf die
+    #: Bestellnummer) und der **Link** zur Bestellung – nur, wo die Gegenpartei den Preis
+    #: nennt.
+    reference: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
 
 class VoucherLine(Base, TimestampMixin):
@@ -324,6 +366,16 @@ class VoucherLine(Base, TimestampMixin):
     hs_code: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
     origin_country: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
 
+    #: **Die Leistung** – der Untertitel unter dem Artikel («Geprüft und zertifiziert»).
+    #: Vorbelegt aus dem Modul, änderbar bis zum Hinausgehen.
+    text: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    #: ►►► **Ein Teilbetrag, netto** – ``NULL`` heisst «Vollbetrag». ◄◄◄ Jedes Zahlungsmodul
+    #: steht für sich: was ein anderes schon verrechnet hat, weiss es nicht. ``0`` heisst
+    #: «steht nicht auf dieser Rechnung».
+    part: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
+    #: **Gewicht je Stück** (Export) – der Artikel belegt vor, wie beim Zoll.
+    weight_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)
+
     #: Die Reihenfolge auf dem Papier. Ohne sie stünden die Zeilen in der Reihenfolge, in
     #: der die Datenbank sie gerade liefert – und die ist keine.
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -344,6 +396,14 @@ class VoucherEntry(Base, TimestampMixin):
     """
 
     __tablename__ = "voucher_entries"
+    __table_args__ = (
+        # ►►► **Dieselbe Zahlung gibt es nur einmal** – die Regel in der Datenbank. ◄◄◄
+        # Ein Zahlungsdienst stellt dieselbe Meldung mehrfach zu; zwei gleichzeitige
+        # Zustellungen prüft keine Abfrage davor. Partiell: ohne Referenz (bar) gilt sie
+        # nicht, und eine gegengebuchte Zeile bleibt stehen.
+        Index("uq_voucher_entries_reference", "reference", unique=True,
+              postgresql_where=text("is_active AND reference IS NOT NULL")),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     voucher_id: Mapped[int] = mapped_column(
@@ -365,4 +425,48 @@ class VoucherEntry(Base, TimestampMixin):
     #: gebucht wird in jedem Fall dieselbe Zeile – bei der einen ruft ein Mensch, bei der
     #: anderen der Webhook.
     method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
+    #: ►►► **Was diese Zeile ist** – ``payment`` · ``writeoff`` · ``tip``. ◄◄◄ Eine Zahlung
+    #: (negativ = Erstattung), eine **Ausbuchung** (Entgeltsminderung ohne Geld, mit Grund)
+    #: oder ein **Trinkgeld** (zu viel bezahlt und behalten – Entgelt mit MWST).
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="payment",
+                                      server_default="payment")
+    #: Der Grund einer Ausbuchung (``domain/voucher.WRITE_OFF_REASONS``).
+    reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    #: **«Falsch erfasst»** – die Zeile, die diese hier aufhebt. Gelöscht wird nichts.
+    reverses_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True)
+    #: Die IBAN, von der das Geld kam bzw. an die es zurückging (Überweisung).
+    iban: Mapped[Optional[str]] = mapped_column(String(34), nullable=True)
+
+
+class VoucherDocument(Base, TimestampMixin):
+    """►►► **Ein Dokument, so wie es hinausging** – eingefroren, unveränderlich. ◄◄◄
+
+    Offerte, Auftragsbestätigung, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung: bei
+    jedem Versand wird das Papier als HTML abgelegt (``services/document``). Der Online-Beleg
+    und der Download zeigen genau diese Fassung (10 Jahre, OR 958f). Der **Token** ist der
+    unerratbare Link für die Partei – je Dokument einer.
+    """
+
+    __tablename__ = "voucher_documents"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    voucher_id: Mapped[int] = mapped_column(
+        ForeignKey("vouchers.id", ondelete="CASCADE"), index=True, nullable=False)
+    #: ``offer`` · ``confirmation`` · ``invoice`` · ``receipt`` · ``storno`` · ``credit`` ·
+    #: ``reminder`` (``domain/voucher.DOCUMENTS``).
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Die Mahnstufe (1–3) – nur bei ``reminder``.
+    level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    #: Die Nummer, die auf dem Papier steht.
+    number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    #: An wen es ging – die Objektnummer der Person.
+    party_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    html: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Das Datum der AGB, die angehängt sind («2026-01-01»).
+    agb: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    #: Die Mail, mit der es hinausging (``messages.id``).
+    message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
