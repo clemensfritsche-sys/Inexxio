@@ -570,6 +570,26 @@ def test_public_page_accepts_only_the_current_offer(db):
     assert "z. H. z. H." not in paper
 
 
+def test_the_other_party_sees_the_offer_closed_like_a_storno(db):
+    """#1227: Geht der Zuschlag an eine andere Partei, ist der Vorgang für diese zu Ende –
+    dieselbe Anzeige wie ein Storno, kein Fortschritt der anderen, keine Handlung."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc, voucher_docs as docs
+    a, b = _person(db, "Alpha"), _person(db, "Beta")
+    order, step, row, _ = _scene(db, first=True, party=a, config={
+        "parties": [{"party": a.object_id}, {"party": b.object_id}]})
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    offers = {d.party_id: d for d in svc.documents_of(db, row, vo.OFFER_DOC)}
+    assert set(offers) == {a.object_id, b.object_id}
+    docs.public_act(db, offers[a.object_id], "agree")
+    lost = docs.public_view(db, offers[b.object_id])
+    assert lost["note"]["kind"] == "cancelled" and not lost["actions"]
+    assert all(s["state"] != "active" for s in lost["stations"]), "Kein Fortschritt der anderen."
+    won = docs.public_view(db, svc.documents_of(db, row, vo.CONFIRM_DOC)[-1])
+    assert won["note"] is None and won["stations"][1]["state"] == "active"
+
+
 def test_public_page_says_when_the_offer_expired(db):
     from app.domain import voucher as vo
     from app.services import voucher as svc, voucher_docs as docs

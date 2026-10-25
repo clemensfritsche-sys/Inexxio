@@ -80,7 +80,7 @@ export function Paper({ html, label }: { html: string; label: string }) {
     <div className={css.paperZone}>
       <div className={css.paper}>
         <button type="button" className={css.dl} onClick={print}
-          aria-label="Als PDF speichern" data-tip="Als PDF speichern">
+          aria-label="Als PDF speichern" data-label="Als PDF speichern">
           <Download size={22} strokeWidth={1.75} />
         </button>
         <iframe ref={frame} title={label} srcDoc={doc} onLoad={onLoad}
