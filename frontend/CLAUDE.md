@@ -73,7 +73,8 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `process-diagram.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: `ModuleShell` (die Modul-Karte), drei Spuren, **ein** Liniengenerator (`polyPath`) |
 | `capture-work.tsx`, `capture-form.tsx`, `photo-capture.tsx`, `signature-pad.tsx` | Ausführung von Datenerfassung, Aussondern, Verbrauch, Bewegen |
-| `beleg-work.tsx`, `pay-online.tsx` | Modul «Zahlung» (der Beleg) · die eigene Bezahlkarte |
+| `beleg-work.tsx`, `beleg/`, `pay-online.tsx` | Modul «Zahlung»: der Einstieg (gemeinsamer Zustand) · die Abschnitte (`stages`, `parties`, `goods`, `terms`, `quotes`, `invoice`, `documents`, `footer`, `shared`, `forms`) · die eigene Bezahlkarte |
+| `payment-list.tsx` | **Zahlungen** einer Person (Abschnitt) oder eigenen Gesellschaft (Reiter) – eine Liste, Zeile öffnet den Auftrag |
 | `step-record.tsx` | Modul-Protokoll (eine Komponente für alle Modultypen) |
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
@@ -175,28 +176,34 @@ jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spie
 - **Bewegen** fragt eine Eigenschaft (`step.moves`), nie den Modultyp; «Beim Ausführen
   definieren» ist `scan.RUNTIME_CHOICE`.
 
-## Zahlung (`components/erp/beleg-work.tsx`)
-Die Karte ist von der ersten Zeile an ein **Beleg**: Belegkopf (beide Parteien auf einem
-Raster) → Positionen mit Summe → Konditionen → Angebote → **Fordern** · **Begleichen**.
-- **Kein `if` auf die Richtung**: Wörter, Verben und `we_quote`/`collects` reisen fertig mit;
-  die Karte kennt weder «Kunde» noch «Lieferant». Wer handeln darf, sagt `can` (`may(…)`).
-- **Ein änderbarer Wert hat EINE Form** (`Editable`, darauf `DocPick` für eine Aufzählung und
-  `DocRef` für einen Datensatz): sichtbar der gedruckte Wert, bedienbar ein unsichtbares
-  Bedienelement darüber, die Auszeichnung `.ix-editable` (getönt, ohne Layoutwirkung, so
-  gross wie das Feld). Pflichtwerte ohne Wert tragen sie warnfarben. Nach der Zusage trägt
-  nichts mehr die Auszeichnung.
-- **Jeder änderbare Wert wird sofort geschrieben** (eigenes Verb), keiner lebt nur im Browser;
-  **wählen ist nicht anfragen** (`party` ↔ `ask`).
-- **Genau eine Handlung bringt weiter** (`StageAction`/`StageRow`, volle Breite): Offerte
-  annehmen → Rechnung stellen → Zahlung erfassen; alles andere ist eine Korrektur an ihrer
-  Zeile. Die Zahlungsart ist eine **Wahl** (bar · Überweisung · Karte, Schieber), keine
-  Verben-Reihe.
-- **Bezahlen** (`pay-online.tsx`): unsere Karte, vom Dienst nur die Eingabefelder; was das ERP
-  weiss, wird mitgeliefert statt gefragt; `prepare` kommt vom Aufrufer
-  (`api.prepareVoucherPayment`); die Karte sagt «ausgeführt», gebucht wird vom Webhook.
+## Zahlung (`components/erp/beleg-work.tsx` + `components/erp/beleg/`)
+Die Karte ist von der ersten Zeile an ein **Beleg**: oben die vier **Stationen** (`stages`),
+dann ruhige Abschnitte mit Titeln vom Server – **Parteien** (Von · An, je Rechnung und
+Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelten unsere AGB vom
+…») → **Angebote** → **Rechnung** (Geld-Zeilen, Saldo mit den Entscheiden) → **Dokumente**
+(eingefroren, Link auf `/beleg?t=…`) – und unten **eine graue Leiste** (`footer.tsx`).
+- **Kein `if` auf die Richtung**: Wörter, Verben und Titel reisen fertig mit; die Karte kennt
+  weder «Kunde» noch «Lieferant». Wer handeln darf, sagt `can`.
+- **Die Leiste ist `state`** (`voucher.situation`): Punkt + Wort, Satz und Datum
+  (`date_word` + `lib/when.day`), rechts die Wege zum Geld (`Segmented`), die **eine**
+  Handlung `state.primary` und das Storno-Symbol, wenn `can` `revoke` enthält. Ist ein
+  Formular offen, ist die Hauptschaltfläche sein Absenden; ihr Hover nennt den Grund, aus dem
+  der Dienst abweisen würde.
+- **Stornieren ist ein Wort** (`undo`), in jeder Stufe; «Rechnung zurücknehmen» gibt es
+  nicht, eine Geld-Zeile korrigiert «falsch erfasst?» (`reverse`, nur wo `reversible`).
+- **`locked`**: die Abschnitte werden grau, nur «Stornieren» geht.
+- **Ein änderbarer Wert hat EINE Form** (`Editable`, `DocPick`, `DocRef`, `.ix-editable`);
+  jeder wird sofort geschrieben (eigenes Verb). Feste Vorgaben des Moduls (`fixed`) sind
+  punktiert unterstrichen, `fixed_hint` im Hover. Der Steuersatz bietet nur `vat_choices`.
+- **Bezahlen** (`pay-online.tsx`): unsere Karte, vom Dienst nur die Eingabefelder; die Karte
+  sagt «ausgeführt», gebucht wird vom Webhook.
+- **Kundenseite** (`app/(public)/beleg`, `components/beleg/`): das eingefrorene Dokument in
+  einem `iframe srcdoc`, darüber die Stationen und die Handlungen der Partei
+  (`api.publicBeleg` · `acceptBeleg` · `declineBeleg` · `prepareBelegPayment`); `/agb` zeigt
+  das A4-Dokument vom Server (`api.publicAgb`).
 - API: `updateVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
-  `refundVoucherPayment` · `searchPeople`. Wörter des Editors: `VOUCHER_*` in
-  `lib/modules.ts`.
+  `refundVoucherPayment` · `uploadAttachment` · `paymentsOf`. Vorgaben des Moduls im Editor:
+  `MONEY_FORM` in `lib/modules.ts` (Spiegel getestet).
 
 ## Referenz-Eingabe und Kamera-Scan
 - **`ObjectSelect`** ist auf `SearchSelect` gebaut: tippen sucht auf dem Server (Nummer ODER

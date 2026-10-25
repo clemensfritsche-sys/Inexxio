@@ -2630,9 +2630,22 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     theirs = their_side(db, row, look if won else None, internal=internal)
     supplier, customer = (ours, theirs) if flow.collects else (theirs, ours)
     return {
-        "supplier": {"label": vo.SUPPLIER, "hint": vo.SUPPLIER_HINT, **supplier},
-        "customer": {"label": vo.CUSTOMER, "hint": vo.CUSTOMER_HINT, **customer},
+        "supplier": {"label": vo.SUPPLIER, "hint": vo.SUPPLIER_HINT,
+                     **_labelled(supplier, sends=True)},
+        "customer": {"label": vo.CUSTOMER, "hint": vo.CUSTOMER_HINT,
+                     **_labelled(customer, sends=False)},
     }
+
+
+def _labelled(side: dict[str, Any], *, sends: bool) -> dict[str, Any]:
+    """**Beschriftungen sind Darstellung, keine Angabe** – eingefroren wird die Anschrift,
+    die Beschriftung kommt immer frisch aus ``_addresses`` (sonst trüge ein bestätigter
+    Beleg die Wörter von damals)."""
+    if not side.get("address"):
+        return side
+    fresh = _addresses(side["address"], side.get("shipping") or [], sends=sends)
+    return {**side, "address_label": fresh["address_label"],
+            "shipping_label": fresh["shipping_label"]}
 
 
 def _addresses(billed: list[str], shipped: list[str], *, sends: bool) -> dict[str, Any]:

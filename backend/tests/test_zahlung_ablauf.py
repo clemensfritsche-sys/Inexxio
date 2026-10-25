@@ -225,6 +225,26 @@ def test_documents_are_mailed_into_the_history(db):
 # ►► STORNO
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def test_frozen_head_takes_todays_labels(db):
+    """Eingefroren ist die Anschrift, nicht ihre Beschriftung: ein bestätigter Beleg zeigt
+    die heutigen Wörter, auch wenn der Kopf andere gespeichert hat."""
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    _do(db, order, step, "agree", party=who.object_id)
+    head = dict(row.head)
+    head["ours"] = {**head["ours"], "address_label": "Alt", "shipping_label": "Alt"}
+    row.head = head
+    flag_modified(row, "head")
+    seen = svc.document_head(db, row, won=True)
+    assert (seen["supplier"]["address_label"], seen["supplier"]["shipping_label"]) == (
+        vo.BILLING_LABEL, vo.SHIPPING_FROM_LABEL)
+    assert seen["customer"]["shipping_label"] == vo.SHIPPING_LABEL
+
+
 def test_storno_after_the_invoice_credits_it_fully(db):
     """Nach der Rechnung entsteht die Gutschrift über die ganze Rechnung von selbst; was
     schon bezahlt ist, geht zurück."""

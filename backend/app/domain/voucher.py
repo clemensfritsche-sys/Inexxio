@@ -125,10 +125,10 @@ PARTY = "Partner"
 #: gleich heissen dürfen. «Lieferant/Kunde» ist zu eng (Miete, Lohn, Gebühr haben keinen
 #: Lieferanten), «Rechnungssteller» ist auf einer Offerte falsch. Die Begriffe des MWSTG
 #: passen für *jede* Leistung und **wörtlich** zum Reverse-Charge-Pflichtsatz.
-SUPPLIER = "Leistungserbringer"
-CUSTOMER = "Leistungsempfänger"
-SUPPLIER_HINT = "Wer die Leistung erbringt und den Beleg stellt."
-CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
+SUPPLIER = "Von"
+CUSTOMER = "An"
+SUPPLIER_HINT = "Leistungserbringer: wer die Leistung erbringt und den Beleg stellt."
+CUSTOMER_HINT = "Leistungsempfänger: wer die Leistung bezieht und bezahlt."
 
 #: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben – auf JEDER Seite, IMMER**
 #: (Testnotizen #952/#975). ◄◄◄
@@ -160,9 +160,9 @@ CUSTOMER_HINT = "Wer die Leistung bezieht und bezahlt."
 #: gilt in Rechnungssachen* (wohin sie geht ↔ von wo sie kommt) –, und sie steht so auch
 #: auf jedem gedruckten Beleg. Ein zweites Wort dafür wäre eine Unterscheidung ohne
 #: Unterschied.
-BILLING_LABEL = "Rechnungsadresse"
-SHIPPING_LABEL = "Lieferadresse"
-SHIPPING_FROM_LABEL = "Versandadresse"
+BILLING_LABEL = "Rechnung"
+SHIPPING_LABEL = "Lieferung"
+SHIPPING_FROM_LABEL = "Versand"
 
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
