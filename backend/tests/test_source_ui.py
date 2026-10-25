@@ -398,7 +398,7 @@ def test_an_icon_button_is_centred_by_its_class():
         "Die Symbol-Form steht nicht mehr im Bauteil – dann setzt sie jede Aufrufstelle "
         "wieder selbst."
     )
-    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    work = _code(_beleg())
     assert "erp-actbtn-icon" not in work, (
         "Der Vorgang baut seine Symbol-Knöpfe wieder selbst, statt `ActionButton` zu "
         "benutzen."
@@ -509,7 +509,7 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
         "zweimal."
     )
     # (a) **Die Aufrufstelle nennt das Bauteil, nicht die Klasse.**
-    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    work = _code(_beleg())
     assert "<ActionButton" in work and "erp-actbtn-icon" not in work, (
         "Die Modul-Karte baut ihre Symbol-Knöpfe wieder von Hand (a)."
     )
@@ -906,7 +906,7 @@ def test_a_row_action_stands_at_the_end_of_its_row():
     Bug-Formen: (a) die Knöpfe stehen wieder als eigener Block unter der Zeile; (b) sie
     stehen dauerhaft da; (c) eine Handlung bekommt wieder eine zweite Stufe.
     """
-    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    work = _code(_beleg())
     row = _component(work, "EntryRow")
     ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
     # (a) **In der Zeile, nicht darunter** – und das entscheidet die Grammatik: die

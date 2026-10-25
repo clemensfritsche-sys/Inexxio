@@ -537,6 +537,10 @@ def test_public_page_accepts_only_the_current_offer(db):
     assert row.stage == vo.AGREED
     after = docs.public_view(db, new)
     assert after["word"] == "Auftragsbestätigung" and after["stations"][1]["state"] == "active"
+    # Der Empfänger steht wie im ERP: Firma, darunter genau ein «z. H.».
+    paper = svc.documents_of(db, row, vo.CONFIRM_DOC)[-1].html
+    assert "z. H. " in paper
+    assert "z. H. z. H." not in paper
 
 
 def test_public_page_says_when_the_offer_expired(db):

@@ -25,6 +25,28 @@ test('ERP-Pfade: eine Liste – jede Datei darauf ist erkannt, eine ähnlich ben
   assert.deepEqual(site.privatePaths, ['/erp', '/konto', '/login', '/abmelden', '/beleg', '/api/']);
 });
 
+/** Die obersten Pfade der Next-Seiten (`frontend/src/app/**\/page.tsx`, ohne `(gruppe)`). */
+function frontendRoutes(dir = join(ROOT, '..', 'frontend', 'src', 'app'), seg = '') {
+  const out = new Set();
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isFile() && e.name === 'page.tsx' && seg) out.add(`/${seg}`);
+    if (!e.isDirectory()) continue;
+    const top = seg || (/^\(.*\)$/.test(e.name) ? '' : e.name);
+    for (const r of frontendRoutes(join(dir, e.name), top)) out.add(r);
+  }
+  return out;
+}
+
+test('ERP-Pfade: jede Seite des Frontends steht in der Liste – und jede Seite der Liste gibt es', () => {
+  // Eine Next-Seite, die hier fehlt, dürfte die Website überschreiben und stünde ungesperrt in
+  // robots.txt (so wäre `/beleg` beinahe hinausgegangen); eine Seite der Liste ohne Route ist
+  // ein toter Link aus der Website.
+  const routes = frontendRoutes();
+  assert.ok(routes.size > 0, 'keine Next-Seite gefunden – stimmt der Pfad?');
+  for (const r of routes) assert.ok(onErpPath(r.slice(1)), `${r} fehlt in site.erpPaths`);
+  for (const { path } of site.erpPaths.filter((p) => p.page)) assert.ok(routes.has(path), `${path} hat keine Next-Seite`);
+});
+
 test('ERP-Pfade: die Skripte tragen keine eigene Liste', () => {
   for (const rel of ['scripts/check-site.mjs', 'scripts/merge-hosting.mjs']) {
     const code = read(rel);

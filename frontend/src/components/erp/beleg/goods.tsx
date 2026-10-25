@@ -360,9 +360,10 @@ function Sums({ d, onAction }: { d: Filled; onAction: Send }) {
     <div className="flex flex-col" style={{
       gap: 4, marginTop: 4, paddingTop: 9, borderTop: '1px solid var(--border-1)',
     }}>
-      <SumRow label="Netto" value={net} d={d} />
+      <SumRow label="Netto" value={net} code={d.currency} dec={dec} />
       {rows.map((v) => (
-        <SumRow key={v.key} label={`${d.vat_label} ${v.label}`} value={v.tax} d={d} />
+        <SumRow key={v.key} label={`${d.vat_label} ${v.label}`} value={v.tax}
+          code={d.currency} dec={dec} />
       ))}
       <div className="flex items-baseline" style={{
         gap: 10, marginTop: 4, paddingTop: 7, borderTop: '1px solid var(--border-1)',
@@ -375,12 +376,13 @@ function Sums({ d, onAction }: { d: Filled; onAction: Send }) {
   );
 }
 
-function SumRow({ label, value, d }: { label: string; value?: string | null; d: Filled }) {
+function SumRow({ label, value, code, dec }: {
+  label: string; value?: string | null; code: string; dec: number;
+}) {
   return (
     <div className="flex items-baseline" style={{ gap: 10 }}>
       <span style={{ fontSize: 12, color: 'var(--fg-3)', flex: 1, minWidth: 0 }}>{label}</span>
-      <Amount value={value} currency={d.currency} decimals={d.currency_decimals}
-        size={14} weight={400} />
+      <Amount value={value} currency={code} decimals={dec} size={14} weight={400} />
     </div>
   );
 }
@@ -390,7 +392,7 @@ function Currency({ d, onAction }: { d: Filled; onAction: Send }) {
   return (
     <DocPick on={may(d, 'currency')} value={d.currency} text={d.currency}
       face={{ font: 'inherit', color: 'inherit' }} tip={d.currency_label} aria={d.currency_label}
-      options={(d.currencies ?? []).map((c) => ({ value: c.code, label: `${c.code} · ${c.label}` }))}
+      options={(d.currencies ?? []).map((c) => ({ value: c.code, label: c.label }))}
       onChange={(currency) => void onAction({ action: 'currency', currency })} />
   );
 }

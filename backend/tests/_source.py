@@ -108,8 +108,16 @@ def _expr(window: str) -> str:
 DEAL_WORK = FRONTEND / "components" / "erp" / "beleg-work.tsx"
 
 
+#: **Die Karte des Belegs** – der Einstieg und seine Teile, je Abschnitt eine Datei.
+BELEG_PARTS = FRONTEND / "components" / "erp" / "beleg"
+
+
 def _beleg() -> str:
-    return _read(FRONTEND / "components" / "erp" / "beleg-work.tsx")
+    """**Die ganze Karte des Belegs** – ``beleg-work.tsx`` und alles unter
+    ``components/erp/beleg/``. Ein Wächter, der nur den Einstieg läse, sähe nach dem
+    Aufteilen in Abschnitte nichts mehr – und schlüge nie an."""
+    parts = sorted(BELEG_PARTS.glob("*.ts*")) if BELEG_PARTS.exists() else []
+    return "\n".join([_read(DEAL_WORK), *(_read(f) for f in parts)])
 
 
 def _module_ui() -> str:

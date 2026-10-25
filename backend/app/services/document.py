@@ -41,7 +41,7 @@ body{font-family:var(--body);color:var(--fg-1);font-size:13px;line-height:1.45;
 padding:16mm 20mm 12mm;display:flex;flex-direction:column;overflow:hidden;
 box-shadow:0 1px 2px rgba(10,10,11,.06),0 12px 40px rgba(10,10,11,.10);border-radius:4px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:16px}
-.word{font:600 64px/1.05 var(--display);letter-spacing:-.045em;color:var(--soft);
+.word{font:600 var(--size,64px)/1.05 var(--display);letter-spacing:-.045em;color:var(--soft);
 white-space:nowrap;padding-bottom:4px}
 .logo{width:32mm;height:auto;flex:0 0 auto}
 .head{margin-top:16mm;display:grid;grid-template-columns:98mm 1fr}
@@ -54,7 +54,7 @@ table.pos{width:100%;border-collapse:collapse;margin-top:14mm}
 table.pos th{padding:0 0 10px;font-weight:600;text-align:left}
 table.pos th.r,table.pos td.r{text-align:right}
 table.pos td{padding:11px 0;border-top:1px solid var(--line);vertical-align:top}
-table.pos td.t{padding-right:12px}
+table.pos th:not(:last-child),table.pos td:not(:last-child){padding-right:12px}
 .sub{font-size:11.5px;color:var(--fg-3);margin-top:2px}
 .part{color:var(--fg-1)}
 .sum{margin:4px 0 0 auto;width:320px;display:grid;grid-template-columns:1fr auto;gap:6px 16px;
@@ -85,7 +85,9 @@ grid-template-columns:62mm 1fr;min-height:105mm;font-size:10.5px}
 .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}
 @media print{.sheets{gap:0}.sheet{box-shadow:none;border-radius:0;break-after:page}}
 @media screen and (max-width:820px){.sheet{min-height:0;padding:9mm 6mm 6mm}
-.head{grid-template-columns:1fr;gap:16px}.word{font-size:44px}.slip{display:none}
+.head{grid-template-columns:1fr;gap:16px}.slip{display:none}
+.top{flex-direction:column-reverse;align-items:flex-start;gap:6mm}.logo{width:24mm}
+.word{font-size:min(var(--size,64px),calc(150vw / var(--chars,12)))}
 .terms{grid-template-columns:1fr 1fr!important}.sum{width:100%}}
 """
 
@@ -171,8 +173,9 @@ def _top(word: str) -> str:
     # **Ein langes Wort wird kleiner, nicht abgeschnitten** – «Zahlungserinnerung» muss neben
     # dem Logo Platz haben.
     size = 64 if len(word) <= 12 else (48 if len(word) <= 16 else 40)
+    # Schmal steht das Wort unter dem Logo und schrumpft mit der Breite (``--chars``).
     return (f'<div class="top"><div class="word" aria-hidden="true" '
-            f'style="font-size:{size}px">{escape(word)}</div>'
+            f'style="--size:{size}px;--chars:{max(len(word), 1)}">{escape(word)}</div>'
             f'<img class="logo" alt="INEXXIO" src="data:image/png;base64,{_LOGO}"></div>')
 
 

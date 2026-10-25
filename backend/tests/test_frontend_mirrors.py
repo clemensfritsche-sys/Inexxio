@@ -10,6 +10,7 @@ import re
 from tests._source import (
     BACKEND,
     FRONTEND,
+    _beleg,
     _body,
     _code,
     _read,
@@ -236,7 +237,7 @@ def test_the_money_stage_keys_are_mirrored_not_written_out():
     for key in (*dm.STAGES, dm.DONE, dm.CANCELLED):
         assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
 
-    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    work = _code(_beleg())
     assert "VOUCHER_STAGE." in work, "Die Karte liest die Stufen nicht aus der Zuordnung."
     # Geprüft wird die REGEL («kein Stufen-Wort im Rumpf»), nicht die Form der Lösung:
     # WELCHE Stufen die Karte nennt, ist ihre Sache – `agreed` ist heute die Ableitung

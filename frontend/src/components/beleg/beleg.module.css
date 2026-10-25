@@ -9,13 +9,17 @@
 .page { background: var(--bg-1); color: var(--fg-1); padding-bottom: 96px; }
 
 /* ── Kopf: das Wort, so gross, dass es in eine Zeile passt ─────────────────────────── */
+/* `--wb`: die Grösse eines kurzen Worts – sie bestimmt die Höhe, damit jede Seite gleich
+   beginnt; ein langes Wort wird kleiner (`--ws`) und steht auf derselben Grundlinie. */
 .stage {
-  --ws: min(140px, 11vw, calc(150vw / var(--n, 8)));
-  position: relative; overflow: hidden; height: calc(var(--ws) + 90px);
+  --wb: min(140px, 11vw);
+  --ws: min(var(--wb), calc(150vw / var(--n, 8)));
+  position: relative; overflow: hidden; height: calc(var(--wb) + 90px);
   background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
 }
 .word {
-  position: absolute; left: 50%; top: 24px; transform: translateX(-50%); margin: 0;
+  position: absolute; left: 50%; top: calc(24px + var(--wb) - var(--ws));
+  transform: translateX(-50%); margin: 0;
   white-space: nowrap; pointer-events: none; user-select: none;
   font: 700 var(--ws)/1 var(--font-display); letter-spacing: -0.05em; color: var(--gray-200);
 }
@@ -117,7 +121,8 @@
 
 /* Schmal: der Weg steht senkrecht – Knoten links, Linie nach unten, Karte daneben. */
 @media (max-width: 719px) {
-  .stage { --ws: min(96px, calc(150vw / var(--n, 8))); }
+  .stage { --wb: min(96px, 22vw); height: calc(var(--ws) + 64px); }
+  .word { top: 24px; }
   .wrap { padding: 0 16px; }
   .way { grid-template-columns: 1fr; gap: 12px; margin-top: 32px; }
   .st { flex-direction: row; gap: 12px; }
