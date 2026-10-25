@@ -78,8 +78,8 @@ app/
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
-│   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split),
-│   │                   invoice_state, Wörter
+│   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
+│   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
 │   ├── incoterms.py  ← die elf Klauseln der Incoterms 2020 mit Erklärung
 │   ├── communication.py ← Kanäle, Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
@@ -106,7 +106,7 @@ scripts/
 |---|---|
 | Prozess-Engine (Freigabe, Bestätigen, Halt, Auswahl) | `process.py`, `orders.py`, `materialize.py` |
 | Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
-| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `stripe_pay.py`, `qrbill.py`) |
+| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `voucher_docs.py`, `document.py`, `agb.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
@@ -131,7 +131,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **102 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **109 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -183,6 +183,10 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `…/steps/{step_id}/voucher/transfer` | user | Überweisungsangaben + Swiss QR-Rechnung |
 | GET | `…/steps/{step_id}/voucher/correctable` | staff | Welche Rechnung mindert dieser Beleg? (Suche, auch über Auftragsgrenzen) |
 | POST | `/api/v1/erp/attachments` | staff | Bild aus der Kamera hochladen (kein Datei-Upload) |
+| GET | `/api/v1/public/beleg/{token}` | – (Token) | **Kundenseite** eines Dokuments: eingefrorenes A4-HTML, Hinweis (überholt/abgelaufen/storniert), Handlungen aus `can` der Partei |
+| POST | `/api/v1/public/beleg/{token}/accept` · `/decline` · `/payment` | – (Token) | Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`) |
+| GET | `/api/v1/public/agb` | – | Die geltenden AGB als A4-Dokument (`services/agb`) |
+| GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
 | GET | `/api/v1/erp/messages` | staff | Verlauf einer Person (`person=`) oder Firma (`company=`) |
@@ -220,7 +224,11 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
   (`party`: `ALWAYS` · `IF_WE_PRICE` · `IF_THEY_PRICE`) und die Funktion. `can` liest
   dieselbe Tabelle für die Knöpfe und `assert_allowed` weist an ihr ab (fehlende Angabe →
   400 mit Feldname, falsche Stufe → 409). `pay_online`/`refund_online` ändern den Beleg
-  nicht – gebucht wird nur vom Webhook (`record_payment`).
+  nicht – gebucht wird nur vom Webhook (`record_payment`). Nach jeder Handlung (`_after`)
+  entsteht, was dazugehört (Quittung), und die Stücke ziehen weiter
+  (`process.advance_payments` → `confirm_step(auto=True)`). Ein Dokument entsteht nur über
+  `voucher_docs.issue` (eingefroren in `voucher_documents`, Mail im Postfach der
+  Gesellschaft, gesendet nach dem Commit über `send_pending`).
 - **Ein Lesepfad, der schreibt, behält**: die Positionen werden beim Anzeigen aus dem
   Prozess nachgezogen (`voucher.sync_lines`); committet wird an der Transaktionsgrenze
   (`routers/orders._steps`), nicht im Dienst.

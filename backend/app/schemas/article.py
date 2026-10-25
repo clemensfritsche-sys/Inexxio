@@ -128,6 +128,9 @@ class ArticleCreate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut
+    #: **Ware oder Dienstleistung** – daraus folgen Steuersatz und Lieferbedingung im
+    #: Zahlungsmodul (Ware: Lieferadresse; Dienstleistung: Sitz des Empfängers).
+    is_service: Optional[bool] = None
     #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
     #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
     #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
@@ -261,6 +264,7 @@ class ArticleResponse(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: bool = False                     # Gefahrgut
+    is_service: bool = False                    # Dienstleistung (sonst Ware)
     #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
     #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
     #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.

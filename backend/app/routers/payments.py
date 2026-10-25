@@ -1,8 +1,8 @@
 """**Die eine Tür, durch die der Zahlungsdienst hereinruft.**
 
 Ein Endpunkt, keine Anmeldung, eine Signaturprüfung. Er schreibt **eine Zeile Geld**
-(``voucher.record_payment``) und sonst nichts – er erzeugt keinen Auftrag, gibt keinen
-frei und ändert keine Stufe.
+(``voucher.record_payment``); was daraus folgt (Quittung, die Stücke einer Vorauszahlung
+ziehen weiter), geschieht dort an derselben Stelle wie bei einer erfassten Zahlung.
 
 Er steht **nicht** im Auftrags-Router, obwohl der Beleg dort lebt: dieser Router ist
 öffentlich, und die Grenze zwischen «angemeldetes Personal» und «ein Fremder mit einer
@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
-from ..services import stripe_pay
+from ..services import stripe_pay, voucher_docs
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
@@ -36,5 +36,8 @@ async def webhook(
     sondern ein fremder Absender.
     """
     raw = await request.body()
-    return {"status": stripe_pay.handle_webhook(
-        db, raw=raw, signature=stripe_signature or None)}
+    status = stripe_pay.handle_webhook(db, raw=raw, signature=stripe_signature or None)
+    # **Was die Zahlung ausgelöst hat (die Quittung), geht gleich hinaus** – festgeschrieben
+    # hat ``handle_webhook`` schon.
+    voucher_docs.send_pending(db)
+    return {"status": status}

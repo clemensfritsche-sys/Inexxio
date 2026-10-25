@@ -10,6 +10,7 @@ from tests._source import (
     _USER_SURFACES,
     _address_field,
     _at,
+    _beleg,
     _body,
     _code,
     _component,
@@ -273,9 +274,9 @@ def test_a_private_customer_is_named_by_his_own_name():
     )
     # Der Belegkopf **zeigt** die Zeile, die der Dienst gebaut hat (`view.attn`) – er
     # setzt sie nicht zusammen. Ein «z. H.» im Browser wäre die zweite Regel daneben.
-    beleg = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    party = " ".join(_component(beleg, "Party").split())
-    assert "view.attn" in party and "z. H." not in beleg, (
+    beleg = _code(_beleg())
+    party = " ".join(_component(beleg, "Attn").split())
+    assert "side?.attn" in party and "z. H." not in beleg, (
         "Die Oberfläche baut den Namen selbst (b) – sie zeigt, was der Server schickt."
     )
 

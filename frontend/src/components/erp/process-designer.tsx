@@ -10,6 +10,7 @@ import type { ModuleCatalog, VoucherParty } from '@/types';
 import {
   CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT, VOUCHER_PARTY,
   VOUCHER_TASK, VOUCHER_TASK_HINT, voucherDirection,
+  VOUCHER_PRESETS, VOUCHER_PRESET_OPEN, VOUCHER_PRESETS_HINT, VOUCHER_OWNERSHIP, INCOTERMS, type VoucherPresetKey,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
@@ -27,7 +28,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
 import {
-  IconSwitch, Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
+  IconSwitch, InfoHint, Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -462,6 +463,54 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
         <input className={inputCls} value={m.instruction} maxLength={400}
           aria-label={VOUCHER_TASK} placeholder={VOUCHER_TASK_HINT}
           onChange={(e) => onChange({ instruction: e.target.value })} />
+      </div>
+      <MoneyPresets module={m} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * **Vorgaben an den Beleg** – Fristen, Lieferbedingung, Eigentum. Alle freiwillig: was hier
+ * steht, gilt für jeden Auftrag aus diesem Prozess und steht im Beleg fest; **leer heisst
+ * «wählt der Mensch am Beleg»**. Ob ein Wert gilt, sagt der Server (`Beleg._clean_presets`).
+ */
+function MoneyPresets({ module: m, onChange }: {
+  module: ModuleDraft; onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  const set = (key: VoucherPresetKey, value: string) =>
+    onChange({ presets: { ...m.presets, [key]: value } });
+  const options = (key: VoucherPresetKey) => (key === 'incoterm'
+    ? INCOTERMS.map((t) => ({ value: t.key, label: `${t.key} – ${t.label}` }))
+    : VOUCHER_OWNERSHIP);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1.5" style={MICRO_LABEL}>
+        Vorgaben an den Beleg <InfoHint text={VOUCHER_PRESETS_HINT} />
+      </span>
+      <div style={{
+        display: 'grid', gap: '12px 16px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))',
+      }}>
+        {VOUCHER_PRESETS.map((p) => (
+          <div key={p.key} data-tip={p.hint} style={{ minWidth: 0 }}>
+            <Label>{p.label}</Label>
+            {p.days ? (
+              <div className="flex items-center gap-1.5">
+                <input className={inputCls} value={m.presets[p.key]} {...numericInputProps}
+                  aria-label={p.label} placeholder={VOUCHER_PRESET_OPEN}
+                  onChange={(e) => set(p.key, numericOnly(e.target.value, { decimals: false }))} />
+                <span className="text-xs" style={{ color: 'var(--fg-4)', flex: 'none' }}>Tage</span>
+              </div>
+            ) : (
+              <select className={inputCls} value={m.presets[p.key]} aria-label={p.label}
+                style={{ color: m.presets[p.key] ? undefined : 'var(--fg-4)' }}
+                onChange={(e) => set(p.key, e.target.value)}>
+                <option value="">{VOUCHER_PRESET_OPEN}</option>
+                {options(p.key).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

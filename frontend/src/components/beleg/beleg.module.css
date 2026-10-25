@@ -1,0 +1,141 @@
+/*
+ * ►►► Die Seite eines Belegs und die AGB – im Stil der Website (Entwurf «Zahlung», O3–O12). ◄◄◄
+ *
+ * Kopf mit dem blassen Wort (wie `StageHero`), der Weg als vier Karten (wie «Ablauf»), die
+ * Handlungen, darunter das Papier. Nur Tokens aus `colors_and_type.css`; Glas gibt es hier
+ * nicht (es bleibt dem Kopf der Website).
+ */
+
+.page { background: var(--bg-1); color: var(--fg-1); padding-bottom: 96px; }
+
+/* ── Kopf: das Wort, so gross, dass es in eine Zeile passt ─────────────────────────── */
+/* `--wb`: die Grösse eines kurzen Worts – sie bestimmt die Höhe, damit jede Seite gleich
+   beginnt; ein langes Wort wird kleiner (`--ws`) und steht auf derselben Grundlinie. */
+.stage {
+  --wb: min(140px, 11vw);
+  --ws: min(var(--wb), calc(150vw / var(--n, 8)));
+  position: relative; overflow: hidden; height: calc(var(--wb) + 90px);
+  background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+}
+.word {
+  position: absolute; left: 50%; top: calc(24px + var(--wb) - var(--ws));
+  transform: translateX(-50%); margin: 0;
+  white-space: nowrap; pointer-events: none; user-select: none;
+  font: 700 var(--ws)/1 var(--font-display); letter-spacing: -0.05em; color: var(--gray-200);
+}
+
+.wrap { width: 100%; max-width: calc(1100px + 48px); margin: 0 auto; padding: 0 24px; }
+
+/* ── Der Weg: vier Stationen, Linie nur zwischen ihnen, die aktive weiss ─────────────── */
+.way {
+  list-style: none; margin: 56px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;
+}
+.st { position: relative; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.top { position: relative; display: flex; align-items: center; }
+.line {
+  position: absolute; left: 56px; right: -20px; top: 27px; height: 2px;
+  background: repeating-linear-gradient(90deg, var(--border-2) 0 8px, transparent 8px 14px);
+}
+.lineDone { background: var(--fg-1); }
+.node {
+  position: relative; z-index: 1; width: 56px; height: 56px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; color: var(--fg-1); background: var(--bg-1);
+  box-shadow: var(--elev-3);
+}
+.cur .node { background: var(--fg-1); color: var(--bg-1); }
+.card {
+  position: relative; padding: 20px; border-radius: 24px; background: var(--bg-3); min-height: 132px;
+}
+.cur .card { background: var(--bg-1); box-shadow: var(--elev-3); }
+.done .card { opacity: 0.7; }
+.no {
+  position: absolute; top: 16px; right: 20px;
+  font: 600 1.75rem/1 var(--font-display); letter-spacing: -0.05em; color: var(--bg-4);
+  font-variant-numeric: tabular-nums;
+}
+.cur .no { color: var(--fg-1); }
+.who { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
+.title {
+  margin: 6px 0 0; font: 600 1.25rem/1.25 var(--font-display); letter-spacing: -0.02em;
+  color: var(--fg-1); overflow-wrap: anywhere;
+}
+.text { margin: 6px 0 0; font-size: 0.875rem; line-height: 1.5; color: var(--fg-2); }
+
+/* ── Handlungen ─────────────────────────────────────────────────────────────────────── */
+.acts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 40px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 52px; padding: 0 24px; border-radius: var(--r-md); border: 0; cursor: pointer;
+  font: 600 0.9375rem/1 var(--font-body); text-decoration: none; transition: opacity 0.2s;
+}
+.btn:hover:not(:disabled) { opacity: 0.9; }
+.btn:disabled { opacity: 0.6; cursor: progress; }
+.agree { background: var(--success); color: var(--bg-1); }
+.decline { background: var(--bg-1); color: var(--danger); border: 1.5px solid var(--danger); }
+.main { background: var(--fg-1); color: var(--bg-1); }
+.quiet { background: var(--bg-3); color: var(--fg-1); }
+
+.ask { margin: 0; width: 100%; text-align: center; font-size: 15px; color: var(--fg-2); }
+.err { margin: 16px auto 0; max-width: 560px; text-align: center; font-size: 14px; color: var(--danger); }
+.paid {
+  display: flex; align-items: center; justify-content: center; gap: 8px; margin: 40px auto 0;
+  max-width: 560px; text-align: center; font-size: 15px; line-height: 1.5; color: var(--fg-2);
+}
+.paid svg { flex: none; color: var(--success); }
+.pay { max-width: 480px; margin: 24px auto 0; }
+
+/* ── Ein Satz statt einer Handlung (abgelaufen · überholt · storniert) ──────────────── */
+.note {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+  max-width: 560px; margin: 40px auto 0;
+}
+.noteTitle { margin: 0; font: 600 20px/1.3 var(--font-display); letter-spacing: -0.02em; color: var(--fg-1); }
+.noteText { margin: 0; font-size: 15px; line-height: 1.5; color: var(--fg-2); }
+
+/* ── Das Papier: das Dokument des Servers in einem iframe, der Knopf an seiner Ecke ──── */
+.paperZone { display: flex; justify-content: center; padding-top: 24px; }
+.paper { position: relative; width: min(100%, 880px); }
+.frame { display: block; width: 100%; border: 0; background: transparent; }
+.dl {
+  /* An der oberen rechten Ecke des ersten Blatts (210 mm, oben 32 px im iframe). */
+  position: absolute; z-index: 2; top: 10px; right: max(4px, calc((100% - 210mm) / 2 - 22px));
+  width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--fg-1); background: var(--bg-1); border: 1px solid var(--border-1);
+  box-shadow: var(--elev-4); cursor: pointer;
+}
+.dl::after {
+  content: attr(data-tip); position: absolute; right: calc(100% + 10px); top: 50%;
+  transform: translateY(-50%); padding: 6px 10px; border-radius: var(--r-sm); white-space: nowrap;
+  background: var(--fg-1); color: var(--bg-1); font: 500 12.5px/1.2 var(--font-body);
+  opacity: 0; pointer-events: none; transition: opacity 0.15s;
+}
+.dl:hover::after, .dl:focus-visible::after { opacity: 1; }
+.dl:disabled { cursor: progress; }
+
+.loading { min-height: 60vh; }
+
+@media (max-width: 860px) {
+  .dl { width: 44px; height: 44px; top: -14px; }
+}
+
+/* Schmal: der Weg steht senkrecht – Knoten links, Linie nach unten, Karte daneben. */
+@media (max-width: 719px) {
+  .stage { --wb: min(96px, 22vw); height: calc(var(--ws) + 64px); }
+  .word { top: 24px; }
+  .wrap { padding: 0 16px; }
+  .way { grid-template-columns: 1fr; gap: 12px; margin-top: 32px; }
+  .st { flex-direction: row; gap: 12px; }
+  .top { align-items: flex-start; }
+  .node { width: 44px; height: 44px; }
+  .line {
+    left: 21px; right: auto; top: 44px; bottom: -12px; width: 2px; height: auto;
+    background: repeating-linear-gradient(180deg, var(--border-2) 0 8px, transparent 8px 14px);
+  }
+  .lineDone { background: var(--fg-1); }
+  .card { flex: 1; min-width: 0; min-height: 0; padding: 14px 16px; border-radius: 16px; }
+  .no { top: 14px; right: 16px; font-size: 1.375rem; }
+  .title { font-size: 1.0625rem; }
+  .acts { margin-top: 32px; }
+  .btn { flex: 1 1 auto; }
+}

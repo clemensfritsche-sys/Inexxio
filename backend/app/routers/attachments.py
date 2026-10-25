@@ -16,6 +16,9 @@ router = APIRouter(tags=["attachments"])
 
 
 class UploadResult(BaseModel):
+    #: Die Nummer des Bildes – ein Beleg verweist darauf (Lieferantenrechnung,
+    #: Ausfuhrnachweis); die ``url`` ist, wie man es zeigt.
+    id: int
     url: str
     width: int | None = None
     height: int | None = None
@@ -30,7 +33,7 @@ async def upload_attachment(
     raw = await file.read()
     att = attachments_svc.store_image(db, raw, file.filename, user.id)
     db.commit()
-    return UploadResult(url=attachments_svc.public_url(att), width=att.width, height=att.height)
+    return UploadResult(id=att.id, url=attachments_svc.public_url(att), width=att.width, height=att.height)
 
 
 @router.get("/api/v1/attachments/{token}")

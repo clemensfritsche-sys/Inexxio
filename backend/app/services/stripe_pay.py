@@ -291,6 +291,10 @@ def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
     # nur noch um den Rest zurückgehen.
     rest = voucher_svc.refundable_amount(db, row, entry)
     done = entry.amount - rest
+    # **Höchstens, was geschuldet ist** – an einer Gutschrift ihr offener Betrag, an einer
+    # überzahlten Rechnung das Zuviel. Mehr zurückzugeben wäre eine neue Schuld.
+    owed = voucher_svc.balance_of(db, row).open
+    rest = max(Decimal("0"), min(rest, owed if voucher_svc.minus(row) else -owed))
     # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest ein
     # Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser* Währung.
     # Ein blosses ``Decimal(...)`` daneben wäre eine zweite Lesart – und bei einem
@@ -316,10 +320,13 @@ def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
     # in der bei einer Überweisung der Zahlungszweck steht – ein Feld, zwei Wege, keine
     # ``stripe_*``-Spalte. Der Dienst findet über sie die Belastung selbst; wir müssen
     # die ``ch_…`` gar nicht kennen.
+    # ►►► **Wohin die Erstattung gebucht wird, sagt die Metadate** – an der Gutschrift,
+    # aus der sie kommt, sonst an der Rechnung der Zahlung (``_note_refund``). ◄◄◄
     with _speaking("Erstattung"):
         stripe.Refund.create(
             payment_intent=str(entry.reference),
             amount=_minor(back, code),
+            metadata={META_KEY: str(row.id)},
             idempotency_key=(f"refund:{META_KEY}:{row.id}:{entry.id}"
                              f":{_minor(done, code)}:{_minor(back, code)}"),
         )
@@ -399,9 +406,16 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     if row is None:
         return "unknown"
     booked = 0
-    for ref, amount in _refunds(data, intent, row.currency):
+    for ref, amount, meta in _refunds(data, intent, row.currency):
+        # ►►► **Aus einer Gutschrift?** Dann steht die Erstattung dort – als ihre Zahlung
+        # (sie mindert, das Wort sagt «Erstattung»). Sonst an der Rechnung, negativ. ◄◄◄
+        credit = _row_of(db, meta)
+        if credit is not None and credit.id != row.id and voucher_svc.minus(credit):
+            target, value = credit, amount
+        else:
+            target, value = row, -amount
         voucher_svc.record_payment(
-            db, row=row, amount=-amount,
+            db, row=target, amount=value,
             # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung
             # zusammen, und die Idempotenz würfe sie weg.
             reference=ref,
@@ -415,7 +429,8 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     return "refunded"
 
 
-def _refunds(data: dict[str, Any], intent: str, code: Any) -> list[tuple[str, Decimal]]:
+def _refunds(data: dict[str, Any], intent: str,
+             code: Any) -> list[tuple[str, Decimal, dict[str, Any]]]:
     """►►► **Je Erstattung eine Zeile — nicht die kumulierte Summe.** ◄◄◄
 
     ``amount_refunded`` an der Belastung ist **kumulativ**: nach zwei Teilerstattungen über
@@ -436,14 +451,14 @@ def _refunds(data: dict[str, Any], intent: str, code: Any) -> list[tuple[str, De
     if not rows:
         # **Eine Meldung ohne Liste** – dann ist die kumulierte Summe alles, was wir haben.
         amount = _amount_of(data.get("amount_refunded"), code)
-        return [(f"{intent}:refund", amount)] if amount > 0 else []
-    out: list[tuple[str, Decimal]] = []
+        return [(f"{intent}:refund", amount, {})] if amount > 0 else []
+    out: list[tuple[str, Decimal, dict[str, Any]]] = []
     for i, r in enumerate(reversed(rows)):
         amount = _amount_of(r.get("amount"), code)
         if amount <= 0:
             continue
         out.append((f"{intent}:refund" if i == 0 else f"{intent}:refund:{r.get('id')}",
-                    amount))
+                    amount, dict(r.get("metadata") or {})))
     return out
 
 

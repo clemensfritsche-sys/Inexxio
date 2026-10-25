@@ -926,6 +926,7 @@ def confirm_step(
     verification: Optional[str] = None,
     sources: Optional[list[int]] = None,
     place: Optional[int] = None,
+    auto: bool = False,
 ) -> dict[str, Any]:
     """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
@@ -972,7 +973,9 @@ def confirm_step(
     # Dieselbe Bauart: wer nichts zu sagen hat, sagt nichts. Nur ein «Zahlung»-Modul hat
     # einen – und dort heisst «noch nicht zugesagt» bzw. «noch nicht bezahlt», dass es
     # hier nichts abzuschliessen gibt. Kein Zustand am Stück, kein Pausenwert.
-    voucher_svc.assert_completable(db, step=step)
+    # **Ein Zahlungsmodul bestätigt niemand von Hand** – die Stücke ziehen von selbst
+    # weiter, sobald sie dürfen (``advance_payments`` ruft hier mit ``auto``).
+    voucher_svc.assert_completable(db, step=step, auto=auto)
     instance = _verified_instance(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
@@ -1083,7 +1086,10 @@ def confirm_step(
     # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
     # ein Geldvorgang (``domain/voucher``) – dieses Modul sagt allein, wohin.
     moved = places_svc.apply_for_step(db, step=step, units=units, target=place)
-    marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
+    # **Wem es danach gehört** – nur ein Zahlungsmodul sagt etwas (``voucher.on_pass``).
+    owned = voucher_svc.on_pass(db, step=step, units=units)
+    marks = {u.id: {"verification": verification, **moved.get(u.id, {}),
+                    **owned.get(u.id, {})} for u in units}
 
     # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
     #
@@ -1164,14 +1170,43 @@ def confirm_step(
     # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
     _run_through(db, order=order, step=step, actor_id=actor_id)
     db.flush()
-    # ►► **Das Modul räumt selbst auf.** ◄◄
-    #
-        # Steht nichts mehr davor, ist er erledigt. **Nur
-    # er** – Forderungen und Zahlungen laufen weiter, denn ein Zahlungsziel endet nicht
-    # mit der Ware.
-    voucher_svc.finish(db, order=order, step=step)
-    db.flush()
+    # ►► **Ein Zahlungsmodul weiter hinten lässt durch, was es darf.** ◄◄ Nur beim Klick
+    # eines Menschen – ``advance_payments`` ruft hier selbst mit ``auto``.
+    if not auto:
+        advance_payments(db, order=order, actor_id=actor_id)
     return {"moved": len(units), "held": 0, "result": result}
+
+
+def advance_payments(db: Session, *, order: Order, actor_id: Optional[int]) -> int:
+    """►►► **Die Stücke ziehen durch ein Zahlungsmodul – von selbst.** ◄◄◄
+
+    Es gibt dort keinen Knopf: mit der Zusage (bei einer Vorauszahlung mit dem Geld) dürfen
+    die Stücke weiter (``voucher.passable``). Gefragt wird nach **jedem** Zahlungsmodul
+    dieses Auftrags, vor dem Stücke stehen – auch nach einer Erfassung weiter vorne kommen
+    sie an einem Modul an, das längst zugesagt ist. Derselbe Weg wie jeder andere
+    (``confirm_step``), also dieselbe Spur im Log.
+
+    Endlich: jeder Durchgang bewegt Stücke nach hinten, und ein Prozess ist azyklisch.
+    Gibt zurück, wie viele Stücke weitergezogen sind.
+    """
+    moved = 0
+    for _ in range(64):
+        if order_status(db, order) != st.IM_PROZESS:
+            return moved
+        ready = None
+        for step in steps_of(db, order):
+            # **Erkannt daran, dass es einen Beleg gibt** – nie am Modultyp.
+            if voucher_svc.of_step(db, step.id) is None or not _units_at(db, order, step.id):
+                continue
+            if voucher_svc.pass_problem(db, step=step) is None:
+                ready = step
+                break
+        if ready is None:
+            return moved
+        moved += confirm_step(db, order=order, step_id=ready.id, values={},
+                              actor_id=actor_id, verification=VERIFY_MANUAL,
+                              auto=True)["moved"]
+    return moved
 
 
 def _following(db: Session, order: Order, step: ProcessStep) -> Optional[ProcessStep]:

@@ -18,9 +18,9 @@ from .domain import timekeeping as timekeeping_domain
 from .models import UserProfile
 from .services import address_book, people, sites
 from .routers import (
-    admin, articles, attachments, auth, communication, contact, erp, feedback, health,
-    website,
-    instances, newsletter, orders, passkey, payments, places, timekeeping,
+    admin, articles, attachments, auth, beleg, communication, contact, erp, feedback,
+    health, website,
+    instances, newsletter, orders, passkey, payments, payments_list, places, timekeeping,
 )
 
 settings = get_settings()
@@ -155,6 +155,30 @@ _COLUMN_SAFETY_NET = (
     # Versandart an der Nachricht (Migration 153): Rundschreiben/Newsletter.
     ("messages", "group_id", "BIGINT"),
     ("messages", "newsletter", "BOOLEAN NOT NULL DEFAULT false"),
+    # ►►► **Zahlungsmodul – Umbau** (Migration 155). Das Modell kennt sie, also scheitert
+    # ohne sie **jede** Abfrage auf einen Beleg, ein Stück oder einen Artikel.
+    ("vouchers", "valid_days", "INTEGER"),
+    ("vouchers", "ownership", "VARCHAR(8)"),
+    ("vouchers", "unit_ids", "JSONB"),
+    ("vouchers", "offered_hash", "VARCHAR(64)"),
+    ("vouchers", "cancel_note", "VARCHAR(200)"),
+    ("vouchers", "credit_number", "VARCHAR(120)"),
+    ("vouchers", "party_uid", "VARCHAR(40)"),
+    ("vouchers", "original_id", "BIGINT"),
+    ("vouchers", "deviation_note", "VARCHAR(200)"),
+    ("vouchers", "export_number", "VARCHAR(60)"),
+    ("vouchers", "export_photo_id", "BIGINT"),
+    ("voucher_quotes", "reference", "VARCHAR(120)"),
+    ("voucher_quotes", "link", "VARCHAR(500)"),
+    ("voucher_lines", "text", "VARCHAR(300)"),
+    ("voucher_lines", "part", "NUMERIC(18, 4)"),
+    ("voucher_lines", "weight_kg", "NUMERIC(12, 3)"),
+    ("voucher_entries", "kind", "VARCHAR(10) NOT NULL DEFAULT 'payment'"),
+    ("voucher_entries", "reason", "VARCHAR(20)"),
+    ("voucher_entries", "reverses_id", "BIGINT"),
+    ("voucher_entries", "iban", "VARCHAR(34)"),
+    ("instance_units", "owner_object_id", "BIGINT"),
+    ("articles", "is_service", "BOOLEAN NOT NULL DEFAULT false"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -176,6 +200,7 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
     ("voucher_quotes", "amount", 18, 4),
     # Der **Rechnungsbetrag** steht seit Migration 138 am Beleg selbst.
     ("vouchers", "amount", 18, 4),
+    ("voucher_lines", "part", 18, 4),
 )
 # Für ``instances`` steht hier bewusst NICHTS: die Tabelle wurde von Migration 102 neu
 # aufgebaut, und ein Netz-Eintrag würde eine entfernte Spalte wieder anlegen – das Netz
@@ -318,6 +343,15 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "FOREIGN KEY (corrects_id) REFERENCES vouchers (id) ON DELETE SET NULL; "
     "EXCEPTION WHEN others THEN RAISE WARNING 'fk_vouchers_corrects: %', SQLERRM; END; "
     "END IF; END IF; END $$;",
+    # ►► **Dieselbe Zahlung gibt es nur einmal** (Migration 155): eine Referenz gehört zu
+    #    genau einer aktiven Zeile – ohne den Riegel buchten zwei gleichzeitige Meldungen
+    #    des Zahlungsdienstes dieselbe Zahlung zweimal. Stehen schon Dubletten da, meldet
+    #    sich das als Warnung, statt das Netz zurückzurollen.
+    "DO $$ BEGIN IF to_regclass('public.voucher_entries') IS NOT NULL THEN "
+    "BEGIN CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_entries_reference "
+    "ON voucher_entries (reference) WHERE is_active AND reference IS NOT NULL; "
+    "EXCEPTION WHEN others THEN RAISE WARNING 'uq_voucher_entries_reference: %', SQLERRM; "
+    "END; END IF; END $$;",
     # Die Dublettensperre der Postfach-Abgleichs (Migration 145) – ohne sie legt ein
     # zweiter Abgleich dieselbe Mail ein zweites Mal an.
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_rfc_id ON messages (rfc_id) "
@@ -975,6 +1009,8 @@ app.include_router(instances.router)
 app.include_router(places.router)
 app.include_router(attachments.router)
 app.include_router(payments.router)
+app.include_router(beleg.router)
+app.include_router(payments_list.router)
 app.include_router(feedback.router)
 app.include_router(communication.router)
 app.include_router(communication.callback_router)

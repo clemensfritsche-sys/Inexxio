@@ -38,6 +38,7 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import voucher as voucher_svc
+from ..services import voucher_docs
 from ..services import flow as flow_svc
 from ..services import lookup
 from ..services import places as places_svc
@@ -919,6 +920,8 @@ def update_voucher(
               f"Beleg zu Modul {step.id} → {row.stage}",
               user_id=user.id, object_id=order.object_id)
     db.commit()
+    # **Was gerade an Dokumenten entstand, geht gleich hinaus** – nach dem Festschreiben.
+    voucher_docs.send_pending(db)
     db.refresh(order)
     return _to_response(db, order, viewer=user)
 

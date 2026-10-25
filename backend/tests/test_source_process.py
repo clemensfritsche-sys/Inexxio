@@ -8,6 +8,7 @@ from tests._source import (
     BACKEND,
     FRONTEND,
     ROOT,
+    _beleg,
     _body,
     _code,
     _component,
@@ -950,7 +951,7 @@ def test_a_module_shows_its_own_matter_in_every_state():
     # steht am abgeschlossenen Modul nichts mehr, obwohl genau dort steht, was passiert
     # ist. Die Karte selbst bekommt `active` durchgereicht und entscheidet damit allein
     # über das **Handeln**.
-    panel = _read(FRONTEND / "components" / "erp" / "beleg-work.tsx")
+    panel = _beleg()
     assert "function may(d: Filled, action: string)" in panel, (
         "Die Karte fragt nicht mehr an EINER Stelle, ob gehandelt werden darf."
     )

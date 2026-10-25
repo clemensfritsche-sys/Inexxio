@@ -11,6 +11,7 @@ import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/fields';
 import { TimeCard } from '@/components/erp/time/time-card';
+import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
 import { sectionItems, todoChanged } from '@/lib/todo';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
@@ -280,6 +281,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
   const name     = userDisplayName(record);
   const hasName  = !!name && name !== record.email;
   const initials = userInitials(name, record.email);
+  const payments = usePayments(record.object_id != null ? { person: record.object_id } : null);
 
   // **Eine Person wird nicht deaktiviert – sie wechselt die Rolle** (Testnotiz #755).
   //
@@ -320,6 +322,15 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
             <>
               <SectionSep label="Zeiterfassung" anchor="zeiterfassung" todo={sectionItems(todo, 'zeiterfassung')} />
               <TimeCard person={record.object_id} />
+            </>
+          )}
+          {/* ►►► **Zahlungen** – jede Zahlung, in der diese Person Partei ist; eine
+              Ableitung, keine Kopie. Ohne Zahlung kein Abschnitt. */}
+          {payments != null && payments.length > 0 && (
+            <>
+              <SectionSep label="Zahlungen" anchor="zahlungen" tip={PAYMENTS_TIP}
+                todo={sectionItems(todo, 'zahlungen')} />
+              <PaymentList rows={payments} />
             </>
           )}
           {/* Dezent: hier beginnen die Stammdaten – eine Haarlinie mit dem Mikro-Label. */}

@@ -10,6 +10,7 @@ import re
 from tests._source import (
     BACKEND,
     FRONTEND,
+    _beleg,
     _body,
     _code,
     _read,
@@ -236,7 +237,7 @@ def test_the_money_stage_keys_are_mirrored_not_written_out():
     for key in (*dm.STAGES, dm.DONE, dm.CANCELLED):
         assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
 
-    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    work = _code(_beleg())
     assert "VOUCHER_STAGE." in work, "Die Karte liest die Stufen nicht aus der Zuordnung."
     # Geprüft wird die REGEL («kein Stufen-Wort im Rumpf»), nicht die Form der Lösung:
     # WELCHE Stufen die Karte nennt, ist ihre Sache – `agreed` ist heute die Ableitung
@@ -252,6 +253,33 @@ def test_the_money_stage_keys_are_mirrored_not_written_out():
             f"Die Karte vergleicht gegen {german} – das ist eine **Beschriftung**, und "
             f"die hängt an der Richtung."
         )
+
+
+def test_the_money_presets_mirror_the_backend():
+    """**Was das Modul dem Beleg vorgeben darf** – Schlüssel und Wort wie ``Beleg.PRESETS``
+    / ``PRESET_LABELS``, das Eigentum wie ``voucher.OWNERSHIP``, die Klauseln wie
+    ``incoterms.INCOTERMS``. Der Editor braucht sie, bevor es einen Beleg gibt.
+
+    Bug-Formen: (a) eine Vorgabe fehlt im Editor – dann kann sie niemand setzen; (b) der
+    Editor schickt einen Schlüssel, den der Dienst still verwirft; (c) eine Klausel oder ein
+    Eigentums-Wert läuft auseinander – dann weist der Dienst eine Wahl ab, die angeboten wird.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import incoterms as inc
+    from app.domain import voucher as dm
+    from app.domain.modules import Beleg
+
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    presets = src.split("export const VOUCHER_PRESETS")[1].split("];")[0]
+    found = dict(re.findall(r"key: '(\w+)', label: '([^']+)'", presets))
+    assert found == Beleg.PRESET_LABELS, (
+        f"Die Vorgaben laufen auseinander: Oberfläche {found}, Backend {Beleg.PRESET_LABELS}.")
+    owner = src.split("export const VOUCHER_OWNERSHIP")[1].split("];")[0]
+    assert re.findall(r"value: '(\w+)', label: '([^']+)'", owner) == list(dm.OWNERSHIP)
+    terms = src.split("export const INCOTERMS")[1].split("];")[0]
+    assert re.findall(r"key: '(\w+)', label: '([^']+)'", terms) == [
+        (t.key, t.label) for t in inc.INCOTERMS]
 
 
 def test_the_module_keys_are_the_same_on_both_sides():

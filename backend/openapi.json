@@ -3583,6 +3583,275 @@
         }
       }
     },
+    "/api/v1/public/beleg/{token}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "View",
+        "description": "Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist.",
+        "operationId": "view_api_v1_public_beleg__token__get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BelegView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/beleg/{token}/accept": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Accept",
+        "description": "**Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus.",
+        "operationId": "accept_api_v1_public_beleg__token__accept_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BelegView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/beleg/{token}/decline": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Decline",
+        "description": "**Die Offerte ablehnen** – als die Partei.",
+        "operationId": "decline_api_v1_public_beleg__token__decline_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BelegView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/beleg/{token}/payment": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Payment",
+        "description": "**Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird\nerst, wenn der Zahlungsdienst es meldet.",
+        "operationId": "payment_api_v1_public_beleg__token__payment_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/agb": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Terms",
+        "description": "**Die AGB, die heute gelten** – als A4-Dokument in der Vorlage aller Dokumente.",
+        "operationId": "terms_api_v1_public_agb_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgbOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/payments": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "List Payments",
+        "description": "**Die Zahlungen einer Person** (``person=``) **oder einer eigenen Gesellschaft**\n(``company=``) – neueste Nummer zuoberst.",
+        "operationId": "list_payments_api_v1_erp_payments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "person",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Person"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentRow"
+                  },
+                  "title": "Response List Payments Api V1 Erp Payments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/feedback": {
       "get": {
         "tags": [
@@ -5463,6 +5732,25 @@
         ],
         "title": "AddressOut"
       },
+      "AgbOut": {
+        "properties": {
+          "valid_from": {
+            "type": "string",
+            "title": "Valid From"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid_from",
+          "html"
+        ],
+        "title": "AgbOut",
+        "description": "Die geltenden AGB – ihr Datum und das A4-Dokument."
+      },
       "ArtOut": {
         "properties": {
           "key": {
@@ -5679,6 +5967,17 @@
               }
             ],
             "title": "Is Hazmat"
+          },
+          "is_service": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Service"
           },
           "hs_code": {
             "anyOf": [
@@ -6054,6 +6353,11 @@
             "title": "Is Hazmat",
             "default": false
           },
+          "is_service": {
+            "type": "boolean",
+            "title": "Is Service",
+            "default": false
+          },
           "hs_code": {
             "anyOf": [
               {
@@ -6224,6 +6528,97 @@
           "name"
         ],
         "title": "Attachment"
+      },
+      "BelegView": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoteOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/StationOut"
+            },
+            "type": "array",
+            "title": "Stations"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "agb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agb"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "kind",
+          "word",
+          "html"
+        ],
+        "title": "BelegView",
+        "description": "**Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen."
       },
       "Body_upload_attachment_api_v1_erp_attachments_post": {
         "properties": {
@@ -8062,6 +8457,17 @@
               }
             ],
             "title": "At Step Id"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
           }
         },
         "type": "object",
@@ -9165,6 +9571,41 @@
         "title": "NewsletterState",
         "description": "Angemeldet oder nicht – die jüngste Zeile; dazu der Satz, dem man zustimmt."
       },
+      "NoteOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "text"
+        ],
+        "title": "NoteOut",
+        "description": "Ein Satz statt einer Handlung – abgelaufen, überholt, storniert."
+      },
       "ObjectResolution": {
         "properties": {
           "object_id": {
@@ -9725,6 +10166,94 @@
         "type": "object",
         "title": "PaymentBilling",
         "description": "**Was wir über den Zahlenden schon wissen.** Jedes Feld darf fehlen.\n\nEs sind bewusst nur die drei, die ein Zahlungsformular sonst erfragt. Alles Weitere\n(Telefon, Lieferadresse, Firma) braucht eine Zahlung nicht – und was eine Zahlung\nnicht braucht, geht einem Zahlungsdienst nichts an."
+      },
+      "PaymentRow": {
+        "properties": {
+          "voucher_id": {
+            "type": "integer",
+            "title": "Voucher Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "party_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Object Id"
+          },
+          "party_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
+          },
+          "sign": {
+            "type": "string",
+            "title": "Sign"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "state_label": {
+            "type": "string",
+            "title": "State Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "voucher_id",
+          "number",
+          "kind",
+          "sign",
+          "state",
+          "state_label"
+        ],
+        "title": "PaymentRow",
+        "description": "Eine Zeile – Nummer · Art · Auftrag · Partei · Betrag ± · Stand."
       },
       "PaymentSetup": {
         "properties": {
@@ -10483,6 +11012,34 @@
           "time"
         ],
         "title": "StampOut"
+      },
+      "StationOut": {
+        "properties": {
+          "who": {
+            "type": "string",
+            "title": "Who"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "who",
+          "title",
+          "text",
+          "state"
+        ],
+        "title": "StationOut"
       },
       "StepConfirm": {
         "properties": {
@@ -11454,6 +12011,10 @@
       },
       "UploadResult": {
         "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
           "url": {
             "type": "string",
             "title": "Url"
@@ -11483,6 +12044,7 @@
         },
         "type": "object",
         "required": [
+          "id",
           "url"
         ],
         "title": "UploadResult"
@@ -12106,6 +12668,58 @@
         "title": "VoucherCorrects",
         "description": "**Welchen Beleg mindert dieser hier?** – der Verweis, der auf das Papier gehört.\n\nMWSTG Art. 26 verlangt, dass Leistung und Entgelt eindeutig bestimmbar sind; ohne den\nVerweis wäre eine Gutschrift eine zweite Rechnung mit negativem Vorzeichen. Nummer und\nBetrag reisen mit, damit der Satz ohne einen zweiten Aufruf dasteht."
       },
+      "VoucherDocumentOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "url"
+        ],
+        "title": "VoucherDocumentOut",
+        "description": "**Ein Dokument, so wie es hinausging** – mit dem Link der Partei."
+      },
       "VoucherEmbed": {
         "properties": {
           "direction": {
@@ -12155,9 +12769,24 @@
             ],
             "title": "Ref Label"
           },
+          "minus": {
+            "type": "boolean",
+            "title": "Minus",
+            "default": false
+          },
+          "parties_title": {
+            "type": "string",
+            "title": "Parties Title",
+            "default": ""
+          },
           "goods_title": {
             "type": "string",
             "title": "Goods Title",
+            "default": ""
+          },
+          "terms_title": {
+            "type": "string",
+            "title": "Terms Title",
             "default": ""
           },
           "quotes_title": {
@@ -12165,30 +12794,36 @@
             "title": "Quotes Title",
             "default": ""
           },
-          "claim_title": {
+          "invoice_title": {
             "type": "string",
-            "title": "Claim Title",
+            "title": "Invoice Title",
             "default": ""
           },
-          "settle_title": {
+          "docs_title": {
             "type": "string",
-            "title": "Settle Title",
+            "title": "Docs Title",
             "default": ""
           },
-          "task_label": {
-            "type": "string",
-            "title": "Task Label",
-            "default": ""
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "task": {
-            "type": "string",
-            "title": "Task",
-            "default": ""
-          },
-          "order_label": {
-            "type": "string",
-            "title": "Order Label",
-            "default": ""
+          "locked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked"
           },
           "vat_rates": {
             "items": {
@@ -12241,50 +12876,10 @@
             "type": "array",
             "title": "Vat Split"
           },
-          "currency": {
-            "type": "string",
-            "title": "Currency",
-            "default": "CHF"
-          },
-          "currency_label": {
-            "type": "string",
-            "title": "Currency Label",
-            "default": "CHF"
-          },
-          "currency_decimals": {
-            "type": "integer",
-            "title": "Currency Decimals",
-            "default": 2
-          },
-          "currencies": {
-            "items": {
-              "$ref": "#/components/schemas/CurrencyOut"
-            },
-            "type": "array",
-            "title": "Currencies"
-          },
-          "issuer": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Issuer"
-          },
-          "issuer_label": {
-            "type": "string",
-            "title": "Issuer Label",
-            "default": ""
-          },
-          "issuers": {
-            "items": {
-              "$ref": "#/components/schemas/IssuerOut"
-            },
-            "type": "array",
-            "title": "Issuers"
+          "export": {
+            "type": "boolean",
+            "title": "Export",
+            "default": false
           },
           "incoterm": {
             "anyOf": [
@@ -12336,35 +12931,55 @@
             "type": "array",
             "title": "Incoterms"
           },
-          "stage": {
+          "incoterm_needed": {
+            "type": "boolean",
+            "title": "Incoterm Needed",
+            "default": true
+          },
+          "currency": {
             "type": "string",
-            "title": "Stage",
-            "default": "offer"
+            "title": "Currency",
+            "default": "CHF"
           },
-          "stages": {
+          "currency_label": {
+            "type": "string",
+            "title": "Currency Label",
+            "default": "CHF"
+          },
+          "currency_decimals": {
+            "type": "integer",
+            "title": "Currency Decimals",
+            "default": 2
+          },
+          "currencies": {
             "items": {
-              "$ref": "#/components/schemas/VoucherStage"
+              "$ref": "#/components/schemas/CurrencyOut"
             },
             "type": "array",
-            "title": "Stages"
+            "title": "Currencies"
           },
-          "can": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Can"
-          },
-          "undo": {
+          "issuer": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Undo"
+            "title": "Issuer"
+          },
+          "issuer_label": {
+            "type": "string",
+            "title": "Issuer Label",
+            "default": ""
+          },
+          "issuers": {
+            "items": {
+              "$ref": "#/components/schemas/IssuerOut"
+            },
+            "type": "array",
+            "title": "Issuers"
           },
           "charge_word": {
             "type": "string",
@@ -12401,10 +13016,85 @@
             "title": "Refund Online Word",
             "default": ""
           },
-          "unbill_word": {
+          "refund_word": {
             "type": "string",
-            "title": "Unbill Word",
+            "title": "Refund Word",
             "default": ""
+          },
+          "tip_word": {
+            "type": "string",
+            "title": "Tip Word",
+            "default": ""
+          },
+          "write_off_word": {
+            "type": "string",
+            "title": "Write Off Word",
+            "default": ""
+          },
+          "write_off_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherOption"
+            },
+            "type": "array",
+            "title": "Write Off Reasons"
+          },
+          "reverse_word": {
+            "type": "string",
+            "title": "Reverse Word",
+            "default": ""
+          },
+          "remind_word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Word"
+          },
+          "remind_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind From"
+          },
+          "undo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": "offer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "can": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Can"
           },
           "prepaid": {
             "type": "boolean",
@@ -12445,38 +13135,72 @@
             "title": "Lead Term Label",
             "default": ""
           },
-          "ways": {
-            "items": {
-              "$ref": "#/components/schemas/VoucherWay"
-            },
-            "type": "array",
-            "title": "Ways"
-          },
-          "method_label": {
-            "type": "string",
-            "title": "Method Label",
-            "default": ""
-          },
-          "write_off": {
+          "valid_days": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Write Off"
+            "title": "Valid Days"
           },
-          "write_off_word": {
+          "valid_label": {
             "type": "string",
-            "title": "Write Off Word",
+            "title": "Valid Label",
             "default": ""
           },
-          "write_off_note": {
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "expired": {
+            "type": "boolean",
+            "title": "Expired",
+            "default": false
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed",
+            "default": false
+          },
+          "fixed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fixed"
+          },
+          "fixed_hint": {
             "type": "string",
-            "title": "Write Off Note",
+            "title": "Fixed Hint",
             "default": ""
+          },
+          "ownership": {
+            "type": "string",
+            "title": "Ownership",
+            "default": "us"
+          },
+          "ownership_label": {
+            "type": "string",
+            "title": "Ownership Label",
+            "default": ""
+          },
+          "ownership_options": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherOption"
+            },
+            "type": "array",
+            "title": "Ownership Options"
           },
           "allowed": {
             "items": {
@@ -12588,6 +13312,18 @@
             ],
             "title": "Lead Days"
           },
+          "agreed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreed On"
+          },
           "cancelled_on": {
             "anyOf": [
               {
@@ -12599,6 +13335,17 @@
               }
             ],
             "title": "Cancelled On"
+          },
+          "cancel_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Note"
           },
           "due_date": {
             "anyOf": [
@@ -12612,6 +13359,120 @@
             ],
             "title": "Due Date"
           },
+          "invoice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherInvoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credit_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Number"
+          },
+          "corrects": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoucherCorrects"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrects_label": {
+            "type": "string",
+            "title": "Corrects Label",
+            "default": ""
+          },
+          "corrects_hint": {
+            "type": "string",
+            "title": "Corrects Hint",
+            "default": ""
+          },
+          "corrects_suggested": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherCorrectable"
+            },
+            "type": "array",
+            "title": "Corrects Suggested"
+          },
+          "party_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Uid"
+          },
+          "original": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original"
+          },
+          "deviation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deviation"
+          },
+          "deviation_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deviation Note"
+          },
+          "export_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Number"
+          },
+          "export_photo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Photo"
+          },
           "charged": {
             "anyOf": [
               {
@@ -12623,6 +13484,17 @@
             ],
             "title": "Charged"
           },
+          "credited": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credited"
+          },
           "paid": {
             "anyOf": [
               {
@@ -12633,6 +13505,28 @@
               }
             ],
             "title": "Paid"
+          },
+          "written_off": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written Off"
+          },
+          "tips": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tips"
           },
           "open": {
             "anyOf": [
@@ -12694,34 +13588,21 @@
             "title": "Settled",
             "default": false
           },
-          "invoice": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/VoucherInvoice"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
           },
-          "corrects": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/VoucherCorrects"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "ways": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherWay"
+            },
+            "type": "array",
+            "title": "Ways"
           },
-          "corrects_label": {
+          "method_label": {
             "type": "string",
-            "title": "Corrects Label",
-            "default": ""
-          },
-          "corrects_hint": {
-            "type": "string",
-            "title": "Corrects Hint",
+            "title": "Method Label",
             "default": ""
           },
           "entries": {
@@ -12730,11 +13611,18 @@
             },
             "type": "array",
             "title": "Entries"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/VoucherDocumentOut"
+            },
+            "type": "array",
+            "title": "Documents"
           }
         },
         "type": "object",
         "title": "VoucherEmbed",
-        "description": "**Der ganze Beleg, wie die Ausführungsstelle ihn braucht.**\n\nAlles, was die Oberfläche zum Zeichnen braucht, reist mit: Wörter, Stufen, Verben,\nZahlen und was man tun darf. Sie fragt damit **nie** nach der Richtung und **nie** nach\ndem Modultyp."
+        "description": "**Der ganze Beleg, wie die Karte ihn braucht.** Sie fragt damit **nie** nach der\nRichtung und **nie** nach dem Modultyp."
       },
       "VoucherEntryOut": {
         "properties": {
@@ -12814,9 +13702,63 @@
             ],
             "title": "Method Label"
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "payment"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reason_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Label"
+          },
+          "reverses_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverses Id"
+          },
+          "iban": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iban"
+          },
           "refundable": {
             "type": "boolean",
             "title": "Refundable",
+            "default": false
+          },
+          "reversible": {
+            "type": "boolean",
+            "title": "Reversible",
             "default": false
           }
         },
@@ -13034,6 +13976,78 @@
               }
             ],
             "title": "Vat Note"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "is_service": {
+            "type": "boolean",
+            "title": "Is Service",
+            "default": false
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label",
+            "default": "Ware"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "full": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full"
+          },
+          "net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "vat_choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Vat Choices"
           }
         },
         "type": "object",
@@ -13042,6 +14056,25 @@
         ],
         "title": "VoucherLineOut",
         "description": "**Eine Position** – und es gibt sie in genau dieser einen Form.\n\nSie trägt ihre **Id**: die Oberfläche bepreist damit genau diese Zeile."
+      },
+      "VoucherOption": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "VoucherOption",
+        "description": "Eine Wahl mit Schlüssel und Wort (Eigentum, Grund einer Ausbuchung)."
       },
       "VoucherParty": {
         "properties": {
@@ -13111,6 +14144,39 @@
               }
             ],
             "title": "Origin Country"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
           }
         },
         "type": "object",
@@ -13177,6 +14243,40 @@
             "type": "string",
             "title": "State",
             "default": "angefragt"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "sent_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent On"
           },
           "sent_at": {
             "anyOf": [
@@ -13378,6 +14478,69 @@
         ],
         "title": "VoucherStage",
         "description": "Eine der **zwei** Stufen – mit ihrem Wort, ihrem Verb und ihrem Zustand."
+      },
+      "VoucherState": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "date_word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Word"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone"
+        ],
+        "title": "VoucherState",
+        "description": "►►► **Die Leiste der Karte** – Stand, Ton, wer dran ist, die eine nächste Handlung. ◄◄◄\n\nNie leer ausser bei *Erledigt* und *Storniert* (``voucher.situation``). Ein Datum setzt\ndie Oberfläche selbst zusammen (``date_word`` + ``lib/when.day``)."
       },
       "VoucherTerm": {
         "properties": {
@@ -13635,6 +14798,83 @@
               }
             ],
             "title": "Delivery Address"
+          },
+          "valid_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Days"
+          },
+          "ownership": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownership"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "iban": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iban"
+          },
+          "original": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original"
+          },
+          "party_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Uid"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
           }
         },
         "type": "object",
@@ -13642,7 +14882,7 @@
           "action"
         ],
         "title": "VoucherUpdate",
-        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden\n             nennt; **nicht** dasselbe wie ``ask`` (#1000)\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)\n``bill``     **die** Rechnung stellen – es gibt genau eine, weil sie der Beleg ist\n``unbill``   sie zurücknehmen, solange **nichts geflossen** ist – die Gegenhandlung\n             zu ``bill``\n``pay``      eine **Zahlung** buchen (negativ = Erstattung)\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).\n\n``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**\n``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden\n             nennt; **nicht** dasselbe wie ``ask`` (#1000)\n``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)\n``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``\n``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei\n``decline``  eine Angebotszeile absagen – auch von der Gegenpartei\n``agree``    den **Zuschlag** geben (``party``)\n``revoke``   stornieren – die eine Gegenhandlung\n``correct``  sagen, **welchen Beleg dieser hier mindert** (``corrects``)\n``bill``     **die** Rechnung stellen bzw. erfassen – es gibt genau eine\n``accept``   eine abweichende Lieferantenrechnung **so annehmen** (``note``)\n``pay``      eine **Zahlung** erfassen · ``refund`` erstatten · ``writeoff`` ausbuchen\n             (``reason``) · ``tip`` als Trinkgeld behalten · ``reverse`` falsch erfasst\n             (``entry``) · ``remind`` mahnen · ``export`` Ausfuhrnachweis\n``ownership`` Eigentum danach · ``terms`` Fristen und Gültigkeit\n``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen. Wer die Regel erst an der Tür\nformulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war."
       },
       "VoucherWay": {
         "properties": {
