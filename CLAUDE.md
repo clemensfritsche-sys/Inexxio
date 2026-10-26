@@ -171,9 +171,11 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   Lieferadresse, Dienstleistung: Sitz; Ausland fest Export bzw. Reverse Charge), Fremdwährung,
   Zoll und den Ort der Lieferbedingung; die eigene Gesellschaft ist nie Gegenpartei.
   Lieferantenrechnung mit Nummer, Datum, MWST-Nr. und Foto; Abweichung → «So annehmen» mit
-  Grund. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Dokument**
+  Grund. **Ausfuhrnachweis** = Nummer der Veranlagungsverfügung + das Dokument, **hochgeladen**
+  (PDF oder Bild, `components/erp/file-upload.tsx`) – der einzige Datei-Upload im Haus. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Dokument**
   (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
-  A4-Vorlage** (`services/document.py`), wird **eingefroren** (`voucher_documents`), trägt die
+  A4-Vorlage** (`services/document.py`), nennt je Position die **Seriennummer** (Instanznummer,
+  `voucher.serials_of`), wird **eingefroren** (`voucher_documents`), trägt die
   AGB der Fassung (`services/legal.py`, `app/assets/legal/agb/<Datum>.md`) auf eigenen A4-Seiten und geht
   mit Link `/beleg?t=…` per Mail hinaus; auf dieser Seite handelt die Partei mit denselben
   Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung

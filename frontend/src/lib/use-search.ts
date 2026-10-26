@@ -16,19 +16,23 @@ export function useSearch<T>(
   query: string,
   search: ((q: string) => Promise<T[]>) | null | undefined,
   { delay = 250, minLength = 1 }: { delay?: number; minLength?: number } = {},
-): { hits: T[]; failed: boolean } {
+): { hits: T[]; failed: boolean; pending: boolean } {
   const [hits, setHits] = useState<T[]>([]);
   const [failed, setFailed] = useState(false);
+  // Für welche Eingabe die Treffer gelten – solange sie nicht zur Eingabe passt, sucht es
+  // noch (`pending`): «Keine Treffer» VOR der Antwort war eine falsche Aussage (Chrome-Test).
+  const [answered, setAnswered] = useState<string | null>(null);
+  const q = query.trim();
   useEffect(() => {
-    const q = query.trim();
-    if (!search || q.length < minLength) { setHits([]); setFailed(false); return; }
+    if (!search || q.length < minLength) { setHits([]); setFailed(false); setAnswered(q); return; }
     let stale = false;
     const t = setTimeout(() => {
       search(q)
-        .then((r) => { if (!stale) { setHits(r); setFailed(false); } })
-        .catch(() => { if (!stale) { setHits([]); setFailed(true); } });
+        .then((r) => { if (!stale) { setHits(r); setFailed(false); setAnswered(q); } })
+        .catch(() => { if (!stale) { setHits([]); setFailed(true); setAnswered(q); } });
     }, delay);
     return () => { stale = true; clearTimeout(t); };
-  }, [query, search, delay, minLength]);
-  return { hits, failed };
+  }, [q, search, delay, minLength]);
+  const pending = !!search && q.length >= minLength && answered !== q;
+  return { hits, failed, pending };
 }

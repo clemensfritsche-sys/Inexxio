@@ -29,7 +29,7 @@ export function startForm(kind: FormKind, d: Filled, method?: string): Form {
       return { kind, f: { amount: d.amount ?? '', vat: d.vat_rate, reference: '',
                           billed_on: '', party_uid: '', original: '', photo: '' } };
     case 'export':
-      return { kind, f: { reference: '', original: '', photo: '' } };
+      return { kind, f: { reference: '', original: '', photo: '', name: '' } };
     case 'writeoff':
       return { kind, f: { reason: '' } };
     default:
@@ -75,7 +75,7 @@ export function formProblem(form: Form, d: Filled): string | null {
       return null;
     case 'export':
       if (blank('reference')) return 'Erst die Nummer der Veranlagungsverfügung eintragen.';
-      if (blank('original')) return 'Ohne Foto der Veranlagungsverfügung gilt der Nachweis nicht.';
+      if (blank('original')) return 'Ohne die Veranlagungsverfügung (PDF oder Bild) gilt der Nachweis nicht.';
       return null;
     case 'accept':
       return blank('note') ? 'Eine Abweichung nimmt man mit Grund an – er bleibt als Nachweis.' : null;

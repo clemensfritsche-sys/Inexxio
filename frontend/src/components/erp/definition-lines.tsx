@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
@@ -10,6 +10,7 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { useScan } from '@/components/scan/scan-provider';
 import { statusCfg, statusLabel } from '@/lib/process-status';
+import { VERBAUT, VERKAUFT } from '@/lib/status-catalog';
 
 /**
  * **Der Definitionsbereich** – was dieser Auftrag bearbeitet, oberhalb des Start-Symbols.
@@ -494,13 +495,30 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
     // das Fenster im Moment des letzten Klicks zuzuklappen wäre genau die Bewegung,
     // aus der die Notiz entstand.
     setTouched(true);
+    // **Mehr als verlangt gibt es nicht** (Chrome-Test: «2 von 1»): ist die Auswahl voll,
+    // ersetzt der neue Klick das zuletzt gewählte Stück – bei einem Stück also ein Tausch.
+    const keep = picked.has(o.number) ? chosen
+      : chosen.length >= quantity ? chosen.slice(0, Math.max(0, quantity - 1)) : chosen;
     onChange(picked.has(o.number)
       ? chosen.filter((c) => c.number !== o.number)
-      : [...chosen, { number: o.number, fromOrder: o.in_order ?? null }]);
+      : [...keep, { number: o.number, fromOrder: o.in_order ?? null }]);
   }
 
+  // **Ein Klick daneben schliesst die Liste** – wie jede andere Auswahl im Haus.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      const t = e.target as Element;
+      // Der Scan-Dialog liegt über der Seite, gehört aber zur Liste (er setzt die Suche).
+      if (box.current && !box.current.contains(t) && !t.closest?.('[role="dialog"]')) setTouched(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+
   return (
-    <div className="mt-2">
+    <div className="mt-2" ref={box}>
       <div className="flex flex-wrap items-center gap-1.5">
         {chosen.map((u) => (
           <span key={u.number}
@@ -623,8 +641,12 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
               const why = o.in_order
                 ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – daraus wird eine Abweichung`
                 : !o.available ? `Steht auf «${statusLabel(o.status)}»`
-                  : !o.in_stock ? `Steht auf «${statusLabel(o.status)}» – liegt nicht im Regal und müsste erst ausgebaut werden`
-                    : undefined;
+                  : o.in_stock ? undefined
+                    : o.status === VERBAUT
+                      ? 'Verbaut – steckt in einem anderen Stück; der Auftrag baut es aus (Abweichung)'
+                      : o.status === VERKAUFT
+                        ? 'Verkauft – gehört einer anderen Partei; der Auftrag holt es zurück, etwa für eine Reparatur oder Retoure (Abweichung)'
+                        : `Steht auf «${statusLabel(o.status)}» – zählt nicht zum Bestand; daraus wird eine Abweichung`;
               return (
                 <button
                   key={o.number}

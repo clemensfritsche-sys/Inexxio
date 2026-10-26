@@ -179,6 +179,7 @@ def _facts(db: Session, row: Voucher, kind: str, party: int,
 def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
     """Positionen, Summe und Steuer – eine Position mit null steht nicht darauf."""
     code = row.currency
+    serials = vs.serials_of(db, row)
     for ln in vs.embed_lines(db, row):
         if ln["price"] is None:
             continue
@@ -190,6 +191,11 @@ def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
         sub = [escape(ln["text"])] if ln.get("text") else []
         if ln.get("article_object_id"):
             sub.append(f"Art. {ln['article_object_id']}")
+        # **Welches Stück** – die Seriennummer (Instanznummer) steht auf jedem Dokument.
+        numbers = serials.get(ln.get("article_id")) or []
+        if numbers:
+            word = "Seriennummer" if len(numbers) == 1 else "Seriennummern"
+            sub.append(f"{word} {', '.join(str(n) for n in numbers)}")
         if ln["part"] is not None:
             sub.append(f'<span class="part">Teilbetrag {_money(net, code)} von '
                        f'{_money(full, code)}</span>')

@@ -42,7 +42,10 @@ class VoucherQuoteOut(BaseModel):
 
     id: int
     party_object_id: int
+    #: **Wie die Partei auf dem Beleg steht** – Firma zuerst, die Person als «z. H.»
+    #: (``people.billing_name``); dieselbe Form wie der Kandidat davor (Chrome-Test).
     party_name: str = ""
+    party_attn: Optional[str] = None
     #: **Was bei ihm zu tun ist** – aus der Definition (``parties[].ref``). Sie gehört der
     #: Paarung Modul × Partner: derselbe Lieferant führt je Teil eine andere Nummer.
     ref: str = ""

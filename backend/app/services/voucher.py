@@ -400,6 +400,30 @@ def process_lines(db: Session, order: Order) -> list[tuple[int, int]]:
     return sorted(((int(a), int(n)) for a, n in rows), key=lambda r: r[0])
 
 
+def serials_of(db: Session, row: Voucher) -> dict[int, list[int]]:
+    """►►► **Die Seriennummern je Artikel** – die Nummern der Instanzen, um die es geht. ◄◄◄
+
+    Auf jedem Dokument steht neben dem Artikel, **welches** Stück es ist: die Instanznummer
+    (bei einer Charge die Charge). Die Stücke sind die, über die der Beleg spricht – ab dem
+    ersten Hinausgehen eingefroren (``unit_ids``), davor die offenen im Auftrag. Eine
+    Ableitung, keine Spalte.
+    """
+    q = (db.query(Instance.article_id, Instance.object_id)
+         .join(InstanceUnit, InstanceUnit.instance_id == Instance.id))
+    if row.unit_ids is not None:
+        if not row.unit_ids:
+            return {}
+        q = q.filter(InstanceUnit.id.in_([int(u) for u in row.unit_ids]))
+    else:
+        q = (q.join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
+             .filter(OrderUnit.order_id == row.order_id, OrderUnit.released_at.is_(None)))
+    out: dict[int, set[int]] = {}
+    for article, number in q.all():
+        if article is not None and number is not None:
+            out.setdefault(int(article), set()).add(int(number))
+    return {a: sorted(n) for a, n in out.items()}
+
+
 def frozen_lines(row: Voucher) -> bool:
     """►►► **Folgen die Positionen noch dem Prozess?** ◄◄◄ Nur bis zum ersten Hinausgehen:
     ab dann spricht der Beleg über die Stücke, die damals da waren (``unit_ids``), und ab
@@ -2043,16 +2067,17 @@ def _remind(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
 def _export(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """**Den Ausfuhrnachweis erfassen** – Nummer der Veranlagungsverfügung und ein Foto.
-    Ohne ihn gilt der Nullsatz nicht; erledigt ist der Beleg erst damit."""
+    """**Den Ausfuhrnachweis erfassen** – Nummer der Veranlagungsverfügung und das Dokument
+    (PDF oder Bild, hochgeladen). Ohne ihn gilt der Nullsatz nicht; erledigt ist der Beleg
+    erst damit."""
     from ..models import Attachment
     number = _text(data.get("reference"), 60)
     photo = _int(data.get("original"))
     if not number or photo is None or db.query(Attachment).filter(
             Attachment.id == photo).first() is None:
         raise HTTPException(status_code=400, detail=(
-            "Der Ausfuhrnachweis braucht die Nummer der Veranlagungsverfügung und ein "
-            "Foto davon."))
+            "Der Ausfuhrnachweis braucht die Nummer der Veranlagungsverfügung und das "
+            "Dokument dazu (PDF oder Bild)."))
     row.export_number, row.export_photo_id = number, photo
 
 
@@ -2907,6 +2932,9 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
     if not parties:
         return (f"Ohne {vo.PARTY} gibt es nichts anzufragen – dieses Modul lässt "
                 f"jeden zu, also muss hier stehen, wen es betrifft.")
+    # ►►► **Alles, was fehlt, auf einmal** (Chrome-Test) ◄◄◄ – vorher nannte der Satz nur
+    # den ersten Punkt, und man fand den nächsten erst nach dem Beheben des ersten.
+    found: list[str] = []
     priced = flow.quoted_by == vo.BY_US
     # ►►► **Zoll nur bei einer Ausfuhr** – Tarif, Ursprung und Gewicht braucht der Zoll,
     # im Inland niemand. ◄◄◄
@@ -2914,28 +2942,32 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
     for ln in (lines if lines is not None else embed_lines(db, row)):
         what = f"Position «{ln['article_name'] or ln['id']}»"
         if priced and ln["price"] is None:
-            return f"{what}: ohne Preis gibt es nichts anzubieten."
+            found.append(f"{what}: ohne Preis gibt es nichts anzubieten.")
         if not export or ln.get("is_service"):
             continue
-        for key, label in (("hs_code", vo.HS_CODE_LABEL),
-                           ("origin_country", vo.ORIGIN_LABEL),
-                           ("weight_kg", vo.WEIGHT_LABEL)):
-            if not str(ln.get(key) or "").strip():
-                return (f"{what}: «{label}» fehlt – eine Ausfuhr braucht sie. Sie steht "
-                        f"am Artikel und reist von dort auf jeden Beleg.")
+        gaps = [label for key, label in (("hs_code", vo.HS_CODE_LABEL),
+                                         ("origin_country", vo.ORIGIN_LABEL),
+                                         ("weight_kg", vo.WEIGHT_LABEL))
+                if not str(ln.get(key) or "").strip()]
+        if gaps:
+            found.append(f"{what}: {' · '.join(f'«{g}»' for g in gaps)} fehlt – eine "
+                         f"Ausfuhr braucht es. Am Artikel hinterlegt, steht es auf jedem "
+                         f"Beleg von selbst; hier eingetragen, gilt es für diesen Beleg.")
     # **Eine Lieferbedingung gibt es nur bei Ware** – eine Dienstleistung reist nicht.
     if not row.incoterm and has_goods(db, row):
-        return (f"Ohne {inc.LABEL} ist nicht vereinbart, wer Fracht, Versicherung und "
-                f"Zoll trägt – und genau darüber wird sonst gestritten.")
+        found.append(f"Ohne {inc.LABEL} ist nicht vereinbart, wer Fracht, Versicherung "
+                     f"und Zoll trägt – und genau darüber wird sonst gestritten.")
     if priced:
-        if not priced_dicts(db, row):
-            return (f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
-                    f"nennen wir ihn, nicht der {vo.PARTY}.")
-        problem = terms_problem(row.lead_days, row.payment_days)
-        if problem:
-            return problem
+        if not priced_dicts(db, row) and not any("Preis" in f for f in found):
+            found.append(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
+                         f"nennen wir ihn, nicht der {vo.PARTY}.")
+        found.append(terms_problem(row.lead_days, row.payment_days) or "")
     # **Zuletzt das Eigentum** – bewusst gewählt, ohne Vorbelegung.
-    return ownership_problem(row)
+    found.append(ownership_problem(row) or "")
+    found = [f for f in found if f]
+    if len(found) < 2:
+        return found[0] if found else None
+    return "\n".join(f"– {f}" for f in found)
 
 
 def _assert_ask(db: Session, row: Voucher, step: ProcessStep,
@@ -3370,13 +3402,16 @@ def _quotes(db: Session, row: Voucher, step: ProcessStep, *,
     if not internal:
         own = viewer.object_id if viewer else None
         rows = [q for q in rows if q.party_id == own]
-    names = {n["object_id"]: n["name"]
-             for n in _named(db, [q.party_id for q in rows])}
+    # **Derselbe Name wie im Kopf** (Chrome-Test): vorher stand vor dem Anbieten die Firma,
+    # danach die Person – zwei Namen für eine Partei. Jetzt Firma zuerst, «z. H.» darunter.
+    named = {q.party_id: (billing_of(db, row, q.party_id).get("lines") or [""])
+             for q in rows}
     return [
         {
             "id": q.id,
             "party_object_id": q.party_id,
-            "party_name": names.get(q.party_id, ""),
+            "party_name": named[q.party_id][0],
+            "party_attn": named[q.party_id][1] if len(named[q.party_id]) > 1 else None,
             "ref": modules.Beleg.ref_for(step.config, q.party_id),
             "amount": _money(q.amount, row.currency),
             "lead_days": q.lead_days,

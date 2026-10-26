@@ -764,3 +764,72 @@ def test_every_state_has_a_next_step_or_is_an_end(db):
     check(o, s, r)
     _do(db, o, s, "revoke")
     check(o, s, r)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► CHROME-TEST (Oktober 2026)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_offer_button_names_everything_that_is_missing(db):
+    """Der Hover nennt ALLES, was fehlt – nicht nur den ersten Punkt.
+
+    Bug-Form: der Satz endet beim ersten Fund (Preis), Fristen und Eigentum fehlen."""
+    from app.services import voucher as svc
+    order, step, row, _who = _scene(db, first=True, config={"ownership": None})
+    svc.sync_lines(db, row, order, step)
+    problem = svc.ask_problem(db, row, step) or ""
+    for word in ("Preis", "Lieferbedingung", "Lieferfrist", "Eigentum"):
+        assert word in problem, f"«{word}» fehlt im Grund: {problem!r}"
+    assert problem.count("\n") >= 3, "Die Gründe stehen nicht untereinander."
+
+
+def test_documents_name_the_serial_number(db):
+    """Jedes Dokument nennt die Seriennummer (Instanznummer) der Stücke einer Position.
+
+    Bug-Form: nur Artikel und Artikelnummer stehen darauf."""
+    from app.domain import voucher as vo
+    from app.models import Instance, InstanceUnit
+    from app.services import voucher as svc
+    order, step, row, _who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    numbers = sorted({i.object_id for i in db.query(Instance).join(
+        InstanceUnit, InstanceUnit.instance_id == Instance.id).filter(
+        InstanceUnit.id.in_(row.unit_ids)).all()})
+    assert numbers, "Ohne Stücke gibt es nichts zu prüfen."
+    html = svc.documents_of(db, row, vo.OFFER_DOC)[0].html
+    assert "Seriennummer" in html and all(str(n) in html for n in numbers), (
+        "Die Offerte nennt die Seriennummer nicht.")
+
+
+def test_a_quote_names_the_party_as_the_head_does(db):
+    """Vor und nach dem Anbieten derselbe Name: Firma zuerst, die Person als «z. H.».
+
+    Bug-Form: vor dem Anbieten «Muster AG», danach «Anna Keller»."""
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    staff = _staff(db)
+    seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+    quote = seen["quotes"][0]
+    assert quote["party_name"].startswith("Muster AG"), quote
+    assert quote["party_attn"] == "z. H. Anna Keller", quote
+
+
+def test_the_export_proof_takes_a_pdf(db):
+    """Der Ausfuhrnachweis ist ein hochgeladenes PDF (oder Bild) – keine Kamera.
+
+    Bug-Formen: (a) ein PDF wird als «kein Bild» abgewiesen; (b) es wird umkodiert."""
+    from app.services import attachments, voucher as svc
+    order, step, row, who = _scene(db, first=True, party=_person(db, country="DE"))
+    _ready(db, order, step, row, incoterm="DAP")
+    _do(db, order, step, "ask")
+    _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, step, "bill")
+    _do(db, order, step, "pay", amount=str(row.amount), method="transfer")
+    raw = b"%PDF-1.7\n%test\n"
+    att = attachments.store_file(db, raw, "verfuegung.pdf", None)
+    assert att.mime == attachments.PDF and att.data == raw, "(a)/(b)"
+    _do(db, order, step, "export", reference="26CH12345", original=att.id)
+    assert svc.is_done(db, row)

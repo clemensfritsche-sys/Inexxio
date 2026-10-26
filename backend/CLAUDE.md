@@ -182,7 +182,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `…/steps/{step_id}/voucher/refund` | staff | Kartenzahlung über den Dienst erstatten |
 | GET | `…/steps/{step_id}/voucher/transfer` | user | Überweisungsangaben + Swiss QR-Rechnung |
 | GET | `…/steps/{step_id}/voucher/correctable` | staff | Welche Rechnung mindert dieser Beleg? (Suche, auch über Auftragsgrenzen) |
-| POST | `/api/v1/erp/attachments` | staff | Bild aus der Kamera hochladen (kein Datei-Upload) |
+| POST | `/api/v1/erp/attachments` | staff | Bild aus der Kamera hochladen – oder PDF/Bild als Datei, **nur** für den Ausfuhrnachweis (`attachments.store_file`) |
 | GET | `/api/v1/public/beleg/{token}` | – (Token) | **Kundenseite** eines Dokuments: eingefrorenes A4-HTML, Hinweis (überholt/abgelaufen/storniert), Handlungen aus `can` der Partei |
 | POST | `/api/v1/public/beleg/{token}/accept` · `/decline` · `/payment` | – (Token) | Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`) |
 | GET | `/api/v1/public/legal/{kind}` | – | AGB · Datenschutz · Impressum, wie sie heute gelten, als A4-Dokument (`services/legal`, `document.standalone`) |

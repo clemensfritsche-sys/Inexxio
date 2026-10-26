@@ -36,6 +36,26 @@ def _flatten_to_rgb(img):
     return img.convert("RGB")
 
 
+PDF = "application/pdf"
+_MAX_PDF_BYTES = 10 * 1024 * 1024      # ein amtliches Dokument (Veranlagungsverfügung) ist klein
+
+
+def store_file(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
+    """**Ein Bild ODER ein PDF** – der Ausfuhrnachweis kommt vom Zoll als PDF per Mail, im
+    Büro gibt es dafür keine Kamera. Ein PDF wird **unverändert** abgelegt (es ist das
+    Dokument selbst; erkannt am Kopf ``%PDF-``, nicht am Dateinamen), alles andere geht durch
+    ``store_image``."""
+    if raw[:5] != b"%PDF-":
+        return store_image(db, raw, filename, actor_id)
+    if len(raw) > _MAX_PDF_BYTES:
+        raise HTTPException(413, detail="PDF zu gross (max. 10 MB)")
+    att = Attachment(token=secrets.token_urlsafe(24), mime=PDF, data=raw,
+                     filename=(filename or None), byte_size=len(raw), created_by=actor_id)
+    db.add(att)
+    db.flush()
+    return att
+
+
 def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
     """Rohes Bild normalisieren (EXIF/Grösse/JPEG) und als ``Attachment`` ablegen (flush,
     kein commit – der Aufrufer schliesst ab). Wirft 400 bei ungültigem Bild, 413 zu gross.

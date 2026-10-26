@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { afterPaint, holdPlace } from '@/lib/hold-place';
 import type { VoucherEmbed } from '@/types';
 import { Documents } from '@/components/erp/beleg/documents';
 import { Footer } from '@/components/erp/beleg/footer';
@@ -48,6 +49,20 @@ export function BelegWork({
   children?: ReactNode;
 }) {
   const d = filled(voucher);
+  // **Der Abschnitt, in dem zuletzt gearbeitet wurde** – er bleibt nach jeder Handlung, wo er
+  // war (`holdPlace`). Gemerkt beim Zeigen und Fokussieren; ein Klick in eine Liste, die an
+  // `body` hängt (Portal), hat keinen Abschnitt und lässt den letzten stehen.
+  const lastSection = useRef<Element | null>(null);
+  const remember = (e: { target: EventTarget }) => {
+    const at = (e.target as Element).closest?.('section');
+    if (at) lastSection.current = at;
+  };
+  const send: Send = useCallback(async (body) => {
+    const keep = holdPlace(lastSection.current);
+    await onAction(body);
+    await afterPaint();
+    keep();
+  }, [onAction]);
   const [shown, setShown] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
@@ -97,18 +112,19 @@ export function BelegWork({
   const head = headOf(d, shown);
 
   return (
-    <div className="flex flex-col" style={{ minWidth: 0 }} data-active={active || undefined}>
+    <div className="flex flex-col" style={{ minWidth: 0 }} data-active={active || undefined}
+      onPointerDownCapture={remember} onFocusCapture={remember}>
       <Stages d={d} />
       <div style={{ minWidth: 0, ...(d.locked ? { opacity: 0.6 } : {}) }}>
         <Parties d={d} shown={shown} orderObjectId={orderObjectId} stepId={stepId}
-          onAction={onAction} />
-        <Goods d={d} busy={busy} onAction={onAction} />
-        <Terms d={d} busy={busy} onAction={onAction} />
+          onAction={send} />
+        <Goods d={d} busy={busy} onAction={send} />
+        <Terms d={d} busy={busy} onAction={send} />
         <Quotes d={d} busy={busy} head={head} picking={picking} onShow={setShown}
-          onPicking={setPicking} onAction={onAction} />
+          onPicking={setPicking} onAction={send} />
         <Invoice d={d} busy={busy} form={form} setForm={setForm} way={way} card={card}
           setCard={setCard} orderObjectId={orderObjectId} stepId={stepId} onPaid={wait}
-          onAction={onAction} />
+          onAction={send} />
         <Documents d={d} />
       </div>
       {children}
@@ -121,7 +137,7 @@ export function BelegWork({
       <Footer d={d} busy={busy} form={form} setForm={setForm} ways={ways} way={way}
         setWay={chooseWay} setCard={setCard} onPicking={() => setPicking(true)}
         onRefundCard={() => void refundCard()} refunding={refunding} fresh={fresh}
-        onAction={onAction} />
+        onAction={send} />
     </div>
   );
 }

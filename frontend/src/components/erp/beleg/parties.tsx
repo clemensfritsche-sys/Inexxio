@@ -131,9 +131,9 @@ function SideName({ side, d, onAction }: { side: VoucherSide | null; d: Filled; 
 function Attn({ side }: { side: VoucherSide | null }) {
   const text = side?.attn || (side?.choice?.company && !side.choice.bill_to_company
     ? 'privat' : '');
-  return text
-    ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{text}</span>
-    : <div />;
+  // **Die Zeile hat ihren Platz immer** (Chrome-Test): erschien «z. H. …» erst mit der
+  // Wahl des Partners, rutschte der ganze Beleg darunter um eine Zeile – der Klick traf daneben.
+  return <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{text || '\u00a0'}</span>;
 }
 
 /** Die beiden Anschriften nebeneinander – Rechnung und Lieferung bzw. Versand. */
@@ -257,14 +257,15 @@ function Correction({ d, orderObjectId, stepId, onAction }: {
     ? [d.corrects.number ?? `Beleg ${d.corrects.id}`,
        d.corrects.billed_on ? `vom ${day(d.corrects.billed_on)}` : null]
       .filter(Boolean).join(' · ')
-    : '—';
+    // **Kein Verweis ist kein Fehler** (Chrome-Test): eine gewöhnliche Offerte korrigiert
+    // nichts – «keine» ist eine Antwort, nichts Fehlendes, also nicht rot.
+    : 'keine';
   return (
     <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
       <span style={LABEL}>{d.corrects_label}</span>
       <DocFind on={on} value={d.corrects ? String(d.corrects.id) : NO_CORRECTION}
         text={text} placeholder="Rechnungsnummer" tip={d.corrects_hint}
-        face={{ fontSize: 12.5, color: 'var(--fg-1)' }} emptyOption="keine"
-        missing={!d.corrects}
+        face={{ fontSize: 12.5, color: d.corrects ? 'var(--fg-1)' : 'var(--fg-4)' }} emptyOption="keine"
         options={d.corrects
           ? [{ value: String(d.corrects.id), label: text }]
           : suggested.map((r) => ({ value: String(r.id), label: label(r) }))}
