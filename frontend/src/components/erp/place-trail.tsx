@@ -3,7 +3,7 @@
 import { formatObjectId } from '@/lib/utils';
 import { TYPE_META } from '@/lib/erp-record';
 import { ObjId } from '@/components/erp/obj-id';
-import type { ErpRecordType, PlaceRef, UnitPlace } from '@/types';
+import type { ErpRecordType, UnitPlace } from '@/types';
 
 /**
  * **Wo ein Stück liegt — der Halter in der Zeile, die Kette im Hover.**
@@ -67,23 +67,3 @@ export function PlaceTrail({ place }: { place?: UnitPlace | null }) {
   );
 }
 
-/**
- * ►►► **Wem das Stück gehört – «verkauft an …»**, gleich gezeigt wie der Ort. ◄◄◄
- *
- * Das Eigentum wechselt beim Passieren eines Zahlungs-Moduls (`owner_object_id`); es ist
- * eine Angabe am Stück, kein Zustand – darum steht es hier und nicht im Prozessbild.
- * Gehört das Stück uns, steht nichts da.
- */
-export function OwnerMark({ owner }: { owner?: PlaceRef | null }) {
-  if (!owner) return null;
-  const Icon = TYPE_META[owner.kind as ErpRecordType]?.icon;
-  return (
-    <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-fg-3"
-      data-tip={`Verkauft an ${owner.label} – das Eigentum ging mit der Zahlung über.`}>
-      <span className="flex-none text-fg-4">verkauft an</span>
-      {Icon ? <Icon size={13} className="flex-none text-fg-4" /> : null}
-      <ObjId value={owner.object_id} />
-      <span className="truncate">{owner.label}</span>
-    </span>
-  );
-}

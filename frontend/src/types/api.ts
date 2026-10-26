@@ -3443,7 +3443,6 @@ export interface components {
              */
             parts_count: number;
             place?: components["schemas"]["UnitPlace"] | null;
-            owner?: components["schemas"]["PlaceRef"] | null;
             /**
              * Created At
              * Format: date-time
@@ -5571,11 +5570,8 @@ export interface components {
              * @default
              */
             fixed_hint: string;
-            /**
-             * Ownership
-             * @default us
-             */
-            ownership: string;
+            /** Ownership */
+            ownership?: string | null;
             /**
              * Ownership Label
              * @default

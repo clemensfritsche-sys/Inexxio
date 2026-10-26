@@ -177,7 +177,6 @@ _COLUMN_SAFETY_NET = (
     ("voucher_entries", "reason", "VARCHAR(20)"),
     ("voucher_entries", "reverses_id", "BIGINT"),
     ("voucher_entries", "iban", "VARCHAR(34)"),
-    ("instance_units", "owner_object_id", "BIGINT"),
     ("articles", "is_service", "BOOLEAN NOT NULL DEFAULT false"),
 )
 

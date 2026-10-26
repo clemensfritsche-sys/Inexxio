@@ -669,7 +669,7 @@ def test_the_payment_module_has_no_finish_button_the_pieces_pass_by_themselves()
     assert "PASSES_ITSELF" in body and "return None" not in body.split('"""')[-1], (
         "``completion_problem`` lässt für ein Zahlungsmodul wieder einen Knopf zu (c)."
     )
-    gate = src[src.index("def assert_completable"):src.index("def on_pass")]
+    gate = src[src.index("def assert_completable"):src.index("def service_day")]
     assert "PASSES_ITSELF" in gate, "Die Tür nennt den Grund nicht mehr (c)."
 
 

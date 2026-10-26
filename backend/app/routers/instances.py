@@ -42,7 +42,7 @@ def _place_out(chain: list) -> UnitPlace | None:
 
 def _unit_out(instance: Instance, unit: InstanceUnit,
               holders: dict[int, int], parts: dict[int, int],
-              places: dict[int, list], owners: dict) -> InstanceUnitResponse:
+              places: dict[int, list]) -> InstanceUnitResponse:
     return InstanceUnitResponse(
         id=unit.id,
         suffix=unit.suffix,
@@ -51,7 +51,6 @@ def _unit_out(instance: Instance, unit: InstanceUnit,
         order_object_id=holders.get(unit.id),
         parts_count=parts.get(unit.id, 0),
         place=_place_out(places.get(unit.id, [])),
-        owner=PlaceRef.of(owners.get(unit.owner_object_id)) if unit.owner_object_id else None,
         created_at=unit.created_at,
     )
 
@@ -162,9 +161,8 @@ def instance_units(
     # 60 Schrauben in einem Regal sind eine Kette; je Zeile aufzulösen wäre die
     # N+1-Falle.
     places = places_svc.for_units(db, rows)
-    owners = places_svc.stations_for(db, [u.owner_object_id for u in rows])
     return UnitPage(
-        units=[_unit_out(instance, u, holders, parts, places, owners) for u in rows],
+        units=[_unit_out(instance, u, holders, parts, places) for u in rows],
         total=total)
 
 

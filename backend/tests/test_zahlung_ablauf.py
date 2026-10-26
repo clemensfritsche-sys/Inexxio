@@ -99,16 +99,21 @@ def _article(db, *, service=False, steps=(), capture=True):
 
 
 def _scene(db, *, direction="in", party=None, quantity=3, service=False, config=None,
-           first=False):
+           first=False, after=False):
     """Ein Auftrag mit einem Zahlungsmodul nach einer Datenerfassung (oder am Anfang)."""
     from app.models import ProcessStep
     from app.services import process as proc, voucher as svc
     who = party if party is not None else _person(db)
+    # Eigentum ist Pflicht – im Modul vorgegeben, ausser der Test wählt es selbst (``None``).
     cfg = {"direction": direction, "parties": [{"party": who.object_id, "ref": "Art. 1"}],
-           **(config or {})}
+           "ownership": "party" if direction == "in" else "us", **(config or {})}
+    if cfg.get("ownership") is None:
+        cfg.pop("ownership")
     beleg = {"module_type": "beleg", "config": cfg}
     # ``first``: das Zahlungsmodul steht vorne – die Stücke stehen gleich davor.
-    art = _article(db, service=service, steps=[beleg], capture=not first)
+    tail = [{"module_type": "datenerfassung",
+             "config": {"points": [{"label": "OK", "type": "bool"}]}}] if after else []
+    art = _article(db, service=service, steps=[beleg, *tail], capture=not first)
     order = proc.release(db, lines=[{"article_object_id": art.object_id,
                                      "quantity": quantity, "origin": "neu", "units": []}],
                          steps=[], actor_id=None)
@@ -189,15 +194,10 @@ def test_sale_from_offer_to_done(db):
                                            ProcessEvent.kind == "step").count()
     assert passed == 3, "Mit der Zusage ziehen die Stücke von selbst weiter."
     units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(row.unit_ids)).all()
-    assert all(u.owner_object_id == who.company.object_id for u in units), (
-        "Das Eigentum geht an die Partei – an die Firma, an die verrechnet wird.")
-    # Gezeigt wird es an der Einzelinstanz, neben dem Ort – nicht im Prozessbild.
-    from app.models import Instance
-    from app.routers.instances import instance_units
-    inst = db.query(Instance).filter(Instance.id == units[0].instance_id).first()
-    page = instance_units(inst.object_id, status=None, limit=60, offset=0, db=db, _=None)
-    seen = {u.owner.object_id for u in page.units if u.owner}
-    assert seen == {who.company.object_id}, "Die Einzelinstanz sagt, wem sie gehört."
+    from app.domain import statuses as st
+    db.expire_all()
+    assert all(u.status == st.VERKAUFT for u in units), (
+        "Am Ziel wird, was an die Partei ging, «Verkauft» – auch noch unbezahlt.")
     _do(db, order, step, "bill")
     assert row.number == f"{order.object_id}-1" and row.amount == Decimal("1037.76")
     inv = svc.documents_of(db, row, vo.INVOICE_DOC)
@@ -513,15 +513,142 @@ def test_partial_amount_and_zero_lines(db):
     assert row.amount == Decimal("540.50"), "Nur der Teilbetrag wird verrechnet."
 
 
-def test_ownership_keep_leaves_the_owner(db):
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► EIGENTUM: bewusst gewählt, abgeleitet, am Ziel «Verkauft» oder «Freigegeben»
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _units(db, ids):
     from app.models import InstanceUnit
-    order, step, row, who = _scene(db, first=True)
+    db.expire_all()
+    return db.query(InstanceUnit).filter(InstanceUnit.id.in_(ids)).all()
+
+
+def _again(db, units, steps):
+    """Ein neuer Auftrag, der genau diese Stücke greift (Retoure, Reparatur)."""
+    from app.models import Article, Instance
+    from app.services import instances as inst_svc, process as proc
+    inst = db.query(Instance).filter(Instance.id == units[0].instance_id).first()
+    art = db.query(Article).filter(Article.id == inst.article_id).first()
+    picks = [{"number": inst_svc.unit_number(inst, u), "from_order": None} for u in units]
+    order = proc.release(db, lines=[{"article_object_id": art.object_id,
+                                     "quantity": len(units), "origin": "lager",
+                                     "units": picks}], steps=steps, actor_id=None)
+    db.flush()
+    return order
+
+
+def _run_capture(db, order):
+    """Die Endkontrolle bestätigen – die Stücke gehen ans Ziel."""
+    from app.models import Instance, OrderUnit, ProcessStep
+    from app.services import process as proc
+    step = (db.query(ProcessStep).filter(ProcessStep.order_id == order.id,
+                                         ProcessStep.module_type == "datenerfassung")
+            .order_by(ProcessStep.position.desc()).first())
+    members = db.query(OrderUnit).filter(OrderUnit.order_id == order.id,
+                                         OrderUnit.released_at.is_(None)).all()
+    from app.models import InstanceUnit
+    units = db.query(InstanceUnit).filter(
+        InstanceUnit.id.in_([m.instance_unit_id for m in members])).all()
+    from tests.support import per_unit
+    for iid in {u.instance_id for u in units}:
+        inst = db.query(Instance).filter(Instance.id == iid).first()
+        proc.confirm_step(db, order=order, step_id=step.id,
+                          values=per_unit(db, order=order, step=step,
+                                          instance_object_id=inst.object_id),
+                          instance_object_id=inst.object_id, verification="manual",
+                          actor_id=None)
+    db.flush()
+
+
+def test_ownership_must_be_chosen_and_has_two_options(db):
+    """Ohne Wahl kein Anbieten und keine Zusage; «bleibt» gibt es nicht mehr."""
+    from fastapi import HTTPException
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True, config={"ownership": None})
     _ready(db, order, step, row)
-    _do(db, order, step, "ownership", ownership="keep")
+    assert "Eigentum" in (svc.ask_problem(db, row, step) or "")
+    with pytest.raises(HTTPException):
+        _do(db, order, step, "ask")
+    with pytest.raises(HTTPException):
+        _do(db, order, step, "ownership", ownership="keep")
+    assert [k for k, _ in vo.OWNERSHIP] == [vo.TO_PARTY, vo.TO_US]
+    _do(db, order, step, "ownership", ownership=vo.TO_PARTY)
     _do(db, order, step, "ask")
     _do(db, order, step, "agree", party=who.object_id)
-    units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(row.unit_ids)).all()
-    assert all(u.owner_object_id is None for u in units)
+    with pytest.raises(HTTPException):
+        _do(db, order, step, "ownership", ownership=vo.TO_US)  # eingefroren mit der Zusage
+
+
+def test_storno_while_the_pieces_still_run_leaves_them_ours(db):
+    """Storno, bevor die Stücke am Ziel sind: kein Zurücksetzen nötig – sie werden frei."""
+    from app.domain import statuses as st
+    order, step, row, who = _scene(db, first=True, after=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, step, "revoke")
+    _run_capture(db, order)
+    assert {u.status for u in _units(db, row.unit_ids)} == {st.FREIGEGEBEN}
+
+
+def test_sold_keeps_its_place_and_a_purchase_stays_ours(db):
+    from app.domain import statuses as st
+    from app.models import InstanceUnit
+    from app.services import places
+    order, step, row, who = _scene(db, first=True, after=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    _do(db, order, step, "agree", party=who.object_id)
+    units = _units(db, row.unit_ids)
+    places.place(db, units=units, target=who.object_id)
+    db.flush()
+    _run_capture(db, order)
+    units = _units(db, row.unit_ids)
+    assert {u.status for u in units} == {st.VERKAUFT}
+    assert all(u.place_object_id == who.object_id for u in units), (
+        "«Verkauft» behält seinen Ort – nur Verschrottet verliert ihn.")
+    o2, s2, r2, w2 = _scene(db, direction="out", first=True)
+    _do(db, o2, s2, "incoterm", incoterm="EXW")
+    _do(db, o2, s2, "ask")
+    _do(db, o2, s2, "quote", party=w2.object_id, amount="100.00", lead_days=5, payment_days=30)
+    _do(db, o2, s2, "agree", party=w2.object_id)
+    assert {u.status for u in db.query(InstanceUnit).filter(
+        InstanceUnit.id.in_(r2.unit_ids))} == {st.FREIGEGEBEN}, "Einkauf «an uns» bleibt Bestand."
+
+
+def test_return_repair_and_cancelled_return(db):
+    """Reparatur ohne Zahlung: bleibt verkauft. Retoure «an uns»: wieder Bestand. Wird die
+    Retoure storniert, gilt wieder der Verkauf – alles aus derselben Ableitung."""
+    from app.domain import statuses as st
+    from app.models import ProcessStep
+    from app.services import voucher as svc
+    order, step, row, who = _sold(db)
+    units = _units(db, row.unit_ids)
+    assert {u.status for u in units} == {st.VERKAUFT}
+    fix = _again(db, units, [{"module_type": "datenerfassung",
+                              "config": {"points": [{"label": "OK", "type": "bool"}]}}])
+    _run_capture(db, fix)
+    assert {u.status for u in _units(db, row.unit_ids)} == {st.VERKAUFT}, (
+        "Eine Reparatur ohne Zahlungsmodul ändert nichts am Eigentum.")
+    back = _again(db, _units(db, row.unit_ids), [
+        {"module_type": "beleg", "config": {"direction": "out", "ownership": "us",
+                                            "parties": [{"party": who.object_id, "ref": "Retoure"}]}},
+        {"module_type": "datenerfassung",
+         "config": {"points": [{"label": "OK", "type": "bool"}]}}])
+    bstep = db.query(ProcessStep).filter(ProcessStep.order_id == back.id,
+                                         ProcessStep.module_type == "beleg").first()
+    _do(db, back, bstep, "incoterm", incoterm="EXW")
+    _do(db, back, bstep, "ask")
+    _do(db, back, bstep, "quote", party=who.object_id, amount="900.00", lead_days=1,
+        payment_days=30)
+    _do(db, back, bstep, "agree", party=who.object_id)
+    assert svc.sold_units(db, row.unit_ids) == set(), "Die Retoure «an uns» hebt den Verkauf auf."
+    _do(db, back, bstep, "revoke")
+    assert svc.sold_units(db, row.unit_ids) == set(row.unit_ids), (
+        "Eine stornierte Retoure zählt nicht – es gilt wieder der Verkauf.")
+    _run_capture(db, back)
+    assert {u.status for u in _units(db, row.unit_ids)} == {st.VERKAUFT}
 
 
 def test_module_presets_are_fixed(db):
