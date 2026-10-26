@@ -14232,6 +14232,17 @@
             "title": "Party Name",
             "default": ""
           },
+          "party_attn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Attn"
+          },
           "ref": {
             "type": "string",
             "title": "Ref",

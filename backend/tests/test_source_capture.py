@@ -435,3 +435,43 @@ def test_the_record_shows_a_state_only_when_it_changed():
         "Das Protokoll zeigt den Nachher-Zustand wieder unbedingt – beim Durchläufer "
         "ist das in jeder Zeile dasselbe Wort."
     )
+
+
+def test_only_the_export_proof_is_uploaded_and_in_one_call():
+    """**Der Ausfuhrnachweis wird hochgeladen (PDF oder Bild), jedes Foto bleibt eine
+    Aufnahme** – und ein Upload meldet Nummer und Link in EINEM Aufruf (Chrome-Test).
+
+    Bug-Formen: (a) der Ausfuhrnachweis verlangt wieder die Kamera; (b) die Aufnahme bekommt
+    einen Dateidialog; (c) Nummer und Link kommen in zwei Aufrufen – der zweite schrieb auf
+    den alten Formularstand, die Nummer ging verloren, «Buchen» blieb gesperrt.
+    """
+    invoice = _code(_read(FRONTEND / "components" / "erp" / "beleg" / "invoice.tsx"))
+    proof = invoice[invoice.index("function ExportProof"):]
+    proof = proof[: proof.index("\nfunction ", 1)]
+    assert "<FileUpload" in proof and "<PhotoShot" not in proof, "(a)"
+    upload = _code(_read(FRONTEND / "components" / "erp" / "file-upload.tsx"))
+    assert 'type="file"' in upload and "application/pdf" in upload, "(a)"
+    shot = _code(_read(FRONTEND / "components" / "erp" / "photo-capture.tsx"))
+    assert 'type="file"' not in shot, "(b)"
+    for src in (shot, invoice):
+        assert "onStored" not in src, "(c)"
+
+
+def test_the_draft_keeps_its_work_and_its_place():
+    """**Ein Entwurf verliert nichts, und was man bearbeitet, bleibt stehen** (Chrome-Test).
+
+    Bug-Formen: (a) eine Nummer im Entwurf öffnet ihren Datensatz – der Entwurf (nur im
+    Browser) ist ohne Warnung weg; (b) die Stückauswahl schliesst nicht beim Klick daneben;
+    (c) die Auswahl wächst über die verlangte Menge («2 von 1»); (d) eine Handlung am Beleg
+    lässt den bearbeiteten Abschnitt wegrutschen.
+    """
+    page = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
+    draft = page[page.index("<ErpNavContext.Provider value={null}>"):]
+    draft = draft[: draft.index("</ErpNavContext.Provider>")]
+    assert "creating === 'order'" in draft and "creating === 'article'" in draft, "(a)"
+    lines = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    picker = lines[lines.index("function StockPicker"):]
+    assert "'pointerdown'" in picker and "setTouched(false)" in picker, "(b)"
+    assert "chosen.length >= quantity" in picker, "(c)"
+    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
+    assert "holdPlace(" in work and "onAction={onAction}" not in work, "(d)"

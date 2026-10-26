@@ -19,15 +19,16 @@ import { useCamera } from '@/components/scan/use-camera';
  * Linsenwahl, dieselbe Taschenlampe, dasselbe Aufräumen. Was hier fehlt, ist der
  * Decoder – dieses Bauteil sucht keine Codes, es hält fest, was zu sehen ist.
  */
-export function PhotoShot({ value, onChange, onStored, disabled = false }: {
+export function PhotoShot({ value, onChange, disabled = false }: {
   /** Die URL der Aufnahme – oder `null`, solange keine gemacht wurde. */
   value: string | null;
-  onChange: (url: string | null) => void;
   /**
-   * **Wer die Aufnahme als Datensatz braucht** (der Beleg: Foto der Lieferantenrechnung,
-   * Ausfuhrnachweis), bekommt ihre Nummer (`UploadResult.id`) – vor `onChange`.
+   * URL **und** Nummer (`UploadResult.id`) in EINEM Aufruf: wer die Aufnahme als Datensatz
+   * braucht (der Beleg: Foto der Lieferantenrechnung), liest die Nummer. Zwei Aufrufe
+   * nacheinander schrieben beide auf denselben alten Formularstand – der zweite löschte
+   * die Nummer, und «Buchen» blieb gesperrt (Chrome-Test).
    */
-  onStored?: (id: number) => void;
+  onChange: (url: string | null, id?: number) => void;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -77,8 +78,7 @@ export function PhotoShot({ value, onChange, onStored, disabled = false }: {
         try {
           const file = new File([blob], 'aufnahme.jpg', { type: 'image/jpeg' });
           const { id, url } = await api.uploadAttachment(file);
-          onStored?.(id);
-          onChange(url);
+          onChange(url, id);
           setOpen(false);
         } catch (e) {
           setErr(e instanceof Error ? e.message : 'Aufnahme fehlgeschlagen');

@@ -940,7 +940,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   const ordered = newestFirst(all);
 
   // Entprellt, mit Veralterungs-Schutz – die eine Suche des Hauses (`useSearch`).
-  const { hits: found } = useSearch(query, search);
+  const { hits: found, pending } = useSearch(query, search);
 
   // ►►► **Die Liste steht am Feld – aber nicht IN ihm** (Testnotiz #909). ◄◄◄
   //
@@ -1048,7 +1048,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
         <div ref={listRef} style={{ position: 'fixed', zIndex: LIST_Z, left: box.left, top: box.top, width: box.width, maxHeight: box.maxHeight, overflowY: 'auto', background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', boxShadow: 'var(--shadow-lg)' }}>
           {filtered.length === 0 ? (
             <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--fg-4)' }}>
-              {search && !q ? 'Nummer oder Name eingeben' : 'Keine Treffer'}
+              {search && !q ? 'Nummer oder Name eingeben' : pending ? 'Sucht …' : 'Keine Treffer'}
             </div>
           ) : filtered.map((o) => (
             <button key={o.value} type="button" onClick={() => pick(o.value)}

@@ -155,8 +155,12 @@ export default function ErpPage() {
   // Die letzte Seite war nicht voll → es gibt nichts mehr nachzuladen. Der Server nennt
   // keine Gesamtzahl, also ist das die eine Auskunft, die er gibt.
   const [instancesDone, setInstancesDone] = useState(false);
-  const firstInstancePage = (rows: InstanceSummary[]) => {
+  // **Für welche Suche die Instanzen gelten** – passt sie nicht zur Eingabe, sind sie alt
+  // und stehen nicht da (Chrome-Test: beim Tippen blitzten ungefilterte Treffer auf).
+  const [instancesFor, setInstancesFor] = useState('');
+  const firstInstancePage = (rows: InstanceSummary[], q: string) => {
     setInstances(rows);
+    setInstancesFor(q);
     setInstancesDone(rows.length < INSTANCE_PAGE);
   };
   // Unternehmen: ein ERP-Datensatztyp `organization` – eigene Gesellschaften und fremde
@@ -294,7 +298,7 @@ export default function ErpPage() {
     // Der Cleanup markiert den vorherigen Effekt als veraltet – späte Antworten verfallen.
     let stale = false;
     const t = setTimeout(() => {
-      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) firstInstancePage(rows); }).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) firstInstancePage(rows, q); }).catch(() => {});
     }, q ? 300 : 0);
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
@@ -317,7 +321,7 @@ export default function ErpPage() {
       api.getErpRecords().then(setUsers).catch(() => {});
       api.getArticles().then(setArticles).catch(() => {});
       api.getOrders().then(setOrders).catch(() => {});
-      api.getInstances(INSTANCE_PAGE, 0, q).then(firstInstancePage).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => firstInstancePage(rows, q)).catch(() => {});
     }
     // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
     // ein paar Minuten liegen liess, sah alte Daten (und musste F5 drücken). Jetzt lädt er
@@ -377,8 +381,10 @@ export default function ErpPage() {
 
   const filtered = rows.filter((r) => {
     if (typeFilter && r.type !== typeFilter) return false;
-    // Instanzen sind bereits server-seitig durchsucht (kein erneuter Client-Filter).
-    if (search && r.type !== 'instance' && !feedMatch(r, search.toLowerCase())) return false;
+    // Instanzen sind bereits server-seitig durchsucht (kein erneuter Client-Filter) –
+    // aber nur, wenn sie zu DIESER Suche gehören.
+    if (r.type === 'instance') return instancesFor === search.trim();
+    if (search && !feedMatch(r, search.toLowerCase())) return false;
     return true;
   });
 
@@ -670,9 +676,9 @@ export default function ErpPage() {
 
           {/* FAB — neuen Datensatz anlegen (Menü öffnet nach oben) */}
           {viewerRole === 'staff' && (
-            <div ref={plusRef} className="absolute left-5 bottom-5 z-20">
+            <div ref={plusRef} className="absolute right-5 bottom-5 z-20">
               {plusOpen && (
-                <div className="absolute left-0 bottom-[calc(100%+10px)] bg-bg-1 border border-border-1 rounded-ds-md shadow-ds-lg p-1 min-w-[170px]">
+                <div className="absolute right-0 bottom-[calc(100%+10px)] bg-bg-1 border border-border-1 rounded-ds-md shadow-ds-lg p-1 min-w-[170px]">
                   <button onClick={() => startCreate('article')} style={menuItemStyle}>
                     <Package size={15} style={{ color: 'var(--fg-3)' }} /> Artikel
                   </button>
@@ -713,6 +719,10 @@ export default function ErpPage() {
             resetKey={creating ?? (sel ? `${sel.type}-${sel.objectId}` : 'none')}
             onReset={() => { setSel(null); setCreating(null); setMobileView('list'); }}
           >
+          {/* **Im Entwurf führt keine Nummer weg** (Chrome-Test): der Entwurf lebt nur im
+              Browser, ein Sprung zu einem Datensatz verwarf ihn ohne Warnung. Darum steht
+              jede Nummer hier als Text – keine Navigation im Kontext. */}
+          <ErpNavContext.Provider value={null}>
           {creating === 'article' && (
             <ArticleDetail key="new-article" record={null} onSaved={handleArticleSaved}
               onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
@@ -727,6 +737,7 @@ export default function ErpPage() {
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={handleOrderSaved} onBack={cancelCreate} />
           )}
+          </ErpNavContext.Provider>
           {!creating && activeRow?.type === 'order' && (
             <OrderDetail
               key={activeRow.key}

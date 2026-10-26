@@ -70,6 +70,11 @@ export function Quotes({ d, busy, head, picking, onShow, onPicking, onAction }: 
 /** Die Haarlinie, die eine Zeile schliesst. */
 const ROW = { padding: '12px 0 14px', borderBottom: '1px solid var(--border-1)' } as const;
 
+/** «z. H. …» – die Person, die für die Firma bestellt; leise neben dem Firmennamen. */
+function Attn({ text }: { text: string }) {
+  return <span className="truncate" style={{ fontSize: 12, color: 'var(--fg-3)', minWidth: 0 }}>{text}</span>;
+}
+
 /** «Im Kopf» – die Zeile, deren Anschrift der Belegkopf gerade zeigt. */
 function InHead() {
   return <span style={{ ...LABEL, color: 'var(--accent-ink)', flex: 'none' }}>Im Kopf</span>;
@@ -94,6 +99,7 @@ function Candidate({ d, side, busy, inHead, onShow, onAction }: {
                                              minWidth: 0, textAlign: 'left' }}>
           {side.name || number}
         </button>
+        {side.attn && <Attn text={side.attn} />}
         <span style={{ flex: 'none' }}><ObjId value={number} /></span>
       </span>
       {inHead && <InHead />}
@@ -169,6 +175,7 @@ function QuoteRow({ q, d, busy, onAction }: {
           <span className="truncate" style={{ fontSize: 13, minWidth: 0 }}>
             {q.party_name || q.party_object_id}
           </span>
+          {q.party_attn && <Attn text={q.party_attn} />}
           <span style={{ flex: 'none' }}><ObjId value={q.party_object_id} /></span>
         </span>
         {taken && <Note tip={taken.title} color="var(--success)">{taken.text}</Note>}

@@ -113,7 +113,7 @@ function Doing(p: FooterProps) {
         <Steady>
           <ActionButton icon={CircleSlash} label={d.undo ?? 'Stornieren'} tone="danger"
             height={ACT_H.stage} square disabled={busy}
-            tip={d.locked ?? 'Ein Wort für den Storno in jeder Stufe – mit Grund, wer ihn kennt.'}
+            tip={d.locked ?? undoTip(d)}
             onClick={() => p.setForm(startForm('revoke', d))} />
         </Steady>
       )}
@@ -206,6 +206,13 @@ function remindOf(d: Filled): { label: string; problem: string | null } | null {
   };
 }
 
+/** **Was «Stornieren» hier bewirkt** – in klaren Worten, je nach Stufe (Chrome-Test). */
+function undoTip(d: Filled): string {
+  if (d.stage === VOUCHER_STAGE.offer) return 'Zieht die Offerte zurück – sie gilt dann nicht mehr. Ein Grund ist möglich.';
+  if (d.stage === VOUCHER_STAGE.agreed) return 'Hebt die Zusage auf – sie gilt dann nicht mehr. Ein Grund ist möglich.';
+  return 'Storniert die Rechnung – die Gutschrift über den ganzen Betrag entsteht von selbst. Ein Grund ist möglich.';
+}
+
 function MainButton({ label, icon: Icon, busy, problem, quiet, onClick }: {
   label: string; icon: LucideIcon; busy: boolean; problem?: string | null; quiet?: boolean;
   onClick: () => void;
@@ -218,7 +225,11 @@ function MainButton({ label, icon: Icon, busy, problem, quiet, onClick }: {
     </button>
   );
   // Der Grund hängt an einer Hülle – ein gesperrter Knopf bekommt keine Zeigerereignisse.
-  return problem ? <span data-tip={problem} className="inline-flex">{button}</span> : button;
+  // Mehrere Gründe stehen untereinander (`data-tip-list`), einer bleibt ein Satz.
+  return problem
+    ? <span data-tip={problem} {...(problem.includes('\n') ? { 'data-tip-list': '' } : {})}
+        className="inline-flex">{button}</span>
+    : button;
 }
 
 /**

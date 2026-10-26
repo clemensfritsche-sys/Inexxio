@@ -2106,10 +2106,13 @@ def test_a_required_value_says_so_where_it_stands():
     block = block[: block.index("}")]
     assert "--danger" in block and "padding" not in block, "Die Auszeichnung verschiebt den Beleg (b)."
     assert ".ix-editable[aria-disabled='true'].is-missing" in css, "Ein gesperrter Wert bleibt rot (d)."
-    for where in ("Price", "CustomsField", "Term", "Delivery", "Part", "QuoteForm", "Correction"):
+    for where in ("Price", "CustomsField", "Term", "Delivery", "Part", "QuoteForm"):
         assert "missing" in _component(src, where), (
             f"«{where}» sagt nicht, dass sein Wert Pflicht ist (c)."
         )
+    # «Korrektur zu» ist KEIN Pflichtwert (Chrome-Test): «keine» ist eine Antwort – eine
+    # gewöhnliche Offerte stand sonst rot da.
+    assert "missing" not in _component(src, "Correction"), "«Korrektur zu» ist wieder rot (e)."
 
 
 def test_the_chronicle_is_gone_and_its_dates_stand_where_they_belong():

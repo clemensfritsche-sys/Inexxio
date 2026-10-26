@@ -5894,6 +5894,8 @@ export interface components {
              * @default
              */
             party_name: string;
+            /** Party Attn */
+            party_attn?: string | null;
             /**
              * Ref
              * @default

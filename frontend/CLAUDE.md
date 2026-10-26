@@ -73,7 +73,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `process-diagram.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: `ModuleShell` (die Modul-Karte), drei Spuren, **ein** Liniengenerator (`polyPath`) |
 | `capture-work.tsx`, `capture-form.tsx`, `photo-capture.tsx`, `signature-pad.tsx` | Ausführung von Datenerfassung, Aussondern, Verbrauch, Bewegen |
-| `beleg-work.tsx`, `beleg/`, `pay-online.tsx` | Modul «Zahlung»: der Einstieg (gemeinsamer Zustand) · die Abschnitte (`stages`, `parties`, `goods`, `terms`, `quotes`, `invoice`, `documents`, `footer`, `shared`, `forms`) · die eigene Bezahlkarte |
+| `beleg-work.tsx`, `beleg/`, `pay-online.tsx`, `file-upload.tsx` | Modul «Zahlung»: der Einstieg (gemeinsamer Zustand) · die Abschnitte (`stages`, `parties`, `goods`, `terms`, `quotes`, `invoice`, `documents`, `footer`, `shared`, `forms`) · die eigene Bezahlkarte |
 | `payment-list.tsx` | **Zahlungen** einer Person (Abschnitt) oder eigenen Gesellschaft (Reiter) – eine Liste, Zeile öffnet den Auftrag |
 | `step-record.tsx` | Modul-Protokoll (eine Komponente für alle Modultypen) |
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
@@ -195,6 +195,9 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
 - **Ein änderbarer Wert hat EINE Form** (`Editable`, `DocPick`, `DocRef`, `.ix-editable`);
   jeder wird sofort geschrieben (eigenes Verb). Feste Vorgaben des Moduls (`fixed`) sind
   punktiert unterstrichen, `fixed_hint` im Hover. Der Steuersatz bietet nur `vat_choices`.
+- **Was man bearbeitet, bleibt stehen**: jede Handlung am Beleg hält den zuletzt bearbeiteten
+  Abschnitt an seiner Stelle (`lib/hold-place.ts`). Der **Ausfuhrnachweis** ist der einzige
+  Datei-Upload (PDF oder Bild, `file-upload.tsx`); jedes andere Bild ist eine Aufnahme.
 - **Bezahlen** (`pay-online.tsx`): unsere Karte, vom Dienst nur die Eingabefelder; die Karte
   sagt «ausgeführt», gebucht wird vom Webhook.
 - **Kundenseite** (`app/(public)/beleg`, `components/beleg/`): das eingefrorene Dokument in

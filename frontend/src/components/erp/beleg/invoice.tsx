@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle, Loader2, RotateCcw, X } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, attachmentUrl } from '@/lib/api';
 import { TONE } from '@/lib/status-tone';
 import { day, when } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
 import { PhotoShot } from '@/components/erp/photo-capture';
+import { FileUpload } from '@/components/erp/file-upload';
 import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, Steady } from '@/components/erp/module-ui';
 import type { TransferInfo } from '@/types';
@@ -92,7 +93,7 @@ function InvoiceRow({ d, invoice }: { d: Filled; invoice: NonNullable<Filled['in
         <>
           {meta.join(' · ')}
           {d.original && (
-            <>{meta.length ? ' · ' : ''}<a href={d.original} target="_blank" rel="noopener noreferrer"
+            <>{meta.length ? ' · ' : ''}<a href={attachmentUrl(d.original)} target="_blank" rel="noopener noreferrer"
               style={{ color: 'var(--accent-ink)' }}>Beleg</a></>
           )}
         </>
@@ -222,8 +223,8 @@ function EntryRow({ d, e, busy, onAction }: { d: Filled; e: Entry; busy: boolean
 
 /**
  * **Der Ausfuhrnachweis** – nur beim Export, nach der Rechnung: ohne ihn gilt 0 % nicht,
- * erledigt ist der Beleg erst damit. Erfasst: die Nummer der Veranlagungsverfügung und ein
- * Foto.
+ * erledigt ist der Beleg erst damit. Erfasst: die Nummer der Veranlagungsverfügung und das
+ * Dokument selbst – **hochgeladen** (PDF oder Bild), denn es kommt vom Zoll per Mail.
  */
 function ExportProof({ d, busy, form, setForm }: {
   d: Filled; busy: boolean; form: Form | null; setForm: (f: Form | null) => void;
@@ -235,8 +236,8 @@ function ExportProof({ d, busy, form, setForm }: {
         meta={(
           <>Veranlagungsverfügung {d.export_number}
             {d.export_photo && (
-              <> · <a href={d.export_photo} target="_blank" rel="noopener noreferrer"
-                style={{ color: 'var(--accent-ink)' }}>Foto</a></>
+              <> · <a href={attachmentUrl(d.export_photo)} target="_blank" rel="noopener noreferrer"
+                style={{ color: 'var(--accent-ink)' }}>Dokument</a></>
             )}
           </>
         )}
@@ -259,10 +260,11 @@ function ExportProof({ d, busy, form, setForm }: {
               aria-label="Nr. der Veranlagungsverfügung"
               onChange={(e) => set({ reference: e.target.value })} />
           </FormField>
-          <FormField label="Foto" required>
-            <PhotoShot value={form.f.photo || null}
-              onStored={(id) => set({ original: String(id) })}
-              onChange={(url) => set({ photo: url ?? '', ...(url ? {} : { original: '' }) })} />
+          <FormField label="Veranlagungsverfügung" required>
+            <FileUpload value={form.f.photo ? { url: form.f.photo, name: form.f.name ?? '' } : null}
+              onChange={(file) => set(file
+                ? { photo: file.url, original: String(file.id), name: file.name }
+                : { photo: '', original: '', name: '' })} />
           </FormField>
           <Cancel onClick={() => setForm(null)} />
         </div>
@@ -394,6 +396,11 @@ function EntryForm({ d, form, setForm }: {
             options={[{ value: CASH, label: 'Bar' }, { value: TRANSFER, label: 'Überweisung' }]} />
         )}
         {form.kind === 'bill' && <BillFields d={d} form={form} set={set} />}
+        {/* **Abbrechen steht in der Zeile des Betrags** (Chrome-Test) – allein darunter
+            war es ein «×» in einem leeren Kasten. */}
+        <span className="inline-flex" style={{ marginLeft: 'auto' }}>
+          <Cancel onClick={() => setForm(null)} />
+        </span>
       </div>
       {form.kind === 'bill' && <BillPaper d={d} form={form} set={set} />}
       {needsIban(form, d) && (
@@ -406,7 +413,6 @@ function EntryForm({ d, form, setForm }: {
           </span>
         </FormField>
       )}
-      <Cancel onClick={() => setForm(null)} />
     </FieldBox>
   );
 }
@@ -454,8 +460,7 @@ function BillPaper({ d, form, set }: {
       </div>
       <FormField label="Originalbeleg" required>
         <PhotoShot value={form.f.photo || null}
-          onStored={(id) => set({ original: String(id) })}
-          onChange={(url) => set({ photo: url ?? '', ...(url ? {} : { original: '' }) })} />
+          onChange={(url, id) => set({ photo: url ?? '', original: url && id != null ? String(id) : '' })} />
         <span style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 4 }}>
           Die Rechnung, wie sie gekommen ist – Pflicht für den Vorsteuerabzug
           und 10 Jahre aufbewahrt.

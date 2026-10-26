@@ -43,6 +43,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-25-zahlungsmodul-umbau.md` | Umbau des Zahlungsmoduls: Stücke ziehen selbst weiter, Eigentum, ein Storno-Wort, A4-Dokumente mit AGB, Kundenseite `/beleg`, Zahlungen-Liste (Migration 155) |
 | `2026-10-25-rechtstexte.md` | Rechtstexte als A4-Dokumente des ERP (eine AGB, Datenschutz neu, Impressum), echte A4-Seiten, Schrift im Dokument, Beispielbilder und Bildnachweis entfernt |
 | `2026-10-26-verkauft-eigentum.md` | «Verkauft» als Status am Ziel, Eigentum abgeleitet statt gespeichert, Pflichtwahl «an die Partei · an uns», Ort bleibt ausser Verschrottet |
+| `2026-10-26-chrome-test-runde.md` | Befunde des Chrome-Tests: Stückauswahl, Hover, Parteiname, kein Springen, Ausfuhrnachweis als Upload, Seriennummer auf Dokumenten |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.
