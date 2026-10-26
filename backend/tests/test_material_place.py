@@ -8,7 +8,8 @@ Datei prüft die sechs Sätze, aus denen das besteht — jeder gegen seine **Bug
 2. «Am Ort» heisst **in der Kette**, nicht «identische Nummer».
 3. **Wo nichts steht, wird nichts verlangt** – ohne Ort am Produkt ändert sich nichts.
 4. Nichtverfügbarkeit bleibt **kein Zustand**: eine Spalte weiter in ``StepNeed``.
-5. **Wer zur Historie zählt, verliert seinen Ort** – ausser er bekommt einen neuen.
+5. **Nur wer endgültig weg ist (Verschrottet), verliert seinen Ort** – ein verbautes Stück
+   bekommt seinen Träger.
 6. Ein **verbautes** Stück liegt in seinem **Träger**, und die Kette läuft weiter.
 
 Gefahren wird über die **echten** Dienstpfade gegen echtes PostgreSQL: die
@@ -290,12 +291,12 @@ def test_a_consumed_piece_lies_in_its_carrier():
         w.db.close()
 
 
-def test_history_loses_its_place_but_blocked_keeps_it():
-    """**Wer zur Historie zählt, verliert seinen Ort** – und wer im Regal liegt, nicht.
+def test_only_scrapped_loses_its_place_blocked_keeps_it():
+    """**Jedes Stück behält seinen Ort – ausser es ist endgültig weg** (Verschrottet).
 
-    Die Regel hängt am **Status** (``Status.stock`` heisst wörtlich «liegt im Regal»),
-    nicht am Modul. Damit erbt sie jedes künftige Modul, und **Gesperrt** fällt ohne
-    Sonderregel richtig heraus: es ist physisch noch da.
+    Die Regel hängt am **Status** (``terminal``), nicht am Modul. Damit erbt sie jedes
+    künftige Modul: Gesperrt liegt im Sperrlager, Verkauft noch in der Halle bis zur
+    Abholung (geprüft in ``test_zahlung_ablauf``).
     """
     from app.services import instances as inst_svc
 

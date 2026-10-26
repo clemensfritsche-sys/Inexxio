@@ -218,9 +218,9 @@ class Voucher(Base, TimestampMixin):
     #: Vorgabe (``domain/voucher.VALID_DAYS``). Danach ist sie abgelaufen, «Annehmen» ist
     #: gesperrt, und «Erneut anbieten» beginnt die Frist neu.
     valid_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    #: **Wem die Stücke danach gehören** – ``party`` · ``us`` · ``keep``. ``NULL`` = aus der
-    #: Richtung (``domain/voucher.ownership_default``). Gewechselt wird, wenn die Stücke das
-    #: Modul passieren (``services/voucher.owner_after``).
+    #: **Wem die Stücke danach gehören** – ``party`` · ``us``, bewusst gewählt; ``NULL`` =
+    #: noch nicht gewählt (Pflicht vor Anbieten und Zusage). Wem ein Stück gehört, ist eine
+    #: Ableitung daraus (``services/voucher.sold_units``), gelesen am Ziel des Auftrags.
     ownership: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     #: ►►► **Über welche Stücke dieser Beleg spricht** – eingefroren beim ersten
     #: Hinausgehen (``ask``). ◄◄◄ Verlässt eines davon den Auftrag, ohne das Modul passiert

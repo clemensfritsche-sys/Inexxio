@@ -189,14 +189,16 @@ function Delivery({ d, onAction }: { d: Filled; onAction: Send }) {
 }
 
 /**
- * **Eigentum** – geht an die Partei · geht an uns · bleibt. Vorbelegt aus der Richtung,
- * frei wählbar bis zur Zusage; der Wechsel geschieht, wenn die Stücke das Modul passieren.
+ * **Eigentum** – geht an die Partei · geht an uns. **Bewusst gewählt, ohne Vorbelegung**:
+ * ohne Wahl gehen Offerte und Zusage nicht (gelb markiert wie jede Pflichtangabe). Am Ziel
+ * des Auftrags wird ein Stück, das so an die Partei ging, «Verkauft».
  */
 function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
   const options = d.ownership_options ?? [];
-  const text = options.find((o) => o.key === d.ownership)?.label ?? d.ownership;
-  const tip = 'Was mit dem Eigentum der Stücke geschieht, wenn sie das Modul passieren – '
-    + 'vorbelegt aus der Richtung, frei wählbar bis zur Zusage.';
+  const chosen = options.find((o) => o.key === d.ownership);
+  const text = chosen?.label ?? '—';
+  const tip = 'Wem die Stücke danach gehören – an die Partei: am Ziel des Auftrags werden sie '
+    + '«Verkauft»; an uns: sie bleiben unser Bestand. Bewusst wählen, frei bis zur Zusage.';
   if (isFixed(d, 'ownership')) {
     return (
       <Stacked label={d.ownership_label}>
@@ -206,10 +208,11 @@ function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
   }
   return (
     <Stacked label={d.ownership_label}>
-      <DocPick on={may(d, 'ownership')} value={d.ownership} text={text} aria={d.ownership_label}
-        tip={tip} face={VALUE}
-        options={options.map((o) => ({ value: o.key, label: o.label }))}
-        onChange={(ownership) => void onAction({ action: 'ownership', ownership })} />
+      <DocPick on={may(d, 'ownership')} value={d.ownership ?? ''} text={text}
+        aria={d.ownership_label} tip={tip} face={VALUE} missing={!chosen}
+        options={[...(chosen ? [] : [{ value: '', label: '—' }]),
+                  ...options.map((o) => ({ value: o.key, label: o.label }))]}
+        onChange={(ownership) => { if (ownership) void onAction({ action: 'ownership', ownership }); }} />
     </Stacked>
   );
 }

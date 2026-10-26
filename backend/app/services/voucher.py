@@ -692,28 +692,57 @@ def next_reminder(db: Session, row: Voucher) -> Optional[tuple[int, date]]:
     return len(sent) + 1, after
 
 
-def ownership_of(row: Voucher) -> str:
-    """Wem die Stücke danach gehören – die Einstellung, sonst die Vorgabe der Richtung."""
-    return row.ownership or vo.ownership_default(row.direction, minus(row))
+def ownership_of(row: Voucher) -> Optional[str]:
+    """Die Wahl «geht an die Partei · an uns» – ``None``, solange niemand gewählt hat
+    (auch ein Wert, den es nicht mehr gibt, gilt als ungewählt)."""
+    return row.ownership if row.ownership in dict(vo.OWNERSHIP) else None
 
 
-def owner_after(db: Session, row: Voucher, current: Optional[int]) -> Optional[int]:
-    """►►► **Wem ein Stück gehört, nachdem es dieses Modul passiert hat.** ◄◄◄
+def ownership_problem(row: Voucher) -> Optional[str]:
+    """►►► **Ohne Wahl des Eigentums geht kein Beleg hinaus und keiner wird zugesagt.** ◄◄◄
+    Zwei Formen einer Regel: dieser Satz am gesperrten Knopf, ``_assert_ownership_chosen``
+    als Tor."""
+    if ownership_of(row) is None:
+        return (f"Ohne Wahl beim {vo.OWNERSHIP_LABEL} ist offen, wem die Stücke danach "
+                f"gehören – «" + "» oder «".join(l for _, l in vo.OWNERSHIP) + "».")
+    return None
 
-    *An die Partei*: an den, dem die Rechnung gilt – die Firma, wenn an sie verrechnet
-    wird, sonst die Person. *An uns*: ``None``. *Bleibt*: was es war.
+
+def _assert_ownership_chosen(row: Voucher) -> None:
+    problem = ownership_problem(row)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+
+
+def sold_units(db: Session, unit_ids: list[int]) -> set[int]:
+    """►►► **Welche dieser Stücke gehören einer anderen Partei?** – eine Ableitung. ◄◄◄
+
+    Massgebend ist je Stück das **jüngste nicht stornierte Zahlungsmodul, das es passiert
+    hat** (der Log, ``kind = step``): steht dort «geht an die Partei», ist es verkauft;
+    sonst – «an uns» oder gar kein Zahlungsmodul – gehört es uns. Ein Storno wirkt damit
+    von selbst, ohne dass etwas zurückgesetzt wird; eine Retoure «an uns» hebt einen
+    Verkauf auf, eine stornierte Retoure lässt ihn wieder gelten.
+
+    Gelesen wird sie an genau einer Stelle: am Ziel des Auftrags (``process._finish``).
     """
-    how = ownership_of(row)
-    if how == vo.KEEP:
-        return current
-    if how == vo.TO_US:
-        return None
-    number = party_of(db, row)
-    if number is None:
-        return current
-    who = (row.head or {}).get("billing") or {}
-    firm = who.get("company_object_id")
-    return int(firm) if firm else number
+    if not unit_ids:
+        return set()
+    from ..models import ProcessEvent
+    from ..models.process_event import KIND_STEP
+    rows = (
+        db.query(ProcessEvent.instance_unit_id, Voucher.ownership)
+        .join(Voucher, Voucher.step_id == ProcessEvent.step_id)
+        .filter(ProcessEvent.instance_unit_id.in_(unit_ids),
+                ProcessEvent.kind == KIND_STEP,
+                Voucher.is_active.is_(True),
+                Voucher.stage != vo.CANCELLED)
+        .order_by(ProcessEvent.instance_unit_id, ProcessEvent.id.desc())
+        .all()
+    )
+    latest: dict[int, Optional[str]] = {}
+    for unit_id, how in rows:
+        latest.setdefault(int(unit_id), how)
+    return {u for u, how in latest.items() if how == vo.TO_PARTY}
 
 
 def passable(db: Session, row: Voucher) -> bool:
@@ -1693,6 +1722,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         raise HTTPException(status_code=400,
                             detail="Ohne Betrag gibt es keine Zusage.")
     _assert_terms(line.lead_days, line.payment_days)
+    _assert_ownership_chosen(row)
     if row.unit_ids is None:
         row.unit_ids = sorted(
             int(i) for (i,) in db.query(OrderUnit.instance_unit_id).filter(
@@ -2360,27 +2390,6 @@ def assert_completable(db: Session, *, step: ProcessStep, auto: bool = False) ->
         raise HTTPException(status_code=409, detail=why)
 
 
-def on_pass(db: Session, *, step: ProcessStep,
-            units: list[InstanceUnit]) -> dict[int, dict[str, Any]]:
-    """►►► **Das Eigentum wechselt, wenn die Stücke das Modul passieren.** ◄◄◄
-
-    Die eine Schreibstelle von ``instance_units.owner_object_id``. Zurück kommt je Stück,
-    was in den Log gehört (``payload.owner``) – nur, wo sich etwas ändert. Ohne Beleg ein
-    No-op.
-    """
-    row = of_step(db, step.id)
-    if row is None:
-        return {}
-    out: dict[int, dict[str, Any]] = {}
-    for u in units:
-        after = owner_after(db, row, u.owner_object_id)
-        if after != u.owner_object_id:
-            u.owner_object_id = after
-            out[u.id] = {"owner": after}
-    db.flush()
-    return out
-
-
 def service_day(db: Session, step: ProcessStep) -> Optional[date]:
     """►►► **Wann wurde die Leistung erbracht?** – aus dem Prozess, nicht getippt. ◄◄◄
 
@@ -2489,8 +2498,7 @@ def billing_of(db: Session, row: Voucher,
         # **Wohin die Ware geht, als Ort** – für den Steuersatz (Ausland?) und den Ort der
         # Lieferbedingung. Ohne eigene Lieferadresse ist es die Rechnungsadresse.
         "delivery": _place(shipped or billed),
-        # **Wem die Stücke gehören, wenn sie «an die Partei» gehen** – die Firma, wenn an sie
-        # verrechnet wird (``owner_after``).
+        # Die Firma, an die verrechnet wird (``None`` = an die Person).
         "company_object_id": getattr(firm, "object_id", None) if firm is not None else None,
         "billing_address_id": billed.id if billed is not None else None,
         "delivery_address_id": shipped.id if shipped is not None else None,
@@ -2923,8 +2931,11 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
         if not priced_dicts(db, row):
             return (f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
                     f"nennen wir ihn, nicht der {vo.PARTY}.")
-        return terms_problem(row.lead_days, row.payment_days)
-    return None
+        problem = terms_problem(row.lead_days, row.payment_days)
+        if problem:
+            return problem
+    # **Zuletzt das Eigentum** – bewusst gewählt, ohne Vorbelegung.
+    return ownership_problem(row)
 
 
 def _assert_ask(db: Session, row: Voucher, step: ProcessStep,

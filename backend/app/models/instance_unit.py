@@ -95,13 +95,3 @@ class InstanceUnit(Base, TimestampMixin):
     place_unit_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, index=True,
     )
-
-    #: ►►► **Wem das Stück gehört** – die dritte Angabe neben Zustand und Ort. ◄◄◄
-    #:
-    #: ``NULL`` heisst **uns**. Sonst die Objektnummer der Partei (Person oder Firma), an
-    #: die es mit einem Zahlungsmodul ging («verkauft an …» ist eine Anzeige daraus, kein
-    #: Zustand). Gesetzt wird es an EINER Stelle: wenn das Stück ein Zahlungsmodul passiert
-    #: (``services/voucher.owner_after``); im Log steht es als ``payload.owner``.
-    #: Unabhängig von Zustand und Ort – ein verkauftes Stück darf noch durch Bewegen und
-    #: Endprüfung, ein gemietetes bleibt unseres.
-    owner_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

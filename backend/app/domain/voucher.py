@@ -491,24 +491,17 @@ def assert_reason(value: Any) -> str:
 VALID_DAYS = 30
 VALID_LABEL = "Gültig"
 
-#: ►►► **Wem die Stücke danach gehören** – eine Einstellung am Beleg. ◄◄◄ Gewechselt wird,
-#: wenn die Stücke das Modul passieren. Keine Prüfung: es ist eine Angabe des Menschen
-#: (Miete, Reparatur und Auswärtsvergabe: «bleibt»).
+#: ►►► **Wem die Stücke danach gehören** – eine bewusste Wahl am Beleg, ohne Vorbelegung. ◄◄◄
+#: Gespeichert wird nur die Wahl; wem ein Stück gehört, ist eine **Ableitung** (das jüngste
+#: nicht stornierte Zahlungsmodul, das es passiert hat – ``services/voucher.sold_units``),
+#: gelesen am Ziel des Auftrags: «an die Partei» → *Verkauft*, sonst *Freigegeben*.
 TO_PARTY = "party"
 TO_US = "us"
-KEEP = "keep"
 OWNERSHIP: tuple[tuple[str, str], ...] = (
     (TO_PARTY, "geht an die Partei"),
     (TO_US, "geht an uns"),
-    (KEEP, "bleibt"),
 )
 OWNERSHIP_LABEL = "Eigentum"
-
-
-def ownership_default(direction: Optional[str], minus: bool) -> str:
-    """**Vorbelegt aus der Richtung**: eine Einnahme gibt ab, eine Ausgabe und eine
-    Gutschrift (die Ware kommt zurück) holen herein."""
-    return TO_PARTY if (direction == IN and not minus) else TO_US
 
 
 def assert_ownership(value: Any) -> Optional[str]:

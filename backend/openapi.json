@@ -8950,16 +8950,6 @@
               }
             ]
           },
-          "owner": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlaceRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -13221,9 +13211,15 @@
             "default": ""
           },
           "ownership": {
-            "type": "string",
-            "title": "Ownership",
-            "default": "us"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownership"
           },
           "ownership_label": {
             "type": "string",

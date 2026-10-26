@@ -85,7 +85,9 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   (`scripts/dump_statuses.py` → `frontend/src/lib/status-catalog.ts`). Stücke: Freigegeben ·
   Im Prozess · Gesperrt · Verbaut · Verkauft · Verschrottet. **Verschrottet ist endgültig**,
   durchgesetzt in `_pass` **und** per DB-Trigger `trg_instance_units_terminal` – ohne
-  Umgehung. `Verkauft` hat keinen Schreiber mehr, bleibt aber als Vokabular des Logs.
+  Umgehung. **`Verkauft`** schreibt das Ziel des Auftrags: was einer anderen Partei gehört,
+  wird dort «Verkauft» statt «Freigegeben» – Historie wie Verbaut (kein Bestand, kein FIFO,
+  greifen nur als Abweichung).
 - **Auftragsstatus** (Im Prozess · Abgeschlossen · Abgebrochen) ist abgeleitet (`_derive`),
   nie gesetzt. **Abgeschlossen** = den definierten Weg zu Ende gegangen (auch über einen
   Ausgang). Es gibt **keine Abbruch-Funktion**: der Abbruch ist eine Abweichung mit gekappter
@@ -98,11 +100,14 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   (Gesperrt, Verbaut, Verkauft) – kein «entsperren»-Endpunkt.
 - **Ort** = Zeiger am Stück (`instance_units.place_object_id` ↔ `place_unit_id`, höchstens
   eines): Halter ist eine Instanz, ein Benutzer oder ein Unternehmen, beim Verbauen das
-  Träger-Stück. Ändert nie Status oder Zugehörigkeit; keine Zyklen; wer zur Historie zählt,
-  verliert seinen Ort (ausser Gesperrt). Eine Schreibstelle: `services/places.py`.
-- **Eigentum** = zweiter Zeiger am Stück (`instance_units.owner_object_id`, `None` = uns),
-  gesetzt beim Passieren eines Zahlungs-Moduls. **Kein Zustand**: das Prozessbild zeigt nur
-  den Status; die Einzelinstanz zeigt «verkauft an …» neben dem Ort (`place-trail.OwnerMark`).
+  Träger-Stück. Ändert nie Status oder Zugehörigkeit; keine Zyklen; **jedes Stück behält
+  seinen Ort, ausser es ist verschrottet** (auch Gesperrt und Verkauft). Eine Schreibstelle:
+  `services/places.py`.
+- **Eigentum ist eine Ableitung, keine Spalte** (`voucher.sold_units`): das jüngste nicht
+  stornierte Zahlungsmodul, das ein Stück passiert hat, sagt «geht an die Partei» oder «geht
+  an uns» (ohne Zahlungsmodul: uns). Gelesen wird es nur am Ziel (`process._finish`): an die
+  Partei → **Verkauft**, sonst **Freigegeben**. Ein Storno wirkt damit von selbst; zurück in
+  den Bestand kommt Verkauftes nur über eine Retoure «an uns».
 - **Artikel-Lebenszyklus**: keine Versionierung – Änderung = neuer Artikel, der den alten
   **ersetzt** (`replaces_object_id` bei der Anlage → `replaced_by_id`). «Inaktiv» ist eine
   **Projektion** von `replaced_by_id`, kein Schalter. Nur ein freigegebener Artikel erzeugt
@@ -153,8 +158,10 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   EINER Stelle** (`VERBS`), **`can` ist Auskunft UND Tor**, die Leiste der Karte ist
   `situation` (nie leer ausser Erledigt/Storniert – Wächter «keine Sackgasse»). **Die Stücke
   passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit dem Geld
-  (`process.advance_payments`); dabei wechselt das **Eigentum** (`instance_units.owner_object_id`,
-  «geht an die Partei · an uns · bleibt»). **Der Beleg IST die Rechnung – eine je Modul**; ein
+  (`process.advance_payments`). **Eigentum** «geht an die Partei · geht an uns» ist eine
+  **Pflichtwahl ohne Vorbelegung** (`ownership_problem`: ohne Wahl kein Anbieten, keine
+  Zusage), eingefroren mit der Zusage; am Ziel macht sie aus dem Stück Verkauft oder
+  Freigegeben. **Der Beleg IST die Rechnung – eine je Modul**; ein
   **Wort für den Storno** («Stornieren»), nach der Rechnung entsteht die Gutschrift über die
   ganze Rechnung von selbst; «Rechnung zurücknehmen» gibt es nicht. Passen die Stücke nicht
   mehr (`units_problem`), bleibt nur «Stornieren». Geld-Zeilen: Zahlung · Ausbuchung (mit
@@ -509,7 +516,7 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Prozess** mit fünf Modulen, Abweichungen, Prozessbild als Graph aus dem Log
   (`services/flow.py`) und Modul-Protokoll.
 - **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Gutschriften,
-  Bezahlkarte, Swiss QR-Rechnung; Stücke ziehen von selbst weiter, Eigentum am Stück; jedes
+  Bezahlkarte, Swiss QR-Rechnung; Stücke ziehen von selbst weiter, am Ziel «Verkauft»; jedes
   Dokument als A4-HTML eingefroren, mit AGB als letzter Seite, per Mail mit Link auf die
   Kundenseite `/beleg` (annehmen, ablehnen, bezahlen); Zahlungen-Liste an Person und Gesellschaft.
 - **Zeiterfassung** im Personendatensatz: Wischknopf, Stundenkonto und Ferien in Stunden,

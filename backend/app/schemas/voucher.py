@@ -505,7 +505,8 @@ class VoucherEmbed(BaseModel):
     #: Was das Modul vorgibt (Schlüssel der Felder) – fest, punktiert, Grund im Hover.
     fixed: list[str] = Field(default_factory=list)
     fixed_hint: str = ""
-    ownership: str = "us"
+    #: ``party`` · ``us`` – ``None``, solange niemand gewählt hat (Pflicht vor Anbieten/Zusage).
+    ownership: Optional[str] = None
     ownership_label: str = ""
     ownership_options: list[VoucherOption] = Field(default_factory=list)
     # ─── Der Beleg selbst ───────────────────────────────────────────────────────
@@ -630,7 +631,7 @@ class VoucherUpdate(BaseModel):
     delivery_address: Optional[int] = None
     #: **Gültigkeit der Offerte** in Tagen (``terms``).
     valid_days: Optional[int] = None
-    #: **Eigentum danach** (``ownership``): ``party`` · ``us`` · ``keep``.
+    #: **Eigentum danach** (``ownership``): ``party`` · ``us``.
     ownership: Optional[str] = None
     #: Grund eines Stornos, einer angenommenen Abweichung (``revoke`` · ``accept``).
     #: (``note`` steht oben und trägt auch den Vermerk einer Zahlung.)

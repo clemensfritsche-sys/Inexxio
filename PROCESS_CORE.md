@@ -1635,15 +1635,15 @@ unveränderlich, überlebt die Demontage. Diese Spalten sagen, *wo es jetzt lieg
 werden beim Ausbau geräumt. Dass die beiden auseinander laufen können, ist der Beweis,
 dass es zwei Fragen sind (§9.6).
 
-#### Wer zur Historie zählt, verliert seinen Ort
+#### Jedes Stück behält seinen Ort – ausser es ist verschrottet
 
-`Status.stock` heisst im Katalog wörtlich *liegt im Regal*. Daraus folgt die Regel für
-**jedes** Modul, ohne dass eines sie kennt (`process._pass`):
+Die Regel für **jedes** Modul, ohne dass eines sie kennt (`process._pass`):
 
 | Zustand | Ort |
 |---|---|
-| **Verschrottet** (Historie) | keiner — es gibt das Ding nicht mehr; der Status IST die Wo-Antwort |
+| **Verschrottet** (endgültig) | keiner — es gibt das Ding nicht mehr; der Status IST die Wo-Antwort |
 | **Verbaut** (Historie) | sein **Träger** — es liegt nicht im Regal, sondern in einem anderen Stück |
+| **Verkauft** (Historie) | **bleibt** — es steht noch in der Halle, bis der Kunde es abholt (Bewegen) |
 | **Gesperrt** (Bestand) | **bleibt** — es liegt im Regal, nur unbenutzbar |
 
 Die Regel hängt am **Status** und steht an der einen Stelle, an der ein Status geschrieben
@@ -2470,10 +2470,12 @@ Selbstbegrenzend: gedreht wird nur, was negativ ist.
 - **Die Stücke passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit
   der vollen Zahlung (`voucher.passable`, `process.advance_payments`). Einen
   «Bestätigen»-Knopf gibt es an einem Zahlungsmodul nicht (`PASSES_ITSELF`). Der Status
-  bleibt `Im Prozess`; **das Eigentum wechselt** beim Passieren
-  (`instance_units.owner_object_id`, Log `payload.owner`): Einstellung am Beleg «geht an
-  die Partei · geht an uns · bleibt», vorbelegt aus der Richtung, ohne Prüfung.
-  Zustand · Ort · Eigentum sind drei unabhängige Angaben; «verkauft an …» ist eine Anzeige.
+  bleibt `Im Prozess`. **Eigentum** «geht an die Partei · geht an uns» ist eine Pflichtwahl
+  ohne Vorbelegung, eingefroren mit der Zusage. **Wem ein Stück gehört, wird abgeleitet**
+  (`voucher.sold_units`): das jüngste nicht stornierte Zahlungsmodul, das es passiert hat.
+  Am Ziel des Auftrags wird ein Stück, das der Partei gehört, **Verkauft** (Historie, behält
+  seinen Ort), sonst Freigegeben. Storno → frei, Retoure «an uns» → frei, Reparatur ohne
+  Zahlung → bleibt Verkauft; eine stornierte Retoure lässt den Verkauf wieder gelten.
 - **Erledigt ist abgeleitet**: gestellt ∧ Saldo 0 (∧ Ausfuhrnachweis bei Export). Die Stufe
   `done` und «Vorgang abschliessen» gibt es nicht mehr.
 - **Ein Wort für den Storno: «Stornieren»**, in jeder Stufe. Nach der Rechnung entsteht die

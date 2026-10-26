@@ -130,7 +130,6 @@ export const VOUCHER_PRESETS_HINT = 'Was hier steht, gilt für jeden Auftrag aus
 export const VOUCHER_OWNERSHIP: { value: string; label: string }[] = [
   { value: 'party', label: 'geht an die Partei' },
   { value: 'us', label: 'geht an uns' },
-  { value: 'keep', label: 'bleibt' },
 ];
 
 /**

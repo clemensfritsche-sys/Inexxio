@@ -160,17 +160,16 @@ def _pass(
     for u in units:
         u.status = status_after
 
-    # ►► **Wer zur Historie zählt, verliert seinen Ort.** ◄◄
+    # ►► **Jedes Stück behält seinen Ort – ausser es ist endgültig weg.** ◄◄
     #
-    # «Historie» heisst im Katalog wörtlich *liegt nicht im Regal* (``Status.stock``) –
-    # ein verschrottetes Stück ist physisch weg, ein verbautes steckt in einem anderen.
-    # Der alte Halter wäre in beiden Fällen eine Behauptung über etwas, das dort nicht
-    # mehr ist; **Gesperrt** dagegen behält seinen Ort, denn es liegt im Regal.
+    # Ein verschrottetes Stück gibt es nicht mehr; sein alter Halter wäre eine Behauptung
+    # über etwas, das dort nicht ist. Alles andere liegt irgendwo: gesperrt im Sperrlager,
+    # **verkauft** noch in Halle 2 bis zur Abholung. Ein verbautes Stück bekommt im selben
+    # Zug seinen Träger als Ort (der Verbrauch setzt ihn).
     #
     # Die Regel hängt am **Status** und steht an der EINEN Stelle, an der ein Status
-    # geschrieben wird – jedes künftige Modul erbt sie, ohne eine Zeile dafür. Wer einen
-    # *neuen* Ort hat, setzt ihn im selben Zug (der Verbrauch seinen Träger).
-    if st.stock_kind(status_after) == st.HISTORY:
+    # geschrieben wird – jedes künftige Modul erbt sie, ohne eine Zeile dafür.
+    if st.is_terminal(status_after):
         places_svc.forget(db, units)
     return len(units)
 
@@ -1086,10 +1085,7 @@ def confirm_step(
     # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
     # ein Geldvorgang (``domain/voucher``) – dieses Modul sagt allein, wohin.
     moved = places_svc.apply_for_step(db, step=step, units=units, target=place)
-    # **Wem es danach gehört** – nur ein Zahlungsmodul sagt etwas (``voucher.on_pass``).
-    owned = voucher_svc.on_pass(db, step=step, units=units)
-    marks = {u.id: {"verification": verification, **moved.get(u.id, {}),
-                    **owned.get(u.id, {})} for u in units}
+    marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
 
     # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
     #
@@ -1337,7 +1333,7 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
 
     Das ist eine Regel, keine Fallunterscheidung: das Ende-Objekt reicht das Stück an
     den weiter, der als Nächstes kommt. Kommt niemand, wird es frei (``end_status``,
-    §4.2). Kommt der Auftrag, aus dem es geliehen war, bleibt es **Im Prozess** – es ist
+    §4.2) – oder **Verkauft**, wenn es einer anderen Partei gehört. Kommt der Auftrag, aus dem es geliehen war, bleibt es **Im Prozess** – es ist
     ja in einem.
 
     Die Stücke bewegen sich dabei in **Gruppen mit gleichem Ziel**, nicht einzeln: ein
@@ -1345,8 +1341,18 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
     """
     back = [(m, u) for m, u in rows if m.return_to_order_id]
     stay = [(m, u) for m, u in rows if not m.return_to_order_id]
+    # ►►► **Was einer anderen Partei gehört, wird «Verkauft», nicht frei.** ◄◄◄ Wem es
+    # gehört, sagt das jüngste nicht stornierte Zahlungsmodul, das es passiert hat
+    # (``voucher.sold_units``) – keine gespeicherte Kopie, also wirkt ein Storno von selbst.
+    # «Verkauft» ist Historie wie «Verbaut»: kein Bestand, kein FIFO, greifen nur als
+    # Abweichung. Gilt nur, wo das Ende sonst freigäbe.
+    sold = (voucher_svc.sold_units(db, [u.id for _, u in stay])
+            if order.end_status == st.FREIGEGEBEN else set())
+    kept = [(m, u) for m, u in stay if u.id not in sold]
+    gone = [(m, u) for m, u in stay if u.id in sold]
 
-    for group, status_after in ((stay, order.end_status), (back, st.IM_PROZESS)):
+    for group, status_after in ((kept, order.end_status), (gone, st.VERKAUFT),
+                                (back, st.IM_PROZESS)):
         if not group:
             continue
         _pass(

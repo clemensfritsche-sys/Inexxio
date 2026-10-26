@@ -128,6 +128,8 @@ def _step(*, direction: str = "in", parties=(), task: str = "Härten auf 58 HRC"
     return {"module_type": "beleg",
             "config": {"direction": direction,
                        "instruction": task,
+                       # Eigentum ist Pflicht und hier nicht Gegenstand – im Modul vorgegeben.
+                       "ownership": "party" if direction == "in" else "us",
                        "parties": [{"party": p.object_id, "ref": ref} for p in parties]}}
 
 
