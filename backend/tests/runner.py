@@ -40,11 +40,9 @@ def no_database(reason: str):
 def session():
     """Eine Sitzung gegen echtes PostgreSQL – die EINE Stelle, an der Tests sie holen.
 
-    **Das Schema wird genau einmal hergerichtet.** ``_ensure_columns`` nimmt
-    ACCESS-EXCLUSIVE-Sperren; bei jedem Aufruf hiesse das, dass zwei gleichzeitige
-    Sitzungen (der Nebenläufigkeits-Fall) einander blockieren, bevor sie überhaupt bei der
-    Fachlogik sind – und der Test hinge an einer Sperre, die mit der Regel nichts zu tun
-    hat. Fehlt die Datenbank, entscheidet ``no_database`` (und merkt es sich: ein zweiter
+    **Das Schema kommt genau einmal aus den Migrationen** – wie im Betrieb
+    (``alembic upgrade head``, dann die Trigger aus der Fachschicht wie beim Start). Fehlt
+    die Datenbank, entscheidet ``no_database`` (und merkt es sich: ein zweiter
     Verbindungsversuch je Test kostete nur Zeit).
     """
     global _SCHEMA_READY, _NO_DATABASE
@@ -56,20 +54,28 @@ def session():
     os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
     from sqlalchemy.exc import OperationalError
 
-    from app.core.database import Base, SessionLocal, engine
+    from app.core.database import SessionLocal, engine
 
     if not _SCHEMA_READY:
+        import subprocess
+
         import app.main as main
 
         if not str(engine.url).startswith("postgresql"):
             _NO_DATABASE = f"{engine.url.drivername} statt PostgreSQL"
             no_database(_NO_DATABASE)
         try:
-            Base.metadata.create_all(engine)
+            engine.connect().close()
         except OperationalError as exc:
             _NO_DATABASE = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
             no_database(_NO_DATABASE)
-        main._ensure_columns()
+        env = {**os.environ, "DATABASE_URL": engine.url.render_as_string(hide_password=False)}
+        run = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=BACKEND,
+                             env=env, capture_output=True, text=True)
+        assert run.returncode == 0, f"alembic upgrade head scheiterte:\n{run.stderr[-3000:]}"
+        with SessionLocal() as db:
+            main._sync_database_rules(db)
+            db.commit()
         _SCHEMA_READY = True
     return SessionLocal()
 

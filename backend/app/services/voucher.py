@@ -273,11 +273,9 @@ def parties_on(row: Voucher) -> list[int]:
     Mensch **an diesem Beleg** setzt: wo die Vorlage niemanden nennt, steht hier, wen er
     meint. **Leer ist der Normalfall**, nicht ein Fehler.
 
-    Die eine Lesestelle – ``row.parties`` ist ``NOT NULL``, aber ein Altbestand aus der
-    Zeit vor Migration 136 kann über das Spalten-Netz gekommen sein; tolerant gelesen
-    kostet das eine Zeile und erspart eine Ausnahme an drei Stellen.
+    Die eine Lesestelle (``row.parties`` ist ``NOT NULL``).
     """
-    return [int(n) for n in (row.parties or []) if n is not None]
+    return [int(n) for n in row.parties]
 
 
 def agreed_amount(db: Session, row: Voucher) -> Optional[Decimal]:

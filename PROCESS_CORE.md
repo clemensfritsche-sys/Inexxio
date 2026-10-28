@@ -2453,10 +2453,8 @@ falschen Grund: der Betrag war negativ. Ein Zufall, der stimmt, ist keine Regel.
 — steuerlich ist sie eine *Umsatzminderung*, keine Ausgabe (eine Ausgabe wäre Vorsteuer).
 Was sie unangenehm machte, war nicht der Ort, sondern das Minus.
 
-**Migration `141`** dreht bestehende Gutschriften und die Erstattungen darauf; die
-Anweisungen stehen in `domain/voucher.magnitude_sql` und werden von der Migration **und**
-vom Lifespan-Netz gelesen (die dev-Datenbank fährt kein `alembic upgrade head`, #778).
-Selbstbegrenzend: gedreht wird nur, was negativ ist.
+Migration `141` hat bestehende Gutschriften und die Erstattungen darauf gedreht (seit der
+Basis `161` Teil der Geschichte).
 
 
 #### 9.15s Umbau Oktober 2026 — was jetzt gilt (geht §9.15a–r vor)
@@ -2744,7 +2742,7 @@ exklusiv, *referenziert* (die Zeile bleibt nach der Freigabe stehen) ist beliebi
 erlaubt. Ein abgeschlossener Auftrag behält damit seine Liste, ohne seine Stücke zu
 blockieren.
 
-Der Index steht in der Migration **und** im Lifespan-Netz. Er ist die einzige Stelle, an
+Der Index steht in der Migration (`uq_order_units_active`). Er ist die einzige Stelle, an
 der die Regel nicht umgangen werden kann: in der Anwendungslogik geprüft, lesen zwei
 gleichzeitige Freigaben beide «ist frei» und schreiben beide.
 

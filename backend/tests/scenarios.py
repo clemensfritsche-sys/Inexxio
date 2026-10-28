@@ -162,7 +162,7 @@ class World:
         from app.models import Article
         from app.services import instances as inst_svc, objects as obj
 
-        art = Article(object_id=obj.next_object_id(self.db), name=name, unit="stk",
+        art = Article(object_id=obj.next_object_id(self.db, "article"), name=name, unit="stk",
                       serialization="einzeln")
         self.db.add(art)
         self.db.flush()

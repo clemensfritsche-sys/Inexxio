@@ -71,7 +71,7 @@ def test_adoption_seeds_the_legal_texts_once(db):
     first = adopt.run(db)
     assert first["legal"] >= 2 and legal.document_of(db, house, legal.AGB) is not None, "(a)"
     late = CompanySettings(is_own=True, company_name="Später", legal_form="AG",
-                           object_id=objects.next_object_id(db))
+                           object_id=objects.next_object_id(db, "organization"))
     db.add(late)
     db.flush()
     assert adopt.run(db) == {"legal": 0}, "(b)"

@@ -5,7 +5,6 @@ Freitag, 23.10.2026, 12:33 in Zürich – die Zeit kommt immer vom Server
 (``timekeeping.now_utc``), darum genügt es, sie hier zu setzen.
 """
 
-import random
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -30,7 +29,8 @@ def clock(monkeypatch):
 
 
 def _company(db) -> int:
-    oid = random.randint(900_000_000, 999_999_999)
+    from app.services.objects import next_object_id
+    oid = next_object_id(db, "organization")
     db.add(CompanySettings(object_id=oid, company_name=f"Test {oid}", legal_form="AG",
                            is_own=True, email=""))
     db.flush()
@@ -38,7 +38,8 @@ def _company(db) -> int:
 
 
 def _person(db, company, role="employee", born=date(1990, 6, 11)) -> UserProfile:
-    oid = random.randint(900_000_000, 999_999_999)
+    from app.services.objects import next_object_id
+    oid = next_object_id(db, "user")
     u = UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role, object_id=oid,
                     first_name="P", last_name=str(oid), company_object_id=company,
                     date_of_birth=born, phone="+41 79 000 00 00")

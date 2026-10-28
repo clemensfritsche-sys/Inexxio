@@ -1,8 +1,9 @@
 """**Eine fehlgeschlagene Migration bleibt nie unbemerkt** (``/health`` → ``schema``).
 
-Scheitert ``alembic upgrade head`` beim Start, läuft der Dienst trotzdem weiter – so blieb auf
-dev die Kette wochenlang bei ``156`` stehen. ``/health`` sagt darum, ob die Datenbank auf dem
-Stand des Codes steht; der Deploy liest es und wird rot.
+Früher lief der Dienst weiter, wenn ``alembic upgrade head`` beim Start scheiterte – so blieb
+auf dev die Kette wochenlang bei ``156`` stehen. Heute startet er dann nicht; ``/health`` sagt
+trotzdem, ob die Datenbank auf dem Stand des Codes steht (etwa nach einem Revert), und der
+Deploy liest es und wird rot.
 """
 
 from sqlalchemy import text

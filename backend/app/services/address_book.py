@@ -29,16 +29,6 @@ PRIVATE, BUSINESS = "private", "business"
 ACCOUNTS = (PRIVATE, BUSINESS)
 #: Was ein Eintrag trägt – Feldnamen = Spalten.
 FIELDS = ("street1", "street2", "zip", "city", "region", "country", "email")
-#: **Je Konto genau ein Standard** – als Index, nicht als Prüfung. Das Modell trägt ihn
-#: (``create_all`` legt ihn mit einer neuen Tabelle an); hier steht er für das
-#: Lifespan-Netz, falls die Tabelle schon ohne ihn existiert. Die frühere Fassung ohne
-#: Konto hat Migration ``152`` entfernt.
-ADDRESS_INDEXES = (
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_addresses_default_delivery_account "
-    "ON addresses (owner_id, account) WHERE is_active AND is_default_delivery",
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_addresses_default_billing_account "
-    "ON addresses (owner_id, account) WHERE is_active AND is_default_billing",
-)
 #: Die beiden Standards: ``delivery`` = wohin die Ware, ``billing`` = wohin die Rechnung.
 KINDS = {"delivery": "is_default_delivery", "billing": "is_default_billing"}
 

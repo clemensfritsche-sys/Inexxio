@@ -1,5 +1,5 @@
-"""►►► **Der Start repariert – er vernichtet nichts, und er ernennt niemanden** (Cleanup
-Oktober 2026, Paket 2). ◄◄◄
+"""►►► **Der Start baut kein Schema – er vernichtet nichts, und er ernennt niemanden**
+(Cleanup Oktober 2026). ◄◄◄
 
 Gefahren gegen echtes PostgreSQL. Jede Prüfung nennt die Regel und ist gegen ihre
 Bug-Form gegengeprüft.
@@ -11,42 +11,8 @@ from sqlalchemy import text
 
 from app import main
 from app.core import auth
-from app.core.database import engine
 from app.models import UserProfile
 from tests.runner import session
-
-
-def test_a_misshaped_core_table_is_reported_and_keeps_its_rows(monkeypatch, capsys):
-    """Passt eine Prozess-Tabelle nicht zum Modell, steht es im Log – ihre Zeilen bleiben.
-    Vorher: ``DROP TABLE … CASCADE`` auf ``orders``, ``process_events`` & Co."""
-    session()   # Schema herrichten
-    with engine.connect() as conn:
-        before = conn.execute(text("SELECT count(*) FROM process_events")).scalar()
-    monkeypatch.setattr(main, "_shape_problem",
-                        lambda _i, table, _m: "fremde Pflichtspalten: x"
-                        if table == "process_events" else None)
-    main._check_core_tables_shape()
-    with engine.connect() as conn:
-        after = conn.execute(text("SELECT count(*) FROM process_events")).scalar()
-    assert after == before
-    assert "process_events passt nicht zum Modell" in capsys.readouterr().out
-
-
-def test_a_failing_repair_does_not_take_the_others_with_it(db, monkeypatch, capsys):
-    """Jede Daten-Reparatur hat ihren Savepoint: scheitert eine, laufen die übrigen.
-    (``db``: die Reparaturen laufen gegen die echte Datenbank.)"""
-    ran = []
-
-    def broken(conn, _t, _i):
-        conn.execute(text("SELECT * FROM table_that_does_not_exist"))
-
-    def fine(conn, _t, _i):
-        conn.execute(text("SELECT 1"))
-        ran.append("fine")
-    monkeypatch.setattr(main, "_DATA_REPAIRS", (("kaputt", broken), ("heil", fine)))
-    main._ensure_columns()
-    assert ran == ["fine"]
-    assert "Daten-Reparatur «kaputt» fehlgeschlagen" in capsys.readouterr().out
 
 
 def test_nobody_becomes_admin_by_being_first(monkeypatch):
@@ -99,43 +65,21 @@ def test_the_start_drops_no_column_and_writes_no_unmapped_one():
     assert "move_company_texts" not in code, "Die Firmentext-Übernahme ist zurück im Netz (c)."
 
 
-_CORRECTS_FKS = (
-    "SELECT c.conname FROM pg_constraint c JOIN pg_attribute a "
-    "ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
-    "WHERE c.conrelid = 'vouchers'::regclass AND c.contype = 'f' "
-    "AND a.attname = 'corrects_id'")
+def test_the_start_runs_twice_without_harm():
+    """Mehrere Worker und Instanzen starten gegen dieselbe Datenbank: der Start (Trigger,
+    Betreiber, Rechtstexte) läuft beliebig oft und legt nichts doppelt an."""
+    from fastapi.testclient import TestClient
 
-
-def test_the_correction_reference_gets_its_index_and_key_from_the_net():
-    """►►► **Index und Fremdschlüssel von ``vouchers.corrects_id`` stehen im Netz**
-    (Cleanup B-52). ◄◄◄ Kam die Spalte über das Spalten-Netz (``alembic upgrade head``
-    gescheitert), war sie ein blankes ``BIGINT``: kein Index, und kein Riegel, der einen
-    Verweis auf einen gelöschten Beleg auf ``NULL`` setzt. ``create_all`` legt beides nur
-    mit einer **neuen** Tabelle an.
-
-    Gefahren auf einer Datenbank, der beides fehlt – in einer Transaktion, die danach
-    verworfen wird. Bug-Form: der Netz-Eintrag fehlt → beides bleibt weg."""
+    from app.models import CompanySettings
     session()   # Schema herrichten
-    with engine.connect() as conn:
-        tx = conn.begin()
-        try:
-            for fk in conn.execute(text(_CORRECTS_FKS)).scalars().all():
-                conn.execute(text(f"ALTER TABLE vouchers DROP CONSTRAINT {fk}"))
-            conn.execute(text("DROP INDEX IF EXISTS ix_vouchers_corrects_id"))
-            for stmt in main._RAW_INDEX_SAFETY_NET:
-                conn.execute(text(stmt))
-            index = conn.execute(text(
-                "SELECT 1 FROM pg_indexes WHERE tablename = 'vouchers' "
-                "AND indexname = 'ix_vouchers_corrects_id'")).first()
-            key = conn.execute(text(
-                "SELECT confdeltype FROM pg_constraint WHERE conrelid = 'vouchers'::regclass "
-                "AND contype = 'f' AND conname = 'fk_vouchers_corrects'")).scalar()
-            # Ein zweiter Lauf legt nichts doppelt an und scheitert nicht.
-            for stmt in main._RAW_INDEX_SAFETY_NET:
-                conn.execute(text(stmt))
-            keys = len(conn.execute(text(_CORRECTS_FKS)).scalars().all())
-        finally:
-            tx.rollback()
-    assert index is not None, "Ohne Netz-Eintrag fehlt ix_vouchers_corrects_id."
-    assert key == "n", "Ohne Netz-Eintrag fehlt der Fremdschlüssel (ON DELETE SET NULL)."
-    assert keys == 1, f"Der zweite Lauf hat einen zweiten Fremdschlüssel angelegt ({keys})."
+    for _ in range(2):
+        with TestClient(main.app):
+            pass
+    db = session()
+    try:
+        assert db.query(CompanySettings).filter(CompanySettings.is_operator).count() == 1
+        trigger = db.execute(text("SELECT count(*) FROM pg_trigger "
+                                  "WHERE tgname = 'trg_instance_units_terminal'")).scalar()
+        assert trigger == 1
+    finally:
+        db.close()

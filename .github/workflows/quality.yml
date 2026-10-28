@@ -86,13 +86,9 @@ jobs:
           pip install ruff==0.16.8
           ruff check .
 
-      # Baut das Schema von NULL aus den Migrationen auf. Klingt selbstverständlich, war es
-      # aber nicht: eine Datenreparatur (074) griff auf eine Spalte zu, die nie eine
-      # Migration angelegt hatte (sie stammte aus dem Lifespan-``create_all`` und wurde von
-      # 081 wieder entfernt) – auf einer frischen Datenbank brach der Aufbau dort ab. Die
-      # laufende Umgebung merkt davon nichts, ein neues Projekt oder eine Wiederherstellung
-      # aus dem Nichts scheitert. Dieselbe Ausfallklasse wie beim Deploy von Migration 090:
-      # es zeigt sich erst, wenn es zählt.
+      # Baut das Schema von NULL aus den Migrationen auf – der einzige Weg zum Schema, auch
+      # im Betrieb (kein create_all, keine Start-Netze). Die laufende Umgebung merkte einen
+      # Bruch hier nie, eine Wiederherstellung aus dem Nichts schon.
       - name: Schema aus den Migrationen aufbauen (Alembic ist die Wahrheit)
         working-directory: backend
         env:

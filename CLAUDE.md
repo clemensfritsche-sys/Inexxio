@@ -216,7 +216,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Die Rolle ist der Zugang**: `admin` · `employee` · `user` (`people.ROLES`). Ins ERP darf
   genau `people.STAFF_ROLES` (admin, employee), im Frontend **nur** über `isStaff()`
   (`lib/record-status.ts`). **Lieferant ↔ Kunde ist eine Eigenschaft des Vorgangs**, nicht
-  der Person. **Admin wird nur `initial_admin_email`** (Start und Login), nie «wer zuerst
+  der Person. **Admin wird nur `initial_admin_email`** (beim Login), nie «wer zuerst
   kommt». Personen werden nicht deaktiviert; Personal kann eine Person anlegen
   (`POST /erp/records`, Firebase-Konto sofort).
 - **Es bestellt immer eine Person**; die Firma ist höchstens Rechnungsempfänger «z. H.».
@@ -374,30 +374,28 @@ Infotexte im Hover, 8-px-Raster, Inter / Inter Tight. **Die Alt-Palette ist weg*
 `blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen). Eine unbekannte Tailwind-Klasse oder
 CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 
-## Schema und Netze
-- **Die Migration ist die Wahrheit.** `backend/start.sh` fährt `alembic upgrade head` bei
-  **jedem** Start, auf jeder Umgebung, auch auf dev. Scheitert der Lauf, startet uvicorn
-  trotzdem, und dann tragen die **Lifespan-Netze** in `main._ensure_columns` – sie sind der
-  **zweite Weg**, kein Ersatz: `_COLUMN_SAFETY_NET` (Spalten) · `_NUMERIC_SAFETY_NET` (Skala)
-  · `_NULLABLE_SAFETY_NET` · `_INDEX_SAFETY_NET` · `_RAW_INDEX_SAFETY_NET` (Indizes, CHECKs,
-  Fremdschlüssel). `create_all` legt nur fehlende **Tabellen** an.
+## Schema
+- **Die Migration ist der einzige Weg.** `backend/start.sh` fährt `alembic upgrade head` bei
+  **jedem** Start, auf jeder Umgebung. Scheitert der Lauf, **startet der Dienst nicht** (Cloud
+  Run behält die alte Revision); einzige Ausnahme ist «Can't locate revision» (die DB ist
+  neuer als der Code, nach einem Revert) – dann startet er mit Warnung. Es gibt **keine
+  Start-Netze** mehr (kein `create_all`, keine Spalten-/Index-Netze, keine Daten-Reparaturen
+  beim Start; entfernt Oktober 2026, `docs/attic.md`).
+- **Basis `161`** (`alembic/versions/161_baseline.sql`, eingefroren aus `pg_dump`) fasst die
+  früheren 161 Migrationen zusammen; jede Änderung ist eine neue Migration ab `162`.
 - **Eine gescheiterte Migration bleibt nie unbemerkt**: `/health` sagt `schema` (`current` ·
-  `behind`), `revision` und `head`; nach jedem Deploy liest `scripts/check-schema.sh` das und
-  macht den Lauf rot, mit den Zeilen des Starts im Log.
-- **Jede Datenänderung einer Migration braucht ihr Netz** – je eine Funktion mit eigenem
-  Savepoint in `main._DATA_REPAIRS` (lesen ihre SQL aus der Fachschicht, z. B.
-  `statuses.terminal_guard_sql`, `people.repair_sql`); eine
-  Reparatur heilt nur, was der Katalog **nicht** kennt.
-- **Der Start löscht nichts und ernennt niemanden**: kein `DROP TABLE`, der Formwächter
-  (`_check_core_tables_shape`) **meldet** eine fremde Form, Admin wird nur
-  `initial_admin_email`.
+  `behind`), `revision` und `head` (503, wenn etwas nicht stimmt); nach jedem Deploy liest
+  `scripts/check-schema.sh` das und macht den Lauf rot.
+- **Der Start schreibt nur, was aus dem Code folgt**: die beiden Trigger aus der Fachschicht
+  (`statuses.terminal_guard_sql`, `timekeeping.append_only_sql`), den Betreiber als Datensatz
+  und die Rechtstexte als Dokumente (`main.lifespan`). Er löscht nichts und ernennt niemanden
+  – Admin wird nur `initial_admin_email`, beim Login (`core/auth`).
 - **Neue Tabelle** = voller Spaltensatz in der Migration (inkl. geerbter `is_active`,
-  `created_at`, `updated_at`). **Neue Spalte/Index** = Migration **und** Netz.
-  **Zwei-Deploy-Regel für Drops**: erst das Mapping weg, im Folge-Deploy die Spalte
-  (Liste in `docs/backlog.md`). Ein Wächter verlangt: nach `upgrade head` steht nichts, was
-  kein Modell kennt (Ausnahmen in `PENDING_DROP`), und kein Netz nennt eine ungemappte
-  Spalte. Migration `152` hat alles Ausstehende gedroppt (60 Spalten, 17 Tabellen
-  entfernter Bereiche – nach Sicherung der produktiven DB).
+  `created_at`, `updated_at`); Datenänderungen stehen in der Migration selbst.
+  **Zwei-Deploy-Regel für Drops**: erst das Mapping weg, im Folge-Deploy die Spalte (Liste in
+  `docs/backlog.md`). Ein Wächter baut das Schema aus den Migrationen und verlangt beide
+  Richtungen: alles, was ein Modell kennt (Tabelle, Spalte, Index, Fremdschlüssel), steht da,
+  und nichts, was kein Modell kennt (Ausnahmen in `PENDING_DROP`).
 
 ## Tests und CI
 - Das Gate steht **einmal** in `.github/workflows/quality.yml` und läuft vor Dev- **und**

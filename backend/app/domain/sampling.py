@@ -57,20 +57,9 @@ def clean(raw: Any) -> dict[str, Any]:
 
 
 def percent_of(rule: Any) -> int:
-    """Der Anteil einer gespeicherten Regel — **die eine Lesestelle**.
-
-    Sie liest tolerant, weil Definitionen älter sein können als die Regel selbst: die
-    frühere Form trug ``{"mode": …, "value": …}`` und meinte «je Instanz». Geschrieben
-    wird nur noch die neue Form (``clean``); gelesen werden beide, damit eine Vorlage aus
-    der Zeit davor weiter das tut, was dort steht.
-    """
-    rule = rule or DEFAULT
-    if "percent" in rule:
-        return int(rule.get("percent") or FULL)
-    mode = rule.get("mode") or "all"
-    if mode == "percent":
-        return int(rule.get("value") or FULL)
-    return FULL
+    """Der Anteil einer gespeicherten Regel — **die eine Lesestelle**. Gespeichert wird nur
+    die Form aus ``clean`` (``{"percent": n}``)."""
+    return int((rule or DEFAULT).get("percent") or FULL)
 
 
 def size(rule: Any, population: int) -> int:
@@ -83,11 +72,6 @@ def size(rule: Any, population: int) -> int:
     """
     if population < 1:
         return 0
-    rule = rule or DEFAULT
-    # Altbestand: eine feste **Anzahl**. Sie galt einmal je Instanz und gilt jetzt über
-    # die Gesamtmenge – dieselbe Umdeutung wie überall hier, statt eine zweite Regel.
-    if "percent" not in rule and (rule.get("mode") == "count"):
-        return max(1, min(population, int(rule.get("value") or 0)))
     percent = percent_of(rule)
     if percent >= FULL:
         return population
@@ -99,8 +83,5 @@ def describe(rule: Any) -> str:
 
     Die Bezugsgrösse steht mit dabei: «50 %» allein liesse offen, wovon.
     """
-    rule = rule or DEFAULT
-    if "percent" not in rule and rule.get("mode") == "count":
-        return f"{int(rule.get('value') or 0)} Stück"
     percent = percent_of(rule)
     return "alle" if percent >= FULL else f"{percent} % der Gesamtmenge"

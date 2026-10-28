@@ -200,3 +200,26 @@ Zwei Entscheidungen stecken darin und sind es wert, nicht neu hergeleitet zu wer
 
 Geblieben ist, was heute wirklich jemand liest: `iso2` (Gebietskarte, Währung je
 Gesellschaft), `of_company` + `has_content` (Impressum, Halter-Anschrift) und `make`.
+
+## Die Start-Netze und die 161 Einzelmigrationen (Oktober 2026)
+
+`main._ensure_columns` mit `_COLUMN_SAFETY_NET` · `_NUMERIC_SAFETY_NET` · `_NULLABLE_SAFETY_NET`
+· `_INDEX_SAFETY_NET` · `_RAW_INDEX_SAFETY_NET`, `_DATA_REPAIRS`, `create_all`,
+`_check_core_tables_shape`, `_bootstrap_admin`, Registry-Backfill und `setval` beim Start;
+dazu die Reparatur-SQL der Fachschicht (`people.repair_sql`, `communication.*_repair_sql`,
+`sites.KEY_INDEXES`/`backfill_keys`, `address_book.ADDRESS_INDEXES`,
+`objects.backfill_registry`/`ensure_foreign_keys`) und `alembic/versions/001…161`.
+
+**Der Stand:** der Commit vor dem Zusammenfassen auf `develop` (`git log -- backend/alembic/versions/161_drops.py`).
+
+**Warum sie weg sind.** Die Netze waren der zweite Weg, als `start.sh` trotz gescheiterter
+Migration startete (#778). Seit der Start dann **abbricht** (Cloud Run behält die alte
+Revision) und `/health` + `check-schema.sh` jede Abweichung rot machen, fingen sie nichts
+mehr – sie versteckten nur, was eine Migration vergessen hatte: die Registry `objects` und
+ihr Fremdschlüssel entstanden **nie** aus einer Migration, nur aus dem Start. Die Basis
+`161_baseline.sql` ist das Schema genau so, wie Migrationen + Netze es zusammen bauten
+(Vergleich per `pg_dump`: identisch).
+
+**Die Entscheidung darin:** ein Weg zum Schema, und der bricht laut. Wer eine Lücke findet,
+schreibt eine Migration – der Wächter `test_schema_is_built_by_the_migrations` meldet sie
+vorher in beide Richtungen.

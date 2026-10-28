@@ -54,7 +54,7 @@ def _house(db):
     house = sites.find_operator(db)
     if house is None:
         house = CompanySettings(is_operator=True, is_own=True,
-                                object_id=obj.next_object_id(db))
+                                object_id=obj.next_object_id(db, "organization"))
         db.add(house)
     house.company_name = house.company_name or "Inexxio"
     house.legal_form = house.legal_form or "AG"
@@ -82,7 +82,7 @@ def _party(db, name: str, role: str = "supplier"):
     db.flush()
     user = UserProfile(
         firebase_uid=f"test-{uuid.uuid4()}", email=f"{uuid.uuid4()}@example.test",
-        company_object_id=firm.object_id, role=role, object_id=obj.next_object_id(db),
+        company_object_id=firm.object_id, role=role, object_id=obj.next_object_id(db, "user"),
     )
     db.add(user)
     db.flush()
@@ -104,7 +104,7 @@ def _article(db, name: str, *, steps=None):
     from app.services import article_process as tpl, objects as obj
     # **Die Zoll-Angaben stehen am Artikel** und reisen von dort auf jeden Beleg – seit
     # #964 sind sie Pflicht, bevor er hinausgeht (`_assert_complete`).
-    art = Article(object_id=obj.next_object_id(db), name=name, unit="stk",
+    art = Article(object_id=obj.next_object_id(db, "article"), name=name, unit="stk",
                   serialization="batch", hs_code="848210", origin_country="CH")
     db.add(art)
     db.flush()

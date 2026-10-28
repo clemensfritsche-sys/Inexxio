@@ -143,9 +143,7 @@ class CompanyTerritory(Base):
     ``company_settings.id`` (interner Schlüssel des Besitzers). Die Auflösung «welche Gesellschaft
     gehört zu diesem Land» ist ``services/sites.company_for_country`` (**Land ≻ Region ≻
     Betreiber**).
-
-    **Neue Tabelle** → ``create_all()`` im Lifespan legt sie an, falls Migration 092 nicht lief
-    (das Lifespan-Netz braucht nur für neue SPALTEN auf bestehenden Tabellen Einträge)."""
+"""
 
     __tablename__ = "company_territories"
 

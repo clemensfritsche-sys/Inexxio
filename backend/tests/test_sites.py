@@ -80,15 +80,15 @@ def test_operator_is_editable_and_exactly_one():
     """Den Betreiber setzen nimmt ihn allen anderen ab – genau EINE trägt den Titel.
 
     Doppelt abgesichert: ``set_operator`` löscht die übrigen explizit UND der partielle
-    Unique-Index (Migration 091 + Lifespan-Netz) liesse zwei ``true`` gar nicht zu."""
+    Unique-Index (im Schema) liesse zwei ``true`` gar nicht zu."""
     from app.services import sites
 
     code = _code(sites.set_operator)
     assert "id != company.id" in code, "die übrigen Gesellschaften werden angefasst"
     assert "is_operator" in code and "False" in code, "…und entmarkiert"
-    from app.main import _COMPANY_DATA_FIXES
-    joined = " ".join(_COMPANY_DATA_FIXES)
-    assert "uq_company_settings_operator" in joined and "WHERE is_operator" in joined
+    schema = (APP.parent / "alembic/versions/161_baseline.sql").read_text(encoding="utf-8")
+    assert "uq_company_settings_operator ON public.company_settings USING btree " \
+           "(is_operator) WHERE is_operator" in schema
 
 
 def test_currency_is_a_per_company_field_derived_from_country():
@@ -259,34 +259,6 @@ def test_our_own_bank_account_is_not_masked():
 
 
 # ─── Der Kern: das Ziel einer Bewegung ist SEIN Standort ─────────────────────────
-
-def test_migrations_090_and_091_are_repeatable():
-    """Repariert das Lifespan-Netz das Schema, versucht Alembic die Migration beim nächsten
-    Deploy erneut – sie muss also wiederholbar sein, sonst bliebe Alembic hängen und
-    blockierte jede künftige Migration."""
-    for name in ("090_multi_site.py", "091_companies_operator_currency.py"):
-        migration = (APP.parent / "alembic/versions" / name).read_text(encoding="utf-8")
-        tree = ast.parse(migration)
-        code = ast.unparse(next(n for n in tree.body if getattr(n, "name", None) == "upgrade"))
-        assert "CREATE UNIQUE INDEX IF NOT EXISTS" in code, name
-        # additive Spalten nur, wenn nicht vorhanden; Drops nur IF EXISTS
-        assert "get_columns('company_settings')" in code or "IF EXISTS" in code, name
-
-
-def test_is_primary_is_dropped_everywhere_not_re_added():
-    """``is_primary`` ist endgültig weg: NICHT mehr im ADD-Netz (das es sonst wieder
-    anlegen würde und Migration 091 rückgängig machte) und in keinem Modell. Gedroppt hat
-    es Migration 091; das frühere Drop-Netz, das es bei jedem Start erneut versuchte, ist
-    entfallen (Cleanup Oktober 2026, B-22) – eine Spalte ohne Mapping stört nichts."""
-    from app.main import _COLUMN_SAFETY_NET
-    from app.models import CompanySettings
-
-    add = {(t, c) for t, c, _ in _COLUMN_SAFETY_NET}
-    assert ("company_settings", "is_primary") not in add, "is_primary darf nicht wieder ergänzt werden"
-    assert "is_primary" not in CompanySettings.__table__.columns, "is_primary ist zurück im Modell"
-    assert ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false") in _COLUMN_SAFETY_NET
-
-
 
 
 def test_the_public_settings_name_only_the_maps_key_and_invent_nothing():

@@ -123,44 +123,6 @@ def is_mail(key: str) -> bool:
     return company_of(key) is not None
 
 
-#: **Der Kanal des Betreibers**, als Teilabfrage – das Ziel beider Umzüge darunter. Einmal
-#: ausgeschrieben, damit sie nicht an zwei Stellen verschieden altern (Cleanup B-24).
-_OPERATOR_CHANNEL = ("(SELECT 'c' || object_id FROM company_settings WHERE is_own AND "
-                     "object_id IS NOT NULL ORDER BY is_operator DESC, id LIMIT 1)")
-
-
-def info_repair_sql() -> list[str]:
-    """Der frühere eine Unternehmens-Kanal ``info`` wird der des **Betreibers** – gelesen
-    von Migration 146 **und** vom Lifespan-Netz (für eine Datenbank, auf der
-    ``alembic upgrade head`` scheitert, #778). Selbstbegrenzend: danach gibt es kein
-    ``info`` mehr."""
-    op = _OPERATOR_CHANNEL
-    return [f"UPDATE {t} SET channel = {op} WHERE channel = 'info' AND {op} IS NOT NULL"
-            for t in ("messages", "mailboxes")]
-
-
-def personal_repair_sql() -> list[str]:
-    """►►► **Persönliche Postfächer gibt es nicht mehr** (Migration 149). ◄◄◄ Ein früher
-    verbundenes wird getrennt, und was über es lief, steht danach im Postfach des
-    **Betreibers** – sonst stünde im Verlauf ein Kanal, den es nicht gibt. Gelesen von der
-    Migration **und** vom Lifespan-Netz (#778). Selbstbegrenzend: danach gibt es kein
-    ``u<Nummer>`` mehr."""
-    op = _OPERATOR_CHANNEL
-    return [f"UPDATE messages SET channel = {op} WHERE channel ~ '^u[0-9]+$' "
-            f"AND {op} IS NOT NULL",
-            "UPDATE mailboxes SET is_active = false WHERE channel ~ '^u[0-9]+$' AND is_active"]
-
-
-def contact_repair_sql() -> list[str]:
-    """**Die Kontakt-E-Mail einer eigenen Gesellschaft IST die Adresse ihres Postfachs**
-    – wo eines verbunden ist und beide auseinanderliegen (vor der Kopplung liess sich ein
-    anderes Konto verbinden), gewinnt das Postfach. Gelesen von Migration 147 **und** vom
-    Lifespan-Netz. Selbstbegrenzend: danach stimmen beide überein."""
-    return ["UPDATE company_settings AS c SET email = m.address FROM mailboxes AS m "
-            "WHERE m.is_active AND c.is_own AND c.object_id IS NOT NULL "
-            "AND m.channel = 'c' || c.object_id AND c.email IS DISTINCT FROM m.address"]
-
-
 #: Vorsilben einer Antwort oder Weiterleitung – sie ändern das Anliegen nicht.
 _PREFIX = re.compile(r"^\s*((re|aw|antw|fw|fwd|wg|sv|vs|tr)\s*(\[\d+\])?\s*:\s*)+", re.I)
 

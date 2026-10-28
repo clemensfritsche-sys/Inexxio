@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Integer, Numeric, String
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -91,7 +91,10 @@ class Article(Base, TimestampMixin):
     # der Artikel.
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Artikels (alt → neu).
-    replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    replaced_by_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("objects.object_id", ondelete="SET NULL",
+                               name="fk_articles_replaced_by"),
+        nullable=True, index=True)
 
     @property
     def status(self) -> str:

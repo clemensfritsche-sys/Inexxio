@@ -39,7 +39,7 @@ def _house(db):
     house = sites.find_operator(db)
     if house is None:
         house = CompanySettings(is_operator=True, is_own=True,
-                                object_id=obj.next_object_id(db))
+                                object_id=obj.next_object_id(db, "organization"))
         db.add(house)
     house.company_name = house.company_name or "Inexxio"
     house.legal_form = house.legal_form or "AG"
@@ -95,7 +95,7 @@ def _person(db, name="Muster AG", *, country="CH", firm=True, own=False):
                        email=f"{uuid.uuid4().hex[:8]}@example.test",
                        first_name="Anna", last_name="Keller",
                        company_object_id=company.object_id if company else None,
-                       role="user", object_id=obj.next_object_id(db))
+                       role="user", object_id=obj.next_object_id(db, "user"))
     db.add(user)
     db.flush()
     account = "business" if (company is not None and not own) else "private"
@@ -110,7 +110,7 @@ def _article(db, *, service=False, steps=(), capture=True):
     """Ein Artikel – sein Erzeugungsprozess IST der Prozess des Auftrags."""
     from app.models import Article
     from app.services import article_process as tpl, objects as obj
-    art = Article(object_id=obj.next_object_id(db), name=f"Kranhaken {uuid.uuid4().hex[:4]}",
+    art = Article(object_id=obj.next_object_id(db, "article"), name=f"Kranhaken {uuid.uuid4().hex[:4]}",
                   unit="stk", serialization="batch", hs_code="848210", origin_country="CH",
                   weight_kg=Decimal("2.5"), is_service=service)
     db.add(art)
@@ -187,7 +187,7 @@ def _staff(db):
     from app.services import objects as obj
     u = UserProfile(firebase_uid=f"s-{uuid.uuid4()}", email=f"{uuid.uuid4().hex[:6]}@x.test",
                     first_name="Clemens", last_name="Fritsche", role="admin",
-                    object_id=obj.next_object_id(db))
+                    object_id=obj.next_object_id(db, "user"))
     db.add(u)
     db.flush()
     return u

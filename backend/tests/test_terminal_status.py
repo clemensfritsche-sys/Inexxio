@@ -44,11 +44,11 @@ def _scrapped_unit(db):
     from app.models import Article, Instance, InstanceUnit
     from app.services import objects as obj
 
-    art = Article(object_id=obj.next_object_id(db), name="Endzustand", unit="stk",
+    art = Article(object_id=obj.next_object_id(db, "article"), name="Endzustand", unit="stk",
                   serialization="unit")
     db.add(art)
     db.flush()
-    inst = Instance(object_id=obj.next_object_id(db), article_id=art.id, kind="batch")
+    inst = Instance(object_id=obj.next_object_id(db, "instance"), article_id=art.id, kind="batch")
     db.add(inst)
     db.flush()
     unit = InstanceUnit(instance_id=inst.id, suffix=1, status=st.VERSCHROTTET)
@@ -212,46 +212,6 @@ def test_the_trigger_is_generated_from_the_catalog_not_written_by_hand():
     assert "%%" not in sql, (
         "In plpgsql ist «%» der Platzhalter; «%%» wäre ein literales Prozentzeichen und "
         "die Funktion liesse sich nicht übersetzen («too many parameters for RAISE»)."
-    )
-
-
-def test_the_start_repairs_only_what_the_catalog_does_not_know():
-    """**Die Alt-Reparatur in ihrer Bug-Form – und in ihrer heutigen.**
-
-    Sie soll den Platzhalter aus dem Basis-Neuaufbau glattziehen und sonst nichts. Als
-    negative Liste geschrieben (``NOT IN ('freigegeben','im_prozess')``) traf sie jeden
-    Zustand, den es damals noch nicht gab. Aus dem Katalog abgeleitet kann ihr das nicht
-    mehr passieren – und der Vergleich beider Formen ist der Beweis.
-    """
-    sys.path.insert(0, str(BACKEND))
-    from app.domain import statuses as st
-
-    veraltet = {"freigegeben", "im_prozess"}          # die Liste von damals
-    heute = set(st.UNIT_STATUSES)                      # die Liste von jetzt
-
-    getroffen = {s for s in heute if s not in veraltet}
-    assert getroffen, (
-        "Wenn diese Menge leer wäre, könnte der Test die Bug-Form nicht mehr zeigen."
-    )
-    assert st.VERSCHROTTET in getroffen and st.GESPERRT in getroffen, (
-        "Das ist die Bug-Form: die alte Reparatur hätte genau diese Zustände "
-        "zurückgesetzt – bei jedem Start."
-    )
-    # Und die heutige Form trifft keinen einzigen bekannten Zustand.
-    assert not {s for s in heute if s not in heute}
-
-    # Nur der Code. Eine **Begründung**, warum etwas weg ist, darf den alten Wortlaut
-    # nennen – sonst dürfte man den Fehler nicht mehr erklären, den man behoben hat.
-    src = (BACKEND / "app" / "main.py").read_text(encoding="utf-8")
-    main_src = "\n".join(
-        line for line in src.split("\n") if not line.lstrip().startswith("#")
-    )
-    assert "NOT IN ('freigegeben','im_prozess')" not in main_src, (
-        "Die von Hand geschriebene Status-Liste ist zurück – sie veraltet beim nächsten "
-        "neuen Zustand still und setzt ihn bei jedem Start zurück."
-    )
-    assert "st.UNIT_STATUSES" in main_src, (
-        "Die Reparatur muss ihre Liste aus dem Katalog nehmen, nicht aus dem Gedächtnis."
     )
 
 

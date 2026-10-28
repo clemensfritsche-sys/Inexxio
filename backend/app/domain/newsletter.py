@@ -18,7 +18,6 @@ SOURCES: dict[str, str] = {
     "link": "Abmeldelink",
     "one_click": "Mailprogramm",     # List-Unsubscribe-Post (RFC 8058)
     "erp": "ERP",                    # Abmeldung durch Mitarbeitende (z. B. am Telefon)
-    "legacy": "Früheres Häkchen",    # aus ``user_profiles.newsletter_opt_in`` (Migration 153)
 }
 
 #: Wie lange eine Bitte um Bestätigung gilt.

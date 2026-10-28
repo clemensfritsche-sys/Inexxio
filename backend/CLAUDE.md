@@ -38,53 +38,42 @@ uvicorn app.main:app --reload --port 8000
 alembic upgrade head                                 # Migrationen anwenden
 alembic revision --autogenerate -m "description"     # neue Migration
 ```
-- **`start.sh` fährt `alembic upgrade head` bei JEDEM Start – auf jeder Umgebung, auch auf
-  dev.** Scheitert der Lauf, **startet der Dienst nicht** (Cloud Run behält die alte
-  Revision). Einzige Ausnahme: «Can't locate revision» (die DB steht auf einer neueren
-  Revision, etwa nach einem Revert) – dann startet er mit Warnung, und es tragen die **Lifespan-Netze** in `main._ensure_columns` – der
-  **zweite Weg**, kein Ersatz.
-- Die Netze: `_COLUMN_SAFETY_NET` (fehlende Spalten) · `_NUMERIC_SAFETY_NET` (Skala) ·
-  `_NULLABLE_SAFETY_NET` (gelöste `NOT NULL`) · `_INDEX_SAFETY_NET` ·
-  `_RAW_INDEX_SAFETY_NET` (Indizes, CHECKs, Fremdschlüssel, partielle Unique-Indizes).
-  `create_all` legt nur fehlende **Tabellen** an.
-- **Daten-Reparaturen** stehen je als Funktion mit eigenem Savepoint in `main._DATA_REPAIRS`
-  (heute: `orders.name` · `instance_units.status` · `user_profiles` ·
-  `company_settings`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
-  `people.repair_sql`, `address_book.ADDRESS_INDEXES`,
-  `communication.*_repair_sql`, `sites.backfill_keys`). Scheitert eine, laufen die übrigen.
-- **Die Rechtstexte beim Start** (`main._adopt_documents` → `services/adopt`): solange es noch
-  gar kein AGB/Datenschutz-Dokument gibt, werden die Vorlagen einmal zu Dokumenten der eigenen
-  Gesellschaften. Sie braucht die Fachschicht, darum nicht in der Migration. Altdaten (frühere
-  Papiere, Fotos) werden nicht übernommen.
-- **dev neu aufbauen** (nur dev, alle Daten weg): Sicherung in Cloud SQL, dann
-  `scripts/reset-dev-db.sql` in Cloud SQL Studio auf `inexxio_dev` (bricht auf jeder anderen
-  Datenbank ab), dann ein Deploy – der Start baut alles aus den Migrationen.
-- **Zwei Trigger entstehen bei jedem Start neu** (und in ihrer Migration): `statuses.terminal_guard_sql`
-  (Endzustand) und `timekeeping.append_only_sql` (Zeiterfassung: `time_entries` und
-  `time_contracts` sind append-only – kein UPDATE, kein DELETE).
-- **Der Start löscht nichts und ernennt niemanden**: kein `DROP TABLE` (ein Wächter
-  verbietet es), der Formwächter `_check_core_tables_shape` legt eine fehlende
-  Prozess-Tabelle an und **meldet** eine fremde Form; Admin wird nur `initial_admin_email`
-  (`main._bootstrap_admin`, `core/auth`).
+- **`start.sh` fährt `alembic upgrade head` bei JEDEM Start – auf jeder Umgebung.**
+  Scheitert der Lauf, **startet der Dienst nicht** (Cloud Run behält die alte Revision).
+  Einzige Ausnahme: «Can't locate revision» (die DB steht auf einer neueren Revision, etwa
+  nach einem Revert) – dann startet er mit Warnung. **Es gibt keine Start-Netze**: kein
+  `create_all`, keine Spalten-/Index-Netze, keine Daten-Reparaturen.
+- **Basis `161`**: `alembic/versions/161_baseline.py` führt `161_baseline.sql` aus (das Schema
+  bis 161, eingefroren aus `pg_dump --schema-only`, nie von Hand ändern). Eine DB, die schon
+  auf 161 steht, bekommt nichts; die nächste Migration ist `162`.
+- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die zwei Trigger aus der
+  Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand) und
+  `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only); scheitert das,
+  startet er nicht. Danach, je in eigener Sitzung und nur mit Warnung bei Fehlschlag: der
+  Betreiber als nummerierter Datensatz (`sites.operator`) und die Rechtstexte als Dokumente
+  (`services/adopt`, nur solange es noch keine gibt). Admin wird nur `initial_admin_email`,
+  beim Login (`core/auth`).
+- **dev neu aufbauen** (nur dev, alle Daten weg): `scripts/reset-dev-db.sql` auf `inexxio_dev`
+  (bricht auf jeder anderen Datenbank ab), dann ein Deploy – der Start baut alles aus den
+  Migrationen.
 
 ### Eine Änderung am Schema ist erst fertig, wenn …
 - **neue Tabelle**: die Migration legt den **vollständigen** Spaltensatz des Modells an,
   inklusive geerbter (`is_active`, `created_at`, `updated_at`);
-- **neue Spalte** auf bestehender Tabelle: Migration **und** `_COLUMN_SAFETY_NET`;
-- **neuer Index/CHECK/Fremdschlüssel**: Migration **und** `_RAW_INDEX_SAFETY_NET` – und die
-  Migration ist **je Objekt** idempotent (nicht «Spalte da → fertig»);
-- **Datenänderung**: Migration **und** ein Eintrag in `_DATA_REPAIRS`, der sich selbst
-  begrenzt (zweiter Lauf ändert nichts);
-- **Drop**: Zwei-Deploy-Regel – erst das Mapping weg (Nullable-Netz), im Folge-Deploy die
-  Spalte; die offene Liste steht in `docs/backlog.md`.
+- **neue Spalte, Index, Fremdschlüssel**: in einer Migration – und am Modell;
+- **Datenänderung**: in der Migration selbst (SQL dort ausgeschrieben, nicht aus dem Code
+  gelesen – eine Migration ist eingefroren);
+- **Drop**: Zwei-Deploy-Regel – erst das Mapping weg, im Folge-Deploy die Spalte; die offene
+  Liste steht in `docs/backlog.md`.
 - Geprüft wird das, nicht geglaubt: `tests/test_schema_is_built_by_the_migrations.py` baut
-  eine Wegwerf-DB per `alembic upgrade head` und vergleicht Modell ↔ Schema. **Lokal testen
-  wie die CI** – gegen ein Schema, das nur aus den Migrationen kommt.
+  eine Wegwerf-DB per `alembic upgrade head` und vergleicht Modell ↔ Schema in beide
+  Richtungen. Die Tests selbst laufen ebenfalls auf einem Schema aus den Migrationen
+  (`tests/runner.session`).
 
 ## Struktur
 ```
 app/
-├── main.py           ← App, Router-Registrierung, CORS, Lifespan-Netze, Daten-Reparaturen
+├── main.py           ← App, Router-Registrierung, CORS, Start (Trigger, Betreiber, Rechtstexte)
 ├── core/             ← config.py (Settings – nur, was der Code liest) · database.py ·
 │                       auth.py (Firebase-JWT, get_current_user, require_employee, require_admin)
 ├── domain/           ← der fachliche Kern: KEINE DB, KEINE Services

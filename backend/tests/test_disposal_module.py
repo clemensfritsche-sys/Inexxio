@@ -37,7 +37,7 @@ def _disposal_step(mode: str, reason: str = "Ausschuss aus der Sichtprüfung"):
 def _article(db, *, steps: list[dict], serialization: str = "batch"):
     from app.models import Article
     from app.services import article_process as tpl, objects as obj
-    art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
+    art = Article(object_id=obj.next_object_id(db, "article"), name="Prüfstück", unit="stk",
                   serialization=serialization)
     db.add(art)
     db.flush()

@@ -604,23 +604,16 @@ def test_the_object_registry_claims_only_what_it_can_serve():
     ``document`` stammte aus dem entfernten Dokumentmodul – jede Auflösung einer unbekannten
     Nummer durchsuchte eine Tabelle, die es nicht mehr gab. Seit den Dokumenten (Oktober
     2026) gibt es den Typ wieder, und er hat seine Seite (``routers/documents``). **Der Nummernraum ist davon
-    getrennt**: er speist ``current_max_object_id`` → ``setval``, und eine Alt-Zeile mit der
-    höchsten Nummer würde sonst ein zweites Mal vergeben.
-
-    Beantwortet wird das seit dem Aufräumen von der **Registry** statt von einer einzeln
-    genannten Alt-Tabelle: sie hält jede je vergebene Nummer, auch die eines Typs, den es
-    nicht mehr gibt. Die schwächere Fassung musste beim nächsten entfallenden Typ erneut
-    ergänzt werden – und genau das vergisst man.
+    getrennt**: jede Nummer trägt sich mit ihrem Typ in die Registry ein (ohne Typ keine
+    Nummer), und die Sequence vergibt nie rückwärts.
     """
     src = _read(BACKEND / "app" / "services" / "objects.py")
     models = src.split("_TYPE_MODELS = {")[1].split("}")[0]
     served = _read(BACKEND / "app" / "routers" / "documents.py")
     assert '"document"' not in models or '@router.get("/{object_id}"' in served, (
         "Der Scan löst auf einen Typ auf, den kein Endpunkt liefert.")
-    assert "ObjectRef.object_id" in src.split("_OBJECT_ID_COLUMNS")[1][:300], (
-        "Die Registry fällt aus dem Nummernraum – Nummern entfallener Typen könnten "
-        "ein zweites Mal vergeben werden."
-    )
+    assert "def next_object_id(db: Session, object_type: str)" in src, (
+        "Eine Nummer ohne Typ fiele aus der Registry – die Auflösung fände sie nicht.")
 
 
 # ---------------------------------------------------------------------------

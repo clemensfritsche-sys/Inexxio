@@ -35,7 +35,7 @@ def _order(db, *, serialization: str, quantity: int, sample=None, points=None):
         "points": points or [{"label": "OK", "type": "bool"}],
         **({"sample": sample} if sample else {}),
     }
-    art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
+    art = Article(object_id=obj.next_object_id(db, "article"), name="Prüfstück", unit="stk",
                   serialization=serialization)
     db.add(art)
     db.flush()
@@ -224,7 +224,7 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
 
     db = session()
     try:
-        art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
+        art = Article(object_id=obj.next_object_id(db, "article"), name="Prüfstück", unit="stk",
                       serialization="unit")
         db.add(art)
         db.flush()
@@ -290,11 +290,6 @@ def test_the_sample_is_never_empty_and_never_larger_than_the_lot():
     assert rule.size({"percent": 50}, 3) == 2          # 1.5 → 2
     assert rule.size({"percent": 25}, 3) == 1          # 0.75 → 1
     assert rule.size({"percent": 10}, 0) == 0          # nichts da, nichts gezogen
-    # **Altbestand wird gelesen, nicht geschrieben**: eine Definition aus der Zeit der
-    # Regel «je Instanz» meint jetzt dieselbe Zahl über die Gesamtmenge.
-    assert rule.size({"mode": "count", "value": 12}, 5) == 5
-    assert rule.size({"mode": "percent", "value": 10}, 5) == 1
-    assert rule.size({"mode": "all", "value": None}, 7) == 7
 
 
 def _captures(db, order) -> int:
@@ -461,7 +456,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
     # sonst mit der eindeutigen E-Mail.
     staff = db.query(UserProfile).filter(UserProfile.firebase_uid == "probe").first()
     if staff is None:
-        staff = UserProfile(object_id=obj.next_object_id(db), firebase_uid="probe",
+        staff = UserProfile(object_id=obj.next_object_id(db, "user"), firebase_uid="probe",
                             email="probe@example.com", role="employee")
         db.add(staff)
     db.commit()

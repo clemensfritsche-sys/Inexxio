@@ -26,7 +26,8 @@ PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
 
 
 def _person(db, role="employee") -> UserProfile:
-    oid = random.randint(900_000_000, 999_999_999)
+    from app.services.objects import next_object_id
+    oid = next_object_id(db, "user")
     u = UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role,
                     object_id=oid, first_name="Lea", last_name=f"M{oid}")
     db.add(u)

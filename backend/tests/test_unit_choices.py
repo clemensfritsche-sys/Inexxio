@@ -290,21 +290,3 @@ def test_the_page_can_be_searched_and_filtered():
     finally:
         w.db.rollback()
         w.db.close()
-
-
-def test_the_index_for_the_preselect_is_in_migration_and_in_the_net():
-    """**Ein Index ist erst fertig, wenn er an beiden Stellen steht** (Lehre aus 090).
-
-    Die Migration ist die Wahrheit, das Lifespan-Netz der zweite Weg – und beim Ausfall
-    zählt nur der zweite.
-    """
-    name = "ix_instance_units_instance_status"
-    migration = (BACKEND / "alembic" / "versions" / "113_die_auswahl_blaettert.py")
-    assert migration.exists(), "Migration 113 fehlt."
-    src = migration.read_text(encoding="utf-8")
-    assert name in src and "IF NOT EXISTS" in src, (
-        "Der Index fehlt oder ist nicht idempotent – ein Deploy, bei dem das Netz zuerst "
-        "griff, liefe sonst auf «existiert bereits» auf."
-    )
-    net = (BACKEND / "app" / "main.py").read_text(encoding="utf-8")
-    assert name in net, "Der Index steht nicht im Lifespan-Netz."

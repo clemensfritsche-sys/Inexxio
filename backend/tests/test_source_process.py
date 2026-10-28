@@ -323,12 +323,9 @@ def test_the_exclusivity_rule_lives_in_the_database():
     assert "uq_order_units_active" in model and "released_at IS NULL" in model, (
         "Der partielle Unique-Index fehlt am Modell."
     )
-    mig = _read(BACKEND / "alembic" / "versions" / "104_process_engine.py")
-    assert "uq_order_units_active" in mig, "Die Migration legt den Index nicht an."
-    net = _read(BACKEND / "app" / "main.py")
-    assert "uq_order_units_active" in net, (
-        "Der Index fehlt im Lifespan-Netz – scheitert Alembic, gibt es die Regel nicht."
-    )
+    mig = _read(BACKEND / "alembic" / "versions" / "161_baseline.sql")
+    assert "uq_order_units_active" in mig and "released_at IS NULL" in mig, (
+        "Die Migration legt den Index nicht an.")
 
 
 def test_a_status_change_always_writes_the_log():
@@ -643,59 +640,15 @@ def test_an_article_is_created_at_release_not_while_typing():
 # ---------------------------------------------------------------------------
 
 
-def test_a_stale_table_is_reported_never_dropped():
-    """``create_all()`` fasst eine vorhandene Tabelle nicht an – genau daran starb der
-    Reiter «Erzeugungsprozess» (``column article_process_steps.module_type does not
-    exist``). Der Wächter prüft, dass das Netz die **Form** vergleicht und alle
-    neu aufgebauten Tabellen abdeckt."""
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.main import _shape_problem
-
-    main = _read(BACKEND / "app" / "main.py")
-    guard = _body(main, "_check_core_tables_shape")
-    for table in ("ArticleProcessStep", "OrderLine", "ProcessStep", "OrderUnit",
-                  "ProcessEvent", "Instance", "InstanceUnit", "Capture", "Order"):
-        assert table in guard, (
-            f"{table} fehlt im Form-Netz – eine veraltete Tabelle bliebe unentdeckt."
-        )
-    assert "_check_core_tables_shape()" in _body(main, "_run_startup_fixups_once"), (
-        "Das Form-Netz muss im Startup laufen, sonst meldet es nie etwas."
-    )
-    assert "DROP TABLE" not in _code(main), (
-        "Der Start löscht eine Tabelle – in den Prozess-Tabellen stehen Aufträge und der "
-        "append-only Log. Eine fremde Form ist ein Befund für die Migration."
-    )
-
-    class _Col:
-        pass
-
-    class _FakeInsp:
-        def __init__(self, cols):
-            self._cols = cols
-
-        def get_columns(self, _table):
-            return self._cols
-
-    class _FakeModel:
-        class __table__:  # noqa: N801
-            columns = {"id": None, "name": None}
-
-    ok = [{"name": "id", "nullable": False, "default": "nextval()"},
-          {"name": "name", "nullable": False, "default": None}]
-    assert _shape_problem(_FakeInsp(ok), "t", _FakeModel) is None
-
-    # Fehlende erwartete Spalte → der gemeldete Fehler.
-    lacking = [{"name": "id", "nullable": False, "default": "nextval()"}]
-    assert "es fehlen name" in _shape_problem(_FakeInsp(lacking), "t", _FakeModel)
-
-    # Fremde Pflichtspalte → jedes INSERT wäre tot, auch wenn nichts fehlt.
-    blocking = ok + [{"name": "order_id", "nullable": False, "default": None}]
-    assert "order_id" in _shape_problem(_FakeInsp(blocking), "t", _FakeModel)
-
-    # Fremde NULLABLE Spalte ist harmlos – reparieren, was nicht kaputt ist, kostet Daten.
-    harmless = ok + [{"name": "notiz", "nullable": True, "default": None}]
-    assert _shape_problem(_FakeInsp(harmless), "t", _FakeModel) is None
+def test_the_start_builds_no_schema_and_drops_nothing():
+    """**Das Schema baut allein die Migration** – der Start legt nichts an und löscht
+    nichts. Bis Oktober 2026 legten ``create_all`` und Spalten-Netze beim Start an, was
+    eine Migration vergessen hatte, und versteckten die Lücke damit; davor stand hier ein
+    ``DROP TABLE`` für Tabellen fremder Form, in denen heute Aufträge und der append-only
+    Log stehen."""
+    code = _code(_read(BACKEND / "app" / "main.py"))
+    for word in ("DROP TABLE", "create_all", "ALTER TABLE", "ADD COLUMN"):
+        assert word not in code, f"Der Start baut wieder am Schema («{word}»)."
 
 
 # ---------------------------------------------------------------------------
@@ -1025,10 +978,6 @@ def test_everything_captured_is_mandatory():
         code = re.sub(r"/\*.*?\*/|//.*", "", _read(FRONTEND / name), flags=re.S)
         assert "required" not in code, f"{name} kennt wieder einen Pflicht-Schalter."
 
-    # Und die Altdaten tragen ihn auch nicht mehr mit sich herum.
-    mig = _read(BACKEND / "alembic" / "versions" / "107_status_und_name.py")
-    assert "p - 'required'" in mig, "Die Migration räumt den Schlüssel nicht aus den Zeilen."
-
 
 def test_modules_are_reordered_by_dragging_not_by_a_second_form():
     """Die Reihenfolge **ist** der Prozess – also wird sie im Bild geändert.
@@ -1055,43 +1004,6 @@ def test_modules_are_reordered_by_dragging_not_by_a_second_form():
     assert "useIsoLayout(() => { measure(); });" in flow, (
         "Die Prozesslinien werden nach einem Umsortieren nicht neu gemessen."
     )
-
-
-def test_the_net_adds_a_column_before_it_throws_a_table_away():
-    """**Ein Neuaufbau ist das letzte Mittel, nicht die erste Reaktion.**
-
-    ``start.sh`` startet uvicorn auch dann, wenn Alembic scheitert – dann zählt nur noch
-    das Netz (Lehre aus Migration 090). Lief der Formwächter zuerst, warf er bei einer
-    bloss **fehlenden** Spalte die ganze Tabelle weg, obwohl der Eintrag daneben sie in
-    einer Zeile ergänzt hätte: auf einer 106er-Datenbank war der Alt-Auftrag danach
-    spurlos verschwunden.
-
-    Also erst die Spalten, dann die Form – und der Neuaufbau ist die Antwort auf das,
-    was auch danach noch unbenutzbar ist.
-    """
-    body = _body(_read(BACKEND / "app" / "main.py"), "_run_startup_fixups_once")
-    assert body.index("_ensure_columns()") < body.index("_check_core_tables_shape()"), (
-        "Der Formwächter läuft vor dem Spaltennetz – eine fehlende Spalte kostet dann "
-        "die ganze Tabelle."
-    )
-
-
-def test_the_column_net_reflects_on_its_own_connection():
-    """Der Inspektor sitzt auf **derselben** Verbindung wie die DDL.
-
-    ``inspect(engine)`` zieht eine zweite Verbindung aus dem Pool; die blockiert, sobald
-    diese Funktion eine Tabelle geändert hat, denn das ``ALTER TABLE`` hält seinen Lock
-    bis zum ``commit`` ganz am Ende. Sie wartet damit auf eine Transaktion, die erst nach
-    ihr fertig wird – der Start bliebe für immer stehen (gemessen: der erste
-    ``DROP COLUMN`` auf ``instances`` hat es ausgelöst).
-    """
-    body = _body(_read(BACKEND / "app" / "main.py"), "_ensure_columns")
-    assert "inspect(conn)" in body, (
-        "Das Spaltennetz reflektiert auf einer zweiten Verbindung – das verklemmt sich "
-        "mit seiner eigenen offenen Transaktion."
-    )
-    code = re.sub(r"#.*", "", body)   # der Kommentar erklärt ja gerade den Fehler
-    assert "inspect(engine)" not in code
 
 
 def test_the_instance_points_at_its_article_instead_of_copying_it():
@@ -1208,10 +1120,8 @@ def test_the_journey_scales_by_grouping_not_by_listing():
         "Die Nachbarn werden je Stück einzeln geholt – das ist ein N+1."
     )
     # Der Index, der den Sprung an die Nachbarzeile trägt.
-    main = _read(BACKEND / "app" / "main.py")
-    assert "ix_process_events_unit_timeline" in main, (
-        "Der Journey-Index fehlt im Lifespan-Netz."
-    )
+    mig = _read(BACKEND / "alembic" / "versions" / "161_baseline.sql")
+    assert "ix_process_events_unit_timeline" in mig, "Der Journey-Index fehlt im Schema."
 
 
 def test_no_neighbour_means_nothing_shown():

@@ -187,30 +187,6 @@ def test_there_are_no_personal_mailboxes(world):
     assert not any(c.key.startswith("u") for c in svc.channels(db))
 
 
-def test_an_old_personal_mailbox_is_disconnected_and_its_mails_move(world):
-    """Was über ein früher verbundenes persönliches Postfach lief, steht danach im Postfach
-    des Betreibers; das Postfach selbst ist getrennt (Migration 149 + Lifespan-Netz)."""
-    from sqlalchemy import text
-    from app.domain import communication as dc
-    from app.models import Mailbox, Message
-    from app.services.sites import find_operator
-    db, actor, staff = world
-    op = find_operator(db)
-    if op is None or not op.object_id:
-        pytest.skip("ohne Betreiber gibt es kein Ziel")
-    box = Mailbox(channel=f"u{staff}", address=f"alt{staff}@x.ch", owner_object_id=staff,
-                  token="x")
-    msg = Message(sender_object_id=staff, channel=f"u{staff}", subject="Alt", body="x",
-                  at=datetime.now(timezone.utc), created_by=actor.id)
-    db.add_all([box, msg])
-    db.flush()
-    for stmt in dc.personal_repair_sql():
-        db.execute(text(stmt))
-    db.refresh(box); db.refresh(msg)
-    assert not box.is_active and msg.channel == dc.company(op.object_id)
-    assert _one(db, msg.id).channel.key == dc.company(op.object_id)
-
-
 def test_an_answer_closes_every_open_message_of_its_subject(world):
     """►►► **Das Anliegen ist der Betreff.** ◄◄◄ Eine Antwort erledigt alle offenen
     Nachrichten mit demselben Betreff (ohne «Re:»/«AW:», ohne Gross/Klein) – ein anderer

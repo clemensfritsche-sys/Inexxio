@@ -33,49 +33,6 @@ STAFF_ROLES = ("admin", "employee")
 #: Die **UID bleibt freiwillig**: nur MWST-pflichtige Firmen haben eine, und ein
 #: Pflichtfeld, das die Hälfte der Firmen nicht ausfüllen kann, ist keines.
 
-def repair_sql() -> tuple[str, ...]:
-    """►►► **Eine Datenänderung braucht IMMER auch ein Netz** (Testnotiz #1043). ◄◄◄
-
-    ``start.sh`` fährt ``alembic upgrade head`` bei jedem Start, startet aber auch, wenn es
-    scheitert (#778) – eine Reparatur, die nur in einer Migration steht, erreicht eine
-    solche Datenbank nie. Beide Anweisungen hier stehen darum **an einer** Stelle und werden von der Migration **und** vom Lifespan-Netz gelesen;
-    zweimal ausgeschrieben wären es zwei Wahrheiten (dieselbe Bauart wie
-    ``statuses.terminal_guard_sql``).
-
-    **(1) Die Rolle wird zum Zugang.** Wer nicht ins ERP darf, heisst ``user`` – vorher
-    ``customer`` bzw. ``supplier``. Das ist nicht Kosmetik: ``Role`` an der Tür kennt die
-    Altwerte nicht mehr, also liefe **jedes** Speichern an so einer Zeile in ein 422,
-    und zwar an einer Angabe, die niemand angefasst hat.
-
-    *(2) Die kopierte Rechnungsadresse stand hier – sie ist mit den Feldern ins Adressbuch
-    gegangen (Migration 143, die Felder hat Migration 152 gedroppt).*
-
-    Jede ist **selbstbegrenzend**: nach dem ersten Lauf trifft die Bedingung nicht mehr
-    zu. Eine Reparatur mit einer gepflegten Liste veraltet (die Lehre aus Migration
-    ``110``) – diese hier kann es nicht, weil die Liste **der Katalog selbst** ist
-    (``ROLES``).
-
-    ►►► **Geheilt wird, was der Katalog NICHT kennt.** ◄◄◄ Gemessen, nicht geglaubt: die
-    erste Fassung stand auf ``WHERE role NOT IN ('admin','employee')`` – sie schrieb damit
-    bei **jedem** Start jede Nicht-Personal-Zeile neu, auch die längst richtigen (gemessen:
-    zweiter Lauf 2 statt 0 Zeilen). Dieselbe Fehlerform wie bei der Stück-Reparatur in
-    Migration ``110``, nur eine Nummer harmloser.
-    """
-    roles = ", ".join(f"'{r}'" for r in ROLES)
-    return (
-        f"UPDATE user_profiles SET role = 'user' WHERE role NOT IN ({roles})",
-        # ►►► **Eine E-Mail ist klein geschrieben** (CRM Schritt 1) – sonst sind «Hans@x.ch»
-        # und «hans@x.ch» zwei Personen, und die Übernahme beim Login findet die erste
-        # nicht. Eine Kollision bleibt stehen (sie braucht einen Menschen); selbstbegrenzend.
-        "UPDATE user_profiles u SET email = lower(email) WHERE email <> lower(email) "
-        "AND NOT EXISTS (SELECT 1 FROM user_profiles o "
-        "WHERE o.id <> u.id AND lower(o.email) = lower(u.email))",
-        # **Jede Person hat ihre Nummer ab der Anlage** – die Registry zieht
-        # ``_backfill_object_registry`` danach nach. Vorher vergab der Feed sie beim Lesen.
-        "UPDATE user_profiles SET object_id = nextval('object_id_seq') WHERE object_id IS NULL",
-    )
-
-
 #: ►►► **Pflicht ist, was das Haus wirklich braucht** – EINE Liste für Konto und ERP. ◄◄◄
 #: Das Konto zeigt daraus den Fortschritt, das ERP die Zahl «zu tun» am Symbol; beide
 #: spiegeln, entschieden wird hier. Das Geburtsdatum ist Pflicht für das **Personal**: es

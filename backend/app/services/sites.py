@@ -140,11 +140,10 @@ def _assign_object_id(db: Session, company: CompanySettings) -> None:
 def find_operator(db: Session) -> CompanySettings | None:
     """Der **Betreiber** als reines Lesen – ``None``, wenn es (noch) keine Gesellschaft gibt.
 
-    Die **gewählte** Gesellschaft (``is_operator=true``, ``sites.set_operator``); tolerant
-    fällt sie auf das **älteste** Unternehmen zurück, falls (noch) keine markiert ist (frische
-    DB, Migration 091 nicht gelaufen) – so führt eine ausstehende Migration nie zu «kein
-    Betreiber», und Belege bekommen immer einen Absender. Committet nie – Pflicht überall,
-    wo der Aufruf innerhalb einer fremden Transaktion läuft."""
+    Die **gewählte** Gesellschaft (``is_operator=true``, ``sites.set_operator``); ist keine
+    markiert (etwa nachdem der Betreiber deaktiviert wurde), die **älteste** eigene – so
+    bekommen Belege immer einen Absender. Committet nie – Pflicht überall, wo der Aufruf
+    innerhalb einer fremden Transaktion läuft."""
     chosen = (
         db.query(CompanySettings)
         .filter(CompanySettings.is_operator == True, CompanySettings.is_active == True,
@@ -574,54 +573,6 @@ def _assert_uid(raw: str | None) -> None:
     trouble = uid.problem(raw)
     if trouble:
         raise HTTPException(400, detail=trouble)
-
-
-#: **Eine Firma gibt es einmal** – als Index in der Datenbank (Migration ``143`` und
-#: Lifespan-Netz lesen dieselbe Liste). Dieselbe Bedingung wie am Modell.
-KEY_INDEXES = (
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_uid_key "
-    "ON company_settings (uid_key) WHERE is_active AND uid_key IS NOT NULL",
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_name_key "
-    "ON company_settings (name_key) "
-    "WHERE is_active AND uid_key IS NULL AND name_key IS NOT NULL",
-)
-
-
-def backfill_keys(conn) -> int:
-    """►►► **Die Schlüssel für den Bestand** (Migration ``143`` **und** Lifespan-Netz). ◄◄◄
-
-    Auf einer rohen Verbindung, weil beide Wege eine haben; die Ableitung ist dieselbe wie
-    beim Schreiben (``uid_key_of`` · ``name_key_of``) – eine zweite in SQL hätte bei einem
-    Sonderzeichen anders entschieden als die Eingabe danach.
-
-    **Eine Alt-Dublette bleibt getrennt** – zusammengelegt wird beim Lesen nichts, das ist
-    eine Entscheidung mit Folgen für Belege. Die ältere behält den Schlüssel, die jüngere
-    bekommt ihn mit ihrer Id markiert (``…#17``): so trifft sie keine Eingabe mehr, die
-    Unique-Indizes halten, und der Lauf ist **selbstbegrenzend** – er nimmt nur Zeilen
-    ohne ``name_key``. Gibt die Zahl der bearbeiteten Zeilen zurück."""
-    from sqlalchemy import text
-    rows = conn.execute(text(
-        "SELECT id, company_name, legal_form, uid_number, is_active FROM company_settings "
-        "WHERE name_key IS NULL ORDER BY id")).all()
-    if not rows:
-        return 0
-    taken = conn.execute(text(
-        "SELECT uid_key, name_key FROM company_settings "
-        "WHERE is_active AND name_key IS NOT NULL")).all()
-    uids = {u for u, _ in taken if u}
-    names = {n for u, n in taken if not u and n}
-    for cid, name, form, raw_uid, active in rows:
-        ukey = uid_key_of(raw_uid)
-        nkey = name_key_of(name, form) or f"#{cid}"
-        if active and ukey in uids:
-            ukey = None
-        if active and ukey is None and nkey in names:
-            nkey = f"{nkey}#{cid}"
-        if active:
-            (uids.add(ukey) if ukey else names.add(nkey))
-        conn.execute(text("UPDATE company_settings SET uid_key = :u, name_key = :n "
-                          "WHERE id = :i"), {"u": ukey, "n": nkey, "i": cid})
-    return len(rows)
 
 
 def search(db: Session, query: str, limit: int = 8) -> list[CompanySettings]:

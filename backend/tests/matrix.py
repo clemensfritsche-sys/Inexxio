@@ -994,7 +994,7 @@ def s90(w: World):
     from app.models import Article
     from app.services import objects as obj
 
-    art = Article(object_id=obj.next_object_id(w.db), name="Ohne Vorlage", unit="stk",
+    art = Article(object_id=obj.next_object_id(w.db, "article"), name="Ohne Vorlage", unit="stk",
                   serialization="unit")
     w.db.add(art)
     w.db.flush()

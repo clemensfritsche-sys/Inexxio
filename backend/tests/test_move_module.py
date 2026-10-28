@@ -36,7 +36,7 @@ def _move_step(target=None):
 def _article(db, *, steps: list[dict], name="Prüfstück", serialization="batch"):
     from app.models import Article
     from app.services import article_process as tpl, objects as obj
-    art = Article(object_id=obj.next_object_id(db), name=name, unit="stk",
+    art = Article(object_id=obj.next_object_id(db, "article"), name=name, unit="stk",
                   serialization=serialization)
     db.add(art)
     db.flush()
@@ -79,7 +79,7 @@ def _holder_instance(db, *, name="Regal"):
 def _company(db, *, name="Werk Nord"):
     from app.models import CompanySettings
     from app.services import objects as obj
-    co = CompanySettings(object_id=obj.next_object_id(db), company_name=name)
+    co = CompanySettings(object_id=obj.next_object_id(db, "organization"), company_name=name)
     db.add(co)
     db.flush()
     return co
@@ -502,11 +502,11 @@ def test_holders_are_searchable_by_number_and_by_name():
         shelf = _holder_instance(db, name="Behälter")
         # Die Objektnummer macht Mail und uid eindeutig – die Test-Datenbank ist
         # gemeinsam, und ein fester Wert kollidiert mit dem vorherigen Lauf.
-        uid = obj.next_object_id(db)
+        uid = obj.next_object_id(db, "user")
         user = UserProfile(object_id=uid, email=f"probe-{uid}@example.com",
                            first_name="Clemens", last_name="Fritsche",
                            firebase_uid=f"probe-{uid}")
-        co = CompanySettings(object_id=obj.next_object_id(db), company_name="Werk Nord")
+        co = CompanySettings(object_id=obj.next_object_id(db, "organization"), company_name="Werk Nord")
         db.add_all([user, co])
         db.flush()
 

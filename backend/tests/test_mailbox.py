@@ -16,6 +16,7 @@ from app.models import Mailbox, Message, UserProfile
 from app.schemas.communication import MessageIn
 from app.services import communication as comm
 from app.services import mailbox as mb
+from app.services import objects
 from tests.runner import session
 
 COMPANY = "info.test@example.com"
@@ -156,17 +157,15 @@ def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
                                   to=[lea.object_id], subject="x", body="x"), staff)
 
 
-def test_every_own_company_has_its_own_mailbox_and_the_old_info_moves_to_the_operator():
+def test_every_own_company_has_its_own_mailbox():
     """Ein Postfach je eigener Gesellschaft (``c<Objektnummer>``) – seine Adresse ist ihre
-    Kontakt-E-Mail; das alte ``info`` wird beim Start das des Betreibers."""
+    Kontakt-E-Mail; einen Kanal ``info`` gibt es nicht."""
     from app.domain import communication as dc
     assert dc.channel(dc.company(100000001)).kind == "email"
     assert dc.is_mail("c100000001") and dc.company_of("c100000001") == 100000001
     assert not dc.is_mail("phone") and not dc.is_mail("u100000001")
     with pytest.raises(ValueError):
         dc.channel("info")
-    sql = " ".join(dc.info_repair_sql())
-    assert "is_own" in sql and "is_operator DESC" in sql and "channel = 'info'" in sql
 
 
 def test_one_answer_in_gmail_closes_every_mail_of_its_subject(world):
@@ -227,7 +226,7 @@ def test_the_contact_email_of_an_own_company_is_its_mailbox(monkeypatch):
     monkeypatch.setattr(db, "commit", db.flush)
     monkeypatch.setattr(mb, "_open", lambda _t: None)
     try:
-        oid = random.randint(900_000_000, 999_999_999)
+        oid = objects.next_object_id(db, "organization")
         firm = CompanySettings(company_name=f"T{oid}", legal_form="AG", is_own=True,
                                email="alt@firma.ch", country="CH", object_id=oid)
         db.add(firm)
@@ -237,15 +236,6 @@ def test_the_contact_email_of_an_own_company_is_its_mailbox(monkeypatch):
         assert mb._store(db, key, admin, f"neu{oid}@firma.ch", "t", "1") == ""
         assert firm.email == f"neu{oid}@firma.ch"
         sites._apply_entity_fields(firm, {"email": "x@y.ch"}, db, None)
-        assert firm.email == f"neu{oid}@firma.ch"
-        # Lag beides schon vor der Kopplung auseinander, zieht der Start es nach.
-        from sqlalchemy import text
-        from app.domain.communication import contact_repair_sql
-        firm.email = "vorher@anders.ch"
-        db.flush()
-        for stmt in contact_repair_sql():
-            db.execute(text(stmt))
-        db.refresh(firm)
         assert firm.email == f"neu{oid}@firma.ch"
         mb.disconnect(db, key, admin)
         assert firm.email == "" and mb.active(db, key) is None

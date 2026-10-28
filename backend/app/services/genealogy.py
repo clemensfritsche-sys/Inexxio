@@ -25,16 +25,12 @@ ging in jenes». Eine Spalte ``into_instance_id`` wäre die zweite Wahrheit dane
 sie würde bei einer Demontage rückwirkend geleert, womit die Vergangenheit des Getriebes
 verschwände.
 
-**Altbestand wird tolerant gelesen.** Einträge ohne ``into`` stammen aus der Zeit, als das
-Modul seine Komponenten noch als Auftragszeilen bekam; für sie gilt weiterhin die gröbere
-Aussage auf Auftragsebene («in diesem Auftrag verbaut»). Darum steht der Auftrag immer
-dabei – bei einer exakten Zuordnung als Herkunft, bei einer alten als die Genauigkeit,
-die es gibt.
+Der Auftrag steht immer dabei – als Herkunft der Zuordnung.
 """
 
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..domain import statuses as st
@@ -55,16 +51,12 @@ def _orders_of(db: Session, unit_ids: list[int]) -> dict[int, set[int]]:
     return out
 
 
-def _consumed_in(db: Session, order_ids: set[int]) -> dict[int, list[tuple[int, Optional[int]]]]:
-    """Je Auftrag die Stücke, die ihn als ``Verbaut`` verlassen haben – **und worin**.
-
-    ``into`` ist die Nummer des Produkt-Stücks aus dem Log; ``None`` heisst «nicht
-    aufgeschrieben» (Altbestand) und bedeutet dann die gröbere Aussage «in diesem
-    Auftrag verbaut».
-    """
+def _consumed_in(db: Session, order_ids: set[int]) -> dict[int, list[tuple[int, int]]]:
+    """Je Auftrag die Stücke, die ihn als ``Verbaut`` verlassen haben – **und worin**
+    (``into``, die Nummer des Produkt-Stücks aus dem Log)."""
     if not order_ids:
         return {}
-    out: dict[int, list[tuple[int, Optional[int]]]] = {}
+    out: dict[int, list[tuple[int, int]]] = {}
     for oid, uid, into in db.execute(
         select(
             ProcessEvent.order_id,
@@ -77,24 +69,15 @@ def _consumed_in(db: Session, order_ids: set[int]) -> dict[int, list[tuple[int, 
         )
         .distinct()
     ).all():
-        out.setdefault(int(oid), []).append(
-            (int(uid), int(into) if into is not None else None))
+        out.setdefault(int(oid), []).append((int(uid), int(into)))
     return out
 
 
-def _parts_in(consumed: dict[int, list[tuple[int, Optional[int]]]],
+def _parts_in(consumed: dict[int, list[tuple[int, int]]],
               order_id: int, unit_id: int) -> list[int]:
-    """Die Teile **dieses** Stücks aus diesem Auftrag.
-
-    Zwei Fälle, eine Regel: ein Eintrag mit ``into`` gehört genau dem genannten Stück;
-    ein Eintrag ohne (Altbestand) gehört dem Auftrag, also jedem Erzeugnis darin. Ein
-    Stück ist dabei nie sein eigenes Bauteil – hat es denselben Auftrag ebenfalls als
-    «Verbaut» verlassen, war es dort Komponente und nicht Produkt.
-    """
-    return [
-        uid for uid, into in consumed.get(order_id, ())
-        if uid != unit_id and into in (None, unit_id)
-    ]
+    """Die Teile **dieses** Stücks aus diesem Auftrag – die Einträge, deren ``into`` es
+    nennt."""
+    return [uid for uid, into in consumed.get(order_id, ()) if into == unit_id]
 
 
 def parts_counts(db: Session, unit_ids: list[int]) -> dict[int, int]:
@@ -164,14 +147,11 @@ def parts_of(db: Session, unit: InstanceUnit) -> list[dict]:
 def built_into(db: Session, unit: InstanceUnit) -> list[dict]:
     """**Worin steckt dieses Stück?** – die Gegenrichtung der Stückliste.
 
-    Steht die Zuordnung im Log (``into``), ist es **genau ein** Stück. Fehlt sie
-    (Altbestand), bleibt die alte, gröbere Antwort: was denselben Auftrag
-    **weiterlaufend** verlassen hat – bei mehreren Erzeugnissen stehen sie alle da,
-    statt dass eines geraten wird.
+    Je Auftrag **genau ein** Stück – das, das der Log nennt (``into``).
     """
     out: list[dict] = []
     for oid, into in sorted(_left_as_built(db, unit.id).items()):
-        products = [into] if into is not None else _products_of(db, oid, exclude=unit.id)
+        products = [into]
         facts = _describe(db, products)
         out.append({
             "order_object_id": _order_numbers(db, {oid}).get(oid),
@@ -180,10 +160,10 @@ def built_into(db: Session, unit: InstanceUnit) -> list[dict]:
     return out
 
 
-def _left_as_built(db: Session, unit_id: int) -> dict[int, Optional[int]]:
+def _left_as_built(db: Session, unit_id: int) -> dict[int, int]:
     """Die Aufträge, die dieses Stück als ``Verbaut`` verlassen hat — **und worin**."""
     return {
-        int(oid): int(into) if into is not None else None
+        int(oid): int(into)
         for oid, into in db.execute(
             select(ProcessEvent.order_id, ProcessEvent.payload["into"].astext)
             .where(
@@ -193,31 +173,6 @@ def _left_as_built(db: Session, unit_id: int) -> dict[int, Optional[int]]:
             .distinct()
         ).all()
     }
-
-
-def _products_of(db: Session, order_id: int, *, exclude: int) -> list[int]:
-    """Die Stücke, die diesen Auftrag **weiterlaufend** verlassen haben (das Erzeugnis).
-
-    «Weiterlaufend» heisst: ihr letzter Eintrag ist das Ende-Objekt. Wer über ein Modul
-    hinausging, ist Komponente oder Ausschuss und kein Produkt.
-    """
-    last = (
-        select(
-            ProcessEvent.instance_unit_id.label("unit"),
-            func.max(ProcessEvent.id).label("last_id"),
-        )
-        .where(ProcessEvent.order_id == order_id)
-        .group_by(ProcessEvent.instance_unit_id)
-        .subquery()
-    )
-    return sorted(
-        int(u)
-        for (u,) in db.execute(
-            select(ProcessEvent.instance_unit_id)
-            .join(last, ProcessEvent.id == last.c.last_id)
-            .where(ProcessEvent.kind == "end", ProcessEvent.instance_unit_id != exclude)
-        ).all()
-    )
 
 
 def _order_numbers(db: Session, order_ids: set[int]) -> dict[int, Optional[int]]:

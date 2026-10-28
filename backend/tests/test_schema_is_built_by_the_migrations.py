@@ -1,24 +1,14 @@
 """**Das Schema kommt aus den Migrationen — und zwar vollständig.**
 
-Es gibt drei Netze, und sie fangen **verschiedene** Dinge:
+Es gibt genau einen Weg: ``start.sh`` fährt ``alembic upgrade head``, und scheitert das,
+startet der Dienst nicht. Kein ``create_all``, kein Spalten-Netz legt nachträglich an, was
+eine Migration vergessen hat (die Netze gab es bis Oktober 2026; sie fingen genau diese
+Lücke und versteckten sie damit).
 
-* die **Migration** ist die Wahrheit (Leitbild: Alembic ist Schema-SSOT),
-* ``create_all`` im Lifespan legt eine fehlende **Tabelle** an — aber nie eine fehlende
-  **Spalte** einer vorhandenen,
-* ``main._COLUMN_SAFETY_NET`` zieht fehlende **Spalten** nach.
-
-Dazwischen liegt genau eine Lücke: eine Tabelle, die es gibt, der aber eine Spalte des
-Modells fehlt. Lokal fällt das **nicht** auf, weil ``create_all`` die Tabelle dort
-irgendwann einmal vollständig angelegt hat; gegen eine Datenbank, die nur aus den
-Migrationen kommt, endet danach jeder Lesezugriff in einem 500.
-
-Genau so ist ``purchases.is_active`` entstanden (Migration 114, beim Bauen gefunden): das
-Modell erbt die Spalte von ``Base``, die Migration nannte sie nicht — 140 Prüfungen fielen
-gegen ein frisches Schema aus, während lokal alles grün war. Dieselbe Ausfallklasse wie
-Migration 090, nur eine Ebene tiefer.
-
-Der Wächter **baut** das Schema darum wirklich (eine Wegwerf-Datenbank, ``alembic upgrade
-head``) statt es zu glauben. Ohne PostgreSQL überspringt er sich **mit Grund**.
+Darum **baut** der Wächter das Schema wirklich (eine Wegwerf-Datenbank, ``alembic upgrade
+head``) und vergleicht es in beide Richtungen mit den Modellen: jede Tabelle, Spalte,
+jeder Index und Fremdschlüssel des Modells steht da – und nichts, was kein Modell kennt.
+Ohne PostgreSQL überspringt er sich **mit Grund**.
 """
 
 import os
@@ -95,33 +85,43 @@ def built():
         admin.dispose()
 
 
-def test_every_model_column_exists_in_a_schema_built_only_from_the_migrations(built):
+def gaps(insp) -> list[str]:
+    """Was ein Modell kennt, die Migrationen aber nicht anlegen – als Funktion, damit der
+    Gegentest sie gegen die Bug-Form fahren kann."""
     from app.core.database import Base
     import app.models  # noqa: F401 – füllt die Metadaten
-    from app.main import _COLUMN_SAFETY_NET
 
-    insp = built
-    netted = {(t, c) for t, c, *_ in _COLUMN_SAFETY_NET}
     tables = set(insp.get_table_names())
-
-    gaps: list[str] = []
+    found: list[str] = []
     for name, table in sorted(Base.metadata.tables.items()):
-        # Eine fehlende **Tabelle** legt ``create_all`` im Lifespan an – das ist der
-        # dafür vorgesehene zweite Weg, kein Befund.
         if name not in tables:
+            found.append(f"Tabelle {name}")
             continue
         have = {c["name"] for c in insp.get_columns(name)}
-        for col in sorted({c.name for c in table.columns} - have):
-            if (name, col) not in netted:
-                gaps.append(f"{name}.{col}")
+        found += [f"{name}.{c}" for c in sorted({c.name for c in table.columns} - have)]
+        # Ein Index zählt nach seinen **Spalten**, nicht nach seinem Namen – die
+        # Migrationen nannten manche anders als ``index=True`` am Modell.
+        indexes = {tuple(i["column_names"]) for i in insp.get_indexes(name)} | {
+            tuple(u["column_names"]) for u in insp.get_unique_constraints(name)} | {
+            tuple(insp.get_pk_constraint(name)["constrained_columns"])}
+        found += [f"Index {i.name}" for i in table.indexes
+                  if tuple(c.name for c in i.columns) not in indexes]
+        fks = {(tuple(f["constrained_columns"]), f["referred_table"])
+               for f in insp.get_foreign_keys(name)}
+        found += [f"Fremdschlüssel {name}.{fk.parent.name} → {fk.column.table.name}"
+                  for fk in table.foreign_keys
+                  if ((fk.parent.name,), fk.column.table.name) not in fks]
+    return found
 
-    assert not gaps, (
-        "Diese Spalten kennt das Modell, aber weder eine Migration noch das "
-        f"Lifespan-Netz legt sie an: {', '.join(gaps)}.\n"
-        "Lokal fällt das nicht auf (dort hat ``create_all`` die Tabelle einmal "
-        "vollständig angelegt) – gegen ein frisches Schema endet danach JEDE "
-        "Abfrage auf diese Tabelle in einem 500. Entweder in die Migration "
-        "aufnehmen oder in ``main._COLUMN_SAFETY_NET``."
+
+def test_everything_a_model_knows_is_built_by_the_migrations(built):
+    """Bug-Form (gegengeprüft): eine neue Spalte am Modell ohne Migration, eine Tabelle
+    ohne Migration – beides wird gemeldet."""
+    found = gaps(built)
+    assert not found, (
+        "Das kennt ein Modell, aber keine Migration legt es an: "
+        f"{', '.join(found)}.\nOhne Migration fehlt es auf jeder Umgebung – und jede "
+        "Abfrage darauf endet in einem 500. Eine Migration schreiben."
     )
 
 
@@ -132,8 +132,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #: ►► **Zwischen den beiden Schritten der Zwei-Deploy-Regel** steht eine Spalte ohne Mapping
 #:    für **einen** Deploy noch da – ihr Drop würde die noch laufende Vorgänger-Revision
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
-#:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop. Eine Spalte im
-#:    ``_NULLABLE_SAFETY_NET`` gilt von selbst als vorgemerkt.
+#:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
 PENDING_DROP: set[str] = set()
 
 
@@ -143,9 +142,7 @@ def leftovers(insp) -> list[str]:
     from app.core.database import Base
     import app.models  # noqa: F401 – füllt die Metadaten
 
-    from app.main import _NULLABLE_SAFETY_NET
-
-    pending = PENDING_DROP | {f"{t}.{c}" for t, c in _NULLABLE_SAFETY_NET}
+    pending = PENDING_DROP
     tables = Base.metadata.tables
     found: list[str] = []
     for name in sorted(set(insp.get_table_names()) - set(tables) - _TABLES_WITHOUT_MODEL):
@@ -163,16 +160,15 @@ def test_nothing_is_left_that_no_model_knows(built):
 
     Die Zwei-Deploy-Regel hat zwei Schritte – Mapping weg, dann Drop –, und zwischen ihnen
     lag bis hierher nur ein Backlog-Eintrag: 60 Spalten und 17 Tabellen standen still in
-    der Datenbank, einige seit Monaten, und drei Netze und Reparaturen liefen bei jedem
-    Start nur ihretwegen. Eine Spalte ohne Leser kostet nichts, ein Netz für sie schon –
-    und es hält sie lebendig.
+    der Datenbank, einige seit Monaten.
 
     *Bewusst behalten (Entscheid E7)* sind ``articles.safety_stock``, ``min_order_qty``,
     ``supplier_article_number``, ``user_profiles.language`` und ``notification_*`` – sie
     sind **gemappt**, also fallen sie hier gar nicht an; verliert eine davon ihr Mapping,
     meldet der Wächter sie, und das ist richtig: dann ist es eine neue Entscheidung.
 
-    Bug-Form (gegengeprüft): ohne Migration 152 meldet er alle 60 Spalten und 17 Tabellen.
+    Bug-Form (gegengeprüft): ohne die Drops von Migration 152 meldete er 60 Spalten und
+    17 Tabellen.
     Steht eine Spalte zwischen den beiden Schritten der Zwei-Deploy-Regel, wird sie in
     ``PENDING_DROP`` vorgemerkt – sichtbar, mit Backlog-Eintrag, und nur für einen Deploy.
     """
@@ -180,30 +176,5 @@ def test_nothing_is_left_that_no_model_knows(built):
     assert not found, (
         "Diese Tabellen/Spalten kennt kein Modell, und keine Migration droppt sie: "
         f"{', '.join(found)}.\nDroppen – oder, zwischen den beiden Schritten der "
-        "Zwei-Deploy-Regel, in ``PENDING_DROP`` vormerken (und in docs/backlog.md). Ein "
-        "Netz oder eine Reparatur, die sie anfasst, fällt mit dem Drop."
+        "Zwei-Deploy-Regel, in ``PENDING_DROP`` vormerken (und in docs/backlog.md)."
     )
-
-
-def test_no_safety_net_names_a_column_no_model_knows():
-    """**Ein Netz für eine Spalte, die kein Modell kennt, schützt nichts – es lässt sie
-    auferstehen.** ``_COLUMN_SAFETY_NET`` legte ``articles.landed_unit_cost`` bei jedem
-    Start wieder an, obwohl das Mapping längst weg war; nach dem Drop (152) wäre die
-    Spalte beim nächsten Start zurück gewesen. Bug-Form (gegengeprüft): der Eintrag steht
-    wieder im Netz."""
-    sys.path.insert(0, str(BACKEND))
-    from app.core.database import Base
-    import app.models  # noqa: F401
-    from app import main
-
-    tables = Base.metadata.tables
-
-    def mapped(t: str, c: str) -> bool:
-        return t in tables and c in {x.name for x in tables[t].columns}
-
-    # ``_NULLABLE_SAFETY_NET`` nennt per Definition Spalten **ohne** Mapping (erster Schritt
-    # der Zwei-Deploy-Regel) – es steht darum nicht in dieser Liste.
-    stray = [f"{t}.{c}" for t, c, *_ in (*main._COLUMN_SAFETY_NET,
-                                         *main._NUMERIC_SAFETY_NET)
-             if not mapped(t, c)]
-    assert not stray, f"Netz-Einträge ohne Modell: {', '.join(stray)}."

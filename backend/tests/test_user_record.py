@@ -72,34 +72,6 @@ def test_the_role_is_the_access_and_nothing_else():
             )
 
 
-def test_the_repair_turns_an_old_role_into_access():
-    """►►► **Eine Datenänderung braucht IMMER auch ein Netz** (gemessen). ◄◄◄
-
-    Scheitert ``alembic upgrade head`` beim Start (#778), bliebe ohne die Reparatur
-    ``role = 'customer'`` stehen – und ``Role`` an der Tür kennt den Wert nicht mehr: jedes
-    Speichern an so einer Zeile wäre ein 422 an einer Angabe, die niemand angefasst hat.
-
-    Bug-Formen: (a) die Reparatur trifft die Altwerte nicht; (b) sie trifft **auch**
-    Personal (dann verliert ein Admin seinen Zugang); (c) sie ist nicht selbstbegrenzend.
-    """
-    db = session()
-    try:
-        alt = _user(db, uid="r-1", email="r1@x.ch", role="customer")
-        lief = _user(db, uid="r-2", email="r2@x.ch", role="supplier")
-        chef = _user(db, uid="r-3", email="r3@x.ch", role="admin")
-        for stmt in people.repair_sql():
-            db.execute(text(stmt))
-        db.expire_all()
-        assert alt.role == "user" and lief.role == "user", "Altwert bleibt stehen (a)."
-        assert chef.role == "admin", "Die Reparatur nimmt Personal den Zugang (b)."
-        # (c) – der zweite Lauf findet nichts mehr.
-        again = db.execute(text(people.repair_sql()[0])).rowcount
-        assert again == 0, "Die Reparatur ist nicht selbstbegrenzend (c)."
-    finally:
-        db.rollback()
-        db.close()
-
-
 # ---------------------------------------------------------------------------
 # ►► Der Firmenname ist die Erklärung
 # ---------------------------------------------------------------------------
@@ -520,7 +492,7 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     try:
         firm = _firm(db, name=f"Kranbau{_uid()[-3:]}Zeta")
         u = _user(db, uid="uid-search", email="lea@zeta.test", first_name="Lea",
-                  last_name="Muster", object_id=obj.next_object_id(db),
+                  last_name="Muster", object_id=obj.next_object_id(db, "user"),
                   company_object_id=firm.object_id)
         found = {s.object_id for s in places.search(db, firm.company_name)}
         assert u.object_id in found, (

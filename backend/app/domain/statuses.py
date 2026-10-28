@@ -421,7 +421,7 @@ def terminal_guard_sql(statuses: tuple[str, ...] = TERMINAL_UNIT_STATUSES) -> st
     ist schlicht nicht terminal – und das ist eine Zeile im ``CATALOG``.
 
     Die Liste ist ein **Parameter**, damit ein Test die Regel gegen ihre Fehlerform
-    prüfen kann; im Betrieb kommt sie aus dem Katalog, und das Sicherheitsnetz beim Start
+    prüfen kann; im Betrieb kommt sie aus dem Katalog, und der Start (`main._sync_database_rules`)
     zieht sie nach. Damit kann die Datenbank nicht von der einen Liste abweichen.
 
     Idempotent: ``CREATE OR REPLACE`` plus ein ``DROP TRIGGER IF EXISTS``.
