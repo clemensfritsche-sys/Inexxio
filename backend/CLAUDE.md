@@ -41,7 +41,7 @@ alembic revision --autogenerate -m "description"     # neue Migration
   `create_all` legt nur fehlende **Tabellen** an.
 - **Daten-Reparaturen** stehen je als Funktion mit eigenem Savepoint in `main._DATA_REPAIRS`
   (heute: `orders.name` · `instance_units.status` · `user_profiles` ·
-  `company_settings` · `newsletter_consents`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
+  `company_settings`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
   `people.repair_sql`, `address_book.ADDRESS_INDEXES`,
   `communication.*_repair_sql`, `sites.backfill_keys`). Scheitert eine, laufen die übrigen.
 - **Die Rechtstexte beim Start** (`main._adopt_documents` → `services/adopt`): solange es noch
@@ -262,7 +262,8 @@ ist **Betreiber** (`is_operator`, partieller Unique-Index; ohne Markierung toler
 `require_own()`, `company_for_country()`, `resolve()` (erkennen über `uid_key`/`name_key`
 oder anlegen), `legal_name()` (Name + Rechtsform, ohne «AG AG»). **Nie**
 `CompanySettings.id == 1` oder ein blosses `.first()` (`tests/test_sites.py`).
-`ENTITY_FIELDS` (je Gesellschaft) ↔ `PLATFORM_FIELDS` (die eine Website). Die
+`ENTITY_FIELDS` (je Gesellschaft); eine Plattform-Konfiguration in der Datenbank gibt es nicht
+(der Maps-Schlüssel kommt aus dem Deploy). Die
 Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox._contact`).
 
 ## Konventionen

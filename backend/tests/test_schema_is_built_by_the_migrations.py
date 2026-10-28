@@ -134,12 +134,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop. Eine Spalte im
 #:    ``_NULLABLE_SAFETY_NET`` gilt von selbst als vorgemerkt.
-PENDING_DROP: set[str] = {
-    # Migration 153: das Häkchen ist ein Nachweis geworden (``newsletter_consents``).
-    "user_profiles.newsletter_opt_in",
-    # Der Maps-Schlüssel kommt aus der Deploy-Konfiguration; die Spalte fällt im Folge-Deploy.
-    "company_settings.google_maps_api_key",
-}
+PENDING_DROP: set[str] = set()
 
 
 def leftovers(insp) -> list[str]:
