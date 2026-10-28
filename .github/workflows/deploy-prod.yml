@@ -140,6 +140,11 @@ jobs:
             --concurrency 80 \
             --quiet
 
+      # ►►► **Steht die Datenbank auf dem Stand des Codes?** ◄◄◄ Eine Migration, die beim
+      # Start scheitert, hält den Dienst nicht an – dieser Schritt macht sie sichtbar (rot).
+      - name: Datenbank auf dem Stand des Codes?
+        run: scripts/check-schema.sh "${{ env.GCP_PROJECT }}" "${{ env.CLOUD_RUN_SERVICE }}" "${{ env.GCP_REGION }}"
+
   deploy-frontend:
     name: Frontend → Firebase Hosting (prod)
     runs-on: ubuntu-latest

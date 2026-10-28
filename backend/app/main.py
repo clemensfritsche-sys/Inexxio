@@ -762,13 +762,16 @@ def _check_core_tables_shape() -> None:
     """
     from sqlalchemy import inspect
     from .models import (
-        ArticleProcessStep, Attachment, Capture, Instance, InstanceUnit, Order,
-        OrderLine, OrderUnit, ProcessEvent, ProcessStep,
+        ArticleProcessStep, Attachment, Capture, Document, DocumentLink, DocumentRef,
+        DocumentSignature, Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
+        ProcessStep,
     )
     models = (
         Instance, InstanceUnit, Capture,
         Order, OrderLine, OrderUnit, ProcessStep, ArticleProcessStep, ProcessEvent,
         Attachment,
+        # die Ablage – auf dev stand hier die Tabelle des früheren Moduls (Migration 157)
+        Document, DocumentRef, DocumentSignature, DocumentLink,
     )
     try:
         insp = inspect(engine)
