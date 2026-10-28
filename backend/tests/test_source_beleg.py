@@ -3130,3 +3130,16 @@ def test_the_document_offers_firm_and_addresses_only_where_the_server_says_so():
     assert "<DocPick" in body and "choice?.options" in body and "<input" not in body, "(c)"
 
 
+
+
+def test_the_agreed_amount_comes_from_the_server():
+    """Was zugesagt ist, rechnet der Dienst (`voucher.agreed_amount` → `amount`). Die Karte
+    rechnete es aus «Rechnung minus Abweichung» zurück – Geld im Browser, mit Fliesskomma.
+    Bug-Form: eine Rechnung mit Betrag und `.toFixed` in der Abweichung."""
+    invoice = _code(_read(FRONTEND / "components" / "erp" / "beleg" / "invoice.tsx"))
+    body = invoice[invoice.index("function Deviation("):]
+    body = body[: body.index("\n}\n")]
+    assert "toFixed" not in body and "Number(d.invoice.amount)" not in body, (
+        "Die Abweichung rechnet den zugesagten Betrag im Browser."
+    )
+    assert "d.amount" in body, "Der zugesagte Betrag kommt nicht vom Server."

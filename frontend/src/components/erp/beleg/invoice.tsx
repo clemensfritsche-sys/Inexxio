@@ -139,8 +139,10 @@ function Deviation({ d, busy, form, setForm }: {
     );
   }
   if (!d.deviation || !d.invoice?.amount) return null;
+  // Zugesagt ist der Betrag der gewählten Angebotszeile – vom Server (`amount`,
+  // `voucher.agreed_amount`), nicht hier aus Rechnung minus Abweichung zurückgerechnet.
   const gap = Number(d.deviation);
-  const agreed = (Number(d.invoice.amount) - gap).toFixed(d.currency_decimals);
+  const agreed = d.amount ?? '—';
   const sign = gap > 0 ? '+' : '−';
   const open = form?.kind === 'accept';
   return (
