@@ -22,17 +22,13 @@ from app.services import inquiry
 from app.services import mail_layout
 from app.services import mailbox as mb
 from app.services import newsletter as nl
+from tests.factories import new_person
 
 CH = "c999999992"
 
 
-def _person(db, role="user") -> UserProfile:
-    oid = random.randint(900_000_000, 999_999_999)
-    u = UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role,
-                    object_id=oid, first_name="Lea", last_name=f"M{oid}")
-    db.add(u)
-    db.flush()
-    return u
+def _person(db, role="user"):
+    return new_person(db, role)
 
 
 @pytest.fixture

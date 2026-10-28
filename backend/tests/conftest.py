@@ -13,7 +13,7 @@ zeigt jeden).
 
 import pytest
 
-from tests import runner
+from tests import factories, runner
 
 
 def pytest_sessionstart(session):
@@ -44,3 +44,21 @@ def db():
     finally:
         s.rollback()
         s.close()
+
+
+@pytest.fixture
+def make_person(db):
+    """``make_person(role="user", company=…, …)`` – eine Person in der Sitzung ``db``."""
+    return lambda role="user", **kw: factories.new_person(db, role, **kw)
+
+
+@pytest.fixture
+def make_firm(db):
+    """``make_firm(name=None, form="AG", own=False, uid=None, …)`` – eine Firma in ``db``."""
+    return lambda *a, **kw: factories.new_firm(db, *a, **kw)
+
+
+@pytest.fixture
+def own_company(db):
+    """Eine eigene Gesellschaft in ``db``."""
+    return factories.new_firm(db, own=True)

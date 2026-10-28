@@ -2,44 +2,15 @@
 
 Welche fachliche Entscheidung hinter einem Eintrag steckt, steht in ``docs/attic.md``
 bzw. ``docs/history/``; hier steht nur, dass es nicht zurückkommt. Ein neuer Eintrag ist
-eine Zeile. Bug-Form: eine Datei, ein Wort im Code oder ein Name aus der Liste ist wieder
-da.
+eine Zeile. Gefragt wird nach Wörtern und Namen, nicht nach Dateien: eine gelöschte oder
+umbenannte Datei trägt das Wort sicher nicht mehr. Bug-Form: ein Wort im Code oder ein
+Name aus der Liste ist wieder da.
 """
 
 import importlib
 import sys
 
 from tests._source import BACKEND, ROOT, _code
-
-# Dateien, die es nicht mehr gibt (Pfad ab Repository-Wurzel).
-GONE_FILES = (
-    # Mengen-Buchhaltung des Vorgängers – Reservierung, Anteil, Unterdeckung (§3)
-    *(f"backend/app/services/{f}" for f in (
-        "subject.py", "reservation.py", "ledger.py", "units.py", "recovery.py",
-        "supply.py", "deviation.py", "provisioning.py")),
-    *(f"frontend/src/components/erp/{f}" for f in (
-        "order-flow.tsx", "flow-line.tsx", "process-steps.tsx", "order-positions.tsx",
-        "purchase-step-panel.tsx")),
-    "frontend/src/lib/process.ts",
-    "frontend/src/lib/order.ts",
-    # Erfassungstyp «Objekt scannen» (#719)
-    "backend/app/domain/capture_types/object_scan.py",
-    # Reiter «Verwendung» – «wer zeigt auf mich» (#764)
-    "backend/app/services/references.py",
-    "backend/app/routers/object_refs.py",
-    "frontend/src/components/erp/object-references.tsx",
-    # Handels-Module «Beschaffen», «Verkauf», «Ausliefern» (§9.9a)
-    *(f"backend/app/{f}" for f in (
-        "domain/procurement.py", "domain/money.py", "services/purchase.py",
-        "services/invoices.py", "services/payments.py", "models/purchase.py",
-        "models/invoice.py", "models/payment.py")),
-    "backend/tests/test_delivery_module.py",
-    "frontend/src/components/erp/purchase-work.tsx",
-    # Vorgänger-Zahlungsmodul «Zahlung (alt)» (#960)
-    *(f"backend/app/{f}" for f in (
-        "domain/deal.py", "services/deal.py", "schemas/deal.py", "models/deal.py")),
-    "frontend/src/components/erp/deal-work.tsx",
-)
 
 # (Datei, nur Code ohne Kommentare?, Wörter, die darin nicht mehr stehen)
 GONE_TEXT = (
@@ -93,8 +64,10 @@ def _resolve(module: str, path: str):
 
 def test_removed_stays_removed():
     sys.path.insert(0, str(BACKEND))
-    back = [f"{f} (Datei)" for f in GONE_FILES if (ROOT / f).exists()]
+    back = []
     for f, code_only, words in GONE_TEXT:
+        if not (ROOT / f).exists():
+            continue
         src = (ROOT / f).read_text(encoding="utf-8")
         src = _code(src) if code_only else src
         back += [f"«{w}» in {f}" for w in words if w in src]

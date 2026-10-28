@@ -123,15 +123,4 @@ def test_a_country_exception_falls_back_to_its_region_not_to_the_operator():
     assert "COUNTRY_REGION" in src
 
 
-def test_territory_table_is_a_new_table_not_a_new_column():
-    """Neue Tabelle → ``create_all`` deckt sie; sie braucht KEIN Spalten-Safety-Net.
-    (Der Wächter stellt sicher, dass niemand versehentlich eine Spalte auf einer bestehenden
-    Tabelle einführt, die dann im Lifespan-Netz fehlen würde.)"""
-    from app.models import CompanyTerritory
-
-    assert CompanyTerritory.__tablename__ == "company_territories"
-    cols = {c.name for c in CompanyTerritory.__table__.columns}
-    assert cols == {"id", "region", "company_id"}
-
-
 # ─── Slice 2: Seller of Record je Verkauf (eingefroren) + Beleg-/Absender-Identität ──

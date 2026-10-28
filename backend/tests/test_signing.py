@@ -9,10 +9,11 @@ import pytest
 from fastapi import HTTPException
 
 from app.domain import statuses as st
-from app.models import DocumentLink, Message, UserProfile
+from app.models import DocumentLink, Message
 from app.services import ai, composing, documents, signing
 from tests.runner import session
 from tests.test_zahlung_ablauf import _house
+from tests.factories import new_person
 
 
 @pytest.fixture
@@ -28,13 +29,7 @@ def db():
 
 
 def _person(db, role="employee", name="Lea"):
-    from app.services.objects import next_object_id
-    oid = next_object_id(db, "user")
-    u = UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role, object_id=oid,
-                    first_name=name, last_name=f"M{oid}")
-    db.add(u)
-    db.flush()
-    return u
+    return new_person(db, role, first_name=name)
 
 
 def _png() -> str:

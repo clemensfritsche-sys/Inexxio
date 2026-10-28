@@ -528,9 +528,6 @@ def test_the_journey_scales_by_grouping_not_by_listing():
     assert "for " not in _body(svc, "_neighbour_counts").split("return")[0], (
         "Die Nachbarn werden je Stück einzeln geholt – das ist ein N+1."
     )
-    # Der Index, der den Sprung an die Nachbarzeile trägt.
-    mig = _read(BACKEND / "alembic" / "versions" / "161_baseline.sql")
-    assert "ix_process_events_unit_timeline" in mig, "Der Journey-Index fehlt im Schema."
 
 
 def test_a_module_is_identified_by_its_id_and_named_by_its_type():

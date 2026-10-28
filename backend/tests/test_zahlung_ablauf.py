@@ -18,6 +18,7 @@ from tests.runner import session
 from app.core import clock
 from app.services import voucher_docs
 from app.services import release as release_svc
+from tests.factories import new_firm, new_person
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -82,24 +83,15 @@ def _file(db, raw=b"x", mime="image/webp", filename="r.webp"):
 
 
 def _person(db, name="Muster AG", *, country="CH", firm=True, own=False):
-    from app.models import CompanySettings, UserProfile
-    from app.services import address_book, objects as obj, sites
+    from app.services import address_book, sites
     company = None
     if own:
         company = sites.find_operator(db)
     elif firm:
-        company = CompanySettings(object_id=obj.next_object_id(db, "organization"),
-                                  company_name=f"{name} {uuid.uuid4().hex[:4]}",
-                                  legal_form="AG", email="", country=country)
-        db.add(company)
-        db.flush()
-    user = UserProfile(firebase_uid=f"t-{uuid.uuid4()}",
-                       email=f"{uuid.uuid4().hex[:8]}@example.test",
-                       first_name="Anna", last_name="Keller",
-                       company_object_id=company.object_id if company else None,
-                       role="user", object_id=obj.next_object_id(db, "user"))
-    db.add(user)
-    db.flush()
+        company = new_firm(db, f"{name} {uuid.uuid4().hex[:4]}", country=country)
+    user = new_person(db, first_name="Anna", last_name="Keller",
+                      email=f"{uuid.uuid4().hex[:8]}@example.test",
+                      company=company.object_id if company else None)
     account = "business" if (company is not None and not own) else "private"
     city = "Altstätten" if country == "CH" else "München"
     address_book.add(db, user, {"account": account, "street1": "Feldstrasse 8",
@@ -185,14 +177,7 @@ def _billed(db, **kw):
 
 
 def _staff(db):
-    from app.models import UserProfile
-    from app.services import objects as obj
-    u = UserProfile(firebase_uid=f"s-{uuid.uuid4()}", email=f"{uuid.uuid4().hex[:6]}@x.test",
-                    first_name="Clemens", last_name="Fritsche", role="admin",
-                    object_id=obj.next_object_id(db, "user"))
-    db.add(u)
-    db.flush()
-    return u
+    return new_person(db, "admin", first_name="Clemens", last_name="Fritsche")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

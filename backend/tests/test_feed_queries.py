@@ -10,9 +10,10 @@ from contextlib import contextmanager
 
 from sqlalchemy import event
 
-from app.models import CompanySettings, UserProfile
+from app.models import UserProfile
 from app.routers import admin, erp
-from app.services import objects, todo
+from app.services import todo
+from tests.factories import new_firm, new_person
 
 
 @contextmanager
@@ -29,18 +30,12 @@ def _counted(db):
         event.remove(engine, "before_cursor_execute", count)
 
 
-def _firms(db, n: int) -> list[CompanySettings]:
+def _firms(db, n: int) -> list:
     out = []
-    for i in range(n):
-        c = CompanySettings(is_own=False, company_name=f"Q{random.randint(1, 10**9)}",
-                            legal_form="AG", object_id=objects.next_object_id(db, "organization"))
-        db.add(c)
-        db.flush()
-        db.add(UserProfile(firebase_uid=f"q-{c.object_id}", email=f"q{c.object_id}@x.ch",
-                           role="user", object_id=objects.next_object_id(db, "user"),
-                           company_object_id=c.object_id))
-        out.append(c)
-    db.flush()
+    for _ in range(n):
+        firm = new_firm(db, f"Q{random.randint(1, 10**9)}")
+        new_person(db, company=firm.object_id)
+        out.append(firm)
     return out
 
 
