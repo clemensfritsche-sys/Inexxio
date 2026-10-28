@@ -25,7 +25,7 @@ Website** (siehe «Status»).
 ```
 Frontend:  Next.js 14, TypeScript strict, App Router, Tailwind CSS (statischer Export)
 Website:   Astro 7 (website/), reines HTML, gleiche Hosting-Site wie das ERP
-Backend:   FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2, Alembic
+Backend:   FastAPI (Python 3.12), SQLAlchemy 2.1, Pydantic v2, Alembic
 DB:        PostgreSQL (Cloud SQL), universeller 9-stelliger Nummernkreis
 Auth:      Firebase Authentication (Magic Link · Google SSO · Passkeys/WebAuthn)
 Dateien:   Cloud Storage, je Umgebung ein Bucket (inexxio-dev-files · inexxio-prod-files,

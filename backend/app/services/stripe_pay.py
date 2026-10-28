@@ -350,7 +350,10 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
             detail="Es ist kein Webhook-Geheimnis hinterlegt (STRIPE_WEBHOOK_SECRET).",
         )
     try:
-        event = stripe.Webhook.construct_event(raw, signature or "", secret)
+        # **Ab hier reine Daten** (``to_dict``): ein ``StripeObject`` ist seit dem SDK 15
+        # kein ``dict`` mehr – ``.get`` gäbe es nicht. Die Meldung ist eine Nachricht, kein
+        # Objekt, mit dem wir weiterarbeiten; so liest der Rest sie wie jedes JSON.
+        event = stripe.Webhook.construct_event(raw, signature or "", secret).to_dict()
     except Exception:
         # Bewusst ohne Details: was genau nicht stimmte, geht den Absender nichts an.
         raise HTTPException(status_code=400, detail="Ungültige Signatur.")

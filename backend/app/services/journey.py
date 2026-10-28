@@ -36,6 +36,7 @@ Datenbestand: er beschleunigt eine Frage, er beantwortet sie nicht.
 from typing import Optional
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, aliased
 
 from ..domain import statuses as st
@@ -112,7 +113,7 @@ def _neighbour_counts(db: Session, order_id: int, *, before: bool) -> list[tuple
         select(ev.instance_unit_id, ev.order_id)
         .join(span, span.c.unit_id == ev.instance_unit_id)
         .where(cond, ev.order_id != order_id)
-        .distinct(ev.instance_unit_id)
+        .ext(distinct_on(ev.instance_unit_id))
         .order_by(*order_by)
         .subquery()
     )
