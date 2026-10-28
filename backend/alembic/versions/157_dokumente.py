@@ -7,10 +7,17 @@
 * ``document_links`` – Links nach aussen, je Empfänger einer, ohne Ablauf.
 * ``audit_log.on_behalf`` – in wessen Namen (Mensch · KI · System).
 
+**Die alte Tabelle ``documents`` weicht** (``_old_form``): wo noch die des früheren Moduls
+stand (ohne ``object_id`` – auf dev von einem alten ``create_all`` wieder angelegt, nachdem
+``102`` sie gelöscht hatte), liess ``CREATE TABLE IF NOT EXISTS`` sie stehen, und der Index auf
+``object_id`` brach die Kette hier ab. Dann fallen sie und die Tabellen, die auf sie zeigen
+(ein neues Dokument konnte darin nie entstehen; das Alte ist verzichtbar), und entstehen neu.
+
 Revision ID: 157
 Revises: 156
 """
 
+import sqlalchemy as sa
 from alembic import op
 
 revision = "157"
@@ -22,7 +29,34 @@ _STAMPS = "created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL, " \
           "is_active BOOLEAN NOT NULL"
 
 
+def _old_form() -> bool:
+    insp = sa.inspect(op.get_bind())
+    return ("documents" in insp.get_table_names()
+            and "object_id" not in {c["name"] for c in insp.get_columns("documents")})
+
+
+def _drop_old_form() -> None:
+    """Die alte Tabelle und was auf sie zeigt – nur bei der alten Form."""
+    op.execute("DROP TABLE IF EXISTS document_links, document_signatures, document_refs")
+    op.execute("DROP TABLE documents CASCADE")
+
+
+def _relink_vouchers() -> None:
+    """``voucher_documents.document_id`` (vom Netz schon angelegt) zeigt wieder auf die neue
+    Tabelle – die Werte zeigten auf die alte."""
+    insp = sa.inspect(op.get_bind())
+    if "voucher_documents" not in insp.get_table_names() or "document_id" not in {
+            c["name"] for c in insp.get_columns("voucher_documents")}:
+        return
+    op.execute("UPDATE voucher_documents SET document_id = NULL WHERE document_id IS NOT NULL")
+    op.execute("ALTER TABLE voucher_documents ADD CONSTRAINT voucher_documents_document_id_fkey "
+               "FOREIGN KEY (document_id) REFERENCES documents (id)")
+
+
 def upgrade() -> None:
+    old = _old_form()
+    if old:
+        _drop_old_form()
     op.execute(f"""
         CREATE TABLE IF NOT EXISTS documents (
             id BIGSERIAL PRIMARY KEY,
@@ -87,6 +121,8 @@ def upgrade() -> None:
     op.execute("CREATE INDEX IF NOT EXISTS ix_document_links_document_id "
                "ON document_links (document_id)")
     op.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS on_behalf VARCHAR(12)")
+    if old:
+        _relink_vouchers()
 
 
 def downgrade() -> None:

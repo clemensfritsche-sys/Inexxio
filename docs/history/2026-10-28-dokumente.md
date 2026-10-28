@@ -112,3 +112,9 @@ Fotos und Nachweise müssen nicht mitkommen.
   damaliges `create_all` legte sie aus dem alten Modell wieder an, und `157` (`CREATE TABLE IF
   NOT EXISTS`) liess sie stehen. Migration `161` ersetzt sie, nur wenn diese alte Form da ist;
   Wächter `tests/test_documents_old_form.py` stellt die Lage nach (ohne `161` rot).
+  **Nachtrag:** `161` griff nicht – die Kette brach schon in `157` ab (Index auf
+  `documents.object_id` der alten Tabelle) und stand auf dev seither bei `156`, ohne dass es
+  jemand sah (die App startet trotzdem, die Netze tragen). Die Reparatur steht jetzt am Anfang
+  von `157`, `161` ist entfernt (keine Datenbank stand je darauf). Und gegen die Ursache der
+  Ursache: `/health` nennt den Stand der Datenbank, `scripts/check-schema.sh` macht jeden
+  Deploy rot, der sie nicht auf `head` bringt (Wächter `tests/test_health_schema.py`).

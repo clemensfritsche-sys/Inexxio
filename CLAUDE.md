@@ -375,6 +375,9 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
   **zweite Weg**, kein Ersatz: `_COLUMN_SAFETY_NET` (Spalten) · `_NUMERIC_SAFETY_NET` (Skala)
   · `_NULLABLE_SAFETY_NET` · `_INDEX_SAFETY_NET` · `_RAW_INDEX_SAFETY_NET` (Indizes, CHECKs,
   Fremdschlüssel). `create_all` legt nur fehlende **Tabellen** an.
+- **Eine gescheiterte Migration bleibt nie unbemerkt**: `/health` sagt `schema` (`current` ·
+  `behind`), `revision` und `head`; nach jedem Deploy liest `scripts/check-schema.sh` das und
+  macht den Lauf rot, mit den Zeilen des Starts im Log.
 - **Jede Datenänderung einer Migration braucht ihr Netz** – je eine Funktion mit eigenem
   Savepoint in `main._DATA_REPAIRS` (lesen ihre SQL aus der Fachschicht, z. B.
   `statuses.terminal_guard_sql`, `people.repair_sql`); eine
