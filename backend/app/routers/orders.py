@@ -852,7 +852,8 @@ def step_record(
         entries=[
             RecordEntry(
                 number=e.number, at=e.at, actor=e.actor, verification=e.verification,
-                status_after=e.status_after, result=e.result, sampled=e.sampled,
+                status_before=e.status_before, status_after=e.status_after,
+                result=e.result, sampled=e.sampled,
                 into=e.into,
                 values=[RecordValue(key=v.key, label=v.label, type=v.type,
                                     value=v.value, ok=v.ok)
