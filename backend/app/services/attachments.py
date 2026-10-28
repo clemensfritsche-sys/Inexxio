@@ -1,21 +1,26 @@
-"""**Der Korb** – Dateien in der DB, Auslieferung per Token.
+"""**Der Korb** – jede Datei, abgelegt in **Cloud Storage**, ausgeliefert per Token.
 
 Zwei Wege hinein: ``store_raw`` legt die Datei eines Dokuments unverändert ab (die eine
 Ablage, ``services/documents``); ``store_image`` normalisiert ein Bild, das kein Dokument
 ist (die Unterschrift, die Fotos einer Anfrage).
 
-Bewusst ohne Cloud-Bucket: sofort lauffähig auf Cloud Run, ohne IAM/Bucket-Setup. Der
-Schnitt ist so gelegt, dass später NUR dieser Service auf einen Bucket umgestellt werden
-müsste (die Verbraucher speichern eine URL, keinen Blob). Bilder werden beim Upload normalisiert:
-EXIF-Rotation angewandt, auf eine vernünftige Kantenlänge begrenzt und als JPEG re-kodiert –
-so bleibt die DB-Grösse beschränkt und die Anzeige schnell."""
+**Wo die Bytes liegen, weiss nur dieser Dienst** (``keep`` · ``bytes_of`` · ``discard``):
+im Bucket der Umgebung (``FILES_BUCKET``, Objektname = Token, privat) – die Zeile hält dann
+nur Name, Sorte, Grösse. Ohne Bucket (lokal, Tests) oder wenn er gerade nicht schreibbar ist,
+bleiben sie in der Zeile (``data``) – eine Datei geht nie verloren, weil der Speicher hakt.
+Gelesen wird beides gleich. Die Verbraucher kennen nur die URL ``/api/v1/attachments/{token}``.
+"""
 
 import io
 import secrets
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from fastapi import HTTPException
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
+from ..core.config import get_settings
 from ..models import Attachment
 
 _MAX_EDGE = 1600          # längste Kante in px (für eine Foto-Doku reicht das dicke)
@@ -70,13 +75,13 @@ def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | N
     att = Attachment(
         token=secrets.token_urlsafe(24),
         mime="image/jpeg",
-        data=data,
         filename=(filename or None),
         width=img.width,
         height=img.height,
         byte_size=len(data),
         created_by=actor_id,
     )
+    keep(att, data)
     db.add(att)
     db.flush()
     return att
@@ -96,8 +101,8 @@ def store_raw(db: Session, raw: bytes, filename: str | None, mime: str,
     if len(raw) > MAX_FILE_BYTES:
         raise HTTPException(413, detail="Datei zu gross (max. 25 MB)")
     att = Attachment(token=secrets.token_urlsafe(24), mime=(mime or "application/octet-stream")[:100],
-                     data=raw, filename=(filename or None), byte_size=len(raw),
-                     created_by=actor_id)
+                     filename=(filename or None), byte_size=len(raw), created_by=actor_id)
+    keep(att, raw)
     db.add(att)
     db.flush()
     return att
@@ -134,3 +139,81 @@ def serve_headers(att: Attachment) -> dict[str, str]:
         from urllib.parse import quote
         headers["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(att.filename)}"
     return headers
+
+
+# ---------------------------------------------------------------------------
+# Wo die Bytes liegen – Cloud Storage, sonst die Zeile
+# ---------------------------------------------------------------------------
+
+_client = None
+#: In einem Lauf, der zurückgerollt wird (Vorschau eines Belegs), geht nichts in den Bucket –
+#: sonst bliebe dort eine Datei ohne Zeile liegen.
+_IN_DATABASE: ContextVar[bool] = ContextVar("attachments_in_database", default=False)
+
+
+def bucket():
+    """Der Bucket dieser Umgebung – oder ``None`` (keiner gesetzt)."""
+    name = get_settings().files_bucket
+    if not name:
+        return None
+    global _client
+    if _client is None:
+        from google.cloud import storage
+        _client = storage.Client()
+    return _client.bucket(name)
+
+
+@contextmanager
+def in_database():
+    """Was hier entsteht, bleibt in der Zeile – für einen Lauf, der zurückgerollt wird."""
+    token = _IN_DATABASE.set(True)
+    try:
+        yield
+    finally:
+        _IN_DATABASE.reset(token)
+
+
+def keep(att: Attachment, raw: bytes) -> None:
+    """**Die Bytes ablegen** – im Bucket, sonst in der Zeile. Ein Fehler des Speichers kostet
+    nie die Datei: sie bleibt dann in der Datenbank, und das Log sagt es."""
+    target = None if _IN_DATABASE.get() else bucket()
+    if target is not None:
+        try:
+            target.blob(att.token).upload_from_string(raw, content_type=att.mime)
+            att.data = None
+            return
+        except Exception as exc:                                   # noqa: BLE001
+            print(f"WARNING: Cloud Storage nicht schreibbar ({exc!r}) – Datei bleibt in der DB.",
+                  flush=True)
+    att.data = raw
+
+
+def bytes_of(att: Attachment) -> bytes:
+    """**Die Bytes einer Datei** – aus der Zeile oder aus dem Bucket."""
+    if att.data is not None:
+        return bytes(att.data)
+    target = bucket()
+    if target is None:
+        raise HTTPException(503, detail="Die Datei liegt im Speicher, der hier nicht eingerichtet ist.")
+    try:
+        return target.blob(att.token).download_as_bytes()
+    except Exception as exc:                                       # noqa: BLE001
+        if type(exc).__name__ == "NotFound":
+            raise HTTPException(404, detail="Diese Datei gibt es nicht mehr.")
+        print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
+        raise HTTPException(503, detail="Die Datei ist gerade nicht erreichbar – bitte gleich noch einmal.")
+
+
+def discard(db: Session, att: Attachment) -> None:
+    """**Eine Datei löschen** – die Zeile, und erst nach dem Commit das Objekt im Bucket (rollt
+    die Transaktion zurück, ist die Datei noch da)."""
+    if att.data is None and bucket() is not None:
+        name = att.token
+
+        def _drop(_session) -> None:
+            try:
+                bucket().blob(name).delete()
+            except Exception as exc:                               # noqa: BLE001
+                print(f"WARNING: Objekt {name} nicht gelöscht ({exc!r})", flush=True)
+        event.listen(db, "after_commit", _drop, once=True)
+    db.delete(att)

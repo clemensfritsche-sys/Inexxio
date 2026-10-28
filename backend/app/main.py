@@ -226,6 +226,8 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     # Das Papier eines Belegs steht im Dokument (Migration 158) – geschrieben wird hier
     # nichts mehr; die Spalte fällt im Folge-Deploy weg.
     ("voucher_documents", "html"),
+    # Die Bytes einer Datei liegen im Bucket der Umgebung (Migration 159).
+    ("attachments", "data"),
 )
 
 # ►► **Ein Drop-Netz gibt es nicht mehr** (Cleanup Oktober 2026, B-22). Es lief bei jedem
@@ -824,7 +826,7 @@ def _run_startup_fixups_once() -> None:
 
 
 def _adopt_documents() -> None:
-    """**Was vor den Dokumenten entstand, kommt in die eine Ablage** (``services/adopt``) –
+    """**Die Rechtstexte werden einmal Dokumente** (``services/adopt``) –
     selbstbegrenzend, in eigener Sitzung; scheitert es, steht es im Log und der Start läuft."""
     from .services import adopt
     db = SessionLocal()

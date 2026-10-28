@@ -230,8 +230,9 @@ def raw_of(db: Session, doc: Optional[Document]) -> Optional[bytes]:
     """Die Datei eines Dokuments – oder ``None`` (gelöscht)."""
     if doc is None or doc.file_id is None:
         return None
-    row = db.query(Attachment.data).filter(Attachment.id == doc.file_id).first()
-    return bytes(row[0]) if row else None
+    from . import attachments
+    att = db.query(Attachment).filter(Attachment.id == doc.file_id).first()
+    return attachments.bytes_of(att) if att is not None else None
 
 
 def attach(db: Session, doc: Document, object_id: int, actor: UserProfile) -> DocumentRef:
@@ -324,12 +325,15 @@ def delete(db: Session, doc: Document, reason: str, actor: UserProfile) -> None:
     reason = dd.clean(reason, dd.REASON_MAX)
     if not reason:
         raise HTTPException(status_code=400, detail="Gelöscht wird mit Grund.")
-    if doc.file_id is not None:
-        db.query(Attachment).filter(Attachment.id == doc.file_id).delete()
+    att = db.query(Attachment).filter(Attachment.id == doc.file_id).first() if doc.file_id else None
     for s in db.query(DocumentSignature).filter(DocumentSignature.document_id == doc.id).all():
         s.image = None
     doc.file_id, doc.sha256, doc.text, doc.keywords, doc.facts = None, None, None, None, None
     doc.deleted_at, doc.deleted_by, doc.delete_reason = datetime.now(timezone.utc), actor.id, reason
+    if att is not None:
+        from . import attachments
+        db.flush()
+        attachments.discard(db, att)
     db.flush()
     log_audit(db, "documents", "gelöscht", reason, actor.id, object_id=doc.object_id)
 

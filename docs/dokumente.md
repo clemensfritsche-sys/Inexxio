@@ -69,8 +69,23 @@ sie gibt. **Suchen** ist reine Datenbank (Nummer, Art, Name, Volltext über Gele
 
 ## Speicher
 
-Die Bytes liegen im Korb (`attachments`, in der DB). Umstellen auf einen Bucket hiesse: nur
-`services/attachments` ändern. Grenze 25 MB je Datei (Cloud Run nimmt 32 MB je Anfrage).
+Die Bytes liegen in **Cloud Storage**, je Umgebung ein eigener Bucket (`inexxio-dev-files` ·
+`inexxio-prod-files`, Region europe-west6, privat, Objektname = Token). Der Deploy legt ihn an
+und gibt dem Dienstkonto `cloudrun-backend@…` die Rolle «Storage-Objekt-Administrator»; dann
+setzt er `FILES_BUCKET`. Ohne Bucket (lokal, Tests) oder wenn er gerade nicht schreibbar ist,
+bleiben die Bytes in der Zeile (`attachments.data`) – eine Datei geht nie verloren. Gelöscht
+wird das Objekt erst nach dem Commit. Alles steht in `services/attachments` (`keep` ·
+`bytes_of` · `discard`). Grenze 25 MB je Datei (Cloud Run nimmt 32 MB je Anfrage).
+
+Klappt das Anlegen im Deploy nicht (fehlende Rechte), einmal von Hand – je Umgebung:
+
+```bash
+P=inexxio-dev   # bzw. inexxio-prod
+gcloud storage buckets create gs://$P-files --project $P --location europe-west6 \
+  --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets add-iam-policy-binding gs://$P-files \
+  --member serviceAccount:cloudrun-backend@$P.iam.gserviceaccount.com --role roles/storage.objectAdmin
+```
 
 ## Rechtstexte
 

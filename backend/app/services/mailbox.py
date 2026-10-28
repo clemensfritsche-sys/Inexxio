@@ -608,7 +608,7 @@ def attachment(db: Session, msg: Message, index: int) -> tuple[bytes, str, str]:
         from . import attachments as korb
         token = str(item["url"]).rsplit("/", 1)[-1]
         att = korb.get_by_token(db, token)
-        return bytes(att.data), att.mime, name
+        return korb.bytes_of(att), att.mime, name
     mb = active(db, msg.channel)
     token = _access(mb) if mb is not None and not mb.problem and msg.gmail_id else None
     if token is None:

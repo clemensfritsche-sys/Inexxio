@@ -44,10 +44,10 @@ alembic revision --autogenerate -m "description"     # neue Migration
   `company_settings` · `newsletter_consents`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
   `people.repair_sql`, `address_book.ADDRESS_INDEXES`,
   `communication.*_repair_sql`, `sites.backfill_keys`). Scheitert eine, laufen die übrigen.
-- **Die Übernahme in die Ablage** (`main._adopt_documents` → `services/adopt`) läuft danach in
-  eigener Sitzung: alte Papiere, Lieferantenrechnungen, Ausfuhrnachweise und (einmal) AGB/
-  Datenschutz werden Dokumente – selbstbegrenzend. Sie braucht die Fachschicht, darum nicht in
-  der Migration (`158` legt nur das Schema an).
+- **Die Rechtstexte beim Start** (`main._adopt_documents` → `services/adopt`): solange es noch
+  gar kein AGB/Datenschutz-Dokument gibt, werden die Vorlagen einmal zu Dokumenten der eigenen
+  Gesellschaften. Sie braucht die Fachschicht, darum nicht in der Migration. Altdaten (frühere
+  Papiere, Fotos) werden nicht übernommen.
 - **Zwei Trigger entstehen bei jedem Start neu** (und in ihrer Migration): `statuses.terminal_guard_sql`
   (Endzustand) und `timekeeping.append_only_sql` (Zeiterfassung: `time_entries` und
   `time_contracts` sind append-only – kein UPDATE, kein DELETE).
@@ -115,8 +115,8 @@ scripts/
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
-| Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen), `adopt.py` (Übernahme beim Start) |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py` (der Korb), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
+| Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen), `adopt.py` (Rechtstexte beim Start) |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:
@@ -280,7 +280,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
 (Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
-(KI, `docs/dokumente.md`). Secrets nie im Repo.
+(KI, `docs/dokumente.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB). Secrets nie im Repo.
 
 ## Tote Stellen finden
 ```bash

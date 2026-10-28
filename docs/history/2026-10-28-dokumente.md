@@ -76,3 +76,21 @@ Runden abgenommen). Auftrag: alles vollständig umsetzen, auf Basis von `develop
   Person, «Auftrag · Auftrag …» doppelt.
 
 Rollback-Punkt: `104f63e` (develop vor dieser Runde).
+
+## Nachtrag – Altlasten weg, Cloud Storage an (28.10.2026)
+
+Auftrag: die zwei offenen Punkte löschen, Cloud Storage aktiv (dev und prod getrennt), alte
+Fotos und Nachweise müssen nicht mitkommen.
+
+- **Übernahme alter Daten entfernt** (`services/adopt` hält nur noch die Rechtstexte):
+  Rückwärtskompatibilität ist nicht verlangt. `voucher_documents.html` hat sein Mapping
+  verloren und fällt im Folge-Deploy (Migration `160`, Zwei-Deploy-Regel).
+- **Cloud Storage**: je Umgebung ein Bucket `<Projekt>-files`, angelegt vom Deploy, Zugriff
+  für `cloudrun-backend@…`; `FILES_BUCKET` nur, wenn es den Bucket gibt. Die Bytes gehen in den
+  Bucket, `attachments.data` ist leer (Migration `159`). **Ohne Bucket oder bei einem Fehler
+  bleiben sie in der Zeile** – eine Datei geht nie verloren, weil der Speicher hakt. Die
+  Vorschau eines Belegs (zurückgerollt) schreibt nie in den Bucket (`in_database`); gelöscht
+  wird ein Objekt erst nach dem Commit.
+- **KI-Schlüssel**: auf dev lag er schon im Secret Manager und war eingebunden; der
+  Prod-Deploy bindet `ANTHROPIC_API_KEY` (und Gmail) jetzt ebenso optional ein.
+- Das Design-Canvas «INEXXIO Dokumente» ist gelöscht.

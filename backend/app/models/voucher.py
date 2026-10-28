@@ -28,7 +28,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import (
-    BigInteger, Date, ForeignKey, Index, Integer, Numeric, String, Text, text,
+    BigInteger, Date, ForeignKey, Index, Integer, Numeric, String, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -469,9 +469,7 @@ class VoucherDocument(Base, TimestampMixin):
     #: Ablage. Hier steht nur noch, wie es hinausging (Link, Partei, Mail).
     document_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("documents.id"), nullable=True, index=True)
-    #: Früher das Papier selbst; leer, seit es ein Dokument ist (Übernahme beim Start,
-    #: ``services/adopt``). Fällt im Folge-Deploy weg (``docs/backlog.md``).
-    html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     #: Das Datum der AGB, die angehängt sind («2026-01-01»).
     agb: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     #: Die Mail, mit der es hinausging (``messages.id``).
