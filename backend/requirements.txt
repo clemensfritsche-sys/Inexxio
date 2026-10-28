@@ -1,16 +1,16 @@
 fastapi==0.162.0
 uvicorn[standard]==0.54.0
-sqlalchemy==2.0.36
+sqlalchemy==2.1.4
 psycopg2-binary==2.9.13
 alembic==1.20.1
 pydantic==2.14.1
 pydantic-settings==2.16.2
 email-validator==2.3.0
-firebase-admin==6.6.0
+firebase-admin==7.7.0
 # Datei-Ablage (services/attachments) – kommt ohnehin mit firebase-admin, hier gepinnt, weil der Code es direkt liest
 google-cloud-storage==3.17.1
 # Passkeys / WebAuthn (FIDO2): serverseitige Register-/Login-Zeremonien.
-webauthn==2.5.2
+webauthn==3.0.1
 # httpx: Starlettes TestClient fährt darauf – ohne ihn läuft kein einziger Wächter.
 httpx==0.28.1
 tzdata==2026.6
@@ -21,7 +21,7 @@ pillow==13.0.0
 # stripe: der eine Zahlungsdienst (services/stripe_pay). **Optional zur Laufzeit** – ohne
 # STRIPE_SECRET_KEY wird das Modul nie importiert, und alles andere läuft unverändert:
 # eine Überweisung ist kein Fallback, sondern der B2B-Normalfall.
-stripe==11.2.0
+stripe==16.0.0
 # segno: erzeugt die Matrix der **QR-Rechnung** (services/qrbill). Reines Python, keine
 # Systembibliothek – und **nur** die Matrix: Nutzlast, Schweizerkreuz und SVG schreiben
 # wir selbst, weil die einunddreissig Zeilen der Spezifikation unsere Sache sind.

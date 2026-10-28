@@ -9,7 +9,7 @@ nicht gebaut – was heute wirklich steht, sagt `CLAUDE.md` («Was heute steht»
 |---------|------------|
 | Frontend | Next.js 14 (statischer Export), TypeScript strict, Tailwind CSS |
 | Website | Astro 7 (`website/`, reines HTML) – dieselbe Hosting-Site |
-| Backend | FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2, Alembic |
+| Backend | FastAPI (Python 3.12), SQLAlchemy 2.1, Pydantic v2, Alembic |
 | Datenbank | PostgreSQL 16 |
 | Auth | Firebase Authentication (Magic Link, Google SSO, Passkeys/WebAuthn) |
 | Infra | Google Cloud Run (Backend) + Firebase Hosting (Frontend) |

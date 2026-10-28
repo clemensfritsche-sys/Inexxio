@@ -2809,6 +2809,64 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch
         db.close()
 
 
+def _signed(secret: str, event: dict) -> tuple[bytes, str]:
+    """Eine Meldung, **signiert wie vom Dienst** (``t=…,v1=HMAC-SHA256``)."""
+    import hashlib
+    import hmac
+    import json
+    import time
+    raw = json.dumps(event).encode()
+    t = int(time.time())
+    mac = hmac.new(secret.encode(), f"{t}.".encode() + raw, hashlib.sha256).hexdigest()
+    return raw, f"t={t},v1={mac}"
+
+
+def test_the_webhook_reads_a_real_signed_event(monkeypatch):
+    """►►► **Der Webhook liest eine echte Meldung – durch das echte SDK.** ◄◄◄
+
+    Die Attrappe oben ersetzt nur das Erstatten; die Signaturprüfung und das Lesen der
+    Meldung laufen hier durch ``stripe.Webhook.construct_event`` selbst. Seit dem SDK 15
+    ist ein ``StripeObject`` kein ``dict`` mehr: ein ``event.get(…)`` bräche erst bei der
+    ersten echten Zahlung – mit einem 500 an den Dienst, der dann endlos neu zustellt.
+
+    Bug-Formen: (a) eine gültig signierte Meldung bricht beim Lesen ab; (b) eine falsche
+    Signatur wird angenommen; (c) eine Zahlung zu einem unbekannten Beleg bucht etwas.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.core.config import get_settings
+    from app.services import stripe_pay
+    secret = "whsec_test"
+    for key, value in (("stripe_secret_key", "sk_test_x"),
+                       ("stripe_publishable_key", "pk_test_x"),
+                       ("stripe_webhook_secret", secret)):
+        monkeypatch.setattr(get_settings(), key, value)
+    db = _db()
+    try:
+        # (a) Ein Ereignis, das niemand liest: quittiert, nicht abgewiesen.
+        other = {"id": "evt_1", "object": "event", "type": "customer.created",
+                 "data": {"object": {"id": "cus_1", "object": "customer"}}}
+        raw, sig = _signed(secret, other)
+        assert stripe_pay.handle_webhook(db, raw=raw, signature=sig) == "ignored"
+        # (c) Eine Zahlung, deren Metadaten auf keinen Beleg zeigen.
+        paid = {"id": "evt_2", "object": "event", "type": stripe_pay.PAID,
+                "data": {"object": {"id": "pi_x", "object": "payment_intent",
+                                    "amount_received": 100,
+                                    "metadata": {stripe_pay.META_KEY: "0"}}}}
+        raw, sig = _signed(secret, paid)
+        assert stripe_pay.handle_webhook(db, raw=raw, signature=sig) == "unknown"
+        # (b)
+        raw, _sig = _signed(secret, paid)
+        _raw, forged = _signed("whsec_fremd", paid)
+        with pytest.raises(HTTPException) as err:
+            stripe_pay.handle_webhook(db, raw=raw, signature=forged)
+        assert err.value.status_code == 400
+    finally:
+        db.rollback()
+        db.close()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ►► TESTNOTIZEN #1046/#1047 — der Grund am Knopf, und «versendet» ist weg
 # ═══════════════════════════════════════════════════════════════════════════════

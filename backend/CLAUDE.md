@@ -6,7 +6,8 @@
 > Code.
 
 ## Technologie
-Python 3.12, FastAPI 0.162, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 16. Die
+Python 3.12, FastAPI 0.162, SQLAlchemy 2.1, Pydantic v2, Alembic, PostgreSQL 16;
+firebase-admin 7.7, stripe 16.0, webauthn 3.0, anthropic 2.3, google-cloud-storage 3.17. Die
 direkten Abhängigkeiten stehen gepinnt in `requirements.txt`; **installiert wird aus
 `requirements.lock`** (alle, auch die indirekten, je mit Prüfsumme – Docker und CI mit
 `--require-hashes`). Wer eine Version ändert, erzeugt die Sperrdatei neu
@@ -91,7 +92,7 @@ app/
 │   ├── timekeeping.py← Zeiterfassung: Absenzarten (je EINE Wirkung), Regeln CH (ArG/OR),
 │   │                   Hinweise, Reglement-Texte (ⓘ), append-only-Trigger
 │   └── uid.py        ← UID-Normalform und Prüfziffer (eCH-0097)
-├── models/           ← SQLAlchemy 2.0 (je Entität eine Datei; Import über models/__init__)
+├── models/           ← SQLAlchemy 2.1 (je Entität eine Datei; Import über models/__init__)
 ├── schemas/          ← Pydantic v2 Request/Response
 ├── routers/          ← dünn; je Ressource eine Datei
 ├── services/         ← Fachlogik (siehe «Wo was steht»)
@@ -267,7 +268,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 - Soft-Delete überall (`is_active=false`), kein hard delete. `is_active` (Soft-Delete) und
   `status` (fachlich) sind zwei Achsen.
 - UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
-  `ConfigDict(from_attributes=True)`); SQLAlchemy 2.0 (`Mapped[T]`, `mapped_column`).
+  `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
 - Fehler: `HTTPException(status_code=…, detail="…")` mit einem Satz, der die Sache nennt.
 - Audit-Log bei jedem Update (`people.apply_profile_update` ist der eine Pfad für den
   Benutzer).
