@@ -23,7 +23,7 @@ from ..schemas.instance import (
 )
 from ..schemas.place import PlaceRef, UnitPlace
 from ..services import (genealogy, instances as inst_svc, lookup,
-                        places as places_svc, process)
+                        order_state, places as places_svc)
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -153,7 +153,7 @@ def instance_units(
     instance = _get(db, object_id)
     rows, total = inst_svc.units_page(
         db, instance, statuses=status, limit=limit, offset=offset)
-    holders = process.holders(db, [u.id for u in rows])
+    holders = order_state.holders(db, [u.id for u in rows])
     # Nur die **Zahl** – zwei Abfragen für die ganze Seite. Die Stückliste selbst kommt
     # auf Klick; sie ist je Stück eine eigene Geschichte und gehört in keine Liste.
     parts = genealogy.parts_counts(db, [u.id for u in rows])

@@ -26,6 +26,7 @@ from sqlalchemy import event
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
+from app.services.instances import unit_numbers
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -59,8 +60,7 @@ def _scene(w, *, quantity=6, built=0):
 
 
 def _numbers(db, units):
-    from app.services import process as proc
-    return [proc.unit_numbers(db, [u])[u.id] for u in units]
+    return [unit_numbers(db, [u])[u.id] for u in units]
 
 
 # ---------------------------------------------------------------------------

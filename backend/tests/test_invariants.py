@@ -50,7 +50,7 @@ def test_the_invariants_hold_over_the_whole_dataset():
     Jede verletzte Invariante nennt den betroffenen Datensatz. Eine Meldung ohne ihn wäre
     eine Behauptung, mit der niemand etwas anfangen kann.
     """
-    from app.services import invariants
+    from tests import invariants
 
     db = session()
     try:
@@ -80,7 +80,7 @@ def test_every_invariant_would_actually_notice_something():
     müssen gemeldet werden – täte es keiner, wäre das grüne Ergebnis oben wertlos.
     """
     from app.models import InstanceUnit, OrderUnit, ProcessEvent
-    from app.services import invariants
+    from tests import invariants
 
     db = session()
     try:
@@ -178,7 +178,7 @@ def test_a_record_goes_out_of_service_on_exactly_one_axis():
     )
 
     # Und die Regel steht an genau einer Stelle.
-    proc = (app / "services" / "process.py").read_text(encoding="utf-8")
+    proc = (app / "services" / "release.py").read_text(encoding="utf-8")
     assert "articles_svc.may_create" in proc, (
         "Die Freigabe fragt nicht mehr, ob der Artikel Neues erzeugen darf."
     )

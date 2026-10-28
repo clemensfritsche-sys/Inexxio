@@ -24,6 +24,8 @@ import pytest
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
+from app.services.instances import unit_numbers
+from app.services import order_state
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -33,8 +35,7 @@ def _w() -> World:
 
 
 def _before(w: World, order, step):
-    from app.services import process as proc
-    return proc.units_before(w.db, order, step)
+    return order_state.units_before(w.db, order, step)
 
 
 def _need(w: World, order, step):
@@ -280,12 +281,41 @@ def test_a_consumed_piece_lies_in_its_carrier():
         # **Die Kette läuft über den Träger weiter** – bis zur Anschrift.
         chain = places.chain(w.db, places.place_of(inst_svc.find_unit(w.db, built[0])))
         assert [s.kind for s in chain][:2] == ["unit", "instance"]
-        from app.services import process as proc
-        assert chain[0].number == proc.unit_numbers(w.db, products)[products[0].id], (
+        assert chain[0].number == unit_numbers(w.db, products)[products[0].id], (
             "Die erste Station ist das Träger-STÜCK, benannt mit seiner Nummer – nicht "
             "seine Instanz: die wären bei einer Charge sechshundert Getriebe."
         )
         assert chain[1].object_id == bench.object_id
+    finally:
+        w.db.rollback()
+        w.db.close()
+
+
+def test_taking_a_built_piece_takes_it_out_of_its_carrier():
+    """**Ein verbautes Stück greifen IST der Ausbau** – es liegt danach, wo der Träger liegt.
+
+    Der Zeiger auf den Träger sagt, wo das Stück jetzt liegt, und wird beim Ausbau
+    geräumt; die Genealogie im Log bleibt. Bug-Form (gegengeprüft): ohne den Ausbau zeigte
+    das Stück nach der Freigabe noch in sein altes Produkt – es läge in einem Getriebe,
+    aus dem es gerade herausgenommen wurde.
+    """
+    from app.services import instances as inst_svc, places
+
+    w = _w()
+    try:
+        bench = w.holder(name="Werkbank 7")
+        screw, numbers, _product, order = _assembly(w, per_unit=2, stock=2)
+        step = w.steps(order)[0]
+        places.place(w.db, units=_before(w, order, step), target=bench.object_id)
+        w.put(numbers, bench.object_id)
+        w.run_step(order, step)
+        unit = inst_svc.find_unit(w.db, numbers[0])
+        assert unit.place_unit_id is not None, "Die Prämisse fehlt: das Stück ist nicht verbaut."
+
+        w.take(screw, numbers[:1], steps=[w.capture()])
+        assert unit.place_unit_id is None, "Das ausgebaute Stück steckt noch in seinem Träger."
+        assert unit.place_object_id == bench.object_id, (
+            "Das ausgebaute Stück liegt nicht dort, wo sein Träger liegt.")
     finally:
         w.db.rollback()
         w.db.close()

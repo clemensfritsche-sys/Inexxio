@@ -127,23 +127,19 @@ def test_the_order_is_a_record_type_like_every_other():
 
 
 def test_the_order_carries_only_what_the_process_needs():
-    """Der Auftrag trägt seine Identität, seinen Lebenszyklus und den **einen** Ort des
-    Endzustands – sonst nichts.
+    """Der Auftrag trägt seine Identität und seinen Lebenszyklus – sonst nichts.
 
-    Spalten auf Vorrat wären erfundene Anforderungen. ``end_status`` steht hier und
-    nirgends sonst (§4.2): wäre der Endzustand über die Fachlogik verteilt hart kodiert,
-    kostete die spätere Erweiterung (verkauft · verbaut · ausgesondert) einen Umbau
-    statt einer Änderung.
+    Spalten auf Vorrat wären erfundene Anforderungen. Der Endzustand ist keine Angabe des
+    Auftrags: er steht einmal in der Fachschicht (``statuses.DEFAULT_END_STATUS``).
     """
     src = _read(BACKEND / "app" / "models" / "order.py")
     columns = {l.split(":")[0].strip() for l in src.split("\n") if "mapped_column(" in l}
-    assert columns == {"id", "object_id", "name", "end_status"}, (
-        f"models/order.py trägt {sorted(columns)} – erwartet id, object_id, name, "
-        f"end_status (created_at/updated_at/is_active kommen aus dem TimestampMixin). "
-        f"Der Status ist ABGELEITET (Notiz #669) und darum keine Spalte."
+    assert columns == {"id", "object_id", "name"}, (
+        f"models/order.py trägt {sorted(columns)} – erwartet id, object_id, name "
+        f"(created_at/updated_at/is_active kommen aus dem TimestampMixin). "
+        f"Der Status ist ABGELEITET und darum keine Spalte."
     )
-    # Der Endzustand steht an EINER Stelle: die Fachlogik liest ``order.end_status``,
-    # sie schreibt den Wert nicht selbst hin.
+    # Der Endzustand steht an EINER Stelle: das Ende-Objekt liest ihn aus der Fachschicht.
     svc = _read(BACKEND / "app" / "services" / "process.py")
     assert svc.count("DEFAULT_END_STATUS") == 1, (
         "Der Endzustand wird an mehr als einer Stelle gesetzt."
@@ -153,17 +149,18 @@ def test_the_order_carries_only_what_the_process_needs():
 def test_a_draft_never_touches_the_database():
     """Ein Auftragsentwurf lebt nur im Browser: keine Entwurfs-Zeile, keine vorreservierte
     Objektnummer, kein Autosave. Die Nummer entsteht ausschliesslich beim Speichern."""
-    svc = _read(BACKEND / "app" / "services" / "process.py")
+    svc = _read(BACKEND / "app" / "services" / "release.py")
     assert svc.count("next_object_id") == 2, (   # Import + genau EIN Aufruf
         "Die Objektnummer wird an mehr als einer Stelle gezogen."
     )
-    assert "next_object_id" in svc.split("def release(")[1], (
+    assert "next_object_id(db," in _body(svc, "_write_definition"), (
         "Die Nummer entsteht nicht in der Freigabe."
     )
-    # Sie wird NACH der Auflösung der bestehenden Stücke gezogen: eine Sequence ist nicht
-    # transaktional, ein Rollback danach liesse eine Lücke im Nummernkreis.
-    body = svc.split("def release(")[1]
-    assert body.index("held_by(") < body.index("next_object_id(db,"), (
+    # Sie wird NACH der Prüfung (samt Auflösung der bestehenden Stücke) gezogen: eine
+    # Sequence ist nicht transaktional, ein Rollback danach liesse eine Lücke.
+    body = _body(svc, "release")
+    assert "held_by(" in _body(svc, "_take_picks") and "_take_picks(" in _body(svc, "_checked")
+    assert body.index("_checked(") < body.index("_write_definition("), (
         "Die Objektnummer wird gezogen, bevor die bestehenden Stücke aufgelöst sind – "
         "jeder Verstoss verbrennt dann eine Nummer."
     )
@@ -450,7 +447,7 @@ def test_new_unit_numbers_come_from_exactly_one_place():
     # Und die Erzeugung hat genau einen Aufrufer: die Freigabe.
     mat = _read(BACKEND / "app" / "services" / "materialize.py")
     assert "create_instances(" in mat, "materialize erzeugt nicht über die eine Stelle."
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "release.py")
     assert "materialize.create_for_line(" in proc, (
         "Die Freigabe erzeugt die neuen Stücke nicht über materialize."
     )
@@ -482,7 +479,7 @@ def test_the_quantity_invariant_is_checked_before_and_after():
     Der erste Aufruf fängt eine Eingabe ab, ohne eine Objektnummer zu kosten; der zweite
     ist der Wächter gegen einen Fehler in diesem Code.
     """
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "release.py")
     assert proc.count("materialize.assert_quantity(") == 2, (
         "Die Mengen-Invariante wird nicht zweimal geprüft (Plan und Ergebnis)."
     )
@@ -501,10 +498,11 @@ def test_every_check_runs_before_the_first_object_number():
     Lücke. Darum liegt jede Prüfung davor. Der einzige Rest ist der echte
     Parallelzugriff, den erst der Unique-Index abfängt – und der ist dokumentiert.
     """
-    proc = _read(BACKEND / "app" / "services" / "process.py")
-    body = proc.split("def release(")[1]
-    number_at = body.index("next_object_id(db,")
-    head = body[:number_at]
+    proc = _read(BACKEND / "app" / "services" / "release.py")
+    body = _body(proc, "release")
+    assert body.index("_checked(") < body.index("_write_definition("), (
+        "Die Prüfung läuft nach der Nummernvergabe.")
+    head = _body(proc, "_checked") + _body(proc, "_take_picks")
     for guard in ("resolve_lines(", "steps_for(", "assert_releasable(",
                   "chain.assert_closes(", "held_by(", "_assert_may_leave(",
                   "assert_quantity("):
@@ -749,7 +747,7 @@ def test_no_state_is_stored_where_it_can_be_derived():
         "Die Instanz trägt wieder eine Status-Spalte – sie ist eine Gruppe und leitet ab."
     )
 
-    process = _read(BACKEND / "app" / "services" / "process.py")
+    process = _read(BACKEND / "app" / "services" / "order_state.py")
     assert "def order_status" in process and "def order_statuses" in process, (
         "Die Ableitung des Auftragsstatus fehlt (Einzel- und Batch-Form)."
     )
@@ -780,7 +778,7 @@ def test_the_order_is_named_in_the_same_breath_as_its_number():
     Zwei Schritte daraus zu machen hiesse, dass es einen Moment gibt, in dem ein Auftrag
     existiert und keinen Namen hat – und die Oberfläche müsste einen erfinden.
     """
-    body = _body(_read(BACKEND / "app" / "services" / "process.py"), "release")
+    body = _body(_read(BACKEND / "app" / "services" / "release.py"), "_write_definition")
     assert 'name=f"Auftrag {object_id}"' in body, (
         "Der Name entsteht nicht zusammen mit der Objektnummer."
     )
@@ -913,7 +911,7 @@ def test_a_module_shows_its_own_matter_in_every_state():
 def test_a_supplier_sees_his_module_without_the_process_picture():
     """**Die Lieferanten-Sicht ist eine Spiegelung** (Testnotiz #747).
 
-    Der Server verengt die Antwort (``orders._mine_only``); die Oberfläche zeichnet
+    Der Server verengt die Antwort (``orders._to_response``); die Oberfläche zeichnet
     darum **dieselbe** Modul-Karte, nur ohne Achse. Ein Nachbau wäre eine zweite
     Darstellung desselben Moduls.
     """
@@ -1283,12 +1281,12 @@ def test_the_feed_learns_about_every_write_from_one_place():
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from app.services import process as process_svc
+    from app.services import order_state
 
     # Eine Quelle: der Feed leitet ab wie das Detail.
     router = _read(BACKEND / "app" / "routers" / "orders.py")
-    assert "process_svc.order_statuses" in router and "process_svc.order_status" in router
-    assert hasattr(process_svc, "order_statuses")
+    assert "order_state.order_statuses" in router and "order_state.order_status" in router
+    assert hasattr(order_state, "order_statuses")
 
     api = _read(FRONTEND / "lib" / "api.ts")
     assert "function notifyDataChanged" in api, "Die Meldestelle fehlt."
@@ -1346,7 +1344,7 @@ def test_a_deviation_order_is_a_regular_order():
 
     # Und das Label wird aus dem **Log** abgeleitet: der Start-Eintrag sagt, in welchem
     # Zustand das Stück gegriffen wurde.
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "order_state.py")
     body = _body(proc, "deviation_flags")
     assert "ProcessEvent" in body and "KIND_START" in body, (
         "«Abweichung» kommt nicht aus dem Log – dann ist es irgendwo gespeichert."
@@ -1380,7 +1378,7 @@ def test_the_return_belongs_to_the_connection_not_to_the_order():
         "Die Rückführung steht am Auftrag – dann gilt sie für alle seine Stücke gleich."
     )
     # Und «wartet auf» wird gezählt, nicht gespeichert.
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "order_state.py")
     assert "def waiting_counts(" in proc
     assert "waiting_for_return" not in _read(BACKEND / "app" / "models" / "order.py"), (
         "Am Auftrag steht ein Wartezähler – den vergisst irgendwann jemand zu senken."
@@ -1397,7 +1395,7 @@ def test_the_return_position_needs_no_field_of_its_own():
     unit = _read(BACKEND / "app" / "models" / "order_unit.py")
     for forbidden in ("return_step_id", "return_position", "resume_step_id"):
         assert forbidden not in unit, f"«{forbidden}» ist ein zweites Feld für die Position."
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "release.py") + _read(BACKEND / "app" / "services" / "process.py")
     hand = _body(proc, "_hand_over")
     # **Gefragt ist, ob geSCHRIEBEN wird** – geprüft wird darum jede einzelne
     # ``values(…)``-Zuweisung, nicht «alles nach der letzten». Die grobe Form meldete
@@ -1436,7 +1434,7 @@ def test_the_neighbours_are_drawn_with_the_same_component():
     # Und der Server liefert dafür dieselben Felder wie für die Mitte.
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     related = schema.split("class RelatedOrder")[1].split("class ")[0]
-    for field in ("steps", "flow", "active_step_id", "end_status"):
+    for field in ("steps", "flow", "active_step_id"):
         assert field in related, f"«{field}» fehlt – der Nachbar kann nicht gerendert werden."
 
 
@@ -1448,7 +1446,7 @@ def test_many_deviations_are_cut_off_and_say_so():
     """
     router = _read(BACKEND / "app" / "routers" / "orders.py")
     assert "RELATED_LIMIT" in router, "Es gibt keine Grenze – die Antwort wächst unbegrenzt."
-    assert "deviation_total=len(branches)" in router, (
+    assert '"deviation_total": len(branches)' in router, (
         "Die wahre Zahl wird nicht mitgeliefert – die gekappte Liste sähe aus wie alles."
     )
     flow = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
@@ -1468,7 +1466,7 @@ def test_leaving_a_module_is_a_question_of_the_module_type():
     """
     reg = _read(BACKEND / "app" / "domain" / "modules.py")
     assert "units_may_leave" in reg, "Die Eigenschaft fehlt – dann ist die Regel global."
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "release.py") + _read(BACKEND / "app" / "services" / "process.py")
     assert "def _assert_may_leave(" in proc
     # Gelesen wird sie in **einer** Funktion – sonst gäbe es zwei Antworten auf dieselbe
     # Frage, und die eine würde beim Ändern vergessen.
@@ -1594,9 +1592,10 @@ def test_a_module_is_told_whether_it_may_run():
     **Durchgesetzt wird serverseitig** – eine deaktivierte Oberfläche ist keine
     Absicherung. Der Inhalt bleibt sichtbar, nur bedienen lässt er sich nicht.
     """
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "process.py") + _read(BACKEND / "app" / "services" / "order_state.py")
     assert "def pending_returns(" in proc, "Es gibt keine Ableitung, worauf ein Modul wartet."
-    assert "pending_returns(db, order).get(step.id)" in _body(proc, "confirm_step"), (
+    assert "_ready_at(" in _body(proc, "confirm_step")
+    assert "pending_returns(db, order).get(step.id)" in _body(proc, "_ready_at"), (
         "Die Sperre steht nicht am Ausführungs-Mechanismus – dann muss jedes Modul sie "
         "selbst kennen."
     )
@@ -1653,7 +1652,7 @@ def test_new_is_an_origin_on_its_own():
     gilt nur für seine Stücke. Die Regel steht **serverseitig** – ein fehlender Knopf ist
     keine Absicherung.
     """
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "release.py")
     assert "def _assert_single_new(" in proc
     assert "_assert_single_new(out)" in _body(proc, "resolve_lines"), (
         "Die Regel greift nicht auf dem gemeinsamen Weg von /validate und Freigabe."
@@ -1704,7 +1703,7 @@ def test_the_start_time_comes_from_the_event_log():
     Ein Feld daneben wäre eine Kopie, die beim ersten Nacherfassen von der Wahrheit
     abweicht – und die Wahrheit ist der Log (§7.2).
     """
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "order_state.py")
     body = _body(proc, "started_at")
     assert "ProcessEvent" in body and "KIND_START" in body, "Der Zeitpunkt kommt nicht aus dem Log."
     model = _read(BACKEND / "app" / "models" / "order_unit.py")
@@ -1826,7 +1825,7 @@ def test_a_pick_says_where_it_was_taken_from():
         "welche Art Auftrag entsteht."
     )
 
-    svc = _code(_read(BACKEND / "app" / "services" / "process.py"))
+    svc = _code(_read(BACKEND / "app" / "services" / "release.py"))
     assert "def _assert_as_picked(" in svc, "Die Absicht wird bei der Freigabe nicht geprüft."
     assert "_assert_as_picked(db, ln, pairs, held)" in svc, (
         "Die Prüfung ist nicht verdrahtet – sie muss VOR dem Übernehmen laufen."
@@ -2286,7 +2285,8 @@ def test_a_terminal_module_is_an_exit_not_a_step():
     assert ".terminal:" in chain, "Die Kette kennt den Ausgang nicht mehr."
 
     proc = _code(_read(BACKEND / "app" / "services" / "process.py"))
-    body = _body(proc, "confirm_step")
+    assert "_advance(" in _body(proc, "confirm_step")
+    body = _body(proc, "_advance")
     # **Die Ausführung fragt die Eigenschaft, nicht den Modulnamen.** Ein Ausgang setzt
     # den Ausgangszustand und schliesst die Zugehörigkeit; alles andere läuft weiter.
     assert "if module.terminal:" in body, (
@@ -2298,7 +2298,7 @@ def test_a_terminal_module_is_an_exit_not_a_step():
     assert body.index("if module.terminal:") < body.index("_finish("), (
         "Das Ende-Objekt hängt nicht mehr am Zweig, der weiterläuft."
     )
-    assert "else:" in body.split("if module.terminal:")[1].split("_finish(")[0], (
+    assert "return" in body.split("if module.terminal:")[1].split("_finish(")[0], (
         "Der Ausgang und der Durchgang sind nicht mehr die zwei Zweige einer Frage."
     )
 

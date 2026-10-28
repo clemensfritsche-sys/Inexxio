@@ -13,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .core.config import get_settings
 from .core.database import SessionLocal
+from .domain import process_log
 from .domain import statuses as st
 from .domain import timekeeping as timekeeping_domain
 from .routers import (
@@ -31,13 +32,15 @@ _STARTUP_LOCK_KEY = 778_899_001
 
 
 def _sync_database_rules(db) -> None:
-    """**Endzustände sind terminal, Zeiteinträge append-only – und das steht in der
-    Datenbank.** Beide Trigger werden bei jedem Start aus der Fachschicht neu geschrieben
-    (``statuses.terminal_guard_sql`` · ``timekeeping.append_only_sql``): kommt ein zweiter
+    """**Endzustände sind terminal, Zeiteinträge und der Ereignis-Log append-only – und das
+    steht in der Datenbank.** Die Trigger werden bei jedem Start aus der Fachschicht neu
+    geschrieben (``statuses.terminal_guard_sql`` · ``timekeeping.append_only_sql`` ·
+    ``process_log.append_only_sql``): kommt ein zweiter
     Endzustand in den Katalog, gilt er ab dem nächsten Start auch unten, ohne dass jemand
     an eine Migration denken muss. Scheitert das, startet der Dienst nicht."""
     db.execute(text(st.terminal_guard_sql()))
     db.execute(text(timekeeping_domain.append_only_sql()))
+    db.execute(text(process_log.append_only_sql()))
 
 
 def _seed(name: str, fn) -> None:

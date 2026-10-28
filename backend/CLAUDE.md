@@ -47,9 +47,10 @@ alembic revision --autogenerate -m "description"     # neue Migration
 - **Basis `161`**: `alembic/versions/161_baseline.py` führt `161_baseline.sql` aus (das Schema
   bis 161, eingefroren aus `pg_dump --schema-only`, nie von Hand ändern). Eine DB, die schon
   auf 161 steht, bekommt nichts; die nächste Migration ist `162`.
-- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die zwei Trigger aus der
-  Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand) und
-  `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only); scheitert das,
+- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die drei Trigger aus der
+  Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand),
+  `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only) und
+  `process_log.append_only_sql` (`process_events` append-only); scheitert das,
   startet er nicht. Danach, je in eigener Sitzung und nur mit Warnung bei Fehlschlag: der
   Betreiber als nummerierter Datensatz (`sites.operator`) und die Rechtstexte als Dokumente
   (`legal.adopt_templates`, nur solange es noch keine gibt). Admin wird nur `initial_admin_email`,
@@ -85,6 +86,7 @@ app/
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
+│   ├── process_log.py← der Ereignis-Log append-only (Trigger)
 │   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
 │   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
@@ -105,13 +107,13 @@ scripts/
 ├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
 ├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
 ├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
-├── invariant_report.py · scenario_report.py
+├── invariant_report.py · scenario_report.py  ← lesen tests/invariants.py · tests/matrix.py
 ```
 
 ### Wo was steht (`services/`)
 | Bereich | Datei(en) |
 |---|---|
-| Prozess-Engine (Freigabe, Bestätigen, Halt, Auswahl) | `process.py`, `orders.py`, `materialize.py` |
+| Prozess-Engine | `release.py` (Freigabe: `_checked` – dieselbe Prüfung für den Entwurf –, `pick_problem` ↔ `unpickable`, Übernahme), `process.py` (Laufzeit-Schreibweg: `_pass`, `confirm_step`, `advance_payments`, Durchlauf, Ende, Rückkehr; `lock_orders`), `order_state.py` (nur Ableitungen: Auftragsstatus, Rückführungskette, Halt, Arbeitsliste, Abweichung, Log-Seiten), `orders.py` (Entwurf prüfen, anlegen), `materialize.py` |
 | Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_actions.py` (`VERBS`, `can`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
@@ -119,7 +121,7 @@ scripts/
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:

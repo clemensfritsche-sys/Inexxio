@@ -31,6 +31,9 @@ import pathlib
 import re
 
 from tests.runner import session
+from app.services.instances import unit_numbers
+from app.services import order_state
+from app.services import release as release_svc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -142,7 +145,7 @@ def _confirm(db, order, step, values=None):
     from tests.support import per_unit
 
     moved = 0
-    for work in proc.step_work(db, order, step):
+    for work in order_state.step_work(db, order, step):
         inst = work["instance_object_id"]
         moved += proc.confirm_step(
             db, order=order, step_id=step.id,
@@ -160,7 +163,7 @@ def _confirm(db, order, step, values=None):
 def _scenario(db):
     """Der gemeldete Fall: 2 Stück, 1 Modul, eine Abweichung nimmt 1 und gibt es zurück."""
     from app.models import Article, InstanceUnit, OrderUnit, ProcessStep
-    from app.services import article_process as tpl, objects as obj, process as proc
+    from app.services import article_process as tpl, objects as obj
 
     art = Article(object_id=obj.next_object_id(db, "article"), name="Prüfstück", unit="stk",
                   serialization="unit")
@@ -170,7 +173,7 @@ def _scenario(db):
                                 "config": {"points": [{"label": "OK", "type": "bool"}]}}])
     db.flush()
 
-    parent = proc.release(
+    parent = release_svc.release(
         db,
         lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
                 "units": []}],
@@ -178,12 +181,12 @@ def _scenario(db):
     )
     db.flush()
     rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-    numbers = proc.unit_numbers(
+    numbers = unit_numbers(
         db, db.query(InstanceUnit).filter(
             InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
     first = numbers[rows[0].instance_unit_id]
 
-    child = proc.release(
+    child = release_svc.release(
         db,
         lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
                 "units": [{"number": first, "from_order": parent.object_id}],
@@ -363,7 +366,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
     db = session()
     try:
         art = _article(db, tpl, obj)
-        parent = proc.release(
+        parent = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
                     "units": []}],
@@ -371,7 +374,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        names = proc.unit_numbers(
+        names = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         numbers = [names[r.instance_unit_id] for r in rows]
@@ -394,7 +397,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
         # Gegenprobe: zwei Nachbarn, je ein Stück. Am ersten läuft das zweite vorbei.
         db.rollback()
         art = _article(db, tpl, obj)
-        parent = proc.release(
+        parent = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
                     "units": []}],
@@ -402,7 +405,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        names = proc.unit_numbers(
+        names = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         numbers = [names[r.instance_unit_id] for r in rows]
@@ -442,7 +445,7 @@ def test_a_neighbour_exists_exactly_when_its_branch_does():
     db = session()
     try:
         art = _article(db, tpl, obj)
-        parent = proc.release(
+        parent = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 3, "origin": "neu",
                     "units": []}],
@@ -450,7 +453,7 @@ def test_a_neighbour_exists_exactly_when_its_branch_does():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        names = proc.unit_numbers(
+        names = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         numbers = [names[r.instance_unit_id] for r in rows]
@@ -498,7 +501,7 @@ def _article(db, tpl, obj):
 
 
 def _deviate(db, proc, art, parent, numbers, *, returns=True):
-    return proc.release(
+    return release_svc.release(
         db,
         lines=[{"article_object_id": art.object_id, "quantity": len(numbers),
                 "origin": "lager", "returns": returns,
@@ -526,7 +529,7 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
     Geprüft wird genau das: paarweise Disjunktheit über den echten Knotenverlauf.
     """
     from app.models import ProcessStep
-    from app.services import article_process as tpl, flow, objects as obj, process as proc
+    from app.services import article_process as tpl, flow, objects as obj
     from app.models import Article, InstanceUnit, OrderUnit
 
     db = session()
@@ -538,17 +541,17 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
         point = {"points": [{"label": "OK", "type": "bool"}]}
         tpl.create_steps(db, art, [{"module_type": "datenerfassung", "config": point}])
         db.flush()
-        parent = proc.release(db, steps=[], actor_id=None,
+        parent = release_svc.release(db, steps=[], actor_id=None,
                               lines=[{"article_object_id": art.object_id, "quantity": 4,
                                       "origin": "neu", "units": []}])
         db.flush()
         db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()  # genau eines
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        nums = proc.unit_numbers(db, [db.get(InstanceUnit, r.instance_unit_id) for r in rows])
+        nums = unit_numbers(db, [db.get(InstanceUnit, r.instance_unit_id) for r in rows])
 
         # Drei Abweichungen am **selben** Punkt – der gemeldete Fall.
         kids = [
-            proc.release(db, lines=[{
+            release_svc.release(db, lines=[{
                 "article_object_id": art.object_id, "quantity": 1, "origin": "lager",
                 "units": [{"number": nums[r.instance_unit_id],
                            "from_order": parent.object_id}],
@@ -705,14 +708,14 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
     """
     from app.routers import orders as router
     from app.schemas.order import DRAFT_OBJECT_ID
-    from app.services import article_process as tpl, flow, objects as obj, process as proc
+    from app.services import article_process as tpl, flow, objects as obj
     from app.models import InstanceUnit, OrderUnit
 
     db = session()
     try:
         for returns in (True, False):
             art = _article(db, tpl, obj)
-            parent = proc.release(
+            parent = release_svc.release(
                 db,
                 lines=[{"article_object_id": art.object_id, "quantity": 2,
                         "origin": "neu", "units": []}],
@@ -720,7 +723,7 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
             )
             db.flush()
             rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-            numbers = proc.unit_numbers(
+            numbers = unit_numbers(
                 db, db.query(InstanceUnit).filter(
                     InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
             first = numbers[rows[0].instance_unit_id]
@@ -761,7 +764,7 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
                 }
 
             before = shape(shown.flow, DRAFT_OBJECT_ID)
-            child = proc.release(db, lines=draft["lines"], steps=draft["steps"], actor_id=None)
+            child = release_svc.release(db, lines=draft["lines"], steps=draft["steps"], actor_id=None)
             db.flush()
             after = shape(
                 type(shown.flow)(**flow.as_dict(flow.build(db, parent))), child.object_id)
@@ -843,7 +846,7 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
     db = session()
     try:
         art = _article(db, tpl, obj)
-        parent = proc.release(
+        parent = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
                     "units": []}],
@@ -851,7 +854,7 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        numbers = proc.unit_numbers(
+        numbers = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         child = _deviate(db, proc, art, parent, [numbers[rows[0].instance_unit_id]],
@@ -979,7 +982,7 @@ def test_the_count_and_the_list_ask_the_same_position():
     assert "build(db, order)" in body and "OrderUnit" not in body, (
         "Das Aufklappen fragt wieder eigenständig ab – das ist die zweite Quelle."
     )
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "order_state.py")
     page = proc[proc.index("def units_page("):]
     page = page[:page.index("\ndef ")]
     assert "membership_ids" in page and "current_step_id" not in page, (
@@ -1014,12 +1017,12 @@ def test_a_finished_order_does_not_retell_what_happened_elsewhere():
     """
     from app.domain import statuses as st
     from app.models import InstanceUnit, OrderUnit, ProcessStep
-    from app.services import article_process as tpl, flow, objects as obj, process as proc
+    from app.services import article_process as tpl, flow, objects as obj
 
     db = session()
     try:
         art = _article(db, tpl, obj)
-        done = proc.release(
+        done = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
                     "units": []}],
@@ -1044,8 +1047,8 @@ def test_a_finished_order_does_not_retell_what_happened_elsewhere():
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == done.id).all()
         units = db.query(InstanceUnit).filter(
             InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all()
-        numbers = proc.unit_numbers(db, units)
-        scrap = proc.release(
+        numbers = unit_numbers(db, units)
+        scrap = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
                     "units": [{"number": numbers[units[0].id]}]}],
@@ -1084,7 +1087,7 @@ def test_a_waiting_piece_is_not_an_exit():
     geschlossene Zeile, warten heisst offene.
     """
     from app.models import InstanceUnit, OrderUnit, ProcessStep
-    from app.services import article_process as tpl, flow, objects as obj, process as proc
+    from app.services import article_process as tpl, flow, objects as obj
 
     db = session()
     try:
@@ -1095,7 +1098,7 @@ def test_a_waiting_piece_is_not_an_exit():
             {"module_type": "datenerfassung", "config": {"points": [{"label": "OK", "type": "bool"}]}},
         ])
         db.flush()
-        order = proc.release(
+        order = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
                     "units": []}],
@@ -1116,8 +1119,8 @@ def test_a_waiting_piece_is_not_an_exit():
             OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all()
         units = db.query(InstanceUnit).filter(
             InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all()
-        names = proc.unit_numbers(db, units)
-        dev = proc.release(
+        names = unit_numbers(db, units)
+        dev = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
                     "returns": False,

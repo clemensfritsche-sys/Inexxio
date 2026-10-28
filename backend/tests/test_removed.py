@@ -43,8 +43,9 @@ GONE_FILES = (
 
 # (Datei, nur Code ohne Kommentare?, Wörter, die darin nicht mehr stehen)
 GONE_TEXT = (
-    ("backend/app/services/process.py", False,
-     ("Anteil", "Reservierung", "Unterdeckung", "Nachschub")),
+    *((f"backend/app/services/{f}", False,
+       ("Anteil", "Reservierung", "Unterdeckung", "Nachschub"))
+      for f in ("process.py", "release.py", "order_state.py")),
     ("frontend/src/lib/modules.ts", True, ("Objekt scannen",)),
     ("frontend/src/components/erp/capture-form.tsx", True, ("Objekt scannen",)),
     ("frontend/src/components/erp/process-designer.tsx", True, ("Objekt scannen",)),
@@ -58,7 +59,8 @@ GONE_TEXT = (
         "refundPayment")),
     ("backend/app/routers/orders.py", True, ("/deal", "deal-parties", "deal_svc")),
     *((f"backend/app/{f}", True, ("import deal", "from .deal")) for f in (
-        "services/process.py", "services/stripe_pay.py", "routers/orders.py",
+        "services/process.py", "services/release.py", "services/order_state.py",
+        "services/stripe_pay.py", "routers/orders.py",
         "schemas/order.py", "models/__init__.py")),
     # Der tote Deaktivieren-Dialog und der Statuswechsel am Artikel (#773)
     ("frontend/src/components/erp/article-detail.tsx", False, (

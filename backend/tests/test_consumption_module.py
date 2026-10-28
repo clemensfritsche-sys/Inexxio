@@ -1,6 +1,6 @@
 """**Der Wächter des Verbrauchsmoduls** – Stückliste, Bindung, Nichtverfügbarkeit.
 
-Geprüft wird über die **echten** Dienstpfade (``process.release`` / ``confirm_step``)
+Geprüft wird über die **echten** Dienstpfade (``release.release`` / ``confirm_step``)
 gegen echtes PostgreSQL, nie über nachgestellte Zustände. Jede Regel steht hier gegen
 ihre **Bug-Form**: ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu
 unterscheiden.
@@ -10,12 +10,12 @@ import pytest
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
+from app.services import order_state
 
 
 def _before(w: World, order, step):
     """Die Stücke vor dem Modul — dieselbe Quelle wie im Dienst (``units_before``)."""
-    from app.services import process as proc
-    return proc.units_before(w.db, order, step)
+    return order_state.units_before(w.db, order, step)
 
 
 def _w() -> World:

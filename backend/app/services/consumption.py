@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from ..domain import modules, statuses as st
@@ -76,31 +77,17 @@ class Need:
         return max(0, min(self.required, self.available) - self.here)
 
 
-def _free(db: Session, article_object_id: int, *,
-          instances: Optional[list[int]] = None,
-          at: Optional[places.Place] = None) -> list[tuple[InstanceUnit, Instance]]:
-    """Die **freien** Stücke eines Artikels — FIFO, älteste Nummer zuerst.
+def _free(db: Session, article_object_id: int):
+    """Die **freien** Stücke eines Artikels – als Abfrage, noch nicht geladen.
 
     Frei heisst zweierlei: am Regelstart (``Freigegeben``) **und** ohne offene
-    Zugehörigkeit. *Die zweite Hälfte ist heute ein Gurt neben dem Hosenträger* – wer in
-    einem Auftrag läuft, steht auf ``Im Prozess``, also greift bereits die erste. Sie
-    bleibt trotzdem stehen, weil sie nichts kostet und die Aussage «frei» vollständig
-    macht: ein Stück, dessen Zustand von aussen verstellt wurde, ist damit trotzdem
-    nicht greifbar.
+    Zugehörigkeit. Beides zusammen ist die Aussage «regulär verfügbar»; die zweite Hälfte
+    deckt ein Stück ab, dessen Zustand an der Schreibstelle vorbei verstellt wurde.
 
-    Die Instanz kommt mit, weil die beiden Fragen dieselbe Abfrage teilen: «wie viele sind
-    frei» und «aus welchen Kisten». Zweimal gefragt wären es zwei Abfragen je Artikel und
-    eine Antwort, die auseinanderlaufen kann.
-
-    ``instances`` schränkt auf die genannten Instanzen ein und **hält deren Reihenfolge**:
-    wer eine andere Instanz wählt, hat damit auch gesagt, welche zuerst.
-
-    ``at`` schränkt auf einen **Ort** ein: nur was dort (oder darin) liegt. Gefiltert wird
-    **nach** der Abfrage, nicht in ihr – «am Ort» ist eine Aussage über die *Kette*
-    (die Schraube in der Kiste auf Werkbank 5 ist auf Werkbank 5), und die löst
-    ``places.at_holder`` batchweise auf.
+    Zwei Leser, zwei Formen derselben Menge: die Auskunft (``needs``) **zählt** sie je
+    Kiste und Ort, die Zuteilung (``plan``) **nimmt** genau so viele, wie sie braucht.
     """
-    rows = (
+    return (
         db.query(InstanceUnit, Instance)
         .join(Instance, Instance.id == InstanceUnit.instance_id)
         .join(Article, Article.id == Instance.article_id)
@@ -116,17 +103,55 @@ def _free(db: Session, article_object_id: int, *,
             InstanceUnit.status == st.START_BEFORE,
             OrderUnit.id.is_(None),
         )
-        .order_by(InstanceUnit.id)
+    )
+
+
+def _counted(db: Session, article_object_id: int) -> list[tuple[int, Optional[places.Place], int]]:
+    """Die freien Stücke **gezählt** – je Kiste und Ort eine Zeile, nicht je Stück."""
+    rows = (
+        _free(db, article_object_id)
+        .with_entities(Instance.object_id, InstanceUnit.place_object_id,
+                       InstanceUnit.place_unit_id, func.count(InstanceUnit.id))
+        .group_by(Instance.object_id, InstanceUnit.place_object_id, InstanceUnit.place_unit_id)
         .all()
     )
+    return [
+        (int(nr), (places.UNIT, int(pu)) if pu else (places.OBJECT, int(po)) if po else None,
+         int(n))
+        for nr, po, pu, n in rows
+    ]
+
+
+def _take(db: Session, article_object_id: int, need: int, *,
+          instances: Optional[list[int]] = None,
+          at: Optional[places.Place] = None) -> list[InstanceUnit]:
+    """**Genau so viele freie Stücke, wie gebraucht werden** – FIFO, gesperrt beim Lesen.
+
+    ``instances`` schränkt auf die genannten Instanzen ein und **hält deren Reihenfolge**:
+    wer eine andere Instanz wählt, hat damit auch gesagt, welche zuerst. ``at`` schränkt
+    auf einen **Ort** ein: nur was dort (oder darin) liegt – «am Ort» ist eine Aussage über
+    die *Kette*, also werden erst die Orte bestimmt, die dazugehören, und dann in SQL nur
+    noch die Stücke dort genommen.
+
+    ``FOR UPDATE SKIP LOCKED``: was ein gleichzeitiger Vorgang gerade hält (eine Freigabe,
+    die dieses Stück greift), wird übersprungen statt doppelt vergeben.
+    """
+    q = _free(db, article_object_id)
+    rank = InstanceUnit.id
     if instances is not None:
-        rank = {nr: pos for pos, nr in enumerate(instances)}
-        rows = [(u, i) for u, i in rows if i.object_id in rank]
-        rows.sort(key=lambda pair: (rank[pair[1].object_id], pair[0].id))
+        q = q.filter(Instance.object_id.in_(instances))
+        rank = case({nr: pos for pos, nr in enumerate(instances)}, value=Instance.object_id)
     if at is not None:
-        here = places.at_holder(db, [u for u, _ in rows], at)
-        rows = [(u, i) for u, i in rows if u.id in here]
-    return list(rows)
+        covered = places.within(db, [p for _, p, _ in _counted(db, article_object_id)], at)
+        if not covered:
+            return []
+        q = q.filter(or_(
+            InstanceUnit.place_object_id.in_([p for k, p in covered if k == places.OBJECT]),
+            InstanceUnit.place_unit_id.in_([p for k, p in covered if k == places.UNIT]),
+        ))
+    rows = (q.order_by(rank, InstanceUnit.id).limit(need)
+            .with_for_update(of=InstanceUnit, skip_locked=True).all())
+    return [u for u, _ in rows]
 
 
 def _one_place(found: list[Optional[places.Place]]) -> Optional[places.Place]:
@@ -189,28 +214,26 @@ def needs(db: Session, step: ProcessStep, *,
     where = required_place(step, products)
     out: list[Need] = []
     for row in rows:
-        free = _free(db, row["article"])
-        units = [u for u, _ in free]
         # **Zwei Zahlen, eine Abfrage.** «Verfügbar» und «hier» sind dieselbe Menge,
-        # einmal ungefiltert und einmal auf den Arbeitsort eingeschränkt; getrennt geholt
-        # wären es zwei Stände desselben Bestands.
-        here = places.at_holder(db, units, where) if where else {u.id for u in units}
+        # einmal ungefiltert und einmal auf den Arbeitsort eingeschränkt; gezählt wird je
+        # Kiste und Ort, die Kette einmal je Ort.
+        counted = _counted(db, row["article"])
+        covered = places.within(db, [p for _, p, _ in counted], where) if where else None
         by_instance: dict[int, int] = {}
         here_instance: dict[int, int] = {}
         at_instance: dict[int, list[Optional[places.Place]]] = {}
-        for unit, instance in free:
-            by_instance[instance.object_id] = by_instance.get(instance.object_id, 0) + 1
-            if unit.id in here:
-                here_instance[instance.object_id] = \
-                    here_instance.get(instance.object_id, 0) + 1
-            at_instance.setdefault(instance.object_id, []).append(places.place_of(unit))
+        for nr, place, n in counted:
+            by_instance[nr] = by_instance.get(nr, 0) + n
+            if covered is None or place in covered:
+                here_instance[nr] = here_instance.get(nr, 0) + n
+            at_instance.setdefault(nr, []).append(place)
         out.append(Need(
             article_object_id=row["article"],
             article_name=names.get(row["article"], f"Artikel {row['article']}"),
             per_unit=row["quantity"],
             required=row["quantity"] * len(products),
-            available=len(free),
-            here=len(here),
+            available=sum(by_instance.values()),
+            here=sum(here_instance.values()),
             place=where,
             sources=[Source(instance_object_id=nr, free=n,
                             here=here_instance.get(nr, 0),
@@ -266,15 +289,16 @@ def plan(db: Session, *, step: ProcessStep, products: list[InstanceUnit],
     out: dict[int, list[InstanceUnit]] = {p.id: [] for p in products}
     for row in rows:
         need = row["quantity"] * len(products)
-        free = [u for u, _ in _free(db, row["article"], instances=sources or None,
-                                    at=where)]
+        free = _take(db, row["article"], need, instances=sources or None, at=where)
         if len(free) < need:
             name = names.get(row["article"], f"Artikel {row['article']}")
             # **Der Grund gehört in die Meldung.** «3 verfügbar» ist wahr und nutzlos,
             # wenn 40 im Regal liegen und nur der Ort nicht stimmt – dann ist die
             # Handlung ein Transport und nicht eine Beschaffung.
-            elsewhere = len([u for u, _ in _free(db, row["article"],
-                                                 instances=sources or None)]) - len(free)
+            everywhere = _free(db, row["article"])
+            if sources:
+                everywhere = everywhere.filter(Instance.object_id.in_(sources))
+            elsewhere = everywhere.count() - len(free) if where else 0
             here = places.describe(db, where) if where else None
             raise HTTPException(
                 status_code=409,

@@ -332,7 +332,7 @@ def test_a_failed_capture_creates_nothing_by_itself():
     assert 'if result == "failed":' in held and '"moved": 0, "held": len(units)' in held, (
         "Ein «nicht bestanden» rückt wieder vor, statt anzuhalten."
     )
-    assert held.index('if result == "failed":') < held.index("    _pass("), (
+    assert held.index('if result == "failed":') < held.index("_advance("), (
         "Der Haltezweig steht hinter dem Vorrücken – er kommt zu spät."
     )
 
@@ -353,7 +353,7 @@ def test_the_deviation_is_the_only_way_out_of_a_hold():
     assert "'failed'" in work, "Die Abweichung holt ihre Vorauswahl nicht mehr vom Server."
     assert "'rest'" not in work, "Die 100 %-Kontrolle ist zurück – zwei Wege, ein Ziel."
 
-    proc = _read(BACKEND / "app" / "services" / "process.py")
+    proc = _read(BACKEND / "app" / "services" / "order_state.py")
     body = _body(proc, "held_numbers")
     assert '"rest"' not in body and "'rest'" not in body, (
         "Der Dienst kennt die Gruppe «rest» wieder – ein toter Pfad, den niemand ruft."

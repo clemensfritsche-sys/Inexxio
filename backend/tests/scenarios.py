@@ -8,12 +8,15 @@ Frage.
 **Das Soll wird vor dem Lauf notiert**, nicht aus dem Lauf abgeleitet – sonst prüft der
 Test den Code gegen sich selbst.
 
-Gefahren wird über die **echten** Dienstpfade (``process.release``/``confirm_step``), nie
+Gefahren wird über die **echten** Dienstpfade (``release.release``/``confirm_step``), nie
 über nachgestellte Zustände: die interessanten Fehler entstehen zwischen den Schritten.
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
+from app.services.instances import unit_numbers
+from app.services import order_state
+from app.services import release as release_svc
 
 # ---------------------------------------------------------------------------
 # Die Achsen der Matrix (Auftrag §2.2)
@@ -190,9 +193,8 @@ class World:
 
     def release(self, *, lines: list[dict[str, Any]],
                 steps: Optional[list[dict[str, Any]]] = None):
-        from app.services import process as proc
 
-        order = proc.release(self.db, lines=lines, steps=steps or [], actor_id=None)
+        order = release_svc.release(self.db, lines=lines, steps=steps or [], actor_id=None)
         self.db.flush()
         return order
 
@@ -218,12 +220,10 @@ class World:
     # ── Ausführung ──────────────────────────────────────────────────────────
 
     def steps(self, order):
-        from app.services import process as proc
-        return proc.steps_of(self.db, order)
+        return order_state.steps_of(self.db, order)
 
     def work(self, order, step):
-        from app.services import process as proc
-        return proc.step_work(self.db, order, step)
+        return order_state.step_work(self.db, order, step)
 
     def confirm(self, order, step, *, instance: int, values: Optional[dict] = None,
                 verification: str = "scan", sources: Optional[list[int]] = None,
@@ -233,7 +233,7 @@ class World:
         from tests.support import per_unit
 
         payload = {}
-        if proc.step_work(self.db, order, step):
+        if order_state.step_work(self.db, order, step):
             has_points = bool((step.config or {}).get("points"))
             if has_points:
                 payload = per_unit(self.db, order=order, step=step,
@@ -264,26 +264,24 @@ class World:
 
     def needs(self, order, step) -> list[dict[str, Any]]:
         """Was dieses Modul jetzt braucht — Artikel, Menge, Verfügbarkeit, **Ort** (§4)."""
-        from app.services import consumption, process as proc
+        from app.services import consumption
 
         return [
             {"artikel": n.article_object_id, "je_stück": n.per_unit,
              "gebraucht": n.required, "verfügbar": n.available, "fehlt": n.missing,
              "hier": n.here, "am_falschen_ort": n.misplaced}
             for n in consumption.needs(
-                self.db, step, products=proc.units_before(self.db, order, step))
+                self.db, step, products=order_state.units_before(self.db, order, step))
         ]
 
     # ── Auskunft ────────────────────────────────────────────────────────────
 
     def status(self, order) -> str:
-        from app.services import process as proc
-        return proc.order_status(self.db, order)
+        return order_state.order_status(self.db, order)
 
     def numbers(self, order) -> list[str]:
         """Alle Stücknummern dieses Auftrags, in Nummernreihenfolge."""
         from app.models import InstanceUnit, OrderUnit
-        from app.services import process as proc
 
         units = (
             self.db.query(InstanceUnit)
@@ -292,7 +290,7 @@ class World:
             .order_by(InstanceUnit.id)
             .all()
         )
-        got = proc.unit_numbers(self.db, units)
+        got = unit_numbers(self.db, units)
         return [got[u.id] for u in units]
 
     def unit(self, number: str):
@@ -327,24 +325,19 @@ class World:
 
     def waits(self, order) -> bool:
         """Wartet dieser Auftrag auf mindestens eine Rückführung?"""
-        from app.services import process as proc
-        return bool(proc.pending_returns(self.db, order))
+        return bool(order_state.pending_returns(self.db, order))
 
     def blocked_steps(self, order) -> dict[int, list[int]]:
-        from app.services import process as proc
-        return proc.pending_returns(self.db, order)
+        return order_state.pending_returns(self.db, order)
 
     def lent(self, order) -> int:
-        from app.services import process as proc
-        return proc.waiting_counts(self.db, [order.id]).get(order.id, 0)
+        return order_state.waiting_counts(self.db, [order.id]).get(order.id, 0)
 
     def is_deviation(self, order) -> bool:
-        from app.services import process as proc
-        return proc.deviation_flags(self.db, [order.id])[order.id]
+        return order_state.deviation_flags(self.db, [order.id])[order.id]
 
     def active_step(self, order):
-        from app.services import process as proc
-        return proc.active_step_id(self.db, order)
+        return order_state.active_step_id(self.db, order)
 
     def graph(self, order):
         from app.services import flow as flow_svc

@@ -328,7 +328,7 @@ Sache sind ein Bug, auch wenn beide funktionieren.
 
 ### Zwei Formen einer Regel – nie zwei Regeln
 Braucht eine Regel eine Form, die den **Grund** nennt, und eine, die **prüft/abweist**,
-stehen beide in EINEM Modul mit demselben Namensstamm (`process.pick_problem` ↔
+stehen beide in EINEM Modul mit demselben Namensstamm (`release.pick_problem` ↔
 `unpickable`, `voucher.ask_problem` ↔ `_assert_ask`, `articles.may_create`). So sagen
 Oberfläche und Dienst garantiert dasselbe.
 
@@ -391,8 +391,9 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 - **Eine gescheiterte Migration bleibt nie unbemerkt**: `/health` sagt `schema` (`current` ·
   `behind`), `revision` und `head` (503, wenn etwas nicht stimmt); nach jedem Deploy liest
   `scripts/check-schema.sh` das und macht den Lauf rot.
-- **Der Start schreibt nur, was aus dem Code folgt**: die beiden Trigger aus der Fachschicht
-  (`statuses.terminal_guard_sql`, `timekeeping.append_only_sql`), den Betreiber als Datensatz
+- **Der Start schreibt nur, was aus dem Code folgt**: die drei Trigger aus der Fachschicht
+  (`statuses.terminal_guard_sql`, `timekeeping.append_only_sql`,
+  `process_log.append_only_sql`), den Betreiber als Datensatz
   und die Rechtstexte als Dokumente (`main.lifespan`). Er löscht nichts und ernennt niemanden
   – Admin wird nur `initial_admin_email`, beim Login (`core/auth`).
 - **Neue Tabelle** = voller Spaltensatz in der Migration (inkl. geerbter `is_active`,
@@ -414,7 +415,7 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 - **Lokal testen wie die CI**: gegen ein Schema, das nur aus den Migrationen kommt
   (`tests/test_schema_is_built_by_the_migrations.py` baut es selbst).
 - Die Matrix (`tests/matrix.py`, Soll vorher notiert) und die Invarianten
-  (`services/invariants.py`) prüfen, was wahr sein muss; Bericht:
+  (`tests/invariants.py`) prüfen, was wahr sein muss; Bericht:
   `python -m scripts.scenario_report`.
 - **Jeder neue Wächter wird gegen seine Bug-Form gegengeprüft** – ein Wächter, der nie
   anschlägt, ist von einem kaputten nicht zu unterscheiden. Wächter prüfen die **Regel**,

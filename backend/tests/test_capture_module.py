@@ -22,6 +22,9 @@ import pytest
 
 from tests.runner import session
 from tests.support import per_unit
+from app.services.instances import unit_numbers
+from app.services import order_state
+from app.services import release as release_svc
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -29,7 +32,7 @@ BACKEND = pathlib.Path(__file__).resolve().parents[1]
 def _order(db, *, serialization: str, quantity: int, sample=None, points=None):
     """Ein freigegebener Auftrag mit **einem** Datenerfassungs-Modul."""
     from app.models import Article, ProcessStep
-    from app.services import article_process as tpl, objects as obj, process as proc
+    from app.services import article_process as tpl, objects as obj
 
     config = {
         "points": points or [{"label": "OK", "type": "bool"}],
@@ -41,7 +44,7 @@ def _order(db, *, serialization: str, quantity: int, sample=None, points=None):
     db.flush()
     tpl.create_steps(db, art, [{"module_type": "datenerfassung", "config": config}])
     db.flush()
-    order = proc.release(
+    order = release_svc.release(
         db,
         lines=[{"article_object_id": art.object_id, "quantity": quantity,
                 "origin": "neu", "units": []}],
@@ -67,16 +70,15 @@ def test_one_scan_per_instance_falls_out_of_the_numbering():
     Der Unterschied ergibt sich allein aus ``materialize.plan``: Charge 3 → (1, 3),
     Einzelserialisierung 3 → (3, 1).
     """
-    from app.services import process as proc
 
     db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=3)
-        assert len(proc.step_work(db, order, step)) == 1, (
+        assert len(order_state.step_work(db, order, step)) == 1, (
             "Eine Charge braucht mehr als einen Scan – das Etikett klebt an der Kiste."
         )
         order2, step2 = _order(db, serialization="unit", quantity=3)
-        assert len(proc.step_work(db, order2, step2)) == 3, (
+        assert len(order_state.step_work(db, order2, step2)) == 3, (
             "Einzelserialisierung: jedes Stück ist eine eigene Instanz, also ein eigener Scan."
         )
     finally:
@@ -112,7 +114,7 @@ def test_no_entry_without_verification():
 
         # **Die Tastatur ist die Alternative, nicht die Umgehung** – und sie wird als
         # solche vermerkt.
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         out = proc.confirm_step(
             db, order=order, step_id=step.id,
             values=per_unit(db, order=order, step=step, instance_object_id=work["instance_object_id"],
@@ -156,13 +158,13 @@ def test_the_sample_is_drawn_once_and_frozen():
     try:
         order, step = _order(db, serialization="batch", quantity=10,
                              sample={"percent": 30})
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         assert (work["waiting"], work["sample"], work["rest"]) == (10, 3, 7), (
             "Die Stichprobe stimmt nicht – oder der ungeprüfte Rest ist unsichtbar."
         )
 
         # Zweimal fragen, dieselbe Antwort. Ein zweites Ziehen wäre eine zweite Wahrheit.
-        units = [u for _, u in proc._units_at(db, order, step.id)]
+        units = [u for _, u in order_state._units_at(db, order, step.id)]
         first = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
         sampling.ensure(db, order=order, step=step, actor_id=None)
         db.flush()
@@ -192,13 +194,12 @@ def test_the_sample_is_a_share_of_the_whole_not_of_each_instance():
     werden), also die volle Menge – und «50 %» stünde am Bildschirm, während in
     Wirklichkeit alles geprüft wird.
     """
-    from app.services import process as proc
 
     db = session()
     try:
         order, step = _order(db, serialization="unit", quantity=4,
                              sample={"percent": 50})
-        rows = proc.step_work(db, order, step)
+        rows = order_state.step_work(db, order, step)
         assert len(rows) == 4, "Vier Instanzen zu je einem Stück – ein Vorgang je Instanz."
         assert sum(r["sample"] for r in rows) == 2, (
             f"Gezogen wurde je Instanz statt über die Gesamtmenge: "
@@ -236,7 +237,7 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
                         "sample": {"percent": 50}}},
         ])
         db.flush()
-        order = proc.release(
+        order = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 4,
                     "origin": "neu", "units": []}],
@@ -248,7 +249,7 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
                          .order_by(ProcessStep.position).all())
 
         # Genau EINE Instanz geht durch – am zweiten Modul steht damit ein Viertel.
-        one = proc.step_work(db, order, first)[0]
+        one = order_state.step_work(db, order, first)[0]
         proc.confirm_step(
             db, order=order, step_id=first.id,
             values=per_unit(db, order=order, step=first,
@@ -257,7 +258,7 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
             verification="scan", actor_id=None)
         db.flush()
 
-        rows = proc.step_work(db, order, second)
+        rows = order_state.step_work(db, order, second)
         assert len(rows) == 1, "Nur die erste Instanz ist angekommen."
         assert sum(r["sample"] for r in rows) <= 2, (
             "Am zweiten Modul wurde über die erste Welle gezogen statt über den ganzen "
@@ -317,7 +318,7 @@ def test_a_failed_capture_holds_and_nothing_is_created():
         order, step = _order(db, serialization="batch", quantity=4,
                              sample={"percent": 25})
         before = db.query(Order).count()
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
 
         out = proc.confirm_step(
             db, order=order, step_id=step.id,
@@ -333,7 +334,7 @@ def test_a_failed_capture_holds_and_nothing_is_created():
         # Die Feststellung steht im Log, obwohl sich nichts bewegt hat.
         assert _captures(db, order) == 1
 
-        after = proc.step_work(db, order, step)[0]
+        after = order_state.step_work(db, order, step)[0]
         assert after["held"] is True and after["waiting"] == 4, (
             "Nach dem Durchfaller steht nicht mehr die ganze Instanz still."
         )
@@ -342,13 +343,13 @@ def test_a_failed_capture_holds_and_nothing_is_created():
         # gibt keine Gruppe mehr dafür: die 100 %-Kontrolle ist ersatzlos entfallen
         # (#713), und damit ist die Abweichung die eine Entscheidung.
         assert after["rest"] == 3
-        failed = proc.held_numbers(db, order, step,
+        failed = order_state.held_numbers(db, order, step,
                                    instance_object_id=work["instance_object_id"], group="failed")
         assert len(failed) == 1
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as weg:
-            proc.held_numbers(db, order, step,
+            order_state.held_numbers(db, order, step,
                               instance_object_id=work["instance_object_id"], group="rest")
         assert weg.value.status_code == 400
     finally:
@@ -368,7 +369,7 @@ def test_the_flow_splits_between_instances():
     db = session()
     try:
         order, step = _order(db, serialization="unit", quantity=2)
-        work = proc.step_work(db, order, step)
+        work = order_state.step_work(db, order, step)
         assert len(work) == 2
 
         good = proc.confirm_step(
@@ -384,7 +385,7 @@ def test_the_flow_splits_between_instances():
         db.flush()
 
         assert good["moved"] == 1 and bad["held"] == 1
-        left = proc.step_work(db, order, step)
+        left = order_state.step_work(db, order, step)
         assert [w["instance_object_id"] for w in left] == [work[1]["instance_object_id"]], (
             "Am Modul steht nicht mehr genau die durchgefallene Instanz."
         )
@@ -405,7 +406,7 @@ def test_a_later_good_capture_clears_the_hold():
     db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         instance = work["instance_object_id"]
 
         proc.confirm_step(
@@ -414,7 +415,7 @@ def test_a_later_good_capture_clears_the_hold():
                             values={"ok": False}),
             instance_object_id=instance, verification="scan", actor_id=None)
         db.flush()
-        assert proc.step_work(db, order, step)[0]["held"] is True
+        assert order_state.step_work(db, order, step)[0]["held"] is True
 
         out = proc.confirm_step(
             db, order=order, step_id=step.id,
@@ -423,7 +424,7 @@ def test_a_later_good_capture_clears_the_hold():
             instance_object_id=instance, verification="scan", actor_id=None)
         db.flush()
         assert out["moved"] == 2, "Die erneute, bestandene Erfassung bewegt nichts."
-        assert proc.step_work(db, order, step) == [], "Am Modul steht noch etwas."
+        assert order_state.step_work(db, order, step) == [], "Am Modul steht noch etwas."
     finally:
         db.rollback()
         db.close()
@@ -447,7 +448,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
     from app.core.auth import get_current_user
     from app.main import app
     from app.models import UserProfile
-    from app.services import objects as obj, process as proc
+    from app.services import objects as obj
 
     order, step = _order(db, serialization="batch", quantity=10,
                          sample={"percent": 30})
@@ -465,7 +466,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
     try:
         client = TestClient(app)
         base = f"/api/v1/erp/orders/{order.object_id}/steps/{step.id}"
-        work = proc.step_work(db, order, step)
+        work = order_state.step_work(db, order, step)
         instance = work[0]["instance_object_id"]
 
         # **Ohne Bestätigung keine Eingabe** – und zwar als Fehler, nicht als leerer Erfolg.
@@ -549,12 +550,12 @@ def test_one_scan_gives_one_capture_per_piece_not_one_per_scan():
         order, step = _order(db, serialization="batch", quantity=2,
                              points=[{"label": "Mass", "type": "measure",
                                       "target": 10, "tolerance": 5}])
-        work = proc.step_work(db, order, step)
+        work = order_state.step_work(db, order, step)
         assert len(work) == 1, "Eine Charge ist EIN Scan."
         inst = work[0]["instance_object_id"]
         assert work[0]["sample"] == 2, "Bei «alle» sind beide Stücke zu erfassen."
 
-        numbers = proc.held_numbers(db, order, step, instance_object_id=inst,
+        numbers = order_state.held_numbers(db, order, step, instance_object_id=inst,
                                     group="sample")
         assert len(numbers) == 2, numbers
 
@@ -588,11 +589,11 @@ def test_the_capture_count_follows_the_draw_not_the_number_of_scans():
     try:
         order, step = _order(db, serialization="batch", quantity=8,
                              sample={"percent": 25})
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         inst = work["instance_object_id"]
         assert (work["waiting"], work["sample"]) == (8, 2), work
 
-        numbers = proc.held_numbers(db, order, step, instance_object_id=inst,
+        numbers = order_state.held_numbers(db, order, step, instance_object_id=inst,
                                     group="sample")
         assert len(numbers) == work["sample"], (
             "Die Vorschau nennt eine andere Zahl als die Liste – zwei Quellen."
@@ -624,15 +625,15 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
     try:
         order, step = _order(db, serialization="batch", quantity=4,
                              sample={"percent": 50})
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         inst = work["instance_object_id"]
-        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        drawn = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         assert len(drawn) == 2 and work["rest"] == 2
-        alle = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        alle = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         assert alle == drawn
         ungezogen = next(
-            n for n in proc.unit_numbers(
-                db, [u for _, u in proc._units_at(db, order, step.id)]).values()
+            n for n in unit_numbers(
+                db, [u for _, u in order_state._units_at(db, order, step.id)]).values()
             if n not in set(drawn)
         )
 
@@ -669,9 +670,9 @@ def test_one_bad_piece_holds_the_whole_instance():
     db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=3)
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         inst = work["instance_object_id"]
-        numbers = proc.held_numbers(db, order, step, instance_object_id=inst,
+        numbers = order_state.held_numbers(db, order, step, instance_object_id=inst,
                                     group="sample")
 
         out = proc.confirm_step(
@@ -712,8 +713,8 @@ def test_a_hold_is_never_a_dead_end():
     db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
-        inst = proc.step_work(db, order, step)[0]["instance_object_id"]
-        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        inst = order_state.step_work(db, order, step)[0]["instance_object_id"]
+        drawn = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
 
         # 1. Einer fällt durch – nichts rückt vor, die ganze Instanz steht.
         out = proc.confirm_step(
@@ -722,12 +723,12 @@ def test_a_hold_is_never_a_dead_end():
             instance_object_id=inst, verification="scan", actor_id=None)
         db.flush()
         assert out["moved"] == 0 and out["result"] == "failed"
-        assert proc.step_work(db, order, step)[0]["held"] is True
+        assert order_state.step_work(db, order, step)[0]["held"] is True
 
         # 2. Die angebotene Abweichung – ein ganz gewöhnlicher Auftrag.
-        failed = proc.held_numbers(db, order, step, instance_object_id=inst, group="failed")
+        failed = order_state.held_numbers(db, order, step, instance_object_id=inst, group="failed")
         assert failed == [drawn[0]]
-        dev = proc.release(
+        dev = release_svc.release(
             db,
             lines=[{"article_object_id": _article_of(db, order), "quantity": 1,
                     "origin": "lager",
@@ -737,25 +738,25 @@ def test_a_hold_is_never_a_dead_end():
                     "config": {"points": [{"label": "OK", "type": "bool"}]}}],
             actor_id=None)
         db.flush()
-        assert proc.deviation_flags(db, [dev.id])[dev.id] is True, (
+        assert order_state.deviation_flags(db, [dev.id])[dev.id] is True, (
             "Der Folgeauftrag greift ein Stück, das nicht regulär verfügbar war – "
             "er ist eine Abweichung und muss es auch heissen."
         )
 
         # 3. Die Abweichung läuft durch, das Stück kommt zurück.
-        d_step = proc.steps_of(db, dev)[0]
-        d_inst = proc.step_work(db, dev, d_step)[0]["instance_object_id"]
-        d_drawn = proc.held_numbers(db, dev, d_step, instance_object_id=d_inst,
+        d_step = order_state.steps_of(db, dev)[0]
+        d_inst = order_state.step_work(db, dev, d_step)[0]["instance_object_id"]
+        d_drawn = order_state.held_numbers(db, dev, d_step, instance_object_id=d_inst,
                                     group="sample")
         proc.confirm_step(db, order=dev, step_id=d_step.id,
                           values={n: {"ok": True} for n in d_drawn},
                           instance_object_id=d_inst, verification="scan", actor_id=None)
         db.flush()
-        work = proc.step_work(db, order, step)[0]
+        work = order_state.step_work(db, order, step)[0]
         assert work["waiting"] == 2, "Das Stück ist nicht zurückgekommen."
 
         # 4. ►► Und jetzt muss es weitergehen. ◄◄
-        again = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        again = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         moved = proc.confirm_step(
             db, order=order, step_id=step.id,
             values={n: {"ok": True} for n in again},
@@ -764,8 +765,8 @@ def test_a_hold_is_never_a_dead_end():
         assert moved["moved"] == 2, (
             f"Der Prozess kommt nicht weiter – das ist die Sackgasse: {moved}"
         )
-        assert proc.step_work(db, order, step) == [], "Am Modul steht immer noch etwas."
-        assert proc.order_status(db, order) == "abgeschlossen"
+        assert order_state.step_work(db, order, step) == [], "Am Modul steht immer noch etwas."
+        assert order_state.order_status(db, order) == "abgeschlossen"
     finally:
         db.rollback()
         db.close()
@@ -794,8 +795,8 @@ def test_the_verdict_in_the_log_belongs_to_its_own_piece():
     db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
-        inst = proc.step_work(db, order, step)[0]["instance_object_id"]
-        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        inst = order_state.step_work(db, order, step)[0]["instance_object_id"]
+        drawn = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         proc.confirm_step(db, order=order, step_id=step.id,
                           values={drawn[0]: {"ok": False}, drawn[1]: {"ok": True}},
                           instance_object_id=inst, verification="scan", actor_id=None)
@@ -846,7 +847,7 @@ def test_the_number_of_scans_follows_the_sample():
     try:
         order, step = _order(db, serialization="unit", quantity=2,
                              sample={"percent": 50})
-        rows = proc.step_work(db, order, step)
+        rows = order_state.step_work(db, order, step)
         assert len(rows) == 2, "Zwei Instanzen – zwei Zeilen."
         gezogen = [r for r in rows if r["sample"] > 0]
         ohne = [r for r in rows if r["sample"] == 0]
@@ -856,7 +857,7 @@ def test_the_number_of_scans_follows_the_sample():
 
         # Nur die gezogene Instanz wird bestätigt – ein Scan, eine Erfassung.
         inst = gezogen[0]["instance_object_id"]
-        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        drawn = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         assert len(drawn) == 1
         proc.confirm_step(db, order=order, step_id=step.id,
                           values={drawn[0]: {"ok": True}},
@@ -864,11 +865,11 @@ def test_the_number_of_scans_follows_the_sample():
         db.flush()
 
         # ►► Und die ungezogene ist mitgelaufen – ohne zweiten Scan. ◄◄
-        assert proc.step_work(db, order, step) == [], (
+        assert order_state.step_work(db, order, step) == [], (
             "Die ungezogene Instanz steht noch da und wartet auf einen Scan, der nichts "
             "bestätigen würde."
         )
-        assert proc.order_status(db, order) == "abgeschlossen", (
+        assert order_state.order_status(db, order) == "abgeschlossen", (
             "Der Auftrag kommt nicht zu Ende, obwohl niemand mehr etwas zu tun hat."
         )
     finally:
@@ -890,15 +891,15 @@ def test_a_failed_sample_keeps_the_rest_from_running_through():
     try:
         order, step = _order(db, serialization="unit", quantity=2,
                              sample={"percent": 50})
-        rows = proc.step_work(db, order, step)
+        rows = order_state.step_work(db, order, step)
         inst = next(r["instance_object_id"] for r in rows if r["sample"] > 0)
-        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        drawn = order_state.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         proc.confirm_step(db, order=order, step_id=step.id,
                           values={drawn[0]: {"ok": False}},
                           instance_object_id=inst, verification="scan", actor_id=None)
         db.flush()
 
-        after = proc.step_work(db, order, step)
+        after = order_state.step_work(db, order, step)
         assert len(after) == 2, (
             "Nach einem Durchfaller ist der ungezogene Rest davongelaufen – dann kann "
             "ihn niemand mehr aussondern."

@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy import BigInteger, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -32,8 +32,8 @@ class OrderLine(Base, TimestampMixin):
     __tablename__ = "order_lines"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    article_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("articles.id", ondelete="RESTRICT"), index=True, nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     origin: Mapped[str] = mapped_column(String(10), nullable=False)

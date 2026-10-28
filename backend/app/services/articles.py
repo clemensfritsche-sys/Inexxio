@@ -62,7 +62,7 @@ def may_create(article: Article) -> Optional[str]:
     nichts abweisen. Ein Name wie ``is_article_active`` hätte dieselbe Falle nur eine
     Ebene weiter aufgestellt; ``may_create`` benennt die Frage.
 
-    **Zwei Formen derselben Regel** (wie ``process.pick_problem``/``unpickable``): sie gibt
+    **Zwei Formen derselben Regel** (wie ``release.pick_problem``/``unpickable``): sie gibt
     den Grund zurück, statt zu werfen. Die Freigabe bricht damit ab, die Auswahl-Liste
     sperrt damit «Neu» und nennt denselben Satz. Zwei Formulierungen wären zwei Massstäbe.
 

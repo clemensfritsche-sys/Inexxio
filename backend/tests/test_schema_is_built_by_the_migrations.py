@@ -135,7 +135,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
 PENDING_DROP: set[str] = {
     # Mapping weg (Runde 28.10.2026), Drop im Folge-Deploy – docs/backlog.md.
-    "user_profiles.department", "user_profiles.job_title",
+    "user_profiles.department", "user_profiles.job_title", "orders.end_status",
 }
 
 

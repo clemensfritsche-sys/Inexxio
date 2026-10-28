@@ -10,6 +10,8 @@ behauptet – ein Test, der alles prüft, prüft nichts.
 from typing import Any
 
 from fastapi import HTTPException
+from app.services import order_state
+from app.services import release as release_svc
 
 from tests.scenarios import (
     A_LAGER, A_MIX, A_NEU, B_BATCH, B_EINZEL, C_1, C_2, C_VIELE,
@@ -237,7 +239,7 @@ def s11b(w: World):
            "Die Stückliste ist kein Feld – sie sind die Stücke, die denselben Auftrag "
            "als «Verbaut» verlassen haben.")
 def s16(w: World):
-    from app.services import genealogy, process as proc
+    from app.services import genealogy
 
     part, numbers = free_stock(w, serialization="unit", quantity=2)
     product = w.article(serialization="unit",
@@ -256,7 +258,7 @@ def s16(w: World):
         "stückliste": len(genealogy.parts_of(w.db, w.unit(made[0]))),
         # **Der Bedarf nennt nur das Produkt.** Die Teile sind keine Auftragszeile mehr –
         # gebunden wird beim Erreichen des Moduls, nicht bei der Freigabe.
-        "auftragszeilen": len(proc.lines_of(w.db, order)),
+        "auftragszeilen": len(order_state.lines_of(w.db, order)),
     }
 
 
@@ -1039,7 +1041,7 @@ def s94(w: World):
     inst = w.work(order, step)[0]["instance_object_id"]
     # Der Wertesatz ist da, der Pflichtpunkt darin ist es nicht. (Über ``World.confirm``
     # wäre der Fall nicht stellbar – der Helfer füllt einen leeren Satz auf.)
-    gezogen = proc.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
+    gezogen = order_state.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
     return _err(proc.confirm_step, w.db, order=order, step_id=step.id,
                 values={gezogen[0]: {}},
                 instance_object_id=inst, verification="scan", actor_id=None)
@@ -1055,7 +1057,7 @@ def s95(w: World):
     order = w.produce(art, 4)
     step = w.steps(order)[0]
     inst = w.work(order, step)[0]["instance_object_id"]
-    gezogen = proc.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
+    gezogen = order_state.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
     # Der ungezogene Rest wird **abgeleitet**, nicht abgefragt: die Gruppe «rest» ist mit
     # der 100 %-Kontrolle entfallen (#713), die Frage «wer wurde nicht gezogen» bleibt.
     rest = [n for n in w.numbers(order) if n not in set(gezogen)]
@@ -1075,7 +1077,7 @@ def s96(w: World):
     order = w.produce(art, 2)
     step = w.steps(order)[0]
     inst = w.work(order, step)[0]["instance_object_id"]
-    gezogen = proc.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
+    gezogen = order_state.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
     return _err(proc.confirm_step, w.db, order=order, step_id=step.id,
                 values={gezogen[0]: dict(w.GOOD)},
                 instance_object_id=inst, verification="scan", actor_id=None)
@@ -1149,7 +1151,6 @@ def s63(w: World):
     import threading
 
     from app.models import OrderUnit
-    from app.services import process as proc
     from tests.runner import session
 
     art, numbers = free_stock(w, serialization="unit", quantity=1)
@@ -1166,7 +1167,7 @@ def s63(w: World):
         db = session()
         try:
             start.wait(timeout=10)
-            proc.release(db, lines=[dict(ln) for ln in lines],
+            release_svc.release(db, lines=[dict(ln) for ln in lines],
                          steps=[dict(s) for s in steps], actor_id=None)
             db.commit()
             with lock:
@@ -1186,7 +1187,7 @@ def s63(w: World):
 
     check = session()
     try:
-        unit = proc._resolve_units(check, [numbers[0]], seen=set())[0][0]
+        unit = release_svc._resolve_units(check, [numbers[0]], seen=set())[0][0]
         offen = (
             check.query(OrderUnit)
             .filter(OrderUnit.instance_unit_id == unit.id,
@@ -1322,6 +1323,35 @@ def s59(w: World):
            steps=[w.dispose("scrap", "Abzweig aufgelöst")])
     return {"a_wartet_vorher": vorher, "a_wartet_nachher": w.waits(a),
             "a_status": w.status(a), "b_status": w.status(b)}
+
+
+@case("S100", "Ein zurückgekehrtes Stück läuft durch eine erledigte Stichprobe von selbst",
+      {"A": A_NEU, "B": B_EINZEL, "C": C_VIELE, "D": D_ERFASSUNG, "E": E_1, "F": F_NORMAL},
+      {"rückkehrer_vor_modul": 0, "rückkehrer": "freigegeben", "a_status": "abgeschlossen",
+       "probleme": []},
+      note="Die Stichprobe am Modul ist erledigt, während das ungezogene Stück draussen "
+           "ist. Kehrt es zurück, wartete es auf einen Scan, den niemand verlangt.")
+def s100(w: World):
+    from app.services import sampling
+
+    art = w.article(serialization="unit",
+                    template=[w.capture(sample={"percent": 33}), w.capture()])
+    a = w.produce(art, 3)
+    first = w.steps(a)[0]
+    units = {u.id: n for n, u in ((n, w.unit(n)) for n in w.numbers(a))}
+    drawn = sampling.drawn_ids(w.db, order=a, step=first)
+    rest = [units[i] for i in sorted(units) if i not in drawn]
+    # Das ungezogene Stück schert aus und kommt zurück …
+    b = w.take(art, rest[:1], from_order=a.object_id, steps=[w.capture()])
+    # … das gezogene verlässt den Auftrag für immer: damit ist die Stichprobe erledigt,
+    # und das zweite ungezogene läuft mit.
+    w.take(art, [units[i] for i in drawn], from_order=a.object_id, returns=False,
+           steps=[w.dispose("scrap", "Ausschuss")])
+    w.run_all(b)
+    w.run_step(a, w.steps(a)[1])
+    return {"rückkehrer_vor_modul": len(w.work(a, first)),
+            "rückkehrer": w.unit_status(rest[0]), "a_status": w.status(a),
+            "probleme": w.problems(a)}
 
 
 @case("S98b", "Ein INAKTIVER Artikel bleibt über «Lager» abwickelbar",

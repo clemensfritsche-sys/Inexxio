@@ -13,7 +13,7 @@ import {
 } from './process-diagram';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
-import { statusCfg } from '@/lib/process-status';
+import { FREIGEGEBEN, statusCfg } from '@/lib/process-status';
 import type {
   GraphEdge, JourneyStop, ProcessGraph, ProcessStepResponse, RelatedOrder,
 } from '@/types';
@@ -430,7 +430,7 @@ function Neighbour({ col }: { col: Column }) {
     >
       <FlowColumn
         graph={col.graph} steps={col.steps} prefix={col.prefix} mode="ausfuehrung"
-        activeStepId={rel.active_step_id ?? null} endStatus={rel.end_status}
+        activeStepId={rel.active_step_id ?? null} endStatus={FREIGEGEBEN}
         faded
       />
     </div>

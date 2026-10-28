@@ -44,7 +44,7 @@ class Module:
     #: **Darf ein Stück diesen Modultyp verlassen, während davor gearbeitet wird?**
     #:
     #: Heute bei jedem Modul ja – der Wert ist ein bewusster Haken (SYSTEM_LOGIC R7),
-    #: gelesen an genau einer Stelle (``process._assert_may_leave``). Ein Modultyp, bei
+    #: gelesen an genau einer Stelle (``release._assert_may_leave``). Ein Modultyp, bei
     #: dem das Herausnehmen Aussenwirkung hätte, setzt ihn auf ``False`` – und muss dann
     #: den Abbruch-Ausgang (§4.4) mitbeantworten, denn der läuft genau darüber.
     units_may_leave: bool = True
@@ -596,8 +596,8 @@ class Beleg(Module):
         """**Die Richtung dieses Schritts** – die eine Lesestelle.
 
         Sie steht in der ``config`` und nicht als zweiter Modul-Schlüssel: es ist EIN
-        Modul, und die Richtung ist seine Einstellung. Tolerant gelesen (fehlend =
-        Ausgabe), damit eine alte Zeile keine Anzeige zerlegt; geschrieben wird streng.
+        Modul, und die Richtung ist seine Einstellung. Geschrieben wird streng
+        (``clean_config``); gelesen ohne Angabe als Ausgabe.
         """
         return str((config or {}).get(self.DIRECTION) or vo.OUT)
 
@@ -838,8 +838,7 @@ def lines_of(config: Optional[dict[str, Any]]) -> list[dict[str, int]]:
 def sample_of(config: Optional[dict[str, Any]]) -> dict[str, Any]:
     """Die Stichprobenregel einer gespeicherten Definition — die eine Lesestelle.
 
-    Fehlt sie (Definitionen aus der Zeit vor der Stichprobe), gilt **alle**: das ist,
-    was diese Module bisher getan haben, und damit ändert sich an ihnen nichts.
+    Fehlt sie, gilt **alle** (``domain/sampling.DEFAULT``).
     """
     return (config or {}).get("sample") or dict(sampling.DEFAULT)
 

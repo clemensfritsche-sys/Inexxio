@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -35,7 +35,7 @@ class InstanceUnit(Base, TimestampMixin):
     ``status`` ist der **eigene, individuelle** Zustand dieses einen Stücks – zwei
     Einzelinstanzen derselben Instanz dürfen verschieden stehen. Die Werte stammen aus
     der **geschlossenen Liste** (``domain/statuses``); wer sie ändert, tut das über
-    ``services/process`` – dort und nur dort entsteht im selben Atemzug der Eintrag im
+    ``services/process`` (``_pass``) – dort und nur dort entsteht im selben Atemzug der Eintrag im
     Ereignis-Log. Ein zweiter Schreibweg wäre eine zweite Wahrheit.
 
     Ein frisch angelegtes Stück ist ``freigegeben``: es ist einsatzbereit und in keinem
@@ -48,7 +48,7 @@ class InstanceUnit(Base, TimestampMixin):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    instance_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    instance_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("instances.id", ondelete="RESTRICT"), index=True, nullable=False)
 
     # Laufende Nummer innerhalb der Instanz, beginnend bei 1.
     suffix: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -72,7 +72,7 @@ class InstanceUnit(Base, TimestampMixin):
     #: **``NULL`` ist ein regulärer Zustand**, kein fehlender Wert: ein frisch erzeugtes
     #: Stück liegt nirgends, bis ein Modul es irgendwohin bringt.
     place_object_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, index=True,
+        BigInteger, ForeignKey("objects.object_id", ondelete="RESTRICT"), nullable=True, index=True,
     )
 
     #: **Der Träger** – das *Stück*, in dem dieses Stück steckt (``services/places``).
@@ -93,5 +93,5 @@ class InstanceUnit(Base, TimestampMixin):
     #: *wo es jetzt liegt*, und wird beim Ausbau geräumt. Dass die beiden auseinander
     #: laufen können, ist der Beweis, dass es zwei Fragen sind (PROCESS_CORE §9.6).
     place_unit_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, index=True,
+        BigInteger, ForeignKey("instance_units.id", ondelete="RESTRICT"), nullable=True, index=True,
     )

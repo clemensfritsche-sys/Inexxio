@@ -368,7 +368,7 @@ Abgelehnt · Gelöscht, abgeleitet – `docs/dokumente.md`); sie gehören nicht 
 ist ebenfalls ein Ende: wer dort ausgesondert wird, ist seinen Weg zu Ende gegangen.
 Das ist keine neue Regel, sondern die genauere Beschreibung der bestehenden – gezählt
 wird «Zugehörigkeit geschlossen **und** vor keinem Modul mehr stehend»
-(`process.order_statuses`), nie «am Ende-Objekt angekommen». Ein Abweichungsauftrag, der
+(`order_state.order_statuses`), nie «am Ende-Objekt angekommen». Ein Abweichungsauftrag, der
 verschrottet, ist damit **abgeschlossen** und braucht keinen vierten Wert; `Abgebrochen`
 bleibt dem vorbehalten, dessen Stücke stehen bleiben, ohne irgendein Ende zu erreichen.
 
@@ -378,7 +378,7 @@ Zustand stellen kann: *ist er endgültig?* Alles Weitere **folgt daraus**, statt
 zu stehen:
 
 - **Wählbarkeit** (`is_selectable`) – aus einem Endzustand heraus gibt es nichts mehr zu
-  tun, also nimmt ihn kein Auftrag auf (`process.release`, Auswahl-Liste in
+  tun, also nimmt ihn kein Auftrag auf (`release.release`, Auswahl-Liste in
   `routers/orders`). Ein eigenes Feld dafür wäre eine zweite Antwort auf dieselbe Frage.
 - **nicht** die Farbe: der Ton sagt «gut · offen · Problem», `terminal` sagt «gibt es einen
   Weg zurück» – `Verbaut` ist aufhebbar **und** grün (`SYSTEM_LOGIC.md` §1.1).
@@ -420,7 +420,7 @@ Ein Zustand mit `terminal = True` wird **nicht verlassen**. Nicht «soll nicht»
 | Ebene | Wo | Wofür |
 |---|---|---|
 | Die eine Schreibstelle | `process._pass` | jeder Statuswechsel der Prozesslogik (Start · Modul · Ende). Bricht mit **409 und einem Satz** ab, bevor etwas geschrieben ist. |
-| Die **Auswahl** | `process.pick_problem` | ein Stück in einem Endzustand wird nirgends angeboten, nirgends vorgewählt, nirgends aufgenommen (siehe unten). |
+| Die **Auswahl** | `release.pick_problem` | ein Stück in einem Endzustand wird nirgends angeboten, nirgends vorgewählt, nirgends aufgenommen (siehe unten). |
 | Die Tabelle selbst | Trigger `trg_instance_units_terminal` | **alles andere** – Reparaturskript, Migration, Sicherheitsnetz, `UPDATE` von Hand. |
 | Der Abgleich | `flow._verify_history` | falls doch etwas vorbeikam: der Log sagt Endzustand, die Zeile sagt etwas anderes → als Problem im Bild. |
 
@@ -434,7 +434,7 @@ Datenbank von ihr nicht abweichen kann.
 **Und «endgültig» heisst auch: unerreichbar.** Ein Stück in einem terminalen Zustand ist
 für **jede weitere Prozessaktion** aus dem Spiel – kein Abweichungstrigger, keine
 Vorselektion, keine Aufnahme in einen Auftrag. Alle drei Wirkungen kommen aus derselben
-einen Frage (`process.pick_problem` → `is_terminal`), und keine davon zählt einen Status
+einen Frage (`release.pick_problem` → `is_terminal`), und keine davon zählt einen Status
 auf:
 
 | Wo | Wirkung |
@@ -442,7 +442,7 @@ auf:
 | Auswahl-Liste (`unit_options`) | als **nicht verfügbar** ausgewiesen, mit Grund im Hover |
 | Oberfläche (`isPickable`) | der Abweichungstrigger **erscheint gar nicht**; eine vorgewählte Nummer fällt aus der Auswahl |
 | Entwurf (`orders.validate_draft`) | **nicht freigebbar**, und der Grund steht da |
-| Freigabe (`process.release`) | 409 |
+| Freigabe (`release.release`) | 409 |
 
 Eine Regel, die erst beim letzten Klick nein sagt, ist sichtbar erst, wenn man alles getan
 hat. **`Gesperrt` ist nicht terminal** und bleibt greifbar: das Greifen IST das Aufheben
@@ -1095,7 +1095,7 @@ Bewegen-Moduls, und zwei können sich widersprechen; so entsteht die Anforderung
 selbst und niemand modelliert sie.
 
 **«Am Ort» heisst in der KETTE, nicht «identische Nummer».** Die Schraube in der Kiste,
-die auf Werkbank 5 steht, **ist** auf Werkbank 5 (`places.at_holder`). Die naive Lesart
+die auf Werkbank 5 steht, **ist** auf Werkbank 5 (`places.within`). Die naive Lesart
 wäre in der Praxis fast immer falsch: Material steht in Behältern, und der Behälter steht
 am Arbeitsplatz.
 
@@ -1866,7 +1866,7 @@ Darum trägt jeder gewählte Anteil seine **Absicht** mit (`UnitPick.from_order`
 | `null` | «ich nehme ein freies Stück» |
 | Objektnummer | «ich hole es aus genau diesem Auftrag» — das ist die Abweichung |
 
-Die Freigabe vergleicht die Absicht mit der Wirklichkeit (`process._assert_as_picked`).
+Die Freigabe vergleicht die Absicht mit der Wirklichkeit (`release._assert_as_picked`).
 Weicht sie ab, passiert **nichts**, und der Fehler nennt beide Seiten. Sonst entschiede
 die Reihenfolge der Klicks, welche **Art** Auftrag entsteht: ein als frei gewähltes Stück,
 das inzwischen läuft, machte die Freigabe still zur Abweichung.

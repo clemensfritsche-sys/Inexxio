@@ -68,6 +68,14 @@ def name(u: Optional[UserProfile]) -> Optional[str]:
     return u.display_name if u else None
 
 
+def names(db: Session, ids: set[int]) -> dict[int, str]:
+    """Anzeigenamen zu Personen-``id``s – **eine** Abfrage für alle (Log, Protokoll)."""
+    if not ids:
+        return {}
+    return {u.id: u.display_name
+            for u in db.query(UserProfile).filter(UserProfile.id.in_(ids)).all()}
+
+
 def is_business(u: Optional[UserProfile]) -> bool:
     """**Tritt diese Person als FIRMA auf?** – genau dann, wenn sie einer Firma zugeordnet
     ist. Die Firma ist ein eigener Datensatz (CRM Schritt 1); ohne sie ist die Person

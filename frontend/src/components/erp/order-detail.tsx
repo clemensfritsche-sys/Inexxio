@@ -22,7 +22,7 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
-import { END_BEFORE } from '@/lib/process-status';
+import { END_BEFORE, FREIGEGEBEN } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { BelegWork } from '@/components/erp/beleg-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
@@ -579,7 +579,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           steps,
           mode: 'ausfuehrung',
           activeStepId: order.active_step_id ?? null,
-          endStatus: order.end_status,
+          endStatus: FREIGEGEBEN,
           onExpand: expand,
           onDeviate: onDeviate
             ? (unitNumber) => { void startDeviation(unitNumber, order.object_id, onDeviate); }

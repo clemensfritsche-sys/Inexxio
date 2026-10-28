@@ -23,7 +23,7 @@ bleibt darum unangetastet; was hier entsteht, ist eine **Auskunft**. Genau diese
 Haltung wie bei ``StepNeed``: sagen, was fehlt, und den Menschen entscheiden lassen.
 
 **Zyklensicher.** Der Stücklisten-Graph ist nirgends gegen Kreise geschützt (die einzige
-Prüfung, ``process._assert_no_self_consumption``, gilt je Auftrag, nicht über Artikel
+Prüfung, ``release._assert_no_self_consumption``, gilt je Auftrag, nicht über Artikel
 hinweg). Beim Lesen darum ``seen`` + Tiefenschranke – dasselbe zweite Netz wie in
 ``places``: was es nicht gibt, muss man beim Lesen abfangen.
 """
