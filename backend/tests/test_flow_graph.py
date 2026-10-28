@@ -31,6 +31,7 @@ import pathlib
 import re
 
 from tests.runner import session
+from app.services.instances import unit_numbers
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -178,7 +179,7 @@ def _scenario(db):
     )
     db.flush()
     rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-    numbers = proc.unit_numbers(
+    numbers = unit_numbers(
         db, db.query(InstanceUnit).filter(
             InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
     first = numbers[rows[0].instance_unit_id]
@@ -371,7 +372,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        names = proc.unit_numbers(
+        names = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         numbers = [names[r.instance_unit_id] for r in rows]
@@ -402,7 +403,7 @@ def test_the_strong_line_shows_the_way_a_piece_actually_took():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        names = proc.unit_numbers(
+        names = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         numbers = [names[r.instance_unit_id] for r in rows]
@@ -450,7 +451,7 @@ def test_a_neighbour_exists_exactly_when_its_branch_does():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        names = proc.unit_numbers(
+        names = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         numbers = [names[r.instance_unit_id] for r in rows]
@@ -544,7 +545,7 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
         db.flush()
         db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()  # genau eines
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        nums = proc.unit_numbers(db, [db.get(InstanceUnit, r.instance_unit_id) for r in rows])
+        nums = unit_numbers(db, [db.get(InstanceUnit, r.instance_unit_id) for r in rows])
 
         # Drei Abweichungen am **selben** Punkt – der gemeldete Fall.
         kids = [
@@ -720,7 +721,7 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
             )
             db.flush()
             rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-            numbers = proc.unit_numbers(
+            numbers = unit_numbers(
                 db, db.query(InstanceUnit).filter(
                     InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
             first = numbers[rows[0].instance_unit_id]
@@ -851,7 +852,7 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
         )
         db.flush()
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
-        numbers = proc.unit_numbers(
+        numbers = unit_numbers(
             db, db.query(InstanceUnit).filter(
                 InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
         child = _deviate(db, proc, art, parent, [numbers[rows[0].instance_unit_id]],
@@ -1044,7 +1045,7 @@ def test_a_finished_order_does_not_retell_what_happened_elsewhere():
         rows = db.query(OrderUnit).filter(OrderUnit.order_id == done.id).all()
         units = db.query(InstanceUnit).filter(
             InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all()
-        numbers = proc.unit_numbers(db, units)
+        numbers = unit_numbers(db, units)
         scrap = proc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
@@ -1116,7 +1117,7 @@ def test_a_waiting_piece_is_not_an_exit():
             OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all()
         units = db.query(InstanceUnit).filter(
             InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all()
-        names = proc.unit_numbers(db, units)
+        names = unit_numbers(db, units)
         dev = proc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",

@@ -20,6 +20,7 @@ import pathlib
 import pytest
 
 from tests.runner import session
+from app.services.instances import unit_numbers
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -146,7 +147,7 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
                       .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
                       .filter(OrderUnit.order_id == order.id).all())
             assert {u.status for u in pieces} == {expected}, [u.status for u in pieces]
-            picked = sorted(proc.unit_numbers(db, pieces).values())[:1]
+            picked = sorted(unit_numbers(db, pieces).values())[:1]
 
             take = dict(
                 lines=[{"article_object_id": art.object_id, "quantity": 1,
@@ -223,7 +224,7 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
         pieces = (db.query(InstanceUnit)
                   .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
                   .filter(OrderUnit.order_id == parent.id).all())
-        numbers = sorted(proc.unit_numbers(db, pieces).values())
+        numbers = sorted(unit_numbers(db, pieces).values())
 
         dev = proc.release(
             db,
@@ -282,7 +283,7 @@ def test_the_order_status_needs_no_new_value():
         pieces = (db.query(InstanceUnit)
                   .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
                   .filter(OrderUnit.order_id == parent.id).all())
-        numbers = sorted(proc.unit_numbers(db, pieces).values())
+        numbers = sorted(unit_numbers(db, pieces).values())
 
         # Zwei Stücke gehen in eine Abweichung, die sie sperrt; eines läuft durch.
         dev = proc.release(

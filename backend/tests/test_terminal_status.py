@@ -17,7 +17,7 @@ vorbeikommt:
 ===============================================  =====================================
 Die eine Schreibstelle der Prozesslogik          ``process._pass``
 Die Tabelle selbst – für alles andere            ``statuses.terminal_guard_sql``
-Der Abgleich Log ↔ Zeile, falls doch etwas war   ``flow._verify_history``
+Der Abgleich Log ↔ Zeile, falls doch etwas war   ``I05`` in ``tests/invariants``
 ===============================================  =====================================
 
 Jede der drei wird hier **gegen ihre Fehlerform** geprüft: ein Wächter, der nie
@@ -33,6 +33,7 @@ import sys
 import pytest
 
 from tests.runner import session
+from app.services.instances import unit_numbers
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -53,7 +54,7 @@ def _scrapped_unit(db):
     db.flush()
     unit = InstanceUnit(instance_id=inst.id, suffix=1, status=st.VERSCHROTTET)
     db.add(unit)
-    db.commit()
+    db.flush()
     return unit
 
 
@@ -140,9 +141,9 @@ def test_the_one_write_path_refuses_to_leave_a_terminal_state():
         assert "-1" in detail, (
             f"Die Meldung muss die Nummer des Stücks nennen, sonst sucht man sie: {detail}"
         )
-        db.rollback()
     finally:
-        _cleanup(db, unit)
+        db.rollback()
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -163,17 +164,16 @@ def test_the_database_refuses_it_too_even_for_a_raw_update():
     db = session()
     unit = _scrapped_unit(db)
     try:
-        from app.core.database import engine
         from app.domain import statuses as st
 
         for name, sql in (
             ("gezielt", "UPDATE instance_units SET status='freigegeben' WHERE id=:i"),
             ("in Masse", "UPDATE instance_units SET status='freigegeben'"),
         ):
-            with engine.connect() as conn:
-                with pytest.raises(Exception) as err:  # noqa: PT011 - DBAPI-Fehlerklasse
-                    conn.execute(text(sql), {"i": unit.id})
-                    conn.commit()
+            attempt = db.begin_nested()
+            with pytest.raises(Exception) as err:  # noqa: PT011 - DBAPI-Fehlerklasse
+                db.execute(text(sql), {"i": unit.id})
+            attempt.rollback()
             assert "Endzustand" in str(err.value), (
                 f"Der {name}e UPDATE wurde durchgelassen – der Trigger fehlt oder greift nicht."
             )
@@ -184,12 +184,11 @@ def test_the_database_refuses_it_too_even_for_a_raw_update():
 
         # Was den Endzustand nicht antastet, bleibt erlaubt – der Trigger ist ein
         # Wächter über EINE Spalte, keine Schreibsperre für die Zeile.
-        with engine.connect() as conn:
-            conn.execute(text("UPDATE instance_units SET updated_at=now() WHERE id=:i"),
-                         {"i": unit.id})
-            conn.commit()
+        db.execute(text("UPDATE instance_units SET updated_at=now() WHERE id=:i"),
+                   {"i": unit.id})
     finally:
-        _cleanup(db, unit)
+        db.rollback()
+        db.close()
 
 
 def test_the_trigger_is_generated_from_the_catalog_not_written_by_hand():
@@ -219,86 +218,53 @@ def test_the_trigger_is_generated_from_the_catalog_not_written_by_hand():
 # Ebene 3 – der Abgleich, falls doch etwas vorbeikam
 # ---------------------------------------------------------------------------
 
-def test_the_flow_reports_a_piece_that_left_a_terminal_state():
-    """**Die Invariante, die gefehlt hat** – und warum sie den Log allein nicht liest.
+def test_the_invariant_reports_a_piece_that_left_a_terminal_state():
+    """**Der Abgleich Log ↔ Zeile** – und warum er den Log allein nicht liest.
 
     Der Schreiber, der Schaden anrichtet, geht am Log vorbei und hinterlässt keinen
-    Eintrag, den man zählen könnte. Darum wird nach dem **Widerspruch** gefragt: der Log
-    sagt, dieses Stück hat einen Endzustand erreicht – die Zeile sagt etwas anderes.
+    Eintrag, den man zählen könnte. Darum fragt die Invariante ``I05`` nach dem
+    **Widerspruch**: der Log sagt, dieses Stück hat einen Endzustand erreicht – die Zeile
+    sagt etwas anderes.
 
-    Gegengeprüft in beide Richtungen: ohne Widerspruch meldet sie nichts.
+    Gegengeprüft in beide Richtungen: ohne Widerspruch meldet sie nichts. Alles in einer
+    Transaktion, die am Ende zurückrollt – auch das Abschalten des Triggers.
     """
     from sqlalchemy import text
 
     db = session()
     unit = _scrapped_unit(db)
     try:
-        from app.core.database import engine
         from app.domain import statuses as st
-        from app.models import Order, OrderUnit, ProcessEvent
-        from app.services import flow
+        from app.models import ProcessEvent
+        from tests import invariants
+        from tests.scenarios import World
 
-        order = db.query(Order).first()
-        if order is None:
-            pytest.skip("Kein Auftrag vorhanden – die Invariante braucht einen Träger.")
-
-        db.add(OrderUnit(order_id=order.id, instance_unit_id=unit.id))
+        w = World(db)
+        order = w.produce(w.article(), 1)
         db.add(ProcessEvent(order_id=order.id, instance_unit_id=unit.id, kind="step",
                             status_before=st.IM_PROZESS, status_after=st.VERSCHROTTET))
-        db.commit()
+        db.flush()
 
-        g = flow.build(db, order)
-        assert not [p for p in g.problems if "Endzustand" in p], (
-            f"Ohne Widerspruch darf nichts gemeldet werden: {g.problems}"
-        )
+        def reported() -> bool:
+            found = invariants.run(db, only={"I05"})[0].violations
+            return any(f"#{unit.id}:" in v for v in found)
+
+        assert not reported(), "Ohne Widerspruch darf nichts gemeldet werden."
 
         # Jetzt die Bug-Form herstellen – am Trigger vorbei, so wie es der Fehler tat.
-        with engine.connect() as conn:
-            conn.execute(text(f"ALTER TABLE instance_units DISABLE TRIGGER "
-                              f"{st.TERMINAL_GUARD_TRIGGER}"))
-            conn.execute(text("UPDATE instance_units SET status='freigegeben' WHERE id=:i"),
-                         {"i": unit.id})
-            conn.execute(text(f"ALTER TABLE instance_units ENABLE TRIGGER "
-                              f"{st.TERMINAL_GUARD_TRIGGER}"))
-            conn.commit()
-
-        db.expire_all()
-        g = flow.build(db, order)
-        assert [p for p in g.problems if "Endzustand" in p], (
+        db.execute(text(f"ALTER TABLE instance_units DISABLE TRIGGER "
+                        f"{st.TERMINAL_GUARD_TRIGGER}"))
+        db.execute(text("UPDATE instance_units SET status='freigegeben' WHERE id=:i"),
+                   {"i": unit.id})
+        db.execute(text(f"ALTER TABLE instance_units ENABLE TRIGGER "
+                        f"{st.TERMINAL_GUARD_TRIGGER}"))
+        assert reported(), (
             "Ein Stück hat laut Log einen Endzustand erreicht und steht nicht mehr "
-            f"darauf – das muss gemeldet werden: {g.problems}"
+            "darauf – das muss gemeldet werden."
         )
     finally:
-        _cleanup(db, unit)
-
-
-def _cleanup(db, unit) -> None:
-    """Aufräumen **über die Instanz, nicht über das eine Stück**.
-
-    Vorher lief es über ``unit.id`` und löschte die Instanz dazu. Ein Test, der ein
-    zweites Stück an dieselbe Instanz hängt (``…out_of_reach…`` legt ein gesperrtes
-    daneben), liess es damit **verwaist** zurück: Instanz weg, Stück da. Gefunden hat das
-    die Invariante ``I12`` – und zwar ausgerechnet an den Daten, die dieser Wächter
-    hinterlässt. Ein Wächter, der den Bestand kaputt macht, den er bewacht, ist ein
-    schlechter Wächter.
-    """
-    from sqlalchemy import text
-
-    db.rollback()
-    ids = [
-        int(i) for (i,) in db.execute(
-            text("SELECT id FROM instance_units WHERE instance_id=:n"),
-            {"n": unit.instance_id},
-        ).all()
-    ]
-    for table in ("process_events", "order_units"):
-        db.execute(text(f"DELETE FROM {table} WHERE instance_unit_id = ANY(:ids)"),
-                   {"ids": ids})
-    db.execute(text("DELETE FROM instance_units WHERE instance_id=:n"),
-               {"n": unit.instance_id})
-    db.execute(text("DELETE FROM instances WHERE id=:n"), {"n": unit.instance_id})
-    db.commit()
-    db.close()
+        db.rollback()
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -336,8 +302,8 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
         inst = db.get(Instance, unit.instance_id)
         gesperrt = InstanceUnit(instance_id=inst.id, suffix=2, status=st.GESPERRT)
         db.add(gesperrt)
-        db.commit()
-        numbers = proc.unit_numbers(db, [unit, gesperrt])
+        db.flush()
+        numbers = unit_numbers(db, [unit, gesperrt])
         tot, frei = numbers[unit.id], numbers[gesperrt.id]
 
         # 1) Die eine Regel, direkt gefragt.
@@ -369,9 +335,9 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
                          actor_id=None)
         assert err.value.status_code == 409
         assert "Endzustand" in str(err.value.detail)
-        db.rollback()
     finally:
-        _cleanup(db, unit)
+        db.rollback()
+        db.close()
 
 
 def test_the_rule_names_no_status_and_lives_in_one_place():

@@ -24,6 +24,7 @@ import pytest
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
+from app.services.instances import unit_numbers
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -280,8 +281,7 @@ def test_a_consumed_piece_lies_in_its_carrier():
         # **Die Kette läuft über den Träger weiter** – bis zur Anschrift.
         chain = places.chain(w.db, places.place_of(inst_svc.find_unit(w.db, built[0])))
         assert [s.kind for s in chain][:2] == ["unit", "instance"]
-        from app.services import process as proc
-        assert chain[0].number == proc.unit_numbers(w.db, products)[products[0].id], (
+        assert chain[0].number == unit_numbers(w.db, products)[products[0].id], (
             "Die erste Station ist das Träger-STÜCK, benannt mit seiner Nummer – nicht "
             "seine Instanz: die wären bei einer Charge sechshundert Getriebe."
         )

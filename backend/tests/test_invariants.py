@@ -50,7 +50,7 @@ def test_the_invariants_hold_over_the_whole_dataset():
     Jede verletzte Invariante nennt den betroffenen Datensatz. Eine Meldung ohne ihn wäre
     eine Behauptung, mit der niemand etwas anfangen kann.
     """
-    from app.services import invariants
+    from tests import invariants
 
     db = session()
     try:
@@ -80,7 +80,7 @@ def test_every_invariant_would_actually_notice_something():
     müssen gemeldet werden – täte es keiner, wäre das grüne Ergebnis oben wertlos.
     """
     from app.models import InstanceUnit, OrderUnit, ProcessEvent
-    from app.services import invariants
+    from tests import invariants
 
     db = session()
     try:

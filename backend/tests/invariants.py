@@ -8,10 +8,8 @@ Jede Prüfung ist ein Satz aus ``SYSTEM_LOGIC.md`` und gibt die **Verstösse** z
 True/False: eine Verletzung ohne Nennung des betroffenen Datensatzes ist eine Meldung, mit
 der niemand etwas anfangen kann.
 
-**Dieses Modul hängt bewusst an keinem Router.** Es ist ein Prüfwerkzeug, kein
-Endpunkt – gelesen von ``tests/test_invariants.py`` und ``scripts/invariant_report.py``.
-Wer die Erreichbarkeit ab ``app.main`` misst (``scripts/deadcode.py``), findet es darum
-als «nicht erreichbar»; das ist richtig so und kein Grund, es zu löschen.
+**Ein Prüfwerkzeug, kein Teil der App** – darum steht es unter ``tests/``, gelesen von
+``tests/test_invariants.py`` und ``scripts/invariant_report.py``.
 
 **Sie sind absichtlich unabhängig von der Fachlogik formuliert.** Wo möglich wird gegen
 die *Tabellen* geprüft, nicht gegen die Ableitung, die geprüft werden soll — sonst
@@ -25,11 +23,11 @@ from typing import Callable, Optional
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from ..domain import statuses as st
-from ..models import (
+from app.domain import statuses as st
+from app.models import (
     Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent, ProcessStep,
 )
-from ..models.process_event import KIND_START
+from app.models.process_event import KIND_START
 
 #: Wie viele Verstösse eine Prüfung höchstens aufzählt. Ein Deckel, der **ausgewiesen**
 #: wird – eine Liste, die stumm bei 20 aufhört, sieht aus wie die ganze Wahrheit.
@@ -133,7 +131,7 @@ def i04(db: Session) -> list[str]:
 
 @_check("I05", "Log und Zeile widersprechen sich nicht",
         "G5 – der Log sagt Endzustand, die Zeile sagt etwas anderes: dann hat jemand "
-        "AUSSERHALB der Prozesslogik geschrieben (Migration 110).")
+        "AUSSERHALB der Prozesslogik geschrieben.")
 def i05(db: Session) -> list[str]:
     rows = db.execute(text(f"""
         SELECT u.id, u.status, e.status_after
@@ -174,7 +172,7 @@ def i06(db: Session) -> list[str]:
 @_check("I07", "Der Auftragsstatus passt zum Zustand seiner Stücke",
         "§2.1 – abgeleitet heisst: er darf der Zeilenlage nie widersprechen.")
 def i07(db: Session) -> list[str]:
-    from . import process as proc
+    from app.services import process as proc
 
     ids = [int(i) for (i,) in db.execute(select(Order.id)).all()]
     if not ids:
@@ -347,7 +345,7 @@ def i14(db: Session) -> list[str]:
         "§8.1a – jede Einzelinstanz steht auf genau einer Kante, und eine Kante mit "
         "Stücken gilt als gegangen. Die Prüfung steckt im Graph selbst.")
 def i15(db: Session) -> list[str]:
-    from . import flow as flow_svc
+    from app.services import flow as flow_svc
 
     out: list[str] = []
     for (oid,) in db.execute(select(Order.id).order_by(Order.id)).all():

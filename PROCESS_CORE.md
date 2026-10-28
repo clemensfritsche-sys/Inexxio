@@ -1493,7 +1493,7 @@ Bewegen-Moduls, und zwei können sich widersprechen; so entsteht die Anforderung
 selbst und niemand modelliert sie.
 
 **«Am Ort» heisst in der KETTE, nicht «identische Nummer».** Die Schraube in der Kiste,
-die auf Werkbank 5 steht, **ist** auf Werkbank 5 (`places.at_holder`). Die naive Lesart
+die auf Werkbank 5 steht, **ist** auf Werkbank 5 (`places.within`). Die naive Lesart
 wäre in der Praxis fast immer falsch: Material steht in Behältern, und der Behälter steht
 am Arbeitsplatz.
 

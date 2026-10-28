@@ -576,20 +576,16 @@ def common_holder(units: Iterable[InstanceUnit]) -> Optional[Place]:
     return found
 
 
-def at_holder(db: Session, units: list[InstanceUnit], holder: Place) -> set[int]:
-    """**Welche dieser Stücke liegen an (oder in) diesem Halter?**
+def within(db: Session, places: Iterable[Optional[Place]], holder: Place) -> set[Place]:
+    """**Welche dieser Orte liegen an (oder in) diesem Halter?**
 
     «Am Ort» heisst nicht «identische Nummer»: die Schraube in der Kiste, die auf
     Werkbank 5 steht, **ist** auf Werkbank 5. Geprüft wird darum, ob der verlangte Halter
-    in der **Kette** des Stücks steht – und die gibt es bereits, batchweise je Halter.
+    in der **Kette** des Ortes steht – batchweise, eine Kette je Ort, nicht je Stück.
     """
-    if not units:
-        return set()
-    at = {u.id: place_of(u) for u in units}
-    walked = _walk(db, [p for p in at.values() if p])
-    covered = {
+    walked = _walk(db, [p for p in places if p])
+    return {
         head for head, row in walked.items()
         if head == holder or any(place == holder for place, _ in row)
     }
-    return {uid for uid, place in at.items() if place in covered}
 

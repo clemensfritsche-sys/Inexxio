@@ -22,6 +22,7 @@ import pytest
 
 from tests.runner import session
 from tests.support import per_unit
+from app.services.instances import unit_numbers
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -631,7 +632,7 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
         alle = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
         assert alle == drawn
         ungezogen = next(
-            n for n in proc.unit_numbers(
+            n for n in unit_numbers(
                 db, [u for _, u in proc._units_at(db, order, step.id)]).values()
             if n not in set(drawn)
         )

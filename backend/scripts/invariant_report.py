@@ -15,7 +15,7 @@ import os                                                      # noqa: E402
 os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
 
 from app.core.database import SessionLocal                     # noqa: E402
-from app.services import invariants                            # noqa: E402
+from tests import invariants                                   # noqa: E402
 
 
 def main() -> int:

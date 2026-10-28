@@ -911,7 +911,7 @@ def test_a_module_shows_its_own_matter_in_every_state():
 def test_a_supplier_sees_his_module_without_the_process_picture():
     """**Die Lieferanten-Sicht ist eine Spiegelung** (Testnotiz #747).
 
-    Der Server verengt die Antwort (``orders._mine_only``); die Oberfläche zeichnet
+    Der Server verengt die Antwort (``orders._to_response``); die Oberfläche zeichnet
     darum **dieselbe** Modul-Karte, nur ohne Achse. Ein Nachbau wäre eine zweite
     Darstellung desselben Moduls.
     """
@@ -1446,7 +1446,7 @@ def test_many_deviations_are_cut_off_and_say_so():
     """
     router = _read(BACKEND / "app" / "routers" / "orders.py")
     assert "RELATED_LIMIT" in router, "Es gibt keine Grenze – die Antwort wächst unbegrenzt."
-    assert "deviation_total=len(branches)" in router, (
+    assert '"deviation_total": len(branches)' in router, (
         "Die wahre Zahl wird nicht mitgeliefert – die gekappte Liste sähe aus wie alles."
     )
     flow = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")

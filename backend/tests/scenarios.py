@@ -14,6 +14,7 @@ Gefahren wird über die **echten** Dienstpfade (``process.release``/``confirm_st
 
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
+from app.services.instances import unit_numbers
 
 # ---------------------------------------------------------------------------
 # Die Achsen der Matrix (Auftrag §2.2)
@@ -283,7 +284,6 @@ class World:
     def numbers(self, order) -> list[str]:
         """Alle Stücknummern dieses Auftrags, in Nummernreihenfolge."""
         from app.models import InstanceUnit, OrderUnit
-        from app.services import process as proc
 
         units = (
             self.db.query(InstanceUnit)
@@ -292,7 +292,7 @@ class World:
             .order_by(InstanceUnit.id)
             .all()
         )
-        got = proc.unit_numbers(self.db, units)
+        got = unit_numbers(self.db, units)
         return [got[u.id] for u in units]
 
     def unit(self, number: str):

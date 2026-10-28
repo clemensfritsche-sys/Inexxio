@@ -49,13 +49,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import select
+from sqlalchemy import String, and_, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..domain import capture_types, modules
-from ..models import Capture, InstanceUnit, Order, ProcessEvent, ProcessStep, UserProfile
+from ..models import Capture, Instance, InstanceUnit, Order, ProcessEvent, ProcessStep
 from ..models.process_event import KIND_CAPTURE, KIND_STEP
-from . import sampling
+from . import people, sampling
+from .instances import SEP, unit_numbers
 
 
 @dataclass
@@ -133,29 +134,66 @@ def _values(points: dict[str, dict[str, Any]], stored: dict[str, Any]) -> list[V
     return out
 
 
+def _entries(order: Order, step: ProcessStep):
+    """**Die Vorgänge dieses Moduls als Abfrage** – je Vorgang ein Anker, in SQL gebildet.
+
+    Ein Vorgang ist ein ``step``-Ereignis, zusammen mit der ``capture`` unmittelbar davor
+    (desselben Stücks), oder eine ``capture``, auf die kein ``step`` folgt («erfasst, nicht
+    bestanden»). Sortiert wird wie im Protokoll: nach Zeitpunkt des Vorgangs (die Erfassung,
+    wenn es eine gibt), dann nach der Stücknummer (bytegenau, wie sie dasteht).
+    """
+    w = {"partition_by": ProcessEvent.instance_unit_id, "order_by": ProcessEvent.id}
+    ev = (
+        select(
+            ProcessEvent.id, ProcessEvent.kind, ProcessEvent.instance_unit_id,
+            ProcessEvent.created_at,
+            func.lag(ProcessEvent.kind).over(**w).label("prev_kind"),
+            func.lag(ProcessEvent.id).over(**w).label("prev_id"),
+            func.lag(ProcessEvent.created_at).over(**w).label("prev_at"),
+            func.lead(ProcessEvent.kind).over(**w).label("next_kind"),
+        )
+        .where(ProcessEvent.order_id == order.id, ProcessEvent.step_id == step.id,
+               ProcessEvent.kind.in_((KIND_CAPTURE, KIND_STEP)))
+        .subquery()
+    )
+    merged = and_(ev.c.kind == KIND_STEP, ev.c.prev_kind == KIND_CAPTURE)
+    alone = and_(ev.c.kind == KIND_CAPTURE,
+                 or_(ev.c.next_kind.is_(None), ev.c.next_kind != KIND_STEP))
+    number = func.concat(func.lpad(cast(Instance.object_id, String), 9, "0"), SEP,
+                         cast(InstanceUnit.suffix, String)).collate("C")
+    at = case((merged, ev.c.prev_at), else_=ev.c.created_at)
+    return (
+        select(
+            case((ev.c.kind == KIND_STEP, ev.c.id), else_=None).label("step_ev"),
+            case((merged, ev.c.prev_id), (alone, ev.c.id), else_=None).label("capture_ev"),
+        )
+        .join(InstanceUnit, InstanceUnit.id == ev.c.instance_unit_id)
+        .join(Instance, Instance.id == InstanceUnit.instance_id)
+        .where(or_(ev.c.kind == KIND_STEP, alone))
+        .order_by(at, number, ev.c.id)
+    )
+
+
 def step_record(db: Session, order: Order, step: ProcessStep, *,
                 limit: int = 200, offset: int = 0) -> tuple[list[Entry], int]:
-    """Das Protokoll dieses Moduls — **eine** Abfrage über den Log, seitenweise.
+    """Das Protokoll dieses Moduls — **eine Seite**, gezählt und geschnitten in SQL.
 
     Gekappt, aber nicht verschwiegen: bei einer 6000er-Charge sind es tausende Einträge,
-    und die Gesamtzahl steht daneben. Wer sie alle sehen will, blättert.
+    und die Gesamtzahl steht daneben. Geladen wird nur, was auf der Seite steht.
     """
-    rows = db.execute(
-        select(ProcessEvent)
-        .where(
-            ProcessEvent.order_id == order.id,
-            ProcessEvent.step_id == step.id,
-            ProcessEvent.kind.in_((KIND_CAPTURE, KIND_STEP)),
-        )
-        .order_by(ProcessEvent.id)
-    ).scalars().all()
-    if not rows:
-        return [], 0
-
+    query = _entries(order, step)
+    total = int(db.execute(select(func.count()).select_from(query.subquery())).scalar() or 0)
+    page = db.execute(query.limit(limit).offset(offset)).all()
+    if not page:
+        return [], total
+    ids = {i for row in page for i in row if i is not None}
+    events = {e.id: e for e in db.query(ProcessEvent).filter(ProcessEvent.id.in_(ids)).all()}
+    rows = list(events.values())
     points = _points(step)
     unit_ids = {int(e.instance_unit_id) for e in rows}
-    numbers = _numbers(db, unit_ids | _into_ids(rows))
-    actors = _actors(db, {int(e.actor_id) for e in rows if e.actor_id})
+    units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(unit_ids | _into_ids(rows))).all()
+    numbers = unit_numbers(db, units)
+    actors = people.names(db, {int(e.actor_id) for e in rows if e.actor_id})
     # **Die Ziehung** – gelesen, nicht gerechnet. ``None`` heisst «hier wurde nie
     # gezogen»; dann ist «nicht gezogen» gar keine mögliche Antwort.
     drawn = (sampling.drawn_at(db, order=order, step=step, unit_ids=unit_ids)
@@ -163,70 +201,44 @@ def step_record(db: Session, order: Order, step: ProcessStep, *,
     captures = _captures(db, {int((e.payload or {}).get("capture_id"))
                              for e in rows
                              if e.kind == KIND_CAPTURE and (e.payload or {}).get("capture_id")})
+    return [
+        _entry(events.get(c) if c else None, events.get(s) if s else None,
+               points=points, numbers=numbers, actors=actors, drawn=drawn, captures=captures)
+        for s, c in page
+    ], total
 
-    entries: list[Entry] = []
-    open_rows: dict[int, Entry] = {}
-    for ev in rows:
-        unit_id = int(ev.instance_unit_id)
-        payload = ev.payload or {}
-        if ev.kind == KIND_CAPTURE:
-            capture = captures.get(int(payload.get("capture_id") or 0))
-            entry = Entry(
-                number=numbers.get(unit_id, str(unit_id)),
-                at=ev.created_at,
-                actor=actors.get(int(ev.actor_id)) if ev.actor_id else None,
-                verification=payload.get("verification"),
-                result=payload.get("result"),
-                values=_values(points, capture.values if capture else {}),
-            )
-            # Eine zweite Erfassung ohne dazwischenliegendes Vorrücken ersetzt die erste
-            # nicht – beide sind passiert. Die vorherige wird darum geschlossen.
-            if unit_id in open_rows:
-                entries.append(open_rows.pop(unit_id))
-            open_rows[unit_id] = entry
-            continue
 
-        entry = open_rows.pop(unit_id, None) or Entry(
-            number=numbers.get(unit_id, str(unit_id)), at=ev.created_at,
-            actor=actors.get(int(ev.actor_id)) if ev.actor_id else None,
-        )
-        entry.status_after = ev.status_after
-        entry.status_before = ev.status_before
+def _entry(cap: Optional[ProcessEvent], passed: Optional[ProcessEvent], *, points, numbers,
+           actors, drawn, captures) -> Entry:
+    """Ein Vorgang aus seinen (höchstens) zwei Ereignissen: erfasst · passiert."""
+    first = cap or passed
+    unit_id = int(first.instance_unit_id)
+    entry = Entry(
+        number=numbers.get(unit_id, str(unit_id)), at=first.created_at,
+        actor=actors.get(int(first.actor_id)) if first.actor_id else None,
+    )
+    if cap is not None:
+        payload = cap.payload or {}
+        capture = captures.get(int(payload.get("capture_id") or 0))
+        entry.verification = payload.get("verification")
+        entry.result = payload.get("result")
+        entry.values = _values(points, capture.values if capture else {})
+    if passed is not None:
+        payload = passed.payload or {}
+        entry.status_after = passed.status_after
+        entry.status_before = passed.status_before
         entry.verification = payload.get("verification") or entry.verification
         entry.sampled = drawn is None or unit_id in drawn
         into = payload.get("into")
         if into is not None:
             entry.into = numbers.get(int(into), str(into))
-        entries.append(entry)
-
-    # Was offen blieb, ist der Fall «erfasst, nicht bestanden» – er gehört ins Protokoll.
-    entries.extend(open_rows.values())
-    entries.sort(key=lambda e: (e.at, e.number))
-    return entries[offset:offset + limit], len(entries)
+    return entry
 
 
 def _into_ids(rows: list[ProcessEvent]) -> set[int]:
     return {
         int((e.payload or {}).get("into"))
         for e in rows if (e.payload or {}).get("into") is not None
-    }
-
-
-def _numbers(db: Session, unit_ids: set[int]) -> dict[int, str]:
-    from .process import unit_numbers
-
-    if not unit_ids:
-        return {}
-    units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(unit_ids)).all()
-    return unit_numbers(db, units)
-
-
-def _actors(db: Session, ids: set[int]) -> dict[int, str]:
-    if not ids:
-        return {}
-    return {
-        u.id: u.display_name
-        for u in db.query(UserProfile).filter(UserProfile.id.in_(ids)).all()
     }
 
 

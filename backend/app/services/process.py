@@ -483,16 +483,16 @@ def holders(db: Session, unit_ids: list[int]) -> dict[int, int]:
     wohin der Klick führt. Ein Stück «Im Prozess» ohne den Weg zu seinem Auftrag ist
     eine Sackgasse – man sieht, dass es läuft, aber nicht wo.
     """
-    memberships = held_by(db, unit_ids)
-    if not memberships:
-        return {}
-    nrs = {
-        o.id: o.object_id
-        for o in db.query(Order)
-        .filter(Order.id.in_({m.order_id for m in memberships.values()}))
-        .all()
-    }
-    return {uid: nrs[m.order_id] for uid, m in memberships.items() if m.order_id in nrs}
+    out: dict[int, int] = {}
+    for part in _chunks(list(unit_ids)):
+        for uid, oid in (
+            db.query(OrderUnit.instance_unit_id, Order.object_id)
+            .join(Order, Order.id == OrderUnit.order_id)
+            .filter(OrderUnit.instance_unit_id.in_(part), OrderUnit.released_at.is_(None))
+            .all()
+        ):
+            out[int(uid)] = int(oid)
+    return out
 
 
 def _assert_may_leave(db: Session, membership: OrderUnit, number: str) -> None:
@@ -1767,62 +1767,66 @@ def order_status(db: Session, order: Order) -> str:
     return order_statuses(db, [order.id]).get(order.id, st.IM_PROZESS)
 
 
+def _loans_toward(db: Session, order_ids: list[int]) -> list[tuple[int, int, list[int]]]:
+    """►►► **Die Rückführungs-Kette – gelesen an genau einer Stelle** (§3.5). ◄◄◄
+
+    Je laufender Ausleihe, deren Stück aus einem der gefragten Aufträge stammt:
+    ``(Stück, Auftrag, in dem es jetzt steckt, [Aufträge, in die es zurückkehrt])`` – die
+    Liste von unten nach oben. Leiht A an B und B weiter an C, kehrt das Stück aus C nach
+    B **und** nach A zurück, nur eine Stufe tiefer. Gefolgt wird ``return_to_order_id``,
+    der Eigenschaft der **Verbindung**; eine gekappte Ausleihe endet die Kette, und das ist
+    die Aussage «kommt nie zurück».
+
+    Eingegrenzt wird auf die Stücke, die einen der gefragten Aufträge **verlassen** haben
+    (geschlossene Zeile mit Zustandspunkt) – nur sie können dorthin zurückkehren. Zwei
+    Leser fragen das: der Auftragsstatus (``waiting_counts``) und die Sperre bzw. das Bild
+    (``returning_home``).
+    """
+    if not order_ids:
+        return []
+    left = (
+        select(OrderUnit.instance_unit_id)
+        .where(OrderUnit.order_id.in_(order_ids), OrderUnit.released_at.isnot(None),
+               OrderUnit.current_step_id.isnot(None))
+    )
+    loans = db.query(OrderUnit.instance_unit_id, OrderUnit.order_id,
+                     OrderUnit.return_to_order_id).filter(
+        OrderUnit.released_at.is_(None), OrderUnit.return_to_order_id.isnot(None),
+        OrderUnit.instance_unit_id.in_(left)).all()
+    if not loans:
+        return []
+    upward: dict[tuple[int, int], int] = {
+        (int(o), int(u)): int(r)
+        for u, o, r in db.query(OrderUnit.instance_unit_id, OrderUnit.order_id,
+                                OrderUnit.return_to_order_id).filter(
+            OrderUnit.instance_unit_id.in_({u for u, _, _ in loans}),
+            OrderUnit.return_to_order_id.isnot(None)).all()
+    }
+    out: list[tuple[int, int, list[int]]] = []
+    for unit, holder, target in loans:
+        homes: list[int] = []
+        oid: Optional[int] = int(target)
+        while oid is not None and oid not in homes:
+            homes.append(oid)
+            oid = upward.get((oid, int(unit)))
+        out.append((int(unit), int(holder), homes))
+    return out
+
+
 def waiting_counts(db: Session, order_ids: list[int]) -> dict[int, int]:
     """Wie viele Stücke sind gerade **ausgeliehen und kommen zurück**? — je Auftrag.
 
     **Abgeleitet, nicht gespeichert.** Es wartet, wer noch mindestens eine offene
-    rückführende Verbindung hat. Ein Zähler an der Zeile wäre ein zweiter Ort, an dem
-    dieselbe Zahl steht – und der erste vergessene Rückweg liesse ihn stehen.
-
-    **Die Kette zählt, nicht nur der direkte Nachbar** (§3.5): leiht A an B und B weiter
-    an C, wartet auch A – das Stück ist unterwegs zu ihm, nur eine Stufe tiefer. Darum
-    wird die Verbindung von der offenen Zeile aus **nach oben verfolgt**.
-
-    Und daraus fällt der Grenzfall von selbst heraus: **kappt eine Stufe die Rückführung,
-    endet die Kette dort** – niemand darüber wartet weiter. Das ist richtig, denn das
-    Stück kommt nie mehr zurück; jeder in der Kette läuft dann mit weniger weiter, und
-    wem nichts bleibt, dessen Ziel ist unerreichbar (§3.4, eine Stufe weiter gedacht).
+    rückführende Verbindung hat – über die ganze Kette (``_loans_toward``). Kappt eine
+    Stufe die Rückführung, endet die Kette dort, und niemand darüber wartet weiter: jeder
+    läuft mit weniger weiter, und wem nichts bleibt, dessen Ziel ist unerreichbar (§3.4).
     """
-    if not order_ids:
-        return {}
-    # Alle laufenden Ausleihen. Das ist per Definition ein kleiner Satz – eine Abweichung
-    # ist der Ausnahmefall, nicht der Normalbetrieb.
-    open_loans = (
-        db.query(OrderUnit.instance_unit_id, OrderUnit.return_to_order_id)
-        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(
-            OrderUnit.released_at.is_(None),
-            OrderUnit.return_to_order_id.isnot(None),
-            InstanceUnit.is_active.is_(True),
-        )
-        .all()
-    )
-    if not open_loans:
-        return {}
-    units = {int(u) for u, _ in open_loans}
-    # Die Kette: von einem Auftrag aus gesehen, wohin er dieses Stück selbst zurückgibt.
-    upward: dict[tuple[int, int], int] = {}
-    for part in _chunks(sorted(units)):
-        for m in (
-            db.query(OrderUnit)
-            .filter(
-                OrderUnit.instance_unit_id.in_(part),
-                OrderUnit.return_to_order_id.isnot(None),
-            )
-            .all()
-        ):
-            upward[(m.order_id, m.instance_unit_id)] = m.return_to_order_id
-
     wanted = set(order_ids)
     out: dict[int, int] = {}
-    for unit, target in open_loans:
-        unit, oid = int(unit), int(target)
-        seen: set[int] = set()
-        while oid is not None and oid not in seen:
-            seen.add(oid)
+    for _unit, _holder, homes in _loans_toward(db, list(wanted)):
+        for oid in homes:
             if oid in wanted:
                 out[oid] = out.get(oid, 0) + 1
-            oid = upward.get((oid, unit))
     return out
 
 
@@ -1833,58 +1837,24 @@ def _away_points(db: Session, order: Order) -> dict[int, int]:
     ``current_step_id`` aber nicht angetastet (§3.3). Nachzuschlagen gibt es nichts.
     """
     return {
-        m.instance_unit_id: m.current_step_id
-        for m in db.query(OrderUnit).filter(
+        int(u): int(s)
+        for u, s in db.query(OrderUnit.instance_unit_id, OrderUnit.current_step_id).filter(
             OrderUnit.order_id == order.id,
             OrderUnit.released_at.isnot(None),
             OrderUnit.current_step_id.isnot(None),
         ).all()
-        if m.current_step_id is not None
     }
 
 
 def returning_home(db: Session, order: Order) -> dict[int, int]:
     """Welche ausgescherten Stücke kehren **hierher** zurück? — ``{Stück: Halter-Auftrag}``.
 
-    Die eine Stelle, an der die Rückführungs-**Kette** gelesen wird (§3.5): leiht A an B
-    und B weiter an C, kommt das Stück trotzdem zu A – nur eine Stufe tiefer. Gefolgt wird
-    ``return_to_order_id``, die Eigenschaft der **Verbindung**; eine gekappte Ausleihe
-    endet die Kette, und das ist die Aussage «kommt nie zurück».
-
-    Zwei Fragen lesen sie: welches Modul **gesperrt** ist (``pending_returns``) und wo im
-    Bild eine **Rückführungslinie** hingehört (``services/flow``). Zweimal gelaufen wären
-    es zwei Ableitungen derselben Sache – und die eine hätte die Kette irgendwann nicht
-    mehr gekannt.
+    Dieselbe Kette wie beim Auftragsstatus (``_loans_toward``), von diesem Auftrag aus
+    gelesen. Zwei Fragen lesen sie: welches Modul **gesperrt** ist (``pending_returns``)
+    und wo im Bild eine **Rückführungslinie** hingehört (``services/flow``).
     """
-    at = _away_points(db, order)
-    if not at:
-        return {}
-    holders = held_by(db, list(at))
-    if not holders:
-        return {}
-
-    upward: dict[tuple[int, int], int] = {}
-    for part in _chunks(list(at)):
-        for m in (
-            db.query(OrderUnit)
-            .filter(
-                OrderUnit.instance_unit_id.in_(part),
-                OrderUnit.return_to_order_id.isnot(None),
-            )
-            .all()
-        ):
-            upward[(m.order_id, m.instance_unit_id)] = m.return_to_order_id
-
-    out: dict[int, int] = {}
-    for unit_id, holder in holders.items():
-        target, seen = upward.get((holder.order_id, unit_id)), set()
-        while target is not None and target not in seen:
-            seen.add(target)
-            if target == order.id:
-                out[unit_id] = holder.order_id
-                break
-            target = upward.get((target, unit_id))
-    return out
+    return {unit: holder for unit, holder, homes in _loans_toward(db, [order.id])
+            if order.id in homes}
 
 
 def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
@@ -1932,13 +1902,8 @@ def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
 def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
     """Der Zustand **vieler** Aufträge – für den Feed, ohne N+1.
 
-    «Unterwegs» heisst: die Zugehörigkeit ist offen **und** das Stück gibt es noch.
-
-    *Die zweite Hälfte ist heute ein Gurt neben dem Hosenträger:* eine Einzelinstanz wird
-    **nie** deaktiviert (``models/instance_unit``), also ist ``is_active`` hier immer wahr.
-    «Abgebrochen» entsteht, wenn eine Abweichung **alle** Stücke nimmt und die Rückführung
-    gekappt ist (Matrix S49b · S57 · S58 · S59). Die Bedingung bleibt, weil sie nichts
-    kostet und die Aussage «das Stück gibt es noch» vollständig macht.
+    «Unterwegs» heisst: die Zugehörigkeit ist offen. «Abgebrochen» entsteht, wenn eine
+    Abweichung **alle** Stücke nimmt und die Rückführung gekappt ist (Matrix S57 · S58 · S59).
 
     «Angekommen» heisst: die Zugehörigkeit ist geschlossen **und** das Stück steht vor
     keinem Modul mehr. Eine geschlossene Zeile allein genügt nicht – sie schliesst sich
@@ -1953,11 +1918,8 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
             func.count(OrderUnit.id).filter(
                 OrderUnit.released_at.isnot(None), OrderUnit.current_step_id.is_(None)
             ).label("arrived"),
-            func.count(OrderUnit.id).filter(
-                OrderUnit.released_at.is_(None), InstanceUnit.is_active.is_(True)
-            ).label("alive"),
+            func.count(OrderUnit.id).filter(OrderUnit.released_at.is_(None)).label("alive"),
         )
-        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
         .filter(OrderUnit.order_id.in_(order_ids))
         .group_by(OrderUnit.order_id)
         .all()

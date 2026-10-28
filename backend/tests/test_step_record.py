@@ -334,6 +334,30 @@ def test_a_pass_through_module_shows_no_state_but_an_exit_does():
         w.db.close()
 
 
+def test_the_record_is_cut_into_pages_by_the_database():
+    """**Seitenweise heisst: die Seite kommt aus der Datenbank** – und die Seiten fügen sich.
+
+    Zwei Seiten zusammen sind das ganze Protokoll, ohne Lücke und ohne Doppel; die
+    Gesamtzahl steht auf jeder.
+    """
+    w = _w()
+    try:
+        art = w.article(serialization="unit", template=[w.capture()])
+        order = w.produce(art, 5)
+        step = w.steps(order)[0]
+        w.run_step(order, step)
+        whole, total = _record(w, order, step)
+        first, t1 = _record(w, order, step, limit=3, offset=0)
+        rest, t2 = _record(w, order, step, limit=3, offset=3)
+        assert total == t1 == t2 == 5
+        assert [e.number for e in first + rest] == [e.number for e in whole], (
+            "Die Seiten fügen sich nicht zum ganzen Protokoll.")
+
+    finally:
+        w.db.rollback()
+        w.db.close()
+
+
 def test_the_route_hands_over_both_states():
     """**Was der Dienst liefert, kommt auch an** – beide Zustände über die Route.
 
