@@ -351,6 +351,15 @@ type Draft = {
   delivery: Delivery;
 };
 
+/** Eine leere Eingabe – an diese Person, ausser intern (dort an niemanden: eine Notiz). */
+function blank(person: Person, mode: Mode = 'email'): Draft {
+  return {
+    mode, incoming: false, to: mode === 'internal' ? [] : [person], cc: [], bcc: [],
+    showCc: false, showBcc: false, subject: '', reply: null, mailKey: undefined, body: '',
+    later: null, delivery: 'mail',
+  };
+}
+
 /** Der Betreff ohne «Re:», «AW:» … – wie das Anliegen dasteht (``domain.title``). */
 export const bare = (subject: string) =>
   subject.replace(/^\s*((re|aw|antw|fw|fwd|wg|sv|vs|tr)\s*(\[\d+\])?\s*:\s*)+/i, '').trim();
@@ -362,25 +371,26 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
   onSending: (s: Sending | null) => void;
 }) {
   const mails = channels.filter((c) => c.mail);
-  const [mode, setMode] = useState<Mode>('email');
-  const [to, setTo] = useState<Person[]>([person]);
-  const [cc, setCc] = useState<Person[]>([]);
-  const [bcc, setBcc] = useState<Person[]>([]);
-  const [showCc, setShowCc] = useState(false);
-  const [showBcc, setShowBcc] = useState(false);
-  const [subject, setSubject] = useState('');
-  // ►►► Worauf geantwortet wird – nur für Betreff und Empfänger, kein «Antwort auf». ◄◄◄
-  const [reply, setReply] = useState<Message | null>(null);
+  // ►►► **EIN Zustand für die Eingabe** (`Draft`) – derselbe, den «Rückgängig»
+  // wiederherstellt. `reply`: worauf geantwortet wird (nur Betreff und Empfänger, kein
+  // «Antwort auf»); `incoming`: beim Anruf «wurde angerufen» – dann ist der Kontakt der
+  // Absender (der Server tauscht); `delivery`: Mail · Rundschreiben · Newsletter, nur bei
+  // einer neuen E-Mail. ◄◄◄
+  const [draft, setDraft] = useState<Draft>(() => blank(person));
+  const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
+  const { mode, incoming, to, cc, bcc, showCc, showBcc, subject, reply, mailKey, body, later,
+    delivery } = draft;
+  const setTo: Set<Person[]> = (v) => patch({ to: v });
+  const setCc: Set<Person[]> = (v) => patch({ cc: v });
+  const setBcc: Set<Person[]> = (v) => patch({ bcc: v });
+  const setShowCc: Set<boolean> = (v) => patch({ showCc: v });
+  const setShowBcc: Set<boolean> = (v) => patch({ showBcc: v });
+  const setSubject: Set<string> = (v) => patch({ subject: v });
+  const setMailKey: Set<string> = (v) => patch({ mailKey: v });
+  const setLater: Set<string | null> = (v) => patch({ later: v });
+  const setIncoming: Set<boolean> = (v) => patch({ incoming: v });
   // Bei einer Antwort stehen die Empfänger als eine Zeile da; «ändern» klappt sie auf.
   const [edit, setEdit] = useState(false);
-  const [mailKey, setMailKey] = useState<string | undefined>(undefined);
-  const [body, setBody] = useState('');
-  const [later, setLater] = useState<string | null>(null);
-  // Ein Anruf: «ich habe angerufen» (Vorgabe) ↔ «wurde angerufen» – dann ist der Kontakt
-  // der Absender (der Server tauscht, ``MessageIn.incoming``).
-  const [incoming, setIncoming] = useState(false);
-  // Mail · Rundschreiben · Newsletter – nur bei einer neuen E-Mail; eine Antwort ist eine Mail.
-  const [delivery, setDelivery] = useState<Delivery>('mail');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // ►►► Zugeklappt EINE Zeile wie bei WhatsApp – der Rest erscheint beim Hineinklicken. ◄◄◄
@@ -416,13 +426,14 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
     const next = MODE_OF[m.channel.kind] ?? 'email';
     const all = m.reply_all.filter((p) => p.object_id !== me.object_id);
     const inCc = new Set(m.cc.map((p) => p.object_id));
-    setReply(m); setEdit(false); setMailKey(undefined); setError(null); setIncoming(false);
-    setDelivery('mail');
+    setEdit(false); setError(null);
     if (!target.quiet) setOpen(true);
-    setMode(next === 'email' && !mails.length ? 'internal' : next);
-    setTo(all.filter((p) => !inCc.has(p.object_id)));
-    setCc(all.filter((p) => inCc.has(p.object_id)));
-    setShowCc(all.some((p) => inCc.has(p.object_id))); setShowBcc(false);
+    patch({
+      reply: m, mailKey: undefined, incoming: false, delivery: 'mail',
+      mode: next === 'email' && !mails.length ? 'internal' : next,
+      to: all.filter((p) => !inCc.has(p.object_id)), cc: all.filter((p) => inCc.has(p.object_id)),
+      showCc: all.some((p) => inCc.has(p.object_id)), showBcc: false,
+    });
     if (target.quiet) return;     // vorbelegt beim Öffnen – kein Sprung, kein Fokus
     textRef.current?.focus();
     textRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -430,21 +441,23 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
 
   /** Eine neue Nachricht statt einer Antwort – freier Betreff, Empfänger von vorn. */
   const fresh = () => {
-    setReply(null); setEdit(false); setSubject(''); setCc([]); setBcc([]); setShowCc(false);
-    setShowBcc(false); setTo(mode === 'internal' ? [] : [person]);
+    setEdit(false);
+    setDraft((d) => ({ ...d, reply: null, subject: '', cc: [], bcc: [], showCc: false,
+      showBcc: false, to: d.mode === 'internal' ? [] : [person] }));
   };
   const pick = (m: Mode) => {
-    setMode(m); setError(null); setIncoming(false);
-    if (m !== 'email') setDelivery('mail');
-    if (!reply) setTo(m === 'internal' ? [] : [person]);
-    else if (m === 'internal') setTo([]);
+    setError(null);
+    setDraft((d) => ({
+      ...d, mode: m, incoming: false, delivery: m !== 'email' ? 'mail' : d.delivery,
+      to: !d.reply ? (m === 'internal' ? [] : [person]) : m === 'internal' ? [] : d.to,
+    }));
   };
   // Eine Wahl der Leiste setzt Art UND Versand. Rundschreiben oder Newsletter aus einer Antwort
   // heraus beginnt eine neue Nachricht – eine Antwort ist immer eine Mail.
   const pickKind = (k: Kind) => {
     if (k.delivery !== 'mail' && reply) fresh();
     pick(k.mode);
-    setDelivery(k.delivery);
+    patch({ delivery: k.delivery });
   };
   // Die Versandart dieser Nachricht – eine Antwort und alles ausser E-Mail ist eine Mail.
   const kind: Delivery = mode === 'email' && !reply ? delivery : 'mail';
@@ -461,20 +474,9 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
           : !reached ? `${reply?.sender.name} muss im «An» oder «Cc» stehen`
             : !body.trim() ? 'Text fehlt' : null;
 
-  const restore = (d: Draft) => {
-    setOpen(true);
-    setMode(d.mode); setIncoming(d.incoming); setTo(d.to); setCc(d.cc); setBcc(d.bcc);
-    setShowCc(d.showCc); setShowBcc(d.showBcc);
-    setSubject(d.subject); setReply(d.reply); setMailKey(d.mailKey); setBody(d.body);
-    setLater(d.later); setDelivery(d.delivery);
-  };
-  const clear = () => {
-    setOpen(false);
-    setBody(''); setLater(null); setSubject(''); setReply(null); setEdit(false); setMailKey(undefined);
-    setCc([]); setBcc([]); setShowCc(false); setShowBcc(false); setIncoming(false);
-    setDelivery('mail');
-    setTo(mode === 'internal' ? [] : [person]);
-  };
+  const restore = (d: Draft) => { setOpen(true); setDraft(d); };
+  // Leer – die Art bleibt, wie sie gewählt war.
+  const clear = () => { setOpen(false); setEdit(false); setDraft(blank(person, mode)); };
 
   const post = async (payload: MessageIn, draft?: Draft) => {
     setBusy(true); setError(null);
@@ -550,11 +552,10 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
     };
     // ►►► Jede Nachricht wartet drei Sekunden – Mail, Anruf, Intern; «Rückgängig» holt
     // sie genau so zurück. Eine Regel für alle Wege. ◄◄◄
-    const draft: Draft = { mode, incoming, to, cc, bcc, showCc, showBcc, subject, reply, mailKey,
-      body, later, delivery };
+    const kept = draft;
     clear();
     setError(null);
-    setHeld(draft);
+    setHeld(kept);
     pending.current = { payload, timer: setTimeout(() => flushRef.current(), UNDO_MS) };
   };
   // Die Sekunden an der wartenden Mail – sie steht im Verlauf, nicht hier.
@@ -648,7 +649,7 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
       {reply && !edit && later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
       {mode === 'email' && kind !== 'mail' && <Greeting to={to} />}
       <label htmlFor="msg-body" className="sr-only">Text</label>
-      <textarea id="msg-body" ref={textRef} value={body} onChange={(e) => setBody(e.target.value)} rows={3}
+      <textarea id="msg-body" ref={textRef} value={body} onChange={(e) => patch({ body: e.target.value })} rows={3}
         placeholder={held ? 'Wird gesendet …' : mode === 'phone' ? 'Was wurde besprochen?'
           : mode === 'internal' ? `Notiz oder Frage zu ${person.name} – nur intern sichtbar. Eine Objektnummer wird zum Link.`
             : `Nachricht an ${to[0]?.name ?? person.name} …`}

@@ -1325,3 +1325,14 @@ def test_every_input_has_the_one_form():
         assert not re.search(r"<input[^>]*?style=\{\{\s*padding: '8px 12px'", src, re.S), (
             f"«{rel}» trägt die Form des Feldes inline."
         )
+
+
+def test_the_composer_holds_one_draft():
+    """Die Eingabe der Kommunikation ist EIN Zustand (`Draft`) – derselbe, den «Rückgängig»
+    wiederherstellt. Dreizehn einzelne `useState` liefen beim Wiederherstellen und Leeren
+    auseinander (jede Stelle musste alle dreizehn kennen)."""
+    src = _read(FRONTEND / "components" / "erp" / "communication" / "composer.tsx")
+    body = src[src.index("export function Composer("):]
+    assert body.count("useState<Draft>(") == 1, "Die Eingabe ist nicht EIN Zustand."
+    for part in ("useState<Person[]>", "useState<Mode>", "useState<Delivery>", "useState<Message | null>"):
+        assert part not in body, f"Ein Teil der Eingabe lebt in einem eigenen Zustand: {part}"
