@@ -5093,6 +5093,11 @@ export interface components {
              */
             ai: boolean;
             /**
+             * Ai Problem
+             * @default
+             */
+            ai_problem: string;
+            /**
              * Values
              * @default {}
              */

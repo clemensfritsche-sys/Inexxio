@@ -317,3 +317,36 @@ def test_files_the_ai_cannot_read_need_no_call():
     assert ai.content_of(b"\x00\x01", "video/mp4") is None
     assert ai.content_of(b"<p>Hallo <b>Welt</b></p>", "text/html")["text"] == "Hallo Welt"
     assert ai.content_of(PDF, "application/pdf")["type"] == "document"
+
+
+def test_a_failed_reading_names_its_reason(world, monkeypatch):
+    """Ein Ausfall der KI ist nie stumm: der Entwurf sagt, warum (Schlüssel, Guthaben, Deckel)."""
+    import anthropic
+    import httpx
+    req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+    def failing(status, body):
+        class Client:
+            class messages:
+                @staticmethod
+                def parse(**kw):
+                    raise anthropic.APIStatusError(body, response=httpx.Response(status, request=req), body=None)
+        return lambda *a: Client()
+
+    monkeypatch.setattr(ai, "ready", lambda: False)
+    reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
+    assert "Kein KI-Schlüssel" in ai.problem()
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "_client", failing(401, "invalid x-api-key"))
+    assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
+    assert "Schlüssel wird abgelehnt" in ai.problem()
+    monkeypatch.setattr(ai, "_client", failing(400, "Your credit balance is too low"))
+    reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
+    assert "Guthaben" in ai.problem()
+    monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading()))
+    assert reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
+    assert ai.problem() == ""
+    monkeypatch.setattr(ai, "used_today", lambda db: 10_000)
+    reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
+    assert "Tagesdeckel" in ai.problem()

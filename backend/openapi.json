@@ -12480,6 +12480,11 @@
             "title": "Ai",
             "default": false
           },
+          "ai_problem": {
+            "type": "string",
+            "title": "Ai Problem",
+            "default": ""
+          },
           "values": {
             "type": "object",
             "title": "Values",
