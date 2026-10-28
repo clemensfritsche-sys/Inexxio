@@ -16,6 +16,7 @@ import pytest
 
 from tests.runner import session
 from app.services import voucher_docs
+from app.services import release as release_svc
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -126,7 +127,7 @@ def _scene(db, *, direction="in", party=None, quantity=3, service=False, config=
            first=False, after=False):
     """Ein Auftrag mit einem Zahlungsmodul nach einer Datenerfassung (oder am Anfang)."""
     from app.models import ProcessStep
-    from app.services import process as proc, voucher as svc
+    from app.services import voucher as svc
     who = party if party is not None else _person(db)
     # Eigentum ist Pflicht – im Modul vorgegeben, ausser der Test wählt es selbst (``None``).
     cfg = {"direction": direction, "parties": [{"party": who.object_id, "ref": "Art. 1"}],
@@ -138,7 +139,7 @@ def _scene(db, *, direction="in", party=None, quantity=3, service=False, config=
     tail = [{"module_type": "datenerfassung",
              "config": {"points": [{"label": "OK", "type": "bool"}]}}] if after else []
     art = _article(db, service=service, steps=[beleg, *tail], capture=not first)
-    order = proc.release(db, lines=[{"article_object_id": art.object_id,
+    order = release_svc.release(db, lines=[{"article_object_id": art.object_id,
                                      "quantity": quantity, "origin": "neu", "units": []}],
                          steps=[], actor_id=None)
     db.flush()
@@ -559,11 +560,11 @@ def _units(db, ids):
 def _again(db, units, steps):
     """Ein neuer Auftrag, der genau diese Stücke greift (Retoure, Reparatur)."""
     from app.models import Article, Instance
-    from app.services import instances as inst_svc, process as proc
+    from app.services import instances as inst_svc
     inst = db.query(Instance).filter(Instance.id == units[0].instance_id).first()
     art = db.query(Article).filter(Article.id == inst.article_id).first()
     picks = [{"number": inst_svc.unit_number(inst, u), "from_order": None} for u in units]
-    order = proc.release(db, lines=[{"article_object_id": art.object_id,
+    order = release_svc.release(db, lines=[{"article_object_id": art.object_id,
                                      "quantity": len(units), "origin": "lager",
                                      "units": picks}], steps=steps, actor_id=None)
     db.flush()

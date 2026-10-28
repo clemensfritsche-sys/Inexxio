@@ -34,6 +34,7 @@ import pytest
 
 from tests.runner import session
 from app.services.instances import unit_numbers
+from app.services import release as release_svc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -275,11 +276,11 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
     """►►► **Terminal heisst: für jede weitere Prozessaktion unerreichbar.** ◄◄◄
 
     Nicht als Einzelfall für «verschrottet», sondern aus der einen Eigenschaft. Drei
-    Wirkungen, und alle drei fragen dieselbe Frage (``process.pick_problem``):
+    Wirkungen, und alle drei fragen dieselbe Frage (``release.pick_problem``):
 
     * die **Auswahl-Liste** weist es als nicht verfügbar aus (``unit_options``),
     * der **Entwurf** ist nicht freigebbar und sagt warum (``orders.validate_draft``),
-    * die **Freigabe** lehnt ab (``process.release``).
+    * die **Freigabe** lehnt ab (``release.release``).
 
     Vorher sagte nur die letzte nein – und zwar erst beim Klick. Die Oberfläche bot den
     Abweichungstrigger an, wählte das Stück sogar vor, und der Entwurf galt als
@@ -297,7 +298,7 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
     try:
         from app.domain import statuses as st
         from app.models import Instance, InstanceUnit
-        from app.services import orders as orders_svc, process as proc
+        from app.services import orders as orders_svc
 
         inst = db.get(Instance, unit.instance_id)
         gesperrt = InstanceUnit(instance_id=inst.id, suffix=2, status=st.GESPERRT)
@@ -307,8 +308,8 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
         tot, frei = numbers[unit.id], numbers[gesperrt.id]
 
         # 1) Die eine Regel, direkt gefragt.
-        assert proc.pick_problem(unit, tot), "Ein Endzustand gilt als greifbar."
-        assert proc.pick_problem(gesperrt, frei) is None, (
+        assert release_svc.pick_problem(unit, tot), "Ein Endzustand gilt als greifbar."
+        assert release_svc.pick_problem(gesperrt, frei) is None, (
             "Gesperrt wird abgewiesen – dann gibt es keinen Weg zurück."
         )
 
@@ -331,7 +332,7 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
 
         # 3) Und die Freigabe lehnt ab – derselbe Satz, dieselbe Quelle.
         with pytest.raises(HTTPException) as err:
-            proc.release(db, lines=draft(tot)["lines"], steps=draft(tot)["steps"],
+            release_svc.release(db, lines=draft(tot)["lines"], steps=draft(tot)["steps"],
                          actor_id=None)
         assert err.value.status_code == 409
         assert "Endzustand" in str(err.value.detail)
@@ -347,7 +348,7 @@ def test_the_rule_names_no_status_and_lives_in_one_place():
     nächsten Endzustand jemand nachziehen müsste. Geprüft wird darum die Form: die eine
     Funktion nennt keinen Status, und die Freigabe hat keine eigene Fassung daneben.
     """
-    proc_src = (BACKEND / "app" / "services" / "process.py").read_text(encoding="utf-8")
+    proc_src = (BACKEND / "app" / "services" / "release.py").read_text(encoding="utf-8")
     body = proc_src.split("def pick_problem(")[1].split("\ndef ")[0]
     assert "is_terminal" in body, "Die Regel fragt nicht die Eigenschaft."
     for named in ("VERSCHROTTET", '"verschrottet"', "'verschrottet'"):

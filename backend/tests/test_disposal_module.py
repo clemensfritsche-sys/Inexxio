@@ -21,6 +21,8 @@ import pytest
 
 from tests.runner import session
 from app.services.instances import unit_numbers
+from app.services import order_state
+from app.services import release as release_svc
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -50,9 +52,8 @@ def _article(db, *, steps: list[dict], serialization: str = "batch"):
 def _make(db, *, quantity: int, steps: list[dict]):
     """Ein freigegebener Erzeugungsauftrag mit genau diesem Ablauf."""
     from app.models import ProcessStep
-    from app.services import process as proc
     art = _article(db, steps=steps)
-    order = proc.release(
+    order = release_svc.release(
         db,
         lines=[{"article_object_id": art.object_id, "quantity": quantity,
                 "origin": "neu", "units": []}],
@@ -75,7 +76,7 @@ def _confirm(db, order, step, values=None):
     from tests.support import per_unit
 
     out = []
-    for row in proc.step_work(db, order, step):
+    for row in order_state.step_work(db, order, step):
         inst = row["instance_object_id"]
         out.append(proc.confirm_step(
             db, order=order, step_id=step.id, actor_id=None,
@@ -134,7 +135,6 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
     """
     from fastapi import HTTPException
     from app.domain import statuses as st
-    from app.services import process as proc
 
     db = session()
     try:
@@ -156,7 +156,7 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
                 steps=[_capture_step()], actor_id=None,
             )
             if mode == "block":
-                back = proc.release(db, **take)
+                back = release_svc.release(db, **take)
                 db.flush()
                 again = db.query(InstanceUnit).filter(
                     InstanceUnit.id == pieces[0].id).one()
@@ -167,7 +167,7 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
                 assert back is not None
             else:
                 with pytest.raises(HTTPException) as e:
-                    proc.release(db, **take)
+                    release_svc.release(db, **take)
                 assert e.value.status_code == 409
                 assert "Verschrottet" in str(e.value.detail)
     finally:
@@ -215,7 +215,6 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
     """
     from app.domain import statuses as st
     from app.models import OrderUnit, ProcessStep
-    from app.services import process as proc
 
     db = session()
     try:
@@ -226,7 +225,7 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
                   .filter(OrderUnit.order_id == parent.id).all())
         numbers = sorted(unit_numbers(db, pieces).values())
 
-        dev = proc.release(
+        dev = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "lager",
                     "returns": True,
@@ -235,8 +234,8 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
             steps=[_disposal_step("scrap")], actor_id=None,
         )
         db.flush()
-        assert proc.waiting_counts(db, [parent.id]).get(parent.id) == 2
-        assert proc.pending_returns(db, parent), "Vorher muss das Modul gesperrt sein."
+        assert order_state.waiting_counts(db, [parent.id]).get(parent.id) == 2
+        assert order_state.pending_returns(db, parent), "Vorher muss das Modul gesperrt sein."
 
         d_step = db.query(ProcessStep).filter(ProcessStep.order_id == dev.id).one()
         moved = _confirm(db, dev, d_step)
@@ -248,8 +247,8 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
         assert {u.status for u in pieces} == {st.VERSCHROTTET}
 
         # …und der Eltern wartet nicht mehr – ohne dass jemand etwas gekappt hätte.
-        assert proc.waiting_counts(db, [parent.id]).get(parent.id, 0) == 0
-        assert proc.pending_returns(db, parent) == {}
+        assert order_state.waiting_counts(db, [parent.id]).get(parent.id, 0) == 0
+        assert order_state.pending_returns(db, parent) == {}
         parent_rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
         assert all(m.return_to_order_id is None for m in parent_rows)
         dev_rows = db.query(OrderUnit).filter(OrderUnit.order_id == dev.id).all()
@@ -259,8 +258,8 @@ def test_disposal_ends_the_journey_and_the_parent_stops_waiting():
 
         # §4: der Aussonderungs-Auftrag hat getan, wozu er da war; der Eltern hat nichts
         # mehr, mit dem er sein Ziel erreichen könnte.
-        assert proc.order_status(db, dev) == st.ABGESCHLOSSEN
-        assert proc.order_status(db, parent) == st.ABGEBROCHEN
+        assert order_state.order_status(db, dev) == st.ABGESCHLOSSEN
+        assert order_state.order_status(db, parent) == st.ABGEBROCHEN
     finally:
         db.rollback()
         db.close()
@@ -275,7 +274,6 @@ def test_the_order_status_needs_no_new_value():
     """
     from app.domain import statuses as st
     from app.models import InstanceUnit, OrderUnit, ProcessStep
-    from app.services import process as proc
 
     db = session()
     try:
@@ -286,7 +284,7 @@ def test_the_order_status_needs_no_new_value():
         numbers = sorted(unit_numbers(db, pieces).values())
 
         # Zwei Stücke gehen in eine Abweichung, die sie sperrt; eines läuft durch.
-        dev = proc.release(
+        dev = release_svc.release(
             db,
             lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "lager",
                     "returns": True,
@@ -301,10 +299,10 @@ def test_the_order_status_needs_no_new_value():
         for step in p_steps:
             _confirm(db, parent, step, values={"ok": True})
 
-        assert proc.order_status(db, parent) == st.ABGESCHLOSSEN, (
+        assert order_state.order_status(db, parent) == st.ABGESCHLOSSEN, (
             "Eines hat das Ziel erreicht – der Auftrag ist abgeschlossen."
         )
-        assert proc.order_status(db, dev) == st.ABGESCHLOSSEN
+        assert order_state.order_status(db, dev) == st.ABGESCHLOSSEN
     finally:
         db.rollback()
         db.close()

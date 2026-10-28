@@ -72,7 +72,7 @@ from typing import Any, Optional
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
-from . import process
+from . import order_state
 from ..domain import modules
 from ..models import InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep
 from ..models.process_event import (
@@ -433,7 +433,7 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
     through = _left_through(db, order.id)
     # **Kommt es zurück?** – dieselbe Ableitung, die auch das Modul sperrt. Die Kette
     # zählt (§3.5); zweimal gelaufen wären es zwei Antworten auf eine Frage.
-    coming = process.returning_home(db, order)
+    coming = order_state.returning_home(db, order)
     left_with = _left_with(db, order.id)
 
     out: list[_Row] = []

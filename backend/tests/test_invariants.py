@@ -178,7 +178,7 @@ def test_a_record_goes_out_of_service_on_exactly_one_axis():
     )
 
     # Und die Regel steht an genau einer Stelle.
-    proc = (app / "services" / "process.py").read_text(encoding="utf-8")
+    proc = (app / "services" / "release.py").read_text(encoding="utf-8")
     assert "articles_svc.may_create" in proc, (
         "Die Freigabe fragt nicht mehr, ob der Artikel Neues erzeugen darf."
     )

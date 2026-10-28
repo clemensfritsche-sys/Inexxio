@@ -6,7 +6,7 @@ ergibt (``plan``) und **dass es danach genau so viele sind** (``assert_quantity`
 Der Grundsatz aus dem Auftrag: *Neue Einzelinstanznummern entstehen ausschliesslich beim
 Freigeben eines Auftrags, und ausschliesslich für Definitionszeilen mit der Herkunft
 «Neu».* Dieses Modul ist der Weg dorthin; es hat genau einen Aufrufer
-(``services/process.release``).
+(``services/release.release``).
 """
 
 from fastapi import HTTPException

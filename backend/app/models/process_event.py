@@ -25,7 +25,7 @@ KIND_END = "end"
 #:
 #: Der **Eintritt** braucht kein eigenes Wort: das ist ``start`` – und genau daran ist
 #: eine Abweichung erkennbar, ohne dass irgendwo ein Flag steht: ihr Start-Eintrag trägt
-#: einen anderen Vorher-Zustand als ``freigegeben`` (``process.deviation_flags``).
+#: einen anderen Vorher-Zustand als ``freigegeben`` (``order_state.deviation_flags``).
 KIND_HANDOVER = "handover"
 KIND_RETURN = "return"
 

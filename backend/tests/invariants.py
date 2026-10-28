@@ -28,6 +28,7 @@ from app.models import (
     Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent, ProcessStep,
 )
 from app.models.process_event import KIND_START
+from app.services import order_state
 
 #: Wie viele Verstösse eine Prüfung höchstens aufzählt. Ein Deckel, der **ausgewiesen**
 #: wird – eine Liste, die stumm bei 20 aufhört, sieht aus wie die ganze Wahrheit.
@@ -172,12 +173,11 @@ def i06(db: Session) -> list[str]:
 @_check("I07", "Der Auftragsstatus passt zum Zustand seiner Stücke",
         "§2.1 – abgeleitet heisst: er darf der Zeilenlage nie widersprechen.")
 def i07(db: Session) -> list[str]:
-    from app.services import process as proc
 
     ids = [int(i) for (i,) in db.execute(select(Order.id)).all()]
     if not ids:
         return []
-    derived = proc.order_statuses(db, ids)
+    derived = order_state.order_statuses(db, ids)
     lage = {
         int(oid): (int(offen), int(gesamt))
         for oid, offen, gesamt in db.execute(
@@ -198,7 +198,7 @@ def i07(db: Session) -> list[str]:
             out.append(f"Auftrag #{oid}: {offen} Stück offen, Status «{status}»")
         elif offen == 0 and status == st.IM_PROZESS:
             # Zulässig **nur**, wenn etwas verliehen ist und zurückkommt.
-            if not proc.waiting_counts(db, [oid]).get(oid):
+            if not order_state.waiting_counts(db, [oid]).get(oid):
                 out.append(f"Auftrag #{oid}: nichts offen, nichts verliehen, "
                            f"trotzdem «{st.IM_PROZESS}»")
         if len(out) > LIMIT:

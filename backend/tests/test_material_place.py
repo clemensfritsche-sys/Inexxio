@@ -25,6 +25,7 @@ import pytest
 from tests.runner import session
 from tests.scenarios import World, free_stock
 from app.services.instances import unit_numbers
+from app.services import order_state
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -34,8 +35,7 @@ def _w() -> World:
 
 
 def _before(w: World, order, step):
-    from app.services import process as proc
-    return proc.units_before(w.db, order, step)
+    return order_state.units_before(w.db, order, step)
 
 
 def _need(w: World, order, step):

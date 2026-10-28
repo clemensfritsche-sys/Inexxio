@@ -16,7 +16,7 @@ class Order(Base, TimestampMixin):
     Entwurf verwirft, lässt keine Spur. Entsprechend gibt es keinen Zustand «Entwurf» –
     ein gespeicherter Auftrag ist immer schon freigegeben.
 
-    **Sein Status ist abgeleitet, nicht gespeichert** (``process.order_status``): er
+    **Sein Status ist abgeleitet, nicht gespeichert** (``order_state.order_status``): er
     ergibt sich aus dem Zustand seiner Einzelinstanzen. Eine Spalte dafür wäre der zweite
     Ort, an dem er gesetzt wird – und der läuft beim ersten vergessenen Update von der
     Wahrheit weg. Genau das war der Fall: die Spalte stand auf ``released``, also zeigte

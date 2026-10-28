@@ -323,7 +323,7 @@ Sache sind ein Bug, auch wenn beide funktionieren.
 
 ### Zwei Formen einer Regel – nie zwei Regeln
 Braucht eine Regel eine Form, die den **Grund** nennt, und eine, die **prüft/abweist**,
-stehen beide in EINEM Modul mit demselben Namensstamm (`process.pick_problem` ↔
+stehen beide in EINEM Modul mit demselben Namensstamm (`release.pick_problem` ↔
 `unpickable`, `voucher.ask_problem` ↔ `_assert_ask`, `articles.may_create`). So sagen
 Oberfläche und Dienst garantiert dasselbe.
 

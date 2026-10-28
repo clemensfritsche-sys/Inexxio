@@ -35,7 +35,7 @@ class InstanceUnit(Base, TimestampMixin):
     ``status`` ist der **eigene, individuelle** Zustand dieses einen Stücks – zwei
     Einzelinstanzen derselben Instanz dürfen verschieden stehen. Die Werte stammen aus
     der **geschlossenen Liste** (``domain/statuses``); wer sie ändert, tut das über
-    ``services/process`` – dort und nur dort entsteht im selben Atemzug der Eintrag im
+    ``services/process`` (``_pass``) – dort und nur dort entsteht im selben Atemzug der Eintrag im
     Ereignis-Log. Ein zweiter Schreibweg wäre eine zweite Wahrheit.
 
     Ein frisch angelegtes Stück ist ``freigegeben``: es ist einsatzbereit und in keinem

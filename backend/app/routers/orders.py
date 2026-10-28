@@ -45,6 +45,7 @@ from ..services import places as places_svc
 from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
+from ..services import order_state
 from ..services import process as process_svc
 from ..services import stripe_pay
 from ..services.admin import log_audit
@@ -86,9 +87,9 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
     ``process.confirm_step``. Ein neuer Modultyp erbt beides, ohne etwas dafür zu tun.
     ``only`` beschränkt auf die Module, die ein Betrachter sehen darf.
     """
-    pending = process_svc.pending_returns(db, order)
+    pending = order_state.pending_returns(db, order)
     out: list[ProcessStepResponse] = []
-    for s in process_svc.steps_of(db, order):
+    for s in order_state.steps_of(db, order):
         if only is not None and s.id not in only:
             continue
         row = ProcessStepResponse.model_validate(s)
@@ -96,7 +97,7 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
         # **Die Arbeitsliste** – je wartender Instanz eine Zeile. Sie steht am Schritt,
         # weil ein Vorgang eine Instanz ist (Scan-Regel §3): was zu scannen ist, ist
         # dieselbe Liste wie das, was zu tun ist.
-        row.work = [StepWork(**w) for w in process_svc.step_work(db, order, s)]
+        row.work = [StepWork(**w) for w in order_state.step_work(db, order, s)]
         # **Was das Modul verbraucht** – gerechnet gegen das, was jetzt davorsteht
         # (``services/consumption``). Die Zahl entsteht beim Erreichen, also hier und
         # nicht in der Definition; ein Modul ohne Stückliste liefert eine leere Liste.
@@ -112,7 +113,7 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
                     for src in n.sources],
             )
             for n in consumption_svc.needs(
-                db, s, products=process_svc.units_before(db, order, s))
+                db, s, products=order_state.units_before(db, order, s))
         ]
         # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
         # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.
@@ -195,30 +196,30 @@ def _to_response(db: Session, order: Order, *,
     das Personal gerechnet, nicht gerechnet und dann weggeworfen.
     """
     mine = _visible(db, order, viewer) if viewer is not None else None
-    active = process_svc.active_step_id(db, order)
+    active = order_state.active_step_id(db, order)
     resp = OrderResponse(
         id=order.id,
         object_id=order.object_id,
         name=order.name,
-        status=process_svc.order_status(db, order),
+        status=order_state.order_status(db, order),
         created_at=order.created_at,
         updated_at=order.updated_at,
         is_active=order.is_active,
         steps=_steps(db, order, viewer=viewer, only=mine),
         active_step_id=active if mine is None or active in mine else None,
-        is_deviation=process_svc.deviation_flags(db, [order.id]).get(order.id, False),
+        is_deviation=order_state.deviation_flags(db, [order.id]).get(order.id, False),
     )
     return resp if mine is not None else resp.model_copy(update=_internal(db, order))
 
 
 def _internal(db: Session, order: Order) -> dict:
     """**Was nur das Personal sieht** – der interne Lauf des Auftrags."""
-    lines = process_svc.lines_of(db, order)
+    lines = order_state.lines_of(db, order)
     articles = {
         a.id: a
         for a in db.query(Article).filter(Article.id.in_([ln.article_id for ln in lines])).all()
     } if lines else {}
-    events, event_count = process_svc.events_page(db, order, limit=EVENT_LIMIT)
+    events, event_count = order_state.events_page(db, order, limit=EVENT_LIMIT)
     numbers = _event_numbers(db, events)
     actors = people.names(db, {e.actor_id for e in events if e.actor_id})
     came_from, went_to = journey_svc.neighbours(db, order)
@@ -274,7 +275,7 @@ def _related(db: Session, order: Order,
         return []
     wanted = _order_ids(db, counts)
     rows = {o.id: o for o in db.query(Order).filter(Order.id.in_(wanted)).all()}
-    states = process_svc.order_statuses(db, list(rows))
+    states = order_state.order_statuses(db, list(rows))
     # Wer gibt zurück: bei Abweichungen die Verbindung des Nachbarn zu mir, bei einem
     # übergeordneten Auftrag meine eigene zu ihm.
     if incoming:
@@ -295,7 +296,7 @@ def _related(db: Session, order: Order,
             status=states.get(oid, st.IM_PROZESS),
             steps=_steps(db, row),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
-            active_step_id=process_svc.active_step_id(db, row),
+            active_step_id=order_state.active_step_id(db, row),
             unit_count=rel.unit_count,
             returns=oid in returning,
         ))
@@ -355,8 +356,8 @@ def list_orders(
     if involved is not None:
         query = query.filter(Order.id.in_({order_id for order_id, _ in involved} or {0}))
     rows = query.order_by(Order.object_id.desc()).limit(limit).offset(offset).all()
-    states = process_svc.order_statuses(db, [o.id for o in rows])
-    flags = process_svc.deviation_flags(db, [o.id for o in rows])
+    states = order_state.order_statuses(db, [o.id for o in rows])
+    flags = order_state.deviation_flags(db, [o.id for o in rows])
     return [
         OrderSummary(
             id=o.id, object_id=o.object_id, name=o.name, status=states[o.id],
@@ -507,9 +508,9 @@ def unit_options(
 
 
 def _unit_options(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
-    """Die geladenen Stücke als Antwort. Wo ein Stück läuft, sagt ``process.holders`` –
+    """Die geladenen Stücke als Antwort. Wo ein Stück läuft, sagt ``order_state.holders`` –
     gefragt nur für die Stücke dieser Seite."""
-    running = process_svc.holders(db, [u.id for u, _i, _a in rows])
+    running = order_state.holders(db, [u.id for u, _i, _a in rows])
     return [
         UnitOption(
             number=unit_number(instance, unit),
@@ -540,7 +541,7 @@ def _fifo(db: Session, base, want: int) -> list[str]:
 
     **Gesperrt wird bewusst vorgeschlagen**: es liegt im Regal, und das Greifen IST das
     Aufheben der Sperre – der Auftrag, der so entsteht, ist damit eine Abweichung
-    (``process.deviation_flags``: sein Start weicht vom Regelstart ab).
+    (``order_state.deviation_flags``: sein Start weicht vom Regelstart ab).
 
     **Sie ignoriert Suche und Zustandsfilter** – bewusst: ``base`` trägt nur den Artikel.
     Der Vorschlag ist eine Aussage über den Bestand, keine über den gerade gewählten
@@ -630,10 +631,10 @@ def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
         out.append(RelatedOrder(
             object_id=row.object_id,
             name=row.name,
-            status=process_svc.order_status(db, row),
+            status=order_state.order_status(db, row),
             steps=_steps(db, row),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row, planned=plan))),
-            active_step_id=process_svc.active_step_id(db, row),
+            active_step_id=order_state.active_step_id(db, row),
             unit_count=taken,
             returns=want[row.object_id],
         ))
@@ -683,12 +684,12 @@ def list_units(
     (``flow.units_on``).
     """
     order = orders_svc.get(db, object_id)
-    rows, total = process_svc.units_page(
+    rows, total = order_state.units_page(
         db, order, membership_ids=flow_svc.units_on(db, order, edge),
         limit=limit, offset=offset,
     )
     numbers = unit_numbers(db, [u for _, u in rows])
-    started = process_svc.started_at(db, order, [u.id for _, u in rows])
+    started = order_state.started_at(db, order, [u.id for _, u in rows])
     return OrderUnitPage(
         units=[
             OrderUnitResponse(
@@ -754,7 +755,7 @@ def hold_numbers(
     """
     order = orders_svc.get(db, object_id)
     step = process_svc.step_of(db, order, step_id)
-    return HoldNumbers(numbers=process_svc.held_numbers(
+    return HoldNumbers(numbers=order_state.held_numbers(
         db, order, step, instance_object_id=instance, group=group))
 
 

@@ -47,7 +47,7 @@ IM_PROZESS = "im_prozess"
 #: Nicht «hat das Ziel erreicht» – das klang nach dem Ende-Objekt und liess einen Auftrag
 #: zweifelhaft aussehen, dessen Stücke durch einen **Ausgang** hinausgingen (§4.6). Ein
 #: terminales Modul IST das Ende des Weges; wer dort ankommt, ist fertig, auch wenn er das
-#: Ende-Objekt nie passiert. Genau das zählt ``process.order_statuses`` schon immer:
+#: Ende-Objekt nie passiert. Genau das zählt ``order_state.order_statuses`` schon immer:
 #: Zugehörigkeit geschlossen **und** vor keinem Modul mehr stehend.
 ABGESCHLOSSEN = "abgeschlossen"
 
@@ -96,7 +96,7 @@ GESPERRT = "gesperrt"
 #: **Nicht endgültig**, und das ist dieselbe Entscheidung wie dort: eine Retoure ist real.
 #: Ein Auftrag darf das Stück greifen – **das Greifen IST die Rücknahme**, es gibt keinen
 #: «Retoure annehmen»-Endpunkt. Und weil sein Start damit vom Regelstart abweicht, ist der
-#: Vorgang **automatisch** eine Abweichung (``process.deviation_flags``) und steht im
+#: Vorgang **automatisch** eine Abweichung (``order_state.deviation_flags``) und steht im
 #: Nachweis, ohne dass jemand ihn einträgt.
 #:
 #: **Historie**, denn es liegt nicht mehr in unserem Regal: FIFO schlägt es nicht vor, der
@@ -116,7 +116,7 @@ VERKAUFT = "verkauft"
 #: wird zerlegt, die Zahnräder gehen zurück ins Lager). Ein Auftrag darf das Stück
 #: greifen – **das Greifen IST der Ausbau**, genau wie beim Sperren; und weil sein Start
 #: dann vom Regelstart abweicht, ist der Vorgang **automatisch** eine Abweichung
-#: (``process.deviation_flags``) und damit dokumentiert, ohne eine Zeile dafür.
+#: (``order_state.deviation_flags``) und damit dokumentiert, ohne eine Zeile dafür.
 #:
 #: **Die Stückliste liest darum den LOG, nicht diesen Wert** (``services/genealogy``):
 #: läse sie den heutigen Zustand, verschwände ein ausgebautes Teil rückwirkend aus der
@@ -274,7 +274,7 @@ def _on(axis: str) -> tuple[str, ...]:
 #: Einzelinstanz: einsatzbereit oder unterwegs. Mehr Zustände hat ein Stück heute nicht.
 UNIT_STATUSES: tuple[str, ...] = _on(UNIT)
 
-#: Auftrag: **genau drei**, und alle drei sind **abgeleitet** (``process.order_status``).
+#: Auftrag: **genau drei**, und alle drei sind **abgeleitet** (``order_state.order_status``).
 #: «Freigegeben» ist bewusst nicht dabei — Freigeben ist eine Aktion, kein Zustand.
 ORDER_STATUSES: tuple[str, ...] = _on(ORDER)
 
@@ -358,7 +358,7 @@ def is_terminal(status: str) -> bool:
 def is_selectable(status: str) -> bool:
     """**Darf ein Auftrag ein Stück in diesem Zustand greifen?**
 
-    Die eine Antwort für die Freigabe (``process.release``) **und** für die Auswahl-Liste
+    Die eine Antwort für die Freigabe (``release.release``) **und** für die Auswahl-Liste
     (``routers/orders``). Getrennt gestellt wären es zwei Regeln, und die Oberfläche böte
     irgendwann etwas an, das der Server ablehnt – oder schlimmer, umgekehrt.
 

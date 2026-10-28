@@ -3,7 +3,7 @@
 Drei Regeln, je gegen ihre Bug-Form gegengeprüft:
 
 * Was die Freigabe abweist, meldet der Entwurf mit **demselben** Satz
-  (``process._checked`` ist die eine Prüfung).
+  (``release._checked`` ist die eine Prüfung).
 * Zwei gleichzeitige Freigaben auf dasselbe freie Stück: eine gewinnt, die andere bekommt
   ein **409 mit einem Satz**, nicht eine rohe Datenbankmeldung.
 * Zwei gleichzeitige Bestätigungen am selben Auftrag ziehen die Stichprobe des nächsten
@@ -18,6 +18,7 @@ import time
 
 from tests.runner import session
 from tests.scenarios import World, free_stock
+from app.services import release as release_svc
 
 
 def _draft(article, numbers, steps):
@@ -37,7 +38,7 @@ def test_the_draft_reports_what_the_release_refuses():
     """
     import pytest
     from fastapi import HTTPException
-    from app.services import orders as orders_svc, process as proc
+    from app.services import orders as orders_svc
 
     w = World(session())
     try:
@@ -45,7 +46,7 @@ def test_the_draft_reports_what_the_release_refuses():
         draft = _draft(article, numbers, [World.dispose("scrap", "Ausschuss"), World.capture()])
         attempt = w.db.begin_nested()
         with pytest.raises(HTTPException) as refused:
-            proc.release(w.db, lines=draft["lines"], steps=draft["steps"], actor_id=None)
+            release_svc.release(w.db, lines=draft["lines"], steps=draft["steps"], actor_id=None)
         attempt.rollback()
         assert orders_svc.validate_draft(w.db, draft) == [refused.value.detail], (
             "Der Entwurf sagt etwas anderes als die Freigabe.")
@@ -110,16 +111,15 @@ def test_two_releases_of_one_free_piece_one_wins_the_other_gets_a_sentence():
     partiellen Unique-Index und bekam eine ``IntegrityError`` – ein 500 ohne Satz.
     """
     from fastapi import HTTPException
-    from app.services import process as proc
 
     setup, article, numbers = _committed_stock()
     draft = _draft(article, numbers, [World.capture()])
     setup.close()
     first, second = session(), session()
     try:
-        proc.release(first, lines=draft["lines"], steps=draft["steps"], actor_id=None)
+        release_svc.release(first, lines=draft["lines"], steps=draft["steps"], actor_id=None)
         first.flush()
-        thread, out = _in_thread(lambda: proc.release(
+        thread, out = _in_thread(lambda: release_svc.release(
             second, lines=draft["lines"], steps=draft["steps"], actor_id=None))
         time.sleep(1.0)                     # die zweite Freigabe läuft auf die Sperre
         first.commit()

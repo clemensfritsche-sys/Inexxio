@@ -111,7 +111,7 @@ scripts/
 ### Wo was steht (`services/`)
 | Bereich | Datei(en) |
 |---|---|
-| Prozess-Engine (Freigabe, Bestätigen, Halt, Auswahl) | `process.py`, `orders.py`, `materialize.py` |
+| Prozess-Engine | `release.py` (Freigabe: `_checked` – dieselbe Prüfung für den Entwurf –, `pick_problem` ↔ `unpickable`, Übernahme), `process.py` (Laufzeit-Schreibweg: `_pass`, `confirm_step`, `advance_payments`, Durchlauf, Ende, Rückkehr; `lock_orders`), `order_state.py` (nur Ableitungen: Auftragsstatus, Rückführungskette, Halt, Arbeitsliste, Abweichung, Log-Seiten), `orders.py` (Entwurf prüfen, anlegen), `materialize.py` |
 | Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |

@@ -481,7 +481,7 @@ def take_out(db: Session, units: list[InstanceUnit]) -> None:
     """**Ausbauen** – ein Stück, das in einem Träger steckt, liegt danach dort, wo der
     Träger liegt.
 
-    Gerufen, wenn ein Auftrag ein verbautes Stück greift (``process.release``): das Greifen
+    Gerufen, wenn ein Auftrag ein verbautes Stück greift (``release.release``): das Greifen
     IST der Ausbau. Der Zeiger auf den Träger wird geräumt, der Ort des Trägers übernommen
     (liegt er nirgends, ist das Stück danach standortlos). Die Genealogie im Log bleibt.
     """

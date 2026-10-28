@@ -5,6 +5,7 @@ Dienstpfade rufen, nicht deren Regeln nachbauen.
 """
 
 from typing import Any, Optional
+from app.services import order_state
 
 
 def per_unit(
@@ -21,9 +22,8 @@ def per_unit(
     Die Nummern kommen aus derselben Quelle wie die Erwartung des Servers – ein zweiter
     Weg, sie zu bestimmen, wäre ein zweiter Massstab.
     """
-    from app.services import process as proc
 
-    numbers = proc.held_numbers(
+    numbers = order_state.held_numbers(
         db, order, step, instance_object_id=instance_object_id, group="sample",
     )
     return {n: dict(values or {"ok": True}) for n in numbers}

@@ -27,6 +27,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.runner import session
+from app.services import release as release_svc
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -136,8 +137,7 @@ def _step(*, direction: str = "in", parties=(), task: str = "Härten auf 58 HRC"
 def _order(db, *, quantity: int, article, steps=None, actor=None):
     """Ein freigegebener Erzeugungsauftrag über diesen Artikel."""
     from app.models import ProcessStep
-    from app.services import process as proc
-    order = proc.release(
+    order = release_svc.release(
         db,
         lines=[{"article_object_id": article.object_id, "quantity": quantity,
                 "origin": "neu", "units": []}],

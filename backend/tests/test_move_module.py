@@ -25,6 +25,8 @@ import pathlib
 import pytest
 
 from tests.runner import session
+from app.services import order_state
+from app.services import release as release_svc
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -51,9 +53,8 @@ def _article(db, *, steps: list[dict], name="Prüfstück", serialization="batch"
 def _make(db, *, quantity: int, steps: list[dict]):
     """Ein freigegebener Erzeugungsauftrag mit genau diesem Ablauf."""
     from app.models import ProcessStep
-    from app.services import process as proc
     art = _article(db, steps=steps)
-    order = proc.release(
+    order = release_svc.release(
         db,
         lines=[{"article_object_id": art.object_id, "quantity": quantity,
                 "origin": "neu", "units": []}],
@@ -101,7 +102,7 @@ def _confirm(db, order, step, **kw):
     """Bestätigen – je wartender Instanz einmal, wie die Scan-Regel es verlangt."""
     from app.services import process as proc
     out = []
-    for row in proc.step_work(db, order, step):
+    for row in order_state.step_work(db, order, step):
         out.append(proc.confirm_step(
             db, order=order, step_id=step.id, actor_id=None, values={},
             instance_object_id=row["instance_object_id"], verification="scan", **kw,
@@ -343,7 +344,6 @@ def test_without_a_target_nothing_moves():
     steht, ist eine Bitte.
     """
     from fastapi import HTTPException
-    from app.services import process as proc
 
     db = session()
     try:
@@ -371,7 +371,7 @@ def test_without_a_target_nothing_moves():
         assert _units(db, order3)[0].place_object_id == shelf3.object_id
 
         # Und der Log weiss, woher und wohin (§7.2) – kein zweiter Speicher dafür.
-        events = proc.events_page(db, order3, limit=50)[0]
+        events = order_state.events_page(db, order3, limit=50)[0]
         moved = [e for e in events if (e.payload or {}).get("place")]
         assert moved, "Die Bewegung steht nicht im Ereignis-Log."
         assert moved[0].payload["place"]["to"] == shelf3.object_id

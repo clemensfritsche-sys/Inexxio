@@ -4,7 +4,7 @@
 keine Zeile, keine reservierte Objektnummer, kein Autosave. Es gibt darum keinen
 gespeicherten Zustand «Entwurf» und keinen «Speichern»-Pfad neben der Freigabe.
 
-Die Fachlogik steht in ``services/process.py``; hier stehen die Freigabebedingungen –
+Die Fachlogik steht in ``services/release.py``; hier stehen die Freigabebedingungen –
 **die eine Stelle**, die Router und Oberfläche gemeinsam lesen.
 """
 
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Order
 from ..models.order_line import LAGER
-from .process import (
+from .release import (
     _checked, assert_releasable, release, resolve_lines, steps_for, unpickable,
 )
 
@@ -36,7 +36,7 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
     """Was fehlt diesem Entwurf noch zur Freigabe? Leere Liste heisst «freigebbar».
 
     Sie beantwortet die Frage mit **derselben** Prüfung, die die Freigabe abbricht
-    (``process._checked``): was dort als Fehler herauskäme, ist hier die fehlende Angabe,
+    (``release._checked``): was dort als Fehler herauskäme, ist hier die fehlende Angabe,
     im selben Satz. Vorher sammelt sie, was sich **alles** nennen lässt – die fehlenden
     Grundbedingungen, jedes Stück, das kein Auftrag greifen darf, jede Zeile mit der
     falschen Zahl Stücke –, damit der Entwurf nicht Fehler für Fehler aufdeckt.

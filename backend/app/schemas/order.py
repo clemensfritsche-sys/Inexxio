@@ -118,10 +118,10 @@ class ProcessStepResponse(ModuleFacts):
     #: **Worauf dieses Modul wartet** – Objektnummern der Abweichungen, deren Rückführung
     #: aussteht. Nicht leer heisst: gesperrt. Die Sperre wird serverseitig durchgesetzt
     #: (``process.confirm_step``); diese Liste ist die **Begründung** für die Oberfläche,
-    #: nicht ihre Regel. Abgeleitet, nicht gespeichert (``process.pending_returns``).
+    #: nicht ihre Regel. Abgeleitet, nicht gespeichert (``order_state.pending_returns``).
     waiting_for: list[int] = Field(default_factory=list)
     #: **Die Arbeitsliste dieses Moduls** – eine Zeile je wartender Instanz
-    #: (``process.step_work``). Ein Vorgang ist eine Instanz, weil der Scan eine Instanz
+    #: (``order_state.step_work``). Ein Vorgang ist eine Instanz, weil der Scan eine Instanz
     #: verifiziert; die Liste ist damit zugleich die Liste der zu scannenden Dinge.
     work: list["StepWork"] = Field(default_factory=list)
     #: **Was dieses Modul verbraucht** – die Stückliste, gegen den Bestand gehalten
@@ -482,7 +482,7 @@ class OrderResponse(BaseModel):
     object_id: int
     #: «Auftrag <Objektnummer>», bei der Freigabe gesetzt.
     name: str
-    #: **Abgeleitet** aus dem Zustand der Einzelinstanzen (``process.order_status``) –
+    #: **Abgeleitet** aus dem Zustand der Einzelinstanzen (``order_state.order_status``) –
     #: es gibt keine Spalte dafür. Drei Werte: Im Prozess · Abgeschlossen · Abgebrochen.
     status: str
     created_at: datetime

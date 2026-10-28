@@ -44,7 +44,7 @@ class Module:
     #: **Darf ein Stück diesen Modultyp verlassen, während davor gearbeitet wird?**
     #:
     #: Heute bei jedem Modul ja – der Wert ist ein bewusster Haken (SYSTEM_LOGIC R7),
-    #: gelesen an genau einer Stelle (``process._assert_may_leave``). Ein Modultyp, bei
+    #: gelesen an genau einer Stelle (``release._assert_may_leave``). Ein Modultyp, bei
     #: dem das Herausnehmen Aussenwirkung hätte, setzt ihn auf ``False`` – und muss dann
     #: den Abbruch-Ausgang (§4.4) mitbeantworten, denn der läuft genau darüber.
     units_may_leave: bool = True
