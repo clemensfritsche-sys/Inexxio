@@ -64,11 +64,9 @@ def _backend_routes() -> list[tuple[str, list[str]]]:
     sys.path.insert(0, str(BACKEND))
     from app.main import app
 
-    routes = []
-    for r in app.routes:
-        for method in getattr(r, "methods", None) or ():
-            routes.append((method, r.path.strip("/").split("/")))
-    return routes
+    from tests._routes import api_routes
+    return [(method, path.strip("/").split("/")) for path, methods in api_routes(app)
+            for method in methods]
 
 
 def _matches(front: list[str], back: list[str]) -> bool:

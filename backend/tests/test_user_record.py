@@ -530,7 +530,8 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
         db.rollback()
         db.close()
     assert not hasattr(voucher, "search_parties"), "Der Beleg sucht wieder selbst (b)."
-    paths = {getattr(r, "path", "") for r in app.routes}
+    from tests._routes import api_routes
+    paths = {path for path, _ in api_routes(app)}
     assert "/api/v1/erp/people" in paths, "Der Pfad der Personensuche fehlt (c)."
     assert "/api/v1/erp/orders/voucher-parties" not in paths, (
         "Der Alias der alten Personensuche ist wieder da (d) – zwei Wege zu einer Suche.")

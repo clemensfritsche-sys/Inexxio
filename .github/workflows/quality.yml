@@ -13,6 +13,7 @@ jobs:
   quality:
     name: Quality gates
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Postgres nur für den Schema-Aufbau: die Migrationen sind laut Leitbild die EINE
     # Schema-Wahrheit – geprüft wird das erst, wenn sie auch wirklich von null durchlaufen.
     services:
@@ -69,9 +70,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Aus der Sperrdatei, jede Abhängigkeit mit Prüfsumme – derselbe Stand wie im Docker-Build
+      # (tests/test_lock.py prüft, dass sie zu requirements.txt passt).
       - name: Install backend deps
         working-directory: backend
-        run: pip install -r requirements.txt
+        run: pip install --require-hashes -r requirements.lock
 
       # Nur die F-Regeln (Pyflakes: undefinierte Namen, ungenutzte Importe und Variablen,
       # f-Strings ohne Platzhalter) – Fehler, keine Stilfragen. Konfiguration:
@@ -134,6 +137,7 @@ jobs:
   website:
     name: Quality gates (Website)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 

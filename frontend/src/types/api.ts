@@ -2628,7 +2628,9 @@ export interface components {
             /** Status After */
             status_after: string;
             /** Config */
-            config?: Record<string, never> | null;
+            config?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2862,10 +2864,7 @@ export interface components {
         };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** BookingOut */
@@ -3124,7 +3123,9 @@ export interface components {
             /** Turns */
             turns: components["schemas"]["TurnIn"][];
             /** Current */
-            current?: Record<string, never> | null;
+            current?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ComposeOut
@@ -3142,7 +3143,9 @@ export interface components {
              */
             reply: string;
             /** Paper */
-            paper?: Record<string, never> | null;
+            paper?: {
+                [key: string]: unknown;
+            } | null;
             /** Html */
             html?: string | null;
             /**
@@ -3669,9 +3672,13 @@ export interface components {
             /** Target Object Id */
             target_object_id?: number | null;
             /** Anchor */
-            anchor?: Record<string, never> | null;
+            anchor?: {
+                [key: string]: unknown;
+            } | null;
             /** Context */
-            context?: Record<string, never> | null;
+            context?: {
+                [key: string]: unknown;
+            } | null;
             /** Resolution */
             resolution?: string | null;
             /** Resolved At */
@@ -4334,7 +4341,9 @@ export interface components {
             /** Module Type */
             module_type: string;
             /** Config */
-            config?: Record<string, never> | null;
+            config?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ModuleTypeInfo
@@ -4654,7 +4663,9 @@ export interface components {
              * Credential
              * @description PublicKeyCredential (assertion) aus dem Browser
              */
-            credential: Record<string, never>;
+            credential: {
+                [key: string]: unknown;
+            };
         };
         /**
          * PasskeyRegisterVerify
@@ -4665,7 +4676,9 @@ export interface components {
              * Credential
              * @description PublicKeyCredential (attestation) aus dem Browser
              */
-            credential: Record<string, never>;
+            credential: {
+                [key: string]: unknown;
+            };
             /**
              * Device Name
              * @description Anzeigename ('iPhone', 'Laptop')
@@ -4898,7 +4911,9 @@ export interface components {
             /** Status After */
             status_after: string;
             /** Config */
-            config?: Record<string, never> | null;
+            config?: {
+                [key: string]: unknown;
+            } | null;
             /** Waiting For */
             waiting_for?: number[];
             /** Work */
@@ -5047,7 +5062,9 @@ export interface components {
              * Facts
              * @default {}
              */
-            facts: Record<string, never>;
+            facts: {
+                [key: string]: unknown;
+            };
             /**
              * Refs
              * @default []
@@ -5077,7 +5094,9 @@ export interface components {
              * Values
              * @default {}
              */
-            values: Record<string, never>;
+            values: {
+                [key: string]: unknown;
+            };
             /** Requirement */
             requirement?: string | null;
         };
@@ -5387,7 +5406,9 @@ export interface components {
         StepConfirm: {
             /** Values */
             values?: {
-                [key: string]: Record<string, never>;
+                [key: string]: {
+                    [key: string]: unknown;
+                };
             };
             /** Instance Object Id */
             instance_object_id?: number | null;
@@ -5539,7 +5560,9 @@ export interface components {
              * Extra
              * @default {}
              */
-            extra: Record<string, never>;
+            extra: {
+                [key: string]: unknown;
+            };
         };
         /** TaskOut */
         TaskOut: {
@@ -6033,6 +6056,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /**
          * VatRateOut
@@ -7249,7 +7276,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -7351,7 +7380,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

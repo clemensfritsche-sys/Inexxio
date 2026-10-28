@@ -1,4 +1,13 @@
 #!/bin/bash
+# ►►► **Erst die Datenbank, dann der Dienst – scheitert die Migration, startet er nicht.** ◄◄◄
+#
+# Cloud Run schaltet den Verkehr nur auf eine Revision, die startet: bricht dieser Start ab,
+# bleibt die vorige Revision live, und der Deploy wird rot (scripts/check-schema.sh). Eine
+# Revision, die gegen ein halb migriertes Schema läuft, gibt es damit nicht.
+#
+# Einzige Ausnahme: **die Datenbank ist neuer als dieser Code** («Can't locate revision») –
+# das ist eine ältere Revision, die nach einem Rollback oder während eines Rollouts startet.
+# Sie darf laufen; das Schema ist eines, das ihr Nachfolger schon kennt.
 
 echo "=== Inexxio Backend Startup ==="
 
@@ -7,29 +16,18 @@ MIGRATION_LOG=/tmp/migration.log
 echo "Running Alembic migrations..."
 alembic upgrade head > "$MIGRATION_LOG" 2>&1
 ALEMBIC_EXIT=$?
+cat "$MIGRATION_LOG"
 
-if [ $ALEMBIC_EXIT -eq 0 ]; then
-    echo "Migrations completed successfully."
-    cat "$MIGRATION_LOG"
-else
-    echo "!!! Alembic migration failed (exit $ALEMBIC_EXIT) — starting uvicorn anyway, schema fix will run in lifespan"
-    cat "$MIGRATION_LOG"
-    alembic current 2>&1 || true
-    # **Eine Diagnose, keine Automatik.** Steht die Datenbank auf einer Revision, die
-    # dieser Code nicht kennt (typisch nach einem Revert, dessen Downgrade nicht lief),
-    # laeuft die App dank Lifespan-Netz weiter — aber KEINE kuenftige Migration mehr.
-    # Automatisch zu stampen waere falsch: waehrend eines Rollouts ist ein hoeherer
-    # Stand der NORMALFALL, und die alte Revision wuerde die neue zurueckstellen.
+if [ $ALEMBIC_EXIT -ne 0 ]; then
     if grep -q "Can.t locate revision" "$MIGRATION_LOG"; then
-        echo "!!! ---------------------------------------------------------------"
-        echo "!!! Die Datenbank steht auf einer Revision, die dieser Code nicht kennt."
-        echo "!!! Die App laeuft (das Netz legt fehlende Spalten an), der Migrations-"
-        echo "!!! pfad ist aber blockiert. Behoben mit einem einmaligen"
-        echo "!!!     alembic stamp <hoechste Revision in alembic/versions>"
-        echo "!!! gegen diese Datenbank, danach laeuft 'upgrade head' wieder."
-        echo "!!! ---------------------------------------------------------------"
+        echo "!!! Die Datenbank steht auf einer neueren Revision als dieser Code – gestartet wird"
+        echo "!!! trotzdem (Rollback oder Rollout). Gilt das länger, ist der Deploy zu prüfen."
+    else
+        echo "!!! Alembic migration failed (exit $ALEMBIC_EXIT) – der Dienst startet NICHT."
+        exit 1
     fi
 fi
 
-echo "Starting uvicorn on port 8080..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 2
+WORKERS="${WEB_WORKERS:-2}"
+echo "Starting uvicorn on port 8080 with $WORKERS workers..."
+exec uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers "$WORKERS"

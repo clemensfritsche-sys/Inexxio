@@ -254,6 +254,27 @@ def test_more_than_the_limit_per_hour_from_one_address_is_refused(world):
     assert world.client.post("/api/v1/contact", data=form(), headers=other).status_code == 200
 
 
+def test_a_forged_front_of_the_chain_does_not_reset_the_limit(world):
+    """Die vorderen Einträge von ``X-Forwarded-For`` setzt der Absender selbst – wer sie bei
+    jeder Sendung ändert, darf damit nicht die Grenze umgehen (Bug-Form: der erste Eintrag
+    zählte)."""
+    proxies = "203.0.113.7, 10.0.0.1, 10.0.0.2"
+    for i in range(contact.RATE_LIMIT):
+        h = {**JSON, "X-Forwarded-For": f"192.0.2.{i}, {proxies}"}
+        assert world.client.post("/api/v1/contact", data=form(), headers=h).status_code == 200
+    h = {**JSON, "X-Forwarded-For": f"192.0.2.99, {proxies}"}
+    assert world.client.post("/api/v1/contact", data=form(), headers=h).status_code == 429
+
+
+def test_the_global_limit_holds_whatever_the_sender_says(world, monkeypatch):
+    monkeypatch.setattr(contact, "GLOBAL_LIMIT", 3)
+    for i in range(3):
+        h = {**JSON, "X-Forwarded-For": f"198.51.100.{i}"}
+        assert world.client.post("/api/v1/contact", data=form(), headers=h).status_code == 200
+    h = {**JSON, "X-Forwarded-For": "198.51.100.77"}
+    assert world.client.post("/api/v1/contact", data=form(), headers=h).status_code == 429
+
+
 # ------------------------------------------------------------------ Nie ein stilles «Danke»
 
 def test_if_the_erp_cannot_store_it_the_page_shows_phone_and_mail(world, monkeypatch, capsys):

@@ -31,6 +31,7 @@ jobs:
   approve:
     name: Await production approval
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: quality
     environment: production
     steps:
@@ -39,6 +40,7 @@ jobs:
   deploy-backend:
     name: Backend → Cloud Run (prod)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: approve
     permissions:
       contents: read
@@ -155,6 +157,7 @@ jobs:
   deploy-frontend:
     name: Frontend → Firebase Hosting (prod)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: deploy-backend
     permissions:
       contents: read
@@ -244,6 +247,7 @@ jobs:
   notify-failure:
     name: Notify on failure
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [deploy-backend, deploy-frontend]
     if: failure()
     steps:

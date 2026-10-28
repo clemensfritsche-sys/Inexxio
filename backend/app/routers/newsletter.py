@@ -28,7 +28,7 @@ from ..models import UserProfile
 from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
 from ..services import geoip, mailbox, newsletter as svc
 from ..services.people import normalize_email
-from .contact import EMAIL_RE, VOCAB, _allow, _clean, _client_ip, _page
+from .contact import EMAIL_RE, VOCAB, _clean, _page, allow_send
 
 router = APIRouter(prefix=svc.API, tags=["newsletter"])
 me_router = APIRouter(prefix="/api/v1/auth/me/newsletter", tags=["newsletter"])
@@ -73,7 +73,7 @@ async def subscribe(request: Request, db: Session = Depends(get_db)) -> Response
         msg = VOCAB["messages"]["email"]
         return (JSONResponse({"ok": False, "message": msg}, status_code=422) if wants_json
                 else _page(msg, "<p>Mit der Zurück-Taste kommen Sie zum Formular.</p>", 422))
-    if not _allow(f"newsletter:{_client_ip(request)}", RATE_LIMIT):
+    if not allow_send("newsletter", request, RATE_LIMIT):
         msg = "Zu viele Anmeldungen in kurzer Zeit – bitte später noch einmal."
         return JSONResponse({"ok": False, "message": msg}, 429) if wants_json else _page(msg, "", 429)
     country = geoip.country_of(geoip.client_ip(request.headers,

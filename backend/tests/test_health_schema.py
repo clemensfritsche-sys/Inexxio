@@ -50,4 +50,4 @@ def test_the_deploy_turns_red_when_the_schema_is_behind(tmp_path):
     assert behind.returncode == 1 and "156 statt 160" in behind.stdout
     assert "Alembic migration failed" in behind.stdout, "die Zeilen des Starts stehen im Log"
     unread = _run_check(tmp_path, "Forbidden")
-    assert unread.returncode == 0 and "::warning::" in unread.stdout
+    assert unread.returncode == 1 and "::error::" in unread.stdout, "nicht lesbar ist rot"

@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -25,8 +26,9 @@ def migration_head() -> str:
 
 def schema_state(db: Session) -> dict:
     """►►► **Steht die Datenbank auf dem Stand dieses Codes?** ◄◄◄ Scheitert ``alembic upgrade
-    head`` beim Start, läuft der Dienst trotzdem (die Netze tragen) – das darf nie unbemerkt
-    bleiben: der Deploy liest diese Auskunft und wird rot (``deploy-*.yml``)."""
+    head`` beim Start, startet der Dienst nicht (``start.sh``); steht die Datenbank trotzdem
+    nicht auf ``head`` (eine ältere Revision nach einem Rollback), sagt es diese Auskunft, und
+    der Deploy wird rot (``scripts/check-schema.sh``)."""
     try:
         revision = db.execute(text("SELECT version_num FROM alembic_version")).scalar() or ""
     except Exception:
@@ -47,4 +49,4 @@ async def health_check(db: Session = Depends(get_db)):
         # Der DB-Fehlertext kann Host/Port/User der DATABASE_URL enthalten – nur loggen,
         # nie unauthentifiziert in der Antwort zeigen.
         print(f"WARNING: health check DB error: {e}", flush=True)
-        return {"status": "unhealthy", "database": "disconnected"}
+        return JSONResponse({"status": "unhealthy", "database": "disconnected"}, status_code=503)

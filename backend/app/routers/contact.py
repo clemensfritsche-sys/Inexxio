@@ -66,8 +66,14 @@ CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 #: Obergrenze der ganzen Anfrage: Fotos plus grosszügig Platz für die Textfelder.
 MAX_BODY = int(PHOTOS["maxTotalBytes"]) + 1024 * 1024
 WINDOW_SECONDS = 3600
-#: Gesendete Anfragen je IP-Adresse und Stunde.
+#: Gesendete Anfragen je Absender und Stunde.
 RATE_LIMIT = 5
+#: Gesendete Anfragen **insgesamt** je Stunde und Instanz – die Grenze, die sich nicht
+#: umgehen lässt (ein Absender lässt sich hinter Firebase Hosting nicht sicher bestimmen).
+GLOBAL_LIMIT = 60
+#: So viele Einträge hängen die Proxys vor uns an ``X-Forwarded-For`` an (Firebase Hosting
+#: zwei, dazu Cloud Run) – nur sie sind nicht vom Absender gesetzt.
+TRUSTED_HOPS = 3
 
 
 # ------------------------------------------------------------------ Begrenzung je IP
@@ -98,10 +104,18 @@ def _allow(ip: str, limit: int) -> bool:
         return True
 
 
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    first = forwarded.split(",")[0].strip()
-    return first or (request.client.host if request.client else "unbekannt")
+def sender_key(request: Request) -> str:
+    """**Wer sendet – so weit man es weiss.** Nur die letzten ``TRUSTED_HOPS`` Einträge von
+    ``X-Forwarded-For``: die vorderen setzt der Absender selbst, mit ihnen liesse sich die
+    Grenze je Absender beliebig umgehen. Ohne Proxy (lokal) die Gegenstelle."""
+    chain = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    peer = request.client.host if request.client else "unbekannt"
+    return ",".join(chain[-TRUSTED_HOPS:]) if chain else peer
+
+
+def allow_send(kind: str, request: Request, limit: int) -> bool:
+    """Je Absender ``limit`` je Stunde **und** insgesamt ``GLOBAL_LIMIT`` – beides muss passen."""
+    return _allow(f"{kind}:{sender_key(request)}", limit) and _allow(f"{kind}:all", GLOBAL_LIMIT)
 
 
 # ------------------------------------------------------------------ Einlesen und Prüfen
@@ -305,7 +319,7 @@ async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Res
         return _failed(None, 400, "Die Anfrage konnte nicht gelesen werden.", wants_json)
 
     # Spam erzeugt nichts: alles hier steht VOR dem ersten Zugriff auf die Datenbank.
-    ip = _client_ip(request)
+    ip = sender_key(request)
     if _clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
         print(f"INFO: INQUIRY spam (honeypot) ip={ip}", flush=True)
         return JSONResponse({"ok": True}) if wants_json else RedirectResponse(VOCAB["pages"]["thanks"], 303)
@@ -318,7 +332,7 @@ async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Res
     inq = await _parse(form_data, errors)
     if errors:
         return _invalid(errors, inq, wants_json)
-    if not _allow(ip, RATE_LIMIT):
+    if not allow_send("contact", request, RATE_LIMIT):
         print(f"INFO: INQUIRY rate limited ip={ip}", flush=True)
         msg = f"Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {VOCAB['phone']['display']}."
         return _failed(inq, 429, msg, wants_json)

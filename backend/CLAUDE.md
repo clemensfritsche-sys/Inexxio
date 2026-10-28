@@ -6,10 +6,17 @@
 > Code.
 
 ## Technologie
-Python 3.12, FastAPI 0.115, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 16. Die
-Versionen stehen gepinnt in `requirements.txt` – **mit diesen** generieren (siehe unten),
-sonst produziert eine neuere Umgebung einen Diff, der lokal unsichtbar ist und erst die CI
-rot macht.
+Python 3.12, FastAPI 0.162, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 16. Die
+direkten Abhängigkeiten stehen gepinnt in `requirements.txt`; **installiert wird aus
+`requirements.lock`** (alle, auch die indirekten, je mit Prüfsumme – Docker und CI mit
+`--require-hashes`). Wer eine Version ändert, erzeugt die Sperrdatei neu
+(`tests/test_lock.py` merkt, wenn sie nicht passt):
+```bash
+cd backend && uv pip compile requirements.txt --python-version 3.12 \
+  --python-platform x86_64-unknown-linux-gnu --generate-hashes --no-header -o requirements.lock
+```
+**Mit diesen Versionen** generieren (siehe unten), sonst produziert eine neuere Umgebung
+einen Diff, der lokal unsichtbar ist und erst die CI rot macht.
 
 ## Pflichtregeln – vor jeder Änderung
 ```bash
@@ -22,7 +29,7 @@ behandeln.
 ## Starten
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.lock
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -32,8 +39,9 @@ alembic upgrade head                                 # Migrationen anwenden
 alembic revision --autogenerate -m "description"     # neue Migration
 ```
 - **`start.sh` fährt `alembic upgrade head` bei JEDEM Start – auf jeder Umgebung, auch auf
-  dev.** Scheitert der Lauf (z. B. «Can't locate revision» nach einem Revert), startet
-  uvicorn trotzdem, und dann tragen die **Lifespan-Netze** in `main._ensure_columns` – der
+  dev.** Scheitert der Lauf, **startet der Dienst nicht** (Cloud Run behält die alte
+  Revision). Einzige Ausnahme: «Can't locate revision» (die DB steht auf einer neueren
+  Revision, etwa nach einem Revert) – dann startet er mit Warnung, und es tragen die **Lifespan-Netze** in `main._ensure_columns` – der
   **zweite Weg**, kein Ersatz.
 - Die Netze: `_COLUMN_SAFETY_NET` (fehlende Spalten) · `_NUMERIC_SAFETY_NET` (Skala) ·
   `_NULLABLE_SAFETY_NET` (gelöste `NOT NULL`) · `_INDEX_SAFETY_NET` ·
@@ -132,7 +140,7 @@ Die CI generiert alle drei neu und bricht bei jedem Unterschied ab. Das Ergebnis
 der FastAPI-/Pydantic-Version – vorher prüfen:
 ```bash
 python -c "import fastapi,pydantic;print(fastapi.__version__, pydantic.VERSION)"
-# muss zu requirements.txt passen (fastapi==0.115.5, pydantic==2.10.2)
+# muss zu requirements.txt passen (fastapi==0.162.0, pydantic==2.14.1)
 ```
 Ein neuer Status ist **eine Zeile in `CATALOG`**; fehlt einem Stück-Zustand `stock`, startet
 die App nicht.

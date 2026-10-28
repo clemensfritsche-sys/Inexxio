@@ -39,11 +39,13 @@ def _json_serializer(value) -> str:
     return json.dumps(json_safe(value))
 
 
+#: **Klein mit Absicht**: je Worker 5 (+5 in Spitzen) – bei 2 Workern und bis zu 10 Instanzen
+#: sind das höchstens 200 Verbindungen statt 600; eine kleine Cloud-SQL-Stufe erlaubt kaum mehr.
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=5,
     echo=settings.debug,
     json_serializer=_json_serializer,
 )

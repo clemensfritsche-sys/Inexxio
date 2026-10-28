@@ -296,6 +296,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Register Options Api V1 Auth Passkeys Register Options Post"
                 }
@@ -443,6 +444,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Login Options Api V1 Auth Passkeys Login Options Post"
                 }
@@ -7206,6 +7208,7 @@
           "config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -7670,7 +7673,7 @@
           "files": {
             "items": {
               "type": "string",
-              "format": "binary"
+              "contentMediaType": "application/octet-stream"
             },
             "type": "array",
             "title": "Files"
@@ -7732,7 +7735,7 @@
           "files": {
             "items": {
               "type": "string",
-              "format": "binary"
+              "contentMediaType": "application/octet-stream"
             },
             "type": "array",
             "title": "Files"
@@ -7764,7 +7767,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -8456,6 +8459,7 @@
           "current": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8487,6 +8491,7 @@
           "paper": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9795,6 +9800,7 @@
           "anchor": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9806,6 +9812,7 @@
           "context": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -11025,6 +11032,7 @@
           "config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -11667,6 +11675,7 @@
       "PasskeyLoginVerify": {
         "properties": {
           "credential": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Credential",
             "description": "PublicKeyCredential (assertion) aus dem Browser"
@@ -11682,6 +11691,7 @@
       "PasskeyRegisterVerify": {
         "properties": {
           "credential": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Credential",
             "description": "PublicKeyCredential (attestation) aus dem Browser"
@@ -12194,6 +12204,7 @@
           "config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -12359,6 +12370,7 @@
             "default": ""
           },
           "facts": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Facts",
             "default": {}
@@ -12392,6 +12404,7 @@
             "default": ""
           },
           "values": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Values",
             "default": {}
@@ -13163,6 +13176,7 @@
         "properties": {
           "values": {
             "additionalProperties": {
+              "additionalProperties": true,
               "type": "object"
             },
             "type": "object",
@@ -13429,6 +13443,7 @@
             "title": "Field"
           },
           "extra": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Extra",
             "default": {}
@@ -14591,6 +14606,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

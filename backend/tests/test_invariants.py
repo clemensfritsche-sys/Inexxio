@@ -118,12 +118,13 @@ def _article_patch_routes() -> list[str]:
     """Jede Route, die einen angelegten Artikel ändert (``PATCH``/``PUT`` am Datensatz)."""
     from app.main import app as api
 
+    from tests._routes import api_routes
     return [
-        f"{sorted(r.methods)} {r.path}"
-        for r in api.routes
-        if getattr(r, "path", "").startswith("/api/v1/erp/articles/{object_id}")
-        and getattr(r, "path", "").count("/") == 5
-        and {"PATCH", "PUT"} & set(getattr(r, "methods", None) or ())
+        f"{sorted(methods)} {path}"
+        for path, methods in api_routes(api)
+        if path.startswith("/api/v1/erp/articles/{object_id}")
+        and path.count("/") == 5
+        and {"PATCH", "PUT"} & methods
     ]
 
 

@@ -65,6 +65,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # **Eine Instanz migriert, die anderen warten** – startet ein Rollout mehrere
+        # Instanzen zugleich, liefe ``upgrade head`` sonst parallel. Der Lock hängt an der
+        # Verbindung und fällt mit ihr; die Wartenden finden danach nichts mehr zu tun.
+        if connection.dialect.name == "postgresql":
+            connection.exec_driver_sql("SELECT pg_advisory_lock(778899002)")
+            connection.commit()
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
