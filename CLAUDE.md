@@ -6,7 +6,8 @@
 > **Ein Rundenbericht gehört nach `docs/history/`, nicht in CLAUDE.md.**
 >
 > **Lesereihenfolge:** `CLAUDE.md` (Kontext, Regeln, was gebaut ist) → `PROCESS_CORE.md`
-> (die Prozesslogik, verbindlich vor jeder Arbeit am Prozess) → `SYSTEM_LOGIC.md` (die
+> (die Prozesslogik, verbindlich vor jeder Arbeit am Prozess; die Zeichenregeln des
+> Prozessbilds in `docs/prozessbild.md`) → `SYSTEM_LOGIC.md` (die
 > Regeln als prüfbare Sätze, Sackgassen-Analyse) → `docs/attic.md` (was entfernt ist und
 > welche Entscheidung darin steckt) → `docs/history/` (warum es so wurde). Dazu
 > `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `website/WEBSITE_PLAN.md` für die Teilprojekte.
@@ -52,7 +53,7 @@ wieder entfernt wurde, steht in `docs/attic.md`.
 ## Monorepo-Struktur
 ```
 inexxio/
-├── CLAUDE.md · PROCESS_CORE.md · SYSTEM_LOGIC.md · SYSTEM_INTENT.md · FINDINGS.md
+├── CLAUDE.md · PROCESS_CORE.md · SYSTEM_LOGIC.md · SYSTEM_INTENT.md
 ├── website/          ← öffentliche Website (Astro) – WEBSITE_PLAN.md, START.md
 ├── frontend/         ← Next.js: /erp (ERP), /konto, /login, /abmelden, /agb – frontend/CLAUDE.md
 ├── backend/          ← FastAPI – backend/CLAUDE.md
@@ -61,9 +62,9 @@ inexxio/
 ├── .github/workflows ← quality.yml (das Gate), deploy-dev.yml (develop), deploy-prod.yml (main)
 ├── infra/README.md   ← Infrastruktur, wie sie eingerichtet ist (Umgebungen, Kosten, Rollback)
 ├── scripts/          ← check-schema.sh (nach jedem Deploy) · dump-db.sh · reset-dev-db.sql
-└── docs/             ← adr/ (mit Kopfstatus) · attic.md · backlog.md · design-system/ ·
-                         gmail-setup.md · stripe-setup.md · passkeys.md · dokumente.md ·
-                         history/
+└── docs/             ← adr/ (mit Kopfstatus) · attic.md · backlog.md (offen, auch die Befunde)
+                         · design-system/ · prozessbild.md · gmail-setup.md · stripe-setup.md
+                         · passkeys.md · dokumente.md · history/
 ```
 Messwerkzeug: `backend/scripts/deadcode.py` – «was liest eigentlich niemand mehr?» für
 Backend und Frontend (Erreichbarkeit + Exporte ohne Leser).
@@ -119,8 +120,9 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
 - **Ort** = Zeiger am Stück (`instance_units.place_object_id` ↔ `place_unit_id`, höchstens
   eines): Halter ist eine Instanz, ein Benutzer oder ein Unternehmen, beim Verbauen das
   Träger-Stück. Ändert nie Status oder Zugehörigkeit; keine Zyklen; **jedes Stück behält
-  seinen Ort, ausser es ist verschrottet** (auch Gesperrt und Verkauft). Eine Schreibstelle:
-  `services/places.py`.
+  seinen Ort, ausser es ist verschrottet** (auch Gesperrt und Verkauft). Wird ein verbautes
+  Stück gegriffen (Ausbau), bekommt es den Ort seines Trägers (`places.take_out`). Eine
+  Schreibstelle: `services/places.py`.
 - **Eigentum ist eine Ableitung, keine Spalte** (`voucher.sold_units`): das jüngste nicht
   stornierte Zahlungsmodul, das ein Stück passiert hat, sagt «geht an die Partei» oder «geht
   an uns» (ohne Zahlungsmodul: uns). Gelesen wird es nur am Ziel (`process._finish`): an die
@@ -169,8 +171,9 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   definiert → der Scan verifiziert, offen → der Scan wählt. **Ware zuerst, Ziel zuletzt**
   (der Ziel-Scan ist die Quittung der Ablage). Eine Spedition ist ein Einkauf, also ein
   Zahlungs-Modul daneben – Bewegen weiss nichts davon.
-- **Zahlung** (§9.15/§9.15s, Schlüssel `beleg`, `domain/voucher.py` · `services/voucher.py` ·
-  `services/voucher_docs.py` · `beleg-work.tsx`): Geld mit einer zweiten Partei, **Einnahme ↔
+- **Zahlung** (§9.15, Schlüssel `beleg`, `domain/voucher.py` · `services/voucher*.py` (Kern →
+  Kopf → Geld → Handlungen → Ansicht, `backend/CLAUDE.md`) · `services/voucher_docs.py` ·
+  `beleg-work.tsx`): Geld mit einer zweiten Partei, **Einnahme ↔
   Ausgabe** als Einstellung (`Direction`). Stufen `offer → agreed → billed` (+ `cancelled`);
   **Erledigt ist abgeleitet** (Saldo 0, bei Export mit Ausfuhrnachweis). **Jedes Verb steht an
   EINER Stelle** (`VERBS`), **`can` ist Auskunft UND Tor**, die Leiste der Karte ist
@@ -238,7 +241,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   erreicht, keine spätere Nachricht von uns mit demselben Betreff; **überfällig nach 2 h**.
   Intern heisst intern (nur Mitarbeitende); wer von aussen schreibt, bekommt die Antwort von
   aussen. Verlauf einer Firma = der ihrer Personen. Feed-Zeichen am Symbol
-  (`fields.IconMark`).
+  (`detail-frame` → `RecordIcon`).
 - **Gmail-Postfach je eigener Gesellschaft** (`services/mailbox.py`, Kanal `c<Objektnummer>`,
   verbindet nur ein Admin; persönliche Postfächer gibt es nicht). Die Kontakt-E-Mail der
   Gesellschaft **ist** das Postfach (gesetzt durch Verbinden, geleert durch Trennen). Abgleich
@@ -361,7 +364,10 @@ Oberfläche und Dienst garantiert dasselbe.
 - **Datum** nur über `lib/when.ts` (`when` = Auskunft, `day` = Tag auf dem Papier).
 - **Nummernkreis**: universell 9-stellig, 100'000'001–999'999'999, für ALLE Objekte;
   Registry `objects` (hält auch Nummern entfernter Typen). Einzelinstanz-Nummern und
-  Rechnungsnummern (`<Auftragsnummer>-<laufend>`) sind Namen, keine Objektnummern.
+  Rechnungsnummern (`<Auftragsnummer>-<laufend>`) sind Namen, keine Objektnummern. Rechnung
+  und Gutschrift ziehen aus **einer** Zählung je Auftrag (unter Sperre, je Nummer ein
+  Unique-Index); die Gutschrift ist ein eigenes Papier und nennt die Originalrechnung mit
+  Nummer und Datum.
 - **MWST CH** (`domain/voucher.VAT_RATES`): 8.1 % · 2.6 % · 3.8 % · 0 % Export · 0 %
   Reverse Charge (je mit Pflichtsatz auf dem Beleg).
 
@@ -424,8 +430,8 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 ## Website (`website/`)
 Eigenes Teilprojekt (Astro 7, Node ≥ 22.12), getrennt vom ERP. **Zuerst lesen:**
 `website/WEBSITE_PLAN.md` (geltende Entscheide), `website/START.md` (Start-Checkliste),
-`website/OFFENE_PUNKTE.md` (generiert – nie von Hand ändern). `website/AUFTRAG.md` ist der
-Wortlaut des Auftrags und in zentralen Punkten überholt.
+`website/OFFENE_PUNKTE.md` (generiert – nie von Hand ändern; «blockiert den Start» · «für
+später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website-auftrag.md`.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
 - **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
@@ -452,7 +458,11 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   `file` eintragen; Video (MP4) und sein erstes Bild als Standbild (gleicher Name, `.webp`) nach
   `website/public/video/`, beim Foto `video` eintragen – in Bühne und Seitenkopf steht dann ein
   gewöhnliches `<video autoplay muted loop playsinline poster>` statt des Fotos
-  (`components/Media.astro`). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab.
+  (`components/Media.astro`) – geladen nur ab 768 px und ohne «reduzierte Bewegung»
+  (`VIDEO_MEDIA`), sonst das Standbild; ein Knopf auf der Bühne hält jede Bewegung an. Der
+  Bildrückfall ist WebP. Das Logo steht je Seite einmal als `<symbol id="ix-logo">`
+  (`<use>` in Kopf, Menü, Fuss). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab;
+  das Budget zählt das Video mit.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
   ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/beleg`,
   `/dokument`, `/agb`, `/datenschutz`, `/impressum`, `/vendor`.
@@ -514,7 +524,10 @@ entfernt). Buchungsbelege unveränderlich (10 Jahre).
 4. **Branch-Workflow**: Entwicklung auf Feature-Branch (z. B. `claude/...`); Merge nach
    `develop` erst nach ausdrücklicher Freigabe; direkt auf `develop` nur auf Anweisung.
 5. **Im Zweifel gilt der Code.** Eine Doku-Aussage, die der Code widerlegt, wird korrigiert,
-   nicht befolgt.
+   nicht befolgt. Ausnahme `SYSTEM_LOGIC.md`: es ist das vorher notierte **Soll** der Tests –
+   widerspricht der Code einem Satz dort, ist das ein Befund (`open_finding` +
+   `docs/backlog.md`), keine Doku-Korrektur; ausser der Satz beschreibt einen Ist-Zustand
+   («gebaut», «es gibt kein …»), dann gilt diese Regel.
 6. **CLAUDE.md beschreibt nur den Ist-Stand.** Nach einer Runde wird der Stand hier
    nachgezogen; der **Rundenbericht** (was, warum, gemessen, verworfen) gehört als
    `docs/history/<JJJJ-MM-TT>-<thema>.md` nach `docs/history/`, nie hierher.
@@ -524,7 +537,7 @@ entfernt). Buchungsbelege unveränderlich (10 Jahre).
 ## Lokale Entwicklung
 ```bash
 # Backend
-cd backend && pip install -r requirements.txt
+cd backend && pip install --require-hashes -r requirements.lock
 uvicorn app.main:app --reload --port 8000
 
 # Website, danach Frontend (ohne Website-Build sind Kopf/Fuss Platzhalter)
@@ -592,8 +605,8 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
 - Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
-- Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop und «Besitz»
-  (`docs/konzept-beleg-shop-besitz.md`), offene-Posten-Liste je Partner, TOTP-MFA.
+- Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop
+  (`docs/backlog.md`), offene-Posten-Liste je Partner, TOTP-MFA.
 
 ## Phasenplan
 | Phase | Zeitraum | Inhalt |

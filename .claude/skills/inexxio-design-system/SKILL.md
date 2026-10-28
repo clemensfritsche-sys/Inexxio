@@ -68,12 +68,15 @@ wieder einführt, führt eine zweite Farbsprache ein; die Zuordnung steht als Le
 
 ## Bestehendes UI-Vokabular wiederverwenden
 Nicht neu erfinden:
-- `frontend/src/components/erp/fields.tsx` – Detail-Anatomie (`SPEC`, `SpecHead`,
-  `SpecSection`, `ReadField`, `DetailBody`/`DETAIL_MAXW`), `Label`, `inputCls`,
-  `SearchSelect`/`OptionRow`, `Segmented`, `StatusBadge`, `Tooltip`/`InfoHint`, `Dialog`,
-  `RecordIcon`, `DetailHeader`.
+- `frontend/src/components/erp/detail-frame.tsx` – Detail-Anatomie (`SPEC`, `SpecHead`,
+  `SpecSection`, `ReadField`, `DetailBody`/`DETAIL_MAXW`, `Card`, `RecordIcon`,
+  `DetailHeader`).
+- `frontend/src/components/erp/controls.tsx` – `inputClass`/`inputCls` (die EINE Feldform),
+  `Label`, `Segmented`, `IconSwitch`, `Dialog`, `Palette`, `FieldAction`.
+- `search-select.tsx` (`SearchSelect`/`OptionRow`) · `hints.tsx` (`Tooltip`/`InfoHint`,
+  `ErrorText`) · `fields.tsx` (`StatusDot` – der eine Status-Punkt –, `StatusBadge`, `Row`).
 - `frontend/src/components/erp/module-ui.tsx` – die Bauteile eines Prozessschrittmoduls
-  (`MODULE_CARD`, `ModuleSection`, `ActionButton`/`Actions`, `LedgerRow`/`RowActions`,
+  (`MODULE_CARD`, `ActionButton`/`Actions`, `LedgerRow`/`RowActions`,
   `Amount`, `ValueBar`, `ACT_H`, `FIELD_GAP`).
 - `frontend/src/components/erp/object-select.tsx` – jedes Referenzfeld («welchen Datensatz
   meinst du?»), Kamera im Feld.
