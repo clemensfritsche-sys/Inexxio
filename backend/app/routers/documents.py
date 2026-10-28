@@ -26,23 +26,26 @@ from ..services import requirements as reqs
 router = APIRouter(prefix="/api/v1/erp/documents", tags=["documents"])
 
 
-def _preview_url(db: Session, doc: Document) -> Optional[str]:
-    url = docs.file_url(db, doc)
+def _preview_url(doc: Document, url: Optional[str]) -> Optional[str]:
     if url is None or not (doc.mime == "application/pdf" or doc.mime.startswith("image/")):
         return None
     return f"{url}/preview"
 
 
-def summary(db: Session, doc: Document, status: str, q: str = "") -> DocumentSummary:
+def summary(db: Session, doc: Document, status: str, q: str = "", *,
+            urls: Optional[dict[int, str]] = None) -> DocumentSummary:
+    url = (urls if urls is not None else docs.file_urls(db, [doc])).get(doc.id)
     return DocumentSummary(object_id=doc.object_id, art=doc.art, name=doc.name, status=status,
                            source=doc.source, mime=doc.mime, created_at=doc.created_at,
-                           preview_url=_preview_url(db, doc),
+                           preview_url=_preview_url(doc, url),
                            snippet=docs.snippet(doc, q) if q else None)
 
 
 def summaries(db: Session, found: list[Document], q: str = "") -> list[DocumentSummary]:
+    """Die Kacheln – Unterschriften und Datei-Links je in EINER Abfrage für alle."""
     sigs = docs.signatures_of(db, (d.id for d in found))
-    return [summary(db, d, docs.status_of(d, sigs[d.id]), q) for d in found]
+    urls = docs.file_urls(db, found)
+    return [summary(db, d, docs.status_of(d, sigs[d.id]), q, urls=urls) for d in found]
 
 
 def _legal_html(db: Session, doc: Document) -> Optional[str]:
@@ -124,16 +127,17 @@ def _json(raw: str, what: str):
         raise HTTPException(status_code=400, detail=f"{what} sind unlesbar.")
 
 
-async def _upload(files: list[UploadFile]) -> tuple[bytes, str, Optional[str]]:
-    """Eine Datei – oder mehrere gescannte Seiten, die EIN PDF werden."""
-    raws = [await f.read() for f in files]
+def _upload(files: list[UploadFile]) -> tuple[bytes, str, Optional[str]]:
+    """Eine Datei – oder mehrere gescannte Seiten, die EIN PDF werden (die Handler sind
+    ``def``: gelesen wird synchron aus der gepufferten Datei, im Threadpool)."""
+    raws = [f.file.read() for f in files]
     if len(raws) > 1:
         return docs.pages_to_pdf(raws), "application/pdf", "scan.pdf"
     return raws[0], files[0].content_type or "", files[0].filename
 
 
 @router.post("", response_model=FiledOut, status_code=201)
-async def file_document(
+def file_document(
     files: list[UploadFile] = File(...),
     art: str = Form(...), name: str = Form(...), source: str = Form("file"),
     refs: str = Form("[]"), target: str = Form(""), signers: str = Form("[]"),
@@ -149,7 +153,7 @@ async def file_document(
         signing_ids = [int(x) for x in (_json(signers, "Die Unterzeichner") or [])]
     except (KeyError, TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Die Referenzen sind unlesbar.")
-    raw, mime, filename = await _upload(files)
+    raw, mime, filename = _upload(files)
     doc, existed = docs.file(db, raw=raw, filename=filename, mime=mime, art=art, name=name,
                              source=source, refs=wanted, actor=user, text=text or None,
                              keywords=keywords or None, facts=_json(facts, "Die Angaben"))
@@ -168,15 +172,15 @@ async def file_document(
 
 
 @router.post("/read", response_model=ProposalOut)
-async def read_draft(
+def read_draft(
     files: list[UploadFile] = File(...),
     sender: Optional[int] = Form(None), hint: str = Form(""),
     db: Session = Depends(get_db), user: UserProfile = Depends(require_employee),
 ):
     """►►► **Einen Entwurf lesen – ohne ihn zu speichern.** ◄◄◄ Die KI schlägt Art, Name und
     Referenz vor; ohne KI kommt ein leerer Vorschlag (Absender als Referenz, wenn bekannt)."""
-    raw, mime, _ = await _upload(files)
-    p = reading.propose(db, raw=raw, mime=docs._sniff(raw, mime), actor=user,
+    raw, mime, _ = _upload(files)
+    p = reading.propose(db, raw=raw, mime=docs.sniff(raw, mime), actor=user,
                         sender_object_id=sender, hint=hint or None)
     db.commit()     # das Log des KI-Aufrufs
     return ProposalOut(art=p.art, name=p.name, text=p.text, keywords=p.keywords, facts=p.facts,

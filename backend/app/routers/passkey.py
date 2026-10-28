@@ -5,7 +5,7 @@ eigentliche **Anmeldung** per Passkey ist naturgemäss unauthentifiziert (sie er
 ja die Anmeldung) und liefert einen Firebase Custom Token zurück.
 """
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user
@@ -17,15 +17,18 @@ from ..schemas.passkey import (
     PasskeyRegisterVerify,
     PasskeyResponse,
 )
-from ..services import passkey
+from ..services import passkey, visitor
 
 router = APIRouter(prefix="/api/v1/auth/passkeys", tags=["passkeys"])
+
+#: Anmelde-Challenges je Absender und Stunde – ein ganzes Büro teilt sich oft eine Adresse.
+LOGIN_LIMIT = 30
 
 
 # ── Registrierung (angemeldet) ────────────────────────────────────────────────
 
 @router.post("/register/options")
-async def register_options(
+def register_options(
     request: Request,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -35,7 +38,7 @@ async def register_options(
 
 
 @router.post("/register/verify", response_model=PasskeyResponse)
-async def register_verify(
+def register_verify(
     data: PasskeyRegisterVerify,
     request: Request,
     current_user: UserProfile = Depends(get_current_user),
@@ -48,7 +51,7 @@ async def register_verify(
 
 
 @router.get("", response_model=list[PasskeyResponse])
-async def list_passkeys(
+def list_passkeys(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -57,7 +60,7 @@ async def list_passkeys(
 
 
 @router.delete("/{passkey_id}", status_code=204)
-async def delete_passkey(
+def delete_passkey(
     passkey_id: int,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -70,13 +73,18 @@ async def delete_passkey(
 # ── Anmeldung (passwortlos, unauthentifiziert) ────────────────────────────────
 
 @router.post("/login/options")
-async def login_options(request: Request, db: Session = Depends(get_db)) -> dict:
-    """Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos."""
+def login_options(request: Request, db: Session = Depends(get_db)) -> dict:
+    """Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos. Jede
+    Challenge ist eine Zeile: begrenzt je Absender wie jede öffentliche Tür
+    (``services/visitor``)."""
+    if not visitor.allow_send("passkey", request, LOGIN_LIMIT):
+        raise HTTPException(429, detail="Zu viele Anmeldeversuche in kurzer Zeit – bitte "
+                                        "später noch einmal.")
     return passkey.begin_authentication(db, request)
 
 
 @router.post("/login/verify", response_model=PasskeyLoginResult)
-async def login_verify(
+def login_verify(
     data: PasskeyLoginVerify,
     request: Request,
     db: Session = Depends(get_db),

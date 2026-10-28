@@ -25,6 +25,7 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..core import clock
 from ..core.config import get_settings
 from ..domain import communication as dc
 from ..domain import documents as dd
@@ -142,7 +143,7 @@ def signed_html(html: str, sigs: list[DocumentSignature]) -> str:
     for s in sigs:
         mark = document.SIG_MARK.format(s.person_object_id)
         if s.signed_at and s.image:
-            day = s.signed_at.astimezone().strftime("%d.%m.%Y %H:%M")
+            day = s.signed_at.astimezone(clock.ZONE).strftime("%d.%m.%Y %H:%M")
             put = (f'<img alt="Unterschrift" src="data:image/png;base64,'
                    f'{base64.b64encode(s.image).decode("ascii")}"><span>{escape(day)}</span>')
         elif s.declined_at:

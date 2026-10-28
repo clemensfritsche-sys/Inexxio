@@ -5,7 +5,8 @@ from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class CompanySettingsUpdate(BaseModel):
-    """Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
+    """Änderbare Felder einer Firma. Die Kontakt-E-Mail einer eigenen Gesellschaft schreibt
+    allein das Postfach (``mailbox._contact``).
 
     **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.
     Zahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),
@@ -24,7 +25,6 @@ class CompanySettingsUpdate(BaseModel):
     uid_number: Optional[str] = None
     vat_number: Optional[str] = None
     iban: Optional[str] = None
-    email: Optional[str] = None
     phone: Optional[str] = None
     #: «Eigenes Unternehmen» – setzt nur ein Admin (``sites.apply_update``).
     is_own: Optional[bool] = None
@@ -256,19 +256,10 @@ class UserProfileResponse(BaseModel):
     company_object_id: Optional[int]
     company: Optional[CompanyRef] = None
 
-    # Employee
-    department: Optional[str]
-    job_title: Optional[str]
-
     #: ►►► **Was im Profil noch fehlt** – die Regel steht EINMAL im Dienst
     #: (``people.missing_fields``); Konto und ERP spiegeln sie (Fortschritt, «zu tun»).
     required_fields: list[str] = []
     missing_fields: list["MissingField"] = []
-
-    # Preferences
-    language: str
-    notification_email: bool
-    notification_inapp: bool
 
     # Auth
     last_login_at: Optional[datetime]
@@ -290,10 +281,6 @@ class UserProfileUpdate(BaseModel):
     #: die Firmendaten seiner Kollegen.
     company_object_id: Optional[int] = None
     new_company: Optional[NewCompany] = None
-
-    # Preferences
-    notification_email: Optional[bool] = None
-    notification_inapp: Optional[bool] = None
 
 
 # Gültige Rollen – EINE Quelle der Wahrheit (``PATCH /erp/records/{id}``,
@@ -318,8 +305,6 @@ class ErpAdminUpdate(UserProfileUpdate):
     # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
     # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.
     role: Optional[Role] = None
-    department: Optional[str] = None
-    job_title: Optional[str] = None
 
 
 class PersonCreate(BaseModel):

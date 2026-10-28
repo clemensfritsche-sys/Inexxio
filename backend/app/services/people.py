@@ -1,7 +1,9 @@
-"""Personen-Anzeige – **EINE** Stelle für «wie heisst diese Person?».
+"""Personen – **EINE** Stelle für «wie heisst sie?», «gibt es sie?» und «leg sie an».
 
-Die Regel selbst steht am Modell (``UserProfile.display_name``: «Vorname Nachname»
-→ Firma → E-Mail, Notiz #291); hier steht die eine Stelle, die sie *anwendet*.
+* Der Name: die Regel steht am Modell (``UserProfile.display_name``: «Vorname Nachname»
+  → Firma → E-Mail); hier steht die Stelle, die sie *anwendet*.
+* Eine Person entsteht nur in ``ensure`` (Anmeldung, Personal, Mail, Anfrage, Newsletter);
+  die E-Mail-Regel ist ``is_email``; gesucht wird mit ``search``.
 
 Nachgeschlagen wird in ZWEI verschiedenen Schlüsseln – über die 9-stellige ``object_id``
 oder über die interne ``id``. Beides sind Ganzzahlen; wer die falsche Variante erwischt,
@@ -9,6 +11,7 @@ bekommt lautlos den falschen (oder keinen) Namen. Darum tragen die Funktionen hi
 den Schlüssel **im Namen**.
 """
 
+import re
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -21,17 +24,11 @@ from .admin import log_audit
 
 #: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
 #:
-#: ►►► **Das ist die EINE Frage, die die Rolle beantwortet** (Testnotiz #1043). ◄◄◄
+#: ►►► **Das ist die EINE Frage, die die Rolle beantwortet.** ◄◄◄
 #: ``admin`` · ``employee`` · ``user``: *darf ins ERP* ↔ *darf es nicht*. Lieferant ↔
 #: Kunde ist eine Aussage über **Vorgänge**, nicht über die Person.
 ROLES = ("admin", "employee", "user")
 STAFF_ROLES = ("admin", "employee")
-
-#: ►►► **Was ein Firmenname nach sich zieht** (Testnotiz #1043). ◄◄◄ Die Rechtsform macht
-#: aus «Muster» die Rechtsperson «Muster AG» – ohne sie ist ein Beleg keiner (MWSTG
-#: Art. 26, dieselbe Angabe, die ``sites.legal_name`` an unserer eigenen Seite anhängt).
-#: Die **UID bleibt freiwillig**: nur MWST-pflichtige Firmen haben eine, und ein
-#: Pflichtfeld, das die Hälfte der Firmen nicht ausfüllen kann, ist keines.
 
 #: ►►► **Pflicht ist, was das Haus wirklich braucht** – EINE Liste für Konto und ERP. ◄◄◄
 #: Das Konto zeigt daraus den Fortschritt, das ERP die Zahl «zu tun» am Symbol; beide
@@ -104,7 +101,7 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
 
 
 def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) -> None:
-    """►►► **Personal gehört zu einer UNSERER Gesellschaften** (Testnotiz #905). ◄◄◄
+    """►►► **Personal gehört zu einer UNSERER Gesellschaften.** ◄◄◄
 
     Die Zuordnung «Firma der Person» ist eine für alle (CRM Schritt 1): ein Kunde zeigt
     auf seine Firma, ein Mitarbeiter auf unsere. Für Personal muss sie darum **eigen**
@@ -206,7 +203,7 @@ def email_problem(db: Session, user: UserProfile, email: Optional[str]) -> Optio
     wenn die bestätigte Adresse mit dem Token ankommt (``core/auth._sync_user_profile``) –
     dieselbe Regel, damit nie Firebase die neue Adresse hat und das Profil die alte."""
     key = normalize_email(email)
-    if "@" not in key or "." not in key.split("@")[-1]:
+    if not is_email(key):
         return f"«{email}» ist keine E-Mail-Adresse."
     if key == normalize_email(user.email):
         return "Das ist bereits Ihre Anmelde-E-Mail."
@@ -214,6 +211,18 @@ def email_problem(db: Session, user: UserProfile, email: Optional[str]) -> Optio
     if other is not None and other.id != user.id and other.is_active:
         return f"«{key}» gehört bereits zu einem anderen Konto – bitte melden Sie sich bei uns."
     return None
+
+
+#: ►►► **Die EINE E-Mail-Regel** – derselbe Ausdruck wie im Formular der Website
+#: (``website/src/config/inquiry.mjs`` → ``patterns.email``; ``tests/test_contact`` hält
+#: beide gleich). Eine Adresse, die der Browser annimmt, nimmt auch der Server an.
+EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
+
+
+def is_email(email: Optional[str]) -> bool:
+    """Ist das eine E-Mail-Adresse (``EMAIL``, höchstens 160 Zeichen)?"""
+    key = normalize_email(email)
+    return len(key) <= 160 and EMAIL.match(key) is not None
 
 
 def normalize_email(email: Optional[str]) -> str:
@@ -283,7 +292,6 @@ def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
     Minimum: Vorname, Nachname, E-Mail, Rolle. Die Objektnummer entsteht **sofort**, das
     Firebase-Konto ebenso; die E-Mail ist klein geschrieben und einmalig. Personal-Rollen
     vergibt nur ein Admin – wie an jeder anderen Stelle. Committet."""
-    from .objects import next_object_id
     fields = data.model_dump(exclude_unset=True)
     first = (fields.pop("first_name", "") or "").strip()
     last = (fields.pop("last_name", "") or "").strip()
@@ -293,7 +301,7 @@ def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
                                       ("E-Mail", email)) if not v]
     if missing:
         raise HTTPException(400, detail=f"Für eine neue Person fehlt: {', '.join(missing)}.")
-    if "@" not in email or "." not in email.split("@")[-1]:
+    if not is_email(email):
         raise HTTPException(400, detail=f"«{email}» ist keine E-Mail-Adresse.")
     if role in STAFF_ROLES and actor.role != "admin":
         raise HTTPException(403, detail="Personal-Rollen vergibt nur ein Admin.")
@@ -301,22 +309,67 @@ def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
     if taken is not None:
         raise HTTPException(409, detail=f"«{email}» gehört bereits {taken.object_id} "
                                         f"{taken.display_name}.")
-    user = UserProfile(first_name=first, last_name=last, email=email, role="user",
-                       firebase_uid="")
+    probe = UserProfile(first_name=first, last_name=last, email=email, role="user")
     _company_fields(db, fields, actor.id, staff=True)
-    assert_employment(db, user, {"role": role, **fields})
+    assert_employment(db, probe, {"role": role, **fields})
     uid = firebase_uid_for(email, f"{first} {last}")
     if db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first() is not None:
         raise HTTPException(409, detail=f"Das Anmeldekonto zu «{email}» gehört bereits "
                                         f"einer anderen Person.")
-    user.firebase_uid = uid
-    user.role = role
+    user = ensure(db, email, uid=uid, role=role, first=first, last=last, actor_id=actor.id)
     user.company_object_id = fields.get("company_object_id")
-    user.object_id = next_object_id(db, "user")
-    db.add(user)
-    db.flush()
-    log_audit(db, "user_profiles", None, f"Person «{user.display_name}» angelegt",
-              actor.id, object_id=user.object_id)
     db.commit()
     db.refresh(user)
+    return user
+
+
+#: ►►► **Die Anmelde-Kennung (``firebase_uid``) hat zwei Formen** – erklärt an dieser Stelle:
+#: die **UID aus Firebase** (wer sich angemeldet hat, ``core/auth``, oder vom Personal angelegt
+#: wurde – das Konto entsteht sofort, ``firebase_uid_for``) und ``mail:<adresse>``
+#: (``contact_uid``) für einen **Kontakt ohne Anmeldekonto** (Mail, Anfrage, Newsletter).
+#: Meldet er sich später mit dieser – bestätigten – Adresse an, übernimmt er genau diesen
+#: Datensatz (``core/auth._resolve_user``).
+def contact_uid(email: str) -> str:
+    return f"mail:{normalize_email(email)}"[:128]
+
+
+def split_name(name: str) -> Optional[tuple[str, str]]:
+    """Vor- und Nachname aus einem Namen («Fritsche, Clemens» ist «Nachname, Vorname» – das
+    Komma dreht). Sonst: das erste Wort ist der Vorname. ``None`` = kein Name."""
+    raw = re.sub(r"\s+", " ", (name or "").replace('"', "")).strip()
+    if "," in raw:
+        last, _, first = raw.partition(",")
+        raw = f"{first.strip()} {last.strip()}".strip()
+    parts = raw.split(" ") if raw else []
+    return (parts[0][:100], " ".join(parts[1:])[:100]) if parts else None
+
+
+def ensure(db: Session, email: str, name: str = "", phone: str = "", *,
+           uid: Optional[str] = None, role: str = "user", first: Optional[str] = None,
+           last: Optional[str] = None, photo_url: Optional[str] = None,
+           actor_id: Optional[int] = None) -> UserProfile:
+    """►►► **Die Person zu dieser E-Mail – angelegt, wenn es sie nicht gibt.** ◄◄◄ Die EINE
+    Stelle, an der eine Person entsteht (Anmeldung, Personal, Mail, Anfrage, Newsletter).
+
+    Eine gefundene Person bleibt, wie sie ist – auch ihr Telefon: was jemand in ein
+    öffentliches Formular tippt, schreibt nie in einen bestehenden Datensatz. Ohne ``uid``
+    ist es ein Kontakt (``contact_uid``); ohne Namen heisst ein Kontakt wie der Anfang
+    seiner Adresse. Committet nicht."""
+    from .objects import next_object_id
+    key = normalize_email(email)
+    found = by_email(db, key) if key else None
+    if found is not None and found.object_id:
+        return found
+    if first is None and last is None:
+        fallback = (key.split("@")[0], "") if uid is None else (None, None)
+        first, last = split_name(name) or fallback
+    user = UserProfile(firebase_uid=uid or contact_uid(key), email=key, role=role,
+                       first_name=(first or "")[:100] or None,
+                       last_name=(last or "")[:100] or None,
+                       phone=(phone or "")[:50] or None, photo_url=photo_url,
+                       object_id=next_object_id(db, "user"))
+    db.add(user)
+    db.flush()
+    log_audit(db, "user_profiles", None, f"Person «{user.display_name}» angelegt", actor_id,
+              object_id=user.object_id)
     return user

@@ -50,7 +50,7 @@ class CompanySettings(Base):
     # Abfrage lazy vergeben (services/sites.operator) bzw. beim Anlegen (sites.create).
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, index=True)
     # **Betreiber der Website** – genau EINE Gesellschaft trägt den Titel (partieller
-    # Unique-Index, Migration 091). Er vertritt die eine Website nach aussen (Impressum,
+    # Unique-Index). Er vertritt die eine Website nach aussen (Impressum,
     # Fallback) und trägt die Plattform-/Systemkonfiguration. Anders als das frühere
     # ``is_primary`` bedeutet das Flag NUR «vertritt die Website» – keine Kaste; jede
     # Gesellschaft bleibt vollständig. **Wählbar** (``sites.set_operator``), Default =
@@ -101,7 +101,7 @@ class CompanySettings(Base):
     # UID ohnehin sagt.
     uid_number: Mapped[Optional[str]] = mapped_column(String(30))
     vat_number: Mapped[Optional[str]] = mapped_column(String(30))
-    #: ►►► **Woran eine Firma erkannt wird – zwei Schlüssel, abgeleitet** (Migration 143).
+    #: ►►► **Woran eine Firma erkannt wird – zwei Schlüssel, abgeleitet**.
     #: ◄◄◄ ``uid_key`` ist die UID ohne Satzzeichen (``domain/uid.normalize``), ``name_key``
     #: Name und Rechtsform ohne Gross-/Kleinschreibung und Satzzeichen. Beide schreibt
     #: allein ``sites._rekey`` – nie ein Formular. **Eindeutig in der Datenbank**
@@ -117,7 +117,7 @@ class CompanySettings(Base):
     iban: Mapped[Optional[str]] = mapped_column("iban_encrypted", Text)
     email: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[Optional[str]] = mapped_column(String(50))
-    #: ►►► **Zeiterfassung einer eigenen Gesellschaft** (Migration 154): der Kanton (er
+    #: ►►► **Zeiterfassung einer eigenen Gesellschaft**: der Kanton (er
     #: bestimmt den Vorschlag der Feiertage) und je Absenzart, ab welchem Arbeitstag ein
     #: Nachweis nötig ist – ``{"canton": "TG", "proof": {"krank": 3}}``. Was fehlt, ist die
     #: Vorgabe aus ``domain/timekeeping``.

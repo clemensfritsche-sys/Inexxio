@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from pydantic import BaseModel
 
@@ -48,7 +48,7 @@ class ObjectResolution(BaseModel):
 
 
 @router.get("/objects/{object_id}", response_model=ObjectResolution)
-async def resolve_object(
+def resolve_object(
     object_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
@@ -61,19 +61,21 @@ async def resolve_object(
 
 
 @router.get("/records", response_model=list[UserProfileResponse])
-async def list_erp_records(
+def list_erp_records(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
     # **Alle Personen**, auch eine alte deaktivierte Zeile: «inaktiv» ist ein Zustand,
     # kein Verschwinden – sie bleibt ansehbar.
-    users = db.query(UserProfile).order_by(UserProfile.object_id).all()
+    users = (db.query(UserProfile)
+             .options(selectinload(UserProfile.addresses), selectinload(UserProfile.company))
+             .order_by(UserProfile.object_id).all())
     counts = _passkey_counts(db, [u.id for u in users])
     return [_record(u, counts.get(u.id, 0)) for u in users]
 
 
 @router.post("/records", response_model=UserProfileResponse, status_code=201)
-async def create_erp_record(
+def create_erp_record(
     data: PersonCreate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -100,7 +102,7 @@ def search_people(
 
 
 @router.get("/companies", response_model=list[CompanyRef])
-async def search_companies(
+def search_companies(
     search: str = "",
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
@@ -117,7 +119,7 @@ async def search_companies(
 
 
 @router.get("/records/{object_id}", response_model=UserProfileResponse)
-async def get_erp_record(
+def get_erp_record(
     object_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
@@ -129,7 +131,7 @@ async def get_erp_record(
 
 
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)
-async def update_erp_record(
+def update_erp_record(
     object_id: int,
     data: ErpAdminUpdate,
     db: Session = Depends(get_db),
@@ -138,11 +140,6 @@ async def update_erp_record(
     user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
-    # Eine System-Identität behält ihre Rolle. Das KI-Modul ist entfernt (docs/attic.md),
-    # aber eine so angelegte Zeile kann in gewachsenen Datenbanken stehen – ihr eine
-    # menschliche Rolle zu geben hiesse, ihre Historie einer Person zuzuschreiben.
-    if user.role == "ai" and data.model_dump(exclude_unset=True).get("role") not in (None, "ai"):
-        raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
     people.apply_profile_update(db, user, data, current_user.id, staff=True)
     db.commit()
     db.refresh(user)
@@ -165,7 +162,7 @@ def _done(db: Session, user: UserProfile) -> UserProfileResponse:
 
 
 @router.post("/records/{object_id}/addresses", response_model=UserProfileResponse)
-async def add_record_address(
+def add_record_address(
     object_id: int,
     data: AddressIn,
     db: Session = Depends(get_db),
@@ -178,7 +175,7 @@ async def add_record_address(
 
 @router.patch("/records/{object_id}/addresses/{address_id}",
               response_model=UserProfileResponse)
-async def change_record_address(
+def change_record_address(
     object_id: int,
     address_id: int,
     data: AddressIn,
@@ -193,7 +190,7 @@ async def change_record_address(
 
 @router.delete("/records/{object_id}/addresses/{address_id}",
                response_model=UserProfileResponse)
-async def remove_record_address(
+def remove_record_address(
     object_id: int,
     address_id: int,
     db: Session = Depends(get_db),

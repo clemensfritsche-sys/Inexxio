@@ -10,8 +10,8 @@ import uuid
 import pytest
 
 from app.domain import voucher as vo
-from app.models import DocumentRef
-from app.services import adopt, documents, legal, todo, voucher as svc, voucher_docs
+from app.models import Attachment, Document, DocumentRef
+from app.services import documents, legal, todo, voucher as svc, voucher_docs
 from tests.runner import session
 from tests.test_zahlung_ablauf import _do, _house, _ready, _scene, _staff
 
@@ -68,13 +68,13 @@ def test_adoption_seeds_the_legal_texts_once(db):
     db.query(DocumentRef).filter(DocumentRef.field.in_(tuple(legal.FIELD_OF.values()))).delete(
         synchronize_session=False)
     db.flush()
-    first = adopt.run(db)
-    assert first["legal"] >= 2 and legal.document_of(db, house, legal.AGB) is not None, "(a)"
+    first = legal.adopt_templates(db)
+    assert first >= 2 and legal.document_of(db, house, legal.AGB) is not None, "(a)"
     late = CompanySettings(is_own=True, company_name="Später", legal_form="AG",
                            object_id=objects.next_object_id(db, "organization"))
     db.add(late)
     db.flush()
-    assert adopt.run(db) == {"legal": 0}, "(b)"
+    assert legal.adopt_templates(db) == 0, "(b)"
     assert legal.document_of(db, late, legal.AGB) is None, "(b) – sie wählt selbst"
 
 
@@ -117,3 +117,35 @@ def test_a_form_photo_opens_as_the_file_it_was(db):
     assert raw == bytes(att.data) and mime == "image/jpeg" and name == "a.jpg"
     with pytest.raises(HTTPException):
         mailbox.attachment(db, msg, 1)
+
+
+def test_a_file_is_private_unless_the_website_shows_it(db):
+    """Eine Datei hinter ihrem Link ist **privat**: kein geteilter Zwischenspeicher (CDN,
+    Proxy) behält sie. ``public`` nur für die Rechtstexte der Website. Bug-Form: jede Datei –
+    Arztzeugnis, Rechnung – ging mit ``Cache-Control: public`` hinaus."""
+    import io
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from PIL import Image
+    from app.core.database import get_db
+    from app.routers import attachments as router
+    from app.services import attachments
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), "white").save(buf, "PNG")
+    att = attachments.store_image(db, buf.getvalue(), "zeugnis.png", None)
+    app = FastAPI()
+    app.include_router(router.router)
+    app.dependency_overrides[get_db] = lambda: db
+    client = TestClient(app)
+    for path in (f"/api/v1/attachments/{att.token}", f"/api/v1/attachments/{att.token}/preview"):
+        cache = client.get(path).headers["cache-control"]
+        assert cache.startswith("private") and "public" not in cache, path
+    _house(db)
+    db.query(DocumentRef).filter(DocumentRef.field.in_(tuple(legal.FIELD_OF.values()))).delete(
+        synchronize_session=False)
+    db.flush()
+    assert legal.adopt_templates(db) >= 1
+    agb = db.query(Document).join(DocumentRef, DocumentRef.document_id == Document.id).filter(
+        DocumentRef.field == legal.FIELD_OF[legal.AGB]).first()
+    token = db.query(Attachment.token).filter(Attachment.id == agb.file_id).scalar()
+    assert client.get(f"/api/v1/attachments/{token}").headers["cache-control"].startswith("public")

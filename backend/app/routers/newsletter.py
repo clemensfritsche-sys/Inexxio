@@ -11,12 +11,12 @@ Drei Türen, ein Dienst:
   verschicken, abmelden. **Anmelden kann das ERP niemanden** – zustimmen muss die Person
   selbst; das ERP schickt ihr die Bitte.
 
-Der Abmeldelink in der Mail zeigt einen Knopf, statt sofort abzumelden: Link-Scanner der
+Bestätigungs- und Abmeldelink zeigen einen Knopf, statt sofort zu handeln: Link-Scanner der
 Mailprogramme rufen Links auf, ohne dass jemand klickt. Die Abmeldung mit einem Klick im
 Mailprogramm selbst (``List-Unsubscribe-Post``, RFC 8058) geht direkt.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from html import escape
 from sqlalchemy.orm import Session
@@ -26,9 +26,9 @@ from ..core.database import get_db
 from ..domain import newsletter as dn
 from ..models import UserProfile
 from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
-from ..services import geoip, mailbox, newsletter as svc
-from ..services.people import normalize_email
-from .contact import EMAIL_RE, VOCAB, _clean, _page, allow_send
+from ..services import newsletter as svc, people, visitor
+from ..services.people import is_email, normalize_email
+from .contact import VOCAB, clean, page
 
 router = APIRouter(prefix=svc.API, tags=["newsletter"])
 me_router = APIRouter(prefix="/api/v1/auth/me/newsletter", tags=["newsletter"])
@@ -52,54 +52,71 @@ def _state(db: Session, oid: int, *, full: bool = False) -> NewsletterState:
 
 
 def _invalid(message: str, status: int = 400) -> Response:
-    return _page(message, '<p><a class="btn" href="/newsletter">Neu anmelden</a></p>', status)
+    return page(message, '<p><a class="btn" href="/newsletter">Neu anmelden</a></p>', status)
 
 
 # ── Öffentlich ──────────────────────────────────────────────────────────────
 
+def _answer(wants_json: bool, msg: str, status: int, html_body: str = "") -> Response:
+    return (JSONResponse({"ok": False, "message": msg}, status_code=status) if wants_json
+            else page(msg, html_body, status))
+
+
 @router.post("", summary="Anmeldung von der Website (E-Mail → Bitte um Bestätigung)")
-async def subscribe(request: Request, db: Session = Depends(get_db)) -> Response:
-    """Wie das Anfrage-Formular: Honigtopf und Begrenzung je IP vor der Datenbank. Dann die
-    Person zur Adresse (angelegt, wenn es sie nicht gibt) und die Bitte um Bestätigung –
-    angemeldet ist erst, wer darin klickt."""
+def subscribe(request: Request, email: str = Form(""), hp: str = Form(""),
+              db: Session = Depends(get_db)) -> Response:
+    """Wie das Anfrage-Formular: Honigtopf und Begrenzung je Absender vor der Datenbank. Dann
+    die Bitte um Bestätigung – **angelegt wird nichts**: gibt es zur Adresse keine Person,
+    steht die Adresse im signierten Link, und die Person entsteht erst mit dem Klick."""
     wants_json = "application/json" in request.headers.get("accept", "")
-    form = await request.form(max_fields=10)
     done = (JSONResponse({"ok": True}) if wants_json
             else RedirectResponse(PAGES["pending"], status_code=303))
-    if _clean(form.get("hp")):
+    if clean(hp):
         return done
-    email = normalize_email(_clean(form.get("email")))
-    if not email or not EMAIL_RE.match(email) or len(email) > 160:
-        msg = VOCAB["messages"]["email"]
-        return (JSONResponse({"ok": False, "message": msg}, status_code=422) if wants_json
-                else _page(msg, "<p>Mit der Zurück-Taste kommen Sie zum Formular.</p>", 422))
-    if not allow_send("newsletter", request, RATE_LIMIT):
-        msg = "Zu viele Anmeldungen in kurzer Zeit – bitte später noch einmal."
-        return JSONResponse({"ok": False, "message": msg}, 429) if wants_json else _page(msg, "", 429)
-    country = geoip.country_of(geoip.client_ip(request.headers,
-                                               request.client.host if request.client else None))
-    oid = mailbox.person_for(db, "", email)
-    db.commit()
-    if oid in svc.subscribed(db, [oid]):
-        return done
+    email = normalize_email(clean(email))
+    if not is_email(email):
+        return _answer(wants_json, VOCAB["messages"]["email"], 422,
+                       "<p>Mit der Zurück-Taste kommen Sie zum Formular.</p>")
+    if not visitor.allow_send("newsletter", request, RATE_LIMIT):
+        return _answer(wants_json, "Zu viele Anmeldungen in kurzer Zeit – bitte später noch "
+                                   "einmal.", 429)
+    channel = svc.sending_channel(db, visitor.country(request))
+    known = people.by_email(db, email)
     try:
-        svc.invite(db, oid, "website", svc.sending_channel(db, country))
+        if known is not None and known.object_id:
+            if known.object_id not in svc.subscribed(db, [known.object_id]):
+                svc.invite(db, known.object_id, "website", channel, by_name=False)
+        else:
+            svc.invite_address(db, email, "website", channel)
     except HTTPException as exc:
         db.rollback()
-        print(f"WARNING: NEWSLETTER invite failed person={oid}: {exc.detail}", flush=True)
-        msg = "Die Anmeldung ist gerade nicht möglich – bitte später noch einmal."
-        return JSONResponse({"ok": False, "message": msg}, 503) if wants_json else _page(msg, "", 503)
+        print(f"WARNING: NEWSLETTER invite failed: {exc.detail}", flush=True)
+        return _answer(wants_json, "Die Anmeldung ist gerade nicht möglich – bitte später "
+                                   "noch einmal.", 503)
     return done
 
 
-@router.api_route("/confirm", methods=["GET", "POST"], include_in_schema=False)
-def confirm(t: str = "", db: Session = Depends(get_db)) -> Response:
-    """Der Klick in der Bitte um Bestätigung – angemeldet, mit Quelle und Wortlaut."""
+@router.get("/confirm", include_in_schema=False)
+def confirm_page(t: str = "") -> Response:
+    """Ein Knopf statt sofortiger Bestätigung – ein Link-Scanner drückt keinen Knopf."""
     try:
-        oid, source = svc.read(t, "confirm")
+        svc.read(t, "confirm")
     except ValueError as exc:
         return _invalid(str(exc))
-    svc.set_state(db, oid, True, source if source in dn.SOURCES else "website")
+    body = (f'<p>{escape(W["confirmLead"])}</p><form method="post" '
+            f'action="{svc.API}/confirm?t={escape(t)}"><button class="btn btn--red" '
+            f'type="submit">{escape(W["confirmButton"])}</button></form>')
+    return page(W["inviteTitle"], body, 200)
+
+
+@router.post("/confirm", include_in_schema=False)
+def confirm(t: str = "", db: Session = Depends(get_db)) -> Response:
+    """Der Klick auf den Knopf – angemeldet, mit Quelle und Wortlaut (``newsletter.confirm``)."""
+    try:
+        link = svc.read(t, "confirm")
+    except ValueError as exc:
+        return _invalid(str(exc))
+    svc.confirm(db, link)
     db.commit()
     return RedirectResponse(PAGES["confirmed"], status_code=303)
 
@@ -114,20 +131,24 @@ def unsubscribe_page(t: str = "") -> Response:
     body = (f'<p>{escape(W["unsubscribeLead"])}</p><form method="post" '
             f'action="{svc.API}/unsubscribe?t={escape(t)}"><button class="btn btn--red" '
             f'type="submit">{escape(W["unsubscribeButton"])}</button></form>')
-    return _page(W["unsubscribeTitle"], body, 200)
+    return page(W["unsubscribeTitle"], body, 200)
 
 
 @router.post("/unsubscribe", include_in_schema=False)
-async def unsubscribe(request: Request, t: str = "", db: Session = Depends(get_db)) -> Response:
-    """Abmelden – vom Knopf der Seite oder mit einem Klick im Mailprogramm (RFC 8058)."""
+def unsubscribe(t: str = "", one_click: str = Form("", alias="List-Unsubscribe"),
+                db: Session = Depends(get_db)) -> Response:
+    """Abmelden – vom Knopf der Seite oder mit einem Klick im Mailprogramm (RFC 8058: der
+    Rumpf ist ``List-Unsubscribe=One-Click``)."""
     try:
-        oid, _ = svc.read(t, "unsubscribe")
+        link = svc.read(t, "unsubscribe")
     except ValueError as exc:
         return _invalid(str(exc))
-    one_click = "List-Unsubscribe=One-Click" in (await request.body()).decode("utf-8", "ignore")
-    svc.set_state(db, oid, False, "one_click" if one_click else "link")
+    if link.person is None:
+        return _invalid(W["invalid"])
+    direct = one_click == "One-Click"
+    svc.set_state(db, link.person, False, "one_click" if direct else "link")
     db.commit()
-    return Response(status_code=200) if one_click else RedirectResponse(
+    return Response(status_code=200) if direct else RedirectResponse(
         PAGES["unsubscribed"], status_code=303)
 
 

@@ -5,13 +5,15 @@ psycopg2-binary==2.9.13
 alembic==1.20.1
 pydantic==2.14.1
 pydantic-settings==2.16.2
-email-validator==2.3.0
 firebase-admin==7.7.0
+# cryptography: verschlüsselt die Zugänge der Postfächer (Fernet, services/mailbox) – direkt
+# gelesen, also direkt gepinnt.
+cryptography==50.0.2
 # Datei-Ablage (services/attachments) – kommt ohnehin mit firebase-admin, hier gepinnt, weil der Code es direkt liest
 google-cloud-storage==3.17.1
 # Passkeys / WebAuthn (FIDO2): serverseitige Register-/Login-Zeremonien.
 webauthn==3.0.1
-# httpx: Starlettes TestClient fährt darauf – ohne ihn läuft kein einziger Wächter.
+# httpx: Gmail (services/mailbox), Feiertage (services/holidays) – und Starlettes TestClient.
 httpx==0.28.1
 tzdata==2026.6
 # python-multipart: FastAPI braucht es für UploadFile (Bild-Anhänge der Datenerfassung).
@@ -33,4 +35,3 @@ pypdfium2==5.14.0
 # Laufzeit**: ohne ANTHROPIC_API_KEY ruft niemand die KI, und alles andere läuft weiter.
 anthropic==2.3.0
 pytest==9.2.0
-pytest-asyncio==1.4.1

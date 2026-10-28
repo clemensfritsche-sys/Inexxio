@@ -22,40 +22,45 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
-def _company_response(db: Session, company) -> CompanySettingsResponse:
-    """Vollständige Unternehmens-Antwort mit **abgeleiteten** Feldern.
+def _people_of(db: Session, oids: list[int]) -> dict[int, list[CompanyPerson]]:
+    """Die Personen je Firma – EINE Abfrage für alle Firmen."""
+    out: dict[int, list[CompanyPerson]] = {o: [] for o in oids}
+    if not oids:
+        return out
+    for u in (db.query(UserProfile)
+              .filter(UserProfile.company_object_id.in_(oids), UserProfile.object_id.isnot(None))
+              .order_by(UserProfile.last_name, UserProfile.first_name).all()):
+        out[u.company_object_id].append(CompanyPerson(object_id=u.object_id, name=u.display_name,
+                                                      email=u.email, role=u.role))
+    return out
 
-    ``is_operator`` (ältestes Unternehmen), ``has_address`` und ``website`` sind
-    Projektionen, keine gespeicherten Flags – die eine Definition von «trägt echte
-    Ortsangaben» steht in ``address.has_content``, die der Website-Adresse in
-    ``sites.website_url``; hier werden sie nur angewandt.
 
-    ►►► **Die IBAN wird nicht mehr maskiert** (Testnotiz #870). ◄◄◄ ``_mask_iban`` stand
-    hier und lieferte «CH12 **** **** **** 8901», während das Eingabefeld leer blieb: ein
-    Unternehmen **mit** Bankverbindung sah aus wie eines ohne, und der QR-Einzahlungsschein
-    daneben wirkte wie aus dem Nichts. Die eigene IBAN steht auf jeder Rechnung, die wir
-    stellen – vor Admins zu verbergen, was wir jedem Kunden schicken, verbirgt nichts und
-    macht die Anzeige unwahr.
-    """
+def _company_responses(db: Session, companies: list) -> list[CompanySettingsResponse]:
+    """Unternehmens-Antworten mit **abgeleiteten** Feldern – der Betreiber einmal gefragt, die
+    Personen in einer Abfrage. ``is_operator``, ``has_address`` und ``website`` sind
+    Projektionen (``sites.find_operator``, ``address.has_content``, ``sites.website_url``);
+    die IBAN steht unmaskiert da – sie steht auf jeder Rechnung, die wir stellen."""
     from ..services import address
-    resp = CompanySettingsResponse.model_validate(company)
-    resp.is_operator = sites.is_operator(db, company)
-    resp.has_address = address.has_content(address.of_company(company))
-    resp.website = sites.website_url()
-    resp.legal_name = sites.legal_name(company)
-    resp.people = [
-        CompanyPerson(object_id=u.object_id, name=u.display_name, email=u.email, role=u.role)
-        for u in db.query(UserProfile)
-        .filter(UserProfile.company_object_id == company.object_id,
-                UserProfile.object_id.isnot(None))
-        .order_by(UserProfile.last_name, UserProfile.first_name)
-        .all()
-    ]
-    return resp
+    op = sites.find_operator(db)
+    people_of = _people_of(db, [c.object_id for c in companies if c.object_id])
+    out = []
+    for company in companies:
+        resp = CompanySettingsResponse.model_validate(company)
+        resp.is_operator = bool(op and op.id == company.id)
+        resp.has_address = address.has_content(address.of_company(company))
+        resp.website = sites.website_url()
+        resp.legal_name = sites.legal_name(company)
+        resp.people = people_of.get(company.object_id, [])
+        out.append(resp)
+    return out
+
+
+def _company_response(db: Session, company) -> CompanySettingsResponse:
+    return _company_responses(db, [company])[0]
 
 
 @router.get("/settings/public")
-async def get_public_settings():
+def get_public_settings():
     """Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
 
     Er kommt aus der Deploy-Konfiguration der Umgebung (``GOOGLE_MAPS_API_KEY``), nicht aus
@@ -71,21 +76,21 @@ async def get_public_settings():
 # EIN gleichrangiger Datensatztyp (``organization``). Jede Gesellschaft ist vollständig:
 # eigene Rechtsidentität, Bank, MWST. Anlegen/Ändern sind **admin-only** (fix vorgegeben);
 # an der Sichtbarkeit im ERP ändert das nichts. Die Rechtsidentität wird auf JEDEM
-# Datensatz gepflegt (die US-Gesellschaft hat ihre eigene). Plattform-/
-# Systemkonfiguration bleibt getrennt (``PATCH /admin/settings``).
+# Datensatz gepflegt (die US-Gesellschaft hat ihre eigene). Eine Plattform-Konfiguration
+# in der Datenbank gibt es nicht (der Maps-Schlüssel kommt aus dem Deploy).
 
 @router.get("/companies", response_model=list[CompanySettingsResponse])
-async def list_companies(
+def list_companies(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
     """Alle Firmen – eigene und fremde, Betreiber zuerst. **Jeder Mitarbeiter** sieht sie:
     eine Kundenfirma ist ein ganz gewöhnlicher ERP-Datensatz."""
-    return [_company_response(db, c) for c in sites.all_companies(db)]
+    return _company_responses(db, sites.all_companies(db))
 
 
 @router.get("/companies/{object_id}", response_model=CompanySettingsResponse)
-async def get_company(
+def get_company(
     object_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
@@ -95,7 +100,7 @@ async def get_company(
 
 
 @router.post("/companies", response_model=CompanySettingsResponse, status_code=201)
-async def create_company(
+def create_company(
     data: CompanyCreate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -116,18 +121,14 @@ async def create_company(
 
 
 @router.patch("/companies/{object_id}", response_model=CompanySettingsResponse)
-async def update_company(
+def update_company(
     object_id: int,
     data: CompanySettingsUpdate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
     """Felder einer Firma ändern – **derselbe Pfad für jede** (auch den
-    Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
-
-    Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
-    ignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe
-    nicht an zwei Stellen editierbar ist."""
+    Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST (``sites.apply_update``)."""
     company = sites.require(db, object_id)
     sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id,
                        admin=current_user.role == "admin")
@@ -135,7 +136,7 @@ async def update_company(
 
 
 @router.post("/companies/{object_id}/operator", response_model=CompanySettingsResponse)
-async def set_company_operator(
+def set_company_operator(
     object_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
@@ -150,7 +151,7 @@ async def set_company_operator(
 
 
 @router.delete("/companies/{object_id}", response_model=CompanySettingsResponse)
-async def deactivate_company(
+def deactivate_company(
     object_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -165,7 +166,7 @@ async def deactivate_company(
 
 
 @router.post("/companies/{object_id}/reopen", response_model=CompanySettingsResponse)
-async def reopen_company(
+def reopen_company(
     object_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -210,7 +211,7 @@ def _territory_map_response(db: Session) -> TerritoryMapResponse:
 
 
 @router.get("/territories", response_model=TerritoryMapResponse)
-async def get_territories(
+def get_territories(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_admin),
 ):
@@ -221,7 +222,7 @@ async def get_territories(
 
 
 @router.put("/territories/{area}", response_model=TerritoryMapResponse)
-async def assign_territory(
+def assign_territory(
     area: str,
     data: TerritoryAssign,
     db: Session = Depends(get_db),

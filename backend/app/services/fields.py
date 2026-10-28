@@ -30,6 +30,15 @@ def _id_of(part: Optional[str], kind: str) -> int:
         raise HTTPException(status_code=400, detail=f"«{part}» ist kein Teil der Art «{kind}».")
 
 
+def _amount(value: Any, code: str):
+    """Ein Betrag in der Währung des Belegs (``domain/voucher.amount``) – unlesbar: 400."""
+    from ..domain import voucher as vo
+    try:
+        return vo.amount(value, code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 def _voucher(db: Session, object_id: int, part: Optional[str]):
     from . import voucher as vs
     step_id = _id_of(part, "step")
@@ -47,7 +56,6 @@ def _original(db: Session, actor: UserProfile, doc: Document, object_id: int,
     Feld (das Modul füllt seine Felder daraus vor); nach dem Buchen ist es ein Ändern – weicht
     der Betrag ab, wird es mit Grund angenommen, gebucht wird nie neu von selbst."""
     from ..domain import voucher as vo
-    from . import voucher as vs
     _order, _step, row = _voucher(db, object_id, part)
     if vo.of(row.direction).collects:
         raise HTTPException(status_code=409, detail="Eine Lieferantenrechnung gibt es nur bei einer Ausgabe.")
@@ -56,7 +64,7 @@ def _original(db: Session, actor: UserProfile, doc: Document, object_id: int,
     if row.stage == vo.BILLED:
         note = " ".join(str(extra.get("note") or "").split())[:200]
         amount = extra.get("amount")
-        if amount is not None and row.amount is not None and vs._amount(amount, row.currency) != row.amount:
+        if amount is not None and row.amount is not None and _amount(amount, row.currency) != row.amount:
             if not note:
                 raise HTTPException(status_code=400, detail=(
                     "Der Betrag weicht vom gebuchten ab – so annehmen geht nur mit Grund."))

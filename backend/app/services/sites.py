@@ -10,7 +10,7 @@ braucht trotz N Gesellschaften **eine** Antwort: *wer vertritt die eine Website 
 aussen* (Impressum, Fallback, Plattform-Konfiguration). Diese Rolle – der **Betreiber** –
 ist **wählbar** (``is_operator``, partieller Unique-Index: genau eine trägt sie,
 ``set_operator`` nimmt sie allen anderen ab). Gelesen wird sie **tolerant**: ist keine
-markiert (frische Datenbank, Migration 091 noch nicht gelaufen), gilt das **älteste**
+markiert (eine frische Datenbank), gilt das **älteste**
 Unternehmen – so gibt es nie «keinen Betreiber», und jeder Beleg hat einen Absender.
 
 **Warum es dieses Modul gibt.** «Die Firma» holt sich niemand selbst – bei mehr als einer
@@ -245,7 +245,7 @@ def require_own(db: Session, object_id: int | None, *, what: str = "") -> Compan
 def is_operator(db: Session, company: CompanySettings) -> bool:
     """Ist diese Gesellschaft der Betreiber? Liest die **effektive** Rolle (inkl. Alters-
     Fallback, falls noch keine markiert ist) – so stimmt die Anzeige mit ``find_operator``
-    überein, auch bevor Migration 091 die Markierung gesetzt hat."""
+    überein."""
     op = find_operator(db)
     return bool(op and op.id == company.id)
 
@@ -449,9 +449,8 @@ _KEEP_IF_NONE = ("currency",)
 
 def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
                          actor_id: int | None) -> None:
-    """Entitäts-Felder (inkl. Bank-Chiffren) auf die Gesellschaft schreiben + auditieren.
-    Plattform-Felder werden bewusst ignoriert – die gehören der einen Website, nicht der
-    Gesellschaft, und laufen über die Systemkonfiguration."""
+    """Entitäts-Felder (inkl. IBAN) auf die Gesellschaft schreiben + auditieren; was nicht in
+    ``ENTITY_FIELDS`` steht, schreibt diese Stelle nicht."""
     from ..domain import uid
     for key, value in data.items():
         if key == "uid_number":
@@ -725,7 +724,6 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
                  *, admin: bool) -> CompanySettings:
     """Felder einer Firma ändern – **derselbe Pfad für jede**.
 
-    * **Plattform-Felder werden ignoriert** – sie laufen über ``PATCH /admin/settings``.
     * **Eine eigene Gesellschaft ändert nur ein Admin** (Bank, Rechtsidentität eines
       Belegstellers); eine fremde Firma pflegt jeder Mitarbeiter – und an ihr gibt es
       nur ihre Identität (``EXTERNAL_FIELDS``).

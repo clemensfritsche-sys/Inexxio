@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, String, Text
+from sqlalchemy import BigInteger, Date, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base
@@ -41,10 +41,9 @@ class UserProfile(Base, TimestampMixin):
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     phone: Mapped[Optional[str]] = mapped_column(String(50))
 
-    # ►►► **Die Anschriften stehen im ADRESSBUCH** (``models/address_book.Address``,
-    # Migration 143). ◄◄◄ Eine Person hat beliebig viele Orte (Wohnung, Büro, Lager,
-    # Baustelle), und wohin Ware und Rechnung gehen, entscheidet die Bestellung. Die alten
-    # Anschrift-Spalten am Benutzer sind gedroppt (Migration 152).
+    # ►►► **Die Anschriften stehen im ADRESSBUCH** (``models/address_book.Address``). ◄◄◄
+    # Eine Person hat beliebig viele Orte (Wohnung, Büro, Lager, Baustelle), und wohin Ware
+    # und Rechnung gehen, entscheidet die Bestellung.
     #: Das Adressbuch – nur lesend und nur die aktiven, älteste zuerst.
     addresses: Mapped[list["Address"]] = relationship(
         "Address",
@@ -76,18 +75,9 @@ class UserProfile(Base, TimestampMixin):
         primaryjoin="foreign(UserProfile.company_object_id) == CompanySettings.object_id",
         viewonly=True, lazy="select", uselist=False,
     )
-    department: Mapped[Optional[str]] = mapped_column(String(100))
-    job_title: Mapped[Optional[str]] = mapped_column(String(100))
-    # ``employment_start_date`` und ``weekly_hours`` sind kein Feld mehr: Eintritt, Pensum und
-    # Austritt stehen im **Vertrag** der Zeiterfassung (``models/timekeeping``, Migration
-    # 154); die Spalten fallen im Folge-Deploy.
-
-    # Preferences & notifications
-    language: Mapped[str] = mapped_column(String(10), default="de")
-    notification_email: Mapped[bool] = mapped_column(Boolean, default=True)
-    notification_inapp: Mapped[bool] = mapped_column(Boolean, default=True)
-    # ``newsletter_opt_in`` ist kein Feld mehr: die Einwilligung ist ein Nachweis
-    # (``models/newsletter``, Migration 153); die Spalte fällt im Folge-Deploy.
+    # Eintritt, Pensum und Austritt stehen im **Vertrag** der Zeiterfassung
+    # (``models/timekeeping``), die Einwilligung zum Newsletter als Nachweis
+    # (``models/newsletter``).
 
     # Auth / compliance
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

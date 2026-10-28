@@ -130,8 +130,15 @@ def public_url_of(token: str) -> str:
 INLINE_SAFE = ("image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf")
 
 
-def serve_headers(att: Attachment) -> dict[str, str]:
-    headers = {"Cache-Control": "public, max-age=31536000, immutable",
+#: ►►► **Eine Datei ist privat** – wer den Link hat, sieht sie; ein geteilter Zwischenspeicher
+#: (das CDN von Firebase Hosting, ein Proxy) behält sie nie. ``public`` nur, was ohnehin
+#: öffentlich ist (die Rechtstexte der Website, ``documents.is_public_file``).
+PRIVATE_CACHE = "private, max-age=86400"
+PUBLIC_CACHE = "public, max-age=31536000, immutable"
+
+
+def serve_headers(att: Attachment, *, public: bool = False) -> dict[str, str]:
+    headers = {"Cache-Control": PUBLIC_CACHE if public else PRIVATE_CACHE,
                "X-Content-Type-Options": "nosniff"}
     if att.mime not in INLINE_SAFE:
         headers["Content-Security-Policy"] = "sandbox"

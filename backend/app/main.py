@@ -9,6 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from starlette.concurrency import run_in_threadpool
 
 from .core.config import get_settings
 from .core.database import SessionLocal
@@ -55,11 +56,11 @@ def _seed(name: str, fn) -> None:
 
 
 def _adopt_documents(db) -> None:
-    """**Die Rechtstexte werden einmal Dokumente** (``services/adopt``) – selbstbegrenzend."""
-    from .services import adopt
-    done = adopt.run(db)
-    if any(done.values()):
-        print(f"INFO: Dokumente übernommen: {done}", flush=True)
+    """Die Rechtstexte werden einmal Dokumente (``legal.adopt_templates``) – selbstbegrenzend."""
+    from .services import legal
+    done = legal.adopt_templates(db)
+    if done:
+        print(f"INFO: Rechtstexte als Dokumente übernommen: {done}", flush=True)
 
 
 def _ensure_operator(db) -> None:
@@ -69,10 +70,8 @@ def _ensure_operator(db) -> None:
     operator(db)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # **Das Schema baut allein die Migration** (``start.sh`` → ``alembic upgrade head``;
-    # scheitert sie, startet der Dienst nicht). Hier steht nur, was aus dem Code folgt.
+def _startup() -> None:
+    """Was aus dem Code folgt – das Schema baut allein die Migration (``start.sh``)."""
     db = SessionLocal()
     try:
         db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _STARTUP_LOCK_KEY})
@@ -82,6 +81,11 @@ async def lifespan(app: FastAPI):
         db.close()
     _seed("Betreiber", _ensure_operator)
     _seed("Rechtstexte", _adopt_documents)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _startup()      # vor der ersten Anfrage: blockieren darf es hier
     yield
 
 
@@ -107,42 +111,40 @@ app.add_middleware(
 _READS = ("GET", "HEAD", "OPTIONS")
 
 
-@app.middleware("http")
-async def audit_writes(request: Request, call_next):
-    """►►► **Jede schreibende Anfrage ans ERP steht im Log** (``audit_log``, ``services/admin``). ◄◄◄
-
-    Eine Zeile je erfolgreichem Schreiben: wer, welche Handlung (Methode + Pfad), wann. So
-    fehlt keine Schreibstelle – auch eine, die selbst nichts Genaueres festhält. Was eine
-    Stelle genauer protokolliert (vorher/nachher, «im Namen von»), steht daneben. Scheitert
-    das Log, bleibt die Antwort: ein Log darf eine Handlung nie zerlegen."""
-    response = await call_next(request)
-    user_id = getattr(request.state, "user_id", None)
-    if (request.method in _READS or response.status_code >= 400 or user_id is None
-            or not request.url.path.startswith("/api/v1/")):
-        return response
-    from .core.database import SessionLocal
+def _log_write(method: str, path: str, user_id: int) -> None:
+    """Eine Zeile im ``audit_log`` – in eigener Sitzung; scheitert sie, bleibt die Antwort."""
     from .services.admin import log_audit
     db = SessionLocal()
     try:
-        log_audit(db, "request", request.method, request.url.path[:500], user_id)
+        log_audit(db, "request", method, path[:500], user_id)
         db.commit()
     except Exception as exc:                                   # noqa: BLE001
         print(f"WARNING: audit_writes failed: {exc!r}", flush=True)
         db.rollback()
     finally:
         db.close()
+
+
+@app.middleware("http")
+async def audit_writes(request: Request, call_next):
+    """►►► **Jede schreibende Anfrage ans ERP steht im Log** (``audit_log``, ``services/admin``). ◄◄◄
+
+    Eine Zeile je erfolgreichem Schreiben: wer, welche Handlung (Methode + Pfad), wann. Was
+    eine Stelle genauer protokolliert (vorher/nachher, «im Namen von»), steht daneben. Die
+    Datenbank-Arbeit läuft im Threadpool, nie in der Event-Loop."""
+    response = await call_next(request)
+    user_id = getattr(request.state, "user_id", None)
+    if (request.method in _READS or response.status_code >= 400 or user_id is None
+            or not request.url.path.startswith("/api/v1/")):
+        return response
+    await run_in_threadpool(_log_write, request.method, request.url.path, user_id)
     return response
 
 
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError):
-    """Ein verletzter DB-Constraint ist ein **Eingabe**-Fehler, kein Serverabsturz.
-
-    Vorher fiel er in die letzte Auffanglinie unten und erschien im Formular als roher
-    psycopg2-Dump («NotNullViolation … Failing row contains (2, Inexxio LLC, null, Dah…»,
-    Testnotiz #338): unlesbar, und er verriet nebenbei den Zeileninhalt. Hier wird daraus
-    ein 400 mit einem Satz, der die betroffene **Spalte** nennt – die eigentliche Ursache
-    gehört ins Log, nicht in die Oberfläche."""
+    """Ein verletzter DB-Constraint ist ein **Eingabe**-Fehler: 400 mit einem Satz, der die
+    betroffene **Spalte** nennt – der Zeileninhalt gehört ins Log, nie in die Oberfläche."""
     tb = traceback.format_exc()
     print(f"ERROR: IntegrityError on {request.method} {request.url.path}\n{tb}", flush=True)
     raw = str(getattr(exc, "orig", exc))
@@ -161,10 +163,8 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
     return JSONResponse(status_code=400, content={"detail": detail, "code": "INTEGRITY_ERROR"})
 
 
-#: Rohe Pydantic-Meldungen → Klartext. Sie sagen, was die **Regel** war, nie was der
-#: Mensch tun soll: «String should have at least 1 character» ist wahr und trotzdem
-#: unbrauchbar (Testnotiz #686). Was hier nicht steht, wird als Regel-Satz durchgereicht –
-#: sichtbar bleibt er, nur mit Feldnamen davor.
+#: Rohe Pydantic-Meldungen → Klartext. Was hier nicht steht, wird als Regel-Satz
+#: durchgereicht, mit dem Feldnamen davor.
 _VALIDATION_TEXTS: tuple[tuple[str, str], ...] = (
     ("Field required", "fehlt"),
     ("at least 1 character", "darf nicht leer sein"),
@@ -205,12 +205,8 @@ _FIELD_LABELS: dict[str, str] = {
 
 
 def _field_path(loc: tuple) -> str:
-    """``('body', 'steps', 0, 'name')`` → «Prozessschrittmodule → 1 → Name».
-
-    **Wo** der Fehler steckt, ist die halbe Meldung. Ohne den Pfad steht bei einem
-    Auftrag mit acht Modulen nur da, dass irgendwo etwas zu kurz ist. Listen-Indizes
-    werden dabei ab 1 gezählt – für einen Menschen ist das erste Modul das erste.
-    """
+    """``('body', 'steps', 0, 'name')`` → «Prozessschrittmodule → 1 → Name» – **wo** der
+    Fehler steckt; Listen-Indizes ab 1."""
     parts: list[str] = []
     for item in loc:
         if item in ("body", "query", "path"):
@@ -224,17 +220,9 @@ def _field_path(loc: tuple) -> str:
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
-    """Eingabefehler in **Klartext**: was fehlt, und wo.
-
-    Vorher reichte FastAPI seine Liste roher Validator-Texte durch, und die Oberfläche
-    zeigte sie unverändert an – «String should have at least 1 character», ohne Feld,
-    ohne Ort (Testnotiz #686). Der Nutzer sah kein Feld, in dem etwas fehlte, weil das
-    betroffene gar nicht auf seinem Bildschirm stand.
-
-    Die Regel für **jede** Fehlermeldung: sie sagt, **was** fehlt und **wo**. Rohe
-    Validator-Texte gehören ins Log, nicht ins Formular. Darum steht dieser Handler an
-    genau einer Stelle statt als Übersetzung an jedem Endpunkt.
-    """
+    """Eingabefehler in **Klartext**: was fehlt, und wo – an einer Stelle für jeden
+    Endpunkt. Ins Log kommen nur Ort und Art der Fehler, nie die Eingabe selbst (sie kann
+    Personendaten tragen)."""
     seen: list[str] = []
     for err in exc.errors():
         where = _field_path(tuple(err.get("loc") or ()))
@@ -250,7 +238,8 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             f"{where}: {what}" if where else what)
         if line not in seen:
             seen.append(line)
-    print(f"WARNING: 422 on {request.method} {request.url.path} – {exc.errors()}", flush=True)
+    shape = [(list(e.get("loc") or ()), e.get("type")) for e in exc.errors()]
+    print(f"WARNING: 422 on {request.method} {request.url.path} – {shape}", flush=True)
     return JSONResponse(
         status_code=422,
         content={"detail": " · ".join(seen) or "Die Eingaben sind unvollständig.",
@@ -260,14 +249,8 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    """Letzte Auffanglinie für unbehandelte Fehler.
-
-    Ohne diesen Handler liefert Starlette einen **text/plain** «Internal Server
-    Error» ohne jede Diagnose – der Client kann ihn nicht als JSON lesen und zeigt
-    nur «Server nicht erreichbar». Hier wird der vollständige Traceback in die
-    Logs geschrieben (Cloud Run) und eine **strukturierte JSON-Antwort** geliefert.
-    Ausserhalb der Produktion enthält ``detail`` die echte Ursache (Diagnose);
-    HTTPException wird davon nicht erfasst (eigener Handler)."""
+    """Letzte Auffanglinie: Traceback ins Log, eine **JSON-Antwort** an den Client
+    (ausserhalb der Produktion mit der Ursache in ``detail``)."""
     tb = traceback.format_exc()
     print(f"ERROR: Unhandled exception on {request.method} {request.url.path}\n{tb}", flush=True)
     expose = settings.debug or settings.app_env.lower() != "production"
@@ -301,9 +284,9 @@ app.include_router(timekeeping.router)
 
 
 @app.get("/")
-async def root():
-    return {
-        "name": "Inexxio ECS API",
-        "version": settings.app_version,
-        "docs": "/api/docs",
-    }
+def root():
+    """Name und Version – ``docs`` nur, wenn die Dokumentation eingeschaltet ist."""
+    out = {"name": settings.app_name, "version": settings.app_version}
+    if app.docs_url:
+        out["docs"] = app.docs_url
+    return out

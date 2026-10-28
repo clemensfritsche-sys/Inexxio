@@ -6,7 +6,7 @@ ohne JavaScript) und tauscht sie beim Anzeigen gegen diese Antwort aus – ände
 eine Nummer, steht sie sofort überall auf der Website.
 
 **Welches Unternehmen?** Das zum Land des Besuchers: Land aus der IP-Adresse
-(``services/geoip``), Gesellschaft aus den Gebieten des ERP (``sites.company_for_country``:
+(``services/visitor``), Gesellschaft aus den Gebieten des ERP (``sites.company_for_country``:
 Land ≻ Region ≻ Betreiber). ``?country=XX`` übersteuert das Land, ``?country=`` (leer)
 fragt nach dem Betreiber – so liest der Website-Build die Vorgabe.
 
@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
-from ..services import geoip, phone as tel, sites
+from ..services import phone as tel, sites, visitor
 from ..services import address as addr
 
 router = APIRouter(prefix="/api/v1/public", tags=["website"])
@@ -38,8 +38,7 @@ class PublicContact(BaseModel):
 def public_contact(request: Request, response: Response, country: str | None = None,
                    db: Session = Depends(get_db)):
     if country is None:
-        ip = geoip.client_ip(request.headers, request.client.host if request.client else None)
-        country = geoip.country_of(ip)
+        country = visitor.country(request)
     company = sites.company_for_country(db, country or None)
     # Je Besucher verschieden (Land) → nur im Browser zwischenspeichern, kurz.
     response.headers["Cache-Control"] = "private, max-age=300"

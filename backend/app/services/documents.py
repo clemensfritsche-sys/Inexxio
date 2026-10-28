@@ -90,10 +90,25 @@ def readable(db: Session, object_id: int, viewer: UserProfile) -> Document:
 
 
 def file_url(db: Session, doc: Document) -> Optional[str]:
-    if doc.file_id is None:
-        return None
-    att = db.query(Attachment.token).filter(Attachment.id == doc.file_id).first()
-    return attachments.public_url_of(att[0]) if att else None
+    return file_urls(db, [doc]).get(doc.id)
+
+
+def file_urls(db: Session, docs: Iterable[Document]) -> dict[int, str]:
+    """Je Dokument der Link seiner Datei – EINE Abfrage für alle."""
+    by_file = {d.file_id: d.id for d in docs if d.file_id is not None}
+    if not by_file:
+        return {}
+    rows = db.query(Attachment.id, Attachment.token).filter(Attachment.id.in_(list(by_file))).all()
+    return {by_file[i]: attachments.public_url_of(t) for i, t in rows}
+
+
+def is_public_file(db: Session, attachment_id: int) -> bool:
+    """Ist diese Datei **öffentlich**? Nur die Rechtstexte einer eigenen Gesellschaft (AGB,
+    Datenschutz – die Website zeigt sie jedem); alles andere ist privat."""
+    from . import legal
+    return db.query(DocumentRef.id).join(Document, Document.id == DocumentRef.document_id).filter(
+        Document.file_id == attachment_id, Document.deleted_at.is_(None),
+        DocumentRef.field.in_(tuple(legal.FIELD_OF.values()))).first() is not None
 
 
 def shown_on(db: Session, object_id: int, viewer: UserProfile) -> list[Document]:
@@ -143,7 +158,7 @@ def snippet(doc: Document, q: str) -> Optional[str]:
 # Schreiben
 # ---------------------------------------------------------------------------
 
-def _sniff(raw: bytes, mime: str) -> str:
+def sniff(raw: bytes, mime: str) -> str:
     """Die Sorte an den ersten Bytes – nicht am Dateinamen."""
     if raw[:5] == b"%PDF-":
         return "application/pdf"
@@ -196,7 +211,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     if same is not None:
         return same, True
     refs = _check_refs(db, refs)
-    mime = _sniff(raw, mime)
+    mime = sniff(raw, mime)
     by = actor.id if actor is not None else None
     att = stored if stored is not None else attachments.store_raw(db, raw, filename, mime, by)
     doc = Document(object_id=objects.next_object_id(db, "document"), art=art, name=name,

@@ -11,12 +11,12 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 @router.get("/me", response_model=UserProfileResponse)
-async def get_me(current_user: UserProfile = Depends(get_current_user)):
+def get_me(current_user: UserProfile = Depends(get_current_user)):
     return current_user
 
 
 @router.patch("/me", response_model=UserProfileResponse)
-async def update_me(
+def update_me(
     data: UserProfileUpdate,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -30,7 +30,7 @@ async def update_me(
 
 
 @router.post("/me/email-check", status_code=204)
-async def check_my_email(
+def check_my_email(
     data: EmailCheck,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -45,7 +45,7 @@ async def check_my_email(
 # ─── Das Adressbuch – dieselben Funktionen wie am ERP-Datensatz ──────────────────
 
 @router.post("/me/addresses", response_model=UserProfileResponse)
-async def add_my_address(
+def add_my_address(
     data: AddressIn,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -57,7 +57,7 @@ async def add_my_address(
 
 
 @router.patch("/me/addresses/{address_id}", response_model=UserProfileResponse)
-async def change_my_address(
+def change_my_address(
     address_id: int,
     data: AddressIn,
     current_user: UserProfile = Depends(get_current_user),
@@ -71,7 +71,7 @@ async def change_my_address(
 
 
 @router.delete("/me/addresses/{address_id}", response_model=UserProfileResponse)
-async def remove_my_address(
+def remove_my_address(
     address_id: int,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),

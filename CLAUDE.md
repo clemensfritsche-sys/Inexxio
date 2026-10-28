@@ -243,8 +243,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   verbindet nur ein Admin; persönliche Postfächer gibt es nicht). Die Kontakt-E-Mail der
   Gesellschaft **ist** das Postfach (gesetzt durch Verbinden, geleert durch Trennen). Abgleich
   solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach); ein unbekannter
-  Absender wird Person, Massenpost nicht; eine eigene Adresse ist nie eine Person. Senden:
-  jede Mail genau einmal (einzeln gesperrt, sofort festgeschrieben). Erledigt im ERP =
+  Absender wird Person (`people.ensure`), Massenpost nicht; eine eigene Adresse ist nie eine
+  Person; eine Mail, die sich nicht verarbeiten lässt, wird übersprungen (Log). Senden: jede
+  Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
+  Postfach; nach drei Abweisungen durch Gmail steht der Grund als interne Nachricht im Verlauf. Erledigt im ERP =
   gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den
   Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
@@ -265,10 +267,13 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Newsletter «Post von INEXXIO»** (`domain/newsletter.py`, `services/newsletter.py`,
   `routers/newsletter.py`): **Einwilligung ist ein Nachweis** (`newsletter_consents`,
   append-only, Quelle + Wortlaut + Zeitpunkt); angemeldet = jüngste Zeile, **zwei
-  Zustände**. Double Opt-in über eine Mail mit einem Knopf (sie steht im Verlauf); nur das
-  Konto meldet direkt an (Adresse bestätigt). **Das ERP meldet niemanden an** – es schickt
-  die Bitte, oder es meldet ab. Links signiert (HMAC, Schlüssel aus `database_url`),
-  Abmeldeseite mit Knopf (gegen Link-Scanner), One-Click nach RFC 8058. Anmeldestellen:
+  Zustände**. Double Opt-in über eine Mail mit einem Knopf (bei einer Person in ihrem
+  Verlauf; die Anmeldung von der Website legt **keine** Person an – die Adresse steht im
+  Link, die Person entsteht mit dem Klick); nur das Konto meldet direkt an (Adresse
+  bestätigt). **Das ERP meldet niemanden an** – es schickt die Bitte, oder es meldet ab.
+  Links signiert an einer Stelle (`core/signed`, Schlüssel `LINK_SECRET`, der frühere aus
+  `database_url` prüft mit); Bestätigungs- und Abmeldeseite mit Knopf (gegen Link-Scanner),
+  One-Click nach RFC 8058. Anmeldestellen:
   Häkchen im Anfrage-Formular (nie vorausgewählt), Einladung in der Eingangsbestätigung,
   Seite `/newsletter` (Link im Fuss), Konto. Wörter: `website/src/config/newsletter.mjs`.
 - **Kontaktformular der Website** → offene Nachricht im ERP (`services/inquiry`), siehe

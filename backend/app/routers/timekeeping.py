@@ -53,10 +53,21 @@ def swipe(object_id: int, data: SwipeIn, month: Optional[str] = MONTH,
     return view
 
 
+def _no_proof_here(data: EntryIn) -> None:
+    """**Ein Nachweis hat genau einen Weg**: als Dokument ins Feld ``time.proof``
+    (``fields._proof``, «Nachreichen»). Über diese Tür kommt er nicht – weder als Art noch
+    als Link an einer Absenz."""
+    if data.kind == "proof" or data.proof_url:
+        raise HTTPException(400, detail="Ein Nachweis ist ein Dokument – bitte an der Absenz "
+                                        "«Nachreichen» wählen.")
+
+
 @router.post("/time/{object_id}/entries", response_model=TimeView)
 def add_entry(object_id: int, data: EntryIn, month: Optional[str] = MONTH,
               db: Session = Depends(get_db), actor: UserProfile = Depends(require_employee)):
-    """Stempel nachtragen oder korrigieren, Absenz, Nachweis, Buchung, Rücknahme – EIN Weg."""
+    """Stempel nachtragen oder korrigieren, Absenz, Buchung, Rücknahme – EIN Weg (der
+    Nachweis kommt als Dokument, ``_no_proof_here``)."""
+    _no_proof_here(data)
     person = _person(db, actor, object_id)
     timekeeping.record(db, actor, person, data)
     return _done(db, actor, person, month)
@@ -67,6 +78,7 @@ def preview_entry(object_id: int, data: EntryIn, db: Session = Depends(get_db),
                   actor: UserProfile = Depends(require_employee)):
     """Was dieser Eintrag bewirken würde – dieselbe Regel wie beim Speichern, ohne zu
     schreiben (Arbeitstage, Stunden, Ersetzt, Ferien danach, Nachweis, Grund)."""
+    _no_proof_here(data)
     person = _person(db, actor, object_id)
     return EntryPreview(**timekeeping.preview(db, actor, person, data))
 

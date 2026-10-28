@@ -22,6 +22,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..core.clock import ZONE
 from ..domain import timekeeping as tk
 from ..models import CompanySettings, Holiday, TimeContract, TimeEntry, UserProfile
 from . import people, sites
@@ -33,14 +34,15 @@ def now_utc() -> datetime:
 
 
 def local(at: datetime) -> datetime:
-    return at.astimezone(tk.ZONE)
+    """Ein Zeitpunkt in der Zone des Betriebs (``core/clock``)."""
+    return at.astimezone(ZONE)
 
 
 def instant(d: date, minute: int, fold: int = 0) -> datetime:
     """Tag + Minute in Europe/Zurich → Zeitpunkt (UTC); richtig auch an der Zeitumstellung.
     ``fold=1`` ist die zweite Fassung einer Uhrzeit, die es im Herbst zweimal gibt."""
     return datetime.combine(d, time(minute // 60, minute % 60, fold=fold),
-                            tk.ZONE).astimezone(timezone.utc)
+                            ZONE).astimezone(timezone.utc)
 
 
 def exists(d: date, minute: int) -> bool:
