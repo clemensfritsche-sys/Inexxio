@@ -1295,6 +1295,23 @@ def test_the_feed_learns_about_every_write_from_one_place():
     assert re.search(r"if \(!idempotent\) \{?[^}\n]*\bnotifyDataChanged\(path\);", api), (
         "Nicht jede schreibende Anfrage meldet – dann bleibt der Feed irgendwann stehen."
     )
+    # **Gehört wird an EINER Stelle** (`lib/use-feed.ts`), und invalidiert wird, was der Pfad
+    # betrifft. Die Listen des Feeds sind Queries – ein eigener `useState` je Liste daneben
+    # wäre die zweite Datenquelle, die nach einem Schreibvorgang stehen bleibt.
+    hook = _read(FRONTEND / "lib" / "use-feed.ts")
+    assert "feedsTouchedBy(path)" in hook and "invalidateQueries" in hook, (
+        "Der Feed hört nicht auf die Meldung – oder lädt ohne Blick auf den Pfad."
+    )
+    assert "detail: { path }" in api, "Die Meldung nennt den Pfad nicht."
+    feed = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    assert "inexxio:data-changed" not in feed and "DATA_CHANGED" not in feed, (
+        "Der Feed hört selbst auf die Meldung – das ist der zweite Weg."
+    )
+    for kind in ("UserProfile", "Article", "OrderSummary", "InstanceSummary",
+                 "CompanySettings", "DocumentSummary"):
+        assert f"useState<{kind}[]>" not in feed, (
+            f"Die Liste «{kind}» lebt neben React Query in einem eigenen Zustand."
+        )
     # Und kein zweiter Melde-Weg in den Detailfenstern.
     for name in ("order-detail.tsx", "article-detail.tsx", "instance-detail.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
