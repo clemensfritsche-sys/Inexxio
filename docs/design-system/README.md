@@ -19,13 +19,9 @@
 | `docs/design-system/brand-foundations.md` | Vollständige Marken-/Content-/Visual-Doku (Stimme, Farben, Typo, Bildsprache, ERP-Muster). Zum Lesen, nicht zum Bauen. |
 | **`frontend/public/brand/`** | Was die App selbst zeigt: `inexxio-ehemals-hs-steiner.svg` (Kopie von `website/scripts/export-erp.mjs`, auf `/login/verify`) und `anmelden.svg` (Zeichnung im Anmeldedialog). Das Favicon der App ist `frontend/src/app/icon.svg`; die Wortmarke steht in `reference/assets/logo/`. |
 | `docs/design-system/reference/assets/logo/` | **Logo-System v5 «F1»** (Oktober 2026, vektoriell, nie umfärben): Wortmarke `inexxio-horizontal-light|dark|red|mono.svg`, mit «ehemals HS Steiner» `inexxio-stacked-*.svg` (60 % INEXXIO : 40 % HS Steiner), Favicon `inexxio-symbol-red.svg` (ganz rot), Symbol `inexxio-symbol.svg` (passt sich an), feste Symbole `inexxio-symbol-light|dark|red|on-red|mono.svg`, `inexxio-app-icon.svg`. Erzeugt von `generator/make_logos.py` – nie von Hand ändern. Regeln: `brand-foundations.md` §5. |
-| `docs/design-system/reference/` | Read-only Referenz: `components.css` (v3-Bausteine `.ix-*`), `claude-design-README.md` (Original-Doku v3), Instanz-Detail-Mockups (`mockups/*.dc.html`), Referenz-React-Komponenten (`components/`), Website-UI-Kit (`ui-kit-website/`), Design-Specimens (`preview/`), offizielle Claude-Design-Skill (`inexxio-design.SKILL.md`), Token-Manifest. Vorlage, **nicht** direkt importieren. |
+| `docs/design-system/reference/mockups/` | Die Vorlage der Website v4: `Startseite v4.dc.html` und `Startseite v4 mobil.dc.html` (Design-Artefakt «Website Startseite»). Zum Anschauen, **nicht** importieren. |
 | `.claude/skills/inexxio-design-system/SKILL.md` | Auto-Skill: legt jeder künftigen Claude-Session bei UI-Arbeit diese Regeln vor. |
 
-> **Marketing-Bildmaterial** (Interior-Renders `room1–7.png`, `hero_scan.png`,
-> `city_bw.png`, `og_hero.png`, zusammen ~9 MB) ist **bewusst nicht** im Repo — es
-> gehört zur Website-Arbeit und liegt im Claude-Design-Export. Beim Neubau der
-> Marketing-Seiten von dort ziehen (siehe `reference/ui-kit-website/`).
 
 **Regel:** Ein Token-Wert wird an **genau einer** Stelle definiert – in
 `colors_and_type.css`. Niemals Werte in `globals.css`, `tailwind.config.js` oder in
@@ -106,12 +102,9 @@ Konto übernehmen das Grau automatisch über die Tokens; Glas bleibt der Website
 Die E-Mail-Vorlage (`backend/app/services/mail_layout.py`) und die Website-Zeichnungen sind
 mitgezogen.
 
-
-**v3 (Oktober 2026)** – ruhiger und leichter: Titel 700/600 statt 800, Radien 8/12/16 statt
-12/20/28, keine Pillen, flach statt Schatten, Glow entfernt, eine (damals warme) Grau-Rampe
-(`--gray-*`, AA-geprüft) und eine Rot-Rampe (`--red-50…900`), drei Token-Schichten
-(Primitive → semantisch `--color-*` → v2-Aliase). **Alle v2-Namen lösen weiter auf** –
-kein Komponenten-Refactor nötig. Vollständige Regeln: `reference/claude-design-README.md` §0.
+v4 baut auf v3 auf (Titel 700/600, Radien 8/12/16, flach, Rot-Rampe `--red-50…900`, drei
+Token-Schichten Primitive → semantisch `--color-*` → v2-Aliase); **alle v2-Namen lösen
+weiter auf**.
 
 ## 4. Migration der Bestands-Komponenten — **abgeschlossen** (August 2026)
 
@@ -146,16 +139,9 @@ Wenn du in Claude Design weiterarbeitest und neu exportierst:
 
 1. Die kanonische Token-Datei ersetzen:
    `cp <export>/…/colors_and_type.css frontend/src/styles/design-system/colors_and_type.css`
-2. Referenz-/Doku-Dateien in `docs/design-system/` aktualisieren (Foundations,
-   Mockups, Manifest).
+2. Doku in `docs/design-system/` aktualisieren (`brand-foundations.md`, die Vorlage in
+   `reference/mockups/`).
+
 3. `cd frontend && npm run build` – der Build ist der Wächter (fehlende Tokens fallen
    sofort auf). Tokens sind nach **Name** stabil; nur Werte ändern sich → kein
    Komponenten-Refactor nötig.
-
-## 6. „Instanz Detail"-Redesign (nächster konkreter Schritt)
-
-Das ursprünglich gelieferte Mockup liegt unter
-`docs/design-system/reference/mockups/Instanz Detail.dc.html` (+ Mobile). Es ist die
-erste Fläche, die **auf diesem System** umgesetzt werden soll – als Redesign von
-`frontend/src/components/erp/instance-detail.tsx`, pixelgenau am Mockup, aber mit den
-Tokens/Utilities oben statt inline-HTML.
