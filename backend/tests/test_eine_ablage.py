@@ -7,10 +7,26 @@ das ohne Freigabe hinausgeht.
 
 import uuid
 
+import pytest
+
 from app.domain import voucher as vo
 from app.models import Attachment, DocumentRef, VoucherDocument
 from app.services import adopt, documents, legal, todo, voucher as svc, voucher_docs
+from tests.runner import session
 from tests.test_zahlung_ablauf import _do, _house, _ready, _scene, _staff
+
+
+@pytest.fixture
+def db():
+    """Wie in den Zahlungstests: eine Sitzung mit dem Haus, das Belege stellen kann (Anschrift,
+    MWST-Nummer, AGB) – in einer leeren Datenbank gibt es sonst keines."""
+    s = session()
+    _house(s)
+    try:
+        yield s
+    finally:
+        s.rollback()
+        s.close()
 
 
 def test_every_paper_is_a_document_in_the_module_field(db):
