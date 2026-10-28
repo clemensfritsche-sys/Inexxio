@@ -1178,7 +1178,7 @@ def test_a_search_while_typing_is_one_hook():
     hits = [rel for rel, src in _frontend_sources(".ts", ".tsx")
             if rel not in allowed and debounce.search(_code(src))]
     assert not hits, f"Diese Dateien suchen beim Tippen selbst: {hits}"
-    for rel in ("components/erp/search-select.tsx", "components/erp/communication.tsx",
+    for rel in ("components/erp/search-select.tsx", "components/erp/communication/composer.tsx",
                 "components/scan/scan-dialog.tsx", "components/erp/article-detail.tsx"):
         assert "useSearch" in _read(FRONTEND / rel), f"«{rel}» nutzt die gemeinsame Suche nicht."
 

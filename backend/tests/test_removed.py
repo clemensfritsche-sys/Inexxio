@@ -67,8 +67,9 @@ GONE_TEXT = (
     # «Antwort auf» in der Kommunikation (Migration 148)
     *((f"backend/app/services/{f}", False, ("MessageReply",)) for f in (
         "communication.py", "mailbox.py", "inquiry.py")),
-    ("frontend/src/components/erp/communication.tsx", False, (
-        "reply_to", "answer_to", "function Quote", "jump(")),
+    *((f"frontend/src/components/erp/{f}", False, (
+        "reply_to", "answer_to", "function Quote", "jump(")) for f in (
+        "communication.tsx", "communication/timeline.tsx", "communication/composer.tsx")),
 )
 
 # (Modul, Attribut-Pfad, Name, der darin nicht mehr vorkommt)

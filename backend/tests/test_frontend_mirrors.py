@@ -328,7 +328,7 @@ def test_the_deliveries_mirror_the_backend_word_for_word():
     sys.path.insert(0, str(BACKEND))
     from app.domain.communication import DELIVERIES
 
-    ts = _read(FRONTEND / "components" / "erp" / "communication.tsx")
+    ts = _read(FRONTEND / "components" / "erp" / "communication" / "shared.tsx")
     body = ts.split("const DELIVERIES")[1].split("];")[0]
     assert dict(re.findall(r"key: '(\w+)', label: '([^']+)'", body)) == DELIVERIES
 
