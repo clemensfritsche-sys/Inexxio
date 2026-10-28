@@ -10,6 +10,7 @@ import type { ErpRecordType, Todo, TodoItem } from '@/types';
 import { jumpToTodo, todoTip } from '@/lib/todo';
 import { formatObjectId } from '@/lib/utils';
 import { useSearch } from '@/lib/use-search';
+import { webHref } from '@/lib/web-link';
 
 // ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
 
@@ -172,11 +173,13 @@ export const MICRO_LABEL: React.CSSProperties = {
 };
 
 /** Read-only-Feld: kleines Symbol + Versalien-Overline + kräftiger Wert. Optional
- *  Einheit/mono, Link (Host + Pfeil) oder ⓘ-Hinweis bei abgeleiteten Werten. */
+ *  Einheit/mono, Link (Host + Pfeil – nur ins Web, sonst Text) oder ⓘ-Hinweis bei
+ *  abgeleiteten Werten. */
 export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
   icon?: ElementType; label: string; value?: ReactNode; unit?: string;
   mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
 }) {
+  const href = webHref(link);
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', gridColumn: full ? '1 / -1' : undefined }}>
       {Icon && (
@@ -189,14 +192,14 @@ export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint
           {label}
           {autoHint && <span style={{ display: 'inline-flex', color: 'var(--fg-4)', cursor: 'help' }} data-tip={autoHint}><Sparkles size={12} /></span>}
         </div>
-        {link ? (
-          <a href={link} target="_blank" rel="noreferrer"
+        {href ? (
+          <a href={href} target="_blank" rel="noreferrer"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
-            {linkHost(link)} <ExternalLink size={13} />
+            {linkHost(href)} <ExternalLink size={13} />
           </a>
         ) : (
           <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, overflowWrap: 'anywhere', ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
-            {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
+            {value ?? link}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
           </div>
         )}
         {/* Spanne: bewusst leiser als der Median – sie ordnet ein, sie ist nicht die Aussage. */}

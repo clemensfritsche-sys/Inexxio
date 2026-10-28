@@ -97,6 +97,8 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 _OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number",
                          "hs_code", "origin_country")
 _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
+#: Ein Link ins Web: Schema ``http``/``https`` und ein Host danach.
+_WEB_LINK = re.compile(r"^https?://[^\s/]", re.IGNORECASE)
 
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -157,6 +159,15 @@ class ArticleCreate(BaseModel):
     @classmethod
     def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         return _opt_qty(v)
+
+    @field_validator("cad_url")
+    @classmethod
+    def _cad_url_web(cls, v: Optional[str]) -> Optional[str]:
+        """Ein CAD-Link führt ins Web (``http``/``https``) – das ERP setzt ihn als Link.
+        Dieselbe Regel liest die Oberfläche (``lib/web-link.webHref``)."""
+        if v is not None and not _WEB_LINK.match(v):
+            raise ValueError(f"CAD-Link «{v}» muss mit http:// oder https:// beginnen")
+        return v
 
     @field_validator("name")
     @classmethod
