@@ -275,7 +275,7 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
  *   summierten sich die Breiten über 100 %.
  * - **Der Gewählte tritt hervor, die anderen verschwinden nicht** – sonst wäre es ein Filter.
  */
-export type BarSegment = {
+type BarSegment = {
   key: string;
   label: string;
   /** Der Anteil – dieselbe Einheit wie bei den Geschwistern (Stück, Geld, Schritte). */

@@ -12,8 +12,8 @@
 
 import { SCAN_RECORD_TYPE, TYPE_META } from '@/lib/erp-record';
 
-export const OBJECT_ID_MIN = 100_000_001;
-export const OBJECT_ID_MAX = 999_999_999;
+const OBJECT_ID_MIN = 100_000_001;
+const OBJECT_ID_MAX = 999_999_999;
 
 // 9-stellig, erste Ziffer ≠ 0, mit Wortgrenzen (eine 10-stellige Zahl matcht NICHT).
 const OBJECT_ID_RE = /\b([1-9]\d{8})\b/;
@@ -33,7 +33,7 @@ export function parseScannedCode(raw: string | null | undefined): number | null 
 }
 
 /** Prüft, ob eine gescannte Nummer zu einem erwarteten Ziel passt (Verifikation). */
-export function matchesExpected(objectId: number, expected: number | number[] | null | undefined): boolean {
+function matchesExpected(objectId: number, expected: number | number[] | null | undefined): boolean {
   if (expected == null) return true;                       // kein Ziel ⇒ reiner Lookup
   return Array.isArray(expected) ? expected.includes(objectId) : expected === objectId;
 }

@@ -25,12 +25,12 @@ import type { AddressEntry, AddressInput, UserProfile } from '@/types';
  *
  * Die Regeln stehen im Dienst (`services/address_book`); hier wird gezeichnet.
  */
-export const ADDRESS_COUNTRIES: [string, string][] = [
+const ADDRESS_COUNTRIES: [string, string][] = [
   ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
   ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
 ];
 
-export type Account = 'private' | 'business';
+type Account = 'private' | 'business';
 
 /**
  * **Der Platzhalter der Rechnungs-E-Mail** (#1042/#1043): sie ist freiwillig und fällt

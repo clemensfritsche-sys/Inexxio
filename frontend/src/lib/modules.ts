@@ -271,7 +271,7 @@ export const SAMPLE_PRESETS: { value: SampleMode; label: string; percent?: numbe
 ];
 
 /** Was ohne Angabe gilt – **alle**, wie im Backend (`sampling.DEFAULT`). */
-export const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
+const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
 
 /**
  * Entwurfsform → das eine Feld, das der Server kennt. Ein frei getippter Anteil geht

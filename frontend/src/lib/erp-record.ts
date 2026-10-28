@@ -9,7 +9,7 @@ import type { ErpRecordType } from '@/types';
  * Unterscheidung im Feed, im Typ-Filter und in Detail-Köpfen.
  * Werte aus dem Inexxio-Design-Mockup (Instanz-Detail Redesign).
  */
-export interface TypeMeta {
+interface TypeMeta {
   label: string;
   icon: ElementType;
   /** getönte Füllung des Symbol-Quadrats */

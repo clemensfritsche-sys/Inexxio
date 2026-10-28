@@ -9,7 +9,7 @@
  * tippt, die offensichtlich keine ist (zu wenige Ziffern, fremde Zeichen), sieht einen
  * Hinweis; gespeichert wird trotzdem, denn die Angabe ist informativ, nicht funktional.
  */
-export function fieldFormatIssue(type: string, value: string): string | null {
+function fieldFormatIssue(type: string, value: string): string | null {
   const v = value.trim();
   if (!v) return null;
   if (type === 'tel') {

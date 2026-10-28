@@ -10,7 +10,7 @@ import { unsigned } from './shared';
  * lesen dieselben drei Funktionen: `formProblem` (warum noch nicht – der Satz im Hover des
  * gesperrten Knopfs), `formBody` (der Befehl an den Dienst) und `formWord` (das Wort).
  */
-export type FormKind = 'pay' | 'refund' | 'bill' | 'export' | 'accept' | 'writeoff' | 'revoke';
+type FormKind = 'pay' | 'refund' | 'bill' | 'export' | 'accept' | 'writeoff' | 'revoke';
 
 export type Form = { kind: FormKind; f: Record<string, string> };
 

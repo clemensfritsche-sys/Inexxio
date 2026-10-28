@@ -26,7 +26,7 @@ import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
 // kann überall sitzen – daher eine breitere Auswahl als bei einer CH/EU-Personenadresse.
-export const COMPANY_COUNTRIES: [string, string][] = [
+const COMPANY_COUNTRIES: [string, string][] = [
   ['Schweiz', 'Schweiz'], ['Deutschland', 'Deutschland'], ['Österreich', 'Österreich'],
   ['Frankreich', 'Frankreich'], ['Italien', 'Italien'], ['Liechtenstein', 'Liechtenstein'],
   ['USA', 'USA'], ['Grossbritannien', 'Grossbritannien'], ['Spanien', 'Spanien'],
@@ -92,13 +92,13 @@ const TAX_IDS_DEFAULT: TaxIds = {
   uid: { label: 'Steuernummer', ph: '' },
   vat: { label: 'USt-Nummer (optional)', ph: '' },
 };
-export function taxIds(country: string | undefined): TaxIds {
+function taxIds(country: string | undefined): TaxIds {
   return TAX_IDS_BY_ISO2[toIso2(country)] ?? TAX_IDS_DEFAULT;
 }
 
 /** «Musterstrasse 12» → ('Musterstrasse', '12'). Das Unternehmen führt Strasse und
  *  Hausnummer getrennt; Google (und jede andere Quelle) liefert sie als eine Zeile. */
-export function splitStreet(line: string): [string, string] {
+function splitStreet(line: string): [string, string] {
   const m = line.trim().match(/^(.*?)[\s,]+(\d+[a-zA-Z]?)$/);
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }

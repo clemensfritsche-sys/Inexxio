@@ -10,9 +10,9 @@ import { DraftSheet, type DraftSeed } from '@/components/erp/document-draft';
 import type { DocumentDetail, DocumentProposal, DocumentTarget } from '@/types';
 
 /** Ein Dokument zum Wählen – in der Form, die `ObjectSelect` kennt. */
-export interface DocumentOption { object_id: number; name: string }
+interface DocumentOption { object_id: number; name: string }
 
-export const findDocuments = (q: string): Promise<DocumentOption[]> =>
+const findDocuments = (q: string): Promise<DocumentOption[]> =>
   api.getDocuments(q, 20).then((rows) => rows.map((d) => ({ object_id: d.object_id, name: `${d.art} · ${d.name}` })));
 
 /**

@@ -10,12 +10,12 @@
  * `website/scripts/account.test.mjs` hält beide Seiten deckungsgleich.
  */
 
-export const ROLE_KEY = 'inexxio_user_role';
-export const NAME_KEY = 'inexxio_user_fullname';
+const ROLE_KEY = 'inexxio_user_role';
+const NAME_KEY = 'inexxio_user_fullname';
 /** S2: `{ email, phone, company }` – zum Vorausfüllen des Anfrage-Formulars der Website. */
-export const CONTACT_KEY = 'inexxio_user_contact';
+const CONTACT_KEY = 'inexxio_user_contact';
 /** Das Profilbild (Google), wie es das ERP zeigt – im Profilknopf der Website (#1105). */
-export const PHOTO_KEY = 'inexxio_user_photo';
+const PHOTO_KEY = 'inexxio_user_photo';
 
 type Contact = { email?: string | null; phone?: string | null; company_name?: string | null };
 

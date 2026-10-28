@@ -49,7 +49,7 @@ export function mimeIcon(mime: string) {
   return File;
 }
 
-export function DocumentTile({ doc }: { doc: DocumentSummary }) {
+function DocumentTile({ doc }: { doc: DocumentSummary }) {
   const nav = useErpNav();
   const Icon = mimeIcon(doc.mime);
   return (

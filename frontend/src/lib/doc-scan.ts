@@ -11,7 +11,7 @@
  */
 
 /** Ein Punkt in Pixeln des Bildes, aus dem er stammt. */
-export interface Pt { x: number; y: number }
+interface Pt { x: number; y: number }
 /** Die vier Ecken im Uhrzeigersinn ab oben links. */
 export type Quad = [Pt, Pt, Pt, Pt];
 
@@ -45,9 +45,9 @@ export interface Cv {
 }
 
 /** Kleiner als dieser Anteil des Bildes ist kein Blatt (sondern ein Etikett, ein Schatten). */
-export const MIN_AREA = 0.05;
+const MIN_AREA = 0.05;
 /** Grösser ist es der Bildrand selbst (alles hell), kein Blatt. */
-export const MAX_AREA = 0.97;
+const MAX_AREA = 0.97;
 
 /** Die Ecken in feste Reihenfolge: oben links, oben rechts, unten rechts, unten links. */
 export function order(points: Pt[]): Quad {
@@ -186,7 +186,7 @@ function quadOf(cv: Cv, contour: Mat): Quad | null {
  * liegt eine ganze Seite auf dem Bildrand, ist es 0 – dort ist kein Rand zu sehen, und ein
  * Blatt, das hinausragt, hätte ohnehin nicht seine Ecken.
  */
-export function support(img: { data: Uint8Array; width: number; height: number }, q: Quad): number {
+function support(img: { data: Uint8Array; width: number; height: number }, q: Quad): number {
   const cx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4;
   const cy = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
   const at = (x: number, y: number) => {
@@ -214,7 +214,7 @@ export function support(img: { data: Uint8Array; width: number; height: number }
 }
 
 /** Die Grösse des gerade gezogenen Blatts – aus seinen Seitenlängen, höchstens `max` px. */
-export function sizeOf(q: Quad, max = 2000): { width: number; height: number } {
+function sizeOf(q: Quad, max = 2000): { width: number; height: number } {
   const d = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
   const w = Math.max(d(q[0], q[1]), d(q[3], q[2]));
   const h = Math.max(d(q[0], q[3]), d(q[1], q[2]));

@@ -6,7 +6,7 @@ import type { ArticleSerialization, ArticleUnit } from '@/types';
 
 // ─── Anzeige-Konfiguration ──────────────────────────────────────────────────
 
-export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
+const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
   { value: 'Stk', label: 'Stk.' },
   { value: 'mm',  label: 'mm' },
   { value: 'm2',  label: 'm²' },
@@ -15,7 +15,7 @@ export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
   { value: 'l',   label: 'l' },
 ];
 
-export const SERIALIZATION_OPTIONS: { value: ArticleSerialization; label: string }[] = [
+const SERIALIZATION_OPTIONS: { value: ArticleSerialization; label: string }[] = [
   { value: 'unit',  label: 'Einzelteil' },
   { value: 'batch', label: 'Charge' },
 ];

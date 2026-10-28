@@ -50,7 +50,7 @@ import { formatObjectId } from '@/lib/utils';
  * Wer sein Namensfeld anders nennt (`PlaceRef.label`), reicht es in `find` als `name`
  * durch – ein Mapping, das dort steht, wo der Unterschied entsteht.
  */
-export interface ObjectOption {
+interface ObjectOption {
   object_id: number;
   /** Wie der Datensatz heisst – **ohne** Nummer, die setzt dieses Feld davor. */
   name: string;

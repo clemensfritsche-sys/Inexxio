@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * Benutzer, Lagerplatz, Unternehmen). EINE Optik über alle Datensätze (Design-Token
  * `.erp-tab`), damit «Dokumente» & Co. überall gleich aussehen und sich gleich anfühlen.
  */
-export type DetailTab<K extends string = string> = {
+type DetailTab<K extends string = string> = {
   key: K; label: string; icon: ElementType;
 };
 

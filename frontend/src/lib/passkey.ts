@@ -87,7 +87,7 @@ export function cancelPasskeyAutofill(): void {
 
 /** Freundlicher Default-Gerätename aus dem User-Agent (z. B. «iPhone», «Mac», «Windows»,
  *  «Android») – damit die Passkey-Liste lesbar ist, ohne den Nutzer zu fragen. */
-export function friendlyDeviceName(): string {
+function friendlyDeviceName(): string {
   if (typeof navigator === 'undefined') return 'Dieses Gerät';
   const ua = navigator.userAgent || '';
   if (/iPhone/.test(ua)) return 'iPhone';

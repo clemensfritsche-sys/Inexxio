@@ -5,7 +5,7 @@ import { api, assetUrl } from '@/lib/api';
 import { Paper, StageWord } from './paper';
 import css from './beleg.module.css';
 
-export type LegalKind = 'agb' | 'datenschutz' | 'impressum';
+type LegalKind = 'agb' | 'datenschutz' | 'impressum';
 
 /** Das grosse Wort und der Name des Papiers je Rechtstext. */
 const WORDS: Record<LegalKind, { word: string; label: string }> = {

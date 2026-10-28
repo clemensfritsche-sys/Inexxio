@@ -17,7 +17,7 @@ import {
 import type { DocumentDetail, DocumentProposal, DocumentTarget } from '@/types';
 
 /** Woher ein Entwurf kommt – derselbe Wortschatz wie `domain/documents.SOURCES`. */
-export type DraftSource = 'file' | 'scan' | 'compose' | 'mail' | 'form' | 'capture' | 'voucher';
+type DraftSource = 'file' | 'scan' | 'compose' | 'mail' | 'form' | 'capture' | 'voucher';
 
 /**
  * **Was ein Entwurf schon mitbringt**, wenn er nicht über «+» beginnt: der Anhang einer

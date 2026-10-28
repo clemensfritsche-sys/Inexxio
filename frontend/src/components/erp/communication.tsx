@@ -179,7 +179,7 @@ function details(m: Message): string {
  *  gedämpften des Hauses (`MODULE_TONE`), bewusst ohne Rot und Orange: die gehören dem
  *  Zustand (offen · überfällig), und ein Betreff darf nicht wie einer aussehen. */
 const TOPIC_TONES = ['slate', 'plum', 'moss', 'teal', 'clay', 'sand'].map((k) => MODULE_TONE[k].fg);
-export function topicColor(topic: string): string {
+function topicColor(topic: string): string {
   let h = 0;
   for (const ch of topic.toLocaleLowerCase('de-CH')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return TOPIC_TONES[h % TOPIC_TONES.length];
@@ -381,7 +381,7 @@ function Divider({ label }: { label: string }) {
 
 /** ►►► **Die Mail, die gleich hinausgeht** – blass dort, wo sie hingehört, mit Uhr und
  *  «Rückgängig». Nach drei Sekunden ist sie eine gewöhnliche Nachricht. ◄◄◄ */
-export type Sending = { topic: string; body: string; to: string; left: number; undo: () => void;
+type Sending = { topic: string; body: string; to: string; left: number; undo: () => void;
   /** Wie es dasteht: eine Mail hellblau, intern grau – wie die Nachricht danach. */
   internal: boolean; verb: string };
 
