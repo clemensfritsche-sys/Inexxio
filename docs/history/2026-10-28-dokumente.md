@@ -141,7 +141,7 @@ Gesucht nach demselben Muster wie bei KI und Migration:
   `…-storage`) und die Skripte dazu (`infra/setup.sh`, `scripts/setup-gcp-dev.sh`,
   `scripts/run-migrations.sh` mit dem abgekündigten Proxy v1) → entfernt; `infra/README.md`
   beschreibt den Ist-Stand, der Kostenteil blieb wörtlich. `dump-db.sh` nutzt den Proxy v2.
-- **Offen, Entscheid des Auftraggebers**: der Prod-Dienst ist privat
-  (`--no-allow-unauthenticated`); Firebase Hosting leitet `/api/**` sehr wahrscheinlich nur an
-  einen öffentlichen Dienst weiter. Prod wird heute nicht genutzt; der Stand der
-  Prod-Datenbank ist unbekannt und wird vor dem ersten Prod-Deploy geprüft.
+- **Prod-Dienst öffentlich aufrufbar wie dev** (Entscheid des Auftraggebers): Firebase Hosting
+  leitet `/api/**` nur an einen öffentlichen Dienst weiter; die Rechte prüft das Backend selbst.
+  Wirkt erst beim ersten Prod-Deploy. Prod wird heute nicht genutzt; der Stand der
+  Prod-Datenbank ist unbekannt – der Wächter nach dem Deploy sagt ihn.

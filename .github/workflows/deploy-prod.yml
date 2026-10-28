@@ -123,6 +123,10 @@ jobs:
       # ►►► **Die Datei-Ablage** – je Umgebung ein eigener Bucket `<Projekt>-files` (privat,
       # europe-west6), einmal von Hand angelegt (`docs/dokumente.md`). ◄◄◄ Fehlt er oder ist er
       # nicht schreibbar, bleiben die Dateien in der Datenbank (`services/attachments`).
+      # **Öffentlich aufrufbar wie dev** (Entscheid 28.10.2026): Firebase Hosting leitet
+      # `/api/**` nur an einen öffentlichen Dienst weiter – privat stünden ERP, Kontaktformular,
+      # `/beleg` und der Stripe-Webhook still. Wer etwas darf, prüft das Backend bei jeder
+      # Anfrage selbst (Firebase-Token, Rolle, signierte Links).
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
@@ -130,7 +134,7 @@ jobs:
             --project "${{ env.GCP_PROJECT }}" \
             --region "${{ env.GCP_REGION }}" \
             --platform managed \
-            --no-allow-unauthenticated \
+            --allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
             --set-env-vars "APP_ENV=production,FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app,FILES_BUCKET=${{ env.GCP_PROJECT }}-files" \
