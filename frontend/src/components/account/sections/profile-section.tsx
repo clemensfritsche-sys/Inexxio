@@ -19,7 +19,7 @@ import { SaveStatusIndicator } from '@/components/form/save-status';
 import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { useMapsApiKey } from '@/lib/use-maps-key';
 import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
 import { tell } from '@/lib/notice';
 

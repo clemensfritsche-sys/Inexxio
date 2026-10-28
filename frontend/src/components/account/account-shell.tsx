@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { isStaff } from '@/lib/record-status';
-import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import { useProfileCompletion } from '@/lib/use-profile-completion';
 import { ProfileSection } from './sections/profile-section';
 import { SecuritySection } from './sections/security-section';
 

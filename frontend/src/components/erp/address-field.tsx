@@ -26,7 +26,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'lucide-react';
-import { useGoogleMaps } from './use-google-maps';
+import { useGoogleMaps } from '@/lib/use-google-maps';
 
 export type Address = {
   /** Strasse inkl. Hausnummer – genau so, wie Google sie liefert (eine Zeile). */

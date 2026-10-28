@@ -590,12 +590,12 @@ def test_the_address_mode_is_a_derivation_not_a_latch():
         "Der Modus ist keine Ableitung mehr (b)."
     )
     assert "pending" in src, "Ohne «noch nicht bekannt» entscheidet er zu früh (c)."
-    key = _code(_read(FRONTEND / "components" / "erp" / "use-maps-key.ts"))
+    key = _code(_read(FRONTEND / "lib" / "use-maps-key.ts"))
     assert re.search(r"useMapsApiKey\(\): string \| null \| undefined", key), (
         "Der Schlüssel unterscheidet «noch nicht bekannt» nicht von «es gibt keinen» (c) "
         "– gefragt ist seine ANTWORT, nicht der Typ seines inneren Zustands."
     )
-    maps = _code(_read(FRONTEND / "components" / "erp" / "use-google-maps.ts"))
+    maps = _code(_read(FRONTEND / "lib" / "use-google-maps.ts"))
     assert "if (apiKey === undefined) return;" in maps, (
         "Ein unbekannter Schlüssel wird wie ein fehlender behandelt (d)."
     )

@@ -15,7 +15,7 @@ import { organizationStatus } from '@/lib/record-status';
 import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { legalForms } from '@/lib/legal-forms';
-import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { useMapsApiKey } from '@/lib/use-maps-key';
 import { Field as AField } from '@/components/form/field';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
