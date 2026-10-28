@@ -367,7 +367,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
 }
 
 // Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
-// Der Kopf kommt aus `fields.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
+// Der Kopf kommt aus `detail-frame.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
 // Freies Namensfeld mit intelligenten Vorschlägen: das System schlägt beim Tippen bereits
 // verwendete/ähnliche Namen vor (kostenlos/lexikalisch, `services/article_names.py`), damit
 // keine Dubletten («Schraubendreher» vs. «Akkuschrauber») entstehen. Kein Katalog-Zwang mehr.

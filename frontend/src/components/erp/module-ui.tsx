@@ -15,7 +15,7 @@ import { formatAmount } from '@/lib/utils';
  * `styles/design-system/colors_and_type.css`, jede Regel steht in
  * `docs/design-system/README.md`. Neu ist nur, dass sie hier **einmal** angewendet sind
  * statt an jeder Aufrufstelle mit leicht anderen Werten. Die Vorlage ist die
- * Detail-Ansicht eines Datensatzes (`fields.SPEC`).
+ * Detail-Ansicht eines Datensatzes (`detail-frame.SPEC`).
  */
 
 /**
@@ -50,7 +50,7 @@ export const ACT_H = { row: 26, inline: 30, main: 34, stage: 42 } as const;
 
 /**
  * **Der Abstand zwischen zwei Feldern einer Formular-Zeile** (#987/#990). **Unter** der
- * Beschriftung gibt es keinen: `fields.Label` bringt seine 4 px mit.
+ * Beschriftung gibt es keinen: `controls.Label` bringt seine 4 px mit.
  */
 export const FIELD_GAP = 12;
 

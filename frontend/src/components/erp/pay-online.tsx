@@ -222,7 +222,7 @@ function appearance() {
   const v = (name: string) => css.getPropertyValue(name).trim();
   return {
     theme: 'stripe' as const,
-    // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `fields.Label`.
+    // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `controls.Label`.
     labels: 'above' as const,
     // Dichte Felder (#901).
     inputs: 'condensed' as const,
@@ -244,7 +244,7 @@ function appearance() {
       // Dieselbe Polsterung und dieselbe Zeilenhöhe wie `inputCls` (`py-2 px-3`,
       // `text-sm` = 14/20 px → 20 ÷ 14 = 1.43).
       '.Input': { padding: '8px 12px', lineHeight: '1.43' },
-      // Buchstabengleich `fields.Label` – 11 px, 600, Versalien, .05em, `--fg-4`.
+      // Buchstabengleich `controls.Label` – 11 px, 600, Versalien, .05em, `--fg-4`.
       '.Label': {
         fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
         letterSpacing: '.05em', color: v('--fg-4'), marginBottom: '4px',
