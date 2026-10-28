@@ -13,9 +13,10 @@ die heute schon jedes Bild trägt. ``file_id`` zeigt darauf; nach dem Löschen i
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -44,6 +45,9 @@ class Document(Base, TimestampMixin):
     #: Was gelesen wurde: der ganze Text und Stichworte auf Deutsch und Englisch (Suche).
     text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     keywords: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    #: Was die KI abgelesen hat: Bezeichnung → Wert («Rechnungsnummer» → «RE-26-4471»). Ein
+    #: Modul füllt daraus seine Felder vor; ob es passt, entscheidet der Code, nie die KI.
+    facts: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     #: Wer freigegeben hat (``user_profiles.id``).
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     #: Gelöscht: der Datensatz bleibt (Art, Name, wer, wann, Grund), Datei und Text sind weg.

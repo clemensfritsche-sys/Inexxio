@@ -27,5 +27,8 @@ segno==1.6.1
 # pypdfium2: zählt die Seiten eines PDF und zeichnet die erste als Vorschaubild
 # (services/documents). Ein Wheel ohne Systembibliothek.
 pypdfium2==4.30.0
+# anthropic: das KI-Tor (services/ai) – Lesen und Verfassen von Dokumenten. **Optional zur
+# Laufzeit**: ohne ANTHROPIC_API_KEY ruft niemand die KI, und alles andere läuft weiter.
+anthropic==2.3.0
 pytest==8.3.4
 pytest-asyncio==0.24.0

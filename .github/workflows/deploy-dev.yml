@@ -70,21 +70,21 @@ jobs:
       #
       # Ein `pk_test_…` gilt nur für die Sandbox; für die Produktion tritt der
       # `pk_live_…` derselben Zeile an seine Stelle (`docs/stripe-setup.md` §5).
-      # ►►► **Die Gmail-Anbindung ist OPTIONAL** (`docs/gmail-setup.md`). ◄◄◄ Ihre beiden
+      # ►►► **Die Gmail-Anbindung und die KI sind OPTIONAL** (`docs/gmail-setup.md`, `docs/dokumente.md`). ◄◄◄ Ihre
       # Secrets werden nur eingebunden, wenn es sie im Secret Manager gibt – vorher würde
       # `--set-secrets` den ganzen Deploy abbrechen. Ohne sie wird eine Mail nur erfasst.
-      - name: Optionale Secrets (Gmail)
+      - name: Optionale Secrets (Gmail, KI)
         id: optsec
         run: |
           extra=""
-          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY; do
             # `versions access` statt `describe`: die Rolle «Zugriffsperson für Secret
             # Manager-Secret» des Deploy-Kontos erlaubt genau das, `describe` nicht.
             if gcloud secrets versions access latest --secret "$s" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then
               echo "Secret $s gefunden – wird eingebunden"
               extra="$extra,$s=$s:latest"
             else
-              echo "Secret $s fehlt oder ist nicht lesbar – Gmail-Anbindung bleibt aus"
+              echo "Secret $s fehlt oder ist nicht lesbar – dieser Dienst bleibt aus"
             fi
           done
           echo "extra=$extra" >> "$GITHUB_OUTPUT"

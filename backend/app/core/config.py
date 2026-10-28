@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""
 
+    # ── KI (``services/ai``) ─────────────────────────────────────────────────────
+    #: **Leer heisst: es gibt keine KI** – alles geht trotzdem: Art und Name tippt der
+    #: Mensch, gesucht wird in der Datenbank. Aus dem Secret Manager, nie aus dem Repo.
+    anthropic_api_key: str = ""
+    #: Höchstens so viele KI-Aufrufe je Tag (Schutz vor einer Flut); 0 = kein Deckel.
+    ai_daily_cap: int = 300
+
     # ── Postfach (``services/mailbox``, CRM Schritt 3) ───────────────────────────
     #: Der **OAuth-Client** des Google-Cloud-Projekts (Typ «Webanwendung»). **Leer heisst:
     #: es gibt keine Anbindung** – eine E-Mail wird dann wie bisher nur erfasst. Beide

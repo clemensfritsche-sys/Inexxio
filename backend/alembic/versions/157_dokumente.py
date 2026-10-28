@@ -37,6 +37,7 @@ def upgrade() -> None:
             sha256 VARCHAR(64),
             text TEXT,
             keywords TEXT,
+            facts JSONB,
             created_by BIGINT,
             deleted_at TIMESTAMPTZ,
             deleted_by BIGINT,

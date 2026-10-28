@@ -238,3 +238,82 @@ def test_part_and_field_vocabulary_is_closed():
     assert dd.PART.match("time:12") and dd.PART.match("unit:100000027-3")
     assert not dd.PART.match("foo:1") and not dd.PART.match("time:")
     assert all("." in k for k in dd.FIELDS)
+
+
+# ─── Das KI-Tor und der Vorschlag ──────────────────────────────────────────────
+
+from app.services import ai, reading  # noqa: E402
+
+
+class _FakeClient:
+    """Eine KI, die immer dasselbe abliest – genug, um das Tor zu prüfen."""
+
+    def __init__(self, parsed, stop="end_turn"):
+        self.messages = SimpleNamespace(parse=lambda **kw: SimpleNamespace(
+            parsed_output=parsed, stop_reason=stop,
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5)))
+
+
+def _reading(**kw):
+    base = dict(art="Lieferschein", name="Hydro AG LS 9", text="Bestellung AN-99", keywords_de=["pumpe"],
+                keywords_en=["pump"], numbers=[], facts=[], requirement=None, values=[])
+    base.update(kw)
+    return reading.Read(**base)
+
+
+def test_without_key_the_proposal_is_empty_but_the_sender_still_counts(world, monkeypatch):
+    monkeypatch.setattr(ai, "ready", lambda: False)
+    sender = _person(world.db, "user")
+    p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff,
+                        sender_object_id=sender.object_id)
+    assert not p.read and p.art == "" and [r.object_id for r in p.refs] == [sender.object_id]
+
+
+def test_the_gate_logs_every_call_and_respects_the_cap(world, monkeypatch):
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "_client", lambda: _FakeClient(_reading()))
+    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
+    assert p.read and p.art == "Lieferschein" and "pump" in p.keywords
+    rows = world.db.query(AuditLog).filter(AuditLog.table_name == "ai",
+                                           AuditLog.user_id == world.staff.id).all()
+    assert rows and rows[-1].on_behalf == "ai"
+    monkeypatch.setattr(ai, "used_today", lambda db: 10_000)
+    assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
+
+
+def test_a_refusal_or_broken_answer_is_no_proposal(world, monkeypatch):
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "_client", lambda: _FakeClient(_reading(), stop="refusal"))
+    assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
+
+    def boom():
+        raise RuntimeError("Netz weg")
+    monkeypatch.setattr(ai, "_client", boom)
+    assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
+
+
+def test_our_number_on_the_sheet_points_to_the_record(world, monkeypatch):
+    target = _person(world.db, "user")
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "_client", lambda: _FakeClient(_reading(numbers=[str(target.object_id)])))
+    p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
+    assert [r.object_id for r in p.refs] == [target.object_id] and "Nummer" in p.why
+
+
+def test_the_code_decides_whether_an_amount_fits():
+    req = reading.Requirement(key="k", label="Lieferantenrechnung fehlt", sentence="", fields=(
+        "Gesamtbetrag",), object_id=1, part=None, field="voucher.original",
+        expected={"amount": "4790.00"})
+    assert reading.check(req, {"Gesamtbetrag": "CHF 4'812.60"})[0]
+    ok, why = reading.check(req, {"Gesamtbetrag": "CHF 6'000.00"})
+    assert not ok and "weicht ab" in why
+    assert not reading.check(req, {})[0]
+
+
+def test_files_the_ai_cannot_read_need_no_call():
+    assert ai.content_of(b"\x00\x01", "video/mp4") is None
+    assert ai.content_of(b"<p>Hallo <b>Welt</b></p>", "text/html")["text"] == "Hallo Welt"
+    assert ai.content_of(PDF, "application/pdf")["type"] == "document"

@@ -173,7 +173,8 @@ def _check_refs(db: Session, refs: list[RefIn]) -> list[RefIn]:
 
 def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: str, name: str,
          source: str, refs: list[RefIn], actor: UserProfile,
-         on_behalf: Optional[str] = None) -> tuple[Document, bool]:
+         on_behalf: Optional[str] = None, text: Optional[str] = None,
+         keywords: Optional[str] = None, facts: Optional[dict] = None) -> tuple[Document, bool]:
     """►►► **Freigeben – die einzige Stelle, an der ein Dokument entsteht.** ◄◄◄
 
     Gibt ``(Dokument, schon_da)`` zurück: dieselbe Datei ein zweites Mal legt nichts an,
@@ -194,7 +195,9 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     att = attachments.store_raw(db, raw, filename, mime, actor.id)
     doc = Document(object_id=objects.next_object_id(db, "document"), art=art, name=name,
                    source=source, file_id=att.id, mime=mime, filename=filename or None,
-                   byte_size=len(raw), sha256=digest, created_by=actor.id)
+                   byte_size=len(raw), sha256=digest, created_by=actor.id,
+                   text=(text or None) and text[:20000], keywords=(keywords or None) and keywords[:4000],
+                   facts=facts or None)
     db.add(doc)
     db.flush()
     for r in refs:
@@ -300,7 +303,7 @@ def delete(db: Session, doc: Document, reason: str, actor: UserProfile) -> None:
         db.query(Attachment).filter(Attachment.id == doc.file_id).delete()
     for s in db.query(DocumentSignature).filter(DocumentSignature.document_id == doc.id).all():
         s.image = None
-    doc.file_id, doc.sha256, doc.text, doc.keywords = None, None, None, None
+    doc.file_id, doc.sha256, doc.text, doc.keywords, doc.facts = None, None, None, None, None
     doc.deleted_at, doc.deleted_by, doc.delete_reason = datetime.now(timezone.utc), actor.id, reason
     db.flush()
     log_audit(db, "documents", "gelöscht", reason, actor.id, object_id=doc.object_id)

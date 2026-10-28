@@ -79,3 +79,47 @@ class RecordOut(BaseModel):
     object_id: int
     type: str
     label: str
+
+
+class TargetIn(BaseModel):
+    """Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``)."""
+    object_id: int
+    part: Optional[str] = None
+    field: str
+    #: Was das Feld zusätzlich braucht (z. B. ``note`` beim Annehmen einer Abweichung).
+    extra: dict = {}
+
+
+class ProposedRef(BaseModel):
+    object_id: int
+    label: str
+    part: Optional[str] = None
+    field: Optional[str] = None
+
+
+class ProposalOut(BaseModel):
+    """Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."""
+    art: str = ""
+    name: str = ""
+    text: str = ""
+    keywords: str = ""
+    facts: dict = {}
+    refs: list[ProposedRef] = []
+    why: str = ""
+    #: Hat die KI gelesen? Sonst tippt der Mensch Art und Name selbst.
+    read: bool = False
+    #: Gibt es heute eine KI (Schlüssel, Deckel)?
+    ai: bool = False
+    #: Die Felder der gewählten Anforderung, wie abgelesen – das Modul füllt sich daraus vor.
+    values: dict = {}
+    requirement: Optional[str] = None
+
+
+class RequirementOut(BaseModel):
+    key: str
+    label: str
+    sentence: str
+    fields: list[str]
+    object_id: int
+    part: Optional[str] = None
+    field: str
