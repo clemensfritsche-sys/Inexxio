@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import type { CompanySettings, Todo } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DetailBody, Card, DetailHeader, SectionSep, Segmented } from '@/components/erp/fields';
+import { DocumentTiles } from '@/components/erp/documents';
+import { LegalTexts } from '@/components/erp/legal-texts';
 import { CompanyTime } from '@/components/erp/time/company-time';
 import { sectionItems } from '@/lib/todo';
 import { organizationStatus } from '@/lib/record-status';
@@ -512,6 +514,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
           <Card title="Gebiete">
             <TerritoryMap highlight={record.object_id} embedded />
           </Card>
+          {record.object_id != null && <LegalTexts company={record.object_id} isAdmin={isAdmin} />}
           </>)}
 
           {/* ►►► **Wer gehört zu dieser Firma?** – abgeleitet aus der Zuordnung an der
@@ -532,6 +535,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
               </div>
             )}
           </Card>
+          <DocumentTiles objectId={record.object_id} />
         </DetailBody>
         </fieldset>
         )}

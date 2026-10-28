@@ -17,7 +17,7 @@ export interface StatusEntry {
   value: string;
   label: string;
   tone: StatusTone;
-  /** Welche Achsen ihn tragen können: unit | order | article. */
+  /** Welche Achsen ihn tragen können: unit | order | article | document. */
   axes: readonly string[];
   /** Nur für Zustände, die ein Stück tragen kann – sonst `null`. */
   stock: StockKind | null;
@@ -38,10 +38,13 @@ export const VERSCHROTTET = "verschrottet";
 export const ABGESCHLOSSEN = "abgeschlossen";
 export const ABGEBROCHEN = "abgebrochen";
 export const INAKTIV = "inaktiv";
+export const UNTERSCHRIFT_ANGEFRAGT = "unterschrift_angefragt";
+export const ABGELEHNT = "abgelehnt";
+export const GELOESCHT = "geloescht";
 
 /** Der Katalog. Reihenfolge = Anzeige-Reihenfolge (Leiste, Legende).*/
 export const STATUS_CATALOG: readonly StatusEntry[] = [
-  { value: FREIGEGEBEN, label: "Freigegeben", tone: "done", axes: ["unit", "article"], stock: "live", terminal: false },
+  { value: FREIGEGEBEN, label: "Freigegeben", tone: "done", axes: ["unit", "article", "document"], stock: "live", terminal: false },
   { value: IM_PROZESS, label: "Im Prozess", tone: "pending", axes: ["unit", "order"], stock: "live", terminal: false },
   { value: GESPERRT, label: "Gesperrt", tone: "pending", axes: ["unit"], stock: "live", terminal: false },
   { value: VERBAUT, label: "Verbaut", tone: "done", axes: ["unit"], stock: "history", terminal: false },
@@ -50,6 +53,9 @@ export const STATUS_CATALOG: readonly StatusEntry[] = [
   { value: ABGESCHLOSSEN, label: "Abgeschlossen", tone: "done", axes: ["order"], stock: null, terminal: false },
   { value: ABGEBROCHEN, label: "Abgebrochen", tone: "danger", axes: ["order"], stock: null, terminal: false },
   { value: INAKTIV, label: "Inaktiv", tone: "danger", axes: ["article"], stock: null, terminal: false },
+  { value: UNTERSCHRIFT_ANGEFRAGT, label: "Unterschrift angefragt", tone: "pending", axes: ["document"], stock: null, terminal: false },
+  { value: ABGELEHNT, label: "Abgelehnt", tone: "danger", axes: ["document"], stock: null, terminal: false },
+  { value: GELOESCHT, label: "Gelöscht", tone: "danger", axes: ["document"], stock: null, terminal: false },
 ];
 
 /** Alle Werte in Anzeige-Reihenfolge. */

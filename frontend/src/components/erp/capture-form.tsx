@@ -76,7 +76,7 @@ export function CaptureForm({ points, numbers, action, busy, onConfirm, onDirty 
             <span className="ix-tnum text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{n}</span>
           )}
           {points.map((p) => (
-            <PointInput key={p.key} point={p} value={byUnit[n]?.[p.key]} disabled={busy}
+            <PointInput key={p.key} point={p} unit={n} value={byUnit[n]?.[p.key]} disabled={busy}
               onChange={(v) => {
                 // Die Meldung steht **neben** dem Setzen, nicht darin: der Updater von
                 // `setByUnit` kann mehrfach laufen (StrictMode) und darf keine Wirkung
@@ -124,8 +124,10 @@ function isMissing(point: CapturePoint, value: unknown): boolean {
   return value === undefined || value === null || value === '';
 }
 
-function PointInput({ point, value, disabled, onChange }: {
+function PointInput({ point, unit, value, disabled, onChange }: {
   point: CapturePoint;
+  /** Das Stück, dem der Wert gilt (ein Bild wird ein Dokument an ihm). */
+  unit: string;
   value: unknown;
   disabled?: boolean;
   onChange: (v: unknown) => void;
@@ -156,9 +158,10 @@ function PointInput({ point, value, disabled, onChange }: {
         </span>
       ) : point.type === 'photo' ? (
         // **Genau eine Aufnahme, über die Kamera** (#718/#720). Kein Upload, keine Liste:
-        // ein Nachweis, der auf zwei Arten entstehen kann, ist hinterher keiner.
-        <PhotoShot value={typeof value === 'string' && value ? value : null}
-          disabled={disabled} onChange={(url) => onChange(url ?? '')} />
+        // ein Nachweis, der auf zwei Arten entstehen kann, ist hinterher keiner. Die Aufnahme
+        // wird ein Dokument am Stück (derselbe Entwurf wie überall).
+        <PhotoShot value={typeof value === 'string' && value ? value : null} unit={unit}
+          label={point.label} disabled={disabled} onChange={(url) => onChange(url ?? '')} />
       ) : point.type === 'signature' ? (
         <SignaturePad value={typeof value === 'string' && value ? value : null}
           disabled={disabled} onChange={(url) => onChange(url ?? '')} />

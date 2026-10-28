@@ -437,24 +437,28 @@ def test_the_record_shows_a_state_only_when_it_changed():
     )
 
 
-def test_only_the_export_proof_is_uploaded_and_in_one_call():
-    """**Der Ausfuhrnachweis wird hochgeladen (PDF oder Bild), jedes Foto bleibt eine
-    Aufnahme** – und ein Upload meldet Nummer und Link in EINEM Aufruf (Chrome-Test).
+def test_every_file_of_a_module_is_a_document_through_the_one_draft():
+    """►►► **Eine Ablage: jede Datei eines Moduls wird ein Dokument – über DENSELBEN
+    Entwurf.** ◄◄◄ Lieferantenrechnung, Ausfuhrnachweis, Nachweis einer Absenz, Bild der
+    Datenerfassung (Regel B). Ein Bild bleibt eine **Aufnahme** (keine Dateiwahl).
 
-    Bug-Formen: (a) der Ausfuhrnachweis verlangt wieder die Kamera; (b) die Aufnahme bekommt
-    einen Dateidialog; (c) Nummer und Link kommen in zwei Aufrufen – der zweite schrieb auf
-    den alten Formularstand, die Nummer ging verloren, «Buchen» blieb gesperrt.
+    Bug-Formen: (a) ein Feld lädt wieder eine lose Datei in den Korb (``uploadAttachment``)
+    statt ein Dokument anzulegen; (b) die Aufnahme bekommt einen Dateidialog; (c) die
+    Aufnahme geht am Entwurf vorbei.
     """
-    invoice = _code(_read(FRONTEND / "components" / "erp" / "beleg" / "invoice.tsx"))
-    proof = invoice[invoice.index("function ExportProof"):]
-    proof = proof[: proof.index("\nfunction ", 1)]
-    assert "<FileUpload" in proof and "<PhotoShot" not in proof, "(a)"
-    upload = _code(_read(FRONTEND / "components" / "erp" / "file-upload.tsx"))
-    assert 'type="file"' in upload and "application/pdf" in upload, "(a)"
-    shot = _code(_read(FRONTEND / "components" / "erp" / "photo-capture.tsx"))
+    erp = FRONTEND / "components" / "erp"
+    invoice = _code(_read(erp / "beleg" / "invoice.tsx"))
+    for fn in ("function ExportProof", "function BillPaper"):
+        part = invoice[invoice.index(fn):]
+        part = part[: part.index("\nfunction ", 1)]
+        assert "<DocumentField" in part, f"(a) {fn}"
+    shot = _code(_read(erp / "photo-capture.tsx"))
+    time_card = _code(_read(erp / "time" / "time-card.tsx"))
+    for src in (invoice, shot, time_card):
+        assert "uploadAttachment" not in src, "(a)"
     assert 'type="file"' not in shot, "(b)"
-    for src in (shot, invoice):
-        assert "onStored" not in src, "(c)"
+    assert "<DraftSheet" in shot and "capture.photo" in shot, "(c)"
+    assert "<DraftSheet" in time_card and "time.proof" in time_card, "(a) Nachweis"
 
 
 def test_the_draft_keeps_its_work_and_its_place():

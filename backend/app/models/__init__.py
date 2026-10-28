@@ -16,6 +16,7 @@ from .instance import Instance
 from .instance_unit import InstanceUnit
 from .capture import Capture
 from .attachment import Attachment
+from .document import Document, DocumentLink, DocumentRef, DocumentSignature
 from .webauthn import WebAuthnCredential, WebAuthnChallenge
 from .audit import AuditLog
 from .feedback import FeedbackNote
@@ -30,7 +31,7 @@ __all__ = [
     "Order", "OrderLine", "OrderUnit", "ProcessStep", "ArticleProcessStep", "ProcessEvent",
     "Voucher", "VoucherQuote", "VoucherDocument", "VoucherLine", "VoucherEntry",
     "Instance", "InstanceUnit", "Capture",
-    "Attachment",
+    "Attachment", "Document", "DocumentRef", "DocumentSignature", "DocumentLink",
     "WebAuthnCredential", "WebAuthnChallenge",
     "AuditLog", "ObjectRef", "FeedbackNote",
     "Message", "MessageParty", "Mailbox", "NewsletterConsent",

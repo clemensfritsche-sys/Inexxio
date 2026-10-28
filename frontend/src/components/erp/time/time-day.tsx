@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { ErrorText, IconSwitch, InfoHint, Row } from '@/components/erp/fields';
 import { LedgerRow, StageAction } from '@/components/erp/module-ui';
-import { api } from '@/lib/api';
+import { api, assetUrl } from '@/lib/api';
 import { day as dayText, dayShort, dayTitle, parseDay } from '@/lib/when';
 import type { EntryPreview, TimeAbsence, TimeDay, TimeEntryIn, TimeStamp, TimeView } from '@/types';
 import {
@@ -85,23 +85,22 @@ function StampRow({ s, editable, onSave, onVoid }: {
 }
 
 function AbsenceRow({ a, view, onVoid, onProof }: {
-  a: TimeAbsence; view: TimeView; onVoid: () => void; onProof: (f: File) => void;
+  a: TimeAbsence; view: TimeView; onVoid: () => void; onProof: () => void;
 }) {
   const art = view.vocab.arts.find((x) => x.key === a.art);
   const Icon = timeIcon(art?.icon ?? '');
   const multi = a.day !== a.until;
   const proof = a.proof_needed && art?.proof
     ? (a.proof_url
-      ? <a href={a.proof_url} target="_blank" rel="noreferrer"><Pill tone="done" label={art.proof} icon={FileCheck} tip="Hochgeladen – öffnen" /></a>
+      ? <a href={assetUrl(a.proof_url)} target="_blank" rel="noreferrer"><Pill tone="done" label={art.proof} icon={FileCheck} tip="Nachgereicht – öffnen" /></a>
       : <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
           {/* «fehlt» erst ab dem Tag, ab dem er nötig ist – hochladen geht schon vorher. */}
           {a.proof_missing && <Pill tone="pending" label={`${art.proof} fehlt`} />}
-          <label className="erp-actbtn erp-actbtn-neutral" style={{ height: 24, padding: '0 9px', fontSize: 11.5, cursor: 'pointer' }}
-            data-tip="Foto oder Scan des Nachweises – jederzeit nachreichbar">
-            <Upload size={12} />Hochladen
-            <input type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) onProof(f); e.target.value = ''; }} />
-          </label>
+          <button type="button" className="erp-actbtn erp-actbtn-neutral" onClick={onProof}
+            style={{ height: 24, padding: '0 9px', fontSize: 11.5 }}
+            data-tip="Scannen oder als Datei – wird ein Dokument, jederzeit nachreichbar">
+            <Upload size={12} />Nachreichen
+          </button>
         </span>)
     : null;
   return (
@@ -118,9 +117,8 @@ function AbsenceRow({ a, view, onVoid, onProof }: {
 
 function CaptureTool({ view, d, cap, setCap, onSubmit, preview }: {
   view: TimeView; d: TimeDay; cap: Capture; setCap: (c: Capture | null) => void;
-  onSubmit: (entry: TimeEntryIn, file: File | null) => Promise<string | null>; preview: Preview | null;
+  onSubmit: (entry: TimeEntryIn) => Promise<string | null>; preview: Preview | null;
 }) {
-  const [file, setFile] = useState<File | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const stamps = !d.future ? [
     { value: 'in', label: 'Kommen', icon: LogIn }, { value: 'out', label: 'Gehen', icon: LogOut },
@@ -132,7 +130,7 @@ function CaptureTool({ view, d, cap, setCap, onSubmit, preview }: {
   const entry = captureEntry(cap);
   const problem = err ?? preview?.problem ?? null;
   const set = (patch: Partial<Capture>) => { setErr(null); setCap({ ...cap, ...patch }); };
-  const submit = async () => { if (entry) { const e = await onSubmit(entry, file); if (e) setErr(e); } };
+  const submit = async () => { if (entry) { const e = await onSubmit(entry); if (e) setErr(e); } };
   const vac = preview?.vacation_after != null ? vacationText(preview.vacation_after, view.day_soll) : null;
   const art = view.vocab.arts.find((a) => a.key === cap.what);
   return (
@@ -187,14 +185,8 @@ function CaptureTool({ view, d, cap, setCap, onSubmit, preview }: {
             </div>
           )}
           {preview?.proof && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <label className="erp-actbtn erp-actbtn-neutral" style={{ height: 30, cursor: 'pointer', position: 'relative' }}>
-                <Upload size={13} />{file ? file.name : `${preview.proof} hochladen`}
-                <input type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              </label>
-              <InfoHint text={`Ab dem ${preview.proof_from}. Arbeitstag nötig – Foto oder Scan. Lässt sich auch später am Tag nachreichen.`} />
-            </div>
+            <Row k={preview.proof} v={`ab dem ${preview.proof_from}. Arbeitstag`}
+              hint="Nach dem Erfassen am Eintrag nachreichen – gescannt oder als Datei, er wird ein Dokument." />
           )}
           <StageAction icon={Plus} label="Erfassen" disabled={!entry || !!problem || !preview || !preview.workdays}
             onClick={submit} />
@@ -208,8 +200,8 @@ function CaptureTool({ view, d, cap, setCap, onSubmit, preview }: {
 export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof }: {
   view: TimeView; d: TimeDay; cap: Capture | null; setCap: (c: Capture | null) => void;
   preview: Preview | null;
-  onEntry: (entry: TimeEntryIn, file?: File | null) => Promise<string | null>;
-  onProof: (absence: number, file: File) => void;
+  onEntry: (entry: TimeEntryIn) => Promise<string | null>;
+  onProof: (absence: TimeAbsence) => void;
 }) {
   const hints = d.hints.filter((h) => h !== 'open' && h !== 'proof')
     .map((h) => view.vocab.hints.find((x) => x.key === h)).filter((h) => !!h);
@@ -252,13 +244,13 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
           ))}
           {d.absence && <AbsenceRow a={d.absence} view={view}
             onVoid={() => act({ kind: 'void', replaces_id: d.absence!.id })}
-            onProof={(f) => onProof(d.absence!.id, f)} />}
+            onProof={() => onProof(d.absence!)} />}
         </div>
       )}
       {err && <ErrorText msg={err} />}
       {cap && cap.day === d.day
         ? <CaptureTool view={view} d={d} cap={cap} setCap={setCap} preview={preview}
-            onSubmit={(entry, file) => onEntry(entry, file)} />
+            onSubmit={(entry) => onEntry(entry)} />
         : canCapture && <QuietButton icon={Plus} label="Erfassen" onClick={() => setCap(captureFor(d.day))} />}
     </div>
   );

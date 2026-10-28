@@ -8,7 +8,8 @@ import type {
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailHeader, HeaderAction } from '@/components/erp/fields';
+import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/fields';
+import { DocumentTiles } from '@/components/erp/documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 import {
@@ -305,6 +306,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
           </p>
+        )}
+        {!isDraft && shown?.object_id != null && (
+          <DetailBody style={{ paddingBottom: 40 }}><DocumentTiles objectId={shown.object_id} /></DetailBody>
         )}
 
       </div>

@@ -27,9 +27,9 @@ export function startForm(kind: FormKind, d: Filled, method?: string): Form {
       return { kind, f: { amount: unsigned(d.open ?? ''), method: method ?? TRANSFER, iban: '' } };
     case 'bill':
       return { kind, f: { amount: d.amount ?? '', vat: d.vat_rate, reference: '',
-                          billed_on: '', party_uid: '', original: '', photo: '' } };
+                          billed_on: '', party_uid: '', original: d.original ? String(d.original) : '' } };
     case 'export':
-      return { kind, f: { reference: '', original: '', photo: '', name: '' } };
+      return { kind, f: { reference: '', original: d.export_photo ? String(d.export_photo) : '' } };
     case 'writeoff':
       return { kind, f: { reason: '' } };
     default:
@@ -71,11 +71,11 @@ export function formProblem(form: Form, d: Filled): string | null {
       if (taxed(form, d) && blank('party_uid')) {
         return 'Ohne die MWST-Nummer auf seiner Rechnung gibt es keinen Vorsteuerabzug (MWSTG Art. 28).';
       }
-      if (blank('original')) return 'Ohne Foto der Rechnung geht es nicht – sie ist der Beleg.';
+      if (blank('original')) return 'Ohne die Rechnung als Dokument geht es nicht – sie ist der Beleg.';
       return null;
     case 'export':
       if (blank('reference')) return 'Erst die Nummer der Veranlagungsverfügung eintragen.';
-      if (blank('original')) return 'Ohne die Veranlagungsverfügung (PDF oder Bild) gilt der Nachweis nicht.';
+      if (blank('original')) return 'Ohne die Veranlagungsverfügung als Dokument gilt der Nachweis nicht.';
       return null;
     case 'accept':
       return blank('note') ? 'Eine Abweichung nimmt man mit Grund an – er bleibt als Nachweis.' : null;

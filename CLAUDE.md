@@ -16,7 +16,8 @@
 Zentrales Unternehmenssystem für ein produzierendes Schweizer KMU (AG, Maschinenbau,
 ca. 10 Mitarbeitende, ca. 1'000 Artikel). Ziel ist Website + ERP + Buchhaltung + HR +
 Qualitätsmanagement; **gebaut sind heute das Fundament, der Prozess mit fünf Modulen, das
-CRM mit Kommunikation, die Zeiterfassung und die öffentliche Website** (siehe «Status»).
+CRM mit Kommunikation, die Zeiterfassung, die Dokumente (eine Ablage) und die öffentliche
+Website** (siehe «Status»).
 
 ## Architektur
 
@@ -27,17 +28,23 @@ Website:   Astro 7 (website/), reines HTML, gleiche Hosting-Site wie das ERP
 Backend:   FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2, Alembic
 DB:        PostgreSQL (Cloud SQL), universeller 9-stelliger Nummernkreis
 Auth:      Firebase Authentication (Magic Link · Google SSO · Passkeys/WebAuthn)
-Bilder:    in der Datenbank, ausgeliefert über einen unerratbaren Token
+Dateien:   in der Datenbank («Korb», services/attachments), ausgeliefert über einen
+           unerratbaren Token; ein Bucket hiesse: nur diesen Dienst ändern
 Karten:    Google Places (Adress-Suche in jedem Adressfeld)
 Infra:     Google Cloud Run (europe-west6) + Firebase Hosting
 Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPTIONAL:
            ohne Schlüssel gibt es den Dienst nicht (docs/stripe-setup.md)
 E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versand.
            OPTIONAL: ohne OAuth-Client wird eine Mail nur erfasst (docs/gmail-setup.md)
+KI:        Claude API (Anthropic SDK) – EINE Tür services/ai.py: Lesen (Haiku 5.5),
+           Verfassen (Sonnet 5.5), 300 Aufrufe je Tag, jeder Aufruf im Log. OPTIONAL: ohne
+           ANTHROPIC_API_KEY geht alles ausser Verfassen (docs/dokumente.md)
+Scanner:   OpenCV.js (Paket @techstark/opencv-js, als /vendor/opencv-<Version>.js
+           ausgeliefert, geladen erst beim Scannen)
 ```
 
-**Geplant, aber NICHT verdrahtet** (keine Zeile Code): Typesense (Suche) · Claude API (KI)
-· Cloud Storage (Datei-Ablage) · Carrier-Anbindung (Versand). Was davon einmal gebaut und
+**Geplant, aber NICHT verdrahtet** (keine Zeile Code): Typesense (Suche) · Cloud Storage
+(Datei-Ablage) · Carrier-Anbindung (Versand). Was davon einmal gebaut und
 wieder entfernt wurde, steht in `docs/attic.md`.
 
 ## Monorepo-Struktur
@@ -51,7 +58,8 @@ inexxio/
 ├── firebase.json     ← Hosting, Rewrites, Security-Header, Weiterleitungen alter Pfade
 ├── .github/workflows ← quality.yml (das Gate), deploy-dev.yml (develop), deploy-prod.yml (main)
 └── docs/             ← adr/ (mit Kopfstatus) · attic.md · backlog.md · design-system/ ·
-                         gmail-setup.md · stripe-setup.md · passkeys.md · history/
+                         gmail-setup.md · stripe-setup.md · passkeys.md · dokumente.md ·
+                         history/
 ```
 Messwerkzeug: `backend/scripts/deadcode.py` – «was liest eigentlich niemand mehr?» für
 Backend und Frontend (Erreichbarkeit + Exporte ohne Leser).
@@ -79,6 +87,12 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   **Ableitungen aus dem Log**, nie aus dem heutigen Zustand.
 - **Exklusivität**: ein Stück ist in genau einem Auftrag aktiv – als partieller
   Unique-Index auf der offenen Zugehörigkeit (`order_units`).
+- **Dokument** (`docs/dokumente.md`): Datei + Art + Name + Referenz(en), eigene
+  Objektnummer. Neun Regeln; die wichtigsten: dieselbe Datei ist dasselbe Dokument, vorher gibt
+  es nichts (Entwurf im Browser, «Freigeben» legt an), es erscheint genau dort, wohin seine
+  Referenz zeigt, ein **Pflichtfeld** (`domain/documents.FIELDS`) ist änderbar, nie leer,
+  gelöscht wird nur, was nirgends hängt. Zustand abgeleitet: Freigegeben · Unterschrift
+  angefragt · Abgelehnt · Gelöscht.
 - **Status** (`domain/statuses.py`, `CATALOG`): ein Eintrag trägt Beschriftung, Ampelton,
   Achsen, Bestand ↔ Historie (`stock`) und Endgültigkeit (`terminal`); ein Stück-Status ohne
   `stock` lässt die App nicht starten. Das Frontend **bekommt** den Katalog generiert
@@ -170,13 +184,18 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   die aktuelle Fassung** (`offered_hash`). **Die Anschrift entscheidet** Steuersatz (Ware:
   Lieferadresse, Dienstleistung: Sitz; Ausland fest Export bzw. Reverse Charge), Fremdwährung,
   Zoll und den Ort der Lieferbedingung; die eigene Gesellschaft ist nie Gegenpartei.
-  Lieferantenrechnung mit Nummer, Datum, MWST-Nr. und Foto; Abweichung → «So annehmen» mit
-  Grund. **Ausfuhrnachweis** = Nummer der Veranlagungsverfügung + das Dokument, **hochgeladen**
-  (PDF oder Bild, `components/erp/file-upload.tsx`) – der einzige Datei-Upload im Haus. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Dokument**
+  Lieferantenrechnung mit Nummer, Datum, MWST-Nr. und dem **Dokument** (Feld
+  `voucher.original`, die Werte liest die KI vor); Abweichung → «So annehmen» mit
+  Grund. **Ausfuhrnachweis** = Nummer der Veranlagungsverfügung + ihr Dokument (Feld
+  `voucher.export`) – beide über `components/erp/document-field.tsx`. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Papier**
   (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
   A4-Vorlage** (`services/document.py`), nennt je Position die **Seriennummer** (Instanznummer,
-  `voucher.serials_of`), wird **eingefroren** (`voucher_documents`), trägt die
-  AGB der Fassung (`services/legal.py`, `app/assets/legal/agb/<Datum>.md`) auf eigenen A4-Seiten und geht
+  `voucher.serials_of`), ist ein **Dokument** (Feld `voucher.doc`, nie löschbar;
+  `voucher_documents` hält nur Link, Partei, Mail), trägt die
+  AGB der stellenden Gesellschaft auf eigenen A4-Seiten. **Vorschau → Freigeben**: was ein Papier
+  hinausgibt (`voucher.PAPER_VERBS`), zeigt die Karte vorher (`voucher_docs.preview`,
+  zurückgerollter Lauf); **AB und Quittung stehen an** (`voucher.papers_due`, «zu tun») und
+  gehen mit «Prüfen und freigeben» (Verb `release`), nie von selbst (`AUTO_RELEASE` leer). Es geht
   mit Link `/beleg?t=…` per Mail hinaus; auf dieser Seite handelt die Partei mit denselben
   Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
   je Vorgang**. Drei Wege zum Geld: bar · Überweisung (Swiss QR-Rechnung) · Karte (Stripe,
@@ -222,7 +241,8 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach); ein unbekannter
   Absender wird Person, Massenpost nicht; eine eigene Adresse ist nie eine Person. Senden:
   jede Mail genau einmal (einzeln gesperrt, sofort festgeschrieben). Erledigt im ERP =
-  gelesen in Gmail.
+  gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den
+  Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
   Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`).
@@ -270,7 +290,10 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
 - **7-Tage-Regel**: ältere Tage ändert nur der Admin, im Kalender **blass**. Nur online.
 - **«Zu tun»** (`services/todo`, `GET /erp/todo`): EINE Zahl am Symbol jedes Datensatzes –
   offene Nachrichten + Aufgaben der Zeiterfassung + fehlende Pflichtangaben
-  (`people.missing_fields`, Quelle auch für den Fortschritt im Konto) + fehlende Feiertage.
+  (`people.missing_fields`, Quelle auch für den Fortschritt im Konto) + fehlende Feiertage +
+  anstehende Papiere und erwartete Dokumente am Auftrag + fehlende Rechtstexte (Admin).
+- **Nachweis einer Absenz** ist ein Dokument (Feld `time.proof`, «Nachreichen» öffnet den
+  Entwurf); eine lose Datei im Korb nimmt `timekeeping.record` nicht an.
 
 ## Leitbild (VERBINDLICH)
 
@@ -288,6 +311,8 @@ Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung
 `people.search` hinter `GET /erp/people`) · `services/address_book.py` · `services/places.py`
 (Orte, Halter) · `services/lookup.py` («welchen Datensatz meinst du», Nummer ODER Name) ·
 `services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) ·
+`services/documents.py` (jede Datei, `file` ist die einzige Anlage) · `services/ai.py` (jeder
+KI-Aufruf) · `components/erp/document-draft.tsx` (jeder Entwurf) ·
 `components/erp/address-field.tsx` · `object-select.tsx` (jedes Referenzfeld) ·
 `lib/when.ts` (die einzige Datums-Ausgabe) · `lib/use-autosave.ts`. Zwei Wege für dieselbe
 Sache sind ein Bug, auch wenn beide funktionieren.
@@ -415,11 +440,14 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
   gewöhnliches `<video autoplay muted loop playsinline poster>` statt des Fotos
   (`components/Media.astro`). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
-  ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/beleg`, `/agb`,
-  `/datenschutz`, `/impressum`.
-- **Rechtstexte** (AGB · Datenschutz · Impressum): EIN Text je Art und Fassung in
-  `backend/app/assets/legal/<art>/<gültig ab>.md` (`services/legal.py`), ein Text für Geschäfts-
-  und Endkunden; Name, Anschrift, Kontakt und UID setzt das ERP ein (`{{firma}}` …). Gezeigt als
+  ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/beleg`,
+  `/dokument`, `/agb`, `/datenschutz`, `/impressum`, `/vendor`.
+- **Rechtstexte**: **AGB und Datenschutz sind Dokumente jeder eigenen Gesellschaft**
+  (Pflichtfelder `company.agb` · `company.privacy`, Karte «Rechtstexte», «Aus Vorlage
+  übernehmen» nur Admin; `services/legal.py`). `/agb` zeigt die AGB der Gesellschaft zum Land des
+  Besuchers, `/datenschutz` und `/impressum` die des Betreibers; das Impressum sind die Angaben des
+  Betreibers in der Vorlage. Vorlage: `backend/app/assets/legal/<art>/<gültig ab>.md`; Name,
+  Anschrift, Kontakt und UID setzt das ERP ein (`{{firma}}` …); ein PDF steht, wie es ist. Gezeigt als
   A4-Dokument aus derselben Vorlage wie jeder Beleg (`services/document.py`), **in echte
   A4-Seiten geteilt** – der Download hat genau so viele Seiten, wie «Seite x/n» sagt; die Schrift
   steckt im Dokument (kein Abruf bei Google). Seite `components/beleg/legal-page.tsx`.
@@ -449,7 +477,10 @@ Wortlaut des Auftrags und in zentralen Punkten überholt.
 
 ## Sicherheit und Datenschutz
 **Gebaut:** HTTPS/HSTS, CSP und Security-Header (`firebase.json`); Firebase-Anmeldung,
-Passkeys serverseitig (`services/passkey.py`); Secrets nur im Google Secret Manager.
+Passkeys serverseitig (`services/passkey.py`); Secrets nur im Google Secret Manager. **Jede
+schreibende Anfrage** ans ERP steht im `audit_log` (`main.audit_writes`), jeder KI-Aufruf auch
+(`on_behalf = ai`). Hochgeladene Dateien, die nicht Bild oder PDF sind, kommen mit
+`Content-Security-Policy: sandbox`.
 **Vorgemerkt, nicht gebaut:** TOTP-MFA für Admins, Session-Timeout, Brute-Force-Sperre.
 CH DSG + DSGVO: **keine Statistik, keine Cookies, kein Einwilligungs-Dialog** (Plausible
 entfernt). Buchungsbelege unveränderlich (10 Jahre).
@@ -513,25 +544,30 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   (`verifyBeforeUpdateEmail`), das Profil übernimmt sie aus dem nächsten Token. Telefon schreibt
   der Server lesbar zurück (`people.tidy_phone`).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
-  · Unternehmen; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
+  · Unternehmen · Dokumente; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.
 - **Prozess** mit fünf Modulen, Abweichungen, Prozessbild als Graph aus dem Log
   (`services/flow.py`) und Modul-Protokoll.
 - **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Gutschriften,
   Bezahlkarte, Swiss QR-Rechnung; Stücke ziehen von selbst weiter, am Ziel «Verkauft»; jedes
-  Dokument als A4-HTML eingefroren, mit AGB als letzter Seite, per Mail mit Link auf die
-  Kundenseite `/beleg` (annehmen, ablehnen, bezahlen); Zahlungen-Liste an Person und Gesellschaft.
+  Papier als Dokument (A4-HTML, AGB als letzte Seiten), vorher als Vorschau, per Mail mit Link
+  auf die Kundenseite `/beleg` (annehmen, ablehnen, bezahlen); Zahlungen-Liste an Person und
+  Gesellschaft.
 - **Zeiterfassung** im Personendatensatz: Wischknopf, Stundenkonto und Ferien in Stunden,
   Monat und Tag mit «Erfassen», Verträge und Buchungen (Admin), Feiertage mit Vorschlag
   (OpenHolidays) an der Gesellschaft, «zu tun» am Symbol.
 - **Unternehmen** (eigene Gesellschaften mit Gebietskarte und Postfach, ein Betreiber;
   fremde Firmen als Identität) und **CRM** mit Kommunikation und Gmail; Versandarten Mail ·
   Rundschreiben · Newsletter, Einwilligung als Nachweis.
+- **Dokumente** (`docs/dokumente.md`): eine Ablage für jede Datei; Entwurf mit Scannen
+  (Blatterkennung, mehrere Seiten → PDF) · Datei · Verfassen (KI); Lesen, Stichworte und
+  Zuordnung durch die KI als Vorschlag; Pflichtfelder in Zahlung, Zeiterfassung, Datenerfassung
+  und Gesellschaft; Senden je Empfänger mit Link ohne Ablauf, Unterschreiben auf `/dokument`.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung; Skill `feedback`).
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Shop, Module
-Beschaffen/Verkauf/Ausliefern, «Zahlung (alt)», Dokumente/PDF, Rechtstexte aus dem
-Dokumentmodul, KI-Assistent, Versand-Anbindung, Ereignis-Strom, Feature-Schalter, Kontotyp,
+Beschaffen/Verkauf/Ausliefern, «Zahlung (alt)», das alte Dokumentmodul (neu gebaut, siehe
+oben), KI-Assistent, Versand-Anbindung, Ereignis-Strom, Feature-Schalter, Kontotyp,
 Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 
 **Offen**
@@ -540,7 +576,11 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Newsletter-Versand über einen Dienst (heute Gmail, 20 je Abgleich), Rückläufer;
   Google Workspace, zentrale Gmail-Signatur, persönliche Postfächer – verschoben.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
-- Folge-Deploy: `user_profiles.employment_start_date`/`weekly_hours` droppen (`docs/backlog.md`).
+- Folge-Deploy: `user_profiles.employment_start_date`/`weekly_hours` und
+  `voucher_documents.html` droppen (`docs/backlog.md`).
+- Dokumente: Schlüssel `ANTHROPIC_API_KEY` hinterlegen (Secret Manager; ohne ihn kein Lesen und
+  Verfassen); automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
+  aussen auf Dokumente (heute nur über einen Link).
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop und «Besitz»
   (`docs/konzept-beleg-shop-besitz.md`), offene-Posten-Liste je Partner, TOTP-MFA.
 

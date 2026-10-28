@@ -239,13 +239,14 @@ class Voucher(Base, TimestampMixin):
     #: **Ausgabe: die MWST-Nummer auf der Lieferantenrechnung** (MWSTG Art. 28 – ohne sie
     #: kein Vorsteuerabzug).
     party_uid: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
-    #: **Ausgabe: das Foto der Lieferantenrechnung** (``attachments.id``) – Pflicht beim
-    #: Erfassen, aufbewahrt wie der Beleg.
+    #: **Ausgabe: die Lieferantenrechnung** – die Nummer ihres Dokuments (Pflichtfeld
+    #: ``voucher.original``), Pflicht beim Erfassen, aufbewahrt wie der Beleg.
     original_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     #: **Ausgabe: die Rechnung weicht von der Zusage ab, und sie wurde SO angenommen** –
     #: mit diesem Grund. Solange eine Abweichung ohne Grund dasteht, wird nicht bezahlt.
     deviation_note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    #: **Der Ausfuhrnachweis** (Export): Nummer der Veranlagungsverfügung und ihr Foto.
+    #: **Der Ausfuhrnachweis** (Export): Nummer der Veranlagungsverfügung und die Nummer
+    #: ihres Dokuments (Pflichtfeld ``voucher.export``).
     #: Ohne ihn gilt der Nullsatz nicht – erledigt ist der Beleg erst damit.
     export_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
     export_photo_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -464,7 +465,13 @@ class VoucherDocument(Base, TimestampMixin):
     #: An wen es ging – die Objektnummer der Person.
     party_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    html: Mapped[str] = mapped_column(Text, nullable=False)
+    #: **Das Papier ist ein Dokument** (``documents.id``, Feld ``voucher.doc``) – die eine
+    #: Ablage. Hier steht nur noch, wie es hinausging (Link, Partei, Mail).
+    document_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("documents.id"), nullable=True, index=True)
+    #: Früher das Papier selbst; leer, seit es ein Dokument ist (Übernahme beim Start,
+    #: ``services/adopt``). Fällt im Folge-Deploy weg (``docs/backlog.md``).
+    html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     #: Das Datum der AGB, die angehängt sind («2026-01-01»).
     agb: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     #: Die Mail, mit der es hinausging (``messages.id``).

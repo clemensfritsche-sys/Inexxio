@@ -44,6 +44,10 @@ alembic revision --autogenerate -m "description"     # neue Migration
   `company_settings` · `newsletter_consents`); ihre SQL kommt aus der Fachschicht (`statuses.terminal_guard_sql`,
   `people.repair_sql`, `address_book.ADDRESS_INDEXES`,
   `communication.*_repair_sql`, `sites.backfill_keys`). Scheitert eine, laufen die übrigen.
+- **Die Übernahme in die Ablage** (`main._adopt_documents` → `services/adopt`) läuft danach in
+  eigener Sitzung: alte Papiere, Lieferantenrechnungen, Ausfuhrnachweise und (einmal) AGB/
+  Datenschutz werden Dokumente – selbstbegrenzend. Sie braucht die Fachschicht, darum nicht in
+  der Migration (`158` legt nur das Schema an).
 - **Zwei Trigger entstehen bei jedem Start neu** (und in ihrer Migration): `statuses.terminal_guard_sql`
   (Endzustand) und `timekeeping.append_only_sql` (Zeiterfassung: `time_entries` und
   `time_contracts` sind append-only – kein UPDATE, kein DELETE).
@@ -111,7 +115,8 @@ scripts/
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py`, `passkey.py`, `feedback.py`, `admin.py`, `invariants.py` |
+| Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen), `adopt.py` (Übernahme beim Start) |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py` (der Korb), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:
@@ -131,7 +136,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **109 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **130 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -182,10 +187,24 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `…/steps/{step_id}/voucher/refund` | staff | Kartenzahlung über den Dienst erstatten |
 | GET | `…/steps/{step_id}/voucher/transfer` | user | Überweisungsangaben + Swiss QR-Rechnung |
 | GET | `…/steps/{step_id}/voucher/correctable` | staff | Welche Rechnung mindert dieser Beleg? (Suche, auch über Auftragsgrenzen) |
-| POST | `/api/v1/erp/attachments` | staff | Bild aus der Kamera hochladen – oder PDF/Bild als Datei, **nur** für den Ausfuhrnachweis (`attachments.store_file`) |
+| POST | `/api/v1/erp/attachments` | staff | Ein Bild, das kein Dokument ist (die gezeichnete Unterschrift, `attachments.store_image`) – jede andere Datei wird ein Dokument |
+| GET | `/api/v1/erp/documents?q=` | staff | **Dokument-Feed** und Suche (Nummer, Art, Name, Volltext – ohne KI; `access.visible`) |
+| POST | `/api/v1/erp/documents` | staff | **Freigeben** (multipart: Datei oder gescannte Seiten → PDF, Art, Name, Referenzen, Pflichtfeld `target`, Unterzeichner) – die einzige Anlage (`documents.file`) |
+| POST | `/api/v1/erp/documents/read` | staff | Den Entwurf lesen lassen (KI): Vorschlag für Art, Name, Referenz, Werte – nichts gespeichert (`reading.propose`) |
+| POST | `/api/v1/erp/documents/compose` | staff | Eine Runde Verfassen (KI) – Papier als A4-HTML, nichts gespeichert (`composing`) |
+| GET | `/api/v1/erp/documents/targets` · `/of/{object_id}` · `/requirements` | staff | Datensätze zum Referenzieren · die Kacheln eines Datensatzes (mit Pflichtfeldern) · worauf Module warten |
+| GET | `/api/v1/erp/documents/{object_id}` | staff | Ein Dokument (404, wenn man die Referenz nicht sehen darf) |
+| POST · DELETE | `/api/v1/erp/documents/{object_id}/refs` · `/refs/{ref_id}` | staff | Referenz setzen / entfernen (ein Pflichtfeld nie) |
+| POST | `/api/v1/erp/documents/{object_id}/field` · `/read` · `/delete` · `/send` | staff | In ein Pflichtfeld (`fields.apply`) · Lesen nachholen · löschen mit Grund (nur, was nirgends hängt) · **senden** (Link je Empfänger, optional Unterschrift, `signing`) |
+| POST | `/api/v1/erp/documents/template` | admin (im Dienst) | AGB/Datenschutz einer eigenen Gesellschaft «aus Vorlage» |
+| GET | `/api/v1/public/document/{token}` | – (Token) | **Seite eines Dokuments**: Papier mit Unterschriften, wer unterschreibt, Handlungen; gelöscht → 410 |
+| POST | `/api/v1/public/document/{token}/sign` · `/decline` | – (Token) | Unterschreiben (PNG) / ablehnen mit Grund – endgültig |
+| GET | `/api/v1/attachments/{token}/preview` | – | Vorschaubild der ersten Seite (PDF, Bild), abgeleitet |
+| GET | `/api/v1/erp/messages/{id}/attachments/{index}` | staff | Ein Anhang für den Entwurf – aus Gmail geholt bzw. aus dem Korb (`mailbox.attachment`) |
+| POST | `…/steps/{step_id}/voucher/preview` | staff | **Vorschau → Freigeben**: die Papiere, die diese Handlung hinausgäbe (zurückgerollter Lauf, `voucher_docs.preview`) |
 | GET | `/api/v1/public/beleg/{token}` | – (Token) | **Kundenseite** eines Dokuments: eingefrorenes A4-HTML, Hinweis (überholt/abgelaufen/storniert), Handlungen aus `can` der Partei |
 | POST | `/api/v1/public/beleg/{token}/accept` · `/decline` · `/payment` | – (Token) | Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`) |
-| GET | `/api/v1/public/legal/{kind}` | – | AGB · Datenschutz · Impressum, wie sie heute gelten, als A4-Dokument (`services/legal`, `document.standalone`) |
+| GET | `/api/v1/public/legal/{kind}?country=` | – | AGB (der Gesellschaft zum Land des Besuchers) · Datenschutz · Impressum (des Betreibers) als A4-Dokument oder als Link auf die Datei (`legal.for_visitor`) |
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
@@ -260,7 +279,8 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 ## Env-Variablen
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
-(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`). Secrets nie im Repo.
+(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
+(KI, `docs/dokumente.md`). Secrets nie im Repo.
 
 ## Tote Stellen finden
 ```bash

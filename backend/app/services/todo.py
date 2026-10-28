@@ -2,8 +2,10 @@
 
 Offene Nachrichten (``communication.open_counts``), Aufgaben der Zeiterfassung
 (``timekeeping.tasks``), überfällige Rechnungen (``payment_list.overdue_counts``), fehlende
-Pflichtangaben (``people.missing_fields``) und an einer
-eigenen Gesellschaft fehlende Feiertage (``holidays.holiday_tasks``). Jede Quelle rechnet
+Pflichtangaben (``people.missing_fields``), an einer
+eigenen Gesellschaft fehlende Feiertage (``holidays.holiday_tasks``) und Rechtstexte
+(``legal.FIELD_OF``), am Auftrag anstehende Papiere (``voucher.papers_due``) und erwartete
+Dokumente (``requirements``). Jede Quelle rechnet
 selbst; hier wird nur gezählt. Rot, sobald etwas dringend ist (überfällige Nachricht,
 Aufgabe ab ``URGENT_DAYS`` Tagen).
 
@@ -20,7 +22,7 @@ from sqlalchemy.orm import Session
 from ..domain import timekeeping as tk
 from ..models import CompanySettings, TimeContract, UserProfile
 from ..schemas.timekeeping import TodoItem, TodoOut
-from . import communication, holidays, payment_list, people, timekeeping
+from . import communication, holidays, legal, payment_list, people, timekeeping
 
 
 def _time_items(db: Session, actor: UserProfile) -> dict[int, list[TodoItem]]:
@@ -41,6 +43,22 @@ def _time_items(db: Session, actor: UserProfile) -> dict[int, list[TodoItem]]:
     return out
 
 
+def _documents(db: Session) -> list[tuple[int, str]]:
+    """Am Auftrag: ein Papier, das zur Freigabe ansteht, und ein Dokument, auf das ein Modul
+    wartet (der Nachweis einer Absenz zählt schon bei der Zeiterfassung)."""
+    from ..domain import voucher as vo
+    from ..models import Order, Voucher
+    from . import requirements, voucher
+    out = [(r.object_id, r.label) for r in requirements._vouchers(db)]
+    rows = (db.query(Voucher, Order.object_id).join(Order, Order.id == Voucher.order_id)
+            .filter(Voucher.is_active.is_(True), Voucher.stage.in_((vo.AGREED, vo.BILLED)))
+            .all())
+    for row, oid in rows:
+        for kind in voucher.papers_due(db, row):
+            out.append((oid, f"{vo.DOCUMENTS.get(kind, kind)} freigeben"))
+    return out
+
+
 def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
     items: dict[int, list[TodoItem]] = defaultdict(list)
     for c in communication.open_counts(db):
@@ -58,7 +76,15 @@ def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
         for m in people.missing_fields(u):
             items[u.object_id].append(TodoItem(section=m["section"], count=1,
                                                label=f"{m['label']} fehlt"))
+    for oid, label in _documents(db):
+        items[oid].append(TodoItem(section="dokumente", count=1, label=label))
     if actor.role == "admin":
+        for c in db.query(CompanySettings).filter(CompanySettings.is_own.is_(True),
+                                                  CompanySettings.is_active.is_(True)).all():
+            for kind in legal.FIELD_OF:
+                if c.object_id and legal.document_of(db, c, kind) is None:
+                    items[c.object_id].append(TodoItem(
+                        section="dokumente", count=1, label=f"{legal.KINDS[kind][0]} fehlt"))
         today = timekeeping.local(timekeeping.now_utc()).date()
         for c in db.query(CompanySettings).filter(CompanySettings.is_own.is_(True),
                                                   CompanySettings.is_active.is_(True)).all():

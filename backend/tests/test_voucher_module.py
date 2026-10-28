@@ -168,13 +168,12 @@ def _scene(db, *, direction: str = "in", quantity: int = 3, parties=None):
 
 
 def _original(db) -> int:
-    """**Das Foto einer Lieferantenrechnung** – Pflicht beim Erfassen (es ist der Beleg)."""
-    from app.models import Attachment
-    att = Attachment(token=uuid.uuid4().hex, filename="rechnung.webp", mime="image/webp",
-                     data=b"x")
-    db.add(att)
-    db.flush()
-    return att.id
+    """**Die Lieferantenrechnung als Dokument** – Pflicht beim Erfassen (sie ist der Beleg)."""
+    from app.services import documents
+    doc, _ = documents.file(db, raw=b"x" + uuid.uuid4().hex.encode(), filename="rechnung.webp",
+                            mime="image/webp", art="Rechnung", name="R-2026-7", source="file",
+                            refs=[], actor=None)
+    return doc.object_id
 
 
 def _price(db, order, step, row, *, price: str = "100.00", vat: str = "normal"):

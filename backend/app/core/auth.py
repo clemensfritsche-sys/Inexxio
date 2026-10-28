@@ -180,6 +180,8 @@ def get_current_user(
     email = decoded.get("email", "")
     user = _resolve_user(db, uid, email, decoded, request)
     _sync_user_profile(db, user, email, decoded)
+    # Für das Log jeder schreibenden Anfrage (``main.audit_writes``): wer es war.
+    request.state.user_id = user.id
     return user
 
 

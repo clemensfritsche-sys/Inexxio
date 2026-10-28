@@ -108,6 +108,9 @@ eigenes «Angebot»-Objekt. Die tragenden Entscheidungen:
 
 ## Dokumente und Belege
 
+> **Wieder gebaut (Oktober 2026)** – neu, nicht aus dieser Datei: `docs/dokumente.md`. Hier
+> steht nur noch, was der alte Anlauf entschieden hatte.
+
 `services/{document,document_render,legal,consent,storage}.py` ·
 `routers/{documents,document_files,legal,consent}.py` ·
 `models/{document_file,document_link,document_blob,document_signoff,document_acknowledgement}.py`

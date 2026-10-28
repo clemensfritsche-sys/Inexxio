@@ -18,11 +18,14 @@ const SIG_W = 600;   // interne Zeichenauflösung (px)
 const SIG_H = 200;   // 3:1
 const SIG_ASPECT = `${SIG_W} / ${SIG_H}`;
 
-export function SignaturePad({ value, onChange, disabled = false, signerHint }: {
+export function SignaturePad({ value, onChange, disabled = false, signerHint, onSigned }: {
   value: string | null;
   onChange: (url: string | null) => void;
   disabled?: boolean;
   signerHint?: string;   // «nur … darf unterschreiben» / Hinweis
+  /** **Statt hochzuladen**: der Zug als PNG an den Aufrufer (die Seite eines Dokuments nach
+   *  aussen – dort unterschreibt jemand ohne Anmeldung). Dieselbe Fläche, ein Zeichenweg. */
+  onSigned?: (png: Blob) => Promise<void>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
@@ -81,6 +84,7 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
     try {
       const blob: Blob = await new Promise((res, rej) =>
         canvasRef.current!.toBlob((b) => (b ? res(b) : rej()), 'image/png'));
+      if (onSigned) { await onSigned(blob); return; }
       const { url } = await api.uploadAttachment(new File([blob], 'unterschrift.png', { type: 'image/png' }));
       onChange(url);
     } catch (e) {

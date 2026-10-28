@@ -8,14 +8,14 @@ die Tür (``services/voucher_docs.public_act``); eine zweite Logik gibt es nicht
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..models import Order, Voucher
 from ..schemas.process import PaymentSetup
-from ..services import document, legal, stripe_pay
+from ..services import document, geoip, legal, stripe_pay
 from ..services import voucher_docs
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
@@ -55,12 +55,14 @@ class BelegView(BaseModel):
 
 
 class LegalOut(BaseModel):
-    """Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument."""
+    """Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument; ist
+    er eine andere Datei (PDF), steht statt des Papiers ihr Link da."""
     kind: str
     word: str
     title: str
-    valid_from: str
-    html: str
+    valid_from: str = ""
+    html: Optional[str] = None
+    url: Optional[str] = None
 
 
 def _doc(db: Session, token: str):
@@ -109,13 +111,20 @@ def payment(token: str, db: Session = Depends(get_db)) -> Any:
 
 
 @router.get("/legal/{kind}", response_model=LegalOut)
-def legal_text(kind: str, db: Session = Depends(get_db)) -> Any:
+def legal_text(kind: str, request: Request, country: Optional[str] = None,
+               db: Session = Depends(get_db)) -> Any:
     """**AGB, Datenschutz oder Impressum, wie sie heute gelten** – als A4-Dokument in der
-    Vorlage aller Dokumente, mit den Angaben des Betreibers aus dem ERP."""
+    Vorlage aller Dokumente. Die AGB sind die der Gesellschaft zum Land des Besuchers
+    (``?country=XX`` übersteuert), Datenschutz und Impressum die des Betreibers."""
     if kind not in legal.KINDS:
         raise HTTPException(status_code=404, detail=f"Einen Rechtstext «{kind}» gibt es nicht.")
-    values = legal.of_operator(db)
-    text = legal.current(kind, values=values)
+    if country is None:
+        ip = geoip.client_ip(request.headers, request.client.host if request.client else None)
+        country = geoip.country_of(ip)
+    text, url, values = legal.for_visitor(db, kind, country or None)
+    word, title = legal.KINDS[kind]
+    if url:
+        return LegalOut(kind=kind, word=word, title=title, url=url)
     if text is None:
         raise HTTPException(status_code=404, detail=f"Der Rechtstext «{kind}» ist nicht hinterlegt.")
     return LegalOut(kind=kind, word=text.word, title=text.title, valid_from=text.key,

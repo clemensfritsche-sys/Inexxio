@@ -107,7 +107,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     files = []
     for p in inq.photos:
         att = attachments.store_image(db, p.data, p.filename, None)
-        files.append({"name": p.filename, "size": len(p.data),
+        files.append({"name": p.filename, "size": len(p.data), "mime": att.mime,
                       "url": attachments.public_url(att)})
     msg = Message(sender_object_id=person, channel=dc.company(firm.object_id),
                   subject=subject_of(inq.message), body=_body(inq), at=datetime.now(timezone.utc),

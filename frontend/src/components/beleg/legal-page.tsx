@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, assetUrl } from '@/lib/api';
 import { Paper, StageWord } from './paper';
 import css from './beleg.module.css';
 
@@ -19,27 +19,35 @@ const WORDS: Record<LegalKind, { word: string; label: string }> = {
  * dieselbe Vorlage wie jeder Beleg, so wie der Server sie rendert
  * (`GET /public/legal/{kind}`). ◄◄◄
  *
- * Der Text steht EINMAL: `backend/app/assets/legal/<art>/<gültig ab>.md`; Name, Anschrift und
- * Kontakt kommen aus dem ERP. Das Papier ist in A4-Seiten geteilt – der Download ergibt genau
+ * AGB und Datenschutz sind Dokumente der Gesellschaft (die AGB die der Gesellschaft zum Land
+ * des Besuchers); Name, Anschrift und Kontakt setzt das ERP ein. Das Papier ist in A4-Seiten geteilt – der Download ergibt genau
  * diese Seiten.
  */
 export function LegalPage({ kind }: { kind: LegalKind }) {
   const [html, setHtml] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const { word, label } = WORDS[kind];
 
   useEffect(() => {
     let dead = false;
     api.publicLegal(kind)
-      .then((a) => { if (!dead) setHtml(a.html); })
+      .then((a) => { if (!dead) { setHtml(a.html ?? null); setUrl(a.url ?? null); } })
       .catch(() => { if (!dead) setFailed(true); });
     return () => { dead = true; };
   }, [kind]);
 
   return (
-    <div className={`${css.page} ${html ? '' : css.loading}`}>
+    <div className={`${css.page} ${html || url ? '' : css.loading}`}>
       <StageWord word={word} />
       {html && <Paper html={html} label={label} />}
+      {/* Ein Rechtstext, der kein Text aus der Vorlage ist (ein PDF), steht, wie er ist. */}
+      {!html && url && (
+        <div className={css.wrap}>
+          <iframe title={label} src={assetUrl(url)}
+            style={{ width: '100%', aspectRatio: '210 / 297', border: '1px solid var(--border-1)', background: '#fff' }} />
+        </div>
+      )}
       {failed && (
         <div className={css.wrap}>
           <div className={css.note} role="alert">

@@ -95,6 +95,10 @@ grid-template-columns:62mm 1fr;min-height:105mm;font-size:10.5px}
 .legal p,.legal li{margin:4px 0 0;font-size:12px;line-height:1.55;color:var(--fg-2)}
 .legal ul{margin:4px 0 0;padding-left:18px}
 .legal .intro p{font-size:12.5px;color:var(--fg-2)}
+.legal .sig{display:inline-block;width:46%;margin:14mm 3% 0 0;vertical-align:top}
+.legal .sigline{height:22mm;border-bottom:1px solid var(--fg-3);display:flex;align-items:flex-end;
+gap:8px;font-size:10.5px;color:var(--fg-3)}
+.legal .sigline img{max-height:20mm;max-width:60%}
 .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}
 @media print{.sheets{gap:0}.sheet{box-shadow:none;border-radius:0;break-after:page}}
 @media screen and (max-width:820px){.sheet{min-height:0;padding:9mm 6mm 6mm}
@@ -174,6 +178,38 @@ def standalone(text: legal.Text, *, sender: str) -> str:
                                   first=i == 0)
                      for i, chunk in enumerate(chunks))
     return _html(text.title, sheets)
+
+
+#: ►►► **Wo eine Unterschrift hinkommt** – im eingefrorenen Papier steht diese Marke; gezeigt
+#: wird sie ersetzt durch die Unterschrift, sobald es eine gibt (``documents.signed_html``).
+#: Das Papier selbst ändert sich nie. ◄◄◄
+SIG_MARK = "<!--sig:{}-->"
+
+
+@dataclass
+class Writing:
+    """**Ein verfasstes Papier** – dieselbe Form wie ein Rechtstext (Wort, Titel, Datum,
+    Einleitung, Abschnitte), dazu wer unterschreibt."""
+    word: str
+    title: str
+    day: str
+    intro: list[str] = field(default_factory=list)
+    sections: list = field(default_factory=list)
+    date_label: str = "Datum"
+
+
+def written(w: Writing, *, sender: str, signers: list[tuple[int, str]]) -> str:
+    """►►► **Ein verfasstes Dokument** – Vertrag, Bestätigung, Brief: dieselbe Vorlage,
+    dieselben A4-Seiten wie jeder Beleg; am Ende je Unterzeichner eine Linie. ◄◄◄"""
+    sig = legal.Section(title="Unterschriften",
+                        blocks=[("sig", f"{oid}|{name}") for oid, name in signers])
+    text = Writing(word=w.word, title=w.title, day=w.day, intro=[w.title, *w.intro],
+                   sections=[*w.sections, *([sig] if signers else [])])
+    chunks = _legal_chunks(text)
+    sheets = "".join(_legal_sheet(text, chunk, sender=sender, page=i + 1, of=len(chunks),
+                                  first=i == 0)
+                     for i, chunk in enumerate(chunks))
+    return _html(w.title, sheets)
 
 
 def _html(title: str, sheets: str) -> str:
@@ -275,6 +311,8 @@ _LINE = 18.6              # Zeilenhöhe 12 px × 1.55
 
 
 def _height(kind: str, text: str) -> float:
+    if kind == "sig":
+        return 120.0
     chars = _CHARS - (4 if kind == "li" else 0)
     lines = max(1, -(-len(text) // chars))
     return (35.0 if kind == "h3" else 4.0) + (0 if kind == "h3" else lines * _LINE)
@@ -317,6 +355,10 @@ def _legal_sheet(text: legal.Text, chunk: list[tuple[str, str]], *, sender: str,
             body += f"<h3>{escape(t)}</h3>"
         elif kind == "li":
             items += f"<li>{escape(t)}</li>"
+        elif kind == "sig":
+            oid, _, name = t.partition("|")
+            body += (f'<div class="sig"><div class="sigline">{SIG_MARK.format(oid)}</div>'
+                     f'<div class="lbl">{escape(name)}</div></div>')
         elif t:
             body += f"<p>{escape(t)}</p>"
     if items:

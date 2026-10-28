@@ -1,0 +1,125 @@
+"""►►► **Das KI-Tor – die einzige Stelle, die die KI aufruft.** ◄◄◄
+
+1. **Zugriff:** Jeder Aufruf nennt den Akteur, in dessen Namen er läuft. Was die KI zu sehen
+   bekommt, hat der Aufrufer vorher über ``services/access`` gefiltert – sie sieht nie mehr
+   als dieser Mensch.
+2. **Aufgabe und Modell** stehen in EINER Tabelle (``TASKS``).
+3. **Feste Antwortform:** jede Aufgabe hat ein Pydantic-Schema; die Antwort wird dagegen
+   geprüft (structured outputs). Was nicht passt, gilt als Ausfall.
+4. **Die KI schreibt nie selbst.** Sie liefert Vorschläge; geschrieben wird über die
+   Fachdienste, nach dem Klick eines Menschen.
+5. **Deckel und Log:** jeder Aufruf ist eine Zeile im ``audit_log`` (``on_behalf = ai``) mit
+   Modell und Tokens; der Tagesdeckel zählt genau diese Zeilen.
+
+**Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
+Alles geht auch ohne KI: Art und Name tippt der Mensch, gesucht wird in der Datenbank.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import re
+from dataclasses import dataclass
+from datetime import datetime, time, timezone
+from html import unescape
+from typing import Optional, TypeVar
+
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from ..core.config import get_settings
+from ..models import AuditLog, UserProfile
+from .admin import log_audit
+
+T = TypeVar("T", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class Task:
+    model: str
+    max_tokens: int
+    #: Wie lange auf die Antwort gewartet wird (Sekunden) – Verfassen schreibt Seiten.
+    timeout: float = 90.0
+
+
+#: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse (jede Datei),
+#: also das schnelle, günstige Modell; Verfassen schreibt ein Papier von ein paar Seiten –
+#: das mittlere Modell reicht dafür, das grösste kostete ein Vielfaches für denselben Brief.
+TASKS: dict[str, Task] = {
+    "read": Task(model="claude-haiku-5-5", max_tokens=16000),
+    "compose": Task(model="claude-sonnet-5-5", max_tokens=8000, timeout=240.0),
+}
+
+#: Was die KI lesen kann – Bilder und PDF direkt, Text als Text.
+IMAGE_TYPES = ("image/jpeg", "image/png", "image/webp", "image/gif")
+
+
+def ready() -> bool:
+    return bool(get_settings().anthropic_api_key)
+
+
+def used_today(db: Session) -> int:
+    start = datetime.combine(datetime.now(timezone.utc).date(), time.min, tzinfo=timezone.utc)
+    return (db.query(AuditLog).filter(AuditLog.table_name == "ai",
+                                      AuditLog.changed_at_utc >= start).count())
+
+
+def available(db: Session) -> bool:
+    """Gibt es heute noch eine KI? Ohne Schlüssel nie; am Deckel nicht mehr."""
+    if not ready():
+        return False
+    cap = get_settings().ai_daily_cap
+    return cap <= 0 or used_today(db) < cap
+
+
+def content_of(raw: bytes, mime: str) -> Optional[dict]:
+    """**Eine Datei als Eingabe der KI** – oder ``None``, wenn sie diese Sorte nicht liest
+    (Video, STEP, Office): dann tippt der Mensch Art und Name selbst."""
+    if mime == "application/pdf":
+        return {"type": "document", "source": {
+            "type": "base64", "media_type": "application/pdf",
+            "data": base64.standard_b64encode(raw).decode("ascii")}}
+    if mime in IMAGE_TYPES:
+        return {"type": "image", "source": {
+            "type": "base64", "media_type": mime,
+            "data": base64.standard_b64encode(raw).decode("ascii")}}
+    if mime.startswith("text/") or mime in ("application/json", "application/xml"):
+        text = raw.decode("utf-8", "replace")
+        if mime == "text/html":
+            text = unescape(re.sub(r"<[^>]+>", " ", re.sub(
+                r"<(script|style)[^>]*>.*?</\1>", " ", text, flags=re.S | re.I)))
+        return {"type": "text", "text": " ".join(text.split())[:60000]}
+    return None
+
+
+def _client(timeout: float = 90.0):
+    import anthropic
+    return anthropic.Anthropic(api_key=get_settings().anthropic_api_key, max_retries=1,
+                               timeout=timeout)
+
+
+def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
+        content: list[dict], schema: type[T]) -> Optional[T]:
+    """►►► **Ein Aufruf durch das Tor.** ◄◄◄ Gibt die geprüfte Antwort zurück – oder ``None``
+    (keine KI, Deckel erreicht, abgelehnt, Antwort unbrauchbar, Netz weg). Nie eine Ausnahme:
+    ein Ausfall der KI darf nie eine Handlung zerlegen."""
+    if not available(db):
+        return None
+    spec = TASKS[task]
+    result: Optional[T] = None
+    usage: dict = {}
+    try:
+        response = _client(spec.timeout).messages.parse(
+            model=spec.model, max_tokens=spec.max_tokens, system=system,
+            messages=[{"role": "user", "content": content}], output_format=schema)
+        usage = {"in": response.usage.input_tokens, "out": response.usage.output_tokens,
+                 "stop": response.stop_reason}
+        if response.stop_reason not in ("refusal", "max_tokens"):
+            result = response.parsed_output
+    except Exception as exc:                                   # noqa: BLE001
+        usage = {"error": type(exc).__name__}
+        print(f"WARNING: ai.{task} failed: {exc!r}", flush=True)
+    log_audit(db, "ai", task, json.dumps({"model": spec.model, **usage}),
+              actor.id if actor else None, on_behalf="ai")
+    return result

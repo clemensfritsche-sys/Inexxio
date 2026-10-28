@@ -1,4 +1,8 @@
-"""Bild-Uploads (Fotos) – Speicherung in der DB, Auslieferung per Token.
+"""**Der Korb** – Dateien in der DB, Auslieferung per Token.
+
+Zwei Wege hinein: ``store_raw`` legt die Datei eines Dokuments unverändert ab (die eine
+Ablage, ``services/documents``); ``store_image`` normalisiert ein Bild, das kein Dokument
+ist (die Unterschrift, die Fotos einer Anfrage).
 
 Bewusst ohne Cloud-Bucket: sofort lauffähig auf Cloud Run, ohne IAM/Bucket-Setup. Der
 Schnitt ist so gelegt, dass später NUR dieser Service auf einen Bucket umgestellt werden
@@ -34,26 +38,6 @@ def _flatten_to_rgb(img):
         bg.alpha_composite(rgba)
         return bg.convert("RGB")
     return img.convert("RGB")
-
-
-PDF = "application/pdf"
-_MAX_PDF_BYTES = 10 * 1024 * 1024      # ein amtliches Dokument (Veranlagungsverfügung) ist klein
-
-
-def store_file(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
-    """**Ein Bild ODER ein PDF** – der Ausfuhrnachweis kommt vom Zoll als PDF per Mail, im
-    Büro gibt es dafür keine Kamera. Ein PDF wird **unverändert** abgelegt (es ist das
-    Dokument selbst; erkannt am Kopf ``%PDF-``, nicht am Dateinamen), alles andere geht durch
-    ``store_image``."""
-    if raw[:5] != b"%PDF-":
-        return store_image(db, raw, filename, actor_id)
-    if len(raw) > _MAX_PDF_BYTES:
-        raise HTTPException(413, detail="PDF zu gross (max. 10 MB)")
-    att = Attachment(token=secrets.token_urlsafe(24), mime=PDF, data=raw,
-                     filename=(filename or None), byte_size=len(raw), created_by=actor_id)
-    db.add(att)
-    db.flush()
-    return att
 
 
 def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
@@ -98,6 +82,27 @@ def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | N
     return att
 
 
+#: **Ein Dokument darf jede Datei sein** – bis zu dieser Grösse. Cloud Run nimmt höchstens
+#: 32 MB je Anfrage an; darunter bleibt Luft für den Rest des Formulars.
+MAX_FILE_BYTES = 25 * 1024 * 1024
+
+
+def store_raw(db: Session, raw: bytes, filename: str | None, mime: str,
+              actor_id: int | None) -> Attachment:
+    """**Eine Datei unverändert in den Korb** – für Dokumente (PDF, Bild, Tabelle, Video …).
+    Ein Dokument ist das Original; verkleinert wird nichts."""
+    if not raw:
+        raise HTTPException(400, detail="Leere Datei")
+    if len(raw) > MAX_FILE_BYTES:
+        raise HTTPException(413, detail="Datei zu gross (max. 25 MB)")
+    att = Attachment(token=secrets.token_urlsafe(24), mime=(mime or "application/octet-stream")[:100],
+                     data=raw, filename=(filename or None), byte_size=len(raw),
+                     created_by=actor_id)
+    db.add(att)
+    db.flush()
+    return att
+
+
 def get_by_token(db: Session, token: str) -> Attachment:
     att = db.query(Attachment).filter(
         Attachment.token == token, Attachment.is_active == True).first()
@@ -108,4 +113,24 @@ def get_by_token(db: Session, token: str) -> Attachment:
 
 def public_url(att: Attachment) -> str:
     """Relative URL (Token) – die Verbraucher speichern diesen String."""
-    return f"/api/v1/attachments/{att.token}"
+    return public_url_of(att.token)
+
+
+def public_url_of(token: str) -> str:
+    return f"/api/v1/attachments/{token}"
+
+
+#: Was der Browser direkt zeigen darf. Alles andere (HTML, SVG, Office …) geht mit einer
+#: Sandbox hinaus: eine hochgeladene Datei darf auf unserer Adresse nie ein Skript ausführen.
+INLINE_SAFE = ("image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf")
+
+
+def serve_headers(att: Attachment) -> dict[str, str]:
+    headers = {"Cache-Control": "public, max-age=31536000, immutable",
+               "X-Content-Type-Options": "nosniff"}
+    if att.mime not in INLINE_SAFE:
+        headers["Content-Security-Policy"] = "sandbox"
+    if att.filename:
+        from urllib.parse import quote
+        headers["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(att.filename)}"
+    return headers

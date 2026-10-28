@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle, Loader2, RotateCcw, X } from 'lucide-react';
-import { api, attachmentUrl } from '@/lib/api';
+import { api } from '@/lib/api';
 import { TONE } from '@/lib/status-tone';
 import { day, when } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
-import { PhotoShot } from '@/components/erp/photo-capture';
-import { FileUpload } from '@/components/erp/file-upload';
+import { DocLink, DocumentField, readValue } from '@/components/erp/document-field';
 import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, Steady } from '@/components/erp/module-ui';
 import type { TransferInfo } from '@/types';
@@ -49,10 +48,11 @@ export function Invoice({ d, busy, form, setForm, way, card, setCard, orderObjec
         {d.entries.map((e) => (
           <EntryRow key={e.id} d={d} e={e} busy={busy} onAction={onAction} />
         ))}
-        <ExportProof d={d} busy={busy} form={form} setForm={setForm} />
+        <ExportProof d={d} busy={busy} form={form} setForm={setForm}
+          orderObjectId={orderObjectId} stepId={stepId} />
         {invoice && <Balance d={d} busy={busy} form={form} setForm={setForm} onAction={onAction} />}
         {form && ['pay', 'refund', 'bill'].includes(form.kind) && (
-          <EntryForm d={d} form={form} setForm={setForm} />
+          <EntryForm d={d} form={form} setForm={setForm} orderObjectId={orderObjectId} stepId={stepId} />
         )}
         {/* Die Auskunft zur Überweisung nur, solange Geld zu uns kommen soll. */}
         {quiet && way?.info && (may(d, 'pay') || may(d, 'pay_online')) && (
@@ -93,8 +93,7 @@ function InvoiceRow({ d, invoice }: { d: Filled; invoice: NonNullable<Filled['in
         <>
           {meta.join(' · ')}
           {d.original && (
-            <>{meta.length ? ' · ' : ''}<a href={attachmentUrl(d.original)} target="_blank" rel="noopener noreferrer"
-              style={{ color: 'var(--accent-ink)' }}>Beleg</a></>
+            <>{meta.length ? ' · ' : ''}<DocLink objectId={d.original} label="Beleg" /></>
           )}
         </>
       )}
@@ -226,8 +225,9 @@ function EntryRow({ d, e, busy, onAction }: { d: Filled; e: Entry; busy: boolean
  * erledigt ist der Beleg erst damit. Erfasst: die Nummer der Veranlagungsverfügung und das
  * Dokument selbst – **hochgeladen** (PDF oder Bild), denn es kommt vom Zoll per Mail.
  */
-function ExportProof({ d, busy, form, setForm }: {
+function ExportProof({ d, busy, form, setForm, orderObjectId, stepId }: {
   d: Filled; busy: boolean; form: Form | null; setForm: (f: Form | null) => void;
+  orderObjectId: number; stepId: number;
 }) {
   if (!d.export || !d.invoice) return null;
   if (d.export_number) {
@@ -236,8 +236,7 @@ function ExportProof({ d, busy, form, setForm }: {
         meta={(
           <>Veranlagungsverfügung {d.export_number}
             {d.export_photo && (
-              <> · <a href={attachmentUrl(d.export_photo)} target="_blank" rel="noopener noreferrer"
-                style={{ color: 'var(--accent-ink)' }}>Dokument</a></>
+              <> · <DocLink objectId={d.export_photo} label="Dokument" /></>
             )}
           </>
         )}
@@ -261,10 +260,12 @@ function ExportProof({ d, busy, form, setForm }: {
               onChange={(e) => set({ reference: e.target.value })} />
           </FormField>
           <FormField label="Veranlagungsverfügung" required>
-            <FileUpload value={form.f.photo ? { url: form.f.photo, name: form.f.name ?? '' } : null}
-              onChange={(file) => set(file
-                ? { photo: file.url, original: String(file.id), name: file.name }
-                : { photo: '', original: '', name: '' })} />
+            <DocumentField value={form.f.original ? Number(form.f.original) : null} label="Veranlagungsverfügung"
+              target={{ object_id: orderObjectId, part: `step:${stepId}`, field: 'voucher.export', extra: {},
+                        label: 'Zahlungsmodul', lock: 'Ausfuhrnachweis' }}
+              seed={{ hint: `voucher.export:${stepId}` }}
+              onChange={(doc, p) => set({ original: String(doc.object_id),
+                                          reference: form.f.reference || readValue(p, 'reference') })} />
           </FormField>
           <Cancel onClick={() => setForm(null)} />
         </div>
@@ -377,8 +378,8 @@ function FormField({ label, required, grow, children }: {
  * **Eine Geld-Zeile bzw. die Lieferantenrechnung erfassen** – im grauen Kasten, der
  * Betrag vorbelegt; abgeschickt wird in der Leiste («Buchen»), abgebrochen hier.
  */
-function EntryForm({ d, form, setForm }: {
-  d: Filled; form: Form; setForm: (f: Form | null) => void;
+function EntryForm({ d, form, setForm, orderObjectId, stepId }: {
+  d: Filled; form: Form; setForm: (f: Form | null) => void; orderObjectId: number; stepId: number;
 }) {
   const set = (patch: Record<string, string>) => setForm({ ...form, f: { ...form.f, ...patch } });
   const title = form.kind === 'bill' ? d.charge_word
@@ -402,7 +403,9 @@ function EntryForm({ d, form, setForm }: {
           <Cancel onClick={() => setForm(null)} />
         </span>
       </div>
-      {form.kind === 'bill' && <BillPaper d={d} form={form} set={set} />}
+      {form.kind === 'bill' && (
+        <BillPaper d={d} form={form} set={set} orderObjectId={orderObjectId} stepId={stepId} />
+      )}
       {needsIban(form, d) && (
         <FormField label="IBAN" required grow>
           <input className={inputCls} value={form.f.iban ?? ''} aria-label="IBAN"
@@ -441,11 +444,14 @@ function BillFields({ d, form, set }: {
 
 /**
  * **Was es für den Vorsteuerabzug braucht** – Rechnungsdatum, MWST-Nr. des Lieferanten
- * (sobald Steuer darauf steht) und das Original als Foto (Pflicht, zehn Jahre aufbewahrt).
+ * (sobald Steuer darauf steht) und die Rechnung selbst als Dokument (Pflicht, zehn Jahre).
+ * Was die KI darauf abliest, füllt die leeren Felder vor – geprüft wird beim Buchen.
  */
-function BillPaper({ d, form, set }: {
+function BillPaper({ d, form, set, orderObjectId, stepId }: {
   d: Filled; form: Form; set: (patch: Record<string, string>) => void;
+  orderObjectId: number; stepId: number;
 }) {
+  const fill = (p: Parameters<typeof readValue>[0], key: string) => form.f[key] || readValue(p, key);
   return (
     <>
       <div className="flex flex-wrap items-end" style={{ gap: FIELD_GAP, minWidth: 0 }}>
@@ -459,8 +465,15 @@ function BillPaper({ d, form, set }: {
         </FormField>
       </div>
       <FormField label="Originalbeleg" required>
-        <PhotoShot value={form.f.photo || null}
-          onChange={(url, id) => set({ photo: url ?? '', original: url && id != null ? String(id) : '' })} />
+        <DocumentField value={form.f.original ? Number(form.f.original) : null} label="Rechnung"
+          target={{ object_id: orderObjectId, part: `step:${stepId}`, field: 'voucher.original', extra: {},
+                    label: 'Zahlungsmodul', lock: 'Originalbeleg' }}
+          seed={{ hint: `voucher.original:${stepId}` }}
+          onChange={(doc, p) => set({
+            original: String(doc.object_id), reference: fill(p, 'reference'),
+            billed_on: fill(p, 'billed_on'), party_uid: fill(p, 'party_uid'),
+            amount: readValue(p, 'amount') || form.f.amount,
+          })} />
         <span style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 4 }}>
           Die Rechnung, wie sie gekommen ist – Pflicht für den Vorsteuerabzug
           und 10 Jahre aufbewahrt.

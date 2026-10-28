@@ -293,6 +293,18 @@ def test_only_self_and_admin_see_the_time(world):
 
 # ─── Absenzen und Hinweise ──────────────────────────────────────────────────────────
 
+def _proof(db, person, absence_id):
+    """**Der Nachweis über den einen Weg** – ein Dokument im Feld ``time.proof``."""
+    import uuid
+    from app.services import documents, fields
+    doc, _ = documents.file(db, raw=b"\xff\xd8\xff" + uuid.uuid4().bytes, filename="z.jpg",
+                            mime="image/jpeg", art="Arztzeugnis", name=person.display_name or "x",
+                            source="scan", refs=[], actor=person)
+    fields.apply(db, actor=person, doc=doc, object_id=person.object_id,
+                 part=f"time:{absence_id}", field="time.proof")
+    return doc
+
+
 def test_proof_task_appears_from_day_three_and_goes_with_the_upload(world):
     db, co, admin, lena = world
     from app.models import Attachment
@@ -304,8 +316,10 @@ def test_proof_task_appears_from_day_three_and_goes_with_the_upload(world):
     db.add(Attachment(token="tok-proof-1", mime="image/jpeg", data=b"x", byte_size=1))
     db.flush()
     a = next(r for r in b.live if r.kind == "absence")
-    t.record(db, lena, lena, EntryIn(kind="proof", replaces_id=a.id,
-                                     proof_url="/api/v1/attachments/tok-proof-1"))
+    with pytest.raises(HTTPException):     # eine lose Datei im Korb ist kein Nachweis
+        t.record(db, lena, lena, EntryIn(kind="proof", replaces_id=a.id,
+                                         proof_url="/api/v1/attachments/tok-proof-1"))
+    _proof(db, lena, a.id)
     assert t.tasks(t.load(db, lena), t.now_utc()) == []
 
 
@@ -470,16 +484,12 @@ def test_a_proof_does_not_make_an_absence_newer(world):
     """Nachweis nachgereicht → die Absenz bleibt so alt, wie sie ist: ein später erfasster
     Unfall in der Krankheit bleibt an seinem Tag."""
     db, co, admin, lena = world
-    from app.models import Attachment
     _contract(db, admin, lena, date(2026, 10, 1))
     t.record(db, lena, lena, EntryIn(kind="absence", art="krank", day=date(2026, 10, 19),
                                      until=date(2026, 10, 23)))
     t.record(db, lena, lena, EntryIn(kind="absence", art="unfall", day=date(2026, 10, 21)))
-    db.add(Attachment(token="tok-rank-1", mime="image/jpeg", data=b"x", byte_size=1))
-    db.flush()
     sick = next(r for r in t.load(db, lena).live if r.art == "krank")
-    t.record(db, lena, lena, EntryIn(kind="proof", replaces_id=sick.id,
-                                     proof_url="/api/v1/attachments/tok-rank-1"))
+    _proof(db, lena, sick.id)
     assert t.absence_on(t.load(db, lena), date(2026, 10, 21)).art == "unfall"
 
 

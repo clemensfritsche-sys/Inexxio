@@ -18,6 +18,9 @@ class AuditLog(Base):
     old_value: Mapped[Optional[str]] = mapped_column(Text)
     new_value: Mapped[Optional[str]] = mapped_column(Text)
     user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    #: **In wessen Namen** – leer heisst: der Mensch selbst. ``ai`` (die KI für ``user_id``)
+    #: · ``system`` (eine Freigabe, die das System übernommen hat).
+    on_behalf: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
     changed_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

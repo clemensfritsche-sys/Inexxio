@@ -812,6 +812,8 @@ def situation(db: Session, row: Voucher, *, order: Order,
     if row.stage == vo.OFFER:
         return _offer_state(db, row, flow)
     if row.stage == vo.AGREED:
+        if vo.CONFIRM_DOC in papers_due(db, row):
+            return _paper_state(vo.CONFIRM_DOC)
         verb = vo.charge_word(collects=flow.collects, minus=minus(row))
         if not flow.collects:
             return _state("agreed", "Bestellt", "pending",
@@ -822,6 +824,14 @@ def situation(db: Session, row: Voucher, *, order: Order,
         return _state("agreed", "Zugesagt", "pending",
                       f"{lead}Sie sind dran: {verb}", primary="bill")
     return _billed_state(db, row, flow, party)
+
+
+def _paper_state(kind: str) -> dict[str, Any]:
+    """**Ein Papier steht an** – die Auftragsbestätigung nach der Zusage, die Quittung nach
+    dem Geld. Hinaus geht es mit der Freigabe (``release``)."""
+    word = vo.DOCUMENTS.get(kind, kind)
+    return _state("paper", f"{word} steht an", "pending",
+                  f"Sie sind dran: {word} prüfen und freigeben", primary="release")
 
 
 def _cancelled_state(db: Session, row: Voucher) -> dict[str, Any]:
@@ -890,6 +900,8 @@ def _billed_state(db: Session, row: Voucher, flow: vo.Direction,
         if export_open:
             return _state("proof", "Bezahlt", "pending",
                           "Ausfuhrnachweis fehlt – erst damit erledigt", primary="export")
+        if vo.RECEIPT_DOC in papers_due(db, row):
+            return _paper_state(vo.RECEIPT_DOC)
         return _state("done", "Erledigt", "done", _done_text(db, row))
     if money.open < -vo.SETTLED_TOLERANCE:
         whose = ("dem Kunden" if flow.collects else "uns") if not minus(row) else "uns"
@@ -1298,6 +1310,8 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
         drop.add("export")
     if not reversible(db, row):
         drop.add("reverse")
+    if not papers_due(db, row):
+        drop.add("release")
     # ►►► **Online bezahlen**: nur wo das Geld **zu uns** fliesst, mit eingerichtetem
     # Dienst und offenem Betrag. **Zurück auf die Karte** nur, wo eine Karten-Zahlung
     # dasteht, die man zurückgeben kann.
@@ -1414,8 +1428,9 @@ def _after(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            actor: Optional[UserProfile]) -> None:
     """►►► **Was nach jeder Handlung von selbst geschieht** – an EINER Stelle. ◄◄◄
 
-    * **Die Quittung**: wird der Saldo einer Rechnung, die wir stellen, null, geht sie
-      hinaus – einmal.
+    * **Die Quittung**: wird der Saldo einer Rechnung, die wir stellen, null, steht sie an
+      (``papers_due``) – hinaus geht sie mit der Freigabe, von selbst nur, wo ``AUTO_RELEASE``
+      sie nennt.
     * **Die Stücke ziehen weiter**, sobald sie dürfen (``passable``) – mit der Zusage, bei
       einer Vorauszahlung mit dem Geld (``process.advance_payments``).
 
@@ -1424,9 +1439,7 @@ def _after(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """
     from . import process as process_svc
     from . import voucher_docs
-    if (is_billed(row) and row.stage == vo.BILLED and vo.of(row.direction).collects
-            and not minus(row) and is_done(db, row) and balance_of(db, row).paid > 0
-            and not documents_of(db, row, vo.RECEIPT_DOC)):
+    if vo.RECEIPT_DOC in AUTO_RELEASE and vo.RECEIPT_DOC in papers_due(db, row):
         voucher_docs.issue(db, row=row, kind=vo.RECEIPT_DOC, actor=actor)
     process_svc.advance_payments(db, order=order,
                                  actor_id=actor.id if actor is not None else None)
@@ -1762,7 +1775,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.stage = vo.AGREED
     row.agreed_on = date.today()
     db.flush()
-    if flow.collects:
+    if vo.CONFIRM_DOC in AUTO_RELEASE and vo.CONFIRM_DOC in papers_due(db, row):
         voucher_docs.issue(db, row=row, kind=vo.CONFIRM_DOC, actor=actor)
 
 
@@ -1878,14 +1891,12 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
 def _record_original(db: Session, row: Voucher, data: dict[str, Any],
                      split: list[dict[str, str]]) -> None:
-    """►►► **Die Lieferantenrechnung, wie sie auf dem Papier steht.** ◄◄◄ Das Foto ist
-    Pflicht; die MWST-Nummer, sobald Steuer darauf steht (ohne sie kein Vorsteuerabzug)."""
-    from ..models import Attachment
-    original = _int(data.get("original"))
-    if original is None or db.query(Attachment).filter(
-            Attachment.id == original).first() is None:
-        raise HTTPException(status_code=400, detail=(
-            "Ohne Foto der Rechnung geht es nicht – sie ist der Beleg, aufbewahrt zehn Jahre."))
+    """►►► **Die Lieferantenrechnung, wie sie auf dem Papier steht.** ◄◄◄ Das Dokument ist
+    Pflicht (Feld ``voucher.original``); die MWST-Nummer, sobald Steuer darauf steht (ohne
+    sie kein Vorsteuerabzug)."""
+    original = _module_document(db, row, data, "voucher.original", (
+        "Ohne die Rechnung als Dokument geht es nicht – sie ist der Beleg, aufbewahrt zehn "
+        "Jahre."))
     taxed = any(Decimal(r.get("tax") or "0") != 0 for r in split)
     uid = _text(data.get("party_uid"), 40)
     if taxed and not uid:
@@ -2070,15 +2081,77 @@ def _export(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """**Den Ausfuhrnachweis erfassen** – Nummer der Veranlagungsverfügung und das Dokument
     (PDF oder Bild, hochgeladen). Ohne ihn gilt der Nullsatz nicht; erledigt ist der Beleg
     erst damit."""
-    from ..models import Attachment
+    message = ("Der Ausfuhrnachweis braucht die Nummer der Veranlagungsverfügung und das "
+               "Dokument dazu.")
     number = _text(data.get("reference"), 60)
-    photo = _int(data.get("original"))
-    if not number or photo is None or db.query(Attachment).filter(
-            Attachment.id == photo).first() is None:
-        raise HTTPException(status_code=400, detail=(
-            "Der Ausfuhrnachweis braucht die Nummer der Veranlagungsverfügung und das "
-            "Dokument dazu (PDF oder Bild)."))
+    if not number:
+        raise HTTPException(status_code=400, detail=message)
+    photo = _module_document(db, row, data, "voucher.export", message)
     row.export_number, row.export_photo_id = number, photo
+
+
+#: ►►► **Papiere, die ohne Freigabe hinausgehen.** ◄◄◄ Heute keines: jedes Papier sieht ein
+#: Mensch, bevor es geht (Vorschau → Freigeben). Wer eines automatisieren will, nennt es hier –
+#: die Bedingung, WANN es ansteht, bleibt dieselbe (``papers_due``).
+AUTO_RELEASE: tuple[str, ...] = ()
+
+#: Die Verben, die ein Papier hinausgeben – die Karte zeigt es vorher (``voucher_docs.preview``).
+PAPER_VERBS = ("ask", "agree", "bill", "revoke", "remind", "release")
+
+
+def papers_due(db: Session, row: Voucher) -> list[str]:
+    """►►► **Welches Papier jetzt ansteht** – abgeleitet, nie gespeichert. ◄◄◄
+
+    * **Auftragsbestätigung**: zugesagt, und es ging noch keine hinaus.
+    * **Quittung**: eine Rechnung, die wir stellen, ist mit Geld beglichen, und es ging noch
+      keine hinaus.
+
+    Nur, wo wir den Beleg stellen und eine Partei feststeht."""
+    if not vo.of(row.direction).collects or row.stage not in (vo.AGREED, vo.BILLED):
+        return []
+    if party_of(db, row) is None:
+        return []
+    out = []
+    if row.agreed_on is not None and not documents_of(db, row, vo.CONFIRM_DOC):
+        out.append(vo.CONFIRM_DOC)
+    if (is_billed(row) and row.stage == vo.BILLED and not minus(row) and is_done(db, row)
+            and balance_of(db, row).paid > 0 and not documents_of(db, row, vo.RECEIPT_DOC)):
+        out.append(vo.RECEIPT_DOC)
+    return out
+
+
+def _release(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """**Ein anstehendes Papier freigeben** – es entsteht und geht hinaus (``voucher_docs``)."""
+    from . import voucher_docs
+    kind = _text(data.get("kind"), 16)
+    if kind not in papers_due(db, row):
+        raise HTTPException(status_code=409, detail=(
+            f"«{vo.DOCUMENTS.get(kind or '', kind or '–')}» steht hier nicht an."))
+    voucher_docs.issue(db, row=row, kind=kind, actor=actor)
+
+
+def _module_document(db: Session, row: Voucher, data: dict[str, Any], field: str,
+                     message: str) -> int:
+    """►►► **Ein Dokument in einem Feld des Moduls** – gewählt (``data.original``, eine
+    Dokumentnummer) oder schon im Feld. Es kommt ins Pflichtfeld (``documents.set_field``):
+    änderbar, nie leer, nie löschbar, solange es dort steht. ◄◄◄"""
+    from ..models import Document
+    from . import documents
+    chosen = _int(data.get("original"))
+    order = db.query(Order).filter(Order.id == row.order_id).first()
+    part = f"step:{row.step_id}"
+    if chosen is None:
+        found = documents.field_document(db, order.object_id, field, part)
+        chosen = found.object_id if found is not None else None
+    doc = (db.query(Document).filter(Document.object_id == chosen,
+                                     Document.deleted_at.is_(None)).first()
+           if chosen is not None else None)
+    if doc is None:
+        raise HTTPException(status_code=400, detail=message)
+    documents.set_field(db, document_object_id=doc.object_id, object_id=order.object_id,
+                        part=part, field=field, actor=None)
+    return doc.object_id
 
 
 def _weight(value: Any) -> Optional[Decimal]:
@@ -2139,6 +2212,8 @@ VERBS: dict[str, Verb] = {
     "reverse": Verb(stages=(vo.BILLED, vo.CANCELLED), run=_reverse),
     "remind": Verb(stages=(vo.BILLED,), run=_remind),
     "export": Verb(stages=(vo.BILLED,), run=_export),
+    # **Ein anstehendes Papier freigeben** (Auftragsbestätigung, Quittung – ``papers_due``).
+    "release": Verb(stages=(vo.AGREED, vo.BILLED), run=_release),
     # ``run=None``: **sie ändern den Beleg nicht.** Gebucht wird erst, wenn der
     # Zahlungsdienst es meldet. Eigener Weg, **dieselbe Tür** (``assert_allowed``).
     "pay_online": Verb(stages=(vo.BILLED,), party=ALWAYS),
@@ -3181,6 +3256,9 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "stage": row.stage,
         "stages": _stages(db, row, flow),
         "can": allowed,
+        # **Was ein Papier hinausgibt, zeigt die Karte vorher** (Vorschau → Freigeben).
+        "paper_verbs": list(PAPER_VERBS) if (internal and flow.collects) else [],
+        "paper_due": (papers_due(db, row) or [None])[0] if internal else None,
         # ─── Fristen, Gültigkeit, Eigentum ───────────────────────────────────────
         "prepaid": vo.prepaid(due_days_of(db, row)),
         "payment_terms": [{"days": d, "label": name} for d, name in vo.PAYMENT_TERMS],
@@ -3244,11 +3322,11 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "corrects_suggested": (suggested_corrections(db, row, order)
                                if internal and row.stage == vo.OFFER else []),
         "party_uid": row.party_uid if won else None,
-        "original": _attachment_url(db, row.original_id) if won else None,
+        "original": (row.original_id or _field_doc(db, row, order, "voucher.original")) if won else None,
         "deviation": _money(deviation(db, row), row.currency) if won else None,
         "deviation_note": row.deviation_note if won else None,
         "export_number": row.export_number if won else None,
-        "export_photo": _attachment_url(db, row.export_photo_id) if won else None,
+        "export_photo": (row.export_photo_id or _field_doc(db, row, order, "voucher.export")) if won else None,
         "charged": _money(money.charged, row.currency) if won else None,
         "credited": _money(money.credited, row.currency) if won else None,
         "paid": _money(money.paid, row.currency) if won else None,
@@ -3301,14 +3379,12 @@ def _document_out(d: VoucherDocument) -> dict[str, Any]:
             "sent_at": d.created_at, "url": public_link(d.token)}
 
 
-def _attachment_url(db: Session, attachment_id: Optional[int]) -> Optional[str]:
-    """Der Link eines Fotos (Rechnung, Ausfuhrnachweis) – über seinen Token."""
-    if attachment_id is None:
-        return None
-    from ..models import Attachment
-    from . import attachments
-    att = db.query(Attachment).filter(Attachment.id == attachment_id).first()
-    return attachments.public_url(att) if att is not None else None
+def _field_doc(db: Session, row: Voucher, order: Order, field: str) -> Optional[int]:
+    """Das Dokument, das schon im Feld des Moduls steht (vor dem Buchen) – die Maske übernimmt
+    es, statt danach zu fragen."""
+    from . import documents
+    found = documents.field_document(db, order.object_id, field, f"step:{row.step_id}")
+    return found.object_id if found is not None else None
 
 
 def suggested_corrections(db: Session, row: Voucher, order: Order) -> list[dict[str, Any]]:

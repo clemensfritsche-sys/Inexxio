@@ -42,6 +42,9 @@ const ICONS: Record<string, StatusCfg['icon']> = {
   abgeschlossen: CheckCircle2,
   abgebrochen: XCircle,
   inaktiv: Ban,
+  unterschrift_angefragt: Clock,
+  abgelehnt: XCircle,
+  geloescht: Trash2,
 };
 
 const CFG: Record<string, StatusCfg> = Object.fromEntries(

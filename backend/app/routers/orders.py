@@ -19,7 +19,7 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
 from ..schemas.voucher import (
-    VoucherCorrectable, VoucherEmbed, VoucherUpdate,
+    PaperOut, PapersOut, VoucherCorrectable, VoucherEmbed, VoucherUpdate,
 )
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
@@ -924,6 +924,25 @@ def update_voucher(
     voucher_docs.send_pending(db)
     db.refresh(order)
     return _to_response(db, order, viewer=user)
+
+
+@router.post("/{object_id}/steps/{step_id}/voucher/preview", response_model=PapersOut)
+def preview_voucher(
+    object_id: int,
+    step_id: int,
+    data: VoucherUpdate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """►►► **Vorschau → Freigeben**: das Papier, das diese Handlung hinausgäbe – gerechnet von
+    derselben Handlung in einem Savepoint, danach zurückgerollt (``voucher_docs.preview``).
+    Erst «Freigeben» ruft die Handlung wirklich (``/voucher``)."""
+    order = orders_svc.get(db, object_id)
+    step, _row = _voucher_step(db, order, step_id, user)
+    papers = voucher_docs.preview(db, order=order, step=step, action=data.action,
+                                  payload=data.changes(), actor=user)
+    db.rollback()
+    return PapersOut(papers=[PaperOut(**p) for p in papers])
 
 
 @router.post("/{object_id}/steps/{step_id}/voucher/payment",

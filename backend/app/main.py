@@ -18,9 +18,10 @@ from .domain import timekeeping as timekeeping_domain
 from .models import UserProfile
 from .services import address_book, people, sites
 from .routers import (
-    admin, articles, attachments, auth, beleg, communication, contact, erp, feedback,
+    admin, articles, attachments, auth, beleg, communication, contact, documents, erp, feedback,
     health, website,
-    instances, newsletter, orders, passkey, payments, payments_list, places, timekeeping,
+    instances, newsletter, orders, passkey, payments, payments_list, places, public_documents,
+    timekeeping,
 )
 
 settings = get_settings()
@@ -168,6 +169,10 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "deviation_note", "VARCHAR(200)"),
     ("vouchers", "export_number", "VARCHAR(60)"),
     ("vouchers", "export_photo_id", "BIGINT"),
+    # ►►► **Dokumente** (Migration 157): «im Namen von» – jede Zeile ins Log liest sie.
+    ("audit_log", "on_behalf", "VARCHAR(12)"),
+    # Das Papier eines Belegs ist ein Dokument (Migration 158).
+    ("voucher_documents", "document_id", "BIGINT REFERENCES documents(id)"),
     ("voucher_quotes", "reference", "VARCHAR(120)"),
     ("voucher_quotes", "link", "VARCHAR(500)"),
     ("voucher_lines", "text", "VARCHAR(300)"),
@@ -218,9 +223,9 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
 #: erfindet es beim nächsten unmapped gewordenen Pflichtfeld neu, und bis dahin laufen
 #: alle Inserts auf.
 _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
-    # Leer seit Migration ``152``: ``articles.status``, ``voucher_entries.kind``,
-    # ``user_profiles.invoice_same_as_shipping`` und ``.country`` sind gedroppt. Der
-    # nächste Eintrag entsteht, wenn wieder ein Pflichtfeld sein Mapping verliert.
+    # Das Papier eines Belegs steht im Dokument (Migration 158) – geschrieben wird hier
+    # nichts mehr; die Spalte fällt im Folge-Deploy weg.
+    ("voucher_documents", "html"),
 )
 
 # ►► **Ein Drop-Netz gibt es nicht mehr** (Cleanup Oktober 2026, B-22). Es lief bei jedem
@@ -245,6 +250,7 @@ _INDEX_SAFETY_NET = (
     ("ix_captures_order_id", "captures", "order_id"),
     ("ix_captures_step_id", "captures", "step_id"),
     ("ix_messages_group_id", "messages", "group_id"),
+    ("ix_voucher_documents_document_id", "voucher_documents", "document_id"),
 )
 
 # Roh-Indizes und CHECKs, die ``create_all`` nicht nachzieht (es legt sie nur mit einer
@@ -256,6 +262,11 @@ _INDEX_SAFETY_NET = (
 # gewünschte Form hat: ein bedingungsloser DROP nähme einen Riegel für die Dauer der
 # Anweisung weg.
 _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
+    # ►► **Dieselbe Datei ist dasselbe Dokument** (Migration 157, Regel 1) – solange es nicht
+    #    gelöscht ist. Ohne den Index entstünden bei zwei gleichzeitigen Freigaben zwei.
+    "DO $$ BEGIN IF to_regclass('public.documents') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_sha256 "
+    "ON documents (sha256) WHERE deleted_at IS NULL AND sha256 IS NOT NULL; END IF; END $$;",
     # ►► **Die beiden Eindeutigkeitsregeln des Belegs** (Migration 134). Sie sind kein
     #    Beiwerk: ohne den ersten gäbe es zwei aktive Belege an einem Modul, ohne den
     #    zweiten dieselbe Position zweimal – und beides genau dann, wenn zwei Aufrufe
@@ -799,6 +810,7 @@ def _run_startup_fixups_once() -> None:
         _ensure_object_id_sequence()
         _backfill_object_registry()
         _ensure_company_object_id()   # Firma = nummerierter ERP-Datensatz
+        _adopt_documents()
     except Exception as e:
         print(f"WARNING: _run_startup_fixups_once() failed: {e}", flush=True)
     finally:
@@ -808,6 +820,23 @@ def _run_startup_fixups_once() -> None:
                 db.commit()
             except Exception:
                 pass
+        db.close()
+
+
+def _adopt_documents() -> None:
+    """**Was vor den Dokumenten entstand, kommt in die eine Ablage** (``services/adopt``) –
+    selbstbegrenzend, in eigener Sitzung; scheitert es, steht es im Log und der Start läuft."""
+    from .services import adopt
+    db = SessionLocal()
+    try:
+        done = adopt.run(db)
+        db.commit()
+        if any(done.values()):
+            print(f"INFO: Dokumente übernommen: {done}", flush=True)
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: Übernahme in die Ablage fehlgeschlagen: {e!r}", flush=True)
+    finally:
         db.close()
 
 
@@ -853,6 +882,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+#: Was keine Spur im Log hinterlassen muss: reine Lese-Anfragen.
+_READS = ("GET", "HEAD", "OPTIONS")
+
+
+@app.middleware("http")
+async def audit_writes(request: Request, call_next):
+    """►►► **Jede schreibende Anfrage ans ERP steht im Log** (``audit_log``, ``services/admin``). ◄◄◄
+
+    Eine Zeile je erfolgreichem Schreiben: wer, welche Handlung (Methode + Pfad), wann. So
+    fehlt keine Schreibstelle – auch eine, die selbst nichts Genaueres festhält. Was eine
+    Stelle genauer protokolliert (vorher/nachher, «im Namen von»), steht daneben. Scheitert
+    das Log, bleibt die Antwort: ein Log darf eine Handlung nie zerlegen."""
+    response = await call_next(request)
+    user_id = getattr(request.state, "user_id", None)
+    if (request.method in _READS or response.status_code >= 400 or user_id is None
+            or not request.url.path.startswith("/api/v1/")):
+        return response
+    from .core.database import SessionLocal
+    from .services.admin import log_audit
+    db = SessionLocal()
+    try:
+        log_audit(db, "request", request.method, request.url.path[:500], user_id)
+        db.commit()
+    except Exception as exc:                                   # noqa: BLE001
+        print(f"WARNING: audit_writes failed: {exc!r}", flush=True)
+        db.rollback()
+    finally:
+        db.close()
+    return response
 
 
 @app.exception_handler(IntegrityError)
@@ -1007,6 +1067,8 @@ app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(places.router)
 app.include_router(attachments.router)
+app.include_router(documents.router)
+app.include_router(public_documents.router)
 app.include_router(payments.router)
 app.include_router(beleg.router)
 app.include_router(payments_list.router)

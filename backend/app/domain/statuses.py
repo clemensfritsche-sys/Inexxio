@@ -57,6 +57,18 @@ ABGEBROCHEN = "abgebrochen"
 #: Ausser Betrieb (**Artikel**): von einem Nachfolger abgelöst (``Article.status``).
 INAKTIV = "inaktiv"
 
+#: **Dokument**: freigegeben, aber es fehlt noch mindestens eine verlangte Unterschrift.
+#: Erst mit der letzten Unterschrift ist es «Freigegeben» (``services/documents.status_of``).
+UNTERSCHRIFT_ANGEFRAGT = "unterschrift_angefragt"
+
+#: **Dokument**: eine verlangte Unterschrift wurde abgelehnt – endgültig. Weiter geht es mit
+#: einem neuen Dokument.
+ABGELEHNT = "abgelehnt"
+
+#: **Dokument**: gelöscht. Der Datensatz bleibt (Art, Name, wer, wann, Grund), die Datei
+#: ist weg. Gelöscht wird nur, was nirgends hängt.
+GELOESCHT = "geloescht"
+
 #: Aus dem Verkehr gezogen und **physisch weg** (**Einzelinstanz**). Endgültig: es gibt
 #: das Ding nicht mehr, also kann es in keinem Auftrag mehr vorkommen.
 VERSCHROTTET = "verschrottet"
@@ -116,7 +128,7 @@ VERBAUT = "verbaut"
 # ---------------------------------------------------------------------------
 
 #: Achsen. Wer kann diesen Status tragen?
-UNIT, ORDER, ARTICLE = "unit", "order", "article"
+UNIT, ORDER, ARTICLE, DOCUMENT = "unit", "order", "article", "document"
 
 #: Bestands-Zugehörigkeit eines **Stück**-Zustands. Nur diese beiden Werte gibt es:
 #: ``live`` = zählt zum aktuellen Bestand · ``history`` = existiert noch als Datensatz,
@@ -169,7 +181,7 @@ class Status:
 
 #: **Die eine Liste.** Reihenfolge = Anzeige-Reihenfolge (Leiste, Legende, Filter).
 CATALOG: tuple[Status, ...] = (
-    Status(FREIGEGEBEN, "Freigegeben", "done", (UNIT, ARTICLE), stock=LIVE),
+    Status(FREIGEGEBEN, "Freigegeben", "done", (UNIT, ARTICLE, DOCUMENT), stock=LIVE),
     Status(IM_PROZESS, "Im Prozess", "pending", (UNIT, ORDER), stock=LIVE),
     # **Gesperrt zählt zum Bestand.** Das Stück liegt im Regal – es ist da, nur nicht
     # verwendbar. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als
@@ -193,6 +205,9 @@ CATALOG: tuple[Status, ...] = (
     Status(ABGESCHLOSSEN, "Abgeschlossen", "done", (ORDER,)),
     Status(ABGEBROCHEN, "Abgebrochen", "danger", (ORDER,)),
     Status(INAKTIV, "Inaktiv", "danger", (ARTICLE,)),
+    Status(UNTERSCHRIFT_ANGEFRAGT, "Unterschrift angefragt", "pending", (DOCUMENT,)),
+    Status(ABGELEHNT, "Abgelehnt", "danger", (DOCUMENT,)),
+    Status(GELOESCHT, "Gelöscht", "danger", (DOCUMENT,)),
 )
 
 _TONES = ("done", "pending", "danger")
@@ -218,7 +233,7 @@ def _check(catalog: tuple[Status, ...] = CATALOG) -> None:
             raise ValueError(
                 f"Status «{s.value}» hat den Ton «{s.tone}» – erlaubt: {', '.join(_TONES)}."
             )
-        if not s.axes or any(a not in (UNIT, ORDER, ARTICLE) for a in s.axes):
+        if not s.axes or any(a not in (UNIT, ORDER, ARTICLE, DOCUMENT) for a in s.axes):
             raise ValueError(f"Status «{s.value}» nennt keine gültige Achse ({s.axes}).")
         if UNIT in s.axes and s.stock not in (LIVE, HISTORY):
             raise ValueError(
@@ -265,6 +280,9 @@ ORDER_STATUSES: tuple[str, ...] = _on(ORDER)
 
 #: Artikel: freigegeben (er entsteht erst damit) oder ausser Betrieb.
 ARTICLE_STATUSES: tuple[str, ...] = _on(ARTICLE)
+
+#: Dokument: alle vier sind abgeleitet (``services/documents.status_of``).
+DOCUMENT_STATUSES: tuple[str, ...] = _on(DOCUMENT)
 
 #: **Die Endzustände eines Stücks.** Die eine Liste, aus der der Schutz entsteht – in der
 #: Anwendung (``process._pass``) wie in der Datenbank (``terminal_guard_sql``).

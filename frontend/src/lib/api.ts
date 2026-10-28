@@ -36,6 +36,7 @@ import type {
   PlaceRef,
   PaymentSetup,
   TransferInfo,
+  DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, DocumentRequirement, RecordRef,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -59,6 +60,12 @@ export class ApiError extends Error {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+/** **Eine Datei des Servers** (`/api/v1/…`, z. B. ein Dokument oder sein Vorschaubild) –
+ *  im Betrieb dieselbe Herkunft, lokal das Backend. Die eine Stelle, die die Basis kennt. */
+export function assetUrl(path: string): string {
+  return path.startsWith('/api/') ? `${API_BASE}${path}` : path;
+}
 
 /** Der gezeigte Monat der Zeiterfassung als Query («month=2026-10»), leer = der aktuelle. */
 const monthQuery = (month?: string) => (month ? `month=${month}` : '');
@@ -125,10 +132,11 @@ class ApiClient {
   // erreicht die App dann GAR NICHT und wird kurz erneut versucht (auch
   // schreibende, da der Server sie nie verarbeitet hat → keine Doppelanlage).
   // 500/504 hingegen nur bei LESENDEN (idempotenten) Anfragen wiederholen.
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, options: RequestInit = {}, as: 'json' | 'blob' = 'json'): Promise<T> {
     // (Der Erfolgspfad unten meldet die Änderung – siehe ``notifyDataChanged``.)
+    // Eine Datei geht als `FormData` – den Typ samt Grenze setzt dann der Browser selbst.
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...((options.headers as Record<string, string>) || {}),
     };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
@@ -153,7 +161,7 @@ class ApiClient {
       if (response.ok) {
         if (!idempotent) notifyDataChanged(path);
         if (response.status === 204) return {} as T;
-        return response.json() as Promise<T>;
+        return (as === 'blob' ? response.blob() : response.json()) as Promise<T>;
       }
 
       // 401 = Token abgelaufen (typisch nach längerer Pause / Ruhezustand). EINMAL einen
@@ -313,6 +321,18 @@ class ApiClient {
   // jemand angemeldet, reist sein Token mit – die Routen fragen nicht danach.
 
   /** **Ein Dokument über seinen Link** – das eingefrorene Papier, der Weg, die Handlungen. */
+  publicDocument(token: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+    return this.get(`/api/v1/public/document/${encodeURIComponent(token)}`);
+  }
+
+  signDocument(token: string, image: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/sign`, { image });
+  }
+
+  declineDocument(token: string, reason: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/decline`, { reason });
+  }
+
   publicBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
     return this.get(`/api/v1/public/beleg/${encodeURIComponent(token)}`);
   }
@@ -427,6 +447,34 @@ class ApiClient {
   updateVoucher(orderObjectId: number, stepId: number,
                 body: { action: string } & Record<string, unknown>): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/voucher`, body);
+  }
+
+  /** **Vorschau → Freigeben**: das Papier, das diese Handlung hinausgäbe – es geschieht nichts. */
+  previewVoucher(orderObjectId: number, stepId: number,
+                 body: { action: string } & Record<string, unknown>): Promise<import('@/types/api').components['schemas']['PapersOut']> {
+    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/voucher/preview`, body);
+  }
+
+  /** **Ein Anhang einer Nachricht als Datei** – für den Entwurf eines Dokuments. */
+  async messageAttachment(messageId: number, index: number, name: string): Promise<File> {
+    const blob = await this.request<Blob>(`/api/v1/erp/messages/${messageId}/attachments/${index}`, {}, 'blob');
+    return new File([blob], name, { type: blob.type });
+  }
+
+  /** **Eine Runde Verfassen** – gespeichert wird nichts. */
+  composeDocument(turns: { who: 'user' | 'ai'; text: string }[], current: Record<string, unknown> | null):
+    Promise<import('@/types/api').components['schemas']['ComposeOut']> {
+    return this.post('/api/v1/erp/documents/compose', { turns, current });
+  }
+
+  /** **Senden** – je Empfänger ein Link und eine Mail; `sign`: sie sollen unterschreiben. */
+  sendDocument(objectId: number, to: number[], sign: boolean, note: string): Promise<DocumentDetail> {
+    return this.post(`/api/v1/erp/documents/${objectId}/send`, { to, sign, note });
+  }
+
+  /** «Aus Vorlage»: AGB oder Datenschutz einer eigenen Gesellschaft (nur Admin). */
+  legalFromTemplate(company: number, kind: 'agb' | 'datenschutz'): Promise<DocumentDetail> {
+    return this.post('/api/v1/erp/documents/template', { company, kind });
   }
 
   /**
@@ -643,6 +691,84 @@ class ApiClient {
   articleNameSuggestions(q: string, limit = 8): Promise<ArticleNameSuggestion[]> {
     const params = new URLSearchParams({ q, limit: String(limit) });
     return this.get(`/api/v1/erp/articles/name-suggestions?${params.toString()}`);
+  }
+
+  // ─── Dokumente (`services/documents`) ───────────────────────────────────────
+  /** Der Feed «Dokument» – seitenweise, durchsucht auf dem Server (wie die Instanzen). */
+  getDocuments(q = '', limit = 100, offset = 0): Promise<DocumentSummary[]> {
+    const p = new URLSearchParams({ q, limit: String(limit), offset: String(offset) });
+    return this.get(`/api/v1/erp/documents?${p}`);
+  }
+
+  getDocument(objectId: number): Promise<DocumentDetail> {
+    return this.get(`/api/v1/erp/documents/${objectId}`);
+  }
+
+  /** Die Kacheln unten an einem Datensatz. */
+  documentsOf(objectId: number): Promise<DocumentSummary[]> {
+    return this.get(`/api/v1/erp/documents/of/${objectId}`);
+  }
+
+  /** Ein Datensatz für eine Referenz – Nummer ODER Name. */
+  documentTargets(q: string): Promise<RecordRef[]> {
+    return this.get(`/api/v1/erp/documents/targets?${new URLSearchParams({ q })}`);
+  }
+
+  /** Worauf Module warten – je Anforderung ein Satz. */
+  documentRequirements(): Promise<DocumentRequirement[]> {
+    return this.get('/api/v1/erp/documents/requirements');
+  }
+
+  /** **Einen Entwurf lesen** – nichts wird gespeichert. */
+  readDraft(files: Blob[], opts: { sender?: number | null; hint?: string } = {}): Promise<DocumentProposal> {
+    const form = new FormData();
+    files.forEach((f, i) => form.append('files', f, f instanceof File ? f.name : `seite-${i + 1}`));
+    if (opts.sender) form.append('sender', String(opts.sender));
+    if (opts.hint) form.append('hint', opts.hint);
+    return this.request('/api/v1/erp/documents/read', { method: 'POST', body: form });
+  }
+
+  /** **Freigeben** – das Dokument entsteht erst hier (eine Datei oder mehrere Seiten). */
+  fileDocument(files: Blob[], data: {
+    art: string; name: string; source: string; refs: number[];
+    target?: DocumentTarget | null; text?: string; keywords?: string; facts?: Record<string, unknown>;
+    /** Wer unterschreiben soll (Personen). */
+    signers?: number[];
+  }): Promise<{ document: DocumentDetail; existed: boolean }> {
+    const form = new FormData();
+    files.forEach((f, i) => form.append('files', f, f instanceof File ? f.name : `seite-${i + 1}`));
+    form.append('art', data.art);
+    form.append('name', data.name);
+    form.append('source', data.source);
+    form.append('refs', JSON.stringify(data.refs.map((object_id) => ({ object_id }))));
+    if (data.target) form.append('target', JSON.stringify(data.target));
+    if (data.signers?.length) form.append('signers', JSON.stringify(data.signers));
+    if (data.text) form.append('text', data.text);
+    if (data.keywords) form.append('keywords', data.keywords);
+    if (data.facts && Object.keys(data.facts).length) form.append('facts', JSON.stringify(data.facts));
+    return this.request('/api/v1/erp/documents', { method: 'POST', body: form });
+  }
+
+  addDocumentRef(objectId: number, target: number): Promise<DocumentDetail> {
+    return this.post(`/api/v1/erp/documents/${objectId}/refs`, { object_id: target });
+  }
+
+  removeDocumentRef(objectId: number, refId: number): Promise<DocumentDetail> {
+    return this.delete(`/api/v1/erp/documents/${objectId}/refs/${refId}`);
+  }
+
+  /** Ein schon freigegebenes Dokument in ein Pflichtfeld – ändern, nie leeren. */
+  setDocumentField(objectId: number, target: DocumentTarget): Promise<DocumentDetail> {
+    return this.post(`/api/v1/erp/documents/${objectId}/field`, target);
+  }
+
+  deleteDocument(objectId: number, reason: string): Promise<DocumentDetail> {
+    return this.post(`/api/v1/erp/documents/${objectId}/delete`, { reason });
+  }
+
+  /** Das Lesen nachholen (ohne KI freigegeben). */
+  readDocumentLater(objectId: number): Promise<DocumentDetail> {
+    return this.post(`/api/v1/erp/documents/${objectId}/read`, {});
   }
 
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
