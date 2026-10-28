@@ -27,6 +27,7 @@ import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { NewsletterState, Todo, UserProfile, UserRole } from '@/types';
+import { tell } from '@/lib/notice';
 
 // **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
 // «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
@@ -91,7 +92,7 @@ function NewsletterConsent({ person }: { person: number }) {
   const [state, setState] = useState<NewsletterState | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { api.personNewsletter(person).then(setState).catch(() => {}); }, [person]);
+  useEffect(() => { api.personNewsletter(person).then(setState).catch(tell('Newsletter-Stand')); }, [person]);
   const act = (call: Promise<NewsletterState>, done: string) => {
     setBusy(true); setNote(null);
     call.then((s) => { setState(s); setNote(done); window.dispatchEvent(new Event(MESSAGES_CHANGED)); })

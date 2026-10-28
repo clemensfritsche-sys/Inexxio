@@ -22,6 +22,7 @@ import {
   Dot, IconBar, IconButton, Note, Pill, QuietButton, ROW_FORM, TimeField, hm, parseClock,
   parseHm, timeIcon, vacationText,
 } from './time-ui';
+import { tell } from '@/lib/notice';
 
 /** Was im Werkzeug «Erfassen» gerade steht. */
 export interface Capture {
@@ -267,7 +268,7 @@ export function usePreview(person: number, cap: Capture | null): Preview | null 
     if ((entry.kind === 'in' || entry.kind === 'out') && parseClock(entry.time ?? '') == null) return;
     let live = true;
     const t = setTimeout(() => {
-      api.timePreview(person, entry).then((r) => { if (live) setP(r); }).catch(() => {});
+      api.timePreview(person, entry).then((r) => { if (live) setP(r); }).catch(tell('Vorschau der Zeiterfassung'));
     }, 250);
     return () => { live = false; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

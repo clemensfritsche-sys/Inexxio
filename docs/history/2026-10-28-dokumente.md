@@ -125,3 +125,23 @@ Fotos und Nachweise müssen nicht mitkommen.
   **dev neu aufbauen** – Sicherung, dann `scripts/reset-dev-db.sql` (leert nur `inexxio_dev`,
   bricht sonst ab), dann baut der nächste Start alles aus den Migrationen; der Wächter
   bestätigt `current`. Die Testdaten sind damit weg.
+
+## Nachtrag – «scheitert still» und «dev ≠ prod» aufgeräumt (28.10.2026)
+
+Gesucht nach demselben Muster wie bei KI und Migration:
+
+- **34 stumme `catch` im Frontend** (eine leere Liste statt «nicht geladen») → eine Stelle
+  `lib/notice.ts` + `NoticeHost`; jede Stelle nennt, was fehlt. Wächter
+  `frontend/scripts/notice.test.mjs` verbietet ein neues stummes `catch` (gegengeprüft: auf
+  dem alten Stand rot).
+- **Secrets, die niemand liest**: `SECRET_KEY` (dev), `FIREBASE_SERVICE_ACCOUNT_KEY` und
+  `GCP_PROJECT` (prod) – aus den Deploys entfernt. Prod bindet Stripe jetzt optional ein wie
+  Gmail und KI.
+- **Erfundene Infrastruktur-Doku** (`infra/README.md`: staging, SSR, MFA, ein Bucket
+  `…-storage`) und die Skripte dazu (`infra/setup.sh`, `scripts/setup-gcp-dev.sh`,
+  `scripts/run-migrations.sh` mit dem abgekündigten Proxy v1) → entfernt; `infra/README.md`
+  beschreibt den Ist-Stand, der Kostenteil blieb wörtlich. `dump-db.sh` nutzt den Proxy v2.
+- **Offen, Entscheid des Auftraggebers**: der Prod-Dienst ist privat
+  (`--no-allow-unauthenticated`); Firebase Hosting leitet `/api/**` sehr wahrscheinlich nur an
+  einen öffentlichen Dienst weiter. Prod wird heute nicht genutzt; der Stand der
+  Prod-Datenbank ist unbekannt und wird vor dem ersten Prod-Deploy geprüft.

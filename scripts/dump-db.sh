@@ -43,14 +43,16 @@ DB_PASSWORD="$(printf '%s' "$DATABASE_URL" | sed -nE 's#^[^:]+://[^:]+:(.*)@[^@]
 [ -n "$DB_PASSWORD" ] || fail "Passwort liess sich aus DATABASE_URL nicht lesen. Format unerwartet."
 
 echo "=== Cloud SQL Auth Proxy starten ==="
-PROXY_BIN=/tmp/cloud_sql_proxy
-if [ ! -x "$PROXY_BIN" ]; then
-  curl -fsSL https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -o "$PROXY_BIN" \
-    || fail "Cloud SQL Proxy nicht herunterladbar."
+# Der Proxy v2 (`cloud-sql-proxy`) – in der Cloud Shell vorhanden, sonst einmal geholt.
+PROXY_BIN="$(command -v cloud-sql-proxy || true)"
+if [ -z "$PROXY_BIN" ]; then
+  PROXY_BIN=/tmp/cloud-sql-proxy
+  curl -fsSL https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.0/cloud-sql-proxy.linux.amd64 \
+    -o "$PROXY_BIN" || fail "Cloud SQL Proxy nicht herunterladbar."
   chmod +x "$PROXY_BIN"
 fi
 
-"$PROXY_BIN" -instances="${PROJECT}:${REGION}:${DB_INSTANCE}=tcp:5433" &
+"$PROXY_BIN" "${PROJECT}:${REGION}:${DB_INSTANCE}" --port 5433 >/tmp/cloud-sql-proxy.log 2>&1 &
 PROXY_PID=$!
 trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
 

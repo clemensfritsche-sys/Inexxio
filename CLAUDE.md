@@ -58,6 +58,8 @@ inexxio/
 │   └── app/{core,domain,models,schemas,routers,services}/, alembic/, scripts/, tests/
 ├── firebase.json     ← Hosting, Rewrites, Security-Header, Weiterleitungen alter Pfade
 ├── .github/workflows ← quality.yml (das Gate), deploy-dev.yml (develop), deploy-prod.yml (main)
+├── infra/README.md   ← Infrastruktur, wie sie eingerichtet ist (Umgebungen, Kosten, Rollback)
+├── scripts/          ← check-schema.sh (nach jedem Deploy) · dump-db.sh · reset-dev-db.sql
 └── docs/             ← adr/ (mit Kopfstatus) · attic.md · backlog.md · design-system/ ·
                          gmail-setup.md · stripe-setup.md · passkeys.md · dokumente.md ·
                          history/
@@ -332,6 +334,9 @@ Oberfläche und Dienst garantiert dasselbe.
 - **`can` ist Auskunft UND Tor** – ein Knopf, der nie etwas tun kann, steht nicht da.
 - **Kein Löschen, Gegenbuchung** – Soft-Delete, Korrekturbelege, Log append-only.
 - **`busy` sperrt Handlungen, nie Geometrie** – ein Auto-Save verschiebt nichts.
+- **Nichts scheitert still** – ein gescheiterter Abruf meldet sich (`lib/notice`), eine
+  gescheiterte Migration macht den Deploy rot (`/health` → `scripts/check-schema.sh`), ein
+  Ausfall der KI nennt seinen Grund (`ai.problem`).
 - **Spiegel über die API-Grenze sind getestet** (`backend/tests/test_frontend_mirrors.py`):
   Instanz-Arten (`models/instance.KINDS`), Modul-/Erfassungssymbole, Modulschlüssel,
   `CapturePoint`, Aussondern-Modi, Geld-Richtungen und -Stufen, Symbole der Zeiterfassung;

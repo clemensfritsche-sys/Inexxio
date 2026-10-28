@@ -11,6 +11,7 @@ import {
 import { ObjectSelect } from '@/components/erp/object-select';
 import { RefChip, RefChips, mimeIcon } from '@/components/erp/documents';
 import type { DocumentDetail as Doc } from '@/types';
+import { tell } from '@/lib/notice';
 
 /** Ein Datensatz zum Referenzieren – in der Form, die `ObjectSelect` kennt. */
 export interface TargetOption { object_id: number; name: string }
@@ -90,7 +91,7 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
   useEffect(() => {
     if (!doc?.read_later || readOnce.current) return;
     readOnce.current = true;
-    api.readDocumentLater(objectId).then(setDoc).catch(() => {});
+    api.readDocumentLater(objectId).then(setDoc).catch(tell('Dokument', 'Nicht gelesen'));
   }, [doc?.read_later, objectId]);
 
   async function act(run: () => Promise<Doc>) {

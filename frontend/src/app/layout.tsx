@@ -10,6 +10,7 @@ import meta from '@/lib/site-meta.json';
 import { SiteFooter, SiteHeader, SiteShellHead } from '@/components/layout/site-shell';
 import { AccountSync } from '@/components/layout/account-sync';
 import { ScanProvider } from '@/components/scan/scan-provider';
+import { NoticeHost } from '@/components/layout/notice-host';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
@@ -47,6 +48,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Dialog lädt weiterhin erst beim ersten Scan. */}
         <ScanProvider>{children}</ScanProvider>
         <SiteFooter />
+        {/* Ein gescheiterter Abruf ist nie stumm (`lib/notice`). */}
+        <NoticeHost />
       </body>
     </html>
   );

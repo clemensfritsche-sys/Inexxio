@@ -11,6 +11,7 @@ import { UnitNumber } from '@/components/erp/unit-number';
 import { useScan } from '@/components/scan/scan-provider';
 import { statusCfg, statusLabel } from '@/lib/process-status';
 import { VERBAUT, VERKAUFT } from '@/lib/status-catalog';
+import { tell } from '@/lib/notice';
 
 /**
  * **Der Definitionsbereich** – was dieser Auftrag bearbeitet, oberhalb des Start-Symbols.
@@ -244,7 +245,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
     let dead = false;
     api.getArticleOptions({ objectId: nr })
       .then((rows) => { if (!dead && rows[0]) onArticle(rows[0]); })
-      .catch(() => {});
+      .catch(tell('Artikel'));
     return () => { dead = true; };
   }, [line.articleObjectId, article, onArticle]);
 

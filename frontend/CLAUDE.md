@@ -133,6 +133,11 @@ jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spie
 - **`busy` sperrt Handlungen, nie Geometrie und nie Werte**: kein `disabled={busy}` an einem
   Eingabefeld, nichts verschwindet während eines Auto-Saves; was erst mit der Serverantwort
   entsteht, hat seinen Platz von Anfang an.
+- **Ein gescheiterter Abruf ist nie stumm** (`lib/notice.ts`): wer bei einem Fehler nichts
+  anderes zu tun hat, schreibt `.catch(tell('Aufträge'))` – unten rechts steht dann «Nicht
+  geladen: Aufträge – <Grund>» (`components/layout/notice-host.tsx`, im Wurzel-Layout),
+  dieselbe Meldung einmal je fünf Minuten. Ein `.catch(() => {})` verbietet
+  `scripts/notice.test.mjs`.
 - **Datum nur über `lib/when.ts`**: `when()` = Auskunft («vor 3 Tagen», «gerade eben»),
   `day()` = Tag auf dem Papier (Beleg), `formatWhen()` gibt beides (Hover), `happened()`
   setzt Zeit + Zustandswort. Die Wörter stehen im Modul, nicht im ICU. Wächter:

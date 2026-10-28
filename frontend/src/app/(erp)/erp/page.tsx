@@ -26,6 +26,7 @@ import { NewCompany, NewPerson } from '@/components/erp/new-record';
 import { DocumentDetail } from '@/components/erp/document-detail';
 import { DocumentDraft } from '@/components/erp/document-draft';
 import { statusCfg } from '@/lib/process-status';
+import { tell } from '@/lib/notice';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
@@ -223,7 +224,7 @@ export default function ErpPage() {
         setViewerRole(isStaff(me.value.role) ? 'staff' : 'party');
         // Firmen erst laden, wenn die Rolle feststeht – eigene wie fremde sieht jedes
         // Personal (CRM Schritt 1); der Endpunkt ist Personal-only.
-        if (isStaff(me.value.role)) api.getCompanies().then(setCompanies).catch(() => {});
+        if (isStaff(me.value.role)) api.getCompanies().then(setCompanies).catch(tell('Firmen'));
         if (isStaff(me.value.role)) setStaff(true);
       }
       setLoading(false);
@@ -234,7 +235,7 @@ export default function ErpPage() {
     if (!staff) return;
     const reload = () => api.todo()
       .then((rows) => setTodos(new Map(rows.map((r) => [r.object_id, r]))))
-      .catch(() => {});
+      .catch(tell('Zu tun'));
     reload();
     window.addEventListener(MESSAGES_CHANGED, reload);
     window.addEventListener(TODO_CHANGED, reload);
@@ -252,7 +253,7 @@ export default function ErpPage() {
       if (document.hidden) return;
       api.syncMail().then((r) => {
         if (r.new > 0 || r.sent > 0) window.dispatchEvent(new Event(MESSAGES_CHANGED));
-      }).catch(() => {});
+      }).catch(tell('Postfach', 'Nicht abgeglichen'));
     };
     tick();
     const t = setInterval(tick, 60_000);
@@ -295,7 +296,7 @@ export default function ErpPage() {
       setCreating(null);
       setSel({ type: r.object_type as ErpRecordType, objectId: oid });
       setMobileView('detail');
-    }).catch(() => {});
+    }).catch(tell(`Datensatz ${oid}`, 'Nicht geöffnet'));
   }, []);
 
   // Instanz-Feed: server-paginiert + server-durchsucht. Lädt Seite 0 beim Start und
@@ -307,7 +308,7 @@ export default function ErpPage() {
     // Der Cleanup markiert den vorherigen Effekt als veraltet – späte Antworten verfallen.
     let stale = false;
     const t = setTimeout(() => {
-      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) firstInstancePage(rows, q); }).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) firstInstancePage(rows, q); }).catch(tell('Instanzen'));
     }, q ? 300 : 0);
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
@@ -319,7 +320,7 @@ export default function ErpPage() {
     let stale = false;
     const load = () => api.getDocuments(q, 200).then((rows) => {
       if (!stale) { setDocuments(rows); setDocumentsFor(q); }
-    }).catch(() => {});
+    }).catch(tell('Dokumente'));
     const t = setTimeout(load, q ? 300 : 0);
     window.addEventListener('inexxio:data-changed', load);
     return () => { stale = true; clearTimeout(t); window.removeEventListener('inexxio:data-changed', load); };
@@ -340,10 +341,10 @@ export default function ErpPage() {
     const q = search.trim();
     function onDataChanged() {
       lastLoadRef.current = Date.now();
-      api.getErpRecords().then(setUsers).catch(() => {});
-      api.getArticles().then(setArticles).catch(() => {});
-      api.getOrders().then(setOrders).catch(() => {});
-      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => firstInstancePage(rows, q)).catch(() => {});
+      api.getErpRecords().then(setUsers).catch(tell('Personen'));
+      api.getArticles().then(setArticles).catch(tell('Artikel'));
+      api.getOrders().then(setOrders).catch(tell('Aufträge'));
+      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => firstInstancePage(rows, q)).catch(tell('Instanzen'));
     }
     // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
     // ein paar Minuten liegen liess, sah alte Daten (und musste F5 drücken). Jetzt lädt er
@@ -546,7 +547,7 @@ export default function ErpPage() {
       // Betreiber gewechselt: die ganze Liste neu laden, damit der frühere Betreiber
       // seinen Titel verliert (genau EINE Gesellschaft trägt is_operator). Und die im
       // Fenster mitgeführte Firmenangabe (Impressum) nachziehen.
-      api.getCompanies().then(setCompanies).catch(() => {});
+      api.getCompanies().then(setCompanies).catch(tell('Firmen'));
     }
   }
 
@@ -753,7 +754,7 @@ export default function ErpPage() {
           <ErpNavContext.Provider value={null}>
           {creating === 'article' && (
             <ArticleDetail key="new-article" record={null} onSaved={handleArticleSaved}
-              onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
+              onRefresh={() => api.getArticles().then(setArticles).catch(tell('Artikel'))}
               onBack={cancelCreate} />
           )}
           {creating === 'person' && (
@@ -787,7 +788,7 @@ export default function ErpPage() {
           {!creating && activeRow?.type === 'article' && (
             <ArticleDetail key={activeRow.key} record={activeRow.data}
               onSaved={handleArticleSaved}
-              onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
+              onRefresh={() => api.getArticles().then(setArticles).catch(tell('Artikel'))}
               // **Ein reiner Shortcut, kein zweiter Anlagepfad** (#690): derselbe Entwurf
               // wie über «+», nur mit vorbelegtem Artikel. Angelegt wird nichts – einen
               // Auftrag gibt es erst mit der Freigabe (#386).
