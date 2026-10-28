@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -14,6 +15,18 @@ class Settings(BaseSettings):
     app_env: str = "production"
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/inexxio_local"
+
+    @field_validator("database_url")
+    @classmethod
+    def _driver(cls, url: str) -> str:
+        """**Der Treiber steht fest: psycopg2** (die eine installierte Bibliothek). Ohne Angabe
+        wählt SQLAlchemy ab 2.1 psycopg 3 – ein ``postgresql://`` aus einem Secret oder
+        einer Umgebung brächte den Dienst dann beim Start zu Fall. Darum wird hier, an der
+        einen Stelle, die jede Verbindung liest (App, Alembic, Tests), ergänzt."""
+        for bare in ("postgresql://", "postgres://"):
+            if url.startswith(bare):
+                return "postgresql+psycopg2://" + url[len(bare):]
+        return url
 
     firebase_project_id: str = ""
     firebase_service_account_path: Optional[str] = None

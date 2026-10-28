@@ -83,3 +83,14 @@ def test_the_start_runs_twice_without_harm():
         assert trigger == 1
     finally:
         db.close()
+
+
+def test_every_database_url_uses_the_installed_driver():
+    """Ohne Treiber in der Adresse wählt SQLAlchemy ab 2.1 psycopg 3 – installiert ist
+    psycopg2. Ein ``postgresql://`` aus einem Secret liesse den Dienst sonst beim Start
+    abstürzen. Bug-Form (gegengeprüft): ohne den Validator bleibt die Adresse, wie sie ist."""
+    from app.core.config import Settings
+    for raw in ("postgresql://u:p@h/db", "postgres://u:p@h/db"):
+        assert Settings(database_url=raw).database_url == "postgresql+psycopg2://u:p@h/db"
+    keep = "postgresql+psycopg2://u:p@/db?host=/cloudsql/x"
+    assert Settings(database_url=keep).database_url == keep

@@ -33,7 +33,7 @@ def _admin_engine():
     from sqlalchemy import create_engine
     from app.core.config import get_settings
 
-    url = os.environ.get("DATABASE_URL") or get_settings().database_url
+    url = get_settings().database_url   # dieselbe Adresse wie die App (Treiber festgelegt)
     if not url.startswith("postgresql"):
         no_database(f"{url.split('://')[0]} statt PostgreSQL – die Migrationen bauen "
                     f"PostgreSQL-Schema, gegen SQLite wäre die Aussage eine andere")
