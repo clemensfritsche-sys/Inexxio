@@ -22,8 +22,10 @@ sonst direkt über `lib/api.ts`.
   Platzhalter, im Deploy Pflicht über `SHELL_REQUIRED=1`). `components/layout/site-shell.tsx`
   setzt es ein. Wer Kopf oder Fuss ändern will, ändert `website/src/components/Header.astro`
   bzw. `Footer.astro`.
-- Das Frontend schreibt nur den **Anzeige-Cache** (`components/layout/account-sync.tsx` →
-  `lib/account-cache.ts`, vier Schlüssel) und ruft `window.inexxioShell.account()`. Die
+- Das Frontend schreibt nur den **Anzeige-Cache** (`lib/account-cache.ts`: vier Schlüssel,
+  gelesen und geschrieben nur über `cachedRole`/`rememberRole`/`rememberName`/
+  `rememberContact`/`rememberPhoto`/`clearAccountCache`; Name, Kontakt und Bild schreibt
+  `components/layout/account-sync.tsx`) und ruft `window.inexxioShell.account()`. Die
   Kopfhöhe kommt als `--site-header-h` – nie als Zahl. `lib/site-meta.json` (Name,
   Metadaten) ist generiert von `website/scripts/export-erp.mjs`.
 
@@ -35,6 +37,9 @@ npm run dev        # http://localhost:3000
 npm run build      # build-islands + next build
 npm test           # node --test scripts/*.test.mjs
 ```
+`Dockerfile` ist nur das Entwicklungsbild für `docker-compose.yml` (`npm run dev`);
+ausgeliefert wird der statische Export (`out/`) über Firebase Hosting – `next start` gibt es
+nicht.
 
 ## Struktur
 ```
@@ -47,15 +52,17 @@ src/app/
 src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
 ├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys)
-├── auth/      ← login-dialog, passkey-nudge
+├── auth/      ← login-dialog, passkey-nudge, auth-gate (Schutz von /erp und /konto, `staffOnly`)
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
 ├── form/      ← field, save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 ├── layout/    ← site-shell, account-sync
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
-src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · use-autosave.ts · use-search.ts ·
-                 status-catalog.ts (generiert) · process-status.ts · status-tone.ts ·
-                 record-status.ts (isStaff) · account-cache.ts · login-target.ts · legal-forms.ts …
+src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
+                 process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
+                 login-target.ts · legal-forms.ts … und **alle Hooks** als `use-*.ts`
+                 (use-autosave, use-search, use-profile-completion, use-google-maps, use-maps-key);
+                 nur Kamera und Decoder liegen beim Scanner (components/scan/)
 src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands.mjs)
 ```
@@ -82,7 +89,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
 | `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – Spiegel getestet) |
 | `territory-map.tsx`, `world-map.tsx` | Gebietskarte |
-| `detail-tabs.tsx`, `error-boundary.tsx`, `use-google-maps.ts`, `use-maps-key.ts` | Hilfen |
+| `detail-tabs.tsx`, `error-boundary.tsx` | Hilfen |
 
 ## Design System (VERBINDLICH)
 Alle UI baut auf dem Inexxio Design System – Regeln: **`../docs/design-system/README.md`**,
@@ -105,7 +112,12 @@ Skill `inexxio-design-system`.
   verboten.
 
 ## Typen und generierte Quellen
-- `src/types/api.ts` – aus `backend/openapi.json` (`npm run generate:types`).
+- `src/types/api.ts` – aus `backend/openapi.json` (`npm run generate:types`). Gelesen wird er
+  über die Aliase in `src/types/index.ts` (z. B. `CompanySettings` =
+  `CompanySettingsResponse`, `CompanySettingsUpdate`, `BelegView`, `PublicDocument`) – kein
+  `components['schemas'][…]` an der Aufrufstelle, kein handgeschriebener Typ oder Mapper
+  daneben: das Frontend spricht die Feldnamen des Backends (`street_nr`, `zip_code`,
+  `uid_number`).
 - `src/lib/status-catalog.ts` – aus `backend/app/domain/statuses.py`
   (`python -m scripts.dump_statuses`). Eine **Quelle, kein Spiegel**: Beschriftung,
   Ampelton, Achsen, Bestand/Historie, Endgültigkeit kommen von dort. `lib/process-status.ts`
@@ -118,12 +130,18 @@ Skill `inexxio-design-system`.
   treffen (`test_api_routes.py`).
 
 ## API-Client (`lib/api.ts`)
-Fetch-Wrapper mit Bearer-Token (Firebase). **`ApiClient` bindet alle Methoden im
+Fetch-Wrapper mit Bearer-Token (Firebase). **Den Token setzt niemand**: `request()` fragt
+ihn je Anfrage beim Provider, den `lib/firebase.ts` registriert (Firebase hält ihn vor und
+erneuert ihn selbst; nach einem 401 einmal erzwungen frisch); ohne Anmeldung geht die
+Anfrage ohne Token. **`getMe()` teilt eine Antwort** (laufend oder höchstens 10 s alt) – jede
+schreibende Anfrage, `logout()` und ein Wechsel der Person verwerfen sie (`forgetMe`).
+**`ApiClient` bindet alle Methoden im
 Konstruktor über den Prototyp** – eine als Wert weitergereichte Methode
 (`search={api.searchPeople}`) behält ihr `this`. Die Personensuche heisst `searchPeople`
 (`GET /erp/people`), die Firmensuche `searchCompanies`. Auth-Schutz: `/erp` und `/konto`
-prüfen die Anmeldung in ihren Layouts (Redirect auf `/login?from=…`), das Backend prüft
-jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spiegel von
+prüfen die Anmeldung in ihren Layouts über **ein** Bauteil, `components/auth/auth-gate.tsx`
+(Redirect auf `/login?from=…`; `staffOnly` am ERP schickt Nicht-Personal ins Konto), das
+Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spiegel von
 `people.STAFF_ROLES`) – erlaubend gefragt.
 
 ## Regeln, die jede Oberfläche erbt
@@ -157,7 +175,6 @@ jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spie
 | Bauteil | Was es ist |
 |---|---|
 | `MODULE_CARD` · `MODULE_TITLE` | Fläche und Name der Modul-Karte (weiss wie jeder Datensatz; die Modulfarbe sitzt in der Marke und im Rahmen, wenn das Modul dran ist). Gesetzt in `ModuleShell`. |
-| `ModuleSection` | Abschnitt: Leiste als Kopf, Punkt davor, wenn er ein Schritt ist (`state`: `past · active · ahead`), die Status-Spalte steht immer. `data-fb-section` benennt ihn für Testnotizen. |
 | `ActionButton` · `Actions` | Ein Knopf ist ein Symbol, beim Zeigen klappt der Name daneben auf (`.ix-tuck`); `Actions` gibt ihm eine eigene, nicht umbrechende Zeile. |
 | `StageAction` | Die Handlung, die eine Sache weiterbringt (volle Breite, 42 px) – Beleg und Zeiterfassung. |
 | `LedgerRow` · `RowActions` | Zeilen-Grammatik `[Identifikator] [Meta] … [Aktion] [Datum] [Betrag]`, strikt einreihig; Zeilenaktionen am Ende, im Ruhezustand unsichtbar, auf Touch dauerhaft – und **in einer Zeile klappt kein Name aus** (Blase statt `.ix-tuck`). |
@@ -249,8 +266,10 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
 
 ## Konventionen
 - `'use client'` nur, wo nötig. Lucide React für alle Icons. TypeScript strict, kein `any`.
-- **`no-unused-vars` ist scharf** (`.eslintrc.json`, CI) – ein ungenutzter Zustand ist die
-  Form, in der ein Knopf ohne Wirkung auftritt.
+- **`@typescript-eslint/no-unused-vars` ist scharf** (`.eslintrc.json`, CI; kennt auch
+  ungenutzte Typen) – ein ungenutzter Zustand ist die Form, in der ein Knopf ohne Wirkung
+  auftritt. Ein `export`, den keine andere Datei liest, gibt es nicht
+  (`backend/scripts/deadcode.py --frontend`; was bleibt, liest ein Wächter oder Test).
 - Einsprachig Deutsch (kein i18n verdrahtet).
 - **Eine Abhängigkeit ohne Import ist Altlast** – auf Unterpfade und dynamische Importe
   achten (`await import('@zxing/browser')` ist echte Nutzung).
