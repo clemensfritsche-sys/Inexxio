@@ -70,6 +70,7 @@ import { formatWhen, whenDay, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { DraftSheet } from '@/components/erp/document-draft';
 import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
+import { tell } from '@/lib/notice';
 
 type Person = { object_id: number; name: string; company?: string | null; email?: string | null;
   staff?: boolean };
@@ -935,7 +936,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
       sent.current();
       // Ein Rundschreiben geht über den Abgleich hinaus – gleich jetzt, nicht erst beim
       // nächsten Lauf (je Lauf eine Handvoll; der Rest folgt im Hintergrund).
-      if (payload.delivery !== 'mail') void api.syncMail().then(() => sent.current()).catch(() => {});
+      if (payload.delivery !== 'mail') void api.syncMail().then(() => sent.current()).catch(tell('Postfach', 'Nicht abgeglichen'));
       return true;
     } catch (e) {
       if (draft) restore(draft);
@@ -1189,8 +1190,8 @@ export function Communication({ person, company, ownCompany, me }: {
   // Ein Postfach hat nur eine eigene Gesellschaft – es steht an ihrem Datensatz.
   // Persönliche gibt es nicht: im Kommunikationstool ist jeder Benutzer gleich.
   const loadChannels = useCallback(() => {
-    if (person) api.messageChannels().then(setChannels).catch(() => {});
-    if (company && ownCompany) api.mailboxes(company).then(setMailboxes).catch(() => {});
+    if (person) api.messageChannels().then(setChannels).catch(tell('Absender'));
+    if (company && ownCompany) api.mailboxes(company).then(setMailboxes).catch(tell('Postfach'));
   }, [person, company, ownCompany]);
   useEffect(() => { loadChannels(); }, [loadChannels]);
   // Neues aus dem Abgleich erscheint ohne Neuladen der Seite.

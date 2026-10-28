@@ -21,6 +21,7 @@ import { CompanyField } from '@/components/erp/company-field';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
+import { tell } from '@/lib/notice';
 
 interface Form {
   first_name: string;
@@ -142,7 +143,7 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
 function Newsletter() {
   const [state, setState] = useState<NewsletterState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.myNewsletter().then(setState).catch(() => {}); }, []);
+  useEffect(() => { api.myNewsletter().then(setState).catch(tell('Newsletter-Stand')); }, []);
   const flip = (on: boolean) => {
     setError(null);
     api.setMyNewsletter(on).then(setState)

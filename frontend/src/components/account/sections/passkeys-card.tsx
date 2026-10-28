@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { registerPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
 import type { Passkey } from '@/types';
 import { when } from '@/lib/when';
+import { tell } from '@/lib/notice';
 
 // Datum und Uhrzeit stehen im Haus an EINER Stelle (`lib/when`, Testnotiz #992).
 const formatDate = (iso: string | null) => when(iso);
@@ -22,7 +23,7 @@ export function PasskeysCard() {
     let cancelled = false;
     api.listPasskeys()
       .then((rows) => { if (!cancelled) setPasskeys(rows); })
-      .catch(() => { /* Liste bleibt leer */ })
+      .catch(tell('Passkeys'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);

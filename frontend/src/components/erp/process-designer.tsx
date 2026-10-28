@@ -34,6 +34,7 @@ import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
 import { RUNTIME_CHOICE } from '@/lib/scan';
+import { tell } from '@/lib/notice';
 
 /**
  * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag.**
@@ -84,7 +85,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
     let dead = false;
     api.getModuleCatalog()
       .then((c) => { if (!dead) setCatalog(c); })
-      .catch(() => { /* ohne Katalog bleibt die Palette leer – kein erfundener Typ */ });
+      .catch(tell('Modul-Katalog'));
     return () => { dead = true; };
   }, []);
 
@@ -389,7 +390,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
         groups.flat().forEach((o) => { found[o.object_id] = o.name; });
         setKnown((k) => ({ ...k, ...found }));
       })
-      .catch(() => {});
+      .catch(tell('Namen der Datensätze'));
     return () => { stale = true; };
   }, [m.parties, known, search]);
 

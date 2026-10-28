@@ -23,6 +23,7 @@ import { TimeContracts } from './time-contracts';
 import { type Capture, TimeDayDetail, usePreview } from './time-day';
 import { TimeSwipe } from './time-swipe';
 import { Note, daysLabel, hours, sgn, vacationText } from './time-ui';
+import { tell } from '@/lib/notice';
 
 const OFFLINE = 'Keine Verbindung – nicht gespeichert. Bitte erneut versuchen, sobald das Netz da ist.';
 const OFFLINE_SWIPE = 'Keine Verbindung – nicht gestempelt. Bitte erneut wischen, sobald das Netz da ist.';
@@ -198,7 +199,7 @@ export function TimeCard({ person }: { person: number }) {
           onFiled={() => {
             setProofFor(null);
             todoChanged();
-            api.timeView(person, view.month).then(show).catch(() => {});
+            api.timeView(person, view.month).then(show).catch(tell('Zeiterfassung'));
           }} />
       )}
     </Card>

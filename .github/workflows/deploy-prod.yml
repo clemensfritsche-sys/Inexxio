@@ -101,13 +101,16 @@ jobs:
           docker push "$IMAGE_LATEST"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      # ►►► **Gmail und KI sind OPTIONAL** (`docs/gmail-setup.md`, `docs/dokumente.md`). ◄◄◄
-      # Eingebunden wird nur, was es im Secret Manager gibt – sonst bräche `--set-secrets` ab.
-      - name: Optionale Secrets (Gmail, KI)
+      # ►►► **Gmail, KI und Zahlung sind OPTIONAL** (`docs/gmail-setup.md`, `docs/dokumente.md`,
+      # `docs/stripe-setup.md`). ◄◄◄ Eingebunden wird nur, was es im Secret Manager gibt – sonst
+      # bräche `--set-secrets` ab. Ohne die drei Stripe-Werte gibt es den Bezahlen-Knopf nicht
+      # (`STRIPE_PUBLISHABLE_KEY` ist kein Geheimnis, liegt aber der Einfachheit halber daneben).
+      - name: Optionale Secrets (Gmail, KI, Zahlung)
         id: optsec
         run: |
           extra=""
-          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY; do
+          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY \
+                   STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY; do
             if gcloud secrets versions access latest --secret "$s" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then
               echo "Secret $s gefunden – wird eingebunden"
               extra="$extra,$s=$s:latest"
@@ -130,8 +133,8 @@ jobs:
             --no-allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
-            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app,FILES_BUCKET=${{ env.GCP_PROJECT }}-files" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest${{ steps.optsec.outputs.extra }}" \
+            --set-env-vars "APP_ENV=production,FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app,FILES_BUCKET=${{ env.GCP_PROJECT }}-files" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest${{ steps.optsec.outputs.extra }}" \
             --min-instances 1 \
             --max-instances 10 \
             --memory 1Gi \
