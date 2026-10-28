@@ -182,3 +182,20 @@ Rollback-Punkte: vor der Runde `80486d0` · nach der Sicherheit `564350e` · nac
   ein gemeinsamer `getMe`, ein `AuthGate` statt zweier Layouts, generierte Typen statt
   Mapper, totes Material und 49 unnötige Exporte weg, Hooks in `lib/`, `npm audit fix`
   (Website 0, Frontend 9 – nur mit Major-Sprüngen lösbar).
+- **Versionssprünge** (`d0dbba2` Backend, `4c8fd93` Frontend, je Agent in eigener
+  Arbeitskopie): SQLAlchemy 2.1, firebase-admin 7, stripe 16, webauthn 3; Next 16, React 19,
+  ESLint 9 (Flat Config), firebase 12, stripe-js 10, simplewebauthn 14; `npm audit` 0.
+  Gefunden: **stripe 16** – ein `StripeObject` ist kein `dict` mehr, jeder echte Webhook wäre
+  ein 500 gewesen (keine Kartenzahlung gebucht); jetzt `construct_event(...).to_dict()`, Test
+  mit echt signierten Meldungen. **SQLAlchemy 2.1** – `postgresql://` heisst dort psycopg 3;
+  der erste Deploy brach in der CI ab (`dump_openapi`), ein Secret ohne Treiber hätte den
+  Dienst beim Start gestoppt. `Settings.database_url` legt psycopg2 fest (Alembic und
+  Wächter lesen dieselbe Adresse). Bewusst nicht: anthropic und google-cloud-storage (schon
+  neueste, jünger als zwei Wochen), firebase 13 (verlangt Node 24), Tailwind 4, TS 7,
+  React-Compiler-Lint-Regeln. Next 16.4.1 ist 13 Tage alt – 16.4.0 hat eine kritische Lücke.
+- **React Query im Feed**: je Liste ein Schlüssel; nach einer Änderung wird nur invalidiert,
+  was der Pfad betrifft (`lib/feed.feedsTouchedBy`, unbekannt → alles), statt alle Listen neu
+  zu laden; Fehler über `tell()`.
+- **Konsolen-Schritte** (Budget, Erreichbarkeit, Prod-Sicherung, Bilder aufräumen,
+  Passwort) stehen in `infra/README.md` «Betrieb absichern». Die Anmeldung der dev-Deploys
+  per Workload Identity statt JSON-Schlüssel bleibt vorgemerkt.

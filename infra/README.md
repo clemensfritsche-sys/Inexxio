@@ -47,6 +47,47 @@ gcloud storage buckets add-iam-policy-binding gs://$P-files \
 printf '%s' 'WERT' | gcloud secrets create ANTHROPIC_API_KEY --data-file=- --project $P
 ```
 
+## Betrieb absichern (einmal, in Cloud Shell)
+
+Jeder Block steht für sich; `P` ist das Projekt.
+
+```bash
+# 1 · Budget-Alarm (Mail bei 50 / 90 / 100 % des Monatsbudgets) – das Konto zuerst nachsehen
+gcloud billing accounts list
+gcloud billing budgets create --billing-account=KONTO-ID --display-name="Inexxio" \
+  --budget-amount=100 --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 \
+  --threshold-rule=percent=1.0
+
+# 2 · Erreichbarkeit: /health jede 5 Minuten aus mehreren Regionen
+P=inexxio-dev
+gcloud monitoring uptime create inexxio-health --project $P \
+  --resource-type=uptime-url --resource-labels=host=$P.web.app,project_id=$P \
+  --path=/api/v1/health --protocol=https --period=5
+#   Mail bei Ausfall: Console → Monitoring → Uptime checks → «inexxio-health» →
+#   «Create alert» → Benachrichtigung per E-Mail.
+
+# 3 · Prod: tägliche Sicherung + Wiederherstellung auf die Minute (vor dem Go-live)
+gcloud sql instances patch inexxio-prod-db --project inexxio-prod \
+  --backup-start-time=01:00 --enable-point-in-time-recovery --retained-backups-count=14
+
+# 4 · Alte Backend-Bilder aufräumen: die 10 jüngsten bleiben, der Rest geht nach 30 Tagen
+cat > /tmp/policy.json <<'JSON'
+[{"name":"keep-recent","action":{"type":"Keep"},"mostRecentVersions":{"keepCount":10}},
+ {"name":"delete-old","action":{"type":"Delete"},"condition":{"olderThan":"30d"}}]
+JSON
+gcloud artifacts repositories set-cleanup-policies $P --project $P \
+  --location europe-west6 --policy=/tmp/policy.json
+
+# 5 · Neues Datenbank-Passwort (dev) – setzt es, schreibt es ins Secret, startet neu
+NEW=$(openssl rand -hex 24)
+gcloud sql users set-password backend --instance inexxio-dev-db --project inexxio-dev --password "$NEW"
+gcloud secrets versions access latest --secret DATABASE_URL --project inexxio-dev \
+  | sed -E "s#(://backend:)[^@]*@#\1$NEW@#" | tr -d '\n' \
+  | gcloud secrets versions add DATABASE_URL --data-file=- --project inexxio-dev
+gcloud run services update inexxio-backend-dev --region europe-west6 --project inexxio-dev \
+  --update-labels=rotated=$(date +%s)
+```
+
 ## Werkzeuge
 
 - `scripts/check-schema.sh` – der Schritt nach dem Deploy (oben).
