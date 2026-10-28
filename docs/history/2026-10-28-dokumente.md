@@ -118,3 +118,10 @@ Fotos und Nachweise müssen nicht mitkommen.
   von `157`, `161` ist entfernt (keine Datenbank stand je darauf). Und gegen die Ursache der
   Ursache: `/health` nennt den Stand der Datenbank, `scripts/check-schema.sh` macht jeden
   Deploy rot, der sie nicht auf `head` bringt (Wächter `tests/test_health_schema.py`).
+- **dev stand auf Migration 077** (der neue Wächter zeigte es beim ersten Lauf: `revision 077,
+  head 160`). Seit Juli war auf dev keine Migration mehr durchgelaufen; alles danach bauten die
+  Start-Netze nach. Die Kette nachträglich auf diese Datenbank laufen zu lassen wäre
+  unberechenbar (dazwischen bauen `102` und `152` Tabellen neu). Entscheid des Auftraggebers:
+  **dev neu aufbauen** – Sicherung, dann `scripts/reset-dev-db.sql` (leert nur `inexxio_dev`,
+  bricht sonst ab), dann baut der nächste Start alles aus den Migrationen; der Wächter
+  bestätigt `current`. Die Testdaten sind damit weg.

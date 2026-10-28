@@ -48,6 +48,9 @@ alembic revision --autogenerate -m "description"     # neue Migration
   gar kein AGB/Datenschutz-Dokument gibt, werden die Vorlagen einmal zu Dokumenten der eigenen
   Gesellschaften. Sie braucht die Fachschicht, darum nicht in der Migration. Altdaten (frühere
   Papiere, Fotos) werden nicht übernommen.
+- **dev neu aufbauen** (nur dev, alle Daten weg): Sicherung in Cloud SQL, dann
+  `scripts/reset-dev-db.sql` in Cloud SQL Studio auf `inexxio_dev` (bricht auf jeder anderen
+  Datenbank ab), dann ein Deploy – der Start baut alles aus den Migrationen.
 - **Zwei Trigger entstehen bei jedem Start neu** (und in ihrer Migration): `statuses.terminal_guard_sql`
   (Endzustand) und `timekeeping.append_only_sql` (Zeiterfassung: `time_entries` und
   `time_contracts` sind append-only – kein UPDATE, kein DELETE).
