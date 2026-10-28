@@ -52,7 +52,7 @@ alembic revision --autogenerate -m "description"     # neue Migration
   `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only); scheitert das,
   startet er nicht. Danach, je in eigener Sitzung und nur mit Warnung bei Fehlschlag: der
   Betreiber als nummerierter Datensatz (`sites.operator`) und die Rechtstexte als Dokumente
-  (`services/adopt`, nur solange es noch keine gibt). Admin wird nur `initial_admin_email`,
+  (`legal.adopt_templates`, nur solange es noch keine gibt). Admin wird nur `initial_admin_email`,
   beim Login (`core/auth`).
 - **dev neu aufbauen** (nur dev, alle Daten weg): `scripts/reset-dev-db.sql` auf `inexxio_dev`
   (bricht auf jeder anderen Datenbank ab), dann ein Deploy – der Start baut alles aus den
@@ -76,7 +76,9 @@ alembic revision --autogenerate -m "description"     # neue Migration
 app/
 ├── main.py           ← App, Router-Registrierung, CORS, Start (Trigger, Betreiber, Rechtstexte)
 ├── core/             ← config.py (Settings – nur, was der Code liest) · database.py ·
-│                       auth.py (Firebase-JWT, get_current_user, require_employee, require_admin)
+│                       auth.py (Firebase-JWT, get_current_user, require_employee, require_admin;
+│                       nur bestätigte Adressen) · clock.py (jetzt/heute in Europe/Zurich) ·
+│                       signed.py (signierte Links, LINK_SECRET)
 ├── domain/           ← der fachliche Kern: KEINE DB, KEINE Services
 │   ├── statuses.py   ← jeder Zustand: Beschriftung, Ampelton, Achsen, stock, terminal
 │   ├── modules.py    ← die Prozessschrittmodule (MODULES) und was jedes deklariert
@@ -116,8 +118,8 @@ scripts/
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
-| Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen), `adopt.py` (Rechtstexte beim Start) |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
+| Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:
@@ -149,7 +151,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST · PATCH · DELETE | `/api/v1/auth/me/addresses` · `/{address_id}` | user | Eigenes Adressbuch |
 | POST | `/api/v1/auth/passkeys/register/options` · `/register/verify` | user | Passkey registrieren |
 | GET · DELETE | `/api/v1/auth/passkeys` · `/{passkey_id}` | user | Eigene Passkeys verwalten |
-| POST | `/api/v1/auth/passkeys/login/options` · `/login/verify` | – | Anmelden mit Passkey → Firebase Custom Token |
+| POST | `/api/v1/auth/passkeys/login/options` · `/login/verify` | – | Anmelden mit Passkey → Firebase Custom Token (Challenges begrenzt je Absender, `services/visitor`) |
 | POST | `/api/v1/contact` | – | Anfrage der Website → Nachricht im ERP (`services/inquiry`); Honigtopf, Mindestzeit, 5/h je IP; 503 mit Ausweg, wenn nicht speicherbar |
 | GET | `/api/v1/public/contact` | – | Telefon, E-Mail, Anschrift der Gesellschaft zum Land des Besuchers |
 | GET | `/api/v1/admin/settings/public` | – | Nur der Google-Maps-Schlüssel – aus der Deploy-Konfiguration (`GOOGLE_MAPS_API_KEY`), nicht aus der Datenbank |
@@ -215,8 +217,8 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
-| POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung); Honigtopf, 5/h je IP |
-| GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | Bestätigen → angemeldet (Quelle aus dem Link) → `/newsletter/bestaetigt` |
+| POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung, legt keine Person an); Honigtopf, 5/h je IP |
+| GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | GET zeigt einen Knopf, POST bestätigt → angemeldet (Quelle aus dem Link; ohne Person entsteht sie jetzt) → `/newsletter/bestaetigt` |
 | GET · POST | `/api/v1/newsletter/unsubscribe?t=` | – (signierter Link) | GET zeigt einen Knopf, POST meldet ab; One-Click (RFC 8058) direkt |
 | GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
 | GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
@@ -281,7 +283,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
 (Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
-(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB). Secrets nie im Repo.
+(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log). Secrets nie im Repo.
 
 ## Tote Stellen finden
 ```bash

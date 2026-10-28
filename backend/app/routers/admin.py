@@ -22,36 +22,41 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
-def _company_response(db: Session, company) -> CompanySettingsResponse:
-    """Vollständige Unternehmens-Antwort mit **abgeleiteten** Feldern.
+def _people_of(db: Session, oids: list[int]) -> dict[int, list[CompanyPerson]]:
+    """Die Personen je Firma – EINE Abfrage für alle Firmen."""
+    out: dict[int, list[CompanyPerson]] = {o: [] for o in oids}
+    if not oids:
+        return out
+    for u in (db.query(UserProfile)
+              .filter(UserProfile.company_object_id.in_(oids), UserProfile.object_id.isnot(None))
+              .order_by(UserProfile.last_name, UserProfile.first_name).all()):
+        out[u.company_object_id].append(CompanyPerson(object_id=u.object_id, name=u.display_name,
+                                                      email=u.email, role=u.role))
+    return out
 
-    ``is_operator`` (ältestes Unternehmen), ``has_address`` und ``website`` sind
-    Projektionen, keine gespeicherten Flags – die eine Definition von «trägt echte
-    Ortsangaben» steht in ``address.has_content``, die der Website-Adresse in
-    ``sites.website_url``; hier werden sie nur angewandt.
 
-    ►►► **Die IBAN wird nicht mehr maskiert** (Testnotiz #870). ◄◄◄ ``_mask_iban`` stand
-    hier und lieferte «CH12 **** **** **** 8901», während das Eingabefeld leer blieb: ein
-    Unternehmen **mit** Bankverbindung sah aus wie eines ohne, und der QR-Einzahlungsschein
-    daneben wirkte wie aus dem Nichts. Die eigene IBAN steht auf jeder Rechnung, die wir
-    stellen – vor Admins zu verbergen, was wir jedem Kunden schicken, verbirgt nichts und
-    macht die Anzeige unwahr.
-    """
+def _company_responses(db: Session, companies: list) -> list[CompanySettingsResponse]:
+    """Unternehmens-Antworten mit **abgeleiteten** Feldern – der Betreiber einmal gefragt, die
+    Personen in einer Abfrage. ``is_operator``, ``has_address`` und ``website`` sind
+    Projektionen (``sites.find_operator``, ``address.has_content``, ``sites.website_url``);
+    die IBAN steht unmaskiert da – sie steht auf jeder Rechnung, die wir stellen."""
     from ..services import address
-    resp = CompanySettingsResponse.model_validate(company)
-    resp.is_operator = sites.is_operator(db, company)
-    resp.has_address = address.has_content(address.of_company(company))
-    resp.website = sites.website_url()
-    resp.legal_name = sites.legal_name(company)
-    resp.people = [
-        CompanyPerson(object_id=u.object_id, name=u.display_name, email=u.email, role=u.role)
-        for u in db.query(UserProfile)
-        .filter(UserProfile.company_object_id == company.object_id,
-                UserProfile.object_id.isnot(None))
-        .order_by(UserProfile.last_name, UserProfile.first_name)
-        .all()
-    ]
-    return resp
+    op = sites.find_operator(db)
+    people_of = _people_of(db, [c.object_id for c in companies if c.object_id])
+    out = []
+    for company in companies:
+        resp = CompanySettingsResponse.model_validate(company)
+        resp.is_operator = bool(op and op.id == company.id)
+        resp.has_address = address.has_content(address.of_company(company))
+        resp.website = sites.website_url()
+        resp.legal_name = sites.legal_name(company)
+        resp.people = people_of.get(company.object_id, [])
+        out.append(resp)
+    return out
+
+
+def _company_response(db: Session, company) -> CompanySettingsResponse:
+    return _company_responses(db, [company])[0]
 
 
 @router.get("/settings/public")
@@ -81,7 +86,7 @@ def list_companies(
 ):
     """Alle Firmen – eigene und fremde, Betreiber zuerst. **Jeder Mitarbeiter** sieht sie:
     eine Kundenfirma ist ein ganz gewöhnlicher ERP-Datensatz."""
-    return [_company_response(db, c) for c in sites.all_companies(db)]
+    return _company_responses(db, sites.all_companies(db))
 
 
 @router.get("/companies/{object_id}", response_model=CompanySettingsResponse)

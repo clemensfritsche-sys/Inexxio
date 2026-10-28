@@ -1,7 +1,9 @@
-"""Personen-Anzeige – **EINE** Stelle für «wie heisst diese Person?».
+"""Personen – **EINE** Stelle für «wie heisst sie?», «gibt es sie?» und «leg sie an».
 
-Die Regel selbst steht am Modell (``UserProfile.display_name``: «Vorname Nachname»
-→ Firma → E-Mail, Notiz #291); hier steht die eine Stelle, die sie *anwendet*.
+* Der Name: die Regel steht am Modell (``UserProfile.display_name``: «Vorname Nachname»
+  → Firma → E-Mail); hier steht die Stelle, die sie *anwendet*.
+* Eine Person entsteht nur in ``ensure`` (Anmeldung, Personal, Mail, Anfrage, Newsletter);
+  die E-Mail-Regel ist ``is_email``; gesucht wird mit ``search``.
 
 Nachgeschlagen wird in ZWEI verschiedenen Schlüsseln – über die 9-stellige ``object_id``
 oder über die interne ``id``. Beides sind Ganzzahlen; wer die falsche Variante erwischt,
@@ -22,17 +24,11 @@ from .admin import log_audit
 
 #: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
 #:
-#: ►►► **Das ist die EINE Frage, die die Rolle beantwortet** (Testnotiz #1043). ◄◄◄
+#: ►►► **Das ist die EINE Frage, die die Rolle beantwortet.** ◄◄◄
 #: ``admin`` · ``employee`` · ``user``: *darf ins ERP* ↔ *darf es nicht*. Lieferant ↔
 #: Kunde ist eine Aussage über **Vorgänge**, nicht über die Person.
 ROLES = ("admin", "employee", "user")
 STAFF_ROLES = ("admin", "employee")
-
-#: ►►► **Was ein Firmenname nach sich zieht** (Testnotiz #1043). ◄◄◄ Die Rechtsform macht
-#: aus «Muster» die Rechtsperson «Muster AG» – ohne sie ist ein Beleg keiner (MWSTG
-#: Art. 26, dieselbe Angabe, die ``sites.legal_name`` an unserer eigenen Seite anhängt).
-#: Die **UID bleibt freiwillig**: nur MWST-pflichtige Firmen haben eine, und ein
-#: Pflichtfeld, das die Hälfte der Firmen nicht ausfüllen kann, ist keines.
 
 #: ►►► **Pflicht ist, was das Haus wirklich braucht** – EINE Liste für Konto und ERP. ◄◄◄
 #: Das Konto zeigt daraus den Fortschritt, das ERP die Zahl «zu tun» am Symbol; beide
@@ -105,7 +101,7 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
 
 
 def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) -> None:
-    """►►► **Personal gehört zu einer UNSERER Gesellschaften** (Testnotiz #905). ◄◄◄
+    """►►► **Personal gehört zu einer UNSERER Gesellschaften.** ◄◄◄
 
     Die Zuordnung «Firma der Person» ist eine für alle (CRM Schritt 1): ein Kunde zeigt
     auf seine Firma, ein Mitarbeiter auf unsere. Für Personal muss sie darum **eigen**

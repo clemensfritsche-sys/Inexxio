@@ -10,7 +10,7 @@ braucht trotz N Gesellschaften **eine** Antwort: *wer vertritt die eine Website 
 aussen* (Impressum, Fallback, Plattform-Konfiguration). Diese Rolle – der **Betreiber** –
 ist **wählbar** (``is_operator``, partieller Unique-Index: genau eine trägt sie,
 ``set_operator`` nimmt sie allen anderen ab). Gelesen wird sie **tolerant**: ist keine
-markiert (frische Datenbank, Migration 091 noch nicht gelaufen), gilt das **älteste**
+markiert (eine frische Datenbank), gilt das **älteste**
 Unternehmen – so gibt es nie «keinen Betreiber», und jeder Beleg hat einen Absender.
 
 **Warum es dieses Modul gibt.** «Die Firma» holt sich niemand selbst – bei mehr als einer
@@ -245,7 +245,7 @@ def require_own(db: Session, object_id: int | None, *, what: str = "") -> Compan
 def is_operator(db: Session, company: CompanySettings) -> bool:
     """Ist diese Gesellschaft der Betreiber? Liest die **effektive** Rolle (inkl. Alters-
     Fallback, falls noch keine markiert ist) – so stimmt die Anzeige mit ``find_operator``
-    überein, auch bevor Migration 091 die Markierung gesetzt hat."""
+    überein."""
     op = find_operator(db)
     return bool(op and op.id == company.id)
 

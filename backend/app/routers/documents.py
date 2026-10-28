@@ -26,23 +26,26 @@ from ..services import requirements as reqs
 router = APIRouter(prefix="/api/v1/erp/documents", tags=["documents"])
 
 
-def _preview_url(db: Session, doc: Document) -> Optional[str]:
-    url = docs.file_url(db, doc)
+def _preview_url(doc: Document, url: Optional[str]) -> Optional[str]:
     if url is None or not (doc.mime == "application/pdf" or doc.mime.startswith("image/")):
         return None
     return f"{url}/preview"
 
 
-def summary(db: Session, doc: Document, status: str, q: str = "") -> DocumentSummary:
+def summary(db: Session, doc: Document, status: str, q: str = "", *,
+            urls: Optional[dict[int, str]] = None) -> DocumentSummary:
+    url = (urls if urls is not None else docs.file_urls(db, [doc])).get(doc.id)
     return DocumentSummary(object_id=doc.object_id, art=doc.art, name=doc.name, status=status,
                            source=doc.source, mime=doc.mime, created_at=doc.created_at,
-                           preview_url=_preview_url(db, doc),
+                           preview_url=_preview_url(doc, url),
                            snippet=docs.snippet(doc, q) if q else None)
 
 
 def summaries(db: Session, found: list[Document], q: str = "") -> list[DocumentSummary]:
+    """Die Kacheln – Unterschriften und Datei-Links je in EINER Abfrage für alle."""
     sigs = docs.signatures_of(db, (d.id for d in found))
-    return [summary(db, d, docs.status_of(d, sigs[d.id]), q) for d in found]
+    urls = docs.file_urls(db, found)
+    return [summary(db, d, docs.status_of(d, sigs[d.id]), q, urls=urls) for d in found]
 
 
 def _legal_html(db: Session, doc: Document) -> Optional[str]:
@@ -177,7 +180,7 @@ def read_draft(
     """►►► **Einen Entwurf lesen – ohne ihn zu speichern.** ◄◄◄ Die KI schlägt Art, Name und
     Referenz vor; ohne KI kommt ein leerer Vorschlag (Absender als Referenz, wenn bekannt)."""
     raw, mime, _ = _upload(files)
-    p = reading.propose(db, raw=raw, mime=docs._sniff(raw, mime), actor=user,
+    p = reading.propose(db, raw=raw, mime=docs.sniff(raw, mime), actor=user,
                         sender_object_id=sender, hint=hint or None)
     db.commit()     # das Log des KI-Aufrufs
     return ProposalOut(art=p.art, name=p.name, text=p.text, keywords=p.keywords, facts=p.facts,

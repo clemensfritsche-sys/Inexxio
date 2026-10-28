@@ -616,3 +616,27 @@ def test_contracts_only_for_staff(world):
     with pytest.raises(HTTPException) as e:
         _contract(db, admin, customer, date(2026, 10, 1))
     assert "kein Personal" in e.value.detail
+
+
+def test_a_proof_has_one_way_only(db):
+    """Der Nachweis einer Absenz kommt nur als Dokument ins Feld ``time.proof``
+    (``fields._proof``). Bug-Form: ``kind="proof"`` (oder ein ``proof_url`` an der Absenz)
+    über ``POST /time/{id}/entries`` war ein zweiter Weg daneben."""
+    from types import SimpleNamespace
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.core.auth import require_employee
+    from app.core.database import get_db
+    from app.routers import timekeeping as router
+    app = FastAPI()
+    app.include_router(router.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[require_employee] = lambda: SimpleNamespace(role="admin", id=1)
+    client = TestClient(app)
+    for body in ({"kind": "proof", "replaces_id": 1, "proof_url": "/api/v1/attachments/x"},
+                 {"kind": "absence", "day": "2026-10-20", "art": "sick",
+                  "proof_url": "/api/v1/attachments/x"}):
+        for path in ("/api/v1/erp/time/100000001/entries",
+                     "/api/v1/erp/time/100000001/entries/preview"):
+            res = client.post(path, json=body)
+            assert res.status_code == 400 and "Nachreichen" in res.json()["detail"], (path, body)

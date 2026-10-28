@@ -16,6 +16,9 @@ venv
 env
 ENV
 
+# Tests – laufen in der CI, nicht im Dienst
+tests/
+
 # Test artifacts
 .pytest_cache
 .coverage

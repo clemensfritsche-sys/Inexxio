@@ -79,7 +79,8 @@ def _money(value: Optional[Decimal]) -> str:
     return "’".join([whole, *groups]) + "." + cents
 
 
-def _vouchers(db: Session) -> list[Requirement]:
+def of_vouchers(db: Session) -> list[Requirement]:
+    """Was die Zahlungsmodule erwarten (Lieferantenrechnung, Ausfuhrnachweis) – auch für «zu tun»."""
     from . import voucher as vs
     out: list[Requirement] = []
     rows = (db.query(Voucher).filter(Voucher.is_active.is_(True),
@@ -146,4 +147,4 @@ def open_for(db: Session, viewer: UserProfile) -> list[Requirement]:
     nur der Person selbst und dem Admin – dieselbe Regel wie überall (``access``)."""
     if not access.is_staff(viewer):
         return []
-    return _vouchers(db) + _proofs(db, viewer)
+    return of_vouchers(db) + _proofs(db, viewer)

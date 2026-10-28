@@ -37,21 +37,25 @@ def upload_attachment(
 
 @router.get("/api/v1/attachments/{token}")
 def serve_attachment(token: str, db: Session = Depends(get_db)):
+    from ..services import documents as docs
     att = attachments_svc.get_by_token(db, token)
     return Response(content=attachments_svc.bytes_of(att), media_type=att.mime,
-                    headers=attachments_svc.serve_headers(att))
+                    headers=attachments_svc.serve_headers(
+                        att, public=docs.is_public_file(db, att.id)))
 
 
 @router.get("/api/v1/attachments/{token}/preview")
 def serve_preview(token: str, db: Session = Depends(get_db)):
     """**Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält
-    es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte."""
+    es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte.
+    Zwischengespeichert wie die Datei selbst (``attachments.serve_headers``)."""
     from ..services import documents as docs
     att = attachments_svc.get_by_token(db, token)
     png = docs.preview_png(attachments_svc.bytes_of(att), att.mime)
     if png is None:
         from fastapi import HTTPException
         raise HTTPException(404, detail="Kein Vorschaubild")
+    cache = (attachments_svc.PUBLIC_CACHE if docs.is_public_file(db, att.id)
+             else attachments_svc.PRIVATE_CACHE)
     return Response(content=png, media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=31536000, immutable",
-                             "X-Content-Type-Options": "nosniff"})
+                    headers={"Cache-Control": cache, "X-Content-Type-Options": "nosniff"})

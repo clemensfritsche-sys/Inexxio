@@ -70,21 +70,17 @@ SEARCH_LIMIT = 8
 
 
 def search(db: Session, q: str, *, limit: int = SEARCH_LIMIT) -> list[Record]:
-    """**Ein Datensatz für eine Referenz** – Personen, Firmen, Artikel, Aufträge, Instanzen.
+    """**Ein Datensatz für eine Referenz** – Personen und Firmen über ihre eine Suche
+    (``people.search`` · ``sites.search``, nur aktive), dazu Artikel, Aufträge, Instanzen.
     Ohne Eingabe nichts: eine Referenz wählt man, man blättert sie nicht durch."""
     q = (q or "").strip()
     if not q:
         return []
-    found: list[Record] = []
-    people = (db.query(UserProfile).filter(lookup.matches(
-        q, UserProfile.object_id, UserProfile.first_name, UserProfile.last_name,
-        UserProfile.email)).limit(limit).all())
-    found += [Record(u.object_id, "user", u.display_name or u.email or "") for u in people
-              if u.object_id]
-    firms = (db.query(CompanySettings).filter(CompanySettings.is_active.is_(True), lookup.matches(
-        q, CompanySettings.object_id, CompanySettings.company_name)).limit(limit).all())
-    found += [Record(c.object_id, "organization", sites.legal_name(c) or "") for c in firms
-              if c.object_id]
+    from . import people
+    found: list[Record] = [Record(u.object_id, "user", u.display_name or u.email or "")
+                           for u in people.search(db, q, limit=limit)]
+    found += [Record(c.object_id, "organization", sites.legal_name(c) or "")
+              for c in sites.search(db, q, limit=limit)]
     orders = db.query(Order).filter(lookup.matches(q, Order.object_id, Order.name)).limit(limit).all()
     found += [Record(o.object_id, "order", o.name or "") for o in orders]
     arts = (db.query(Article).filter(Article.object_id.isnot(None), lookup.matches(

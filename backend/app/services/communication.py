@@ -304,9 +304,8 @@ def _ids_for(db: Session, persons: list[int]) -> list[int]:
     return [r for (r,) in rows]
 
 
-#: **Was die Regel «beantwortet/offen» liest** – Zeilen statt Objekte (Cleanup B-50): die
-#: Regel fragt fünf Spalten, und ein ORM-Objekt je Nachricht kostete über den ganzen
-#: Bestand mehr als die Abfrage selbst.
+#: **Was die Regel «beantwortet/offen» liest** – Zeilen statt Objekte: die Regel fragt fünf
+#: Spalten.
 _READ = (Message.id, Message.at, Message.channel, Message.subject, Message.sender_object_id)
 
 
@@ -471,19 +470,19 @@ def open_counts(db: Session) -> list[OpenCount]:
     """**Das Zeichen im Feed**: je Person die offenen Nachrichten in ihrem Verlauf.
 
     Dieselbe Regel wie im Verlauf (``_state``, ``answered``) – gezählt wird bei **jedem**
-    Beteiligten.
-
-    **Gezählt, nicht gebaut** (Cleanup B-50): bis hierher lief der ganze Bestand durch
-    ``load`` – jede Nachricht samt Text, gebauter Mail und Signatur-Erkennung zu einer
-    vollen ``MessageOut``, nur um zwei Wahrheitswerte abzulesen (gemessen: 1.9 s bei
-    10'000 Nachrichten, bei jedem Feed-Aufruf). Geladen werden jetzt die Spalten, die die
-    Regel liest, und ``answered`` fragt nur, was ohne Antwort offen **wäre**."""
-    # Kandidaten: Zeitpunkt erreicht, kein Gespräch.
+    Beteiligten. **Gezählt, nicht gebaut**: geladen werden nur die Spalten, die die Regel
+    liest, und nur die Nachrichten, die an uns gehen können (``dc.to_us``: von aussen, oder
+    ein Mitarbeiter im «An») – was wir selbst hinausschicken, ist nie offen."""
     live = [k for k, c in dc.CHANNELS.items() if c.live]
     now = _now()
+    staff_ids = select(UserProfile.object_id).where(UserProfile.role.in_(STAFF_ROLES),
+                                                    UserProfile.object_id.isnot(None))
+    to_staff = select(MessageParty.message_id).where(MessageParty.role == "to",
+                                                     MessageParty.person_object_id.in_(staff_ids))
     msgs = db.query(*_READ).filter(
-            Message.is_active.is_(True), Message.at <= now,
-            Message.channel.notin_(live)).order_by(Message.at, Message.id).all()
+            Message.is_active.is_(True), Message.at <= now, Message.channel.notin_(live),
+            or_(Message.sender_object_id.notin_(staff_ids), Message.id.in_(to_staff))
+            ).order_by(Message.at, Message.id).all()
     if not msgs:
         return []
     roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))

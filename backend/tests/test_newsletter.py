@@ -225,3 +225,44 @@ def test_the_inquiry_confirmation_asks_or_invites_but_never_twice(world):
     assert asked.url in mail.body and asked.label in mail.html
     assert inquiry.Inquiry(name="", email="", message="").newsletter is False
 
+
+# ------------------------------------------------------------------ Anmeldung ohne Person
+
+def test_a_signup_from_the_website_creates_nobody_until_the_click(world, monkeypatch):
+    """►►► **Die öffentliche Anmeldung legt keine Person an.** ◄◄◄ Die Adresse steht im
+    signierten Link; die Person entsteht erst, wenn jemand auf den Knopf drückt. Bug-Form:
+    jede eingetippte Adresse wurde sofort ein Datensatz (ein Formular als Kontakt-Generator)."""
+    db = world.db
+    email = f"neu{random.randint(1, 10**9)}@leser.ch"
+    out: list = []
+    monkeypatch.setattr(mb, "send_direct", lambda _db, ch, to, subj, mail: out.append(
+        (to, mail)) or True)
+    res = world.client.post("/api/v1/newsletter", data={"email": email},
+                            headers={"Accept": "application/json"})
+    assert res.status_code == 200 and res.json()["ok"]
+    assert db.query(UserProfile).filter(UserProfile.email == email).count() == 0
+    (to, mail), = out
+    assert to == email and nl.WORDS["confirmButton"] in mail.body
+    assert "Guten Tag\n" in mail.body, "die Anrede trägt keinen Namen"
+    token = mail.body.split("confirm?t=")[1].split()[0]
+    world.client.get(f"/api/v1/newsletter/confirm?t={token}")
+    assert db.query(UserProfile).filter(UserProfile.email == email).count() == 0
+    res = world.client.post(f"/api/v1/newsletter/confirm?t={token}", follow_redirects=False)
+    assert res.status_code == 303
+    person = db.query(UserProfile).filter(UserProfile.email == email).one()
+    assert person.firebase_uid == f"mail:{email}" and person.role == "user"
+    (row,) = nl.history(db, person.object_id)
+    assert row.subscribed and row.source == "website"
+
+
+def test_a_signup_for_a_known_person_asks_without_her_name(world, monkeypatch):
+    """Gibt es die Person schon, steht die Bitte in ihrem Verlauf – ohne ihren Namen in der
+    Anrede (er kann aus einem öffentlichen Formular stammen)."""
+    db, p = world.db, _person(world.db)
+    sent: list[Message] = []
+    monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m) or True)
+    res = world.client.post("/api/v1/newsletter", data={"email": p.email},
+                            headers={"Accept": "application/json"})
+    assert res.status_code == 200
+    (m,) = sent
+    assert p.last_name not in m.body and nl.subscribed(db, [p.object_id]) == set()

@@ -9,7 +9,7 @@ kein Status, kein Typ. Was sie ist, sagen ihre Angaben; ob sie offen ist, ist ei
 * ``group_id`` · ``newsletter`` – die Versandart (Mail · Rundschreiben · Newsletter).
 
 Was zusammengehört, sagt der **Betreff** (``domain.topic``) – ein «Antwort auf» gibt es
-nicht. Die frühere Tabelle ``message_replies`` ist gedroppt (Migration 152).
+nicht.
 """
 
 from datetime import datetime

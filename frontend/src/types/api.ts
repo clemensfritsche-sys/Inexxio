@@ -186,7 +186,9 @@ export interface paths {
         put?: never;
         /**
          * Login Options
-         * @description Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos.
+         * @description Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos. Jede
+         *     Challenge ist eine Zeile: begrenzt je Absender wie jede öffentliche Tür
+         *     (``services/visitor``).
          */
         post: operations["login_options_api_v1_auth_passkeys_login_options_post"];
         delete?: never;
@@ -330,11 +332,7 @@ export interface paths {
         /**
          * Update Company
          * @description Felder einer Firma ändern – **derselbe Pfad für jede** (auch den
-         *     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
-         *
-         *     Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
-         *     ignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe
-         *     nicht an zwei Stellen editierbar ist.
+         *     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST (``sites.apply_update``).
          */
         patch: operations["update_company_api_v1_admin_companies__object_id__patch"];
         trace?: never;
@@ -1331,6 +1329,7 @@ export interface paths {
          * Serve Preview
          * @description **Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält
          *     es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte.
+         *     Zwischengespeichert wie die Datei selbst (``attachments.serve_headers``).
          */
         get: operations["serve_preview_api_v1_attachments__token__preview_get"];
         put?: never;
@@ -2024,9 +2023,9 @@ export interface paths {
         put?: never;
         /**
          * Anmeldung von der Website (E-Mail → Bitte um Bestätigung)
-         * @description Wie das Anfrage-Formular: Honigtopf und Begrenzung je IP vor der Datenbank. Dann die
-         *     Person zur Adresse (angelegt, wenn es sie nicht gibt) und die Bitte um Bestätigung –
-         *     angemeldet ist erst, wer darin klickt.
+         * @description Wie das Anfrage-Formular: Honigtopf und Begrenzung je Absender vor der Datenbank. Dann
+         *     die Bitte um Bestätigung – **angelegt wird nichts**: gibt es zur Adresse keine Person,
+         *     steht die Adresse im signierten Link, und die Person entsteht erst mit dem Klick.
          */
         post: operations["subscribe_api_v1_newsletter_post"];
         delete?: never;
@@ -2161,7 +2160,8 @@ export interface paths {
         put?: never;
         /**
          * Add Entry
-         * @description Stempel nachtragen oder korrigieren, Absenz, Nachweis, Buchung, Rücknahme – EIN Weg.
+         * @description Stempel nachtragen oder korrigieren, Absenz, Buchung, Rücknahme – EIN Weg (der
+         *     Nachweis kommt als Dokument, ``_no_proof_here``).
          */
         post: operations["add_entry_api_v1_erp_time__object_id__entries_post"];
         delete?: never;
@@ -2329,7 +2329,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Root */
+        /**
+         * Root
+         * @description Name und Version – ``docs`` nur, wenn die Dokumentation eingeschaltet ist.
+         */
         get: operations["root__get"];
         put?: never;
         post?: never;
@@ -2862,6 +2865,19 @@ export interface components {
              */
             hint: string;
         };
+        /** Body_subscribe_api_v1_newsletter_post */
+        Body_subscribe_api_v1_newsletter_post: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+            /**
+             * Hp
+             * @default
+             */
+            hp: string;
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /** File */
@@ -3046,7 +3062,8 @@ export interface components {
         };
         /**
          * CompanySettingsUpdate
-         * @description Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
+         * @description Änderbare Felder einer Firma. Die Kontakt-E-Mail einer eigenen Gesellschaft schreibt
+         *     allein das Postfach (``mailbox._contact``).
          *
          *     **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): nur, was eine Logik trägt.
          *     Zahlungsziel und Skonto gehören zur **Offerte** (dort ist die Angabe verhandelbar),
@@ -3078,8 +3095,6 @@ export interface components {
             vat_number?: string | null;
             /** Iban */
             iban?: string | null;
-            /** Email */
-            email?: string | null;
             /** Phone */
             phone?: string | null;
             /** Is Own */
@@ -3560,16 +3575,8 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Notification Email */
-            notification_email?: boolean | null;
-            /** Notification Inapp */
-            notification_inapp?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "user") | null;
-            /** Department */
-            department?: string | null;
-            /** Job Title */
-            job_title?: string | null;
         };
         /**
          * FeedbackAnchor
@@ -6003,10 +6010,6 @@ export interface components {
             /** Company Object Id */
             company_object_id: number | null;
             company?: components["schemas"]["CompanyRef"] | null;
-            /** Department */
-            department: string | null;
-            /** Job Title */
-            job_title: string | null;
             /**
              * Required Fields
              * @default []
@@ -6017,12 +6020,6 @@ export interface components {
              * @default []
              */
             missing_fields: components["schemas"]["MissingField"][];
-            /** Language */
-            language: string;
-            /** Notification Email */
-            notification_email: boolean;
-            /** Notification Inapp */
-            notification_inapp: boolean;
             /** Last Login At */
             last_login_at: string | null;
         };
@@ -6043,10 +6040,6 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Notification Email */
-            notification_email?: boolean | null;
-            /** Notification Inapp */
-            notification_inapp?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -10368,7 +10361,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_subscribe_api_v1_newsletter_post"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10377,6 +10374,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

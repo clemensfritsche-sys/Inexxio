@@ -9,11 +9,10 @@
 * **Abmelden** (``unsubscribe_url``): ein Link ohne Ablauf, unerratbar (HMAC), in jedem
   Newsletter im Fuss und als ``List-Unsubscribe``-Kopf.
 
-**Die Links tragen ihre Aussage selbst** (Person, Zweck, Quelle, Ablauf), signiert – es
-gibt keine Tabelle offener Bitten. Der Schlüssel wird aus der Datenbankverbindung
-abgeleitet: geheim, auf jeder Instanz gleich, und ohne eine zweite Einstellung, die
-jemand setzen müsste. Wechselt das Datenbank-Passwort, gelten alte Links nicht mehr –
-die Seite sagt es, und das Konto bleibt der Weg.
+**Die Links tragen ihre Aussage selbst** (Person oder Adresse, Zweck, Quelle, Ablauf),
+signiert an der einen Stelle ``core/signed`` – es gibt keine Tabelle offener Bitten. Eine
+Anmeldung von der Website legt keine Person an: die Adresse steht im Link, die Person
+entsteht mit dem Klick (``confirm``).
 
 Die Wörter kommen von der Website (``website/src/config/newsletter.mjs`` →
 ``assets/website_contact.json``), damit Häkchen, Mail und Nachweis denselben Satz tragen.

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from pydantic import BaseModel
 
@@ -67,7 +67,9 @@ def list_erp_records(
 ):
     # **Alle Personen**, auch eine alte deaktivierte Zeile: «inaktiv» ist ein Zustand,
     # kein Verschwinden – sie bleibt ansehbar.
-    users = db.query(UserProfile).order_by(UserProfile.object_id).all()
+    users = (db.query(UserProfile)
+             .options(selectinload(UserProfile.addresses), selectinload(UserProfile.company))
+             .order_by(UserProfile.object_id).all())
     counts = _passkey_counts(db, [u.id for u in users])
     return [_record(u, counts.get(u.id, 0)) for u in users]
 
