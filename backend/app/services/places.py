@@ -20,7 +20,7 @@ seiner Quelle:**
     wegzuwerfen wäre eine erfundene Unschärfe. Und die Instanz-Nummer stattdessen wäre
     eine **Gruppe**: «in 100000123» sagt bei 600 Getrieben nicht, in welchem.
 
-Höchstens eines von beiden ist gesetzt (``CHECK``, Migration 112) — der Ort bleibt
+Höchstens eines von beiden ist gesetzt (``CHECK`` in der Tabelle) — der Ort bleibt
 **eine** Aussage, sie hat nur zwei mögliche Formen. Beides zusammen heisst hier
 ``Place``.
 
@@ -35,8 +35,8 @@ ableitbar (``objects.resolve_object_type``). Was es nicht gibt, kann nicht veral
 **Die eine Regel des sonst dummen Feldes: keine Zyklen.** Läge Regal A im Behälter B und
 B im Regal A, liefe die Kette im Kreis — und mit ihr jede Bestandsansicht. Verhindert
 wird das beim Schreiben (``assert_placeable``), abgefangen beim Lesen (``seen`` +
-``MAX_STATIONS``). Zwei Netze, weil Altbestand und Fremdschreiber die erste Prüfung
-nicht kennen.
+``MAX_STATIONS``): die Ansicht hängt nie, auch wenn eine Zeile an der Schreibprüfung
+vorbei entstand.
 """
 
 from dataclasses import dataclass
@@ -50,7 +50,7 @@ from ..models import (
     Article, CompanySettings, Instance, InstanceUnit, ProcessStep, UserProfile,
 )
 from . import lookup, people, sites
-from .instances import unit_number
+from .instances import number_of, unit_number
 
 #: Wie viele Stationen eine Kette höchstens hat. Die Grenze ist ein **Netz**, keine
 #: fachliche Aussage: eine echte Verschachtelung (Schraube › Getriebe › Behälter › Regal
@@ -470,11 +470,32 @@ def place_in(db: Session, *, units: list[InstanceUnit], carrier: InstanceUnit) -
         return
     _assert_placeable(
         db, units=units, target=(UNIT, carrier.id),
-        label=f"Einzelinstanz {carrier.id}",
+        label=f"Einzelinstanz {number_of(db, carrier)}",
     )
     for unit in units:
         unit.place_unit_id = carrier.id
         unit.place_object_id = None
+
+
+def take_out(db: Session, units: list[InstanceUnit]) -> None:
+    """**Ausbauen** – ein Stück, das in einem Träger steckt, liegt danach dort, wo der
+    Träger liegt.
+
+    Gerufen, wenn ein Auftrag ein verbautes Stück greift (``process.release``): das Greifen
+    IST der Ausbau. Der Zeiger auf den Träger wird geräumt, der Ort des Trägers übernommen
+    (liegt er nirgends, ist das Stück danach standortlos). Die Genealogie im Log bleibt.
+    """
+    inside = [u for u in units if u.place_unit_id]
+    if not inside:
+        return
+    carriers = {
+        c.id: c for c in db.query(InstanceUnit)
+        .filter(InstanceUnit.id.in_({u.place_unit_id for u in inside})).all()
+    }
+    for unit in inside:
+        carrier = carriers[unit.place_unit_id]
+        unit.place_unit_id = carrier.place_unit_id
+        unit.place_object_id = carrier.place_object_id
 
 
 def forget(db: Session, units: list[InstanceUnit]) -> None:
@@ -492,7 +513,7 @@ def forget(db: Session, units: list[InstanceUnit]) -> None:
 
 def apply_for_step(
     db: Session, *, step: ProcessStep, units: list[InstanceUnit],
-    target: Optional[int], bought: bool = False,
+    target: Optional[int],
 ) -> dict[int, dict[str, object]]:
     """**Was dieses Modul am Ort ändert** — und nichts, wenn es keiner ist, der bewegt.
 
@@ -503,10 +524,8 @@ def apply_for_step(
 
     Zurück kommt, **was passiert ist** – je Stück Herkunft und Ziel. Das reist als
     Payload in den Ereignis-Log, und damit steht die Bewegung dort, wo die Historie
-    ohnehin steht (§7.2), statt in einer zweiten Tabelle daneben.
-
-    ``bought`` steht im Log und ist heute immer ``False``: eine eingekaufte Spedition
-    ist ein eigener Geldvorgang, kein Merkmal der Bewegung.
+    ohnehin steht (§7.2), statt in einer zweiten Tabelle daneben. Wer den Transport
+    fährt, steht nicht hier: eine Spedition ist ein eigener Geldvorgang.
     """
     goal = modules.get(step.module_type).movement_for(step.config, target=target)
     if goal is None:
@@ -519,7 +538,6 @@ def apply_for_step(
     return {
         u.id: {
             "place": {"from": before[u.id], "to": goal, "label": station.label},
-            "bought": bought,
         }
         for u in units
     }

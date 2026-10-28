@@ -8,11 +8,13 @@ auseinanderlaufen.
 Gelesen wird PROCESS_CORE.md; hier steht nur, was daraus folgt.
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, insert, update
+from sqlalchemy import func, insert, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..domain import chain, modules, statuses as st
@@ -30,7 +32,7 @@ from . import (
     voucher as voucher_svc,
     places as places_svc, sampling,
 )
-from .instances import unit_number
+from .instances import find_units, number_of, unit_numbers
 
 #: Wie die Instanz vor der Eingabe verifiziert wurde. **Beides ist eine Bestätigung** –
 #: die Tastatur ist die Alternative zum Scan, nicht seine Umgehung, und beides steht im
@@ -81,7 +83,7 @@ def _assert_not_terminal(db: Session, units: list[InstanceUnit], status_after: s
     raise HTTPException(
         status_code=409,
         detail=(
-            f"Einzelinstanz {_number(db, first)} ist «{st.label(first.status)}» – das ist "
+            f"Einzelinstanz {number_of(db, first)} ist «{st.label(first.status)}» – das ist "
             f"ein Endzustand. Er wird nicht überschrieben"
             + (f" (versucht: «{st.label(status_after)}»)" if status_after else "")
             + (f"; betroffen sind {len(stuck)} Stücke" if len(stuck) > 1 else "")
@@ -434,18 +436,17 @@ def unpickable(db: Session, lines: list["_Line"]) -> list[str]:
 
 def _resolve_units(db: Session, numbers: list[str], *, seen: set[str]) -> list[tuple[InstanceUnit, str]]:
     """Nummern → Einzelinstanzen. Unbekannt oder doppelt = harter Fehler, kein Filtern."""
-    from .instances import find_unit
-
+    clean = [(raw or "").strip() for raw in numbers]
+    found = find_units(db, clean)
     out: list[tuple[InstanceUnit, str]] = []
-    for raw in numbers:
-        number = (raw or "").strip()
+    for number in clean:
         if number in seen:
             raise HTTPException(
                 status_code=400,
                 detail=f"Einzelinstanz {number} ist doppelt in der Definition.",
             )
         seen.add(number)
-        unit = find_unit(db, number)
+        unit = found.get(number)
         if unit is None or not unit.is_active:
             raise HTTPException(
                 status_code=404, detail=f"Einzelinstanz {number} gibt es nicht.",
@@ -543,20 +544,12 @@ def _assert_as_picked(
     unbemerkt seine Art ändern.
     """
     stated = dict(line.picks)
-    holders = {
-        m.instance_unit_id: o.object_id
-        for m, o in (
-            db.query(OrderUnit, Order)
-            .join(Order, Order.id == OrderUnit.order_id)
-            .filter(OrderUnit.id.in_([m.id for m in held.values()]))
-            .all()
-        )
-    } if held else {}
+    running = holders(db, list(held))
 
     stale: list[dict[str, Any]] = []
     for unit, number in pairs:
         was = stated.get(number)
-        now = holders.get(unit.id)
+        now = running.get(unit.id)
         if was != now:
             stale.append({"number": number, "picked_from": was, "now_in": now})
     if not stale:
@@ -586,58 +579,67 @@ def _assert_as_picked(
     )
 
 
-def release(
-    db: Session,
-    *,
-    lines: list[dict[str, Any]],
-    steps: list[dict[str, Any]],
-    actor_id: Optional[int],
-) -> Order:
-    """Freigeben = den Prozess starten. **Eine Transaktion**, feste Reihenfolge (§6.3).
+def lock_orders(db: Session, order_ids: Iterable[int]) -> None:
+    """►►► **Aufträge sperren, bevor an ihnen geschrieben wird** – in fester Reihenfolge. ◄◄◄
 
-    **Jede Prüfung liegt vor der ersten Objektnummer.** Das ist keine Kosmetik: eine
-    Sequence ist absichtlich nicht transaktional, ein Rollback danach liesse eine Lücke.
-    Ein abgebrochener Freigabe-Versuch verbraucht darum keine Nummer – der einzige
-    Ausnahmefall bleibt der echte Parallelzugriff, den erst der Unique-Index abfängt.
+    Jeder Schreibweg an einem laufenden Auftrag (Bestätigen, die Stücke durch ein
+    Zahlungsmodul ziehen, die Übernahme aus ihm, die Rückkehr in ihn) nimmt zuerst diese
+    Zeilensperre. Damit lesen zwei gleichzeitige Vorgänge am selben Auftrag nie denselben
+    Stand: der zweite wartet, bis der erste festgeschrieben ist, und sieht dann dessen
+    Ergebnis – die Stichprobe wird einmal gezogen, ein Stück einmal bewegt. Sortiert nach
+    ``id``, damit zwei Vorgänge, die mehrere Aufträge sperren, sich nicht gegenseitig
+    blockieren. Innerhalb derselben Transaktion ist eine zweite Sperre derselben Zeile frei.
     """
-    from .objects import next_object_id
+    ids = sorted({int(i) for i in order_ids})
+    if ids:
+        db.execute(select(Order.id).where(Order.id.in_(ids)).order_by(Order.id)
+                   .with_for_update())
 
-    # ── 1. Alles prüfen, was ohne Nummer prüfbar ist ─────────────────────────
-    resolved = resolve_lines(db, lines)
-    effective = steps_for(db, resolved, steps)
 
-    total = sum(ln.quantity for ln in resolved)
-    missing = assert_releasable(total, effective)
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail="Der Auftrag ist noch nicht freigebbar – es fehlt: "
-                   + ", ".join(missing) + ".",
-        )
-    for step in effective:
-        st.assert_known(step["status_before"], field="Vorher-Status")
-        st.assert_known(step["status_after"], field="Nachher-Status")
+def _lock_picks(db: Session, lines: list[_Line],
+                picked: dict[int, list[tuple[InstanceUnit, str]]]) -> None:
+    """Die Freigabe sperrt, was sie übernimmt: **erst die Quell-Aufträge, dann die Stücke.**
 
-    end_status = st.DEFAULT_END_STATUS
-    chain.assert_closes(effective)
-    _assert_no_self_consumption(resolved, effective)
+    Dieselbe Reihenfolge wie beim Bestätigen (Auftrag vor Stück), sonst warteten zwei
+    Vorgänge im Kreis aufeinander. Gesperrt werden die Aufträge, in denen die Stücke jetzt
+    laufen, und die, aus denen der Mensch sie gewählt hat. Danach werden die Stücke neu
+    gelesen (``populate_existing``): was zwischen Auswahl und Sperre passiert ist, sieht die
+    Prüfung dahinter (``_assert_as_picked``).
+    """
+    ids = sorted({u.id for pairs in picked.values() for u, _ in pairs})
+    if not ids:
+        return
+    stated = {oid for ln in lines for _, oid in ln.picks if oid}
+    sources = {m.order_id for m in held_by(db, ids).values()}
+    if stated:
+        sources |= {int(i) for (i,) in
+                    db.query(Order.id).filter(Order.object_id.in_(stated)).all()}
+    lock_orders(db, sources)
+    for part in _chunks(ids):
+        (db.query(InstanceUnit).filter(InstanceUnit.id.in_(part))
+         .order_by(InstanceUnit.id).with_for_update().populate_existing().all())
 
-    # Bestehende Stücke auflösen: frei übernehmen oder **aus einem laufenden Auftrag**
-    # herüberholen. Beides führt durch dasselbe Start-Objekt (§4.1) – der Status eines
-    # Stücks sagt, ob es in EINEM Prozess ist, nicht in welchem. Ein Wechsel des Auftrags
-    # ändert ihn darum gar nicht: «Im Prozess» bleibt «Im Prozess».
+
+def _take_picks(db: Session, lines: list[_Line], *, lock: bool) -> None:
+    """Die gewählten Stücke auflösen und prüfen: frei übernehmen oder **aus einem laufenden
+    Auftrag** herüberholen.
+
+    Beides führt durch dasselbe Start-Objekt (§4.1) – der Status eines Stücks sagt, ob es
+    in EINEM Prozess ist, nicht in welchem. **Darf ein Auftrag dieses Stück greifen?**
+    gilt für **jedes** Stück, nicht nur für freie.
+    """
     seen: set[str] = set()
-    for ln in resolved:
+    picked = {ln.position: _resolve_units(db, [n for n, _ in ln.picks], seen=seen)
+              for ln in lines if ln.origin == LAGER}
+    if lock:
+        _lock_picks(db, lines, picked)
+    for ln in lines:
         if ln.origin != LAGER:
             continue
-        pairs = _resolve_units(db, [n for n, _ in ln.picks], seen=seen)
+        pairs = picked[ln.position]
         held = held_by(db, [u.id for u, _ in pairs])
         _assert_as_picked(db, ln, pairs, held)
         for unit, number in pairs:
-            # **Darf ein Auftrag dieses Stück greifen?** — vor der Frage, woher es kommt.
-            #
-            # Sie gilt für **jedes** Stück, nicht nur für freie – «zufällig richtig» wäre
-            # der Zustand, der beim nächsten Modul kippt.
             problem = pick_problem(unit, number)
             if problem:
                 raise HTTPException(status_code=409, detail=problem)
@@ -647,107 +649,150 @@ def release(
                 ln.taken[unit.id] = source
         ln.units = [u for u, _ in pairs]
 
-    # Der Plan muss aufgehen, bevor er etwas kostet (§2, harte Invariante).
+
+def _checked(db: Session, lines: list[dict[str, Any]], steps: list[dict[str, Any]],
+             *, lock: bool = False) -> tuple[list[_Line], list[dict[str, Any]]]:
+    """►►► **Teil 1 der Freigabe: alles prüfen, was ohne Nummer prüfbar ist.** ◄◄◄
+
+    Die eine Prüfung für Freigabe **und** Entwurf (``orders.validate_draft``): was die
+    Freigabe abweist, meldet der Entwurf mit demselben Satz. Zwei Massstäbe wären ein Knopf,
+    der bereitsteht und beim Klick scheitert. ``lock`` nimmt nur die Freigabe – ein Entwurf
+    prüft, er hält nichts fest.
+    """
+    resolved = resolve_lines(db, lines)
+    effective = steps_for(db, resolved, steps)
+    missing = assert_releasable(sum(ln.quantity for ln in resolved), effective)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Der Auftrag ist noch nicht freigebbar – es fehlt: "
+                   + ", ".join(missing) + ".",
+        )
+    for step in effective:
+        st.assert_known(step["status_before"], field="Vorher-Status")
+        st.assert_known(step["status_after"], field="Nachher-Status")
+    chain.assert_closes(effective)
+    _assert_no_self_consumption(resolved, effective)
+    _take_picks(db, resolved, lock=lock)
+
+    # Der Plan muss aufgehen, bevor er etwas kostet (§2, harte Invariante). Bei «Neu» rein
+    # arithmetisch – die Serialisierung wird geprüft, ohne eine Nummer zu ziehen.
     planned: list[tuple[int, int, str]] = []
     for ln in resolved:
         if ln.origin == NEU:
-            # Rein arithmetisch – prüft die Serialisierung, ohne eine Nummer zu ziehen.
             count, each = materialize.plan(ln.article.serialization, ln.quantity)
             planned.append((ln.quantity, count * each, ln.label))
         else:
             planned.append((ln.quantity, len(ln.units), ln.label))
     materialize.assert_quantity(planned, code=400)
+    return resolved, effective
 
-    # ── 2. Ab hier werden Nummern vergeben ───────────────────────────────────
-    object_id = next_object_id(db, "order")
-    order = Order(
-        object_id=object_id,
-        # Der Name entsteht im selben Zug wie die Nummer – vorher gibt es keine, und
-        # «Ohne Bezeichnung» im Kopf eines laufenden Auftrags ist keine Auskunft.
-        name=f"Auftrag {object_id}",
-        end_status=end_status,
-    )
-    db.add(order)
-    db.flush()
 
-    for ln in resolved:
-        db.add(OrderLine(
-            order_id=order.id, position=ln.position, article_id=ln.article.id,
-            quantity=ln.quantity, origin=ln.origin,
-        ))
+def _join(db: Session, rows: list[dict[str, Any]]) -> list[int]:
+    """Die Zugehörigkeiten anlegen – **ein Stück in genau einem Auftrag** (§3).
 
-    rows: list[ProcessStep] = []
-    for position, step in enumerate(effective, start=1):
-        row = ProcessStep(
-            order_id=order.id,
-            position=position,
-            module_type=step["module_type"],
-            status_before=step["status_before"],
-            status_after=step["status_after"],
-            config=step.get("config"),
-            source_article_id=step.get("source_article_id"),
-            source_version=step.get("source_version"),
-        )
-        db.add(row)
-        rows.append(row)
-    db.flush()
+    Die Sperren davor schliessen den Wettlauf aus; bleibt doch ein Verstoss gegen den
+    partiellen Unique-Index, ist das ein 409 mit der Nummer des Stücks, nicht eine rohe
+    Datenbankmeldung. Der Savepoint hält die Transaktion dafür lesbar.
+    """
+    try:
+        with db.begin_nested():
+            db.execute(insert(OrderUnit), rows)
+    except IntegrityError as exc:
+        found = re.search(r"\(instance_unit_id\)=\((\d+)\)", str(exc.orig))
+        unit = db.get(InstanceUnit, int(found.group(1))) if found else None
+        name = f"Einzelinstanz {number_of(db, unit)}" if unit else "Eine Einzelinstanz"
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{name} läuft inzwischen in einem anderen Auftrag – die Auswahl ist "
+                    f"veraltet. Bitte prüfen und erneut freigeben."),
+        ) from None
+    return [int(i) for (i,) in db.query(OrderUnit.id).filter(
+        OrderUnit.order_id == rows[0]["order_id"],
+        OrderUnit.instance_unit_id.in_([r["instance_unit_id"] for r in rows]),
+        OrderUnit.released_at.is_(None),
+    ).all()]
 
-    # ── 3. Neue Stücke erzeugen – die EINZIGE Stelle, an der das passiert ────
+
+def release(
+    db: Session,
+    *,
+    lines: list[dict[str, Any]],
+    steps: list[dict[str, Any]],
+    actor_id: Optional[int],
+) -> Order:
+    """Freigeben = den Prozess starten. **Eine Transaktion**, feste Reihenfolge (§6.3).
+
+    **Jede Prüfung liegt vor der ersten Objektnummer** (``_checked``). Eine Sequence ist
+    absichtlich nicht transaktional, ein Rollback danach liesse eine Lücke; ein
+    abgebrochener Freigabe-Versuch verbraucht darum keine Nummer.
+    """
+    resolved, effective = _checked(db, lines, steps, lock=True)
+    order, rows = _write_definition(db, resolved, effective)
+
+    # Neue Stücke erzeugen – die EINZIGE Stelle, an der das passiert – und das Ergebnis
+    # gegen dieselbe Invariante halten wie den Plan.
     for ln in resolved:
         if ln.origin == NEU:
-            ln.units = materialize.create_for_line(
-                db, article=ln.article, quantity=ln.quantity,
-            )
-
-    # Und jetzt das Ergebnis gegen dieselbe Invariante halten.
+            ln.units = materialize.create_for_line(db, article=ln.article, quantity=ln.quantity)
     materialize.assert_quantity(
         [(ln.quantity, len(ln.units), ln.label) for ln in resolved], code=500,
     )
-
-    # ── 3b. Übernahme: die Stücke verlassen ihren bisherigen Auftrag ─────────
-    # **Vor** dem Anlegen der neuen Zeilen – der partielle Unique-Index lässt genau eine
-    # offene Zugehörigkeit je Stück zu, und er prüft je Anweisung, nicht erst am Ende.
+    # Übernahme: die Stücke verlassen ihren bisherigen Auftrag – **vor** dem Anlegen der
+    # neuen Zeilen, der partielle Unique-Index prüft je Anweisung. Ein verbautes Stück
+    # greifen IST der Ausbau: es liegt danach, wo sein Träger liegt.
     _hand_over(db, order=order, lines=resolved, actor_id=actor_id)
+    places_svc.take_out(db, [u for ln in resolved if ln.origin == LAGER for u in ln.units])
 
-    # ── 4./5. Die Stücke passieren das Start-Objekt, jedes mit eigenem Log-Eintrag ──
+    # Die Stücke passieren das Start-Objekt, jedes mit eigenem Log-Eintrag. Die
+    # **Verbindung** entsteht hier und nirgends sonst: gekappt (``None``) heisst, der
+    # Quell-Auftrag läuft mit weniger Stücken weiter.
     all_units = [u for ln in resolved for u in ln.units]
-    db.execute(
-        insert(OrderUnit),
-        [
-            {
-                "order_id": order.id,
-                "instance_unit_id": u.id,
-                # **Die Verbindung.** Sie entsteht hier und nirgends sonst: gekappt
-                # (``None``) heisst, der Quell-Auftrag läuft mit weniger Stücken weiter.
-                "return_to_order_id": (
-                    ln.taken[u.id].order_id if (ln.returns and u.id in ln.taken) else None
-                ),
-            }
-            for ln in resolved for u in ln.units
-        ],
-    )
-    db.flush()
-    membership_ids = [
-        int(i) for (i,) in db.query(OrderUnit.id).filter(OrderUnit.order_id == order.id).all()
-    ]
+    membership_ids = _join(db, [
+        {"order_id": order.id, "instance_unit_id": u.id,
+         "return_to_order_id": (ln.taken[u.id].order_id
+                                if (ln.returns and u.id in ln.taken) else None)}
+        for ln in resolved for u in ln.units
+    ])
     _pass(
         db, order=order, units=all_units, membership_ids=membership_ids,
         kind=KIND_START, step=None,
         status_after=st.START_AFTER, next_step_id=rows[0].id, actor_id=actor_id,
     )
-
-    # ── 6. Das erste Modul ist damit aktiv (abgeleitet: dort stehen die Stücke) ──
-    # Und weil die Stücke jetzt davorstehen, wird hier die Stichprobe gezogen: **beim
-    # Erreichen des Moduls**, nicht beim Modellieren (§2 – vorher steht die Menge nicht
-    # fest). Gezogen wird über die **Gesamtmenge** des Auftrags, nicht je Instanz.
+    # Das erste Modul ist damit erreicht: hier wird die Stichprobe gezogen, über die
+    # **Gesamtmenge** des Auftrags (§2 – vorher steht die Menge nicht fest).
     sampling.ensure(db, order=order, step=rows[0], actor_id=actor_id)
-
-    # ── 7. Und jedes «Zahlung»-Modul bekommt seinen Beleg ───────────────────
-    # Mit wem und worüber gehandelt wird, steht in der Definition, und ein Angebot
-    # einzuholen dauert. **Eine Zeile, idempotent, ohne ein solches Modul ein No-op** –
-    # so ist der Rahmen mit dem Geld verbunden, und nicht anders herum.
+    # Und jedes «Zahlung»-Modul bekommt seinen Beleg – idempotent, ohne ein solches Modul
+    # ein No-op.
     voucher_svc.instantiate_for_order(db, order, actor_id=actor_id)
     return order
+
+
+def _write_definition(db: Session, lines: list[_Line],
+                      steps: list[dict[str, Any]]) -> tuple[Order, list[ProcessStep]]:
+    """Ab hier werden Nummern vergeben: der Auftrag, seine Zeilen, seine Module."""
+    from .objects import next_object_id
+
+    object_id = next_object_id(db, "order")
+    # Der Name entsteht im selben Zug wie die Nummer – vorher gibt es keine.
+    order = Order(object_id=object_id, name=f"Auftrag {object_id}")
+    db.add(order)
+    db.flush()
+    for ln in lines:
+        db.add(OrderLine(order_id=order.id, position=ln.position, article_id=ln.article.id,
+                         quantity=ln.quantity, origin=ln.origin))
+    rows = [
+        ProcessStep(
+            order_id=order.id, position=position, module_type=step["module_type"],
+            status_before=step["status_before"], status_after=step["status_after"],
+            config=step.get("config"), source_article_id=step.get("source_article_id"),
+            source_version=step.get("source_version"),
+        )
+        for position, step in enumerate(steps, start=1)
+    ]
+    db.add_all(rows)
+    db.flush()
+    return order, rows
 
 
 def _enter_at_step(db: Session, *, order: Order, step: ProcessStep,
@@ -777,19 +822,8 @@ def _enter_at_step(db: Session, *, order: Order, step: ProcessStep,
     """
     if not units:
         return []
-    db.execute(
-        insert(OrderUnit),
-        [{"order_id": order.id, "instance_unit_id": u.id, "return_to_order_id": None}
-         for u in units],
-    )
-    db.flush()
-    ids = [
-        int(i) for (i,) in db.query(OrderUnit.id).filter(
-            OrderUnit.order_id == order.id,
-            OrderUnit.instance_unit_id.in_([u.id for u in units]),
-            OrderUnit.released_at.is_(None),
-        ).all()
-    ]
+    ids = _join(db, [{"order_id": order.id, "instance_unit_id": u.id,
+                      "return_to_order_id": None} for u in units])
     _pass(
         db, order=order, units=units, membership_ids=ids,
         kind=KIND_START, step=step,
@@ -905,17 +939,16 @@ def _verified_instance(db: Session, *, order: Order, step: ProcessStep,
     return instance
 
 
-def completion_problem(db: Session, step: ProcessStep) -> Optional[str]:
-    """►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** (#945) ◄◄◄
-
-    Die **Auskunfts-Form** dessen, was ``confirm_step`` gleich darunter durchsetzt – eine
-    Frage an dieselben Dienste, nie eine zweite Regel. Gemeldet wurde ein «Vorgang
-    abschliessen» in voller Breite über einer **Offerte**: der Knopf gehört dorthin (jedes
-    Modul endet mit ihm), aber angeboten werden darf er erst, wenn er etwas tun kann.
-
-    ``None`` heisst «nichts steht im Weg» – bei jedem Modul ohne Geldvorgang immer.
-    """
-    return voucher_svc.completion_problem(db, step=step)
+def step_of(db: Session, order: Order, step_id: int) -> ProcessStep:
+    """Das Modul ``step_id`` **dieses** Auftrags – sonst 404. Die eine Nachschlage-Stelle."""
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    return step
 
 
 def confirm_step(
@@ -935,43 +968,56 @@ def confirm_step(
 
     **Ein Vorgang ist EINE Instanz** (§3): der Scan verifiziert sie. **Die Erfassung
     dagegen gilt der Einzelinstanz** – ``values`` trägt einen eigenen Wertesatz je
-    gezogenem Stück, geschlüsselt nach seiner Nummer. Ein Scan, n Erfassungen; die Zahl
-    kommt aus der Ziehung, nicht aus der Zahl der Scans. Bei mehreren Instanzen vor dem
-    Modul sind es mehrere Vorgänge – bei einer Charge einer.
+    gezogenem Stück, geschlüsselt nach seiner Nummer.
 
-    **Die Erfassung liegt VOR dem Statuswechsel.** Fehlt ein Pflichtpunkt, ist das ein
-    Fehler mit Namen – und es hat sich nichts bewegt. Andersherum stünde die Erfassung
-    unter Zugzwang: das Stück wäre schon vorgerückt, und der einzige Weg zurück wäre
-    keiner. Dasselbe gilt für den **Verbrauch**: reicht der Bestand nicht, hat sich nichts
-    bewegt; ``sources`` sind die Instanzen, aus denen genommen werden soll (leer =
-    der ganze freie Bestand, FIFO).
+    **Erfassung und Verbrauch liegen VOR dem Statuswechsel**: fehlt ein Pflichtpunkt oder
+    reicht der Bestand nicht, ist das ein Fehler mit Namen – und es hat sich nichts bewegt.
+    ``sources`` sind die Instanzen, aus denen verbraucht werden soll (leer = der ganze
+    freie Bestand, FIFO).
 
-    **«Nicht bestanden» rückt NICHT vor** (§4). Die Feststellung ist geloggt und
-    eingefroren, die Stücke bleiben an ihrem Zustandspunkt stehen, und was daraus folgt,
-    entscheidet ein Mensch. Ein automatisch angelegter Folgeauftrag wäre ein leerer
-    Entwurf, den niemand bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass
-    jemand zugestimmt hätte. Stilles Weiterlaufen ist der Fehler, den es zu verhindern
-    gilt; das Anhalten ist nicht der Nebeneffekt, sondern der Zweck.
+    **«Nicht bestanden» rückt NICHT vor** (§4): die Feststellung ist geloggt, die Stücke
+    bleiben stehen, und was daraus folgt, entscheidet ein Mensch.
+
+    **Der Auftrag ist gesperrt, solange das läuft** (``lock_orders``): zwei gleichzeitige
+    Vorgänge am selben Auftrag laufen nacheinander.
     """
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None:
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    if order_status(db, order) != st.IM_PROZESS:
+    lock_orders(db, [order.id])
+    step = step_of(db, order, step_id)
+    waiting = _ready_at(db, order=order, step=step, auto=auto,
+                        instance_object_id=instance_object_id, verification=verification)
+    units = [u for _, u in waiting]
+    result = _record(db, order=order, step=step, units=units, values=values,
+                     verification=verification, actor_id=actor_id)
+    # **Nicht bestanden ⇒ nichts rückt vor.** Auch die nicht gezogenen Stücke dieser
+    # Instanz bleiben stehen: die Stichprobe ist nicht mehr repräsentativ, der ungeprüfte
+    # Rest verdächtig (§4.1).
+    if result == "failed":
+        db.flush()
+        return {"moved": 0, "held": len(units), "result": result}
+    _advance(db, order=order, step=step, waiting=waiting, verification=verification,
+             sources=sources, place=place, actor_id=actor_id)
+    db.flush()
+    # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
+    _run_through(db, order=order, step=step, actor_id=actor_id)
+    db.flush()
+    # ►► **Ein Zahlungsmodul weiter hinten lässt durch, was es darf.** ◄◄ Nur beim Klick
+    # eines Menschen – ``advance_payments`` ruft hier selbst mit ``auto``.
+    if not auto:
+        advance_payments(db, order=order, actor_id=actor_id)
+    return {"moved": len(units), "held": 0, "result": result}
+
+
+def _ready_at(db: Session, *, order: Order, step: ProcessStep, auto: bool,
+              instance_object_id: Optional[int],
+              verification: Optional[str]) -> list[tuple[OrderUnit, InstanceUnit]]:
+    """**Darf hier jetzt bestätigt werden – und woran?** Die Stücke, die davorstehen."""
+    current = order_status(db, order)
+    if current != st.IM_PROZESS:
         raise HTTPException(
             status_code=409,
-            detail=(f"Der Auftrag ist «{st.label(order_status(db, order))}» – "
+            detail=(f"Der Auftrag ist «{st.label(current)}» – "
                     f"es gibt nichts mehr zu bestätigen."),
         )
-    module = modules.get(step.module_type)
-    # ►► **Ist der Geldvorgang so weit?** ◄◄
-    #
-    # Dieselbe Bauart: wer nichts zu sagen hat, sagt nichts. Nur ein «Zahlung»-Modul hat
-    # einen – und dort heisst «noch nicht zugesagt» bzw. «noch nicht bezahlt», dass es
-    # hier nichts abzuschliessen gibt. Kein Zustand am Stück, kein Pausenwert.
     # **Ein Zahlungsmodul bestätigt niemand von Hand** – die Stücke ziehen von selbst
     # weiter, sobald sie dürfen (``advance_payments`` ruft hier mit ``auto``).
     voucher_svc.assert_completable(db, step=step, auto=auto)
@@ -979,12 +1025,8 @@ def confirm_step(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
     )
-
-    # ►► **Die Sperre — hier und nur hier.** ◄◄
-    #
-    # Sie steht am EINEN Ausführungs-Mechanismus, den jedes Modul auslöst, und nicht in
-    # einem Modul. Ein neuer Modultyp erbt sie damit, ohne eine Zeile dafür zu schreiben –
-    # er fragt gar nicht, ob er darf, ihm wird gesagt, dass er nicht darf.
+    # ►► **Die Sperre der Rückführung — hier und nur hier.** ◄◄ Am EINEN
+    # Ausführungs-Mechanismus, den jedes Modul auslöst; ein neuer Modultyp erbt sie.
     blocked = pending_returns(db, order).get(step.id)
     if blocked:
         raise HTTPException(
@@ -997,7 +1039,6 @@ def confirm_step(
                   "wird – bestätigen hiesse ohne dieses Stück fortzufahren."
             ),
         )
-
     waiting = _units_at(db, order, step.id, instance_id=instance.id if instance else None)
     if not waiting:
         where = f" von Instanz {instance.object_id}" if instance else ""
@@ -1006,171 +1047,122 @@ def confirm_step(
             detail=(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz"
                     f"{where} – hier ist gerade nichts zu tun."),
         )
-
-    following = _following(db, order, step)
-
-    for membership, unit in waiting:
+    for _, unit in waiting:
         if unit.status != step.status_before:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"Einzelinstanz {_number(db, unit)} steht auf "
+                    f"Einzelinstanz {number_of(db, unit)} steht auf "
                     f"«{st.label(unit.status)}», «{modules.label(step.module_type)}» erwartet "
                     f"«{st.label(step.status_before)}»."
                 ),
             )
+    return waiting
 
-    units = [u for _, u in waiting]
-    membership_ids = [m.id for m, _ in waiting]
 
-    # **Wer wird erfasst?** Die gezogene Stichprobe – einmal gezogen, eingefroren im Log.
-    # Das Netz hier ist idempotent: gibt es die Ziehung schon, passiert nichts.
+def _record(db: Session, *, order: Order, step: ProcessStep, units: list[InstanceUnit],
+            values: dict[str, dict[str, Any]], verification: Optional[str],
+            actor_id: Optional[int]) -> Optional[str]:
+    """**Festhalten, was das Modul festhält** – je gezogener Einzelinstanz ein Wertesatz.
+
+    Gezogen ist, was die Stichprobe beim Erreichen gezogen hat (``sampling.ensure`` ist
+    idempotent und steht hier als Netz). Die **nicht** gezogenen laufen ohne Erfassung
+    durch; sichtbar ist das, weil sie keinen ``capture``-Eintrag haben. **Eine
+    durchgefallene Einzelinstanz hält die ganze Instanz an** (§4.1): das Urteil je Stück
+    steht in seiner Zeile, zurück kommt, ob eines fiel.
+    """
     sampling.ensure(db, order=order, step=step, actor_id=actor_id)
     db.flush()
     drawn_ids = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
     drawn = [u for u in units if u.id in drawn_ids]
-
-    # Was das Modul festhält, hängt am **Stück**: ein eigener Wertesatz je gezogener
-    # Einzelinstanz. Die **nicht** gezogenen laufen ohne Erfassung durch; sichtbar ist
-    # das, weil sie keinen ``capture``-Eintrag haben.
     by_unit = _captures_for(db, step=step, drawn=drawn, values=values)
     captures = capture_svc.record_for_step(
         db, order=order, step=step, units=drawn, captures=by_unit, actor_id=actor_id,
     )
-    # **Eine durchgefallene Einzelinstanz hält die ganze Instanz an** (§4.1) – die
-    # Stichprobe ist damit nicht mehr repräsentativ, und der ungeprüfte Rest ist
-    # verdächtig. Das Urteil je Stück steht in seiner Zeile; hier zählt, ob eines fiel.
-    results = [c.result for c in captures.values()]
-    result = "failed" if "failed" in results else next(iter(results), None)
     if captures:
-        db.execute(
-            insert(ProcessEvent),
-            [
-                {
-                    "order_id": order.id, "step_id": step.id, "instance_unit_id": u.id,
-                    "kind": KIND_CAPTURE,
-                    # Erfassen ist keine Zustandsänderung – gemessen wird, was da ist.
-                    "status_before": u.status, "status_after": u.status,
-                    "payload": {
-                        "capture_id": captures[u.id].id,
-                        # **Das Urteil dieses Stücks**, nicht das der Instanz – sonst
-                        # trüge jede Zeile «failed», sobald irgendeines fiel (§9.5).
-                        "result": captures[u.id].result,
-                        "verification": verification,
-                    },
-                    "actor_id": actor_id,
-                }
-                for u in drawn
-            ],
-        )
+        db.execute(insert(ProcessEvent), [
+            {
+                "order_id": order.id, "step_id": step.id, "instance_unit_id": u.id,
+                "kind": KIND_CAPTURE,
+                # Erfassen ist keine Zustandsänderung – gemessen wird, was da ist.
+                "status_before": u.status, "status_after": u.status,
+                # **Das Urteil dieses Stücks**, nicht das der Instanz (§9.5).
+                "payload": {"capture_id": captures[u.id].id,
+                            "result": captures[u.id].result,
+                            "verification": verification},
+                "actor_id": actor_id,
+            }
+            for u in drawn
+        ])
+    results = [c.result for c in captures.values()]
+    return "failed" if "failed" in results else next(iter(results), None)
 
-    # **Nicht bestanden ⇒ nichts rückt vor.** Auch die nicht gezogenen Stücke dieser
-    # Instanz bleiben stehen: fällt die Stichprobe durch, ist sie nicht mehr
-    # repräsentativ, und der ungeprüfte Rest ist verdächtig (§4.1). Ihn weiterlaufen zu
-    # lassen hiesse, ihn hinterher wieder einsammeln zu müssen.
-    if result == "failed":
-        db.flush()
-        return {"moved": 0, "held": len(units), "result": result}
 
-    # ►► **Wohin geht es?** ◄◄
-    #
-    # Derselbe Aufruf für **jedes** Modul, ohne Frage nach dem Typ: was nichts bewegt,
-    # gibt nichts zurück (wie ``consumption.plan``). Der Ort wird **vor** dem
-    # Statuswechsel gesetzt – ist das Ziel ungültig oder bildet es einen Kreis, hat sich
-    # nichts bewegt, und die Prüfung steht nicht unter Zugzwang (§4).
-    #
-    # Was dabei passiert ist, reist als Payload in den Log: Herkunft und Ziel.
-    # Damit steht die Bewegung dort, wo die Historie ohnehin steht (§7.2) – eine zweite
-    # Tabelle daneben wäre eine zweite Wahrheit über denselben Vorgang.
-    # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
-    # ein Geldvorgang (``domain/voucher``) – dieses Modul sagt allein, wohin.
+def _advance(db: Session, *, order: Order, step: ProcessStep,
+             waiting: list[tuple[OrderUnit, InstanceUnit]], verification: Optional[str],
+             sources: Optional[list[int]], place: Optional[int],
+             actor_id: Optional[int]) -> None:
+    """**Das Modul wirkt, die Stücke passieren es.** Derselbe Weg für jeden Modultyp.
+
+    Erst der **Ort** (``places.apply_for_step``), dann der **Verbrauch**
+    (``consumption.plan``) – beide prüfen, bevor sich ein Status ändert, und beide geben
+    für ein Modul, das nichts bewegt bzw. nichts verbaut, nichts zurück. Was dabei passiert
+    ist (Herkunft, Ziel, Verifikation), reist als Payload in den Log (§7.2).
+
+    An einem **Ausgang** (``Module.terminal``) verlässt alles den Auftrag mit dem
+    Ausgangszustand und passiert das Ende-Objekt **nicht** – dort hängt die Rückführung,
+    und ein ausgesondertes Stück kehrt nirgends zurück. Sonst rückt es zum nächsten Modul
+    vor (dort wird jetzt gezogen) oder durch das Ende-Objekt hinaus.
+    """
+    module = modules.get(step.module_type)
+    units = [u for _, u in waiting]
     moved = places_svc.apply_for_step(db, step=step, units=units, target=place)
     marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
-
-    # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
-    #
-    # Dieselbe Reihenfolge wie bei der Erfassung: erst prüfen und zuteilen, dann bewegen.
-    # Reicht der Bestand nicht, ist das ein Fehler mit Zahlen – und es hat sich nichts
-    # bewegt (§4). Ein Modul, das die Hälfte verbaut und dann abbricht, hinterlässt einen
-    # Zustand, den niemand gewollt hat.
-    #
-    # Ein Modul ohne Stückliste bekommt eine leere Zuteilung; die Fallunterscheidung nach
-    # dem Modultyp gibt es hier so wenig wie bei ``capture_svc.record_for_step``.
     built = consumption_svc.plan(db, step=step, products=units, sources=sources)
     if built:
-        taken = [c for group in built.values() for c in group]
-        # **Eintritt und Ausgang in einem Zug** – die beiden Übergänge des Statuswegs
-        # ``Freigegeben`` → ``Im Prozess`` → ``Verbaut``. Beide gehen durch ``_pass``,
-        # also stehen beide im Log; ein Zustand dazwischen, in dem etwas hängen bleiben
-        # könnte, entsteht nicht.
-        ids = _enter_at_step(db, order=order, step=step, units=taken, actor_id=actor_id)
-        _pass(
-            db, order=order, units=taken, membership_ids=ids,
-            kind=KIND_STEP, step=step,
-            status_after=module.exit_status_for(step.config) or st.VERBAUT,
-            next_step_id=None, actor_id=actor_id,
-            # **Worin** – das ist die ganze Genealogie (§3). Kein Feld, kein Ersatz für
-            # ``into_instance_id``: der Log hält fest, was passiert ist.
-            payloads=consumption_svc.payloads(built, verification=verification),
-        )
-        # ►► **Der Träger ist der neue Ort.** ◄◄
-        #
-        # ``_pass`` hat den alten gerade geräumt (Verbaut zählt zur Historie) – jetzt
-        # steht fest, wohin: in **dieses** Stück. Nicht in seine Instanz: das wären bei
-        # einer Charge 600 Getriebe, also eine Gruppe und kein Ort.
-        #
-        # **Das ist nicht die Genealogie.** Die steht im Log (``payload.into``), ist
-        # unveränderlich und überlebt die Demontage; dieser Zeiger sagt, *wo es jetzt
-        # liegt*, und wird beim Ausbau geräumt. Dass beide auseinander laufen können, ist
-        # der Beweis, dass es zwei Fragen sind (§9.6).
-        by_product = {p.id: p for p in units}
-        for product_id, components in built.items():
-            places_svc.place_in(db, units=components, carrier=by_product[product_id])
-
-    # ►► **Wer geht hier hinaus, wer läuft weiter?** ◄◄
-    #
-    # An einem **Ausgang** (``Module.terminal``) geht alles, was ankommt: ``_pass``
-    # schliesst die Zugehörigkeit (``next_step_id=None``) und setzt den Ausgangszustand.
-    # Insbesondere passiert es **nicht** das Ende-Objekt – dort hängt die Rückführung,
-    # und ein ausgesondertes Stück kehrt nirgends zurück.
-    #
-    # Damit ist §3 des Abweichungsauftrags erfüllt, ohne eine Zeile Wartelogik: der
-    # Quell-Auftrag zählt seine Ausleihen über die **offene** Zeile (``waiting_counts``),
-    # und die gibt es nicht mehr.
+        _build_in(db, order=order, step=step, products=units, built=built,
+                  verification=verification, actor_id=actor_id)
+    following = None if module.terminal else _following(db, order, step)
+    _pass(
+        db, order=order, units=units, membership_ids=[m.id for m, _ in waiting],
+        kind=KIND_STEP, step=step,
+        status_after=(module.exit_status_for(step.config) if module.terminal
+                      else step.status_after),
+        next_step_id=following.id if following else None,
+        actor_id=actor_id, payloads=marks,
+    )
     if module.terminal:
-        _pass(
-            db, order=order, units=units, membership_ids=membership_ids,
-            kind=KIND_STEP, step=step,
-            status_after=module.exit_status_for(step.config),
-            next_step_id=None, actor_id=actor_id, payloads=marks,
-        )
+        return
+    if following is None:
+        _finish(db, order=order, rows=waiting, actor_id=actor_id)
     else:
-        _pass(
-            db, order=order, units=units, membership_ids=membership_ids,
-            kind=KIND_STEP, step=step,
-            status_after=step.status_after,
-            next_step_id=following.id if following else None,
-            actor_id=actor_id,
-            # **Wie wurde bestätigt?** Am Schritt-Ereignis, nicht nur an der Erfassung:
-            # ein Modul ohne Erfassungspunkte (Aussondern, Verbrauch) hat sonst keinen
-            # Beleg dafür – und gerade dort ist er am wichtigsten.
-            payloads=marks,
-        )
-        if following is None:
-            _finish(db, order=order, rows=waiting, actor_id=actor_id)
-        else:
-            # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: beim
-            # Erreichen, denn vorher steht die Menge nicht fest).
-            sampling.ensure(db, order=order, step=following, actor_id=actor_id)
-    db.flush()
-    # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
-    _run_through(db, order=order, step=step, actor_id=actor_id)
-    db.flush()
-    # ►► **Ein Zahlungsmodul weiter hinten lässt durch, was es darf.** ◄◄ Nur beim Klick
-    # eines Menschen – ``advance_payments`` ruft hier selbst mit ``auto``.
-    if not auto:
-        advance_payments(db, order=order, actor_id=actor_id)
-    return {"moved": len(units), "held": 0, "result": result}
+        sampling.ensure(db, order=order, step=following, actor_id=actor_id)
+
+
+def _build_in(db: Session, *, order: Order, step: ProcessStep, products: list[InstanceUnit],
+              built: dict[int, list[InstanceUnit]], verification: Optional[str],
+              actor_id: Optional[int]) -> None:
+    """**Verbauen**: die Komponenten treten am Modul ein und gehen im selben Zug hinaus.
+
+    Die beiden Übergänge des Statuswegs ``Freigegeben`` → ``Im Prozess`` → ``Verbaut``
+    gehen beide durch ``_pass``, also stehen beide im Log. **Worin** steht im Payload
+    (``into``) – das ist die ganze Genealogie (§3). Danach ist der **Träger** der neue Ort
+    (``places.place_in``): dieses Stück, nicht seine Instanz. Der Zeiger sagt, wo es jetzt
+    liegt, und wird beim Ausbau geräumt (``places.take_out``); die Genealogie im Log
+    bleibt (§9.6).
+    """
+    taken = [c for group in built.values() for c in group]
+    ids = _enter_at_step(db, order=order, step=step, units=taken, actor_id=actor_id)
+    _pass(
+        db, order=order, units=taken, membership_ids=ids,
+        kind=KIND_STEP, step=step,
+        status_after=modules.get(step.module_type).exit_status_for(step.config) or st.VERBAUT,
+        next_step_id=None, actor_id=actor_id,
+        payloads=consumption_svc.payloads(built, verification=verification),
+    )
+    by_product = {p.id: p for p in products}
+    for product_id, components in built.items():
+        places_svc.place_in(db, units=components, carrier=by_product[product_id])
 
 
 def advance_payments(db: Session, *, order: Order, actor_id: Optional[int]) -> int:
@@ -1178,25 +1170,24 @@ def advance_payments(db: Session, *, order: Order, actor_id: Optional[int]) -> i
 
     Es gibt dort keinen Knopf: mit der Zusage (bei einer Vorauszahlung mit dem Geld) dürfen
     die Stücke weiter (``voucher.passable``). Gefragt wird nach **jedem** Zahlungsmodul
-    dieses Auftrags, vor dem Stücke stehen – auch nach einer Erfassung weiter vorne kommen
-    sie an einem Modul an, das längst zugesagt ist. Derselbe Weg wie jeder andere
-    (``confirm_step``), also dieselbe Spur im Log.
+    dieses Auftrags, vor dem Stücke stehen und das nicht auf eine Rückführung wartet.
+    Derselbe Weg wie jeder andere (``confirm_step``), also dieselbe Spur im Log.
 
     Endlich: jeder Durchgang bewegt Stücke nach hinten, und ein Prozess ist azyklisch.
     Gibt zurück, wie viele Stücke weitergezogen sind.
     """
+    lock_orders(db, [order.id])
+    # **Erkannt daran, dass es einen Beleg gibt** – nie am Modultyp. Einmal gelesen: die
+    # Belege entstehen mit der Freigabe.
+    paying = [s for s in steps_of(db, order) if voucher_svc.of_step(db, s.id) is not None]
     moved = 0
     for _ in range(64):
-        if order_status(db, order) != st.IM_PROZESS:
+        if not paying or order_status(db, order) != st.IM_PROZESS:
             return moved
-        ready = None
-        for step in steps_of(db, order):
-            # **Erkannt daran, dass es einen Beleg gibt** – nie am Modultyp.
-            if voucher_svc.of_step(db, step.id) is None or not _units_at(db, order, step.id):
-                continue
-            if voucher_svc.pass_problem(db, step=step) is None:
-                ready = step
-                break
+        blocked = pending_returns(db, order)
+        ready = next((s for s in paying
+                      if s.id not in blocked and _units_at(db, order, s.id)
+                      and voucher_svc.pass_problem(db, step=s) is None), None)
         if ready is None:
             return moved
         moved += confirm_step(db, order=order, step_id=ready.id, values={},
@@ -1332,9 +1323,9 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
     """Das Ende-Objekt. **Es setzt den Endzustand — es sei denn, das Stück geht weiter.**
 
     Das ist eine Regel, keine Fallunterscheidung: das Ende-Objekt reicht das Stück an
-    den weiter, der als Nächstes kommt. Kommt niemand, wird es frei (``end_status``,
-    §4.2) – oder **Verkauft**, wenn es einer anderen Partei gehört. Kommt der Auftrag, aus dem es geliehen war, bleibt es **Im Prozess** – es ist
-    ja in einem.
+    den weiter, der als Nächstes kommt. Kommt niemand, wird es frei (§4.2) – oder
+    **Verkauft**, wenn es einer anderen Partei gehört. Kommt der Auftrag, aus dem es
+    geliehen war, bleibt es **Im Prozess** – es ist ja in einem.
 
     Die Stücke bewegen sich dabei in **Gruppen mit gleichem Ziel**, nicht einzeln: ein
     Auftrag kann geliehene und eigene Stücke gleichzeitig ans Ende bringen.
@@ -1345,13 +1336,12 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
     # gehört, sagt das jüngste nicht stornierte Zahlungsmodul, das es passiert hat
     # (``voucher.sold_units``) – keine gespeicherte Kopie, also wirkt ein Storno von selbst.
     # «Verkauft» ist Historie wie «Verbaut»: kein Bestand, kein FIFO, greifen nur als
-    # Abweichung. Gilt nur, wo das Ende sonst freigäbe.
-    sold = (voucher_svc.sold_units(db, [u.id for _, u in stay])
-            if order.end_status == st.FREIGEGEBEN else set())
+    # Abweichung.
+    sold = voucher_svc.sold_units(db, [u.id for _, u in stay])
     kept = [(m, u) for m, u in stay if u.id not in sold]
     gone = [(m, u) for m, u in stay if u.id in sold]
 
-    for group, status_after in ((kept, order.end_status), (gone, st.VERKAUFT),
+    for group, status_after in ((kept, st.DEFAULT_END_STATUS), (gone, st.VERKAUFT),
                                 (back, st.IM_PROZESS)):
         if not group:
             continue
@@ -1361,12 +1351,20 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
             kind=KIND_END, step=None,
             status_after=status_after, next_step_id=None, actor_id=actor_id,
         )
-    if back:
-        _return_home(db, order=order, rows=back, actor_id=actor_id)
+    if not back:
+        return
+    # ►► **Zurück heisst: dort weiter, wo es ausgeschert ist.** ◄◄ Steht es vor einem Modul,
+    # dessen Stichprobe inzwischen erledigt ist, oder vor einem zugesagten Zahlungsmodul,
+    # wartete es sonst auf einen Vorgang, den niemand mehr verlangt.
+    for home_id, at in _return_home(db, order=order, rows=back, actor_id=actor_id):
+        home = db.get(Order, home_id)
+        _run_through(db, order=home, step=db.get(ProcessStep, at), actor_id=actor_id)
+        db.flush()
+        advance_payments(db, order=home, actor_id=actor_id)
 
 
 def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUnit]],
-                 actor_id: Optional[int]) -> None:
+                 actor_id: Optional[int]) -> list[tuple[int, int]]:
     """Geliehene Stücke kehren an **genau die Stelle** zurück, an der sie ausgeschert sind.
 
     Die Stelle steht bereits da: die Zeile des Quell-Auftrags wurde beim Ausscheren
@@ -1375,8 +1373,10 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
 
     Möglich ist das erst hier, weil die Zeile dieses Auftrags eine Anweisung vorher
     geschlossen wurde: der partielle Unique-Index lässt genau eine offene Zugehörigkeit
-    je Stück zu, und er prüft je Anweisung.
+    je Stück zu, und er prüft je Anweisung. Die Heimat-Aufträge sind gesperrt, bevor in
+    sie geschrieben wird; zurück kommen ihre Rückkehrpunkte ``(Auftrag, Modul)``.
     """
+    lock_orders(db, {m.return_to_order_id for m, _ in rows})
     homes = {
         (m.order_id, m.instance_unit_id): m
         for m in (
@@ -1402,9 +1402,9 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
             raise HTTPException(
                 status_code=500,
                 detail=(
-                    f"Einzelinstanz {_number(db, u)} sollte in Auftrag "
-                    f"{m.return_to_order_id} zurückkehren, findet dort aber keine offene "
-                    f"Stelle – der Datenbestand ist kaputt."
+                    f"Einzelinstanz {number_of(db, u)} sollte in Auftrag "
+                    f"{_order_number(db, m.return_to_order_id)} zurückkehren, findet dort "
+                    f"aber keine offene Stelle – der Datenbestand ist kaputt."
                 ),
             )
         reopen.append(home.id)
@@ -1426,6 +1426,7 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
             .values(released_at=None)
             .execution_options(synchronize_session=False)
         )
+    return sorted({(e["order_id"], e["step_id"]) for e in events})
 
 
 # ---------------------------------------------------------------------------
@@ -1563,12 +1564,7 @@ def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, An
 
     groups: dict[int, dict[str, Any]] = {}
     for unit in units:
-        instance = instances.get(unit.instance_id)
-        if instance is None:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Einzelinstanz {unit.id} hat keine Instanz – der Datenbestand ist kaputt.",
-            )
+        instance = instances[unit.instance_id]
         row = groups.setdefault(instance.id, {
             "instance_object_id": instance.object_id,
             "article_name": articles.get(instance.article_id),
@@ -1681,22 +1677,9 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
     return [numbers[u.id] for u in chosen]
 
 
-def _open_memberships(db: Session, order: Order) -> list[OrderUnit]:
-    return (
-        db.query(OrderUnit)
-        .filter(OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None))
-        .all()
-    )
-
-
-def _number(db: Session, unit: InstanceUnit) -> str:
-    instance = db.query(Instance).filter(Instance.id == unit.instance_id).first()
-    if instance is None:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Einzelinstanz {unit.id} hat keine Instanz – der Datenbestand ist kaputt.",
-        )
-    return unit_number(instance, unit)
+def _order_number(db: Session, order_id: int) -> Optional[int]:
+    """Die Objektnummer eines Auftrags – für Meldungen, die ihn nennen."""
+    return db.query(Order.object_id).filter(Order.id == order_id).scalar()
 
 
 def steps_of(db: Session, order: Order) -> list[ProcessStep]:
@@ -2035,10 +2018,13 @@ def active_step_id(db: Session, order: Order) -> Optional[int]:
     Abgeleitet, nicht gespeichert: ein zweites Feld dafür wäre eine zweite Wahrheit,
     die beim ersten vergessenen Update auseinanderläuft.
     """
-    open_rows = _open_memberships(db, order)
-    if not open_rows:
+    waiting = {
+        int(sid) for (sid,) in db.query(OrderUnit.current_step_id).filter(
+            OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None),
+            OrderUnit.current_step_id.isnot(None)).distinct().all()
+    }
+    if not waiting:
         return None
-    waiting = {m.current_step_id for m in open_rows if m.current_step_id is not None}
     for step in steps_of(db, order):
         if step.id in waiting:
             return step.id
@@ -2093,27 +2079,4 @@ def started_at(db: Session, order: Order, unit_ids: list[int]) -> dict[int, date
             .all()
         ):
             out[int(uid)] = at
-    return out
-
-
-def unit_numbers(db: Session, units: Iterable[InstanceUnit]) -> dict[int, str]:
-    """Nummern zu Einzelinstanzen — **eine** Abfrage, kein N+1."""
-    units = list(units)
-    if not units:
-        return {}
-    instances = {
-        i.id: i
-        for i in db.query(Instance)
-        .filter(Instance.id.in_({u.instance_id for u in units}))
-        .all()
-    }
-    out: dict[int, str] = {}
-    for u in units:
-        instance = instances.get(u.instance_id)
-        if instance is None:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Einzelinstanz {u.id} hat keine Instanz – der Datenbestand ist kaputt.",
-            )
-        out[u.id] = unit_number(instance, u)
     return out

@@ -127,23 +127,19 @@ def test_the_order_is_a_record_type_like_every_other():
 
 
 def test_the_order_carries_only_what_the_process_needs():
-    """Der Auftrag trägt seine Identität, seinen Lebenszyklus und den **einen** Ort des
-    Endzustands – sonst nichts.
+    """Der Auftrag trägt seine Identität und seinen Lebenszyklus – sonst nichts.
 
-    Spalten auf Vorrat wären erfundene Anforderungen. ``end_status`` steht hier und
-    nirgends sonst (§4.2): wäre der Endzustand über die Fachlogik verteilt hart kodiert,
-    kostete die spätere Erweiterung (verkauft · verbaut · ausgesondert) einen Umbau
-    statt einer Änderung.
+    Spalten auf Vorrat wären erfundene Anforderungen. Der Endzustand ist keine Angabe des
+    Auftrags: er steht einmal in der Fachschicht (``statuses.DEFAULT_END_STATUS``).
     """
     src = _read(BACKEND / "app" / "models" / "order.py")
     columns = {l.split(":")[0].strip() for l in src.split("\n") if "mapped_column(" in l}
-    assert columns == {"id", "object_id", "name", "end_status"}, (
-        f"models/order.py trägt {sorted(columns)} – erwartet id, object_id, name, "
-        f"end_status (created_at/updated_at/is_active kommen aus dem TimestampMixin). "
-        f"Der Status ist ABGELEITET (Notiz #669) und darum keine Spalte."
+    assert columns == {"id", "object_id", "name"}, (
+        f"models/order.py trägt {sorted(columns)} – erwartet id, object_id, name "
+        f"(created_at/updated_at/is_active kommen aus dem TimestampMixin). "
+        f"Der Status ist ABGELEITET und darum keine Spalte."
     )
-    # Der Endzustand steht an EINER Stelle: die Fachlogik liest ``order.end_status``,
-    # sie schreibt den Wert nicht selbst hin.
+    # Der Endzustand steht an EINER Stelle: das Ende-Objekt liest ihn aus der Fachschicht.
     svc = _read(BACKEND / "app" / "services" / "process.py")
     assert svc.count("DEFAULT_END_STATUS") == 1, (
         "Der Endzustand wird an mehr als einer Stelle gesetzt."
@@ -157,13 +153,14 @@ def test_a_draft_never_touches_the_database():
     assert svc.count("next_object_id") == 2, (   # Import + genau EIN Aufruf
         "Die Objektnummer wird an mehr als einer Stelle gezogen."
     )
-    assert "next_object_id" in svc.split("def release(")[1], (
+    assert "next_object_id(db," in _body(svc, "_write_definition"), (
         "Die Nummer entsteht nicht in der Freigabe."
     )
-    # Sie wird NACH der Auflösung der bestehenden Stücke gezogen: eine Sequence ist nicht
-    # transaktional, ein Rollback danach liesse eine Lücke im Nummernkreis.
-    body = svc.split("def release(")[1]
-    assert body.index("held_by(") < body.index("next_object_id(db,"), (
+    # Sie wird NACH der Prüfung (samt Auflösung der bestehenden Stücke) gezogen: eine
+    # Sequence ist nicht transaktional, ein Rollback danach liesse eine Lücke.
+    body = _body(svc, "release")
+    assert "held_by(" in _body(svc, "_take_picks") and "_take_picks(" in _body(svc, "_checked")
+    assert body.index("_checked(") < body.index("_write_definition("), (
         "Die Objektnummer wird gezogen, bevor die bestehenden Stücke aufgelöst sind – "
         "jeder Verstoss verbrennt dann eine Nummer."
     )
@@ -502,9 +499,10 @@ def test_every_check_runs_before_the_first_object_number():
     Parallelzugriff, den erst der Unique-Index abfängt – und der ist dokumentiert.
     """
     proc = _read(BACKEND / "app" / "services" / "process.py")
-    body = proc.split("def release(")[1]
-    number_at = body.index("next_object_id(db,")
-    head = body[:number_at]
+    body = _body(proc, "release")
+    assert body.index("_checked(") < body.index("_write_definition("), (
+        "Die Prüfung läuft nach der Nummernvergabe.")
+    head = _body(proc, "_checked") + _body(proc, "_take_picks")
     for guard in ("resolve_lines(", "steps_for(", "assert_releasable(",
                   "chain.assert_closes(", "held_by(", "_assert_may_leave(",
                   "assert_quantity("):
@@ -780,7 +778,7 @@ def test_the_order_is_named_in_the_same_breath_as_its_number():
     Zwei Schritte daraus zu machen hiesse, dass es einen Moment gibt, in dem ein Auftrag
     existiert und keinen Namen hat – und die Oberfläche müsste einen erfinden.
     """
-    body = _body(_read(BACKEND / "app" / "services" / "process.py"), "release")
+    body = _body(_read(BACKEND / "app" / "services" / "process.py"), "_write_definition")
     assert 'name=f"Auftrag {object_id}"' in body, (
         "Der Name entsteht nicht zusammen mit der Objektnummer."
     )
@@ -1436,7 +1434,7 @@ def test_the_neighbours_are_drawn_with_the_same_component():
     # Und der Server liefert dafür dieselben Felder wie für die Mitte.
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     related = schema.split("class RelatedOrder")[1].split("class ")[0]
-    for field in ("steps", "flow", "active_step_id", "end_status"):
+    for field in ("steps", "flow", "active_step_id"):
         assert field in related, f"«{field}» fehlt – der Nachbar kann nicht gerendert werden."
 
 
@@ -1596,7 +1594,8 @@ def test_a_module_is_told_whether_it_may_run():
     """
     proc = _read(BACKEND / "app" / "services" / "process.py")
     assert "def pending_returns(" in proc, "Es gibt keine Ableitung, worauf ein Modul wartet."
-    assert "pending_returns(db, order).get(step.id)" in _body(proc, "confirm_step"), (
+    assert "_ready_at(" in _body(proc, "confirm_step")
+    assert "pending_returns(db, order).get(step.id)" in _body(proc, "_ready_at"), (
         "Die Sperre steht nicht am Ausführungs-Mechanismus – dann muss jedes Modul sie "
         "selbst kennen."
     )
@@ -2286,7 +2285,8 @@ def test_a_terminal_module_is_an_exit_not_a_step():
     assert ".terminal:" in chain, "Die Kette kennt den Ausgang nicht mehr."
 
     proc = _code(_read(BACKEND / "app" / "services" / "process.py"))
-    body = _body(proc, "confirm_step")
+    assert "_advance(" in _body(proc, "confirm_step")
+    body = _body(proc, "_advance")
     # **Die Ausführung fragt die Eigenschaft, nicht den Modulnamen.** Ein Ausgang setzt
     # den Ausgangszustand und schliesst die Zugehörigkeit; alles andere läuft weiter.
     assert "if module.terminal:" in body, (
@@ -2298,7 +2298,7 @@ def test_a_terminal_module_is_an_exit_not_a_step():
     assert body.index("if module.terminal:") < body.index("_finish("), (
         "Das Ende-Objekt hängt nicht mehr am Zweig, der weiterläuft."
     )
-    assert "else:" in body.split("if module.terminal:")[1].split("_finish(")[0], (
+    assert "return" in body.split("if module.terminal:")[1].split("_finish(")[0], (
         "Der Ausgang und der Durchgang sind nicht mehr die zwei Zweige einer Frage."
     )
 

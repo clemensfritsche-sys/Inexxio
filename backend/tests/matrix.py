@@ -1324,6 +1324,35 @@ def s59(w: World):
             "a_status": w.status(a), "b_status": w.status(b)}
 
 
+@case("S100", "Ein zurückgekehrtes Stück läuft durch eine erledigte Stichprobe von selbst",
+      {"A": A_NEU, "B": B_EINZEL, "C": C_VIELE, "D": D_ERFASSUNG, "E": E_1, "F": F_NORMAL},
+      {"rückkehrer_vor_modul": 0, "rückkehrer": "freigegeben", "a_status": "abgeschlossen",
+       "probleme": []},
+      note="Die Stichprobe am Modul ist erledigt, während das ungezogene Stück draussen "
+           "ist. Kehrt es zurück, wartete es auf einen Scan, den niemand verlangt.")
+def s100(w: World):
+    from app.services import sampling
+
+    art = w.article(serialization="unit",
+                    template=[w.capture(sample={"percent": 33}), w.capture()])
+    a = w.produce(art, 3)
+    first = w.steps(a)[0]
+    units = {u.id: n for n, u in ((n, w.unit(n)) for n in w.numbers(a))}
+    drawn = sampling.drawn_ids(w.db, order=a, step=first)
+    rest = [units[i] for i in sorted(units) if i not in drawn]
+    # Das ungezogene Stück schert aus und kommt zurück …
+    b = w.take(art, rest[:1], from_order=a.object_id, steps=[w.capture()])
+    # … das gezogene verlässt den Auftrag für immer: damit ist die Stichprobe erledigt,
+    # und das zweite ungezogene läuft mit.
+    w.take(art, [units[i] for i in drawn], from_order=a.object_id, returns=False,
+           steps=[w.dispose("scrap", "Ausschuss")])
+    w.run_all(b)
+    w.run_step(a, w.steps(a)[1])
+    return {"rückkehrer_vor_modul": len(w.work(a, first)),
+            "rückkehrer": w.unit_status(rest[0]), "a_status": w.status(a),
+            "probleme": w.problems(a)}
+
+
 @case("S98b", "Ein INAKTIVER Artikel bleibt über «Lager» abwickelbar",
       {"A": A_LAGER, "B": B_EINZEL, "C": C_1, "D": D_SCRAP, "E": E_KEINE, "F": "–"},
       {"status": "abgeschlossen", "states": {"verschrottet": 1}},

@@ -2,7 +2,6 @@ from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from ..domain.statuses import DEFAULT_END_STATUS
 from .base import TimestampMixin
 
 class Order(Base, TimestampMixin):
@@ -24,10 +23,8 @@ class Order(Base, TimestampMixin):
     der Kopf «Freigegeben» – ein Wort, das gar keinen Zustand beschreibt, sondern die
     Aktion, mit der der Auftrag entstanden ist.
 
-    ``end_status`` ist der **konfigurierbare Wert des Ende-Objekts** (§4.2). Er steht
-    heute immer auf ``freigegeben``, und genau darum steht er hier: an EINER Stelle.
-    Wäre der Endzustand über die Fachlogik verteilt hart kodiert, kostete die spätere
-    Erweiterung (verkauft · verbaut · ausgesondert) einen Umbau statt einer Änderung.
+    Der Endzustand ist keine Angabe des Auftrags: was das Ende-Objekt setzt, steht einmal
+    in der Fachschicht (``statuses.DEFAULT_END_STATUS``, ``process._finish``).
     """
 
     __tablename__ = "orders"
@@ -37,6 +34,3 @@ class Order(Base, TimestampMixin):
     #: Bei der Freigabe gesetzt: «Auftrag <Objektnummer>». Er entsteht im selben Zug wie
     #: die Objektnummer – vorher gibt es keine, nachher wäre er ein zweiter Schreibweg.
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    end_status: Mapped[str] = mapped_column(
-        String(30), default=DEFAULT_END_STATUS, nullable=False,
-    )

@@ -376,9 +376,9 @@ def test_without_a_target_nothing_moves():
         assert moved, "Die Bewegung steht nicht im Ereignis-Log."
         assert moved[0].payload["place"]["to"] == shelf3.object_id
         assert moved[0].payload["place"]["from"] is None
-        # **Selbst gebracht** – und das steht im Log als abgeleitete Tatsache, nicht
-        # als getippte Transportart: es gibt keinen Beleg, also wurde nichts eingekauft.
-        assert moved[0].payload["bought"] is False
+        # **Wer transportiert, steht nicht im Bewegen** – eine Spedition ist ein eigener
+        # Geldvorgang, kein Merkmal der Bewegung.
+        assert "bought" not in moved[0].payload
     finally:
         db.rollback()
         db.close()

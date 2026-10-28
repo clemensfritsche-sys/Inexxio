@@ -19,7 +19,7 @@ def assert_closes(steps: list[dict[str, Any]]) -> None:
 
     Geprüft wird gegen den **Vorher**-Status des Ende-Objekts (``END_BEFORE``), nicht
     gegen den Endzustand: das Ende ist ein Übergang wie jedes Modul, es *erwartet*
-    «Im Prozess» und *setzt* ``order.end_status``. Beides zu verwechseln hiesse, vom
+    «Im Prozess» und *setzt* den Endzustand (``statuses.DEFAULT_END_STATUS``). Beides zu verwechseln hiesse, vom
     letzten Modul zu verlangen, dass es den Endzustand selbst schon setzt.
 
     **Ein terminales Modul beendet die Kette.** Es ist kein Durchgang, sondern ein

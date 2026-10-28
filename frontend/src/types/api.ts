@@ -4500,8 +4500,6 @@ export interface components {
             name: string;
             /** Status */
             status: string;
-            /** End Status */
-            end_status: string;
             /**
              * Created At
              * Format: date-time
@@ -5255,8 +5253,6 @@ export interface components {
             name: string;
             /** Status */
             status: string;
-            /** End Status */
-            end_status: string;
             /** Steps */
             steps?: components["schemas"]["ProcessStepResponse"][];
             flow?: components["schemas"]["FlowGraph"];

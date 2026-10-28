@@ -291,6 +291,36 @@ def test_a_consumed_piece_lies_in_its_carrier():
         w.db.close()
 
 
+def test_taking_a_built_piece_takes_it_out_of_its_carrier():
+    """**Ein verbautes Stück greifen IST der Ausbau** – es liegt danach, wo der Träger liegt.
+
+    Der Zeiger auf den Träger sagt, wo das Stück jetzt liegt, und wird beim Ausbau
+    geräumt; die Genealogie im Log bleibt. Bug-Form (gegengeprüft): ohne den Ausbau zeigte
+    das Stück nach der Freigabe noch in sein altes Produkt – es läge in einem Getriebe,
+    aus dem es gerade herausgenommen wurde.
+    """
+    from app.services import instances as inst_svc, places
+
+    w = _w()
+    try:
+        bench = w.holder(name="Werkbank 7")
+        screw, numbers, _product, order = _assembly(w, per_unit=2, stock=2)
+        step = w.steps(order)[0]
+        places.place(w.db, units=_before(w, order, step), target=bench.object_id)
+        w.put(numbers, bench.object_id)
+        w.run_step(order, step)
+        unit = inst_svc.find_unit(w.db, numbers[0])
+        assert unit.place_unit_id is not None, "Die Prämisse fehlt: das Stück ist nicht verbaut."
+
+        w.take(screw, numbers[:1], steps=[w.capture()])
+        assert unit.place_unit_id is None, "Das ausgebaute Stück steckt noch in seinem Träger."
+        assert unit.place_object_id == bench.object_id, (
+            "Das ausgebaute Stück liegt nicht dort, wo sein Träger liegt.")
+    finally:
+        w.db.rollback()
+        w.db.close()
+
+
 def test_only_scrapped_loses_its_place_blocked_keeps_it():
     """**Jedes Stück behält seinen Ort – ausser es ist endgültig weg** (Verschrottet).
 

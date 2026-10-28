@@ -122,7 +122,7 @@ def _steps(db: Session, order: Order, *,
         # **Und warum es jetzt nicht abzuschliessen ist** (#945) – dieselbe Regel, die
         # ``confirm_step`` durchsetzt, nur als Auskunft. ``None`` bei jedem Modul ohne
         # Geldvorgang.
-        row.blocked = process_svc.completion_problem(db, s)
+        row.blocked = voucher_svc.completion_problem(db, step=s)
         out.append(row)
     _keep(db)
     return out
@@ -251,7 +251,6 @@ def _to_response(db: Session, order: Order, *,
         object_id=order.object_id,
         name=order.name,
         status=process_svc.order_status(db, order),
-        end_status=order.end_status,
         created_at=order.created_at,
         updated_at=order.updated_at,
         is_active=order.is_active,
@@ -329,7 +328,6 @@ def _related(db: Session, order: Order,
             object_id=row.object_id,
             name=row.name,
             status=states.get(oid, st.IM_PROZESS),
-            end_status=row.end_status,
             steps=_steps(db, row),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
             active_step_id=process_svc.active_step_id(db, row),
@@ -684,7 +682,6 @@ def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
             object_id=row.object_id,
             name=row.name,
             status=process_svc.order_status(db, row),
-            end_status=row.end_status,
             steps=_steps(db, row),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row, planned=plan))),
             active_step_id=process_svc.active_step_id(db, row),

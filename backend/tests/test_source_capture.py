@@ -332,7 +332,7 @@ def test_a_failed_capture_creates_nothing_by_itself():
     assert 'if result == "failed":' in held and '"moved": 0, "held": len(units)' in held, (
         "Ein «nicht bestanden» rückt wieder vor, statt anzuhalten."
     )
-    assert held.index('if result == "failed":') < held.index("    _pass("), (
+    assert held.index('if result == "failed":') < held.index("_advance("), (
         "Der Haltezweig steht hinter dem Vorrücken – er kommt zu spät."
     )
 

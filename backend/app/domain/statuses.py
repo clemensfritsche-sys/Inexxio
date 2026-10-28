@@ -323,10 +323,8 @@ SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(
 START_BEFORE = FREIGEGEBEN
 START_AFTER = IM_PROZESS
 
-#: Ende: Vorher ist fest. Das **Nachher** ist der konfigurierbare Wert des
-#: Ende-Objekts (``orders.end_status``) — heute immer ``FREIGEGEBEN``, aber genau
-#: einmal im System hinterlegt, damit die spätere Erweiterung eine Änderung ist und
-#: kein Umbau (§4.2).
+#: Ende: Vorher ist fest. Das **Nachher** ist ``FREIGEGEBEN`` – oder ``VERKAUFT``, wenn
+#: das Stück einer anderen Partei gehört (``process._finish``). Genau einmal hinterlegt.
 END_BEFORE = IM_PROZESS
 DEFAULT_END_STATUS = FREIGEGEBEN
 

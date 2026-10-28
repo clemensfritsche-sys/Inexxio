@@ -1350,12 +1350,12 @@ def test_a_module_says_why_it_cannot_be_finished_yet():
     import pytest as _pytest
     from fastapi import HTTPException
     from app.routers import orders as router
-    from app.services import process as proc, voucher as svc
+    from app.services import voucher as svc
     with _db() as db:
         _house(db)
         order, step, row, _who, _art = _scene(db)
 
-        why = proc.completion_problem(db, step)
+        why = svc.completion_problem(db, step=step)
         assert why, "Eine Offerte lässt sich abschliessen? (a)"
         shown = next(s for s in router._steps(db, order) if s.id == step.id)
         assert shown.blocked == why, (

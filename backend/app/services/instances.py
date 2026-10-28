@@ -23,7 +23,7 @@ Kreises verbrauchen – genau dafür gibt es die Instanz-Ebene.
 from typing import Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, insert
+from sqlalchemy import func, insert, tuple_
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, InstanceUnit
@@ -91,18 +91,42 @@ def unit_number_matches(query: str, instance_object_id, suffix):
 
 def find_unit(db: Session, text: str) -> Optional[InstanceUnit]:
     """Einzelinstanz zu einer Nummer ``<instanznr>-<suffix>`` (oder ``None``)."""
-    parsed = parse_unit_number(text)
-    if not parsed:
-        return None
-    object_id, suffix = parsed
-    instance = db.query(Instance).filter(Instance.object_id == object_id).first()
-    if instance is None:
-        return None
-    return (
-        db.query(InstanceUnit)
-        .filter(InstanceUnit.instance_id == instance.id, InstanceUnit.suffix == suffix)
-        .first()
+    return find_units(db, [text]).get(text)
+
+
+def find_units(db: Session, numbers: Iterable[str]) -> dict[str, InstanceUnit]:
+    """Nummern → Einzelinstanzen, **eine** Abfrage für alle. Was nicht auflöst, fehlt."""
+    wanted: dict[tuple[int, int], str] = {}
+    for text in numbers:
+        parsed = parse_unit_number(text)
+        if parsed:
+            wanted[parsed] = text
+    if not wanted:
+        return {}
+    rows = (
+        db.query(InstanceUnit, Instance.object_id)
+        .join(Instance, Instance.id == InstanceUnit.instance_id)
+        .filter(tuple_(Instance.object_id, InstanceUnit.suffix).in_(list(wanted)))
+        .all()
     )
+    return {wanted[(int(oid), unit.suffix)]: unit for unit, oid in rows}
+
+
+def unit_numbers(db: Session, units: Iterable[InstanceUnit]) -> dict[int, str]:
+    """Nummern zu Einzelinstanzen — **eine** Abfrage, kein N+1.
+
+    Jede Einzelinstanz hat ihre Instanz (Fremdschlüssel), also fehlt hier nie eine.
+    """
+    ids = {u.instance_id for u in units}
+    if not ids:
+        return {}
+    heads = dict(db.query(Instance.id, Instance.object_id).filter(Instance.id.in_(ids)).all())
+    return {u.id: f"{obj_nr(heads[u.instance_id])}{SEP}{u.suffix}" for u in units}
+
+
+def number_of(db: Session, unit: InstanceUnit) -> str:
+    """Die Nummer **eines** Stücks – für Meldungen, die es nennen."""
+    return unit_numbers(db, [unit])[unit.id]
 
 
 # ---------------------------------------------------------------------------

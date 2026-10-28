@@ -461,7 +461,6 @@ class RelatedOrder(BaseModel):
     object_id: int
     name: str
     status: str
-    end_status: str
     steps: list[ProcessStepResponse] = Field(default_factory=list)
     #: **Sein** Graph – dieselbe Form wie in der Mitte, mit derselben Komponente
     #: gezeichnet. Darin stehen auch die Kanten zu *diesem* Auftrag: ein übergeordneter
@@ -486,7 +485,6 @@ class OrderResponse(BaseModel):
     #: **Abgeleitet** aus dem Zustand der Einzelinstanzen (``process.order_status``) –
     #: es gibt keine Spalte dafür. Drei Werte: Im Prozess · Abgeschlossen · Abgebrochen.
     status: str
-    end_status: str
     created_at: datetime
     updated_at: datetime
     is_active: bool

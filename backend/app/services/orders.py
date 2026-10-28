@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..models import Order
 from ..models.order_line import LAGER
 from .process import (
-    assert_releasable, release, resolve_lines, steps_for, unpickable,
+    _checked, assert_releasable, release, resolve_lines, steps_for, unpickable,
 )
 
 
@@ -35,40 +35,44 @@ from .process import (
 def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
     """Was fehlt diesem Entwurf noch zur Freigabe? Leere Liste heisst «freigebbar».
 
-    Sie beantwortet die Frage mit **derselben** Prüfung, die die Freigabe abbricht: die
-    Zeilen laufen durch ``resolve_lines`` und ``steps_for``, und was dabei als Fehler
-    herauskäme, ist hier die fehlende Angabe. Eine zweite, mildere Prüfung daneben wäre
-    ein zweiter Massstab – und der wäre irgendwann grosszügiger als die Freigabe selbst,
-    also stünde ein Knopf bereit, der beim Klick scheitert.
+    Sie beantwortet die Frage mit **derselben** Prüfung, die die Freigabe abbricht
+    (``process._checked``): was dort als Fehler herauskäme, ist hier die fehlende Angabe,
+    im selben Satz. Vorher sammelt sie, was sich **alles** nennen lässt – die fehlenden
+    Grundbedingungen, jedes Stück, das kein Auftrag greifen darf, jede Zeile mit der
+    falschen Zahl Stücke –, damit der Entwurf nicht Fehler für Fehler aufdeckt.
 
-    Angelegt wird dabei nichts und keine Objektnummer gezogen: alle diese Schritte
-    liegen im Freigabe-Ablauf ausdrücklich **vor** der ersten Nummer (§6.3).
+    Angelegt wird dabei nichts, gesperrt nichts und keine Objektnummer gezogen: die
+    Prüfung liegt im Freigabe-Ablauf ausdrücklich **vor** der ersten Nummer (§6.3).
     """
+    raw_lines = list(draft.get("lines") or [])
+    raw_steps = list(draft.get("steps") or [])
     try:
-        lines = resolve_lines(db, list(draft.get("lines") or []))
-        steps = steps_for(db, lines, list(draft.get("steps") or []))
+        lines = resolve_lines(db, raw_lines)
+        steps = steps_for(db, lines, raw_steps)
     except HTTPException as e:
-        # Der Grund, warum die Freigabe scheitern würde, IST die fehlende Angabe.
-        return [str(e.detail)]
+        return [_said(e)]
 
-    total = sum(ln.quantity for ln in lines)
-    missing = assert_releasable(total, steps)
-
-    # **Ein Stück in einem Endzustand ist keine gültige Auswahl** – und das muss der
-    # Entwurf sagen, nicht erst der Klick. Dieselbe Regel wie in der Freigabe, aus
-    # derselben Funktion (``process.pick_problem``); eine zweite, mildere Prüfung hier
-    # wäre ein Knopf, der bereitsteht und dann scheitert.
+    missing = assert_releasable(sum(ln.quantity for ln in lines), steps)
     missing.extend(unpickable(db, lines))
-
-    # Eine ``Lager``-Zeile muss so viele Stücke benennen, wie sie verlangt – sonst
-    # stimmt die Mengen-Invariante nicht, und das merkt man besser jetzt als beim Klick.
     for ln in lines:
         if ln.origin == LAGER and len(ln.picks) != ln.quantity:
             missing.append(
                 f"{ln.label}: {ln.quantity} Einzelinstanzen, gewählt sind "
                 f"{len(ln.picks)}"
             )
-    return missing
+    if missing:
+        return missing
+    try:
+        _checked(db, raw_lines, raw_steps)
+    except HTTPException as e:
+        return [_said(e)]
+    return []
+
+
+def _said(e: HTTPException) -> str:
+    """Der Satz eines Fehlers – auch wenn er mit Code und Einzelheiten kommt."""
+    detail = e.detail
+    return str(detail.get("message") or detail) if isinstance(detail, dict) else str(detail)
 
 
 def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None) -> Order:

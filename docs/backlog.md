@@ -123,11 +123,18 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Ausstehender Drop: `orders.end_status`
+
+Der Endzustand ist keine Angabe des Auftrags mehr (`statuses.DEFAULT_END_STATUS`, gelesen in
+`process._finish`); das Mapping ist weg, die Spalte (mit Vorgabe `'freigegeben'`) steht für
+einen Deploy noch da und ist in `PENDING_DROP` vorgemerkt. **Folge-Deploy:** eine Migration
+`ALTER TABLE orders DROP COLUMN end_status` und der Eintrag in `PENDING_DROP` geht mit.
+
 ## Erledigt: die letzten Drops (Migration `161`)
 
 `company_settings.google_maps_api_key` (der Schlüssel kommt aus dem Deploy) und
 `user_profiles.newsletter_opt_in` (die Übernahme-SQL steht wörtlich in `153`, Netz und
-`legacy_repair_sql` sind weg). `PENDING_DROP` ist leer.
+`legacy_repair_sql` sind weg).
 
 ## Erledigt: die ausstehenden Drops (Migration `160`)
 

@@ -133,7 +133,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    für **einen** Deploy noch da – ihr Drop würde die noch laufende Vorgänger-Revision
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
-PENDING_DROP: set[str] = set()
+PENDING_DROP: set[str] = {"orders.end_status"}
 
 
 def leftovers(insp) -> list[str]:
